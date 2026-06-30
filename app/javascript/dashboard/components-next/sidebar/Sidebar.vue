@@ -590,6 +590,19 @@ const menuItems = computed(() => {
       ],
     },
     {
+      name: 'CRM',
+      label: t('SIDEBAR.CRM'),
+      icon: 'i-lucide-briefcase',
+      children: [
+        {
+          name: 'CRM Customers',
+          label: t('SIDEBAR.CRM_CUSTOMERS'),
+          to: accountScopedRoute('crm_customers_index', {}, { page: 1 }),
+          activeOn: ['crm_customers_index'],
+        },
+      ],
+    },
+    {
       name: 'Reports',
       label: t('SIDEBAR.REPORTS'),
       icon: 'i-lucide-chart-spline',

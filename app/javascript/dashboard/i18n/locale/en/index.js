@@ -10,6 +10,7 @@ import cannedMgmt from './cannedMgmt.json';
 import chatlist from './chatlist.json';
 import companies from './companies.json';
 import components from './components.json';
+import crm from './crm.json';
 import contact from './contact.json';
 import contactFilters from './contactFilters.json';
 import conversation from './conversation.json';
@@ -55,6 +56,7 @@ export default {
   ...cannedMgmt,
   ...chatlist,
   ...companies,
+  ...crm,
   ...components,
   ...contact,
   ...contactFilters,

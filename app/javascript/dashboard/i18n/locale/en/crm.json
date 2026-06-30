@@ -1,0 +1,37 @@
+{
+  "CRM": {
+    "CUSTOMERS": {
+      "HEADER": "Customers",
+      "NEW": "New customer",
+      "LOADING": "Loading customers…",
+      "EMPTY": "No customers yet. Create your first one.",
+      "FILTERS": {
+        "ALL": "All",
+        "MINE": "My customers",
+        "PUBLIC_POOL": "Public pool",
+        "UNASSIGNED": "Unassigned"
+      },
+      "TABLE": {
+        "NAME": "Name",
+        "CODE": "Code",
+        "COUNTRY": "Country",
+        "STATUS": "Status",
+        "LEVEL": "Level",
+        "LAST_FOLLOW_UP": "Last follow-up"
+      },
+      "CREATE": {
+        "TITLE": "New customer",
+        "SUCCESS": "Customer created.",
+        "ERROR": "Could not create the customer.",
+        "FIELDS": {
+          "NAME": "Customer name",
+          "CODE": "Customer code",
+          "COUNTRY": "Country",
+          "STATUS": "Status",
+          "LEVEL": "Level",
+          "REMARK": "Remark"
+        }
+      }
+    }
+  }
+}
