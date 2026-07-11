@@ -155,6 +155,14 @@ const isActive = computed(() => {
 // nested correctly, so we need to check the active state ourselves
 // TODO: Audit the routes and fix the nesting and remove this
 const activeChild = computed(() => {
+  // Prefer an exact path+query match first, so sibling items that resolve to the
+  // same path but differ by query (e.g. company vs personal CRM dashboard) each
+  // highlight correctly instead of the first path match always winning.
+  const exactMatch = navigableChildren.value.find(
+    child => child.to && route.fullPath === router.resolve(child.to).fullPath
+  );
+  if (exactMatch) return exactMatch;
+
   const pathSame = navigableChildren.value.find(
     child => child.to && route.path === resolvePath(child.to)
   );
