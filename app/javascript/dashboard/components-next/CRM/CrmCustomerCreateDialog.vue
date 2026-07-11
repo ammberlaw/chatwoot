@@ -58,19 +58,30 @@ const sourceOptions = [
   { value: 'OTHER', label: '其他' },
 ];
 
-const COUNTRIES = [
-  'USA', 'GERMANY', 'UK', 'FRANCE', 'ITALY', 'SPAIN', 'CANADA', 'AUSTRALIA',
-  'JAPAN', 'SOUTH_KOREA', 'INDIA', 'RUSSIA', 'BRAZIL', 'MEXICO', 'NETHERLANDS',
-  'BELGIUM', 'SWITZERLAND', 'SWEDEN', 'NORWAY', 'DENMARK', 'FINLAND', 'AUSTRIA',
-  'POLAND', 'CZECH', 'TURKEY', 'UAE', 'SAUDI_ARABIA', 'SINGAPORE', 'MALAYSIA',
-  'THAILAND', 'VIETNAM', 'INDONESIA', 'PHILIPPINES', 'SOUTH_AFRICA', 'ARGENTINA',
-  'CHILE', 'COLOMBIA', 'PERU', 'ISRAEL', 'EGYPT', 'NIGERIA', 'KENYA', 'GREECE',
-  'PORTUGAL', 'IRELAND', 'NEW_ZEALAND', 'TAIWAN', 'HONG_KONG', 'PAKISTAN',
-  'BANGLADESH', 'UKRAINE', 'ROMANIA', 'HUNGARY', 'BULGARIA', 'CROATIA',
-  'MOROCCO', 'IRAN', 'IRAQ', 'QATAR', 'KUWAIT', 'OMAN', 'MYANMAR', 'CAMBODIA',
-  'LAOS', 'KAZAKHSTAN', 'UZBEKISTAN', 'OTHER',
-];
-const countryOptions = COUNTRIES.map(v => ({ value: v, label: v }));
+// 国旗 + 中文名
+const COUNTRY_LABELS = {
+  USA: '🇺🇸 美国', GERMANY: '🇩🇪 德国', UK: '🇬🇧 英国', FRANCE: '🇫🇷 法国',
+  ITALY: '🇮🇹 意大利', SPAIN: '🇪🇸 西班牙', CANADA: '🇨🇦 加拿大', AUSTRALIA: '🇦🇺 澳大利亚',
+  JAPAN: '🇯🇵 日本', SOUTH_KOREA: '🇰🇷 韩国', INDIA: '🇮🇳 印度', RUSSIA: '🇷🇺 俄罗斯',
+  BRAZIL: '🇧🇷 巴西', MEXICO: '🇲🇽 墨西哥', NETHERLANDS: '🇳🇱 荷兰', BELGIUM: '🇧🇪 比利时',
+  SWITZERLAND: '🇨🇭 瑞士', SWEDEN: '🇸🇪 瑞典', NORWAY: '🇳🇴 挪威', DENMARK: '🇩🇰 丹麦',
+  FINLAND: '🇫🇮 芬兰', AUSTRIA: '🇦🇹 奥地利', POLAND: '🇵🇱 波兰', CZECH: '🇨🇿 捷克',
+  TURKEY: '🇹🇷 土耳其', UAE: '🇦🇪 阿联酋', SAUDI_ARABIA: '🇸🇦 沙特阿拉伯', SINGAPORE: '🇸🇬 新加坡',
+  MALAYSIA: '🇲🇾 马来西亚', THAILAND: '🇹🇭 泰国', VIETNAM: '🇻🇳 越南', INDONESIA: '🇮🇩 印度尼西亚',
+  PHILIPPINES: '🇵🇭 菲律宾', SOUTH_AFRICA: '🇿🇦 南非', ARGENTINA: '🇦🇷 阿根廷', CHILE: '🇨🇱 智利',
+  COLOMBIA: '🇨🇴 哥伦比亚', PERU: '🇵🇪 秘鲁', ISRAEL: '🇮🇱 以色列', EGYPT: '🇪🇬 埃及',
+  NIGERIA: '🇳🇬 尼日利亚', KENYA: '🇰🇪 肯尼亚', GREECE: '🇬🇷 希腊', PORTUGAL: '🇵🇹 葡萄牙',
+  IRELAND: '🇮🇪 爱尔兰', NEW_ZEALAND: '🇳🇿 新西兰', TAIWAN: '🇹🇼 台湾', HONG_KONG: '🇭🇰 香港',
+  PAKISTAN: '🇵🇰 巴基斯坦', BANGLADESH: '🇧🇩 孟加拉国', UKRAINE: '🇺🇦 乌克兰', ROMANIA: '🇷🇴 罗马尼亚',
+  HUNGARY: '🇭🇺 匈牙利', BULGARIA: '🇧🇬 保加利亚', CROATIA: '🇭🇷 克罗地亚', MOROCCO: '🇲🇦 摩洛哥',
+  IRAN: '🇮🇷 伊朗', IRAQ: '🇮🇶 伊拉克', QATAR: '🇶🇦 卡塔尔', KUWAIT: '🇰🇼 科威特',
+  OMAN: '🇴🇲 阿曼', MYANMAR: '🇲🇲 缅甸', CAMBODIA: '🇰🇭 柬埔寨', LAOS: '🇱🇦 老挝',
+  KAZAKHSTAN: '🇰🇿 哈萨克斯坦', UZBEKISTAN: '🇺🇿 乌兹别克斯坦', OTHER: '🌍 其他',
+};
+const countryOptions = Object.entries(COUNTRY_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 const isEditing = computed(() => editingId.value !== null);
 const isFormInvalid = computed(() => !form.name.trim());

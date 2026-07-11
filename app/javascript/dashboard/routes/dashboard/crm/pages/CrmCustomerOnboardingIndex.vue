@@ -7,16 +7,21 @@ import { useMapGetter } from 'dashboard/composables/store';
 const { accountId } = useAccount();
 const currentUserId = useMapGetter('getCurrentUserID');
 
+// 国家：国旗 + 中文名（覆盖常用外贸目的国）
 const COUNTRY = [
   ['USA', '🇺🇸 美国'], ['GERMANY', '🇩🇪 德国'], ['UK', '🇬🇧 英国'], ['FRANCE', '🇫🇷 法国'],
   ['ITALY', '🇮🇹 意大利'], ['SPAIN', '🇪🇸 西班牙'], ['CANADA', '🇨🇦 加拿大'], ['AUSTRALIA', '🇦🇺 澳大利亚'],
   ['JAPAN', '🇯🇵 日本'], ['SOUTH_KOREA', '🇰🇷 韩国'], ['INDIA', '🇮🇳 印度'], ['RUSSIA', '🇷🇺 俄罗斯'],
-  ['BRAZIL', '🇧🇷 巴西'], ['MEXICO', '🇲🇽 墨西哥'], ['NETHERLANDS', '🇳🇱 荷兰'], ['UAE', '🇦🇪 阿联酋'],
-  ['SAUDI_ARABIA', '🇸🇦 沙特阿拉伯'], ['SINGAPORE', '🇸🇬 新加坡'], ['MALAYSIA', '🇲🇾 马来西亚'],
-  ['THAILAND', '🇹🇭 泰国'], ['VIETNAM', '🇻🇳 越南'], ['INDONESIA', '🇮🇩 印度尼西亚'],
-  ['TURKEY', '🇹🇷 土耳其'], ['SOUTH_AFRICA', '🇿🇦 南非'], ['EGYPT', '🇪🇬 埃及'], ['NIGERIA', '🇳🇬 尼日利亚'],
-  ['POLAND', '🇵🇱 波兰'], ['NETHERLANDS', '🇳🇱 荷兰'], ['SWEDEN', '🇸🇪 瑞典'], ['TAIWAN', '🇹🇼 台湾'],
-  ['HONG_KONG', '🇭🇰 香港'], ['PAKISTAN', '🇵🇰 巴基斯坦'], ['BANGLADESH', '🇧🇩 孟加拉国'], ['OTHER', '其他'],
+  ['BRAZIL', '🇧🇷 巴西'], ['MEXICO', '🇲🇽 墨西哥'], ['NETHERLANDS', '🇳🇱 荷兰'], ['BELGIUM', '🇧🇪 比利时'],
+  ['SWITZERLAND', '🇨🇭 瑞士'], ['SWEDEN', '🇸🇪 瑞典'], ['NORWAY', '🇳🇴 挪威'], ['DENMARK', '🇩🇰 丹麦'],
+  ['POLAND', '🇵🇱 波兰'], ['AUSTRIA', '🇦🇹 奥地利'], ['GREECE', '🇬🇷 希腊'], ['PORTUGAL', '🇵🇹 葡萄牙'],
+  ['UAE', '🇦🇪 阿联酋'], ['SAUDI_ARABIA', '🇸🇦 沙特阿拉伯'], ['QATAR', '🇶🇦 卡塔尔'], ['KUWAIT', '🇰🇼 科威特'],
+  ['SINGAPORE', '🇸🇬 新加坡'], ['MALAYSIA', '🇲🇾 马来西亚'], ['THAILAND', '🇹🇭 泰国'], ['VIETNAM', '🇻🇳 越南'],
+  ['INDONESIA', '🇮🇩 印度尼西亚'], ['PHILIPPINES', '🇵🇭 菲律宾'], ['TURKEY', '🇹🇷 土耳其'],
+  ['SOUTH_AFRICA', '🇿🇦 南非'], ['EGYPT', '🇪🇬 埃及'], ['NIGERIA', '🇳🇬 尼日利亚'], ['KENYA', '🇰🇪 肯尼亚'],
+  ['ISRAEL', '🇮🇱 以色列'], ['NEW_ZEALAND', '🇳🇿 新西兰'], ['TAIWAN', '🇹🇼 台湾'], ['HONG_KONG', '🇭🇰 香港'],
+  ['PAKISTAN', '🇵🇰 巴基斯坦'], ['BANGLADESH', '🇧🇩 孟加拉国'], ['ARGENTINA', '🇦🇷 阿根廷'],
+  ['CHILE', '🇨🇱 智利'], ['COLOMBIA', '🇨🇴 哥伦比亚'], ['OTHER', '🌍 其他'],
 ];
 const CUSTOMER_GROUP = [
   ['KEY_ACCOUNT_WON', '成交重点客户'], ['WON', '成交客户'], ['SAMPLE_WON', '成交样品客户'],
@@ -27,24 +32,36 @@ const PRODUCT_GROUP = [
 ];
 const SOURCE = [
   ['ALIBABA', '阿里巴巴国际站'], ['WEBSITE', '官网'], ['EXHIBITION', '展会'],
-  ['REFERRAL', '转介绍'], ['EMAIL', '邮件开发'], ['OTHER', '其他'],
+  ['REFERRAL', '转介绍'], ['EMAIL', '邮件开发'], ['SOCIAL_MEDIA', '社媒开发'], ['OTHER', '其他'],
+];
+const LEVEL = [['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']];
+const CONTACT_PREFERENCE = [
+  ['EMAIL', '邮件'], ['PHONE', '电话'], ['WHATSAPP', 'WhatsApp'], ['WECHAT', '微信'],
 ];
 
 const form = reactive({
   name: '',
+  website: '',
   tradeCountry: '',
-  sourceChannel: '',
   customerGroup: '',
   productGroup: '',
+  sourceChannel: '',
+  customerLevel: '',
+  address: '',
+  linkedin: '',
   primaryContactName: '',
+  contactJobTitle: '',
   email: '',
-  website: '',
+  contactPhone: '',
+  wechat: '',
+  whatsApp: '',
+  contactPreference: '',
 });
 
 const emailHit = ref(null);
 const nameHits = ref([]);
 const submitting = ref(false);
-const result = ref(null); // { ok: true, code } | { ok: false, msg }
+const result = ref(null);
 
 const api = () => `/api/v1/accounts/${accountId.value}/crm`;
 
@@ -98,27 +115,35 @@ const resetForm = () => {
   nameHits.value = [];
 };
 
+const trimmed = v => (v && v.trim ? v.trim() : v) || null;
+
 const submit = async () => {
   if (!canSubmit.value) return;
   submitting.value = true;
   result.value = null;
   const payload = {
     name: form.name.trim() || form.primaryContactName.trim(),
+    website: trimmed(form.website),
     trade_country: form.tradeCountry,
-    source_channel: form.sourceChannel || null,
     customer_group: form.customerGroup,
     product_group: form.productGroup,
+    source_channel: form.sourceChannel || null,
+    customer_level: form.customerLevel || null,
+    address: trimmed(form.address),
+    linkedin: trimmed(form.linkedin),
     primary_contact_name: form.primaryContactName.trim(),
+    contact_job_title: trimmed(form.contactJobTitle),
     contact_email: form.email.trim(),
-    website: form.website.trim() || null,
+    contact_phone: trimmed(form.contactPhone),
+    wechat: trimmed(form.wechat),
+    whats_app: trimmed(form.whatsApp),
+    contact_preference: form.contactPreference || null,
     account_owner_id: currentUserId.value,
     is_in_public_pool: false,
     customer_status: 'PROSPECT',
   };
   try {
-    const { data } = await axios.post(`${api()}/customers`, {
-      customer: payload,
-    });
+    const { data } = await axios.post(`${api()}/customers`, { customer: payload });
     result.value = { ok: true, code: data.customerCode || data.customer_code || '' };
     resetForm();
   } catch (e) {
@@ -138,13 +163,12 @@ const submit = async () => {
       <h1 class="text-xl font-medium text-n-slate-12">客户建档</h1>
     </div>
 
-    <div class="flex flex-col w-full max-w-3xl gap-3 px-6 py-5">
+    <div class="flex flex-col w-full max-w-3xl gap-4 px-6 py-5">
       <p class="text-xs text-n-slate-11">
         新客户建档。<strong class="text-n-slate-12">建档后客户自动归你名下（私海）</strong
         >，客户编号自动生成。带 <span class="text-n-ruby-11">*</span> 为必填；同一邮箱只能被一个客户建档。
       </p>
 
-      <!-- 邮箱撞单：阻止 -->
       <div
         v-if="emailHit"
         class="flex flex-col gap-1 p-3 text-sm border rounded-lg border-n-ruby-8 text-n-ruby-11"
@@ -154,28 +178,25 @@ const submit = async () => {
           <template v-if="emailHit.customer_code">（{{ emailHit.customer_code }}）</template>
           · {{ emailHit.owner }}
         </span>
-        <span class="text-xs text-n-slate-11">
-          无法用相同邮箱重复建档，请换邮箱或联系负责人。
-        </span>
+        <span class="text-xs text-n-slate-11">无法用相同邮箱重复建档，请换邮箱或联系负责人。</span>
       </div>
 
-      <!-- 公司名相似：提醒 -->
       <div
         v-if="!emailHit && nameHits.length"
         class="flex flex-col gap-1 p-3 text-sm border rounded-lg border-n-amber-8 text-n-amber-11"
       >
         <span>⚠️ 发现公司名相似的已有客户（可继续建档，请确认非同一家）：</span>
-        <span
-          v-for="m in nameHits"
-          :key="m.id"
-          class="text-xs text-n-slate-11"
-        >
+        <span v-for="m in nameHits" :key="m.id" class="text-xs text-n-slate-11">
           · {{ m.name }}
           <template v-if="m.customer_code">（{{ m.customer_code }}）</template>
           · {{ m.owner }}
         </span>
       </div>
 
+      <!-- 基本信息 -->
+      <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+        基本信息
+      </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="flex flex-col gap-1 sm:col-span-2">
           <span class="text-xs text-n-slate-11">公司名</span>
@@ -185,8 +206,23 @@ const submit = async () => {
             placeholder="例如：ABC Trading Co., Ltd.（选填）"
           />
         </label>
+        <label class="flex flex-col gap-1 sm:col-span-2">
+          <span class="text-xs text-n-slate-11">公司网址 / 域名</span>
+          <input
+            v-model="form.website"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="https://example.com（选填，有助查重）"
+          />
+        </label>
+      </div>
+
+      <!-- 业务信息 -->
+      <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+        业务信息
+      </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">国家 <span class="text-n-ruby-11">*</span></span>
+          <span class="text-xs text-n-slate-11">国家地区 <span class="text-n-ruby-11">*</span></span>
           <select
             v-model="form.tradeCountry"
             class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
@@ -226,11 +262,36 @@ const submit = async () => {
           </select>
         </label>
         <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">客户等级</span>
+          <select
+            v-model="form.customerLevel"
+            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+          >
+            <option value="">选择等级（选填）</option>
+            <option v-for="[val, lab] in LEVEL" :key="val" :value="val">{{ lab }}</option>
+          </select>
+        </label>
+      </div>
+
+      <!-- 联系信息 -->
+      <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+        联系信息
+      </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">主要联系人 <span class="text-n-ruby-11">*</span></span>
           <input
             v-model="form.primaryContactName"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
             placeholder="联系人姓名"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">职位</span>
+          <input
+            v-model="form.contactJobTitle"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="如 采购经理"
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -242,12 +303,56 @@ const submit = async () => {
             placeholder="buyer@example.com"
           />
         </label>
-        <label class="flex flex-col gap-1 sm:col-span-2">
-          <span class="text-xs text-n-slate-11">公司网址</span>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">联系电话</span>
           <input
-            v-model="form.website"
+            v-model="form.contactPhone"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="https://example.com（选填，有助查重）"
+            placeholder="+1 555 000 0000"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">WhatsApp</span>
+          <input
+            v-model="form.whatsApp"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="WhatsApp 号"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">微信</span>
+          <input
+            v-model="form.wechat"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="微信号"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">Linkedin</span>
+          <input
+            v-model="form.linkedin"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="Linkedin 链接"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">联系偏好</span>
+          <select
+            v-model="form.contactPreference"
+            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+          >
+            <option value="">选择偏好（选填）</option>
+            <option v-for="[val, lab] in CONTACT_PREFERENCE" :key="val" :value="val">
+              {{ lab }}
+            </option>
+          </select>
+        </label>
+        <label class="flex flex-col gap-1 sm:col-span-2">
+          <span class="text-xs text-n-slate-11">地址</span>
+          <input
+            v-model="form.address"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="客户地址（选填）"
           />
         </label>
       </div>

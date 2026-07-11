@@ -86,7 +86,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
       :customer_status, :customer_group, :product_group, :risk_level,
       :last_follow_up_at, :next_follow_up_at, :is_in_public_pool, :public_pool_at,
       :primary_contact_name, :contact_job_title, :contact_email, :contact_phone,
-      :whats_app, :wechat, :contact_preference, :customer_remark
+      :whats_app, :wechat, :contact_preference, :customer_remark,
+      :address, :linkedin
     )
   end
 
