@@ -9,6 +9,7 @@ import CrmSalesTargetsIndex from './pages/CrmSalesTargetsIndex.vue';
 import CrmMailAccountsIndex from './pages/CrmMailAccountsIndex.vue';
 import CrmEmailTemplatesIndex from './pages/CrmEmailTemplatesIndex.vue';
 import CrmDashboardIndex from './pages/CrmDashboardIndex.vue';
+import CrmTeamDashboardIndex from './pages/CrmTeamDashboardIndex.vue';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 
 const commonMeta = {
@@ -25,6 +26,7 @@ const crmPage = (path, name, component) => ({
 
 export const routes = [
   crmPage('dashboard', 'crm_dashboard_index', CrmDashboardIndex),
+  crmPage('team-dashboard', 'crm_team_dashboard_index', CrmTeamDashboardIndex),
   crmPage('customers', 'crm_customers_index', CrmCustomersIndex),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),

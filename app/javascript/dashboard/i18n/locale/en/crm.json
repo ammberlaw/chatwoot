@@ -221,6 +221,11 @@
       "HEADER_MINE": "个人数据看板",
       "LOADING": "Loading…"
     },
+    "TEAM_DASHBOARD": {
+      "HEADER": "团队看板",
+      "LOADING": "Loading…",
+      "EMPTY": "还没有团队。管理员可在「系统设置 → CRM 团队」创建团队并分配组员。"
+    },
     "FUNNEL": {
       "HEADER": "商机漏斗（看板）",
       "HINT": "拖动卡片即可切换销售阶段",

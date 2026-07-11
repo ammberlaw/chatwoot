@@ -601,7 +601,7 @@ const menuItems = computed(() => {
       name: 'CRM Dashboards',
       label: t('SIDEBAR.CRM_G_DASHBOARDS'),
       icon: 'i-lucide-layout-dashboard',
-      activeOn: ['crm_dashboard_index'],
+      activeOn: ['crm_dashboard_index', 'crm_team_dashboard_index'],
       children: [
         {
           name: 'CRM Company Dashboard',
@@ -613,6 +613,12 @@ const menuItems = computed(() => {
           name: 'CRM Personal Dashboard',
           label: t('SIDEBAR.CRM_DASH_MINE'),
           to: accountScopedRoute('crm_dashboard_index', {}, { scope: 'mine' }),
+        },
+        {
+          name: 'CRM Team Dashboard',
+          label: t('SIDEBAR.CRM_DASH_TEAM'),
+          to: accountScopedRoute('crm_team_dashboard_index'),
+          activeOn: ['crm_team_dashboard_index'],
         },
         {
           name: 'CRM My Targets',
