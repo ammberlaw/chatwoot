@@ -4,7 +4,6 @@ import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
-import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -23,8 +22,12 @@ const { accountId } = useAccount();
 const dialogRef = ref(null);
 const editingId = ref(null);
 const orderNo = ref('');
-const customersStore = useCrmCustomersStore();
 const opportunitiesStore = useCrmOpportunitiesStore();
+
+// 关联私海客户：仅当前业务员名下（filter=mine）的客户，用于把订单归到该客户名下统计成交额。
+const privateCustomers = ref([]); // [{ id, name }]
+const loadingCustomers = ref(false);
+const editingCustomer = ref(null); // 编辑态原关联客户（可能已不在私海，需保留可选）
 
 // 附件：新建时选中的文件暂存内存（pendingFiles），随创建请求一起 multipart 提交；
 // 编辑时对已存在订单即时 attach/detach。
@@ -63,9 +66,23 @@ const currencyOptions = ['CNY', 'USD', 'EUR'].map(v => ({
   label: v,
 }));
 
-const customerOptions = computed(() =>
-  customersStore.getCustomers.map(c => ({ value: String(c.id), label: c.name }))
-);
+const customerOptions = computed(() => {
+  const opts = privateCustomers.value.map(c => ({
+    value: String(c.id),
+    label: c.name,
+  }));
+  // 编辑态：若原客户不在当前私海列表（如已转公海/换负责人），仍保留可选，避免保存时被清空。
+  if (
+    editingCustomer.value &&
+    !opts.some(o => o.value === String(editingCustomer.value.id))
+  ) {
+    opts.unshift({
+      value: String(editingCustomer.value.id),
+      label: `${editingCustomer.value.name}（非私海）`,
+    });
+  }
+  return opts;
+});
 
 // 关联商机：选了客户则只显示该客户的商机，否则显示全部
 const opportunityOptions = computed(() => {
@@ -91,6 +108,7 @@ const isFormInvalid = computed(
 const resetForm = () => {
   editingId.value = null;
   orderNo.value = '';
+  editingCustomer.value = null;
   pendingFiles.value = [];
   attachments.value = [];
   form.name = '';
@@ -106,12 +124,34 @@ const resetForm = () => {
   form.remark = '';
 };
 
+// 拉取当前业务员名下私海客户（一次拿全）。
+const loadPrivateCustomers = async () => {
+  loadingCustomers.value = true;
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/crm/customers`,
+      { params: { filter: 'mine', per_page: 200 } }
+    );
+    privateCustomers.value = (data.payload || []).map(c => ({
+      id: c.id,
+      name: c.name,
+    }));
+  } catch {
+    privateCustomers.value = [];
+  } finally {
+    loadingCustomers.value = false;
+  }
+};
+
 const open = record => {
   resetForm();
   if (record) {
     editingId.value = record.id;
     orderNo.value = record.orderNo || '';
     attachments.value = record.files || [];
+    editingCustomer.value = record.crmCustomerId
+      ? { id: record.crmCustomerId, name: record.customerName || '客户' }
+      : null;
     form.name = record.name || '';
     form.crmCustomerId = record.crmCustomerId ? String(record.crmCustomerId) : '';
     form.crmOpportunityId = record.crmOpportunityId ? String(record.crmOpportunityId) : '';
@@ -124,7 +164,7 @@ const open = record => {
     form.exchangeRate = record.exchangeRate != null ? String(record.exchangeRate) : '';
     form.remark = record.remark || '';
   }
-  if (!customersStore.getCustomers.length) customersStore.get({ page: 1 });
+  loadPrivateCustomers();
   if (!opportunitiesStore.getRecords.length) {
     opportunitiesStore.get({ page: 1, perPage: 100 });
   }
@@ -258,6 +298,7 @@ defineExpose({ dialogRef, onSuccess, open });
           v-model="form.crmCustomerId"
           :label="t('CRM.SALES_ORDERS.FORM.CUSTOMER')"
           :options="customerOptions"
+          :placeholder="loadingCustomers ? '加载中…' : t('CRM.SALES_ORDERS.FORM.CUSTOMER_PLACEHOLDER')"
         />
         <Select
           v-model="form.crmOpportunityId"

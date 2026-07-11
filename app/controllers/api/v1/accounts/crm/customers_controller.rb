@@ -10,7 +10,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     @customers = @customers_scope
                  .order(updated_at: :desc)
                  .page(permitted_params[:page] || 1)
-                 .per(RESULTS_PER_PAGE)
+                 .per(results_per_page)
   end
 
   def show; end
@@ -124,7 +124,13 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     '未分配'
   end
 
+  # 默认每页 15；选择器等场景可传 per_page 一次拿全（上限 200）。
+  def results_per_page
+    requested = permitted_params[:per_page].to_i
+    requested.positive? ? [requested, 200].min : RESULTS_PER_PAGE
+  end
+
   def permitted_params
-    params.permit(:page, :filter, :status, :account_owner_id)
+    params.permit(:page, :per_page, :filter, :status, :account_owner_id)
   end
 end
