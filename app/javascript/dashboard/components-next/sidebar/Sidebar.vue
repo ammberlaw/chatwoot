@@ -75,6 +75,13 @@ const hasConversationUnreadCounts = computed(() => {
   );
 });
 
+const hasCaptainEnabled = computed(() => {
+  return isFeatureEnabledonAccount.value(
+    accountId.value,
+    FEATURE_FLAGS.CAPTAIN
+  );
+});
+
 const fetchConversationUnreadCounts = ([currentAccountId, isEnabled]) => {
   if (!currentAccountId) return;
 
@@ -886,7 +893,8 @@ const menuItems = computed(() => {
         },
       ],
     },
-  ];
+    // CRM 定位下默认隐藏 Captain（AI 坐席）——开启 captain_integration flag 即恢复。
+  ].filter(item => item.name !== 'Captain' || hasCaptainEnabled.value);
 });
 </script>
 
