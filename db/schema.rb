@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_11_080000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_081500) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -839,6 +839,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_080000) do
     t.index ["account_id"], name: "index_crm_opportunities_on_account_id"
     t.index ["crm_customer_id"], name: "index_crm_opportunities_on_crm_customer_id"
     t.index ["owner_id"], name: "index_crm_opportunities_on_owner_id"
+  end
+
+  create_table "crm_products", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "sku", null: false
+    t.string "category"
+    t.string "specification"
+    t.string "unit"
+    t.bigint "cost_price_micros"
+    t.bigint "sale_price_micros"
+    t.string "pricing_currency", default: "USD"
+    t.boolean "is_active", default: true, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "sku"], name: "index_crm_products_on_account_id_and_sku", unique: true
+    t.index ["account_id"], name: "index_crm_products_on_account_id"
   end
 
   create_table "csat_survey_responses", force: :cascade do |t|
