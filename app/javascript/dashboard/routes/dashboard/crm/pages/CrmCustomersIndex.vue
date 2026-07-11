@@ -379,6 +379,7 @@ watch(
       ref="createDialogRef"
       :is-loading="isCreating"
       @update="updateCustomer"
+      @refresh="fetchCustomers"
     />
   </div>
 </template>

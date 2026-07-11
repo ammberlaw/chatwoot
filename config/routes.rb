@@ -60,6 +60,8 @@ Rails.application.routes.draw do
               member do
                 post :claim
                 post :release
+                post :attach
+                delete 'attach/:attachment_id', action: :detach
               end
             end
             resources :contacts, only: [:index, :update]

@@ -15,6 +15,14 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  def attach?
+    true
+  end
+
+  def detach?
+    true
+  end
+
   def show?
     true
   end

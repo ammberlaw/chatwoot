@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :attach, :detach]
 
   RESULTS_PER_PAGE = 15
 
@@ -42,6 +42,18 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
   # 转公海：清空负责人、进公海。
   def release
     @customer.move_to_public_pool!
+    render 'api/v1/accounts/crm/customers/show'
+  end
+
+  # 附件上传（追加，不覆盖已有）
+  def attach
+    @customer.files.attach(params[:files])
+    render 'api/v1/accounts/crm/customers/show'
+  end
+
+  # 删除单个附件
+  def detach
+    @customer.files.find(params[:attachment_id]).purge
     render 'api/v1/accounts/crm/customers/show'
   end
 

@@ -27,6 +27,11 @@
         "OWNER": "负责人",
         "ACTION": "操作"
       },
+      "ATTACH": {
+        "UPLOAD_SUCCESS": "附件已上传",
+        "UPLOAD_ERROR": "上传失败",
+        "DELETE_ERROR": "删除失败"
+      },
       "POOL": {
         "CLAIM": "认领",
         "RELEASE": "转公海",

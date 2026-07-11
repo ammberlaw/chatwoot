@@ -6,6 +6,7 @@
 # Table name: crm_customers
 #
 #  id                       :bigint           not null, primary key
+#  address                  :string
 #  completeness_grade       :string
 #  contact_email            :string
 #  contact_job_title        :string
@@ -25,6 +26,7 @@
 #  is_in_public_pool        :boolean          default(FALSE), not null
 #  last_deal_at             :datetime
 #  last_follow_up_at        :datetime
+#  linkedin                 :string
 #  name                     :string           not null
 #  next_follow_up_at        :datetime
 #  primary_contact_name     :string
@@ -80,6 +82,9 @@ class Crm::Customer < ApplicationRecord
 
   belongs_to :account
   belongs_to :account_owner, class_name: 'User', optional: true
+
+  has_many_attached :files
+
   # 一个客户多个联系人（Chatwoot Contact，扩展见 Crm::ContactExtensions）
   has_many :contacts, class_name: 'Contact', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
   has_many :opportunities, class_name: 'Crm::Opportunity', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
