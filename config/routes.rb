@@ -59,6 +59,7 @@ Rails.application.routes.draw do
             resources :contacts, only: [:index, :update]
             resources :opportunities
             resources :products
+            resources :sales_orders
           end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do

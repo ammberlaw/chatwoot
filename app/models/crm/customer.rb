@@ -5,36 +5,40 @@
 #
 # Table name: crm_customers
 #
-#  id                   :bigint           not null, primary key
-#  contact_email        :string
-#  contact_job_title    :string
-#  contact_phone        :string
-#  contact_preference   :string
-#  currency_preference  :string
-#  customer_code        :string
-#  customer_group       :string
-#  customer_level       :string
-#  customer_remark      :text
-#  customer_status      :string
-#  industry             :string
-#  is_in_public_pool    :boolean          default(FALSE), not null
-#  last_follow_up_at    :datetime
-#  name                 :string           not null
-#  next_follow_up_at    :datetime
-#  primary_contact_name :string
-#  product_group        :string
-#  public_pool_at       :datetime
-#  risk_level           :string
-#  source_channel       :string
-#  trade_city           :string
-#  trade_country        :string
-#  trade_region         :string
-#  wechat               :string
-#  whats_app            :string
-#  created_at           :datetime         not null
-#  updated_at           :datetime         not null
-#  account_id           :bigint           not null
-#  account_owner_id     :bigint
+#  id                       :bigint           not null, primary key
+#  contact_email            :string
+#  contact_job_title        :string
+#  contact_phone            :string
+#  contact_preference       :string
+#  currency_preference      :string
+#  customer_code            :string
+#  customer_group           :string
+#  customer_level           :string
+#  customer_remark          :text
+#  customer_status          :string
+#  deal_order_count         :integer          default(0), not null
+#  deal_total_amount_micros :bigint
+#  first_deal_at            :datetime
+#  industry                 :string
+#  is_in_public_pool        :boolean          default(FALSE), not null
+#  last_deal_at             :datetime
+#  last_follow_up_at        :datetime
+#  name                     :string           not null
+#  next_follow_up_at        :datetime
+#  primary_contact_name     :string
+#  product_group            :string
+#  public_pool_at           :datetime
+#  risk_level               :string
+#  source_channel           :string
+#  trade_city               :string
+#  trade_country            :string
+#  trade_region             :string
+#  wechat                   :string
+#  whats_app                :string
+#  created_at               :datetime         not null
+#  updated_at               :datetime         not null
+#  account_id               :bigint           not null
+#  account_owner_id         :bigint
 #
 # Indexes
 #
@@ -75,6 +79,7 @@ class Crm::Customer < ApplicationRecord
   # 一个客户多个联系人（Chatwoot Contact，扩展见 Crm::ContactExtensions）
   has_many :contacts, class_name: 'Contact', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
   has_many :opportunities, class_name: 'Crm::Opportunity', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
+  has_many :sales_orders, class_name: 'Crm::SalesOrder', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
 
   validates :account_id, presence: true
   validates :name, presence: true
@@ -99,5 +104,17 @@ class Crm::Customer < ApplicationRecord
   # 进公海：清空负责人并记录时间。供公海回收定时任务与手动操作复用。
   def move_to_public_pool!(at: Time.current)
     update!(is_in_public_pool: true, public_pool_at: at, account_owner_id: nil)
+  end
+
+  # 成交汇总回写（对应 Twenty customer-deal-rollup 触发器）：
+  # 累计成交额 / 成交订单数 / 首次·最近成交时间，口径=非 CANCELLED 订单。
+  def recompute_deal_rollup!
+    stats = sales_orders.dealt.pick(Arel.sql('SUM(order_amount_micros), COUNT(*), MIN(order_date), MAX(order_date)'))
+    update_columns(
+      deal_total_amount_micros: stats[0],
+      deal_order_count: stats[1] || 0,
+      first_deal_at: stats[2],
+      last_deal_at: stats[3]
+    )
   end
 end

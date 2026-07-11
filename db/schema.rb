@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_11_081500) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -809,6 +809,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_081500) do
     t.text "customer_remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "deal_total_amount_micros"
+    t.integer "deal_order_count", default: 0, null: false
+    t.datetime "first_deal_at"
+    t.datetime "last_deal_at"
     t.index ["account_id", "customer_code"], name: "index_crm_customers_on_account_id_and_customer_code", unique: true, where: "(customer_code IS NOT NULL)"
     t.index ["account_id", "customer_status"], name: "index_crm_customers_on_account_id_and_customer_status"
     t.index ["account_id", "is_in_public_pool"], name: "index_crm_customers_on_account_id_and_is_in_public_pool"
@@ -857,6 +861,36 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_081500) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "sku"], name: "index_crm_products_on_account_id_and_sku", unique: true
     t.index ["account_id"], name: "index_crm_products_on_account_id"
+  end
+
+  create_table "crm_sales_orders", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_customer_id"
+    t.bigint "contact_id"
+    t.bigint "crm_opportunity_id"
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.string "order_no", null: false
+    t.string "status", default: "PENDING_CONFIRMATION", null: false
+    t.datetime "order_date", null: false
+    t.datetime "delivery_date"
+    t.string "order_currency", default: "CNY"
+    t.decimal "exchange_rate", precision: 12, scale: 6
+    t.bigint "order_amount_micros"
+    t.bigint "cost_amount_micros"
+    t.bigint "profit_amount_micros"
+    t.decimal "profit_rate", precision: 6, scale: 2
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
+    t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
+    t.index ["account_id", "status"], name: "index_crm_sales_orders_on_account_id_and_status"
+    t.index ["account_id"], name: "index_crm_sales_orders_on_account_id"
+    t.index ["contact_id"], name: "index_crm_sales_orders_on_contact_id"
+    t.index ["crm_customer_id"], name: "index_crm_sales_orders_on_crm_customer_id"
+    t.index ["crm_opportunity_id"], name: "index_crm_sales_orders_on_crm_opportunity_id"
+    t.index ["owner_id"], name: "index_crm_sales_orders_on_owner_id"
   end
 
   create_table "csat_survey_responses", force: :cascade do |t|
@@ -1458,6 +1492,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_081500) do
   add_foreign_key "crm_customers", "accounts"
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_sales_orders", "contacts", on_delete: :nullify
+  add_foreign_key "crm_sales_orders", "crm_customers", on_delete: :nullify
+  add_foreign_key "crm_sales_orders", "crm_opportunities", on_delete: :nullify
+  add_foreign_key "crm_sales_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).

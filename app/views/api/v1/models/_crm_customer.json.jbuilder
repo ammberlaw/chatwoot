@@ -30,5 +30,10 @@ json.wechat resource.wechat
 json.contact_preference resource.contact_preference
 json.customer_remark resource.customer_remark
 
+json.deal_total_amount_micros resource.deal_total_amount_micros
+json.deal_order_count resource.deal_order_count
+json.first_deal_at resource.first_deal_at
+json.last_deal_at resource.last_deal_at
+
 json.created_at resource.created_at.to_i
 json.updated_at resource.updated_at.to_i
