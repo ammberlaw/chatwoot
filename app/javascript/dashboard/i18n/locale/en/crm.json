@@ -113,12 +113,14 @@
         "NO_CUSTOMER": "No customer 未关联客户"
       },
       "TABLE": {
-        "NAME": "Subject 订单主题",
-        "ORDER_NO": "Order no. 订单号",
-        "CUSTOMER": "Customer 客户",
-        "STATUS": "Status 状态",
-        "AMOUNT": "Amount 金额",
-        "ORDER_DATE": "Order date 下单日期"
+        "NAME": "订单主题",
+        "ORDER_NO": "订单号",
+        "CUSTOMER": "客户",
+        "STATUS": "状态",
+        "AMOUNT": "金额",
+        "ORDER_DATE": "下单日期",
+        "DELIVERY_DATE": "交期",
+        "OWNER": "负责人"
       },
       "CREATE": {
         "TITLE": "New sales order 新建销售订单",

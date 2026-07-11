@@ -77,11 +77,23 @@ watch(
   }
 );
 
+const CURRENCY_SYMBOL = { CNY: '¥', USD: '$', EUR: '€' };
 const fmtMoney = (micros, currency) =>
   micros == null
     ? '—'
-    : `${currency || ''} ${(micros / 1_000_000).toLocaleString()}`;
+    : `${CURRENCY_SYMBOL[currency] || ''}${Math.round(micros / 1_000_000).toLocaleString()}`;
 const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
+
+const AVATAR = [
+  'bg-n-blue-9',
+  'bg-n-teal-9',
+  'bg-n-iris-9',
+  'bg-n-amber-9',
+  'bg-n-ruby-9',
+];
+const avatarCls = name =>
+  AVATAR[((name || '?').charCodeAt(0) || 0) % AVATAR.length];
+const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 </script>
 
 <template>
@@ -140,11 +152,17 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.SALES_ORDERS.TABLE.STATUS') }}
             </th>
-            <th class="px-3 py-2 font-medium">
+            <th class="px-3 py-2 font-medium text-right">
               {{ t('CRM.SALES_ORDERS.TABLE.AMOUNT') }}
             </th>
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.SALES_ORDERS.TABLE.ORDER_DATE') }}
+            </th>
+            <th class="px-3 py-2 font-medium">
+              {{ t('CRM.SALES_ORDERS.TABLE.DELIVERY_DATE') }}
+            </th>
+            <th class="px-3 py-2 font-medium">
+              {{ t('CRM.SALES_ORDERS.TABLE.OWNER') }}
             </th>
           </tr>
         </thead>
@@ -152,30 +170,49 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
           <tr
             v-for="record in records"
             :key="record.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
-            style="cursor: pointer"
+            class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
             @click="openEditDialog(record)"
           >
-            <td class="px-3 py-2 font-medium text-n-slate-12">
+            <td class="px-3 py-2 font-medium text-n-slate-12 whitespace-nowrap">
               {{ record.name }}
             </td>
-            <td class="px-3 py-2 text-n-slate-11">{{ record.orderNo }}</td>
-            <td class="px-3 py-2 text-n-slate-11">
+            <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
+              {{ record.orderNo }}
+            </td>
+            <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
               {{ record.customerName || '—' }}
             </td>
-            <td class="px-3 py-2">
+            <td class="px-3 py-2 whitespace-nowrap">
               <span
-                class="px-2 py-0.5 rounded-full text-xs font-medium"
+                class="px-2 py-0.5 rounded text-xs font-medium"
                 :class="STATUSES[record.status]?.class"
               >
                 {{ STATUSES[record.status]?.label || record.status }}
               </span>
             </td>
-            <td class="px-3 py-2 text-n-slate-11">
+            <td class="px-3 py-2 text-right text-n-slate-12 whitespace-nowrap">
               {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
             </td>
-            <td class="px-3 py-2 text-n-slate-11">
+            <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
               {{ fmtDate(record.orderDate) }}
+            </td>
+            <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
+              {{ fmtDate(record.deliveryDate) }}
+            </td>
+            <td class="px-3 py-2 whitespace-nowrap">
+              <span
+                v-if="record.ownerName"
+                class="inline-flex items-center gap-1.5 text-n-slate-11"
+              >
+                <span
+                  class="flex items-center justify-center w-5 h-5 text-xs font-semibold text-white rounded"
+                  :class="avatarCls(record.ownerName)"
+                >
+                  {{ initial(record.ownerName) }}
+                </span>
+                {{ record.ownerName }}
+              </span>
+              <span v-else class="text-n-slate-10">—</span>
             </td>
           </tr>
         </tbody>
