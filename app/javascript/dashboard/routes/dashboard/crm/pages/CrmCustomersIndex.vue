@@ -1,8 +1,10 @@
 <script setup>
+/* global axios */
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -10,7 +12,10 @@ import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCr
 
 const { t } = useI18n();
 const route = useRoute();
+const { accountId } = useAccount();
 const customersStore = useCrmCustomersStore();
+
+const actingId = ref(null);
 
 const createDialogRef = ref(null);
 const activeFilter = ref(route.query.filter || 'all');
@@ -63,6 +68,39 @@ const updateCustomer = async customer => {
 
 const formatDate = value =>
   value ? new Date(value).toLocaleDateString() : '—';
+
+const crmApi = () => `/api/v1/accounts/${accountId.value}/crm/customers`;
+
+// 认领：公海客户归我私海；转公海：私海客户放回公海。行按钮，阻止冒泡避免触发编辑。
+const claimCustomer = async customer => {
+  actingId.value = customer.id;
+  try {
+    await axios.post(`${crmApi()}/${customer.id}/claim`);
+    useAlert(t('CRM.CUSTOMERS.POOL.CLAIM_SUCCESS'));
+    fetchCustomers();
+  } catch (e) {
+    useAlert(e.response?.data?.message || t('CRM.CUSTOMERS.POOL.CLAIM_ERROR'));
+  } finally {
+    actingId.value = null;
+  }
+};
+
+const releaseCustomer = async customer => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(t('CRM.CUSTOMERS.POOL.RELEASE_CONFIRM', { name: customer.name }))) {
+    return;
+  }
+  actingId.value = customer.id;
+  try {
+    await axios.post(`${crmApi()}/${customer.id}/release`);
+    useAlert(t('CRM.CUSTOMERS.POOL.RELEASE_SUCCESS'));
+    fetchCustomers();
+  } catch (e) {
+    useAlert(e.response?.data?.message || t('CRM.CUSTOMERS.POOL.RELEASE_ERROR'));
+  } finally {
+    actingId.value = null;
+  }
+};
 
 onMounted(() => {
   fetchCustomers();
@@ -140,6 +178,12 @@ watch(
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.CUSTOMERS.TABLE.LAST_FOLLOW_UP') }}
             </th>
+            <th class="px-3 py-2 font-medium">
+              {{ t('CRM.CUSTOMERS.TABLE.OWNER') }}
+            </th>
+            <th class="px-3 py-2 font-medium text-right">
+              {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -164,6 +208,32 @@ watch(
             </td>
             <td class="px-3 py-2 text-n-slate-11">
               {{ formatDate(customer.lastFollowUpAt) }}
+            </td>
+            <td class="px-3 py-2 text-n-slate-11">
+              <span v-if="customer.isInPublicPool" class="text-n-sky-11">🌊 公海</span>
+              <span v-else-if="customer.accountOwnerName">
+                {{ customer.accountOwnerName }}
+              </span>
+              <span v-else class="text-n-slate-10">未分配</span>
+            </td>
+            <td class="px-3 py-2 text-right" @click.stop>
+              <Button
+                v-if="customer.isInPublicPool"
+                :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
+                size="sm"
+                color="blue"
+                :is-loading="actingId === customer.id"
+                @click="claimCustomer(customer)"
+              />
+              <Button
+                v-else
+                :label="t('CRM.CUSTOMERS.POOL.RELEASE')"
+                size="sm"
+                variant="faded"
+                color="slate"
+                :is-loading="actingId === customer.id"
+                @click="releaseCustomer(customer)"
+              />
             </td>
           </tr>
         </tbody>

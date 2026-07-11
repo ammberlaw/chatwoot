@@ -2,6 +2,7 @@ json.id resource.id
 json.name resource.name
 json.customer_code resource.customer_code
 json.account_owner_id resource.account_owner_id
+json.account_owner_name resource.account_owner&.name
 
 json.trade_country resource.trade_country
 json.trade_region resource.trade_region

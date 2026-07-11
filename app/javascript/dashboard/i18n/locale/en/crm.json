@@ -18,7 +18,18 @@
         "COUNTRY": "Country",
         "STATUS": "Status",
         "LEVEL": "Level",
-        "LAST_FOLLOW_UP": "Last follow-up"
+        "LAST_FOLLOW_UP": "Last follow-up",
+        "OWNER": "负责人",
+        "ACTION": "操作"
+      },
+      "POOL": {
+        "CLAIM": "认领",
+        "RELEASE": "转公海",
+        "CLAIM_SUCCESS": "认领成功，已归入你的私海",
+        "CLAIM_ERROR": "认领失败",
+        "RELEASE_CONFIRM": "确认将「{name}」转入公海？转后你将不再是负责人。",
+        "RELEASE_SUCCESS": "已转入公海",
+        "RELEASE_ERROR": "操作失败"
       },
       "CREATE": {
         "TITLE": "New customer",

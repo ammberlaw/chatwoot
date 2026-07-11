@@ -57,6 +57,10 @@ Rails.application.routes.draw do
           namespace :crm do
             resources :customers do
               collection { get :check_duplicate }
+              member do
+                post :claim
+                post :release
+              end
             end
             resources :contacts, only: [:index, :update]
             resources :opportunities

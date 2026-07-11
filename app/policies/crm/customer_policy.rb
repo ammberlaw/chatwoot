@@ -7,6 +7,14 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  def claim?
+    true
+  end
+
+  def release?
+    true
+  end
+
   def show?
     true
   end

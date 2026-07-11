@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release]
 
   RESULTS_PER_PAGE = 15
 
@@ -31,6 +31,18 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
 
   def update
     @customer.update!(customer_params)
+  end
+
+  # 认领：公海客户归当前用户私海。分组私海上限由模型 pool_limit 校验拦截。
+  def claim
+    @customer.update!(account_owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil)
+    render 'api/v1/accounts/crm/customers/show'
+  end
+
+  # 转公海：清空负责人、进公海。
+  def release
+    @customer.move_to_public_pool!
+    render 'api/v1/accounts/crm/customers/show'
   end
 
   def destroy
