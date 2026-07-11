@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_11_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -853,6 +853,48 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_110000) do
     t.index ["owner_id"], name: "index_crm_emails_on_owner_id"
   end
 
+  create_table "crm_follow_up_notes", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_customer_id"
+    t.bigint "contact_id"
+    t.bigint "crm_opportunity_id"
+    t.bigint "owner_id"
+    t.string "title", null: false
+    t.text "body"
+    t.string "follow_up_method"
+    t.string "result_tag"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_follow_up_notes_on_account_id"
+    t.index ["contact_id"], name: "index_crm_follow_up_notes_on_contact_id"
+    t.index ["crm_customer_id"], name: "index_crm_follow_up_notes_on_crm_customer_id"
+    t.index ["crm_opportunity_id"], name: "index_crm_follow_up_notes_on_crm_opportunity_id"
+    t.index ["owner_id"], name: "index_crm_follow_up_notes_on_owner_id"
+  end
+
+  create_table "crm_follow_up_tasks", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_customer_id"
+    t.bigint "contact_id"
+    t.bigint "crm_opportunity_id"
+    t.bigint "assignee_id"
+    t.string "title", null: false
+    t.text "body"
+    t.string "status", default: "TODO", null: false
+    t.datetime "due_at"
+    t.string "task_type"
+    t.string "related_business_code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "due_at"], name: "index_crm_follow_up_tasks_on_account_id_and_due_at"
+    t.index ["account_id", "status"], name: "index_crm_follow_up_tasks_on_account_id_and_status"
+    t.index ["account_id"], name: "index_crm_follow_up_tasks_on_account_id"
+    t.index ["assignee_id"], name: "index_crm_follow_up_tasks_on_assignee_id"
+    t.index ["contact_id"], name: "index_crm_follow_up_tasks_on_contact_id"
+    t.index ["crm_customer_id"], name: "index_crm_follow_up_tasks_on_crm_customer_id"
+    t.index ["crm_opportunity_id"], name: "index_crm_follow_up_tasks_on_crm_opportunity_id"
+  end
+
   create_table "crm_opportunities", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1575,6 +1617,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_110000) do
   add_foreign_key "crm_emails", "contacts", on_delete: :nullify
   add_foreign_key "crm_emails", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_emails", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_follow_up_notes", "contacts", on_delete: :nullify
+  add_foreign_key "crm_follow_up_notes", "crm_customers", on_delete: :nullify
+  add_foreign_key "crm_follow_up_notes", "crm_opportunities", on_delete: :nullify
+  add_foreign_key "crm_follow_up_notes", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_follow_up_tasks", "contacts", on_delete: :nullify
+  add_foreign_key "crm_follow_up_tasks", "crm_customers", on_delete: :nullify
+  add_foreign_key "crm_follow_up_tasks", "crm_opportunities", on_delete: :nullify
+  add_foreign_key "crm_follow_up_tasks", "users", column: "assignee_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify

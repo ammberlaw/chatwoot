@@ -1,0 +1,13 @@
+json.id resource.id
+json.title resource.title
+json.body resource.body
+json.status resource.status
+json.due_at resource.due_at
+json.task_type resource.task_type
+json.related_business_code resource.related_business_code
+json.crm_customer_id resource.crm_customer_id
+json.customer_name resource.crm_customer&.name
+json.contact_id resource.contact_id
+json.crm_opportunity_id resource.crm_opportunity_id
+json.assignee_id resource.assignee_id
+json.created_at resource.created_at

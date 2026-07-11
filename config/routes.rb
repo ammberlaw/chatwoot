@@ -65,6 +65,8 @@ Rails.application.routes.draw do
               resources :line_items, only: [:index, :create], controller: 'quote_line_items'
             end
             resources :quote_line_items, only: [:update, :destroy]
+            resources :follow_up_notes
+            resources :follow_up_tasks
           end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do

@@ -1,0 +1,11 @@
+json.id resource.id
+json.title resource.title
+json.body resource.body
+json.follow_up_method resource.follow_up_method
+json.result_tag resource.result_tag
+json.crm_customer_id resource.crm_customer_id
+json.customer_name resource.crm_customer&.name
+json.contact_id resource.contact_id
+json.crm_opportunity_id resource.crm_opportunity_id
+json.owner_id resource.owner_id
+json.created_at resource.created_at
