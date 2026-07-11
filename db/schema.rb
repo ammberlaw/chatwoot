@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_11_090000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -821,6 +821,38 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_090000) do
     t.index ["account_owner_id"], name: "index_crm_customers_on_account_owner_id"
   end
 
+  create_table "crm_emails", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_customer_id"
+    t.bigint "contact_id"
+    t.bigint "owner_id"
+    t.bigint "chatwoot_message_id"
+    t.string "subject"
+    t.string "folder", default: "INBOX", null: false
+    t.boolean "is_read", default: false, null: false
+    t.string "from_address"
+    t.text "to_address"
+    t.text "cc_address"
+    t.text "bcc_address"
+    t.datetime "email_date"
+    t.text "body_html"
+    t.text "body"
+    t.boolean "send_now", default: false, null: false
+    t.string "send_status", default: "DRAFT", null: false
+    t.text "send_error"
+    t.decimal "reply_latency_hours", precision: 10, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
+    t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
+    t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
+    t.index ["account_id"], name: "index_crm_emails_on_account_id"
+    t.index ["chatwoot_message_id"], name: "index_crm_emails_on_chatwoot_message_id", unique: true, where: "(chatwoot_message_id IS NOT NULL)"
+    t.index ["contact_id"], name: "index_crm_emails_on_contact_id"
+    t.index ["crm_customer_id"], name: "index_crm_emails_on_crm_customer_id"
+    t.index ["owner_id"], name: "index_crm_emails_on_owner_id"
+  end
+
   create_table "crm_opportunities", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1490,6 +1522,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_090000) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_customers", "accounts"
+  add_foreign_key "crm_emails", "contacts", on_delete: :nullify
+  add_foreign_key "crm_emails", "crm_customers", on_delete: :nullify
+  add_foreign_key "crm_emails", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "contacts", on_delete: :nullify

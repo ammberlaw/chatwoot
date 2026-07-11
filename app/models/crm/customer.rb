@@ -80,6 +80,7 @@ class Crm::Customer < ApplicationRecord
   has_many :contacts, class_name: 'Contact', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
   has_many :opportunities, class_name: 'Crm::Opportunity', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
   has_many :sales_orders, class_name: 'Crm::SalesOrder', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
+  has_many :emails, class_name: 'Crm::Email', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
 
   validates :account_id, presence: true
   validates :name, presence: true

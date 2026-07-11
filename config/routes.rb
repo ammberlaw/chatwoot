@@ -60,6 +60,7 @@ Rails.application.routes.draw do
             resources :opportunities
             resources :products
             resources :sales_orders
+            resources :emails
           end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do
