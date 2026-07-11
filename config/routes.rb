@@ -73,6 +73,7 @@ Rails.application.routes.draw do
             resource :public_pool_settings, only: [:show, :update]
             resource :stats, only: [:show], controller: 'stats'
             resource :team_dashboard, only: [:show], controller: 'team_dashboard'
+            resource :my_target, only: [:show], controller: 'my_target'
             resources :mail_accounts
             resources :email_templates
           end
