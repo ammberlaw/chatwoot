@@ -1,6 +1,54 @@
 # 外贸客户（公司）档案。Chatwoot 没有原生的「公司/客户账户」实体，
 # 因此这是一个全新的模型，对应 A-CRM(Twenty) 中的 company 对象。
 # account_owner 为负责人（销售员），公海回收任务会清空它。
+# == Schema Information
+#
+# Table name: crm_customers
+#
+#  id                   :bigint           not null, primary key
+#  contact_email        :string
+#  contact_job_title    :string
+#  contact_phone        :string
+#  contact_preference   :string
+#  currency_preference  :string
+#  customer_code        :string
+#  customer_group       :string
+#  customer_level       :string
+#  customer_remark      :text
+#  customer_status      :string
+#  industry             :string
+#  is_in_public_pool    :boolean          default(FALSE), not null
+#  last_follow_up_at    :datetime
+#  name                 :string           not null
+#  next_follow_up_at    :datetime
+#  primary_contact_name :string
+#  product_group        :string
+#  public_pool_at       :datetime
+#  risk_level           :string
+#  source_channel       :string
+#  trade_city           :string
+#  trade_country        :string
+#  trade_region         :string
+#  wechat               :string
+#  whats_app            :string
+#  created_at           :datetime         not null
+#  updated_at           :datetime         not null
+#  account_id           :bigint           not null
+#  account_owner_id     :bigint
+#
+# Indexes
+#
+#  index_crm_customers_on_account_id                        (account_id)
+#  index_crm_customers_on_account_id_and_customer_code      (account_id,customer_code) UNIQUE WHERE (customer_code IS NOT NULL)
+#  index_crm_customers_on_account_id_and_customer_status    (account_id,customer_status)
+#  index_crm_customers_on_account_id_and_is_in_public_pool  (account_id,is_in_public_pool)
+#  index_crm_customers_on_account_id_and_last_follow_up_at  (account_id,last_follow_up_at)
+#  index_crm_customers_on_account_owner_id                  (account_owner_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (account_id => accounts.id)
+#
 class Crm::Customer < ApplicationRecord
   # 选项集合（对应 A-CRM SELECT 字段的 value 集合）
   TRADE_REGIONS = %w[NORTH_AMERICA EUROPE SOUTH_AMERICA MIDDLE_EAST SOUTHEAST_ASIA AFRICA OTHER].freeze

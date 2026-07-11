@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_20_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_30_100640) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -768,6 +768,44 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_20_000000) do
     t.index ["user_id"], name: "index_copilot_threads_on_user_id"
   end
 
+  create_table "crm_customers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "account_owner_id"
+    t.string "name", null: false
+    t.string "customer_code"
+    t.string "trade_country"
+    t.string "trade_region"
+    t.string "trade_city"
+    t.string "industry"
+    t.string "customer_level"
+    t.string "source_channel"
+    t.string "currency_preference"
+    t.string "customer_status"
+    t.string "customer_group"
+    t.string "product_group"
+    t.string "risk_level"
+    t.datetime "last_follow_up_at"
+    t.datetime "next_follow_up_at"
+    t.boolean "is_in_public_pool", default: false, null: false
+    t.datetime "public_pool_at"
+    t.string "primary_contact_name"
+    t.string "contact_job_title"
+    t.string "contact_email"
+    t.string "contact_phone"
+    t.string "whats_app"
+    t.string "wechat"
+    t.string "contact_preference"
+    t.text "customer_remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "customer_code"], name: "index_crm_customers_on_account_id_and_customer_code", unique: true, where: "(customer_code IS NOT NULL)"
+    t.index ["account_id", "customer_status"], name: "index_crm_customers_on_account_id_and_customer_status"
+    t.index ["account_id", "is_in_public_pool"], name: "index_crm_customers_on_account_id_and_is_in_public_pool"
+    t.index ["account_id", "last_follow_up_at"], name: "index_crm_customers_on_account_id_and_last_follow_up_at"
+    t.index ["account_id"], name: "index_crm_customers_on_account_id"
+    t.index ["account_owner_id"], name: "index_crm_customers_on_account_owner_id"
+  end
+
   create_table "csat_survey_responses", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "conversation_id", null: false
@@ -1363,6 +1401,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_20_000000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "crm_customers", "accounts"
   add_foreign_key "inboxes", "portals"
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
