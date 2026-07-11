@@ -3,6 +3,10 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  def check_duplicate?
+    true
+  end
+
   def show?
     true
   end

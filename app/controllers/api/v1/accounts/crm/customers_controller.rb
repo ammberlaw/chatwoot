@@ -19,6 +19,16 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     @customer = Current.account.crm_customers.create!(customer_params)
   end
 
+  # 客户建档实时查重：邮箱精确命中(阻止) + 公司名相似(提醒)。
+  def check_duplicate
+    email = params[:email].to_s.strip
+    name = params[:name].to_s.strip
+    render json: {
+      email_hit: email.present? ? dedupe_row(Current.account.crm_customers.where('LOWER(contact_email) = ?', email.downcase).first) : nil,
+      name_hits: name.length >= 2 ? name_matches(name) : []
+    }
+  end
+
   def update
     @customer.update!(customer_params)
   end
@@ -58,7 +68,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
 
   def customer_params
     params.require(:customer).permit(
-      :name, :customer_code, :account_owner_id,
+      :name, :customer_code, :account_owner_id, :website,
       :trade_country, :trade_region, :trade_city,
       :industry, :customer_level, :source_channel, :currency_preference,
       :customer_status, :customer_group, :product_group, :risk_level,
@@ -66,6 +76,27 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
       :primary_contact_name, :contact_job_title, :contact_email, :contact_phone,
       :whats_app, :wechat, :contact_preference, :customer_remark
     )
+  end
+
+  def name_matches(name)
+    Current.account.crm_customers
+           .where('name ILIKE ?', "%#{name}%")
+           .order(updated_at: :desc).limit(5)
+           .map { |c| dedupe_row(c) }
+  end
+
+  # 查重结果行：含负责人归属标签（公海/负责人/未分配）
+  def dedupe_row(customer)
+    return nil if customer.nil?
+
+    { id: customer.id, name: customer.name, customer_code: customer.customer_code, owner: owner_label(customer) }
+  end
+
+  def owner_label(customer)
+    return '🌊 公海' if customer.is_in_public_pool
+    return "👤 #{customer.account_owner.name}" if customer.account_owner_id
+
+    '未分配'
   end
 
   def permitted_params

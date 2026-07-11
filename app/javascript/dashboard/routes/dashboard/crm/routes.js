@@ -11,6 +11,7 @@ import CrmEmailTemplatesIndex from './pages/CrmEmailTemplatesIndex.vue';
 import CrmDashboardIndex from './pages/CrmDashboardIndex.vue';
 import CrmTeamDashboardIndex from './pages/CrmTeamDashboardIndex.vue';
 import CrmMyTargetIndex from './pages/CrmMyTargetIndex.vue';
+import CrmCustomerOnboardingIndex from './pages/CrmCustomerOnboardingIndex.vue';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 
 const commonMeta = {
@@ -25,10 +26,12 @@ const crmPage = (path, name, component) => ({
   children: [{ path: '', name, component, meta: commonMeta }],
 });
 
+// A-CRM routes
 export const routes = [
   crmPage('dashboard', 'crm_dashboard_index', CrmDashboardIndex),
   crmPage('team-dashboard', 'crm_team_dashboard_index', CrmTeamDashboardIndex),
   crmPage('my-target', 'crm_my_target_index', CrmMyTargetIndex),
+  crmPage('customer-intake', 'crm_customer_intake_index', CrmCustomerOnboardingIndex),
   crmPage('customers', 'crm_customers_index', CrmCustomersIndex),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),

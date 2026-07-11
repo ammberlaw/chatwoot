@@ -636,12 +636,13 @@ const menuItems = computed(() => {
       name: 'CRM Customers Group',
       label: t('SIDEBAR.CRM_G_CUSTOMERS'),
       icon: 'i-lucide-users',
-      activeOn: ['crm_customers_index'],
+      activeOn: ['crm_customers_index', 'crm_customer_intake_index'],
       children: [
         {
           name: 'CRM Customer New',
           label: t('SIDEBAR.CRM_CUSTOMER_NEW'),
-          to: accountScopedRoute('crm_customers_index', {}, { new: 1 }),
+          to: accountScopedRoute('crm_customer_intake_index'),
+          activeOn: ['crm_customer_intake_index'],
         },
         {
           name: 'CRM Private Customers',

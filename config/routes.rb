@@ -55,7 +55,9 @@ Rails.application.routes.draw do
             resource :contact_merge, only: [:create]
           end
           namespace :crm do
-            resources :customers
+            resources :customers do
+              collection { get :check_duplicate }
+            end
             resources :contacts, only: [:index, :update]
             resources :opportunities
             resources :products
