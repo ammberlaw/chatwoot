@@ -316,6 +316,7 @@ defineExpose({ dialogRef, onSuccess, open });
             附件
           </span>
           <button
+            type="button"
             class="flex items-center gap-1 h-8 px-3 text-sm border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1 disabled:opacity-50"
             :disabled="uploading"
             @click="triggerUpload"
@@ -350,6 +351,7 @@ defineExpose({ dialogRef, onSuccess, open });
             <span class="text-xs text-n-slate-10">{{ prettySize(file.byte_size) }}</span>
           </a>
           <button
+            type="button"
             class="text-n-slate-10 hover:text-n-ruby-11"
             title="删除"
             @click="removeAttachment(file.id)"
