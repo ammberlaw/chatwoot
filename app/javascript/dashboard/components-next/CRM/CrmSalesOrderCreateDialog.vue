@@ -9,6 +9,7 @@ import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
 defineProps({
@@ -66,22 +67,16 @@ const currencyOptions = ['CNY', 'USD', 'EUR'].map(v => ({
   label: v,
 }));
 
-const customerOptions = computed(() => {
-  const opts = privateCustomers.value.map(c => ({
-    value: String(c.id),
-    label: c.name,
-  }));
-  // 编辑态：若原客户不在当前私海列表（如已转公海/换负责人），仍保留可选，避免保存时被清空。
-  if (
-    editingCustomer.value &&
-    !opts.some(o => o.value === String(editingCustomer.value.id))
-  ) {
-    opts.unshift({
-      value: String(editingCustomer.value.id),
-      label: `${editingCustomer.value.name}（非私海）`,
-    });
-  }
-  return opts;
+const customerOptions = computed(() =>
+  privateCustomers.value.map(c => ({ value: String(c.id), label: c.name }))
+);
+
+// 编辑态原客户若已不在私海列表（转公海/换负责人），用 displayLabel 兜底显示，避免变空白。
+const customerDisplayLabel = computed(() => {
+  if (!editingCustomer.value) return '';
+  const id = String(editingCustomer.value.id);
+  if (customerOptions.value.some(o => o.value === id)) return '';
+  return `${editingCustomer.value.name}（非私海）`;
 });
 
 // 关联商机：选了客户则只显示该客户的商机，否则显示全部
@@ -294,11 +289,13 @@ defineExpose({ dialogRef, onSuccess, open });
       </div>
 
       <div class="grid grid-cols-2 gap-4">
-        <Select
+        <ComboBox
           v-model="form.crmCustomerId"
-          :label="t('CRM.SALES_ORDERS.FORM.CUSTOMER')"
           :options="customerOptions"
-          :placeholder="loadingCustomers ? '加载中…' : t('CRM.SALES_ORDERS.FORM.CUSTOMER_PLACEHOLDER')"
+          :display-label="customerDisplayLabel"
+          :placeholder="loadingCustomers ? t('CRM.SALES_ORDERS.FORM.CUSTOMER_LOADING') : t('CRM.SALES_ORDERS.FORM.CUSTOMER_PLACEHOLDER')"
+          :search-placeholder="t('CRM.SALES_ORDERS.FORM.CUSTOMER_SEARCH')"
+          :empty-state="t('CRM.SALES_ORDERS.FORM.CUSTOMER_EMPTY')"
         />
         <Select
           v-model="form.crmOpportunityId"
