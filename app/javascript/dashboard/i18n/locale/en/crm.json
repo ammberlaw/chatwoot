@@ -32,6 +32,12 @@
           "LEVEL": "Level",
           "REMARK": "Remark"
         }
+      },
+      "EDIT": {
+        "TITLE": "编辑客户",
+        "SAVE": "保存",
+        "SUCCESS": "客户已保存",
+        "ERROR": "保存失败"
       }
     },
     "OPPORTUNITIES": {
@@ -67,6 +73,11 @@
         "PROBABILITY": "Probability 概率%",
         "EXPECTED_CLOSE": "Expected close 预计成交日",
         "REMARK": "Remark 备注"
+      },
+      "EDIT": {
+        "TITLE": "编辑商机",
+        "SUCCESS": "商机已保存",
+        "ERROR": "保存失败"
       }
     },
     "SALES_ORDERS": {
@@ -101,6 +112,11 @@
         "AMOUNT": "Amount 金额(元)",
         "CURRENCY": "Currency 币种",
         "REMARK": "Remark 备注"
+      },
+      "EDIT": {
+        "TITLE": "编辑订单",
+        "SUCCESS": "订单已保存",
+        "ERROR": "保存失败"
       }
     },
     "EMAILS": {

@@ -12,10 +12,11 @@ defineProps({
   isLoading: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['create']);
+const emit = defineEmits(['create', 'update']);
 
 const { t } = useI18n();
 const dialogRef = ref(null);
+const editingId = ref(null);
 const customersStore = useCrmCustomersStore();
 
 const form = reactive({
@@ -27,6 +28,7 @@ const form = reactive({
   probability: '',
   expectedCloseDate: '',
   opportunityRemark: '',
+  lossReason: '',
 });
 
 const stageOptions = [
@@ -48,9 +50,21 @@ const customerOptions = computed(() =>
   customersStore.getCustomers.map(c => ({ value: String(c.id), label: c.name }))
 );
 
+const lossReasonOptions = [
+  { value: 'PRICE', label: '价格原因' },
+  { value: 'DELIVERY', label: '交期原因' },
+  { value: 'QUALITY', label: '质量原因' },
+  { value: 'COMPETITOR', label: '竞品成交' },
+  { value: 'CANCELLED', label: '客户取消' },
+  { value: 'NEED_CHANGED', label: '需求变化' },
+];
+
+const isEditing = computed(() => editingId.value !== null);
 const isFormInvalid = computed(() => !form.name.trim());
 
 const resetForm = () => {
+  editingId.value = null;
+  form.lossReason = '';
   form.name = '';
   form.crmCustomerId = '';
   form.salesStage = 'INITIAL_CONTACT';
@@ -61,8 +75,20 @@ const resetForm = () => {
   form.opportunityRemark = '';
 };
 
-const open = () => {
+const open = record => {
   resetForm();
+  if (record) {
+    editingId.value = record.id;
+    form.name = record.name || '';
+    form.crmCustomerId = record.crmCustomerId ? String(record.crmCustomerId) : '';
+    form.salesStage = record.salesStage || 'INITIAL_CONTACT';
+    form.amount = record.amountMicros ? String(record.amountMicros / 1_000_000) : '';
+    form.currency = record.currency || 'USD';
+    form.probability = record.probability != null ? String(record.probability) : '';
+    form.expectedCloseDate = record.expectedCloseDate ? record.expectedCloseDate.slice(0, 10) : '';
+    form.opportunityRemark = record.opportunityRemark || '';
+    form.lossReason = record.lossReason || '';
+  }
   if (!customersStore.getCustomers.length) customersStore.get({ page: 1 });
   dialogRef.value?.open();
 };
@@ -75,7 +101,7 @@ const onSuccess = () => {
 const handleConfirm = () => {
   if (isFormInvalid.value) return;
 
-  emit('create', {
+  const payload = {
     name: form.name.trim(),
     crmCustomerId: form.crmCustomerId || null,
     salesStage: form.salesStage,
@@ -86,7 +112,13 @@ const handleConfirm = () => {
     probability: form.probability ? Number(form.probability) : null,
     expectedCloseDate: form.expectedCloseDate || null,
     opportunityRemark: form.opportunityRemark.trim() || null,
-  });
+    lossReason: form.lossReason || null,
+  };
+  if (isEditing.value) {
+    emit('update', { id: editingId.value, ...payload });
+  } else {
+    emit('create', payload);
+  }
 };
 
 defineExpose({ dialogRef, onSuccess, open });
@@ -97,7 +129,7 @@ defineExpose({ dialogRef, onSuccess, open });
     ref="dialogRef"
     width="3xl"
     overflow-y-auto
-    :title="t('CRM.OPPORTUNITIES.CREATE.TITLE')"
+    :title="isEditing ? t('CRM.OPPORTUNITIES.EDIT.TITLE') : t('CRM.OPPORTUNITIES.CREATE.TITLE')"
     :is-loading="isLoading"
     @confirm="handleConfirm"
     @close="resetForm"
@@ -141,6 +173,12 @@ defineExpose({ dialogRef, onSuccess, open });
         v-model="form.expectedCloseDate"
         type="date"
         :label="t('CRM.OPPORTUNITIES.FORM.EXPECTED_CLOSE')"
+      />
+      <Select
+        v-if="form.salesStage === 'LOST'"
+        v-model="form.lossReason"
+        label="丢单原因"
+        :options="lossReasonOptions"
       />
       <TextArea
         v-model="form.opportunityRemark"

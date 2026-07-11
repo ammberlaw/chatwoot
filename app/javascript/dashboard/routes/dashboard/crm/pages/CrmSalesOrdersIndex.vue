@@ -46,6 +46,7 @@ const setFilter = key => {
 };
 
 const openCreateDialog = () => createDialogRef.value?.open();
+const openEditDialog = record => createDialogRef.value?.open(record);
 
 const createRecord = async payload => {
   try {
@@ -54,6 +55,16 @@ const createRecord = async payload => {
     useAlert(t('CRM.SALES_ORDERS.CREATE.SUCCESS'));
   } catch {
     useAlert(t('CRM.SALES_ORDERS.CREATE.ERROR'));
+  }
+};
+
+const updateRecord = async payload => {
+  try {
+    await store.update(payload);
+    createDialogRef.value?.onSuccess();
+    useAlert(t('CRM.SALES_ORDERS.EDIT.SUCCESS'));
+  } catch {
+    useAlert(t('CRM.SALES_ORDERS.EDIT.ERROR'));
   }
 };
 
@@ -142,6 +153,8 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
             v-for="record in records"
             :key="record.id"
             class="border-b border-n-weak hover:bg-n-alpha-1"
+            style="cursor: pointer"
+            @click="openEditDialog(record)"
           >
             <td class="px-3 py-2 font-medium text-n-slate-12">
               {{ record.name }}
@@ -173,6 +186,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
       ref="createDialogRef"
       :is-loading="isCreating"
       @create="createRecord"
+      @update="updateRecord"
     />
   </div>
 </template>

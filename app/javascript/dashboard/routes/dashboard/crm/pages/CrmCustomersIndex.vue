@@ -39,6 +39,7 @@ const setFilter = key => {
 };
 
 const openCreateDialog = () => createDialogRef.value?.open();
+const openEditDialog = record => createDialogRef.value?.open(record);
 
 const createCustomer = async customer => {
   try {
@@ -47,6 +48,16 @@ const createCustomer = async customer => {
     useAlert(t('CRM.CUSTOMERS.CREATE.SUCCESS'));
   } catch {
     useAlert(t('CRM.CUSTOMERS.CREATE.ERROR'));
+  }
+};
+
+const updateCustomer = async customer => {
+  try {
+    await customersStore.update(customer);
+    createDialogRef.value?.onSuccess();
+    useAlert(t('CRM.CUSTOMERS.EDIT.SUCCESS'));
+  } catch {
+    useAlert(t('CRM.CUSTOMERS.EDIT.ERROR'));
   }
 };
 
@@ -135,7 +146,8 @@ watch(
           <tr
             v-for="customer in customers"
             :key="customer.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="cursor-pointer border-b border-n-weak hover:bg-n-alpha-1"
+            @click="openEditDialog(customer)"
           >
             <td class="px-3 py-2 text-n-slate-12">{{ customer.name }}</td>
             <td class="px-3 py-2 text-n-slate-11">
@@ -162,6 +174,7 @@ watch(
       ref="createDialogRef"
       :is-loading="isCreating"
       @create="createCustomer"
+      @update="updateCustomer"
     />
   </div>
 </template>

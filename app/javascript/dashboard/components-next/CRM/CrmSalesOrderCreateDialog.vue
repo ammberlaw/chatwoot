@@ -12,10 +12,11 @@ defineProps({
   isLoading: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['create']);
+const emit = defineEmits(['create', 'update']);
 
 const { t } = useI18n();
 const dialogRef = ref(null);
+const editingId = ref(null);
 const customersStore = useCrmCustomersStore();
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -25,6 +26,7 @@ const form = reactive({
   crmCustomerId: '',
   status: 'PENDING_CONFIRMATION',
   orderDate: today(),
+  deliveryDate: '',
   amount: '',
   orderCurrency: 'CNY',
   remark: '',
@@ -36,6 +38,7 @@ const statusOptions = [
   { value: 'PENDING_SHIPMENT', label: '待出货' },
   { value: 'SHIPPED', label: '已出货' },
   { value: 'COMPLETED', label: '已完成' },
+  { value: 'CANCELLED', label: '已取消' },
 ];
 
 const currencyOptions = ['CNY', 'USD', 'EUR'].map(v => ({
@@ -47,9 +50,12 @@ const customerOptions = computed(() =>
   customersStore.getCustomers.map(c => ({ value: String(c.id), label: c.name }))
 );
 
+const isEditing = computed(() => editingId.value !== null);
 const isFormInvalid = computed(() => !form.name.trim() || !form.orderDate);
 
 const resetForm = () => {
+  editingId.value = null;
+  form.deliveryDate = '';
   form.name = '';
   form.crmCustomerId = '';
   form.status = 'PENDING_CONFIRMATION';
@@ -59,8 +65,19 @@ const resetForm = () => {
   form.remark = '';
 };
 
-const open = () => {
+const open = record => {
   resetForm();
+  if (record) {
+    editingId.value = record.id;
+    form.name = record.name || '';
+    form.crmCustomerId = record.crmCustomerId ? String(record.crmCustomerId) : '';
+    form.status = record.status || 'PENDING_CONFIRMATION';
+    form.orderDate = record.orderDate ? record.orderDate.slice(0, 10) : today();
+    form.deliveryDate = record.deliveryDate ? record.deliveryDate.slice(0, 10) : '';
+    form.amount = record.orderAmountMicros ? String(record.orderAmountMicros / 1_000_000) : '';
+    form.orderCurrency = record.orderCurrency || 'CNY';
+    form.remark = record.remark || '';
+  }
   if (!customersStore.getCustomers.length) customersStore.get({ page: 1 });
   dialogRef.value?.open();
 };
@@ -73,7 +90,7 @@ const onSuccess = () => {
 const handleConfirm = () => {
   if (isFormInvalid.value) return;
 
-  emit('create', {
+  const payload = {
     name: form.name.trim(),
     crmCustomerId: form.crmCustomerId || null,
     status: form.status,
@@ -83,7 +100,13 @@ const handleConfirm = () => {
       : null,
     orderCurrency: form.orderCurrency,
     remark: form.remark.trim() || null,
-  });
+    deliveryDate: form.deliveryDate || null,
+  };
+  if (isEditing.value) {
+    emit('update', { id: editingId.value, ...payload });
+  } else {
+    emit('create', payload);
+  }
 };
 
 defineExpose({ dialogRef, onSuccess, open });
@@ -94,7 +117,7 @@ defineExpose({ dialogRef, onSuccess, open });
     ref="dialogRef"
     width="3xl"
     overflow-y-auto
-    :title="t('CRM.SALES_ORDERS.CREATE.TITLE')"
+    :title="isEditing ? t('CRM.SALES_ORDERS.EDIT.TITLE') : t('CRM.SALES_ORDERS.CREATE.TITLE')"
     :description="t('CRM.SALES_ORDERS.CREATE.DESCRIPTION')"
     :is-loading="isLoading"
     @confirm="handleConfirm"
@@ -135,6 +158,11 @@ defineExpose({ dialogRef, onSuccess, open });
           :options="currencyOptions"
         />
       </div>
+      <Input
+        v-model="form.deliveryDate"
+        type="date"
+        label="交期"
+      />
       <TextArea
         v-model="form.remark"
         :label="t('CRM.SALES_ORDERS.FORM.REMARK')"
