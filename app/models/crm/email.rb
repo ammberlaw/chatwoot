@@ -59,7 +59,22 @@ class Crm::Email < ApplicationRecord
   validates :folder, inclusion: { in: FOLDERS }
   validates :send_status, inclusion: { in: SEND_STATUSES }
 
+  # 发送触发（对应 Twenty send-email 的 DB 事件）：send_now 归一为 PENDING，
+  # 状态刚变成 PENDING 时入队 SMTP 发送；成功/失败由 EmailSendService 回写。
+  before_save :normalize_send_now
+  after_commit :enqueue_send, if: -> { saved_change_to_send_status? && send_status == 'PENDING' }
+
   scope :in_folder, ->(folder) { where(folder: folder) }
   scope :unread, -> { where(folder: 'INBOX', is_read: false) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
+
+  private
+
+  def normalize_send_now
+    self.send_status = 'PENDING' if send_now? && will_save_change_to_send_now?
+  end
+
+  def enqueue_send
+    Crm::SendEmailJob.perform_later(id)
+  end
 end

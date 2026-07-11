@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_11_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -826,6 +826,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_140000) do
     t.index ["account_owner_id"], name: "index_crm_customers_on_account_owner_id"
   end
 
+  create_table "crm_email_templates", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "category", default: "DEVELOPMENT", null: false
+    t.string "subject_template"
+    t.text "body"
+    t.string "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_email_templates_on_account_id"
+  end
+
   create_table "crm_emails", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -914,6 +926,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_140000) do
     t.index ["account_id", "scope"], name: "index_crm_knowledge_docs_on_account_id_and_scope"
     t.index ["account_id"], name: "index_crm_knowledge_docs_on_account_id"
     t.index ["owner_id"], name: "index_crm_knowledge_docs_on_owner_id"
+  end
+
+  create_table "crm_mail_accounts", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.string "email_address", null: false
+    t.string "provider", default: "TENCENT_EXMAIL", null: false
+    t.string "smtp_host"
+    t.integer "smtp_port"
+    t.string "smtp_user"
+    t.string "smtp_password"
+    t.boolean "use_ssl", default: true, null: false
+    t.boolean "is_active", default: true, null: false
+    t.text "signature"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_mail_accounts_on_account_id"
+    t.index ["owner_id"], name: "index_crm_mail_accounts_on_owner_id"
   end
 
   create_table "crm_opportunities", force: :cascade do |t|
@@ -1691,6 +1722,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_140000) do
   add_foreign_key "crm_follow_up_tasks", "crm_opportunities", on_delete: :nullify
   add_foreign_key "crm_follow_up_tasks", "users", column: "assignee_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_docs", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_mail_accounts", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify

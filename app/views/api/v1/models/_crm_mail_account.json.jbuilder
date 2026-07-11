@@ -1,0 +1,11 @@
+json.id resource.id
+json.name resource.name
+json.email_address resource.email_address
+json.provider resource.provider
+json.smtp_host resource.smtp_host
+json.smtp_port resource.smtp_port
+json.smtp_user resource.smtp_user
+json.use_ssl resource.use_ssl
+json.is_active resource.is_active
+json.signature resource.signature
+json.owner_id resource.owner_id

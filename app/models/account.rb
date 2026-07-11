@@ -82,6 +82,8 @@ class Account < ApplicationRecord
   has_many :crm_knowledge_docs, class_name: 'Crm::KnowledgeDoc', dependent: :destroy_async
   has_many :crm_teams, class_name: 'Crm::Team', dependent: :destroy_async
   has_many :crm_sales_targets, class_name: 'Crm::SalesTarget', dependent: :destroy_async
+  has_many :crm_mail_accounts, class_name: 'Crm::MailAccount', dependent: :destroy_async
+  has_many :crm_email_templates, class_name: 'Crm::EmailTemplate', dependent: :destroy_async
   has_many :csat_survey_responses, dependent: :destroy_async
   has_many :custom_attribute_definitions, dependent: :destroy_async
   has_many :custom_filters, dependent: :destroy_async

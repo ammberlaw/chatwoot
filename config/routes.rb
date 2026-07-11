@@ -71,6 +71,8 @@ Rails.application.routes.draw do
             resources :teams
             resources :sales_targets
             resource :public_pool_settings, only: [:show, :update]
+            resources :mail_accounts
+            resources :email_templates
           end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do
