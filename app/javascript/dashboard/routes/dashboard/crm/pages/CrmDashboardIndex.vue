@@ -22,13 +22,10 @@ const scope = computed(() =>
 );
 
 const STAGE_LABELS = {
-  INITIAL_CONTACT: '初步接触',
-  NEEDS_CONFIRMED: '需求确认',
-  QUOTED: '已报价',
-  NEGOTIATING: '谈判中',
+  NEEDS_CONFIRMED: '需求确认（已报价）',
   SAMPLING: '样品中',
   WON: '已成交',
-  LOST: '已丢单',
+  LOST: '输单',
 };
 
 const SOURCE_LABELS = {

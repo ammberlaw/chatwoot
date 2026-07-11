@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_12_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_12_110000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -956,7 +956,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_12_100000) do
     t.string "name", null: false
     t.bigint "amount_micros"
     t.string "currency", default: "CNY"
-    t.string "sales_stage", default: "INITIAL_CONTACT", null: false
+    t.string "sales_stage", default: "NEEDS_CONFIRMED", null: false
     t.integer "probability"
     t.datetime "expected_close_date"
     t.text "current_need"

@@ -21,13 +21,10 @@ const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
 
 const STAGES = {
-  INITIAL_CONTACT: { label: '初步接触', class: 'bg-n-slate-4 text-n-slate-11' },
-  NEEDS_CONFIRMED: { label: '需求确认', class: 'bg-n-blue-3 text-n-blue-11' },
-  QUOTED: { label: '已报价', class: 'bg-n-iris-3 text-n-iris-11' },
-  NEGOTIATING: { label: '谈判中', class: 'bg-n-amber-3 text-n-amber-11' },
+  NEEDS_CONFIRMED: { label: '需求确认（已报价）', class: 'bg-n-blue-3 text-n-blue-11' },
   SAMPLING: { label: '样品中', class: 'bg-n-amber-3 text-n-amber-11' },
   WON: { label: '已成交', class: 'bg-n-teal-3 text-n-teal-11' },
-  LOST: { label: '已丢单', class: 'bg-n-ruby-3 text-n-ruby-11' },
+  LOST: { label: '输单', class: 'bg-n-ruby-3 text-n-ruby-11' },
 };
 
 const LOSS_REASONS = {

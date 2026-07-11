@@ -16,7 +16,7 @@
 #  next_action         :string
 #  opportunity_remark  :text
 #  probability         :integer
-#  sales_stage         :string           default("INITIAL_CONTACT"), not null
+#  sales_stage         :string           default("NEEDS_CONFIRMED"), not null
 #  created_at          :datetime         not null
 #  updated_at          :datetime         not null
 #  account_id          :bigint           not null
@@ -36,7 +36,8 @@
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::Opportunity < ApplicationRecord
-  SALES_STAGES = %w[INITIAL_CONTACT NEEDS_CONFIRMED QUOTED NEGOTIATING SAMPLING WON LOST].freeze
+  # 4 阶段：需求确认(已报价) / 样品中 / 已成交 / 输单
+  SALES_STAGES = %w[NEEDS_CONFIRMED SAMPLING WON LOST].freeze
   LOSS_REASONS = %w[PRICE DELIVERY QUALITY COMPETITOR CANCELLED NEED_CHANGED].freeze
 
   belongs_to :account

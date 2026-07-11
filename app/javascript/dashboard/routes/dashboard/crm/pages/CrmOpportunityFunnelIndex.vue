@@ -10,13 +10,10 @@ const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
 
 const STAGES = [
-  { key: 'INITIAL_CONTACT', label: '初步接触', color: 'bg-n-slate-9' },
-  { key: 'NEEDS_CONFIRMED', label: '需求确认', color: 'bg-n-blue-9' },
-  { key: 'QUOTED', label: '已报价', color: 'bg-n-iris-9' },
-  { key: 'NEGOTIATING', label: '谈判中', color: 'bg-n-amber-9' },
+  { key: 'NEEDS_CONFIRMED', label: '需求确认（已报价）', color: 'bg-n-blue-9' },
   { key: 'SAMPLING', label: '样品中', color: 'bg-n-amber-9' },
   { key: 'WON', label: '已成交', color: 'bg-n-teal-9' },
-  { key: 'LOST', label: '已丢单', color: 'bg-n-ruby-9' },
+  { key: 'LOST', label: '输单', color: 'bg-n-ruby-9' },
 ];
 
 const columns = computed(() =>

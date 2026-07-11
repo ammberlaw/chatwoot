@@ -22,7 +22,7 @@ const customersStore = useCrmCustomersStore();
 const form = reactive({
   name: '',
   crmCustomerId: '',
-  salesStage: 'INITIAL_CONTACT',
+  salesStage: 'NEEDS_CONFIRMED',
   amount: '',
   currency: 'USD',
   probability: '',
@@ -32,13 +32,10 @@ const form = reactive({
 });
 
 const stageOptions = [
-  { value: 'INITIAL_CONTACT', label: '初步接触' },
-  { value: 'NEEDS_CONFIRMED', label: '需求确认' },
-  { value: 'QUOTED', label: '已报价' },
-  { value: 'NEGOTIATING', label: '谈判中' },
+  { value: 'NEEDS_CONFIRMED', label: '需求确认（已报价）' },
   { value: 'SAMPLING', label: '样品中' },
   { value: 'WON', label: '已成交' },
-  { value: 'LOST', label: '已丢单' },
+  { value: 'LOST', label: '输单' },
 ];
 
 const currencyOptions = ['USD', 'CNY', 'EUR'].map(v => ({
@@ -67,7 +64,7 @@ const resetForm = () => {
   form.lossReason = '';
   form.name = '';
   form.crmCustomerId = '';
-  form.salesStage = 'INITIAL_CONTACT';
+  form.salesStage = 'NEEDS_CONFIRMED';
   form.amount = '';
   form.currency = 'USD';
   form.probability = '';
@@ -81,7 +78,7 @@ const open = record => {
     editingId.value = record.id;
     form.name = record.name || '';
     form.crmCustomerId = record.crmCustomerId ? String(record.crmCustomerId) : '';
-    form.salesStage = record.salesStage || 'INITIAL_CONTACT';
+    form.salesStage = record.salesStage || 'NEEDS_CONFIRMED';
     form.amount = record.amountMicros ? String(record.amountMicros / 1_000_000) : '';
     form.currency = record.currency || 'USD';
     form.probability = record.probability != null ? String(record.probability) : '';
