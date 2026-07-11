@@ -13,11 +13,12 @@
         "PRIVATE": "Private 私海"
       },
       "TABLE": {
-        "NAME": "Name",
+        "NAME": "公司名称",
         "CODE": "Code",
-        "COUNTRY": "Country",
-        "STATUS": "Status",
-        "LEVEL": "Level",
+        "COUNTRY": "国家地区",
+        "STATUS": "客户状态",
+        "LEVEL": "客户等级",
+        "REGION": "地区",
         "LAST_FOLLOW_UP": "Last follow-up",
         "SOURCE": "客户来源",
         "GRADE": "资料完善度",
