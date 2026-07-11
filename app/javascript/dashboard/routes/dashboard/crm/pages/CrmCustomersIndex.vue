@@ -1,7 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -12,7 +12,8 @@ import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCr
 
 const { t } = useI18n();
 const route = useRoute();
-const { accountId } = useAccount();
+const router = useRouter();
+const { accountId, accountScopedRoute } = useAccount();
 const customersStore = useCrmCustomersStore();
 
 const actingId = ref(null);
@@ -43,18 +44,10 @@ const setFilter = key => {
   fetchCustomers();
 };
 
-const openCreateDialog = () => createDialogRef.value?.open();
+// 新建统一走「客户建档」引导页(带查重 + 自动归私海)；弹窗只用于编辑。
+const goToIntake = () =>
+  router.push(accountScopedRoute('crm_customer_intake_index'));
 const openEditDialog = record => createDialogRef.value?.open(record);
-
-const createCustomer = async customer => {
-  try {
-    await customersStore.create(customer);
-    createDialogRef.value?.onSuccess();
-    useAlert(t('CRM.CUSTOMERS.CREATE.SUCCESS'));
-  } catch {
-    useAlert(t('CRM.CUSTOMERS.CREATE.ERROR'));
-  }
-};
 
 const updateCustomer = async customer => {
   try {
@@ -184,16 +177,12 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 const money = micros =>
   micros ? `¥${Math.round(micros / 1_000_000).toLocaleString()}` : '¥0';
 
-onMounted(() => {
-  fetchCustomers();
-  if (route.query.new) openCreateDialog();
-});
+onMounted(fetchCustomers);
 watch(
-  () => [route.query.filter, route.query.new],
-  () => {
-    activeFilter.value = route.query.filter || 'all';
+  () => route.query.filter,
+  value => {
+    activeFilter.value = value || 'all';
     fetchCustomers();
-    if (route.query.new) openCreateDialog();
   }
 );
 </script>
@@ -210,7 +199,7 @@ watch(
         :label="t('CRM.CUSTOMERS.NEW')"
         icon="i-lucide-plus"
         color="blue"
-        @click="openCreateDialog"
+        @click="goToIntake"
       />
     </div>
 
@@ -389,7 +378,6 @@ watch(
     <CrmCustomerCreateDialog
       ref="createDialogRef"
       :is-loading="isCreating"
-      @create="createCustomer"
       @update="updateCustomer"
     />
   </div>
