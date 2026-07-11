@@ -72,6 +72,8 @@ class Crm::Customer < ApplicationRecord
 
   belongs_to :account
   belongs_to :account_owner, class_name: 'User', optional: true
+  # 一个客户多个联系人（Chatwoot Contact，扩展见 Crm::ContactExtensions）
+  has_many :contacts, class_name: 'Contact', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
 
   validates :account_id, presence: true
   validates :name, presence: true

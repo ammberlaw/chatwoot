@@ -56,6 +56,7 @@ Rails.application.routes.draw do
           end
           namespace :crm do
             resources :customers
+            resources :contacts, only: [:index, :update]
           end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do

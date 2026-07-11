@@ -1,0 +1,15 @@
+json.id resource.id
+json.name resource.name
+json.email resource.email
+json.phone_number resource.phone_number
+json.thumbnail resource.avatar_url
+json.crm_customer_id resource.crm_customer_id
+json.whats_app resource.whats_app
+json.wechat resource.wechat
+json.is_primary_contact resource.is_primary_contact
+json.contact_preference resource.contact_preference
+json.crm_last_contact_at resource.crm_last_contact_at
+json.contact_remark resource.contact_remark
+json.product_category resource.product_category
+json.country_region resource.country_region
+json.customer_group resource.customer_group

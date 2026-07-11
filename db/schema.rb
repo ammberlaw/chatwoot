@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_30_100640) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_071000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -673,6 +673,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_30_100640) do
     t.string "country_code", default: ""
     t.boolean "blocked", default: false, null: false
     t.bigint "company_id"
+    t.string "whats_app"
+    t.string "wechat"
+    t.boolean "is_primary_contact", default: false, null: false
+    t.string "contact_preference"
+    t.datetime "crm_last_contact_at"
+    t.text "contact_remark"
+    t.string "product_category"
+    t.string "country_region"
+    t.string "customer_group"
+    t.bigint "crm_customer_id"
     t.index "lower((email)::text), account_id", name: "index_contacts_on_lower_email_account_id"
     t.index ["account_id", "contact_type"], name: "index_contacts_on_account_id_and_contact_type"
     t.index ["account_id", "email", "phone_number", "identifier"], name: "index_contacts_on_nonempty_fields", where: "(((email)::text <> ''::text) OR ((phone_number)::text <> ''::text) OR ((identifier)::text <> ''::text))"
@@ -681,6 +691,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_30_100640) do
     t.index ["account_id"], name: "index_resolved_contact_account_id", where: "(((email)::text <> ''::text) OR ((phone_number)::text <> ''::text) OR ((identifier)::text <> ''::text))"
     t.index ["blocked"], name: "index_contacts_on_blocked"
     t.index ["company_id"], name: "index_contacts_on_company_id"
+    t.index ["crm_customer_id"], name: "index_contacts_on_crm_customer_id"
     t.index ["email", "account_id"], name: "uniq_email_per_account_contact", unique: true
     t.index ["identifier", "account_id"], name: "uniq_identifier_per_account_contact", unique: true
     t.index ["name", "email", "phone_number", "identifier"], name: "index_contacts_on_name_email_phone_number_identifier", opclass: :gin_trgm_ops, using: :gin
@@ -1401,6 +1412,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_30_100640) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_customers", "accounts"
   add_foreign_key "inboxes", "portals"
   add_foreign_key "user_sessions", "users"
