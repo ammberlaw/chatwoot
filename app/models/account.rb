@@ -71,6 +71,7 @@ class Account < ApplicationRecord
   has_many :contacts, dependent: :destroy_async
   has_many :conversations, dependent: :destroy_async
   has_many :crm_customers, class_name: 'Crm::Customer', dependent: :destroy_async
+  has_many :crm_opportunities, class_name: 'Crm::Opportunity', dependent: :destroy_async
   has_many :csat_survey_responses, dependent: :destroy_async
   has_many :custom_attribute_definitions, dependent: :destroy_async
   has_many :custom_filters, dependent: :destroy_async

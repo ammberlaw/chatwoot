@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_11_071000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_080000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -817,6 +817,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_071000) do
     t.index ["account_owner_id"], name: "index_crm_customers_on_account_owner_id"
   end
 
+  create_table "crm_opportunities", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_customer_id"
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.bigint "amount_micros"
+    t.string "currency", default: "CNY"
+    t.string "sales_stage", default: "INITIAL_CONTACT", null: false
+    t.integer "probability"
+    t.datetime "expected_close_date"
+    t.text "current_need"
+    t.string "competitor"
+    t.string "loss_reason"
+    t.string "next_action"
+    t.datetime "last_activity_at"
+    t.text "opportunity_remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "sales_stage"], name: "index_crm_opportunities_on_account_id_and_sales_stage"
+    t.index ["account_id"], name: "index_crm_opportunities_on_account_id"
+    t.index ["crm_customer_id"], name: "index_crm_opportunities_on_crm_customer_id"
+    t.index ["owner_id"], name: "index_crm_opportunities_on_owner_id"
+  end
+
   create_table "csat_survey_responses", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "conversation_id", null: false
@@ -1414,6 +1438,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_071000) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_customers", "accounts"
+  add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
+  add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
