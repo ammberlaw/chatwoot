@@ -3,6 +3,7 @@ json.name resource.name
 json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.owner_id resource.owner_id
+json.owner_name resource.owner&.name
 json.amount_micros resource.amount_micros
 json.currency resource.currency
 json.sales_stage resource.sales_stage

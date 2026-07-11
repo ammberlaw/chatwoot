@@ -72,12 +72,13 @@
         "OPEN": "Open 推进中"
       },
       "TABLE": {
-        "NAME": "Name 名称",
-        "CUSTOMER": "Customer 客户",
-        "STAGE": "Stage 阶段",
-        "AMOUNT": "Amount 金额",
-        "PROBABILITY": "Prob. 概率",
-        "EXPECTED_CLOSE": "Expected close 预计成交"
+        "NAME": "商机名称",
+        "CUSTOMER": "客户",
+        "STAGE": "销售阶段",
+        "AMOUNT": "金额",
+        "PROBABILITY": "概率",
+        "EXPECTED_CLOSE": "预计成交",
+        "OWNER": "负责人"
       },
       "CREATE": {
         "TITLE": "New opportunity 新建商机",
