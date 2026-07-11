@@ -71,6 +71,7 @@ Rails.application.routes.draw do
             resources :teams
             resources :sales_targets
             resource :public_pool_settings, only: [:show, :update]
+            resource :stats, only: [:show], controller: 'stats'
             resources :mail_accounts
             resources :email_templates
           end

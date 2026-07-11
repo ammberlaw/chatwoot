@@ -44,6 +44,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     case params[:filter]
     when 'public_pool'
       scope = scope.in_public_pool
+    when 'private'
+      scope = scope.where(is_in_public_pool: false)
     when 'mine'
       scope = scope.owned_by(current_user.id)
     when 'unassigned'

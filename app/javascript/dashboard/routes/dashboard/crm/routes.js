@@ -1,10 +1,14 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import CrmCustomersIndex from './pages/CrmCustomersIndex.vue';
 import CrmOpportunitiesIndex from './pages/CrmOpportunitiesIndex.vue';
+import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
 import CrmSalesOrdersIndex from './pages/CrmSalesOrdersIndex.vue';
 import CrmEmailsIndex from './pages/CrmEmailsIndex.vue';
 import CrmKnowledgeDocsIndex from './pages/CrmKnowledgeDocsIndex.vue';
 import CrmSalesTargetsIndex from './pages/CrmSalesTargetsIndex.vue';
+import CrmMailAccountsIndex from './pages/CrmMailAccountsIndex.vue';
+import CrmEmailTemplatesIndex from './pages/CrmEmailTemplatesIndex.vue';
+import CrmDashboardIndex from './pages/CrmDashboardIndex.vue';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 
 const commonMeta = {
@@ -20,10 +24,14 @@ const crmPage = (path, name, component) => ({
 });
 
 export const routes = [
+  crmPage('dashboard', 'crm_dashboard_index', CrmDashboardIndex),
   crmPage('customers', 'crm_customers_index', CrmCustomersIndex),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
+  crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
   crmPage('sales-orders', 'crm_sales_orders_index', CrmSalesOrdersIndex),
   crmPage('emails', 'crm_emails_index', CrmEmailsIndex),
   crmPage('knowledge-docs', 'crm_knowledge_docs_index', CrmKnowledgeDocsIndex),
   crmPage('sales-targets', 'crm_sales_targets_index', CrmSalesTargetsIndex),
+  crmPage('mail-accounts', 'crm_mail_accounts_index', CrmMailAccountsIndex),
+  crmPage('email-templates', 'crm_email_templates_index', CrmEmailTemplatesIndex),
 ];

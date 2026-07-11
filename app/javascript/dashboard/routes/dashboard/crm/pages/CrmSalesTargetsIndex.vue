@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useCrmSalesTargetsStore } from 'dashboard/stores/crm/salesTargets';
@@ -8,10 +9,11 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import CrmSalesTargetCreateDialog from 'dashboard/components-next/CRM/CrmSalesTargetCreateDialog.vue';
 
 const { t } = useI18n();
+const route = useRoute();
 const store = useCrmSalesTargetsStore();
 
 const createDialogRef = ref(null);
-const activeFilter = ref('all');
+const activeFilter = ref(route.query.filter || 'all');
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
@@ -46,6 +48,13 @@ const createRecord = async payload => {
 };
 
 onMounted(fetchRecords);
+watch(
+  () => route.query.filter,
+  value => {
+    activeFilter.value = value || 'all';
+    fetchRecords();
+  }
+);
 
 const fmtMonth = value => {
   if (!value) return '—';

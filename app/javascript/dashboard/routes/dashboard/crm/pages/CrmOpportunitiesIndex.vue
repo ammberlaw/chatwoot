@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
@@ -8,10 +9,11 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 
 const { t } = useI18n();
+const route = useRoute();
 const store = useCrmOpportunitiesStore();
 
 const createDialogRef = ref(null);
-const activeFilter = ref('all');
+const activeFilter = ref(route.query.filter || 'all');
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
@@ -57,6 +59,13 @@ const createRecord = async payload => {
 };
 
 onMounted(fetchRecords);
+watch(
+  () => route.query.filter,
+  value => {
+    activeFilter.value = value || 'all';
+    fetchRecords();
+  }
+);
 
 const fmtMoney = (micros, currency) =>
   micros == null

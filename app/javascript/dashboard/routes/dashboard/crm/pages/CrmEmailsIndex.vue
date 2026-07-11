@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
@@ -9,11 +10,14 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import CrmEmailComposeDialog from 'dashboard/components-next/CRM/CrmEmailComposeDialog.vue';
 
 const { t } = useI18n();
+const route = useRoute();
 const store = useCrmEmailsStore();
 
 const composeDialogRef = ref(null);
 const detailDialogRef = ref(null);
-const activeFolder = ref('INBOX');
+const folderFromRoute = () =>
+  route.query.filter === 'unread' ? 'unread' : route.query.folder || 'INBOX';
+const activeFolder = ref(folderFromRoute());
 const selectedEmail = ref(null);
 
 const records = computed(() => store.getRecords);
@@ -72,7 +76,18 @@ const openDetail = email => {
 const counterparty = email =>
   email.folder === 'INBOX' ? email.fromAddress : email.toAddress;
 
-onMounted(fetchRecords);
+onMounted(() => {
+  fetchRecords();
+  if (route.query.compose) openCompose();
+});
+watch(
+  () => [route.query.folder, route.query.filter, route.query.compose],
+  () => {
+    activeFolder.value = folderFromRoute();
+    fetchRecords();
+    if (route.query.compose) openCompose();
+  }
+);
 
 const fmtTime = value => (value ? new Date(value).toLocaleString() : '—');
 </script>

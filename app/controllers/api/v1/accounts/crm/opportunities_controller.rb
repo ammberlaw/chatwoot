@@ -10,7 +10,7 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::BaseC
     @opportunities = @opportunities_scope
                      .order(updated_at: :desc)
                      .page(permitted_params[:page] || 1)
-                     .per(RESULTS_PER_PAGE)
+                     .per((params[:per_page] || RESULTS_PER_PAGE).to_i.clamp(1, 100))
   end
 
   def show; end

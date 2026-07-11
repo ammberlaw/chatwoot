@@ -9,7 +9,8 @@
         "ALL": "All",
         "MINE": "My customers",
         "PUBLIC_POOL": "Public pool",
-        "UNASSIGNED": "Unassigned"
+        "UNASSIGNED": "Unassigned",
+        "PRIVATE": "Private 私海"
       },
       "TABLE": {
         "NAME": "Name",
@@ -197,6 +198,67 @@
         "MONTH": "Month 目标月份",
         "AMOUNT": "Amount 目标成交额(元)",
         "NEW_CUSTOMERS": "New customers 目标新客户数"
+      }
+    },
+    "DASHBOARD": {
+      "HEADER_COMPANY": "外贸销售部数据看板",
+      "HEADER_MINE": "个人数据看板",
+      "LOADING": "Loading…"
+    },
+    "FUNNEL": {
+      "HEADER": "商机漏斗（看板）",
+      "HINT": "拖动卡片即可切换销售阶段",
+      "LOADING": "Loading…"
+    },
+    "MAIL_ACCOUNTS": {
+      "HEADER": "邮箱账户",
+      "NEW": "新建邮箱账户",
+      "EMPTY": "还没有发信邮箱，点右上新建",
+      "HINT": "每个业务员配置自己的企业邮箱（SMTP + 授权码），写邮件时可切换发件人",
+      "TABLE": {
+        "NAME": "账户名",
+        "EMAIL": "邮箱地址",
+        "PROVIDER": "服务商",
+        "ACTIVE": "状态"
+      },
+      "CREATE": {
+        "TITLE": "新建邮箱账户",
+        "SUCCESS": "邮箱账户已创建",
+        "ERROR": "创建失败"
+      },
+      "FORM": {
+        "NAME": "账户名",
+        "EMAIL": "邮箱地址",
+        "PROVIDER": "服务商",
+        "SSL": "加密方式",
+        "HOST": "SMTP 主机",
+        "PORT": "SMTP 端口",
+        "PASSWORD": "授权码/密码",
+        "PASSWORD_PLACEHOLDER": "企业邮箱的客户端授权码（不是登录密码）",
+        "SIGNATURE": "邮件签名"
+      }
+    },
+    "EMAIL_TEMPLATES": {
+      "HEADER": "邮件模板",
+      "NEW": "新建模板",
+      "EMPTY": "还没有模板",
+      "TABLE": {
+        "NAME": "模板名",
+        "CATEGORY": "类型",
+        "SUBJECT": "邮件主题",
+        "DESCRIPTION": "适用场景"
+      },
+      "CREATE": {
+        "TITLE": "新建邮件模板",
+        "SUCCESS": "模板已创建",
+        "ERROR": "创建失败"
+      },
+      "FORM": {
+        "NAME": "模板名",
+        "CATEGORY": "类型",
+        "SUBJECT": "邮件主题",
+        "BODY": "正文",
+        "DESCRIPTION": "适用场景"
       }
     }
   }

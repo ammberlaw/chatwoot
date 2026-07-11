@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
@@ -8,10 +9,11 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 
 const { t } = useI18n();
+const route = useRoute();
 const customersStore = useCrmCustomersStore();
 
 const createDialogRef = ref(null);
-const activeFilter = ref('all');
+const activeFilter = ref(route.query.filter || 'all');
 
 const customers = computed(() => customersStore.getCustomers);
 const uiFlags = computed(() => customersStore.getUIFlags);
@@ -21,6 +23,7 @@ const isCreating = computed(() => uiFlags.value.creatingItem);
 const filterTabs = [
   { key: 'all', label: t('CRM.CUSTOMERS.FILTERS.ALL') },
   { key: 'mine', label: t('CRM.CUSTOMERS.FILTERS.MINE') },
+  { key: 'private', label: t('CRM.CUSTOMERS.FILTERS.PRIVATE') },
   { key: 'public_pool', label: t('CRM.CUSTOMERS.FILTERS.PUBLIC_POOL') },
   { key: 'unassigned', label: t('CRM.CUSTOMERS.FILTERS.UNASSIGNED') },
 ];
@@ -50,7 +53,18 @@ const createCustomer = async customer => {
 const formatDate = value =>
   value ? new Date(value).toLocaleDateString() : '—';
 
-onMounted(fetchCustomers);
+onMounted(() => {
+  fetchCustomers();
+  if (route.query.new) openCreateDialog();
+});
+watch(
+  () => [route.query.filter, route.query.new],
+  () => {
+    activeFilter.value = route.query.filter || 'all';
+    fetchCustomers();
+    if (route.query.new) openCreateDialog();
+  }
+);
 </script>
 
 <template>
