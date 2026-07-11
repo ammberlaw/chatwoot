@@ -61,6 +61,10 @@ Rails.application.routes.draw do
             resources :products
             resources :sales_orders
             resources :emails
+            resources :quotes do
+              resources :line_items, only: [:index, :create], controller: 'quote_line_items'
+            end
+            resources :quote_line_items, only: [:update, :destroy]
           end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do

@@ -23,6 +23,7 @@
 #  contact_id           :bigint
 #  crm_customer_id      :bigint
 #  crm_opportunity_id   :bigint
+#  crm_quote_id         :bigint
 #  owner_id             :bigint
 #
 # Indexes
@@ -34,6 +35,7 @@
 #  index_crm_sales_orders_on_contact_id                 (contact_id)
 #  index_crm_sales_orders_on_crm_customer_id            (crm_customer_id)
 #  index_crm_sales_orders_on_crm_opportunity_id         (crm_opportunity_id)
+#  index_crm_sales_orders_on_crm_quote_id               (crm_quote_id)
 #  index_crm_sales_orders_on_owner_id                   (owner_id)
 #
 # Foreign Keys
@@ -41,6 +43,7 @@
 #  fk_rails_...  (contact_id => contacts.id) ON DELETE => nullify
 #  fk_rails_...  (crm_customer_id => crm_customers.id) ON DELETE => nullify
 #  fk_rails_...  (crm_opportunity_id => crm_opportunities.id) ON DELETE => nullify
+#  fk_rails_...  (crm_quote_id => crm_quotes.id) ON DELETE => nullify
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::SalesOrder < ApplicationRecord
@@ -50,6 +53,7 @@ class Crm::SalesOrder < ApplicationRecord
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true
   belongs_to :contact, optional: true
   belongs_to :crm_opportunity, class_name: 'Crm::Opportunity', optional: true
+  belongs_to :quote, class_name: 'Crm::Quote', foreign_key: :crm_quote_id, optional: true, inverse_of: :sales_orders
   belongs_to :owner, class_name: 'User', optional: true
 
   before_validation :generate_order_no, on: :create

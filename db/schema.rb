@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_11_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_110000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -895,6 +895,54 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_100000) do
     t.index ["account_id"], name: "index_crm_products_on_account_id"
   end
 
+  create_table "crm_quote_line_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_quote_id", null: false
+    t.bigint "crm_product_id"
+    t.string "name", null: false
+    t.string "product_name_snapshot"
+    t.string "spec_snapshot"
+    t.decimal "quantity", precision: 12, scale: 2
+    t.bigint "unit_price_micros"
+    t.bigint "amount_micros"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_quote_line_items_on_account_id"
+    t.index ["crm_product_id"], name: "index_crm_quote_line_items_on_crm_product_id"
+    t.index ["crm_quote_id"], name: "index_crm_quote_line_items_on_crm_quote_id"
+  end
+
+  create_table "crm_quotes", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_customer_id"
+    t.bigint "contact_id"
+    t.bigint "crm_opportunity_id"
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.string "quote_no", null: false
+    t.datetime "quote_date"
+    t.datetime "valid_until"
+    t.string "status", default: "DRAFT", null: false
+    t.string "quote_currency", default: "USD"
+    t.decimal "exchange_rate", precision: 12, scale: 6
+    t.bigint "subtotal_micros"
+    t.bigint "discount_amount_micros"
+    t.bigint "shipping_fee_micros"
+    t.bigint "tax_amount_micros"
+    t.bigint "total_amount_micros"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "quote_no"], name: "index_crm_quotes_on_account_id_and_quote_no", unique: true
+    t.index ["account_id", "status"], name: "index_crm_quotes_on_account_id_and_status"
+    t.index ["account_id"], name: "index_crm_quotes_on_account_id"
+    t.index ["contact_id"], name: "index_crm_quotes_on_contact_id"
+    t.index ["crm_customer_id"], name: "index_crm_quotes_on_crm_customer_id"
+    t.index ["crm_opportunity_id"], name: "index_crm_quotes_on_crm_opportunity_id"
+    t.index ["owner_id"], name: "index_crm_quotes_on_owner_id"
+  end
+
   create_table "crm_sales_orders", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -915,6 +963,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_100000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "crm_quote_id"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_sales_orders_on_account_id_and_status"
@@ -922,6 +971,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_100000) do
     t.index ["contact_id"], name: "index_crm_sales_orders_on_contact_id"
     t.index ["crm_customer_id"], name: "index_crm_sales_orders_on_crm_customer_id"
     t.index ["crm_opportunity_id"], name: "index_crm_sales_orders_on_crm_opportunity_id"
+    t.index ["crm_quote_id"], name: "index_crm_sales_orders_on_crm_quote_id"
     t.index ["owner_id"], name: "index_crm_sales_orders_on_owner_id"
   end
 
@@ -1527,9 +1577,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_100000) do
   add_foreign_key "crm_emails", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify
+  add_foreign_key "crm_quote_line_items", "crm_quotes", on_delete: :cascade
+  add_foreign_key "crm_quotes", "contacts", on_delete: :nullify
+  add_foreign_key "crm_quotes", "crm_customers", on_delete: :nullify
+  add_foreign_key "crm_quotes", "crm_opportunities", on_delete: :nullify
+  add_foreign_key "crm_quotes", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "contacts", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "crm_opportunities", on_delete: :nullify
+  add_foreign_key "crm_sales_orders", "crm_quotes", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "user_sessions", "users"
