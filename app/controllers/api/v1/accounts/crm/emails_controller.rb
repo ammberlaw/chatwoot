@@ -16,7 +16,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
   def show; end
 
   def create
-    @email = Current.account.crm_emails.create!(email_params)
+    @email = Current.account.crm_emails.create!(email_params.merge(owner_id: email_params[:owner_id] || current_user.id))
   end
 
   def update

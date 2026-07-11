@@ -16,7 +16,7 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::BaseC
   def show; end
 
   def create
-    @opportunity = Current.account.crm_opportunities.create!(opportunity_params)
+    @opportunity = Current.account.crm_opportunities.create!(opportunity_params.merge(owner_id: opportunity_params[:owner_id] || current_user.id))
   end
 
   def update

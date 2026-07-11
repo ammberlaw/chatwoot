@@ -10,7 +10,7 @@ class Api::V1::Accounts::Crm::SalesTargetsController < Api::V1::Accounts::BaseCo
   def show; end
 
   def create
-    @target = Current.account.crm_sales_targets.create!(target_params)
+    @target = Current.account.crm_sales_targets.create!(target_params.merge(owner_id: target_params[:owner_id] || current_user.id))
   end
 
   def update

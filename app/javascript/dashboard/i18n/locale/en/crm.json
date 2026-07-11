@@ -32,6 +32,172 @@
           "REMARK": "Remark"
         }
       }
+    },
+    "OPPORTUNITIES": {
+      "HEADER": "Opportunities 商机",
+      "NEW": "New opportunity 新建商机",
+      "LOADING": "Loading…",
+      "EMPTY": "No opportunities yet 暂无商机",
+      "FILTERS": {
+        "ALL": "All 全部",
+        "MINE": "Mine 我的商机",
+        "OPEN": "Open 推进中"
+      },
+      "TABLE": {
+        "NAME": "Name 名称",
+        "CUSTOMER": "Customer 客户",
+        "STAGE": "Stage 阶段",
+        "AMOUNT": "Amount 金额",
+        "PROBABILITY": "Prob. 概率",
+        "EXPECTED_CLOSE": "Expected close 预计成交"
+      },
+      "CREATE": {
+        "TITLE": "New opportunity 新建商机",
+        "SUCCESS": "商机已创建",
+        "ERROR": "创建失败"
+      },
+      "FORM": {
+        "NAME": "Name 商机名称",
+        "NAME_PLACEHOLDER": "如：德国平板批量采购",
+        "CUSTOMER": "Customer 所属客户",
+        "STAGE": "Stage 销售阶段",
+        "AMOUNT": "Amount 金额(元)",
+        "CURRENCY": "Currency 币种",
+        "PROBABILITY": "Probability 概率%",
+        "EXPECTED_CLOSE": "Expected close 预计成交日",
+        "REMARK": "Remark 备注"
+      }
+    },
+    "SALES_ORDERS": {
+      "HEADER": "Sales Orders 销售订单",
+      "NEW": "New order 新建订单",
+      "LOADING": "Loading…",
+      "EMPTY": "No orders yet 暂无订单",
+      "FILTERS": {
+        "ALL": "All 全部",
+        "MINE": "Mine 我的订单",
+        "NO_CUSTOMER": "No customer 未关联客户"
+      },
+      "TABLE": {
+        "NAME": "Subject 订单主题",
+        "ORDER_NO": "Order no. 订单号",
+        "CUSTOMER": "Customer 客户",
+        "STATUS": "Status 状态",
+        "AMOUNT": "Amount 金额",
+        "ORDER_DATE": "Order date 下单日期"
+      },
+      "CREATE": {
+        "TITLE": "New sales order 新建销售订单",
+        "DESCRIPTION": "订单号自动生成（SO-日期-序号）",
+        "SUCCESS": "订单已创建",
+        "ERROR": "创建失败"
+      },
+      "FORM": {
+        "NAME": "Subject 订单主题",
+        "CUSTOMER": "Customer 所属客户",
+        "STATUS": "Status 状态",
+        "ORDER_DATE": "Order date 下单日期",
+        "AMOUNT": "Amount 金额(元)",
+        "CURRENCY": "Currency 币种",
+        "REMARK": "Remark 备注"
+      }
+    },
+    "EMAILS": {
+      "HEADER": "Emails 邮件中心",
+      "LOADING": "Loading…",
+      "EMPTY": "No emails 暂无邮件",
+      "FOLDERS": {
+        "INBOX": "Inbox 收件箱",
+        "UNREAD": "Unread 未读",
+        "SENT": "Sent 发件箱",
+        "DRAFT": "Drafts 草稿箱",
+        "BULK": "Bulk 群发箱"
+      },
+      "TABLE": {
+        "SUBJECT": "Subject 主题",
+        "COUNTERPARTY": "From/To 对方",
+        "CUSTOMER": "Customer 客户",
+        "STATUS": "Status 状态",
+        "DATE": "Date 时间"
+      },
+      "COMPOSE": {
+        "BUTTON": "Compose 写邮件",
+        "TITLE": "Compose 写邮件",
+        "SEND": "Send 发送",
+        "FROM": "From 发件人",
+        "TEMPLATE": "Template 套用模板",
+        "NO_TEMPLATE": "— 不套用 —",
+        "TO": "To 收件人",
+        "TO_PLACEHOLDER": "多个用英文逗号分隔",
+        "CC": "Cc 抄送",
+        "SUBJECT": "Subject 主题",
+        "BODY": "Body 正文",
+        "NO_ACCOUNT": "还没有发信邮箱账户，请先在后台配置 SMTP 邮箱",
+        "SUCCESS": "已提交发送（结果见状态列）",
+        "ERROR": "发送失败"
+      },
+      "DETAIL": {
+        "FROM": "From 发件人",
+        "TO": "To 收件人",
+        "CC": "Cc 抄送",
+        "DATE": "Date 时间",
+        "SEND_ERROR": "Error 失败原因"
+      }
+    },
+    "KNOWLEDGE_DOCS": {
+      "HEADER": "Knowledge 知识库",
+      "NEW": "New doc 新建文档",
+      "LOADING": "Loading…",
+      "EMPTY": "No docs yet 暂无文档",
+      "FILTERS": {
+        "COMPANY": "Company 公司文档",
+        "MINE": "Mine 我的知识库"
+      },
+      "TABLE": {
+        "NAME": "Title 标题",
+        "CATEGORY": "Category 分类",
+        "SUMMARY": "Summary 摘要",
+        "UPDATED_AT": "Updated 更新时间"
+      },
+      "CREATE": {
+        "TITLE": "New doc 新建文档",
+        "SUCCESS": "文档已创建",
+        "ERROR": "创建失败"
+      },
+      "FORM": {
+        "NAME": "Title 标题",
+        "CATEGORY": "Category 分类",
+        "SCOPE": "Scope 范围",
+        "SUMMARY": "Summary 摘要",
+        "BODY": "Body 正文"
+      }
+    },
+    "SALES_TARGETS": {
+      "HEADER": "Targets 业绩目标",
+      "NEW": "New target 新建目标",
+      "LOADING": "Loading…",
+      "EMPTY": "No targets yet 暂无目标",
+      "FILTERS": {
+        "ALL": "All 全部",
+        "MINE": "Mine 我的目标"
+      },
+      "TABLE": {
+        "NAME": "Name 名称",
+        "MONTH": "Month 月份",
+        "AMOUNT": "Amount 目标成交额",
+        "NEW_CUSTOMERS": "New customers 目标新客户数"
+      },
+      "CREATE": {
+        "TITLE": "New target 新建目标",
+        "SUCCESS": "目标已创建",
+        "ERROR": "创建失败（同人同月只能一条）"
+      },
+      "FORM": {
+        "NAME": "Name 目标名称",
+        "MONTH": "Month 目标月份",
+        "AMOUNT": "Amount 目标成交额(元)",
+        "NEW_CUSTOMERS": "New customers 目标新客户数"
+      }
     }
   }
 }

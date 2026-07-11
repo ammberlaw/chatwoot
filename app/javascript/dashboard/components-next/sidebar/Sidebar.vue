@@ -600,6 +600,36 @@ const menuItems = computed(() => {
           to: accountScopedRoute('crm_customers_index', {}, { page: 1 }),
           activeOn: ['crm_customers_index'],
         },
+        {
+          name: 'CRM Opportunities',
+          label: t('SIDEBAR.CRM_OPPORTUNITIES'),
+          to: accountScopedRoute('crm_opportunities_index'),
+          activeOn: ['crm_opportunities_index'],
+        },
+        {
+          name: 'CRM Sales Orders',
+          label: t('SIDEBAR.CRM_SALES_ORDERS'),
+          to: accountScopedRoute('crm_sales_orders_index'),
+          activeOn: ['crm_sales_orders_index'],
+        },
+        {
+          name: 'CRM Emails',
+          label: t('SIDEBAR.CRM_EMAILS'),
+          to: accountScopedRoute('crm_emails_index'),
+          activeOn: ['crm_emails_index'],
+        },
+        {
+          name: 'CRM Knowledge Docs',
+          label: t('SIDEBAR.CRM_KNOWLEDGE_DOCS'),
+          to: accountScopedRoute('crm_knowledge_docs_index'),
+          activeOn: ['crm_knowledge_docs_index'],
+        },
+        {
+          name: 'CRM Sales Targets',
+          label: t('SIDEBAR.CRM_SALES_TARGETS'),
+          to: accountScopedRoute('crm_sales_targets_index'),
+          activeOn: ['crm_sales_targets_index'],
+        },
       ],
     },
     {

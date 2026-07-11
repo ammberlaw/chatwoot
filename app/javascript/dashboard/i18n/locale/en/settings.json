@@ -410,7 +410,12 @@
     "DOCS": "Read docs",
     "SECURITY": "Security",
     "CAPTAIN_AI": "Captain",
-    "CONVERSATION_WORKFLOW": "Conversation Workflow"
+    "CONVERSATION_WORKFLOW": "Conversation Workflow",
+    "CRM_OPPORTUNITIES": "Opportunities 商机",
+    "CRM_SALES_ORDERS": "Sales Orders 订单",
+    "CRM_EMAILS": "Emails 邮件",
+    "CRM_KNOWLEDGE_DOCS": "Knowledge 知识库",
+    "CRM_SALES_TARGETS": "Targets 目标"
   },
   "CAPTAIN_SETTINGS": {
     "TITLE": "Captain Settings",

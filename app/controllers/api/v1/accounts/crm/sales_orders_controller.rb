@@ -16,7 +16,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
   def show; end
 
   def create
-    @sales_order = Current.account.crm_sales_orders.create!(sales_order_params)
+    @sales_order = Current.account.crm_sales_orders.create!(sales_order_params.merge(owner_id: sales_order_params[:owner_id] || current_user.id))
   end
 
   def update
