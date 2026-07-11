@@ -52,8 +52,6 @@ const currencyOptions = ['CNY', 'USD', 'EUR'].map(v => ({
   label: v,
 }));
 
-const CURRENCY_SYMBOL = { CNY: '¥', USD: '$', EUR: '€' };
-
 const customerOptions = computed(() =>
   customersStore.getCustomers.map(c => ({ value: String(c.id), label: c.name }))
 );
@@ -69,27 +67,6 @@ const opportunityOptions = computed(() => {
     ...filtered.map(o => ({ value: String(o.id), label: o.name })),
   ];
 });
-
-// 利润 = 订单金额 - 成本金额；利润率 = 利润 / 订单金额 × 100
-const profit = computed(() => {
-  const a = parseFloat(form.amount);
-  const c = parseFloat(form.cost);
-  if (Number.isNaN(a)) return null;
-  return a - (Number.isNaN(c) ? 0 : c);
-});
-const profitRate = computed(() => {
-  const a = parseFloat(form.amount);
-  if (Number.isNaN(a) || a === 0 || profit.value == null) return null;
-  return Math.round((profit.value / a) * 10000) / 100;
-});
-const profitDisplay = computed(() =>
-  profit.value == null
-    ? '—'
-    : `${CURRENCY_SYMBOL[form.orderCurrency] || ''}${profit.value.toLocaleString()}`
-);
-const profitRateDisplay = computed(() =>
-  profitRate.value == null ? '—' : `${profitRate.value}%`
-);
 
 const isEditing = computed(() => editingId.value !== null);
 const isFormInvalid = computed(() => !form.name.trim() || !form.orderDate);
@@ -155,9 +132,6 @@ const handleConfirm = () => {
     costAmountMicros: form.cost
       ? Math.round(parseFloat(form.cost) * 1_000_000)
       : null,
-    profitAmountMicros:
-      profit.value == null ? null : Math.round(profit.value * 1_000_000),
-    profitRate: profitRate.value,
     orderCurrency: form.orderCurrency,
     exchangeRate: form.exchangeRate ? parseFloat(form.exchangeRate) : null,
     remark: form.remark.trim() || null,
@@ -257,26 +231,6 @@ defineExpose({ dialogRef, onSuccess, open });
           type="number"
           :label="t('CRM.SALES_ORDERS.FORM.EXCHANGE_RATE')"
         />
-        <div class="flex flex-col gap-1">
-          <label class="text-sm font-medium text-n-slate-12">
-            {{ t('CRM.SALES_ORDERS.FORM.PROFIT') }}
-          </label>
-          <div
-            class="flex items-center h-10 px-3 text-sm font-medium rounded-lg bg-n-teal-2 text-n-teal-11"
-          >
-            {{ profitDisplay }}
-          </div>
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-sm font-medium text-n-slate-12">
-            {{ t('CRM.SALES_ORDERS.FORM.PROFIT_RATE') }}
-          </label>
-          <div
-            class="flex items-center h-10 px-3 text-sm font-medium rounded-lg bg-n-teal-2 text-n-teal-11"
-          >
-            {{ profitRateDisplay }}
-          </div>
-        </div>
       </div>
 
       <TextArea

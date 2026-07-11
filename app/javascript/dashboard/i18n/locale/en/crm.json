@@ -118,7 +118,6 @@
         "CUSTOMER": "客户",
         "STATUS": "状态",
         "AMOUNT": "金额",
-        "PROFIT": "利润",
         "ORDER_DATE": "下单日期",
         "DELIVERY_DATE": "交期",
         "OWNER": "负责人"
@@ -142,9 +141,6 @@
         "COST": "Cost amount 成本金额",
         "CURRENCY": "Currency 币种",
         "EXCHANGE_RATE": "Exchange rate 汇率",
-        "PROFIT": "Profit 利润",
-        "PROFIT_RATE": "Profit rate 利润率",
-        "AUTO": "自动计算",
         "REMARK": "Remark 备注"
       },
       "EDIT": {

@@ -155,9 +155,6 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
             <th class="px-3 py-2 font-medium text-right">
               {{ t('CRM.SALES_ORDERS.TABLE.AMOUNT') }}
             </th>
-            <th class="px-3 py-2 font-medium text-right">
-              {{ t('CRM.SALES_ORDERS.TABLE.PROFIT') }}
-            </th>
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.SALES_ORDERS.TABLE.ORDER_DATE') }}
             </th>
@@ -195,21 +192,6 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
             </td>
             <td class="px-3 py-2 text-right text-n-slate-12 whitespace-nowrap">
               {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
-            </td>
-            <td class="px-3 py-2 text-right whitespace-nowrap">
-              <span
-                v-if="record.profitAmountMicros != null"
-                class="text-n-teal-11"
-              >
-                {{ fmtMoney(record.profitAmountMicros, record.orderCurrency) }}
-                <span
-                  v-if="record.profitRate != null"
-                  class="text-xs text-n-slate-10"
-                >
-                  ({{ record.profitRate }}%)
-                </span>
-              </span>
-              <span v-else class="text-n-slate-10">—</span>
             </td>
             <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
               {{ fmtDate(record.orderDate) }}
