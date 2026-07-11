@@ -19,6 +19,10 @@
         "STATUS": "Status",
         "LEVEL": "Level",
         "LAST_FOLLOW_UP": "Last follow-up",
+        "SOURCE": "客户来源",
+        "GRADE": "资料完善度",
+        "DEAL_AMOUNT": "累计成交额",
+        "DEAL_COUNT": "成交单数",
         "OWNER": "负责人",
         "ACTION": "操作"
       },

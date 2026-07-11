@@ -102,6 +102,37 @@ const releaseCustomer = async customer => {
   }
 };
 
+const SOURCE_LABELS = {
+  ALIBABA: '阿里巴巴',
+  WEBSITE: '官网',
+  EXHIBITION: '展会',
+  REFERRAL: '转介绍',
+  EMAIL: '邮件开发',
+  SOCIAL_MEDIA: '社媒',
+  OTHER: '其他',
+};
+
+const GRADE_META = {
+  COMPLETE: { label: '完善', class: 'text-n-teal-11' },
+  GOOD: { label: '良好', class: 'text-n-blue-11' },
+  FAIR: { label: '一般', class: 'text-n-amber-11' },
+  POOR: { label: '待完善', class: 'text-n-ruby-11' },
+};
+
+const gradeInfo = customer => {
+  const meta = GRADE_META[customer.completenessGrade] || {
+    label: '—',
+    class: 'text-n-slate-10',
+  };
+  const score = customer.infoCompletenessScore;
+  return { ...meta, score: score != null ? score : null };
+};
+
+const sourceLabel = source => (source ? SOURCE_LABELS[source] || source : '—');
+
+const money = micros =>
+  micros ? `¥${Math.round(micros / 1_000_000).toLocaleString()}` : '¥0';
+
 onMounted(() => {
   fetchCustomers();
   if (route.query.new) openCreateDialog();
@@ -173,10 +204,16 @@ watch(
               {{ t('CRM.CUSTOMERS.TABLE.STATUS') }}
             </th>
             <th class="px-3 py-2 font-medium">
-              {{ t('CRM.CUSTOMERS.TABLE.LEVEL') }}
+              {{ t('CRM.CUSTOMERS.TABLE.SOURCE') }}
             </th>
             <th class="px-3 py-2 font-medium">
-              {{ t('CRM.CUSTOMERS.TABLE.LAST_FOLLOW_UP') }}
+              {{ t('CRM.CUSTOMERS.TABLE.GRADE') }}
+            </th>
+            <th class="px-3 py-2 font-medium text-right">
+              {{ t('CRM.CUSTOMERS.TABLE.DEAL_AMOUNT') }}
+            </th>
+            <th class="px-3 py-2 font-medium text-right">
+              {{ t('CRM.CUSTOMERS.TABLE.DEAL_COUNT') }}
             </th>
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.CUSTOMERS.TABLE.OWNER') }}
@@ -204,10 +241,24 @@ watch(
               {{ customer.customerStatus || '—' }}
             </td>
             <td class="px-3 py-2 text-n-slate-11">
-              {{ customer.customerLevel || '—' }}
+              {{ sourceLabel(customer.sourceChannel) }}
             </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ formatDate(customer.lastFollowUpAt) }}
+            <td class="px-3 py-2">
+              <span :class="gradeInfo(customer).class">
+                {{ gradeInfo(customer).label }}
+                <span
+                  v-if="gradeInfo(customer).score != null"
+                  class="text-n-slate-10"
+                >
+                  {{ gradeInfo(customer).score }}
+                </span>
+              </span>
+            </td>
+            <td class="px-3 py-2 text-right text-n-slate-11">
+              {{ money(customer.dealTotalAmountMicros) }}
+            </td>
+            <td class="px-3 py-2 text-right text-n-slate-11">
+              {{ customer.dealOrderCount || 0 }}
             </td>
             <td class="px-3 py-2 text-n-slate-11">
               <span v-if="customer.isInPublicPool" class="text-n-sky-11">🌊 公海</span>

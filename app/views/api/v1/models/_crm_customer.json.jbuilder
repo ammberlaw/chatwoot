@@ -36,5 +36,8 @@ json.deal_order_count resource.deal_order_count
 json.first_deal_at resource.first_deal_at
 json.last_deal_at resource.last_deal_at
 
+json.info_completeness_score resource.info_completeness_score
+json.completeness_grade resource.completeness_grade
+
 json.created_at resource.created_at.to_i
 json.updated_at resource.updated_at.to_i
