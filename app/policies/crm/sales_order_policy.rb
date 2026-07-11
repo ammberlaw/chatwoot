@@ -15,6 +15,14 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
     true
   end
 
+  def attach?
+    true
+  end
+
+  def detach?
+    true
+  end
+
   # 仅管理员可删除（业务员/主管不可删订单——A-CRM 权限口径）。
   def destroy?
     @account_user.administrator?

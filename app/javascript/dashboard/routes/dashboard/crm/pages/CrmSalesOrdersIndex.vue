@@ -224,6 +224,7 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
       :is-loading="isCreating"
       @create="createRecord"
       @update="updateRecord"
+      @refresh="fetchRecords"
     />
   </div>
 </template>

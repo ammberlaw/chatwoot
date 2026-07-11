@@ -19,6 +19,12 @@ export const buildCrmClient = resource => {
       const query = buildParams(params);
       return axios.get(query ? `${this.url}?${query}` : this.url);
     }
+
+    createWithFiles(formData) {
+      return axios.post(this.url, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
   }
   return new CrmResourceAPI();
 };

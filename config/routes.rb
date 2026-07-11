@@ -67,7 +67,12 @@ Rails.application.routes.draw do
             resources :contacts, only: [:index, :update]
             resources :opportunities
             resources :products
-            resources :sales_orders
+            resources :sales_orders do
+              member do
+                post :attach
+                delete 'attach/:attachment_id', action: :detach
+              end
+            end
             resources :emails
             resources :quotes do
               resources :line_items, only: [:index, :create], controller: 'quote_line_items'

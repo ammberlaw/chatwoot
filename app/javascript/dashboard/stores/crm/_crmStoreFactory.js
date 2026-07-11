@@ -38,9 +38,24 @@ export const buildCrmStore = ({ name, API, paramKey }) =>
       async create(obj) {
         this.setUIFlag({ creatingItem: true });
         try {
-          const { data } = await API.create({
-            [paramKey]: snakecaseKeys(obj, { deep: true }),
-          });
+          // __files 存在时用 multipart 一次性带附件创建（如销售订单要求 PI 附件）。
+          const { __files: files, ...fields } = obj;
+          let data;
+          if (files && files.length) {
+            const snake = snakecaseKeys(fields, { deep: true });
+            const fd = new FormData();
+            Object.entries(snake).forEach(([key, value]) => {
+              if (value !== null && value !== undefined) {
+                fd.append(`${paramKey}[${key}]`, value);
+              }
+            });
+            files.forEach(f => fd.append(`${paramKey}[files][]`, f));
+            ({ data } = await API.createWithFiles(fd));
+          } else {
+            ({ data } = await API.create({
+              [paramKey]: snakecaseKeys(fields, { deep: true }),
+            }));
+          }
           const record = camelize(data);
           this.records.unshift(record);
           return record;

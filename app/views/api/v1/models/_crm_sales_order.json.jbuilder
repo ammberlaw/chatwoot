@@ -17,5 +17,6 @@ json.cost_amount_micros resource.cost_amount_micros
 json.profit_amount_micros resource.profit_amount_micros
 json.profit_rate resource.profit_rate
 json.remark resource.remark
+json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f) } }
 json.created_at resource.created_at
 json.updated_at resource.updated_at

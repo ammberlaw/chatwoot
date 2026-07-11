@@ -60,6 +60,9 @@ class Crm::SalesOrder < ApplicationRecord
   belongs_to :owner, class_name: 'User', optional: true
   belongs_to :crm_team, class_name: 'Crm::Team', optional: true, inverse_of: :sales_orders
 
+  # 订单附件（PI、生产订单等）。新建订单强制至少一个附件。
+  has_many_attached :files
+
   before_validation :generate_order_no, on: :create
   before_save :assign_team_from_owner, if: :will_save_change_to_owner_id?
 
@@ -68,6 +71,7 @@ class Crm::SalesOrder < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :order_date, presence: true
   validates :order_currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
+  validate :require_attachment_on_create, on: :create
 
   after_save :rollup_customer_deals
   after_destroy :rollup_customer_deals
@@ -76,6 +80,11 @@ class Crm::SalesOrder < ApplicationRecord
   scope :dealt, -> { where.not(status: 'CANCELLED') }
 
   private
+
+  # 新建订单必须至少上传一个附件（如 PI、生产订单）。
+  def require_attachment_on_create
+    errors.add(:files, '请至少上传一个附件（如 PI、生产订单）') unless files.attached?
+  end
 
   # 订单所属团队按 owner 自动反写（对应 Twenty sales-order-team-rollup 触发器）。
   def assign_team_from_owner

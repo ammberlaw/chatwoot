@@ -147,6 +147,17 @@
         "TITLE": "编辑订单",
         "SUCCESS": "订单已保存",
         "ERROR": "保存失败"
+      },
+      "ATTACH": {
+        "TITLE": "附件",
+        "ADD": "添加附件",
+        "UPLOADING": "上传中…",
+        "REMOVE": "删除",
+        "REQUIRED_HINT": "新建订单必须上传至少一个附件（如 PI、生产订单）",
+        "EMPTY_HINT": "暂无附件。可上传 PI、生产订单等文件。",
+        "UPLOAD_SUCCESS": "附件已上传",
+        "UPLOAD_ERROR": "上传失败",
+        "DELETE_ERROR": "删除失败"
       }
     },
     "EMAILS": {

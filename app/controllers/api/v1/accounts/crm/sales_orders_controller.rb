@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_sales_order, only: [:show, :update, :destroy]
+  before_action :fetch_sales_order, only: [:show, :update, :destroy, :attach, :detach]
 
   RESULTS_PER_PAGE = 15
 
@@ -28,6 +28,16 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
     head :ok
   end
 
+  def attach
+    @sales_order.files.attach(params[:files])
+    render 'api/v1/accounts/crm/sales_orders/show'
+  end
+
+  def detach
+    @sales_order.files.find(params[:attachment_id]).purge
+    render 'api/v1/accounts/crm/sales_orders/show'
+  end
+
   private
 
   def fetch_sales_order
@@ -52,7 +62,8 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
     params.require(:sales_order).permit(
       :name, :order_no, :crm_customer_id, :contact_id, :crm_opportunity_id, :owner_id,
       :status, :order_date, :delivery_date, :order_currency, :exchange_rate,
-      :order_amount_micros, :cost_amount_micros, :profit_amount_micros, :profit_rate, :remark
+      :order_amount_micros, :cost_amount_micros, :profit_amount_micros, :profit_rate, :remark,
+      files: []
     )
   end
 
