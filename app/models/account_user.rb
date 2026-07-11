@@ -11,6 +11,7 @@
 #  updated_at               :datetime         not null
 #  account_id               :bigint
 #  agent_capacity_policy_id :bigint
+#  crm_team_id              :bigint
 #  custom_role_id           :bigint
 #  inviter_id               :bigint
 #  user_id                  :bigint
@@ -19,9 +20,14 @@
 #
 #  index_account_users_on_account_id                (account_id)
 #  index_account_users_on_agent_capacity_policy_id  (agent_capacity_policy_id)
+#  index_account_users_on_crm_team_id               (crm_team_id)
 #  index_account_users_on_custom_role_id            (custom_role_id)
 #  index_account_users_on_user_id                   (user_id)
 #  uniq_user_id_per_account_id                      (account_id,user_id) UNIQUE
+#
+# Foreign Keys
+#
+#  fk_rails_...  (crm_team_id => crm_teams.id) ON DELETE => nullify
 #
 
 class AccountUser < ApplicationRecord
@@ -30,6 +36,7 @@ class AccountUser < ApplicationRecord
   belongs_to :account
   belongs_to :user
   belongs_to :inviter, class_name: 'User', optional: true
+  belongs_to :crm_team, class_name: 'Crm::Team', optional: true, inverse_of: :account_users
 
   enum role: { agent: 0, administrator: 1 }
   enum availability: { online: 0, offline: 1, busy: 2 }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -52,9 +52,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
     t.boolean "auto_offline", default: true, null: false
     t.bigint "custom_role_id"
     t.bigint "agent_capacity_policy_id"
+    t.bigint "crm_team_id"
     t.index ["account_id", "user_id"], name: "uniq_user_id_per_account_id", unique: true
     t.index ["account_id"], name: "index_account_users_on_account_id"
     t.index ["agent_capacity_policy_id"], name: "index_account_users_on_agent_capacity_policy_id"
+    t.index ["crm_team_id"], name: "index_account_users_on_crm_team_id"
     t.index ["custom_role_id"], name: "index_account_users_on_custom_role_id"
     t.index ["user_id"], name: "index_account_users_on_user_id"
   end
@@ -895,6 +897,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
     t.index ["crm_opportunity_id"], name: "index_crm_follow_up_tasks_on_crm_opportunity_id"
   end
 
+  create_table "crm_knowledge_docs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.string "category"
+    t.string "summary"
+    t.string "scope", default: "PERSONAL", null: false
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "category"], name: "index_crm_knowledge_docs_on_account_id_and_category"
+    t.index ["account_id", "scope"], name: "index_crm_knowledge_docs_on_account_id_and_scope"
+    t.index ["account_id"], name: "index_crm_knowledge_docs_on_account_id"
+    t.index ["owner_id"], name: "index_crm_knowledge_docs_on_owner_id"
+  end
+
   create_table "crm_opportunities", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1006,6 +1024,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "crm_quote_id"
+    t.bigint "crm_team_id"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_sales_orders_on_account_id_and_status"
@@ -1014,7 +1033,33 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
     t.index ["crm_customer_id"], name: "index_crm_sales_orders_on_crm_customer_id"
     t.index ["crm_opportunity_id"], name: "index_crm_sales_orders_on_crm_opportunity_id"
     t.index ["crm_quote_id"], name: "index_crm_sales_orders_on_crm_quote_id"
+    t.index ["crm_team_id"], name: "index_crm_sales_orders_on_crm_team_id"
     t.index ["owner_id"], name: "index_crm_sales_orders_on_owner_id"
+  end
+
+  create_table "crm_sales_targets", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.datetime "target_month", null: false
+    t.bigint "target_amount_micros"
+    t.integer "target_order_count"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "target_month"], name: "index_crm_sales_targets_on_account_id_and_target_month"
+    t.index ["account_id"], name: "index_crm_sales_targets_on_account_id"
+    t.index ["owner_id"], name: "index_crm_sales_targets_on_owner_id"
+  end
+
+  create_table "crm_teams", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.bigint "team_lead_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_teams_on_account_id"
+    t.index ["team_lead_id"], name: "index_crm_teams_on_team_lead_id"
   end
 
   create_table "csat_survey_responses", force: :cascade do |t|
@@ -1610,6 +1655,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
     t.index ["inbox_id"], name: "index_working_hours_on_inbox_id"
   end
 
+  add_foreign_key "account_users", "crm_teams", on_delete: :nullify
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
@@ -1625,6 +1671,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
   add_foreign_key "crm_follow_up_tasks", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_follow_up_tasks", "crm_opportunities", on_delete: :nullify
   add_foreign_key "crm_follow_up_tasks", "users", column: "assignee_id", on_delete: :nullify
+  add_foreign_key "crm_knowledge_docs", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify
@@ -1637,7 +1684,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
   add_foreign_key "crm_sales_orders", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "crm_opportunities", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "crm_quotes", on_delete: :nullify
+  add_foreign_key "crm_sales_orders", "crm_teams", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_sales_targets", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).

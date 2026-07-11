@@ -24,6 +24,7 @@
 #  crm_customer_id      :bigint
 #  crm_opportunity_id   :bigint
 #  crm_quote_id         :bigint
+#  crm_team_id          :bigint
 #  owner_id             :bigint
 #
 # Indexes
@@ -36,6 +37,7 @@
 #  index_crm_sales_orders_on_crm_customer_id            (crm_customer_id)
 #  index_crm_sales_orders_on_crm_opportunity_id         (crm_opportunity_id)
 #  index_crm_sales_orders_on_crm_quote_id               (crm_quote_id)
+#  index_crm_sales_orders_on_crm_team_id                (crm_team_id)
 #  index_crm_sales_orders_on_owner_id                   (owner_id)
 #
 # Foreign Keys
@@ -44,6 +46,7 @@
 #  fk_rails_...  (crm_customer_id => crm_customers.id) ON DELETE => nullify
 #  fk_rails_...  (crm_opportunity_id => crm_opportunities.id) ON DELETE => nullify
 #  fk_rails_...  (crm_quote_id => crm_quotes.id) ON DELETE => nullify
+#  fk_rails_...  (crm_team_id => crm_teams.id) ON DELETE => nullify
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::SalesOrder < ApplicationRecord
@@ -55,8 +58,10 @@ class Crm::SalesOrder < ApplicationRecord
   belongs_to :crm_opportunity, class_name: 'Crm::Opportunity', optional: true
   belongs_to :quote, class_name: 'Crm::Quote', foreign_key: :crm_quote_id, optional: true, inverse_of: :sales_orders
   belongs_to :owner, class_name: 'User', optional: true
+  belongs_to :crm_team, class_name: 'Crm::Team', optional: true, inverse_of: :sales_orders
 
   before_validation :generate_order_no, on: :create
+  before_save :assign_team_from_owner, if: :will_save_change_to_owner_id?
 
   validates :name, presence: true
   validates :order_no, presence: true, uniqueness: { scope: :account_id }
@@ -71,6 +76,11 @@ class Crm::SalesOrder < ApplicationRecord
   scope :dealt, -> { where.not(status: 'CANCELLED') }
 
   private
+
+  # 订单所属团队按 owner 自动反写（对应 Twenty sales-order-team-rollup 触发器）。
+  def assign_team_from_owner
+    self.crm_team_id = owner_id && AccountUser.find_by(account_id: account_id, user_id: owner_id)&.crm_team_id
+  end
 
   # 订单号自动生成：SO-YYYYMMDD-NN（当天最大序号+1，删单不回填避免撞号）。显式传入则尊重传入值。
   def generate_order_no
