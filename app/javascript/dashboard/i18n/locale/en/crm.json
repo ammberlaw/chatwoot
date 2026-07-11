@@ -118,6 +118,7 @@
         "CUSTOMER": "客户",
         "STATUS": "状态",
         "AMOUNT": "金额",
+        "PROFIT": "利润",
         "ORDER_DATE": "下单日期",
         "DELIVERY_DATE": "交期",
         "OWNER": "负责人"
@@ -130,11 +131,20 @@
       },
       "FORM": {
         "NAME": "Subject 订单主题",
+        "ORDER_NO": "Order No 订单号",
+        "ORDER_NO_HINT": "创建后自动生成",
         "CUSTOMER": "Customer 所属客户",
+        "OPPORTUNITY": "Opportunity 关联商机",
         "STATUS": "Status 状态",
         "ORDER_DATE": "Order date 下单日期",
-        "AMOUNT": "Amount 金额(元)",
+        "DELIVERY_DATE": "Delivery date 交期",
+        "AMOUNT": "Order amount 订单金额",
+        "COST": "Cost amount 成本金额",
         "CURRENCY": "Currency 币种",
+        "EXCHANGE_RATE": "Exchange rate 汇率",
+        "PROFIT": "Profit 利润",
+        "PROFIT_RATE": "Profit rate 利润率",
+        "AUTO": "自动计算",
         "REMARK": "Remark 备注"
       },
       "EDIT": {
