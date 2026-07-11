@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_11_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_11_140000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -815,6 +815,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_130000) do
     t.integer "deal_order_count", default: 0, null: false
     t.datetime "first_deal_at"
     t.datetime "last_deal_at"
+    t.string "website"
+    t.integer "info_completeness_score", default: 0, null: false
+    t.string "completeness_grade"
     t.index ["account_id", "customer_code"], name: "index_crm_customers_on_account_id_and_customer_code", unique: true, where: "(customer_code IS NOT NULL)"
     t.index ["account_id", "customer_status"], name: "index_crm_customers_on_account_id_and_customer_status"
     t.index ["account_id", "is_in_public_pool"], name: "index_crm_customers_on_account_id_and_is_in_public_pool"
@@ -953,6 +956,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_130000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "sku"], name: "index_crm_products_on_account_id_and_sku", unique: true
     t.index ["account_id"], name: "index_crm_products_on_account_id"
+  end
+
+  create_table "crm_public_pool_settings", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", default: "客户池规则"
+    t.integer "stale_days", default: 90, null: false
+    t.boolean "recycle_enabled", default: true, null: false
+    t.boolean "recycle_never_followed", default: false, null: false
+    t.integer "pool_limit_key_account_won"
+    t.integer "pool_limit_won"
+    t.integer "pool_limit_sample_won"
+    t.integer "pool_limit_not_won"
+    t.integer "pool_limit_social_media"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_public_pool_settings_on_account_id", unique: true
   end
 
   create_table "crm_quote_line_items", force: :cascade do |t|

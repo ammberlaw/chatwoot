@@ -1,0 +1,9 @@
+json.name @setting.name
+json.stale_days @setting.stale_days
+json.recycle_enabled @setting.recycle_enabled
+json.recycle_never_followed @setting.recycle_never_followed
+json.pool_limit_key_account_won @setting.pool_limit_key_account_won
+json.pool_limit_won @setting.pool_limit_won
+json.pool_limit_sample_won @setting.pool_limit_sample_won
+json.pool_limit_not_won @setting.pool_limit_not_won
+json.pool_limit_social_media @setting.pool_limit_social_media

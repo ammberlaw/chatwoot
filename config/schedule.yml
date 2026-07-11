@@ -74,3 +74,9 @@ remove_orphan_conversations_job:
   cron: '0 */12 * * *'
   class: 'Internal::RemoveOrphanConversationsJob'
   queue: housekeeping
+
+# CRM：客户超期自动进公海（北京时间 02:00 = UTC 前一日 18:00）
+crm_recycle_stale_customers_job:
+  cron: '0 18 * * *'
+  class: 'Crm::RecycleStaleCustomersJob'
+  queue: scheduled_jobs

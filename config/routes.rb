@@ -70,6 +70,7 @@ Rails.application.routes.draw do
             resources :knowledge_docs
             resources :teams
             resources :sales_targets
+            resource :public_pool_settings, only: [:show, :update]
           end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do

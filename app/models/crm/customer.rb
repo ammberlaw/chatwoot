@@ -6,6 +6,7 @@
 # Table name: crm_customers
 #
 #  id                       :bigint           not null, primary key
+#  completeness_grade       :string
 #  contact_email            :string
 #  contact_job_title        :string
 #  contact_phone            :string
@@ -20,6 +21,7 @@
 #  deal_total_amount_micros :bigint
 #  first_deal_at            :datetime
 #  industry                 :string
+#  info_completeness_score  :integer          default(0), not null
 #  is_in_public_pool        :boolean          default(FALSE), not null
 #  last_deal_at             :datetime
 #  last_follow_up_at        :datetime
@@ -33,6 +35,7 @@
 #  trade_city               :string
 #  trade_country            :string
 #  trade_region             :string
+#  website                  :string
 #  wechat                   :string
 #  whats_app                :string
 #  created_at               :datetime         not null
@@ -54,6 +57,7 @@
 #  fk_rails_...  (account_id => accounts.id)
 #
 class Crm::Customer < ApplicationRecord
+  include Crm::CustomerScoring
   # 选项集合（对应 A-CRM SELECT 字段的 value 集合）
   TRADE_REGIONS = %w[NORTH_AMERICA EUROPE SOUTH_AMERICA MIDDLE_EAST SOUTHEAST_ASIA AFRICA OTHER].freeze
   INDUSTRIES = %w[RETAIL WHOLESALE DISTRIBUTOR MANUFACTURING ECOMMERCE OTHER].freeze
