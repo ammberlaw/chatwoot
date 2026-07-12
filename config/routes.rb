@@ -58,6 +58,7 @@ Rails.application.routes.draw do
             resources :customers do
               collection { get :check_duplicate }
               member do
+                get :audits
                 post :claim
                 post :release
                 post :attach

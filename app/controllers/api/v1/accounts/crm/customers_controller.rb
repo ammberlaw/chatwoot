@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :attach, :detach]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :attach, :detach, :audits]
 
   RESULTS_PER_PAGE = 15
 
@@ -12,13 +12,26 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     account_owner_id: :account_owner_id
   }.freeze
 
+  # 可排序列白名单（防注入）：查询参数 sort → 数据库列。
+  SORT_COLUMNS = { 'deal_amount' => :deal_total_amount_micros }.freeze
+
   def index
     @customers_scope = filtered_customers
     @customers_count = @customers_scope.count
     @customers = @customers_scope
-                 .order(updated_at: :desc)
+                 .order(sort_clause)
                  .page(permitted_params[:page] || 1)
                  .per(results_per_page)
+  end
+
+  # 指定 sort 列时按 asc/desc 排序，否则默认按更新时间倒序。
+  # 用 COALESCE 把 NULL 当 0（与表格显示的 ¥0 一致），避免 NULL 被排到最前/最后。
+  def sort_clause
+    column = SORT_COLUMNS[params[:sort]]
+    return { updated_at: :desc } unless column
+
+    direction = params[:direction] == 'asc' ? 'ASC' : 'DESC'
+    Arel.sql("COALESCE(#{column}, 0) #{direction}, id DESC")
   end
 
   def show; end
@@ -70,6 +83,20 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     head :ok
   end
 
+  # 操作历史：该客户的审计记录（谁在何时改了哪些字段）。
+  def audits
+    rows = @customer.audits.order(created_at: :desc).limit(80).map do |audit|
+      {
+        id: audit.id,
+        action: audit.action,
+        changed_fields: audit.audited_changes.keys,
+        user_name: audit.user&.name || audit.username || '系统',
+        created_at: audit.created_at
+      }
+    end
+    render json: { payload: rows }
+  end
+
   private
 
   def fetch_customer
@@ -87,7 +114,13 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
       scope = scope.where(column => params[param]) if params[param].present?
     end
     scope = scope.where('name ILIKE ?', "%#{params[:q]}%") if params[:q].present?
+    scope = scope.where(account_owner_id: team_member_ids(params[:team_id])) if params[:team_id].present?
     scope
+  end
+
+  # 团队成员的 user id 集合（admin 按团队筛选客户）。
+  def team_member_ids(team_id)
+    Current.account.crm_teams.find_by(id: team_id)&.members&.pluck(:id) || []
   end
 
   # 池筛选：公海 / 私海 / 我的 / 未分配。

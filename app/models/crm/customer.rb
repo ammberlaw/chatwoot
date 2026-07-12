@@ -83,6 +83,13 @@ class Crm::Customer < ApplicationRecord
   belongs_to :account
   belongs_to :account_owner, class_name: 'User', optional: true
 
+  # 审计：记录客户字段的创建/编辑/分配，供「操作历史」展示。
+  # 排除自动重算的成交统计与时间戳，避免噪音记录。
+  audited except: %i[
+    deal_total_amount_micros deal_order_count first_deal_at last_deal_at
+    info_completeness_score completeness_grade created_at updated_at
+  ], on: %i[create update]
+
   has_many_attached :files
 
   # 一个客户多个联系人（Chatwoot Contact，扩展见 Crm::ContactExtensions）
@@ -121,7 +128,8 @@ class Crm::Customer < ApplicationRecord
   # 累计成交额 / 成交订单数 / 首次·最近成交时间，口径=非 CANCELLED 订单。
   def recompute_deal_rollup!
     stats = sales_orders.dealt.pick(Arel.sql('SUM(order_amount_micros), COUNT(*), MIN(order_date), MAX(order_date)'))
-    update_columns(
+    # 跳过校验/回调是有意的：缓存统计写回不应触发审计日志或校验。
+    update_columns( # rubocop:disable Rails/SkipsModelValidations
       deal_total_amount_micros: stats[0],
       deal_order_count: stats[1] || 0,
       first_deal_at: stats[2],

@@ -13,15 +13,11 @@ class CrmCustomerAPI extends ApiClient {
     super('crm/customers', { accountScoped: true });
   }
 
+  // 透传全部查询参数（page/filter/customer_group/product_group/q/team_id/
+  // account_owner_id/sort/direction…）；buildParams 会滤掉 undefined/空值。
   get(params = {}) {
-    const { page = 1, filter, status, accountOwnerId } = params;
-    const requestURL = `${this.url}?${buildParams({
-      page,
-      filter,
-      status,
-      account_owner_id: accountOwnerId,
-    })}`;
-    return axios.get(requestURL);
+    const query = buildParams({ page: 1, ...params });
+    return axios.get(query ? `${this.url}?${query}` : this.url);
   }
 }
 

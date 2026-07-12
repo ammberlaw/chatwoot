@@ -52,10 +52,16 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 ### 4. 客户（私海/公海）`crm_customers_index`
 `CrmCustomersIndex.vue` · 控制器 `customers` · 模型 `Crm::Customer`
 
-- 卡片式表格（圆角+阴影），筛选：全部/我的/私海/公海/未分配 + 客户分组 + 产品分组，分页。
+- 卡片式表格（圆角+阴影），完善度评分、状态、级别、来源、贸易国家/地区等标签字段。
+- **筛选**：全部/我的/私海/公海/未分配 + 客户名搜索(`q`) + **admin 团队 → 业务员**逐级筛选(`team_id`/`account_owner_id`) + 客户分组 + 产品分组；分页。
+- **排序**：点「累计成交额」表头切换 倒序/正序（后端 `sort`+`direction` 白名单列，`COALESCE(列,0)` 处理 NULL）。
 - **认领**（公海→私海）/ **转公海**；分组私海上限由模型校验。
-- 完善度评分、状态、级别、来源、贸易国家/地区等标签字段。
-- 客户 index 支持 `q` 按名搜索（供关联下拉复用）。
+- **右侧详情面板**（点行展开，Twenty 风格，编辑仍走弹窗）：
+  - 字段分组 + 头像/创建时间 + 底部编辑/认领/转公海。
+  - **标签页**：主页(字段) / **操作历史**(审计日志) / 备注 / 文件 / 电子邮件；按需加载(`?customer_id=`)。
+  - **操作历史 = 审计**：`Crm::Customer` 启用 `audited`（排除成交统计/时间戳），`GET crm/customers/:id/audits` 返回"谁/动作/改了哪些字段/时间"，前端渲染成中文操作流（重新分配 / 编辑了客户信息 …）。
+  - 文件走客户 `has_many_attached :files` + attach/detach；备注/邮件走 `follow_up_notes`/`emails` 的 `customer_id` 过滤。
+- ⚠️ `api/crm/customers.js` 的 `get` 需透传全部查询参数（曾只传 page/filter/status → 导致搜索/排序/筛选静默失效，已修）。
 
 ### 5. 客户建档 `crm_customer_intake_index`
 `CrmCustomerOnboardingIndex.vue` · 控制器 `customers#check_duplicate`
