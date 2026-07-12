@@ -10,6 +10,10 @@ import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+
+// 与后端 CustomersController::RESULTS_PER_PAGE 保持一致。
+const ITEMS_PER_PAGE = 15;
 
 const { t } = useI18n();
 const route = useRoute();
@@ -23,11 +27,13 @@ const createDialogRef = ref(null);
 const activeFilter = ref(route.query.filter || 'all');
 const activeCustomerGroup = ref('');
 const activeProductGroup = ref('');
+const currentPage = ref(1);
 
 const customers = computed(() => customersStore.getCustomers);
 const uiFlags = computed(() => customersStore.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
+const totalCount = computed(() => customersStore.getMeta.count || 0);
 
 const filterTabs = [
   { key: 'all', label: t('CRM.CUSTOMERS.FILTERS.ALL') },
@@ -56,7 +62,7 @@ const productGroupOptions = [
 const fetchCustomers = () => {
   const filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
   customersStore.get({
-    page: 1,
+    page: currentPage.value,
     filter,
     customer_group: activeCustomerGroup.value || undefined,
     product_group: activeProductGroup.value || undefined,
@@ -65,16 +71,24 @@ const fetchCustomers = () => {
 
 const setFilter = key => {
   activeFilter.value = key;
+  currentPage.value = 1;
   fetchCustomers();
 };
 
 const setCustomerGroup = value => {
   activeCustomerGroup.value = value;
+  currentPage.value = 1;
   fetchCustomers();
 };
 
 const setProductGroup = value => {
   activeProductGroup.value = value;
+  currentPage.value = 1;
+  fetchCustomers();
+};
+
+const onPageChange = page => {
+  currentPage.value = page;
   fetchCustomers();
 };
 
@@ -216,13 +230,14 @@ watch(
   () => route.query.filter,
   value => {
     activeFilter.value = value || 'all';
+    currentPage.value = 1;
     fetchCustomers();
   }
 );
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-hidden bg-n-background">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -260,7 +275,7 @@ watch(
       />
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-6 py-4 overflow-auto">
       <div
         v-if="isFetching"
         class="flex items-center justify-center p-8 text-base text-n-slate-11"
@@ -419,6 +434,15 @@ watch(
         </tbody>
       </table>
     </div>
+
+    <PaginationFooter
+      v-if="totalCount > ITEMS_PER_PAGE"
+      :current-page="currentPage"
+      :total-items="totalCount"
+      :items-per-page="ITEMS_PER_PAGE"
+      class="flex-shrink-0"
+      @update:current-page="onPageChange"
+    />
 
     <CrmCustomerCreateDialog
       ref="createDialogRef"
