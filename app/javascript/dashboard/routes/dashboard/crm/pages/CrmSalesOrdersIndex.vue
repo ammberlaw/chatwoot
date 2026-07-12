@@ -7,6 +7,10 @@ import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import CrmSalesOrderCreateDialog from 'dashboard/components-next/CRM/CrmSalesOrderCreateDialog.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+
+// 与后端 SalesOrdersController::RESULTS_PER_PAGE 保持一致。
+const ITEMS_PER_PAGE = 15;
 
 const { t } = useI18n();
 const route = useRoute();
@@ -14,11 +18,13 @@ const store = useCrmSalesOrdersStore();
 
 const createDialogRef = ref(null);
 const activeFilter = ref(route.query.filter || 'all');
+const currentPage = ref(1);
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
+const totalCount = computed(() => store.getMeta.count || 0);
 
 const STATUSES = {
   PENDING_CONFIRMATION: { label: '待确认', class: 'bg-n-slate-3 text-n-slate-11' },
@@ -37,11 +43,17 @@ const filterTabs = [
 
 const fetchRecords = () => {
   const filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
-  store.get({ page: 1, filter });
+  store.get({ page: currentPage.value, filter });
 };
 
 const setFilter = key => {
   activeFilter.value = key;
+  currentPage.value = 1;
+  fetchRecords();
+};
+
+const onPageChange = page => {
+  currentPage.value = page;
   fetchRecords();
 };
 
@@ -73,6 +85,7 @@ watch(
   () => route.query.filter,
   value => {
     activeFilter.value = value || 'all';
+    currentPage.value = 1;
     fetchRecords();
   }
 );
@@ -97,7 +110,7 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-hidden bg-n-background">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -124,7 +137,7 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
       />
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-6 py-4 overflow-auto">
       <div
         v-if="isFetching"
         class="flex items-center justify-center p-8 text-base text-n-slate-11"
@@ -218,6 +231,15 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
         </tbody>
       </table>
     </div>
+
+    <PaginationFooter
+      v-if="totalCount > ITEMS_PER_PAGE"
+      :current-page="currentPage"
+      :total-items="totalCount"
+      :items-per-page="ITEMS_PER_PAGE"
+      class="flex-shrink-0"
+      @update:current-page="onPageChange"
+    />
 
     <CrmSalesOrderCreateDialog
       ref="createDialogRef"
