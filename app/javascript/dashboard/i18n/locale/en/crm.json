@@ -10,7 +10,9 @@
         "MINE": "My customers",
         "PUBLIC_POOL": "Public pool",
         "UNASSIGNED": "Unassigned",
-        "PRIVATE": "Private 私海"
+        "PRIVATE": "Private 私海",
+        "ALL_CUSTOMER_GROUP": "全部客户分组",
+        "ALL_PRODUCT_GROUP": "全部产品分组"
       },
       "TABLE": {
         "NAME": "公司名称",

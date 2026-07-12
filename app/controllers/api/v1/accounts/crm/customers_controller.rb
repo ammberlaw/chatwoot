@@ -4,6 +4,14 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
 
   RESULTS_PER_PAGE = 15
 
+  # 列筛选：查询参数 → 数据库列，逐个按 present? 叠加。
+  COLUMN_FILTERS = {
+    status: :customer_status,
+    customer_group: :customer_group,
+    product_group: :product_group,
+    account_owner_id: :account_owner_id
+  }.freeze
+
   def index
     @customers_scope = filtered_customers
     @customers_count = @customers_scope.count
@@ -72,22 +80,24 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     authorize(Crm::Customer)
   end
 
-  # 支持常用视图筛选：公海池、我的客户、未分配、按状态。
+  # 支持常用视图筛选：公海池/我的/未分配 + 按状态/客户分组/产品分组/负责人。
   def filtered_customers
-    scope = Current.account.crm_customers
-    case params[:filter]
-    when 'public_pool'
-      scope = scope.in_public_pool
-    when 'private'
-      scope = scope.where(is_in_public_pool: false)
-    when 'mine'
-      scope = scope.owned_by(current_user.id)
-    when 'unassigned'
-      scope = scope.where(account_owner_id: nil, is_in_public_pool: false)
+    scope = pool_scope(Current.account.crm_customers)
+    COLUMN_FILTERS.each do |param, column|
+      scope = scope.where(column => params[param]) if params[param].present?
     end
-    scope = scope.where(customer_status: params[:status]) if params[:status].present?
-    scope = scope.owned_by(params[:account_owner_id]) if params[:account_owner_id].present?
     scope
+  end
+
+  # 池筛选：公海 / 私海 / 我的 / 未分配。
+  def pool_scope(scope)
+    case params[:filter]
+    when 'public_pool' then scope.in_public_pool
+    when 'private' then scope.where(is_in_public_pool: false)
+    when 'mine' then scope.owned_by(current_user.id)
+    when 'unassigned' then scope.where(account_owner_id: nil, is_in_public_pool: false)
+    else scope
+    end
   end
 
   def customer_params
@@ -131,6 +141,6 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
   end
 
   def permitted_params
-    params.permit(:page, :per_page, :filter, :status, :account_owner_id)
+    params.permit(:page, :per_page, :filter, :status, :customer_group, :product_group, :account_owner_id)
   end
 end

@@ -8,6 +8,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 
 const { t } = useI18n();
@@ -20,6 +21,8 @@ const actingId = ref(null);
 
 const createDialogRef = ref(null);
 const activeFilter = ref(route.query.filter || 'all');
+const activeCustomerGroup = ref('');
+const activeProductGroup = ref('');
 
 const customers = computed(() => customersStore.getCustomers);
 const uiFlags = computed(() => customersStore.getUIFlags);
@@ -34,13 +37,44 @@ const filterTabs = [
   { key: 'unassigned', label: t('CRM.CUSTOMERS.FILTERS.UNASSIGNED') },
 ];
 
+// 客户分组 / 产品分组下拉（空值 = 全部）；标签与建档/编辑弹窗保持一致。
+const customerGroupOptions = [
+  { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_CUSTOMER_GROUP') },
+  { value: 'KEY_ACCOUNT_WON', label: '成交重点客户' },
+  { value: 'WON', label: '成交客户' },
+  { value: 'SAMPLE_WON', label: '成交样品客户' },
+  { value: 'NOT_WON', label: '未成交客户' },
+  { value: 'SOCIAL_MEDIA', label: '社媒开发客户' },
+];
+const productGroupOptions = [
+  { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_PRODUCT_GROUP') },
+  { value: 'TABLET', label: '平板电脑' },
+  { value: 'COMMERCIAL_DISPLAY', label: '商显' },
+  { value: 'INDUSTRIAL_CONTROL', label: '工控' },
+];
+
 const fetchCustomers = () => {
   const filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
-  customersStore.get({ page: 1, filter });
+  customersStore.get({
+    page: 1,
+    filter,
+    customer_group: activeCustomerGroup.value || undefined,
+    product_group: activeProductGroup.value || undefined,
+  });
 };
 
 const setFilter = key => {
   activeFilter.value = key;
+  fetchCustomers();
+};
+
+const setCustomerGroup = value => {
+  activeCustomerGroup.value = value;
+  fetchCustomers();
+};
+
+const setProductGroup = value => {
+  activeProductGroup.value = value;
   fetchCustomers();
 };
 
@@ -212,6 +246,17 @@ watch(
         :variant="activeFilter === tab.key ? 'solid' : 'faded'"
         :color="activeFilter === tab.key ? 'blue' : 'slate'"
         @click="setFilter(tab.key)"
+      />
+      <Select
+        :model-value="activeCustomerGroup"
+        :options="customerGroupOptions"
+        class="ml-auto"
+        @update:model-value="setCustomerGroup"
+      />
+      <Select
+        :model-value="activeProductGroup"
+        :options="productGroupOptions"
+        @update:model-value="setProductGroup"
       />
     </div>
 
