@@ -80,7 +80,12 @@ Rails.application.routes.draw do
             resources :quote_line_items, only: [:update, :destroy]
             resources :follow_up_notes
             resources :follow_up_tasks
-            resources :knowledge_docs
+            resources :knowledge_docs do
+              member do
+                post :attach
+                delete 'attach/:attachment_id', action: :detach
+              end
+            end
             resources :teams
             resources :sales_targets
             resource :public_pool_settings, only: [:show, :update]

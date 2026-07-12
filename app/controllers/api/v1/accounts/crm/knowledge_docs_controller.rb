@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_doc, only: [:show, :update, :destroy]
+  before_action :fetch_doc, only: [:show, :update, :destroy, :attach, :detach]
 
   RESULTS_PER_PAGE = 20
 
@@ -23,6 +23,18 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::BaseC
   def destroy
     @doc.destroy!
     head :ok
+  end
+
+  # 附件上传（追加，不覆盖已有）
+  def attach
+    @doc.files.attach(params[:files])
+    render 'api/v1/accounts/crm/knowledge_docs/show'
+  end
+
+  # 删除单个附件
+  def detach
+    @doc.files.find(params[:attachment_id]).purge
+    render 'api/v1/accounts/crm/knowledge_docs/show'
   end
 
   private

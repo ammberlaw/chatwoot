@@ -214,20 +214,38 @@
       "NEW": "New doc 新建文档",
       "LOADING": "Loading…",
       "EMPTY": "No docs yet 暂无文档",
+      "SEARCH_PLACEHOLDER": "搜索标题 / 摘要",
       "FILTERS": {
         "COMPANY": "Company 公司文档",
-        "MINE": "Mine 我的知识库"
+        "MINE": "Mine 我的知识库",
+        "ALL_CATEGORY": "全部分类"
       },
       "TABLE": {
         "NAME": "Title 标题",
         "CATEGORY": "Category 分类",
         "SUMMARY": "Summary 摘要",
+        "ATTACHMENTS": "附件",
         "UPDATED_AT": "Updated 更新时间"
       },
       "CREATE": {
         "TITLE": "New doc 新建文档",
         "SUCCESS": "文档已创建",
         "ERROR": "创建失败"
+      },
+      "EDIT": {
+        "TITLE": "编辑文档",
+        "SUCCESS": "文档已保存",
+        "ERROR": "保存失败"
+      },
+      "ATTACH": {
+        "TITLE": "附件",
+        "ADD": "添加附件",
+        "UPLOADING": "上传中…",
+        "REMOVE": "移除",
+        "EMPTY_HINT": "暂无附件（如产品目录、资质、手册）",
+        "UPLOAD_SUCCESS": "附件已上传",
+        "UPLOAD_ERROR": "附件上传失败",
+        "DELETE_ERROR": "附件删除失败"
       },
       "FORM": {
         "NAME": "Title 标题",

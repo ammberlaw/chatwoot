@@ -15,6 +15,14 @@ class Crm::KnowledgeDocPolicy < ApplicationPolicy
     true
   end
 
+  def attach?
+    true
+  end
+
+  def detach?
+    true
+  end
+
   def destroy?
     @account_user.administrator?
   end
