@@ -6,6 +6,7 @@ import { useAlert } from 'dashboard/composables';
 import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 import CrmSalesOrderCreateDialog from 'dashboard/components-next/CRM/CrmSalesOrderCreateDialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 
@@ -18,6 +19,7 @@ const store = useCrmSalesOrdersStore();
 
 const createDialogRef = ref(null);
 const activeFilter = ref(route.query.filter || 'all');
+const activeStatus = ref('');
 const currentPage = ref(1);
 
 const records = computed(() => store.getRecords);
@@ -41,9 +43,19 @@ const filterTabs = [
   { key: 'no_customer', label: t('CRM.SALES_ORDERS.FILTERS.NO_CUSTOMER') },
 ];
 
+// 状态筛选下拉，空值 = 全部状态；标签复用上面的 STATUSES 定义。
+const statusFilterOptions = [
+  { value: '', label: t('CRM.SALES_ORDERS.FILTERS.ALL_STATUS') },
+  ...Object.entries(STATUSES).map(([value, { label }]) => ({ value, label })),
+];
+
 const fetchRecords = () => {
   const filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
-  store.get({ page: currentPage.value, filter });
+  store.get({
+    page: currentPage.value,
+    filter,
+    status: activeStatus.value || undefined,
+  });
 };
 
 const setFilter = key => {
@@ -54,6 +66,12 @@ const setFilter = key => {
 
 const onPageChange = page => {
   currentPage.value = page;
+  fetchRecords();
+};
+
+const setStatus = value => {
+  activeStatus.value = value;
+  currentPage.value = 1;
   fetchRecords();
 };
 
@@ -134,6 +152,12 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
         :variant="activeFilter === tab.key ? 'solid' : 'faded'"
         :color="activeFilter === tab.key ? 'blue' : 'slate'"
         @click="setFilter(tab.key)"
+      />
+      <Select
+        :model-value="activeStatus"
+        :options="statusFilterOptions"
+        class="ml-auto"
+        @update:model-value="setStatus"
       />
     </div>
 

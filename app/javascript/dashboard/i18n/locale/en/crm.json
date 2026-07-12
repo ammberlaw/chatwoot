@@ -110,7 +110,8 @@
       "FILTERS": {
         "ALL": "All 全部",
         "MINE": "Mine 我的订单",
-        "NO_CUSTOMER": "No customer 未关联客户"
+        "NO_CUSTOMER": "No customer 未关联客户",
+        "ALL_STATUS": "All statuses 全部状态"
       },
       "TABLE": {
         "NAME": "订单主题",
