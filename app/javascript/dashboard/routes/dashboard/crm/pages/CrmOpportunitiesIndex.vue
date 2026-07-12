@@ -63,18 +63,7 @@ const setFilter = key => {
   fetchRecords();
 };
 
-const openCreateDialog = () => createDialogRef.value?.open();
 const openEditDialog = record => createDialogRef.value?.open(record);
-
-const createRecord = async payload => {
-  try {
-    await store.create(payload);
-    createDialogRef.value?.onSuccess();
-    useAlert(t('CRM.OPPORTUNITIES.CREATE.SUCCESS'));
-  } catch {
-    useAlert(t('CRM.OPPORTUNITIES.CREATE.ERROR'));
-  }
-};
 
 const updateRecord = async payload => {
   try {
@@ -111,12 +100,6 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
       <h1 class="text-xl font-medium text-n-slate-12">
         {{ t('CRM.OPPORTUNITIES.HEADER') }}
       </h1>
-      <Button
-        :label="t('CRM.OPPORTUNITIES.NEW')"
-        icon="i-lucide-plus"
-        color="blue"
-        @click="openCreateDialog"
-      />
     </div>
 
     <div class="flex items-center gap-2 px-6 py-3 border-b border-n-weak">
@@ -229,7 +212,6 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
     <CrmOpportunityCreateDialog
       ref="createDialogRef"
       :is-loading="isCreating"
-      @create="createRecord"
       @update="updateRecord"
     />
   </div>

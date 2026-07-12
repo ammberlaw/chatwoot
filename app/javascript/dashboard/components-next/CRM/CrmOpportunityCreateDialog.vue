@@ -1,11 +1,13 @@
 <script setup>
+/* global axios */
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
+import { useAccount } from 'dashboard/composables/useAccount';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
 defineProps({
@@ -15,9 +17,37 @@ defineProps({
 const emit = defineEmits(['create', 'update']);
 
 const { t } = useI18n();
+const { accountId } = useAccount();
 const dialogRef = ref(null);
 const editingId = ref(null);
-const customersStore = useCrmCustomersStore();
+
+// 关联私海客户：可搜索下拉。输入客户名按 q 向后端拉取(限私海)，不污染客户列表 store。
+const customerResults = ref([]);
+const customerLabel = ref('');
+let searchTimer = null;
+
+const fetchCustomers = async (q = '') => {
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/crm/customers`,
+      { params: { q: q || undefined, filter: 'private', per_page: 20 } }
+    );
+    customerResults.value = (data.payload || []).map(c => ({
+      value: String(c.id),
+      label: c.name,
+    }));
+  } catch {
+    customerResults.value = [];
+  }
+};
+
+const onCustomerSearch = q => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => fetchCustomers(q), 300);
+};
+const onCustomerOpen = () => {
+  if (!customerResults.value.length) fetchCustomers();
+};
 
 const form = reactive({
   name: '',
@@ -43,10 +73,6 @@ const currencyOptions = ['USD', 'CNY', 'EUR'].map(v => ({
   label: v,
 }));
 
-const customerOptions = computed(() =>
-  customersStore.getCustomers.map(c => ({ value: String(c.id), label: c.name }))
-);
-
 const lossReasonOptions = [
   { value: 'PRICE', label: '价格原因' },
   { value: 'DELIVERY', label: '交期原因' },
@@ -61,6 +87,7 @@ const isFormInvalid = computed(() => !form.name.trim());
 
 const resetForm = () => {
   editingId.value = null;
+  customerLabel.value = '';
   form.lossReason = '';
   form.name = '';
   form.crmCustomerId = '';
@@ -85,8 +112,9 @@ const open = record => {
     form.expectedCloseDate = record.expectedCloseDate ? record.expectedCloseDate.slice(0, 10) : '';
     form.opportunityRemark = record.opportunityRemark || '';
     form.lossReason = record.lossReason || '';
+    customerLabel.value = record.customerName || '';
   }
-  if (!customersStore.getCustomers.length) customersStore.get({ page: 1 });
+  fetchCustomers();
   dialogRef.value?.open();
 };
 
@@ -126,40 +154,58 @@ defineExpose({ dialogRef, onSuccess, open });
     ref="dialogRef"
     width="3xl"
     overflow-y-auto
-    :title="isEditing ? t('CRM.OPPORTUNITIES.EDIT.TITLE') : t('CRM.OPPORTUNITIES.CREATE.TITLE')"
+    confirm-button-color="amber"
+    :title="
+      isEditing
+        ? t('CRM.OPPORTUNITIES.EDIT.TITLE')
+        : t('CRM.OPPORTUNITIES.CREATE.TITLE')
+    "
     :is-loading="isLoading"
     @confirm="handleConfirm"
     @close="resetForm"
   >
-    <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-5">
       <Input
         v-model="form.name"
         :label="t('CRM.OPPORTUNITIES.FORM.NAME')"
         :placeholder="t('CRM.OPPORTUNITIES.FORM.NAME_PLACEHOLDER')"
       />
       <div class="grid grid-cols-2 gap-4">
-        <Select
-          v-model="form.crmCustomerId"
-          :label="t('CRM.OPPORTUNITIES.FORM.CUSTOMER')"
-          :options="customerOptions"
-        />
-        <Select
-          v-model="form.salesStage"
-          :label="t('CRM.OPPORTUNITIES.FORM.STAGE')"
-          :options="stageOptions"
-        />
+        <div class="flex flex-col gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            关联私海客户
+          </label>
+          <ComboBox
+            v-model="form.crmCustomerId"
+            :options="customerResults"
+            :display-label="customerLabel"
+            use-api-results
+            placeholder="选择或搜索客户"
+            search-placeholder="输入客户名称搜索…"
+            empty-state="无匹配客户"
+            @search="onCustomerSearch"
+            @open="onCustomerOpen"
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.OPPORTUNITIES.FORM.STAGE') }}
+          </label>
+          <Select v-model="form.salesStage" :options="stageOptions" />
+        </div>
       </div>
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid items-end grid-cols-3 gap-4">
         <Input
           v-model="form.amount"
           type="number"
           :label="t('CRM.OPPORTUNITIES.FORM.AMOUNT')"
         />
-        <Select
-          v-model="form.currency"
-          :label="t('CRM.OPPORTUNITIES.FORM.CURRENCY')"
-          :options="currencyOptions"
-        />
+        <div class="flex flex-col gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.OPPORTUNITIES.FORM.CURRENCY') }}
+          </label>
+          <Select v-model="form.currency" :options="currencyOptions" />
+        </div>
         <Input
           v-model="form.probability"
           type="number"
@@ -171,12 +217,10 @@ defineExpose({ dialogRef, onSuccess, open });
         type="date"
         :label="t('CRM.OPPORTUNITIES.FORM.EXPECTED_CLOSE')"
       />
-      <Select
-        v-if="form.salesStage === 'LOST'"
-        v-model="form.lossReason"
-        label="丢单原因"
-        :options="lossReasonOptions"
-      />
+      <div v-if="form.salesStage === 'LOST'" class="flex flex-col gap-1">
+        <label class="mb-0.5 text-heading-3 text-n-slate-12">丢单原因</label>
+        <Select v-model="form.lossReason" :options="lossReasonOptions" />
+      </div>
       <TextArea
         v-model="form.opportunityRemark"
         :label="t('CRM.OPPORTUNITIES.FORM.REMARK')"

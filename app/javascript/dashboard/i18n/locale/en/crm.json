@@ -65,7 +65,7 @@
     },
     "OPPORTUNITIES": {
       "HEADER": "Opportunities 商机",
-      "NEW": "New opportunity 新建商机",
+      "NEW": "新建商机",
       "LOADING": "Loading…",
       "EMPTY": "No opportunities yet 暂无商机",
       "FILTERS": {
@@ -83,20 +83,20 @@
         "OWNER": "负责人"
       },
       "CREATE": {
-        "TITLE": "New opportunity 新建商机",
+        "TITLE": "新建商机",
         "SUCCESS": "商机已创建",
         "ERROR": "创建失败"
       },
       "FORM": {
-        "NAME": "Name 商机名称",
+        "NAME": "商机名称",
         "NAME_PLACEHOLDER": "如：德国平板批量采购",
         "CUSTOMER": "Customer 所属客户",
-        "STAGE": "Stage 销售阶段",
-        "AMOUNT": "Amount 金额(元)",
-        "CURRENCY": "Currency 币种",
-        "PROBABILITY": "Probability 概率%",
-        "EXPECTED_CLOSE": "Expected close 预计成交日",
-        "REMARK": "Remark 备注"
+        "STAGE": "销售阶段",
+        "AMOUNT": "金额（元）",
+        "CURRENCY": "币种",
+        "PROBABILITY": "成交概率（%）",
+        "EXPECTED_CLOSE": "预计成交日",
+        "REMARK": "备注"
       },
       "EDIT": {
         "TITLE": "编辑商机",
@@ -293,7 +293,7 @@
       "EMPTY": "还没有团队。管理员可在「系统设置 → CRM 团队」创建团队并分配组员。"
     },
     "FUNNEL": {
-      "HEADER": "商机漏斗（看板）",
+      "HEADER": "商机看板",
       "HINT": "拖动卡片即可切换销售阶段",
       "LOADING": "Loading…"
     },

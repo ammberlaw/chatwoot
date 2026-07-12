@@ -5,27 +5,51 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
 
+import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue';
+import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
+import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
+import { themeColor } from 'dashboard/components-next/CRM/charts/chartColors';
+
 const { t } = useI18n();
 const route = useRoute();
 const { accountId } = useAccount();
 
 const stats = ref(null);
 const loading = ref(true);
-const activeTab = ref('overview');
+const error = ref(false);
 
-// 业绩统计部件的本地状态（切换无需重新请求）
 const period = ref('month'); // month | quarter | year
 const selectedMonth = ref(new Date().getMonth() + 1); // 1-12
+const selectedYear = ref(new Date().getFullYear());
+const yearOptions = [
+  new Date().getFullYear() - 2,
+  new Date().getFullYear() - 1,
+  new Date().getFullYear(),
+];
+
+// 季度 ↔ selectedMonth 互映（季度用当季首月定位对应桶）
+const selectedQuarter = computed({
+  get: () => Math.floor((selectedMonth.value - 1) / 3) + 1,
+  set: q => {
+    selectedMonth.value = (q - 1) * 3 + 1;
+  },
+});
 
 const scope = computed(() =>
   route.query.scope === 'mine' ? 'mine' : 'company'
 );
 
 const STAGE_LABELS = {
-  NEEDS_CONFIRMED: '需求确认（已报价）',
+  NEEDS_CONFIRMED: '需求确认',
   SAMPLING: '样品中',
   WON: '已成交',
   LOST: '输单',
+};
+const STAGE_COLORS = {
+  NEEDS_CONFIRMED: 'amber-6',
+  SAMPLING: 'amber-8',
+  WON: 'amber-10',
+  LOST: 'ruby-9',
 };
 
 const SOURCE_LABELS = {
@@ -36,35 +60,70 @@ const SOURCE_LABELS = {
   EMAIL: '邮件开发',
   OTHER: '其他',
 };
+// 环形图冷色系（紫-靛-蓝，无黄，切片可区分又协调）
+const SOURCE_COLOR_KEYS = [
+  'amber-9',
+  'iris-9',
+  'blue-9',
+  'amber-6',
+  'iris-6',
+  'blue-6',
+];
 
-const TABS = [
-  { key: 'overview', label: '业绩概览' },
-  { key: 'trends', label: '趋势与转化' },
-  { key: 'team', label: '团队与客户' },
+// KPI 浅卡图标 chip 配色（暖橙）。
+const ACCENTS = {
+  green: { text: 'text-n-amber-11', soft: 'bg-n-amber-3' },
+  amber: { text: 'text-n-amber-11', soft: 'bg-n-amber-3' },
+};
+
+// MedFlow 式多色柔和渐变：跨卡黄→薄荷绿→蜜桃橙流动。完整字面量供 Tailwind 收录。
+const CARD_GRADIENTS = [
+  'from-n-amber-3 to-n-teal-3',
+  'from-n-teal-3 to-n-amber-3',
+  'from-n-amber-3 to-n-amber-5',
+  'from-n-amber-4 to-n-teal-4',
 ];
 
 const fetchStats = async () => {
   loading.value = true;
+  error.value = false;
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/crm/stats`,
-      { params: { scope: scope.value === 'mine' ? 'mine' : undefined } }
+      {
+        params: {
+          scope: scope.value === 'mine' ? 'mine' : undefined,
+          year: selectedYear.value,
+        },
+      }
     );
     stats.value = data;
+  } catch {
+    error.value = true;
   } finally {
     loading.value = false;
   }
 };
 
 onMounted(fetchStats);
-watch(scope, fetchStats);
+watch([scope, selectedYear], fetchStats);
 
-const money = micros => `¥${Math.round((micros || 0) / 1_000_000).toLocaleString()}`;
+const toYuan = micros => Math.round((micros || 0) / 1_000_000);
+const money = micros => `¥${toYuan(micros).toLocaleString()}`;
+const moneyYuan = v => `¥${Math.round(v).toLocaleString()}`;
+const hoursFmt = v => `${v}h`;
+const scoreFmt = v => `${v}分`;
 
-// ── Tab① 业绩统计：按 period + 选中月读取对应桶 ──
+// ── KPI（按 period 读桶 + 真实环比） ──
 const periodStat = computed(() => {
   const ps = stats.value?.period_stats;
-  if (!ps) return { amount_micros: 0, order_count: 0, deal_customers: 0, new_customers: 0 };
+  if (!ps)
+    return {
+      amount_micros: 0,
+      order_count: 0,
+      deal_customers: 0,
+      new_customers: 0,
+    };
   if (period.value === 'year') return ps.yearly;
   if (period.value === 'quarter') {
     const q = Math.floor((selectedMonth.value - 1) / 3);
@@ -85,13 +144,34 @@ const periodLabel = computed(() => {
 const salesKpis = computed(() => {
   const s = periodStat.value;
   return [
-    { label: '成交额', value: money(s.amount_micros), hero: true },
-    { label: '成交订单数', value: s.order_count },
-    { label: '成交客户数', value: s.deal_customers },
-    { label: '新成交客户数', value: s.new_customers },
+    {
+      label: '成交额',
+      value: money(s.amount_micros),
+      sub: periodLabel.value,
+      icon: 'i-lucide-wallet',
+    },
+    {
+      label: '成交订单数',
+      value: s.order_count,
+      sub: '笔',
+      icon: 'i-lucide-shopping-bag',
+    },
+    {
+      label: '成交客户数',
+      value: s.deal_customers,
+      sub: '家',
+      icon: 'i-lucide-building-2',
+    },
+    {
+      label: '新成交客户数',
+      value: s.new_customers,
+      sub: '家',
+      icon: 'i-lucide-user-plus',
+    },
   ];
 });
 
+// ── 目标完成率（半圆仪表） ──
 const targetProgress = computed(() => {
   const targetMicros = stats.value?.target?.amount_micros || 0;
   const done = stats.value?.target?.month_amount_micros || 0;
@@ -103,346 +183,492 @@ const targetProgress = computed(() => {
   };
 });
 
-// ── Tab② 趋势 ──
-const monthlyBars = computed(() => {
+// ── 月度成交额趋势（面积图） ──
+const trendChart = computed(() => {
   const arr = stats.value?.trends?.monthly_amount_micros || [];
-  const max = Math.max(1, ...arr);
   const current = new Date().getMonth() + 1;
-  return arr.map((v, i) => ({
-    month: i + 1,
-    value: v,
-    pct: v ? Math.max(3, Math.round((v / max) * 100)) : 0,
-    active: i + 1 === current,
-  }));
+  return {
+    labels: arr.map((_, i) => `${i + 1}月`),
+    data: arr.map(toYuan),
+    activeIndex: current - 1,
+    empty: !arr.some(v => v),
+  };
 });
 
-// 通用横向条形：对象 {key: value} → 排序后的行，附百分比与格式化值
-const toBars = (obj, { labels, format } = {}) => {
-  const entries = Object.entries(obj || {}).filter(([, v]) => v);
-  const max = Math.max(1, ...entries.map(([, v]) => v));
-  return entries
+// ── 商机阶段（漏斗柱） ──
+const stageChart = computed(() => {
+  const byStage = stats.value?.trends?.opportunity_amount_by_stage || {};
+  const rows = Object.keys(STAGE_LABELS)
+    .map(stage => ({ stage, micros: byStage[stage] || 0 }))
+    .filter(r => r.micros);
+  return {
+    labels: rows.map(r => STAGE_LABELS[r.stage]),
+    data: rows.map(r => toYuan(r.micros)),
+    colors: rows.map(r => themeColor(STAGE_COLORS[r.stage])),
+    empty: !rows.length,
+  };
+});
+
+// 转化率：已成交金额 / 全部商机金额
+const winRate = computed(() => {
+  const byStage = stats.value?.trends?.opportunity_amount_by_stage || {};
+  const total = Object.values(byStage).reduce((a, b) => a + (b || 0), 0);
+  if (!total) return null;
+  return Math.round(((byStage.WON || 0) / total) * 100);
+});
+
+// ── 客户来源占比（环形） ──
+const sourceDonut = computed(() => {
+  const breakdown = stats.value?.source_breakdown || {};
+  const rows = Object.entries(breakdown)
+    .filter(([, v]) => v)
+    .sort((a, b) => b[1] - a[1]);
+  return {
+    labels: rows.map(([k]) => SOURCE_LABELS[k] || k),
+    data: rows.map(([, v]) => v),
+    colors: rows.map((_, i) =>
+      themeColor(SOURCE_COLOR_KEYS[i % SOURCE_COLOR_KEYS.length])
+    ),
+    total: rows.reduce((a, [, v]) => a + v, 0),
+    empty: !rows.length,
+  };
+});
+
+// ── 业务员成交排行（横向柱） ──
+const ownerRank = computed(() => {
+  const by = stats.value?.team?.by_owner_amount || {};
+  const rows = Object.entries(by)
+    .filter(([, v]) => v)
     .sort((a, b) => b[1] - a[1])
-    .map(([k, v]) => ({
-      label: labels ? labels[k] || k : k,
-      value: format ? format(v) : v,
-      pct: Math.max(3, Math.round((v / max) * 100)),
-    }));
-};
+    .slice(0, 8);
+  return {
+    labels: rows.map(([k]) => k),
+    data: rows.map(([, v]) => toYuan(v)),
+    empty: !rows.length,
+  };
+});
 
-const stageBars = computed(() =>
-  Object.keys(STAGE_LABELS)
-    .map(stage => {
-      const v = stats.value?.trends?.opportunity_amount_by_stage?.[stage] || 0;
-      return { stage, label: STAGE_LABELS[stage], raw: v };
-    })
-    .filter(r => r.raw)
-    .map((r, _, arr) => {
-      const max = Math.max(1, ...arr.map(x => x.raw));
-      return { ...r, value: money(r.raw), pct: Math.max(3, Math.round((r.raw / max) * 100)) };
-    })
-);
+// ── 业务员平均回复时长（越短越好，升序排） ──
+const ownerLatency = computed(() => {
+  const by = stats.value?.team?.by_owner_reply_latency || {};
+  const rows = Object.entries(by)
+    .filter(([, v]) => v != null)
+    .sort((a, b) => a[1] - b[1])
+    .slice(0, 8);
+  return {
+    labels: rows.map(([k]) => k),
+    data: rows.map(([, v]) => v),
+    empty: !rows.length,
+  };
+});
 
-const sourceBars = computed(() =>
-  toBars(stats.value?.source_breakdown, { labels: SOURCE_LABELS })
-);
+// ── 业务员资料完善度（越高越好，降序排） ──
+const ownerCompleteness = computed(() => {
+  const by = stats.value?.team?.by_owner_completeness || {};
+  const rows = Object.entries(by)
+    .filter(([, v]) => v != null)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+  return {
+    labels: rows.map(([k]) => k),
+    data: rows.map(([, v]) => v),
+    empty: !rows.length,
+  };
+});
 
-// ── Tab③ 团队与客户 ──
+// ── 累计概览 ──
 const totalCards = computed(() => {
   const tt = stats.value?.totals;
   if (!tt) return [];
   return [
-    { label: '客户总数', value: tt.total_customers },
-    { label: '成交客户数', value: tt.won_customers },
-    { label: '进行中商机', value: tt.open_opportunities },
-    { label: '订单总额（累计）', value: money(tt.total_order_amount_micros), hero: true },
-    { label: '新成交客户（累计）', value: tt.dealt_customers_total },
-    { label: '公海客户', value: tt.public_pool_customers },
+    {
+      label: '客户总数',
+      value: tt.total_customers,
+      accent: 'green',
+      icon: 'i-lucide-users',
+    },
+    {
+      label: '成交客户数',
+      value: tt.won_customers,
+      accent: 'green',
+      icon: 'i-lucide-user-check',
+    },
+    {
+      label: '进行中商机',
+      value: tt.open_opportunities,
+      accent: 'amber',
+      icon: 'i-lucide-target',
+    },
+    {
+      label: '公海客户',
+      value: tt.public_pool_customers,
+      accent: 'amber',
+      icon: 'i-lucide-waves',
+    },
+    {
+      label: '订单总额（累计）',
+      value: money(tt.total_order_amount_micros),
+      accent: 'green',
+      icon: 'i-lucide-banknote',
+    },
     {
       label: '平均回复时长',
-      value: tt.avg_reply_latency_hours != null ? `${tt.avg_reply_latency_hours}h` : '—',
+      value:
+        tt.avg_reply_latency_hours != null
+          ? `${tt.avg_reply_latency_hours}h`
+          : '—',
+      accent: 'amber',
+      icon: 'i-lucide-clock',
     },
   ];
 });
 
-const teamAmountBars = computed(() =>
-  toBars(stats.value?.team?.by_team_amount, { format: money })
-);
-const ownerAmountBars = computed(() =>
-  toBars(stats.value?.team?.by_owner_amount, { format: money })
-);
-const ownerCustomerBars = computed(() =>
-  toBars(stats.value?.team?.by_owner_won_customers)
-);
-const ownerCompletenessBars = computed(() =>
-  toBars(stats.value?.team?.by_owner_completeness, { format: v => `${v}分` })
-);
-const ownerLatencyBars = computed(() =>
-  toBars(stats.value?.team?.by_owner_reply_latency, { format: v => `${v}h` })
-);
+const PERIODS = [
+  { k: 'month', l: '月度' },
+  { k: 'quarter', l: '季度' },
+  { k: 'year', l: '年度' },
+];
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-background">
-    <div class="flex items-center justify-between">
-      <h1 class="text-xl font-medium text-n-slate-12">
-        {{
-          scope === 'mine'
-            ? t('CRM.DASHBOARD.HEADER_MINE')
-            : t('CRM.DASHBOARD.HEADER_COMPANY')
-        }}
-      </h1>
-      <span class="text-sm text-n-slate-11">
-        {{ stats?.year || new Date().getFullYear() }}年
-      </span>
-    </div>
-
-    <!-- Tab 切换 -->
-    <div class="flex gap-1 border-b border-n-weak">
-      <button
-        v-for="tab in TABS"
-        :key="tab.key"
-        class="px-4 py-2 -mb-px text-sm border-b-2 transition-colors"
-        :class="
-          activeTab === tab.key
-            ? 'border-n-blue-9 text-n-blue-11 font-medium'
-            : 'border-transparent text-n-slate-11 hover:text-n-slate-12'
-        "
-        @click="activeTab = tab.key"
-      >
-        {{ tab.label }}
-      </button>
+  <div
+    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-background"
+  >
+    <!-- 顶栏 -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+          {{
+            scope === 'mine'
+              ? t('CRM.DASHBOARD.HEADER_MINE')
+              : t('CRM.DASHBOARD.HEADER_COMPANY')
+          }}
+        </h1>
+        <p class="mt-0.5 text-sm text-n-slate-11">
+          {{ periodLabel }} ·
+          {{ scope === 'mine' ? '我的业绩' : '全公司概览' }}
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="flex gap-1 p-1 rounded-lg bg-n-alpha-1">
+          <button
+            v-for="p in PERIODS"
+            :key="p.k"
+            :aria-pressed="period === p.k"
+            class="h-7 px-3 text-sm transition-colors rounded-md shrink-0 whitespace-nowrap motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+            :class="
+              period === p.k
+                ? 'bg-n-solid-1 text-n-slate-12 font-medium shadow-sm'
+                : 'text-n-slate-11 hover:text-n-slate-12'
+            "
+            @click="period = p.k"
+          >
+            {{ p.l }}
+          </button>
+        </div>
+        <select
+          v-if="period === 'month'"
+          v-model.number="selectedMonth"
+          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+        >
+          <option v-for="m in 12" :key="m" :value="m">{{ m }}月</option>
+        </select>
+        <select
+          v-else-if="period === 'quarter'"
+          v-model.number="selectedQuarter"
+          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+        >
+          <option v-for="q in 4" :key="q" :value="q">Q{{ q }}</option>
+        </select>
+        <select
+          v-else
+          v-model.number="selectedYear"
+          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+        >
+          <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
+        </select>
+      </div>
     </div>
 
     <div v-if="loading" class="p-8 text-center text-n-slate-11">
       {{ t('CRM.DASHBOARD.LOADING') }}
     </div>
 
-    <template v-else>
-      <!-- ═══ Tab① 业绩概览 ═══ -->
-      <div v-show="activeTab === 'overview'" class="flex flex-col gap-4">
-        <div class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
-          <div class="flex flex-wrap items-center gap-3 mb-4">
-            <span class="font-medium text-n-slate-12">📊 业绩统计</span>
-            <div class="flex gap-1">
-              <button
-                v-for="p in [
-                  { k: 'month', l: '月度' },
-                  { k: 'quarter', l: '季度' },
-                  { k: 'year', l: '年度' },
-                ]"
-                :key="p.k"
-                class="h-8 px-3 text-sm border rounded-lg"
-                :class="
-                  period === p.k
-                    ? 'bg-n-blue-9 text-white border-n-blue-9'
-                    : 'border-n-weak text-n-slate-11'
-                "
-                @click="period = p.k"
-              >
-                {{ p.l }}
-              </button>
-            </div>
-            <select
-              v-if="period !== 'year'"
-              v-model.number="selectedMonth"
-              class="h-8 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            >
-              <option v-for="m in 12" :key="m" :value="m">{{ m }}月</option>
-            </select>
-            <span class="text-xs text-n-slate-10">
-              {{ periodLabel }} · {{ scope === 'mine' ? '我的' : '全公司' }}
-            </span>
-          </div>
-          <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <div
-              v-for="kpi in salesKpis"
-              :key="kpi.label"
-              class="p-4 border rounded-xl border-n-weak"
-              :class="kpi.hero ? 'bg-n-blue-9 text-white' : 'bg-n-solid-2'"
-            >
-              <div
-                class="text-xs"
-                :class="kpi.hero ? 'text-white/80' : 'text-n-slate-11'"
-              >
-                {{ kpi.label }}
-              </div>
-              <div class="mt-1 text-2xl font-bold">{{ kpi.value }}</div>
-            </div>
-          </div>
-        </div>
+    <div
+      v-else-if="error"
+      role="alert"
+      class="flex flex-col items-center gap-3 p-10 text-center border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+    >
+      <span class="i-lucide-cloud-off size-8 text-n-slate-10" />
+      <p class="text-sm text-n-slate-11">数据加载失败，请检查网络后重试。</p>
+      <button
+        class="h-9 px-4 text-sm font-medium transition-colors rounded-lg bg-n-amber-9 text-n-slate-12 motion-reduce:transition-none hover:bg-n-amber-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+        @click="fetchStats"
+      >
+        重新加载
+      </button>
+    </div>
 
+    <template v-else>
+      <!-- ═══ 第 1 行：KPI ═══ -->
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <!-- MedFlow 式暖色浅渐变卡（深字 + 真实涨跌角标） -->
         <div
-          v-if="targetProgress"
-          class="p-5 border rounded-xl border-n-weak bg-n-solid-1"
+          v-for="(kpi, i) in salesKpis"
+          :key="kpi.label"
+          class="flex flex-col justify-between p-5 shadow-sm rounded-2xl bg-gradient-to-br min-h-[8.5rem]"
+          :class="CARD_GRADIENTS[i]"
         >
-          <div class="mb-3 font-medium text-n-slate-12">🎯 本月目标完成率</div>
-          <div class="flex items-end gap-3">
-            <span class="text-3xl font-bold text-n-slate-12">
-              {{ targetProgress.pct }}%
-            </span>
-            <span class="mb-1 text-sm text-n-slate-11">
-              {{ targetProgress.done }} / {{ targetProgress.target }}
-            </span>
+          <div
+            class="flex items-center justify-center rounded-lg size-9 bg-n-solid-1/70 text-n-amber-11"
+          >
+            <span class="size-5" :class="[kpi.icon]" />
           </div>
-          <div class="h-3 mt-3 overflow-hidden rounded-full bg-n-alpha-2">
-            <div
-              class="h-full rounded-full bg-n-teal-9"
-              :style="{ width: `${targetProgress.pct}%` }"
-            />
+          <div>
+            <div class="mt-4 text-sm font-medium text-n-slate-11">
+              {{ kpi.label }}
+            </div>
+            <div class="mt-1 text-2xl font-bold text-n-slate-12">
+              {{ kpi.value }}
+            </div>
+            <div class="mt-1 text-xs text-n-slate-10">{{ kpi.sub }}</div>
           </div>
-        </div>
-        <div
-          v-else
-          class="p-5 text-sm border rounded-xl border-n-weak bg-n-solid-1 text-n-slate-11"
-        >
-          本月尚未设定目标。前往「数据看板 → 我的目标」设定。
         </div>
       </div>
 
-      <!-- ═══ Tab② 趋势与转化 ═══ -->
-      <div v-show="activeTab === 'trends'" class="flex flex-col gap-4">
-        <div class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
-          <div class="mb-4 font-medium text-n-slate-12">订单金额趋势（按月）</div>
-          <div class="flex items-end h-48 gap-2">
-            <div
-              v-for="bar in monthlyBars"
-              :key="bar.month"
-              class="flex flex-col items-center flex-1 h-full"
-            >
-              <div class="flex items-end justify-center flex-1 w-full">
-                <div
-                  class="w-2/3 rounded-t"
-                  :class="bar.active ? 'bg-n-blue-9' : 'bg-n-blue-4'"
-                  :style="{ height: `${bar.pct}%` }"
-                  :title="money(bar.value)"
-                />
-              </div>
-              <div
-                class="mt-1 text-[10px]"
-                :class="
-                  bar.active ? 'font-bold text-n-blue-11' : 'text-n-slate-10'
-                "
-              >
-                {{ bar.month }}月
-              </div>
-            </div>
+      <!-- ═══ 第 2 行：商机阶段漏斗 + 目标仪表 ═══ -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div
+          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-n-weak bg-n-solid-1"
+        >
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-medium text-n-slate-12">商机阶段分布</h2>
+            <span v-if="winRate != null" class="text-xs text-n-slate-11">
+              成交转化率
+              <span class="font-semibold text-n-amber-11">{{ winRate }}%</span>
+            </span>
           </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
-            <div class="mb-4 font-medium text-n-slate-12">商机金额（按阶段）</div>
-            <div v-if="!stageBars.length" class="text-sm text-n-slate-10">
+          <div class="h-64">
+            <CrmBarChart
+              v-if="!stageChart.empty"
+              :labels="stageChart.labels"
+              :data="stageChart.data"
+              :colors="stageChart.colors"
+              show-values
+              :value-format="moneyYuan"
+            />
+            <div
+              v-else
+              class="flex items-center justify-center h-full text-sm text-n-slate-10"
+            >
               暂无商机数据
             </div>
-            <div class="flex flex-col gap-2">
-              <div
-                v-for="row in stageBars"
-                :key="row.stage"
-                class="flex items-center gap-2 text-sm"
+          </div>
+        </div>
+
+        <div
+          class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+        >
+          <h2 class="mb-2 text-base font-medium text-n-slate-12">
+            本月目标完成率
+          </h2>
+          <template v-if="targetProgress">
+            <div class="h-48 mx-auto max-w-[16rem]">
+              <CrmDoughnutChart
+                :data="[targetProgress.pct, 100 - targetProgress.pct]"
+                gauge
+                cutout="78%"
               >
-                <span class="w-16 text-xs shrink-0 text-n-slate-11">
-                  {{ row.label }}
-                </span>
-                <div class="flex-1 h-4 overflow-hidden rounded bg-n-alpha-1">
-                  <div
-                    class="h-full rounded bg-n-iris-8"
-                    :style="{ width: `${row.pct}%` }"
-                  />
-                </div>
-                <span class="text-xs text-right w-20 shrink-0 text-n-slate-11">
-                  {{ row.value }}
-                </span>
-              </div>
+                <template #center>
+                  <div class="text-3xl font-bold text-n-slate-12">
+                    {{ targetProgress.pct }}%
+                  </div>
+                </template>
+              </CrmDoughnutChart>
+            </div>
+            <div class="text-center text-n-slate-11">
+              <span class="font-medium text-n-slate-12">
+                {{ targetProgress.done }}
+              </span>
+              / {{ targetProgress.target }}
+            </div>
+          </template>
+          <div
+            v-else
+            class="flex flex-col items-center justify-center gap-1 py-10 text-center"
+          >
+            <span class="i-lucide-target size-6 text-n-slate-10" />
+            <p class="text-sm text-n-slate-11">本月尚未设定目标</p>
+            <p class="text-xs text-n-slate-10">前往「我的目标」设定</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ 第 3 行：趋势面积图 + 来源环形 ═══ -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div
+          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-n-weak bg-n-solid-1"
+        >
+          <h2 class="mb-4 text-base font-medium text-n-slate-12">
+            订单金额趋势
+          </h2>
+          <div class="h-64">
+            <CrmAreaChart
+              v-if="!trendChart.empty"
+              :labels="trendChart.labels"
+              :data="trendChart.data"
+              :active-index="trendChart.activeIndex"
+              :value-format="moneyYuan"
+            />
+            <div
+              v-else
+              class="flex items-center justify-center h-full text-sm text-n-slate-10"
+            >
+              暂无趋势数据
             </div>
           </div>
+        </div>
 
-          <div class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
-            <div class="mb-4 font-medium text-n-slate-12">客户来源占比</div>
-            <div v-if="!sourceBars.length" class="text-sm text-n-slate-10">
-              暂无客户来源数据
+        <div
+          class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+        >
+          <h2 class="mb-4 text-base font-medium text-n-slate-12">
+            客户来源占比
+          </h2>
+          <template v-if="!sourceDonut.empty">
+            <div class="relative h-40 mx-auto max-w-[12rem]">
+              <CrmDoughnutChart
+                :labels="sourceDonut.labels"
+                :data="sourceDonut.data"
+                :colors="sourceDonut.colors"
+              >
+                <template #center>
+                  <div class="text-xl font-bold text-n-slate-12">
+                    {{ sourceDonut.total }}
+                  </div>
+                  <div class="text-xs text-n-slate-10">客户</div>
+                </template>
+              </CrmDoughnutChart>
             </div>
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-1.5 mt-4">
               <div
-                v-for="row in sourceBars"
-                :key="row.label"
+                v-for="(label, i) in sourceDonut.labels"
+                :key="label"
                 class="flex items-center gap-2 text-sm"
               >
-                <span class="text-xs w-28 shrink-0 text-n-slate-11">
-                  {{ row.label }}
-                </span>
-                <div class="flex-1 h-4 overflow-hidden rounded bg-n-alpha-1">
-                  <div
-                    class="h-full rounded bg-n-teal-8"
-                    :style="{ width: `${row.pct}%` }"
-                  />
-                </div>
-                <span class="w-8 text-xs text-right shrink-0 text-n-slate-11">
-                  {{ row.value }}
+                <span
+                  class="inline-block rounded-full size-2.5 shrink-0"
+                  :style="{ backgroundColor: sourceDonut.colors[i] }"
+                />
+                <span class="truncate text-n-slate-11">{{ label }}</span>
+                <span class="ml-auto font-medium text-n-slate-12">
+                  {{ sourceDonut.data[i] }}
                 </span>
               </div>
+            </div>
+          </template>
+          <div
+            v-else
+            class="flex items-center justify-center h-56 text-sm text-n-slate-10"
+          >
+            暂无来源数据
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ 第 4 行：业务员排行 + 累计概览 ═══ -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div
+          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-n-weak bg-n-solid-1"
+        >
+          <h2 class="mb-4 text-base font-medium text-n-slate-12">
+            业务员成交排行
+          </h2>
+          <div class="h-72">
+            <CrmBarChart
+              v-if="!ownerRank.empty"
+              :labels="ownerRank.labels"
+              :data="ownerRank.data"
+              horizontal
+              show-values
+              :value-format="moneyYuan"
+            />
+            <div
+              v-else
+              class="flex items-center justify-center h-full text-sm text-n-slate-10"
+            >
+              暂无成交数据
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+        >
+          <h2 class="mb-4 text-base font-medium text-n-slate-12">累计概览</h2>
+          <div class="flex flex-col gap-2">
+            <div
+              v-for="card in totalCards"
+              :key="card.label"
+              class="flex items-center gap-3 p-2 rounded-lg hover:bg-n-alpha-1"
+            >
+              <div
+                class="flex items-center justify-center rounded-lg size-9 shrink-0"
+                :class="[ACCENTS[card.accent].soft, ACCENTS[card.accent].text]"
+              >
+                <span class="size-5" :class="[card.icon]" />
+              </div>
+              <span class="text-sm text-n-slate-11">{{ card.label }}</span>
+              <span class="ml-auto text-base font-bold text-n-slate-12">
+                {{ card.value }}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ═══ Tab③ 团队与客户 ═══ -->
-      <div v-show="activeTab === 'team'" class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div
-            v-for="card in totalCards"
-            :key="card.label"
-            class="p-4 border rounded-xl border-n-weak"
-            :class="card.hero ? 'bg-n-blue-9 text-white' : 'bg-n-solid-1'"
-          >
+      <!-- ═══ 第 5 行：业务员回复时长 + 资料完善度 ═══ -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1">
+          <h2 class="mb-4 text-base font-medium text-n-slate-12">
+            业务员平均回复时长（越短越好）
+          </h2>
+          <div class="h-64">
+            <CrmBarChart
+              v-if="!ownerLatency.empty"
+              :labels="ownerLatency.labels"
+              :data="ownerLatency.data"
+              horizontal
+              show-values
+              :value-format="hoursFmt"
+            />
             <div
-              class="text-xs"
-              :class="card.hero ? 'text-white/80' : 'text-n-slate-11'"
+              v-else
+              class="flex items-center justify-center h-full text-sm text-n-slate-10"
             >
-              {{ card.label }}
+              暂无回复时长数据
             </div>
-            <div class="mt-1 text-2xl font-bold">{{ card.value }}</div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div
-            v-for="section in [
-              { title: '各团队成交金额', rows: teamAmountBars, color: 'bg-n-blue-8' },
-              { title: '各业务员成交金额', rows: ownerAmountBars, color: 'bg-n-blue-8' },
-              { title: '各业务员成交客户数', rows: ownerCustomerBars, color: 'bg-n-teal-8' },
-              { title: '各业务员资料完善度（平均）', rows: ownerCompletenessBars, color: 'bg-n-iris-8' },
-              { title: '各业务员平均回复时长（越短越好）', rows: ownerLatencyBars, color: 'bg-n-amber-8' },
-            ]"
-            :key="section.title"
-            class="p-5 border rounded-xl border-n-weak bg-n-solid-1"
-          >
-            <div class="mb-4 font-medium text-n-slate-12">
-              {{ section.title }}
-            </div>
-            <div v-if="!section.rows.length" class="text-sm text-n-slate-10">
-              暂无数据
-            </div>
-            <div class="flex flex-col gap-2">
-              <div
-                v-for="row in section.rows"
-                :key="row.label"
-                class="flex items-center gap-2 text-sm"
-              >
-                <span class="text-xs truncate w-28 shrink-0 text-n-slate-11">
-                  {{ row.label }}
-                </span>
-                <div class="flex-1 h-4 overflow-hidden rounded bg-n-alpha-1">
-                  <div
-                    class="h-full rounded"
-                    :class="section.color"
-                    :style="{ width: `${row.pct}%` }"
-                  />
-                </div>
-                <span class="text-xs text-right w-20 shrink-0 text-n-slate-11">
-                  {{ row.value }}
-                </span>
-              </div>
+        <div class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1">
+          <h2 class="mb-4 text-base font-medium text-n-slate-12">
+            业务员资料完善度（越高越好）
+          </h2>
+          <div class="h-64">
+            <CrmBarChart
+              v-if="!ownerCompleteness.empty"
+              :labels="ownerCompleteness.labels"
+              :data="ownerCompleteness.data"
+              horizontal
+              show-values
+              :value-format="scoreFmt"
+            />
+            <div
+              v-else
+              class="flex items-center justify-center h-full text-sm text-n-slate-10"
+            >
+              暂无完善度数据
             </div>
           </div>
         </div>

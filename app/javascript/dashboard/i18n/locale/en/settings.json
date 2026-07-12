@@ -426,7 +426,7 @@
     "CRM_PRIVATE_CUSTOMERS": "私海客户",
     "CRM_PUBLIC_POOL": "公海客户",
     "CRM_G_SALES_FLOW": "销售流程",
-    "CRM_FUNNEL": "商机漏斗（看板）",
+    "CRM_FUNNEL": "商机看板",
     "CRM_ORDERS_NO_CUSTOMER": "未关联客户的订单",
     "CRM_G_MAIL": "邮件中心",
     "CRM_COMPOSE": "写邮件",

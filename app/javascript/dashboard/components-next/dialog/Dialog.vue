@@ -28,6 +28,11 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  // 覆盖确认按钮颜色；留空时按 type 沿用默认(edit→blue / 其它→ruby)。
+  confirmButtonColor: {
+    type: String,
+    default: '',
+  },
   disableConfirmButton: {
     type: Boolean,
     default: false,
@@ -161,7 +166,7 @@ defineExpose({ open, close });
               />
               <Button
                 v-if="showConfirmButton"
-                :color="type === 'edit' ? 'blue' : 'ruby'"
+                :color="confirmButtonColor || (type === 'edit' ? 'blue' : 'ruby')"
                 :label="confirmButtonLabel || t('DIALOG.BUTTONS.CONFIRM')"
                 class="w-full"
                 :is-loading="isLoading"

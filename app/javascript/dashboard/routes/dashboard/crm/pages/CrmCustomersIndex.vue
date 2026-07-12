@@ -107,9 +107,6 @@ const updateCustomer = async customer => {
   }
 };
 
-const formatDate = value =>
-  value ? new Date(value).toLocaleDateString() : '—';
-
 const crmApi = () => `/api/v1/accounts/${accountId.value}/crm/customers`;
 
 // 认领：公海客户归我私海；转公海：私海客户放回公海。行按钮，阻止冒泡避免触发编辑。
@@ -127,17 +124,19 @@ const claimCustomer = async customer => {
 };
 
 const releaseCustomer = async customer => {
+  const { name } = customer;
   // eslint-disable-next-line no-alert
-  if (!window.confirm(t('CRM.CUSTOMERS.POOL.RELEASE_CONFIRM', { name: customer.name }))) {
-    return;
-  }
+  const ok = window.confirm(t('CRM.CUSTOMERS.POOL.RELEASE_CONFIRM', { name }));
+  if (!ok) return;
   actingId.value = customer.id;
   try {
     await axios.post(`${crmApi()}/${customer.id}/release`);
     useAlert(t('CRM.CUSTOMERS.POOL.RELEASE_SUCCESS'));
     fetchCustomers();
   } catch (e) {
-    useAlert(e.response?.data?.message || t('CRM.CUSTOMERS.POOL.RELEASE_ERROR'));
+    useAlert(
+      e.response?.data?.message || t('CRM.CUSTOMERS.POOL.RELEASE_ERROR')
+    );
   } finally {
     actingId.value = null;
   }
@@ -196,15 +195,41 @@ const REGION_META = {
 };
 // 国家 → 国旗+中文名（覆盖常用外贸目的国）
 const COUNTRY_MAP = {
-  USA: '🇺🇸 美国', GERMANY: '🇩🇪 德国', UK: '🇬🇧 英国', FRANCE: '🇫🇷 法国',
-  ITALY: '🇮🇹 意大利', SPAIN: '🇪🇸 西班牙', CANADA: '🇨🇦 加拿大', AUSTRALIA: '🇦🇺 澳大利亚',
-  JAPAN: '🇯🇵 日本', SOUTH_KOREA: '🇰🇷 韩国', INDIA: '🇮🇳 印度', RUSSIA: '🇷🇺 俄罗斯',
-  BRAZIL: '🇧🇷 巴西', MEXICO: '🇲🇽 墨西哥', NETHERLANDS: '🇳🇱 荷兰', BELGIUM: '🇧🇪 比利时',
-  UAE: '🇦🇪 阿联酋', SAUDI_ARABIA: '🇸🇦 沙特', SINGAPORE: '🇸🇬 新加坡', MALAYSIA: '🇲🇾 马来西亚',
-  THAILAND: '🇹🇭 泰国', VIETNAM: '🇻🇳 越南', INDONESIA: '🇮🇩 印尼', PHILIPPINES: '🇵🇭 菲律宾',
-  TURKEY: '🇹🇷 土耳其', SOUTH_AFRICA: '🇿🇦 南非', EGYPT: '🇪🇬 埃及', NIGERIA: '🇳🇬 尼日利亚',
-  POLAND: '🇵🇱 波兰', SWEDEN: '🇸🇪 瑞典', TAIWAN: '🇹🇼 台湾', HONG_KONG: '🇭🇰 香港',
-  PAKISTAN: '🇵🇰 巴基斯坦', BANGLADESH: '🇧🇩 孟加拉', OTHER: '🌍 其他',
+  USA: '🇺🇸 美国',
+  GERMANY: '🇩🇪 德国',
+  UK: '🇬🇧 英国',
+  FRANCE: '🇫🇷 法国',
+  ITALY: '🇮🇹 意大利',
+  SPAIN: '🇪🇸 西班牙',
+  CANADA: '🇨🇦 加拿大',
+  AUSTRALIA: '🇦🇺 澳大利亚',
+  JAPAN: '🇯🇵 日本',
+  SOUTH_KOREA: '🇰🇷 韩国',
+  INDIA: '🇮🇳 印度',
+  RUSSIA: '🇷🇺 俄罗斯',
+  BRAZIL: '🇧🇷 巴西',
+  MEXICO: '🇲🇽 墨西哥',
+  NETHERLANDS: '🇳🇱 荷兰',
+  BELGIUM: '🇧🇪 比利时',
+  UAE: '🇦🇪 阿联酋',
+  SAUDI_ARABIA: '🇸🇦 沙特',
+  SINGAPORE: '🇸🇬 新加坡',
+  MALAYSIA: '🇲🇾 马来西亚',
+  THAILAND: '🇹🇭 泰国',
+  VIETNAM: '🇻🇳 越南',
+  INDONESIA: '🇮🇩 印尼',
+  PHILIPPINES: '🇵🇭 菲律宾',
+  TURKEY: '🇹🇷 土耳其',
+  SOUTH_AFRICA: '🇿🇦 南非',
+  EGYPT: '🇪🇬 埃及',
+  NIGERIA: '🇳🇬 尼日利亚',
+  POLAND: '🇵🇱 波兰',
+  SWEDEN: '🇸🇪 瑞典',
+  TAIWAN: '🇹🇼 台湾',
+  HONG_KONG: '🇭🇰 香港',
+  PAKISTAN: '🇵🇰 巴基斯坦',
+  BANGLADESH: '🇧🇩 孟加拉',
+  OTHER: '🌍 其他',
 };
 
 const gradeMeta = c => GRADE_META[c.completenessGrade] || null;
@@ -241,13 +266,13 @@ watch(
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
-      <h1 class="text-xl font-medium text-n-slate-12">
+      <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
         {{ t('CRM.CUSTOMERS.HEADER') }}
       </h1>
       <Button
         :label="t('CRM.CUSTOMERS.NEW')"
         icon="i-lucide-plus"
-        color="blue"
+        color="amber"
         @click="goToIntake"
       />
     </div>
@@ -259,7 +284,7 @@ watch(
         :label="tab.label"
         size="sm"
         :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-        :color="activeFilter === tab.key ? 'blue' : 'slate'"
+        :color="activeFilter === tab.key ? 'amber' : 'slate'"
         @click="setFilter(tab.key)"
       />
       <Select
@@ -288,151 +313,164 @@ watch(
       >
         {{ t('CRM.CUSTOMERS.EMPTY') }}
       </div>
-      <table v-else class="w-full text-sm text-left border-collapse">
-        <thead class="text-n-slate-11">
-          <tr class="border-b border-n-weak">
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
-            </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.GRADE') }}
-            </th>
-            <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.DEAL_AMOUNT') }}
-            </th>
-            <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.DEAL_COUNT') }}
-            </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.STATUS') }}
-            </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.LEVEL') }}
-            </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.SOURCE') }}
-            </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.COUNTRY') }}
-            </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.REGION') }}
-            </th>
-            <th class="px-3 py-2 font-medium whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.OWNER') }}
-            </th>
-            <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
-              {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="customer in customers"
-            :key="customer.id"
-            class="cursor-pointer border-b border-n-weak hover:bg-n-alpha-1"
-            @click="openEditDialog(customer)"
-          >
-            <td class="px-3 py-2">
-              <div class="flex items-center gap-2 whitespace-nowrap">
-                <span
-                  class="flex items-center justify-center flex-shrink-0 text-xs font-semibold rounded w-6 h-6"
-                  :class="avatarCls(customer.name)"
+      <div
+        v-else
+        class="overflow-hidden border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+      >
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left border-collapse">
+            <thead class="bg-n-alpha-1 text-n-slate-11">
+              <tr class="border-b border-n-weak">
+                <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
+                </th>
+                <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.GRADE') }}
+                </th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.DEAL_AMOUNT') }}
+                </th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.DEAL_COUNT') }}
+                </th>
+                <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.STATUS') }}
+                </th>
+                <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.LEVEL') }}
+                </th>
+                <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.SOURCE') }}
+                </th>
+                <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.COUNTRY') }}
+                </th>
+                <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.REGION') }}
+                </th>
+                <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.OWNER') }}
+                </th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="customer in customers"
+                :key="customer.id"
+                class="cursor-pointer border-b border-n-weak hover:bg-n-alpha-1"
+                @click="openEditDialog(customer)"
+              >
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-2 whitespace-nowrap">
+                    <span
+                      class="flex items-center justify-center flex-shrink-0 text-xs font-semibold rounded-lg w-6 h-6"
+                      :class="avatarCls(customer.name)"
+                    >
+                      {{ initial(customer.name) }}
+                    </span>
+                    <span class="text-n-slate-12">{{ customer.name }}</span>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <span
+                    v-if="gradeMeta(customer)"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
+                    :class="pillCls(gradeMeta(customer).color)"
+                  >
+                    {{ gradeMeta(customer).label }}
+                    <span class="opacity-70">{{
+                      customer.infoCompletenessScore
+                    }}</span>
+                  </span>
+                  <span v-else class="text-n-slate-10">—</span>
+                </td>
+                <td
+                  class="px-4 py-3 text-right text-n-slate-11 whitespace-nowrap"
                 >
-                  {{ initial(customer.name) }}
-                </span>
-                <span class="text-n-slate-12">{{ customer.name }}</span>
-              </div>
-            </td>
-            <td class="px-3 py-2">
-              <span
-                v-if="gradeMeta(customer)"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs whitespace-nowrap"
-                :class="pillCls(gradeMeta(customer).color)"
-              >
-                {{ gradeMeta(customer).label }}
-                <span class="opacity-70">{{ customer.infoCompletenessScore }}</span>
-              </span>
-              <span v-else class="text-n-slate-10">—</span>
-            </td>
-            <td class="px-3 py-2 text-right text-n-slate-11 whitespace-nowrap">
-              {{ money(customer.dealTotalAmountMicros) }}
-            </td>
-            <td class="px-3 py-2 text-right text-n-slate-11">
-              {{ customer.dealOrderCount || 0 }}
-            </td>
-            <td class="px-3 py-2">
-              <span
-                v-if="statusMeta(customer)"
-                class="inline-flex px-2 py-0.5 rounded text-xs whitespace-nowrap"
-                :class="pillCls(statusMeta(customer).color)"
-              >
-                {{ statusMeta(customer).label }}
-              </span>
-              <span v-else class="text-n-slate-10">—</span>
-            </td>
-            <td class="px-3 py-2">
-              <span
-                v-if="customer.customerLevel"
-                class="inline-flex items-center justify-center w-5 h-5 rounded text-xs font-medium"
-                :class="pillCls(levelColor(customer.customerLevel))"
-              >
-                {{ customer.customerLevel }}
-              </span>
-              <span v-else class="text-n-slate-10">—</span>
-            </td>
-            <td class="px-3 py-2">
-              <span
-                v-if="sourceMeta(customer)"
-                class="inline-flex px-2 py-0.5 rounded text-xs whitespace-nowrap"
-                :class="pillCls(sourceMeta(customer).color)"
-              >
-                {{ sourceMeta(customer).label }}
-              </span>
-              <span v-else class="text-n-slate-10">—</span>
-            </td>
-            <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
-              {{ countryLabel(customer.tradeCountry) }}
-            </td>
-            <td class="px-3 py-2">
-              <span
-                v-if="regionMeta(customer)"
-                class="inline-flex px-2 py-0.5 rounded text-xs whitespace-nowrap"
-                :class="pillCls(regionMeta(customer).color)"
-              >
-                {{ regionMeta(customer).label }}
-              </span>
-              <span v-else class="text-n-slate-10">—</span>
-            </td>
-            <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
-              <span v-if="customer.isInPublicPool" class="text-n-sky-11">🌊 公海</span>
-              <span v-else-if="customer.accountOwnerName">
-                {{ customer.accountOwnerName }}
-              </span>
-              <span v-else class="text-n-slate-10">未分配</span>
-            </td>
-            <td class="px-3 py-2 text-right" @click.stop>
-              <Button
-                v-if="customer.isInPublicPool"
-                :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
-                size="sm"
-                color="blue"
-                :is-loading="actingId === customer.id"
-                @click="claimCustomer(customer)"
-              />
-              <Button
-                v-else
-                :label="t('CRM.CUSTOMERS.POOL.RELEASE')"
-                size="sm"
-                variant="faded"
-                color="slate"
-                :is-loading="actingId === customer.id"
-                @click="releaseCustomer(customer)"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                  {{ money(customer.dealTotalAmountMicros) }}
+                </td>
+                <td class="px-4 py-3 text-right text-n-slate-11">
+                  {{ customer.dealOrderCount || 0 }}
+                </td>
+                <td class="px-4 py-3">
+                  <span
+                    v-if="statusMeta(customer)"
+                    class="inline-flex px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
+                    :class="pillCls(statusMeta(customer).color)"
+                  >
+                    {{ statusMeta(customer).label }}
+                  </span>
+                  <span v-else class="text-n-slate-10">—</span>
+                </td>
+                <td class="px-4 py-3">
+                  <span
+                    v-if="customer.customerLevel"
+                    class="inline-flex items-center justify-center w-5 h-5 rounded text-xs font-medium"
+                    :class="pillCls(levelColor(customer.customerLevel))"
+                  >
+                    {{ customer.customerLevel }}
+                  </span>
+                  <span v-else class="text-n-slate-10">—</span>
+                </td>
+                <td class="px-4 py-3">
+                  <span
+                    v-if="sourceMeta(customer)"
+                    class="inline-flex px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
+                    :class="pillCls(sourceMeta(customer).color)"
+                  >
+                    {{ sourceMeta(customer).label }}
+                  </span>
+                  <span v-else class="text-n-slate-10">—</span>
+                </td>
+                <td class="px-4 py-3 text-n-slate-11 whitespace-nowrap">
+                  {{ countryLabel(customer.tradeCountry) }}
+                </td>
+                <td class="px-4 py-3">
+                  <span
+                    v-if="regionMeta(customer)"
+                    class="inline-flex px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
+                    :class="pillCls(regionMeta(customer).color)"
+                  >
+                    {{ regionMeta(customer).label }}
+                  </span>
+                  <span v-else class="text-n-slate-10">—</span>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-n-slate-11">
+                  <span v-if="customer.isInPublicPool" class="text-n-blue-11">
+                    🌊 公海
+                  </span>
+                  <span v-else-if="customer.accountOwnerName">
+                    {{ customer.accountOwnerName }}
+                  </span>
+                  <span v-else class="text-n-slate-10">未分配</span>
+                </td>
+                <td class="px-4 py-3 text-right" @click.stop>
+                  <Button
+                    v-if="customer.isInPublicPool"
+                    :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
+                    size="sm"
+                    color="amber"
+                    :is-loading="actingId === customer.id"
+                    @click="claimCustomer(customer)"
+                  />
+                  <Button
+                    v-else
+                    :label="t('CRM.CUSTOMERS.POOL.RELEASE')"
+                    size="sm"
+                    variant="faded"
+                    color="slate"
+                    :is-loading="actingId === customer.id"
+                    @click="releaseCustomer(customer)"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <PaginationFooter

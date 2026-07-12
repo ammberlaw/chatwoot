@@ -86,6 +86,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
+    scope = scope.where('name ILIKE ?', "%#{params[:q]}%") if params[:q].present?
     scope
   end
 

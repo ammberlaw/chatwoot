@@ -3,6 +3,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
+import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 
 const { t } = useI18n();
 const { accountId } = useAccount();
@@ -28,7 +29,8 @@ const fetchData = async () => {
 
 onMounted(fetchData);
 
-const money = micros => `¥${Math.round((micros || 0) / 1_000_000).toLocaleString()}`;
+const money = micros =>
+  `¥${Math.round((micros || 0) / 1_000_000).toLocaleString()}`;
 
 const teams = computed(() => data.value?.teams || []);
 const team = computed(
@@ -58,10 +60,10 @@ const barClass = p => {
 };
 const barWidth = p => `${Math.min(100, Math.max(2, p ?? 0))}%`;
 
-const kpiCompletion = computed(() =>
+const completionPct = computed(() =>
   totals.value.targetAmount > 0
-    ? `${Math.round((totals.value.actualAmount / totals.value.targetAmount) * 100)}%`
-    : '—'
+    ? Math.round((totals.value.actualAmount / totals.value.targetAmount) * 100)
+    : null
 );
 
 // 单条指标：实绩/目标 + 百分比
@@ -75,24 +77,59 @@ const metricLine = (actual, target, isMoney) => {
     text: `${fmt(actual)} / ${fmt(target)}${p == null ? '' : `（${Math.round(p)}%）`}`,
   };
 };
+
+// MedFlow 式多色柔和渐变（跨卡 黄→薄荷绿→蜜桃橙）。完整字面量供 Tailwind 收录。
+const CARD_GRADIENTS = [
+  'from-n-amber-3 to-n-teal-3',
+  'from-n-teal-3 to-n-amber-3',
+  'from-n-amber-3 to-n-amber-5',
+];
+
+// KPI 顶卡
+const kpiCards = computed(() => [
+  {
+    label: '本月成交额',
+    value: money(totals.value.actualAmount),
+    sub: `目标 ${money(totals.value.targetAmount)}`,
+    icon: 'i-lucide-wallet',
+  },
+  {
+    label: '本月新成交客户',
+    value: totals.value.actualCount,
+    sub: `目标 ${totals.value.targetCount}`,
+    icon: 'i-lucide-user-plus',
+  },
+  {
+    label: '组员人数',
+    value: totals.value.memberCount,
+    sub: '人',
+    icon: 'i-lucide-users',
+  },
+]);
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-background">
-    <div class="flex items-center gap-3">
-      <h1 class="text-xl font-medium text-n-slate-12">
-        👥 {{ t('CRM.TEAM_DASHBOARD.HEADER') }}
-      </h1>
+  <div
+    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-background"
+  >
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+          {{ t('CRM.TEAM_DASHBOARD.HEADER') }}
+        </h1>
+        <p class="mt-0.5 text-sm text-n-slate-11">
+          {{ data?.month_label }}
+        </p>
+      </div>
       <select
         v-if="teams.length"
         v-model.number="selectedTeamId"
-        class="h-8 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+        class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
       >
-        <option v-for=" team_ in teams" :key="team_.id" :value="team_.id">
+        <option v-for="team_ in teams" :key="team_.id" :value="team_.id">
           {{ team_.name }}
         </option>
       </select>
-      <span class="text-sm text-n-slate-11">{{ data?.month_label }}</span>
     </div>
 
     <div v-if="loading" class="p-8 text-center text-n-slate-11">
@@ -101,108 +138,176 @@ const metricLine = (actual, target, isMoney) => {
 
     <div
       v-else-if="!teams.length"
-      class="p-8 text-sm text-center border rounded-xl border-n-weak bg-n-solid-1 text-n-slate-11"
+      class="p-8 text-sm text-center border shadow-sm rounded-2xl border-n-weak bg-n-solid-1 text-n-slate-11"
     >
       {{ t('CRM.TEAM_DASHBOARD.EMPTY') }}
     </div>
 
     <template v-else-if="team">
-      <!-- 3 KPI -->
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div class="p-4 border rounded-xl border-n-weak bg-n-solid-1">
-          <div class="text-xs text-n-slate-11">本月成交额</div>
-          <div class="mt-1 text-2xl font-bold text-n-slate-12">
-            {{ money(totals.actualAmount) }}
+      <!-- KPI 暖橙浅卡 -->
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div
+          v-for="(kpi, i) in kpiCards"
+          :key="kpi.label"
+          class="flex flex-col justify-between p-5 shadow-sm rounded-2xl bg-gradient-to-br min-h-[8rem]"
+          :class="CARD_GRADIENTS[i]"
+        >
+          <div
+            class="flex items-center justify-center rounded-lg size-9 bg-n-solid-1/70 text-n-amber-11"
+          >
+            <span class="size-5" :class="[kpi.icon]" />
           </div>
-          <div class="mt-1 text-xs text-n-slate-10">
-            目标 {{ money(totals.targetAmount) }}
-          </div>
-        </div>
-        <div class="p-4 border rounded-xl border-n-weak bg-n-solid-1">
-          <div class="text-xs text-n-slate-11">本月新成交客户</div>
-          <div class="mt-1 text-2xl font-bold text-n-slate-12">
-            {{ totals.actualCount }}
-          </div>
-          <div class="mt-1 text-xs text-n-slate-10">
-            目标 {{ totals.targetCount }}
-          </div>
-        </div>
-        <div class="p-4 border rounded-xl border-n-blue-9 bg-n-blue-9 text-white">
-          <div class="text-xs text-white/80">成交额完成率</div>
-          <div class="mt-1 text-2xl font-bold">{{ kpiCompletion }}</div>
-          <div class="mt-1 text-xs text-white/80">
-            组员 {{ totals.memberCount }} 人
+          <div>
+            <div class="mt-4 text-sm font-medium text-n-slate-11">
+              {{ kpi.label }}
+            </div>
+            <div class="mt-1 text-2xl font-bold text-n-slate-12">
+              {{ kpi.value }}
+            </div>
+            <div class="mt-1 text-xs text-n-slate-10">{{ kpi.sub }}</div>
           </div>
         </div>
       </div>
 
-      <!-- 团队合计 -->
-      <div class="p-4 border rounded-xl border-n-blue-8 bg-n-solid-1">
-        <div class="mb-3 font-medium text-n-slate-12">
-          团队合计 · {{ team.name }}
-        </div>
-        <div class="flex flex-col gap-2">
-          <div
-            v-for="line in [
-              { label: '成交额', m: metricLine(totals.actualAmount, totals.targetAmount, true) },
-              { label: '新成交客户', m: metricLine(totals.actualCount, totals.targetCount, false) },
-            ]"
-            :key="line.label"
-            class="flex items-center gap-3 text-sm"
-          >
-            <span class="text-xs w-16 shrink-0 text-n-slate-11">
-              {{ line.label }}
-            </span>
-            <div class="flex-1 h-4 overflow-hidden rounded-full bg-n-alpha-2">
+      <!-- 团队合计进度 + 完成率仪表 -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div
+          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-n-weak bg-n-solid-1"
+        >
+          <h2 class="mb-4 text-base font-medium text-n-slate-12">
+            团队合计 · {{ team.name }}
+          </h2>
+          <div class="flex flex-col gap-4">
+            <div
+              v-for="line in [
+                {
+                  label: '成交额',
+                  m: metricLine(totals.actualAmount, totals.targetAmount, true),
+                },
+                {
+                  label: '新成交客户',
+                  m: metricLine(totals.actualCount, totals.targetCount, false),
+                },
+              ]"
+              :key="line.label"
+              class="flex items-center gap-3 text-sm"
+            >
+              <span class="w-16 text-xs shrink-0 text-n-slate-11">
+                {{ line.label }}
+              </span>
               <div
-                class="h-full rounded-full"
-                :class="line.m.barClass"
-                :style="{ width: line.m.barWidth }"
-              />
+                class="flex-1 h-2.5 overflow-hidden rounded-full bg-n-alpha-2"
+              >
+                <div
+                  class="h-full rounded-full"
+                  :class="line.m.barClass"
+                  :style="{ width: line.m.barWidth }"
+                />
+              </div>
+              <span class="w-48 text-xs text-right shrink-0 text-n-slate-12">
+                {{ line.m.text }}
+              </span>
             </div>
-            <span class="text-xs text-right w-44 shrink-0 text-n-slate-11">
-              {{ line.m.text }}
-            </span>
+          </div>
+        </div>
+
+        <div
+          class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+        >
+          <h2 class="mb-2 text-base font-medium text-n-slate-12">
+            成交额完成率
+          </h2>
+          <template v-if="completionPct != null">
+            <div class="h-40 mx-auto max-w-[14rem]">
+              <CrmDoughnutChart
+                :data="[
+                  Math.min(100, completionPct),
+                  Math.max(0, 100 - completionPct),
+                ]"
+                gauge
+                cutout="78%"
+              >
+                <template #center>
+                  <div class="text-3xl font-bold text-n-slate-12">
+                    {{ completionPct }}%
+                  </div>
+                </template>
+              </CrmDoughnutChart>
+            </div>
+            <div class="text-center text-n-slate-11">
+              <span class="font-medium text-n-slate-12">
+                {{ money(totals.actualAmount) }}
+              </span>
+              / {{ money(totals.targetAmount) }}
+            </div>
+          </template>
+          <div
+            v-else
+            class="flex items-center justify-center py-10 text-sm text-n-slate-10"
+          >
+            本团队未设定目标
           </div>
         </div>
       </div>
 
       <!-- 组员完成率 -->
-      <div class="text-xs font-medium text-n-slate-11">组员完成率</div>
-      <div
-        v-if="!team.members.length"
-        class="p-4 text-sm border rounded-xl border-n-weak bg-n-solid-1 text-n-slate-11"
-      >
-        该团队暂无组员。可在「系统设置 → CRM 团队」分配组员。
-      </div>
-      <div
-        v-for="member in team.members"
-        :key="member.id"
-        class="p-4 border rounded-xl border-n-weak bg-n-solid-1"
-      >
-        <div class="mb-2 font-medium text-n-slate-12">{{ member.name }}</div>
-        <div class="flex flex-col gap-2">
+      <div>
+        <h2 class="mb-3 text-base font-medium text-n-slate-12">组员完成率</h2>
+        <div
+          v-if="!team.members.length"
+          class="p-5 text-sm border shadow-sm rounded-2xl border-n-weak bg-n-solid-1 text-n-slate-11"
+        >
+          该团队暂无组员。可在「系统设置 → CRM 团队」分配组员。
+        </div>
+        <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div
-            v-for="line in [
-              { label: '成交额', m: metricLine(member.actual_amount_micros, member.target_amount_micros, true) },
-              { label: '新成交客户', m: metricLine(member.actual_count, member.target_count, false) },
-            ]"
-            :key="line.label"
-            class="flex items-center gap-3 text-sm"
+            v-for="member in team.members"
+            :key="member.id"
+            class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
           >
-            <span class="text-xs w-16 shrink-0 text-n-slate-11">
-              {{ line.label }}
-            </span>
-            <div class="flex-1 h-4 overflow-hidden rounded-full bg-n-alpha-2">
-              <div
-                class="h-full rounded-full"
-                :class="line.m.barClass"
-                :style="{ width: line.m.barWidth }"
-              />
+            <div class="mb-3 font-medium text-n-slate-12">
+              {{ member.name }}
             </div>
-            <span class="text-xs text-right w-44 shrink-0 text-n-slate-11">
-              {{ line.m.text }}
-            </span>
+            <div class="flex flex-col gap-4">
+              <div
+                v-for="line in [
+                  {
+                    label: '成交额',
+                    m: metricLine(
+                      member.actual_amount_micros,
+                      member.target_amount_micros,
+                      true
+                    ),
+                  },
+                  {
+                    label: '新成交客户',
+                    m: metricLine(
+                      member.actual_count,
+                      member.target_count,
+                      false
+                    ),
+                  },
+                ]"
+                :key="line.label"
+                class="flex items-center gap-3 text-sm"
+              >
+                <span class="w-16 text-xs shrink-0 text-n-slate-11">
+                  {{ line.label }}
+                </span>
+                <div
+                  class="flex-1 h-2.5 overflow-hidden rounded-full bg-n-alpha-2"
+                >
+                  <div
+                    class="h-full rounded-full"
+                    :class="line.m.barClass"
+                    :style="{ width: line.m.barWidth }"
+                  />
+                </div>
+                <span class="w-44 text-xs text-right shrink-0 text-n-slate-12">
+                  {{ line.m.text }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
