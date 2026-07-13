@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_13_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_13_170000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1467,6 +1467,52 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_160000) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
+  create_table "oa_approval_requests", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "template_id", null: false
+    t.bigint "applicant_id", null: false
+    t.string "title", null: false
+    t.jsonb "form_data", default: {}, null: false
+    t.string "status", default: "pending", null: false
+    t.integer "current_position", default: 0, null: false
+    t.datetime "submitted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "status"], name: "index_oa_approval_requests_on_account_id_and_status"
+    t.index ["account_id"], name: "index_oa_approval_requests_on_account_id"
+    t.index ["applicant_id"], name: "index_oa_approval_requests_on_applicant_id"
+    t.index ["template_id"], name: "index_oa_approval_requests_on_template_id"
+  end
+
+  create_table "oa_approval_steps", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "request_id", null: false
+    t.integer "position", null: false
+    t.bigint "approver_id"
+    t.string "status", default: "pending", null: false
+    t.text "comment"
+    t.datetime "acted_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_oa_approval_steps_on_account_id"
+    t.index ["approver_id"], name: "index_oa_approval_steps_on_approver_id"
+    t.index ["request_id"], name: "index_oa_approval_steps_on_request_id"
+  end
+
+  create_table "oa_approval_templates", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "description"
+    t.string "icon", default: "i-lucide-file-check"
+    t.jsonb "form_fields", default: [], null: false
+    t.jsonb "flow", default: [], null: false
+    t.boolean "active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_oa_approval_templates_on_account_id"
+  end
+
   create_table "org_departments", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "parent_id"
@@ -1799,6 +1845,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_160000) do
   add_foreign_key "crm_sales_targets", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :cascade
+  add_foreign_key "oa_approval_steps", "oa_approval_requests", column: "request_id", on_delete: :cascade
   add_foreign_key "org_memberships", "org_departments", column: "department_id", on_delete: :cascade
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).

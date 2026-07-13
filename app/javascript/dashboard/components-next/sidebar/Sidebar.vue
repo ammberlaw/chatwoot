@@ -776,6 +776,20 @@ const menuItems = computed(() => {
       ],
     },
     {
+      name: 'CRM Approvals',
+      label: t('SIDEBAR.CRM_G_OA'),
+      icon: 'i-lucide-file-check',
+      activeOn: ['crm_approvals_index'],
+      children: [
+        {
+          name: 'CRM My Approvals',
+          label: t('SIDEBAR.CRM_APPROVALS'),
+          to: accountScopedRoute('crm_approvals_index'),
+          activeOn: ['crm_approvals_index'],
+        },
+      ],
+    },
+    {
       name: 'Reports',
       label: t('SIDEBAR.REPORTS'),
       icon: 'i-lucide-chart-spline',

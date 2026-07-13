@@ -111,6 +111,17 @@ Rails.application.routes.draw do
             end
             resources :memberships, only: [:index, :create, :update, :destroy]
           end
+          namespace :oa do
+            resources :approval_templates, only: [:index, :create, :update, :destroy]
+            resources :approval_requests, only: [:index, :show, :create] do
+              collection { get :counts }
+              member do
+                post :approve
+                post :reject
+                post :cancel
+              end
+            end
+          end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do
             get :help_center_generation
