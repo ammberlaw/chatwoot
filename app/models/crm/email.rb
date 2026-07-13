@@ -14,6 +14,7 @@
 #  folder              :string           default("INBOX"), not null
 #  from_address        :string
 #  is_read             :boolean          default(FALSE), not null
+#  is_starred          :boolean          default(FALSE), not null
 #  reply_latency_hours :decimal(10, 2)
 #  send_error          :text
 #  send_now            :boolean          default(FALSE), not null
@@ -38,6 +39,7 @@
 #  index_crm_emails_on_contact_id                 (contact_id)
 #  index_crm_emails_on_crm_customer_id            (crm_customer_id)
 #  index_crm_emails_on_owner_id                   (owner_id)
+#  index_crm_emails_starred                       (account_id,is_starred) WHERE is_starred
 #
 # Foreign Keys
 #
@@ -66,6 +68,7 @@ class Crm::Email < ApplicationRecord
 
   scope :in_folder, ->(folder) { where(folder: folder) }
   scope :unread, -> { where(folder: 'INBOX', is_read: false) }
+  scope :starred, -> { where(is_starred: true) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
 
   private

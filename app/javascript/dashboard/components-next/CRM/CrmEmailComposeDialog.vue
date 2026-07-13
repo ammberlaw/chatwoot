@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import camelcaseKeys from 'camelcase-keys';
+import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
 import MailAccountsAPI from 'dashboard/api/crm/mailAccounts';
@@ -10,9 +11,11 @@ import ContactsAPI from 'dashboard/api/crm/contacts';
 import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import Editor from 'dashboard/components-next/Editor/Editor.vue';
 
 const emit = defineEmits(['refresh']);
 const store = useCrmEmailsStore();
+const { formatMessage } = useMessageFormatter();
 
 // 界面中文文案（CRM 模块为中文，绑定到模板避免 bare-string）。
 const L = {
@@ -35,23 +38,8 @@ const L = {
   customerPlaceholder: '搜索客户（可选，自动带出联系人邮箱）',
   subject: '主题',
   subjectPlaceholder: '请输入邮件主题',
-  bold: '加粗',
-  boldMark: 'B',
-  italic: '斜体',
-  italicMark: 'I',
-  heading: '标题',
-  headingMark: 'H',
-  bulletList: '项目符号列表',
-  link: '插入链接',
-  image: '图片',
-  imageTitle: '插入图片（按图片网址，不支持上传本地图片）',
-  imgPlaceholder: '粘贴图片网址（http(s)://…，需公网可访问）',
-  insert: '插入',
-  edit: '编辑',
   bodyPlaceholder:
-    '在此输入正文…支持 Markdown：**加粗** *斜体* # 标题 - 列表 [文字](链接)。图片用上方「图片」按钮按网址插入。',
-  bodyEmpty: '（正文为空）',
-  hint: '支持 Markdown：**加粗** *斜体* # 标题 - 列表 [文字](链接)，图片按网址插入。点「预览」看实际效果。',
+    '在此输入正文…选中文字可加粗/斜体/链接，工具栏可插入图片、列表。',
   addAttachment: '加附件',
   kbSelect: '从知识库选择',
   kbTip:
@@ -81,61 +69,8 @@ const L = {
   kbFootTip: '勾选的文件会在发送时复制进本邮件并锁定当前版本。',
 };
 
-// ---- Markdown → HTML（沙箱外可用富文本，但为与 A-CRM 一致仍用 Markdown 文本） ----
-const escapeHtml = s =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-const inlineMd = s =>
-  s
-    .replace(
-      /!\[([^\]]*)\]\(([^)\s]+)\)/g,
-      '<img src="$2" alt="$1" style="max-width:100%;height:auto;" />'
-    )
-    .replace(
-      /\[([^\]]+)\]\(([^)\s]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener">$1</a>'
-    )
-    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-    .replace(
-      /(^|[\s(])(https?:\/\/[^\s<)"]+)/g,
-      '$1<a href="$2" target="_blank" rel="noopener">$2</a>'
-    );
-
-const markdownToHtml = src => {
-  const lines = escapeHtml(src || '').split('\n');
-  const out = [];
-  let inList = false;
-  const closeList = () => {
-    if (inList) {
-      out.push('</ul>');
-      inList = false;
-    }
-  };
-  lines.forEach(line => {
-    const h = line.match(/^(#{1,3})\s+(.*)$/);
-    const li = line.match(/^[-*]\s+(.*)$/);
-    if (h) {
-      closeList();
-      const lv = h[1].length;
-      out.push(`<h${lv} style="margin:0.5em 0;">${inlineMd(h[2])}</h${lv}>`);
-    } else if (li) {
-      if (!inList) {
-        out.push('<ul style="margin:0.5em 0;padding-left:1.5em;">');
-        inList = true;
-      }
-      out.push(`<li>${inlineMd(li[1])}</li>`);
-    } else if (line.trim() === '') {
-      closeList();
-      out.push('<div style="height:0.6em;"></div>');
-    } else {
-      closeList();
-      out.push(`<div>${inlineMd(line)}</div>`);
-    }
-  });
-  closeList();
-  return out.join('\n');
-};
+// 富文本编辑器输出 Markdown；发送/预览时用 Chatwoot 的 MessageFormatter 转 HTML。
+const markdownToHtml = src => formatMessage(src || '', false, false);
 
 // ---- 状态 ----
 const visible = ref(false);
@@ -164,11 +99,6 @@ const customer = ref(null);
 const contacts = ref([]);
 const contactId = ref('');
 let customerTimer = null;
-
-// 正文编辑
-const bodyView = ref('edit');
-const showImg = ref(false);
-const imgUrl = ref('');
 
 // 普通附件
 const attachments = ref([]);
@@ -309,23 +239,6 @@ const insertSignature = event => {
   }
 };
 
-// ---- Markdown 工具栏 ----
-const insertInline = s => {
-  form.body += s;
-};
-const insertBlock = s => {
-  form.body =
-    (form.body && !form.body.endsWith('\n') ? `${form.body}\n` : form.body) + s;
-};
-const insertImage = () => {
-  const u = imgUrl.value.trim();
-  if (!u) return;
-  insertBlock(`![图片](${u})\n`);
-  imgUrl.value = '';
-  showImg.value = false;
-  bodyView.value = 'edit';
-};
-
 // ---- 附件 ----
 const onPickFiles = event => {
   attachments.value.push(...Array.from(event.target.files || []));
@@ -450,9 +363,6 @@ const reset = () => {
   contacts.value = [];
   contactId.value = '';
   templateId.value = '';
-  bodyView.value = 'edit';
-  showImg.value = false;
-  imgUrl.value = '';
   attachments.value = [];
   kbPicked.value = [];
   showKb.value = false;
@@ -488,16 +398,18 @@ defineExpose({ open, close });
 <template>
   <div
     v-show="visible"
-    class="fixed inset-0 z-50 flex justify-center py-8 overflow-y-auto bg-black/40"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40"
     @click.self="close"
   >
-    <div class="w-[840px] max-w-[94vw] h-fit">
+    <div
+      class="flex flex-col w-full max-w-[1080px] h-[calc(100vh-3rem)] max-h-[900px]"
+    >
       <div
-        class="overflow-hidden border shadow-xl rounded-xl border-n-weak bg-n-solid-1"
+        class="flex flex-col flex-1 min-h-0 overflow-hidden border shadow-xl rounded-xl border-n-weak bg-n-solid-1"
       >
         <!-- 顶部操作栏 -->
         <div
-          class="flex items-center gap-2 px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak"
+          class="flex items-center flex-shrink-0 gap-2 px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak"
         >
           <button
             class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-amber-9 hover:bg-n-amber-10 disabled:opacity-60"
@@ -530,338 +442,239 @@ defineExpose({ open, close });
 
         <div
           v-if="!hasAccount"
-          class="px-4 py-2 text-xs bg-n-amber-3 text-n-amber-11"
+          class="flex-shrink-0 px-4 py-2 text-xs bg-n-amber-3 text-n-amber-11"
         >
           {{ L.noAccountWarn }}
         </div>
 
-        <!-- 发件人 -->
-        <div class="flex items-center px-4 border-b border-n-weak min-h-[38px]">
-          <span class="w-14 text-[13px] text-n-slate-10">{{ L.from }}</span>
-          <select
-            v-model="fromId"
-            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 focus:outline-none focus:ring-0"
+        <!-- 可滚动区：收发信息 + 正文 + 附件 -->
+        <div class="flex flex-col flex-1 min-h-0 overflow-y-auto">
+          <!-- 发件人 -->
+          <div
+            class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
           >
-            <option v-if="!accounts.length" value="">
-              {{ L.noAccountOption }}
-            </option>
-            <option v-for="a in accounts" :key="a.id" :value="a.id">
-              {{ a.emailAddress }}
-            </option>
-          </select>
-        </div>
-
-        <!-- 收件人 -->
-        <div class="flex items-start px-4 border-b border-n-weak min-h-[38px]">
-          <span class="w-14 pt-2.5 text-[13px] text-n-slate-10">
-            {{ L.to }}
-          </span>
-          <input
-            v-model="form.to"
-            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
-            :placeholder="L.toPlaceholder"
-          />
-          <div class="flex items-center gap-3 pt-2.5">
-            <button
-              v-if="!showCc"
-              class="text-[13px] text-n-amber-11 hover:underline"
-              @click="showCc = true"
+            <span class="w-14 text-[13px] text-n-slate-10">{{ L.from }}</span>
+            <select
+              v-model="fromId"
+              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 focus:outline-none focus:ring-0"
             >
-              {{ L.cc }}
-            </button>
-            <button
-              v-if="!showBcc"
-              class="text-[13px] text-n-amber-11 hover:underline"
-              @click="showBcc = true"
-            >
-              {{ L.bcc }}
-            </button>
+              <option v-if="!accounts.length" value="">
+                {{ L.noAccountOption }}
+              </option>
+              <option v-for="a in accounts" :key="a.id" :value="a.id">
+                {{ a.emailAddress }}
+              </option>
+            </select>
           </div>
-        </div>
 
-        <!-- 客户 -->
-        <div
-          class="relative flex items-start px-4 border-b border-n-weak min-h-[38px]"
-        >
-          <span class="w-14 pt-2.5 text-[13px] text-n-slate-10">
-            {{ L.customer }}
-          </span>
-          <div class="flex-1">
-            <div class="flex items-center">
-              <Icon
-                icon="i-lucide-search"
-                class="mr-1.5 size-3.5 text-n-slate-9"
-              />
-              <input
-                v-model="customerQuery"
-                class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
-                :placeholder="L.customerPlaceholder"
-                @input="customer = null"
-              />
-            </div>
-            <div
-              v-if="customerHits.length"
-              class="absolute z-10 mt-1 overflow-hidden border rounded-lg shadow-lg left-14 right-4 bg-n-solid-1 border-n-weak"
-            >
+          <!-- 收件人 -->
+          <div
+            class="flex items-start px-4 border-b border-n-weak min-h-[38px]"
+          >
+            <span class="w-14 pt-2.5 text-[13px] text-n-slate-10">
+              {{ L.to }}
+            </span>
+            <input
+              v-model="form.to"
+              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+              :placeholder="L.toPlaceholder"
+            />
+            <div class="flex items-center gap-3 pt-2.5">
               <button
-                v-for="c in customerHits"
-                :key="c.id"
-                class="block w-full px-3 py-2 text-sm text-left border-b text-n-slate-12 border-n-weak hover:bg-n-alpha-1"
-                @click="pickCustomer(c)"
+                v-if="!showCc"
+                class="text-[13px] text-n-amber-11 hover:underline"
+                @click="showCc = true"
               >
-                {{ c.name }}
+                {{ L.cc }}
               </button>
-            </div>
-            <div v-if="contacts.length" class="flex flex-wrap gap-1.5 pb-2">
               <button
-                v-for="c in contacts"
-                :key="c.id"
-                class="px-2 py-1 text-xs border rounded-full"
-                :class="
-                  contactId === c.id
-                    ? 'border-n-amber-9 text-n-amber-11 bg-n-amber-2'
-                    : 'border-n-weak text-n-slate-11'
-                "
-                @click="pickContact(c)"
+                v-if="!showBcc"
+                class="text-[13px] text-n-amber-11 hover:underline"
+                @click="showBcc = true"
               >
-                {{ c.name }} · {{ c.email }}
+                {{ L.bcc }}
               </button>
             </div>
           </div>
-        </div>
 
-        <!-- 抄送 / 密送 -->
-        <div
-          v-if="showCc"
-          class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
-        >
-          <span class="w-14 text-[13px] text-n-slate-10">{{ L.cc }}</span>
-          <input
-            v-model="form.cc"
-            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
-            :placeholder="L.ccPlaceholder"
-          />
-        </div>
-        <div
-          v-if="showBcc"
-          class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
-        >
-          <span class="w-14 text-[13px] text-n-slate-10">{{ L.bcc }}</span>
-          <input
-            v-model="form.bcc"
-            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
-            :placeholder="L.bccPlaceholder"
-          />
-        </div>
-
-        <!-- 主题 -->
-        <div class="flex items-center px-4 border-b border-n-weak min-h-[38px]">
-          <span class="w-14 text-[13px] text-n-slate-10">{{ L.subject }}</span>
-          <input
-            v-model="form.subject"
-            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
-            :placeholder="L.subjectPlaceholder"
-          />
-        </div>
-
-        <!-- 正文工具栏 -->
-        <div
-          class="flex flex-wrap items-center gap-1 px-3 py-1.5 border-b bg-n-alpha-1 border-n-weak"
-        >
-          <button
-            class="min-w-[30px] h-7 px-2 text-sm border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
-            :title="L.bold"
-            @click="insertInline('**加粗文字**')"
+          <!-- 客户 -->
+          <div
+            class="relative flex items-start px-4 border-b border-n-weak min-h-[38px]"
           >
-            <b>{{ L.boldMark }}</b>
-          </button>
-          <button
-            class="min-w-[30px] h-7 px-2 text-sm italic border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
-            :title="L.italic"
-            @click="insertInline('*斜体文字*')"
-          >
-            {{ L.italicMark }}
-          </button>
-          <button
-            class="min-w-[30px] h-7 px-2 text-sm border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
-            :title="L.heading"
-            @click="insertBlock('## 标题\n')"
-          >
-            {{ L.headingMark }}
-          </button>
-          <button
-            class="min-w-[30px] h-7 px-2 border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
-            :title="L.bulletList"
-            @click="insertBlock('- 列表项\n- 列表项\n')"
-          >
-            <Icon icon="i-lucide-list" class="size-4" />
-          </button>
-          <button
-            class="min-w-[30px] h-7 px-2 border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
-            :title="L.link"
-            @click="insertInline('[链接文字](https://)')"
-          >
-            <Icon icon="i-lucide-link" class="size-4" />
-          </button>
-          <button
-            class="inline-flex items-center gap-1 h-7 px-2 text-xs border rounded bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
-            :class="
-              showImg ? 'border-n-amber-9 text-n-amber-11' : 'border-n-weak'
-            "
-            :title="L.imageTitle"
-            @click="showImg = !showImg"
-          >
-            <Icon icon="i-lucide-image" class="size-4" />
-            {{ L.image }}
-          </button>
-          <span class="flex-1" />
-          <div class="flex overflow-hidden border rounded border-n-weak">
-            <button
-              class="px-3 py-1 text-xs"
-              :class="
-                bodyView === 'edit'
-                  ? 'bg-n-amber-9 text-white'
-                  : 'text-n-slate-11'
-              "
-              @click="bodyView = 'edit'"
-            >
-              {{ L.edit }}
-            </button>
-            <button
-              class="px-3 py-1 text-xs"
-              :class="
-                bodyView === 'preview'
-                  ? 'bg-n-amber-9 text-white'
-                  : 'text-n-slate-11'
-              "
-              @click="bodyView = 'preview'"
-            >
-              {{ L.preview }}
-            </button>
+            <span class="w-14 pt-2.5 text-[13px] text-n-slate-10">
+              {{ L.customer }}
+            </span>
+            <div class="flex-1">
+              <div class="flex items-center">
+                <Icon
+                  icon="i-lucide-search"
+                  class="mr-1.5 size-3.5 text-n-slate-9"
+                />
+                <input
+                  v-model="customerQuery"
+                  class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+                  :placeholder="L.customerPlaceholder"
+                  @input="customer = null"
+                />
+              </div>
+              <div
+                v-if="customerHits.length"
+                class="absolute z-10 mt-1 overflow-hidden border rounded-lg shadow-lg left-14 right-4 bg-n-solid-1 border-n-weak"
+              >
+                <button
+                  v-for="c in customerHits"
+                  :key="c.id"
+                  class="block w-full px-3 py-2 text-sm text-left border-b text-n-slate-12 border-n-weak hover:bg-n-alpha-1"
+                  @click="pickCustomer(c)"
+                >
+                  {{ c.name }}
+                </button>
+              </div>
+              <div v-if="contacts.length" class="flex flex-wrap gap-1.5 pb-2">
+                <button
+                  v-for="c in contacts"
+                  :key="c.id"
+                  class="px-2 py-1 text-xs border rounded-full"
+                  :class="
+                    contactId === c.id
+                      ? 'border-n-amber-9 text-n-amber-11 bg-n-amber-2'
+                      : 'border-n-weak text-n-slate-11'
+                  "
+                  @click="pickContact(c)"
+                >
+                  {{ c.name }} · {{ c.email }}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <!-- 图片网址输入 -->
-        <div
-          v-if="showImg"
-          class="flex items-center gap-2 px-3 py-2 border-b border-n-weak"
-        >
-          <input
-            v-model="imgUrl"
-            class="flex-1 h-9 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
-            :placeholder="L.imgPlaceholder"
-          />
-          <button
-            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-amber-9 hover:bg-n-amber-10"
-            @click="insertImage"
+          <!-- 抄送 / 密送 -->
+          <div
+            v-if="showCc"
+            class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
           >
-            {{ L.insert }}
-          </button>
-          <button
-            class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-11"
-            @click="
-              showImg = false;
-              imgUrl = '';
-            "
+            <span class="w-14 text-[13px] text-n-slate-10">{{ L.cc }}</span>
+            <input
+              v-model="form.cc"
+              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+              :placeholder="L.ccPlaceholder"
+            />
+          </div>
+          <div
+            v-if="showBcc"
+            class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
           >
-            {{ L.cancel }}
-          </button>
-        </div>
+            <span class="w-14 text-[13px] text-n-slate-10">{{ L.bcc }}</span>
+            <input
+              v-model="form.bcc"
+              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+              :placeholder="L.bccPlaceholder"
+            />
+          </div>
 
-        <!-- 正文 编辑 / 预览 -->
-        <textarea
-          v-if="bodyView === 'edit'"
-          v-model="form.body"
-          rows="14"
-          class="block w-full px-4 py-3 text-sm leading-relaxed bg-transparent border-0 resize-y reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
-          :placeholder="L.bodyPlaceholder"
-        />
-        <!-- eslint-disable-next-line vue/no-v-html -->
-        <div
-          v-else
-          class="min-h-[240px] px-4 py-3 text-sm leading-relaxed text-n-slate-12 break-words"
-          v-html="bodyHtml || `<span style='opacity:.5'>${L.bodyEmpty}</span>`"
-        />
-
-        <div class="px-4 py-1.5 text-[11px] leading-relaxed text-n-slate-10">
-          {{ L.hint }}
-        </div>
-
-        <!-- 普通附件 -->
-        <div
-          class="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-n-weak"
-        >
-          <input
-            ref="fileInputRef"
-            type="file"
-            multiple
-            class="hidden"
-            @change="onPickFiles"
-          />
-          <button
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-60"
-            :disabled="sending"
-            @click="fileInputRef?.click()"
+          <!-- 主题 -->
+          <div
+            class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
           >
-            <Icon icon="i-lucide-paperclip" class="size-4" />
-            {{ L.addAttachment }}
-          </button>
-          <span
-            v-for="(file, index) in attachments"
-            :key="index"
-            class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border rounded-full border-n-weak text-n-slate-11"
+            <span class="w-14 text-[13px] text-n-slate-10">{{
+              L.subject
+            }}</span>
+            <input
+              v-model="form.subject"
+              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+              :placeholder="L.subjectPlaceholder"
+            />
+          </div>
+
+          <!-- 正文：所见即所得富文本（加粗/斜体/链接/列表 + 内联插图上传/粘贴） -->
+          <div class="flex flex-col flex-1 p-3 min-h-[20rem] crm-email-body">
+            <Editor
+              v-model="form.body"
+              editor-key="crm-email-compose"
+              channel-type="Channel::Email"
+              :enable-canned-responses="false"
+              :show-character-count="false"
+              :placeholder="L.bodyPlaceholder"
+            />
+          </div>
+
+          <!-- 普通附件 -->
+          <div
+            class="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-n-weak"
           >
-            <Icon icon="i-lucide-file" class="size-3.5 text-n-amber-11" />
-            {{ file.name }}
-            <span class="text-n-slate-10">{{ fmtSize(file.size) }}</span>
+            <input
+              ref="fileInputRef"
+              type="file"
+              multiple
+              class="hidden"
+              @change="onPickFiles"
+            />
             <button
-              class="text-n-slate-10 hover:text-n-ruby-11"
-              @click="removeAttachment(index)"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-60"
+              :disabled="sending"
+              @click="fileInputRef?.click()"
             >
-              <Icon icon="i-lucide-x" class="size-3.5" />
+              <Icon icon="i-lucide-paperclip" class="size-4" />
+              {{ L.addAttachment }}
             </button>
-          </span>
-        </div>
-
-        <!-- 知识库附件 -->
-        <div
-          class="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-n-weak"
-        >
-          <button
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border border-n-amber-9 text-n-amber-11 hover:bg-n-amber-2 disabled:opacity-60"
-            :disabled="sending"
-            @click="openKbPicker"
-          >
-            <Icon icon="i-lucide-book-open" class="size-4" />
-            {{ L.kbSelect
-            }}{{ kbPicked.length ? `（已选 ${kbPicked.length}）` : '' }}
-          </button>
-          <template v-if="kbPicked.length">
             <span
-              v-for="pick in kbPicked"
-              :key="kbKey(pick)"
+              v-for="(file, index) in attachments"
+              :key="index"
               class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border rounded-full border-n-weak text-n-slate-11"
-              :title="`来自「${pick.docName}」`"
             >
-              <Icon
-                icon="i-lucide-file-text"
-                class="size-3.5 text-n-amber-11"
-              />
-              {{ pick.label }}
+              <Icon icon="i-lucide-file" class="size-3.5 text-n-amber-11" />
+              {{ file.name }}
+              <span class="text-n-slate-10">{{ fmtSize(file.size) }}</span>
               <button
                 class="text-n-slate-10 hover:text-n-ruby-11"
-                @click="removeKbPick(pick)"
+                @click="removeAttachment(index)"
               >
                 <Icon icon="i-lucide-x" class="size-3.5" />
               </button>
             </span>
-          </template>
-          <span v-else class="text-xs text-n-slate-10">{{ L.kbTip }}</span>
+          </div>
+
+          <!-- 知识库附件 -->
+          <div
+            class="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-n-weak"
+          >
+            <button
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border border-n-amber-9 text-n-amber-11 hover:bg-n-amber-2 disabled:opacity-60"
+              :disabled="sending"
+              @click="openKbPicker"
+            >
+              <Icon icon="i-lucide-book-open" class="size-4" />
+              {{ L.kbSelect
+              }}{{ kbPicked.length ? `（已选 ${kbPicked.length}）` : '' }}
+            </button>
+            <template v-if="kbPicked.length">
+              <span
+                v-for="pick in kbPicked"
+                :key="kbKey(pick)"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border rounded-full border-n-weak text-n-slate-11"
+                :title="`来自「${pick.docName}」`"
+              >
+                <Icon
+                  icon="i-lucide-file-text"
+                  class="size-3.5 text-n-amber-11"
+                />
+                {{ pick.label }}
+                <button
+                  class="text-n-slate-10 hover:text-n-ruby-11"
+                  @click="removeKbPick(pick)"
+                >
+                  <Icon icon="i-lucide-x" class="size-3.5" />
+                </button>
+              </span>
+            </template>
+            <span v-else class="text-xs text-n-slate-10">{{ L.kbTip }}</span>
+          </div>
         </div>
+        <!-- /可滚动区 -->
 
         <!-- 底部：签名 + 模板 -->
         <div
-          class="flex flex-wrap items-center gap-2 px-4 py-2 border-t bg-n-alpha-1 border-n-weak"
+          class="flex flex-wrap items-center flex-shrink-0 gap-2 px-4 py-2 border-t bg-n-alpha-1 border-n-weak"
         >
           <select
             class="h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
@@ -1118,3 +931,16 @@ defineExpose({ open, close });
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 让富文本编辑器撑满加高后的写信窗，正文区可大段书写 */
+.crm-email-body :deep(.editor-wrapper) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.crm-email-body :deep(.ProseMirror-woot-style) {
+  min-height: 16rem;
+  max-height: none;
+}
+</style>

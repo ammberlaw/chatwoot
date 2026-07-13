@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import DOMPurify from 'dompurify';
 import { useAlert } from 'dashboard/composables';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
@@ -17,10 +18,21 @@ const store = useCrmEmailsStore();
 const composeDialogRef = ref(null);
 const searchTerm = ref('');
 const selectedEmail = ref(null);
-const counts = ref({ INBOX: 0, SENT: 0, DRAFT: 0, BULK: 0, unread: 0 });
+const counts = ref({
+  INBOX: 0,
+  SENT: 0,
+  DRAFT: 0,
+  BULK: 0,
+  unread: 0,
+  starred: 0,
+});
 
-const folderFromRoute = () =>
-  route.query.filter === 'unread' ? 'unread' : route.query.folder || 'INBOX';
+// filter 参数驱动的伪文件夹（非真实 folder 列）。
+const FILTER_FOLDERS = ['unread', 'starred'];
+const folderFromRoute = () => {
+  if (FILTER_FOLDERS.includes(route.query.filter)) return route.query.filter;
+  return route.query.folder || 'INBOX';
+};
 const activeFolder = ref(folderFromRoute());
 
 const records = computed(() => store.getRecords);
@@ -38,6 +50,7 @@ const SEND_STATUSES = {
 const FOLDERS = [
   { key: 'INBOX', label: '收件箱', icon: 'i-lucide-inbox', countKey: 'INBOX' },
   { key: 'unread', label: '未读', icon: 'i-lucide-mail', countKey: 'unread' },
+  { key: 'starred', label: '星标', icon: 'i-lucide-star', countKey: 'starred' },
   { key: 'SENT', label: '发件箱', icon: 'i-lucide-send', countKey: 'SENT' },
   {
     key: 'DRAFT',
@@ -82,9 +95,16 @@ const fmtSize = bytes => {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
+// 富文本正文渲染前用 DOMPurify 消毒（收信方 HTML 可能不可信）。
+const safeBodyHtml = computed(() =>
+  selectedEmail.value?.bodyHtml
+    ? DOMPurify.sanitize(selectedEmail.value.bodyHtml)
+    : ''
+);
+
 const baseParams = () =>
-  activeFolder.value === 'unread'
-    ? { page: 1, filter: 'unread' }
+  FILTER_FOLDERS.includes(activeFolder.value)
+    ? { page: 1, filter: activeFolder.value }
     : { page: 1, folder: activeFolder.value };
 
 const fetchCounts = async () => {
@@ -124,6 +144,17 @@ const selectEmail = async email => {
     email.isRead = true;
     fetchCounts();
   }
+};
+
+// 星标：切换收藏，乐观更新后同步计数；在星标视图下取消则刷新列表移除。
+const toggleStar = async email => {
+  const next = !email.isStarred;
+  email.isStarred = next;
+  if (selectedEmail.value?.id === email.id)
+    selectedEmail.value.isStarred = next;
+  await store.update({ id: email.id, isStarred: next });
+  fetchCounts();
+  if (activeFolder.value === 'starred' && !next) fetchRecords();
 };
 
 // 回复/全部回复/转发：预填写信弹窗。
@@ -333,10 +364,26 @@ watch(
                 />
               </div>
             </div>
-            <span
-              v-if="record.folder === 'INBOX' && !record.isRead"
-              class="flex-shrink-0 w-2 h-2 mt-1 rounded-full bg-n-amber-9"
-            />
+            <div class="flex flex-col items-center flex-shrink-0 gap-1.5">
+              <span
+                v-if="record.folder === 'INBOX' && !record.isRead"
+                class="w-2 h-2 rounded-full bg-n-amber-9"
+              />
+              <button
+                class="transition-colors"
+                :class="
+                  record.isStarred
+                    ? 'text-n-amber-9'
+                    : 'text-n-slate-8 hover:text-n-amber-9'
+                "
+                @click.stop="toggleStar(record)"
+              >
+                <Icon
+                  :icon="record.isStarred ? 'i-ph-star-fill' : 'i-lucide-star'"
+                  class="size-4"
+                />
+              </button>
+            </div>
           </button>
         </template>
       </div>
@@ -369,6 +416,23 @@ watch(
             </span>
           </div>
           <div class="flex items-center flex-shrink-0 gap-1">
+            <button
+              class="flex items-center justify-center rounded-lg size-8 transition-colors hover:bg-n-alpha-1"
+              :class="
+                selectedEmail.isStarred
+                  ? 'text-n-amber-9'
+                  : 'text-n-slate-10 hover:text-n-amber-9'
+              "
+              :title="selectedEmail.isStarred ? '取消星标' : '加星标'"
+              @click="toggleStar(selectedEmail)"
+            >
+              <Icon
+                :icon="
+                  selectedEmail.isStarred ? 'i-ph-star-fill' : 'i-lucide-star'
+                "
+                class="size-4"
+              />
+            </button>
             <Button
               :label="t('CRM.EMAILS.ACTIONS.REPLY')"
               icon="i-lucide-reply"
@@ -472,7 +536,14 @@ watch(
           </div>
 
           <!-- 正文 -->
+          <!-- eslint-disable-next-line vue/no-v-html -->
           <div
+            v-if="safeBodyHtml"
+            class="mt-5 text-sm leading-relaxed prose-email text-n-slate-12"
+            v-html="safeBodyHtml"
+          />
+          <div
+            v-else
             class="mt-5 text-sm leading-relaxed whitespace-pre-wrap text-n-slate-12"
           >
             {{ selectedEmail.body || t('CRM.EMAILS.READING.NO_BODY') }}

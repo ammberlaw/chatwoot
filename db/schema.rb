@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_13_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_13_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -862,9 +862,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_120000) do
     t.decimal "reply_latency_hours", precision: 10, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "is_starred", default: false, null: false
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
+    t.index ["account_id", "is_starred"], name: "index_crm_emails_starred", where: "is_starred"
     t.index ["account_id"], name: "index_crm_emails_on_account_id"
     t.index ["chatwoot_message_id"], name: "index_crm_emails_on_chatwoot_message_id", unique: true, where: "(chatwoot_message_id IS NOT NULL)"
     t.index ["contact_id"], name: "index_crm_emails_on_contact_id"

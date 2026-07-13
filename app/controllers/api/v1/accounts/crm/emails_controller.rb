@@ -23,7 +23,8 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
       SENT: by_folder['SENT'].to_i,
       DRAFT: by_folder['DRAFT'].to_i,
       BULK: by_folder['BULK'].to_i,
-      unread: scope.unread.count
+      unread: scope.unread.count,
+      starred: scope.starred.count
     }
   end
 
@@ -70,6 +71,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
     scope = Current.account.crm_emails
     scope = scope.in_folder(params[:folder]) if params[:folder].present?
     scope = scope.unread if params[:filter] == 'unread'
+    scope = scope.starred if params[:filter] == 'starred'
     scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
     if params[:q].present?
@@ -80,7 +82,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
 
   def email_params
     params.require(:email).permit(
-      :subject, :folder, :is_read, :from_address, :to_address, :cc_address, :bcc_address,
+      :subject, :folder, :is_read, :is_starred, :from_address, :to_address, :cc_address, :bcc_address,
       :email_date, :body, :body_html, :send_now, :send_status, :send_error,
       :crm_customer_id, :contact_id, :owner_id
     )

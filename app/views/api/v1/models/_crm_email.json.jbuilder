@@ -2,6 +2,7 @@ json.id resource.id
 json.subject resource.subject
 json.folder resource.folder
 json.is_read resource.is_read
+json.is_starred resource.is_starred
 json.from_address resource.from_address
 json.to_address resource.to_address
 json.cc_address resource.cc_address
