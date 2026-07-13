@@ -24,9 +24,11 @@ const customersStore = useCrmCustomersStore();
 const actingId = ref(null);
 
 const createDialogRef = ref(null);
-const activeFilter = ref(route.query.filter || 'all');
+// 私海(private)/公海(public_pool) 由侧边栏入口经 ?filter= 驱动；默认私海。
+const activeFilter = ref(route.query.filter || 'private');
 const activeCustomerGroup = ref('');
 const activeProductGroup = ref('');
+const activeSourceChannel = ref('');
 const currentPage = ref(1);
 const sortKey = ref(''); // '' = 默认(更新时间倒序)；'deal_amount' = 累计成交额
 const sortDir = ref('desc');
@@ -40,14 +42,6 @@ const uiFlags = computed(() => customersStore.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
 const totalCount = computed(() => customersStore.getMeta.count || 0);
-
-const filterTabs = [
-  { key: 'all', label: t('CRM.CUSTOMERS.FILTERS.ALL') },
-  { key: 'mine', label: t('CRM.CUSTOMERS.FILTERS.MINE') },
-  { key: 'private', label: t('CRM.CUSTOMERS.FILTERS.PRIVATE') },
-  { key: 'public_pool', label: t('CRM.CUSTOMERS.FILTERS.PUBLIC_POOL') },
-  { key: 'unassigned', label: t('CRM.CUSTOMERS.FILTERS.UNASSIGNED') },
-];
 
 // 客户分组 / 产品分组下拉（空值 = 全部）；标签与建档/编辑弹窗保持一致。
 const customerGroupOptions = [
@@ -64,6 +58,16 @@ const productGroupOptions = [
   { value: 'COMMERCIAL_DISPLAY', label: '商显' },
   { value: 'INDUSTRIAL_CONTROL', label: '工控' },
 ];
+// 客户来源下拉（空值 = 全部）；取值对齐 Crm::Customer::SOURCE_CHANNELS。
+const sourceChannelOptions = [
+  { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_SOURCE_CHANNEL') },
+  { value: 'ALIBABA', label: '阿里巴巴国际站' },
+  { value: 'WEBSITE', label: '官网' },
+  { value: 'EXHIBITION', label: '展会' },
+  { value: 'REFERRAL', label: '转介绍' },
+  { value: 'EMAIL', label: '邮件开发' },
+  { value: 'OTHER', label: '其他' },
+];
 
 const fetchCustomers = () => {
   const filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
@@ -72,6 +76,7 @@ const fetchCustomers = () => {
     filter,
     customer_group: activeCustomerGroup.value || undefined,
     product_group: activeProductGroup.value || undefined,
+    source_channel: activeSourceChannel.value || undefined,
     q: searchQuery.value.trim() || undefined,
     team_id: selectedTeamId.value || undefined,
     account_owner_id: selectedOwnerId.value || undefined,
@@ -143,12 +148,6 @@ const sortIcon = key => {
   return sortDir.value === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down';
 };
 
-const setFilter = key => {
-  activeFilter.value = key;
-  currentPage.value = 1;
-  fetchCustomers();
-};
-
 const setCustomerGroup = value => {
   activeCustomerGroup.value = value;
   currentPage.value = 1;
@@ -157,6 +156,12 @@ const setCustomerGroup = value => {
 
 const setProductGroup = value => {
   activeProductGroup.value = value;
+  currentPage.value = 1;
+  fetchCustomers();
+};
+
+const setSourceChannel = value => {
+  activeSourceChannel.value = value;
   currentPage.value = 1;
   fetchCustomers();
 };
@@ -553,6 +558,8 @@ const detailSections = computed(() => {
           label: '成交订单数',
           value: c.dealOrderCount != null ? String(c.dealOrderCount) : null,
         },
+        { label: '首次成交', value: formatDate(c.firstDealAt) || null },
+        { label: '最近成交', value: formatDate(c.lastDealAt) || null },
       ],
     },
     {
@@ -583,7 +590,7 @@ onMounted(() => {
 watch(
   () => route.query.filter,
   value => {
-    activeFilter.value = value || 'all';
+    activeFilter.value = value || 'private';
     currentPage.value = 1;
     fetchCustomers();
   }
@@ -610,16 +617,7 @@ watch(
       <div
         class="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-n-weak"
       >
-        <Button
-          v-for="tab in filterTabs"
-          :key="tab.key"
-          :label="tab.label"
-          size="sm"
-          :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-          :color="activeFilter === tab.key ? 'amber' : 'slate'"
-          @click="setFilter(tab.key)"
-        />
-        <div class="flex flex-wrap items-center gap-2 ml-auto">
+        <div class="flex flex-wrap items-center gap-2">
           <input
             v-model="searchQuery"
             type="text"
@@ -647,6 +645,11 @@ watch(
             :model-value="activeProductGroup"
             :options="productGroupOptions"
             @update:model-value="setProductGroup"
+          />
+          <Select
+            :model-value="activeSourceChannel"
+            :options="sourceChannelOptions"
+            @update:model-value="setSourceChannel"
           />
         </div>
       </div>

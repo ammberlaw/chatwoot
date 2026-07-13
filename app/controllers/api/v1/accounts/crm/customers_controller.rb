@@ -9,6 +9,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     status: :customer_status,
     customer_group: :customer_group,
     product_group: :product_group,
+    source_channel: :source_channel,
     account_owner_id: :account_owner_id
   }.freeze
 
@@ -175,6 +176,6 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
   end
 
   def permitted_params
-    params.permit(:page, :per_page, :filter, :status, :customer_group, :product_group, :account_owner_id)
+    params.permit(:page, :per_page, :filter, :status, :customer_group, :product_group, :source_channel, :account_owner_id)
   end
 end
