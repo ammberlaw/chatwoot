@@ -647,13 +647,21 @@ const menuItems = computed(() => {
         {
           name: 'CRM Private Customers',
           label: t('SIDEBAR.CRM_PRIVATE_CUSTOMERS'),
-          to: accountScopedRoute('crm_customers_index', {}, { filter: 'private' }),
+          to: accountScopedRoute(
+            'crm_customers_index',
+            {},
+            { filter: 'private' }
+          ),
           activeOn: ['crm_customers_index'],
         },
         {
           name: 'CRM Public Pool',
           label: t('SIDEBAR.CRM_PUBLIC_POOL'),
-          to: accountScopedRoute('crm_customers_index', {}, { filter: 'public_pool' }),
+          to: accountScopedRoute(
+            'crm_customers_index',
+            {},
+            { filter: 'public_pool' }
+          ),
         },
       ],
     },
@@ -661,7 +669,11 @@ const menuItems = computed(() => {
       name: 'CRM Sales Flow',
       label: t('SIDEBAR.CRM_G_SALES_FLOW'),
       icon: 'i-lucide-funnel',
-      activeOn: ['crm_funnel_index', 'crm_sales_orders_index', 'crm_opportunities_index'],
+      activeOn: [
+        'crm_funnel_index',
+        'crm_sales_orders_index',
+        'crm_opportunities_index',
+      ],
       children: [
         {
           name: 'CRM Funnel',
@@ -684,7 +696,11 @@ const menuItems = computed(() => {
         {
           name: 'CRM Orders No Customer',
           label: t('SIDEBAR.CRM_ORDERS_NO_CUSTOMER'),
-          to: accountScopedRoute('crm_sales_orders_index', {}, { filter: 'no_customer' }),
+          to: accountScopedRoute(
+            'crm_sales_orders_index',
+            {},
+            { filter: 'no_customer' }
+          ),
         },
       ],
     },
@@ -692,7 +708,11 @@ const menuItems = computed(() => {
       name: 'CRM Mail Center',
       label: t('SIDEBAR.CRM_G_MAIL'),
       icon: 'i-lucide-mail',
-      activeOn: ['crm_emails_index', 'crm_mail_accounts_index', 'crm_email_templates_index'],
+      activeOn: [
+        'crm_emails_index',
+        'crm_mail_accounts_index',
+        'crm_email_templates_index',
+      ],
       children: [
         {
           name: 'CRM Read Emails',
@@ -723,13 +743,35 @@ const menuItems = computed(() => {
         {
           name: 'CRM Company Docs',
           label: t('SIDEBAR.CRM_COMPANY_DOCS'),
-          to: accountScopedRoute('crm_knowledge_docs_index', {}, { filter: 'company' }),
+          to: accountScopedRoute(
+            'crm_knowledge_docs_index',
+            {},
+            { filter: 'company' }
+          ),
           activeOn: ['crm_knowledge_docs_index'],
         },
         {
           name: 'CRM My Docs',
           label: t('SIDEBAR.CRM_MY_DOCS'),
-          to: accountScopedRoute('crm_knowledge_docs_index', {}, { filter: 'mine' }),
+          to: accountScopedRoute(
+            'crm_knowledge_docs_index',
+            {},
+            { filter: 'mine' }
+          ),
+        },
+      ],
+    },
+    {
+      name: 'CRM Org',
+      label: t('SIDEBAR.CRM_G_ORG'),
+      icon: 'i-lucide-network',
+      activeOn: ['crm_org_structure_index'],
+      children: [
+        {
+          name: 'CRM Org Structure',
+          label: t('SIDEBAR.CRM_ORG_STRUCTURE'),
+          to: accountScopedRoute('crm_org_structure_index'),
+          activeOn: ['crm_org_structure_index'],
         },
       ],
     },

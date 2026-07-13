@@ -8,6 +8,7 @@ import CrmKnowledgeDocsIndex from './pages/CrmKnowledgeDocsIndex.vue';
 import CrmSalesTargetsIndex from './pages/CrmSalesTargetsIndex.vue';
 import CrmMailAccountsIndex from './pages/CrmMailAccountsIndex.vue';
 import CrmEmailTemplatesIndex from './pages/CrmEmailTemplatesIndex.vue';
+import CrmOrgStructureIndex from './pages/CrmOrgStructureIndex.vue';
 import CrmDashboardIndex from './pages/CrmDashboardIndex.vue';
 import CrmTeamDashboardIndex from './pages/CrmTeamDashboardIndex.vue';
 import CrmMyTargetIndex from './pages/CrmMyTargetIndex.vue';
@@ -31,7 +32,11 @@ export const routes = [
   crmPage('dashboard', 'crm_dashboard_index', CrmDashboardIndex),
   crmPage('team-dashboard', 'crm_team_dashboard_index', CrmTeamDashboardIndex),
   crmPage('my-target', 'crm_my_target_index', CrmMyTargetIndex),
-  crmPage('customer-intake', 'crm_customer_intake_index', CrmCustomerOnboardingIndex),
+  crmPage(
+    'customer-intake',
+    'crm_customer_intake_index',
+    CrmCustomerOnboardingIndex
+  ),
   crmPage('customers', 'crm_customers_index', CrmCustomersIndex),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
@@ -40,5 +45,10 @@ export const routes = [
   crmPage('knowledge-docs', 'crm_knowledge_docs_index', CrmKnowledgeDocsIndex),
   crmPage('sales-targets', 'crm_sales_targets_index', CrmSalesTargetsIndex),
   crmPage('mail-accounts', 'crm_mail_accounts_index', CrmMailAccountsIndex),
-  crmPage('email-templates', 'crm_email_templates_index', CrmEmailTemplatesIndex),
+  crmPage(
+    'email-templates',
+    'crm_email_templates_index',
+    CrmEmailTemplatesIndex
+  ),
+  crmPage('org-structure', 'crm_org_structure_index', CrmOrgStructureIndex),
 ];

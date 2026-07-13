@@ -105,6 +105,12 @@ Rails.application.routes.draw do
             resources :mail_accounts
             resources :email_templates
           end
+          namespace :org do
+            resources :departments, only: [:index, :create, :update, :destroy] do
+              post :reorder, on: :collection
+            end
+            resources :memberships, only: [:index, :create, :update, :destroy]
+          end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do
             get :help_center_generation

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_13_150000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_13_160000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1467,6 +1467,33 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_150000) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
+  create_table "org_departments", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "parent_id"
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "leader_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "parent_id"], name: "index_org_departments_on_account_id_and_parent_id"
+    t.index ["account_id"], name: "index_org_departments_on_account_id"
+    t.index ["leader_id"], name: "index_org_departments_on_leader_id"
+  end
+
+  create_table "org_memberships", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "department_id", null: false
+    t.bigint "user_id", null: false
+    t.string "title"
+    t.boolean "is_primary", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_org_memberships_on_account_id"
+    t.index ["department_id", "user_id"], name: "index_org_memberships_unique", unique: true
+    t.index ["department_id"], name: "index_org_memberships_on_department_id"
+    t.index ["user_id"], name: "index_org_memberships_on_user_id"
+  end
+
   create_table "platform_app_permissibles", force: :cascade do |t|
     t.bigint "platform_app_id", null: false
     t.string "permissible_type", null: false
@@ -1772,6 +1799,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_150000) do
   add_foreign_key "crm_sales_targets", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "org_memberships", "org_departments", column: "department_id", on_delete: :cascade
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").

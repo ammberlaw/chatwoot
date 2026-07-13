@@ -434,7 +434,9 @@
     "CRM_MAIL_ACCOUNTS": "邮箱账户",
     "CRM_G_KNOWLEDGE": "知识库",
     "CRM_COMPANY_DOCS": "公司文档",
-    "CRM_MY_DOCS": "我的知识库"
+    "CRM_MY_DOCS": "我的知识库",
+    "CRM_G_ORG": "组织架构",
+    "CRM_ORG_STRUCTURE": "部门与成员"
   },
   "CAPTAIN_SETTINGS": {
     "TITLE": "Captain Settings",
