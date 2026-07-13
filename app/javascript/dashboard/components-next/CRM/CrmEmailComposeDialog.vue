@@ -1,370 +1,1120 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
+import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
+import CrmEmailAPI from 'dashboard/api/crm/emails';
 import MailAccountsAPI from 'dashboard/api/crm/mailAccounts';
 import EmailTemplatesAPI from 'dashboard/api/crm/emailTemplates';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
+import ContactsAPI from 'dashboard/api/crm/contacts';
+import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
 
-import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
-import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
-import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
-import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 
-defineProps({
-  isLoading: { type: Boolean, default: false },
-});
+const emit = defineEmits(['refresh']);
+const store = useCrmEmailsStore();
 
-const emit = defineEmits(['send']);
+// 界面中文文案（CRM 模块为中文，绑定到模板避免 bare-string）。
+const L = {
+  send: '发送',
+  sending: '发送中…',
+  draft: '存草稿',
+  preview: '预览',
+  cancel: '取消',
+  noAccountWarn:
+    '还没有发信邮箱，去「邮件中心 → 邮箱账户」新建并填 SMTP 授权码后即可发送。',
+  from: '发件人',
+  noAccountOption: '（未配置发信邮箱）',
+  to: '收件人',
+  toPlaceholder: '请选择收件人或输入邮箱（多个用英文逗号分隔）',
+  cc: '抄送',
+  bcc: '密送',
+  ccPlaceholder: '抄送邮箱',
+  bccPlaceholder: '密送邮箱（收件人看不到）',
+  customer: '客户',
+  customerPlaceholder: '搜索客户（可选，自动带出联系人邮箱）',
+  subject: '主题',
+  subjectPlaceholder: '请输入邮件主题',
+  bold: '加粗',
+  boldMark: 'B',
+  italic: '斜体',
+  italicMark: 'I',
+  heading: '标题',
+  headingMark: 'H',
+  bulletList: '项目符号列表',
+  link: '插入链接',
+  image: '图片',
+  imageTitle: '插入图片（按图片网址，不支持上传本地图片）',
+  imgPlaceholder: '粘贴图片网址（http(s)://…，需公网可访问）',
+  insert: '插入',
+  edit: '编辑',
+  bodyPlaceholder:
+    '在此输入正文…支持 Markdown：**加粗** *斜体* # 标题 - 列表 [文字](链接)。图片用上方「图片」按钮按网址插入。',
+  bodyEmpty: '（正文为空）',
+  hint: '支持 Markdown：**加粗** *斜体* # 标题 - 列表 [文字](链接)，图片按网址插入。点「预览」看实际效果。',
+  addAttachment: '加附件',
+  kbSelect: '从知识库选择',
+  kbTip:
+    '产品目录、报价单等知识库资料可直接选作附件；选中后复制进本邮件、锁定当前版本。',
+  signature: '插入签名…',
+  noSignature: '（无签名）',
+  applyTemplate: '套用模板',
+  noTemplate: '— 不套用 —',
+  sentBanner: '已提交发送，结果见邮件列表状态。可继续写下一封。',
+  draftBanner: '已存入草稿箱。',
+  needTo: '请填写收件人',
+  needAccount: '你还没有配置启用的发信邮箱（邮件中心 → 邮箱账户）',
+  previewTitle: '预览',
+  previewFrom: '发件人：',
+  previewTo: '收件人：',
+  previewCc: '抄送：',
+  previewSubject: '主题：',
+  kbTitle: '从知识库选择附件',
+  kbDone: '完成',
+  kbSearchPlaceholder: '搜索文档名 / 摘要 / 文件名',
+  kbCompany: '公司',
+  kbPersonal: '我的',
+  kbAllCategories: '全部分类',
+  kbEmptyNoFiles: '知识库里还没有带文件的文档。',
+  kbEmptyNoMatch: '没有匹配的文档，换个搜索词或分类试试。',
+  kbPickFilePrompt: '选择左侧一篇文档查看并勾选文件。',
+  kbFootTip: '勾选的文件会在发送时复制进本邮件并锁定当前版本。',
+};
 
-const { t } = useI18n();
-const dialogRef = ref(null);
+// ---- Markdown → HTML（沙箱外可用富文本，但为与 A-CRM 一致仍用 Markdown 文本） ----
+const escapeHtml = s =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-const mailAccounts = ref([]);
+const inlineMd = s =>
+  s
+    .replace(
+      /!\[([^\]]*)\]\(([^)\s]+)\)/g,
+      '<img src="$2" alt="$1" style="max-width:100%;height:auto;" />'
+    )
+    .replace(
+      /\[([^\]]+)\]\(([^)\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener">$1</a>'
+    )
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
+    .replace(
+      /(^|[\s(])(https?:\/\/[^\s<)"]+)/g,
+      '$1<a href="$2" target="_blank" rel="noopener">$2</a>'
+    );
+
+const markdownToHtml = src => {
+  const lines = escapeHtml(src || '').split('\n');
+  const out = [];
+  let inList = false;
+  const closeList = () => {
+    if (inList) {
+      out.push('</ul>');
+      inList = false;
+    }
+  };
+  lines.forEach(line => {
+    const h = line.match(/^(#{1,3})\s+(.*)$/);
+    const li = line.match(/^[-*]\s+(.*)$/);
+    if (h) {
+      closeList();
+      const lv = h[1].length;
+      out.push(`<h${lv} style="margin:0.5em 0;">${inlineMd(h[2])}</h${lv}>`);
+    } else if (li) {
+      if (!inList) {
+        out.push('<ul style="margin:0.5em 0;padding-left:1.5em;">');
+        inList = true;
+      }
+      out.push(`<li>${inlineMd(li[1])}</li>`);
+    } else if (line.trim() === '') {
+      closeList();
+      out.push('<div style="height:0.6em;"></div>');
+    } else {
+      closeList();
+      out.push(`<div>${inlineMd(line)}</div>`);
+    }
+  });
+  closeList();
+  return out.join('\n');
+};
+
+// ---- 状态 ----
+const visible = ref(false);
+const status = ref({ state: 'idle', msg: '' });
+const sending = computed(() => status.value.state === 'sending');
+
+const accounts = ref([]);
+const fromId = ref('');
 const templates = ref([]);
+const templateId = ref('');
 
 const form = reactive({
-  fromAddress: '',
-  toAddress: '',
-  ccAddress: '',
-  bccAddress: '',
+  to: '',
+  cc: '',
+  bcc: '',
   subject: '',
   body: '',
-  templateId: '',
-  crmCustomerId: null,
-  contactId: null,
 });
+const showCc = ref(false);
+const showBcc = ref(false);
 
-const showCcBcc = ref(false);
+// 客户 / 联系人
+const customerQuery = ref('');
+const customerHits = ref([]);
+const customer = ref(null);
+const contacts = ref([]);
+const contactId = ref('');
+let customerTimer = null;
+
+// 正文编辑
+const bodyView = ref('edit');
+const showImg = ref(false);
+const imgUrl = ref('');
+
+// 普通附件
 const attachments = ref([]);
 const fileInputRef = ref(null);
 
-// 客户搜索联动
-const customerQuery = ref('');
-const customerResults = ref([]);
-const showCustomerResults = ref(false);
-const selectedCustomerName = ref('');
-let customerTimer = null;
+// 知识库附件
+const kbDocs = ref([]);
+const kbPicked = ref([]);
+const showKb = ref(false);
+const kbSearch = ref('');
+const kbCategory = ref('');
+const kbScope = ref('');
+const kbOpenDocId = ref(null);
 
-const accountOptions = computed(() =>
-  mailAccounts.value.map(a => ({
-    value: a.emailAddress,
-    label: `${a.name} <${a.emailAddress}>`,
-  }))
+// 预览
+const showPreview = ref(false);
+
+const fromAccount = computed(
+  () => accounts.value.find(a => a.id === fromId.value) || null
 );
+const hasAccount = computed(() => accounts.value.length > 0);
+const bodyHtml = computed(() => markdownToHtml(form.body));
 
-const templateOptions = computed(() => [
-  { value: '', label: t('CRM.EMAILS.COMPOSE.NO_TEMPLATE') },
-  ...templates.value.map(tp => ({ value: String(tp.id), label: tp.name })),
+const kbScopeChips = [
+  { value: '', label: '全部' },
+  { value: 'COMPANY', label: L.kbCompany },
+  { value: 'PERSONAL', label: L.kbPersonal },
+];
+const kbCategories = computed(() => [
+  ...new Set(kbDocs.value.map(d => d.category).filter(Boolean)),
 ]);
 
-const activeAccount = computed(() =>
-  mailAccounts.value.find(a => a.emailAddress === form.fromAddress)
+const kbKey = item => `${item.docId}:${item.fileId}`;
+
+const kbFilteredDocs = computed(() => {
+  const q = kbSearch.value.trim().toLowerCase();
+  return kbDocs.value.filter(d => {
+    if (kbScope.value && d.scope !== kbScope.value) return false;
+    if (kbCategory.value && d.category !== kbCategory.value) return false;
+    if (
+      q &&
+      !(
+        `${d.name} ${d.summary || ''}`.toLowerCase().includes(q) ||
+        d.files.some(f => f.filename.toLowerCase().includes(q))
+      )
+    )
+      return false;
+    return true;
+  });
+});
+const kbOpenDoc = computed(
+  () =>
+    kbFilteredDocs.value.find(d => d.id === kbOpenDocId.value) ||
+    kbFilteredDocs.value[0] ||
+    null
 );
 
-const isFormInvalid = computed(
-  () => !form.fromAddress || !form.toAddress.trim()
-);
-
-const applyTemplate = () => {
-  const tpl = templates.value.find(x => String(x.id) === form.templateId);
-  if (!tpl) return;
-  form.subject = tpl.subjectTemplate || form.subject;
-  form.body = tpl.body || form.body;
+// ---- 数据加载 ----
+const loadAccounts = async () => {
+  const { data } = await MailAccountsAPI.get({ filter: 'mine' });
+  accounts.value = camelcaseKeys(data.payload || [], { deep: true }).filter(
+    a => a.isActive
+  );
+  if (accounts.value[0]) fromId.value = accounts.value[0].id;
 };
 
-const insertSignature = () => {
-  const signature = activeAccount.value?.signature;
-  if (!signature) return;
-  form.body = `${form.body || ''}\n\n${signature}`;
+const loadTemplates = async () => {
+  const { data } = await EmailTemplatesAPI.get();
+  templates.value = camelcaseKeys(data.payload || [], { deep: true });
 };
 
-// 客户搜索：输入防抖查我的客户，选中后带出收件邮箱 + 关联。
-const searchCustomers = () => {
+const loadKbDocs = async () => {
+  const { data } = await KnowledgeDocsAPI.get({ per_page: 200 });
+  kbDocs.value = camelcaseKeys(data.payload || [], { deep: true })
+    .map(d => ({
+      id: d.id,
+      name: d.name || '(未命名)',
+      scope: d.scope || 'PERSONAL',
+      category: d.category || '',
+      summary: d.summary || '',
+      files: (d.files || []).map(f => ({
+        fileId: f.id,
+        filename: f.filename || '(未命名文件)',
+      })),
+    }))
+    .filter(d => d.files.length > 0);
+};
+
+// ---- 客户搜索 ----
+watch(customerQuery, () => {
   clearTimeout(customerTimer);
-  const term = customerQuery.value.trim();
-  if (!term) {
-    customerResults.value = [];
+  const q = customerQuery.value.trim();
+  if (q.length < 2 || customer.value) {
+    customerHits.value = [];
     return;
   }
   customerTimer = setTimeout(async () => {
-    const { data } = await CrmCustomerAPI.get({ q: term, page: 1 });
-    customerResults.value = camelcaseKeys(data.payload || [], { deep: true });
-    showCustomerResults.value = true;
-  }, 300);
-};
+    const { data } = await CrmCustomerAPI.get({ q, page: 1 });
+    customerHits.value = camelcaseKeys(data.payload || [], { deep: true });
+  }, 350);
+});
 
-const pickCustomer = customer => {
-  form.crmCustomerId = customer.id;
-  selectedCustomerName.value = customer.name;
-  customerQuery.value = customer.name;
-  showCustomerResults.value = false;
-  if (customer.contactEmail && !form.toAddress.trim()) {
-    form.toAddress = customer.contactEmail;
+const pickCustomer = async hit => {
+  customer.value = hit;
+  customerHits.value = [];
+  customerQuery.value = hit.name;
+  const { data } = await ContactsAPI.get({ customer_id: hit.id });
+  const list = camelcaseKeys(data.payload || [], { deep: true }).filter(
+    c => c.email
+  );
+  contacts.value = list;
+  if (list[0]) {
+    form.to = list[0].email;
+    contactId.value = list[0].id;
   }
 };
 
-const clearCustomer = () => {
-  form.crmCustomerId = null;
-  form.contactId = null;
-  selectedCustomerName.value = '';
-  customerQuery.value = '';
-  customerResults.value = [];
+const pickContact = c => {
+  contactId.value = c.id;
+  form.to = c.email;
 };
 
+// ---- 模板 / 签名 ----
+const applyTemplate = () => {
+  const tpl = templates.value.find(
+    x => String(x.id) === String(templateId.value)
+  );
+  if (!tpl) return;
+  if (tpl.subjectTemplate) form.subject = tpl.subjectTemplate;
+  form.body = tpl.body || '';
+};
+
+const insertSignature = event => {
+  const acc = accounts.value.find(a => a.id === Number(event.target.value));
+  event.target.value = '';
+  if (acc?.signature) {
+    form.body = `${form.body}${form.body ? '\n\n' : ''}--\n${acc.signature}`;
+  }
+};
+
+// ---- Markdown 工具栏 ----
+const insertInline = s => {
+  form.body += s;
+};
+const insertBlock = s => {
+  form.body =
+    (form.body && !form.body.endsWith('\n') ? `${form.body}\n` : form.body) + s;
+};
+const insertImage = () => {
+  const u = imgUrl.value.trim();
+  if (!u) return;
+  insertBlock(`![图片](${u})\n`);
+  imgUrl.value = '';
+  showImg.value = false;
+  bodyView.value = 'edit';
+};
+
+// ---- 附件 ----
 const onPickFiles = event => {
   attachments.value.push(...Array.from(event.target.files || []));
   event.target.value = '';
 };
+const removeAttachment = index => attachments.value.splice(index, 1);
 
-const removeAttachment = index => {
-  attachments.value.splice(index, 1);
+// ---- 知识库选择器 ----
+const openKbPicker = () => {
+  showKb.value = true;
+  kbOpenDocId.value = null;
+  kbSearch.value = '';
+  kbCategory.value = '';
+  kbScope.value = '';
 };
+const toggleKbFile = (doc, file) => {
+  const item = {
+    docId: doc.id,
+    docName: doc.name,
+    fileId: file.fileId,
+    label: file.filename,
+  };
+  const exists = kbPicked.value.some(p => kbKey(p) === kbKey(item));
+  kbPicked.value = exists
+    ? kbPicked.value.filter(p => kbKey(p) !== kbKey(item))
+    : [...kbPicked.value, item];
+};
+const removeKbPick = pick => {
+  kbPicked.value = kbPicked.value.filter(p => kbKey(p) !== kbKey(pick));
+};
+const isKbPicked = (docId, fileId) =>
+  kbPicked.value.some(p => p.docId === docId && p.fileId === fileId);
+const kbPicksForDoc = docId =>
+  kbPicked.value.filter(p => p.docId === docId).length;
 
+// ---- 发送 / 存草稿 ----
 const fmtSize = bytes => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
-const resetForm = () => {
-  form.fromAddress = mailAccounts.value[0]?.emailAddress || '';
-  form.toAddress = '';
-  form.ccAddress = '';
-  form.bccAddress = '';
+const buildFields = () => {
+  const fields = {
+    subject: form.subject.trim() || '(无主题)',
+    toAddress: form.to.trim(),
+    ccAddress: showCc.value && form.cc.trim() ? form.cc.trim() : null,
+    bccAddress: showBcc.value && form.bcc.trim() ? form.bcc.trim() : null,
+    fromAddress: fromAccount.value?.emailAddress || null,
+    body: form.body,
+    bodyHtml: bodyHtml.value,
+    folder: 'DRAFT',
+    sendStatus: 'DRAFT',
+    crmCustomerId: customer.value?.id || form.crmCustomerId || null,
+    contactId: contactId.value || null,
+  };
+  return attachments.value.length
+    ? { ...fields, __files: attachments.value }
+    : fields;
+};
+
+// 建草稿 → 挂知识库附件（快照）→ 返回 id；发送时再翻 sendNow。
+const persist = async () => {
+  const record = await store.create(buildFields());
+  if (kbPicked.value.length) {
+    await CrmEmailAPI.attachKb(
+      record.id,
+      kbPicked.value.map(k => k.fileId)
+    );
+  }
+  return record.id;
+};
+
+const saveDraft = async () => {
+  if (!form.to.trim()) {
+    status.value = { state: 'failed', msg: L.needTo };
+    return;
+  }
+  status.value = { state: 'sending', msg: '' };
+  try {
+    await persist();
+    status.value = { state: 'draft', msg: '' };
+    emit('refresh');
+  } catch (e) {
+    status.value = { state: 'failed', msg: String(e?.message || e) };
+  }
+};
+
+const send = async () => {
+  if (!form.to.trim()) {
+    status.value = { state: 'failed', msg: L.needTo };
+    return;
+  }
+  if (!hasAccount.value) {
+    status.value = { state: 'failed', msg: L.needAccount };
+    return;
+  }
+  status.value = { state: 'sending', msg: '' };
+  try {
+    const id = await persist();
+    await store.update({ id, sendNow: true });
+    status.value = { state: 'sent', msg: '' };
+    emit('refresh');
+  } catch (e) {
+    status.value = { state: 'failed', msg: String(e?.message || e) };
+  }
+};
+
+// ---- 开关 / 复位 ----
+const reset = () => {
+  form.to = '';
+  form.cc = '';
+  form.bcc = '';
   form.subject = '';
   form.body = '';
-  form.templateId = '';
   form.crmCustomerId = null;
-  form.contactId = null;
-  showCcBcc.value = false;
-  attachments.value = [];
+  showCc.value = false;
+  showBcc.value = false;
   customerQuery.value = '';
-  customerResults.value = [];
-  selectedCustomerName.value = '';
+  customerHits.value = [];
+  customer.value = null;
+  contacts.value = [];
+  contactId.value = '';
+  templateId.value = '';
+  bodyView.value = 'edit';
+  showImg.value = false;
+  imgUrl.value = '';
+  attachments.value = [];
+  kbPicked.value = [];
+  showKb.value = false;
+  showPreview.value = false;
+  status.value = { state: 'idle', msg: '' };
 };
 
-// prefill 用于回复/转发预填。
+const close = () => {
+  visible.value = false;
+  reset();
+};
+
 const open = async prefill => {
-  const [{ data: accountsData }, { data: templatesData }] = await Promise.all([
-    MailAccountsAPI.get({ filter: 'mine' }),
-    EmailTemplatesAPI.get(),
-  ]);
-  mailAccounts.value = camelcaseKeys(accountsData.payload || [], {
-    deep: true,
-  }).filter(a => a.isActive);
-  templates.value = camelcaseKeys(templatesData.payload || [], { deep: true });
-  resetForm();
+  reset();
+  await Promise.all([loadAccounts(), loadTemplates(), loadKbDocs()]);
   if (prefill && typeof prefill === 'object') {
-    Object.assign(form, prefill);
-    if (prefill.ccAddress) showCcBcc.value = true;
+    if (prefill.toAddress) form.to = prefill.toAddress;
+    if (prefill.ccAddress) {
+      form.cc = prefill.ccAddress;
+      showCc.value = true;
+    }
+    if (prefill.subject) form.subject = prefill.subject;
+    if (prefill.body) form.body = prefill.body;
+    if (prefill.crmCustomerId) form.crmCustomerId = prefill.crmCustomerId;
+    if (prefill.contactId) contactId.value = prefill.contactId;
   }
-  dialogRef.value?.open();
+  visible.value = true;
 };
 
-const onSuccess = () => {
-  resetForm();
-  dialogRef.value?.close();
-};
-
-const handleConfirm = () => {
-  if (isFormInvalid.value) return;
-  emit('send', {
-    fromAddress: form.fromAddress,
-    toAddress: form.toAddress.trim(),
-    ccAddress: form.ccAddress.trim() || null,
-    bccAddress: form.bccAddress.trim() || null,
-    subject: form.subject.trim() || null,
-    body: form.body,
-    crmCustomerId: form.crmCustomerId,
-    contactId: form.contactId,
-    folder: 'DRAFT',
-    sendNow: true,
-    ...(attachments.value.length ? { __files: attachments.value } : {}),
-  });
-};
-
-watch(customerQuery, () => {
-  if (
-    selectedCustomerName.value &&
-    customerQuery.value !== selectedCustomerName.value
-  ) {
-    form.crmCustomerId = null;
-    selectedCustomerName.value = '';
-  }
-});
-
-defineExpose({ dialogRef, onSuccess, open });
+defineExpose({ open, close });
 </script>
 
 <template>
-  <Dialog
-    ref="dialogRef"
-    width="3xl"
-    overflow-y-auto
-    :title="t('CRM.EMAILS.COMPOSE.TITLE')"
-    :confirm-button-label="t('CRM.EMAILS.COMPOSE.SEND')"
-    confirm-button-color="amber"
-    :is-loading="isLoading"
-    :disable-confirm-button="isFormInvalid"
-    @confirm="handleConfirm"
-    @close="resetForm"
+  <div
+    v-show="visible"
+    class="fixed inset-0 z-50 flex justify-center py-8 overflow-y-auto bg-black/40"
+    @click.self="close"
   >
-    <div class="flex flex-col gap-4">
+    <div class="w-[840px] max-w-[94vw] h-fit">
       <div
-        v-if="!accountOptions.length"
-        class="p-3 text-sm rounded-lg bg-n-amber-3 text-n-amber-11"
+        class="overflow-hidden border shadow-xl rounded-xl border-n-weak bg-n-solid-1"
       >
-        {{ t('CRM.EMAILS.COMPOSE.NO_ACCOUNT') }}
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block mb-0.5 text-heading-3 text-n-slate-12">
-            {{ t('CRM.EMAILS.COMPOSE.FROM') }}
-          </label>
-          <Select
-            v-model="form.fromAddress"
-            class="w-full"
-            :options="accountOptions"
-          />
-        </div>
-        <div>
-          <label class="block mb-0.5 text-heading-3 text-n-slate-12">
-            {{ t('CRM.EMAILS.COMPOSE.TEMPLATE') }}
-          </label>
-          <Select
-            v-model="form.templateId"
-            class="w-full"
-            :options="templateOptions"
-            @change="applyTemplate"
-          />
-        </div>
-      </div>
-
-      <!-- 关联客户搜索 -->
-      <div class="relative">
-        <label class="block mb-0.5 text-heading-3 text-n-slate-12">
-          {{ t('CRM.EMAILS.COMPOSE.CUSTOMER') }}
-        </label>
-        <div class="relative">
-          <input
-            v-model="customerQuery"
-            type="text"
-            :placeholder="t('CRM.EMAILS.COMPOSE.CUSTOMER_PLACEHOLDER')"
-            class="w-full h-10 px-3 pr-8 text-sm border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
-            @input="searchCustomers"
-            @focus="showCustomerResults = customerResults.length > 0"
-          />
-          <button
-            v-if="form.crmCustomerId"
-            class="absolute -translate-y-1/2 right-2 top-1/2 text-n-slate-10 hover:text-n-slate-12"
-            @click="clearCustomer"
-          >
-            <Icon icon="i-lucide-x" class="size-4" />
-          </button>
-        </div>
+        <!-- 顶部操作栏 -->
         <div
-          v-if="showCustomerResults && customerResults.length"
-          class="absolute z-20 w-full mt-1 overflow-y-auto border rounded-lg shadow-lg max-h-56 bg-n-solid-1 border-n-weak"
+          class="flex items-center gap-2 px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak"
         >
           <button
-            v-for="customer in customerResults"
-            :key="customer.id"
-            class="flex flex-col w-full gap-0.5 px-3 py-2 text-left hover:bg-n-alpha-1"
-            @click="pickCustomer(customer)"
+            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-amber-9 hover:bg-n-amber-10 disabled:opacity-60"
+            :disabled="sending"
+            @click="send"
           >
-            <span class="text-sm text-n-slate-12">{{ customer.name }}</span>
-            <span v-if="customer.contactEmail" class="text-xs text-n-slate-10">
-              {{ customer.contactEmail }}
-            </span>
+            {{ sending ? L.sending : L.send }}
           </button>
-        </div>
-      </div>
-
-      <Input
-        v-model="form.toAddress"
-        :label="t('CRM.EMAILS.COMPOSE.TO')"
-        :placeholder="t('CRM.EMAILS.COMPOSE.TO_PLACEHOLDER')"
-      />
-
-      <div v-if="!showCcBcc">
-        <button
-          class="inline-flex items-center gap-1 text-xs text-n-amber-11 hover:underline"
-          @click="showCcBcc = true"
-        >
-          <Icon icon="i-lucide-plus" class="size-3" />
-          {{ t('CRM.EMAILS.COMPOSE.ADD_CC') }}
-        </button>
-      </div>
-      <template v-else>
-        <Input v-model="form.ccAddress" :label="t('CRM.EMAILS.COMPOSE.CC')" />
-        <Input v-model="form.bccAddress" :label="t('CRM.EMAILS.COMPOSE.BCC')" />
-      </template>
-
-      <Input v-model="form.subject" :label="t('CRM.EMAILS.COMPOSE.SUBJECT')" />
-
-      <div>
-        <div class="flex items-center justify-between mb-0.5">
-          <label class="text-heading-3 text-n-slate-12">
-            {{ t('CRM.EMAILS.COMPOSE.BODY') }}
-          </label>
           <button
-            v-if="activeAccount?.signature"
-            class="inline-flex items-center gap-1 text-xs text-n-amber-11 hover:underline"
-            @click="insertSignature"
+            class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-60"
+            :disabled="sending"
+            @click="saveDraft"
           >
-            <Icon icon="i-lucide-signature" class="size-3.5" />
-            {{ t('CRM.EMAILS.COMPOSE.INSERT_SIGNATURE') }}
+            {{ L.draft }}
+          </button>
+          <button
+            class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+            @click="showPreview = true"
+          >
+            {{ L.preview }}
+          </button>
+          <span class="flex-1" />
+          <button
+            class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+            @click="close"
+          >
+            {{ L.cancel }}
           </button>
         </div>
-        <TextArea v-model="form.body" :rows="8" />
-      </div>
 
-      <!-- 附件 -->
-      <div>
-        <input
-          ref="fileInputRef"
-          type="file"
-          multiple
-          class="hidden"
-          @change="onPickFiles"
-        />
-        <Button
-          :label="t('CRM.EMAILS.COMPOSE.ADD_ATTACHMENT')"
-          icon="i-lucide-paperclip"
-          size="sm"
-          variant="faded"
-          color="slate"
-          @click="fileInputRef?.click()"
-        />
-        <div v-if="attachments.length" class="flex flex-col gap-1.5 mt-2">
-          <div
-            v-for="(file, index) in attachments"
-            :key="index"
-            class="flex items-center justify-between gap-3 px-3 py-2 text-sm border rounded-lg border-n-weak"
+        <div
+          v-if="!hasAccount"
+          class="px-4 py-2 text-xs bg-n-amber-3 text-n-amber-11"
+        >
+          {{ L.noAccountWarn }}
+        </div>
+
+        <!-- 发件人 -->
+        <div class="flex items-center px-4 border-b border-n-weak min-h-[38px]">
+          <span class="w-14 text-[13px] text-n-slate-10">{{ L.from }}</span>
+          <select
+            v-model="fromId"
+            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 focus:outline-none focus:ring-0"
           >
-            <span class="flex items-center min-w-0 gap-2">
-              <Icon
-                icon="i-lucide-file"
-                class="flex-shrink-0 size-4 text-n-amber-11"
-              />
-              <span class="truncate text-n-slate-12">{{ file.name }}</span>
-              <span class="flex-shrink-0 text-xs text-n-slate-10">
-                {{ fmtSize(file.size) }}
-              </span>
-            </span>
+            <option v-if="!accounts.length" value="">
+              {{ L.noAccountOption }}
+            </option>
+            <option v-for="a in accounts" :key="a.id" :value="a.id">
+              {{ a.emailAddress }}
+            </option>
+          </select>
+        </div>
+
+        <!-- 收件人 -->
+        <div class="flex items-start px-4 border-b border-n-weak min-h-[38px]">
+          <span class="w-14 pt-2.5 text-[13px] text-n-slate-10">
+            {{ L.to }}
+          </span>
+          <input
+            v-model="form.to"
+            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+            :placeholder="L.toPlaceholder"
+          />
+          <div class="flex items-center gap-3 pt-2.5">
             <button
-              class="flex-shrink-0 text-n-slate-10 hover:text-n-ruby-11"
-              @click="removeAttachment(index)"
+              v-if="!showCc"
+              class="text-[13px] text-n-amber-11 hover:underline"
+              @click="showCc = true"
             >
-              <Icon icon="i-lucide-x" class="size-4" />
+              {{ L.cc }}
+            </button>
+            <button
+              v-if="!showBcc"
+              class="text-[13px] text-n-amber-11 hover:underline"
+              @click="showBcc = true"
+            >
+              {{ L.bcc }}
             </button>
           </div>
         </div>
+
+        <!-- 客户 -->
+        <div
+          class="relative flex items-start px-4 border-b border-n-weak min-h-[38px]"
+        >
+          <span class="w-14 pt-2.5 text-[13px] text-n-slate-10">
+            {{ L.customer }}
+          </span>
+          <div class="flex-1">
+            <div class="flex items-center">
+              <Icon
+                icon="i-lucide-search"
+                class="mr-1.5 size-3.5 text-n-slate-9"
+              />
+              <input
+                v-model="customerQuery"
+                class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+                :placeholder="L.customerPlaceholder"
+                @input="customer = null"
+              />
+            </div>
+            <div
+              v-if="customerHits.length"
+              class="absolute z-10 mt-1 overflow-hidden border rounded-lg shadow-lg left-14 right-4 bg-n-solid-1 border-n-weak"
+            >
+              <button
+                v-for="c in customerHits"
+                :key="c.id"
+                class="block w-full px-3 py-2 text-sm text-left border-b text-n-slate-12 border-n-weak hover:bg-n-alpha-1"
+                @click="pickCustomer(c)"
+              >
+                {{ c.name }}
+              </button>
+            </div>
+            <div v-if="contacts.length" class="flex flex-wrap gap-1.5 pb-2">
+              <button
+                v-for="c in contacts"
+                :key="c.id"
+                class="px-2 py-1 text-xs border rounded-full"
+                :class="
+                  contactId === c.id
+                    ? 'border-n-amber-9 text-n-amber-11 bg-n-amber-2'
+                    : 'border-n-weak text-n-slate-11'
+                "
+                @click="pickContact(c)"
+              >
+                {{ c.name }} · {{ c.email }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 抄送 / 密送 -->
+        <div
+          v-if="showCc"
+          class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
+        >
+          <span class="w-14 text-[13px] text-n-slate-10">{{ L.cc }}</span>
+          <input
+            v-model="form.cc"
+            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+            :placeholder="L.ccPlaceholder"
+          />
+        </div>
+        <div
+          v-if="showBcc"
+          class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
+        >
+          <span class="w-14 text-[13px] text-n-slate-10">{{ L.bcc }}</span>
+          <input
+            v-model="form.bcc"
+            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+            :placeholder="L.bccPlaceholder"
+          />
+        </div>
+
+        <!-- 主题 -->
+        <div class="flex items-center px-4 border-b border-n-weak min-h-[38px]">
+          <span class="w-14 text-[13px] text-n-slate-10">{{ L.subject }}</span>
+          <input
+            v-model="form.subject"
+            class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+            :placeholder="L.subjectPlaceholder"
+          />
+        </div>
+
+        <!-- 正文工具栏 -->
+        <div
+          class="flex flex-wrap items-center gap-1 px-3 py-1.5 border-b bg-n-alpha-1 border-n-weak"
+        >
+          <button
+            class="min-w-[30px] h-7 px-2 text-sm border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
+            :title="L.bold"
+            @click="insertInline('**加粗文字**')"
+          >
+            <b>{{ L.boldMark }}</b>
+          </button>
+          <button
+            class="min-w-[30px] h-7 px-2 text-sm italic border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
+            :title="L.italic"
+            @click="insertInline('*斜体文字*')"
+          >
+            {{ L.italicMark }}
+          </button>
+          <button
+            class="min-w-[30px] h-7 px-2 text-sm border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
+            :title="L.heading"
+            @click="insertBlock('## 标题\n')"
+          >
+            {{ L.headingMark }}
+          </button>
+          <button
+            class="min-w-[30px] h-7 px-2 border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
+            :title="L.bulletList"
+            @click="insertBlock('- 列表项\n- 列表项\n')"
+          >
+            <Icon icon="i-lucide-list" class="size-4" />
+          </button>
+          <button
+            class="min-w-[30px] h-7 px-2 border rounded border-n-weak bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
+            :title="L.link"
+            @click="insertInline('[链接文字](https://)')"
+          >
+            <Icon icon="i-lucide-link" class="size-4" />
+          </button>
+          <button
+            class="inline-flex items-center gap-1 h-7 px-2 text-xs border rounded bg-n-solid-1 text-n-slate-12 hover:bg-n-alpha-2"
+            :class="
+              showImg ? 'border-n-amber-9 text-n-amber-11' : 'border-n-weak'
+            "
+            :title="L.imageTitle"
+            @click="showImg = !showImg"
+          >
+            <Icon icon="i-lucide-image" class="size-4" />
+            {{ L.image }}
+          </button>
+          <span class="flex-1" />
+          <div class="flex overflow-hidden border rounded border-n-weak">
+            <button
+              class="px-3 py-1 text-xs"
+              :class="
+                bodyView === 'edit'
+                  ? 'bg-n-amber-9 text-white'
+                  : 'text-n-slate-11'
+              "
+              @click="bodyView = 'edit'"
+            >
+              {{ L.edit }}
+            </button>
+            <button
+              class="px-3 py-1 text-xs"
+              :class="
+                bodyView === 'preview'
+                  ? 'bg-n-amber-9 text-white'
+                  : 'text-n-slate-11'
+              "
+              @click="bodyView = 'preview'"
+            >
+              {{ L.preview }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 图片网址输入 -->
+        <div
+          v-if="showImg"
+          class="flex items-center gap-2 px-3 py-2 border-b border-n-weak"
+        >
+          <input
+            v-model="imgUrl"
+            class="flex-1 h-9 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            :placeholder="L.imgPlaceholder"
+          />
+          <button
+            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-amber-9 hover:bg-n-amber-10"
+            @click="insertImage"
+          >
+            {{ L.insert }}
+          </button>
+          <button
+            class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-11"
+            @click="
+              showImg = false;
+              imgUrl = '';
+            "
+          >
+            {{ L.cancel }}
+          </button>
+        </div>
+
+        <!-- 正文 编辑 / 预览 -->
+        <textarea
+          v-if="bodyView === 'edit'"
+          v-model="form.body"
+          rows="14"
+          class="block w-full px-4 py-3 text-sm leading-relaxed bg-transparent border-0 resize-y reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+          :placeholder="L.bodyPlaceholder"
+        />
+        <!-- eslint-disable-next-line vue/no-v-html -->
+        <div
+          v-else
+          class="min-h-[240px] px-4 py-3 text-sm leading-relaxed text-n-slate-12 break-words"
+          v-html="bodyHtml || `<span style='opacity:.5'>${L.bodyEmpty}</span>`"
+        />
+
+        <div class="px-4 py-1.5 text-[11px] leading-relaxed text-n-slate-10">
+          {{ L.hint }}
+        </div>
+
+        <!-- 普通附件 -->
+        <div
+          class="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-n-weak"
+        >
+          <input
+            ref="fileInputRef"
+            type="file"
+            multiple
+            class="hidden"
+            @change="onPickFiles"
+          />
+          <button
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-60"
+            :disabled="sending"
+            @click="fileInputRef?.click()"
+          >
+            <Icon icon="i-lucide-paperclip" class="size-4" />
+            {{ L.addAttachment }}
+          </button>
+          <span
+            v-for="(file, index) in attachments"
+            :key="index"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border rounded-full border-n-weak text-n-slate-11"
+          >
+            <Icon icon="i-lucide-file" class="size-3.5 text-n-amber-11" />
+            {{ file.name }}
+            <span class="text-n-slate-10">{{ fmtSize(file.size) }}</span>
+            <button
+              class="text-n-slate-10 hover:text-n-ruby-11"
+              @click="removeAttachment(index)"
+            >
+              <Icon icon="i-lucide-x" class="size-3.5" />
+            </button>
+          </span>
+        </div>
+
+        <!-- 知识库附件 -->
+        <div
+          class="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-n-weak"
+        >
+          <button
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border border-n-amber-9 text-n-amber-11 hover:bg-n-amber-2 disabled:opacity-60"
+            :disabled="sending"
+            @click="openKbPicker"
+          >
+            <Icon icon="i-lucide-book-open" class="size-4" />
+            {{ L.kbSelect
+            }}{{ kbPicked.length ? `（已选 ${kbPicked.length}）` : '' }}
+          </button>
+          <template v-if="kbPicked.length">
+            <span
+              v-for="pick in kbPicked"
+              :key="kbKey(pick)"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border rounded-full border-n-weak text-n-slate-11"
+              :title="`来自「${pick.docName}」`"
+            >
+              <Icon
+                icon="i-lucide-file-text"
+                class="size-3.5 text-n-amber-11"
+              />
+              {{ pick.label }}
+              <button
+                class="text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeKbPick(pick)"
+              >
+                <Icon icon="i-lucide-x" class="size-3.5" />
+              </button>
+            </span>
+          </template>
+          <span v-else class="text-xs text-n-slate-10">{{ L.kbTip }}</span>
+        </div>
+
+        <!-- 底部：签名 + 模板 -->
+        <div
+          class="flex flex-wrap items-center gap-2 px-4 py-2 border-t bg-n-alpha-1 border-n-weak"
+        >
+          <select
+            class="h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+            @change="insertSignature"
+          >
+            <option value="">{{ L.signature }}</option>
+            <option
+              v-for="a in accounts"
+              :key="a.id"
+              :value="a.id"
+              :disabled="!a.signature"
+            >
+              {{ a.emailAddress }}{{ a.signature ? '' : L.noSignature }}
+            </option>
+          </select>
+          <span class="flex-1" />
+          <span class="text-xs text-n-slate-10">{{ L.applyTemplate }}</span>
+          <select
+            v-model="templateId"
+            class="h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+            @change="applyTemplate"
+          >
+            <option value="">{{ L.noTemplate }}</option>
+            <option v-for="tp in templates" :key="tp.id" :value="tp.id">
+              {{ `[${tp.category}] ${tp.name}` }}
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 状态提示 -->
+      <div
+        v-if="status.state === 'sent'"
+        class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-teal-11 border-n-teal-7 bg-n-teal-2"
+      >
+        {{ L.sentBanner }}
+      </div>
+      <div
+        v-else-if="status.state === 'draft'"
+        class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-blue-11 border-n-blue-7 bg-n-blue-2"
+      >
+        {{ L.draftBanner }}
+      </div>
+      <div
+        v-else-if="status.state === 'failed'"
+        class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-ruby-11 border-n-ruby-7 bg-n-ruby-2"
+      >
+        {{ status.msg }}
       </div>
     </div>
-  </Dialog>
+
+    <!-- 预览弹窗 -->
+    <div
+      v-if="showPreview"
+      class="fixed inset-0 z-10 flex items-center justify-center bg-black/40"
+      @click.self="showPreview = false"
+    >
+      <div
+        class="w-[680px] max-w-[92vw] max-h-[86vh] overflow-auto border rounded-xl border-n-weak bg-n-solid-1"
+      >
+        <div
+          class="flex items-center justify-between px-4 py-3 border-b border-n-weak"
+        >
+          <strong class="text-n-slate-12">{{ L.previewTitle }}</strong>
+          <button class="text-sm text-n-amber-11" @click="showPreview = false">
+            {{ L.cancel }}
+          </button>
+        </div>
+        <div
+          class="px-4 py-3 text-sm leading-loose border-b text-n-slate-11 border-n-weak"
+        >
+          <div>{{ L.previewFrom }}{{ fromAccount?.emailAddress || '—' }}</div>
+          <div>{{ L.previewTo }}{{ form.to || '—' }}</div>
+          <div v-if="showCc && form.cc">{{ L.previewCc }}{{ form.cc }}</div>
+          <div>{{ L.previewSubject }}{{ form.subject || '(无主题)' }}</div>
+        </div>
+        <!-- eslint-disable-next-line vue/no-v-html -->
+        <div
+          class="px-4 py-4 text-sm leading-relaxed text-n-slate-12"
+          v-html="bodyHtml"
+        />
+      </div>
+    </div>
+
+    <!-- 知识库选择器 -->
+    <div
+      v-if="showKb"
+      class="fixed inset-0 z-10 flex items-center justify-center bg-black/40"
+      @click.self="showKb = false"
+    >
+      <div
+        class="w-[780px] max-w-[94vw] h-[560px] max-h-[88vh] flex flex-col overflow-hidden border rounded-xl border-n-weak bg-n-solid-1"
+      >
+        <div
+          class="flex items-center justify-between px-4 py-3 border-b border-n-weak"
+        >
+          <strong class="text-n-slate-12">{{ L.kbTitle }}</strong>
+          <button class="text-sm text-n-amber-11" @click="showKb = false">
+            {{ L.kbDone
+            }}{{ kbPicked.length ? `（已选 ${kbPicked.length}）` : '' }}
+          </button>
+        </div>
+
+        <!-- 过滤 -->
+        <div class="px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak">
+          <input
+            v-model="kbSearch"
+            class="w-full h-9 px-3 mb-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            :placeholder="L.kbSearchPlaceholder"
+          />
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button
+              v-for="chip in kbScopeChips"
+              :key="chip.value"
+              class="px-2.5 py-1 text-xs border rounded-full"
+              :class="
+                kbScope === chip.value
+                  ? 'border-n-amber-9 bg-n-amber-9 text-white'
+                  : 'border-n-weak text-n-slate-11'
+              "
+              @click="kbScope = chip.value"
+            >
+              {{ chip.label }}
+            </button>
+            <span class="w-px h-4 mx-1 bg-n-weak" />
+            <button
+              class="px-2.5 py-1 text-xs border rounded-full"
+              :class="
+                kbCategory === ''
+                  ? 'border-n-amber-9 bg-n-amber-9 text-white'
+                  : 'border-n-weak text-n-slate-11'
+              "
+              @click="kbCategory = ''"
+            >
+              {{ L.kbAllCategories }}
+            </button>
+            <button
+              v-for="cat in kbCategories"
+              :key="cat"
+              class="px-2.5 py-1 text-xs border rounded-full"
+              :class="
+                kbCategory === cat
+                  ? 'border-n-amber-9 bg-n-amber-9 text-white'
+                  : 'border-n-weak text-n-slate-11'
+              "
+              @click="kbCategory = cat"
+            >
+              {{ cat }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 文档列表 + 文件面板 -->
+        <div class="flex flex-1 min-h-0">
+          <div
+            class="w-[280px] shrink-0 overflow-y-auto border-r border-n-weak"
+          >
+            <div
+              v-if="!kbFilteredDocs.length"
+              class="p-3 text-xs text-n-slate-10"
+            >
+              {{ kbDocs.length ? L.kbEmptyNoMatch : L.kbEmptyNoFiles }}
+            </div>
+            <button
+              v-for="doc in kbFilteredDocs"
+              :key="doc.id"
+              class="block w-full px-3.5 py-2.5 text-left border-b border-n-weak"
+              :class="
+                kbOpenDoc?.id === doc.id ? 'bg-n-amber-2' : 'hover:bg-n-alpha-1'
+              "
+              @click="kbOpenDocId = doc.id"
+            >
+              <div
+                class="flex items-center gap-1.5 text-[13px] text-n-slate-12"
+              >
+                <Icon
+                  :icon="
+                    doc.scope === 'COMPANY'
+                      ? 'i-lucide-building-2'
+                      : 'i-lucide-user'
+                  "
+                  class="size-3.5 text-n-slate-10"
+                />
+                <span class="truncate">{{ doc.name }}</span>
+                <span
+                  v-if="kbPicksForDoc(doc.id)"
+                  class="ml-auto min-w-4 h-4 px-1 text-[11px] text-white rounded-full bg-n-amber-9 inline-flex items-center justify-center"
+                >
+                  {{ kbPicksForDoc(doc.id) }}
+                </span>
+              </div>
+              <div class="mt-0.5 text-[11px] text-n-slate-10">
+                {{ `${doc.category || '未分类'} · ${doc.files.length} 个文件` }}
+              </div>
+            </button>
+          </div>
+
+          <div class="flex-1 overflow-y-auto">
+            <div v-if="!kbOpenDoc" class="p-3 text-xs text-n-slate-10">
+              {{ L.kbPickFilePrompt }}
+            </div>
+            <template v-else>
+              <div
+                class="px-3.5 py-2.5 border-b border-n-weak text-[13px] text-n-slate-11"
+              >
+                {{ kbOpenDoc.name }}
+                <div
+                  v-if="kbOpenDoc.summary"
+                  class="mt-1 text-[11px] leading-relaxed text-n-slate-10"
+                >
+                  {{ kbOpenDoc.summary }}
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5 p-3">
+                <button
+                  v-for="file in kbOpenDoc.files"
+                  :key="file.fileId"
+                  class="flex items-center gap-2 px-3 py-2 text-[13px] border rounded-lg"
+                  :class="
+                    isKbPicked(kbOpenDoc.id, file.fileId)
+                      ? 'border-n-amber-9 text-n-amber-11 bg-n-amber-2'
+                      : 'border-n-weak text-n-slate-12 hover:bg-n-alpha-1'
+                  "
+                  @click="toggleKbFile(kbOpenDoc, file)"
+                >
+                  <Icon
+                    :icon="
+                      isKbPicked(kbOpenDoc.id, file.fileId)
+                        ? 'i-lucide-check-square'
+                        : 'i-lucide-square'
+                    "
+                    class="size-4"
+                  />
+                  <Icon icon="i-lucide-file-text" class="size-4" />
+                  {{ file.filename }}
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div
+          class="flex items-center gap-2 px-4 py-2.5 border-t bg-n-alpha-1 border-n-weak"
+        >
+          <span class="flex-1 text-xs text-n-slate-10">{{ L.kbFootTip }}</span>
+          <button
+            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-amber-9 hover:bg-n-amber-10"
+            @click="showKb = false"
+          >
+            {{ L.kbDone }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>

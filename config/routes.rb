@@ -77,6 +77,7 @@ Rails.application.routes.draw do
             end
             resources :emails do
               collection { get :counts }
+              member { post :attach_kb }
             end
             resources :quotes do
               resources :line_items, only: [:index, :create], controller: 'quote_line_items'

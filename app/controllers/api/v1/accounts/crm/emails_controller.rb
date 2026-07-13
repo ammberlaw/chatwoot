@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_email, only: [:show, :update, :destroy]
+  before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb]
 
   RESULTS_PER_PAGE = 25
 
@@ -28,6 +28,19 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
   end
 
   def show; end
+
+  # 知识库附件快照：把选中的知识库文档文件复制进本邮件附件，锁定当前版本
+  # （不共享 blob，避免知识库原件被改/删影响已发邮件）。
+  def attach_kb
+    ids = Array(params[:file_ids]).map(&:to_i).uniq
+    doc_ids = Current.account.crm_knowledge_docs.select(:id)
+    ActiveStorage::Attachment.where(id: ids, record_type: 'Crm::KnowledgeDoc', record_id: doc_ids).find_each do |att|
+      att.blob.open do |file|
+        @email.files.attach(io: file, filename: att.filename.to_s, content_type: att.blob.content_type)
+      end
+    end
+    render 'api/v1/accounts/crm/emails/show'
+  end
 
   def create
     @email = Current.account.crm_emails.create!(email_params.merge(owner_id: email_params[:owner_id] || current_user.id))

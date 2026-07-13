@@ -15,6 +15,10 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  def attach_kb?
+    true
+  end
+
   def update?
     true
   end

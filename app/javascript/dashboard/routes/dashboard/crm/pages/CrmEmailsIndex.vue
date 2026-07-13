@@ -26,7 +26,6 @@ const activeFolder = ref(folderFromRoute());
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
-const isCreating = computed(() => uiFlags.value.creatingItem);
 
 const SEND_STATUSES = {
   DRAFT: { label: '草稿', class: 'bg-n-slate-3 text-n-slate-11' },
@@ -112,16 +111,10 @@ const setFolder = key => {
 
 const openCompose = prefill => composeDialogRef.value?.open(prefill);
 
-const sendEmail = async payload => {
-  try {
-    await store.create(payload);
-    composeDialogRef.value?.onSuccess();
-    useAlert(t('CRM.EMAILS.COMPOSE.SUCCESS'));
-    fetchRecords();
-    fetchCounts();
-  } catch {
-    useAlert(t('CRM.EMAILS.COMPOSE.ERROR'));
-  }
+// 写信面板发送/存草稿后刷新列表与角标。
+const onComposeRefresh = () => {
+  fetchRecords();
+  fetchCounts();
 };
 
 const selectEmail = async email => {
@@ -522,10 +515,6 @@ watch(
       </template>
     </section>
 
-    <CrmEmailComposeDialog
-      ref="composeDialogRef"
-      :is-loading="isCreating"
-      @send="sendEmail"
-    />
+    <CrmEmailComposeDialog ref="composeDialogRef" @refresh="onComposeRefresh" />
   </div>
 </template>
