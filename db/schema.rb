@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_13_180000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_13_190000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -624,6 +624,43 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_180000) do
     t.jsonb "message_templates", default: {}
     t.datetime "message_templates_last_updated", precision: nil
     t.index ["phone_number"], name: "index_channel_whatsapp_on_phone_number", unique: true
+  end
+
+  create_table "chat_conversations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "kind", default: "direct", null: false
+    t.string "name"
+    t.bigint "creator_id"
+    t.datetime "last_message_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_chat_conversations_on_account_id"
+  end
+
+  create_table "chat_messages", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "sender_id", null: false
+    t.text "content"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_chat_messages_on_account_id"
+    t.index ["conversation_id"], name: "index_chat_messages_on_conversation_id"
+    t.index ["sender_id"], name: "index_chat_messages_on_sender_id"
+  end
+
+  create_table "chat_participants", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "last_read_message_id"
+    t.datetime "last_read_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_chat_participants_on_account_id"
+    t.index ["conversation_id", "user_id"], name: "index_chat_participants_unique", unique: true
+    t.index ["conversation_id"], name: "index_chat_participants_on_conversation_id"
+    t.index ["user_id"], name: "index_chat_participants_on_user_id"
   end
 
   create_table "companies", force: :cascade do |t|
@@ -1813,6 +1850,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_180000) do
   add_foreign_key "account_users", "crm_teams", on_delete: :nullify
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "chat_messages", "chat_conversations", column: "conversation_id", on_delete: :cascade
+  add_foreign_key "chat_participants", "chat_conversations", column: "conversation_id", on_delete: :cascade
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_customers", "accounts"
   add_foreign_key "crm_email_opens", "crm_emails", on_delete: :cascade

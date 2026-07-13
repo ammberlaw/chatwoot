@@ -437,9 +437,11 @@
     "CRM_MY_DOCS": "我的知识库",
     "CRM_G_ORG": "组织架构",
     "CRM_ORG_STRUCTURE": "部门与成员",
-    "CRM_G_OA": "审批中心",
+    "CRM_G_OA": "协同办公",
     "CRM_APPROVALS": "我的审批",
-    "CRM_APPROVAL_TEMPLATES": "审批模板"
+    "CRM_APPROVAL_TEMPLATES": "审批模板",
+    "CRM_G_CHAT": "团队沟通",
+    "CRM_TEAM_CHAT": "消息"
   },
   "CAPTAIN_SETTINGS": {
     "TITLE": "Captain Settings",

@@ -89,6 +89,7 @@ class Account < ApplicationRecord
   has_many :org_memberships, class_name: 'Org::Membership', dependent: :destroy_async
   has_many :oa_approval_templates, class_name: 'Oa::ApprovalTemplate', dependent: :destroy_async
   has_many :oa_approval_requests, class_name: 'Oa::ApprovalRequest', dependent: :destroy_async
+  has_many :chat_conversations, class_name: 'Chat::Conversation', dependent: :destroy_async
   has_many :csat_survey_responses, dependent: :destroy_async
   has_many :custom_attribute_definitions, dependent: :destroy_async
   has_many :custom_filters, dependent: :destroy_async

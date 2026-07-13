@@ -122,6 +122,12 @@ Rails.application.routes.draw do
               end
             end
           end
+          namespace :chat do
+            resources :conversations, only: [:index, :show, :create] do
+              member { post :read }
+              resources :messages, only: [:index, :create]
+            end
+          end
           resource :bulk_actions, only: [:create]
           resource :onboarding, only: [:update] do
             get :help_center_generation
