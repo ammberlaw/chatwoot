@@ -60,6 +60,9 @@ class Crm::SalesOrder < ApplicationRecord
   belongs_to :owner, class_name: 'User', optional: true
   belongs_to :crm_team, class_name: 'Crm::Team', optional: true, inverse_of: :sales_orders
 
+  # 审计：记录订单的创建/编辑，供详情面板「操作历史」展示。
+  audited except: %i[created_at updated_at], on: %i[create update]
+
   # 订单附件（PI、生产订单等）。新建订单强制至少一个附件。
   has_many_attached :files
 

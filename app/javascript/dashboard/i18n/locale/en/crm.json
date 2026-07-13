@@ -106,16 +106,18 @@
       }
     },
     "SALES_ORDERS": {
-      "HEADER": "Sales Orders 销售订单",
-      "NEW": "New order 新建订单",
+      "HEADER": "销售订单",
+      "NEW": "新建订单",
       "LOADING": "Loading…",
       "EMPTY": "No orders yet 暂无订单",
       "SEARCH_PLACEHOLDER": "搜索 PI号 / 订单号 / 客户…",
       "FILTERS": {
-        "ALL": "All 全部",
-        "MINE": "Mine 我的订单",
-        "NO_CUSTOMER": "No customer 未关联客户",
-        "ALL_STATUS": "All statuses 全部状态"
+        "ALL": "全部",
+        "MINE": "我的订单",
+        "NO_CUSTOMER": "未关联客户",
+        "ALL_STATUS": "全部状态",
+        "ALL_OWNER": "全部业务员",
+        "MONTH": "下单月份"
       },
       "TABLE": {
         "NAME": "PI号",

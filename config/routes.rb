@@ -70,6 +70,7 @@ Rails.application.routes.draw do
             resources :products
             resources :sales_orders do
               member do
+                get :audits
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
               end

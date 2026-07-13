@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_sales_order, only: [:show, :update, :destroy, :attach, :detach]
+  before_action :fetch_sales_order, only: [:show, :update, :destroy, :attach, :detach, :audits]
 
   RESULTS_PER_PAGE = 15
 
@@ -38,6 +38,20 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
     render 'api/v1/accounts/crm/sales_orders/show'
   end
 
+  # 操作历史：订单的创建/编辑记录。
+  def audits
+    rows = @sales_order.audits.order(created_at: :desc).limit(80).map do |audit|
+      {
+        id: audit.id,
+        action: audit.action,
+        changed_fields: audit.audited_changes.keys,
+        user_name: audit.user&.name || audit.username || '系统',
+        created_at: audit.created_at
+      }
+    end
+    render json: { payload: rows }
+  end
+
   private
 
   def fetch_sales_order
@@ -55,7 +69,17 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
     scope = scope.where(crm_customer_id: nil) if params[:filter] == 'no_customer'
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
+    scope = scope.where(owner_id: params[:owner_id]) if params[:owner_id].present?
+    scope = by_month(scope, params[:month]) if params[:month].present?
     scope = search(scope, params[:q]) if params[:q].present?
+    scope
+  end
+
+  # 按下单月份筛选（month 形如 2026-07）；格式非法则忽略。
+  def by_month(scope, month)
+    start = Date.strptime(month, '%Y-%m').beginning_of_month
+    scope.where(order_date: start.beginning_of_day..start.end_of_month.end_of_day)
+  rescue ArgumentError
     scope
   end
 
@@ -76,6 +100,6 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
   end
 
   def permitted_params
-    params.permit(:page, :filter, :status, :customer_id, :q)
+    params.permit(:page, :filter, :status, :customer_id, :q, :owner_id, :month)
   end
 end
