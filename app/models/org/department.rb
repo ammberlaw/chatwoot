@@ -29,12 +29,18 @@ class Org::Department < ApplicationRecord
 
   # 后代 id（含自身），用于「按部门授权」时圈定范围，以及防止环形父级。
   def self_and_descendant_ids
-    ids = [id]
-    frontier = [id]
+    self.class.subtree_ids(account, [id])
+  end
+
+  # 给定一组部门 id，返回它们及其所有下级部门 id（含自身），账号内 BFS 展开。
+  def self.subtree_ids(account, root_ids)
+    ids = Array(root_ids).map(&:to_i).uniq
+    frontier = ids
     until frontier.empty?
-      next_ids = Org::Department.where(parent_id: frontier).pluck(:id)
-      ids.concat(next_ids)
-      frontier = next_ids
+      children = account.org_departments.where(parent_id: frontier).pluck(:id)
+      fresh = children - ids
+      ids.concat(fresh)
+      frontier = fresh
     end
     ids
   end

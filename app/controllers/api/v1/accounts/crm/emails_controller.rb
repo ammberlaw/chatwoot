@@ -75,11 +75,15 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
     authorize(Crm::Email)
   end
 
-  # 可见范围：管理员看全员邮件，业务员只看自己的（A-CRM 权限口径）。
+  # 可见范围（按部门授权）：管理员看全员；部门负责人看本部门及下级；业务员看自己的。
   def visible_emails
-    return Current.account.crm_emails if Current.account_user.administrator?
+    ids = org_scope.visible_user_ids
+    scope = Current.account.crm_emails
+    ids == :all ? scope : scope.where(owner_id: ids)
+  end
 
-    Current.account.crm_emails.owned_by(current_user.id)
+  def org_scope
+    @org_scope ||= Org::DataScope.new(Current.account, current_user, Current.account_user)
   end
 
   # 阅读邮件视图筛选：文件夹/未读/星标/我的、按业务员（管理员）、按客户、搜主题/邮箱。

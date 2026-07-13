@@ -109,14 +109,26 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
   end
 
   # 支持常用视图筛选：公海池/我的/未分配 + 按状态/客户分组/产品分组/负责人。
+  # 私海侧按部门授权收口（管理员看全部/主管看本部门/业务员看自己）；公海是共享池不限。
   def filtered_customers
     scope = pool_scope(Current.account.crm_customers)
+    scope = restrict_by_org(scope) unless params[:filter] == 'public_pool'
+    apply_customer_filters(scope)
+  end
+
+  def apply_customer_filters(scope)
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
     scope = scope.where('name ILIKE ?', "%#{params[:q]}%") if params[:q].present?
     scope = scope.where(account_owner_id: team_member_ids(params[:team_id])) if params[:team_id].present?
     scope
+  end
+
+  # 按部门授权限定可见负责人（非公海视图）。
+  def restrict_by_org(scope)
+    ids = Org::DataScope.new(Current.account, current_user, Current.account_user).visible_user_ids
+    ids == :all ? scope : scope.where(account_owner_id: ids)
   end
 
   # 团队成员的 user id 集合（admin 按团队筛选客户）。

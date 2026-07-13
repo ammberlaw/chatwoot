@@ -63,16 +63,29 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
   end
 
   # 视图筛选：我的订单、未关联客户（数据兜底）、按状态（生产中…）、按客户。
+  # 基础可见范围按部门授权（管理员全部/主管本部门及下级/业务员自己）。
   def filtered_sales_orders
-    scope = Current.account.crm_sales_orders
+    scope = visible_sales_orders
     scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
     scope = scope.where(crm_customer_id: nil) if params[:filter] == 'no_customer'
-    scope = scope.where(status: params[:status]) if params[:status].present?
-    scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
-    scope = scope.where(owner_id: params[:owner_id]) if params[:owner_id].present?
+    apply_order_filters(scope)
+  end
+
+  ORDER_COLUMN_FILTERS = { status: :status, customer_id: :crm_customer_id, owner_id: :owner_id }.freeze
+
+  def apply_order_filters(scope)
+    ORDER_COLUMN_FILTERS.each do |param, column|
+      scope = scope.where(column => params[param]) if params[param].present?
+    end
     scope = by_month(scope, params[:month]) if params[:month].present?
     scope = search(scope, params[:q]) if params[:q].present?
     scope
+  end
+
+  def visible_sales_orders
+    ids = Org::DataScope.new(Current.account, current_user, Current.account_user).visible_user_ids
+    scope = Current.account.crm_sales_orders
+    ids == :all ? scope : scope.where(owner_id: ids)
   end
 
   # 按下单月份筛选（month 形如 2026-07）；格式非法则忽略。
