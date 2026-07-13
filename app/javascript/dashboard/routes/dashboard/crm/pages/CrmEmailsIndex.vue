@@ -137,12 +137,28 @@ const onComposeRefresh = () => {
   fetchCounts();
 };
 
+const emailOpens = ref([]);
+// 打开归属地：优先「城市, 国家」，无归属地时回退 IP。
+const openLocation = open => {
+  const place = [open.city, open.country].filter(Boolean).join(', ');
+  return place || (open.ip ? `IP ${open.ip}` : '未知');
+};
 const selectEmail = async email => {
   selectedEmail.value = email;
+  emailOpens.value = [];
   if (email.folder === 'INBOX' && !email.isRead) {
     await store.update({ id: email.id, isRead: true });
     email.isRead = true;
     fetchCounts();
+  }
+  // 发出的追踪邮件：拉取每次打开的时间/IP 明细。
+  if (email.tracked) {
+    try {
+      const { data } = await CrmEmailAPI.opens(email.id);
+      emailOpens.value = data.payload || [];
+    } catch {
+      emailOpens.value = [];
+    }
   }
 };
 
@@ -362,6 +378,13 @@ watch(
                   icon="i-lucide-paperclip"
                   class="size-3 text-n-slate-10"
                 />
+                <span
+                  v-if="record.tracked && record.openCount"
+                  class="inline-flex items-center gap-0.5 text-[11px] text-n-teal-11"
+                >
+                  <Icon icon="i-lucide-eye" class="size-3" />
+                  {{ record.openCount }}
+                </span>
               </div>
             </div>
             <div class="flex flex-col items-center flex-shrink-0 gap-1.5">
@@ -533,6 +556,68 @@ watch(
                 })
               }}
             </span>
+          </div>
+
+          <!-- 阅读追踪（仅发出的追踪邮件） -->
+          <div
+            v-if="selectedEmail.tracked"
+            class="p-3 mt-4 border rounded-lg border-n-weak bg-n-alpha-1"
+          >
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span class="inline-flex items-center gap-1.5 font-medium">
+                <Icon
+                  icon="i-lucide-eye"
+                  class="size-4"
+                  :class="
+                    selectedEmail.openCount
+                      ? 'text-n-teal-11'
+                      : 'text-n-slate-10'
+                  "
+                />
+                <span
+                  :class="
+                    selectedEmail.openCount
+                      ? 'text-n-teal-11'
+                      : 'text-n-slate-10'
+                  "
+                >
+                  {{
+                    selectedEmail.openCount
+                      ? `已读 · ${selectedEmail.openCount} 次`
+                      : '未读'
+                  }}
+                </span>
+              </span>
+              <span v-if="selectedEmail.firstOpenedAt" class="text-n-slate-10">
+                {{ `首次 ${fmtDateTime(selectedEmail.firstOpenedAt)}` }}
+              </span>
+              <span v-if="selectedEmail.lastOpenedAt" class="text-n-slate-10">
+                {{ `最近 ${fmtDateTime(selectedEmail.lastOpenedAt)}` }}
+              </span>
+            </div>
+            <div
+              v-if="emailOpens.length"
+              class="flex flex-col gap-1 pt-2 mt-2 border-t border-n-weak"
+            >
+              <div
+                v-for="open in emailOpens"
+                :key="open.id"
+                class="flex items-center gap-2 text-xs text-n-slate-11"
+              >
+                <Icon
+                  icon="i-lucide-map-pin"
+                  class="size-3 text-n-slate-10 flex-shrink-0"
+                />
+                <span>{{ fmtDateTime(open.created_at) }}</span>
+                <span class="text-n-slate-12">{{ openLocation(open) }}</span>
+                <span
+                  v-if="open.ip && (open.city || open.country)"
+                  class="text-n-slate-10"
+                >
+                  {{ open.ip }}
+                </span>
+              </div>
+            </div>
           </div>
 
           <!-- 正文 -->

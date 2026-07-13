@@ -92,6 +92,35 @@ const form = reactive({
 const showCc = ref(false);
 const showBcc = ref(false);
 
+// 正文整封字体 / 字号（对齐 Gmail 的字体、字号下拉）。
+const FONT_FAMILIES = [
+  { label: '默认字体', value: '' },
+  {
+    label: '无衬线',
+    value:
+      'Arial, "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei", sans-serif',
+  },
+  {
+    label: '衬线',
+    value: 'Georgia, "Times New Roman", "Songti SC", SimSun, serif',
+  },
+  { label: '等宽', value: '"Courier New", Courier, monospace' },
+  { label: 'Georgia', value: 'Georgia, serif' },
+  { label: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
+  { label: 'Tahoma', value: 'Tahoma, Geneva, sans-serif' },
+  { label: '宋体', value: '"Songti SC", SimSun, serif' },
+  { label: '黑体', value: '"Heiti SC", SimHei, sans-serif' },
+  { label: '楷体', value: '"Kaiti SC", KaiTi, serif' },
+];
+const FONT_SIZES = [
+  { label: '正常', value: '' },
+  { label: '小', value: '13px' },
+  { label: '大', value: '18px' },
+  { label: '特大', value: '24px' },
+];
+const fontFamily = ref('');
+const fontSize = ref('');
+
 // 客户 / 联系人
 const customerQuery = ref('');
 const customerHits = ref([]);
@@ -120,7 +149,21 @@ const fromAccount = computed(
   () => accounts.value.find(a => a.id === fromId.value) || null
 );
 const hasAccount = computed(() => accounts.value.length > 0);
-const bodyHtml = computed(() => markdownToHtml(form.body));
+
+// 编辑区实时预览用的样式；发送/预览时把同样的字体套在正文外层。
+const bodyStyle = computed(() => {
+  const style = {};
+  if (fontFamily.value) style.fontFamily = fontFamily.value;
+  if (fontSize.value) style.fontSize = fontSize.value;
+  return style;
+});
+const bodyHtml = computed(() => {
+  const html = markdownToHtml(form.body);
+  const parts = [];
+  if (fontFamily.value) parts.push(`font-family:${fontFamily.value}`);
+  if (fontSize.value) parts.push(`font-size:${fontSize.value}`);
+  return parts.length ? `<div style="${parts.join(';')}">${html}</div>` : html;
+});
 
 const kbScopeChips = [
   { value: '', label: '全部' },
@@ -275,12 +318,6 @@ const kbPicksForDoc = docId =>
   kbPicked.value.filter(p => p.docId === docId).length;
 
 // ---- 发送 / 存草稿 ----
-const fmtSize = bytes => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-};
-
 const buildFields = () => {
   const fields = {
     subject: form.subject.trim() || '(无主题)',
@@ -363,6 +400,8 @@ const reset = () => {
   contacts.value = [];
   contactId.value = '';
   templateId.value = '';
+  fontFamily.value = '';
+  fontSize.value = '';
   attachments.value = [];
   kbPicked.value = [];
   showKb.value = false;
@@ -587,97 +626,113 @@ defineExpose({ open, close });
           </div>
 
           <!-- 正文：所见即所得富文本（加粗/斜体/链接/列表 + 内联插图上传/粘贴） -->
-          <div class="flex flex-col flex-1 p-3 min-h-[20rem] crm-email-body">
-            <Editor
-              v-model="form.body"
-              editor-key="crm-email-compose"
-              channel-type="Channel::Email"
-              :enable-canned-responses="false"
-              :show-character-count="false"
-              :placeholder="L.bodyPlaceholder"
-            />
-          </div>
-
-          <!-- 普通附件 -->
-          <div
-            class="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-n-weak"
-          >
-            <input
-              ref="fileInputRef"
-              type="file"
-              multiple
-              class="hidden"
-              @change="onPickFiles"
-            />
-            <button
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-60"
-              :disabled="sending"
-              @click="fileInputRef?.click()"
-            >
-              <Icon icon="i-lucide-paperclip" class="size-4" />
-              {{ L.addAttachment }}
-            </button>
-            <span
-              v-for="(file, index) in attachments"
-              :key="index"
-              class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border rounded-full border-n-weak text-n-slate-11"
-            >
-              <Icon icon="i-lucide-file" class="size-3.5 text-n-amber-11" />
-              {{ file.name }}
-              <span class="text-n-slate-10">{{ fmtSize(file.size) }}</span>
-              <button
-                class="text-n-slate-10 hover:text-n-ruby-11"
-                @click="removeAttachment(index)"
+          <div class="relative flex flex-col flex-1 min-h-[20rem]">
+            <!-- 字体 / 字号：浮在编辑器工具栏右侧，整封生效、实时预览 -->
+            <div class="absolute z-10 flex items-center gap-1.5 top-5 right-4">
+              <select
+                v-model="fontFamily"
+                class="h-7 px-1.5 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0 max-w-[104px]"
               >
-                <Icon icon="i-lucide-x" class="size-3.5" />
-              </button>
-            </span>
-          </div>
-
-          <!-- 知识库附件 -->
-          <div
-            class="flex flex-wrap items-center gap-2 px-4 py-2 border-t border-n-weak"
-          >
-            <button
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border border-n-amber-9 text-n-amber-11 hover:bg-n-amber-2 disabled:opacity-60"
-              :disabled="sending"
-              @click="openKbPicker"
-            >
-              <Icon icon="i-lucide-book-open" class="size-4" />
-              {{ L.kbSelect
-              }}{{ kbPicked.length ? `（已选 ${kbPicked.length}）` : '' }}
-            </button>
-            <template v-if="kbPicked.length">
-              <span
-                v-for="pick in kbPicked"
-                :key="kbKey(pick)"
-                class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs border rounded-full border-n-weak text-n-slate-11"
-                :title="`来自「${pick.docName}」`"
-              >
-                <Icon
-                  icon="i-lucide-file-text"
-                  class="size-3.5 text-n-amber-11"
-                />
-                {{ pick.label }}
-                <button
-                  class="text-n-slate-10 hover:text-n-ruby-11"
-                  @click="removeKbPick(pick)"
+                <option
+                  v-for="f in FONT_FAMILIES"
+                  :key="f.label"
+                  :value="f.value"
                 >
-                  <Icon icon="i-lucide-x" class="size-3.5" />
-                </button>
-              </span>
-            </template>
-            <span v-else class="text-xs text-n-slate-10">{{ L.kbTip }}</span>
+                  {{ f.label }}
+                </option>
+              </select>
+              <select
+                v-model="fontSize"
+                class="h-7 px-1.5 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+              >
+                <option v-for="s in FONT_SIZES" :key="s.label" :value="s.value">
+                  {{ s.label }}
+                </option>
+              </select>
+            </div>
+            <div
+              class="flex flex-col flex-1 px-3 pt-2 pb-3 crm-email-body"
+              :style="bodyStyle"
+            >
+              <Editor
+                v-model="form.body"
+                editor-key="crm-email-compose"
+                channel-type="Channel::Email"
+                :enable-canned-responses="false"
+                :show-character-count="false"
+                :placeholder="L.bodyPlaceholder"
+              />
+            </div>
           </div>
         </div>
         <!-- /可滚动区 -->
 
-        <!-- 底部：签名 + 模板 -->
+        <!-- 底部工具栏：一行左右排版（左 附件/知识库 · 中 已选chip 横滚 · 右 签名/模板） -->
         <div
-          class="flex flex-wrap items-center flex-shrink-0 gap-2 px-4 py-2 border-t bg-n-alpha-1 border-n-weak"
+          class="flex items-center flex-shrink-0 gap-2 px-4 py-2 border-t bg-n-alpha-1 border-n-weak"
         >
+          <input
+            ref="fileInputRef"
+            type="file"
+            multiple
+            class="hidden"
+            @change="onPickFiles"
+          />
+          <button
+            class="inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-60"
+            :disabled="sending"
+            :title="L.addAttachment"
+            @click="fileInputRef?.click()"
+          >
+            <Icon icon="i-lucide-paperclip" class="size-4" />
+            {{ L.addAttachment }}
+          </button>
+          <button
+            class="inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-amber-9 text-n-amber-11 hover:bg-n-amber-2 disabled:opacity-60"
+            :disabled="sending"
+            :title="L.kbTip"
+            @click="openKbPicker"
+          >
+            <Icon icon="i-lucide-book-open" class="size-4" />
+            {{ L.kbSelect
+            }}{{ kbPicked.length ? `（${kbPicked.length}）` : '' }}
+          </button>
+
+          <!-- 已选文件：横向滚动，不额外占高 -->
+          <div class="flex items-center flex-1 min-w-0 gap-1.5 overflow-x-auto">
+            <span
+              v-for="(file, index) in attachments"
+              :key="`f${index}`"
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full whitespace-nowrap border-n-weak text-n-slate-11 bg-n-solid-1"
+            >
+              <Icon icon="i-lucide-file" class="size-3 text-n-amber-11" />
+              {{ file.name }}
+              <button
+                class="text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeAttachment(index)"
+              >
+                <Icon icon="i-lucide-x" class="size-3" />
+              </button>
+            </span>
+            <span
+              v-for="pick in kbPicked"
+              :key="kbKey(pick)"
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full whitespace-nowrap border-n-weak text-n-slate-11 bg-n-solid-1"
+              :title="`来自「${pick.docName}」`"
+            >
+              <Icon icon="i-lucide-file-text" class="size-3 text-n-amber-11" />
+              {{ pick.label }}
+              <button
+                class="text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeKbPick(pick)"
+              >
+                <Icon icon="i-lucide-x" class="size-3" />
+              </button>
+            </span>
+          </div>
+
           <select
-            class="h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+            class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0 max-w-[128px] flex-shrink-0"
             @change="insertSignature"
           >
             <option value="">{{ L.signature }}</option>
@@ -690,11 +745,9 @@ defineExpose({ open, close });
               {{ a.emailAddress }}{{ a.signature ? '' : L.noSignature }}
             </option>
           </select>
-          <span class="flex-1" />
-          <span class="text-xs text-n-slate-10">{{ L.applyTemplate }}</span>
           <select
             v-model="templateId"
-            class="h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+            class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0 max-w-[128px] flex-shrink-0"
             @change="applyTemplate"
           >
             <option value="">{{ L.noTemplate }}</option>

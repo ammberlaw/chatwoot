@@ -13,6 +13,10 @@ json.body_html resource.body_html
 json.send_status resource.send_status
 json.send_error resource.send_error
 json.reply_latency_hours resource.reply_latency_hours
+json.tracked resource.tracking_token.present?
+json.open_count resource.open_count
+json.first_opened_at resource.first_opened_at
+json.last_opened_at resource.last_opened_at
 json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.contact_id resource.contact_id

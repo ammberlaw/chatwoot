@@ -10,4 +10,7 @@ client.counts = () => axios.get(`${client.url}/counts`);
 client.attachKb = (id, fileIds) =>
   axios.post(`${client.url}/${id}/attach_kb`, { file_ids: fileIds });
 
+// 阅读追踪明细：每次打开的时间 + IP + UA。
+client.opens = id => axios.get(`${client.url}/${id}/opens`);
+
 export default client;

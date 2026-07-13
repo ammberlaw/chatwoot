@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_13_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_13_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -828,6 +828,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_130000) do
     t.index ["account_owner_id"], name: "index_crm_customers_on_account_owner_id"
   end
 
+  create_table "crm_email_opens", force: :cascade do |t|
+    t.bigint "crm_email_id", null: false
+    t.string "ip_address"
+    t.string "user_agent"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "country"
+    t.string "city"
+    t.index ["crm_email_id"], name: "index_crm_email_opens_on_crm_email_id"
+  end
+
   create_table "crm_email_templates", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -863,6 +874,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_130000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "is_starred", default: false, null: false
+    t.string "tracking_token"
+    t.integer "open_count", default: 0, null: false
+    t.datetime "first_opened_at"
+    t.datetime "last_opened_at"
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
@@ -872,6 +887,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_130000) do
     t.index ["contact_id"], name: "index_crm_emails_on_contact_id"
     t.index ["crm_customer_id"], name: "index_crm_emails_on_crm_customer_id"
     t.index ["owner_id"], name: "index_crm_emails_on_owner_id"
+    t.index ["tracking_token"], name: "index_crm_emails_on_tracking_token", unique: true, where: "(tracking_token IS NOT NULL)"
   end
 
   create_table "crm_follow_up_notes", force: :cascade do |t|
@@ -1724,6 +1740,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_130000) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_customers", "accounts"
+  add_foreign_key "crm_email_opens", "crm_emails", on_delete: :cascade
   add_foreign_key "crm_emails", "contacts", on_delete: :nullify
   add_foreign_key "crm_emails", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_emails", "users", column: "owner_id", on_delete: :nullify

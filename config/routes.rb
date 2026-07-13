@@ -77,7 +77,10 @@ Rails.application.routes.draw do
             end
             resources :emails do
               collection { get :counts }
-              member { post :attach_kb }
+              member do
+                post :attach_kb
+                get :opens
+              end
             end
             resources :quotes do
               resources :line_items, only: [:index, :create], controller: 'quote_line_items'
@@ -660,6 +663,9 @@ Rails.application.routes.draw do
       resources :conversations, only: [:show]
     end
   end
+
+  # CRM 邮件追踪像素（公开、免登录）：收件人打开邮件加载像素即回调记录。
+  get 'crm_email_open/:token', to: 'crm/email_tracking#show', constraints: { token: /[a-f0-9]+/ }
 
   # ----------------------------------------------------------------------
   # Routes for channel integrations

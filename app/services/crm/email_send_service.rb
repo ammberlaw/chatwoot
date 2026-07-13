@@ -34,18 +34,34 @@ class Crm::EmailSendService
       bcc     email.bcc_address if email.bcc_address.present?
       subject email.subject.presence || '(无主题)'
     end
-    if email.body_html.present?
-      message.html_part = Mail::Part.new(body: email.body_html, content_type: 'text/html; charset=UTF-8')
-      message.text_part = Mail::Part.new(body: email.body.to_s, content_type: 'text/plain; charset=UTF-8')
-    else
-      message.body = email.body.to_s
-      message.charset = 'UTF-8'
-    end
-    email.files.each do |file|
-      message.add_file(filename: file.filename.to_s, content: file.download)
-    end
+    apply_body(message)
+    attach_files(message)
     message.delivery_method(:smtp, smtp_settings(mail_account))
     message.deliver!
+  end
+
+  def attach_files(message)
+    @email.files.each { |file| message.add_file(filename: file.filename.to_s, content: file.download) }
+  end
+
+  # HTML 邮件走 html/text 双 part（HTML 埋追踪像素）；纯文本邮件直接正文。
+  def apply_body(message)
+    if @email.body_html.present?
+      message.html_part = Mail::Part.new(body: html_with_tracking_pixel, content_type: 'text/html; charset=UTF-8')
+      message.text_part = Mail::Part.new(body: @email.body.to_s, content_type: 'text/plain; charset=UTF-8')
+    else
+      message.body = @email.body.to_s
+      message.charset = 'UTF-8'
+    end
+  end
+
+  # 在 HTML 正文末尾埋 1×1 追踪像素；收件人邮件客户端加载它即命中回调，记录打开。
+  # 仅在真正发送的 SMTP 副本注入，CRM 内存的 body_html 保持干净（阅读页不会误触发）。
+  def html_with_tracking_pixel
+    token = @email.ensure_tracking_token!
+    base = ENV.fetch('FRONTEND_URL', 'http://localhost:3000')
+    pixel = %(<img src="#{base}/crm_email_open/#{token}.png" width="1" height="1" alt="" style="display:none" />)
+    "#{@email.body_html}#{pixel}"
   end
 
   def smtp_settings(mail_account)

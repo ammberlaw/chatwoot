@@ -11,16 +11,20 @@
 #  body_html           :text
 #  cc_address          :text
 #  email_date          :datetime
+#  first_opened_at     :datetime
 #  folder              :string           default("INBOX"), not null
 #  from_address        :string
 #  is_read             :boolean          default(FALSE), not null
 #  is_starred          :boolean          default(FALSE), not null
+#  last_opened_at      :datetime
+#  open_count          :integer          default(0), not null
 #  reply_latency_hours :decimal(10, 2)
 #  send_error          :text
 #  send_now            :boolean          default(FALSE), not null
 #  send_status         :string           default("DRAFT"), not null
 #  subject             :string
 #  to_address          :text
+#  tracking_token      :string
 #  created_at          :datetime         not null
 #  updated_at          :datetime         not null
 #  account_id          :bigint           not null
@@ -39,6 +43,7 @@
 #  index_crm_emails_on_contact_id                 (contact_id)
 #  index_crm_emails_on_crm_customer_id            (crm_customer_id)
 #  index_crm_emails_on_owner_id                   (owner_id)
+#  index_crm_emails_on_tracking_token             (tracking_token) UNIQUE WHERE (tracking_token IS NOT NULL)
 #  index_crm_emails_starred                       (account_id,is_starred) WHERE is_starred
 #
 # Foreign Keys
@@ -56,6 +61,7 @@ class Crm::Email < ApplicationRecord
   belongs_to :contact, optional: true
   belongs_to :owner, class_name: 'User', optional: true
 
+  has_many :opens, class_name: 'Crm::EmailOpen', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
   has_many_attached :files
 
   validates :folder, inclusion: { in: FOLDERS }
@@ -70,6 +76,29 @@ class Crm::Email < ApplicationRecord
   scope :unread, -> { where(folder: 'INBOX', is_read: false) }
   scope :starred, -> { where(is_starred: true) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
+
+  # 发信前生成追踪令牌（追踪像素 URL 用），已有则复用。
+  def ensure_tracking_token!
+    return tracking_token if tracking_token.present?
+
+    # 仅写令牌，无需跑校验/回调（尤其别触发 normalize_send_now / enqueue_send）。
+    update_column(:tracking_token, SecureRandom.hex(20)) # rubocop:disable Rails/SkipsModelValidations
+    tracking_token
+  end
+
+  # 记录一次打开：写明细（含 IP 归属地）+ 累加聚合（首次/最近/次数）。追踪回调走
+  # 公开路径，直接原子更新计数列，绕开校验/回调。归属地依赖离线 GeoLite 库，缺库则为空。
+  def register_open!(ip:, user_agent:)
+    now = Time.current
+    geo = IpLookupService.new.perform(ip)
+    opens.create!(ip_address: ip, user_agent: user_agent, country: geo&.country, city: geo&.city)
+    update_columns( # rubocop:disable Rails/SkipsModelValidations
+      open_count: open_count + 1,
+      first_opened_at: first_opened_at || now,
+      last_opened_at: now,
+      updated_at: now
+    )
+  end
 
   private
 

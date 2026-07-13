@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb]
+  before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb, :opens]
 
   RESULTS_PER_PAGE = 25
 
@@ -29,6 +29,15 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
   end
 
   def show; end
+
+  # 阅读追踪明细：每次打开的时间 + IP + UA（倒序）。
+  def opens
+    rows = @email.opens.order(created_at: :desc).limit(100).map do |open|
+      { id: open.id, ip: open.ip_address, city: open.city, country: open.country,
+        user_agent: open.user_agent, created_at: open.created_at }
+    end
+    render json: { payload: rows }
+  end
 
   # 知识库附件快照：把选中的知识库文档文件复制进本邮件附件，锁定当前版本
   # （不共享 blob，避免知识库原件被改/删影响已发邮件）。

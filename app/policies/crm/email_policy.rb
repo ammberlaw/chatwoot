@@ -19,6 +19,10 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  def opens?
+    true
+  end
+
   def update?
     true
   end
