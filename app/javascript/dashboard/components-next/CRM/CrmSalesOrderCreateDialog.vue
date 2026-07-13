@@ -43,18 +43,17 @@ const form = reactive({
   name: '',
   crmCustomerId: '',
   crmOpportunityId: '',
-  status: 'PENDING_CONFIRMATION',
+  status: 'IN_PRODUCTION',
   orderDate: today(),
   deliveryDate: '',
   amount: '',
-  cost: '',
   orderCurrency: 'CNY',
   exchangeRate: '',
   remark: '',
 });
 
+// 上传的订单均为已付款订单，无「待确认」环节，默认从「生产中」起。
 const statusOptions = [
-  { value: 'PENDING_CONFIRMATION', label: '待确认' },
   { value: 'IN_PRODUCTION', label: '生产中' },
   { value: 'PENDING_SHIPMENT', label: '待出货' },
   { value: 'SHIPPED', label: '已出货' },
@@ -109,11 +108,10 @@ const resetForm = () => {
   form.name = '';
   form.crmCustomerId = '';
   form.crmOpportunityId = '';
-  form.status = 'PENDING_CONFIRMATION';
+  form.status = 'IN_PRODUCTION';
   form.orderDate = today();
   form.deliveryDate = '';
   form.amount = '';
-  form.cost = '';
   form.orderCurrency = 'CNY';
   form.exchangeRate = '';
   form.remark = '';
@@ -150,11 +148,10 @@ const open = record => {
     form.name = record.name || '';
     form.crmCustomerId = record.crmCustomerId ? String(record.crmCustomerId) : '';
     form.crmOpportunityId = record.crmOpportunityId ? String(record.crmOpportunityId) : '';
-    form.status = record.status || 'PENDING_CONFIRMATION';
+    form.status = record.status || 'IN_PRODUCTION';
     form.orderDate = record.orderDate ? record.orderDate.slice(0, 10) : today();
     form.deliveryDate = record.deliveryDate ? record.deliveryDate.slice(0, 10) : '';
     form.amount = record.orderAmountMicros ? String(record.orderAmountMicros / 1_000_000) : '';
-    form.cost = record.costAmountMicros ? String(record.costAmountMicros / 1_000_000) : '';
     form.orderCurrency = record.orderCurrency || 'CNY';
     form.exchangeRate = record.exchangeRate != null ? String(record.exchangeRate) : '';
     form.remark = record.remark || '';
@@ -183,9 +180,6 @@ const handleConfirm = () => {
     deliveryDate: form.deliveryDate || null,
     orderAmountMicros: form.amount
       ? Math.round(parseFloat(form.amount) * 1_000_000)
-      : null,
-    costAmountMicros: form.cost
-      ? Math.round(parseFloat(form.cost) * 1_000_000)
       : null,
     orderCurrency: form.orderCurrency,
     exchangeRate: form.exchangeRate ? parseFloat(form.exchangeRate) : null,
@@ -270,14 +264,17 @@ defineExpose({ dialogRef, onSuccess, open });
     @close="resetForm"
   >
     <div class="flex flex-col gap-4">
+      <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+        {{ t('CRM.SALES_ORDERS.FORM.SECTION_BASIC') }}
+      </div>
       <div class="grid grid-cols-2 gap-4">
         <Input
           v-model="form.name"
           :label="t('CRM.SALES_ORDERS.FORM.NAME')"
           autofocus
         />
-        <div v-if="isEditing" class="flex flex-col gap-1">
-          <label class="text-sm font-medium text-n-slate-12">
+        <div v-if="isEditing" class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.SALES_ORDERS.FORM.ORDER_NO') }}
           </label>
           <div
@@ -289,27 +286,37 @@ defineExpose({ dialogRef, onSuccess, open });
       </div>
 
       <div class="grid grid-cols-2 gap-4">
-        <ComboBox
-          v-model="form.crmCustomerId"
-          :options="customerOptions"
-          :display-label="customerDisplayLabel"
-          :placeholder="loadingCustomers ? t('CRM.SALES_ORDERS.FORM.CUSTOMER_LOADING') : t('CRM.SALES_ORDERS.FORM.CUSTOMER_PLACEHOLDER')"
-          :search-placeholder="t('CRM.SALES_ORDERS.FORM.CUSTOMER_SEARCH')"
-          :empty-state="t('CRM.SALES_ORDERS.FORM.CUSTOMER_EMPTY')"
-        />
-        <Select
-          v-model="form.crmOpportunityId"
-          :label="t('CRM.SALES_ORDERS.FORM.OPPORTUNITY')"
-          :options="opportunityOptions"
-        />
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.SALES_ORDERS.FORM.CUSTOMER') }}
+          </label>
+          <ComboBox
+            v-model="form.crmCustomerId"
+            :options="customerOptions"
+            :display-label="customerDisplayLabel"
+            :placeholder="loadingCustomers ? t('CRM.SALES_ORDERS.FORM.CUSTOMER_LOADING') : t('CRM.SALES_ORDERS.FORM.CUSTOMER_PLACEHOLDER')"
+            :search-placeholder="t('CRM.SALES_ORDERS.FORM.CUSTOMER_SEARCH')"
+            :empty-state="t('CRM.SALES_ORDERS.FORM.CUSTOMER_EMPTY')"
+          />
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.SALES_ORDERS.FORM.OPPORTUNITY') }}
+          </label>
+          <Select
+            v-model="form.crmOpportunityId"
+            :options="opportunityOptions"
+          />
+        </div>
       </div>
 
       <div class="grid grid-cols-3 gap-4">
-        <Select
-          v-model="form.status"
-          :label="t('CRM.SALES_ORDERS.FORM.STATUS')"
-          :options="statusOptions"
-        />
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.SALES_ORDERS.FORM.STATUS') }}
+          </label>
+          <Select v-model="form.status" :options="statusOptions" />
+        </div>
         <Input
           v-model="form.orderDate"
           type="date"
@@ -322,25 +329,23 @@ defineExpose({ dialogRef, onSuccess, open });
         />
       </div>
 
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
+        {{ t('CRM.SALES_ORDERS.FORM.SECTION_AMOUNT') }}
+      </div>
       <div class="grid grid-cols-3 gap-4">
         <Input
           v-model="form.amount"
           type="number"
           :label="t('CRM.SALES_ORDERS.FORM.AMOUNT')"
         />
-        <Input
-          v-model="form.cost"
-          type="number"
-          :label="t('CRM.SALES_ORDERS.FORM.COST')"
-        />
-        <Select
-          v-model="form.orderCurrency"
-          :label="t('CRM.SALES_ORDERS.FORM.CURRENCY')"
-          :options="currencyOptions"
-        />
-      </div>
-
-      <div class="grid grid-cols-3 gap-4">
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.SALES_ORDERS.FORM.CURRENCY') }}
+          </label>
+          <Select v-model="form.orderCurrency" :options="currencyOptions" />
+        </div>
         <Input
           v-model="form.exchangeRate"
           type="number"

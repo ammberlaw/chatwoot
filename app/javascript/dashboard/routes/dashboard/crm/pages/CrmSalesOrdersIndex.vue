@@ -21,6 +21,7 @@ const createDialogRef = ref(null);
 const activeFilter = ref(route.query.filter || 'all');
 const activeStatus = ref('');
 const currentPage = ref(1);
+const searchQuery = ref('');
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
@@ -55,6 +56,7 @@ const fetchRecords = () => {
     page: currentPage.value,
     filter,
     status: activeStatus.value || undefined,
+    q: searchQuery.value.trim() || undefined,
   });
 };
 
@@ -62,6 +64,16 @@ const setFilter = key => {
   activeFilter.value = key;
   currentPage.value = 1;
   fetchRecords();
+};
+
+// 订单号 / 客户 / 名称搜索（300ms 防抖）
+let searchTimer = null;
+const onSearchInput = () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    currentPage.value = 1;
+    fetchRecords();
+  }, 300);
 };
 
 const onPageChange = page => {
@@ -153,12 +165,20 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
         :color="activeFilter === tab.key ? 'blue' : 'slate'"
         @click="setFilter(tab.key)"
       />
-      <Select
-        :model-value="activeStatus"
-        :options="statusFilterOptions"
-        class="ml-auto"
-        @update:model-value="setStatus"
-      />
+      <div class="flex items-center gap-2 ml-auto">
+        <input
+          v-model="searchQuery"
+          type="text"
+          :placeholder="t('CRM.SALES_ORDERS.SEARCH_PLACEHOLDER')"
+          class="h-9 px-3 text-sm border rounded-lg w-52 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-blue-9"
+          @input="onSearchInput"
+        />
+        <Select
+          :model-value="activeStatus"
+          :options="statusFilterOptions"
+          @update:model-value="setStatus"
+        />
+      </div>
     </div>
 
     <div class="flex-1 px-6 py-4 overflow-auto">
@@ -175,7 +195,7 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
         {{ t('CRM.SALES_ORDERS.EMPTY') }}
       </div>
       <table v-else class="w-full text-sm text-left border-collapse">
-        <thead class="text-n-slate-11">
+        <thead class="sticky top-0 z-10 bg-n-background text-n-slate-11">
           <tr class="border-b border-n-weak">
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.SALES_ORDERS.TABLE.NAME') }}
@@ -227,7 +247,9 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
                 {{ STATUSES[record.status]?.label || record.status }}
               </span>
             </td>
-            <td class="px-3 py-2 text-right text-n-slate-12 whitespace-nowrap">
+            <td
+              class="px-3 py-2 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
+            >
               {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
             </td>
             <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">

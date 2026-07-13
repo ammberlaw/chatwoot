@@ -55,7 +55,15 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
     scope = scope.where(crm_customer_id: nil) if params[:filter] == 'no_customer'
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
+    scope = search(scope, params[:q]) if params[:q].present?
     scope
+  end
+
+  # 搜索：订单号 / 订单名称 / 关联客户名（左连避免漏掉未关联客户的订单）。
+  def search(scope, query)
+    term = "%#{query.strip}%"
+    scope.left_joins(:crm_customer)
+         .where('crm_sales_orders.order_no ILIKE :t OR crm_sales_orders.name ILIKE :t OR crm_customers.name ILIKE :t', t: term)
   end
 
   def sales_order_params
@@ -68,6 +76,6 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
   end
 
   def permitted_params
-    params.permit(:page, :filter, :status, :customer_id)
+    params.permit(:page, :filter, :status, :customer_id, :q)
   end
 end
