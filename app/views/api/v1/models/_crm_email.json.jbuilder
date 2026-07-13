@@ -16,4 +16,6 @@ json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.contact_id resource.contact_id
 json.owner_id resource.owner_id
+json.owner_name resource.owner&.name
+json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f) } }
 json.created_at resource.created_at

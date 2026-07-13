@@ -695,25 +695,10 @@ const menuItems = computed(() => {
       activeOn: ['crm_emails_index', 'crm_mail_accounts_index', 'crm_email_templates_index'],
       children: [
         {
-          name: 'CRM Compose',
-          label: t('SIDEBAR.CRM_COMPOSE'),
-          to: accountScopedRoute('crm_emails_index', {}, { compose: 1 }),
-        },
-        {
           name: 'CRM Read Emails',
           label: t('SIDEBAR.CRM_READ_EMAILS'),
           to: accountScopedRoute('crm_emails_index'),
           activeOn: ['crm_emails_index'],
-        },
-        {
-          name: 'CRM Drafts',
-          label: t('SIDEBAR.CRM_DRAFTS'),
-          to: accountScopedRoute('crm_emails_index', {}, { folder: 'DRAFT' }),
-        },
-        {
-          name: 'CRM Bulk',
-          label: t('SIDEBAR.CRM_BULK'),
-          to: accountScopedRoute('crm_emails_index', {}, { folder: 'BULK' }),
         },
         {
           name: 'CRM Email Templates',

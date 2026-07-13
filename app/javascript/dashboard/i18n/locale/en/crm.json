@@ -190,6 +190,26 @@
         "STATUS": "Status 状态",
         "DATE": "Date 时间"
       },
+      "LIST": {
+        "COUNT": "共 {count} 封 · 未读 {unread}",
+        "SEARCH_PLACEHOLDER": "搜索主题、发件人、收件人"
+      },
+      "ACTIONS": {
+        "REPLY": "回复",
+        "REPLY_ALL": "全部回复",
+        "FORWARD": "转发",
+        "RESEND": "重新发送"
+      },
+      "READING": {
+        "EMPTY": "选择一封邮件查看",
+        "FROM": "发件人：",
+        "TO": "收件人：",
+        "CC": "抄送：",
+        "OWNER": "负责人：{name}",
+        "SEND_ERROR": "发送失败：{error}",
+        "ATTACHMENTS": "附件（{count}）",
+        "NO_BODY": "（正文为空）"
+      },
       "COMPOSE": {
         "BUTTON": "Compose 写邮件",
         "TITLE": "Compose 写邮件",
@@ -200,8 +220,14 @@
         "TO": "To 收件人",
         "TO_PLACEHOLDER": "多个用英文逗号分隔",
         "CC": "Cc 抄送",
+        "BCC": "Bcc 密送",
+        "ADD_CC": "抄送 / 密送",
         "SUBJECT": "Subject 主题",
         "BODY": "Body 正文",
+        "CUSTOMER": "关联客户",
+        "CUSTOMER_PLACEHOLDER": "搜索客户名，自动带出收件邮箱",
+        "INSERT_SIGNATURE": "插入签名",
+        "ADD_ATTACHMENT": "添加附件",
         "NO_ACCOUNT": "还没有发信邮箱账户，请先在后台配置 SMTP 邮箱",
         "SUCCESS": "已提交发送（结果见状态列）",
         "ERROR": "发送失败"

@@ -75,7 +75,9 @@ Rails.application.routes.draw do
                 delete 'attach/:attachment_id', action: :detach
               end
             end
-            resources :emails
+            resources :emails do
+              collection { get :counts }
+            end
             resources :quotes do
               resources :line_items, only: [:index, :create], controller: 'quote_line_items'
             end

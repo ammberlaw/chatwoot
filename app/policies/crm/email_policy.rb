@@ -11,6 +11,10 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  def counts?
+    true
+  end
+
   def update?
     true
   end

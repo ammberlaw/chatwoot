@@ -8,9 +8,23 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
     @emails_scope = filtered_emails
     @emails_count = @emails_scope.count
     @emails = @emails_scope
+              .includes(:crm_customer, :owner)
               .order(email_date: :desc)
               .page(permitted_params[:page] || 1)
               .per(RESULTS_PER_PAGE)
+  end
+
+  # 左栏文件夹计数（各文件夹总数 + 收件箱未读），一次查询喂列表页角标。
+  def counts
+    scope = Current.account.crm_emails
+    by_folder = scope.group(:folder).count
+    render json: {
+      INBOX: by_folder['INBOX'].to_i,
+      SENT: by_folder['SENT'].to_i,
+      DRAFT: by_folder['DRAFT'].to_i,
+      BULK: by_folder['BULK'].to_i,
+      unread: scope.unread.count
+    }
   end
 
   def show; end
