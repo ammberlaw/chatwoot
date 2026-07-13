@@ -17,6 +17,10 @@
 #  updated_at  :datetime         not null
 #  account_id  :bigint           not null
 #
+# Indexes
+#
+#  index_oa_approval_templates_on_account_id  (account_id)
+#
 class Oa::ApprovalTemplate < ApplicationRecord
   belongs_to :account
   has_many :requests, class_name: 'Oa::ApprovalRequest', foreign_key: :template_id,

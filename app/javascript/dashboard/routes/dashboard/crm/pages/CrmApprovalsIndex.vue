@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import TemplatesAPI from 'dashboard/api/oa/approvalTemplates';
 import RequestsAPI from 'dashboard/api/oa/approvalRequests';
+import MembershipsAPI from 'dashboard/api/org/memberships';
+import AgentAPI from 'dashboard/api/agents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -29,6 +31,64 @@ const L = {
   canceled: '已撤回',
   error: '操作失败',
   current: '审批中',
+  dept: '所在部门',
+  deptPlaceholder: '请选择部门',
+  upper: '大写：',
+  attachments: '附件',
+  addAttachment: '添加附件',
+  flowPreview: '审批流程',
+  deptLeader: '部门主管',
+  unresolved: '（未设置负责人）',
+  place: '请输入',
+};
+
+// 数字转人民币大写
+const amountToWords = value => {
+  const num = Number(value);
+  if (!value || Number.isNaN(num) || num < 0) return '';
+  const digits = '零壹贰叁肆伍陆柒捌玖';
+  const bigUnit = ['', '万', '亿', '兆'];
+  const unit = ['', '拾', '佰', '仟'];
+  const fixed = num.toFixed(2);
+  const [intPart, decPart] = fixed.split('.');
+  let intText = '';
+  if (Number(intPart) === 0) {
+    intText = '零';
+  } else {
+    const groups = [];
+    let rest = intPart;
+    while (rest.length) {
+      groups.unshift(rest.slice(-4));
+      rest = rest.slice(0, -4);
+    }
+    groups.forEach((group, gi) => {
+      let seg = '';
+      let zero = false;
+      const padded = group.padStart(4, '0');
+      for (let i = 0; i < 4; i += 1) {
+        const d = Number(padded[i]);
+        if (d === 0) {
+          zero = true;
+        } else {
+          if (zero) seg += '零';
+          zero = false;
+          seg += digits[d] + unit[3 - i];
+        }
+      }
+      if (seg) intText += seg + bigUnit[groups.length - 1 - gi];
+    });
+  }
+  const jiao = Number(decPart[0]);
+  const fen = Number(decPart[1]);
+  let decText = '';
+  if (jiao === 0 && fen === 0) {
+    decText = '整';
+  } else {
+    decText =
+      (jiao ? `${digits[jiao]}角` : '') + (fen ? `${digits[fen]}分` : '');
+    if (jiao === 0 && fen) decText = `零${decText}`;
+  }
+  return `${intText}元${decText}`;
 };
 
 const STATUS_META = {
@@ -60,6 +120,34 @@ const pickerRef = ref(null);
 const formRef = ref(null);
 const activeTemplate = ref(null);
 const formValues = ref({});
+const myDepartments = ref([]);
+const agents = ref([]);
+const selectedDeptId = ref('');
+const attachments = ref([]);
+const fileInputRef = ref(null);
+
+const templateFlow = computed(
+  () => activeTemplate.value?.flow || activeTemplate.value?.flow || []
+);
+const needsDept = computed(() =>
+  templateFlow.value.some(s => s.type === 'dept_leader')
+);
+const pickedDept = computed(() =>
+  myDepartments.value.find(
+    d => String(d.department_id) === selectedDeptId.value
+  )
+);
+
+// 提交前预览审批链：部门主管→所选部门负责人；指定成员→该成员。
+const flowPreview = computed(() =>
+  templateFlow.value.map(step => {
+    if (step.type === 'user') {
+      const a = agents.value.find(x => x.id === step.user_id);
+      return a?.name || L.unresolved;
+    }
+    return pickedDept.value?.department_leader_name || L.unresolved;
+  })
+);
 
 const fmtDateTime = v =>
   v ? new Date(v).toLocaleString('zh-CN', { hour12: false }) : '';
@@ -138,6 +226,10 @@ const pickTemplate = tpl => {
   (tpl.formFields || tpl.form_fields || []).forEach(f => {
     formValues.value[f.key] = '';
   });
+  attachments.value = [];
+  selectedDeptId.value = myDepartments.value[0]
+    ? String(myDepartments.value[0].department_id)
+    : '';
   pickerRef.value?.close();
   formRef.value?.open();
 };
@@ -147,19 +239,38 @@ const templateFields = computed(
     activeTemplate.value?.formFields || activeTemplate.value?.form_fields || []
 );
 
+const onPickFiles = event => {
+  attachments.value.push(...Array.from(event.target.files || []));
+  event.target.value = '';
+};
+const removeAttachment = i => attachments.value.splice(i, 1);
+
 const submitRequest = async () => {
   const missing = templateFields.value.some(
     f => f.required && !String(formValues.value[f.key] ?? '').trim()
   );
-  if (missing) {
+  if (missing || (needsDept.value && !selectedDeptId.value)) {
     useAlert(L.required);
     return;
   }
   try {
-    await RequestsAPI.submit({
-      template_id: activeTemplate.value.id,
-      form_data: formValues.value,
-    });
+    if (attachments.value.length) {
+      const fd = new FormData();
+      fd.append('template_id', activeTemplate.value.id);
+      if (selectedDeptId.value)
+        fd.append('department_id', selectedDeptId.value);
+      Object.entries(formValues.value).forEach(([k, v]) =>
+        fd.append(`form_data[${k}]`, v ?? '')
+      );
+      attachments.value.forEach(f => fd.append('files[]', f));
+      await RequestsAPI.submitForm(fd);
+    } else {
+      await RequestsAPI.submit({
+        template_id: activeTemplate.value.id,
+        department_id: selectedDeptId.value || null,
+        form_data: formValues.value,
+      });
+    }
     formRef.value?.close();
     useAlert(L.submitted);
     activeTab.value = 'mine';
@@ -175,9 +286,19 @@ const detailFields = computed(
   () => selected.value?.formFields || selected.value?.form_fields || []
 );
 
-onMounted(() => {
+onMounted(async () => {
   fetchRequests();
   fetchCounts();
+  try {
+    const [{ data: mine }, { data: ags }] = await Promise.all([
+      MembershipsAPI.get({ mine: 'true' }),
+      AgentAPI.get(),
+    ]);
+    myDepartments.value = mine.payload || [];
+    agents.value = ags || [];
+  } catch {
+    /* ignore */
+  }
 });
 </script>
 
@@ -310,11 +431,39 @@ onMounted(() => {
             <div
               class="grid grid-cols-2 gap-3 p-4 mb-6 rounded-xl bg-n-alpha-1"
             >
+              <div v-if="selected.department_name" class="min-w-0">
+                <div class="text-[11px] text-n-slate-10">{{ L.dept }}</div>
+                <div class="text-sm text-n-slate-12">
+                  {{ selected.department_name }}
+                </div>
+              </div>
               <div v-for="f in detailFields" :key="f.key" class="min-w-0">
                 <div class="text-[11px] text-n-slate-10">{{ f.label }}</div>
                 <div class="text-sm break-words text-n-slate-12">
                   {{ selected.form_data?.[f.key] || '—' }}
                 </div>
+              </div>
+            </div>
+
+            <!-- 附件 -->
+            <div v-if="selected.files?.length" class="mb-6">
+              <p class="mb-2 text-xs font-medium text-n-slate-10">
+                {{ L.attachments }}
+              </p>
+              <div class="grid grid-cols-2 gap-2">
+                <a
+                  v-for="file in selected.files"
+                  :key="file.id"
+                  :href="file.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-2 p-2 text-sm border rounded-lg border-n-weak hover:bg-n-alpha-1"
+                >
+                  <Icon icon="i-lucide-file" class="size-4 text-n-amber-11" />
+                  <span class="truncate text-n-slate-12">{{
+                    file.filename
+                  }}</span>
+                </a>
               </div>
             </div>
 
@@ -472,6 +621,97 @@ onMounted(() => {
             "
             class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
           />
+          <p
+            v-if="f.type === 'amount' && formValues[f.key]"
+            class="mt-1 text-xs text-n-slate-10"
+          >
+            {{ `${L.upper}${amountToWords(formValues[f.key])}` }}
+          </p>
+        </div>
+
+        <!-- 所在部门 -->
+        <div v-if="needsDept">
+          <label class="block mb-0.5 text-heading-3 text-n-slate-12">
+            {{ `${L.dept} *` }}
+          </label>
+          <select
+            v-model="selectedDeptId"
+            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+          >
+            <option value="">{{ L.deptPlaceholder }}</option>
+            <option
+              v-for="d in myDepartments"
+              :key="d.id"
+              :value="String(d.department_id)"
+            >
+              {{ d.department_name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- 附件 -->
+        <div>
+          <label class="block mb-1 text-heading-3 text-n-slate-12">
+            {{ L.attachments }}
+          </label>
+          <input
+            ref="fileInputRef"
+            type="file"
+            multiple
+            class="hidden"
+            @change="onPickFiles"
+          />
+          <button
+            class="inline-flex items-center gap-1.5 px-3 h-9 text-sm border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+            @click="fileInputRef?.click()"
+          >
+            <Icon icon="i-lucide-plus" class="size-4" />
+            {{ L.addAttachment }}
+          </button>
+          <div v-if="attachments.length" class="flex flex-col gap-1.5 mt-2">
+            <div
+              v-for="(file, i) in attachments"
+              :key="i"
+              class="flex items-center justify-between gap-2 px-3 py-1.5 text-sm border rounded-lg border-n-weak"
+            >
+              <span class="flex items-center min-w-0 gap-2">
+                <Icon icon="i-lucide-file" class="size-4 text-n-amber-11" />
+                <span class="truncate text-n-slate-12">{{ file.name }}</span>
+              </span>
+              <button
+                class="text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeAttachment(i)"
+              >
+                <Icon icon="i-lucide-x" class="size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 流程预览 -->
+        <div v-if="flowPreview.length" class="pt-3 border-t border-n-weak">
+          <p class="mb-2 text-xs font-medium text-n-slate-10">
+            {{ L.flowPreview }}
+          </p>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <template v-for="(name, i) in flowPreview" :key="i">
+              <Icon
+                v-if="i > 0"
+                icon="i-lucide-chevron-right"
+                class="size-3.5 text-n-slate-9"
+              />
+              <span
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-n-alpha-1 text-n-slate-11"
+              >
+                <span
+                  class="flex items-center justify-center rounded-full size-4 bg-n-amber-9 text-white text-[10px]"
+                >
+                  {{ i + 1 }}
+                </span>
+                {{ name }}
+              </span>
+            </template>
+          </div>
         </div>
       </div>
     </Dialog>

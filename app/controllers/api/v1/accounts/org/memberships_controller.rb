@@ -3,8 +3,9 @@ class Api::V1::Accounts::Org::MembershipsController < Api::V1::Accounts::BaseCon
   before_action :fetch_membership, only: [:update, :destroy]
 
   def index
-    @memberships = Current.account.org_memberships.includes(:user)
+    @memberships = Current.account.org_memberships.includes(:user, :department)
     @memberships = @memberships.where(department_id: params[:department_id]) if params[:department_id].present?
+    @memberships = @memberships.where(user_id: current_user.id) if params[:mine] == 'true'
   end
 
   def create

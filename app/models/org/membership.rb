@@ -13,6 +13,17 @@
 #  department_id :bigint           not null
 #  user_id       :bigint           not null
 #
+# Indexes
+#
+#  index_org_memberships_on_account_id     (account_id)
+#  index_org_memberships_on_department_id  (department_id)
+#  index_org_memberships_on_user_id        (user_id)
+#  index_org_memberships_unique            (department_id,user_id) UNIQUE
+#
+# Foreign Keys
+#
+#  fk_rails_...  (department_id => org_departments.id) ON DELETE => cascade
+#
 class Org::Membership < ApplicationRecord
   belongs_to :account
   belongs_to :department, class_name: 'Org::Department'

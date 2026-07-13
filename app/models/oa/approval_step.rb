@@ -15,6 +15,16 @@
 #  approver_id :bigint
 #  request_id  :bigint           not null
 #
+# Indexes
+#
+#  index_oa_approval_steps_on_account_id   (account_id)
+#  index_oa_approval_steps_on_approver_id  (approver_id)
+#  index_oa_approval_steps_on_request_id   (request_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (request_id => oa_approval_requests.id) ON DELETE => cascade
+#
 class Oa::ApprovalStep < ApplicationRecord
   belongs_to :account
   belongs_to :request, class_name: 'Oa::ApprovalRequest', inverse_of: :steps

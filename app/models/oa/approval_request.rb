@@ -14,7 +14,20 @@
 #  updated_at       :datetime         not null
 #  account_id       :bigint           not null
 #  applicant_id     :bigint           not null
+#  department_id    :bigint
 #  template_id      :bigint           not null
+#
+# Indexes
+#
+#  index_oa_approval_requests_on_account_id             (account_id)
+#  index_oa_approval_requests_on_account_id_and_status  (account_id,status)
+#  index_oa_approval_requests_on_applicant_id           (applicant_id)
+#  index_oa_approval_requests_on_department_id          (department_id)
+#  index_oa_approval_requests_on_template_id            (template_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (template_id => oa_approval_templates.id) ON DELETE => cascade
 #
 class Oa::ApprovalRequest < ApplicationRecord
   STATUSES = %w[pending approved rejected canceled].freeze
@@ -22,7 +35,9 @@ class Oa::ApprovalRequest < ApplicationRecord
   belongs_to :account
   belongs_to :template, class_name: 'Oa::ApprovalTemplate'
   belongs_to :applicant, class_name: 'User'
+  belongs_to :department, class_name: 'Org::Department', optional: true
   has_many :steps, -> { order(:position) }, class_name: 'Oa::ApprovalStep', dependent: :destroy, inverse_of: :request
+  has_many_attached :files
 
   validates :title, presence: true
   validates :status, inclusion: { in: STATUSES }

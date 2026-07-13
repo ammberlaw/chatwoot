@@ -19,12 +19,8 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
   def show; end
 
   def create
-    template = Current.account.oa_approval_templates.find(params[:template_id])
-    title = params[:title].presence || "#{current_user.name}的#{template.name}"
-    @request = Oa::SubmitApprovalService.new(
-      account: Current.account, applicant: current_user, template: template,
-      form_data: params[:form_data] || {}, title: title
-    ).perform
+    @request = build_request
+    @request.files.attach(params[:files]) if params[:files].present?
     render :show
   end
 
@@ -52,6 +48,23 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     render :show
   rescue Oa::ActOnApprovalService::InvalidAction => e
     render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def build_request
+    template = Current.account.oa_approval_templates.find(params[:template_id])
+    title = params[:title].presence || "#{current_user.name}的#{template.name}"
+    Oa::SubmitApprovalService.new(
+      account: Current.account, applicant: current_user, template: template,
+      attributes: { form_data: form_data_param, title: title, department_id: params[:department_id].presence }
+    ).perform
+  end
+
+  # form_data 可能是 JSON（普通提交）或 multipart 嵌套哈希（带附件提交）。
+  def form_data_param
+    raw = params[:form_data]
+    return {} if raw.blank?
+
+    raw.respond_to?(:permit) ? raw.permit!.to_h : raw
   end
 
   def fetch_request

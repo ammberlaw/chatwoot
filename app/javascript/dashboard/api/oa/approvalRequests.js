@@ -19,6 +19,12 @@ class OaApprovalRequestAPI extends ApiClient {
     return axios.post(this.url, payload);
   }
 
+  submitForm(formData) {
+    return axios.post(this.url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
   approve(id, comment) {
     return axios.post(`${this.url}/${id}/approve`, { comment });
   }

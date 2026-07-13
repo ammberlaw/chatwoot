@@ -13,6 +13,12 @@
 #  leader_id  :bigint
 #  parent_id  :bigint
 #
+# Indexes
+#
+#  index_org_departments_on_account_id                (account_id)
+#  index_org_departments_on_account_id_and_parent_id  (account_id,parent_id)
+#  index_org_departments_on_leader_id                 (leader_id)
+#
 class Org::Department < ApplicationRecord
   belongs_to :account
   belongs_to :parent, class_name: 'Org::Department', optional: true
