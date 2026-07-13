@@ -4,8 +4,10 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import DOMPurify from 'dompurify';
 import { useAlert } from 'dashboard/composables';
+import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
+import AgentAPI from 'dashboard/api/agents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -14,10 +16,14 @@ import CrmEmailComposeDialog from 'dashboard/components-next/CRM/CrmEmailCompose
 const { t } = useI18n();
 const route = useRoute();
 const store = useCrmEmailsStore();
+const { isAdmin } = useAdmin();
 
 const composeDialogRef = ref(null);
 const searchTerm = ref('');
 const selectedEmail = ref(null);
+// 管理员可按业务员筛选；'' = 全部成员。
+const members = ref([]);
+const activeOwner = ref('');
 const counts = ref({
   INBOX: 0,
   SENT: 0,
@@ -119,7 +125,23 @@ const fetchCounts = async () => {
 const fetchRecords = () => {
   const params = baseParams();
   if (searchTerm.value.trim()) params.q = searchTerm.value.trim();
+  if (activeOwner.value) params.owner_id = activeOwner.value;
   store.get(params);
+};
+
+const onOwnerChange = () => {
+  selectedEmail.value = null;
+  fetchRecords();
+};
+
+const fetchMembers = async () => {
+  if (!isAdmin.value) return;
+  try {
+    const { data } = await AgentAPI.get();
+    members.value = data || [];
+  } catch {
+    members.value = [];
+  }
 };
 
 const setFolder = key => {
@@ -215,6 +237,7 @@ watch(searchTerm, () => {
 onMounted(() => {
   fetchRecords();
   fetchCounts();
+  fetchMembers();
   if (route.query.compose) openCompose();
 });
 
@@ -301,6 +324,20 @@ watch(
             class="w-full py-2 pl-9 pr-3 text-sm border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
           />
         </div>
+        <!-- 业务员筛选（仅管理员）：看全员或指定成员的邮件 -->
+        <div v-if="isAdmin" class="flex items-center gap-2 mt-2">
+          <Icon icon="i-lucide-users" class="size-4 text-n-slate-10" />
+          <select
+            v-model="activeOwner"
+            class="flex-1 py-1.5 px-2 text-xs border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            @change="onOwnerChange"
+          >
+            <option value="">{{ '全部成员' }}</option>
+            <option v-for="m in members" :key="m.id" :value="m.id">
+              {{ m.name }}
+            </option>
+          </select>
+        </div>
       </div>
 
       <div class="flex-1 overflow-y-auto">
@@ -366,6 +403,13 @@ watch(
                   :class="SEND_STATUSES[record.sendStatus]?.class"
                 >
                   {{ SEND_STATUSES[record.sendStatus]?.label }}
+                </span>
+                <span
+                  v-if="isAdmin && record.ownerName"
+                  class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] bg-n-amber-3 text-n-amber-11 truncate max-w-[96px]"
+                >
+                  <Icon icon="i-lucide-user" class="size-3" />
+                  {{ record.ownerName }}
                 </span>
                 <span
                   v-if="record.customerName"

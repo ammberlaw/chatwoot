@@ -16,7 +16,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
 
   # 左栏文件夹计数（各文件夹总数 + 收件箱未读），一次查询喂列表页角标。
   def counts
-    scope = Current.account.crm_emails
+    scope = visible_emails
     by_folder = scope.group(:folder).count
     render json: {
       INBOX: by_folder['INBOX'].to_i,
@@ -68,25 +68,47 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
   private
 
   def fetch_email
-    @email = Current.account.crm_emails.find(params[:id])
+    @email = visible_emails.find(params[:id])
   end
 
   def check_authorization
     authorize(Crm::Email)
   end
 
-  # 阅读邮件视图筛选：全部/收件箱/未读/发件箱/草稿/群发、我的、按客户、搜主题/邮箱。
+  # 可见范围：管理员看全员邮件，业务员只看自己的（A-CRM 权限口径）。
+  def visible_emails
+    return Current.account.crm_emails if Current.account_user.administrator?
+
+    Current.account.crm_emails.owned_by(current_user.id)
+  end
+
+  # 阅读邮件视图筛选：文件夹/未读/星标/我的、按业务员（管理员）、按客户、搜主题/邮箱。
   def filtered_emails
-    scope = Current.account.crm_emails
+    scope = apply_scope_filters(visible_emails)
     scope = scope.in_folder(params[:folder]) if params[:folder].present?
-    scope = scope.unread if params[:filter] == 'unread'
-    scope = scope.starred if params[:filter] == 'starred'
-    scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
-    scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
-    if params[:q].present?
-      scope = scope.where('subject ILIKE :q OR from_address ILIKE :q OR to_address ILIKE :q', q: "%#{params[:q]}%")
-    end
+    scope = search_emails(scope, params[:q]) if params[:q].present?
     scope
+  end
+
+  # 视图 filter（未读/星标/我的）+ 按业务员 + 按客户。
+  def apply_scope_filters(scope)
+    scope = apply_view_filter(scope)
+    scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
+    scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
+    scope
+  end
+
+  def apply_view_filter(scope)
+    case params[:filter]
+    when 'unread' then scope.unread
+    when 'starred' then scope.starred
+    when 'mine' then scope.owned_by(current_user.id)
+    else scope
+    end
+  end
+
+  def search_emails(scope, query)
+    scope.where('subject ILIKE :q OR from_address ILIKE :q OR to_address ILIKE :q', q: "%#{query}%")
   end
 
   def email_params
@@ -98,6 +120,6 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::BaseControll
   end
 
   def permitted_params
-    params.permit(:page, :folder, :filter, :customer_id, :q)
+    params.permit(:page, :folder, :filter, :customer_id, :owner_id, :q)
   end
 end

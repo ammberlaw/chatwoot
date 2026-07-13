@@ -1,5 +1,13 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  reactive,
+  ref,
+  watch,
+  nextTick,
+  onMounted,
+  onBeforeUnmount,
+} from 'vue';
 import camelcaseKeys from 'camelcase-keys';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
@@ -164,6 +172,30 @@ const bodyHtml = computed(() => {
   if (fontSize.value) parts.push(`font-size:${fontSize.value}`);
   return parts.length ? `<div style="${parts.join(';')}">${html}</div>` : html;
 });
+
+// 字体/字号浮层贴到编辑器工具栏按钮组右侧：运行时量出按钮条位置。
+const bodyRef = ref(null);
+const toolbarPos = ref(null);
+const measureToolbar = () => {
+  const root = bodyRef.value;
+  const menubar = root?.querySelector('.ProseMirror-menubar');
+  if (!menubar) {
+    toolbarPos.value = null;
+    return;
+  }
+  const base = root.getBoundingClientRect();
+  const bar = menubar.getBoundingClientRect();
+  toolbarPos.value = bar.width
+    ? { left: bar.right - base.left + 8, top: bar.top - base.top }
+    : null;
+};
+const fontToolbarStyle = computed(() =>
+  toolbarPos.value
+    ? { left: `${toolbarPos.value.left}px`, top: `${toolbarPos.value.top}px` }
+    : { right: '16px', top: '20px' }
+);
+onMounted(() => window.addEventListener('resize', measureToolbar));
+onBeforeUnmount(() => window.removeEventListener('resize', measureToolbar));
 
 const kbScopeChips = [
   { value: '', label: '全部' },
@@ -429,6 +461,10 @@ const open = async prefill => {
     if (prefill.contactId) contactId.value = prefill.contactId;
   }
   visible.value = true;
+  await nextTick();
+  measureToolbar();
+  // 编辑器布局稳定后再量一次（首帧菜单栏宽度可能还没定）。
+  window.setTimeout(measureToolbar, 60);
 };
 
 defineExpose({ open, close });
@@ -626,12 +662,18 @@ defineExpose({ open, close });
           </div>
 
           <!-- 正文：所见即所得富文本（加粗/斜体/链接/列表 + 内联插图上传/粘贴） -->
-          <div class="relative flex flex-col flex-1 min-h-[20rem]">
-            <!-- 字体 / 字号：浮在编辑器工具栏右侧，整封生效、实时预览 -->
-            <div class="absolute z-10 flex items-center gap-1.5 top-5 right-4">
+          <div
+            ref="bodyRef"
+            class="relative flex flex-col flex-1 min-h-[20rem]"
+          >
+            <!-- 字体 / 字号：贴到编辑器工具栏按钮组右侧，整封生效、实时预览 -->
+            <div
+              class="absolute z-10 flex items-center gap-0.5"
+              :style="fontToolbarStyle"
+            >
               <select
                 v-model="fontFamily"
-                class="h-7 px-1.5 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0 max-w-[104px]"
+                class="h-7 px-1.5 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-0 w-[124px]"
               >
                 <option
                   v-for="f in FONT_FAMILIES"
@@ -643,7 +685,7 @@ defineExpose({ open, close });
               </select>
               <select
                 v-model="fontSize"
-                class="h-7 px-1.5 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+                class="h-7 px-1.5 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-0"
               >
                 <option v-for="s in FONT_SIZES" :key="s.label" :value="s.value">
                   {{ s.label }}
