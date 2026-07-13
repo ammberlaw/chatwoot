@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import { useCrmMailAccountsStore } from 'dashboard/stores/crm/mailAccounts';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -22,7 +23,31 @@ const PROVIDERS = {
   ALIYUN_QIYE: '阿里企业邮',
   CUSTOM: '自定义',
 };
+const providerOptions = Object.entries(PROVIDERS).map(([value, label]) => ({
+  value,
+  label,
+}));
+const sslOptions = [
+  { value: 'true', label: 'SSL (465)' },
+  { value: 'false', label: 'STARTTLS (587)' },
+];
 
+const L = {
+  new: '新建邮箱',
+  empty: '还没有发信邮箱，点右上「新建邮箱」并填 SMTP 授权码',
+  active: '已启用',
+  inactive: '已停用',
+  edit: '编辑邮箱账户',
+  delete: '删除',
+  deleteConfirm: '确定删除该邮箱账户？',
+  saved: '已保存',
+  deleted: '已删除',
+  error: '操作失败',
+  signatureLabel: '签名',
+  passwordKeep: '编辑时留空则不修改授权码',
+};
+
+const editingId = ref(null);
 const form = reactive({
   name: '',
   emailAddress: '',
@@ -34,41 +59,78 @@ const form = reactive({
   signature: '',
 });
 
-const providerOptions = Object.entries(PROVIDERS).map(([value, label]) => ({ value, label }));
-const sslOptions = [
-  { value: 'true', label: 'SSL (465)' },
-  { value: 'false', label: 'STARTTLS (587)' },
-];
-
 const resetForm = () => {
   Object.assign(form, {
-    name: '', emailAddress: '', provider: 'TENCENT_EXMAIL',
-    smtpHost: '', smtpPort: '', smtpPassword: '', useSsl: 'true', signature: '',
+    name: '',
+    emailAddress: '',
+    provider: 'TENCENT_EXMAIL',
+    smtpHost: '',
+    smtpPort: '',
+    smtpPassword: '',
+    useSsl: 'true',
+    signature: '',
   });
 };
 
 const openCreate = () => {
+  editingId.value = null;
   resetForm();
+  dialogRef.value?.open();
+};
+
+const openEdit = record => {
+  editingId.value = record.id;
+  Object.assign(form, {
+    name: record.name || '',
+    emailAddress: record.emailAddress || '',
+    provider: record.provider || 'TENCENT_EXMAIL',
+    smtpHost: record.smtpHost || '',
+    smtpPort: record.smtpPort ? String(record.smtpPort) : '',
+    smtpPassword: '',
+    useSsl: record.useSsl === false ? 'false' : 'true',
+    signature: record.signature || '',
+  });
   dialogRef.value?.open();
 };
 
 const handleConfirm = async () => {
   if (!form.name.trim() || !form.emailAddress.trim()) return;
+  const payload = {
+    name: form.name.trim(),
+    emailAddress: form.emailAddress.trim(),
+    provider: form.provider,
+    smtpHost: form.smtpHost.trim() || null,
+    smtpPort: form.smtpPort ? Number(form.smtpPort) : null,
+    useSsl: form.useSsl === 'true',
+    signature: form.signature.trim() || null,
+  };
+  // 授权码留空时不覆盖（编辑场景）。
+  if (form.smtpPassword) payload.smtpPassword = form.smtpPassword;
   try {
-    await store.create({
-      name: form.name.trim(),
-      emailAddress: form.emailAddress.trim(),
-      provider: form.provider,
-      smtpHost: form.smtpHost.trim() || null,
-      smtpPort: form.smtpPort ? Number(form.smtpPort) : null,
-      smtpPassword: form.smtpPassword || null,
-      useSsl: form.useSsl === 'true',
-      signature: form.signature.trim() || null,
-    });
+    if (editingId.value) {
+      await store.update({ id: editingId.value, ...payload });
+    } else {
+      await store.create({
+        ...payload,
+        smtpPassword: form.smtpPassword || null,
+      });
+    }
     dialogRef.value?.close();
-    useAlert(t('CRM.MAIL_ACCOUNTS.CREATE.SUCCESS'));
+    useAlert(L.saved);
   } catch {
-    useAlert(t('CRM.MAIL_ACCOUNTS.CREATE.ERROR'));
+    useAlert(L.error);
+  }
+};
+
+const removeRecord = async () => {
+  // eslint-disable-next-line no-alert
+  if (!editingId.value || !window.confirm(L.deleteConfirm)) return;
+  try {
+    await store.delete(editingId.value);
+    dialogRef.value?.close();
+    useAlert(L.deleted);
+  } catch {
+    useAlert(L.error);
   }
 };
 
@@ -80,72 +142,169 @@ onMounted(() => store.get());
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
-    <div class="flex items-center justify-between px-6 py-4 border-b border-n-weak">
-      <h1 class="text-xl font-medium text-n-slate-12">{{ t('CRM.MAIL_ACCOUNTS.HEADER') }}</h1>
-      <Button :label="t('CRM.MAIL_ACCOUNTS.NEW')" icon="i-lucide-plus" color="blue" @click="openCreate" />
-    </div>
-    <div class="px-6 py-2 text-xs text-n-slate-11">{{ t('CRM.MAIL_ACCOUNTS.HINT') }}</div>
-
-    <div class="flex-1 px-6 py-2">
-      <div v-if="isFetching" class="p-8 text-center text-n-slate-11">Loading…</div>
-      <div v-else-if="!records.length" class="p-8 text-center text-n-slate-11">
-        {{ t('CRM.MAIL_ACCOUNTS.EMPTY') }}
+    <div
+      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+    >
+      <div>
+        <h1 class="text-xl font-medium text-n-slate-12">
+          {{ t('CRM.MAIL_ACCOUNTS.HEADER') }}
+        </h1>
+        <p class="mt-0.5 text-xs text-n-slate-10">
+          {{ t('CRM.MAIL_ACCOUNTS.HINT') }}
+        </p>
       </div>
-      <table v-else class="w-full text-sm text-left border-collapse">
-        <thead class="text-n-slate-11">
-          <tr class="border-b border-n-weak">
-            <th class="px-3 py-2 font-medium">{{ t('CRM.MAIL_ACCOUNTS.TABLE.NAME') }}</th>
-            <th class="px-3 py-2 font-medium">{{ t('CRM.MAIL_ACCOUNTS.TABLE.EMAIL') }}</th>
-            <th class="px-3 py-2 font-medium">{{ t('CRM.MAIL_ACCOUNTS.TABLE.PROVIDER') }}</th>
-            <th class="px-3 py-2 font-medium">{{ t('CRM.MAIL_ACCOUNTS.TABLE.ACTIVE') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="record in records" :key="record.id" class="border-b border-n-weak">
-            <td class="px-3 py-2 font-medium text-n-slate-12">{{ record.name }}</td>
-            <td class="px-3 py-2 text-n-slate-11">{{ record.emailAddress }}</td>
-            <td class="px-3 py-2 text-n-slate-11">{{ PROVIDERS[record.provider] }}</td>
-            <td class="px-3 py-2">
-              <Button
-                :label="record.isActive ? '已启用' : '已停用'"
-                size="xs"
-                :color="record.isActive ? 'teal' : 'slate'"
-                variant="faded"
-                @click="toggleActive(record)"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <Button
+        :label="L.new"
+        icon="i-lucide-plus"
+        color="amber"
+        @click="openCreate"
+      />
+    </div>
+
+    <div class="flex-1 px-6 py-4">
+      <div v-if="isFetching" class="p-8 text-sm text-center text-n-slate-11">
+        {{ t('CRM.EMAILS.LOADING') }}
+      </div>
+      <div
+        v-else-if="!records.length"
+        class="p-8 text-sm text-center text-n-slate-11"
+      >
+        {{ L.empty }}
+      </div>
+      <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div
+          v-for="record in records"
+          :key="record.id"
+          class="flex flex-col gap-3 p-4 transition-shadow border cursor-pointer group rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-amber-7"
+          @click="openEdit(record)"
+        >
+          <div class="flex items-start gap-3">
+            <div
+              class="flex items-center justify-center flex-shrink-0 rounded-lg size-9 bg-n-amber-4 text-n-amber-11"
+            >
+              <Icon icon="i-lucide-mail" class="size-4" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="font-medium truncate text-n-slate-12">
+                {{ record.name }}
+              </h3>
+              <p class="text-xs truncate text-n-slate-10">
+                {{ record.emailAddress }}
+              </p>
+            </div>
+            <span
+              class="px-2 py-0.5 rounded-full text-[11px] flex-shrink-0 bg-n-alpha-2 text-n-slate-11"
+            >
+              {{ PROVIDERS[record.provider] || record.provider }}
+            </span>
+          </div>
+          <p
+            v-if="record.signature"
+            class="text-[11px] line-clamp-2 text-n-slate-10"
+          >
+            {{ `${L.signatureLabel}：${record.signature}` }}
+          </p>
+          <div class="flex items-center justify-between pt-1">
+            <button
+              class="inline-flex items-center gap-1.5"
+              @click.stop="toggleActive(record)"
+            >
+              <span
+                class="relative w-8 h-4 rounded-full transition-colors"
+                :class="record.isActive ? 'bg-n-teal-9' : 'bg-n-slate-5'"
+              >
+                <span
+                  class="absolute top-0.5 size-3 rounded-full bg-white transition-all"
+                  :class="record.isActive ? 'left-4' : 'left-0.5'"
+                />
+              </span>
+              <span
+                class="text-xs"
+                :class="record.isActive ? 'text-n-teal-11' : 'text-n-slate-10'"
+              >
+                {{ record.isActive ? L.active : L.inactive }}
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <Dialog
       ref="dialogRef"
       width="3xl"
       overflow-y-auto
-      :title="t('CRM.MAIL_ACCOUNTS.CREATE.TITLE')"
+      :title="editingId ? L.edit : t('CRM.MAIL_ACCOUNTS.CREATE.TITLE')"
+      confirm-button-color="amber"
       @confirm="handleConfirm"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-2 gap-4">
-          <Input v-model="form.name" :label="t('CRM.MAIL_ACCOUNTS.FORM.NAME')" autofocus />
-          <Input v-model="form.emailAddress" :label="t('CRM.MAIL_ACCOUNTS.FORM.EMAIL')" />
+          <Input
+            v-model="form.name"
+            :label="t('CRM.MAIL_ACCOUNTS.FORM.NAME')"
+            autofocus
+          />
+          <Input
+            v-model="form.emailAddress"
+            :label="t('CRM.MAIL_ACCOUNTS.FORM.EMAIL')"
+          />
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <Select v-model="form.provider" :label="t('CRM.MAIL_ACCOUNTS.FORM.PROVIDER')" :options="providerOptions" />
-          <Select v-model="form.useSsl" :label="t('CRM.MAIL_ACCOUNTS.FORM.SSL')" :options="sslOptions" />
+          <div>
+            <label class="block mb-0.5 text-heading-3 text-n-slate-12">
+              {{ t('CRM.MAIL_ACCOUNTS.FORM.PROVIDER') }}
+            </label>
+            <Select
+              v-model="form.provider"
+              class="w-full"
+              :options="providerOptions"
+            />
+          </div>
+          <div>
+            <label class="block mb-0.5 text-heading-3 text-n-slate-12">
+              {{ t('CRM.MAIL_ACCOUNTS.FORM.SSL') }}
+            </label>
+            <Select
+              v-model="form.useSsl"
+              class="w-full"
+              :options="sslOptions"
+            />
+          </div>
         </div>
         <div v-if="form.provider === 'CUSTOM'" class="grid grid-cols-2 gap-4">
-          <Input v-model="form.smtpHost" :label="t('CRM.MAIL_ACCOUNTS.FORM.HOST')" />
-          <Input v-model="form.smtpPort" type="number" :label="t('CRM.MAIL_ACCOUNTS.FORM.PORT')" />
+          <Input
+            v-model="form.smtpHost"
+            :label="t('CRM.MAIL_ACCOUNTS.FORM.HOST')"
+          />
+          <Input
+            v-model="form.smtpPort"
+            type="number"
+            :label="t('CRM.MAIL_ACCOUNTS.FORM.PORT')"
+          />
         </div>
         <Input
           v-model="form.smtpPassword"
           type="password"
           :label="t('CRM.MAIL_ACCOUNTS.FORM.PASSWORD')"
-          :placeholder="t('CRM.MAIL_ACCOUNTS.FORM.PASSWORD_PLACEHOLDER')"
+          :placeholder="
+            editingId
+              ? L.passwordKeep
+              : t('CRM.MAIL_ACCOUNTS.FORM.PASSWORD_PLACEHOLDER')
+          "
         />
-        <Input v-model="form.signature" :label="t('CRM.MAIL_ACCOUNTS.FORM.SIGNATURE')" />
+        <Input
+          v-model="form.signature"
+          :label="t('CRM.MAIL_ACCOUNTS.FORM.SIGNATURE')"
+        />
+        <button
+          v-if="editingId"
+          class="inline-flex items-center self-start gap-1 text-xs text-n-ruby-11 hover:underline"
+          @click="removeRecord"
+        >
+          <Icon icon="i-lucide-trash-2" class="size-3.5" />
+          {{ L.delete }}
+        </button>
       </div>
     </Dialog>
   </div>
