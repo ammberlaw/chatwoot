@@ -23,6 +23,10 @@ class Crm::KnowledgeDocPolicy < ApplicationPolicy
     true
   end
 
+  def audits?
+    true
+  end
+
   def destroy?
     @account_user.administrator?
   end

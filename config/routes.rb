@@ -83,10 +83,12 @@ Rails.application.routes.draw do
             resources :follow_up_tasks
             resources :knowledge_docs do
               member do
+                get :audits
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
               end
             end
+            resources :knowledge_categories, only: [:index, :create, :update, :destroy]
             resources :teams
             resources :sales_targets
             resource :public_pool_settings, only: [:show, :update]

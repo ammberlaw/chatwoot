@@ -27,16 +27,18 @@
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::KnowledgeDoc < ApplicationRecord
-  CATEGORIES = %w[PRODUCT_CATALOG FAQ AFTER_SALES QUOTE_TEMPLATE COMPANY_CERT USER_MANUAL PRODUCT_SPEC PAYMENT_ACCOUNT].freeze
   SCOPES = %w[PERSONAL COMPANY].freeze
 
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true
 
+  # 审计：记录文档的创建/编辑，供侧边栏「时间轴」展示。
+  audited except: %i[created_at updated_at], on: %i[create update]
+
   has_many_attached :files
 
   validates :name, presence: true
-  validates :category, inclusion: { in: CATEGORIES }, allow_blank: true
+  # 分类为账号级可管理的自由文本（见 Crm::KnowledgeCategory），不再硬校验枚举。
   validates :scope, inclusion: { in: SCOPES }
 
   scope :company_docs, -> { where(scope: 'COMPANY') }

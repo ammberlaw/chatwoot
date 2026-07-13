@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_12_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_13_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -914,6 +914,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_12_110000) do
     t.index ["crm_opportunity_id"], name: "index_crm_follow_up_tasks_on_crm_opportunity_id"
   end
 
+  create_table "crm_knowledge_categories", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "name"], name: "index_crm_knowledge_categories_on_account_id_and_name", unique: true
+    t.index ["account_id"], name: "index_crm_knowledge_categories_on_account_id"
+  end
+
   create_table "crm_knowledge_docs", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1723,6 +1733,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_12_110000) do
   add_foreign_key "crm_follow_up_tasks", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_follow_up_tasks", "crm_opportunities", on_delete: :nullify
   add_foreign_key "crm_follow_up_tasks", "users", column: "assignee_id", on_delete: :nullify
+  add_foreign_key "crm_knowledge_categories", "accounts"
   add_foreign_key "crm_knowledge_docs", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_mail_accounts", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify

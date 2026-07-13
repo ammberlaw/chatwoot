@@ -218,6 +218,29 @@
       "LOADING": "Loading…",
       "EMPTY": "No docs yet 暂无文档",
       "SEARCH_PLACEHOLDER": "搜索标题 / 摘要",
+      "ADD_IN_COLUMN": "新",
+      "UNCATEGORIZED": "未分类",
+      "PANEL": {
+        "DETAIL": "详情",
+        "TIMELINE": "时间轴",
+        "SUMMARY": "摘要",
+        "BODY": "正文",
+        "ATTACHMENTS": "附件",
+        "EDIT": "编辑",
+        "SAVE": "保存",
+        "CREATE": "创建",
+        "CANCEL": "取消",
+        "NEW_TITLE": "新建文档",
+        "NO_HISTORY": "暂无操作记录"
+      },
+      "CATEGORY": {
+        "ADD": "添加分类",
+        "RENAME": "重命名",
+        "DELETE": "删除分类",
+        "NAME_PLACEHOLDER": "分类名称，回车保存",
+        "SAVE_ERROR": "分类保存失败",
+        "DELETE_ERROR": "分类删除失败"
+      },
       "FILTERS": {
         "COMPANY": "Company 公司文档",
         "MINE": "Mine 我的知识库",

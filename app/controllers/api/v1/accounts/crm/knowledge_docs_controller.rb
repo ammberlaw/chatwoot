@@ -1,13 +1,13 @@
 class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_doc, only: [:show, :update, :destroy, :attach, :detach]
+  before_action :fetch_doc, only: [:show, :update, :destroy, :attach, :detach, :audits]
 
   RESULTS_PER_PAGE = 20
 
   def index
     @docs_scope = filtered_docs
     @docs_count = @docs_scope.count
-    @docs = @docs_scope.order(updated_at: :desc).page(params[:page] || 1).per(RESULTS_PER_PAGE)
+    @docs = @docs_scope.order(updated_at: :desc).page(params[:page] || 1).per(per_page)
   end
 
   def show; end
@@ -37,6 +37,20 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::BaseC
     render 'api/v1/accounts/crm/knowledge_docs/show'
   end
 
+  # 时间轴：文档的创建/编辑历史。
+  def audits
+    rows = @doc.audits.order(created_at: :desc).limit(80).map do |audit|
+      {
+        id: audit.id,
+        action: audit.action,
+        changed_fields: audit.audited_changes.keys,
+        user_name: audit.user&.name || audit.username || '系统',
+        created_at: audit.created_at
+      }
+    end
+    render json: { payload: rows }
+  end
+
   private
 
   def fetch_doc
@@ -59,5 +73,10 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::BaseC
 
   def doc_params
     params.require(:doc).permit(:name, :category, :summary, :scope, :body, :owner_id, files: [])
+  end
+
+  # 看板视图一次拉全（上限 200）；未传时回落默认页大小。
+  def per_page
+    [(params[:per_page].presence || RESULTS_PER_PAGE).to_i, 200].min
   end
 end
