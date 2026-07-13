@@ -787,6 +787,12 @@ const menuItems = computed(() => {
           to: accountScopedRoute('crm_approvals_index'),
           activeOn: ['crm_approvals_index'],
         },
+        {
+          name: 'CRM Approval Templates',
+          label: t('SIDEBAR.CRM_APPROVAL_TEMPLATES'),
+          to: accountScopedRoute('crm_approval_templates_index'),
+          activeOn: ['crm_approval_templates_index'],
+        },
       ],
     },
     {

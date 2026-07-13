@@ -10,6 +10,7 @@ import CrmMailAccountsIndex from './pages/CrmMailAccountsIndex.vue';
 import CrmEmailTemplatesIndex from './pages/CrmEmailTemplatesIndex.vue';
 import CrmOrgStructureIndex from './pages/CrmOrgStructureIndex.vue';
 import CrmApprovalsIndex from './pages/CrmApprovalsIndex.vue';
+import CrmApprovalTemplatesIndex from './pages/CrmApprovalTemplatesIndex.vue';
 import CrmDashboardIndex from './pages/CrmDashboardIndex.vue';
 import CrmTeamDashboardIndex from './pages/CrmTeamDashboardIndex.vue';
 import CrmMyTargetIndex from './pages/CrmMyTargetIndex.vue';
@@ -53,4 +54,5 @@ export const routes = [
   ),
   crmPage('org-structure', 'crm_org_structure_index', CrmOrgStructureIndex),
   crmPage('approvals', 'crm_approvals_index', CrmApprovalsIndex),
+  crmPage('approval-templates', 'crm_approval_templates_index', CrmApprovalTemplatesIndex),
 ];
