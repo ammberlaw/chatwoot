@@ -47,6 +47,15 @@ const L = {
   passwordKeep: '编辑时留空则不修改授权码',
 };
 
+const enabledOptions = [
+  { value: 'false', label: '不收信（仅发信）' },
+  { value: 'true', label: '开启收件（IMAP）' },
+];
+const imapSslOptions = [
+  { value: 'true', label: 'SSL (993)' },
+  { value: 'false', label: '不加密 (143)' },
+];
+
 const editingId = ref(null);
 const form = reactive({
   name: '',
@@ -57,6 +66,10 @@ const form = reactive({
   smtpPassword: '',
   useSsl: 'true',
   signature: '',
+  imapEnabled: 'false',
+  imapHost: '',
+  imapPort: '',
+  imapSsl: 'true',
 });
 
 const resetForm = () => {
@@ -69,6 +82,10 @@ const resetForm = () => {
     smtpPassword: '',
     useSsl: 'true',
     signature: '',
+    imapEnabled: 'false',
+    imapHost: '',
+    imapPort: '',
+    imapSsl: 'true',
   });
 };
 
@@ -89,6 +106,10 @@ const openEdit = record => {
     smtpPassword: '',
     useSsl: record.useSsl === false ? 'false' : 'true',
     signature: record.signature || '',
+    imapEnabled: record.imapEnabled ? 'true' : 'false',
+    imapHost: record.imapHost || '',
+    imapPort: record.imapPort ? String(record.imapPort) : '',
+    imapSsl: record.imapSsl === false ? 'false' : 'true',
   });
   dialogRef.value?.open();
 };
@@ -103,6 +124,10 @@ const handleConfirm = async () => {
     smtpPort: form.smtpPort ? Number(form.smtpPort) : null,
     useSsl: form.useSsl === 'true',
     signature: form.signature.trim() || null,
+    imapEnabled: form.imapEnabled === 'true',
+    imapHost: form.imapHost.trim() || null,
+    imapPort: form.imapPort ? Number(form.imapPort) : null,
+    imapSsl: form.imapSsl === 'true',
   };
   // 授权码留空时不覆盖（编辑场景）。
   if (form.smtpPassword) payload.smtpPassword = form.smtpPassword;
@@ -293,6 +318,44 @@ onMounted(() => store.get());
               : t('CRM.MAIL_ACCOUNTS.FORM.PASSWORD_PLACEHOLDER')
           "
         />
+        <!-- 收件设置（IMAP）：认证复用上面的授权码 -->
+        <div class="pt-2 mt-1 border-t border-n-weak">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block mb-0.5 text-heading-3 text-n-slate-12">
+                收件（IMAP）
+              </label>
+              <Select
+                v-model="form.imapEnabled"
+                class="w-full"
+                :options="enabledOptions"
+              />
+            </div>
+            <div v-if="form.imapEnabled === 'true'">
+              <label class="block mb-0.5 text-heading-3 text-n-slate-12">
+                收件加密
+              </label>
+              <Select
+                v-model="form.imapSsl"
+                class="w-full"
+                :options="imapSslOptions"
+              />
+            </div>
+          </div>
+          <div
+            v-if="form.imapEnabled === 'true' && form.provider === 'CUSTOM'"
+            class="grid grid-cols-2 gap-4 mt-3"
+          >
+            <Input v-model="form.imapHost" label="IMAP 主机" />
+            <Input v-model="form.imapPort" type="number" label="IMAP 端口" />
+          </div>
+          <p
+            v-if="form.imapEnabled === 'true'"
+            class="mt-1.5 text-xs text-n-slate-10"
+          >
+            开启后每 5 分钟自动拉取新邮件到收件箱，认证复用上方的授权码。
+          </p>
+        </div>
         <Input
           v-model="form.signature"
           :label="t('CRM.MAIL_ACCOUNTS.FORM.SIGNATURE')"

@@ -4,21 +4,26 @@
 #
 # Table name: crm_mail_accounts
 #
-#  id            :bigint           not null, primary key
-#  email_address :string           not null
-#  is_active     :boolean          default(TRUE), not null
-#  name          :string           not null
-#  provider      :string           default("TENCENT_EXMAIL"), not null
-#  signature     :text
-#  smtp_host     :string
-#  smtp_password :string
-#  smtp_port     :integer
-#  smtp_user     :string
-#  use_ssl       :boolean          default(TRUE), not null
-#  created_at    :datetime         not null
-#  updated_at    :datetime         not null
-#  account_id    :bigint           not null
-#  owner_id      :bigint
+#  id             :bigint           not null, primary key
+#  email_address  :string           not null
+#  imap_enabled   :boolean          default(FALSE), not null
+#  imap_host      :string
+#  imap_port      :integer
+#  imap_ssl       :boolean          default(TRUE), not null
+#  imap_synced_at :datetime
+#  is_active      :boolean          default(TRUE), not null
+#  name           :string           not null
+#  provider       :string           default("TENCENT_EXMAIL"), not null
+#  signature      :text
+#  smtp_host      :string
+#  smtp_password  :string
+#  smtp_port      :integer
+#  smtp_user      :string
+#  use_ssl        :boolean          default(TRUE), not null
+#  created_at     :datetime         not null
+#  updated_at     :datetime         not null
+#  account_id     :bigint           not null
+#  owner_id       :bigint
 #
 # Indexes
 #
@@ -36,6 +41,12 @@ class Crm::MailAccount < ApplicationRecord
     'NETEASE_QIYE' => 'smtphz.qiye.163.com',
     'ALIYUN_QIYE' => 'smtp.qiye.aliyun.com'
   }.freeze
+  # 收件（IMAP）主机；CUSTOM 用 imap_host。认证复用 smtp_password。
+  PROVIDER_IMAP_HOSTS = {
+    'TENCENT_EXMAIL' => 'imap.exmail.qq.com',
+    'NETEASE_QIYE' => 'imaphz.qiye.163.com',
+    'ALIYUN_QIYE' => 'imap.qiye.aliyun.com'
+  }.freeze
 
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true
@@ -48,9 +59,19 @@ class Crm::MailAccount < ApplicationRecord
 
   scope :active, -> { where(is_active: true) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
+  # 可收件账户：启用 + 已开 IMAP + 有密码（IMAP 复用 smtp_password 认证）。
+  scope :imap_active, -> { active.where(imap_enabled: true).where.not(smtp_password: [nil, '']) }
 
   def resolved_host
     provider == 'CUSTOM' ? smtp_host : PROVIDER_HOSTS[provider]
+  end
+
+  def resolved_imap_host
+    provider == 'CUSTOM' ? imap_host : PROVIDER_IMAP_HOSTS[provider]
+  end
+
+  def resolved_imap_port
+    imap_port || 993
   end
 
   def resolved_port

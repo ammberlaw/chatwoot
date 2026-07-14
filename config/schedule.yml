@@ -80,3 +80,9 @@ crm_recycle_stale_customers_job:
   cron: '0 18 * * *'
   class: 'Crm::RecycleStaleCustomersJob'
   queue: scheduled_jobs
+
+# CRM：业务员邮箱 IMAP 收信，每 5 分钟拉取新邮件
+crm_fetch_imap_emails_job:
+  cron: '*/5 * * * *'
+  class: 'Crm::FetchImapEmailsJob'
+  queue: low

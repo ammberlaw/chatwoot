@@ -41,6 +41,7 @@ class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::Crm::B
 
   def mail_account_params
     params.require(:mail_account).permit(:name, :email_address, :provider, :smtp_host, :smtp_port,
-                                         :smtp_user, :smtp_password, :use_ssl, :is_active, :signature, :owner_id)
+                                         :smtp_user, :smtp_password, :use_ssl, :is_active, :signature, :owner_id,
+                                         :imap_enabled, :imap_host, :imap_port, :imap_ssl)
   end
 end

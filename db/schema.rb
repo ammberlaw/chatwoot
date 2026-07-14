@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_14_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_14_140000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -917,10 +917,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_130000) do
     t.integer "open_count", default: 0, null: false
     t.datetime "first_opened_at"
     t.datetime "last_opened_at"
+    t.string "message_id"
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
     t.index ["account_id", "is_starred"], name: "index_crm_emails_starred", where: "is_starred"
+    t.index ["account_id", "message_id"], name: "index_crm_emails_on_account_id_and_message_id", unique: true, where: "(message_id IS NOT NULL)"
     t.index ["account_id"], name: "index_crm_emails_on_account_id"
     t.index ["chatwoot_message_id"], name: "index_crm_emails_on_chatwoot_message_id", unique: true, where: "(chatwoot_message_id IS NOT NULL)"
     t.index ["contact_id"], name: "index_crm_emails_on_contact_id"
@@ -1014,6 +1016,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_130000) do
     t.text "signature"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "imap_enabled", default: false, null: false
+    t.string "imap_host"
+    t.integer "imap_port"
+    t.boolean "imap_ssl", default: true, null: false
+    t.datetime "imap_synced_at"
     t.index ["account_id"], name: "index_crm_mail_accounts_on_account_id"
     t.index ["owner_id"], name: "index_crm_mail_accounts_on_owner_id"
   end

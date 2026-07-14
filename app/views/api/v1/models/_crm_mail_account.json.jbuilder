@@ -6,6 +6,11 @@ json.smtp_host resource.smtp_host
 json.smtp_port resource.smtp_port
 json.smtp_user resource.smtp_user
 json.use_ssl resource.use_ssl
+json.imap_enabled resource.imap_enabled
+json.imap_host resource.imap_host
+json.imap_port resource.imap_port
+json.imap_ssl resource.imap_ssl
+json.imap_synced_at resource.imap_synced_at
 json.is_active resource.is_active
 json.signature resource.signature
 json.owner_id resource.owner_id
