@@ -359,7 +359,7 @@ const submit = async () => {
 
       <div class="flex items-center gap-3 mt-1">
         <button
-          class="h-10 px-6 text-sm font-medium text-white rounded-lg bg-n-blue-9 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-amber-9 hover:bg-n-amber-10 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit"
           @click="submit"
         >

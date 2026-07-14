@@ -76,7 +76,7 @@ const fmtMoney = micros =>
       <Button
         :label="t('CRM.SALES_TARGETS.NEW')"
         icon="i-lucide-plus"
-        color="blue"
+        color="amber"
         @click="openCreateDialog"
       />
     </div>
@@ -88,7 +88,7 @@ const fmtMoney = micros =>
         :label="tab.label"
         size="sm"
         :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-        :color="activeFilter === tab.key ? 'blue' : 'slate'"
+        :color="activeFilter === tab.key ? 'amber' : 'slate'"
         @click="setFilter(tab.key)"
       />
     </div>

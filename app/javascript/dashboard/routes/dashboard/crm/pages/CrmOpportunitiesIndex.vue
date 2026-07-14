@@ -6,6 +6,7 @@ import { useAlert } from 'dashboard/composables';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Icon from 'dashboard/components-next/icon/Icon.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 
 const { t } = useI18n();
@@ -65,6 +66,18 @@ const setFilter = key => {
 
 const openEditDialog = record => createDialogRef.value?.open(record);
 
+const removeRecord = async record => {
+  if (!window.confirm(t('CRM.OPPORTUNITIES.DELETE.CONFIRM', { name: record.name })))
+    return;
+  try {
+    await store.delete(record.id);
+    useAlert(t('CRM.OPPORTUNITIES.DELETE.SUCCESS'));
+    fetchRecords();
+  } catch {
+    useAlert(t('CRM.OPPORTUNITIES.DELETE.ERROR'));
+  }
+};
+
 const updateRecord = async payload => {
   try {
     await store.update(payload);
@@ -109,7 +122,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
         :label="tab.label"
         size="sm"
         :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-        :color="activeFilter === tab.key ? 'blue' : 'slate'"
+        :color="activeFilter === tab.key ? 'amber' : 'slate'"
         @click="setFilter(tab.key)"
       />
     </div>
@@ -150,6 +163,9 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
             </th>
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.OPPORTUNITIES.TABLE.OWNER') }}
+            </th>
+            <th class="px-3 py-2 font-medium text-right">
+              {{ t('CRM.OPPORTUNITIES.TABLE.ACTIONS') }}
             </th>
           </tr>
         </thead>
@@ -203,6 +219,16 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
                 {{ record.ownerName }}
               </span>
               <span v-else class="text-n-slate-10">—</span>
+            </td>
+            <td class="px-3 py-2 text-right whitespace-nowrap">
+              <button
+                type="button"
+                :title="t('CRM.OPPORTUNITIES.DELETE.LABEL')"
+                class="inline-flex items-center justify-center transition-colors rounded-md size-7 text-n-slate-10 hover:bg-n-ruby-3 hover:text-n-ruby-11"
+                @click.stop="removeRecord(record)"
+              >
+                <Icon icon="i-lucide-trash-2" class="size-4" />
+              </button>
             </td>
           </tr>
         </tbody>
