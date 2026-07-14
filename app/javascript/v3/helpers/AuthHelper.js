@@ -47,7 +47,8 @@ export const getLoginRedirectURL = ({
     if (ssoConversationId) {
       return frontendURL(`${accountPath}/conversations/${ssoConversationId}`);
     }
-    return frontendURL(`${accountPath}/dashboard`);
+    // 登录后落地到全屏一级工作台（选系统入口），而非会话首页。
+    return frontendURL(`${accountPath}/crm/workspace`);
   }
   return DEFAULT_REDIRECT_URL;
 };

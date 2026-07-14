@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import ChatAPI from 'dashboard/api/chat/conversations';
 import AgentAPI from 'dashboard/api/agents';
 
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -13,13 +14,18 @@ import Input from 'dashboard/components-next/input/Input.vue';
 const currentUserId = useMapGetter('getCurrentUserID');
 
 const L = {
-  header: '团队沟通',
+  messages: '消息',
+  searchPlaceholder: '搜索会话',
   newChat: '发起单聊',
   newGroup: '建群',
-  empty: '还没有会话，点右上发起单聊或建群',
+  empty: '还没有会话',
+  emptyHint: '点右上 + 发起单聊或建群',
   selectHint: '选择左侧会话开始聊天',
+  selectTitle: '团队沟通',
   placeholder: '输入消息，回车发送',
-  send: '发送',
+  online: '在线',
+  offline: '离线',
+  noMatch: '没有匹配的会话',
   read: '已读',
   delivered: '已送达',
   allRead: '全部已读',
@@ -42,6 +48,7 @@ const messages = ref([]);
 const newText = ref('');
 const agents = ref([]);
 const threadRef = ref(null);
+const search = ref('');
 
 const userDialog = ref(null);
 const groupDialog = ref(null);
@@ -50,7 +57,6 @@ const groupForm = ref({ name: '', memberIds: [] });
 let listTimer = null;
 let msgTimer = null;
 
-const initial = n => (n || '?').trim().charAt(0).toUpperCase();
 const fmtTime = v => {
   if (!v) return '';
   const d = new Date(v);
@@ -62,9 +68,45 @@ const fmtTime = v => {
     });
   return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
 };
+
+// id → agent，供头像与在线状态查询。
+const agentMap = computed(() => {
+  const m = {};
+  agents.value.forEach(a => {
+    m[a.id] = a;
+  });
+  return m;
+});
+const convSrc = conv =>
+  conv.kind === 'group' ? '' : agentMap.value[conv.peer_id]?.thumbnail || '';
+const convStatus = conv =>
+  conv.kind === 'group'
+    ? null
+    : agentMap.value[conv.peer_id]?.availability_status || null;
+const senderSrc = msg => agentMap.value[msg.sender_id]?.thumbnail || '';
+
 const otherAgents = computed(() =>
   agents.value.filter(a => a.id !== currentUserId.value)
 );
+const filteredConversations = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  if (!q) return conversations.value;
+  return conversations.value.filter(
+    c =>
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.last_message?.content || '').toLowerCase().includes(q)
+  );
+});
+
+// 单聊对方在线态（会话头部展示）。
+const activePeerOnline = computed(
+  () =>
+    activeConv.value?.kind === 'direct' &&
+    agentMap.value[activeConv.value.peer_id]?.availability_status === 'online'
+);
+// 列表尾随状态：我发的末条消息给出对勾。
+const mineLastMessage = conv =>
+  conv.last_message && conv.last_message.sender_id === currentUserId.value;
 
 const lastMessageId = computed(() =>
   messages.value.length ? messages.value[messages.value.length - 1].id : 0
@@ -208,15 +250,22 @@ const createGroup = async () => {
   }
 };
 
-onMounted(async () => {
-  fetchConversations();
+const loadAgents = async () => {
   try {
     const { data } = await AgentAPI.get();
     agents.value = data || [];
   } catch {
     agents.value = [];
   }
-  listTimer = setInterval(fetchConversations, 6000);
+};
+
+onMounted(async () => {
+  fetchConversations();
+  loadAgents();
+  listTimer = setInterval(() => {
+    fetchConversations();
+    loadAgents(); // 顺带刷新在线状态
+  }, 6000);
   msgTimer = setInterval(pollActive, 3000);
 });
 onBeforeUnmount(() => {
@@ -226,131 +275,208 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-hidden bg-n-background">
+  <div
+    class="w-full h-full p-4 overflow-hidden sm:p-6 bg-gradient-to-br from-n-amber-3 via-n-teal-3 to-n-teal-5"
+  >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex w-full h-full overflow-hidden border shadow-sm bg-n-solid-1 border-n-weak rounded-[28px]"
     >
-      <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
-      <div class="flex gap-2">
-        <Button
-          :label="L.newChat"
-          icon="i-lucide-message-square-plus"
-          size="sm"
-          variant="faded"
-          color="slate"
-          @click="openUserPicker"
-        />
-        <Button
-          :label="L.newGroup"
-          icon="i-lucide-users"
-          size="sm"
-          color="amber"
-          @click="openGroupDialog"
-        />
-      </div>
-    </div>
-
-    <div class="flex flex-1 min-h-0">
       <!-- 左：会话列表 -->
       <aside
-        class="flex flex-col flex-shrink-0 border-r w-72 border-n-weak bg-n-solid-1"
+        class="flex flex-col shrink-0 w-[300px] border-r border-n-weak"
       >
-        <div class="flex-1 overflow-y-auto">
+        <!-- 搜索 -->
+        <div class="p-4 pb-3">
+          <div class="relative">
+            <Icon
+              icon="i-lucide-search"
+              class="absolute -translate-y-1/2 pointer-events-none size-4 left-3.5 top-1/2 text-n-slate-10"
+            />
+            <input
+              v-model="search"
+              type="text"
+              :placeholder="L.searchPlaceholder"
+              class="w-full py-2.5 pl-10 pr-3 text-sm border rounded-full reset-base border-transparent bg-n-alpha-1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-7 focus-visible:bg-n-solid-1"
+            />
+          </div>
+        </div>
+
+        <!-- 标题 + 新建 -->
+        <div class="flex items-center justify-between px-5 pb-2">
+          <h1 class="text-xl font-semibold tracking-tight text-n-slate-12">
+            {{ L.messages }}
+          </h1>
+          <div class="flex gap-0.5">
+            <button
+              type="button"
+              :title="L.newChat"
+              class="grid transition-colors rounded-full size-8 place-items-center text-n-slate-11 hover:bg-n-alpha-2"
+              @click="openUserPicker"
+            >
+              <Icon icon="i-lucide-message-square-plus" class="size-[18px]" />
+            </button>
+            <button
+              type="button"
+              :title="L.newGroup"
+              class="grid transition-colors rounded-full size-8 place-items-center text-n-slate-11 hover:bg-n-alpha-2"
+              @click="openGroupDialog"
+            >
+              <Icon icon="i-lucide-users-round" class="size-[18px]" />
+            </button>
+          </div>
+        </div>
+
+        <!-- 列表 -->
+        <div class="flex-1 px-2 pb-2 overflow-y-auto">
           <div
             v-if="!conversations.length"
-            class="p-6 text-sm text-center text-n-slate-10"
+            class="flex flex-col items-center gap-1 px-6 mt-16 text-center"
           >
-            {{ L.empty }}
+            <Icon
+              icon="i-lucide-messages-square"
+              class="mb-2 opacity-30 size-8 text-n-slate-10"
+            />
+            <p class="text-sm font-medium text-n-slate-11">{{ L.empty }}</p>
+            <p class="text-xs text-n-slate-10">{{ L.emptyHint }}</p>
           </div>
+          <p
+            v-else-if="!filteredConversations.length"
+            class="px-6 mt-10 text-sm text-center text-n-slate-10"
+          >
+            {{ L.noMatch }}
+          </p>
+
           <button
-            v-for="conv in conversations"
+            v-for="conv in filteredConversations"
             :key="conv.id"
-            class="flex items-center w-full gap-3 px-4 py-3 text-left transition-colors border-b border-n-weak"
+            type="button"
+            class="flex items-center w-full gap-3 px-3 py-2.5 mb-0.5 text-left transition-colors rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-n-amber-7"
             :class="
               activeConv && activeConv.id === conv.id
-                ? 'bg-n-amber-2'
+                ? 'bg-n-amber-3'
                 : 'hover:bg-n-alpha-1'
             "
             @click="openConversation(conv)"
           >
-            <div
-              class="relative flex items-center justify-center flex-shrink-0 rounded-full size-10 bg-n-amber-4 text-n-amber-11"
-            >
-              <Icon
-                v-if="conv.kind === 'group'"
-                icon="i-lucide-users"
-                class="size-5"
-              />
-              <template v-else>{{ initial(conv.name) }}</template>
-            </div>
+            <Avatar
+              :name="conv.name"
+              :src="convSrc(conv)"
+              :status="convStatus(conv)"
+              :size="44"
+              rounded-full
+              hide-offline-status
+            />
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-sm font-medium truncate text-n-slate-12">
+                <span class="text-sm font-semibold truncate text-n-slate-12">
                   {{ conv.name }}
                 </span>
-                <span class="flex-shrink-0 text-[11px] text-n-slate-10">
+                <span class="shrink-0 text-[11px] tabular-nums text-n-slate-10">
                   {{ fmtTime(conv.last_message_at) }}
                 </span>
               </div>
               <div class="flex items-center justify-between gap-2 mt-0.5">
-                <span class="text-xs truncate text-n-slate-10">
-                  {{ conv.last_message?.content || '' }}
+                <span
+                  class="text-xs truncate"
+                  :class="
+                    conv.unread_count ? 'text-n-slate-12 font-medium' : 'text-n-slate-10'
+                  "
+                >
+                  {{ conv.last_message?.content || '—' }}
                 </span>
                 <span
                   v-if="conv.unread_count"
-                  class="flex items-center justify-center flex-shrink-0 min-w-4 h-4 px-1 rounded-full text-[10px] text-white bg-n-ruby-9"
+                  class="grid shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold text-white place-items-center bg-n-amber-9"
                 >
                   {{ conv.unread_count }}
                 </span>
+                <Icon
+                  v-else-if="mineLastMessage(conv)"
+                  icon="i-lucide-check-check"
+                  class="shrink-0 size-4 text-n-teal-10"
+                />
               </div>
             </div>
           </button>
         </div>
       </aside>
 
-      <!-- 右：消息 -->
-      <section class="flex flex-col flex-1 min-w-0">
+      <!-- 右：消息（薄荷底色，头部/输入框保持白色浮于其上） -->
+      <section
+        class="flex flex-col flex-1 min-w-0 bg-gradient-to-b from-n-teal-1 to-n-teal-3"
+      >
+        <!-- 空状态 -->
         <div
           v-if="!activeConv"
           class="flex flex-col items-center justify-center flex-1 gap-3 text-n-slate-10"
         >
-          <Icon icon="i-lucide-messages-square" class="size-12 opacity-40" />
-          <p class="text-sm">{{ L.selectHint }}</p>
+          <div
+            class="grid rounded-full size-16 place-items-center bg-n-amber-3 text-n-amber-11"
+          >
+            <Icon icon="i-lucide-messages-square" class="size-7" />
+          </div>
+          <p class="text-sm font-medium text-n-slate-11">{{ L.selectTitle }}</p>
+          <p class="text-xs text-n-slate-10">{{ L.selectHint }}</p>
         </div>
 
         <template v-else>
-          <div
-            class="flex items-center gap-2 px-6 py-3 border-b border-n-weak flex-shrink-0"
+          <!-- 会话头部 -->
+          <header
+            class="flex items-center gap-3 px-6 py-4 shrink-0 border-b border-n-weak bg-n-solid-1"
           >
-            <h2 class="text-base font-medium text-n-slate-12">
-              {{ activeConv.name }}
-            </h2>
-            <span
-              v-if="activeConv.kind === 'group'"
-              class="text-xs text-n-slate-10"
-            >
-              {{ L.members(activeConv.participant_count) }}
-            </span>
-          </div>
+            <Avatar
+              :name="activeConv.name"
+              :src="convSrc(activeConv)"
+              :status="convStatus(activeConv)"
+              :size="40"
+              rounded-full
+              hide-offline-status
+            />
+            <div class="min-w-0">
+              <h2 class="text-[15px] font-semibold truncate text-n-slate-12">
+                {{ activeConv.name }}
+              </h2>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <template v-if="activeConv.kind === 'group'">
+                  <span class="text-xs text-n-slate-10">
+                    {{ L.members(activeConv.participant_count) }}
+                  </span>
+                </template>
+                <template v-else>
+                  <span
+                    class="rounded-full size-1.5"
+                    :class="activePeerOnline ? 'bg-n-teal-9' : 'bg-n-slate-8'"
+                  />
+                  <span class="text-xs text-n-slate-10">
+                    {{ activePeerOnline ? L.online : L.offline }}
+                  </span>
+                </template>
+              </div>
+            </div>
+          </header>
 
-          <div ref="threadRef" class="flex-1 px-6 py-4 overflow-y-auto">
+          <!-- 消息流 -->
+          <div ref="threadRef" class="flex-1 px-6 py-5 overflow-y-auto">
             <div
               v-for="msg in messages"
               :key="msg.id"
-              class="flex gap-2 mb-4"
+              class="flex gap-2.5 mb-4"
               :class="
                 msg.sender_id === currentUserId
                   ? 'flex-row-reverse'
                   : 'flex-row'
               "
             >
+              <Avatar
+                v-if="msg.sender_id !== currentUserId"
+                :name="msg.sender_name"
+                :src="senderSrc(msg)"
+                :size="32"
+                rounded-full
+                class="mt-0.5"
+              />
               <div
-                class="flex items-center justify-center flex-shrink-0 text-xs rounded-full size-8 bg-n-amber-4 text-n-amber-11"
-              >
-                {{ initial(msg.sender_name) }}
-              </div>
-              <div
-                class="flex flex-col max-w-[70%]"
+                class="flex flex-col max-w-[72%]"
                 :class="
                   msg.sender_id === currentUserId ? 'items-end' : 'items-start'
                 "
@@ -360,27 +486,28 @@ onBeforeUnmount(() => {
                     activeConv.kind === 'group' &&
                     msg.sender_id !== currentUserId
                   "
-                  class="mb-0.5 text-[11px] text-n-slate-10"
+                  class="mb-1 ml-1 text-[11px] font-medium text-n-slate-10"
                 >
                   {{ msg.sender_name }}
                 </span>
                 <div
-                  class="px-3 py-2 text-sm break-words whitespace-pre-wrap rounded-2xl"
+                  class="px-4 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap shadow-sm rounded-[20px]"
                   :class="
                     msg.sender_id === currentUserId
-                      ? 'bg-n-amber-9 text-white rounded-tr-sm'
-                      : 'bg-n-alpha-2 text-n-slate-12 rounded-tl-sm'
+                      ? 'bg-n-solid-1 text-n-slate-12 ring-1 ring-inset ring-n-weak rounded-br-md'
+                      : 'bg-n-slate-12 text-n-slate-1 rounded-bl-md'
                   "
                 >
                   {{ msg.content }}
                 </div>
-                <div class="flex items-center gap-1.5 mt-0.5">
-                  <span class="text-[10px] text-n-slate-9">
+                <div class="flex items-center gap-1.5 mt-1 px-1">
+                  <span class="text-[10px] tabular-nums text-n-slate-9">
                     {{ fmtTime(msg.created_at) }}
                   </span>
                   <template v-if="msg.sender_id === currentUserId">
                     <button
                       v-if="activeConv.kind === 'group' && groupReadLabel(msg)"
+                      type="button"
                       class="text-[10px] text-n-teal-11 hover:underline"
                       @click="openReadDetail(msg)"
                     >
@@ -405,23 +532,29 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
+          <!-- 输入区 -->
           <div
-            class="flex items-end gap-2 p-3 border-t border-n-weak flex-shrink-0"
+            class="flex items-end gap-2.5 px-4 py-3.5 shrink-0 border-t border-n-weak bg-n-solid-1"
           >
-            <textarea
-              v-model="newText"
-              rows="1"
-              :placeholder="L.placeholder"
-              class="flex-1 px-3 py-2 text-sm border rounded-lg resize-none reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
-              @keydown.enter.exact.prevent="sendMessage"
-            />
-            <Button
-              :label="L.send"
-              icon="i-lucide-send"
-              color="amber"
+            <div
+              class="flex items-center flex-1 px-4 py-2.5 transition-shadow rounded-full bg-n-alpha-1 ring-1 ring-inset ring-n-weak focus-within:ring-2 focus-within:ring-n-amber-7"
+            >
+              <textarea
+                v-model="newText"
+                rows="1"
+                :placeholder="L.placeholder"
+                class="flex-1 h-6 text-sm leading-6 bg-transparent resize-none reset-base text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none"
+                @keydown.enter.exact.prevent="sendMessage"
+              />
+            </div>
+            <button
+              type="button"
               :disabled="!newText.trim()"
+              class="grid transition-colors rounded-full shrink-0 size-11 place-items-center bg-n-amber-9 text-white hover:bg-n-amber-10 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-7 focus-visible:ring-offset-2 focus-visible:ring-offset-n-solid-1"
               @click="sendMessage"
-            />
+            >
+              <Icon icon="i-lucide-send-horizontal" class="size-[18px]" />
+            </button>
           </div>
         </template>
       </section>
@@ -436,11 +569,14 @@ onBeforeUnmount(() => {
           class="flex items-center gap-3 p-2 text-left rounded-lg hover:bg-n-alpha-1"
           @click="startDirect(a.id)"
         >
-          <div
-            class="flex items-center justify-center text-sm rounded-full size-9 bg-n-amber-4 text-n-amber-11"
-          >
-            {{ initial(a.name) }}
-          </div>
+          <Avatar
+            :name="a.name"
+            :src="a.thumbnail || ''"
+            :status="a.availability_status || null"
+            :size="36"
+            rounded-full
+            hide-offline-status
+          />
           <div class="min-w-0">
             <div class="text-sm truncate text-n-slate-12">{{ a.name }}</div>
             <div class="text-xs truncate text-n-slate-10">{{ a.email }}</div>
@@ -475,11 +611,12 @@ onBeforeUnmount(() => {
                 :value="a.id"
                 class="accent-n-amber-9"
               />
-              <div
-                class="flex items-center justify-center text-xs rounded-full size-7 bg-n-amber-4 text-n-amber-11"
-              >
-                {{ initial(a.name) }}
-              </div>
+              <Avatar
+                :name="a.name"
+                :src="a.thumbnail || ''"
+                :size="28"
+                rounded-full
+              />
               {{ a.name }}
             </label>
           </div>
@@ -502,13 +639,9 @@ onBeforeUnmount(() => {
             <span
               v-for="name in readDetail.read"
               :key="`r-${name}`"
-              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-n-alpha-1 text-n-slate-12"
+              class="inline-flex items-center gap-1.5 py-1 pl-1 pr-2.5 text-xs rounded-full bg-n-alpha-1 text-n-slate-12"
             >
-              <span
-                class="flex items-center justify-center rounded-full size-5 bg-n-amber-4 text-n-amber-11 text-[10px]"
-              >
-                {{ initial(name) }}
-              </span>
+              <Avatar :name="name" :size="20" rounded-full />
               {{ name }}
             </span>
             <span
@@ -527,13 +660,9 @@ onBeforeUnmount(() => {
             <span
               v-for="name in readDetail.unread"
               :key="`u-${name}`"
-              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-n-alpha-1 text-n-slate-11"
+              class="inline-flex items-center gap-1.5 py-1 pl-1 pr-2.5 text-xs rounded-full bg-n-alpha-1 text-n-slate-11"
             >
-              <span
-                class="flex items-center justify-center rounded-full size-5 bg-n-slate-4 text-n-slate-11 text-[10px]"
-              >
-                {{ initial(name) }}
-              </span>
+              <Avatar :name="name" :size="20" rounded-full />
               {{ name }}
             </span>
             <span
