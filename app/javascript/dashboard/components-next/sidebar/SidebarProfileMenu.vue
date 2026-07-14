@@ -1,11 +1,16 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { useStore } from 'vuex';
 import Auth from 'dashboard/api/auth';
 import { useMapGetter } from 'dashboard/composables/store';
+import { useAlert } from 'dashboard/composables';
 import { useI18n } from 'vue-i18n';
+import { checkFileSizeLimit } from 'shared/helpers/FileHelper';
 import Avatar from 'next/avatar/Avatar.vue';
 import SidebarProfileMenuStatus from './SidebarProfileMenuStatus.vue';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
+
+const MAX_AVATAR_SIZE_MB = 15;
 
 import {
   DropdownContainer,
@@ -27,8 +32,35 @@ defineOptions({
 
 const { t } = useI18n();
 
+const store = useStore();
 const currentUser = useMapGetter('getCurrentUser');
 const currentUserAvailability = useMapGetter('getCurrentUserAvailability');
+
+// 自助更换头像：走原生 updateProfile，提交后 currentUser.avatar_url 响应式刷新。
+const avatarInputRef = ref(null);
+const openAvatarPicker = () => avatarInputRef.value?.click();
+const onAvatarSelected = async event => {
+  const file = event.target.files?.[0];
+  event.target.value = ''; // 允许重选同一文件
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    useAlert(t('SIDEBAR_ITEMS.AVATAR_INVALID_TYPE'));
+    return;
+  }
+  if (!checkFileSizeLimit(file, MAX_AVATAR_SIZE_MB)) {
+    useAlert(t('SIDEBAR_ITEMS.AVATAR_TOO_LARGE'));
+    return;
+  }
+  try {
+    await store.dispatch('updateProfile', {
+      avatar: file,
+      displayName: currentUser.value.display_name,
+    });
+    useAlert(t('SIDEBAR_ITEMS.AVATAR_UPDATED'));
+  } catch {
+    useAlert(t('SIDEBAR_ITEMS.AVATAR_UPDATE_FAILED'));
+  }
+};
 const accountId = useMapGetter('getCurrentAccountId');
 const globalConfig = useMapGetter('globalConfig/get');
 const isFeatureEnabledonAccount = useMapGetter(
@@ -70,6 +102,13 @@ const menuItems = computed(() => {
       label: t('SIDEBAR_ITEMS.PROFILE_SETTINGS'),
       icon: 'i-lucide-user-pen',
       link: { name: 'profile_settings_index' },
+    },
+    {
+      show: true,
+      showOnCustomBrandedInstance: true,
+      label: t('SIDEBAR_ITEMS.CHANGE_AVATAR'),
+      icon: 'i-lucide-image-up',
+      click: openAvatarPicker,
     },
     {
       show: true,
@@ -168,4 +207,11 @@ const allowedMenuItems = computed(() => {
       </template>
     </DropdownBody>
   </DropdownContainer>
+  <input
+    ref="avatarInputRef"
+    type="file"
+    accept="image/*"
+    class="hidden"
+    @change="onAvatarSelected"
+  />
 </template>
