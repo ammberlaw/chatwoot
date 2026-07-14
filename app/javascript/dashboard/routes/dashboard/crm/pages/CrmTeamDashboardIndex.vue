@@ -78,11 +78,11 @@ const metricLine = (actual, target, isMoney) => {
   };
 };
 
-// MedFlow 式多色柔和渐变（跨卡 黄→薄荷绿→蜜桃橙）。完整字面量供 Tailwind 收录。
+// 长春花紫色系柔和渐变（跨卡 紫→靛→蓝，无绿）。完整字面量供 Tailwind 收录。
 const CARD_GRADIENTS = [
-  'from-n-iris-3 to-n-teal-3',
-  'from-n-teal-3 to-n-iris-3',
   'from-n-iris-3 to-n-iris-5',
+  'from-n-iris-4 to-n-blue-4',
+  'from-n-blue-3 to-n-iris-5',
 ];
 
 // KPI 顶卡
@@ -138,7 +138,7 @@ const kpiCards = computed(() => [
 
     <div
       v-else-if="!teams.length"
-      class="p-8 text-sm text-center border shadow-sm rounded-2xl border-n-weak bg-n-solid-1 text-n-slate-11"
+      class="p-8 text-sm text-center border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150 text-n-slate-11"
     >
       {{ t('CRM.TEAM_DASHBOARD.EMPTY') }}
     </div>
@@ -172,7 +172,7 @@ const kpiCards = computed(() => [
       <!-- 团队合计进度 + 完成率仪表 -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div
-          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-n-weak bg-n-solid-1"
+          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             团队合计 · {{ team.name }}
@@ -212,7 +212,7 @@ const kpiCards = computed(() => [
         </div>
 
         <div
-          class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-2 text-base font-medium text-n-slate-12">
             成交额完成率
@@ -255,7 +255,7 @@ const kpiCards = computed(() => [
         <h2 class="mb-3 text-base font-medium text-n-slate-12">组员完成率</h2>
         <div
           v-if="!team.members.length"
-          class="p-5 text-sm border shadow-sm rounded-2xl border-n-weak bg-n-solid-1 text-n-slate-11"
+          class="p-5 text-sm border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150 text-n-slate-11"
         >
           该团队暂无组员。可在「系统设置 → CRM 团队」分配组员。
         </div>
@@ -263,7 +263,7 @@ const kpiCards = computed(() => [
           <div
             v-for="member in team.members"
             :key="member.id"
-            class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+            class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <div class="mb-3 font-medium text-n-slate-12">
               {{ member.name }}

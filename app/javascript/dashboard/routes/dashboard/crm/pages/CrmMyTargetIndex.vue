@@ -278,7 +278,7 @@ const cell = (r, isAmt) => {
       <!-- 聚焦月：信息+进度 与 达成仪表 -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div
-          class="flex flex-col p-5 border shadow-sm lg:col-span-2 rounded-2xl border-n-weak bg-n-solid-1"
+          class="flex flex-col p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="text-base font-medium text-n-slate-12">
             {{ year }}年{{ selMonth + 1 }}月 · 有效目标
@@ -350,7 +350,7 @@ const cell = (r, isAmt) => {
         </div>
 
         <div
-          class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-2 text-base font-medium text-n-slate-12">成交额达成</h2>
           <template v-if="selAmountPct != null && !sel.isFuture">
@@ -387,7 +387,7 @@ const cell = (r, isAmt) => {
       </div>
 
       <!-- 12 个月明细表 -->
-      <div class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1">
+      <div class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-base font-medium text-n-slate-12">月度明细</h2>
           <div class="flex gap-1 p-1 rounded-lg bg-n-alpha-1">
@@ -463,7 +463,7 @@ const cell = (r, isAmt) => {
       </div>
 
       <!-- 就地编辑基础目标 -->
-      <div class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1">
+      <div class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150">
         <h2 class="text-base font-medium text-n-slate-12">
           设定 / 修改 {{ year }}年{{ selMonth + 1 }}月 基础目标
         </h2>

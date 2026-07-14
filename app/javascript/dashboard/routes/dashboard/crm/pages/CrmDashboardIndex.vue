@@ -76,12 +76,12 @@ const ACCENTS = {
   iris: { text: 'text-n-iris-11', soft: 'bg-n-iris-3' },
 };
 
-// MedFlow 式多色柔和渐变：跨卡黄→薄荷绿→蜜桃橙流动。完整字面量供 Tailwind 收录。
+// 长春花紫色系柔和渐变：跨卡紫→靛→蓝轻微流动，无绿。完整字面量供 Tailwind 收录。
 const CARD_GRADIENTS = [
-  'from-n-iris-3 to-n-teal-3',
-  'from-n-teal-3 to-n-iris-3',
   'from-n-iris-3 to-n-iris-5',
-  'from-n-iris-4 to-n-teal-4',
+  'from-n-iris-4 to-n-blue-4',
+  'from-n-blue-3 to-n-iris-5',
+  'from-n-iris-3 to-n-iris-6',
 ];
 
 const fetchStats = async () => {
@@ -409,7 +409,7 @@ const PERIODS = [
     <div
       v-else-if="error"
       role="alert"
-      class="flex flex-col items-center gap-3 p-10 text-center border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+      class="flex flex-col items-center gap-3 p-10 text-center border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
     >
       <span class="i-lucide-cloud-off size-8 text-n-slate-10" />
       <p class="text-sm text-n-slate-11">数据加载失败，请检查网络后重试。</p>
@@ -451,7 +451,7 @@ const PERIODS = [
       <!-- ═══ 第 2 行：商机阶段漏斗 + 目标仪表 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div
-          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-n-weak bg-n-solid-1"
+          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-base font-medium text-n-slate-12">商机阶段分布</h2>
@@ -506,7 +506,7 @@ const PERIODS = [
         </div>
 
         <div
-          class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-2 text-base font-medium text-n-slate-12">
             本月目标完成率
@@ -546,7 +546,7 @@ const PERIODS = [
       <!-- ═══ 第 3 行：趋势面积图 + 来源环形 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div
-          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-n-weak bg-n-solid-1"
+          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             订单金额趋势
@@ -569,7 +569,7 @@ const PERIODS = [
         </div>
 
         <div
-          class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             客户来源占比
@@ -618,7 +618,7 @@ const PERIODS = [
       <!-- ═══ 第 4 行：业务员排行 + 累计概览 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div
-          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-n-weak bg-n-solid-1"
+          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             业务员成交排行
@@ -642,7 +642,7 @@ const PERIODS = [
         </div>
 
         <div
-          class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
+          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">累计概览</h2>
           <div class="flex flex-col gap-2">
@@ -668,7 +668,7 @@ const PERIODS = [
 
       <!-- ═══ 第 5 行：业务员回复时长 + 资料完善度 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1">
+        <div class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150">
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             业务员平均回复时长（越短越好）
           </h2>
@@ -690,7 +690,7 @@ const PERIODS = [
           </div>
         </div>
 
-        <div class="p-5 border shadow-sm rounded-2xl border-n-weak bg-n-solid-1">
+        <div class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150">
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             业务员资料完善度（越高越好）
           </h2>

@@ -131,17 +131,17 @@ export default {
 
 <template>
   <div
-    class="relative flex flex-grow overflow-hidden text-n-slate-12 bg-gradient-to-br from-n-iris-2 via-n-blue-2 to-n-iris-3"
+    class="relative flex flex-grow overflow-hidden text-n-slate-12 bg-gradient-to-br from-n-iris-4 via-n-blue-4 to-n-blue-6"
   >
     <!-- 冷蓝长春花氛围光斑，为磨砂玻璃面板提供可模糊的底 -->
     <div
-      class="pointer-events-none absolute -top-40 -left-32 size-[660px] rounded-full bg-n-iris-4/70 blur-[150px]"
+      class="pointer-events-none absolute -top-40 -left-32 size-[680px] rounded-full bg-n-iris-6/75 blur-[150px]"
     />
     <div
-      class="pointer-events-none absolute -bottom-40 right-[-6rem] size-[560px] rounded-full bg-n-blue-4/60 blur-[150px]"
+      class="pointer-events-none absolute -bottom-48 right-[-8rem] size-[680px] rounded-full bg-n-blue-6/80 blur-[150px]"
     />
     <div
-      class="pointer-events-none absolute top-1/3 left-1/2 -translate-x-1/2 size-[500px] rounded-full bg-n-iris-3/50 blur-[150px]"
+      class="pointer-events-none absolute top-1/3 left-1/2 -translate-x-1/2 size-[540px] rounded-full bg-n-iris-5/60 blur-[150px]"
     />
     <NextSidebar
       :is-mobile-sidebar-open="isMobileSidebarOpen"
