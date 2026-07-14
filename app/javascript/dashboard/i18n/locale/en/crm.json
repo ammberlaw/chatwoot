@@ -1,28 +1,28 @@
 {
   "CRM": {
     "CUSTOMERS": {
-      "HEADER": "Customers",
-      "NEW": "New customer",
-      "LOADING": "Loading customers…",
-      "EMPTY": "No customers yet. Create your first one.",
+      "HEADER": "客户",
+      "NEW": "新建客户",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无客户，去建第一个吧。",
       "FILTERS": {
-        "ALL": "All",
-        "MINE": "My customers",
-        "PUBLIC_POOL": "Public pool",
-        "UNASSIGNED": "Unassigned",
-        "PRIVATE": "Private 私海",
+        "ALL": "全部",
+        "MINE": "我的客户",
+        "PUBLIC_POOL": "公海",
+        "UNASSIGNED": "未分配",
+        "PRIVATE": "私海",
         "ALL_CUSTOMER_GROUP": "全部客户分组",
         "ALL_PRODUCT_GROUP": "全部产品分组",
         "ALL_SOURCE_CHANNEL": "全部客户来源"
       },
       "TABLE": {
         "NAME": "公司名称",
-        "CODE": "Code",
+        "CODE": "编号",
         "COUNTRY": "国家地区",
         "STATUS": "客户状态",
         "LEVEL": "客户等级",
         "REGION": "地区",
-        "LAST_FOLLOW_UP": "Last follow-up",
+        "LAST_FOLLOW_UP": "最近跟进",
         "SOURCE": "客户来源",
         "GRADE": "资料完善度",
         "DEAL_AMOUNT": "累计成交额",
@@ -45,16 +45,16 @@
         "RELEASE_ERROR": "操作失败"
       },
       "CREATE": {
-        "TITLE": "New customer",
-        "SUCCESS": "Customer created.",
-        "ERROR": "Could not create the customer.",
+        "TITLE": "新建客户",
+        "SUCCESS": "客户已创建",
+        "ERROR": "创建失败",
         "FIELDS": {
-          "NAME": "Customer name",
-          "CODE": "Customer code",
-          "COUNTRY": "Country",
-          "STATUS": "Status",
-          "LEVEL": "Level",
-          "REMARK": "Remark"
+          "NAME": "客户名称",
+          "CODE": "客户编号",
+          "COUNTRY": "国家",
+          "STATUS": "状态",
+          "LEVEL": "等级",
+          "REMARK": "备注"
         }
       },
       "EDIT": {
@@ -65,14 +65,14 @@
       }
     },
     "OPPORTUNITIES": {
-      "HEADER": "Opportunities 商机",
+      "HEADER": "商机",
       "NEW": "新建商机",
-      "LOADING": "Loading…",
-      "EMPTY": "No opportunities yet 暂无商机",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无商机",
       "FILTERS": {
-        "ALL": "All 全部",
-        "MINE": "Mine 我的商机",
-        "OPEN": "Open 推进中"
+        "ALL": "全部",
+        "MINE": "我的商机",
+        "OPEN": "推进中"
       },
       "TABLE": {
         "NAME": "商机名称",
@@ -98,7 +98,7 @@
       "FORM": {
         "NAME": "商机名称",
         "NAME_PLACEHOLDER": "如：德国平板批量采购",
-        "CUSTOMER": "Customer 所属客户",
+        "CUSTOMER": "所属客户",
         "STAGE": "销售阶段",
         "AMOUNT": "金额（元）",
         "CURRENCY": "币种",
@@ -115,8 +115,8 @@
     "SALES_ORDERS": {
       "HEADER": "销售订单",
       "NEW": "新建订单",
-      "LOADING": "Loading…",
-      "EMPTY": "No orders yet 暂无订单",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无订单",
       "SEARCH_PLACEHOLDER": "搜索 PI号 / 订单号 / 客户…",
       "FILTERS": {
         "ALL": "全部",
@@ -180,22 +180,22 @@
       }
     },
     "EMAILS": {
-      "HEADER": "Emails 邮件中心",
-      "LOADING": "Loading…",
-      "EMPTY": "No emails 暂无邮件",
+      "HEADER": "邮件中心",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无邮件",
       "FOLDERS": {
-        "INBOX": "Inbox 收件箱",
-        "UNREAD": "Unread 未读",
-        "SENT": "Sent 发件箱",
-        "DRAFT": "Drafts 草稿箱",
-        "BULK": "Bulk 群发箱"
+        "INBOX": "收件箱",
+        "UNREAD": "未读",
+        "SENT": "发件箱",
+        "DRAFT": "草稿箱",
+        "BULK": "群发箱"
       },
       "TABLE": {
-        "SUBJECT": "Subject 主题",
-        "COUNTERPARTY": "From/To 对方",
-        "CUSTOMER": "Customer 客户",
-        "STATUS": "Status 状态",
-        "DATE": "Date 时间"
+        "SUBJECT": "主题",
+        "COUNTERPARTY": "对方",
+        "CUSTOMER": "客户",
+        "STATUS": "状态",
+        "DATE": "时间"
       },
       "LIST": {
         "COUNT": "共 {count} 封 · 未读 {unread}",
@@ -218,19 +218,19 @@
         "NO_BODY": "（正文为空）"
       },
       "COMPOSE": {
-        "BUTTON": "Compose 写邮件",
-        "TITLE": "Compose 写邮件",
-        "SEND": "Send 发送",
-        "FROM": "From 发件人",
-        "TEMPLATE": "Template 套用模板",
+        "BUTTON": "写邮件",
+        "TITLE": "写邮件",
+        "SEND": "发送",
+        "FROM": "发件人",
+        "TEMPLATE": "套用模板",
         "NO_TEMPLATE": "— 不套用 —",
-        "TO": "To 收件人",
+        "TO": "收件人",
         "TO_PLACEHOLDER": "多个用英文逗号分隔",
-        "CC": "Cc 抄送",
-        "BCC": "Bcc 密送",
+        "CC": "抄送",
+        "BCC": "密送",
         "ADD_CC": "抄送 / 密送",
-        "SUBJECT": "Subject 主题",
-        "BODY": "Body 正文",
+        "SUBJECT": "主题",
+        "BODY": "正文",
         "CUSTOMER": "关联客户",
         "CUSTOMER_PLACEHOLDER": "搜索客户名，自动带出收件邮箱",
         "INSERT_SIGNATURE": "插入签名",
@@ -240,11 +240,11 @@
         "ERROR": "发送失败"
       },
       "DETAIL": {
-        "FROM": "From 发件人",
-        "TO": "To 收件人",
-        "CC": "Cc 抄送",
-        "DATE": "Date 时间",
-        "SEND_ERROR": "Error 失败原因"
+        "FROM": "发件人",
+        "TO": "收件人",
+        "CC": "抄送",
+        "DATE": "时间",
+        "SEND_ERROR": "失败原因"
       }
     },
     "KNOWLEDGE_DOCS": {
@@ -252,9 +252,9 @@
       "HEADER_GENERAL": "文档中心",
       "SUBTITLE": "产品资料 · 报价模板 · 话术，可挂到客户邮件",
       "SUBTITLE_GENERAL": "制度 · 流程 · 培训，全公司共享文档",
-      "NEW": "New doc 新建文档",
-      "LOADING": "Loading…",
-      "EMPTY": "No docs yet 暂无文档",
+      "NEW": "新建文档",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无文档",
       "SEARCH_PLACEHOLDER": "搜索标题 / 摘要",
       "ADD_IN_COLUMN": "新",
       "UNCATEGORIZED": "未分类",
@@ -280,19 +280,19 @@
         "DELETE_ERROR": "分类删除失败"
       },
       "FILTERS": {
-        "COMPANY": "Company 公司文档",
-        "MINE": "Mine 我的知识库",
+        "COMPANY": "公司文档",
+        "MINE": "我的知识库",
         "ALL_CATEGORY": "全部分类"
       },
       "TABLE": {
-        "NAME": "Title 标题",
-        "CATEGORY": "Category 分类",
-        "SUMMARY": "Summary 摘要",
+        "NAME": "标题",
+        "CATEGORY": "分类",
+        "SUMMARY": "摘要",
         "ATTACHMENTS": "附件",
-        "UPDATED_AT": "Updated 更新时间"
+        "UPDATED_AT": "更新时间"
       },
       "CREATE": {
-        "TITLE": "New doc 新建文档",
+        "TITLE": "新建文档",
         "SUCCESS": "文档已创建",
         "ERROR": "创建失败"
       },
@@ -312,54 +312,54 @@
         "DELETE_ERROR": "附件删除失败"
       },
       "FORM": {
-        "NAME": "Title 标题",
-        "CATEGORY": "Category 分类",
-        "SCOPE": "Scope 范围",
-        "SUMMARY": "Summary 摘要",
-        "BODY": "Body 正文"
+        "NAME": "标题",
+        "CATEGORY": "分类",
+        "SCOPE": "范围",
+        "SUMMARY": "摘要",
+        "BODY": "正文"
       }
     },
     "SALES_TARGETS": {
-      "HEADER": "Targets 业绩目标",
-      "NEW": "New target 新建目标",
-      "LOADING": "Loading…",
-      "EMPTY": "No targets yet 暂无目标",
+      "HEADER": "业绩目标",
+      "NEW": "新建目标",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无目标",
       "FILTERS": {
-        "ALL": "All 全部",
-        "MINE": "Mine 我的目标"
+        "ALL": "全部",
+        "MINE": "我的目标"
       },
       "TABLE": {
-        "NAME": "Name 名称",
-        "MONTH": "Month 月份",
-        "AMOUNT": "Amount 目标成交额",
-        "NEW_CUSTOMERS": "New customers 目标新客户数"
+        "NAME": "名称",
+        "MONTH": "月份",
+        "AMOUNT": "目标成交额",
+        "NEW_CUSTOMERS": "目标新客户数"
       },
       "CREATE": {
-        "TITLE": "New target 新建目标",
+        "TITLE": "新建目标",
         "SUCCESS": "目标已创建",
         "ERROR": "创建失败（同人同月只能一条）"
       },
       "FORM": {
-        "NAME": "Name 目标名称",
-        "MONTH": "Month 目标月份",
-        "AMOUNT": "Amount 目标成交额(元)",
-        "NEW_CUSTOMERS": "New customers 目标新客户数"
+        "NAME": "目标名称",
+        "MONTH": "目标月份",
+        "AMOUNT": "目标成交额(元)",
+        "NEW_CUSTOMERS": "目标新客户数"
       }
     },
     "DASHBOARD": {
       "HEADER_COMPANY": "外贸销售部数据看板",
       "HEADER_MINE": "个人数据看板",
-      "LOADING": "Loading…"
+      "LOADING": "加载中…"
     },
     "TEAM_DASHBOARD": {
       "HEADER": "团队看板",
-      "LOADING": "Loading…",
+      "LOADING": "加载中…",
       "EMPTY": "还没有团队。管理员可在「系统设置 → CRM 团队」创建团队并分配组员。"
     },
     "FUNNEL": {
       "HEADER": "商机看板",
       "HINT": "拖动卡片即可切换销售阶段",
-      "LOADING": "Loading…"
+      "LOADING": "加载中…"
     },
     "MAIL_ACCOUNTS": {
       "HEADER": "邮箱账户",
@@ -382,8 +382,8 @@
         "EMAIL": "邮箱地址",
         "PROVIDER": "服务商",
         "SSL": "加密方式",
-        "HOST": "SMTP 主机",
-        "PORT": "SMTP 端口",
+        "HOST": "主机",
+        "PORT": "端口",
         "PASSWORD": "授权码/密码",
         "PASSWORD_PLACEHOLDER": "企业邮箱的客户端授权码（不是登录密码）",
         "SIGNATURE": "邮件签名"
