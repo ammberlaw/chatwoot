@@ -104,6 +104,7 @@ Rails.application.routes.draw do
             resource :my_target, only: [:show], controller: 'my_target'
             resources :mail_accounts
             resources :email_templates
+            resources :members, only: [:index, :update]
           end
           namespace :org do
             resources :departments, only: [:index, :create, :update, :destroy] do

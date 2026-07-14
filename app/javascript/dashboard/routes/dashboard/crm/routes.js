@@ -12,26 +12,37 @@ import CrmOrgStructureIndex from './pages/CrmOrgStructureIndex.vue';
 import CrmApprovalsIndex from './pages/CrmApprovalsIndex.vue';
 import CrmApprovalTemplatesIndex from './pages/CrmApprovalTemplatesIndex.vue';
 import CrmTeamChatIndex from './pages/CrmTeamChatIndex.vue';
+import CrmWorkspaceHome from './pages/CrmWorkspaceHome.vue';
 import CrmDashboardIndex from './pages/CrmDashboardIndex.vue';
 import CrmTeamDashboardIndex from './pages/CrmTeamDashboardIndex.vue';
 import CrmMyTargetIndex from './pages/CrmMyTargetIndex.vue';
+import CrmMembersIndex from './pages/CrmMembersIndex.vue';
 import CrmCustomerOnboardingIndex from './pages/CrmCustomerOnboardingIndex.vue';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 
 const commonMeta = {
   featureFlag: FEATURE_FLAGS.CRM,
   permissions: ['administrator', 'agent'],
+  // 默认 CRM 数据页需 CRM 权限；共享模块（工作台/OA/HR/协同/文档中心）单独覆盖为 false。
+  requiresCrmAccess: true,
 };
 
-const crmPage = (path, name, component) => ({
-  path: frontendURL(`accounts/:accountId/crm/${path}`),
-  component,
-  meta: commonMeta,
-  children: [{ path: '', name, component, meta: commonMeta }],
-});
+// 全员可用的共享模块（非 CRM 销售数据），不受 CRM 门禁限制。
+const SHARED = { requiresCrmAccess: false };
+
+const crmPage = (path, name, component, extraMeta = {}) => {
+  const meta = { ...commonMeta, ...extraMeta };
+  return {
+    path: frontendURL(`accounts/:accountId/crm/${path}`),
+    component,
+    meta,
+    children: [{ path: '', name, component, meta }],
+  };
+};
 
 // A-CRM routes
 export const routes = [
+  crmPage('workspace', 'crm_workspace_index', CrmWorkspaceHome, SHARED),
   crmPage('dashboard', 'crm_dashboard_index', CrmDashboardIndex),
   crmPage('team-dashboard', 'crm_team_dashboard_index', CrmTeamDashboardIndex),
   crmPage('my-target', 'crm_my_target_index', CrmMyTargetIndex),
@@ -45,7 +56,13 @@ export const routes = [
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
   crmPage('sales-orders', 'crm_sales_orders_index', CrmSalesOrdersIndex),
   crmPage('emails', 'crm_emails_index', CrmEmailsIndex),
-  crmPage('knowledge-docs', 'crm_knowledge_docs_index', CrmKnowledgeDocsIndex),
+  crmPage('knowledge-docs', 'crm_knowledge_docs_index', CrmKnowledgeDocsIndex, {
+    library: 'SALES',
+  }),
+  crmPage('doc-center', 'crm_doc_center_index', CrmKnowledgeDocsIndex, {
+    library: 'GENERAL',
+    ...SHARED,
+  }),
   crmPage('sales-targets', 'crm_sales_targets_index', CrmSalesTargetsIndex),
   crmPage('mail-accounts', 'crm_mail_accounts_index', CrmMailAccountsIndex),
   crmPage(
@@ -53,8 +70,22 @@ export const routes = [
     'crm_email_templates_index',
     CrmEmailTemplatesIndex
   ),
-  crmPage('org-structure', 'crm_org_structure_index', CrmOrgStructureIndex),
-  crmPage('approvals', 'crm_approvals_index', CrmApprovalsIndex),
-  crmPage('approval-templates', 'crm_approval_templates_index', CrmApprovalTemplatesIndex),
-  crmPage('team-chat', 'crm_team_chat_index', CrmTeamChatIndex),
+  crmPage(
+    'org-structure',
+    'crm_org_structure_index',
+    CrmOrgStructureIndex,
+    SHARED
+  ),
+  crmPage('approvals', 'crm_approvals_index', CrmApprovalsIndex, SHARED),
+  crmPage(
+    'approval-templates',
+    'crm_approval_templates_index',
+    CrmApprovalTemplatesIndex,
+    SHARED
+  ),
+  crmPage('team-chat', 'crm_team_chat_index', CrmTeamChatIndex, SHARED),
+  // 成员权限管理：仅管理员（覆盖 permissions）；管理员本就有 CRM 访问权。
+  crmPage('members', 'crm_members_index', CrmMembersIndex, {
+    permissions: ['administrator'],
+  }),
 ];

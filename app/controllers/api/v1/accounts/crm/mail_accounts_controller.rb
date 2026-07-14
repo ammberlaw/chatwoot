@@ -1,4 +1,4 @@
-class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_mail_account, only: [:show, :update, :destroy]
 

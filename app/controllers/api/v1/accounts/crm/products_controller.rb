@@ -1,4 +1,4 @@
-class Api::V1::Accounts::Crm::ProductsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::ProductsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_product, only: [:show, :update, :destroy]
 

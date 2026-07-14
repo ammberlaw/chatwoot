@@ -1,5 +1,5 @@
 # 报价明细：挂在报价单下（index/create），改删按 id 直达。
-class Api::V1::Accounts::Crm::QuoteLineItemsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::QuoteLineItemsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_line_item, only: [:update, :destroy]
 

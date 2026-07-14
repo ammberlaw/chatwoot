@@ -1,0 +1,9 @@
+json.id member.id
+json.user_id member.user_id
+json.name member.user.name
+json.email member.user.email
+json.avatar_url member.user.avatar_url
+json.role member.role
+json.is_admin member.administrator?
+json.crm_role member.crm_role
+json.can_access_crm member.can_access_crm?

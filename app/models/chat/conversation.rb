@@ -12,6 +12,10 @@
 #  account_id      :bigint           not null
 #  creator_id      :bigint
 #
+# Indexes
+#
+#  index_chat_conversations_on_account_id  (account_id)
+#
 class Chat::Conversation < ApplicationRecord
   KINDS = %w[direct group].freeze
 

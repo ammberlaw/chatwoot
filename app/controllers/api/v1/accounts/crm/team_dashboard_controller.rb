@@ -1,6 +1,6 @@
 # 团队看板：按团队查看本月成交额/新成交客户数与各组员目标完成率。
 # 对齐 Twenty team-dashboard front-component：下拉切团队，团队合计 + 组员逐行进度条。
-class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
 
   def show

@@ -1,4 +1,4 @@
-class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_opportunity, only: [:show, :update, :destroy]
 
@@ -30,8 +30,10 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::BaseC
 
   private
 
+  # 按可见范围取商机：业务员只能查看/编辑/删除自己的，主管本团队，管理员全部。
+  # 越权访问（如业务员删他人商机）会因不在范围内而 RecordNotFound → 404。
   def fetch_opportunity
-    @opportunity = Current.account.crm_opportunities.find(params[:id])
+    @opportunity = scope_by_owner(Current.account.crm_opportunities).find(params[:id])
   end
 
   def check_authorization
@@ -41,7 +43,8 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::BaseC
   # 支持视图筛选：我的商机、商机推进（排除终态）、按阶段（漏斗列）、按客户；
   # admin 看板按团队/业务员：team_id 过滤该团队成员的商机，owner_id 精确到某业务员。
   def filtered_opportunities
-    scope = view_scoped(Current.account.crm_opportunities)
+    # 数据范围（按 CRM 角色）：管理员全部 / 主管团队 / 业务员本人。
+    scope = scope_by_owner(view_scoped(Current.account.crm_opportunities))
     scope = scope.where(sales_stage: params[:sales_stage]) if params[:sales_stage].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
     scope = scope.where(owner_id: filter_owner_ids) if filter_owner_ids

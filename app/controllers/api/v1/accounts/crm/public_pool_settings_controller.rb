@@ -1,5 +1,5 @@
 # 公海规则设置（单行）：show 返回当前（无记录返回默认值），update 创建或更新。
-class Api::V1::Accounts::Crm::PublicPoolSettingsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::PublicPoolSettingsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
 
   def show

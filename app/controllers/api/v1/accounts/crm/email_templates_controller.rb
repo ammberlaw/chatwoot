@@ -1,4 +1,4 @@
-class Api::V1::Accounts::Crm::EmailTemplatesController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::EmailTemplatesController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_template, only: [:show, :update, :destroy]
 

@@ -1,7 +1,7 @@
 # 我的目标：返回当前业务员某年 12 个月的「基础目标 + 实绩」原始数据。
 # 结转/有效目标/达成率由前端按季度规则实时计算（未完成滚下月、每季度清零）。
 # 编辑基础目标复用 crm/sales_targets 的 create/update。
-class Api::V1::Accounts::Crm::MyTargetController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::MyTargetController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
 
   def show

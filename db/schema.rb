@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_13_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_14_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -53,6 +53,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_190000) do
     t.bigint "custom_role_id"
     t.bigint "agent_capacity_policy_id"
     t.bigint "crm_team_id"
+    t.string "crm_role"
+    t.index ["account_id", "crm_role"], name: "index_account_users_on_account_id_and_crm_role"
     t.index ["account_id", "user_id"], name: "uniq_user_id_per_account_id", unique: true
     t.index ["account_id"], name: "index_account_users_on_account_id"
     t.index ["agent_capacity_policy_id"], name: "index_account_users_on_agent_capacity_policy_id"
@@ -989,7 +991,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_13_190000) do
     t.text "body"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "library", default: "SALES", null: false
     t.index ["account_id", "category"], name: "index_crm_knowledge_docs_on_account_id_and_category"
+    t.index ["account_id", "library"], name: "index_crm_knowledge_docs_on_account_id_and_library"
     t.index ["account_id", "scope"], name: "index_crm_knowledge_docs_on_account_id_and_scope"
     t.index ["account_id"], name: "index_crm_knowledge_docs_on_account_id"
     t.index ["owner_id"], name: "index_crm_knowledge_docs_on_owner_id"

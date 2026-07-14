@@ -1,4 +1,4 @@
-class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_quote, only: [:show, :update, :destroy]
 
@@ -40,7 +40,8 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::BaseControll
 
   # 视图筛选：待处理报价(DRAFT/SENT)、我的、按状态、按客户。
   def filtered_quotes
-    scope = Current.account.crm_quotes
+    # 数据范围（按 CRM 角色）：管理员全部 / 主管团队 / 业务员本人。
+    scope = scope_by_owner(Current.account.crm_quotes)
     scope = scope.pending if params[:filter] == 'pending'
     scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
     scope = scope.where(status: params[:status]) if params[:status].present?

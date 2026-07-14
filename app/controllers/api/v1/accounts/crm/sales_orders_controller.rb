@@ -1,4 +1,4 @@
-class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_sales_order, only: [:show, :update, :destroy, :attach, :detach, :audits]
 
@@ -83,9 +83,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::BaseCon
   end
 
   def visible_sales_orders
-    ids = Org::DataScope.new(Current.account, current_user, Current.account_user).visible_user_ids
-    scope = Current.account.crm_sales_orders
-    ids == :all ? scope : scope.where(owner_id: ids)
+    scope_by_owner(Current.account.crm_sales_orders)
   end
 
   # 按下单月份筛选（month 形如 2026-07）；格式非法则忽略。

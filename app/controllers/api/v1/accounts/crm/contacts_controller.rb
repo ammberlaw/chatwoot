@@ -1,6 +1,6 @@
 # CRM 视角的联系人接口：按客户列联系人、维护联系人的 CRM 扩展字段与客户归属。
 # 联系人本体 CRUD 走 Chatwoot 原生 contacts API；此处只管 CRM 侧的关联与扩展字段。
-class Api::V1::Accounts::Crm::ContactsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::ContactsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_contact, only: [:update]
 

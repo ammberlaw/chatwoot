@@ -23,7 +23,7 @@ export const defaultRedirectPage = (to, permissions) => {
   const permissionRoutes = [
     {
       permissions: [...ROLES, ...CONVERSATION_PERMISSIONS],
-      path: 'dashboard',
+      path: 'crm/workspace',
     },
     { permissions: [CONTACT_PERMISSIONS], path: 'contacts' },
     { permissions: [REPORTS_PERMISSIONS], path: 'reports/overview' },
@@ -34,7 +34,7 @@ export const defaultRedirectPage = (to, permissions) => {
     hasPermissions(routePermissions, permissions)
   );
 
-  return `accounts/${accountId}/${route ? route.path : 'dashboard'}`;
+  return `accounts/${accountId}/${route ? route.path : 'crm/workspace'}`;
 };
 
 const validateActiveAccountRoutes = (to, user) => {
@@ -50,7 +50,18 @@ const validateActiveAccountRoutes = (to, user) => {
 
   const isAccessible = routeIsAccessibleFor(to, userPermissions);
   // If the route is not accessible for the user, return to dashboard screen
-  return isAccessible ? null : defaultRedirectPage(to, userPermissions);
+  if (!isAccessible) return defaultRedirectPage(to, userPermissions);
+
+  // CRM 门禁：非 CRM 人员（无 crm_role 且非系统管理员）访问 CRM 数据页 → 回工作台。
+  // 工作台/OA/HR/协同/文档中心等共享模块不设此 meta，正常放行。
+  if (to.meta?.requiresCrmAccess) {
+    const account = getCurrentAccount(user, Number(to.params.accountId));
+    if (!account?.can_access_crm) {
+      return `accounts/${to.params.accountId}/crm/workspace`;
+    }
+  }
+
+  return null;
 };
 
 export const validateLoggedInRoutes = (to, user) => {

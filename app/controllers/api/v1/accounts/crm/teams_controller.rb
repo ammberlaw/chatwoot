@@ -1,4 +1,4 @@
-class Api::V1::Accounts::Crm::TeamsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::TeamsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_team, only: [:show, :update, :destroy]
 

@@ -12,6 +12,17 @@
 #  last_read_message_id :bigint
 #  user_id              :bigint           not null
 #
+# Indexes
+#
+#  index_chat_participants_on_account_id       (account_id)
+#  index_chat_participants_on_conversation_id  (conversation_id)
+#  index_chat_participants_on_user_id          (user_id)
+#  index_chat_participants_unique              (conversation_id,user_id) UNIQUE
+#
+# Foreign Keys
+#
+#  fk_rails_...  (conversation_id => chat_conversations.id) ON DELETE => cascade
+#
 class Chat::Participant < ApplicationRecord
   belongs_to :account
   belongs_to :conversation, class_name: 'Chat::Conversation', inverse_of: :participants

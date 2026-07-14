@@ -1,4 +1,4 @@
-class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_doc, only: [:show, :update, :destroy, :attach, :detach, :audits]
 
@@ -64,6 +64,8 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::BaseC
   # 视图：公司文档 / 我的知识库 / 文档看板按分类。
   def filtered_docs
     scope = Current.account.crm_knowledge_docs
+    # 资料库隔离：销售资料 / 全公司知识。未传时不限（兼容旧调用）。
+    scope = scope.in_library(params[:library]) if params[:library].present?
     scope = scope.company_docs if params[:filter] == 'company'
     scope = scope.personal_of(current_user.id) if params[:filter] == 'mine'
     scope = scope.where(category: params[:category]) if params[:category].present?
@@ -72,7 +74,7 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::BaseC
   end
 
   def doc_params
-    params.require(:doc).permit(:name, :category, :summary, :scope, :body, :owner_id, files: [])
+    params.require(:doc).permit(:name, :category, :summary, :scope, :library, :body, :owner_id, files: [])
   end
 
   # 看板视图一次拉全（上限 200）；未传时回落默认页大小。

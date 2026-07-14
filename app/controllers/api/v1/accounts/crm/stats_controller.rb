@@ -3,7 +3,7 @@
 #   ② 趋势与转化 —— trends（月度成交额、商机按阶段金额）+ source_breakdown（客户来源）
 #   ③ 团队与客户 —— totals（累计 KPI）+ team（团队/业务员对比、回复时长）
 # scope=mine 时按当前用户过滤（个人数据看板），默认全公司。
-class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
 
   STAGE_ORDER = %w[NEEDS_CONFIRMED SAMPLING WON LOST].freeze

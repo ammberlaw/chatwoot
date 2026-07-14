@@ -1,4 +1,4 @@
-class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :attach, :detach, :audits]
 
@@ -125,10 +125,9 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::BaseContr
     scope
   end
 
-  # 按部门授权限定可见负责人（非公海视图）。
+  # 按 CRM 角色限定可见负责人（非公海视图）：管理员全部 / 主管团队 / 业务员本人。
   def restrict_by_org(scope)
-    ids = Org::DataScope.new(Current.account, current_user, Current.account_user).visible_user_ids
-    ids == :all ? scope : scope.where(account_owner_id: ids)
+    scope_by_owner(scope, column: :account_owner_id)
   end
 
   # 团队成员的 user id 集合（admin 按团队筛选客户）。
