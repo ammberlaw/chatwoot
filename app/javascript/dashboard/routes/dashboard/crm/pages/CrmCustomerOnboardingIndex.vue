@@ -32,7 +32,7 @@ const PRODUCT_GROUP = [
 ];
 const SOURCE = [
   ['ALIBABA', '阿里巴巴国际站'], ['WEBSITE', '官网'], ['EXHIBITION', '展会'],
-  ['REFERRAL', '转介绍'], ['EMAIL', '邮件开发'], ['SOCIAL_MEDIA', '社媒开发'], ['OTHER', '其他'],
+  ['EMAIL', '邮件开发'], ['SOCIAL_MEDIA', '社媒开发'], ['OTHER', '其他'],
 ];
 const LEVEL = [['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']];
 const CONTACT_PREFERENCE = [

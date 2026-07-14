@@ -68,7 +68,6 @@ const sourceOptions = [
   { value: 'ALIBABA', label: '阿里巴巴国际站' },
   { value: 'WEBSITE', label: '官网' },
   { value: 'EXHIBITION', label: '展会' },
-  { value: 'REFERRAL', label: '转介绍' },
   { value: 'EMAIL', label: '邮件开发' },
   { value: 'SOCIAL_MEDIA', label: '社媒开发' },
   { value: 'OTHER', label: '其他' },
