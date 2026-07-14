@@ -1,3 +1,8 @@
+> **本仓库是 A-CRM（外贸出口销售 CRM）的 Chatwoot 分支。**
+> 完整框架说明见 **[README-ACRM.md](./README-ACRM.md)**。以下为 Chatwoot 底座原始 README。
+
+___
+
 <img src="./.github/screenshots/header.png#gh-light-mode-only" width="100%" alt="Header light mode"/>
 <img src="./.github/screenshots/header-dark.png#gh-dark-mode-only" width="100%" alt="Header dark mode"/>
 
