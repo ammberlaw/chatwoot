@@ -81,12 +81,19 @@
         "AMOUNT": "金额",
         "PROBABILITY": "概率",
         "EXPECTED_CLOSE": "预计成交",
-        "OWNER": "负责人"
+        "OWNER": "负责人",
+        "ACTIONS": "操作"
       },
       "CREATE": {
         "TITLE": "新建商机",
         "SUCCESS": "商机已创建",
         "ERROR": "创建失败"
+      },
+      "DELETE": {
+        "LABEL": "删除",
+        "CONFIRM": "确定删除商机「{name}」？删除后不可恢复。",
+        "SUCCESS": "商机已删除",
+        "ERROR": "删除失败"
       },
       "FORM": {
         "NAME": "商机名称",
@@ -241,7 +248,10 @@
       }
     },
     "KNOWLEDGE_DOCS": {
-      "HEADER": "Knowledge 知识库",
+      "HEADER": "销售资料",
+      "HEADER_GENERAL": "文档中心",
+      "SUBTITLE": "产品资料 · 报价模板 · 话术，可挂到客户邮件",
+      "SUBTITLE_GENERAL": "制度 · 流程 · 培训，全公司共享文档",
       "NEW": "New doc 新建文档",
       "LOADING": "Loading…",
       "EMPTY": "No docs yet 暂无文档",

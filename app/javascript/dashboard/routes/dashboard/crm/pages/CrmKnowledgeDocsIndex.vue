@@ -23,6 +23,10 @@ const activeFilter = ref(route.query.filter || 'company');
 const searchQuery = ref('');
 let searchTimer = null;
 
+// 资料库归属由路由 meta 决定：销售资料(SALES) / 全公司知识(GENERAL)。同一组件两路由复用。
+const currentLibrary = computed(() => route.meta.library || 'SALES');
+const isGeneral = computed(() => currentLibrary.value === 'GENERAL');
+
 const records = computed(() => store.getRecords);
 const categories = computed(() => categoriesStore.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -86,11 +90,15 @@ const filterTabs = [
 
 const fetchRecords = () => {
   store.get({
+    library: currentLibrary.value,
     filter: activeFilter.value,
     q: searchQuery.value.trim() || undefined,
     per_page: 200,
   });
 };
+
+// 在两个资料库路由间切换时（同组件复用），重新拉取对应库的文档。
+watch(currentLibrary, fetchRecords);
 
 const setFilter = key => {
   activeFilter.value = key;
@@ -258,6 +266,7 @@ const saveForm = async () => {
     name: editForm.name.trim(),
     category: editForm.category || null,
     scope: editForm.scope,
+    library: currentLibrary.value,
     summary: editForm.summary.trim() || null,
     body: editForm.body || null,
   };
@@ -403,13 +412,26 @@ watch(
       <div
         class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
       >
-        <h1 class="text-xl font-medium text-n-slate-12">
-          {{ t('CRM.KNOWLEDGE_DOCS.HEADER') }}
-        </h1>
+        <div>
+          <h1 class="text-xl font-medium text-n-slate-12">
+            {{
+              isGeneral
+                ? t('CRM.KNOWLEDGE_DOCS.HEADER_GENERAL')
+                : t('CRM.KNOWLEDGE_DOCS.HEADER')
+            }}
+          </h1>
+          <p class="mt-0.5 text-xs text-n-slate-10">
+            {{
+              isGeneral
+                ? t('CRM.KNOWLEDGE_DOCS.SUBTITLE_GENERAL')
+                : t('CRM.KNOWLEDGE_DOCS.SUBTITLE')
+            }}
+          </p>
+        </div>
         <Button
           :label="t('CRM.KNOWLEDGE_DOCS.NEW')"
           icon="i-lucide-plus"
-          color="blue"
+          color="amber"
           @click="openCreatePanel()"
         />
       </div>
@@ -421,7 +443,7 @@ watch(
           :label="tab.label"
           size="sm"
           :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-          :color="activeFilter === tab.key ? 'blue' : 'slate'"
+          :color="activeFilter === tab.key ? 'amber' : 'slate'"
           @click="setFilter(tab.key)"
         />
         <Input
@@ -453,7 +475,7 @@ watch(
             <input
               v-if="editingId && editingId === col.id"
               v-model="editingName"
-              class="w-40 h-7 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-blue-9"
+              class="w-40 h-7 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
               @keyup.enter="saveRename"
               @blur="saveRename"
             />
@@ -510,7 +532,7 @@ watch(
               :key="doc.id"
               type="button"
               draggable="true"
-              class="flex flex-col gap-2 p-3 text-left transition-all border cursor-grab active:cursor-grabbing rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-blue-9"
+              class="flex flex-col gap-2 p-3 text-left transition-all border cursor-grab active:cursor-grabbing rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
               :class="[
                 selectedDoc && selectedDoc.id === doc.id
                   ? 'border-n-blue-8 ring-1 ring-n-blue-8'
@@ -553,7 +575,7 @@ watch(
 
             <button
               type="button"
-              class="flex items-center gap-1 px-3 py-2 text-sm rounded-xl text-n-slate-10 hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-blue-9"
+              class="flex items-center gap-1 px-3 py-2 text-sm rounded-xl text-n-slate-10 hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
               @click="openCreatePanel(col.uncategorized ? undefined : col.name)"
             >
               <span class="i-lucide-plus size-4" />
@@ -568,14 +590,14 @@ watch(
             v-if="adding"
             v-model="newCategoryName"
             :placeholder="t('CRM.KNOWLEDGE_DOCS.CATEGORY.NAME_PLACEHOLDER')"
-            class="h-8 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-blue-9"
+            class="h-8 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
             @keyup.enter="saveAdd"
             @blur="saveAdd"
           />
           <button
             v-else
             type="button"
-            class="flex items-center gap-1 px-3 py-2 text-sm rounded-lg text-n-slate-10 hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-blue-9"
+            class="flex items-center gap-1 px-3 py-2 text-sm rounded-lg text-n-slate-10 hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
             @click="startAdd"
           >
             <span class="i-lucide-plus size-4" />
@@ -816,7 +838,7 @@ watch(
                     : t('CRM.KNOWLEDGE_DOCS.PANEL.SAVE')
                 "
                 size="sm"
-                color="blue"
+                color="amber"
                 :is-loading="saving"
                 :disabled="!editForm.name.trim()"
                 @click="saveForm"

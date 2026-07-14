@@ -246,7 +246,8 @@ const loadTemplates = async () => {
 };
 
 const loadKbDocs = async () => {
-  const { data } = await KnowledgeDocsAPI.get({ per_page: 200 });
+  // 邮件附件只挑销售资料库，避免把内部制度/文档挂给客户。
+  const { data } = await KnowledgeDocsAPI.get({ library: 'SALES', per_page: 200 });
   kbDocs.value = camelcaseKeys(data.payload || [], { deep: true })
     .map(d => ({
       id: d.id,
