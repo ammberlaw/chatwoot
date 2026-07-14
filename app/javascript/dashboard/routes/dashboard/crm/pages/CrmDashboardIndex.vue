@@ -145,7 +145,7 @@ const salesKpis = computed(() => {
   const s = periodStat.value;
   return [
     {
-      label: '成交额',
+      label: 'GMV',
       value: money(s.amount_micros),
       sub: periodLabel.value,
       icon: 'i-lucide-wallet',
