@@ -275,11 +275,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    class="w-full h-full p-4 overflow-hidden sm:p-6 bg-gradient-to-br from-n-amber-3 via-n-teal-3 to-n-teal-5"
-  >
+  <div class="w-full h-full overflow-hidden bg-transparent">
     <div
-      class="flex w-full h-full overflow-hidden border shadow-sm bg-n-solid-1 border-n-weak rounded-[28px]"
+      class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/55 backdrop-blur-2xl border-white/50 rounded-3xl shadow-n-iris-9/5"
     >
       <!-- 左：会话列表 -->
       <aside
@@ -296,7 +294,7 @@ onBeforeUnmount(() => {
               v-model="search"
               type="text"
               :placeholder="L.searchPlaceholder"
-              class="w-full py-2.5 pl-10 pr-3 text-sm border rounded-full reset-base border-transparent bg-n-alpha-1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-7 focus-visible:bg-n-solid-1"
+              class="w-full py-2.5 pl-10 pr-3 text-sm border rounded-full reset-base border-transparent bg-n-alpha-1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-7 focus-visible:bg-n-solid-1"
             />
           </div>
         </div>
@@ -350,10 +348,10 @@ onBeforeUnmount(() => {
             v-for="conv in filteredConversations"
             :key="conv.id"
             type="button"
-            class="flex items-center w-full gap-3 px-3 py-2.5 mb-0.5 text-left transition-colors rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-n-amber-7"
+            class="flex items-center w-full gap-3 px-3 py-2.5 mb-0.5 text-left transition-colors rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-n-iris-7"
             :class="
               activeConv && activeConv.id === conv.id
-                ? 'bg-n-amber-3'
+                ? 'bg-n-iris-3'
                 : 'hover:bg-n-alpha-1'
             "
             @click="openConversation(conv)"
@@ -386,7 +384,7 @@ onBeforeUnmount(() => {
                 </span>
                 <span
                   v-if="conv.unread_count"
-                  class="grid shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold text-white place-items-center bg-n-amber-9"
+                  class="grid shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold text-white place-items-center bg-n-iris-9"
                 >
                   {{ conv.unread_count }}
                 </span>
@@ -403,7 +401,7 @@ onBeforeUnmount(() => {
 
       <!-- 右：消息（薄荷底色，头部/输入框保持白色浮于其上） -->
       <section
-        class="flex flex-col flex-1 min-w-0 bg-gradient-to-b from-n-teal-1 to-n-teal-3"
+        class="flex flex-col flex-1 min-w-0 bg-gradient-to-b from-n-iris-1/60 to-n-iris-2/60"
       >
         <!-- 空状态 -->
         <div
@@ -411,7 +409,7 @@ onBeforeUnmount(() => {
           class="flex flex-col items-center justify-center flex-1 gap-3 text-n-slate-10"
         >
           <div
-            class="grid rounded-full size-16 place-items-center bg-n-amber-3 text-n-amber-11"
+            class="grid rounded-full size-16 place-items-center bg-n-iris-3 text-n-iris-11"
           >
             <Icon icon="i-lucide-messages-square" class="size-7" />
           </div>
@@ -537,7 +535,7 @@ onBeforeUnmount(() => {
             class="flex items-end gap-2.5 px-4 py-3.5 shrink-0 border-t border-n-weak bg-n-solid-1"
           >
             <div
-              class="flex items-center flex-1 px-4 py-2.5 transition-shadow rounded-full bg-n-alpha-1 ring-1 ring-inset ring-n-weak focus-within:ring-2 focus-within:ring-n-amber-7"
+              class="flex items-center flex-1 px-4 py-2.5 transition-shadow rounded-full bg-n-alpha-1 ring-1 ring-inset ring-n-weak focus-within:ring-2 focus-within:ring-n-iris-7"
             >
               <textarea
                 v-model="newText"
@@ -550,7 +548,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               :disabled="!newText.trim()"
-              class="grid transition-colors rounded-full shrink-0 size-11 place-items-center bg-n-amber-9 text-white hover:bg-n-amber-10 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-7 focus-visible:ring-offset-2 focus-visible:ring-offset-n-solid-1"
+              class="grid transition-colors rounded-full shrink-0 size-11 place-items-center bg-n-iris-9 text-white hover:bg-n-iris-10 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-7 focus-visible:ring-offset-2 focus-visible:ring-offset-n-solid-1"
               @click="sendMessage"
             >
               <Icon icon="i-lucide-send-horizontal" class="size-[18px]" />
@@ -590,7 +588,7 @@ onBeforeUnmount(() => {
       ref="groupDialog"
       :title="L.newGroup"
       :confirm-button-label="L.create"
-      confirm-button-color="amber"
+      confirm-button-color="iris"
       @confirm="createGroup"
     >
       <div class="flex flex-col gap-4">
@@ -609,7 +607,7 @@ onBeforeUnmount(() => {
                 v-model="groupForm.memberIds"
                 type="checkbox"
                 :value="a.id"
-                class="accent-n-amber-9"
+                class="accent-n-iris-9"
               />
               <Avatar
                 :name="a.name"

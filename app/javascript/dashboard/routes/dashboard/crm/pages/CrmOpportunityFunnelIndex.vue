@@ -94,7 +94,7 @@ const updateRecord = async payload => {
 
 const STAGES = [
   { key: 'NEEDS_CONFIRMED', label: '需求确认（已报价）', color: 'bg-n-blue-9' },
-  { key: 'SAMPLING', label: '样品中', color: 'bg-n-amber-9' },
+  { key: 'SAMPLING', label: '样品中', color: 'bg-n-iris-9' },
   { key: 'WON', label: '已成交', color: 'bg-n-teal-9' },
   { key: 'LOST', label: '输单', color: 'bg-n-ruby-9' },
 ];
@@ -134,7 +134,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-hidden bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -159,7 +159,7 @@ onMounted(() => {
         <Button
           :label="t('CRM.OPPORTUNITIES.NEW')"
           icon="i-lucide-plus"
-          color="amber"
+          color="iris"
           @click="openCreateDialog"
         />
       </div>
@@ -203,7 +203,7 @@ onMounted(() => {
           <div
             v-for="item in col.items"
             :key="item.id"
-            class="p-4 transition-all border shadow-sm cursor-pointer bg-n-solid-1 rounded-xl border-n-weak hover:border-n-amber-8 hover:shadow-md"
+            class="p-4 transition-all border shadow-sm cursor-pointer bg-n-solid-1 rounded-xl border-n-weak hover:border-n-iris-8 hover:shadow-md"
             draggable="true"
             @dragstart="dragId = item.id"
             @click="openEditDialog(item)"

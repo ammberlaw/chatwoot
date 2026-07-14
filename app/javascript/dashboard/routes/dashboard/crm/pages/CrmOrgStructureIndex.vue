@@ -205,7 +205,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-hidden bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -217,12 +217,12 @@ onMounted(async () => {
         v-if="isAdmin"
         :label="L.addRoot"
         icon="i-lucide-plus"
-        color="amber"
+        color="iris"
         @click="addRoot"
       />
     </div>
 
-    <div v-if="!isAdmin" class="px-6 py-2 text-xs bg-n-amber-3 text-n-amber-11">
+    <div v-if="!isAdmin" class="px-6 py-2 text-xs bg-n-iris-3 text-n-iris-11">
       {{ L.readonly }}
     </div>
 
@@ -251,7 +251,7 @@ onMounted(async () => {
               class="flex items-center gap-1.5 pr-2 py-1.5 rounded-lg cursor-pointer group transition-colors"
               :class="
                 selectedDeptId === node.id
-                  ? 'bg-n-amber-3'
+                  ? 'bg-n-iris-3'
                   : 'hover:bg-n-alpha-1'
               "
               :style="{ paddingLeft: `${node.depth * 16 + 8}px` }"
@@ -262,7 +262,7 @@ onMounted(async () => {
                 class="size-4 flex-shrink-0"
                 :class="
                   selectedDeptId === node.id
-                    ? 'text-n-amber-11'
+                    ? 'text-n-iris-11'
                     : 'text-n-slate-10'
                 "
               />
@@ -277,14 +277,14 @@ onMounted(async () => {
               </span>
               <template v-if="isAdmin">
                 <button
-                  class="opacity-0 group-hover:opacity-100 text-n-slate-10 hover:text-n-amber-11"
+                  class="opacity-0 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11"
                   :title="L.addChild"
                   @click.stop="addChild(node)"
                 >
                   <Icon icon="i-lucide-plus" class="size-3.5" />
                 </button>
                 <button
-                  class="opacity-0 group-hover:opacity-100 text-n-slate-10 hover:text-n-amber-11"
+                  class="opacity-0 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11"
                   :title="L.rename"
                   @click.stop="renameDept(node)"
                 >
@@ -327,7 +327,7 @@ onMounted(async () => {
                 :value="
                   selectedDept.leaderId ? String(selectedDept.leaderId) : ''
                 "
-                class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+                class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
                 @change="setLeader"
               >
                 <option
@@ -357,7 +357,7 @@ onMounted(async () => {
               :label="L.addMember"
               icon="i-lucide-user-plus"
               size="sm"
-              color="amber"
+              color="iris"
               @click="openAddMember"
             />
           </div>
@@ -376,7 +376,7 @@ onMounted(async () => {
                 class="flex items-center gap-3 p-3 border rounded-xl border-n-weak bg-n-solid-1"
               >
                 <div
-                  class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9 bg-n-amber-4 text-n-amber-11"
+                  class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9 bg-n-iris-4 text-n-iris-11"
                 >
                   {{ initial(m.userName) }}
                 </div>
@@ -387,7 +387,7 @@ onMounted(async () => {
                     </span>
                     <span
                       v-if="m.isPrimary"
-                      class="px-1.5 py-0.5 rounded text-[10px] bg-n-amber-3 text-n-amber-11"
+                      class="px-1.5 py-0.5 rounded text-[10px] bg-n-iris-3 text-n-iris-11"
                     >
                       {{ L.primary }}
                     </span>
@@ -398,7 +398,7 @@ onMounted(async () => {
                 </div>
                 <template v-if="isAdmin">
                   <button
-                    class="text-n-slate-10 hover:text-n-amber-11"
+                    class="text-n-slate-10 hover:text-n-iris-11"
                     :title="L.editMember"
                     @click="openEditMember(m)"
                   >
@@ -422,7 +422,7 @@ onMounted(async () => {
     <Dialog
       ref="dialogRef"
       :title="editingId ? L.editMember : L.addMember"
-      confirm-button-color="amber"
+      confirm-button-color="iris"
       @confirm="saveMember"
     >
       <div class="flex flex-col gap-4">
@@ -451,7 +451,7 @@ onMounted(async () => {
           <input
             v-model="memberForm.isPrimary"
             type="checkbox"
-            class="rounded accent-n-amber-9"
+            class="rounded accent-n-iris-9"
           />
           {{ L.primary }}
         </label>

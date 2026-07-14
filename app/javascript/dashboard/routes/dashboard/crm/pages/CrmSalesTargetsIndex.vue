@@ -66,7 +66,7 @@ const fmtMoney = micros =>
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -76,7 +76,7 @@ const fmtMoney = micros =>
       <Button
         :label="t('CRM.SALES_TARGETS.NEW')"
         icon="i-lucide-plus"
-        color="amber"
+        color="iris"
         @click="openCreateDialog"
       />
     </div>
@@ -88,7 +88,7 @@ const fmtMoney = micros =>
         :label="tab.label"
         size="sm"
         :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-        :color="activeFilter === tab.key ? 'amber' : 'slate'"
+        :color="activeFilter === tab.key ? 'iris' : 'slate'"
         @click="setFilter(tab.key)"
       />
     </div>

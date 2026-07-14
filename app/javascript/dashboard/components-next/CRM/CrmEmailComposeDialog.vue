@@ -488,7 +488,7 @@ defineExpose({ open, close });
           class="flex items-center flex-shrink-0 gap-2 px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak"
         >
           <button
-            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-amber-9 hover:bg-n-amber-10 disabled:opacity-60"
+            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
             :disabled="sending"
             @click="send"
           >
@@ -518,7 +518,7 @@ defineExpose({ open, close });
 
         <div
           v-if="!hasAccount"
-          class="flex-shrink-0 px-4 py-2 text-xs bg-n-amber-3 text-n-amber-11"
+          class="flex-shrink-0 px-4 py-2 text-xs bg-n-iris-3 text-n-iris-11"
         >
           {{ L.noAccountWarn }}
         </div>
@@ -558,14 +558,14 @@ defineExpose({ open, close });
             <div class="flex items-center gap-3 pt-2.5">
               <button
                 v-if="!showCc"
-                class="text-[13px] text-n-amber-11 hover:underline"
+                class="text-[13px] text-n-iris-11 hover:underline"
                 @click="showCc = true"
               >
                 {{ L.cc }}
               </button>
               <button
                 v-if="!showBcc"
-                class="text-[13px] text-n-amber-11 hover:underline"
+                class="text-[13px] text-n-iris-11 hover:underline"
                 @click="showBcc = true"
               >
                 {{ L.bcc }}
@@ -613,7 +613,7 @@ defineExpose({ open, close });
                   class="px-2 py-1 text-xs border rounded-full"
                   :class="
                     contactId === c.id
-                      ? 'border-n-amber-9 text-n-amber-11 bg-n-amber-2'
+                      ? 'border-n-iris-9 text-n-iris-11 bg-n-iris-2'
                       : 'border-n-weak text-n-slate-11'
                   "
                   @click="pickContact(c)"
@@ -731,7 +731,7 @@ defineExpose({ open, close });
             {{ L.addAttachment }}
           </button>
           <button
-            class="inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-amber-9 text-n-amber-11 hover:bg-n-amber-2 disabled:opacity-60"
+            class="inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-iris-9 text-n-iris-11 hover:bg-n-iris-2 disabled:opacity-60"
             :disabled="sending"
             :title="L.kbTip"
             @click="openKbPicker"
@@ -748,7 +748,7 @@ defineExpose({ open, close });
               :key="`f${index}`"
               class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full whitespace-nowrap border-n-weak text-n-slate-11 bg-n-solid-1"
             >
-              <Icon icon="i-lucide-file" class="size-3 text-n-amber-11" />
+              <Icon icon="i-lucide-file" class="size-3 text-n-iris-11" />
               {{ file.name }}
               <button
                 class="text-n-slate-10 hover:text-n-ruby-11"
@@ -763,7 +763,7 @@ defineExpose({ open, close });
               class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full whitespace-nowrap border-n-weak text-n-slate-11 bg-n-solid-1"
               :title="`来自「${pick.docName}」`"
             >
-              <Icon icon="i-lucide-file-text" class="size-3 text-n-amber-11" />
+              <Icon icon="i-lucide-file-text" class="size-3 text-n-iris-11" />
               {{ pick.label }}
               <button
                 class="text-n-slate-10 hover:text-n-ruby-11"
@@ -835,7 +835,7 @@ defineExpose({ open, close });
           class="flex items-center justify-between px-4 py-3 border-b border-n-weak"
         >
           <strong class="text-n-slate-12">{{ L.previewTitle }}</strong>
-          <button class="text-sm text-n-amber-11" @click="showPreview = false">
+          <button class="text-sm text-n-iris-11" @click="showPreview = false">
             {{ L.cancel }}
           </button>
         </div>
@@ -868,7 +868,7 @@ defineExpose({ open, close });
           class="flex items-center justify-between px-4 py-3 border-b border-n-weak"
         >
           <strong class="text-n-slate-12">{{ L.kbTitle }}</strong>
-          <button class="text-sm text-n-amber-11" @click="showKb = false">
+          <button class="text-sm text-n-iris-11" @click="showKb = false">
             {{ L.kbDone
             }}{{ kbPicked.length ? `（已选 ${kbPicked.length}）` : '' }}
           </button>
@@ -878,7 +878,7 @@ defineExpose({ open, close });
         <div class="px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak">
           <input
             v-model="kbSearch"
-            class="w-full h-9 px-3 mb-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            class="w-full h-9 px-3 mb-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
             :placeholder="L.kbSearchPlaceholder"
           />
           <div class="flex flex-wrap items-center gap-1.5">
@@ -888,7 +888,7 @@ defineExpose({ open, close });
               class="px-2.5 py-1 text-xs border rounded-full"
               :class="
                 kbScope === chip.value
-                  ? 'border-n-amber-9 bg-n-amber-9 text-white'
+                  ? 'border-n-iris-9 bg-n-iris-9 text-white'
                   : 'border-n-weak text-n-slate-11'
               "
               @click="kbScope = chip.value"
@@ -900,7 +900,7 @@ defineExpose({ open, close });
               class="px-2.5 py-1 text-xs border rounded-full"
               :class="
                 kbCategory === ''
-                  ? 'border-n-amber-9 bg-n-amber-9 text-white'
+                  ? 'border-n-iris-9 bg-n-iris-9 text-white'
                   : 'border-n-weak text-n-slate-11'
               "
               @click="kbCategory = ''"
@@ -913,7 +913,7 @@ defineExpose({ open, close });
               class="px-2.5 py-1 text-xs border rounded-full"
               :class="
                 kbCategory === cat
-                  ? 'border-n-amber-9 bg-n-amber-9 text-white'
+                  ? 'border-n-iris-9 bg-n-iris-9 text-white'
                   : 'border-n-weak text-n-slate-11'
               "
               @click="kbCategory = cat"
@@ -939,7 +939,7 @@ defineExpose({ open, close });
               :key="doc.id"
               class="block w-full px-3.5 py-2.5 text-left border-b border-n-weak"
               :class="
-                kbOpenDoc?.id === doc.id ? 'bg-n-amber-2' : 'hover:bg-n-alpha-1'
+                kbOpenDoc?.id === doc.id ? 'bg-n-iris-2' : 'hover:bg-n-alpha-1'
               "
               @click="kbOpenDocId = doc.id"
             >
@@ -957,7 +957,7 @@ defineExpose({ open, close });
                 <span class="truncate">{{ doc.name }}</span>
                 <span
                   v-if="kbPicksForDoc(doc.id)"
-                  class="ml-auto min-w-4 h-4 px-1 text-[11px] text-white rounded-full bg-n-amber-9 inline-flex items-center justify-center"
+                  class="ml-auto min-w-4 h-4 px-1 text-[11px] text-white rounded-full bg-n-iris-9 inline-flex items-center justify-center"
                 >
                   {{ kbPicksForDoc(doc.id) }}
                 </span>
@@ -991,7 +991,7 @@ defineExpose({ open, close });
                   class="flex items-center gap-2 px-3 py-2 text-[13px] border rounded-lg"
                   :class="
                     isKbPicked(kbOpenDoc.id, file.fileId)
-                      ? 'border-n-amber-9 text-n-amber-11 bg-n-amber-2'
+                      ? 'border-n-iris-9 text-n-iris-11 bg-n-iris-2'
                       : 'border-n-weak text-n-slate-12 hover:bg-n-alpha-1'
                   "
                   @click="toggleKbFile(kbOpenDoc, file)"
@@ -1017,7 +1017,7 @@ defineExpose({ open, close });
         >
           <span class="flex-1 text-xs text-n-slate-10">{{ L.kbFootTip }}</span>
           <button
-            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-amber-9 hover:bg-n-amber-10"
+            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10"
             @click="showKb = false"
           >
             {{ L.kbDone }}

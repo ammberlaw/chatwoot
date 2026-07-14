@@ -47,7 +47,7 @@ const isFetching = computed(() => uiFlags.value.fetchingList);
 
 const SEND_STATUSES = {
   DRAFT: { label: '草稿', class: 'bg-n-slate-3 text-n-slate-11' },
-  PENDING: { label: '发送中', class: 'bg-n-amber-3 text-n-amber-11' },
+  PENDING: { label: '发送中', class: 'bg-n-iris-3 text-n-iris-11' },
   SENT: { label: '已发送', class: 'bg-n-teal-3 text-n-teal-11' },
   FAILED: { label: '发送失败', class: 'bg-n-ruby-3 text-n-ruby-11' },
 };
@@ -253,7 +253,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex w-full h-full overflow-hidden bg-n-background">
+  <div class="flex w-full h-full overflow-hidden bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <!-- 左栏：文件夹 -->
     <aside
       class="flex flex-col flex-shrink-0 border-r w-52 border-n-weak bg-n-solid-1"
@@ -262,7 +262,7 @@ watch(
         <Button
           :label="t('CRM.EMAILS.COMPOSE.BUTTON')"
           icon="i-lucide-pen-line"
-          color="amber"
+          color="iris"
           class="w-full"
           @click="openCompose()"
         />
@@ -274,7 +274,7 @@ watch(
           class="flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors"
           :class="
             activeFolder === folder.key
-              ? 'bg-n-amber-3 text-n-amber-11 font-medium'
+              ? 'bg-n-iris-3 text-n-iris-11 font-medium'
               : 'text-n-slate-11 hover:bg-n-alpha-1'
           "
           @click="setFolder(folder.key)"
@@ -285,7 +285,7 @@ watch(
             v-if="counts[folder.countKey]"
             class="text-xs tabular-nums"
             :class="
-              folder.key === 'unread' ? 'text-n-amber-11' : 'text-n-slate-10'
+              folder.key === 'unread' ? 'text-n-iris-11' : 'text-n-slate-10'
             "
           >
             {{ counts[folder.countKey] }}
@@ -321,7 +321,7 @@ watch(
             v-model="searchTerm"
             type="text"
             :placeholder="t('CRM.EMAILS.LIST.SEARCH_PLACEHOLDER')"
-            class="w-full py-2 pl-9 pr-3 text-sm border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            class="w-full py-2 pl-9 pr-3 text-sm border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
         </div>
         <!-- 业务员筛选（仅管理员）：看全员或指定成员的邮件 -->
@@ -329,7 +329,7 @@ watch(
           <Icon icon="i-lucide-users" class="size-4 text-n-slate-10" />
           <select
             v-model="activeOwner"
-            class="flex-1 py-1.5 px-2 text-xs border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            class="flex-1 py-1.5 px-2 text-xs border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
             @change="onOwnerChange"
           >
             <option value="">{{ '全部成员' }}</option>
@@ -357,13 +357,13 @@ watch(
             class="flex w-full gap-3 px-4 py-3 text-left transition-colors border-b border-n-weak"
             :class="
               selectedEmail?.id === record.id
-                ? 'bg-n-amber-2'
+                ? 'bg-n-iris-2'
                 : 'hover:bg-n-alpha-1'
             "
             @click="selectEmail(record)"
           >
             <div
-              class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9 bg-n-amber-4 text-n-amber-11"
+              class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9 bg-n-iris-4 text-n-iris-11"
             >
               {{ initial(counterparty(record)) }}
             </div>
@@ -406,7 +406,7 @@ watch(
                 </span>
                 <span
                   v-if="isAdmin && record.ownerName"
-                  class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] bg-n-amber-3 text-n-amber-11 truncate max-w-[96px]"
+                  class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] bg-n-iris-3 text-n-iris-11 truncate max-w-[96px]"
                 >
                   <Icon icon="i-lucide-user" class="size-3" />
                   {{ record.ownerName }}
@@ -434,14 +434,14 @@ watch(
             <div class="flex flex-col items-center flex-shrink-0 gap-1.5">
               <span
                 v-if="record.folder === 'INBOX' && !record.isRead"
-                class="w-2 h-2 rounded-full bg-n-amber-9"
+                class="w-2 h-2 rounded-full bg-n-iris-9"
               />
               <button
                 class="transition-colors"
                 :class="
                   record.isStarred
-                    ? 'text-n-amber-9'
-                    : 'text-n-slate-8 hover:text-n-amber-9'
+                    ? 'text-n-iris-9'
+                    : 'text-n-slate-8 hover:text-n-iris-9'
                 "
                 @click.stop="toggleStar(record)"
               >
@@ -487,8 +487,8 @@ watch(
               class="flex items-center justify-center rounded-lg size-8 transition-colors hover:bg-n-alpha-1"
               :class="
                 selectedEmail.isStarred
-                  ? 'text-n-amber-9'
-                  : 'text-n-slate-10 hover:text-n-amber-9'
+                  ? 'text-n-iris-9'
+                  : 'text-n-slate-10 hover:text-n-iris-9'
               "
               :title="selectedEmail.isStarred ? '取消星标' : '加星标'"
               @click="toggleStar(selectedEmail)"
@@ -530,7 +530,7 @@ watch(
               icon="i-lucide-refresh-cw"
               size="sm"
               variant="faded"
-              color="amber"
+              color="iris"
               @click="resend(selectedEmail)"
             />
           </div>
@@ -540,7 +540,7 @@ watch(
           <!-- 收发信息 -->
           <div class="flex gap-3 pb-5 border-b border-n-weak">
             <div
-              class="flex items-center justify-center flex-shrink-0 text-base font-medium rounded-full size-11 bg-n-amber-4 text-n-amber-11"
+              class="flex items-center justify-center flex-shrink-0 text-base font-medium rounded-full size-11 bg-n-iris-4 text-n-iris-11"
             >
               {{ initial(counterparty(selectedEmail)) }}
             </div>
@@ -571,7 +571,7 @@ watch(
                 </span>
                 <span
                   v-if="selectedEmail.customerName"
-                  class="inline-flex items-center gap-1 text-n-amber-11"
+                  class="inline-flex items-center gap-1 text-n-iris-11"
                 >
                   <Icon icon="i-lucide-building-2" class="size-3.5" />
                   {{ selectedEmail.customerName }}
@@ -698,7 +698,7 @@ watch(
               >
                 <Icon
                   icon="i-lucide-file"
-                  class="flex-shrink-0 size-8 text-n-amber-11"
+                  class="flex-shrink-0 size-8 text-n-iris-11"
                 />
                 <div class="min-w-0">
                   <p class="text-sm truncate text-n-slate-12">

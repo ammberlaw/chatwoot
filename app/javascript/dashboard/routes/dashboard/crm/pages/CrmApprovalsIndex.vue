@@ -92,13 +92,13 @@ const amountToWords = value => {
 };
 
 const STATUS_META = {
-  pending: { label: '审批中', class: 'bg-n-amber-3 text-n-amber-11' },
+  pending: { label: '审批中', class: 'bg-n-iris-3 text-n-iris-11' },
   approved: { label: '已通过', class: 'bg-n-teal-3 text-n-teal-11' },
   rejected: { label: '已驳回', class: 'bg-n-ruby-3 text-n-ruby-11' },
   canceled: { label: '已撤回', class: 'bg-n-slate-3 text-n-slate-11' },
 };
 const STEP_META = {
-  pending: { icon: 'i-lucide-clock', class: 'text-n-amber-11' },
+  pending: { icon: 'i-lucide-clock', class: 'text-n-iris-11' },
   approved: { icon: 'i-lucide-check', class: 'text-n-teal-11' },
   rejected: { icon: 'i-lucide-x', class: 'text-n-ruby-11' },
   skipped: { icon: 'i-lucide-minus', class: 'text-n-slate-10' },
@@ -303,7 +303,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-hidden bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -311,7 +311,7 @@ onMounted(async () => {
       <Button
         :label="L.start"
         icon="i-lucide-plus"
-        color="amber"
+        color="iris"
         @click="openPicker"
       />
     </div>
@@ -328,7 +328,7 @@ onMounted(async () => {
             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors"
             :class="
               activeTab === tab.key
-                ? 'bg-n-amber-3 text-n-amber-11 font-medium'
+                ? 'bg-n-iris-3 text-n-iris-11 font-medium'
                 : 'text-n-slate-11 hover:bg-n-alpha-1'
             "
             @click="setTab(tab.key)"
@@ -336,7 +336,7 @@ onMounted(async () => {
             {{ tab.label }}
             <span
               v-if="tab.key === 'todo' && counts.todo"
-              class="px-1.5 rounded-full text-[11px] bg-n-amber-9 text-white"
+              class="px-1.5 rounded-full text-[11px] bg-n-iris-9 text-white"
             >
               {{ counts.todo }}
             </span>
@@ -355,13 +355,13 @@ onMounted(async () => {
             class="flex w-full gap-3 px-4 py-3 text-left border-b border-n-weak transition-colors"
             :class="
               selected && selected.id === row.id
-                ? 'bg-n-amber-2'
+                ? 'bg-n-iris-2'
                 : 'hover:bg-n-alpha-1'
             "
             @click="openRequest(row)"
           >
             <div
-              class="flex items-center justify-center flex-shrink-0 rounded-lg size-9 bg-n-amber-4 text-n-amber-11"
+              class="flex items-center justify-center flex-shrink-0 rounded-lg size-9 bg-n-iris-4 text-n-iris-11"
             >
               <Icon
                 :icon="row.template_icon || 'i-lucide-file-check'"
@@ -417,7 +417,7 @@ onMounted(async () => {
           <div class="flex-1 p-6 overflow-y-auto">
             <div class="flex items-center gap-2 mb-4 text-sm text-n-slate-11">
               <div
-                class="flex items-center justify-center rounded-full size-7 bg-n-amber-4 text-n-amber-11 text-xs"
+                class="flex items-center justify-center rounded-full size-7 bg-n-iris-4 text-n-iris-11 text-xs"
               >
                 {{ initial(selected.applicant_name) }}
               </div>
@@ -459,7 +459,7 @@ onMounted(async () => {
                   rel="noopener noreferrer"
                   class="flex items-center gap-2 p-2 text-sm border rounded-lg border-n-weak hover:bg-n-alpha-1"
                 >
-                  <Icon icon="i-lucide-file" class="size-4 text-n-amber-11" />
+                  <Icon icon="i-lucide-file" class="size-4 text-n-iris-11" />
                   <span class="truncate text-n-slate-12">{{
                     file.filename
                   }}</span>
@@ -486,7 +486,7 @@ onMounted(async () => {
                     {{ step.approver_name || '（未指定）' }}
                     <span
                       v-if="step.is_current"
-                      class="px-1.5 rounded text-[10px] bg-n-amber-3 text-n-amber-11"
+                      class="px-1.5 rounded text-[10px] bg-n-iris-3 text-n-iris-11"
                     >
                       {{ L.current }}
                     </span>
@@ -515,7 +515,7 @@ onMounted(async () => {
               v-model="comment"
               rows="2"
               :placeholder="L.commentPlaceholder"
-              class="w-full px-3 py-2 mb-2 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+              class="w-full px-3 py-2 mb-2 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
             />
             <div class="flex gap-2">
               <template v-if="selected.can_act">
@@ -557,11 +557,11 @@ onMounted(async () => {
         <button
           v-for="tpl in templates"
           :key="tpl.id"
-          class="flex items-center gap-3 p-4 text-left border rounded-xl border-n-weak hover:border-n-amber-7 hover:bg-n-alpha-1"
+          class="flex items-center gap-3 p-4 text-left border rounded-xl border-n-weak hover:border-n-iris-7 hover:bg-n-alpha-1"
           @click="pickTemplate(tpl)"
         >
           <div
-            class="flex items-center justify-center rounded-lg size-10 bg-n-amber-4 text-n-amber-11"
+            class="flex items-center justify-center rounded-lg size-10 bg-n-iris-4 text-n-iris-11"
           >
             <Icon :icon="tpl.icon || 'i-lucide-file-check'" class="size-5" />
           </div>
@@ -585,7 +585,7 @@ onMounted(async () => {
       ref="formRef"
       :title="activeTemplate?.name"
       :confirm-button-label="L.submit"
-      confirm-button-color="amber"
+      confirm-button-color="iris"
       @confirm="submitRequest"
     >
       <div class="flex flex-col gap-4">
@@ -597,12 +597,12 @@ onMounted(async () => {
             v-if="f.type === 'textarea'"
             v-model="formValues[f.key]"
             rows="3"
-            class="w-full px-3 py-2 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            class="w-full px-3 py-2 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
           <select
             v-else-if="f.type === 'select'"
             v-model="formValues[f.key]"
-            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           >
             <option value="">{{ '请选择' }}</option>
             <option v-for="opt in f.options || []" :key="opt" :value="opt">
@@ -619,7 +619,7 @@ onMounted(async () => {
                   ? 'date'
                   : 'text'
             "
-            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
           <p
             v-if="f.type === 'amount' && formValues[f.key]"
@@ -636,7 +636,7 @@ onMounted(async () => {
           </label>
           <select
             v-model="selectedDeptId"
-            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           >
             <option value="">{{ L.deptPlaceholder }}</option>
             <option
@@ -675,7 +675,7 @@ onMounted(async () => {
               class="flex items-center justify-between gap-2 px-3 py-1.5 text-sm border rounded-lg border-n-weak"
             >
               <span class="flex items-center min-w-0 gap-2">
-                <Icon icon="i-lucide-file" class="size-4 text-n-amber-11" />
+                <Icon icon="i-lucide-file" class="size-4 text-n-iris-11" />
                 <span class="truncate text-n-slate-12">{{ file.name }}</span>
               </span>
               <button
@@ -704,7 +704,7 @@ onMounted(async () => {
                 class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-n-alpha-1 text-n-slate-11"
               >
                 <span
-                  class="flex items-center justify-center rounded-full size-4 bg-n-amber-9 text-white text-[10px]"
+                  class="flex items-center justify-center rounded-full size-4 bg-n-iris-9 text-white text-[10px]"
                 >
                   {{ i + 1 }}
                 </span>

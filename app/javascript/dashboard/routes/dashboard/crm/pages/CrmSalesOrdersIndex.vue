@@ -40,7 +40,7 @@ const crmBase = () => `/api/v1/accounts/${accountId.value}/crm`;
 const STATUSES = {
   PENDING_CONFIRMATION: { label: '待确认', class: 'bg-n-slate-3 text-n-slate-11' },
   IN_PRODUCTION: { label: '生产中', class: 'bg-n-blue-3 text-n-blue-11' },
-  PENDING_SHIPMENT: { label: '待出货', class: 'bg-n-amber-3 text-n-amber-11' },
+  PENDING_SHIPMENT: { label: '待出货', class: 'bg-n-iris-3 text-n-iris-11' },
   SHIPPED: { label: '已出货', class: 'bg-n-iris-3 text-n-iris-11' },
   COMPLETED: { label: '已完成', class: 'bg-n-teal-3 text-n-teal-11' },
   CANCELLED: { label: '已取消', class: 'bg-n-ruby-3 text-n-ruby-11' },
@@ -162,7 +162,7 @@ const AVATAR = [
   'bg-n-blue-9',
   'bg-n-teal-9',
   'bg-n-iris-9',
-  'bg-n-amber-9',
+  'bg-n-iris-9',
   'bg-n-ruby-9',
 ];
 const avatarCls = name =>
@@ -301,7 +301,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex w-full h-full overflow-hidden bg-n-background">
+  <div class="flex w-full h-full overflow-hidden bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div
         class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
@@ -312,7 +312,7 @@ watch(
         <Button
           :label="t('CRM.SALES_ORDERS.NEW')"
           icon="i-lucide-plus"
-          color="amber"
+          color="iris"
           @click="openCreateDialog"
         />
       </div>
@@ -326,7 +326,7 @@ watch(
           :label="tab.label"
           size="sm"
           :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-          :color="activeFilter === tab.key ? 'amber' : 'slate'"
+          :color="activeFilter === tab.key ? 'iris' : 'slate'"
           @click="setFilter(tab.key)"
         />
         <div class="w-px h-6 mx-1 bg-n-weak" />
@@ -334,14 +334,14 @@ watch(
           v-model="searchQuery"
           type="text"
           :placeholder="t('CRM.SALES_ORDERS.SEARCH_PLACEHOLDER')"
-          class="reset-base h-9 px-3 text-sm border rounded-lg w-44 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+          class="reset-base h-9 px-3 text-sm border rounded-lg w-44 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
           @input="onSearchInput"
         />
         <input
           v-model="activeMonth"
           type="month"
           :aria-label="t('CRM.SALES_ORDERS.FILTERS.MONTH')"
-          class="reset-base h-9 px-3 text-sm border rounded-lg w-36 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+          class="reset-base h-9 px-3 text-sm border rounded-lg w-36 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
           @change="onMonthChange"
         />
         <Select
@@ -411,7 +411,7 @@ watch(
                   :key="record.id"
                   class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
                   :class="{
-                    'bg-n-amber-2': selectedOrder?.id === record.id,
+                    'bg-n-iris-2': selectedOrder?.id === record.id,
                   }"
                   @click="selectOrder(record)"
                 >
@@ -515,7 +515,7 @@ watch(
           class="flex items-center gap-1.5 px-2.5 py-2.5 text-sm border-b-2 whitespace-nowrap transition-colors"
           :class="
             activeTab === tab.key
-              ? 'border-n-amber-9 text-n-slate-12 font-medium'
+              ? 'border-n-iris-9 text-n-slate-12 font-medium'
               : 'border-transparent text-n-slate-11 hover:text-n-slate-12'
           "
           @click="setTab(tab.key)"
@@ -623,7 +623,7 @@ watch(
                 class="absolute left-[4px] top-4 bottom-0 w-px bg-n-weak"
               />
               <span
-                class="z-10 mt-1 border-2 rounded-full size-2.5 shrink-0 border-n-amber-9 bg-n-solid-1"
+                class="z-10 mt-1 border-2 rounded-full size-2.5 shrink-0 border-n-iris-9 bg-n-solid-1"
               />
               <div class="min-w-0">
                 <div class="text-xs text-n-slate-10">

@@ -256,7 +256,7 @@ defineExpose({ dialogRef, onSuccess, open });
     ref="dialogRef"
     width="3xl"
     overflow-y-auto
-    confirm-button-color="amber"
+    confirm-button-color="iris"
     :title="isEditing ? t('CRM.SALES_ORDERS.EDIT.TITLE') : t('CRM.SALES_ORDERS.CREATE.TITLE')"
     :description="t('CRM.SALES_ORDERS.CREATE.DESCRIPTION')"
     :is-loading="isLoading"
@@ -268,7 +268,7 @@ defineExpose({ dialogRef, onSuccess, open });
       <div
         class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
       >
-        <span class="w-1 rounded-full h-3.5 bg-n-amber-9" />
+        <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
         {{ t('CRM.SALES_ORDERS.FORM.SECTION_BASIC') }}
       </div>
       <div class="grid grid-cols-2 gap-4">
@@ -336,7 +336,7 @@ defineExpose({ dialogRef, onSuccess, open });
       <div
         class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
       >
-        <span class="w-1 rounded-full h-3.5 bg-n-amber-9" />
+        <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
         {{ t('CRM.SALES_ORDERS.FORM.SECTION_AMOUNT') }}
       </div>
       <div class="grid grid-cols-3 gap-4">

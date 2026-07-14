@@ -37,7 +37,7 @@ const crmBase = () => `/api/v1/accounts/${accountId.value}/crm`;
 const PALETTE = [
   'bg-n-blue-3 text-n-blue-11',
   'bg-n-teal-3 text-n-teal-11',
-  'bg-n-amber-3 text-n-amber-11',
+  'bg-n-iris-3 text-n-iris-11',
   'bg-n-iris-3 text-n-iris-11',
   'bg-n-ruby-3 text-n-ruby-11',
 ];
@@ -407,7 +407,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex w-full h-full overflow-hidden bg-n-background">
+  <div class="flex w-full h-full overflow-hidden bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div
         class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
@@ -431,7 +431,7 @@ watch(
         <Button
           :label="t('CRM.KNOWLEDGE_DOCS.NEW')"
           icon="i-lucide-plus"
-          color="amber"
+          color="iris"
           @click="openCreatePanel()"
         />
       </div>
@@ -443,7 +443,7 @@ watch(
           :label="tab.label"
           size="sm"
           :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-          :color="activeFilter === tab.key ? 'amber' : 'slate'"
+          :color="activeFilter === tab.key ? 'iris' : 'slate'"
           @click="setFilter(tab.key)"
         />
         <Input
@@ -475,7 +475,7 @@ watch(
             <input
               v-if="editingId && editingId === col.id"
               v-model="editingName"
-              class="w-40 h-7 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
+              class="w-40 h-7 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
               @keyup.enter="saveRename"
               @blur="saveRename"
             />
@@ -532,7 +532,7 @@ watch(
               :key="doc.id"
               type="button"
               draggable="true"
-              class="flex flex-col gap-2 p-3 text-left transition-all border cursor-grab active:cursor-grabbing rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
+              class="flex flex-col gap-2 p-3 text-left transition-all border cursor-grab active:cursor-grabbing rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
               :class="[
                 selectedDoc && selectedDoc.id === doc.id
                   ? 'border-n-blue-8 ring-1 ring-n-blue-8'
@@ -575,7 +575,7 @@ watch(
 
             <button
               type="button"
-              class="flex items-center gap-1 px-3 py-2 text-sm rounded-xl text-n-slate-10 hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
+              class="flex items-center gap-1 px-3 py-2 text-sm rounded-xl text-n-slate-10 hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
               @click="openCreatePanel(col.uncategorized ? undefined : col.name)"
             >
               <span class="i-lucide-plus size-4" />
@@ -590,14 +590,14 @@ watch(
             v-if="adding"
             v-model="newCategoryName"
             :placeholder="t('CRM.KNOWLEDGE_DOCS.CATEGORY.NAME_PLACEHOLDER')"
-            class="h-8 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
+            class="h-8 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
             @keyup.enter="saveAdd"
             @blur="saveAdd"
           />
           <button
             v-else
             type="button"
-            class="flex items-center gap-1 px-3 py-2 text-sm rounded-lg text-n-slate-10 hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-8"
+            class="flex items-center gap-1 px-3 py-2 text-sm rounded-lg text-n-slate-10 hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
             @click="startAdd"
           >
             <span class="i-lucide-plus size-4" />
@@ -838,7 +838,7 @@ watch(
                     : t('CRM.KNOWLEDGE_DOCS.PANEL.SAVE')
                 "
                 size="sm"
-                color="amber"
+                color="iris"
                 :is-loading="saving"
                 :disabled="!editForm.name.trim()"
                 @click="saveForm"

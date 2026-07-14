@@ -23,7 +23,7 @@ const isCreating = computed(() => uiFlags.value.creatingItem);
 
 const STAGES = {
   NEEDS_CONFIRMED: { label: '需求确认（已报价）', class: 'bg-n-blue-3 text-n-blue-11' },
-  SAMPLING: { label: '样品中', class: 'bg-n-amber-3 text-n-amber-11' },
+  SAMPLING: { label: '样品中', class: 'bg-n-iris-3 text-n-iris-11' },
   WON: { label: '已成交', class: 'bg-n-teal-3 text-n-teal-11' },
   LOST: { label: '输单', class: 'bg-n-ruby-3 text-n-ruby-11' },
 };
@@ -41,7 +41,7 @@ const AVATAR = [
   'bg-n-blue-9',
   'bg-n-teal-9',
   'bg-n-iris-9',
-  'bg-n-amber-9',
+  'bg-n-iris-9',
   'bg-n-ruby-9',
 ];
 const avatarCls = name =>
@@ -106,7 +106,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -122,7 +122,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
         :label="tab.label"
         size="sm"
         :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-        :color="activeFilter === tab.key ? 'amber' : 'slate'"
+        :color="activeFilter === tab.key ? 'iris' : 'slate'"
         @click="setFilter(tab.key)"
       />
     </div>

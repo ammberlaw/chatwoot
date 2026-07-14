@@ -76,7 +76,7 @@ onMounted(fetchMembers);
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-hidden bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div class="flex-shrink-0 px-6 py-4 border-b border-n-weak">
       <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
       <p class="mt-0.5 text-xs text-n-slate-10">{{ L.subtitle }}</p>
@@ -123,7 +123,7 @@ onMounted(fetchMembers);
                 class="px-2 py-0.5 rounded-full text-xs"
                 :class="
                   m.is_admin
-                    ? 'bg-n-amber-3 text-n-amber-11'
+                    ? 'bg-n-iris-3 text-n-iris-11'
                     : 'bg-n-slate-3 text-n-slate-11'
                 "
               >

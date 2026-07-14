@@ -373,7 +373,7 @@ defineExpose({ dialogRef, onSuccess, open });
         />
         <Button
           :label="isEditing ? t('CRM.CUSTOMERS.EDIT.SAVE') : t('CRM.CUSTOMERS.NEW')"
-          color="amber"
+          color="iris"
           type="submit"
           :disabled="isFormInvalid || isLoading"
           :is-loading="isLoading"

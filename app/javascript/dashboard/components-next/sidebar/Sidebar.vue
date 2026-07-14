@@ -1187,7 +1187,7 @@ const filteredMenuItems = computed(() =>
         ],
       },
     ]"
-    class="bg-n-background flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 ltr:border-r rtl:border-l border-n-weak"
+    class="bg-n-solid-1/55 backdrop-blur-2xl flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 ltr:border-r rtl:border-l border-white/50"
     :class="[
       {
         'shadow-lg md:shadow-none': isMobileSidebarOpen,
@@ -1276,7 +1276,7 @@ const filteredMenuItems = computed(() =>
       :class="isEffectivelyCollapsed ? 'px-1' : 'px-2'"
     >
       <ul
-        class="flex flex-col gap-1 m-0 list-none min-w-0"
+        class="flex flex-col gap-1.5 m-0 list-none min-w-0"
         :class="{ 'items-center': isEffectivelyCollapsed }"
       >
         <SidebarGroup

@@ -388,7 +388,7 @@ const releaseCustomer = async customer => {
 const PILL = {
   teal: 'bg-n-teal-3 text-n-teal-11',
   blue: 'bg-n-blue-3 text-n-blue-11',
-  amber: 'bg-n-amber-3 text-n-amber-11',
+  amber: 'bg-n-iris-3 text-n-iris-11',
   ruby: 'bg-n-ruby-3 text-n-ruby-11',
   iris: 'bg-n-iris-3 text-n-iris-11',
   slate: 'bg-n-slate-4 text-n-slate-11',
@@ -397,7 +397,7 @@ const AVATAR = {
   blue: 'bg-n-blue-9 text-white',
   teal: 'bg-n-teal-9 text-white',
   iris: 'bg-n-iris-9 text-white',
-  amber: 'bg-n-amber-9 text-white',
+  amber: 'bg-n-iris-9 text-white',
   ruby: 'bg-n-ruby-9 text-white',
 };
 const pillCls = color => PILL[color] || PILL.slate;
@@ -405,31 +405,31 @@ const pillCls = color => PILL[color] || PILL.slate;
 const GRADE_META = {
   COMPLETE: { label: '完善', color: 'teal' },
   GOOD: { label: '良好', color: 'blue' },
-  FAIR: { label: '一般', color: 'amber' },
+  FAIR: { label: '一般', color: 'iris' },
   POOR: { label: '待完善', color: 'ruby' },
 };
 const STATUS_META = {
   PROSPECT: { label: '潜在客户', color: 'slate' },
   FOLLOWING: { label: '跟进中', color: 'blue' },
   WON: { label: '成交客户', color: 'teal' },
-  DORMANT: { label: '沉默客户', color: 'amber' },
+  DORMANT: { label: '沉默客户', color: 'iris' },
   LOST: { label: '流失客户', color: 'ruby' },
 };
 const SOURCE_META = {
-  ALIBABA: { label: '阿里巴巴国际站', color: 'amber' },
+  ALIBABA: { label: '阿里巴巴国际站', color: 'iris' },
   WEBSITE: { label: '官网', color: 'blue' },
   EXHIBITION: { label: '展会', color: 'teal' },
   REFERRAL: { label: '转介绍', color: 'iris' },
-  EMAIL: { label: '邮件开发', color: 'amber' },
+  EMAIL: { label: '邮件开发', color: 'iris' },
   SOCIAL_MEDIA: { label: '社媒开发', color: 'ruby' },
   OTHER: { label: '其他', color: 'slate' },
 };
-const LEVEL_COLOR = { A: 'teal', B: 'blue', C: 'amber', D: 'slate' };
+const LEVEL_COLOR = { A: 'teal', B: 'blue', C: 'iris', D: 'slate' };
 const REGION_META = {
   NORTH_AMERICA: { label: '北美', color: 'blue' },
   EUROPE: { label: '欧洲', color: 'iris' },
   SOUTH_AMERICA: { label: '南美', color: 'teal' },
-  MIDDLE_EAST: { label: '中东', color: 'amber' },
+  MIDDLE_EAST: { label: '中东', color: 'iris' },
   SOUTHEAST_ASIA: { label: '东南亚', color: 'ruby' },
   AFRICA: { label: '非洲', color: 'slate' },
   OTHER: { label: '其他', color: 'slate' },
@@ -481,7 +481,7 @@ const levelColor = level => LEVEL_COLOR[level] || 'slate';
 const countryLabel = country => COUNTRY_MAP[country] || country || '—';
 
 // 公司首字母头像色：按名称哈希取一个稳定色
-const AVATAR_COLORS = ['blue', 'teal', 'iris', 'amber', 'ruby'];
+const AVATAR_COLORS = ['blue', 'teal', 'iris', 'iris', 'ruby'];
 const avatarCls = name => {
   const key = (name || '?').charCodeAt(0) || 0;
   return AVATAR[AVATAR_COLORS[key % AVATAR_COLORS.length]];
@@ -598,7 +598,9 @@ watch(
 </script>
 
 <template>
-  <div class="flex w-full h-full overflow-hidden bg-n-background">
+  <div
+    class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border-white/50 shadow-n-iris-9/5"
+  >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div
         class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
@@ -609,7 +611,7 @@ watch(
         <Button
           :label="t('CRM.CUSTOMERS.NEW')"
           icon="i-lucide-plus"
-          color="amber"
+          color="iris"
           @click="goToIntake"
         />
       </div>
@@ -622,7 +624,7 @@ watch(
             v-model="searchQuery"
             type="text"
             placeholder="搜索客户名…"
-            class="h-9 px-3 text-sm border rounded-lg w-44 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+            class="h-9 px-3 text-sm border rounded-lg w-44 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             @input="onSearchInput"
           />
           <Select
@@ -731,7 +733,7 @@ watch(
                   :key="customer.id"
                   class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
                   :class="{
-                    'bg-n-amber-2': selectedCustomer?.id === customer.id,
+                    'bg-n-iris-2': selectedCustomer?.id === customer.id,
                   }"
                   @click="selectCustomer(customer)"
                 >
@@ -824,7 +826,7 @@ watch(
                       v-if="customer.isInPublicPool"
                       :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
                       size="sm"
-                      color="amber"
+                      color="iris"
                       :is-loading="actingId === customer.id"
                       @click="claimCustomer(customer)"
                     />
@@ -894,7 +896,7 @@ watch(
           class="flex items-center gap-1.5 px-2.5 py-2.5 text-sm border-b-2 whitespace-nowrap transition-colors"
           :class="
             activeTab === tab.key
-              ? 'border-n-amber-9 text-n-slate-12 font-medium'
+              ? 'border-n-iris-9 text-n-slate-12 font-medium'
               : 'border-transparent text-n-slate-11 hover:text-n-slate-12'
           "
           @click="setTab(tab.key)"
@@ -1008,7 +1010,7 @@ watch(
               class="flex-1 h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
               @keyup.enter="addNote"
             />
-            <Button label="添加" color="amber" size="sm" @click="addNote" />
+            <Button label="添加" color="iris" size="sm" @click="addNote" />
           </div>
           <div
             v-if="!panelNotes.length"
@@ -1124,7 +1126,7 @@ watch(
         <Button
           label="编辑"
           icon="i-lucide-pencil"
-          color="amber"
+          color="iris"
           class="flex-1"
           @click="editSelected"
         />

@@ -158,7 +158,7 @@ const submit = async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div class="flex-shrink-0 px-6 py-4 border-b border-n-weak">
       <h1 class="text-xl font-medium text-n-slate-12">客户建档</h1>
     </div>
@@ -183,7 +183,7 @@ const submit = async () => {
 
       <div
         v-if="!emailHit && nameHits.length"
-        class="flex flex-col gap-1 p-3 text-sm border rounded-lg border-n-amber-8 text-n-amber-11"
+        class="flex flex-col gap-1 p-3 text-sm border rounded-lg border-n-iris-8 text-n-iris-11"
       >
         <span>⚠️ 发现公司名相似的已有客户（可继续建档，请确认非同一家）：</span>
         <span v-for="m in nameHits" :key="m.id" class="text-xs text-n-slate-11">
@@ -359,7 +359,7 @@ const submit = async () => {
 
       <div class="flex items-center gap-3 mt-1">
         <button
-          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-amber-9 hover:bg-n-amber-10 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit"
           @click="submit"
         >

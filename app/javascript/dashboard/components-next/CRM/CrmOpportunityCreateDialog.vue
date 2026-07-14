@@ -154,7 +154,7 @@ defineExpose({ dialogRef, onSuccess, open });
     ref="dialogRef"
     width="3xl"
     overflow-y-auto
-    confirm-button-color="amber"
+    confirm-button-color="iris"
     :title="
       isEditing
         ? t('CRM.OPPORTUNITIES.EDIT.TITLE')

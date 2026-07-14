@@ -130,7 +130,16 @@ export default {
 </script>
 
 <template>
-  <div class="flex flex-grow overflow-hidden text-n-slate-12">
+  <div
+    class="relative flex flex-grow overflow-hidden text-n-slate-12 bg-gradient-to-br from-n-iris-2 via-n-blue-2 to-n-iris-3"
+  >
+    <!-- 冷蓝长春花氛围光斑，为磨砂玻璃面板提供可模糊的底 -->
+    <div
+      class="pointer-events-none absolute -top-40 -left-32 size-[620px] rounded-full bg-n-iris-4/60 blur-[150px]"
+    />
+    <div
+      class="pointer-events-none absolute -bottom-40 right-[-6rem] size-[520px] rounded-full bg-n-blue-4/50 blur-[150px]"
+    />
     <NextSidebar
       :is-mobile-sidebar-open="isMobileSidebarOpen"
       @toggle-account-modal="toggleAccountModal"
@@ -141,7 +150,7 @@ export default {
     />
 
     <main
-      class="flex flex-1 h-full w-full min-h-0 px-0 overflow-hidden bg-n-surface-1"
+      class="relative flex flex-1 h-full w-full min-h-0 p-3 overflow-hidden bg-transparent"
     >
       <UpgradePage
         v-show="showUpgradePage"

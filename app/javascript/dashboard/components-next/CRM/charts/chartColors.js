@@ -11,8 +11,8 @@ export const themeColor = (name, alpha = 1) => {
 
 // 常用图表色板（惰性求值，确保在浏览器环境读取当前主题）。
 export const chartPalette = () => ({
-  brand: themeColor('amber-9'),
-  brandSoft: themeColor('amber-9', 0.15),
+  brand: themeColor('iris-9'),
+  brandSoft: themeColor('iris-9', 0.15),
   teal: themeColor('teal-9'),
   tealSoft: themeColor('teal-9', 0.15),
   amber: themeColor('amber-9'),

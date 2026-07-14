@@ -46,9 +46,9 @@ const STAGE_LABELS = {
   LOST: '输单',
 };
 const STAGE_COLORS = {
-  NEEDS_CONFIRMED: 'amber-6',
-  SAMPLING: 'amber-8',
-  WON: 'amber-10',
+  NEEDS_CONFIRMED: 'iris-6',
+  SAMPLING: 'iris-8',
+  WON: 'iris-10',
   LOST: 'ruby-9',
 };
 
@@ -62,26 +62,26 @@ const SOURCE_LABELS = {
 };
 // 环形图冷色系（紫-靛-蓝，无黄，切片可区分又协调）
 const SOURCE_COLOR_KEYS = [
-  'amber-9',
+  'iris-9',
   'iris-9',
   'blue-9',
-  'amber-6',
+  'iris-6',
   'iris-6',
   'blue-6',
 ];
 
-// KPI 浅卡图标 chip 配色（暖橙）。
+// KPI 浅卡图标 chip 配色（长春花冷调）。
 const ACCENTS = {
-  green: { text: 'text-n-amber-11', soft: 'bg-n-amber-3' },
-  amber: { text: 'text-n-amber-11', soft: 'bg-n-amber-3' },
+  green: { text: 'text-n-iris-11', soft: 'bg-n-iris-3' },
+  iris: { text: 'text-n-iris-11', soft: 'bg-n-iris-3' },
 };
 
 // MedFlow 式多色柔和渐变：跨卡黄→薄荷绿→蜜桃橙流动。完整字面量供 Tailwind 收录。
 const CARD_GRADIENTS = [
-  'from-n-amber-3 to-n-teal-3',
-  'from-n-teal-3 to-n-amber-3',
-  'from-n-amber-3 to-n-amber-5',
-  'from-n-amber-4 to-n-teal-4',
+  'from-n-iris-3 to-n-teal-3',
+  'from-n-teal-3 to-n-iris-3',
+  'from-n-iris-3 to-n-iris-5',
+  'from-n-iris-4 to-n-teal-4',
 ];
 
 const fetchStats = async () => {
@@ -296,13 +296,13 @@ const totalCards = computed(() => {
     {
       label: '进行中商机',
       value: tt.open_opportunities,
-      accent: 'amber',
+      accent: 'iris',
       icon: 'i-lucide-target',
     },
     {
       label: '公海客户',
       value: tt.public_pool_customers,
-      accent: 'amber',
+      accent: 'iris',
       icon: 'i-lucide-waves',
     },
     {
@@ -317,7 +317,7 @@ const totalCards = computed(() => {
         tt.avg_reply_latency_hours != null
           ? `${tt.avg_reply_latency_hours}h`
           : '—',
-      accent: 'amber',
+      accent: 'iris',
       icon: 'i-lucide-clock',
     },
   ];
@@ -332,7 +332,7 @@ const PERIODS = [
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-background"
+    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <!-- 顶栏 -->
     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -355,7 +355,7 @@ const PERIODS = [
             v-for="p in PERIODS"
             :key="p.k"
             :aria-pressed="period === p.k"
-            class="h-7 px-3 text-sm transition-colors rounded-md shrink-0 whitespace-nowrap motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+            class="h-7 px-3 text-sm transition-colors rounded-md shrink-0 whitespace-nowrap motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             :class="
               period === p.k
                 ? 'bg-n-solid-1 text-n-slate-12 font-medium shadow-sm'
@@ -369,21 +369,21 @@ const PERIODS = [
         <select
           v-if="period === 'month'"
           v-model.number="selectedMonth"
-          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
         >
           <option v-for="m in 12" :key="m" :value="m">{{ m }}月</option>
         </select>
         <select
           v-else-if="period === 'quarter'"
           v-model.number="selectedQuarter"
-          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
         >
           <option v-for="q in 4" :key="q" :value="q">Q{{ q }}</option>
         </select>
         <select
           v-else
           v-model.number="selectedYear"
-          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
         >
           <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
         </select>
@@ -402,7 +402,7 @@ const PERIODS = [
       <span class="i-lucide-cloud-off size-8 text-n-slate-10" />
       <p class="text-sm text-n-slate-11">数据加载失败，请检查网络后重试。</p>
       <button
-        class="h-9 px-4 text-sm font-medium transition-colors rounded-lg bg-n-amber-9 text-n-slate-12 motion-reduce:transition-none hover:bg-n-amber-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+        class="h-9 px-4 text-sm font-medium transition-colors rounded-lg bg-n-iris-9 text-n-slate-12 motion-reduce:transition-none hover:bg-n-iris-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
         @click="fetchStats"
       >
         重新加载
@@ -420,7 +420,7 @@ const PERIODS = [
           :class="CARD_GRADIENTS[i]"
         >
           <div
-            class="flex items-center justify-center rounded-lg size-9 bg-n-solid-1/70 text-n-amber-11"
+            class="flex items-center justify-center rounded-lg size-9 bg-n-solid-1/70 text-n-iris-11"
           >
             <span class="size-5" :class="[kpi.icon]" />
           </div>
@@ -445,7 +445,7 @@ const PERIODS = [
             <h2 class="text-base font-medium text-n-slate-12">商机阶段分布</h2>
             <span v-if="winRate != null" class="text-xs text-n-slate-11">
               成交转化率
-              <span class="font-semibold text-n-amber-11">{{ winRate }}%</span>
+              <span class="font-semibold text-n-iris-11">{{ winRate }}%</span>
             </span>
           </div>
           <div class="h-64">

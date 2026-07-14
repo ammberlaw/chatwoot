@@ -55,7 +55,7 @@ const barClass = p => {
   if (p == null) return 'bg-n-slate-6';
   if (p >= 100) return 'bg-n-teal-9';
   if (p >= 60) return 'bg-n-blue-9';
-  if (p >= 30) return 'bg-n-amber-9';
+  if (p >= 30) return 'bg-n-iris-9';
   return 'bg-n-ruby-9';
 };
 const barWidth = p => `${Math.min(100, Math.max(2, p ?? 0))}%`;
@@ -80,9 +80,9 @@ const metricLine = (actual, target, isMoney) => {
 
 // MedFlow 式多色柔和渐变（跨卡 黄→薄荷绿→蜜桃橙）。完整字面量供 Tailwind 收录。
 const CARD_GRADIENTS = [
-  'from-n-amber-3 to-n-teal-3',
-  'from-n-teal-3 to-n-amber-3',
-  'from-n-amber-3 to-n-amber-5',
+  'from-n-iris-3 to-n-teal-3',
+  'from-n-teal-3 to-n-iris-3',
+  'from-n-iris-3 to-n-iris-5',
 ];
 
 // KPI 顶卡
@@ -110,7 +110,7 @@ const kpiCards = computed(() => [
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-background"
+    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -124,7 +124,7 @@ const kpiCards = computed(() => [
       <select
         v-if="teams.length"
         v-model.number="selectedTeamId"
-        class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+        class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
       >
         <option v-for="team_ in teams" :key="team_.id" :value="team_.id">
           {{ team_.name }}
@@ -153,7 +153,7 @@ const kpiCards = computed(() => [
           :class="CARD_GRADIENTS[i]"
         >
           <div
-            class="flex items-center justify-center rounded-lg size-9 bg-n-solid-1/70 text-n-amber-11"
+            class="flex items-center justify-center rounded-lg size-9 bg-n-solid-1/70 text-n-iris-11"
           >
             <span class="size-5" :class="[kpi.icon]" />
           </div>

@@ -114,7 +114,7 @@ const barClass = p => {
   if (p == null) return 'bg-n-slate-6';
   if (p >= 100) return 'bg-n-teal-9';
   if (p >= 60) return 'bg-n-blue-9';
-  if (p >= 30) return 'bg-n-amber-9';
+  if (p >= 30) return 'bg-n-iris-9';
   return 'bg-n-ruby-9';
 };
 const dot = p => {
@@ -246,7 +246,7 @@ const cell = (r, isAmt) => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-background"
+    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -266,7 +266,7 @@ const cell = (r, isAmt) => {
       </div>
       <select
         v-model.number="year"
-        class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+        class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
       >
         <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
       </select>
@@ -290,7 +290,7 @@ const cell = (r, isAmt) => {
               ·
               <span
                 :class="
-                  sel.carryAmount > 0 ? 'text-n-amber-11' : 'text-n-teal-11'
+                  sel.carryAmount > 0 ? 'text-n-iris-11' : 'text-n-teal-11'
                 "
               >
                 {{ sel.carryAmount > 0 ? '上月缺口' : '上月结余' }}
@@ -398,7 +398,7 @@ const cell = (r, isAmt) => {
               ]"
               :key="opt.k"
               :aria-pressed="tableMetric === opt.k"
-              class="h-7 px-3 text-xs transition-colors rounded-md shrink-0 whitespace-nowrap motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+              class="h-7 px-3 text-xs transition-colors rounded-md shrink-0 whitespace-nowrap motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
               :class="
                 tableMetric === opt.k
                   ? 'bg-n-solid-1 text-n-slate-12 font-medium shadow-sm'
@@ -427,7 +427,7 @@ const cell = (r, isAmt) => {
               :key="r.month"
               class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
               :class="{
-                'bg-n-amber-3': r.month === selMonth,
+                'bg-n-iris-3': r.month === selMonth,
                 'text-n-slate-10': r.isFuture,
               }"
               @click="selectMonth(r.month)"
@@ -442,7 +442,7 @@ const cell = (r, isAmt) => {
                   cell(r, tableMetric === 'amount').carry === '—'
                     ? 'text-n-slate-10'
                     : cell(r, tableMetric === 'amount').carryUp
-                      ? 'text-n-amber-11'
+                      ? 'text-n-iris-11'
                       : 'text-n-teal-11'
                 "
               >
@@ -476,7 +476,7 @@ const cell = (r, isAmt) => {
               min="0"
               step="1000"
               placeholder="如 100000"
-              class="h-9 px-2 text-sm border rounded-lg w-36 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+              class="h-9 px-2 text-sm border rounded-lg w-36 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             />
           </label>
           <label class="flex items-center gap-2">
@@ -487,11 +487,11 @@ const cell = (r, isAmt) => {
               min="0"
               step="1"
               placeholder="如 5"
-              class="h-9 px-2 text-sm border rounded-lg w-28 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+              class="h-9 px-2 text-sm border rounded-lg w-28 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             />
           </label>
           <button
-            class="h-9 px-4 text-sm font-medium transition-colors rounded-lg bg-n-amber-9 text-n-slate-12 motion-reduce:transition-none hover:bg-n-amber-10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-amber-9"
+            class="h-9 px-4 text-sm font-medium transition-colors rounded-lg bg-n-iris-9 text-n-slate-12 motion-reduce:transition-none hover:bg-n-iris-10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             :disabled="!canSave"
             @click="saveTarget"
           >

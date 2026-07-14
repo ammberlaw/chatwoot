@@ -214,7 +214,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -226,12 +226,12 @@ onMounted(async () => {
         v-if="isAdmin"
         :label="L.new"
         icon="i-lucide-plus"
-        color="amber"
+        color="iris"
         @click="openCreate"
       />
     </div>
 
-    <div v-if="!isAdmin" class="px-6 py-2 text-xs bg-n-amber-3 text-n-amber-11">
+    <div v-if="!isAdmin" class="px-6 py-2 text-xs bg-n-iris-3 text-n-iris-11">
       {{ L.readonly }}
     </div>
 
@@ -246,12 +246,12 @@ onMounted(async () => {
         <button
           v-for="tpl in templates"
           :key="tpl.id"
-          class="flex items-center gap-3 p-4 text-left transition-shadow border rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-amber-7 disabled:cursor-default"
+          class="flex items-center gap-3 p-4 text-left transition-shadow border rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-iris-7 disabled:cursor-default"
           :disabled="!isAdmin"
           @click="isAdmin && openEdit(tpl)"
         >
           <div
-            class="flex items-center justify-center flex-shrink-0 rounded-lg size-10 bg-n-amber-4 text-n-amber-11"
+            class="flex items-center justify-center flex-shrink-0 rounded-lg size-10 bg-n-iris-4 text-n-iris-11"
           >
             <Icon :icon="tpl.icon || 'i-lucide-file-check'" class="size-5" />
           </div>
@@ -283,7 +283,7 @@ onMounted(async () => {
       overflow-y-auto
       :title="editingId ? L.edit : L.create"
       :confirm-button-label="L.save"
-      confirm-button-color="amber"
+      confirm-button-color="iris"
       @confirm="save"
     >
       <div class="flex flex-col gap-4">
@@ -304,7 +304,7 @@ onMounted(async () => {
               class="flex items-center justify-center border rounded-lg size-9"
               :class="
                 form.icon === ic
-                  ? 'border-n-amber-9 bg-n-amber-3 text-n-amber-11'
+                  ? 'border-n-iris-9 bg-n-iris-3 text-n-iris-11'
                   : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
               "
               @click="form.icon = ic"
@@ -319,7 +319,7 @@ onMounted(async () => {
           <div class="flex items-center justify-between mb-1.5">
             <label class="text-heading-3 text-n-slate-12">{{ L.fields }}</label>
             <button
-              class="inline-flex items-center gap-1 text-xs text-n-amber-11 hover:underline"
+              class="inline-flex items-center gap-1 text-xs text-n-iris-11 hover:underline"
               @click="addField"
             >
               <Icon icon="i-lucide-plus" class="size-3.5" />
@@ -335,7 +335,7 @@ onMounted(async () => {
               <input
                 v-model="f.label"
                 :placeholder="L.fieldLabel"
-                class="flex-1 min-w-[100px] h-8 px-2 text-sm border rounded reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+                class="flex-1 min-w-[100px] h-8 px-2 text-sm border rounded reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
               />
               <select
                 v-model="f.type"
@@ -353,7 +353,7 @@ onMounted(async () => {
                 v-if="f.type === 'select'"
                 v-model="f.optionsText"
                 :placeholder="L.options"
-                class="flex-1 min-w-[120px] h-8 px-2 text-sm border rounded reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-amber-9"
+                class="flex-1 min-w-[120px] h-8 px-2 text-sm border rounded reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
               />
               <label
                 class="inline-flex items-center gap-1 text-xs cursor-pointer text-n-slate-11"
@@ -361,7 +361,7 @@ onMounted(async () => {
                 <input
                   v-model="f.required"
                   type="checkbox"
-                  class="accent-n-amber-9"
+                  class="accent-n-iris-9"
                 />
                 {{ L.required }}
               </label>
@@ -380,7 +380,7 @@ onMounted(async () => {
           <div class="flex items-center justify-between mb-1.5">
             <label class="text-heading-3 text-n-slate-12">{{ L.flow }}</label>
             <button
-              class="inline-flex items-center gap-1 text-xs text-n-amber-11 hover:underline"
+              class="inline-flex items-center gap-1 text-xs text-n-iris-11 hover:underline"
               @click="addStep"
             >
               <Icon icon="i-lucide-plus" class="size-3.5" />
@@ -394,7 +394,7 @@ onMounted(async () => {
               class="flex items-center gap-2 p-2 border rounded-lg border-n-weak"
             >
               <span
-                class="flex items-center justify-center rounded-full size-6 bg-n-amber-4 text-n-amber-11 text-[11px]"
+                class="flex items-center justify-center rounded-full size-6 bg-n-iris-4 text-n-iris-11 text-[11px]"
               >
                 {{ i + 1 }}
               </span>

@@ -273,7 +273,8 @@ watch(
           type="button"
           class="flex items-center justify-center size-10 rounded-lg"
           :class="{
-            'text-n-slate-12 bg-n-alpha-2': isActive || hasActiveChild,
+            'text-white bg-n-iris-9 shadow-sm shadow-n-iris-9/30':
+              isActive || hasActiveChild,
             'text-n-slate-11 hover:bg-n-alpha-2': !isActive && !hasActiveChild,
           }"
           :title="label"

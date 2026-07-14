@@ -166,7 +166,7 @@ onMounted(() => store.get());
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -181,7 +181,7 @@ onMounted(() => store.get());
       <Button
         :label="L.new"
         icon="i-lucide-plus"
-        color="amber"
+        color="iris"
         @click="openCreate"
       />
     </div>
@@ -200,12 +200,12 @@ onMounted(() => store.get());
         <div
           v-for="record in records"
           :key="record.id"
-          class="flex flex-col gap-3 p-4 transition-shadow border cursor-pointer group rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-amber-7"
+          class="flex flex-col gap-3 p-4 transition-shadow border cursor-pointer group rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-iris-7"
           @click="openEdit(record)"
         >
           <div class="flex items-start gap-3">
             <div
-              class="flex items-center justify-center flex-shrink-0 rounded-lg size-9 bg-n-amber-4 text-n-amber-11"
+              class="flex items-center justify-center flex-shrink-0 rounded-lg size-9 bg-n-iris-4 text-n-iris-11"
             >
               <Icon icon="i-lucide-mail" class="size-4" />
             </div>
@@ -260,7 +260,7 @@ onMounted(() => store.get());
       width="3xl"
       overflow-y-auto
       :title="editingId ? L.edit : t('CRM.MAIL_ACCOUNTS.CREATE.TITLE')"
-      confirm-button-color="amber"
+      confirm-button-color="iris"
       @confirm="handleConfirm"
     >
       <div class="flex flex-col gap-4">

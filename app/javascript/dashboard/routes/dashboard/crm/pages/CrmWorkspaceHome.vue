@@ -149,7 +149,7 @@ onMounted(async () => {
     <div class="fixed inset-0 z-50 overflow-auto bg-n-background">
       <!-- 暖橙氛围光斑，托在不透明底色上，随内容垂直居中而不失衡 -->
       <div
-        class="pointer-events-none absolute -top-32 -left-24 size-[560px] rounded-full bg-n-amber-4/70 blur-[130px]"
+        class="pointer-events-none absolute -top-32 -left-24 size-[560px] rounded-full bg-n-iris-4/70 blur-[130px]"
       />
       <div
         class="pointer-events-none absolute top-40 right-[-8rem] size-[360px] rounded-full bg-n-iris-3/50 blur-[130px]"
@@ -175,35 +175,35 @@ onMounted(async () => {
           <button
             v-if="canAccessCrm"
             type="button"
-            class="group relative flex flex-col overflow-hidden text-left transition-all duration-200 ease-out border shadow-sm outline-none lg:col-span-3 rounded-[28px] border-n-amber-6 bg-n-amber-2 p-7 hover:-translate-y-0.5 hover:shadow-lg hover:border-n-amber-8 focus-visible:ring-2 focus-visible:ring-n-amber-8 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+            class="group relative flex flex-col overflow-hidden text-left transition-all duration-200 ease-out border shadow-sm outline-none lg:col-span-3 rounded-[28px] border-n-iris-6 bg-n-iris-2 p-7 hover:-translate-y-0.5 hover:shadow-lg hover:border-n-iris-8 focus-visible:ring-2 focus-visible:ring-n-iris-8 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
             @click="go(HERO.to)"
           >
             <!-- 角落大图标水印 -->
             <Icon
               :icon="HERO.icon"
-              class="absolute -top-6 -right-6 size-40 text-n-amber-4 transition-transform duration-500 ease-out group-hover:scale-110"
+              class="absolute -top-6 -right-6 size-40 text-n-iris-4 transition-transform duration-500 ease-out group-hover:scale-110"
             />
             <div class="relative flex flex-col h-full">
-              <div class="flex items-center justify-center bg-n-amber-9 shadow-sm size-14 rounded-2xl">
+              <div class="flex items-center justify-center bg-n-iris-9 shadow-sm size-14 rounded-2xl">
                 <Icon :icon="HERO.icon" class="text-white size-7" />
               </div>
-              <h2 class="mt-5 text-2xl font-semibold text-n-amber-12">
+              <h2 class="mt-5 text-2xl font-semibold text-n-iris-12">
                 {{ HERO.label }}
               </h2>
-              <p class="mt-1.5 text-sm text-n-amber-11">{{ HERO.desc }}</p>
+              <p class="mt-1.5 text-sm text-n-iris-11">{{ HERO.desc }}</p>
 
               <!-- 子域 chips -->
               <div class="flex flex-wrap gap-1.5 mt-5">
                 <span
                   v-for="chip in HERO.chips"
                   :key="chip"
-                  class="px-2.5 py-1 text-xs font-medium rounded-full bg-n-amber-3 text-n-amber-11 ring-1 ring-inset ring-n-amber-5"
+                  class="px-2.5 py-1 text-xs font-medium rounded-full bg-n-iris-3 text-n-iris-11 ring-1 ring-inset ring-n-iris-5"
                 >
                   {{ chip }}
                 </span>
               </div>
 
-              <div class="flex items-center gap-1.5 mt-auto pt-7 text-sm font-medium text-n-amber-11">
+              <div class="flex items-center gap-1.5 mt-auto pt-7 text-sm font-medium text-n-iris-11">
                 进入工作区
                 <Icon
                   icon="i-lucide-arrow-right"
@@ -249,7 +249,7 @@ onMounted(async () => {
               >
                 <div
                   class="text-xl font-semibold tabular-nums"
-                  :class="m.urgent ? 'text-n-amber-11' : ACCENT[m.accent].metric"
+                  :class="m.urgent ? 'text-n-iris-11' : ACCENT[m.accent].metric"
                 >
                   {{ m.metric }}
                 </div>
@@ -262,7 +262,7 @@ onMounted(async () => {
               />
               <span
                 v-if="m.urgent"
-                class="absolute rounded-full size-2 top-3 right-3 bg-n-amber-9 ring-2 ring-white"
+                class="absolute rounded-full size-2 top-3 right-3 bg-n-iris-9 ring-2 ring-white"
               />
             </button>
           </div>

@@ -21,7 +21,7 @@ const isFetching = computed(() => store.getUIFlags.fetchingList);
 // 分类：标签 + 色块（颜色写成字面量类，防 purge）。
 const CATEGORY_META = {
   DEVELOPMENT: { label: '开发信', chip: 'bg-n-blue-3 text-n-blue-11' },
-  QUOTATION: { label: '报价', chip: 'bg-n-amber-3 text-n-amber-11' },
+  QUOTATION: { label: '报价', chip: 'bg-n-iris-3 text-n-iris-11' },
   FOLLOW_UP: { label: '跟进', chip: 'bg-n-teal-3 text-n-teal-11' },
   PAYMENT_REMINDER: { label: '催款', chip: 'bg-n-ruby-3 text-n-ruby-11' },
   GREETING: { label: '节日问候', chip: 'bg-n-iris-3 text-n-iris-11' },
@@ -129,7 +129,7 @@ onMounted(() => store.get());
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -142,7 +142,7 @@ onMounted(() => store.get());
       <Button
         :label="L.new"
         icon="i-lucide-plus"
-        color="amber"
+        color="iris"
         @click="openCreate"
       />
     </div>
@@ -153,7 +153,7 @@ onMounted(() => store.get());
         class="px-3 py-1 text-xs border rounded-full transition-colors"
         :class="
           activeCategory === ''
-            ? 'border-n-amber-9 bg-n-amber-9 text-white'
+            ? 'border-n-iris-9 bg-n-iris-9 text-white'
             : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
         "
         @click="activeCategory = ''"
@@ -166,7 +166,7 @@ onMounted(() => store.get());
         class="px-3 py-1 text-xs border rounded-full transition-colors"
         :class="
           activeCategory === opt.value
-            ? 'border-n-amber-9 bg-n-amber-9 text-white'
+            ? 'border-n-iris-9 bg-n-iris-9 text-white'
             : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
         "
         @click="activeCategory = opt.value"
@@ -189,7 +189,7 @@ onMounted(() => store.get());
         <div
           v-for="record in filteredRecords"
           :key="record.id"
-          class="relative flex flex-col gap-2 p-4 transition-shadow border cursor-pointer group rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-amber-7"
+          class="relative flex flex-col gap-2 p-4 transition-shadow border cursor-pointer group rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-iris-7"
           @click="openEdit(record)"
         >
           <div class="flex items-start justify-between gap-2">
@@ -227,7 +227,7 @@ onMounted(() => store.get());
       width="3xl"
       overflow-y-auto
       :title="editingId ? L.edit : t('CRM.EMAIL_TEMPLATES.CREATE.TITLE')"
-      confirm-button-color="amber"
+      confirm-button-color="iris"
       @confirm="handleConfirm"
     >
       <div class="flex flex-col gap-4">
