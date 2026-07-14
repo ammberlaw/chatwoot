@@ -1,7 +1,7 @@
 <script setup>
 import { h, ref, computed, onMounted, watch } from 'vue';
 import { provideSidebarContext, useSidebarResize } from './provider';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useKbd } from 'dashboard/composables/utils/useKbd';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -58,6 +58,17 @@ const isMobile = computed(() => windowWidth.value < 768);
 
 const accountId = useMapGetter('getCurrentAccountId');
 const currentUserId = useMapGetter('getCurrentUserID');
+const currentUser = useMapGetter('getCurrentUser');
+// 非 CRM 人员隐藏 CRM 销售数据分组（工作台/文档中心/HR/OA/协同等共享模块保留）。
+const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
+const isAdmin = computed(() => currentUser.value?.role === 'administrator');
+const CRM_DATA_MODULES = [
+  'CRM Dashboards',
+  'CRM Customers Group',
+  'CRM Sales Flow',
+  'CRM Mail Center',
+  'CRM Knowledge',
+];
 const isFeatureEnabledonAccount = useMapGetter(
   'accounts/isFeatureEnabledonAccount'
 );
@@ -321,8 +332,27 @@ const newReportRoutes = () => [
 
 const reportRoutes = computed(() => newReportRoutes());
 
+// 隐藏的原生客服模块（section name）：联系人 / 报告 / 活动 / 帮助中心。
+// 隐藏的原生客服模块：会话 / 我的收件箱 / 联系人 / 报告 / 活动 / 帮助中心 / 公司。
+const HIDDEN_NATIVE_MODULES = [
+  'Inbox',
+  'Conversation',
+  'Contacts',
+  'Companies',
+  'Reports',
+  'Campaigns',
+  'Portals',
+];
+
 const menuItems = computed(() => {
   return [
+    {
+      name: 'CRM Workspace',
+      label: t('SIDEBAR.CRM_WORKSPACE'),
+      icon: 'i-lucide-layout-dashboard',
+      to: accountScopedRoute('crm_workspace_index'),
+      activeOn: ['crm_workspace_index'],
+    },
     {
       name: 'Inbox',
       label: t('SIDEBAR.INBOX'),
@@ -763,10 +793,37 @@ const menuItems = computed(() => {
       ],
     },
     {
+      name: 'CRM Doc Center',
+      label: t('SIDEBAR.CRM_G_DOC_CENTER'),
+      icon: 'i-lucide-library',
+      activeOn: ['crm_doc_center_index'],
+      children: [
+        {
+          name: 'CRM Doc Center Company',
+          label: t('SIDEBAR.CRM_DOC_CENTER_COMPANY'),
+          to: accountScopedRoute(
+            'crm_doc_center_index',
+            {},
+            { filter: 'company' }
+          ),
+          activeOn: ['crm_doc_center_index'],
+        },
+        {
+          name: 'CRM Doc Center Mine',
+          label: t('SIDEBAR.CRM_DOC_CENTER_MINE'),
+          to: accountScopedRoute(
+            'crm_doc_center_index',
+            {},
+            { filter: 'mine' }
+          ),
+        },
+      ],
+    },
+    {
       name: 'CRM Org',
       label: t('SIDEBAR.CRM_G_ORG'),
       icon: 'i-lucide-network',
-      activeOn: ['crm_org_structure_index'],
+      activeOn: ['crm_org_structure_index', 'crm_members_index'],
       children: [
         {
           name: 'CRM Org Structure',
@@ -774,6 +831,17 @@ const menuItems = computed(() => {
           to: accountScopedRoute('crm_org_structure_index'),
           activeOn: ['crm_org_structure_index'],
         },
+        // CRM 成员权限：仅管理员可见。
+        ...(isAdmin.value
+          ? [
+              {
+                name: 'CRM Members',
+                label: t('SIDEBAR.CRM_MEMBERS'),
+                to: accountScopedRoute('crm_members_index'),
+                activeOn: ['crm_members_index'],
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -1065,68 +1133,46 @@ const menuItems = computed(() => {
       ],
     },
     // CRM 定位下默认隐藏 Captain（AI 坐席）——开启 captain_integration flag 即恢复。
-  ].filter(item => item.name !== 'Captain' || hasCaptainEnabled.value);
+  ]
+    .filter(item => item.name !== 'Captain' || hasCaptainEnabled.value)
+    // 外贸 CRM 定位下隐藏原生客服模块：联系人 / 报告 / 活动 / 帮助中心。
+    .filter(item => !HIDDEN_NATIVE_MODULES.includes(item.name))
+    // 非 CRM 人员隐藏 CRM 销售数据分组。
+    .filter(item => canAccessCrm.value || !CRM_DATA_MODULES.includes(item.name))
+    // 「设置」（账号管理后台）仅系统管理员可见；个人资料走左下角头像菜单。
+    .filter(item => item.name !== 'Settings' || isAdmin.value);
 });
 
-// 顶层业务板块：CRM / OA / HR / ERP。审批归 OA、组织架构归 HR、ERP 先占位，其余归 CRM。
+// ── 模块化侧边栏：进哪个系统只显示该系统的项（无切换标签，切换走工作台）──
 const route = useRoute();
-const router = useRouter();
-const MODULES = [
-  {
-    key: 'crm',
-    label: 'CRM',
-    icon: 'i-lucide-users',
-    to: 'crm_dashboard_index',
-  },
-  {
-    key: 'oa',
-    label: 'OA',
-    icon: 'i-lucide-file-check',
-    to: 'crm_approvals_index',
-  },
-  {
-    key: 'hr',
-    label: 'HR',
-    icon: 'i-lucide-network',
-    to: 'crm_org_structure_index',
-  },
-  { key: 'erp', label: 'ERP', icon: 'i-lucide-package', to: null },
-];
-const OA_ROUTES = [
-  'crm_approvals_index',
-  'crm_approval_templates_index',
-  'crm_team_chat_index',
-];
-const HR_ROUTES = ['crm_org_structure_index'];
-const erpEmptyLabel = 'ERP 模块即将上线';
-
-const groupModule = name => {
-  if (name === 'CRM Approvals' || name === 'CRM Team Chat') return 'oa';
-  if (name === 'CRM Org') return 'hr';
-  return 'crm';
+// 工作台/设置为通用项，任何系统下都显示。
+const PINNED_ITEMS = ['CRM Workspace', 'Settings'];
+// 各顶级项归属的业务系统。未列出的（含原生会话/收件箱、CRM 销售各组）默认归 CRM。
+const ITEM_MODULE = {
+  'CRM Team Chat': 'chat',
+  'CRM Approvals': 'oa',
+  'CRM Org': 'hr',
+  'CRM Doc Center': 'doc',
 };
-const routeModule = name => {
-  if (OA_ROUTES.includes(name)) return 'oa';
-  if (HR_ROUTES.includes(name)) return 'hr';
-  return 'crm';
+const itemModule = name => ITEM_MODULE[name] || 'crm';
+// 当前路由属于哪个系统（默认 CRM，含工作台/销售各页/会话）。
+const ROUTE_MODULE = {
+  crm_team_chat_index: 'chat',
+  crm_approvals_index: 'oa',
+  crm_approval_templates_index: 'oa',
+  crm_org_structure_index: 'hr',
+  crm_members_index: 'hr',
+  crm_doc_center_index: 'doc',
 };
-
-const activeModule = ref(routeModule(route.name));
-watch(
-  () => route.name,
-  name => {
-    activeModule.value = routeModule(name);
-  }
-);
+const activeModule = computed(() => ROUTE_MODULE[route.name] || 'crm');
 
 const filteredMenuItems = computed(() =>
-  menuItems.value.filter(item => groupModule(item.name) === activeModule.value)
+  menuItems.value.filter(
+    item =>
+      PINNED_ITEMS.includes(item.name) ||
+      itemModule(item.name) === activeModule.value
+  )
 );
-
-const selectModule = mod => {
-  activeModule.value = mod.key;
-  if (mod.to) router.push(accountScopedRoute(mod.to));
-};
 </script>
 
 <template>
@@ -1225,42 +1271,6 @@ const selectModule = mod => {
         </ComposeConversation>
       </div>
     </section>
-    <!-- 顶层业务板块切换：CRM / OA / HR / ERP -->
-    <div
-      v-if="!isEffectivelyCollapsed"
-      class="flex flex-shrink-0 gap-1 px-2 pb-2"
-    >
-      <button
-        v-for="mod in MODULES"
-        :key="mod.key"
-        class="flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg text-[11px] transition-colors"
-        :class="
-          activeModule === mod.key
-            ? 'bg-n-amber-3 text-n-amber-11 font-medium'
-            : 'text-n-slate-11 hover:bg-n-alpha-1'
-        "
-        @click="selectModule(mod)"
-      >
-        <span :class="mod.icon" class="size-4" />
-        {{ mod.label }}
-      </button>
-    </div>
-    <div v-else class="flex flex-col flex-shrink-0 items-center gap-1 pb-2">
-      <button
-        v-for="mod in MODULES"
-        :key="mod.key"
-        class="flex items-center justify-center size-8 rounded-lg transition-colors"
-        :class="
-          activeModule === mod.key
-            ? 'bg-n-amber-3 text-n-amber-11'
-            : 'text-n-slate-11 hover:bg-n-alpha-1'
-        "
-        :title="mod.label"
-        @click="selectModule(mod)"
-      >
-        <span :class="mod.icon" class="size-4" />
-      </button>
-    </div>
     <nav
       class="grid overflow-y-scroll flex-grow gap-2 pb-5 no-scrollbar min-w-0"
       :class="isEffectivelyCollapsed ? 'px-1' : 'px-2'"
@@ -1274,12 +1284,6 @@ const selectModule = mod => {
           :key="item.name"
           v-bind="item"
         />
-        <li
-          v-if="!filteredMenuItems.length"
-          class="px-3 py-6 text-xs text-center text-n-slate-10"
-        >
-          {{ erpEmptyLabel }}
-        </li>
       </ul>
     </nav>
     <section
