@@ -12,9 +12,11 @@ class Api::V1::Accounts::Chat::MessagesController < Api::V1::Accounts::BaseContr
   end
 
   def create
-    @message = @conversation.messages.create!(
+    @message = @conversation.messages.new(
       account_id: Current.account.id, sender_id: current_user.id, content: params[:content]
     )
+    @message.files.attach(params[:files]) if params[:files].present?
+    @message.save!
     @conversation.update!(last_message_at: Time.current)
     mark_read
     render :show

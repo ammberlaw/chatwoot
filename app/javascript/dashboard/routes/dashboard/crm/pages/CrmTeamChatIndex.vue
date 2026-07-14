@@ -23,6 +23,7 @@ const L = {
   selectHint: '选择左侧会话开始聊天',
   selectTitle: '团队沟通',
   placeholder: '输入消息，回车发送',
+  attach: '添加附件',
   online: '在线',
   offline: '离线',
   noMatch: '没有匹配的会话',
@@ -165,12 +166,29 @@ const openConversation = async conv => {
   }
 };
 
+// 待发附件
+const pendingFiles = ref([]);
+const chatFileInput = ref(null);
+const onFilesPicked = e => {
+  pendingFiles.value.push(...Array.from(e.target.files || []));
+  e.target.value = '';
+};
+const removePending = i => pendingFiles.value.splice(i, 1);
+const fmtSize = b =>
+  b < 1024
+    ? `${b}B`
+    : b < 1048576
+      ? `${Math.round(b / 1024)}KB`
+      : `${(b / 1048576).toFixed(1)}MB`;
+
 const sendMessage = async () => {
   const content = newText.value.trim();
-  if (!content || !activeConv.value) return;
+  const files = pendingFiles.value;
+  if ((!content && !files.length) || !activeConv.value) return;
   newText.value = '';
+  pendingFiles.value = [];
   try {
-    const { data } = await ChatAPI.send(activeConv.value.id, content);
+    const { data } = await ChatAPI.send(activeConv.value.id, content, files);
     messages.value.push(data);
     scrollToBottom();
     fetchConversations();
@@ -489,6 +507,7 @@ onBeforeUnmount(() => {
                   {{ msg.sender_name }}
                 </span>
                 <div
+                  v-if="msg.content"
                   class="px-4 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap shadow-sm rounded-[20px]"
                   :class="
                     msg.sender_id === currentUserId
@@ -497,6 +516,55 @@ onBeforeUnmount(() => {
                   "
                 >
                   {{ msg.content }}
+                </div>
+                <!-- 附件 -->
+                <div
+                  v-if="msg.files && msg.files.length"
+                  class="flex flex-col gap-1.5"
+                  :class="[
+                    msg.content ? 'mt-1.5' : '',
+                    msg.sender_id === currentUserId ? 'items-end' : 'items-start',
+                  ]"
+                >
+                  <template v-for="f in msg.files" :key="f.id">
+                    <a
+                      v-if="f.is_image"
+                      :href="f.url"
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      <img
+                        :src="f.url"
+                        :alt="f.filename"
+                        class="max-w-[220px] max-h-[220px] rounded-2xl shadow-sm object-cover"
+                      />
+                    </a>
+                    <a
+                      v-else
+                      :href="f.url"
+                      target="_blank"
+                      rel="noopener"
+                      download
+                      class="flex items-center gap-2.5 px-3 py-2 max-w-[240px] rounded-2xl bg-n-solid-1 ring-1 ring-inset ring-n-weak shadow-sm hover:bg-n-alpha-1 transition-colors"
+                    >
+                      <span
+                        class="grid rounded-lg shrink-0 size-9 place-items-center bg-n-iris-3 text-n-iris-11"
+                      >
+                        <Icon icon="i-lucide-file" class="size-[18px]" />
+                      </span>
+                      <span class="min-w-0">
+                        <span
+                          class="block text-sm truncate text-n-slate-12"
+                          :title="f.filename"
+                        >
+                          {{ f.filename }}
+                        </span>
+                        <span class="text-[11px] text-n-slate-10">
+                          {{ fmtSize(f.byte_size) }}
+                        </span>
+                      </span>
+                    </a>
+                  </template>
                 </div>
                 <div class="flex items-center gap-1.5 mt-1 px-1">
                   <span class="text-[10px] tabular-nums text-n-slate-9">
@@ -532,27 +600,62 @@ onBeforeUnmount(() => {
 
           <!-- 输入区 -->
           <div
-            class="flex items-end gap-2.5 px-4 py-3.5 shrink-0 border-t border-n-weak bg-n-solid-1"
+            class="flex flex-col gap-2 px-4 py-3.5 shrink-0 border-t border-n-weak bg-n-solid-1"
           >
-            <div
-              class="flex items-center flex-1 px-4 py-2.5 transition-shadow rounded-full bg-n-alpha-1 ring-1 ring-inset ring-n-weak focus-within:ring-2 focus-within:ring-n-iris-7"
-            >
-              <textarea
-                v-model="newText"
-                rows="1"
-                :placeholder="L.placeholder"
-                class="flex-1 h-6 text-sm leading-6 bg-transparent resize-none reset-base text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none"
-                @keydown.enter.exact.prevent="sendMessage"
-              />
+            <!-- 待发附件 -->
+            <div v-if="pendingFiles.length" class="flex flex-wrap gap-2">
+              <div
+                v-for="(f, i) in pendingFiles"
+                :key="i"
+                class="flex items-center gap-1.5 py-1 pl-2.5 pr-1.5 text-xs rounded-lg bg-n-alpha-1 ring-1 ring-inset ring-n-weak text-n-slate-11"
+              >
+                <Icon icon="i-lucide-paperclip" class="size-3.5 shrink-0" />
+                <span class="max-w-[140px] truncate">{{ f.name }}</span>
+                <button
+                  type="button"
+                  class="grid rounded size-4 place-items-center hover:bg-n-alpha-2"
+                  @click="removePending(i)"
+                >
+                  <Icon icon="i-lucide-x" class="size-3" />
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              :disabled="!newText.trim()"
-              class="grid transition-colors rounded-full shrink-0 size-11 place-items-center bg-n-iris-9 text-white hover:bg-n-iris-10 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-7 focus-visible:ring-offset-2 focus-visible:ring-offset-n-solid-1"
-              @click="sendMessage"
-            >
-              <Icon icon="i-lucide-send-horizontal" class="size-[18px]" />
-            </button>
+            <div class="flex items-end gap-2.5">
+              <button
+                type="button"
+                :title="L.attach"
+                class="grid transition-colors rounded-full shrink-0 size-11 place-items-center text-n-slate-10 hover:bg-n-alpha-1 hover:text-n-slate-12"
+                @click="chatFileInput?.click()"
+              >
+                <Icon icon="i-lucide-paperclip" class="size-5" />
+              </button>
+              <input
+                ref="chatFileInput"
+                type="file"
+                multiple
+                class="hidden"
+                @change="onFilesPicked"
+              />
+              <div
+                class="flex items-center flex-1 px-4 py-2.5 transition-shadow rounded-full bg-n-alpha-1 ring-1 ring-inset ring-n-weak focus-within:ring-2 focus-within:ring-n-iris-7"
+              >
+                <textarea
+                  v-model="newText"
+                  rows="1"
+                  :placeholder="L.placeholder"
+                  class="flex-1 h-6 text-sm leading-6 bg-transparent resize-none reset-base text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none"
+                  @keydown.enter.exact.prevent="sendMessage"
+                />
+              </div>
+              <button
+                type="button"
+                :disabled="!newText.trim() && !pendingFiles.length"
+                class="grid transition-colors rounded-full shrink-0 size-11 place-items-center bg-n-iris-9 text-white hover:bg-n-iris-10 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-7 focus-visible:ring-offset-2 focus-visible:ring-offset-n-solid-1"
+                @click="sendMessage"
+              >
+                <Icon icon="i-lucide-send-horizontal" class="size-[18px]" />
+              </button>
+            </div>
           </div>
         </template>
       </section>

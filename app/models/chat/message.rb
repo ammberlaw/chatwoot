@@ -26,7 +26,10 @@ class Chat::Message < ApplicationRecord
   belongs_to :conversation, class_name: 'Chat::Conversation', inverse_of: :messages
   belongs_to :sender, class_name: 'User'
 
-  validates :content, presence: true
+  has_many_attached :files
+
+  # 纯附件消息可无正文。
+  validates :content, presence: true, unless: -> { files.attached? }
 
   # 已读人数：除发送者外，last_read_message_id >= 本条 的成员数。
   def read_by_count

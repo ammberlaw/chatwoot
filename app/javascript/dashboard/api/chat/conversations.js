@@ -22,8 +22,16 @@ class ChatConversationAPI extends ApiClient {
     return axios.get(`${this.url}/${id}/messages?after=${after}`);
   }
 
-  send(id, content) {
-    return axios.post(`${this.url}/${id}/messages`, { content });
+  send(id, content, files = []) {
+    if (!files.length) {
+      return axios.post(`${this.url}/${id}/messages`, { content });
+    }
+    const fd = new FormData();
+    fd.append('content', content || '');
+    files.forEach(f => fd.append('files[]', f));
+    return axios.post(`${this.url}/${id}/messages`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
   }
 }
 
