@@ -131,6 +131,17 @@ const STYLE_CONFIG = {
       ghost:
         'text-n-amber-9 hover:enabled:bg-n-alpha-2 focus-visible:bg-n-alpha-2 outline-transparent',
     },
+    iris: {
+      solid:
+        'bg-n-iris-9 text-white hover:enabled:bg-n-iris-10 focus-visible:bg-n-iris-10 outline-transparent',
+      faded:
+        'bg-n-iris-9/10 text-n-iris-11 hover:enabled:bg-n-iris-9/20 focus-visible:bg-n-iris-9/20 outline-transparent',
+      outline:
+        'text-n-iris-11 hover:enabled:bg-n-iris-9/10 focus-visible:bg-n-iris-9/10 outline-n-iris-9',
+      link: 'text-n-iris-9 hover:enabled:underline focus-visible:underline outline-transparent',
+      ghost:
+        'text-n-iris-9 hover:enabled:bg-n-alpha-2 focus-visible:bg-n-alpha-2 outline-transparent',
+    },
     slate: {
       solid:
         'bg-n-button-color dark:hover:enabled:bg-n-solid-2 dark:focus-visible:bg-n-solid-2 hover:enabled:bg-n-alpha-2 focus-visible:bg-n-alpha-2 text-n-slate-12 outline-n-container',
