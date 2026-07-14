@@ -295,7 +295,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="w-full h-full overflow-hidden bg-transparent">
     <div
-      class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/55 backdrop-blur-2xl border-white/50 rounded-3xl shadow-n-iris-9/5"
+      class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 border-white/50 rounded-3xl shadow-n-iris-9/5"
     >
       <!-- 左：会话列表 -->
       <aside

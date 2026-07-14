@@ -1187,7 +1187,7 @@ const filteredMenuItems = computed(() =>
         ],
       },
     ]"
-    class="bg-n-solid-1/55 backdrop-blur-2xl flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 ltr:border-r rtl:border-l border-white/50"
+    class="bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] border border-white/60 md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 md:my-3 md:ltr:ml-3 md:rtl:mr-3 md:h-[calc(100%_-_1.5rem)] md:rounded-3xl md:shadow-[0_10px_40px_-8px_rgb(80_80_160/0.18),inset_0_1px_0_rgb(255_255_255/0.7)]"
     :class="[
       {
         'shadow-lg md:shadow-none': isMobileSidebarOpen,

@@ -98,9 +98,11 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
   def trends
     monthly = buckets_by('month', 12).map { |b| b[:amount_micros] }
     stage_amount = opportunities.group(:sales_stage).sum(:amount_micros)
+    stage_count = opportunities.group(:sales_stage).count
     {
       monthly_amount_micros: monthly,
-      opportunity_amount_by_stage: STAGE_ORDER.index_with { |s| stage_amount[s] || 0 }
+      opportunity_amount_by_stage: STAGE_ORDER.index_with { |s| stage_amount[s] || 0 },
+      opportunity_count_by_stage: STAGE_ORDER.index_with { |s| stage_count[s] || 0 }
     }
   end
 

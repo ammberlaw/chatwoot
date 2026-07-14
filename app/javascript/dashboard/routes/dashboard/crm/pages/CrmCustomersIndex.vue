@@ -598,7 +598,7 @@ watch(
 
 <template>
   <div
-    class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/55 backdrop-blur-2xl rounded-3xl border-white/50 shadow-n-iris-9/5"
+    class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border-white/50 shadow-n-iris-9/5"
   >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div

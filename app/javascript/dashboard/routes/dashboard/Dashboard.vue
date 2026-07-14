@@ -135,10 +135,13 @@ export default {
   >
     <!-- 冷蓝长春花氛围光斑，为磨砂玻璃面板提供可模糊的底 -->
     <div
-      class="pointer-events-none absolute -top-40 -left-32 size-[620px] rounded-full bg-n-iris-4/60 blur-[150px]"
+      class="pointer-events-none absolute -top-40 -left-32 size-[660px] rounded-full bg-n-iris-4/70 blur-[150px]"
     />
     <div
-      class="pointer-events-none absolute -bottom-40 right-[-6rem] size-[520px] rounded-full bg-n-blue-4/50 blur-[150px]"
+      class="pointer-events-none absolute -bottom-40 right-[-6rem] size-[560px] rounded-full bg-n-blue-4/60 blur-[150px]"
+    />
+    <div
+      class="pointer-events-none absolute top-1/3 left-1/2 -translate-x-1/2 size-[500px] rounded-full bg-n-iris-3/50 blur-[150px]"
     />
     <NextSidebar
       :is-mobile-sidebar-open="isMobileSidebarOpen"
