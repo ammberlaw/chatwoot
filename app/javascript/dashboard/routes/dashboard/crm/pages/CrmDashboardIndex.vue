@@ -45,12 +45,11 @@ const STAGE_LABELS = {
   WON: '已成交',
   LOST: '输单',
 };
-// 液态玻璃竖柱：浅色 iris 渐变，越接近成交越实；输单浅粉
-const STAGE_GRADIENTS = {
-  NEEDS_CONFIRMED: 'from-n-iris-3 to-n-iris-6',
-  SAMPLING: 'from-n-iris-4 to-n-iris-7',
-  WON: 'from-n-iris-5 to-n-iris-8',
-  LOST: 'from-n-ruby-3 to-n-ruby-5',
+const STAGE_COLORS = {
+  NEEDS_CONFIRMED: 'iris-6',
+  SAMPLING: 'iris-8',
+  WON: 'iris-10',
+  LOST: 'ruby-9',
 };
 
 const SOURCE_LABELS = {
@@ -195,29 +194,17 @@ const trendChart = computed(() => {
   };
 });
 
-// ── 商机阶段（液态玻璃竖柱） ──
+// ── 商机阶段（柱状图，与其它图表统一 Chart.js 风格） ──
 const stageChart = computed(() => {
   const byStage = stats.value?.trends?.opportunity_amount_by_stage || {};
-  const cntStage = stats.value?.trends?.opportunity_count_by_stage || {};
   const rows = Object.keys(STAGE_LABELS)
-    .map(stage => ({
-      stage,
-      micros: byStage[stage] || 0,
-      count: cntStage[stage] || 0,
-    }))
-    .filter(r => r.micros || r.count);
-  const max = Math.max(1, ...rows.map(r => r.micros));
+    .map(stage => ({ stage, micros: byStage[stage] || 0 }))
+    .filter(r => r.micros);
   return {
+    labels: rows.map(r => STAGE_LABELS[r.stage]),
+    data: rows.map(r => toYuan(r.micros)),
+    colors: rows.map(r => themeColor(STAGE_COLORS[r.stage])),
     empty: !rows.length,
-    bars: rows.map(r => ({
-      stage: r.stage,
-      label: STAGE_LABELS[r.stage],
-      amount: toYuan(r.micros),
-      count: r.count,
-      heightPct: Math.max(Math.round((r.micros / max) * 100), r.micros ? 8 : 4),
-      gradient: STAGE_GRADIENTS[r.stage],
-      isLost: r.stage === 'LOST',
-    })),
   };
 });
 
@@ -461,41 +448,14 @@ const PERIODS = [
             </span>
           </div>
           <div class="h-64">
-            <div v-if="!stageChart.empty" class="flex items-end gap-3 pt-3">
-              <div
-                v-for="bar in stageChart.bars"
-                :key="bar.stage"
-                class="flex flex-col items-center flex-1 min-w-0"
-              >
-                <div
-                  class="flex flex-col items-center justify-end w-full gap-2 h-[204px]"
-                >
-                  <span
-                    class="text-[13px] font-bold text-n-slate-12 whitespace-nowrap"
-                  >
-                    {{ moneyYuan(bar.amount) }}
-                  </span>
-                  <div
-                    class="relative w-14 overflow-hidden border shadow-lg rounded-t-2xl rounded-b-md border-white/80 bg-gradient-to-b shadow-n-iris-9/30"
-                    :class="bar.gradient"
-                    :style="{ height: `${bar.heightPct}%` }"
-                  >
-                    <div
-                      class="absolute top-1 h-1/3 inset-x-1 rounded-t-xl bg-gradient-to-b from-white/70 to-transparent"
-                    />
-                  </div>
-                </div>
-                <span
-                  class="mt-3 text-[13px] font-medium"
-                  :class="bar.isLost ? 'text-n-ruby-11' : 'text-n-slate-11'"
-                >
-                  {{ bar.label }}
-                </span>
-                <span class="mt-0.5 text-[11px] text-n-slate-10">
-                  {{ bar.count }} 个
-                </span>
-              </div>
-            </div>
+            <CrmBarChart
+              v-if="!stageChart.empty"
+              :labels="stageChart.labels"
+              :data="stageChart.data"
+              :colors="stageChart.colors"
+              show-values
+              :value-format="moneyYuan"
+            />
             <div
               v-else
               class="flex items-center justify-center h-full text-sm text-n-slate-10"
