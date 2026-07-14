@@ -56,7 +56,6 @@ const SOURCE_LABELS = {
   ALIBABA: '阿里巴巴国际站',
   WEBSITE: '官网',
   EXHIBITION: '展会',
-  REFERRAL: '转介绍',
   EMAIL: '邮件开发',
   OTHER: '其他',
 };
@@ -221,7 +220,7 @@ const winRate = computed(() => {
 const sourceDonut = computed(() => {
   const breakdown = stats.value?.source_breakdown || {};
   const rows = Object.entries(breakdown)
-    .filter(([, v]) => v)
+    .filter(([k, v]) => v && k !== 'REFERRAL')
     .sort((a, b) => b[1] - a[1]);
   return {
     labels: rows.map(([k]) => SOURCE_LABELS[k] || k),
@@ -350,7 +349,7 @@ const PERIODS = [
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <div class="flex gap-1 p-1 rounded-lg bg-n-alpha-1">
+        <div class="flex items-center h-9 gap-1 px-1 rounded-lg bg-n-alpha-1">
           <button
             v-for="p in PERIODS"
             :key="p.k"
