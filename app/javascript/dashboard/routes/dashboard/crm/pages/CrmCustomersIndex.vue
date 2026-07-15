@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -19,6 +20,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { accountId, accountScopedRoute } = useAccount();
+const { isCrmSales } = useCrmRole();
 const customersStore = useCrmCustomersStore();
 
 const actingId = ref(null);
@@ -627,12 +629,13 @@ watch(
             @input="onSearchInput"
           />
           <Select
+            v-if="!isCrmSales"
             :model-value="selectedTeamId"
             :options="teamOptions"
             @update:model-value="setTeam"
           />
           <Select
-            v-if="selectedTeamId"
+            v-if="!isCrmSales && selectedTeamId"
             :model-value="selectedOwnerId"
             :options="ownerOptions"
             @update:model-value="setOwner"

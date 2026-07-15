@@ -15,5 +15,8 @@ json.loss_reason resource.loss_reason
 json.next_action resource.next_action
 json.last_activity_at resource.last_activity_at
 json.opportunity_remark resource.opportunity_remark
+json.important resource.important
+json.is_in_public_pool resource.is_in_public_pool
+json.public_pool_at resource.public_pool_at
 json.created_at resource.created_at
 json.updated_at resource.updated_at

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -12,7 +13,14 @@ import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportu
 
 const { t } = useI18n();
 const { accountId } = useAccount();
+const { isCrmSales } = useCrmRole();
 const store = useCrmOpportunitiesStore();
+
+// 视图：常规看板 / 商机公海（公海全员可见全公司，认领后归入自己名下）
+const view = ref('board');
+// 排序：默认最近更新；可按创建时间/金额，正序倒序
+const sortKey = ref('');
+const sortDir = ref('desc');
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -41,9 +49,33 @@ const refreshBoard = () =>
   store.get({
     page: 1,
     perPage: 100,
+    filter: view.value === 'pool' ? 'public_pool' : undefined,
     team_id: selectedTeamId.value || undefined,
     owner_id: selectedOwnerId.value || undefined,
+    sort: sortKey.value || undefined,
+    direction: sortKey.value ? sortDir.value : undefined,
   });
+
+const setView = value => {
+  view.value = value;
+  refreshBoard();
+};
+
+const sortOptions = [
+  { value: '', label: t('CRM.FUNNEL.SORT_DEFAULT') },
+  { value: 'created_at', label: t('CRM.FUNNEL.SORT_CREATED') },
+  { value: 'amount', label: t('CRM.FUNNEL.SORT_AMOUNT') },
+];
+
+const setSort = value => {
+  sortKey.value = value;
+  refreshBoard();
+};
+
+const toggleSortDir = () => {
+  sortDir.value = sortDir.value === 'desc' ? 'asc' : 'desc';
+  if (sortKey.value) refreshBoard();
+};
 
 const fetchTeams = async () => {
   try {
@@ -78,8 +110,47 @@ const createRecord = async payload => {
   }
 };
 
-// 点卡片直接编辑（与商机列表点行一致），保存后刷新看板。
-const openEditDialog = record => createDialogRef.value?.open(record);
+// 点卡片直接编辑（与商机列表点行一致），保存后刷新看板。公海卡片不可编辑，走认领。
+const openEditDialog = record => {
+  if (view.value === 'pool') return;
+  createDialogRef.value?.open(record);
+};
+
+// 公海认领 / 释放到公海
+const actingId = ref(null);
+const claimRecord = async record => {
+  actingId.value = record.id;
+  try {
+    await axios.post(
+      `/api/v1/accounts/${accountId.value}/crm/opportunities/${record.id}/claim`
+    );
+    useAlert(t('CRM.OPPORTUNITIES.POOL.CLAIM_SUCCESS'));
+    refreshBoard();
+  } catch {
+    useAlert(t('CRM.OPPORTUNITIES.POOL.CLAIM_ERROR'));
+  } finally {
+    actingId.value = null;
+  }
+};
+
+const releaseRecord = async record => {
+  const ok = window.confirm(
+    t('CRM.OPPORTUNITIES.POOL.RELEASE_CONFIRM', { name: record.name })
+  );
+  if (!ok) return;
+  actingId.value = record.id;
+  try {
+    await axios.post(
+      `/api/v1/accounts/${accountId.value}/crm/opportunities/${record.id}/release`
+    );
+    useAlert(t('CRM.OPPORTUNITIES.POOL.RELEASE_SUCCESS'));
+    refreshBoard();
+  } catch {
+    useAlert(t('CRM.OPPORTUNITIES.POOL.RELEASE_ERROR'));
+  } finally {
+    actingId.value = null;
+  }
+};
 
 const updateRecord = async payload => {
   try {
@@ -121,6 +192,7 @@ const cardAmount = (micros, currency) =>
 // 拖拽换阶段
 const dragId = ref(null);
 const onDrop = async stageKey => {
+  if (view.value === 'pool') return;
   const record = records.value.find(r => r.id === dragId.value);
   dragId.value = null;
   if (!record || record.salesStage === stageKey) return;
@@ -145,18 +217,57 @@ onMounted(() => {
         <p class="mt-0.5 text-sm text-n-slate-11">{{ t('CRM.FUNNEL.HINT') }}</p>
       </div>
       <div class="flex items-center gap-2">
+        <!-- 视图切换：看板 / 商机公海 -->
+        <div class="flex items-center gap-1 p-1 rounded-lg bg-n-alpha-2">
+          <Button
+            :label="t('CRM.FUNNEL.VIEW_BOARD')"
+            sm
+            :variant="view === 'board' ? 'solid' : 'ghost'"
+            :color="view === 'board' ? 'iris' : 'slate'"
+            @click="setView('board')"
+          />
+          <Button
+            :label="t('CRM.FUNNEL.VIEW_POOL')"
+            sm
+            :variant="view === 'pool' ? 'solid' : 'ghost'"
+            :color="view === 'pool' ? 'iris' : 'slate'"
+            @click="setView('pool')"
+          />
+        </div>
         <Select
+          :model-value="sortKey"
+          :options="sortOptions"
+          @update:model-value="setSort"
+        />
+        <Button
+          v-if="sortKey"
+          sm
+          variant="faded"
+          color="slate"
+          :icon="
+            sortDir === 'desc' ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up'
+          "
+          :label="
+            sortDir === 'desc'
+              ? t('CRM.FUNNEL.SORT_DESC')
+              : t('CRM.FUNNEL.SORT_ASC')
+          "
+          @click="toggleSortDir"
+        />
+        <Select
+          v-if="!isCrmSales && view === 'board'"
           :model-value="selectedTeamId"
           :options="teamOptions"
           @update:model-value="setTeam"
         />
         <Select
-          v-if="selectedTeamId"
+          v-if="!isCrmSales && view === 'board' && selectedTeamId"
           :model-value="selectedOwnerId"
           :options="ownerOptions"
           @update:model-value="setOwner"
         />
         <Button
+          v-if="view === 'board'"
           :label="t('CRM.OPPORTUNITIES.NEW')"
           icon="i-lucide-plus"
           color="iris"
@@ -203,12 +314,32 @@ onMounted(() => {
           <div
             v-for="item in col.items"
             :key="item.id"
-            class="p-4 transition-all border shadow-sm cursor-pointer bg-n-solid-1 rounded-xl border-n-weak hover:border-n-iris-8 hover:shadow-md"
-            draggable="true"
+            class="relative p-4 transition-all border shadow-sm bg-n-solid-1 rounded-xl group"
+            :class="[
+              view === 'board'
+                ? 'cursor-pointer hover:shadow-md'
+                : 'cursor-default',
+              item.important
+                ? 'border-n-amber-8 hover:border-n-amber-9'
+                : 'border-n-weak hover:border-n-iris-8',
+            ]"
+            :draggable="view === 'board'"
             @dragstart="dragId = item.id"
             @click="openEditDialog(item)"
           >
-            <!-- 阶段颜色小圈 + 标题 -->
+            <!-- 释放到公海（仅常规看板，悬停显示） -->
+            <Button
+              v-if="view === 'board'"
+              sm
+              ghost
+              slate
+              icon="i-lucide-waves"
+              class="!absolute top-2 right-2 opacity-0 group-hover:opacity-100"
+              :title="t('CRM.OPPORTUNITIES.POOL.RELEASE')"
+              :is-disabled="actingId === item.id"
+              @click.stop="releaseRecord(item)"
+            />
+            <!-- 阶段颜色小圈 + 标题（重要商机带星标） -->
             <div class="flex items-start gap-2">
               <span
                 class="mt-1 rounded-full shrink-0 size-2.5"
@@ -217,6 +348,11 @@ onMounted(() => {
               <div
                 class="text-sm font-semibold leading-snug text-n-slate-12 line-clamp-2"
               >
+                <span
+                  v-if="item.important"
+                  class="inline-block i-lucide-star size-3.5 text-n-amber-9 me-1 align-[-2px]"
+                  :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
+                />
                 {{ item.name }}
               </div>
             </div>
@@ -256,6 +392,17 @@ onMounted(() => {
                 {{ item.probability }}%
               </span>
             </div>
+
+            <!-- 公海视图：认领 -->
+            <Button
+              v-if="view === 'pool'"
+              :label="t('CRM.OPPORTUNITIES.POOL.CLAIM')"
+              sm
+              color="iris"
+              class="w-full mt-3"
+              :is-loading="actingId === item.id"
+              @click.stop="claimRecord(item)"
+            />
           </div>
 
           <div

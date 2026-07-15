@@ -10,12 +10,15 @@
 #  currency            :string           default("CNY")
 #  current_need        :text
 #  expected_close_date :datetime
+#  important           :boolean          default(FALSE), not null
+#  is_in_public_pool   :boolean          default(FALSE), not null
 #  last_activity_at    :datetime
 #  loss_reason         :string
 #  name                :string           not null
 #  next_action         :string
 #  opportunity_remark  :text
 #  probability         :integer
+#  public_pool_at      :datetime
 #  sales_stage         :string           default("NEEDS_CONFIRMED"), not null
 #  created_at          :datetime         not null
 #  updated_at          :datetime         not null
@@ -25,10 +28,11 @@
 #
 # Indexes
 #
-#  index_crm_opportunities_on_account_id                  (account_id)
-#  index_crm_opportunities_on_account_id_and_sales_stage  (account_id,sales_stage)
-#  index_crm_opportunities_on_crm_customer_id             (crm_customer_id)
-#  index_crm_opportunities_on_owner_id                    (owner_id)
+#  index_crm_opportunities_on_account_id                        (account_id)
+#  index_crm_opportunities_on_account_id_and_is_in_public_pool  (account_id,is_in_public_pool)
+#  index_crm_opportunities_on_account_id_and_sales_stage        (account_id,sales_stage)
+#  index_crm_opportunities_on_crm_customer_id                   (crm_customer_id)
+#  index_crm_opportunities_on_owner_id                          (owner_id)
 #
 # Foreign Keys
 #
@@ -52,8 +56,15 @@ class Crm::Opportunity < ApplicationRecord
 
   scope :open_stages, -> { where.not(sales_stage: %w[WON LOST]) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
+  scope :in_public_pool, -> { where(is_in_public_pool: true) }
+  scope :in_private_pool, -> { where(is_in_public_pool: false) }
 
   def amount
     amount_micros.to_f / 1_000_000 if amount_micros
+  end
+
+  # 释放到商机公海：脱离原负责人，全员可见可认领（与客户公海同构）。
+  def move_to_public_pool!(at: Time.current)
+    update!(is_in_public_pool: true, public_pool_at: at, owner_id: nil)
   end
 end

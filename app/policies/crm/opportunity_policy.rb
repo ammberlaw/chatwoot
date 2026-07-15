@@ -20,6 +20,15 @@ class Crm::OpportunityPolicy < ApplicationPolicy
   def destroy?
     true
   end
+
+  # 商机公海：全员可认领；释放仅限自己数据范围内的商机（控制器范围强制）。
+  def claim?
+    true
+  end
+
+  def release?
+    true
+  end
 end
 
 Crm::OpportunityPolicy.prepend_mod_with('Crm::OpportunityPolicy')

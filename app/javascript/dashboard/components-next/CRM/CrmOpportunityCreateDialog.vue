@@ -59,6 +59,7 @@ const form = reactive({
   expectedCloseDate: '',
   opportunityRemark: '',
   lossReason: '',
+  important: false,
 });
 
 const stageOptions = [
@@ -97,6 +98,7 @@ const resetForm = () => {
   form.probability = '';
   form.expectedCloseDate = '';
   form.opportunityRemark = '';
+  form.important = false;
 };
 
 const open = record => {
@@ -112,6 +114,7 @@ const open = record => {
     form.expectedCloseDate = record.expectedCloseDate ? record.expectedCloseDate.slice(0, 10) : '';
     form.opportunityRemark = record.opportunityRemark || '';
     form.lossReason = record.lossReason || '';
+    form.important = record.important === true;
     customerLabel.value = record.customerName || '';
   }
   fetchCustomers();
@@ -138,6 +141,7 @@ const handleConfirm = () => {
     expectedCloseDate: form.expectedCloseDate || null,
     opportunityRemark: form.opportunityRemark.trim() || null,
     lossReason: form.lossReason || null,
+    important: form.important,
   };
   if (isEditing.value) {
     emit('update', { id: editingId.value, ...payload });
@@ -217,6 +221,11 @@ defineExpose({ dialogRef, onSuccess, open });
         type="date"
         :label="t('CRM.OPPORTUNITIES.FORM.EXPECTED_CLOSE')"
       />
+      <label class="flex items-center gap-2 text-sm text-n-slate-12">
+        <input v-model="form.important" type="checkbox" />
+        <span class="i-lucide-star size-4 text-n-amber-9" />
+        {{ t('CRM.OPPORTUNITIES.FORM.IMPORTANT') }}
+      </label>
       <div v-if="form.salesStage === 'LOST'" class="flex flex-col gap-1">
         <label class="mb-0.5 text-heading-3 text-n-slate-12">丢单原因</label>
         <Select v-model="form.lossReason" :options="lossReasonOptions" />

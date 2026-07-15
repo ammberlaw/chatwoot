@@ -66,7 +66,12 @@ Rails.application.routes.draw do
               end
             end
             resources :contacts, only: [:index, :update]
-            resources :opportunities
+            resources :opportunities do
+              member do
+                post :claim
+                post :release
+              end
+            end
             resources :products
             resources :sales_orders do
               member do

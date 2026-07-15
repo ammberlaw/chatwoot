@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_15_180000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_15_200000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1124,6 +1124,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_15_180000) do
     t.text "opportunity_remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "important", default: false, null: false
+    t.boolean "is_in_public_pool", default: false, null: false
+    t.datetime "public_pool_at"
+    t.index ["account_id", "is_in_public_pool"], name: "index_crm_opportunities_on_account_id_and_is_in_public_pool"
     t.index ["account_id", "sales_stage"], name: "index_crm_opportunities_on_account_id_and_sales_stage"
     t.index ["account_id"], name: "index_crm_opportunities_on_account_id"
     t.index ["crm_customer_id"], name: "index_crm_opportunities_on_crm_customer_id"
