@@ -62,12 +62,15 @@ const accountId = useMapGetter('getCurrentAccountId');
 const currentUserId = useMapGetter('getCurrentUserID');
 const currentUser = useMapGetter('getCurrentUser');
 // 非 CRM 人员隐藏 CRM 销售数据分组（工作台/文档中心/HR/OA/协同等共享模块保留）。
-const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
+const canAccessCrm = computed(
+  () => currentUser.value?.can_access_crm !== false
+);
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
 // 超级管理员或管理员（deputy_admin）：账号级管理入口（成员/邀请/员工档案/薪资/审批人/公海规则）。
 const isAdminLike = computed(
   () => isAdmin.value || currentUser.value?.crm_role === 'deputy_admin'
 );
+const isCrmManager = computed(() => currentUser.value?.crm_role === 'manager');
 // 普通业务（非管理员/副管理员/部门负责人）：隐藏公司级看板等团队之外的数据入口。
 const isCrmSales = computed(
   () =>
@@ -75,8 +78,12 @@ const isCrmSales = computed(
     !['deputy_admin', 'manager'].includes(currentUser.value?.crm_role)
 );
 // 绩效板块按角色可见性（服务端按当前用户角色算好；管理员始终 true）。
-const kpiSchemeVisible = computed(() => currentUser.value?.kpi_scheme_visible !== false);
-const kpiSheetVisible = computed(() => currentUser.value?.kpi_sheet_visible !== false);
+const kpiSchemeVisible = computed(
+  () => currentUser.value?.kpi_scheme_visible !== false
+);
+const kpiSheetVisible = computed(
+  () => currentUser.value?.kpi_sheet_visible !== false
+);
 // 文档中心资料板块（仅当前用户可见的），进入文档系统时按需拉取一次。
 const docSections = ref([]);
 const fetchDocSections = async () => {
@@ -370,921 +377,940 @@ const HIDDEN_NATIVE_MODULES = [
 ];
 
 const menuItems = computed(() => {
-  return [
-    {
-      name: 'CRM Workspace',
-      label: t('SIDEBAR.CRM_WORKSPACE'),
-      icon: 'i-lucide-layout-dashboard',
-      to: accountScopedRoute('crm_workspace_index'),
-      activeOn: ['crm_workspace_index'],
-    },
-    {
-      name: 'Inbox',
-      label: t('SIDEBAR.INBOX'),
-      icon: 'i-lucide-inbox',
-      to: accountScopedRoute('inbox_view'),
-      activeOn: ['inbox_view', 'inbox_view_conversation'],
-      getterKeys: {
-        count: 'notifications/getUnreadCount',
+  return (
+    [
+      {
+        name: 'CRM Workspace',
+        label: t('SIDEBAR.CRM_WORKSPACE'),
+        icon: 'i-lucide-layout-dashboard',
+        to: accountScopedRoute('crm_workspace_index'),
+        activeOn: ['crm_workspace_index'],
       },
-    },
-    {
-      name: 'Conversation',
-      label: t('SIDEBAR.CONVERSATIONS'),
-      icon: 'i-lucide-message-circle',
-      children: [
-        {
-          name: 'All',
-          label: t('SIDEBAR.ALL_CONVERSATIONS'),
-          icon: 'i-lucide-inbox',
-          badgeCount: allUnreadCount.value,
-          activeOn: ['inbox_conversation'],
-          to: accountScopedRoute('home'),
+      {
+        name: 'Inbox',
+        label: t('SIDEBAR.INBOX'),
+        icon: 'i-lucide-inbox',
+        to: accountScopedRoute('inbox_view'),
+        activeOn: ['inbox_view', 'inbox_view_conversation'],
+        getterKeys: {
+          count: 'notifications/getUnreadCount',
         },
-        {
-          name: 'Mentions',
-          label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
-          icon: 'i-lucide-at-sign',
-          activeOn: ['conversation_through_mentions'],
-          to: accountScopedRoute('conversation_mentions'),
-        },
-        {
-          name: 'Participating',
-          label: t('SIDEBAR.PARTICIPATING_CONVERSATIONS'),
-          icon: 'i-lucide-user-round-check',
-          activeOn: ['conversation_through_participating'],
-          to: accountScopedRoute('conversation_participating'),
-        },
-        {
-          name: 'Unattended',
-          activeOn: ['conversation_through_unattended'],
-          label: t('SIDEBAR.UNATTENDED_CONVERSATIONS'),
-          icon: 'i-lucide-clock-alert',
-          to: accountScopedRoute('conversation_unattended'),
-        },
-        {
-          name: 'Folders',
-          label: t('SIDEBAR.CUSTOM_VIEWS_FOLDER'),
-          icon: 'i-lucide-folder',
-          activeOn: ['conversations_through_folders'],
-          ...buildSortConfig(SIDEBAR_SORT_SECTIONS.FOLDERS),
-          collapsible: true,
-          showTreeLine: true,
-          children: sortedFolders.value.map(view => ({
-            name: `${view.name}-${view.id}`,
-            label: view.name,
-            to: accountScopedRoute('folder_conversations', { id: view.id }),
-          })),
-        },
-        {
-          name: 'Teams',
-          label: t('SIDEBAR.TEAMS'),
-          icon: 'i-lucide-users',
-          activeOn: ['conversations_through_team'],
-          ...buildSortConfig(SIDEBAR_SORT_SECTIONS.TEAMS),
-          collapsible: true,
-          showTreeLine: true,
-          children: sortedTeams.value.map(team => ({
-            name: `${team.name}-${team.id}`,
-            label: team.name,
-            badgeCount: getTeamUnreadCount.value(team.id),
-            to: accountScopedRoute('team_conversations', { teamId: team.id }),
-          })),
-        },
-        {
-          name: 'Channels',
-          label: t('SIDEBAR.CHANNELS'),
-          icon: 'i-lucide-mailbox',
-          activeOn: ['conversation_through_inbox'],
-          ...buildSortConfig(SIDEBAR_SORT_SECTIONS.CHANNELS),
-          collapsible: true,
-          showTreeLine: true,
-          children: sortedInboxes.value.map(inbox => ({
-            name: `${inbox.name}-${inbox.id}`,
-            label: inbox.name,
-            badgeCount: getInboxUnreadCount.value(inbox.id),
-            icon: h(ChannelIcon, { inbox, class: 'size-[16px]' }),
-            to: accountScopedRoute('inbox_dashboard', { inbox_id: inbox.id }),
-            component: leafProps =>
-              h(ChannelLeaf, {
-                label: leafProps.label,
-                active: leafProps.active,
-                inbox,
-                badgeCount: leafProps.badgeCount,
-              }),
-          })),
-        },
-        {
-          name: 'Labels',
-          label: t('SIDEBAR.LABELS'),
-          icon: 'i-lucide-tag',
-          activeOn: ['conversations_through_label'],
-          ...buildSortConfig(SIDEBAR_SORT_SECTIONS.LABELS),
-          collapsible: true,
-          showTreeLine: true,
-          children: sortedLabels.value.map(label => ({
-            name: `${label.title}-${label.id}`,
-            label: label.title,
-            badgeCount: getLabelUnreadCount.value(label.id),
-            icon: h('span', {
-              class: `size-[8px] rounded-sm`,
-              style: { backgroundColor: label.color },
-            }),
-            to: accountScopedRoute('label_conversations', {
+      },
+      {
+        name: 'Conversation',
+        label: t('SIDEBAR.CONVERSATIONS'),
+        icon: 'i-lucide-message-circle',
+        children: [
+          {
+            name: 'All',
+            label: t('SIDEBAR.ALL_CONVERSATIONS'),
+            icon: 'i-lucide-inbox',
+            badgeCount: allUnreadCount.value,
+            activeOn: ['inbox_conversation'],
+            to: accountScopedRoute('home'),
+          },
+          {
+            name: 'Mentions',
+            label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
+            icon: 'i-lucide-at-sign',
+            activeOn: ['conversation_through_mentions'],
+            to: accountScopedRoute('conversation_mentions'),
+          },
+          {
+            name: 'Participating',
+            label: t('SIDEBAR.PARTICIPATING_CONVERSATIONS'),
+            icon: 'i-lucide-user-round-check',
+            activeOn: ['conversation_through_participating'],
+            to: accountScopedRoute('conversation_participating'),
+          },
+          {
+            name: 'Unattended',
+            activeOn: ['conversation_through_unattended'],
+            label: t('SIDEBAR.UNATTENDED_CONVERSATIONS'),
+            icon: 'i-lucide-clock-alert',
+            to: accountScopedRoute('conversation_unattended'),
+          },
+          {
+            name: 'Folders',
+            label: t('SIDEBAR.CUSTOM_VIEWS_FOLDER'),
+            icon: 'i-lucide-folder',
+            activeOn: ['conversations_through_folders'],
+            ...buildSortConfig(SIDEBAR_SORT_SECTIONS.FOLDERS),
+            collapsible: true,
+            showTreeLine: true,
+            children: sortedFolders.value.map(view => ({
+              name: `${view.name}-${view.id}`,
+              label: view.name,
+              to: accountScopedRoute('folder_conversations', { id: view.id }),
+            })),
+          },
+          {
+            name: 'Teams',
+            label: t('SIDEBAR.TEAMS'),
+            icon: 'i-lucide-users',
+            activeOn: ['conversations_through_team'],
+            ...buildSortConfig(SIDEBAR_SORT_SECTIONS.TEAMS),
+            collapsible: true,
+            showTreeLine: true,
+            children: sortedTeams.value.map(team => ({
+              name: `${team.name}-${team.id}`,
+              label: team.name,
+              badgeCount: getTeamUnreadCount.value(team.id),
+              to: accountScopedRoute('team_conversations', { teamId: team.id }),
+            })),
+          },
+          {
+            name: 'Channels',
+            label: t('SIDEBAR.CHANNELS'),
+            icon: 'i-lucide-mailbox',
+            activeOn: ['conversation_through_inbox'],
+            ...buildSortConfig(SIDEBAR_SORT_SECTIONS.CHANNELS),
+            collapsible: true,
+            showTreeLine: true,
+            children: sortedInboxes.value.map(inbox => ({
+              name: `${inbox.name}-${inbox.id}`,
+              label: inbox.name,
+              badgeCount: getInboxUnreadCount.value(inbox.id),
+              icon: h(ChannelIcon, { inbox, class: 'size-[16px]' }),
+              to: accountScopedRoute('inbox_dashboard', { inbox_id: inbox.id }),
+              component: leafProps =>
+                h(ChannelLeaf, {
+                  label: leafProps.label,
+                  active: leafProps.active,
+                  inbox,
+                  badgeCount: leafProps.badgeCount,
+                }),
+            })),
+          },
+          {
+            name: 'Labels',
+            label: t('SIDEBAR.LABELS'),
+            icon: 'i-lucide-tag',
+            activeOn: ['conversations_through_label'],
+            ...buildSortConfig(SIDEBAR_SORT_SECTIONS.LABELS),
+            collapsible: true,
+            showTreeLine: true,
+            children: sortedLabels.value.map(label => ({
+              name: `${label.title}-${label.id}`,
               label: label.title,
-            }),
-          })),
-        },
-      ],
-    },
-    {
-      name: 'Captain',
-      icon: 'i-woot-captain',
-      label: t('SIDEBAR.CAPTAIN'),
-      activeOn: ['captain_assistants_create_index'],
-      children: [
-        {
-          name: 'FAQs',
-          label: t('SIDEBAR.CAPTAIN_RESPONSES'),
-          activeOn: [
-            'captain_assistants_responses_index',
-            'captain_assistants_responses_pending',
-          ],
-          to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_responses_index',
-          }),
-        },
-        {
-          name: 'Documents',
-          label: t('SIDEBAR.CAPTAIN_DOCUMENTS'),
-          activeOn: ['captain_assistants_documents_index'],
-          to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_documents_index',
-          }),
-        },
-        {
-          name: 'Scenarios',
-          label: t('SIDEBAR.CAPTAIN_SCENARIOS'),
-          activeOn: ['captain_assistants_scenarios_index'],
-          to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_scenarios_index',
-          }),
-        },
-        {
-          name: 'Playground',
-          label: t('SIDEBAR.CAPTAIN_PLAYGROUND'),
-          activeOn: ['captain_assistants_playground_index'],
-          to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_playground_index',
-          }),
-        },
-        {
-          name: 'Inboxes',
-          label: t('SIDEBAR.CAPTAIN_INBOXES'),
-          activeOn: ['captain_assistants_inboxes_index'],
-          to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_inboxes_index',
-          }),
-        },
-        {
-          name: 'Tools',
-          label: t('SIDEBAR.CAPTAIN_TOOLS'),
-          activeOn: ['captain_tools_index'],
-          to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_tools_index',
-          }),
-        },
-        {
-          name: 'Settings',
-          label: t('SIDEBAR.CAPTAIN_SETTINGS'),
-          activeOn: [
-            'captain_assistants_settings_index',
-            'captain_assistants_guidelines_index',
-            'captain_assistants_guardrails_index',
-          ],
-          to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_settings_index',
-          }),
-        },
-      ],
-    },
-    {
-      name: 'Contacts',
-      label: t('SIDEBAR.CONTACTS'),
-      icon: 'i-lucide-contact',
-      children: [
-        {
-          name: 'All Contacts',
-          label: t('SIDEBAR.ALL_CONTACTS'),
-          to: accountScopedRoute(
-            'contacts_dashboard_index',
-            {},
-            { page: 1, search: undefined }
-          ),
-          activeOn: ['contacts_dashboard_index', 'contacts_edit'],
-        },
-        {
-          name: 'Active',
-          label: t('SIDEBAR.ACTIVE'),
-          to: accountScopedRoute('contacts_dashboard_active'),
-          activeOn: ['contacts_dashboard_active'],
-        },
-        {
-          name: 'Segments',
-          icon: 'i-lucide-group',
-          label: t('SIDEBAR.CUSTOM_VIEWS_SEGMENTS'),
-          collapsible: true,
-          showTreeLine: true,
-          children: contactCustomViews.value.map(view => ({
-            name: `${view.name}-${view.id}`,
-            label: view.name,
-            to: accountScopedRoute(
-              'contacts_dashboard_segments_index',
-              { segmentId: view.id },
-              { page: 1 }
-            ),
+              badgeCount: getLabelUnreadCount.value(label.id),
+              icon: h('span', {
+                class: `size-[8px] rounded-sm`,
+                style: { backgroundColor: label.color },
+              }),
+              to: accountScopedRoute('label_conversations', {
+                label: label.title,
+              }),
+            })),
+          },
+        ],
+      },
+      {
+        name: 'Captain',
+        icon: 'i-woot-captain',
+        label: t('SIDEBAR.CAPTAIN'),
+        activeOn: ['captain_assistants_create_index'],
+        children: [
+          {
+            name: 'FAQs',
+            label: t('SIDEBAR.CAPTAIN_RESPONSES'),
             activeOn: [
-              'contacts_dashboard_segments_index',
-              'contacts_edit_segment',
+              'captain_assistants_responses_index',
+              'captain_assistants_responses_pending',
             ],
-          })),
-        },
-        {
-          name: 'Tagged With',
-          icon: 'i-lucide-tag',
-          label: t('SIDEBAR.TAGGED_WITH'),
-          collapsible: true,
-          showTreeLine: true,
-          children: labels.value.map(label => ({
-            name: `${label.title}-${label.id}`,
-            label: label.title,
-            icon: h('span', {
-              class: `size-[8px] rounded-sm`,
-              style: { backgroundColor: label.color },
+            to: accountScopedRoute('captain_assistants_index', {
+              navigationPath: 'captain_assistants_responses_index',
             }),
+          },
+          {
+            name: 'Documents',
+            label: t('SIDEBAR.CAPTAIN_DOCUMENTS'),
+            activeOn: ['captain_assistants_documents_index'],
+            to: accountScopedRoute('captain_assistants_index', {
+              navigationPath: 'captain_assistants_documents_index',
+            }),
+          },
+          {
+            name: 'Scenarios',
+            label: t('SIDEBAR.CAPTAIN_SCENARIOS'),
+            activeOn: ['captain_assistants_scenarios_index'],
+            to: accountScopedRoute('captain_assistants_index', {
+              navigationPath: 'captain_assistants_scenarios_index',
+            }),
+          },
+          {
+            name: 'Playground',
+            label: t('SIDEBAR.CAPTAIN_PLAYGROUND'),
+            activeOn: ['captain_assistants_playground_index'],
+            to: accountScopedRoute('captain_assistants_index', {
+              navigationPath: 'captain_assistants_playground_index',
+            }),
+          },
+          {
+            name: 'Inboxes',
+            label: t('SIDEBAR.CAPTAIN_INBOXES'),
+            activeOn: ['captain_assistants_inboxes_index'],
+            to: accountScopedRoute('captain_assistants_index', {
+              navigationPath: 'captain_assistants_inboxes_index',
+            }),
+          },
+          {
+            name: 'Tools',
+            label: t('SIDEBAR.CAPTAIN_TOOLS'),
+            activeOn: ['captain_tools_index'],
+            to: accountScopedRoute('captain_assistants_index', {
+              navigationPath: 'captain_tools_index',
+            }),
+          },
+          {
+            name: 'Settings',
+            label: t('SIDEBAR.CAPTAIN_SETTINGS'),
+            activeOn: [
+              'captain_assistants_settings_index',
+              'captain_assistants_guidelines_index',
+              'captain_assistants_guardrails_index',
+            ],
+            to: accountScopedRoute('captain_assistants_index', {
+              navigationPath: 'captain_assistants_settings_index',
+            }),
+          },
+        ],
+      },
+      {
+        name: 'Contacts',
+        label: t('SIDEBAR.CONTACTS'),
+        icon: 'i-lucide-contact',
+        children: [
+          {
+            name: 'All Contacts',
+            label: t('SIDEBAR.ALL_CONTACTS'),
             to: accountScopedRoute(
-              'contacts_dashboard_labels_index',
-              { label: label.title },
+              'contacts_dashboard_index',
+              {},
               { page: 1, search: undefined }
             ),
-            activeOn: [
-              'contacts_dashboard_labels_index',
-              'contacts_edit_label',
-            ],
+            activeOn: ['contacts_dashboard_index', 'contacts_edit'],
+          },
+          {
+            name: 'Active',
+            label: t('SIDEBAR.ACTIVE'),
+            to: accountScopedRoute('contacts_dashboard_active'),
+            activeOn: ['contacts_dashboard_active'],
+          },
+          {
+            name: 'Segments',
+            icon: 'i-lucide-group',
+            label: t('SIDEBAR.CUSTOM_VIEWS_SEGMENTS'),
+            collapsible: true,
+            showTreeLine: true,
+            children: contactCustomViews.value.map(view => ({
+              name: `${view.name}-${view.id}`,
+              label: view.name,
+              to: accountScopedRoute(
+                'contacts_dashboard_segments_index',
+                { segmentId: view.id },
+                { page: 1 }
+              ),
+              activeOn: [
+                'contacts_dashboard_segments_index',
+                'contacts_edit_segment',
+              ],
+            })),
+          },
+          {
+            name: 'Tagged With',
+            icon: 'i-lucide-tag',
+            label: t('SIDEBAR.TAGGED_WITH'),
+            collapsible: true,
+            showTreeLine: true,
+            children: labels.value.map(label => ({
+              name: `${label.title}-${label.id}`,
+              label: label.title,
+              icon: h('span', {
+                class: `size-[8px] rounded-sm`,
+                style: { backgroundColor: label.color },
+              }),
+              to: accountScopedRoute(
+                'contacts_dashboard_labels_index',
+                { label: label.title },
+                { page: 1, search: undefined }
+              ),
+              activeOn: [
+                'contacts_dashboard_labels_index',
+                'contacts_edit_label',
+              ],
+            })),
+          },
+        ],
+      },
+      {
+        name: 'Companies',
+        label: t('SIDEBAR.COMPANIES'),
+        icon: 'i-lucide-building-2',
+        children: [
+          {
+            name: 'All Companies',
+            label: t('SIDEBAR.ALL_COMPANIES'),
+            to: accountScopedRoute(
+              'companies_dashboard_index',
+              {},
+              { page: 1, search: undefined }
+            ),
+            activeOn: ['companies_dashboard_index', 'companies_dashboard_show'],
+          },
+        ],
+      },
+      // ── A-CRM 五分区（对齐 Twenty 侧栏结构）──
+      {
+        name: 'CRM Dashboards',
+        label: t('SIDEBAR.CRM_G_DASHBOARDS'),
+        icon: 'i-lucide-layout-dashboard',
+        activeOn: [
+          'crm_dashboard_index',
+          'crm_team_dashboard_index',
+          'crm_my_target_index',
+        ],
+        children: [
+          ...(isCrmSales.value
+            ? []
+            : [
+                {
+                  name: 'CRM Company Dashboard',
+                  label: t('SIDEBAR.CRM_DASH_COMPANY'),
+                  to: accountScopedRoute('crm_dashboard_index'),
+                  activeOn: ['crm_dashboard_index'],
+                },
+              ]),
+          {
+            name: 'CRM Personal Dashboard',
+            label: t('SIDEBAR.CRM_DASH_MINE'),
+            to: accountScopedRoute(
+              'crm_dashboard_index',
+              {},
+              { scope: 'mine' }
+            ),
+          },
+          {
+            name: 'CRM Team Dashboard',
+            label: t('SIDEBAR.CRM_DASH_TEAM'),
+            to: accountScopedRoute('crm_team_dashboard_index'),
+            activeOn: ['crm_team_dashboard_index'],
+          },
+          {
+            name: 'CRM My Targets',
+            label: t('SIDEBAR.CRM_MY_TARGETS'),
+            to: accountScopedRoute('crm_my_target_index'),
+            activeOn: ['crm_my_target_index'],
+          },
+        ],
+      },
+      {
+        name: 'CRM Customers Group',
+        label: t('SIDEBAR.CRM_G_CUSTOMERS'),
+        icon: 'i-lucide-users',
+        activeOn: [
+          'crm_customers_index',
+          'crm_customer_intake_index',
+          'crm_public_pool_settings_index',
+        ],
+        children: [
+          {
+            name: 'CRM Customer New',
+            label: t('SIDEBAR.CRM_CUSTOMER_NEW'),
+            to: accountScopedRoute('crm_customer_intake_index'),
+            activeOn: ['crm_customer_intake_index'],
+          },
+          {
+            name: 'CRM Private Customers',
+            label: t('SIDEBAR.CRM_PRIVATE_CUSTOMERS'),
+            to: accountScopedRoute(
+              'crm_customers_index',
+              {},
+              { filter: 'private' }
+            ),
+            activeOn: ['crm_customers_index'],
+          },
+          {
+            name: 'CRM Public Pool',
+            label: t('SIDEBAR.CRM_PUBLIC_POOL'),
+            to: accountScopedRoute(
+              'crm_customers_index',
+              {},
+              { filter: 'public_pool' }
+            ),
+          },
+          ...(isAdminLike.value
+            ? [
+                {
+                  name: 'CRM Pool Settings',
+                  label: t('SIDEBAR.CRM_POOL_SETTINGS'),
+                  to: accountScopedRoute('crm_public_pool_settings_index'),
+                  activeOn: ['crm_public_pool_settings_index'],
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        name: 'CRM Sales Flow',
+        label: t('SIDEBAR.CRM_G_SALES_FLOW'),
+        icon: 'i-lucide-funnel',
+        activeOn: [
+          'crm_funnel_index',
+          'crm_sales_orders_index',
+          'crm_opportunities_index',
+        ],
+        children: [
+          {
+            name: 'CRM Funnel',
+            label: t('SIDEBAR.CRM_FUNNEL'),
+            to: accountScopedRoute('crm_funnel_index'),
+            activeOn: ['crm_funnel_index'],
+          },
+          {
+            name: 'CRM Opportunities',
+            label: t('SIDEBAR.CRM_OPPORTUNITIES'),
+            to: accountScopedRoute('crm_opportunities_index'),
+            activeOn: ['crm_opportunities_index'],
+          },
+          {
+            name: 'CRM Sales Orders',
+            label: t('SIDEBAR.CRM_SALES_ORDERS'),
+            to: accountScopedRoute('crm_sales_orders_index'),
+            activeOn: ['crm_sales_orders_index'],
+          },
+          {
+            name: 'CRM Orders No Customer',
+            label: t('SIDEBAR.CRM_ORDERS_NO_CUSTOMER'),
+            to: accountScopedRoute(
+              'crm_sales_orders_index',
+              {},
+              { filter: 'no_customer' }
+            ),
+          },
+        ],
+      },
+      {
+        name: 'CRM Mail Center',
+        label: t('SIDEBAR.CRM_G_MAIL'),
+        icon: 'i-lucide-mail',
+        activeOn: [
+          'crm_emails_index',
+          'crm_mail_accounts_index',
+          'crm_email_templates_index',
+        ],
+        children: [
+          {
+            name: 'CRM Read Emails',
+            label: t('SIDEBAR.CRM_READ_EMAILS'),
+            to: accountScopedRoute('crm_emails_index'),
+            activeOn: ['crm_emails_index'],
+          },
+          {
+            name: 'CRM Email Templates',
+            label: t('SIDEBAR.CRM_EMAIL_TEMPLATES'),
+            to: accountScopedRoute('crm_email_templates_index'),
+            activeOn: ['crm_email_templates_index'],
+          },
+          {
+            name: 'CRM Mail Accounts',
+            label: t('SIDEBAR.CRM_MAIL_ACCOUNTS'),
+            to: accountScopedRoute('crm_mail_accounts_index'),
+            activeOn: ['crm_mail_accounts_index'],
+          },
+        ],
+      },
+      {
+        name: 'CRM Knowledge',
+        label: t('SIDEBAR.CRM_G_KNOWLEDGE'),
+        icon: 'i-lucide-book-open',
+        activeOn: ['crm_knowledge_docs_index'],
+        children: [
+          {
+            name: 'CRM Company Docs',
+            label: t('SIDEBAR.CRM_COMPANY_DOCS'),
+            to: accountScopedRoute(
+              'crm_knowledge_docs_index',
+              {},
+              { filter: 'company' }
+            ),
+            activeOn: ['crm_knowledge_docs_index'],
+          },
+          {
+            name: 'CRM My Docs',
+            label: t('SIDEBAR.CRM_MY_DOCS'),
+            to: accountScopedRoute(
+              'crm_knowledge_docs_index',
+              {},
+              { filter: 'mine' }
+            ),
+          },
+        ],
+      },
+      {
+        name: 'CRM Doc Center',
+        label: t('SIDEBAR.CRM_G_DOC_CENTER'),
+        icon: 'i-lucide-library',
+        activeOn: ['crm_doc_center_index'],
+        children: [
+          {
+            name: 'CRM Doc Center Company',
+            label: t('SIDEBAR.CRM_DOC_CENTER_COMPANY'),
+            to: accountScopedRoute(
+              'crm_doc_center_index',
+              {},
+              { filter: 'company' }
+            ),
+            activeOn: ['crm_doc_center_index'],
+          },
+          // 资料板块（仅列出当前用户可见的；可见性按部门在文档中心配置）
+          ...docSections.value.map(section => ({
+            name: `CRM Doc Section ${section.id}`,
+            label: section.name,
+            to: accountScopedRoute(
+              'crm_doc_center_index',
+              {},
+              { filter: 'company', section_id: String(section.id) }
+            ),
           })),
-        },
-      ],
-    },
-    {
-      name: 'Companies',
-      label: t('SIDEBAR.COMPANIES'),
-      icon: 'i-lucide-building-2',
-      children: [
-        {
-          name: 'All Companies',
-          label: t('SIDEBAR.ALL_COMPANIES'),
-          to: accountScopedRoute(
-            'companies_dashboard_index',
-            {},
-            { page: 1, search: undefined }
-          ),
-          activeOn: ['companies_dashboard_index', 'companies_dashboard_show'],
-        },
-      ],
-    },
-    // ── A-CRM 五分区（对齐 Twenty 侧栏结构）──
-    {
-      name: 'CRM Dashboards',
-      label: t('SIDEBAR.CRM_G_DASHBOARDS'),
-      icon: 'i-lucide-layout-dashboard',
-      activeOn: [
-        'crm_dashboard_index',
-        'crm_team_dashboard_index',
-        'crm_my_target_index',
-      ],
-      children: [
-        ...(isCrmSales.value
-          ? []
-          : [
-              {
-                name: 'CRM Company Dashboard',
-                label: t('SIDEBAR.CRM_DASH_COMPANY'),
-                to: accountScopedRoute('crm_dashboard_index'),
-                activeOn: ['crm_dashboard_index'],
-              },
-            ]),
-        {
-          name: 'CRM Personal Dashboard',
-          label: t('SIDEBAR.CRM_DASH_MINE'),
-          to: accountScopedRoute('crm_dashboard_index', {}, { scope: 'mine' }),
-        },
-        {
-          name: 'CRM Team Dashboard',
-          label: t('SIDEBAR.CRM_DASH_TEAM'),
-          to: accountScopedRoute('crm_team_dashboard_index'),
-          activeOn: ['crm_team_dashboard_index'],
-        },
-        {
-          name: 'CRM My Targets',
-          label: t('SIDEBAR.CRM_MY_TARGETS'),
-          to: accountScopedRoute('crm_my_target_index'),
-          activeOn: ['crm_my_target_index'],
-        },
-      ],
-    },
-    {
-      name: 'CRM Customers Group',
-      label: t('SIDEBAR.CRM_G_CUSTOMERS'),
-      icon: 'i-lucide-users',
-      activeOn: [
-        'crm_customers_index',
-        'crm_customer_intake_index',
-        'crm_public_pool_settings_index',
-      ],
-      children: [
-        {
-          name: 'CRM Customer New',
-          label: t('SIDEBAR.CRM_CUSTOMER_NEW'),
-          to: accountScopedRoute('crm_customer_intake_index'),
-          activeOn: ['crm_customer_intake_index'],
-        },
-        {
-          name: 'CRM Private Customers',
-          label: t('SIDEBAR.CRM_PRIVATE_CUSTOMERS'),
-          to: accountScopedRoute(
-            'crm_customers_index',
-            {},
-            { filter: 'private' }
-          ),
-          activeOn: ['crm_customers_index'],
-        },
-        {
-          name: 'CRM Public Pool',
-          label: t('SIDEBAR.CRM_PUBLIC_POOL'),
-          to: accountScopedRoute(
-            'crm_customers_index',
-            {},
-            { filter: 'public_pool' }
-          ),
-        },
-        ...(isAdminLike.value
-          ? [
-              {
-                name: 'CRM Pool Settings',
-                label: t('SIDEBAR.CRM_POOL_SETTINGS'),
-                to: accountScopedRoute('crm_public_pool_settings_index'),
-                activeOn: ['crm_public_pool_settings_index'],
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      name: 'CRM Sales Flow',
-      label: t('SIDEBAR.CRM_G_SALES_FLOW'),
-      icon: 'i-lucide-funnel',
-      activeOn: [
-        'crm_funnel_index',
-        'crm_sales_orders_index',
-        'crm_opportunities_index',
-      ],
-      children: [
-        {
-          name: 'CRM Funnel',
-          label: t('SIDEBAR.CRM_FUNNEL'),
-          to: accountScopedRoute('crm_funnel_index'),
-          activeOn: ['crm_funnel_index'],
-        },
-        {
-          name: 'CRM Opportunities',
-          label: t('SIDEBAR.CRM_OPPORTUNITIES'),
-          to: accountScopedRoute('crm_opportunities_index'),
-          activeOn: ['crm_opportunities_index'],
-        },
-        {
-          name: 'CRM Sales Orders',
-          label: t('SIDEBAR.CRM_SALES_ORDERS'),
-          to: accountScopedRoute('crm_sales_orders_index'),
-          activeOn: ['crm_sales_orders_index'],
-        },
-        {
-          name: 'CRM Orders No Customer',
-          label: t('SIDEBAR.CRM_ORDERS_NO_CUSTOMER'),
-          to: accountScopedRoute(
-            'crm_sales_orders_index',
-            {},
-            { filter: 'no_customer' }
-          ),
-        },
-      ],
-    },
-    {
-      name: 'CRM Mail Center',
-      label: t('SIDEBAR.CRM_G_MAIL'),
-      icon: 'i-lucide-mail',
-      activeOn: [
-        'crm_emails_index',
-        'crm_mail_accounts_index',
-        'crm_email_templates_index',
-      ],
-      children: [
-        {
-          name: 'CRM Read Emails',
-          label: t('SIDEBAR.CRM_READ_EMAILS'),
-          to: accountScopedRoute('crm_emails_index'),
-          activeOn: ['crm_emails_index'],
-        },
-        {
-          name: 'CRM Email Templates',
-          label: t('SIDEBAR.CRM_EMAIL_TEMPLATES'),
-          to: accountScopedRoute('crm_email_templates_index'),
-          activeOn: ['crm_email_templates_index'],
-        },
-        {
-          name: 'CRM Mail Accounts',
-          label: t('SIDEBAR.CRM_MAIL_ACCOUNTS'),
-          to: accountScopedRoute('crm_mail_accounts_index'),
-          activeOn: ['crm_mail_accounts_index'],
-        },
-      ],
-    },
-    {
-      name: 'CRM Knowledge',
-      label: t('SIDEBAR.CRM_G_KNOWLEDGE'),
-      icon: 'i-lucide-book-open',
-      activeOn: ['crm_knowledge_docs_index'],
-      children: [
-        {
-          name: 'CRM Company Docs',
-          label: t('SIDEBAR.CRM_COMPANY_DOCS'),
-          to: accountScopedRoute(
-            'crm_knowledge_docs_index',
-            {},
-            { filter: 'company' }
-          ),
-          activeOn: ['crm_knowledge_docs_index'],
-        },
-        {
-          name: 'CRM My Docs',
-          label: t('SIDEBAR.CRM_MY_DOCS'),
-          to: accountScopedRoute(
-            'crm_knowledge_docs_index',
-            {},
-            { filter: 'mine' }
-          ),
-        },
-      ],
-    },
-    {
-      name: 'CRM Doc Center',
-      label: t('SIDEBAR.CRM_G_DOC_CENTER'),
-      icon: 'i-lucide-library',
-      activeOn: ['crm_doc_center_index'],
-      children: [
-        {
-          name: 'CRM Doc Center Company',
-          label: t('SIDEBAR.CRM_DOC_CENTER_COMPANY'),
-          to: accountScopedRoute(
-            'crm_doc_center_index',
-            {},
-            { filter: 'company' }
-          ),
-          activeOn: ['crm_doc_center_index'],
-        },
-        // 资料板块（仅列出当前用户可见的；可见性按部门在文档中心配置）
-        ...docSections.value.map(section => ({
-          name: `CRM Doc Section ${section.id}`,
-          label: section.name,
-          to: accountScopedRoute(
-            'crm_doc_center_index',
-            {},
-            { filter: 'company', section_id: String(section.id) }
-          ),
-        })),
-        // 文档回收站：仅管理员可见可清理
-        ...(isAdmin.value
-          ? [
-              {
-                name: 'CRM Doc Center Recycle',
-                label: t('SIDEBAR.CRM_DOC_CENTER_RECYCLE'),
-                to: accountScopedRoute(
-                  'crm_doc_center_index',
-                  {},
-                  { filter: 'recycle' }
-                ),
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      name: 'CRM Org',
-      label: t('SIDEBAR.CRM_G_ORG'),
-      icon: 'i-lucide-network',
-      activeOn: ['crm_org_structure_index', 'crm_members_index', 'crm_member_invites_index'],
-      children: [
-        {
-          name: 'CRM Org Structure',
-          label: t('SIDEBAR.CRM_ORG_STRUCTURE'),
-          to: accountScopedRoute('crm_org_structure_index'),
-          activeOn: ['crm_org_structure_index'],
-        },
-        // CRM 成员权限：超级管理员与管理员可见。
-        ...(isAdminLike.value
-          ? [
-              {
-                name: 'CRM Members',
-                label: t('SIDEBAR.CRM_MEMBERS'),
-                to: accountScopedRoute('crm_members_index'),
-                activeOn: ['crm_members_index'],
-              },
-              {
-                name: 'CRM Member Invites',
-                label: t('SIDEBAR.CRM_MEMBER_INVITES'),
-                to: accountScopedRoute('crm_member_invites_index'),
-                activeOn: ['crm_member_invites_index'],
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      name: 'CRM HR Perf',
-      label: t('SIDEBAR.CRM_G_HR_PERF'),
-      icon: 'i-lucide-award',
-      activeOn: [
-        'crm_kpi_schemes_index',
-        'crm_kpi_sheets_index',
-        'crm_employees_index',
-        'crm_employee_comps_index',
-        'crm_performance_settings_index',
-      ],
-      children: [
-        // 员工档案（员工主数据）：含身份证/薪酬敏感信息，超级管理员与管理员可见。
-        ...(isAdminLike.value
-          ? [
-              {
-                name: 'CRM Employees',
-                label: t('SIDEBAR.CRM_EMPLOYEES'),
-                to: accountScopedRoute('crm_employees_index'),
-                activeOn: ['crm_employees_index'],
-              },
-            ]
-          : []),
-        // 考核方案 / 考核表：按角色可见性开关（管理员始终可见）。
-        ...(kpiSchemeVisible.value
-          ? [
-              {
-                name: 'CRM KPI Schemes',
-                label: t('SIDEBAR.CRM_KPI_SCHEMES'),
-                to: accountScopedRoute('crm_kpi_schemes_index'),
-                activeOn: ['crm_kpi_schemes_index'],
-              },
-            ]
-          : []),
-        ...(kpiSheetVisible.value
-          ? [
-              {
-                name: 'CRM KPI Sheets',
-                label: t('SIDEBAR.CRM_KPI_SHEETS'),
-                to: accountScopedRoute('crm_kpi_sheets_index'),
-                activeOn: ['crm_kpi_sheets_index', 'crm_kpi_sheet_detail'],
-              },
-            ]
-          : []),
-        // 员工薪资配置 / 审批人设置：超级管理员与管理员可见。
-        ...(isAdminLike.value
-          ? [
-              {
-                name: 'CRM Employee Comps',
-                label: t('SIDEBAR.CRM_EMPLOYEE_COMPS'),
-                to: accountScopedRoute('crm_employee_comps_index'),
-                activeOn: ['crm_employee_comps_index'],
-              },
-              {
-                name: 'CRM Perf Settings',
-                label: t('SIDEBAR.CRM_PERF_SETTINGS'),
-                to: accountScopedRoute('crm_performance_settings_index'),
-                activeOn: ['crm_performance_settings_index'],
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      name: 'CRM Approvals',
-      label: t('SIDEBAR.CRM_G_OA'),
-      icon: 'i-lucide-file-check',
-      activeOn: ['crm_approvals_index'],
-      children: [
-        {
-          name: 'CRM My Approvals',
-          label: t('SIDEBAR.CRM_APPROVALS'),
-          to: accountScopedRoute('crm_approvals_index'),
-          activeOn: ['crm_approvals_index'],
-        },
-        // 审批模板：仅管理员与行政部门成员可见可维护
-        ...(currentUser.value?.oa_template_maintainer
-          ? [
-              {
-                name: 'CRM Approval Templates',
-                label: t('SIDEBAR.CRM_APPROVAL_TEMPLATES'),
-                to: accountScopedRoute('crm_approval_templates_index'),
-                activeOn: ['crm_approval_templates_index'],
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      name: 'CRM Team Chat',
-      label: t('SIDEBAR.CRM_G_CHAT'),
-      icon: 'i-lucide-messages-square',
-      activeOn: ['crm_team_chat_index'],
-      children: [
-        {
-          name: 'CRM Team Chat Messages',
-          label: t('SIDEBAR.CRM_TEAM_CHAT'),
-          to: accountScopedRoute('crm_team_chat_index'),
-          activeOn: ['crm_team_chat_index'],
-        },
-      ],
-    },
-    {
-      name: 'Reports',
-      label: t('SIDEBAR.REPORTS'),
-      icon: 'i-lucide-chart-spline',
-      children: [
-        {
-          name: 'Report Overview',
-          label: t('SIDEBAR.REPORTS_OVERVIEW'),
-          to: accountScopedRoute('account_overview_reports'),
-        },
-        {
-          name: 'Report Conversation',
-          label: t('SIDEBAR.REPORTS_CONVERSATION'),
-          to: accountScopedRoute('conversation_reports'),
-        },
-        ...reportRoutes.value,
-        {
-          name: 'Reports CSAT',
-          label: t('SIDEBAR.CSAT'),
-          to: accountScopedRoute('csat_reports'),
-        },
-        {
-          name: 'Reports SLA',
-          label: t('SIDEBAR.REPORTS_SLA'),
-          to: accountScopedRoute('sla_reports'),
-        },
-        {
-          name: 'Reports Bot',
-          label: t('SIDEBAR.REPORTS_BOT'),
-          to: accountScopedRoute('bot_reports'),
-        },
-      ],
-    },
-    {
-      name: 'Campaigns',
-      label: t('SIDEBAR.CAMPAIGNS'),
-      icon: 'i-lucide-megaphone',
-      children: [
-        {
-          name: 'Live chat',
-          label: t('SIDEBAR.LIVE_CHAT'),
-          to: accountScopedRoute('campaigns_livechat_index'),
-        },
-        {
-          name: 'SMS',
-          label: t('SIDEBAR.SMS'),
-          to: accountScopedRoute('campaigns_sms_index'),
-        },
-        {
-          name: 'WhatsApp',
-          label: t('SIDEBAR.WHATSAPP'),
-          to: accountScopedRoute('campaigns_whatsapp_index'),
-        },
-      ],
-    },
-    {
-      name: 'Portals',
-      label: t('SIDEBAR.HELP_CENTER.TITLE'),
-      icon: 'i-lucide-library-big',
-      children: [
-        {
-          name: 'Articles',
-          label: t('SIDEBAR.HELP_CENTER.ARTICLES'),
-          activeOn: [
-            'portals_articles_index',
-            'portals_articles_new',
-            'portals_articles_edit',
-          ],
-          to: accountScopedRoute('portals_index', {
-            navigationPath: 'portals_articles_index',
-          }),
-        },
-        {
-          name: 'Categories',
-          label: t('SIDEBAR.HELP_CENTER.CATEGORIES'),
-          activeOn: [
-            'portals_categories_index',
-            'portals_categories_articles_index',
-            'portals_categories_articles_edit',
-          ],
-          to: accountScopedRoute('portals_index', {
-            navigationPath: 'portals_categories_index',
-          }),
-        },
-        {
-          name: 'Locales',
-          label: t('SIDEBAR.HELP_CENTER.LOCALES'),
-          activeOn: ['portals_locales_index'],
-          to: accountScopedRoute('portals_index', {
-            navigationPath: 'portals_locales_index',
-          }),
-        },
-        {
-          name: 'Settings',
-          label: t('SIDEBAR.HELP_CENTER.SETTINGS'),
-          activeOn: ['portals_settings_index'],
-          to: accountScopedRoute('portals_index', {
-            navigationPath: 'portals_settings_index',
-          }),
-        },
-      ],
-    },
-    {
-      name: 'Settings',
-      label: t('SIDEBAR.SETTINGS'),
-      icon: 'i-lucide-bolt',
-      children: [
-        {
-          name: 'Settings Account Settings',
-          label: t('SIDEBAR.ACCOUNT_SETTINGS'),
-          icon: 'i-lucide-briefcase',
-          to: accountScopedRoute('general_settings_index'),
-        },
-        // {
-        //   name: 'Settings Captain',
-        //   label: t('SIDEBAR.CAPTAIN_AI'),
-        //   icon: 'i-woot-captain',
-        //   to: accountScopedRoute('captain_settings_index'),
-        // },
-        {
-          name: 'Settings Agents',
-          label: t('SIDEBAR.AGENTS'),
-          icon: 'i-lucide-square-user',
-          to: accountScopedRoute('agent_list'),
-        },
-        {
-          name: 'Settings Teams',
-          label: t('SIDEBAR.TEAMS'),
-          icon: 'i-lucide-users',
-          activeOn: [
-            'settings_teams_list',
-            'settings_teams_new',
-            'settings_teams_finish',
-            'settings_teams_add_agents',
-            'settings_teams_show',
-            'settings_teams_edit',
-            'settings_teams_edit_members',
-            'settings_teams_edit_finish',
-          ],
-          to: accountScopedRoute('settings_teams_list'),
-        },
-        ...(hasAdvancedAssignment.value
-          ? [
-              {
-                name: 'Settings Agent Assignment',
-                label: t('SIDEBAR.AGENT_ASSIGNMENT'),
-                icon: 'i-lucide-user-cog',
-                activeOn: [
-                  'assignment_policy_index',
-                  'agent_assignment_policy_index',
-                  'agent_assignment_policy_create',
-                  'agent_assignment_policy_edit',
-                  'agent_capacity_policy_index',
-                  'agent_capacity_policy_create',
-                  'agent_capacity_policy_edit',
-                ],
-                to: accountScopedRoute('assignment_policy_index'),
-              },
-            ]
-          : []),
-        {
-          name: 'Settings Inboxes',
-          label: t('SIDEBAR.INBOXES'),
-          icon: 'i-lucide-inbox',
-          activeOn: [
-            'settings_inbox_list',
-            'settings_inbox_show',
-            'settings_inbox_new',
-            'settings_inbox_finish',
-            'settings_inboxes_page_channel',
-            'settings_inboxes_add_agents',
-          ],
-          to: accountScopedRoute('settings_inbox_list'),
-        },
-        {
-          name: 'Settings Labels',
-          label: t('SIDEBAR.LABELS'),
-          icon: 'i-lucide-tags',
-          to: accountScopedRoute('labels_list'),
-        },
-        {
-          name: 'Settings Custom Attributes',
-          label: t('SIDEBAR.CUSTOM_ATTRIBUTES'),
-          icon: 'i-lucide-code',
-          to: accountScopedRoute('attributes_list'),
-        },
-        {
-          name: 'Settings Automation',
-          label: t('SIDEBAR.AUTOMATION'),
-          icon: 'i-lucide-repeat',
-          to: accountScopedRoute('automation_list'),
-        },
-        {
-          name: 'Settings Agent Bots',
-          label: t('SIDEBAR.AGENT_BOTS'),
-          icon: 'i-lucide-bot',
-          to: accountScopedRoute('agent_bots'),
-        },
-        {
-          name: 'Settings Macros',
-          label: t('SIDEBAR.MACROS'),
-          icon: 'i-lucide-toy-brick',
-          to: accountScopedRoute('macros_wrapper'),
-        },
-        {
-          name: 'Settings Canned Responses',
-          label: t('SIDEBAR.CANNED_RESPONSES'),
-          icon: 'i-lucide-message-square-quote',
-          to: accountScopedRoute('canned_list'),
-        },
-        {
-          name: 'Settings Integrations',
-          label: t('SIDEBAR.INTEGRATIONS'),
-          icon: 'i-lucide-blocks',
-          to: accountScopedRoute('settings_applications'),
-        },
-        {
-          name: 'Settings Audit Logs',
-          label: t('SIDEBAR.AUDIT_LOGS'),
-          icon: 'i-lucide-briefcase',
-          to: accountScopedRoute('auditlogs_list'),
-        },
-        {
-          name: 'Settings Custom Roles',
-          label: t('SIDEBAR.CUSTOM_ROLES'),
-          icon: 'i-lucide-shield-plus',
-          to: accountScopedRoute('custom_roles_list'),
-        },
-        {
-          name: 'Settings Sla',
-          label: t('SIDEBAR.SLA'),
-          icon: 'i-lucide-clock-alert',
-          to: accountScopedRoute('sla_list'),
-        },
-        {
-          name: 'Conversation Workflow',
-          label: t('SIDEBAR.CONVERSATION_WORKFLOW'),
-          icon: 'i-lucide-workflow',
-          to: accountScopedRoute('conversation_workflow_index'),
-        },
-        {
-          name: 'Settings Security',
-          label: t('SIDEBAR.SECURITY'),
-          icon: 'i-lucide-shield',
-          to: accountScopedRoute('security_settings_index'),
-        },
-        {
-          name: 'Settings Billing',
-          label: t('SIDEBAR.BILLING'),
-          icon: 'i-lucide-credit-card',
-          to: accountScopedRoute('billing_settings_index'),
-        },
-      ],
-    },
-    // CRM 定位下默认隐藏 Captain（AI 坐席）——开启 captain_integration flag 即恢复。
-  ]
-    .filter(item => item.name !== 'Captain' || hasCaptainEnabled.value)
-    // 外贸 CRM 定位下隐藏原生客服模块：联系人 / 报告 / 活动 / 帮助中心。
-    .filter(item => !HIDDEN_NATIVE_MODULES.includes(item.name))
-    // 非 CRM 人员隐藏 CRM 销售数据分组。
-    .filter(item => canAccessCrm.value || !CRM_DATA_MODULES.includes(item.name))
-    // 「设置」（账号管理后台）仅系统管理员可见；个人资料走左下角头像菜单。
-    .filter(item => item.name !== 'Settings' || isAdmin.value);
+          // 文档回收站：仅管理员可见可清理
+          ...(isAdmin.value
+            ? [
+                {
+                  name: 'CRM Doc Center Recycle',
+                  label: t('SIDEBAR.CRM_DOC_CENTER_RECYCLE'),
+                  to: accountScopedRoute(
+                    'crm_doc_center_index',
+                    {},
+                    { filter: 'recycle' }
+                  ),
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        name: 'CRM Org',
+        label: t('SIDEBAR.CRM_G_ORG'),
+        icon: 'i-lucide-network',
+        activeOn: [
+          'crm_org_structure_index',
+          'crm_members_index',
+          'crm_member_invites_index',
+        ],
+        children: [
+          {
+            name: 'CRM Org Structure',
+            label: t('SIDEBAR.CRM_ORG_STRUCTURE'),
+            to: accountScopedRoute('crm_org_structure_index'),
+            activeOn: ['crm_org_structure_index'],
+          },
+          // CRM 成员权限：超管/管理员全量；部门负责人只见下属（仅可重置密码）。
+          ...(isAdminLike.value || isCrmManager.value
+            ? [
+                {
+                  name: 'CRM Members',
+                  label: t('SIDEBAR.CRM_MEMBERS'),
+                  to: accountScopedRoute('crm_members_index'),
+                  activeOn: ['crm_members_index'],
+                },
+              ]
+            : []),
+          // 成员邀请：仅超管/管理员。
+          ...(isAdminLike.value
+            ? [
+                {
+                  name: 'CRM Member Invites',
+                  label: t('SIDEBAR.CRM_MEMBER_INVITES'),
+                  to: accountScopedRoute('crm_member_invites_index'),
+                  activeOn: ['crm_member_invites_index'],
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        name: 'CRM HR Perf',
+        label: t('SIDEBAR.CRM_G_HR_PERF'),
+        icon: 'i-lucide-award',
+        activeOn: [
+          'crm_kpi_schemes_index',
+          'crm_kpi_sheets_index',
+          'crm_performance_settings_index',
+        ],
+        children: [
+          // 考核方案 / 考核表：按角色可见性开关（管理员始终可见）。
+          ...(kpiSchemeVisible.value
+            ? [
+                {
+                  name: 'CRM KPI Schemes',
+                  label: t('SIDEBAR.CRM_KPI_SCHEMES'),
+                  to: accountScopedRoute('crm_kpi_schemes_index'),
+                  activeOn: ['crm_kpi_schemes_index'],
+                },
+              ]
+            : []),
+          ...(kpiSheetVisible.value
+            ? [
+                {
+                  name: 'CRM KPI Sheets',
+                  label: t('SIDEBAR.CRM_KPI_SHEETS'),
+                  to: accountScopedRoute('crm_kpi_sheets_index'),
+                  activeOn: ['crm_kpi_sheets_index', 'crm_kpi_sheet_detail'],
+                },
+              ]
+            : []),
+          // 审批人设置：超级管理员与管理员可见。
+          ...(isAdminLike.value
+            ? [
+                {
+                  name: 'CRM Perf Settings',
+                  label: t('SIDEBAR.CRM_PERF_SETTINGS'),
+                  to: accountScopedRoute('crm_performance_settings_index'),
+                  activeOn: ['crm_performance_settings_index'],
+                },
+              ]
+            : []),
+        ],
+      },
+      // 员工档案 / 员工薪资配置：独立板块（超级管理员与管理员）。
+      ...(isAdminLike.value
+        ? [
+            {
+              name: 'CRM Employees',
+              label: t('SIDEBAR.CRM_EMPLOYEES'),
+              icon: 'i-lucide-contact',
+              to: accountScopedRoute('crm_employees_index'),
+              activeOn: ['crm_employees_index'],
+            },
+            {
+              name: 'CRM Employee Comps',
+              label: t('SIDEBAR.CRM_EMPLOYEE_COMPS'),
+              icon: 'i-lucide-wallet',
+              to: accountScopedRoute('crm_employee_comps_index'),
+              activeOn: ['crm_employee_comps_index'],
+            },
+          ]
+        : []),
+      {
+        name: 'CRM Approvals',
+        label: t('SIDEBAR.CRM_G_OA'),
+        icon: 'i-lucide-file-check',
+        activeOn: ['crm_approvals_index'],
+        children: [
+          {
+            name: 'CRM My Approvals',
+            label: t('SIDEBAR.CRM_APPROVALS'),
+            to: accountScopedRoute('crm_approvals_index'),
+            activeOn: ['crm_approvals_index'],
+          },
+          // 审批模板：仅管理员与行政部门成员可见可维护
+          ...(currentUser.value?.oa_template_maintainer
+            ? [
+                {
+                  name: 'CRM Approval Templates',
+                  label: t('SIDEBAR.CRM_APPROVAL_TEMPLATES'),
+                  to: accountScopedRoute('crm_approval_templates_index'),
+                  activeOn: ['crm_approval_templates_index'],
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        name: 'CRM Team Chat',
+        label: t('SIDEBAR.CRM_G_CHAT'),
+        icon: 'i-lucide-messages-square',
+        activeOn: ['crm_team_chat_index'],
+        children: [
+          {
+            name: 'CRM Team Chat Messages',
+            label: t('SIDEBAR.CRM_TEAM_CHAT'),
+            to: accountScopedRoute('crm_team_chat_index'),
+            activeOn: ['crm_team_chat_index'],
+          },
+        ],
+      },
+      {
+        name: 'Reports',
+        label: t('SIDEBAR.REPORTS'),
+        icon: 'i-lucide-chart-spline',
+        children: [
+          {
+            name: 'Report Overview',
+            label: t('SIDEBAR.REPORTS_OVERVIEW'),
+            to: accountScopedRoute('account_overview_reports'),
+          },
+          {
+            name: 'Report Conversation',
+            label: t('SIDEBAR.REPORTS_CONVERSATION'),
+            to: accountScopedRoute('conversation_reports'),
+          },
+          ...reportRoutes.value,
+          {
+            name: 'Reports CSAT',
+            label: t('SIDEBAR.CSAT'),
+            to: accountScopedRoute('csat_reports'),
+          },
+          {
+            name: 'Reports SLA',
+            label: t('SIDEBAR.REPORTS_SLA'),
+            to: accountScopedRoute('sla_reports'),
+          },
+          {
+            name: 'Reports Bot',
+            label: t('SIDEBAR.REPORTS_BOT'),
+            to: accountScopedRoute('bot_reports'),
+          },
+        ],
+      },
+      {
+        name: 'Campaigns',
+        label: t('SIDEBAR.CAMPAIGNS'),
+        icon: 'i-lucide-megaphone',
+        children: [
+          {
+            name: 'Live chat',
+            label: t('SIDEBAR.LIVE_CHAT'),
+            to: accountScopedRoute('campaigns_livechat_index'),
+          },
+          {
+            name: 'SMS',
+            label: t('SIDEBAR.SMS'),
+            to: accountScopedRoute('campaigns_sms_index'),
+          },
+          {
+            name: 'WhatsApp',
+            label: t('SIDEBAR.WHATSAPP'),
+            to: accountScopedRoute('campaigns_whatsapp_index'),
+          },
+        ],
+      },
+      {
+        name: 'Portals',
+        label: t('SIDEBAR.HELP_CENTER.TITLE'),
+        icon: 'i-lucide-library-big',
+        children: [
+          {
+            name: 'Articles',
+            label: t('SIDEBAR.HELP_CENTER.ARTICLES'),
+            activeOn: [
+              'portals_articles_index',
+              'portals_articles_new',
+              'portals_articles_edit',
+            ],
+            to: accountScopedRoute('portals_index', {
+              navigationPath: 'portals_articles_index',
+            }),
+          },
+          {
+            name: 'Categories',
+            label: t('SIDEBAR.HELP_CENTER.CATEGORIES'),
+            activeOn: [
+              'portals_categories_index',
+              'portals_categories_articles_index',
+              'portals_categories_articles_edit',
+            ],
+            to: accountScopedRoute('portals_index', {
+              navigationPath: 'portals_categories_index',
+            }),
+          },
+          {
+            name: 'Locales',
+            label: t('SIDEBAR.HELP_CENTER.LOCALES'),
+            activeOn: ['portals_locales_index'],
+            to: accountScopedRoute('portals_index', {
+              navigationPath: 'portals_locales_index',
+            }),
+          },
+          {
+            name: 'Settings',
+            label: t('SIDEBAR.HELP_CENTER.SETTINGS'),
+            activeOn: ['portals_settings_index'],
+            to: accountScopedRoute('portals_index', {
+              navigationPath: 'portals_settings_index',
+            }),
+          },
+        ],
+      },
+      {
+        name: 'Settings',
+        label: t('SIDEBAR.SETTINGS'),
+        icon: 'i-lucide-bolt',
+        children: [
+          {
+            name: 'Settings Account Settings',
+            label: t('SIDEBAR.ACCOUNT_SETTINGS'),
+            icon: 'i-lucide-briefcase',
+            to: accountScopedRoute('general_settings_index'),
+          },
+          // {
+          //   name: 'Settings Captain',
+          //   label: t('SIDEBAR.CAPTAIN_AI'),
+          //   icon: 'i-woot-captain',
+          //   to: accountScopedRoute('captain_settings_index'),
+          // },
+          {
+            name: 'Settings Agents',
+            label: t('SIDEBAR.AGENTS'),
+            icon: 'i-lucide-square-user',
+            to: accountScopedRoute('agent_list'),
+          },
+          {
+            name: 'Settings Teams',
+            label: t('SIDEBAR.TEAMS'),
+            icon: 'i-lucide-users',
+            activeOn: [
+              'settings_teams_list',
+              'settings_teams_new',
+              'settings_teams_finish',
+              'settings_teams_add_agents',
+              'settings_teams_show',
+              'settings_teams_edit',
+              'settings_teams_edit_members',
+              'settings_teams_edit_finish',
+            ],
+            to: accountScopedRoute('settings_teams_list'),
+          },
+          ...(hasAdvancedAssignment.value
+            ? [
+                {
+                  name: 'Settings Agent Assignment',
+                  label: t('SIDEBAR.AGENT_ASSIGNMENT'),
+                  icon: 'i-lucide-user-cog',
+                  activeOn: [
+                    'assignment_policy_index',
+                    'agent_assignment_policy_index',
+                    'agent_assignment_policy_create',
+                    'agent_assignment_policy_edit',
+                    'agent_capacity_policy_index',
+                    'agent_capacity_policy_create',
+                    'agent_capacity_policy_edit',
+                  ],
+                  to: accountScopedRoute('assignment_policy_index'),
+                },
+              ]
+            : []),
+          {
+            name: 'Settings Inboxes',
+            label: t('SIDEBAR.INBOXES'),
+            icon: 'i-lucide-inbox',
+            activeOn: [
+              'settings_inbox_list',
+              'settings_inbox_show',
+              'settings_inbox_new',
+              'settings_inbox_finish',
+              'settings_inboxes_page_channel',
+              'settings_inboxes_add_agents',
+            ],
+            to: accountScopedRoute('settings_inbox_list'),
+          },
+          {
+            name: 'Settings Labels',
+            label: t('SIDEBAR.LABELS'),
+            icon: 'i-lucide-tags',
+            to: accountScopedRoute('labels_list'),
+          },
+          {
+            name: 'Settings Custom Attributes',
+            label: t('SIDEBAR.CUSTOM_ATTRIBUTES'),
+            icon: 'i-lucide-code',
+            to: accountScopedRoute('attributes_list'),
+          },
+          {
+            name: 'Settings Automation',
+            label: t('SIDEBAR.AUTOMATION'),
+            icon: 'i-lucide-repeat',
+            to: accountScopedRoute('automation_list'),
+          },
+          {
+            name: 'Settings Agent Bots',
+            label: t('SIDEBAR.AGENT_BOTS'),
+            icon: 'i-lucide-bot',
+            to: accountScopedRoute('agent_bots'),
+          },
+          {
+            name: 'Settings Macros',
+            label: t('SIDEBAR.MACROS'),
+            icon: 'i-lucide-toy-brick',
+            to: accountScopedRoute('macros_wrapper'),
+          },
+          {
+            name: 'Settings Canned Responses',
+            label: t('SIDEBAR.CANNED_RESPONSES'),
+            icon: 'i-lucide-message-square-quote',
+            to: accountScopedRoute('canned_list'),
+          },
+          {
+            name: 'Settings Integrations',
+            label: t('SIDEBAR.INTEGRATIONS'),
+            icon: 'i-lucide-blocks',
+            to: accountScopedRoute('settings_applications'),
+          },
+          {
+            name: 'Settings Audit Logs',
+            label: t('SIDEBAR.AUDIT_LOGS'),
+            icon: 'i-lucide-briefcase',
+            to: accountScopedRoute('auditlogs_list'),
+          },
+          {
+            name: 'Settings Custom Roles',
+            label: t('SIDEBAR.CUSTOM_ROLES'),
+            icon: 'i-lucide-shield-plus',
+            to: accountScopedRoute('custom_roles_list'),
+          },
+          {
+            name: 'Settings Sla',
+            label: t('SIDEBAR.SLA'),
+            icon: 'i-lucide-clock-alert',
+            to: accountScopedRoute('sla_list'),
+          },
+          {
+            name: 'Conversation Workflow',
+            label: t('SIDEBAR.CONVERSATION_WORKFLOW'),
+            icon: 'i-lucide-workflow',
+            to: accountScopedRoute('conversation_workflow_index'),
+          },
+          {
+            name: 'Settings Security',
+            label: t('SIDEBAR.SECURITY'),
+            icon: 'i-lucide-shield',
+            to: accountScopedRoute('security_settings_index'),
+          },
+          {
+            name: 'Settings Billing',
+            label: t('SIDEBAR.BILLING'),
+            icon: 'i-lucide-credit-card',
+            to: accountScopedRoute('billing_settings_index'),
+          },
+        ],
+      },
+      // CRM 定位下默认隐藏 Captain（AI 坐席）——开启 captain_integration flag 即恢复。
+    ]
+      .filter(item => item.name !== 'Captain' || hasCaptainEnabled.value)
+      // 外贸 CRM 定位下隐藏原生客服模块：联系人 / 报告 / 活动 / 帮助中心。
+      .filter(item => !HIDDEN_NATIVE_MODULES.includes(item.name))
+      // 非 CRM 人员隐藏 CRM 销售数据分组。
+      .filter(
+        item => canAccessCrm.value || !CRM_DATA_MODULES.includes(item.name)
+      )
+      // 「设置」（账号管理后台）仅系统管理员可见；个人资料走左下角头像菜单。
+      .filter(item => item.name !== 'Settings' || isAdmin.value)
+  );
 });
 
 // ── 模块化侧边栏：进哪个系统只显示该系统的项（无切换标签，切换走工作台）──
 const route = useRoute();
 // 工作台/设置为通用项，任何系统下都显示。
-const PINNED_ITEMS = ['CRM Workspace', 'Settings'];
+const PINNED_ITEMS = ['CRM Workspace'];
 // 各顶级项归属的业务系统。未列出的（含原生会话/收件箱、CRM 销售各组）默认归 CRM。
 const ITEM_MODULE = {
   'CRM Team Chat': 'chat',
   'CRM Approvals': 'oa',
   'CRM Org': 'hr',
   'CRM HR Perf': 'hr',
+  'CRM Employees': 'hr',
+  'CRM Employee Comps': 'hr',
   'CRM Doc Center': 'doc',
 };
 const itemModule = name => ITEM_MODULE[name] || 'crm';
@@ -1319,11 +1345,15 @@ watch(
 onMounted(() => emitter.on('crmDocSectionsUpdated', fetchDocSections));
 onBeforeUnmount(() => emitter.off('crmDocSectionsUpdated', fetchDocSections));
 
+// 原生 Chatwoot「设置」入口暂时全局隐藏（各系统均不显示）；需要恢复时把
+// HIDDEN_ITEMS 清空即可，设置页仍可通过直链 /settings 访问。
+const HIDDEN_ITEMS = ['Settings'];
 const filteredMenuItems = computed(() =>
   menuItems.value.filter(
     item =>
-      PINNED_ITEMS.includes(item.name) ||
-      itemModule(item.name) === activeModule.value
+      !HIDDEN_ITEMS.includes(item.name) &&
+      (PINNED_ITEMS.includes(item.name) ||
+        itemModule(item.name) === activeModule.value)
   )
 );
 </script>
