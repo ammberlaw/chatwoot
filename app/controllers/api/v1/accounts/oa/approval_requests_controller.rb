@@ -11,9 +11,13 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
                 .page(params[:page] || 1).per(RESULTS_PER_PAGE)
   end
 
-  # 待办角标：待我审批数量。
+  # 待办角标：待我审批数量；approver_view=false 时前端隐藏「待我审批」入口。
   def counts
-    render json: { todo: todo_scope.count, mine: Current.account.oa_approval_requests.applied_by(current_user.id).count }
+    render json: {
+      todo: todo_scope.count,
+      mine: Current.account.oa_approval_requests.applied_by(current_user.id).count,
+      approver_view: approver_view?
+    }
   end
 
   def show; end
@@ -120,6 +124,18 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
            .where(oa_approval_steps: { approver_id: current_user.id })
            .where.not(oa_approval_steps: { status: %w[pending skipped] })
            .distinct
+  end
+
+  # 「待我审批」入口是否展示：管理角色天然是审批人；
+  # 其他成员看是否被指定过——审批模板流程里点名，或已有分派到名下的审批步骤。
+  def approver_view?
+    au = Current.account_user
+    return true if au.administrator? || au.crm_deputy_admin? || au.crm_manager?
+    return true if Oa::ApprovalStep.exists?(account_id: Current.account.id, approver_id: current_user.id)
+
+    Current.account.oa_approval_templates.any? do |template|
+      template.flow.any? { |step| step['type'] == 'user' && step['user_id'].to_i == current_user.id }
+    end
   end
 
   def check_authorization

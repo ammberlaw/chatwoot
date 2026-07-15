@@ -104,14 +104,18 @@ const STEP_META = {
   skipped: { icon: 'i-lucide-minus', class: 'text-n-slate-10' },
 };
 
-const TABS = [
-  { key: 'todo', label: L.tabTodo },
-  { key: 'mine', label: L.tabMine },
-];
-
 const activeTab = ref('todo');
 const requests = ref([]);
-const counts = ref({ todo: 0, mine: 0 });
+const counts = ref({ todo: 0, mine: 0, approver_view: true });
+
+// 非审批人（业务员/普通成员且未被指定为审批人）隐藏「待我审批」
+const showTodo = computed(() => counts.value.approver_view !== false);
+const TABS = computed(() =>
+  [
+    showTodo.value ? { key: 'todo', label: L.tabTodo } : null,
+    { key: 'mine', label: L.tabMine },
+  ].filter(Boolean)
+);
 const selected = ref(null);
 const comment = ref('');
 
@@ -153,18 +157,22 @@ const fmtDateTime = v =>
   v ? new Date(v).toLocaleString('zh-CN', { hour12: false }) : '';
 const initial = n => (n || '?').trim().charAt(0).toUpperCase();
 
+const fetchRequests = async () => {
+  const { data } = await RequestsAPI.list({ filter: activeTab.value, page: 1 });
+  requests.value = data.payload || [];
+};
+
 const fetchCounts = async () => {
   try {
     const { data } = await RequestsAPI.counts();
     counts.value = data;
+    if (data.approver_view === false && activeTab.value === 'todo') {
+      activeTab.value = 'mine';
+      fetchRequests();
+    }
   } catch {
     /* ignore */
   }
-};
-
-const fetchRequests = async () => {
-  const { data } = await RequestsAPI.list({ filter: activeTab.value, page: 1 });
-  requests.value = data.payload || [];
 };
 
 const setTab = key => {
@@ -287,8 +295,8 @@ const detailFields = computed(
 );
 
 onMounted(async () => {
+  await fetchCounts();
   fetchRequests();
-  fetchCounts();
   try {
     const [{ data: mine }, { data: ags }] = await Promise.all([
       MembershipsAPI.get({ mine: 'true' }),

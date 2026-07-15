@@ -15,7 +15,7 @@ const router = useRouter();
 const { accountScopedRoute } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
 
-const stats = ref({ todo: 0, dept: 0, unread: 0 });
+const stats = ref({ todo: 0, mine: 0, approverView: true, dept: 0, unread: 0 });
 const userName = computed(() => currentUser.value?.name || '');
 // 非 CRM 人员（无 crm_role 且非系统管理员）隐藏 CRM 旗舰入口。后端仍以 403 兜底。
 const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
@@ -51,9 +51,9 @@ const LIVE = computed(() => [
     icon: 'i-lucide-file-check',
     to: 'crm_approvals_index',
     accent: 'blue',
-    metric: stats.value.todo,
-    metricLabel: '待我审批',
-    urgent: stats.value.todo > 0,
+    metric: stats.value.approverView ? stats.value.todo : stats.value.mine,
+    metricLabel: stats.value.approverView ? '待我审批' : '我的申请',
+    urgent: stats.value.approverView && stats.value.todo > 0,
   },
   {
     key: 'chat',
@@ -131,6 +131,8 @@ onMounted(async () => {
   try {
     const { data } = await RequestsAPI.counts();
     stats.value.todo = data.todo || 0;
+    stats.value.mine = data.mine || 0;
+    stats.value.approverView = data.approver_view !== false;
   } catch {
     /* 概览统计取不到不阻塞落地页 */
   }
