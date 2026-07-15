@@ -5,6 +5,7 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 
 - 需求规范（外部）：`/Users/amberlaw/acrm-migration/CRM_SPEC.md`
 - 迁移目标：把 A-CRM 的能力用 Chatwoot 技术栈原生实现，AI 驱动开发。
+- **用户使用指南**（面向最终用户，全中文）：[`docs/A-CRM用户使用指南.html`](docs/A-CRM用户使用指南.html)（浏览器打开或下载后查看）
 
 ---
 
