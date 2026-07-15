@@ -13,8 +13,12 @@ class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::Base
     @employee = Current.account.crm_employees.create!(employee_params)
   end
 
+  # 状态从非离职改为「离职」且档案已关联系统账号时，自动执行离职交接：
+  # 客户/商机按 handover_mode 退回公海（默认）或转移给 handover_target_id；个人文档进回收站；账号 CRM 角色置无。
   def update
+    resigning = employee_params[:status] == 'RESIGNED' && @employee.status != 'RESIGNED'
     @employee.update!(employee_params)
+    run_offboarding if resigning && @employee.user_id.present?
   end
 
   def destroy
@@ -45,6 +49,15 @@ class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::Base
     @employee = Current.account.crm_employees.find(params[:id])
   end
 
+  def run_offboarding
+    Crm::OffboardingService.new(
+      account: Current.account,
+      user_id: @employee.user_id,
+      mode: params[:handover_mode].to_s,
+      target_user_id: params[:handover_target_id].presence
+    ).perform
+  end
+
   # 含身份证/薪资/银行卡等敏感信息：整对象仅管理员可读写（policy 全 admin）。
   def check_authorization
     authorize(Crm::Employee)
@@ -52,7 +65,7 @@ class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::Base
 
   def employee_params
     params.require(:employee).permit(
-      :employee_no, :name, :gender, :id_card_no, :birth_date, :native_place,
+      :employee_no, :name, :gender, :id_card_no, :birth_date, :native_place, :user_id,
       :department_id, :job_title, :job_category, :work_location,
       :status, :hire_date, :regular_date, :probation_months,
       :contract_start_date, :contract_end_date, :contract_type, :renew_count,

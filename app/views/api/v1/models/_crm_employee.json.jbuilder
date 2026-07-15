@@ -5,6 +5,8 @@ json.gender resource.gender
 json.id_card_no resource.id_card_no
 json.birth_date resource.birth_date
 json.native_place resource.native_place
+json.user_id resource.user_id
+json.user_name resource.user&.name
 json.department_id resource.department_id
 json.department_name resource.department&.name
 json.job_title resource.job_title

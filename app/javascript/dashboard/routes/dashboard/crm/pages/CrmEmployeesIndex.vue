@@ -53,6 +53,7 @@ const form = reactive({
   birthDate: '',
   nativePlace: '',
   departmentId: '',
+  userId: '',
   jobTitle: '',
   jobCategory: '',
   workLocation: '',
@@ -73,6 +74,8 @@ const form = reactive({
   resignDate: '',
   resignReason: '',
   resignType: '',
+  handoverMode: 'pool',
+  handoverTargetId: '',
 });
 // 已保存的附件（编辑时展示，可删）与待上传附件（保存后统一上传）
 const photoUrl = ref(null);
@@ -95,6 +98,19 @@ const fetchList = async () => {
   }
 };
 
+// 成员列表：供「关联系统账号」与离职交接接手人选择。
+const agents = ref([]);
+const fetchAgents = async () => {
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/agents`
+    );
+    agents.value = data || [];
+  } catch {
+    agents.value = [];
+  }
+};
+
 const fetchDepartments = async () => {
   try {
     const { data } = await axios.get(
@@ -109,6 +125,7 @@ const fetchDepartments = async () => {
 onMounted(() => {
   fetchList();
   fetchDepartments();
+  fetchAgents();
 });
 
 const filtered = computed(() => {
@@ -158,6 +175,7 @@ const resetForm = () => {
     birthDate: '',
     nativePlace: '',
     departmentId: '',
+    userId: '',
     jobTitle: '',
     jobCategory: '',
     workLocation: '',
@@ -178,6 +196,8 @@ const resetForm = () => {
     resignDate: '',
     resignReason: '',
     resignType: '',
+    handoverMode: 'pool',
+    handoverTargetId: '',
   });
   photoUrl.value = null;
   entryFiles.value = [];
@@ -206,6 +226,7 @@ const openEdit = row => {
     birthDate: row.birth_date || '',
     nativePlace: row.native_place || '',
     departmentId: row.department_id ? String(row.department_id) : '',
+    userId: row.user_id ? String(row.user_id) : '',
     jobTitle: row.job_title || '',
     jobCategory: row.job_category || '',
     workLocation: row.work_location || '',
@@ -256,6 +277,7 @@ const buildPayload = () => ({
   birth_date: form.birthDate || null,
   native_place: trimmed(form.nativePlace),
   department_id: form.departmentId || null,
+  user_id: form.userId || null,
   job_title: trimmed(form.jobTitle),
   job_category: trimmed(form.jobCategory),
   work_location: trimmed(form.workLocation),
@@ -338,7 +360,15 @@ const save = async () => {
   try {
     let id = editingId.value;
     if (id) {
-      await axios.patch(`${api()}/${id}`, { employee: buildPayload() });
+      await axios.patch(`${api()}/${id}`, {
+        employee: buildPayload(),
+        // 状态改为「离职」时后端据此执行交接（退公海/转移）；其他更新忽略。
+        handover_mode: form.handoverMode,
+        handover_target_id:
+          form.handoverMode === 'transfer'
+            ? form.handoverTargetId || null
+            : null,
+      });
     } else {
       const { data } = await axios.post(api(), { employee: buildPayload() });
       id = data.id;
@@ -676,6 +706,18 @@ const removeEmployee = async row => {
           </select>
         </label>
         <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">关联系统账号</span>
+          <select
+            v-model="form.userId"
+            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+          >
+            <option value="">未关联（离职交接需要）</option>
+            <option v-for="a in agents" :key="a.id" :value="String(a.id)">
+              {{ a.name }}（{{ a.email }}）
+            </option>
+          </select>
+        </label>
+        <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">岗位名称</span>
           <input
             v-model="form.jobTitle"
@@ -878,6 +920,53 @@ const removeEmployee = async row => {
         员工状态选择「离职」后，此处填写离职日期、离职类型、离职原因并上传离职资料。
       </p>
       <template v-if="form.status === 'RESIGNED'">
+        <div
+          v-if="form.userId"
+          class="flex flex-col gap-2 p-3 text-sm border rounded-lg border-n-amber-8 bg-n-amber-3/30"
+        >
+          <span class="text-xs font-medium text-n-slate-12">
+            离职交接（保存后执行）：名下客户与商机按下方选择处理，个人文档进回收站，该账号将不再能进入
+            CRM。
+          </span>
+          <div class="flex flex-wrap items-center gap-4">
+            <label
+              class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+            >
+              <input
+                v-model="form.handoverMode"
+                type="radio"
+                value="pool"
+                class="accent-n-iris-9"
+              />
+              客户退回公海
+            </label>
+            <label
+              class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+            >
+              <input
+                v-model="form.handoverMode"
+                type="radio"
+                value="transfer"
+                class="accent-n-iris-9"
+              />
+              转移给指定成员
+            </label>
+            <select
+              v-if="form.handoverMode === 'transfer'"
+              v-model="form.handoverTargetId"
+              class="h-8 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            >
+              <option value="">选择接手人</option>
+              <option
+                v-for="a in agents.filter(x => String(x.id) !== form.userId)"
+                :key="a.id"
+                :value="String(a.id)"
+              >
+                {{ a.name }}
+              </option>
+            </select>
+          </div>
+        </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label class="flex flex-col gap-1">
             <span class="text-xs text-n-slate-11">离职日期</span>

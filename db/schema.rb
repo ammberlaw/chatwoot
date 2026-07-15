@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_16_060000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_16_070000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -997,8 +997,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_060000) do
     t.string "resign_type"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id"
     t.index ["account_id", "employee_no"], name: "index_crm_employees_on_account_id_and_employee_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_employees_on_account_id_and_status"
+    t.index ["account_id", "user_id"], name: "index_crm_employees_on_account_id_and_user_id", unique: true, where: "(user_id IS NOT NULL)"
     t.index ["account_id"], name: "index_crm_employees_on_account_id"
   end
 
