@@ -50,6 +50,9 @@ class Crm::Employee < ApplicationRecord
   # 关联系统账号：离职交接（客户退公海/转移、文档归档、角色置无）依赖此关联。
   belongs_to :user, optional: true
 
+  # 变更审计：谁在何时改了哪些字段（查看日志见 Crm::AccessLog）。
+  audited
+
   has_one_attached :photo          # 证件照
   has_many_attached :entry_files   # 入职资料
   has_many_attached :resign_files  # 离职资料

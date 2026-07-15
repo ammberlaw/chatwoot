@@ -122,11 +122,62 @@ const fetchDepartments = async () => {
   }
 };
 
-onMounted(() => {
+// ── 敏感区二次验证：先输登录密码解锁（15 分钟免验），解锁后才拉数据 ──
+const sudoActive = ref(false);
+const sudoChecking = ref(true);
+const sudoPassword = ref('');
+const sudoError = ref('');
+const sudoVerifying = ref(false);
+const sudoUrl = () =>
+  `/api/v1/accounts/${accountId.value}/crm/sensitive_session`;
+const loadAll = () => {
   fetchList();
   fetchDepartments();
   fetchAgents();
-});
+};
+const checkSudo = async () => {
+  try {
+    const { data } = await axios.get(sudoUrl());
+    sudoActive.value = !!data.active;
+  } catch {
+    sudoActive.value = false;
+  } finally {
+    sudoChecking.value = false;
+  }
+  if (sudoActive.value) loadAll();
+};
+const unlock = async () => {
+  if (!sudoPassword.value || sudoVerifying.value) return;
+  sudoVerifying.value = true;
+  sudoError.value = '';
+  try {
+    await axios.post(sudoUrl(), { password: sudoPassword.value });
+    sudoActive.value = true;
+    sudoPassword.value = '';
+    loadAll();
+  } catch (e) {
+    sudoError.value =
+      e.response?.status === 401 ? '密码不正确' : '验证失败，请重试';
+  } finally {
+    sudoVerifying.value = false;
+  }
+};
+
+onMounted(checkSudo);
+
+// ── 敏感字段脱敏：身份证/银行卡默认打码，点「显示」才展开明文并可编辑 ──
+const showIdCard = ref(false);
+const showBankCard = ref(false);
+const masked = v => {
+  if (!v) return '—';
+  const t = String(v);
+  if (t.length <= 8) return '*'.repeat(t.length);
+  return `${t.slice(0, 4)}${'*'.repeat(t.length - 8)}${t.slice(-4)}`;
+};
+
+const historyOpen = ref(false);
+const historyRows = ref([]);
+const historyLoading = ref(false);
 
 const filtered = computed(() => {
   const kw = q.value.trim().toLowerCase();
@@ -206,52 +257,119 @@ const resetForm = () => {
   pendingPhotoPreview.value = null;
   pendingEntry.value = [];
   pendingResign.value = [];
+  showIdCard.value = false;
+  showBankCard.value = false;
+  historyOpen.value = false;
+  historyRows.value = [];
   errorMsg.value = '';
 };
 
 const openCreate = () => {
   resetForm();
+  showIdCard.value = true;
+  showBankCard.value = true;
   editingId.value = null;
   mode.value = 'form';
 };
 
-const openEdit = row => {
+const openEdit = async row => {
   resetForm();
   editingId.value = row.id;
+  // 单条查看走 show 接口：服务端记录「谁查看了谁的档案」，并取最新数据。
+  let rec = row;
+  try {
+    const { data } = await axios.get(`${api()}/${rec.id}`);
+    rec = data;
+  } catch {
+    // 拉取失败时退回列表快照
+  }
   Object.assign(form, {
-    employeeNo: row.employee_no || '',
-    name: row.name || '',
-    gender: row.gender || '',
-    idCardNo: row.id_card_no || '',
-    birthDate: row.birth_date || '',
-    nativePlace: row.native_place || '',
-    departmentId: row.department_id ? String(row.department_id) : '',
-    userId: row.user_id ? String(row.user_id) : '',
-    jobTitle: row.job_title || '',
-    jobCategory: row.job_category || '',
-    workLocation: row.work_location || '',
-    status: row.status || 'PROBATION',
-    hireDate: row.hire_date || '',
-    regularDate: row.regular_date || '',
-    probationMonths: row.probation_months ?? '',
-    contractStartDate: row.contract_start_date || '',
-    contractEndDate: row.contract_end_date || '',
-    contractType: row.contract_type || '',
-    renewCount: row.renew_count ?? '',
-    salaryNote: row.salary_note || '',
-    bankCardNo: row.bank_card_no || '',
-    bankName: row.bank_name || '',
-    phone: row.phone || '',
-    email: row.email || '',
-    wechat: row.wechat || '',
-    resignDate: row.resign_date || '',
-    resignReason: row.resign_reason || '',
-    resignType: row.resign_type || '',
+    employeeNo: rec.employee_no || '',
+    name: rec.name || '',
+    gender: rec.gender || '',
+    idCardNo: rec.id_card_no || '',
+    birthDate: rec.birth_date || '',
+    nativePlace: rec.native_place || '',
+    departmentId: rec.department_id ? String(rec.department_id) : '',
+    userId: rec.user_id ? String(rec.user_id) : '',
+    jobTitle: rec.job_title || '',
+    jobCategory: rec.job_category || '',
+    workLocation: rec.work_location || '',
+    status: rec.status || 'PROBATION',
+    hireDate: rec.hire_date || '',
+    regularDate: rec.regular_date || '',
+    probationMonths: rec.probation_months ?? '',
+    contractStartDate: rec.contract_start_date || '',
+    contractEndDate: rec.contract_end_date || '',
+    contractType: rec.contract_type || '',
+    renewCount: rec.renew_count ?? '',
+    salaryNote: rec.salary_note || '',
+    bankCardNo: rec.bank_card_no || '',
+    bankName: rec.bank_name || '',
+    phone: rec.phone || '',
+    email: rec.email || '',
+    wechat: rec.wechat || '',
+    resignDate: rec.resign_date || '',
+    resignReason: rec.resign_reason || '',
+    resignType: rec.resign_type || '',
   });
-  photoUrl.value = row.photo_url || null;
-  entryFiles.value = row.entry_files || [];
-  resignFiles.value = row.resign_files || [];
+  photoUrl.value = rec.photo_url || null;
+  entryFiles.value = rec.entry_files || [];
+  resignFiles.value = rec.resign_files || [];
   mode.value = 'form';
+};
+
+// ── 操作历史：变更审计 + 查看记录时间轴（编辑态展开加载）──
+const FIELD_LABELS = {
+  employee_no: '工号',
+  name: '姓名',
+  gender: '性别',
+  id_card_no: '身份证号',
+  birth_date: '出生日期',
+  native_place: '籍贯',
+  department_id: '所属部门',
+  user_id: '关联账号',
+  job_title: '岗位名称',
+  job_category: '岗位类别',
+  work_location: '工作地点',
+  status: '员工状态',
+  hire_date: '入职日期',
+  regular_date: '转正日期',
+  probation_months: '试用期',
+  contract_start_date: '合同开始',
+  contract_end_date: '合同结束',
+  contract_type: '合同类型',
+  renew_count: '续签次数',
+  salary_note: '薪资标准',
+  bank_card_no: '银行卡号',
+  bank_name: '开户行',
+  phone: '手机号',
+  email: '邮箱',
+  wechat: '微信',
+  resign_date: '离职日期',
+  resign_reason: '离职原因',
+  resign_type: '离职类型',
+};
+const historyText = r => {
+  if (r.kind === 'view') return '查看了档案';
+  if (r.action === 'create') return '创建了档案';
+  const fields = (r.changed_fields || [])
+    .map(f => FIELD_LABELS[f] || f)
+    .join('、');
+  return fields ? `修改了 ${fields}` : '更新了档案';
+};
+const toggleHistory = async () => {
+  historyOpen.value = !historyOpen.value;
+  if (!historyOpen.value || historyRows.value.length) return;
+  historyLoading.value = true;
+  try {
+    const { data } = await axios.get(`${api()}/${editingId.value}/audits`);
+    historyRows.value = data.payload || [];
+  } catch {
+    historyRows.value = [];
+  } finally {
+    historyLoading.value = false;
+  }
 };
 
 const backToList = () => {
@@ -410,14 +528,14 @@ const removeEmployee = async row => {
         {{ mode === 'list' ? '员工档案' : editingId ? '编辑员工' : '新增员工' }}
       </h1>
       <button
-        v-if="mode === 'list'"
+        v-if="sudoActive && mode === 'list'"
         class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10"
         @click="openCreate"
       >
         新增员工
       </button>
       <button
-        v-else
+        v-else-if="sudoActive"
         class="h-9 px-4 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-2"
         @click="backToList"
       >
@@ -425,8 +543,41 @@ const removeEmployee = async row => {
       </button>
     </div>
 
+    <!-- ── 敏感区解锁门：二次密码验证，15 分钟免验 ── -->
+    <div
+      v-if="!sudoActive"
+      class="flex flex-col items-center justify-center gap-3 px-6 py-24"
+    >
+      <span class="i-lucide-shield-check size-9 text-n-iris-9" />
+      <p class="text-sm font-medium text-n-slate-12">
+        员工档案含身份证、薪酬等敏感信息
+      </p>
+      <p class="text-xs text-n-slate-11">
+        请输入登录密码完成二次验证（15 分钟内免验）；所有查看与修改将留痕。
+      </p>
+      <div v-if="!sudoChecking" class="flex items-center gap-2 mt-1">
+        <input
+          v-model="sudoPassword"
+          type="password"
+          class="h-9 px-3 text-sm border rounded-lg w-56 border-n-weak bg-n-solid-1 text-n-slate-12"
+          placeholder="登录密码"
+          @keyup.enter="unlock"
+        />
+        <button
+          class="h-9 px-4 text-sm font-medium text-white rounded-lg shrink-0 whitespace-nowrap bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+          :disabled="!sudoPassword || sudoVerifying"
+          @click="unlock"
+        >
+          {{ sudoVerifying ? '验证中…' : '解锁' }}
+        </button>
+      </div>
+      <span v-if="sudoError" class="text-xs text-n-ruby-11">
+        {{ sudoError }}
+      </span>
+    </div>
+
     <!-- ── 列表视图 ── -->
-    <div v-if="mode === 'list'" class="flex flex-col gap-4 px-6 py-5">
+    <div v-else-if="mode === 'list'" class="flex flex-col gap-4 px-6 py-5">
       <div class="flex flex-wrap items-center gap-2">
         <button
           v-for="[val, lab] in TABS"
@@ -586,14 +737,30 @@ const removeEmployee = async row => {
             </option>
           </select>
         </label>
-        <label class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">身份证号</span>
-          <input
-            v-model="form.idCardNo"
-            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="18 位身份证号"
-          />
-        </label>
+          <div class="flex items-center gap-2">
+            <input
+              v-if="showIdCard"
+              v-model="form.idCardNo"
+              class="flex-1 h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+              placeholder="18 位身份证号"
+            />
+            <span
+              v-else
+              class="flex items-center flex-1 h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-alpha-1 text-n-slate-11"
+            >
+              {{ masked(form.idCardNo) }}
+            </span>
+            <button
+              type="button"
+              class="text-xs text-n-iris-11 hover:underline"
+              @click="showIdCard = !showIdCard"
+            >
+              {{ showIdCard ? '隐藏' : '显示' }}
+            </button>
+          </div>
+        </div>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">出生日期</span>
           <input
@@ -859,14 +1026,30 @@ const removeEmployee = async row => {
             placeholder="如 底薪 8000 + 绩效 2000 + 提成"
           />
         </label>
-        <label class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">银行卡号</span>
-          <input
-            v-model="form.bankCardNo"
-            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="发薪银行卡号"
-          />
-        </label>
+          <div class="flex items-center gap-2">
+            <input
+              v-if="showBankCard"
+              v-model="form.bankCardNo"
+              class="flex-1 h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+              placeholder="发薪银行卡号"
+            />
+            <span
+              v-else
+              class="flex items-center flex-1 h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-alpha-1 text-n-slate-11"
+            >
+              {{ masked(form.bankCardNo) }}
+            </span>
+            <button
+              type="button"
+              class="text-xs text-n-iris-11 hover:underline"
+              @click="showBankCard = !showBankCard"
+            >
+              {{ showBankCard ? '隐藏' : '显示' }}
+            </button>
+          </div>
+        </div>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">开户行</span>
           <input
@@ -1050,6 +1233,32 @@ const removeEmployee = async row => {
               </label>
             </div>
           </div>
+        </div>
+      </template>
+
+      <template v-if="editingId">
+        <div
+          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+        >
+          操作历史
+          <button
+            type="button"
+            class="ml-2 normal-case text-n-iris-11 hover:underline"
+            @click="toggleHistory"
+          >
+            {{ historyOpen ? '收起' : '展开' }}
+          </button>
+        </div>
+        <div
+          v-if="historyOpen"
+          class="flex flex-col gap-1 text-xs text-n-slate-11"
+        >
+          <span v-if="historyLoading">加载中…</span>
+          <span v-else-if="!historyRows.length">暂无记录</span>
+          <span v-for="(r, i) in historyRows" :key="i">
+            {{ new Date(r.created_at).toLocaleString() }} · {{ r.user_name }}
+            {{ historyText(r) }}
+          </span>
         </div>
       </template>
 

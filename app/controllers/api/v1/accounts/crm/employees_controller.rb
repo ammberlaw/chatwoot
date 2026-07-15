@@ -1,6 +1,8 @@
 class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_employee, only: [:show, :update, :destroy, :attach, :detach]
+  before_action :ensure_sensitive_session
+  before_action :fetch_employee, only: [:show, :update, :destroy, :attach, :detach, :audits]
+  after_action :log_access, only: [:index, :show]
 
   # 员工数量有限，一次全量返回，分组/搜索由前端完成。
   def index
@@ -26,6 +28,12 @@ class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::Base
     head :ok
   end
 
+  # 操作历史：变更审计（audited）+ 查看记录（Crm::AccessLog）合并时间轴。
+  def audits
+    rows = (change_rows + view_rows).sort_by { |r| r[:created_at] }.last(80).reverse
+    render json: { payload: rows }
+  end
+
   # 附件上传：kind=photo（证件照，单张覆盖）/ entry（入职资料，追加）/ resign（离职资料，追加）。
   def attach
     files = Array(params[:files])
@@ -47,6 +55,35 @@ class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::Base
 
   def fetch_employee
     @employee = Current.account.crm_employees.find(params[:id])
+  end
+
+  def change_rows
+    @employee.audits.order(created_at: :desc).limit(60).map do |a|
+      { kind: 'change', action: a.action, changed_fields: a.audited_changes.keys,
+        user_name: a.user&.name || '系统', created_at: a.created_at }
+    end
+  end
+
+  def view_rows
+    Current.account.crm_access_logs
+           .where(resource_type: 'Crm::Employee', resource_id: @employee.id, action: 'view')
+           .order(created_at: :desc).limit(40).includes(:user)
+           .map { |l| { kind: 'view', action: 'view', user_name: l.user.name, created_at: l.created_at } }
+  end
+
+  # 敏感区闸口：需先通过二次密码验证（15 分钟内免验）。
+  def ensure_sensitive_session
+    return if Crm::SensitiveSession.active?(Current.account, current_user)
+
+    render json: { error: '需要二次验证', code: 'sensitive_verification_required' }, status: :forbidden
+  end
+
+  # 查看留痕：列表与单条查看都记录访问日志。
+  def log_access
+    Current.account.crm_access_logs.create!(
+      user_id: current_user.id, resource_type: 'Crm::Employee',
+      resource_id: @employee&.id, action: params[:action] == 'index' ? 'list' : 'view'
+    )
   end
 
   def run_offboarding

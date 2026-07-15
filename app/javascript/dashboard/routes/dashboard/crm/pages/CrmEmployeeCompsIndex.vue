@@ -1,7 +1,9 @@
 <script setup>
+/* global axios */
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmEmployeeCompsStore } from 'dashboard/stores/crm/employeeComps';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -31,10 +33,53 @@ const createRecord = async payload => {
   }
 };
 
-onMounted(fetchRecords);
+// ── 敏感区二次验证：先输登录密码解锁（15 分钟免验），解锁后才拉数据 ──
+const { accountId } = useAccount();
+const sudoActive = ref(false);
+const sudoChecking = ref(true);
+const sudoPassword = ref('');
+const sudoError = ref('');
+const sudoVerifying = ref(false);
+const sudoUrl = () =>
+  `/api/v1/accounts/${accountId.value}/crm/sensitive_session`;
+const checkSudo = async () => {
+  try {
+    const { data } = await axios.get(sudoUrl());
+    sudoActive.value = !!data.active;
+  } catch {
+    sudoActive.value = false;
+  } finally {
+    sudoChecking.value = false;
+  }
+  if (sudoActive.value) fetchRecords();
+};
+const unlock = async () => {
+  if (!sudoPassword.value || sudoVerifying.value) return;
+  sudoVerifying.value = true;
+  sudoError.value = '';
+  try {
+    await axios.post(sudoUrl(), { password: sudoPassword.value });
+    sudoActive.value = true;
+    sudoPassword.value = '';
+    fetchRecords();
+  } catch (e) {
+    sudoError.value =
+      e.response?.status === 401 ? '密码不正确' : '验证失败，请重试';
+  } finally {
+    sudoVerifying.value = false;
+  }
+};
 
-const fmtMoney = micros =>
-  micros == null ? '—' : `¥ ${(micros / 1_000_000).toLocaleString()}`;
+onMounted(checkSudo);
+
+// 金额默认打码，页头开关显隐（防旁人瞟屏）。
+const showMoney = ref(false);
+const fmtMoney = micros => {
+  if (micros == null) return '—';
+  return showMoney.value
+    ? `¥ ${(micros / 1_000_000).toLocaleString()}`
+    : '¥ ******';
+};
 </script>
 
 <template>
@@ -52,15 +97,55 @@ const fmtMoney = micros =>
           {{ t('CRM.EMPLOYEE_COMPS.SUBTITLE') }}
         </p>
       </div>
-      <Button
-        :label="t('CRM.EMPLOYEE_COMPS.NEW')"
-        icon="i-lucide-plus"
-        color="iris"
-        @click="openCreateDialog"
-      />
+      <div v-if="sudoActive" class="flex items-center gap-2">
+        <Button
+          :label="showMoney ? '隐藏金额' : '显示金额'"
+          :icon="showMoney ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+          color="slate"
+          variant="faded"
+          @click="showMoney = !showMoney"
+        />
+        <Button
+          :label="t('CRM.EMPLOYEE_COMPS.NEW')"
+          icon="i-lucide-plus"
+          color="iris"
+          @click="openCreateDialog"
+        />
+      </div>
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <!-- 敏感区解锁门：二次密码验证，15 分钟免验 -->
+    <div
+      v-if="!sudoActive"
+      class="flex flex-col items-center justify-center gap-3 px-6 py-24"
+    >
+      <span class="i-lucide-shield-check size-9 text-n-iris-9" />
+      <p class="text-sm font-medium text-n-slate-12">员工薪资为高敏感信息</p>
+      <p class="text-xs text-n-slate-11">
+        请输入登录密码完成二次验证（15 分钟内免验）；所有查看与修改将留痕。
+      </p>
+      <div v-if="!sudoChecking" class="flex items-center gap-2 mt-1">
+        <input
+          v-model="sudoPassword"
+          type="password"
+          class="h-9 px-3 text-sm border rounded-lg w-56 border-n-weak bg-n-solid-1 text-n-slate-12"
+          placeholder="登录密码"
+          @keyup.enter="unlock"
+        />
+        <button
+          class="h-9 px-4 text-sm font-medium text-white rounded-lg shrink-0 whitespace-nowrap bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+          :disabled="!sudoPassword || sudoVerifying"
+          @click="unlock"
+        >
+          {{ sudoVerifying ? '验证中…' : '解锁' }}
+        </button>
+      </div>
+      <span v-if="sudoError" class="text-xs text-n-ruby-11">
+        {{ sudoError }}
+      </span>
+    </div>
+
+    <div v-else class="flex-1 px-6 py-4">
       <div
         v-if="isFetching"
         class="flex items-center justify-center p-8 text-base text-n-slate-11"
@@ -112,7 +197,11 @@ const fmtMoney = micros =>
               {{ fmtMoney(record.monthlySalaryMicros) }}
             </td>
             <td class="px-3 py-2 text-n-slate-11">
-              {{ record.performanceRatio != null ? `${record.performanceRatio}%` : '—' }}
+              {{
+                record.performanceRatio != null
+                  ? `${record.performanceRatio}%`
+                  : '—'
+              }}
             </td>
             <td class="px-3 py-2 text-n-slate-11">
               {{ fmtMoney(record.baselineTargetMicros) }}

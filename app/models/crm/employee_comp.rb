@@ -26,6 +26,9 @@
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::EmployeeComp < ApplicationRecord
+  # 薪资敏感：变更全程审计（查看日志见 Crm::AccessLog）。
+  audited
+
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true
 

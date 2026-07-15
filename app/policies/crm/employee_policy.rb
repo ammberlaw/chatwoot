@@ -28,6 +28,10 @@ class Crm::EmployeePolicy < ApplicationPolicy
     admin_like?
   end
 
+  def audits?
+    admin_like?
+  end
+
   private
 
   def admin_like?

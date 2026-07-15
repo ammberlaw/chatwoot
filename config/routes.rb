@@ -133,10 +133,12 @@ Rails.application.routes.draw do
             resources :employee_comps
             resources :employees do
               member do
+                get :audits
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
               end
             end
+            resource :sensitive_session, only: [:show, :create], controller: 'sensitive_sessions'
             resource :performance_settings, only: [:show, :update], controller: 'performance_settings'
           end
           namespace :org do
