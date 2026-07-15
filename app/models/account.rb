@@ -91,6 +91,7 @@ class Account < ApplicationRecord
   has_many :crm_scheme_items, class_name: 'Crm::SchemeItem', dependent: :destroy_async
   has_many :crm_payout_tiers, class_name: 'Crm::PayoutTier', dependent: :destroy_async
   has_many :crm_employee_comps, class_name: 'Crm::EmployeeComp', dependent: :destroy_async
+  has_many :crm_employees, class_name: 'Crm::Employee', dependent: :destroy_async
   has_many :crm_kpi_sheets, class_name: 'Crm::KpiSheet', dependent: :destroy_async
   has_many :crm_kpi_sheet_items, class_name: 'Crm::KpiSheetItem', dependent: :destroy_async
   has_one :crm_performance_setting, class_name: 'Crm::PerformanceSetting', dependent: :destroy_async

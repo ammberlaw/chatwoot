@@ -131,6 +131,12 @@ Rails.application.routes.draw do
               end
             end
             resources :employee_comps
+            resources :employees do
+              member do
+                post :attach
+                delete 'attach/:attachment_id', action: :detach
+              end
+            end
             resource :performance_settings, only: [:show, :update], controller: 'performance_settings'
           end
           namespace :org do

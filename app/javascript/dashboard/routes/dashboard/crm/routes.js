@@ -26,6 +26,7 @@ import CrmKpiSheetDetailIndex from './pages/CrmKpiSheetDetailIndex.vue';
 import CrmPerformanceSettingsIndex from './pages/CrmPerformanceSettingsIndex.vue';
 import CrmPublicPoolSettingsIndex from './pages/CrmPublicPoolSettingsIndex.vue';
 import CrmEmployeeCompsIndex from './pages/CrmEmployeeCompsIndex.vue';
+import CrmEmployeesIndex from './pages/CrmEmployeesIndex.vue';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 
 const commonMeta = {
@@ -111,6 +112,11 @@ export const routes = [
     { permissions: ['administrator'], ...SHARED }
   ),
   crmPage('employee-comps', 'crm_employee_comps_index', CrmEmployeeCompsIndex, {
+    permissions: ['administrator'],
+    ...SHARED,
+  }),
+  // 员工档案（员工主数据）：含身份证/薪酬等敏感信息，仅管理员。
+  crmPage('employees', 'crm_employees_index', CrmEmployeesIndex, {
     permissions: ['administrator'],
     ...SHARED,
   }),

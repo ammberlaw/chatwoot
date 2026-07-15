@@ -911,10 +911,22 @@ const menuItems = computed(() => {
       activeOn: [
         'crm_kpi_schemes_index',
         'crm_kpi_sheets_index',
+        'crm_employees_index',
         'crm_employee_comps_index',
         'crm_performance_settings_index',
       ],
       children: [
+        // 员工档案（员工主数据）：含身份证/薪酬敏感信息，仅管理员可见。
+        ...(isAdmin.value
+          ? [
+              {
+                name: 'CRM Employees',
+                label: t('SIDEBAR.CRM_EMPLOYEES'),
+                to: accountScopedRoute('crm_employees_index'),
+                activeOn: ['crm_employees_index'],
+              },
+            ]
+          : []),
         // 考核方案 / 考核表：按角色可见性开关（管理员始终可见）。
         ...(kpiSchemeVisible.value
           ? [
@@ -1286,6 +1298,7 @@ const ROUTE_MODULE = {
   crm_kpi_sheet_detail: 'hr',
   crm_performance_settings_index: 'hr',
   crm_employee_comps_index: 'hr',
+  crm_employees_index: 'hr',
   crm_doc_center_index: 'doc',
 };
 const activeModule = computed(() => ROUTE_MODULE[route.name] || 'crm');

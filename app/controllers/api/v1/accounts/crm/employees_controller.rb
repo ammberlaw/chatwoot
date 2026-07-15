@@ -1,0 +1,64 @@
+class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::BaseController
+  before_action :check_authorization
+  before_action :fetch_employee, only: [:show, :update, :destroy, :attach, :detach]
+
+  # 员工数量有限，一次全量返回，分组/搜索由前端完成。
+  def index
+    @employees = Current.account.crm_employees.includes(:department).order(:employee_no)
+  end
+
+  def show; end
+
+  def create
+    @employee = Current.account.crm_employees.create!(employee_params)
+  end
+
+  def update
+    @employee.update!(employee_params)
+  end
+
+  def destroy
+    @employee.destroy!
+    head :ok
+  end
+
+  # 附件上传：kind=photo（证件照，单张覆盖）/ entry（入职资料，追加）/ resign（离职资料，追加）。
+  def attach
+    files = Array(params[:files])
+    case params[:kind]
+    when 'photo' then @employee.photo.attach(files.first)
+    when 'entry' then @employee.entry_files.attach(files)
+    when 'resign' then @employee.resign_files.attach(files)
+    end
+    render 'api/v1/accounts/crm/employees/show'
+  end
+
+  # 删除单个附件（入职/离职资料或证件照，按附件 id 定位）。
+  def detach
+    ActiveStorage::Attachment.where(record: @employee).find(params[:attachment_id]).purge
+    render 'api/v1/accounts/crm/employees/show'
+  end
+
+  private
+
+  def fetch_employee
+    @employee = Current.account.crm_employees.find(params[:id])
+  end
+
+  # 含身份证/薪资/银行卡等敏感信息：整对象仅管理员可读写（policy 全 admin）。
+  def check_authorization
+    authorize(Crm::Employee)
+  end
+
+  def employee_params
+    params.require(:employee).permit(
+      :employee_no, :name, :gender, :id_card_no, :birth_date, :native_place,
+      :department_id, :job_title, :job_category, :work_location,
+      :status, :hire_date, :regular_date, :probation_months,
+      :contract_start_date, :contract_end_date, :contract_type, :renew_count,
+      :salary_note, :bank_card_no, :bank_name,
+      :phone, :email, :wechat,
+      :resign_date, :resign_reason, :resign_type
+    )
+  end
+end

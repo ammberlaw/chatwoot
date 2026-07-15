@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_16_050000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_16_060000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -964,6 +964,42 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_050000) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_crm_employee_comps_on_account_id"
     t.index ["owner_id"], name: "index_crm_employee_comps_on_owner_id"
+  end
+
+  create_table "crm_employees", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "employee_no", null: false
+    t.string "name", null: false
+    t.string "gender"
+    t.string "id_card_no"
+    t.date "birth_date"
+    t.string "native_place"
+    t.bigint "department_id"
+    t.string "job_title"
+    t.string "job_category"
+    t.string "work_location"
+    t.string "status", default: "PROBATION", null: false
+    t.date "hire_date"
+    t.date "regular_date"
+    t.integer "probation_months"
+    t.date "contract_start_date"
+    t.date "contract_end_date"
+    t.string "contract_type"
+    t.integer "renew_count"
+    t.string "salary_note"
+    t.string "bank_card_no"
+    t.string "bank_name"
+    t.string "phone"
+    t.string "email"
+    t.string "wechat"
+    t.date "resign_date"
+    t.text "resign_reason"
+    t.string "resign_type"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "employee_no"], name: "index_crm_employees_on_account_id_and_employee_no", unique: true
+    t.index ["account_id", "status"], name: "index_crm_employees_on_account_id_and_status"
+    t.index ["account_id"], name: "index_crm_employees_on_account_id"
   end
 
   create_table "crm_follow_up_notes", force: :cascade do |t|
