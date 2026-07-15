@@ -20,7 +20,7 @@ import SidebarChangelogButton from './SidebarChangelogButton.vue';
 import ChannelLeaf from './ChannelLeaf.vue';
 import ChannelIcon from 'next/icon/ChannelIcon.vue';
 import SidebarAccountSwitcher from './SidebarAccountSwitcher.vue';
-import Logo from 'next/icon/Logo.vue';
+import wintouchIcon from 'dashboard/assets/images/wintouch/icon.png';
 import ComposeConversation from 'dashboard/components-next/NewConversation/ComposeConversation.vue';
 import {
   SIDEBAR_SORT_SECTIONS,
@@ -1277,12 +1277,13 @@ const filteredMenuItems = computed(() =>
           />
         </template>
         <template v-else>
-          <div class="grid flex-shrink-0 place-content-center size-6">
-            <Logo class="size-4" />
-          </div>
-          <div class="flex-shrink-0 w-px h-3 bg-n-strong" />
+          <img
+            :src="wintouchIcon"
+            alt="Wintouch"
+            class="flex-shrink-0 size-8 rounded-lg shadow-sm shadow-n-iris-9/20"
+          />
           <SidebarAccountSwitcher
-            class="flex-grow -mx-1 min-w-0"
+            class="flex-grow -mx-1 min-w-0 self-center"
             @show-create-account-modal="emit('showCreateAccountModal')"
           />
         </template>

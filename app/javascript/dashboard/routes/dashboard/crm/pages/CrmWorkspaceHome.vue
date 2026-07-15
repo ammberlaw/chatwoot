@@ -9,6 +9,7 @@ import ChatAPI from 'dashboard/api/chat/conversations';
 import DepartmentsAPI from 'dashboard/api/org/departments';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import wintouchLockup from 'dashboard/assets/images/wintouch/lockup.png';
 
 const router = useRouter();
 const { accountScopedRoute } = useAccount();
@@ -158,6 +159,13 @@ onMounted(async () => {
       <div
         class="relative flex flex-col justify-center w-full max-w-[1080px] min-h-full mx-auto px-6 sm:px-10 py-12"
       >
+        <!-- 品牌 -->
+        <img
+          :src="wintouchLockup"
+          alt="Wintouch"
+          class="w-auto h-10 mb-8 self-start"
+        />
+
         <!-- 问候 -->
         <header class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
           <h1 class="text-4xl font-semibold tracking-tight text-balance text-n-slate-12">
