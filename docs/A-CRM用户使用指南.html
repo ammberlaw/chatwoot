@@ -6,234 +6,153 @@
 <title>A-CRM 用户使用指南</title>
 <style>
   :root {
-    --amber: #d97706; --amber-deep: #b45309;
-    --amber-light: #fef3c7; --amber-bg: #fffbeb;
-    --ink: #1f2937; --ink-soft: #4b5563; --ink-muted: #9ca3af;
-    --line: #e5e7eb; --card: #ffffff; --bg: #f9fafb;
-    --teal: #0d9488; --ruby: #dc2626; --iris: #6366f1;
-    --shadow: 0 1px 3px rgba(0,0,0,.05), 0 4px 14px rgba(0,0,0,.04);
+    --amber: #d97706;
+    --amber-light: #fef3c7;
+    --amber-bg: #fffbeb;
+    --ink: #1f2937;
+    --ink-soft: #4b5563;
+    --ink-muted: #9ca3af;
+    --line: #e5e7eb;
+    --card: #ffffff;
+    --bg: #f9fafb;
+    --teal: #0d9488;
+    --ruby: #dc2626;
+    --iris: #6366f1;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
   body {
     font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-    color: var(--ink); background: var(--bg); line-height: 1.8; font-size: 15px;
+    color: var(--ink); background: var(--bg); line-height: 1.75; font-size: 15px;
   }
-  .layout { display: flex; max-width: 1320px; margin: 0 auto; }
+  .layout { display: flex; max-width: 1280px; margin: 0 auto; }
 
   /* ── 侧边目录 ── */
   nav.toc {
-    width: 256px; flex-shrink: 0; position: sticky; top: 0; height: 100vh;
-    overflow-y: auto; padding: 28px 14px 40px 22px;
-    border-right: 1px solid var(--line); background: var(--card);
+    width: 250px; flex-shrink: 0; position: sticky; top: 0; height: 100vh;
+    overflow-y: auto; padding: 32px 16px 32px 24px; border-right: 1px solid var(--line);
+    background: var(--card);
   }
-  nav.toc .logo { font-size: 21px; font-weight: 800; letter-spacing: -.01em;
-    background: linear-gradient(120deg, #d97706, #f59e0b); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  nav.toc .logo-sub { font-size: 12px; color: var(--ink-muted); margin: 2px 0 18px; }
-  nav.toc .group { font-size: 11.5px; color: var(--ink-muted); margin: 16px 0 4px 10px; font-weight: 700; letter-spacing: .08em; }
+  nav.toc .logo { font-size: 20px; font-weight: 700; color: var(--amber); margin-bottom: 4px; }
+  nav.toc .logo-sub { font-size: 12px; color: var(--ink-muted); margin-bottom: 20px; }
+  nav.toc .group { font-size: 12px; color: var(--ink-muted); margin: 16px 0 4px; font-weight: 600; letter-spacing: .05em; }
   nav.toc a {
     display: block; padding: 5px 10px; border-radius: 8px; color: var(--ink-soft);
-    text-decoration: none; font-size: 13.5px; border-left: 2px solid transparent;
+    text-decoration: none; font-size: 13.5px;
   }
   nav.toc a:hover { background: var(--amber-bg); color: var(--amber); }
-  nav.toc a.active { background: var(--amber-bg); color: var(--amber-deep); font-weight: 600; border-left-color: var(--amber); border-radius: 0 8px 8px 0; }
 
   /* ── 正文 ── */
-  main { flex: 1; padding: 32px 48px 110px; min-width: 0; }
-
-  .hero {
-    border-radius: 20px; padding: 34px 38px; margin-bottom: 34px; color: #fff;
-    background: linear-gradient(120deg, #b45309 0%, #d97706 45%, #f59e0b 100%);
-    box-shadow: 0 8px 30px rgba(217,119,6,.25);
+  main { flex: 1; padding: 40px 48px 96px; min-width: 0; }
+  h1 { font-size: 30px; font-weight: 700; margin-bottom: 8px; }
+  .lede { color: var(--ink-soft); font-size: 16px; margin-bottom: 8px; }
+  .meta { color: var(--ink-muted); font-size: 13px; margin-bottom: 32px; }
+  section { margin-bottom: 48px; scroll-margin-top: 24px; }
+  h2 {
+    font-size: 22px; font-weight: 700; padding-bottom: 10px; margin-bottom: 16px;
+    border-bottom: 2px solid var(--amber-light);
   }
-  .hero h1 { font-size: 30px; font-weight: 800; letter-spacing: -.01em; }
-  .hero p { margin-top: 8px; font-size: 15.5px; opacity: .95; max-width: 640px; }
-  .hero .chips { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
-  .hero .chip { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.3);
-    border-radius: 999px; padding: 3px 14px; font-size: 12.5px; backdrop-filter: blur(4px); }
-
-  section { margin-bottom: 52px; scroll-margin-top: 20px; }
-  h2 { font-size: 22px; font-weight: 750; padding-bottom: 10px; margin-bottom: 16px; border-bottom: 2px solid var(--amber-light); }
-  h2 .num { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px;
-    border-radius: 9px; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff;
-    font-size: 15px; margin-right: 10px; vertical-align: -4px; }
-  h3 { font-size: 16.5px; font-weight: 650; margin: 24px 0 8px; }
-  p { margin-bottom: 10px; }
+  h2 .num { color: var(--amber); margin-right: 8px; }
+  h3 { font-size: 16.5px; font-weight: 600; margin: 22px 0 8px; }
+  p { margin-bottom: 10px; color: var(--ink); }
   ul, ol { margin: 6px 0 12px 22px; }
   li { margin-bottom: 5px; }
-  strong { font-weight: 650; }
+  strong { font-weight: 600; }
 
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-    padding: 18px 22px; margin: 14px 0; box-shadow: var(--shadow); }
-
-  /* 角色快速上手卡 */
-  .role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 16px 0; }
-  .role-card { border-radius: 16px; padding: 18px 20px; border: 1px solid var(--line); box-shadow: var(--shadow); background: var(--card); }
-  .role-card.g1 { background: linear-gradient(150deg, #fffbeb, #fef3c7); border-color: #fde68a; }
-  .role-card.g2 { background: linear-gradient(150deg, #f0fdfa, #ccfbf1); border-color: #99f6e4; }
-  .role-card.g3 { background: linear-gradient(150deg, #eef2ff, #e0e7ff); border-color: #c7d2fe; }
-  .role-card.g4 { background: linear-gradient(150deg, #fff1f2, #ffe4e6); border-color: #fecdd3; }
-  .role-card h4 { font-size: 15.5px; font-weight: 700; margin-bottom: 8px; }
-  .role-card ol { margin-left: 18px; font-size: 13.8px; }
-  .role-card li { margin-bottom: 4px; }
-
-  .tip, .warn, .note { border-radius: 12px; padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 18px 22px; margin: 14px 0; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .tip, .warn, .note {
+    border-radius: 12px; padding: 12px 16px; margin: 12px 0; font-size: 14px;
+  }
   .tip  { background: #f0fdfa; border: 1px solid #99f6e4; color: #115e59; }
   .warn { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
   .note { background: var(--amber-bg); border: 1px solid #fde68a; color: #92400e; }
-  .tip::before  { content: "💡 提示 · "; font-weight: 650; }
-  .warn::before { content: "⚠️ 注意 · "; font-weight: 650; }
-  .note::before { content: "📌 说明 · "; font-weight: 650; }
+  .tip::before  { content: "💡 提示 · "; font-weight: 600; }
+  .warn::before { content: "⚠️ 注意 · "; font-weight: 600; }
+  .note::before { content: "📌 说明 · "; font-weight: 600; }
 
-  .badge { display: inline-block; font-size: 11.5px; font-weight: 650; border-radius: 999px;
-    padding: 1px 10px; margin-left: 8px; vertical-align: 2px; }
+  .badge {
+    display: inline-block; font-size: 11.5px; font-weight: 600; border-radius: 999px;
+    padding: 1px 10px; margin-left: 8px; vertical-align: 2px;
+  }
   .badge.admin { background: #eef2ff; color: var(--iris); }
   .badge.all   { background: #f0fdfa; color: var(--teal); }
   .badge.crm   { background: var(--amber-light); color: #92400e; }
 
-  table { width: 100%; border-collapse: collapse; margin: 12px 0 16px; font-size: 14px;
-    background: var(--card); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
-  th { background: var(--amber-bg); text-align: left; padding: 9px 14px; font-weight: 650; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 16px; font-size: 14px; background: var(--card); border-radius: 12px; overflow: hidden; }
+  th { background: var(--amber-bg); text-align: left; padding: 9px 14px; font-weight: 600; border-bottom: 1px solid var(--line); white-space: nowrap; }
   td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
   tr:last-child td { border-bottom: none; }
-  tbody tr:hover td { background: #fffdf5; }
 
-  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 14px 0; }
-  .flow .step { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-    padding: 6px 14px; font-size: 13.5px; font-weight: 550; box-shadow: var(--shadow); }
-  .flow .step.hl { background: linear-gradient(135deg, #fef3c7, #fde68a); border-color: #fcd34d; }
+  .flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 12px 0; }
+  .flow .step {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 6px 14px; font-size: 13.5px; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
   .flow .arrow { color: var(--amber); font-weight: 700; }
 
-  details { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-    margin: 10px 0; box-shadow: var(--shadow); overflow: hidden; }
-  details summary { cursor: pointer; padding: 13px 18px; font-weight: 620; font-size: 14.5px; list-style: none; position: relative; }
-  details summary::-webkit-details-marker { display: none; }
-  details summary::after { content: "＋"; position: absolute; right: 18px; color: var(--amber); font-weight: 700; }
-  details[open] summary::after { content: "－"; }
-  details[open] summary { border-bottom: 1px dashed var(--line); background: var(--amber-bg); }
-  details .body { padding: 12px 18px 14px; font-size: 14px; color: var(--ink-soft); }
-
-  kbd, code { background: #f3f4f6; border: 1px solid var(--line); border-radius: 6px;
-    padding: 1px 6px; font-size: 13px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
-  .path { color: var(--amber-deep); font-weight: 600; }
-  .path::before { content: "📍 "; }
-
-  #backtop { position: fixed; right: 26px; bottom: 26px; width: 42px; height: 42px; border-radius: 12px;
-    background: var(--amber); color: #fff; border: none; font-size: 18px; cursor: pointer;
-    box-shadow: 0 4px 14px rgba(217,119,6,.35); opacity: 0; pointer-events: none; transition: opacity .25s; }
-  #backtop.show { opacity: 1; pointer-events: auto; }
-
-  footer { color: var(--ink-muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 16px; }
-
-  @media (max-width: 900px) { nav.toc { display: none; } main { padding: 20px 18px 80px; } .hero { padding: 26px 24px; } }
+  kbd, code {
+    background: #f3f4f6; border: 1px solid var(--line); border-radius: 6px;
+    padding: 1px 6px; font-size: 13px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (max-width: 860px) {
+    nav.toc { display: none; }
+    main { padding: 24px 20px 64px; }
+  }
   @media print {
-    nav.toc, #backtop { display: none; }
+    nav.toc { display: none; }
     body { background: #fff; }
-    .hero { box-shadow: none; }
     section { break-inside: avoid-page; }
-    details { break-inside: avoid; } details summary::after { display: none; }
   }
 </style>
 </head>
 <body>
 <div class="layout">
 
-<nav class="toc" id="toc">
+<nav class="toc">
   <div class="logo">A-CRM</div>
   <div class="logo-sub">外贸销售 CRM · 用户使用指南</div>
   <div class="group">开始使用</div>
-  <a href="#quickstart">按角色快速上手</a>
-  <a href="#intro">1. 系统总览</a>
+  <a href="#intro">1. 系统简介</a>
   <a href="#roles">2. 角色与权限</a>
+  <a href="#workspace">3. 工作台</a>
   <div class="group">数据看板</div>
-  <a href="#dashboard">3. 数据看板</a>
-  <a href="#target">4. 我的目标</a>
+  <a href="#dashboard">4. 数据看板</a>
+  <a href="#target">5. 我的目标</a>
   <div class="group">客户</div>
-  <a href="#intake">5. 客户建档</a>
-  <a href="#customers">6. 私海 / 公海客户</a>
+  <a href="#intake">6. 客户建档</a>
+  <a href="#customers">7. 私海 / 公海客户</a>
   <div class="group">销售流程</div>
-  <a href="#funnel">7. 商机看板 / 列表</a>
-  <a href="#orders">8. 订单管理</a>
-  <a href="#sales-targets">9. 销售目标</a>
+  <a href="#funnel">8. 商机看板 / 商机列表</a>
+  <a href="#orders">9. 订单管理</a>
+  <a href="#sales-targets">10. 销售目标</a>
   <div class="group">邮件中心</div>
-  <a href="#mail">10. 邮箱与收发邮件</a>
+  <a href="#mail">11. 邮箱账户与收发邮件</a>
   <div class="group">资料与文档</div>
-  <a href="#docs">11. 销售资料 / 文档中心</a>
+  <a href="#docs">12. 销售资料 / 文档中心</a>
   <div class="group">组织与 HR</div>
-  <a href="#org">12. 组织架构与成员权限</a>
-  <a href="#hr">13. HR · 绩效考核</a>
+  <a href="#org">13. 组织架构与成员权限</a>
+  <a href="#hr">14. HR · 绩效考核</a>
   <div class="group">协同</div>
-  <a href="#oa">14. 协同办公（审批）</a>
-  <a href="#chat">15. 团队沟通</a>
+  <a href="#oa">15. 协同办公（审批）</a>
+  <a href="#chat">16. 团队沟通</a>
   <div class="group">附录</div>
-  <a href="#cheatsheet">16. 常用操作速查</a>
-  <a href="#glossary">17. 名词解释</a>
-  <a href="#faq">18. 常见问题 FAQ</a>
+  <a href="#faq">17. 常见问题 FAQ</a>
 </nav>
 
 <main>
-  <div class="hero">
-    <h1>A-CRM 用户使用指南</h1>
-    <p>面向外贸/自营销售团队的一站式 CRM——客户、商机、订单、邮件、目标绩效、HR 考核与团队协同，全部在一个系统里完成。</p>
-    <div class="chips">
-      <span class="chip">版本 2026-07</span>
-      <span class="chip">适用：业务员 · 主管 · 管理员 · 人事/总经理</span>
-      <span class="chip">建议浏览器：Chrome / Edge / Safari</span>
-    </div>
-  </div>
-
-  <!-- 快速上手 -->
-  <section id="quickstart">
-    <h2><span class="num">🚀</span>按角色快速上手</h2>
-    <p>不想读全文？找到你的角色，把下面几步跑通就能开始工作。</p>
-    <div class="role-grid">
-      <div class="role-card g1">
-        <h4>🧑‍💼 业务员 · 第一天</h4>
-        <ol>
-          <li>找管理员在「成员权限」给你分配 CRM 角色</li>
-          <li>去「邮箱账户」配置企业邮箱（SMTP + 授权码）</li>
-          <li>在「我的目标」设定本月基础目标</li>
-          <li>去「公海客户」认领客户，或「客户建档」录入新客户</li>
-          <li>为客户创建商机，日常在「商机看板」拖动推进</li>
-        </ol>
-      </div>
-      <div class="role-card g2">
-        <h4>👔 主管 · 日常三件事</h4>
-        <ol>
-          <li>早上看「团队看板」：组员完成率一屏尽览</li>
-          <li>盯「商机看板」按团队筛选，推进卡在打样的单子</li>
-          <li>月底在「考核表」给组员打分并签名</li>
-        </ol>
-      </div>
-      <div class="role-card g3">
-        <h4>🛠 管理员 · 初始化清单</h4>
-        <ol>
-          <li>「组织架构 → 部门与成员」建团队、归属成员</li>
-          <li>「成员权限」为每人分配业务员/主管角色</li>
-          <li>「审批人设置」指定人事与总经理、配置板块可见性</li>
-          <li>「员工薪资配置」录入月薪/绩效占比/业绩底线</li>
-          <li>「销售目标」设定公司与个人月度目标</li>
-        </ol>
-      </div>
-      <div class="role-card g4">
-        <h4>📋 人事 / 总经理 · 每月月初</h4>
-        <ol>
-          <li>HR：在「考核方案」建本月方案并「下发给员工」</li>
-          <li>等员工填报、主管打分完成后，人事做第 3 步确认</li>
-          <li>总经理做第 4 步确认，考核表归档</li>
-          <li>「实发绩效」自动核算，作为发薪依据</li>
-        </ol>
-      </div>
-    </div>
-  </section>
+  <h1>A-CRM 用户使用指南</h1>
+  <p class="lede">A-CRM 是面向外贸/自营销售团队的一站式 CRM，覆盖客户管理、商机跟进、订单、邮件、目标绩效、HR 考核与团队协同。</p>
+  <p class="meta">版本：2026-07 · 适用对象：业务员、主管、管理员、人事/总经理</p>
 
   <!-- 1 -->
   <section id="intro">
-    <h2><span class="num">1</span>系统总览</h2>
+    <h2><span class="num">1</span>系统简介</h2>
     <p>登录后，左侧边栏是全部功能入口，按业务分区组织：</p>
     <table>
       <tr><th>分区</th><th>包含页面</th><th>谁能看</th></tr>
-      <tr><td><strong>工作台</strong></td><td>个人工作首页，各模块快速入口</td><td>全员</td></tr>
+      <tr><td><strong>工作台</strong></td><td>个人工作首页</td><td>全员</td></tr>
       <tr><td><strong>数据看板</strong></td><td>外贸销售部数据看板 / 个人数据看板 / 团队看板 / 我的目标</td><td>CRM 成员</td></tr>
       <tr><td><strong>客户</strong></td><td>客户建档 / 私海客户 / 公海客户</td><td>CRM 成员</td></tr>
       <tr><td><strong>销售流程</strong></td><td>商机看板 / 商机列表 / 订单管理 / 未关联客户的订单</td><td>CRM 成员</td></tr>
@@ -255,343 +174,275 @@
       <tr><th>角色</th><th>能做什么</th></tr>
       <tr><td><strong>业务员</strong></td><td>管理自己的私海客户、商机、订单、邮件；查看个人看板与「我的目标」；填报自己的考核表。</td></tr>
       <tr><td><strong>主管</strong></td><td>业务员的全部能力 + 查看团队看板；给组员的考核表打分。</td></tr>
-      <tr><td><strong>管理员</strong></td><td>全部数据可见；看板可按「团队 → 业务员」逐级筛选；管理成员权限、员工薪资配置、绩效审批人设置。</td></tr>
+      <tr><td><strong>管理员</strong></td><td>全部数据可见；在看板上可按「团队 → 业务员」逐级筛选；管理成员权限、员工薪资配置、绩效审批人设置。</td></tr>
       <tr><td><strong>人事 / 总经理</strong></td><td>由管理员在「审批人设置」中指定，负责考核表审批链的第 3、4 步确认。</td></tr>
     </table>
   </section>
 
   <!-- 3 -->
-  <section id="dashboard">
-    <h2><span class="num">3</span>数据看板<span class="badge crm">CRM 成员</span></h2>
-
-    <h3>3.1 外贸销售部数据看板 / 个人数据看板</h3>
-    <p class="path">侧边栏 → 数据看板 → 外贸销售部数据看板 / 个人数据看板</p>
-    <p>一屏式经营驾驶舱。顶部可切换<strong>公司口径 / 我的口径</strong>，以及<strong>月 / 季 / 年</strong>统计周期（下拉内容随模式变化：月份、Q1–Q4、年份，切换年份会重新取数）。</p>
-    <div class="card">
-      <ul>
-        <li><strong>KPI 行</strong>：GMV（成交额）、成交订单数、成交客户数、新成交客户数。</li>
-        <li><strong>商机阶段漏斗</strong>：各阶段商机金额柱状图 + 成交转化率。</li>
-        <li><strong>本月目标完成率</strong>：半圆仪表盘。</li>
-        <li><strong>订单金额趋势</strong>：面积图，看业绩走势。</li>
-        <li><strong>客户来源占比</strong>：环形图 + 图例，看渠道结构。</li>
-        <li><strong>业务员成交排行</strong>：横向柱状图。</li>
-        <li><strong>累计概览</strong>：历史累计统计。</li>
-        <li><strong>平均回复时长 / 资料完善度</strong>：过程管理指标，督促及时回复与资料补全。</li>
-      </ul>
-    </div>
-
-    <h3>3.2 团队看板</h3>
-    <p class="path">侧边栏 → 数据看板 → 团队看板</p>
-    <p>按团队查看本月成交额与新成交客户：团队合计进度条、成交额完成率半圆仪表、组员完成率双列卡片，一眼看清每个组员的达成情况。</p>
+  <section id="workspace">
+    <h2><span class="num">3</span>工作台<span class="badge all">全员</span></h2>
+    <p>登录后的默认首页，汇集与你相关的工作入口和概览。从这里可以快速进入各业务模块。</p>
   </section>
 
   <!-- 4 -->
-  <section id="target">
-    <h2><span class="num">4</span>我的目标<span class="badge crm">CRM 成员</span></h2>
-    <p class="path">侧边栏 → 数据看板 → 我的目标</p>
-    <p>个人目标管理页：聚焦月卡片 + 达成半圆仪表 + 12 个月明细表，可在页面上直接设定或修改每月基础目标。</p>
-    <h3>结转规则（系统自动计算）</h3>
-    <table>
-      <tr><th>规则</th><th>含义</th><th>例子（目标 10 万/月）</th></tr>
-      <tr><td><strong>未完成结转下月</strong></td><td>当月缺口加到下月有效目标</td><td>1 月做了 8 万 → 2 月有效目标 12 万</td></tr>
-      <tr><td><strong>超额顺延</strong></td><td>当月超出部分抵扣下月目标</td><td>1 月做了 13 万 → 2 月有效目标 7 万</td></tr>
-      <tr><td><strong>每季度清零</strong></td><td>结转只在季度内滚动</td><td>4 月（新季度）重新从基础目标 10 万开始</td></tr>
-    </table>
-    <div class="note">结转实时计算，只在「我的目标」页体现；数据看板仍按单月口径统计。明细表中「上月缺口」为紫色、「上月结余」为绿色。</div>
+  <section id="dashboard">
+    <h2><span class="num">4</span>数据看板<span class="badge crm">CRM 成员</span></h2>
+
+    <h3>4.1 外贸销售部数据看板 / 个人数据看板</h3>
+    <p>一屏式经营驾驶舱，顶部可切换<strong>公司口径 / 我的口径</strong>，以及<strong>月 / 季 / 年</strong>统计周期（下拉内容随模式变化：月份、Q1–Q4、年份，切换年份会重新取数）。</p>
+    <div class="card">
+      <ul>
+        <li><strong>KPI 行</strong>：GMV（成交额）、成交订单数、成交客户数、新成交客户数。</li>
+        <li><strong>商机阶段漏斗</strong>：各阶段商机金额柱状图，并显示成交转化率。</li>
+        <li><strong>本月目标完成率</strong>：半圆仪表盘。</li>
+        <li><strong>订单金额趋势</strong>：面积图。</li>
+        <li><strong>客户来源占比</strong>：环形图 + 图例。</li>
+        <li><strong>业务员成交排行</strong>：横向柱状图。</li>
+        <li><strong>累计概览</strong>：历史累计统计。</li>
+        <li><strong>业务员平均回复时长 / 资料完善度</strong>：过程管理指标。</li>
+      </ul>
+    </div>
+
+    <h3>4.2 团队看板</h3>
+    <p>按团队查看本月成交额与新成交客户：团队合计进度条、成交额完成率半圆仪表、组员完成率双列卡片，一眼看清每个组员的达成情况。</p>
   </section>
 
   <!-- 5 -->
+  <section id="target">
+    <h2><span class="num">5</span>我的目标<span class="badge crm">CRM 成员</span></h2>
+    <p>个人目标管理页：聚焦月卡片 + 达成半圆仪表 + 12 个月明细表，可在页面上直接设定或修改每月基础目标。</p>
+    <h3>结转规则（自动计算）</h3>
+    <ul>
+      <li><strong>未完成结转下月</strong>：当月缺口自动加到下月的有效目标里。</li>
+      <li><strong>超额顺延</strong>：当月超出的部分抵扣下月目标。</li>
+      <li><strong>每季度清零</strong>：结转只在季度内滚动，每季度初（1/4/7/10 月）重新开始。</li>
+    </ul>
+    <div class="note">结转是实时计算的，只在「我的目标」页体现；数据看板仍按单月口径统计。明细表中「上月缺口」为紫色、「上月结余」为绿色。</div>
+  </section>
+
+  <!-- 6 -->
   <section id="intake">
-    <h2><span class="num">5</span>客户建档<span class="badge crm">CRM 成员</span></h2>
-    <p class="path">侧边栏 → 客户 → 客户建档</p>
+    <h2><span class="num">6</span>客户建档<span class="badge crm">CRM 成员</span></h2>
     <p>新客户统一从「客户建档」页录入，系统在填写过程中<strong>实时查重</strong>：</p>
     <ul>
-      <li><strong>邮箱精确命中</strong>：该邮箱已存在客户，直接阻止重复建档，避免撞单。</li>
+      <li><strong>邮箱精确命中</strong>：该邮箱已存在客户，直接阻止重复建档。</li>
       <li><strong>公司名相似</strong>：弹出相似客户提醒，请先确认再继续。</li>
     </ul>
     <p>建档成功后客户自动归入你的<strong>私海</strong>。</p>
   </section>
 
-  <!-- 6 -->
+  <!-- 7 -->
   <section id="customers">
-    <h2><span class="num">6</span>私海 / 公海客户<span class="badge crm">CRM 成员</span></h2>
-    <p class="path">侧边栏 → 客户 → 私海客户 / 公海客户</p>
+    <h2><span class="num">7</span>私海 / 公海客户<span class="badge crm">CRM 成员</span></h2>
 
-    <h3>6.1 列表与筛选</h3>
+    <h3>7.1 列表与筛选</h3>
     <ul>
       <li>顶部标签切换：<strong>全部 / 我的 / 私海 / 公海 / 未分配</strong>。</li>
       <li>支持客户名搜索、客户分组、产品分组筛选，均可分页。</li>
       <li>管理员可按<strong>团队 → 业务员</strong>逐级筛选。</li>
-      <li>点「累计成交额」表头可切换倒序 / 正序。</li>
+      <li>点「累计成交额」表头可切换倒序 / 正序排序。</li>
       <li>每行展示完善度评分、状态、级别、来源、贸易国家/地区等标签。</li>
     </ul>
 
-    <h3>6.2 认领与转公海</h3>
+    <h3>7.2 认领与转公海</h3>
     <div class="flow">
       <span class="step">公海客户</span><span class="arrow">→ 认领 →</span>
-      <span class="step hl">我的私海</span><span class="arrow">→ 转公海 →</span>
+      <span class="step">我的私海</span><span class="arrow">→ 转公海 →</span>
       <span class="step">回到公海</span>
     </div>
-    <div class="warn">私海有分组数量上限，达到上限后无法继续认领。请定期把长期未跟进的客户转回公海，把私海名额留给活跃客户。</div>
+    <div class="warn">私海有分组上限，达到上限后无法继续认领，请先清理长期未跟进的客户转回公海。</div>
 
-    <h3>6.3 客户详情面板</h3>
-    <p>点击任意一行，右侧展开详情面板（编辑走弹窗），包含五个标签页：</p>
+    <h3>7.3 客户详情面板</h3>
+    <p>点击任意一行，右侧展开详情面板（编辑仍走弹窗），包含五个标签页：</p>
     <table>
       <tr><th>标签页</th><th>内容</th></tr>
       <tr><td>主页</td><td>分组展示全部客户字段、头像、创建时间；底部有编辑 / 认领 / 转公海按钮。</td></tr>
-      <tr><td>操作历史</td><td>审计日志：谁、什么时间、做了什么（重新分配、编辑了客户信息等），责任可追溯。</td></tr>
+      <tr><td>操作历史</td><td>审计日志：谁、什么时间、做了什么操作（重新分配、编辑了客户信息等）。</td></tr>
       <tr><td>备注</td><td>该客户的跟进备注。</td></tr>
       <tr><td>文件</td><td>客户相关文件上传 / 下载 / 删除。</td></tr>
-      <tr><td>电子邮件</td><td>与该客户的往来邮件（自动关联）。</td></tr>
+      <tr><td>电子邮件</td><td>与该客户的往来邮件。</td></tr>
     </table>
   </section>
 
-  <!-- 7 -->
+  <!-- 8 -->
   <section id="funnel">
-    <h2><span class="num">7</span>商机看板 / 商机列表<span class="badge crm">CRM 成员</span></h2>
-    <p class="path">侧边栏 → 销售流程 → 商机看板 / 商机列表</p>
-    <p>商机分四个阶段：</p>
-    <div class="flow">
-      <span class="step">待确认需求</span><span class="arrow">→</span>
-      <span class="step">打样中</span><span class="arrow">→</span>
-      <span class="step hl">已成交 ✓</span><span class="arrow">/</span>
-      <span class="step">已流失 ✗</span>
-    </div>
+    <h2><span class="num">8</span>商机看板 / 商机列表<span class="badge crm">CRM 成员</span></h2>
+    <p>商机分四个阶段：<strong>待确认需求 → 打样中 → 已成交 / 已流失</strong>。</p>
 
-    <h3>7.1 商机看板（推荐日常使用）</h3>
+    <h3>8.1 商机看板（推荐日常使用）</h3>
     <ul>
-      <li>四列 kanban，<strong>拖拽卡片即可换阶段</strong>，跟进状态随手更新。</li>
+      <li>四列 kanban，<strong>拖拽卡片即可换阶段</strong>。</li>
       <li>列头显示该阶段商机数量和总金额（带货币符号）。</li>
       <li>卡片展示：阶段色点、商机名、客户、备注、金额与成交概率；<strong>点卡片直接编辑</strong>。</li>
-      <li>「+ 新建商机」入口在看板页；管理员可按团队 → 业务员逐级筛选。</li>
+      <li>「+ 新建商机」入口在看板页。</li>
+      <li>管理员可按团队 → 业务员逐级筛选。</li>
     </ul>
-    <h3>7.2 新建 / 编辑商机</h3>
+    <h3>8.2 新建 / 编辑商机</h3>
     <ul>
-      <li>「关联客户」是可搜索下拉，输入客户名即时搜索，<strong>只能关联你私海的客户</strong>。</li>
+      <li>「关联客户」是可搜索下拉，输入客户名即时搜索，<strong>只能关联私海客户</strong>。</li>
       <li>支持多币种金额与成交概率。</li>
     </ul>
-    <h3>7.3 商机列表</h3>
-    <p>表格视角查看全部商机，适合批量核对，支持删除商机。</p>
+    <h3>8.3 商机列表</h3>
+    <p>表格视角查看全部商机，适合批量核对；支持删除商机。</p>
   </section>
 
-  <!-- 8 -->
+  <!-- 9 -->
   <section id="orders">
-    <h2><span class="num">8</span>订单管理<span class="badge crm">CRM 成员</span></h2>
-    <p class="path">侧边栏 → 销售流程 → 订单管理 / 未关联客户的订单</p>
+    <h2><span class="num">9</span>订单管理<span class="badge crm">CRM 成员</span></h2>
     <ul>
       <li>订单列表支持按状态筛选、分页。</li>
-      <li>订单按负责人<strong>自动归属对应团队</strong>，无需手动填。</li>
-      <li>「未关联客户的订单」专门列出还没挂到客户上的订单——请及时补全归属，否则该订单不计入客户累计成交额。</li>
+      <li>订单会按负责人<strong>自动归属对应团队</strong>，无需手动填。</li>
+      <li>侧边栏「未关联客户的订单」视图专门列出还没挂到客户上的订单，便于及时补全归属。</li>
       <li>配套能力：商机报价与报价明细（行项目）、产品库（供报价选品）。</li>
     </ul>
   </section>
 
-  <!-- 9 -->
+  <!-- 10 -->
   <section id="sales-targets">
-    <h2><span class="num">9</span>销售目标<span class="badge crm">CRM 成员</span></h2>
+    <h2><span class="num">10</span>销售目标<span class="badge crm">CRM 成员</span></h2>
     <p>按月设定<strong>目标成交额</strong>和<strong>目标新客户数</strong>：个人口径是自己的目标，公司口径为全员合计。设定后即驱动数据看板的目标完成率仪表和「我的目标」页。</p>
   </section>
 
-  <!-- 10 -->
+  <!-- 11 -->
   <section id="mail">
-    <h2><span class="num">10</span>邮箱账户与收发邮件<span class="badge crm">CRM 成员</span></h2>
-    <p class="path">侧边栏 → 邮件中心 → 邮箱账户 / 收发邮件 / 邮件模板</p>
+    <h2><span class="num">11</span>邮箱账户与收发邮件<span class="badge crm">CRM 成员</span></h2>
 
-    <h3>10.1 第一步：配置邮箱账户</h3>
-    <p>每位业务员先在「邮箱账户」配置自己的企业邮箱（SMTP 服务器 + 授权码），配置完成后才能收发邮件。</p>
-    <div class="tip">授权码不是邮箱登录密码，需要在企业邮箱后台单独生成（如腾讯企业邮的「客户端专用密码」）。授权码会过期，发信失败时优先检查这里。</div>
+    <h3>11.1 第一步：配置邮箱账户</h3>
+    <p>每位业务员在「邮箱账户」页配置自己的企业邮箱（SMTP 服务器 + 授权码），配置完成后才能收发邮件。</p>
+    <div class="tip">授权码不是邮箱登录密码，需在企业邮箱后台单独生成（如腾讯企业邮的「客户端专用密码」）。</div>
 
-    <h3>10.2 收发邮件</h3>
+    <h3>11.2 收发邮件</h3>
     <ul>
       <li>「收发邮件」页查看收件与已发邮件；写信走「写邮件」弹窗，支持<strong>附件上传</strong>。</li>
       <li>收件自动入库，并按发件人自动关联到对应客户，同时出现在客户详情的「电子邮件」标签页。</li>
-      <li>系统自动过滤通知类域名邮件并去重，收件箱只留真实客户往来。</li>
+      <li>系统会自动过滤通知类域名邮件并去重。</li>
     </ul>
 
-    <h3>10.3 邮件模板</h3>
-    <p>维护常用话术模板（开发信、报价跟进、催款等），写邮件时一键套用，保持团队话术统一。</p>
+    <h3>11.3 邮件模板</h3>
+    <p>「邮件模板」页维护常用话术模板（开发信、报价跟进等），写邮件时一键套用。</p>
   </section>
 
-  <!-- 11 -->
+  <!-- 12 -->
   <section id="docs">
-    <h2><span class="num">11</span>销售资料 / 文档中心</h2>
+    <h2><span class="num">12</span>销售资料 / 文档中心</h2>
     <p>两个入口共用同一套文档能力，区别在库和可见范围：</p>
     <table>
       <tr><th>入口</th><th>库</th><th>谁能用</th></tr>
       <tr><td>销售资料（公司资料 / 我的资料）</td><td>销售库：产品目录、资质、手册、报价模板等</td><td>CRM 成员</td></tr>
       <tr><td>文档中心（全公司文档 / 我的文档）</td><td>通用库：全公司共享文档</td><td>全员</td></tr>
     </table>
-    <p>支持<strong>附件上传 / 下载</strong>、分类筛选、标题/摘要搜索、分页、在线查看与编辑。</p>
-  </section>
-
-  <!-- 12 -->
-  <section id="org">
-    <h2><span class="num">12</span>组织架构与成员权限</h2>
-    <h3>12.1 部门与成员<span class="badge all">全员</span></h3>
-    <p>查看公司部门（团队）结构和成员归属。业务员通过所属团队参与团队看板统计。</p>
-    <h3>12.2 成员权限<span class="badge admin">仅管理员</span></h3>
-    <p>管理员在此为成员分配 CRM 角色（业务员 / 主管），决定其能否看到 CRM 销售数据分区。</p>
-    <div class="tip">新同事入职流程：先在「部门与成员」归到团队 → 再到「成员权限」赋予角色 → 之后才能参与考核下发、团队统计等流程。</div>
+    <ul>
+      <li>支持<strong>附件上传 / 下载</strong>、分类筛选、标题/摘要搜索、分页、在线查看与编辑。</li>
+    </ul>
   </section>
 
   <!-- 13 -->
+  <section id="org">
+    <h2><span class="num">13</span>组织架构与成员权限</h2>
+    <h3>13.1 部门与成员<span class="badge all">全员</span></h3>
+    <p>查看公司部门（团队）结构和成员归属。业务员通过所属团队参与团队看板统计。</p>
+    <h3>13.2 成员权限<span class="badge admin">仅管理员</span></h3>
+    <p>管理员在此为成员分配 CRM 角色（业务员 / 主管），决定其能否看到 CRM 销售数据分区。新同事入职后需先在这里赋予角色，才能参与考核下发等流程。</p>
+  </section>
+
+  <!-- 14 -->
   <section id="hr">
-    <h2><span class="num">13</span>HR · 绩效考核</h2>
-    <p>月度绩效闭环，六步走完：</p>
+    <h2><span class="num">14</span>HR · 绩效考核</h2>
+    <p>月度绩效闭环：<strong>制方案 → 下发 → 员工填报 → 主管打分 → 人事确认 → 总经理确认 → 核算绩效薪资</strong>。</p>
     <div class="flow">
-      <span class="step">① 制定考核方案</span><span class="arrow">→</span>
+      <span class="step">① 考核方案（HR/管理员）</span><span class="arrow">→</span>
       <span class="step">② 下发给员工</span><span class="arrow">→</span>
-      <span class="step">③ 员工填报＋签</span><span class="arrow">→</span>
-      <span class="step">④ 主管打分＋签</span><span class="arrow">→</span>
+      <span class="step">③ 员工填报 + 签名</span><span class="arrow">→</span>
+      <span class="step">④ 主管打分 + 签名</span><span class="arrow">→</span>
       <span class="step">⑤ 人事确认</span><span class="arrow">→</span>
-      <span class="step hl">⑥ 总经理确认 · 归档</span>
+      <span class="step">⑥ 总经理确认 · 归档</span>
     </div>
 
-    <h3>13.1 考核方案</h3>
-    <p class="path">侧边栏 → HR·绩效考核 → 考核方案</p>
+    <h3>14.1 考核方案</h3>
     <ul>
       <li>每月一套可编辑方案：方案名称、考核月份、及格分、单项计分上限。</li>
-      <li><strong>考核指标</strong>：指标名、维度（业绩结果 / 客户开发 / 系统规范 / 过程效率）、考核标准、权重、底线值、目标值；数据来源可选 <strong>CRM·业绩额 / CRM·新客户 / 手动填报 / 主管判定</strong>——CRM 来源的指标完成值自动取数，不用手填。</li>
-      <li><strong>发放系数档</strong>：按总分区间定发放系数，也可设「按得分比例」。</li>
-      <li>编辑器含「月度数据统计」参考区（询盘数、成交客户、复购、新客户等）和「评分与绩效发放规则」「考核结果应用」说明区。</li>
-      <li>方案保存后点<strong>「下发给员工」</strong>，为选中业务员各生成一张本月考核表；已下发的自动跳过，不会重复生成。</li>
+      <li><strong>考核指标</strong>：指标名、维度（业绩结果 / 客户开发 / 系统规范 / 过程效率）、考核标准、权重、底线值、目标值；数据来源可选 <strong>CRM·业绩额 / CRM·新客户 / 手动填报 / 主管判定</strong>。</li>
+      <li><strong>发放系数档</strong>：按总分区间定发放系数（也可按得分比例）。</li>
+      <li>编辑器还包含「月度数据统计」参考区（询盘数、成交客户、复购、新客户等，部分自动取自 CRM）和「评分与绩效发放规则」「考核结果应用」说明区。</li>
+      <li>方案保存后点<strong>「下发给员工」</strong>，为选中的业务员各生成一张本月考核表；已下发的自动跳过，不会重复。</li>
     </ul>
 
-    <h3>13.2 考核表（四步电子签审批）</h3>
-    <p class="path">侧边栏 → HR·绩效考核 → 考核表</p>
+    <h3>14.2 考核表（四步审批）</h3>
     <table>
       <tr><th>状态</th><th>当前步骤</th><th>由谁操作</th></tr>
       <tr><td>待填报</td><td>填写各指标「完成值」，提交并电子签名</td><td>被考核员工</td></tr>
       <tr><td>待打分</td><td>为各指标「得分」，打分并签名</td><td>主管</td></tr>
       <tr><td>待人事确认</td><td>人事确认 + 签</td><td>指定的人事</td></tr>
       <tr><td>待总经理确认</td><td>总经理确认 + 签，签完归档</td><td>指定的总经理</td></tr>
-      <tr><td>已归档</td><td>流程结束，可随时查阅</td><td>—</td></tr>
+      <tr><td>已归档</td><td>流程结束，可查阅</td><td>—</td></tr>
     </table>
-    <p>考核表底部自动核算绩效薪资：<strong>绩效基数 × 发放系数 = 本月实发绩效</strong>。</p>
-    <div class="tip">每一步都可上传电子签名图片；不上传也可以继续，系统会再确认一次。</div>
+    <p>考核表底部自动核算<strong>绩效薪资</strong>：绩效基数 × 发放系数 = 本月实发绩效。</p>
+    <div class="tip">每一步都可上传电子签名图片；不上传也可继续，系统会再确认一次。</div>
 
-    <h3>13.3 员工薪资配置<span class="badge admin">仅管理员</span></h3>
-    <p>HR 维护每位业务员的<strong>月薪总额、绩效占比、月度业绩底线</strong>与职级备注——绩效基数即由此而来（月薪 × 绩效占比）。</p>
+    <h3>14.3 员工薪资配置<span class="badge admin">仅管理员</span></h3>
+    <p>HR 维护每位业务员的<strong>月薪总额、绩效占比、月度业绩底线</strong>与职级备注，是绩效基数的数据来源。</p>
 
-    <h3>13.4 审批人设置<span class="badge admin">仅管理员</span></h3>
+    <h3>14.4 审批人设置<span class="badge admin">仅管理员</span></h3>
     <ul>
-      <li>指定谁担任<strong>人事</strong>与<strong>总经理</strong>（审批链第 3、4 步确认人）。</li>
+      <li>指定谁担任<strong>人事</strong>与<strong>总经理</strong>（即审批链第 3、4 步的确认人）。</li>
       <li><strong>板块可见性</strong>：按角色（业务员 / 主管 / 管理员）勾选可见的 HR 子模块。管理员始终全可见；被指定的人事/总经理始终能看到考核表。</li>
     </ul>
     <div class="warn">如果取消「业务员 · 考核表」的可见性，业务员将看不到自己的考核表，无法自填与签名——请谨慎操作。</div>
   </section>
 
-  <!-- 14 -->
+  <!-- 15 -->
   <section id="oa">
-    <h2><span class="num">14</span>协同办公（审批）<span class="badge all">全员</span></h2>
+    <h2><span class="num">15</span>协同办公（审批）<span class="badge all">全员</span></h2>
     <ul>
       <li><strong>我的审批</strong>：发起审批、处理待我审批的单据、查看我发起/已办的记录。</li>
       <li><strong>审批模板</strong>：管理员维护请假、报销等审批单模板，规范填写字段与审批流。</li>
     </ul>
   </section>
 
-  <!-- 15 -->
-  <section id="chat">
-    <h2><span class="num">15</span>团队沟通<span class="badge all">全员</span></h2>
-    <p>内置「消息」模块，团队成员即时沟通，支持<strong>发送文件附件</strong>，报价单、图片随聊随传。</p>
-  </section>
-
   <!-- 16 -->
-  <section id="cheatsheet">
-    <h2><span class="num">16</span>常用操作速查</h2>
-    <table>
-      <tr><th>我想……</th><th>去哪里 / 怎么做</th></tr>
-      <tr><td>录入一个新客户</td><td>客户 → 客户建档（自动查重，建完进私海）</td></tr>
-      <tr><td>从公海捞客户</td><td>客户 → 公海客户 → 行内「认领」</td></tr>
-      <tr><td>放弃一个不跟的客户</td><td>私海客户 → 详情面板底部「转公海」</td></tr>
-      <tr><td>看谁改过这个客户</td><td>客户详情 → 「操作历史」标签页</td></tr>
-      <tr><td>推进一个商机的阶段</td><td>商机看板 → 直接拖卡片到目标列</td></tr>
-      <tr><td>给客户发开发信</td><td>邮件中心 → 收发邮件 → 写邮件（可套模板、带附件）</td></tr>
-      <tr><td>改这个月的个人目标</td><td>数据看板 → 我的目标 → 就地编辑基础目标</td></tr>
-      <tr><td>看团队这个月完成率</td><td>数据看板 → 团队看板</td></tr>
-      <tr><td>填我的月度考核表</td><td>HR·绩效考核 → 考核表 → 填完成值 → 提交并签名</td></tr>
-      <tr><td>发起请假/报销</td><td>协同办公 → 我的审批 → 发起</td></tr>
-      <tr><td>找产品目录/报价模板</td><td>销售资料 → 公司资料（可搜索）</td></tr>
-    </table>
+  <section id="chat">
+    <h2><span class="num">16</span>团队沟通<span class="badge all">全员</span></h2>
+    <p>内置「消息」模块，团队成员即时沟通，支持<strong>发送文件附件</strong>。</p>
   </section>
 
   <!-- 17 -->
-  <section id="glossary">
-    <h2><span class="num">17</span>名词解释</h2>
-    <table>
-      <tr><th>名词</th><th>含义</th></tr>
-      <tr><td><strong>私海</strong></td><td>归属于某个业务员的客户，只有归属人（和管理员）可跟进。</td></tr>
-      <tr><td><strong>公海</strong></td><td>无归属的共享客户池，任何业务员都可以「认领」进自己私海。</td></tr>
-      <tr><td><strong>认领 / 转公海</strong></td><td>把公海客户捞进私海 / 把私海客户放回公海。</td></tr>
-      <tr><td><strong>GMV（成交额）</strong></td><td>统计周期内已成交订单的总金额。</td></tr>
-      <tr><td><strong>基础目标 / 有效目标</strong></td><td>基础目标是你设定的数；有效目标 = 基础目标 + 上月结转（缺口加、结余减）。</td></tr>
-      <tr><td><strong>结转</strong></td><td>上月缺口或结余滚入本月，季度内滚动、季度初清零。</td></tr>
-      <tr><td><strong>完善度</strong></td><td>客户资料填写完整程度的评分，看板上有全员对比。</td></tr>
-      <tr><td><strong>绩效基数</strong></td><td>月薪总额 × 绩效占比，即当月可发绩效的满额。</td></tr>
-      <tr><td><strong>发放系数</strong></td><td>由考核总分落入的分数档决定；实发绩效 = 绩效基数 × 发放系数。</td></tr>
-    </table>
-  </section>
-
-  <!-- 18 -->
   <section id="faq">
-    <h2><span class="num">18</span>常见问题 FAQ</h2>
-    <details>
-      <summary>为什么我看不到「数据看板 / 客户」这些菜单？</summary>
-      <div class="body">你的账号还没有被赋予 CRM 角色。请联系管理员在「组织架构 → 成员权限」为你分配业务员或主管角色。</div>
-    </details>
-    <details>
-      <summary>认领公海客户时提示失败？</summary>
-      <div class="body">大概率是私海数量达到了分组上限。先把长期没跟进的客户「转公海」，再认领新客户。</div>
-    </details>
-    <details>
-      <summary>发邮件失败 / 收不到客户邮件？</summary>
-      <div class="body">检查「邮箱账户」里的 SMTP 配置与授权码是否有效（授权码过期需在企业邮箱后台重新生成）。收件有几分钟同步间隔，属正常现象。</div>
-    </details>
-    <details>
-      <summary>新建商机时搜不到客户？</summary>
-      <div class="body">关联客户下拉只显示<strong>你私海</strong>里的客户。客户在公海时请先认领。</div>
-    </details>
-    <details>
-      <summary>下发考核方案时提示「暂无 CRM 销售成员」？</summary>
-      <div class="body">请先在「成员权限」为相关同事赋予 CRM 角色，再回到考核方案页下发。</div>
-    </details>
-    <details>
-      <summary>「我的目标」里有效目标和我设的不一样？</summary>
-      <div class="body">有效目标 = 基础目标 + 上月结转（缺口为加、结余为减），结转在每季度初清零。详见第 4 节。</div>
-    </details>
-    <details>
-      <summary>订单为什么没算进客户的累计成交额？</summary>
-      <div class="body">检查「未关联客户的订单」视图，该订单可能还没挂到客户上，补全关联即可。</div>
-    </details>
-    <details>
-      <summary>页面改动后看不到最新效果？</summary>
-      <div class="body">浏览器硬刷新：Mac 按 <kbd>Cmd + Shift + R</kbd>，Windows 按 <kbd>Ctrl + Shift + R</kbd>。</div>
-    </details>
+    <h2><span class="num">17</span>常见问题 FAQ</h2>
+    <div class="card">
+      <h3 style="margin-top:0">Q：为什么我看不到「数据看板 / 客户」这些菜单？</h3>
+      <p>你的账号还没有被赋予 CRM 角色。请联系管理员在「组织架构 → 成员权限」为你分配业务员或主管角色。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Q：认领公海客户时提示失败？</h3>
+      <p>大概率是私海数量达到了分组上限。先把长期没跟进的客户「转公海」，再认领新客户。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Q：发邮件失败 / 收不到客户邮件？</h3>
+      <p>检查「邮箱账户」里的 SMTP 配置与授权码是否有效（授权码过期需在企业邮箱后台重新生成）。收件有几分钟的同步间隔，属正常现象。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Q：新建商机时搜不到客户？</h3>
+      <p>关联客户下拉只显示<strong>你私海</strong>里的客户。客户在公海时请先认领。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Q：下发考核方案时提示「暂无 CRM 销售成员」？</h3>
+      <p>请先在「成员权限」为相关同事赋予 CRM 角色，再回到考核方案页下发。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Q：我的目标里「有效目标」为什么和我设的不一样？</h3>
+      <p>有效目标 = 基础目标 + 上月结转（缺口为加、结余为减），结转在每季度初清零。详见第 5 节。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Q：页面改动后看不到最新效果？</h3>
+      <p>浏览器硬刷新：Mac 按 <kbd>Cmd + Shift + R</kbd>，Windows 按 <kbd>Ctrl + Shift + R</kbd>。</p>
+    </div>
   </section>
 
-  <footer>A-CRM · 内部使用文档 · 2026-07 · 如有功能疑问请联系系统管理员</footer>
+  <p style="color:var(--ink-muted); font-size:12.5px; border-top:1px solid var(--line); padding-top:16px;">
+    A-CRM · 内部使用文档 · 如有功能疑问请联系系统管理员
+  </p>
 </main>
 </div>
-
-<button id="backtop" title="回到顶部" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
-
-<script>
-  // 目录高亮跟随
-  const links = [...document.querySelectorAll('nav.toc a')];
-  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
-  const io = new IntersectionObserver(entries => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        links.forEach(a => a.classList.remove('active'));
-        const a = map.get(e.target.id);
-        if (a) { a.classList.add('active'); }
-      }
-    });
-  }, { rootMargin: '-10% 0px -75% 0px' });
-  document.querySelectorAll('main section').forEach(s => io.observe(s));
-  // 回到顶部按钮
-  const bt = document.getElementById('backtop');
-  addEventListener('scroll', () => bt.classList.toggle('show', scrollY > 600), { passive: true });
-</script>
 </body>
 </html>
