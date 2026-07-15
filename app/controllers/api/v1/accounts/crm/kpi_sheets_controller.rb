@@ -6,10 +6,10 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   before_action :check_authorization
   before_action :fetch_sheet, only: [:show, :update, :destroy, :submit, :score, :hr_confirm, :gm_confirm]
 
-  # 管理员/主管看范围内全部；业务员只看自己。
+  # 数据范围：超管/管理员/指定人事/总经理看全部；部门负责人看本部门（含下级）+ 自己；业务员只看自己。
   def index
     scope = Current.account.crm_kpi_sheets.includes(:owner, :sheet_items)
-    scope = scope.owned_by(current_user.id) unless can_manage?
+    scope = scope.where(owner_id: visible_sheet_owner_ids) unless all_sheets_visible?
     scope = scope.for_month(Date.parse(params[:month])) if params[:month].present?
     @sheets = scope.order(period_month: :desc, id: :desc)
   end
@@ -98,6 +98,23 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   def can_manage?
     Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin? || Current.account_user&.crm_manager?
+  end
+
+  # 全量可见：超管/管理员，以及被指定的人事/总经理（审批链需要）。
+  def all_sheets_visible?
+    Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin? ||
+      [perf_setting&.hr_owner_id, perf_setting&.gm_owner_id].include?(current_user.id)
+  end
+
+  # 部门负责人=所辖部门（含下级）成员 + 自己；业务员/其他=仅自己。
+  def visible_sheet_owner_ids
+    return [current_user.id] unless Current.account_user&.crm_manager?
+
+    led = Current.account.org_departments.where(leader_id: current_user.id).pluck(:id)
+    return [current_user.id] if led.empty?
+
+    dept_ids = Org::Department.subtree_ids(Current.account, led)
+    (Current.account.org_memberships.where(department_id: dept_ids).pluck(:user_id) + [current_user.id]).uniq
   end
 
   def perf_setting
