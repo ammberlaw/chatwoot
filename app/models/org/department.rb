@@ -34,9 +34,23 @@ class Org::Department < ApplicationRecord
   scope :roots, -> { where(parent_id: nil) }
 
   after_destroy :demote_former_leader
-  # 组织架构与系统角色联动：设为部门负责人自动升为「部门负责人」角色；
-  # 卸任且不再负责任何部门时回落为「业务员」。超级管理员/管理员不受影响。
+  # 组织架构与系统角色联动（仅业务条线部门）：设为业务部门负责人自动升为「部门负责人」角色；
+  # 卸任且不再负责任何业务部门时回落为「业务员」。非业务部门（生产/人事等）的负责人不联动，
+  # 不会因此获得 CRM 入口。超级管理员/管理员不受影响。
   after_save :sync_leader_crm_role, if: :saved_change_to_leader_id?
+
+  BUSINESS_KEYWORDS = %w[销售 业务].freeze
+
+  # 业务条线部门：自身或任一上级部门名称含「销售/业务」。
+  def business_line?
+    node = self
+    while node
+      return true if BUSINESS_KEYWORDS.any? { |keyword| node.name.include?(keyword) }
+
+      node = node.parent_id && account.org_departments.find_by(id: node.parent_id)
+    end
+    false
+  end
 
   # 后代 id（含自身），用于「按部门授权」时圈定范围，以及防止环形父级。
   def self_and_descendant_ids
@@ -70,6 +84,7 @@ class Org::Department < ApplicationRecord
 
   def promote_to_manager(user_id)
     return if user_id.blank?
+    return unless business_line?
 
     au = account.account_users.find_by(user_id: user_id)
     return unless au && !au.administrator? && ['sales', nil].include?(au.crm_role)
@@ -79,7 +94,7 @@ class Org::Department < ApplicationRecord
 
   def demote_if_not_leading(user_id)
     return if user_id.blank?
-    return if account.org_departments.exists?(leader_id: user_id)
+    return if account.org_departments.where(leader_id: user_id).any?(&:business_line?)
 
     au = account.account_users.find_by(user_id: user_id)
     au.update!(crm_role: 'sales') if au&.crm_role == 'manager'
