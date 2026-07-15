@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useAlert } from 'dashboard/composables';
+import Auth from 'dashboard/api/auth';
 import RequestsAPI from 'dashboard/api/oa/approvalRequests';
 import ChatAPI from 'dashboard/api/chat/conversations';
 import DepartmentsAPI from 'dashboard/api/org/departments';
@@ -17,7 +18,7 @@ const currentUser = useMapGetter('getCurrentUser');
 
 const stats = ref({ todo: 0, mine: 0, approverView: true, dept: 0, unread: 0 });
 const userName = computed(() => currentUser.value?.name || '');
-// 非 CRM 人员（无 crm_role 且非系统管理员）隐藏 CRM 旗舰入口。后端仍以 403 兜底。
+// 非 CRM 人员（无 crm_role 且非系统管理员）看到置灰的 CRM 旗舰卡（不可进入）。后端仍以 403 兜底。
 const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
 
 // 按时段问候，落地页有温度但不喧哗。
@@ -165,6 +166,16 @@ onMounted(async () => {
         class="pointer-events-none absolute top-40 right-[-8rem] size-[360px] rounded-full bg-n-iris-3/50 blur-[130px]"
       />
 
+      <!-- 退出登录：固定在视口最右上 -->
+      <button
+        type="button"
+        class="fixed z-10 top-5 right-6 flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+        @click="Auth.logout"
+      >
+        <Icon icon="i-lucide-power" class="size-4" />
+        退出登录
+      </button>
+
       <div
         class="relative flex flex-col justify-center w-full max-w-[1080px] min-h-full mx-auto px-6 sm:px-10 py-12"
       >
@@ -190,9 +201,14 @@ onMounted(async () => {
         <div class="grid gap-4 mt-9 lg:grid-cols-5">
           <!-- CRM 旗舰主卡 -->
           <button
-            v-if="canAccessCrm"
             type="button"
-            class="group relative flex flex-col overflow-hidden text-left transition-all duration-200 ease-out border shadow-sm outline-none lg:col-span-3 rounded-[28px] border-n-iris-6 bg-n-iris-2 p-7 hover:-translate-y-0.5 hover:shadow-lg hover:border-n-iris-8 focus-visible:ring-2 focus-visible:ring-n-iris-8 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+            class="group relative flex flex-col overflow-hidden text-left transition-all duration-200 ease-out border shadow-sm outline-none lg:col-span-3 rounded-[28px] border-n-iris-6 bg-n-iris-2 p-7 focus-visible:ring-2 focus-visible:ring-n-iris-8 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+            :class="
+              canAccessCrm
+                ? 'hover:-translate-y-0.5 hover:shadow-lg hover:border-n-iris-8'
+                : 'opacity-60 saturate-50 cursor-not-allowed'
+            "
+            :disabled="!canAccessCrm"
             @click="go(HERO.to)"
           >
             <!-- 角落大图标水印 -->
@@ -220,25 +236,28 @@ onMounted(async () => {
                 </span>
               </div>
 
-              <div class="flex items-center gap-1.5 mt-auto pt-7 text-sm font-medium text-n-iris-11">
+              <div
+                v-if="canAccessCrm"
+                class="flex items-center gap-1.5 mt-auto pt-7 text-sm font-medium text-n-iris-11"
+              >
                 进入工作区
                 <Icon
                   icon="i-lucide-arrow-right"
                   class="transition-transform duration-200 size-4 group-hover:translate-x-1 motion-reduce:transition-none"
                 />
               </div>
+              <div
+                v-else
+                class="flex items-center gap-1.5 mt-auto pt-7 text-sm font-medium text-n-slate-10"
+              >
+                <Icon icon="i-lucide-lock" class="size-4" />
+                未开通 · 如需使用请联系管理员
+              </div>
             </div>
           </button>
 
-          <!-- 协同模块：有 CRM 旗舰时竖列在侧；否则铺满成网格 -->
-          <div
-            class="gap-4"
-            :class="
-              canAccessCrm
-                ? 'flex flex-col lg:col-span-2'
-                : 'grid sm:grid-cols-2 lg:col-span-5'
-            "
-          >
+          <!-- 协同模块：竖列在 CRM 旗舰侧 -->
+          <div class="flex flex-col gap-4 lg:col-span-2">
             <button
               v-for="m in LIVE"
               :key="m.key"
