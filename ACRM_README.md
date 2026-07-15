@@ -112,6 +112,31 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 - 跟进记录/任务 `follow_up_notes` / `follow_up_tasks`
 - 联系人 `contacts`、公海规则 `public_pool_settings`
 
+### 13. 员工档案（员工主数据）`crm_employees_index`
+`CrmEmployeesIndex.vue` · 控制器 `employees` · 模型 `Crm::Employee` · 独立 HR 板块（超管/管理员）
+
+- **在职 / 试用 / 离职**分组页签 + 姓名/工号/手机号搜索；六板块建档表单：基本身份（工号唯一、证件照 `photo`、入职资料 `entry_files`）/ 岗位组织（部门、**关联系统账号 `user_id`**）/ 状态与关键日期（工龄自动算）/ 薪酬发薪 / 联系方式 / 离职信息（`resign_files`）。
+- **离职交接** `Crm::OffboardingService`：状态改「离职」时触发——客户/商机**退回公海**（默认）或 `handover_target_id` 转移；个人文档 `discard!` 进回收站；账号 `crm_role` 置空。只在非离职→离职转换时执行一次。
+- 删号兜底：`AccountUser#after_destroy` 也会归档个人文档。
+
+### 14. 权限与安全体系
+
+- **系统角色**（成员权限页一个下拉）：超级管理员 `administrator` / 管理员 `deputy_admin` / 部门负责人 `manager` / 业务员 `sales` / 无。数据范围见 `Crm::AccessScope`（超管、管理员=全部；负责人=部门子树；业务员=本人）。
+- **防提权**：管理员不可任免/改动超级管理员、不可发超管邀请（`members`/`member_invites` 控制器拦截 + 前端选项过滤）。
+- **负责人联动**：`Org::Department` 设/卸 `leader_id` 自动同步 `crm_role`（manager ↔ sales，超管/管理员不动）。
+- **模块开关** `account_users.module_access`（CRM/ERP/MES）；ERP、MES 未上线在 UI 置灰。
+- **敏感区二次验证** `Crm::SensitiveSession`（Redis 15 分钟）：员工档案/薪资配置需重输登录密码，后端 `ensure_sensitive_session` 403 兜底。
+- **脱敏**：身份证/银行卡默认打码点「显示」展开；薪资金额 `¥ ******` 页头开关。
+- **审计与留痕**：`audited`（改动字段级审计）+ `Crm::AccessLog`（list/view 查看日志），员工档案编辑页有合并「操作历史」时间轴。
+- **密码集中管控**：自改密码（个人资料 + 忘记密码邮件）仅限超管/管理员/行政部门成员（`AccountUser#password_self_service?`）；超管/管理员可在成员权限改成员姓名/邮箱/重置密码；**部门负责人**限下属、仅重置密码（`manager_overreach?`）。
+- **审批模板维护** `oa_template_maintainer?`：超管或行政部门成员（部门名含「行政」，含下级）。
+
+### 15. 团队沟通（群聊）`crm_team_chat_index`
+`CrmTeamChatIndex.vue` · 控制器 `chat/conversations`
+
+- 单聊/群聊、文件附件、已读名单；**建群必填群公告**，公告更新推送「【群公告】」消息。
+- 群主（`creator_id`）可编辑公告、踢人、**转让群主**（`transfer_owner`，推送变更消息）；成员可**退群**（`leave`），群里还有人时群主必须先转让。
+
 ---
 
 ## 图表组件（Chart.js 封装）
@@ -146,6 +171,6 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 
 ## 前端路由名
 
-`crm_dashboard_index` · `crm_team_dashboard_index` · `crm_my_target_index` · `crm_customers_index` · `crm_customer_intake_index` · `crm_opportunities_index` · `crm_funnel_index` · `crm_sales_orders_index` · `crm_sales_targets_index` · `crm_knowledge_docs_index` · `crm_emails_index` · `crm_email_templates_index` · `crm_mail_accounts_index`
+`crm_dashboard_index` · `crm_team_dashboard_index` · `crm_my_target_index` · `crm_customers_index` · `crm_customer_intake_index` · `crm_opportunities_index` · `crm_funnel_index` · `crm_sales_orders_index` · `crm_sales_targets_index` · `crm_knowledge_docs_index` · `crm_doc_center_index` · `crm_emails_index` · `crm_email_templates_index` · `crm_mail_accounts_index` · `crm_org_structure_index` · `crm_members_index` · `crm_member_invites_index` · `crm_employees_index` · `crm_employee_comps_index` · `crm_kpi_schemes_index` · `crm_kpi_sheets_index` · `crm_performance_settings_index` · `crm_approvals_index` · `crm_approval_templates_index` · `crm_team_chat_index` · `crm_workspace_index`
 
 > 注意：SPA 路由名含 `onboarding_` 会被账号引导守卫劫持重定向到 dashboard，CRM 页路由名需避开该串。
