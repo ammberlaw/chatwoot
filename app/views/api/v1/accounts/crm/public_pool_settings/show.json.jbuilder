@@ -7,3 +7,8 @@ json.pool_limit_won @setting.pool_limit_won
 json.pool_limit_sample_won @setting.pool_limit_sample_won
 json.pool_limit_not_won @setting.pool_limit_not_won
 json.pool_limit_social_media @setting.pool_limit_social_media
+json.recycle_days_key_account_won @setting.recycle_days_key_account_won
+json.recycle_days_won @setting.recycle_days_won
+json.recycle_days_sample_won @setting.recycle_days_sample_won
+json.recycle_days_not_won @setting.recycle_days_not_won
+json.recycle_days_social_media @setting.recycle_days_social_media
