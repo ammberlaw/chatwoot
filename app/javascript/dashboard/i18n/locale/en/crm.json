@@ -327,7 +327,28 @@
         "CATEGORY": "分类",
         "SCOPE": "范围",
         "SUMMARY": "摘要",
-        "BODY": "正文"
+        "BODY": "正文",
+        "SECTION": "资料板块"
+      },
+      "OWNER": {
+        "LABEL": "负责人",
+        "NONE": "未指定",
+        "SAVED": "文档中心负责人已更新",
+        "SAVE_ERROR": "保存失败"
+      },
+      "DELETE": {
+        "LABEL": "删除",
+        "CONFIRM": "确定删除文档「{name}」？删除后不可恢复。",
+        "SUCCESS": "文档已删除",
+        "ERROR": "删除失败"
+      },
+      "SECTION": {
+        "NONE": "未分板块",
+        "SETTINGS": "板块可见性设置",
+        "SETTINGS_HINT": "为每个资料板块勾选可见部门（含其下级部门的成员）；全不勾选 = 全员可见。管理员与文档中心负责人始终可见全部板块。",
+        "ALL_VISIBLE": "未限制，全员可见",
+        "SAVED": "板块可见性已保存",
+        "SAVE_ERROR": "保存失败"
       }
     },
     "SALES_TARGETS": {
@@ -542,7 +563,7 @@
     },
     "POOL_SETTINGS": {
       "HEADER": "公海设置",
-      "SUBTITLE": "客户流转规则（可按客户分组分别设置）与各分组的私海上限",
+      "SUBTITLE": "客户/商机流转规则与各客户分组的私海上限",
       "LOADING": "加载中…",
       "LOAD_ERROR": "加载失败",
       "SAVE": "保存",
@@ -554,6 +575,11 @@
       "STALE_DAYS": "默认未跟进时限（天）",
       "STALE_DAYS_HINT": "未单独设置天数的分组按此默认值回收",
       "RECYCLE_NEVER_FOLLOWED": "从未跟进的客户也回收（按建档时间计算时限）",
+      "OPP_SECTION": "商机流转规则",
+      "OPP_HINT": "与客户流转同机制：每天凌晨自动执行，超时未更新的在管商机自动流入商机公海（已成交/输单不参与）。",
+      "OPP_ENABLED": "启用商机自动流转",
+      "OPP_STALE_DAYS": "未更新时限（天）",
+      "OPP_STALE_DAYS_HINT": "商机超过该天数无任何更新（编辑、推进阶段等）即流入商机公海",
       "COL_GROUP": "客户分组",
       "COL_LIMIT": "上限（人/组）",
       "NO_LIMIT": "不限",

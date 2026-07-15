@@ -22,6 +22,7 @@ class Api::V1::Accounts::Crm::PublicPoolSettingsController < Api::V1::Accounts::
   def setting_params
     params.require(:setting).permit(
       :name, :stale_days, :recycle_enabled, :recycle_never_followed,
+      :opportunity_recycle_enabled, :opportunity_stale_days,
       :pool_limit_key_account_won, :pool_limit_won, :pool_limit_sample_won,
       :pool_limit_not_won, :pool_limit_social_media,
       :recycle_days_key_account_won, :recycle_days_won, :recycle_days_sample_won,

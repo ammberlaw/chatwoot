@@ -2,6 +2,8 @@ json.name @setting.name
 json.stale_days @setting.stale_days
 json.recycle_enabled @setting.recycle_enabled
 json.recycle_never_followed @setting.recycle_never_followed
+json.opportunity_recycle_enabled @setting.opportunity_recycle_enabled
+json.opportunity_stale_days @setting.opportunity_stale_days
 json.pool_limit_key_account_won @setting.pool_limit_key_account_won
 json.pool_limit_won @setting.pool_limit_won
 json.pool_limit_sample_won @setting.pool_limit_sample_won

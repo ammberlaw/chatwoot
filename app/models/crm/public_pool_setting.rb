@@ -6,6 +6,8 @@
 #
 #  id                           :bigint           not null, primary key
 #  name                         :string           default("客户池规则")
+#  opportunity_recycle_enabled  :boolean          default(TRUE), not null
+#  opportunity_stale_days       :integer          default(30), not null
 #  pool_limit_key_account_won   :integer
 #  pool_limit_not_won           :integer
 #  pool_limit_sample_won        :integer
@@ -32,6 +34,7 @@ class Crm::PublicPoolSetting < ApplicationRecord
 
   validates :account_id, uniqueness: true
   validates :stale_days, numericality: { greater_than: 0 }
+  validates :opportunity_stale_days, numericality: { greater_than: 0 }
 
   GROUP_LIMIT_FIELDS = {
     'KEY_ACCOUNT_WON' => :pool_limit_key_account_won,

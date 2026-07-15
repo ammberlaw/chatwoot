@@ -20,6 +20,8 @@ const form = reactive({
   recycleEnabled: true,
   staleDays: 90,
   recycleNeverFollowed: false,
+  oppRecycleEnabled: true,
+  oppStaleDays: 30,
   limits: Object.fromEntries(GROUPS.map(g => [g.key, ''])),
   recycleDays: Object.fromEntries(GROUPS.map(g => [g.key, ''])),
 });
@@ -32,6 +34,8 @@ onMounted(async () => {
     form.recycleEnabled = data.recycle_enabled !== false;
     form.staleDays = data.stale_days ?? 90;
     form.recycleNeverFollowed = data.recycle_never_followed === true;
+    form.oppRecycleEnabled = data.opportunity_recycle_enabled !== false;
+    form.oppStaleDays = data.opportunity_stale_days ?? 30;
     GROUPS.forEach(g => {
       form.limits[g.key] = data[`pool_limit_${g.key}`] ?? '';
       form.recycleDays[g.key] = data[`recycle_days_${g.key}`] ?? '';
@@ -54,6 +58,8 @@ const save = async () => {
       recycle_enabled: form.recycleEnabled,
       stale_days: Number(form.staleDays) || 90,
       recycle_never_followed: form.recycleNeverFollowed,
+      opportunity_recycle_enabled: form.oppRecycleEnabled,
+      opportunity_stale_days: Number(form.oppStaleDays) || 30,
     };
     GROUPS.forEach(g => {
       setting[`pool_limit_${g.key}`] = toNullable(form.limits[g.key]);
@@ -139,6 +145,38 @@ const fieldCls =
             :disabled="!form.recycleEnabled"
           />
           {{ t('CRM.POOL_SETTINGS.RECYCLE_NEVER_FOLLOWED') }}
+        </label>
+      </div>
+
+      <!-- 商机流转规则 -->
+      <div class="flex flex-col gap-3 pt-4 mt-2 border-t border-n-weak">
+        <div>
+          <div class="text-sm font-medium text-n-slate-12">
+            {{ t('CRM.POOL_SETTINGS.OPP_SECTION') }}
+          </div>
+          <div class="mt-0.5 text-xs text-n-slate-10">
+            {{ t('CRM.POOL_SETTINGS.OPP_HINT') }}
+          </div>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-n-slate-12">
+          <input v-model="form.oppRecycleEnabled" type="checkbox" />
+          {{ t('CRM.POOL_SETTINGS.OPP_ENABLED') }}
+        </label>
+        <label class="flex flex-col gap-1.5">
+          <span class="text-sm text-n-slate-12">
+            {{ t('CRM.POOL_SETTINGS.OPP_STALE_DAYS') }}
+          </span>
+          <span class="text-xs text-n-slate-10">
+            {{ t('CRM.POOL_SETTINGS.OPP_STALE_DAYS_HINT') }}
+          </span>
+          <input
+            v-model="form.oppStaleDays"
+            type="number"
+            min="1"
+            :disabled="!form.oppRecycleEnabled"
+            class="w-32 disabled:opacity-50"
+            :class="[fieldCls]"
+          />
         </label>
       </div>
 
