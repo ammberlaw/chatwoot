@@ -5,10 +5,16 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useMapGetter } from 'dashboard/composables/store';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useCrmKnowledgeDocsStore } from 'dashboard/stores/crm/knowledgeDocs';
 import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCategories';
+import CrmMemberAPI from 'dashboard/api/crm/members';
+import DocCenterSettingsAPI from 'dashboard/api/crm/docCenterSettings';
+import DocSectionsAPI from 'dashboard/api/crm/docSections';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
@@ -26,6 +32,123 @@ let searchTimer = null;
 // 资料库归属由路由 meta 决定：销售资料(SALES) / 全公司知识(GENERAL)。同一组件两路由复用。
 const currentLibrary = computed(() => route.meta.library || 'SALES');
 const isGeneral = computed(() => currentLibrary.value === 'GENERAL');
+
+// ── 权限：公司文档管理权（销售资料=管理员/主管；文档中心=管理员/指定负责人）──
+const currentUserId = useMapGetter('getCurrentUserID');
+const { isAdmin, isCrmManager } = useCrmRole();
+const docCenterOwnerId = ref(null);
+const docCenterOwnerName = ref('');
+const members = ref([]);
+
+const fetchDocCenterSetting = async () => {
+  try {
+    const { data } = await DocCenterSettingsAPI.get();
+    docCenterOwnerId.value = data.owner_id;
+    docCenterOwnerName.value = data.owner_name || '';
+  } catch {
+    docCenterOwnerId.value = null;
+  }
+};
+const fetchMembers = async () => {
+  try {
+    const { data } = await CrmMemberAPI.get();
+    members.value = data.payload || [];
+  } catch {
+    members.value = [];
+  }
+};
+const memberOptions = computed(() => [
+  { value: '', label: t('CRM.KNOWLEDGE_DOCS.OWNER.NONE') },
+  ...members.value.map(m => ({ value: String(m.user_id), label: m.name })),
+]);
+const setDocCenterOwner = async value => {
+  try {
+    await DocCenterSettingsAPI.updateSetting({
+      setting: { owner_id: value || null },
+    });
+    await fetchDocCenterSetting();
+    useAlert(t('CRM.KNOWLEDGE_DOCS.OWNER.SAVED'));
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.OWNER.SAVE_ERROR'));
+  }
+};
+
+const canManageCompany = computed(() =>
+  isGeneral.value
+    ? isAdmin.value || docCenterOwnerId.value === currentUserId.value
+    : isAdmin.value || isCrmManager.value
+);
+
+// ── 资料板块（文档中心）：侧边栏子项经 ?section_id= 驱动切换；管理员可按部门配置各板块可见性 ──
+const sections = ref([]);
+const activeSectionId = ref(route.query.section_id || '');
+const fetchSections = async () => {
+  try {
+    const { data } = await DocSectionsAPI.get();
+    sections.value = data.payload || [];
+  } catch {
+    sections.value = [];
+  }
+};
+const sectionFormOptions = computed(() => [
+  { value: '', label: t('CRM.KNOWLEDGE_DOCS.SECTION.NONE') },
+  ...sections.value.map(s => ({ value: String(s.id), label: s.name })),
+]);
+
+// 板块可见性设置弹窗（管理员）：每板块勾选可见部门，全不勾 = 全员可见
+const sectionDialogRef = ref(null);
+const departments = ref([]);
+const sectionDraft = ref([]);
+const savingSections = ref(false);
+const openSectionDialog = async () => {
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/org/departments`
+    );
+    departments.value = data.payload || [];
+  } catch {
+    departments.value = [];
+  }
+  sectionDraft.value = sections.value.map(s => ({
+    id: s.id,
+    name: s.name,
+    departmentIds: [...(s.department_ids || [])],
+  }));
+  sectionDialogRef.value?.open();
+};
+const toggleSectionDept = (draft, deptId) => {
+  const idx = draft.departmentIds.indexOf(deptId);
+  if (idx >= 0) draft.departmentIds.splice(idx, 1);
+  else draft.departmentIds.push(deptId);
+};
+const saveSectionVisibility = async () => {
+  savingSections.value = true;
+  try {
+    await Promise.all(
+      sectionDraft.value.map(draft =>
+        DocSectionsAPI.updateSection(draft.id, {
+          section: { department_ids: draft.departmentIds },
+        })
+      )
+    );
+    await fetchSections();
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.SAVED'));
+    sectionDialogRef.value?.close();
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.SAVE_ERROR'));
+  } finally {
+    savingSections.value = false;
+  }
+};
+// 个人文档归属人可管；公司文档按上面的管理权。
+const canManageDoc = doc =>
+  doc?.scope === 'PERSONAL'
+    ? doc.ownerId === currentUserId.value
+    : canManageCompany.value;
+// 新建入口：文档中心仅管理员/负责人；销售资料人人可建（业务员建的是个人文档）。
+const canCreateDocs = computed(() =>
+  isGeneral.value ? canManageCompany.value : true
+);
 
 const records = computed(() => store.getRecords);
 const categories = computed(() => categoriesStore.getRecords);
@@ -92,10 +215,15 @@ const fetchRecords = () => {
   store.get({
     library: currentLibrary.value,
     filter: activeFilter.value,
+    section_id:
+      isGeneral.value && activeSectionId.value
+        ? activeSectionId.value
+        : undefined,
     q: searchQuery.value.trim() || undefined,
     per_page: 200,
   });
 };
+
 
 // 在两个资料库路由间切换时（同组件复用），重新拉取对应库的文档。
 watch(currentLibrary, fetchRecords);
@@ -183,6 +311,7 @@ const editForm = reactive({
   name: '',
   category: '',
   scope: 'COMPANY',
+  sectionId: '',
   summary: '',
   body: '',
 });
@@ -206,7 +335,9 @@ const auditMessage = audit => {
 const resetForm = (category = '') => {
   editForm.name = '';
   editForm.category = category || categories.value[0]?.name || '';
-  editForm.scope = 'COMPANY';
+  // 无公司文档管理权的成员只能建个人文档
+  editForm.scope = canManageCompany.value ? 'COMPANY' : 'PERSONAL';
+  editForm.sectionId = activeSectionId.value || '';
   editForm.summary = '';
   editForm.body = '';
 };
@@ -250,6 +381,7 @@ const startEdit = () => {
   editForm.name = doc.name || '';
   editForm.category = doc.category || '';
   editForm.scope = doc.scope || 'COMPANY';
+  editForm.sectionId = doc.sectionId ? String(doc.sectionId) : '';
   editForm.summary = doc.summary || '';
   editForm.body = doc.body || '';
   panelMode.value = 'edit';
@@ -267,6 +399,7 @@ const saveForm = async () => {
     category: editForm.category || null,
     scope: editForm.scope,
     library: currentLibrary.value,
+    sectionId: isGeneral.value ? editForm.sectionId || null : null,
     summary: editForm.summary.trim() || null,
     body: editForm.body || null,
   };
@@ -392,14 +525,41 @@ const removeCategory = async col => {
   }
 };
 
+// 删除文档（管理员/负责人删公司文档；归属人删自己的个人文档）
+const removeDoc = async () => {
+  const doc = selectedDoc.value;
+  const ok = window.confirm(
+    t('CRM.KNOWLEDGE_DOCS.DELETE.CONFIRM', { name: doc.name })
+  );
+  if (!ok) return;
+  try {
+    await store.delete(doc.id);
+    useAlert(t('CRM.KNOWLEDGE_DOCS.DELETE.SUCCESS'));
+    closePanel();
+    fetchRecords();
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.DELETE.ERROR'));
+  }
+};
+
+const fetchPermissionContext = () => {
+  if (!isGeneral.value) return;
+  fetchDocCenterSetting();
+  fetchSections();
+  if (isAdmin.value) fetchMembers();
+};
+
 onMounted(() => {
   fetchRecords();
   categoriesStore.get();
+  fetchPermissionContext();
 });
+watch(currentLibrary, fetchPermissionContext);
 watch(
-  () => route.query.filter,
-  value => {
-    activeFilter.value = value || 'company';
+  () => [route.query.filter, route.query.section_id],
+  ([filter, sectionId]) => {
+    activeFilter.value = filter || 'company';
+    activeSectionId.value = sectionId || '';
     closePanel();
     fetchRecords();
   }
@@ -428,12 +588,30 @@ watch(
             }}
           </p>
         </div>
-        <Button
-          :label="t('CRM.KNOWLEDGE_DOCS.NEW')"
-          icon="i-lucide-plus"
-          color="iris"
-          @click="openCreatePanel()"
-        />
+        <div class="flex items-center gap-3">
+          <!-- 文档中心负责人：管理员可指定，其他人只读展示 -->
+          <template v-if="isGeneral">
+            <span class="text-xs text-n-slate-10">
+              {{ t('CRM.KNOWLEDGE_DOCS.OWNER.LABEL') }}
+            </span>
+            <Select
+              v-if="isAdmin"
+              :model-value="docCenterOwnerId ? String(docCenterOwnerId) : ''"
+              :options="memberOptions"
+              @update:model-value="setDocCenterOwner"
+            />
+            <span v-else class="text-xs font-medium text-n-slate-11">
+              {{ docCenterOwnerName || t('CRM.KNOWLEDGE_DOCS.OWNER.NONE') }}
+            </span>
+          </template>
+          <Button
+            v-if="canCreateDocs"
+            :label="t('CRM.KNOWLEDGE_DOCS.NEW')"
+            icon="i-lucide-plus"
+            color="iris"
+            @click="openCreatePanel()"
+          />
+        </div>
       </div>
 
       <div class="flex items-center gap-2 px-6 py-3 border-b border-n-weak">
@@ -445,6 +623,16 @@ watch(
           :variant="activeFilter === tab.key ? 'solid' : 'faded'"
           :color="activeFilter === tab.key ? 'iris' : 'slate'"
           @click="setFilter(tab.key)"
+        />
+        <!-- 文档中心：板块经侧边栏切换；此处仅管理员的可见性设置入口 -->
+        <Button
+          v-if="isGeneral && isAdmin"
+          size="sm"
+          variant="faded"
+          color="slate"
+          icon="i-lucide-settings-2"
+          :label="t('CRM.KNOWLEDGE_DOCS.SECTION.SETTINGS')"
+          @click="openSectionDialog"
         />
         <Input
           v-model="searchQuery"
@@ -502,7 +690,7 @@ watch(
                 {{ col.docs.length || '' }}
               </span>
               <div
-                v-if="col.id"
+                v-if="col.id && canManageCompany"
                 class="flex items-center gap-0.5 ml-auto opacity-0 group-hover/col:opacity-100"
               >
                 <button
@@ -574,6 +762,7 @@ watch(
             </button>
 
             <button
+              v-if="canCreateDocs"
               type="button"
               class="flex items-center gap-1 px-3 py-2 text-sm rounded-xl text-n-slate-10 hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
               @click="openCreatePanel(col.uncategorized ? undefined : col.name)"
@@ -584,8 +773,8 @@ watch(
           </div>
         </div>
 
-        <!-- 新增分类列 -->
-        <div class="flex flex-col w-72 shrink-0">
+        <!-- 新增分类列（仅公司文档管理权） -->
+        <div v-if="canManageCompany" class="flex flex-col w-72 shrink-0">
           <input
             v-if="adding"
             v-model="newCategoryName"
@@ -711,6 +900,7 @@ watch(
               >
                 <span>{{ t('CRM.KNOWLEDGE_DOCS.PANEL.ATTACHMENTS') }}</span>
                 <button
+                  v-if="canManageDoc(selectedDoc)"
                   type="button"
                   class="inline-flex items-center gap-1 text-n-blue-11 hover:underline disabled:opacity-50"
                   :disabled="uploading"
@@ -745,6 +935,7 @@ watch(
                   <span class="truncate">{{ file.filename }}</span>
                 </a>
                 <button
+                  v-if="canManageDoc(selectedDoc)"
                   type="button"
                   class="text-n-slate-10 hover:text-n-ruby-11 shrink-0"
                   @click="removeAttachment(file.id)"
@@ -754,7 +945,7 @@ watch(
               </div>
             </div>
 
-            <div class="pt-2">
+            <div v-if="canManageDoc(selectedDoc)" class="flex gap-2 pt-2">
               <Button
                 :label="t('CRM.KNOWLEDGE_DOCS.PANEL.EDIT')"
                 icon="i-lucide-pencil"
@@ -762,6 +953,14 @@ watch(
                 color="slate"
                 variant="faded"
                 @click="startEdit"
+              />
+              <Button
+                :label="t('CRM.KNOWLEDGE_DOCS.DELETE.LABEL')"
+                icon="i-lucide-trash-2"
+                size="sm"
+                color="ruby"
+                variant="faded"
+                @click="removeDoc"
               />
             </div>
           </template>
@@ -780,12 +979,21 @@ watch(
                 </label>
                 <Select v-model="editForm.category" :options="categoryOptions" />
               </div>
-              <div class="flex flex-col min-w-0 gap-1">
+              <div v-if="canManageCompany" class="flex flex-col min-w-0 gap-1">
                 <label class="mb-0.5 text-heading-3 text-n-slate-12">
                   {{ t('CRM.KNOWLEDGE_DOCS.FORM.SCOPE') }}
                 </label>
                 <Select v-model="editForm.scope" :options="scopeOptions" />
               </div>
+            </div>
+            <div v-if="isGeneral" class="flex flex-col min-w-0 gap-1">
+              <label class="mb-0.5 text-heading-3 text-n-slate-12">
+                {{ t('CRM.KNOWLEDGE_DOCS.FORM.SECTION') }}
+              </label>
+              <Select
+                v-model="editForm.sectionId"
+                :options="sectionFormOptions"
+              />
             </div>
             <Input
               v-model="editForm.summary"
@@ -897,5 +1105,51 @@ watch(
         </div>
       </div>
     </aside>
+
+    <!-- 板块可见性设置（管理员）：每板块勾选可见部门，全不勾 = 全员可见 -->
+    <Dialog
+      ref="sectionDialogRef"
+      width="2xl"
+      overflow-y-auto
+      confirm-button-color="iris"
+      :title="t('CRM.KNOWLEDGE_DOCS.SECTION.SETTINGS')"
+      :is-loading="savingSections"
+      @confirm="saveSectionVisibility"
+    >
+      <p class="mb-4 text-xs text-n-slate-10">
+        {{ t('CRM.KNOWLEDGE_DOCS.SECTION.SETTINGS_HINT') }}
+      </p>
+      <div class="flex flex-col gap-4">
+        <div
+          v-for="draft in sectionDraft"
+          :key="draft.id"
+          class="flex flex-col gap-2 pb-3 border-b border-n-weak last:border-b-0"
+        >
+          <div class="text-sm font-medium text-n-slate-12">
+            {{ draft.name }}
+          </div>
+          <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+            <label
+              v-for="dept in departments"
+              :key="dept.id"
+              class="flex items-center gap-1.5 text-sm text-n-slate-11"
+            >
+              <input
+                type="checkbox"
+                :checked="draft.departmentIds.includes(dept.id)"
+                @change="toggleSectionDept(draft, dept.id)"
+              />
+              {{ dept.name }}
+            </label>
+            <span
+              v-if="!draft.departmentIds.length"
+              class="text-xs self-center text-n-slate-10"
+            >
+              {{ t('CRM.KNOWLEDGE_DOCS.SECTION.ALL_VISIBLE') }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>

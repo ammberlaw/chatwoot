@@ -27,8 +27,10 @@ class Crm::KnowledgeDocPolicy < ApplicationPolicy
     true
   end
 
+  # 删除按文档级权限控制（个人文档归属人可删自己的），
+  # 由控制器 ensure_doc_manageable 强制；此处放行到控制器层判断。
   def destroy?
-    @account_user.administrator?
+    true
   end
 end
 

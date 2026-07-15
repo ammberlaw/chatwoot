@@ -15,18 +15,21 @@
 #  updated_at :datetime         not null
 #  account_id :bigint           not null
 #  owner_id   :bigint
+#  section_id :bigint
 #
 # Indexes
 #
-#  index_crm_knowledge_docs_on_account_id               (account_id)
-#  index_crm_knowledge_docs_on_account_id_and_category  (account_id,category)
-#  index_crm_knowledge_docs_on_account_id_and_library   (account_id,library)
-#  index_crm_knowledge_docs_on_account_id_and_scope     (account_id,scope)
-#  index_crm_knowledge_docs_on_owner_id                 (owner_id)
+#  index_crm_knowledge_docs_on_account_id                 (account_id)
+#  index_crm_knowledge_docs_on_account_id_and_category    (account_id,category)
+#  index_crm_knowledge_docs_on_account_id_and_library     (account_id,library)
+#  index_crm_knowledge_docs_on_account_id_and_scope       (account_id,scope)
+#  index_crm_knowledge_docs_on_account_id_and_section_id  (account_id,section_id)
+#  index_crm_knowledge_docs_on_owner_id                   (owner_id)
 #
 # Foreign Keys
 #
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
+#  fk_rails_...  (section_id => crm_doc_sections.id) ON DELETE => nullify
 #
 class Crm::KnowledgeDoc < ApplicationRecord
   SCOPES = %w[PERSONAL COMPANY].freeze
@@ -35,6 +38,8 @@ class Crm::KnowledgeDoc < ApplicationRecord
 
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true
+  # 文档中心资料板块（GENERAL 库使用）；板块可按部门配置可见性。
+  belongs_to :section, class_name: 'Crm::DocSection', optional: true
 
   # 审计：记录文档的创建/编辑，供侧边栏「时间轴」展示。
   audited except: %i[created_at updated_at], on: %i[create update]

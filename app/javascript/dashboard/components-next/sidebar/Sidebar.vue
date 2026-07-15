@@ -10,6 +10,7 @@ import { useI18n } from 'vue-i18n';
 import { useSidebarKeyboardShortcuts } from './useSidebarKeyboardShortcuts';
 import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
+import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import { useWindowSize, useEventListener } from '@vueuse/core';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -69,6 +70,16 @@ const isCrmSales = computed(
 // 绩效板块按角色可见性（服务端按当前用户角色算好；管理员始终 true）。
 const kpiSchemeVisible = computed(() => currentUser.value?.kpi_scheme_visible !== false);
 const kpiSheetVisible = computed(() => currentUser.value?.kpi_sheet_visible !== false);
+// 文档中心资料板块（仅当前用户可见的），进入文档系统时按需拉取一次。
+const docSections = ref([]);
+const fetchDocSections = async () => {
+  try {
+    const { data } = await DocSectionsAPI.get();
+    docSections.value = data.payload || [];
+  } catch {
+    docSections.value = [];
+  }
+};
 const CRM_DATA_MODULES = [
   'CRM Dashboards',
   'CRM Customers Group',
@@ -833,6 +844,16 @@ const menuItems = computed(() => {
           ),
           activeOn: ['crm_doc_center_index'],
         },
+        // 资料板块（仅列出当前用户可见的；可见性按部门在文档中心配置）
+        ...docSections.value.map(section => ({
+          name: `CRM Doc Section ${section.id}`,
+          label: section.name,
+          to: accountScopedRoute(
+            'crm_doc_center_index',
+            {},
+            { filter: 'company', section_id: String(section.id) }
+          ),
+        })),
         {
           name: 'CRM Doc Center Mine',
           label: t('SIDEBAR.CRM_DOC_CENTER_MINE'),
@@ -1248,6 +1269,15 @@ const ROUTE_MODULE = {
   crm_doc_center_index: 'doc',
 };
 const activeModule = computed(() => ROUTE_MODULE[route.name] || 'crm');
+
+// 进入文档系统时拉取资料板块（一次），供侧栏渲染板块子项。
+watch(
+  activeModule,
+  module => {
+    if (module === 'doc' && !docSections.value.length) fetchDocSections();
+  },
+  { immediate: true }
+);
 
 const filteredMenuItems = computed(() =>
   menuItems.value.filter(

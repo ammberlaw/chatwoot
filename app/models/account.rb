@@ -80,6 +80,7 @@ class Account < ApplicationRecord
   has_many :crm_follow_up_notes, class_name: 'Crm::FollowUpNote', dependent: :destroy_async
   has_many :crm_follow_up_tasks, class_name: 'Crm::FollowUpTask', dependent: :destroy_async
   has_many :crm_knowledge_docs, class_name: 'Crm::KnowledgeDoc', dependent: :destroy_async
+  has_many :crm_doc_sections, class_name: 'Crm::DocSection', dependent: :destroy_async
   has_many :crm_knowledge_categories, class_name: 'Crm::KnowledgeCategory', dependent: :destroy_async
   has_many :crm_teams, class_name: 'Crm::Team', dependent: :destroy_async
   has_many :crm_sales_targets, class_name: 'Crm::SalesTarget', dependent: :destroy_async

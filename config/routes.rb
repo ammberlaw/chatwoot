@@ -104,6 +104,8 @@ Rails.application.routes.draw do
             resources :teams
             resources :sales_targets
             resource :public_pool_settings, only: [:show, :update]
+            resource :doc_center_settings, only: [:show, :update], controller: 'doc_center_settings'
+            resources :doc_sections, only: [:index, :update]
             resource :stats, only: [:show], controller: 'stats'
             resource :team_dashboard, only: [:show], controller: 'team_dashboard'
             resource :my_target, only: [:show], controller: 'my_target'
