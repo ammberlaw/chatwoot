@@ -1,15 +1,31 @@
-# CRM 成员权限管理：列出账号成员并为其分配 CRM 角色（主管/业务员/无）。仅系统管理员可用。
-# 系统管理员自动是 CRM 管理员（全权），此处不改其 crm_role。
+# 成员权限管理：为账号成员设置系统角色（一个下拉管到底）。仅系统管理员可用。
+# 系统角色 → 底层 Chatwoot role + crm_role 的映射：
+#   管理员 = administrator；副管理员/部门负责人/业务员 = agent + 对应 crm_role；无 = agent（不进入 CRM）。
 class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseController
   before_action :ensure_admin
   before_action :fetch_member, only: [:update]
+
+  SYSTEM_ROLE_MAP = {
+    'administrator' => [:administrator, nil],
+    'deputy_admin' => [:agent, 'deputy_admin'],
+    'manager' => [:agent, 'manager'],
+    'sales' => [:agent, 'sales'],
+    '' => [:agent, nil]
+  }.freeze
 
   def index
     @members = Current.account.account_users.includes(:user).order('users.name')
   end
 
   def update
-    @member.update!(crm_role: normalized_crm_role)
+    # 防自锁：不能修改自己的角色/权限（降级自己可能失去管理入口）。
+    return render json: { error: '不能修改自己的角色' }, status: :unprocessable_entity if @member.id == Current.account_user.id
+
+    updates = role_updates
+    return render json: { error: '无效的角色' }, status: :unprocessable_entity if updates.nil?
+
+    updates[:module_access] = normalized_modules if params[:member].key?(:module_access)
+    @member.update!(updates)
   end
 
   private
@@ -17,7 +33,7 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
   def ensure_admin
     return if Current.account_user&.administrator?
 
-    render json: { error: I18n.t('errors.crm.admin_only', default: '仅管理员可管理 CRM 角色') },
+    render json: { error: I18n.t('errors.crm.admin_only', default: '仅管理员可管理成员角色') },
            status: :forbidden
   end
 
@@ -25,9 +41,17 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     @member = Current.account.account_users.find(params[:id])
   end
 
-  # 空串/无 → nil（清除 CRM 权限）；其余按模型枚举校验。
-  def normalized_crm_role
-    role = params.require(:member).permit(:crm_role)[:crm_role].presence
-    role
+  # system_role 未传 → 不改角色（空 hash）；传了但非法 → nil（422）。
+  def role_updates
+    return {} unless params[:member].key?(:system_role)
+
+    mapping = SYSTEM_ROLE_MAP[params[:member][:system_role].to_s]
+    return nil unless mapping
+
+    { role: mapping[0], crm_role: mapping[1] }
+  end
+
+  def normalized_modules
+    Array(params[:member][:module_access]).map(&:to_s) & AccountUser::MODULES
   end
 end

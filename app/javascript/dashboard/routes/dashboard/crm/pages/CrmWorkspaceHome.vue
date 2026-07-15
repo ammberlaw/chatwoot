@@ -86,12 +86,19 @@ const LIVE = computed(() => [
   },
 ]);
 
-// 未上线模块，安静收在底部。
-const SOON = [
+// 未上线模块，安静收在底部。ERP/MES 按成员模块权限显隐（管理员全模块）。
+const ALL_SOON = [
   { key: 'erp', label: 'ERP 进销存', icon: 'i-lucide-package' },
   { key: 'mes', label: 'MES 生产制造', icon: 'i-lucide-factory' },
   { key: 'schedule', label: '日程 Schedule', icon: 'i-lucide-calendar-days' },
 ];
+const SOON = computed(() => {
+  if (currentUser.value?.role === 'administrator') return ALL_SOON;
+  const allowed = currentUser.value?.module_access || [];
+  return ALL_SOON.filter(
+    m => !['erp', 'mes'].includes(m.key) || allowed.includes(m.key)
+  );
+});
 
 // 每个强调色对应一套 icon 徽章 + hover 描边类。Radix n-* 色阶，全部预声明避免动态 class 被 purge。
 const ACCENT = {

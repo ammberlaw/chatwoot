@@ -16,6 +16,7 @@ json.custom_attributes resource.custom_attributes if resource.custom_attributes.
 json.role resource.active_account_user&.role
 json.crm_role resource.active_account_user&.crm_role
 json.can_access_crm resource.active_account_user&.can_access_crm? || false
+json.module_access resource.active_account_user&.module_access || []
 if (crm_au = resource.active_account_user)
   crm_perf_setting = crm_au.account.crm_performance_setting
   json.kpi_scheme_visible Crm::PerformanceSetting.scheme_visible?(crm_perf_setting, crm_au)

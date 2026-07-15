@@ -32,6 +32,23 @@ class Crm::KnowledgeDocPolicy < ApplicationPolicy
   def destroy?
     true
   end
+
+  # 回收站仅管理员，由控制器 ensure_admin 强制。
+  def recycle_bin?
+    true
+  end
+
+  def restore?
+    true
+  end
+
+  def purge?
+    true
+  end
+
+  def purge_all?
+    true
+  end
 end
 
 Crm::KnowledgeDocPolicy.prepend_mod_with('Crm::KnowledgeDocPolicy')

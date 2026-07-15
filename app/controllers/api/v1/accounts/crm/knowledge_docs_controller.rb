@@ -2,6 +2,8 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   before_action :check_authorization
   before_action :fetch_doc, only: [:show, :update, :destroy, :attach, :detach, :audits]
   before_action :ensure_doc_manageable, only: [:update, :destroy, :attach, :detach]
+  before_action :ensure_admin, only: [:recycle_bin, :restore, :purge, :purge_all]
+  before_action :fetch_discarded_doc, only: [:restore, :purge]
 
   RESULTS_PER_PAGE = 20
 
@@ -25,8 +27,31 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     @doc.update!(update_params)
   end
 
+  # 删除=移入回收站（软删除）；彻底删除仅管理员在回收站执行。
   def destroy
+    @doc.discard!(current_user.id)
+    head :ok
+  end
+
+  # ── 回收站（仅管理员）──
+  def recycle_bin
+    @docs = Current.account.crm_knowledge_docs.discarded
+                   .includes(:owner, :discarded_by)
+                   .order(discarded_at: :desc)
+  end
+
+  def restore
+    @doc.restore!
+    head :ok
+  end
+
+  def purge
     @doc.destroy!
+    head :ok
+  end
+
+  def purge_all
+    Current.account.crm_knowledge_docs.discarded.destroy_all
     head :ok
   end
 
@@ -58,9 +83,9 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
 
   private
 
-  # 个人文档账号间严格隔离：任何人（含管理员）只能看到公司文档 + 自己的个人文档。
+  # 个人文档账号间严格隔离：任何人（含管理员）只能看到公司文档 + 自己的个人文档。回收站的不在列。
   def visible_docs
-    base = Current.account.crm_knowledge_docs
+    base = Current.account.crm_knowledge_docs.kept
     base.company_docs.or(base.personal_of(current_user.id))
   end
 
@@ -70,8 +95,18 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     raise ActiveRecord::RecordNotFound if @doc.section_id.present? && !section_visible?(@doc.section_id)
   end
 
+  def fetch_discarded_doc
+    @doc = Current.account.crm_knowledge_docs.discarded.find(params[:id])
+  end
+
+  def ensure_admin
+    return if Current.account_user.administrator?
+
+    render_forbidden
+  end
+
   def section_visible?(section_id)
-    return true if company_docs_manageable?('GENERAL')
+    return true if admin_like? || doc_center_owner?
 
     visible_section_ids.include?(section_id)
   end
@@ -84,8 +119,8 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     authorize(Crm::KnowledgeDoc)
   end
 
-  # 编辑/删除/附件权限：个人文档仅归属人；公司文档按库分——
-  # 销售资料(SALES)=管理员/主管；文档中心(GENERAL)=管理员/指定负责人。
+  # 编辑/删除/附件权限：个人文档仅归属人；公司文档=管理员/副管理员/部门负责人
+  # （文档中心 GENERAL 库另加指定负责人）；其他成员只能浏览下载。
   def ensure_doc_manageable
     return if doc_manageable?(@doc)
 
@@ -99,10 +134,17 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   end
 
   def company_docs_manageable?(library)
-    return true if Current.account_user.administrator?
-    return Crm::DocCenterSetting.for_account(Current.account).owner_id == current_user.id if library == 'GENERAL'
+    return true if admin_like? || Current.account_user.crm_manager?
 
-    Current.account_user.crm_manager?
+    library == 'GENERAL' && doc_center_owner?
+  end
+
+  def admin_like?
+    Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+  end
+
+  def doc_center_owner?
+    @doc_center_owner ||= Crm::DocCenterSetting.for_account(Current.account).owner_id == current_user.id
   end
 
   def render_forbidden
@@ -117,10 +159,10 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     search_and_category(scope)
   end
 
-  # 资料库隔离 + 文档中心板块部门可见性（无板块的旧文档全员可见）+ 板块筛选。
+  # 资料库隔离 + 文档中心板块部门可见性（无板块的旧文档全员可见；管理员/副管理员/负责人不受限）+ 板块筛选。
   def section_scoped(scope)
     scope = scope.in_library(params[:library]) if params[:library].present?
-    scope = scope.where(section_id: [nil] + visible_section_ids) if params[:library] == 'GENERAL' && !company_docs_manageable?('GENERAL')
+    scope = scope.where(section_id: [nil] + visible_section_ids) if params[:library] == 'GENERAL' && !(admin_like? || doc_center_owner?)
     scope = scope.where(section_id: params[:section_id]) if params[:section_id].present?
     scope
   end

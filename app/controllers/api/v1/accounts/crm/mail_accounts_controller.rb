@@ -50,7 +50,7 @@ class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::Crm::B
   end
 
   def privileged?
-    Current.account_user.administrator? || Current.account_user.crm_manager?
+    Current.account_user.administrator? || Current.account_user.crm_deputy_admin? || Current.account_user.crm_manager?
   end
 
   def mail_account_params

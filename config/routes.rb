@@ -94,10 +94,16 @@ Rails.application.routes.draw do
             resources :follow_up_notes
             resources :follow_up_tasks
             resources :knowledge_docs do
+              collection do
+                get :recycle_bin
+                post :purge_all
+              end
               member do
                 get :audits
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
+                post :restore
+                post :purge
               end
             end
             resources :knowledge_categories, only: [:index, :create, :update, :destroy]
@@ -105,7 +111,7 @@ Rails.application.routes.draw do
             resources :sales_targets
             resource :public_pool_settings, only: [:show, :update]
             resource :doc_center_settings, only: [:show, :update], controller: 'doc_center_settings'
-            resources :doc_sections, only: [:index, :update]
+            resources :doc_sections, only: [:index, :create, :update, :destroy]
             resource :stats, only: [:show], controller: 'stats'
             resource :team_dashboard, only: [:show], controller: 'team_dashboard'
             resource :my_target, only: [:show], controller: 'my_target'

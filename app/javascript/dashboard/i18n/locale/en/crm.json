@@ -348,7 +348,37 @@
         "SETTINGS_HINT": "为每个资料板块勾选可见部门（含其下级部门的成员）；全不勾选 = 全员可见。管理员与文档中心负责人始终可见全部板块。",
         "ALL_VISIBLE": "未限制，全员可见",
         "SAVED": "板块可见性已保存",
-        "SAVE_ERROR": "保存失败"
+        "SAVE_ERROR": "保存失败",
+        "ADD_TITLE": "新增板块",
+        "ADD_PLACEHOLDER": "输入新板块名称",
+        "ADD": "添加",
+        "ADDED": "板块已添加",
+        "ADD_ERROR": "添加失败，板块名称不能为空或与已有板块重复",
+        "DELETE": "删除",
+        "CONFIRM_DELETE": "确认删除",
+        "DELETED": "板块已删除",
+        "DELETE_ERROR": "删除失败",
+        "DELETE_NOTE": "默认板块不可删除；删除自定义板块后，其中的文档会回到「未分板块」。"
+      },
+      "RECYCLE": {
+        "TAB": "回收站",
+        "EMPTY": "回收站是空的",
+        "HINT": "成员与管理员删除的文档都会进入回收站；只有管理员可以查看、恢复或彻底删除。",
+        "DOC_NAME": "文档",
+        "OWNER": "归属人",
+        "DELETED_BY": "删除人",
+        "DELETED_AT": "删除时间",
+        "SCOPE_PERSONAL": "个人",
+        "SCOPE_COMPANY": "公司",
+        "RESTORE": "恢复",
+        "RESTORED": "文档已恢复",
+        "PURGE": "彻底删除",
+        "CONFIRM_PURGE": "确认彻底删除",
+        "PURGED": "已彻底删除",
+        "PURGE_ALL": "清空回收站",
+        "CONFIRM_PURGE_ALL": "确认清空",
+        "PURGED_ALL": "回收站已清空",
+        "ERROR": "操作失败"
       }
     },
     "SALES_TARGETS": {

@@ -52,7 +52,9 @@ class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::
 
   # 管理员/主管看全部团队；普通业务仅看自己所属团队。
   def visible_teams
-    return Current.account.crm_teams if Current.account_user.administrator? || Current.account_user.crm_manager?
+    if Current.account_user.administrator? || Current.account_user.crm_deputy_admin? || Current.account_user.crm_manager?
+      return Current.account.crm_teams
+    end
 
     Current.account.crm_teams.where(id: Current.account_user.crm_team_id)
   end

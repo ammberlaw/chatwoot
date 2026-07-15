@@ -1,5 +1,5 @@
 <script setup>
-import { h, ref, computed, onMounted, watch } from 'vue';
+import { h, ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { provideSidebarContext, useSidebarResize } from './provider';
 import { useRoute } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -11,6 +11,7 @@ import { useSidebarKeyboardShortcuts } from './useSidebarKeyboardShortcuts';
 import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
+import { emitter } from 'shared/helpers/mitt';
 import { useWindowSize, useEventListener } from '@vueuse/core';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -63,9 +64,11 @@ const currentUser = useMapGetter('getCurrentUser');
 // 非 CRM 人员隐藏 CRM 销售数据分组（工作台/文档中心/HR/OA/协同等共享模块保留）。
 const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
-// 普通业务（非管理员且非 CRM 主管）：隐藏公司级看板等团队之外的数据入口。
+// 普通业务（非管理员/副管理员/部门负责人）：隐藏公司级看板等团队之外的数据入口。
 const isCrmSales = computed(
-  () => !isAdmin.value && currentUser.value?.crm_role !== 'manager'
+  () =>
+    !isAdmin.value &&
+    !['deputy_admin', 'manager'].includes(currentUser.value?.crm_role)
 );
 // 绩效板块按角色可见性（服务端按当前用户角色算好；管理员始终 true）。
 const kpiSchemeVisible = computed(() => currentUser.value?.kpi_scheme_visible !== false);
@@ -863,6 +866,20 @@ const menuItems = computed(() => {
             { filter: 'mine' }
           ),
         },
+        // 文档回收站：仅管理员可见可清理
+        ...(isAdmin.value
+          ? [
+              {
+                name: 'CRM Doc Center Recycle',
+                label: t('SIDEBAR.CRM_DOC_CENTER_RECYCLE'),
+                to: accountScopedRoute(
+                  'crm_doc_center_index',
+                  {},
+                  { filter: 'recycle' }
+                ),
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -1278,6 +1295,9 @@ watch(
   },
   { immediate: true }
 );
+// 管理员在文档中心增删板块后即时刷新侧栏子项。
+onMounted(() => emitter.on('crmDocSectionsUpdated', fetchDocSections));
+onBeforeUnmount(() => emitter.off('crmDocSectionsUpdated', fetchDocSections));
 
 const filteredMenuItems = computed(() =>
   menuItems.value.filter(

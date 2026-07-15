@@ -7,6 +7,14 @@ class Crm::DocSectionPolicy < ApplicationPolicy
   def update?
     @account_user.administrator?
   end
+
+  def create?
+    @account_user.administrator?
+  end
+
+  def destroy?
+    @account_user.administrator?
+  end
 end
 
 Crm::DocSectionPolicy.prepend_mod_with('Crm::DocSectionPolicy')

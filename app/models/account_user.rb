@@ -7,6 +7,7 @@
 #  auto_offline             :boolean          default(TRUE), not null
 #  availability             :integer          default("online"), not null
 #  crm_role                 :string
+#  module_access            :text             default(["crm", "erp", "mes"]), not null, is an Array
 #  role                     :integer          default("agent")
 #  created_at               :datetime         not null
 #  updated_at               :datetime         not null
@@ -43,9 +44,12 @@ class AccountUser < ApplicationRecord
   enum role: { agent: 0, administrator: 1 }
   enum availability: { online: 0, offline: 1, busy: 2 }
 
-  # CRM 条线角色（与 Chatwoot role 正交）：主管 / 业务员；空=非 CRM 人员。
-  CRM_ROLES = %w[manager sales].freeze
+  # CRM 条线角色（与 Chatwoot role 正交）：副管理员 / 部门负责人 / 业务员；空=非 CRM 人员。
+  CRM_ROLES = %w[deputy_admin manager sales].freeze
   validates :crm_role, inclusion: { in: CRM_ROLES }, allow_nil: true
+
+  # 业务系统模块使用权限（成员权限页按人开关）；管理员始终全模块。
+  MODULES = %w[crm erp mes].freeze
 
   accepts_nested_attributes_for :account
 
@@ -55,14 +59,24 @@ class AccountUser < ApplicationRecord
 
   validates :user_id, uniqueness: { scope: :account_id }
 
-  # 能否进入 CRM：系统管理员自动可入；否则需被赋予 CRM 角色（主管/业务员）。
-  def can_access_crm?
-    administrator? || crm_role.present?
+  # 模块使用权限：管理员始终全模块；其他人按成员权限页的开关。
+  def module_enabled?(mod)
+    administrator? || module_access.include?(mod)
   end
 
-  # CRM 数据条线是否主管：主管看团队，业务员/其他看自己。
+  # 能否进入 CRM：系统管理员自动可入；否则需被赋予角色且 CRM 模块开关打开。
+  def can_access_crm?
+    administrator? || (crm_role.present? && module_enabled?('crm'))
+  end
+
+  # CRM 数据条线是否主管（部门负责人）：看本部门（含下级）；业务员/其他看自己。
   def crm_manager?
     crm_role == 'manager'
+  end
+
+  # 副管理员：CRM 内数据范围与文档管理同管理员；账号级管理（成员权限/回收站等）仍仅系统管理员。
+  def crm_deputy_admin?
+    crm_role == 'deputy_admin'
   end
 
   def create_notification_setting

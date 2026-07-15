@@ -97,7 +97,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   end
 
   def can_manage?
-    Current.account_user&.administrator? || Current.account_user&.crm_manager?
+    Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin? || Current.account_user&.crm_manager?
   end
 
   def perf_setting

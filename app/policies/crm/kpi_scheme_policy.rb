@@ -27,7 +27,7 @@ class Crm::KpiSchemePolicy < ApplicationPolicy
   private
 
   def manage?
-    @account_user.administrator? || Current.account_user&.crm_manager?
+    @account_user.administrator? || Current.account_user&.crm_deputy_admin? || Current.account_user&.crm_manager?
   end
 
   # 按角色可见性（业务员/主管开关；管理员始终可见）。

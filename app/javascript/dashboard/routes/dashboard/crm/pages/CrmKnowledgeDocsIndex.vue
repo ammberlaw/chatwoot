@@ -7,6 +7,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import { emitter } from 'shared/helpers/mitt';
 import { useCrmKnowledgeDocsStore } from 'dashboard/stores/crm/knowledgeDocs';
 import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCategories';
 import CrmMemberAPI from 'dashboard/api/crm/members';
@@ -33,9 +34,9 @@ let searchTimer = null;
 const currentLibrary = computed(() => route.meta.library || 'SALES');
 const isGeneral = computed(() => currentLibrary.value === 'GENERAL');
 
-// ── 权限：公司文档管理权（销售资料=管理员/主管；文档中心=管理员/指定负责人）──
+// ── 权限：公司文档管理权=管理员/副管理员/部门负责人（文档中心另加指定负责人）；其他人只能浏览下载 ──
 const currentUserId = useMapGetter('getCurrentUserID');
-const { isAdmin, isCrmManager } = useCrmRole();
+const { isAdmin, isCrmDeputyAdmin, isCrmManager } = useCrmRole();
 const docCenterOwnerId = ref(null);
 const docCenterOwnerName = ref('');
 const members = ref([]);
@@ -73,10 +74,12 @@ const setDocCenterOwner = async value => {
   }
 };
 
-const canManageCompany = computed(() =>
-  isGeneral.value
-    ? isAdmin.value || docCenterOwnerId.value === currentUserId.value
-    : isAdmin.value || isCrmManager.value
+const canManageCompany = computed(
+  () =>
+    isAdmin.value ||
+    isCrmDeputyAdmin.value ||
+    isCrmManager.value ||
+    (isGeneral.value && docCenterOwnerId.value === currentUserId.value)
 );
 
 // ── 资料板块（文档中心）：侧边栏子项经 ?section_id= 驱动切换；管理员可按部门配置各板块可见性 ──
@@ -100,6 +103,9 @@ const sectionDialogRef = ref(null);
 const departments = ref([]);
 const sectionDraft = ref([]);
 const savingSections = ref(false);
+const newSectionName = ref('');
+const addingSection = ref(false);
+const pendingSectionDeleteId = ref(null);
 const openSectionDialog = async () => {
   try {
     const { data } = await axios.get(
@@ -112,9 +118,53 @@ const openSectionDialog = async () => {
   sectionDraft.value = sections.value.map(s => ({
     id: s.id,
     name: s.name,
+    isDefault: s.is_default,
     departmentIds: [...(s.department_ids || [])],
   }));
+  newSectionName.value = '';
+  pendingSectionDeleteId.value = null;
   sectionDialogRef.value?.open();
+};
+// 自定义新增板块：立即入库并追加到草稿；删除仅限自定义板块（两步确认）。
+const addSection = async () => {
+  const name = newSectionName.value.trim();
+  if (!name || addingSection.value) return;
+  addingSection.value = true;
+  try {
+    const { data } = await DocSectionsAPI.createSection({
+      section: { name },
+    });
+    sectionDraft.value.push({
+      id: data.id,
+      name: data.name,
+      isDefault: false,
+      departmentIds: [...(data.department_ids || [])],
+    });
+    newSectionName.value = '';
+    await fetchSections();
+    emitter.emit('crmDocSectionsUpdated');
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.ADDED'));
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.ADD_ERROR'));
+  } finally {
+    addingSection.value = false;
+  }
+};
+const deleteSection = async draft => {
+  if (pendingSectionDeleteId.value !== draft.id) {
+    pendingSectionDeleteId.value = draft.id;
+    return;
+  }
+  pendingSectionDeleteId.value = null;
+  try {
+    await DocSectionsAPI.deleteSection(draft.id);
+    sectionDraft.value = sectionDraft.value.filter(s => s.id !== draft.id);
+    await fetchSections();
+    emitter.emit('crmDocSectionsUpdated');
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.DELETED'));
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.DELETE_ERROR'));
+  }
 };
 const toggleSectionDept = (draft, deptId) => {
   const idx = draft.departmentIds.indexOf(deptId);
@@ -206,12 +256,79 @@ const scopeOptions = [
   { value: 'PERSONAL', label: '个人' },
 ];
 
-const filterTabs = [
+const filterTabs = computed(() => [
   { key: 'company', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.COMPANY') },
   { key: 'mine', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.MINE') },
-];
+  ...(isAdmin.value && isGeneral.value
+    ? [{ key: 'recycle', label: t('CRM.KNOWLEDGE_DOCS.RECYCLE.TAB') }]
+    : []),
+]);
+
+// ── 文档回收站（仅管理员）：删除的文档进这里，可恢复或彻底删除 ──
+const isRecycle = computed(() => activeFilter.value === 'recycle');
+const recycleDocs = ref([]);
+const loadingRecycle = ref(false);
+const pendingPurgeId = ref(null);
+const pendingPurgeAll = ref(false);
+const recycleUrl = path =>
+  `/api/v1/accounts/${accountId.value}/crm/knowledge_docs${path}`;
+const fetchRecycleBin = async () => {
+  loadingRecycle.value = true;
+  pendingPurgeId.value = null;
+  pendingPurgeAll.value = false;
+  try {
+    const { data } = await axios.get(recycleUrl('/recycle_bin'));
+    recycleDocs.value = data.payload || [];
+  } catch {
+    recycleDocs.value = [];
+  } finally {
+    loadingRecycle.value = false;
+  }
+};
+const restoreDoc = async doc => {
+  try {
+    await axios.post(recycleUrl(`/${doc.id}/restore`));
+    recycleDocs.value = recycleDocs.value.filter(d => d.id !== doc.id);
+    useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.RESTORED'));
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.ERROR'));
+  }
+};
+// 彻底删除/清空均两步确认。
+const purgeDoc = async doc => {
+  if (pendingPurgeId.value !== doc.id) {
+    pendingPurgeId.value = doc.id;
+    return;
+  }
+  pendingPurgeId.value = null;
+  try {
+    await axios.post(recycleUrl(`/${doc.id}/purge`));
+    recycleDocs.value = recycleDocs.value.filter(d => d.id !== doc.id);
+    useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.PURGED'));
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.ERROR'));
+  }
+};
+const purgeAll = async () => {
+  if (!pendingPurgeAll.value) {
+    pendingPurgeAll.value = true;
+    return;
+  }
+  pendingPurgeAll.value = false;
+  try {
+    await axios.post(recycleUrl('/purge_all'));
+    recycleDocs.value = [];
+    useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.PURGED_ALL'));
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.RECYCLE.ERROR'));
+  }
+};
 
 const fetchRecords = () => {
+  if (isRecycle.value) {
+    fetchRecycleBin();
+    return;
+  }
   store.get({
     library: currentLibrary.value,
     filter: activeFilter.value,
@@ -605,7 +722,7 @@ watch(
             </span>
           </template>
           <Button
-            v-if="canCreateDocs"
+            v-if="canCreateDocs && !isRecycle"
             :label="t('CRM.KNOWLEDGE_DOCS.NEW')"
             icon="i-lucide-plus"
             color="iris"
@@ -643,10 +760,120 @@ watch(
       </div>
 
       <div
-        v-if="isFetching"
+        v-if="isFetching || loadingRecycle"
         class="flex items-center justify-center flex-1 text-base text-n-slate-11"
       >
         {{ t('CRM.KNOWLEDGE_DOCS.LOADING') }}
+      </div>
+
+      <!-- 文档回收站（仅管理员）：可恢复 / 彻底删除 / 清空 -->
+      <div v-else-if="isRecycle" class="flex-1 px-6 py-4 overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs text-n-slate-10">
+            {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.HINT') }}
+          </p>
+          <button
+            v-if="recycleDocs.length"
+            type="button"
+            class="px-3 py-1.5 text-xs font-medium transition-colors rounded-full shrink-0"
+            :class="
+              pendingPurgeAll
+                ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                : 'text-n-ruby-11 hover:bg-n-ruby-3'
+            "
+            @click="purgeAll"
+          >
+            {{
+              pendingPurgeAll
+                ? t('CRM.KNOWLEDGE_DOCS.RECYCLE.CONFIRM_PURGE_ALL')
+                : t('CRM.KNOWLEDGE_DOCS.RECYCLE.PURGE_ALL')
+            }}
+          </button>
+        </div>
+
+        <div
+          v-if="!recycleDocs.length"
+          class="flex flex-col items-center gap-2 mt-20 text-n-slate-10"
+        >
+          <span class="i-lucide-trash-2 size-8 opacity-40" />
+          <p class="text-sm">{{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.EMPTY') }}</p>
+        </div>
+
+        <table v-else class="w-full text-sm">
+          <thead>
+            <tr class="text-left border-b border-n-weak text-n-slate-10">
+              <th class="py-2.5 pr-4 font-medium">
+                {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DOC_NAME') }}
+              </th>
+              <th class="py-2.5 pr-4 font-medium">
+                {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.OWNER') }}
+              </th>
+              <th class="py-2.5 pr-4 font-medium">
+                {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DELETED_BY') }}
+              </th>
+              <th class="py-2.5 pr-4 font-medium">
+                {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DELETED_AT') }}
+              </th>
+              <th class="py-2.5 font-medium w-44" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="doc in recycleDocs"
+              :key="doc.id"
+              class="border-b border-n-weak hover:bg-n-alpha-1"
+            >
+              <td class="py-2.5 pr-4">
+                <span class="font-medium text-n-slate-12">{{ doc.name }}</span>
+                <span
+                  class="ml-2 px-1.5 py-0.5 text-[11px] rounded-full bg-n-slate-3 text-n-slate-11"
+                >
+                  {{
+                    doc.scope === 'PERSONAL'
+                      ? t('CRM.KNOWLEDGE_DOCS.RECYCLE.SCOPE_PERSONAL')
+                      : t('CRM.KNOWLEDGE_DOCS.RECYCLE.SCOPE_COMPANY')
+                  }}
+                </span>
+              </td>
+              <td class="py-2.5 pr-4 text-n-slate-11">
+                {{ doc.owner_name || '—' }}
+              </td>
+              <td class="py-2.5 pr-4 text-n-slate-11">
+                {{ doc.discarded_by_name || '—' }}
+              </td>
+              <td class="py-2.5 pr-4 text-n-slate-11 tabular-nums">
+                {{ fmtDateTime(doc.discarded_at) }}
+              </td>
+              <td class="py-2.5">
+                <div class="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full text-n-iris-11 hover:bg-n-iris-3"
+                    @click="restoreDoc(doc)"
+                  >
+                    {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.RESTORE') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
+                    :class="
+                      pendingPurgeId === doc.id
+                        ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                        : 'text-n-ruby-11 hover:bg-n-ruby-3'
+                    "
+                    @click="purgeDoc(doc)"
+                  >
+                    {{
+                      pendingPurgeId === doc.id
+                        ? t('CRM.KNOWLEDGE_DOCS.RECYCLE.CONFIRM_PURGE')
+                        : t('CRM.KNOWLEDGE_DOCS.RECYCLE.PURGE')
+                    }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- 分类看板：一列一分类，横向滚动，分类可增/改/删 -->
@@ -1125,8 +1352,27 @@ watch(
           :key="draft.id"
           class="flex flex-col gap-2 pb-3 border-b border-n-weak last:border-b-0"
         >
-          <div class="text-sm font-medium text-n-slate-12">
-            {{ draft.name }}
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-sm font-medium text-n-slate-12">
+              {{ draft.name }}
+            </div>
+            <button
+              v-if="!draft.isDefault"
+              type="button"
+              class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full shrink-0"
+              :class="
+                pendingSectionDeleteId === draft.id
+                  ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                  : 'text-n-ruby-11 hover:bg-n-ruby-3'
+              "
+              @click="deleteSection(draft)"
+            >
+              {{
+                pendingSectionDeleteId === draft.id
+                  ? t('CRM.KNOWLEDGE_DOCS.SECTION.CONFIRM_DELETE')
+                  : t('CRM.KNOWLEDGE_DOCS.SECTION.DELETE')
+              }}
+            </button>
           </div>
           <div class="flex flex-wrap gap-x-4 gap-y-1.5">
             <label
@@ -1148,6 +1394,33 @@ watch(
               {{ t('CRM.KNOWLEDGE_DOCS.SECTION.ALL_VISIBLE') }}
             </span>
           </div>
+        </div>
+
+        <!-- 新增自定义板块 -->
+        <div class="flex flex-col gap-1.5 pt-1">
+          <div class="text-sm font-medium text-n-slate-12">
+            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.ADD_TITLE') }}
+          </div>
+          <div class="flex items-center gap-2">
+            <Input
+              v-model="newSectionName"
+              class="flex-1"
+              :placeholder="t('CRM.KNOWLEDGE_DOCS.SECTION.ADD_PLACEHOLDER')"
+              @keydown.enter.prevent="addSection"
+            />
+            <Button
+              type="button"
+              :label="t('CRM.KNOWLEDGE_DOCS.SECTION.ADD')"
+              color="iris"
+              size="sm"
+              :is-loading="addingSection"
+              :disabled="!newSectionName.trim()"
+              @click="addSection"
+            />
+          </div>
+          <p class="text-xs text-n-slate-10">
+            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.DELETE_NOTE') }}
+          </p>
         </div>
       </div>
     </Dialog>

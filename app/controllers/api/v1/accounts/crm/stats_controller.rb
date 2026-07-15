@@ -30,7 +30,7 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
 
   # 公司级看板仅管理员/主管可看；普通业务无论传什么参数都强制个人口径。
   def company_scope_allowed?
-    Current.account_user.administrator? || Current.account_user.crm_manager?
+    Current.account_user.administrator? || Current.account_user.crm_deputy_admin? || Current.account_user.crm_manager?
   end
 
   def year_range

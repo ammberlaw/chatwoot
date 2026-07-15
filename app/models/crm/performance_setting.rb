@@ -33,30 +33,34 @@ class Crm::PerformanceSetting < ApplicationRecord
     account.crm_performance_setting || account.create_crm_performance_setting!
   end
 
-  # 考核方案对该成员是否可见（管理员始终可见；无记录时默认可见）。
-  def self.scheme_visible?(setting, account_user)
-    return true if account_user.administrator?
+  # 管理员/副管理员对绩效配置始终全可见。
+  def self.admin_like?(account_user)
+    account_user.administrator? || account_user.crm_deputy_admin?
+  end
 
+  # 按 CRM 角色查对应可见性开关（无记录时默认可见；无 CRM 角色不可见）。
+  def self.role_visible?(setting, account_user, manager_flag, sales_flag)
     if account_user.crm_manager?
-      setting.nil? || setting.scheme_visible_manager
+      setting.nil? || setting.public_send(manager_flag)
     elsif account_user.crm_role.present?
-      setting.nil? || setting.scheme_visible_sales
+      setting.nil? || setting.public_send(sales_flag)
     else
       false
     end
   end
 
-  # 考核表对该成员是否可见（管理员/被指定人事/总经理始终可见——审批需要）。
+  # 考核方案对该成员是否可见（管理员/副管理员始终可见）。
+  def self.scheme_visible?(setting, account_user)
+    return true if admin_like?(account_user)
+
+    role_visible?(setting, account_user, :scheme_visible_manager, :scheme_visible_sales)
+  end
+
+  # 考核表对该成员是否可见（管理员/副管理员/被指定人事/总经理始终可见——审批需要）。
   def self.sheet_visible?(setting, account_user)
-    return true if account_user.administrator?
+    return true if admin_like?(account_user)
     return true if setting && [setting.hr_owner_id, setting.gm_owner_id].include?(account_user.user_id)
 
-    if account_user.crm_manager?
-      setting.nil? || setting.sheet_visible_manager
-    elsif account_user.crm_role.present?
-      setting.nil? || setting.sheet_visible_sales
-    else
-      false
-    end
+    role_visible?(setting, account_user, :sheet_visible_manager, :sheet_visible_sales)
   end
 end

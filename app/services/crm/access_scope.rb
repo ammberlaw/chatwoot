@@ -11,7 +11,7 @@ class Crm::AccessScope
   end
 
   def all_access?
-    @account_user&.administrator? || false
+    @account_user&.administrator? || @account_user&.crm_deputy_admin? || false
   end
 
   def visible_owner_ids
