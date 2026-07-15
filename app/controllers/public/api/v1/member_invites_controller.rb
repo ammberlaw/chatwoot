@@ -13,7 +13,7 @@ class Public::Api::V1::MemberInvitesController < PublicController
   # 链接即凭证：创建用户（免邮件确认）并按预设角色/模块/部门加入账号。
   def accept
     return render json: { error: '邀请已失效' }, status: :unprocessable_entity unless @invite.active?
-    return render json: { error: '该邮箱已注册，请联系管理员在成员权限中直接添加' }, status: :unprocessable_entity if email_taken?
+    return render json: { error: '该邮箱已注册，请联系超级管理员在成员权限中直接添加' }, status: :unprocessable_entity if email_taken?
 
     user = nil
     ActiveRecord::Base.transaction do

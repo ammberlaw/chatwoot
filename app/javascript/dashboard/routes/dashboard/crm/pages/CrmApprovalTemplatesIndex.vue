@@ -44,7 +44,7 @@ const L = {
   deleted: '已删除',
   error: '操作失败',
   needName: '请填写模板名称',
-  noAccess: '仅管理员与行政部门成员可维护审批模板',
+  noAccess: '仅超级管理员与行政部门成员可维护审批模板',
   fieldCount: n => `${n} 个字段`,
   stepCount: n => `${n} 级审批`,
 };

@@ -1,31 +1,37 @@
-# 员工档案：含身份证号/薪资/银行卡等敏感信息，整对象仅系统管理员可读写。
+# 员工档案：含身份证号/薪资/银行卡等敏感信息，仅超级管理员与管理员（deputy_admin）可读写。
 class Crm::EmployeePolicy < ApplicationPolicy
   def index?
-    @account_user.administrator?
+    admin_like?
   end
 
   def show?
-    @account_user.administrator?
+    admin_like?
   end
 
   def create?
-    @account_user.administrator?
+    admin_like?
   end
 
   def update?
-    @account_user.administrator?
+    admin_like?
   end
 
   def destroy?
-    @account_user.administrator?
+    admin_like?
   end
 
   def attach?
-    @account_user.administrator?
+    admin_like?
   end
 
   def detach?
-    @account_user.administrator?
+    admin_like?
+  end
+
+  private
+
+  def admin_like?
+    @account_user.administrator? || @account_user.crm_deputy_admin?
   end
 end
 

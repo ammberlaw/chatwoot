@@ -64,6 +64,10 @@ const currentUser = useMapGetter('getCurrentUser');
 // 非 CRM 人员隐藏 CRM 销售数据分组（工作台/文档中心/HR/OA/协同等共享模块保留）。
 const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
+// 超级管理员或管理员（deputy_admin）：账号级管理入口（成员/邀请/员工档案/薪资/审批人/公海规则）。
+const isAdminLike = computed(
+  () => isAdmin.value || currentUser.value?.crm_role === 'deputy_admin'
+);
 // 普通业务（非管理员/副管理员/部门负责人）：隐藏公司级看板等团队之外的数据入口。
 const isCrmSales = computed(
   () =>
@@ -723,7 +727,7 @@ const menuItems = computed(() => {
             { filter: 'public_pool' }
           ),
         },
-        ...(isAdmin.value
+        ...(isAdminLike.value
           ? [
               {
                 name: 'CRM Pool Settings',
@@ -885,8 +889,8 @@ const menuItems = computed(() => {
           to: accountScopedRoute('crm_org_structure_index'),
           activeOn: ['crm_org_structure_index'],
         },
-        // CRM 成员权限：仅管理员可见。
-        ...(isAdmin.value
+        // CRM 成员权限：超级管理员与管理员可见。
+        ...(isAdminLike.value
           ? [
               {
                 name: 'CRM Members',
@@ -916,8 +920,8 @@ const menuItems = computed(() => {
         'crm_performance_settings_index',
       ],
       children: [
-        // 员工档案（员工主数据）：含身份证/薪酬敏感信息，仅管理员可见。
-        ...(isAdmin.value
+        // 员工档案（员工主数据）：含身份证/薪酬敏感信息，超级管理员与管理员可见。
+        ...(isAdminLike.value
           ? [
               {
                 name: 'CRM Employees',
@@ -948,8 +952,8 @@ const menuItems = computed(() => {
               },
             ]
           : []),
-        // 员工薪资配置 / 审批人设置：仅管理员可见。
-        ...(isAdmin.value
+        // 员工薪资配置 / 审批人设置：超级管理员与管理员可见。
+        ...(isAdminLike.value
           ? [
               {
                 name: 'CRM Employee Comps',

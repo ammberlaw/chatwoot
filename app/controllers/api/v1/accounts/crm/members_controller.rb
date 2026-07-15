@@ -1,4 +1,4 @@
-# 成员权限管理：为账号成员设置系统角色（一个下拉管到底）。仅系统管理员可用。
+# 成员权限管理：为账号成员设置系统角色（一个下拉管到底）。超级管理员与管理员（deputy_admin）可用。
 # 系统角色 → 底层 Chatwoot role + crm_role 的映射：
 #   管理员 = administrator；副管理员/部门负责人/业务员 = agent + 对应 crm_role；无 = agent（不进入 CRM）。
 class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseController
@@ -20,6 +20,8 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
   def update
     # 防自锁：不能修改自己的角色/权限（降级自己可能失去管理入口）。
     return render json: { error: '不能修改自己的角色' }, status: :unprocessable_entity if @member.id == Current.account_user.id
+    # 防提权：管理员不可改动超级管理员，也不可把任何人设为超级管理员。
+    return render json: { error: '仅超级管理员可任免超级管理员' }, status: :forbidden if escalation_attempt?
 
     updates = role_updates
     return render json: { error: '无效的角色' }, status: :unprocessable_entity if updates.nil?
@@ -31,14 +33,20 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
   private
 
   def ensure_admin
-    return if Current.account_user&.administrator?
+    return if Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin?
 
-    render json: { error: I18n.t('errors.crm.admin_only', default: '仅管理员可管理成员角色') },
+    render json: { error: I18n.t('errors.crm.admin_only', default: '仅超级管理员或管理员可管理成员角色') },
            status: :forbidden
   end
 
   def fetch_member
     @member = Current.account.account_users.find(params[:id])
+  end
+
+  def escalation_attempt?
+    return false if Current.account_user.administrator?
+
+    @member.administrator? || params[:member][:system_role].to_s == 'administrator'
   end
 
   # system_role 未传 → 不改角色（空 hash）；传了但非法 → nil（422）。

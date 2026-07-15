@@ -3,6 +3,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useMapGetter } from 'dashboard/composables/store';
 import InvitesAPI from 'dashboard/api/crm/memberInvites';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -44,15 +45,21 @@ const L = {
 };
 
 const ROLE_LABELS = {
-  administrator: '管理员',
-  deputy_admin: '副管理员',
+  administrator: '超级管理员',
+  deputy_admin: '管理员',
   manager: '部门负责人',
   sales: '业务员',
 };
-const ROLE_OPTIONS = Object.entries(ROLE_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
+// 防提权：管理员（deputy_admin）不可生成超级管理员邀请（后端同口径拦截）。
+const currentUser = useMapGetter('getCurrentUser');
+const ROLE_OPTIONS = computed(() =>
+  Object.entries(ROLE_LABELS)
+    .filter(
+      ([value]) =>
+        value !== 'administrator' || currentUser.value?.role === 'administrator'
+    )
+    .map(([value, label]) => ({ value, label }))
+);
 const MODULE_OPTIONS = [
   { key: 'crm', label: 'CRM' },
   { key: 'erp', label: 'ERP' },

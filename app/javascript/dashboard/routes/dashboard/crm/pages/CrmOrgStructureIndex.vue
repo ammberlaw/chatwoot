@@ -40,7 +40,7 @@ const L = {
   memberLabel: '成员',
   saved: '已保存',
   error: '操作失败',
-  readonly: '仅管理员可维护组织架构（当前为只读）',
+  readonly: '仅超级管理员可维护组织架构（当前为只读）',
 };
 
 const departments = computed(() => deptStore.getRecords);

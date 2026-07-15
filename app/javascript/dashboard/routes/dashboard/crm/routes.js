@@ -64,8 +64,7 @@ export const routes = [
   crmPage(
     'public-pool-settings',
     'crm_public_pool_settings_index',
-    CrmPublicPoolSettingsIndex,
-    { permissions: ['administrator'] }
+    CrmPublicPoolSettingsIndex
   ),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
@@ -109,17 +108,16 @@ export const routes = [
     'performance-settings',
     'crm_performance_settings_index',
     CrmPerformanceSettingsIndex,
-    { permissions: ['administrator'], ...SHARED }
+    SHARED
   ),
-  crmPage('employee-comps', 'crm_employee_comps_index', CrmEmployeeCompsIndex, {
-    permissions: ['administrator'],
-    ...SHARED,
-  }),
+  crmPage(
+    'employee-comps',
+    'crm_employee_comps_index',
+    CrmEmployeeCompsIndex,
+    SHARED
+  ),
   // 员工档案（员工主数据）：含身份证/薪酬等敏感信息，仅管理员。
-  crmPage('employees', 'crm_employees_index', CrmEmployeesIndex, {
-    permissions: ['administrator'],
-    ...SHARED,
-  }),
+  crmPage('employees', 'crm_employees_index', CrmEmployeesIndex, SHARED),
   crmPage('approvals', 'crm_approvals_index', CrmApprovalsIndex, SHARED),
   crmPage(
     'approval-templates',
@@ -129,11 +127,7 @@ export const routes = [
   ),
   crmPage('team-chat', 'crm_team_chat_index', CrmTeamChatIndex, SHARED),
   // 成员权限管理：仅管理员（覆盖 permissions）；管理员本就有 CRM 访问权。
-  crmPage('members', 'crm_members_index', CrmMembersIndex, {
-    permissions: ['administrator'],
-  }),
+  crmPage('members', 'crm_members_index', CrmMembersIndex),
   // 成员邀请：生成加入链接（仅管理员）。
-  crmPage('member-invites', 'crm_member_invites_index', CrmMemberInvitesIndex, {
-    permissions: ['administrator'],
-  }),
+  crmPage('member-invites', 'crm_member_invites_index', CrmMemberInvitesIndex),
 ];

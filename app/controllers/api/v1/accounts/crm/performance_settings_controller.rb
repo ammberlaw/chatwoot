@@ -1,4 +1,4 @@
-# 绩效审批人设置：指定人事、总经理（仅管理员）。单记录。
+# 绩效审批人设置：指定人事、总经理（超级管理员与管理员）。单记录。
 class Api::V1::Accounts::Crm::PerformanceSettingsController < Api::V1::Accounts::Crm::BaseController
   before_action :ensure_admin
 
@@ -15,9 +15,9 @@ class Api::V1::Accounts::Crm::PerformanceSettingsController < Api::V1::Accounts:
   private
 
   def ensure_admin
-    return if Current.account_user&.administrator?
+    return if Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin?
 
-    render json: { error: '仅管理员可设置' }, status: :forbidden
+    render json: { error: '仅超级管理员或管理员可设置' }, status: :forbidden
   end
 
   def setting_params

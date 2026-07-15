@@ -1,23 +1,29 @@
-# 员工薪资配置：薪资敏感，整对象仅系统管理员可读写。
+# 员工薪资配置：薪资敏感，仅超级管理员与管理员（deputy_admin）可读写。
 class Crm::EmployeeCompPolicy < ApplicationPolicy
   def index?
-    @account_user.administrator?
+    admin_like?
   end
 
   def show?
-    @account_user.administrator?
+    admin_like?
   end
 
   def create?
-    @account_user.administrator?
+    admin_like?
   end
 
   def update?
-    @account_user.administrator?
+    admin_like?
   end
 
   def destroy?
-    @account_user.administrator?
+    admin_like?
+  end
+
+  private
+
+  def admin_like?
+    @account_user.administrator? || @account_user.crm_deputy_admin?
   end
 end
 

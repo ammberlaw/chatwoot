@@ -101,7 +101,9 @@ const goLogin = () => {
         <h1 class="text-lg font-semibold text-n-slate-12">
           {{ statusHint }}
         </h1>
-        <p class="text-sm text-n-slate-11">请联系管理员重新生成邀请链接。</p>
+        <p class="text-sm text-n-slate-11">
+          请联系超级管理员重新生成邀请链接。
+        </p>
       </div>
 
       <!-- 加入成功 -->
