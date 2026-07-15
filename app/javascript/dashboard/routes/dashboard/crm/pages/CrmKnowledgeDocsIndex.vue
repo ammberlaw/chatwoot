@@ -256,9 +256,12 @@ const scopeOptions = [
   { value: 'PERSONAL', label: '个人' },
 ];
 
+// 文档中心（GENERAL）没有「我的文档」——个人资料在 CRM 知识库维护；此处只有公司文档（+管理员回收站）。
 const filterTabs = computed(() => [
   { key: 'company', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.COMPANY') },
-  { key: 'mine', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.MINE') },
+  ...(isGeneral.value
+    ? []
+    : [{ key: 'mine', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.MINE') }]),
   ...(isAdmin.value && isGeneral.value
     ? [{ key: 'recycle', label: t('CRM.KNOWLEDGE_DOCS.RECYCLE.TAB') }]
     : []),
@@ -452,8 +455,9 @@ const auditMessage = audit => {
 const resetForm = (category = '') => {
   editForm.name = '';
   editForm.category = category || categories.value[0]?.name || '';
-  // 无公司文档管理权的成员只能建个人文档
-  editForm.scope = canManageCompany.value ? 'COMPANY' : 'PERSONAL';
+  // 文档中心一律公司文档；CRM 知识库里无公司文档管理权的成员只能建个人文档
+  editForm.scope =
+    isGeneral.value || canManageCompany.value ? 'COMPANY' : 'PERSONAL';
   editForm.sectionId = activeSectionId.value || '';
   editForm.summary = '';
   editForm.body = '';
@@ -1206,7 +1210,11 @@ watch(
                 </label>
                 <Select v-model="editForm.category" :options="categoryOptions" />
               </div>
-              <div v-if="canManageCompany" class="flex flex-col min-w-0 gap-1">
+              <!-- 文档中心固定公司文档，不给选范围 -->
+              <div
+                v-if="canManageCompany && !isGeneral"
+                class="flex flex-col min-w-0 gap-1"
+              >
                 <label class="mb-0.5 text-heading-3 text-n-slate-12">
                   {{ t('CRM.KNOWLEDGE_DOCS.FORM.SCOPE') }}
                 </label>

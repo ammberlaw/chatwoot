@@ -20,7 +20,9 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     attrs = doc_params
     return render_forbidden if attrs[:scope] == 'COMPANY' && !company_docs_manageable?(attrs[:library].presence || 'SALES')
 
-    @doc = Current.account.crm_knowledge_docs.create!(attrs.merge(owner_id: current_user.id, scope: attrs[:scope].presence || 'PERSONAL'))
+    @doc = Current.account.crm_knowledge_docs.create!(
+      sync_sales_section(attrs).merge(owner_id: current_user.id, scope: attrs[:scope].presence || 'PERSONAL')
+    )
   end
 
   def update
@@ -92,7 +94,8 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   def fetch_doc
     @doc = visible_docs.find(params[:id])
     # 板块部门可见性：不可见板块内的文档按不存在处理。
-    raise ActiveRecord::RecordNotFound if @doc.section_id.present? && !section_visible?(@doc.section_id)
+    # 仅限 GENERAL 库——SALES 公司资料（与销售资料板块同步共享）在 CRM 侧全员可读。
+    raise ActiveRecord::RecordNotFound if @doc.library == 'GENERAL' && @doc.section_id.present? && !section_visible?(@doc.section_id)
   end
 
   def fetch_discarded_doc
@@ -160,11 +163,34 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   end
 
   # 资料库隔离 + 文档中心板块部门可见性（无板块的旧文档全员可见；管理员/副管理员/负责人不受限）+ 板块筛选。
+  # CRM「公司资料」与文档中心「销售资料」板块同步共享：文档中心视图并入 SALES 公司文档。
   def section_scoped(scope)
-    scope = scope.in_library(params[:library]) if params[:library].present?
-    scope = scope.where(section_id: [nil] + visible_section_ids) if params[:library] == 'GENERAL' && !(admin_like? || doc_center_owner?)
+    if params[:library] == 'GENERAL'
+      scope = scope.where(library: 'GENERAL').or(scope.where(library: 'SALES', scope: 'COMPANY'))
+      scope = scope.where(section_id: [nil] + visible_section_ids) unless admin_like? || doc_center_owner?
+    elsif params[:library].present?
+      scope = scope.in_library(params[:library])
+    end
     scope = scope.where(section_id: params[:section_id]) if params[:section_id].present?
     scope
+  end
+
+  # 同步共享的落库口径：SALES 公司文档自动归入「销售资料」板块；
+  # 在文档中心「销售资料」板块新建的文档落 SALES 库（CRM 公司资料同步可见）。
+  def sync_sales_section(attrs)
+    return attrs unless attrs[:scope] == 'COMPANY' && sales_section_id
+
+    case [attrs[:library].presence || 'SALES', attrs[:section_id].to_i == sales_section_id]
+    in ['GENERAL', true] then attrs.merge(library: 'SALES')
+    in ['SALES', _] then attrs.merge(section_id: attrs[:section_id].presence || sales_section_id)
+    else attrs
+    end
+  end
+
+  def sales_section_id
+    return @sales_section_id if defined?(@sales_section_id)
+
+    @sales_section_id = Current.account.crm_doc_sections.find_by(name: '销售资料')&.id
   end
 
   def search_and_category(scope)

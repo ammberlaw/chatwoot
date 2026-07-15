@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_16_030000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_16_050000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1130,6 +1130,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_030000) do
     t.datetime "imap_synced_at"
     t.index ["account_id"], name: "index_crm_mail_accounts_on_account_id"
     t.index ["owner_id"], name: "index_crm_mail_accounts_on_owner_id"
+  end
+
+  create_table "crm_member_invites", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "token", null: false
+    t.string "system_role", default: "sales", null: false
+    t.text "module_access", default: ["crm", "erp", "mes"], null: false, array: true
+    t.bigint "department_id"
+    t.string "note"
+    t.bigint "created_by_id"
+    t.datetime "expires_at", null: false
+    t.datetime "used_at"
+    t.bigint "used_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_member_invites_on_account_id"
+    t.index ["token"], name: "index_crm_member_invites_on_token", unique: true
   end
 
   create_table "crm_opportunities", force: :cascade do |t|

@@ -1,7 +1,7 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
-import { useAdmin } from 'dashboard/composables/useAdmin';
+import { useMapGetter } from 'dashboard/composables/store';
 import TemplatesAPI from 'dashboard/api/oa/approvalTemplates';
 import AgentAPI from 'dashboard/api/agents';
 
@@ -10,7 +10,11 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 
-const { isAdmin } = useAdmin();
+// 维护权：管理员或行政部门成员（与后端 oa_template_maintainer? 一致）；其他人整页不可见。
+const currentUser = useMapGetter('getCurrentUser');
+const canMaintain = computed(
+  () => currentUser.value?.oa_template_maintainer === true
+);
 
 const L = {
   header: '审批模板',
@@ -40,7 +44,7 @@ const L = {
   deleted: '已删除',
   error: '操作失败',
   needName: '请填写模板名称',
-  readonly: '仅管理员可维护审批模板',
+  noAccess: '仅管理员与行政部门成员可维护审批模板',
   fieldCount: n => `${n} 个字段`,
   stepCount: n => `${n} 级审批`,
 };
@@ -223,7 +227,7 @@ onMounted(async () => {
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
       <Button
-        v-if="isAdmin"
+        v-if="canMaintain"
         :label="L.new"
         icon="i-lucide-plus"
         color="iris"
@@ -231,11 +235,20 @@ onMounted(async () => {
       />
     </div>
 
-    <div v-if="!isAdmin" class="px-6 py-2 text-xs bg-n-iris-3 text-n-iris-11">
-      {{ L.readonly }}
+    <!-- 非管理员/行政部门成员：整页不可见（直链兜底） -->
+    <div
+      v-if="!canMaintain"
+      class="flex flex-col items-center justify-center flex-1 gap-3 text-center"
+    >
+      <span
+        class="grid rounded-full size-12 place-items-center bg-n-slate-3 text-n-slate-10"
+      >
+        <Icon icon="i-lucide-lock" class="size-5" />
+      </span>
+      <p class="text-sm text-n-slate-11">{{ L.noAccess }}</p>
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <div v-else class="flex-1 px-6 py-4">
       <div
         v-if="!templates.length"
         class="p-8 text-sm text-center text-n-slate-10"
@@ -247,8 +260,7 @@ onMounted(async () => {
           v-for="tpl in templates"
           :key="tpl.id"
           class="flex items-center gap-3 p-4 text-left transition-shadow border rounded-2xl border-n-weak bg-n-solid-1 hover:shadow-sm hover:border-n-iris-7 disabled:cursor-default"
-          :disabled="!isAdmin"
-          @click="isAdmin && openEdit(tpl)"
+          @click="openEdit(tpl)"
         >
           <div
             class="flex items-center justify-center flex-shrink-0 rounded-lg size-10 bg-n-iris-4 text-n-iris-11"

@@ -79,6 +79,17 @@ class AccountUser < ApplicationRecord
     crm_role == 'deputy_admin'
   end
 
+  # OA 审批模板维护权：管理员或行政部门成员（部门名含「行政」，含其下级部门）。
+  def oa_template_maintainer?
+    return true if administrator?
+
+    root_ids = account.org_departments.where('name LIKE ?', '%行政%').pluck(:id)
+    return false if root_ids.empty?
+
+    dept_ids = Org::Department.subtree_ids(account, root_ids)
+    account.org_memberships.exists?(user_id: user_id, department_id: dept_ids)
+  end
+
   def create_notification_setting
     setting = user.notification_settings.new(account_id: account.id)
     setting.selected_email_flags = [:email_conversation_assignment]

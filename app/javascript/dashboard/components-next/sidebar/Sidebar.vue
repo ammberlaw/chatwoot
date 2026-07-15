@@ -857,15 +857,6 @@ const menuItems = computed(() => {
             { filter: 'company', section_id: String(section.id) }
           ),
         })),
-        {
-          name: 'CRM Doc Center Mine',
-          label: t('SIDEBAR.CRM_DOC_CENTER_MINE'),
-          to: accountScopedRoute(
-            'crm_doc_center_index',
-            {},
-            { filter: 'mine' }
-          ),
-        },
         // 文档回收站：仅管理员可见可清理
         ...(isAdmin.value
           ? [
@@ -886,7 +877,7 @@ const menuItems = computed(() => {
       name: 'CRM Org',
       label: t('SIDEBAR.CRM_G_ORG'),
       icon: 'i-lucide-network',
-      activeOn: ['crm_org_structure_index', 'crm_members_index'],
+      activeOn: ['crm_org_structure_index', 'crm_members_index', 'crm_member_invites_index'],
       children: [
         {
           name: 'CRM Org Structure',
@@ -902,6 +893,12 @@ const menuItems = computed(() => {
                 label: t('SIDEBAR.CRM_MEMBERS'),
                 to: accountScopedRoute('crm_members_index'),
                 activeOn: ['crm_members_index'],
+              },
+              {
+                name: 'CRM Member Invites',
+                label: t('SIDEBAR.CRM_MEMBER_INVITES'),
+                to: accountScopedRoute('crm_member_invites_index'),
+                activeOn: ['crm_member_invites_index'],
               },
             ]
           : []),
@@ -970,12 +967,17 @@ const menuItems = computed(() => {
           to: accountScopedRoute('crm_approvals_index'),
           activeOn: ['crm_approvals_index'],
         },
-        {
-          name: 'CRM Approval Templates',
-          label: t('SIDEBAR.CRM_APPROVAL_TEMPLATES'),
-          to: accountScopedRoute('crm_approval_templates_index'),
-          activeOn: ['crm_approval_templates_index'],
-        },
+        // 审批模板：仅管理员与行政部门成员可见可维护
+        ...(currentUser.value?.oa_template_maintainer
+          ? [
+              {
+                name: 'CRM Approval Templates',
+                label: t('SIDEBAR.CRM_APPROVAL_TEMPLATES'),
+                to: accountScopedRoute('crm_approval_templates_index'),
+                activeOn: ['crm_approval_templates_index'],
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -1277,6 +1279,7 @@ const ROUTE_MODULE = {
   crm_approval_templates_index: 'oa',
   crm_org_structure_index: 'hr',
   crm_members_index: 'hr',
+  crm_member_invites_index: 'hr',
   crm_kpi_schemes_index: 'hr',
   crm_kpi_scheme_editor: 'hr',
   crm_kpi_sheets_index: 'hr',
