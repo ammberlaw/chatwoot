@@ -272,11 +272,13 @@ defineExpose({ dialogRef, onSuccess, open });
         {{ t('CRM.SALES_ORDERS.FORM.SECTION_BASIC') }}
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <Input
-          v-model="form.name"
-          :label="t('CRM.SALES_ORDERS.FORM.NAME')"
-          autofocus
-        />
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.SALES_ORDERS.FORM.NAME') }}
+            <span class="text-n-ruby-11">*</span>
+          </label>
+          <Input v-model="form.name" autofocus />
+        </div>
         <div v-if="isEditing" class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.SALES_ORDERS.FORM.ORDER_NO') }}
