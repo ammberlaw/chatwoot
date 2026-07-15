@@ -10,12 +10,13 @@ class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::Crm::B
 
   def create
     @mail_account = Current.account.crm_mail_accounts.create!(
-      mail_account_params.merge(owner_id: mail_account_params[:owner_id] || current_user.id)
+      mail_account_params.merge(owner_id: creatable_owner_id)
     )
   end
 
   def update
-    @mail_account.update!(mail_account_params)
+    params_for_update = privileged? ? mail_account_params : mail_account_params.except(:owner_id)
+    @mail_account.update!(params_for_update)
   end
 
   def destroy
@@ -25,8 +26,10 @@ class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::Crm::B
 
   private
 
+  # 数据范围与其余 CRM 数据一致：管理员全部 / 主管团队 / 业务员仅自己配置的邮箱。
+  # 越权查看/修改/删除他人邮箱因不在范围内而 404。
   def fetch_mail_account
-    @mail_account = Current.account.crm_mail_accounts.find(params[:id])
+    @mail_account = scope_by_owner(Current.account.crm_mail_accounts).find(params[:id])
   end
 
   def check_authorization
@@ -34,9 +37,20 @@ class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::Crm::B
   end
 
   def filtered_accounts
-    scope = Current.account.crm_mail_accounts
+    scope = scope_by_owner(Current.account.crm_mail_accounts)
     scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
     scope
+  end
+
+  # 管理员/主管可代他人配置邮箱（传 owner_id）；业务员只能给自己配。
+  def creatable_owner_id
+    return current_user.id unless privileged?
+
+    mail_account_params[:owner_id] || current_user.id
+  end
+
+  def privileged?
+    Current.account_user.administrator? || Current.account_user.crm_manager?
   end
 
   def mail_account_params
