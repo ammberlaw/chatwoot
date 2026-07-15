@@ -678,7 +678,11 @@ const menuItems = computed(() => {
       name: 'CRM Customers Group',
       label: t('SIDEBAR.CRM_G_CUSTOMERS'),
       icon: 'i-lucide-users',
-      activeOn: ['crm_customers_index', 'crm_customer_intake_index'],
+      activeOn: [
+        'crm_customers_index',
+        'crm_customer_intake_index',
+        'crm_public_pool_settings_index',
+      ],
       children: [
         {
           name: 'CRM Customer New',
@@ -705,6 +709,16 @@ const menuItems = computed(() => {
             { filter: 'public_pool' }
           ),
         },
+        ...(isAdmin.value
+          ? [
+              {
+                name: 'CRM Pool Settings',
+                label: t('SIDEBAR.CRM_POOL_SETTINGS'),
+                to: accountScopedRoute('crm_public_pool_settings_index'),
+                activeOn: ['crm_public_pool_settings_index'],
+              },
+            ]
+          : []),
       ],
     },
     {

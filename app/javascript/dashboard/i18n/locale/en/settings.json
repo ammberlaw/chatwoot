@@ -430,6 +430,7 @@
     "CRM_CUSTOMER_NEW": "客户建档",
     "CRM_PRIVATE_CUSTOMERS": "私海客户",
     "CRM_PUBLIC_POOL": "公海客户",
+    "CRM_POOL_SETTINGS": "公海设置",
     "CRM_G_SALES_FLOW": "销售流程",
     "CRM_FUNNEL": "商机看板",
     "CRM_ORDERS_NO_CUSTOMER": "未关联客户的订单",

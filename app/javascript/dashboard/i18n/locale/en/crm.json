@@ -104,12 +104,23 @@
         "CURRENCY": "币种",
         "PROBABILITY": "成交概率（%）",
         "EXPECTED_CLOSE": "预计成交日",
-        "REMARK": "备注"
+        "REMARK": "备注",
+        "IMPORTANT": "标记为重要商机"
       },
       "EDIT": {
         "TITLE": "编辑商机",
         "SUCCESS": "商机已保存",
         "ERROR": "保存失败"
+      },
+      "IMPORTANT": "重要商机",
+      "POOL": {
+        "CLAIM": "认领",
+        "CLAIM_SUCCESS": "认领成功，商机已归入你的名下",
+        "CLAIM_ERROR": "认领失败",
+        "RELEASE": "转入商机公海",
+        "RELEASE_CONFIRM": "确认将「{name}」转入商机公海？转后你将不再是负责人，全员可认领。",
+        "RELEASE_SUCCESS": "已转入商机公海",
+        "RELEASE_ERROR": "操作失败"
       }
     },
     "SALES_ORDERS": {
@@ -529,6 +540,27 @@
       "ROLE_MANAGER": "主管",
       "ROLE_SALES": "业务员"
     },
+    "POOL_SETTINGS": {
+      "HEADER": "公海设置",
+      "SUBTITLE": "客户流转规则与各客户分组的私海上限（认领/分配时生效）",
+      "LOADING": "加载中…",
+      "LOAD_ERROR": "加载失败",
+      "SAVE": "保存",
+      "SAVED": "已保存",
+      "SAVE_ERROR": "保存失败",
+      "RECYCLE_SECTION": "客户流转规则",
+      "RECYCLE_HINT": "每天凌晨自动执行：超过时限未跟进的私海客户自动流转回公海。",
+      "RECYCLE_ENABLED": "启用自动流转",
+      "STALE_DAYS": "未跟进时限（天）",
+      "STALE_DAYS_HINT": "距最近一次跟进记录超过该天数即回收",
+      "RECYCLE_NEVER_FOLLOWED": "从未跟进的客户也回收（按建档时间计算时限）",
+      "LIMIT_SECTION": "分组私海上限",
+      "LIMIT_HINT": "每个业务员按客户分组各自可持有的私海客户数量上限，留空为不限。",
+      "COL_GROUP": "客户分组",
+      "COL_LIMIT": "上限（人/组）",
+      "NO_LIMIT": "不限",
+      "LIMIT_NOTE": "注：达到上限后认领或分配该分组客户会被拒绝；已有存量不受影响。"
+    },
     "PERF_SETTINGS": {
       "HEADER": "绩效审批人设置",
       "SUBTITLE": "指定谁是人事、总经理（决定考核表审批链的第 3、4 步由谁确认）",
@@ -564,7 +596,14 @@
     "FUNNEL": {
       "HEADER": "商机看板",
       "HINT": "拖动卡片即可切换销售阶段",
-      "LOADING": "加载中…"
+      "LOADING": "加载中…",
+      "VIEW_BOARD": "商机看板",
+      "VIEW_POOL": "商机公海",
+      "SORT_DEFAULT": "默认排序（最近更新）",
+      "SORT_CREATED": "按创建时间",
+      "SORT_AMOUNT": "按金额",
+      "SORT_ASC": "正序",
+      "SORT_DESC": "倒序"
     },
     "MAIL_ACCOUNTS": {
       "HEADER": "邮箱账户",

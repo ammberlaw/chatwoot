@@ -23,6 +23,7 @@ import CrmKpiSchemeEditorIndex from './pages/CrmKpiSchemeEditorIndex.vue';
 import CrmKpiSheetsIndex from './pages/CrmKpiSheetsIndex.vue';
 import CrmKpiSheetDetailIndex from './pages/CrmKpiSheetDetailIndex.vue';
 import CrmPerformanceSettingsIndex from './pages/CrmPerformanceSettingsIndex.vue';
+import CrmPublicPoolSettingsIndex from './pages/CrmPublicPoolSettingsIndex.vue';
 import CrmEmployeeCompsIndex from './pages/CrmEmployeeCompsIndex.vue';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 
@@ -58,6 +59,12 @@ export const routes = [
     CrmCustomerOnboardingIndex
   ),
   crmPage('customers', 'crm_customers_index', CrmCustomersIndex),
+  crmPage(
+    'public-pool-settings',
+    'crm_public_pool_settings_index',
+    CrmPublicPoolSettingsIndex,
+    { permissions: ['administrator'] }
+  ),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
   crmPage('sales-orders', 'crm_sales_orders_index', CrmSalesOrdersIndex),
