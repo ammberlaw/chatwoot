@@ -1,4 +1,4 @@
-# 知识库文档分类（账号级、用户可管理）。看板列与文档分类下拉均取自此表。
+# 知识库文档分类：公司分类与个人分类两层，看板列与文档分类下拉均取自此表。
 # == Schema Information
 #
 # Table name: crm_knowledge_categories
@@ -9,31 +9,27 @@
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
 #  account_id :bigint           not null
+#  user_id    :bigint
 #
 # Indexes
 #
-#  index_crm_knowledge_categories_on_account_id           (account_id)
-#  index_crm_knowledge_categories_on_account_id_and_name  (account_id,name) UNIQUE
+#  idx_crm_knowledge_cats_company_name           (account_id,name) UNIQUE WHERE (user_id IS NULL)
+#  idx_crm_knowledge_cats_personal_name          (account_id,user_id,name) UNIQUE WHERE (user_id IS NOT NULL)
+#  index_crm_knowledge_categories_on_account_id  (account_id)
+#  index_crm_knowledge_categories_on_user_id     (user_id)
 #
 # Foreign Keys
 #
 #  fk_rails_...  (account_id => accounts.id)
 #
 class Crm::KnowledgeCategory < ApplicationRecord
-  DEFAULT_NAMES = %w[产品目录 FAQ 售后政策 报价模板 公司资质 操作手册 产品规格书 收款账户].freeze
-
   belongs_to :account
+  # 空=公司分类（管理员/负责人维护）；非空=个人分类（本人自建自管）。
+  belongs_to :user, optional: true
 
-  validates :name, presence: true, uniqueness: { scope: :account_id }
+  validates :name, presence: true, uniqueness: { scope: [:account_id, :user_id] }
 
   scope :ordered, -> { order(:position, :id) }
-
-  # 账号首次访问时补齐默认分类（幂等：已有分类则跳过）。
-  def self.seed_defaults!(account)
-    return if account.crm_knowledge_categories.exists?
-
-    DEFAULT_NAMES.each_with_index do |name, index|
-      account.crm_knowledge_categories.create!(name: name, position: index)
-    end
-  end
+  scope :company_scope, -> { where(user_id: nil) }
+  scope :personal_of, ->(user_id) { where(user_id: user_id) }
 end

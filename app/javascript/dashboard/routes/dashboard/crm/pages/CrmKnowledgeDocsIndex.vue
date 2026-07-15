@@ -82,6 +82,17 @@ const canManageCompany = computed(
     (isGeneral.value && docCenterOwnerId.value === currentUserId.value)
 );
 
+// 我的资料视图：看板列是个人分类，人人可自建自管；公司视图的分类仍按公司管理权。
+const isMineView = computed(
+  () => !isGeneral.value && activeFilter.value === 'mine'
+);
+const canManageBoard = computed(
+  () => isMineView.value || canManageCompany.value
+);
+
+const fetchCategories = () =>
+  categoriesStore.get(isMineView.value ? { view: 'mine' } : {});
+
 // ── 资料板块（文档中心）：侧边栏子项经 ?section_id= 驱动切换；管理员可按部门配置各板块可见性 ──
 const sections = ref([]);
 const activeSectionId = ref(route.query.section_id || '');
@@ -350,6 +361,7 @@ watch(currentLibrary, fetchRecords);
 const setFilter = key => {
   activeFilter.value = key;
   fetchRecords();
+  fetchCategories();
 };
 
 const onSearchInput = () => {
@@ -398,7 +410,7 @@ const onColDrop = async targetCol => {
         )
         .filter(Boolean)
     );
-    await categoriesStore.get();
+    await fetchCategories();
   } catch {
     useAlert(t('CRM.KNOWLEDGE_DOCS.CATEGORY.SAVE_ERROR'));
   }
@@ -458,7 +470,9 @@ const resetForm = (category = '') => {
   editForm.category = category || categories.value[0]?.name || '';
   // 文档中心一律公司文档；CRM 知识库里无公司文档管理权的成员只能建个人文档
   editForm.scope =
-    isGeneral.value || canManageCompany.value ? 'COMPANY' : 'PERSONAL';
+    !isGeneral.value && (isMineView.value || !canManageCompany.value)
+      ? 'PERSONAL'
+      : 'COMPANY';
   editForm.sectionId = activeSectionId.value || '';
   editForm.summary = '';
   editForm.body = '';
@@ -616,8 +630,12 @@ const saveAdd = async () => {
   adding.value = false;
   if (!name) return;
   try {
-    await categoriesStore.create({ name, position: categories.value.length });
-    await categoriesStore.get();
+    await categoriesStore.create({
+      name,
+      position: categories.value.length,
+      personal: isMineView.value,
+    });
+    await fetchCategories();
   } catch {
     useAlert(t('CRM.KNOWLEDGE_DOCS.CATEGORY.SAVE_ERROR'));
   }
@@ -634,7 +652,7 @@ const saveRename = async () => {
   if (!id || !name) return;
   try {
     await categoriesStore.update({ id, name });
-    await categoriesStore.get();
+    await fetchCategories();
     fetchRecords();
   } catch {
     useAlert(t('CRM.KNOWLEDGE_DOCS.CATEGORY.SAVE_ERROR'));
@@ -676,7 +694,7 @@ const fetchPermissionContext = () => {
 
 onMounted(() => {
   fetchRecords();
-  categoriesStore.get();
+  fetchCategories();
   fetchPermissionContext();
 });
 watch(currentLibrary, fetchPermissionContext);
@@ -687,6 +705,7 @@ watch(
     activeSectionId.value = sectionId || '';
     closePanel();
     fetchRecords();
+    fetchCategories();
   }
 );
 </script>
@@ -927,7 +946,7 @@ watch(
                 {{ col.docs.length || '' }}
               </span>
               <div
-                v-if="col.id && canManageCompany"
+                v-if="col.id && canManageBoard"
                 class="flex items-center gap-0.5 ml-auto opacity-0 group-hover/col:opacity-100"
               >
                 <button
@@ -1010,8 +1029,8 @@ watch(
           </div>
         </div>
 
-        <!-- 新增分类列（仅公司文档管理权） -->
-        <div v-if="canManageCompany" class="flex flex-col w-72 shrink-0">
+        <!-- 新增分类列：公司视图需公司文档管理权；我的资料人人可建 -->
+        <div v-if="canManageBoard" class="flex flex-col w-72 shrink-0">
           <input
             v-if="adding"
             v-model="newCategoryName"

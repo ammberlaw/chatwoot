@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_16_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_16_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1096,8 +1096,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_140000) do
     t.integer "position", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["account_id", "name"], name: "index_crm_knowledge_categories_on_account_id_and_name", unique: true
+    t.bigint "user_id"
+    t.index ["account_id", "name"], name: "idx_crm_knowledge_cats_company_name", unique: true, where: "(user_id IS NULL)"
+    t.index ["account_id", "user_id", "name"], name: "idx_crm_knowledge_cats_personal_name", unique: true, where: "(user_id IS NOT NULL)"
     t.index ["account_id"], name: "index_crm_knowledge_categories_on_account_id"
+    t.index ["user_id"], name: "index_crm_knowledge_categories_on_user_id"
   end
 
   create_table "crm_knowledge_docs", force: :cascade do |t|
