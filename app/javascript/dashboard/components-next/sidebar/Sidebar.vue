@@ -660,7 +660,7 @@ const menuItems = computed(() => {
           },
         ],
       },
-      // ── A-CRM 五分区（对齐 Twenty 侧栏结构）──
+      // ── Wintouch-CRM 五分区（对齐 Twenty 侧栏结构）──
       {
         name: 'CRM Dashboards',
         label: t('SIDEBAR.CRM_G_DASHBOARDS'),

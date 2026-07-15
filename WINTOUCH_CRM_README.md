@@ -1,11 +1,11 @@
-# A-CRM · 外贸销售 CRM（Chatwoot 原生模块）
+# Wintouch-CRM · 外贸销售 CRM（Chatwoot 原生模块）
 
-A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块内建在本 Chatwoot fork 中（Rails 7.1 + Vue 3）。
+Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块内建在本 Chatwoot fork 中（Rails 7.1 + Vue 3）。
 它由 [Twenty](https://twenty.com) 版 A-CRM（原 china-trade-crm）迁移重写而来，字段/业务口径沿用原规范，但**排版与前端 UI 已脱离 Twenty 原版面重做**。
 
 - 需求规范（外部）：`/Users/amberlaw/acrm-migration/CRM_SPEC.md`
-- 迁移目标：把 A-CRM 的能力用 Chatwoot 技术栈原生实现，AI 驱动开发。
-- **用户使用指南**（面向最终用户，全中文）：[`docs/A-CRM用户使用指南.html`](docs/A-CRM用户使用指南.html)（浏览器打开或下载后查看）
+- 迁移目标：把 Wintouch-CRM 的能力用 Chatwoot 技术栈原生实现，AI 驱动开发。
+- **用户使用指南**（面向最终用户，全中文）：[`docs/Wintouch-CRM用户使用指南.html`](docs/Wintouch-CRM用户使用指南.html)（浏览器打开或下载后查看）
 
 ---
 

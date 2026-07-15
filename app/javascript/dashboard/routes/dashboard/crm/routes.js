@@ -50,7 +50,7 @@ const crmPage = (path, name, component, extraMeta = {}) => {
   };
 };
 
-// A-CRM routes
+// Wintouch-CRM routes
 export const routes = [
   crmPage('workspace', 'crm_workspace_index', CrmWorkspaceHome, SHARED),
   crmPage('dashboard', 'crm_dashboard_index', CrmDashboardIndex),
