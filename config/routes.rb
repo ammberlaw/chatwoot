@@ -144,8 +144,11 @@ Rails.application.routes.draw do
             end
           end
           namespace :chat do
-            resources :conversations, only: [:index, :show, :create] do
-              member { post :read }
+            resources :conversations, only: [:index, :show, :create, :update] do
+              member do
+                post :read
+                post :remove_participant
+              end
               resources :messages, only: [:index, :create]
             end
           end

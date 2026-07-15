@@ -15,9 +15,9 @@ class Chat::CreateConversationService
     conversation
   end
 
-  # 群聊：名称 + 成员（自动含创建者）。
-  def create_group(name:, user_ids:)
-    conversation = @account.chat_conversations.create!(kind: 'group', name: name, creator_id: @creator.id)
+  # 群聊：名称 + 群公告 + 成员（自动含创建者）。
+  def create_group(name:, announcement:, user_ids:)
+    conversation = @account.chat_conversations.create!(kind: 'group', name: name, announcement: announcement, creator_id: @creator.id)
     add_participants(conversation, ([@creator.id] + Array(user_ids)).uniq)
     conversation
   end

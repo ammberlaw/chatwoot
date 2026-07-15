@@ -10,6 +10,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
 const currentUserId = useMapGetter('getCurrentUserID');
 
@@ -40,6 +41,18 @@ const L = {
   create: '创建',
   members: n => `${n} 人`,
   error: '操作失败',
+  announcement: '群公告',
+  announcementPlaceholder: '填写群公告（必填）',
+  noAnnouncement: '暂无群公告',
+  ownerOnlyHint: '仅群主可编辑群公告',
+  save: '发布公告',
+  saved: '群公告已发布',
+  detailTitle: '群聊详情',
+  memberList: '群成员',
+  ownerBadge: '群主',
+  remove: '移除',
+  confirmRemove: '确认移除',
+  removed: '已移除该成员',
 };
 
 const conversations = ref([]);
@@ -53,7 +66,10 @@ const search = ref('');
 
 const userDialog = ref(null);
 const groupDialog = ref(null);
-const groupForm = ref({ name: '', memberIds: [] });
+const groupForm = ref({ name: '', announcement: '', memberIds: [] });
+const detailDialog = ref(null);
+const announcementDraft = ref('');
+const pendingRemoveId = ref(null);
 
 let listTimer = null;
 let msgTimer = null;
@@ -143,8 +159,18 @@ const pollActive = async () => {
       ChatAPI.markRead(activeConv.value.id);
     }
     activeParticipants.value = conv.participants || [];
-  } catch {
-    /* ignore */
+    if (activeConv.value && activeConv.value.id === conv.id) {
+      activeConv.value.announcement = conv.announcement;
+      activeConv.value.creator_id = conv.creator_id;
+      activeConv.value.participant_count = conv.participant_count;
+    }
+  } catch (e) {
+    // 被移出群聊：会话对自己不可见（404），退出该会话并刷新列表。
+    if (e?.response?.status === 404) {
+      activeConv.value = null;
+      messages.value = [];
+      fetchConversations();
+    }
   }
 };
 
@@ -249,20 +275,73 @@ const startDirect = async userId => {
 };
 
 const openGroupDialog = () => {
-  groupForm.value = { name: '', memberIds: [] };
+  groupForm.value = { name: '', announcement: '', memberIds: [] };
   groupDialog.value?.open();
 };
 const createGroup = async () => {
-  if (!groupForm.value.name.trim() || !groupForm.value.memberIds.length) return;
+  if (
+    !groupForm.value.name.trim() ||
+    !groupForm.value.announcement.trim() ||
+    !groupForm.value.memberIds.length
+  )
+    return;
   try {
     const { data } = await ChatAPI.create({
       kind: 'group',
       name: groupForm.value.name.trim(),
+      announcement: groupForm.value.announcement.trim(),
       user_ids: groupForm.value.memberIds,
     });
     groupDialog.value?.close();
     await fetchConversations();
     openConversation(conversations.value.find(c => c.id === data.id) || data);
+  } catch {
+    useAlert(L.error);
+  }
+};
+
+// ---- 群聊详情：公告 + 成员管理（群主可编辑公告/踢人，像微信）----
+const isGroupOwner = computed(
+  () =>
+    activeConv.value?.kind === 'group' &&
+    activeConv.value?.creator_id === currentUserId.value
+);
+const openGroupDetail = () => {
+  announcementDraft.value = activeConv.value?.announcement || '';
+  pendingRemoveId.value = null;
+  detailDialog.value?.open();
+};
+const saveAnnouncement = async () => {
+  const text = announcementDraft.value.trim();
+  if (!text || text === activeConv.value?.announcement) return;
+  try {
+    const { data } = await ChatAPI.update(activeConv.value.id, {
+      announcement: text,
+    });
+    activeConv.value.announcement = data.announcement;
+    useAlert(L.saved);
+    pollActive();
+    fetchConversations();
+  } catch {
+    useAlert(L.error);
+  }
+};
+// 踢人两步确认：第一次点变「确认移除」，再点执行。
+const removeMember = async userId => {
+  if (pendingRemoveId.value !== userId) {
+    pendingRemoveId.value = userId;
+    return;
+  }
+  pendingRemoveId.value = null;
+  try {
+    const { data } = await ChatAPI.removeParticipant(
+      activeConv.value.id,
+      userId
+    );
+    activeParticipants.value = data.participants || [];
+    activeConv.value.participant_count = data.participant_count;
+    useAlert(L.removed);
+    fetchConversations();
   } catch {
     useAlert(L.error);
   }
@@ -454,9 +533,13 @@ onBeforeUnmount(() => {
               </h2>
               <div class="flex items-center gap-1.5 mt-0.5">
                 <template v-if="activeConv.kind === 'group'">
-                  <span class="text-xs text-n-slate-10">
+                  <button
+                    type="button"
+                    class="text-xs text-n-slate-10 hover:text-n-iris-11 hover:underline"
+                    @click="openGroupDetail"
+                  >
                     {{ L.members(activeConv.participant_count) }}
-                  </span>
+                  </button>
                 </template>
                 <template v-else>
                   <span
@@ -469,7 +552,32 @@ onBeforeUnmount(() => {
                 </template>
               </div>
             </div>
+            <button
+              v-if="activeConv.kind === 'group'"
+              type="button"
+              :title="L.detailTitle"
+              class="grid ml-auto transition-colors rounded-full shrink-0 size-9 place-items-center text-n-slate-10 hover:bg-n-alpha-1 hover:text-n-slate-12"
+              @click="openGroupDetail"
+            >
+              <Icon icon="i-lucide-ellipsis" class="size-5" />
+            </button>
           </header>
+
+          <!-- 群公告横幅（点开看详情/编辑） -->
+          <button
+            v-if="activeConv.kind === 'group' && activeConv.announcement"
+            type="button"
+            class="flex items-start gap-2.5 mx-6 mt-3 px-4 py-2.5 text-left transition-colors rounded-2xl bg-n-solid-1/80 ring-1 ring-inset ring-n-weak shadow-sm hover:bg-n-solid-1"
+            @click="openGroupDetail"
+          >
+            <Icon
+              icon="i-lucide-megaphone"
+              class="size-4 mt-0.5 shrink-0 text-n-iris-10"
+            />
+            <span class="text-xs leading-relaxed text-n-slate-11 line-clamp-2">
+              {{ activeConv.announcement }}
+            </span>
+          </button>
 
           <!-- 消息流 -->
           <div ref="threadRef" class="flex-1 px-6 py-5 overflow-y-auto">
@@ -696,6 +804,12 @@ onBeforeUnmount(() => {
     >
       <div class="flex flex-col gap-4">
         <Input v-model="groupForm.name" :label="L.groupName" autofocus />
+        <TextArea
+          v-model="groupForm.announcement"
+          :label="L.announcement"
+          :placeholder="L.announcementPlaceholder"
+          :max-length="500"
+        />
         <div>
           <label class="block mb-1 text-heading-3 text-n-slate-12">
             {{ L.groupMembers }}
@@ -720,6 +834,98 @@ onBeforeUnmount(() => {
               />
               {{ a.name }}
             </label>
+          </div>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 群聊详情：公告 + 成员 -->
+    <Dialog
+      ref="detailDialog"
+      :title="L.detailTitle"
+      :show-confirm-button="false"
+    >
+      <div class="flex flex-col gap-5">
+        <!-- 群公告 -->
+        <div>
+          <div class="flex items-center gap-1.5 mb-2">
+            <Icon icon="i-lucide-megaphone" class="size-4 text-n-iris-10" />
+            <span class="text-heading-3 text-n-slate-12">
+              {{ L.announcement }}
+            </span>
+          </div>
+          <template v-if="isGroupOwner">
+            <TextArea
+              v-model="announcementDraft"
+              :placeholder="L.announcementPlaceholder"
+              :max-length="500"
+            />
+            <div class="flex justify-end mt-2">
+              <Button
+                :label="L.save"
+                color="iris"
+                size="sm"
+                :disabled="
+                  !announcementDraft.trim() ||
+                  announcementDraft.trim() === (activeConv?.announcement || '')
+                "
+                @click="saveAnnouncement"
+              />
+            </div>
+          </template>
+          <template v-else>
+            <p
+              class="px-3.5 py-3 text-sm leading-relaxed whitespace-pre-wrap rounded-xl bg-n-alpha-1 text-n-slate-11"
+            >
+              {{ activeConv?.announcement || L.noAnnouncement }}
+            </p>
+            <p class="mt-1.5 text-xs text-n-slate-9">{{ L.ownerOnlyHint }}</p>
+          </template>
+        </div>
+
+        <!-- 群成员 -->
+        <div>
+          <div class="flex items-center gap-1.5 mb-2">
+            <Icon icon="i-lucide-users-round" class="size-4 text-n-slate-10" />
+            <span class="text-heading-3 text-n-slate-12">
+              {{ `${L.memberList} ${activeParticipants.length}` }}
+            </span>
+          </div>
+          <div class="flex flex-col gap-0.5 max-h-[40vh] overflow-y-auto">
+            <div
+              v-for="p in activeParticipants"
+              :key="p.user_id"
+              class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-n-alpha-1"
+            >
+              <Avatar
+                :name="p.name"
+                :src="agentMap[p.user_id]?.thumbnail || ''"
+                :size="32"
+                rounded-full
+              />
+              <span class="flex-1 min-w-0 text-sm truncate text-n-slate-12">
+                {{ p.name }}
+              </span>
+              <span
+                v-if="p.user_id === activeConv?.creator_id"
+                class="px-2 py-0.5 text-[11px] font-medium rounded-full bg-n-iris-3 text-n-iris-11"
+              >
+                {{ L.ownerBadge }}
+              </span>
+              <button
+                v-else-if="isGroupOwner"
+                type="button"
+                class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
+                :class="
+                  pendingRemoveId === p.user_id
+                    ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                    : 'text-n-ruby-11 hover:bg-n-ruby-3'
+                "
+                @click="removeMember(p.user_id)"
+              >
+                {{ pendingRemoveId === p.user_id ? L.confirmRemove : L.remove }}
+              </button>
+            </div>
           </div>
         </div>
       </div>

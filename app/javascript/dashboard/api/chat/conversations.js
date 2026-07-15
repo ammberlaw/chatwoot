@@ -14,6 +14,16 @@ class ChatConversationAPI extends ApiClient {
     return axios.post(this.url, payload);
   }
 
+  update(id, payload) {
+    return axios.patch(`${this.url}/${id}`, payload);
+  }
+
+  removeParticipant(id, userId) {
+    return axios.post(`${this.url}/${id}/remove_participant`, {
+      user_id: userId,
+    });
+  }
+
   markRead(id) {
     return axios.post(`${this.url}/${id}/read`);
   }

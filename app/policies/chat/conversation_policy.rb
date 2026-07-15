@@ -15,6 +15,15 @@ class Chat::ConversationPolicy < ApplicationPolicy
   def read?
     true
   end
+
+  # 群主校验在控制器 ensure_group_owner 完成。
+  def update?
+    true
+  end
+
+  def remove_participant?
+    true
+  end
 end
 
 Chat::ConversationPolicy.prepend_mod_with('Chat::ConversationPolicy')

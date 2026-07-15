@@ -1,6 +1,8 @@
 json.id resource.id
 json.kind resource.kind
 json.name resource.display_name_for(current_user.id)
+json.creator_id resource.creator_id
+json.announcement resource.announcement
 json.last_message_at resource.last_message_at
 json.unread_count resource.unread_count_for(current_user.id)
 json.participant_count resource.participants.size

@@ -4,6 +4,7 @@
 # Table name: chat_conversations
 #
 #  id              :bigint           not null, primary key
+#  announcement    :text
 #  kind            :string           default("direct"), not null
 #  last_message_at :datetime
 #  name            :string
