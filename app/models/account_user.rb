@@ -79,6 +79,11 @@ class AccountUser < ApplicationRecord
     crm_role == 'deputy_admin'
   end
 
+  # 密码自助权限：超级管理员/管理员/行政部门成员可自改密码；其他成员的密码由管理员统一重置。
+  def password_self_service?
+    administrator? || crm_deputy_admin? || oa_template_maintainer?
+  end
+
   # OA 审批模板维护权：管理员或行政部门成员（部门名含「行政」，含其下级部门）。
   def oa_template_maintainer?
     return true if administrator?

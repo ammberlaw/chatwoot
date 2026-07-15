@@ -6,6 +6,9 @@ class DeviseOverrides::PasswordsController < Devise::PasswordsController
 
   def create
     @user = User.from_email(params[:email])
+    # 密码自助仅限超级管理员/管理员/行政部门成员；其他成员由管理员在成员权限中重置。
+    return build_response('密码由管理员统一管理，请联系超级管理员或管理员重置', 403) if @user&.account_users&.none?(&:password_self_service?)
+
     @user&.send_reset_password_instructions
     build_response(I18n.t('messages.reset_password'), 200)
   end

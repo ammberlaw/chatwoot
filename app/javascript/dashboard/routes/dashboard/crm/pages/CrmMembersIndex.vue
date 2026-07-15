@@ -1,19 +1,23 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import MembersAPI from 'dashboard/api/crm/members';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 
 const L = {
   header: '成员权限',
   subtitle: '为每个成员设置系统角色；只有被赋予角色的成员才能进入 CRM。',
+  managerSubtitle:
+    '部门负责人视图：仅显示你所辖部门（含下级）的成员，可为其重置密码。',
   colMember: '成员',
   colSystemRole: '系统角色',
   colModules: '模块使用权限',
   colScope: '数据范围',
+  colAction: '操作',
   self: '当前账号',
   allModules: '全部模块',
   scopeAll: '全部数据',
@@ -46,6 +50,7 @@ const ROLE_OPTIONS = [
 
 const currentUserId = useMapGetter('getCurrentUserID');
 const currentUser = useMapGetter('getCurrentUser');
+
 // 防提权：管理员（deputy_admin）不可任免超级管理员——选项隐藏、超管行只读（后端同口径拦截）。
 const isSuperAdmin = computed(
   () => currentUser.value?.role === 'administrator'
@@ -54,6 +59,10 @@ const roleOptions = computed(() =>
   isSuperAdmin.value
     ? ROLE_OPTIONS
     : ROLE_OPTIONS.filter(o => o.value !== 'administrator')
+);
+// 部门负责人模式：后端只返回下属；页面只读展示角色/模块，仅提供重置密码。
+const isManagerOnly = computed(
+  () => !isSuperAdmin.value && currentUser.value?.crm_role === 'manager'
 );
 const members = ref([]);
 const loading = ref(true);
@@ -77,6 +86,38 @@ const fetchMembers = async () => {
     useAlert(L.error);
   } finally {
     loading.value = false;
+  }
+};
+
+// ── 修改成员账号（姓名/邮箱/重置密码）：超管可改所有人，管理员不可改超管 ──
+const accountDialog = ref(null);
+const editTarget = ref(null);
+const savingAccount = ref(false);
+const editForm = reactive({ name: '', email: '', password: '' });
+const openAccountEdit = m => {
+  editTarget.value = m;
+  editForm.name = m.name || '';
+  editForm.email = m.email || '';
+  editForm.password = '';
+  accountDialog.value?.open();
+};
+const saveAccount = async () => {
+  if (savingAccount.value || !editTarget.value) return;
+  savingAccount.value = true;
+  try {
+    const payload = isManagerOnly.value
+      ? { password: editForm.password }
+      : { name: editForm.name.trim(), email: editForm.email.trim() };
+    if (!isManagerOnly.value && editForm.password)
+      payload.password = editForm.password;
+    await MembersAPI.update(editTarget.value.id, { member: payload });
+    accountDialog.value?.close();
+    useAlert(L.saved);
+    fetchMembers();
+  } catch (e) {
+    useAlert(e.response?.data?.error || L.error);
+  } finally {
+    savingAccount.value = false;
   }
 };
 
@@ -124,7 +165,9 @@ onMounted(fetchMembers);
   >
     <div class="flex-shrink-0 px-6 py-4 border-b border-n-weak">
       <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
-      <p class="mt-0.5 text-xs text-n-slate-10">{{ L.subtitle }}</p>
+      <p class="mt-0.5 text-xs text-n-slate-10">
+        {{ isManagerOnly ? L.managerSubtitle : L.subtitle }}
+      </p>
     </div>
 
     <div class="flex-1 overflow-y-auto">
@@ -137,6 +180,9 @@ onMounted(fetchMembers);
             <th class="px-6 py-3 font-medium w-56">{{ L.colSystemRole }}</th>
             <th class="px-6 py-3 font-medium">{{ L.colModules }}</th>
             <th class="px-6 py-3 font-medium">{{ L.colScope }}</th>
+            <th class="px-6 py-3 font-medium text-right">
+              {{ L.colAction }}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -164,10 +210,12 @@ onMounted(fetchMembers);
               </div>
             </td>
             <td class="px-6 py-3">
-              <!-- 自己那行不可改（防自锁）；管理员对超级管理员行只读（防提权） -->
+              <!-- 自己那行不可改（防自锁）；管理员对超管行只读；部门负责人全只读 -->
               <div
                 v-if="
-                  m.user_id === currentUserId || (m.is_admin && !isSuperAdmin)
+                  m.user_id === currentUserId ||
+                  (m.is_admin && !isSuperAdmin) ||
+                  isManagerOnly
                 "
                 class="flex items-center gap-2"
               >
@@ -212,7 +260,9 @@ onMounted(fetchMembers);
                     type="checkbox"
                     class="accent-n-iris-9"
                     :checked="(m.module_access || []).includes(mod.key)"
-                    :disabled="savingId === m.id || mod.disabled"
+                    :disabled="
+                      savingId === m.id || mod.disabled || isManagerOnly
+                    "
                     @change="e => onModuleToggle(m, mod.key, e.target.checked)"
                   />
                   {{ mod.label }}
@@ -220,11 +270,74 @@ onMounted(fetchMembers);
               </div>
             </td>
             <td class="px-6 py-3 text-n-slate-11">{{ scopeLabel(m) }}</td>
+            <td class="px-6 py-3 text-right">
+              <!-- 自己走头像→个人资料改；管理员不可动超管账号 -->
+              <button
+                v-if="
+                  m.user_id !== currentUserId && (isSuperAdmin || !m.is_admin)
+                "
+                class="text-xs text-n-iris-11 hover:underline"
+                @click="openAccountEdit(m)"
+              >
+                {{ isManagerOnly ? '重置密码' : '修改账号' }}
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
 
       <p class="px-6 py-3 text-xs text-n-slate-9">{{ L.hint }}</p>
     </div>
+    <!-- 修改成员账号弹窗 -->
+    <Dialog
+      ref="accountDialog"
+      :title="`${isManagerOnly ? '重置密码' : '修改账号'}${editTarget ? ` · ${editTarget.name}` : ''}`"
+      :show-confirm-button="false"
+    >
+      <div class="flex flex-col gap-4">
+        <label v-if="!isManagerOnly" class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">姓名</span>
+          <input
+            v-model="editForm.name"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+          />
+        </label>
+        <label v-if="!isManagerOnly" class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">登录邮箱</span>
+          <input
+            v-model="editForm.email"
+            type="email"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">
+            {{ isManagerOnly ? '新密码' : '重置密码（留空则不修改）' }}
+          </span>
+          <input
+            v-model="editForm.password"
+            type="password"
+            autocomplete="new-password"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="至少 8 位，含大小写字母、数字和特殊字符"
+          />
+        </label>
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+            :disabled="
+              savingAccount ||
+              (isManagerOnly
+                ? !editForm.password
+                : !editForm.name.trim() || !editForm.email.trim())
+            "
+            @click="saveAccount"
+          >
+            {{ savingAccount ? '保存中…' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>

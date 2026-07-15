@@ -97,6 +97,9 @@ export default {
     };
   },
   computed: {
+    canChangePassword() {
+      return this.currentUser?.password_self_service !== false;
+    },
     ...mapGetters({
       currentUser: 'getCurrentUser',
       currentUserId: 'getCurrentUserID',
@@ -299,7 +302,11 @@ export default {
       :title="$t('PROFILE_SETTINGS.FORM.PASSWORD_SECTION.TITLE')"
       description=""
     >
-      <ChangePassword />
+      <!-- 密码自助仅限超级管理员/管理员/行政部门成员 -->
+      <ChangePassword v-if="canChangePassword" />
+      <p v-else class="text-sm text-n-slate-11">
+        密码由管理员统一管理，如需修改请联系超级管理员或管理员重置。
+      </p>
     </SectionLayout>
     <SectionLayout
       v-if="isMfaEnabled"

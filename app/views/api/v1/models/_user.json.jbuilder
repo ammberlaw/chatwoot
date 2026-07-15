@@ -18,6 +18,7 @@ json.crm_role resource.active_account_user&.crm_role
 json.can_access_crm resource.active_account_user&.can_access_crm? || false
 json.module_access resource.active_account_user&.module_access || []
 json.oa_template_maintainer resource.active_account_user&.oa_template_maintainer? || false
+json.password_self_service resource.account_users.any?(&:password_self_service?)
 if (crm_au = resource.active_account_user)
   crm_perf_setting = crm_au.account.crm_performance_setting
   json.kpi_scheme_visible Crm::PerformanceSetting.scheme_visible?(crm_perf_setting, crm_au)
