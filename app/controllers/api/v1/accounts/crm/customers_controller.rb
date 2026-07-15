@@ -55,6 +55,23 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     @customer.update!(customer_params)
   end
 
+  # 批量分配：任何 CRM 角色都可把「自己名下」的私海客户分配给任意成员；
+  # 部门主管分配团队成员的客户时目标限本团队；管理员不受限。
+  # 客户名下的商机（私海）、订单、报价、往来邮件一并归入新业务员名下。
+  def reassign
+    target_id = params[:owner_id].to_i
+    return render json: { error: '目标成员不存在' }, status: :unprocessable_entity unless Current.account.account_users.exists?(user_id: target_id)
+
+    scope = scope_by_owner(Current.account.crm_customers.where(is_in_public_pool: false), column: :account_owner_id)
+    customers = scope.where(id: Array(params[:ids]))
+    return render json: { error: '只能分配给自己团队的业务员' }, status: :forbidden unless reassign_target_allowed?(customers, target_id)
+
+    customer_ids = customers.pluck(:id)
+    Current.account.crm_customers.where(id: customer_ids).update_all(account_owner_id: target_id, updated_at: Time.current)
+    cascade_reassign(customer_ids, target_id)
+    render json: { reassigned: customer_ids.size }
+  end
+
   # 认领：公海客户归当前用户私海。分组私海上限由模型 pool_limit 校验拦截。
   def claim
     @customer.update!(account_owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil)
@@ -99,6 +116,25 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   private
+
+  # 分配级联：公海中的商机不动（保持共享池语义），其余关联数据全部随客户换负责人。
+  def cascade_reassign(customer_ids, target_id)
+    return if customer_ids.empty?
+
+    stamp = { owner_id: target_id, updated_at: Time.current }
+    Current.account.crm_opportunities.where(crm_customer_id: customer_ids, is_in_public_pool: false).update_all(stamp)
+    Current.account.crm_sales_orders.where(crm_customer_id: customer_ids).update_all(stamp)
+    Current.account.crm_quotes.where(crm_customer_id: customer_ids).update_all(stamp)
+    Current.account.crm_emails.where(crm_customer_id: customer_ids).update_all(stamp)
+  end
+
+  # 目标校验：全是自己的客户→任意成员；含团队成员的客户→目标须在自己辖区内；管理员不限。
+  def reassign_target_allowed?(customers, target_id)
+    visible = crm_visible_owner_ids
+    return true if visible == :all || visible.include?(target_id)
+
+    customers.where.not(account_owner_id: current_user.id).none?
+  end
 
   def fetch_customer
     @customer = Current.account.crm_customers.find(params[:id])

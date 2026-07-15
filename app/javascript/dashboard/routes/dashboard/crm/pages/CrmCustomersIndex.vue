@@ -7,6 +7,8 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import { useMapGetter } from 'dashboard/composables/store';
+import CrmMemberAPI from 'dashboard/api/crm/members';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -20,7 +22,8 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { accountId, accountScopedRoute } = useAccount();
-const { isCrmSales } = useCrmRole();
+const { isCrmSales, isCrmManager } = useCrmRole();
+const currentUserForFilter = useMapGetter('getCurrentUser');
 const customersStore = useCrmCustomersStore();
 
 const actingId = ref(null);
@@ -70,8 +73,44 @@ const sourceChannelOptions = [
   { value: 'OTHER', label: '其他' },
 ];
 
+// 部门主管：不筛团队，直接筛自己团队的业务员（本人 + 下属，成员接口已按辖区收口）。
+const teamMembers = ref([]);
+const fetchTeamMembers = async () => {
+  try {
+    const { data } = await CrmMemberAPI.get();
+    teamMembers.value = data.payload || [];
+  } catch {
+    teamMembers.value = [];
+  }
+};
+const managerOwnerOptions = computed(() => {
+  const me = currentUserForFilter.value || {};
+  const rows = teamMembers.value.filter(m => m.user_id !== me.id);
+  return [
+    { value: '', label: '全部业务员' },
+    { value: String(me.id), label: `${me.name}（我）` },
+    ...rows.map(m => ({ value: String(m.user_id), label: m.name })),
+  ];
+});
+
+// 部门主管私海双视图：我的客户(mine) / 团队客户(private 全辖区)
+const managerView = ref('team');
+const isManagerTeamView = computed(
+  () =>
+    isCrmManager.value &&
+    activeFilter.value === 'private' &&
+    managerView.value === 'team'
+);
+
 const fetchCustomers = () => {
-  const filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
+  let filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
+  if (
+    isCrmManager.value &&
+    filter === 'private' &&
+    managerView.value === 'mine'
+  ) {
+    filter = 'mine';
+  }
   return customersStore.get({
     page: currentPage.value,
     filter,
@@ -84,6 +123,82 @@ const fetchCustomers = () => {
     sort: sortKey.value || undefined,
     direction: sortKey.value ? sortDir.value : undefined,
   });
+};
+
+// —— 勾选批量转移（主管团队视图）——
+const selectedIds = ref([]);
+
+const setManagerView = view => {
+  managerView.value = view;
+  selectedIds.value = [];
+  currentPage.value = 1;
+  fetchCustomers();
+};
+const reassignTargetId = ref('');
+const reassigning = ref(false);
+const toggleSelect = id => {
+  selectedIds.value = selectedIds.value.includes(id)
+    ? selectedIds.value.filter(x => x !== id)
+    : [...selectedIds.value, id];
+};
+const allSelected = computed(
+  () =>
+    customers.value.length > 0 &&
+    customers.value.every(c => selectedIds.value.includes(c.id))
+);
+const toggleSelectAll = () => {
+  selectedIds.value = allSelected.value ? [] : customers.value.map(c => c.id);
+};
+const reassignTargetOptions = computed(() => [
+  { value: '', label: '分配给…' },
+  ...managerOwnerOptions.value.filter(o => o.value),
+]);
+
+// 任何 CRM 角色都可勾选分配自己的私海客户；主管团队视图还可分配团队成员的客户。
+const canSelectRows = computed(
+  () =>
+    activeFilter.value === 'private' && (isCrmSales.value || isCrmManager.value)
+);
+
+// 分配目标：团队视图限本团队；「我的客户」/业务员视图可分配给任意成员。
+const allAgentsForAssign = ref([]);
+const fetchAllAgentsForAssign = async () => {
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/agents`
+    );
+    allAgentsForAssign.value = data || [];
+  } catch {
+    allAgentsForAssign.value = [];
+  }
+};
+const assignTargetOptions = computed(() => {
+  if (isManagerTeamView.value) return reassignTargetOptions.value;
+  const me = currentUserForFilter.value || {};
+  return [
+    { value: '', label: '分配给…' },
+    ...allAgentsForAssign.value
+      .filter(a => a.id !== me.id)
+      .map(a => ({ value: String(a.id), label: a.name })),
+  ];
+});
+const reassignSelected = async () => {
+  if (!reassignTargetId.value || !selectedIds.value.length) return;
+  reassigning.value = true;
+  try {
+    await axios.post(
+      `/api/v1/accounts/${accountId.value}/crm/customers/reassign`,
+      { ids: selectedIds.value, owner_id: Number(reassignTargetId.value) }
+    );
+    useAlert(`已分配 ${selectedIds.value.length} 个客户`);
+    selectedIds.value = [];
+    reassignTargetId.value = '';
+    fetchCustomers();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '分配失败');
+  } finally {
+    reassigning.value = false;
+  }
 };
 
 // 客户名搜索（300ms 防抖）
@@ -585,7 +700,9 @@ const detailSections = computed(() => {
 });
 
 onMounted(() => {
-  fetchTeams();
+  if (isCrmManager.value) fetchTeamMembers();
+  else fetchTeams();
+  if (isCrmSales.value || isCrmManager.value) fetchAllAgentsForAssign();
   fetchCustomers();
 });
 watch(
@@ -621,6 +738,29 @@ watch(
         class="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-n-weak"
       >
         <div class="flex flex-wrap items-center gap-2">
+          <!-- 部门主管：我的客户 / 团队客户 双视图 -->
+          <div
+            v-if="isCrmManager && activeFilter === 'private'"
+            class="flex items-center p-0.5 rounded-lg bg-n-alpha-2"
+          >
+            <button
+              v-for="tab in [
+                { key: 'mine', label: '我的客户' },
+                { key: 'team', label: '团队客户' },
+              ]"
+              :key="tab.key"
+              type="button"
+              class="px-3 py-1.5 text-sm rounded-md transition-colors"
+              :class="
+                managerView === tab.key
+                  ? 'bg-n-iris-9 text-white font-medium'
+                  : 'text-n-slate-11 hover:text-n-slate-12'
+              "
+              @click="setManagerView(tab.key)"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
           <input
             v-model="searchQuery"
             type="text"
@@ -628,18 +768,54 @@ watch(
             class="h-9 px-3 text-sm border rounded-lg w-44 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             @input="onSearchInput"
           />
+          <!-- 公海全公司共享，不提供团队/业务员筛选 -->
           <Select
-            v-if="!isCrmSales"
+            v-if="
+              !isCrmSales && !isCrmManager && activeFilter !== 'public_pool'
+            "
             :model-value="selectedTeamId"
             :options="teamOptions"
             @update:model-value="setTeam"
           />
           <Select
-            v-if="!isCrmSales && selectedTeamId"
+            v-if="
+              !isCrmSales &&
+              !isCrmManager &&
+              activeFilter !== 'public_pool' &&
+              selectedTeamId
+            "
             :model-value="selectedOwnerId"
             :options="ownerOptions"
             @update:model-value="setOwner"
           />
+          <!-- 部门主管：团队客户视图下按自己团队的业务员筛选 -->
+          <Select
+            v-if="isManagerTeamView"
+            :model-value="selectedOwnerId"
+            :options="managerOwnerOptions"
+            @update:model-value="setOwner"
+          />
+          <!-- 勾选分配：选中客户连同商机/订单/报价/邮件分配给新业务员 -->
+          <template v-if="canSelectRows && selectedIds.length">
+            <span class="text-sm text-n-slate-11">
+              已选 {{ selectedIds.length }} 个
+            </span>
+            <Select
+              :model-value="reassignTargetId"
+              :options="assignTargetOptions"
+              @update:model-value="v => (reassignTargetId = v)"
+            />
+            <Button
+              v-tooltip.top="
+                '分配后，该客户的商机、订单、报价及往来邮件将一并转入新负责人名下'
+              "
+              label="分配"
+              color="iris"
+              size="sm"
+              :disabled="!reassignTargetId || reassigning"
+              @click="reassignSelected"
+            />
+          </template>
           <Select
             :model-value="activeCustomerGroup"
             :options="customerGroupOptions"
@@ -679,6 +855,14 @@ watch(
             <table class="w-full text-sm text-left border-collapse">
               <thead class="bg-n-alpha-1 text-n-slate-11">
                 <tr class="border-b border-n-weak">
+                  <th v-if="canSelectRows" class="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      class="accent-n-iris-9"
+                      :checked="allSelected"
+                      @change="toggleSelectAll"
+                    />
+                  </th>
                   <th class="px-4 py-3 font-medium whitespace-nowrap">
                     {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
                   </th>
@@ -739,6 +923,14 @@ watch(
                   }"
                   @click="selectCustomer(customer)"
                 >
+                  <td v-if="canSelectRows" class="w-10 px-3 py-3" @click.stop>
+                    <input
+                      type="checkbox"
+                      class="accent-n-iris-9"
+                      :checked="selectedIds.includes(customer.id)"
+                      @change="toggleSelect(customer.id)"
+                    />
+                  </td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-2 whitespace-nowrap">
                       <span

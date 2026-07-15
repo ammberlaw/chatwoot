@@ -56,7 +56,10 @@ Rails.application.routes.draw do
           end
           namespace :crm do
             resources :customers do
-              collection { get :check_duplicate }
+              collection do
+                get :check_duplicate
+                post :reassign
+              end
               member do
                 get :audits
                 post :claim

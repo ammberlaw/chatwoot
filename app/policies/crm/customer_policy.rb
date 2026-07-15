@@ -15,6 +15,11 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 批量转移：角色与范围校验在控制器（reassign_allowed? + 辖区收口）。
+  def reassign?
+    true
+  end
+
   def attach?
     true
   end
