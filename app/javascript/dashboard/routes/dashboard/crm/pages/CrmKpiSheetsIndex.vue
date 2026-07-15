@@ -3,12 +3,19 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useCrmKpiSheetsStore } from 'dashboard/stores/crm/kpiSheets';
 
 const { t } = useI18n();
 const router = useRouter();
 const { accountId } = useAccount();
 const store = useCrmKpiSheetsStore();
+
+// 搜索栏只给能看多人考核表的角色（管理员/超管/部门负责人）；业务员和普通成员只看自己的，无需搜索。
+const { isAdmin, isCrmDeputyAdmin, isCrmManager } = useCrmRole();
+const showSearch = computed(
+  () => isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value
+);
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
@@ -80,6 +87,7 @@ const statusClass = s =>
       <!-- 月份 / 状态筛选 -->
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <input
+          v-if="showSearch"
           v-model="q"
           class="h-8 px-3 text-sm border rounded-lg reset-base w-52 border-n-weak bg-n-solid-1 text-n-slate-12"
           placeholder="搜索业务员 / 方案名"
