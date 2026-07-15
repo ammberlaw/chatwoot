@@ -84,9 +84,9 @@ class AccountUser < ApplicationRecord
     administrator? || crm_deputy_admin? || oa_template_maintainer?
   end
 
-  # OA 审批模板维护权：管理员或行政部门成员（部门名含「行政」，含其下级部门）。
+  # OA 审批模板维护权：超级管理员/管理员，或行政部门成员（部门名含「行政」，含其下级部门）。
   def oa_template_maintainer?
-    return true if administrator?
+    return true if administrator? || crm_deputy_admin?
 
     root_ids = account.org_departments.where('name LIKE ?', '%行政%').pluck(:id)
     return false if root_ids.empty?

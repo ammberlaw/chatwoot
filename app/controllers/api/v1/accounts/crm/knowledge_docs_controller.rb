@@ -29,13 +29,13 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     @doc.update!(update_params)
   end
 
-  # 删除=移入回收站（软删除）；彻底删除仅管理员在回收站执行。
+  # 删除=移入回收站（软删除）；彻底删除由超级管理员/管理员在回收站执行。
   def destroy
     @doc.discard!(current_user.id)
     head :ok
   end
 
-  # ── 回收站（仅管理员）──
+  # ── 回收站（超级管理员与管理员）──
   def recycle_bin
     @docs = Current.account.crm_knowledge_docs.discarded
                    .includes(:owner, :discarded_by)
@@ -103,7 +103,7 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   end
 
   def ensure_admin
-    return if Current.account_user.administrator?
+    return if admin_like?
 
     render_forbidden
   end

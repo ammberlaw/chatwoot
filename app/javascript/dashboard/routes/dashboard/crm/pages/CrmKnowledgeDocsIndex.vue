@@ -262,7 +262,7 @@ const filterTabs = computed(() => [
   ...(isGeneral.value
     ? []
     : [{ key: 'mine', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.MINE') }]),
-  ...(isAdmin.value && isGeneral.value
+  ...((isAdmin.value || isCrmDeputyAdmin.value) && isGeneral.value
     ? [{ key: 'recycle', label: t('CRM.KNOWLEDGE_DOCS.RECYCLE.TAB') }]
     : []),
 ]);
@@ -344,7 +344,6 @@ const fetchRecords = () => {
   });
 };
 
-
 // 在两个资料库路由间切换时（同组件复用），重新拉取对应库的文档。
 watch(currentLibrary, fetchRecords);
 
@@ -393,7 +392,9 @@ const onColDrop = async targetCol => {
     await Promise.all(
       list
         .map((c, i) =>
-          c.position !== i ? categoriesStore.update({ id: c.id, position: i }) : null
+          c.position !== i
+            ? categoriesStore.update({ id: c.id, position: i })
+            : null
         )
         .filter(Boolean)
     );
@@ -535,7 +536,10 @@ const saveForm = async () => {
       if (created) openPanel(created);
       else closePanel();
     } else {
-      const updated = await store.update({ id: selectedDoc.value.id, ...payload });
+      const updated = await store.update({
+        id: selectedDoc.value.id,
+        ...payload,
+      });
       selectedDoc.value = updated || selectedDoc.value;
       panelMode.value = 'view';
       panelAudits.value = [];
@@ -688,7 +692,9 @@ watch(
 </script>
 
 <template>
-  <div class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
+  <div
+    class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div
         class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
@@ -1051,10 +1057,16 @@ watch(
           </span>
           <div class="min-w-0">
             <div class="text-base font-semibold truncate text-n-slate-12">
-              {{ isCreate ? t('CRM.KNOWLEDGE_DOCS.PANEL.NEW_TITLE') : selectedDoc.name }}
+              {{
+                isCreate
+                  ? t('CRM.KNOWLEDGE_DOCS.PANEL.NEW_TITLE')
+                  : selectedDoc.name
+              }}
             </div>
             <div v-if="!isCreate" class="text-xs text-n-slate-10">
-              {{ selectedDoc.category || t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED') }}
+              {{
+                selectedDoc.category || t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
+              }}
             </div>
           </div>
         </div>
@@ -1094,8 +1106,7 @@ watch(
                 :class="colorOf(selectedDoc.category)"
               >
                 {{
-                  selectedDoc.category ||
-                  t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
+                  selectedDoc.category || t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
                 }}
               </span>
               <span
@@ -1208,7 +1219,10 @@ watch(
                 <label class="mb-0.5 text-heading-3 text-n-slate-12">
                   {{ t('CRM.KNOWLEDGE_DOCS.FORM.CATEGORY') }}
                 </label>
-                <Select v-model="editForm.category" :options="categoryOptions" />
+                <Select
+                  v-model="editForm.category"
+                  :options="categoryOptions"
+                />
               </div>
               <!-- 文档中心固定公司文档，不给选范围 -->
               <div
@@ -1259,7 +1273,9 @@ watch(
                 :key="`pending-${index}`"
                 class="flex items-center justify-between px-3 py-2 mb-1.5 border rounded-lg border-n-weak"
               >
-                <span class="flex items-center gap-2 text-sm truncate text-n-slate-12">
+                <span
+                  class="flex items-center gap-2 text-sm truncate text-n-slate-12"
+                >
                   <span class="i-lucide-file size-4 shrink-0" />
                   <span class="truncate">{{ file.name }}</span>
                 </span>

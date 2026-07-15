@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useOrgDepartmentsStore } from 'dashboard/stores/org/departments';
 import { useOrgMembershipsStore } from 'dashboard/stores/org/memberships';
 import AgentAPI from 'dashboard/api/agents';
@@ -13,6 +14,11 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 
 const { isAdmin } = useAdmin();
+const currentUser = useMapGetter('getCurrentUser');
+// 超级管理员与管理员可维护组织架构。
+const canManage = computed(
+  () => isAdmin.value || currentUser.value?.crm_role === 'deputy_admin'
+);
 const deptStore = useOrgDepartmentsStore();
 const memberStore = useOrgMembershipsStore();
 
@@ -40,7 +46,7 @@ const L = {
   memberLabel: '成员',
   saved: '已保存',
   error: '操作失败',
-  readonly: '仅超级管理员可维护组织架构（当前为只读）',
+  readonly: '仅超级管理员与管理员可维护组织架构（当前为只读）',
 };
 
 const departments = computed(() => deptStore.getRecords);
@@ -205,7 +211,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
+  <div
+    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -214,7 +222,7 @@ onMounted(async () => {
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
       <Button
-        v-if="isAdmin"
+        v-if="canManage"
         :label="L.addRoot"
         icon="i-lucide-plus"
         color="iris"
@@ -222,7 +230,7 @@ onMounted(async () => {
       />
     </div>
 
-    <div v-if="!isAdmin" class="px-6 py-2 text-xs bg-n-iris-3 text-n-iris-11">
+    <div v-if="!canManage" class="px-6 py-2 text-xs bg-n-iris-3 text-n-iris-11">
       {{ L.readonly }}
     </div>
 
@@ -275,7 +283,7 @@ onMounted(async () => {
               >
                 {{ node.memberCount }}
               </span>
-              <template v-if="isAdmin">
+              <template v-if="canManage">
                 <button
                   class="opacity-0 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11"
                   :title="L.addChild"
@@ -323,7 +331,7 @@ onMounted(async () => {
             <div class="flex items-center gap-2">
               <span class="text-xs text-n-slate-10">{{ L.leader }}</span>
               <select
-                v-if="isAdmin"
+                v-if="canManage"
                 :value="
                   selectedDept.leaderId ? String(selectedDept.leaderId) : ''
                 "
@@ -344,7 +352,7 @@ onMounted(async () => {
             </div>
             <span class="flex-1" />
             <Button
-              v-if="isAdmin"
+              v-if="canManage"
               :label="L.addChild"
               icon="i-lucide-folder-plus"
               size="sm"
@@ -353,7 +361,7 @@ onMounted(async () => {
               @click="addChild(selectedDept)"
             />
             <Button
-              v-if="isAdmin"
+              v-if="canManage"
               :label="L.addMember"
               icon="i-lucide-user-plus"
               size="sm"
@@ -396,7 +404,7 @@ onMounted(async () => {
                     {{ m.title ? `${m.title} · ${m.userEmail}` : m.userEmail }}
                   </div>
                 </div>
-                <template v-if="isAdmin">
+                <template v-if="canManage">
                   <button
                     class="text-n-slate-10 hover:text-n-iris-11"
                     :title="L.editMember"
