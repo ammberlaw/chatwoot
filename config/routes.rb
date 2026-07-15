@@ -105,6 +105,19 @@ Rails.application.routes.draw do
             resources :mail_accounts
             resources :email_templates
             resources :members, only: [:index, :update]
+            resources :kpi_schemes do
+              member { post :distribute }
+            end
+            resources :kpi_sheets do
+              member do
+                post :submit
+                post :score
+                post :hr_confirm
+                post :gm_confirm
+              end
+            end
+            resources :employee_comps
+            resource :performance_settings, only: [:show, :update], controller: 'performance_settings'
           end
           namespace :org do
             resources :departments, only: [:index, :create, :update, :destroy] do

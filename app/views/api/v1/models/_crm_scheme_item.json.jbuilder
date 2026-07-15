@@ -1,0 +1,9 @@
+json.id resource.id
+json.name resource.name
+json.dimension resource.dimension
+json.standard resource.standard
+json.weight resource.weight
+json.baseline_value resource.baseline_value
+json.target_value resource.target_value
+json.data_source resource.data_source
+json.sort_order resource.sort_order

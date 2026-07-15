@@ -85,6 +85,13 @@ class Account < ApplicationRecord
   has_many :crm_sales_targets, class_name: 'Crm::SalesTarget', dependent: :destroy_async
   has_many :crm_mail_accounts, class_name: 'Crm::MailAccount', dependent: :destroy_async
   has_many :crm_email_templates, class_name: 'Crm::EmailTemplate', dependent: :destroy_async
+  has_many :crm_kpi_schemes, class_name: 'Crm::KpiScheme', dependent: :destroy_async
+  has_many :crm_scheme_items, class_name: 'Crm::SchemeItem', dependent: :destroy_async
+  has_many :crm_payout_tiers, class_name: 'Crm::PayoutTier', dependent: :destroy_async
+  has_many :crm_employee_comps, class_name: 'Crm::EmployeeComp', dependent: :destroy_async
+  has_many :crm_kpi_sheets, class_name: 'Crm::KpiSheet', dependent: :destroy_async
+  has_many :crm_kpi_sheet_items, class_name: 'Crm::KpiSheetItem', dependent: :destroy_async
+  has_one :crm_performance_setting, class_name: 'Crm::PerformanceSetting', dependent: :destroy_async
   has_many :org_departments, class_name: 'Org::Department', dependent: :destroy_async
   has_many :org_memberships, class_name: 'Org::Membership', dependent: :destroy_async
   has_many :oa_approval_templates, class_name: 'Oa::ApprovalTemplate', dependent: :destroy_async

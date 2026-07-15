@@ -62,6 +62,9 @@ const currentUser = useMapGetter('getCurrentUser');
 // 非 CRM 人员隐藏 CRM 销售数据分组（工作台/文档中心/HR/OA/协同等共享模块保留）。
 const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
+// 绩效板块按角色可见性（服务端按当前用户角色算好；管理员始终 true）。
+const kpiSchemeVisible = computed(() => currentUser.value?.kpi_scheme_visible !== false);
+const kpiSheetVisible = computed(() => currentUser.value?.kpi_sheet_visible !== false);
 const CRM_DATA_MODULES = [
   'CRM Dashboards',
   'CRM Customers Group',
@@ -845,6 +848,57 @@ const menuItems = computed(() => {
       ],
     },
     {
+      name: 'CRM HR Perf',
+      label: t('SIDEBAR.CRM_G_HR_PERF'),
+      icon: 'i-lucide-award',
+      activeOn: [
+        'crm_kpi_schemes_index',
+        'crm_kpi_sheets_index',
+        'crm_employee_comps_index',
+        'crm_performance_settings_index',
+      ],
+      children: [
+        // 考核方案 / 考核表：按角色可见性开关（管理员始终可见）。
+        ...(kpiSchemeVisible.value
+          ? [
+              {
+                name: 'CRM KPI Schemes',
+                label: t('SIDEBAR.CRM_KPI_SCHEMES'),
+                to: accountScopedRoute('crm_kpi_schemes_index'),
+                activeOn: ['crm_kpi_schemes_index'],
+              },
+            ]
+          : []),
+        ...(kpiSheetVisible.value
+          ? [
+              {
+                name: 'CRM KPI Sheets',
+                label: t('SIDEBAR.CRM_KPI_SHEETS'),
+                to: accountScopedRoute('crm_kpi_sheets_index'),
+                activeOn: ['crm_kpi_sheets_index', 'crm_kpi_sheet_detail'],
+              },
+            ]
+          : []),
+        // 员工薪资配置 / 审批人设置：仅管理员可见。
+        ...(isAdmin.value
+          ? [
+              {
+                name: 'CRM Employee Comps',
+                label: t('SIDEBAR.CRM_EMPLOYEE_COMPS'),
+                to: accountScopedRoute('crm_employee_comps_index'),
+                activeOn: ['crm_employee_comps_index'],
+              },
+              {
+                name: 'CRM Perf Settings',
+                label: t('SIDEBAR.CRM_PERF_SETTINGS'),
+                to: accountScopedRoute('crm_performance_settings_index'),
+                activeOn: ['crm_performance_settings_index'],
+              },
+            ]
+          : []),
+      ],
+    },
+    {
       name: 'CRM Approvals',
       label: t('SIDEBAR.CRM_G_OA'),
       icon: 'i-lucide-file-check',
@@ -1152,6 +1206,7 @@ const ITEM_MODULE = {
   'CRM Team Chat': 'chat',
   'CRM Approvals': 'oa',
   'CRM Org': 'hr',
+  'CRM HR Perf': 'hr',
   'CRM Doc Center': 'doc',
 };
 const itemModule = name => ITEM_MODULE[name] || 'crm';
@@ -1162,6 +1217,12 @@ const ROUTE_MODULE = {
   crm_approval_templates_index: 'oa',
   crm_org_structure_index: 'hr',
   crm_members_index: 'hr',
+  crm_kpi_schemes_index: 'hr',
+  crm_kpi_scheme_editor: 'hr',
+  crm_kpi_sheets_index: 'hr',
+  crm_kpi_sheet_detail: 'hr',
+  crm_performance_settings_index: 'hr',
+  crm_employee_comps_index: 'hr',
   crm_doc_center_index: 'doc',
 };
 const activeModule = computed(() => ROUTE_MODULE[route.name] || 'crm');

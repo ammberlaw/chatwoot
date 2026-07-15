@@ -18,6 +18,12 @@ import CrmTeamDashboardIndex from './pages/CrmTeamDashboardIndex.vue';
 import CrmMyTargetIndex from './pages/CrmMyTargetIndex.vue';
 import CrmMembersIndex from './pages/CrmMembersIndex.vue';
 import CrmCustomerOnboardingIndex from './pages/CrmCustomerOnboardingIndex.vue';
+import CrmKpiSchemesIndex from './pages/CrmKpiSchemesIndex.vue';
+import CrmKpiSchemeEditorIndex from './pages/CrmKpiSchemeEditorIndex.vue';
+import CrmKpiSheetsIndex from './pages/CrmKpiSheetsIndex.vue';
+import CrmKpiSheetDetailIndex from './pages/CrmKpiSheetDetailIndex.vue';
+import CrmPerformanceSettingsIndex from './pages/CrmPerformanceSettingsIndex.vue';
+import CrmEmployeeCompsIndex from './pages/CrmEmployeeCompsIndex.vue';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 
 const commonMeta = {
@@ -76,6 +82,30 @@ export const routes = [
     CrmOrgStructureIndex,
     SHARED
   ),
+  crmPage('kpi-schemes', 'crm_kpi_schemes_index', CrmKpiSchemesIndex, SHARED),
+  crmPage(
+    'kpi-schemes/edit',
+    'crm_kpi_scheme_editor',
+    CrmKpiSchemeEditorIndex,
+    SHARED
+  ),
+  crmPage('kpi-sheets', 'crm_kpi_sheets_index', CrmKpiSheetsIndex, SHARED),
+  crmPage(
+    'kpi-sheets/detail',
+    'crm_kpi_sheet_detail',
+    CrmKpiSheetDetailIndex,
+    SHARED
+  ),
+  crmPage(
+    'performance-settings',
+    'crm_performance_settings_index',
+    CrmPerformanceSettingsIndex,
+    { permissions: ['administrator'], ...SHARED }
+  ),
+  crmPage('employee-comps', 'crm_employee_comps_index', CrmEmployeeCompsIndex, {
+    permissions: ['administrator'],
+    ...SHARED,
+  }),
   crmPage('approvals', 'crm_approvals_index', CrmApprovalsIndex, SHARED),
   crmPage(
     'approval-templates',

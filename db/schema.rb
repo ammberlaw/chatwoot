@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_14_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_15_180000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -931,6 +931,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_140000) do
     t.index ["tracking_token"], name: "index_crm_emails_on_tracking_token", unique: true, where: "(tracking_token IS NOT NULL)"
   end
 
+  create_table "crm_employee_comps", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.bigint "monthly_salary_micros"
+    t.integer "performance_ratio", default: 10
+    t.bigint "baseline_target_micros"
+    t.string "rank_note"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_employee_comps_on_account_id"
+    t.index ["owner_id"], name: "index_crm_employee_comps_on_owner_id"
+  end
+
   create_table "crm_follow_up_notes", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1001,6 +1015,73 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_140000) do
     t.index ["owner_id"], name: "index_crm_knowledge_docs_on_owner_id"
   end
 
+  create_table "crm_kpi_schemes", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.datetime "scheme_month", null: false
+    t.integer "pass_score", default: 70
+    t.integer "item_score_cap_pct", default: 120
+    t.text "payout_note"
+    t.string "status", default: "DRAFT", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "result_note"
+    t.index ["account_id", "scheme_month"], name: "index_crm_kpi_schemes_on_account_id_and_scheme_month"
+    t.index ["account_id"], name: "index_crm_kpi_schemes_on_account_id"
+  end
+
+  create_table "crm_kpi_sheet_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_kpi_sheet_id", null: false
+    t.string "name", null: false
+    t.string "dimension"
+    t.text "standard"
+    t.integer "weight"
+    t.string "baseline_value"
+    t.string "target_value"
+    t.string "data_source", default: "MANUAL", null: false
+    t.string "actual_value"
+    t.decimal "score", precision: 7, scale: 2
+    t.decimal "suggested_score", precision: 7, scale: 2
+    t.integer "sort_order", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_kpi_sheet_items_on_account_id"
+    t.index ["crm_kpi_sheet_id"], name: "index_crm_kpi_sheet_items_on_crm_kpi_sheet_id"
+  end
+
+  create_table "crm_kpi_sheets", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_kpi_scheme_id"
+    t.bigint "owner_id"
+    t.string "scheme_name"
+    t.datetime "period_month", null: false
+    t.string "status", default: "PENDING", null: false
+    t.integer "pass_score"
+    t.integer "item_score_cap_pct"
+    t.decimal "total_score", precision: 7, scale: 2
+    t.bigint "monthly_salary_micros"
+    t.integer "performance_ratio"
+    t.bigint "baseline_target_micros"
+    t.bigint "performance_base_micros"
+    t.decimal "payout_coefficient", precision: 6, scale: 3
+    t.bigint "actual_payout_micros"
+    t.datetime "employee_signed_at"
+    t.bigint "manager_id"
+    t.datetime "manager_signed_at"
+    t.bigint "hr_id"
+    t.datetime "hr_confirmed_at"
+    t.bigint "gm_id"
+    t.datetime "gm_confirmed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "period_month"], name: "index_crm_kpi_sheets_on_account_id_and_period_month"
+    t.index ["account_id"], name: "index_crm_kpi_sheets_on_account_id"
+    t.index ["crm_kpi_scheme_id", "owner_id"], name: "index_crm_kpi_sheets_on_crm_kpi_scheme_id_and_owner_id"
+    t.index ["crm_kpi_scheme_id"], name: "index_crm_kpi_sheets_on_crm_kpi_scheme_id"
+    t.index ["owner_id"], name: "index_crm_kpi_sheets_on_owner_id"
+  end
+
   create_table "crm_mail_accounts", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1047,6 +1128,34 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_140000) do
     t.index ["account_id"], name: "index_crm_opportunities_on_account_id"
     t.index ["crm_customer_id"], name: "index_crm_opportunities_on_crm_customer_id"
     t.index ["owner_id"], name: "index_crm_opportunities_on_owner_id"
+  end
+
+  create_table "crm_payout_tiers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_kpi_scheme_id", null: false
+    t.string "name", null: false
+    t.integer "min_score"
+    t.integer "max_score"
+    t.decimal "coefficient", precision: 6, scale: 3
+    t.boolean "proportional", default: false
+    t.integer "sort_order", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_payout_tiers_on_account_id"
+    t.index ["crm_kpi_scheme_id"], name: "index_crm_payout_tiers_on_crm_kpi_scheme_id"
+  end
+
+  create_table "crm_performance_settings", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "hr_owner_id"
+    t.bigint "gm_owner_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "scheme_visible_sales", default: true, null: false
+    t.boolean "scheme_visible_manager", default: true, null: false
+    t.boolean "sheet_visible_sales", default: true, null: false
+    t.boolean "sheet_visible_manager", default: true, null: false
+    t.index ["account_id"], name: "index_crm_performance_settings_on_account_id", unique: true
   end
 
   create_table "crm_products", force: :cascade do |t|
@@ -1177,6 +1286,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_140000) do
     t.index ["account_id", "target_month"], name: "index_crm_sales_targets_on_account_id_and_target_month"
     t.index ["account_id"], name: "index_crm_sales_targets_on_account_id"
     t.index ["owner_id"], name: "index_crm_sales_targets_on_owner_id"
+  end
+
+  create_table "crm_scheme_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_kpi_scheme_id", null: false
+    t.string "name", null: false
+    t.string "dimension"
+    t.text "standard"
+    t.integer "weight"
+    t.string "baseline_value"
+    t.string "target_value"
+    t.string "data_source", default: "MANUAL", null: false
+    t.integer "sort_order", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_scheme_items_on_account_id"
+    t.index ["crm_kpi_scheme_id"], name: "index_crm_scheme_items_on_crm_kpi_scheme_id"
   end
 
   create_table "crm_teams", force: :cascade do |t|
@@ -1869,6 +1995,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_140000) do
   add_foreign_key "crm_emails", "contacts", on_delete: :nullify
   add_foreign_key "crm_emails", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_emails", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_employee_comps", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_follow_up_notes", "contacts", on_delete: :nullify
   add_foreign_key "crm_follow_up_notes", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_follow_up_notes", "crm_opportunities", on_delete: :nullify
@@ -1879,9 +2006,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_140000) do
   add_foreign_key "crm_follow_up_tasks", "users", column: "assignee_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_categories", "accounts"
   add_foreign_key "crm_knowledge_docs", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_kpi_sheet_items", "crm_kpi_sheets", on_delete: :cascade
+  add_foreign_key "crm_kpi_sheets", "crm_kpi_schemes", on_delete: :nullify
+  add_foreign_key "crm_kpi_sheets", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_mail_accounts", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_payout_tiers", "crm_kpi_schemes", on_delete: :cascade
+  add_foreign_key "crm_performance_settings", "users", column: "gm_owner_id", on_delete: :nullify
+  add_foreign_key "crm_performance_settings", "users", column: "hr_owner_id", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_quotes", on_delete: :cascade
   add_foreign_key "crm_quotes", "contacts", on_delete: :nullify
@@ -1895,6 +2028,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_14_140000) do
   add_foreign_key "crm_sales_orders", "crm_teams", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_sales_targets", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_scheme_items", "crm_kpi_schemes", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :cascade

@@ -16,6 +16,14 @@ json.custom_attributes resource.custom_attributes if resource.custom_attributes.
 json.role resource.active_account_user&.role
 json.crm_role resource.active_account_user&.crm_role
 json.can_access_crm resource.active_account_user&.can_access_crm? || false
+if (crm_au = resource.active_account_user)
+  crm_perf_setting = crm_au.account.crm_performance_setting
+  json.kpi_scheme_visible Crm::PerformanceSetting.scheme_visible?(crm_perf_setting, crm_au)
+  json.kpi_sheet_visible Crm::PerformanceSetting.sheet_visible?(crm_perf_setting, crm_au)
+else
+  json.kpi_scheme_visible false
+  json.kpi_sheet_visible false
+end
 json.ui_settings resource.ui_settings
 json.uid resource.uid
 json.type resource.type

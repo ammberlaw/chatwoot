@@ -346,6 +346,211 @@
         "NEW_CUSTOMERS": "目标新客户数"
       }
     },
+    "KPI_SCHEMES": {
+      "HEADER": "考核方案",
+      "SUBTITLE": "月度绩效考核方案（可编辑指标与发放系数档）",
+      "NEW": "新建方案",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无考核方案",
+      "STATUS": {
+        "DRAFT": "草稿",
+        "PUBLISHED": "已下发"
+      },
+      "SOURCE": {
+        "CRM_SALES": "CRM·业绩额",
+        "CRM_NEWCUST": "CRM·新客户",
+        "MANUAL": "手动填报",
+        "MANAGER": "主管判定"
+      },
+      "TABLE": {
+        "NAME": "方案名称",
+        "MONTH": "考核月份",
+        "STATUS": "状态",
+        "PASS_SCORE": "及格分",
+        "ITEMS": "指标数",
+        "TIERS": "发放档数"
+      },
+      "FORM": {
+        "NAME": "方案名称",
+        "MONTH": "考核月份",
+        "PASS_SCORE": "及格分",
+        "CAP_PCT": "单项计分上限(%)",
+        "STATUS": "状态",
+        "PAYOUT_NOTE": "发放说明"
+      },
+      "ITEMS": {
+        "TITLE": "考核指标（权重合计 {total} 分）",
+        "ADD": "加一行",
+        "NAME": "指标名",
+        "DIMENSION": "维度",
+        "STANDARD": "考核标准",
+        "WEIGHT": "权重",
+        "BASELINE": "底线值",
+        "TARGET": "目标值",
+        "SOURCE": "数据来源",
+        "DIM_PRESETS": "业绩结果,客户开发,系统规范,过程效率"
+      },
+      "TIERS": {
+        "TITLE": "发放系数档",
+        "ADD": "加一档",
+        "NAME": "档位名",
+        "MIN": "分数下限",
+        "MAX": "分数上限",
+        "COEFFICIENT": "发放系数",
+        "PROPORTIONAL": "按得分比例"
+      },
+      "CREATE": {
+        "TITLE": "新建考核方案",
+        "SUCCESS": "方案已创建",
+        "ERROR": "保存失败"
+      },
+      "EDIT": {
+        "TITLE": "编辑考核方案",
+        "SUCCESS": "方案已更新"
+      },
+      "DELETE": {
+        "CONFIRM": "确定删除该考核方案？其指标与发放档将一并删除。",
+        "SUCCESS": "方案已删除",
+        "ERROR": "删除失败"
+      },
+      "EDITOR": {
+        "SAVE": "保存",
+        "SAVING": "保存中…",
+        "SECTION_BASIC": "方案基本信息",
+        "SECTION_STATS": "月度数据统计（参考数据，不计入考核分）",
+        "SECTION_RULES": "评分与绩效发放规则",
+        "SECTION_RESULT": "考核结果应用",
+        "TOTAL_SCORE": "总分",
+        "PAYOUT_NOTE": "评分与绩效发放规则",
+        "RESULT_NOTE": "考核结果应用",
+        "DISTRIBUTE": "下发给员工",
+        "DISTRIBUTE_SAVE_FIRST": "请先保存方案，再下发给员工。",
+        "DIM_PLACEHOLDER": "选择或输入维度"
+      },
+      "STATS": {
+        "INQUIRY_TM": "询盘+TM总人数",
+        "AFTER_FILTER": "剔除撞单/L0后",
+        "DEAL_CUSTOMERS": "总成交客户数",
+        "REPEAT_CUSTOMERS": "复购客户数",
+        "REPEAT_AMOUNT": "复购成交金额",
+        "NEW_CUSTOMERS": "新客户数",
+        "NEW_AMOUNT": "新客户成交金额",
+        "AUTO": "自动·CRM",
+        "MANUAL": "运营提供"
+      }
+    },
+    "EMPLOYEE_COMPS": {
+      "HEADER": "员工薪资配置",
+      "SUBTITLE": "HR 维护业务员月薪 / 绩效占比 / 业绩底线（仅管理员可见）",
+      "NEW": "新建配置",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无薪资配置",
+      "TABLE": {
+        "NAME": "员工/备注",
+        "MEMBER": "成员",
+        "MONTHLY_SALARY": "月薪总额",
+        "PERF_RATIO": "绩效占比",
+        "BASELINE_TARGET": "月度业绩底线",
+        "RANK_NOTE": "职级/备注"
+      },
+      "FORM": {
+        "NAME": "员工/备注",
+        "MEMBER": "关联成员",
+        "MONTHLY_SALARY": "月薪总额(元)",
+        "PERF_RATIO": "绩效占比(%)",
+        "BASELINE_TARGET": "月度业绩底线(元)",
+        "RANK_NOTE": "职级/备注"
+      },
+      "CREATE": {
+        "TITLE": "新建薪资配置",
+        "SUCCESS": "薪资配置已创建",
+        "ERROR": "创建失败"
+      }
+    },
+    "KPI_SHEETS": {
+      "LIST_HEADER": "考核表",
+      "LIST_SUBTITLE": "下发后每位员工一张，走填报→打分→人事→总经理审批",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无考核表（去考核方案点「下发给员工」生成）",
+      "LOAD_ERROR": "加载失败",
+      "TITLE": "{name} 的绩效考核表",
+      "DETAIL": "考核明细（完成值由员工填，得分由主管定）",
+      "ACTUAL": "完成值",
+      "SCORE_COL": "得分",
+      "TOTAL": "总分",
+      "PAYOUT": "绩效薪资核算",
+      "BASE": "绩效基数",
+      "COEFFICIENT": "发放系数",
+      "ACTUAL_PAYOUT": "本月实发绩效",
+      "SIGN": "电子签名与审批",
+      "SIGN_EMPLOYEE": "被考核人（员工）签",
+      "SIGN_MANAGER": "考核人（主管）签",
+      "SIGN_HR": "人事确认",
+      "SIGN_GM": "总经理确认",
+      "NOT_SIGNED": "未签",
+      "WAIT_PREV": "待上一步完成",
+      "SIGNED_AT": "已签 · {date}",
+      "SAVE": "保存",
+      "SAVED": "已保存",
+      "SAVE_ERROR": "保存失败",
+      "SUBMIT": "提交并签名",
+      "SCORE": "打分并签名",
+      "HR_CONFIRM": "人事确认",
+      "GM_CONFIRM": "总经理确认",
+      "STEP_OK": "已完成本步",
+      "STEP_ERROR": "操作失败",
+      "NO_SIG_CONFIRM": "还没选电子签文件，确定不上传直接继续？",
+      "COL_OWNER": "业务员",
+      "COL_MONTH": "月份",
+      "COL_SCHEME": "方案",
+      "COL_STATUS": "状态",
+      "COL_SCORE": "总分",
+      "COL_PAYOUT": "实发绩效",
+      "STATUS": {
+        "PENDING": "待填报",
+        "SUBMITTED": "待打分",
+        "SCORED": "待人事确认",
+        "HR_CONFIRMED": "待总经理确认",
+        "ARCHIVED": "已归档"
+      },
+      "STEP": {
+        "PENDING": "员工填报+签",
+        "SUBMITTED": "主管打分+签",
+        "SCORED": "人事确认",
+        "HR_CONFIRMED": "总经理确认",
+        "ARCHIVED": "归档"
+      },
+      "DISTRIBUTE_TITLE": "下发考核方案",
+      "DISTRIBUTE_HINT": "为选中业务员各生成一张本月考核表；已下发的会跳过，不重复生成。",
+      "DISTRIBUTE_CONFIRM": "确认下发（{count} 人）",
+      "DISTRIBUTE_DONE": "已下发：新建 {created} 张，跳过 {skipped} 张",
+      "DISTRIBUTE_ERROR": "下发失败",
+      "NO_SALES": "暂无 CRM 销售成员，请先在「成员权限」赋予 CRM 角色",
+      "ROLE_MANAGER": "主管",
+      "ROLE_SALES": "业务员"
+    },
+    "PERF_SETTINGS": {
+      "HEADER": "绩效审批人设置",
+      "SUBTITLE": "指定谁是人事、总经理（决定考核表审批链的第 3、4 步由谁确认）",
+      "LOADING": "加载中…",
+      "LOAD_ERROR": "加载失败",
+      "SAVE": "保存",
+      "SAVED": "已保存",
+      "SAVE_ERROR": "保存失败",
+      "HR": "人事",
+      "HR_HINT": "主管打分后，由此人做人事确认+签",
+      "GM": "总经理",
+      "GM_HINT": "人事确认后，由此人做总经理确认+签，签完归档",
+      "VISIBILITY": "板块可见性（按角色）",
+      "VISIBILITY_HINT": "勾选各角色能看到哪些项。管理员始终全部可见；被指定的人事/总经理始终可见考核表。",
+      "ROLE_SALES": "业务员",
+      "ROLE_MANAGER": "主管",
+      "ROLE_ADMIN": "管理员",
+      "ITEM_SCHEME": "考核方案",
+      "ITEM_SHEET": "考核表",
+      "ITEM_COMP": "员工薪资/审批人设置",
+      "VISIBILITY_NOTE": "注：取消「业务员·考核表」后，业务员将看不到自己的考核表，无法自填与签名——请谨慎。"
+    },
     "DASHBOARD": {
       "HEADER_COMPANY": "外贸销售部数据看板",
       "HEADER_MINE": "个人数据看板",
