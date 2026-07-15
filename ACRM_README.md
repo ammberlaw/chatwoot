@@ -112,14 +112,22 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 - 跟进记录/任务 `follow_up_notes` / `follow_up_tasks`
 - 联系人 `contacts`、公海规则 `public_pool_settings`
 
-### 13. 员工档案（员工主数据）`crm_employees_index`
+### 13. 绩效考核（KPI）
+控制器 `kpi_schemes` / `kpi_sheets` / `employee_comps` / `performance_settings` · 模型 `Crm::KpiScheme(+SchemeItem+PayoutTier)` / `Crm::KpiSheet(+Item)` / `Crm::EmployeeComp` / `Crm::PerformanceSetting`
+
+- **考核方案**：月度可编辑（指标/权重/发放系数档），下发后每人一张考核表；列表带**年份归档筛选**。
+- **考核表**：五步流转 待填报→已提交→已打分→人事确认→归档（四方电子签）；`recompute_payout!` 按总分→系数档→实发绩效（月薪×绩效占比）。列表带**搜索（业务员/方案名）+ 月份 + 状态筛选**。
+- **数据范围**：超管/管理员/指定人事/总经理看全部；部门负责人看本部门（含下级）；业务员只看自己（实发金额敏感）。
+- **员工薪资配置**（敏感区，二次验证）与**审批人设置**（指定人事/总经理 + 板块角色可见性开关）。
+
+### 14. 员工档案（员工主数据）`crm_employees_index`
 `CrmEmployeesIndex.vue` · 控制器 `employees` · 模型 `Crm::Employee` · 独立 HR 板块（超管/管理员）
 
 - **在职 / 试用 / 离职**分组页签 + 姓名/工号/手机号搜索；六板块建档表单：基本身份（工号唯一、证件照 `photo`、入职资料 `entry_files`）/ 岗位组织（部门、**关联系统账号 `user_id`**）/ 状态与关键日期（工龄自动算）/ 薪酬发薪 / 联系方式 / 离职信息（`resign_files`）。
 - **离职交接** `Crm::OffboardingService`：状态改「离职」时触发——客户/商机**退回公海**（默认）或 `handover_target_id` 转移；个人文档 `discard!` 进回收站；账号 `crm_role` 置空。只在非离职→离职转换时执行一次。
 - 删号兜底：`AccountUser#after_destroy` 也会归档个人文档。
 
-### 14. 权限与安全体系
+### 15. 权限与安全体系
 
 - **系统角色**（成员权限页一个下拉）：超级管理员 `administrator` / 管理员 `deputy_admin` / 部门负责人 `manager` / 业务员 `sales` / 无。数据范围见 `Crm::AccessScope`（超管、管理员=全部；负责人=部门子树；业务员=本人）。**统一口径：管理员=超管减去「任免/修改超级管理员」**（组织架构维护、文档回收站、审批模板维护均已放开给管理员）。
 - **防提权**：管理员不可任免/改动超级管理员、不可发超管邀请（`members`/`member_invites` 控制器拦截 + 前端选项过滤）。
@@ -131,7 +139,7 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 - **密码集中管控**：自改密码（个人资料 + 忘记密码邮件）仅限超管/管理员/行政部门成员（`AccountUser#password_self_service?`）；超管/管理员可在成员权限改成员姓名/邮箱/重置密码；**部门负责人**限下属、仅重置密码（`manager_overreach?`）。
 - **审批模板维护** `oa_template_maintainer?`：超管/管理员或行政部门成员（部门名含「行政」，含下级）。
 
-### 15. 考勤 `crm_attendance_index`
+### 16. 考勤 `crm_attendance_index`
 `CrmAttendanceIndex.vue` · 控制器 `attendances` / `attendance_groups` · 模型 `Crm::AttendanceRecord` / `Crm::AttendanceGroup`
 
 - **打卡**：上班/下班两次打卡（重复打取更晚时间），服务器按 `Asia/Shanghai` 时区判定 正常/迟到/早退/迟到+早退；每人每天一条（唯一约束）。
@@ -144,7 +152,7 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 - **节假日**：按考勤组维护日期数组；节假日不计工作日/缺卡。
 - 全员可用（`skip ensure_crm_access`）。
 
-### 16. 团队沟通（群聊）`crm_team_chat_index`
+### 17. 团队沟通（群聊）`crm_team_chat_index`
 `CrmTeamChatIndex.vue` · 控制器 `chat/conversations`
 
 - 单聊/群聊、文件附件、已读名单；**建群必填群公告**，公告更新推送「【群公告】」消息。
