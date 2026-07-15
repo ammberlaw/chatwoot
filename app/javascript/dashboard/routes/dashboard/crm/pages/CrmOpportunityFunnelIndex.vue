@@ -4,8 +4,10 @@ import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import CrmMemberAPI from 'dashboard/api/crm/members';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -13,7 +15,8 @@ import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportu
 
 const { t } = useI18n();
 const { accountId } = useAccount();
-const { isCrmSales } = useCrmRole();
+const { isCrmSales, isCrmManager } = useCrmRole();
+const currentUser = useMapGetter('getCurrentUser');
 const store = useCrmOpportunitiesStore();
 
 // 视图：常规看板 / 商机公海（公海全员可见全公司，认领后归入自己名下）
@@ -41,6 +44,26 @@ const ownerOptions = computed(() => {
   return [
     { value: '', label: '全部业务员' },
     ...(team?.members || []).map(m => ({ value: String(m.id), label: m.name })),
+  ];
+});
+
+// 部门主管：不筛团队，直接筛自己团队的业务员（本人 + 下属，成员接口已按辖区收口）。
+const teamMembers = ref([]);
+const fetchTeamMembers = async () => {
+  try {
+    const { data } = await CrmMemberAPI.get();
+    teamMembers.value = data.payload || [];
+  } catch {
+    teamMembers.value = [];
+  }
+};
+const managerOwnerOptions = computed(() => {
+  const me = currentUser.value || {};
+  const rows = teamMembers.value.filter(m => m.user_id !== me.id);
+  return [
+    { value: '', label: '全部业务员' },
+    { value: String(me.id), label: `${me.name}（我）` },
+    ...rows.map(m => ({ value: String(m.user_id), label: m.name })),
   ];
 });
 
@@ -201,13 +224,16 @@ const onDrop = async stageKey => {
 };
 
 onMounted(() => {
-  fetchTeams();
+  if (isCrmManager.value) fetchTeamMembers();
+  else fetchTeams();
   refreshBoard();
 });
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
+  <div
+    class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -256,15 +282,24 @@ onMounted(() => {
           @click="toggleSortDir"
         />
         <Select
-          v-if="!isCrmSales && view === 'board'"
+          v-if="!isCrmSales && !isCrmManager && view === 'board'"
           :model-value="selectedTeamId"
           :options="teamOptions"
           @update:model-value="setTeam"
         />
         <Select
-          v-if="!isCrmSales && view === 'board' && selectedTeamId"
+          v-if="
+            !isCrmSales && !isCrmManager && view === 'board' && selectedTeamId
+          "
           :model-value="selectedOwnerId"
           :options="ownerOptions"
+          @update:model-value="setOwner"
+        />
+        <!-- 部门主管：直接按自己团队的业务员筛选 -->
+        <Select
+          v-if="isCrmManager && view === 'board'"
+          :model-value="selectedOwnerId"
+          :options="managerOwnerOptions"
           @update:model-value="setOwner"
         />
         <Button
@@ -306,7 +341,8 @@ onMounted(() => {
             v-if="col.total > 0"
             class="mt-2 text-lg font-bold text-n-slate-12"
           >
-            {{ CURRENCY_SYMBOL[col.currency] || '' }}{{ totalAmount(col.total) }}
+            {{ CURRENCY_SYMBOL[col.currency] || ''
+            }}{{ totalAmount(col.total) }}
           </div>
         </div>
 

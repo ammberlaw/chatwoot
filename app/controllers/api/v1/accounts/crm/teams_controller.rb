@@ -2,8 +2,9 @@ class Api::V1::Accounts::Crm::TeamsController < Api::V1::Accounts::Crm::BaseCont
   before_action :check_authorization
   before_action :fetch_team, only: [:show, :update, :destroy]
 
+  # 团队列表：超级管理员/管理员看全部；部门主管与业务员仅看自己所属团队（筛选下拉同步收口）。
   def index
-    @teams = Current.account.crm_teams.order(:name)
+    @teams = visible_teams.order(:name)
   end
 
   def show; end
@@ -25,6 +26,12 @@ class Api::V1::Accounts::Crm::TeamsController < Api::V1::Accounts::Crm::BaseCont
 
   def fetch_team
     @team = Current.account.crm_teams.find(params[:id])
+  end
+
+  def visible_teams
+    return Current.account.crm_teams if Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+
+    Current.account.crm_teams.where(id: Current.account_user.crm_team_id)
   end
 
   def check_authorization

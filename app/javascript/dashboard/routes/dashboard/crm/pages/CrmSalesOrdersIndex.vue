@@ -7,6 +7,8 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import { useMapGetter } from 'dashboard/composables/store';
+import CrmMemberAPI from 'dashboard/api/crm/members';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -22,7 +24,8 @@ const { accountId } = useAccount();
 const store = useCrmSalesOrdersStore();
 
 const createDialogRef = ref(null);
-const { isCrmSales } = useCrmRole();
+const { isCrmSales, isCrmManager } = useCrmRole();
+const currentUserForFilter = useMapGetter('getCurrentUser');
 // 普通业务只看个人订单：无「全部」视图，默认落在「我的」（未关联客户视图保留）。
 const normalizeFilter = value =>
   isCrmSales.value && (!value || value === 'all') ? 'mine' : value || 'all';
@@ -69,8 +72,20 @@ const ownerFilterOptions = computed(() => [
   { value: '', label: t('CRM.SALES_ORDERS.FILTERS.ALL_OWNER') },
   ...agents.value.map(a => ({ value: String(a.id), label: a.name })),
 ]);
+// 部门主管：业务员下拉只列自己团队（本人 + 下属，成员接口已按辖区收口）；管理员列全账号成员。
 const fetchAgents = async () => {
   try {
+    if (isCrmManager.value) {
+      const { data } = await CrmMemberAPI.get();
+      const me = currentUserForFilter.value || {};
+      agents.value = [
+        { id: me.id, name: `${me.name}（我）` },
+        ...(data.payload || [])
+          .filter(m => m.user_id !== me.id)
+          .map(m => ({ id: m.user_id, name: m.name })),
+      ];
+      return;
+    }
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/agents`
     );
