@@ -33,7 +33,7 @@ class Api::V1::Accounts::Oa::ApprovalTemplatesController < Api::V1::Accounts::Ba
 
   def template_params
     params.require(:template).permit(
-      :name, :description, :icon, :active, :position,
+      :name, :description, :icon, :active, :position, :attendance_kind,
       form_fields: [:key, :label, :type, :required, { options: [] }],
       flow: [:type, :user_id]
     )

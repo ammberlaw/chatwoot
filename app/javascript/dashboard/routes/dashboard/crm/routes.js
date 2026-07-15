@@ -27,6 +27,7 @@ import CrmPerformanceSettingsIndex from './pages/CrmPerformanceSettingsIndex.vue
 import CrmPublicPoolSettingsIndex from './pages/CrmPublicPoolSettingsIndex.vue';
 import CrmEmployeeCompsIndex from './pages/CrmEmployeeCompsIndex.vue';
 import CrmEmployeesIndex from './pages/CrmEmployeesIndex.vue';
+import CrmAttendanceIndex from './pages/CrmAttendanceIndex.vue';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 
 const commonMeta = {
@@ -118,6 +119,8 @@ export const routes = [
   ),
   // 员工档案（员工主数据）：含身份证/薪酬等敏感信息，仅管理员。
   crmPage('employees', 'crm_employees_index', CrmEmployeesIndex, SHARED),
+  // 考勤：打卡/月历全员可用；汇总与规则在页内按角色显隐。
+  crmPage('attendance', 'crm_attendance_index', CrmAttendanceIndex, SHARED),
   crmPage('approvals', 'crm_approvals_index', CrmApprovalsIndex, SHARED),
   crmPage(
     'approval-templates',

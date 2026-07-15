@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_16_080000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_16_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -831,6 +831,33 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_080000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["account_id", "resource_type", "resource_id", "created_at"], name: "idx_crm_access_logs_on_resource"
+  end
+
+  create_table "crm_attendance_records", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id", null: false
+    t.date "work_date", null: false
+    t.datetime "clock_in_at"
+    t.datetime "clock_out_at"
+    t.string "status", default: "NORMAL", null: false
+    t.string "note"
+    t.bigint "adjusted_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id", "work_date"], name: "idx_crm_attendance_on_user_date", unique: true
+    t.index ["account_id", "work_date"], name: "index_crm_attendance_records_on_account_id_and_work_date"
+  end
+
+  create_table "crm_attendance_settings", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.integer "work_days", default: [1, 2, 3, 4, 5], null: false, array: true
+    t.string "clock_in_time", default: "09:00", null: false
+    t.string "clock_out_time", default: "18:00", null: false
+    t.integer "grace_minutes", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "holidays", default: [], null: false, array: true
+    t.index ["account_id"], name: "index_crm_attendance_settings_on_account_id", unique: true
   end
 
   create_table "crm_customers", force: :cascade do |t|
@@ -1789,6 +1816,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_080000) do
     t.integer "position", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "attendance_kind"
     t.index ["account_id"], name: "index_oa_approval_templates_on_account_id"
   end
 

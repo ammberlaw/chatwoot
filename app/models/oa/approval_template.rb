@@ -5,17 +5,18 @@
 #
 # Table name: oa_approval_templates
 #
-#  id          :bigint           not null, primary key
-#  active      :boolean          default(TRUE), not null
-#  description :string
-#  flow        :jsonb            not null
-#  form_fields :jsonb            not null
-#  icon        :string           default("i-lucide-file-check")
-#  name        :string           not null
-#  position    :integer          default(0), not null
-#  created_at  :datetime         not null
-#  updated_at  :datetime         not null
-#  account_id  :bigint           not null
+#  id              :bigint           not null, primary key
+#  active          :boolean          default(TRUE), not null
+#  attendance_kind :string
+#  description     :string
+#  flow            :jsonb            not null
+#  form_fields     :jsonb            not null
+#  icon            :string           default("i-lucide-file-check")
+#  name            :string           not null
+#  position        :integer          default(0), not null
+#  created_at      :datetime         not null
+#  updated_at      :datetime         not null
+#  account_id      :bigint           not null
 #
 # Indexes
 #
@@ -27,6 +28,8 @@ class Oa::ApprovalTemplate < ApplicationRecord
                       inverse_of: :template, dependent: :destroy
 
   validates :name, presence: true
+  # 考勤联动：leave 请假单 / reclock 补卡申请；空=不联动。
+  validates :attendance_kind, inclusion: { in: %w[leave reclock] }, allow_blank: true
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(:position, :id) }

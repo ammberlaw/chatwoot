@@ -873,8 +873,8 @@ const menuItems = computed(() => {
               { filter: 'company', section_id: String(section.id) }
             ),
           })),
-          // 文档回收站：仅管理员可见可清理
-          ...(isAdmin.value
+          // 文档回收站：超级管理员与管理员可见可清理
+          ...(isAdminLike.value
             ? [
                 {
                   name: 'CRM Doc Center Recycle',
@@ -972,6 +972,14 @@ const menuItems = computed(() => {
               ]
             : []),
         ],
+      },
+      // 考勤：独立板块，全员可用（打卡/我的考勤；汇总与规则页内按角色显隐）。
+      {
+        name: 'CRM Attendance',
+        label: t('SIDEBAR.CRM_ATTENDANCE'),
+        icon: 'i-lucide-alarm-clock-check',
+        to: accountScopedRoute('crm_attendance_index'),
+        activeOn: ['crm_attendance_index'],
       },
       // 员工档案 / 员工薪资配置：独立板块（超级管理员与管理员）。
       ...(isAdminLike.value
@@ -1309,6 +1317,7 @@ const ITEM_MODULE = {
   'CRM Approvals': 'oa',
   'CRM Org': 'hr',
   'CRM HR Perf': 'hr',
+  'CRM Attendance': 'hr',
   'CRM Employees': 'hr',
   'CRM Employee Comps': 'hr',
   'CRM Doc Center': 'doc',
@@ -1328,6 +1337,7 @@ const ROUTE_MODULE = {
   crm_kpi_sheet_detail: 'hr',
   crm_performance_settings_index: 'hr',
   crm_employee_comps_index: 'hr',
+  crm_attendance_index: 'hr',
   crm_employees_index: 'hr',
   crm_doc_center_index: 'doc',
 };

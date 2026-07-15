@@ -139,6 +139,14 @@ Rails.application.routes.draw do
               end
             end
             resource :sensitive_session, only: [:show, :create], controller: 'sensitive_sessions'
+            resource :attendance_setting, only: [:show, :update], controller: 'attendance_settings'
+            resources :attendances, only: [:index] do
+              collection do
+                post :clock
+                get :summary
+                post :adjust
+              end
+            end
             resource :performance_settings, only: [:show, :update], controller: 'performance_settings'
           end
           namespace :org do

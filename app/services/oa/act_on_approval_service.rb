@@ -34,6 +34,8 @@ class Oa::ActOnApprovalService
       @request.update!(current_position: next_step.position)
     else
       @request.update!(status: 'approved')
+      # 考勤联动：请假/补卡模板整单通过后自动写入考勤。
+      Crm::AttendanceApprovalService.new(request: @request, actor: @actor).perform
     end
   end
 end

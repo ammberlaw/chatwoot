@@ -44,7 +44,7 @@ const L = {
   deleted: '已删除',
   error: '操作失败',
   needName: '请填写模板名称',
-  noAccess: '仅超级管理员与行政部门成员可维护审批模板',
+  noAccess: '仅超级管理员、管理员与行政部门成员可维护审批模板',
   fieldCount: n => `${n} 个字段`,
   stepCount: n => `${n} 级审批`,
 };
@@ -82,6 +82,7 @@ const form = ref({
   description: '',
   icon: ICONS[2],
   active: true,
+  attendanceKind: '',
   fields: [],
   flow: [],
 });
@@ -97,6 +98,7 @@ const resetForm = () => {
     description: '',
     icon: ICONS[2],
     active: true,
+    attendanceKind: '',
     fields: [],
     flow: [],
   };
@@ -115,6 +117,7 @@ const openEdit = tpl => {
     description: tpl.description || '',
     icon: tpl.icon || ICONS[2],
     active: tpl.active !== false,
+    attendanceKind: tpl.attendance_kind || '',
     fields: (tpl.form_fields || []).map(f => ({
       seq: nextSeq(),
       key: f.key,
@@ -161,6 +164,7 @@ const save = async () => {
     description: form.value.description.trim() || null,
     icon: form.value.icon,
     active: form.value.active,
+    attendance_kind: form.value.attendanceKind || null,
     form_fields: form.value.fields.map(f => ({
       key: f.key,
       label: f.label.trim() || f.key,
@@ -218,7 +222,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
@@ -303,6 +309,22 @@ onMounted(async () => {
           <Input v-model="form.name" :label="L.name" autofocus />
           <Input v-model="form.description" :label="L.desc" />
         </div>
+
+        <!-- 考勤联动：请假/补卡模板审批通过后自动写入考勤 -->
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-n-slate-12">考勤联动</span>
+          <select
+            v-model="form.attendanceKind"
+            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+          >
+            <option value="">不联动</option>
+            <option value="leave">请假单（按日期区间标记请假）</option>
+            <option value="reclock">补卡申请（该日补为正常）</option>
+          </select>
+          <span v-if="form.attendanceKind" class="text-xs text-n-slate-10">
+            表单需包含日期字段：请假取最早/最晚两个日期为区间，补卡取第一个日期；整单审批通过后自动写入考勤（留痕）。
+          </span>
+        </label>
 
         <!-- 图标 -->
         <div>
