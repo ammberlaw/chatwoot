@@ -4,6 +4,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue';
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
@@ -35,8 +36,10 @@ const selectedQuarter = computed({
   },
 });
 
+const { isCrmSales } = useCrmRole();
+// 普通业务无公司看板权限：无论 URL 参数如何都走个人口径（后端同样强制）。
 const scope = computed(() =>
-  route.query.scope === 'mine' ? 'mine' : 'company'
+  route.query.scope === 'mine' || isCrmSales.value ? 'mine' : 'company'
 );
 
 const STAGE_LABELS = {

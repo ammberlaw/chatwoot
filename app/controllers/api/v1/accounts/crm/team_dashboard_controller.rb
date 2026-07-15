@@ -43,11 +43,18 @@ class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::
   end
 
   def teams_payload
-    Current.account.crm_teams.order(:name).includes(:members).map do |team|
+    visible_teams.order(:name).includes(:members).map do |team|
       members = team.members.map { |user| member_row(user) }
                     .sort_by { |m| -m[:actual_amount_micros] }
       { id: team.id, name: team.name, members: members }
     end
+  end
+
+  # 管理员/主管看全部团队；普通业务仅看自己所属团队。
+  def visible_teams
+    return Current.account.crm_teams if Current.account_user.administrator? || Current.account_user.crm_manager?
+
+    Current.account.crm_teams.where(id: Current.account_user.crm_team_id)
   end
 
   def member_row(user)

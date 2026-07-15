@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -14,7 +15,11 @@ const route = useRoute();
 const store = useCrmOpportunitiesStore();
 
 const createDialogRef = ref(null);
-const activeFilter = ref(route.query.filter || 'all');
+const { isCrmSales } = useCrmRole();
+// 普通业务只看个人商机：无「全部」视图，默认落在「我的」。
+const normalizeFilter = value =>
+  isCrmSales.value && (!value || value === 'all') ? 'mine' : value || 'all';
+const activeFilter = ref(normalizeFilter(route.query.filter));
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
@@ -48,11 +53,13 @@ const avatarCls = name =>
   AVATAR[((name || '?').charCodeAt(0) || 0) % AVATAR.length];
 const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 
-const filterTabs = [
-  { key: 'all', label: t('CRM.OPPORTUNITIES.FILTERS.ALL') },
+const filterTabs = computed(() => [
+  ...(isCrmSales.value
+    ? []
+    : [{ key: 'all', label: t('CRM.OPPORTUNITIES.FILTERS.ALL') }]),
   { key: 'mine', label: t('CRM.OPPORTUNITIES.FILTERS.MINE') },
   { key: 'open', label: t('CRM.OPPORTUNITIES.FILTERS.OPEN') },
-];
+]);
 
 const fetchRecords = () => {
   const filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
@@ -92,7 +99,7 @@ onMounted(fetchRecords);
 watch(
   () => route.query.filter,
   value => {
-    activeFilter.value = value || 'all';
+    activeFilter.value = normalizeFilter(value);
     fetchRecords();
   }
 );

@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -21,7 +22,11 @@ const { accountId } = useAccount();
 const store = useCrmSalesOrdersStore();
 
 const createDialogRef = ref(null);
-const activeFilter = ref(route.query.filter || 'all');
+const { isCrmSales } = useCrmRole();
+// 普通业务只看个人订单：无「全部」视图，默认落在「我的」（未关联客户视图保留）。
+const normalizeFilter = value =>
+  isCrmSales.value && (!value || value === 'all') ? 'mine' : value || 'all';
+const activeFilter = ref(normalizeFilter(route.query.filter));
 const activeStatus = ref('');
 const currentPage = ref(1);
 const searchQuery = ref('');
@@ -46,10 +51,12 @@ const STATUSES = {
   CANCELLED: { label: '已取消', class: 'bg-n-ruby-3 text-n-ruby-11' },
 };
 
-const filterTabs = [
-  { key: 'all', label: t('CRM.SALES_ORDERS.FILTERS.ALL') },
+const filterTabs = computed(() => [
+  ...(isCrmSales.value
+    ? []
+    : [{ key: 'all', label: t('CRM.SALES_ORDERS.FILTERS.ALL') }]),
   { key: 'mine', label: t('CRM.SALES_ORDERS.FILTERS.MINE') },
-];
+]);
 
 // 状态筛选下拉，空值 = 全部状态；标签复用上面的 STATUSES 定义。
 const statusFilterOptions = [
@@ -292,7 +299,7 @@ onMounted(() => {
 watch(
   () => route.query.filter,
   value => {
-    activeFilter.value = value || 'all';
+    activeFilter.value = normalizeFilter(value);
     currentPage.value = 1;
     closePanel();
     fetchRecords();
@@ -345,6 +352,7 @@ watch(
           @change="onMonthChange"
         />
         <Select
+          v-if="!isCrmSales"
           :model-value="activeOwnerId"
           :options="ownerFilterOptions"
           @update:model-value="setOwner"

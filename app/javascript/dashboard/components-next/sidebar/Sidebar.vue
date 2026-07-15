@@ -62,6 +62,10 @@ const currentUser = useMapGetter('getCurrentUser');
 // 非 CRM 人员隐藏 CRM 销售数据分组（工作台/文档中心/HR/OA/协同等共享模块保留）。
 const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
+// 普通业务（非管理员且非 CRM 主管）：隐藏公司级看板等团队之外的数据入口。
+const isCrmSales = computed(
+  () => !isAdmin.value && currentUser.value?.crm_role !== 'manager'
+);
 // 绩效板块按角色可见性（服务端按当前用户角色算好；管理员始终 true）。
 const kpiSchemeVisible = computed(() => currentUser.value?.kpi_scheme_visible !== false);
 const kpiSheetVisible = computed(() => currentUser.value?.kpi_sheet_visible !== false);
@@ -641,12 +645,16 @@ const menuItems = computed(() => {
         'crm_my_target_index',
       ],
       children: [
-        {
-          name: 'CRM Company Dashboard',
-          label: t('SIDEBAR.CRM_DASH_COMPANY'),
-          to: accountScopedRoute('crm_dashboard_index'),
-          activeOn: ['crm_dashboard_index'],
-        },
+        ...(isCrmSales.value
+          ? []
+          : [
+              {
+                name: 'CRM Company Dashboard',
+                label: t('SIDEBAR.CRM_DASH_COMPANY'),
+                to: accountScopedRoute('crm_dashboard_index'),
+                activeOn: ['crm_dashboard_index'],
+              },
+            ]),
         {
           name: 'CRM Personal Dashboard',
           label: t('SIDEBAR.CRM_DASH_MINE'),
