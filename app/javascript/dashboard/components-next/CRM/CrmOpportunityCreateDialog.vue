@@ -223,7 +223,7 @@ defineExpose({ dialogRef, onSuccess, open });
       />
       <label class="flex items-center gap-2 text-sm text-n-slate-12">
         <input v-model="form.important" type="checkbox" />
-        <span class="i-lucide-star size-4 text-n-amber-9" />
+        <span class="i-lucide-star size-4 text-n-blue-9" />
         {{ t('CRM.OPPORTUNITIES.FORM.IMPORTANT') }}
       </label>
       <div v-if="form.salesStage === 'LOST'" class="flex flex-col gap-1">

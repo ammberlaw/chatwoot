@@ -186,7 +186,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
             <td class="px-3 py-2 font-medium text-n-slate-12 whitespace-nowrap">
               <span
                 v-if="record.important"
-                class="inline-block i-lucide-star size-3.5 text-n-amber-9 me-1 align-[-2px]"
+                class="inline-block i-lucide-star size-3.5 text-n-blue-9 me-1 align-[-2px]"
                 :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
               />
               {{ record.name }}

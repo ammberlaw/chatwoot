@@ -65,6 +65,7 @@ const sortOptions = [
   { value: '', label: t('CRM.FUNNEL.SORT_DEFAULT') },
   { value: 'created_at', label: t('CRM.FUNNEL.SORT_CREATED') },
   { value: 'amount', label: t('CRM.FUNNEL.SORT_AMOUNT') },
+  { value: 'probability', label: t('CRM.FUNNEL.SORT_PROBABILITY') },
 ];
 
 const setSort = value => {
@@ -314,14 +315,14 @@ onMounted(() => {
           <div
             v-for="item in col.items"
             :key="item.id"
-            class="relative p-4 transition-all border shadow-sm bg-n-solid-1 rounded-xl group"
+            class="relative p-4 transition-all border shadow-sm rounded-xl group"
             :class="[
               view === 'board'
                 ? 'cursor-pointer hover:shadow-md'
                 : 'cursor-default',
               item.important
-                ? 'border-n-amber-8 hover:border-n-amber-9'
-                : 'border-n-weak hover:border-n-iris-8',
+                ? 'bg-n-blue-4/60 backdrop-blur-xl backdrop-saturate-150 border-white/70 hover:border-n-blue-8 shadow-lg shadow-n-blue-9/15'
+                : 'bg-n-solid-1 border-n-weak hover:border-n-iris-8',
             ]"
             :draggable="view === 'board'"
             @dragstart="dragId = item.id"
@@ -346,11 +347,12 @@ onMounted(() => {
                 :class="col.color"
               />
               <div
-                class="text-sm font-semibold leading-snug text-n-slate-12 line-clamp-2"
+                class="text-sm font-semibold leading-snug line-clamp-2"
+                :class="item.important ? 'text-n-blue-12' : 'text-n-slate-12'"
               >
                 <span
                   v-if="item.important"
-                  class="inline-block i-lucide-star size-3.5 text-n-amber-9 me-1 align-[-2px]"
+                  class="inline-block i-lucide-star size-3.5 text-n-blue-9 me-1 align-[-2px]"
                   :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
                 />
                 {{ item.name }}
@@ -373,7 +375,10 @@ onMounted(() => {
               {{ item.opportunityRemark }}
             </p>
 
-            <div class="my-3 border-t border-n-weak" />
+            <div
+              class="my-3 border-t"
+              :class="item.important ? 'border-n-blue-6/60' : 'border-n-weak'"
+            />
 
             <!-- 金额 + 概率 -->
             <div class="flex items-center justify-between gap-2 text-xs">

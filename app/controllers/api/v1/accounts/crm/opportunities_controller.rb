@@ -68,14 +68,16 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
     scope
   end
 
-  # 排序：创建时间 / 金额，正序倒序；默认按更新时间倒序。
-  SORT_COLUMNS = { 'created_at' => :created_at, 'amount' => :amount_micros }.freeze
+  # 排序：创建时间 / 金额 / 成交概率，正序倒序；默认按更新时间倒序。
+  # 金额、概率可能为空，统一排到末尾。
+  SORT_COLUMNS = { 'created_at' => 'created_at', 'amount' => 'amount_micros', 'probability' => 'probability' }.freeze
 
   def order_clause
     column = SORT_COLUMNS[params[:sort]]
     return { updated_at: :desc } unless column
 
-    { column => params[:direction] == 'asc' ? :asc : :desc }
+    direction = params[:direction] == 'asc' ? 'ASC' : 'DESC'
+    Arel.sql("#{column} #{direction} NULLS LAST")
   end
 
   # 视图筛选：我的商机 / 商机推进（排除终态）。
