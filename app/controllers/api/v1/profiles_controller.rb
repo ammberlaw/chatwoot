@@ -23,12 +23,13 @@ class Api::V1::ProfilesController < Api::BaseController
     @user.reload
   end
 
+  # 在线/离线状态由系统按实时连接判定，不允许成员手动设置。
   def auto_offline
-    @user.account_users.find_by!(account_id: auto_offline_params[:account_id]).update!(auto_offline: auto_offline_params[:auto_offline] || false)
+    render json: { error: '在线状态由系统实时判定，不可手动设置' }, status: :forbidden
   end
 
   def availability
-    @user.account_users.find_by!(account_id: availability_params[:account_id]).update!(availability: availability_params[:availability])
+    render json: { error: '在线状态由系统实时判定，不可手动设置' }, status: :forbidden
   end
 
   def set_active_account
@@ -50,14 +51,6 @@ class Api::V1::ProfilesController < Api::BaseController
 
   def set_user
     @user = current_user
-  end
-
-  def availability_params
-    params.require(:profile).permit(:account_id, :availability)
-  end
-
-  def auto_offline_params
-    params.require(:profile).permit(:account_id, :auto_offline)
   end
 
   def profile_params
