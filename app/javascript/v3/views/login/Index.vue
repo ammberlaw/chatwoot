@@ -7,9 +7,9 @@ import { required, email } from '@vuelidate/validators';
 import { useVuelidate } from '@vuelidate/core';
 import { SESSION_STORAGE_KEYS } from 'dashboard/constants/sessionStorage';
 import SessionStorage from 'shared/helpers/sessionStorage';
-import { useBranding } from 'shared/composables/useBranding';
 import AnalyticsHelper from 'dashboard/helper/AnalyticsHelper';
 import { SESSION_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
+import wintouchLockup from 'dashboard/assets/images/wintouch/lockup.png';
 
 // components
 import SimpleDivider from '../../components/Divider/SimpleDivider.vue';
@@ -50,9 +50,8 @@ export default {
     authError: { type: String, default: '' },
   },
   setup() {
-    const { replaceInstallationName } = useBranding();
     return {
-      replaceInstallationName,
+      wintouchLockup,
       v$: useVuelidate(),
     };
   },
@@ -290,132 +289,204 @@ export default {
 
 <template>
   <main
-    class="flex flex-col w-full min-h-screen py-20 bg-n-brand/5 dark:bg-n-background sm:px-6 lg:px-8"
+    class="flex flex-col w-full min-h-screen overflow-x-hidden bg-gradient-to-br from-[#e9e9fb] via-[#eeecfc] to-[#f2ecfb]"
   >
-    <section class="max-w-5xl mx-auto">
-      <img
-        :src="globalConfig.logo"
-        :alt="globalConfig.installationName"
-        class="block w-auto h-8 mx-auto dark:hidden"
-      />
-      <img
-        v-if="globalConfig.logoDark"
-        :src="globalConfig.logoDark"
-        :alt="globalConfig.installationName"
-        class="hidden w-auto h-8 mx-auto dark:block"
-      />
-      <h2 class="mt-6 text-3xl font-medium text-center text-n-slate-12">
-        {{ replaceInstallationName($t('LOGIN.TITLE')) }}
-      </h2>
-      <p v-if="showSignupLink" class="mt-3 text-sm text-center text-n-slate-11">
-        {{ $t('COMMON.OR') }}
-        <router-link to="auth/signup" class="lowercase text-link text-n-brand">
-          {{ $t('LOGIN.CREATE_NEW_ACCOUNT') }}
-        </router-link>
-      </p>
-    </section>
+    <header class="flex items-center px-6 pt-7 sm:px-12">
+      <img :src="wintouchLockup" alt="Wintouch" class="w-auto h-8" />
+    </header>
 
-    <!-- Session Limit Section -->
-    <section v-if="sessionsLimitReached" class="mt-11">
-      <SessionLimitOverlay
-        :sessions="limitedSessions"
-        @revoke="handleSessionRevoke"
-        @revoke-all="handleSessionRevokeAll"
-        @cancel="handleSessionLimitCancel"
-      />
-    </section>
-
-    <!-- MFA Verification Section -->
-    <section v-else-if="mfaRequired" class="mt-11">
-      <MfaVerification
-        :mfa-token="mfaToken"
-        @verified="handleMfaVerified"
-        @cancel="handleMfaCancel"
-      />
-    </section>
-
-    <!-- Regular Login Section -->
-    <section
-      v-else
-      class="bg-white shadow sm:mx-auto mt-11 sm:w-full sm:max-w-lg dark:bg-n-solid-2 p-11 sm:shadow-lg sm:rounded-lg"
-      :class="{
-        'mb-8 mt-15': !showGoogleOAuth,
-        'animate-wiggle': loginApi.hasErrored,
-      }"
+    <div
+      class="grid items-center flex-1 w-full max-w-[1440px] gap-6 px-6 mx-auto sm:px-12 lg:grid-cols-[1.35fr_1fr]"
     >
-      <div v-if="!email">
-        <div class="flex flex-col gap-4">
-          <GoogleOAuthButton v-if="showGoogleOAuth" />
-          <div v-if="showSamlLogin" class="text-center">
-            <router-link
-              to="/app/login/sso"
-              class="inline-flex justify-center w-full px-4 py-3 items-center bg-n-background dark:bg-n-solid-3 rounded-md shadow-sm ring-1 ring-inset ring-n-container dark:ring-n-container focus:outline-offset-0 hover:bg-n-alpha-2 dark:hover:bg-n-alpha-2"
-            >
-              <Icon
-                icon="i-lucide-lock-keyhole"
-                class="size-5 text-n-slate-11"
-              />
-              <span class="ml-2 text-base font-medium text-n-slate-12">
-                {{ $t('LOGIN.SAML.LABEL') }}
-              </span>
-            </router-link>
-          </div>
-          <SimpleDivider
-            v-if="showGoogleOAuth || showSamlLogin"
-            :label="$t('COMMON.OR')"
-            class="uppercase"
-          />
-        </div>
-        <form class="space-y-5" @submit.prevent="submitFormLogin">
-          <FormInput
-            v-model="credentials.email"
-            name="email_address"
-            type="text"
-            data-testid="email_input"
-            :tabindex="1"
-            required
-            :label="$t('LOGIN.EMAIL.LABEL')"
-            :placeholder="$t('LOGIN.EMAIL.PLACEHOLDER')"
-            :has-error="v$.credentials.email.$error"
-            @input="v$.credentials.email.$touch"
-          />
-          <FormInput
-            v-model="credentials.password"
-            type="password"
-            name="password"
-            data-testid="password_input"
-            required
-            :tabindex="2"
-            :label="$t('LOGIN.PASSWORD.LABEL')"
-            :placeholder="$t('LOGIN.PASSWORD.PLACEHOLDER')"
-            :has-error="v$.credentials.password.$error"
-            @input="v$.credentials.password.$touch"
+      <!-- Hero (branded artwork, copy intentionally not translated) -->
+      <!-- eslint-disable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
+      <section
+        class="relative hidden py-10 pl-[72px] lg:block"
+        aria-hidden="true"
+      >
+        <div
+          class="absolute left-[640px] top-[52px] h-[90px] w-20 rounded-tr-[60px] border-t-[3px] border-r-[3px] border-dashed border-[#4a4a7a] opacity-75"
+        />
+        <div
+          class="absolute left-[100px] top-[186px] h-[62px] w-20 rounded-bl-[60px] border-b-[3px] border-l-[3px] border-dashed border-[#4a4a7a] opacity-75 after:absolute after:-bottom-[11px] after:-right-3.5 after:text-[13px] after:text-[#6a5ae0] after:content-['▶']"
+        />
+
+        <div class="flex items-center my-1 gap-3.5">
+          <span
+            class="text-[58px] font-extrabold leading-[1.02] tracking-[-0.03em] text-[#232345]"
           >
-            <p v-if="!globalConfig.disableUserProfileUpdate">
+            bring
+          </span>
+          <div
+            class="grid size-[52px] shrink-0 place-content-center rounded-full bg-[#6a5ae0]"
+          >
+            <Icon icon="i-lucide-arrow-right" class="size-6 text-white" />
+          </div>
+          <div
+            class="flex h-[52px] w-[140px] shrink-0 items-center justify-end rounded-full bg-gradient-to-r from-[#5b5bd6] to-[#8b5cf6] pr-2 shadow-[0_14px_30px_-12px_rgba(91,91,214,0.45)]"
+          >
+            <div
+              class="size-[42px] rounded-full bg-[#f2f2f6] shadow-[0_4px_10px_rgba(0,0,0,0.15)]"
+            />
+          </div>
+        </div>
+        <div class="flex items-center my-1 gap-3.5">
+          <div
+            class="relative size-[58px] shrink-0 rounded-full bg-[#ffb224] after:absolute after:-right-[5px] after:top-[23px] after:size-2.5 after:rounded-full after:border-[3px] after:border-white after:bg-[#6a5ae0] after:content-['']"
+          />
+          <span
+            class="text-[58px] font-extrabold leading-[1.02] tracking-[-0.03em] text-[#232345]"
+          >
+            a team
+          </span>
+        </div>
+        <div class="flex items-center my-1 gap-3.5">
+          <div
+            class="relative h-[68px] w-[104px] shrink-0 before:absolute before:left-0 before:top-0 before:size-[68px] before:rounded-full before:bg-gradient-to-br before:from-[#7c5cf0] before:to-[#a06af0] before:content-[''] after:absolute after:right-0 after:top-0 after:size-[68px] after:rounded-full after:bg-[#c3bcf7] after:content-['']"
+          />
+          <span
+            class="text-[58px] font-extrabold leading-[1.02] tracking-[-0.03em] text-[#232345]"
+          >
+            together
+          </span>
+        </div>
+
+        <p class="mt-[26px] text-sm leading-[1.8] text-[#565673]">
+          客户 · 商机 · 订单 · 邮件 · 绩效 —— 一个工作台，连接整个团队，
+          <br />
+          让协作贯穿外贸全流程。
+        </p>
+      </section>
+      <!-- eslint-enable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
+
+      <!-- Right column -->
+      <div class="w-full min-w-0 max-w-[380px] py-10 justify-self-center">
+        <!-- Session Limit Section -->
+        <SessionLimitOverlay
+          v-if="sessionsLimitReached"
+          :sessions="limitedSessions"
+          @revoke="handleSessionRevoke"
+          @revoke-all="handleSessionRevokeAll"
+          @cancel="handleSessionLimitCancel"
+        />
+
+        <!-- MFA Verification Section -->
+        <MfaVerification
+          v-else-if="mfaRequired"
+          :mfa-token="mfaToken"
+          @verified="handleMfaVerified"
+          @cancel="handleMfaCancel"
+        />
+
+        <!-- Regular Login Section -->
+        <section
+          v-else
+          class="flex flex-col rounded-[28px] border border-white/70 bg-white/55 px-10 py-11 shadow-[0_24px_60px_-16px_rgba(80,80,160,0.25)] backdrop-blur-2xl backdrop-saturate-[1.4] [&_label]:sr-only [&_input]:!h-[50px] [&_input]:!rounded-2xl [&_input]:!bg-white [&_input]:!px-5 [&_input]:!text-[15px] [&_input]:!text-[#1c1c2e] [&_input]:!shadow-[0_2px_8px_rgba(80,80,160,0.08)] [&_input]:!outline-transparent [&_input:focus]:!outline-2 [&_input:focus]:!outline-[#6a5ae0] [&_input.error]:!outline-n-ruby-8 [&_input::placeholder]:!text-[#6f6f8c]"
+          :class="{ 'animate-wiggle': loginApi.hasErrored }"
+        >
+          <img
+            :src="wintouchLockup"
+            alt="Wintouch"
+            class="h-[38px] w-auto max-w-full self-center mb-7"
+          />
+          <div v-if="!email">
+            <div class="flex flex-col gap-4">
+              <GoogleOAuthButton v-if="showGoogleOAuth" />
+              <div v-if="showSamlLogin" class="text-center">
+                <router-link
+                  to="/app/login/sso"
+                  class="inline-flex items-center justify-center w-full px-4 py-3 bg-white rounded-2xl shadow-[0_2px_8px_rgba(80,80,160,0.08)] hover:bg-n-alpha-2"
+                >
+                  <Icon
+                    icon="i-lucide-lock-keyhole"
+                    class="size-5 text-n-slate-11"
+                  />
+                  <span class="ml-2 text-base font-medium text-n-slate-12">
+                    {{ $t('LOGIN.SAML.LABEL') }}
+                  </span>
+                </router-link>
+              </div>
+              <SimpleDivider
+                v-if="showGoogleOAuth || showSamlLogin"
+                :label="$t('COMMON.OR')"
+                class="uppercase"
+              />
+            </div>
+            <form
+              class="flex flex-col gap-[18px]"
+              @submit.prevent="submitFormLogin"
+            >
+              <FormInput
+                v-model="credentials.email"
+                name="email_address"
+                type="text"
+                data-testid="email_input"
+                :tabindex="1"
+                required
+                :label="$t('LOGIN.EMAIL.LABEL')"
+                :placeholder="$t('LOGIN.EMAIL.PLACEHOLDER')"
+                :has-error="v$.credentials.email.$error"
+                @input="v$.credentials.email.$touch"
+              />
+              <FormInput
+                v-model="credentials.password"
+                type="password"
+                name="password"
+                data-testid="password_input"
+                required
+                :tabindex="2"
+                :label="$t('LOGIN.PASSWORD.LABEL')"
+                :placeholder="$t('LOGIN.PASSWORD.PLACEHOLDER')"
+                :has-error="v$.credentials.password.$error"
+                @input="v$.credentials.password.$touch"
+              />
               <router-link
+                v-if="!globalConfig.disableUserProfileUpdate"
                 to="auth/reset/password"
-                class="text-sm text-link"
+                class="-mt-2 self-end text-[13px] text-[#6a5ae0] hover:underline"
                 tabindex="4"
               >
                 {{ $t('LOGIN.FORGOT_PASSWORD') }}
               </router-link>
-            </p>
-          </FormInput>
-          <NextButton
-            lg
-            type="submit"
-            data-testid="submit_button"
-            class="w-full"
-            :tabindex="3"
-            :label="$t('LOGIN.SUBMIT')"
-            :disabled="loginApi.showLoading"
-            :is-loading="loginApi.showLoading"
-          />
-        </form>
+              <NextButton
+                lg
+                type="submit"
+                data-testid="submit_button"
+                class="w-full !h-[50px] !rounded-2xl !text-[17px] !font-semibold !bg-gradient-to-r !from-[#6a5ae0] !to-[#8b5cf6] !shadow-[0_14px_30px_-10px_rgba(106,90,224,0.5)] transition-transform hover:!-translate-y-px motion-reduce:hover:!translate-y-0"
+                :tabindex="3"
+                :label="$t('LOGIN.SUBMIT')"
+                :disabled="loginApi.showLoading"
+                :is-loading="loginApi.showLoading"
+              />
+            </form>
+          </div>
+          <div v-else class="flex items-center justify-center">
+            <Spinner color-scheme="primary" size="" />
+          </div>
+        </section>
+
+        <p
+          v-if="showSignupLink"
+          class="mt-4 text-sm text-center text-n-slate-11"
+        >
+          {{ $t('COMMON.OR') }}
+          <router-link
+            to="auth/signup"
+            class="lowercase text-link text-[#6a5ae0]"
+          >
+            {{ $t('LOGIN.CREATE_NEW_ACCOUNT') }}
+          </router-link>
+        </p>
       </div>
-      <div v-else class="flex items-center justify-center">
-        <Spinner color-scheme="primary" size="" />
-      </div>
-    </section>
+    </div>
+
+    <!-- eslint-disable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
+    <footer
+      class="py-[22px] text-center text-[13px] tracking-[0.02em] text-[#6d6d88]"
+    >
+      Designed &amp; Developed by
+      <b class="font-semibold text-[#6a5ae0]">Amber Law</b>
+    </footer>
+    <!-- eslint-enable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
   </main>
 </template>
