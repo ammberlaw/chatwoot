@@ -121,7 +121,7 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 
 ### 14. 权限与安全体系
 
-- **系统角色**（成员权限页一个下拉）：超级管理员 `administrator` / 管理员 `deputy_admin` / 部门负责人 `manager` / 业务员 `sales` / 无。数据范围见 `Crm::AccessScope`（超管、管理员=全部；负责人=部门子树；业务员=本人）。
+- **系统角色**（成员权限页一个下拉）：超级管理员 `administrator` / 管理员 `deputy_admin` / 部门负责人 `manager` / 业务员 `sales` / 无。数据范围见 `Crm::AccessScope`（超管、管理员=全部；负责人=部门子树；业务员=本人）。**统一口径：管理员=超管减去「任免/修改超级管理员」**（组织架构维护、文档回收站、审批模板维护均已放开给管理员）。
 - **防提权**：管理员不可任免/改动超级管理员、不可发超管邀请（`members`/`member_invites` 控制器拦截 + 前端选项过滤）。
 - **负责人联动**：`Org::Department` 设/卸 `leader_id` 自动同步 `crm_role`（manager ↔ sales，超管/管理员不动）。
 - **模块开关** `account_users.module_access`（CRM/ERP/MES）；ERP、MES 未上线在 UI 置灰。
@@ -129,9 +129,21 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 - **脱敏**：身份证/银行卡默认打码点「显示」展开；薪资金额 `¥ ******` 页头开关。
 - **审计与留痕**：`audited`（改动字段级审计）+ `Crm::AccessLog`（list/view 查看日志），员工档案编辑页有合并「操作历史」时间轴。
 - **密码集中管控**：自改密码（个人资料 + 忘记密码邮件）仅限超管/管理员/行政部门成员（`AccountUser#password_self_service?`）；超管/管理员可在成员权限改成员姓名/邮箱/重置密码；**部门负责人**限下属、仅重置密码（`manager_overreach?`）。
-- **审批模板维护** `oa_template_maintainer?`：超管或行政部门成员（部门名含「行政」，含下级）。
+- **审批模板维护** `oa_template_maintainer?`：超管/管理员或行政部门成员（部门名含「行政」，含下级）。
 
-### 15. 团队沟通（群聊）`crm_team_chat_index`
+### 15. 考勤 `crm_attendance_index`
+`CrmAttendanceIndex.vue` · 控制器 `attendances` / `attendance_settings` · 模型 `Crm::AttendanceRecord` / `Crm::AttendanceSetting`
+
+- **打卡**：上班/下班两次打卡（重复打取更晚时间），服务器按 `Asia/Shanghai` 时区判定 正常/迟到/早退/迟到+早退；每人每天一条（唯一约束）。
+- **我的考勤**（全员）：月历视图 + 月度统计；过去的工作日无记录=缺卡。
+- **考勤汇总**：超管/管理员全员、部门负责人本部门（含下级）；出勤/迟到/早退/缺卡/请假计数。
+- **HR 修正**（超管/管理员）：给某人某天直接定状态（可补建记录），`adjusted_by` 留痕 + `audited` 审计；修正后不再被打卡自动改写。
+- **规则设置**（超管/管理员）：工作日、上下班时间、宽限分钟，单行配置。
+- **审批联动** `Crm::AttendanceApprovalService`：审批模板可标记 `attendance_kind`（leave 请假单 / reclock 补卡申请）；整单通过时自动写考勤——请假取表单日期字段最早/最晚为区间逐工作日标「请假」，补卡取第一个日期补「正常」；等同 HR 修正（adjusted_by=终审人）。
+- **节假日**：`attendance_settings.holidays` 日期数组，规则设置页维护；节假日不计工作日/缺卡。
+- 全员可用（`skip ensure_crm_access`）。
+
+### 16. 团队沟通（群聊）`crm_team_chat_index`
 `CrmTeamChatIndex.vue` · 控制器 `chat/conversations`
 
 - 单聊/群聊、文件附件、已读名单；**建群必填群公告**，公告更新推送「【群公告】」消息。
@@ -171,6 +183,6 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 
 ## 前端路由名
 
-`crm_dashboard_index` · `crm_team_dashboard_index` · `crm_my_target_index` · `crm_customers_index` · `crm_customer_intake_index` · `crm_opportunities_index` · `crm_funnel_index` · `crm_sales_orders_index` · `crm_sales_targets_index` · `crm_knowledge_docs_index` · `crm_doc_center_index` · `crm_emails_index` · `crm_email_templates_index` · `crm_mail_accounts_index` · `crm_org_structure_index` · `crm_members_index` · `crm_member_invites_index` · `crm_employees_index` · `crm_employee_comps_index` · `crm_kpi_schemes_index` · `crm_kpi_sheets_index` · `crm_performance_settings_index` · `crm_approvals_index` · `crm_approval_templates_index` · `crm_team_chat_index` · `crm_workspace_index`
+`crm_dashboard_index` · `crm_team_dashboard_index` · `crm_my_target_index` · `crm_customers_index` · `crm_customer_intake_index` · `crm_opportunities_index` · `crm_funnel_index` · `crm_sales_orders_index` · `crm_sales_targets_index` · `crm_knowledge_docs_index` · `crm_doc_center_index` · `crm_emails_index` · `crm_email_templates_index` · `crm_mail_accounts_index` · `crm_org_structure_index` · `crm_members_index` · `crm_member_invites_index` · `crm_employees_index` · `crm_employee_comps_index` · `crm_attendance_index` · `crm_kpi_schemes_index` · `crm_kpi_sheets_index` · `crm_performance_settings_index` · `crm_approvals_index` · `crm_approval_templates_index` · `crm_team_chat_index` · `crm_workspace_index`
 
 > 注意：SPA 路由名含 `onboarding_` 会被账号引导守卫劫持重定向到 dashboard，CRM 页路由名需避开该串。
