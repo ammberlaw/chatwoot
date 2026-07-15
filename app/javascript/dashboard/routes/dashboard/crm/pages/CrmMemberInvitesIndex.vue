@@ -60,10 +60,11 @@ const ROLE_OPTIONS = computed(() =>
     )
     .map(([value, label]) => ({ value, label }))
 );
+// ERP/MES 未上线：开关置灰，功能上线后去掉 disabled 即开放设置。
 const MODULE_OPTIONS = [
   { key: 'crm', label: 'CRM' },
-  { key: 'erp', label: 'ERP' },
-  { key: 'mes', label: 'MES' },
+  { key: 'erp', label: 'ERP', disabled: true },
+  { key: 'mes', label: 'MES', disabled: true },
 ];
 const EXPIRES_OPTIONS = [
   { value: '7', label: L.days7 },
@@ -202,12 +203,19 @@ onMounted(() => {
             <label
               v-for="mod in MODULE_OPTIONS"
               :key="mod.key"
-              class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+              class="flex items-center gap-1.5 text-sm text-n-slate-11"
+              :class="
+                mod.disabled
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'cursor-pointer'
+              "
+              :title="mod.disabled ? '该模块未上线，上线后开放设置' : ''"
             >
               <input
                 type="checkbox"
                 class="accent-n-iris-9"
                 :checked="form.modules.includes(mod.key)"
+                :disabled="mod.disabled"
                 @change="toggleModule(mod.key)"
               />
               {{ mod.label }}

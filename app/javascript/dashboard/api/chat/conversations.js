@@ -24,6 +24,16 @@ class ChatConversationAPI extends ApiClient {
     });
   }
 
+  transferOwner(id, userId) {
+    return axios.post(`${this.url}/${id}/transfer_owner`, {
+      user_id: userId,
+    });
+  }
+
+  leave(id) {
+    return axios.post(`${this.url}/${id}/leave`);
+  }
+
   markRead(id) {
     return axios.post(`${this.url}/${id}/read`);
   }

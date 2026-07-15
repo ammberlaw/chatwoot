@@ -24,6 +24,14 @@ class Chat::ConversationPolicy < ApplicationPolicy
   def remove_participant?
     true
   end
+
+  def transfer_owner?
+    true
+  end
+
+  def leave?
+    true
+  end
 end
 
 Chat::ConversationPolicy.prepend_mod_with('Chat::ConversationPolicy')

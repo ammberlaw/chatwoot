@@ -50,6 +50,13 @@ const L = {
   detailTitle: '群聊详情',
   memberList: '群成员',
   ownerBadge: '群主',
+  transfer: '转让群主',
+  confirmTransfer: '确认转让',
+  transferred: '群主已转让',
+  leaveGroup: '退出群聊',
+  confirmLeave: '确认退出',
+  left: '已退出群聊',
+  ownerLeaveHint: '群主需先转让群主才能退群',
   remove: '移除',
   confirmRemove: '确认移除',
   removed: '已移除该成员',
@@ -306,9 +313,13 @@ const isGroupOwner = computed(
     activeConv.value?.kind === 'group' &&
     activeConv.value?.creator_id === currentUserId.value
 );
+const pendingTransferId = ref(null);
+const pendingLeave = ref(false);
 const openGroupDetail = () => {
   announcementDraft.value = activeConv.value?.announcement || '';
   pendingRemoveId.value = null;
+  pendingTransferId.value = null;
+  pendingLeave.value = false;
   detailDialog.value?.open();
 };
 const saveAnnouncement = async () => {
@@ -347,6 +358,47 @@ const removeMember = async userId => {
   }
 };
 
+// 转让群主两步确认：转让后自己变普通成员。
+const transferOwner = async userId => {
+  if (pendingTransferId.value !== userId) {
+    pendingTransferId.value = userId;
+    pendingRemoveId.value = null;
+    return;
+  }
+  pendingTransferId.value = null;
+  try {
+    const { data } = await ChatAPI.transferOwner(activeConv.value.id, userId);
+    activeConv.value.creator_id = data.creator_id;
+    useAlert(L.transferred);
+    pollActive();
+    fetchConversations();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || L.error);
+  }
+};
+
+// 退群两步确认；群主有其他成员时必须先转让（前端禁用 + 后端拦截）。
+const ownerMustTransfer = computed(
+  () => isGroupOwner.value && activeParticipants.value.length > 1
+);
+const leaveGroup = async () => {
+  if (ownerMustTransfer.value) return;
+  if (!pendingLeave.value) {
+    pendingLeave.value = true;
+    return;
+  }
+  pendingLeave.value = false;
+  try {
+    await ChatAPI.leave(activeConv.value.id);
+    detailDialog.value?.close();
+    activeConv.value = null;
+    useAlert(L.left);
+    fetchConversations();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || L.error);
+  }
+};
+
 const loadAgents = async () => {
   try {
     const { data } = await AgentAPI.get();
@@ -377,9 +429,7 @@ onBeforeUnmount(() => {
       class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 border-white/50 rounded-3xl shadow-n-iris-9/5"
     >
       <!-- 左：会话列表 -->
-      <aside
-        class="flex flex-col shrink-0 w-[300px] border-r border-n-weak"
-      >
+      <aside class="flex flex-col shrink-0 w-[300px] border-r border-n-weak">
         <!-- 搜索 -->
         <div class="p-4 pb-3">
           <div class="relative">
@@ -474,7 +524,9 @@ onBeforeUnmount(() => {
                 <span
                   class="text-xs truncate"
                   :class="
-                    conv.unread_count ? 'text-n-slate-12 font-medium' : 'text-n-slate-10'
+                    conv.unread_count
+                      ? 'text-n-slate-12 font-medium'
+                      : 'text-n-slate-10'
                   "
                 >
                   {{ conv.last_message?.content || '—' }}
@@ -631,7 +683,9 @@ onBeforeUnmount(() => {
                   class="flex flex-col gap-1.5"
                   :class="[
                     msg.content ? 'mt-1.5' : '',
-                    msg.sender_id === currentUserId ? 'items-end' : 'items-start',
+                    msg.sender_id === currentUserId
+                      ? 'items-end'
+                      : 'items-start',
                   ]"
                 >
                   <template v-for="f in msg.files" :key="f.id">
@@ -912,21 +966,65 @@ onBeforeUnmount(() => {
               >
                 {{ L.ownerBadge }}
               </span>
-              <button
-                v-else-if="isGroupOwner"
-                type="button"
-                class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
-                :class="
-                  pendingRemoveId === p.user_id
-                    ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
-                    : 'text-n-ruby-11 hover:bg-n-ruby-3'
-                "
-                @click="removeMember(p.user_id)"
-              >
-                {{ pendingRemoveId === p.user_id ? L.confirmRemove : L.remove }}
-              </button>
+              <template v-else-if="isGroupOwner">
+                <button
+                  type="button"
+                  class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
+                  :class="
+                    pendingTransferId === p.user_id
+                      ? 'bg-n-iris-9 text-white hover:bg-n-iris-10'
+                      : 'text-n-iris-11 hover:bg-n-iris-3'
+                  "
+                  @click="transferOwner(p.user_id)"
+                >
+                  {{
+                    pendingTransferId === p.user_id
+                      ? L.confirmTransfer
+                      : L.transfer
+                  }}
+                </button>
+                <button
+                  type="button"
+                  class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
+                  :class="
+                    pendingRemoveId === p.user_id
+                      ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                      : 'text-n-ruby-11 hover:bg-n-ruby-3'
+                  "
+                  @click="removeMember(p.user_id)"
+                >
+                  {{
+                    pendingRemoveId === p.user_id ? L.confirmRemove : L.remove
+                  }}
+                </button>
+              </template>
             </div>
           </div>
+        </div>
+
+        <!-- 退出群聊：群主须先转让 -->
+        <div
+          class="flex items-center justify-between pt-1 border-t border-n-weak"
+        >
+          <span v-if="ownerMustTransfer" class="text-xs text-n-slate-9">
+            {{ L.ownerLeaveHint }}
+          </span>
+          <span v-else class="text-xs text-n-slate-9" />
+          <button
+            type="button"
+            class="px-3 py-1.5 text-xs font-medium transition-colors rounded-full"
+            :class="
+              ownerMustTransfer
+                ? 'text-n-slate-9 cursor-not-allowed opacity-60'
+                : pendingLeave
+                  ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                  : 'text-n-ruby-11 hover:bg-n-ruby-3'
+            "
+            :disabled="ownerMustTransfer"
+            @click="leaveGroup"
+          >
+            {{ pendingLeave ? L.confirmLeave : L.leaveGroup }}
+          </button>
         </div>
       </div>
     </Dialog>

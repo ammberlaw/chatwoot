@@ -161,6 +161,8 @@ Rails.application.routes.draw do
               member do
                 post :read
                 post :remove_participant
+                post :transfer_owner
+                post :leave
               end
               resources :messages, only: [:index, :create]
             end

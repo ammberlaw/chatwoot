@@ -54,7 +54,7 @@ class AccountUser < ApplicationRecord
   accepts_nested_attributes_for :account
 
   after_create_commit :notify_creation, :create_notification_setting
-  after_destroy :notify_deletion, :remove_user_from_account
+  after_destroy :notify_deletion, :remove_user_from_account, :discard_personal_crm_docs
   after_save :update_presence_in_redis, if: :saved_change_to_availability?
 
   validates :user_id, uniqueness: { scope: :account_id }
@@ -99,6 +99,13 @@ class AccountUser < ApplicationRecord
 
   def remove_user_from_account
     ::Agents::DestroyJob.perform_later(account, user)
+  end
+
+  # 成员被移除（离职删号）后，其个人文档自动进入文档回收站，避免变成谁也看不到的孤儿数据。
+  def discard_personal_crm_docs
+    account.crm_knowledge_docs.kept.where(scope: 'PERSONAL', owner_id: user_id).find_each do |doc|
+      doc.discard!(user_id)
+    end
   end
 
   def permissions

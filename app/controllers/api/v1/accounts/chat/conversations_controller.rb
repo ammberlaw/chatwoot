@@ -1,7 +1,7 @@
 class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_conversation, only: [:show, :read, :update, :remove_participant]
-  before_action :ensure_group_owner, only: [:update, :remove_participant]
+  before_action :fetch_conversation, only: [:show, :read, :update, :remove_participant, :transfer_owner, :leave]
+  before_action :ensure_group_owner, only: [:update, :remove_participant, :transfer_owner]
 
   def index
     @conversations = Current.account.chat_conversations
@@ -42,6 +42,29 @@ class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::Base
     render :show
   end
 
+  # 群主转让（像微信）：只能转给现有群成员；转让后原群主变普通成员。
+  def transfer_owner
+    target_id = params[:user_id].to_i
+    return render json: { error: '只能转让给群成员' }, status: :unprocessable_entity unless @conversation.participants.exists?(user_id: target_id)
+
+    @conversation.update!(creator_id: target_id)
+    target_name = Current.account.users.find_by(id: target_id)&.name
+    post_system_message("【群主变更】#{current_user.name} 将群主转让给 #{target_name}")
+    render :show
+  end
+
+  # 退群：群里还有其他成员时，群主必须先转让群主才能退。
+  def leave
+    return render json: { error: '仅群聊支持退群' }, status: :unprocessable_entity unless @conversation.kind == 'group'
+
+    if @conversation.creator_id == current_user.id && @conversation.participants.where.not(user_id: current_user.id).exists?
+      return render json: { error: '群主需先转让群主才能退群' }, status: :unprocessable_entity
+    end
+
+    @conversation.participants.where(user_id: current_user.id).destroy_all
+    head :ok
+  end
+
   # 标记已读到最新一条。
   def read
     last = @conversation.messages.maximum(:id)
@@ -67,8 +90,11 @@ class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::Base
   end
 
   def post_announcement_message
-    @conversation.messages.create!(account_id: Current.account.id, sender_id: current_user.id,
-                                   content: "【群公告】\n#{@conversation.announcement}")
+    post_system_message("【群公告】\n#{@conversation.announcement}")
+  end
+
+  def post_system_message(content)
+    @conversation.messages.create!(account_id: Current.account.id, sender_id: current_user.id, content: content)
     @conversation.update!(last_message_at: Time.current)
   end
 
