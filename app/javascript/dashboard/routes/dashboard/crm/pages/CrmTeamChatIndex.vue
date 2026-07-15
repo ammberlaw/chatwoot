@@ -4,6 +4,8 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { useAlert } from 'dashboard/composables';
 import ChatAPI from 'dashboard/api/chat/conversations';
 import AgentAPI from 'dashboard/api/agents';
+import DepartmentsAPI from 'dashboard/api/org/departments';
+import MembershipsAPI from 'dashboard/api/org/memberships';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -36,6 +38,9 @@ const L = {
   unreadList: '未读',
   none: '暂无',
   pickUser: '选择联系人',
+  pickerSearchPlaceholder: '搜索姓名 / 职位',
+  noDeptGroup: '未分部门',
+  pickerEmpty: '未找到匹配成员',
   groupName: '群名称',
   groupMembers: '选择群成员',
   create: '创建',
@@ -112,6 +117,61 @@ const senderSrc = msg => agentMap.value[msg.sender_id]?.thumbnail || '';
 const otherAgents = computed(() =>
   agents.value.filter(a => a.id !== currentUserId.value)
 );
+
+// ── 选人弹窗：按组织架构分组 + 搜索（姓名/邮箱/职位）──
+const departments = ref([]);
+const memberships = ref([]);
+const pickerQuery = ref('');
+const loadOrgData = async () => {
+  try {
+    const [{ data: depts }, { data: mems }] = await Promise.all([
+      DepartmentsAPI.get(),
+      MembershipsAPI.get(),
+    ]);
+    departments.value = depts.payload || [];
+    memberships.value = mems.payload || [];
+  } catch {
+    departments.value = [];
+    memberships.value = [];
+  }
+};
+
+const pickerGroups = computed(() => {
+  const q = pickerQuery.value.trim().toLowerCase();
+  const byUser = {};
+  memberships.value.forEach(m => {
+    (byUser[m.user_id] = byUser[m.user_id] || []).push(m);
+  });
+  const hit = (agent, title) =>
+    !q ||
+    (agent.name || '').toLowerCase().includes(q) ||
+    (agent.email || '').toLowerCase().includes(q) ||
+    (title || '').toLowerCase().includes(q);
+  const groups = departments.value.map(dept => ({
+    key: dept.id,
+    name: dept.name,
+    members: otherAgents.value
+      .map(agent => ({
+        agent,
+        title: (byUser[agent.id] || []).find(m => m.department_id === dept.id)
+          ?.title,
+      }))
+      .filter(
+        entry =>
+          (byUser[entry.agent.id] || []).some(
+            m => m.department_id === dept.id
+          ) && hit(entry.agent, entry.title)
+      ),
+  }));
+  const unassigned = otherAgents.value
+    .filter(agent => !(byUser[agent.id] || []).length)
+    .map(agent => ({ agent, title: '' }))
+    .filter(entry => hit(entry.agent, ''));
+  if (unassigned.length) {
+    groups.push({ key: 'none', name: L.noDeptGroup, members: unassigned });
+  }
+  return groups.filter(group => group.members.length);
+});
 const filteredConversations = computed(() => {
   const q = search.value.trim().toLowerCase();
   if (!q) return conversations.value;
@@ -411,6 +471,7 @@ const loadAgents = async () => {
 onMounted(async () => {
   fetchConversations();
   loadAgents();
+  loadOrgData();
   listTimer = setInterval(() => {
     fetchConversations();
     loadAgents(); // 顺带刷新在线状态
@@ -823,28 +884,60 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
-    <!-- 发起单聊 -->
+    <!-- 发起单聊：按组织架构分组 + 搜索姓名/职位 -->
     <Dialog ref="userDialog" :title="L.pickUser" :show-confirm-button="false">
-      <div class="flex flex-col gap-1 max-h-[50vh] overflow-y-auto">
-        <button
-          v-for="a in otherAgents"
-          :key="a.id"
-          class="flex items-center gap-3 p-2 text-left rounded-lg hover:bg-n-alpha-1"
-          @click="startDirect(a.id)"
-        >
-          <Avatar
-            :name="a.name"
-            :src="a.thumbnail || ''"
-            :status="a.availability_status || null"
-            :size="36"
-            rounded-full
-            hide-offline-status
-          />
-          <div class="min-w-0">
-            <div class="text-sm truncate text-n-slate-12">{{ a.name }}</div>
-            <div class="text-xs truncate text-n-slate-10">{{ a.email }}</div>
+      <div class="flex flex-col gap-2">
+        <Input
+          v-model="pickerQuery"
+          :placeholder="L.pickerSearchPlaceholder"
+          class="reset-base"
+        />
+        <div class="flex flex-col gap-1 max-h-[50vh] overflow-y-auto">
+          <div
+            v-if="!pickerGroups.length"
+            class="p-6 text-sm text-center text-n-slate-10"
+          >
+            {{ L.pickerEmpty }}
           </div>
-        </button>
+          <template v-for="group in pickerGroups" :key="group.key">
+            <div
+              class="sticky top-0 z-10 px-2 py-1 text-xs font-medium bg-n-solid-1 text-n-slate-10"
+            >
+              {{ group.name }}
+            </div>
+            <button
+              v-for="entry in group.members"
+              :key="`${group.key}-${entry.agent.id}`"
+              class="flex items-center gap-3 p-2 text-left rounded-lg hover:bg-n-alpha-1"
+              @click="startDirect(entry.agent.id)"
+            >
+              <Avatar
+                :name="entry.agent.name"
+                :src="entry.agent.thumbnail || ''"
+                :status="entry.agent.availability_status || null"
+                :size="36"
+                rounded-full
+                hide-offline-status
+              />
+              <div class="min-w-0">
+                <div
+                  class="flex items-center gap-1.5 text-sm truncate text-n-slate-12"
+                >
+                  {{ entry.agent.name }}
+                  <span
+                    v-if="entry.title"
+                    class="px-1.5 rounded-full text-[11px] bg-n-iris-3 text-n-iris-11"
+                  >
+                    {{ entry.title }}
+                  </span>
+                </div>
+                <div class="text-xs truncate text-n-slate-10">
+                  {{ entry.agent.email }}
+                </div>
+              </div>
+            </button>
+          </template>
+        </div>
       </div>
     </Dialog>
 
