@@ -2,7 +2,8 @@
 class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::BaseController
   skip_before_action :ensure_crm_access
 
-  # 月度考勤（默认自己；超管/管理员/负责人可带 user_id 看可见范围内成员）
+  # 月度考勤（默认自己；超管/管理员/负责人可带 user_id 看可见范围内成员）。
+  # setting 返回该成员所属考勤组的规则（各组上下班时间/工作日可不同）。
   def index
     user_id = viewable_user_id
     records = Current.account.crm_attendance_records
@@ -10,7 +11,7 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
                      .order(:work_date)
     render json: {
       payload: records.map { |r| record_json(r) },
-      setting: setting_json
+      setting: group_json(group_for(user_id))
     }
   end
 
@@ -24,7 +25,7 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     else
       rec.clock_out_at = now
     end
-    rec.recompute_status!(setting)
+    rec.recompute_status!(group_for(current_user.id))
     rec.save!
     render json: record_json(rec)
   end
@@ -38,7 +39,7 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
                      .where(user_id: users.map(&:id), work_date: month_range)
                      .group_by(&:user_id)
     rows = users.map { |u| summary_row(u, records[u.id] || []) }
-    render json: { payload: rows, setting: setting_json }
+    render json: { payload: rows, setting: group_json(group_for(current_user.id)) }
   end
 
   # HR 修正：给某人某天直接定状态（可补建记录），留审计与修正人。
@@ -55,8 +56,10 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
 
   private
 
-  def setting
-    @setting ||= Crm::AttendanceSetting.for_account(Current.account)
+  # 按成员解析所属考勤组（未分组→默认组），一次请求内缓存。
+  def group_for(user_id)
+    @groups_cache ||= {}
+    @groups_cache[user_id] ||= Crm::AttendanceGroup.for_user(Current.account, user_id)
   end
 
   def admin_like?
@@ -105,13 +108,14 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     month.all_month
   end
 
-  # 缺卡：已过去的工作日没有记录。
-  def status_counts(records)
+  # 缺卡：已过去的工作日没有记录（按该成员所属组的工作日口径）。
+  def status_counts(user_id, records)
+    group = group_for(user_id)
     today = Time.current.in_time_zone(Crm::AttendanceRecord::TZ).to_date
     by_date = records.index_by(&:work_date)
     counts = Hash.new(0)
     month_range.each do |date|
-      next unless setting.work_day?(date) && date <= today
+      next unless group.work_day?(date) && date <= today
 
       counts[by_date[date]&.status || 'ABSENT'] += 1
     end
@@ -119,7 +123,7 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
   end
 
   def summary_row(user, records)
-    c = status_counts(records)
+    c = status_counts(user.id, records)
     present = c['NORMAL'] + c['LATE'] + c['EARLY_LEAVE'] + c['LATE_EARLY']
     { user_id: user.id, name: user.name, present: present,
       late: c['LATE'] + c['LATE_EARLY'], early_leave: c['EARLY_LEAVE'] + c['LATE_EARLY'],
@@ -134,9 +138,9 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
       status: rec.status, note: rec.note, adjusted_by_name: rec.adjusted_by&.name }
   end
 
-  def setting_json
-    { work_days: setting.work_days, clock_in_time: setting.clock_in_time,
-      clock_out_time: setting.clock_out_time, grace_minutes: setting.grace_minutes,
-      holidays: setting.holidays }
+  def group_json(group)
+    { name: group.name, work_days: group.work_days, clock_in_time: group.clock_in_time,
+      clock_out_time: group.clock_out_time, grace_minutes: group.grace_minutes,
+      holidays: group.holidays }
   end
 end

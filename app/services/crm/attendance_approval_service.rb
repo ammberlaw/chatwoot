@@ -5,6 +5,43 @@
 class Crm::AttendanceApprovalService
   MAX_LEAVE_SPAN_DAYS = 62
 
+  # 模板里 type=date 字段在 form_data 中的取值（按字段定义顺序）。
+  def self.form_dates(template, form_data)
+    keys = Array(template.form_fields).select { |f| f['type'] == 'date' }.pluck('key')
+    keys.filter_map do |k|
+      Date.parse(form_data[k].to_s)
+    rescue ArgumentError, TypeError
+      nil
+    end
+  end
+
+  # 补卡规则校验（按申请人所属考勤组）：返回错误文案或 nil。
+  # 时限：只能补 window 天内的卡（0=不限）；上限：当月（按补卡日期归月）已提交/已通过的补卡单数（0=不允许补卡）。
+  def self.reclock_violation(account, applicant_id, date)
+    group = Crm::AttendanceGroup.for_user(account, applicant_id)
+    today = Time.current.in_time_zone(Crm::AttendanceRecord::TZ).to_date
+    return '补卡日期不能是未来日期' if date > today
+    return '该考勤组不允许补卡' if group.reclock_limit.zero?
+    return "只能申请 #{group.reclock_window_days} 天内的补卡" if group.reclock_window_days.positive? && date < today - group.reclock_window_days
+
+    used = reclock_used_in_month(account, applicant_id, date)
+    return "当月补卡次数已达上限（#{group.reclock_limit} 次）" if used >= group.reclock_limit
+
+    nil
+  end
+
+  # 当月已用补卡次数：审批中/已通过的补卡单，按其补卡日期归月统计。
+  def self.reclock_used_in_month(account, applicant_id, date)
+    account.oa_approval_requests
+           .joins(:template)
+           .where(oa_approval_templates: { attendance_kind: 'reclock' },
+                  applicant_id: applicant_id, status: %w[pending approved])
+           .count do |r|
+      d = form_dates(r.template, r.form_data).first
+      d && d.beginning_of_month == date.beginning_of_month
+    end
+  end
+
   def initialize(request:, actor:)
     @request = request
     @actor = actor
@@ -30,7 +67,7 @@ class Crm::AttendanceApprovalService
     return if (range.last - range.first).to_i > MAX_LEAVE_SPAN_DAYS
 
     range.each do |date|
-      mark(date, 'LEAVE') if setting.work_day?(date)
+      mark(date, 'LEAVE') if group.work_day?(date)
     end
   end
 
@@ -41,18 +78,11 @@ class Crm::AttendanceApprovalService
     rec.save!
   end
 
-  # 模板里 type=date 字段在 form_data 中的取值（按字段定义顺序）。
   def form_dates
-    keys = Array(@request.template.form_fields).select { |f| f['type'] == 'date' }.pluck('key')
-    keys.filter_map do |k|
-      value = @request.form_data[k]
-      Date.parse(value.to_s)
-    rescue ArgumentError, TypeError
-      nil
-    end
+    self.class.form_dates(@request.template, @request.form_data)
   end
 
-  def setting
-    @setting ||= Crm::AttendanceSetting.for_account(@request.account)
+  def group
+    @group ||= Crm::AttendanceGroup.for_user(@request.account, @request.applicant_id)
   end
 end

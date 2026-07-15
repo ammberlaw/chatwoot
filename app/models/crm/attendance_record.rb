@@ -56,11 +56,11 @@ class Crm::AttendanceRecord < ApplicationRecord
   private
 
   def late?(setting)
-    clock_in_at && local_minutes(clock_in_at) > Crm::AttendanceSetting.minutes(setting.clock_in_time) + setting.grace_minutes
+    clock_in_at && local_minutes(clock_in_at) > Crm::AttendanceGroup.minutes(setting.clock_in_time) + setting.grace_minutes
   end
 
   def early_leave?(setting)
-    clock_out_at && local_minutes(clock_out_at) < Crm::AttendanceSetting.minutes(setting.clock_out_time) - setting.grace_minutes
+    clock_out_at && local_minutes(clock_out_at) < Crm::AttendanceGroup.minutes(setting.clock_out_time) - setting.grace_minutes
   end
 
   def local_minutes(time)

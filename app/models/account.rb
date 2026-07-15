@@ -94,6 +94,7 @@ class Account < ApplicationRecord
   has_many :crm_employees, class_name: 'Crm::Employee', dependent: :destroy_async
   has_many :crm_access_logs, class_name: 'Crm::AccessLog', dependent: :destroy_async
   has_many :crm_attendance_records, class_name: 'Crm::AttendanceRecord', dependent: :destroy_async
+  has_many :crm_attendance_groups, class_name: 'Crm::AttendanceGroup', dependent: :destroy_async
   has_many :crm_kpi_sheets, class_name: 'Crm::KpiSheet', dependent: :destroy_async
   has_many :crm_kpi_sheet_items, class_name: 'Crm::KpiSheetItem', dependent: :destroy_async
   has_one :crm_performance_setting, class_name: 'Crm::PerformanceSetting', dependent: :destroy_async

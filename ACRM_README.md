@@ -132,15 +132,16 @@ A-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生模块�
 - **审批模板维护** `oa_template_maintainer?`：超管/管理员或行政部门成员（部门名含「行政」，含下级）。
 
 ### 15. 考勤 `crm_attendance_index`
-`CrmAttendanceIndex.vue` · 控制器 `attendances` / `attendance_settings` · 模型 `Crm::AttendanceRecord` / `Crm::AttendanceSetting`
+`CrmAttendanceIndex.vue` · 控制器 `attendances` / `attendance_groups` · 模型 `Crm::AttendanceRecord` / `Crm::AttendanceGroup`
 
 - **打卡**：上班/下班两次打卡（重复打取更晚时间），服务器按 `Asia/Shanghai` 时区判定 正常/迟到/早退/迟到+早退；每人每天一条（唯一约束）。
 - **我的考勤**（全员）：月历视图 + 月度统计；过去的工作日无记录=缺卡。
 - **考勤汇总**：超管/管理员全员、部门负责人本部门（含下级）；出勤/迟到/早退/缺卡/请假计数。
 - **HR 修正**（超管/管理员）：给某人某天直接定状态（可补建记录），`adjusted_by` 留痕 + `audited` 审计；修正后不再被打卡自动改写。
-- **规则设置**（超管/管理员）：工作日、上下班时间、宽限分钟，单行配置。
+- **考勤组**（超管/管理员）：多组规则——每组独立的工作日/上下班时间/宽限/节假日/成员（不同部门不同作息）；一人一组（分配时自动从其他组移除），未分组成员按「默认考勤组」执行（默认组不可删）。
+- **补卡规则**（按组）：`reclock_limit` 每月补卡上限（0=不允许）、`reclock_window_days` 可补时限天数（0=不限）；提交补卡审批时按申请人所属组校验（时限/上限/不可补未来）。
 - **审批联动** `Crm::AttendanceApprovalService`：审批模板可标记 `attendance_kind`（leave 请假单 / reclock 补卡申请）；整单通过时自动写考勤——请假取表单日期字段最早/最晚为区间逐工作日标「请假」，补卡取第一个日期补「正常」；等同 HR 修正（adjusted_by=终审人）。
-- **节假日**：`attendance_settings.holidays` 日期数组，规则设置页维护；节假日不计工作日/缺卡。
+- **节假日**：按考勤组维护日期数组；节假日不计工作日/缺卡。
 - 全员可用（`skip ensure_crm_access`）。
 
 ### 16. 团队沟通（群聊）`crm_team_chat_index`

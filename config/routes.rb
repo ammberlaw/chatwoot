@@ -139,7 +139,7 @@ Rails.application.routes.draw do
               end
             end
             resource :sensitive_session, only: [:show, :create], controller: 'sensitive_sessions'
-            resource :attendance_setting, only: [:show, :update], controller: 'attendance_settings'
+            resources :attendance_groups, only: [:index, :create, :update, :destroy]
             resources :attendances, only: [:index] do
               collection do
                 post :clock

@@ -19,6 +19,11 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
   def show; end
 
   def create
+    # 补卡单先过考勤组补卡规则（时限/每月上限）。
+    if (error = reclock_rule_error)
+      return render json: { error: error }, status: :unprocessable_entity
+    end
+
     @request = build_request
     @request.files.attach(params[:files]) if params[:files].present?
     render :show
@@ -48,6 +53,16 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     render :show
   rescue Oa::ActOnApprovalService::InvalidAction => e
     render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def reclock_rule_error
+    template = Current.account.oa_approval_templates.find(params[:template_id])
+    return nil unless template.attendance_kind == 'reclock'
+
+    date = Crm::AttendanceApprovalService.form_dates(template, form_data_param).first
+    return '请填写补卡日期' if date.nil?
+
+    Crm::AttendanceApprovalService.reclock_violation(Current.account, current_user.id, date)
   end
 
   def build_request

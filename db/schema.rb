@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_16_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_16_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -833,6 +833,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_100000) do
     t.index ["account_id", "resource_type", "resource_id", "created_at"], name: "idx_crm_access_logs_on_resource"
   end
 
+  create_table "crm_attendance_groups", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.boolean "is_default", default: false, null: false
+    t.integer "work_days", default: [1, 2, 3, 4, 5], null: false, array: true
+    t.string "clock_in_time", default: "09:00", null: false
+    t.string "clock_out_time", default: "18:00", null: false
+    t.integer "grace_minutes", default: 0, null: false
+    t.string "holidays", default: [], null: false, array: true
+    t.bigint "user_ids", default: [], null: false, array: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "reclock_limit", default: 3, null: false
+    t.integer "reclock_window_days", default: 30, null: false
+    t.index ["account_id", "name"], name: "index_crm_attendance_groups_on_account_id_and_name", unique: true
+    t.index ["account_id"], name: "index_crm_attendance_groups_on_account_id"
+  end
+
   create_table "crm_attendance_records", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -846,18 +864,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_100000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "user_id", "work_date"], name: "idx_crm_attendance_on_user_date", unique: true
     t.index ["account_id", "work_date"], name: "index_crm_attendance_records_on_account_id_and_work_date"
-  end
-
-  create_table "crm_attendance_settings", force: :cascade do |t|
-    t.bigint "account_id", null: false
-    t.integer "work_days", default: [1, 2, 3, 4, 5], null: false, array: true
-    t.string "clock_in_time", default: "09:00", null: false
-    t.string "clock_out_time", default: "18:00", null: false
-    t.integer "grace_minutes", default: 0, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "holidays", default: [], null: false, array: true
-    t.index ["account_id"], name: "index_crm_attendance_settings_on_account_id", unique: true
   end
 
   create_table "crm_customers", force: :cascade do |t|

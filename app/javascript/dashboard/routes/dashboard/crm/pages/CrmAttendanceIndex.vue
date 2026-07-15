@@ -10,8 +10,6 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 const { accountId } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
 const api = () => `/api/v1/accounts/${accountId.value}/crm/attendances`;
-const settingApi = () =>
-  `/api/v1/accounts/${accountId.value}/crm/attendance_setting`;
 
 const isAdminLike = computed(
   () =>
@@ -178,63 +176,140 @@ const saveAdjust = async () => {
   }
 };
 
-// ── 规则设置 ──
-const settingForm = reactive({
+// ── 考勤组管理（超管/管理员）：多组规则，不同部门不同上下班时间 ──
+const groupsUrl = () =>
+  `/api/v1/accounts/${accountId.value}/crm/attendance_groups`;
+const groups = ref([]);
+const selectedGroupId = ref(null);
+const pendingDeleteGroup = ref(false);
+const savingSetting = ref(false);
+const groupForm = reactive({
+  name: '',
+  isDefault: false,
   workDays: [1, 2, 3, 4, 5],
   clockIn: '09:00',
   clockOut: '18:00',
   grace: 0,
+  reclockLimit: 3,
+  reclockWindowDays: 30,
   holidays: [],
+  userIds: [],
 });
+const agents = ref([]);
+const fetchAgents = async () => {
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/agents`
+    );
+    agents.value = data || [];
+  } catch {
+    agents.value = [];
+  }
+};
+const loadGroupForm = g => {
+  groupForm.name = g?.name || '';
+  groupForm.isDefault = !!g?.is_default;
+  groupForm.workDays = [...(g?.work_days || [1, 2, 3, 4, 5])];
+  groupForm.clockIn = g?.clock_in_time || '09:00';
+  groupForm.clockOut = g?.clock_out_time || '18:00';
+  groupForm.grace = g?.grace_minutes ?? 0;
+  groupForm.reclockLimit = g?.reclock_limit ?? 3;
+  groupForm.reclockWindowDays = g?.reclock_window_days ?? 30;
+  groupForm.holidays = [...(g?.holidays || [])];
+  groupForm.userIds = [...(g?.user_ids || [])];
+};
+const selectGroup = g => {
+  selectedGroupId.value = g.id;
+  pendingDeleteGroup.value = false;
+  loadGroupForm(g);
+};
+const newGroup = () => {
+  selectedGroupId.value = null;
+  pendingDeleteGroup.value = false;
+  loadGroupForm(null);
+};
+const fetchGroups = async () => {
+  try {
+    const { data } = await axios.get(groupsUrl());
+    groups.value = data.payload || [];
+    const keep = groups.value.find(g => g.id === selectedGroupId.value);
+    selectGroup(keep || groups.value[0]);
+  } catch {
+    groups.value = [];
+  }
+};
+const openSettings = () => {
+  view.value = 'settings';
+  fetchGroups();
+  if (!agents.value.length) fetchAgents();
+};
 const newHoliday = ref('');
 const addHoliday = () => {
   const d = newHoliday.value;
-  if (!d || settingForm.holidays.includes(d)) return;
-  settingForm.holidays.push(d);
-  settingForm.holidays.sort();
+  if (!d || groupForm.holidays.includes(d)) return;
+  groupForm.holidays.push(d);
+  groupForm.holidays.sort();
   newHoliday.value = '';
 };
 const removeHoliday = d => {
-  settingForm.holidays = settingForm.holidays.filter(x => x !== d);
-};
-const savingSetting = ref(false);
-const openSettings = async () => {
-  view.value = 'settings';
-  try {
-    const { data } = await axios.get(settingApi());
-    settingForm.workDays = data.work_days;
-    settingForm.clockIn = data.clock_in_time;
-    settingForm.clockOut = data.clock_out_time;
-    settingForm.grace = data.grace_minutes;
-    settingForm.holidays = data.holidays || [];
-  } catch {
-    // 保持默认值
-  }
+  groupForm.holidays = groupForm.holidays.filter(x => x !== d);
 };
 const toggleWorkDay = d => {
-  const i = settingForm.workDays.indexOf(d);
-  if (i >= 0) settingForm.workDays.splice(i, 1);
-  else settingForm.workDays.push(d);
+  const i = groupForm.workDays.indexOf(d);
+  if (i >= 0) groupForm.workDays.splice(i, 1);
+  else groupForm.workDays.push(d);
 };
-const saveSetting = async () => {
-  if (savingSetting.value) return;
+const toggleMember = id => {
+  const i = groupForm.userIds.indexOf(id);
+  if (i >= 0) groupForm.userIds.splice(i, 1);
+  else groupForm.userIds.push(id);
+};
+const saveGroup = async () => {
+  if (savingSetting.value || !groupForm.name.trim()) return;
   savingSetting.value = true;
+  const payload = {
+    group: {
+      name: groupForm.name.trim(),
+      work_days: groupForm.workDays,
+      clock_in_time: groupForm.clockIn,
+      clock_out_time: groupForm.clockOut,
+      grace_minutes: groupForm.grace,
+      reclock_limit: groupForm.reclockLimit,
+      reclock_window_days: groupForm.reclockWindowDays,
+      holidays: groupForm.holidays,
+      user_ids: groupForm.userIds,
+    },
+  };
   try {
-    await axios.put(settingApi(), {
-      setting: {
-        work_days: settingForm.workDays,
-        clock_in_time: settingForm.clockIn,
-        clock_out_time: settingForm.clockOut,
-        grace_minutes: settingForm.grace,
-        holidays: settingForm.holidays,
-      },
-    });
-    useAlert('考勤规则已保存');
+    if (selectedGroupId.value) {
+      await axios.put(`${groupsUrl()}/${selectedGroupId.value}`, payload);
+    } else {
+      const { data } = await axios.post(groupsUrl(), payload);
+      selectedGroupId.value = data.id;
+    }
+    useAlert('考勤组已保存');
+    fetchGroups();
     fetchMine();
   } catch (e) {
     useAlert(e.response?.data?.error || '保存失败');
   } finally {
     savingSetting.value = false;
+  }
+};
+const deleteGroup = async () => {
+  if (!selectedGroupId.value || groupForm.isDefault) return;
+  if (!pendingDeleteGroup.value) {
+    pendingDeleteGroup.value = true;
+    return;
+  }
+  pendingDeleteGroup.value = false;
+  try {
+    await axios.delete(`${groupsUrl()}/${selectedGroupId.value}`);
+    selectedGroupId.value = null;
+    useAlert('考勤组已删除，组内成员回归默认组');
+    fetchGroups();
+  } catch (e) {
+    useAlert(e.response?.data?.error || '删除失败');
   }
 };
 
@@ -315,8 +390,8 @@ onMounted(fetchMine);
             今天 {{ todayStr() }}
           </span>
           <span v-if="setting" class="text-xs text-n-slate-11">
-            工作时间 {{ setting.clock_in_time }} –
-            {{ setting.clock_out_time }}
+            {{ setting.name ? `${setting.name} · ` : '' }}工作时间
+            {{ setting.clock_in_time }} – {{ setting.clock_out_time }}
             <template v-if="setting.grace_minutes">
               （宽限 {{ setting.grace_minutes }} 分钟）
             </template>
@@ -479,95 +554,199 @@ onMounted(fetchMine);
         </p>
       </template>
 
-      <!-- ── 规则设置 ── -->
+      <!-- ── 考勤组管理：多组规则，不同部门不同上下班时间 ── -->
       <template v-else>
-        <div class="flex flex-col max-w-md gap-4">
-          <div class="flex flex-col gap-1.5">
-            <span class="text-xs text-n-slate-11">工作日</span>
-            <div class="flex gap-2">
-              <button
-                v-for="(w, i) in WEEK_LABELS"
-                :key="w"
-                class="w-9 h-9 text-sm rounded-lg border"
-                :class="
-                  settingForm.workDays.includes(i + 1)
-                    ? 'border-n-iris-9 bg-n-iris-9/10 text-n-iris-11 font-medium'
-                    : 'border-n-weak text-n-slate-11'
-                "
-                @click="toggleWorkDay(i + 1)"
-              >
-                {{ w }}
-              </button>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <label class="flex flex-col gap-1">
-              <span class="text-xs text-n-slate-11">上班时间</span>
-              <input
-                v-model="settingForm.clockIn"
-                type="time"
-                class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-              />
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="text-xs text-n-slate-11">下班时间</span>
-              <input
-                v-model="settingForm.clockOut"
-                type="time"
-                class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-              />
-            </label>
-          </div>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">迟到/早退宽限（分钟）</span>
-            <input
-              v-model.number="settingForm.grace"
-              type="number"
-              min="0"
-              class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <div class="flex flex-col gap-1.5">
-            <span class="text-xs text-n-slate-11">
-              节假日（不计工作日，如法定假期）
-            </span>
-            <div class="flex items-center gap-2">
-              <input
-                v-model="newHoliday"
-                type="date"
-                class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-              />
-              <button
-                class="h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-2"
-                @click="addHoliday"
-              >
-                添加
-              </button>
-            </div>
-            <div
-              v-if="settingForm.holidays.length"
-              class="flex flex-wrap gap-1.5"
-            >
-              <span
-                v-for="d in settingForm.holidays"
-                :key="d"
-                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
-              >
-                {{ d }}
-                <button class="hover:text-n-ruby-11" @click="removeHoliday(d)">
-                  ×
-                </button>
-              </span>
-            </div>
-          </div>
-          <div>
+        <div class="flex flex-col gap-4 lg:flex-row">
+          <!-- 组列表 -->
+          <div class="flex flex-col gap-1.5 w-full lg:w-56 shrink-0">
             <button
-              class="h-9 px-5 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
-              :disabled="savingSetting || !settingForm.workDays.length"
-              @click="saveSetting"
+              v-for="g in groups"
+              :key="g.id"
+              class="flex items-center justify-between px-3 py-2 text-sm text-left border rounded-lg"
+              :class="
+                g.id === selectedGroupId
+                  ? 'border-n-iris-9 bg-n-iris-9/10 text-n-iris-11 font-medium'
+                  : 'border-n-weak text-n-slate-12 hover:bg-n-alpha-2'
+              "
+              @click="selectGroup(g)"
             >
-              {{ savingSetting ? '保存中…' : '保存规则' }}
+              <span class="truncate">{{ g.name }}</span>
+              <span class="text-xs shrink-0 text-n-slate-10">
+                {{ g.is_default ? '默认' : `${g.user_ids.length} 人` }}
+              </span>
             </button>
+            <button
+              class="px-3 py-2 text-sm border border-dashed rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
+              @click="newGroup"
+            >
+              ＋ 新建考勤组
+            </button>
+            <p class="text-xs text-n-slate-10">
+              未分组成员按「默认考勤组」执行；一人只能属于一个组。
+            </p>
+          </div>
+
+          <!-- 组规则表单 -->
+          <div class="flex flex-col max-w-md gap-4">
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">组名</span>
+              <input
+                v-model="groupForm.name"
+                :disabled="groupForm.isDefault"
+                class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 disabled:opacity-60"
+                placeholder="如 行政组 / 业务组"
+              />
+            </label>
+            <div class="flex flex-col gap-1.5">
+              <span class="text-xs text-n-slate-11">工作日</span>
+              <div class="flex gap-2">
+                <button
+                  v-for="(w, i) in WEEK_LABELS"
+                  :key="w"
+                  class="w-9 h-9 text-sm rounded-lg border"
+                  :class="
+                    groupForm.workDays.includes(i + 1)
+                      ? 'border-n-iris-9 bg-n-iris-9/10 text-n-iris-11 font-medium'
+                      : 'border-n-weak text-n-slate-11'
+                  "
+                  @click="toggleWorkDay(i + 1)"
+                >
+                  {{ w }}
+                </button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <label class="flex flex-col gap-1">
+                <span class="text-xs text-n-slate-11">上班时间</span>
+                <input
+                  v-model="groupForm.clockIn"
+                  type="time"
+                  class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-xs text-n-slate-11">下班时间</span>
+                <input
+                  v-model="groupForm.clockOut"
+                  type="time"
+                  class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+              </label>
+            </div>
+            <div class="grid grid-cols-3 gap-4">
+              <label class="flex flex-col gap-1">
+                <span class="text-xs text-n-slate-11">宽限（分钟）</span>
+                <input
+                  v-model.number="groupForm.grace"
+                  type="number"
+                  min="0"
+                  class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-xs text-n-slate-11">每月补卡上限</span>
+                <input
+                  v-model.number="groupForm.reclockLimit"
+                  type="number"
+                  min="0"
+                  title="0 = 不允许补卡"
+                  class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-xs text-n-slate-11">补卡时限（天）</span>
+                <input
+                  v-model.number="groupForm.reclockWindowDays"
+                  type="number"
+                  min="0"
+                  title="只能补 N 天内的卡；0 = 不限"
+                  class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+              </label>
+            </div>
+            <p class="text-xs text-n-slate-10">
+              补卡上限 0 = 不允许补卡；补卡时限 0 =
+              不限。提交补卡审批时按申请人所属组校验。
+            </p>
+            <div class="flex flex-col gap-1.5">
+              <span class="text-xs text-n-slate-11">
+                节假日（不计工作日，如法定假期）
+              </span>
+              <div class="flex items-center gap-2">
+                <input
+                  v-model="newHoliday"
+                  type="date"
+                  class="h-9 px-3 text-sm border rounded-lg reset-base w-44 border-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+                <button
+                  class="h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-2"
+                  @click="addHoliday"
+                >
+                  添加
+                </button>
+              </div>
+              <div
+                v-if="groupForm.holidays.length"
+                class="flex flex-wrap gap-1.5"
+              >
+                <span
+                  v-for="d in groupForm.holidays"
+                  :key="d"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+                >
+                  {{ d }}
+                  <button
+                    class="hover:text-n-ruby-11"
+                    @click="removeHoliday(d)"
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            </div>
+            <div v-if="!groupForm.isDefault" class="flex flex-col gap-1.5">
+              <span class="text-xs text-n-slate-11">组成员</span>
+              <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                <label
+                  v-for="a in agents"
+                  :key="a.id"
+                  class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+                >
+                  <input
+                    type="checkbox"
+                    class="accent-n-iris-9"
+                    :checked="groupForm.userIds.includes(a.id)"
+                    @change="toggleMember(a.id)"
+                  />
+                  {{ a.name }}
+                </label>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                class="h-9 px-5 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+                :disabled="
+                  savingSetting ||
+                  !groupForm.name.trim() ||
+                  !groupForm.workDays.length
+                "
+                @click="saveGroup"
+              >
+                {{ savingSetting ? '保存中…' : '保存考勤组' }}
+              </button>
+              <button
+                v-if="selectedGroupId && !groupForm.isDefault"
+                class="h-9 px-4 text-sm rounded-lg"
+                :class="
+                  pendingDeleteGroup
+                    ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                    : 'text-n-ruby-11 hover:bg-n-ruby-3'
+                "
+                @click="deleteGroup"
+              >
+                {{ pendingDeleteGroup ? '确认删除' : '删除考勤组' }}
+              </button>
+            </div>
           </div>
         </div>
       </template>
