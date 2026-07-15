@@ -10,7 +10,7 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 
-// 维护权：管理员或行政部门成员（与后端 oa_template_maintainer? 一致）；其他人整页不可见。
+// 维护权：管理员或人事部门成员（与后端 oa_template_maintainer? 一致）；其他人整页不可见。
 const currentUser = useMapGetter('getCurrentUser');
 const canMaintain = computed(
   () => currentUser.value?.oa_template_maintainer === true
@@ -44,7 +44,7 @@ const L = {
   deleted: '已删除',
   error: '操作失败',
   needName: '请填写模板名称',
-  noAccess: '仅超级管理员、管理员与行政部门成员可维护审批模板',
+  noAccess: '仅超级管理员、管理员与人事部门成员可维护审批模板',
   fieldCount: n => `${n} 个字段`,
   stepCount: n => `${n} 级审批`,
 };
@@ -241,7 +241,7 @@ onMounted(async () => {
       />
     </div>
 
-    <!-- 非管理员/行政部门成员：整页不可见（直链兜底） -->
+    <!-- 非管理员/人事部门成员：整页不可见（直链兜底） -->
     <div
       v-if="!canMaintain"
       class="flex flex-col items-center justify-center flex-1 gap-3 text-center"

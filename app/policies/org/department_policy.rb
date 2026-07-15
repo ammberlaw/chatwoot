@@ -1,5 +1,5 @@
 class Org::DepartmentPolicy < ApplicationPolicy
-  # 组织架构人人可看，超级管理员与管理员可维护。
+  # 组织架构人人可看，超级管理员/管理员/人事部可维护。
   def index?
     true
   end
@@ -27,7 +27,7 @@ class Org::DepartmentPolicy < ApplicationPolicy
   private
 
   def admin_like?
-    @account_user.administrator? || @account_user.crm_deputy_admin?
+    @account_user.org_maintainer?
   end
 end
 

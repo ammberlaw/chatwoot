@@ -15,9 +15,12 @@ import Select from 'dashboard/components-next/select/Select.vue';
 
 const { isAdmin } = useAdmin();
 const currentUser = useMapGetter('getCurrentUser');
-// 超级管理员与管理员可维护组织架构。
+// 超级管理员/管理员/人事部成员可维护组织架构（org_maintainer 由后端按部门归属判定）。
 const canManage = computed(
-  () => isAdmin.value || currentUser.value?.crm_role === 'deputy_admin'
+  () =>
+    isAdmin.value ||
+    currentUser.value?.crm_role === 'deputy_admin' ||
+    currentUser.value?.org_maintainer === true
 );
 const deptStore = useOrgDepartmentsStore();
 const memberStore = useOrgMembershipsStore();
@@ -41,12 +44,12 @@ const L = {
   editMember: '编辑成员',
   removeMemberConfirm: '将该成员移出此部门？',
   emptyMembers: '该部门还没有成员',
-  primary: '主负部门',
+  primary: '归属部门',
   titleLabel: '职位',
   memberLabel: '成员',
   saved: '已保存',
   error: '操作失败',
-  readonly: '仅超级管理员与管理员可维护组织架构（当前为只读）',
+  readonly: '仅超级管理员/管理员/人事部可维护组织架构（当前为只读）',
 };
 
 const departments = computed(() => deptStore.getRecords);

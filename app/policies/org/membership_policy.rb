@@ -22,7 +22,7 @@ class Org::MembershipPolicy < ApplicationPolicy
   private
 
   def admin_like?
-    @account_user.administrator? || @account_user.crm_deputy_admin?
+    @account_user.org_maintainer?
   end
 end
 

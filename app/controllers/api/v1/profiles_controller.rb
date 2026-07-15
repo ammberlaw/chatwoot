@@ -5,7 +5,7 @@ class Api::V1::ProfilesController < Api::BaseController
 
   def update
     if password_params[:password].present?
-      # 密码自助仅限超级管理员/管理员/行政部门成员；其他成员由管理员在成员权限中重置。
+      # 密码自助仅限超级管理员/管理员/人事部门成员；其他成员由管理员在成员权限中重置。
       return render json: { error: '密码由管理员统一管理，请联系超级管理员或管理员重置' }, status: :forbidden unless @user.account_users.any?(&:password_self_service?)
 
       render_could_not_create_error('Invalid current password') and return unless @user.valid_password?(password_params[:current_password])

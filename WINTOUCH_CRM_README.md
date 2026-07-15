@@ -136,8 +136,8 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 - **敏感区二次验证** `Crm::SensitiveSession`（Redis 15 分钟）：员工档案/薪资配置需重输登录密码，后端 `ensure_sensitive_session` 403 兜底。
 - **脱敏**：身份证/银行卡默认打码点「显示」展开；薪资金额 `¥ ******` 页头开关。
 - **审计与留痕**：`audited`（改动字段级审计）+ `Crm::AccessLog`（list/view 查看日志），员工档案编辑页有合并「操作历史」时间轴。
-- **密码集中管控**：自改密码（个人资料 + 忘记密码邮件）仅限超管/管理员/行政部门成员（`AccountUser#password_self_service?`）；超管/管理员可在成员权限改成员姓名/邮箱/重置密码；**部门负责人**限下属、仅重置密码（`manager_overreach?`）。
-- **审批模板维护** `oa_template_maintainer?`：超管/管理员或行政部门成员（部门名含「行政」，含下级）。
+- **密码集中管控**：自改密码（个人资料 + 忘记密码邮件）仅限超管/管理员/人事部门成员（`AccountUser#password_self_service?`）；超管/管理员可在成员权限改成员姓名/邮箱/重置密码；**部门负责人**限下属、仅重置密码（`manager_overreach?`）。
+- **审批模板维护** `oa_template_maintainer?`：超管/管理员或人事部门成员（部门名含「人事」，含下级）。
 
 ### 16. 考勤 `crm_attendance_index`
 `CrmAttendanceIndex.vue` · 控制器 `attendances` / `attendance_groups` · 模型 `Crm::AttendanceRecord` / `Crm::AttendanceGroup`

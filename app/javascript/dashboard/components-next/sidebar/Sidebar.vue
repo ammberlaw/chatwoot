@@ -1012,7 +1012,7 @@ const menuItems = computed(() => {
             to: accountScopedRoute('crm_approvals_index'),
             activeOn: ['crm_approvals_index'],
           },
-          // 审批模板：仅管理员与行政部门成员可见可维护
+          // 审批模板：仅管理员与人事部门成员可见可维护
           ...(currentUser.value?.oa_template_maintainer
             ? [
                 {

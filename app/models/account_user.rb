@@ -79,16 +79,28 @@ class AccountUser < ApplicationRecord
     crm_role == 'deputy_admin'
   end
 
-  # 密码自助权限：超级管理员/管理员/行政部门成员可自改密码；其他成员的密码由管理员统一重置。
+  # 密码自助权限：超级管理员/管理员/人事部门成员可自改密码；其他成员的密码由管理员统一重置。
   def password_self_service?
     administrator? || crm_deputy_admin? || oa_template_maintainer?
   end
 
-  # OA 审批模板维护权：超级管理员/管理员，或行政部门成员（部门名含「行政」，含其下级部门）。
+  # 组织架构维护权：超级管理员/管理员，或人事部门成员（部门名含「人事」，含其下级部门）。
+  def org_maintainer?
+    return true if administrator? || crm_deputy_admin?
+
+    member_of_department_named?('人事')
+  end
+
+  # OA 审批模板维护权：超级管理员/管理员，或人事部门成员（部门名含「人事」，含其下级部门）。
   def oa_template_maintainer?
     return true if administrator? || crm_deputy_admin?
 
-    root_ids = account.org_departments.where('name LIKE ?', '%行政%').pluck(:id)
+    member_of_department_named?('人事')
+  end
+
+  # 是否属于名称含指定关键词的部门（含其下级部门）。
+  def member_of_department_named?(keyword)
+    root_ids = account.org_departments.where('name LIKE ?', "%#{keyword}%").pluck(:id)
     return false if root_ids.empty?
 
     dept_ids = Org::Department.subtree_ids(account, root_ids)

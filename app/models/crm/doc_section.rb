@@ -18,7 +18,7 @@
 #  index_crm_doc_sections_on_account_id_and_name  (account_id,name) UNIQUE
 #
 class Crm::DocSection < ApplicationRecord
-  DEFAULT_SECTIONS = %w[销售资料 公司制度 流程 培训资料 单证与报关资料 行政资料 财务资料 采购与供应商资料 生产管理资料].freeze
+  DEFAULT_SECTIONS = %w[销售资料 公司制度 流程 培训资料 单证与报关资料 人事资料 财务资料 采购与供应商资料 生产管理资料].freeze
 
   belongs_to :account
   has_many :knowledge_docs, class_name: 'Crm::KnowledgeDoc', foreign_key: :section_id,
