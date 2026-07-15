@@ -118,6 +118,7 @@ Rails.application.routes.draw do
             resources :mail_accounts
             resources :email_templates
             resources :members, only: [:index, :update]
+            resources :member_invites, only: [:index, :create, :destroy]
             resources :kpi_schemes do
               member { post :distribute }
             end
@@ -692,6 +693,10 @@ Rails.application.routes.draw do
         end
 
         resources :csat_survey, only: [:show, :update]
+        # 成员邀请：凭 token 查看/加入（未登录）。
+        resources :member_invites, only: [:show], param: :token do
+          member { post :accept }
+        end
       end
     end
   end

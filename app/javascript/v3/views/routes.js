@@ -7,6 +7,7 @@ import ResetPassword from './auth/reset/password/Index.vue';
 import Confirmation from './auth/confirmation/Index.vue';
 import VerifyEmail from './auth/verify-email/Index.vue';
 import PasswordEdit from './auth/password/Edit.vue';
+import Join from './auth/join/Index.vue';
 
 export default [
   {
@@ -73,5 +74,12 @@ export default [
     path: frontendURL('auth/reset/password'),
     name: 'auth_reset_password',
     component: ResetPassword,
+  },
+  // 成员邀请加入页：凭链接加入团队（未登录）。
+  {
+    path: frontendURL('auth/join/:token'),
+    name: 'auth_join',
+    component: Join,
+    meta: { ignoreSession: true },
   },
 ];

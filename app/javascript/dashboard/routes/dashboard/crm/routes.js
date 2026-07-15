@@ -17,6 +17,7 @@ import CrmDashboardIndex from './pages/CrmDashboardIndex.vue';
 import CrmTeamDashboardIndex from './pages/CrmTeamDashboardIndex.vue';
 import CrmMyTargetIndex from './pages/CrmMyTargetIndex.vue';
 import CrmMembersIndex from './pages/CrmMembersIndex.vue';
+import CrmMemberInvitesIndex from './pages/CrmMemberInvitesIndex.vue';
 import CrmCustomerOnboardingIndex from './pages/CrmCustomerOnboardingIndex.vue';
 import CrmKpiSchemesIndex from './pages/CrmKpiSchemesIndex.vue';
 import CrmKpiSchemeEditorIndex from './pages/CrmKpiSchemeEditorIndex.vue';
@@ -123,6 +124,10 @@ export const routes = [
   crmPage('team-chat', 'crm_team_chat_index', CrmTeamChatIndex, SHARED),
   // 成员权限管理：仅管理员（覆盖 permissions）；管理员本就有 CRM 访问权。
   crmPage('members', 'crm_members_index', CrmMembersIndex, {
+    permissions: ['administrator'],
+  }),
+  // 成员邀请：生成加入链接（仅管理员）。
+  crmPage('member-invites', 'crm_member_invites_index', CrmMemberInvitesIndex, {
     permissions: ['administrator'],
   }),
 ];

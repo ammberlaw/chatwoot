@@ -1,0 +1,12 @@
+json.id invite.id
+json.token invite.token
+json.system_role invite.system_role
+json.module_access invite.module_access
+json.department_id invite.department_id
+json.department_name invite.department&.name
+json.note invite.note
+json.status invite.status
+json.expires_at invite.expires_at
+json.used_at invite.used_at
+json.used_by_name invite.used_by&.name
+json.created_at invite.created_at
