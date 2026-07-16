@@ -116,6 +116,7 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 
 ### 12. 团队 / 跟进
 - 团队 `teams` · 模型 `Crm::Team`（`has_many :members through account_users`，业务员经 `account_users.crm_team_id` 归属团队）
+- **团队管理页** `crm_teams_index` `CrmTeamsIndex.vue`（组织架构 → CRM 团队，仅超管/管理员可见）：团队卡片列表（组员胶囊、组长徽标、人数）+ 新建/编辑对话框（名称/描述/**组员勾选带搜索**/组长下拉，组长只能从勾选组员里选）。`teams#create/update` 接受 `member_ids` **全量同步** `account_users.crm_team_id`——一人一队，勾选已在他队的成员（对话框有「现属：××」黄色提示）即视为转队，名单外原队员移出；解散团队组员变未分队，客户/订单数据不动。`Crm::TeamPolicy` 建/改/解散仅超管与管理员，主管/业务员经 `teams` 接口只读自己团队。
 - 跟进记录/任务 `follow_up_notes` / `follow_up_tasks`
 - 联系人 `contacts`、公海规则 `public_pool_settings`
 
@@ -174,6 +175,20 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 - **工作台落地页**：视口右上角固定「退出登录」；**CRM 旗舰卡全员可见**——无 CRM 权限的成员看到置灰卡（锁图标「未开通 · 如需使用请联系管理员」，disabled，后端 403 兜底），布局恒定五栏 bento。
 - **个人菜单精简**：仅保留 当前状态（只读）/ 键盘快捷键 / 个人资料设置 / 更换头像 / 注销；「阅读文档、更新日志、更改外观」已移除。
 
+### 19. 组织架构（部门与成员 / 组织架构图）
+
+- **部门与成员** `crm_org_structure_index` `CrmOrgStructureIndex.vue` · 接口 `org/departments` + `org/memberships`。
+  - **树形侧栏**：层级视觉分明——根节点品牌色徽章、**人员节点**（名称含总经理/副总/董事长/总裁）人形图标、有下级 folder（展开变 folder-open）、末级圆点小字；树形引导线贯穿子级；**折叠/展开**（默认只展开到一级分支）；成员数胶囊；悬停行出 加子部门/重命名/删除。
+  - 右侧面板：部门负责人下拉（联动 crm_role，见 §15）+ 成员列表（职位、归属部门标记、增改删）。
+- **组织架构图** `crm_org_chart_index` `CrmOrgChartIndex.vue` + 递归组件 `OrgChartNode.vue`（全员可见）：图形化全景树（纯 Tailwind 画连接线）——人员实心 iris 卡（带人名括号自动拆职位+姓名两行）、「××中心」浅紫描边卡、部门白卡、末级浅灰标签、成员数胶囊；**55%–100% 四档缩放**，首次渲染与缩放后自动水平居中；数据与部门与成员页同一棵树，实时同步。
+- 侧栏「组织架构」组：部门与成员 / 组织架构图 / CRM 团队（仅超管管理员）/ 成员权限 / 成员邀请。
+
+### 20. 原生会话（在线客服）
+
+- Chatwoot 原生「会话」模块已恢复显示，归 CRM 侧栏（`HIDDEN_NATIVE_MODULES` 移除 `Conversation`）；所有会话/提及/参与者/未处理/频道列表齐全，**对全体成员可见**（含无 CRM 权限成员，如需收紧再挂 CRM 门禁）。
+- 其余原生模块（我的收件箱/联系人/公司/报告/活动/帮助中心）保持隐藏。
+- 收到在线咨询前需先建**收件渠道**（inbox：网站挂件/WhatsApp/邮箱等），生产为全新账号尚未配置。
+
 ---
 
 ## 图表组件（Chart.js 封装）
@@ -206,8 +221,16 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 - i18n 只维护 `en.json` / `en.yml`。
 - 铺样本示例（rails runner）：见「商机样本」——按团队成员当负责人、关联真实客户，覆盖四阶段/多币种。
 
+## 生产部署
+
+- **服务器**：腾讯云轻量 `43.136.84.15`（4C/3.6G+4G swap），SSH `ubuntu@` 私钥 `~/Desktop/CRM.pem`；应用 `http://43.136.84.15`（80 端口，暂无域名/HTTPS）。
+- **栈**：`docker-compose.prod.yaml`（已入库）——自建镜像 `wintouch-crm:prod`（rails + sidekiq）+ `pgvector/pg16` + `redis:alpine`，全部 `restart: always`；`SECRET_KEY_BASE`/数据库/Redis 密码在服务器 `~/wintouch-crm/.env`（不入库，rsync 排除保护）。
+- **更新流程**：本地测试确认 → `rsync`（排除 `.git/tmp/log/storage/node_modules/.env*`）到 `~/wintouch-crm` → **补 Dockerfile 版本号**（rsync 无 `.git`，`sed` 把 `git rev-parse HEAD` 行换成硬编码 commit sha）→ `docker compose -f docker-compose.prod.yaml build rails`（依赖层有缓存，增量约 15–20 分钟）→ 有新迁移则 `run --rm rails bundle exec rails db:migrate` → `up -d rails sidekiq`。
+- **原则**：所有新开发先本地改+测试，用户确认后才推生产；生产数据变更用幂等 rails runner 脚本经 ssh 管道执行。
+- 首次部署与 Twenty 清除记录见 2026-07-16；管理员 `ken@unitedtouch.cn`。
+
 ## 前端路由名
 
-`crm_dashboard_index` · `crm_team_dashboard_index` · `crm_my_target_index` · `crm_customers_index` · `crm_customer_intake_index` · `crm_opportunities_index` · `crm_funnel_index` · `crm_sales_orders_index` · `crm_sales_targets_index` · `crm_knowledge_docs_index` · `crm_doc_center_index` · `crm_emails_index` · `crm_email_templates_index` · `crm_mail_accounts_index` · `crm_org_structure_index` · `crm_members_index` · `crm_member_invites_index` · `crm_employees_index` · `crm_employee_comps_index` · `crm_attendance_index` · `crm_kpi_schemes_index` · `crm_kpi_sheets_index` · `crm_performance_settings_index` · `crm_approvals_index` · `crm_approval_templates_index` · `crm_team_chat_index` · `crm_workspace_index`
+`crm_dashboard_index` · `crm_team_dashboard_index` · `crm_my_target_index` · `crm_customers_index` · `crm_customer_intake_index` · `crm_opportunities_index` · `crm_funnel_index` · `crm_sales_orders_index` · `crm_sales_targets_index` · `crm_knowledge_docs_index` · `crm_doc_center_index` · `crm_emails_index` · `crm_email_templates_index` · `crm_mail_accounts_index` · `crm_org_structure_index` · `crm_org_chart_index` · `crm_teams_index` · `crm_members_index` · `crm_member_invites_index` · `crm_employees_index` · `crm_employee_comps_index` · `crm_attendance_index` · `crm_kpi_schemes_index` · `crm_kpi_sheets_index` · `crm_performance_settings_index` · `crm_approvals_index` · `crm_approval_templates_index` · `crm_team_chat_index` · `crm_workspace_index`
 
 > 注意：SPA 路由名含 `onboarding_` 会被账号引导守卫劫持重定向到 dashboard，CRM 页路由名需避开该串。
