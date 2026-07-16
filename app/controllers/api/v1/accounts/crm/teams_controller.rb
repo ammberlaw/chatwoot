@@ -11,10 +11,12 @@ class Api::V1::Accounts::Crm::TeamsController < Api::V1::Accounts::Crm::BaseCont
 
   def create
     @team = Current.account.crm_teams.create!(team_params)
+    sync_members(@team)
   end
 
   def update
     @team.update!(team_params)
+    sync_members(@team)
   end
 
   def destroy
@@ -36,6 +38,17 @@ class Api::V1::Accounts::Crm::TeamsController < Api::V1::Accounts::Crm::BaseCont
 
   def check_authorization
     authorize(Crm::Team)
+  end
+
+  # 团队成员 = account_users.crm_team_id（一人一队）：传 member_ids 全量同步，
+  # 名单外的原队员移出；名单内成员改挂本队（原属其他队即视为转队）。
+  def sync_members(team)
+    return unless params[:team].key?(:member_ids)
+
+    ids = Array(params[:team][:member_ids]).map(&:to_i)
+    stamp = { updated_at: Time.current }
+    Current.account.account_users.where(crm_team_id: team.id).where.not(user_id: ids).update_all(stamp.merge(crm_team_id: nil))
+    Current.account.account_users.where(user_id: ids).update_all(stamp.merge(crm_team_id: team.id))
   end
 
   def team_params

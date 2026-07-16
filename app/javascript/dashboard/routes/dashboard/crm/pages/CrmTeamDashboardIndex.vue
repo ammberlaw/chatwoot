@@ -257,7 +257,7 @@ const kpiCards = computed(() => [
           v-if="!team.members.length"
           class="p-5 text-sm border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150 text-n-slate-11"
         >
-          该团队暂无组员。可在「系统设置 → CRM 团队」分配组员。
+          该团队暂无组员。可在「组织架构 → CRM 团队」分配组员。
         </div>
         <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div

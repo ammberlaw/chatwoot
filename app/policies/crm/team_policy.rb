@@ -7,16 +7,23 @@ class Crm::TeamPolicy < ApplicationPolicy
     true
   end
 
+  # 建队/改队/解散仅超级管理员与管理员（deputy_admin）；主管与业务员只读（index/show 只见自己团队）。
   def create?
-    true
+    admin_like?
   end
 
   def update?
-    true
+    admin_like?
   end
 
   def destroy?
-    @account_user.administrator?
+    admin_like?
+  end
+
+  private
+
+  def admin_like?
+    @account_user.administrator? || @account_user.crm_role == 'deputy_admin'
   end
 end
 
