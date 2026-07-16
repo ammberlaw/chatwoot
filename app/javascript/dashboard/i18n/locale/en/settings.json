@@ -449,6 +449,8 @@
     "CRM_MEMBER_INVITES": "成员邀请",
     "CRM_G_ORG": "组织架构",
     "CRM_ORG_STRUCTURE": "部门与成员",
+    "CRM_ORG_CHART": "组织架构图",
+    "CRM_TEAMS": "CRM 团队",
     "CRM_G_HR_PERF": "HR·绩效考核",
     "CRM_KPI_SCHEMES": "考核方案",
     "CRM_KPI_SHEETS": "考核表",

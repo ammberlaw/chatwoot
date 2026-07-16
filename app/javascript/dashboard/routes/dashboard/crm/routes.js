@@ -9,6 +9,8 @@ import CrmSalesTargetsIndex from './pages/CrmSalesTargetsIndex.vue';
 import CrmMailAccountsIndex from './pages/CrmMailAccountsIndex.vue';
 import CrmEmailTemplatesIndex from './pages/CrmEmailTemplatesIndex.vue';
 import CrmOrgStructureIndex from './pages/CrmOrgStructureIndex.vue';
+import CrmOrgChartIndex from './pages/CrmOrgChartIndex.vue';
+import CrmTeamsIndex from './pages/CrmTeamsIndex.vue';
 import CrmApprovalsIndex from './pages/CrmApprovalsIndex.vue';
 import CrmApprovalTemplatesIndex from './pages/CrmApprovalTemplatesIndex.vue';
 import CrmTeamChatIndex from './pages/CrmTeamChatIndex.vue';
@@ -91,6 +93,9 @@ export const routes = [
     CrmOrgStructureIndex,
     SHARED
   ),
+  crmPage('org-chart', 'crm_org_chart_index', CrmOrgChartIndex, SHARED),
+  // CRM 团队管理：写操作后端限超管/管理员；主管/业务员只读可见自己团队。
+  crmPage('teams', 'crm_teams_index', CrmTeamsIndex),
   crmPage('kpi-schemes', 'crm_kpi_schemes_index', CrmKpiSchemesIndex, SHARED),
   crmPage(
     'kpi-schemes/edit',

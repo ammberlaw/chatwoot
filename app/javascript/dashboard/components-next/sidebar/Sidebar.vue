@@ -364,11 +364,10 @@ const newReportRoutes = () => [
 
 const reportRoutes = computed(() => newReportRoutes());
 
-// 隐藏的原生客服模块（section name）：联系人 / 报告 / 活动 / 帮助中心。
-// 隐藏的原生客服模块：会话 / 我的收件箱 / 联系人 / 报告 / 活动 / 帮助中心 / 公司。
+// 隐藏的原生客服模块：我的收件箱 / 联系人 / 报告 / 活动 / 帮助中心 / 公司。
+// 「会话」（Conversation）已恢复显示，归 CRM 模块（2026-07-16 用户要求）。
 const HIDDEN_NATIVE_MODULES = [
   'Inbox',
-  'Conversation',
   'Contacts',
   'Companies',
   'Reports',
@@ -895,6 +894,8 @@ const menuItems = computed(() => {
         icon: 'i-lucide-network',
         activeOn: [
           'crm_org_structure_index',
+          'crm_org_chart_index',
+          'crm_teams_index',
           'crm_members_index',
           'crm_member_invites_index',
         ],
@@ -905,6 +906,23 @@ const menuItems = computed(() => {
             to: accountScopedRoute('crm_org_structure_index'),
             activeOn: ['crm_org_structure_index'],
           },
+          {
+            name: 'CRM Org Chart',
+            label: t('SIDEBAR.CRM_ORG_CHART'),
+            to: accountScopedRoute('crm_org_chart_index'),
+            activeOn: ['crm_org_chart_index'],
+          },
+          // CRM 团队管理：仅超管/管理员（主管/业务员经团队看板只读自己团队）。
+          ...(isAdminLike.value
+            ? [
+                {
+                  name: 'CRM Teams',
+                  label: t('SIDEBAR.CRM_TEAMS'),
+                  to: accountScopedRoute('crm_teams_index'),
+                  activeOn: ['crm_teams_index'],
+                },
+              ]
+            : []),
           // CRM 成员权限：超管/管理员全量；部门负责人只见下属（仅可重置密码）。
           ...(isAdminLike.value || isCrmManager.value
             ? [
@@ -1329,6 +1347,8 @@ const ROUTE_MODULE = {
   crm_approvals_index: 'oa',
   crm_approval_templates_index: 'oa',
   crm_org_structure_index: 'hr',
+  crm_org_chart_index: 'hr',
+  crm_teams_index: 'hr',
   crm_members_index: 'hr',
   crm_member_invites_index: 'hr',
   crm_kpi_schemes_index: 'hr',
