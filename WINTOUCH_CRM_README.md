@@ -225,7 +225,11 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 
 - **服务器**：腾讯云轻量 `43.136.84.15`（4C/3.6G+4G swap），SSH `ubuntu@` 私钥 `~/Desktop/CRM.pem`；应用 `http://43.136.84.15`（80 端口，暂无域名/HTTPS）。
 - **栈**：`docker-compose.prod.yaml`（已入库）——自建镜像 `wintouch-crm:prod`（rails + sidekiq）+ `pgvector/pg16` + `redis:alpine`，全部 `restart: always`；`SECRET_KEY_BASE`/数据库/Redis 密码在服务器 `~/wintouch-crm/.env`（不入库，rsync 排除保护）。
-- **更新流程**：本地测试确认 → `rsync`（排除 `.git/tmp/log/storage/node_modules/.env*`）到 `~/wintouch-crm` → **补 Dockerfile 版本号**（rsync 无 `.git`，`sed` 把 `git rev-parse HEAD` 行换成硬编码 commit sha）→ `docker compose -f docker-compose.prod.yaml build rails`（依赖层有缓存，增量约 15–20 分钟）→ 有新迁移则 `run --rm rails bundle exec rails db:migrate` → `up -d rails sidekiq`。
+- **一键部署脚本 `./deploy-prod.sh`**（本机 Mac 运行，已入库）：自动完成 同步 → 补版本号 → 后台构建 → 迁移 → 重启 → 健康检查，全程 SSH/rsync 断线自动重试。
+  - 常规：`./deploy-prod.sh`；无迁移时 `--no-migrate` 略快；低内存机型 `--stop`（构建前停应用，8G 机型无需）；缓存膨胀 `--prune`（部署后清理）。
+  - 关键点已内建：commit sha 在仓库目录里先算好（避免 cwd 漂移写空版本号）、构建后台跑不怕掉线、重启用 `--force-recreate` 确保切到新镜像。
+  - 环境变量可覆盖 `REPO_DIR/SSH_KEY/SERVER/REMOTE_DIR/APP_URL`。
+- **手动等价流程**（脚本背后做的）：`rsync`（排除 `.git/tmp/log/storage/node_modules/.env*`）→ `sed` 补 Dockerfile 版本号 → `build rails`（依赖层有缓存，增量约 10–20 分钟）→ 有迁移则 `run --rm rails bundle exec rails db:migrate` → `up -d --force-recreate rails sidekiq`。
 - **原则**：所有新开发先本地改+测试，用户确认后才推生产；生产数据变更用幂等 rails runner 脚本经 ssh 管道执行。
 - 首次部署与 Twenty 清除记录见 2026-07-16；管理员 `ken@unitedtouch.cn`。
 
