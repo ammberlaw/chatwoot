@@ -35,7 +35,7 @@ class Crm::EmployeePolicy < ApplicationPolicy
   private
 
   def admin_like?
-    @account_user.administrator? || @account_user.crm_deputy_admin?
+    @account_user.administrator? || @account_user.crm_deputy_admin? || @account_user.crm_hr?
   end
 end
 

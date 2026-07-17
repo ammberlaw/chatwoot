@@ -46,6 +46,7 @@ const ROLE_OPTIONS = [
   { value: 'deputy_admin', label: '管理员' },
   { value: 'manager', label: '部门负责人' },
   { value: 'sales', label: '业务员' },
+  { value: 'hr', label: '人事' },
 ];
 
 const currentUserId = useMapGetter('getCurrentUserID');
@@ -55,11 +56,15 @@ const currentUser = useMapGetter('getCurrentUser');
 const isSuperAdmin = computed(
   () => currentUser.value?.role === 'administrator'
 );
-const roleOptions = computed(() =>
-  isSuperAdmin.value
-    ? ROLE_OPTIONS
-    : ROLE_OPTIONS.filter(o => o.value !== 'administrator')
-);
+const isHrActor = computed(() => currentUser.value?.crm_role === 'hr');
+const roleOptions = computed(() => {
+  if (isSuperAdmin.value) return ROLE_OPTIONS;
+  if (isHrActor.value)
+    return ROLE_OPTIONS.filter(
+      o => !['administrator', 'deputy_admin'].includes(o.value)
+    );
+  return ROLE_OPTIONS.filter(o => o.value !== 'administrator');
+});
 // 部门负责人模式：后端只返回下属；页面只读展示角色/模块，仅提供重置密码。
 const isManagerOnly = computed(
   () => !isSuperAdmin.value && currentUser.value?.crm_role === 'manager'

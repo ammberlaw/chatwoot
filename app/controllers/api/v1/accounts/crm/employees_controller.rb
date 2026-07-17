@@ -1,4 +1,5 @@
 class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::BaseController
+  skip_before_action :ensure_crm_access
   before_action :check_authorization
   before_action :ensure_sensitive_session
   before_action :fetch_employee, only: [:show, :update, :destroy, :attach, :detach, :audits]

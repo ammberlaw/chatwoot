@@ -45,7 +45,7 @@ class AccountUser < ApplicationRecord
   enum availability: { online: 0, offline: 1, busy: 2 }
 
   # CRM 条线角色（与 Chatwoot role 正交）：副管理员 / 部门负责人 / 业务员；空=非 CRM 人员。
-  CRM_ROLES = %w[deputy_admin manager sales].freeze
+  CRM_ROLES = %w[deputy_admin manager sales hr].freeze
   validates :crm_role, inclusion: { in: CRM_ROLES }, allow_nil: true
 
   # 业务系统模块使用权限（成员权限页按人开关）；管理员始终全模块。
@@ -66,7 +66,12 @@ class AccountUser < ApplicationRecord
 
   # 能否进入 CRM：系统管理员自动可入；否则需被赋予角色且 CRM 模块开关打开。
   def can_access_crm?
-    administrator? || (crm_role.present? && module_enabled?('crm'))
+    # 人事角色不进入 CRM 销售数据，只用 HR/共享模块。
+    administrator? || (crm_role.present? && crm_role != 'hr' && module_enabled?('crm'))
+  end
+
+  def crm_hr?
+    crm_role == 'hr'
   end
 
   # CRM 数据条线是否主管（部门负责人）：看本部门（含下级）；业务员/其他看自己。
@@ -79,21 +84,22 @@ class AccountUser < ApplicationRecord
     crm_role == 'deputy_admin'
   end
 
-  # 密码自助权限：超级管理员/管理员/人事部门成员可自改密码；其他成员的密码由管理员统一重置。
+  # 密码自助权限：2026-07-17 起放开为全员可自改密码（个人资料 + 忘记密码邮件）。
+  # 如需恢复集中管控，把返回值改回 administrator? || crm_deputy_admin? || oa_template_maintainer? 即可。
   def password_self_service?
-    administrator? || crm_deputy_admin? || oa_template_maintainer?
+    true
   end
 
   # 组织架构维护权：超级管理员/管理员，或人事部门成员（部门名含「人事」，含其下级部门）。
   def org_maintainer?
-    return true if administrator? || crm_deputy_admin?
+    return true if administrator? || crm_deputy_admin? || crm_hr?
 
     member_of_department_named?('人事')
   end
 
   # OA 审批模板维护权：超级管理员/管理员，或人事部门成员（部门名含「人事」，含其下级部门）。
   def oa_template_maintainer?
-    return true if administrator? || crm_deputy_admin?
+    return true if administrator? || crm_deputy_admin? || crm_hr?
 
     member_of_department_named?('人事')
   end

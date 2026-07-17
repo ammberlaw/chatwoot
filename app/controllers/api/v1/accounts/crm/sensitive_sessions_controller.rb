@@ -1,5 +1,6 @@
 # 敏感区二次验证：进入员工档案/薪资配置前重输登录密码，通过后 15 分钟内免验。
 class Api::V1::Accounts::Crm::SensitiveSessionsController < Api::V1::Accounts::Crm::BaseController
+  skip_before_action :ensure_crm_access
   def show
     render json: { active: Crm::SensitiveSession.active?(Current.account, current_user) }
   end

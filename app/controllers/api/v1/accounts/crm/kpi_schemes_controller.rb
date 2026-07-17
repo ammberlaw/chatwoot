@@ -1,4 +1,6 @@
 class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::BaseController
+  # HR 板块：人事部成员可能没有 CRM 角色，放行 CRM 门禁，可见性由 KpiSchemePolicy 管。
+  skip_before_action :ensure_crm_access
   before_action :check_authorization
   before_action :fetch_scheme, only: [:show, :update, :destroy, :distribute]
 

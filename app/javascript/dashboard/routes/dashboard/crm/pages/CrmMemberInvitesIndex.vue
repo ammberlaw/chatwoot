@@ -51,7 +51,7 @@ const L = {
   directName: '姓名',
   directNamePlaceholder: '如：王小明',
   directEmail: '登录邮箱',
-  directEmailPlaceholder: 'name@company.com',
+  directEmailPlaceholder: '如：wangxiaoming',
   directPassword: '初始密码',
   directPasswordPlaceholder: '至少 8 位含大小写/数字/符号',
   genPassword: '随机',
@@ -66,16 +66,20 @@ const ROLE_LABELS = {
   deputy_admin: '管理员',
   manager: '部门负责人',
   sales: '业务员',
+  hr: '人事',
   member: '普通成员',
 };
 // 防提权：管理员（deputy_admin）不可生成超级管理员邀请（后端同口径拦截）。
 const currentUser = useMapGetter('getCurrentUser');
 const ROLE_OPTIONS = computed(() =>
   Object.entries(ROLE_LABELS)
-    .filter(
-      ([value]) =>
-        value !== 'administrator' || currentUser.value?.role === 'administrator'
-    )
+    .filter(([value]) => {
+      if (value === 'administrator')
+        return currentUser.value?.role === 'administrator';
+      if (value === 'deputy_admin')
+        return currentUser.value?.crm_role !== 'hr';
+      return true;
+    })
     .map(([value, label]) => ({ value, label }))
 );
 // ERP/MES 未上线：开关置灰，功能上线后去掉 disabled 即开放设置。
@@ -251,6 +255,14 @@ const toggleModule = key => {
 };
 
 // ---- 直接新建成员（免链接） ----
+// 只填名字自动补公司域名；输入含 @ 的完整邮箱则按原样使用。
+const DEFAULT_EMAIL_DOMAIN = 'wintouchgroup.com';
+const resolvedDirectEmail = computed(() => {
+  const raw = directForm.value.email.trim();
+  if (!raw) return '';
+  return raw.includes('@') ? raw : `${raw}@${DEFAULT_EMAIL_DOMAIN}`;
+});
+
 const DIRECT_FORM_DEFAULTS = {
   name: '',
   email: '',
@@ -276,7 +288,8 @@ const genPassword = () => {
 
 const createDirect = async () => {
   const f = directForm.value;
-  if (!f.name.trim() || !f.email.trim() || !f.password) {
+  const email = resolvedDirectEmail.value;
+  if (!f.name.trim() || !email || !f.password) {
     useAlert(L.directRequired);
     return;
   }
@@ -285,14 +298,14 @@ const createDirect = async () => {
     await MembersAPI.create({
       member: {
         name: f.name.trim(),
-        email: f.email.trim(),
+        email,
         password: f.password,
         system_role: f.systemRole,
         module_access: ['crm', 'erp', 'mes'],
         department_id: f.departmentId || null,
       },
     });
-    const creds = `地址：${window.location.origin}\n账号：${f.email.trim()}\n密码：${f.password}`;
+    const creds = `地址：${window.location.origin}\n账号：${email}\n密码：${f.password}`;
     directForm.value = { ...DIRECT_FORM_DEFAULTS };
     try {
       await copyText(creds);
@@ -402,14 +415,23 @@ onMounted(() => {
               :placeholder="L.directNamePlaceholder"
             />
           </div>
-          <div class="flex flex-col gap-1 w-52">
+          <div class="flex flex-col gap-1">
             <span class="text-xs font-medium text-n-slate-11">
               {{ L.directEmail }}
             </span>
-            <Input
-              v-model="directForm.email"
-              :placeholder="L.directEmailPlaceholder"
-            />
+            <div class="flex items-center gap-1">
+              <Input
+                v-model="directForm.email"
+                class="w-36"
+                :placeholder="L.directEmailPlaceholder"
+              />
+              <span
+                v-if="!directForm.email.includes('@')"
+                class="text-xs whitespace-nowrap text-n-slate-10"
+              >
+                @{{ 'wintouchgroup.com' }}
+              </span>
+            </div>
           </div>
           <div class="flex flex-col gap-1 w-48">
             <span class="text-xs font-medium text-n-slate-11">

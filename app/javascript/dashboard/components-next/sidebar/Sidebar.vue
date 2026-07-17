@@ -71,6 +71,8 @@ const isAdminLike = computed(
   () => isAdmin.value || currentUser.value?.crm_role === 'deputy_admin'
 );
 const isCrmManager = computed(() => currentUser.value?.crm_role === 'manager');
+// 人事角色：组织架构/成员管理/绩效/员工档案入口（无 CRM 销售数据）。
+const isCrmHr = computed(() => currentUser.value?.crm_role === 'hr');
 // 普通业务（非管理员/副管理员/部门负责人）：隐藏公司级看板等团队之外的数据入口。
 const isCrmSales = computed(
   () =>
@@ -923,8 +925,8 @@ const menuItems = computed(() => {
                 },
               ]
             : []),
-          // CRM 成员权限：超管/管理员全量；部门负责人只见下属（仅可重置密码）。
-          ...(isAdminLike.value || isCrmManager.value
+          // CRM 成员权限：超管/管理员/人事全量（人事不可动管理层）；部门负责人只见下属（仅可重置密码）。
+          ...(isAdminLike.value || isCrmHr.value || isCrmManager.value
             ? [
                 {
                   name: 'CRM Members',
@@ -934,8 +936,8 @@ const menuItems = computed(() => {
                 },
               ]
             : []),
-          // 成员邀请：仅超管/管理员。
-          ...(isAdminLike.value
+          // 成员邀请：超管/管理员/人事。
+          ...(isAdminLike.value || isCrmHr.value
             ? [
                 {
                   name: 'CRM Member Invites',
@@ -999,8 +1001,8 @@ const menuItems = computed(() => {
         to: accountScopedRoute('crm_attendance_index'),
         activeOn: ['crm_attendance_index'],
       },
-      // 员工档案 / 员工薪资配置：独立板块（超级管理员与管理员）。
-      ...(isAdminLike.value
+      // 员工档案 / 员工薪资配置：独立板块（超级管理员/管理员/人事）。
+      ...(isAdminLike.value || isCrmHr.value
         ? [
             {
               name: 'CRM Employees',

@@ -1,5 +1,6 @@
 # 成员邀请管理（HR·成员邀请，超级管理员与管理员）：生成/查看/作废邀请链接。
 class Api::V1::Accounts::Crm::MemberInvitesController < Api::V1::Accounts::Crm::BaseController
+  skip_before_action :ensure_crm_access
   before_action :ensure_admin
 
   EXPIRES_DAYS = [7, 30].freeze
@@ -14,6 +15,9 @@ class Api::V1::Accounts::Crm::MemberInvitesController < Api::V1::Accounts::Crm::
     # 防提权：管理员（deputy_admin）不可生成超级管理员邀请。
     if !Current.account_user.administrator? && params[:invite][:system_role].to_s == 'administrator'
       return render json: { error: '仅超级管理员可生成超级管理员邀请' }, status: :forbidden
+    end
+    if Current.account_user.crm_hr? && %w[administrator deputy_admin].include?(params[:invite][:system_role].to_s)
+      return render json: { error: '人事不可生成超级管理员/管理员邀请' }, status: :forbidden
     end
 
     @invite = Current.account.crm_member_invites.create!(invite_attrs)
@@ -32,9 +36,9 @@ class Api::V1::Accounts::Crm::MemberInvitesController < Api::V1::Accounts::Crm::
   private
 
   def ensure_admin
-    return if Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin?
+    return if Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin? || Current.account_user&.crm_hr?
 
-    render json: { error: '仅超级管理员或管理员可管理成员邀请' }, status: :forbidden
+    render json: { error: '仅超级管理员/管理员/人事可管理成员邀请' }, status: :forbidden
   end
 
   def department_id_param

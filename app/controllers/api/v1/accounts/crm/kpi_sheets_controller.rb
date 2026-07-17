@@ -97,13 +97,19 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   end
 
   def can_manage?
-    Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin? || Current.account_user&.crm_manager?
+    au = Current.account_user
+    return false unless au
+
+    au.administrator? || au.crm_deputy_admin? || au.crm_hr? || au.crm_manager?
   end
 
   # 全量可见：超管/管理员，以及被指定的人事/总经理（审批链需要）。
   def all_sheets_visible?
-    Current.account_user&.administrator? || Current.account_user&.crm_deputy_admin? ||
-      [perf_setting&.hr_owner_id, perf_setting&.gm_owner_id].include?(current_user.id)
+    au = Current.account_user
+    return false unless au
+    return true if au.administrator? || au.crm_deputy_admin? || au.crm_hr?
+
+    [perf_setting.hr_owner_id, perf_setting.gm_owner_id].include?(current_user.id)
   end
 
   # 部门负责人=所辖部门（含下级）成员 + 自己；业务员/其他=仅自己。

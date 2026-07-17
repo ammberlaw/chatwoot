@@ -3,6 +3,8 @@
 # 系统角色 → 底层 Chatwoot role + crm_role 的映射：
 #   管理员 = administrator；副管理员/部门负责人/业务员 = agent + 对应 crm_role；无 = agent（不进入 CRM）。
 class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseController
+  # 人事角色不走 CRM 门禁（无 CRM 数据权限），本控制器由 ensure_admin 把关。
+  skip_before_action :ensure_crm_access
   before_action :ensure_admin
   before_action :fetch_member, only: [:update]
 
@@ -11,14 +13,15 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     'deputy_admin' => [:agent, 'deputy_admin'],
     'manager' => [:agent, 'manager'],
     'sales' => [:agent, 'sales'],
+    'hr' => [:agent, 'hr'], # 人事：组织/绩效/成员管理全套，无 CRM 销售数据
     'member' => [:agent, nil], # 普通成员（直接建号/邀请用显式键）
     '' => [:agent, nil]
   }.freeze
 
   def index
     scope = Current.account.account_users.includes(:user)
-    # 部门负责人只看到下属成员。
-    scope = scope.where(user_id: subordinate_user_ids) unless admin_like?
+    # 部门负责人只看到下属成员；人事与管理层看全部。
+    scope = scope.where(user_id: subordinate_user_ids) unless admin_like? || Current.account_user&.crm_hr?
     @members = scope.order('users.name')
   end
 
@@ -38,12 +41,8 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
   end
 
   def update
-    # 防自锁：不能修改自己的角色/权限（降级自己可能失去管理入口）。
-    return render json: { error: '不能修改自己的角色' }, status: :unprocessable_entity if @member.id == Current.account_user.id
-    # 防提权：管理员不可改动超级管理员，也不可把任何人设为超级管理员。
-    return render json: { error: '仅超级管理员可任免超级管理员' }, status: :forbidden if escalation_attempt?
-    # 部门负责人仅可为下属重置密码。
-    return render json: { error: '部门负责人仅可为下属成员重置密码' }, status: :forbidden if manager_overreach?
+    error = update_error
+    return render json: { error: error[:message] }, status: error[:status] if error
 
     updates = role_updates
     return render json: { error: '无效的角色' }, status: :unprocessable_entity if updates.nil?
@@ -58,7 +57,7 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
   private
 
   def ensure_admin
-    return if admin_like? || Current.account_user&.crm_manager?
+    return if admin_like? || Current.account_user&.crm_hr? || Current.account_user&.crm_manager?
 
     render json: { error: I18n.t('errors.crm.admin_only', default: '仅超级管理员或管理员可管理成员角色') },
            status: :forbidden
@@ -77,9 +76,31 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     Current.account.org_memberships.where(department_id: dept_ids).pluck(:user_id).uniq - [Current.user.id]
   end
 
+  # 防自锁 → 防提权（管理员/人事各自边界）→ 负责人只可重置下属密码。
+  def update_error
+    return { message: '不能修改自己的角色', status: :unprocessable_entity } if @member.id == Current.account_user.id
+    return { message: '仅超级管理员可任免超级管理员', status: :forbidden } if escalation_attempt?
+    return { message: '人事不可管理超级管理员/管理员账号', status: :forbidden } if hr_overreach?
+    return { message: '部门负责人仅可为下属成员重置密码', status: :forbidden } if manager_overreach?
+
+    nil
+  end
+
+  def privileged_actor?
+    admin_like? || Current.account_user&.crm_hr?
+  end
+
+  # 人事越界：目标是超管/管理员，或试图授予超管/管理员角色。
+  def hr_overreach?
+    return false unless Current.account_user&.crm_hr?
+
+    @member.administrator? || @member.crm_role == 'deputy_admin' ||
+      %w[administrator deputy_admin].include?(params[:member][:system_role].to_s)
+  end
+
   # 部门负责人越界：目标不是下属 / 目标是超管或管理员 / 试图改密码以外的内容。
   def manager_overreach?
-    return false if admin_like?
+    return false if privileged_actor?
 
     return true unless subordinate_user_ids.include?(@member.user_id)
     return true if @member.administrator? || @member.crm_role == 'deputy_admin'
@@ -124,12 +145,17 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
   end
 
   def direct_create_error
-    return { message: '仅超级管理员或管理员可新建成员', status: :forbidden } unless admin_like?
+    return { message: '仅超级管理员/管理员/人事可新建成员', status: :forbidden } unless privileged_actor?
     return { message: '仅超级管理员可新建超级管理员', status: :forbidden } if create_escalation_attempt?
+    return { message: '人事不可新建超级管理员/管理员', status: :forbidden } if hr_role_grant_attempt?
     return { message: '无效的角色', status: :unprocessable_entity } if SYSTEM_ROLE_MAP[params[:member][:system_role].to_s].nil?
     return { message: '该邮箱已注册', status: :unprocessable_entity } if User.exists?(email: direct_email)
 
     nil
+  end
+
+  def hr_role_grant_attempt?
+    Current.account_user&.crm_hr? && %w[administrator deputy_admin].include?(params[:member][:system_role].to_s)
   end
 
   def direct_email

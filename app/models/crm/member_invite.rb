@@ -32,6 +32,7 @@ class Crm::MemberInvite < ApplicationRecord
     'deputy_admin' => [:agent, 'deputy_admin'],
     'manager' => [:agent, 'manager'],
     'sales' => [:agent, 'sales'],
+    'hr' => [:agent, 'hr'], # 人事：组织/绩效/成员管理全套，无 CRM 销售数据
     'member' => [:agent, nil] # 普通成员：不进入 CRM，仅共享模块（OA/HR/协同/文档）
   }.freeze
 

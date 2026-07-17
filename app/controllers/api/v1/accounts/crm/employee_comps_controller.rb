@@ -1,4 +1,5 @@
 class Api::V1::Accounts::Crm::EmployeeCompsController < Api::V1::Accounts::Crm::BaseController
+  skip_before_action :ensure_crm_access
   before_action :check_authorization
   before_action :ensure_sensitive_session
   before_action :fetch_comp, only: [:show, :update, :destroy]

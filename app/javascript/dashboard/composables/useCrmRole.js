@@ -15,8 +15,9 @@ export function useCrmRole() {
   const isCrmManager = computed(
     () => currentUser.value?.crm_role === 'manager'
   );
+  const isCrmHr = computed(() => currentUser.value?.crm_role === 'hr');
   const isCrmSales = computed(
     () => !isAdmin.value && !isCrmDeputyAdmin.value && !isCrmManager.value
   );
-  return { currentUser, isAdmin, isCrmDeputyAdmin, isCrmManager, isCrmSales };
+  return { currentUser, isAdmin, isCrmDeputyAdmin, isCrmManager, isCrmHr, isCrmSales };
 }

@@ -12,7 +12,6 @@ const members = ref([]);
 const form = reactive({
   hrOwnerId: '',
   gmOwnerId: '',
-  schemeVisibleSales: true,
   schemeVisibleManager: true,
   sheetVisibleSales: true,
   sheetVisibleManager: true,
@@ -30,7 +29,6 @@ onMounted(async () => {
     const d = setting.data;
     form.hrOwnerId = d.hr_owner_id || '';
     form.gmOwnerId = d.gm_owner_id || '';
-    form.schemeVisibleSales = d.scheme_visible_sales !== false;
     form.schemeVisibleManager = d.scheme_visible_manager !== false;
     form.sheetVisibleSales = d.sheet_visible_sales !== false;
     form.sheetVisibleManager = d.sheet_visible_manager !== false;
@@ -48,7 +46,6 @@ const save = async () => {
       setting: {
         hr_owner_id: form.hrOwnerId || null,
         gm_owner_id: form.gmOwnerId || null,
-        scheme_visible_sales: form.schemeVisibleSales,
         scheme_visible_manager: form.schemeVisibleManager,
         sheet_visible_sales: form.sheetVisibleSales,
         sheet_visible_manager: form.sheetVisibleManager,
@@ -111,7 +108,7 @@ const fieldCls = 'h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1
           <tbody>
             <tr class="border-b border-n-weak">
               <td class="py-2.5 pr-4 text-n-slate-12">{{ t('CRM.PERF_SETTINGS.ITEM_SCHEME') }}</td>
-              <td class="px-4 text-center"><input v-model="form.schemeVisibleSales" type="checkbox" /></td>
+              <td class="px-4 text-center text-n-slate-10" title="考核方案对业务员/普通成员固定不可见">—</td>
               <td class="px-4 text-center"><input v-model="form.schemeVisibleManager" type="checkbox" /></td>
               <td class="px-4 text-center text-n-slate-10">✓</td>
             </tr>

@@ -49,16 +49,19 @@ class Crm::PerformanceSetting < ApplicationRecord
     end
   end
 
-  # 考核方案对该成员是否可见（管理员/副管理员始终可见）。
+  # 考核方案仅 超管/管理员/人事部门成员/指定人事/总经理/部门负责人 可见；
+  # 业务员与普通成员一律不可见（2026-07-17 收口，scheme_visible_sales 开关废弃）。
   def self.scheme_visible?(setting, account_user)
     return true if admin_like?(account_user)
+    return true if account_user.crm_hr? || account_user.member_of_department_named?('人事')
+    return true if setting && [setting.hr_owner_id, setting.gm_owner_id].include?(account_user.user_id)
 
-    role_visible?(setting, account_user, :scheme_visible_manager, :scheme_visible_sales)
+    account_user.crm_manager? && (setting.nil? || setting.scheme_visible_manager)
   end
 
   # 考核表对该成员是否可见（管理员/副管理员/被指定人事/总经理始终可见——审批需要）。
   def self.sheet_visible?(setting, account_user)
-    return true if admin_like?(account_user)
+    return true if admin_like?(account_user) || account_user.crm_hr?
     return true if setting && [setting.hr_owner_id, setting.gm_owner_id].include?(account_user.user_id)
 
     role_visible?(setting, account_user, :sheet_visible_manager, :sheet_visible_sales)
