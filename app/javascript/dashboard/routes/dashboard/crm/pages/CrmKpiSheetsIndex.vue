@@ -11,10 +11,14 @@ const router = useRouter();
 const { accountId } = useAccount();
 const store = useCrmKpiSheetsStore();
 
-// 搜索栏只给能看多人考核表的角色（管理员/超管/部门负责人）；业务员和普通成员只看自己的，无需搜索。
-const { isAdmin, isCrmDeputyAdmin, isCrmManager } = useCrmRole();
+// 搜索栏只给能看多人考核表的角色（管理员/超管/部门负责人/人事）；业务员和普通成员只看自己的，无需搜索。
+const { isAdmin, isCrmDeputyAdmin, isCrmManager, isCrmHr } = useCrmRole();
 const showSearch = computed(
-  () => isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value
+  () =>
+    isAdmin.value ||
+    isCrmDeputyAdmin.value ||
+    isCrmManager.value ||
+    isCrmHr.value
 );
 
 const records = computed(() => store.getRecords);

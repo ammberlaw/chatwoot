@@ -19,12 +19,12 @@ const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 
-// 增删改：超级管理员/管理员/部门负责人。
+// 增删改：超级管理员/管理员/部门负责人/人事。
 const canManage = computed(() => {
   const role = currentUser.value?.role;
   return (
     role === 'administrator' ||
-    ['deputy_admin', 'manager'].includes(currentUser.value?.crm_role)
+    ['deputy_admin', 'manager', 'hr'].includes(currentUser.value?.crm_role)
   );
 });
 
