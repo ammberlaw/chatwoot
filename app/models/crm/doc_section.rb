@@ -6,6 +6,7 @@
 #
 #  id             :bigint           not null, primary key
 #  department_ids :bigint           default([]), not null, is an Array
+#  manager_ids    :bigint           default([]), not null, is an Array
 #  name           :string           not null
 #  position       :integer          default(0), not null
 #  created_at     :datetime         not null
@@ -25,6 +26,20 @@ class Crm::DocSection < ApplicationRecord
                             inverse_of: :section, dependent: :nullify
 
   validates :name, presence: true, uniqueness: { scope: :account_id }
+
+  # 板块负责人（可多人）：可编辑/删除该板块下所有公司文档。
+  def manager?(user_id)
+    manager_ids.include?(user_id)
+  end
+
+  def managers
+    User.where(id: manager_ids)
+  end
+
+  # 该用户负责的板块 id（用于文档管理权判断，一次性查库）。
+  def self.managed_ids_for(account, user_id)
+    where(account_id: account.id).where('? = ANY(manager_ids)', user_id).pluck(:id)
+  end
 
   def self.ensure_defaults!(account)
     DEFAULT_SECTIONS.each_with_index do |name, index|

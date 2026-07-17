@@ -9,7 +9,9 @@ class Api::V1::Accounts::Crm::DocSectionsController < Api::V1::Accounts::Crm::Ba
     @sections = if manage_all?
                   all
                 else
-                  all.where(id: Crm::DocSection.visible_ids_for(Current.account, current_user.id))
+                  visible = Crm::DocSection.visible_ids_for(Current.account, current_user.id)
+                  managed = Crm::DocSection.managed_ids_for(Current.account, current_user.id)
+                  all.where(id: (visible + managed).uniq)
                 end
   end
 
@@ -25,7 +27,10 @@ class Api::V1::Accounts::Crm::DocSectionsController < Api::V1::Accounts::Crm::Ba
 
   def update
     @section = Current.account.crm_doc_sections.find(params[:id])
-    @section.update!(department_ids: Array(params.dig(:section, :department_ids)).map(&:to_i).uniq)
+    updates = {}
+    updates[:department_ids] = Array(params.dig(:section, :department_ids)).map(&:to_i).uniq if params[:section].key?(:department_ids)
+    updates[:manager_ids] = sanitized_manager_ids if params[:section].key?(:manager_ids)
+    @section.update!(updates)
     render json: section_json(@section)
   end
 
@@ -41,7 +46,18 @@ class Api::V1::Accounts::Crm::DocSectionsController < Api::V1::Accounts::Crm::Ba
   private
 
   def section_json(section)
-    { id: section.id, name: section.name, department_ids: section.department_ids }
+    {
+      id: section.id, name: section.name, department_ids: section.department_ids,
+      manager_ids: section.manager_ids,
+      manager_names: User.where(id: section.manager_ids).pluck(:name),
+      is_default: Crm::DocSection::DEFAULT_SECTIONS.include?(section.name)
+    }
+  end
+
+  # 负责人名单仅接受本账号成员的 user_id。
+  def sanitized_manager_ids
+    ids = Array(params.dig(:section, :manager_ids)).map(&:to_i).uniq
+    Current.account.account_users.where(user_id: ids).pluck(:user_id)
   end
 
   def manage_all?

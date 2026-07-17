@@ -5,15 +5,21 @@ class Crm::DocSectionPolicy < ApplicationPolicy
   end
 
   def update?
-    @account_user.administrator?
+    admin_like?
   end
 
   def create?
-    @account_user.administrator?
+    admin_like?
   end
 
   def destroy?
-    @account_user.administrator?
+    admin_like?
+  end
+
+  private
+
+  def admin_like?
+    @account_user.administrator? || @account_user.crm_deputy_admin?
   end
 end
 

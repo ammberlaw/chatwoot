@@ -9,7 +9,6 @@
 #  category        :string
 #  discarded_at    :datetime
 #  library         :string           default("SALES"), not null
-#  manager_ids     :bigint           default([]), not null, is an Array
 #  name            :string           not null
 #  scope           :string           default("PERSONAL"), not null
 #  summary         :string

@@ -330,11 +330,7 @@
         "BODY": "正文",
         "SECTION": "资料板块"
       },
-      "OWNER": {
-        "LABEL": "文档负责人",
-        "NONE": "未指定",
-        "DOC_HINT": "可勾选多人；负责人可编辑、删除该文档及管理附件"
-      },
+
       "DELETE": {
         "LABEL": "删除",
         "CONFIRM": "确定删除文档「{name}」？删除后不可恢复。",
@@ -357,7 +353,14 @@
         "CONFIRM_DELETE": "确认删除",
         "DELETED": "板块已删除",
         "DELETE_ERROR": "删除失败",
-        "DELETE_NOTE": "默认板块不可删除；删除自定义板块后，其中的文档会回到「未分板块」。"
+        "DELETE_NOTE": "默认板块不可删除；删除自定义板块后，其中的文档会回到「未分板块」。",
+        "OWNER": "板块负责人",
+        "OWNER_NONE": "未设置",
+        "OWNER_SET": "设置负责人",
+        "OWNER_HINT": "板块负责人（可多人）可编辑、删除、新增该板块下的所有公司文档。",
+        "OWNER_SEARCH": "搜索成员姓名/邮箱",
+        "OWNER_SAVED": "板块负责人已保存",
+        "OWNER_ERROR": "保存失败"
       },
       "RECYCLE": {
         "TAB": "回收站",

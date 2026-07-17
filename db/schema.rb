@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_17_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_17_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -920,6 +920,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_17_130000) do
     t.bigint "department_ids", default: [], null: false, array: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "manager_ids", default: [], null: false, array: true
     t.index ["account_id", "name"], name: "index_crm_doc_sections_on_account_id_and_name", unique: true
     t.index ["account_id"], name: "index_crm_doc_sections_on_account_id"
   end
@@ -1109,7 +1110,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_17_130000) do
     t.bigint "section_id"
     t.datetime "discarded_at"
     t.bigint "discarded_by_id"
-    t.bigint "manager_ids", default: [], null: false, array: true
     t.index ["account_id", "category"], name: "index_crm_knowledge_docs_on_account_id_and_category"
     t.index ["account_id", "discarded_at"], name: "index_crm_knowledge_docs_on_account_id_and_discarded_at"
     t.index ["account_id", "library"], name: "index_crm_knowledge_docs_on_account_id_and_library"
