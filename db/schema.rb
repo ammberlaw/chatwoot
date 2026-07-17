@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_16_150000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_17_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -913,14 +913,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_150000) do
     t.index ["account_owner_id"], name: "index_crm_customers_on_account_owner_id"
   end
 
-  create_table "crm_doc_center_settings", force: :cascade do |t|
-    t.bigint "account_id", null: false
-    t.bigint "owner_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["account_id"], name: "index_crm_doc_center_settings_on_account_id", unique: true
-  end
-
   create_table "crm_doc_sections", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1117,6 +1109,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_150000) do
     t.bigint "section_id"
     t.datetime "discarded_at"
     t.bigint "discarded_by_id"
+    t.bigint "manager_ids", default: [], null: false, array: true
     t.index ["account_id", "category"], name: "index_crm_knowledge_docs_on_account_id_and_category"
     t.index ["account_id", "discarded_at"], name: "index_crm_knowledge_docs_on_account_id_and_discarded_at"
     t.index ["account_id", "library"], name: "index_crm_knowledge_docs_on_account_id_and_library"
@@ -2131,7 +2124,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_16_150000) do
   add_foreign_key "chat_participants", "chat_conversations", column: "conversation_id", on_delete: :cascade
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_customers", "accounts"
-  add_foreign_key "crm_doc_center_settings", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_email_opens", "crm_emails", on_delete: :cascade
   add_foreign_key "crm_emails", "contacts", on_delete: :nullify
   add_foreign_key "crm_emails", "crm_customers", on_delete: :nullify

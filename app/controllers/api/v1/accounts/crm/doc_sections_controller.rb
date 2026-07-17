@@ -45,8 +45,7 @@ class Api::V1::Accounts::Crm::DocSectionsController < Api::V1::Accounts::Crm::Ba
   end
 
   def manage_all?
-    Current.account_user.administrator? || Current.account_user.crm_deputy_admin? ||
-      Crm::DocCenterSetting.for_account(Current.account).owner_id == current_user.id
+    Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
   end
 
   def check_authorization

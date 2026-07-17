@@ -11,7 +11,6 @@ import { emitter } from 'shared/helpers/mitt';
 import { useCrmKnowledgeDocsStore } from 'dashboard/stores/crm/knowledgeDocs';
 import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCategories';
 import CrmMemberAPI from 'dashboard/api/crm/members';
-import DocCenterSettingsAPI from 'dashboard/api/crm/docCenterSettings';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -37,19 +36,9 @@ const isGeneral = computed(() => currentLibrary.value === 'GENERAL');
 // ── 权限：公司文档管理权=管理员/副管理员/部门负责人（文档中心另加指定负责人）；其他人只能浏览下载 ──
 const currentUserId = useMapGetter('getCurrentUserID');
 const { isAdmin, isCrmDeputyAdmin, isCrmManager } = useCrmRole();
-const docCenterOwnerId = ref(null);
-const docCenterOwnerName = ref('');
 const members = ref([]);
 
-const fetchDocCenterSetting = async () => {
-  try {
-    const { data } = await DocCenterSettingsAPI.get();
-    docCenterOwnerId.value = data.owner_id;
-    docCenterOwnerName.value = data.owner_name || '';
-  } catch {
-    docCenterOwnerId.value = null;
-  }
-};
+// 成员列表：供「文档负责人」多选（仅超管/管理员分配）。
 const fetchMembers = async () => {
   try {
     const { data } = await CrmMemberAPI.get();
@@ -58,28 +47,11 @@ const fetchMembers = async () => {
     members.value = [];
   }
 };
-const memberOptions = computed(() => [
-  { value: '', label: t('CRM.KNOWLEDGE_DOCS.OWNER.NONE') },
-  ...members.value.map(m => ({ value: String(m.user_id), label: m.name })),
-]);
-const setDocCenterOwner = async value => {
-  try {
-    await DocCenterSettingsAPI.updateSetting({
-      setting: { owner_id: value || null },
-    });
-    await fetchDocCenterSetting();
-    useAlert(t('CRM.KNOWLEDGE_DOCS.OWNER.SAVED'));
-  } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.OWNER.SAVE_ERROR'));
-  }
-};
+
+const isAdminLike = computed(() => isAdmin.value || isCrmDeputyAdmin.value);
 
 const canManageCompany = computed(
-  () =>
-    isAdmin.value ||
-    isCrmDeputyAdmin.value ||
-    isCrmManager.value ||
-    (isGeneral.value && docCenterOwnerId.value === currentUserId.value)
+  () => isAdminLike.value || isCrmManager.value
 );
 
 // 我的资料视图：看板列是个人分类，人人可自建自管；公司视图的分类仍按公司管理权。
@@ -201,14 +173,17 @@ const saveSectionVisibility = async () => {
     savingSections.value = false;
   }
 };
-// 个人文档归属人可管；公司文档按上面的管理权。
-const canManageDoc = doc =>
-  doc?.scope === 'PERSONAL'
-    ? doc.ownerId === currentUserId.value
-    : canManageCompany.value;
-// 新建入口：文档中心仅管理员/负责人；销售资料人人可建（业务员建的是个人文档）。
+// 个人文档归属人可管；文档中心公司文档=超管/管理员+该文档负责人（多人）；销售资料公司文档另放开部门负责人。
+const canManageDoc = doc => {
+  if (doc?.scope === 'PERSONAL') return doc.ownerId === currentUserId.value;
+  if (isAdminLike.value) return true;
+  if (isGeneral.value)
+    return (doc?.managerIds || []).includes(currentUserId.value);
+  return isCrmManager.value;
+};
+// 新建入口：文档中心仅超管/管理员（负责人维护既有文档）；销售资料人人可建（业务员建的是个人文档）。
 const canCreateDocs = computed(() =>
-  isGeneral.value ? canManageCompany.value : true
+  isGeneral.value ? isAdminLike.value : true
 );
 
 const records = computed(() => store.getRecords);
@@ -447,6 +422,7 @@ const editForm = reactive({
   sectionId: '',
   summary: '',
   body: '',
+  managerIds: [],
 });
 
 const AUDIT_FIELD_LABELS = {
@@ -476,6 +452,13 @@ const resetForm = (category = '') => {
   editForm.sectionId = activeSectionId.value || '';
   editForm.summary = '';
   editForm.body = '';
+  editForm.managerIds = [];
+};
+
+const toggleDocManager = userId => {
+  const idx = editForm.managerIds.indexOf(userId);
+  if (idx >= 0) editForm.managerIds.splice(idx, 1);
+  else editForm.managerIds.push(userId);
 };
 
 const openPanel = doc => {
@@ -520,6 +503,7 @@ const startEdit = () => {
   editForm.sectionId = doc.sectionId ? String(doc.sectionId) : '';
   editForm.summary = doc.summary || '';
   editForm.body = doc.body || '';
+  editForm.managerIds = [...(doc.managerIds || [])];
   panelMode.value = 'edit';
 };
 const cancelForm = () => {
@@ -538,6 +522,9 @@ const saveForm = async () => {
     sectionId: isGeneral.value ? editForm.sectionId || null : null,
     summary: editForm.summary.trim() || null,
     body: editForm.body || null,
+    ...(isGeneral.value && isAdminLike.value
+      ? { managerIds: editForm.managerIds }
+      : {}),
   };
   try {
     if (isCreate.value) {
@@ -687,9 +674,8 @@ const removeDoc = async () => {
 
 const fetchPermissionContext = () => {
   if (!isGeneral.value) return;
-  fetchDocCenterSetting();
   fetchSections();
-  if (isAdmin.value) fetchMembers();
+  if (isAdminLike.value) fetchMembers();
 };
 
 onMounted(() => {
@@ -735,21 +721,6 @@ watch(
           </p>
         </div>
         <div class="flex items-center gap-3">
-          <!-- 文档中心负责人：管理员可指定，其他人只读展示 -->
-          <template v-if="isGeneral">
-            <span class="text-xs text-n-slate-10">
-              {{ t('CRM.KNOWLEDGE_DOCS.OWNER.LABEL') }}
-            </span>
-            <Select
-              v-if="isAdmin"
-              :model-value="docCenterOwnerId ? String(docCenterOwnerId) : ''"
-              :options="memberOptions"
-              @update:model-value="setDocCenterOwner"
-            />
-            <span v-else class="text-xs font-medium text-n-slate-11">
-              {{ docCenterOwnerName || t('CRM.KNOWLEDGE_DOCS.OWNER.NONE') }}
-            </span>
-          </template>
           <Button
             v-if="canCreateDocs && !isRecycle"
             :label="t('CRM.KNOWLEDGE_DOCS.NEW')"
@@ -1135,6 +1106,28 @@ watch(
               </span>
             </div>
 
+            <!-- 文档负责人（文档中心公司文档） -->
+            <div
+              v-if="isGeneral && selectedDoc.scope === 'COMPANY'"
+              class="flex flex-wrap items-center gap-1.5"
+            >
+              <span class="text-xs font-medium text-n-slate-10">
+                {{ t('CRM.KNOWLEDGE_DOCS.OWNER.LABEL') }}
+              </span>
+              <template v-if="(selectedDoc.managerNames || []).length">
+                <span
+                  v-for="name in selectedDoc.managerNames"
+                  :key="name"
+                  class="px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-12"
+                >
+                  {{ name }}
+                </span>
+              </template>
+              <span v-else class="text-xs text-n-slate-10">
+                {{ t('CRM.KNOWLEDGE_DOCS.OWNER.NONE') }}
+              </span>
+            </div>
+
             <div>
               <div class="mb-1 text-xs font-medium text-n-slate-10">
                 {{ t('CRM.KNOWLEDGE_DOCS.PANEL.SUMMARY') }}
@@ -1262,6 +1255,37 @@ watch(
                 v-model="editForm.sectionId"
                 :options="sectionFormOptions"
               />
+            </div>
+            <!-- 文档负责人（可多人）：仅超管/管理员分配；负责人可编辑/删除该文档 -->
+            <div
+              v-if="isGeneral && isAdminLike"
+              class="flex flex-col min-w-0 gap-1"
+            >
+              <label class="mb-0.5 text-heading-3 text-n-slate-12">
+                {{ t('CRM.KNOWLEDGE_DOCS.OWNER.LABEL') }}
+              </label>
+              <p class="mb-1 text-xs text-n-slate-10">
+                {{ t('CRM.KNOWLEDGE_DOCS.OWNER.DOC_HINT') }}
+              </p>
+              <div
+                class="flex flex-col gap-1 p-2 overflow-y-auto border rounded-lg max-h-36 border-n-weak"
+              >
+                <label
+                  v-for="m in members"
+                  :key="m.user_id"
+                  class="flex items-center gap-2 px-1.5 py-1 rounded cursor-pointer hover:bg-n-alpha-1"
+                >
+                  <input
+                    type="checkbox"
+                    class="accent-n-brand"
+                    :checked="editForm.managerIds.includes(m.user_id)"
+                    @change="toggleDocManager(m.user_id)"
+                  />
+                  <span class="text-sm truncate text-n-slate-12">
+                    {{ m.name }}
+                  </span>
+                </label>
+              </div>
             </div>
             <Input
               v-model="editForm.summary"

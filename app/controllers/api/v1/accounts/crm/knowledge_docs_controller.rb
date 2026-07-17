@@ -15,10 +15,10 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
 
   def show; end
 
-  # 个人文档任何人可建（归属自己）；公司文档需相应管理权（见 company_docs_manageable?）。
+  # 个人文档任何人可建（归属自己）；公司文档需相应创建权（见 company_docs_creatable?）。
   def create
     attrs = doc_params
-    return render_forbidden if attrs[:scope] == 'COMPANY' && !company_docs_manageable?(attrs[:library].presence || 'SALES')
+    return render_forbidden if attrs[:scope] == 'COMPANY' && !company_docs_creatable?(attrs[:library].presence || 'SALES')
 
     @doc = Current.account.crm_knowledge_docs.create!(
       sync_sales_section(attrs).merge(owner_id: current_user.id, scope: attrs[:scope].presence || 'PERSONAL')
@@ -109,7 +109,7 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   end
 
   def section_visible?(section_id)
-    return true if admin_like? || doc_center_owner?
+    return true if admin_like?
 
     visible_section_ids.include?(section_id)
   end
@@ -122,8 +122,8 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     authorize(Crm::KnowledgeDoc)
   end
 
-  # 编辑/删除/附件权限：个人文档仅归属人；公司文档=管理员/副管理员/部门负责人
-  # （文档中心 GENERAL 库另加指定负责人）；其他成员只能浏览下载。
+  # 编辑/删除/附件权限：个人文档仅归属人；文档中心（GENERAL）公司文档=超管/管理员+该文档负责人（可多人）；
+  # 销售资料（SALES）公司文档=超管/管理员/部门负责人；其他成员只能浏览下载。
   def ensure_doc_manageable
     return if doc_manageable?(@doc)
 
@@ -132,22 +132,24 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
 
   def doc_manageable?(doc)
     return doc.owner_id == current_user.id if doc.scope == 'PERSONAL'
+    return true if admin_like?
 
-    company_docs_manageable?(doc.library)
+    if doc.library == 'GENERAL'
+      doc.manager_ids.include?(current_user.id)
+    else
+      Current.account_user.crm_manager?
+    end
   end
 
-  def company_docs_manageable?(library)
-    return true if admin_like? || Current.account_user.crm_manager?
+  # 新建公司文档：GENERAL 仅超管/管理员（负责人管既有文档）；SALES 另放开部门负责人。
+  def company_docs_creatable?(library)
+    return true if admin_like?
 
-    library == 'GENERAL' && doc_center_owner?
+    library != 'GENERAL' && Current.account_user.crm_manager?
   end
 
   def admin_like?
     Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
-  end
-
-  def doc_center_owner?
-    @doc_center_owner ||= Crm::DocCenterSetting.for_account(Current.account).owner_id == current_user.id
   end
 
   def render_forbidden
@@ -167,7 +169,7 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   def section_scoped(scope)
     if params[:library] == 'GENERAL'
       scope = scope.where(library: 'GENERAL').or(scope.where(library: 'SALES', scope: 'COMPANY'))
-      scope = scope.where(section_id: [nil] + visible_section_ids) unless admin_like? || doc_center_owner?
+      scope = scope.where(section_id: [nil] + visible_section_ids) unless admin_like?
     elsif params[:library].present?
       scope = scope.in_library(params[:library])
     end
@@ -200,12 +202,22 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   end
 
   def doc_params
-    params.require(:doc).permit(:name, :category, :summary, :scope, :library, :section_id, :body, files: [])
+    attrs = params.require(:doc).permit(:name, :category, :summary, :scope, :library, :section_id, :body, files: [], manager_ids: [])
+    # 文档负责人仅超管/管理员可指定；名单过滤为本账号成员。
+    if attrs.key?(:manager_ids)
+      if admin_like?
+        ids = Array(attrs[:manager_ids]).map(&:to_i).uniq
+        attrs[:manager_ids] = Current.account.account_users.where(user_id: ids).pluck(:user_id)
+      else
+        attrs = attrs.except(:manager_ids)
+      end
+    end
+    attrs
   end
 
-  # 编辑时个人文档不可自行升级为公司文档（越权发布）；有公司文档管理权的可调整范围。
+  # 编辑时个人文档不可自行升级为公司文档（越权发布）；公司文档（已过 ensure_doc_manageable）可调整范围。
   def update_params
-    return doc_params if company_docs_manageable?(@doc.library)
+    return doc_params if @doc.scope == 'COMPANY'
 
     doc_params.except(:scope, :library)
   end
