@@ -122,6 +122,15 @@ const menuItems = computed(() => {
     {
       show: true,
       showOnCustomBrandedInstance: true,
+      label: t('SIDEBAR_ITEMS.USER_GUIDE'),
+      icon: 'i-lucide-book-open',
+      link: '/wintouch-crm-guide.html',
+      nativeLink: true,
+      target: '_blank',
+    },
+    {
+      show: true,
+      showOnCustomBrandedInstance: true,
       label: t('SIDEBAR_ITEMS.LOGOUT'),
       icon: 'i-lucide-power',
       click: Auth.logout,
