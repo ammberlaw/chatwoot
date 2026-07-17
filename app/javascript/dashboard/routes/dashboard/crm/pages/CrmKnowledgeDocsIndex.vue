@@ -770,9 +770,9 @@ watch(
           :color="activeFilter === tab.key ? 'iris' : 'slate'"
           @click="setFilter(tab.key)"
         />
-        <!-- 文档中心：板块经侧边栏切换；此处仅管理员的可见性设置入口 -->
+        <!-- 文档中心：板块（文件夹）管理入口——新增/删除自定义板块、按部门配置可见性 -->
         <Button
-          v-if="isGeneral && isAdmin"
+          v-if="isGeneral && (isAdmin || isCrmDeputyAdmin)"
           size="sm"
           variant="faded"
           color="slate"
