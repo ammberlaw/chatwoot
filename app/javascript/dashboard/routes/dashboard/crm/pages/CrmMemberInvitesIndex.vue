@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import InvitesAPI from 'dashboard/api/crm/memberInvites';
+import MembersAPI from 'dashboard/api/crm/members';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -27,6 +28,8 @@ const L = {
   days30: '30 天',
   generate: '生成邀请链接',
   copied: '邀请链接已复制，发给对方即可',
+  createdNoCopy: '邀请已生成，请在下方列表点「复制链接」',
+  manualCopy: '自动复制不可用，请手动复制以下链接：',
   copy: '复制链接',
   copyOk: '已复制',
   revoke: '作废',
@@ -42,6 +45,20 @@ const L = {
   statusPending: '待加入',
   statusUsed: '已加入',
   statusExpired: '已过期',
+  directHeader: '直接新建成员',
+  directHint:
+    '不发链接：管理员直接设定账号密码，创建后立即可登录；账号密码会自动复制，发给对方即可。',
+  directName: '姓名',
+  directNamePlaceholder: '如：王小明',
+  directEmail: '登录邮箱',
+  directEmailPlaceholder: 'name@company.com',
+  directPassword: '初始密码',
+  directPasswordPlaceholder: '至少 8 位含大小写/数字/符号',
+  genPassword: '随机',
+  directCreate: '新建成员',
+  directCreated: '成员已创建，账号密码已复制，发给对方即可',
+  directCreatedNoCopy: '成员已创建（自动复制不可用，请手动记录账号密码）',
+  directRequired: '请填写姓名、登录邮箱和初始密码',
 };
 
 const ROLE_LABELS = {
@@ -147,9 +164,32 @@ const fetchDepartments = async () => {
   }
 };
 
+// HTTP 环境（生产暂无 HTTPS）没有 navigator.clipboard，退回 execCommand 复制。
+const copyText = async text => {
+  if (navigator.clipboard) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const holder = document.createElement('textarea');
+  holder.value = text;
+  holder.setAttribute('readonly', '');
+  holder.style.position = 'fixed';
+  holder.style.opacity = '0';
+  document.body.appendChild(holder);
+  holder.select();
+  const ok = document.execCommand('copy');
+  holder.remove();
+  if (!ok) throw new Error('copy unsupported');
+};
+
 const copyLink = async invite => {
-  await navigator.clipboard.writeText(joinUrl(invite));
-  useAlert(L.copyOk);
+  try {
+    await copyText(joinUrl(invite));
+    useAlert(L.copyOk);
+  } catch {
+    // eslint-disable-next-line no-alert
+    window.prompt(L.manualCopy, joinUrl(invite));
+  }
 };
 
 const createInvite = async () => {
@@ -166,8 +206,13 @@ const createInvite = async () => {
     });
     invites.value.unshift(data);
     form.value.note = '';
-    await navigator.clipboard.writeText(joinUrl(data));
-    useAlert(L.copied);
+    // 复制失败不算生成失败（HTTP 环境剪贴板受限时列表里仍可手动复制）。
+    try {
+      await copyText(joinUrl(data));
+      useAlert(L.copied);
+    } catch {
+      useAlert(L.createdNoCopy);
+    }
   } catch {
     useAlert(L.error);
   } finally {
@@ -195,6 +240,63 @@ const toggleModule = key => {
   const idx = form.value.modules.indexOf(key);
   if (idx >= 0) form.value.modules.splice(idx, 1);
   else form.value.modules.push(key);
+};
+
+// ---- 直接新建成员（免链接） ----
+const DIRECT_FORM_DEFAULTS = {
+  name: '',
+  email: '',
+  password: '',
+  systemRole: 'sales',
+  departmentId: '',
+};
+const directForm = ref({ ...DIRECT_FORM_DEFAULTS });
+const creatingDirect = ref(false);
+
+// 生成满足密码策略（大小写+数字+特殊字符）的 12 位随机密码。
+const genPassword = () => {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghjkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const special = '@#%!*';
+  const all = upper + lower + digits + special;
+  const pick = pool => pool[Math.floor(Math.random() * pool.length)];
+  let password = pick(upper) + pick(lower) + pick(digits) + pick(special);
+  for (let i = 0; i < 8; i += 1) password += pick(all);
+  directForm.value.password = password;
+};
+
+const createDirect = async () => {
+  const f = directForm.value;
+  if (!f.name.trim() || !f.email.trim() || !f.password) {
+    useAlert(L.directRequired);
+    return;
+  }
+  creatingDirect.value = true;
+  try {
+    await MembersAPI.create({
+      member: {
+        name: f.name.trim(),
+        email: f.email.trim(),
+        password: f.password,
+        system_role: f.systemRole,
+        module_access: ['crm', 'erp', 'mes'],
+        department_id: f.departmentId || null,
+      },
+    });
+    const creds = `地址：${window.location.origin}\n账号：${f.email.trim()}\n密码：${f.password}`;
+    directForm.value = { ...DIRECT_FORM_DEFAULTS };
+    try {
+      await copyText(creds);
+      useAlert(L.directCreated);
+    } catch {
+      useAlert(L.directCreatedNoCopy);
+    }
+  } catch (e) {
+    useAlert(e?.response?.data?.error || L.error);
+  } finally {
+    creatingDirect.value = false;
+  }
 };
 
 onMounted(() => {
@@ -272,6 +374,78 @@ onMounted(() => {
           :is-loading="creating"
           @click="createInvite"
         />
+      </div>
+
+      <!-- 直接新建成员（免链接） -->
+      <div class="px-6 py-4 border-b border-n-weak">
+        <p class="text-xs font-medium text-n-slate-11">
+          {{ L.directHeader }}
+          <span class="ml-2 font-normal text-n-slate-10">
+            {{ L.directHint }}
+          </span>
+        </p>
+        <div class="flex flex-wrap items-end gap-4 mt-3">
+          <div class="flex flex-col gap-1 w-32">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ L.directName }}
+            </span>
+            <Input
+              v-model="directForm.name"
+              :placeholder="L.directNamePlaceholder"
+            />
+          </div>
+          <div class="flex flex-col gap-1 w-52">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ L.directEmail }}
+            </span>
+            <Input
+              v-model="directForm.email"
+              :placeholder="L.directEmailPlaceholder"
+            />
+          </div>
+          <div class="flex flex-col gap-1 w-48">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ L.directPassword }}
+            </span>
+            <div class="flex items-center gap-1">
+              <Input
+                v-model="directForm.password"
+                :placeholder="L.directPasswordPlaceholder"
+              />
+              <Button
+                type="button"
+                :label="L.genPassword"
+                size="sm"
+                variant="faded"
+                color="slate"
+                @click="genPassword"
+              />
+            </div>
+          </div>
+          <div class="flex flex-col gap-1 w-36">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ L.role }}
+            </span>
+            <Select v-model="directForm.systemRole" :options="ROLE_OPTIONS" />
+          </div>
+          <div class="flex flex-col gap-1 w-40">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ L.department }}
+            </span>
+            <Select
+              v-model="directForm.departmentId"
+              :options="departmentOptions"
+            />
+          </div>
+          <Button
+            type="button"
+            :label="L.directCreate"
+            icon="i-lucide-user-plus"
+            color="iris"
+            :is-loading="creatingDirect"
+            @click="createDirect"
+          />
+        </div>
       </div>
 
       <!-- 邀请列表 -->

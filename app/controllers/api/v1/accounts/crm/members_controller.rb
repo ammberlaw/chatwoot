@@ -21,6 +21,21 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     @members = scope.order('users.name')
   end
 
+  # 直接新建成员（免邀请链接）：建号即生效，跳过邮箱确认。仅超管/管理员。
+  def create
+    error = direct_create_error
+    return render json: { error: error[:message] }, status: error[:status] if error
+
+    ActiveRecord::Base.transaction do
+      user = build_direct_user(direct_email)
+      @member = Current.account.account_users.create!(direct_member_attrs(user))
+      create_primary_membership(user)
+    end
+    render :show
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { error: friendly_invalid_message(e.record) }, status: :unprocessable_entity
+  end
+
   def update
     # 防自锁：不能修改自己的角色/权限（降级自己可能失去管理入口）。
     return render json: { error: '不能修改自己的角色' }, status: :unprocessable_entity if @member.id == Current.account_user.id
@@ -101,6 +116,45 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     return false if Current.account_user.administrator?
 
     @member.administrator? || params[:member][:system_role].to_s == 'administrator'
+  end
+
+  def create_escalation_attempt?
+    !Current.account_user.administrator? && params[:member][:system_role].to_s == 'administrator'
+  end
+
+  def direct_create_error
+    return { message: '仅超级管理员或管理员可新建成员', status: :forbidden } unless admin_like?
+    return { message: '仅超级管理员可新建超级管理员', status: :forbidden } if create_escalation_attempt?
+    return { message: '无效的角色', status: :unprocessable_entity } if SYSTEM_ROLE_MAP[params[:member][:system_role].to_s].nil?
+    return { message: '该邮箱已注册', status: :unprocessable_entity } if User.exists?(email: direct_email)
+
+    nil
+  end
+
+  def direct_email
+    @direct_email ||= params[:member][:email].to_s.strip.downcase
+  end
+
+  def direct_member_attrs(user)
+    role, crm_role = SYSTEM_ROLE_MAP.fetch(params[:member][:system_role].to_s)
+    { user_id: user.id, role: role, crm_role: crm_role, module_access: normalized_modules, inviter_id: current_user.id }
+  end
+
+  def build_direct_user(email)
+    user = User.new(name: params[:member][:name].to_s.strip, email: email,
+                    password: params[:member][:password], password_confirmation: params[:member][:password])
+    user.skip_confirmation!
+    user.save!
+    user
+  end
+
+  def create_primary_membership(user)
+    department_id = params[:member][:department_id].presence
+    return if department_id.blank?
+
+    department = Current.account.org_departments.find(department_id)
+    Org::Membership.create!(account_id: Current.account.id, department_id: department.id,
+                            user_id: user.id, is_primary: true)
   end
 
   # system_role 未传 → 不改角色（空 hash）；传了但非法 → nil（422）。

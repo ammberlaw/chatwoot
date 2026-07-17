@@ -120,7 +120,7 @@ Rails.application.routes.draw do
             resource :my_target, only: [:show], controller: 'my_target'
             resources :mail_accounts
             resources :email_templates
-            resources :members, only: [:index, :update]
+            resources :members, only: [:index, :create, :update]
             resources :member_invites, only: [:index, :create, :destroy]
             resources :kpi_schemes do
               member { post :distribute }
