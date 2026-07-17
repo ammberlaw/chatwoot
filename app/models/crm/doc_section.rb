@@ -1,17 +1,17 @@
-# 文档中心资料板块。department_ids 为可见部门白名单（含其下级部门），空 = 全员可见。
+# 文档中心资料板块。viewer_ids 为可见成员白名单，空 = 全员可见（如人事/财务资料只给两三个人看）。
 # 默认 9 个板块随首次访问自动创建；可见性仅管理员可配置。
 # == Schema Information
 #
 # Table name: crm_doc_sections
 #
-#  id             :bigint           not null, primary key
-#  department_ids :bigint           default([]), not null, is an Array
-#  manager_ids    :bigint           default([]), not null, is an Array
-#  name           :string           not null
-#  position       :integer          default(0), not null
-#  created_at     :datetime         not null
-#  updated_at     :datetime         not null
-#  account_id     :bigint           not null
+#  id          :bigint           not null, primary key
+#  manager_ids :bigint           default([]), not null, is an Array
+#  name        :string           not null
+#  position    :integer          default(0), not null
+#  viewer_ids  :bigint           default([]), not null, is an Array
+#  created_at  :datetime         not null
+#  updated_at  :datetime         not null
+#  account_id  :bigint           not null
 #
 # Indexes
 #
@@ -47,14 +47,19 @@ class Crm::DocSection < ApplicationRecord
     end
   end
 
-  # 当前用户可见的板块 id：白名单为空全员可见；否则须属于白名单部门（含下级）。
-  def self.visible_ids_for(account, user_id)
-    user_dept_ids = account.org_memberships.where(user_id: user_id).pluck(:department_id)
-    where(account_id: account.id).filter_map do |section|
-      next section.id if section.department_ids.blank?
+  # 可见成员（可多人）：白名单为空则全员可见。
+  def viewer?(user_id)
+    viewer_ids.blank? || viewer_ids.include?(user_id)
+  end
 
-      allowed = Org::Department.subtree_ids(account, section.department_ids)
-      section.id if allowed.intersect?(user_dept_ids)
+  def viewers
+    User.where(id: viewer_ids)
+  end
+
+  # 当前用户可见的板块 id：可见成员白名单为空=全员可见；否则须在名单内。
+  def self.visible_ids_for(account, user_id)
+    where(account_id: account.id).filter_map do |section|
+      section.id if section.viewer?(user_id)
     end
   end
 end

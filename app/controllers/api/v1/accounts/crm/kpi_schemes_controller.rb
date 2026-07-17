@@ -6,7 +6,7 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
 
   def index
     @schemes = Current.account.crm_kpi_schemes
-                      .includes(:scheme_items, :payout_tiers)
+                      .includes(:scheme_items, :payout_tiers, :created_by)
                       .order(scheme_month: :desc)
   end
 
@@ -14,6 +14,7 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
 
   def create
     @scheme = Current.account.crm_kpi_schemes.new(scalar_params)
+    @scheme.created_by = Current.user
     assign_children(@scheme)
     @scheme.save!
   end

@@ -340,10 +340,8 @@
       "SECTION": {
         "NONE": "未分板块",
         "SETTINGS": "板块管理",
-        "SETTINGS_HINT": "为每个资料板块勾选可见部门（含其下级部门的成员）；全不勾选 = 全员可见。管理员与文档中心负责人始终可见全部板块。",
+        "MANAGE_HINT": "在此新增或删除自定义板块。各板块的「可见成员」在选中该板块后于顶部就地设置。",
         "ALL_VISIBLE": "未限制，全员可见",
-        "SAVED": "板块可见性已保存",
-        "SAVE_ERROR": "保存失败",
         "ADD_TITLE": "新增板块",
         "ADD_PLACEHOLDER": "输入新板块名称",
         "ADD": "添加",
@@ -360,7 +358,14 @@
         "OWNER_HINT": "板块负责人（可多人）可编辑、删除、新增该板块下的所有公司文档。",
         "OWNER_SEARCH": "搜索成员姓名/邮箱",
         "OWNER_SAVED": "板块负责人已保存",
-        "OWNER_ERROR": "保存失败"
+        "OWNER_ERROR": "保存失败",
+        "VIEWER": "可见范围",
+        "VIEWER_ALL": "全员可见",
+        "VIEWER_SET": "设置可见成员",
+        "VIEWER_HINT": "勾选可以查看该板块文档的成员；不勾选则全员可见。管理员与板块负责人始终可见。",
+        "VIEWER_SEARCH": "搜索成员姓名/邮箱",
+        "VIEWER_SAVED": "可见成员已更新",
+        "VIEWER_ERROR": "保存失败"
       },
       "RECYCLE": {
         "TAB": "回收站",
@@ -432,7 +437,8 @@
         "STATUS": "状态",
         "PASS_SCORE": "及格分",
         "ITEMS": "指标数",
-        "TIERS": "发放档数"
+        "TIERS": "发放档数",
+        "CREATOR": "创建人"
       },
       "FORM": {
         "NAME": "方案名称",

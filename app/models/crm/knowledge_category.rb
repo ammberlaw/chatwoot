@@ -9,13 +9,15 @@
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
 #  account_id :bigint           not null
+#  section_id :bigint
 #  user_id    :bigint
 #
 # Indexes
 #
-#  idx_crm_knowledge_cats_company_name           (account_id,name) UNIQUE WHERE (user_id IS NULL)
+#  idx_crm_knowledge_cats_company_name           (account_id, COALESCE(section_id, (0)::bigint), name) UNIQUE WHERE (user_id IS NULL)
 #  idx_crm_knowledge_cats_personal_name          (account_id,user_id,name) UNIQUE WHERE (user_id IS NOT NULL)
 #  index_crm_knowledge_categories_on_account_id  (account_id)
+#  index_crm_knowledge_categories_on_section_id  (section_id)
 #  index_crm_knowledge_categories_on_user_id     (user_id)
 #
 # Foreign Keys
@@ -27,9 +29,11 @@ class Crm::KnowledgeCategory < ApplicationRecord
   # 空=公司分类（管理员/负责人维护）；非空=个人分类（本人自建自管）。
   belongs_to :user, optional: true
 
-  validates :name, presence: true, uniqueness: { scope: [:account_id, :user_id] }
+  validates :name, presence: true, uniqueness: { scope: [:account_id, :user_id, :section_id] }
 
   scope :ordered, -> { order(:position, :id) }
   scope :company_scope, -> { where(user_id: nil) }
   scope :personal_of, ->(user_id) { where(user_id: user_id) }
+  # 公司分类按板块隔离：某板块（或聚合视图 section_id 为空）的分类列。
+  scope :for_section, ->(section_id) { where(section_id: section_id) }
 end

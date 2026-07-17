@@ -16,16 +16,23 @@
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
 #  account_id         :bigint           not null
+#  created_by_id      :bigint
 #
 # Indexes
 #
 #  index_crm_kpi_schemes_on_account_id                   (account_id)
 #  index_crm_kpi_schemes_on_account_id_and_scheme_month  (account_id,scheme_month)
+#  index_crm_kpi_schemes_on_created_by_id                (created_by_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (created_by_id => users.id) ON DELETE => nullify
 #
 class Crm::KpiScheme < ApplicationRecord
   STATUSES = %w[DRAFT PUBLISHED].freeze
 
   belongs_to :account
+  belongs_to :created_by, class_name: 'User', optional: true
   has_many :scheme_items, class_name: 'Crm::SchemeItem', foreign_key: :crm_kpi_scheme_id, dependent: :destroy, inverse_of: :scheme
   has_many :payout_tiers, class_name: 'Crm::PayoutTier', foreign_key: :crm_kpi_scheme_id, dependent: :destroy, inverse_of: :scheme
 

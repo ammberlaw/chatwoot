@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_17_150000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_18_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -917,10 +917,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_17_150000) do
     t.bigint "account_id", null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
-    t.bigint "department_ids", default: [], null: false, array: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "manager_ids", default: [], null: false, array: true
+    t.bigint "viewer_ids", default: [], null: false, array: true
     t.index ["account_id", "name"], name: "index_crm_doc_sections_on_account_id_and_name", unique: true
     t.index ["account_id"], name: "index_crm_doc_sections_on_account_id"
   end
@@ -1090,9 +1090,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_17_150000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id"
-    t.index ["account_id", "name"], name: "idx_crm_knowledge_cats_company_name", unique: true, where: "(user_id IS NULL)"
+    t.bigint "section_id"
+    t.index "account_id, COALESCE(section_id, (0)::bigint), name", name: "idx_crm_knowledge_cats_company_name", unique: true, where: "(user_id IS NULL)"
     t.index ["account_id", "user_id", "name"], name: "idx_crm_knowledge_cats_personal_name", unique: true, where: "(user_id IS NOT NULL)"
     t.index ["account_id"], name: "index_crm_knowledge_categories_on_account_id"
+    t.index ["section_id"], name: "index_crm_knowledge_categories_on_section_id"
     t.index ["user_id"], name: "index_crm_knowledge_categories_on_user_id"
   end
 
@@ -1130,8 +1132,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_17_150000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "result_note"
+    t.bigint "created_by_id"
     t.index ["account_id", "scheme_month"], name: "index_crm_kpi_schemes_on_account_id_and_scheme_month"
     t.index ["account_id"], name: "index_crm_kpi_schemes_on_account_id"
+    t.index ["created_by_id"], name: "index_crm_kpi_schemes_on_created_by_id"
   end
 
   create_table "crm_kpi_sheet_items", force: :cascade do |t|
@@ -2140,6 +2144,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_17_150000) do
   add_foreign_key "crm_knowledge_categories", "accounts"
   add_foreign_key "crm_knowledge_docs", "crm_doc_sections", column: "section_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_docs", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_kpi_schemes", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "crm_kpi_sheet_items", "crm_kpi_sheets", on_delete: :cascade
   add_foreign_key "crm_kpi_sheets", "crm_kpi_schemes", on_delete: :nullify
   add_foreign_key "crm_kpi_sheets", "users", column: "owner_id", on_delete: :nullify

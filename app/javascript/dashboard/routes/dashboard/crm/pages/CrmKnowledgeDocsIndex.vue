@@ -62,12 +62,20 @@ const canManageBoard = computed(
   () => isMineView.value || canManageCompany.value
 );
 
+// 当前侧栏选中的板块 id（?section_id= 驱动）；分类隔离与板块负责人展示都依赖它。
+const activeSectionId = ref(route.query.section_id || '');
+// 公司分类按板块隔离：SALES 库映射到「销售资料」板块，GENERAL 取当前板块（聚合视图无板块）。
+const sectionParam = () =>
+  isGeneral.value && activeSectionId.value ? activeSectionId.value : undefined;
 const fetchCategories = () =>
-  categoriesStore.get(isMineView.value ? { view: 'mine' } : {});
+  categoriesStore.get(
+    isMineView.value
+      ? { view: 'mine' }
+      : { library: currentLibrary.value, section_id: sectionParam() }
+  );
 
 // ── 资料板块（文档中心）：侧边栏子项经 ?section_id= 驱动切换；管理员可按部门配置各板块可见性 ──
 const sections = ref([]);
-const activeSectionId = ref(route.query.section_id || '');
 const fetchSections = async () => {
   try {
     const { data } = await DocSectionsAPI.get();
@@ -127,28 +135,58 @@ const saveSectionOwners = async () => {
   }
 };
 
-// 板块可见性设置弹窗（管理员）：每板块勾选可见部门，全不勾 = 全员可见
+// ── 板块可见成员（可多人）：空=全员可见；超管/管理员点「设置可见成员」搜索勾选 ──
+const viewerDialogRef = ref(null);
+const viewerDraftIds = ref([]);
+const viewerSearch = ref('');
+const savingViewers = ref(false);
+const viewerCandidates = computed(() => {
+  const kw = viewerSearch.value.trim().toLowerCase();
+  if (!kw) return members.value;
+  return members.value.filter(m =>
+    `${m.name} ${m.email}`.toLowerCase().includes(kw)
+  );
+});
+const openViewerDialog = () => {
+  if (!activeSection.value) return;
+  viewerDraftIds.value = [...(activeSection.value.viewer_ids || [])];
+  viewerSearch.value = '';
+  viewerDialogRef.value?.open();
+};
+const toggleViewer = userId => {
+  const idx = viewerDraftIds.value.indexOf(userId);
+  if (idx >= 0) viewerDraftIds.value.splice(idx, 1);
+  else viewerDraftIds.value.push(userId);
+};
+const saveSectionViewers = async () => {
+  if (!activeSection.value) return;
+  savingViewers.value = true;
+  try {
+    await DocSectionsAPI.updateSection(activeSection.value.id, {
+      section: { viewer_ids: viewerDraftIds.value },
+    });
+    await fetchSections();
+    emitter.emit('crmDocSectionsUpdated');
+    viewerDialogRef.value?.close();
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SAVED'));
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_ERROR'));
+  } finally {
+    savingViewers.value = false;
+  }
+};
+
+// 板块管理弹窗（管理员）：新增/删除自定义板块。可见性（可见成员）在各板块顶栏就地设置。
 const sectionDialogRef = ref(null);
-const departments = ref([]);
 const sectionDraft = ref([]);
-const savingSections = ref(false);
 const newSectionName = ref('');
 const addingSection = ref(false);
 const pendingSectionDeleteId = ref(null);
-const openSectionDialog = async () => {
-  try {
-    const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/org/departments`
-    );
-    departments.value = data.payload || [];
-  } catch {
-    departments.value = [];
-  }
+const openSectionDialog = () => {
   sectionDraft.value = sections.value.map(s => ({
     id: s.id,
     name: s.name,
     isDefault: s.is_default,
-    departmentIds: [...(s.department_ids || [])],
   }));
   newSectionName.value = '';
   pendingSectionDeleteId.value = null;
@@ -167,7 +205,6 @@ const addSection = async () => {
       id: data.id,
       name: data.name,
       isDefault: false,
-      departmentIds: [...(data.department_ids || [])],
     });
     newSectionName.value = '';
     await fetchSections();
@@ -193,30 +230,6 @@ const deleteSection = async draft => {
     useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.DELETED'));
   } catch {
     useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.DELETE_ERROR'));
-  }
-};
-const toggleSectionDept = (draft, deptId) => {
-  const idx = draft.departmentIds.indexOf(deptId);
-  if (idx >= 0) draft.departmentIds.splice(idx, 1);
-  else draft.departmentIds.push(deptId);
-};
-const saveSectionVisibility = async () => {
-  savingSections.value = true;
-  try {
-    await Promise.all(
-      sectionDraft.value.map(draft =>
-        DocSectionsAPI.updateSection(draft.id, {
-          section: { department_ids: draft.departmentIds },
-        })
-      )
-    );
-    await fetchSections();
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.SAVED'));
-    sectionDialogRef.value?.close();
-  } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.SAVE_ERROR'));
-  } finally {
-    savingSections.value = false;
   }
 };
 // 当前用户负责的板块 id 集合（板块负责人可管该板块下所有公司文档）。
@@ -664,6 +677,8 @@ const saveAdd = async () => {
       name,
       position: categories.value.length,
       personal: isMineView.value,
+      library: currentLibrary.value,
+      section_id: sectionParam(),
     });
     await fetchCategories();
   } catch {
@@ -802,36 +817,68 @@ watch(
         />
       </div>
 
-      <!-- 板块负责人：选中某板块时展示负责人（人人可见），超管/管理员可就地设置 -->
+      <!-- 板块负责人 + 可见范围：选中某板块时展示，超管/管理员可就地设置 -->
       <div
         v-if="isGeneral && activeSection && !isRecycle"
-        class="flex flex-wrap items-center gap-2 px-6 py-2.5 border-b border-n-weak bg-n-alpha-1/40"
+        class="flex flex-col gap-1.5 px-6 py-2.5 border-b border-n-weak bg-n-alpha-1/40"
       >
-        <span class="text-xs font-medium text-n-slate-11">
-          {{ activeSection.name }} · {{ t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER') }}
-        </span>
-        <template v-if="(activeSection.manager_names || []).length">
-          <span
-            v-for="name in activeSection.manager_names"
-            :key="name"
-            class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-12"
-          >
-            <span class="i-lucide-user-round size-3" />
-            {{ name }}
+        <!-- 负责人（能管该板块文档的人，人人可见） -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-medium text-n-slate-11">
+            {{ activeSection.name }} ·
+            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER') }}
           </span>
-        </template>
-        <span v-else class="text-xs text-n-slate-10">
-          {{ t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_NONE') }}
-        </span>
-        <Button
-          v-if="isAdmin || isCrmDeputyAdmin"
-          size="xs"
-          variant="ghost"
-          color="slate"
-          icon="i-lucide-pencil"
-          :label="t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_SET')"
-          @click="openOwnerDialog"
-        />
+          <template v-if="(activeSection.manager_names || []).length">
+            <span
+              v-for="name in activeSection.manager_names"
+              :key="name"
+              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-12"
+            >
+              <span class="i-lucide-user-round size-3" />
+              {{ name }}
+            </span>
+          </template>
+          <span v-else class="text-xs text-n-slate-10">
+            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_NONE') }}
+          </span>
+          <Button
+            v-if="isAdmin || isCrmDeputyAdmin"
+            size="xs"
+            variant="ghost"
+            color="slate"
+            icon="i-lucide-pencil"
+            :label="t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_SET')"
+            @click="openOwnerDialog"
+          />
+        </div>
+        <!-- 可见范围（可见成员白名单，空=全员可见） -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-medium text-n-slate-11">
+            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER') }}
+          </span>
+          <template v-if="(activeSection.viewer_names || []).length">
+            <span
+              v-for="name in activeSection.viewer_names"
+              :key="name"
+              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-12"
+            >
+              <span class="i-lucide-eye size-3" />
+              {{ name }}
+            </span>
+          </template>
+          <span v-else class="text-xs text-n-slate-10">
+            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_ALL') }}
+          </span>
+          <Button
+            v-if="isAdmin || isCrmDeputyAdmin"
+            size="xs"
+            variant="ghost"
+            color="slate"
+            icon="i-lucide-pencil"
+            :label="t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SET')"
+            @click="openViewerDialog"
+          />
+        </div>
       </div>
 
       <div
@@ -1422,26 +1469,25 @@ watch(
       </div>
     </aside>
 
-    <!-- 板块可见性设置（管理员）：每板块勾选可见部门，全不勾 = 全员可见 -->
+    <!-- 板块管理（管理员）：新增/删除自定义板块。可见性在各板块顶栏「设置可见成员」 -->
     <Dialog
       ref="sectionDialogRef"
-      width="2xl"
+      width="md"
       overflow-y-auto
       confirm-button-color="iris"
       :title="t('CRM.KNOWLEDGE_DOCS.SECTION.SETTINGS')"
-      :is-loading="savingSections"
-      @confirm="saveSectionVisibility"
+      @confirm="sectionDialogRef?.close()"
     >
       <p class="mb-4 text-xs text-n-slate-10">
-        {{ t('CRM.KNOWLEDGE_DOCS.SECTION.SETTINGS_HINT') }}
+        {{ t('CRM.KNOWLEDGE_DOCS.SECTION.MANAGE_HINT') }}
       </p>
       <div class="flex flex-col gap-4">
-        <div
-          v-for="draft in sectionDraft"
-          :key="draft.id"
-          class="flex flex-col gap-2 pb-3 border-b border-n-weak last:border-b-0"
-        >
-          <div class="flex items-center justify-between gap-2">
+        <div class="flex flex-col">
+          <div
+            v-for="draft in sectionDraft"
+            :key="draft.id"
+            class="flex items-center justify-between gap-2 py-1.5 border-b border-n-weak last:border-b-0"
+          >
             <div class="text-sm font-medium text-n-slate-12">
               {{ draft.name }}
             </div>
@@ -1462,26 +1508,6 @@ watch(
                   : t('CRM.KNOWLEDGE_DOCS.SECTION.DELETE')
               }}
             </button>
-          </div>
-          <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-            <label
-              v-for="dept in departments"
-              :key="dept.id"
-              class="flex items-center gap-1.5 text-sm text-n-slate-11"
-            >
-              <input
-                type="checkbox"
-                :checked="draft.departmentIds.includes(dept.id)"
-                @change="toggleSectionDept(draft, dept.id)"
-              />
-              {{ dept.name }}
-            </label>
-            <span
-              v-if="!draft.departmentIds.length"
-              class="text-xs self-center text-n-slate-10"
-            >
-              {{ t('CRM.KNOWLEDGE_DOCS.SECTION.ALL_VISIBLE') }}
-            </span>
           </div>
         </div>
 
@@ -1547,6 +1573,53 @@ watch(
               class="accent-n-brand"
               :checked="ownerDraftIds.includes(m.user_id)"
               @change="toggleOwner(m.user_id)"
+            />
+            <span class="flex-1 min-w-0">
+              <span class="block text-sm truncate text-n-slate-12">
+                {{ m.name }}
+              </span>
+              <span class="block text-xs truncate text-n-slate-10">
+                {{ m.email }}
+              </span>
+            </span>
+          </label>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 板块可见成员设置（超管/管理员）：搜索勾选成员，空=全员可见 -->
+    <Dialog
+      ref="viewerDialogRef"
+      confirm-button-color="iris"
+      :title="
+        activeSection
+          ? `${activeSection.name} · ${t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SET')}`
+          : t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SET')
+      "
+      :is-loading="savingViewers"
+      @confirm="saveSectionViewers"
+    >
+      <div class="flex flex-col gap-3">
+        <p class="text-xs text-n-slate-10">
+          {{ t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_HINT') }}
+        </p>
+        <Input
+          v-model="viewerSearch"
+          :placeholder="t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SEARCH')"
+        />
+        <div
+          class="flex flex-col gap-1 p-2 overflow-y-auto border rounded-lg max-h-64 border-n-weak"
+        >
+          <label
+            v-for="m in viewerCandidates"
+            :key="m.user_id"
+            class="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-n-alpha-1"
+          >
+            <input
+              type="checkbox"
+              class="accent-n-brand"
+              :checked="viewerDraftIds.includes(m.user_id)"
+              @change="toggleViewer(m.user_id)"
             />
             <span class="flex-1 min-w-0">
               <span class="block text-sm truncate text-n-slate-12">

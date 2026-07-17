@@ -152,6 +152,9 @@ const fmtMonth = value => {
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.KPI_SCHEMES.TABLE.TIERS') }}
             </th>
+            <th class="px-3 py-2 font-medium">
+              {{ t('CRM.KPI_SCHEMES.TABLE.CREATOR') }}
+            </th>
             <th v-if="canManage" class="px-3 py-2" />
           </tr>
         </thead>
@@ -189,6 +192,9 @@ const fmtMonth = value => {
             </td>
             <td class="px-3 py-2 text-n-slate-11">
               {{ (record.payoutTiers || []).length }}
+            </td>
+            <td class="px-3 py-2 text-n-slate-11">
+              {{ record.createdByName || '—' }}
             </td>
             <td v-if="canManage" class="px-3 py-2 text-right">
               <Button

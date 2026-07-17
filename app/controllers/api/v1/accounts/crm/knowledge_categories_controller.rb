@@ -7,7 +7,11 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
 
   def index
     scope = Current.account.crm_knowledge_categories
-    scope = params[:view] == 'mine' ? scope.personal_of(current_user.id) : scope.company_scope
+    scope = if params[:view] == 'mine'
+              scope.personal_of(current_user.id)
+            else
+              scope.company_scope.for_section(scoped_section_id)
+            end
     @categories = scope.ordered
   end
 
@@ -17,7 +21,7 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
     else
       return render_forbidden unless company_manageable?
 
-      @category = Current.account.crm_knowledge_categories.create!(category_params)
+      @category = Current.account.crm_knowledge_categories.create!(category_params.merge(section_id: scoped_section_id))
     end
   end
 
@@ -47,6 +51,20 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
 
   def personal_request?
     params.dig(:category, :personal).to_s == 'true'
+  end
+
+  # 分类隔离到的板块：index 经 query 顶层传参，create 经 category 内层传参，两处都兼容。
+  # 销售资料库(SALES)映射到「销售资料」板块（其公司文档即归此板块）；文档中心(GENERAL)取当前板块，聚合视图为空。
+  def scoped_section_id
+    return @scoped_section_id if defined?(@scoped_section_id)
+
+    library = params[:library] || params.dig(:category, :library)
+    section = params[:section_id] || params.dig(:category, :section_id)
+    @scoped_section_id = library == 'SALES' ? sales_section_id : section.presence
+  end
+
+  def sales_section_id
+    @sales_section_id ||= Current.account.crm_doc_sections.find_by(name: '销售资料')&.id
   end
 
   def render_forbidden
