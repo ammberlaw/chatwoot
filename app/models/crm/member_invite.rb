@@ -31,7 +31,8 @@ class Crm::MemberInvite < ApplicationRecord
     'administrator' => [:administrator, nil],
     'deputy_admin' => [:agent, 'deputy_admin'],
     'manager' => [:agent, 'manager'],
-    'sales' => [:agent, 'sales']
+    'sales' => [:agent, 'sales'],
+    'member' => [:agent, nil] # 普通成员：不进入 CRM，仅共享模块（OA/HR/协同/文档）
   }.freeze
 
   belongs_to :account

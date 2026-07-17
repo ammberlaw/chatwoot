@@ -11,6 +11,7 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     'deputy_admin' => [:agent, 'deputy_admin'],
     'manager' => [:agent, 'manager'],
     'sales' => [:agent, 'sales'],
+    'member' => [:agent, nil], # 普通成员（直接建号/邀请用显式键）
     '' => [:agent, nil]
   }.freeze
 

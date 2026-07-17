@@ -66,6 +66,7 @@ const ROLE_LABELS = {
   deputy_admin: '管理员',
   manager: '部门负责人',
   sales: '业务员',
+  member: '普通成员',
 };
 // 防提权：管理员（deputy_admin）不可生成超级管理员邀请（后端同口径拦截）。
 const currentUser = useMapGetter('getCurrentUser');
@@ -101,6 +102,9 @@ const form = ref({
   expiresDays: '7',
 });
 
+// 人员节点（总经理/副总/董事长/总裁）是人不是部门，不作为「加入部门」选项；其下级正常显示。
+const isPersonNode = name => /总经理|副总|董事长|总裁/.test(name);
+
 // 部门下拉按组织树顺序展开：缩进表层级，重名部门附上级名区分（如两个「设计部」）。
 const departmentOptions = computed(() => {
   const byParent = {};
@@ -118,6 +122,10 @@ const departmentOptions = computed(() => {
   const out = [{ value: '', label: L.deptNone }];
   const walk = (parentId, depth) => {
     (byParent[parentId || 0] || []).forEach(d => {
+      if (isPersonNode(d.name)) {
+        walk(d.id, depth); // 跳过人员节点本身，下级提升一层展示
+        return;
+      }
       const parent = byId[d.parent_id];
       const suffix =
         nameCounts[d.name] > 1 && parent ? `（${parent.name}）` : '';
