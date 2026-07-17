@@ -84,10 +84,36 @@ const form = ref({
   expiresDays: '7',
 });
 
-const departmentOptions = computed(() => [
-  { value: '', label: L.deptNone },
-  ...departments.value.map(d => ({ value: String(d.id), label: d.name })),
-]);
+// 部门下拉按组织树顺序展开：缩进表层级，重名部门附上级名区分（如两个「设计部」）。
+const departmentOptions = computed(() => {
+  const byParent = {};
+  departments.value.forEach(d => {
+    (byParent[d.parent_id || 0] ||= []).push(d);
+  });
+  Object.values(byParent).forEach(arr =>
+    arr.sort((a, b) => a.position - b.position)
+  );
+  const nameCounts = {};
+  departments.value.forEach(d => {
+    nameCounts[d.name] = (nameCounts[d.name] || 0) + 1;
+  });
+  const byId = Object.fromEntries(departments.value.map(d => [d.id, d]));
+  const out = [{ value: '', label: L.deptNone }];
+  const walk = (parentId, depth) => {
+    (byParent[parentId || 0] || []).forEach(d => {
+      const parent = byId[d.parent_id];
+      const suffix =
+        nameCounts[d.name] > 1 && parent ? `（${parent.name}）` : '';
+      out.push({
+        value: String(d.id),
+        label: `${'\u00A0\u00A0'.repeat(depth)}${d.name}${suffix}`,
+      });
+      walk(d.id, depth + 1);
+    });
+  };
+  walk(0, 0);
+  return out;
+});
 
 const joinUrl = invite =>
   `${window.location.origin}/app/auth/join/${invite.token}`;
