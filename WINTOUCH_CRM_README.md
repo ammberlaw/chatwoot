@@ -99,12 +99,15 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 
 商机报价与行项目、产品库（供报价选品）。
 
-### 10. 知识库 `crm_knowledge_docs_index`
-`CrmKnowledgeDocsIndex.vue` · 控制器 `knowledge_docs` · 模型 `Crm::KnowledgeDoc`
+### 10. 知识库 / 文档中心 `crm_knowledge_docs_index` / `crm_doc_center_index`
+`CrmKnowledgeDocsIndex.vue`（同组件两路由复用，库别由路由 meta `library` 决定：SALES / GENERAL） · 控制器 `knowledge_docs` · 模型 `Crm::KnowledgeDoc`
 
-销售资料库（公司文档 + 我的知识库两个视图），**支持附件上传/下载**（ActiveStorage `has_many_attached :files`，attach/detach 成员路由）、分类看板、标题/摘要搜索、分页、查看/编辑。
-- **分类两层**（`Crm::KnowledgeCategory.user_id`）：公司分类（`user_id` 空，超管/管理员/负责人维护）+ 个人分类（本人自建自管、账号间隔离）。**无预置分类**——「我的资料」空白起步，由使用者自建看板列（增/改/删/拖拽排序）。
-- 个人文档归属人可编辑/删除；公司文档按公司文档管理权。
+两个库共用一套看板：**销售资料库(SALES)**（公司文档 + 我的知识库两视图）与**文档中心(GENERAL)**（全公司制度/流程/培训等，按板块归档）。**支持附件上传/下载**（ActiveStorage `has_many_attached :files`，attach/detach 成员路由）、分类看板、标题/摘要搜索、分页、查看/编辑、软删除回收站（管理员）。
+- **资料板块（文档中心）** `Crm::DocSection`：默认 9 个板块（销售资料/公司制度/流程/培训资料/单证与报关/人事资料/财务资料/采购与供应商/生产管理）随首访自动建，管理员可增删自定义板块；SALES 公司文档与「销售资料」板块同步共享。
+  - **板块负责人**（`manager_ids`，可多人）：可编辑/删除/新增该板块下全部公司文档。
+  - **板块可见性 = 可见成员白名单**（`viewer_ids`，空 = 全员可见）：像人事/财务资料只给两三个人看——选中板块后在顶栏「设置可见成员」搜索勾选；超管/管理员/板块负责人始终可见。（旧的"按部门"可见性 `department_ids` 于 2026-07-18 废弃、改为按成员。）
+- **分类看板列按板块隔离**（`Crm::KnowledgeCategory`）：公司分类（`user_id` 空）按 `section_id` 隔离——每个板块各自独立的看板列，同名分类可在不同板块并存；个人分类（`user_id` 非空）本人自建自管、账号间隔离。**无预置分类**，空白起步自建（增/改/删/拖拽排序）。
+- 个人文档归属人可编辑/删除；公司文档按公司文档管理权（管理员/副管理员/板块负责人；SALES 另放开部门负责人）。
 
 ### 11. 邮件中心
 - 收发邮件 `crm_emails_index` `CrmEmailsIndex.vue` · 控制器 `emails` · 模型 `Crm::Email`
@@ -123,7 +126,7 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 ### 13. 绩效考核（KPI）
 控制器 `kpi_schemes` / `kpi_sheets` / `employee_comps` / `performance_settings` · 模型 `Crm::KpiScheme(+SchemeItem+PayoutTier)` / `Crm::KpiSheet(+Item)` / `Crm::EmployeeComp` / `Crm::PerformanceSetting`
 
-- **考核方案**：月度可编辑（指标/权重/发放系数档），下发后每人一张考核表；列表带**年份归档筛选**。
+- **考核方案**：月度可编辑（指标/权重/发放系数档），下发后每人一张考核表；**新建时记录创建人**（列表展示）；列表带**年份归档筛选**。
 - **考核表**：五步流转 待填报→已提交→已打分→人事确认→归档（四方电子签）；`recompute_payout!` 按总分→系数档→实发绩效（月薪×绩效占比）。列表带**月份 + 状态筛选**；搜索栏（业务员/方案名）仅超管/管理员/部门负责人可见（业务员只看自己的表，无需搜索）。
 - **数据范围**：超管/管理员/指定人事/总经理看全部；部门负责人看本部门（含下级）；业务员只看自己（实发金额敏感）。
 - **员工薪资配置**（敏感区，二次验证）与**审批人设置**（指定人事/总经理 + 板块角色可见性开关）。
