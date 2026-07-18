@@ -22,7 +22,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { accountId, accountScopedRoute } = useAccount();
-const { isCrmSales, isCrmManager } = useCrmRole();
+const { isCrmSales, isCrmManager, isAdmin, isCrmDeputyAdmin } = useCrmRole();
 const currentUserForFilter = useMapGetter('getCurrentUser');
 const customersStore = useCrmCustomersStore();
 
@@ -154,10 +154,15 @@ const reassignTargetOptions = computed(() => [
   ...managerOwnerOptions.value.filter(o => o.value),
 ]);
 
-// 任何 CRM 角色都可勾选分配自己的私海客户；主管团队视图还可分配团队成员的客户。
+// 任何 CRM 角色都可勾选分配自己的私海客户；主管团队视图还可分配团队成员的客户；
+// 超管/管理员可跨全辖区批量转移私海客户（含商机/订单/报价/邮件级联）。
 const canSelectRows = computed(
   () =>
-    activeFilter.value === 'private' && (isCrmSales.value || isCrmManager.value)
+    activeFilter.value === 'private' &&
+    (isCrmSales.value ||
+      isCrmManager.value ||
+      isAdmin.value ||
+      isCrmDeputyAdmin.value)
 );
 
 // 分配目标：团队视图限本团队；「我的客户」/业务员视图可分配给任意成员。
@@ -702,7 +707,14 @@ const detailSections = computed(() => {
 onMounted(() => {
   if (isCrmManager.value) fetchTeamMembers();
   else fetchTeams();
-  if (isCrmSales.value || isCrmManager.value) fetchAllAgentsForAssign();
+  if (
+    isCrmSales.value ||
+    isCrmManager.value ||
+    isAdmin.value ||
+    isCrmDeputyAdmin.value
+  ) {
+    fetchAllAgentsForAssign();
+  }
   fetchCustomers();
 });
 watch(
