@@ -792,6 +792,43 @@ const menuItems = computed(() => {
         ],
       },
       {
+        name: 'MES Production',
+        label: t('SIDEBAR.MES_G_PRODUCTION'),
+        icon: 'i-lucide-factory',
+        activeOn: [
+          'mes_production_orders_index',
+          'mes_materials_index',
+          'mes_suppliers_index',
+          'mes_warehouses_index',
+        ],
+        children: [
+          {
+            name: 'MES Production Orders',
+            label: t('SIDEBAR.MES_PRODUCTION_ORDERS'),
+            to: accountScopedRoute('mes_production_orders_index'),
+            activeOn: ['mes_production_orders_index'],
+          },
+          {
+            name: 'MES Materials',
+            label: t('SIDEBAR.MES_MATERIALS'),
+            to: accountScopedRoute('mes_materials_index'),
+            activeOn: ['mes_materials_index'],
+          },
+          {
+            name: 'MES Suppliers',
+            label: t('SIDEBAR.MES_SUPPLIERS'),
+            to: accountScopedRoute('mes_suppliers_index'),
+            activeOn: ['mes_suppliers_index'],
+          },
+          {
+            name: 'MES Warehouses',
+            label: t('SIDEBAR.MES_WAREHOUSES'),
+            to: accountScopedRoute('mes_warehouses_index'),
+            activeOn: ['mes_warehouses_index'],
+          },
+        ],
+      },
+      {
         name: 'CRM Mail Center',
         label: t('SIDEBAR.CRM_G_MAIL'),
         icon: 'i-lucide-mail',

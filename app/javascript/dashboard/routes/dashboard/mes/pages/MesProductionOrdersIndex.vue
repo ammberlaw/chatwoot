@@ -242,7 +242,7 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
         <PaginationFooter
           v-if="totalCount > ITEMS_PER_PAGE"
           :current-page="currentPage"
-          :total-count="totalCount"
+          :total-items="totalCount"
           :items-per-page="ITEMS_PER_PAGE"
           @update:current-page="currentPage = $event"
         />
