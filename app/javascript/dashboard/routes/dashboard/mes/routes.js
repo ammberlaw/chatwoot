@@ -1,6 +1,7 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
+import MesBomsIndex from './pages/MesBomsIndex.vue';
 import MesMaterialsIndex from './pages/MesMaterialsIndex.vue';
 import MesSuppliersIndex from './pages/MesSuppliersIndex.vue';
 import MesWarehousesIndex from './pages/MesWarehousesIndex.vue';
@@ -25,6 +26,7 @@ const mesPage = (path, name, component) => {
 
 export const routes = [
   mesPage('production-orders', 'mes_production_orders_index', MesProductionOrdersIndex),
+  mesPage('boms', 'mes_boms_index', MesBomsIndex),
   mesPage('materials', 'mes_materials_index', MesMaterialsIndex),
   mesPage('suppliers', 'mes_suppliers_index', MesSuppliersIndex),
   mesPage('warehouses', 'mes_warehouses_index', MesWarehousesIndex),

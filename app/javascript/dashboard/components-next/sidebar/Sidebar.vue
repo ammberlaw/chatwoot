@@ -797,6 +797,7 @@ const menuItems = computed(() => {
         icon: 'i-lucide-factory',
         activeOn: [
           'mes_production_orders_index',
+          'mes_boms_index',
           'mes_materials_index',
           'mes_suppliers_index',
           'mes_warehouses_index',
@@ -807,6 +808,12 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_PRODUCTION_ORDERS'),
             to: accountScopedRoute('mes_production_orders_index'),
             activeOn: ['mes_production_orders_index'],
+          },
+          {
+            name: 'MES BOMs',
+            label: t('SIDEBAR.MES_BOMS'),
+            to: accountScopedRoute('mes_boms_index'),
+            activeOn: ['mes_boms_index'],
           },
           {
             name: 'MES Materials',
@@ -1401,6 +1408,7 @@ const ROUTE_MODULE = {
   crm_employees_index: 'hr',
   crm_doc_center_index: 'doc',
   mes_production_orders_index: 'mes',
+  mes_boms_index: 'mes',
   mes_materials_index: 'mes',
   mes_suppliers_index: 'mes',
   mes_warehouses_index: 'mes',

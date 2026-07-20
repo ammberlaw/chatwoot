@@ -4,6 +4,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
+import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -150,6 +151,38 @@ const submitConvert = async () => {
   if (ok) {
     useAlert(`已生成生产订单 ${ok.orderNo}`);
     convertDialogRef.value?.close();
+    fetchRecords();
+  }
+};
+
+// —— 挂 BOM（阶段 2 触点）——
+const bomsStore = useMesBomsStore();
+const bomDialogRef = ref(null);
+const bomForm = ref({ bomId: '', plannedEndDate: '' });
+const attaching = computed(() => bomsStore.getUIFlags.updatingItem || uiFlags.value.updatingItem);
+const bomOptions = computed(() => [
+  { value: '', label: '选择 BOM…' },
+  ...(bomsStore.getRecords || []).map(b => ({
+    value: String(b.id),
+    label: `${b.bomNo}${b.productName ? ` · ${b.productName}` : ''}`,
+  })),
+]);
+const openAttachBom = () => {
+  bomForm.value = { bomId: '', plannedEndDate: '' };
+  if (!bomsStore.getRecords?.length) bomsStore.get();
+  bomDialogRef.value?.open();
+};
+const submitAttachBom = async () => {
+  if (!bomForm.value.bomId || !selected.value) return;
+  const ok = await store.attachBom({
+    id: selected.value.id,
+    bomId: Number(bomForm.value.bomId),
+    plannedEndDate: bomForm.value.plannedEndDate || undefined,
+  });
+  if (ok) {
+    useAlert('已挂 BOM，进入「工程BOM」阶段');
+    selected.value = ok;
+    bomDialogRef.value?.close();
     fetchRecords();
   }
 };
@@ -302,9 +335,23 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           </div>
         </div>
 
+        <div class="pt-4 mt-4 border-t border-n-weak">
+          <div v-if="selected.bomNo" class="text-xs text-n-slate-11">
+            工程 BOM：{{ selected.bomNo }}
+          </div>
+          <Button
+            v-else-if="selected.stage === 'SALES_CONFIRMED'"
+            label="挂工程 BOM"
+            color="iris"
+            size="sm"
+            class="w-full"
+            @click="openAttachBom"
+          />
+        </div>
+
         <div
           v-if="selected.deliveryDate"
-          class="pt-4 mt-4 text-xs border-t text-n-slate-11 border-n-weak"
+          class="pt-3 mt-3 text-xs border-t text-n-slate-11 border-n-weak"
         >
           交期：{{ new Date(selected.deliveryDate).toLocaleDateString() }}
         </div>
@@ -358,6 +405,37 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
             <label class="text-heading-3 text-n-slate-12">单位</label>
             <Input v-model="convertForm.unit" placeholder="台 / 片 / pcs" />
           </div>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 挂 BOM 弹窗 -->
+    <Dialog
+      ref="bomDialogRef"
+      width="lg"
+      confirm-button-color="iris"
+      title="挂工程 BOM"
+      description="选择该成品的 BOM，按预估交期算出预估完工，生产订单进入「工程BOM」阶段。"
+      :is-loading="attaching"
+      :disable-confirm-button="!bomForm.bomId"
+      @confirm="submitAttachBom"
+    >
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">
+            BOM <span class="text-n-ruby-11">*</span>
+          </label>
+          <Select
+            :model-value="bomForm.bomId"
+            :options="bomOptions"
+            @update:model-value="v => (bomForm.bomId = v)"
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">
+            预估完工（留空则按 BOM 交期天数自动算）
+          </label>
+          <Input v-model="bomForm.plannedEndDate" type="date" />
         </div>
       </div>
     </Dialog>

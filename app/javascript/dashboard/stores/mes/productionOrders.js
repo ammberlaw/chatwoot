@@ -50,6 +50,25 @@ export const useMesProductionOrdersStore = createStore({
       }
     },
 
+    // 挂工程 BOM，返回更新后的生产订单并就地替换。
+    async attachBom({ id, ...payload }) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await MesProductionOrderAPI.attachBom(
+          id,
+          snakecaseKeys(payload, { deep: true })
+        );
+        const record = camelize(data);
+        const index = this.records.findIndex(r => r.id === record.id);
+        if (index !== -1) this.records[index] = record;
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
+      }
+    },
+
     async update({ id, ...rest }) {
       this.setUIFlag({ updatingItem: true });
       try {
