@@ -1,0 +1,13 @@
+json.id resource.id
+json.supplier_no resource.supplier_no
+json.name resource.name
+json.contact_name resource.contact_name
+json.phone resource.phone
+json.email resource.email
+json.address resource.address
+json.owner_id resource.owner_id
+json.owner_name resource.owner&.name
+json.is_active resource.is_active
+json.remark resource.remark
+json.created_at resource.created_at
+json.updated_at resource.updated_at

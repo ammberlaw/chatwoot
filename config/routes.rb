@@ -153,6 +153,21 @@ Rails.application.routes.draw do
             end
             resource :performance_settings, only: [:show, :update], controller: 'performance_settings'
           end
+          namespace :mes do
+            resources :suppliers
+            resources :warehouses, except: [:show]
+            resources :materials
+            resources :production_orders do
+              collection do
+                post :convert
+              end
+              member do
+                get :audits
+                post :attach
+                delete 'attach/:attachment_id', action: :detach
+              end
+            end
+          end
           namespace :org do
             resources :departments, only: [:index, :create, :update, :destroy] do
               post :reorder, on: :collection

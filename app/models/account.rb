@@ -99,6 +99,10 @@ class Account < ApplicationRecord
   has_many :crm_kpi_sheet_items, class_name: 'Crm::KpiSheetItem', dependent: :destroy_async
   has_many :crm_signatures, class_name: 'Crm::Signature', dependent: :destroy_async
   has_one :crm_performance_setting, class_name: 'Crm::PerformanceSetting', dependent: :destroy_async
+  has_many :mes_suppliers, class_name: 'Mes::Supplier', dependent: :destroy_async
+  has_many :mes_warehouses, class_name: 'Mes::Warehouse', dependent: :destroy_async
+  has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async
+  has_many :mes_production_orders, class_name: 'Mes::ProductionOrder', dependent: :destroy_async
   has_many :org_departments, class_name: 'Org::Department', dependent: :destroy_async
   has_many :org_memberships, class_name: 'Org::Membership', dependent: :destroy_async
   has_many :oa_approval_templates, class_name: 'Oa::ApprovalTemplate', dependent: :destroy_async

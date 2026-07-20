@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_120300) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1697,6 +1697,89 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_110000) do
     t.index ["user_id"], name: "index_mentions_on_user_id"
   end
 
+  create_table "mes_materials", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "material_no", null: false
+    t.string "name", null: false
+    t.string "category"
+    t.string "specification"
+    t.string "unit", null: false
+    t.bigint "cost_price_micros"
+    t.string "currency", default: "CNY"
+    t.decimal "safety_stock", precision: 14, scale: 3
+    t.bigint "default_supplier_id"
+    t.boolean "is_active", default: true, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "material_no"], name: "index_mes_materials_on_account_id_and_material_no", unique: true
+    t.index ["account_id"], name: "index_mes_materials_on_account_id"
+    t.index ["default_supplier_id"], name: "index_mes_materials_on_default_supplier_id"
+  end
+
+  create_table "mes_production_orders", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "order_no", null: false
+    t.bigint "crm_sales_order_id"
+    t.bigint "crm_product_id"
+    t.string "product_name", null: false
+    t.decimal "qty", precision: 14, scale: 3, null: false
+    t.string "unit"
+    t.decimal "produced_qty", precision: 14, scale: 3, default: "0.0", null: false
+    t.bigint "bom_id"
+    t.string "stage", default: "SALES_CONFIRMED", null: false
+    t.string "status", default: "IN_PROGRESS", null: false
+    t.datetime "delivery_date"
+    t.datetime "planned_start_date"
+    t.datetime "planned_end_date"
+    t.datetime "actual_start_date"
+    t.datetime "actual_end_date"
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "order_no"], name: "index_mes_production_orders_on_account_id_and_order_no", unique: true
+    t.index ["account_id", "stage"], name: "index_mes_production_orders_on_account_id_and_stage"
+    t.index ["account_id"], name: "index_mes_production_orders_on_account_id"
+    t.index ["bom_id"], name: "index_mes_production_orders_on_bom_id"
+    t.index ["crm_product_id"], name: "index_mes_production_orders_on_crm_product_id"
+    t.index ["crm_sales_order_id"], name: "index_mes_production_orders_on_crm_sales_order_id"
+    t.index ["owner_id"], name: "index_mes_production_orders_on_owner_id"
+  end
+
+  create_table "mes_suppliers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "supplier_no", null: false
+    t.string "name", null: false
+    t.string "contact_name"
+    t.string "phone"
+    t.string "email"
+    t.text "address"
+    t.bigint "owner_id"
+    t.boolean "is_active", default: true, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "supplier_no"], name: "index_mes_suppliers_on_account_id_and_supplier_no", unique: true
+    t.index ["account_id"], name: "index_mes_suppliers_on_account_id"
+    t.index ["owner_id"], name: "index_mes_suppliers_on_owner_id"
+  end
+
+  create_table "mes_warehouses", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "kind"
+    t.bigint "parent_id"
+    t.integer "position"
+    t.boolean "is_active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "code"], name: "index_mes_warehouses_on_account_id_and_code", unique: true
+    t.index ["account_id"], name: "index_mes_warehouses_on_account_id"
+    t.index ["parent_id"], name: "index_mes_warehouses_on_parent_id"
+  end
+
   create_table "messages", id: :serial, force: :cascade do |t|
     t.text "content"
     t.integer "account_id", null: false
@@ -2183,6 +2266,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_110000) do
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "mes_materials", "mes_suppliers", column: "default_supplier_id", on_delete: :nullify
+  add_foreign_key "mes_production_orders", "crm_products", on_delete: :nullify
+  add_foreign_key "mes_production_orders", "crm_sales_orders", on_delete: :nullify
+  add_foreign_key "mes_production_orders", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_suppliers", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_warehouses", "mes_warehouses", column: "parent_id", on_delete: :nullify
   add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :cascade
   add_foreign_key "oa_approval_steps", "oa_approval_requests", column: "request_id", on_delete: :cascade
   add_foreign_key "org_memberships", "org_departments", column: "department_id", on_delete: :cascade

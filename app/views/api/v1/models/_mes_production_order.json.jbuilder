@@ -1,0 +1,24 @@
+json.id resource.id
+json.order_no resource.order_no
+json.crm_sales_order_id resource.crm_sales_order_id
+json.sales_order_no resource.crm_sales_order&.order_no
+json.crm_product_id resource.crm_product_id
+json.product_name resource.product_name
+json.qty resource.qty
+json.unit resource.unit
+json.produced_qty resource.produced_qty
+json.progress_ratio resource.progress_ratio
+json.bom_id resource.bom_id
+json.stage resource.stage
+json.status resource.status
+json.delivery_date resource.delivery_date
+json.planned_start_date resource.planned_start_date
+json.planned_end_date resource.planned_end_date
+json.actual_start_date resource.actual_start_date
+json.actual_end_date resource.actual_end_date
+json.owner_id resource.owner_id
+json.owner_name resource.owner&.name
+json.remark resource.remark
+json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }
+json.created_at resource.created_at
+json.updated_at resource.updated_at

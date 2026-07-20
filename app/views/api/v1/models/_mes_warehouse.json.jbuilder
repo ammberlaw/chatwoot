@@ -1,0 +1,9 @@
+json.id resource.id
+json.code resource.code
+json.name resource.name
+json.kind resource.kind
+json.parent_id resource.parent_id
+json.position resource.position
+json.is_active resource.is_active
+json.created_at resource.created_at
+json.updated_at resource.updated_at

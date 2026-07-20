@@ -1,0 +1,15 @@
+json.id resource.id
+json.material_no resource.material_no
+json.name resource.name
+json.category resource.category
+json.specification resource.specification
+json.unit resource.unit
+json.cost_price_micros resource.cost_price_micros
+json.currency resource.currency
+json.safety_stock resource.safety_stock
+json.default_supplier_id resource.default_supplier_id
+json.default_supplier_name resource.default_supplier&.name
+json.is_active resource.is_active
+json.remark resource.remark
+json.created_at resource.created_at
+json.updated_at resource.updated_at
