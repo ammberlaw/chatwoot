@@ -540,8 +540,10 @@
     "KPI_SHEETS": {
       "LIST_HEADER": "考核表",
       "LIST_SUBTITLE": "下发后每位员工一张，走填报→打分→人事→总经理审批",
+      "LIST_SUBTITLE_SELF": "你的月度考核表：填报后交主管打分、人事与总经理审批",
       "LOADING": "加载中…",
       "EMPTY": "暂无考核表（去考核方案点「下发给员工」生成）",
+      "EMPTY_SELF": "本月还没有下发给你的考核表",
       "LOAD_ERROR": "加载失败",
       "TITLE": "{name} 的绩效考核表",
       "DETAIL": "考核明细（完成值由员工填，得分由主管定）",

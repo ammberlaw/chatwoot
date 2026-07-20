@@ -134,8 +134,8 @@ export const routes = [
     SHARED
   ),
   crmPage('team-chat', 'crm_team_chat_index', CrmTeamChatIndex, SHARED),
-  // 成员权限管理：仅管理员（覆盖 permissions）；管理员本就有 CRM 访问权。
-  crmPage('members', 'crm_members_index', CrmMembersIndex),
-  // 成员邀请：生成加入链接（仅管理员）。
-  crmPage('member-invites', 'crm_member_invites_index', CrmMemberInvitesIndex),
+  // 成员权限管理：超管/管理员/人事/部门负责人（后端 ensure_admin 把关）；人事无 CRM 数据权限，故走 SHARED 不受 CRM 门禁。
+  crmPage('members', 'crm_members_index', CrmMembersIndex, SHARED),
+  // 成员邀请：生成加入链接（超管/管理员/人事）；人事无 CRM 数据权限，故走 SHARED 不受 CRM 门禁。
+  crmPage('member-invites', 'crm_member_invites_index', CrmMemberInvitesIndex, SHARED),
 ];

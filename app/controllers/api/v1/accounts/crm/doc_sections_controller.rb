@@ -66,6 +66,14 @@ class Api::V1::Accounts::Crm::DocSectionsController < Api::V1::Accounts::Crm::Ba
     Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
   end
 
+  # 文档中心为全员共享模块：板块列表对无 CRM 销售数据权限者（如人事）开放，
+  # 供其渲染文档中心；板块的增删改仍需 CRM 权限 + 管理员（DocSectionPolicy）。
+  def ensure_crm_access
+    return if action_name == 'index'
+
+    super
+  end
+
   def check_authorization
     authorize(Crm::DocSection)
   end

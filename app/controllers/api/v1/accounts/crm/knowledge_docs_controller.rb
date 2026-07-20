@@ -118,6 +118,21 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     @visible_section_ids ||= Crm::DocSection.visible_ids_for(Current.account, current_user.id)
   end
 
+  # 文档中心（GENERAL 库）为全员共享，无 CRM 销售数据权限者（如人事）可访问自身权限内的文档；
+  # 销售资料（SALES 库）仍受 CRM 门禁保护，防止越权读取销售公司文档。
+  def ensure_crm_access
+    return if doc_center_scope?
+
+    super
+  end
+
+  # index/新建按 library 参数判断；成员操作（show/update/…）按目标文档所属库判断。
+  def doc_center_scope?
+    lib = params[:library].presence || params.dig(:doc, :library).presence
+    lib ||= params[:id].present? && Current.account.crm_knowledge_docs.where(id: params[:id]).pick(:library)
+    lib == 'GENERAL'
+  end
+
   def check_authorization
     authorize(Crm::KnowledgeDoc)
   end

@@ -83,7 +83,13 @@ const statusClass = s =>
           {{ t('CRM.KPI_SHEETS.LIST_HEADER') }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-11">
-          {{ t('CRM.KPI_SHEETS.LIST_SUBTITLE') }}
+          {{
+            t(
+              showSearch
+                ? 'CRM.KPI_SHEETS.LIST_SUBTITLE'
+                : 'CRM.KPI_SHEETS.LIST_SUBTITLE_SELF'
+            )
+          }}
         </p>
       </div>
     </div>
@@ -135,7 +141,9 @@ const statusClass = s =>
         v-else-if="!filteredRecords.length"
         class="flex items-center justify-center p-8 text-n-slate-11"
       >
-        {{ t('CRM.KPI_SHEETS.EMPTY') }}
+        {{
+          t(showSearch ? 'CRM.KPI_SHEETS.EMPTY' : 'CRM.KPI_SHEETS.EMPTY_SELF')
+        }}
       </div>
       <table v-else class="w-full text-sm text-left border-collapse">
         <thead class="text-n-slate-11">

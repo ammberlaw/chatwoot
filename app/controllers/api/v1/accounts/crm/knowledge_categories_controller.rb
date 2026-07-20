@@ -71,6 +71,16 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
     render json: { error: '公司分类仅超级管理员、管理员或部门负责人可管理' }, status: :forbidden
   end
 
+  # 文档中心（GENERAL 库）分类与个人分类对全员共享（无 CRM 销售数据权限者如人事亦可）；
+  # 销售资料（SALES 库）公司分类仍受 CRM 门禁，公司分类写权另由 company_manageable? 限管理员/负责人。
+  def ensure_crm_access
+    lib = params[:library] || params.dig(:category, :library)
+    return if lib == 'GENERAL'
+    return if params[:view] == 'mine' || personal_request?
+
+    super
+  end
+
   def check_authorization
     authorize(Crm::KnowledgeCategory)
   end
