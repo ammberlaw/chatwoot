@@ -92,6 +92,24 @@ class Mes::ProductionOrder < ApplicationRecord
     update!(updates)
   end
 
+  # BOM 算料（XMind 节点3）：按 BOM 用量 × 本单产量/基准产量，展开采购需求。
+  # 返回 [{ mes_material_id, material_name, unit, qty, rate_micros }]，供采购单预填。
+  def material_requirements
+    return [] if bom.nil? || bom.base_qty.to_d.zero?
+
+    factor = qty.to_d / bom.base_qty.to_d
+    bom.bom_items.includes(:mes_material).map do |item|
+      material = item.mes_material
+      {
+        mes_material_id: item.mes_material_id,
+        material_name: material&.name,
+        unit: item.unit.presence || material&.unit,
+        qty: (item.qty.to_d * factor),
+        rate_micros: item.rate_micros
+      }
+    end
+  end
+
   private
 
   # 转单即把来源销售订单推进为「生产中」（仅当还在待确认态，避免覆盖后续状态）。

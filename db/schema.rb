@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_130200) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_140100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1783,6 +1783,46 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_130200) do
     t.index ["owner_id"], name: "index_mes_production_orders_on_owner_id"
   end
 
+  create_table "mes_purchase_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "purchase_order_id", null: false
+    t.bigint "mes_material_id"
+    t.decimal "qty", precision: 14, scale: 3, null: false
+    t.string "unit"
+    t.bigint "rate_micros"
+    t.bigint "amount_micros"
+    t.decimal "received_qty", precision: 14, scale: 3, default: "0.0", null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_purchase_items_on_account_id"
+    t.index ["mes_material_id"], name: "index_mes_purchase_items_on_mes_material_id"
+    t.index ["purchase_order_id"], name: "index_mes_purchase_items_on_purchase_order_id"
+  end
+
+  create_table "mes_purchase_orders", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "po_no", null: false
+    t.bigint "mes_supplier_id"
+    t.bigint "production_order_id"
+    t.string "status", default: "DRAFT", null: false
+    t.datetime "expected_date"
+    t.datetime "follow_up_date"
+    t.boolean "has_exception", default: false, null: false
+    t.text "exception_note"
+    t.bigint "total_amount_micros"
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "po_no"], name: "index_mes_purchase_orders_on_account_id_and_po_no", unique: true
+    t.index ["account_id", "status"], name: "index_mes_purchase_orders_on_account_id_and_status"
+    t.index ["account_id"], name: "index_mes_purchase_orders_on_account_id"
+    t.index ["mes_supplier_id"], name: "index_mes_purchase_orders_on_mes_supplier_id"
+    t.index ["owner_id"], name: "index_mes_purchase_orders_on_owner_id"
+    t.index ["production_order_id"], name: "index_mes_purchase_orders_on_production_order_id"
+  end
+
   create_table "mes_suppliers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "supplier_no", null: false
@@ -2311,6 +2351,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_130200) do
   add_foreign_key "mes_production_orders", "crm_sales_orders", on_delete: :nullify
   add_foreign_key "mes_production_orders", "mes_boms", column: "bom_id", on_delete: :nullify
   add_foreign_key "mes_production_orders", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_purchase_items", "mes_materials", on_delete: :nullify
+  add_foreign_key "mes_purchase_items", "mes_purchase_orders", column: "purchase_order_id", on_delete: :cascade
+  add_foreign_key "mes_purchase_orders", "mes_production_orders", column: "production_order_id", on_delete: :nullify
+  add_foreign_key "mes_purchase_orders", "mes_suppliers", on_delete: :nullify
+  add_foreign_key "mes_purchase_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_suppliers", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_warehouses", "mes_warehouses", column: "parent_id", on_delete: :nullify
   add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :cascade

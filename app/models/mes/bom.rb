@@ -1,3 +1,34 @@
+# == Schema Information
+#
+# Table name: mes_boms
+#
+#  id                         :bigint           not null, primary key
+#  base_qty                   :decimal(14, 3)   default(1.0), not null
+#  bom_no                     :string           not null
+#  estimated_lead_days        :integer
+#  is_active                  :boolean          default(TRUE), not null
+#  is_default                 :boolean          default(FALSE), not null
+#  remark                     :text
+#  total_material_cost_micros :bigint
+#  unit                       :string
+#  created_at                 :datetime         not null
+#  updated_at                 :datetime         not null
+#  account_id                 :bigint           not null
+#  crm_product_id             :bigint
+#  owner_id                   :bigint
+#
+# Indexes
+#
+#  index_mes_boms_on_account_id             (account_id)
+#  index_mes_boms_on_account_id_and_bom_no  (account_id,bom_no) UNIQUE
+#  index_mes_boms_on_crm_product_id         (crm_product_id)
+#  index_mes_boms_on_owner_id               (owner_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => nullify
+#  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
+#
 class Mes::Bom < ApplicationRecord
   include Mes::DocumentNumber
 
