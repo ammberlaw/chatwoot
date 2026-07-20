@@ -46,6 +46,14 @@ const HERO = {
 // 已上线的协同模块，各自承载一项真实指标。
 const LIVE = computed(() => [
   {
+    key: 'mes',
+    label: 'MES 生产制造',
+    desc: '销售订单 → 工单 → 8 阶段生产 · 库存齐套',
+    icon: 'i-lucide-factory',
+    to: 'mes_production_orders_index',
+    accent: 'teal',
+  },
+  {
     key: 'oa',
     label: 'OA 审批',
     desc: '请假 · 报销 · 付款流程',
@@ -90,7 +98,6 @@ const LIVE = computed(() => [
 // 未上线模块，安静收在底部。ERP/MES 按成员模块权限显隐（管理员全模块）。
 const ALL_SOON = [
   { key: 'erp', label: 'ERP 进销存', icon: 'i-lucide-package' },
-  { key: 'mes', label: 'MES 生产制造', icon: 'i-lucide-factory' },
   { key: 'schedule', label: '日程 Schedule', icon: 'i-lucide-calendar-days' },
 ];
 const SOON = computed(() => {
