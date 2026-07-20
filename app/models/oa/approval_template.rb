@@ -8,6 +8,7 @@
 #  id              :bigint           not null, primary key
 #  active          :boolean          default(TRUE), not null
 #  attendance_kind :string
+#  cc_user_ids     :bigint           default([]), not null, is an Array
 #  description     :string
 #  flow            :jsonb            not null
 #  form_fields     :jsonb            not null

@@ -5,6 +5,7 @@
 # Table name: oa_approval_requests
 #
 #  id               :bigint           not null, primary key
+#  cc_user_ids      :bigint           default([]), not null, is an Array
 #  current_position :integer          default(0), not null
 #  form_data        :jsonb            not null
 #  status           :string           default("pending"), not null
@@ -22,6 +23,7 @@
 #  index_oa_approval_requests_on_account_id             (account_id)
 #  index_oa_approval_requests_on_account_id_and_status  (account_id,status)
 #  index_oa_approval_requests_on_applicant_id           (applicant_id)
+#  index_oa_approval_requests_on_cc_user_ids            (cc_user_ids) USING gin
 #  index_oa_approval_requests_on_department_id          (department_id)
 #  index_oa_approval_requests_on_template_id            (template_id)
 #

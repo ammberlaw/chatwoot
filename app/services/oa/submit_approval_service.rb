@@ -13,7 +13,8 @@ class Oa::SubmitApprovalService
   def perform
     request = @account.oa_approval_requests.create!(
       template: @template, applicant_id: @applicant.id, title: @title, department_id: @department_id,
-      form_data: @form_data || {}, status: 'pending', current_position: 0, submitted_at: Time.current
+      form_data: @form_data || {}, status: 'pending', current_position: 0, submitted_at: Time.current,
+      cc_user_ids: Array(@template.cc_user_ids).map(&:to_i).uniq
     )
     build_steps(request)
     settle_start(request)

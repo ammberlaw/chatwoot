@@ -37,6 +37,9 @@ const L = {
   stepType: '审批人',
   deptLeader: '申请人部门主管',
   specificUser: '指定成员',
+  ccLabel: '抄送人',
+  ccHint: '抄送人不参与审批，可在审批中心「抄送我的」里看到该单据。',
+  ccAdd: '添加抄送人…',
   remove: '删除',
   save: '保存',
   deleteConfirm: '删除该模板？已发起的审批单不受影响。',
@@ -85,6 +88,7 @@ const form = ref({
   attendanceKind: '',
   fields: [],
   flow: [],
+  ccUserIds: [],
 });
 
 const fetchTemplates = async () => {
@@ -101,6 +105,7 @@ const resetForm = () => {
     attendanceKind: '',
     fields: [],
     flow: [],
+    ccUserIds: [],
   };
 };
 
@@ -131,6 +136,7 @@ const openEdit = tpl => {
       type: s.type || 'dept_leader',
       userId: s.user_id ? String(s.user_id) : '',
     })),
+    ccUserIds: (tpl.cc_user_ids || []).map(String),
   };
   dialogRef.value?.open();
 };
@@ -153,6 +159,19 @@ const addStep = () => {
   form.value.flow.push({ seq, type: 'dept_leader', userId: '' });
 };
 const removeStep = i => form.value.flow.splice(i, 1);
+
+// 抄送人：多选成员（不参与审批，仅知会）。
+const toggleCc = id => {
+  const s = String(id);
+  const idx = form.value.ccUserIds.indexOf(s);
+  if (idx >= 0) form.value.ccUserIds.splice(idx, 1);
+  else form.value.ccUserIds.push(s);
+};
+const ccName = id =>
+  agents.value.find(a => String(a.id) === String(id))?.name || id;
+const ccCandidates = computed(() =>
+  agents.value.filter(a => !form.value.ccUserIds.includes(String(a.id)))
+);
 
 const save = async () => {
   if (!form.value.name.trim()) {
@@ -182,6 +201,7 @@ const save = async () => {
       type: s.type,
       user_id: s.type === 'user' && s.userId ? Number(s.userId) : null,
     })),
+    cc_user_ids: form.value.ccUserIds.map(Number),
   };
   try {
     if (editingId.value) {
@@ -458,6 +478,38 @@ onMounted(async () => {
               </button>
             </div>
           </div>
+        </div>
+
+        <!-- 抄送人 -->
+        <div>
+          <label class="text-heading-3 text-n-slate-12">{{ L.ccLabel }}</label>
+          <p class="mt-0.5 mb-1.5 text-xs text-n-slate-10">{{ L.ccHint }}</p>
+          <div v-if="form.ccUserIds.length" class="flex flex-wrap gap-1.5 mb-2">
+            <span
+              v-for="id in form.ccUserIds"
+              :key="id"
+              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+            >
+              {{ ccName(id) }}
+              <button class="hover:text-n-ruby-11" @click="toggleCc(id)">
+                <Icon icon="i-lucide-x" class="size-3" />
+              </button>
+            </span>
+          </div>
+          <select
+            class="w-full h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+            @change="
+              e => {
+                if (e.target.value) toggleCc(e.target.value);
+                e.target.value = '';
+              }
+            "
+          >
+            <option value="">{{ L.ccAdd }}</option>
+            <option v-for="a in ccCandidates" :key="a.id" :value="String(a.id)">
+              {{ a.name }}
+            </option>
+          </select>
         </div>
 
         <button

@@ -16,6 +16,7 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     render json: {
       todo: todo_scope.count,
       mine: Current.account.oa_approval_requests.applied_by(current_user.id).count,
+      cc: cc_scope.count,
       approver_view: approver_view?
     }
   end
@@ -96,7 +97,11 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
 
     Current.account.oa_approval_requests
            .left_joins(:steps)
-           .where('oa_approval_requests.applicant_id = :uid OR oa_approval_steps.approver_id = :uid', uid: current_user.id)
+           .where(
+             'oa_approval_requests.applicant_id = :uid OR oa_approval_steps.approver_id = :uid ' \
+             'OR oa_approval_requests.cc_user_ids @> ARRAY[:uid]::bigint[]',
+             uid: current_user.id
+           )
            .distinct
   end
 
@@ -104,8 +109,15 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     case params[:filter]
     when 'todo' then todo_scope
     when 'done' then done_scope
+    when 'cc' then cc_scope
     else Current.account.oa_approval_requests.applied_by(current_user.id)
     end
+  end
+
+  # 抄送给我的：抄送名单包含我（提交时按模板快照）。
+  def cc_scope
+    Current.account.oa_approval_requests
+           .where('cc_user_ids @> ARRAY[?]::bigint[]', current_user.id)
   end
 
   # 待我审批：单据审批中，且当前步骤审批人是我、待审。

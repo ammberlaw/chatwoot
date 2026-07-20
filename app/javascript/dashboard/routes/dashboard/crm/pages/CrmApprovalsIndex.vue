@@ -15,6 +15,7 @@ const L = {
   start: '发起审批',
   tabTodo: '待我审批',
   tabMine: '我发起的',
+  tabCc: '抄送我的',
   empty: '暂无审批单',
   selectHint: '选择左侧审批单查看详情',
   pickTemplate: '选择审批类型',
@@ -25,6 +26,7 @@ const L = {
   commentPlaceholder: '审批意见（可选）',
   applicant: '申请人',
   flow: '审批流程',
+  cc: '抄送人',
   required: '请填写必填项',
   submitted: '已提交',
   done: '已处理',
@@ -106,7 +108,7 @@ const STEP_META = {
 
 const activeTab = ref('todo');
 const requests = ref([]);
-const counts = ref({ todo: 0, mine: 0, approver_view: true });
+const counts = ref({ todo: 0, mine: 0, cc: 0, approver_view: true });
 
 // 非审批人（业务员/普通成员且未被指定为审批人）隐藏「待我审批」
 const showTodo = computed(() => counts.value.approver_view !== false);
@@ -114,6 +116,7 @@ const TABS = computed(() =>
   [
     showTodo.value ? { key: 'todo', label: L.tabTodo } : null,
     { key: 'mine', label: L.tabMine },
+    { key: 'cc', label: L.tabCc },
   ].filter(Boolean)
 );
 const selected = ref(null);
@@ -343,10 +346,10 @@ onMounted(async () => {
           >
             {{ tab.label }}
             <span
-              v-if="tab.key === 'todo' && counts.todo"
+              v-if="['todo', 'cc'].includes(tab.key) && counts[tab.key]"
               class="px-1.5 rounded-full text-[11px] bg-n-iris-9 text-white"
             >
-              {{ counts.todo }}
+              {{ counts[tab.key] }}
             </span>
           </button>
         </div>
@@ -506,6 +509,20 @@ onMounted(async () => {
                     {{ fmtDateTime(step.acted_at) }}
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <!-- 抄送人 -->
+            <div v-if="selected.cc_names?.length" class="mt-6">
+              <p class="mb-2 text-xs font-medium text-n-slate-10">{{ L.cc }}</p>
+              <div class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="name in selected.cc_names"
+                  :key="name"
+                  class="px-2 py-0.5 text-xs rounded-full bg-n-alpha-1 text-n-slate-11"
+                >
+                  {{ name }}
+                </span>
               </div>
             </div>
           </div>

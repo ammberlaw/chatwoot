@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_110000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1797,9 +1797,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "department_id"
+    t.bigint "cc_user_ids", default: [], null: false, array: true
     t.index ["account_id", "status"], name: "index_oa_approval_requests_on_account_id_and_status"
     t.index ["account_id"], name: "index_oa_approval_requests_on_account_id"
     t.index ["applicant_id"], name: "index_oa_approval_requests_on_applicant_id"
+    t.index ["cc_user_ids"], name: "index_oa_approval_requests_on_cc_user_ids", using: :gin
     t.index ["department_id"], name: "index_oa_approval_requests_on_department_id"
     t.index ["template_id"], name: "index_oa_approval_requests_on_template_id"
   end
@@ -1831,6 +1833,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "attendance_kind"
+    t.bigint "cc_user_ids", default: [], null: false, array: true
     t.index ["account_id"], name: "index_oa_approval_templates_on_account_id"
   end
 
