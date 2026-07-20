@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
@@ -9,6 +9,7 @@ import CrmKpiSheetAPI from 'dashboard/api/crm/kpiSheets';
 import CrmPerfSettingsAPI from 'dashboard/api/crm/performanceSettings';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MySignatureDialog from 'dashboard/components-next/CRM/MySignatureDialog.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -24,7 +25,7 @@ const items = ref([]);
 const setting = ref({});
 const loading = ref(true);
 const busy = ref(false);
-const sigFiles = reactive({ employee: null, manager: null, hr: null, gm: null });
+const signatureDialogRef = ref(null);
 
 const camel = async data => (await import('camelcase-keys')).default(data, { deep: true });
 
@@ -93,33 +94,27 @@ const save = async () => {
   }
 };
 
-const pickFile = (who, e) => {
-  sigFiles[who] = e.target.files?.[0] || null;
-};
-
-const runAction = async (fn, who, needFile) => {
-  if (needFile && !sigFiles[who] && !confirmNoSig()) return;
+// 一键盖章：不传文件，后端取签字人存的个人签名盖上；未设置则弹「我的签名」引导设置。
+const runAction = async fn => {
   busy.value = true;
   try {
-    const { data } = await fn(sheetId, sigFiles[who]);
+    const { data } = await fn(sheetId);
     sheet.value = await camel(data);
     items.value = sheet.value.sheetItems || [];
-    sigFiles[who] = null;
     useAlert(t('CRM.KPI_SHEETS.STEP_OK'));
   } catch (err) {
-    useAlert(err?.response?.data?.error || t('CRM.KPI_SHEETS.STEP_ERROR'));
+    const msg = err?.response?.data?.error || t('CRM.KPI_SHEETS.STEP_ERROR');
+    useAlert(msg);
+    if (msg.includes('个人签名')) signatureDialogRef.value?.open();
   } finally {
     busy.value = false;
   }
 };
 
-// eslint-disable-next-line no-alert
-const confirmNoSig = () => window.confirm(t('CRM.KPI_SHEETS.NO_SIG_CONFIRM'));
-
-const submitSheet = () => save().then(() => runAction(CrmKpiSheetAPI.submit, 'employee', true));
-const scoreSheet = () => save().then(() => runAction(CrmKpiSheetAPI.score, 'manager', true));
-const hrConfirm = () => runAction(CrmKpiSheetAPI.hrConfirm, 'hr', true);
-const gmConfirm = () => runAction(CrmKpiSheetAPI.gmConfirm, 'gm', true);
+const submitSheet = () => save().then(() => runAction(CrmKpiSheetAPI.submit));
+const scoreSheet = () => save().then(() => runAction(CrmKpiSheetAPI.score));
+const hrConfirm = () => runAction(CrmKpiSheetAPI.hrConfirm);
+const gmConfirm = () => runAction(CrmKpiSheetAPI.gmConfirm);
 
 onMounted(load);
 
@@ -231,7 +226,6 @@ const inCls = 'w-full h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-soli
           <div class="flex flex-col gap-2 p-4 border border-dashed rounded-2xl border-n-strong bg-n-solid-1/40">
             <h4 class="text-sm font-medium text-n-slate-12">① {{ t('CRM.KPI_SHEETS.SIGN_EMPLOYEE') }}</h4>
             <img v-if="sheet.employeeSignatureUrl" :src="sheet.employeeSignatureUrl" class="object-contain w-full h-20 bg-white rounded-lg" />
-            <input v-else-if="isOwner && status==='PENDING'" type="file" accept="image/*,.pdf" class="text-xs" @change="e => pickFile('employee', e)" />
             <div v-else class="h-20 grid place-content-center text-xs text-n-slate-10 bg-n-alpha-1 rounded-lg">{{ t('CRM.KPI_SHEETS.NOT_SIGNED') }}</div>
             <div class="text-xs text-n-slate-10">{{ sheet.employeeSignedAt ? t('CRM.KPI_SHEETS.SIGNED_AT', { date: fmtDate(sheet.employeeSignedAt) }) : '—' }}</div>
           </div>
@@ -239,7 +233,6 @@ const inCls = 'w-full h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-soli
           <div class="flex flex-col gap-2 p-4 border border-dashed rounded-2xl border-n-strong bg-n-solid-1/40">
             <h4 class="text-sm font-medium text-n-slate-12">② {{ t('CRM.KPI_SHEETS.SIGN_MANAGER') }}</h4>
             <img v-if="sheet.managerSignatureUrl" :src="sheet.managerSignatureUrl" class="object-contain w-full h-20 bg-white rounded-lg" />
-            <input v-else-if="canScore" type="file" accept="image/*,.pdf" class="text-xs" @change="e => pickFile('manager', e)" />
             <div v-else class="h-20 grid place-content-center text-xs text-n-slate-10 bg-n-alpha-1 rounded-lg">{{ t('CRM.KPI_SHEETS.NOT_SIGNED') }}</div>
             <div class="text-xs text-n-slate-10">{{ sheet.managerName ? `${sheet.managerName} · ${fmtDate(sheet.managerSignedAt)}` : '—' }}</div>
           </div>
@@ -248,7 +241,6 @@ const inCls = 'w-full h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-soli
             <h4 class="text-sm font-medium text-n-slate-12">③ {{ t('CRM.KPI_SHEETS.SIGN_HR') }}</h4>
             <img v-if="sheet.hrSignatureUrl" :src="sheet.hrSignatureUrl" class="object-contain w-full h-20 bg-white rounded-lg" />
             <template v-else-if="status==='SCORED' && isHr">
-              <input type="file" accept="image/*,.pdf" class="text-xs" @change="e => pickFile('hr', e)" />
               <Button :label="t('CRM.KPI_SHEETS.HR_CONFIRM')" size="sm" color="iris" :is-disabled="busy" @click="hrConfirm" />
             </template>
             <div v-else class="h-20 grid place-content-center text-xs text-n-slate-10 bg-n-alpha-1 rounded-lg">{{ t('CRM.KPI_SHEETS.WAIT_PREV') }}</div>
@@ -259,7 +251,6 @@ const inCls = 'w-full h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-soli
             <h4 class="text-sm font-medium text-n-slate-12">④ {{ t('CRM.KPI_SHEETS.SIGN_GM') }}</h4>
             <img v-if="sheet.gmSignatureUrl" :src="sheet.gmSignatureUrl" class="object-contain w-full h-20 bg-white rounded-lg" />
             <template v-else-if="status==='HR_CONFIRMED' && isGm">
-              <input type="file" accept="image/*,.pdf" class="text-xs" @change="e => pickFile('gm', e)" />
               <Button :label="t('CRM.KPI_SHEETS.GM_CONFIRM')" size="sm" color="iris" :is-disabled="busy" @click="gmConfirm" />
             </template>
             <div v-else class="h-20 grid place-content-center text-xs text-n-slate-10 bg-n-alpha-1 rounded-lg">{{ t('CRM.KPI_SHEETS.WAIT_PREV') }}</div>
@@ -268,5 +259,6 @@ const inCls = 'w-full h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-soli
         </div>
       </section>
     </div>
+    <MySignatureDialog ref="signatureDialogRef" />
   </div>
 </template>

@@ -8,7 +8,14 @@ import { useI18n } from 'vue-i18n';
 import { checkFileSizeLimit } from 'shared/helpers/FileHelper';
 import Avatar from 'next/avatar/Avatar.vue';
 import SidebarProfileMenuStatus from './SidebarProfileMenuStatus.vue';
+import MySignatureDialog from 'dashboard/components-next/CRM/MySignatureDialog.vue';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
+
+defineProps({
+  isCollapsed: { type: Boolean, default: false },
+});
+
+const emit = defineEmits(['close', 'openKeyShortcutModal']);
 
 const MAX_AVATAR_SIZE_MB = 15;
 
@@ -19,12 +26,6 @@ import {
   DropdownItem,
 } from 'next/dropdown-menu/base';
 import CustomBrandPolicyWrapper from '../../components/CustomBrandPolicyWrapper.vue';
-
-defineProps({
-  isCollapsed: { type: Boolean, default: false },
-});
-
-const emit = defineEmits(['close', 'openKeyShortcutModal']);
 
 defineOptions({
   inheritAttrs: false,
@@ -61,6 +62,10 @@ const onAvatarSelected = async event => {
     useAlert(t('SIDEBAR_ITEMS.AVATAR_UPDATE_FAILED'));
   }
 };
+// 我的签名（KPI 电子签）：存一次可复用，各签字环节一键盖章。
+const signatureDialogRef = ref(null);
+const openSignatureDialog = () => signatureDialogRef.value?.open();
+
 const accountId = useMapGetter('getCurrentAccountId');
 const globalConfig = useMapGetter('globalConfig/get');
 const isFeatureEnabledonAccount = useMapGetter(
@@ -109,6 +114,13 @@ const menuItems = computed(() => {
       label: t('SIDEBAR_ITEMS.CHANGE_AVATAR'),
       icon: 'i-lucide-image-up',
       click: openAvatarPicker,
+    },
+    {
+      show: true,
+      showOnCustomBrandedInstance: true,
+      label: t('SIDEBAR_ITEMS.MY_SIGNATURE'),
+      icon: 'i-lucide-signature',
+      click: openSignatureDialog,
     },
     {
       show: currentUser.value.type === 'SuperAdmin',
@@ -195,4 +207,5 @@ const allowedMenuItems = computed(() => {
     class="hidden"
     @change="onAvatarSelected"
   />
+  <MySignatureDialog ref="signatureDialogRef" />
 </template>

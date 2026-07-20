@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_18_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1441,6 +1441,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_120000) do
     t.index ["crm_kpi_scheme_id"], name: "index_crm_scheme_items_on_crm_kpi_scheme_id"
   end
 
+  create_table "crm_signatures", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id"], name: "index_crm_signatures_on_account_id_and_user_id", unique: true
+  end
+
   create_table "crm_teams", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -2168,6 +2176,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_120000) do
   add_foreign_key "crm_sales_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_sales_targets", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_scheme_items", "crm_kpi_schemes", on_delete: :cascade
+  add_foreign_key "crm_signatures", "accounts", on_delete: :cascade
+  add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :cascade

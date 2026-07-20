@@ -97,6 +97,7 @@ class Account < ApplicationRecord
   has_many :crm_attendance_groups, class_name: 'Crm::AttendanceGroup', dependent: :destroy_async
   has_many :crm_kpi_sheets, class_name: 'Crm::KpiSheet', dependent: :destroy_async
   has_many :crm_kpi_sheet_items, class_name: 'Crm::KpiSheetItem', dependent: :destroy_async
+  has_many :crm_signatures, class_name: 'Crm::Signature', dependent: :destroy_async
   has_one :crm_performance_setting, class_name: 'Crm::PerformanceSetting', dependent: :destroy_async
   has_many :org_departments, class_name: 'Org::Department', dependent: :destroy_async
   has_many :org_memberships, class_name: 'Org::Membership', dependent: :destroy_async

@@ -117,6 +117,7 @@ Rails.application.routes.draw do
             resource :stats, only: [:show], controller: 'stats'
             resource :team_dashboard, only: [:show], controller: 'team_dashboard'
             resource :my_target, only: [:show], controller: 'my_target'
+            resource :signature, only: [:show, :create, :destroy], controller: 'signatures'
             resources :mail_accounts
             resources :email_templates
             resources :members, only: [:index, :create, :update]

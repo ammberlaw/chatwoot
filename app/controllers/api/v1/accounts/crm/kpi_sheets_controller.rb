@@ -37,6 +37,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   # ── 审批链（每步：上传本方电子签 + 状态流转）。守卫失败即渲染错误并中断 ──
   def submit
     return unless ensure_owner!
+    return unless ensure_signature!
     return unless transition!('PENDING', 'SUBMITTED') do
       attach_signature(:employee_signature)
       @sheet.employee_signed_at = Time.current
@@ -47,6 +48,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   def score
     return unless ensure_manager!
+    return unless ensure_signature!
     return unless transition!('SUBMITTED', 'SCORED') do
       attach_signature(:manager_signature)
       @sheet.manager_id = current_user.id
@@ -59,6 +61,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   def hr_confirm
     return unless ensure_role!(:hr_owner_id)
+    return unless ensure_signature!
     return unless transition!('SCORED', 'HR_CONFIRMED') do
       attach_signature(:hr_signature)
       @sheet.hr_id = current_user.id
@@ -70,6 +73,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   def gm_confirm
     return unless ensure_role!(:gm_owner_id)
+    return unless ensure_signature!
     return unless transition!('HR_CONFIRMED', 'ARCHIVED') do
       attach_signature(:gm_signature)
       @sheet.gm_id = current_user.id
@@ -140,8 +144,25 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     true
   end
 
+  # 盖章：本次显式上传的签名优先；否则取签字人存的个人签名一键盖上。
   def attach_signature(field)
-    @sheet.public_send(field).attach(params[:signature]) if params[:signature].present?
+    if params[:signature].present?
+      @sheet.public_send(field).attach(params[:signature])
+    elsif my_signature&.image&.attached?
+      @sheet.public_send(field).attach(my_signature.image.blob)
+    end
+  end
+
+  # 必签守卫：本次未传签名且没存个人签名时，拦下并提示去设置。
+  def ensure_signature!
+    return true if params[:signature].present? || my_signature&.image&.attached?
+
+    render_error('请先在头像菜单「我的签名」里设置个人签名，再签字', :unprocessable_entity)
+    false
+  end
+
+  def my_signature
+    @my_signature ||= Current.account.crm_signatures.find_by(user_id: current_user.id)
   end
 
   # 守卫：通过返回 true；失败渲染错误并返回 false。
