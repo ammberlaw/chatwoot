@@ -59,6 +59,7 @@ Rails.application.routes.draw do
               collection do
                 get :check_duplicate
                 post :reassign
+                post :import
               end
               member do
                 get :audits

@@ -3,6 +3,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :attach, :detach, :audits]
 
   RESULTS_PER_PAGE = 15
+  MAX_IMPORT_ROWS = 2000
 
   # 列筛选：查询参数 → 数据库列，逐个按 present? 叠加。
   COLUMN_FILTERS = {
@@ -49,6 +50,18 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
       email_hit: email.present? ? dedupe_row(Current.account.crm_customers.where('LOWER(contact_email) = ?', email.downcase).first) : nil,
       name_hits: name.length >= 2 ? name_matches(name) : []
     }
+  end
+
+  # 批量导入：吃前端映射好的行（键=CRM字段）。管理层校验见 CustomerPolicy#import?。
+  def import
+    rows = Array(params[:rows])
+    return render json: { error: '没有可导入的数据' }, status: :unprocessable_entity if rows.blank?
+    return render json: { error: "单次最多导入 #{MAX_IMPORT_ROWS} 条" }, status: :unprocessable_entity if rows.size > MAX_IMPORT_ROWS
+
+    render json: Crm::CustomerImportService.new(
+      account: Current.account, user: current_user,
+      rows: rows.map { |r| r.permit!.to_h }, default_owner_id: params[:default_owner_id]
+    ).call
   end
 
   def update

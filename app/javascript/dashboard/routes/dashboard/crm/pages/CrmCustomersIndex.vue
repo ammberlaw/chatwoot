@@ -13,7 +13,9 @@ import CrmMemberAPI from 'dashboard/api/crm/members';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
+import CrmCustomerImportDialog from 'dashboard/components-next/CRM/CrmCustomerImportDialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 
 // 与后端 CustomersController::RESULTS_PER_PAGE 保持一致。
 const ITEMS_PER_PAGE = 15;
@@ -29,6 +31,15 @@ const customersStore = useCrmCustomersStore();
 const actingId = ref(null);
 
 const createDialogRef = ref(null);
+
+// 批量导入：仅管理员/副管理员/主管可见；导入完成后刷新列表。
+const importDialogRef = ref(null);
+const canImport = computed(
+  () => isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value
+);
+const importMemberOptions = computed(() =>
+  allAgentsForAssign.value.map(a => ({ value: String(a.id), label: a.name }))
+);
 // 私海(private)/公海(public_pool) 由侧边栏入口经 ?filter= 驱动；默认私海。
 const activeFilter = ref(route.query.filter || 'private');
 const activeCustomerGroup = ref('');
@@ -555,44 +566,8 @@ const REGION_META = {
   AFRICA: { label: '非洲', color: 'slate' },
   OTHER: { label: '其他', color: 'slate' },
 };
-// 国家 → 国旗+中文名（覆盖常用外贸目的国）
-const COUNTRY_MAP = {
-  USA: '🇺🇸 美国',
-  GERMANY: '🇩🇪 德国',
-  UK: '🇬🇧 英国',
-  FRANCE: '🇫🇷 法国',
-  ITALY: '🇮🇹 意大利',
-  SPAIN: '🇪🇸 西班牙',
-  CANADA: '🇨🇦 加拿大',
-  AUSTRALIA: '🇦🇺 澳大利亚',
-  JAPAN: '🇯🇵 日本',
-  SOUTH_KOREA: '🇰🇷 韩国',
-  INDIA: '🇮🇳 印度',
-  RUSSIA: '🇷🇺 俄罗斯',
-  BRAZIL: '🇧🇷 巴西',
-  MEXICO: '🇲🇽 墨西哥',
-  NETHERLANDS: '🇳🇱 荷兰',
-  BELGIUM: '🇧🇪 比利时',
-  UAE: '🇦🇪 阿联酋',
-  SAUDI_ARABIA: '🇸🇦 沙特',
-  SINGAPORE: '🇸🇬 新加坡',
-  MALAYSIA: '🇲🇾 马来西亚',
-  THAILAND: '🇹🇭 泰国',
-  VIETNAM: '🇻🇳 越南',
-  INDONESIA: '🇮🇩 印尼',
-  PHILIPPINES: '🇵🇭 菲律宾',
-  TURKEY: '🇹🇷 土耳其',
-  SOUTH_AFRICA: '🇿🇦 南非',
-  EGYPT: '🇪🇬 埃及',
-  NIGERIA: '🇳🇬 尼日利亚',
-  POLAND: '🇵🇱 波兰',
-  SWEDEN: '🇸🇪 瑞典',
-  TAIWAN: '🇹🇼 台湾',
-  HONG_KONG: '🇭🇰 香港',
-  PAKISTAN: '🇵🇰 巴基斯坦',
-  BANGLADESH: '🇧🇩 孟加拉',
-  OTHER: '🌍 其他',
-};
+// 国家码 → 国旗+中文名（单一事实源见 constants/countries）
+const COUNTRY_MAP = COUNTRY_LABELS;
 
 const gradeMeta = c => GRADE_META[c.completenessGrade] || null;
 const statusMeta = c => STATUS_META[c.customerStatus] || null;
@@ -738,12 +713,22 @@ watch(
         <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
           {{ t('CRM.CUSTOMERS.HEADER') }}
         </h1>
-        <Button
-          :label="t('CRM.CUSTOMERS.NEW')"
-          icon="i-lucide-plus"
-          color="iris"
-          @click="goToIntake"
-        />
+        <div class="flex items-center gap-2">
+          <Button
+            v-if="canImport"
+            label="导入"
+            icon="i-lucide-upload"
+            variant="faded"
+            color="slate"
+            @click="importDialogRef?.open()"
+          />
+          <Button
+            :label="t('CRM.CUSTOMERS.NEW')"
+            icon="i-lucide-plus"
+            color="iris"
+            @click="goToIntake"
+          />
+        </div>
       </div>
 
       <div
@@ -1360,6 +1345,13 @@ watch(
       :is-loading="isCreating"
       @update="updateCustomer"
       @refresh="fetchCustomers"
+    />
+
+    <CrmCustomerImportDialog
+      v-if="canImport"
+      ref="importDialogRef"
+      :member-options="importMemberOptions"
+      @imported="fetchCustomers"
     />
   </div>
 </template>

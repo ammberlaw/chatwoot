@@ -20,6 +20,11 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 批量导入限管理层：系统管理员 / 副管理员 / 部门主管。
+  def import?
+    @account_user.administrator? || @account_user.crm_deputy_admin? || @account_user.crm_manager?
+  end
+
   def attach?
     true
   end
