@@ -1,0 +1,20 @@
+json.id resource.id
+json.bom_no resource.bom_no
+json.crm_product_id resource.crm_product_id
+json.product_name resource.crm_product&.name
+json.base_qty resource.base_qty
+json.unit resource.unit
+json.estimated_lead_days resource.estimated_lead_days
+json.total_material_cost_micros resource.total_material_cost_micros
+json.is_active resource.is_active
+json.is_default resource.is_default
+json.owner_id resource.owner_id
+json.owner_name resource.owner&.name
+json.remark resource.remark
+json.bom_items do
+  json.array! resource.bom_items.order(:id) do |item|
+    json.partial! 'api/v1/models/mes_bom_item', formats: [:json], resource: item
+  end
+end
+json.created_at resource.created_at
+json.updated_at resource.updated_at

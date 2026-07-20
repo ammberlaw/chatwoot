@@ -157,6 +157,7 @@ Rails.application.routes.draw do
             resources :suppliers
             resources :warehouses, except: [:show]
             resources :materials
+            resources :boms
             resources :production_orders do
               collection do
                 post :convert
@@ -165,6 +166,7 @@ Rails.application.routes.draw do
                 get :audits
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
+                post :attach_bom
               end
             end
           end

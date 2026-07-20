@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
-  before_action :fetch_production_order, only: [:show, :update, :destroy, :attach, :detach, :audits]
+  before_action :fetch_production_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
@@ -36,6 +36,13 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       delivery_date: params[:delivery_date].presence || sales_order.delivery_date,
       owner_id: params[:owner_id] || current_user.id
     )
+    render 'api/v1/accounts/mes/production_orders/show'
+  end
+
+  # 挂工程 BOM（阶段 2）：绑 BOM + 预估交期 → 进 BOM_READY。
+  def attach_bom
+    bom = Current.account.mes_boms.find(params[:bom_id])
+    @production_order.attach_bom!(bom, planned_end: params[:planned_end_date])
     render 'api/v1/accounts/mes/production_orders/show'
   end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_120300) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_130200) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1697,6 +1697,42 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_120300) do
     t.index ["user_id"], name: "index_mentions_on_user_id"
   end
 
+  create_table "mes_bom_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "bom_id", null: false
+    t.bigint "mes_material_id"
+    t.decimal "qty", precision: 14, scale: 3, null: false
+    t.string "unit"
+    t.bigint "rate_micros"
+    t.bigint "amount_micros"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_bom_items_on_account_id"
+    t.index ["bom_id"], name: "index_mes_bom_items_on_bom_id"
+    t.index ["mes_material_id"], name: "index_mes_bom_items_on_mes_material_id"
+  end
+
+  create_table "mes_boms", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "bom_no", null: false
+    t.bigint "crm_product_id"
+    t.decimal "base_qty", precision: 14, scale: 3, default: "1.0", null: false
+    t.string "unit"
+    t.integer "estimated_lead_days"
+    t.bigint "total_material_cost_micros"
+    t.boolean "is_active", default: true, null: false
+    t.boolean "is_default", default: false, null: false
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "bom_no"], name: "index_mes_boms_on_account_id_and_bom_no", unique: true
+    t.index ["account_id"], name: "index_mes_boms_on_account_id"
+    t.index ["crm_product_id"], name: "index_mes_boms_on_crm_product_id"
+    t.index ["owner_id"], name: "index_mes_boms_on_owner_id"
+  end
+
   create_table "mes_materials", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "material_no", null: false
@@ -2266,9 +2302,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_120300) do
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "mes_bom_items", "mes_boms", column: "bom_id", on_delete: :cascade
+  add_foreign_key "mes_bom_items", "mes_materials", on_delete: :nullify
+  add_foreign_key "mes_boms", "crm_products", on_delete: :nullify
+  add_foreign_key "mes_boms", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_materials", "mes_suppliers", column: "default_supplier_id", on_delete: :nullify
   add_foreign_key "mes_production_orders", "crm_products", on_delete: :nullify
   add_foreign_key "mes_production_orders", "crm_sales_orders", on_delete: :nullify
+  add_foreign_key "mes_production_orders", "mes_boms", column: "bom_id", on_delete: :nullify
   add_foreign_key "mes_production_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_suppliers", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_warehouses", "mes_warehouses", column: "parent_id", on_delete: :nullify

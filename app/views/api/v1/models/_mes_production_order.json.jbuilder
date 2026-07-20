@@ -9,6 +9,7 @@ json.unit resource.unit
 json.produced_qty resource.produced_qty
 json.progress_ratio resource.progress_ratio
 json.bom_id resource.bom_id
+json.bom_no resource.bom&.bom_no
 json.stage resource.stage
 json.status resource.status
 json.delivery_date resource.delivery_date
