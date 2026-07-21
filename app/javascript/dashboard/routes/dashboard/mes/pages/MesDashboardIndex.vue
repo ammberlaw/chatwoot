@@ -27,9 +27,9 @@ const kpis = computed(() => {
   const m = data.value?.month || {};
   return [
     { label: '在产订单', value: data.value?.inProduction ?? 0, accent: 'iris' },
-    { label: '本月完成', value: Math.round(m.completed || 0), accent: 'teal' },
+    { label: '完成数', value: Math.round(m.completed || 0), accent: 'teal' },
     {
-      label: '本月良率',
+      label: '良率',
       value: m.yieldRate != null ? `${(m.yieldRate * 100).toFixed(1)}%` : '—',
       accent: 'blue',
     },
@@ -38,7 +38,7 @@ const kpis = computed(() => {
       value: m.qcPassRate != null ? `${(m.qcPassRate * 100).toFixed(1)}%` : '—',
       accent: 'teal',
     },
-    { label: '本月出货', value: m.shipped ?? 0, accent: 'violet' },
+    { label: '出货数', value: m.shipped ?? 0, accent: 'violet' },
   ];
 });
 const ACCENT = {
@@ -59,12 +59,44 @@ const stageBars = computed(() => {
   }));
 });
 
-const goOrder = () => router.push(accountScopedRoute('mes_production_orders_index'));
+// 点交期预警/滞留订单 → 跳订单页并按订单号搜索、自动打开详情面板。
+const goOrder = orderNo =>
+  router.push(
+    accountScopedRoute('mes_production_orders_index', {}, { q: orderNo })
+  );
 
-onMounted(async () => {
+// —— 时间筛选 ——
+const PERIODS = [
+  { key: 'this_month', label: '本月' },
+  { key: 'last_month', label: '上月' },
+  { key: 'last_7', label: '近7天' },
+  { key: 'last_30', label: '近30天' },
+];
+const period = ref('this_month');
+const fmt = d =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate()
+  ).padStart(2, '0')}`;
+const periodDates = key => {
+  const now = new Date();
+  if (key === 'last_month') {
+    return [fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1)), fmt(new Date(now.getFullYear(), now.getMonth(), 0))];
+  }
+  if (key === 'last_7' || key === 'last_30') {
+    const s = new Date(now);
+    s.setDate(s.getDate() - (key === 'last_7' ? 6 : 29));
+    return [fmt(s), fmt(now)];
+  }
+  return [fmt(new Date(now.getFullYear(), now.getMonth(), 1)), fmt(now)]; // this_month
+};
+
+const load = async () => {
+  loading.value = true;
+  const [startDate, endDate] = periodDates(period.value);
   try {
     const { data: res } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/dashboard`
+      `/api/v1/accounts/${accountId.value}/mes/dashboard`,
+      { params: { start_date: startDate, end_date: endDate } }
     );
     // camel 化：后端 snake，手动取常用字段
     data.value = {
@@ -82,18 +114,43 @@ onMounted(async () => {
       overdue: res.overdue || [],
       dueSoon: res.due_soon || [],
       stalled: res.stalled || [],
-      shortages: res.shortages || [],
     };
   } finally {
     loading.value = false;
   }
-});
+};
+
+const selectPeriod = key => {
+  if (period.value === key) return;
+  period.value = key;
+  load();
+};
+
+onMounted(load);
 </script>
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto">
-    <div class="px-6 py-4">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">生产看板</h1>
+      <div
+        class="flex gap-0.5 p-0.5 rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black1"
+      >
+        <button
+          v-for="p in PERIODS"
+          :key="p.key"
+          type="button"
+          class="px-3 py-1 text-xs font-medium rounded-md transition-colors duration-100"
+          :class="
+            period === p.key
+              ? 'bg-n-solid-3 text-n-slate-12 shadow-sm'
+              : 'text-n-slate-10 hover:text-n-slate-12'
+          "
+          @click="selectPeriod(p.key)"
+        >
+          {{ p.label }}
+        </button>
+      </div>
     </div>
 
     <div v-if="loading" class="py-10 text-center text-n-slate-11">加载中…</div>
@@ -137,19 +194,23 @@ onMounted(async () => {
           <li
             v-for="o in data.overdue"
             :key="`ov-${o.id}`"
-            class="flex items-center justify-between text-sm cursor-pointer"
-            @click="goOrder"
+            class="flex items-center justify-between text-sm cursor-pointer group"
+            @click="goOrder(o.order_no)"
           >
-            <span class="text-n-slate-12">{{ o.order_no }} · {{ o.product_name }}</span>
+            <span class="text-n-slate-12 group-hover:underline">
+              {{ o.order_no }} · {{ o.product_name }}
+            </span>
             <span class="text-n-ruby-11">已逾期 {{ o.days }} 天</span>
           </li>
           <li
             v-for="o in data.dueSoon"
             :key="`ds-${o.id}`"
-            class="flex items-center justify-between text-sm cursor-pointer"
-            @click="goOrder"
+            class="flex items-center justify-between text-sm cursor-pointer group"
+            @click="goOrder(o.order_no)"
           >
-            <span class="text-n-slate-12">{{ o.order_no }} · {{ o.product_name }}</span>
+            <span class="text-n-slate-12 group-hover:underline">
+              {{ o.order_no }} · {{ o.product_name }}
+            </span>
             <span class="text-n-amber-11">距交期 {{ o.days }} 天</span>
           </li>
         </ul>
@@ -163,10 +224,10 @@ onMounted(async () => {
           <li
             v-for="o in data.stalled"
             :key="`st-${o.id}`"
-            class="flex items-center justify-between text-sm cursor-pointer"
-            @click="goOrder"
+            class="flex items-center justify-between text-sm cursor-pointer group"
+            @click="goOrder(o.order_no)"
           >
-            <span class="text-n-slate-12">
+            <span class="text-n-slate-12 group-hover:underline">
               {{ o.order_no }} · {{ stageLabel(o.stage) }}
             </span>
             <span class="text-n-amber-11">滞留 {{ o.days }} 天</span>
@@ -174,23 +235,6 @@ onMounted(async () => {
         </ul>
       </div>
 
-      <!-- 短缺物料 -->
-      <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak lg:col-span-2">
-        <div class="mb-3 font-medium text-n-slate-12">短缺物料</div>
-        <div v-if="!data.shortages.length" class="text-sm text-n-slate-11">库存充足。</div>
-        <div v-else class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <div
-            v-for="(s, i) in data.shortages"
-            :key="i"
-            class="flex items-center justify-between px-3 py-2 text-sm rounded-lg bg-n-ruby-2"
-          >
-            <span class="text-n-slate-12">{{ s.material_name }}</span>
-            <span class="text-n-ruby-11">
-              {{ s.qty }} / 安全 {{ s.safety_stock }}
-            </span>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>

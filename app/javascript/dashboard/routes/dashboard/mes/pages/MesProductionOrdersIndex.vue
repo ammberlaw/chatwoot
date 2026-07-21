@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
@@ -17,6 +18,7 @@ import PaginationFooter from 'dashboard/components-next/pagination/PaginationFoo
 const ITEMS_PER_PAGE = 15;
 
 const { accountId } = useAccount();
+const route = useRoute();
 const { mesCan } = useMesRole();
 const store = useMesProductionOrdersStore();
 
@@ -48,7 +50,7 @@ const totalCount = computed(() => store.getMeta.count || 0);
 
 const activeStage = ref('');
 const activeStatus = ref('');
-const searchQuery = ref('');
+const searchQuery = ref(route.query.q ? String(route.query.q) : '');
 const currentPage = ref(1);
 
 const stageFilterOptions = [
@@ -60,14 +62,13 @@ const statusFilterOptions = [
   ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
 ];
 
-const fetchRecords = () => {
+const fetchRecords = () =>
   store.get({
     page: currentPage.value,
     stage: activeStage.value || undefined,
     status: activeStatus.value || undefined,
     q: searchQuery.value.trim() || undefined,
   });
-};
 
 let searchTimer = null;
 const onSearchInput = () => {
@@ -237,7 +238,15 @@ const submitAttachBom = async () => {
   }
 };
 
-onMounted(fetchRecords);
+onMounted(async () => {
+  await fetchRecords();
+  // 从看板交期预警跳转过来：按订单号自动打开详情面板。
+  const q = route.query.q ? String(route.query.q) : '';
+  if (q) {
+    const match = records.value.find(r => r.orderNo === q);
+    if (match) selected.value = match;
+  }
+});
 watch([activeStage, activeStatus, currentPage], fetchRecords);
 </script>
 

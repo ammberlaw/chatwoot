@@ -9,15 +9,21 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     @overdue = alerts[:overdue]
     @due_soon = alerts[:due_soon]
     @stalled = alerts[:stalled]
-    @shortages = alerts[:shortages]
-    @month = month_output
+    @month = period_output
     render 'api/v1/accounts/mes/dashboard/show'
   end
 
   private
 
-  def month_output
-    range = Time.current.beginning_of_month..Time.current.end_of_month
+  # 时间筛选：前端传 start_date/end_date（ISO 日期），缺省本月。
+  def period_range
+    start_at = params[:start_date].present? ? Time.zone.parse(params[:start_date]).beginning_of_day : Time.current.beginning_of_month
+    end_at = params[:end_date].present? ? Time.zone.parse(params[:end_date]).end_of_day : Time.current.end_of_month
+    start_at..end_at
+  end
+
+  def period_output
+    range = period_range
     recs = scoped_by_product_line(Current.account.mes_production_records).where(recorded_at: range)
     completed = recs.sum(:qty_completed)
     scrap = recs.sum(:qty_scrap)
