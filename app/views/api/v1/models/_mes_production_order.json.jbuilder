@@ -35,11 +35,6 @@ json.actual_start_date resource.actual_start_date
 json.actual_end_date resource.actual_end_date
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
-json.actual_material_cost_micros resource.actual_material_cost_micros
-json.planned_material_cost_micros resource.planned_material_cost_micros
-json.unit_material_cost_micros resource.unit_material_cost_micros
-json.sales_amount_micros resource.sales_amount_micros
-json.gross_margin_micros resource.gross_margin_micros
 json.remark resource.remark
 json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }
 json.created_at resource.created_at

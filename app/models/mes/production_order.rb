@@ -139,40 +139,6 @@ class Mes::ProductionOrder < ApplicationRecord
     self
   end
 
-  # 实际耗料成本（已过账领料 - 退料，× 物料标准价）。
-  def actual_material_cost_micros
-    entries = account.mes_stock_entries
-                     .where(production_order_id: id, status: 'POSTED', purpose: %w[MATERIAL_ISSUE MATERIAL_RETURN])
-                     .includes(stock_entry_items: :mes_material)
-    entries.sum do |entry|
-      sign = entry.purpose == 'MATERIAL_ISSUE' ? 1 : -1
-      entry.stock_entry_items.sum { |item| sign * item.effective_qty * (item.mes_material&.cost_price_micros || 0) }
-    end.round
-  end
-
-  # 计划耗料成本（BOM 汇总 × 本单产量/基准产量）。
-  def planned_material_cost_micros
-    return nil if bom.nil? || bom.base_qty.to_d.zero?
-
-    (bom.total_material_cost_micros.to_i * (qty.to_d / bom.base_qty.to_d)).round
-  end
-
-  def unit_material_cost_micros
-    base = produced_qty.to_d.positive? ? produced_qty.to_d : qty.to_d
-    return nil if base.zero?
-
-    (actual_material_cost_micros / base).round
-  end
-
-  def sales_amount_micros = crm_sales_order&.order_amount_micros
-
-  # 毛利（销售额 - 实际耗料，物料口径；人工/制费后期）。
-  def gross_margin_micros
-    return nil if sales_amount_micros.nil?
-
-    sales_amount_micros - actual_material_cost_micros
-  end
-
   # 报工累加已产数量；首次报工把阶段从「生产领料」推进到「生产」。
   def add_produced!(delta)
     update_columns(produced_qty: produced_qty.to_d + delta.to_d, updated_at: Time.current)

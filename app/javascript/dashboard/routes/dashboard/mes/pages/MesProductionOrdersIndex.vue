@@ -97,7 +97,6 @@ const stageTime = stageValue => {
   return ev?.enteredAt ? new Date(ev.enteredAt).toLocaleDateString() : '';
 };
 
-const money = m => (m ? (m / 1e6).toFixed(2) : '0.00');
 const DAY = 86400000;
 const STALL_DAYS = 3; // 当前阶段滞留超此天数即预警
 const DUE_SOON_DAYS = 3; // 距交期内此天数算临近
@@ -606,38 +605,6 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           </span>
         </div>
 
-        <div
-          v-if="selected.actualMaterialCostMicros || selected.salesAmountMicros"
-          class="flex flex-col gap-1 pt-3 mt-3 text-xs border-t border-n-weak"
-        >
-          <div class="flex items-center justify-between text-n-slate-11">
-            <span>实际耗料成本</span>
-            <span class="text-n-slate-12">¥{{ money(selected.actualMaterialCostMicros) }}</span>
-          </div>
-          <div
-            v-if="selected.unitMaterialCostMicros"
-            class="flex items-center justify-between text-n-slate-11"
-          >
-            <span>单位料成本</span>
-            <span class="text-n-slate-12">¥{{ money(selected.unitMaterialCostMicros) }}</span>
-          </div>
-          <div
-            v-if="selected.grossMarginMicros != null"
-            class="flex items-center justify-between"
-          >
-            <span class="text-n-slate-11">毛利(料口径)</span>
-            <span
-              class="font-medium"
-              :class="
-                selected.grossMarginMicros >= 0
-                  ? 'text-n-teal-11'
-                  : 'text-n-ruby-11'
-              "
-            >
-              ¥{{ money(selected.grossMarginMicros) }}
-            </span>
-          </div>
-        </div>
       </div>
     </div>
 
