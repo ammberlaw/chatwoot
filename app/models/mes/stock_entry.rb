@@ -38,8 +38,8 @@
 class Mes::StockEntry < ApplicationRecord
   include Mes::DocumentNumber
 
-  # 一表多用（ERPNext Stock Entry 模式）。
-  PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN MANUFACTURE SCRAP].freeze
+  # 一表多用（ERPNext Stock Entry 模式）。SHIPMENT=成品出库（销售出库开单时内部生成）。
+  PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN MANUFACTURE SCRAP SHIPMENT].freeze
   IN_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN MANUFACTURE].freeze
   STATUSES = %w[DRAFT POSTED CANCELLED].freeze
 
@@ -104,7 +104,8 @@ class Mes::StockEntry < ApplicationRecord
   STAGE_ADVANCE = {
     'MATERIAL_RECEIPT' => %w[PURCHASING MATERIAL_INBOUND],
     'MATERIAL_ISSUE' => %w[MATERIAL_INBOUND PICKING],
-    'MANUFACTURE' => %w[PRODUCTION FG_INBOUND]
+    'MANUFACTURE' => %w[PRODUCTION FG_INBOUND],
+    'SHIPMENT' => %w[FG_INBOUND SHIPPED]
   }.freeze
 
   def advance_production_order_on_receipt(timestamp)

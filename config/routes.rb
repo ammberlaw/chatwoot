@@ -166,6 +166,12 @@ Rails.application.routes.draw do
             end
             resources :stock_balances, only: [:index]
             resources :production_records, only: [:index, :create, :destroy]
+            resources :shipments do
+              member do
+                post :notify
+                post :ship
+              end
+            end
             resources :production_orders do
               collection do
                 post :convert

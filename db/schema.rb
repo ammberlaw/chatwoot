@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_170100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1840,6 +1840,42 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_160000) do
     t.index ["production_order_id"], name: "index_mes_purchase_orders_on_production_order_id"
   end
 
+  create_table "mes_shipment_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "shipment_id", null: false
+    t.bigint "crm_product_id"
+    t.decimal "qty", precision: 16, scale: 3, null: false
+    t.string "unit"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_shipment_items_on_account_id"
+    t.index ["crm_product_id"], name: "index_mes_shipment_items_on_crm_product_id"
+    t.index ["shipment_id"], name: "index_mes_shipment_items_on_shipment_id"
+  end
+
+  create_table "mes_shipments", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "shipment_no", null: false
+    t.bigint "crm_sales_order_id"
+    t.bigint "crm_customer_id"
+    t.bigint "production_order_id"
+    t.bigint "warehouse_id"
+    t.string "status", default: "DRAFT", null: false
+    t.datetime "notified_at"
+    t.datetime "shipped_at"
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "shipment_no"], name: "index_mes_shipments_on_account_id_and_shipment_no", unique: true
+    t.index ["account_id"], name: "index_mes_shipments_on_account_id"
+    t.index ["crm_customer_id"], name: "index_mes_shipments_on_crm_customer_id"
+    t.index ["crm_sales_order_id"], name: "index_mes_shipments_on_crm_sales_order_id"
+    t.index ["owner_id"], name: "index_mes_shipments_on_owner_id"
+    t.index ["production_order_id"], name: "index_mes_shipments_on_production_order_id"
+  end
+
   create_table "mes_stock_balances", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "item_type", null: false
@@ -2453,6 +2489,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_160000) do
   add_foreign_key "mes_purchase_orders", "mes_production_orders", column: "production_order_id", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "mes_suppliers", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_shipment_items", "crm_products", on_delete: :nullify
+  add_foreign_key "mes_shipment_items", "mes_shipments", column: "shipment_id", on_delete: :cascade
+  add_foreign_key "mes_shipments", "crm_customers", on_delete: :nullify
+  add_foreign_key "mes_shipments", "crm_sales_orders", on_delete: :nullify
+  add_foreign_key "mes_shipments", "mes_production_orders", column: "production_order_id", on_delete: :nullify
+  add_foreign_key "mes_shipments", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_stock_entries", "mes_production_orders", column: "production_order_id", on_delete: :nullify
   add_foreign_key "mes_stock_entries", "mes_purchase_orders", column: "purchase_order_id", on_delete: :nullify
   add_foreign_key "mes_stock_entries", "users", column: "owner_id", on_delete: :nullify
