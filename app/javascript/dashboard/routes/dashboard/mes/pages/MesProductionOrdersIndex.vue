@@ -87,6 +87,48 @@ const stageTime = stageValue => {
   return ev?.enteredAt ? new Date(ev.enteredAt).toLocaleDateString() : '';
 };
 
+const DAY = 86400000;
+const STALL_DAYS = 3; // 当前阶段滞留超此天数即预警
+const DUE_SOON_DAYS = 3; // 距交期内此天数算临近
+
+// 各阶段耗时：相邻事件时间差；当前(最后)阶段算「已 N 天」。
+const stageDurationLabel = stageValue => {
+  const evs = [...(selected.value?.stageEvents || [])].sort(
+    (a, b) => new Date(a.enteredAt) - new Date(b.enteredAt)
+  );
+  const idx = evs.findIndex(e => e.stage === stageValue);
+  if (idx === -1) return '';
+  const start = new Date(evs[idx].enteredAt);
+  const isCurrent = idx === evs.length - 1;
+  const end = isCurrent ? Date.now() : new Date(evs[idx + 1].enteredAt);
+  const days = Math.max(0, Math.round((end - start) / DAY));
+  if (!isCurrent) return `耗时 ${days} 天`;
+  return selected.value?.stage === 'SHIPPED' ? '' : `进行中 · 已 ${days} 天`;
+};
+
+// 当前阶段滞留天数（未出货才算）。
+const stallDays = po => {
+  if (!po || po.stage === 'SHIPPED') return 0;
+  const ev = (po.stageEvents || []).find(e => e.stage === po.stage);
+  if (!ev?.enteredAt) return 0;
+  return Math.round((Date.now() - new Date(ev.enteredAt)) / DAY);
+};
+const isStalled = po => stallDays(po) >= STALL_DAYS;
+
+// 交期状态：已出货不预警；逾期红 / 临近橙 / 正常灰。
+const deliveryStatus = po => {
+  if (!po?.deliveryDate || po.stage === 'SHIPPED') return null;
+  const days = Math.round((new Date(po.deliveryDate) - Date.now()) / DAY);
+  if (days < 0) return { level: 'overdue', label: `已逾期 ${-days} 天` };
+  if (days <= DUE_SOON_DAYS) return { level: 'soon', label: `距交期 ${days} 天` };
+  return { level: 'ok', label: `距交期 ${days} 天` };
+};
+const DUE_CLASS = {
+  overdue: 'text-n-ruby-11',
+  soon: 'text-n-amber-11',
+  ok: 'text-n-slate-11',
+};
+
 // —— 转单弹窗 ——
 const convertDialogRef = ref(null);
 const salesOrders = ref([]);
@@ -238,6 +280,7 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
               <th class="px-3 py-3 font-medium">成品</th>
               <th class="px-3 py-3 font-medium">数量</th>
               <th class="px-3 py-3 font-medium">阶段</th>
+              <th class="px-3 py-3 font-medium">交期</th>
               <th class="px-3 py-3 font-medium">来源销售单</th>
               <th class="px-3 py-3 font-medium">负责人</th>
             </tr>
@@ -263,6 +306,19 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
                 >
                   {{ stageLabel(po.stage) }}
                 </span>
+                <span
+                  v-if="isStalled(po)"
+                  v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
+                  class="ml-1 text-xs text-n-amber-11"
+                >
+                  ⚠
+                </span>
+              </td>
+              <td class="px-3 py-3 text-xs">
+                <span v-if="deliveryStatus(po)" :class="DUE_CLASS[deliveryStatus(po).level]">
+                  {{ deliveryStatus(po).label }}
+                </span>
+                <span v-else class="text-n-slate-10">—</span>
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ po.salesOrderNo || '—' }}
@@ -340,12 +396,16 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
               </span>
               <div v-if="stageTime(s.value)" class="text-xs text-n-slate-10">
                 {{ stageTime(s.value) }} 到达
-              </div>
-              <div
-                v-else-if="i === stageIndex(selected.stage)"
-                class="text-xs text-n-iris-11"
-              >
-                进行中
+                <span
+                  v-if="stageDurationLabel(s.value)"
+                  :class="
+                    i === stageIndex(selected.stage) && isStalled(selected)
+                      ? 'text-n-amber-11'
+                      : 'text-n-slate-10'
+                  "
+                >
+                  · {{ stageDurationLabel(s.value) }}
+                </span>
               </div>
             </div>
           </div>
@@ -367,9 +427,16 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
 
         <div
           v-if="selected.deliveryDate"
-          class="pt-3 mt-3 text-xs border-t text-n-slate-11 border-n-weak"
+          class="flex items-center justify-between pt-3 mt-3 text-xs border-t text-n-slate-11 border-n-weak"
         >
-          交期：{{ new Date(selected.deliveryDate).toLocaleDateString() }}
+          <span>交期：{{ new Date(selected.deliveryDate).toLocaleDateString() }}</span>
+          <span
+            v-if="deliveryStatus(selected)"
+            class="font-medium"
+            :class="DUE_CLASS[deliveryStatus(selected).level]"
+          >
+            {{ deliveryStatus(selected).label }}
+          </span>
         </div>
       </div>
     </div>
