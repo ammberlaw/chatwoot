@@ -33,6 +33,11 @@ const kpis = computed(() => {
       value: m.yieldRate != null ? `${(m.yieldRate * 100).toFixed(1)}%` : '—',
       accent: 'blue',
     },
+    {
+      label: '质检合格率',
+      value: m.qcPassRate != null ? `${(m.qcPassRate * 100).toFixed(1)}%` : '—',
+      accent: 'teal',
+    },
     { label: '本月出货', value: m.shipped ?? 0, accent: 'violet' },
   ];
 });
@@ -71,6 +76,7 @@ onMounted(async () => {
             scrap: res.month.scrap,
             shipped: res.month.shipped,
             yieldRate: res.month.yield_rate,
+            qcPassRate: res.month.qc_pass_rate,
           }
         : {},
       overdue: res.overdue || [],
@@ -94,7 +100,7 @@ onMounted(async () => {
 
     <div v-else class="grid grid-cols-1 gap-4 px-6 pb-6 lg:grid-cols-3">
       <!-- KPI 行 -->
-      <div class="grid grid-cols-2 gap-4 lg:col-span-3 lg:grid-cols-4">
+      <div class="grid grid-cols-2 gap-4 lg:col-span-3 lg:grid-cols-5">
         <div
           v-for="k in kpis"
           :key="k.label"

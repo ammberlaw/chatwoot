@@ -59,7 +59,12 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     scrap = recs.sum(:qty_scrap)
     shipped = Current.account.mes_shipments.where(status: 'SHIPPED', shipped_at: range).count
     denom = completed + scrap
+    qc = Current.account.mes_inspections.where(inspected_at: range)
+    qc_total = qc.sum(:inspected_qty)
+    qc_failed = qc.sum(:failed_qty)
     { completed: completed, scrap: scrap, shipped: shipped,
-      yield_rate: denom.positive? ? (completed / denom.to_f).round(4) : nil }
+      yield_rate: denom.positive? ? (completed / denom.to_f).round(4) : nil,
+      qc_inspected: qc_total, qc_failed: qc_failed,
+      qc_pass_rate: qc_total.positive? ? ((qc_total - qc_failed) / qc_total.to_f).round(4) : nil }
   end
 end

@@ -59,8 +59,8 @@ class AccountUser < ApplicationRecord
     'pmc' => %w[order master],
     'engineer' => %w[bom master],
     'buyer' => %w[purchase master],
-    'warehouse' => %w[stock shipment],
-    'production' => %w[report]
+    'warehouse' => %w[stock shipment quality],
+    'production' => %w[report quality]
   }.freeze
 
   # 能否在 MES 某能力域写操作（下单/BOM/采购/库存/报工/出库/主数据）。

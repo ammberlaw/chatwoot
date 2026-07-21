@@ -7,6 +7,7 @@ import MesPurchaseOrdersIndex from './pages/MesPurchaseOrdersIndex.vue';
 import MesStockEntriesIndex from './pages/MesStockEntriesIndex.vue';
 import MesMaterialIssuesIndex from './pages/MesMaterialIssuesIndex.vue';
 import MesProductionRecordsIndex from './pages/MesProductionRecordsIndex.vue';
+import MesInspectionsIndex from './pages/MesInspectionsIndex.vue';
 import MesFgInboundIndex from './pages/MesFgInboundIndex.vue';
 import MesShipmentsIndex from './pages/MesShipmentsIndex.vue';
 import MesStockBalancesIndex from './pages/MesStockBalancesIndex.vue';
@@ -40,6 +41,7 @@ export const routes = [
   mesPage('stock-entries', 'mes_stock_entries_index', MesStockEntriesIndex),
   mesPage('material-issues', 'mes_material_issues_index', MesMaterialIssuesIndex),
   mesPage('production-records', 'mes_production_records_index', MesProductionRecordsIndex),
+  mesPage('inspections', 'mes_inspections_index', MesInspectionsIndex),
   mesPage('fg-inbound', 'mes_fg_inbound_index', MesFgInboundIndex),
   mesPage('shipments', 'mes_shipments_index', MesShipmentsIndex),
   mesPage('stock-balances', 'mes_stock_balances_index', MesStockBalancesIndex),

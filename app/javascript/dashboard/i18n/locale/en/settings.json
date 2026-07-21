@@ -444,6 +444,7 @@
     "MES_STOCK_ENTRIES": "原料入库",
     "MES_MATERIAL_ISSUES": "生产领料",
     "MES_PRODUCTION_RECORDS": "生产报工",
+    "MES_INSPECTIONS": "质量检验",
     "MES_FG_INBOUND": "成品入库",
     "MES_SHIPMENTS": "销售出库",
     "MES_STOCK_BALANCES": "库存",

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_200000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1735,6 +1735,33 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_190000) do
     t.index ["owner_id"], name: "index_mes_boms_on_owner_id"
   end
 
+  create_table "mes_inspections", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "kind", null: false
+    t.string "item_type"
+    t.bigint "mes_material_id"
+    t.bigint "crm_product_id"
+    t.bigint "production_order_id"
+    t.bigint "purchase_order_id"
+    t.decimal "inspected_qty", precision: 14, scale: 3, default: "0.0", null: false
+    t.decimal "passed_qty", precision: 14, scale: 3, default: "0.0", null: false
+    t.decimal "failed_qty", precision: 14, scale: 3, default: "0.0", null: false
+    t.string "result"
+    t.text "defect_reason"
+    t.boolean "need_rework", default: false, null: false
+    t.bigint "inspector_id"
+    t.datetime "inspected_at"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "kind"], name: "index_mes_inspections_on_account_id_and_kind"
+    t.index ["account_id"], name: "index_mes_inspections_on_account_id"
+    t.index ["crm_product_id"], name: "index_mes_inspections_on_crm_product_id"
+    t.index ["mes_material_id"], name: "index_mes_inspections_on_mes_material_id"
+    t.index ["production_order_id"], name: "index_mes_inspections_on_production_order_id"
+    t.index ["purchase_order_id"], name: "index_mes_inspections_on_purchase_order_id"
+  end
+
   create_table "mes_materials", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "material_no", null: false
@@ -2492,6 +2519,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_190000) do
   add_foreign_key "mes_bom_items", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_boms", "crm_products", on_delete: :nullify
   add_foreign_key "mes_boms", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_inspections", "crm_products", on_delete: :nullify
+  add_foreign_key "mes_inspections", "mes_materials", on_delete: :nullify
+  add_foreign_key "mes_inspections", "mes_production_orders", column: "production_order_id", on_delete: :nullify
+  add_foreign_key "mes_inspections", "mes_purchase_orders", column: "purchase_order_id", on_delete: :nullify
+  add_foreign_key "mes_inspections", "users", column: "inspector_id", on_delete: :nullify
   add_foreign_key "mes_materials", "mes_suppliers", column: "default_supplier_id", on_delete: :nullify
   add_foreign_key "mes_production_order_stage_events", "mes_production_orders", column: "production_order_id", on_delete: :cascade
   add_foreign_key "mes_production_order_stage_events", "users", column: "actor_id", on_delete: :nullify
