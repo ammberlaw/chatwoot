@@ -63,11 +63,6 @@ class Mes::Bom < ApplicationRecord
     sum.positive? ? sum : estimated_lead_days.to_i
   end
 
-  # 用料汇总成本（只读，随明细增改回写）。
-  def recompute_total_cost!
-    update_column(:total_material_cost_micros, bom_items.sum(:amount_micros))
-  end
-
   private
 
   def product_line_source = crm_product

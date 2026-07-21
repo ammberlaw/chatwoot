@@ -4,7 +4,6 @@ import { ref, computed, reactive, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
-import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
@@ -15,7 +14,6 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 const { accountId } = useAccount();
 const store = useMesBomsStore();
 const { mesCan } = useMesRole();
-const materialsStore = useMesMaterialsStore();
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -36,24 +34,27 @@ const products = ref([]);
 const productOptions = computed(() =>
   products.value.map(p => ({ value: String(p.id), label: p.name }))
 );
-const materialOptions = computed(() =>
-  (materialsStore.getRecords || []).map(m => ({
-    value: String(m.id),
-    label: `${m.name}（${m.unit}）`,
-  }))
-);
 
 const dialogRef = ref(null);
 const editingId = ref(null);
 const removedItemIds = ref([]);
 const blankLeadDays = () =>
   Object.fromEntries(LEAD_STAGES.map(s => [s.key, '']));
+// 用料明细每行照生产任务单直接填。
+const blankRow = () => ({
+  materialNo: '',
+  materialName: '',
+  specification: '',
+  unit: '',
+  qty: '',
+  remark: '',
+});
 const form = reactive({
   crmProductId: '',
   baseQty: '1',
   unit: '台',
   ...blankLeadDays(),
-  rows: [], // { id?, mesMaterialId, qty }
+  rows: [], // { id?, materialNo, materialName, specification, unit, qty, remark }
 });
 
 const totalLeadDays = computed(() =>
@@ -63,10 +64,10 @@ const totalLeadDays = computed(() =>
 const invalid = computed(
   () =>
     !form.rows.length ||
-    form.rows.some(r => !r.mesMaterialId || !Number(r.qty))
+    form.rows.some(r => !r.materialName.trim() || !Number(r.qty))
 );
 
-const addRow = () => form.rows.push({ mesMaterialId: '', qty: '1' });
+const addRow = () => form.rows.push(blankRow());
 const removeRow = i => {
   const [removed] = form.rows.splice(i, 1);
   if (removed?.id) removedItemIds.value.push(removed.id);
@@ -80,7 +81,7 @@ const openCreate = () => {
     baseQty: '1',
     unit: '台',
     ...blankLeadDays(),
-    rows: [{ mesMaterialId: '', qty: '1' }],
+    rows: [blankRow()],
   });
   dialogRef.value?.open();
 };
@@ -94,8 +95,12 @@ const openEdit = bom => {
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, bom[s.key] ?? ''])),
     rows: (bom.bomItems || []).map(it => ({
       id: it.id,
-      mesMaterialId: String(it.mesMaterialId),
-      qty: String(it.qty),
+      materialNo: it.materialNo || '',
+      materialName: it.materialName || '',
+      specification: it.specification || '',
+      unit: it.unit || '',
+      qty: String(it.qty ?? ''),
+      remark: it.remark || '',
     })),
   });
   dialogRef.value?.open();
@@ -106,8 +111,12 @@ const submit = async () => {
   const itemsAttributes = [
     ...form.rows.map(r => ({
       id: r.id || undefined,
-      mesMaterialId: Number(r.mesMaterialId),
+      materialNo: r.materialNo.trim(),
+      materialName: r.materialName.trim(),
+      specification: r.specification.trim(),
+      unit: r.unit.trim(),
       qty: Number(r.qty),
+      remark: r.remark.trim(),
     })),
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
   ];
@@ -131,7 +140,6 @@ const submit = async () => {
 
 onMounted(async () => {
   store.get();
-  materialsStore.get();
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/crm/products`
@@ -147,11 +155,19 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">工程/PMC BOM</h1>
-      <Button v-if="mesCan('bom')" label="新建 BOM" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('bom')"
+        label="新建 BOM"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -166,8 +182,12 @@ onMounted(async () => {
         <tbody>
           <tr v-for="b in records" :key="b.id" class="border-b border-n-weak">
             <td class="px-3 py-3 font-medium text-n-slate-12">{{ b.bomNo }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ b.productName || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ b.baseQty }} {{ b.unit }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ b.productName || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ b.baseQty }} {{ b.unit }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ (b.bomItems || []).length }} 项
             </td>
@@ -214,7 +234,9 @@ onMounted(async () => {
             />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">基准产量 / 单位</label>
+            <label class="text-heading-3 text-n-slate-12"
+              >基准产量 / 单位</label
+            >
             <div class="flex gap-2">
               <Input v-model="form.baseQty" type="number" class="w-20" />
               <Input v-model="form.unit" placeholder="台" />
@@ -226,18 +248,27 @@ onMounted(async () => {
           <div class="flex items-center justify-between">
             <span class="text-heading-3 text-n-slate-12">各阶段预估天数</span>
             <span class="text-xs text-n-slate-11">
-              预估周期合计：<span class="font-medium text-n-slate-12">{{ totalLeadDays }}</span> 天
+              预估周期合计：<span class="font-medium text-n-slate-12">{{
+                totalLeadDays
+              }}</span>
+              天
             </span>
           </div>
           <div class="grid grid-cols-5 gap-2">
-            <div v-for="s in LEAD_STAGES" :key="s.key" class="flex flex-col gap-1">
+            <div
+              v-for="s in LEAD_STAGES"
+              :key="s.key"
+              class="flex flex-col gap-1"
+            >
               <label class="text-xs text-n-slate-11">{{ s.label }}</label>
               <Input v-model="form[s.key]" type="number" placeholder="天" />
             </div>
           </div>
         </div>
 
-        <div class="flex items-center justify-between pt-2 border-t border-n-weak">
+        <div
+          class="flex items-center justify-between pt-2 border-t border-n-weak"
+        >
           <span class="text-heading-3 text-n-slate-12">
             用料明细 <span class="text-n-ruby-11">*</span>
           </span>
@@ -245,24 +276,47 @@ onMounted(async () => {
         </div>
 
         <div class="flex flex-col gap-2">
+          <div class="grid grid-cols-12 gap-2 px-1 text-xs text-n-slate-11">
+            <span class="col-span-2">物料编码</span>
+            <span class="col-span-3"
+              >物料名称 <span class="text-n-ruby-11">*</span></span
+            >
+            <span class="col-span-2">规格型号</span>
+            <span class="col-span-1">单位</span>
+            <span class="col-span-1"
+              >用量 <span class="text-n-ruby-11">*</span></span
+            >
+            <span class="col-span-2">备注</span>
+            <span class="col-span-1" />
+          </div>
           <div
             v-for="(row, i) in form.rows"
             :key="i"
             class="grid items-center grid-cols-12 gap-2"
           >
-            <div class="col-span-8">
-              <ComboBox
-                v-model="row.mesMaterialId"
-                :options="materialOptions"
-                placeholder="选择物料"
-              />
-            </div>
+            <Input
+              v-model="row.materialNo"
+              placeholder="P.03.201"
+              class="col-span-2"
+            />
+            <Input
+              v-model="row.materialName"
+              placeholder="P30主板"
+              class="col-span-3"
+            />
+            <Input
+              v-model="row.specification"
+              placeholder="规格型号"
+              class="col-span-2"
+            />
+            <Input v-model="row.unit" placeholder="台" class="col-span-1" />
             <Input
               v-model="row.qty"
               type="number"
               placeholder="用量"
-              class="col-span-3"
+              class="col-span-1"
             />
+            <Input v-model="row.remark" placeholder="备注" class="col-span-2" />
             <button
               type="button"
               class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"

@@ -159,19 +159,19 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   # BOM 算料（XMind 节点3）：按 BOM 用量 × 本单产量/基准产量，展开采购需求。
-  # 返回 [{ mes_material_id, material_name, unit, qty, rate_micros }]，供采购单预填。
+  # 返回 [{ mes_material_id, material_no, material_name, specification, unit, qty }]，供采购单预填。
   def material_requirements
     return [] if bom.nil? || bom.base_qty.to_d.zero?
 
     factor = qty.to_d / bom.base_qty.to_d
-    bom.bom_items.includes(:mes_material).map do |item|
-      material = item.mes_material
+    bom.bom_items.map do |item|
       {
         mes_material_id: item.mes_material_id,
-        material_name: material&.name,
-        unit: item.unit.presence || material&.unit,
-        qty: (item.qty.to_d * factor),
-        rate_micros: item.rate_micros.presence || material&.cost_price_micros
+        material_no: item.material_no,
+        material_name: item.material_name,
+        specification: item.specification,
+        unit: item.unit,
+        qty: (item.qty.to_d * factor)
       }
     end
   end

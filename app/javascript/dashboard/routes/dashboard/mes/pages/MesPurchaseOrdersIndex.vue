@@ -27,7 +27,6 @@ const saving = computed(
   () => store.getUIFlags.creatingItem || store.getUIFlags.updatingItem
 );
 
-const yuan = micros => (micros ? (micros / 1e6).toFixed(2) : '0.00');
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 
 const STATUS_LABELS = {
@@ -74,20 +73,16 @@ const form = reactive({
   followUpDate: '',
   hasException: false,
   exceptionNote: '',
-  rows: [], // { id?, mesMaterialId, qty, rateMicros }
+  rows: [], // { id?, mesMaterialId, qty, remark }
 });
 
-const rowAmount = row => (Number(row.qty) || 0) * (Number(row.rateMicros) || 0);
-const totalMicros = computed(() =>
-  form.rows.reduce((s, r) => s + rowAmount(r), 0)
-);
 const invalid = computed(
   () =>
     !form.rows.length || form.rows.some(r => !r.mesMaterialId || !Number(r.qty))
 );
 
 const addRow = () =>
-  form.rows.push({ mesMaterialId: '', qty: '1', rateMicros: '' });
+  form.rows.push({ mesMaterialId: '', qty: '1', remark: '' });
 const removeRow = i => {
   const [r] = form.rows.splice(i, 1);
   if (r?.id) removedItemIds.value.push(r.id);
@@ -100,7 +95,9 @@ const explode = async () => {
     return;
   }
   try {
-    const { data } = await MesPurchaseOrderAPI.requirement(form.productionOrderId);
+    const { data } = await MesPurchaseOrderAPI.requirement(
+      form.productionOrderId
+    );
     const reqs = data?.payload || [];
     if (!reqs.length) {
       useAlert('该生产订单未挂 BOM 或无用料');
@@ -108,9 +105,11 @@ const explode = async () => {
     }
     form.rows.forEach(r => r.id && removedItemIds.value.push(r.id));
     form.rows = reqs.map(r => ({
-      mesMaterialId: String(r.mes_material_id),
+      mesMaterialId: r.mes_material_id ? String(r.mes_material_id) : '',
       qty: String(r.qty),
-      rateMicros: r.rate_micros ?? '',
+      remark: [r.material_no, r.material_name, r.specification]
+        .filter(Boolean)
+        .join(' '),
     }));
   } catch {
     useAlert('算料失败');
@@ -128,7 +127,7 @@ const resetForm = () => {
     followUpDate: '',
     hasException: false,
     exceptionNote: '',
-    rows: [{ mesMaterialId: '', qty: '1', rateMicros: '' }],
+    rows: [{ mesMaterialId: '', qty: '1', remark: '' }],
   });
 };
 
@@ -151,7 +150,7 @@ const openEdit = po => {
       id: it.id,
       mesMaterialId: String(it.mesMaterialId),
       qty: String(it.qty),
-      rateMicros: it.rateMicros ?? '',
+      remark: it.remark || '',
     })),
   });
   dialogRef.value?.open();
@@ -164,7 +163,7 @@ const submit = async () => {
       id: r.id || undefined,
       mesMaterialId: Number(r.mesMaterialId),
       qty: Number(r.qty),
-      rateMicros: Number(r.rateMicros) || 0,
+      remark: r.remark || '',
     })),
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
   ];
@@ -206,11 +205,19 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">采购单</h1>
-      <Button v-if="mesCan('purchase')" label="新建采购单" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('purchase')"
+        label="新建采购单"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -220,7 +227,6 @@ onMounted(async () => {
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium">回复交期</th>
             <th class="px-3 py-3 font-medium">跟进</th>
-            <th class="px-3 py-3 font-medium">金额</th>
             <th class="px-3 py-3" />
           </tr>
         </thead>
@@ -236,7 +242,9 @@ onMounted(async () => {
                 ⚠
               </span>
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ p.supplierName || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ p.supplierName || '—' }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ p.productionOrderNo || '—' }}
             </td>
@@ -245,15 +253,18 @@ onMounted(async () => {
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.expectedDate) }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.followUpDate) }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              ¥{{ yuan(p.totalAmountMicros) }}
-            </td>
             <td class="px-3 py-3 text-right">
-              <Button v-if="mesCan('purchase')" label="编辑" variant="ghost" size="sm" @click="openEdit(p)" />
+              <Button
+                v-if="mesCan('purchase')"
+                label="编辑"
+                variant="ghost"
+                size="sm"
+                @click="openEdit(p)"
+              />
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
               还没有采购单。
             </td>
           </tr>
@@ -338,23 +349,20 @@ onMounted(async () => {
             :key="i"
             class="grid items-center grid-cols-12 gap-2"
           >
-            <div class="col-span-5">
+            <div class="col-span-6">
               <ComboBox
                 v-model="row.mesMaterialId"
                 :options="materialOptions"
                 placeholder="选择物料"
               />
             </div>
-            <Input v-model="row.qty" type="number" placeholder="数量" class="col-span-2" />
             <Input
-              v-model="row.rateMicros"
+              v-model="row.qty"
               type="number"
-              placeholder="单价(微分)"
-              class="col-span-3"
+              placeholder="数量"
+              class="col-span-2"
             />
-            <span class="col-span-1 text-xs text-right text-n-slate-11">
-              ¥{{ yuan(rowAmount(row)) }}
-            </span>
+            <Input v-model="row.remark" placeholder="备注" class="col-span-3" />
             <button
               type="button"
               class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
@@ -363,11 +371,6 @@ onMounted(async () => {
               ✕
             </button>
           </div>
-        </div>
-        <div
-          class="flex justify-end pt-2 text-sm font-medium border-t text-n-slate-12 border-n-weak"
-        >
-          采购金额合计：¥{{ yuan(totalMicros) }}
         </div>
       </div>
     </Dialog>
