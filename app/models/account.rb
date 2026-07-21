@@ -110,6 +110,7 @@ class Account < ApplicationRecord
   has_many :mes_stock_entry_items, class_name: 'Mes::StockEntryItem', dependent: :destroy_async
   has_many :mes_stock_ledgers, class_name: 'Mes::StockLedger', dependent: :destroy_async
   has_many :mes_stock_balances, class_name: 'Mes::StockBalance', dependent: :destroy_async
+  has_many :mes_production_records, class_name: 'Mes::ProductionRecord', dependent: :destroy_async
   has_many :mes_production_orders, class_name: 'Mes::ProductionOrder', dependent: :destroy_async
   has_many :org_departments, class_name: 'Org::Department', dependent: :destroy_async
   has_many :org_memberships, class_name: 'Org::Membership', dependent: :destroy_async

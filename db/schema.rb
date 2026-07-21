@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_150300) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_160000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1783,6 +1783,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_150300) do
     t.index ["owner_id"], name: "index_mes_production_orders_on_owner_id"
   end
 
+  create_table "mes_production_records", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "production_order_id", null: false
+    t.string "operation_name"
+    t.decimal "qty_completed", precision: 14, scale: 3, default: "0.0", null: false
+    t.decimal "qty_returned", precision: 14, scale: 3, default: "0.0", null: false
+    t.decimal "qty_scrap", precision: 14, scale: 3, default: "0.0", null: false
+    t.bigint "operator_id"
+    t.datetime "recorded_at"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_production_records_on_account_id"
+    t.index ["operator_id"], name: "index_mes_production_records_on_operator_id"
+    t.index ["production_order_id"], name: "index_mes_production_records_on_production_order_id"
+  end
+
   create_table "mes_purchase_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "purchase_order_id", null: false
@@ -2429,6 +2446,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_150300) do
   add_foreign_key "mes_production_orders", "crm_sales_orders", on_delete: :nullify
   add_foreign_key "mes_production_orders", "mes_boms", column: "bom_id", on_delete: :nullify
   add_foreign_key "mes_production_orders", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_production_records", "mes_production_orders", column: "production_order_id", on_delete: :cascade
+  add_foreign_key "mes_production_records", "users", column: "operator_id", on_delete: :nullify
   add_foreign_key "mes_purchase_items", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_purchase_items", "mes_purchase_orders", column: "purchase_order_id", on_delete: :cascade
   add_foreign_key "mes_purchase_orders", "mes_production_orders", column: "production_order_id", on_delete: :nullify

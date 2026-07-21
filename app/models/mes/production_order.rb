@@ -92,6 +92,13 @@ class Mes::ProductionOrder < ApplicationRecord
     update!(updates)
   end
 
+  # 报工累加已产数量；首次报工把阶段从「生产领料」推进到「生产」。
+  def add_produced!(delta)
+    updates = { produced_qty: produced_qty.to_d + delta.to_d, updated_at: Time.current }
+    updates[:stage] = 'PRODUCTION' if stage == 'PICKING'
+    update_columns(updates)
+  end
+
   # BOM 算料（XMind 节点3）：按 BOM 用量 × 本单产量/基准产量，展开采购需求。
   # 返回 [{ mes_material_id, material_name, unit, qty, rate_micros }]，供采购单预填。
   def material_requirements
