@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
-  before_action :fetch_bom, only: [:show, :update, :destroy]
+  before_action :fetch_bom, only: [:show, :update, :destroy, :release]
 
   def index
     scope = scoped_by_product_line(Current.account.mes_boms)
@@ -24,6 +24,12 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     render 'api/v1/accounts/mes/boms/show'
   end
 
+  # 下发草稿 BOM → 正式生效，可被生产订单挂用。
+  def release
+    @bom.update!(status: 'RELEASED')
+    render 'api/v1/accounts/mes/boms/show'
+  end
+
   def destroy
     @bom.destroy!
     head :ok
@@ -41,7 +47,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
 
   def bom_params
     params.require(:bom).permit(
-      :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :remark, :product_line,
+      :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :remark, :product_line, :status,
       :purchasing_days, :material_inbound_days, :picking_days, :production_days, :fg_inbound_days,
       bom_items_attributes: [:id, :mes_material_id, :material_no, :material_name, :specification, :qty, :unit, :remark, :_destroy]
     )

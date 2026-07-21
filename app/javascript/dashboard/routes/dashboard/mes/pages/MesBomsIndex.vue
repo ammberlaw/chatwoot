@@ -4,6 +4,7 @@ import { ref, computed, reactive, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
+import MesBomAPI from 'dashboard/api/mes/boms';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
@@ -38,7 +39,9 @@ const productOptions = computed(() =>
 
 const dialogRef = ref(null);
 const editingId = ref(null);
+const editingStatus = ref(null); // 编辑时的原状态：已下发则只显示「保存」
 const removedItemIds = ref([]);
+const releasingId = ref(null);
 const blankLeadDays = () =>
   Object.fromEntries(LEAD_STAGES.map(s => [s.key, '']));
 // 用料明细每行照生产任务单直接填。
@@ -76,6 +79,7 @@ const removeRow = i => {
 
 const openCreate = () => {
   editingId.value = null;
+  editingStatus.value = null;
   removedItemIds.value = [];
   Object.assign(form, {
     crmProductId: '',
@@ -88,6 +92,7 @@ const openCreate = () => {
 };
 const openEdit = bom => {
   editingId.value = bom.id;
+  editingStatus.value = bom.status;
   removedItemIds.value = [];
   Object.assign(form, {
     crmProductId: bom.crmProductId ? String(bom.crmProductId) : '',
@@ -107,7 +112,8 @@ const openEdit = bom => {
   dialogRef.value?.open();
 };
 
-const submit = async () => {
+// targetStatus：'DRAFT' 存草稿 / 'RELEASED' 下发。
+const submit = async targetStatus => {
   if (invalid.value) return;
   const itemsAttributes = [
     ...form.rows.map(r => ({
@@ -125,6 +131,7 @@ const submit = async () => {
     crmProductId: form.crmProductId || null,
     baseQty: Number(form.baseQty) || 1,
     unit: form.unit,
+    status: targetStatus,
     ...Object.fromEntries(
       LEAD_STAGES.map(s => [s.key, Number(form[s.key]) || null])
     ),
@@ -134,8 +141,23 @@ const submit = async () => {
     ? await store.update({ id: editingId.value, ...payload })
     : await store.create(payload);
   if (ok) {
-    useAlert(editingId.value ? 'BOM 已更新' : `已新建 ${ok.bomNo}`);
+    const verb = targetStatus === 'RELEASED' ? '已下发' : '已存草稿';
+    useAlert(editingId.value ? `BOM ${verb}` : `${verb} ${ok.bomNo}`);
     dialogRef.value?.close();
+  }
+};
+
+// 列表里把草稿一键下发。
+const release = async bom => {
+  releasingId.value = bom.id;
+  try {
+    await MesBomAPI.release(bom.id);
+    await store.get();
+    useAlert(`已下发 ${bom.bomNo}`);
+  } catch {
+    useAlert('下发失败');
+  } finally {
+    releasingId.value = null;
   }
 };
 
@@ -179,6 +201,7 @@ onMounted(async () => {
             <th class="px-3 py-3 font-medium">基准产量</th>
             <th class="px-3 py-3 font-medium">用料项</th>
             <th class="px-3 py-3 font-medium">预估周期(天)</th>
+            <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3" />
           </tr>
         </thead>
@@ -197,18 +220,40 @@ onMounted(async () => {
             <td class="px-3 py-3 text-n-slate-11">
               {{ b.totalLeadDays || '—' }}
             </td>
+            <td class="px-3 py-3">
+              <span
+                class="px-2 py-0.5 text-xs rounded-full"
+                :class="
+                  b.status === 'RELEASED'
+                    ? 'bg-n-teal-3 text-n-teal-12'
+                    : 'bg-n-slate-4 text-n-slate-11'
+                "
+              >
+                {{ b.status === 'RELEASED' ? '已下发' : '草稿' }}
+              </span>
+            </td>
             <td class="px-3 py-3 text-right">
-              <Button
-                v-if="mesCan('bom')"
-                label="编辑"
-                variant="ghost"
-                size="sm"
-                @click="openEdit(b)"
-              />
+              <div class="flex justify-end gap-1">
+                <Button
+                  v-if="mesCan('bom') && b.status !== 'RELEASED'"
+                  label="下发"
+                  color="iris"
+                  size="sm"
+                  :is-loading="releasingId === b.id"
+                  @click="release(b)"
+                />
+                <Button
+                  v-if="mesCan('bom')"
+                  label="编辑"
+                  variant="ghost"
+                  size="sm"
+                  @click="openEdit(b)"
+                />
+              </div>
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
               还没有 BOM。
             </td>
           </tr>
@@ -220,11 +265,10 @@ onMounted(async () => {
       ref="dialogRef"
       width="3xl"
       overflow-y-auto
-      confirm-button-color="iris"
+      :show-confirm-button="false"
+      :show-cancel-button="false"
       :title="editingId ? '编辑 BOM' : '新建 BOM'"
       :is-loading="saving"
-      :disable-confirm-button="invalid"
-      @confirm="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-2 gap-4">
@@ -330,6 +374,43 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <Button
+            label="取消"
+            variant="ghost"
+            color="slate"
+            @click="dialogRef?.close()"
+          />
+          <!-- 已下发的编辑：只保留「保存」，保持已下发 -->
+          <Button
+            v-if="editingId && editingStatus === 'RELEASED'"
+            label="保存"
+            color="iris"
+            :is-loading="saving"
+            :disabled="invalid"
+            @click="submit('RELEASED')"
+          />
+          <template v-else>
+            <Button
+              label="存草稿"
+              variant="outline"
+              color="slate"
+              :is-loading="saving"
+              :disabled="invalid"
+              @click="submit('DRAFT')"
+            />
+            <Button
+              label="下发"
+              color="iris"
+              :is-loading="saving"
+              :disabled="invalid"
+              @click="submit('RELEASED')"
+            />
+          </template>
+        </div>
+      </template>
     </Dialog>
   </div>
 </template>

@@ -15,6 +15,7 @@
 #  production_days            :integer
 #  purchasing_days            :integer
 #  remark                     :text
+#  status                     :string           default("DRAFT"), not null
 #  total_material_cost_micros :bigint
 #  unit                       :string
 #  created_at                 :datetime         not null
@@ -28,6 +29,7 @@
 #  index_mes_boms_on_account_and_product_line  (account_id,product_line)
 #  index_mes_boms_on_account_id                (account_id)
 #  index_mes_boms_on_account_id_and_bom_no     (account_id,bom_no) UNIQUE
+#  index_mes_boms_on_account_id_and_status     (account_id,status)
 #  index_mes_boms_on_crm_product_id            (crm_product_id)
 #  index_mes_boms_on_owner_id                  (owner_id)
 #
@@ -49,10 +51,18 @@ class Mes::Bom < ApplicationRecord
   # 按阶段预估天数（工程/PMC 分部门填），求和 = 预计生产周期（不含销售出库/物流）。
   LEAD_DAY_COLUMNS = %i[purchasing_days material_inbound_days picking_days production_days fg_inbound_days].freeze
 
+  # 草稿/下发：草稿可反复编辑、对下游隐藏；下发后才可被生产订单挂用。
+  STATUSES = %w[DRAFT RELEASED].freeze
+
   validates :bom_no, presence: true, uniqueness: { scope: :account_id }
   validates :base_qty, numericality: { greater_than: 0 }
+  validates :status, inclusion: { in: STATUSES }
 
   scope :active, -> { where(is_active: true) }
+  scope :released, -> { where(status: 'RELEASED') }
+
+  def released? = status == 'RELEASED'
+  def draft? = status == 'DRAFT'
 
   def self.document_number_prefix = 'BOM'
   def self.document_number_column = :bom_no

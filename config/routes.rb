@@ -166,7 +166,9 @@ Rails.application.routes.draw do
             resources :suppliers
             resources :warehouses, except: [:show]
             resources :materials
-            resources :boms
+            resources :boms do
+              member { post :release }
+            end
             resources :purchase_orders do
               collection { get :requirement }
             end

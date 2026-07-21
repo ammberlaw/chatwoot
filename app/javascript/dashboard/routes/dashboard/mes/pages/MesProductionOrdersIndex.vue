@@ -222,10 +222,13 @@ const attaching = computed(
 );
 const bomOptions = computed(() => [
   { value: '', label: '选择 BOM…' },
-  ...(bomsStore.getRecords || []).map(b => ({
-    value: String(b.id),
-    label: `${b.bomNo}${b.productName ? ` · ${b.productName}` : ''}`,
-  })),
+  // 只列已下发的 BOM，草稿不可挂。
+  ...(bomsStore.getRecords || [])
+    .filter(b => b.status === 'RELEASED')
+    .map(b => ({
+      value: String(b.id),
+      label: `${b.bomNo}${b.productName ? ` · ${b.productName}` : ''}`,
+    })),
 ]);
 const openAttachBom = () => {
   bomForm.value = { bomId: '', plannedEndDate: '' };
@@ -604,7 +607,6 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
             {{ deliveryStatus(selected).label }}
           </span>
         </div>
-
       </div>
     </div>
 

@@ -12,6 +12,7 @@ json.production_days resource.production_days
 json.fg_inbound_days resource.fg_inbound_days
 json.total_lead_days resource.total_lead_days
 json.product_line resource.product_line
+json.status resource.status
 json.is_active resource.is_active
 json.is_default resource.is_default
 json.owner_id resource.owner_id
