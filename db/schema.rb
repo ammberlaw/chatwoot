@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_22_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_22_110000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1701,6 +1701,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_100000) do
     t.index ["user_id"], name: "index_mentions_on_user_id"
   end
 
+  create_table "mes_board_owners", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "board_key", null: false
+    t.bigint "manager_ids", default: [], null: false, array: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "board_key"], name: "index_mes_board_owners_on_account_id_and_board_key", unique: true
+    t.index ["account_id"], name: "index_mes_board_owners_on_account_id"
+  end
+
   create_table "mes_bom_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "bom_id", null: false
@@ -2564,6 +2574,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_100000) do
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "mes_board_owners", "accounts"
   add_foreign_key "mes_bom_items", "mes_boms", column: "bom_id", on_delete: :cascade
   add_foreign_key "mes_bom_items", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_boms", "crm_products", on_delete: :nullify

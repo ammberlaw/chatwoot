@@ -160,6 +160,9 @@ Rails.application.routes.draw do
           end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard'
+            resources :board_owners, only: [:index] do
+              put :set, on: :collection
+            end
             resources :suppliers
             resources :warehouses, except: [:show]
             resources :materials

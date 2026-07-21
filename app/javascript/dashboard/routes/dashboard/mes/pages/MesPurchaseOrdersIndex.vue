@@ -9,6 +9,7 @@ import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -213,6 +214,8 @@ onMounted(async () => {
         @click="openCreate"
       />
     </div>
+
+    <MesBoardOwnerBar board-key="mes_purchase_orders_index" />
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">

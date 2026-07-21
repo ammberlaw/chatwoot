@@ -9,6 +9,7 @@ import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
@@ -274,6 +275,8 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
         @click="openConvert"
       />
     </div>
+
+    <MesBoardOwnerBar board-key="mes_production_orders_index" />
 
     <!-- 筛选 -->
     <div class="flex flex-wrap items-center gap-3 px-6 pb-3">

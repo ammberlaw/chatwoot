@@ -8,6 +8,7 @@ import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -165,6 +166,8 @@ onMounted(async () => {
       <h1 class="text-xl font-semibold text-n-slate-12">原料入库</h1>
       <Button v-if="mesCan('stock')" label="新建入库单" color="iris" size="sm" @click="openCreate" />
     </div>
+
+    <MesBoardOwnerBar board-key="mes_stock_entries_index" />
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>

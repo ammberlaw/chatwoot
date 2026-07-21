@@ -117,6 +117,7 @@ class Account < ApplicationRecord
   has_many :mes_shipments, class_name: 'Mes::Shipment', dependent: :destroy_async
   has_many :mes_shipment_items, class_name: 'Mes::ShipmentItem', dependent: :destroy_async
   has_many :mes_production_orders, class_name: 'Mes::ProductionOrder', dependent: :destroy_async
+  has_many :mes_board_owners, class_name: 'Mes::BoardOwner', dependent: :destroy_async
   has_many :org_departments, class_name: 'Org::Department', dependent: :destroy_async
   has_many :org_memberships, class_name: 'Org::Membership', dependent: :destroy_async
   has_many :oa_approval_templates, class_name: 'Oa::ApprovalTemplate', dependent: :destroy_async

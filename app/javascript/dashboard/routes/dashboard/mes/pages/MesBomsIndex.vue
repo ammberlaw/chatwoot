@@ -6,6 +6,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
@@ -163,6 +164,8 @@ onMounted(async () => {
         @click="openCreate"
       />
     </div>
+
+    <MesBoardOwnerBar board-key="mes_boms_index" />
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
