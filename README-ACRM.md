@@ -67,7 +67,7 @@
 | `Product` | 产品目录(全员共享) |
 | `Quote` / `QuoteLineItem` | 报价单(自增 `QT-` 号)+ 明细(下单产品快照);级联删除 |
 | `SalesOrder` | 销售订单。`owner_id`、自增 `order_no`(SO-)、必传 PI 附件、成交额 rollup 回写客户、`crm_quote_id` |
-| `Email` / `EmailOpen` | CRM 邮件。SMTP 发 + IMAP 收;`folder`(INBOX/SENT/DRAFT/BULK)、`send_status`、`tracking_token`(打开追踪)、`message_id`(IMAP 去重)、`chatwoot_message_id`(渠道镜像去重) |
+| `Email` / `EmailOpen` | CRM 邮件。SMTP 发 + IMAP 收;`folder`(INBOX/SENT/DRAFT/BULK/**SPAM 垃圾邮件**)、`send_status`、`tracking_token`(打开追踪)、`message_id`(IMAP 去重)、`chatwoot_message_id`(渠道镜像去重) |
 | `MailAccount` | 业务员邮箱。SMTP(host/port/user/加密密码)+ IMAP(host/port/ssl/enabled/synced_at);服务商主机内置(腾讯/网易/阿里企业邮) |
 | `EmailTemplate` | 邮件模板 |
 | `KnowledgeDoc` / `KnowledgeCategory` | 资料库文档 + 分类。`scope`(PERSONAL/COMPANY 可见范围)× `library`(SALES 销售资料 / GENERAL 全公司文档)两维;ActiveStorage 附件 |
@@ -95,6 +95,11 @@
 
 1. **CRM 客户管理** — 客户建档(实时查重、自动编号、完善度评分)→ 私海/公海(超期自动回收进公海)→ 商机 → 报价 → 销售订单(成交额 rollup)。
 2. **邮件中心** — 三栏邮件客户端。**发件**:每人配 SMTP 邮箱,多部件 HTML+文本、附件、知识库附件快照、打开追踪像素;`Crm::SendEmailJob → EmailSendService`。**收件**:`Crm::FetchImapEmailsJob`(每 5 分钟)→ `ImapFetchService` 拉 INBOX、按 Message-ID 去重、关联客户、存附件、连接/整体超时。**镜像**:`CrmEmailListener → EmailIntakeService` 把 Chatwoot 邮件渠道消息镜像进来。
+   - **多邮箱侧边栏** — 每个文件夹下列「全部 + 本人在『邮箱账户』里配置的各邮箱」,可切换、带当前文件夹口径的计数;邮箱**按人隔离**(各账号只看/管自己配置的,含主账号),`emails#mailboxes` + `mail_accounts` 均 `owned_by(current_user)`。
+   - **「我的/团队」切换** — 管理员/主管按角色范围(`scope_by_owner`)在「我的邮件 / 团队邮件」间切换,团队模式可下钻到指定成员。
+   - **垃圾邮件** — `SPAM` 文件夹 + 阅读时「标记/移出垃圾邮件」(手动)。
+   - **邮箱连通性检测** — 邮箱账户列表「测试连接」实测 SMTP/IMAP 授权码是否正确,`Crm::MailAccountVerifier`(腾讯企业邮 535 常见于授权码错)。
+   - **写邮件防误关** — 点弹窗外不再关闭,「取消」有内容时二次确认,避免草稿丢失。
 3. **销售资料 / 文档中心** — 同一 `KnowledgeDoc` 表,按 `library` 分:销售资料(SALES,可挂客户邮件)/ 文档中心(GENERAL,全公司)。看板拖拽改分类,右侧详情+时间轴。
 4. **数据看板** — `Crm::StatsController` 一次聚合三页数据(KPI/目标/趋势/漏斗/客户来源/业务员排行/回复时长/完善度);Chart.js 面积/柱/环形图;company/mine 两口径。
 5. **团队协同** — 内部 IM(真实头像+在线点、暗/浅气泡、单聊/群聊、已读回执名单、建群)。
