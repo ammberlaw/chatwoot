@@ -806,12 +806,7 @@ const menuItems = computed(() => {
           'mes_production_records_index',
           'mes_inspections_index',
           'mes_fg_inbound_index',
-          'mes_serial_numbers_index',
           'mes_shipments_index',
-          'mes_stock_balances_index',
-          'mes_materials_index',
-          'mes_suppliers_index',
-          'mes_warehouses_index',
         ],
         children: [
           {
@@ -869,40 +864,10 @@ const menuItems = computed(() => {
             activeOn: ['mes_fg_inbound_index'],
           },
           {
-            name: 'MES Serial Numbers',
-            label: t('SIDEBAR.MES_SERIAL_NUMBERS'),
-            to: accountScopedRoute('mes_serial_numbers_index'),
-            activeOn: ['mes_serial_numbers_index'],
-          },
-          {
             name: 'MES Shipments',
             label: t('SIDEBAR.MES_SHIPMENTS'),
             to: accountScopedRoute('mes_shipments_index'),
             activeOn: ['mes_shipments_index'],
-          },
-          {
-            name: 'MES Stock Balances',
-            label: t('SIDEBAR.MES_STOCK_BALANCES'),
-            to: accountScopedRoute('mes_stock_balances_index'),
-            activeOn: ['mes_stock_balances_index'],
-          },
-          {
-            name: 'MES Materials',
-            label: t('SIDEBAR.MES_MATERIALS'),
-            to: accountScopedRoute('mes_materials_index'),
-            activeOn: ['mes_materials_index'],
-          },
-          {
-            name: 'MES Suppliers',
-            label: t('SIDEBAR.MES_SUPPLIERS'),
-            to: accountScopedRoute('mes_suppliers_index'),
-            activeOn: ['mes_suppliers_index'],
-          },
-          {
-            name: 'MES Warehouses',
-            label: t('SIDEBAR.MES_WAREHOUSES'),
-            to: accountScopedRoute('mes_warehouses_index'),
-            activeOn: ['mes_warehouses_index'],
           },
         ],
       },
@@ -1487,12 +1452,7 @@ const ROUTE_MODULE = {
   mes_production_records_index: 'mes',
   mes_inspections_index: 'mes',
   mes_fg_inbound_index: 'mes',
-  mes_serial_numbers_index: 'mes',
   mes_shipments_index: 'mes',
-  mes_stock_balances_index: 'mes',
-  mes_materials_index: 'mes',
-  mes_suppliers_index: 'mes',
-  mes_warehouses_index: 'mes',
 };
 const activeModule = computed(() => ROUTE_MODULE[route.name] || 'crm');
 
