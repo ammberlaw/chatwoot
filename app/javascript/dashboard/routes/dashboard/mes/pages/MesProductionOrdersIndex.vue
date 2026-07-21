@@ -3,10 +3,12 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
@@ -21,6 +23,8 @@ const ITEMS_PER_PAGE = 15;
 const { accountId } = useAccount();
 const route = useRoute();
 const { mesCan } = useMesRole();
+const { isAdmin, isCrmDeputyAdmin } = useCrmRole();
+const currentUserId = useMapGetter('getCurrentUserID');
 const store = useMesProductionOrdersStore();
 
 // 8 阶段（与后端 Mes::ProductionOrder::STAGES 顺序一致）。
@@ -87,7 +91,9 @@ const selectRow = row => {
 };
 // 各阶段到达时间（stage → 日期字符串）。
 const stageTime = stageValue => {
-  const ev = (selected.value?.stageEvents || []).find(e => e.stage === stageValue);
+  const ev = (selected.value?.stageEvents || []).find(
+    e => e.stage === stageValue
+  );
   return ev?.enteredAt ? new Date(ev.enteredAt).toLocaleDateString() : '';
 };
 
@@ -125,7 +131,8 @@ const deliveryStatus = po => {
   if (!po?.deliveryDate || po.stage === 'SHIPPED') return null;
   const days = Math.round((new Date(po.deliveryDate) - Date.now()) / DAY);
   if (days < 0) return { level: 'overdue', label: `已逾期 ${-days} 天` };
-  if (days <= DUE_SOON_DAYS) return { level: 'soon', label: `距交期 ${days} 天` };
+  if (days <= DUE_SOON_DAYS)
+    return { level: 'soon', label: `距交期 ${days} 天` };
   return { level: 'ok', label: `距交期 ${days} 天` };
 };
 const DUE_CLASS = {
@@ -193,7 +200,8 @@ watch(
   () => convertForm.value.crmProductId,
   id => {
     const p = products.value.find(x => String(x.id) === String(id));
-    if (p && !convertForm.value.productName) convertForm.value.productName = p.name;
+    if (p && !convertForm.value.productName)
+      convertForm.value.productName = p.name;
   }
 );
 
@@ -211,7 +219,9 @@ const submitConvert = async () => {
 const bomsStore = useMesBomsStore();
 const bomDialogRef = ref(null);
 const bomForm = ref({ bomId: '', plannedEndDate: '' });
-const attaching = computed(() => bomsStore.getUIFlags.updatingItem || uiFlags.value.updatingItem);
+const attaching = computed(
+  () => bomsStore.getUIFlags.updatingItem || uiFlags.value.updatingItem
+);
 const bomOptions = computed(() => [
   { value: '', label: '选择 BOM…' },
   ...(bomsStore.getRecords || []).map(b => ({
@@ -246,6 +256,50 @@ const releasePurchasing = async () => {
   if (ok) {
     useAlert('已下发到采购阶段');
     selected.value = ok;
+    fetchRecords();
+  }
+};
+
+// —— 接单确认（P1）——
+// 只有本阶段负责人本人或管理员能接单/拒收。
+const canHandleStage = computed(() => {
+  const po = selected.value;
+  if (!po || po.stage === 'SHIPPED' || po.status !== 'IN_PROGRESS')
+    return false;
+  return (
+    isAdmin.value ||
+    isCrmDeputyAdmin.value ||
+    (po.stageOwnerIds || []).includes(currentUserId.value)
+  );
+});
+const fmtDateTime = d =>
+  d ? new Date(d).toLocaleString(undefined, { hour12: false }) : '';
+
+const acknowledge = async () => {
+  if (!selected.value) return;
+  const ok = await store.acknowledge(selected.value.id);
+  if (ok) {
+    useAlert('已接单');
+    selected.value = ok;
+  }
+};
+
+const rejectDialogRef = ref(null);
+const rejectReason = ref('');
+const openReject = () => {
+  rejectReason.value = '';
+  rejectDialogRef.value?.open();
+};
+const confirmReject = async () => {
+  if (!selected.value || !rejectReason.value.trim()) return;
+  const ok = await store.reject({
+    id: selected.value.id,
+    reason: rejectReason.value.trim(),
+  });
+  if (ok) {
+    useAlert('已退回上一阶段');
+    selected.value = ok;
+    rejectDialogRef.value?.close();
     fetchRecords();
   }
 };
@@ -347,7 +401,10 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
                 </span>
               </td>
               <td class="px-3 py-3 text-xs">
-                <span v-if="deliveryStatus(po)" :class="DUE_CLASS[deliveryStatus(po).level]">
+                <span
+                  v-if="deliveryStatus(po)"
+                  :class="DUE_CLASS[deliveryStatus(po).level]"
+                >
                   {{ deliveryStatus(po).label }}
                 </span>
                 <span v-else class="text-n-slate-10">—</span>
@@ -355,7 +412,9 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
               <td class="px-3 py-3 text-n-slate-11">
                 {{ po.salesOrderNo || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">{{ po.ownerName || '—' }}</td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ po.ownerName || '—' }}
+              </td>
             </tr>
             <tr v-if="!records.length">
               <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
@@ -380,14 +439,69 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
         class="flex flex-col p-5 overflow-auto w-80 shrink-0 rounded-xl bg-n-alpha-black1 border border-n-weak"
       >
         <div class="flex items-center justify-between mb-1">
-          <span class="font-semibold text-n-slate-12">{{ selected.orderNo }}</span>
+          <span class="font-semibold text-n-slate-12">{{
+            selected.orderNo
+          }}</span>
           <span class="text-xs text-n-slate-11">
             {{ STATUS_LABELS[selected.status] }}
           </span>
         </div>
         <div class="mb-4 text-sm text-n-slate-11">
-          {{ selected.productName }} · {{ selected.producedQty }}/{{ selected.qty }}
+          {{ selected.productName }} · {{ selected.producedQty }}/{{
+            selected.qty
+          }}
           {{ selected.unit }}
+        </div>
+
+        <!-- 接单确认（P1）：当前阶段负责人 + 接单状态 + 接单/拒收 -->
+        <div
+          v-if="
+            selected.stage !== 'SHIPPED' && selected.status === 'IN_PROGRESS'
+          "
+          class="flex flex-col gap-2 p-3 mb-4 rounded-lg bg-n-alpha-black1 border border-n-weak"
+        >
+          <div class="flex flex-wrap items-center gap-1.5 text-xs">
+            <span class="text-n-slate-11">本阶段负责人</span>
+            <template v-if="(selected.stageOwnerNames || []).length">
+              <span
+                v-for="n in selected.stageOwnerNames"
+                :key="n"
+                class="px-1.5 py-0.5 rounded-full bg-n-iris-3 text-n-iris-12"
+              >
+                {{ n }}
+              </span>
+            </template>
+            <span v-else class="text-n-amber-11">未设置负责人</span>
+          </div>
+          <div class="text-xs">
+            <span v-if="selected.stageAckAt" class="text-n-teal-11">
+              ✅ 已接单 · {{ selected.stageAckByName }}
+            </span>
+            <span v-else-if="selected.ackOverdue" class="text-n-ruby-11">
+              🔴 未接单超时（截止 {{ fmtDateTime(selected.ackDeadline) }}）
+            </span>
+            <span v-else-if="selected.awaitingAck" class="text-n-amber-11">
+              ⏳ 待接单 · 截止 {{ fmtDateTime(selected.ackDeadline) }}
+            </span>
+          </div>
+          <div v-if="canHandleStage" class="flex gap-2">
+            <Button
+              v-if="selected.awaitingAck"
+              label="接单"
+              color="teal"
+              size="sm"
+              :is-loading="uiFlags.updatingItem"
+              @click="acknowledge"
+            />
+            <Button
+              v-if="selected.stage !== 'SALES_CONFIRMED'"
+              label="拒收打回"
+              variant="outline"
+              color="ruby"
+              size="sm"
+              @click="openReject"
+            />
+          </div>
         </div>
 
         <div class="flex flex-col gap-0">
@@ -411,7 +525,9 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
                 v-if="i < STAGES.length - 1"
                 class="w-px h-8"
                 :class="
-                  i < stageIndex(selected.stage) ? 'bg-n-iris-9' : 'bg-n-slate-4'
+                  i < stageIndex(selected.stage)
+                    ? 'bg-n-iris-9'
+                    : 'bg-n-slate-4'
                 "
               />
             </div>
@@ -445,9 +561,14 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
 
         <div class="pt-4 mt-4 border-t border-n-weak">
           <template v-if="selected.bomNo">
-            <div class="text-xs text-n-slate-11">工程/PMC BOM：{{ selected.bomNo }}</div>
+            <div class="text-xs text-n-slate-11">
+              工程/PMC BOM：{{ selected.bomNo }}
+            </div>
             <Button
-              v-if="selected.stage === 'BOM_READY' && (mesCan('bom') || mesCan('order'))"
+              v-if="
+                selected.stage === 'BOM_READY' &&
+                (mesCan('bom') || mesCan('order'))
+              "
               label="下发到采购"
               color="iris"
               size="sm"
@@ -457,7 +578,10 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
             />
           </template>
           <Button
-            v-else-if="selected.stage === 'SALES_CONFIRMED' && (mesCan('order') || mesCan('bom'))"
+            v-else-if="
+              selected.stage === 'SALES_CONFIRMED' &&
+              (mesCan('order') || mesCan('bom'))
+            "
             label="挂工程/PMC BOM"
             color="iris"
             size="sm"
@@ -470,7 +594,9 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           v-if="selected.deliveryDate"
           class="flex items-center justify-between pt-3 mt-3 text-xs border-t text-n-slate-11 border-n-weak"
         >
-          <span>交期：{{ new Date(selected.deliveryDate).toLocaleDateString() }}</span>
+          <span>交期：{{
+              new Date(selected.deliveryDate).toLocaleDateString()
+            }}</span>
           <span
             v-if="deliveryStatus(selected)"
             class="font-medium"
@@ -502,7 +628,11 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
             <span class="text-n-slate-11">毛利(料口径)</span>
             <span
               class="font-medium"
-              :class="selected.grossMarginMicros >= 0 ? 'text-n-teal-11' : 'text-n-ruby-11'"
+              :class="
+                selected.grossMarginMicros >= 0
+                  ? 'text-n-teal-11'
+                  : 'text-n-ruby-11'
+              "
             >
               ¥{{ money(selected.grossMarginMicros) }}
             </span>
@@ -545,7 +675,10 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           <label class="text-heading-3 text-n-slate-12">
             成品名称 <span class="text-n-ruby-11">*</span>
           </label>
-          <Input v-model="convertForm.productName" placeholder="未选成品时手填" />
+          <Input
+            v-model="convertForm.productName"
+            placeholder="未选成品时手填"
+          />
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
@@ -590,6 +723,26 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           </label>
           <Input v-model="bomForm.plannedEndDate" type="date" />
         </div>
+      </div>
+    </Dialog>
+
+    <Dialog
+      ref="rejectDialogRef"
+      confirm-button-color="ruby"
+      title="拒收打回上一阶段"
+      description="退回后责任明确回上游，上一阶段重新计时、需重新接单。"
+      :is-loading="uiFlags.updatingItem"
+      :disable-confirm-button="!rejectReason.trim()"
+      @confirm="confirmReject"
+    >
+      <div class="flex flex-col gap-1">
+        <label class="text-heading-3 text-n-slate-12">
+          退回原因 <span class="text-n-ruby-11">*</span>
+        </label>
+        <Input
+          v-model="rejectReason"
+          placeholder="如：BOM 漏了主板 / 来料规格不对"
+        />
       </div>
     </Dialog>
   </div>

@@ -188,6 +188,7 @@ Rails.application.routes.draw do
             resources :production_orders do
               collection do
                 post :convert
+                get :inbox
               end
               member do
                 get :audits
@@ -196,6 +197,8 @@ Rails.application.routes.draw do
                 post :attach_bom
                 post :release_purchasing
                 get :requirement
+                post :acknowledge
+                post :reject
               end
             end
           end

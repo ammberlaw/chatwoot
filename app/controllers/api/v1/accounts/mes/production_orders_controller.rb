@@ -1,6 +1,7 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
-  before_action :fetch_production_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :release_purchasing, :requirement]
+  before_action :fetch_production_order,
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :release_purchasing, :requirement, :acknowledge, :reject]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
@@ -63,6 +64,42 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # 接单：本阶段负责人（或管理员）确认接手。计时不受影响，仅定性。
+  def acknowledge
+    return render json: { error: '只有本阶段负责人可接单' }, status: :forbidden unless can_handle_stage?(@production_order)
+
+    @production_order.acknowledge!(current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 拒收打回：退回上一阶段并记原因，责任明确回上游。
+  def reject
+    return render json: { error: '只有本阶段负责人可拒收' }, status: :forbidden unless can_handle_stage?(@production_order)
+
+    reason = params[:reason].to_s.strip
+    return render json: { error: '请填写退回原因' }, status: :unprocessable_entity if reason.blank?
+
+    @production_order.reject_to_previous!(actor: current_user, reason: reason)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 我的待办：当前停在「我负责的阶段」的在产订单（到岗通知的拉取面）。
+  def inbox
+    owners = Current.account.mes_board_owners.index_by(&:board_key)
+    open_orders = Current.account.mes_production_orders
+                         .where(status: 'IN_PROGRESS').where.not(stage: 'SHIPPED')
+                         .includes(:stage_events).order(created_at: :desc)
+    mine = open_orders.select do |po|
+      key = Mes::ProductionOrder::STAGE_BOARD_KEYS[po.stage]
+      key && owners[key]&.manager_ids&.include?(current_user.id)
+    end
+    render json: { payload: mine.map { |po| inbox_row(po) } }
+  end
+
   def update
     @production_order.update!(production_order_params)
     render 'api/v1/accounts/mes/production_orders/show'
@@ -100,6 +137,25 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   def fetch_production_order
     @production_order = Current.account.mes_production_orders.find(params[:id])
+  end
+
+  # 能否处理该阶段：本阶段负责人本人，或管理员/副管理员。
+  def can_handle_stage?(order)
+    Current.account_user.administrator? || Current.account_user.crm_deputy_admin? ||
+      order.current_stage_owner_ids.include?(current_user.id)
+  end
+
+  def inbox_row(order)
+    {
+      id: order.id,
+      order_no: order.order_no,
+      product_name: order.product_name,
+      stage: order.stage,
+      awaiting_ack: order.awaiting_ack?,
+      ack_overdue: order.ack_overdue?,
+      ack_deadline: order.ack_deadline,
+      entered_at: order.stage_entered_at
+    }
   end
 
   def check_authorization

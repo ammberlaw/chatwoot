@@ -17,4 +17,12 @@ client.releasePurchasing = id =>
 // 按 BOM 推料需求（生产领料预填）。
 client.requirement = id => axios.get(`${client.url}/${id}/requirement`);
 
+// 接单 / 拒收打回（P1 接单确认）。
+client.acknowledge = id => axios.post(`${client.url}/${id}/acknowledge`);
+client.reject = (id, reason) =>
+  axios.post(`${client.url}/${id}/reject`, { reason });
+
+// 我的待办：停在我负责阶段的在产订单。
+client.inbox = () => axios.get(`${client.url}/inbox`);
+
 export default client;

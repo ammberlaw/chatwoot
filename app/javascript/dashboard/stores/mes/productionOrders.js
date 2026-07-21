@@ -85,6 +85,38 @@ export const useMesProductionOrdersStore = createStore({
       }
     },
 
+    // 接单：本阶段负责人确认接手，替换列表中的记录。
+    async acknowledge(id) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await MesProductionOrderAPI.acknowledge(id);
+        const record = camelize(data);
+        const index = this.records.findIndex(r => r.id === record.id);
+        if (index !== -1) this.records[index] = record;
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
+      }
+    },
+
+    // 拒收打回：退回上一阶段，替换列表中的记录。
+    async reject({ id, reason }) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await MesProductionOrderAPI.reject(id, reason);
+        const record = camelize(data);
+        const index = this.records.findIndex(r => r.id === record.id);
+        if (index !== -1) this.records[index] = record;
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
+      }
+    },
+
     async update({ id, ...rest }) {
       this.setUIFlag({ updatingItem: true });
       try {

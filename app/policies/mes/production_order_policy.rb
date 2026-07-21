@@ -2,6 +2,10 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def index? = true
   def show? = true
   def requirement? = true
+  def inbox? = true
+  # 接单/拒收的细粒度权限（本阶段负责人 or 管理员）在控制器 can_handle_stage? 内校验。
+  def acknowledge? = true
+  def reject? = true
 
   def create? = @account_user.mes_can?(:order)
   def convert? = @account_user.mes_can?(:order)

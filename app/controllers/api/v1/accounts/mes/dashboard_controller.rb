@@ -9,6 +9,7 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     @overdue = alerts[:overdue]
     @due_soon = alerts[:due_soon]
     @stalled = alerts[:stalled]
+    @unacked = alerts[:unacked]
     @month = period_output
     render 'api/v1/accounts/mes/dashboard/show'
   end

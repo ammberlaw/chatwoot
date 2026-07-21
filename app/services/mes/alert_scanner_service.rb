@@ -14,8 +14,8 @@ class Mes::AlertScannerService
                           .where.not(status: 'CANCELLED').where.not(stage: 'SHIPPED')
                           .includes(:stage_events)
     open_orders = open_orders.where(product_line: @product_line) if @product_line
-    overdue, due_soon, stalled = classify(open_orders)
-    { overdue: overdue, due_soon: due_soon, stalled: stalled, shortages: shortages }
+    overdue, due_soon, stalled, unacked = classify(open_orders)
+    { overdue: overdue, due_soon: due_soon, stalled: stalled, unacked: unacked, shortages: shortages }
   end
 
   private
@@ -25,6 +25,7 @@ class Mes::AlertScannerService
     overdue = []
     due_soon = []
     stalled = []
+    unacked = []
     orders.each do |po|
       row = order_row(po)
       if po.delivery_date.present? && po.delivery_date < now
@@ -32,13 +33,21 @@ class Mes::AlertScannerService
       elsif po.delivery_date.present? && po.delivery_date <= now + DUE_SOON_DAYS.days
         due_soon << row.merge(days: ((po.delivery_date - now) / 1.day).ceil)
       end
+      # 未接单超时（装死）：进入阶段过了接单时限仍没人接单。
+      unacked << row.merge(hours: ((now - po.stage_entered_at) / 1.hour).floor) if po.ack_overdue?
+
       ev = po.stage_events.find { |e| e.stage == po.stage }
       next unless ev
 
       days = ((now - ev.entered_at) / 1.day).floor
       stalled << row.merge(days: days) if days >= STALL_DAYS
     end
-    [overdue.sort_by { |r| -r[:days] }, due_soon.sort_by { |r| r[:days] }, stalled.sort_by { |r| -r[:days] }]
+    [
+      overdue.sort_by { |r| -r[:days] },
+      due_soon.sort_by { |r| r[:days] },
+      stalled.sort_by { |r| -r[:days] },
+      unacked.sort_by { |r| -r[:hours] }
+    ]
   end
 
   def order_row(po)

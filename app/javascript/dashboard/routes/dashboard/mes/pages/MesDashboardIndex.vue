@@ -3,6 +3,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
+import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
@@ -22,6 +23,17 @@ const stageLabel = s => STAGE_LABELS[s] || s;
 
 const data = ref(null);
 const loading = ref(true);
+
+// 我的待办：停在我负责阶段的在产订单（到岗通知拉取面）。
+const inbox = ref([]);
+const loadInbox = async () => {
+  try {
+    const { data: res } = await MesProductionOrderAPI.inbox();
+    inbox.value = res?.payload || [];
+  } catch {
+    inbox.value = [];
+  }
+};
 
 const kpis = computed(() => {
   const m = data.value?.month || {};
@@ -80,7 +92,10 @@ const fmt = d =>
 const periodDates = key => {
   const now = new Date();
   if (key === 'last_month') {
-    return [fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1)), fmt(new Date(now.getFullYear(), now.getMonth(), 0))];
+    return [
+      fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+      fmt(new Date(now.getFullYear(), now.getMonth(), 0)),
+    ];
   }
   if (key === 'last_7' || key === 'last_30') {
     const s = new Date(now);
@@ -114,6 +129,7 @@ const load = async () => {
       overdue: res.overdue || [],
       dueSoon: res.due_soon || [],
       stalled: res.stalled || [],
+      unacked: res.unacked || [],
     };
   } finally {
     loading.value = false;
@@ -126,7 +142,10 @@ const selectPeriod = key => {
   load();
 };
 
-onMounted(load);
+onMounted(() => {
+  load();
+  loadInbox();
+});
 </script>
 
 <template>
@@ -156,6 +175,37 @@ onMounted(load);
     <div v-if="loading" class="py-10 text-center text-n-slate-11">加载中…</div>
 
     <div v-else class="grid grid-cols-1 gap-4 px-6 pb-6 lg:grid-cols-3">
+      <!-- 待我接单：到岗通知拉取面 -->
+      <div
+        v-if="inbox.length"
+        class="p-5 rounded-xl lg:col-span-3 bg-n-alpha-black1 border border-n-weak"
+      >
+        <div class="mb-3 font-medium text-n-slate-12">
+          待我接单
+          <span class="text-n-iris-11">({{ inbox.length }})</span>
+        </div>
+        <ul class="flex flex-col gap-2">
+          <li
+            v-for="o in inbox"
+            :key="o.id"
+            class="flex items-center justify-between text-sm cursor-pointer group"
+            @click="goOrder(o.order_no)"
+          >
+            <span class="text-n-slate-12 group-hover:underline">
+              {{ o.order_no }} · {{ o.product_name }} ·
+              {{ stageLabel(o.stage) }}
+            </span>
+            <span v-if="o.ack_overdue" class="shrink-0 text-n-ruby-11">
+              🔴 未接单超时
+            </span>
+            <span v-else-if="o.awaiting_ack" class="shrink-0 text-n-amber-11">
+              ⏳ 待接单
+            </span>
+            <span v-else class="shrink-0 text-n-teal-11">已接单 · 处理中</span>
+          </li>
+        </ul>
+      </div>
+
       <!-- KPI 行 -->
       <div class="grid grid-cols-2 gap-4 lg:col-span-3 lg:grid-cols-5">
         <div
@@ -174,12 +224,23 @@ onMounted(load);
       <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
         <div class="mb-3 font-medium text-n-slate-12">在产 · 阶段分布</div>
         <div class="flex flex-col gap-2">
-          <div v-for="b in stageBars" :key="b.stage" class="flex items-center gap-2">
-            <span class="w-24 text-xs shrink-0 text-n-slate-11">{{ b.label }}</span>
+          <div
+            v-for="b in stageBars"
+            :key="b.stage"
+            class="flex items-center gap-2"
+          >
+            <span class="w-24 text-xs shrink-0 text-n-slate-11">{{
+              b.label
+            }}</span>
             <div class="flex-1 h-3 overflow-hidden rounded-full bg-n-slate-3">
-              <div class="h-full rounded-full bg-n-iris-9" :style="{ width: `${b.pct}%` }" />
+              <div
+                class="h-full rounded-full bg-n-iris-9"
+                :style="{ width: `${b.pct}%` }"
+              />
             </div>
-            <span class="w-6 text-xs text-right text-n-slate-12">{{ b.count }}</span>
+            <span class="w-6 text-xs text-right text-n-slate-12">{{
+              b.count
+            }}</span>
           </div>
         </div>
       </div>
@@ -187,7 +248,10 @@ onMounted(load);
       <!-- 交期预警 -->
       <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
         <div class="mb-3 font-medium text-n-slate-12">交期预警</div>
-        <div v-if="!data.overdue.length && !data.dueSoon.length" class="text-sm text-n-slate-11">
+        <div
+          v-if="!data.overdue.length && !data.dueSoon.length"
+          class="text-sm text-n-slate-11"
+        >
           暂无逾期或临近交期。
         </div>
         <ul class="flex flex-col gap-2">
@@ -216,10 +280,36 @@ onMounted(load);
         </ul>
       </div>
 
+      <!-- 未接单超时（装死）：管理视图，谁在拖一眼可见 -->
+      <div
+        v-if="data.unacked.length"
+        class="p-5 rounded-xl lg:col-span-3 bg-n-ruby-2 border border-n-ruby-6"
+      >
+        <div class="mb-3 font-medium text-n-ruby-11">
+          🔴 未接单超时 ({{ data.unacked.length }})
+        </div>
+        <ul class="flex flex-col gap-2">
+          <li
+            v-for="o in data.unacked"
+            :key="`ua-${o.id}`"
+            class="flex items-center justify-between text-sm cursor-pointer group"
+            @click="goOrder(o.order_no)"
+          >
+            <span class="text-n-slate-12 group-hover:underline">
+              {{ o.order_no }} · {{ o.product_name }} ·
+              {{ stageLabel(o.stage) }}
+            </span>
+            <span class="text-n-ruby-11">已 {{ o.hours }} 小时未接单</span>
+          </li>
+        </ul>
+      </div>
+
       <!-- 滞留卡点 -->
       <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
         <div class="mb-3 font-medium text-n-slate-12">滞留卡点(≥3 天)</div>
-        <div v-if="!data.stalled.length" class="text-sm text-n-slate-11">无滞留单据。</div>
+        <div v-if="!data.stalled.length" class="text-sm text-n-slate-11">
+          无滞留单据。
+        </div>
         <ul class="flex flex-col gap-2">
           <li
             v-for="o in data.stalled"
@@ -234,7 +324,6 @@ onMounted(load);
           </li>
         </ul>
       </div>
-
     </div>
   </div>
 </template>
