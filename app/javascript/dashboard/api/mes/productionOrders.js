@@ -10,4 +10,7 @@ client.convert = payload => axios.post(`${client.url}/convert`, payload);
 client.attachBom = (id, payload) =>
   axios.post(`${client.url}/${id}/attach_bom`, payload);
 
+// 按 BOM 推料需求（生产领料预填）。
+client.requirement = id => axios.get(`${client.url}/${id}/requirement`);
+
 export default client;
