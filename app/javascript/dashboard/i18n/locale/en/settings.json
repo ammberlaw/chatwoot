@@ -444,6 +444,7 @@
     "MES_MATERIAL_ISSUES": "生产领料",
     "MES_PRODUCTION_RECORDS": "生产报工",
     "MES_FG_INBOUND": "成品入库",
+    "MES_SHIPMENTS": "销售出库",
     "MES_STOCK_BALANCES": "库存",
     "MES_MATERIALS": "物料",
     "MES_SUPPLIERS": "供应商",
