@@ -216,7 +216,7 @@ const submitConvert = async () => {
 // —— 挂 BOM（阶段 2 触点）——
 const bomsStore = useMesBomsStore();
 const bomDialogRef = ref(null);
-const bomForm = ref({ bomId: '', plannedEndDate: '' });
+const bomForm = ref({ bomId: '', deliveryDate: '' });
 const attaching = computed(
   () => bomsStore.getUIFlags.updatingItem || uiFlags.value.updatingItem
 );
@@ -231,7 +231,13 @@ const bomOptions = computed(() => [
     })),
 ]);
 const openAttachBom = () => {
-  bomForm.value = { bomId: '', plannedEndDate: '' };
+  // 期望交期预填订单现有交期，工程/PMC 可在此确认或调整。
+  bomForm.value = {
+    bomId: '',
+    deliveryDate: selected.value?.deliveryDate
+      ? String(selected.value.deliveryDate).slice(0, 10)
+      : '',
+  };
   if (!bomsStore.getRecords?.length) bomsStore.get();
   bomDialogRef.value?.open();
 };
@@ -240,7 +246,7 @@ const submitAttachBom = async () => {
   const ok = await store.attachBom({
     id: selected.value.id,
     bomId: Number(bomForm.value.bomId),
-    plannedEndDate: bomForm.value.plannedEndDate || undefined,
+    deliveryDate: bomForm.value.deliveryDate || undefined,
   });
   if (ok) {
     useAlert('已挂 BOM，进入「工程/PMC BOM」阶段');
@@ -670,7 +676,7 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
       width="lg"
       confirm-button-color="iris"
       title="挂工程/PMC BOM"
-      description="选择该成品的 BOM，按预估交期算出预估完工，生产订单进入「工程/PMC BOM」阶段。"
+      description="选择该成品的已下发 BOM，填期望交期，生产订单进入「工程/PMC BOM」阶段。"
       :is-loading="attaching"
       :disable-confirm-button="!bomForm.bomId"
       @confirm="submitAttachBom"
@@ -687,10 +693,8 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           />
         </div>
         <div class="flex flex-col gap-1">
-          <label class="text-heading-3 text-n-slate-12">
-            预估完工（留空则按 BOM 交期天数自动算）
-          </label>
-          <Input v-model="bomForm.plannedEndDate" type="date" />
+          <label class="text-heading-3 text-n-slate-12">期望交期</label>
+          <Input v-model="bomForm.deliveryDate" type="date" />
         </div>
       </div>
     </Dialog>

@@ -49,10 +49,11 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     render json: { payload: @production_order.material_requirements }
   end
 
-  # 挂工程 BOM（阶段 2）：绑 BOM + 预估交期 → 进 BOM_READY。
+  # 挂工程 BOM（阶段 2）：绑 BOM + 期望交期 → 进 BOM_READY。预估完工仍按 BOM 天数自动算。
   def attach_bom
     bom = Current.account.mes_boms.find(params[:bom_id])
-    @production_order.attach_bom!(bom, planned_end: params[:planned_end_date])
+    @production_order.update!(delivery_date: params[:delivery_date]) if params[:delivery_date].present?
+    @production_order.attach_bom!(bom)
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
