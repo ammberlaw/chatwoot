@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import TemplatesAPI from 'dashboard/api/oa/approvalTemplates';
 import RequestsAPI from 'dashboard/api/oa/approvalRequests';
 import MembershipsAPI from 'dashboard/api/org/memberships';
@@ -112,11 +113,16 @@ const counts = ref({ todo: 0, mine: 0, cc: 0, approver_view: true });
 
 // 非审批人（业务员/普通成员且未被指定为审批人）隐藏「待我审批」
 const showTodo = computed(() => counts.value.approver_view !== false);
+// 「抄送我的」仅管理层（管理员/副管理员/部门主管）：业务员/普通账号不抄送、不显示。
+const { isAdmin, isCrmDeputyAdmin, isCrmManager } = useCrmRole();
+const showCc = computed(
+  () => isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value
+);
 const TABS = computed(() =>
   [
     showTodo.value ? { key: 'todo', label: L.tabTodo } : null,
     { key: 'mine', label: L.tabMine },
-    { key: 'cc', label: L.tabCc },
+    showCc.value ? { key: 'cc', label: L.tabCc } : null,
   ].filter(Boolean)
 );
 const selected = ref(null);
@@ -169,7 +175,11 @@ const fetchCounts = async () => {
   try {
     const { data } = await RequestsAPI.counts();
     counts.value = data;
-    if (data.approver_view === false && activeTab.value === 'todo') {
+    // 非审批人回退「我的」；非管理层落在「抄送我的」也回退（该 Tab 已隐藏）。
+    if (
+      (data.approver_view === false && activeTab.value === 'todo') ||
+      (!showCc.value && activeTab.value === 'cc')
+    ) {
       activeTab.value = 'mine';
       fetchRequests();
     }
