@@ -1,3 +1,40 @@
+# == Schema Information
+#
+# Table name: mes_stock_entries
+#
+#  id                  :bigint           not null, primary key
+#  entry_no            :string           not null
+#  is_checked          :boolean          default(FALSE), not null
+#  posted_at           :datetime
+#  purpose             :string           not null
+#  remark              :text
+#  status              :string           default("DRAFT"), not null
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#  account_id          :bigint           not null
+#  checked_by_id       :bigint
+#  from_warehouse_id   :bigint
+#  owner_id            :bigint
+#  production_order_id :bigint
+#  purchase_order_id   :bigint
+#  received_by_id      :bigint
+#  to_warehouse_id     :bigint
+#
+# Indexes
+#
+#  index_mes_stock_entries_on_account_id               (account_id)
+#  index_mes_stock_entries_on_account_id_and_entry_no  (account_id,entry_no) UNIQUE
+#  index_mes_stock_entries_on_account_id_and_purpose   (account_id,purpose)
+#  index_mes_stock_entries_on_owner_id                 (owner_id)
+#  index_mes_stock_entries_on_production_order_id      (production_order_id)
+#  index_mes_stock_entries_on_purchase_order_id        (purchase_order_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
+#  fk_rails_...  (production_order_id => mes_production_orders.id) ON DELETE => nullify
+#  fk_rails_...  (purchase_order_id => mes_purchase_orders.id) ON DELETE => nullify
+#
 class Mes::StockEntry < ApplicationRecord
   include Mes::DocumentNumber
 
@@ -66,7 +103,8 @@ class Mes::StockEntry < ApplicationRecord
   # 过账按 purpose 推进关联生产订单阶段（仅当处于前置阶段，避免回退/越级）。
   STAGE_ADVANCE = {
     'MATERIAL_RECEIPT' => %w[PURCHASING MATERIAL_INBOUND],
-    'MATERIAL_ISSUE' => %w[MATERIAL_INBOUND PICKING]
+    'MATERIAL_ISSUE' => %w[MATERIAL_INBOUND PICKING],
+    'MANUFACTURE' => %w[PRODUCTION FG_INBOUND]
   }.freeze
 
   def advance_production_order_on_receipt(timestamp)
