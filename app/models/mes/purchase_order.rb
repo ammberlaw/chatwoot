@@ -8,6 +8,7 @@
 #  follow_up_date      :datetime
 #  has_exception       :boolean          default(FALSE), not null
 #  po_no               :string           not null
+#  product_line        :string
 #  remark              :text
 #  status              :string           default("DRAFT"), not null
 #  total_amount_micros :bigint
@@ -20,12 +21,13 @@
 #
 # Indexes
 #
-#  index_mes_purchase_orders_on_account_id             (account_id)
-#  index_mes_purchase_orders_on_account_id_and_po_no   (account_id,po_no) UNIQUE
-#  index_mes_purchase_orders_on_account_id_and_status  (account_id,status)
-#  index_mes_purchase_orders_on_mes_supplier_id        (mes_supplier_id)
-#  index_mes_purchase_orders_on_owner_id               (owner_id)
-#  index_mes_purchase_orders_on_production_order_id    (production_order_id)
+#  index_mes_purchase_orders_on_account_and_product_line  (account_id,product_line)
+#  index_mes_purchase_orders_on_account_id                (account_id)
+#  index_mes_purchase_orders_on_account_id_and_po_no      (account_id,po_no) UNIQUE
+#  index_mes_purchase_orders_on_account_id_and_status     (account_id,status)
+#  index_mes_purchase_orders_on_mes_supplier_id           (mes_supplier_id)
+#  index_mes_purchase_orders_on_owner_id                  (owner_id)
+#  index_mes_purchase_orders_on_production_order_id       (production_order_id)
 #
 # Foreign Keys
 #
@@ -35,6 +37,7 @@
 #
 class Mes::PurchaseOrder < ApplicationRecord
   include Mes::DocumentNumber
+  include Mes::LineScoped
 
   STATUSES = %w[DRAFT SUBMITTED PARTIAL_RECEIVED RECEIVED CANCELLED].freeze
 
@@ -58,6 +61,8 @@ class Mes::PurchaseOrder < ApplicationRecord
   end
 
   private
+
+  def product_line_source = production_order
 
   # 建采购单即把关联生产订单从「工程BOM」推进到「采购原料」。
   def advance_production_order

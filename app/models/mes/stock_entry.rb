@@ -6,6 +6,7 @@
 #  entry_no            :string           not null
 #  is_checked          :boolean          default(FALSE), not null
 #  posted_at           :datetime
+#  product_line        :string
 #  purpose             :string           not null
 #  remark              :text
 #  status              :string           default("DRAFT"), not null
@@ -22,12 +23,13 @@
 #
 # Indexes
 #
-#  index_mes_stock_entries_on_account_id               (account_id)
-#  index_mes_stock_entries_on_account_id_and_entry_no  (account_id,entry_no) UNIQUE
-#  index_mes_stock_entries_on_account_id_and_purpose   (account_id,purpose)
-#  index_mes_stock_entries_on_owner_id                 (owner_id)
-#  index_mes_stock_entries_on_production_order_id      (production_order_id)
-#  index_mes_stock_entries_on_purchase_order_id        (purchase_order_id)
+#  index_mes_stock_entries_on_account_and_product_line  (account_id,product_line)
+#  index_mes_stock_entries_on_account_id                (account_id)
+#  index_mes_stock_entries_on_account_id_and_entry_no   (account_id,entry_no) UNIQUE
+#  index_mes_stock_entries_on_account_id_and_purpose    (account_id,purpose)
+#  index_mes_stock_entries_on_owner_id                  (owner_id)
+#  index_mes_stock_entries_on_production_order_id       (production_order_id)
+#  index_mes_stock_entries_on_purchase_order_id         (purchase_order_id)
 #
 # Foreign Keys
 #
@@ -37,6 +39,7 @@
 #
 class Mes::StockEntry < ApplicationRecord
   include Mes::DocumentNumber
+  include Mes::LineScoped
 
   # 一表多用（ERPNext Stock Entry 模式）。SHIPMENT=成品出库（销售出库开单时内部生成）。
   PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN MANUFACTURE SCRAP SHIPMENT].freeze
@@ -76,6 +79,8 @@ class Mes::StockEntry < ApplicationRecord
   end
 
   private
+
+  def product_line_source = production_order || purchase_order
 
   def post_item(item, timestamp)
     warehouse_id = item.warehouse_id || default_warehouse_id

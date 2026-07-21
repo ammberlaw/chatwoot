@@ -3,7 +3,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   before_action :fetch_bom, only: [:show, :update, :destroy]
 
   def index
-    scope = Current.account.mes_boms
+    scope = scoped_by_product_line(Current.account.mes_boms)
     scope = scope.where(crm_product_id: params[:crm_product_id]) if params[:crm_product_id].present?
     scope = scope.where('bom_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
     @boms_count = scope.count
@@ -13,7 +13,9 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   def show; end
 
   def create
-    @bom = Current.account.mes_boms.create!(bom_params)
+    @bom = Current.account.mes_boms.new(bom_params)
+    @bom.fallback_product_line = current_product_line
+    @bom.save!
     render 'api/v1/accounts/mes/boms/show'
   end
 
@@ -39,7 +41,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
 
   def bom_params
     params.require(:bom).permit(
-      :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :remark,
+      :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :remark, :product_line,
       bom_items_attributes: [:id, :mes_material_id, :qty, :unit, :rate_micros, :remark, :_destroy]
     )
   end

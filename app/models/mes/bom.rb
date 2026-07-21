@@ -8,6 +8,7 @@
 #  estimated_lead_days        :integer
 #  is_active                  :boolean          default(TRUE), not null
 #  is_default                 :boolean          default(FALSE), not null
+#  product_line               :string
 #  remark                     :text
 #  total_material_cost_micros :bigint
 #  unit                       :string
@@ -19,10 +20,11 @@
 #
 # Indexes
 #
-#  index_mes_boms_on_account_id             (account_id)
-#  index_mes_boms_on_account_id_and_bom_no  (account_id,bom_no) UNIQUE
-#  index_mes_boms_on_crm_product_id         (crm_product_id)
-#  index_mes_boms_on_owner_id               (owner_id)
+#  index_mes_boms_on_account_and_product_line  (account_id,product_line)
+#  index_mes_boms_on_account_id                (account_id)
+#  index_mes_boms_on_account_id_and_bom_no     (account_id,bom_no) UNIQUE
+#  index_mes_boms_on_crm_product_id            (crm_product_id)
+#  index_mes_boms_on_owner_id                  (owner_id)
 #
 # Foreign Keys
 #
@@ -31,6 +33,7 @@
 #
 class Mes::Bom < ApplicationRecord
   include Mes::DocumentNumber
+  include Mes::LineScoped
 
   belongs_to :account
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true
@@ -50,4 +53,8 @@ class Mes::Bom < ApplicationRecord
   def recompute_total_cost!
     update_column(:total_material_cost_micros, bom_items.sum(:amount_micros))
   end
+
+  private
+
+  def product_line_source = crm_product
 end

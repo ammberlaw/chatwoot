@@ -1,5 +1,43 @@
+# == Schema Information
+#
+# Table name: mes_shipments
+#
+#  id                  :bigint           not null, primary key
+#  notified_at         :datetime
+#  product_line        :string
+#  remark              :text
+#  shipment_no         :string           not null
+#  shipped_at          :datetime
+#  status              :string           default("DRAFT"), not null
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#  account_id          :bigint           not null
+#  crm_customer_id     :bigint
+#  crm_sales_order_id  :bigint
+#  owner_id            :bigint
+#  production_order_id :bigint
+#  warehouse_id        :bigint
+#
+# Indexes
+#
+#  index_mes_shipments_on_account_and_product_line    (account_id,product_line)
+#  index_mes_shipments_on_account_id                  (account_id)
+#  index_mes_shipments_on_account_id_and_shipment_no  (account_id,shipment_no) UNIQUE
+#  index_mes_shipments_on_crm_customer_id             (crm_customer_id)
+#  index_mes_shipments_on_crm_sales_order_id          (crm_sales_order_id)
+#  index_mes_shipments_on_owner_id                    (owner_id)
+#  index_mes_shipments_on_production_order_id         (production_order_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (crm_customer_id => crm_customers.id) ON DELETE => nullify
+#  fk_rails_...  (crm_sales_order_id => crm_sales_orders.id) ON DELETE => nullify
+#  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
+#  fk_rails_...  (production_order_id => mes_production_orders.id) ON DELETE => nullify
+#
 class Mes::Shipment < ApplicationRecord
   include Mes::DocumentNumber
+  include Mes::LineScoped
 
   STATUSES = %w[DRAFT SHIPPED CANCELLED].freeze
   # 出库时销售订单可推进到 SHIPPED 的前置状态。
@@ -47,6 +85,8 @@ class Mes::Shipment < ApplicationRecord
   end
 
   private
+
+  def product_line_source = production_order
 
   def writeback_sales_order(timestamp)
     return if crm_sales_order.nil?

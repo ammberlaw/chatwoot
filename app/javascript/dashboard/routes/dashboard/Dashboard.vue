@@ -25,6 +25,7 @@ import CopilotContainer from 'dashboard/components/copilot/CopilotContainer.vue'
 
 import MobileSidebarLauncher from 'dashboard/components-next/sidebar/MobileSidebarLauncher.vue';
 import { useCallsStore } from 'dashboard/stores/calls';
+import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 
 export default {
   components: {
@@ -44,6 +45,7 @@ export default {
     const { accountId } = useAccount();
     const { width: windowWidth } = useWindowSize();
     const callsStore = useCallsStore();
+    const { activeProductLine } = useMesProductLine();
 
     return {
       uiSettings,
@@ -51,6 +53,7 @@ export default {
       accountId,
       upgradePageRef,
       windowWidth,
+      activeProductLine,
       hasActiveCall: computed(() => callsStore.hasActiveCall),
       hasIncomingCall: computed(() => callsStore.hasIncomingCall),
     };
@@ -166,7 +169,13 @@ export default {
         />
       </UpgradePage>
       <template v-if="!showUpgradePage">
-        <router-view />
+        <router-view
+          :key="
+            $route.name && $route.name.startsWith('mes_')
+              ? `mes-${activeProductLine}`
+              : 'app'
+          "
+        />
         <CommandBar />
         <CopilotLauncher />
         <MobileSidebarLauncher

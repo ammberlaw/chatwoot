@@ -49,7 +49,7 @@ class Api::V1::Accounts::Crm::ProductsController < Api::V1::Accounts::Crm::BaseC
 
   def product_params
     params.require(:product).permit(
-      :name, :sku, :category, :specification, :unit,
+      :name, :sku, :category, :specification, :unit, :product_line,
       :cost_price_micros, :sale_price_micros, :pricing_currency, :is_active, :remark
     )
   end

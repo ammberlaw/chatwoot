@@ -10,6 +10,7 @@
 #  planned_end_date   :datetime
 #  planned_start_date :datetime
 #  produced_qty       :decimal(14, 3)   default(0.0), not null
+#  product_line       :string
 #  product_name       :string           not null
 #  qty                :decimal(14, 3)   not null
 #  remark             :text
@@ -26,13 +27,14 @@
 #
 # Indexes
 #
-#  index_mes_production_orders_on_account_id               (account_id)
-#  index_mes_production_orders_on_account_id_and_order_no  (account_id,order_no) UNIQUE
-#  index_mes_production_orders_on_account_id_and_stage     (account_id,stage)
-#  index_mes_production_orders_on_bom_id                   (bom_id)
-#  index_mes_production_orders_on_crm_product_id           (crm_product_id)
-#  index_mes_production_orders_on_crm_sales_order_id       (crm_sales_order_id)
-#  index_mes_production_orders_on_owner_id                 (owner_id)
+#  index_mes_production_orders_on_account_and_product_line  (account_id,product_line)
+#  index_mes_production_orders_on_account_id                (account_id)
+#  index_mes_production_orders_on_account_id_and_order_no   (account_id,order_no) UNIQUE
+#  index_mes_production_orders_on_account_id_and_stage      (account_id,stage)
+#  index_mes_production_orders_on_bom_id                    (bom_id)
+#  index_mes_production_orders_on_crm_product_id            (crm_product_id)
+#  index_mes_production_orders_on_crm_sales_order_id        (crm_sales_order_id)
+#  index_mes_production_orders_on_owner_id                  (owner_id)
 #
 # Foreign Keys
 #
@@ -43,6 +45,7 @@
 #
 class Mes::ProductionOrder < ApplicationRecord
   include Mes::DocumentNumber
+  include Mes::LineScoped
 
   # 8 阶段状态机（MES_SPEC §4）。顺序即推进顺序。
   STAGES = %w[
@@ -164,6 +167,8 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   private
+
+  def product_line_source = crm_product
 
   # 建单即记初始阶段（销售订单确定）到达时间。
   def record_initial_stage

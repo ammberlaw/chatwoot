@@ -1,4 +1,29 @@
+# == Schema Information
+#
+# Table name: mes_stock_balances
+#
+#  id              :bigint           not null, primary key
+#  item_type       :string           not null
+#  product_line    :string
+#  qty             :decimal(16, 3)   default(0.0), not null
+#  created_at      :datetime         not null
+#  updated_at      :datetime         not null
+#  account_id      :bigint           not null
+#  crm_product_id  :bigint
+#  mes_material_id :bigint
+#  warehouse_id    :bigint           not null
+#
+# Indexes
+#
+#  index_mes_stock_balances_on_account_and_product_line  (account_id,product_line)
+#  index_mes_stock_balances_on_account_id                (account_id)
+#  index_mes_stock_balances_on_crm_product_id            (crm_product_id)
+#  index_mes_stock_balances_on_mes_material_id           (mes_material_id)
+#  index_mes_stock_balances_unique                       (account_id,item_type,mes_material_id,crm_product_id,warehouse_id) UNIQUE NULLS NOT DISTINCT
+#
 class Mes::StockBalance < ApplicationRecord
+  include Mes::LineScoped
+
   belongs_to :account
   belongs_to :mes_material, class_name: 'Mes::Material', optional: true
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true
@@ -21,4 +46,8 @@ class Mes::StockBalance < ApplicationRecord
     end
     row.qty
   end
+
+  private
+
+  def product_line_source = mes_material || crm_product
 end

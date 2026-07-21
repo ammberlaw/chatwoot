@@ -6,6 +6,7 @@ import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
@@ -13,6 +14,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const store = useMesMaterialsStore();
 const { mesCan } = useMesRole();
+const { activeProductLine, options: productLineOptions } = useMesProductLine();
 const suppliersStore = useMesSuppliersStore();
 
 const records = computed(() => store.getRecords);
@@ -39,6 +41,7 @@ const form = reactive({
   name: '',
   unit: '',
   category: '',
+  productLine: '',
   specification: '',
   safetyStock: '',
   defaultSupplierId: '',
@@ -51,6 +54,7 @@ const openCreate = () => {
     name: '',
     unit: '',
     category: '',
+    productLine: activeProductLine.value || '',
     specification: '',
     safetyStock: '',
     defaultSupplierId: '',
@@ -149,6 +153,14 @@ onMounted(() => {
             <label class="text-heading-3 text-n-slate-12">安全库存</label>
             <Input v-model="form.safetyStock" type="number" />
           </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">产品线</label>
+          <Select
+            :model-value="form.productLine"
+            :options="productLineOptions"
+            @update:model-value="v => (form.productLine = v)"
+          />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">规格型号</label>

@@ -2,6 +2,7 @@ json.id resource.id
 json.name resource.name
 json.sku resource.sku
 json.category resource.category
+json.product_line resource.product_line
 json.specification resource.specification
 json.unit resource.unit
 json.cost_price_micros resource.cost_price_micros

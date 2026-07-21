@@ -1,3 +1,34 @@
+# == Schema Information
+#
+# Table name: mes_stock_entry_items
+#
+#  id              :bigint           not null, primary key
+#  item_type       :string           not null
+#  qty             :decimal(16, 3)   not null
+#  received_qty    :decimal(16, 3)
+#  remark          :text
+#  unit            :string
+#  created_at      :datetime         not null
+#  updated_at      :datetime         not null
+#  account_id      :bigint           not null
+#  crm_product_id  :bigint
+#  mes_material_id :bigint
+#  stock_entry_id  :bigint           not null
+#  warehouse_id    :bigint
+#
+# Indexes
+#
+#  index_mes_stock_entry_items_on_account_id       (account_id)
+#  index_mes_stock_entry_items_on_crm_product_id   (crm_product_id)
+#  index_mes_stock_entry_items_on_mes_material_id  (mes_material_id)
+#  index_mes_stock_entry_items_on_stock_entry_id   (stock_entry_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => nullify
+#  fk_rails_...  (mes_material_id => mes_materials.id) ON DELETE => nullify
+#  fk_rails_...  (stock_entry_id => mes_stock_entries.id) ON DELETE => cascade
+#
 class Mes::StockEntryItem < ApplicationRecord
   ITEM_TYPES = %w[MATERIAL PRODUCT].freeze
 

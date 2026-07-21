@@ -3,7 +3,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   before_action :fetch_shipment, only: [:show, :update, :destroy, :notify, :ship]
 
   def index
-    scope = Current.account.mes_shipments
+    scope = scoped_by_product_line(Current.account.mes_shipments)
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = scope.where(crm_sales_order_id: params[:crm_sales_order_id]) if params[:crm_sales_order_id].present?
     @shipments_count = scope.count
@@ -13,9 +13,11 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   def show; end
 
   def create
-    @shipment = Current.account.mes_shipments.create!(
+    @shipment = Current.account.mes_shipments.new(
       shipment_params.merge(owner_id: shipment_params[:owner_id] || current_user.id)
     )
+    @shipment.fallback_product_line = current_product_line
+    @shipment.save!
     render 'api/v1/accounts/mes/shipments/show'
   end
 

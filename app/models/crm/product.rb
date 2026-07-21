@@ -9,6 +9,7 @@
 #  is_active         :boolean          default(TRUE), not null
 #  name              :string           not null
 #  pricing_currency  :string           default("USD")
+#  product_line      :string
 #  remark            :text
 #  sale_price_micros :bigint
 #  sku               :string           not null
@@ -20,17 +21,21 @@
 #
 # Indexes
 #
-#  index_crm_products_on_account_id          (account_id)
-#  index_crm_products_on_account_id_and_sku  (account_id,sku) UNIQUE
+#  index_crm_products_on_account_and_product_line  (account_id,product_line)
+#  index_crm_products_on_account_id                (account_id)
+#  index_crm_products_on_account_id_and_sku        (account_id,sku) UNIQUE
 #
 class Crm::Product < ApplicationRecord
   CATEGORIES = %w[STANDARD CUSTOMIZED ACCESSORY OTHER].freeze
+  # 产品线（页面分流维度）：商显/工控、平板电脑。真值挂产品档案，MES 各单据由此带出。
+  PRODUCT_LINES = %w[DISPLAY TABLET].freeze
 
   belongs_to :account
 
   validates :name, presence: true
   validates :sku, presence: true, uniqueness: { scope: :account_id }
   validates :category, inclusion: { in: CATEGORIES }, allow_blank: true
+  validates :product_line, inclusion: { in: PRODUCT_LINES }, allow_blank: true
   validates :pricing_currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
 
   scope :active, -> { where(is_active: true) }

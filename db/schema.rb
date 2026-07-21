@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_21_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1303,6 +1303,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.index ["account_id", "product_line"], name: "index_crm_products_on_account_and_product_line"
     t.index ["account_id", "sku"], name: "index_crm_products_on_account_id_and_sku", unique: true
     t.index ["account_id"], name: "index_crm_products_on_account_id"
   end
@@ -1729,7 +1731,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "bom_no"], name: "index_mes_boms_on_account_id_and_bom_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_boms_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_boms_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_boms_on_crm_product_id"
     t.index ["owner_id"], name: "index_mes_boms_on_owner_id"
@@ -1754,7 +1758,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "kind"], name: "index_mes_inspections_on_account_id_and_kind"
+    t.index ["account_id", "product_line"], name: "index_mes_inspections_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_inspections_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_inspections_on_crm_product_id"
     t.index ["mes_material_id"], name: "index_mes_inspections_on_mes_material_id"
@@ -1777,7 +1783,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "material_no"], name: "index_mes_materials_on_account_id_and_material_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_materials_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_materials_on_account_id"
     t.index ["default_supplier_id"], name: "index_mes_materials_on_default_supplier_id"
   end
@@ -1816,7 +1824,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "order_no"], name: "index_mes_production_orders_on_account_id_and_order_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_production_orders_on_account_and_product_line"
     t.index ["account_id", "stage"], name: "index_mes_production_orders_on_account_id_and_stage"
     t.index ["account_id"], name: "index_mes_production_orders_on_account_id"
     t.index ["bom_id"], name: "index_mes_production_orders_on_bom_id"
@@ -1837,6 +1847,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.index ["account_id", "product_line"], name: "index_mes_production_records_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_production_records_on_account_id"
     t.index ["operator_id"], name: "index_mes_production_records_on_operator_id"
     t.index ["production_order_id"], name: "index_mes_production_records_on_production_order_id"
@@ -1874,7 +1886,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "po_no"], name: "index_mes_purchase_orders_on_account_id_and_po_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_purchase_orders_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_purchase_orders_on_account_id_and_status"
     t.index ["account_id"], name: "index_mes_purchase_orders_on_account_id"
     t.index ["mes_supplier_id"], name: "index_mes_purchase_orders_on_mes_supplier_id"
@@ -1892,6 +1906,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.index ["account_id", "product_line"], name: "index_mes_serial_numbers_on_account_and_product_line"
     t.index ["account_id", "sn"], name: "index_mes_serial_numbers_on_account_id_and_sn", unique: true
     t.index ["account_id"], name: "index_mes_serial_numbers_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_serial_numbers_on_crm_product_id"
@@ -1927,6 +1943,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.index ["account_id", "product_line"], name: "index_mes_shipments_on_account_and_product_line"
     t.index ["account_id", "shipment_no"], name: "index_mes_shipments_on_account_id_and_shipment_no", unique: true
     t.index ["account_id"], name: "index_mes_shipments_on_account_id"
     t.index ["crm_customer_id"], name: "index_mes_shipments_on_crm_customer_id"
@@ -1944,7 +1962,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.decimal "qty", precision: 16, scale: 3, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "item_type", "mes_material_id", "crm_product_id", "warehouse_id"], name: "index_mes_stock_balances_unique", unique: true, nulls_not_distinct: true
+    t.index ["account_id", "product_line"], name: "index_mes_stock_balances_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_stock_balances_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_stock_balances_on_crm_product_id"
     t.index ["mes_material_id"], name: "index_mes_stock_balances_on_mes_material_id"
@@ -1967,7 +1987,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "entry_no"], name: "index_mes_stock_entries_on_account_id_and_entry_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_stock_entries_on_account_and_product_line"
     t.index ["account_id", "purpose"], name: "index_mes_stock_entries_on_account_id_and_purpose"
     t.index ["account_id"], name: "index_mes_stock_entries_on_account_id"
     t.index ["owner_id"], name: "index_mes_stock_entries_on_owner_id"
@@ -2041,7 +2063,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.boolean "is_active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "code"], name: "index_mes_warehouses_on_account_id_and_code", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_warehouses_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_warehouses_on_account_id"
     t.index ["parent_id"], name: "index_mes_warehouses_on_parent_id"
   end

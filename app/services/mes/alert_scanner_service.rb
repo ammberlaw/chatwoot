@@ -4,14 +4,16 @@ class Mes::AlertScannerService
   STALL_DAYS = 3
   DUE_SOON_DAYS = 3
 
-  def initialize(account)
+  def initialize(account, product_line: nil)
     @account = account
+    @product_line = product_line.presence
   end
 
   def call
     open_orders = @account.mes_production_orders
                           .where.not(status: 'CANCELLED').where.not(stage: 'SHIPPED')
                           .includes(:stage_events)
+    open_orders = open_orders.where(product_line: @product_line) if @product_line
     overdue, due_soon, stalled = classify(open_orders)
     { overdue: overdue, due_soon: due_soon, stalled: stalled, shortages: shortages }
   end
@@ -44,8 +46,9 @@ class Mes::AlertScannerService
   end
 
   def shortages
-    @account.mes_stock_balances.includes(:mes_material, :warehouse).where('qty <> 0')
-            .select(&:short?)
+    scope = @account.mes_stock_balances.includes(:mes_material, :warehouse).where('qty <> 0')
+    scope = scope.where(product_line: @product_line) if @product_line
+    scope.select(&:short?)
             .map do |b|
       { material_name: b.mes_material&.name, warehouse_name: b.warehouse&.name, qty: b.qty, safety_stock: b.mes_material&.safety_stock }
     end

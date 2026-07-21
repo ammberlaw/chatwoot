@@ -16,6 +16,7 @@ import { useWindowSize, useEventListener } from '@vueuse/core';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import SidebarGroup from './SidebarGroup.vue';
+import MesProductLineSwitcher from './MesProductLineSwitcher.vue';
 import SidebarProfileMenu from './SidebarProfileMenu.vue';
 import SidebarChangelogCard from './SidebarChangelogCard.vue';
 import SidebarChangelogButton from './SidebarChangelogButton.vue';
@@ -1617,6 +1618,9 @@ const filteredMenuItems = computed(() =>
         </ComposeConversation>
       </div>
     </section>
+    <MesProductLineSwitcher
+      v-if="activeModule === 'mes' && !isEffectivelyCollapsed"
+    />
     <nav
       class="grid overflow-y-scroll flex-grow gap-2 pb-5 no-scrollbar min-w-0"
       :class="isEffectivelyCollapsed ? 'px-1' : 'px-2'"

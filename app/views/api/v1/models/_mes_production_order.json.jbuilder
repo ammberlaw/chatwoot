@@ -1,5 +1,6 @@
 json.id resource.id
 json.order_no resource.order_no
+json.product_line resource.product_line
 json.crm_sales_order_id resource.crm_sales_order_id
 json.sales_order_no resource.crm_sales_order&.order_no
 json.crm_product_id resource.crm_product_id

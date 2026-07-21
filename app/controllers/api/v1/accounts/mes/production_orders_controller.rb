@@ -5,7 +5,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
   def index
-    scope = Current.account.mes_production_orders
+    scope = scoped_by_product_line(Current.account.mes_production_orders)
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
@@ -17,9 +17,11 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   def show; end
 
   def create
-    @production_order = Current.account.mes_production_orders.create!(
+    @production_order = Current.account.mes_production_orders.new(
       production_order_params.merge(owner_id: production_order_params[:owner_id] || current_user.id)
     )
+    @production_order.fallback_product_line = current_product_line
+    @production_order.save!
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
@@ -27,7 +29,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   def convert
     sales_order = Current.account.crm_sales_orders.find(params[:crm_sales_order_id])
     product = Current.account.crm_products.find_by(id: params[:crm_product_id])
-    @production_order = Current.account.mes_production_orders.create!(
+    @production_order = Current.account.mes_production_orders.new(
       crm_sales_order: sales_order,
       crm_product: product,
       product_name: params[:product_name].presence || product&.name,
@@ -36,6 +38,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       delivery_date: params[:delivery_date].presence || sales_order.delivery_date,
       owner_id: params[:owner_id] || current_user.id
     )
+    @production_order.fallback_product_line = current_product_line
+    @production_order.save!
     render 'api/v1/accounts/mes/production_orders/show'
   end
 

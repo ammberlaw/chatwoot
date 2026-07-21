@@ -8,7 +8,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   }.freeze
 
   def index
-    scope = Current.account.mes_stock_entries
+    scope = scoped_by_product_line(Current.account.mes_stock_entries)
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
@@ -19,9 +19,11 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   def show; end
 
   def create
-    @stock_entry = Current.account.mes_stock_entries.create!(
+    @stock_entry = Current.account.mes_stock_entries.new(
       stock_entry_params.merge(owner_id: stock_entry_params[:owner_id] || current_user.id)
     )
+    @stock_entry.fallback_product_line = current_product_line
+    @stock_entry.save!
     render 'api/v1/accounts/mes/stock_entries/show'
   end
 
