@@ -11,6 +11,12 @@ json.progress_ratio resource.progress_ratio
 json.bom_id resource.bom_id
 json.bom_no resource.bom&.bom_no
 json.stage resource.stage
+json.stage_events do
+  json.array! resource.stage_events.order(:entered_at) do |ev|
+    json.stage ev.stage
+    json.entered_at ev.entered_at
+  end
+end
 json.status resource.status
 json.delivery_date resource.delivery_date
 json.planned_start_date resource.planned_start_date

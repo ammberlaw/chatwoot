@@ -113,6 +113,6 @@ class Mes::StockEntry < ApplicationRecord
     return if from_stage.nil? || production_order.nil?
     return if production_order.stage != from_stage
 
-    production_order.update_columns(stage: to_stage, updated_at: timestamp)
+    production_order.enter_stage!(to_stage, at: timestamp)
   end
 end

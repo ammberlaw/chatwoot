@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_170100) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_180000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1753,6 +1753,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_170100) do
     t.index ["default_supplier_id"], name: "index_mes_materials_on_default_supplier_id"
   end
 
+  create_table "mes_production_order_stage_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "production_order_id", null: false
+    t.string "stage", null: false
+    t.datetime "entered_at", null: false
+    t.bigint "actor_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_production_order_stage_events_on_account_id"
+    t.index ["production_order_id", "stage"], name: "index_mes_po_stage_events_unique", unique: true
+    t.index ["production_order_id"], name: "index_mes_production_order_stage_events_on_production_order_id"
+  end
+
   create_table "mes_production_orders", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "order_no", null: false
@@ -2478,6 +2491,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_170100) do
   add_foreign_key "mes_boms", "crm_products", on_delete: :nullify
   add_foreign_key "mes_boms", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_materials", "mes_suppliers", column: "default_supplier_id", on_delete: :nullify
+  add_foreign_key "mes_production_order_stage_events", "mes_production_orders", column: "production_order_id", on_delete: :cascade
+  add_foreign_key "mes_production_order_stage_events", "users", column: "actor_id", on_delete: :nullify
   add_foreign_key "mes_production_orders", "crm_products", on_delete: :nullify
   add_foreign_key "mes_production_orders", "crm_sales_orders", on_delete: :nullify
   add_foreign_key "mes_production_orders", "mes_boms", column: "bom_id", on_delete: :nullify

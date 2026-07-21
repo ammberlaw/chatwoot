@@ -64,6 +64,6 @@ class Mes::PurchaseOrder < ApplicationRecord
     return if production_order.nil?
     return unless production_order.stage == 'BOM_READY'
 
-    production_order.update_columns(stage: 'PURCHASING', updated_at: Time.current)
+    production_order.enter_stage!('PURCHASING', at: Time.current)
   end
 end

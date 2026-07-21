@@ -81,6 +81,11 @@ const selected = ref(null);
 const selectRow = row => {
   selected.value = selected.value?.id === row.id ? null : row;
 };
+// 各阶段到达时间（stage → 日期字符串）。
+const stageTime = stageValue => {
+  const ev = (selected.value?.stageEvents || []).find(e => e.stage === stageValue);
+  return ev?.enteredAt ? new Date(ev.enteredAt).toLocaleDateString() : '';
+};
 
 // —— 转单弹窗 ——
 const convertDialogRef = ref(null);
@@ -316,22 +321,33 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
               </span>
               <span
                 v-if="i < STAGES.length - 1"
-                class="w-px h-6"
+                class="w-px h-8"
                 :class="
                   i < stageIndex(selected.stage) ? 'bg-n-iris-9' : 'bg-n-slate-4'
                 "
               />
             </div>
-            <span
-              class="pt-0.5 text-sm"
-              :class="
-                i === stageIndex(selected.stage)
-                  ? 'font-semibold text-n-slate-12'
-                  : 'text-n-slate-11'
-              "
-            >
-              {{ s.label }}
-            </span>
+            <div class="pt-0.5 pb-2">
+              <span
+                class="text-sm"
+                :class="
+                  i === stageIndex(selected.stage)
+                    ? 'font-semibold text-n-slate-12'
+                    : 'text-n-slate-11'
+                "
+              >
+                {{ s.label }}
+              </span>
+              <div v-if="stageTime(s.value)" class="text-xs text-n-slate-10">
+                {{ stageTime(s.value) }} 到达
+              </div>
+              <div
+                v-else-if="i === stageIndex(selected.stage)"
+                class="text-xs text-n-iris-11"
+              >
+                进行中
+              </div>
+            </div>
           </div>
         </div>
 
