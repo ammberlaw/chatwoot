@@ -1,3 +1,31 @@
+# == Schema Information
+#
+# Table name: mes_purchase_items
+#
+#  id                :bigint           not null, primary key
+#  amount_micros     :bigint
+#  qty               :decimal(14, 3)   not null
+#  rate_micros       :bigint
+#  received_qty      :decimal(14, 3)   default(0.0), not null
+#  remark            :text
+#  unit              :string
+#  created_at        :datetime         not null
+#  updated_at        :datetime         not null
+#  account_id        :bigint           not null
+#  mes_material_id   :bigint
+#  purchase_order_id :bigint           not null
+#
+# Indexes
+#
+#  index_mes_purchase_items_on_account_id         (account_id)
+#  index_mes_purchase_items_on_mes_material_id    (mes_material_id)
+#  index_mes_purchase_items_on_purchase_order_id  (purchase_order_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (mes_material_id => mes_materials.id) ON DELETE => nullify
+#  fk_rails_...  (purchase_order_id => mes_purchase_orders.id) ON DELETE => cascade
+#
 class Mes::PurchaseItem < ApplicationRecord
   belongs_to :account
   belongs_to :purchase_order, class_name: 'Mes::PurchaseOrder', inverse_of: :purchase_items

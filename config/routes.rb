@@ -161,6 +161,10 @@ Rails.application.routes.draw do
             resources :purchase_orders do
               collection { get :requirement }
             end
+            resources :stock_entries do
+              member { post :post }
+            end
+            resources :stock_balances, only: [:index]
             resources :production_orders do
               collection do
                 post :convert

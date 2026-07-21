@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_140100) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_150300) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1823,6 +1823,84 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_140100) do
     t.index ["production_order_id"], name: "index_mes_purchase_orders_on_production_order_id"
   end
 
+  create_table "mes_stock_balances", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "item_type", null: false
+    t.bigint "mes_material_id"
+    t.bigint "crm_product_id"
+    t.bigint "warehouse_id", null: false
+    t.decimal "qty", precision: 16, scale: 3, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "item_type", "mes_material_id", "crm_product_id", "warehouse_id"], name: "index_mes_stock_balances_unique", unique: true, nulls_not_distinct: true
+    t.index ["account_id"], name: "index_mes_stock_balances_on_account_id"
+    t.index ["crm_product_id"], name: "index_mes_stock_balances_on_crm_product_id"
+    t.index ["mes_material_id"], name: "index_mes_stock_balances_on_mes_material_id"
+  end
+
+  create_table "mes_stock_entries", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "entry_no", null: false
+    t.string "purpose", null: false
+    t.bigint "production_order_id"
+    t.bigint "purchase_order_id"
+    t.bigint "from_warehouse_id"
+    t.bigint "to_warehouse_id"
+    t.string "status", default: "DRAFT", null: false
+    t.datetime "posted_at"
+    t.boolean "is_checked", default: false, null: false
+    t.bigint "checked_by_id"
+    t.bigint "received_by_id"
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "entry_no"], name: "index_mes_stock_entries_on_account_id_and_entry_no", unique: true
+    t.index ["account_id", "purpose"], name: "index_mes_stock_entries_on_account_id_and_purpose"
+    t.index ["account_id"], name: "index_mes_stock_entries_on_account_id"
+    t.index ["owner_id"], name: "index_mes_stock_entries_on_owner_id"
+    t.index ["production_order_id"], name: "index_mes_stock_entries_on_production_order_id"
+    t.index ["purchase_order_id"], name: "index_mes_stock_entries_on_purchase_order_id"
+  end
+
+  create_table "mes_stock_entry_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "stock_entry_id", null: false
+    t.string "item_type", null: false
+    t.bigint "mes_material_id"
+    t.bigint "crm_product_id"
+    t.decimal "qty", precision: 16, scale: 3, null: false
+    t.decimal "received_qty", precision: 16, scale: 3
+    t.string "unit"
+    t.bigint "warehouse_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_stock_entry_items_on_account_id"
+    t.index ["crm_product_id"], name: "index_mes_stock_entry_items_on_crm_product_id"
+    t.index ["mes_material_id"], name: "index_mes_stock_entry_items_on_mes_material_id"
+    t.index ["stock_entry_id"], name: "index_mes_stock_entry_items_on_stock_entry_id"
+  end
+
+  create_table "mes_stock_ledgers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "item_type", null: false
+    t.bigint "mes_material_id"
+    t.bigint "crm_product_id"
+    t.bigint "warehouse_id", null: false
+    t.bigint "stock_entry_id"
+    t.decimal "qty_change", precision: 16, scale: 3, null: false
+    t.decimal "balance_after", precision: 16, scale: 3, null: false
+    t.datetime "posted_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "warehouse_id", "item_type"], name: "idx_on_account_id_warehouse_id_item_type_8c18176a8b"
+    t.index ["account_id"], name: "index_mes_stock_ledgers_on_account_id"
+    t.index ["crm_product_id"], name: "index_mes_stock_ledgers_on_crm_product_id"
+    t.index ["mes_material_id"], name: "index_mes_stock_ledgers_on_mes_material_id"
+    t.index ["stock_entry_id"], name: "index_mes_stock_ledgers_on_stock_entry_id"
+  end
+
   create_table "mes_suppliers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "supplier_no", null: false
@@ -2356,6 +2434,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_140100) do
   add_foreign_key "mes_purchase_orders", "mes_production_orders", column: "production_order_id", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "mes_suppliers", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_stock_entries", "mes_production_orders", column: "production_order_id", on_delete: :nullify
+  add_foreign_key "mes_stock_entries", "mes_purchase_orders", column: "purchase_order_id", on_delete: :nullify
+  add_foreign_key "mes_stock_entries", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_stock_entry_items", "crm_products", on_delete: :nullify
+  add_foreign_key "mes_stock_entry_items", "mes_materials", on_delete: :nullify
+  add_foreign_key "mes_stock_entry_items", "mes_stock_entries", column: "stock_entry_id", on_delete: :cascade
   add_foreign_key "mes_suppliers", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_warehouses", "mes_warehouses", column: "parent_id", on_delete: :nullify
   add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :cascade

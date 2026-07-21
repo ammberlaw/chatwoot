@@ -1,0 +1,12 @@
+json.id resource.id
+json.item_type resource.item_type
+json.mes_material_id resource.mes_material_id
+json.material_name resource.mes_material&.name
+json.material_no resource.mes_material&.material_no
+json.crm_product_id resource.crm_product_id
+json.product_name resource.crm_product&.name
+json.qty resource.qty
+json.received_qty resource.received_qty
+json.unit resource.unit
+json.warehouse_id resource.warehouse_id
+json.remark resource.remark
