@@ -801,6 +801,7 @@ const menuItems = computed(() => {
           'mes_purchase_orders_index',
           'mes_stock_entries_index',
           'mes_material_issues_index',
+          'mes_production_records_index',
           'mes_stock_balances_index',
           'mes_materials_index',
           'mes_suppliers_index',
@@ -836,6 +837,12 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_MATERIAL_ISSUES'),
             to: accountScopedRoute('mes_material_issues_index'),
             activeOn: ['mes_material_issues_index'],
+          },
+          {
+            name: 'MES Production Records',
+            label: t('SIDEBAR.MES_PRODUCTION_RECORDS'),
+            to: accountScopedRoute('mes_production_records_index'),
+            activeOn: ['mes_production_records_index'],
           },
           {
             name: 'MES Stock Balances',
@@ -1440,6 +1447,7 @@ const ROUTE_MODULE = {
   mes_purchase_orders_index: 'mes',
   mes_stock_entries_index: 'mes',
   mes_material_issues_index: 'mes',
+  mes_production_records_index: 'mes',
   mes_stock_balances_index: 'mes',
   mes_materials_index: 'mes',
   mes_suppliers_index: 'mes',
