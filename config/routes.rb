@@ -154,6 +154,7 @@ Rails.application.routes.draw do
             resource :performance_settings, only: [:show, :update], controller: 'performance_settings'
           end
           namespace :mes do
+            resource :dashboard, only: [:show], controller: 'dashboard'
             resources :suppliers
             resources :warehouses, except: [:show]
             resources :materials

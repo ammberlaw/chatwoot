@@ -796,6 +796,7 @@ const menuItems = computed(() => {
         label: t('SIDEBAR.MES_G_PRODUCTION'),
         icon: 'i-lucide-factory',
         activeOn: [
+          'mes_dashboard_index',
           'mes_production_orders_index',
           'mes_boms_index',
           'mes_purchase_orders_index',
@@ -810,6 +811,12 @@ const menuItems = computed(() => {
           'mes_warehouses_index',
         ],
         children: [
+          {
+            name: 'MES Dashboard',
+            label: t('SIDEBAR.MES_DASHBOARD'),
+            to: accountScopedRoute('mes_dashboard_index'),
+            activeOn: ['mes_dashboard_index'],
+          },
           {
             name: 'MES Production Orders',
             label: t('SIDEBAR.MES_PRODUCTION_ORDERS'),
@@ -1456,6 +1463,7 @@ const ROUTE_MODULE = {
   crm_attendance_index: 'hr',
   crm_employees_index: 'hr',
   crm_doc_center_index: 'doc',
+  mes_dashboard_index: 'mes',
   mes_production_orders_index: 'mes',
   mes_boms_index: 'mes',
   mes_purchase_orders_index: 'mes',
