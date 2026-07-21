@@ -4,7 +4,8 @@ class Api::V1::Accounts::Mes::WarehousesController < Api::V1::Accounts::Mes::Bas
 
   def index
     Mes::Warehouse.ensure_defaults!(Current.account)
-    @warehouses = Current.account.mes_warehouses.order(:position, :id)
+    # 各出入库阶段只用 原料仓 / 成品仓 两个仓，隐藏在制品仓/废料仓。
+    @warehouses = Current.account.mes_warehouses.where(kind: %w[RAW FINISHED]).order(:position, :id)
   end
 
   def create
