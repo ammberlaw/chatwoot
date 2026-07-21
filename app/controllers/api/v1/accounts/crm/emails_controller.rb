@@ -31,10 +31,9 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     }
   end
 
-  # 可见范围内的邮箱列表 + 当前文件夹下各邮箱的邮件数（供左栏各邮箱切换）。
+  # 只列「本人在邮箱账户里配置的邮箱」+ 当前文件夹下各邮箱的邮件数（含主账号，各看各的）。
   def mailboxes
-    accounts = scope_by_owner(Current.account.crm_mail_accounts)
-    accounts = accounts.owned_by(params[:owner_id]) if params[:owner_id].present?
+    accounts = Current.account.crm_mail_accounts.owned_by(current_user.id)
     scope = mailbox_count_scope
     render json: accounts.order(:id).map { |a|
       addr = a.email_address
@@ -43,10 +42,9 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     }
   end
 
-  # 邮箱计数口径：跟主列表同一文件夹/视图（未读/星标/收件箱/发件箱…），不含 mailbox 自身。
+  # 邮箱计数口径：本人邮件、同一文件夹/视图（未读/星标/收件箱/发件箱…）。
   def mailbox_count_scope
-    scope = visible_emails
-    scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
+    scope = Current.account.crm_emails.owned_by(current_user.id)
     scope = apply_view_filter(scope)
     scope = scope.in_folder(params[:folder]) if params[:folder].present?
     scope

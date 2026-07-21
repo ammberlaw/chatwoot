@@ -153,10 +153,10 @@ const fetchCounts = async () => {
 
 const fetchMailboxes = async () => {
   try {
+    // 邮箱侧边栏恒为「本人配置的邮箱」，不随我的/团队变化；仅按当前文件夹取计数。
     const params = FILTER_FOLDERS.includes(activeFolder.value)
       ? { filter: activeFolder.value }
       : { folder: activeFolder.value };
-    if (effectiveOwnerId.value) params.owner_id = effectiveOwnerId.value;
     const { data } = await CrmEmailAPI.mailboxes(params);
     mailboxList.value = data || [];
   } catch {

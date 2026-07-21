@@ -41,10 +41,9 @@ class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::Crm::B
     authorize(Crm::MailAccount)
   end
 
+  # 邮箱账户按人隔离：每人只看/管自己配置的邮箱（含管理员/主账号）。
   def filtered_accounts
-    scope = scope_by_owner(Current.account.crm_mail_accounts)
-    scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
-    scope
+    Current.account.crm_mail_accounts.owned_by(current_user.id)
   end
 
   # 管理员/主管可代他人配置邮箱（传 owner_id）；业务员只能给自己配。
