@@ -3,6 +3,8 @@ import { FEATURE_FLAGS } from '../../../featureFlags';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
 import MesBomsIndex from './pages/MesBomsIndex.vue';
 import MesPurchaseOrdersIndex from './pages/MesPurchaseOrdersIndex.vue';
+import MesStockEntriesIndex from './pages/MesStockEntriesIndex.vue';
+import MesStockBalancesIndex from './pages/MesStockBalancesIndex.vue';
 import MesMaterialsIndex from './pages/MesMaterialsIndex.vue';
 import MesSuppliersIndex from './pages/MesSuppliersIndex.vue';
 import MesWarehousesIndex from './pages/MesWarehousesIndex.vue';
@@ -29,6 +31,8 @@ export const routes = [
   mesPage('production-orders', 'mes_production_orders_index', MesProductionOrdersIndex),
   mesPage('boms', 'mes_boms_index', MesBomsIndex),
   mesPage('purchase-orders', 'mes_purchase_orders_index', MesPurchaseOrdersIndex),
+  mesPage('stock-entries', 'mes_stock_entries_index', MesStockEntriesIndex),
+  mesPage('stock-balances', 'mes_stock_balances_index', MesStockBalancesIndex),
   mesPage('materials', 'mes_materials_index', MesMaterialsIndex),
   mesPage('suppliers', 'mes_suppliers_index', MesSuppliersIndex),
   mesPage('warehouses', 'mes_warehouses_index', MesWarehousesIndex),
