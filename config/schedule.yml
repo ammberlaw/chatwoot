@@ -92,3 +92,9 @@ crm_fetch_imap_emails_job:
   cron: '*/5 * * * *'
   class: 'Crm::FetchImapEmailsJob'
   queue: low
+
+# MES：生产预警日报（逾期/临近交期/滞留/短缺），北京时间 08:30 = UTC 00:30
+mes_daily_alert_job:
+  cron: '30 0 * * *'
+  class: 'Mes::DailyAlertJob'
+  queue: scheduled_jobs

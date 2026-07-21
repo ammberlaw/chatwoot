@@ -1,0 +1,45 @@
+<% stage_labels = {
+  'SALES_CONFIRMED' => '销售订单确定', 'BOM_READY' => '工程BOM', 'PURCHASING' => '采购原料',
+  'MATERIAL_INBOUND' => '原料入库', 'PICKING' => '生产领料', 'PRODUCTION' => '生产',
+  'FG_INBOUND' => '成品入库', 'SHIPPED' => '销售出库'
+} %>
+<h2 style="color:#1f2d3d;">MES 生产预警日报</h2>
+<p style="color:#5c6873;"><%= Time.zone.today.strftime('%Y年%m月%d日') %></p>
+
+<% if Array(@alerts[:overdue]).any? %>
+  <h3 style="color:#c0392b;">⛔ 已逾期（<%= @alerts[:overdue].size %>）</h3>
+  <ul>
+    <% @alerts[:overdue].each do |o| %>
+      <li><%= o[:order_no] %> · <%= o[:product_name] %> — 已逾期 <%= o[:days] %> 天（当前：<%= stage_labels[o[:stage]] %>）</li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if Array(@alerts[:due_soon]).any? %>
+  <h3 style="color:#d35400;">⏰ 临近交期（<%= @alerts[:due_soon].size %>）</h3>
+  <ul>
+    <% @alerts[:due_soon].each do |o| %>
+      <li><%= o[:order_no] %> · <%= o[:product_name] %> — 距交期 <%= o[:days] %> 天（当前：<%= stage_labels[o[:stage]] %>）</li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if Array(@alerts[:stalled]).any? %>
+  <h3 style="color:#d35400;">🐢 阶段滞留（<%= @alerts[:stalled].size %>）</h3>
+  <ul>
+    <% @alerts[:stalled].each do |o| %>
+      <li><%= o[:order_no] %> — 停留在「<%= stage_labels[o[:stage]] %>」<%= o[:days] %> 天</li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if Array(@alerts[:shortages]).any? %>
+  <h3 style="color:#c0392b;">📦 物料短缺（<%= @alerts[:shortages].size %>）</h3>
+  <ul>
+    <% @alerts[:shortages].each do |s| %>
+      <li><%= s[:material_name] %> — 结存 <%= s[:qty] %>，低于安全库存 <%= s[:safety_stock] %></li>
+    <% end %>
+  </ul>
+<% end %>
+
+<p style="color:#8492a6;font-size:12px;">本邮件由生产管理系统自动发送，进系统「生产看板」查看详情。</p>
