@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import DOMPurify from 'dompurify';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
 import AgentAPI from 'dashboard/api/agents';
@@ -17,18 +18,32 @@ const { t } = useI18n();
 const route = useRoute();
 const store = useCrmEmailsStore();
 const { isAdmin } = useAdmin();
+const currentUserId = useMapGetter('getCurrentUserID');
 
 const composeDialogRef = ref(null);
 const searchTerm = ref('');
 const selectedEmail = ref(null);
-// 管理员可按业务员筛选；'' = 全部成员。
+// 管理员的邮件范围：'mine' 我的邮件 / 'team' 团队邮件（默认看自己的）。
+const mailScope = ref('mine');
+// 管理员可按业务员筛选（团队模式下）；'' = 全部成员。
 const members = ref([]);
 const activeOwner = ref('');
+// 多邮箱侧边栏：可见范围内的邮箱 + 各自未读；activeMailbox '' = 全部收件。
+const mailboxList = ref([]);
+const activeMailbox = ref('');
+
+// 实际用于过滤的负责人 id：非管理员由后端按角色收口（不传）；
+// 管理员「我的」= 自己，「团队」= 选中成员或全部（''）。
+const effectiveOwnerId = computed(() => {
+  if (!isAdmin.value) return '';
+  return mailScope.value === 'mine' ? currentUserId.value : activeOwner.value;
+});
 const counts = ref({
   INBOX: 0,
   SENT: 0,
   DRAFT: 0,
   BULK: 0,
+  SPAM: 0,
   unread: 0,
   starred: 0,
 });
@@ -65,6 +80,12 @@ const FOLDERS = [
     countKey: 'DRAFT',
   },
   { key: 'BULK', label: '群发箱', icon: 'i-lucide-users', countKey: 'BULK' },
+  {
+    key: 'SPAM',
+    label: '垃圾邮件',
+    icon: 'i-lucide-shield-alert',
+    countKey: 'SPAM',
+  },
 ];
 
 const activeFolderLabel = computed(
@@ -113,24 +134,68 @@ const baseParams = () =>
     ? { page: 1, filter: activeFolder.value }
     : { page: 1, folder: activeFolder.value };
 
+// 当前 owner_id + mailbox 过滤参数（我的/团队 + 选中邮箱）。
+const scopeParams = () => {
+  const p = {};
+  if (effectiveOwnerId.value) p.owner_id = effectiveOwnerId.value;
+  if (activeMailbox.value) p.mailbox = activeMailbox.value;
+  return p;
+};
+
 const fetchCounts = async () => {
   try {
-    const { data } = await CrmEmailAPI.counts();
+    const { data } = await CrmEmailAPI.counts(scopeParams());
     counts.value = data;
   } catch {
     // 角标失败不影响主流程
   }
 };
 
+const fetchMailboxes = async () => {
+  try {
+    const params = FILTER_FOLDERS.includes(activeFolder.value)
+      ? { filter: activeFolder.value }
+      : { folder: activeFolder.value };
+    if (effectiveOwnerId.value) params.owner_id = effectiveOwnerId.value;
+    const { data } = await CrmEmailAPI.mailboxes(params);
+    mailboxList.value = data || [];
+  } catch {
+    mailboxList.value = [];
+  }
+};
+
 const fetchRecords = () => {
-  const params = baseParams();
+  const params = { ...baseParams(), ...scopeParams() };
   if (searchTerm.value.trim()) params.q = searchTerm.value.trim();
-  if (activeOwner.value) params.owner_id = activeOwner.value;
   store.get(params);
 };
 
 const onOwnerChange = () => {
+  activeMailbox.value = '';
   selectedEmail.value = null;
+  fetchMailboxes();
+  fetchCounts();
+  fetchRecords();
+};
+
+// 切换「我的/团队」：重置成员筛选与邮箱，刷新邮箱列表、角标、列表。
+const setMailScope = scope => {
+  if (mailScope.value === scope) return;
+  mailScope.value = scope;
+  activeOwner.value = '';
+  activeMailbox.value = '';
+  selectedEmail.value = null;
+  fetchMailboxes();
+  fetchCounts();
+  fetchRecords();
+};
+
+// 切换邮箱：在当前文件夹下按该邮箱过滤（'' = 全部）。
+const setMailbox = address => {
+  if (activeMailbox.value === address) return;
+  activeMailbox.value = address;
+  selectedEmail.value = null;
+  fetchCounts();
   fetchRecords();
 };
 
@@ -147,7 +212,10 @@ const fetchMembers = async () => {
 const setFolder = key => {
   if (activeFolder.value === key) return;
   activeFolder.value = key;
+  activeMailbox.value = '';
   selectedEmail.value = null;
+  fetchMailboxes();
+  fetchCounts();
   fetchRecords();
 };
 
@@ -228,6 +296,25 @@ const resend = async email => {
   fetchRecords();
 };
 
+const isSpam = computed(() => selectedEmail.value?.folder === 'SPAM');
+const spamLabel = computed(() =>
+  isSpam.value ? '移出垃圾邮件' : '标记垃圾邮件'
+);
+const spamIcon = computed(() =>
+  isSpam.value ? 'i-lucide-shield-check' : 'i-lucide-shield-alert'
+);
+
+// 标记/移出垃圾邮件：改文件夹，刷新列表与角标。
+const toggleSpam = async email => {
+  const toSpam = email.folder !== 'SPAM';
+  await store.update({ id: email.id, folder: toSpam ? 'SPAM' : 'INBOX' });
+  useAlert(toSpam ? '已移入垃圾邮件' : '已移出垃圾邮件');
+  selectedEmail.value = null;
+  fetchRecords();
+  fetchCounts();
+  fetchMailboxes();
+};
+
 let searchTimer = null;
 watch(searchTerm, () => {
   clearTimeout(searchTimer);
@@ -238,6 +325,7 @@ onMounted(() => {
   fetchRecords();
   fetchCounts();
   fetchMembers();
+  fetchMailboxes();
   if (route.query.compose) openCompose();
 });
 
@@ -268,29 +356,64 @@ watch(
         />
       </div>
       <nav class="flex flex-col gap-0.5 px-2">
-        <button
-          v-for="folder in FOLDERS"
-          :key="folder.key"
-          class="flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors"
-          :class="
-            activeFolder === folder.key
-              ? 'bg-n-iris-3 text-n-iris-11 font-medium'
-              : 'text-n-slate-11 hover:bg-n-alpha-1'
-          "
-          @click="setFolder(folder.key)"
-        >
-          <Icon :icon="folder.icon" class="flex-shrink-0 size-4" />
-          <span class="flex-1 text-left">{{ folder.label }}</span>
-          <span
-            v-if="counts[folder.countKey]"
-            class="text-xs tabular-nums"
+        <template v-for="folder in FOLDERS" :key="folder.key">
+          <button
+            class="flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors"
             :class="
-              folder.key === 'unread' ? 'text-n-iris-11' : 'text-n-slate-10'
+              activeFolder === folder.key
+                ? 'bg-n-iris-3 text-n-iris-11 font-medium'
+                : 'text-n-slate-11 hover:bg-n-alpha-1'
             "
+            @click="setFolder(folder.key)"
           >
-            {{ counts[folder.countKey] }}
-          </span>
-        </button>
+            <Icon :icon="folder.icon" class="flex-shrink-0 size-4" />
+            <span class="flex-1 text-left">{{ folder.label }}</span>
+            <span
+              v-if="counts[folder.countKey]"
+              class="text-xs tabular-nums"
+              :class="
+                folder.key === 'unread' ? 'text-n-iris-11' : 'text-n-slate-10'
+              "
+            >
+              {{ counts[folder.countKey] }}
+            </span>
+          </button>
+          <!-- 当前文件夹下的多邮箱切换：全部 + 各邮箱（按可见范围）-->
+          <div
+            v-if="folder.key === activeFolder && mailboxList.length"
+            class="flex flex-col mb-1 border-l gap-0.5 ml-5 pl-1.5 border-n-weak"
+          >
+            <button
+              class="flex items-center px-2 py-1 text-xs transition-colors rounded-md"
+              :class="
+                activeMailbox === ''
+                  ? 'text-n-iris-11 font-medium bg-n-iris-2'
+                  : 'text-n-slate-10 hover:bg-n-alpha-1'
+              "
+              @click="setMailbox('')"
+            >
+              <span class="flex-1 text-left">{{ '全部' }}</span>
+            </button>
+            <button
+              v-for="mb in mailboxList"
+              :key="mb.address"
+              class="flex items-center gap-1 px-2 py-1 text-xs transition-colors rounded-md"
+              :class="
+                activeMailbox === mb.address
+                  ? 'text-n-iris-11 font-medium bg-n-iris-2'
+                  : 'text-n-slate-10 hover:bg-n-alpha-1'
+              "
+              @click="setMailbox(mb.address)"
+            >
+              <span :title="mb.address" class="flex-1 text-left truncate">
+                {{ mb.address }}
+              </span>
+              <span v-if="mb.count" class="tabular-nums text-n-slate-10">
+                {{ mb.count }}
+              </span>
+            </button>
+          </div>
+        </template>
       </nav>
     </aside>
 
@@ -324,8 +447,33 @@ watch(
             class="w-full py-2 pl-9 pr-3 text-sm border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
         </div>
-        <!-- 业务员筛选（仅管理员）：看全员或指定成员的邮件 -->
-        <div v-if="isAdmin" class="flex items-center gap-2 mt-2">
+        <!-- 我的/团队 邮件切换（仅管理员）-->
+        <div
+          v-if="isAdmin"
+          class="flex gap-0.5 p-0.5 mt-2 rounded-lg bg-n-alpha-2"
+        >
+          <button
+            v-for="opt in [
+              { v: 'mine', l: '我的邮件' },
+              { v: 'team', l: '团队邮件' },
+            ]"
+            :key="opt.v"
+            class="flex-1 py-1 text-xs rounded-md transition-colors"
+            :class="
+              mailScope === opt.v
+                ? 'bg-n-solid-1 text-n-slate-12 shadow-sm font-medium'
+                : 'text-n-slate-10 hover:text-n-slate-12'
+            "
+            @click="setMailScope(opt.v)"
+          >
+            {{ opt.l }}
+          </button>
+        </div>
+        <!-- 团队模式下可下钻到指定成员 -->
+        <div
+          v-if="isAdmin && mailScope === 'team'"
+          class="flex items-center gap-2 mt-2"
+        >
           <Icon icon="i-lucide-users" class="size-4 text-n-slate-10" />
           <select
             v-model="activeOwner"
@@ -532,6 +680,15 @@ watch(
               variant="faded"
               color="iris"
               @click="resend(selectedEmail)"
+            />
+            <Button
+              v-if="['INBOX', 'SPAM'].includes(selectedEmail.folder)"
+              :label="spamLabel"
+              :icon="spamIcon"
+              size="sm"
+              variant="faded"
+              color="slate"
+              @click="toggleSpam(selectedEmail)"
             />
           </div>
         </div>

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useCrmMailAccountsStore } from 'dashboard/stores/crm/mailAccounts';
+import MailAccountAPI from 'dashboard/api/crm/mailAccounts';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -45,6 +46,8 @@ const L = {
   error: '操作失败',
   signatureLabel: '签名',
   passwordKeep: '编辑时留空则不修改授权码',
+  test: '测试连接',
+  testing: '测试中…',
 };
 
 const enabledOptions = [
@@ -162,6 +165,31 @@ const removeRecord = async () => {
 const toggleActive = record =>
   store.update({ id: record.id, isActive: !record.isActive });
 
+// 连通性检测：实测 SMTP/IMAP 认证，弹出成功或失败原因（授权码错等）。
+const testingId = ref(null);
+const testAccount = async record => {
+  testingId.value = record.id;
+  try {
+    const { data } = await MailAccountAPI.test(record.id);
+    const smtp = data.smtp || {};
+    if (!smtp.ok) {
+      useAlert(`❌ ${record.name} 发信失败：${smtp.error || '认证失败'}`);
+      return;
+    }
+    const imap = data.imap;
+    const imapMsg = imap
+      ? imap.ok
+        ? '，收信正常'
+        : `，但收信失败：${imap.error}`
+      : '';
+    useAlert(`✅ ${record.name} 发信正常${imapMsg}`);
+  } catch {
+    useAlert(L.error);
+  } finally {
+    testingId.value = null;
+  }
+};
+
 onMounted(() => store.get());
 </script>
 
@@ -249,6 +277,22 @@ onMounted(() => store.get());
               >
                 {{ record.isActive ? L.active : L.inactive }}
               </span>
+            </button>
+            <button
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11 disabled:opacity-60"
+              :disabled="testingId === record.id"
+              @click.stop="testAccount(record)"
+            >
+              <Icon
+                :icon="
+                  testingId === record.id
+                    ? 'i-lucide-loader-circle'
+                    : 'i-lucide-plug-zap'
+                "
+                class="size-3.5"
+                :class="testingId === record.id ? 'animate-spin' : ''"
+              />
+              {{ testingId === record.id ? L.testing : L.test }}
             </button>
           </div>
         </div>

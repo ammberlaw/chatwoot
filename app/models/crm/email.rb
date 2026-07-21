@@ -55,7 +55,7 @@
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::Email < ApplicationRecord
-  FOLDERS = %w[INBOX SENT DRAFT BULK].freeze
+  FOLDERS = %w[INBOX SENT DRAFT BULK SPAM].freeze
   SEND_STATUSES = %w[DRAFT PENDING SENT FAILED].freeze
 
   belongs_to :account

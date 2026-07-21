@@ -85,7 +85,10 @@ Rails.application.routes.draw do
               end
             end
             resources :emails do
-              collection { get :counts }
+              collection do
+                get :counts
+                get :mailboxes
+              end
               member do
                 post :attach_kb
                 get :opens
@@ -119,7 +122,9 @@ Rails.application.routes.draw do
             resource :team_dashboard, only: [:show], controller: 'team_dashboard'
             resource :my_target, only: [:show], controller: 'my_target'
             resource :signature, only: [:show, :create, :destroy], controller: 'signatures'
-            resources :mail_accounts
+            resources :mail_accounts do
+              member { post :test }
+            end
             resources :email_templates
             resources :members, only: [:index, :create, :update]
             resources :member_invites, only: [:index, :create, :destroy]

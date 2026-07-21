@@ -32,6 +32,8 @@ const L = {
   draft: '存草稿',
   preview: '预览',
   cancel: '取消',
+  confirmClose:
+    '邮件还没发送，关闭会丢失已写内容。确定关闭吗？（可先点「存草稿」）',
   noAccountWarn:
     '还没有发信邮箱，去「邮件中心 → 邮箱账户」新建并填 SMTP 授权码后即可发送。',
   from: '发件人',
@@ -442,7 +444,20 @@ const reset = () => {
   status.value = { state: 'idle', msg: '' };
 };
 
+// 有内容则算「脏」——关闭前提醒，避免写好的邮件误关丢失。
+const isDirty = () =>
+  !!(
+    form.to.trim() ||
+    form.cc.trim() ||
+    form.bcc.trim() ||
+    form.subject.trim() ||
+    form.body.trim() ||
+    attachments.value.length
+  );
+
 const close = () => {
+  // eslint-disable-next-line no-alert
+  if (isDirty() && !window.confirm(L.confirmClose)) return;
   visible.value = false;
   reset();
 };
@@ -472,10 +487,10 @@ defineExpose({ open, close });
 </script>
 
 <template>
+  <!-- 遮罩不再点击即关：点窗口外不会关闭，避免写好的邮件被误关丢失（只能点「取消」）。 -->
   <div
     v-show="visible"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40"
-    @click.self="close"
   >
     <div
       class="flex flex-col w-full max-w-[1080px] h-[calc(100vh-3rem)] max-h-[900px]"

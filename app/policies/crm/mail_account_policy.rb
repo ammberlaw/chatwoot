@@ -18,6 +18,10 @@ class Crm::MailAccountPolicy < ApplicationPolicy
   def destroy?
     true
   end
+
+  def test?
+    true
+  end
 end
 
 Crm::MailAccountPolicy.prepend_mod_with('Crm::MailAccountPolicy')

@@ -17,15 +17,39 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   # 左栏文件夹计数（各文件夹总数 + 收件箱未读），一次查询喂列表页角标。
   def counts
     scope = visible_emails
+    scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
+    scope = filter_by_mailbox(scope) if params[:mailbox].present?
     by_folder = scope.group(:folder).count
     render json: {
       INBOX: by_folder['INBOX'].to_i,
       SENT: by_folder['SENT'].to_i,
       DRAFT: by_folder['DRAFT'].to_i,
       BULK: by_folder['BULK'].to_i,
+      SPAM: by_folder['SPAM'].to_i,
       unread: scope.unread.count,
       starred: scope.starred.count
     }
+  end
+
+  # 可见范围内的邮箱列表 + 当前文件夹下各邮箱的邮件数（供左栏各邮箱切换）。
+  def mailboxes
+    accounts = scope_by_owner(Current.account.crm_mail_accounts)
+    accounts = accounts.owned_by(params[:owner_id]) if params[:owner_id].present?
+    scope = mailbox_count_scope
+    render json: accounts.order(:id).map { |a|
+      addr = a.email_address
+      count = scope.where('from_address = :m OR to_address ILIKE :l', m: addr, l: "%#{addr}%").count
+      { address: addr, name: a.name, count: count }
+    }
+  end
+
+  # 邮箱计数口径：跟主列表同一文件夹/视图（未读/星标/收件箱/发件箱…），不含 mailbox 自身。
+  def mailbox_count_scope
+    scope = visible_emails
+    scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
+    scope = apply_view_filter(scope)
+    scope = scope.in_folder(params[:folder]) if params[:folder].present?
+    scope
   end
 
   def show; end
@@ -88,12 +112,19 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     scope
   end
 
-  # 视图 filter（未读/星标/我的）+ 按业务员 + 按客户。
+  # 视图 filter（未读/星标/我的）+ 按业务员 + 按客户 + 按邮箱。
   def apply_scope_filters(scope)
     scope = apply_view_filter(scope)
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
+    scope = filter_by_mailbox(scope) if params[:mailbox].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
     scope
+  end
+
+  # 按邮箱地址收口：发件箱看 from，其余看 to（收件人含该邮箱）。
+  def filter_by_mailbox(scope)
+    m = params[:mailbox]
+    scope.where('from_address = :m OR to_address ILIKE :like', m: m, like: "%#{m}%")
   end
 
   def apply_view_filter(scope)

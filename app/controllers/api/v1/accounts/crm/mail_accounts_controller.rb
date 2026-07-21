@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_mail_account, only: [:show, :update, :destroy]
+  before_action :fetch_mail_account, only: [:show, :update, :destroy, :test]
 
   def index
     @mail_accounts = filtered_accounts.order(:id)
@@ -22,6 +22,11 @@ class Api::V1::Accounts::Crm::MailAccountsController < Api::V1::Accounts::Crm::B
   def destroy
     @mail_account.destroy!
     head :ok
+  end
+
+  # 实测 SMTP/IMAP 认证，返回是否设置成功 + 失败原因（授权码错等）。
+  def test
+    render json: Crm::MailAccountVerifier.new(@mail_account).call
   end
 
   private
