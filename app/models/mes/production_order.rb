@@ -59,9 +59,9 @@ class Mes::ProductionOrder < ApplicationRecord
   # 生命周期（与 stage 正交）。
   STATUSES = %w[IN_PROGRESS COMPLETED STOPPED CANCELLED].freeze
 
-  # 每个阶段对应的前端板块（board_key），用于查该阶段负责人（Mes::BoardOwner）。SHIPPED 为终点无需接单。
+  # 每个阶段对应的前端板块（board_key），用于查该阶段负责人（Mes::BoardOwner）。
+  # SALES_CONFIRMED（建单）由各业务自建、无统一板块负责人，不入接单机制；SHIPPED 为终点无需接单。
   STAGE_BOARD_KEYS = {
-    'SALES_CONFIRMED' => 'mes_production_orders_index',
     'BOM_READY' => 'mes_boms_index',
     'PURCHASING' => 'mes_purchase_orders_index',
     'MATERIAL_INBOUND' => 'mes_stock_entries_index',
