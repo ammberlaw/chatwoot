@@ -138,7 +138,7 @@ onMounted(() => {
           <dd class="text-n-slate-12">
             {{ trace.production_order?.order_no || '—' }}
           </dd>
-          <dt class="text-n-slate-11">工程 BOM</dt>
+          <dt class="text-n-slate-11">工程/PMC BOM</dt>
           <dd class="text-n-slate-12">{{ trace.bom?.bom_no || '—' }}</dd>
           <dt class="text-n-slate-11">用料</dt>
           <dd class="text-n-slate-12">

@@ -25,7 +25,7 @@ const store = useMesProductionOrdersStore();
 // 8 阶段（与后端 Mes::ProductionOrder::STAGES 顺序一致）。
 const STAGES = [
   { value: 'SALES_CONFIRMED', label: '销售订单确定' },
-  { value: 'BOM_READY', label: '工程BOM' },
+  { value: 'BOM_READY', label: '工程/PMC BOM' },
   { value: 'PURCHASING', label: '采购原料' },
   { value: 'MATERIAL_INBOUND', label: '原料入库' },
   { value: 'PICKING', label: '生产领料' },
@@ -231,7 +231,7 @@ const submitAttachBom = async () => {
     plannedEndDate: bomForm.value.plannedEndDate || undefined,
   });
   if (ok) {
-    useAlert('已挂 BOM，进入「工程BOM」阶段');
+    useAlert('已挂 BOM，进入「工程/PMC BOM」阶段');
     selected.value = ok;
     bomDialogRef.value?.close();
     fetchRecords();
@@ -442,7 +442,7 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
 
         <div class="pt-4 mt-4 border-t border-n-weak">
           <template v-if="selected.bomNo">
-            <div class="text-xs text-n-slate-11">工程 BOM：{{ selected.bomNo }}</div>
+            <div class="text-xs text-n-slate-11">工程/PMC BOM：{{ selected.bomNo }}</div>
             <Button
               v-if="selected.stage === 'BOM_READY' && (mesCan('bom') || mesCan('order'))"
               label="下发到采购"
@@ -455,7 +455,7 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           </template>
           <Button
             v-else-if="selected.stage === 'SALES_CONFIRMED' && (mesCan('order') || mesCan('bom'))"
-            label="挂工程 BOM"
+            label="挂工程/PMC BOM"
             color="iris"
             size="sm"
             class="w-full"
@@ -564,8 +564,8 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
       ref="bomDialogRef"
       width="lg"
       confirm-button-color="iris"
-      title="挂工程 BOM"
-      description="选择该成品的 BOM，按预估交期算出预估完工，生产订单进入「工程BOM」阶段。"
+      title="挂工程/PMC BOM"
+      description="选择该成品的 BOM，按预估交期算出预估完工，生产订单进入「工程/PMC BOM」阶段。"
       :is-loading="attaching"
       :disable-confirm-button="!bomForm.bomId"
       @confirm="submitAttachBom"

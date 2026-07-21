@@ -111,7 +111,7 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING），通知采购备料。
   def release_to_purchasing!(actor: nil)
-    raise StandardError, '需先挂工程 BOM' if bom_id.nil?
+    raise StandardError, '需先挂工程/PMC BOM' if bom_id.nil?
     raise StandardError, '当前阶段无法下发采购' unless stage == 'BOM_READY'
 
     enter_stage!('PURCHASING', actor: actor)

@@ -9,7 +9,7 @@ const router = useRouter();
 
 const STAGE_LABELS = {
   SALES_CONFIRMED: '销售订单确定',
-  BOM_READY: '工程BOM',
+  BOM_READY: '工程/PMC BOM',
   PURCHASING: '采购原料',
   MATERIAL_INBOUND: '原料入库',
   PICKING: '生产领料',

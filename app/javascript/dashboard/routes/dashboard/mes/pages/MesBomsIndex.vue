@@ -146,7 +146,7 @@ onMounted(async () => {
 <template>
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
-      <h1 class="text-xl font-semibold text-n-slate-12">工程 BOM</h1>
+      <h1 class="text-xl font-semibold text-n-slate-12">工程/PMC BOM</h1>
       <Button v-if="mesCan('bom')" label="新建 BOM" color="iris" size="sm" @click="openCreate" />
     </div>
 

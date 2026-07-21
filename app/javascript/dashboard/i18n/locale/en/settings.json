@@ -439,7 +439,7 @@
     "MES_G_PRODUCTION": "生产管理",
     "MES_DASHBOARD": "生产看板",
     "MES_PRODUCTION_ORDERS": "生产订单",
-    "MES_BOMS": "工程 BOM",
+    "MES_BOMS": "工程/PMC BOM",
     "MES_PURCHASE_ORDERS": "采购单",
     "MES_STOCK_ENTRIES": "原料入库",
     "MES_MATERIAL_ISSUES": "生产领料",
