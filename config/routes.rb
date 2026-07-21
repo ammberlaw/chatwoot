@@ -168,6 +168,9 @@ Rails.application.routes.draw do
             resources :stock_balances, only: [:index]
             resources :production_records, only: [:index, :create, :destroy]
             resources :inspections, only: [:index, :create, :destroy]
+            resources :serial_numbers, only: [:index, :create, :destroy] do
+              collection { get :trace }
+            end
             resources :shipments do
               member do
                 post :notify

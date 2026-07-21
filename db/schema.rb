@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_200000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1882,6 +1882,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_200000) do
     t.index ["production_order_id"], name: "index_mes_purchase_orders_on_production_order_id"
   end
 
+  create_table "mes_serial_numbers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "sn", null: false
+    t.bigint "production_order_id"
+    t.bigint "crm_product_id"
+    t.bigint "shipment_id"
+    t.string "status", default: "IN_STOCK", null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "sn"], name: "index_mes_serial_numbers_on_account_id_and_sn", unique: true
+    t.index ["account_id"], name: "index_mes_serial_numbers_on_account_id"
+    t.index ["crm_product_id"], name: "index_mes_serial_numbers_on_crm_product_id"
+    t.index ["production_order_id"], name: "index_mes_serial_numbers_on_production_order_id"
+    t.index ["shipment_id"], name: "index_mes_serial_numbers_on_shipment_id"
+  end
+
   create_table "mes_shipment_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "shipment_id", null: false
@@ -2538,6 +2555,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_200000) do
   add_foreign_key "mes_purchase_orders", "mes_production_orders", column: "production_order_id", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "mes_suppliers", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_serial_numbers", "crm_products", on_delete: :nullify
+  add_foreign_key "mes_serial_numbers", "mes_production_orders", column: "production_order_id", on_delete: :nullify
+  add_foreign_key "mes_serial_numbers", "mes_shipments", column: "shipment_id", on_delete: :nullify
   add_foreign_key "mes_shipment_items", "crm_products", on_delete: :nullify
   add_foreign_key "mes_shipment_items", "mes_shipments", column: "shipment_id", on_delete: :cascade
   add_foreign_key "mes_shipments", "crm_customers", on_delete: :nullify

@@ -805,6 +805,7 @@ const menuItems = computed(() => {
           'mes_production_records_index',
           'mes_inspections_index',
           'mes_fg_inbound_index',
+          'mes_serial_numbers_index',
           'mes_shipments_index',
           'mes_stock_balances_index',
           'mes_materials_index',
@@ -865,6 +866,12 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_FG_INBOUND'),
             to: accountScopedRoute('mes_fg_inbound_index'),
             activeOn: ['mes_fg_inbound_index'],
+          },
+          {
+            name: 'MES Serial Numbers',
+            label: t('SIDEBAR.MES_SERIAL_NUMBERS'),
+            to: accountScopedRoute('mes_serial_numbers_index'),
+            activeOn: ['mes_serial_numbers_index'],
           },
           {
             name: 'MES Shipments',
@@ -1479,6 +1486,7 @@ const ROUTE_MODULE = {
   mes_production_records_index: 'mes',
   mes_inspections_index: 'mes',
   mes_fg_inbound_index: 'mes',
+  mes_serial_numbers_index: 'mes',
   mes_shipments_index: 'mes',
   mes_stock_balances_index: 'mes',
   mes_materials_index: 'mes',
