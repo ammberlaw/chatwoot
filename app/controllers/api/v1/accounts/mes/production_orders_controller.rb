@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
-  before_action :fetch_production_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom]
+  before_action :fetch_production_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :requirement]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
@@ -37,6 +37,11 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       owner_id: params[:owner_id] || current_user.id
     )
     render 'api/v1/accounts/mes/production_orders/show'
+  end
+
+  # 按 BOM 推料（生产领料预填）：返回该生产订单的用料需求。
+  def requirement
+    render json: { payload: @production_order.material_requirements }
   end
 
   # 挂工程 BOM（阶段 2）：绑 BOM + 预估交期 → 进 BOM_READY。

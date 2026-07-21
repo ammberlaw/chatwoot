@@ -63,10 +63,17 @@ class Mes::StockEntry < ApplicationRecord
     IN_PURPOSES.include?(purpose) ? to_warehouse_id : from_warehouse_id
   end
 
-  def advance_production_order_on_receipt(timestamp)
-    return unless purpose == 'MATERIAL_RECEIPT'
-    return if production_order.nil? || production_order.stage != 'PURCHASING'
+  # 过账按 purpose 推进关联生产订单阶段（仅当处于前置阶段，避免回退/越级）。
+  STAGE_ADVANCE = {
+    'MATERIAL_RECEIPT' => %w[PURCHASING MATERIAL_INBOUND],
+    'MATERIAL_ISSUE' => %w[MATERIAL_INBOUND PICKING]
+  }.freeze
 
-    production_order.update_columns(stage: 'MATERIAL_INBOUND', updated_at: timestamp)
+  def advance_production_order_on_receipt(timestamp)
+    from_stage, to_stage = STAGE_ADVANCE[purpose]
+    return if from_stage.nil? || production_order.nil?
+    return if production_order.stage != from_stage
+
+    production_order.update_columns(stage: to_stage, updated_at: timestamp)
   end
 end

@@ -19,6 +19,10 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
     true
   end
 
+  def requirement?
+    true
+  end
+
   def update?
     true
   end
