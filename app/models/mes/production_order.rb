@@ -101,11 +101,21 @@ class Mes::ProductionOrder < ApplicationRecord
   # planned_end 显式传入则优先；否则用 BOM 的 estimated_lead_days 从今天推算。
   def attach_bom!(bom, planned_end: nil)
     planned = planned_end.presence
-    planned ||= bom.estimated_lead_days.present? ? bom.estimated_lead_days.to_i.days.from_now : nil
+    lead = bom.total_lead_days
+    planned ||= lead.positive? ? lead.days.from_now : nil
     updates = { bom_id: bom.id }
     updates[:planned_end_date] = planned if planned
     update!(updates)
     enter_stage!('BOM_READY') if stage == 'SALES_CONFIRMED'
+  end
+
+  # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING），通知采购备料。
+  def release_to_purchasing!(actor: nil)
+    raise StandardError, '需先挂工程 BOM' if bom_id.nil?
+    raise StandardError, '当前阶段无法下发采购' unless stage == 'BOM_READY'
+
+    enter_stage!('PURCHASING', actor: actor)
+    self
   end
 
   # 实际耗料成本（已过账领料 - 退料，× 物料标准价）。
@@ -161,7 +171,7 @@ class Mes::ProductionOrder < ApplicationRecord
         material_name: material&.name,
         unit: item.unit.presence || material&.unit,
         qty: (item.qty.to_d * factor),
-        rate_micros: item.rate_micros
+        rate_micros: item.rate_micros.presence || material&.cost_price_micros
       }
     end
   end

@@ -238,6 +238,17 @@ const submitAttachBom = async () => {
   }
 };
 
+// 工程/PMC 制单后一键下发到采购阶段。
+const releasePurchasing = async () => {
+  if (!selected.value) return;
+  const ok = await store.releasePurchasing(selected.value.id);
+  if (ok) {
+    useAlert('已下发到采购阶段');
+    selected.value = ok;
+    fetchRecords();
+  }
+};
+
 onMounted(async () => {
   await fetchRecords();
   // 从看板交期预警跳转过来：按订单号自动打开详情面板。
@@ -430,11 +441,20 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
         </div>
 
         <div class="pt-4 mt-4 border-t border-n-weak">
-          <div v-if="selected.bomNo" class="text-xs text-n-slate-11">
-            工程 BOM：{{ selected.bomNo }}
-          </div>
+          <template v-if="selected.bomNo">
+            <div class="text-xs text-n-slate-11">工程 BOM：{{ selected.bomNo }}</div>
+            <Button
+              v-if="selected.stage === 'BOM_READY' && (mesCan('bom') || mesCan('order'))"
+              label="下发到采购"
+              color="iris"
+              size="sm"
+              class="w-full mt-2"
+              :is-loading="uiFlags.updatingItem"
+              @click="releasePurchasing"
+            />
+          </template>
           <Button
-            v-else-if="selected.stage === 'SALES_CONFIRMED' && mesCan('order')"
+            v-else-if="selected.stage === 'SALES_CONFIRMED' && (mesCan('order') || mesCan('bom'))"
             label="挂工程 BOM"
             color="iris"
             size="sm"

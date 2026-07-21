@@ -191,6 +191,7 @@ Rails.application.routes.draw do
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :attach_bom
+                post :release_purchasing
                 get :requirement
               end
             end

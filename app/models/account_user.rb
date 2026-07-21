@@ -56,7 +56,7 @@ class AccountUser < ApplicationRecord
 
   # 角色 → 可写能力域。管理员/副管理员全能力。
   MES_CAPABILITIES = {
-    'pmc' => %w[order master],
+    'pmc' => %w[order bom master],
     'engineer' => %w[bom master],
     'buyer' => %w[purchase master],
     'warehouse' => %w[stock shipment quality],

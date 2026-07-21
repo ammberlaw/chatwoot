@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
-  before_action :fetch_production_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :requirement]
+  before_action :fetch_production_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :release_purchasing, :requirement]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
@@ -53,6 +53,14 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     bom = Current.account.mes_boms.find(params[:bom_id])
     @production_order.attach_bom!(bom, planned_end: params[:planned_end_date])
     render 'api/v1/accounts/mes/production_orders/show'
+  end
+
+  # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING）。
+  def release_purchasing
+    @production_order.release_to_purchasing!(actor: current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def update

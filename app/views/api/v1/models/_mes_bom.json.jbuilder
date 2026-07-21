@@ -5,7 +5,13 @@ json.product_name resource.crm_product&.name
 json.base_qty resource.base_qty
 json.unit resource.unit
 json.estimated_lead_days resource.estimated_lead_days
-json.total_material_cost_micros resource.total_material_cost_micros
+json.purchasing_days resource.purchasing_days
+json.material_inbound_days resource.material_inbound_days
+json.picking_days resource.picking_days
+json.production_days resource.production_days
+json.fg_inbound_days resource.fg_inbound_days
+json.total_lead_days resource.total_lead_days
+json.product_line resource.product_line
 json.is_active resource.is_active
 json.is_default resource.is_default
 json.owner_id resource.owner_id

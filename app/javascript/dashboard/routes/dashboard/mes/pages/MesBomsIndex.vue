@@ -23,7 +23,14 @@ const saving = computed(
   () => store.getUIFlags.creatingItem || store.getUIFlags.updatingItem
 );
 
-const yuan = micros => (micros ? (micros / 1e6).toFixed(2) : '0.00');
+// 按阶段预估天数（不含销售出库/物流）。
+const LEAD_STAGES = [
+  { key: 'purchasingDays', label: '采购原料' },
+  { key: 'materialInboundDays', label: '原料入库' },
+  { key: 'pickingDays', label: '生产领料' },
+  { key: 'productionDays', label: '生产' },
+  { key: 'fgInboundDays', label: '成品入库' },
+];
 
 const products = ref([]);
 const productOptions = computed(() =>
@@ -39,18 +46,18 @@ const materialOptions = computed(() =>
 const dialogRef = ref(null);
 const editingId = ref(null);
 const removedItemIds = ref([]);
+const blankLeadDays = () =>
+  Object.fromEntries(LEAD_STAGES.map(s => [s.key, '']));
 const form = reactive({
   crmProductId: '',
   baseQty: '1',
   unit: '台',
-  estimatedLeadDays: '',
-  rows: [], // { id?, mesMaterialId, qty, rateMicros }
+  ...blankLeadDays(),
+  rows: [], // { id?, mesMaterialId, qty }
 });
 
-const rowAmount = row =>
-  (Number(row.qty) || 0) * (Number(row.rateMicros) || 0);
-const totalMicros = computed(() =>
-  form.rows.reduce((sum, r) => sum + rowAmount(r), 0)
+const totalLeadDays = computed(() =>
+  LEAD_STAGES.reduce((sum, s) => sum + (Number(form[s.key]) || 0), 0)
 );
 
 const invalid = computed(
@@ -59,8 +66,7 @@ const invalid = computed(
     form.rows.some(r => !r.mesMaterialId || !Number(r.qty))
 );
 
-const addRow = () =>
-  form.rows.push({ mesMaterialId: '', qty: '1', rateMicros: '' });
+const addRow = () => form.rows.push({ mesMaterialId: '', qty: '1' });
 const removeRow = i => {
   const [removed] = form.rows.splice(i, 1);
   if (removed?.id) removedItemIds.value.push(removed.id);
@@ -73,8 +79,8 @@ const openCreate = () => {
     crmProductId: '',
     baseQty: '1',
     unit: '台',
-    estimatedLeadDays: '',
-    rows: [{ mesMaterialId: '', qty: '1', rateMicros: '' }],
+    ...blankLeadDays(),
+    rows: [{ mesMaterialId: '', qty: '1' }],
   });
   dialogRef.value?.open();
 };
@@ -85,12 +91,11 @@ const openEdit = bom => {
     crmProductId: bom.crmProductId ? String(bom.crmProductId) : '',
     baseQty: String(bom.baseQty ?? '1'),
     unit: bom.unit || '',
-    estimatedLeadDays: bom.estimatedLeadDays ?? '',
+    ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, bom[s.key] ?? ''])),
     rows: (bom.bomItems || []).map(it => ({
       id: it.id,
       mesMaterialId: String(it.mesMaterialId),
       qty: String(it.qty),
-      rateMicros: it.rateMicros ?? '',
     })),
   });
   dialogRef.value?.open();
@@ -103,7 +108,6 @@ const submit = async () => {
       id: r.id || undefined,
       mesMaterialId: Number(r.mesMaterialId),
       qty: Number(r.qty),
-      rateMicros: Number(r.rateMicros) || 0,
     })),
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
   ];
@@ -111,7 +115,9 @@ const submit = async () => {
     crmProductId: form.crmProductId || null,
     baseQty: Number(form.baseQty) || 1,
     unit: form.unit,
-    estimatedLeadDays: Number(form.estimatedLeadDays) || null,
+    ...Object.fromEntries(
+      LEAD_STAGES.map(s => [s.key, Number(form[s.key]) || null])
+    ),
     bomItemsAttributes: itemsAttributes,
   };
   const ok = editingId.value
@@ -153,8 +159,7 @@ onMounted(async () => {
             <th class="px-3 py-3 font-medium">成品</th>
             <th class="px-3 py-3 font-medium">基准产量</th>
             <th class="px-3 py-3 font-medium">用料项</th>
-            <th class="px-3 py-3 font-medium">物料成本</th>
-            <th class="px-3 py-3 font-medium">预估交期(天)</th>
+            <th class="px-3 py-3 font-medium">预估周期(天)</th>
             <th class="px-3 py-3" />
           </tr>
         </thead>
@@ -167,10 +172,7 @@ onMounted(async () => {
               {{ (b.bomItems || []).length }} 项
             </td>
             <td class="px-3 py-3 text-n-slate-11">
-              ¥{{ yuan(b.totalMaterialCostMicros) }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ b.estimatedLeadDays || '—' }}
+              {{ b.totalLeadDays || '—' }}
             </td>
             <td class="px-3 py-3 text-right">
               <Button
@@ -183,7 +185,7 @@ onMounted(async () => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
               还没有 BOM。
             </td>
           </tr>
@@ -202,7 +204,7 @@ onMounted(async () => {
       @confirm="submit"
     >
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">成品</label>
             <ComboBox
@@ -218,13 +220,24 @@ onMounted(async () => {
               <Input v-model="form.unit" placeholder="台" />
             </div>
           </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">预估交期(天)</label>
-            <Input v-model="form.estimatedLeadDays" type="number" />
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <span class="text-heading-3 text-n-slate-12">各阶段预估天数</span>
+            <span class="text-xs text-n-slate-11">
+              预估周期合计：<span class="font-medium text-n-slate-12">{{ totalLeadDays }}</span> 天
+            </span>
+          </div>
+          <div class="grid grid-cols-5 gap-2">
+            <div v-for="s in LEAD_STAGES" :key="s.key" class="flex flex-col gap-1">
+              <label class="text-xs text-n-slate-11">{{ s.label }}</label>
+              <Input v-model="form[s.key]" type="number" placeholder="天" />
+            </div>
           </div>
         </div>
 
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between pt-2 border-t border-n-weak">
           <span class="text-heading-3 text-n-slate-12">
             用料明细 <span class="text-n-ruby-11">*</span>
           </span>
@@ -237,7 +250,7 @@ onMounted(async () => {
             :key="i"
             class="grid items-center grid-cols-12 gap-2"
           >
-            <div class="col-span-5">
+            <div class="col-span-8">
               <ComboBox
                 v-model="row.mesMaterialId"
                 :options="materialOptions"
@@ -248,17 +261,8 @@ onMounted(async () => {
               v-model="row.qty"
               type="number"
               placeholder="用量"
-              class="col-span-2"
-            />
-            <Input
-              v-model="row.rateMicros"
-              type="number"
-              placeholder="单价(微分)"
               class="col-span-3"
             />
-            <span class="col-span-1 text-xs text-right text-n-slate-11">
-              ¥{{ yuan(rowAmount(row)) }}
-            </span>
             <button
               type="button"
               class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
@@ -267,12 +271,6 @@ onMounted(async () => {
               ✕
             </button>
           </div>
-        </div>
-
-        <div
-          class="flex justify-end pt-2 text-sm font-medium border-t text-n-slate-12 border-n-weak"
-        >
-          物料成本合计：¥{{ yuan(totalMicros) }}
         </div>
       </div>
     </Dialog>
