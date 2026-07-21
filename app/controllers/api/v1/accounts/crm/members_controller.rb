@@ -48,6 +48,7 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     return render json: { error: '无效的角色' }, status: :unprocessable_entity if updates.nil?
 
     updates[:module_access] = normalized_modules if params[:member].key?(:module_access)
+    updates[:mes_role] = params[:member][:mes_role].presence if params[:member].key?(:mes_role)
     @member.update!(updates)
     apply_user_updates
   rescue ActiveRecord::RecordInvalid => e

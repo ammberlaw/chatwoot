@@ -7,6 +7,7 @@
 #  auto_offline             :boolean          default(TRUE), not null
 #  availability             :integer          default("online"), not null
 #  crm_role                 :string
+#  mes_role                 :string
 #  module_access            :text             default(["crm", "erp", "mes"]), not null, is an Array
 #  role                     :integer          default("agent")
 #  created_at               :datetime         not null
@@ -22,6 +23,7 @@
 #
 #  index_account_users_on_account_id                (account_id)
 #  index_account_users_on_account_id_and_crm_role   (account_id,crm_role)
+#  index_account_users_on_account_id_and_mes_role   (account_id,mes_role)
 #  index_account_users_on_agent_capacity_policy_id  (agent_capacity_policy_id)
 #  index_account_users_on_crm_team_id               (crm_team_id)
 #  index_account_users_on_custom_role_id            (custom_role_id)
@@ -47,6 +49,33 @@ class AccountUser < ApplicationRecord
   # CRM 条线角色（与 Chatwoot role 正交）：副管理员 / 部门负责人 / 业务员；空=非 CRM 人员。
   CRM_ROLES = %w[deputy_admin manager sales hr].freeze
   validates :crm_role, inclusion: { in: CRM_ROLES }, allow_nil: true
+
+  # MES 条线角色：PMC(计划) / 工程 / 采购 / 仓管 / 生产(车间)；空=只读可见，不可写。
+  MES_ROLES = %w[pmc engineer buyer warehouse production].freeze
+  validates :mes_role, inclusion: { in: MES_ROLES }, allow_nil: true
+
+  # 角色 → 可写能力域。管理员/副管理员全能力。
+  MES_CAPABILITIES = {
+    'pmc' => %w[order master],
+    'engineer' => %w[bom master],
+    'buyer' => %w[purchase master],
+    'warehouse' => %w[stock shipment],
+    'production' => %w[report]
+  }.freeze
+
+  # 能否在 MES 某能力域写操作（下单/BOM/采购/库存/报工/出库/主数据）。
+  def mes_can?(capability)
+    return true if administrator? || crm_deputy_admin?
+
+    MES_CAPABILITIES.fetch(mes_role.to_s, []).include?(capability.to_s)
+  end
+
+  # 前端用：该成员可写的 MES 能力域列表（管理员/副管理员全给）。
+  def mes_capability_list
+    return MES_CAPABILITIES.values.flatten.uniq if administrator? || crm_deputy_admin?
+
+    MES_CAPABILITIES.fetch(mes_role.to_s, [])
+  end
 
   # 业务系统模块使用权限（成员权限页按人开关）；管理员始终全模块。
   MODULES = %w[crm erp mes].freeze

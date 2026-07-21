@@ -6,5 +6,6 @@ json.avatar_url member.user.avatar_url
 json.role member.role
 json.is_admin member.administrator?
 json.crm_role member.crm_role
+json.mes_role member.mes_role
 json.can_access_crm member.can_access_crm?
 json.module_access member.module_access

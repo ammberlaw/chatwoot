@@ -142,6 +142,30 @@ const onRoleChange = async (member, value) => {
   }
 };
 
+const MES_ROLE_OPTIONS = [
+  { value: '', label: '无(只读)' },
+  { value: 'pmc', label: 'PMC 计划' },
+  { value: 'engineer', label: '工程' },
+  { value: 'buyer', label: '采购' },
+  { value: 'warehouse', label: '仓管' },
+  { value: 'production', label: '生产' },
+];
+const onMesRoleChange = async (member, value) => {
+  savingId.value = member.id;
+  try {
+    const { data } = await MembersAPI.update(member.id, {
+      member: { mes_role: value || '' },
+    });
+    Object.assign(member, data);
+    useAlert(L.saved);
+  } catch {
+    useAlert(L.error);
+    fetchMembers();
+  } finally {
+    savingId.value = null;
+  }
+};
+
 const onModuleToggle = async (member, key, checked) => {
   const modules = new Set(member.module_access || []);
   if (checked) modules.add(key);
@@ -183,6 +207,7 @@ onMounted(fetchMembers);
           <tr class="text-left border-b border-n-weak text-n-slate-10">
             <th class="px-6 py-3 font-medium">{{ L.colMember }}</th>
             <th class="px-6 py-3 font-medium w-56">{{ L.colSystemRole }}</th>
+            <th class="px-6 py-3 font-medium w-40">MES 角色</th>
             <th class="px-6 py-3 font-medium">{{ L.colModules }}</th>
             <th class="px-6 py-3 font-medium">{{ L.colScope }}</th>
             <th class="px-6 py-3 font-medium text-right">
@@ -242,6 +267,17 @@ onMounted(fetchMembers);
                 :options="roleOptions"
                 :disabled="savingId === m.id"
                 @update:model-value="value => onRoleChange(m, value)"
+              />
+            </td>
+            <td class="px-6 py-3">
+              <span v-if="m.is_admin" class="text-xs text-n-slate-10">全部</span>
+              <Select
+                v-else
+                class="w-full"
+                :model-value="m.mes_role || ''"
+                :options="MES_ROLE_OPTIONS"
+                :disabled="savingId === m.id"
+                @update:model-value="value => onMesRoleChange(m, value)"
               />
             </td>
             <td class="px-6 py-3">

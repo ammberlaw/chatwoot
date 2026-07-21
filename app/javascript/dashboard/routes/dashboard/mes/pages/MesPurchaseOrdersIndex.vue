@@ -9,6 +9,7 @@ import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
@@ -16,6 +17,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId } = useAccount();
 const store = useMesPurchaseOrdersStore();
+const { mesCan } = useMesRole();
 const suppliersStore = useMesSuppliersStore();
 const materialsStore = useMesMaterialsStore();
 
@@ -204,7 +206,7 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">采购单</h1>
-      <Button label="新建采购单" color="iris" size="sm" @click="openCreate" />
+      <Button v-if="mesCan('purchase')" label="新建采购单" color="iris" size="sm" @click="openCreate" />
     </div>
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
@@ -247,7 +249,7 @@ onMounted(async () => {
               ¥{{ yuan(p.totalAmountMicros) }}
             </td>
             <td class="px-3 py-3 text-right">
-              <Button label="编辑" variant="ghost" size="sm" @click="openEdit(p)" />
+              <Button v-if="mesCan('purchase')" label="编辑" variant="ghost" size="sm" @click="openEdit(p)" />
             </td>
           </tr>
           <tr v-if="!records.length">

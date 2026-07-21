@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
+import { useMesRole } from 'dashboard/composables/useMesRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -16,6 +17,7 @@ import PaginationFooter from 'dashboard/components-next/pagination/PaginationFoo
 const ITEMS_PER_PAGE = 15;
 
 const { accountId } = useAccount();
+const { mesCan } = useMesRole();
 const store = useMesProductionOrdersStore();
 
 // 8 阶段（与后端 Mes::ProductionOrder::STAGES 顺序一致）。
@@ -243,7 +245,13 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
     <!-- 头部 -->
     <div class="flex items-center justify-between gap-3 px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">生产订单</h1>
-      <Button label="从销售订单转入" color="iris" size="sm" @click="openConvert" />
+      <Button
+        v-if="mesCan('order')"
+        label="从销售订单转入"
+        color="iris"
+        size="sm"
+        @click="openConvert"
+      />
     </div>
 
     <!-- 筛选 -->
@@ -416,7 +424,7 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
             工程 BOM：{{ selected.bomNo }}
           </div>
           <Button
-            v-else-if="selected.stage === 'SALES_CONFIRMED'"
+            v-else-if="selected.stage === 'SALES_CONFIRMED' && mesCan('order')"
             label="挂工程 BOM"
             color="iris"
             size="sm"

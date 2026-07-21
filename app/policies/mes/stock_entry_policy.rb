@@ -1,27 +1,12 @@
 class Mes::StockEntryPolicy < ApplicationPolicy
-  def index?
-    true
-  end
+  def index? = true
+  def show? = true
 
-  def show?
-    true
-  end
+  def create? = @account_user.mes_can?(:stock)
+  def update? = @account_user.mes_can?(:stock)
+  def post? = @account_user.mes_can?(:stock)
 
-  def create?
-    true
-  end
-
-  def update?
-    true
-  end
-
-  def post?
-    true
-  end
-
-  def destroy?
-    @account_user.administrator?
-  end
+  def destroy? = @account_user.administrator?
 end
 
 Mes::StockEntryPolicy.prepend_mod_with('Mes::StockEntryPolicy')

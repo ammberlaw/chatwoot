@@ -7,12 +7,14 @@ import { useMesShipmentsStore } from 'dashboard/stores/mes/shipments';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId } = useAccount();
 const store = useMesShipmentsStore();
+const { mesCan } = useMesRole();
 const warehousesStore = useMesWarehousesStore();
 
 const records = computed(() => store.getRecords);
@@ -129,7 +131,7 @@ onMounted(() => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">销售出库</h1>
-      <Button label="新建出库单" color="iris" size="sm" @click="openCreate" />
+      <Button v-if="mesCan('shipment')" label="新建出库单" color="iris" size="sm" @click="openCreate" />
     </div>
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
@@ -157,7 +159,7 @@ onMounted(() => {
               {{ s.notifiedAt ? '已通知' : '—' }} / {{ time(s.shippedAt) }}
             </td>
             <td class="px-3 py-3 text-right">
-              <div v-if="s.status === 'DRAFT'" class="flex justify-end gap-2">
+              <div v-if="s.status === 'DRAFT' && mesCan('shipment')" class="flex justify-end gap-2">
                 <Button
                   v-if="!s.notifiedAt"
                   label="通知出库"

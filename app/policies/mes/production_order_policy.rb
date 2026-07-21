@@ -1,47 +1,14 @@
 class Mes::ProductionOrderPolicy < ApplicationPolicy
-  def index?
-    true
-  end
+  def index? = true
+  def show? = true
+  def requirement? = true
 
-  def show?
-    true
-  end
+  def create? = @account_user.mes_can?(:order)
+  def convert? = @account_user.mes_can?(:order)
+  def attach_bom? = @account_user.mes_can?(:order)
+  def update? = @account_user.mes_can?(:order)
 
-  def create?
-    true
-  end
-
-  def convert?
-    true
-  end
-
-  def attach_bom?
-    true
-  end
-
-  def requirement?
-    true
-  end
-
-  def update?
-    true
-  end
-
-  def attach?
-    true
-  end
-
-  def detach?
-    true
-  end
-
-  def audits?
-    true
-  end
-
-  def destroy?
-    @account_user.administrator?
-  end
+  def destroy? = @account_user.administrator?
 end
 
 Mes::ProductionOrderPolicy.prepend_mod_with('Mes::ProductionOrderPolicy')

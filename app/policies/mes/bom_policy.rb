@@ -1,23 +1,11 @@
 class Mes::BomPolicy < ApplicationPolicy
-  def index?
-    true
-  end
+  def index? = true
+  def show? = true
 
-  def show?
-    true
-  end
+  def create? = @account_user.mes_can?(:bom)
+  def update? = @account_user.mes_can?(:bom)
 
-  def create?
-    true
-  end
-
-  def update?
-    true
-  end
-
-  def destroy?
-    @account_user.administrator?
-  end
+  def destroy? = @account_user.administrator?
 end
 
 Mes::BomPolicy.prepend_mod_with('Mes::BomPolicy')

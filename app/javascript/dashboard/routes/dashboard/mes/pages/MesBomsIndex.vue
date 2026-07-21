@@ -7,12 +7,14 @@ import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId } = useAccount();
 const store = useMesBomsStore();
+const { mesCan } = useMesRole();
 const materialsStore = useMesMaterialsStore();
 
 const records = computed(() => store.getRecords);
@@ -139,7 +141,7 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">工程 BOM</h1>
-      <Button label="新建 BOM" color="iris" size="sm" @click="openCreate" />
+      <Button v-if="mesCan('bom')" label="新建 BOM" color="iris" size="sm" @click="openCreate" />
     </div>
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
@@ -172,6 +174,7 @@ onMounted(async () => {
             </td>
             <td class="px-3 py-3 text-right">
               <Button
+                v-if="mesCan('bom')"
                 label="编辑"
                 variant="ghost"
                 size="sm"

@@ -7,12 +7,14 @@ import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
+const { mesCan } = useMesRole();
 const warehousesStore = useMesWarehousesStore();
 
 const records = computed(() => store.getRecords);
@@ -117,7 +119,7 @@ onMounted(() => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">成品入库</h1>
-      <Button label="新建成品入库单" color="iris" size="sm" @click="openCreate" />
+      <Button v-if="mesCan('stock')" label="新建成品入库单" color="iris" size="sm" @click="openCreate" />
     </div>
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
@@ -146,7 +148,7 @@ onMounted(() => {
             <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
             <td class="px-3 py-3 text-right">
               <Button
-                v-if="e.status === 'DRAFT'"
+                v-if="e.status === 'DRAFT' && mesCan('stock')"
                 label="过账"
                 color="iris"
                 size="sm"

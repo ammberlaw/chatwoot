@@ -4,10 +4,12 @@ import { useAlert } from 'dashboard/composables';
 import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const store = useMesSuppliersStore();
+const { mesCan } = useMesRole();
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
 const saving = computed(() => store.getUIFlags.creatingItem);
@@ -50,7 +52,7 @@ onMounted(() => store.get());
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">供应商</h1>
-      <Button label="新增供应商" color="iris" size="sm" @click="openCreate" />
+      <Button v-if="mesCan('master')" label="新增供应商" color="iris" size="sm" @click="openCreate" />
     </div>
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">

@@ -1,27 +1,12 @@
 class Mes::PurchaseOrderPolicy < ApplicationPolicy
-  def index?
-    true
-  end
+  def index? = true
+  def show? = true
+  def requirement? = true
 
-  def show?
-    true
-  end
+  def create? = @account_user.mes_can?(:purchase)
+  def update? = @account_user.mes_can?(:purchase)
 
-  def create?
-    true
-  end
-
-  def update?
-    true
-  end
-
-  def requirement?
-    true
-  end
-
-  def destroy?
-    @account_user.administrator?
-  end
+  def destroy? = @account_user.administrator?
 end
 
 Mes::PurchaseOrderPolicy.prepend_mod_with('Mes::PurchaseOrderPolicy')

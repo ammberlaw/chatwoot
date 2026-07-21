@@ -1,23 +1,11 @@
 class Mes::WarehousePolicy < ApplicationPolicy
-  def index?
-    true
-  end
+  def index? = true
+  def show? = true
 
-  def show?
-    true
-  end
+  def create? = @account_user.mes_can?(:master)
+  def update? = @account_user.mes_can?(:master)
 
-  def create?
-    true
-  end
-
-  def update?
-    true
-  end
-
-  def destroy?
-    @account_user.administrator?
-  end
+  def destroy? = @account_user.administrator?
 end
 
 Mes::WarehousePolicy.prepend_mod_with('Mes::WarehousePolicy')
