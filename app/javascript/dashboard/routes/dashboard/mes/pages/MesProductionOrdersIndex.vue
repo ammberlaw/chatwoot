@@ -3,7 +3,7 @@
 import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
-import { useMapGetter } from 'dashboard/composables/store';
+import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
@@ -60,6 +60,7 @@ const totalCount = computed(() => store.getMeta.count || 0);
 
 const activeStage = ref('');
 const activeStatus = ref('');
+const activeOwner = ref('');
 const searchQuery = ref(route.query.q ? String(route.query.q) : '');
 const currentPage = ref(1);
 
@@ -71,6 +72,12 @@ const statusFilterOptions = [
   { value: '', label: '全部状态' },
   ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
 ];
+// 业务员（订单归属人）筛选：取账号成员。
+const agents = useMapGetter('agents/getAgents');
+const ownerFilterOptions = computed(() => [
+  { value: '', label: '全部业务员' },
+  ...(agents.value || []).map(a => ({ value: String(a.id), label: a.name })),
+]);
 
 // —— 详情面板选中项（提前声明：视图切换要清空它）——
 const selected = ref(null);
@@ -83,6 +90,7 @@ const fetchRecords = () => {
     page: currentPage.value,
     stage: activeStage.value || undefined,
     status: activeStatus.value || undefined,
+    owner_id: activeOwner.value || undefined,
     q: searchQuery.value.trim() || undefined,
   });
 };
@@ -555,9 +563,11 @@ const saveProductCode = async () => {
   }
 };
 
+const rootStore = useStore();
 onMounted(async () => {
   // 从看板「待我审批」跳转：进「待我审批」视图。
   if (route.query.view === 'approval') viewMode.value = 'inbox';
+  if (!agents.value?.length) rootStore.dispatch('agents/get');
   await fetchRecords();
   // 从看板交期预警/待我审批跳转过来：按订单号自动打开详情面板。
   const q = route.query.q ? String(route.query.q) : '';
@@ -566,7 +576,12 @@ onMounted(async () => {
     if (match) selected.value = match;
   }
 });
-watch([activeStage, activeStatus, currentPage], fetchRecords);
+// 改筛选回到第 1 页再拉。
+watch([activeStage, activeStatus, activeOwner], () => {
+  currentPage.value = 1;
+  fetchRecords();
+});
+watch(currentPage, fetchRecords);
 </script>
 
 <template>
@@ -633,6 +648,11 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
         :model-value="activeStatus"
         :options="statusFilterOptions"
         @update:model-value="v => (activeStatus = v)"
+      />
+      <Select
+        :model-value="activeOwner"
+        :options="ownerFilterOptions"
+        @update:model-value="v => (activeOwner = v)"
       />
       <input
         v-model="searchQuery"
