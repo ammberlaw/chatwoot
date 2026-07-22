@@ -10,7 +10,7 @@ class Mes::AlertScannerService
   end
 
   def call
-    open_orders = @account.mes_production_orders
+    open_orders = @account.mes_production_orders.published
                           .where.not(status: 'CANCELLED').where.not(stage: 'SHIPPED')
                           .includes(:stage_events)
     open_orders = open_orders.where(product_line: @product_line) if @product_line

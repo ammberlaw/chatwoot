@@ -6,6 +6,7 @@
 #  actual_end_date    :datetime
 #  actual_start_date  :datetime
 #  delivery_date      :datetime
+#  is_draft           :boolean          default(FALSE), not null
 #  order_no           :string           not null
 #  planned_end_date   :datetime
 #  planned_start_date :datetime
@@ -32,6 +33,7 @@
 #
 #  index_mes_production_orders_on_account_and_product_line  (account_id,product_line)
 #  index_mes_production_orders_on_account_id                (account_id)
+#  index_mes_production_orders_on_account_id_and_is_draft   (account_id,is_draft)
 #  index_mes_production_orders_on_account_id_and_order_no   (account_id,order_no) UNIQUE
 #  index_mes_production_orders_on_account_id_and_stage      (account_id,stage)
 #  index_mes_production_orders_on_bom_id                    (bom_id)
@@ -96,6 +98,10 @@ class Mes::ProductionOrder < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
 
   scope :active, -> { where.not(status: 'CANCELLED') }
+  # 已发布（非草稿）：看板/预警/待接单等全局视图只看已发布。
+  scope :published, -> { where(is_draft: false) }
+  # 列表可见：已发布对全员可见；草稿仅创建人（owner）可见。
+  scope :visible_to, ->(user) { where('NOT is_draft OR owner_id = :uid', uid: user&.id) }
 
   def self.document_number_prefix = 'MO'
 

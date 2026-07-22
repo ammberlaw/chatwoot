@@ -1,7 +1,7 @@
 # 生产看板：聚合现有数据的只读总览。
 class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::BaseController
   def show
-    active = scoped_by_product_line(Current.account.mes_production_orders.where.not(status: 'CANCELLED'))
+    active = scoped_by_product_line(Current.account.mes_production_orders.published.where.not(status: 'CANCELLED'))
     @in_production = active.where.not(stage: 'SHIPPED').count
     @stage_distribution = active.group(:stage).count
 

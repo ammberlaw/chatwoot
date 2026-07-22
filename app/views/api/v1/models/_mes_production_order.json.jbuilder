@@ -35,6 +35,7 @@ json.actual_start_date resource.actual_start_date
 json.actual_end_date resource.actual_end_date
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
+json.is_draft resource.is_draft
 json.spec resource.spec
 json.remark resource.remark
 json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }

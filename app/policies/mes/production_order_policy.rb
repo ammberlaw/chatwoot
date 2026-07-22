@@ -13,6 +13,7 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def attach_bom? = @account_user.mes_can?(:order) || @account_user.mes_can?(:bom)
   def release_purchasing? = attach_bom?
   def update? = @account_user.mes_can?(:order)
+  def publish? = @account_user.mes_can?(:order)
 
   def destroy? = @account_user.administrator?
 end

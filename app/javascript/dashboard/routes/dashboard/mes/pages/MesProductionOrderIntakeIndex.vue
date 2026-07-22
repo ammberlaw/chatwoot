@@ -82,7 +82,8 @@ const uploadPending = async orderId => {
   }
 };
 
-const submit = async () => {
+// isDraft=true 存草稿（仅自己可见）；false 正式建单。
+const submit = async isDraft => {
   if (!canSubmit.value) return;
   submitting.value = true;
   result.value = null;
@@ -93,17 +94,18 @@ const submit = async () => {
       unit: base.unit,
       deliveryDate: base.deliveryDate || undefined,
       productLine: template.value,
+      isDraft,
       spec: spec.value,
     });
     if (ok) {
       await uploadPending(ok.id);
-      result.value = { ok: true, orderNo: ok.orderNo };
+      result.value = { ok: true, orderNo: ok.orderNo, draft: isDraft };
       reset();
     } else {
-      result.value = { ok: false, msg: '建单失败' };
+      result.value = { ok: false, msg: '保存失败' };
     }
   } catch (e) {
-    result.value = { ok: false, msg: e?.response?.data?.error || '建单失败' };
+    result.value = { ok: false, msg: e?.response?.data?.error || '保存失败' };
   } finally {
     submitting.value = false;
   }
@@ -278,9 +280,16 @@ const backToList = () =>
 
       <div class="flex items-center gap-3 mt-1">
         <button
+          class="h-10 px-5 text-sm font-medium transition-colors border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="!canSubmit"
+          @click="submit(true)"
+        >
+          {{ submitting ? '保存中…' : '存草稿' }}
+        </button>
+        <button
           class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit"
-          @click="submit"
+          @click="submit(false)"
         >
           {{ submitting ? '建单中…' : '建单' }}
         </button>
@@ -293,7 +302,11 @@ const backToList = () =>
         v-if="result?.ok"
         class="flex items-center gap-3 p-3 text-sm border rounded-lg border-n-teal-8 text-n-teal-11"
       >
-        <span>✅ 已建单 {{ result.orderNo }}，可继续建下一单。</span>
+        <span>
+          ✅ {{ result.draft ? '已存草稿' : '已建单' }} {{ result.orderNo }}
+          <template v-if="result.draft">（仅你可见，可稍后发布）</template>
+          ，可继续建下一单。
+        </span>
         <button class="underline text-n-iris-11" @click="backToList">
           去生产订单查看
         </button>

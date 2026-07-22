@@ -368,6 +368,17 @@ const releasePurchasing = async () => {
   }
 };
 
+// 发布草稿 → 正式订单（转为全员可见）。
+const publish = async () => {
+  if (!selected.value) return;
+  const ok = await store.publish(selected.value.id);
+  if (ok) {
+    useAlert('已发布');
+    selected.value = ok;
+    fetchRecords();
+  }
+};
+
 // —— 接单确认（P1）——
 // 只有本阶段负责人本人或管理员能接单/拒收。
 const canHandleStage = computed(() => {
@@ -497,6 +508,12 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
             >
               <td class="px-3 py-3 font-medium text-n-slate-12">
                 {{ po.orderNo }}
+                <span
+                  v-if="po.isDraft"
+                  class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-n-slate-4 text-n-slate-11"
+                >
+                  草稿
+                </span>
               </td>
               <td class="px-3 py-3 text-n-slate-11">{{ po.productName }}</td>
               <td class="px-3 py-3 text-n-slate-11">
@@ -567,6 +584,22 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
             selected.qty
           }}
           {{ selected.unit }}
+        </div>
+
+        <!-- 草稿：仅创建人可见，需发布后转正式 -->
+        <div
+          v-if="selected.isDraft"
+          class="flex items-center justify-between gap-2 p-3 mb-4 text-xs rounded-lg bg-n-slate-3 text-n-slate-11"
+        >
+          <span>草稿 · 仅你可见</span>
+          <Button
+            v-if="mesCan('order')"
+            label="发布"
+            color="iris"
+            size="xs"
+            :is-loading="uiFlags.updatingItem"
+            @click="publish"
+          />
         </div>
 
         <!-- 接单确认（P1）：当前阶段负责人 + 接单状态 + 接单/拒收。

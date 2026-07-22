@@ -201,6 +201,7 @@ Rails.application.routes.draw do
                 get :requirement
                 post :acknowledge
                 post :reject
+                post :publish
               end
             end
           end

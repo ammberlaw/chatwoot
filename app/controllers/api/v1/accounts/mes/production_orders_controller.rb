@@ -1,12 +1,12 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_production_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :release_purchasing, :requirement, :acknowledge, :reject]
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :release_purchasing, :requirement, :acknowledge, :reject, :publish]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
   def index
-    scope = scoped_by_product_line(Current.account.mes_production_orders)
+    scope = scoped_by_product_line(Current.account.mes_production_orders.visible_to(current_user))
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
@@ -91,7 +91,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 我的待办：当前停在「我负责的阶段」的在产订单（到岗通知的拉取面）。
   def inbox
     owners = Current.account.mes_board_owners.index_by(&:board_key)
-    open_orders = Current.account.mes_production_orders
+    open_orders = Current.account.mes_production_orders.published
                          .where(status: 'IN_PROGRESS').where.not(stage: 'SHIPPED')
                          .includes(:stage_events).order(created_at: :desc)
     mine = open_orders.select do |po|
@@ -99,6 +99,12 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       key && owners[key]&.manager_ids&.include?(current_user.id)
     end
     render json: { payload: mine.map { |po| inbox_row(po) } }
+  end
+
+  # 发布草稿 → 转正式订单（对全员可见、进看板/预警）。
+  def publish
+    @production_order.update!(is_draft: false)
+    render 'api/v1/accounts/mes/production_orders/show'
   end
 
   def update
@@ -174,7 +180,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     permitted = params.require(:production_order).permit(
       :crm_sales_order_id, :crm_product_id, :product_name, :qty, :unit, :produced_qty,
       :bom_id, :stage, :status, :delivery_date, :planned_start_date, :planned_end_date,
-      :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line, files: []
+      :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line, :is_draft, files: []
     )
     # spec 为按产品线的定制规格 jsonb（字段动态），整体透传。
     raw_spec = params.require(:production_order)[:spec]

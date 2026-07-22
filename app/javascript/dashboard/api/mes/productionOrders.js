@@ -25,6 +25,9 @@ client.reject = (id, reason) =>
 // 我的待办：停在我负责阶段的在产订单。
 client.inbox = () => axios.get(`${client.url}/inbox`);
 
+// 发布草稿 → 正式订单。
+client.publish = id => axios.post(`${client.url}/${id}/publish`);
+
 // 产品图片 / 附件上传下载。kind = 'images' | 'files'。
 client.attachFiles = (id, formData, kind = 'files') =>
   axios.post(`${client.url}/${id}/attach?kind=${kind}`, formData, {
