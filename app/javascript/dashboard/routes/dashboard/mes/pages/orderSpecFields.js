@@ -33,7 +33,7 @@ export const TABLET_FIELDS = [
     key: 'logo',
     label: 'LOGO',
     type: 'checks',
-    options: ['开机logo', '关机logo', '彩盒', '机身'],
+    options: ['开机logo', '关机logo', '彩盒', '机身', '皮套'],
   },
   {
     key: 'logoRemark',
