@@ -515,8 +515,10 @@ const confirmReject = async () => {
 };
 
 onMounted(async () => {
+  // 从看板「待我审批」跳转：进「待我审批」视图。
+  if (route.query.view === 'approval') viewMode.value = 'inbox';
   await fetchRecords();
-  // 从看板交期预警跳转过来：按订单号自动打开详情面板。
+  // 从看板交期预警/待我审批跳转过来：按订单号自动打开详情面板。
   const q = route.query.q ? String(route.query.q) : '';
   if (q) {
     const match = records.value.find(r => r.orderNo === q);

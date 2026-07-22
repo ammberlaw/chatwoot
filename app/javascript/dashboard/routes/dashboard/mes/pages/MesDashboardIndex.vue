@@ -35,6 +35,30 @@ const loadInbox = async () => {
   }
 };
 
+// 待我审批：停在我这一级（部门主管/总经理）的生产订单。
+const APPROVAL_STEP = {
+  SUBMITTED: '待你（部门主管）审',
+  MANAGER_APPROVED: '待你（总经理）审',
+};
+const approvalInbox = ref([]);
+const loadApprovalInbox = async () => {
+  try {
+    const { data: res } = await MesProductionOrderAPI.approvalInbox();
+    approvalInbox.value = res?.payload || [];
+  } catch {
+    approvalInbox.value = [];
+  }
+};
+// 点条目 → 订单页「待我审批」视图并定位该单。
+const goApproval = orderNo =>
+  router.push(
+    accountScopedRoute(
+      'mes_production_orders_index',
+      {},
+      { q: orderNo, view: 'approval' }
+    )
+  );
+
 const kpis = computed(() => {
   const m = data.value?.month || {};
   return [
@@ -169,6 +193,7 @@ const selectPeriod = key => {
 onMounted(() => {
   load();
   loadInbox();
+  loadApprovalInbox();
 });
 </script>
 
@@ -199,6 +224,34 @@ onMounted(() => {
     <div v-if="loading" class="py-10 text-center text-n-slate-11">加载中…</div>
 
     <div v-else class="grid grid-cols-1 gap-4 px-6 pb-6 lg:grid-cols-3">
+      <!-- 待我审批：停在我这一级的生产订单 -->
+      <div
+        v-if="approvalInbox.length"
+        class="p-5 rounded-xl lg:col-span-3 bg-n-amber-2 border border-n-amber-6"
+      >
+        <div class="mb-3 font-medium text-n-slate-12">
+          待我审批
+          <span class="text-n-amber-11">({{ approvalInbox.length }})</span>
+        </div>
+        <ul class="flex flex-col gap-2">
+          <li
+            v-for="o in approvalInbox"
+            :key="o.id"
+            class="flex items-center justify-between text-sm cursor-pointer group"
+            @click="goApproval(o.order_no)"
+          >
+            <span class="text-n-slate-12 group-hover:underline">
+              {{ o.order_no }} · {{ o.product_name }}
+              <template v-if="o.pi_no"> · PI {{ o.pi_no }}</template>
+              · {{ o.owner_name }}
+            </span>
+            <span class="shrink-0 text-n-amber-11">
+              {{ APPROVAL_STEP[o.approval_status] || '待审' }}
+            </span>
+          </li>
+        </ul>
+      </div>
+
       <!-- 待我接单：到岗通知拉取面 -->
       <div
         v-if="inbox.length"
