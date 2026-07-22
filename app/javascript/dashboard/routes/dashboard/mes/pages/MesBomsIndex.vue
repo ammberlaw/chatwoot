@@ -432,7 +432,7 @@ onMounted(async () => {
             <label class="text-xs text-n-slate-11">客户 / 项目名称</label>
             <Input
               v-model="form.customerName"
-              placeholder="如 越南客户定制"
+              placeholder="如 某业务员美国客户定制"
             />
           </div>
           <div class="flex flex-col col-span-2 gap-1">
