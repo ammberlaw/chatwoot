@@ -82,7 +82,9 @@ export const DISPLAY_FIELDS = [
 
 export const SPEC_TEMPLATES = {
   TABLET: { label: '平板电脑', fields: TABLET_FIELDS },
-  DISPLAY: { label: '显示器/商显', fields: DISPLAY_FIELDS },
+  COMMERCIAL_DISPLAY: { label: '商显设备', fields: DISPLAY_FIELDS },
+  // 工控类暂与商显共用一套规格表单。
+  INDUSTRIAL_CONTROL: { label: '工控类', fields: DISPLAY_FIELDS },
 };
 
 export const specFieldsFor = template =>

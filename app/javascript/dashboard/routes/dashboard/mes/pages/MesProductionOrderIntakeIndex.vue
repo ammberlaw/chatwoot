@@ -17,7 +17,7 @@ const store = useMesProductionOrdersStore();
 const TEMPLATES = Object.entries(SPEC_TEMPLATES); // [[value, {label,fields}], ...]
 const defaultTemplate = () => {
   const line = getActiveProductLine();
-  return ['TABLET', 'DISPLAY'].includes(line) ? line : 'TABLET';
+  return SPEC_TEMPLATES[line] ? line : 'TABLET';
 };
 
 const template = ref(defaultTemplate());

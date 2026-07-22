@@ -1,8 +1,9 @@
 <script setup>
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 
-// 生产管理产品线切换：商显工控 / 平板电脑 / 全部。切换后全站 MES 页面按线过滤（axios 拦截注入）。
-const { activeProductLine, options, setActiveProductLine } = useMesProductLine();
+// 生产管理产品线切换：商显 / 工控 / 平板 / 全部。切换后全站 MES 页面按线过滤（axios 拦截注入）。
+const { activeProductLine, options, setActiveProductLine } =
+  useMesProductLine();
 </script>
 
 <template>
@@ -26,7 +27,7 @@ const { activeProductLine, options, setActiveProductLine } = useMesProductLine()
         :title="opt.label"
         @click="setActiveProductLine(opt.value)"
       >
-        {{ opt.value === '' ? '全部' : opt.value === 'DISPLAY' ? '商显' : '平板' }}
+        {{ opt.short }}
       </button>
     </div>
   </div>

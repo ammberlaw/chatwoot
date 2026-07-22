@@ -248,9 +248,7 @@ const openEditSpec = order => {
   editingOrderId.value = order.id;
   orderTemplate.value =
     order.spec?.template ||
-    (['TABLET', 'DISPLAY'].includes(order.productLine)
-      ? order.productLine
-      : 'TABLET');
+    (SPEC_TEMPLATES[order.productLine] ? order.productLine : 'TABLET');
   Object.assign(orderBase, {
     productName: order.productName || '',
     qty: String(order.qty ?? ''),

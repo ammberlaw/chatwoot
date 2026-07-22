@@ -27,8 +27,9 @@
 #
 class Crm::Product < ApplicationRecord
   CATEGORIES = %w[STANDARD CUSTOMIZED ACCESSORY OTHER].freeze
-  # 产品线（页面分流维度）：商显/工控、平板电脑。真值挂产品档案，MES 各单据由此带出。
-  PRODUCT_LINES = %w[DISPLAY TABLET].freeze
+  # 产品线（页面分流维度）：平板电脑、商显设备、工控类（与 CRM 客户产品分组一致）。
+  # 真值挂产品档案，MES 各单据由此带出。
+  PRODUCT_LINES = %w[TABLET COMMERCIAL_DISPLAY INDUSTRIAL_CONTROL].freeze
 
   belongs_to :account
 
