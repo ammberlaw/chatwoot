@@ -392,6 +392,17 @@ const submitAttachBom = async () => {
   }
 };
 
+// 业务二次确认 BOM（BOM_READY 段内的闸，确认后方可下发采购）。
+const confirmBom = async () => {
+  if (!selected.value) return;
+  const ok = await store.confirmBom(selected.value.id);
+  if (ok) {
+    useAlert('BOM 已二次确认，可下发采购');
+    selected.value = ok;
+    fetchRecords();
+  }
+};
+
 // 工程/PMC 制单后一键下发到采购阶段。
 const releasePurchasing = async () => {
   if (!selected.value) return;
@@ -414,6 +425,17 @@ const APPROVAL_LABELS = {
 const approvalComment = ref('');
 
 const isOwner = computed(() => selected.value?.ownerId === currentUserId.value);
+// 业务二次确认 BOM：BOM_READY 段、已挂 BOM 且未确认，创建人（业务员）或管理员可确认。
+const canConfirmBom = computed(() => {
+  const po = selected.value;
+  if (!po) return false;
+  return (
+    po.stage === 'BOM_READY' &&
+    po.bomNo &&
+    !po.bomConfirmedAt &&
+    (isOwner.value || isAdmin.value || isCrmDeputyAdmin.value)
+  );
+});
 const canApprove = computed(() => {
   const po = selected.value;
   if (!po) return false;
@@ -1036,6 +1058,34 @@ watch(currentPage, fetchRecords);
             <div class="text-xs text-n-slate-11">
               工程/PMC BOM：{{ selected.bomNo }}
             </div>
+            <!-- 业务二次确认状态 -->
+            <div
+              v-if="selected.stage === 'BOM_READY'"
+              class="mt-1 text-xs"
+              :class="
+                selected.bomConfirmedAt ? 'text-n-teal-11' : 'text-n-amber-11'
+              "
+            >
+              <template v-if="selected.bomConfirmedAt">
+                ✓ 业务已确认BOM{{
+                  selected.bomConfirmedByName
+                    ? `（${selected.bomConfirmedByName}）`
+                    : ''
+                }}
+              </template>
+              <template v-else>⏳ 待业务二次确认BOM，确认后方可下发采购</template>
+            </div>
+            <!-- 业务确认 BOM 按钮 -->
+            <Button
+              v-if="canConfirmBom"
+              label="业务确认BOM"
+              color="amber"
+              size="sm"
+              class="w-full mt-2"
+              :is-loading="uiFlags.updatingItem"
+              @click="confirmBom"
+            />
+            <!-- 下发采购：需业务确认后才可点 -->
             <Button
               v-if="
                 selected.stage === 'BOM_READY' &&
@@ -1046,6 +1096,7 @@ watch(currentPage, fetchRecords);
               size="sm"
               class="w-full mt-2"
               :is-loading="uiFlags.updatingItem"
+              :disabled="!selected.bomConfirmedAt"
               @click="releasePurchasing"
             />
           </template>

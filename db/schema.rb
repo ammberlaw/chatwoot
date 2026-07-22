@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_22_210000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_22_220100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1853,6 +1853,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_210000) do
     t.index ["default_supplier_id"], name: "index_mes_materials_on_default_supplier_id"
   end
 
+  create_table "mes_notifications", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "recipient_id", null: false
+    t.bigint "production_order_id"
+    t.string "kind", null: false
+    t.string "title", null: false
+    t.text "body"
+    t.datetime "read_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "recipient_id", "read_at"], name: "idx_on_account_id_recipient_id_read_at_4123636370"
+    t.index ["account_id"], name: "index_mes_notifications_on_account_id"
+    t.index ["production_order_id"], name: "index_mes_notifications_on_production_order_id"
+  end
+
   create_table "mes_production_order_stage_events", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "production_order_id", null: false
@@ -1903,6 +1918,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_210000) do
     t.datetime "gm_acted_at"
     t.text "gm_comment"
     t.string "product_code"
+    t.datetime "bom_confirmed_at"
+    t.bigint "bom_confirmed_by_id"
     t.index ["account_id", "approval_status"], name: "index_mes_production_orders_on_account_id_and_approval_status"
     t.index ["account_id", "is_draft"], name: "index_mes_production_orders_on_account_id_and_is_draft"
     t.index ["account_id", "order_no"], name: "index_mes_production_orders_on_account_id_and_order_no", unique: true
@@ -1910,6 +1927,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_210000) do
     t.index ["account_id", "product_line"], name: "index_mes_production_orders_on_account_and_product_line"
     t.index ["account_id", "stage"], name: "index_mes_production_orders_on_account_id_and_stage"
     t.index ["account_id"], name: "index_mes_production_orders_on_account_id"
+    t.index ["bom_confirmed_by_id"], name: "index_mes_production_orders_on_bom_confirmed_by_id"
     t.index ["bom_id"], name: "index_mes_production_orders_on_bom_id"
     t.index ["crm_product_id"], name: "index_mes_production_orders_on_crm_product_id"
     t.index ["crm_sales_order_id"], name: "index_mes_production_orders_on_crm_sales_order_id"
@@ -2653,11 +2671,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_210000) do
   add_foreign_key "mes_inspections", "mes_purchase_orders", column: "purchase_order_id", on_delete: :nullify
   add_foreign_key "mes_inspections", "users", column: "inspector_id", on_delete: :nullify
   add_foreign_key "mes_materials", "mes_suppliers", column: "default_supplier_id", on_delete: :nullify
+  add_foreign_key "mes_notifications", "mes_production_orders", column: "production_order_id", on_delete: :cascade
+  add_foreign_key "mes_notifications", "users", column: "recipient_id", on_delete: :cascade
   add_foreign_key "mes_production_order_stage_events", "mes_production_orders", column: "production_order_id", on_delete: :cascade
   add_foreign_key "mes_production_order_stage_events", "users", column: "actor_id", on_delete: :nullify
   add_foreign_key "mes_production_orders", "crm_products", on_delete: :nullify
   add_foreign_key "mes_production_orders", "crm_sales_orders", on_delete: :nullify
   add_foreign_key "mes_production_orders", "mes_boms", column: "bom_id", on_delete: :nullify
+  add_foreign_key "mes_production_orders", "users", column: "bom_confirmed_by_id", on_delete: :nullify
   add_foreign_key "mes_production_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_production_records", "mes_production_orders", column: "production_order_id", on_delete: :cascade
   add_foreign_key "mes_production_records", "users", column: "operator_id", on_delete: :nullify

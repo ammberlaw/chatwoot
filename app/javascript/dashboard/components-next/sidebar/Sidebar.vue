@@ -11,6 +11,7 @@ import { useSidebarKeyboardShortcuts } from './useSidebarKeyboardShortcuts';
 import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
+import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
 import { emitter } from 'shared/helpers/mitt';
 import { useWindowSize, useEventListener } from '@vueuse/core';
 
@@ -262,6 +263,10 @@ const getSidebarSectionSort = useMapGetter(
   'sidebarSortPreferences/getSectionSort'
 );
 
+// MES 站内通知未读角标（Pinia store，ActionCable 事件会刷新它）。
+const mesNotificationsStore = useMesNotificationsStore();
+const mesUnreadCount = computed(() => mesNotificationsStore.getUnreadCount);
+
 onMounted(() => {
   store.dispatch('labels/get');
   store.dispatch('inboxes/get');
@@ -270,6 +275,7 @@ onMounted(() => {
   store.dispatch('attributes/get');
   store.dispatch('customViews/get', 'conversation');
   store.dispatch('customViews/get', 'contact');
+  mesNotificationsStore.fetchUnreadCount();
 });
 
 watch([accountId, hasConversationUnreadCounts], fetchConversationUnreadCounts, {
@@ -807,6 +813,7 @@ const menuItems = computed(() => {
           'mes_inspections_index',
           'mes_fg_inbound_index',
           'mes_shipments_index',
+          'mes_notifications_index',
         ],
         children: [
           {
@@ -814,6 +821,13 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_DASHBOARD'),
             to: accountScopedRoute('mes_dashboard_index'),
             activeOn: ['mes_dashboard_index'],
+          },
+          {
+            name: 'MES Notifications',
+            label: t('SIDEBAR.MES_NOTIFICATIONS'),
+            badgeCount: mesUnreadCount.value,
+            to: accountScopedRoute('mes_notifications_index'),
+            activeOn: ['mes_notifications_index'],
           },
           {
             name: 'MES Production Orders',

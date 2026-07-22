@@ -448,6 +448,7 @@
     "MES_FG_INBOUND": "成品入库",
     "MES_SERIAL_NUMBERS": "SN 追溯",
     "MES_SHIPMENTS": "销售出库",
+    "MES_NOTIFICATIONS": "站内通知",
     "MES_STOCK_BALANCES": "库存",
     "MES_MATERIALS": "物料",
     "MES_SUPPLIERS": "供应商",

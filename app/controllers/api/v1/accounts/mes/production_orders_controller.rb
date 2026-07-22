@@ -1,8 +1,8 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_production_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :release_purchasing, :requirement, :acknowledge, :reject,
-                       :submit_approval, :approve, :deny, :set_product_code]
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :confirm_bom, :release_purchasing, :requirement,
+                       :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
@@ -70,6 +70,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @production_order.update!(delivery_date: params[:delivery_date]) if params[:delivery_date].present?
     @production_order.attach_bom!(bom)
     render 'api/v1/accounts/mes/production_orders/show'
+  end
+
+  # 业务二次确认 BOM（BOM_READY 段内的闸）：仅创建人（业务员）或管理员可确认。
+  def confirm_bom
+    return render json: { error: '只有业务员可二次确认 BOM' }, status: :forbidden unless @production_order.owner_id == current_user.id || admin_like?
+
+    @production_order.confirm_bom!(current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING）。

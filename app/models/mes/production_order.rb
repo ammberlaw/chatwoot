@@ -2,42 +2,44 @@
 #
 # Table name: mes_production_orders
 #
-#  id                 :bigint           not null, primary key
-#  actual_end_date    :datetime
-#  actual_start_date  :datetime
-#  approval_status    :string           default("DRAFT"), not null
-#  delivery_date      :datetime
-#  gm_acted_at        :datetime
-#  gm_comment         :text
-#  is_draft           :boolean          default(FALSE), not null
-#  manager_acted_at   :datetime
-#  manager_comment    :text
-#  order_no           :string           not null
-#  pi_no              :string
-#  planned_end_date   :datetime
-#  planned_start_date :datetime
-#  produced_qty       :decimal(14, 3)   default(0.0), not null
-#  product_code       :string
-#  product_line       :string
-#  product_name       :string           not null
-#  qty                :decimal(14, 3)   not null
-#  remark             :text
-#  spec               :jsonb            not null
-#  stage              :string           default("SALES_CONFIRMED"), not null
-#  stage_ack_at       :datetime
-#  status             :string           default("IN_PROGRESS"), not null
-#  submitted_at       :datetime
-#  unit               :string
-#  created_at         :datetime         not null
-#  updated_at         :datetime         not null
-#  account_id         :bigint           not null
-#  bom_id             :bigint
-#  crm_product_id     :bigint
-#  crm_sales_order_id :bigint
-#  gm_id              :bigint
-#  manager_id         :bigint
-#  owner_id           :bigint
-#  stage_ack_by_id    :bigint
+#  id                  :bigint           not null, primary key
+#  actual_end_date     :datetime
+#  actual_start_date   :datetime
+#  approval_status     :string           default("DRAFT"), not null
+#  bom_confirmed_at    :datetime
+#  delivery_date       :datetime
+#  gm_acted_at         :datetime
+#  gm_comment          :text
+#  is_draft            :boolean          default(FALSE), not null
+#  manager_acted_at    :datetime
+#  manager_comment     :text
+#  order_no            :string           not null
+#  pi_no               :string
+#  planned_end_date    :datetime
+#  planned_start_date  :datetime
+#  produced_qty        :decimal(14, 3)   default(0.0), not null
+#  product_code        :string
+#  product_line        :string
+#  product_name        :string           not null
+#  qty                 :decimal(14, 3)   not null
+#  remark              :text
+#  spec                :jsonb            not null
+#  stage               :string           default("SALES_CONFIRMED"), not null
+#  stage_ack_at        :datetime
+#  status              :string           default("IN_PROGRESS"), not null
+#  submitted_at        :datetime
+#  unit                :string
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#  account_id          :bigint           not null
+#  bom_confirmed_by_id :bigint
+#  bom_id              :bigint
+#  crm_product_id      :bigint
+#  crm_sales_order_id  :bigint
+#  gm_id               :bigint
+#  manager_id          :bigint
+#  owner_id            :bigint
+#  stage_ack_by_id     :bigint
 #
 # Indexes
 #
@@ -48,6 +50,7 @@
 #  index_mes_production_orders_on_account_id_and_is_draft         (account_id,is_draft)
 #  index_mes_production_orders_on_account_id_and_order_no         (account_id,order_no) UNIQUE
 #  index_mes_production_orders_on_account_id_and_stage            (account_id,stage)
+#  index_mes_production_orders_on_bom_confirmed_by_id             (bom_confirmed_by_id)
 #  index_mes_production_orders_on_bom_id                          (bom_id)
 #  index_mes_production_orders_on_crm_product_id                  (crm_product_id)
 #  index_mes_production_orders_on_crm_sales_order_id              (crm_sales_order_id)
@@ -58,6 +61,7 @@
 #
 # Foreign Keys
 #
+#  fk_rails_...  (bom_confirmed_by_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (bom_id => mes_boms.id) ON DELETE => nullify
 #  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => nullify
 #  fk_rails_...  (crm_sales_order_id => crm_sales_orders.id) ON DELETE => nullify
@@ -92,6 +96,18 @@ class Mes::ProductionOrder < ApplicationRecord
     'FG_INBOUND' => 'mes_fg_inbound_index'
   }.freeze
 
+  # 阶段中文名（用于站内通知文案）。
+  STAGE_LABELS = {
+    'SALES_CONFIRMED' => '销售订单确定',
+    'BOM_READY' => '工程/PMC BOM',
+    'PURCHASING' => '采购原料',
+    'MATERIAL_INBOUND' => '原料入库',
+    'PICKING' => '生产领料',
+    'PRODUCTION' => '生产',
+    'FG_INBOUND' => '成品入库',
+    'SHIPPED' => '销售出库'
+  }.freeze
+
   # 接单时限：进入阶段后 N 小时内负责人须接单，超时即「未接单超时」并可升级。
   ACK_LIMIT_HOURS = 4
 
@@ -103,6 +119,7 @@ class Mes::ProductionOrder < ApplicationRecord
   belongs_to :stage_ack_by, class_name: 'User', optional: true
   belongs_to :manager, class_name: 'User', optional: true # 部门主管（审批一级）
   belongs_to :gm, class_name: 'User', optional: true      # 总经理（审批二级）
+  belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 业务二次确认 BOM 的人
   has_many :stage_events, class_name: 'Mes::ProductionOrderStageEvent', dependent: :destroy, inverse_of: :production_order
 
   audited except: %i[created_at updated_at], on: %i[create update]
@@ -144,32 +161,57 @@ class Mes::ProductionOrder < ApplicationRecord
   # 换阶段即清空接单状态——新一次交接须重新接单，计时以本次 entered_at 为准。
   def enter_stage!(new_stage, at: nil, actor: nil)
     at ||= Time.current
-    unless stage == new_stage
-      update_columns(stage: new_stage, stage_ack_at: nil, stage_ack_by_id: nil, updated_at: at)
-    end
+    changed = stage != new_stage
+    update_columns(stage: new_stage, stage_ack_at: nil, stage_ack_by_id: nil, updated_at: at) if changed
     stage_events.find_or_create_by!(stage: new_stage) do |e|
       e.account_id = account_id
       e.entered_at = at
       e.actor_id = actor&.id
     end
+    notify_stage_assigned(actor) if changed
+    self
   end
 
   # 挂工程 BOM（阶段 2）：绑 BOM、按预估交期天数算预估完工、进 BOM_READY。
   # planned_end 显式传入则优先；否则用 BOM 的 estimated_lead_days 从今天推算。
-  def attach_bom!(bom, planned_end: nil)
+  # 挂 BOM 会重置「业务二次确认」（含改挂/换 BOM）：新 BOM 须业务重新核对确认。
+  # 进 BOM_READY 后通知业务员二次确认；确认前不得下发采购。
+  def attach_bom!(bom, planned_end: nil, actor: nil)
     planned = planned_end.presence
     lead = bom.total_lead_days
     planned ||= lead.positive? ? lead.days.from_now : nil
-    updates = { bom_id: bom.id }
+    updates = { bom_id: bom.id, bom_confirmed_at: nil, bom_confirmed_by_id: nil }
     updates[:planned_end_date] = planned if planned
     update!(updates)
-    enter_stage!('BOM_READY') if stage == 'SALES_CONFIRMED'
+    enter_stage!('BOM_READY', actor: actor) if stage == 'SALES_CONFIRMED'
+    notify_bom_reconfirm(bom)
+    self
+  end
+
+  def bom_confirmed? = bom_confirmed_at.present?
+
+  # 业务二次确认 BOM（BOM_READY 段内的一道闸）：核对工程做的用料清单后确认，
+  # 确认后 PMC 方可下发采购。确认时回通知 BOM 板块负责人。
+  def confirm_bom!(actor)
+    raise StandardError, '需先挂工程/PMC BOM' if bom_id.nil?
+    raise StandardError, '非「工程/PMC BOM」环节，无法确认' unless stage == 'BOM_READY'
+    raise StandardError, 'BOM 已确认，无需重复' if bom_confirmed_at.present?
+
+    update!(bom_confirmed_at: Time.current, bom_confirmed_by_id: actor&.id)
+    notify_stage_owners(
+      kind: 'bom_confirmed',
+      title: "BOM 已二次确认：生产订单 #{order_no}",
+      body: "#{actor&.name || '业务'} 已确认 BOM #{bom&.bom_no}，可下发采购。"
+    )
+    self
   end
 
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING），通知采购备料。
+  # 需业务二次确认 BOM 后才放行。
   def release_to_purchasing!(actor: nil)
     raise StandardError, '需先挂工程/PMC BOM' if bom_id.nil?
     raise StandardError, '当前阶段无法下发采购' unless stage == 'BOM_READY'
+    raise StandardError, '需业务二次确认 BOM 后方可下发采购' if bom_confirmed_at.nil?
 
     enter_stage!('PURCHASING', actor: actor)
     self
@@ -254,6 +296,11 @@ class Mes::ProductionOrder < ApplicationRecord
       ev = stage_events.find_or_create_by!(stage: prev) { |e| e.account_id = account_id }
       ev.update!(entered_at: now, actor_id: actor&.id, note: "被下游退回：#{reason}")
     end
+    notify_stage_owners(
+      kind: 'stage_returned',
+      title: "被下游退回：#{STAGE_LABELS[stage]}",
+      body: "生产订单 #{order_no}（#{product_name}）被下游退回本阶段：#{reason}"
+    )
     self
   end
 
@@ -284,6 +331,7 @@ class Mes::ProductionOrder < ApplicationRecord
     self.gm_acted_at = self.gm_comment = nil
     self.approval_status = manager_id.present? ? 'SUBMITTED' : 'MANAGER_APPROVED'
     save!
+    notify_approval_pending
     self
   end
 
@@ -293,6 +341,7 @@ class Mes::ProductionOrder < ApplicationRecord
 
     update!(approval_status: 'MANAGER_APPROVED', manager_id: actor.id,
             manager_acted_at: Time.current, manager_comment: comment)
+    notify_approval_pending
     self
   end
 
@@ -302,6 +351,11 @@ class Mes::ProductionOrder < ApplicationRecord
 
     update!(approval_status: 'APPROVED', gm_id: actor.id,
             gm_acted_at: Time.current, gm_comment: comment)
+    Mes::Notifier.notify(
+      account: account, recipients: owner_id, kind: 'approval_approved',
+      title: "审批通过：生产订单 #{order_no}",
+      body: '总经理已通过，订单已生效并进入生产流转。', order: self
+    )
     self
   end
 
@@ -320,10 +374,57 @@ class Mes::ProductionOrder < ApplicationRecord
     end
     self.approval_status = 'REJECTED'
     save!
+    Mes::Notifier.notify(
+      account: account, recipients: owner_id, kind: 'approval_rejected',
+      title: "审批被驳回：生产订单 #{order_no}",
+      body: "驳回原因：#{reason}", order: self
+    )
     self
   end
 
   private
+
+  # ── 站内通知埋点 ──
+
+  # 进入需接单的下游阶段时通知该阶段负责人（BOM_READY 例外：其待办是业务二次确认）。
+  def notify_stage_assigned(actor)
+    return unless STAGE_BOARD_KEYS.key?(stage)
+    return if stage == 'BOM_READY'
+
+    label = STAGE_LABELS[stage]
+    notify_stage_owners(
+      kind: 'stage_assigned',
+      title: "待接单：#{label}",
+      body: "生产订单 #{order_no}（#{product_name}）进入#{label}阶段，请及时接单。",
+      exclude: actor&.id
+    )
+  end
+
+  # 通知当前阶段负责人（可排除触发者本人）。
+  def notify_stage_owners(kind:, title:, body:, exclude: nil)
+    recipients = current_stage_owner_ids - [exclude].compact
+    Mes::Notifier.notify(account: account, recipients: recipients, kind: kind, title: title, body: body, order: self)
+  end
+
+  # 挂 BOM 后通知业务员二次确认。
+  def notify_bom_reconfirm(bom)
+    Mes::Notifier.notify(
+      account: account, recipients: owner_id, kind: 'bom_reconfirm',
+      title: "待二次确认BOM：生产订单 #{order_no}",
+      body: "工程/PMC 已挂 BOM #{bom.bom_no}，请核对用料后点「确认BOM」，确认后方可下发采购。",
+      order: self
+    )
+  end
+
+  # 提交/主管通过后通知下一级审批人。
+  def notify_approval_pending
+    role = approval_status == 'SUBMITTED' ? '部门主管' : '总经理'
+    body = approval_status == 'SUBMITTED' ? "#{owner&.name || '业务员'} 提交了生产订单，待你审批。" : '部门主管已通过，待你审批。'
+    Mes::Notifier.notify(
+      account: account, recipients: current_approver_id, kind: 'approval_pending',
+      title: "待审批：生产订单 #{order_no}（#{role}）", body: body, order: self
+    )
+  end
 
   def product_line_source = crm_product
 

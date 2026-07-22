@@ -10,6 +10,9 @@ client.convert = payload => axios.post(`${client.url}/convert`, payload);
 client.attachBom = (id, payload) =>
   axios.post(`${client.url}/${id}/attach_bom`, payload);
 
+// 业务二次确认 BOM（BOM_READY 段内的闸，确认后方可下发采购）。
+client.confirmBom = id => axios.post(`${client.url}/${id}/confirm_bom`);
+
 // 下发到采购阶段（BOM_READY → PURCHASING）。
 client.releasePurchasing = id =>
   axios.post(`${client.url}/${id}/release_purchasing`);

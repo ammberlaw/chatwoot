@@ -163,6 +163,13 @@ Rails.application.routes.draw do
             resources :board_owners, only: [:index] do
               put :set, on: :collection
             end
+            resources :notifications, only: [:index] do
+              collection do
+                get :unread_count
+                post :mark_all_read
+              end
+              member { post :mark_read }
+            end
             resources :suppliers
             resources :warehouses, except: [:show]
             resources :materials
@@ -200,6 +207,7 @@ Rails.application.routes.draw do
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :attach_bom
+                post :confirm_bom
                 post :release_purchasing
                 get :requirement
                 post :acknowledge

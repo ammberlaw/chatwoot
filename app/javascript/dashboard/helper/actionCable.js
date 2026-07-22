@@ -5,6 +5,7 @@ import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { emitter } from 'shared/helpers/mitt';
 import { useImpersonation } from 'dashboard/composables/useImpersonation';
 import { useCallsStore } from 'dashboard/stores/calls';
+import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
 import {
   applyOutboundAnswer,
   armOutboundRecorder,
@@ -43,6 +44,7 @@ class ActionCableConnector extends BaseActionCableConnector {
       'notification.created': this.onNotificationCreated,
       'notification.deleted': this.onNotificationDeleted,
       'notification.updated': this.onNotificationUpdated,
+      'mes.notification.created': this.onMesNotificationCreated,
       'conversation.read': this.onConversationRead,
       'conversation.updated': this.onConversationUpdated,
       'conversation.unread_count_changed':
@@ -258,6 +260,14 @@ class ActionCableConnector extends BaseActionCableConnector {
 
   onNotificationUpdated = data => {
     this.app.$store.dispatch('notifications/updateNotification', data);
+  };
+
+  // MES 站内通知实时到达：刷新未读角标；若通知列表页已打开则一并刷新列表。
+  // eslint-disable-next-line class-methods-use-this
+  onMesNotificationCreated = () => {
+    const mesStore = useMesNotificationsStore();
+    mesStore.fetchUnreadCount();
+    mesStore.get();
   };
 
   onCopilotMessageCreated = data => {

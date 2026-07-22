@@ -11,6 +11,9 @@ json.produced_qty resource.produced_qty
 json.progress_ratio resource.progress_ratio
 json.bom_id resource.bom_id
 json.bom_no resource.bom&.bom_no
+# 业务二次确认 BOM（空 = 尚未确认，未确认前不得下发采购）。
+json.bom_confirmed_at resource.bom_confirmed_at
+json.bom_confirmed_by_name resource.bom_confirmed_by&.name
 json.stage resource.stage
 json.stage_events do
   json.array! resource.stage_events.order(:entered_at) do |ev|

@@ -11,6 +11,7 @@ import MesProductionRecordsIndex from './pages/MesProductionRecordsIndex.vue';
 import MesInspectionsIndex from './pages/MesInspectionsIndex.vue';
 import MesFgInboundIndex from './pages/MesFgInboundIndex.vue';
 import MesShipmentsIndex from './pages/MesShipmentsIndex.vue';
+import MesNotificationsIndex from './pages/MesNotificationsIndex.vue';
 
 // MES 生产管理：与 CRM 同账号同登录；S0 全员可见（车间/仓管未必有 crm_role），
 // 故 requiresCrmAccess: false，仅受 CRM 功能开关约束。
@@ -62,4 +63,5 @@ export const routes = [
   mesPage('inspections', 'mes_inspections_index', MesInspectionsIndex),
   mesPage('fg-inbound', 'mes_fg_inbound_index', MesFgInboundIndex),
   mesPage('shipments', 'mes_shipments_index', MesShipmentsIndex),
+  mesPage('notifications', 'mes_notifications_index', MesNotificationsIndex),
 ];
