@@ -3,9 +3,15 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def show? = true
   def requirement? = true
   def inbox? = true
+  def audits? = true
   # 接单/拒收的细粒度权限（本阶段负责人 or 管理员）在控制器 can_handle_stage? 内校验。
   def acknowledge? = true
   def reject? = true
+  # 审批链：提交（控制器校验创建人）、通过/驳回（控制器 can_approve? 校验当前环节人/管理员）、待我审批收件箱。
+  def submit_approval? = true
+  def approve? = true
+  def deny? = true
+  def approval_inbox? = true
 
   def create? = @account_user.mes_can?(:order)
   def convert? = @account_user.mes_can?(:order)
@@ -13,7 +19,9 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def attach_bom? = @account_user.mes_can?(:order) || @account_user.mes_can?(:bom)
   def release_purchasing? = attach_bom?
   def update? = @account_user.mes_can?(:order)
-  def publish? = @account_user.mes_can?(:order)
+  # 产品图片/附件：与编辑同权限。
+  def attach? = update?
+  def detach? = update?
 
   def destroy? = @account_user.administrator?
 end
