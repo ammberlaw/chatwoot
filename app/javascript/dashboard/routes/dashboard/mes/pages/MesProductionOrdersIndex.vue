@@ -285,6 +285,35 @@ const submitOrder = async () => {
   }
 };
 
+// —— 产品图片 / 附件上传 ——
+const uploading = ref(false);
+const onUpload = async (event, kind) => {
+  const list = Array.from(event.target.files || []);
+  if (!list.length || !selected.value) return;
+  const fd = new FormData();
+  list.forEach(f => fd.append('files[]', f));
+  uploading.value = true;
+  try {
+    const ok = await store.attachFiles({
+      id: selected.value.id,
+      formData: fd,
+      kind,
+    });
+    if (ok) selected.value = ok;
+  } finally {
+    uploading.value = false;
+    event.target.value = '';
+  }
+};
+const removeAttachment = async (attachmentId, kind) => {
+  const ok = await store.detachFile({
+    id: selected.value.id,
+    attachmentId,
+    kind,
+  });
+  if (ok) selected.value = ok;
+};
+
 // —— 挂 BOM（阶段 2 触点）——
 const bomsStore = useMesBomsStore();
 const bomDialogRef = ref(null);
@@ -719,6 +748,99 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           >
             {{ deliveryStatus(selected).label }}
           </span>
+        </div>
+
+        <!-- 产品图片 -->
+        <div class="pt-3 mt-3 border-t border-n-weak">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-n-slate-11">产品图片</span>
+            <label
+              v-if="mesCan('order')"
+              class="text-xs cursor-pointer text-n-iris-11 hover:underline"
+            >
+              上传图片
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                class="hidden"
+                :disabled="uploading"
+                @change="e => onUpload(e, 'images')"
+              />
+            </label>
+          </div>
+          <div
+            v-if="(selected.images || []).length"
+            class="grid grid-cols-3 gap-2"
+          >
+            <div
+              v-for="img in selected.images"
+              :key="img.id"
+              class="relative group"
+            >
+              <a :href="img.url" target="_blank" rel="noopener">
+                <img
+                  :src="img.url"
+                  :alt="img.filename"
+                  class="object-cover w-full h-20 rounded-lg border border-n-weak"
+                />
+              </a>
+              <button
+                v-if="mesCan('order')"
+                type="button"
+                class="absolute top-1 right-1 items-center justify-center hidden w-5 h-5 text-xs text-white rounded-full bg-n-slate-12/70 group-hover:flex"
+                @click="removeAttachment(img.id, 'images')"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+          <p v-else class="text-xs text-n-slate-10">暂无产品图片</p>
+        </div>
+
+        <!-- 附件 -->
+        <div class="pt-3 mt-3 border-t border-n-weak">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-n-slate-11">附件</span>
+            <label
+              v-if="mesCan('order')"
+              class="text-xs cursor-pointer text-n-iris-11 hover:underline"
+            >
+              上传附件
+              <input
+                type="file"
+                multiple
+                class="hidden"
+                :disabled="uploading"
+                @change="e => onUpload(e, 'files')"
+              />
+            </label>
+          </div>
+          <ul v-if="(selected.files || []).length" class="flex flex-col gap-1">
+            <li
+              v-for="file in selected.files"
+              :key="file.id"
+              class="flex items-center justify-between text-xs group"
+            >
+              <a
+                :href="file.url"
+                target="_blank"
+                rel="noopener"
+                class="truncate text-n-iris-11 hover:underline"
+              >
+                {{ file.filename }}
+              </a>
+              <button
+                v-if="mesCan('order')"
+                type="button"
+                class="hidden ml-2 text-n-slate-10 hover:text-n-ruby-11 group-hover:block"
+                @click="removeAttachment(file.id, 'files')"
+              >
+                ✕
+              </button>
+            </li>
+          </ul>
+          <p v-else class="text-xs text-n-slate-10">暂无附件</p>
         </div>
       </div>
     </div>

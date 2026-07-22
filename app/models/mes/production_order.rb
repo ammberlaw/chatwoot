@@ -83,7 +83,8 @@ class Mes::ProductionOrder < ApplicationRecord
   has_many :stage_events, class_name: 'Mes::ProductionOrderStageEvent', dependent: :destroy, inverse_of: :production_order
 
   audited except: %i[created_at updated_at], on: %i[create update]
-  has_many_attached :files
+  has_many_attached :images # 产品图片（缩略展示）
+  has_many_attached :files  # 附件（合同/文档等）
 
   after_create :mark_sales_order_in_production
   after_create :record_initial_stage

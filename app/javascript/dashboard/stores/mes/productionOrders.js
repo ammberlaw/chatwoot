@@ -134,6 +134,45 @@ export const useMesProductionOrdersStore = createStore({
       }
     },
 
+    // 上传产品图片/附件，返回更新后的订单并就地替换。
+    async attachFiles({ id, formData, kind }) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await MesProductionOrderAPI.attachFiles(
+          id,
+          formData,
+          kind
+        );
+        const record = camelize(data);
+        const index = this.records.findIndex(r => r.id === record.id);
+        if (index !== -1) this.records[index] = record;
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
+      }
+    },
+
+    async detachFile({ id, attachmentId, kind }) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await MesProductionOrderAPI.detachFile(
+          id,
+          attachmentId,
+          kind
+        );
+        const record = camelize(data);
+        const index = this.records.findIndex(r => r.id === record.id);
+        if (index !== -1) this.records[index] = record;
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
+      }
+    },
+
     async update({ id, ...rest }) {
       this.setUIFlag({ updatingItem: true });
       try {

@@ -37,6 +37,7 @@ json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
 json.spec resource.spec
 json.remark resource.remark
+json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }
 json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }
 json.created_at resource.created_at
 json.updated_at resource.updated_at

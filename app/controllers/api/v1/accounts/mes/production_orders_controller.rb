@@ -111,13 +111,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     head :ok
   end
 
+  # kind = images（产品图片）| files（附件），默认 files。
+  ATTACH_COLLECTIONS = { 'images' => :images, 'files' => :files }.freeze
+
   def attach
-    @production_order.files.attach(params[:files])
+    @production_order.public_send(attach_collection).attach(params[:files])
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
   def detach
-    @production_order.files.find(params[:attachment_id]).purge
+    @production_order.public_send(attach_collection).find(params[:attachment_id]).purge
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
@@ -138,6 +141,10 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   def fetch_production_order
     @production_order = Current.account.mes_production_orders.find(params[:id])
+  end
+
+  def attach_collection
+    ATTACH_COLLECTIONS[params[:kind]] || :files
   end
 
   # 能否处理该阶段：本阶段负责人本人，或管理员/副管理员。

@@ -25,4 +25,12 @@ client.reject = (id, reason) =>
 // 我的待办：停在我负责阶段的在产订单。
 client.inbox = () => axios.get(`${client.url}/inbox`);
 
+// 产品图片 / 附件上传下载。kind = 'images' | 'files'。
+client.attachFiles = (id, formData, kind = 'files') =>
+  axios.post(`${client.url}/${id}/attach?kind=${kind}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+client.detachFile = (id, attachmentId, kind = 'files') =>
+  axios.delete(`${client.url}/${id}/attach/${attachmentId}?kind=${kind}`);
+
 export default client;

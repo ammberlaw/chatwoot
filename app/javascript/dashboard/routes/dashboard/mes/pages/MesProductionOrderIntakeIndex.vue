@@ -34,6 +34,16 @@ const setTemplate = t => {
   spec.value = blankSpec(t); // 换模板重置规格
 };
 
+// 建单时先在内存收集图片/附件，建单成功后附加到新订单。
+const pendingImages = ref([]);
+const pendingFiles = ref([]);
+const pick = (event, arr) => {
+  arr.value.push(...Array.from(event.target.files || []));
+  event.target.value = '';
+};
+const removePick = (arr, i) => arr.value.splice(i, 1);
+const previewUrl = f => URL.createObjectURL(f);
+
 const submitting = ref(false);
 const result = ref(null);
 
@@ -55,6 +65,21 @@ const reset = () => {
     deliveryDate: '',
   });
   spec.value = blankSpec(template.value);
+  pendingImages.value = [];
+  pendingFiles.value = [];
+};
+
+const uploadPending = async orderId => {
+  if (pendingImages.value.length) {
+    const fd = new FormData();
+    pendingImages.value.forEach(f => fd.append('files[]', f));
+    await store.attachFiles({ id: orderId, formData: fd, kind: 'images' });
+  }
+  if (pendingFiles.value.length) {
+    const fd = new FormData();
+    pendingFiles.value.forEach(f => fd.append('files[]', f));
+    await store.attachFiles({ id: orderId, formData: fd, kind: 'files' });
+  }
 };
 
 const submit = async () => {
@@ -70,9 +95,13 @@ const submit = async () => {
       productLine: template.value,
       spec: spec.value,
     });
-    if (ok) result.value = { ok: true, orderNo: ok.orderNo };
-    else result.value = { ok: false, msg: '建单失败' };
-    if (ok) reset();
+    if (ok) {
+      await uploadPending(ok.id);
+      result.value = { ok: true, orderNo: ok.orderNo };
+      reset();
+    } else {
+      result.value = { ok: false, msg: '建单失败' };
+    }
   } catch (e) {
     result.value = { ok: false, msg: e?.response?.data?.error || '建单失败' };
   } finally {
@@ -174,6 +203,78 @@ const backToList = () =>
         定制规格 · {{ (SPEC_TEMPLATES[template] || {}).label }}
       </div>
       <MesOrderSpecForm v-model:spec="spec" :template="template" />
+
+      <!-- 产品图片 -->
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
+        产品图片
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <div
+          v-for="(f, i) in pendingImages"
+          :key="i"
+          class="relative w-20 h-20 group"
+        >
+          <img
+            :src="previewUrl(f)"
+            class="object-cover w-20 h-20 border rounded-lg border-n-weak"
+          />
+          <button
+            type="button"
+            class="absolute items-center justify-center hidden w-5 h-5 text-xs text-white rounded-full top-1 right-1 bg-n-slate-12/70 group-hover:flex"
+            @click="removePick(pendingImages, i)"
+          >
+            ✕
+          </button>
+        </div>
+        <label
+          class="flex items-center justify-center w-20 h-20 text-xs border border-dashed rounded-lg cursor-pointer border-n-weak text-n-slate-11 hover:text-n-slate-12"
+        >
+          + 图片
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            class="hidden"
+            @change="e => pick(e, pendingImages)"
+          />
+        </label>
+      </div>
+
+      <!-- 附件 -->
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
+        附件
+      </div>
+      <div class="flex flex-col gap-2">
+        <div
+          v-for="(f, i) in pendingFiles"
+          :key="i"
+          class="flex items-center justify-between text-xs"
+        >
+          <span class="truncate text-n-slate-12">{{ f.name }}</span>
+          <button
+            type="button"
+            class="ml-2 text-n-slate-10 hover:text-n-ruby-11"
+            @click="removePick(pendingFiles, i)"
+          >
+            ✕
+          </button>
+        </div>
+        <label
+          class="text-xs cursor-pointer text-n-iris-11 hover:underline w-max"
+        >
+          + 上传附件
+          <input
+            type="file"
+            multiple
+            class="hidden"
+            @change="e => pick(e, pendingFiles)"
+          />
+        </label>
+      </div>
 
       <div class="flex items-center gap-3 mt-1">
         <button
