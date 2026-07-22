@@ -105,6 +105,27 @@ const hasValue = f => {
           class="px-3 py-2 text-sm border rounded-lg outline-none resize-y border-n-weak bg-n-alpha-black1 text-n-slate-12"
         />
 
+        <!-- 单行（可填写）+「默认」一键填标准值。命中默认时高亮 -->
+        <div v-else-if="f.defaultVal" class="flex items-center gap-2">
+          <Input
+            v-model="spec[f.key]"
+            :placeholder="f.placeholder || ''"
+            class="flex-1"
+          />
+          <button
+            type="button"
+            class="h-9 px-3 text-xs border rounded-lg shrink-0"
+            :class="
+              spec[f.key] === f.defaultVal
+                ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
+                : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
+            "
+            @click="spec[f.key] = f.defaultVal"
+          >
+            默认
+          </button>
+        </div>
+
         <!-- 单行 -->
         <Input
           v-else

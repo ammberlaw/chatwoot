@@ -54,7 +54,7 @@ export const DISPLAY_FIELDS = [
   { key: 'replyDate', label: '生产回复交期', type: 'text' },
   { key: 'requirements', label: '产品要求', type: 'textarea' },
   { section: '配置' },
-  { key: 'mainboard', label: '主板配置', type: 'text', placeholder: '默认' },
+  { key: 'mainboard', label: '主板配置', type: 'text', defaultVal: '默认' },
   { key: 'powerCord', label: '电源线', type: 'text', defaultVal: '欧规' },
   {
     key: 'adapter',
@@ -72,7 +72,7 @@ export const DISPLAY_FIELDS = [
   { key: 'bracket', label: '支架/底座', type: 'text', defaultVal: '侧边枝条' },
   { key: 'carton', label: '纸箱', type: 'text', defaultVal: '普通纸箱' },
   { key: 'machineLabel', label: '机器label', type: 'text' },
-  { key: 'shippingMark', label: '标签/唛头', type: 'text' },
+  { key: 'shippingMark', label: '标签/唛头', type: 'text', defaultVal: '默认' },
   { key: 'other', label: '其他', type: 'textarea' },
 ];
 
