@@ -47,7 +47,7 @@ export const TABLET_FIELDS = [
   { key: 'customNotes', label: '备注（定制要求）', type: 'textarea' },
 ];
 
-// 配置项与平板一致：纯文本输入框。有标准值的用 defaultVal 预填，直接改即可。
+// 配置项：可填写文本框，默认值统一为「默认」两字；「默认」按钮一键填回，要具体的自己打字。
 export const DISPLAY_FIELDS = [
   { section: '订单信息' },
   { key: 'model', label: '型号', type: 'text' },
@@ -55,22 +55,12 @@ export const DISPLAY_FIELDS = [
   { key: 'requirements', label: '产品要求', type: 'textarea' },
   { section: '配置' },
   { key: 'mainboard', label: '主板配置', type: 'text', defaultVal: '默认' },
-  { key: 'powerCord', label: '电源线', type: 'text', defaultVal: '欧规' },
-  {
-    key: 'adapter',
-    label: '适配器',
-    type: 'text',
-    defaultVal: '12V 2.5A 直头',
-  },
-  {
-    key: 'signalCable',
-    label: '信号线',
-    type: 'text',
-    defaultVal: 'HDMI 1.5m 直头',
-  },
-  { key: 'touchCable', label: '触摸线', type: 'text', defaultVal: '1m 直头' },
-  { key: 'bracket', label: '支架/底座', type: 'text', defaultVal: '侧边枝条' },
-  { key: 'carton', label: '纸箱', type: 'text', defaultVal: '普通纸箱' },
+  { key: 'powerCord', label: '电源线', type: 'text', defaultVal: '默认' },
+  { key: 'adapter', label: '适配器', type: 'text', defaultVal: '默认' },
+  { key: 'signalCable', label: '信号线', type: 'text', defaultVal: '默认' },
+  { key: 'touchCable', label: '触摸线', type: 'text', defaultVal: '默认' },
+  { key: 'bracket', label: '支架/底座', type: 'text', defaultVal: '默认' },
+  { key: 'carton', label: '纸箱', type: 'text', defaultVal: '默认' },
   { key: 'machineLabel', label: '机器label', type: 'text' },
   { key: 'shippingMark', label: '标签/唛头', type: 'text', defaultVal: '默认' },
   { key: 'other', label: '其他', type: 'textarea' },
