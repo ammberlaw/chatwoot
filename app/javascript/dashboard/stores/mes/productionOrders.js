@@ -151,6 +151,12 @@ export const useMesProductionOrdersStore = createStore({
         MesProductionOrderAPI.deny(id, reason)
       );
     },
+    // 产品编码（工程/PMC 编写，唯一）。
+    async setProductCode({ id, productCode }) {
+      return this.runApprovalAction(() =>
+        MesProductionOrderAPI.setProductCode(id, productCode)
+      );
+    },
     async runApprovalAction(call) {
       this.setUIFlag({ updatingItem: true });
       try {

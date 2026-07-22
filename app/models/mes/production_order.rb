@@ -17,6 +17,7 @@
 #  planned_end_date   :datetime
 #  planned_start_date :datetime
 #  produced_qty       :decimal(14, 3)   default(0.0), not null
+#  product_code       :string
 #  product_line       :string
 #  product_name       :string           not null
 #  qty                :decimal(14, 3)   not null
@@ -40,6 +41,7 @@
 #
 # Indexes
 #
+#  index_mes_production_orders_on_account_and_product_code        (account_id,product_code) UNIQUE WHERE (product_code IS NOT NULL)
 #  index_mes_production_orders_on_account_and_product_line        (account_id,product_line)
 #  index_mes_production_orders_on_account_id                      (account_id)
 #  index_mes_production_orders_on_account_id_and_approval_status  (account_id,approval_status)
@@ -114,6 +116,8 @@ class Mes::ProductionOrder < ApplicationRecord
 
   validates :product_name, presence: true
   validates :order_no, presence: true, uniqueness: { scope: :account_id }
+  # 产品编码（工程/PMC 编，供 ERP 共享）：本账号内唯一，可留空。
+  validates :product_code, uniqueness: { scope: :account_id, message: '已被占用（产品编码须唯一）' }, allow_blank: true
   validates :qty, presence: true, numericality: { greater_than: 0 }
   validates :stage, inclusion: { in: STAGES }
   validates :status, inclusion: { in: STATUSES }

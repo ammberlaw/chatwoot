@@ -37,6 +37,7 @@ json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
 json.is_draft resource.is_draft
 json.pi_no resource.pi_no
+json.product_code resource.product_code
 # 审批链（取代发布）：状态 + 两级审批人 + 留痕。
 json.approval_status resource.approval_status
 json.current_approver_id resource.current_approver_id

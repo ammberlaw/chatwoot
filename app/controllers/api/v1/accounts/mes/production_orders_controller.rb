@@ -2,7 +2,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   before_action :check_authorization
   before_action :fetch_production_order,
                 only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :release_purchasing, :requirement, :acknowledge, :reject,
-                       :submit_approval, :approve, :deny]
+                       :submit_approval, :approve, :deny, :set_product_code]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
@@ -152,6 +152,14 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @production_orders = scope.includes(:owner).order(submitted_at: :desc)
     @production_orders_count = @production_orders.size
     render 'api/v1/accounts/mes/production_orders/index'
+  end
+
+  # 产品编码：由工程/PMC 编写（唯一，供 ERP 共享）。策略 set_product_code? 限 bom 能力。
+  def set_product_code
+    @production_order.update!(product_code: params[:product_code].to_s.strip.presence)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { error: e.record.errors[:product_code].first || e.message }, status: :unprocessable_entity
   end
 
   def update

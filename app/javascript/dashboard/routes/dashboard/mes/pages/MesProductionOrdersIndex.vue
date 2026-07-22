@@ -514,6 +514,36 @@ const confirmReject = async () => {
   }
 };
 
+// —— 产品编码（工程/PMC 编写，唯一，供 ERP 共享）——
+const canEditProductCode = computed(() => mesCan('bom'));
+const productCodeInput = ref('');
+const productCodeError = ref('');
+watch(
+  selected,
+  po => {
+    productCodeInput.value = po?.productCode || '';
+    productCodeError.value = '';
+  },
+  { immediate: true }
+);
+const saveProductCode = async () => {
+  if (!selected.value) return;
+  productCodeError.value = '';
+  try {
+    const ok = await store.setProductCode({
+      id: selected.value.id,
+      productCode: productCodeInput.value.trim(),
+    });
+    if (ok) {
+      useAlert('产品编码已保存');
+      selected.value = ok;
+      fetchRecords();
+    }
+  } catch (e) {
+    productCodeError.value = e?.response?.data?.error || '保存失败';
+  }
+};
+
 onMounted(async () => {
   // 从看板「待我审批」跳转：进「待我审批」视图。
   if (route.query.view === 'approval') viewMode.value = 'inbox';
@@ -643,6 +673,12 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
                 >
                   PI {{ po.piNo }}
                 </span>
+                <span
+                  v-if="po.productCode"
+                  class="block text-xs font-normal text-n-iris-11"
+                >
+                  编码 {{ po.productCode }}
+                </span>
               </td>
               <td class="px-3 py-3 text-n-slate-11">{{ po.productName }}</td>
               <td class="px-3 py-3 text-n-slate-11">
@@ -714,10 +750,42 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           }}
           {{ selected.unit }}
         </div>
-        <div v-if="selected.piNo" class="mb-4 text-xs text-n-slate-11">
+        <div v-if="selected.piNo" class="mb-1 text-xs text-n-slate-11">
           PI：{{ selected.piNo }}
         </div>
-        <div v-else class="mb-4" />
+
+        <!-- 产品编码：工程/PMC 编写（唯一，供 ERP 共享） -->
+        <div class="mb-4">
+          <div v-if="canEditProductCode" class="flex flex-col gap-1">
+            <label class="text-xs text-n-slate-11">
+              产品编码
+              <span class="text-n-slate-10">（工程/PMC 编，唯一）</span>
+            </label>
+            <div class="flex items-center gap-2">
+              <Input
+                v-model="productCodeInput"
+                placeholder="如：C.BB.215.003"
+                class="flex-1"
+              />
+              <Button
+                label="保存"
+                size="xs"
+                color="iris"
+                :is-loading="uiFlags.updatingItem"
+                :disabled="
+                  productCodeInput.trim() === (selected.productCode || '')
+                "
+                @click="saveProductCode"
+              />
+            </div>
+            <span v-if="productCodeError" class="text-xs text-n-ruby-11">
+              {{ productCodeError }}
+            </span>
+          </div>
+          <div v-else class="text-xs text-n-slate-11">
+            产品编码：{{ selected.productCode || '未编码' }}
+          </div>
+        </div>
 
         <!-- 审批链（取代发布）：草稿→部门主管→总经理，全部通过才生效 -->
         <div

@@ -22,6 +22,8 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   # 产品图片/附件：与编辑同权限。
   def attach? = update?
   def detach? = update?
+  # 产品编码：由工程/PMC 编写（bom 能力）。
+  def set_product_code? = @account_user.mes_can?(:bom)
 
   def destroy? = @account_user.administrator?
 end

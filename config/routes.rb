@@ -205,6 +205,7 @@ Rails.application.routes.draw do
                 post :submit_approval
                 post :approve
                 post :deny
+                post :set_product_code
               end
             end
           end

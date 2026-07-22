@@ -33,6 +33,12 @@ client.deny = (id, reason) =>
   axios.post(`${client.url}/${id}/deny`, { reason });
 client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
 
+// 产品编码（工程/PMC 编，唯一，供 ERP 共享）。
+client.setProductCode = (id, productCode) =>
+  axios.post(`${client.url}/${id}/set_product_code`, {
+    product_code: productCode,
+  });
+
 // 产品图片 / 附件上传下载。kind = 'images' | 'files'。
 client.attachFiles = (id, formData, kind = 'files') =>
   axios.post(`${client.url}/${id}/attach?kind=${kind}`, formData, {
