@@ -52,7 +52,8 @@ json.gm_acted_at resource.gm_acted_at
 json.gm_comment resource.gm_comment
 json.spec resource.spec
 json.remark resource.remark
-json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }
-json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }
+# 相对路径（only_path）：绝对 url_for 会带 0.0.0.0:3000 宿主，浏览器加载不了。
+json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
+json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 json.created_at resource.created_at
 json.updated_at resource.updated_at
