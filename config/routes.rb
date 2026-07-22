@@ -169,6 +169,7 @@ Rails.application.routes.draw do
             resources :boms do
               member { post :release }
             end
+            resources :bom_templates, except: [:new, :edit]
             resources :purchase_orders do
               collection { get :requirement }
             end

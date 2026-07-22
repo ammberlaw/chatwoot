@@ -4,6 +4,7 @@ import { ref, computed, reactive, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
+import { useMesBomTemplatesStore } from 'dashboard/stores/mes/bomTemplates';
 import MesBomAPI from 'dashboard/api/mes/boms';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -15,6 +16,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId } = useAccount();
 const store = useMesBomsStore();
+const tplStore = useMesBomTemplatesStore();
 const { mesCan } = useMesRole();
 
 const records = computed(() => store.getRecords);
@@ -161,6 +163,95 @@ const release = async bom => {
   }
 };
 
+// —— BOM 模版：把常用成品的十几二十行用料存成模版，建 BOM 时一键套用 ——
+const templates = computed(() => tplStore.getRecords);
+const tplFetching = computed(() => tplStore.getUIFlags.fetchingList);
+const tplSaving = computed(() => tplStore.getUIFlags.creatingItem);
+const templateDialogRef = ref(null);
+const saveTplDialogRef = ref(null);
+const templateName = ref('');
+const confirmingDeleteId = ref(null);
+const tplDeletingId = ref(null);
+
+const openTemplates = () => {
+  confirmingDeleteId.value = null;
+  tplStore.get();
+  templateDialogRef.value?.open();
+};
+
+// 套用模版：预填新建 BOM 表单（模版不含成品，仍需选成品再保存）。
+const applyTemplate = t => {
+  editingId.value = null;
+  editingStatus.value = null;
+  removedItemIds.value = [];
+  Object.assign(form, {
+    crmProductId: '',
+    baseQty: String(t.baseQty ?? '1'),
+    unit: t.unit || '台',
+    ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, t[s.key] ?? ''])),
+    rows: (t.bomTemplateItems || []).map(it => ({
+      materialNo: it.materialNo || '',
+      materialName: it.materialName || '',
+      specification: it.specification || '',
+      unit: it.unit || '',
+      qty: String(it.qty ?? ''),
+      remark: it.remark || '',
+    })),
+  });
+  if (!form.rows.length) form.rows.push(blankRow());
+  templateDialogRef.value?.close();
+  dialogRef.value?.open();
+};
+
+const removeTemplate = async t => {
+  tplDeletingId.value = t.id;
+  try {
+    await tplStore.delete(t.id);
+    useAlert('模版已删除');
+  } catch {
+    useAlert('删除失败');
+  } finally {
+    tplDeletingId.value = null;
+    confirmingDeleteId.value = null;
+  }
+};
+
+// 从当前 BOM 表单存为模版（用料明细 + 各阶段天数，不含成品）。
+const openSaveTemplate = () => {
+  if (invalid.value) return;
+  templateName.value = form.crmProductId
+    ? productOptions.value.find(p => p.value === form.crmProductId)?.label || ''
+    : '';
+  saveTplDialogRef.value?.open();
+};
+const saveTemplate = async () => {
+  const name = templateName.value.trim();
+  if (!name) return;
+  const payload = {
+    name,
+    baseQty: Number(form.baseQty) || 1,
+    unit: form.unit,
+    ...Object.fromEntries(
+      LEAD_STAGES.map(s => [s.key, Number(form[s.key]) || null])
+    ),
+    bomTemplateItemsAttributes: form.rows
+      .filter(r => r.materialName.trim() && Number(r.qty))
+      .map(r => ({
+        materialNo: r.materialNo.trim(),
+        materialName: r.materialName.trim(),
+        specification: r.specification.trim(),
+        unit: r.unit.trim(),
+        qty: Number(r.qty),
+        remark: r.remark.trim(),
+      })),
+  };
+  const ok = await tplStore.create(payload);
+  if (ok) {
+    useAlert(`已存为模版「${ok.name}」`);
+    saveTplDialogRef.value?.close();
+  }
+};
+
 onMounted(async () => {
   store.get();
   try {
@@ -178,13 +269,16 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">工程/PMC BOM</h1>
-      <Button
-        v-if="mesCan('bom')"
-        label="新建 BOM"
-        color="iris"
-        size="sm"
-        @click="openCreate"
-      />
+      <div v-if="mesCan('bom')" class="flex items-center gap-2">
+        <Button
+          label="BOM 模版"
+          variant="outline"
+          color="slate"
+          size="sm"
+          @click="openTemplates"
+        />
+        <Button label="新建 BOM" color="iris" size="sm" @click="openCreate" />
+      </div>
     </div>
 
     <MesBoardOwnerBar board-key="mes_boms_index" />
@@ -376,13 +470,21 @@ onMounted(async () => {
       </div>
 
       <template #footer>
-        <div class="flex justify-end gap-2">
+        <div class="flex items-center justify-between gap-2">
           <Button
-            label="取消"
-            variant="ghost"
+            label="存为模版"
+            variant="outline"
             color="slate"
-            @click="dialogRef?.close()"
+            :disabled="invalid"
+            @click="openSaveTemplate"
           />
+          <div class="flex justify-end gap-2">
+            <Button
+              label="取消"
+              variant="ghost"
+              color="slate"
+              @click="dialogRef?.close()"
+            />
           <!-- 已下发的编辑：只保留「保存」，保持已下发 -->
           <Button
             v-if="editingId && editingStatus === 'RELEASED'"
@@ -408,9 +510,112 @@ onMounted(async () => {
               :disabled="invalid"
               @click="submit('RELEASED')"
             />
-          </template>
+            </template>
+          </div>
         </div>
       </template>
+    </Dialog>
+
+    <!-- BOM 模版管理：套用 / 删除 -->
+    <Dialog
+      ref="templateDialogRef"
+      width="2xl"
+      overflow-y-auto
+      :show-confirm-button="false"
+      :show-cancel-button="false"
+      title="BOM 模版"
+    >
+      <div class="flex flex-col gap-2">
+        <p class="text-xs text-n-slate-11">
+          套用模版会把用料明细与各阶段天数带入新建 BOM，你只需再选成品即可保存。想新增模版？在新建/编辑
+          BOM 时点「存为模版」。
+        </p>
+        <div v-if="tplFetching" class="py-8 text-center text-n-slate-11">
+          加载中…
+        </div>
+        <div
+          v-else-if="!templates.length"
+          class="py-8 text-center text-n-slate-11"
+        >
+          还没有模版。
+        </div>
+        <div
+          v-for="t in templates"
+          v-else
+          :key="t.id"
+          class="flex items-center justify-between gap-3 px-3 py-2 border rounded-lg border-n-weak"
+        >
+          <div class="flex flex-col min-w-0">
+            <span class="font-medium truncate text-n-slate-12">{{
+              t.name
+            }}</span>
+            <span class="text-xs text-n-slate-11">
+              {{ (t.bomTemplateItems || []).length }} 项用料 · 基准
+              {{ t.baseQty }} {{ t.unit
+              }}<template v-if="t.productLine">
+                · {{ t.productLine }}</template
+              >
+            </span>
+          </div>
+          <div class="flex items-center flex-shrink-0 gap-1">
+            <template v-if="confirmingDeleteId === t.id">
+              <Button
+                label="确认删除"
+                color="ruby"
+                size="sm"
+                :is-loading="tplDeletingId === t.id"
+                @click="removeTemplate(t)"
+              />
+              <Button
+                label="取消"
+                variant="ghost"
+                color="slate"
+                size="sm"
+                @click="confirmingDeleteId = null"
+              />
+            </template>
+            <template v-else>
+              <Button
+                label="套用"
+                color="iris"
+                size="sm"
+                @click="applyTemplate(t)"
+              />
+              <Button
+                label="删除"
+                variant="ghost"
+                color="slate"
+                size="sm"
+                @click="confirmingDeleteId = t.id"
+              />
+            </template>
+          </div>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 存为模版：命名 -->
+    <Dialog
+      ref="saveTplDialogRef"
+      width="sm"
+      title="存为模版"
+      confirm-button-label="保存模版"
+      :confirm-button-color="'iris'"
+      :is-loading="tplSaving"
+      :disable-confirm-button="!templateName.trim()"
+      @confirm="saveTemplate"
+    >
+      <div class="flex flex-col gap-1">
+        <label class="text-heading-3 text-n-slate-12">模版名称</label>
+        <Input
+          v-model="templateName"
+          placeholder="如：55寸商显标准BOM"
+          @keyup.enter="saveTemplate"
+        />
+        <span class="text-xs text-n-slate-11"
+          >将保存当前 {{ form.rows.length }} 行用料与各阶段天数（不含成品）。</span
+        >
+      </div>
     </Dialog>
   </div>
 </template>

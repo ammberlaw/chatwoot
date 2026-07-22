@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_22_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_22_200100) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1730,6 +1730,41 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_190000) do
     t.index ["mes_material_id"], name: "index_mes_bom_items_on_mes_material_id"
   end
 
+  create_table "mes_bom_template_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "bom_template_id", null: false
+    t.string "material_no"
+    t.string "material_name"
+    t.string "specification"
+    t.string "unit"
+    t.decimal "qty", precision: 14, scale: 3, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_bom_template_items_on_account_id"
+    t.index ["bom_template_id"], name: "index_mes_bom_template_items_on_bom_template_id"
+  end
+
+  create_table "mes_bom_templates", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "product_line"
+    t.decimal "base_qty", precision: 14, scale: 3, default: "1.0", null: false
+    t.string "unit"
+    t.integer "purchasing_days"
+    t.integer "material_inbound_days"
+    t.integer "picking_days"
+    t.integer "production_days"
+    t.integer "fg_inbound_days"
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_bom_templates_on_account_id"
+    t.index ["owner_id"], name: "index_mes_bom_templates_on_owner_id"
+    t.index ["product_line"], name: "index_mes_bom_templates_on_product_line"
+  end
+
   create_table "mes_boms", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "bom_no", null: false
@@ -2600,6 +2635,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_190000) do
   add_foreign_key "mes_board_owners", "accounts"
   add_foreign_key "mes_bom_items", "mes_boms", column: "bom_id", on_delete: :cascade
   add_foreign_key "mes_bom_items", "mes_materials", on_delete: :nullify
+  add_foreign_key "mes_bom_template_items", "mes_bom_templates", column: "bom_template_id", on_delete: :cascade
+  add_foreign_key "mes_bom_templates", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_boms", "crm_products", on_delete: :nullify
   add_foreign_key "mes_boms", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_inspections", "crm_products", on_delete: :nullify

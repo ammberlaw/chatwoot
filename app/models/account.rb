@@ -104,6 +104,8 @@ class Account < ApplicationRecord
   has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async
   has_many :mes_boms, class_name: 'Mes::Bom', dependent: :destroy_async
   has_many :mes_bom_items, class_name: 'Mes::BomItem', dependent: :destroy_async
+  has_many :mes_bom_templates, class_name: 'Mes::BomTemplate', dependent: :destroy_async
+  has_many :mes_bom_template_items, class_name: 'Mes::BomTemplateItem', dependent: :destroy_async
   has_many :mes_purchase_orders, class_name: 'Mes::PurchaseOrder', dependent: :destroy_async
   has_many :mes_purchase_items, class_name: 'Mes::PurchaseItem', dependent: :destroy_async
   has_many :mes_stock_entries, class_name: 'Mes::StockEntry', dependent: :destroy_async
