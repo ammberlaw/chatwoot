@@ -2,6 +2,7 @@ import { frontendURL } from '../../../helper/URLHelper';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 import MesDashboardIndex from './pages/MesDashboardIndex.vue';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
+import MesProductionOrderIntakeIndex from './pages/MesProductionOrderIntakeIndex.vue';
 import MesBomsIndex from './pages/MesBomsIndex.vue';
 import MesPurchaseOrdersIndex from './pages/MesPurchaseOrdersIndex.vue';
 import MesStockEntriesIndex from './pages/MesStockEntriesIndex.vue';
@@ -31,12 +32,33 @@ const mesPage = (path, name, component) => {
 
 export const routes = [
   mesPage('dashboard', 'mes_dashboard_index', MesDashboardIndex),
-  mesPage('production-orders', 'mes_production_orders_index', MesProductionOrdersIndex),
+  mesPage(
+    'production-orders',
+    'mes_production_orders_index',
+    MesProductionOrdersIndex
+  ),
+  mesPage(
+    'production-order-intake',
+    'mes_production_order_intake_index',
+    MesProductionOrderIntakeIndex
+  ),
   mesPage('boms', 'mes_boms_index', MesBomsIndex),
-  mesPage('purchase-orders', 'mes_purchase_orders_index', MesPurchaseOrdersIndex),
+  mesPage(
+    'purchase-orders',
+    'mes_purchase_orders_index',
+    MesPurchaseOrdersIndex
+  ),
   mesPage('stock-entries', 'mes_stock_entries_index', MesStockEntriesIndex),
-  mesPage('material-issues', 'mes_material_issues_index', MesMaterialIssuesIndex),
-  mesPage('production-records', 'mes_production_records_index', MesProductionRecordsIndex),
+  mesPage(
+    'material-issues',
+    'mes_material_issues_index',
+    MesMaterialIssuesIndex
+  ),
+  mesPage(
+    'production-records',
+    'mes_production_records_index',
+    MesProductionRecordsIndex
+  ),
   mesPage('inspections', 'mes_inspections_index', MesInspectionsIndex),
   mesPage('fg-inbound', 'mes_fg_inbound_index', MesFgInboundIndex),
   mesPage('shipments', 'mes_shipments_index', MesShipmentsIndex),

@@ -1,7 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -9,7 +9,6 @@ import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrde
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
-import { getActiveProductLine } from 'dashboard/composables/useMesProductLine';
 import {
   SPEC_TEMPLATES,
   blankSpec,
@@ -25,8 +24,9 @@ import PaginationFooter from 'dashboard/components-next/pagination/PaginationFoo
 
 const ITEMS_PER_PAGE = 15;
 
-const { accountId } = useAccount();
+const { accountId, accountScopedRoute } = useAccount();
 const route = useRoute();
+const router = useRouter();
 const { mesCan } = useMesRole();
 const { isAdmin, isCrmDeputyAdmin } = useCrmRole();
 const currentUserId = useMapGetter('getCurrentUserID');
@@ -237,26 +237,13 @@ const orderSpec = ref(blankSpec('TABLET'));
 const orderInvalid = computed(
   () => !orderBase.productName.trim() || !Number(orderBase.qty)
 );
-const defaultTemplate = () => {
-  const line = getActiveProductLine();
-  return ['TABLET', 'DISPLAY'].includes(line) ? line : 'TABLET';
-};
 const setTemplate = t => {
   orderTemplate.value = t;
   orderSpec.value = blankSpec(t); // 换模板重置规格
 };
-const openNewOrder = () => {
-  editingOrderId.value = null;
-  orderTemplate.value = defaultTemplate();
-  Object.assign(orderBase, {
-    productName: '',
-    qty: '',
-    unit: '台',
-    deliveryDate: '',
-  });
-  orderSpec.value = blankSpec(orderTemplate.value);
-  orderDialogRef.value?.open();
-};
+// 新建走整页建档页；本弹框仅用于编辑规格。
+const openNewOrder = () =>
+  router.push(accountScopedRoute('mes_production_order_intake_index'));
 const openEditSpec = order => {
   editingOrderId.value = order.id;
   orderTemplate.value =

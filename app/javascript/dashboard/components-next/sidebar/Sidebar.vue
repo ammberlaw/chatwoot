@@ -1445,6 +1445,7 @@ const ROUTE_MODULE = {
   crm_doc_center_index: 'doc',
   mes_dashboard_index: 'mes',
   mes_production_orders_index: 'mes',
+  mes_production_order_intake_index: 'mes',
   mes_boms_index: 'mes',
   mes_purchase_orders_index: 'mes',
   mes_stock_entries_index: 'mes',
