@@ -47,36 +47,32 @@ export const TABLET_FIELDS = [
   { key: 'customNotes', label: '备注（定制要求）', type: 'textarea' },
 ];
 
+// 配置项与平板一致：纯文本输入框。有标准值的用 defaultVal 预填，直接改即可。
 export const DISPLAY_FIELDS = [
   { section: '订单信息' },
   { key: 'model', label: '型号', type: 'text' },
   { key: 'replyDate', label: '生产回复交期', type: 'text' },
   { key: 'requirements', label: '产品要求', type: 'textarea' },
   { section: '配置' },
-  { key: 'mainboard', label: '主板配置', type: 'dualo' },
-  { key: 'powerCord', label: '电源线', type: 'dualo', defaultHint: '欧规' },
+  { key: 'mainboard', label: '主板配置', type: 'text', placeholder: '默认' },
+  { key: 'powerCord', label: '电源线', type: 'text', defaultVal: '欧规' },
   {
     key: 'adapter',
     label: '适配器',
-    type: 'dualo',
-    defaultHint: '12V 2.5A 直头',
+    type: 'text',
+    defaultVal: '12V 2.5A 直头',
   },
   {
     key: 'signalCable',
     label: '信号线',
-    type: 'dualo',
-    defaultHint: 'HDMI 1.5m 直头',
+    type: 'text',
+    defaultVal: 'HDMI 1.5m 直头',
   },
-  { key: 'touchCable', label: '触摸线', type: 'dualo', defaultHint: '1m 直头' },
-  {
-    key: 'bracket',
-    label: '支架/底座',
-    type: 'dualo',
-    defaultHint: '侧边枝条',
-  },
-  { key: 'carton', label: '纸箱', type: 'dualo', defaultHint: '普通纸箱' },
+  { key: 'touchCable', label: '触摸线', type: 'text', defaultVal: '1m 直头' },
+  { key: 'bracket', label: '支架/底座', type: 'text', defaultVal: '侧边枝条' },
+  { key: 'carton', label: '纸箱', type: 'text', defaultVal: '普通纸箱' },
   { key: 'machineLabel', label: '机器label', type: 'text' },
-  { key: 'shippingMark', label: '标签/唛头', type: 'dualo' },
+  { key: 'shippingMark', label: '标签/唛头', type: 'text' },
   { key: 'other', label: '其他', type: 'textarea' },
 ];
 
@@ -96,10 +92,8 @@ export const blankSpec = template => {
   specFieldsFor(template).forEach(f => {
     if (f.section) return;
     if (f.type === 'checks') spec[f.key] = [];
-    // 默认模式预填标准值，用户可就地改写。
-    else if (f.type === 'dualo')
-      spec[f.key] = { mode: '默认', spec: f.defaultHint || '' };
-    else spec[f.key] = '';
+    // 文本项若有标准值则预填，用户可就地改写。
+    else spec[f.key] = f.defaultVal || '';
   });
   return spec;
 };

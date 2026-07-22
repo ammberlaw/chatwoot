@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import { specFieldsFor } from 'dashboard/routes/dashboard/mes/pages/orderSpecFields';
 
@@ -12,40 +12,38 @@ const spec = defineModel('spec', { type: Object, required: true });
 
 const fields = computed(() => specFieldsFor(props.template));
 
+// 兼容历史 dualo 数据：文本字段里残留的 {mode,spec} 对象拍平成字符串（编辑态）。
+watch(
+  fields,
+  fs => {
+    if (props.readonly) return;
+    fs.forEach(f => {
+      if (f.section || f.type === 'checks') return;
+      const v = spec.value[f.key];
+      if (v && typeof v === 'object') spec.value[f.key] = v.spec || '';
+    });
+  },
+  { immediate: true }
+);
+
 const toggleCheck = (key, opt) => {
   const arr = spec.value[key] || (spec.value[key] = []);
   const i = arr.indexOf(opt);
   if (i >= 0) arr.splice(i, 1);
   else arr.push(opt);
 };
-const dualo = key => {
-  if (!spec.value[key]) spec.value[key] = { mode: '默认', spec: '' };
-  return spec.value[key];
-};
-
-// 切换默认/其他：切回默认且为空时回填标准值；从默认切到其他时清掉标准值好填自定义。
-const setDualoMode = (f, mode) => {
-  const d = dualo(f.key);
-  if (mode === '默认' && !d.spec) d.spec = f.defaultHint || '';
-  else if (mode === '其他' && d.spec === f.defaultHint) d.spec = '';
-  d.mode = mode;
-};
 
 // 只读展示时把值转成一句话。
 const displayValue = f => {
   const v = spec.value[f.key];
   if (f.type === 'checks') return (v || []).join('、') || '—';
-  if (f.type === 'dualo') {
-    const text = v?.spec || (v?.mode === '其他' ? '' : f.defaultHint);
-    if (v?.mode === '其他') return `其他：${text || '—'}`;
-    return text || '默认';
-  }
+  if (v && typeof v === 'object') return v.spec || '—'; // 兼容历史 dualo
   return v || '—';
 };
 const hasValue = f => {
   const v = spec.value[f.key];
   if (f.type === 'checks') return (v || []).length;
-  if (f.type === 'dualo') return v?.spec || f.defaultHint;
+  if (v && typeof v === 'object') return v.spec; // 兼容历史 dualo
   return v;
 };
 </script>
@@ -97,24 +95,6 @@ const hasValue = f => {
             />
             {{ opt }}
           </label>
-        </div>
-
-        <!-- 默认/其他：内容始终可编辑，默认模式回填标准值 -->
-        <div v-else-if="f.type === 'dualo'" class="flex items-center gap-2">
-          <select
-            :value="dualo(f.key).mode"
-            class="h-9 px-2 text-sm border rounded-lg outline-none shrink-0 border-n-weak bg-n-alpha-black1 text-n-slate-12"
-            @change="e => setDualoMode(f, e.target.value)"
-          >
-            <option value="默认">默认</option>
-            <option value="其他">其他</option>
-          </select>
-          <Input
-            :model-value="dualo(f.key).spec"
-            :placeholder="f.defaultHint || '规格/要求'"
-            class="flex-1"
-            @update:model-value="v => (dualo(f.key).spec = v)"
-          />
         </div>
 
         <!-- 多行 -->
