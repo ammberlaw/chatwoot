@@ -55,6 +55,18 @@ export const DISPLAY_FIELDS = [
   { key: 'requirements', label: '产品要求', type: 'textarea' },
   { section: '配置' },
   { key: 'mainboard', label: '主板配置', type: 'text', defaultVal: '默认' },
+  {
+    key: 'ports',
+    label: '接口',
+    type: 'text',
+    placeholder: '如：HDMI×1 / USB×2 / VGA / RJ45',
+  },
+  {
+    key: 'brightness',
+    label: '屏幕亮度',
+    type: 'text',
+    placeholder: '如：350nit / 450cd/m²',
+  },
   { key: 'powerCord', label: '电源线', type: 'text', defaultVal: '默认' },
   { key: 'adapter', label: '适配器', type: 'text', defaultVal: '默认' },
   { key: 'signalCable', label: '信号线', type: 'text', defaultVal: '默认' },
