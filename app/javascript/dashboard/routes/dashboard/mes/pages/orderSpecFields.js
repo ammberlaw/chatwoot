@@ -96,7 +96,9 @@ export const blankSpec = template => {
   specFieldsFor(template).forEach(f => {
     if (f.section) return;
     if (f.type === 'checks') spec[f.key] = [];
-    else if (f.type === 'dualo') spec[f.key] = { mode: '默认', spec: '' };
+    // 默认模式预填标准值，用户可就地改写。
+    else if (f.type === 'dualo')
+      spec[f.key] = { mode: '默认', spec: f.defaultHint || '' };
     else spec[f.key] = '';
   });
   return spec;
