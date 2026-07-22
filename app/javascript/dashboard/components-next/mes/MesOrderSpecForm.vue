@@ -1,6 +1,7 @@
 <script setup>
 import { computed, watch } from 'vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import MesCustomerField from 'dashboard/components-next/mes/MesCustomerField.vue';
 import { specFieldsFor } from 'dashboard/routes/dashboard/mes/pages/orderSpecFields';
 
 const props = defineProps({
@@ -96,6 +97,12 @@ const hasValue = f => {
             {{ opt }}
           </label>
         </div>
+
+        <!-- 客户：手填 + 从 CRM 客户搜索选择 -->
+        <MesCustomerField
+          v-else-if="f.type === 'customer'"
+          v-model="spec[f.key]"
+        />
 
         <!-- 多行 -->
         <textarea

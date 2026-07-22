@@ -3,7 +3,7 @@
 export const TABLET_FIELDS = [
   { section: '客户信息' },
   { key: 'country', label: '国家', type: 'text' },
-  { key: 'customer', label: '客户', type: 'text' },
+  { key: 'customer', label: '客户', type: 'customer' },
   {
     key: 'shipDate',
     label: '发货时间',
@@ -50,6 +50,7 @@ export const TABLET_FIELDS = [
 // 配置项：可填写文本框，默认值统一为「默认」两字；「默认」按钮一键填回，要具体的自己打字。
 export const DISPLAY_FIELDS = [
   { section: '订单信息' },
+  { key: 'customer', label: '客户', type: 'customer' },
   { key: 'model', label: '型号', type: 'text' },
   { key: 'replyDate', label: '生产回复交期', type: 'text' },
   { key: 'requirements', label: '产品要求', type: 'textarea' },
