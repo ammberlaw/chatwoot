@@ -36,6 +36,19 @@ json.actual_end_date resource.actual_end_date
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
 json.is_draft resource.is_draft
+json.pi_no resource.pi_no
+# 审批链（取代发布）：状态 + 两级审批人 + 留痕。
+json.approval_status resource.approval_status
+json.current_approver_id resource.current_approver_id
+json.submitted_at resource.submitted_at
+json.manager_id resource.manager_id
+json.manager_name resource.manager&.name
+json.manager_acted_at resource.manager_acted_at
+json.manager_comment resource.manager_comment
+json.gm_id resource.gm_id
+json.gm_name resource.gm&.name
+json.gm_acted_at resource.gm_acted_at
+json.gm_comment resource.gm_comment
 json.spec resource.spec
 json.remark resource.remark
 json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }

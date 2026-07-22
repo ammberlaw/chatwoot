@@ -72,13 +72,27 @@ const statusFilterOptions = [
   ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
 ];
 
-const fetchRecords = () =>
-  store.get({
+// —— 详情面板选中项（提前声明：视图切换要清空它）——
+const selected = ref(null);
+
+// 视图：all 全部订单 / inbox 待我审批（停在我这一级的单）。
+const viewMode = ref('all');
+const fetchRecords = () => {
+  if (viewMode.value === 'inbox') return store.fetchApprovalInbox();
+  return store.get({
     page: currentPage.value,
     stage: activeStage.value || undefined,
     status: activeStatus.value || undefined,
     q: searchQuery.value.trim() || undefined,
   });
+};
+const setViewMode = m => {
+  if (viewMode.value === m) return;
+  viewMode.value = m;
+  currentPage.value = 1;
+  selected.value = null;
+  fetchRecords();
+};
 
 let searchTimer = null;
 const onSearchInput = () => {
@@ -90,7 +104,6 @@ const onSearchInput = () => {
 };
 
 // —— 详情面板 ——
-const selected = ref(null);
 const selectRow = row => {
   selected.value = selected.value?.id === row.id ? null : row;
 };
@@ -228,6 +241,7 @@ const templateOptions = Object.entries(SPEC_TEMPLATES).map(([value, t]) => ({
   label: t.label,
 }));
 const orderBase = reactive({
+  piNo: '',
   productName: '',
   qty: '',
   unit: '台',
@@ -250,6 +264,7 @@ const openEditSpec = order => {
     order.spec?.template ||
     (SPEC_TEMPLATES[order.productLine] ? order.productLine : 'TABLET');
   Object.assign(orderBase, {
+    piNo: order.piNo || '',
     productName: order.productName || '',
     qty: String(order.qty ?? ''),
     unit: order.unit || '台',
@@ -267,6 +282,7 @@ const openEditSpec = order => {
 const submitOrder = async () => {
   if (orderInvalid.value) return;
   const payload = {
+    piNo: orderBase.piNo.trim() || undefined,
     productName: orderBase.productName.trim(),
     qty: Number(orderBase.qty),
     unit: orderBase.unit,
@@ -368,13 +384,88 @@ const releasePurchasing = async () => {
   }
 };
 
-// 发布草稿 → 正式订单（转为全员可见）。
-const publish = async () => {
+// —— 审批链（取代发布）：草稿→部门主管→总经理 ——
+const APPROVAL_LABELS = {
+  DRAFT: '草稿',
+  SUBMITTED: '待部门主管',
+  MANAGER_APPROVED: '待总经理',
+  APPROVED: '已通过·生效',
+  REJECTED: '已驳回',
+};
+const approvalComment = ref('');
+
+const isOwner = computed(() => selected.value?.ownerId === currentUserId.value);
+const canApprove = computed(() => {
+  const po = selected.value;
+  if (!po) return false;
+  if (!['SUBMITTED', 'MANAGER_APPROVED'].includes(po.approvalStatus))
+    return false;
+  return (
+    isAdmin.value ||
+    isCrmDeputyAdmin.value ||
+    po.currentApproverId === currentUserId.value
+  );
+});
+const approvalBoxClass = computed(() => {
+  const s = selected.value?.approvalStatus;
+  if (s === 'APPROVED') return 'bg-n-teal-2 border-n-teal-6';
+  if (s === 'REJECTED') return 'bg-n-ruby-2 border-n-ruby-6';
+  if (s === 'DRAFT') return 'bg-n-slate-3 border-n-weak';
+  return 'bg-n-amber-2 border-n-amber-6';
+});
+const approvalTextClass = computed(() => {
+  const s = selected.value?.approvalStatus;
+  if (s === 'APPROVED') return 'text-n-teal-11';
+  if (s === 'REJECTED') return 'text-n-ruby-11';
+  if (s === 'DRAFT') return 'text-n-slate-11';
+  return 'text-n-amber-11';
+});
+
+const submitApproval = async () => {
   if (!selected.value) return;
-  const ok = await store.publish(selected.value.id);
+  const ok = await store.submitApproval(selected.value.id);
   if (ok) {
-    useAlert('已发布');
+    useAlert('已提交审批');
     selected.value = ok;
+    fetchRecords();
+  }
+};
+const approveOrder = async () => {
+  if (!selected.value) return;
+  const ok = await store.approve({
+    id: selected.value.id,
+    comment: approvalComment.value.trim() || undefined,
+  });
+  if (ok) {
+    useAlert('已通过');
+    selected.value = ok;
+    approvalComment.value = '';
+    fetchRecords();
+  }
+};
+// 列表行审批徽标配色。
+const rowApprovalClass = status => {
+  if (status === 'REJECTED') return 'bg-n-ruby-3 text-n-ruby-11';
+  if (status === 'DRAFT') return 'bg-n-slate-4 text-n-slate-11';
+  return 'bg-n-amber-3 text-n-amber-11'; // 待部门主管 / 待总经理
+};
+
+const denyDialogRef = ref(null);
+const denyReason = ref('');
+const openDeny = () => {
+  denyReason.value = '';
+  denyDialogRef.value?.open();
+};
+const confirmDeny = async () => {
+  if (!selected.value || !denyReason.value.trim()) return;
+  const ok = await store.deny({
+    id: selected.value.id,
+    reason: denyReason.value.trim(),
+  });
+  if (ok) {
+    useAlert('已驳回');
+    selected.value = ok;
+    denyDialogRef.value?.close();
     fetchRecords();
   }
 };
@@ -459,8 +550,37 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
       </div>
     </div>
 
+    <!-- 视图切换：全部 / 待我审批 -->
+    <div class="flex items-center gap-2 px-6 pb-2">
+      <button
+        class="px-3 py-1.5 text-sm rounded-lg border"
+        :class="
+          viewMode === 'all'
+            ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
+            : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
+        "
+        @click="setViewMode('all')"
+      >
+        全部订单
+      </button>
+      <button
+        class="px-3 py-1.5 text-sm rounded-lg border"
+        :class="
+          viewMode === 'inbox'
+            ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
+            : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
+        "
+        @click="setViewMode('inbox')"
+      >
+        待我审批
+      </button>
+    </div>
+
     <!-- 筛选 -->
-    <div class="flex flex-wrap items-center gap-3 px-6 pb-3">
+    <div
+      v-show="viewMode === 'all'"
+      class="flex flex-wrap items-center gap-3 px-6 pb-3"
+    >
       <Select
         :model-value="activeStage"
         :options="stageFilterOptions"
@@ -509,10 +629,17 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
               <td class="px-3 py-3 font-medium text-n-slate-12">
                 {{ po.orderNo }}
                 <span
-                  v-if="po.isDraft"
-                  class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-n-slate-4 text-n-slate-11"
+                  v-if="po.approvalStatus && po.approvalStatus !== 'APPROVED'"
+                  class="ml-1 px-1.5 py-0.5 text-xs rounded-full"
+                  :class="rowApprovalClass(po.approvalStatus)"
                 >
-                  草稿
+                  {{ APPROVAL_LABELS[po.approvalStatus] }}
+                </span>
+                <span
+                  v-if="po.piNo"
+                  class="block text-xs font-normal text-n-slate-10"
+                >
+                  PI {{ po.piNo }}
                 </span>
               </td>
               <td class="px-3 py-3 text-n-slate-11">{{ po.productName }}</td>
@@ -579,27 +706,119 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
             {{ STATUS_LABELS[selected.status] }}
           </span>
         </div>
-        <div class="mb-4 text-sm text-n-slate-11">
+        <div class="mb-1 text-sm text-n-slate-11">
           {{ selected.productName }} · {{ selected.producedQty }}/{{
             selected.qty
           }}
           {{ selected.unit }}
         </div>
+        <div v-if="selected.piNo" class="mb-4 text-xs text-n-slate-11">
+          PI：{{ selected.piNo }}
+        </div>
+        <div v-else class="mb-4" />
 
-        <!-- 草稿：仅创建人可见，需发布后转正式 -->
+        <!-- 审批链（取代发布）：草稿→部门主管→总经理，全部通过才生效 -->
         <div
-          v-if="selected.isDraft"
-          class="flex items-center justify-between gap-2 p-3 mb-4 text-xs rounded-lg bg-n-slate-3 text-n-slate-11"
+          class="flex flex-col gap-2 p-3 mb-4 rounded-lg border"
+          :class="approvalBoxClass"
         >
-          <span>草稿 · 仅你可见</span>
-          <Button
-            v-if="mesCan('order')"
-            label="发布"
-            color="iris"
-            size="xs"
-            :is-loading="uiFlags.updatingItem"
-            @click="publish"
-          />
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium" :class="approvalTextClass">
+              审批 · {{ APPROVAL_LABELS[selected.approvalStatus] }}
+            </span>
+            <!-- 归属人：草稿/被驳回可提交 -->
+            <Button
+              v-if="
+                isOwner &&
+                ['DRAFT', 'REJECTED'].includes(selected.approvalStatus)
+              "
+              :label="
+                selected.approvalStatus === 'REJECTED' ? '重新提交' : '提交审批'
+              "
+              color="iris"
+              size="xs"
+              :is-loading="uiFlags.updatingItem"
+              @click="submitApproval"
+            />
+          </div>
+
+          <!-- 审批人可通过/驳回 -->
+          <div v-if="canApprove" class="flex flex-col gap-2">
+            <textarea
+              v-model="approvalComment"
+              rows="2"
+              placeholder="审批意见（选填）"
+              class="px-2 py-1.5 text-xs border rounded-lg outline-none resize-y border-n-weak bg-n-alpha-black1 text-n-slate-12"
+            />
+            <div class="flex gap-2">
+              <Button
+                label="通过"
+                color="teal"
+                size="xs"
+                :is-loading="uiFlags.updatingItem"
+                @click="approveOrder"
+              />
+              <Button
+                label="驳回"
+                color="ruby"
+                variant="outline"
+                size="xs"
+                @click="openDeny"
+              />
+            </div>
+          </div>
+
+          <!-- 审批留痕：提交/主管/总经理 -->
+          <div class="flex flex-col gap-1 text-xs text-n-slate-11">
+            <div v-if="selected.submittedAt">
+              📤 提交 · {{ selected.ownerName }} ·
+              {{ fmtDateTime(selected.submittedAt) }}
+            </div>
+            <div v-if="selected.managerActedAt">
+              <span
+                :class="
+                  selected.approvalStatus === 'REJECTED'
+                    ? 'text-n-ruby-11'
+                    : 'text-n-teal-11'
+                "
+              >
+                {{
+                  selected.approvalStatus === 'REJECTED'
+                    ? '⛔ 主管驳回'
+                    : '✅ 主管通过'
+                }}
+              </span>
+              · {{ selected.managerName }} ·
+              {{ fmtDateTime(selected.managerActedAt) }}
+              <span v-if="selected.managerComment">
+                · {{ selected.managerComment }}</span
+              >
+            </div>
+            <div v-else-if="selected.approvalStatus === 'SUBMITTED'">
+              ⏳ 待部门主管审批 ·
+              {{ selected.managerName || '未解析到主管，将转总经理' }}
+            </div>
+            <div v-if="selected.gmActedAt">
+              <span
+                :class="
+                  selected.approvalStatus === 'REJECTED'
+                    ? 'text-n-ruby-11'
+                    : 'text-n-teal-11'
+                "
+              >
+                {{
+                  selected.approvalStatus === 'REJECTED'
+                    ? '⛔ 总经理驳回'
+                    : '✅ 总经理通过（生效）'
+                }}
+              </span>
+              · {{ selected.gmName }} · {{ fmtDateTime(selected.gmActedAt) }}
+              <span v-if="selected.gmComment"> · {{ selected.gmComment }}</span>
+            </div>
+            <div v-else-if="selected.approvalStatus === 'MANAGER_APPROVED'">
+              ⏳ 待总经理审批 · {{ selected.gmName || '未指定总经理' }}
+            </div>
+          </div>
         </div>
 
         <!-- 接单确认（P1）：当前阶段负责人 + 接单状态 + 接单/拒收。
@@ -900,6 +1119,13 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           />
         </div>
         <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-col col-span-2 gap-1">
+            <label class="text-heading-3 text-n-slate-12">PI 编号</label>
+            <Input
+              v-model="orderBase.piNo"
+              placeholder="形式发票号，如 PI-2026-0788"
+            />
+          </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
               成品名称 <span class="text-n-ruby-11">*</span>
@@ -1033,6 +1259,27 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
         <Input
           v-model="rejectReason"
           placeholder="如：BOM 漏了主板 / 来料规格不对"
+        />
+      </div>
+    </Dialog>
+
+    <!-- 审批驳回：退回业务员，可改后重提 -->
+    <Dialog
+      ref="denyDialogRef"
+      confirm-button-color="ruby"
+      title="驳回生产订单"
+      description="驳回后退回创建人，可修改后重新提交，重走审批流程。"
+      :is-loading="uiFlags.updatingItem"
+      :disable-confirm-button="!denyReason.trim()"
+      @confirm="confirmDeny"
+    >
+      <div class="flex flex-col gap-1">
+        <label class="text-heading-3 text-n-slate-12">
+          驳回原因 <span class="text-n-ruby-11">*</span>
+        </label>
+        <Input
+          v-model="denyReason"
+          placeholder="如：PI 与数量不符 / 交期不可行"
         />
       </div>
     </Dialog>

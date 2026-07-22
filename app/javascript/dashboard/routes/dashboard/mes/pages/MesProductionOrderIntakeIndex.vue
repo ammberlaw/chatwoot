@@ -22,6 +22,7 @@ const defaultTemplate = () => {
 
 const template = ref(defaultTemplate());
 const base = reactive({
+  piNo: '',
   productName: '',
   qty: '',
   unit: '台',
@@ -59,6 +60,7 @@ const canSubmit = computed(
 
 const reset = () => {
   Object.assign(base, {
+    piNo: '',
     productName: '',
     qty: '',
     unit: '台',
@@ -82,24 +84,27 @@ const uploadPending = async orderId => {
   }
 };
 
-// isDraft=true 存草稿（仅自己可见）；false 正式建单。
-const submit = async isDraft => {
+// doSubmit=false 存草稿（仅自己可见）；true 建单即提交审批（→部门主管→总经理）。
+const submit = async doSubmit => {
   if (!canSubmit.value) return;
   submitting.value = true;
   result.value = null;
   try {
-    const ok = await store.create({
-      productName: base.productName.trim(),
-      qty: Number(base.qty),
-      unit: base.unit,
-      deliveryDate: base.deliveryDate || undefined,
-      productLine: template.value,
-      isDraft,
-      spec: spec.value,
-    });
+    const ok = await store.create(
+      {
+        piNo: base.piNo.trim() || undefined,
+        productName: base.productName.trim(),
+        qty: Number(base.qty),
+        unit: base.unit,
+        deliveryDate: base.deliveryDate || undefined,
+        productLine: template.value,
+        spec: spec.value,
+      },
+      doSubmit
+    );
     if (ok) {
       await uploadPending(ok.id);
-      result.value = { ok: true, orderNo: ok.orderNo, draft: isDraft };
+      result.value = { ok: true, orderNo: ok.orderNo, submitted: doSubmit };
       reset();
     } else {
       result.value = { ok: false, msg: '保存失败' };
@@ -158,6 +163,14 @@ const backToList = () =>
               {{ t.label }}
             </option>
           </select>
+        </label>
+        <label class="flex flex-col gap-1 sm:col-span-2">
+          <span class="text-xs text-n-slate-11">PI 编号</span>
+          <input
+            v-model="base.piNo"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="形式发票号，如 PI-2026-0788"
+          />
         </label>
         <label class="flex flex-col gap-1 sm:col-span-2">
           <span class="text-xs text-n-slate-11">
@@ -282,16 +295,16 @@ const backToList = () =>
         <button
           class="h-10 px-5 text-sm font-medium transition-colors border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit"
-          @click="submit(true)"
+          @click="submit(false)"
         >
           {{ submitting ? '保存中…' : '存草稿' }}
         </button>
         <button
           class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit"
-          @click="submit(false)"
+          @click="submit(true)"
         >
-          {{ submitting ? '建单中…' : '建单' }}
+          {{ submitting ? '提交中…' : '提交审批' }}
         </button>
         <span v-if="missing.length" class="text-xs text-n-slate-11">
           请填写：{{ missing.join('、') }}
@@ -303,8 +316,10 @@ const backToList = () =>
         class="flex items-center gap-3 p-3 text-sm border rounded-lg border-n-teal-8 text-n-teal-11"
       >
         <span>
-          ✅ {{ result.draft ? '已存草稿' : '已建单' }} {{ result.orderNo }}
-          <template v-if="result.draft">（仅你可见，可稍后发布）</template>
+          ✅ {{ result.submitted ? '已提交审批' : '已存草稿' }}
+          {{ result.orderNo }}
+          <template v-if="result.submitted">（已转部门主管审批）</template>
+          <template v-else>（仅你可见，可稍后提交审批）</template>
           ，可继续建下一单。
         </span>
         <button class="underline text-n-iris-11" @click="backToList">

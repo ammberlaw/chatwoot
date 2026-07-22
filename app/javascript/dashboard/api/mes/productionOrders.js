@@ -25,8 +25,13 @@ client.reject = (id, reason) =>
 // 我的待办：停在我负责阶段的在产订单。
 client.inbox = () => axios.get(`${client.url}/inbox`);
 
-// 发布草稿 → 正式订单。
-client.publish = id => axios.post(`${client.url}/${id}/publish`);
+// 审批链（取代发布）：提交 / 通过 / 驳回 / 待我审批收件箱。
+client.submitApproval = id => axios.post(`${client.url}/${id}/submit_approval`);
+client.approve = (id, comment) =>
+  axios.post(`${client.url}/${id}/approve`, { comment });
+client.deny = (id, reason) =>
+  axios.post(`${client.url}/${id}/deny`, { reason });
+client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
 
 // 产品图片 / 附件上传下载。kind = 'images' | 'files'。
 client.attachFiles = (id, formData, kind = 'files') =>

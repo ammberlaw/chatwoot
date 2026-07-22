@@ -33,12 +33,13 @@ export const useMesProductionOrdersStore = createStore({
       }
     },
 
-    // 新建定制生产订单（含 spec 规格），成功后插入列表头。
-    async create(payload) {
+    // 新建定制生产订单（含 spec 规格）。submit=true 建单即提交审批，否则留草稿。
+    async create(payload, submit = false) {
       this.setUIFlag({ creatingItem: true });
       try {
         const { data } = await MesProductionOrderAPI.create({
           production_order: snakecaseKeys(payload, { deep: true }),
+          submit,
         });
         const record = camelize(data);
         this.records.unshift(record);
@@ -134,11 +135,26 @@ export const useMesProductionOrdersStore = createStore({
       }
     },
 
-    // 发布草稿 → 正式订单。
-    async publish(id) {
+    // 审批链（取代发布）：提交 / 通过 / 驳回，成功后就地替换记录。
+    async submitApproval(id) {
+      return this.runApprovalAction(() =>
+        MesProductionOrderAPI.submitApproval(id)
+      );
+    },
+    async approve({ id, comment }) {
+      return this.runApprovalAction(() =>
+        MesProductionOrderAPI.approve(id, comment)
+      );
+    },
+    async deny({ id, reason }) {
+      return this.runApprovalAction(() =>
+        MesProductionOrderAPI.deny(id, reason)
+      );
+    },
+    async runApprovalAction(call) {
       this.setUIFlag({ updatingItem: true });
       try {
-        const { data } = await MesProductionOrderAPI.publish(id);
+        const { data } = await call();
         const record = camelize(data);
         const index = this.records.findIndex(r => r.id === record.id);
         if (index !== -1) this.records[index] = record;
@@ -147,6 +163,21 @@ export const useMesProductionOrdersStore = createStore({
         return throwErrorMessage(error);
       } finally {
         this.setUIFlag({ updatingItem: false });
+      }
+    },
+
+    // 待我审批：停在我这一级（部门主管/总经理）的待办单，写入列表。
+    async fetchApprovalInbox() {
+      this.setUIFlag({ fetchingList: true });
+      try {
+        const { data } = await MesProductionOrderAPI.approvalInbox();
+        this.records = camelize(data.payload);
+        this.meta = normalizeMeta(data.meta);
+        return this.records;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ fetchingList: false });
       }
     },
 

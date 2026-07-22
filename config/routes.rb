@@ -191,6 +191,7 @@ Rails.application.routes.draw do
               collection do
                 post :convert
                 get :inbox
+                get :approval_inbox
               end
               member do
                 get :audits
@@ -201,7 +202,9 @@ Rails.application.routes.draw do
                 get :requirement
                 post :acknowledge
                 post :reject
-                post :publish
+                post :submit_approval
+                post :approve
+                post :deny
               end
             end
           end

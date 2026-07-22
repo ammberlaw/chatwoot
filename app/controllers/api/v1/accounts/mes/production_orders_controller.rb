@@ -1,7 +1,8 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_production_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :release_purchasing, :requirement, :acknowledge, :reject, :publish]
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :release_purchasing, :requirement, :acknowledge, :reject,
+                       :submit_approval, :approve, :deny]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
@@ -23,6 +24,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     )
     @production_order.fallback_product_line = current_product_line
     @production_order.save!
+    # submit=true：建单即提交审批（业务员点「提交审批」）；否则留草稿。
+    @production_order.submit_for_approval!(current_user) if boolean_param(:submit)
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
@@ -37,7 +40,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       qty: params[:qty],
       unit: params[:unit],
       delivery_date: params[:delivery_date].presence || sales_order.delivery_date,
-      owner_id: params[:owner_id] || current_user.id
+      owner_id: params[:owner_id] || current_user.id,
+      approval_status: 'APPROVED' # 由已确认销售订单转入，直接生效、进入生产流转
     )
     @production_order.fallback_product_line = current_product_line
     @production_order.save!
@@ -101,10 +105,53 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     render json: { payload: mine.map { |po| inbox_row(po) } }
   end
 
-  # 发布草稿 → 转正式订单（对全员可见、进看板/预警）。
-  def publish
-    @production_order.update!(is_draft: false)
+  # ── 审批链：提交 → 部门主管通过/驳回 → 总经理通过/驳回 ──
+
+  # 提交审批（草稿/被驳回 → 待部门主管）。仅创建人或管理员可提交。
+  def submit_approval
+    return render json: { error: '只有创建人可提交审批' }, status: :forbidden unless @production_order.owner_id == current_user.id || admin_like?
+
+    @production_order.submit_for_approval!(current_user)
     render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 通过：按当前环节校验审批人（部门主管本人 / 总经理本人 / 管理员）。
+  def approve
+    return render json: { error: '无权审批当前环节' }, status: :forbidden unless can_approve?(@production_order)
+
+    comment = params[:comment].to_s.strip.presence
+    case @production_order.approval_status
+    when 'SUBMITTED' then @production_order.manager_approve!(current_user, comment: comment)
+    when 'MANAGER_APPROVED' then @production_order.gm_approve!(current_user, comment: comment)
+    else return render json: { error: '当前状态无法审批' }, status: :unprocessable_entity
+    end
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 驳回：退回业务员（可改后重提）。需填原因。
+  def deny
+    return render json: { error: '无权审批当前环节' }, status: :forbidden unless can_approve?(@production_order)
+
+    reason = params[:reason].to_s.strip
+    return render json: { error: '请填写驳回原因' }, status: :unprocessable_entity if reason.blank?
+
+    @production_order.reject_approval!(current_user, reason: reason)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 待我审批：停在我这一级（部门主管/总经理）的待办单。
+  def approval_inbox
+    base = Current.account.mes_production_orders
+    scope = base.awaiting_manager_for(current_user.id).or(base.awaiting_gm_for(current_user.id))
+    @production_orders = scope.includes(:owner).order(submitted_at: :desc)
+    @production_orders_count = @production_orders.size
+    render 'api/v1/accounts/mes/production_orders/index'
   end
 
   def update
@@ -155,8 +202,23 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   # 能否处理该阶段：本阶段负责人本人，或管理员/副管理员。
   def can_handle_stage?(order)
-    Current.account_user.administrator? || Current.account_user.crm_deputy_admin? ||
-      order.current_stage_owner_ids.include?(current_user.id)
+    admin_like? || order.current_stage_owner_ids.include?(current_user.id)
+  end
+
+  def admin_like?
+    Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+  end
+
+  # 能否审批当前环节：管理员，或本环节指定审批人本人。
+  def can_approve?(order)
+    return false unless order.pending_approval?
+    return true if admin_like?
+
+    order.current_approver_id == current_user.id
+  end
+
+  def boolean_param(key)
+    ActiveModel::Type::Boolean.new.cast(params[key])
   end
 
   def inbox_row(order)
@@ -178,9 +240,9 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   def production_order_params
     permitted = params.require(:production_order).permit(
-      :crm_sales_order_id, :crm_product_id, :product_name, :qty, :unit, :produced_qty,
+      :crm_sales_order_id, :crm_product_id, :product_name, :qty, :unit, :produced_qty, :pi_no,
       :bom_id, :stage, :status, :delivery_date, :planned_start_date, :planned_end_date,
-      :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line, :is_draft, files: []
+      :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line, files: []
     )
     # spec 为按产品线的定制规格 jsonb（字段动态），整体透传。
     raw_spec = params.require(:production_order)[:spec]
