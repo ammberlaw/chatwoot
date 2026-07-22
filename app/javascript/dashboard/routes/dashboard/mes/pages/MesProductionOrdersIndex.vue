@@ -305,7 +305,12 @@ const submitOrder = async () => {
 const uploading = ref(false);
 const onUpload = async (event, kind) => {
   const list = Array.from(event.target.files || []);
-  if (!list.length || !selected.value) return;
+  event.target.value = '';
+  if (!list.length) return;
+  if (!selected.value) {
+    useAlert('请先选中一张订单再上传');
+    return;
+  }
   const fd = new FormData();
   list.forEach(f => fd.append('files[]', f));
   uploading.value = true;
@@ -315,10 +320,16 @@ const onUpload = async (event, kind) => {
       formData: fd,
       kind,
     });
-    if (ok) selected.value = ok;
+    if (ok) {
+      selected.value = ok;
+      useAlert(kind === 'images' ? '图片已上传' : '附件已上传');
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[MES upload] failed', e);
+    useAlert(`上传失败：${e?.response?.data?.error || e?.message || '未知错误'}`);
   } finally {
     uploading.value = false;
-    event.target.value = '';
   }
 };
 const removeAttachment = async (attachmentId, kind) => {
