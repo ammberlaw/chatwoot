@@ -50,7 +50,7 @@ const result = ref(null);
 
 const missing = computed(() => {
   const m = [];
-  if (!base.productName.trim()) m.push('成品名称');
+  if (!base.productName.trim()) m.push('成品名称&型号');
   if (!Number(base.qty)) m.push('数量');
   return m;
 });
@@ -174,7 +174,7 @@ const backToList = () =>
         </label>
         <label class="flex flex-col gap-1 sm:col-span-2">
           <span class="text-xs text-n-slate-11">
-            成品名称 <span class="text-n-ruby-11">*</span>
+            成品名称&型号 <span class="text-n-ruby-11">*</span>
           </span>
           <input
             v-model="base.productName"

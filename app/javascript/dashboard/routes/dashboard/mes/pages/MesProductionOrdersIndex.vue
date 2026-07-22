@@ -1130,7 +1130,7 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
-              成品名称 <span class="text-n-ruby-11">*</span>
+              成品名称&型号 <span class="text-n-ruby-11">*</span>
             </label>
             <Input
               v-model="orderBase.productName"
@@ -1194,7 +1194,7 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">
-            成品名称 <span class="text-n-ruby-11">*</span>
+            成品名称&型号 <span class="text-n-ruby-11">*</span>
           </label>
           <Input
             v-model="convertForm.productName"
