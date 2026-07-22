@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -9,8 +9,14 @@ import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrde
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import { getActiveProductLine } from 'dashboard/composables/useMesProductLine';
+import {
+  SPEC_TEMPLATES,
+  blankSpec,
+} from 'dashboard/routes/dashboard/mes/pages/orderSpecFields';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesOrderSpecForm from 'dashboard/components-next/mes/MesOrderSpecForm.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
@@ -213,6 +219,87 @@ const submitConvert = async () => {
   }
 };
 
+// —— 定制生产订单：按产品线模板填规格（新建 / 编辑规格）——
+const orderDialogRef = ref(null);
+const editingOrderId = ref(null);
+const orderTemplate = ref('TABLET');
+const templateOptions = Object.entries(SPEC_TEMPLATES).map(([value, t]) => ({
+  value,
+  label: t.label,
+}));
+const orderBase = reactive({
+  productName: '',
+  qty: '',
+  unit: '台',
+  deliveryDate: '',
+});
+const orderSpec = ref(blankSpec('TABLET'));
+const orderInvalid = computed(
+  () => !orderBase.productName.trim() || !Number(orderBase.qty)
+);
+const defaultTemplate = () => {
+  const line = getActiveProductLine();
+  return ['TABLET', 'DISPLAY'].includes(line) ? line : 'TABLET';
+};
+const setTemplate = t => {
+  orderTemplate.value = t;
+  orderSpec.value = blankSpec(t); // 换模板重置规格
+};
+const openNewOrder = () => {
+  editingOrderId.value = null;
+  orderTemplate.value = defaultTemplate();
+  Object.assign(orderBase, {
+    productName: '',
+    qty: '',
+    unit: '台',
+    deliveryDate: '',
+  });
+  orderSpec.value = blankSpec(orderTemplate.value);
+  orderDialogRef.value?.open();
+};
+const openEditSpec = order => {
+  editingOrderId.value = order.id;
+  orderTemplate.value =
+    order.spec?.template ||
+    (['TABLET', 'DISPLAY'].includes(order.productLine)
+      ? order.productLine
+      : 'TABLET');
+  Object.assign(orderBase, {
+    productName: order.productName || '',
+    qty: String(order.qty ?? ''),
+    unit: order.unit || '台',
+    deliveryDate: order.deliveryDate
+      ? String(order.deliveryDate).slice(0, 10)
+      : '',
+  });
+  orderSpec.value = {
+    ...blankSpec(orderTemplate.value),
+    ...(order.spec || {}),
+    template: orderTemplate.value,
+  };
+  orderDialogRef.value?.open();
+};
+const submitOrder = async () => {
+  if (orderInvalid.value) return;
+  const payload = {
+    productName: orderBase.productName.trim(),
+    qty: Number(orderBase.qty),
+    unit: orderBase.unit,
+    deliveryDate: orderBase.deliveryDate || undefined,
+    productLine: orderTemplate.value,
+    spec: orderSpec.value,
+  };
+  const ok = editingOrderId.value
+    ? await store.update({ id: editingOrderId.value, ...payload })
+    : await store.create(payload);
+  if (ok) {
+    useAlert(editingOrderId.value ? '订单已更新' : `已建单 ${ok.orderNo}`);
+    if (editingOrderId.value) selected.value = ok;
+    orderDialogRef.value?.close();
+    fetchRecords();
+  }
+};
+
 // —— 挂 BOM（阶段 2 触点）——
 const bomsStore = useMesBomsStore();
 const bomDialogRef = ref(null);
@@ -328,13 +415,23 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
     <!-- 头部 -->
     <div class="flex items-center justify-between gap-3 px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">生产订单</h1>
-      <Button
-        v-if="mesCan('order')"
-        label="从销售订单转入"
-        color="iris"
-        size="sm"
-        @click="openConvert"
-      />
+      <div class="flex gap-2">
+        <Button
+          v-if="mesCan('order')"
+          label="新建生产订单"
+          color="iris"
+          size="sm"
+          @click="openNewOrder"
+        />
+        <Button
+          v-if="mesCan('order')"
+          label="从销售订单转入"
+          variant="outline"
+          color="slate"
+          size="sm"
+          @click="openConvert"
+        />
+      </div>
     </div>
 
     <!-- 筛选 -->
@@ -598,6 +695,31 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
           />
         </div>
 
+        <!-- 定制规格（生产订单单据内容） -->
+        <div
+          v-if="selected.spec && selected.spec.template"
+          class="pt-3 mt-3 border-t border-n-weak"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-n-slate-11">
+              定制规格 ·
+              {{ (SPEC_TEMPLATES[selected.spec.template] || {}).label }}
+            </span>
+            <Button
+              v-if="mesCan('order')"
+              label="编辑规格"
+              variant="ghost"
+              size="xs"
+              @click="openEditSpec(selected)"
+            />
+          </div>
+          <MesOrderSpecForm
+            :template="selected.spec.template"
+            :spec="selected.spec"
+            readonly
+          />
+        </div>
+
         <div
           v-if="selected.deliveryDate"
           class="flex items-center justify-between pt-3 mt-3 text-xs border-t text-n-slate-11 border-n-weak"
@@ -615,6 +737,62 @@ watch([activeStage, activeStatus, currentPage], fetchRecords);
         </div>
       </div>
     </div>
+
+    <!-- 新建 / 编辑定制生产订单 -->
+    <Dialog
+      ref="orderDialogRef"
+      width="2xl"
+      overflow-y-auto
+      confirm-button-color="iris"
+      :title="editingOrderId ? '编辑生产订单' : '新建生产订单'"
+      :is-loading="converting"
+      :disable-confirm-button="orderInvalid"
+      @confirm="submitOrder"
+    >
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">产品线 / 模板</label>
+          <Select
+            :model-value="orderTemplate"
+            :options="templateOptions"
+            :disabled="!!editingOrderId"
+            @update:model-value="setTemplate"
+          />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">
+              成品名称 <span class="text-n-ruby-11">*</span>
+            </label>
+            <Input
+              v-model="orderBase.productName"
+              placeholder="如：商显一体机 43寸"
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">期望交期</label>
+            <Input v-model="orderBase.deliveryDate" type="date" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">
+              数量 <span class="text-n-ruby-11">*</span>
+            </label>
+            <Input v-model="orderBase.qty" type="number" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">单位</label>
+            <Input v-model="orderBase.unit" placeholder="台 / 片 / pcs" />
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-n-weak">
+          <MesOrderSpecForm
+            v-model:spec="orderSpec"
+            :template="orderTemplate"
+          />
+        </div>
+      </div>
+    </Dialog>
 
     <!-- 转单弹窗 -->
     <Dialog

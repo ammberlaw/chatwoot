@@ -164,10 +164,14 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   def production_order_params
-    params.require(:production_order).permit(
+    permitted = params.require(:production_order).permit(
       :crm_sales_order_id, :crm_product_id, :product_name, :qty, :unit, :produced_qty,
       :bom_id, :stage, :status, :delivery_date, :planned_start_date, :planned_end_date,
-      :actual_start_date, :actual_end_date, :owner_id, :remark, files: []
+      :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line, files: []
     )
+    # spec 为按产品线的定制规格 jsonb（字段动态），整体透传。
+    raw_spec = params.require(:production_order)[:spec]
+    permitted[:spec] = raw_spec.respond_to?(:permit!) ? raw_spec.permit!.to_h : raw_spec if raw_spec.present?
+    permitted
   end
 end

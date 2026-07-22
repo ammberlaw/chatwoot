@@ -14,6 +14,7 @@
 #  product_name       :string           not null
 #  qty                :decimal(14, 3)   not null
 #  remark             :text
+#  spec               :jsonb            not null
 #  stage              :string           default("SALES_CONFIRMED"), not null
 #  stage_ack_at       :datetime
 #  status             :string           default("IN_PROGRESS"), not null

@@ -33,6 +33,23 @@ export const useMesProductionOrdersStore = createStore({
       }
     },
 
+    // 新建定制生产订单（含 spec 规格），成功后插入列表头。
+    async create(payload) {
+      this.setUIFlag({ creatingItem: true });
+      try {
+        const { data } = await MesProductionOrderAPI.create({
+          production_order: snakecaseKeys(payload, { deep: true }),
+        });
+        const record = camelize(data);
+        this.records.unshift(record);
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ creatingItem: false });
+      }
+    },
+
     // 从销售订单转生产订单，成功后插入列表头。
     async convert(payload) {
       this.setUIFlag({ creatingItem: true });
