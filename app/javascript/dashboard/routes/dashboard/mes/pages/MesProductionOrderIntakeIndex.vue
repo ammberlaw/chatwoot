@@ -41,10 +41,13 @@ const setTemplate = t => {
 const pendingImages = ref([]); // [{ name, signedId, previewUrl }]
 const pendingFiles = ref([]);
 const staging = ref(false);
-const pick = async (event, arr, isImage) => {
+// 用 kind 取 ref（模板里 ref 会被解包成数组，故不能把 ref 当参数传）。
+const pendingFor = kind => (kind === 'images' ? pendingImages : pendingFiles);
+const pick = async (event, kind) => {
   const files = Array.from(event.target.files || []);
   event.target.value = '';
   if (!files.length) return;
+  const isImage = kind === 'images';
   staging.value = true;
   try {
     const staged = await Promise.all(
@@ -58,7 +61,7 @@ const pick = async (event, arr, isImage) => {
         }));
       })
     );
-    arr.value.push(...staged);
+    pendingFor(kind).value.push(...staged);
   } catch (e) {
     useAlert(
       `上传失败：${e?.response?.data?.error || e?.message || '未知错误'}`
@@ -67,7 +70,7 @@ const pick = async (event, arr, isImage) => {
     staging.value = false;
   }
 };
-const removePick = (arr, i) => arr.value.splice(i, 1);
+const removePick = (kind, i) => pendingFor(kind).value.splice(i, 1);
 
 const submitting = ref(false);
 const result = ref(null);
@@ -255,7 +258,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
           <button
             type="button"
             class="absolute items-center justify-center hidden w-5 h-5 text-xs text-white rounded-full top-1 right-1 bg-n-slate-12/70 group-hover:flex"
-            @click="removePick(pendingImages, i)"
+            @click="removePick('images', i)"
           >
             ✕
           </button>
@@ -269,7 +272,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
             accept="image/*"
             multiple
             class="hidden"
-            @change="e => pick(e, pendingImages, true)"
+            @change="e => pick(e, 'images')"
           />
         </label>
       </div>
@@ -290,7 +293,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
           <button
             type="button"
             class="ml-2 text-n-slate-10 hover:text-n-ruby-11"
-            @click="removePick(pendingFiles, i)"
+            @click="removePick('files', i)"
           >
             ✕
           </button>
@@ -303,7 +306,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
             type="file"
             multiple
             class="hidden"
-            @change="e => pick(e, pendingFiles, false)"
+            @change="e => pick(e, 'files')"
           />
         </label>
       </div>
