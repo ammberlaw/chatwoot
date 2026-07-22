@@ -39,6 +39,12 @@ client.setProductCode = (id, productCode) =>
     product_code: productCode,
   });
 
+// 暂存文件为 blob（建单前即可上传），返回 { signed_id, filename, url }。
+client.stageBlob = formData =>
+  axios.post(`${client.url}/stage_blob`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
 // 产品图片 / 附件上传下载。kind = 'images' | 'files'。
 client.attachFiles = (id, formData, kind = 'files') =>
   axios.post(`${client.url}/${id}/attach?kind=${kind}`, formData, {

@@ -29,6 +29,17 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
+  # 暂存文件为 ActiveStorage blob（建单前即可上传）：返回 signed_id，建单时通过 images/files 挂载。
+  def stage_blob
+    file = params[:file]
+    return render json: { error: '未收到文件' }, status: :unprocessable_entity if file.blank?
+
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: file.open, filename: file.original_filename, content_type: file.content_type
+    )
+    render json: { signed_id: blob.signed_id, filename: blob.filename.to_s, url: rails_blob_path(blob, only_path: true) }
+  end
+
   # 从销售订单一键转生产订单（脊柱起点）。成品/数量优先取参数，缺则从销售订单带默认。
   def convert
     sales_order = Current.account.crm_sales_orders.find(params[:crm_sales_order_id])
@@ -250,7 +261,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     permitted = params.require(:production_order).permit(
       :crm_sales_order_id, :crm_product_id, :product_name, :qty, :unit, :produced_qty, :pi_no,
       :bom_id, :stage, :status, :delivery_date, :planned_start_date, :planned_end_date,
-      :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line, files: []
+      :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line,
+      images: [], files: [] # 建单时挂载已暂存的 blob signed_id
     )
     # spec 为按产品线的定制规格 jsonb（字段动态），整体透传。
     raw_spec = params.require(:production_order)[:spec]

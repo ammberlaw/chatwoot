@@ -192,6 +192,7 @@ Rails.application.routes.draw do
                 post :convert
                 get :inbox
                 get :approval_inbox
+                post :stage_blob
               end
               member do
                 get :audits

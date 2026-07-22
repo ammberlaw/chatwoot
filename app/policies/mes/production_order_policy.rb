@@ -15,6 +15,8 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
 
   def create? = @account_user.mes_can?(:order)
   def convert? = @account_user.mes_can?(:order)
+  # 暂存 blob（建单前上传）：与建单同权限。
+  def stage_blob? = create?
   # 挂 BOM / 下发采购：工程 + PMC（order 或 bom 能力）。
   def attach_bom? = @account_user.mes_can?(:order) || @account_user.mes_can?(:bom)
   def release_purchasing? = attach_bom?

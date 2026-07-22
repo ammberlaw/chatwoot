@@ -1,8 +1,10 @@
 <script setup>
 import { ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
+import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import { getActiveProductLine } from 'dashboard/composables/useMesProductLine';
 import {
   SPEC_TEMPLATES,
@@ -35,15 +37,37 @@ const setTemplate = t => {
   spec.value = blankSpec(t); // 换模板重置规格
 };
 
-// 建单时先在内存收集图片/附件，建单成功后附加到新订单。
-const pendingImages = ref([]);
+// 选文件即刻暂存为 blob（拿到 signed_id），建单时一并挂载 —— 不提交也已真上传。
+const pendingImages = ref([]); // [{ name, signedId, previewUrl }]
 const pendingFiles = ref([]);
-const pick = (event, arr) => {
-  arr.value.push(...Array.from(event.target.files || []));
+const staging = ref(false);
+const pick = async (event, arr, isImage) => {
+  const files = Array.from(event.target.files || []);
   event.target.value = '';
+  if (!files.length) return;
+  staging.value = true;
+  try {
+    const staged = await Promise.all(
+      files.map(file => {
+        const fd = new FormData();
+        fd.append('file', file);
+        return MesProductionOrderAPI.stageBlob(fd).then(({ data }) => ({
+          name: data.filename,
+          signedId: data.signed_id,
+          previewUrl: isImage ? URL.createObjectURL(file) : '',
+        }));
+      })
+    );
+    arr.value.push(...staged);
+  } catch (e) {
+    useAlert(
+      `上传失败：${e?.response?.data?.error || e?.message || '未知错误'}`
+    );
+  } finally {
+    staging.value = false;
+  }
 };
 const removePick = (arr, i) => arr.value.splice(i, 1);
-const previewUrl = f => URL.createObjectURL(f);
 
 const submitting = ref(false);
 const result = ref(null);
@@ -55,7 +79,7 @@ const missing = computed(() => {
   return m;
 });
 const canSubmit = computed(
-  () => missing.value.length === 0 && !submitting.value
+  () => missing.value.length === 0 && !submitting.value && !staging.value
 );
 
 const reset = () => {
@@ -71,20 +95,8 @@ const reset = () => {
   pendingFiles.value = [];
 };
 
-const uploadPending = async orderId => {
-  if (pendingImages.value.length) {
-    const fd = new FormData();
-    pendingImages.value.forEach(f => fd.append('files[]', f));
-    await store.attachFiles({ id: orderId, formData: fd, kind: 'images' });
-  }
-  if (pendingFiles.value.length) {
-    const fd = new FormData();
-    pendingFiles.value.forEach(f => fd.append('files[]', f));
-    await store.attachFiles({ id: orderId, formData: fd, kind: 'files' });
-  }
-};
-
 // doSubmit=false 存草稿（仅自己可见）；true 建单即提交审批（→部门主管→总经理）。
+// 图片/附件已在选择时暂存为 blob，建单时用 signed_id 一并挂载。
 const submit = async doSubmit => {
   if (!canSubmit.value) return;
   submitting.value = true;
@@ -99,11 +111,12 @@ const submit = async doSubmit => {
         deliveryDate: base.deliveryDate || undefined,
         productLine: template.value,
         spec: spec.value,
+        images: pendingImages.value.map(p => p.signedId),
+        files: pendingFiles.value.map(p => p.signedId),
       },
       doSubmit
     );
     if (ok) {
-      await uploadPending(ok.id);
       result.value = { ok: true, orderNo: ok.orderNo, submitted: doSubmit };
       reset();
     } else {
@@ -219,11 +232,15 @@ const backToList = () =>
       </div>
       <MesOrderSpecForm v-model:spec="spec" :template="template" />
 
-      <!-- 产品图片 -->
+      <!-- 产品图片（选择即上传） -->
       <div
         class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
       >
         产品图片
+        <span
+v-if="staging" class="ml-1 normal-case text-n-amber-11"
+          >上传中…</span
+        >
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <div
@@ -232,7 +249,7 @@ const backToList = () =>
           class="relative w-20 h-20 group"
         >
           <img
-            :src="previewUrl(f)"
+            :src="f.previewUrl"
             class="object-cover w-20 h-20 border rounded-lg border-n-weak"
           />
           <button
@@ -252,7 +269,7 @@ const backToList = () =>
             accept="image/*"
             multiple
             class="hidden"
-            @change="e => pick(e, pendingImages)"
+            @change="e => pick(e, pendingImages, true)"
           />
         </label>
       </div>
@@ -286,7 +303,7 @@ const backToList = () =>
             type="file"
             multiple
             class="hidden"
-            @change="e => pick(e, pendingFiles)"
+            @change="e => pick(e, pendingFiles, false)"
           />
         </label>
       </div>
