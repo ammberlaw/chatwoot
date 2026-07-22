@@ -11,6 +11,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
+import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
@@ -59,6 +60,7 @@ const form = reactive({
   crmProductId: '',
   baseQty: '1',
   unit: '台',
+  remark: '', // 整单备注（区别于每行的备注）
   ...blankLeadDays(),
   rows: [], // { id?, materialNo, materialName, specification, unit, qty, remark }
 });
@@ -87,6 +89,7 @@ const openCreate = () => {
     crmProductId: '',
     baseQty: '1',
     unit: '台',
+    remark: '',
     ...blankLeadDays(),
     rows: [blankRow()],
   });
@@ -100,6 +103,7 @@ const openEdit = bom => {
     crmProductId: bom.crmProductId ? String(bom.crmProductId) : '',
     baseQty: String(bom.baseQty ?? '1'),
     unit: bom.unit || '',
+    remark: bom.remark || '',
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, bom[s.key] ?? ''])),
     rows: (bom.bomItems || []).map(it => ({
       id: it.id,
@@ -133,6 +137,7 @@ const submit = async targetStatus => {
     crmProductId: form.crmProductId || null,
     baseQty: Number(form.baseQty) || 1,
     unit: form.unit,
+    remark: form.remark.trim() || null,
     status: targetStatus,
     ...Object.fromEntries(
       LEAD_STAGES.map(s => [s.key, Number(form[s.key]) || null])
@@ -188,6 +193,7 @@ const applyTemplate = t => {
     crmProductId: '',
     baseQty: String(t.baseQty ?? '1'),
     unit: t.unit || '台',
+    remark: '',
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, t[s.key] ?? ''])),
     rows: (t.bomTemplateItems || []).map(it => ({
       materialNo: it.materialNo || '',
@@ -466,6 +472,16 @@ onMounted(async () => {
               ✕
             </button>
           </div>
+        </div>
+
+        <div class="flex flex-col gap-1 pt-2 border-t border-n-weak">
+          <label class="text-heading-3 text-n-slate-12">整单备注</label>
+          <TextArea
+            v-model="form.remark"
+            placeholder="整份 BOM 的说明，如工艺要求、替代料、注意事项等（不同于每行的备注）"
+            :max-length="500"
+            auto-height
+          />
         </div>
       </div>
 
