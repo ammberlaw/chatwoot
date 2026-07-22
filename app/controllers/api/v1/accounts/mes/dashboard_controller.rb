@@ -11,10 +11,32 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     @stalled = alerts[:stalled]
     @unacked = alerts[:unacked]
     @month = period_output
+    @on_time = on_time_by_line(period_range)
     render 'api/v1/accounts/mes/dashboard/show'
   end
 
   private
+
+  # 按时交货率（按产品线）：SHIPPED 到达时间在区间内、有交期的订单，出货日 ≤ 交期日即按时。
+  # 全产线一并算（不受切换器过滤），才能横向比较。
+  def on_time_by_line(range)
+    events = Current.account.mes_production_order_stage_events
+                    .where(stage: 'SHIPPED', entered_at: range)
+                    .includes(:production_order)
+    by_line = Hash.new { |h, k| h[k] = { total: 0, on_time: 0 } }
+    events.each do |ev|
+      po = ev.production_order
+      next if po.nil? || po.is_draft || po.delivery_date.nil?
+
+      line = po.product_line.presence || 'UNKNOWN'
+      by_line[line][:total] += 1
+      by_line[line][:on_time] += 1 if ev.entered_at.to_date <= po.delivery_date.to_date
+    end
+    by_line.transform_values do |v|
+      { total: v[:total], on_time: v[:on_time],
+        rate: v[:total].positive? ? (v[:on_time].to_f / v[:total]).round(4) : nil }
+    end
+  end
 
   # 时间筛选：前端传 start_date/end_date（ISO 日期），缺省本月。
   def period_range

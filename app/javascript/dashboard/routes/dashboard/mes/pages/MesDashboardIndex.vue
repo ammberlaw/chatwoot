@@ -71,6 +71,29 @@ const stageBars = computed(() => {
   }));
 });
 
+// —— 按时交货率（按产品线）——
+const ONTIME_LINES = [
+  { code: 'COMMERCIAL_DISPLAY', label: '商显设备' },
+  { code: 'INDUSTRIAL_CONTROL', label: '工控类' },
+  { code: 'TABLET', label: '平板电脑' },
+];
+const onTimeRow = code => data.value?.onTime?.[code] || null;
+const onTimePct = code => {
+  const r = onTimeRow(code);
+  return r && r.total ? Math.round(r.rate * 100) : null;
+};
+const onTimeLabel = code => {
+  const r = onTimeRow(code);
+  return r && r.total ? `${onTimePct(code)}% (${r.on_time}/${r.total})` : '—';
+};
+const onTimeBar = code => {
+  const p = onTimePct(code);
+  if (p == null) return 'bg-n-slate-4';
+  if (p >= 90) return 'bg-n-teal-9';
+  if (p >= 70) return 'bg-n-amber-9';
+  return 'bg-n-ruby-9';
+};
+
 // 点交期预警/滞留订单 → 跳订单页并按订单号搜索、自动打开详情面板。
 const goOrder = orderNo =>
   router.push(
@@ -130,6 +153,7 @@ const load = async () => {
       dueSoon: res.due_soon || [],
       stalled: res.stalled || [],
       unacked: res.unacked || [],
+      onTime: res.on_time || {},
     };
   } finally {
     loading.value = false;
@@ -243,6 +267,37 @@ onMounted(() => {
             }}</span>
           </div>
         </div>
+      </div>
+
+      <!-- 按时交货率 · 按产品线 -->
+      <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
+        <div class="mb-3 font-medium text-n-slate-12">
+          按时交货率 · 按产品线
+        </div>
+        <div class="flex flex-col gap-3">
+          <div
+            v-for="l in ONTIME_LINES"
+            :key="l.code"
+            class="flex items-center gap-2"
+          >
+            <span class="w-16 text-xs shrink-0 text-n-slate-11">
+              {{ l.label }}
+            </span>
+            <div class="flex-1 h-3 overflow-hidden rounded-full bg-n-slate-3">
+              <div
+                class="h-full rounded-full"
+                :class="onTimeBar(l.code)"
+                :style="{ width: `${onTimePct(l.code) || 0}%` }"
+              />
+            </div>
+            <span class="text-xs text-right w-28 text-n-slate-12">
+              {{ onTimeLabel(l.code) }}
+            </span>
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-n-slate-10">
+          出货日 ≤ 期望交期即按时；按所选时段统计。
+        </p>
       </div>
 
       <!-- 交期预警 -->
