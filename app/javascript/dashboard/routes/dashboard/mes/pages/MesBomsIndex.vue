@@ -56,11 +56,23 @@ const blankRow = () => ({
   qty: '',
   remark: '',
 });
+// 投单信息（照 PMC 纸质 BOM 抬头）：日期/单号/客户/型号/产成品代码/数量/颜色。
+const blankHeader = () => ({
+  submitDate: '',
+  docNo: '',
+  customerName: '',
+  model: '',
+  productCode: '',
+  orderQty: '',
+  bareColor: '',
+  caseColor: '',
+});
 const form = reactive({
   crmProductId: '',
   baseQty: '1',
   unit: '台',
   remark: '', // 整单备注（区别于每行的备注）
+  ...blankHeader(),
   ...blankLeadDays(),
   rows: [], // { id?, materialNo, materialName, specification, unit, qty, remark }
 });
@@ -90,6 +102,7 @@ const openCreate = () => {
     baseQty: '1',
     unit: '台',
     remark: '',
+    ...blankHeader(),
     ...blankLeadDays(),
     rows: [blankRow()],
   });
@@ -104,6 +117,14 @@ const openEdit = bom => {
     baseQty: String(bom.baseQty ?? '1'),
     unit: bom.unit || '',
     remark: bom.remark || '',
+    submitDate: bom.submitDate || '',
+    docNo: bom.docNo || '',
+    customerName: bom.customerName || '',
+    model: bom.model || '',
+    productCode: bom.productCode || '',
+    orderQty: bom.orderQty ?? '',
+    bareColor: bom.bareColor || '',
+    caseColor: bom.caseColor || '',
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, bom[s.key] ?? ''])),
     rows: (bom.bomItems || []).map(it => ({
       id: it.id,
@@ -138,6 +159,14 @@ const submit = async targetStatus => {
     baseQty: Number(form.baseQty) || 1,
     unit: form.unit,
     remark: form.remark.trim() || null,
+    submitDate: form.submitDate || null,
+    docNo: form.docNo.trim() || null,
+    customerName: form.customerName.trim() || null,
+    model: form.model.trim() || null,
+    productCode: form.productCode.trim() || null,
+    orderQty: Number(form.orderQty) || null,
+    bareColor: form.bareColor.trim() || null,
+    caseColor: form.caseColor.trim() || null,
     status: targetStatus,
     ...Object.fromEntries(
       LEAD_STAGES.map(s => [s.key, Number(form[s.key]) || null])
@@ -194,6 +223,7 @@ const applyTemplate = t => {
     baseQty: String(t.baseQty ?? '1'),
     unit: t.unit || '台',
     remark: '',
+    ...blankHeader(),
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, t[s.key] ?? ''])),
     rows: (t.bomTemplateItems || []).map(it => ({
       materialNo: it.materialNo || '',
@@ -297,7 +327,7 @@ onMounted(async () => {
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">BOM 号</th>
-            <th class="px-3 py-3 font-medium">成品</th>
+            <th class="px-3 py-3 font-medium">型号 / 成品</th>
             <th class="px-3 py-3 font-medium">基准产量</th>
             <th class="px-3 py-3 font-medium">用料项</th>
             <th class="px-3 py-3 font-medium">预估周期(天)</th>
@@ -308,8 +338,16 @@ onMounted(async () => {
         <tbody>
           <tr v-for="b in records" :key="b.id" class="border-b border-n-weak">
             <td class="px-3 py-3 font-medium text-n-slate-12">{{ b.bomNo }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ b.productName || '—' }}
+            <td class="px-3 py-3">
+              <div class="text-n-slate-12">
+                {{ b.model || b.productName || '—' }}
+              </div>
+              <div
+                v-if="b.productCode || b.customerName"
+                class="text-xs text-n-slate-10"
+              >
+                {{ [b.productCode, b.customerName].filter(Boolean).join(' · ') }}
+              </div>
             </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ b.baseQty }} {{ b.unit }}
@@ -371,9 +409,58 @@ onMounted(async () => {
       :is-loading="saving"
     >
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-4">
+        <!-- 投单信息（照 PMC 纸质 BOM 抬头） -->
+        <div
+          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+        >
+          投单信息
+        </div>
+        <div class="grid grid-cols-3 gap-3">
           <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">成品</label>
+            <label class="text-xs text-n-slate-11">投单日期</label>
+            <Input v-model="form.submitDate" type="date" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-n-slate-11">投单单号</label>
+            <Input v-model="form.docNo" placeholder="如 WT20260605-01" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-n-slate-11">数量</label>
+            <Input v-model="form.orderQty" type="number" placeholder="800" />
+          </div>
+          <div class="flex flex-col col-span-3 gap-1">
+            <label class="text-xs text-n-slate-11">客户 / 项目名称</label>
+            <Input
+              v-model="form.customerName"
+              placeholder="如 罗思之越南客户定制"
+            />
+          </div>
+          <div class="flex flex-col col-span-2 gap-1">
+            <label class="text-xs text-n-slate-11">型号</label>
+            <Input
+              v-model="form.model"
+              placeholder="如 K13plus 10.1寸P30版/客户定制"
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-n-slate-11">产成品代码</label>
+            <Input v-model="form.productCode" placeholder="如 P.01.842" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-n-slate-11">裸机颜色</label>
+            <Input v-model="form.bareColor" placeholder="如 橙色800" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-n-slate-11">皮套颜色</label>
+            <Input v-model="form.caseColor" placeholder="如 粉色400、蓝色400" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 pt-2 border-t border-n-weak">
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12"
+              >关联成品（选填，用于统计）</label
+            >
             <ComboBox
               v-model="form.crmProductId"
               :options="productOptions"

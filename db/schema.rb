@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_22_200100) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_22_210000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1786,6 +1786,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_200100) do
     t.integer "production_days"
     t.integer "fg_inbound_days"
     t.string "status", default: "DRAFT", null: false
+    t.date "submit_date"
+    t.string "doc_no"
+    t.string "customer_name"
+    t.string "model"
+    t.string "product_code"
+    t.integer "order_qty"
+    t.string "bare_color"
+    t.string "case_color"
     t.index ["account_id", "bom_no"], name: "index_mes_boms_on_account_id_and_bom_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_boms_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_boms_on_account_id_and_status"

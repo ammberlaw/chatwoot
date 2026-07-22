@@ -3,19 +3,27 @@
 # Table name: mes_boms
 #
 #  id                         :bigint           not null, primary key
+#  bare_color                 :string
 #  base_qty                   :decimal(14, 3)   default(1.0), not null
 #  bom_no                     :string           not null
+#  case_color                 :string
+#  customer_name              :string
+#  doc_no                     :string
 #  estimated_lead_days        :integer
 #  fg_inbound_days            :integer
 #  is_active                  :boolean          default(TRUE), not null
 #  is_default                 :boolean          default(FALSE), not null
 #  material_inbound_days      :integer
+#  model                      :string
+#  order_qty                  :integer
 #  picking_days               :integer
+#  product_code               :string
 #  product_line               :string
 #  production_days            :integer
 #  purchasing_days            :integer
 #  remark                     :text
 #  status                     :string           default("DRAFT"), not null
+#  submit_date                :date
 #  total_material_cost_micros :bigint
 #  unit                       :string
 #  created_at                 :datetime         not null

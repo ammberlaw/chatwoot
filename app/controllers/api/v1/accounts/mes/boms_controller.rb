@@ -48,6 +48,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   def bom_params
     params.require(:bom).permit(
       :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :remark, :product_line, :status,
+      :submit_date, :doc_no, :customer_name, :model, :product_code, :order_qty, :bare_color, :case_color,
       :purchasing_days, :material_inbound_days, :picking_days, :production_days, :fg_inbound_days,
       bom_items_attributes: [:id, :mes_material_id, :material_no, :material_name, :specification, :qty, :unit, :remark, :_destroy]
     )

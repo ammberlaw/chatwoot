@@ -4,6 +4,14 @@ json.crm_product_id resource.crm_product_id
 json.product_name resource.crm_product&.name
 json.base_qty resource.base_qty
 json.unit resource.unit
+json.submit_date resource.submit_date
+json.doc_no resource.doc_no
+json.customer_name resource.customer_name
+json.model resource.model
+json.product_code resource.product_code
+json.order_qty resource.order_qty
+json.bare_color resource.bare_color
+json.case_color resource.case_color
 json.estimated_lead_days resource.estimated_lead_days
 json.purchasing_days resource.purchasing_days
 json.material_inbound_days resource.material_inbound_days
