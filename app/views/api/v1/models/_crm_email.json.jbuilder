@@ -12,6 +12,7 @@ json.body resource.body
 json.body_html resource.body_html
 json.send_status resource.send_status
 json.send_error resource.send_error
+json.scheduled_at resource.scheduled_at
 json.reply_latency_hours resource.reply_latency_hours
 json.tracked resource.tracking_token.present?
 json.open_count resource.open_count

@@ -93,6 +93,12 @@ crm_fetch_imap_emails_job:
   class: 'Crm::FetchImapEmailsJob'
   queue: low
 
+# CRM：定时发送邮件分发，每分钟把到点的 SCHEDULED 邮件转 PENDING 发送
+crm_dispatch_scheduled_emails_job:
+  cron: '* * * * *'
+  class: 'Crm::DispatchScheduledEmailsJob'
+  queue: medium
+
 # MES：生产预警日报（逾期/临近交期/滞留/短缺），北京时间 08:30 = UTC 00:30
 mes_daily_alert_job:
   cron: '30 0 * * *'

@@ -141,7 +141,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   def email_params
     params.require(:email).permit(
       :subject, :folder, :is_read, :is_starred, :from_address, :to_address, :cc_address, :bcc_address,
-      :email_date, :body, :body_html, :send_now, :send_status, :send_error,
+      :email_date, :body, :body_html, :send_now, :send_status, :send_error, :scheduled_at,
       :crm_customer_id, :contact_id, :owner_id, files: []
     )
   end
