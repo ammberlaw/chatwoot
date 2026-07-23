@@ -1,6 +1,7 @@
 json.id resource.id
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
+json.production_order_owner_name resource.production_order&.owner&.name
 json.operation_name resource.operation_name
 json.qty_completed resource.qty_completed
 json.qty_returned resource.qty_returned

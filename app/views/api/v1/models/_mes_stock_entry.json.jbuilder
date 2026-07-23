@@ -3,6 +3,7 @@ json.entry_no resource.entry_no
 json.purpose resource.purpose
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
+json.production_order_owner_name resource.production_order&.owner&.name
 json.purchase_order_id resource.purchase_order_id
 json.purchase_order_no resource.purchase_order&.po_no
 json.from_warehouse_id resource.from_warehouse_id

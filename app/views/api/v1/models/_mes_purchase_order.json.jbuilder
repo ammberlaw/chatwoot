@@ -4,6 +4,7 @@ json.mes_supplier_id resource.mes_supplier_id
 json.supplier_name resource.mes_supplier&.name
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
+json.production_order_owner_name resource.production_order&.owner&.name
 json.status resource.status
 json.expected_date resource.expected_date
 json.follow_up_date resource.follow_up_date

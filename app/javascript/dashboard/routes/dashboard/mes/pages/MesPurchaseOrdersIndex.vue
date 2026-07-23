@@ -227,6 +227,7 @@ onMounted(async () => {
             <th class="px-3 py-3 font-medium">采购单号</th>
             <th class="px-3 py-3 font-medium">供应商</th>
             <th class="px-3 py-3 font-medium">生产订单</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium">回复交期</th>
             <th class="px-3 py-3 font-medium">跟进</th>
@@ -252,6 +253,9 @@ onMounted(async () => {
               {{ p.productionOrderNo || '—' }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">
+              {{ p.productionOrderOwnerName || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
               {{ STATUS_LABELS[p.status] }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.expectedDate) }}</td>
@@ -267,7 +271,7 @@ onMounted(async () => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               还没有采购单。
             </td>
           </tr>

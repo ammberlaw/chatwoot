@@ -108,6 +108,7 @@ onMounted(() => {
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">生产订单</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">工序</th>
             <th class="px-3 py-3 font-medium">完成</th>
             <th class="px-3 py-3 font-medium">退料</th>
@@ -121,6 +122,9 @@ onMounted(() => {
             <td class="px-3 py-3 font-medium text-n-slate-12">
               {{ r.productionOrderNo || '—' }}
             </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ r.productionOrderOwnerName || '—' }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ r.operationName || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-12">{{ r.qtyCompleted }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ r.qtyReturned }}</td>
@@ -129,7 +133,7 @@ onMounted(() => {
             <td class="px-3 py-3 text-n-slate-11">{{ time(r.recordedAt) }}</td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               还没有报工记录。
             </td>
           </tr>

@@ -177,6 +177,7 @@ onMounted(async () => {
             <th class="px-3 py-3 font-medium">单号</th>
             <th class="px-3 py-3 font-medium">类型</th>
             <th class="px-3 py-3 font-medium">采购单</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">核对</th>
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium">过账时间</th>
@@ -188,6 +189,7 @@ onMounted(async () => {
             <td class="px-3 py-3 font-medium text-n-slate-12">{{ e.entryNo }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ purposeLabel(e.purpose) }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ e.purchaseOrderNo || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">{{ e.productionOrderOwnerName || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.isChecked ? '已核对' : '—' }}
             </td>
@@ -205,7 +207,7 @@ onMounted(async () => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               还没有入库单。
             </td>
           </tr>

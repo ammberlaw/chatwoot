@@ -132,6 +132,7 @@ onMounted(() => {
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">单号</th>
             <th class="px-3 py-3 font-medium">生产订单</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">交接</th>
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium">过账时间</th>
@@ -143,6 +144,9 @@ onMounted(() => {
             <td class="px-3 py-3 font-medium text-n-slate-12">{{ e.entryNo }}</td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.productionOrderNo || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ e.productionOrderOwnerName || '—' }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.isChecked ? '已交接' : '—' }}
@@ -161,7 +165,7 @@ onMounted(() => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
               还没有成品入库单。
             </td>
           </tr>

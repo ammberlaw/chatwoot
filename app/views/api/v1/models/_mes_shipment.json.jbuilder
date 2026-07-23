@@ -6,6 +6,7 @@ json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
+json.production_order_owner_name resource.production_order&.owner&.name
 json.warehouse_id resource.warehouse_id
 json.status resource.status
 json.notified_at resource.notified_at

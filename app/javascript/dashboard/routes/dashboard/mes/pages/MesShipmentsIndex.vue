@@ -145,6 +145,7 @@ onMounted(() => {
             <th class="px-3 py-3 font-medium">出库单号</th>
             <th class="px-3 py-3 font-medium">销售订单</th>
             <th class="px-3 py-3 font-medium">客户</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium">通知/出库</th>
             <th class="px-3 py-3" />
@@ -157,6 +158,7 @@ onMounted(() => {
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ s.salesOrderNo || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ s.customerName || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">{{ s.productionOrderOwnerName || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ STATUS_LABELS[s.status] }}</td>
             <td class="px-3 py-3 text-xs text-n-slate-11">
               {{ s.notifiedAt ? '已通知' : '—' }} / {{ time(s.shippedAt) }}
@@ -182,7 +184,7 @@ onMounted(() => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
               还没有出库单。
             </td>
           </tr>

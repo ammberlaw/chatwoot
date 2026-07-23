@@ -142,6 +142,7 @@ onMounted(() => {
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">类型</th>
             <th class="px-3 py-3 font-medium">对象</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">检验/合格/不良</th>
             <th class="px-3 py-3 font-medium">结果</th>
             <th class="px-3 py-3 font-medium">不良原因</th>
@@ -154,6 +155,9 @@ onMounted(() => {
             <td class="px-3 py-3 text-n-slate-12">{{ kindLabel(r.kind) }}</td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ r.productionOrderNo || r.materialName || r.productName || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ r.productionOrderOwnerName || '—' }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ r.inspectedQty }} / {{ r.passedQty }} /
@@ -173,7 +177,7 @@ onMounted(() => {
             <td class="px-3 py-3 text-n-slate-11">{{ day(r.inspectedAt) }}</td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               还没有检验记录。
             </td>
           </tr>
