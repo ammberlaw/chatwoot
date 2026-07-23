@@ -1341,7 +1341,6 @@ const ITEM_MODULE = {
   'CRM Employees': 'hr',
   'CRM Employee Comps': 'hr',
   'CRM Doc Center': 'doc',
-  'MES Production': 'mes',
 };
 const itemModule = name => ITEM_MODULE[name] || 'crm';
 // 当前路由属于哪个系统（默认 CRM，含工作台/销售各页/会话）。
@@ -1363,21 +1362,6 @@ const ROUTE_MODULE = {
   crm_attendance_index: 'hr',
   crm_employees_index: 'hr',
   crm_doc_center_index: 'doc',
-  mes_dashboard_index: 'mes',
-  mes_production_orders_index: 'mes',
-  mes_boms_index: 'mes',
-  mes_purchase_orders_index: 'mes',
-  mes_stock_entries_index: 'mes',
-  mes_material_issues_index: 'mes',
-  mes_production_records_index: 'mes',
-  mes_inspections_index: 'mes',
-  mes_fg_inbound_index: 'mes',
-  mes_serial_numbers_index: 'mes',
-  mes_shipments_index: 'mes',
-  mes_stock_balances_index: 'mes',
-  mes_materials_index: 'mes',
-  mes_suppliers_index: 'mes',
-  mes_warehouses_index: 'mes',
 };
 const activeModule = computed(() => ROUTE_MODULE[route.name] || 'crm');
 

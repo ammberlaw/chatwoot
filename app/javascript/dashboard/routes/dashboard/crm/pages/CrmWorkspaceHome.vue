@@ -44,15 +44,8 @@ const HERO = {
 };
 
 // 已上线的协同模块，各自承载一项真实指标。
+// 注：MES 尚未开发完，门户卡片与侧边栏/路由一并隐藏，待完成后再恢复。
 const LIVE = computed(() => [
-  {
-    key: 'mes',
-    label: 'MES 生产制造',
-    desc: '销售订单 → 工单 → 8 阶段生产 · 库存齐套',
-    icon: 'i-lucide-factory',
-    to: 'mes_production_orders_index',
-    accent: 'teal',
-  },
   {
     key: 'oa',
     label: 'OA 审批',
