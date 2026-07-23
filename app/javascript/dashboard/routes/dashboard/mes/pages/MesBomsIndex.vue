@@ -45,11 +45,15 @@ const productOptions = computed(() => [
   ...products.value.map(p => ({ value: String(p.id), label: p.name })),
 ]);
 
-// 订单归属业务员：取账号成员，选填。
+// 订单归属业务员：只列真正的业务角色（可归属 CRM 订单）——业务员/部门负责人/
+// 副管理员；排除 HR 与无 CRM 角色的普通成员。选填。
+const SALES_CRM_ROLES = ['sales', 'manager', 'deputy_admin'];
 const agents = useMapGetter('agents/getAgents');
 const salesOwnerOptions = computed(() => [
   { value: '', label: '未指定业务员' },
-  ...(agents.value || []).map(a => ({ value: String(a.id), label: a.name })),
+  ...(agents.value || [])
+    .filter(a => SALES_CRM_ROLES.includes(a.crm_role))
+    .map(a => ({ value: String(a.id), label: a.name })),
 ]);
 
 const dialogRef = ref(null);
