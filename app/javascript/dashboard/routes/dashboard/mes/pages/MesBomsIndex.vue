@@ -355,6 +355,7 @@ onMounted(async () => {
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">BOM 号</th>
             <th class="px-3 py-3 font-medium">型号 / 成品</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">基准产量</th>
             <th class="px-3 py-3 font-medium">用料项</th>
             <th class="px-3 py-3 font-medium">预估周期(天)</th>
@@ -376,6 +377,7 @@ onMounted(async () => {
                 {{ [b.productCode, b.customerName].filter(Boolean).join(' · ') }}
               </div>
             </td>
+            <td class="px-3 py-3 text-n-slate-11">{{ b.ownerName || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ b.baseQty }} {{ b.unit }}
             </td>
@@ -424,7 +426,7 @@ onMounted(async () => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               还没有 BOM。
             </td>
           </tr>
@@ -678,8 +680,10 @@ onMounted(async () => {
             {{ viewing.status === 'RELEASED' ? '已下发' : '草稿' }}
           </span>
           <span class="text-n-slate-11">
-            关联成品：{{ viewing.productName || '不关联成品' }} · 基准产量
-            {{ viewing.baseQty }} {{ viewing.unit }}
+            归属人：{{ viewing.ownerName || '—' }} · 关联成品：{{
+              viewing.productName || '不关联成品'
+            }}
+            · 基准产量 {{ viewing.baseQty }} {{ viewing.unit }}
           </span>
         </div>
 
