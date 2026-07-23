@@ -825,6 +825,7 @@ const menuItems = computed(() => {
           'mes_todo_index',
           'mes_production_orders_index',
           'mes_boms_index',
+          'mes_products_index',
           'mes_purchase_orders_index',
           'mes_stock_entries_index',
           'mes_material_issues_index',
@@ -866,6 +867,12 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_BOMS'),
             to: accountScopedRoute('mes_boms_index'),
             activeOn: ['mes_boms_index'],
+          },
+          {
+            name: 'MES Products',
+            label: t('SIDEBAR.MES_PRODUCTS'),
+            to: accountScopedRoute('mes_products_index'),
+            activeOn: ['mes_products_index'],
           },
           {
             name: 'MES Purchase Orders',
@@ -1502,6 +1509,7 @@ const ROUTE_MODULE = {
   mes_production_orders_index: 'mes',
   mes_production_order_intake_index: 'mes',
   mes_boms_index: 'mes',
+  mes_products_index: 'mes',
   mes_purchase_orders_index: 'mes',
   mes_stock_entries_index: 'mes',
   mes_material_issues_index: 'mes',

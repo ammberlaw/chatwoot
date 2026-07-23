@@ -395,7 +395,7 @@ onMounted(async () => {
   if (!agents.value?.length) rootStore.dispatch('agents/get');
   try {
     const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/crm/products`
+      `/api/v1/accounts/${accountId.value}/mes/products`
     );
     products.value = data?.payload || data || [];
   } catch {

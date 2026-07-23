@@ -133,7 +133,7 @@ const mergeOptions = (target, list) => {
 const loadProducts = async (q = '') => {
   try {
     const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/crm/products`,
+      `/api/v1/accounts/${accountId.value}/mes/products`,
       { params: { filter: 'active', q } }
     );
     mergeOptions(

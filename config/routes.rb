@@ -173,6 +173,7 @@ Rails.application.routes.draw do
             resources :suppliers
             resources :warehouses, except: [:show]
             resources :materials
+            resources :products, only: [:index, :create, :update, :destroy]
             resources :boms do
               member { post :release }
             end

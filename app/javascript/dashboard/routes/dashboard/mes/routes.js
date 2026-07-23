@@ -4,6 +4,7 @@ import MesDashboardIndex from './pages/MesDashboardIndex.vue';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
 import MesProductionOrderIntakeIndex from './pages/MesProductionOrderIntakeIndex.vue';
 import MesBomsIndex from './pages/MesBomsIndex.vue';
+import MesProductsIndex from './pages/MesProductsIndex.vue';
 import MesPurchaseOrdersIndex from './pages/MesPurchaseOrdersIndex.vue';
 import MesStockEntriesIndex from './pages/MesStockEntriesIndex.vue';
 import MesMaterialIssuesIndex from './pages/MesMaterialIssuesIndex.vue';
@@ -46,6 +47,7 @@ export const routes = [
     MesProductionOrderIntakeIndex
   ),
   mesPage('boms', 'mes_boms_index', MesBomsIndex),
+  mesPage('products', 'mes_products_index', MesProductsIndex),
   mesPage(
     'purchase-orders',
     'mes_purchase_orders_index',

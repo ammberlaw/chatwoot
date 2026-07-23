@@ -258,7 +258,7 @@ const fetchPickerData = async () => {
       axios.get(`/api/v1/accounts/${accountId.value}/crm/sales_orders`, {
         params: { per_page: 100 },
       }),
-      axios.get(`/api/v1/accounts/${accountId.value}/crm/products`),
+      axios.get(`/api/v1/accounts/${accountId.value}/mes/products`),
     ]);
     salesOrders.value = soRes.data?.payload || [];
     products.value = prodRes.data?.payload || prodRes.data || [];

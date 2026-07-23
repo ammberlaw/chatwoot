@@ -55,15 +55,16 @@ class AccountUser < ApplicationRecord
   validates :mes_role, inclusion: { in: MES_ROLES }, allow_nil: true
 
   # 角色 → 可写能力域。管理员/副管理员全能力。
+  # product = 产品档案/编码（仅工程与 PMC 可增删改；采购管供应商/物料走 master，不含产品）。
   MES_CAPABILITIES = {
-    'pmc' => %w[order bom master],
-    'engineer' => %w[bom master],
+    'pmc' => %w[order bom master product],
+    'engineer' => %w[bom master product],
     'buyer' => %w[purchase master],
     'warehouse' => %w[stock shipment quality],
     'production' => %w[report quality]
   }.freeze
 
-  # 能否在 MES 某能力域写操作（下单/BOM/采购/库存/报工/出库/主数据）。
+  # 能否在 MES 某能力域写操作（下单/BOM/采购/库存/报工/出库/主数据/产品档案）。
   def mes_can?(capability)
     return true if administrator? || crm_deputy_admin?
 

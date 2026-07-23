@@ -442,6 +442,7 @@
     "MES_TODO": "我的待办",
     "MES_PRODUCTION_ORDERS": "生产订单",
     "MES_BOMS": "工程/PMC BOM",
+    "MES_PRODUCTS": "产品档案",
     "MES_PURCHASE_ORDERS": "采购单",
     "MES_STOCK_ENTRIES": "原料入库",
     "MES_MATERIAL_ISSUES": "生产领料",
