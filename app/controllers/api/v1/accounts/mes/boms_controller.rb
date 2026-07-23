@@ -3,7 +3,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   before_action :fetch_bom, only: [:show, :update, :destroy, :release]
 
   def index
-    scope = scoped_by_product_line(Current.account.mes_boms)
+    scope = scoped_by_sales_owner(scoped_by_product_line(Current.account.mes_boms))
     scope = scope.where(crm_product_id: params[:crm_product_id]) if params[:crm_product_id].present?
     scope = scope.where('bom_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
     @boms_count = scope.count

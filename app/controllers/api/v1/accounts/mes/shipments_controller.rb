@@ -3,7 +3,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   before_action :fetch_shipment, only: [:show, :update, :destroy, :notify, :ship]
 
   def index
-    scope = scoped_by_product_line(Current.account.mes_shipments)
+    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_shipments))
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = scope.where(crm_sales_order_id: params[:crm_sales_order_id]) if params[:crm_sales_order_id].present?
     @shipments_count = scope.count

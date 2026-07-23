@@ -1,21 +1,28 @@
 # 生产看板：聚合现有数据的只读总览。
 class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::BaseController
   def show
-    active = scoped_by_product_line(Current.account.mes_production_orders.published.where.not(status: 'CANCELLED'))
+    # 业务员只统计/预警自己的订单（管理员/主管按范围，操作岗看全部）。
+    owner_ids = mes_visible_owner_ids
+    active = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders.published.where.not(status: 'CANCELLED')))
     @in_production = active.where.not(stage: 'SHIPPED').count
     @stage_distribution = active.group(:stage).count
 
-    alerts = Mes::AlertScannerService.new(Current.account, product_line: current_product_line).call
-    @overdue = alerts[:overdue]
-    @due_soon = alerts[:due_soon]
-    @stalled = alerts[:stalled]
-    @unacked = alerts[:unacked]
+    assign_alerts(
+      Mes::AlertScannerService.new(Current.account, product_line: current_product_line, owner_ids: owner_ids).call
+    )
     @month = period_output
     @on_time = on_time_by_line(period_range)
     render 'api/v1/accounts/mes/dashboard/show'
   end
 
   private
+
+  def assign_alerts(alerts)
+    @overdue = alerts[:overdue]
+    @due_soon = alerts[:due_soon]
+    @stalled = alerts[:stalled]
+    @unacked = alerts[:unacked]
+  end
 
   # 按时交货率（按产品线）：SHIPPED 到达时间在区间内、有交期的订单，出货日 ≤ 交期日即按时。
   # 全产线一并算（不受切换器过滤），才能横向比较。

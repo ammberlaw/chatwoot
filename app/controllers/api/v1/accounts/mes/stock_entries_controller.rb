@@ -8,7 +8,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   }.freeze
 
   def index
-    scope = scoped_by_product_line(Current.account.mes_stock_entries)
+    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_stock_entries))
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end

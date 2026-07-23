@@ -4,9 +4,10 @@ class Mes::AlertScannerService
   STALL_DAYS = 3
   DUE_SOON_DAYS = 3
 
-  def initialize(account, product_line: nil)
+  def initialize(account, product_line: nil, owner_ids: :all)
     @account = account
     @product_line = product_line.presence
+    @owner_ids = owner_ids
   end
 
   def call
@@ -14,6 +15,7 @@ class Mes::AlertScannerService
                           .where.not(status: 'CANCELLED').where.not(stage: 'SHIPPED')
                           .includes(:stage_events)
     open_orders = open_orders.where(product_line: @product_line) if @product_line
+    open_orders = open_orders.where(owner_id: @owner_ids) unless @owner_ids == :all
     overdue, due_soon, stalled, unacked = classify(open_orders)
     { overdue: overdue, due_soon: due_soon, stalled: stalled, unacked: unacked, shortages: shortages }
   end

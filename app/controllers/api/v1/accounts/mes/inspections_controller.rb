@@ -2,7 +2,7 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
   before_action :check_authorization
 
   def index
-    scope = scoped_by_product_line(Current.account.mes_inspections)
+    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_inspections))
     scope = scope.where(kind: params[:kind]) if params[:kind].present?
     scope = scope.where(result: params[:result]) if params[:result].present?
     scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?

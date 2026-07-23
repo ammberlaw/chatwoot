@@ -116,6 +116,10 @@ const onSearchInput = () => {
 const selectRow = row => {
   selected.value = selected.value?.id === row.id ? null : row;
 };
+// 「查看」按钮：总是打开详情面板（不切换关闭）。
+const openDetail = row => {
+  selected.value = row;
+};
 // 各阶段到达时间（stage → 日期字符串）。
 const stageTime = stageValue => {
   const ev = (selected.value?.stageEvents || []).find(
@@ -748,6 +752,7 @@ watch(currentPage, fetchRecords);
               <th class="px-3 py-3 font-medium">交期</th>
               <th class="px-3 py-3 font-medium">来源销售单</th>
               <th class="px-3 py-3 font-medium">负责人</th>
+              <th class="px-3 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -813,9 +818,17 @@ watch(currentPage, fetchRecords);
               <td class="px-3 py-3 text-n-slate-11">
                 {{ po.ownerName || '—' }}
               </td>
+              <td class="px-3 py-3 text-right" @click.stop>
+                <Button
+                  label="查看"
+                  variant="ghost"
+                  size="sm"
+                  @click="openDetail(po)"
+                />
+              </td>
             </tr>
             <tr v-if="!records.length">
-              <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
+              <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
                 还没有生产订单。点右上角「从销售订单转入」开始。
               </td>
             </tr>

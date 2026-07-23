@@ -5,7 +5,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   COLUMN_FILTERS = { status: :status, mes_supplier_id: :mes_supplier_id, production_order_id: :production_order_id }.freeze
 
   def index
-    scope = scoped_by_product_line(Current.account.mes_purchase_orders)
+    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_purchase_orders))
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end

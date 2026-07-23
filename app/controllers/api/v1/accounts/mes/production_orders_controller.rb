@@ -7,7 +7,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
   def index
-    scope = scoped_by_product_line(Current.account.mes_production_orders.visible_to(current_user))
+    scope = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders.visible_to(current_user)))
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
