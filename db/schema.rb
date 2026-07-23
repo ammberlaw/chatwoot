@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_22_220100) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_23_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1794,12 +1794,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_220100) do
     t.integer "order_qty"
     t.string "bare_color"
     t.string "case_color"
+    t.bigint "sales_owner_id"
     t.index ["account_id", "bom_no"], name: "index_mes_boms_on_account_id_and_bom_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_boms_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_boms_on_account_id_and_status"
     t.index ["account_id"], name: "index_mes_boms_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_boms_on_crm_product_id"
     t.index ["owner_id"], name: "index_mes_boms_on_owner_id"
+    t.index ["sales_owner_id"], name: "index_mes_boms_on_sales_owner_id"
   end
 
   create_table "mes_inspections", force: :cascade do |t|
@@ -2665,6 +2667,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_22_220100) do
   add_foreign_key "mes_bom_templates", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_boms", "crm_products", on_delete: :nullify
   add_foreign_key "mes_boms", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_boms", "users", column: "sales_owner_id", on_delete: :nullify
   add_foreign_key "mes_inspections", "crm_products", on_delete: :nullify
   add_foreign_key "mes_inspections", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_inspections", "mes_production_orders", column: "production_order_id", on_delete: :nullify

@@ -2,6 +2,7 @@
 /* global axios */
 import { ref, computed, reactive, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
+import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import { useMesBomTemplatesStore } from 'dashboard/stores/mes/bomTemplates';
@@ -16,6 +17,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId } = useAccount();
+const rootStore = useStore();
 const store = useMesBomsStore();
 const tplStore = useMesBomTemplatesStore();
 const { mesCan } = useMesRole();
@@ -41,6 +43,13 @@ const products = ref([]);
 const productOptions = computed(() => [
   { value: '', label: '不关联成品' },
   ...products.value.map(p => ({ value: String(p.id), label: p.name })),
+]);
+
+// 订单归属业务员：取账号成员，选填。
+const agents = useMapGetter('agents/getAgents');
+const salesOwnerOptions = computed(() => [
+  { value: '', label: '未指定业务员' },
+  ...(agents.value || []).map(a => ({ value: String(a.id), label: a.name })),
 ]);
 
 const dialogRef = ref(null);
@@ -93,6 +102,7 @@ const blankHeader = () => ({
 });
 const form = reactive({
   crmProductId: '',
+  salesOwnerId: '', // 订单归属业务员
   baseQty: '1',
   unit: '台',
   remark: '', // 整单备注（区别于每行的备注）
@@ -126,6 +136,7 @@ const openCreate = () => {
   removedItemIds.value = [];
   Object.assign(form, {
     crmProductId: '',
+    salesOwnerId: '',
     baseQty: '1',
     unit: '台',
     remark: '',
@@ -141,6 +152,7 @@ const openEdit = bom => {
   removedItemIds.value = [];
   Object.assign(form, {
     crmProductId: bom.crmProductId ? String(bom.crmProductId) : '',
+    salesOwnerId: bom.salesOwnerId ? String(bom.salesOwnerId) : '',
     baseQty: String(bom.baseQty ?? '1'),
     unit: bom.unit || '',
     remark: bom.remark || '',
@@ -183,6 +195,7 @@ const submit = async targetStatus => {
   ];
   const payload = {
     crmProductId: form.crmProductId || null,
+    salesOwnerId: form.salesOwnerId || null,
     baseQty: Number(form.baseQty) || 1,
     unit: form.unit,
     remark: form.remark.trim() || null,
@@ -317,6 +330,7 @@ const saveTemplate = async () => {
 
 onMounted(async () => {
   store.get();
+  if (!agents.value?.length) rootStore.dispatch('agents/get');
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/crm/products`
@@ -355,7 +369,8 @@ onMounted(async () => {
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">BOM 号</th>
             <th class="px-3 py-3 font-medium">型号 / 成品</th>
-            <th class="px-3 py-3 font-medium">归属人</th>
+            <th class="px-3 py-3 font-medium">负责人</th>
+            <th class="px-3 py-3 font-medium">归属业务员</th>
             <th class="px-3 py-3 font-medium">基准产量</th>
             <th class="px-3 py-3 font-medium">用料项</th>
             <th class="px-3 py-3 font-medium">预估周期(天)</th>
@@ -378,6 +393,9 @@ onMounted(async () => {
               </div>
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ b.ownerName || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ b.salesOwnerName || '—' }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ b.baseQty }} {{ b.unit }}
             </td>
@@ -426,7 +444,7 @@ onMounted(async () => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
               还没有 BOM。
             </td>
           </tr>
@@ -493,7 +511,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 pt-2 border-t border-n-weak">
+        <div class="grid grid-cols-3 gap-4 pt-2 border-t border-n-weak">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12"
               >关联成品（选填，用于统计）</label
@@ -502,6 +520,16 @@ onMounted(async () => {
               v-model="form.crmProductId"
               :options="productOptions"
               placeholder="选择成品"
+            />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12"
+              >订单归属业务员（选填）</label
+            >
+            <ComboBox
+              v-model="form.salesOwnerId"
+              :options="salesOwnerOptions"
+              placeholder="选择业务员"
             />
           </div>
           <div class="flex flex-col gap-1">
@@ -680,7 +708,10 @@ onMounted(async () => {
             {{ viewing.status === 'RELEASED' ? '已下发' : '草稿' }}
           </span>
           <span class="text-n-slate-11">
-            归属人：{{ viewing.ownerName || '—' }} · 关联成品：{{
+            负责人：{{ viewing.ownerName || '—' }} · 归属业务员：{{
+              viewing.salesOwnerName || '—'
+            }}
+            · 关联成品：{{
               viewing.productName || '不关联成品'
             }}
             · 基准产量 {{ viewing.baseQty }} {{ viewing.unit }}

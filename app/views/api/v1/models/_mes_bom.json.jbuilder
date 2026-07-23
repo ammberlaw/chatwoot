@@ -25,6 +25,8 @@ json.is_active resource.is_active
 json.is_default resource.is_default
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
+json.sales_owner_id resource.sales_owner_id
+json.sales_owner_name resource.sales_owner&.name
 json.remark resource.remark
 json.bom_items do
   json.array! resource.bom_items.order(:id) do |item|

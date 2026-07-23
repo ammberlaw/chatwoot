@@ -14,6 +14,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
 
   def create
     @bom = Current.account.mes_boms.new(bom_params)
+    @bom.owner_id ||= current_user.id # 负责人默认=起草人（当前账号）
     @bom.fallback_product_line = current_product_line
     @bom.save!
     render 'api/v1/accounts/mes/boms/show'
@@ -47,7 +48,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
 
   def bom_params
     params.require(:bom).permit(
-      :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :remark, :product_line, :status,
+      :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :sales_owner_id, :remark, :product_line, :status,
       :submit_date, :doc_no, :customer_name, :model, :product_code, :order_qty, :bare_color, :case_color,
       :purchasing_days, :material_inbound_days, :picking_days, :production_days, :fg_inbound_days,
       bom_items_attributes: [:id, :mes_material_id, :material_no, :material_name, :specification, :qty, :unit, :remark, :_destroy]

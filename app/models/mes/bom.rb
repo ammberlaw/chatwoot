@@ -31,6 +31,7 @@
 #  account_id                 :bigint           not null
 #  crm_product_id             :bigint
 #  owner_id                   :bigint
+#  sales_owner_id             :bigint
 #
 # Indexes
 #
@@ -40,11 +41,13 @@
 #  index_mes_boms_on_account_id_and_status     (account_id,status)
 #  index_mes_boms_on_crm_product_id            (crm_product_id)
 #  index_mes_boms_on_owner_id                  (owner_id)
+#  index_mes_boms_on_sales_owner_id            (sales_owner_id)
 #
 # Foreign Keys
 #
 #  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => nullify
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
+#  fk_rails_...  (sales_owner_id => users.id) ON DELETE => nullify
 #
 class Mes::Bom < ApplicationRecord
   include Mes::DocumentNumber
@@ -52,7 +55,8 @@ class Mes::Bom < ApplicationRecord
 
   belongs_to :account
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true
-  belongs_to :owner, class_name: 'User', optional: true
+  belongs_to :owner, class_name: 'User', optional: true # 负责人：起草本 BOM 的工程/PMC 账号
+  belongs_to :sales_owner, class_name: 'User', optional: true # 订单归属业务员
   has_many :bom_items, class_name: 'Mes::BomItem', dependent: :destroy, inverse_of: :bom
   accepts_nested_attributes_for :bom_items, allow_destroy: true
 
