@@ -61,7 +61,10 @@ const viewFields = computed(() => {
     { label: '入库仓', value: whName(e.toWarehouseId) },
     { label: '状态', value: STATUS_LABELS[e.status] || e.status },
     { label: '过账时间', value: day(e.postedAt) },
-    { label: '核对', value: e.isChecked ? `已核对 · ${e.checkedByName || ''}` : '未核对' },
+    {
+      label: '核对',
+      value: e.isChecked ? `已核对 · ${e.checkedByName || ''}` : '未核对',
+    },
     { label: '收货人', value: e.receivedByName },
     { label: '制单人', value: e.ownerName },
     { label: '备注', value: e.remark },
@@ -123,7 +126,12 @@ const invalid = computed(
 );
 
 const addRow = () =>
-  form.rows.push({ itemType: 'MATERIAL', mesMaterialId: '', qty: '1', receivedQty: '' });
+  form.rows.push({
+    itemType: 'MATERIAL',
+    mesMaterialId: '',
+    qty: '1',
+    receivedQty: '',
+  });
 const removeRow = i => form.rows.splice(i, 1);
 
 // 选采购单 → 按其明细预填收货行，实收默认等于采购数量。
@@ -154,7 +162,9 @@ const openCreate = () => {
     purchaseOrderId: '',
     productionOrderId: '',
     isChecked: false,
-    rows: [{ itemType: 'MATERIAL', mesMaterialId: '', qty: '1', receivedQty: '' }],
+    rows: [
+      { itemType: 'MATERIAL', mesMaterialId: '', qty: '1', receivedQty: '' },
+    ],
   });
   dialogRef.value?.open();
 };
@@ -208,13 +218,21 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">原料入库</h1>
-      <Button v-if="mesCan('stock')" label="新建入库单" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('stock')"
+        label="新建入库单"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
     <MesBoardOwnerBar board-key="mes_stock_entries_index" />
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -230,14 +248,24 @@ onMounted(async () => {
         </thead>
         <tbody>
           <tr v-for="e in records" :key="e.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-medium text-n-slate-12">{{ e.entryNo }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ purposeLabel(e.purpose) }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ e.purchaseOrderNo || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ e.productionOrderOwnerName || '—' }}</td>
+            <td class="px-3 py-3 font-medium text-n-slate-12">
+              {{ e.entryNo }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ purposeLabel(e.purpose) }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ e.purchaseOrderNo || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ e.productionOrderOwnerName || '—' }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.isChecked ? '已核对' : '—' }}
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ STATUS_LABELS[e.status] }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ STATUS_LABELS[e.status] }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
             <td class="px-3 py-3 text-right">
               <div class="flex justify-end gap-1">
@@ -305,7 +333,12 @@ onMounted(async () => {
               @update:model-value="v => (form.purchaseOrderId = v)"
             />
           </div>
-          <Button label="按采购单收货" color="slate" size="sm" @click="prefillFromPO" />
+          <Button
+            label="按采购单收货"
+            color="slate"
+            size="sm"
+            @click="prefillFromPO"
+          />
         </div>
 
         <div class="flex items-center justify-between">

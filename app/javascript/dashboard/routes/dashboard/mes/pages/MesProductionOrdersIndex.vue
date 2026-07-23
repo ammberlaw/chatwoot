@@ -335,7 +335,9 @@ const onUpload = async (event, kind) => {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error('[MES upload] failed', e);
-    useAlert(`上传失败：${e?.response?.data?.error || e?.message || '未知错误'}`);
+    useAlert(
+      `上传失败：${e?.response?.data?.error || e?.message || '未知错误'}`
+    );
   } finally {
     uploading.value = false;
   }
@@ -1073,7 +1075,9 @@ watch(currentPage, fetchRecords);
                     : ''
                 }}
               </template>
-              <template v-else>⏳ 待业务二次确认BOM，确认后方可下发采购</template>
+              <template v-else>
+                ⏳ 待业务二次确认BOM，确认后方可下发采购
+              </template>
             </div>
             <!-- 业务确认 BOM 按钮 -->
             <Button

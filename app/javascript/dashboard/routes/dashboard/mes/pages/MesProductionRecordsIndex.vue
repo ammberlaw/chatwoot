@@ -52,10 +52,6 @@ const productionOrderOptions = computed(() => [
     label: `${p.order_no} · ${p.product_name}`,
   })),
 ]);
-const selectedOrder = computed(() =>
-  productionOrders.value.find(p => String(p.id) === String(form.productionOrderId))
-);
-
 const dialogRef = ref(null);
 const form = reactive({
   productionOrderId: '',
@@ -65,6 +61,11 @@ const form = reactive({
   qtyScrap: '',
   remark: '',
 });
+const selectedOrder = computed(() =>
+  productionOrders.value.find(
+    p => String(p.id) === String(form.productionOrderId)
+  )
+);
 const invalid = computed(
   () => !form.productionOrderId || form.qtyCompleted === ''
 );
@@ -120,13 +121,21 @@ onMounted(() => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">生产报工</h1>
-      <Button v-if="mesCan('report')" label="报工" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('report')"
+        label="报工"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
     <MesBoardOwnerBar board-key="mes_production_records_index" />
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -149,11 +158,15 @@ onMounted(() => {
             <td class="px-3 py-3 text-n-slate-11">
               {{ r.productionOrderOwnerName || '—' }}
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ r.operationName || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ r.operationName || '—' }}
+            </td>
             <td class="px-3 py-3 text-n-slate-12">{{ r.qtyCompleted }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ r.qtyReturned }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ r.qtyScrap }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ r.operatorName || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ r.operatorName || '—' }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ time(r.recordedAt) }}</td>
             <td class="px-3 py-3 text-right">
               <Button
@@ -200,7 +213,10 @@ onMounted(() => {
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">工序（可选）</label>
-          <Input v-model="form.operationName" placeholder="组装 / 老化 / FQC / 包装" />
+          <Input
+            v-model="form.operationName"
+            placeholder="组装 / 老化 / FQC / 包装"
+          />
         </div>
         <div class="grid grid-cols-3 gap-3">
           <div class="flex flex-col gap-1">
@@ -225,10 +241,6 @@ onMounted(() => {
       </div>
     </Dialog>
 
-    <MesViewDialog
-      ref="viewDialogRef"
-      title="报工明细"
-      :fields="viewFields"
-    />
+    <MesViewDialog ref="viewDialogRef" title="报工明细" :fields="viewFields" />
   </div>
 </template>

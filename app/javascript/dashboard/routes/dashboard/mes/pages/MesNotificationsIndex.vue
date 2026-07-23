@@ -20,13 +20,15 @@ const KIND_META = {
   stage_returned: { label: '被退回', dot: 'bg-n-ruby-9' },
   production_reported: { label: '待成品入库', dot: 'bg-n-iris-9' },
 };
-const kindMeta = kind => KIND_META[kind] || { label: '通知', dot: 'bg-n-slate-9' };
+const kindMeta = kind =>
+  KIND_META[kind] || { label: '通知', dot: 'bg-n-slate-9' };
 
 const records = computed(() => store.getRecords);
 const unreadCount = computed(() => store.getUnreadCount);
 const fetching = computed(() => store.getUIFlags.fetchingList);
 
-const fmt = ts => (ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '');
+const fmt = ts =>
+  ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '';
 
 const load = () => store.get();
 
@@ -46,7 +48,9 @@ onMounted(load);
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
-    <div class="flex items-center justify-between px-6 py-4 border-b border-n-weak">
+    <div
+      class="flex items-center justify-between px-6 py-4 border-b border-n-weak"
+    >
       <div class="flex items-center gap-2">
         <h1 class="text-xl font-semibold text-n-slate-12">站内通知</h1>
         <span

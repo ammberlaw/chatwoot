@@ -31,7 +31,10 @@ const KIND_LABELS = {
   FQC: '成品检验',
   AGING: '老化测试',
 };
-const kindOptions = Object.entries(KIND_LABELS).map(([value, label]) => ({ value, label }));
+const kindOptions = Object.entries(KIND_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
 const kindLabel = k => KIND_LABELS[k] || k;
 const RESULT = {
   PASS: { label: '合格', cls: 'bg-n-teal-3 text-n-teal-11' },
@@ -165,7 +168,9 @@ onMounted(() => {
     <MesBoardOwnerBar board-key="mes_inspections_index" />
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -184,14 +189,18 @@ onMounted(() => {
           <tr v-for="r in records" :key="r.id" class="border-b border-n-weak">
             <td class="px-3 py-3 text-n-slate-12">{{ kindLabel(r.kind) }}</td>
             <td class="px-3 py-3 text-n-slate-11">
-              {{ r.productionOrderNo || r.materialName || r.productName || '—' }}
+              {{
+                r.productionOrderNo || r.materialName || r.productName || '—'
+              }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ r.productionOrderOwnerName || '—' }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ r.inspectedQty }} / {{ r.passedQty }} /
-              <span :class="r.failedQty > 0 ? 'text-n-ruby-11' : ''">{{ r.failedQty }}</span>
+              <span :class="r.failedQty > 0 ? 'text-n-ruby-11' : ''">{{
+                r.failedQty
+              }}</span>
             </td>
             <td class="px-3 py-3">
               <span
@@ -202,8 +211,12 @@ onMounted(() => {
                 {{ RESULT[r.result].label }}
               </span>
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ r.defectReason || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ r.inspectorName || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ r.defectReason || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ r.inspectorName || '—' }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(r.inspectedAt) }}</td>
             <td class="px-3 py-3 text-right">
               <Button
@@ -279,7 +292,10 @@ onMounted(() => {
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">不良原因</label>
-          <Input v-model="form.defectReason" placeholder="如：触摸失灵 / 玻璃划伤" />
+          <Input
+            v-model="form.defectReason"
+            placeholder="如：触摸失灵 / 玻璃划伤"
+          />
         </div>
         <label class="flex items-center gap-2 text-heading-3 text-n-slate-12">
           <input v-model="form.needRework" type="checkbox" />
@@ -288,10 +304,6 @@ onMounted(() => {
       </div>
     </Dialog>
 
-    <MesViewDialog
-      ref="viewDialogRef"
-      title="质检明细"
-      :fields="viewFields"
-    />
+    <MesViewDialog ref="viewDialogRef" title="质检明细" :fields="viewFields" />
   </div>
 </template>

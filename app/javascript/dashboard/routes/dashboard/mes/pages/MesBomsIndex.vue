@@ -405,7 +405,9 @@ onMounted(async () => {
                 v-if="b.productCode || b.customerName"
                 class="text-xs text-n-slate-10"
               >
-                {{ [b.productCode, b.customerName].filter(Boolean).join(' · ') }}
+                {{
+                  [b.productCode, b.customerName].filter(Boolean).join(' · ')
+                }}
               </div>
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ b.ownerName || '—' }}</td>
@@ -687,31 +689,31 @@ onMounted(async () => {
               color="slate"
               @click="dialogRef?.close()"
             />
-          <!-- 已下发的编辑：只保留「保存修改」，保持已下发状态（非重新下发/非草稿） -->
-          <Button
-            v-if="editingId && editingStatus === 'RELEASED'"
-            label="保存修改（保持下发）"
-            color="iris"
-            :is-loading="saving"
-            :disabled="invalid"
-            @click="submit('RELEASED')"
-          />
-          <template v-else>
+            <!-- 已下发的编辑：只保留「保存修改」，保持已下发状态（非重新下发/非草稿） -->
             <Button
-              label="存草稿"
-              variant="outline"
-              color="slate"
-              :is-loading="saving"
-              :disabled="invalid"
-              @click="submit('DRAFT')"
-            />
-            <Button
-              label="下发"
+              v-if="editingId && editingStatus === 'RELEASED'"
+              label="保存修改（保持下发）"
               color="iris"
               :is-loading="saving"
               :disabled="invalid"
               @click="submit('RELEASED')"
             />
+            <template v-else>
+              <Button
+                label="存草稿"
+                variant="outline"
+                color="slate"
+                :is-loading="saving"
+                :disabled="invalid"
+                @click="submit('DRAFT')"
+              />
+              <Button
+                label="下发"
+                color="iris"
+                :is-loading="saving"
+                :disabled="invalid"
+                @click="submit('RELEASED')"
+              />
             </template>
           </div>
         </div>
@@ -743,10 +745,8 @@ onMounted(async () => {
             负责人：{{ viewing.ownerName || '—' }} · 归属业务员：{{
               viewing.salesOwnerName || '—'
             }}
-            · 关联成品：{{
-              viewing.productName || '不关联成品'
-            }}
-            · 基准产量 {{ viewing.baseQty }} {{ viewing.unit }}
+            · 关联成品：{{ viewing.productName || '不关联成品' }} · 基准产量
+            {{ viewing.baseQty }} {{ viewing.unit }}
           </span>
         </div>
 
@@ -756,14 +756,20 @@ onMounted(async () => {
           投单信息
         </div>
         <div class="grid grid-cols-3 gap-x-4 gap-y-3">
-          <div v-for="f in viewHeaderFields" :key="f.label" class="flex flex-col">
+          <div
+            v-for="f in viewHeaderFields"
+            :key="f.label"
+            class="flex flex-col"
+          >
             <span class="text-xs text-n-slate-10">{{ f.label }}</span>
             <span class="text-n-slate-12">{{ f.value || '—' }}</span>
           </div>
         </div>
 
         <div class="pt-2 border-t border-n-weak">
-          <div class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+          <div
+            class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
             用料明细（{{ (viewing.bomItems || []).length }} 项）
           </div>
           <table class="w-full text-sm">
@@ -796,14 +802,20 @@ onMounted(async () => {
                     {{ categoryLabel(it.category) }}
                   </span>
                 </td>
-                <td class="px-2 py-2 text-n-slate-12">{{ it.materialNo || '—' }}</td>
+                <td class="px-2 py-2 text-n-slate-12">
+                  {{ it.materialNo || '—' }}
+                </td>
                 <td class="px-2 py-2 text-n-slate-12">{{ it.materialName }}</td>
                 <td class="px-2 py-2 text-n-slate-11">
                   {{ it.specification || '—' }}
                 </td>
                 <td class="px-2 py-2 text-n-slate-11">{{ it.unit || '—' }}</td>
-                <td class="px-2 py-2 text-right text-n-slate-12">{{ it.qty }}</td>
-                <td class="px-2 py-2 text-n-slate-11">{{ it.remark || '—' }}</td>
+                <td class="px-2 py-2 text-right text-n-slate-12">
+                  {{ it.qty }}
+                </td>
+                <td class="px-2 py-2 text-n-slate-11">
+                  {{ it.remark || '—' }}
+                </td>
               </tr>
               <tr v-if="!(viewing.bomItems || []).length">
                 <td colspan="7" class="px-2 py-6 text-center text-n-slate-11">
@@ -815,7 +827,9 @@ onMounted(async () => {
         </div>
 
         <div class="pt-2 border-t border-n-weak">
-          <div class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+          <div
+            class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
             各阶段预估天数（合计 {{ viewing.totalLeadDays || 0 }} 天）
           </div>
           <div class="flex flex-wrap gap-x-6 gap-y-1 text-n-slate-11">
@@ -828,10 +842,14 @@ onMounted(async () => {
         </div>
 
         <div v-if="viewing.remark" class="pt-2 border-t border-n-weak">
-          <div class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+          <div
+            class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
             整单备注
           </div>
-          <p class="whitespace-pre-wrap text-n-slate-12">{{ viewing.remark }}</p>
+          <p class="whitespace-pre-wrap text-n-slate-12">
+            {{ viewing.remark }}
+          </p>
         </div>
       </div>
     </Dialog>
@@ -847,8 +865,9 @@ onMounted(async () => {
     >
       <div class="flex flex-col gap-2">
         <p class="text-xs text-n-slate-11">
-          套用模版会把用料明细与各阶段天数带入新建 BOM，你只需再选成品即可保存。想新增模版？在新建/编辑
-          BOM 时点「存为模版」。
+          套用模版会把用料明细与各阶段天数带入新建
+          BOM，你只需再选成品即可保存。想新增模版？在新建/编辑 BOM
+          时点「存为模版」。
         </p>
         <div v-if="tplFetching" class="py-8 text-center text-n-slate-11">
           加载中…
@@ -872,9 +891,7 @@ onMounted(async () => {
             <span class="text-xs text-n-slate-11">
               {{ (t.bomTemplateItems || []).length }} 项用料 · 基准
               {{ t.baseQty }} {{ t.unit
-              }}<template v-if="t.productLine">
-                · {{ t.productLine }}</template
-              >
+              }}<template v-if="t.productLine"> · {{ t.productLine }}</template>
             </span>
           </div>
           <div class="flex items-center flex-shrink-0 gap-1">
@@ -920,7 +937,7 @@ onMounted(async () => {
       width="sm"
       title="存为模版"
       confirm-button-label="保存模版"
-      :confirm-button-color="'iris'"
+      confirm-button-color="iris"
       :is-loading="tplSaving"
       :disable-confirm-button="!templateName.trim()"
       @confirm="saveTemplate"
@@ -933,7 +950,8 @@ onMounted(async () => {
           @keyup.enter="saveTemplate"
         />
         <span class="text-xs text-n-slate-11"
-          >将保存当前 {{ form.rows.length }} 行用料与各阶段天数（不含成品）。</span
+          >将保存当前
+          {{ form.rows.length }} 行用料与各阶段天数（不含成品）。</span
         >
       </div>
     </Dialog>

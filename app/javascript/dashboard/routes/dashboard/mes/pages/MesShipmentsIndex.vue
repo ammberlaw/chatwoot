@@ -82,7 +82,9 @@ const onPickOrder = v => {
   form.productionOrderId = v;
   const po = productionOrders.value.find(p => String(p.id) === String(v));
   if (!po) return;
-  form.crmSalesOrderId = po.crm_sales_order_id ? String(po.crm_sales_order_id) : '';
+  form.crmSalesOrderId = po.crm_sales_order_id
+    ? String(po.crm_sales_order_id)
+    : '';
   form.crmProductId = po.crm_product_id ? String(po.crm_product_id) : '';
   form.productName = po.product_name || '';
   form.qty = String(po.produced_qty || po.qty || '');
@@ -94,7 +96,9 @@ const onPickOrder = v => {
 };
 
 const openCreate = () => {
-  const fin = (warehousesStore.getRecords || []).find(w => w.kind === 'FINISHED');
+  const fin = (warehousesStore.getRecords || []).find(
+    w => w.kind === 'FINISHED'
+  );
   Object.assign(form, {
     productionOrderId: '',
     crmSalesOrderId: '',
@@ -161,13 +165,21 @@ onMounted(() => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">销售出库</h1>
-      <Button v-if="mesCan('shipment')" label="新建出库单" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('shipment')"
+        label="新建出库单"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
     <MesBoardOwnerBar board-key="mes_shipments_index" />
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -185,10 +197,18 @@ onMounted(() => {
             <td class="px-3 py-3 font-medium text-n-slate-12">
               {{ s.shipmentNo }}
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ s.salesOrderNo || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ s.customerName || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ s.productionOrderOwnerName || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ STATUS_LABELS[s.status] }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ s.salesOrderNo || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ s.customerName || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ s.productionOrderOwnerName || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ STATUS_LABELS[s.status] }}
+            </td>
             <td class="px-3 py-3 text-xs text-n-slate-11">
               {{ s.notifiedAt ? '已通知' : '—' }} / {{ time(s.shippedAt) }}
             </td>

@@ -60,7 +60,10 @@ const viewFields = computed(() => {
     { label: '状态', value: STATUS_LABELS[p.status] || p.status },
     { label: '回复交期', value: day(p.expectedDate) },
     { label: '跟进日期', value: day(p.followUpDate) },
-    { label: '异常', value: p.hasException ? p.exceptionNote || '有异常' : '无' },
+    {
+      label: '异常',
+      value: p.hasException ? p.exceptionNote || '有异常' : '无',
+    },
     { label: '制单人', value: p.ownerName },
     { label: '备注', value: p.remark },
   ];

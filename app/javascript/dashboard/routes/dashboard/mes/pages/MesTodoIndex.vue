@@ -92,10 +92,7 @@ onMounted(load);
           待我审批
           <span class="text-n-amber-11">({{ approvalInbox.length }})</span>
         </div>
-        <div
-          v-if="!approvalInbox.length"
-          class="text-sm text-n-slate-11"
-        >
+        <div v-if="!approvalInbox.length" class="text-sm text-n-slate-11">
           暂无待你审批的生产订单。
         </div>
         <ul v-else class="flex flex-col gap-2">

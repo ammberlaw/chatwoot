@@ -88,7 +88,9 @@ const form = reactive({
   isChecked: false,
 });
 const selectedOrder = computed(() =>
-  productionOrders.value.find(p => String(p.id) === String(form.productionOrderId))
+  productionOrders.value.find(
+    p => String(p.id) === String(form.productionOrderId)
+  )
 );
 const invalid = computed(
   () => !form.productionOrderId || !form.warehouseId || !Number(form.qty)
@@ -102,7 +104,9 @@ const onPickOrder = v => {
 };
 
 const openCreate = () => {
-  const fin = (warehousesStore.getRecords || []).find(w => w.kind === 'FINISHED');
+  const fin = (warehousesStore.getRecords || []).find(
+    w => w.kind === 'FINISHED'
+  );
   Object.assign(form, {
     productionOrderId: '',
     warehouseId: fin ? String(fin.id) : '',
@@ -158,13 +162,21 @@ onMounted(() => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">成品入库</h1>
-      <Button v-if="mesCan('stock')" label="新建成品入库单" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('stock')"
+        label="新建成品入库单"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
     <MesBoardOwnerBar board-key="mes_fg_inbound_index" />
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -179,7 +191,9 @@ onMounted(() => {
         </thead>
         <tbody>
           <tr v-for="e in records" :key="e.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-medium text-n-slate-12">{{ e.entryNo }}</td>
+            <td class="px-3 py-3 font-medium text-n-slate-12">
+              {{ e.entryNo }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.productionOrderNo || '—' }}
             </td>
@@ -189,7 +203,9 @@ onMounted(() => {
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.isChecked ? '已交接' : '—' }}
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ STATUS_LABELS[e.status] }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ STATUS_LABELS[e.status] }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
             <td class="px-3 py-3 text-right">
               <div class="flex justify-end gap-1">
