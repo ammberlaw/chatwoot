@@ -30,6 +30,12 @@ const L = {
   send: '发送',
   sending: '发送中…',
   draft: '存草稿',
+  schedule: '定时发送',
+  scheduleLabel: '定时发送时间（按你本地时区）',
+  scheduleConfirm: '确定定时',
+  scheduledBanner: '已加入定时发送队列，到点自动发送。可在「草稿箱」查看或删除。',
+  needSchedule: '请选择定时时间',
+  scheduleFuture: '定时时间需晚于当前时刻',
   preview: '预览',
   cancel: '取消',
   confirmClose:
@@ -419,6 +425,46 @@ const send = async () => {
   }
 };
 
+// ---- 定时发送 ----
+const showSchedule = ref(false);
+const scheduleAt = ref('');
+// datetime-local 需要 'YYYY-MM-DDTHH:mm'；最小可选为当前 +1 分钟。
+const minScheduleAt = computed(() => {
+  const d = new Date(Date.now() + 60000);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+});
+
+const scheduleSend = async () => {
+  if (!form.to.trim()) {
+    status.value = { state: 'failed', msg: L.needTo };
+    return;
+  }
+  if (!hasAccount.value) {
+    status.value = { state: 'failed', msg: L.needAccount };
+    return;
+  }
+  if (!scheduleAt.value) {
+    status.value = { state: 'failed', msg: L.needSchedule };
+    return;
+  }
+  const when = new Date(scheduleAt.value);
+  if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+    status.value = { state: 'failed', msg: L.scheduleFuture };
+    return;
+  }
+  status.value = { state: 'sending', msg: '' };
+  try {
+    const id = await persist();
+    await store.update({ id, sendStatus: 'SCHEDULED', scheduledAt: when.toISOString() });
+    showSchedule.value = false;
+    status.value = { state: 'scheduled', msg: '' };
+    emit('refresh');
+  } catch (e) {
+    status.value = { state: 'failed', msg: String(e?.message || e) };
+  }
+};
+
 // ---- 开关 / 复位 ----
 const reset = () => {
   form.to = '';
@@ -441,6 +487,8 @@ const reset = () => {
   kbPicked.value = [];
   showKb.value = false;
   showPreview.value = false;
+  showSchedule.value = false;
+  scheduleAt.value = '';
   status.value = { state: 'idle', msg: '' };
 };
 
@@ -517,6 +565,18 @@ defineExpose({ open, close });
             {{ L.draft }}
           </button>
           <button
+            class="px-4 py-1.5 text-sm rounded-full border disabled:opacity-60"
+            :class="
+              showSchedule
+                ? 'border-n-iris-9 text-n-iris-11 bg-n-iris-3'
+                : 'border-n-weak text-n-slate-12 hover:bg-n-alpha-1'
+            "
+            :disabled="sending"
+            @click="showSchedule = !showSchedule"
+          >
+            {{ L.schedule }}
+          </button>
+          <button
             class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
             @click="showPreview = true"
           >
@@ -528,6 +588,27 @@ defineExpose({ open, close });
             @click="close"
           >
             {{ L.cancel }}
+          </button>
+        </div>
+
+        <!-- 定时发送：选投递时间，按本地时区 -->
+        <div
+          v-if="showSchedule"
+          class="flex flex-wrap items-center flex-shrink-0 gap-2 px-4 py-2 border-b bg-n-alpha-1 border-n-weak"
+        >
+          <span class="text-xs text-n-slate-11">{{ L.scheduleLabel }}</span>
+          <input
+            v-model="scheduleAt"
+            type="datetime-local"
+            :min="minScheduleAt"
+            class="px-2 py-1 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12"
+          />
+          <button
+            class="px-3 py-1 text-sm text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+            :disabled="sending || !scheduleAt"
+            @click="scheduleSend"
+          >
+            {{ L.scheduleConfirm }}
           </button>
         </div>
 
@@ -828,6 +909,12 @@ defineExpose({ open, close });
         class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-blue-11 border-n-blue-7 bg-n-blue-2"
       >
         {{ L.draftBanner }}
+      </div>
+      <div
+        v-else-if="status.state === 'scheduled'"
+        class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-iris-11 border-n-iris-7 bg-n-iris-2"
+      >
+        {{ L.scheduledBanner }}
       </div>
       <div
         v-else-if="status.state === 'failed'"

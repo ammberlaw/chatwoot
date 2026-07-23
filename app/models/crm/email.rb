@@ -56,7 +56,8 @@
 #
 class Crm::Email < ApplicationRecord
   FOLDERS = %w[INBOX SENT DRAFT BULK SPAM].freeze
-  SEND_STATUSES = %w[DRAFT PENDING SENT FAILED].freeze
+  # SCHEDULED：定时发送，待 scheduled_at 到点由 DispatchScheduledEmailsJob 转 PENDING。
+  SEND_STATUSES = %w[DRAFT SCHEDULED PENDING SENT FAILED].freeze
 
   belongs_to :account
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true

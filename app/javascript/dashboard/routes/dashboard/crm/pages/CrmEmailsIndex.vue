@@ -62,6 +62,7 @@ const isFetching = computed(() => uiFlags.value.fetchingList);
 
 const SEND_STATUSES = {
   DRAFT: { label: '草稿', class: 'bg-n-slate-3 text-n-slate-11' },
+  SCHEDULED: { label: '定时发送', class: 'bg-n-amber-3 text-n-amber-11' },
   PENDING: { label: '发送中', class: 'bg-n-iris-3 text-n-iris-11' },
   SENT: { label: '已发送', class: 'bg-n-teal-3 text-n-teal-11' },
   FAILED: { label: '发送失败', class: 'bg-n-ruby-3 text-n-ruby-11' },
