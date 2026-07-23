@@ -4,8 +4,9 @@
 # 通过发件人邮箱 → Contact → Crm::Customer 关联客户（Twenty 桥接未做，此处补齐产品语义）。
 class Crm::EmailIntakeService
   # 过滤域名清单移植自 Twenty imap-to-crmemail-bridge.sql
+  # email.alibaba.com 为阿里「询盘通知」发件域，属平台通知非客户直邮，不入库。
   NOTIFICATION_DOMAINS = %w[linkedin.com mail.linkedin.com accounts.google.com
-                            notice.alibaba.com service.alibaba.com exmail.weixin.qq.com].freeze
+                            notice.alibaba.com service.alibaba.com email.alibaba.com exmail.weixin.qq.com].freeze
 
   def initialize(message:)
     @message = message

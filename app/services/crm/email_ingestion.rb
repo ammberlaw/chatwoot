@@ -48,8 +48,8 @@ module Crm::EmailIngestion
       cc_address: Array(mail.cc).join(', ').presence,
       subject: mail.subject.presence || '(无主题)',
       email_date: mail.date&.to_time || Time.current,
-      body: text_body(mail),
-      body_html: html_body(mail),
+      body: truncate_text(text_body(mail)),
+      body_html: truncate_text(html_body(mail)),
       contact_id: contact&.id,
       crm_customer_id: contact&.crm_customer_id
     )
@@ -76,6 +76,17 @@ module Crm::EmailIngestion
     body.force_encoding(part.charset || 'UTF-8').encode('UTF-8', invalid: :replace, undef: :replace)
   rescue StandardError
     part.body.to_s
+  end
+
+  # 正文超出 text 列上限（ApplicationRecord::MAX_TEXT_COLUMN_LENGTH）时截断入库，
+  # 而非整封丢弃 —— 长 HTML 客户邮件仍要能收进来。
+  def truncate_text(str)
+    return str if str.nil?
+
+    limit = ApplicationRecord::MAX_TEXT_COLUMN_LENGTH
+    return str if str.length <= limit
+
+    "#{str[0, limit - 20]}\n…（内容过长，已截断）"
   end
 
   def attach_files(email, mail)
