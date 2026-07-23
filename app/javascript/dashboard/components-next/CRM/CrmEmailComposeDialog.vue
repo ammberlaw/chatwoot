@@ -17,6 +17,7 @@ import EmailTemplatesAPI from 'dashboard/api/crm/emailTemplates';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import ContactsAPI from 'dashboard/api/crm/contacts';
 import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
+import { useAlert } from 'dashboard/composables';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
@@ -64,7 +65,9 @@ const L = {
   noSignature: '（无签名）',
   applyTemplate: '套用模板',
   noTemplate: '— 不套用 —',
-  sentBanner: '已提交发送，结果见邮件列表状态。可继续写下一封。',
+  sentOk: '✅ 成功发送',
+  sentBanner: '✅ 邮件发送成功。可继续写下一封。',
+  submittedBanner: '已提交发送，仍在投递中，结果稍后见邮件列表状态。',
   draftBanner: '已存入草稿箱。',
   needTo: '请填写收件人',
   needAccount: '你还没有配置启用的发信邮箱（邮件中心 → 邮箱账户）',
@@ -418,11 +421,40 @@ const send = async () => {
   try {
     const id = await persist();
     await store.update({ id, sendNow: true });
-    status.value = { state: 'sent', msg: '' };
+    emit('refresh');
+    // 发送是异步的（进队列走 SMTP），轮询真实结果：成功才提示「成功发送」。
+    const result = await pollSendResult(id);
+    if (result.status === 'FAILED') {
+      status.value = { state: 'failed', msg: result.error || '发送失败，请见邮件列表状态。' };
+    } else if (result.status === 'SENT') {
+      status.value = { state: 'sent', msg: '' };
+      useAlert(L.sentOk);
+    } else {
+      status.value = { state: 'submitted', msg: '' };
+    }
     emit('refresh');
   } catch (e) {
     status.value = { state: 'failed', msg: String(e?.message || e) };
   }
+};
+
+// 轮询单封邮件的发送结果：SENT/FAILED 即返回，约 12 秒仍在发送则返回 PENDING。
+const pollSendResult = async id => {
+  for (let i = 0; i < 8; i += 1) {
+    // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const { data } = await CrmEmailAPI.show(id);
+      const st = data?.send_status || data?.sendStatus;
+      if (st === 'SENT' || st === 'FAILED') {
+        return { status: st, error: data?.send_error || data?.sendError };
+      }
+    } catch {
+      // 单次查询失败忽略，继续轮询
+    }
+  }
+  return { status: 'PENDING' };
 };
 
 // ---- 定时发送 ----
@@ -903,6 +935,12 @@ defineExpose({ open, close });
         class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-teal-11 border-n-teal-7 bg-n-teal-2"
       >
         {{ L.sentBanner }}
+      </div>
+      <div
+        v-else-if="status.state === 'submitted'"
+        class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-blue-11 border-n-blue-7 bg-n-blue-2"
+      >
+        {{ L.submittedBanner }}
       </div>
       <div
         v-else-if="status.state === 'draft'"
