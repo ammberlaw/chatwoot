@@ -880,22 +880,36 @@ const menuItems = computed(() => {
             activeOn: ['mes_stock_entries_index'],
           },
           {
-            name: 'MES Material Issues',
-            label: t('SIDEBAR.MES_MATERIAL_ISSUES'),
-            to: accountScopedRoute('mes_material_issues_index'),
-            activeOn: ['mes_material_issues_index'],
-          },
-          {
-            name: 'MES Production Records',
-            label: t('SIDEBAR.MES_PRODUCTION_RECORDS'),
-            to: accountScopedRoute('mes_production_records_index'),
-            activeOn: ['mes_production_records_index'],
-          },
-          {
-            name: 'MES Inspections',
-            label: t('SIDEBAR.MES_INSPECTIONS'),
-            to: accountScopedRoute('mes_inspections_index'),
-            activeOn: ['mes_inspections_index'],
+            name: 'MES Shopfloor',
+            label: t('SIDEBAR.MES_G_SHOPFLOOR'),
+            icon: 'i-lucide-wrench',
+            collapsible: true,
+            showTreeLine: true,
+            activeOn: [
+              'mes_material_issues_index',
+              'mes_production_records_index',
+              'mes_inspections_index',
+            ],
+            children: [
+              {
+                name: 'MES Material Issues',
+                label: t('SIDEBAR.MES_MATERIAL_ISSUES'),
+                to: accountScopedRoute('mes_material_issues_index'),
+                activeOn: ['mes_material_issues_index'],
+              },
+              {
+                name: 'MES Production Records',
+                label: t('SIDEBAR.MES_PRODUCTION_RECORDS'),
+                to: accountScopedRoute('mes_production_records_index'),
+                activeOn: ['mes_production_records_index'],
+              },
+              {
+                name: 'MES Inspections',
+                label: t('SIDEBAR.MES_INSPECTIONS'),
+                to: accountScopedRoute('mes_inspections_index'),
+                activeOn: ['mes_inspections_index'],
+              },
+            ],
           },
           {
             name: 'MES FG Inbound',
