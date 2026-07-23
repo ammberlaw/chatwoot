@@ -7,6 +7,7 @@ json.smtp_port resource.smtp_port
 json.smtp_user resource.smtp_user
 json.use_ssl resource.use_ssl
 json.imap_enabled resource.imap_enabled
+json.receive_protocol resource.receive_protocol
 json.imap_host resource.imap_host
 json.imap_port resource.imap_port
 json.imap_ssl resource.imap_ssl

@@ -47,6 +47,14 @@ class Crm::MailAccount < ApplicationRecord
     'NETEASE_QIYE' => 'imaphz.qiye.163.com',
     'ALIYUN_QIYE' => 'imap.qiye.aliyun.com'
   }.freeze
+  # 收件（POP3）主机；CUSTOM 复用 imap_host。用于服务商关闭 IMAP、仅放开 POP3 的账户（如部分阿里企业邮）。
+  PROVIDER_POP_HOSTS = {
+    'TENCENT_EXMAIL' => 'pop.exmail.qq.com',
+    'NETEASE_QIYE' => 'pophz.qiye.163.com',
+    'ALIYUN_QIYE' => 'pop.qiye.aliyun.com'
+  }.freeze
+  # 收件协议：IMAP（默认）或 POP3。收件主机/端口/加密复用 imap_* 字段。
+  RECEIVE_PROTOCOLS = %w[IMAP POP3].freeze
 
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true
@@ -56,10 +64,11 @@ class Crm::MailAccount < ApplicationRecord
   validates :name, presence: true
   validates :email_address, presence: true
   validates :provider, inclusion: { in: PROVIDERS }
+  validates :receive_protocol, inclusion: { in: RECEIVE_PROTOCOLS }
 
   scope :active, -> { where(is_active: true) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
-  # 可收件账户：启用 + 已开 IMAP + 有密码（IMAP 复用 smtp_password 认证）。
+  # 可收件账户：启用 + 已开收件 + 有密码（收件复用 smtp_password 认证）。含 IMAP 与 POP3 两种协议。
   scope :imap_active, -> { active.where(imap_enabled: true).where.not(smtp_password: [nil, '']) }
 
   def resolved_host
@@ -72,6 +81,18 @@ class Crm::MailAccount < ApplicationRecord
 
   def resolved_imap_port
     imap_port || 993
+  end
+
+  def pop3?
+    receive_protocol == 'POP3'
+  end
+
+  def resolved_pop_host
+    provider == 'CUSTOM' ? imap_host : PROVIDER_POP_HOSTS[provider]
+  end
+
+  def resolved_pop_port
+    imap_port || 995
   end
 
   def resolved_port

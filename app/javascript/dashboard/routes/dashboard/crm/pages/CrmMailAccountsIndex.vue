@@ -50,13 +50,14 @@ const L = {
   testing: '测试中…',
 };
 
-const enabledOptions = [
-  { value: 'false', label: '不收信（仅发信）' },
-  { value: 'true', label: '开启收件（IMAP）' },
+const receiveOptions = [
+  { value: 'off', label: '不收信（仅发信）' },
+  { value: 'imap', label: 'IMAP 收信' },
+  { value: 'pop3', label: 'POP3 收信（服务商关了 IMAP 时用）' },
 ];
 const imapSslOptions = [
-  { value: 'true', label: 'SSL (993)' },
-  { value: 'false', label: '不加密 (143)' },
+  { value: 'true', label: 'SSL 加密' },
+  { value: 'false', label: '不加密' },
 ];
 
 const editingId = ref(null);
@@ -69,7 +70,7 @@ const form = reactive({
   smtpPassword: '',
   useSsl: 'true',
   signature: '',
-  imapEnabled: 'false',
+  receiveMode: 'off',
   imapHost: '',
   imapPort: '',
   imapSsl: 'true',
@@ -85,7 +86,7 @@ const resetForm = () => {
     smtpPassword: '',
     useSsl: 'true',
     signature: '',
-    imapEnabled: 'false',
+    receiveMode: 'off',
     imapHost: '',
     imapPort: '',
     imapSsl: 'true',
@@ -109,7 +110,11 @@ const openEdit = record => {
     smtpPassword: '',
     useSsl: record.useSsl === false ? 'false' : 'true',
     signature: record.signature || '',
-    imapEnabled: record.imapEnabled ? 'true' : 'false',
+    receiveMode: !record.imapEnabled
+      ? 'off'
+      : record.receiveProtocol === 'POP3'
+        ? 'pop3'
+        : 'imap',
     imapHost: record.imapHost || '',
     imapPort: record.imapPort ? String(record.imapPort) : '',
     imapSsl: record.imapSsl === false ? 'false' : 'true',
@@ -127,7 +132,8 @@ const handleConfirm = async () => {
     smtpPort: form.smtpPort ? Number(form.smtpPort) : null,
     useSsl: form.useSsl === 'true',
     signature: form.signature.trim() || null,
-    imapEnabled: form.imapEnabled === 'true',
+    imapEnabled: form.receiveMode !== 'off',
+    receiveProtocol: form.receiveMode === 'pop3' ? 'POP3' : 'IMAP',
     imapHost: form.imapHost.trim() || null,
     imapPort: form.imapPort ? Number(form.imapPort) : null,
     imapSsl: form.imapSsl === 'true',
@@ -362,20 +368,20 @@ onMounted(() => store.get());
               : t('CRM.MAIL_ACCOUNTS.FORM.PASSWORD_PLACEHOLDER')
           "
         />
-        <!-- 收件设置（IMAP）：认证复用上面的授权码 -->
+        <!-- 收件设置（IMAP / POP3）：认证复用上面的授权码 -->
         <div class="pt-2 mt-1 border-t border-n-weak">
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block mb-0.5 text-heading-3 text-n-slate-12">
-                收件（IMAP）
+                收件方式
               </label>
               <Select
-                v-model="form.imapEnabled"
+                v-model="form.receiveMode"
                 class="w-full"
-                :options="enabledOptions"
+                :options="receiveOptions"
               />
             </div>
-            <div v-if="form.imapEnabled === 'true'">
+            <div v-if="form.receiveMode !== 'off'">
               <label class="block mb-0.5 text-heading-3 text-n-slate-12">
                 收件加密
               </label>
@@ -387,14 +393,14 @@ onMounted(() => store.get());
             </div>
           </div>
           <div
-            v-if="form.imapEnabled === 'true' && form.provider === 'CUSTOM'"
+            v-if="form.receiveMode !== 'off' && form.provider === 'CUSTOM'"
             class="grid grid-cols-2 gap-4 mt-3"
           >
-            <Input v-model="form.imapHost" label="IMAP 主机" />
-            <Input v-model="form.imapPort" type="number" label="IMAP 端口" />
+            <Input v-model="form.imapHost" label="收件主机" />
+            <Input v-model="form.imapPort" type="number" label="收件端口" />
           </div>
           <p
-            v-if="form.imapEnabled === 'true'"
+            v-if="form.receiveMode !== 'off'"
             class="mt-1.5 text-xs text-n-slate-10"
           >
             开启后每 5 分钟自动拉取新邮件到收件箱，认证复用上方的授权码。
