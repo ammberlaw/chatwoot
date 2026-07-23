@@ -138,7 +138,7 @@ onMounted(load);
               {{ stageLabel(o.stage) }}
             </span>
             <span v-if="o.ack_overdue" class="shrink-0 text-n-ruby-11">
-              🔴 未接单超时
+              🔴 超时未接单
             </span>
             <span v-else-if="o.awaiting_ack" class="shrink-0 text-n-amber-11">
               ⏳ 待接单

@@ -293,13 +293,13 @@ onMounted(() => {
         </ul>
       </div>
 
-      <!-- 未接单超时（装死）：管理视图，谁在拖一眼可见 -->
+      <!-- 超时未接单（装死）：管理视图，谁在拖一眼可见 -->
       <div
         v-if="data.unacked.length"
         class="p-5 rounded-xl lg:col-span-3 bg-n-ruby-2 border border-n-ruby-6"
       >
         <div class="mb-3 font-medium text-n-ruby-11">
-          🔴 未接单超时 ({{ data.unacked.length }})
+          🔴 超时未接单 ({{ data.unacked.length }})
         </div>
         <ul class="flex flex-col gap-2">
           <li

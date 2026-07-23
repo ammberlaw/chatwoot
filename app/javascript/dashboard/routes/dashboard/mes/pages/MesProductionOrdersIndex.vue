@@ -972,7 +972,7 @@ watch(currentPage, fetchRecords);
               ✅ 已接单 · {{ selected.stageAckByName }}
             </span>
             <span v-else-if="selected.ackOverdue" class="text-n-ruby-11">
-              🔴 未接单超时（截止 {{ fmtDateTime(selected.ackDeadline) }}）
+              🔴 超时未接单（截止 {{ fmtDateTime(selected.ackDeadline) }}）
             </span>
             <span v-else-if="selected.awaitingAck" class="text-n-amber-11">
               ⏳ 待接单 · 截止 {{ fmtDateTime(selected.ackDeadline) }}
