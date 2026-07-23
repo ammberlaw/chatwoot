@@ -625,10 +625,10 @@ onMounted(async () => {
               color="slate"
               @click="dialogRef?.close()"
             />
-          <!-- 已下发的编辑：只保留「保存」，保持已下发 -->
+          <!-- 已下发的编辑：只保留「保存修改」，保持已下发状态（非重新下发/非草稿） -->
           <Button
             v-if="editingId && editingStatus === 'RELEASED'"
-            label="保存"
+            label="保存修改（保持下发）"
             color="iris"
             :is-loading="saving"
             :disabled="invalid"
