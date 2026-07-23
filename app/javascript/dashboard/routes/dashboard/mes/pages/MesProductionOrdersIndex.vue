@@ -12,6 +12,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import {
   SPEC_TEMPLATES,
   blankSpec,
+  specFieldsFor,
 } from 'dashboard/routes/dashboard/mes/pages/orderSpecFields';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -116,10 +117,64 @@ const onSearchInput = () => {
 const selectRow = row => {
   selected.value = selected.value?.id === row.id ? null : row;
 };
-// 「查看」按钮：总是打开详情面板（不切换关闭）。
+
+// 「查看」：看建单时填的**订单明细（定制规格表）**，只读弹窗（区别于右侧流程面板）。
+const detailDialogRef = ref(null);
+const detailContentRef = ref(null);
+const viewingOrder = ref(null);
+const viewTemplate = computed(() => {
+  const o = viewingOrder.value;
+  if (!o) return 'TABLET';
+  return (
+    o.spec?.template ||
+    (SPEC_TEMPLATES[o.productLine] ? o.productLine : 'TABLET')
+  );
+});
+const viewSpec = computed(() => ({
+  ...blankSpec(viewTemplate.value),
+  ...(viewingOrder.value?.spec || {}),
+}));
+const viewBaseFields = computed(() => {
+  const o = viewingOrder.value || {};
+  return [
+    { label: '工单号', value: o.orderNo },
+    { label: '成品', value: o.productName },
+    { label: '数量', value: `${o.qty ?? ''} ${o.unit ?? ''}` },
+    { label: 'PI 编号', value: o.piNo || '—' },
+    { label: '产品编码', value: o.productCode || '—' },
+    { label: '归属业务员', value: o.ownerName || '—' },
+    {
+      label: '交期',
+      value: o.deliveryDate ? String(o.deliveryDate).slice(0, 10) : '—',
+    },
+  ];
+});
 const openDetail = row => {
-  selected.value = row;
+  viewingOrder.value = row;
+  detailDialogRef.value?.open();
 };
+// 导出订单明细（Excel = 基本信息 + 规格键值；图片 = 明细区截图）。
+const detailExportData = () => {
+  const specRows = specFieldsFor(viewTemplate.value)
+    .filter(f => !f.section)
+    .map(f => {
+      const v = viewSpec.value[f.key];
+      return { label: f.label, value: Array.isArray(v) ? v.join('、') : v };
+    })
+    .filter(f => f.value !== undefined && f.value !== null && f.value !== '');
+  return {
+    title: viewingOrder.value?.orderNo
+      ? `订单明细 ${viewingOrder.value.orderNo}`
+      : '订单明细',
+    fields: [...viewBaseFields.value, ...specRows],
+  };
+};
+const exportDetailExcel = () => {
+  const d = detailExportData();
+  exportDataToExcel(d, d.title);
+};
+const exportDetailJpg = () =>
+  exportNodeToJpg(detailContentRef.value, detailExportData().title);
 // 各阶段到达时间（stage → 日期字符串）。
 const stageTime = stageValue => {
   const ev = (selected.value?.stageEvents || []).find(
@@ -430,50 +485,6 @@ const APPROVAL_LABELS = {
   REJECTED: '已驳回',
 };
 const approvalComment = ref('');
-
-// —— 导出订单（Excel / 图片）——
-const detailPanelRef = ref(null);
-const orderExportData = () => {
-  const o = selected.value || {};
-  return {
-    title: o.orderNo ? `生产订单 ${o.orderNo}` : '生产订单',
-    fields: [
-      { label: '订单号', value: o.orderNo },
-      { label: '成品', value: o.productName },
-      {
-        label: '数量',
-        value: `${o.producedQty ?? 0}/${o.qty ?? ''} ${o.unit ?? ''}`,
-      },
-      { label: 'PI 编号', value: o.piNo },
-      { label: '产品编码', value: o.productCode },
-      { label: '归属业务员', value: o.ownerName },
-      { label: '当前阶段', value: stageLabel(o.stage) },
-      { label: '订单状态', value: STATUS_LABELS[o.status] || o.status },
-      {
-        label: '审批状态',
-        value: APPROVAL_LABELS[o.approvalStatus] || o.approvalStatus,
-      },
-      { label: '关联 BOM', value: o.bomNo },
-      {
-        label: 'BOM 二次确认',
-        value: o.bomConfirmedAt
-          ? `已确认 · ${o.bomConfirmedByName || ''}`
-          : '未确认',
-      },
-      {
-        label: '交期',
-        value: o.deliveryDate ? String(o.deliveryDate).slice(0, 10) : '',
-      },
-      { label: '备注', value: o.remark },
-    ],
-  };
-};
-const exportOrderExcel = () => {
-  const d = orderExportData();
-  exportDataToExcel(d, d.title);
-};
-const exportOrderJpg = () =>
-  exportNodeToJpg(detailPanelRef.value, orderExportData().title);
 
 const isOwner = computed(() => selected.value?.ownerId === currentUserId.value);
 // 业务二次确认 BOM：BOM_READY 段、已挂 BOM 且未确认，创建人（业务员）或管理员可确认。
@@ -844,28 +855,11 @@ watch(currentPage, fetchRecords);
         />
       </div>
 
-      <!-- 详情：8 阶段进度条 -->
+      <!-- 详情：8 阶段进度条（流程视图；订单明细看「查看」弹窗） -->
       <div
         v-if="selected"
-        ref="detailPanelRef"
         class="flex flex-col p-5 overflow-auto w-80 shrink-0 rounded-xl bg-n-alpha-black1 border border-n-weak"
       >
-        <div class="flex justify-end gap-2 mb-2 export-skip">
-          <Button
-            label="导出 Excel"
-            variant="outline"
-            color="slate"
-            size="sm"
-            @click="exportOrderExcel"
-          />
-          <Button
-            label="导出图片"
-            variant="outline"
-            color="slate"
-            size="sm"
-            @click="exportOrderJpg"
-          />
-        </div>
         <div class="flex items-center justify-between mb-1">
           <span class="font-semibold text-n-slate-12">{{
             selected.orderNo
@@ -1512,6 +1506,105 @@ watch(currentPage, fetchRecords);
           v-model="denyReason"
           placeholder="如：PI 与数量不符 / 交期不可行"
         />
+      </div>
+    </Dialog>
+
+    <!-- 订单明细：建单时填的规格表（只读）+ 导出 -->
+    <Dialog
+      ref="detailDialogRef"
+      width="3xl"
+      overflow-y-auto
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+      :title="viewingOrder ? `订单明细 ${viewingOrder.orderNo}` : '订单明细'"
+    >
+      <div v-if="viewingOrder" class="flex flex-col gap-4 text-sm">
+        <div class="flex justify-end gap-2">
+          <Button
+            label="导出 Excel"
+            variant="outline"
+            color="slate"
+            size="sm"
+            @click="exportDetailExcel"
+          />
+          <Button
+            label="导出图片"
+            variant="outline"
+            color="slate"
+            size="sm"
+            @click="exportDetailJpg"
+          />
+        </div>
+        <div
+          ref="detailContentRef"
+          class="flex flex-col gap-4 p-4 bg-white rounded-lg"
+        >
+          <div class="grid grid-cols-3 gap-x-4 gap-y-3">
+            <div
+              v-for="f in viewBaseFields"
+              :key="f.label"
+              class="flex flex-col"
+            >
+              <span class="text-xs text-n-slate-10">{{ f.label }}</span>
+              <span class="text-n-slate-12">{{ f.value }}</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-n-weak">
+            <div
+              class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              定制规格
+            </div>
+            <MesOrderSpecForm
+              :template="viewTemplate"
+              :spec="viewSpec"
+              readonly
+            />
+          </div>
+
+          <div
+            v-if="viewingOrder.images && viewingOrder.images.length"
+            class="pt-2 border-t border-n-weak"
+          >
+            <div
+              class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              产品图片
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <img
+                v-for="img in viewingOrder.images"
+                :key="img.id"
+                :src="img.url"
+                class="object-cover w-20 h-20 border rounded border-n-weak"
+              />
+            </div>
+          </div>
+
+          <div
+            v-if="viewingOrder.files && viewingOrder.files.length"
+            class="pt-2 border-t border-n-weak"
+          >
+            <div
+              class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              附件
+            </div>
+            <ul class="flex flex-col gap-1">
+              <li v-for="af in viewingOrder.files" :key="af.id">
+                <a
+                  :href="af.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-n-iris-11 hover:underline"
+                >
+                  {{ af.filename }}
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
     </Dialog>
   </div>
