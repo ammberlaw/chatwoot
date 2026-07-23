@@ -13,6 +13,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
@@ -37,6 +38,34 @@ const RESULT = {
   FAIL: { label: '不合格', cls: 'bg-n-ruby-3 text-n-ruby-11' },
   CONDITIONAL: { label: '让步接收', cls: 'bg-n-amber-3 text-n-amber-11' },
 };
+
+// 只读查看
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = r => {
+  viewing.value = r;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const r = viewing.value || {};
+  return [
+    { label: '检验类型', value: kindLabel(r.kind) },
+    {
+      label: '对象',
+      value: r.productionOrderNo || r.materialName || r.productName,
+    },
+    { label: '归属人', value: r.productionOrderOwnerName },
+    { label: '检验数', value: r.inspectedQty },
+    { label: '合格数', value: r.passedQty },
+    { label: '不良数', value: r.failedQty },
+    { label: '结果', value: RESULT[r.result]?.label || r.result },
+    { label: '不良原因', value: r.defectReason },
+    { label: '需返修', value: r.needRework ? '是' : '否' },
+    { label: '检验员', value: r.inspectorName },
+    { label: '检验日期', value: day(r.inspectedAt) },
+    { label: '备注', value: r.remark },
+  ];
+});
 
 const productionOrders = ref([]);
 const productionOrderOptions = computed(() => [
@@ -148,6 +177,7 @@ onMounted(() => {
             <th class="px-3 py-3 font-medium">不良原因</th>
             <th class="px-3 py-3 font-medium">检验员</th>
             <th class="px-3 py-3 font-medium">日期</th>
+            <th class="px-3 py-3" />
           </tr>
         </thead>
         <tbody>
@@ -175,9 +205,17 @@ onMounted(() => {
             <td class="px-3 py-3 text-n-slate-11">{{ r.defectReason || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ r.inspectorName || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(r.inspectedAt) }}</td>
+            <td class="px-3 py-3 text-right">
+              <Button
+                label="查看"
+                variant="ghost"
+                size="sm"
+                @click="openView(r)"
+              />
+            </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
               还没有检验记录。
             </td>
           </tr>
@@ -249,5 +287,11 @@ onMounted(() => {
         </label>
       </div>
     </Dialog>
+
+    <MesViewDialog
+      ref="viewDialogRef"
+      title="质检明细"
+      :fields="viewFields"
+    />
   </div>
 </template>

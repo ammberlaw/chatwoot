@@ -15,6 +15,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 
 const { accountId } = useAccount();
 const store = useMesPurchaseOrdersStore();
@@ -41,6 +42,37 @@ const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({
   value,
   label,
 }));
+
+// 只读查看
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = po => {
+  viewing.value = po;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const p = viewing.value || {};
+  return [
+    { label: '采购单号', value: p.poNo },
+    { label: '供应商', value: p.supplierName },
+    { label: '生产订单', value: p.productionOrderNo },
+    { label: '归属人', value: p.productionOrderOwnerName },
+    { label: '状态', value: STATUS_LABELS[p.status] || p.status },
+    { label: '回复交期', value: day(p.expectedDate) },
+    { label: '跟进日期', value: day(p.followUpDate) },
+    { label: '异常', value: p.hasException ? p.exceptionNote || '有异常' : '无' },
+    { label: '制单人', value: p.ownerName },
+    { label: '备注', value: p.remark },
+  ];
+});
+const VIEW_ITEM_COLS = [
+  { label: '物料编码', key: 'materialNo' },
+  { label: '物料名称', key: 'materialName' },
+  { label: '采购量', key: 'qty', align: 'right' },
+  { label: '已到料', key: 'receivedQty', align: 'right' },
+  { label: '单位', key: 'unit' },
+  { label: '备注', key: 'remark' },
+];
 
 const productionOrders = ref([]);
 const productionOrderOptions = computed(() => [
@@ -261,13 +293,21 @@ onMounted(async () => {
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.expectedDate) }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.followUpDate) }}</td>
             <td class="px-3 py-3 text-right">
-              <Button
-                v-if="mesCan('purchase')"
-                label="编辑"
-                variant="ghost"
-                size="sm"
-                @click="openEdit(p)"
-              />
+              <div class="flex justify-end gap-1">
+                <Button
+                  label="查看"
+                  variant="ghost"
+                  size="sm"
+                  @click="openView(p)"
+                />
+                <Button
+                  v-if="mesCan('purchase')"
+                  label="编辑"
+                  variant="ghost"
+                  size="sm"
+                  @click="openEdit(p)"
+                />
+              </div>
             </td>
           </tr>
           <tr v-if="!records.length">
@@ -381,5 +421,14 @@ onMounted(async () => {
         </div>
       </div>
     </Dialog>
+
+    <MesViewDialog
+      ref="viewDialogRef"
+      :title="viewing ? `采购单 ${viewing.poNo}` : '采购单明细'"
+      :fields="viewFields"
+      items-title="采购明细"
+      :item-columns="VIEW_ITEM_COLS"
+      :items="viewing?.purchaseItems || []"
+    />
   </div>
 </template>

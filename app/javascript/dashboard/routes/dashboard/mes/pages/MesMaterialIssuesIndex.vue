@@ -15,6 +15,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -28,6 +29,43 @@ const saving = computed(() => store.getUIFlags.creatingItem);
 const posting = computed(() => store.getUIFlags.updatingItem);
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 const STATUS_LABELS = { DRAFT: '草稿', POSTED: '已过账', CANCELLED: '已取消' };
+
+// 只读查看
+const whName = id =>
+  (warehousesStore.getRecords || []).find(w => w.id === id)?.name || '—';
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = e => {
+  viewing.value = e;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const e = viewing.value || {};
+  return [
+    { label: '单号', value: e.entryNo },
+    { label: '生产订单', value: e.productionOrderNo },
+    { label: '归属人', value: e.productionOrderOwnerName },
+    { label: '领料仓', value: whName(e.fromWarehouseId) },
+    { label: '状态', value: STATUS_LABELS[e.status] || e.status },
+    { label: '过账时间', value: day(e.postedAt) },
+    { label: '制单人', value: e.ownerName },
+    { label: '备注', value: e.remark },
+  ];
+});
+const VIEW_ITEM_COLS = [
+  { label: '物料编码', key: 'materialNo' },
+  { label: '物料名称', key: 'name' },
+  { label: '领用量', key: 'qty', align: 'right' },
+  { label: '单位', key: 'unit' },
+];
+const viewItems = computed(() =>
+  (viewing.value?.stockEntryItems || []).map(it => ({
+    materialNo: it.materialNo,
+    name: it.materialName || it.productName,
+    qty: it.qty,
+    unit: it.unit,
+  }))
+);
 
 const fetchList = () => store.get({ purpose: 'MATERIAL_ISSUE' });
 
@@ -174,14 +212,22 @@ onMounted(async () => {
             <td class="px-3 py-3 text-n-slate-11">{{ STATUS_LABELS[e.status] }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
             <td class="px-3 py-3 text-right">
-              <Button
-                v-if="e.status === 'DRAFT' && mesCan('stock')"
-                label="过账"
-                color="iris"
-                size="sm"
-                :is-loading="posting"
-                @click="postEntry(e)"
-              />
+              <div class="flex justify-end gap-1">
+                <Button
+                  label="查看"
+                  variant="ghost"
+                  size="sm"
+                  @click="openView(e)"
+                />
+                <Button
+                  v-if="e.status === 'DRAFT' && mesCan('stock')"
+                  label="过账"
+                  color="iris"
+                  size="sm"
+                  :is-loading="posting"
+                  @click="postEntry(e)"
+                />
+              </div>
             </td>
           </tr>
           <tr v-if="!records.length">
@@ -259,5 +305,14 @@ onMounted(async () => {
         </div>
       </div>
     </Dialog>
+
+    <MesViewDialog
+      ref="viewDialogRef"
+      :title="viewing ? `领料单 ${viewing.entryNo}` : '领料单明细'"
+      :fields="viewFields"
+      items-title="领料明细"
+      :item-columns="VIEW_ITEM_COLS"
+      :items="viewItems"
+    />
   </div>
 </template>

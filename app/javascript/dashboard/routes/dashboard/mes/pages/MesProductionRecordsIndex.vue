@@ -11,6 +11,7 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 
 const { accountId } = useAccount();
 const store = useMesProductionRecordsStore();
@@ -20,6 +21,28 @@ const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
 const saving = computed(() => store.getUIFlags.creatingItem);
 const time = d => (d ? new Date(d).toLocaleString() : '—');
+
+// 只读查看
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = r => {
+  viewing.value = r;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const r = viewing.value || {};
+  return [
+    { label: '生产订单', value: r.productionOrderNo },
+    { label: '归属人', value: r.productionOrderOwnerName },
+    { label: '工序', value: r.operationName },
+    { label: '完成数', value: r.qtyCompleted },
+    { label: '退料数', value: r.qtyReturned },
+    { label: '清尾数', value: r.qtyScrap },
+    { label: '报工人', value: r.operatorName },
+    { label: '报工时间', value: time(r.recordedAt) },
+    { label: '备注', value: r.remark },
+  ];
+});
 
 const productionOrders = ref([]);
 const productionOrderOptions = computed(() => [
@@ -115,6 +138,7 @@ onMounted(() => {
             <th class="px-3 py-3 font-medium">清尾</th>
             <th class="px-3 py-3 font-medium">报工人</th>
             <th class="px-3 py-3 font-medium">时间</th>
+            <th class="px-3 py-3" />
           </tr>
         </thead>
         <tbody>
@@ -131,9 +155,17 @@ onMounted(() => {
             <td class="px-3 py-3 text-n-slate-11">{{ r.qtyScrap }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ r.operatorName || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ time(r.recordedAt) }}</td>
+            <td class="px-3 py-3 text-right">
+              <Button
+                label="查看"
+                variant="ghost"
+                size="sm"
+                @click="openView(r)"
+              />
+            </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
               还没有报工记录。
             </td>
           </tr>
@@ -192,5 +224,11 @@ onMounted(() => {
         </div>
       </div>
     </Dialog>
+
+    <MesViewDialog
+      ref="viewDialogRef"
+      title="报工明细"
+      :fields="viewFields"
+    />
   </div>
 </template>

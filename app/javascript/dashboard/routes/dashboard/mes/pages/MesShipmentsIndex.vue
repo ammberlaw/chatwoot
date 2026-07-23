@@ -12,6 +12,7 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 
 const { accountId } = useAccount();
 const store = useMesShipmentsStore();
@@ -24,6 +25,34 @@ const saving = computed(() => store.getUIFlags.creatingItem);
 const acting = computed(() => store.getUIFlags.updatingItem);
 const time = d => (d ? new Date(d).toLocaleString() : '—');
 const STATUS_LABELS = { DRAFT: '草稿', SHIPPED: '已出库', CANCELLED: '已取消' };
+
+// 只读查看
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = s => {
+  viewing.value = s;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const s = viewing.value || {};
+  return [
+    { label: '出库单号', value: s.shipmentNo },
+    { label: '销售订单', value: s.salesOrderNo },
+    { label: '客户', value: s.customerName },
+    { label: '生产订单', value: s.productionOrderNo },
+    { label: '归属人', value: s.productionOrderOwnerName },
+    { label: '状态', value: STATUS_LABELS[s.status] || s.status },
+    { label: '通知时间', value: time(s.notifiedAt) },
+    { label: '出库时间', value: time(s.shippedAt) },
+    { label: '制单人', value: s.ownerName },
+    { label: '备注', value: s.remark },
+  ];
+});
+const VIEW_ITEM_COLS = [
+  { label: '成品', key: 'productName' },
+  { label: '数量', key: 'qty', align: 'right' },
+  { label: '单位', key: 'unit' },
+];
 
 const productionOrders = ref([]);
 const salesOrders = ref([]);
@@ -164,22 +193,30 @@ onMounted(() => {
               {{ s.notifiedAt ? '已通知' : '—' }} / {{ time(s.shippedAt) }}
             </td>
             <td class="px-3 py-3 text-right">
-              <div v-if="s.status === 'DRAFT' && mesCan('shipment')" class="flex justify-end gap-2">
+              <div class="flex justify-end gap-1">
                 <Button
-                  v-if="!s.notifiedAt"
-                  label="通知出库"
+                  label="查看"
                   variant="ghost"
                   size="sm"
-                  :is-loading="acting"
-                  @click="notify(s)"
+                  @click="openView(s)"
                 />
-                <Button
-                  label="出库"
-                  color="iris"
-                  size="sm"
-                  :is-loading="acting"
-                  @click="ship(s)"
-                />
+                <template v-if="s.status === 'DRAFT' && mesCan('shipment')">
+                  <Button
+                    v-if="!s.notifiedAt"
+                    label="通知出库"
+                    variant="ghost"
+                    size="sm"
+                    :is-loading="acting"
+                    @click="notify(s)"
+                  />
+                  <Button
+                    label="出库"
+                    color="iris"
+                    size="sm"
+                    :is-loading="acting"
+                    @click="ship(s)"
+                  />
+                </template>
               </div>
             </td>
           </tr>
@@ -231,5 +268,14 @@ onMounted(() => {
         </p>
       </div>
     </Dialog>
+
+    <MesViewDialog
+      ref="viewDialogRef"
+      :title="viewing ? `出库单 ${viewing.shipmentNo}` : '出库单明细'"
+      :fields="viewFields"
+      items-title="出库成品"
+      :item-columns="VIEW_ITEM_COLS"
+      :items="viewing?.shipmentItems || []"
+    />
   </div>
 </template>
