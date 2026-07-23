@@ -36,9 +36,12 @@ const LEAD_STAGES = [
 ];
 
 const products = ref([]);
-const productOptions = computed(() =>
-  products.value.map(p => ({ value: String(p.id), label: p.name }))
-);
+// 关联成品为选填：置顶「不关联成品」哨兵项，让用户可显式清除选择
+// （ComboBox 仅支持再点选中项才清空，不够直观）。
+const productOptions = computed(() => [
+  { value: '', label: '不关联成品' },
+  ...products.value.map(p => ({ value: String(p.id), label: p.name })),
+]);
 
 const dialogRef = ref(null);
 const editingId = ref(null);
@@ -83,8 +86,11 @@ const totalLeadDays = computed(() =>
 
 const invalid = computed(
   () =>
+    !form.productCode.trim() ||
     !form.rows.length ||
-    form.rows.some(r => !r.materialName.trim() || !Number(r.qty))
+    form.rows.some(
+      r => !r.materialNo.trim() || !r.materialName.trim() || !Number(r.qty)
+    )
 );
 
 const addRow = () => form.rows.push(blankRow());
@@ -443,7 +449,9 @@ onMounted(async () => {
             />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-11">产成品代码</label>
+            <label class="text-xs text-n-slate-11"
+              >产成品代码 <span class="text-n-ruby-11">*</span></label
+            >
             <Input v-model="form.productCode" placeholder="如 P.01.842" />
           </div>
           <div class="flex flex-col gap-1">
@@ -511,7 +519,9 @@ onMounted(async () => {
 
         <div class="flex flex-col gap-2">
           <div class="grid grid-cols-12 gap-2 px-1 text-xs text-n-slate-11">
-            <span class="col-span-2">物料编码</span>
+            <span class="col-span-2"
+              >物料编码 <span class="text-n-ruby-11">*</span></span
+            >
             <span class="col-span-3"
               >物料名称 <span class="text-n-ruby-11">*</span></span
             >
