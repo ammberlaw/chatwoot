@@ -84,6 +84,14 @@ const viewHeaderFields = computed(() => {
 });
 const blankLeadDays = () =>
   Object.fromEntries(LEAD_STAGES.map(s => [s.key, '']));
+// 用料分类：整机生产物料 vs 包装物料（整机到齐即可开产，包装未到不挡生产）。
+const CATEGORY_OPTIONS = [
+  { value: 'MACHINE', label: '整机生产物料' },
+  { value: 'PACKAGING', label: '包装物料' },
+];
+const categoryLabel = c =>
+  CATEGORY_OPTIONS.find(o => o.value === c)?.label || '整机生产物料';
+
 // 用料明细每行照生产任务单直接填。
 const blankRow = () => ({
   materialNo: '',
@@ -92,6 +100,7 @@ const blankRow = () => ({
   unit: '',
   qty: '',
   remark: '',
+  category: 'MACHINE',
 });
 // 投单信息（照 PMC 纸质 BOM 抬头）：日期/单号/客户/型号/产成品代码/数量/颜色。
 const blankHeader = () => ({
@@ -177,6 +186,7 @@ const openEdit = bom => {
       unit: it.unit || '',
       qty: String(it.qty ?? ''),
       remark: it.remark || '',
+      category: it.category || 'MACHINE',
     })),
   });
   dialogRef.value?.open();
@@ -194,6 +204,7 @@ const submit = async targetStatus => {
       unit: r.unit.trim(),
       qty: Number(r.qty),
       remark: r.remark.trim(),
+      category: r.category || 'MACHINE',
     })),
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
   ];
@@ -276,6 +287,7 @@ const applyTemplate = t => {
       unit: it.unit || '',
       qty: String(it.qty ?? ''),
       remark: it.remark || '',
+      category: it.category || 'MACHINE',
     })),
   });
   if (!form.rows.length) form.rows.push(blankRow());
@@ -574,16 +586,20 @@ onMounted(async () => {
         >
           <span class="text-heading-3 text-n-slate-12">
             用料明细 <span class="text-n-ruby-11">*</span>
+            <span class="ml-2 text-xs font-normal text-n-slate-10">
+              整机生产物料到齐即可开产；包装物料未到不挡生产（生产领料只领整机料）
+            </span>
           </span>
           <Button label="+ 加一行" variant="ghost" size="sm" @click="addRow" />
         </div>
 
         <div class="flex flex-col gap-2">
           <div class="grid grid-cols-12 gap-2 px-1 text-xs text-n-slate-11">
+            <span class="col-span-2">类别</span>
             <span class="col-span-2"
               >物料编码 <span class="text-n-ruby-11">*</span></span
             >
-            <span class="col-span-3"
+            <span class="col-span-2"
               >物料名称 <span class="text-n-ruby-11">*</span></span
             >
             <span class="col-span-2">规格型号</span>
@@ -591,7 +607,7 @@ onMounted(async () => {
             <span class="col-span-1"
               >用量 <span class="text-n-ruby-11">*</span></span
             >
-            <span class="col-span-2">备注</span>
+            <span class="col-span-1">备注</span>
             <span class="col-span-1" />
           </div>
           <div
@@ -599,6 +615,18 @@ onMounted(async () => {
             :key="i"
             class="grid items-center grid-cols-12 gap-2"
           >
+            <select
+              v-model="row.category"
+              class="col-span-2 px-2 py-2 text-sm border rounded-lg outline-none border-n-weak bg-n-alpha-black1 text-n-slate-12"
+            >
+              <option
+                v-for="c in CATEGORY_OPTIONS"
+                :key="c.value"
+                :value="c.value"
+              >
+                {{ c.label }}
+              </option>
+            </select>
             <Input
               v-model="row.materialNo"
               placeholder="P.03.201"
@@ -607,7 +635,7 @@ onMounted(async () => {
             <Input
               v-model="row.materialName"
               placeholder="P30主板"
-              class="col-span-3"
+              class="col-span-2"
             />
             <Input
               v-model="row.specification"
@@ -621,7 +649,7 @@ onMounted(async () => {
               placeholder="用量"
               class="col-span-1"
             />
-            <Input v-model="row.remark" placeholder="备注" class="col-span-2" />
+            <Input v-model="row.remark" placeholder="备注" class="col-span-1" />
             <button
               type="button"
               class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
@@ -741,6 +769,7 @@ onMounted(async () => {
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left text-n-slate-11 border-b border-n-weak">
+                <th class="px-2 py-2 font-medium">类别</th>
                 <th class="px-2 py-2 font-medium">物料编码</th>
                 <th class="px-2 py-2 font-medium">物料名称</th>
                 <th class="px-2 py-2 font-medium">规格型号</th>
@@ -755,6 +784,18 @@ onMounted(async () => {
                 :key="i"
                 class="border-b border-n-weak"
               >
+                <td class="px-2 py-2">
+                  <span
+                    class="px-2 py-0.5 text-xs rounded-full"
+                    :class="
+                      it.category === 'PACKAGING'
+                        ? 'bg-n-amber-3 text-n-amber-12'
+                        : 'bg-n-iris-3 text-n-iris-12'
+                    "
+                  >
+                    {{ categoryLabel(it.category) }}
+                  </span>
+                </td>
                 <td class="px-2 py-2 text-n-slate-12">{{ it.materialNo || '—' }}</td>
                 <td class="px-2 py-2 text-n-slate-12">{{ it.materialName }}</td>
                 <td class="px-2 py-2 text-n-slate-11">
@@ -765,7 +806,7 @@ onMounted(async () => {
                 <td class="px-2 py-2 text-n-slate-11">{{ it.remark || '—' }}</td>
               </tr>
               <tr v-if="!(viewing.bomItems || []).length">
-                <td colspan="6" class="px-2 py-6 text-center text-n-slate-11">
+                <td colspan="7" class="px-2 py-6 text-center text-n-slate-11">
                   无用料明细
                 </td>
               </tr>

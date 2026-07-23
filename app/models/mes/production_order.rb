@@ -225,20 +225,15 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # BOM 算料（XMind 节点3）：按 BOM 用量 × 本单产量/基准产量，展开采购需求。
   # 返回 [{ mes_material_id, material_no, material_name, specification, unit, qty }]，供采购单预填。
-  def material_requirements
+  # category 传入则只展开该类用料（MACHINE 整机 / PACKAGING 包装）；
+  # 生产领料只推整机物料（包装未到不挡开产），采购需全推。
+  def material_requirements(category: nil)
     return [] if bom.nil? || bom.base_qty.to_d.zero?
 
     factor = qty.to_d / bom.base_qty.to_d
-    bom.bom_items.map do |item|
-      {
-        mes_material_id: item.mes_material_id,
-        material_no: item.material_no,
-        material_name: item.material_name,
-        specification: item.specification,
-        unit: item.unit,
-        qty: (item.qty.to_d * factor)
-      }
-    end
+    items = bom.bom_items
+    items = items.select { |i| i.category == category } if category.present?
+    items.map { |item| requirement_row(item, factor) }
   end
 
   # ── 接单确认（P1）：接单只是「表态」，不阻塞流程；计时始终以进入阶段时间为准 ──
@@ -389,6 +384,19 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   private
+
+  # 单行用料需求（用量按本单产量/基准产量放大）。
+  def requirement_row(item, factor)
+    {
+      mes_material_id: item.mes_material_id,
+      material_no: item.material_no,
+      material_name: item.material_name,
+      specification: item.specification,
+      unit: item.unit,
+      category: item.category,
+      qty: (item.qty.to_d * factor)
+    }
+  end
 
   # ── 站内通知埋点 ──
 

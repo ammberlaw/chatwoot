@@ -59,9 +59,11 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
-  # 按 BOM 推料（生产领料预填）：返回该生产订单的用料需求。
+  # 按 BOM 推料（生产领料预填）：默认只推**整机生产物料**（包装物料未到不挡开产，
+  # 打包时再另领）；传 category=PACKAGING 可单推包装料。
   def requirement
-    render json: { payload: @production_order.material_requirements }
+    category = params[:category].presence || 'MACHINE'
+    render json: { payload: @production_order.material_requirements(category: category) }
   end
 
   # 挂工程 BOM（阶段 2）：绑 BOM + 期望交期 → 进 BOM_READY。预估完工仍按 BOM 天数自动算。
