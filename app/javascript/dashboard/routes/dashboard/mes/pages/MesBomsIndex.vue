@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -17,8 +18,15 @@ import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
-const { accountId } = useAccount();
+const { accountId, accountScopedRoute } = useAccount();
+const router = useRouter();
 const rootStore = useStore();
+
+// 外购成品不经过生产：直接跳采购单页，自动进「成品(外购)」建单模式。
+const goProductPurchase = () =>
+  router.push(
+    accountScopedRoute('mes_purchase_orders_index', {}, { new: 'product' })
+  );
 const store = useMesBomsStore();
 const tplStore = useMesBomTemplatesStore();
 const { mesCan } = useMesRole();
@@ -400,15 +408,25 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">工程/PMC BOM</h1>
-      <div v-if="mesCan('bom')" class="flex items-center gap-2">
+      <div class="flex items-center gap-2">
         <Button
-          label="BOM 模版"
+          v-if="mesCan('purchase')"
+          label="新建成品采购单"
           variant="outline"
           color="slate"
           size="sm"
-          @click="openTemplates"
+          @click="goProductPurchase"
         />
-        <Button label="新建 BOM" color="iris" size="sm" @click="openCreate" />
+        <template v-if="mesCan('bom')">
+          <Button
+            label="BOM 模版"
+            variant="outline"
+            color="slate"
+            size="sm"
+            @click="openTemplates"
+          />
+          <Button label="新建 BOM" color="iris" size="sm" @click="openCreate" />
+        </template>
       </div>
     </div>
 

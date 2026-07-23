@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesPurchaseOrdersStore } from 'dashboard/stores/mes/purchaseOrders';
@@ -18,6 +19,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 
 const { accountId } = useAccount();
+const route = useRoute();
 const store = useMesPurchaseOrdersStore();
 const { mesCan } = useMesRole();
 const suppliersStore = useMesSuppliersStore();
@@ -238,6 +240,12 @@ const openCreate = () => {
   resetForm();
   dialogRef.value?.open();
 };
+// 从工程/PMC BOM 的「新建成品采购单」跳来：首行直接切成外购成品。
+const openProductCreate = () => {
+  resetForm();
+  form.rows[0].itemType = 'PRODUCT';
+  dialogRef.value?.open();
+};
 const openEdit = po => {
   editingId.value = po.id;
   removedItemIds.value = [];
@@ -317,6 +325,7 @@ onMounted(async () => {
   } catch {
     productionOrders.value = [];
   }
+  if (route.query.new === 'product' && mesCan('purchase')) openProductCreate();
 });
 </script>
 
