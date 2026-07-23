@@ -3,7 +3,6 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
-import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
@@ -24,40 +23,7 @@ const stageLabel = s => STAGE_LABELS[s] || s;
 const data = ref(null);
 const loading = ref(true);
 
-// 我的待办：停在我负责阶段的在产订单（到岗通知拉取面）。
-const inbox = ref([]);
-const loadInbox = async () => {
-  try {
-    const { data: res } = await MesProductionOrderAPI.inbox();
-    inbox.value = res?.payload || [];
-  } catch {
-    inbox.value = [];
-  }
-};
-
-// 待我审批：停在我这一级（部门主管/总经理）的生产订单。
-const APPROVAL_STEP = {
-  SUBMITTED: '待你（部门主管）审',
-  MANAGER_APPROVED: '待你（总经理）审',
-};
-const approvalInbox = ref([]);
-const loadApprovalInbox = async () => {
-  try {
-    const { data: res } = await MesProductionOrderAPI.approvalInbox();
-    approvalInbox.value = res?.payload || [];
-  } catch {
-    approvalInbox.value = [];
-  }
-};
-// 点条目 → 订单页「待我审批」视图并定位该单。
-const goApproval = orderNo =>
-  router.push(
-    accountScopedRoute(
-      'mes_production_orders_index',
-      {},
-      { q: orderNo, view: 'approval' }
-    )
-  );
+// 「待我审批 / 待我接单」已移至独立板块「我的待办」(mes_todo_index)。
 
 const kpis = computed(() => {
   const m = data.value?.month || {};
@@ -192,8 +158,6 @@ const selectPeriod = key => {
 
 onMounted(() => {
   load();
-  loadInbox();
-  loadApprovalInbox();
 });
 </script>
 
@@ -224,65 +188,6 @@ onMounted(() => {
     <div v-if="loading" class="py-10 text-center text-n-slate-11">加载中…</div>
 
     <div v-else class="grid grid-cols-1 gap-4 px-6 pb-6 lg:grid-cols-3">
-      <!-- 待我审批：停在我这一级的生产订单 -->
-      <div
-        v-if="approvalInbox.length"
-        class="p-5 rounded-xl lg:col-span-3 bg-n-amber-2 border border-n-amber-6"
-      >
-        <div class="mb-3 font-medium text-n-slate-12">
-          待我审批
-          <span class="text-n-amber-11">({{ approvalInbox.length }})</span>
-        </div>
-        <ul class="flex flex-col gap-2">
-          <li
-            v-for="o in approvalInbox"
-            :key="o.id"
-            class="flex items-center justify-between text-sm cursor-pointer group"
-            @click="goApproval(o.order_no)"
-          >
-            <span class="text-n-slate-12 group-hover:underline">
-              {{ o.order_no }} · {{ o.product_name }}
-              <template v-if="o.pi_no"> · PI {{ o.pi_no }}</template>
-              · {{ o.owner_name }}
-            </span>
-            <span class="shrink-0 text-n-amber-11">
-              {{ APPROVAL_STEP[o.approval_status] || '待审' }}
-            </span>
-          </li>
-        </ul>
-      </div>
-
-      <!-- 待我接单：到岗通知拉取面 -->
-      <div
-        v-if="inbox.length"
-        class="p-5 rounded-xl lg:col-span-3 bg-n-alpha-black1 border border-n-weak"
-      >
-        <div class="mb-3 font-medium text-n-slate-12">
-          待我接单
-          <span class="text-n-iris-11">({{ inbox.length }})</span>
-        </div>
-        <ul class="flex flex-col gap-2">
-          <li
-            v-for="o in inbox"
-            :key="o.id"
-            class="flex items-center justify-between text-sm cursor-pointer group"
-            @click="goOrder(o.order_no)"
-          >
-            <span class="text-n-slate-12 group-hover:underline">
-              {{ o.order_no }} · {{ o.product_name }} ·
-              {{ stageLabel(o.stage) }}
-            </span>
-            <span v-if="o.ack_overdue" class="shrink-0 text-n-ruby-11">
-              🔴 未接单超时
-            </span>
-            <span v-else-if="o.awaiting_ack" class="shrink-0 text-n-amber-11">
-              ⏳ 待接单
-            </span>
-            <span v-else class="shrink-0 text-n-teal-11">已接单 · 处理中</span>
-          </li>
-        </ul>
-      </div>
-
       <!-- KPI 行 -->
       <div class="grid grid-cols-2 gap-4 lg:col-span-3 lg:grid-cols-5">
         <div

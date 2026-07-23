@@ -12,6 +12,7 @@ import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
+import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import { emitter } from 'shared/helpers/mitt';
 import { useWindowSize, useEventListener } from '@vueuse/core';
 
@@ -267,6 +268,22 @@ const getSidebarSectionSort = useMapGetter(
 const mesNotificationsStore = useMesNotificationsStore();
 const mesUnreadCount = computed(() => mesNotificationsStore.getUnreadCount);
 
+// MES 我的待办角标（待我审批 + 待我接单）。进入 MES 板块时刷新。
+const mesTodoCount = ref(0);
+const fetchMesTodoCount = async () => {
+  try {
+    const [approvalRes, inboxRes] = await Promise.all([
+      MesProductionOrderAPI.approvalInbox(),
+      MesProductionOrderAPI.inbox(),
+    ]);
+    mesTodoCount.value =
+      (approvalRes?.data?.payload?.length || 0) +
+      (inboxRes?.data?.payload?.length || 0);
+  } catch {
+    mesTodoCount.value = 0;
+  }
+};
+
 onMounted(() => {
   store.dispatch('labels/get');
   store.dispatch('inboxes/get');
@@ -276,6 +293,7 @@ onMounted(() => {
   store.dispatch('customViews/get', 'conversation');
   store.dispatch('customViews/get', 'contact');
   mesNotificationsStore.fetchUnreadCount();
+  fetchMesTodoCount();
 });
 
 watch([accountId, hasConversationUnreadCounts], fetchConversationUnreadCounts, {
@@ -804,6 +822,7 @@ const menuItems = computed(() => {
         icon: 'i-lucide-factory',
         activeOn: [
           'mes_dashboard_index',
+          'mes_todo_index',
           'mes_production_orders_index',
           'mes_boms_index',
           'mes_purchase_orders_index',
@@ -821,6 +840,13 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_DASHBOARD'),
             to: accountScopedRoute('mes_dashboard_index'),
             activeOn: ['mes_dashboard_index'],
+          },
+          {
+            name: 'MES Todo',
+            label: t('SIDEBAR.MES_TODO'),
+            badgeCount: mesTodoCount.value,
+            to: accountScopedRoute('mes_todo_index'),
+            activeOn: ['mes_todo_index'],
           },
           {
             name: 'MES Notifications',
@@ -1458,6 +1484,7 @@ const ROUTE_MODULE = {
   crm_employees_index: 'hr',
   crm_doc_center_index: 'doc',
   mes_dashboard_index: 'mes',
+  mes_todo_index: 'mes',
   mes_production_orders_index: 'mes',
   mes_production_order_intake_index: 'mes',
   mes_boms_index: 'mes',
@@ -1476,6 +1503,8 @@ watch(
   activeModule,
   module => {
     if (module === 'doc' && !docSections.value.length) fetchDocSections();
+    // 进入 MES 板块时刷新「我的待办」角标（审批/接单后回来即更新）。
+    if (module === 'mes') fetchMesTodoCount();
   },
   { immediate: true }
 );

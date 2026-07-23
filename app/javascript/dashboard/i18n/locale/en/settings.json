@@ -438,6 +438,7 @@
     "CRM_ORDERS_NO_CUSTOMER": "未关联客户的订单",
     "MES_G_PRODUCTION": "生产管理",
     "MES_DASHBOARD": "生产看板",
+    "MES_TODO": "我的待办",
     "MES_PRODUCTION_ORDERS": "生产订单",
     "MES_BOMS": "工程/PMC BOM",
     "MES_PURCHASE_ORDERS": "采购单",
