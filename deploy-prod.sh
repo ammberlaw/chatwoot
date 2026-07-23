@@ -112,6 +112,11 @@ step "用新镜像重启 rails + sidekiq"
 retry remote "cd ~/$REMOTE_DIR && sudo docker compose -f $COMPOSE up -d --force-recreate rails sidekiq 2>&1 | tail -3"
 ok "服务已重启"
 
+# ── 4b. 品牌自愈：重申 Wintouch（防 installation_configs 被重置回 Chatwoot） ──
+step "重申品牌 Wintouch"
+retry remote "cd ~/$REMOTE_DIR && sudo docker compose -f $COMPOSE exec -T rails bundle exec rails wintouch:brand 2>&1 | tail -2" || warn "品牌重申失败，可手动 rails wintouch:brand"
+ok "品牌已确保为 Wintouch"
+
 # ── 5. 健康检查 ──
 step "健康检查"
 HTTP=000
