@@ -1495,6 +1495,7 @@ const ROUTE_MODULE = {
   mes_inspections_index: 'mes',
   mes_fg_inbound_index: 'mes',
   mes_shipments_index: 'mes',
+  mes_notifications_index: 'mes',
 };
 const activeModule = computed(() => ROUTE_MODULE[route.name] || 'crm');
 
