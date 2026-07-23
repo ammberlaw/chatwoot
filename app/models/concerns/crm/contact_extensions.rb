@@ -3,7 +3,8 @@
 module Crm::ContactExtensions
   extend ActiveSupport::Concern
 
-  PRODUCT_CATEGORIES = %w[TABLET COMMERCIAL_DISPLAY INDUSTRIAL_CONTROL].freeze
+  # 与客户产品分组一致：平板电脑 / 商显工控(COMMERCIAL_DISPLAY，含原商显+工控)。
+  PRODUCT_CATEGORIES = %w[TABLET COMMERCIAL_DISPLAY].freeze
 
   included do
     belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true
