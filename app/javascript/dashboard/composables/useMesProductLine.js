@@ -3,14 +3,12 @@ import { ref, computed } from 'vue';
 // 产品线（页面分流维度）。空值 = 全部产线（不过滤）。short 供窄侧栏切换器显示。
 export const MES_PRODUCT_LINES = [
   { value: '', label: '全部产线', short: '全部' },
-  { value: 'COMMERCIAL_DISPLAY', label: '商显设备', short: '商显' },
-  { value: 'INDUSTRIAL_CONTROL', label: '工控类', short: '工控' },
+  { value: 'COMMERCIAL_DISPLAY', label: '商显工控', short: '商显工控' },
   { value: 'TABLET', label: '平板电脑', short: '平板' },
 ];
 
 const LABELS = {
-  COMMERCIAL_DISPLAY: '商显设备',
-  INDUSTRIAL_CONTROL: '工控类',
+  COMMERCIAL_DISPLAY: '商显工控',
   TABLET: '平板电脑',
 };
 const STORAGE_KEY = 'mes_product_line';

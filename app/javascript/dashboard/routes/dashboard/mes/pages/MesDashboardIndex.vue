@@ -63,8 +63,7 @@ const stageBars = computed(() => {
 
 // —— 按时交货率（按产品线）——
 const ONTIME_LINES = [
-  { code: 'COMMERCIAL_DISPLAY', label: '商显设备' },
-  { code: 'INDUSTRIAL_CONTROL', label: '工控类' },
+  { code: 'COMMERCIAL_DISPLAY', label: '商显工控' },
   { code: 'TABLET', label: '平板电脑' },
 ];
 const onTimeRow = code => data.value?.onTime?.[code] || null;

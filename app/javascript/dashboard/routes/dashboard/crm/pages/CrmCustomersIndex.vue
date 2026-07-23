@@ -71,8 +71,7 @@ const customerGroupOptions = [
 const productGroupOptions = [
   { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_PRODUCT_GROUP') },
   { value: 'TABLET', label: '平板电脑' },
-  { value: 'COMMERCIAL_DISPLAY', label: '商显' },
-  { value: 'INDUSTRIAL_CONTROL', label: '工控' },
+  { value: 'COMMERCIAL_DISPLAY', label: '商显工控' },
 ];
 // 客户来源下拉（空值 = 全部）；取值对齐 Crm::Customer::SOURCE_CHANNELS。
 const sourceChannelOptions = [
@@ -598,8 +597,9 @@ const CUSTOMER_GROUP_LABELS = {
 };
 const PRODUCT_GROUP_LABELS = {
   TABLET: '平板电脑',
-  COMMERCIAL_DISPLAY: '商显',
-  INDUSTRIAL_CONTROL: '工控',
+  COMMERCIAL_DISPLAY: '商显工控',
+  // 历史值 INDUSTRIAL_CONTROL 已并入 COMMERCIAL_DISPLAY
+  INDUSTRIAL_CONTROL: '商显工控',
 };
 
 // 右侧详情面板：分组字段数据（value 纯文本 / tag 彩色胶囊 / link 可点）

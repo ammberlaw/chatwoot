@@ -62,8 +62,7 @@ const groupOptions = [
 ];
 const productGroupOptions = [
   { value: 'TABLET', label: '平板电脑' },
-  { value: 'COMMERCIAL_DISPLAY', label: '商显' },
-  { value: 'INDUSTRIAL_CONTROL', label: '工控' },
+  { value: 'COMMERCIAL_DISPLAY', label: '商显工控' },
 ];
 const sourceOptions = [
   { value: 'ALIBABA', label: '阿里巴巴国际站' },

@@ -3,7 +3,8 @@
 module Crm::ContactExtensions
   extend ActiveSupport::Concern
 
-  PRODUCT_CATEGORIES = %w[TABLET COMMERCIAL_DISPLAY INDUSTRIAL_CONTROL].freeze
+  # 商显与工控已合并为「商显工控」（COMMERCIAL_DISPLAY）。
+  PRODUCT_CATEGORIES = %w[TABLET COMMERCIAL_DISPLAY].freeze
 
   included do
     belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true

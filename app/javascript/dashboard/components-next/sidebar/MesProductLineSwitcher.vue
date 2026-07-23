@@ -1,7 +1,7 @@
 <script setup>
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 
-// 生产管理产品线切换：商显 / 工控 / 平板 / 全部。切换后全站 MES 页面按线过滤（axios 拦截注入）。
+// 生产管理产品线切换：商显工控 / 平板 / 全部。切换后全站 MES 页面按线过滤（axios 拦截注入）。
 const { activeProductLine, options, setActiveProductLine } =
   useMesProductLine();
 </script>

@@ -15,7 +15,7 @@ const CUSTOMER_GROUP = [
   ['NOT_WON', '未成交客户'], ['SOCIAL_MEDIA', '社媒开发客户'],
 ];
 const PRODUCT_GROUP = [
-  ['TABLET', '平板电脑'], ['COMMERCIAL_DISPLAY', '商显'], ['INDUSTRIAL_CONTROL', '工控'],
+  ['TABLET', '平板电脑'], ['COMMERCIAL_DISPLAY', '商显工控'],
 ];
 const SOURCE = [
   ['ALIBABA', '阿里巴巴国际站'], ['WEBSITE', '官网'], ['EXHIBITION', '展会'],
