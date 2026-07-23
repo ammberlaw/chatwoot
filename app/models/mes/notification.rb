@@ -31,6 +31,7 @@ class Mes::Notification < ApplicationRecord
   KINDS = %w[
     approval_pending approval_approved approval_rejected
     bom_reconfirm bom_confirmed stage_assigned stage_returned
+    production_reported
   ].freeze
 
   belongs_to :account

@@ -18,6 +18,7 @@ const KIND_META = {
   bom_confirmed: { label: 'BOM已确认', dot: 'bg-n-teal-9' },
   stage_assigned: { label: '待接单', dot: 'bg-n-iris-9' },
   stage_returned: { label: '被退回', dot: 'bg-n-ruby-9' },
+  production_reported: { label: '待成品入库', dot: 'bg-n-iris-9' },
 };
 const kindMeta = kind => KIND_META[kind] || { label: '通知', dot: 'bg-n-slate-9' };
 

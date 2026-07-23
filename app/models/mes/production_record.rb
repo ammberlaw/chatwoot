@@ -55,8 +55,10 @@ class Mes::ProductionRecord < ApplicationRecord
     self.recorded_at ||= Time.current
   end
 
-  # 报工累加已产数量并推进阶段（首次报工 PICKING → PRODUCTION）。
+  # 报工累加已产数量并推进阶段（首次报工 PICKING → PRODUCTION），
+  # 有实际产出则通知仓库来做成品入库（全部/部分完工都推）。
   def apply_to_production_order
     production_order.add_produced!(qty_completed)
+    production_order.notify_fg_inbound_ready(qty_completed, actor: operator) if qty_completed.to_d.positive?
   end
 end

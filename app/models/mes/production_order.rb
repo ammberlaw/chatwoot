@@ -263,12 +263,29 @@ class Mes::ProductionOrder < ApplicationRecord
     awaiting_ack? && ack_deadline.present? && ack_deadline < Time.current
   end
 
+  # 指定板块的负责人 user_id。
+  def board_owner_ids(board_key)
+    account.mes_board_owners.find_by(board_key: board_key)&.manager_ids || []
+  end
+
   # 当前阶段负责人的 user_id（取该阶段板块负责人）。
   def current_stage_owner_ids
     key = STAGE_BOARD_KEYS[stage]
-    return [] unless key
+    key ? board_owner_ids(key) : []
+  end
 
-    account.mes_board_owners.find_by(board_key: key)&.manager_ids || []
+  # 生产报工后通知仓库来做成品入库（全部/部分完工都推）。
+  def notify_fg_inbound_ready(reported_qty, actor: nil)
+    owner_ids = board_owner_ids('mes_fg_inbound_index')
+    return if owner_ids.blank?
+
+    done = produced_qty.to_d >= qty.to_d
+    Mes::Notifier.notify(
+      account: account, recipients: owner_ids, kind: 'production_reported',
+      title: "待成品入库：#{order_no}（#{done ? '已完工' : '部分完工'}）",
+      body: "#{actor&.name || '生产'} 报工 #{fnum(reported_qty)} #{unit}，累计 #{fnum(produced_qty)}/#{fnum(qty)}，请安排成品入库。",
+      order: self
+    )
   end
 
   # 当前阶段负责人姓名（点名展示用；未配置则为空）。
@@ -384,6 +401,11 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   private
+
+  # 数量文案：去掉多余小数（50.0 → 50）。
+  def fnum(value)
+    format('%g', value.to_f)
+  end
 
   # 单行用料需求（用量按本单产量/基准产量放大）。
   def requirement_row(item, factor)
