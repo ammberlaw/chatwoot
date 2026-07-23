@@ -42,7 +42,7 @@ class Crm::MailAccountVerifier
     imap.logout
     { ok: true }
   rescue StandardError => e
-    failure(e.message)
+    failure(e.message, :imap)
   ensure
     imap&.disconnect
   end
@@ -56,7 +56,7 @@ class Crm::MailAccountVerifier
     pop.finish
     { ok: true }
   rescue StandardError => e
-    failure(e.message)
+    failure(e.message, :imap)
   end
 
   def login_user
@@ -67,7 +67,25 @@ class Crm::MailAccountVerifier
     @account.email_address.to_s.split('@').last.presence || 'localhost'
   end
 
-  def failure(msg)
-    { ok: false, error: msg.to_s[0, 200] }
+  def failure(msg, channel = :smtp)
+    { ok: false, error: humanize_error(msg.to_s, channel) }
+  end
+
+  # 把服务商原始 SMTP/IMAP 报错翻成可操作的中文提示，保留原始错误便于排查。
+  # channel: :smtp=发信 / :imap=收信。未命中已知模式时原样返回。
+  def humanize_error(raw, channel)
+    act = channel == :smtp ? '发信' : '收信'
+    hint =
+      case raw
+      when /system busy/i, /authentication failed/i
+        "#{act}认证失败：多为授权码不对，或该账号被邮箱服务商风控限制。请在邮箱后台重新生成「授权码/客户端专用密码」填入；若仍失败，检查该账号是否被限制#{act}。"
+      when /LOGIN failed/i
+        '收信登录被拒：该账号可能未开启 IMAP（部分阿里企业邮默认关闭），可改用「POP3 收信」，或改用三方客户端安全密码。'
+      when /535/, /password/i, /credential/i, /auth/i
+        "#{act}认证失败：请确认填的是邮箱「授权码/客户端专用密码」而非登录密码。"
+      when /timed out/i, /timeout/i, /ETIMEDOUT/i, /refused/i, /getaddrinfo/i, /Name or service not known/i
+        "#{act}连接失败：主机不可达或超时，请检查服务商/主机/端口/网络。"
+      end
+    hint ? "#{hint}（原始：#{raw[0, 100]}）" : raw[0, 200]
   end
 end
