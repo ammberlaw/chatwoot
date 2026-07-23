@@ -48,6 +48,27 @@ const editingId = ref(null);
 const editingStatus = ref(null); // 编辑时的原状态：已下发则只显示「保存」
 const removedItemIds = ref([]);
 const releasingId = ref(null);
+
+// 只读查看：点行直接看完整明细，无需进编辑态（车间/采购等无编辑权者也能看）。
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = bom => {
+  viewing.value = bom;
+  viewDialogRef.value?.open();
+};
+const viewHeaderFields = computed(() => {
+  const v = viewing.value || {};
+  return [
+    { label: '投单日期', value: v.submitDate },
+    { label: '投单单号', value: v.docNo },
+    { label: '数量', value: v.orderQty },
+    { label: '客户 / 项目', value: v.customerName },
+    { label: '型号', value: v.model },
+    { label: '产成品代码', value: v.productCode },
+    { label: '裸机颜色', value: v.bareColor },
+    { label: '皮套颜色', value: v.caseColor },
+  ];
+});
 const blankLeadDays = () =>
   Object.fromEntries(LEAD_STAGES.map(s => [s.key, '']));
 // 用料明细每行照生产任务单直接填。
@@ -387,6 +408,12 @@ onMounted(async () => {
                   @click="release(b)"
                 />
                 <Button
+                  label="查看"
+                  variant="ghost"
+                  size="sm"
+                  @click="openView(b)"
+                />
+                <Button
                   v-if="mesCan('bom')"
                   label="编辑"
                   variant="ghost"
@@ -627,6 +654,106 @@ onMounted(async () => {
           </div>
         </div>
       </template>
+    </Dialog>
+
+    <!-- 只读查看：完整明细，无需进编辑态 -->
+    <Dialog
+      ref="viewDialogRef"
+      width="3xl"
+      overflow-y-auto
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+      :title="viewing ? `BOM ${viewing.bomNo}` : 'BOM 明细'"
+    >
+      <div v-if="viewing" class="flex flex-col gap-4 text-sm">
+        <div class="flex items-center gap-2">
+          <span
+            class="px-2 py-0.5 text-xs rounded-full"
+            :class="
+              viewing.status === 'RELEASED'
+                ? 'bg-n-teal-3 text-n-teal-12'
+                : 'bg-n-slate-4 text-n-slate-11'
+            "
+          >
+            {{ viewing.status === 'RELEASED' ? '已下发' : '草稿' }}
+          </span>
+          <span class="text-n-slate-11">
+            关联成品：{{ viewing.productName || '不关联成品' }} · 基准产量
+            {{ viewing.baseQty }} {{ viewing.unit }}
+          </span>
+        </div>
+
+        <div
+          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+        >
+          投单信息
+        </div>
+        <div class="grid grid-cols-3 gap-x-4 gap-y-3">
+          <div v-for="f in viewHeaderFields" :key="f.label" class="flex flex-col">
+            <span class="text-xs text-n-slate-10">{{ f.label }}</span>
+            <span class="text-n-slate-12">{{ f.value || '—' }}</span>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-n-weak">
+          <div class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+            用料明细（{{ (viewing.bomItems || []).length }} 项）
+          </div>
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-n-slate-11 border-b border-n-weak">
+                <th class="px-2 py-2 font-medium">物料编码</th>
+                <th class="px-2 py-2 font-medium">物料名称</th>
+                <th class="px-2 py-2 font-medium">规格型号</th>
+                <th class="px-2 py-2 font-medium">单位</th>
+                <th class="px-2 py-2 font-medium text-right">用量</th>
+                <th class="px-2 py-2 font-medium">备注</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(it, i) in viewing.bomItems"
+                :key="i"
+                class="border-b border-n-weak"
+              >
+                <td class="px-2 py-2 text-n-slate-12">{{ it.materialNo || '—' }}</td>
+                <td class="px-2 py-2 text-n-slate-12">{{ it.materialName }}</td>
+                <td class="px-2 py-2 text-n-slate-11">
+                  {{ it.specification || '—' }}
+                </td>
+                <td class="px-2 py-2 text-n-slate-11">{{ it.unit || '—' }}</td>
+                <td class="px-2 py-2 text-right text-n-slate-12">{{ it.qty }}</td>
+                <td class="px-2 py-2 text-n-slate-11">{{ it.remark || '—' }}</td>
+              </tr>
+              <tr v-if="!(viewing.bomItems || []).length">
+                <td colspan="6" class="px-2 py-6 text-center text-n-slate-11">
+                  无用料明细
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pt-2 border-t border-n-weak">
+          <div class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+            各阶段预估天数（合计 {{ viewing.totalLeadDays || 0 }} 天）
+          </div>
+          <div class="flex flex-wrap gap-x-6 gap-y-1 text-n-slate-11">
+            <span v-for="s in LEAD_STAGES" :key="s.key">
+              {{ s.label }}：<span class="text-n-slate-12">{{
+                viewing[s.key] || '—'
+              }}</span>
+            </span>
+          </div>
+        </div>
+
+        <div v-if="viewing.remark" class="pt-2 border-t border-n-weak">
+          <div class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+            整单备注
+          </div>
+          <p class="whitespace-pre-wrap text-n-slate-12">{{ viewing.remark }}</p>
+        </div>
+      </div>
     </Dialog>
 
     <!-- BOM 模版管理：套用 / 删除 -->
