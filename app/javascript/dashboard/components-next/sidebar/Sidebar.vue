@@ -882,7 +882,7 @@ const menuItems = computed(() => {
           {
             name: 'MES Shopfloor',
             label: t('SIDEBAR.MES_G_SHOPFLOOR'),
-            icon: 'i-lucide-wrench',
+            icon: '',
             collapsible: true,
             showTreeLine: true,
             activeOn: [
