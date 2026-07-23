@@ -276,6 +276,12 @@ class Mes::ProductionOrder < ApplicationRecord
     account.mes_board_owners.find_by(board_key: key)&.manager_ids || []
   end
 
+  # 当前阶段负责人姓名（点名展示用；未配置则为空）。
+  def current_stage_owner_names
+    ids = current_stage_owner_ids
+    ids.blank? ? [] : account.users.where(id: ids).pluck(:name)
+  end
+
   # 接单：标记谁在何时接手（update! 触发审计留痕）。
   def acknowledge!(actor)
     raise StandardError, '当前阶段无需接单' unless awaiting_ack?

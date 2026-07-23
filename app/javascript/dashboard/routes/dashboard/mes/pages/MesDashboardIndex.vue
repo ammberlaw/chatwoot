@@ -310,7 +310,11 @@ onMounted(() => {
           >
             <span class="text-n-slate-12 group-hover:underline">
               {{ o.order_no }} · {{ o.product_name }} ·
-              {{ stageLabel(o.stage) }}
+              {{ stageLabel(o.stage) }} · 本阶段负责人：{{
+                o.owner_names && o.owner_names.length
+                  ? o.owner_names.join('、')
+                  : '未配置'
+              }}
             </span>
             <span class="text-n-ruby-11">已 {{ o.hours }} 小时未接单</span>
           </li>

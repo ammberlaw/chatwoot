@@ -34,7 +34,7 @@ class Mes::AlertScannerService
         due_soon << row.merge(days: ((po.delivery_date - now) / 1.day).ceil)
       end
       # 未接单超时（装死）：进入阶段过了接单时限仍没人接单。
-      unacked << row.merge(hours: ((now - po.stage_entered_at) / 1.hour).floor) if po.ack_overdue?
+      unacked << row.merge(hours: ((now - po.stage_entered_at) / 1.hour).floor, owner_names: po.current_stage_owner_names) if po.ack_overdue?
 
       ev = po.stage_events.find { |e| e.stage == po.stage }
       next unless ev
