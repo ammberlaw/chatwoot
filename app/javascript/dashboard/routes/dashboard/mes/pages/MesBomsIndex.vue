@@ -9,6 +9,7 @@ import { useMesBomTemplatesStore } from 'dashboard/stores/mes/bomTemplates';
 import MesBomAPI from 'dashboard/api/mes/boms';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import { exportNodeToJpg, exportDataToExcel } from 'dashboard/helper/mesExport';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -91,6 +92,43 @@ const CATEGORY_OPTIONS = [
 ];
 const categoryLabel = c =>
   CATEGORY_OPTIONS.find(o => o.value === c)?.label || '整机生产物料';
+
+// 导出（Excel / 图片）
+const viewContentRef = ref(null);
+const bomExportData = () => {
+  const v = viewing.value || {};
+  return {
+    title: v.bomNo ? `BOM ${v.bomNo}` : 'BOM',
+    fields: [
+      { label: '负责人', value: v.ownerName },
+      { label: '归属业务员', value: v.salesOwnerName },
+      { label: '关联成品', value: v.productName || '不关联成品' },
+      { label: '基准产量', value: `${v.baseQty ?? ''} ${v.unit ?? ''}` },
+      { label: '状态', value: v.status === 'RELEASED' ? '已下发' : '草稿' },
+      ...viewHeaderFields.value,
+      { label: '整单备注', value: v.remark },
+    ],
+    itemColumns: [
+      { label: '类别', key: 'category' },
+      { label: '物料编码', key: 'materialNo' },
+      { label: '物料名称', key: 'materialName' },
+      { label: '规格型号', key: 'specification' },
+      { label: '单位', key: 'unit' },
+      { label: '用量', key: 'qty', align: 'right' },
+      { label: '备注', key: 'remark' },
+    ],
+    items: (v.bomItems || []).map(it => ({
+      ...it,
+      category: categoryLabel(it.category),
+    })),
+  };
+};
+const exportBomExcel = () => {
+  const d = bomExportData();
+  exportDataToExcel(d, d.title);
+};
+const exportBomJpg = () =>
+  exportNodeToJpg(viewContentRef.value, bomExportData().title);
 
 // 用料明细每行照生产任务单直接填。
 const blankRow = () => ({
@@ -730,126 +768,151 @@ onMounted(async () => {
       :title="viewing ? `BOM ${viewing.bomNo}` : 'BOM 明细'"
     >
       <div v-if="viewing" class="flex flex-col gap-4 text-sm">
-        <div class="flex items-center gap-2">
-          <span
-            class="px-2 py-0.5 text-xs rounded-full"
-            :class="
-              viewing.status === 'RELEASED'
-                ? 'bg-n-teal-3 text-n-teal-12'
-                : 'bg-n-slate-4 text-n-slate-11'
-            "
-          >
-            {{ viewing.status === 'RELEASED' ? '已下发' : '草稿' }}
-          </span>
-          <span class="text-n-slate-11">
-            负责人：{{ viewing.ownerName || '—' }} · 归属业务员：{{
-              viewing.salesOwnerName || '—'
-            }}
-            · 关联成品：{{ viewing.productName || '不关联成品' }} · 基准产量
-            {{ viewing.baseQty }} {{ viewing.unit }}
-          </span>
+        <div class="flex justify-end gap-2">
+          <Button
+            label="导出 Excel"
+            variant="outline"
+            color="slate"
+            size="sm"
+            @click="exportBomExcel"
+          />
+          <Button
+            label="导出图片"
+            variant="outline"
+            color="slate"
+            size="sm"
+            @click="exportBomJpg"
+          />
         </div>
-
         <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          ref="viewContentRef"
+          class="flex flex-col gap-4 p-4 bg-white rounded-lg"
         >
-          投单信息
-        </div>
-        <div class="grid grid-cols-3 gap-x-4 gap-y-3">
-          <div
-            v-for="f in viewHeaderFields"
-            :key="f.label"
-            class="flex flex-col"
-          >
-            <span class="text-xs text-n-slate-10">{{ f.label }}</span>
-            <span class="text-n-slate-12">{{ f.value || '—' }}</span>
-          </div>
-        </div>
-
-        <div class="pt-2 border-t border-n-weak">
-          <div
-            class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-          >
-            用料明细（{{ (viewing.bomItems || []).length }} 项）
-          </div>
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-left text-n-slate-11 border-b border-n-weak">
-                <th class="px-2 py-2 font-medium">类别</th>
-                <th class="px-2 py-2 font-medium">物料编码</th>
-                <th class="px-2 py-2 font-medium">物料名称</th>
-                <th class="px-2 py-2 font-medium">规格型号</th>
-                <th class="px-2 py-2 font-medium">单位</th>
-                <th class="px-2 py-2 font-medium text-right">用量</th>
-                <th class="px-2 py-2 font-medium">备注</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(it, i) in viewing.bomItems"
-                :key="i"
-                class="border-b border-n-weak"
-              >
-                <td class="px-2 py-2">
-                  <span
-                    class="px-2 py-0.5 text-xs rounded-full"
-                    :class="
-                      it.category === 'PACKAGING'
-                        ? 'bg-n-amber-3 text-n-amber-12'
-                        : 'bg-n-iris-3 text-n-iris-12'
-                    "
-                  >
-                    {{ categoryLabel(it.category) }}
-                  </span>
-                </td>
-                <td class="px-2 py-2 text-n-slate-12">
-                  {{ it.materialNo || '—' }}
-                </td>
-                <td class="px-2 py-2 text-n-slate-12">{{ it.materialName }}</td>
-                <td class="px-2 py-2 text-n-slate-11">
-                  {{ it.specification || '—' }}
-                </td>
-                <td class="px-2 py-2 text-n-slate-11">{{ it.unit || '—' }}</td>
-                <td class="px-2 py-2 text-right text-n-slate-12">
-                  {{ it.qty }}
-                </td>
-                <td class="px-2 py-2 text-n-slate-11">
-                  {{ it.remark || '—' }}
-                </td>
-              </tr>
-              <tr v-if="!(viewing.bomItems || []).length">
-                <td colspan="7" class="px-2 py-6 text-center text-n-slate-11">
-                  无用料明细
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="pt-2 border-t border-n-weak">
-          <div
-            class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-          >
-            各阶段预估天数（合计 {{ viewing.totalLeadDays || 0 }} 天）
-          </div>
-          <div class="flex flex-wrap gap-x-6 gap-y-1 text-n-slate-11">
-            <span v-for="s in LEAD_STAGES" :key="s.key">
-              {{ s.label }}：<span class="text-n-slate-12">{{
-                viewing[s.key] || '—'
-              }}</span>
+          <div class="flex items-center gap-2">
+            <span
+              class="px-2 py-0.5 text-xs rounded-full"
+              :class="
+                viewing.status === 'RELEASED'
+                  ? 'bg-n-teal-3 text-n-teal-12'
+                  : 'bg-n-slate-4 text-n-slate-11'
+              "
+            >
+              {{ viewing.status === 'RELEASED' ? '已下发' : '草稿' }}
+            </span>
+            <span class="text-n-slate-11">
+              负责人：{{ viewing.ownerName || '—' }} · 归属业务员：{{
+                viewing.salesOwnerName || '—'
+              }}
+              · 关联成品：{{ viewing.productName || '不关联成品' }} · 基准产量
+              {{ viewing.baseQty }} {{ viewing.unit }}
             </span>
           </div>
-        </div>
 
-        <div v-if="viewing.remark" class="pt-2 border-t border-n-weak">
           <div
-            class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
           >
-            整单备注
+            投单信息
           </div>
-          <p class="whitespace-pre-wrap text-n-slate-12">
-            {{ viewing.remark }}
-          </p>
+          <div class="grid grid-cols-3 gap-x-4 gap-y-3">
+            <div
+              v-for="f in viewHeaderFields"
+              :key="f.label"
+              class="flex flex-col"
+            >
+              <span class="text-xs text-n-slate-10">{{ f.label }}</span>
+              <span class="text-n-slate-12">{{ f.value || '—' }}</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-n-weak">
+            <div
+              class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              用料明细（{{ (viewing.bomItems || []).length }} 项）
+            </div>
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-n-slate-11 border-b border-n-weak">
+                  <th class="px-2 py-2 font-medium">类别</th>
+                  <th class="px-2 py-2 font-medium">物料编码</th>
+                  <th class="px-2 py-2 font-medium">物料名称</th>
+                  <th class="px-2 py-2 font-medium">规格型号</th>
+                  <th class="px-2 py-2 font-medium">单位</th>
+                  <th class="px-2 py-2 font-medium text-right">用量</th>
+                  <th class="px-2 py-2 font-medium">备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(it, i) in viewing.bomItems"
+                  :key="i"
+                  class="border-b border-n-weak"
+                >
+                  <td class="px-2 py-2">
+                    <span
+                      class="px-2 py-0.5 text-xs rounded-full"
+                      :class="
+                        it.category === 'PACKAGING'
+                          ? 'bg-n-amber-3 text-n-amber-12'
+                          : 'bg-n-iris-3 text-n-iris-12'
+                      "
+                    >
+                      {{ categoryLabel(it.category) }}
+                    </span>
+                  </td>
+                  <td class="px-2 py-2 text-n-slate-12">
+                    {{ it.materialNo || '—' }}
+                  </td>
+                  <td class="px-2 py-2 text-n-slate-12">
+                    {{ it.materialName }}
+                  </td>
+                  <td class="px-2 py-2 text-n-slate-11">
+                    {{ it.specification || '—' }}
+                  </td>
+                  <td class="px-2 py-2 text-n-slate-11">
+                    {{ it.unit || '—' }}
+                  </td>
+                  <td class="px-2 py-2 text-right text-n-slate-12">
+                    {{ it.qty }}
+                  </td>
+                  <td class="px-2 py-2 text-n-slate-11">
+                    {{ it.remark || '—' }}
+                  </td>
+                </tr>
+                <tr v-if="!(viewing.bomItems || []).length">
+                  <td colspan="7" class="px-2 py-6 text-center text-n-slate-11">
+                    无用料明细
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pt-2 border-t border-n-weak">
+            <div
+              class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              各阶段预估天数（合计 {{ viewing.totalLeadDays || 0 }} 天）
+            </div>
+            <div class="flex flex-wrap gap-x-6 gap-y-1 text-n-slate-11">
+              <span v-for="s in LEAD_STAGES" :key="s.key">
+                {{ s.label }}：<span class="text-n-slate-12">{{
+                  viewing[s.key] || '—'
+                }}</span>
+              </span>
+            </div>
+          </div>
+
+          <div v-if="viewing.remark" class="pt-2 border-t border-n-weak">
+            <div
+              class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              整单备注
+            </div>
+            <p class="whitespace-pre-wrap text-n-slate-12">
+              {{ viewing.remark }}
+            </p>
+          </div>
         </div>
       </div>
     </Dialog>

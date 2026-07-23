@@ -15,6 +15,7 @@ import {
 } from 'dashboard/routes/dashboard/mes/pages/orderSpecFields';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import { exportNodeToJpg, exportDataToExcel } from 'dashboard/helper/mesExport';
 import MesOrderSpecForm from 'dashboard/components-next/mes/MesOrderSpecForm.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -426,6 +427,50 @@ const APPROVAL_LABELS = {
 };
 const approvalComment = ref('');
 
+// —— 导出订单（Excel / 图片）——
+const detailPanelRef = ref(null);
+const orderExportData = () => {
+  const o = selected.value || {};
+  return {
+    title: o.orderNo ? `生产订单 ${o.orderNo}` : '生产订单',
+    fields: [
+      { label: '订单号', value: o.orderNo },
+      { label: '成品', value: o.productName },
+      {
+        label: '数量',
+        value: `${o.producedQty ?? 0}/${o.qty ?? ''} ${o.unit ?? ''}`,
+      },
+      { label: 'PI 编号', value: o.piNo },
+      { label: '产品编码', value: o.productCode },
+      { label: '归属业务员', value: o.ownerName },
+      { label: '当前阶段', value: stageLabel(o.stage) },
+      { label: '订单状态', value: STATUS_LABELS[o.status] || o.status },
+      {
+        label: '审批状态',
+        value: APPROVAL_LABELS[o.approvalStatus] || o.approvalStatus,
+      },
+      { label: '关联 BOM', value: o.bomNo },
+      {
+        label: 'BOM 二次确认',
+        value: o.bomConfirmedAt
+          ? `已确认 · ${o.bomConfirmedByName || ''}`
+          : '未确认',
+      },
+      {
+        label: '交期',
+        value: o.deliveryDate ? String(o.deliveryDate).slice(0, 10) : '',
+      },
+      { label: '备注', value: o.remark },
+    ],
+  };
+};
+const exportOrderExcel = () => {
+  const d = orderExportData();
+  exportDataToExcel(d, d.title);
+};
+const exportOrderJpg = () =>
+  exportNodeToJpg(detailPanelRef.value, orderExportData().title);
+
 const isOwner = computed(() => selected.value?.ownerId === currentUserId.value);
 // 业务二次确认 BOM：BOM_READY 段、已挂 BOM 且未确认，创建人（业务员）或管理员可确认。
 const canConfirmBom = computed(() => {
@@ -789,8 +834,25 @@ watch(currentPage, fetchRecords);
       <!-- 详情：8 阶段进度条 -->
       <div
         v-if="selected"
+        ref="detailPanelRef"
         class="flex flex-col p-5 overflow-auto w-80 shrink-0 rounded-xl bg-n-alpha-black1 border border-n-weak"
       >
+        <div class="flex justify-end gap-2 mb-2 export-skip">
+          <Button
+            label="导出 Excel"
+            variant="outline"
+            color="slate"
+            size="sm"
+            @click="exportOrderExcel"
+          />
+          <Button
+            label="导出图片"
+            variant="outline"
+            color="slate"
+            size="sm"
+            @click="exportOrderJpg"
+          />
+        </div>
         <div class="flex items-center justify-between mb-1">
           <span class="font-semibold text-n-slate-12">{{
             selected.orderNo
