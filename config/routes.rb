@@ -190,8 +190,12 @@ Rails.application.routes.draw do
               collection { get :trace }
             end
             resources :shipments do
+              collection { get :approval_inbox }
               member do
                 post :notify
+                post :submit
+                post :approve
+                post :reject
                 post :ship
               end
             end

@@ -81,5 +81,29 @@ export const useMesShipmentsStore = createStore({
         this.setUIFlag({ updatingItem: false });
       }
     },
+
+    async runAction(fn) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await fn();
+        const record = camelize(data);
+        replace(this.records, record);
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
+      }
+    },
+
+    submitApproval(id) {
+      return this.runAction(() => MesShipmentAPI.submit(id));
+    },
+    approve(id) {
+      return this.runAction(() => MesShipmentAPI.approve(id));
+    },
+    reject(id, reason) {
+      return this.runAction(() => MesShipmentAPI.reject(id, reason));
+    },
   }),
 });

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
+import MesShipmentAPI from 'dashboard/api/mes/shipments';
 
 const { accountScopedRoute } = useAccount();
 const router = useRouter();
@@ -29,25 +30,37 @@ const APPROVAL_STEP = {
 const approvalInbox = ref([]);
 // 待我接单：停在我负责阶段的在产订单（到岗通知拉取面）。
 const inbox = ref([]);
+// 待我审核：停在我这一级的现货出库单。
+const shipmentInbox = ref([]);
 
 const load = async () => {
   loading.value = true;
   try {
-    const [approvalRes, inboxRes] = await Promise.all([
+    const [approvalRes, inboxRes, shipmentRes] = await Promise.all([
       MesProductionOrderAPI.approvalInbox(),
       MesProductionOrderAPI.inbox(),
+      MesShipmentAPI.approvalInbox().catch(() => ({ data: { payload: [] } })),
     ]);
     approvalInbox.value = approvalRes?.data?.payload || [];
     inbox.value = inboxRes?.data?.payload || [];
+    shipmentInbox.value = shipmentRes?.data?.payload || [];
   } catch {
     approvalInbox.value = [];
     inbox.value = [];
+    shipmentInbox.value = [];
   } finally {
     loading.value = false;
   }
 };
 
-const total = computed(() => approvalInbox.value.length + inbox.value.length);
+const total = computed(
+  () =>
+    approvalInbox.value.length + inbox.value.length + shipmentInbox.value.length
+);
+
+// 点条目 → 出库页并按现货出库筛选。
+const goShipment = () =>
+  router.push(accountScopedRoute('mes_shipments_index', {}, { kind: 'STOCK' }));
 
 // 点条目 → 订单页「待我审批」视图并定位该单。
 const goApproval = orderNo =>
@@ -110,6 +123,31 @@ onMounted(load);
             <span class="shrink-0 text-n-amber-11">
               {{ APPROVAL_STEP[o.approval_status] || '待审' }}
             </span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- 待我审核：现货出库单 -->
+      <div
+        v-if="shipmentInbox.length"
+        class="p-5 rounded-xl bg-n-teal-2 border border-n-teal-6"
+      >
+        <div class="mb-3 font-medium text-n-slate-12">
+          待我审核（现货出库）
+          <span class="text-n-teal-11">({{ shipmentInbox.length }})</span>
+        </div>
+        <ul class="flex flex-col gap-2">
+          <li
+            v-for="s in shipmentInbox"
+            :key="s.id"
+            class="flex items-center justify-between text-sm cursor-pointer group"
+            @click="goShipment"
+          >
+            <span class="text-n-slate-12 group-hover:underline">
+              {{ s.shipment_no }} · {{ s.customer_name || '—' }} ·
+              {{ s.owner_name }}
+            </span>
+            <span class="shrink-0 text-n-teal-11">待你（部门主管）审</span>
           </li>
         </ul>
       </div>

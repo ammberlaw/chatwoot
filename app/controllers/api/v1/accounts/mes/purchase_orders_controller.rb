@@ -56,7 +56,9 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     params.require(:purchase_order).permit(
       :mes_supplier_id, :production_order_id, :status, :expected_date, :follow_up_date,
       :has_exception, :exception_note, :owner_id, :remark,
-      purchase_items_attributes: [:id, :mes_material_id, :qty, :unit, :rate_micros, :received_qty, :remark, :_destroy]
+      purchase_items_attributes: [
+        :id, :item_type, :mes_material_id, :crm_product_id, :qty, :unit, :rate_micros, :received_qty, :remark, :_destroy
+      ]
     )
   end
 end

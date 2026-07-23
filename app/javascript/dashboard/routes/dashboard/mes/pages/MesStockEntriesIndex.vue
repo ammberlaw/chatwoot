@@ -100,6 +100,43 @@ const materialOptions = computed(() =>
   }))
 );
 
+// 收货行类型：物料（生产用料）/ 成品（外购贸易品到货，入成品库）。
+const ITEM_TYPE_OPTIONS = [
+  { value: 'MATERIAL', label: '物料' },
+  { value: 'PRODUCT', label: '成品(外购)' },
+];
+const productOptions = ref([]);
+const mergeProductOptions = list => {
+  const seen = new Set(productOptions.value.map(o => o.value));
+  list.forEach(o => {
+    if (!seen.has(o.value)) {
+      productOptions.value.push(o);
+      seen.add(o.value);
+    }
+  });
+};
+const loadProducts = async (q = '') => {
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/crm/products`,
+      { params: { filter: 'active', q } }
+    );
+    mergeProductOptions(
+      (data?.payload || []).map(p => ({
+        value: String(p.id),
+        label: `${p.name}${p.sku ? `（${p.sku}）` : ''}`,
+        unit: p.unit || '',
+      }))
+    );
+  } catch {
+    // 忽略：搜索失败保留现有选项
+  }
+};
+const productUnit = id =>
+  productOptions.value.find(o => o.value === String(id))?.unit || '';
+const finishedWarehouseId = () =>
+  (warehousesStore.getRecords || []).find(w => w.kind === 'FINISHED')?.id;
+
 const purchaseOrders = ref([]);
 const purchaseOrderOptions = computed(() => [
   { value: '', label: '不关联采购单' },
@@ -118,17 +155,18 @@ const form = reactive({
   isChecked: false,
   rows: [], // { itemType, mesMaterialId, qty, receivedQty }
 });
+const rowIncomplete = r =>
+  !Number(r.qty) ||
+  (r.itemType === 'PRODUCT' ? !r.crmProductId : !r.mesMaterialId);
 const invalid = computed(
-  () =>
-    !form.warehouseId ||
-    !form.rows.length ||
-    form.rows.some(r => !r.mesMaterialId || !Number(r.qty))
+  () => !form.warehouseId || !form.rows.length || form.rows.some(rowIncomplete)
 );
 
 const addRow = () =>
   form.rows.push({
     itemType: 'MATERIAL',
     mesMaterialId: '',
+    crmProductId: '',
     qty: '1',
     receivedQty: '',
   });
@@ -146,11 +184,25 @@ const prefillFromPO = async () => {
       ? String(po.production_order_id)
       : '';
     form.rows = items.map(it => ({
-      itemType: 'MATERIAL',
-      mesMaterialId: String(it.mes_material_id),
+      itemType: it.item_type || 'MATERIAL',
+      mesMaterialId: it.mes_material_id ? String(it.mes_material_id) : '',
+      crmProductId: it.crm_product_id ? String(it.crm_product_id) : '',
       qty: String(it.qty),
-      receivedQty: String(it.qty),
+      receivedQty: String(it.received_qty ? it.qty - it.received_qty : it.qty),
     }));
+    // 外购成品到货默认入成品库；把成品标签并入下拉便于查看/改。
+    const products = items.filter(it => it.item_type === 'PRODUCT');
+    if (products.length) {
+      const fin = finishedWarehouseId();
+      if (fin) form.warehouseId = String(fin);
+      mergeProductOptions(
+        products.map(it => ({
+          value: String(it.crm_product_id),
+          label: `${it.product_name || ''}${it.product_sku ? `（${it.product_sku}）` : ''}`,
+          unit: it.unit || '',
+        }))
+      );
+    }
   }
 };
 
@@ -163,7 +215,13 @@ const openCreate = () => {
     productionOrderId: '',
     isChecked: false,
     rows: [
-      { itemType: 'MATERIAL', mesMaterialId: '', qty: '1', receivedQty: '' },
+      {
+        itemType: 'MATERIAL',
+        mesMaterialId: '',
+        crmProductId: '',
+        qty: '1',
+        receivedQty: '',
+      },
     ],
   });
   dialogRef.value?.open();
@@ -181,7 +239,9 @@ const submit = async () => {
     isChecked: form.isChecked,
     stockEntryItemsAttributes: form.rows.map(r => ({
       itemType: r.itemType,
-      mesMaterialId: Number(r.mesMaterialId),
+      mesMaterialId: r.itemType === 'PRODUCT' ? null : Number(r.mesMaterialId),
+      crmProductId: r.itemType === 'PRODUCT' ? Number(r.crmProductId) : null,
+      unit: r.itemType === 'PRODUCT' ? productUnit(r.crmProductId) : undefined,
       qty: Number(r.qty),
       receivedQty: Number(r.receivedQty) || Number(r.qty),
       warehouseId: Number(form.warehouseId),
@@ -203,6 +263,7 @@ onMounted(async () => {
   store.get();
   warehousesStore.get();
   materialsStore.get();
+  loadProducts('');
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/purchase_orders`
@@ -348,7 +409,8 @@ onMounted(async () => {
           <Button label="+ 加一行" variant="ghost" size="sm" @click="addRow" />
         </div>
         <div class="grid grid-cols-12 gap-2 text-xs text-n-slate-10">
-          <span class="col-span-6">物料</span>
+          <span class="col-span-2">类型</span>
+          <span class="col-span-4">物料/成品</span>
           <span class="col-span-2">应收</span>
           <span class="col-span-3">实收(核对)</span>
         </div>
@@ -358,8 +420,24 @@ onMounted(async () => {
             :key="i"
             class="grid items-center grid-cols-12 gap-2"
           >
-            <div class="col-span-6">
+            <div class="col-span-2">
+              <Select
+                :model-value="row.itemType"
+                :options="ITEM_TYPE_OPTIONS"
+                @update:model-value="v => (row.itemType = v)"
+              />
+            </div>
+            <div class="col-span-4">
               <ComboBox
+                v-if="row.itemType === 'PRODUCT'"
+                v-model="row.crmProductId"
+                :options="productOptions"
+                use-api-results
+                placeholder="选择外购成品"
+                @search="loadProducts"
+              />
+              <ComboBox
+                v-else
                 v-model="row.mesMaterialId"
                 :options="materialOptions"
                 placeholder="选择物料"

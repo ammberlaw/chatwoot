@@ -19,6 +19,9 @@ const KIND_META = {
   stage_assigned: { label: '待接单', dot: 'bg-n-iris-9' },
   stage_returned: { label: '被退回', dot: 'bg-n-ruby-9' },
   production_reported: { label: '待成品入库', dot: 'bg-n-iris-9' },
+  shipment_approval_pending: { label: '待审核出库', dot: 'bg-n-amber-9' },
+  shipment_approved: { label: '待出库', dot: 'bg-n-teal-9' },
+  shipment_rejected: { label: '出库被驳回', dot: 'bg-n-ruby-9' },
 };
 const kindMeta = kind =>
   KIND_META[kind] || { label: '通知', dot: 'bg-n-slate-9' };
@@ -34,7 +37,11 @@ const load = () => store.get();
 
 const openNotification = async n => {
   if (!n.readAt) await store.markRead(n.id);
-  if (n.orderNo) {
+  if (n.kind && n.kind.startsWith('shipment_')) {
+    router.push(
+      accountScopedRoute('mes_shipments_index', {}, { kind: 'STOCK' })
+    );
+  } else if (n.orderNo) {
     router.push(
       accountScopedRoute('mes_production_orders_index', {}, { q: n.orderNo })
     );

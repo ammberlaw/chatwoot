@@ -69,13 +69,25 @@ const viewFields = computed(() => {
   ];
 });
 const VIEW_ITEM_COLS = [
-  { label: '物料编码', key: 'materialNo' },
-  { label: '物料名称', key: 'materialName' },
+  { label: '类型', key: 'typeLabel' },
+  { label: '编码', key: 'code' },
+  { label: '名称', key: 'name' },
   { label: '采购量', key: 'qty', align: 'right' },
   { label: '已到料', key: 'receivedQty', align: 'right' },
   { label: '单位', key: 'unit' },
   { label: '备注', key: 'remark' },
 ];
+const viewItems = computed(() =>
+  (viewing.value?.purchaseItems || []).map(it => ({
+    typeLabel: it.itemType === 'PRODUCT' ? '成品(外购)' : '物料',
+    code: it.itemType === 'PRODUCT' ? it.productSku : it.materialNo,
+    name: it.itemType === 'PRODUCT' ? it.productName : it.materialName,
+    qty: it.qty,
+    receivedQty: it.receivedQty,
+    unit: it.unit,
+    remark: it.remark,
+  }))
+);
 
 const productionOrders = ref([]);
 const productionOrderOptions = computed(() => [
@@ -98,6 +110,43 @@ const materialOptions = computed(() =>
   }))
 );
 
+// 采购行类型：物料（生产用料）/ 成品（外购贸易品，不经过生产部）。
+const ITEM_TYPE_OPTIONS = [
+  { value: 'MATERIAL', label: '物料' },
+  { value: 'PRODUCT', label: '成品(外购)' },
+];
+
+// CRM 成品选项：服务端搜索（成品可能较多），并保留已选项的标签。
+const productOptions = ref([]);
+const mergeProductOptions = list => {
+  const seen = new Set(productOptions.value.map(o => o.value));
+  list.forEach(o => {
+    if (!seen.has(o.value)) {
+      productOptions.value.push(o);
+      seen.add(o.value);
+    }
+  });
+};
+const loadProducts = async (q = '') => {
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/crm/products`,
+      { params: { filter: 'active', q } }
+    );
+    mergeProductOptions(
+      (data?.payload || []).map(p => ({
+        value: String(p.id),
+        label: `${p.name}${p.sku ? `（${p.sku}）` : ''}`,
+        unit: p.unit || '',
+      }))
+    );
+  } catch {
+    // 忽略：搜索失败保留现有选项
+  }
+};
+const productUnit = id =>
+  productOptions.value.find(o => o.value === String(id))?.unit || '';
+
 const dialogRef = ref(null);
 const editingId = ref(null);
 const removedItemIds = ref([]);
@@ -109,16 +158,24 @@ const form = reactive({
   followUpDate: '',
   hasException: false,
   exceptionNote: '',
-  rows: [], // { id?, mesMaterialId, qty, remark }
+  rows: [], // { id?, itemType, mesMaterialId, crmProductId, qty, remark }
 });
 
+const rowIncomplete = r =>
+  !Number(r.qty) ||
+  (r.itemType === 'PRODUCT' ? !r.crmProductId : !r.mesMaterialId);
 const invalid = computed(
-  () =>
-    !form.rows.length || form.rows.some(r => !r.mesMaterialId || !Number(r.qty))
+  () => !form.rows.length || form.rows.some(rowIncomplete)
 );
 
 const addRow = () =>
-  form.rows.push({ mesMaterialId: '', qty: '1', remark: '' });
+  form.rows.push({
+    itemType: 'MATERIAL',
+    mesMaterialId: '',
+    crmProductId: '',
+    qty: '1',
+    remark: '',
+  });
 const removeRow = i => {
   const [r] = form.rows.splice(i, 1);
   if (r?.id) removedItemIds.value.push(r.id);
@@ -141,7 +198,9 @@ const explode = async () => {
     }
     form.rows.forEach(r => r.id && removedItemIds.value.push(r.id));
     form.rows = reqs.map(r => ({
+      itemType: 'MATERIAL',
       mesMaterialId: r.mes_material_id ? String(r.mes_material_id) : '',
+      crmProductId: '',
       qty: String(r.qty),
       remark: [r.material_no, r.material_name, r.specification]
         .filter(Boolean)
@@ -163,7 +222,15 @@ const resetForm = () => {
     followUpDate: '',
     hasException: false,
     exceptionNote: '',
-    rows: [{ mesMaterialId: '', qty: '1', remark: '' }],
+    rows: [
+      {
+        itemType: 'MATERIAL',
+        mesMaterialId: '',
+        crmProductId: '',
+        qty: '1',
+        remark: '',
+      },
+    ],
   });
 };
 
@@ -184,11 +251,23 @@ const openEdit = po => {
     exceptionNote: po.exceptionNote || '',
     rows: (po.purchaseItems || []).map(it => ({
       id: it.id,
-      mesMaterialId: String(it.mesMaterialId),
+      itemType: it.itemType || 'MATERIAL',
+      mesMaterialId: it.mesMaterialId ? String(it.mesMaterialId) : '',
+      crmProductId: it.crmProductId ? String(it.crmProductId) : '',
       qty: String(it.qty),
       remark: it.remark || '',
     })),
   });
+  // 回填已选成品的标签，保证下拉能显示名称
+  mergeProductOptions(
+    (po.purchaseItems || [])
+      .filter(it => it.crmProductId)
+      .map(it => ({
+        value: String(it.crmProductId),
+        label: `${it.productName || ''}${it.productSku ? `（${it.productSku}）` : ''}`,
+        unit: it.unit || '',
+      }))
+  );
   dialogRef.value?.open();
 };
 
@@ -197,7 +276,10 @@ const submit = async () => {
   const itemsAttributes = [
     ...form.rows.map(r => ({
       id: r.id || undefined,
-      mesMaterialId: Number(r.mesMaterialId),
+      itemType: r.itemType,
+      mesMaterialId: r.itemType === 'PRODUCT' ? null : Number(r.mesMaterialId),
+      crmProductId: r.itemType === 'PRODUCT' ? Number(r.crmProductId) : null,
+      unit: r.itemType === 'PRODUCT' ? productUnit(r.crmProductId) : undefined,
       qty: Number(r.qty),
       remark: r.remark || '',
     })),
@@ -226,6 +308,7 @@ onMounted(async () => {
   store.get();
   suppliersStore.get();
   materialsStore.get();
+  loadProducts('');
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/production_orders`
@@ -399,8 +482,24 @@ onMounted(async () => {
             :key="i"
             class="grid items-center grid-cols-12 gap-2"
           >
-            <div class="col-span-6">
+            <div class="col-span-2">
+              <Select
+                :model-value="row.itemType"
+                :options="ITEM_TYPE_OPTIONS"
+                @update:model-value="v => (row.itemType = v)"
+              />
+            </div>
+            <div class="col-span-4">
               <ComboBox
+                v-if="row.itemType === 'PRODUCT'"
+                v-model="row.crmProductId"
+                :options="productOptions"
+                use-api-results
+                placeholder="选择外购成品"
+                @search="loadProducts"
+              />
+              <ComboBox
+                v-else
                 v-model="row.mesMaterialId"
                 :options="materialOptions"
                 placeholder="选择物料"
@@ -431,7 +530,7 @@ onMounted(async () => {
       :fields="viewFields"
       items-title="采购明细"
       :item-columns="VIEW_ITEM_COLS"
-      :items="viewing?.purchaseItems || []"
+      :items="viewItems"
     />
   </div>
 </template>
