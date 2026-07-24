@@ -298,25 +298,32 @@ onMounted(() => {
             {{ p.label }}
           </button>
         </div>
-        <!-- 指定年月：两个独立下拉（月含「全年」）；month 模式时描边高亮 -->
-        <select
-          v-model.number="pickYear"
-          class="h-9 pl-2.5 pr-1 text-sm leading-none border rounded-lg cursor-pointer shrink-0 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-          :class="mode === 'month' ? 'border-n-iris-8' : 'border-n-weak'"
-          @change="selectMonth"
+        <!-- 指定年月：紧凑胶囊，与快捷段等高一线；month 模式时整体高亮 -->
+        <div
+          class="flex items-center h-9 gap-0.5 pl-2 pr-1 rounded-lg"
+          :class="mode === 'month' ? 'bg-n-iris-3' : 'bg-n-alpha-1'"
         >
-          <option v-for="y in YEARS" :key="y" :value="y">{{ y }}年</option>
-        </select>
-        <select
-          v-model.number="pickMonth"
-          class="h-9 pl-2.5 pr-1 text-sm leading-none border rounded-lg cursor-pointer shrink-0 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-          :class="mode === 'month' ? 'border-n-iris-8' : 'border-n-weak'"
-          @change="selectMonth"
-        >
-          <option v-for="m in MONTHS" :key="m.v" :value="m.v">
-            {{ m.label }}
-          </option>
-        </select>
+          <span
+            class="i-lucide-calendar-days size-3.5 shrink-0"
+            :class="mode === 'month' ? 'text-n-iris-11' : 'text-n-slate-10'"
+          />
+          <select
+            v-model.number="pickYear"
+            class="text-sm rounded-md appearance-none cursor-pointer bg-transparent px-1.5 leading-normal text-n-slate-12 focus:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+            @change="selectMonth"
+          >
+            <option v-for="y in YEARS" :key="y" :value="y">{{ y }}年</option>
+          </select>
+          <select
+            v-model.number="pickMonth"
+            class="text-sm rounded-md appearance-none cursor-pointer bg-transparent px-1.5 leading-normal text-n-slate-12 focus:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+            @change="selectMonth"
+          >
+            <option v-for="m in MONTHS" :key="m.v" :value="m.v">
+              {{ m.label }}
+            </option>
+          </select>
+        </div>
       </div>
     </div>
 
