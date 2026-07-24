@@ -39,20 +39,8 @@ const productLineOptions = [
   ...MES_PRODUCT_LINES.filter(o => o.value),
 ];
 
-const CURRENCIES = ['CNY', 'USD', 'EUR'];
-const currencyOptions = CURRENCIES.map(c => ({ value: c, label: c }));
-
 const keyword = ref('');
 const load = () => store.get({ q: keyword.value.trim() || undefined });
-
-// micros(bigint) ↔ 展示金额。
-const fromMicros = m => (m ? String(Number(m) / 1e6) : '');
-const toMicros = v =>
-  v === '' || v === null || v === undefined
-    ? null
-    : Math.round(Number(v) * 1e6);
-const priceLabel = (m, ccy) =>
-  m ? `${ccy || 'CNY'} ${(Number(m) / 1e6).toLocaleString()}` : '—';
 
 const dialogRef = ref(null);
 const editingId = ref(null);
@@ -63,9 +51,6 @@ const form = reactive({
   category: '',
   unit: '',
   specification: '',
-  costPrice: '',
-  salePrice: '',
-  pricingCurrency: 'CNY',
   remark: '',
   isActive: true,
 });
@@ -80,9 +65,6 @@ const openCreate = () => {
     category: '',
     unit: '',
     specification: '',
-    costPrice: '',
-    salePrice: '',
-    pricingCurrency: 'CNY',
     remark: '',
     isActive: true,
   });
@@ -97,9 +79,6 @@ const openEdit = p => {
     category: p.category || '',
     unit: p.unit || '',
     specification: p.specification || '',
-    costPrice: fromMicros(p.costPriceMicros),
-    salePrice: fromMicros(p.salePriceMicros),
-    pricingCurrency: p.pricingCurrency || 'CNY',
     remark: p.remark || '',
     isActive: p.isActive !== false,
   });
@@ -115,9 +94,6 @@ const submit = async () => {
     category: form.category || null,
     unit: form.unit.trim() || null,
     specification: form.specification.trim() || null,
-    costPriceMicros: toMicros(form.costPrice),
-    salePriceMicros: toMicros(form.salePrice),
-    pricingCurrency: form.pricingCurrency,
     remark: form.remark.trim() || null,
     isActive: form.isActive,
   };
@@ -196,7 +172,6 @@ onMounted(() => store.get());
             <th class="px-3 py-3 font-medium">产品线</th>
             <th class="px-3 py-3 font-medium">分类</th>
             <th class="px-3 py-3 font-medium">单位</th>
-            <th class="px-3 py-3 font-medium">售价</th>
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium text-right">操作</th>
           </tr>
@@ -212,9 +187,6 @@ onMounted(() => store.get());
               {{ categoryLabel(p.category) }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ p.unit || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ priceLabel(p.salePriceMicros, p.pricingCurrency) }}
-            </td>
             <td class="px-3 py-3">
               <span
                 class="px-2 py-0.5 text-xs rounded-full"
@@ -254,7 +226,7 @@ onMounted(() => store.get());
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
               还没有产品。
             </td>
           </tr>
@@ -312,24 +284,6 @@ onMounted(() => store.get());
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">规格型号</label>
             <Input v-model="form.specification" />
-          </div>
-        </div>
-        <div class="grid grid-cols-3 gap-4">
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">成本价</label>
-            <Input v-model="form.costPrice" type="number" placeholder="0.00" />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">售价</label>
-            <Input v-model="form.salePrice" type="number" placeholder="0.00" />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">币种</label>
-            <Select
-              :model-value="form.pricingCurrency"
-              :options="currencyOptions"
-              @update:model-value="v => (form.pricingCurrency = v)"
-            />
           </div>
         </div>
         <div class="flex flex-col gap-1">
