@@ -309,14 +309,14 @@ onMounted(() => {
           />
           <select
             v-model.number="pickYear"
-            class="text-sm rounded-md appearance-none cursor-pointer bg-transparent px-1.5 leading-normal text-n-slate-12 focus:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+            class="text-sm text-center appearance-none cursor-pointer bg-transparent w-[3.75rem] leading-normal text-n-slate-12 focus:outline-none"
             @change="selectMonth"
           >
             <option v-for="y in YEARS" :key="y" :value="y">{{ y }}年</option>
           </select>
           <select
             v-model.number="pickMonth"
-            class="text-sm rounded-md appearance-none cursor-pointer bg-transparent px-1.5 leading-normal text-n-slate-12 focus:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+            class="text-sm text-center appearance-none cursor-pointer bg-transparent w-12 leading-normal text-n-slate-12 focus:outline-none"
             @change="selectMonth"
           >
             <option v-for="m in MONTHS" :key="m.v" :value="m.v">
