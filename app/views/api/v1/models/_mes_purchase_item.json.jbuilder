@@ -3,6 +3,7 @@ json.item_type resource.item_type
 json.mes_material_id resource.mes_material_id
 json.material_name resource.mes_material&.name
 json.material_no resource.mes_material&.material_no
+json.specification resource.mes_material&.specification
 json.crm_product_id resource.crm_product_id
 json.product_name resource.crm_product&.name
 json.product_sku resource.crm_product&.sku

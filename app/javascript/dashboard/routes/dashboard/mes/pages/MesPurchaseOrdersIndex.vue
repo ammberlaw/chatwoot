@@ -74,6 +74,7 @@ const VIEW_ITEM_COLS = [
   { label: '类型', key: 'typeLabel' },
   { label: '编码', key: 'code' },
   { label: '名称', key: 'name' },
+  { label: '规格型号', key: 'spec' },
   { label: '供应商', key: 'supplierName' },
   { label: '采购量', key: 'qty', align: 'right' },
   { label: '已到料', key: 'receivedQty', align: 'right' },
@@ -86,6 +87,7 @@ const viewItems = computed(() =>
     typeLabel: it.itemType === 'PRODUCT' ? '成品(外购)' : '物料',
     code: it.itemType === 'PRODUCT' ? it.productSku : it.materialNo,
     name: it.itemType === 'PRODUCT' ? it.productName : it.materialName,
+    spec: it.itemType === 'PRODUCT' ? '—' : it.specification || '—',
     supplierName: it.supplierName || '—',
     qty: it.qty,
     receivedQty: it.receivedQty,
@@ -115,6 +117,10 @@ const materialOptions = computed(() =>
     label: `${m.name}（${m.unit}）`,
   }))
 );
+// 规格型号取自所选物料档案（物料行必选物料，故始终可得）。
+const materialSpec = id =>
+  (materialsStore.getRecords || []).find(m => String(m.id) === String(id))
+    ?.specification || '';
 
 // 采购行类型：物料（生产用料）/ 成品（外购贸易品，不经过生产部）。
 const ITEM_TYPE_OPTIONS = [
@@ -210,9 +216,12 @@ const explode = async () => {
       mesMaterialId: r.mes_material_id ? String(r.mes_material_id) : '',
       mesSupplierId: r.mes_supplier_id ? String(r.mes_supplier_id) : '',
       qty: String(r.qty),
-      remark: [r.material_no, r.material_name, r.specification]
-        .filter(Boolean)
-        .join(' '),
+      // 物料已关联则名称/规格自带；仅未关联的自由文本物料把信息留在备注作提示。
+      remark: r.mes_material_id
+        ? ''
+        : [r.material_no, r.material_name, r.specification]
+            .filter(Boolean)
+            .join(' '),
     }));
   } catch {
     useAlert('算料失败');
@@ -535,10 +544,20 @@ onMounted(async () => {
               ✕
             </button>
             <div class="flex items-center col-span-4 gap-2">
+              <label class="text-xs shrink-0 text-n-slate-11">规格</label>
+              <span class="flex-1 text-xs truncate text-n-slate-11">
+                {{
+                  row.itemType === 'PRODUCT'
+                    ? '—'
+                    : materialSpec(row.mesMaterialId) || '—'
+                }}
+              </span>
+            </div>
+            <div class="flex items-center col-span-4 gap-2">
               <label class="text-xs shrink-0 text-n-slate-11">实际到料</label>
               <Input v-model="row.arrivalDate" type="date" class="flex-1" />
             </div>
-            <Input v-model="row.remark" placeholder="备注" class="col-span-8" />
+            <Input v-model="row.remark" placeholder="备注" class="col-span-4" />
           </div>
         </div>
       </div>
