@@ -1,18 +1,20 @@
 # ------- Branding Related Config ------- #
+# 品牌默认值已改为 Wintouch：社区版每日 ReconcilePlanConfigService 会把库里品牌
+# 重置成这里的值，故必须是 Wintouch，否则品牌名会每天被刷回 Chatwoot。
 - name: INSTALLATION_NAME
-  value: 'Chatwoot'
+  value: 'Wintouch'
 - name: LOGO_THUMBNAIL
   value: '/brand-assets/logo_thumbnail.svg'
 - name: LOGO
-  value: '/brand-assets/logo.svg'
+  value: '/brand-assets/logo_thumbnail.svg'
 - name: LOGO_DARK
-  value: '/brand-assets/logo_dark.svg'
+  value: '/brand-assets/logo_thumbnail.svg'
 - name: BRAND_URL
   value: 'https://www.chatwoot.com'
 - name: WIDGET_BRAND_URL
   value: 'https://www.chatwoot.com'
 - name: BRAND_NAME
-  value: 'Chatwoot'
+  value: 'Wintouch'
 - name: TERMS_URL
   value: 'https://www.chatwoot.com/terms-of-service'
 - name: PRIVACY_URL
