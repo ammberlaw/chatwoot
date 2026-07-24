@@ -171,9 +171,22 @@ const PERIODS = [
   { key: 'last_30', label: '近30天' },
 ];
 const period = ref('this_month');
-const periodLabel = computed(
-  () => PERIODS.find(p => p.key === period.value)?.label || ''
-);
+// 取数模式：preset 快捷段 / month 指定年月。
+const mode = ref('preset');
+const CUR_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 6 }, (_, i) => CUR_YEAR - 4 + i); // 前4年~明年
+const MONTHS = [
+  { v: 0, label: '全年' },
+  ...Array.from({ length: 12 }, (_, i) => ({ v: i + 1, label: `${i + 1}月` })),
+];
+const pickYear = ref(CUR_YEAR);
+const pickMonth = ref(new Date().getMonth() + 1);
+const periodLabel = computed(() => {
+  if (mode.value === 'month') {
+    return `${pickYear.value}年${pickMonth.value ? `${pickMonth.value}月` : '·全年'}`;
+  }
+  return PERIODS.find(p => p.key === period.value)?.label || '';
+});
 const fmt = d =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate()
@@ -194,9 +207,18 @@ const periodDates = key => {
   return [fmt(new Date(now.getFullYear(), now.getMonth(), 1)), fmt(now)]; // this_month
 };
 
+// 指定年月：整月首末日；月为 0（全年）则整年。
+const monthRange = () => {
+  const y = pickYear.value;
+  const mo = pickMonth.value;
+  if (mo === 0) return [fmt(new Date(y, 0, 1)), fmt(new Date(y, 11, 31))];
+  return [fmt(new Date(y, mo - 1, 1)), fmt(new Date(y, mo, 0))];
+};
+
 const load = async () => {
   loading.value = true;
-  const [startDate, endDate] = periodDates(period.value);
+  const [startDate, endDate] =
+    mode.value === 'month' ? monthRange() : periodDates(period.value);
   try {
     const { data: res } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/dashboard`,
@@ -228,8 +250,15 @@ const load = async () => {
 };
 
 const selectPeriod = key => {
-  if (period.value === key) return;
+  if (mode.value === 'preset' && period.value === key) return;
+  mode.value = 'preset';
   period.value = key;
+  load();
+};
+
+// 切到「指定年月」并按当前年月下拉取数。
+const selectMonth = () => {
+  mode.value = 'month';
   load();
 };
 
@@ -252,21 +281,45 @@ onMounted(() => {
           {{ periodLabel }} · 生产全局概览
         </p>
       </div>
-      <div class="flex items-center h-9 gap-1 px-1 rounded-lg bg-n-alpha-1">
-        <button
-          v-for="p in PERIODS"
-          :key="p.key"
-          type="button"
-          class="h-7 px-3 text-sm font-medium transition-colors rounded-md shrink-0 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-          :class="
-            period === p.key
-              ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
-              : 'text-n-slate-11 hover:text-n-slate-12'
-          "
-          @click="selectPeriod(p.key)"
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center h-9 gap-1 px-1 rounded-lg bg-n-alpha-1">
+          <button
+            v-for="p in PERIODS"
+            :key="p.key"
+            type="button"
+            class="h-7 px-3 text-sm font-medium transition-colors rounded-md shrink-0 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+            :class="
+              mode === 'preset' && period === p.key
+                ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
+                : 'text-n-slate-11 hover:text-n-slate-12'
+            "
+            @click="selectPeriod(p.key)"
+          >
+            {{ p.label }}
+          </button>
+        </div>
+        <!-- 指定年月 -->
+        <div
+          class="flex items-center h-9 gap-1 px-1 rounded-lg"
+          :class="mode === 'month' ? 'bg-n-iris-3' : 'bg-n-alpha-1'"
         >
-          {{ p.label }}
-        </button>
+          <select
+            v-model.number="pickYear"
+            class="h-7 px-2 text-sm bg-transparent rounded-md cursor-pointer text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+            @change="selectMonth"
+          >
+            <option v-for="y in YEARS" :key="y" :value="y">{{ y }}年</option>
+          </select>
+          <select
+            v-model.number="pickMonth"
+            class="h-7 px-2 text-sm bg-transparent rounded-md cursor-pointer text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+            @change="selectMonth"
+          >
+            <option v-for="m in MONTHS" :key="m.v" :value="m.v">
+              {{ m.label }}
+            </option>
+          </select>
+        </div>
       </div>
     </div>
 
