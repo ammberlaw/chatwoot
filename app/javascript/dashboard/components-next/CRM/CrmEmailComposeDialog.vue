@@ -14,6 +14,7 @@ import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
 import MailAccountsAPI from 'dashboard/api/crm/mailAccounts';
 import EmailTemplatesAPI from 'dashboard/api/crm/emailTemplates';
+import EmailSignaturesAPI from 'dashboard/api/crm/emailSignatures';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import ContactsAPI from 'dashboard/api/crm/contacts';
 import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
@@ -34,7 +35,8 @@ const L = {
   schedule: '定时发送',
   scheduleLabel: '定时发送时间（按你本地时区）',
   scheduleConfirm: '确定定时',
-  scheduledBanner: '已加入定时发送队列，到点自动发送。可在「草稿箱」查看或删除。',
+  scheduledBanner:
+    '已加入定时发送队列，到点自动发送。可在「草稿箱」查看或删除。',
   needSchedule: '请选择定时时间',
   scheduleFuture: '定时时间需晚于当前时刻',
   preview: '预览',
@@ -62,7 +64,10 @@ const L = {
   kbTip:
     '产品目录、报价单等知识库资料可直接选作附件；选中后复制进本邮件、锁定当前版本。',
   signature: '插入签名…',
-  noSignature: '（无签名）',
+  defaultSig: '（默认）',
+  noSignature: '不加签名',
+  sigStripLabel: '签名',
+  sigRemove: '移除',
   applyTemplate: '套用模板',
   noTemplate: '— 不套用 —',
   sentOk: '✅ 成功发送',
@@ -100,6 +105,15 @@ const accounts = ref([]);
 const fromId = ref('');
 const templates = ref([]);
 const templateId = ref('');
+const signatures = ref([]);
+// 当前签名以「附加块」形式拼进发出的邮件（不塞进 markdown 编辑器），可切换/移除。
+const activeSignatureId = ref('');
+const activeSignature = computed(
+  () =>
+    signatures.value.find(
+      s => String(s.id) === String(activeSignatureId.value)
+    ) || null
+);
 
 const form = reactive({
   to: '',
@@ -184,6 +198,21 @@ const bodyHtml = computed(() => {
   return parts.length ? `<div style="${parts.join(';')}">${html}</div>` : html;
 });
 
+// 签名以富文本块拼在正文之后（HTML 发送用），纯文本兜底拼在 text part。
+const signatureHtml = computed(() => {
+  const sig = activeSignature.value;
+  if (!sig) return '';
+  const inner =
+    sig.bodyHtml || (sig.body ? sig.body.replace(/\n/g, '<br>') : '');
+  return inner ? `<br><br>--<br>${inner}` : '';
+});
+const composedHtml = computed(() => `${bodyHtml.value}${signatureHtml.value}`);
+const composedText = computed(() => {
+  const sig = activeSignature.value;
+  const plain = sig?.body ? `\n\n--\n${sig.body}` : '';
+  return `${form.body}${plain}`;
+});
+
 // 字体/字号浮层贴到编辑器工具栏按钮组右侧：运行时量出按钮条位置。
 const bodyRef = ref(null);
 const toolbarPos = ref(null);
@@ -248,7 +277,9 @@ const loadAccounts = async () => {
   accounts.value = camelcaseKeys(data.payload || [], { deep: true }).filter(
     a => a.isActive
   );
-  if (accounts.value[0]) fromId.value = accounts.value[0].id;
+  // 默认发件人：优先用户设的默认邮箱，否则取第一个启用邮箱。
+  const preferred = accounts.value.find(a => a.isDefault) || accounts.value[0];
+  if (preferred) fromId.value = preferred.id;
 };
 
 const loadTemplates = async () => {
@@ -256,9 +287,17 @@ const loadTemplates = async () => {
   templates.value = camelcaseKeys(data.payload || [], { deep: true });
 };
 
+const loadSignatures = async () => {
+  const { data } = await EmailSignaturesAPI.get();
+  signatures.value = camelcaseKeys(data.payload || [], { deep: true });
+};
+
 const loadKbDocs = async () => {
   // 邮件附件只挑销售资料库，避免把内部制度/文档挂给客户。
-  const { data } = await KnowledgeDocsAPI.get({ library: 'SALES', per_page: 200 });
+  const { data } = await KnowledgeDocsAPI.get({
+    library: 'SALES',
+    per_page: 200,
+  });
   kbDocs.value = camelcaseKeys(data.payload || [], { deep: true })
     .map(d => ({
       id: d.id,
@@ -318,13 +357,7 @@ const applyTemplate = () => {
   form.body = tpl.body || '';
 };
 
-const insertSignature = event => {
-  const acc = accounts.value.find(a => a.id === Number(event.target.value));
-  event.target.value = '';
-  if (acc?.signature) {
-    form.body = `${form.body}${form.body ? '\n\n' : ''}--\n${acc.signature}`;
-  }
-};
+// 签名做「附加块」：选一条即设为当前签名（拼到正文后），选「不加签名」则移除。
 
 // ---- 附件 ----
 const onPickFiles = event => {
@@ -369,8 +402,8 @@ const buildFields = () => {
     ccAddress: showCc.value && form.cc.trim() ? form.cc.trim() : null,
     bccAddress: showBcc.value && form.bcc.trim() ? form.bcc.trim() : null,
     fromAddress: fromAccount.value?.emailAddress || null,
-    body: form.body,
-    bodyHtml: bodyHtml.value,
+    body: composedText.value,
+    bodyHtml: composedHtml.value,
     folder: 'DRAFT',
     sendStatus: 'DRAFT',
     crmCustomerId: customer.value?.id || form.crmCustomerId || null,
@@ -425,7 +458,10 @@ const send = async () => {
     // 发送是异步的（进队列走 SMTP），轮询真实结果：成功才提示「成功发送」。
     const result = await pollSendResult(id);
     if (result.status === 'FAILED') {
-      status.value = { state: 'failed', msg: result.error || '发送失败，请见邮件列表状态。' };
+      status.value = {
+        state: 'failed',
+        msg: result.error || '发送失败，请见邮件列表状态。',
+      };
     } else if (result.status === 'SENT') {
       status.value = { state: 'sent', msg: '' };
       useAlert(L.sentOk);
@@ -488,7 +524,11 @@ const scheduleSend = async () => {
   status.value = { state: 'sending', msg: '' };
   try {
     const id = await persist();
-    await store.update({ id, sendStatus: 'SCHEDULED', scheduledAt: when.toISOString() });
+    await store.update({
+      id,
+      sendStatus: 'SCHEDULED',
+      scheduledAt: when.toISOString(),
+    });
     showSchedule.value = false;
     status.value = { state: 'scheduled', msg: '' };
     emit('refresh');
@@ -513,6 +553,7 @@ const reset = () => {
   contacts.value = [];
   contactId.value = '';
   templateId.value = '';
+  activeSignatureId.value = '';
   fontFamily.value = '';
   fontSize.value = '';
   attachments.value = [];
@@ -544,7 +585,12 @@ const close = () => {
 
 const open = async prefill => {
   reset();
-  await Promise.all([loadAccounts(), loadTemplates(), loadKbDocs()]);
+  await Promise.all([
+    loadAccounts(),
+    loadTemplates(),
+    loadKbDocs(),
+    loadSignatures(),
+  ]);
   if (prefill && typeof prefill === 'object') {
     if (prefill.toAddress) form.to = prefill.toAddress;
     if (prefill.ccAddress) {
@@ -556,6 +602,9 @@ const open = async prefill => {
     if (prefill.crmCustomerId) form.crmCustomerId = prefill.crmCustomerId;
     if (prefill.contactId) contactId.value = prefill.contactId;
   }
+  // 自动带默认签名（作为附加块拼到正文后，可切换/移除）。
+  const defaultSig = signatures.value.find(s => s.isDefault);
+  if (defaultSig) activeSignatureId.value = defaultSig.id;
   visible.value = true;
   await nextTick();
   measureToolbar();
@@ -793,7 +842,7 @@ defineExpose({ open, close });
           <!-- 正文：所见即所得富文本（加粗/斜体/链接/列表 + 内联插图上传/粘贴） -->
           <div
             ref="bodyRef"
-            class="relative flex flex-col flex-1 min-h-[20rem]"
+            class="relative flex flex-col"
           >
             <!-- 字体 / 字号：贴到编辑器工具栏按钮组右侧，整封生效、实时预览 -->
             <div
@@ -822,7 +871,7 @@ defineExpose({ open, close });
               </select>
             </div>
             <div
-              class="flex flex-col flex-1 px-3 pt-2 pb-3 crm-email-body"
+              class="flex flex-col px-3 pt-2 pb-3 crm-email-body"
               :style="bodyStyle"
             >
               <Editor
@@ -834,6 +883,30 @@ defineExpose({ open, close });
                 :placeholder="L.bodyPlaceholder"
               />
             </div>
+          </div>
+
+          <!-- 签名块：接在正文之后，与正文同处白底内容流（发送时一起带出，可从下拉切换/此处移除） -->
+          <div v-if="activeSignature" class="px-3 pb-3 bg-n-solid-1">
+            <div
+              class="flex items-center gap-2 pt-2 mb-1 border-t border-n-weak"
+            >
+              <Icon icon="i-lucide-pen-line" class="size-3.5 text-n-slate-9" />
+              <span class="text-[11px] text-n-slate-9">
+                {{ `${L.sigStripLabel}：${activeSignature.name}` }}
+              </span>
+              <span class="flex-1" />
+              <button
+                class="text-[11px] text-n-slate-9 hover:text-n-ruby-11"
+                @click="activeSignatureId = ''"
+              >
+                {{ L.sigRemove }}
+              </button>
+            </div>
+            <!-- eslint-disable-next-line vue/no-v-html -->
+            <div
+              class="crm-sig-strip text-sm text-n-slate-12"
+              v-html="signatureHtml"
+            />
           </div>
         </div>
         <!-- /可滚动区 -->
@@ -903,17 +976,13 @@ defineExpose({ open, close });
           </div>
 
           <select
+            v-if="signatures.length"
+            v-model="activeSignatureId"
             class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0 max-w-[128px] flex-shrink-0"
-            @change="insertSignature"
           >
-            <option value="">{{ L.signature }}</option>
-            <option
-              v-for="a in accounts"
-              :key="a.id"
-              :value="a.id"
-              :disabled="!a.signature"
-            >
-              {{ a.emailAddress }}{{ a.signature ? '' : L.noSignature }}
+            <option value="">{{ L.noSignature }}</option>
+            <option v-for="s in signatures" :key="s.id" :value="s.id">
+              {{ s.name }}{{ s.isDefault ? L.defaultSig : '' }}
             </option>
           </select>
           <select
@@ -990,7 +1059,7 @@ defineExpose({ open, close });
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div
           class="px-4 py-4 text-sm leading-relaxed text-n-slate-12"
-          v-html="bodyHtml"
+          v-html="composedHtml"
         />
       </div>
     </div>
@@ -1170,13 +1239,24 @@ defineExpose({ open, close });
 
 <style scoped>
 /* 让富文本编辑器撑满加高后的写信窗，正文区可大段书写 */
+/* 正文走自然文档流：编辑器按内容自动增高（内容多就把签名顶下去、整窗滚动），
+   不再用 flex 撑满导致正文过长时溢出压到签名条上。 */
 .crm-email-body :deep(.editor-wrapper) {
-  flex: 1 1 auto;
-  min-height: 0;
+  min-height: 18rem;
 }
 
 .crm-email-body :deep(.ProseMirror-woot-style) {
-  min-height: 16rem;
+  min-height: 18rem;
   max-height: none;
+}
+
+/* 签名预览条：约束签名里的图片，链接沿用蓝色下划线 */
+.crm-sig-strip :deep(img) {
+  max-width: 100%;
+  height: auto;
+}
+.crm-sig-strip :deep(a) {
+  color: #2563eb;
+  text-decoration: underline;
 }
 </style>

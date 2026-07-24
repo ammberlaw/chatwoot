@@ -4,26 +4,28 @@
 #
 # Table name: crm_mail_accounts
 #
-#  id             :bigint           not null, primary key
-#  email_address  :string           not null
-#  imap_enabled   :boolean          default(FALSE), not null
-#  imap_host      :string
-#  imap_port      :integer
-#  imap_ssl       :boolean          default(TRUE), not null
-#  imap_synced_at :datetime
-#  is_active      :boolean          default(TRUE), not null
-#  name           :string           not null
-#  provider       :string           default("TENCENT_EXMAIL"), not null
-#  signature      :text
-#  smtp_host      :string
-#  smtp_password  :string
-#  smtp_port      :integer
-#  smtp_user      :string
-#  use_ssl        :boolean          default(TRUE), not null
-#  created_at     :datetime         not null
-#  updated_at     :datetime         not null
-#  account_id     :bigint           not null
-#  owner_id       :bigint
+#  id               :bigint           not null, primary key
+#  email_address    :string           not null
+#  imap_enabled     :boolean          default(FALSE), not null
+#  imap_host        :string
+#  imap_port        :integer
+#  imap_ssl         :boolean          default(TRUE), not null
+#  imap_synced_at   :datetime
+#  is_active        :boolean          default(TRUE), not null
+#  is_default       :boolean          default(FALSE), not null
+#  name             :string           not null
+#  provider         :string           default("TENCENT_EXMAIL"), not null
+#  receive_protocol :string           default("IMAP"), not null
+#  signature        :text
+#  smtp_host        :string
+#  smtp_password    :string
+#  smtp_port        :integer
+#  smtp_user        :string
+#  use_ssl          :boolean          default(TRUE), not null
+#  created_at       :datetime         not null
+#  updated_at       :datetime         not null
+#  account_id       :bigint           not null
+#  owner_id         :bigint
 #
 # Indexes
 #
@@ -68,6 +70,9 @@ class Crm::MailAccount < ApplicationRecord
 
   scope :active, -> { where(is_active: true) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
+
+  # 每个负责人只保留一个默认发信邮箱：设为默认时把同一人其余邮箱撤下默认。
+  after_save :unset_sibling_defaults, if: -> { saved_change_to_is_default? && is_default? }
   # 可收件账户：启用 + 已开收件 + 有密码（收件复用 smtp_password 认证）。含 IMAP 与 POP3 两种协议。
   scope :imap_active, -> { active.where(imap_enabled: true).where.not(smtp_password: [nil, '']) }
 
@@ -97,5 +102,12 @@ class Crm::MailAccount < ApplicationRecord
 
   def resolved_port
     smtp_port || (use_ssl? ? 465 : 587)
+  end
+
+  private
+
+  def unset_sibling_defaults
+    self.class.where(account_id: account_id, owner_id: owner_id)
+        .where.not(id: id).where(is_default: true).update_all(is_default: false)
   end
 end
