@@ -4,26 +4,27 @@
 #
 # Table name: crm_mail_accounts
 #
-#  id             :bigint           not null, primary key
-#  email_address  :string           not null
-#  imap_enabled   :boolean          default(FALSE), not null
-#  imap_host      :string
-#  imap_port      :integer
-#  imap_ssl       :boolean          default(TRUE), not null
-#  imap_synced_at :datetime
-#  is_active      :boolean          default(TRUE), not null
-#  name           :string           not null
-#  provider       :string           default("TENCENT_EXMAIL"), not null
-#  signature      :text
-#  smtp_host      :string
-#  smtp_password  :string
-#  smtp_port      :integer
-#  smtp_user      :string
-#  use_ssl        :boolean          default(TRUE), not null
-#  created_at     :datetime         not null
-#  updated_at     :datetime         not null
-#  account_id     :bigint           not null
-#  owner_id       :bigint
+#  id               :bigint           not null, primary key
+#  email_address    :string           not null
+#  imap_enabled     :boolean          default(FALSE), not null
+#  imap_host        :string
+#  imap_port        :integer
+#  imap_ssl         :boolean          default(TRUE), not null
+#  imap_synced_at   :datetime
+#  is_active        :boolean          default(TRUE), not null
+#  name             :string           not null
+#  provider         :string           default("TENCENT_EXMAIL"), not null
+#  receive_protocol :string           default("IMAP"), not null
+#  signature        :text
+#  smtp_host        :string
+#  smtp_password    :string
+#  smtp_port        :integer
+#  smtp_user        :string
+#  use_ssl          :boolean          default(TRUE), not null
+#  created_at       :datetime         not null
+#  updated_at       :datetime         not null
+#  account_id       :bigint           not null
+#  owner_id         :bigint
 #
 # Indexes
 #

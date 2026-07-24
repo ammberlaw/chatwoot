@@ -978,6 +978,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_130000) do
     t.datetime "first_opened_at"
     t.datetime "last_opened_at"
     t.string "message_id"
+    t.datetime "scheduled_at"
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
@@ -988,6 +989,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_130000) do
     t.index ["contact_id"], name: "index_crm_emails_on_contact_id"
     t.index ["crm_customer_id"], name: "index_crm_emails_on_crm_customer_id"
     t.index ["owner_id"], name: "index_crm_emails_on_owner_id"
+    t.index ["send_status", "scheduled_at"], name: "index_crm_emails_on_send_status_and_scheduled_at"
     t.index ["tracking_token"], name: "index_crm_emails_on_tracking_token", unique: true, where: "(tracking_token IS NOT NULL)"
   end
 
@@ -1212,6 +1214,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_130000) do
     t.integer "imap_port"
     t.boolean "imap_ssl", default: true, null: false
     t.datetime "imap_synced_at"
+    t.string "receive_protocol", default: "IMAP", null: false
     t.index ["account_id"], name: "index_crm_mail_accounts_on_account_id"
     t.index ["owner_id"], name: "index_crm_mail_accounts_on_owner_id"
   end
