@@ -3,9 +3,16 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
+import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
+import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
+import { themeColor } from 'dashboard/components-next/CRM/charts/chartColors';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
+
+// 统一玻璃卡样式（对齐 CRM 看板）。
+const CARD =
+  'p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150';
 
 const STAGE_LABELS = {
   SALES_CONFIRMED: '销售订单确定',
@@ -23,45 +30,72 @@ const stageLabel = s => STAGE_LABELS[s] || s;
 const data = ref(null);
 const loading = ref(true);
 
-// 「待我审批 / 待我接单」已移至独立板块「我的待办」(mes_todo_index)。
-
+// —— KPI ——（渐变卡 + 图标，对齐 CRM 看板暖色卡）
+const KPI_META = [
+  {
+    icon: 'i-lucide-factory',
+    tint: 'text-n-iris-11',
+    grad: 'from-n-iris-3 to-n-iris-5',
+  },
+  {
+    icon: 'i-lucide-circle-check-big',
+    tint: 'text-n-teal-11',
+    grad: 'from-n-teal-3 to-n-teal-5',
+  },
+  {
+    icon: 'i-lucide-gauge',
+    tint: 'text-n-blue-11',
+    grad: 'from-n-blue-3 to-n-iris-5',
+  },
+  {
+    icon: 'i-lucide-shield-check',
+    tint: 'text-n-teal-11',
+    grad: 'from-n-teal-3 to-n-blue-4',
+  },
+  {
+    icon: 'i-lucide-truck',
+    tint: 'text-n-violet-11',
+    grad: 'from-n-violet-3 to-n-iris-5',
+  },
+];
 const kpis = computed(() => {
   const m = data.value?.month || {};
   return [
-    { label: '在产订单', value: data.value?.inProduction ?? 0, accent: 'iris' },
-    { label: '完成数', value: Math.round(m.completed || 0), accent: 'teal' },
+    {
+      label: '在产订单',
+      value: data.value?.inProduction ?? 0,
+      sub: '当前流转中',
+    },
+    {
+      label: '完成数',
+      value: Math.round(m.completed || 0),
+      sub: '本期报工累计',
+    },
     {
       label: '良率',
       value: m.yieldRate != null ? `${(m.yieldRate * 100).toFixed(1)}%` : '—',
-      accent: 'blue',
+      sub: '完成 / (完成+报废)',
     },
     {
       label: '质检合格率',
       value: m.qcPassRate != null ? `${(m.qcPassRate * 100).toFixed(1)}%` : '—',
-      accent: 'teal',
+      sub: '本期质检通过率',
     },
-    { label: '出货数', value: m.shipped ?? 0, accent: 'violet' },
+    { label: '出货数', value: m.shipped ?? 0, sub: '本期已出库' },
   ];
 });
-const ACCENT = {
-  iris: 'text-n-iris-11',
-  teal: 'text-n-teal-11',
-  blue: 'text-n-blue-11',
-  violet: 'text-n-violet-11',
-};
 
-const stageBars = computed(() => {
+// —— 在产·阶段分布（横向柱状图）——
+const stageChart = computed(() => {
   const dist = data.value?.stageDistribution || {};
-  const max = Math.max(1, ...Object.values(dist));
-  return STAGE_ORDER.map(s => ({
-    stage: s,
-    label: stageLabel(s),
-    count: dist[s] || 0,
-    pct: Math.round(((dist[s] || 0) / max) * 100),
-  }));
+  return {
+    labels: STAGE_ORDER.map(stageLabel),
+    data: STAGE_ORDER.map(s => dist[s] || 0),
+    empty: STAGE_ORDER.every(s => !dist[s]),
+  };
 });
 
-// —— 按时交货率（按产品线）——
+// —— 按时交货率（按产品线，半圆仪表）——
 const ONTIME_LINES = [
   { code: 'COMMERCIAL_DISPLAY', label: '商显工控' },
   { code: 'TABLET', label: '平板电脑' },
@@ -71,20 +105,20 @@ const onTimePct = code => {
   const r = onTimeRow(code);
   return r && r.total ? Math.round(r.rate * 100) : null;
 };
-const onTimeLabel = code => {
+const onTimeSub = code => {
   const r = onTimeRow(code);
-  return r && r.total ? `${onTimePct(code)}% (${r.on_time}/${r.total})` : '—';
+  return r && r.total ? `${r.on_time}/${r.total} 单` : '暂无出货';
 };
-const onTimeBar = code => {
+const onTimeGaugeColor = code => {
   const p = onTimePct(code);
-  if (p == null) return 'bg-n-slate-4';
-  if (p >= 90) return 'bg-n-teal-9';
-  if (p >= 70) return 'bg-n-amber-9';
-  return 'bg-n-ruby-9';
+  if (p == null) return themeColor('slate-6');
+  if (p >= 90) return themeColor('teal-9');
+  if (p >= 70) return themeColor('amber-9');
+  return themeColor('ruby-9');
 };
 
-// —— 各环节接单平均响应时长（接单时刻 − 进阶段时刻）——
-const ACK_SLA_SECONDS = 4 * 3600; // 接单时限 4h，用作进度条/配色基准
+// —— 各环节接单平均响应时长（只算工作时间；可下钻到人）——
+const ACK_SLA_SECONDS = 4 * 3600; // 4 工作小时接单时限，作进度条/配色满格
 const ackRows = computed(() =>
   (data.value?.ackResponse || []).map(r => ({
     stage: r.stage,
@@ -112,6 +146,12 @@ const ackBar = secs => {
   if (ratio <= 1) return 'bg-n-amber-9';
   return 'bg-n-ruby-9';
 };
+const ackPillTone = secs => {
+  const ratio = secs / ACK_SLA_SECONDS;
+  if (ratio <= 0.5) return 'bg-n-teal-3 text-n-teal-11';
+  if (ratio <= 1) return 'bg-n-amber-3 text-n-amber-11';
+  return 'bg-n-ruby-3 text-n-ruby-11';
+};
 const ackExpanded = reactive({});
 const toggleAck = stage => {
   ackExpanded[stage] = !ackExpanded[stage];
@@ -131,6 +171,9 @@ const PERIODS = [
   { key: 'last_30', label: '近30天' },
 ];
 const period = ref('this_month');
+const periodLabel = computed(
+  () => PERIODS.find(p => p.key === period.value)?.label || ''
+);
 const fmt = d =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate()
@@ -196,21 +239,29 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto">
-    <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-      <h1 class="text-xl font-semibold text-n-slate-12">生产看板</h1>
-      <div
-        class="flex gap-0.5 p-0.5 rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black1"
-      >
+  <div
+    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
+    <!-- 顶栏 -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+          生产看板
+        </h1>
+        <p class="mt-0.5 text-sm text-n-slate-11">
+          {{ periodLabel }} · 生产全局概览
+        </p>
+      </div>
+      <div class="flex items-center h-9 gap-1 px-1 rounded-lg bg-n-alpha-1">
         <button
           v-for="p in PERIODS"
           :key="p.key"
           type="button"
-          class="px-3 py-1 text-xs font-medium rounded-md transition-colors duration-100"
+          class="h-7 px-3 text-sm font-medium transition-colors rounded-md shrink-0 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
           :class="
             period === p.key
-              ? 'bg-n-solid-3 text-n-slate-12 shadow-sm'
-              : 'text-n-slate-10 hover:text-n-slate-12'
+              ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
+              : 'text-n-slate-11 hover:text-n-slate-12'
           "
           @click="selectPeriod(p.key)"
         >
@@ -219,167 +270,180 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="loading" class="py-10 text-center text-n-slate-11">加载中…</div>
+    <div
+      v-if="loading"
+      class="flex items-center justify-center flex-1 gap-2 text-sm text-n-slate-11"
+    >
+      <span class="i-lucide-loader-circle size-4 animate-spin" /> 加载中…
+    </div>
 
-    <div v-else class="grid grid-cols-1 gap-4 px-6 pb-6 lg:grid-cols-3">
+    <template v-else>
       <!-- KPI 行 -->
-      <div class="grid grid-cols-2 gap-4 lg:col-span-3 lg:grid-cols-5">
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <div
-          v-for="k in kpis"
+          v-for="(k, i) in kpis"
           :key="k.label"
-          class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak"
+          class="flex flex-col justify-between p-4 shadow-sm rounded-2xl bg-gradient-to-br min-h-[7.5rem]"
+          :class="KPI_META[i].grad"
         >
-          <div class="text-sm text-n-slate-11">{{ k.label }}</div>
-          <div class="mt-1 text-2xl font-semibold" :class="ACCENT[k.accent]">
-            {{ k.value }}
-          </div>
-        </div>
-      </div>
-
-      <!-- 阶段分布 -->
-      <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
-        <div class="mb-3 font-medium text-n-slate-12">在产 · 阶段分布</div>
-        <div class="flex flex-col gap-2">
           <div
-            v-for="b in stageBars"
-            :key="b.stage"
-            class="flex items-center gap-2"
+            class="flex items-center justify-center rounded-lg size-8 bg-n-solid-1/70"
+            :class="KPI_META[i].tint"
           >
-            <span class="w-24 text-xs shrink-0 text-n-slate-11">{{
-              b.label
-            }}</span>
-            <div class="flex-1 h-3 overflow-hidden rounded-full bg-n-slate-3">
-              <div
-                class="h-full rounded-full bg-n-iris-9"
-                :style="{ width: `${b.pct}%` }"
-              />
+            <span class="size-4" :class="KPI_META[i].icon" />
+          </div>
+          <div>
+            <div class="mt-2 text-xs font-medium text-n-slate-11">
+              {{ k.label }}
             </div>
-            <span class="w-6 text-xs text-right text-n-slate-12">{{
-              b.count
-            }}</span>
+            <div class="text-2xl font-bold leading-tight text-n-slate-12">
+              {{ k.value }}
+            </div>
+            <div class="mt-0.5 text-[11px] text-n-slate-10">{{ k.sub }}</div>
           </div>
         </div>
       </div>
 
-      <!-- 按时交货率 · 按产品线 -->
-      <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
-        <div class="mb-3 font-medium text-n-slate-12">
-          按时交货率 · 按产品线
-        </div>
-        <div class="flex flex-col gap-3">
-          <div
-            v-for="l in ONTIME_LINES"
-            :key="l.code"
-            class="flex items-center gap-2"
-          >
-            <span class="w-16 text-xs shrink-0 text-n-slate-11">
-              {{ l.label }}
-            </span>
-            <div class="flex-1 h-3 overflow-hidden rounded-full bg-n-slate-3">
-              <div
-                class="h-full rounded-full"
-                :class="onTimeBar(l.code)"
-                :style="{ width: `${onTimePct(l.code) || 0}%` }"
-              />
-            </div>
-            <span class="text-xs text-right w-28 text-n-slate-12">
-              {{ onTimeLabel(l.code) }}
-            </span>
-          </div>
-        </div>
-        <p class="mt-2 text-xs text-n-slate-10">
-          出货日 ≤ 期望交期即按时；按所选时段统计。
-        </p>
-      </div>
-
-      <!-- 交期预警 -->
-      <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
-        <div class="mb-3 font-medium text-n-slate-12">交期预警</div>
-        <div
-          v-if="!data.overdue.length && !data.dueSoon.length"
-          class="text-sm text-n-slate-11"
-        >
-          暂无逾期或临近交期。
-        </div>
-        <ul class="flex flex-col gap-2">
-          <li
-            v-for="o in data.overdue"
-            :key="`ov-${o.id}`"
-            class="flex items-center justify-between text-sm cursor-pointer group"
-            @click="goOrder(o.order_no)"
-          >
-            <span class="text-n-slate-12 group-hover:underline">
-              {{ o.order_no }} · {{ o.product_name }}
-            </span>
-            <span class="text-n-ruby-11">已逾期 {{ o.days }} 天</span>
-          </li>
-          <li
-            v-for="o in data.dueSoon"
-            :key="`ds-${o.id}`"
-            class="flex items-center justify-between text-sm cursor-pointer group"
-            @click="goOrder(o.order_no)"
-          >
-            <span class="text-n-slate-12 group-hover:underline">
-              {{ o.order_no }} · {{ o.product_name }}
-            </span>
-            <span class="text-n-amber-11">距交期 {{ o.days }} 天</span>
-          </li>
-        </ul>
-      </div>
-
-      <!-- 超时未接单（装死）：管理视图，谁在拖一眼可见 -->
+      <!-- 超时未接单：置顶红色告警条（有才显示） -->
       <div
         v-if="data.unacked.length"
-        class="p-5 rounded-xl lg:col-span-3 bg-n-ruby-2 border border-n-ruby-6"
+        class="p-5 border shadow-sm rounded-2xl border-n-ruby-6 bg-n-ruby-2/60 backdrop-blur-2xl backdrop-saturate-150"
       >
-        <div class="mb-3 font-medium text-n-ruby-11">
-          🔴 超时未接单 ({{ data.unacked.length }})
+        <div class="flex items-center gap-2 mb-3 font-medium text-n-ruby-11">
+          <span class="i-lucide-alarm-clock-off size-4" />
+          超时未接单 · {{ data.unacked.length }}
         </div>
-        <ul class="flex flex-col gap-2">
+        <ul class="flex flex-col gap-1.5">
           <li
             v-for="o in data.unacked"
             :key="`ua-${o.id}`"
-            class="flex items-center justify-between text-sm cursor-pointer group"
+            class="flex items-center justify-between gap-3 px-2 py-1.5 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-ruby-3/50"
             @click="goOrder(o.order_no)"
           >
-            <span class="text-n-slate-12 group-hover:underline">
+            <span class="truncate text-n-slate-12 group-hover:underline">
               {{ o.order_no }} · {{ o.product_name }} ·
-              {{ stageLabel(o.stage) }} · 本阶段负责人：{{
-                o.owner_names && o.owner_names.length
-                  ? o.owner_names.join('、')
-                  : '未配置'
-              }}
+              {{ stageLabel(o.stage) }}
+              <span class="text-n-slate-10">
+                · 负责人：{{
+                  o.owner_names && o.owner_names.length
+                    ? o.owner_names.join('、')
+                    : '未配置'
+                }}
+              </span>
             </span>
-            <span class="text-n-ruby-11">已 {{ o.hours }} 小时未接单</span>
+            <span
+              class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
+            >
+              已 {{ o.hours }}h 未接
+            </span>
           </li>
         </ul>
       </div>
 
-      <!-- 各环节接单平均响应时长（可下钻到人） -->
-      <div
-        class="p-5 rounded-xl lg:col-span-3 bg-n-alpha-black1 border border-n-weak"
-      >
-        <div class="mb-3 font-medium text-n-slate-12">
-          各环节接单平均响应时长
+      <!-- 阶段分布 + 按时交货率 -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div class="lg:col-span-2" :class="CARD">
+          <h2
+            class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
+          >
+            <span class="i-lucide-bar-chart-3 size-4 text-n-slate-11" />
+            在产 · 阶段分布
+          </h2>
+          <div class="h-64">
+            <CrmBarChart
+              v-if="!stageChart.empty"
+              :labels="stageChart.labels"
+              :data="stageChart.data"
+              horizontal
+              show-values
+            />
+            <div
+              v-else
+              class="flex flex-col items-center justify-center h-full gap-1 text-n-slate-10"
+            >
+              <span class="i-lucide-inbox size-6" />
+              <span class="text-sm">暂无在产订单</span>
+            </div>
+          </div>
         </div>
-        <div v-if="!ackRows.length" class="text-sm text-n-slate-11">
+
+        <div :class="CARD">
+          <h2
+            class="flex items-center gap-2 mb-2 text-base font-medium text-n-slate-12"
+          >
+            <span class="i-lucide-truck size-4 text-n-slate-11" />
+            按时交货率
+          </h2>
+          <div class="grid grid-cols-2 gap-2">
+            <div
+              v-for="l in ONTIME_LINES"
+              :key="l.code"
+              class="flex flex-col items-center"
+            >
+              <div class="relative w-full h-28 max-w-[10rem]">
+                <CrmDoughnutChart
+                  :data="[
+                    onTimePct(l.code) || 0,
+                    100 - (onTimePct(l.code) || 0),
+                  ]"
+                  :colors="[onTimeGaugeColor(l.code)]"
+                  gauge
+                  cutout="80%"
+                >
+                  <template #center>
+                    <div class="text-xl font-bold text-n-slate-12">
+                      {{
+                        onTimePct(l.code) != null
+                          ? `${onTimePct(l.code)}%`
+                          : '—'
+                      }}
+                    </div>
+                  </template>
+                </CrmDoughnutChart>
+              </div>
+              <div class="text-sm font-medium text-n-slate-12">
+                {{ l.label }}
+              </div>
+              <div class="text-xs text-n-slate-10">{{ onTimeSub(l.code) }}</div>
+            </div>
+          </div>
+          <p class="mt-2 text-xs text-center text-n-slate-10">
+            出货日 ≤ 期望交期即按时
+          </p>
+        </div>
+      </div>
+
+      <!-- 各环节接单平均响应时长（可下钻到人） -->
+      <div :class="CARD">
+        <h2
+          class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
+        >
+          <span class="i-lucide-timer size-4 text-n-slate-11" />
+          各环节接单平均响应时长
+        </h2>
+        <div v-if="!ackRows.length" class="text-sm text-n-slate-10">
           本时段暂无接单记录。
         </div>
         <div v-else class="flex flex-col gap-1">
           <template v-for="r in ackRows" :key="r.stage">
             <button
               type="button"
-              class="flex items-center gap-3 py-1.5 text-sm rounded-md hover:bg-n-alpha-black2"
+              class="flex items-center gap-3 px-2 py-2 -mx-2 text-sm rounded-lg hover:bg-n-alpha-1"
               @click="toggleAck(r.stage)"
             >
-              <span class="w-4 text-n-slate-10 shrink-0">
-                {{ ackExpanded[r.stage] ? '▾' : '▸' }}
-              </span>
+              <span
+                class="size-3.5 shrink-0 text-n-slate-10"
+                :class="
+                  ackExpanded[r.stage]
+                    ? 'i-lucide-chevron-down'
+                    : 'i-lucide-chevron-right'
+                "
+              />
               <span class="text-left w-28 shrink-0 text-n-slate-12">
                 {{ r.label }}
               </span>
               <div
-                class="flex-1 h-3 overflow-hidden rounded-full bg-n-slate-3 min-w-16"
+                class="flex-1 h-2 overflow-hidden rounded-full bg-n-slate-3 min-w-16"
               >
                 <div
                   class="h-full rounded-full"
@@ -387,59 +451,137 @@ onMounted(() => {
                   :style="{ width: `${ackPct(r.avgSeconds)}%` }"
                 />
               </div>
-              <span class="w-16 font-medium text-right text-n-slate-12">
+              <span
+                class="px-2 py-0.5 w-16 text-xs font-semibold text-center rounded-full shrink-0"
+                :class="ackPillTone(r.avgSeconds)"
+              >
                 {{ fmtDuration(r.avgSeconds) }}
               </span>
-              <span class="text-right w-14 text-n-slate-10">
+              <span class="text-right w-12 text-n-slate-10">
                 {{ r.count }} 单
               </span>
             </button>
             <div
               v-if="ackExpanded[r.stage]"
-              class="flex flex-col gap-1 pb-2 pl-11"
+              class="flex flex-col gap-1 pb-2 pl-9"
             >
               <div
                 v-for="p in r.people"
                 :key="p.name"
                 class="flex items-center gap-3 text-xs text-n-slate-11"
               >
-                <span class="text-left w-28 shrink-0">{{ p.name }}</span>
+                <span class="flex items-center gap-1.5 text-left w-28 shrink-0">
+                  <span class="i-lucide-user size-3 text-n-slate-10" />
+                  {{ p.name }}
+                </span>
                 <span class="flex-1" />
-                <span class="w-16 text-right">
+                <span class="w-16 font-medium text-right text-n-slate-12">
                   {{ fmtDuration(p.avgSeconds) }}
                 </span>
-                <span class="text-right w-14">{{ p.count }} 单</span>
+                <span class="text-right w-12">{{ p.count }} 单</span>
               </div>
             </div>
           </template>
         </div>
         <p class="mt-2 text-xs text-n-slate-10">
           接单响应 = 进入本环节到接单，只算工作时间（工作日
-          8:00–17:30、跳周末）；按所选时段内发生的接单统计，未接单不计入（进度条以
+          8:00–17:30、跳周末与节假日）；按所选时段内发生的接单统计，未接单不计入（进度条以
           4 工作小时接单时限为满格）。
         </p>
       </div>
 
-      <!-- 滞留卡点 -->
-      <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
-        <div class="mb-3 font-medium text-n-slate-12">滞留卡点(≥3 天)</div>
-        <div v-if="!data.stalled.length" class="text-sm text-n-slate-11">
-          无滞留单据。
-        </div>
-        <ul class="flex flex-col gap-2">
-          <li
-            v-for="o in data.stalled"
-            :key="`st-${o.id}`"
-            class="flex items-center justify-between text-sm cursor-pointer group"
-            @click="goOrder(o.order_no)"
+      <!-- 交期预警 + 滞留卡点 -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div :class="CARD">
+          <h2
+            class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
           >
-            <span class="text-n-slate-12 group-hover:underline">
-              {{ o.order_no }} · {{ stageLabel(o.stage) }}
-            </span>
-            <span class="text-n-amber-11">滞留 {{ o.days }} 天</span>
-          </li>
-        </ul>
+            <span class="i-lucide-calendar-clock size-4 text-n-slate-11" />
+            交期预警
+          </h2>
+          <div
+            v-if="!data.overdue.length && !data.dueSoon.length"
+            class="flex flex-col items-center gap-1 py-6 text-n-slate-10"
+          >
+            <span class="i-lucide-calendar-check size-6" />
+            <span class="text-sm">暂无逾期或临近交期</span>
+          </div>
+          <ul class="flex flex-col gap-1.5">
+            <li
+              v-for="o in data.overdue"
+              :key="`ov-${o.id}`"
+              class="flex items-center justify-between gap-3 px-2 py-1.5 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+              @click="goOrder(o.order_no)"
+            >
+              <span class="flex items-center gap-2 truncate">
+                <span class="rounded-full size-1.5 shrink-0 bg-n-ruby-9" />
+                <span class="truncate text-n-slate-12 group-hover:underline">
+                  {{ o.order_no }} · {{ o.product_name }}
+                </span>
+              </span>
+              <span
+                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
+              >
+                逾期 {{ o.days }} 天
+              </span>
+            </li>
+            <li
+              v-for="o in data.dueSoon"
+              :key="`ds-${o.id}`"
+              class="flex items-center justify-between gap-3 px-2 py-1.5 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+              @click="goOrder(o.order_no)"
+            >
+              <span class="flex items-center gap-2 truncate">
+                <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
+                <span class="truncate text-n-slate-12 group-hover:underline">
+                  {{ o.order_no }} · {{ o.product_name }}
+                </span>
+              </span>
+              <span
+                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
+              >
+                距交期 {{ o.days }} 天
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <div :class="CARD">
+          <h2
+            class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
+          >
+            <span class="i-lucide-hourglass size-4 text-n-slate-11" />
+            滞留卡点（≥3 天）
+          </h2>
+          <div
+            v-if="!data.stalled.length"
+            class="flex flex-col items-center gap-1 py-6 text-n-slate-10"
+          >
+            <span class="i-lucide-check-check size-6" />
+            <span class="text-sm">无滞留单据</span>
+          </div>
+          <ul class="flex flex-col gap-1.5">
+            <li
+              v-for="o in data.stalled"
+              :key="`st-${o.id}`"
+              class="flex items-center justify-between gap-3 px-2 py-1.5 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+              @click="goOrder(o.order_no)"
+            >
+              <span class="flex items-center gap-2 truncate">
+                <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
+                <span class="truncate text-n-slate-12 group-hover:underline">
+                  {{ o.order_no }} · {{ stageLabel(o.stage) }}
+                </span>
+              </span>
+              <span
+                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
+              >
+                滞留 {{ o.days }} 天
+              </span>
+            </li>
+          </ul>
+        </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
