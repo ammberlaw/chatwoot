@@ -108,7 +108,8 @@ class Mes::ProductionOrder < ApplicationRecord
     'SHIPPED' => '销售出库'
   }.freeze
 
-  # 接单时限：进入阶段后 N 小时内负责人须接单，超时即「未接单超时」并可升级。
+  # 接单时限：进入阶段后 N 个「工作小时」内负责人须接单（工作日 08:00–17:30、跳周末，
+  # 见 config/initializers/working_hours.rb），超时即「超时未接单」并可升级。
   ACK_LIMIT_HOURS = 4
 
   belongs_to :account
@@ -252,10 +253,10 @@ class Mes::ProductionOrder < ApplicationRecord
     ack_required? && stage_ack_at.nil?
   end
 
-  # 接单截止 = 进入阶段 + 接单时限。
+  # 接单截止 = 进入阶段后 ACK_LIMIT_HOURS 个「工作小时」（工作日 08:00–17:30，跳过周末）。
   def ack_deadline
     entered = stage_entered_at
-    entered && (entered + ACK_LIMIT_HOURS.hours)
+    entered && WorkingHours.add_hours(entered, ACK_LIMIT_HOURS)
   end
 
   # 未接单超时（装死）：到点还没接单。用于点名 + 升级，不看是否配了负责人。

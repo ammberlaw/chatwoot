@@ -48,8 +48,9 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     Current.account.users.where(id: events.filter_map(&:acked_by_id).uniq).pluck(:id, :name).to_h
   end
 
+  # 响应时长按工作时间累计：工作日 08:00–17:30、跳周末（见 working_hours 初始化）。
   def ack_seconds(event)
-    (event.acked_at - event.entered_at).to_i
+    WorkingHours.working_time_between(event.entered_at, event.acked_at).to_i
   end
 
   # 本期内已接单的阶段事件（限 6 个接单环节），按可见范围 + 产品线收敛。

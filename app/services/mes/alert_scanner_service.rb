@@ -35,8 +35,8 @@ class Mes::AlertScannerService
       elsif po.delivery_date.present? && po.delivery_date <= now + DUE_SOON_DAYS.days
         due_soon << row.merge(days: ((po.delivery_date - now) / 1.day).ceil)
       end
-      # 未接单超时（装死）：进入阶段过了接单时限仍没人接单。
-      unacked << row.merge(hours: ((now - po.stage_entered_at) / 1.hour).floor, owner_names: po.current_stage_owner_names) if po.ack_overdue?
+      # 未接单超时（装死）：进入阶段过了接单时限仍没人接单。小时数按工作时间累计（跳周末/下班）。
+      unacked << row.merge(hours: worked_hours_since(po.stage_entered_at, now), owner_names: po.current_stage_owner_names) if po.ack_overdue?
 
       ev = po.stage_events.find { |e| e.stage == po.stage }
       next unless ev
@@ -50,6 +50,11 @@ class Mes::AlertScannerService
       stalled.sort_by { |r| -r[:days] },
       unacked.sort_by { |r| -r[:hours] }
     ]
+  end
+
+  # 两时刻间的工作小时数（工作日 08:00–17:30、跳周末），向下取整。
+  def worked_hours_since(from, to)
+    (WorkingHours.working_time_between(from, to) / 1.hour).floor
   end
 
   def order_row(po)
