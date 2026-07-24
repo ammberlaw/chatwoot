@@ -298,28 +298,25 @@ onMounted(() => {
             {{ p.label }}
           </button>
         </div>
-        <!-- 指定年月 -->
-        <div
-          class="flex items-center h-9 gap-1 px-1 rounded-lg"
-          :class="mode === 'month' ? 'bg-n-iris-3' : 'bg-n-alpha-1'"
+        <!-- 指定年月：两个独立下拉（月含「全年」）；month 模式时描边高亮 -->
+        <select
+          v-model.number="pickYear"
+          class="h-9 pl-2.5 pr-1 text-sm leading-none border rounded-lg cursor-pointer shrink-0 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+          :class="mode === 'month' ? 'border-n-iris-8' : 'border-n-weak'"
+          @change="selectMonth"
         >
-          <select
-            v-model.number="pickYear"
-            class="h-7 px-2 text-sm bg-transparent rounded-md cursor-pointer text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-            @change="selectMonth"
-          >
-            <option v-for="y in YEARS" :key="y" :value="y">{{ y }}年</option>
-          </select>
-          <select
-            v-model.number="pickMonth"
-            class="h-7 px-2 text-sm bg-transparent rounded-md cursor-pointer text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-            @change="selectMonth"
-          >
-            <option v-for="m in MONTHS" :key="m.v" :value="m.v">
-              {{ m.label }}
-            </option>
-          </select>
-        </div>
+          <option v-for="y in YEARS" :key="y" :value="y">{{ y }}年</option>
+        </select>
+        <select
+          v-model.number="pickMonth"
+          class="h-9 pl-2.5 pr-1 text-sm leading-none border rounded-lg cursor-pointer shrink-0 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+          :class="mode === 'month' ? 'border-n-iris-8' : 'border-n-weak'"
+          @change="selectMonth"
+        >
+          <option v-for="m in MONTHS" :key="m.v" :value="m.v">
+            {{ m.label }}
+          </option>
+        </select>
       </div>
     </div>
 
