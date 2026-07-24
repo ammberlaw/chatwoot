@@ -22,7 +22,8 @@ class Crm::EmailSendService
 
   def pick_mail_account
     accounts = Crm::MailAccount.active.where(account_id: @email.account_id, owner_id: @email.owner_id)
-    accounts.find_by(email_address: @email.from_address.to_s.strip) || accounts.first
+    accounts.find_by(email_address: @email.from_address.to_s.strip) ||
+      accounts.find_by(is_default: true) || accounts.first
   end
 
   def deliver(mail_account)

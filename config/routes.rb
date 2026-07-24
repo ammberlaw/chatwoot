@@ -98,6 +98,7 @@ Rails.application.routes.draw do
               resources :line_items, only: [:index, :create], controller: 'quote_line_items'
             end
             resources :quote_line_items, only: [:update, :destroy]
+            resources :email_signatures
             resources :follow_up_notes
             resources :follow_up_tasks
             resources :knowledge_docs do

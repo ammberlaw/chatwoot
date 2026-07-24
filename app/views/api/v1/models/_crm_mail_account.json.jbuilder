@@ -13,5 +13,6 @@ json.imap_port resource.imap_port
 json.imap_ssl resource.imap_ssl
 json.imap_synced_at resource.imap_synced_at
 json.is_active resource.is_active
+json.is_default resource.is_default
 json.signature resource.signature
 json.owner_id resource.owner_id
