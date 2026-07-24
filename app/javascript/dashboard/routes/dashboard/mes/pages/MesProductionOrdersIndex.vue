@@ -817,9 +817,9 @@ watch(currentPage, fetchRecords);
                 <span
                   v-if="po.orderKind === 'STOCK'"
                   class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"
-                  title="外贸备货订单：全业务共享库存"
+                  title="外贸库存备货订单：全业务共享库存"
                 >
-                  备货
+                  外贸库存备货
                 </span>
                 <span
                   v-if="po.approvalStatus && po.approvalStatus !== 'APPROVED'"
