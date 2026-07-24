@@ -2,6 +2,7 @@
 import { ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
@@ -23,6 +24,14 @@ const defaultTemplate = () => {
 };
 
 const template = ref(defaultTemplate());
+// 订单性质：CUSTOMER 按单生产（默认）｜ STOCK 外贸备货（全业务共享库存，须指定责任业务员）。
+const orderKind = ref('CUSTOMER');
+const stewardId = ref(''); // 备货订单的责任人（业务员），复用 owner_id
+const isStock = computed(() => orderKind.value === 'STOCK');
+const agents = useMapGetter('agents/getAgents');
+const stewardOptions = computed(() =>
+  (agents.value || []).map(a => ({ id: String(a.id), name: a.name }))
+);
 const base = reactive({
   piNo: '',
   productName: '',
@@ -79,6 +88,7 @@ const missing = computed(() => {
   const m = [];
   if (!base.productName.trim()) m.push('成品名称&型号');
   if (!Number(base.qty)) m.push('数量');
+  if (isStock.value && !stewardId.value) m.push('责任人');
   return m;
 });
 const canSubmit = computed(
@@ -94,6 +104,7 @@ const reset = () => {
     deliveryDate: '',
   });
   spec.value = blankSpec(template.value);
+  stewardId.value = '';
   pendingImages.value = [];
   pendingFiles.value = [];
 };
@@ -113,6 +124,8 @@ const submit = async doSubmit => {
         unit: base.unit,
         deliveryDate: base.deliveryDate || undefined,
         productLine: template.value,
+        orderKind: orderKind.value,
+        ownerId: isStock.value ? Number(stewardId.value) : undefined,
         spec: spec.value,
         images: pendingImages.value.map(p => p.signedId),
         files: pendingFiles.value.map(p => p.signedId),
@@ -166,6 +179,37 @@ const backToList = () =>
         基本信息
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">
+            订单类型 <span class="text-n-ruby-11">*</span>
+          </span>
+          <select
+            :value="orderKind"
+            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            @change="e => (orderKind = e.target.value)"
+          >
+            <option value="CUSTOMER">业务订单（按单生产）</option>
+            <option value="STOCK">库存备货（外贸共享库存）</option>
+          </select>
+        </label>
+        <label v-if="isStock" class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">
+            责任人（业务员） <span class="text-n-ruby-11">*</span>
+          </span>
+          <select
+            :value="stewardId"
+            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            @change="e => (stewardId = e.target.value)"
+          >
+            <option value="">选择责任业务员…</option>
+            <option v-for="a in stewardOptions" :key="a.id" :value="a.id">
+              {{ a.name }}
+            </option>
+          </select>
+        </label>
+        <p v-if="isStock" class="text-xs sm:col-span-2 text-n-slate-11">
+          备货订单不归属单一业务员、对全业务可见；这里的责任人只是指定一个业务员跟进。可不填客户交期。
+        </p>
         <label class="flex flex-col gap-1 sm:col-span-2">
           <span class="text-xs text-n-slate-11">
             产品线 / 模板 <span class="text-n-ruby-11">*</span>

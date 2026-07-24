@@ -29,23 +29,32 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
   end
 
   # 生产订单按可见范围过滤（owner_id = 归属业务员）。
+  # 备货订单（order_kind=STOCK，外贸共享库存）对全业务可见，不受 owner 收敛。
   def scoped_by_owner(scope)
     ids = mes_visible_owner_ids
-    ids == :all ? scope : scope.where(owner_id: ids)
+    return scope if ids == :all
+
+    scope.where('owner_id IN (:ids) OR order_kind = :stock', ids: ids, stock: 'STOCK')
   end
 
   # 下游单据按其关联生产订单的归属业务员过滤（业务员只看自己订单的单据）。
+  # 备货订单的下游单据同样全业务可见。
   def scoped_by_order_owner(scope)
     ids = mes_visible_owner_ids
     return scope if ids == :all
 
-    visible = Current.account.mes_production_orders.where(owner_id: ids).select(:id)
+    visible = Current.account.mes_production_orders
+                     .where('owner_id IN (:ids) OR order_kind = :stock', ids: ids, stock: 'STOCK').select(:id)
     scope.where(production_order_id: visible)
   end
 
   # BOM 按订单归属业务员（sales_owner）过滤（制单人多为 PMC，故以归属业务员为准）。
+  # 挂在备货订单上的 BOM 同样全业务可见。
   def scoped_by_sales_owner(scope)
     ids = mes_visible_owner_ids
-    ids == :all ? scope : scope.where(sales_owner_id: ids)
+    return scope if ids == :all
+
+    stock_bom_ids = Current.account.mes_production_orders.stock.where.not(bom_id: nil).select(:bom_id)
+    scope.where('sales_owner_id IN (:ids) OR id IN (:bids)', ids: ids, bids: stock_bom_ids)
   end
 end

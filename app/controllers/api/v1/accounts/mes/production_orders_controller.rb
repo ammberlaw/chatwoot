@@ -8,6 +8,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   def index
     scope = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders.visible_to(current_user)))
+    scope = apply_list_scope(scope)
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
@@ -223,6 +224,15 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   private
 
+  # 列表分档：mine=我的客户订单（归属我）｜ stock=库存备货（全业务共享）｜ all=可见全部。
+  def apply_list_scope(scope)
+    case params[:list_scope]
+    when 'mine' then scope.where(owner_id: current_user.id, order_kind: 'CUSTOMER')
+    when 'stock' then scope.stock
+    else scope
+    end
+  end
+
   def fetch_production_order
     @production_order = Current.account.mes_production_orders.find(params[:id])
   end
@@ -272,7 +282,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   def production_order_params
     permitted = params.require(:production_order).permit(
       :crm_sales_order_id, :crm_product_id, :product_name, :qty, :unit, :produced_qty, :pi_no,
-      :bom_id, :stage, :status, :delivery_date, :planned_start_date, :planned_end_date,
+      :bom_id, :stage, :status, :order_kind, :delivery_date, :planned_start_date, :planned_end_date,
       :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line,
       images: [], files: [] # 建单时挂载已暂存的 blob signed_id
     )

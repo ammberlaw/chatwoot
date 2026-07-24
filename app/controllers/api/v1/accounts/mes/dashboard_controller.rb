@@ -70,11 +70,13 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     @unacked = alerts[:unacked]
   end
 
-  # 按时交货率（按产品线）：SHIPPED 到达时间在区间内、有交期的订单，出货日 ≤ 交期日即按时。
+  # 按时交货率（按产品线）：口径为「成品入库」。出不出库由业务决定、非生产可控，
+  # 故绩效算到成品入库为止——FG_INBOUND 到达时间在区间内、有客户交期的订单，
+  # 成品入库日 ≤ 交期日即按时。备货订单无客户交期，自动不计入（下方 nil 跳过）。
   # 全产线一并算（不受切换器过滤），才能横向比较。
   def on_time_by_line(range)
     events = Current.account.mes_production_order_stage_events
-                    .where(stage: 'SHIPPED', entered_at: range)
+                    .where(stage: 'FG_INBOUND', entered_at: range)
                     .includes(:production_order)
     by_line = Hash.new { |h, k| h[k] = { total: 0, on_time: 0 } }
     events.each do |ev|

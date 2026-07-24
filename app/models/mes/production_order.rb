@@ -13,6 +13,7 @@
 #  is_draft            :boolean          default(FALSE), not null
 #  manager_acted_at    :datetime
 #  manager_comment     :text
+#  order_kind          :string           default("CUSTOMER"), not null
 #  order_no            :string           not null
 #  pi_no               :string
 #  planned_end_date    :datetime
@@ -48,6 +49,7 @@
 #  index_mes_production_orders_on_account_id                      (account_id)
 #  index_mes_production_orders_on_account_id_and_approval_status  (account_id,approval_status)
 #  index_mes_production_orders_on_account_id_and_is_draft         (account_id,is_draft)
+#  index_mes_production_orders_on_account_id_and_order_kind       (account_id,order_kind)
 #  index_mes_production_orders_on_account_id_and_order_no         (account_id,order_no) UNIQUE
 #  index_mes_production_orders_on_account_id_and_stage            (account_id,stage)
 #  index_mes_production_orders_on_bom_confirmed_by_id             (bom_confirmed_by_id)
@@ -79,6 +81,10 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 生命周期（与 stage 正交）。
   STATUSES = %w[IN_PROGRESS COMPLETED STOPPED CANCELLED].freeze
+
+  # 订单性质：CUSTOMER 按单生产（归属业务员收敛，只归属自己可见）；
+  # STOCK 外贸备货生产（建公司共享库存，全业务可见；owner 复用为「责任人」不做收敛）。
+  ORDER_KINDS = %w[CUSTOMER STOCK].freeze
 
   # 审批链（取代「发布」）：业务员提交 → 部门主管 → 总经理，全部通过才正式生效。
   # DRAFT 草稿(仅本人) / SUBMITTED 待部门主管 / MANAGER_APPROVED 待总经理 /
@@ -139,8 +145,10 @@ class Mes::ProductionOrder < ApplicationRecord
   validates :stage, inclusion: { in: STAGES }
   validates :status, inclusion: { in: STATUSES }
   validates :approval_status, inclusion: { in: APPROVAL_STATUSES }
+  validates :order_kind, inclusion: { in: ORDER_KINDS }
 
   scope :active, -> { where.not(status: 'CANCELLED') }
+  scope :stock, -> { where(order_kind: 'STOCK') }
   # 已发布（非草稿）：看板/预警/待接单等全局视图只看已发布。
   scope :published, -> { where(is_draft: false) }
   # 列表可见：已发布对全员可见；草稿仅创建人（owner）可见。
@@ -150,6 +158,9 @@ class Mes::ProductionOrder < ApplicationRecord
   scope :awaiting_gm_for, ->(uid) { where(approval_status: 'MANAGER_APPROVED', gm_id: uid) }
 
   def self.document_number_prefix = 'MO'
+
+  # 备货生产订单（全业务共享库存）。
+  def stock? = order_kind == 'STOCK'
 
   # 进度 = 已产 / 计划产量（0..1）。
   def progress_ratio

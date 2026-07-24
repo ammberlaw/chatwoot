@@ -31,6 +31,7 @@ json.ack_deadline resource.ack_deadline
 json.stage_ack_at resource.stage_ack_at
 json.stage_ack_by_name resource.stage_ack_by&.name
 json.status resource.status
+json.order_kind resource.order_kind
 json.delivery_date resource.delivery_date
 json.planned_start_date resource.planned_start_date
 json.planned_end_date resource.planned_end_date

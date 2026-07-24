@@ -84,12 +84,15 @@ const ownerFilterOptions = computed(() => [
 // —— 详情面板选中项（提前声明：视图切换要清空它）——
 const selected = ref(null);
 
-// 视图：all 全部订单 / inbox 待我审批（停在我这一级的单）。
+// 视图：all 列表（再按 listScope 分档）/ inbox 待我审批（停在我这一级的单）。
 const viewMode = ref('all');
+// 列表分档：mine 我的订单 / stock 库存备货 / all 全部（可见范围内）。
+const listScope = ref('all');
 const fetchRecords = () => {
   if (viewMode.value === 'inbox') return store.fetchApprovalInbox();
   return store.get({
     page: currentPage.value,
+    list_scope: listScope.value,
     stage: activeStage.value || undefined,
     status: activeStatus.value || undefined,
     owner_id: activeOwner.value || undefined,
@@ -103,6 +106,19 @@ const setViewMode = m => {
   selected.value = null;
   fetchRecords();
 };
+// 列表分档 tab（我的订单/库存备货/全部）：切到列表视图并换档。
+const setListScope = s => {
+  if (viewMode.value === 'all' && listScope.value === s) return;
+  viewMode.value = 'all';
+  listScope.value = s;
+  currentPage.value = 1;
+  selected.value = null;
+  fetchRecords();
+};
+const tabActive = (mode, scope) =>
+  mode === 'inbox'
+    ? viewMode.value === 'inbox'
+    : viewMode.value === 'all' && listScope.value === scope;
 
 let searchTimer = null;
 const onSearchInput = () => {
@@ -692,23 +708,45 @@ watch(currentPage, fetchRecords);
       </div>
     </div>
 
-    <!-- 视图切换：全部 / 待我审批 -->
+    <!-- 视图切换：我的订单 / 库存备货 / 全部 / 待我审批 -->
     <div class="flex items-center gap-2 px-6 pb-2">
       <button
         class="px-3 py-1.5 text-sm rounded-lg border"
         :class="
-          viewMode === 'all'
+          tabActive('all', 'mine')
             ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
             : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
         "
-        @click="setViewMode('all')"
+        @click="setListScope('mine')"
       >
-        全部订单
+        我的订单
       </button>
       <button
         class="px-3 py-1.5 text-sm rounded-lg border"
         :class="
-          viewMode === 'inbox'
+          tabActive('all', 'stock')
+            ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
+            : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
+        "
+        @click="setListScope('stock')"
+      >
+        库存备货
+      </button>
+      <button
+        class="px-3 py-1.5 text-sm rounded-lg border"
+        :class="
+          tabActive('all', 'all')
+            ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
+            : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
+        "
+        @click="setListScope('all')"
+      >
+        全部
+      </button>
+      <button
+        class="px-3 py-1.5 text-sm rounded-lg border"
+        :class="
+          tabActive('inbox')
             ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
             : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
         "
@@ -776,6 +814,13 @@ watch(currentPage, fetchRecords);
             >
               <td class="px-3 py-3 font-medium text-n-slate-12">
                 {{ po.orderNo }}
+                <span
+                  v-if="po.orderKind === 'STOCK'"
+                  class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"
+                  title="外贸备货订单：全业务共享库存"
+                >
+                  备货
+                </span>
                 <span
                   v-if="po.approvalStatus && po.approvalStatus !== 'APPROVED'"
                   class="ml-1 px-1.5 py-0.5 text-xs rounded-full"
