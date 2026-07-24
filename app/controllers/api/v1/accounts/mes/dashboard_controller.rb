@@ -12,10 +12,55 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     )
     @month = period_output
     @on_time = on_time_by_line(period_range)
+    @ack_response = ack_response_by_stage(period_range)
     render 'api/v1/accounts/mes/dashboard/show'
   end
 
   private
+
+  # 各环节接单响应时长：接单时刻 − 进入本环节时刻，按本期内发生的接单聚合。
+  # 顶层按 6 个接单环节，每环节下钻到接单人（stage_events.acked_by）。未接单不计入。
+  def ack_response_by_stage(range)
+    grouped = ack_events_in(range).group_by(&:stage)
+    names = ack_actor_names(grouped.values.flatten)
+    Mes::ProductionOrder::STAGE_BOARD_KEYS.keys.filter_map do |stage|
+      ack_stage_summary(stage, grouped[stage], names) if grouped[stage].present?
+    end
+  end
+
+  def ack_stage_summary(stage, evs, names)
+    durations = evs.map { |e| ack_seconds(e) }
+    { stage: stage, label: Mes::ProductionOrder::STAGE_LABELS[stage],
+      count: durations.size, avg_seconds: durations.sum / durations.size,
+      people: ack_people(evs, names) }
+  end
+
+  # 环节内按接单人拆分，接单单数多者在前。
+  def ack_people(evs, names)
+    people = evs.group_by(&:acked_by_id).map do |uid, group|
+      secs = group.map { |e| ack_seconds(e) }
+      { name: names[uid] || '未知', count: secs.size, avg_seconds: secs.sum / secs.size }
+    end
+    people.sort_by { |p| -p[:count] }
+  end
+
+  def ack_actor_names(events)
+    Current.account.users.where(id: events.filter_map(&:acked_by_id).uniq).pluck(:id, :name).to_h
+  end
+
+  def ack_seconds(event)
+    (event.acked_at - event.entered_at).to_i
+  end
+
+  # 本期内已接单的阶段事件（限 6 个接单环节），按可见范围 + 产品线收敛。
+  def ack_events_in(range)
+    orders = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders))
+    Current.account.mes_production_order_stage_events
+           .where(stage: Mes::ProductionOrder::STAGE_BOARD_KEYS.keys)
+           .where.not(acked_at: nil).where(acked_at: range)
+           .where(production_order_id: orders.select(:id))
+           .to_a
+  end
 
   def assign_alerts(alerts)
     @overdue = alerts[:overdue]

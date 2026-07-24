@@ -295,10 +295,14 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   # 接单：标记谁在何时接手（update! 触发审计留痕）。
+  # 同时把接单时刻/接单人落到本阶段事件上——订单推进后 stage_ack_at 会清零，
+  # 阶段事件留痕才能供看板「各环节接单响应时长」按周期统计。
   def acknowledge!(actor)
     raise StandardError, '当前阶段无需接单' unless awaiting_ack?
 
-    update!(stage_ack_at: Time.current, stage_ack_by_id: actor&.id)
+    now = Time.current
+    update!(stage_ack_at: now, stage_ack_by_id: actor&.id)
+    stage_events.where(stage: stage).update_all(acked_at: now, acked_by_id: actor&.id, updated_at: now)
     self
   end
 
@@ -312,7 +316,8 @@ class Mes::ProductionOrder < ApplicationRecord
     transaction do
       update_columns(stage: prev, stage_ack_at: nil, stage_ack_by_id: nil, updated_at: now)
       ev = stage_events.find_or_create_by!(stage: prev) { |e| e.account_id = account_id }
-      ev.update!(entered_at: now, actor_id: actor&.id, note: "被下游退回：#{reason}")
+      # 退回即重新计时、须重新接单，清掉上一阶段旧的接单留痕。
+      ev.update!(entered_at: now, actor_id: actor&.id, note: "被下游退回：#{reason}", acked_at: nil, acked_by_id: nil)
     end
     notify_stage_owners(
       kind: 'stage_returned',

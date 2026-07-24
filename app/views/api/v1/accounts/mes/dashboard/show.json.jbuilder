@@ -7,3 +7,4 @@ json.due_soon @due_soon
 json.stalled @stalled
 json.unacked @unacked
 json.on_time @on_time
+json.ack_response @ack_response

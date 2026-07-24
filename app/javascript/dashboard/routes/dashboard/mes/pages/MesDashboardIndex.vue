@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 
@@ -83,6 +83,40 @@ const onTimeBar = code => {
   return 'bg-n-ruby-9';
 };
 
+// —— 各环节接单平均响应时长（接单时刻 − 进阶段时刻）——
+const ACK_SLA_SECONDS = 4 * 3600; // 接单时限 4h，用作进度条/配色基准
+const ackRows = computed(() =>
+  (data.value?.ackResponse || []).map(r => ({
+    stage: r.stage,
+    label: r.label,
+    count: r.count,
+    avgSeconds: r.avg_seconds,
+    people: (r.people || []).map(p => ({
+      name: p.name,
+      count: p.count,
+      avgSeconds: p.avg_seconds,
+    })),
+  }))
+);
+const fmtDuration = secs => {
+  if (secs == null) return '—';
+  const h = secs / 3600;
+  if (h >= 1) return `${h.toFixed(1)}h`;
+  return `${Math.max(1, Math.round(secs / 60))}m`;
+};
+const ackPct = secs =>
+  Math.min(100, Math.round((secs / ACK_SLA_SECONDS) * 100));
+const ackBar = secs => {
+  const ratio = secs / ACK_SLA_SECONDS;
+  if (ratio <= 0.5) return 'bg-n-teal-9';
+  if (ratio <= 1) return 'bg-n-amber-9';
+  return 'bg-n-ruby-9';
+};
+const ackExpanded = reactive({});
+const toggleAck = stage => {
+  ackExpanded[stage] = !ackExpanded[stage];
+};
+
 // 点交期预警/滞留订单 → 跳订单页并按订单号搜索、自动打开详情面板。
 const goOrder = orderNo =>
   router.push(
@@ -143,6 +177,7 @@ const load = async () => {
       stalled: res.stalled || [],
       unacked: res.unacked || [],
       onTime: res.on_time || {},
+      ackResponse: res.ack_response || [],
     };
   } finally {
     loading.value = false;
@@ -318,6 +353,71 @@ onMounted(() => {
             <span class="text-n-ruby-11">已 {{ o.hours }} 小时未接单</span>
           </li>
         </ul>
+      </div>
+
+      <!-- 各环节接单平均响应时长（可下钻到人） -->
+      <div
+        class="p-5 rounded-xl lg:col-span-3 bg-n-alpha-black1 border border-n-weak"
+      >
+        <div class="mb-3 font-medium text-n-slate-12">
+          各环节接单平均响应时长
+        </div>
+        <div v-if="!ackRows.length" class="text-sm text-n-slate-11">
+          本时段暂无接单记录。
+        </div>
+        <div v-else class="flex flex-col gap-1">
+          <template v-for="r in ackRows" :key="r.stage">
+            <button
+              type="button"
+              class="flex items-center gap-3 py-1.5 text-sm rounded-md hover:bg-n-alpha-black2"
+              @click="toggleAck(r.stage)"
+            >
+              <span class="w-4 text-n-slate-10 shrink-0">
+                {{ ackExpanded[r.stage] ? '▾' : '▸' }}
+              </span>
+              <span class="text-left w-28 shrink-0 text-n-slate-12">
+                {{ r.label }}
+              </span>
+              <div
+                class="flex-1 h-3 overflow-hidden rounded-full bg-n-slate-3 min-w-16"
+              >
+                <div
+                  class="h-full rounded-full"
+                  :class="ackBar(r.avgSeconds)"
+                  :style="{ width: `${ackPct(r.avgSeconds)}%` }"
+                />
+              </div>
+              <span class="w-16 font-medium text-right text-n-slate-12">
+                {{ fmtDuration(r.avgSeconds) }}
+              </span>
+              <span class="text-right w-14 text-n-slate-10">
+                {{ r.count }} 单
+              </span>
+            </button>
+            <div
+              v-if="ackExpanded[r.stage]"
+              class="flex flex-col gap-1 pb-2 pl-11"
+            >
+              <div
+                v-for="p in r.people"
+                :key="p.name"
+                class="flex items-center gap-3 text-xs text-n-slate-11"
+              >
+                <span class="text-left w-28 shrink-0">{{ p.name }}</span>
+                <span class="flex-1" />
+                <span class="w-16 text-right">
+                  {{ fmtDuration(p.avgSeconds) }}
+                </span>
+                <span class="text-right w-14">{{ p.count }} 单</span>
+              </div>
+            </div>
+          </template>
+        </div>
+        <p class="mt-2 text-xs text-n-slate-10">
+          接单响应 = 接单时刻 −
+          进入本环节时刻；按所选时段内发生的接单统计，未接单不计入（进度条以 4h
+          接单时限为满格）。
+        </p>
       </div>
 
       <!-- 滞留卡点 -->

@@ -4,12 +4,14 @@
 # Table name: mes_production_order_stage_events
 #
 #  id                  :bigint           not null, primary key
+#  acked_at            :datetime
 #  entered_at          :datetime         not null
 #  note                :text
 #  stage               :string           not null
 #  created_at          :datetime         not null
 #  updated_at          :datetime         not null
 #  account_id          :bigint           not null
+#  acked_by_id         :bigint
 #  actor_id            :bigint
 #  production_order_id :bigint           not null
 #
@@ -17,10 +19,12 @@
 #
 #  index_mes_po_stage_events_unique                                (production_order_id,stage) UNIQUE
 #  index_mes_production_order_stage_events_on_account_id           (account_id)
+#  index_mes_production_order_stage_events_on_acked_by_id          (acked_by_id)
 #  index_mes_production_order_stage_events_on_production_order_id  (production_order_id)
 #
 # Foreign Keys
 #
+#  fk_rails_...  (acked_by_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (actor_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (production_order_id => mes_production_orders.id) ON DELETE => cascade
 #
@@ -28,4 +32,5 @@ class Mes::ProductionOrderStageEvent < ApplicationRecord
   belongs_to :account
   belongs_to :production_order, class_name: 'Mes::ProductionOrder', inverse_of: :stage_events
   belongs_to :actor, class_name: 'User', optional: true
+  belongs_to :acked_by, class_name: 'User', optional: true
 end
