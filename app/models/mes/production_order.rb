@@ -417,6 +417,7 @@ class Mes::ProductionOrder < ApplicationRecord
   def requirement_row(item, factor)
     {
       mes_material_id: item.mes_material_id,
+      mes_supplier_id: item.mes_material&.default_supplier_id,
       material_no: item.material_no,
       material_name: item.material_name,
       specification: item.specification,

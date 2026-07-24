@@ -6,6 +6,9 @@ json.material_no resource.mes_material&.material_no
 json.crm_product_id resource.crm_product_id
 json.product_name resource.crm_product&.name
 json.product_sku resource.crm_product&.sku
+json.mes_supplier_id resource.mes_supplier_id
+json.supplier_name resource.mes_supplier&.name
+json.arrival_date resource.arrival_date
 json.qty resource.qty
 json.unit resource.unit
 json.received_qty resource.received_qty

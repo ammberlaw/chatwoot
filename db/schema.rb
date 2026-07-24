@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_24_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_24_170000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1993,16 +1993,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_160000) do
     t.datetime "updated_at", null: false
     t.string "item_type", default: "MATERIAL", null: false
     t.bigint "crm_product_id"
+    t.bigint "mes_supplier_id"
+    t.datetime "arrival_date"
     t.index ["account_id"], name: "index_mes_purchase_items_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_purchase_items_on_crm_product_id"
     t.index ["mes_material_id"], name: "index_mes_purchase_items_on_mes_material_id"
+    t.index ["mes_supplier_id"], name: "index_mes_purchase_items_on_mes_supplier_id"
     t.index ["purchase_order_id"], name: "index_mes_purchase_items_on_purchase_order_id"
   end
 
   create_table "mes_purchase_orders", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "po_no", null: false
-    t.bigint "mes_supplier_id"
     t.bigint "production_order_id"
     t.string "status", default: "DRAFT", null: false
     t.datetime "expected_date"
@@ -2015,12 +2017,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_160000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "product_line"
-    t.datetime "arrival_date"
     t.index ["account_id", "po_no"], name: "index_mes_purchase_orders_on_account_id_and_po_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_purchase_orders_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_purchase_orders_on_account_id_and_status"
     t.index ["account_id"], name: "index_mes_purchase_orders_on_account_id"
-    t.index ["mes_supplier_id"], name: "index_mes_purchase_orders_on_mes_supplier_id"
     t.index ["owner_id"], name: "index_mes_purchase_orders_on_owner_id"
     t.index ["production_order_id"], name: "index_mes_purchase_orders_on_production_order_id"
   end
@@ -2720,8 +2720,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_160000) do
   add_foreign_key "mes_purchase_items", "crm_products", on_delete: :nullify
   add_foreign_key "mes_purchase_items", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_purchase_items", "mes_purchase_orders", column: "purchase_order_id", on_delete: :cascade
+  add_foreign_key "mes_purchase_items", "mes_suppliers", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "mes_production_orders", column: "production_order_id", on_delete: :nullify
-  add_foreign_key "mes_purchase_orders", "mes_suppliers", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_serial_numbers", "crm_products", on_delete: :nullify
   add_foreign_key "mes_serial_numbers", "mes_production_orders", column: "production_order_id", on_delete: :nullify

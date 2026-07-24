@@ -56,13 +56,12 @@ const viewFields = computed(() => {
   const p = viewing.value || {};
   return [
     { label: '采购单号', value: p.poNo },
-    { label: '供应商', value: p.supplierName },
+    { label: '供应商', value: (p.supplierNames || []).join('、') || '—' },
     { label: '生产订单', value: p.productionOrderNo },
     { label: '归属人', value: p.productionOrderOwnerName },
     { label: '状态', value: STATUS_LABELS[p.status] || p.status },
     { label: '回复交期', value: day(p.expectedDate) },
     { label: '跟进日期', value: day(p.followUpDate) },
-    { label: '到料时间', value: day(p.arrivalDate) },
     {
       label: '异常',
       value: p.hasException ? p.exceptionNote || '有异常' : '无',
@@ -75,9 +74,11 @@ const VIEW_ITEM_COLS = [
   { label: '类型', key: 'typeLabel' },
   { label: '编码', key: 'code' },
   { label: '名称', key: 'name' },
+  { label: '供应商', key: 'supplierName' },
   { label: '采购量', key: 'qty', align: 'right' },
   { label: '已到料', key: 'receivedQty', align: 'right' },
   { label: '单位', key: 'unit' },
+  { label: '实际到料时间', key: 'arrival' },
   { label: '备注', key: 'remark' },
 ];
 const viewItems = computed(() =>
@@ -85,9 +86,11 @@ const viewItems = computed(() =>
     typeLabel: it.itemType === 'PRODUCT' ? '成品(外购)' : '物料',
     code: it.itemType === 'PRODUCT' ? it.productSku : it.materialNo,
     name: it.itemType === 'PRODUCT' ? it.productName : it.materialName,
+    supplierName: it.supplierName || '—',
     qty: it.qty,
     receivedQty: it.receivedQty,
     unit: it.unit,
+    arrival: day(it.arrivalDate),
     remark: it.remark,
   }))
 );
@@ -153,16 +156,24 @@ const productUnit = id =>
 const dialogRef = ref(null);
 const editingId = ref(null);
 const removedItemIds = ref([]);
-const form = reactive({
+// 明细行：供应商、实际到料时间都在行上（一单多料、多供应商、到货时间各异）。
+const blankRow = () => ({
+  itemType: 'MATERIAL',
+  mesMaterialId: '',
+  crmProductId: '',
   mesSupplierId: '',
+  arrivalDate: '',
+  qty: '1',
+  remark: '',
+});
+const form = reactive({
   productionOrderId: '',
   status: 'DRAFT',
   expectedDate: '',
   followUpDate: '',
-  arrivalDate: '',
   hasException: false,
   exceptionNote: '',
-  rows: [], // { id?, itemType, mesMaterialId, crmProductId, qty, remark }
+  rows: [],
 });
 
 const rowIncomplete = r =>
@@ -172,14 +183,7 @@ const invalid = computed(
   () => !form.rows.length || form.rows.some(rowIncomplete)
 );
 
-const addRow = () =>
-  form.rows.push({
-    itemType: 'MATERIAL',
-    mesMaterialId: '',
-    crmProductId: '',
-    qty: '1',
-    remark: '',
-  });
+const addRow = () => form.rows.push(blankRow());
 const removeRow = i => {
   const [r] = form.rows.splice(i, 1);
   if (r?.id) removedItemIds.value.push(r.id);
@@ -202,9 +206,9 @@ const explode = async () => {
     }
     form.rows.forEach(r => r.id && removedItemIds.value.push(r.id));
     form.rows = reqs.map(r => ({
-      itemType: 'MATERIAL',
+      ...blankRow(),
       mesMaterialId: r.mes_material_id ? String(r.mes_material_id) : '',
-      crmProductId: '',
+      mesSupplierId: r.mes_supplier_id ? String(r.mes_supplier_id) : '',
       qty: String(r.qty),
       remark: [r.material_no, r.material_name, r.specification]
         .filter(Boolean)
@@ -219,23 +223,13 @@ const resetForm = () => {
   editingId.value = null;
   removedItemIds.value = [];
   Object.assign(form, {
-    mesSupplierId: '',
     productionOrderId: '',
     status: 'DRAFT',
     expectedDate: '',
     followUpDate: '',
-    arrivalDate: '',
     hasException: false,
     exceptionNote: '',
-    rows: [
-      {
-        itemType: 'MATERIAL',
-        mesMaterialId: '',
-        crmProductId: '',
-        qty: '1',
-        remark: '',
-      },
-    ],
+    rows: [blankRow()],
   });
 };
 
@@ -253,12 +247,10 @@ const openEdit = po => {
   editingId.value = po.id;
   removedItemIds.value = [];
   Object.assign(form, {
-    mesSupplierId: po.mesSupplierId ? String(po.mesSupplierId) : '',
     productionOrderId: po.productionOrderId ? String(po.productionOrderId) : '',
     status: po.status,
     expectedDate: po.expectedDate ? po.expectedDate.slice(0, 10) : '',
     followUpDate: po.followUpDate ? po.followUpDate.slice(0, 10) : '',
-    arrivalDate: po.arrivalDate ? po.arrivalDate.slice(0, 10) : '',
     hasException: !!po.hasException,
     exceptionNote: po.exceptionNote || '',
     rows: (po.purchaseItems || []).map(it => ({
@@ -266,6 +258,8 @@ const openEdit = po => {
       itemType: it.itemType || 'MATERIAL',
       mesMaterialId: it.mesMaterialId ? String(it.mesMaterialId) : '',
       crmProductId: it.crmProductId ? String(it.crmProductId) : '',
+      mesSupplierId: it.mesSupplierId ? String(it.mesSupplierId) : '',
+      arrivalDate: it.arrivalDate ? it.arrivalDate.slice(0, 10) : '',
       qty: String(it.qty),
       remark: it.remark || '',
     })),
@@ -291,6 +285,8 @@ const submit = async () => {
       itemType: r.itemType,
       mesMaterialId: r.itemType === 'PRODUCT' ? null : Number(r.mesMaterialId),
       crmProductId: r.itemType === 'PRODUCT' ? Number(r.crmProductId) : null,
+      mesSupplierId: r.mesSupplierId ? Number(r.mesSupplierId) : null,
+      arrivalDate: r.arrivalDate || null,
       unit: r.itemType === 'PRODUCT' ? productUnit(r.crmProductId) : undefined,
       qty: Number(r.qty),
       remark: r.remark || '',
@@ -298,12 +294,10 @@ const submit = async () => {
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
   ];
   const payload = {
-    mesSupplierId: form.mesSupplierId || null,
     productionOrderId: form.productionOrderId || null,
     status: form.status,
     expectedDate: form.expectedDate || null,
     followUpDate: form.followUpDate || null,
-    arrivalDate: form.arrivalDate || null,
     hasException: form.hasException,
     exceptionNote: form.exceptionNote,
     purchaseItemsAttributes: itemsAttributes,
@@ -363,7 +357,6 @@ onMounted(async () => {
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium">回复交期</th>
             <th class="px-3 py-3 font-medium">跟进</th>
-            <th class="px-3 py-3 font-medium">到料时间</th>
             <th class="px-3 py-3" />
           </tr>
         </thead>
@@ -380,7 +373,7 @@ onMounted(async () => {
               </span>
             </td>
             <td class="px-3 py-3 text-n-slate-11">
-              {{ p.supplierName || '—' }}
+              {{ (p.supplierNames || []).join('、') || '—' }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ p.productionOrderNo || '—' }}
@@ -393,7 +386,6 @@ onMounted(async () => {
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.expectedDate) }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.followUpDate) }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ day(p.arrivalDate) }}</td>
             <td class="px-3 py-3 text-right">
               <div class="flex justify-end gap-1">
                 <Button
@@ -413,7 +405,7 @@ onMounted(async () => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               还没有采购单。
             </td>
           </tr>
@@ -432,25 +424,6 @@ onMounted(async () => {
       @confirm="submit"
     >
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-4">
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">供应商</label>
-            <ComboBox
-              v-model="form.mesSupplierId"
-              :options="supplierOptions"
-              placeholder="选择供应商"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">状态</label>
-            <Select
-              :model-value="form.status"
-              :options="statusOptions"
-              @update:model-value="v => (form.status = v)"
-            />
-          </div>
-        </div>
-
         <div class="flex items-end gap-2">
           <div class="flex flex-col flex-1 gap-1">
             <label class="text-heading-3 text-n-slate-12">关联生产订单</label>
@@ -463,7 +436,15 @@ onMounted(async () => {
           <Button label="BOM 算料" color="slate" size="sm" @click="explode" />
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-3 gap-4">
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">状态</label>
+            <Select
+              :model-value="form.status"
+              :options="statusOptions"
+              @update:model-value="v => (form.status = v)"
+            />
+          </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">回复采购时间</label>
             <Input v-model="form.expectedDate" type="date" />
@@ -471,10 +452,6 @@ onMounted(async () => {
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">跟进采购时间</label>
             <Input v-model="form.followUpDate" type="date" />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">到料时间</label>
-            <Input v-model="form.arrivalDate" type="date" />
           </div>
         </div>
 
@@ -500,7 +477,7 @@ onMounted(async () => {
           <div
             v-for="(row, i) in form.rows"
             :key="i"
-            class="grid items-center grid-cols-12 gap-2"
+            class="grid items-center grid-cols-12 gap-2 p-2 border rounded-lg border-n-weak"
           >
             <div class="col-span-2">
               <Select
@@ -525,13 +502,19 @@ onMounted(async () => {
                 placeholder="选择物料"
               />
             </div>
+            <div class="col-span-3">
+              <ComboBox
+                v-model="row.mesSupplierId"
+                :options="supplierOptions"
+                placeholder="选择供应商"
+              />
+            </div>
             <Input
               v-model="row.qty"
               type="number"
               placeholder="数量"
               class="col-span-2"
             />
-            <Input v-model="row.remark" placeholder="备注" class="col-span-3" />
             <button
               type="button"
               class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
@@ -539,6 +522,11 @@ onMounted(async () => {
             >
               ✕
             </button>
+            <div class="flex items-center col-span-4 gap-2">
+              <label class="text-xs shrink-0 text-n-slate-11">实际到料</label>
+              <Input v-model="row.arrivalDate" type="date" class="flex-1" />
+            </div>
+            <Input v-model="row.remark" placeholder="备注" class="col-span-8" />
           </div>
         </div>
       </div>

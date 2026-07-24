@@ -4,6 +4,7 @@
 #
 #  id                :bigint           not null, primary key
 #  amount_micros     :bigint
+#  arrival_date      :datetime
 #  item_type         :string           default("MATERIAL"), not null
 #  qty               :decimal(14, 3)   not null
 #  rate_micros       :bigint
@@ -15,6 +16,7 @@
 #  account_id        :bigint           not null
 #  crm_product_id    :bigint
 #  mes_material_id   :bigint
+#  mes_supplier_id   :bigint
 #  purchase_order_id :bigint           not null
 #
 # Indexes
@@ -22,12 +24,14 @@
 #  index_mes_purchase_items_on_account_id         (account_id)
 #  index_mes_purchase_items_on_crm_product_id     (crm_product_id)
 #  index_mes_purchase_items_on_mes_material_id    (mes_material_id)
+#  index_mes_purchase_items_on_mes_supplier_id    (mes_supplier_id)
 #  index_mes_purchase_items_on_purchase_order_id  (purchase_order_id)
 #
 # Foreign Keys
 #
 #  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => nullify
 #  fk_rails_...  (mes_material_id => mes_materials.id) ON DELETE => nullify
+#  fk_rails_...  (mes_supplier_id => mes_suppliers.id) ON DELETE => nullify
 #  fk_rails_...  (purchase_order_id => mes_purchase_orders.id) ON DELETE => cascade
 #
 class Mes::PurchaseItem < ApplicationRecord
@@ -38,6 +42,7 @@ class Mes::PurchaseItem < ApplicationRecord
   belongs_to :purchase_order, class_name: 'Mes::PurchaseOrder', inverse_of: :purchase_items
   belongs_to :mes_material, class_name: 'Mes::Material', optional: true
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true
+  belongs_to :mes_supplier, class_name: 'Mes::Supplier', optional: true
 
   before_validation :inherit_account, :compute_amount
   after_destroy :sync_total
