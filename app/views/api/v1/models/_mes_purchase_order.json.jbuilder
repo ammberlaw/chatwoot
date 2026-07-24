@@ -8,6 +8,7 @@ json.production_order_owner_name resource.production_order&.owner&.name
 json.status resource.status
 json.expected_date resource.expected_date
 json.follow_up_date resource.follow_up_date
+json.arrival_date resource.arrival_date
 json.has_exception resource.has_exception
 json.exception_note resource.exception_note
 json.total_amount_micros resource.total_amount_micros

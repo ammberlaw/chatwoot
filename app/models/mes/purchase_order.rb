@@ -3,6 +3,7 @@
 # Table name: mes_purchase_orders
 #
 #  id                  :bigint           not null, primary key
+#  arrival_date        :datetime
 #  exception_note      :text
 #  expected_date       :datetime
 #  follow_up_date      :datetime

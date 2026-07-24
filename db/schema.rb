@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_24_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_24_160000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -938,6 +938,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_130000) do
     t.index ["crm_email_id"], name: "index_crm_email_opens_on_crm_email_id"
   end
 
+  create_table "crm_email_signatures", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.text "body"
+    t.boolean "is_default", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "body_html"
+    t.index ["account_id"], name: "index_crm_email_signatures_on_account_id"
+    t.index ["owner_id"], name: "index_crm_email_signatures_on_owner_id"
+  end
+
   create_table "crm_email_templates", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1215,6 +1228,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_130000) do
     t.boolean "imap_ssl", default: true, null: false
     t.datetime "imap_synced_at"
     t.string "receive_protocol", default: "IMAP", null: false
+    t.boolean "is_default", default: false, null: false
     t.index ["account_id"], name: "index_crm_mail_accounts_on_account_id"
     t.index ["owner_id"], name: "index_crm_mail_accounts_on_owner_id"
   end
@@ -2001,6 +2015,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_130000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "product_line"
+    t.datetime "arrival_date"
     t.index ["account_id", "po_no"], name: "index_mes_purchase_orders_on_account_id_and_po_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_purchase_orders_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_purchase_orders_on_account_id_and_status"

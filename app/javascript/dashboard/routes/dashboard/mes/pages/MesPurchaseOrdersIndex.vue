@@ -62,6 +62,7 @@ const viewFields = computed(() => {
     { label: '状态', value: STATUS_LABELS[p.status] || p.status },
     { label: '回复交期', value: day(p.expectedDate) },
     { label: '跟进日期', value: day(p.followUpDate) },
+    { label: '到料时间', value: day(p.arrivalDate) },
     {
       label: '异常',
       value: p.hasException ? p.exceptionNote || '有异常' : '无',
@@ -158,6 +159,7 @@ const form = reactive({
   status: 'DRAFT',
   expectedDate: '',
   followUpDate: '',
+  arrivalDate: '',
   hasException: false,
   exceptionNote: '',
   rows: [], // { id?, itemType, mesMaterialId, crmProductId, qty, remark }
@@ -222,6 +224,7 @@ const resetForm = () => {
     status: 'DRAFT',
     expectedDate: '',
     followUpDate: '',
+    arrivalDate: '',
     hasException: false,
     exceptionNote: '',
     rows: [
@@ -255,6 +258,7 @@ const openEdit = po => {
     status: po.status,
     expectedDate: po.expectedDate ? po.expectedDate.slice(0, 10) : '',
     followUpDate: po.followUpDate ? po.followUpDate.slice(0, 10) : '',
+    arrivalDate: po.arrivalDate ? po.arrivalDate.slice(0, 10) : '',
     hasException: !!po.hasException,
     exceptionNote: po.exceptionNote || '',
     rows: (po.purchaseItems || []).map(it => ({
@@ -299,6 +303,7 @@ const submit = async () => {
     status: form.status,
     expectedDate: form.expectedDate || null,
     followUpDate: form.followUpDate || null,
+    arrivalDate: form.arrivalDate || null,
     hasException: form.hasException,
     exceptionNote: form.exceptionNote,
     purchaseItemsAttributes: itemsAttributes,
@@ -358,6 +363,7 @@ onMounted(async () => {
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium">回复交期</th>
             <th class="px-3 py-3 font-medium">跟进</th>
+            <th class="px-3 py-3 font-medium">到料时间</th>
             <th class="px-3 py-3" />
           </tr>
         </thead>
@@ -387,6 +393,7 @@ onMounted(async () => {
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.expectedDate) }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.followUpDate) }}</td>
+            <td class="px-3 py-3 text-n-slate-11">{{ day(p.arrivalDate) }}</td>
             <td class="px-3 py-3 text-right">
               <div class="flex justify-end gap-1">
                 <Button
@@ -406,7 +413,7 @@ onMounted(async () => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
               还没有采购单。
             </td>
           </tr>
@@ -464,6 +471,10 @@ onMounted(async () => {
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">跟进采购时间</label>
             <Input v-model="form.followUpDate" type="date" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">到料时间</label>
+            <Input v-model="form.arrivalDate" type="date" />
           </div>
         </div>
 
