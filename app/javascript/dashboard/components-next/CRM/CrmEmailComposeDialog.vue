@@ -9,6 +9,7 @@ import {
   onBeforeUnmount,
 } from 'vue';
 import camelcaseKeys from 'camelcase-keys';
+import snakecaseKeys from 'snakecase-keys';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
@@ -60,6 +61,7 @@ const L = {
   bodyPlaceholder:
     '在此输入正文…选中文字可加粗/斜体/链接，工具栏可插入图片、列表。',
   addAttachment: '加附件',
+  existingFile: '草稿已有附件（保留）',
   kbSelect: '从知识库选择',
   kbTip:
     '产品目录、报价单等知识库资料可直接选作附件；选中后复制进本邮件、锁定当前版本。',
@@ -161,6 +163,10 @@ const customer = ref(null);
 const contacts = ref([]);
 const contactId = ref('');
 let customerTimer = null;
+
+// 编辑草稿：非空 = 就地更新该邮件，existingFiles 为草稿已有附件（只读展示）。
+const editId = ref(null);
+const existingFiles = ref([]);
 
 // 普通附件
 const attachments = ref([]);
@@ -414,16 +420,36 @@ const buildFields = () => {
     : fields;
 };
 
-// 建草稿 → 挂知识库附件（快照）→ 返回 id；发送时再翻 sendNow。
+// 建草稿 / 就地更新草稿 → 挂知识库附件（快照）→ 返回 id；发送时再翻 sendNow。
 const persist = async () => {
-  const record = await store.create(buildFields());
+  const { __files: files, ...fields } = buildFields();
+  let id;
+  if (editId.value) {
+    // 编辑草稿：就地更新同一条；有新附件走 multipart（后端 attach 追加，不动已有附件）。
+    if (files?.length) {
+      const snake = snakecaseKeys(fields, { deep: true });
+      const fd = new FormData();
+      Object.entries(snake).forEach(([key, value]) => {
+        if (value !== null && value !== undefined)
+          fd.append(`email[${key}]`, value);
+      });
+      files.forEach(f => fd.append('email[files][]', f));
+      await CrmEmailAPI.updateWithFiles(editId.value, fd);
+    } else {
+      await store.update({ id: editId.value, ...fields });
+    }
+    id = editId.value;
+  } else {
+    const record = await store.create(buildFields());
+    id = record.id;
+  }
   if (kbPicked.value.length) {
     await CrmEmailAPI.attachKb(
-      record.id,
+      id,
       kbPicked.value.map(k => k.fileId)
     );
   }
-  return record.id;
+  return id;
 };
 
 const saveDraft = async () => {
@@ -554,6 +580,8 @@ const reset = () => {
   contactId.value = '';
   templateId.value = '';
   activeSignatureId.value = '';
+  editId.value = null;
+  existingFiles.value = [];
   fontFamily.value = '';
   fontSize.value = '';
   attachments.value = [];
@@ -592,19 +620,38 @@ const open = async prefill => {
     loadSignatures(),
   ]);
   if (prefill && typeof prefill === 'object') {
+    if (prefill.editId) editId.value = prefill.editId;
+    if (prefill.files) existingFiles.value = prefill.files;
+    // 预置附件（如「作为附件转发」把原邮件 .eml 作为附件带入）。
+    if (prefill.attachmentFiles?.length) {
+      attachments.value = [...prefill.attachmentFiles];
+    }
     if (prefill.toAddress) form.to = prefill.toAddress;
     if (prefill.ccAddress) {
       form.cc = prefill.ccAddress;
       showCc.value = true;
     }
+    if (prefill.bccAddress) {
+      form.bcc = prefill.bccAddress;
+      showBcc.value = true;
+    }
     if (prefill.subject) form.subject = prefill.subject;
     if (prefill.body) form.body = prefill.body;
     if (prefill.crmCustomerId) form.crmCustomerId = prefill.crmCustomerId;
     if (prefill.contactId) contactId.value = prefill.contactId;
+    // 编辑草稿：发件人对齐草稿原邮箱。
+    if (prefill.fromAddress) {
+      const acc = accounts.value.find(
+        a => a.emailAddress === prefill.fromAddress
+      );
+      if (acc) fromId.value = acc.id;
+    }
   }
-  // 自动带默认签名（作为附加块拼到正文后，可切换/移除）。
-  const defaultSig = signatures.value.find(s => s.isDefault);
-  if (defaultSig) activeSignatureId.value = defaultSig.id;
+  // 新写才自动带默认签名；编辑草稿不再叠加（草稿正文已含原签名，避免重复）。
+  if (!editId.value) {
+    const defaultSig = signatures.value.find(s => s.isDefault);
+    if (defaultSig) activeSignatureId.value = defaultSig.id;
+  }
   visible.value = true;
   await nextTick();
   measureToolbar();
@@ -840,10 +887,7 @@ defineExpose({ open, close });
           </div>
 
           <!-- 正文：所见即所得富文本（加粗/斜体/链接/列表 + 内联插图上传/粘贴） -->
-          <div
-            ref="bodyRef"
-            class="relative flex flex-col"
-          >
+          <div ref="bodyRef" class="relative flex flex-col">
             <!-- 字体 / 字号：贴到编辑器工具栏按钮组右侧，整封生效、实时预览 -->
             <div
               class="absolute z-10 flex items-center gap-0.5"
@@ -944,6 +988,16 @@ defineExpose({ open, close });
 
           <!-- 已选文件：横向滚动，不额外占高 -->
           <div class="flex items-center flex-1 min-w-0 gap-1.5 overflow-x-auto">
+            <!-- 编辑草稿：已有附件（只读，随草稿保留） -->
+            <span
+              v-for="file in existingFiles"
+              :key="`e${file.id}`"
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full whitespace-nowrap border-n-weak text-n-slate-10 bg-n-alpha-1"
+              :title="L.existingFile"
+            >
+              <Icon icon="i-lucide-paperclip" class="size-3 text-n-slate-9" />
+              {{ file.filename }}
+            </span>
             <span
               v-for="(file, index) in attachments"
               :key="`f${index}`"

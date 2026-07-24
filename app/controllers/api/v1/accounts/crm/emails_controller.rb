@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb, :opens]
+  before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb, :opens, :eml]
 
   RESULTS_PER_PAGE = 25
 
@@ -50,7 +50,35 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     scope
   end
 
+  # 手动收取：立即为当前用户的启用收件邮箱各排一个拉取任务（异步），前端稍后刷新列表。
+  # 相对每分钟的定时轮询，给用户一个「立刻收信」的实时手段。
+  def fetch
+    ids = Current.account.crm_mail_accounts.owned_by(current_user.id).imap_active.pluck(:id)
+    ids.each { |id| Crm::FetchImapEmailsJob.perform_later(id) }
+    render json: { enqueued: ids.size }
+  end
+
   def show; end
+
+  # 作为附件转发：把本邮件重建成 RFC822 .eml（含原附件）返回，前端拿去当新邮件的附件。
+  def eml
+    mail = Mail.new
+    mail.from    = @email.from_address if @email.from_address.present?
+    mail.to      = @email.to_address if @email.to_address.present?
+    mail.cc      = @email.cc_address if @email.cc_address.present?
+    mail.subject = @email.subject.presence || '(无主题)'
+    mail.date    = @email.email_date if @email.email_date.present?
+    if @email.body_html.present?
+      mail.html_part = Mail::Part.new(body: @email.body_html, content_type: 'text/html; charset=UTF-8')
+      mail.text_part = Mail::Part.new(body: @email.body.to_s, content_type: 'text/plain; charset=UTF-8')
+    else
+      mail.body = @email.body.to_s
+      mail.charset = 'UTF-8'
+    end
+    @email.files.each { |file| mail.add_file(filename: file.filename.to_s, content: file.download) }
+    name = "#{@email.subject.presence || 'email'}.eml".gsub(%r{[/\\:*?"<>|]}, '_')
+    send_data mail.to_s, filename: name, type: 'message/rfc822', disposition: 'attachment'
+  end
 
   # 阅读追踪明细：每次打开的时间 + IP + UA（倒序）。
   def opens
@@ -78,8 +106,12 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     @email = Current.account.crm_emails.create!(email_params.merge(owner_id: email_params[:owner_id] || current_user.id))
   end
 
+  # 更新：文字字段就地改；带来的新附件走 attach 追加（不覆盖已有附件，
+  # 因 has_many_attached 直接赋值会整组替换，编辑草稿再传附件会丢原件）。
   def update
-    @email.update!(email_params)
+    new_files = email_params[:files]
+    @email.update!(email_params.except(:files))
+    Array(new_files).compact_blank.each { |file| @email.files.attach(file) }
   end
 
   def destroy

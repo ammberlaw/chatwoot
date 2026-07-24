@@ -19,6 +19,10 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  def fetch?
+    true
+  end
+
   def attach_kb?
     true
   end
@@ -27,12 +31,18 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  def eml?
+    true
+  end
+
   def update?
     true
   end
 
+  # 删除范围由控制器 visible_emails 收口（业务员仅自己、主管团队、管理员全部），
+  # 故此处放开让本人可删自己的邮件（尤其草稿），不再限管理员。
   def destroy?
-    @account_user.administrator?
+    true
   end
 end
 

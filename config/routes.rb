@@ -88,10 +88,12 @@ Rails.application.routes.draw do
               collection do
                 get :counts
                 get :mailboxes
+                post :fetch
               end
               member do
                 post :attach_kb
                 get :opens
+                get :eml
               end
             end
             resources :quotes do

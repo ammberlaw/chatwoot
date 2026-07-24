@@ -87,9 +87,9 @@ crm_recycle_stale_opportunities_job:
   class: 'Crm::RecycleStaleOpportunitiesJob'
   queue: scheduled_jobs
 
-# CRM：业务员邮箱 IMAP 收信，每 5 分钟拉取新邮件
+# CRM：业务员邮箱 IMAP/POP 收信，每 1 分钟拉取新邮件（被动延迟≤1分钟；用户可在邮件页手动「收取」立即拉）
 crm_fetch_imap_emails_job:
-  cron: '*/5 * * * *'
+  cron: '* * * * *'
   class: 'Crm::FetchImapEmailsJob'
   queue: low
 

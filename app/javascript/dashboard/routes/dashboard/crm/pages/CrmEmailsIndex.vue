@@ -12,6 +12,7 @@ import AgentAPI from 'dashboard/api/agents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
 import CrmEmailComposeDialog from 'dashboard/components-next/CRM/CrmEmailComposeDialog.vue';
 
 const { t } = useI18n();
@@ -171,6 +172,33 @@ const fetchRecords = () => {
   store.get(params);
 };
 
+// 手动收取新邮件：立即为本人邮箱排拉取任务（比每分钟定时轮询更实时），
+// 拉取异步、稍候分两次刷新列表/角标/邮箱（兼顾慢账户）。
+const fetchingNow = ref(false);
+const fetchTitle = '立即收取新邮件（否则每分钟自动收）';
+const moreTitle = '更多';
+const reloadMail = () => {
+  fetchRecords();
+  fetchCounts();
+  fetchMailboxes();
+};
+const fetchNewMail = async () => {
+  if (fetchingNow.value) return;
+  fetchingNow.value = true;
+  try {
+    await CrmEmailAPI.fetchNow();
+    useAlert('正在收取新邮件…');
+    setTimeout(reloadMail, 3500);
+    setTimeout(() => {
+      reloadMail();
+      fetchingNow.value = false;
+    }, 8000);
+  } catch {
+    useAlert('收取失败');
+    fetchingNow.value = false;
+  }
+};
+
 const onOwnerChange = () => {
   activeMailbox.value = '';
   selectedEmail.value = null;
@@ -291,10 +319,62 @@ const forward = email => {
   });
 };
 
+// 作为附件转发：把原邮件整封打包成 .eml 当附件，新邮件正文留空。
+const forwardAsAttachment = async email => {
+  try {
+    const { data } = await CrmEmailAPI.eml(email.id);
+    const name = `${(email.subject || 'email').replace(/[/\\:*?"<>|]/g, '_')}.eml`;
+    const file = new File([data], name, { type: 'message/rfc822' });
+    openCompose({
+      toAddress: '',
+      subject: email.subject?.startsWith('Fwd:')
+        ? email.subject
+        : `Fwd: ${email.subject || ''}`,
+      attachmentFiles: [file],
+      crmCustomerId: email.crmCustomerId || null,
+      contactId: email.contactId || null,
+    });
+  } catch {
+    useAlert('生成邮件附件失败');
+  }
+};
+
 const resend = async email => {
   await store.update({ id: email.id, sendNow: true });
   useAlert('已重新提交发送');
   fetchRecords();
+};
+
+// 编辑草稿：载入写信框就地编辑（收/抄/密/主题/正文/发件人/客户/已有附件全部回填）。
+const editDraft = email => {
+  openCompose({
+    editId: email.id,
+    toAddress: email.toAddress || '',
+    ccAddress: email.ccAddress || '',
+    bccAddress: email.bccAddress || '',
+    subject: email.subject || '',
+    body: email.body || '',
+    fromAddress: email.fromAddress || '',
+    files: email.files || [],
+    crmCustomerId: email.crmCustomerId || null,
+    contactId: email.contactId || null,
+  });
+};
+
+// 删除邮件（草稿为主，任意邮件可删）：确认后删除并刷新列表/角标/邮箱。
+const deleteEmail = async email => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm('确定删除这封邮件？删除后不可恢复。')) return;
+  try {
+    await store.delete(email.id);
+    if (selectedEmail.value?.id === email.id) selectedEmail.value = null;
+    useAlert('已删除');
+    fetchRecords();
+    fetchCounts();
+    fetchMailboxes();
+  } catch {
+    useAlert('删除失败');
+  }
 };
 
 const isSpam = computed(() => selectedEmail.value?.folder === 'SPAM');
@@ -314,6 +394,46 @@ const toggleSpam = async email => {
   fetchRecords();
   fetchCounts();
   fetchMailboxes();
+};
+
+// 阅读栏「更多」下拉：把次要操作（转发/附件转发/重新发送/垃圾邮件/删除）收进去，避免按钮太挤。
+const showMore = ref(false);
+const moreMenuItems = computed(() => {
+  const e = selectedEmail.value;
+  if (!e) return [];
+  const items = [
+    { label: '转发', icon: 'i-lucide-forward', run: () => forward(e) },
+    {
+      label: '附件转发',
+      icon: 'i-lucide-paperclip',
+      run: () => forwardAsAttachment(e),
+    },
+  ];
+  if (e.sendStatus === 'FAILED') {
+    items.push({
+      label: '重新发送',
+      icon: 'i-lucide-refresh-cw',
+      run: () => resend(e),
+    });
+  }
+  if (['INBOX', 'SPAM'].includes(e.folder)) {
+    items.push({
+      label: spamLabel.value,
+      icon: spamIcon.value,
+      run: () => toggleSpam(e),
+    });
+  }
+  items.push({
+    label: '删除',
+    icon: 'i-lucide-trash-2',
+    action: 'delete',
+    run: () => deleteEmail(e),
+  });
+  return items;
+});
+const onMoreAction = payload => {
+  showMore.value = false;
+  payload.run?.();
 };
 
 let searchTimer = null;
@@ -342,7 +462,9 @@ watch(
 </script>
 
 <template>
-  <div class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
+  <div
+    class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <!-- 左栏：文件夹 -->
     <aside
       class="flex flex-col flex-shrink-0 border-r w-52 border-n-weak bg-n-solid-1"
@@ -423,18 +545,33 @@ watch(
       class="flex flex-col flex-shrink-0 border-r w-[380px] border-n-weak bg-n-solid-1"
     >
       <div class="flex-shrink-0 px-4 pt-4 pb-3 border-b border-n-weak">
-        <div class="flex items-baseline justify-between">
+        <div class="flex items-center justify-between">
           <h1 class="text-lg font-medium text-n-slate-12">
             {{ activeFolderLabel }}
           </h1>
-          <span class="text-xs text-n-slate-10">
-            {{
-              t('CRM.EMAILS.LIST.COUNT', {
-                count: store.getMeta?.count || 0,
-                unread: counts.unread,
-              })
-            }}
-          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-n-slate-10">
+              {{
+                t('CRM.EMAILS.LIST.COUNT', {
+                  count: store.getMeta?.count || 0,
+                  unread: counts.unread,
+                })
+              }}
+            </span>
+            <button
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11 disabled:opacity-60"
+              :disabled="fetchingNow"
+              :title="fetchTitle"
+              @click="fetchNewMail"
+            >
+              <Icon
+                icon="i-lucide-refresh-cw"
+                class="size-3.5"
+                :class="fetchingNow ? 'animate-spin' : ''"
+              />
+              {{ fetchingNow ? '收取中…' : '收取' }}
+            </button>
+          </div>
         </div>
         <div class="relative mt-3">
           <Icon
@@ -649,48 +786,61 @@ watch(
                 class="size-4"
               />
             </button>
-            <Button
-              :label="t('CRM.EMAILS.ACTIONS.REPLY')"
-              icon="i-lucide-reply"
-              size="sm"
-              variant="faded"
-              color="slate"
-              @click="reply(selectedEmail)"
-            />
-            <Button
-              :label="t('CRM.EMAILS.ACTIONS.REPLY_ALL')"
-              icon="i-lucide-reply-all"
-              size="sm"
-              variant="faded"
-              color="slate"
-              @click="reply(selectedEmail, true)"
-            />
-            <Button
-              :label="t('CRM.EMAILS.ACTIONS.FORWARD')"
-              icon="i-lucide-forward"
-              size="sm"
-              variant="faded"
-              color="slate"
-              @click="forward(selectedEmail)"
-            />
-            <Button
-              v-if="selectedEmail.sendStatus === 'FAILED'"
-              :label="t('CRM.EMAILS.ACTIONS.RESEND')"
-              icon="i-lucide-refresh-cw"
-              size="sm"
-              variant="faded"
-              color="iris"
-              @click="resend(selectedEmail)"
-            />
-            <Button
-              v-if="['INBOX', 'SPAM'].includes(selectedEmail.folder)"
-              :label="spamLabel"
-              :icon="spamIcon"
-              size="sm"
-              variant="faded"
-              color="slate"
-              @click="toggleSpam(selectedEmail)"
-            />
+            <!-- 草稿：只留 编辑 + 删除 -->
+            <template v-if="selectedEmail.folder === 'DRAFT'">
+              <Button
+                label="编辑"
+                icon="i-lucide-pencil"
+                size="sm"
+                variant="faded"
+                color="iris"
+                @click="editDraft(selectedEmail)"
+              />
+              <Button
+                label="删除"
+                icon="i-lucide-trash-2"
+                size="sm"
+                variant="faded"
+                color="ruby"
+                @click="deleteEmail(selectedEmail)"
+              />
+            </template>
+            <!-- 其他邮件：回复 + 全部回复 + 更多 -->
+            <template v-else>
+              <Button
+                :label="t('CRM.EMAILS.ACTIONS.REPLY')"
+                icon="i-lucide-reply"
+                size="sm"
+                variant="faded"
+                color="slate"
+                @click="reply(selectedEmail)"
+              />
+              <Button
+                :label="t('CRM.EMAILS.ACTIONS.REPLY_ALL')"
+                icon="i-lucide-reply-all"
+                size="sm"
+                variant="faded"
+                color="slate"
+                @click="reply(selectedEmail, true)"
+              />
+              <div class="relative">
+                <button
+                  class="flex items-center justify-center rounded-lg size-8 transition-colors text-n-slate-11 hover:bg-n-alpha-1 hover:text-n-iris-11"
+                  :title="moreTitle"
+                  @click="showMore = !showMore"
+                >
+                  <Icon icon="i-lucide-more-horizontal" class="size-4" />
+                </button>
+                <template v-if="showMore">
+                  <div class="fixed inset-0 z-40" @click="showMore = false" />
+                  <DropdownMenu
+                    :menu-items="moreMenuItems"
+                    class="right-0 top-9"
+                    @action="onMoreAction"
+                  />
+                </template>
+              </div>
+            </template>
           </div>
         </div>
 
