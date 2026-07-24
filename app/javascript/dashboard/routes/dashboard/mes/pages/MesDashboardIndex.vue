@@ -1,11 +1,12 @@
 <script setup>
 /* global axios */
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import { themeColor } from 'dashboard/components-next/CRM/charts/chartColors';
+import Select from 'dashboard/components-next/select/Select.vue';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
@@ -181,6 +182,8 @@ const MONTHS = [
 ];
 const pickYear = ref(CUR_YEAR);
 const pickMonth = ref(new Date().getMonth() + 1);
+const yearOptions = YEARS.map(y => ({ value: y, label: `${y}年` }));
+const monthOptions = MONTHS.map(m => ({ value: m.v, label: m.label }));
 const periodLabel = computed(() => {
   if (mode.value === 'month') {
     return `${pickYear.value}年${pickMonth.value ? `${pickMonth.value}月` : '·全年'}`;
@@ -256,11 +259,11 @@ const selectPeriod = key => {
   load();
 };
 
-// 切到「指定年月」并按当前年月下拉取数。
-const selectMonth = () => {
+// 改动年/月下拉即切到「指定年月」模式并按该年月取数。
+watch([pickYear, pickMonth], () => {
   mode.value = 'month';
   load();
-};
+});
 
 onMounted(() => {
   load();
@@ -298,32 +301,13 @@ onMounted(() => {
             {{ p.label }}
           </button>
         </div>
-        <!-- 指定年月：紧凑胶囊，与快捷段等高一线；month 模式时整体高亮 -->
-        <div
-          class="flex items-center h-9 gap-0.5 pl-2 pr-1 rounded-lg"
-          :class="mode === 'month' ? 'bg-n-iris-3' : 'bg-n-alpha-1'"
-        >
-          <span
-            class="i-lucide-calendar-days size-3.5 shrink-0"
-            :class="mode === 'month' ? 'text-n-iris-11' : 'text-n-slate-10'"
-          />
-          <select
-            v-model.number="pickYear"
-            class="text-sm text-center appearance-none cursor-pointer bg-transparent w-[3.75rem] leading-normal text-n-slate-12 focus:outline-none"
-            @change="selectMonth"
-          >
-            <option v-for="y in YEARS" :key="y" :value="y">{{ y }}年</option>
-          </select>
-          <select
-            v-model.number="pickMonth"
-            class="text-sm text-center appearance-none cursor-pointer bg-transparent w-12 leading-normal text-n-slate-12 focus:outline-none"
-            @change="selectMonth"
-          >
-            <option v-for="m in MONTHS" :key="m.v" :value="m.v">
-              {{ m.label }}
-            </option>
-          </select>
-        </div>
+        <!-- 指定年月：用 app 自带 Select 组件（非原生，样式统一、无全局聚焦框） -->
+        <span
+          class="i-lucide-calendar-days size-4 shrink-0"
+          :class="mode === 'month' ? 'text-n-iris-11' : 'text-n-slate-10'"
+        />
+        <Select v-model="pickYear" :options="yearOptions" class="shrink-0" />
+        <Select v-model="pickMonth" :options="monthOptions" class="shrink-0" />
       </div>
     </div>
 
