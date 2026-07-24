@@ -244,6 +244,12 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 - **发送成功提示**：发送为异步（进队列走 SMTP），提交后轮询单封真实结果（约 12 秒），真发成功弹「✅ 成功发送」+ 绿色横幅，失败显示原因，超时提示「仍在投递中」——不再一提交就误报成功。
 - **收信过滤 + 超长截断**：`email.alibaba.com`（阿里询盘通知发件域）加入 `NOTIFICATION_DOMAINS` 不入库；正文超 `ApplicationRecord::MAX_TEXT_COLUMN_LENGTH=20000` 时**截断入库**而非整封丢弃（长 HTML 客户邮件仍可收）。
 - **测试连接报错人性化**：`Crm::MailAccountVerifier` 把服务商原始 SMTP/IMAP 报错（腾讯 `535 ... system busy`、阿里 `LOGIN failed`、认证失败、超时等）翻成可操作中文提示，并保留原始错误。
+- **默认邮箱**：多邮箱时可在「邮箱账户」页设一个默认（`crm_mail_accounts.is_default`，每人一个）；写信默认选中该邮箱，发信服务按 `from 匹配 → 默认 → 第一个` 兜底。
+- **富文本个性签名库**：独立于邮箱的签名库 `Crm::EmailSignature`（`crm_email_signatures`，字段 name/body/body_html/is_default，按 owner 隔离），可建多条命名签名、设默认、CRUD。自研富文本编辑器 `CrmSignatureEditor.vue`（原生 contenteditable + execCommand，字体/字号/颜色/加粗/对齐/链接/插图，输出内联 HTML，图片 data URL 限 500K，无新依赖）。写信默认自动带默认签名，签名以富 HTML 块拼在正文之后（`composedHtml`/`composedText`）。⚠️ 与 KPI 手写电子签图 `Crm::Signature`（`crm_signatures`）是两码事。
+- **草稿删除 / 就地编辑**：草稿可删除、可载入写信框就地续写（收/抄/密/主题/正文/发件人/客户全字段回填，已有附件保留、新附件走 multipart 追加不覆盖）。删除权限由「仅管理员」放开为「本人可删自己范围内邮件」（`EmailPolicy#destroy?`，边界靠 `visible_emails` 按角色收口）。
+- **收信提速**：后台轮询 5 分钟 → **1 分钟**（`schedule.yml`）；另加手动「收取」按钮（`emails#fetch` 为本人 `imap_active` 账号即时排 `Crm::FetchImapEmailsJob`），想立刻收信点一下即可。真·推送级（IMAP IDLE）因需常驻长连接、且 POP3 不支持，暂不做。
+- **作为附件转发**：把原邮件整封（含原附件）重建成标准 `.eml`（`emails#eml`，`mail` gem 生成 RFC822），作为附件带入新邮件，收件人可拿到原始邮件文件（区别于普通「转发」引用进正文）。
+- **阅读栏收纳**：次要操作（转发 / 附件转发 / 重新发送 / 标记垃圾邮件 / 删除）收进「更多」下拉（`DropdownMenu`），只留 星标 / 回复 / 全部回复 为直显按钮；草稿只留 编辑 / 删除。
 
 ### 客户
 - **产品分组三合二**：原「平板电脑 / 商显 / 工控」合并为「平板电脑 / 商显工控」。沿用 `COMMERCIAL_DISPLAY` 作为「商显工控」值，枚举去掉 `INDUSTRIAL_CONTROL`；数据迁移把现有「工控」客户/联系人并入 `COMMERCIAL_DISPLAY`（`crm_customers.product_group` / 联系人 `product_category` / 前端筛选·创建·引导选项与标签同步）。
