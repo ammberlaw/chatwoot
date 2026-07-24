@@ -22,4 +22,17 @@ client.attachKb = (id, fileIds) =>
 // 阅读追踪明细：每次打开的时间 + IP + UA。
 client.opens = id => axios.get(`${client.url}/${id}/opens`);
 
+// 手动收取：立即为当前用户邮箱排拉取任务（比每分钟轮询更实时）。
+client.fetchNow = () => axios.post(`${client.url}/fetch`);
+
+// 作为附件转发：拿本邮件的 .eml（RFC822）二进制，前端包成 File 当新邮件附件。
+client.eml = id =>
+  axios.get(`${client.url}/${id}/eml`, { responseType: 'blob' });
+
+// 就地更新草稿并追加新附件（multipart）：后端 update 会 attach 追加，不动已有附件。
+client.updateWithFiles = (id, formData) =>
+  axios.patch(`${client.url}/${id}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
 export default client;
