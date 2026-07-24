@@ -236,6 +236,22 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 - **原则**：所有新开发先本地改+测试，用户确认后才推生产；生产数据变更用幂等 rails runner 脚本经 ssh 管道执行。
 - 首次部署与 Twenty 清除记录见 2026-07-16；管理员 `ken@unitedtouch.cn`。
 
+## 近期更新（2026-07-23 ~ 24）
+
+### 邮件模块
+- **收信支持 POP3**：邮箱账户「收件方式」下拉三选（不收信 / IMAP / POP3）。用于服务商单独关闭 IMAP、仅留 POP3 的账户 —— 典型如**部分阿里企业邮**（管理员后台 组织与用户→员工账号→IMAP服务 可单独关；表现为发信正常、IMAP 收信 `LOGIN failed`，而 POP3/SMTP 正常）。`Crm::EmailIngestion` 抽出共享入库逻辑，`Crm::ImapFetchService` / `Crm::PopFetchService` 分别连接，`Crm::FetchImapEmailsJob` 按账户 `receive_protocol` 分发；POP 只读不删、Message-ID 去重。
+- **定时发送**：写邮件顶栏「定时发送」选本地时间；建草稿置 `send_status=SCHEDULED` + `scheduled_at`，`Crm::DispatchScheduledEmailsJob`（每分钟）到点转 `PENDING` 走原发送链路。草稿箱显示「定时发送」状态标。
+- **发送成功提示**：发送为异步（进队列走 SMTP），提交后轮询单封真实结果（约 12 秒），真发成功弹「✅ 成功发送」+ 绿色横幅，失败显示原因，超时提示「仍在投递中」——不再一提交就误报成功。
+- **收信过滤 + 超长截断**：`email.alibaba.com`（阿里询盘通知发件域）加入 `NOTIFICATION_DOMAINS` 不入库；正文超 `ApplicationRecord::MAX_TEXT_COLUMN_LENGTH=20000` 时**截断入库**而非整封丢弃（长 HTML 客户邮件仍可收）。
+- **测试连接报错人性化**：`Crm::MailAccountVerifier` 把服务商原始 SMTP/IMAP 报错（腾讯 `535 ... system busy`、阿里 `LOGIN failed`、认证失败、超时等）翻成可操作中文提示，并保留原始错误。
+
+### 客户
+- **产品分组三合二**：原「平板电脑 / 商显 / 工控」合并为「平板电脑 / 商显工控」。沿用 `COMMERCIAL_DISPLAY` 作为「商显工控」值，枚举去掉 `INDUSTRIAL_CONTROL`；数据迁移把现有「工控」客户/联系人并入 `COMMERCIAL_DISPLAY`（`crm_customers.product_group` / 联系人 `product_category` / 前端筛选·创建·引导选项与标签同步）。
+
+### 品牌 / 部署
+- **品牌名不再每日被重置回 Chatwoot（根因修复）**：自定义品牌在 Chatwoot 属付费功能；社区版每日 `Enterprise::Internal::CheckNewVersionsJob`（按安装 ID 派发到固定分钟，本实例 02:07 UTC）调 `Internal::ReconcilePlanConfigService`，按 `enterprise/config/premium_installation_config.yml` 把品牌配置（INSTALLATION_NAME/BRAND_NAME/LOGO*）重置为该文件默认值 —— 原为 `Chatwoot`。**已把该文件默认值改为 Wintouch**，使每日对账反而固化品牌。`deploy-prod.sh` 收尾另加 `rails wintouch:brand` 作双保险。
+- **MES 暂隐藏**：MES 尚未开发完，隐藏其 4 处前端入口（侧边栏「MES Production」导航组、`dashboard.routes.js` 的 `mesRoutes` 挂载、Sidebar 的 `ITEM_MODULE`/`ROUTE_MODULE` 映射、门户页 `CrmWorkspaceHome` 的「MES 生产制造」卡片）；后端控制器/表休眠保留，MES 完成后恢复这 4 处即可放开。
+
 ## 前端路由名
 
 `crm_dashboard_index` · `crm_team_dashboard_index` · `crm_my_target_index` · `crm_customers_index` · `crm_customer_intake_index` · `crm_opportunities_index` · `crm_funnel_index` · `crm_sales_orders_index` · `crm_sales_targets_index` · `crm_knowledge_docs_index` · `crm_doc_center_index` · `crm_emails_index` · `crm_email_templates_index` · `crm_mail_accounts_index` · `crm_org_structure_index` · `crm_org_chart_index` · `crm_teams_index` · `crm_members_index` · `crm_member_invites_index` · `crm_employees_index` · `crm_employee_comps_index` · `crm_attendance_index` · `crm_kpi_schemes_index` · `crm_kpi_sheets_index` · `crm_performance_settings_index` · `crm_approvals_index` · `crm_approval_templates_index` · `crm_team_chat_index` · `crm_workspace_index`
