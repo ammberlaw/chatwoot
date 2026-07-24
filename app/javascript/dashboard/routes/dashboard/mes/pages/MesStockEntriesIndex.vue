@@ -396,6 +396,7 @@ onMounted(async () => {
           </div>
           <Button
             label="按采购单收货"
+            type="button"
             color="slate"
             size="sm"
             @click="prefillFromPO"
@@ -406,7 +407,13 @@ onMounted(async () => {
           <span class="text-heading-3 text-n-slate-12">
             收货明细 <span class="text-n-ruby-11">*</span>
           </span>
-          <Button label="+ 加一行" variant="ghost" size="sm" @click="addRow" />
+          <Button
+            label="+ 加一行"
+            type="button"
+            variant="ghost"
+            size="sm"
+            @click="addRow"
+          />
         </div>
         <div class="grid grid-cols-12 gap-2 text-xs text-n-slate-10">
           <span class="col-span-2">类型</span>

@@ -604,6 +604,7 @@ onMounted(() => {
           </span>
           <Button
             label="+ 加一行"
+            type="button"
             variant="ghost"
             size="sm"
             @click="addStockRow"

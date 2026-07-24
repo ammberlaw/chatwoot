@@ -278,6 +278,7 @@ onMounted(async () => {
           </div>
           <Button
             label="按 BOM 推料"
+            type="button"
             color="slate"
             size="sm"
             @click="pushFromBom"
@@ -297,7 +298,13 @@ onMounted(async () => {
           <span class="text-heading-3 text-n-slate-12">
             领料明细 <span class="text-n-ruby-11">*</span>
           </span>
-          <Button label="+ 加一行" variant="ghost" size="sm" @click="addRow" />
+          <Button
+            label="+ 加一行"
+            type="button"
+            variant="ghost"
+            size="sm"
+            @click="addRow"
+          />
         </div>
         <div class="flex flex-col gap-2">
           <div
