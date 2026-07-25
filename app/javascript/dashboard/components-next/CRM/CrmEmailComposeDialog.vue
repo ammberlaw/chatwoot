@@ -19,6 +19,13 @@ import EmailSignaturesAPI from 'dashboard/api/crm/emailSignatures';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import ContactsAPI from 'dashboard/api/crm/contacts';
 import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
+import {
+  CURATED_ZONES,
+  COUNTRY_TZ,
+  browserTz,
+  zonedWallClockToUtc,
+  tzOffsetLabel,
+} from 'dashboard/routes/dashboard/crm/helper/scheduleTimezone';
 import { useAlert } from 'dashboard/composables';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -34,8 +41,9 @@ const L = {
   sending: '发送中…',
   draft: '存草稿',
   schedule: '定时发送',
-  scheduleLabel: '定时发送时间（按你本地时区）',
-  scheduleConfirm: '确定定时',
+  scheduleTzLabel: '对应时区',
+  scheduleTimeLabel: '对应时间',
+  scheduleConfirm: '确定',
   scheduledBanner:
     '已加入定时发送队列，到点自动发送。可在「草稿箱」查看或删除。',
   needSchedule: '请选择定时时间',
@@ -163,6 +171,8 @@ const customer = ref(null);
 const contacts = ref([]);
 const contactId = ref('');
 let customerTimer = null;
+// 定时发送时区（默认用户本地；选中客户后按其国家自动预选）——在 pickCustomer 前声明。
+const scheduleTz = ref(browserTz());
 
 // 编辑草稿：非空 = 就地更新该邮件，existingFiles 为草稿已有附件（只读展示）。
 const editId = ref(null);
@@ -337,6 +347,10 @@ const pickCustomer = async hit => {
   customer.value = hit;
   customerHits.value = [];
   customerQuery.value = hit.name;
+  // 按客户所在国家自动预选定时发送时区（未匹配到则保持当前选择）。
+  if (hit.tradeCountry && COUNTRY_TZ[hit.tradeCountry]) {
+    scheduleTz.value = COUNTRY_TZ[hit.tradeCountry];
+  }
   const { data } = await ContactsAPI.get({ customer_id: hit.id });
   const list = camelcaseKeys(data.payload || [], { deep: true }).filter(
     c => c.email
@@ -522,11 +536,46 @@ const pollSendResult = async id => {
 // ---- 定时发送 ----
 const showSchedule = ref(false);
 const scheduleAt = ref('');
-// datetime-local 需要 'YYYY-MM-DDTHH:mm'；最小可选为当前 +1 分钟。
+// scheduleTz 已在上方（pickCustomer 之前）声明；此处按“选中时区的当地钟面”解释定时。
+const tzOptions = computed(() =>
+  CURATED_ZONES.map(z => ({
+    value: z.value,
+    label: `${z.region}（${tzOffsetLabel(z.value)}）`,
+  }))
+);
+// datetime-local 需要 'YYYY-MM-DDTHH:mm'；最小可选=所选时区当前钟面 +1 分钟（与输入解释口径一致）。
 const minScheduleAt = computed(() => {
-  const d = new Date(Date.now() + 60000);
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: scheduleTz.value,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+    .formatToParts(new Date(Date.now() + 60000))
+    .reduce((a, x) => {
+      a[x.type] = x.value;
+      return a;
+    }, {});
+  const hour = parts.hour === '24' ? '00' : parts.hour;
+  return `${parts.year}-${parts.month}-${parts.day}T${hour}:${parts.minute}`;
+});
+// 换算后对应用户本地时间的提示，方便判断“对方这个点你这边几点”。
+const scheduleLocalHint = computed(() => {
+  if (!scheduleAt.value) return '';
+  const when = zonedWallClockToUtc(scheduleAt.value, scheduleTz.value);
+  if (Number.isNaN(when.getTime())) return '';
+  const local = when.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return `= 你本地 ${local}`;
 });
 
 const scheduleSend = async () => {
@@ -542,7 +591,7 @@ const scheduleSend = async () => {
     status.value = { state: 'failed', msg: L.needSchedule };
     return;
   }
-  const when = new Date(scheduleAt.value);
+  const when = zonedWallClockToUtc(scheduleAt.value, scheduleTz.value);
   if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
     status.value = { state: 'failed', msg: L.scheduleFuture };
     return;
@@ -590,6 +639,7 @@ const reset = () => {
   showPreview.value = false;
   showSchedule.value = false;
   scheduleAt.value = '';
+  scheduleTz.value = browserTz();
   status.value = { state: 'idle', msg: '' };
 };
 
@@ -695,12 +745,12 @@ defineExpose({ open, close });
           <button
             class="px-4 py-1.5 text-sm rounded-full border disabled:opacity-60"
             :class="
-              showSchedule
+              scheduleAt
                 ? 'border-n-iris-9 text-n-iris-11 bg-n-iris-3'
                 : 'border-n-weak text-n-slate-12 hover:bg-n-alpha-1'
             "
             :disabled="sending"
-            @click="showSchedule = !showSchedule"
+            @click="showSchedule = true"
           >
             {{ L.schedule }}
           </button>
@@ -716,27 +766,6 @@ defineExpose({ open, close });
             @click="close"
           >
             {{ L.cancel }}
-          </button>
-        </div>
-
-        <!-- 定时发送：选投递时间，按本地时区 -->
-        <div
-          v-if="showSchedule"
-          class="flex flex-wrap items-center flex-shrink-0 gap-2 px-4 py-2 border-b bg-n-alpha-1 border-n-weak"
-        >
-          <span class="text-xs text-n-slate-11">{{ L.scheduleLabel }}</span>
-          <input
-            v-model="scheduleAt"
-            type="datetime-local"
-            :min="minScheduleAt"
-            class="px-2 py-1 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12"
-          />
-          <button
-            class="px-3 py-1 text-sm text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
-            :disabled="sending || !scheduleAt"
-            @click="scheduleSend"
-          >
-            {{ L.scheduleConfirm }}
           </button>
         </div>
 
@@ -1082,6 +1111,73 @@ defineExpose({ open, close });
         class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-ruby-11 border-n-ruby-7 bg-n-ruby-2"
       >
         {{ status.msg }}
+      </div>
+    </div>
+
+    <!-- 定时发送弹窗：选客户时区 + 当地时间，换算成真实发送时刻 -->
+    <div
+      v-if="showSchedule"
+      class="fixed inset-0 z-10 flex items-center justify-center p-4 bg-black/40"
+      @click.self="showSchedule = false"
+    >
+      <div
+        class="w-[440px] max-w-[92vw] border shadow-xl rounded-xl border-n-weak bg-n-solid-1"
+      >
+        <div
+          class="flex items-center justify-between px-5 py-3.5 border-b border-n-weak"
+        >
+          <strong class="text-base text-n-slate-12">{{ L.schedule }}</strong>
+          <button
+            class="text-n-slate-11 hover:text-n-slate-12"
+            @click="showSchedule = false"
+          >
+            <span class="i-lucide-x text-lg" />
+          </button>
+        </div>
+        <div class="flex flex-col gap-4 px-5 py-4">
+          <div class="flex flex-col gap-1.5">
+            <span class="text-sm text-n-slate-11">{{ L.scheduleTzLabel }}</span>
+            <select
+              v-model="scheduleTz"
+              class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+            >
+              <option v-for="z in tzOptions" :key="z.value" :value="z.value">
+                {{ z.label }}
+              </option>
+            </select>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <span class="text-sm text-n-slate-11">{{
+              L.scheduleTimeLabel
+            }}</span>
+            <input
+              v-model="scheduleAt"
+              type="datetime-local"
+              :min="minScheduleAt"
+              class="w-full h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+            />
+            <span v-if="scheduleLocalHint" class="text-xs text-n-slate-11">
+              {{ scheduleLocalHint }}
+            </span>
+          </div>
+        </div>
+        <div
+          class="flex items-center justify-end gap-2 px-5 py-3 border-t border-n-weak"
+        >
+          <button
+            class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+            @click="showSchedule = false"
+          >
+            {{ L.cancel }}
+          </button>
+          <button
+            class="px-5 py-1.5 text-sm text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+            :disabled="sending || !scheduleAt"
+            @click="scheduleSend"
+          >
+            {{ L.scheduleConfirm }}
+          </button>
+        </div>
       </div>
     </div>
 

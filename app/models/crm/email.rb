@@ -95,8 +95,8 @@ class Crm::Email < ApplicationRecord
   # 公开路径，直接原子更新计数列，绕开校验/回调。归属地依赖离线 GeoLite 库，缺库则为空。
   def register_open!(ip:, user_agent:)
     now = Time.current
-    geo = IpLookupService.new.perform(ip)
-    opens.create!(ip_address: ip, user_agent: user_agent, country: geo&.country, city: geo&.city)
+    geo = Crm::IpGeoResolver.new.resolve(ip)
+    opens.create!(ip_address: ip, user_agent: user_agent, country: geo[:country], city: geo[:city])
     update_columns( # rubocop:disable Rails/SkipsModelValidations
       open_count: open_count + 1,
       first_opened_at: first_opened_at || now,
