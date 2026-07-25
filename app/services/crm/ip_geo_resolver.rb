@@ -8,12 +8,17 @@ class Crm::IpGeoResolver
   PCONLINE_URL = 'https://whois.pconline.com.cn/ipJson.jsp'.freeze
 
   # 返回 { country:, city: }（可能为空 hash）。
+  # 只缓存成功结果：偶发失败不写缓存，避免一次抖动把某 IP 的归属地锁死 7 天。
   def resolve(ip)
     return {} if ip.blank? || private_ip?(ip)
 
-    Rails.cache.fetch("crm:ipgeo:#{ip}", expires_in: CACHE_TTL) do
-      from_maxmind(ip) || from_pconline(ip) || {}
-    end
+    key = "crm:ipgeo:#{ip}"
+    cached = Rails.cache.read(key)
+    return cached if cached.present?
+
+    result = from_maxmind(ip) || from_pconline(ip) || {}
+    Rails.cache.write(key, result, expires_in: CACHE_TTL) if result.present?
+    result
   end
 
   private
