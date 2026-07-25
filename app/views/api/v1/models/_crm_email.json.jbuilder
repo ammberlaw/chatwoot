@@ -23,5 +23,11 @@ json.customer_name resource.crm_customer&.name
 json.contact_id resource.contact_id
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
-json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f) } }
+visible_files = resource.files.reject { |f| f.blob.metadata['inline'] }
+json.files(visible_files) do |f|
+  json.id f.id
+  json.filename f.filename.to_s
+  json.byte_size f.byte_size
+  json.url url_for(f)
+end
 json.created_at resource.created_at
