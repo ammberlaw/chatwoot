@@ -58,7 +58,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   def stock_entry_params
     params.require(:stock_entry).permit(
       :purpose, :production_order_id, :purchase_order_id, :from_warehouse_id, :to_warehouse_id,
-      :is_checked, :checked_by_id, :received_by_id, :owner_id, :remark,
+      :is_checked, :checked_by_id, :received_by_id, :owner_id, :remark, :actual_inbound_date, :color,
       stock_entry_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :qty, :received_qty, :unit, :warehouse_id, :remark, :_destroy
       ]

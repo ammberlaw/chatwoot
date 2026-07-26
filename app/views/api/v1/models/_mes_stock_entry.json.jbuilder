@@ -10,6 +10,8 @@ json.from_warehouse_id resource.from_warehouse_id
 json.to_warehouse_id resource.to_warehouse_id
 json.status resource.status
 json.posted_at resource.posted_at
+json.actual_inbound_date resource.actual_inbound_date
+json.color resource.color
 json.is_checked resource.is_checked
 json.checked_by_id resource.checked_by_id
 json.checked_by_name resource.checked_by&.name

@@ -42,6 +42,8 @@ const viewFields = computed(() => {
     { label: '生产订单', value: e.productionOrderNo },
     { label: '归属人', value: e.productionOrderOwnerName },
     { label: '成品仓', value: whName(e.toWarehouseId) },
+    { label: '颜色', value: e.color },
+    { label: '实际入库日期', value: day(e.actualInboundDate) },
     { label: '交接', value: e.isChecked ? '已交接' : '未交接' },
     { label: '状态', value: STATUS_LABELS[e.status] || e.status },
     { label: '过账时间', value: day(e.postedAt) },
@@ -85,8 +87,12 @@ const form = reactive({
   productionOrderId: '',
   warehouseId: '',
   qty: '',
+  color: '',
+  actualInboundDate: '',
+  remark: '',
   isChecked: false,
 });
+const today = () => new Date().toISOString().slice(0, 10);
 const selectedOrder = computed(() =>
   productionOrders.value.find(
     p => String(p.id) === String(form.productionOrderId)
@@ -111,6 +117,9 @@ const openCreate = () => {
     productionOrderId: '',
     warehouseId: fin ? String(fin.id) : '',
     qty: '',
+    color: '',
+    actualInboundDate: today(),
+    remark: '',
     isChecked: false,
   });
   dialogRef.value?.open();
@@ -123,6 +132,9 @@ const submit = async () => {
     purpose: 'MANUFACTURE',
     productionOrderId: Number(form.productionOrderId),
     toWarehouseId: Number(form.warehouseId),
+    color: form.color.trim() || null,
+    actualInboundDate: form.actualInboundDate || null,
+    remark: form.remark.trim() || null,
     isChecked: form.isChecked,
     stockEntryItemsAttributes: [
       {
@@ -182,6 +194,7 @@ onMounted(() => {
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">单号</th>
             <th class="px-3 py-3 font-medium">生产订单</th>
+            <th class="px-3 py-3 font-medium">颜色</th>
             <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">交接</th>
             <th class="px-3 py-3 font-medium">状态</th>
@@ -197,6 +210,7 @@ onMounted(() => {
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.productionOrderNo || '—' }}
             </td>
+            <td class="px-3 py-3 text-n-slate-11">{{ e.color || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.productionOrderOwnerName || '—' }}
             </td>
@@ -227,7 +241,7 @@ onMounted(() => {
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               还没有成品入库单。
             </td>
           </tr>
@@ -275,6 +289,20 @@ onMounted(() => {
               @update:model-value="v => (form.warehouseId = v)"
             />
           </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">颜色</label>
+            <Input v-model="form.color" placeholder="如 黑色 / 白色 / 定制色" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">实际入库日期</label>
+            <Input v-model="form.actualInboundDate" type="date" />
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">备注</label>
+          <Input v-model="form.remark" placeholder="选填" />
         </div>
         <label class="flex items-center gap-2 text-heading-3 text-n-slate-12">
           <input v-model="form.isChecked" type="checkbox" />

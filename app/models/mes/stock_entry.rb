@@ -3,6 +3,8 @@
 # Table name: mes_stock_entries
 #
 #  id                  :bigint           not null, primary key
+#  actual_inbound_date :datetime
+#  color               :string
 #  entry_no            :string           not null
 #  is_checked          :boolean          default(FALSE), not null
 #  posted_at           :datetime

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_24_180000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_24_190000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2125,6 +2125,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_180000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "product_line"
+    t.datetime "actual_inbound_date"
+    t.string "color"
     t.index ["account_id", "entry_no"], name: "index_mes_stock_entries_on_account_id_and_entry_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_stock_entries_on_account_and_product_line"
     t.index ["account_id", "purpose"], name: "index_mes_stock_entries_on_account_id_and_purpose"
