@@ -180,6 +180,7 @@ const loadStock = async () => {
     stockBalances.value = [];
   }
 };
+// 可用现货 = 物理结存 − 其他待出库单预占（后端返回 available_qty）。
 const stockFor = (productId, warehouseId) => {
   if (!productId) return 0;
   const rows = stockBalances.value.filter(
@@ -188,7 +189,10 @@ const stockFor = (productId, warehouseId) => {
   const scoped = warehouseId
     ? rows.filter(b => String(b.warehouse_id) === String(warehouseId))
     : rows;
-  return scoped.reduce((sum, b) => sum + Number(b.qty || 0), 0);
+  return scoped.reduce(
+    (sum, b) => sum + Number(b.available_qty ?? b.qty ?? 0),
+    0
+  );
 };
 
 // ── 生产出库（原样，仓库从生产订单开单）──
@@ -613,7 +617,7 @@ onMounted(() => {
         <div class="grid grid-cols-12 gap-2 text-xs text-n-slate-10">
           <span class="col-span-6">成品</span>
           <span class="col-span-2">数量</span>
-          <span class="col-span-3">现货结存</span>
+          <span class="col-span-3">可用现货</span>
         </div>
         <div class="flex flex-col gap-2">
           <div
@@ -652,7 +656,8 @@ onMounted(() => {
           </div>
         </div>
         <p class="text-xs text-n-slate-11">
-          现货低于出库量的行标红；库存不足时仓库出库会被系统拦截。
+          「可用现货」= 结存 −
+          其他待出库单预占；低于出库量的行标红。提交后即预占这批数量，别人看到的可用现货相应减少；驳回或出库后自动释放。
         </p>
       </div>
     </Dialog>

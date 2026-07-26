@@ -10,6 +10,9 @@ json.payload do
     json.warehouse_id b.warehouse_id
     json.warehouse_name b.warehouse&.name
     json.qty b.qty
+    reserved = b.item_type == 'PRODUCT' ? (@reserved[[b.crm_product_id, b.warehouse_id]] || 0) : 0
+    json.reserved_qty reserved
+    json.available_qty b.qty.to_d - reserved.to_d
     json.unit b.mes_material&.unit
     json.safety_stock b.mes_material&.safety_stock
     json.is_short b.short?

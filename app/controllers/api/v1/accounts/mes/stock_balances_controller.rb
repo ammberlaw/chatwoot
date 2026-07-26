@@ -9,6 +9,8 @@ class Api::V1::Accounts::Mes::StockBalancesController < Api::V1::Accounts::Mes::
     scope = scope.where(warehouse_id: params[:warehouse_id]) if params[:warehouse_id].present?
     @balances = scope.to_a
     @balances = @balances.select(&:short?) if params[:short] == 'true'
+    # 成品预占（现货出库「提交即预占」）：可用 = 结存 − 预占。
+    @reserved = Mes::Shipment.reserved_qty_map(Current.account)
   end
 
   private

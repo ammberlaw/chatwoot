@@ -50,6 +50,8 @@ class Mes::Shipment < ApplicationRecord
   # STOCK 现货出库：PENDING_APPROVAL →(主管审核)→ APPROVED →(仓库)→ SHIPPED；驳回 REJECTED（业务员改后重提）。
   STATUSES = %w[DRAFT PENDING_APPROVAL APPROVED REJECTED SHIPPED CANCELLED].freeze
   KINDS = %w[PRODUCTION STOCK].freeze
+  # 现货出库「提交即预占」：待审核/已审核未出库的单占用成品库存，可用=物理结存−预占。
+  RESERVING_STATUSES = %w[PENDING_APPROVAL APPROVED].freeze
   # 出库时销售订单可推进到 SHIPPED 的前置状态。
   SALES_ORDER_ADVANCEABLE = %w[PENDING_CONFIRMATION IN_PRODUCTION PENDING_SHIPMENT].freeze
   SHIPMENTS_BOARD_KEY = 'mes_shipments_index'
@@ -72,6 +74,19 @@ class Mes::Shipment < ApplicationRecord
   def self.document_number_prefix = 'DN'
   def self.document_number_column = :shipment_no
 
+  scope :reserving, -> { where(kind: 'STOCK', status: RESERVING_STATUSES) }
+
+  # 预占量：待审核/已审核未出库的现货出库单占用的成品，按 [crm_product_id, warehouse_id] 汇总。
+  # exclude_id 用于提交自身时排除本单，只看「别人」已预占多少。
+  def self.reserved_qty_map(account, exclude_id: nil)
+    rel = account.mes_shipment_items
+                 .joins(:shipment)
+                 .where(mes_shipments: { kind: 'STOCK', status: RESERVING_STATUSES })
+                 .where.not(crm_product_id: nil)
+    rel = rel.where.not(shipment_id: exclude_id) if exclude_id
+    rel.group('mes_shipment_items.crm_product_id', 'mes_shipments.warehouse_id').sum('mes_shipment_items.qty')
+  end
+
   def stock? = kind == 'STOCK'
 
   # 现货出库提交审核：解析业务员所属 CRM 部门主管并落库通知。无主管则直接进「待出库」推仓库。
@@ -80,6 +95,7 @@ class Mes::Shipment < ApplicationRecord
     raise StandardError, '仅现货出库单需要审核' unless stock?
     raise StandardError, '当前状态无法提交审核' unless %w[DRAFT REJECTED].include?(status)
 
+    ensure_available_for_reservation!
     self.manager_id = resolve_manager_id
     self.submitted_at = Time.current
     self.reject_reason = nil
@@ -164,6 +180,23 @@ class Mes::Shipment < ApplicationRecord
       "#{item.crm_product&.name || "成品##{item.crm_product_id}"}（现货 #{fnum(on_hand)}，需 #{fnum(item.qty)}）"
     end
     raise StandardError, "成品库存不足，无法出库：#{shortages.join('；')}" if shortages.any?
+  end
+
+  # 提交预占校验：可用（物理结存 − 其他待出库单已预占）≥ 本单出库量，否则拦截，防多人抢同一批现货。
+  def ensure_available_for_reservation!
+    reserved = self.class.reserved_qty_map(account, exclude_id: id)
+    shortages = shipment_items.filter_map { |item| reservation_shortage(item, reserved) }
+    raise StandardError, "可用现货不足（已被其他待出库单预占），无法提交：#{shortages.join('；')}" if shortages.any?
+  end
+
+  def reservation_shortage(item, reserved)
+    balance = account.mes_stock_balances.find_by(
+      item_type: 'PRODUCT', crm_product_id: item.crm_product_id, warehouse_id: warehouse_id
+    )
+    available = balance&.qty.to_d - reserved[[item.crm_product_id, warehouse_id]].to_d
+    return if available >= item.qty.to_d
+
+    "#{item.crm_product&.name || "成品##{item.crm_product_id}"}（可用 #{fnum(available)}，需 #{fnum(item.qty)}）"
   end
 
   # 现货出库审核人=业务员所属（主）部门负责人；本人即负责人则向上找上级部门负责人。
