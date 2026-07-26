@@ -236,11 +236,11 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 - **原则**：所有新开发先本地改+测试，用户确认后才推生产；生产数据变更用幂等 rails runner 脚本经 ssh 管道执行。
 - 首次部署与 Twenty 清除记录见 2026-07-16；管理员 `ken@unitedtouch.cn`。
 
-## 近期更新（2026-07-23 ~ 24）
+## 近期更新（2026-07-23 ~ 25）
 
 ### 邮件模块
 - **收信支持 POP3**：邮箱账户「收件方式」下拉三选（不收信 / IMAP / POP3）。用于服务商单独关闭 IMAP、仅留 POP3 的账户 —— 典型如**部分阿里企业邮**（管理员后台 组织与用户→员工账号→IMAP服务 可单独关；表现为发信正常、IMAP 收信 `LOGIN failed`，而 POP3/SMTP 正常）。`Crm::EmailIngestion` 抽出共享入库逻辑，`Crm::ImapFetchService` / `Crm::PopFetchService` 分别连接，`Crm::FetchImapEmailsJob` 按账户 `receive_protocol` 分发；POP 只读不删、Message-ID 去重。
-- **定时发送**：写邮件顶栏「定时发送」选本地时间；建草稿置 `send_status=SCHEDULED` + `scheduled_at`，`Crm::DispatchScheduledEmailsJob`（每分钟）到点转 `PENDING` 走原发送链路。草稿箱显示「定时发送」状态标。
+- **定时发送（按客户时区 + 弹窗）**：点「定时发送」弹出居中弹窗（对应时区 + 对应时间 + 确定）。时区下拉列常用外贸时区（标签带实时 UTC 偏移），**选中客户后按其 `trade_country` 自动预选国家时区**；填的是「所选时区的当地钟面时间」，前端用 Intl API 换算成真实发送时刻（含夏令时），旁显「= 你本地 X」。换算/时区表见 `helper/scheduleTimezone.js`（`COUNTRY_TZ` 覆盖 150+ 国家）。建草稿置 `send_status=SCHEDULED` + `scheduled_at`，`Crm::DispatchScheduledEmailsJob`（每分钟）到点转 `PENDING` 走原发送链路。
 - **发送成功提示**：发送为异步（进队列走 SMTP），提交后轮询单封真实结果（约 12 秒），真发成功弹「✅ 成功发送」+ 绿色横幅，失败显示原因，超时提示「仍在投递中」——不再一提交就误报成功。
 - **收信过滤 + 超长截断**：`email.alibaba.com`（阿里询盘通知发件域）加入 `NOTIFICATION_DOMAINS` 不入库；正文超 `ApplicationRecord::MAX_TEXT_COLUMN_LENGTH=20000` 时**截断入库**而非整封丢弃（长 HTML 客户邮件仍可收）。
 - **测试连接报错人性化**：`Crm::MailAccountVerifier` 把服务商原始 SMTP/IMAP 报错（腾讯 `535 ... system busy`、阿里 `LOGIN failed`、认证失败、超时等）翻成可操作中文提示，并保留原始错误。
@@ -250,6 +250,8 @@ Wintouch-CRM 是一套面向**外贸/自营销售团队**的 CRM，作为原生�
 - **收信提速**：后台轮询 5 分钟 → **1 分钟**（`schedule.yml`）；另加手动「收取」按钮（`emails#fetch` 为本人 `imap_active` 账号即时排 `Crm::FetchImapEmailsJob`），想立刻收信点一下即可。真·推送级（IMAP IDLE）因需常驻长连接、且 POP3 不支持，暂不做。
 - **作为附件转发**：把原邮件整封（含原附件）重建成标准 `.eml`（`emails#eml`，`mail` gem 生成 RFC822），作为附件带入新邮件，收件人可拿到原始邮件文件（区别于普通「转发」引用进正文）。
 - **阅读栏收纳**：次要操作（转发 / 附件转发 / 重新发送 / 标记垃圾邮件 / 删除）收进「更多」下拉（`DropdownMenu`），只留 星标 / 回复 / 全部回复 为直显按钮；草稿只留 编辑 / 删除。
+- **收信内联图片正常渲染**：客户邮件正文里的内联图（`<img src="cid:...">`）以前被当普通附件、正文里显示空白框。`Crm::EmailIngestion` 入库时识别被正文引用的内联部件，存 blob 时打 `metadata['inline']=true`，并把正文 `cid:xxx` 改写成同源 blob 相对路径（DOMPurify 放行）→ 阅读区正常显示、**排除出附件区**（jbuilder 过滤 inline）。顺带修复「无文件名纯内联图以前直接丢失」。
+- **邮件打开地点（IP 归属地）**：打开追踪的每条 IP 显示中文归属地（城市/国家）。`Crm::IpGeoResolver`：本地 MaxMind 优先，否则走**国内可达**的太平洋电脑网 pconline（国外给国家、国内给省市，返回中文；国内服务器访问不了 ip-api.com 之类）。私网跳过、**只缓存成功结果**（避免偶发失败把某 IP 锁死 7 天）。回填历史用 `rake crm:backfill_email_open_geo`。
 
 ### 客户
 - **产品分组三合二**：原「平板电脑 / 商显 / 工控」合并为「平板电脑 / 商显工控」。沿用 `COMMERCIAL_DISPLAY` 作为「商显工控」值，枚举去掉 `INDUSTRIAL_CONTROL`；数据迁移把现有「工控」客户/联系人并入 `COMMERCIAL_DISPLAY`（`crm_customers.product_group` / 联系人 `product_category` / 前端筛选·创建·引导选项与标签同步）。
