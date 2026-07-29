@@ -318,7 +318,7 @@ const fieldCls =
                 <td class="px-1 py-1">
                   <textarea v-model="item.standard" rows="2" :class="inputCls" class="min-h-[52px] leading-relaxed py-1.5" />
                 </td>
-                <td class="px-1 py-1"><input v-model="item.weight" type="number" :class="inputCls" class="text-center font-medium" /></td>
+                <td class="px-1 py-1"><input v-model="item.weight" type="number" step="0.5" :class="inputCls" class="text-center font-medium" /></td>
                 <td class="px-1 py-1"><input v-model="item.baselineValue" :class="inputCls" /></td>
                 <td class="px-1 py-1"><input v-model="item.targetValue" :class="inputCls" /></td>
                 <td class="px-1 py-1">

@@ -13,7 +13,7 @@
 #  sort_order        :integer          default(0)
 #  standard          :text
 #  target_value      :string
-#  weight            :integer
+#  weight            :decimal(5, 1)
 #  created_at        :datetime         not null
 #  updated_at        :datetime         not null
 #  account_id        :bigint           not null

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_29_104732) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1146,7 +1146,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.string "name", null: false
     t.string "dimension"
     t.text "standard"
-    t.integer "weight"
+    t.decimal "weight", precision: 5, scale: 1
     t.string "baseline_value"
     t.string "target_value"
     t.string "data_source", default: "MANUAL", null: false
@@ -1432,7 +1432,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_210000) do
     t.string "name", null: false
     t.string "dimension"
     t.text "standard"
-    t.integer "weight"
+    t.decimal "weight", precision: 5, scale: 1
     t.string "baseline_value"
     t.string "target_value"
     t.string "data_source", default: "MANUAL", null: false

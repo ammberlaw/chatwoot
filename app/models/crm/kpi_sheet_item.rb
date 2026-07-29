@@ -14,7 +14,7 @@
 #  standard         :text
 #  suggested_score  :decimal(7, 2)
 #  target_value     :string
-#  weight           :integer
+#  weight           :decimal(5, 1)
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #  account_id       :bigint           not null
