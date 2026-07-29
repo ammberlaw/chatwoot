@@ -196,7 +196,7 @@ const setTab = key => {
 
 const openRequest = async row => {
   comment.value = '';
-  const { data } = await RequestsAPI.get(row.id);
+  const { data } = await RequestsAPI.show(row.id);
   selected.value = data;
 };
 
