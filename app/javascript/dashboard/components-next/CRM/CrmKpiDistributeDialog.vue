@@ -15,7 +15,7 @@ const selected = ref(new Set());
 const loading = ref(false);
 const busy = ref(false);
 
-// 全员可下发（被考核对象不限 CRM 角色，运营等无角色成员也能选）；默认勾选 CRM 销售/主管。
+// 全员可下发（被考核对象不限 CRM 角色，运营等无角色成员也能选）；默认不勾选，由下发人自选。
 const roleLabel = m => {
   if (m.crm_role === 'manager') return t('CRM.KPI_SHEETS.ROLE_MANAGER');
   if (m.crm_role === 'sales') return t('CRM.KPI_SHEETS.ROLE_SALES');
@@ -30,9 +30,6 @@ const open = async id => {
   try {
     const { data } = await CrmMemberAPI.get();
     members.value = data.payload || [];
-    selected.value = new Set(
-      members.value.filter(m => m.crm_role).map(m => m.user_id)
-    );
   } catch {
     members.value = [];
   } finally {
@@ -98,19 +95,23 @@ defineExpose({ open });
       >
         {{ t('CRM.KPI_SHEETS.NO_SALES') }}
       </div>
-      <label
-        v-for="m in members"
-        :key="m.user_id"
-        class="flex items-center gap-3 px-3 py-2 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
-      >
-        <input
-          type="checkbox"
-          :checked="selected.has(m.user_id)"
-          @change="toggle(m.user_id)"
-        />
-        <span class="font-medium text-n-slate-12">{{ m.name }}</span>
-        <span class="ml-auto text-xs text-n-slate-10">{{ roleLabel(m) }}</span>
-      </label>
+      <div v-else class="flex flex-col gap-2 max-h-[55vh] overflow-y-auto">
+        <label
+          v-for="m in members"
+          :key="m.user_id"
+          class="flex items-center gap-3 px-3 py-2 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
+        >
+          <input
+            type="checkbox"
+            :checked="selected.has(m.user_id)"
+            @change="toggle(m.user_id)"
+          />
+          <span class="font-medium text-n-slate-12">{{ m.name }}</span>
+          <span class="ml-auto text-xs text-n-slate-10">{{
+            roleLabel(m)
+          }}</span>
+        </label>
+      </div>
     </div>
   </Dialog>
 </template>
