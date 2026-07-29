@@ -330,7 +330,6 @@
         "BODY": "正文",
         "SECTION": "资料板块"
       },
-
       "DELETE": {
         "LABEL": "删除",
         "CONFIRM": "确定删除文档「{name}」？删除后不可恢复。",
@@ -602,13 +601,14 @@
         "ARCHIVED": "归档"
       },
       "DISTRIBUTE_TITLE": "下发考核方案",
-      "DISTRIBUTE_HINT": "为选中业务员各生成一张本月考核表；已下发的会跳过，不重复生成。",
+      "DISTRIBUTE_HINT": "为选中成员各生成一张本月考核表（不限 CRM 角色）；已下发的会跳过，不重复生成。",
       "DISTRIBUTE_CONFIRM": "确认下发（{count} 人）",
       "DISTRIBUTE_DONE": "已下发：新建 {created} 张，跳过 {skipped} 张",
       "DISTRIBUTE_ERROR": "下发失败",
-      "NO_SALES": "暂无 CRM 销售成员，请先在「成员权限」赋予 CRM 角色",
+      "NO_SALES": "暂无可下发的成员",
       "ROLE_MANAGER": "主管",
-      "ROLE_SALES": "业务员"
+      "ROLE_SALES": "业务员",
+      "ROLE_MEMBER": "成员"
     },
     "POOL_SETTINGS": {
       "HEADER": "公海设置",

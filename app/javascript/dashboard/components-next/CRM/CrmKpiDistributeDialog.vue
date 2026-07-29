@@ -15,8 +15,12 @@ const selected = ref(new Set());
 const loading = ref(false);
 const busy = ref(false);
 
-// 只列 CRM 销售/主管（有 crm_role 的成员即被考核对象）。
-const sales = computed(() => members.value.filter(m => m.crm_role));
+// 全员可下发（被考核对象不限 CRM 角色，运营等无角色成员也能选）；默认勾选 CRM 销售/主管。
+const roleLabel = m => {
+  if (m.crm_role === 'manager') return t('CRM.KPI_SHEETS.ROLE_MANAGER');
+  if (m.crm_role === 'sales') return t('CRM.KPI_SHEETS.ROLE_SALES');
+  return t('CRM.KPI_SHEETS.ROLE_MEMBER');
+};
 
 const open = async id => {
   schemeId.value = id;
@@ -26,7 +30,9 @@ const open = async id => {
   try {
     const { data } = await CrmMemberAPI.get();
     members.value = data.payload || [];
-    selected.value = new Set(sales.value.map(m => m.user_id));
+    selected.value = new Set(
+      members.value.filter(m => m.crm_role).map(m => m.user_id)
+    );
   } catch {
     members.value = [];
   } finally {
@@ -36,7 +42,11 @@ const open = async id => {
 
 const toggle = uid => {
   const s = new Set(selected.value);
-  s.has(uid) ? s.delete(uid) : s.add(uid);
+  if (s.has(uid)) {
+    s.delete(uid);
+  } else {
+    s.add(uid);
+  }
   selected.value = s;
 };
 
@@ -46,8 +56,15 @@ const confirm = async () => {
   if (!count.value) return;
   busy.value = true;
   try {
-    const { data } = await CrmKpiSchemeAPI.distribute(schemeId.value, [...selected.value]);
-    useAlert(t('CRM.KPI_SHEETS.DISTRIBUTE_DONE', { created: data.created, skipped: data.skipped }));
+    const { data } = await CrmKpiSchemeAPI.distribute(schemeId.value, [
+      ...selected.value,
+    ]);
+    useAlert(
+      t('CRM.KPI_SHEETS.DISTRIBUTE_DONE', {
+        created: data.created,
+        skipped: data.skipped,
+      })
+    );
     dialogRef.value?.close();
   } catch {
     useAlert(t('CRM.KPI_SHEETS.DISTRIBUTE_ERROR'));
@@ -69,17 +86,30 @@ defineExpose({ open });
     @confirm="confirm"
   >
     <div class="flex flex-col gap-2">
-      <p class="text-xs text-n-slate-11">{{ t('CRM.KPI_SHEETS.DISTRIBUTE_HINT') }}</p>
-      <div v-if="loading" class="p-4 text-sm text-center text-n-slate-11">{{ t('CRM.KPI_SHEETS.LOADING') }}</div>
-      <div v-else-if="!sales.length" class="p-4 text-sm text-center text-n-slate-11">{{ t('CRM.KPI_SHEETS.NO_SALES') }}</div>
+      <p class="text-xs text-n-slate-11">
+        {{ t('CRM.KPI_SHEETS.DISTRIBUTE_HINT') }}
+      </p>
+      <div v-if="loading" class="p-4 text-sm text-center text-n-slate-11">
+        {{ t('CRM.KPI_SHEETS.LOADING') }}
+      </div>
+      <div
+        v-else-if="!members.length"
+        class="p-4 text-sm text-center text-n-slate-11"
+      >
+        {{ t('CRM.KPI_SHEETS.NO_SALES') }}
+      </div>
       <label
-        v-for="m in sales"
+        v-for="m in members"
         :key="m.user_id"
         class="flex items-center gap-3 px-3 py-2 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
       >
-        <input type="checkbox" :checked="selected.has(m.user_id)" @change="toggle(m.user_id)" />
+        <input
+          type="checkbox"
+          :checked="selected.has(m.user_id)"
+          @change="toggle(m.user_id)"
+        />
         <span class="font-medium text-n-slate-12">{{ m.name }}</span>
-        <span class="ml-auto text-xs text-n-slate-10">{{ m.crm_role === 'manager' ? t('CRM.KPI_SHEETS.ROLE_MANAGER') : t('CRM.KPI_SHEETS.ROLE_SALES') }}</span>
+        <span class="ml-auto text-xs text-n-slate-10">{{ roleLabel(m) }}</span>
       </label>
     </div>
   </Dialog>
