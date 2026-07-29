@@ -401,25 +401,25 @@ onMounted(async () => {
               </span>
               <template v-if="canManage">
                 <button
-                  class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-6 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11 hover:bg-n-alpha-2"
+                  class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11 hover:bg-n-alpha-2"
                   :title="L.addChild"
                   @click.stop="addChild(node)"
                 >
-                  <Icon icon="i-lucide-plus" class="size-3.5" />
+                  <Icon icon="i-lucide-plus" class="size-4" />
                 </button>
                 <button
-                  class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-6 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11 hover:bg-n-alpha-2"
+                  class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11 hover:bg-n-alpha-2"
                   :title="L.rename"
                   @click.stop="renameDept(node)"
                 >
-                  <Icon icon="i-lucide-pencil" class="size-3.5" />
+                  <Icon icon="i-lucide-pencil" class="size-4" />
                 </button>
                 <button
-                  class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-6 group-hover:opacity-100 text-n-slate-10 hover:text-n-ruby-11 hover:bg-n-alpha-2"
+                  class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-ruby-11 hover:bg-n-alpha-2"
                   :title="L.remove"
                   @click.stop="deleteDept(node)"
                 >
-                  <Icon icon="i-lucide-trash-2" class="size-3.5" />
+                  <Icon icon="i-lucide-trash-2" class="size-4" />
                 </button>
               </template>
             </div>
