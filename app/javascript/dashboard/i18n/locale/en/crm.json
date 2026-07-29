@@ -488,14 +488,23 @@
         "SAVING": "保存中…",
         "SECTION_BASIC": "方案基本信息",
         "SECTION_STATS": "月度数据统计（参考数据，不计入考核分）",
-        "SECTION_RULES": "评分与绩效发放规则",
-        "SECTION_RESULT": "考核结果应用",
+        "SECTION_RULES": "💰 评分与绩效发放规则",
+        "SECTION_RESULT": "📌 考核结果应用",
         "TOTAL_SCORE": "总分",
         "PAYOUT_NOTE": "评分与绩效发放规则",
         "RESULT_NOTE": "考核结果应用",
         "DISTRIBUTE": "下发给员工",
         "DISTRIBUTE_SAVE_FIRST": "请先保存方案，再下发给员工。",
         "DIM_PLACEHOLDER": "选择或输入维度"
+      },
+      "TABLES": {
+        "TITLE": "平台数据明细表（参考，不计入自动计分）",
+        "ADD": "加一个表",
+        "ADD_ROW": "加一行",
+        "ADD_COL": "加一列",
+        "NAME_PLACEHOLDER": "明细表标题，如：明细表A · 商机目标计算",
+        "COL_PLACEHOLDER": "列名",
+        "EMPTY": "暂无明细表。运营方案可在此录入商机目标计算、投放效率、平台询盘明细等参考表格。"
       },
       "STATS": {
         "INQUIRY_TM": "询盘+TM总人数",

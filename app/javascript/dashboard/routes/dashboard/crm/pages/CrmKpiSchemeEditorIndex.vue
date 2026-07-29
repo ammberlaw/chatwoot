@@ -8,6 +8,7 @@ import CrmKpiSchemeAPI from 'dashboard/api/crm/kpiSchemes';
 import { useCrmKpiSchemesStore } from 'dashboard/stores/crm/kpiSchemes';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Icon from 'dashboard/components-next/icon/Icon.vue';
 import CrmKpiDistributeDialog from 'dashboard/components-next/CRM/CrmKpiDistributeDialog.vue';
 
 const { t } = useI18n();
@@ -44,6 +45,7 @@ const form = reactive({
   resultNote: '',
   items: [],
   tiers: [],
+  detailTables: [],
 });
 
 const blankItem = () => ({
@@ -68,10 +70,31 @@ const removeItem = i => form.items.splice(i, 1);
 const addTier = () => form.tiers.push(blankTier());
 const removeTier = i => form.tiers.splice(i, 1);
 
+// 平台数据明细表：结构自由的小表格（标题+列头+行），运营方案的明细表A/B等。
+const addTable = () =>
+  form.detailTables.push({ title: '', columns: ['', ''], rows: [['', '']] });
+const removeTable = ti => form.detailTables.splice(ti, 1);
+const addTableColumn = tbl => {
+  tbl.columns.push('');
+  tbl.rows.forEach(row => row.push(''));
+};
+const removeTableColumn = (tbl, ci) => {
+  if (tbl.columns.length <= 1) return;
+  tbl.columns.splice(ci, 1);
+  tbl.rows.forEach(row => row.splice(ci, 1));
+};
+const addTableRow = tbl => tbl.rows.push(tbl.columns.map(() => ''));
+const removeTableRow = (tbl, ri) => tbl.rows.splice(ri, 1);
+
 const totalWeight = computed(() =>
   form.items.reduce((sum, i) => sum + (Number(i.weight) || 0), 0)
 );
 const isFormInvalid = computed(() => !form.name.trim() || !form.month);
+
+// 月度数据统计是业务考核专属参考区：仅指标挂了 CRM 数据源的方案显示。
+const showStats = computed(() =>
+  form.items.some(i => ['CRM_SALES', 'CRM_NEWCUST'].includes(i.dataSource))
+);
 
 // 维度候选：预设 + 已录入的自定义值（去重）。
 const dimOptions = computed(() => {
@@ -105,6 +128,11 @@ const hydrate = scheme => {
     maxScore: tt.maxScore != null ? String(tt.maxScore) : '',
     coefficient: tt.coefficient != null ? String(tt.coefficient) : '',
     proportional: !!tt.proportional,
+  }));
+  form.detailTables = (scheme.detailTables || []).map(tbl => ({
+    title: tbl.title || '',
+    columns: [...(tbl.columns || [])],
+    rows: (tbl.rows || []).map(row => [...row]),
   }));
   if (!form.items.length) form.items = [blankItem()];
   if (!form.tiers.length) form.tiers = [blankTier()];
@@ -149,6 +177,17 @@ const submit = async () => {
         targetValue: i.targetValue.trim() || null,
         dataSource: i.dataSource,
         sortOrder: idx,
+      })),
+    detailTables: form.detailTables
+      .filter(
+        tbl =>
+          tbl.title.trim() ||
+          tbl.rows.some(row => row.some(cell => cell.trim()))
+      )
+      .map(tbl => ({
+        title: tbl.title.trim(),
+        columns: tbl.columns.map(c => c.trim()),
+        rows: tbl.rows.map(row => row.map(cell => cell.trim())),
       })),
     payoutTiers: form.tiers
       .filter(tt => tt.name.trim())
@@ -211,12 +250,24 @@ const fieldCls =
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
       <div class="flex items-center gap-3">
-        <Button icon="i-lucide-arrow-left" size="sm" variant="ghost" color="slate" @click="goBack" />
+        <Button
+          icon="i-lucide-arrow-left"
+          size="sm"
+          variant="ghost"
+          color="slate"
+          @click="goBack"
+        />
         <div>
           <h1 class="text-xl font-medium text-n-slate-12">
-            {{ isEdit ? t('CRM.KPI_SCHEMES.EDIT.TITLE') : t('CRM.KPI_SCHEMES.CREATE.TITLE') }}
+            {{
+              isEdit
+                ? t('CRM.KPI_SCHEMES.EDIT.TITLE')
+                : t('CRM.KPI_SCHEMES.CREATE.TITLE')
+            }}
           </h1>
-          <p class="mt-0.5 text-xs text-n-slate-11">{{ t('CRM.KPI_SCHEMES.SUBTITLE') }}</p>
+          <p class="mt-0.5 text-xs text-n-slate-11">
+            {{ t('CRM.KPI_SCHEMES.SUBTITLE') }}
+          </p>
         </div>
       </div>
       <div class="flex items-center gap-2">
@@ -228,7 +279,11 @@ const fieldCls =
           @click="openDistribute"
         />
         <Button
-          :label="submitting ? t('CRM.KPI_SCHEMES.EDITOR.SAVING') : t('CRM.KPI_SCHEMES.EDITOR.SAVE')"
+          :label="
+            submitting
+              ? t('CRM.KPI_SCHEMES.EDITOR.SAVING')
+              : t('CRM.KPI_SCHEMES.EDITOR.SAVE')
+          "
           icon="i-lucide-check"
           color="iris"
           :is-disabled="isFormInvalid || submitting"
@@ -237,43 +292,75 @@ const fieldCls =
       </div>
     </div>
 
-    <div v-if="loading" class="flex items-center justify-center flex-1 text-base text-n-slate-11">
+    <div
+      v-if="loading"
+      class="flex items-center justify-center flex-1 text-base text-n-slate-11"
+    >
       {{ t('CRM.KPI_SCHEMES.LOADING') }}
     </div>
 
     <div v-else class="flex flex-col w-full gap-8 px-6 py-6">
       <!-- 方案基本信息 -->
       <section class="flex flex-col gap-3">
-        <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+        <div
+          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+        >
           {{ t('CRM.KPI_SCHEMES.EDITOR.SECTION_BASIC') }}
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{ t('CRM.KPI_SCHEMES.FORM.NAME') }} <span class="text-n-ruby-11">*</span></span>
+            <span class="text-xs text-n-slate-11">
+              {{ t('CRM.KPI_SCHEMES.FORM.NAME') }}
+              <span class="text-n-ruby-11">*</span>
+            </span>
             <input v-model="form.name" :class="fieldCls" />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{ t('CRM.KPI_SCHEMES.FORM.MONTH') }} <span class="text-n-ruby-11">*</span></span>
+            <span class="text-xs text-n-slate-11">
+              {{ t('CRM.KPI_SCHEMES.FORM.MONTH') }}
+              <span class="text-n-ruby-11">*</span>
+            </span>
             <input v-model="form.month" type="month" :class="fieldCls" />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{ t('CRM.KPI_SCHEMES.FORM.STATUS') }}</span>
+            <span class="text-xs text-n-slate-11">{{
+              t('CRM.KPI_SCHEMES.FORM.STATUS')
+            }}</span>
             <select v-model="form.status" :class="fieldCls">
-              <option value="DRAFT">{{ t('CRM.KPI_SCHEMES.STATUS.DRAFT') }}</option>
-              <option value="PUBLISHED">{{ t('CRM.KPI_SCHEMES.STATUS.PUBLISHED') }}</option>
+              <option value="DRAFT">
+                {{ t('CRM.KPI_SCHEMES.STATUS.DRAFT') }}
+              </option>
+              <option value="PUBLISHED">
+                {{ t('CRM.KPI_SCHEMES.STATUS.PUBLISHED') }}
+              </option>
             </select>
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{ t('CRM.KPI_SCHEMES.FORM.PASS_SCORE') }}</span>
+            <span class="text-xs text-n-slate-11">{{
+              t('CRM.KPI_SCHEMES.FORM.PASS_SCORE')
+            }}</span>
             <input v-model="form.passScore" type="number" :class="fieldCls" />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{ t('CRM.KPI_SCHEMES.FORM.CAP_PCT') }}</span>
-            <input v-model="form.itemScoreCapPct" type="number" :class="fieldCls" />
+            <span class="text-xs text-n-slate-11">{{
+              t('CRM.KPI_SCHEMES.FORM.CAP_PCT')
+            }}</span>
+            <input
+              v-model="form.itemScoreCapPct"
+              type="number"
+              :class="fieldCls"
+            />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">{{ t('CRM.KPI_SCHEMES.EDITOR.TOTAL_SCORE') }}</span>
-            <input :value="totalWeight" disabled :class="fieldCls" class="opacity-60" />
+            <span class="text-xs text-n-slate-11">{{
+              t('CRM.KPI_SCHEMES.EDITOR.TOTAL_SCORE')
+            }}</span>
+            <input
+              :value="totalWeight"
+              disabled
+              :class="fieldCls"
+              class="opacity-60"
+            />
           </label>
         </div>
       </section>
@@ -281,10 +368,19 @@ const fieldCls =
       <!-- 考核指标 -->
       <section class="flex flex-col gap-3">
         <div class="flex items-center justify-between">
-          <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+          <div
+            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
             {{ t('CRM.KPI_SCHEMES.ITEMS.TITLE', { total: totalWeight }) }}
           </div>
-          <Button :label="t('CRM.KPI_SCHEMES.ITEMS.ADD')" icon="i-lucide-plus" size="sm" variant="faded" color="slate" @click="addItem" />
+          <Button
+            :label="t('CRM.KPI_SCHEMES.ITEMS.ADD')"
+            icon="i-lucide-plus"
+            size="sm"
+            variant="faded"
+            color="slate"
+            @click="addItem"
+          />
         </div>
         <datalist id="kpi-dims">
           <option v-for="d in dimOptions" :key="d" :value="d" />
@@ -293,18 +389,36 @@ const fieldCls =
           <table class="w-full text-sm border-collapse min-w-[880px]">
             <thead class="text-n-slate-11">
               <tr class="border-b border-n-weak">
-                <th class="px-2 py-1.5 font-medium text-left w-28">{{ t('CRM.KPI_SCHEMES.ITEMS.DIMENSION') }}</th>
-                <th class="px-2 py-1.5 font-medium text-left w-32">{{ t('CRM.KPI_SCHEMES.ITEMS.NAME') }}</th>
-                <th class="px-2 py-1.5 font-medium text-left">{{ t('CRM.KPI_SCHEMES.ITEMS.STANDARD') }}</th>
-                <th class="px-2 py-1.5 font-medium text-left w-16">{{ t('CRM.KPI_SCHEMES.ITEMS.WEIGHT') }}</th>
-                <th class="px-2 py-1.5 font-medium text-left w-24">{{ t('CRM.KPI_SCHEMES.ITEMS.BASELINE') }}</th>
-                <th class="px-2 py-1.5 font-medium text-left w-24">{{ t('CRM.KPI_SCHEMES.ITEMS.TARGET') }}</th>
-                <th class="px-2 py-1.5 font-medium text-left w-28">{{ t('CRM.KPI_SCHEMES.ITEMS.SOURCE') }}</th>
+                <th class="px-2 py-1.5 font-medium text-left w-28">
+                  {{ t('CRM.KPI_SCHEMES.ITEMS.DIMENSION') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left w-32">
+                  {{ t('CRM.KPI_SCHEMES.ITEMS.NAME') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left">
+                  {{ t('CRM.KPI_SCHEMES.ITEMS.STANDARD') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left w-16">
+                  {{ t('CRM.KPI_SCHEMES.ITEMS.WEIGHT') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left w-24">
+                  {{ t('CRM.KPI_SCHEMES.ITEMS.BASELINE') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left w-24">
+                  {{ t('CRM.KPI_SCHEMES.ITEMS.TARGET') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left w-28">
+                  {{ t('CRM.KPI_SCHEMES.ITEMS.SOURCE') }}
+                </th>
                 <th class="w-10" />
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(item, i) in form.items" :key="`item-${i}`" class="border-b border-n-weak align-top">
+              <tr
+                v-for="(item, i) in form.items"
+                :key="`item-${i}`"
+                class="border-b border-n-weak align-top"
+              >
                 <td class="px-1 py-1">
                   <input
                     v-model="item.dimension"
@@ -314,20 +428,47 @@ const fieldCls =
                     class="!text-n-iris-11 !bg-n-iris-3/40 font-medium"
                   />
                 </td>
-                <td class="px-1 py-1"><input v-model="item.name" :class="inputCls" /></td>
                 <td class="px-1 py-1">
-                  <textarea v-model="item.standard" rows="2" :class="inputCls" class="min-h-[52px] leading-relaxed py-1.5" />
+                  <input v-model="item.name" :class="inputCls" />
                 </td>
-                <td class="px-1 py-1"><input v-model="item.weight" type="number" step="0.5" :class="inputCls" class="text-center font-medium" /></td>
-                <td class="px-1 py-1"><input v-model="item.baselineValue" :class="inputCls" /></td>
-                <td class="px-1 py-1"><input v-model="item.targetValue" :class="inputCls" /></td>
+                <td class="px-1 py-1">
+                  <textarea
+                    v-model="item.standard"
+                    rows="2"
+                    :class="inputCls"
+                    class="min-h-[52px] leading-relaxed py-1.5"
+                  />
+                </td>
+                <td class="px-1 py-1">
+                  <input
+                    v-model="item.weight"
+                    type="number"
+                    step="0.5"
+                    :class="inputCls"
+                    class="text-center font-medium"
+                  />
+                </td>
+                <td class="px-1 py-1">
+                  <input v-model="item.baselineValue" :class="inputCls" />
+                </td>
+                <td class="px-1 py-1">
+                  <input v-model="item.targetValue" :class="inputCls" />
+                </td>
                 <td class="px-1 py-1">
                   <select v-model="item.dataSource" :class="inputCls">
-                    <option v-for="ds in DATA_SOURCES" :key="ds" :value="ds">{{ t(`CRM.KPI_SCHEMES.SOURCE.${ds}`) }}</option>
+                    <option v-for="ds in DATA_SOURCES" :key="ds" :value="ds">
+                      {{ t(`CRM.KPI_SCHEMES.SOURCE.${ds}`) }}
+                    </option>
                   </select>
                 </td>
                 <td class="px-1 py-1 text-center">
-                  <Button icon="i-lucide-trash-2" size="sm" variant="ghost" color="ruby" @click="removeItem(i)" />
+                  <Button
+                    icon="i-lucide-trash-2"
+                    size="sm"
+                    variant="ghost"
+                    color="ruby"
+                    @click="removeItem(i)"
+                  />
                 </td>
               </tr>
             </tbody>
@@ -335,9 +476,120 @@ const fieldCls =
         </div>
       </section>
 
-      <!-- 月度数据统计（参考，不计分） -->
+      <!-- 平台数据明细表（参考）：运营方案的明细表A/B、三平台询盘明细等 -->
       <section class="flex flex-col gap-3">
-        <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+        <div class="flex items-center justify-between">
+          <div
+            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
+            {{ t('CRM.KPI_SCHEMES.TABLES.TITLE') }}
+          </div>
+          <Button
+            :label="t('CRM.KPI_SCHEMES.TABLES.ADD')"
+            icon="i-lucide-plus"
+            size="sm"
+            variant="faded"
+            color="slate"
+            @click="addTable"
+          />
+        </div>
+        <div
+          v-for="(tbl, ti) in form.detailTables"
+          :key="ti"
+          class="flex flex-col gap-2 p-3 rounded-xl border border-n-weak bg-n-solid-1/60"
+        >
+          <div class="flex items-center gap-2">
+            <input
+              v-model="tbl.title"
+              :placeholder="t('CRM.KPI_SCHEMES.TABLES.NAME_PLACEHOLDER')"
+              :class="inputCls"
+              class="flex-1 font-medium"
+            />
+            <Button
+              icon="i-lucide-columns-3"
+              size="sm"
+              variant="ghost"
+              color="slate"
+              :title="t('CRM.KPI_SCHEMES.TABLES.ADD_COL')"
+              @click="addTableColumn(tbl)"
+            />
+            <Button
+              icon="i-lucide-trash-2"
+              size="sm"
+              variant="ghost"
+              color="ruby"
+              @click="removeTable(ti)"
+            />
+          </div>
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="border-b border-n-weak">
+                <th
+                  v-for="(col, ci) in tbl.columns"
+                  :key="ci"
+                  class="px-1 py-1 font-medium"
+                >
+                  <div class="flex items-center gap-1">
+                    <input
+                      v-model="tbl.columns[ci]"
+                      :placeholder="t('CRM.KPI_SCHEMES.TABLES.COL_PLACEHOLDER')"
+                      :class="inputCls"
+                      class="text-center"
+                    />
+                    <button
+                      v-if="tbl.columns.length > 1"
+                      class="text-n-slate-9 hover:text-n-ruby-11"
+                      @click="removeTableColumn(tbl, ci)"
+                    >
+                      <Icon icon="i-lucide-x" class="size-3.5" />
+                    </button>
+                  </div>
+                </th>
+                <th class="w-9" />
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(row, ri) in tbl.rows"
+                :key="ri"
+                class="border-b border-n-weak/60"
+              >
+                <td v-for="(cell, ci) in row" :key="ci" class="px-1 py-1">
+                  <input v-model="row[ci]" :class="inputCls" />
+                </td>
+                <td class="px-1 py-1 text-center">
+                  <Button
+                    icon="i-lucide-trash-2"
+                    size="sm"
+                    variant="ghost"
+                    color="ruby"
+                    @click="removeTableRow(tbl, ri)"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div>
+            <Button
+              :label="t('CRM.KPI_SCHEMES.TABLES.ADD_ROW')"
+              icon="i-lucide-plus"
+              size="sm"
+              variant="ghost"
+              color="slate"
+              @click="addTableRow(tbl)"
+            />
+          </div>
+        </div>
+        <p v-if="!form.detailTables.length" class="text-xs text-n-slate-10">
+          {{ t('CRM.KPI_SCHEMES.TABLES.EMPTY') }}
+        </p>
+      </section>
+
+      <!-- 月度数据统计（参考，不计分）：仅业务考核（含 CRM 数据源指标）显示 -->
+      <section v-if="showStats" class="flex flex-col gap-3">
+        <div
+          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+        >
           {{ t('CRM.KPI_SCHEMES.EDITOR.SECTION_STATS') }}
         </div>
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
@@ -346,8 +598,12 @@ const fieldCls =
             :key="k"
             class="p-3 rounded-xl border border-n-weak bg-n-solid-1/60"
           >
-            <div class="text-xs text-n-slate-10">{{ t(`CRM.KPI_SCHEMES.STATS.${k}`) }}</div>
-            <div class="mt-1 text-sm font-medium text-n-slate-11">{{ t(`CRM.KPI_SCHEMES.STATS.${src}`) }}</div>
+            <div class="text-xs text-n-slate-10">
+              {{ t(`CRM.KPI_SCHEMES.STATS.${k}`) }}
+            </div>
+            <div class="mt-1 text-sm font-medium text-n-slate-11">
+              {{ t(`CRM.KPI_SCHEMES.STATS.${src}`) }}
+            </div>
           </div>
         </div>
       </section>
@@ -355,31 +611,83 @@ const fieldCls =
       <!-- 发放系数档 -->
       <section class="flex flex-col gap-3">
         <div class="flex items-center justify-between">
-          <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+          <div
+            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
             {{ t('CRM.KPI_SCHEMES.TIERS.TITLE') }}
           </div>
-          <Button :label="t('CRM.KPI_SCHEMES.TIERS.ADD')" icon="i-lucide-plus" size="sm" variant="faded" color="slate" @click="addTier" />
+          <Button
+            :label="t('CRM.KPI_SCHEMES.TIERS.ADD')"
+            icon="i-lucide-plus"
+            size="sm"
+            variant="faded"
+            color="slate"
+            @click="addTier"
+          />
         </div>
         <table class="w-full text-sm border-collapse">
           <thead class="text-n-slate-11">
             <tr class="border-b border-n-weak">
-              <th class="px-2 py-1.5 font-medium text-left">{{ t('CRM.KPI_SCHEMES.TIERS.NAME') }}</th>
-              <th class="px-2 py-1.5 font-medium text-left w-28">{{ t('CRM.KPI_SCHEMES.TIERS.MIN') }}</th>
-              <th class="px-2 py-1.5 font-medium text-left w-28">{{ t('CRM.KPI_SCHEMES.TIERS.MAX') }}</th>
-              <th class="px-2 py-1.5 font-medium text-left w-28">{{ t('CRM.KPI_SCHEMES.TIERS.COEFFICIENT') }}</th>
-              <th class="px-2 py-1.5 font-medium text-left w-36">{{ t('CRM.KPI_SCHEMES.TIERS.PROPORTIONAL') }}</th>
+              <th class="px-2 py-1.5 font-medium text-left">
+                {{ t('CRM.KPI_SCHEMES.TIERS.NAME') }}
+              </th>
+              <th class="px-2 py-1.5 font-medium text-left w-28">
+                {{ t('CRM.KPI_SCHEMES.TIERS.MIN') }}
+              </th>
+              <th class="px-2 py-1.5 font-medium text-left w-28">
+                {{ t('CRM.KPI_SCHEMES.TIERS.MAX') }}
+              </th>
+              <th class="px-2 py-1.5 font-medium text-left w-28">
+                {{ t('CRM.KPI_SCHEMES.TIERS.COEFFICIENT') }}
+              </th>
+              <th class="px-2 py-1.5 font-medium text-left w-36">
+                {{ t('CRM.KPI_SCHEMES.TIERS.PROPORTIONAL') }}
+              </th>
               <th class="w-10" />
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(tier, i) in form.tiers" :key="`tier-${i}`" class="border-b border-n-weak">
-              <td class="px-1 py-1"><input v-model="tier.name" :class="inputCls" /></td>
-              <td class="px-1 py-1"><input v-model="tier.minScore" type="number" :class="inputCls" /></td>
-              <td class="px-1 py-1"><input v-model="tier.maxScore" type="number" :class="inputCls" /></td>
-              <td class="px-1 py-1"><input v-model="tier.coefficient" type="number" step="0.01" :class="inputCls" /></td>
-              <td class="px-2 py-1 text-center"><input v-model="tier.proportional" type="checkbox" /></td>
+            <tr
+              v-for="(tier, i) in form.tiers"
+              :key="`tier-${i}`"
+              class="border-b border-n-weak"
+            >
+              <td class="px-1 py-1">
+                <input v-model="tier.name" :class="inputCls" />
+              </td>
+              <td class="px-1 py-1">
+                <input
+                  v-model="tier.minScore"
+                  type="number"
+                  :class="inputCls"
+                />
+              </td>
+              <td class="px-1 py-1">
+                <input
+                  v-model="tier.maxScore"
+                  type="number"
+                  :class="inputCls"
+                />
+              </td>
+              <td class="px-1 py-1">
+                <input
+                  v-model="tier.coefficient"
+                  type="number"
+                  step="0.01"
+                  :class="inputCls"
+                />
+              </td>
+              <td class="px-2 py-1 text-center">
+                <input v-model="tier.proportional" type="checkbox" />
+              </td>
               <td class="px-1 py-1 text-center">
-                <Button icon="i-lucide-trash-2" size="sm" variant="ghost" color="ruby" @click="removeTier(i)" />
+                <Button
+                  icon="i-lucide-trash-2"
+                  size="sm"
+                  variant="ghost"
+                  color="ruby"
+                  @click="removeTier(i)"
+                />
               </td>
             </tr>
           </tbody>
@@ -388,13 +696,31 @@ const fieldCls =
 
       <!-- 规则 & 结果应用 -->
       <section class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <label class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60">
-          <span class="text-sm font-medium text-n-slate-12">💰 {{ t('CRM.KPI_SCHEMES.EDITOR.SECTION_RULES') }}</span>
-          <textarea v-model="form.payoutNote" rows="5" :class="fieldCls" class="!h-auto py-2 leading-relaxed" />
+        <label
+          class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60"
+        >
+          <span class="text-sm font-medium text-n-slate-12">{{
+            t('CRM.KPI_SCHEMES.EDITOR.SECTION_RULES')
+          }}</span>
+          <textarea
+            v-model="form.payoutNote"
+            rows="5"
+            :class="fieldCls"
+            class="!h-auto py-2 leading-relaxed"
+          />
         </label>
-        <label class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60">
-          <span class="text-sm font-medium text-n-slate-12">📌 {{ t('CRM.KPI_SCHEMES.EDITOR.SECTION_RESULT') }}</span>
-          <textarea v-model="form.resultNote" rows="5" :class="fieldCls" class="!h-auto py-2 leading-relaxed" />
+        <label
+          class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60"
+        >
+          <span class="text-sm font-medium text-n-slate-12">{{
+            t('CRM.KPI_SCHEMES.EDITOR.SECTION_RESULT')
+          }}</span>
+          <textarea
+            v-model="form.resultNote"
+            rows="5"
+            :class="fieldCls"
+            class="!h-auto py-2 leading-relaxed"
+          />
         </label>
       </section>
     </div>

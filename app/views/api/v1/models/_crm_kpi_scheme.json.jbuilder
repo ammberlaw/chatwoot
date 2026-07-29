@@ -6,6 +6,7 @@ json.item_score_cap_pct resource.item_score_cap_pct
 json.payout_note resource.payout_note
 json.result_note resource.result_note
 json.status resource.status
+json.detail_tables resource.detail_tables
 json.created_by_id resource.created_by_id
 json.created_by_name resource.created_by&.name
 json.scheme_items resource.scheme_items.sort_by { |i| [i.sort_order || 0, i.id] } do |item|

@@ -16,12 +16,14 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
     @scheme = Current.account.crm_kpi_schemes.new(scalar_params)
     @scheme.created_by = Current.user
     assign_children(@scheme)
+    assign_detail_tables(@scheme)
     @scheme.save!
   end
 
   def update
     @scheme.assign_attributes(scalar_params)
     assign_children(@scheme)
+    assign_detail_tables(@scheme)
     @scheme.save!
   end
 
@@ -74,6 +76,19 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
 
   def scalar_params
     params.require(:scheme).permit(:name, :scheme_month, :pass_score, :item_score_cap_pct, :payout_note, :result_note, :status)
+  end
+
+  # 明细表结构自由（JSONB），逐层收敛成 title/columns/rows 纯字符串结构。
+  def assign_detail_tables(scheme)
+    return unless params[:scheme].key?(:detail_tables)
+
+    scheme.detail_tables = Array(params[:scheme][:detail_tables]).map do |t|
+      {
+        'title' => t[:title].to_s,
+        'columns' => Array(t[:columns]).map(&:to_s),
+        'rows' => Array(t[:rows]).map { |row| Array(row).map(&:to_s) }
+      }
+    end
   end
 
   # 指标 / 发放档随方案整组替换（前端传全量数组；account_id 由子模型从方案继承）。
