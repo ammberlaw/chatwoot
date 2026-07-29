@@ -355,11 +355,11 @@ onMounted(async () => {
                 "
               />
               <Icon
-                v-else-if="node.hasChildren"
+                v-else
                 :icon="
-                  collapsedIds.has(node.id)
-                    ? 'i-lucide-folder'
-                    : 'i-lucide-folder-open'
+                  node.hasChildren && !collapsedIds.has(node.id)
+                    ? 'i-lucide-folder-open'
+                    : 'i-lucide-folder'
                 "
                 class="size-4 flex-shrink-0 mr-2"
                 :class="
@@ -369,26 +369,11 @@ onMounted(async () => {
                 "
               />
               <span
-                v-else
-                class="flex items-center justify-center size-4 flex-shrink-0 mr-2"
-              >
-                <span
-                  class="size-[5px] rounded-full"
-                  :class="
-                    selectedDeptId === node.id ? 'bg-n-iris-9' : 'bg-n-slate-8'
-                  "
-                />
-              </span>
-              <span
                 class="flex-1 truncate"
                 :class="[
-                  node.depth === 0 && 'text-sm font-semibold text-n-slate-12',
-                  node.depth > 0 &&
-                    node.hasChildren &&
-                    'text-sm text-n-slate-12',
-                  node.depth > 0 &&
-                    !node.hasChildren &&
-                    'text-[13px] text-n-slate-11',
+                  node.depth === 0
+                    ? 'text-sm font-semibold text-n-slate-12'
+                    : 'text-sm text-n-slate-12',
                 ]"
               >
                 {{ node.name }}
