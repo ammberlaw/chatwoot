@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_24_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_29_110000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1161,7 +1161,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_190000) do
     t.string "name", null: false
     t.string "dimension"
     t.text "standard"
-    t.integer "weight"
+    t.decimal "weight", precision: 5, scale: 1
     t.string "baseline_value"
     t.string "target_value"
     t.string "data_source", default: "MANUAL", null: false
@@ -1451,7 +1451,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_190000) do
     t.string "name", null: false
     t.string "dimension"
     t.text "standard"
-    t.integer "weight"
+    t.decimal "weight", precision: 5, scale: 1
     t.string "baseline_value"
     t.string "target_value"
     t.string "data_source", default: "MANUAL", null: false
@@ -2187,6 +2187,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_24_190000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.string "category"
+    t.decimal "tax_rate", precision: 5, scale: 2
+    t.string "invoice_title"
+    t.string "tax_no"
+    t.string "bank_name"
+    t.string "bank_account"
+    t.string "bank_address"
     t.index ["account_id", "supplier_no"], name: "index_mes_suppliers_on_account_id_and_supplier_no", unique: true
     t.index ["account_id"], name: "index_mes_suppliers_on_account_id"
     t.index ["owner_id"], name: "index_mes_suppliers_on_owner_id"
