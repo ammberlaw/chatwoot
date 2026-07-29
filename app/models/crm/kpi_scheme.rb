@@ -11,6 +11,7 @@
 #  pass_score         :integer          default(70)
 #  payout_note        :text
 #  result_note        :text
+#  detail_tables      :jsonb            not null
 #  scheme_month       :datetime         not null
 #  status             :string           default("DRAFT"), not null
 #  created_at         :datetime         not null

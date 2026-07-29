@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_29_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1150,6 +1150,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_110000) do
     t.datetime "updated_at", null: false
     t.text "result_note"
     t.bigint "created_by_id"
+    t.jsonb "detail_tables", default: [], null: false
     t.index ["account_id", "scheme_month"], name: "index_crm_kpi_schemes_on_account_id_and_scheme_month"
     t.index ["account_id"], name: "index_crm_kpi_schemes_on_account_id"
     t.index ["created_by_id"], name: "index_crm_kpi_schemes_on_created_by_id"
