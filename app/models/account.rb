@@ -122,6 +122,7 @@ class Account < ApplicationRecord
   has_many :mes_production_orders, class_name: 'Mes::ProductionOrder', dependent: :destroy_async
   has_many :mes_board_owners, class_name: 'Mes::BoardOwner', dependent: :destroy_async
   has_many :mes_notifications, class_name: 'Mes::Notification', dependent: :destroy_async
+  has_many :mes_document_returns, class_name: 'Mes::DocumentReturn', dependent: :destroy_async
   has_many :org_departments, class_name: 'Org::Department', dependent: :destroy_async
   has_many :org_memberships, class_name: 'Org::Membership', dependent: :destroy_async
   has_many :oa_approval_templates, class_name: 'Oa::ApprovalTemplate', dependent: :destroy_async

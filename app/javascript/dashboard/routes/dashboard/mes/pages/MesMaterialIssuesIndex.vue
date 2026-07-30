@@ -16,6 +16,7 @@ import Select from 'dashboard/components-next/select/Select.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -240,6 +241,11 @@ onMounted(async () => {
                   size="sm"
                   :is-loading="posting"
                   @click="postEntry(e)"
+                />
+                <MesReturnControls
+                  :record="e"
+                  :store="store"
+                  :can-manage="mesCan('stock')"
                 />
               </div>
             </td>

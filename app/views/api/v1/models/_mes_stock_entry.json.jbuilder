@@ -25,5 +25,6 @@ json.stock_entry_items do
     json.partial! 'api/v1/models/mes_stock_entry_item', formats: [:json], resource: item
   end
 end
+json.partial! 'api/v1/models/mes_return_state', formats: [:json], resource: resource
 json.created_at resource.created_at
 json.updated_at resource.updated_at

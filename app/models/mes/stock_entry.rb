@@ -42,6 +42,7 @@
 class Mes::StockEntry < ApplicationRecord
   include Mes::DocumentNumber
   include Mes::LineScoped
+  include Mes::Returnable
 
   # 一表多用（ERPNext Stock Entry 模式）。SHIPMENT=成品出库（销售出库开单时内部生成）。
   PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN MANUFACTURE SCRAP SHIPMENT].freeze
@@ -65,6 +66,26 @@ class Mes::StockEntry < ApplicationRecord
 
   def self.document_number_prefix = 'SE'
   def self.document_number_column = :entry_no
+
+  # ── 单据退回（Mes::Returnable）──：库存单一表多用，本板块与上游按 purpose 而定。
+  #   原料入库(MATERIAL_RECEIPT) → 上游=采购；生产领料(MATERIAL_ISSUE) → 上游=原料入库；
+  #   成品入库(MANUFACTURE) → 上游=生产报工。
+  RETURN_BOARD_BY_PURPOSE = {
+    'MATERIAL_RECEIPT' => 'mes_stock_entries_index',
+    'MATERIAL_ISSUE' => 'mes_material_issues_index',
+    'MANUFACTURE' => 'mes_fg_inbound_index'
+  }.freeze
+  RETURN_LABEL_BY_PURPOSE = {
+    'MATERIAL_RECEIPT' => '原料入库单',
+    'MATERIAL_ISSUE' => '生产领料单',
+    'MANUFACTURE' => '成品入库单'
+  }.freeze
+
+  def document_board_key = RETURN_BOARD_BY_PURPOSE[purpose] || 'mes_stock_entries_index'
+  def return_document_label = RETURN_LABEL_BY_PURPOSE[purpose] || '库存单'
+  def return_document_no = entry_no
+  # 只有未过账(DRAFT)的库存单可退回；已过账写了不可改的库存流水，要撤须走冲销。
+  def returnable? = status == 'DRAFT' && RETURN_BOARD_BY_PURPOSE.key?(purpose)
 
   # 过账：按 purpose 方向对每个明细刷结存、记流水，然后置 POSTED。
   # 原料入库过账把关联生产订单推进到「原料入库」阶段。

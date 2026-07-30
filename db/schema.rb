@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_30_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1823,6 +1823,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.index ["sales_owner_id"], name: "index_mes_boms_on_sales_owner_id"
   end
 
+  create_table "mes_document_returns", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "returnable_type", null: false
+    t.bigint "returnable_id", null: false
+    t.bigint "returned_by_id"
+    t.text "reason", null: false
+    t.string "from_board_key"
+    t.string "to_board_key", null: false
+    t.datetime "resolved_at"
+    t.bigint "resolved_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_document_returns_on_account_id"
+    t.index ["returnable_type", "returnable_id", "resolved_at"], name: "index_mes_document_returns_on_returnable_and_resolved"
+    t.index ["returnable_type", "returnable_id"], name: "index_mes_document_returns_on_returnable"
+  end
+
   create_table "mes_inspections", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "kind", null: false
@@ -2712,6 +2729,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
   add_foreign_key "mes_boms", "crm_products", on_delete: :nullify
   add_foreign_key "mes_boms", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_boms", "users", column: "sales_owner_id", on_delete: :nullify
+  add_foreign_key "mes_document_returns", "accounts"
   add_foreign_key "mes_inspections", "crm_products", on_delete: :nullify
   add_foreign_key "mes_inspections", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_inspections", "mes_production_orders", column: "production_order_id", on_delete: :nullify

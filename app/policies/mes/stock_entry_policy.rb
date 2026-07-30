@@ -6,6 +6,9 @@ class Mes::StockEntryPolicy < ApplicationPolicy
   def update? = @account_user.mes_can?(:stock)
   def post? = @account_user.mes_can?(:stock)
 
+  def return_document? = @account_user.mes_can?(:stock)
+  def reactivate? = @account_user.mes_can?(:stock)
+
   def destroy? = @account_user.administrator?
 end
 

@@ -183,12 +183,25 @@ Rails.application.routes.draw do
             resources :bom_templates, except: [:new, :edit]
             resources :purchase_orders do
               collection { get :requirement }
+              member do
+                post :return_document
+                post :reactivate
+              end
             end
             resources :stock_entries do
-              member { post :post }
+              member do
+                post :post
+                post :return_document
+                post :reactivate
+              end
             end
             resources :stock_balances, only: [:index]
-            resources :production_records, only: [:index, :create, :destroy]
+            resources :production_records, only: [:index, :create, :destroy] do
+              member do
+                post :return_document
+                post :reactivate
+              end
+            end
             resources :inspections, only: [:index, :create, :destroy]
             resources :serial_numbers, only: [:index, :create, :destroy] do
               collection { get :trace }

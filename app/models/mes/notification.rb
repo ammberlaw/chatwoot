@@ -33,6 +33,7 @@ class Mes::Notification < ApplicationRecord
     bom_reconfirm bom_confirmed stage_assigned stage_returned
     production_reported
     shipment_approval_pending shipment_approved shipment_rejected
+    document_returned
   ].freeze
 
   belongs_to :account

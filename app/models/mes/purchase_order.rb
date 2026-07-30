@@ -35,6 +35,7 @@
 class Mes::PurchaseOrder < ApplicationRecord
   include Mes::DocumentNumber
   include Mes::LineScoped
+  include Mes::Returnable
 
   STATUSES = %w[DRAFT SUBMITTED PARTIAL_RECEIVED RECEIVED CANCELLED].freeze
 
@@ -55,6 +56,13 @@ class Mes::PurchaseOrder < ApplicationRecord
   def recompute_total!
     update_column(:total_amount_micros, purchase_items.sum(:amount_micros))
   end
+
+  # ── 单据退回（Mes::Returnable）──：退回目标 = 工程/PMC BOM 板块。
+  def document_board_key = 'mes_purchase_orders_index'
+  def return_document_label = '采购单'
+  def return_document_no = po_no
+  # 已全部收货 / 已作废的采购单不可退回。
+  def returnable? = %w[DRAFT SUBMITTED PARTIAL_RECEIVED].include?(status)
 
   private
 

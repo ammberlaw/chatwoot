@@ -31,6 +31,7 @@
 #
 class Mes::ProductionRecord < ApplicationRecord
   include Mes::LineScoped
+  include Mes::Returnable
 
   belongs_to :account
   belongs_to :production_order, class_name: 'Mes::ProductionOrder'
@@ -42,6 +43,13 @@ class Mes::ProductionRecord < ApplicationRecord
 
   validates :qty_completed, numericality: { greater_than_or_equal_to: 0 }
   validates :qty_returned, :qty_scrap, numericality: { greater_than_or_equal_to: 0 }
+
+  # ── 单据退回（Mes::Returnable）──：退回目标 = 生产领料板块（料不对退回仓库/领料）。
+  # 报工无过账态、无单号，恒可退，单号用 报工#id。
+  def document_board_key = 'mes_production_records_index'
+  def return_document_label = '生产报工单'
+  def return_document_no = "报工##{id}"
+  def returnable? = true
 
   private
 

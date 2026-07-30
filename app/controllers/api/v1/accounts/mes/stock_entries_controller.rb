@@ -1,4 +1,6 @@
 class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::BaseController
+  include Api::V1::Accounts::Mes::DocumentReturnable
+
   before_action :check_authorization
   before_action :fetch_stock_entry, only: [:show, :update, :destroy, :post]
 
@@ -49,6 +51,14 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
 
   def fetch_stock_entry
     @stock_entry = Current.account.mes_stock_entries.find(params[:id])
+  end
+
+  # DocumentReturnable 钩子
+  def returnable_record = Current.account.mes_stock_entries.find(params[:id])
+
+  def render_returnable(record)
+    @stock_entry = record
+    render 'api/v1/accounts/mes/stock_entries/show'
   end
 
   def check_authorization

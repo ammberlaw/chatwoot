@@ -12,7 +12,8 @@ const normalizeMeta = meta => ({
 });
 
 // CRM 资源通用 Pinia store：list/create/update/delete，payload 按 paramKey 包装。
-export const buildCrmStore = ({ name, API, paramKey }) =>
+// extraActions：可选，(API) => ({...actions}) 追加自定义动作（如 MES 单据退回）。
+export const buildCrmStore = ({ name, API, paramKey, extraActions }) =>
   createStore({
     name,
     type: 'pinia',
@@ -21,6 +22,7 @@ export const buildCrmStore = ({ name, API, paramKey }) =>
       getRecords: state => state.records,
     },
     actions: () => ({
+      ...(extraActions ? extraActions(API) : {}),
       async get(params = {}) {
         this.setUIFlag({ fetchingList: true });
         try {

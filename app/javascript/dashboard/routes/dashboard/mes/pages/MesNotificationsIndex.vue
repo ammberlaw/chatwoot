@@ -22,6 +22,7 @@ const KIND_META = {
   shipment_approval_pending: { label: '待审核出库', dot: 'bg-n-amber-9' },
   shipment_approved: { label: '待出库', dot: 'bg-n-teal-9' },
   shipment_rejected: { label: '出库被驳回', dot: 'bg-n-ruby-9' },
+  document_returned: { label: '单据被退回', dot: 'bg-n-amber-9' },
 };
 const kindMeta = kind =>
   KIND_META[kind] || { label: '通知', dot: 'bg-n-slate-9' };

@@ -10,4 +10,5 @@ json.operator_id resource.operator_id
 json.operator_name resource.operator&.name
 json.recorded_at resource.recorded_at
 json.remark resource.remark
+json.partial! 'api/v1/models/mes_return_state', formats: [:json], resource: resource
 json.created_at resource.created_at

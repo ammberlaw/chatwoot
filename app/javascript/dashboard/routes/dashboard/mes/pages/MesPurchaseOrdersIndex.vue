@@ -17,6 +17,7 @@ import Select from 'dashboard/components-next/select/Select.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
 const { accountId } = useAccount();
 const route = useRoute();
@@ -409,6 +410,11 @@ onMounted(async () => {
                   variant="ghost"
                   size="sm"
                   @click="openEdit(p)"
+                />
+                <MesReturnControls
+                  :record="p"
+                  :store="store"
+                  :can-manage="mesCan('purchase')"
                 />
               </div>
             </td>

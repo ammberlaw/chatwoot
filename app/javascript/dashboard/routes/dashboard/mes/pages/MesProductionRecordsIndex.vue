@@ -12,6 +12,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
 const { accountId } = useAccount();
 const store = useMesProductionRecordsStore();
@@ -169,12 +170,19 @@ onMounted(() => {
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ time(r.recordedAt) }}</td>
             <td class="px-3 py-3 text-right">
-              <Button
-                label="查看"
-                variant="ghost"
-                size="sm"
-                @click="openView(r)"
-              />
+              <div class="inline-flex items-center justify-end gap-1">
+                <Button
+                  label="查看"
+                  variant="ghost"
+                  size="sm"
+                  @click="openView(r)"
+                />
+                <MesReturnControls
+                  :record="r"
+                  :store="store"
+                  :can-manage="mesCan('report')"
+                />
+              </div>
             </td>
           </tr>
           <tr v-if="!records.length">

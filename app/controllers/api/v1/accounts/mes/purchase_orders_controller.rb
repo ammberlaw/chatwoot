@@ -1,4 +1,6 @@
 class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes::BaseController
+  include Api::V1::Accounts::Mes::DocumentReturnable
+
   before_action :check_authorization
   before_action :fetch_purchase_order, only: [:show, :update, :destroy]
 
@@ -46,6 +48,14 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   def fetch_purchase_order
     @purchase_order = Current.account.mes_purchase_orders.find(params[:id])
+  end
+
+  # DocumentReturnable 钩子
+  def returnable_record = Current.account.mes_purchase_orders.find(params[:id])
+
+  def render_returnable(record)
+    @purchase_order = record
+    render 'api/v1/accounts/mes/purchase_orders/show'
   end
 
   def check_authorization

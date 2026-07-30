@@ -6,6 +6,9 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
   def create? = @account_user.mes_can?(:purchase)
   def update? = @account_user.mes_can?(:purchase)
 
+  def return_document? = @account_user.mes_can?(:purchase)
+  def reactivate? = @account_user.mes_can?(:purchase)
+
   def destroy? = @account_user.administrator?
 end
 

@@ -1,4 +1,6 @@
 class Api::V1::Accounts::Mes::ProductionRecordsController < Api::V1::Accounts::Mes::BaseController
+  include Api::V1::Accounts::Mes::DocumentReturnable
+
   before_action :check_authorization
 
   def index
@@ -21,6 +23,14 @@ class Api::V1::Accounts::Mes::ProductionRecordsController < Api::V1::Accounts::M
   end
 
   private
+
+  # DocumentReturnable 钩子
+  def returnable_record = Current.account.mes_production_records.find(params[:id])
+
+  def render_returnable(record)
+    @production_record = record
+    render 'api/v1/accounts/mes/production_records/show'
+  end
 
   def check_authorization
     authorize(Mes::ProductionRecord)

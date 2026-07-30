@@ -3,6 +3,7 @@ import snakecaseKeys from 'snakecase-keys';
 import MesStockEntryAPI from 'dashboard/api/mes/stockEntries';
 import { createStore } from 'dashboard/store/storeFactory';
 import { throwErrorMessage } from 'dashboard/store/utils/api';
+import { buildMesReturnActions } from './_returnActions';
 
 const camelize = data => camelcaseKeys(data || {}, { deep: true });
 const normalizeMeta = meta => ({
@@ -19,6 +20,8 @@ export const useMesStockEntriesStore = createStore({
     getRecords: state => state.records,
   },
   actions: () => ({
+    ...buildMesReturnActions(MesStockEntryAPI),
+
     async get(params = {}) {
       this.setUIFlag({ fetchingList: true });
       try {
