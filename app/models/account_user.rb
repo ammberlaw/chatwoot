@@ -110,11 +110,13 @@ class AccountUser < ApplicationRecord
     crm_role == 'manager' || leads_business_department?
   end
 
-  # 是否任一业务条线部门的负责人（组织架构事实，与角色字段无关）。
+  # 是否任一部门的负责人（组织架构事实，与角色字段无关）。
+  # 不限业务条线：设计/TK/外贸等部门命名不含「销售/业务」，按条线判会漏；
+  # 数据范围始终只算所辖部门子树，非业务部门负责人也需要考核打分/考勤汇总。
   def leads_business_department?
     return @leads_business_department if defined?(@leads_business_department)
 
-    @leads_business_department = account.org_departments.where(leader_id: user_id).any?(&:business_line?)
+    @leads_business_department = account.org_departments.where(leader_id: user_id).exists?
   end
 
   # 副管理员：CRM 内数据范围与文档管理同管理员；账号级管理（成员权限/回收站等）仍仅系统管理员。
