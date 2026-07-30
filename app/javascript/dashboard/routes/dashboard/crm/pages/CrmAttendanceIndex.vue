@@ -16,7 +16,11 @@ const isAdminLike = computed(
     currentUser.value?.role === 'administrator' ||
     currentUser.value?.crm_role === 'deputy_admin'
 );
-const isManager = computed(() => currentUser.value?.crm_role === 'manager');
+const isManager = computed(
+  () =>
+    currentUser.value?.crm_manager === true ||
+    currentUser.value?.crm_role === 'manager'
+);
 const canSummary = computed(() => isAdminLike.value || isManager.value);
 
 const STATUS_META = {

@@ -15,6 +15,8 @@ json.pubsub_token resource.pubsub_token
 json.custom_attributes resource.custom_attributes if resource.custom_attributes.present?
 json.role resource.active_account_user&.role
 json.crm_role resource.active_account_user&.crm_role
+# 有效主管身份（角色为主管，或副管理员/管理员兼任业务部门负责人），前端判主管一律用它
+json.crm_manager resource.active_account_user&.crm_manager? || false
 json.mes_role resource.active_account_user&.mes_role
 json.mes_capabilities resource.active_account_user&.mes_capability_list || []
 json.can_access_crm resource.active_account_user&.can_access_crm? || false

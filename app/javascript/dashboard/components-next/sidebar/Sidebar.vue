@@ -70,14 +70,20 @@ const isAdmin = computed(() => currentUser.value?.role === 'administrator');
 const isAdminLike = computed(
   () => isAdmin.value || currentUser.value?.crm_role === 'deputy_admin'
 );
-const isCrmManager = computed(() => currentUser.value?.crm_role === 'manager');
+// 有效主管身份用后端派生的 crm_manager（覆盖副管理员/管理员兼任部门负责人）。
+const isCrmManager = computed(
+  () =>
+    currentUser.value?.crm_manager === true ||
+    currentUser.value?.crm_role === 'manager'
+);
 // 人事角色：组织架构/成员管理/绩效/员工档案入口（无 CRM 销售数据）。
 const isCrmHr = computed(() => currentUser.value?.crm_role === 'hr');
 // 普通业务（非管理员/副管理员/部门负责人）：隐藏公司级看板等团队之外的数据入口。
 const isCrmSales = computed(
   () =>
     !isAdmin.value &&
-    !['deputy_admin', 'manager'].includes(currentUser.value?.crm_role)
+    !isCrmManager.value &&
+    currentUser.value?.crm_role !== 'deputy_admin'
 );
 // 绩效板块按角色可见性（服务端按当前用户角色算好；管理员始终 true）。
 const kpiSchemeVisible = computed(

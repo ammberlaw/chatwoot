@@ -24,6 +24,7 @@ const canManage = computed(() => {
   const role = currentUser.value?.role;
   return (
     role === 'administrator' ||
+    currentUser.value?.crm_manager === true ||
     ['deputy_admin', 'manager', 'hr'].includes(currentUser.value?.crm_role)
   );
 });

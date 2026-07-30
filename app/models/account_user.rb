@@ -104,8 +104,17 @@ class AccountUser < ApplicationRecord
   end
 
   # CRM 数据条线是否主管（部门负责人）：看本部门（含下级）；业务员/其他看自己。
+  # 支持身份叠加：副管理员/管理员兼任业务部门负责人时同时具备主管身份。
+  # 数据范围不受影响——所有调用方都先判管理员/副管理员（更大范围）再判主管。
   def crm_manager?
-    crm_role == 'manager'
+    crm_role == 'manager' || leads_business_department?
+  end
+
+  # 是否任一业务条线部门的负责人（组织架构事实，与角色字段无关）。
+  def leads_business_department?
+    return @leads_business_department if defined?(@leads_business_department)
+
+    @leads_business_department = account.org_departments.where(leader_id: user_id).any?(&:business_line?)
   end
 
   # 副管理员：CRM 内数据范围与文档管理同管理员；账号级管理（成员权限/回收站等）仍仅系统管理员。

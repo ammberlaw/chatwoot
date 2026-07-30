@@ -49,7 +49,12 @@ const load = async () => {
 
 const uid = computed(() => currentUser.value?.id);
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
-const canManage = computed(() => isAdmin.value || currentUser.value?.crm_role === 'manager');
+const canManage = computed(
+  () =>
+    isAdmin.value ||
+    currentUser.value?.crm_manager === true ||
+    currentUser.value?.crm_role === 'manager'
+);
 const isOwner = computed(() => sheet.value?.ownerId === uid.value);
 const isHr = computed(() => isAdmin.value || uid.value === setting.value?.hrOwnerId);
 const isGm = computed(() => isAdmin.value || uid.value === setting.value?.gmOwnerId);

@@ -12,12 +12,23 @@ export function useCrmRole() {
   const isCrmDeputyAdmin = computed(
     () => currentUser.value?.crm_role === 'deputy_admin'
   );
+  // 有效主管身份用后端派生的 crm_manager（覆盖副管理员/管理员兼任部门负责人）；
+  // 兜底再看 crm_role，避免旧缓存的 currentUser 缺字段。
   const isCrmManager = computed(
-    () => currentUser.value?.crm_role === 'manager'
+    () =>
+      currentUser.value?.crm_manager === true ||
+      currentUser.value?.crm_role === 'manager'
   );
   const isCrmHr = computed(() => currentUser.value?.crm_role === 'hr');
   const isCrmSales = computed(
     () => !isAdmin.value && !isCrmDeputyAdmin.value && !isCrmManager.value
   );
-  return { currentUser, isAdmin, isCrmDeputyAdmin, isCrmManager, isCrmHr, isCrmSales };
+  return {
+    currentUser,
+    isAdmin,
+    isCrmDeputyAdmin,
+    isCrmManager,
+    isCrmHr,
+    isCrmSales,
+  };
 }
