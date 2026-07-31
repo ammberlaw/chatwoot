@@ -45,13 +45,18 @@ class Crm::EmailSendService
     @email.files.each { |file| message.add_file(filename: file.filename.to_s, content: file.download) }
   end
 
+  # 写信编辑器的文字颜色/下划线在 markdown 里以 span、u 标记存储（草稿再编辑要保留），
+  # 发出的纯文本 part 把标记剥掉，收件人不见到源码。
+  TEXT_COLOR_MARKER = %r{<span style=color:#\h{6}>|</span>|</?u>}
+
   # HTML 邮件走 html/text 双 part（HTML 埋追踪像素）；纯文本邮件直接正文。
   def apply_body(message)
+    plain_body = @email.body.to_s.gsub(TEXT_COLOR_MARKER, '')
     if @email.body_html.present?
       message.html_part = Mail::Part.new(body: html_with_tracking_pixel, content_type: 'text/html; charset=UTF-8')
-      message.text_part = Mail::Part.new(body: @email.body.to_s, content_type: 'text/plain; charset=UTF-8')
+      message.text_part = Mail::Part.new(body: plain_body, content_type: 'text/plain; charset=UTF-8')
     else
-      message.body = @email.body.to_s
+      message.body = plain_body
       message.charset = 'UTF-8'
     end
   end

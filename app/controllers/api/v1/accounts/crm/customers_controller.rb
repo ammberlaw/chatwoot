@@ -42,6 +42,54 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     @customer = Current.account.crm_customers.create!(customer_params)
   end
 
+  # 电话归一化：只留数字，再剥中国手机号的 86/0086 前缀（86+1 开头 11 位），
+  # 使 +86 138-0013-8000 与 13800138000 判为同号。
+  PHONE_NORM_SQL = "NULLIF(REGEXP_REPLACE(REGEXP_REPLACE(COALESCE(%s, ''), '\\D', '', 'g'), '^(00)?86(1\\d{10})$', '\\2'), '')".freeze
+
+  # 存量查重维度：字段 → 归一化 SQL 表达式 + 最短有效长度（过滤空值/无意义短值）。
+  DUP_DIMENSIONS = {
+    'contact_email' => { expr: "LOWER(NULLIF(TRIM(contact_email), ''))", min_len: 5 },
+    'contact_phone' => { expr: format(PHONE_NORM_SQL, 'contact_phone'), min_len: 6 },
+    'whats_app' => { expr: format(PHONE_NORM_SQL, 'whats_app'), min_len: 6 },
+    'name' => { expr: 'LOWER(TRIM(name))', min_len: 2 }
+  }.freeze
+  DUP_GROUPS_PER_DIMENSION = 50
+
+  # 存量客户查重板块：全库按维度归组列出重复客户（跨负责人撞单检测才有意义，
+  # 故不按辖区收口；行内只暴露 dedupe_row 的有限字段）。
+  def duplicates
+    payload = DUP_DIMENSIONS.transform_values { |dim| dimension_groups(dim[:expr], dim[:min_len]) }
+    render json: { payload: payload }
+  end
+
+  # 邮箱身份识别（邮件阅读区悬浮卡）：同事 / 我的客户 / 同事客户(撞单) / 陌生人。
+  def identify
+    email = params[:email].to_s.strip.downcase
+    return render json: { type: 'stranger' } if email.blank?
+
+    colleague = Current.account.users.where('LOWER(users.email) = ?', email).first
+    return render json: { type: 'colleague', name: colleague.name } if colleague
+
+    customer = Current.account.crm_customers.where('LOWER(contact_email) = ?', email).first
+    return render json: { type: 'stranger' } if customer.nil?
+
+    render json: {
+      type: customer.account_owner_id == current_user.id ? 'mine' : 'other',
+      customer: dedupe_row(customer)
+    }
+  end
+
+  DEDUPE_SEARCH_LIMIT = 50
+
+  # 主动查重检索：按范围+关键词全库搜（跨负责人撞单检索），返回表格行。
+  def dedupe_search
+    q = params[:q].to_s.strip
+    return render json: { payload: [] } if q.length < 2
+
+    rows = dedupe_search_scope(q, params[:scope].to_s).order(:id).limit(DEDUPE_SEARCH_LIMIT)
+    render json: { payload: rows.map { |c| dedupe_search_row(c) } }
+  end
+
   # 客户建档实时查重：邮箱精确命中(阻止) + 公司名相似(提醒)。
   def check_duplicate
     email = params[:email].to_s.strip
@@ -208,6 +256,91 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     )
   end
 
+  # 单维度重复组：归一化值出现 >1 次的分组（按重复条数倒序，取前 DUP_GROUPS_PER_DIMENSION 组）。
+  def dimension_groups(expr, min_len)
+    scope = Current.account.crm_customers
+    counts = scope.group(Arel.sql(expr))
+                  .having(Arel.sql("#{expr} IS NOT NULL AND LENGTH(#{expr}) >= #{min_len.to_i} AND COUNT(*) > 1"))
+                  .count
+    values = counts.sort_by { |_v, count| -count }.first(DUP_GROUPS_PER_DIMENSION).map(&:first)
+    return [] if values.empty?
+
+    # 命名绑定：expr 的正则里含 ?（如 (00)?），位置绑定会把它误当占位符
+    rows = scope.where("#{expr} IN (:values)", values: values).order(:id).group_by { |c| normalized_value(expr, c) }
+    values.map { |v| { value: v, customers: rows.fetch(v, []).map { |c| dedupe_row(c) } } }
+  end
+
+  # 在 Ruby 侧复算归一化值，把整组客户按 SQL 分组键对上号。
+  def normalized_value(expr, customer)
+    case expr
+    when DUP_DIMENSIONS['contact_email'][:expr] then customer.contact_email.to_s.strip.downcase.presence
+    when DUP_DIMENSIONS['contact_phone'][:expr] then normalized_phone(customer.contact_phone)
+    when DUP_DIMENSIONS['whats_app'][:expr] then normalized_phone(customer.whats_app)
+    else customer.name.to_s.strip.downcase
+    end
+  end
+
+  # 与 PHONE_NORM_SQL 同规则的 Ruby 版。
+  def normalized_phone(raw)
+    raw.to_s.gsub(/\D/, '').sub(/\A(00)?86(1\d{10})\z/, '\2').presence
+  end
+
+  # 单列 ILIKE 的检索范围：范围键 → 列名。
+  DEDUPE_SCOPE_COLUMNS = {
+    'name' => 'name', 'code' => 'customer_code', 'email' => 'contact_email', 'contact' => 'primary_contact_name'
+  }.freeze
+
+  # 主动查重的范围检索。电话按去符号后的数字包含匹配；邮箱后缀匹配 @ 结尾段。
+  def dedupe_search_scope(query, scope_key)
+    base = Current.account.crm_customers
+    like = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
+    column = DEDUPE_SCOPE_COLUMNS[scope_key]
+    return base.where("#{column} ILIKE :q", q: like) if column
+
+    case scope_key
+    when 'email_suffix'
+      base.where('contact_email ILIKE :q', q: "%@#{ActiveRecord::Base.sanitize_sql_like(query.delete_prefix('@'))}")
+    when 'phone' then dedupe_phone_scope(base, query)
+    when 'social' then base.where('whats_app ILIKE :q OR wechat ILIKE :q OR linkedin ILIKE :q', q: like)
+    else dedupe_all_scope(base, like, query)
+    end
+  end
+
+  # 库侧列按 PHONE_NORM_SQL 归一（剥 86 前缀），查询词也生成「原样 + 剥 86」两个变体，
+  # 保证 +86 版与裸号版互相都能搜到。
+  def dedupe_phone_scope(base, query)
+    digits = query.gsub(/\D/, '')
+    variants = [digits, digits.sub(/\A(00)?86/, '')].uniq.select { |d| d.length >= 4 }
+    return base.none if variants.empty?
+
+    phone_expr = format(PHONE_NORM_SQL, 'contact_phone')
+    wa_expr = format(PHONE_NORM_SQL, 'whats_app')
+    clauses = variants.each_index.map { |i| "#{phone_expr} LIKE :d#{i} OR #{wa_expr} LIKE :d#{i}" }.join(' OR ')
+    binds = variants.each_with_index.to_h { |d, i| [:"d#{i}", "%#{d}%"] }
+    base.where(clauses, **binds)
+  end
+
+  # 「全部」：文本字段 OR 检索；关键词含 ≥4 位数字时并入电话匹配。
+  def dedupe_all_scope(base, like, query)
+    text_hit = base.where(
+      'name ILIKE :q OR customer_code ILIKE :q OR contact_email ILIKE :q OR ' \
+      'primary_contact_name ILIKE :q OR whats_app ILIKE :q OR wechat ILIKE :q OR linkedin ILIKE :q', q: like
+    )
+    digits = query.gsub(/\D/, '')
+    return text_hit if digits.length < 4
+
+    text_hit.or(dedupe_phone_scope(base, query))
+  end
+
+  # 主动查重结果行：对齐查重表格列（编号/阶段/公司/联系人/邮箱/电话）+ 归属。
+  def dedupe_search_row(customer)
+    dedupe_row(customer).merge(
+      contact_name: customer.primary_contact_name,
+      email: customer.contact_email,
+      phone: customer.contact_phone
+    )
+  end
+
   def name_matches(name)
     Current.account.crm_customers
            .where('name ILIKE ?', "%#{name}%")
@@ -219,7 +352,10 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   def dedupe_row(customer)
     return nil if customer.nil?
 
-    { id: customer.id, name: customer.name, customer_code: customer.customer_code, owner: owner_label(customer) }
+    {
+      id: customer.id, name: customer.name, customer_code: customer.customer_code, owner: owner_label(customer),
+      status: customer.customer_status, in_public_pool: customer.is_in_public_pool
+    }
   end
 
   def owner_label(customer)

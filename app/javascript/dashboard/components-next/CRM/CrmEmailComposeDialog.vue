@@ -27,9 +27,12 @@ import {
   tzOffsetLabel,
 } from 'dashboard/routes/dashboard/crm/helper/scheduleTimezone';
 import { useAlert } from 'dashboard/composables';
+import { renderTextColorSpans } from 'dashboard/helper/editorTextColor';
+import { vOnClickOutside } from '@vueuse/components';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
+import CrmColorPalette from 'dashboard/components-next/CRM/CrmColorPalette.vue';
 
 const emit = defineEmits(['refresh']);
 const store = useCrmEmailsStore();
@@ -101,10 +104,17 @@ const L = {
   kbEmptyNoMatch: '没有匹配的文档，换个搜索词或分类试试。',
   kbPickFilePrompt: '选择左侧一篇文档查看并勾选文件。',
   kbFootTip: '勾选的文件会在发送时复制进本邮件并锁定当前版本。',
+  colorApply: '文字颜色（选中文字后点击）',
+  colorA: 'A',
+  colorPalette: '颜料盘',
+  underline: '下划线（选中文字后点击）',
+  underlineU: 'U',
 };
 
 // 富文本编辑器输出 Markdown；发送/预览时用 Chatwoot 的 MessageFormatter 转 HTML。
-const markdownToHtml = src => formatMessage(src || '', false, false);
+// 文字颜色标记被 html:false 转义成文本，渲染后按严格格式还原成真 span。
+const markdownToHtml = src =>
+  renderTextColorSpans(formatMessage(src || '', false, false));
 
 // ---- 状态 ----
 const visible = ref(false);
@@ -163,6 +173,17 @@ const FONT_SIZES = [
 ];
 const fontFamily = ref('');
 const fontSize = ref('');
+
+// 选中文字颜色：颜料盘组件（预设色板/最近使用/渐变取色/hex 输入）见 CrmColorPalette。
+const editorRef = ref(null);
+const textColor = ref('#e53935');
+const showColorMenu = ref(false);
+
+const applyTextColor = color => {
+  if (color) textColor.value = color;
+  editorRef.value?.setTextColor(color);
+  showColorMenu.value = false;
+};
 
 // 客户 / 联系人
 const customerQuery = ref('');
@@ -241,8 +262,14 @@ const measureToolbar = () => {
   }
   const base = root.getBoundingClientRect();
   const bar = menubar.getBoundingClientRect();
+  // 垂直对齐到菜单栏图标的中线（浮层自身固定 h-7=28px），而非菜单栏顶边。
+  const item = menubar.querySelector('.ProseMirror-menuitem') || menubar;
+  const itemRect = item.getBoundingClientRect();
   toolbarPos.value = bar.width
-    ? { left: bar.right - base.left + 8, top: bar.top - base.top }
+    ? {
+        left: bar.right - base.left + 8,
+        top: itemRect.top + itemRect.height / 2 - base.top - 14,
+      }
     : null;
 };
 const fontToolbarStyle = computed(() =>
@@ -707,6 +734,10 @@ const open = async prefill => {
   measureToolbar();
   // 编辑器布局稳定后再量一次（首帧菜单栏宽度可能还没定）。
   window.setTimeout(measureToolbar, 60);
+  // 回复/转发：编辑器挂载后把光标定到引用原文上方的空白回复区，免去手动点击回车。
+  if (prefill?.focusReplyTop) {
+    window.setTimeout(() => editorRef.value?.focusReplyStart(), 80);
+  }
 };
 
 defineExpose({ open, close });
@@ -919,12 +950,67 @@ defineExpose({ open, close });
           <div ref="bodyRef" class="relative flex flex-col">
             <!-- 字体 / 字号：贴到编辑器工具栏按钮组右侧，整封生效、实时预览 -->
             <div
-              class="absolute z-10 flex items-center gap-0.5"
+              class="absolute z-10 flex items-center gap-0.5 h-7"
               :style="fontToolbarStyle"
             >
+              <!-- 下划线：切换选区/后续输入的下划线 -->
+              <button
+                class="flex items-center justify-center rounded h-7 w-7 shrink-0 hover:bg-n-alpha-2"
+                :title="L.underline"
+                @mousedown.prevent
+                @click="editorRef?.toggleUnderline()"
+              >
+                <span
+                  class="text-[13px] font-semibold underline underline-offset-2 text-n-slate-12"
+                >
+                  {{ L.underlineU }}
+                </span>
+              </button>
+              <!-- 文字颜色：A 直接套当前色，▾ 展开色板（含清除/自定义取色） -->
+              <div
+                v-on-click-outside="() => (showColorMenu = false)"
+                class="relative flex items-stretch overflow-hidden border rounded shrink-0 border-n-weak"
+              >
+                <button
+                  class="flex flex-col items-center justify-center h-7 w-7 hover:bg-n-alpha-2"
+                  :title="L.colorApply"
+                  @mousedown.prevent
+                  @click="applyTextColor(textColor)"
+                >
+                  <span
+                    class="text-[13px] font-semibold leading-none text-n-slate-12"
+                  >
+                    {{ L.colorA }}
+                  </span>
+                  <span
+                    class="w-4 h-[3px] mt-0.5 rounded-sm"
+                    :style="{ backgroundColor: textColor }"
+                  />
+                </button>
+                <button
+                  class="flex items-center justify-center h-7 w-5 border-l border-n-weak bg-n-alpha-1 hover:bg-n-alpha-2"
+                  :title="L.colorPalette"
+                  @mousedown.prevent
+                  @click="showColorMenu = !showColorMenu"
+                >
+                  <span
+                    class="block w-4 h-4 i-lucide-chevron-down shrink-0 text-n-slate-11"
+                  />
+                </button>
+                <div
+                  v-if="showColorMenu"
+                  class="absolute top-8 left-0 z-20 p-2.5 border rounded-lg shadow-lg bg-n-solid-1 border-n-weak"
+                >
+                  <CrmColorPalette
+                    :model-value="textColor"
+                    @select="applyTextColor"
+                    @clear="applyTextColor(null)"
+                  />
+                </div>
+              </div>
               <select
                 v-model="fontFamily"
-                class="h-7 px-1.5 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-0 w-[124px]"
+                class="h-7 px-1.5 mb-0 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-0 w-[124px]"
               >
                 <option
                   v-for="f in FONT_FAMILIES"
@@ -936,7 +1022,7 @@ defineExpose({ open, close });
               </select>
               <select
                 v-model="fontSize"
-                class="h-7 px-1.5 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-0"
+                class="h-7 px-1.5 mb-0 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-0"
               >
                 <option v-for="s in FONT_SIZES" :key="s.label" :value="s.value">
                   {{ s.label }}
@@ -948,9 +1034,11 @@ defineExpose({ open, close });
               :style="bodyStyle"
             >
               <Editor
+                ref="editorRef"
                 v-model="form.body"
                 editor-key="crm-email-compose"
                 channel-type="Channel::Email"
+                enable-text-color
                 :enable-canned-responses="false"
                 :show-character-count="false"
                 :placeholder="L.bodyPlaceholder"

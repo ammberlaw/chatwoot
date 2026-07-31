@@ -7,6 +7,19 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 存量查重板块全员可看：撞单预防本来就要跨负责人可见（行内仅有限字段）。
+  def duplicates?
+    true
+  end
+
+  def dedupe_search?
+    true
+  end
+
+  def identify?
+    true
+  end
+
   def claim?
     true
   end

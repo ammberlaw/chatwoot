@@ -48,7 +48,8 @@ const activeSourceChannel = ref('');
 const currentPage = ref(1);
 const sortKey = ref(''); // '' = 默认(更新时间倒序)；'deal_amount' = 累计成交额
 const sortDir = ref('desc');
-const searchQuery = ref('');
+// 支持 ?q= 深链（客户查重页跳转定位用）
+const searchQuery = ref(route.query.q || '');
 const teams = ref([]);
 const selectedTeamId = ref('');
 const selectedOwnerId = ref('');

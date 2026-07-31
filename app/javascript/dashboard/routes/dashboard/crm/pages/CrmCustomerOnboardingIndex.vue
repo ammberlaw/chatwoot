@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, reactive, computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
@@ -11,19 +12,35 @@ const currentUserId = useMapGetter('getCurrentUserID');
 // 国家：[码, '国旗 中文名'] 对，供 <option> 遍历
 const COUNTRY = Object.entries(COUNTRY_LABELS);
 const CUSTOMER_GROUP = [
-  ['KEY_ACCOUNT_WON', '成交重点客户'], ['WON', '成交客户'], ['SAMPLE_WON', '成交样品客户'],
-  ['NOT_WON', '未成交客户'], ['SOCIAL_MEDIA', '社媒开发客户'],
+  ['KEY_ACCOUNT_WON', '成交重点客户'],
+  ['WON', '成交客户'],
+  ['SAMPLE_WON', '成交样品客户'],
+  ['NOT_WON', '未成交客户'],
+  ['SOCIAL_MEDIA', '社媒开发客户'],
 ];
 const PRODUCT_GROUP = [
-  ['TABLET', '平板电脑'], ['COMMERCIAL_DISPLAY', '商显工控'],
+  ['TABLET', '平板电脑'],
+  ['COMMERCIAL_DISPLAY', '商显工控'],
 ];
 const SOURCE = [
-  ['ALIBABA', '阿里巴巴国际站'], ['WEBSITE', '官网'], ['EXHIBITION', '展会'],
-  ['EMAIL', '邮件开发'], ['SOCIAL_MEDIA', '社媒开发'], ['OTHER', '其他'],
+  ['ALIBABA', '阿里巴巴国际站'],
+  ['WEBSITE', '官网'],
+  ['EXHIBITION', '展会'],
+  ['EMAIL', '邮件开发'],
+  ['SOCIAL_MEDIA', '社媒开发'],
+  ['OTHER', '其他'],
 ];
-const LEVEL = [['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']];
+const LEVEL = [
+  ['A', 'A'],
+  ['B', 'B'],
+  ['C', 'C'],
+  ['D', 'D'],
+];
 const CONTACT_PREFERENCE = [
-  ['EMAIL', '邮件'], ['PHONE', '电话'], ['WHATSAPP', 'WhatsApp'], ['WECHAT', '微信'],
+  ['EMAIL', '邮件'],
+  ['PHONE', '电话'],
+  ['WHATSAPP', 'WhatsApp'],
+  ['WECHAT', '微信'],
 ];
 
 const form = reactive({
@@ -44,6 +61,10 @@ const form = reactive({
   whatsApp: '',
   contactPreference: '',
 });
+
+// 从邮件身份卡「新建为客户」跳来时预填联系邮箱。
+const route = useRoute();
+if (route.query.email) form.email = String(route.query.email);
 
 const emailHit = ref(null);
 const nameHits = ref([]);
@@ -130,8 +151,13 @@ const submit = async () => {
     customer_status: 'PROSPECT',
   };
   try {
-    const { data } = await axios.post(`${api()}/customers`, { customer: payload });
-    result.value = { ok: true, code: data.customerCode || data.customer_code || '' };
+    const { data } = await axios.post(`${api()}/customers`, {
+      customer: payload,
+    });
+    result.value = {
+      ok: true,
+      code: data.customerCode || data.customer_code || '',
+    };
     resetForm();
   } catch (e) {
     result.value = {
@@ -145,7 +171,9 @@ const submit = async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div class="flex-shrink-0 px-6 py-4 border-b border-n-weak">
       <h1 class="text-xl font-medium text-n-slate-12">客户建档</h1>
     </div>
@@ -153,7 +181,9 @@ const submit = async () => {
     <div class="flex flex-col w-full max-w-3xl gap-4 px-6 py-5">
       <p class="text-xs text-n-slate-11">
         新客户建档。<strong class="text-n-slate-12">建档后客户自动归你名下（私海）</strong
-        >，客户编号自动生成。带 <span class="text-n-ruby-11">*</span> 为必填；同一邮箱只能被一个客户建档。
+        >，客户编号自动生成。带
+        <span class="text-n-ruby-11">*</span>
+        为必填；同一邮箱只能被一个客户建档。
       </p>
 
       <div
@@ -181,7 +211,9 @@ const submit = async () => {
       </div>
 
       <!-- 基本信息 -->
-      <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
         基本信息
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -204,7 +236,9 @@ const submit = async () => {
       </div>
 
       <!-- 业务信息 -->
-      <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
         业务信息
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -215,7 +249,9 @@ const submit = async () => {
             class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
           >
             <option value="">选择国家/地区</option>
-            <option v-for="[val, lab] in COUNTRY" :key="val" :value="val">{{ lab }}</option>
+            <option v-for="[val, lab] in COUNTRY" :key="val" :value="val">
+              {{ lab }}
+            </option>
           </select>
         </label>
         <label class="flex flex-col gap-1">
@@ -225,7 +261,9 @@ const submit = async () => {
             class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
           >
             <option value="">选择来源（选填）</option>
-            <option v-for="[val, lab] in SOURCE" :key="val" :value="val">{{ lab }}</option>
+            <option v-for="[val, lab] in SOURCE" :key="val" :value="val">
+              {{ lab }}
+            </option>
           </select>
         </label>
         <label class="flex flex-col gap-1">
@@ -235,7 +273,13 @@ const submit = async () => {
             class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
           >
             <option value="">选择客户分组</option>
-            <option v-for="[val, lab] in CUSTOMER_GROUP" :key="val" :value="val">{{ lab }}</option>
+            <option
+              v-for="[val, lab] in CUSTOMER_GROUP"
+              :key="val"
+              :value="val"
+            >
+              {{ lab }}
+            </option>
           </select>
         </label>
         <label class="flex flex-col gap-1">
@@ -245,7 +289,9 @@ const submit = async () => {
             class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
           >
             <option value="">选择产品分组</option>
-            <option v-for="[val, lab] in PRODUCT_GROUP" :key="val" :value="val">{{ lab }}</option>
+            <option v-for="[val, lab] in PRODUCT_GROUP" :key="val" :value="val">
+              {{ lab }}
+            </option>
           </select>
         </label>
         <label class="flex flex-col gap-1">
@@ -255,13 +301,17 @@ const submit = async () => {
             class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
           >
             <option value="">选择等级（选填）</option>
-            <option v-for="[val, lab] in LEVEL" :key="val" :value="val">{{ lab }}</option>
+            <option v-for="[val, lab] in LEVEL" :key="val" :value="val">
+              {{ lab }}
+            </option>
           </select>
         </label>
       </div>
 
       <!-- 联系信息 -->
-      <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
         联系信息
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -329,7 +379,11 @@ const submit = async () => {
             class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
           >
             <option value="">选择偏好（选填）</option>
-            <option v-for="[val, lab] in CONTACT_PREFERENCE" :key="val" :value="val">
+            <option
+              v-for="[val, lab] in CONTACT_PREFERENCE"
+              :key="val"
+              :value="val"
+            >
               {{ lab }}
             </option>
           </select>
@@ -361,7 +415,9 @@ const submit = async () => {
         v-if="result?.ok"
         class="p-3 text-sm border rounded-lg border-n-teal-8 text-n-teal-11"
       >
-        ✅ 建档成功<template v-if="result.code">，客户编号 {{ result.code }}</template
+        ✅ 建档成功<template v-if="result.code">
+          ，客户编号 {{ result.code }}
+</template
         >，已归入你的私海。可继续建下一个。
       </div>
       <div

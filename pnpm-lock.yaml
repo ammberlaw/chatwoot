@@ -183,6 +183,9 @@ importers:
       prosemirror-commands:
         specifier: ^1.7.1
         version: 1.7.1
+      prosemirror-markdown:
+        specifier: 1.13.0
+        version: 1.13.0
       prosemirror-schema-list:
         specifier: ^1.5.1
         version: 1.5.1

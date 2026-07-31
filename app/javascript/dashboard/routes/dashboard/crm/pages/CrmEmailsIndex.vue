@@ -9,11 +9,13 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
 import AgentAPI from 'dashboard/api/agents';
+import { stripTextColorMarkers } from 'dashboard/helper/editorTextColor';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
 import CrmEmailComposeDialog from 'dashboard/components-next/CRM/CrmEmailComposeDialog.vue';
+import CrmAddressIdentity from 'dashboard/components-next/CRM/CrmAddressIdentity.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -99,6 +101,13 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 // 卡片/阅读窗格显示的「对方」：收件箱看发件人，其余看收件人。
 const counterparty = email =>
   email.folder === 'INBOX' ? email.fromAddress : email.toAddress;
+
+// 地址串拆成单个邮箱（身份识别 chip 用）。
+const splitAddresses = value =>
+  (value || '')
+    .split(/[;,]/)
+    .map(s => s.trim())
+    .filter(Boolean);
 
 const relTime = value => {
   if (!value) return '';
@@ -306,6 +315,7 @@ const reply = (email, all = false) => {
     body: quotedBody(email),
     crmCustomerId: email.crmCustomerId || null,
     contactId: email.contactId || null,
+    focusReplyTop: true,
   });
 };
 
@@ -316,6 +326,7 @@ const forward = email => {
       ? email.subject
       : `Fwd: ${email.subject || ''}`,
     body: quotedBody(email),
+    focusReplyTop: true,
   });
 };
 
@@ -680,7 +691,7 @@ watch(
                 {{ record.subject || '(无主题)' }}
               </div>
               <div class="mt-0.5 text-xs truncate text-n-slate-10">
-                {{ record.body || '（无正文）' }}
+                {{ stripTextColorMarkers(record.body) || '（无正文）' }}
               </div>
               <div class="flex items-center gap-2 mt-1.5">
                 <span
@@ -854,24 +865,45 @@ watch(
             </div>
             <div class="flex-1 min-w-0 space-y-1 text-sm">
               <div class="flex flex-wrap gap-x-6 gap-y-1">
-                <span class="text-n-slate-11">
+                <span
+                  class="inline-flex flex-wrap items-center gap-1 text-n-slate-11"
+                >
                   <span class="text-n-slate-10">
                     {{ t('CRM.EMAILS.READING.FROM') }}
                   </span>
-                  {{ selectedEmail.fromAddress || '—' }}
+                  <CrmAddressIdentity
+                    v-for="a in splitAddresses(selectedEmail.fromAddress)"
+                    :key="`f-${a}`"
+                    :address="a"
+                  />
+                  <span v-if="!selectedEmail.fromAddress">—</span>
                 </span>
-                <span class="text-n-slate-11">
+                <span
+                  class="inline-flex flex-wrap items-center gap-1 text-n-slate-11"
+                >
                   <span class="text-n-slate-10">
                     {{ t('CRM.EMAILS.READING.TO') }}
                   </span>
-                  {{ selectedEmail.toAddress || '—' }}
+                  <CrmAddressIdentity
+                    v-for="a in splitAddresses(selectedEmail.toAddress)"
+                    :key="`t-${a}`"
+                    :address="a"
+                  />
+                  <span v-if="!selectedEmail.toAddress">—</span>
                 </span>
               </div>
-              <div v-if="selectedEmail.ccAddress" class="text-n-slate-11">
+              <div
+                v-if="selectedEmail.ccAddress"
+                class="inline-flex flex-wrap items-center gap-1 text-n-slate-11"
+              >
                 <span class="text-n-slate-10">
                   {{ t('CRM.EMAILS.READING.CC') }}
                 </span>
-                {{ selectedEmail.ccAddress }}
+                <CrmAddressIdentity
+                  v-for="a in splitAddresses(selectedEmail.ccAddress)"
+                  :key="`c-${a}`"
+                  :address="a"
+                />
               </div>
               <div class="flex flex-wrap items-center gap-x-6 gap-y-1">
                 <span class="text-n-slate-10">
@@ -983,7 +1015,10 @@ watch(
             v-else
             class="mt-5 text-sm leading-relaxed whitespace-pre-wrap text-n-slate-12"
           >
-            {{ selectedEmail.body || t('CRM.EMAILS.READING.NO_BODY') }}
+            {{
+              stripTextColorMarkers(selectedEmail.body) ||
+              t('CRM.EMAILS.READING.NO_BODY')
+            }}
           </div>
 
           <!-- 附件 -->

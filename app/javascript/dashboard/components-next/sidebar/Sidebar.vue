@@ -65,6 +65,8 @@ const currentUser = useMapGetter('getCurrentUser');
 const canAccessCrm = computed(
   () => currentUser.value?.can_access_crm !== false
 );
+// ERP 财务板块仅财务角色/管理员可见（后端 Erp::BaseController 403 兜底）。
+const canAccessErp = computed(() => currentUser.value?.can_access_erp === true);
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
 // 超级管理员或管理员（deputy_admin）：账号级管理入口（成员/邀请/员工档案/薪资/审批人/公海规则）。
 const isAdminLike = computed(
@@ -718,6 +720,7 @@ const menuItems = computed(() => {
         activeOn: [
           'crm_customers_index',
           'crm_customer_intake_index',
+          'crm_customer_dupes_index',
           'crm_public_pool_settings_index',
         ],
         children: [
@@ -745,6 +748,12 @@ const menuItems = computed(() => {
               {},
               { filter: 'public_pool' }
             ),
+          },
+          {
+            name: 'CRM Customer Dupes',
+            label: t('SIDEBAR.CRM_CUSTOMER_DUPES'),
+            to: accountScopedRoute('crm_customer_dupes_index'),
+            activeOn: ['crm_customer_dupes_index'],
           },
           ...(isAdminLike.value
             ? [
@@ -1328,6 +1337,8 @@ const menuItems = computed(() => {
       .filter(
         item => canAccessCrm.value || !CRM_DATA_MODULES.includes(item.name)
       )
+      // ERP 财务板块仅财务角色/管理员可见。
+      .filter(item => item.name !== 'Finance ERP' || canAccessErp.value)
       // 「设置」（账号管理后台）仅系统管理员可见；个人资料走左下角头像菜单。
       .filter(item => item.name !== 'Settings' || isAdmin.value)
   );

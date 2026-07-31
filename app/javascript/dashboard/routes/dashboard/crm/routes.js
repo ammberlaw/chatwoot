@@ -1,5 +1,6 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import CrmCustomersIndex from './pages/CrmCustomersIndex.vue';
+import CrmCustomerDupesIndex from './pages/CrmCustomerDupesIndex.vue';
 import CrmOpportunitiesIndex from './pages/CrmOpportunitiesIndex.vue';
 import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
 import CrmSalesOrdersIndex from './pages/CrmSalesOrdersIndex.vue';
@@ -64,6 +65,7 @@ export const routes = [
     CrmCustomerOnboardingIndex
   ),
   crmPage('customers', 'crm_customers_index', CrmCustomersIndex),
+  crmPage('customer-dupes', 'crm_customer_dupes_index', CrmCustomerDupesIndex),
   crmPage(
     'public-pool-settings',
     'crm_public_pool_settings_index',
@@ -137,5 +139,10 @@ export const routes = [
   // 成员权限管理：超管/管理员/人事/部门负责人（后端 ensure_admin 把关）；人事无 CRM 数据权限，故走 SHARED 不受 CRM 门禁。
   crmPage('members', 'crm_members_index', CrmMembersIndex, SHARED),
   // 成员邀请：生成加入链接（超管/管理员/人事）；人事无 CRM 数据权限，故走 SHARED 不受 CRM 门禁。
-  crmPage('member-invites', 'crm_member_invites_index', CrmMemberInvitesIndex, SHARED),
+  crmPage(
+    'member-invites',
+    'crm_member_invites_index',
+    CrmMemberInvitesIndex,
+    SHARED
+  ),
 ];

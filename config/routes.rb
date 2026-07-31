@@ -58,6 +58,9 @@ Rails.application.routes.draw do
             resources :customers do
               collection do
                 get :check_duplicate
+                get :duplicates
+                get :dedupe_search
+                get :identify
                 post :reassign
                 post :import
               end
@@ -161,6 +164,9 @@ Rails.application.routes.draw do
             end
             resource :performance_settings, only: [:show, :update], controller: 'performance_settings'
           end
+          namespace :erp do
+            resource :dashboard, only: [:show], controller: 'dashboard'
+          end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard'
             resources :suppliers
@@ -171,7 +177,16 @@ Rails.application.routes.draw do
               collection { get :requirement }
             end
             resources :stock_entries do
+<<<<<<< HEAD
               member { post :post }
+=======
+              member do
+                post :post
+                post :confirm_warehouse
+                post :return_document
+                post :reactivate
+              end
+>>>>>>> 8ea192114 (feat(crm): 客户查重板块 + 邮件编辑器体验批量增强)
             end
             resources :stock_balances, only: [:index]
             resources :production_records, only: [:index, :create, :destroy]

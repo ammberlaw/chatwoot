@@ -50,6 +50,13 @@ import {
 } from '@chatwoot/prosemirror-schema/src/mentions/plugin';
 
 import {
+  addTextColorToSchema,
+  applyTextColor,
+  toggleUnderlineMark,
+  textColorMarkdownSerializer,
+  TextColorMarkdownTransformer,
+} from 'dashboard/helper/editorTextColor';
+import {
   appendSignature,
   collapseSelection,
   findNodeToInsertImage,
@@ -94,6 +101,8 @@ const props = defineProps({
   conversationId: { type: Number, default: null },
   medium: { type: String, default: '' },
   focusOnMount: { type: Boolean, default: true },
+  // 选中文字改颜色（CRM 写邮件用）：扩展 textColor mark 及其 markdown 序列化。
+  enableTextColor: { type: Boolean, default: false },
 });
 
 const emit = defineEmits([
@@ -132,17 +141,24 @@ const effectiveChannelType = computed(() =>
 );
 
 const editorSchema = computed(() => {
-  if (!props.channelType) return messageSchema;
-
-  const formatType = props.isPrivate
-    ? PRIVATE_NOTE_FORMATTING
-    : effectiveChannelType.value;
-  const formatting = getFormattingForEditor(
-    formatType,
-    captainTasksEnabled.value
-  );
-  return buildMessageSchema(formatting.marks, formatting.nodes);
+  let schema = messageSchema;
+  if (props.channelType) {
+    const formatType = props.isPrivate
+      ? PRIVATE_NOTE_FORMATTING
+      : effectiveChannelType.value;
+    const formatting = getFormattingForEditor(
+      formatType,
+      captainTasksEnabled.value
+    );
+    schema = buildMessageSchema(formatting.marks, formatting.nodes);
+  }
+  return props.enableTextColor ? addTextColorToSchema(schema) : schema;
 });
+
+const createTransformer = schema =>
+  props.enableTextColor
+    ? new TextColorMarkdownTransformer(schema)
+    : new MessageMarkdownTransformer(schema);
 
 const editorMenuOptions = computed(() => {
   const formatType = props.isPrivate
@@ -161,7 +177,7 @@ const createState = (content, placeholder, plugins = [], methods = {}) => {
   // Strip unsupported formatting before parsing to prevent "Token type not supported" errors
   const sanitizedContent = stripUnsupportedFormatting(content, schema);
   return EditorState.create({
-    doc: new MessageMarkdownTransformer(schema).parse(sanitizedContent),
+    doc: createTransformer(schema).parse(sanitizedContent),
     plugins: buildEditor({
       schema,
       placeholder,
@@ -228,7 +244,10 @@ const handleCopilotAction = actionKey => {
 };
 
 const contentFromEditor = () => {
-  return MessageMarkdownSerializer.serialize(editorView.state.doc);
+  const serializer = props.enableTextColor
+    ? textColorMarkdownSerializer
+    : MessageMarkdownSerializer;
+  return serializer.serialize(editorView.state.doc);
 };
 
 const shouldShowVariables = computed(() => {
@@ -666,9 +685,7 @@ function insertContentIntoEditor(content, defaultFrom = 0) {
   // Strip unsupported formatting before parsing to ensure content can be inserted
   // into channels that don't support certain markdown features (e.g., API channels)
   const sanitizedContent = stripUnsupportedFormatting(content, currentSchema);
-  let node = new MessageMarkdownTransformer(currentSchema).parse(
-    sanitizedContent
-  );
+  let node = createTransformer(currentSchema).parse(sanitizedContent);
 
   insertNodeIntoEditor(node, from, undefined);
 }
@@ -855,7 +872,37 @@ onMounted(() => {
   }
 });
 
-defineExpose({ focusEditorInputField });
+function setTextColor(color) {
+  applyTextColor(editorView, color);
+}
+
+function toggleUnderline() {
+  toggleUnderlineMark(editorView);
+}
+
+// 回复/转发预填场景：在引用原文上方插入两个空段落作回复区，光标落到最顶部。
+// markdown 会吞掉正文开头的空行，所以空段落只能在 ProseMirror 文档层面补。
+function focusReplyStart() {
+  const { schema, tr, doc } = editorView.state;
+  const isEmptyParagraph = node =>
+    node && node.type === schema.nodes.paragraph && node.content.size === 0;
+  if (!isEmptyParagraph(doc.firstChild)) {
+    editorView.dispatch(
+      tr.insert(0, [
+        schema.nodes.paragraph.create(),
+        schema.nodes.paragraph.create(),
+      ])
+    );
+  }
+  focusEditorInputField('start');
+}
+
+defineExpose({
+  focusEditorInputField,
+  setTextColor,
+  toggleUnderline,
+  focusReplyStart,
+});
 
 // BUS Event to insert text or markdown into the editor at the
 // current cursor position.

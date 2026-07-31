@@ -26,11 +26,23 @@ const props = defineProps({
   sendWithSignature: { type: Boolean, default: false },
   channelType: { type: String, default: '' },
   medium: { type: String, default: '' },
+  enableTextColor: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'executeCopilotAction']);
 
 const slots = useSlots();
+
+const wootEditorRef = ref(null);
+
+const setTextColor = color => wootEditorRef.value?.setTextColor(color);
+
+// 回复/转发：把光标定到引用原文上方的空白回复区。
+const focusReplyStart = () => wootEditorRef.value?.focusReplyStart();
+
+const toggleUnderline = () => wootEditorRef.value?.toggleUnderline();
+
+defineExpose({ setTextColor, toggleUnderline, focusReplyStart });
 
 const isFocused = ref(false);
 
@@ -97,6 +109,7 @@ watch(
       ]"
     >
       <WootEditor
+        ref="wootEditorRef"
         :editor-id="editorKey"
         :model-value="modelValue"
         :placeholder="placeholder"
@@ -110,6 +123,7 @@ watch(
         :send-with-signature="sendWithSignature"
         :channel-type="channelType"
         :medium="medium"
+        :enable-text-color="enableTextColor"
         @input="handleInput"
         @focus="handleFocus"
         @blur="handleBlur"
