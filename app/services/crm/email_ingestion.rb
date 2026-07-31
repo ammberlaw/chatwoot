@@ -77,11 +77,9 @@ module Crm::EmailIngestion
     mail.multipart? ? nil : decoded(mail)
   end
 
+  # 字符集处理拆在 Crm::MailCharset（GBK 中文邮件兼容，别再 force_encoding 二次错解）。
   def decoded(part)
-    body = part.decoded
-    body.force_encoding(part.charset || 'UTF-8').encode('UTF-8', invalid: :replace, undef: :replace)
-  rescue StandardError
-    part.body.to_s
+    Crm::MailCharset.decoded(part)
   end
 
   # 正文超出 text 列上限（ApplicationRecord::MAX_TEXT_COLUMN_LENGTH）时截断入库，
