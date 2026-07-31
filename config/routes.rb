@@ -177,16 +177,7 @@ Rails.application.routes.draw do
               collection { get :requirement }
             end
             resources :stock_entries do
-<<<<<<< HEAD
               member { post :post }
-=======
-              member do
-                post :post
-                post :confirm_warehouse
-                post :return_document
-                post :reactivate
-              end
->>>>>>> 8ea192114 (feat(crm): 客户查重板块 + 邮件编辑器体验批量增强)
             end
             resources :stock_balances, only: [:index]
             resources :production_records, only: [:index, :create, :destroy]
