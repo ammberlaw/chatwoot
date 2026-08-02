@@ -26,7 +26,8 @@ class Api::V1::Accounts::Crm::PublicPoolSettingsController < Api::V1::Accounts::
       :pool_limit_key_account_won, :pool_limit_won, :pool_limit_sample_won,
       :pool_limit_not_won, :pool_limit_social_media,
       :recycle_days_key_account_won, :recycle_days_won, :recycle_days_sample_won,
-      :recycle_days_not_won, :recycle_days_social_media
+      :recycle_days_not_won, :recycle_days_social_media, :claim_cooldown_days,
+      exempt_user_ids: []
     )
   end
 end

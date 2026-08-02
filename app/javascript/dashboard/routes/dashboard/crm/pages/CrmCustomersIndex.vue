@@ -711,9 +711,23 @@ watch(
       <div
         class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
       >
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
-          {{ t('CRM.CUSTOMERS.HEADER') }}
-        </h1>
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+            {{
+              activeFilter === 'churn_risk'
+                ? '流失预警'
+                : t('CRM.CUSTOMERS.HEADER')
+            }}
+          </h1>
+          <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+          <p
+            v-if="activeFilter === 'churn_risk'"
+            class="mt-0.5 text-xs text-n-slate-10"
+          >
+            成交客户超过 30
+            天没有跟进、邮件或订单，按最久未互动排序——跟进后自动移出
+          </p>
+        </div>
         <div class="flex items-center gap-2">
           <Button
             v-if="canImport"

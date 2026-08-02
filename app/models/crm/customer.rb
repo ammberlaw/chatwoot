@@ -44,6 +44,7 @@
 #  updated_at               :datetime         not null
 #  account_id               :bigint           not null
 #  account_owner_id         :bigint
+#  previous_owner_id        :bigint
 #
 # Indexes
 #
@@ -133,9 +134,9 @@ class Crm::Customer < ApplicationRecord
   scope :assigned, -> { where.not(account_owner_id: nil) }
   scope :owned_by, ->(user_id) { where(account_owner_id: user_id) }
 
-  # 进公海：清空负责人并记录时间。供公海回收定时任务与手动操作复用。
+  # 进公海：清空负责人并记录时间与原归属人（领回冷却期校验用）。供公海回收定时任务与手动操作复用。
   def move_to_public_pool!(at: Time.current)
-    update!(is_in_public_pool: true, public_pool_at: at, account_owner_id: nil)
+    update!(is_in_public_pool: true, public_pool_at: at, previous_owner_id: account_owner_id, account_owner_id: nil)
   end
 
   # 成交汇总回写（对应 Twenty customer-deal-rollup 触发器）：

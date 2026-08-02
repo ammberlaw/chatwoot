@@ -20,6 +20,10 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  def churn_risk_count?
+    true
+  end
+
   def claim?
     true
   end

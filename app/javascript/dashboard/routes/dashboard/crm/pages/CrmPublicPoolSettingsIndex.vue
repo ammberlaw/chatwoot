@@ -3,6 +3,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import CrmPoolSettingsAPI from 'dashboard/api/crm/publicPoolSettings';
+import CrmMemberAPI from 'dashboard/api/crm/members';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 
@@ -24,9 +25,22 @@ const form = reactive({
   oppStaleDays: 30,
   limits: Object.fromEntries(GROUPS.map(g => [g.key, ''])),
   recycleDays: Object.fromEntries(GROUPS.map(g => [g.key, ''])),
+  exemptUserIds: [],
+  claimCooldownDays: 30,
 });
 const loading = ref(true);
 const busy = ref(false);
+
+// 回收豁免名单的候选成员（该页仅管理员可见，成员接口返回全员）。
+const members = ref([]);
+const fetchMembers = async () => {
+  try {
+    const { data } = await CrmMemberAPI.get();
+    members.value = data.payload || [];
+  } catch {
+    members.value = [];
+  }
+};
 
 onMounted(async () => {
   try {
@@ -40,6 +54,9 @@ onMounted(async () => {
       form.limits[g.key] = data[`pool_limit_${g.key}`] ?? '';
       form.recycleDays[g.key] = data[`recycle_days_${g.key}`] ?? '';
     });
+    form.exemptUserIds = data.exempt_user_ids || [];
+    form.claimCooldownDays = data.claim_cooldown_days ?? 30;
+    fetchMembers();
   } catch {
     useAlert(t('CRM.POOL_SETTINGS.LOAD_ERROR'));
   } finally {
@@ -60,6 +77,8 @@ const save = async () => {
       recycle_never_followed: form.recycleNeverFollowed,
       opportunity_recycle_enabled: form.oppRecycleEnabled,
       opportunity_stale_days: Number(form.oppStaleDays) || 30,
+      exempt_user_ids: form.exemptUserIds,
+      claim_cooldown_days: Number(form.claimCooldownDays) || 0,
     };
     GROUPS.forEach(g => {
       setting[`pool_limit_${g.key}`] = toNullable(form.limits[g.key]);
@@ -146,6 +165,22 @@ const fieldCls =
           />
           {{ t('CRM.POOL_SETTINGS.RECYCLE_NEVER_FOLLOWED') }}
         </label>
+        <!-- eslint-disable vue/no-bare-strings-in-template -->
+        <label class="flex flex-col gap-1.5">
+          <span class="text-sm text-n-slate-12">原归属人领回冷却（天）</span>
+          <span class="text-xs text-n-slate-10">
+            客户进公海后，原归属人在此天数内不能自己领回（其他成员不受限）；0 =
+            不限制
+          </span>
+          <input
+            v-model="form.claimCooldownDays"
+            type="number"
+            min="0"
+            class="w-32"
+            :class="[fieldCls]"
+          />
+        </label>
+        <!-- eslint-enable vue/no-bare-strings-in-template -->
       </div>
 
       <!-- 商机流转规则 -->
@@ -240,6 +275,35 @@ const fieldCls =
           {{ t('CRM.POOL_SETTINGS.GROUP_NOTE') }}
         </p>
       </div>
+
+      <!-- 回收豁免成员：名单内成员的客户与商机不参与自动回收 -->
+      <!-- eslint-disable vue/no-bare-strings-in-template -->
+      <div class="flex flex-col gap-3 pt-4 mt-2 border-t border-n-weak">
+        <div>
+          <div class="text-sm font-medium text-n-slate-12">豁免成员</div>
+          <div class="mt-0.5 text-xs text-n-slate-10">
+            勾选后，该成员不参与上述规则：名下客户与商机不自动回收，认领/转移也不受私海上限约束
+          </div>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2">
+          <label
+            v-for="m in members"
+            :key="m.user_id"
+            class="flex items-center gap-2 text-sm text-n-slate-12"
+          >
+            <input
+              v-model="form.exemptUserIds"
+              type="checkbox"
+              :value="m.user_id"
+            />
+            {{ m.name }}
+          </label>
+        </div>
+        <p v-if="!members.length" class="text-xs text-n-slate-10">
+          成员列表加载中…
+        </p>
+      </div>
+      <!-- eslint-enable vue/no-bare-strings-in-template -->
     </div>
   </div>
 </template>

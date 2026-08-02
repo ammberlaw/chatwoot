@@ -61,6 +61,7 @@ Rails.application.routes.draw do
                 get :duplicates
                 get :dedupe_search
                 get :identify
+                get :churn_risk_count
                 post :reassign
                 post :import
               end

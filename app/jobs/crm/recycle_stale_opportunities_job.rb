@@ -20,6 +20,8 @@ class Crm::RecycleStaleOpportunitiesJob < ApplicationJob
     stale = account.crm_opportunities.in_private_pool.open_stages
                    .where.not(owner_id: nil)
                    .where(updated_at: ..cutoff)
+    # 豁免名单成员的商机不参与自动回收
+    stale = stale.where.not(owner_id: settings.exempt_user_ids) if settings.exempt_user_ids.present?
     # 批量释放，单条 UPDATE 无需逐条校验
     count = stale.update_all(is_in_public_pool: true, public_pool_at: Time.current, owner_id: nil) # rubocop:disable Rails/SkipsModelValidations
     Rails.logger.info "[Crm::RecycleStaleOpportunitiesJob] account=#{account.id} recycled=#{count}"

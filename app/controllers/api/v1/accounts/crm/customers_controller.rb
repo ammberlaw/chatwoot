@@ -26,10 +26,12 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
                  .per(results_per_page)
   end
 
-  # 指定 sort 列时按 asc/desc 排序，否则默认按更新时间倒序。
+  # 指定 sort 列时按 asc/desc 排序，否则默认按更新时间倒序；
+  # 流失预警视图默认按最久未互动优先（分诊语义）。
   # 用 COALESCE 把 NULL 当 0（与表格显示的 ¥0 一致），避免 NULL 被排到最前/最后。
   def sort_clause
     column = SORT_COLUMNS[params[:sort]]
+    return Arel.sql("#{LAST_TOUCH_SQL} ASC") if column.nil? && params[:filter] == 'churn_risk'
     return { updated_at: :desc } unless column
 
     direction = params[:direction] == 'asc' ? 'ASC' : 'DESC'
@@ -60,6 +62,23 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   def duplicates
     payload = DUP_DIMENSIONS.transform_values { |dim| dimension_groups(dim[:expr], dim[:min_len]) }
     render json: { payload: payload }
+  end
+
+  # 流失预警口径：私海成交客户，最后互动超过 CHURN_RISK_DAYS 天。
+  # 最后互动 = 跟进记录 / 往来邮件 / 订单日期 三者最新，建档时间兜底（新建档不误报）。
+  CHURN_RISK_DAYS = 30
+  LAST_TOUCH_SQL = <<~SQL.squish
+    GREATEST(
+      crm_customers.created_at,
+      COALESCE(crm_customers.last_follow_up_at, crm_customers.created_at),
+      COALESCE((SELECT MAX(e.email_date) FROM crm_emails e WHERE e.crm_customer_id = crm_customers.id), crm_customers.created_at),
+      COALESCE((SELECT MAX(o.order_date::timestamp) FROM crm_sales_orders o WHERE o.crm_customer_id = crm_customers.id), crm_customers.created_at)
+    )
+  SQL
+
+  # 流失预警角标：当前用户可见范围（业务员本人/主管团队/管理员全部）内的预警客户数。
+  def churn_risk_count
+    render json: { count: restrict_by_org(churn_risk_scope(Current.account.crm_customers)).count }
   end
 
   # 邮箱身份识别（邮件阅读区悬浮卡）：同事 / 我的客户 / 同事客户(撞单) / 陌生人。
@@ -133,8 +152,13 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     render json: { reassigned: customer_ids.size }
   end
 
-  # 认领：公海客户归当前用户私海。分组私海上限由模型 pool_limit 校验拦截。
+  # 认领：公海客户归当前用户私海。分组私海上限由模型 pool_limit 校验拦截；
+  # 原归属人受领回冷却期限制（豁免名单成员除外）。
   def claim
+    if (message = claim_cooldown_message)
+      return render json: { message: message }, status: :forbidden
+    end
+
     @customer.update!(account_owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil)
     render 'api/v1/accounts/crm/customers/show'
   end
@@ -201,6 +225,17 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     @customer = Current.account.crm_customers.find(params[:id])
   end
 
+  # 领回冷却：原归属人在冷却天数内不能把自己转入公海的客户领回；返回拦截文案，nil = 放行。
+  def claim_cooldown_message
+    settings = Crm::PublicPoolSetting.for_account(Current.account)
+    days = settings.claim_cooldown_days.to_i
+    return nil if days <= 0 || settings.exempt_user_ids.include?(current_user.id)
+    return nil unless @customer.previous_owner_id == current_user.id && @customer.public_pool_at.present?
+
+    remaining = ((@customer.public_pool_at + days.days - Time.current) / 1.day).ceil
+    remaining.positive? ? "该客户由你转入公海，冷却期内不能领回（还需 #{remaining} 天）" : nil
+  end
+
   def check_authorization
     authorize(Crm::Customer)
   end
@@ -232,15 +267,21 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     Current.account.crm_teams.find_by(id: team_id)&.members&.pluck(:id) || []
   end
 
-  # 池筛选：公海 / 私海 / 我的 / 未分配。
+  # 池筛选：公海 / 私海 / 我的 / 未分配 / 流失预警。
   def pool_scope(scope)
     case params[:filter]
     when 'public_pool' then scope.in_public_pool
     when 'private' then scope.where(is_in_public_pool: false)
     when 'mine' then scope.owned_by(current_user.id)
     when 'unassigned' then scope.where(account_owner_id: nil, is_in_public_pool: false)
+    when 'churn_risk' then churn_risk_scope(scope)
     else scope
     end
+  end
+
+  def churn_risk_scope(scope)
+    scope.where(is_in_public_pool: false).where.not(first_deal_at: nil)
+         .where("#{LAST_TOUCH_SQL} < ?", CHURN_RISK_DAYS.days.ago)
   end
 
   def customer_params

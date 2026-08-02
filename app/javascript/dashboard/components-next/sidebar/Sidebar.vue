@@ -11,6 +11,7 @@ import { useSidebarKeyboardShortcuts } from './useSidebarKeyboardShortcuts';
 import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
+import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import { emitter } from 'shared/helpers/mitt';
 import { useWindowSize, useEventListener } from '@vueuse/core';
 
@@ -269,6 +270,18 @@ const getSidebarSectionSort = useMapGetter(
   'sidebarSortPreferences/getSectionSort'
 );
 
+// 流失预警角标：可见范围内超期未互动的成交客户数（实时计算，无存储）。
+const churnRiskCount = ref(0);
+const fetchChurnRiskCount = async () => {
+  try {
+    const { data } = await CrmCustomerAPI.churnRiskCount();
+    churnRiskCount.value = data.count || 0;
+  } catch {
+    churnRiskCount.value = 0;
+  }
+};
+
+
 onMounted(() => {
   store.dispatch('labels/get');
   store.dispatch('inboxes/get');
@@ -277,6 +290,7 @@ onMounted(() => {
   store.dispatch('attributes/get');
   store.dispatch('customViews/get', 'conversation');
   store.dispatch('customViews/get', 'contact');
+  fetchChurnRiskCount();
 });
 
 watch([accountId, hasConversationUnreadCounts], fetchConversationUnreadCounts, {
@@ -747,6 +761,16 @@ const menuItems = computed(() => {
               'crm_customers_index',
               {},
               { filter: 'public_pool' }
+            ),
+          },
+          {
+            name: 'CRM Churn Risk',
+            label: t('SIDEBAR.CRM_CHURN_RISK'),
+            badgeCount: churnRiskCount.value,
+            to: accountScopedRoute(
+              'crm_customers_index',
+              {},
+              { filter: 'churn_risk' }
             ),
           },
           {

@@ -433,6 +433,7 @@
     "CRM_PRIVATE_CUSTOMERS": "私海客户",
     "CRM_PUBLIC_POOL": "公海客户",
     "CRM_CUSTOMER_DUPES": "客户查重",
+    "CRM_CHURN_RISK": "流失预警",
     "CRM_POOL_SETTINGS": "公海设置",
     "CRM_G_SALES_FLOW": "销售流程",
     "CRM_FUNNEL": "商机看板",

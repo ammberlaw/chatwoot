@@ -17,7 +17,7 @@ class Crm::RecycleStaleCustomersJob < ApplicationJob
     settings = Crm::PublicPoolSetting.for_account(account)
     return unless settings.recycle_enabled?
 
-    scope = account.crm_customers.where(is_in_public_pool: false).where.not(account_owner_id: nil)
+    scope = recyclable_scope(account, settings)
     per_group = settings.group_recycle_days
 
     default_scope = scope.where(customer_group: nil).or(scope.where.not(customer_group: per_group.keys))
@@ -28,10 +28,20 @@ class Crm::RecycleStaleCustomersJob < ApplicationJob
     Rails.logger.info "[Crm::RecycleStaleCustomersJob] account=#{account.id} recycled=#{count}"
   end
 
+  # 私海有主客户；豁免名单成员的客户不参与自动回收。
+  def recyclable_scope(account, settings)
+    scope = account.crm_customers.where(is_in_public_pool: false).where.not(account_owner_id: nil)
+    return scope if settings.exempt_user_ids.blank?
+
+    scope.where.not(account_owner_id: settings.exempt_user_ids)
+  end
+
   def recycle(scope, cutoff, settings)
     stale = scope.where('last_follow_up_at <= ?', cutoff)
     stale = stale.or(scope.where('last_follow_up_at IS NULL AND created_at <= ?', cutoff)) if settings.recycle_never_followed?
-    # 批量置入公海，单条 UPDATE 无需逐条校验
-    stale.update_all(is_in_public_pool: true, public_pool_at: Time.current, account_owner_id: nil) # rubocop:disable Rails/SkipsModelValidations
+    # 批量置入公海（记录原归属人供领回冷却校验），单条 UPDATE 无需逐条校验
+    stale.update_all( # rubocop:disable Rails/SkipsModelValidations
+      'is_in_public_pool = TRUE, public_pool_at = NOW(), previous_owner_id = account_owner_id, account_owner_id = NULL'
+    )
   end
 end

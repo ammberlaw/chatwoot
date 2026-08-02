@@ -14,3 +14,5 @@ json.recycle_days_won @setting.recycle_days_won
 json.recycle_days_sample_won @setting.recycle_days_sample_won
 json.recycle_days_not_won @setting.recycle_days_not_won
 json.recycle_days_social_media @setting.recycle_days_social_media
+json.exempt_user_ids @setting.exempt_user_ids
+json.claim_cooldown_days @setting.claim_cooldown_days

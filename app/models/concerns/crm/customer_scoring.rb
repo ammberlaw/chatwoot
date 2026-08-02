@@ -53,8 +53,12 @@ module Crm::CustomerScoring
   end
 
   # 超限拦截：该负责人名下同分组客户数（不含自己）达到上限则拒绝认领/转移。存量不受影响。
+  # 豁免名单成员不受上限约束（与回收豁免同一名单）。
   def pool_limit_not_exceeded
-    limit = Crm::PublicPoolSetting.for_account(account).limit_for_group(customer_group)
+    settings = Crm::PublicPoolSetting.for_account(account)
+    return if settings.exempt_user_ids.include?(account_owner_id)
+
+    limit = settings.limit_for_group(customer_group)
     return if limit.nil? || limit <= 0
 
     held = account.crm_customers.where(account_owner_id: account_owner_id, customer_group: customer_group)

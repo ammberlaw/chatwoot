@@ -36,6 +36,11 @@ class CrmCustomerAPI extends ApiClient {
     return axios.get(`${this.url}/identify?${buildParams({ email })}`);
   }
 
+  // 流失预警角标：可见范围内超期未互动的成交客户数。
+  churnRiskCount() {
+    return axios.get(`${this.url}/churn_risk_count`);
+  }
+
   // 批量导入：rows 为前端映射好的行（键=CRM字段），defaultOwnerId 为统一负责人（可空）。
   import({ rows, defaultOwnerId }) {
     return axios.post(`${this.url}/import`, {
