@@ -20,17 +20,26 @@ class Crm::ImapFetchService
     return 0 if @account.resolved_imap_host.blank? || @account.smtp_password.blank?
 
     imap = nil
+    created = 0
     Timeout.timeout(RUN_TIMEOUT) do
       imap = connect
       imap.select('INBOX')
-      ids = imap.search(['SINCE', since_date]).last(MAX_PER_RUN)
-      created = ids.count { |id| ingest(imap, id) }
+      # 用 UID 检索+取信：网易 Coremail 对「按序号取信」偶发返回不合规响应，会让 net-imap 解析
+      # 崩溃并污染整条连接（后续全部 closed stream），一封坏邮件就把整箱后续新邮件堵死。UID 路径
+      # 更稳；再逐封兜错——个别仍崩的邮件只记日志跳过并重连，绝不阻塞其余邮件。
+      uids = imap.uid_search(['SINCE', since_date]).last(MAX_PER_RUN)
+      uids.each do |uid|
+        created += 1 if ingest_uid(imap, uid)
+      rescue Net::IMAP::Error, IOError => e
+        Rails.logger.warn("[Crm::ImapFetch] account=#{@account.id} skip uid=#{uid}: #{e.class}: #{e.message}")
+        imap = reopen(imap)
+      end
       @account.update_column(:imap_synced_at, Time.current) # rubocop:disable Rails/SkipsModelValidations
-      created
     end
+    created
   rescue StandardError => e
     Rails.logger.error("[Crm::ImapFetch] account=#{@account.id} (#{@account.email_address}) failed: #{e.class}: #{e.message}")
-    0
+    created
   ensure
     safe_close(imap)
   end
@@ -48,10 +57,21 @@ class Crm::ImapFetchService
     (@account.imap_synced_at&.to_date || INITIAL_LOOKBACK_DAYS.days.ago.to_date)
   end
 
-  # 取一封邮件原文入库；入库逻辑见 Crm::EmailIngestion。返回 true 表示新建了记录。
-  def ingest(imap, id)
-    raw = imap.fetch(id, 'RFC822')&.first&.attr&.dig('RFC822')
-    ingest_raw(raw, fallback_uid: id)
+  # 按 UID 取一封邮件原文入库；入库逻辑见 Crm::EmailIngestion。返回 true 表示新建了记录。
+  # 网易对坏邮件可能返回空 RFC822（非崩溃），空内容直接跳过不入库。
+  def ingest_uid(imap, uid)
+    raw = imap.uid_fetch(uid, 'RFC822')&.first&.attr&.dig('RFC822')
+    return false if raw.blank?
+
+    ingest_raw(raw, fallback_uid: uid)
+  end
+
+  # 单封邮件把连接搞崩后，关掉重开一条干净连接继续收后面的。
+  def reopen(imap)
+    safe_close(imap)
+    fresh = connect
+    fresh.select('INBOX')
+    fresh
   end
 
   def safe_close(imap)
