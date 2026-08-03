@@ -7,6 +7,7 @@
 #  id                           :bigint           not null, primary key
 #  claim_cooldown_days          :integer          default(30), not null
 #  exempt_user_ids              :bigint           default([]), not null, is an Array
+#  monthly_report_enabled       :boolean          default(TRUE), not null
 #  name                         :string           default("客户池规则")
 #  opportunity_recycle_enabled  :boolean          default(TRUE), not null
 #  opportunity_stale_days       :integer          default(30), not null

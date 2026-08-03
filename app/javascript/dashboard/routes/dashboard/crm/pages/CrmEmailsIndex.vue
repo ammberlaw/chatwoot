@@ -8,6 +8,7 @@ import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
+import CrmAiAPI from 'dashboard/api/crm/ai';
 import AgentAPI from 'dashboard/api/agents';
 import { stripTextColorMarkers } from 'dashboard/helper/editorTextColor';
 
@@ -266,6 +267,14 @@ const onComposeRefresh = () => {
 };
 
 const emailOpens = ref([]);
+
+// ---- AI 翻译 / 往来摘要（DeepSeek）状态 ----
+const aiTranslation = ref(null); // { subject, body }
+const aiTranslating = ref(false);
+const translationCache = new Map(); // email.id -> { subject, body }（本页会话内缓存）
+const aiSummary = ref(null); // { address, text }
+const aiSummarizing = ref(false);
+
 // 打开归属地：优先「城市, 国家」，无归属地时回退 IP。
 const openLocation = open => {
   const place = [open.city, open.country].filter(Boolean).join(', ');
@@ -274,6 +283,9 @@ const openLocation = open => {
 const selectEmail = async email => {
   selectedEmail.value = email;
   emailOpens.value = [];
+  // 换邮件时收起 AI 翻译/摘要面板（翻译按邮件缓存，重开秒出）。
+  aiTranslation.value = null;
+  aiSummary.value = null;
   if (email.folder === 'INBOX' && !email.isRead) {
     await store.update({ id: email.id, isRead: true });
     email.isRead = true;
@@ -299,6 +311,48 @@ const toggleStar = async email => {
   await store.update({ id: email.id, isStarred: next });
   fetchCounts();
   if (activeFolder.value === 'starred' && !next) fetchRecords();
+};
+
+const translateEmail = async email => {
+  if (aiTranslating.value) return;
+  if (aiTranslation.value) {
+    aiTranslation.value = null; // 再点一次 = 收起
+    return;
+  }
+  const cached = translationCache.get(email.id);
+  if (cached) {
+    aiTranslation.value = cached;
+    return;
+  }
+  aiTranslating.value = true;
+  try {
+    const { data } = await CrmAiAPI.translate(email.id);
+    translationCache.set(email.id, data);
+    aiTranslation.value = data;
+  } catch (e) {
+    useAlert(e?.response?.data?.message || 'AI 翻译失败，请稍后再试');
+  } finally {
+    aiTranslating.value = false;
+  }
+};
+
+// 往来摘要：对「对方地址」（收件箱=发件人，发件箱=第一个收件人）的所有可见往来。
+const summarizeThread = async email => {
+  if (aiSummarizing.value) return;
+  const address = splitAddresses(counterparty(email))[0];
+  if (!address) {
+    useAlert('这封邮件没有对方地址');
+    return;
+  }
+  aiSummarizing.value = true;
+  try {
+    const { data } = await CrmAiAPI.summarize(address);
+    aiSummary.value = { address, text: data.summary };
+  } catch (e) {
+    useAlert(e?.response?.data?.message || 'AI 摘要失败，请稍后再试');
+  } finally {
+    aiSummarizing.value = false;
+  }
 };
 
 // 回复/全部回复/转发：预填写信弹窗。
@@ -413,6 +467,11 @@ const moreMenuItems = computed(() => {
   const e = selectedEmail.value;
   if (!e) return [];
   const items = [
+    {
+      label: aiSummarizing.value ? '摘要生成中…' : 'AI 往来摘要',
+      icon: 'i-lucide-scroll-text',
+      run: () => summarizeThread(e),
+    },
     { label: '转发', icon: 'i-lucide-forward', run: () => forward(e) },
     {
       label: '附件转发',
@@ -816,8 +875,21 @@ watch(
                 @click="deleteEmail(selectedEmail)"
               />
             </template>
-            <!-- 其他邮件：回复 + 全部回复 + 更多 -->
+            <!-- 其他邮件：翻译 + 回复 + 全部回复 + 更多 -->
             <template v-else>
+              <Button
+                :label="aiTranslation ? '收起翻译' : '翻译'"
+                :icon="
+                  aiTranslating
+                    ? 'i-lucide-loader-circle'
+                    : 'i-lucide-languages'
+                "
+                size="sm"
+                variant="faded"
+                color="teal"
+                :disabled="aiTranslating"
+                @click="translateEmail(selectedEmail)"
+              />
               <Button
                 :label="t('CRM.EMAILS.ACTIONS.REPLY')"
                 icon="i-lucide-reply"
@@ -1001,6 +1073,60 @@ watch(
                   {{ open.ip }}
                 </span>
               </div>
+            </div>
+          </div>
+
+          <!-- AI 往来摘要 -->
+          <div
+            v-if="aiSummary"
+            class="p-4 mt-4 border rounded-lg border-n-iris-7 bg-n-iris-2"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <Icon icon="i-lucide-scroll-text" class="size-4 text-n-iris-11" />
+              <span class="text-sm font-medium text-n-iris-11">
+                {{ `AI 往来摘要 · ${aiSummary.address}` }}
+              </span>
+              <span class="flex-1" />
+              <button
+                class="text-xs text-n-slate-10 hover:text-n-slate-12"
+                @click="aiSummary = null"
+              >
+                收起
+              </button>
+            </div>
+            <div
+              class="text-sm leading-relaxed whitespace-pre-wrap text-n-slate-12"
+            >
+              {{ aiSummary.text }}
+            </div>
+          </div>
+
+          <!-- AI 翻译 -->
+          <div
+            v-if="aiTranslation"
+            class="p-4 mt-4 border rounded-lg border-n-teal-7 bg-n-teal-2"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <Icon icon="i-lucide-languages" class="size-4 text-n-teal-11" />
+              <span class="text-sm font-medium text-n-teal-11">AI 翻译</span>
+              <span class="flex-1" />
+              <button
+                class="text-xs text-n-slate-10 hover:text-n-slate-12"
+                @click="aiTranslation = null"
+              >
+                收起
+              </button>
+            </div>
+            <p
+              v-if="aiTranslation.subject"
+              class="mb-2 text-sm font-medium text-n-slate-12"
+            >
+              {{ aiTranslation.subject }}
+            </p>
+            <div
+              class="text-sm leading-relaxed whitespace-pre-wrap text-n-slate-12"
+            >
+              {{ aiTranslation.body }}
             </div>
           </div>
 

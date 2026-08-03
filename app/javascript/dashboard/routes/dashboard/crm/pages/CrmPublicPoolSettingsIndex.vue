@@ -27,6 +27,7 @@ const form = reactive({
   recycleDays: Object.fromEntries(GROUPS.map(g => [g.key, ''])),
   exemptUserIds: [],
   claimCooldownDays: 30,
+  monthlyReportEnabled: true,
 });
 const loading = ref(true);
 const busy = ref(false);
@@ -56,6 +57,7 @@ onMounted(async () => {
     });
     form.exemptUserIds = data.exempt_user_ids || [];
     form.claimCooldownDays = data.claim_cooldown_days ?? 30;
+    form.monthlyReportEnabled = data.monthly_report_enabled !== false;
     fetchMembers();
   } catch {
     useAlert(t('CRM.POOL_SETTINGS.LOAD_ERROR'));
@@ -79,6 +81,7 @@ const save = async () => {
       opportunity_stale_days: Number(form.oppStaleDays) || 30,
       exempt_user_ids: form.exemptUserIds,
       claim_cooldown_days: Number(form.claimCooldownDays) || 0,
+      monthly_report_enabled: form.monthlyReportEnabled,
     };
     GROUPS.forEach(g => {
       setting[`pool_limit_${g.key}`] = toNullable(form.limits[g.key]);
@@ -302,6 +305,21 @@ const fieldCls =
         <p v-if="!members.length" class="text-xs text-n-slate-10">
           成员列表加载中…
         </p>
+      </div>
+
+      <!-- 工作月报：每月 1 号自动给各成员发上月经营数据（按各自权限范围） -->
+      <div class="flex flex-col gap-3 pt-4 mt-2 border-t border-n-weak">
+        <div>
+          <div class="text-sm font-medium text-n-slate-12">工作月报</div>
+          <div class="mt-0.5 text-xs text-n-slate-10">
+            每月 1
+            号自动给业务员、主管、管理员发一封上月工作月报邮件（成交金额、新建客户、目标完成进度，各看各的权限范围）
+          </div>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-n-slate-12">
+          <input v-model="form.monthlyReportEnabled" type="checkbox" />
+          启用每月自动发送工作月报
+        </label>
       </div>
       <!-- eslint-enable vue/no-bare-strings-in-template -->
     </div>

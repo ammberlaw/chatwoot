@@ -88,6 +88,10 @@ Rails.application.routes.draw do
                 delete 'attach/:attachment_id', action: :detach
               end
             end
+            # 邮件 AI 助手：写信 / 翻译 / 往来摘要（同步生成，前端等待）。
+            post 'ai/compose', to: 'ai#compose'
+            post 'ai/translate', to: 'ai#translate'
+            post 'ai/summarize', to: 'ai#summarize'
             resources :emails do
               collection do
                 get :counts
@@ -124,6 +128,8 @@ Rails.application.routes.draw do
             resources :teams
             resources :sales_targets
             resource :public_pool_settings, only: [:show, :update]
+            resource :ai_settings, only: [:show, :update], controller: 'ai_settings'
+            post 'ai_settings/test', to: 'ai_settings#test'
             resources :doc_sections, only: [:index, :create, :update, :destroy]
             resource :stats, only: [:show], controller: 'stats'
             resource :team_dashboard, only: [:show], controller: 'team_dashboard'

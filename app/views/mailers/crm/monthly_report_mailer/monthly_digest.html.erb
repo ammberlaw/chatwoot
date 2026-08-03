@@ -1,0 +1,83 @@
+<%
+  r = @report
+  target = r[:year_target_micros].to_i
+  ytd = r[:ytd_amount_micros].to_i
+  over = [ytd - target, 0].max
+  # 进度条：累计完成占年度目标的比例（封顶 100%），超额单独标注。
+  pct = target.positive? ? [(ytd.to_f / target * 100).round(1), 100].min : 0
+
+  # 环比徽标：正=红↑（销售语境涨为好），负=绿↓，nil=新增。
+  mom = lambda do |v|
+    if v.nil?
+      "<span style=\"color:#16a34a;font-weight:600;\">新增</span>".html_safe
+    elsif v >= 0
+      "<span style=\"color:#dc2626;font-weight:600;\">&#9650; #{v}%</span>".html_safe
+    else
+      "<span style=\"color:#16a34a;font-weight:600;\">&#9660; #{v.abs}%</span>".html_safe
+    end
+  end
+%>
+
+<div style="max-width:600px;margin:0 auto;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;color:#1f2937;">
+  <!-- 顶部品牌条 -->
+  <div style="height:6px;background:linear-gradient(90deg,#f97316,#fb923c,#fbbf24);border-radius:6px 6px 0 0;"></div>
+
+  <!-- 问候 -->
+  <div style="padding:28px 28px 8px;">
+    <div style="font-size:22px;font-weight:700;color:#ea580c;letter-spacing:1px;"><%= brand_name %></div>
+    <h1 style="font-size:20px;margin:20px 0 6px;color:#111827;">你好，<%= @recipient_name %></h1>
+    <p style="font-size:15px;color:#374151;margin:0;"><%= @month_label %> 工作月报已到，请查阅</p>
+    <p style="font-size:12px;color:#9ca3af;margin:14px 0 0;">数据范围：<%= r[:scope_label] %>（你查看权限范围内所有人员的数据）</p>
+  </div>
+
+  <!-- 结果目标 -->
+  <div style="padding:8px 28px 28px;">
+    <h2 style="font-size:16px;color:#111827;border-bottom:2px solid #f3f4f6;padding-bottom:10px;margin:18px 0 16px;">结果目标</h2>
+
+    <!-- 本月成交订单金额 -->
+    <div style="border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;margin-bottom:16px;background:#fffdfa;">
+      <div style="font-size:14px;font-weight:600;color:#111827;">本月成交订单金额</div>
+      <div style="font-size:12px;color:#9ca3af;margin:2px 0 12px;">考核订单的订单金额（不含已取消订单）</div>
+      <table width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td style="font-size:30px;font-weight:700;color:#ea580c;">¥<%= money(r[:amount_micros]) %></td>
+        <td align="right" style="font-size:13px;color:#6b7280;">较上月 <%= mom.call(r[:amount_mom_pct]) %></td>
+      </tr></table>
+
+      <!-- 进度条 -->
+      <div style="height:10px;background:#f3f4f6;border-radius:6px;margin:16px 0 12px;overflow:hidden;">
+        <div style="height:10px;width:<%= pct %>%;background:linear-gradient(90deg,#f97316,#fbbf24);border-radius:6px;"></div>
+      </div>
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12px;color:#6b7280;">
+        <tr>
+          <td>累计完成 <span style="color:#ea580c;font-weight:600;">¥<%= money(ytd) %></span></td>
+          <td align="right">本月完成 <span style="color:#111827;font-weight:600;">¥<%= money(r[:amount_micros]) %></span></td>
+        </tr>
+        <tr>
+          <td style="padding-top:4px;">年度目标 ¥<%= target.positive? ? money(target) : '未设置' %></td>
+          <td align="right" style="padding-top:4px;">超额完成 ¥<%= money(over) %></td>
+        </tr>
+      </table>
+
+      <% if r[:champion_name].present? %>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f3f4f6;font-size:13px;color:#b45309;">
+          &#128081; <%= r[:champion_name] %> 摘得桂冠（本月成交 ¥<%= money(r[:champion_amount_micros]) %>）
+        </div>
+      <% end %>
+    </div>
+
+    <!-- 本月新建客户数 -->
+    <div style="border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;background:#fffdfa;">
+      <div style="font-size:14px;font-weight:600;color:#111827;">本月新建客户数</div>
+      <div style="font-size:12px;color:#9ca3af;margin:2px 0 12px;">当期新建的客户数</div>
+      <table width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td style="font-size:30px;font-weight:700;color:#ea580c;"><%= r[:new_customers] %></td>
+        <td align="right" style="font-size:13px;color:#6b7280;">较上月 <%= mom.call(r[:customers_mom_pct]) %></td>
+      </tr></table>
+    </div>
+  </div>
+
+  <!-- 页脚 -->
+  <div style="padding:18px 28px;background:#fafafa;border-radius:0 0 12px 12px;font-size:12px;color:#9ca3af;text-align:center;">
+    本邮件由 <%= brand_name %> CRM 每月自动发送 · 请勿直接回复
+  </div>
+</div>

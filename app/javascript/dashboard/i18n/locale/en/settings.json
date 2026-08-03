@@ -481,6 +481,7 @@
     "CRM_READ_EMAILS": "收发邮件",
     "CRM_EMAIL_TEMPLATES": "邮件模板",
     "CRM_MAIL_ACCOUNTS": "邮箱账户",
+    "CRM_AI_SETTINGS": "AI 设置",
     "CRM_G_KNOWLEDGE": "销售资料",
     "CRM_COMPANY_DOCS": "公司资料",
     "CRM_MY_DOCS": "我的资料",

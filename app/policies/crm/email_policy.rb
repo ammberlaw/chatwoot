@@ -35,6 +35,19 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  # 邮件 AI 助手（写信/翻译/摘要）：全员可用，数据范围由控制器 visible_emails 收口。
+  def compose?
+    true
+  end
+
+  def translate?
+    true
+  end
+
+  def summarize?
+    true
+  end
+
   def update?
     true
   end

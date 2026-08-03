@@ -838,6 +838,7 @@ const menuItems = computed(() => {
           'crm_emails_index',
           'crm_mail_accounts_index',
           'crm_email_templates_index',
+          'crm_ai_settings_index',
         ],
         children: [
           {
@@ -858,6 +859,16 @@ const menuItems = computed(() => {
             to: accountScopedRoute('crm_mail_accounts_index'),
             activeOn: ['crm_mail_accounts_index'],
           },
+          ...(isAdminLike.value
+            ? [
+                {
+                  name: 'CRM AI Settings',
+                  label: t('SIDEBAR.CRM_AI_SETTINGS'),
+                  to: accountScopedRoute('crm_ai_settings_index'),
+                  activeOn: ['crm_ai_settings_index'],
+                },
+              ]
+            : []),
         ],
       },
       {

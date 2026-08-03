@@ -19,6 +19,7 @@ import EmailSignaturesAPI from 'dashboard/api/crm/emailSignatures';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import ContactsAPI from 'dashboard/api/crm/contacts';
 import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
+import CrmAiAPI from 'dashboard/api/crm/ai';
 import {
   CURATED_ZONES,
   COUNTRY_TZ,
@@ -109,6 +110,16 @@ const L = {
   colorPalette: '颜料盘',
   underline: '下划线（选中文字后点击）',
   underlineU: 'U',
+  aiButton: 'AI 写信',
+  aiTitle: 'AI 写信 / 回信',
+  aiPlaceholder:
+    '用中文描述要写什么，例如：催客户确认 PI，语气客气点；报 500 台 10.1 寸平板的价格，交期 30 天…',
+  aiHint:
+    '默认写英文（可在描述里指定其他语言）；生成内容会插到正文最上方，可再修改。',
+  aiGenerate: '生成',
+  aiGenerating: '生成中…（约 10 秒）',
+  aiNeedIntent: '请先描述这封邮件要写什么',
+  aiFailed: 'AI 生成失败，请稍后再试',
 };
 
 // 富文本编辑器输出 Markdown；发送/预览时用 Chatwoot 的 MessageFormatter 转 HTML。
@@ -144,6 +155,37 @@ const form = reactive({
 });
 const showCc = ref(false);
 const showBcc = ref(false);
+
+// ---- AI 写信：中文意图 → DeepSeek 生成英文商务邮件，插到正文最上方 ----
+const aiOpen = ref(false);
+const aiIntent = ref('');
+const aiLoading = ref(false);
+
+const generateAi = async () => {
+  const intent = aiIntent.value.trim();
+  if (!intent) {
+    useAlert(L.aiNeedIntent);
+    return;
+  }
+  aiLoading.value = true;
+  try {
+    const { data } = await CrmAiAPI.compose({
+      intent,
+      // 回复场景把引用原文（含用户已写内容）一并给模型当上下文。
+      original: form.body.trim() || undefined,
+    });
+    if (data.body) {
+      const existing = form.body.replace(/^\n+/, '');
+      form.body = existing ? `${data.body}\n\n${existing}` : data.body;
+    }
+    if (data.subject && !form.subject.trim()) form.subject = data.subject;
+    aiOpen.value = false;
+  } catch (e) {
+    useAlert(e?.response?.data?.message || L.aiFailed);
+  } finally {
+    aiLoading.value = false;
+  }
+};
 
 // 正文整封字体 / 字号（对齐 Gmail 的字体、字号下拉）。
 const FONT_FAMILIES = [
@@ -1083,6 +1125,53 @@ defineExpose({ open, close });
             class="hidden"
             @change="onPickFiles"
           />
+          <!-- AI 写信：中文说意图，生成英文商务邮件插入正文顶部 -->
+          <div
+            v-on-click-outside="() => !aiLoading && (aiOpen = false)"
+            class="relative flex-shrink-0"
+          >
+            <button
+              class="inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-amber-9 text-n-amber-11 hover:bg-n-amber-2 disabled:opacity-60"
+              :disabled="sending"
+              :title="L.aiTitle"
+              @click="aiOpen = !aiOpen"
+            >
+              <Icon icon="i-lucide-sparkles" class="size-4" />
+              {{ L.aiButton }}
+            </button>
+            <div
+              v-if="aiOpen"
+              class="absolute bottom-10 left-0 z-30 w-[26rem] p-3 border rounded-lg shadow-lg bg-n-solid-1 border-n-weak"
+            >
+              <p class="mb-2 text-[13px] font-medium text-n-slate-12">
+                {{ L.aiTitle }}
+              </p>
+              <textarea
+                v-model="aiIntent"
+                rows="3"
+                class="w-full px-2.5 py-2 mb-1 text-sm border rounded-lg resize-none reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:border-n-amber-9"
+                :placeholder="L.aiPlaceholder"
+                :disabled="aiLoading"
+              />
+              <p class="mb-2 text-xs leading-relaxed text-n-slate-10">
+                {{ L.aiHint }}
+              </p>
+              <button
+                class="inline-flex items-center gap-1.5 px-3 h-8 text-sm font-medium rounded-lg bg-n-amber-9 text-white hover:bg-n-amber-10 disabled:opacity-60"
+                :disabled="aiLoading"
+                @click="generateAi"
+              >
+                <Icon
+                  :icon="
+                    aiLoading ? 'i-lucide-loader-circle' : 'i-lucide-sparkles'
+                  "
+                  class="size-4"
+                  :class="aiLoading ? 'animate-spin' : ''"
+                />
+                {{ aiLoading ? L.aiGenerating : L.aiGenerate }}
+              </button>
+            </div>
+          </div>
           <button
             class="inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-60"
             :disabled="sending"
