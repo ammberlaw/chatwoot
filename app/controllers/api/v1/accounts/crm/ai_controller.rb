@@ -42,6 +42,16 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
     render json: { summary: service.summarize(transcript: build_transcript(address, emails)) }
   end
 
+  # 客户 AI 背调：输入邮箱→取企业域名→抓官网→AI 判断公司做什么/规模，并顺带查库是否已建档。
+  def company_lookup
+    email = params[:email].to_s.strip
+    return render json: { message: '请输入邮箱地址' }, status: :unprocessable_entity if email.blank?
+
+    result = Crm::CompanyLookupService.new(account: Current.account).call(email: email)
+    result[:db_match] = company_db_match(result[:domain]) if result[:domain].present?
+    render json: result
+  end
+
   private
 
   def check_authorization
@@ -55,6 +65,20 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
   # 可见范围与邮件列表同口径：管理员全员 / 主管团队 / 业务员自己。
   def visible_emails
     scope_by_owner(Current.account.crm_emails)
+  end
+
+  # 该域名在系统里是否已建档：total 为全账户命中数（供去重预警），visible 仅返回当前用户可见范围的详情
+  # （业务员只看自己/团队，其余只知数量不露客户名，守住数据可见性边界）。
+  def company_db_match(domain)
+    all = Current.account.crm_customers.where('LOWER(contact_email) LIKE ?', "%@#{domain.downcase}")
+    ids = crm_visible_owner_ids
+    visible = ids == :all ? all : all.where(account_owner_id: ids)
+    {
+      total: all.count,
+      visible: visible.limit(10).map do |c|
+        { id: c.id, name: c.name, owner: c.account_owner&.name, mine: c.account_owner_id == Current.user&.id }
+      end
+    }
   end
 
   def build_transcript(address, emails)

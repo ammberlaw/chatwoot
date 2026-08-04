@@ -48,6 +48,11 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  # 客户 AI 背调（输入邮箱→查官网）：全员可用，查库匹配由控制器按可见范围收口。
+  def company_lookup?
+    true
+  end
+
   def update?
     true
   end

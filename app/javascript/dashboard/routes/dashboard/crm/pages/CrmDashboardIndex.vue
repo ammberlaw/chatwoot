@@ -371,21 +371,21 @@ const PERIODS = [
         <select
           v-if="period === 'month'"
           v-model.number="selectedMonth"
-          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
         >
           <option v-for="m in 12" :key="m" :value="m">{{ m }}月</option>
         </select>
         <select
           v-else-if="period === 'quarter'"
           v-model.number="selectedQuarter"
-          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
         >
           <option v-for="q in 4" :key="q" :value="q">Q{{ q }}</option>
         </select>
         <select
           v-else
           v-model.number="selectedYear"
-          class="h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
         >
           <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
         </select>

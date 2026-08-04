@@ -21,6 +21,11 @@ class CrmAiAPI extends ApiClient {
   summarize(address) {
     return axios.post(`${this.url}/summarize`, { address });
   }
+
+  // 客户 AI 背调：输入邮箱→抓官网→判断公司背景 + 查库是否已建档。
+  companyLookup(email) {
+    return axios.post(`${this.url}/company_lookup`, { email });
+  }
 }
 
 export default new CrmAiAPI();

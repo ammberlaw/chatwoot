@@ -735,6 +735,7 @@ const menuItems = computed(() => {
           'crm_customers_index',
           'crm_customer_intake_index',
           'crm_customer_dupes_index',
+          'crm_ai_background_check_index',
           'crm_public_pool_settings_index',
         ],
         children: [
@@ -778,6 +779,12 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.CRM_CUSTOMER_DUPES'),
             to: accountScopedRoute('crm_customer_dupes_index'),
             activeOn: ['crm_customer_dupes_index'],
+          },
+          {
+            name: 'CRM AI Background Check',
+            label: t('SIDEBAR.CRM_AI_BACKGROUND_CHECK'),
+            to: accountScopedRoute('crm_ai_background_check_index'),
+            activeOn: ['crm_ai_background_check_index'],
           },
           ...(isAdminLike.value
             ? [

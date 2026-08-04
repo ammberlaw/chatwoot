@@ -37,6 +37,22 @@ class Crm::EmailAiService
     用短句，总共不超过 250 字；记录太少不足以判断时如实说明，不要编造。
   PROMPT
 
+  COMPANY_SYSTEM = <<~PROMPT.freeze
+    你是资深外贸商务分析助手，负责给一家海外客户公司做背景初判（背调）。
+    下面给你的是这家公司官网抓取到的文本，请严格只依据这些内容判断，不要凭空编造；
+    官网没提到的字段填 "未提及"。用简体中文。
+    只返回一个 JSON 对象，不要输出任何多余文字、不要用代码块包裹。字段：
+    {
+      "company_name": "公司正式名称",
+      "business": "主营业务/主要产品，一到两句话说清楚它是做什么的",
+      "industry": "所属行业",
+      "size_hint": "规模线索：员工数、成立年份、工厂/门店、覆盖市场等，官网提到才写",
+      "country": "国家或地区",
+      "legit": "看起来是否为正常运营的真实公司，只填三选一：real / suspicious / unknown",
+      "note": "给业务员的一句话判断或提醒（例如是否值得重点跟进、是同行还是终端客户等）"
+    }
+  PROMPT
+
   # 写信/回信：返回 [主题, 正文]。original 为回复场景带入的原文引用（可含用户已写内容）。
   def compose(intent:, original: nil)
     prompt = "写信意图：#{intent}"
@@ -52,6 +68,12 @@ class Crm::EmailAiService
   # 往来摘要：transcript 由控制器拼好（时间/方向/主题/正文节选）。
   def summarize(transcript:)
     ask(SUMMARIZE_SYSTEM, transcript)
+  end
+
+  # 公司背调：site_text 为官网抓取的文本（由 Crm::CompanyLookupService 提供），返回字段化 Hash。
+  def company_profile(domain:, site_text:)
+    raw = ask(COMPANY_SYSTEM, "公司域名：#{domain}\n\n官网内容：\n#{truncate(site_text)}")
+    parse_json(raw)
   end
 
   # 连接测试：用当前（含覆盖）配置发一个极短请求，能拿到任何回复即视为连通。
@@ -101,5 +123,13 @@ class Crm::EmailAiService
   # 控制送入模型的文本长度，防超长邮件撑爆上下文。
   def truncate(text, max = 6000)
     text.to_s.length > max ? "#{text.to_s[0, max]}\n…（内容过长已截断）" : text.to_s
+  end
+
+  # 从模型回复里抽出 JSON 对象；模型偶尔会加解释或代码块，取第一个 {...} 块解析。
+  def parse_json(raw)
+    json = raw.to_s[/\{.*\}/m]
+    json ? JSON.parse(json) : { 'note' => raw.to_s }
+  rescue JSON::ParserError
+    { 'note' => raw.to_s }
   end
 end

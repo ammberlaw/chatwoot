@@ -1,6 +1,7 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import CrmCustomersIndex from './pages/CrmCustomersIndex.vue';
 import CrmCustomerDupesIndex from './pages/CrmCustomerDupesIndex.vue';
+import CrmAiBackgroundCheckIndex from './pages/CrmAiBackgroundCheckIndex.vue';
 import CrmOpportunitiesIndex from './pages/CrmOpportunitiesIndex.vue';
 import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
 import CrmSalesOrdersIndex from './pages/CrmSalesOrdersIndex.vue';
@@ -67,6 +68,11 @@ export const routes = [
   ),
   crmPage('customers', 'crm_customers_index', CrmCustomersIndex),
   crmPage('customer-dupes', 'crm_customer_dupes_index', CrmCustomerDupesIndex),
+  crmPage(
+    'ai-background-check',
+    'crm_ai_background_check_index',
+    CrmAiBackgroundCheckIndex
+  ),
   crmPage(
     'public-pool-settings',
     'crm_public_pool_settings_index',

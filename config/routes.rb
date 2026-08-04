@@ -92,6 +92,8 @@ Rails.application.routes.draw do
             post 'ai/compose', to: 'ai#compose'
             post 'ai/translate', to: 'ai#translate'
             post 'ai/summarize', to: 'ai#summarize'
+            # 客户 AI 背调：输入邮箱→抓官网→判断公司背景。
+            post 'ai/company_lookup', to: 'ai#company_lookup'
             resources :emails do
               collection do
                 get :counts
