@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
@@ -12,11 +12,21 @@ const data = ref(null);
 const loading = ref(true);
 const selectedTeamId = ref(null);
 
+// 月份/年份筛选：默认当月，切换后重新拉取该月团队实绩与目标。
+const now = new Date();
+const selectedYear = ref(now.getFullYear());
+const selectedMonth = ref(now.getMonth() + 1);
+const yearOptions = computed(() => {
+  const y = new Date().getFullYear();
+  return [y, y - 1, y - 2];
+});
+
 const fetchData = async () => {
   loading.value = true;
   try {
     const { data: payload } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/crm/team_dashboard`
+      `/api/v1/accounts/${accountId.value}/crm/team_dashboard`,
+      { params: { year: selectedYear.value, month: selectedMonth.value } }
     );
     data.value = payload;
     if (payload.teams.length && selectedTeamId.value == null) {
@@ -28,6 +38,7 @@ const fetchData = async () => {
 };
 
 onMounted(fetchData);
+watch([selectedYear, selectedMonth], fetchData);
 
 const money = micros =>
   `¥${Math.round((micros || 0) / 1_000_000).toLocaleString()}`;
@@ -88,13 +99,13 @@ const CARD_GRADIENTS = [
 // KPI 顶卡
 const kpiCards = computed(() => [
   {
-    label: '本月成交额',
+    label: '成交额',
     value: money(totals.value.actualAmount),
     sub: `目标 ${money(totals.value.targetAmount)}`,
     icon: 'i-lucide-wallet',
   },
   {
-    label: '本月新成交客户',
+    label: '新成交客户',
     value: totals.value.actualCount,
     sub: `目标 ${totals.value.targetCount}`,
     icon: 'i-lucide-user-plus',
@@ -121,15 +132,29 @@ const kpiCards = computed(() => [
           {{ data?.month_label }}
         </p>
       </div>
-      <select
-        v-if="teams.length"
-        v-model.number="selectedTeamId"
-        class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-      >
-        <option v-for="team_ in teams" :key="team_.id" :value="team_.id">
-          {{ team_.name }}
-        </option>
-      </select>
+      <div class="flex items-center gap-2">
+        <select
+          v-model.number="selectedYear"
+          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+        >
+          <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
+        </select>
+        <select
+          v-model.number="selectedMonth"
+          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+        >
+          <option v-for="m in 12" :key="m" :value="m">{{ m }}月</option>
+        </select>
+        <select
+          v-if="teams.length"
+          v-model.number="selectedTeamId"
+          class="w-auto mb-0 h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+        >
+          <option v-for="team_ in teams" :key="team_.id" :value="team_.id">
+            {{ team_.name }}
+          </option>
+        </select>
+      </div>
     </div>
 
     <div v-if="loading" class="p-8 text-center text-n-slate-11">

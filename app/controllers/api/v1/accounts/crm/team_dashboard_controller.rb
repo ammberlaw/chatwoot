@@ -9,14 +9,21 @@ class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::
 
   private
 
+  # 参考月：优先 year+month 参数（前端下拉筛选），非法或缺省回落当月。
+  def ref_date
+    @ref_date ||= begin
+      year = params[:year].to_i
+      month = params[:month].to_i
+      year.positive? && month.between?(1, 12) ? Date.new(year, month, 1) : Time.zone.today
+    end
+  end
+
   def month_range
-    today = Time.zone.today
-    today.beginning_of_month..today.end_of_month
+    ref_date.beginning_of_month..ref_date.end_of_month
   end
 
   def month_label
-    today = Time.zone.today
-    "#{today.year}年#{today.month}月"
+    "#{ref_date.year}年#{ref_date.month}月"
   end
 
   # 本月实绩：成交额来自非取消订单(按 owner)，新客户数来自本月首次成交客户(按 account_owner)
@@ -35,7 +42,7 @@ class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::
 
   def target_by_owner
     @target_by_owner ||= begin
-      rows = Current.account.crm_sales_targets.for_month(Time.zone.today)
+      rows = Current.account.crm_sales_targets.for_month(ref_date)
                     .group(:owner_id)
                     .pluck(:owner_id, Arel.sql('SUM(target_amount_micros)'), Arel.sql('SUM(target_order_count)'))
       rows.to_h { |owner_id, amount, count| [owner_id, { amount: amount || 0, count: count || 0 }] }
