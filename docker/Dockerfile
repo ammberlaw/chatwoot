@@ -64,6 +64,8 @@ COPY Gemfile Gemfile.lock ./
 # https://github.com/chatwoot/chatwoot/issues/4045
 RUN apk update && apk add --no-cache build-base musl ruby-full ruby-dev gcc make musl-dev openssl openssl-dev g++ linux-headers xz vips
 RUN bundle config set --local force_ruby_platform true && bundle config set --local mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
+# git 源 gem 走国内 GitHub 代理：腾讯服务器直连 github.com 时通时断，ghfast.top 透明中转能拿精确 pinned SHA
+RUN git config --global url."https://ghfast.top/https://github.com/".insteadOf "https://github.com/"
 
 # Do not install development or test gems in production
 RUN if [ "$RAILS_ENV" = "production" ]; then \
