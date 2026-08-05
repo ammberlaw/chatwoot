@@ -152,6 +152,8 @@ Rails.application.routes.draw do
                 post :score
                 post :hr_confirm
                 post :gm_confirm
+                post :ai_suggest
+                post :return_sheet
               end
             end
             resources :employee_comps

@@ -12,6 +12,7 @@ const members = ref([]);
 const form = reactive({
   hrOwnerId: '',
   gmOwnerId: '',
+  submitDeadlineDay: '',
   schemeVisibleManager: true,
   sheetVisibleSales: true,
   sheetVisibleManager: true,
@@ -29,6 +30,7 @@ onMounted(async () => {
     const d = setting.data;
     form.hrOwnerId = d.hr_owner_id || '';
     form.gmOwnerId = d.gm_owner_id || '';
+    form.submitDeadlineDay = d.submit_deadline_day || '';
     form.schemeVisibleManager = d.scheme_visible_manager !== false;
     form.sheetVisibleSales = d.sheet_visible_sales !== false;
     form.sheetVisibleManager = d.sheet_visible_manager !== false;
@@ -46,6 +48,7 @@ const save = async () => {
       setting: {
         hr_owner_id: form.hrOwnerId || null,
         gm_owner_id: form.gmOwnerId || null,
+        submit_deadline_day: form.submitDeadlineDay === '' ? null : Number(form.submitDeadlineDay),
         scheme_visible_manager: form.schemeVisibleManager,
         sheet_visible_sales: form.sheetVisibleSales,
         sheet_visible_manager: form.sheetVisibleManager,
@@ -88,6 +91,15 @@ const fieldCls = 'h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1
           <option value="">—</option>
           <option v-for="m in members" :key="m.user_id" :value="m.user_id">{{ m.name }}</option>
         </select>
+      </label>
+
+      <label class="flex flex-col gap-1.5 pt-4 mt-1 border-t border-n-weak">
+        <span class="text-sm text-n-slate-12">{{ t('CRM.PERF_SETTINGS.DEADLINE') }}</span>
+        <span class="text-xs text-n-slate-10">{{ t('CRM.PERF_SETTINGS.DEADLINE_HINT') }}</span>
+        <div class="flex items-center gap-2">
+          <input v-model="form.submitDeadlineDay" type="number" min="1" max="28" :class="fieldCls" class="w-24" :placeholder="t('CRM.PERF_SETTINGS.DEADLINE_PLACEHOLDER')" />
+          <span class="text-sm text-n-slate-11">{{ t('CRM.PERF_SETTINGS.DEADLINE_UNIT') }}</span>
+        </div>
       </label>
 
       <!-- 板块可见性矩阵 -->

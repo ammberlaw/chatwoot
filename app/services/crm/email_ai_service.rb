@@ -53,6 +53,36 @@ class Crm::EmailAiService
     }
   PROMPT
 
+  KPI_SCORING_SYSTEM = <<~PROMPT.freeze
+    你是一家中国外贸公司的绩效考核助手，帮主管给下属月度考核的每条指标打「建议分」。这只是给主管参考，最终分由主管决定。
+    评分规则：
+    - 每条指标的满分等于它的「权重」分值。根据员工完成值相对考核标准/目标值的达成情况给分：达标给满分附近；超额可上浮，但整体不超过「单项计分上限」百分比（如上限 120% 即最多为权重×1.2）；未达标按差距扣分；完全没做给 0 或接近 0。
+    - 完成值为空、或据现有信息无法判断达成情况时，给一个保守的中间偏低分，并在理由里注明「完成值缺失，需主管核实」，不要编造完成情况。
+    - 每条理由用简体中文一句话（不超过 40 字），说清给这个分的依据，只依据我提供的标准和完成值，不要臆测。
+    只返回一个 JSON 对象，不要输出任何多余文字、不要用代码块包裹。格式：
+    {
+      "suggestions": [
+        { "i": 0, "score": 7.5, "reason": "回款率 6.2% 达标，接近目标给近满分" }
+      ]
+    }
+    其中 i 是指标序号（从 0 开始，对应我给你的「指标N」），score 是建议分（数字，可含一位小数），每条指标都要给出一项。
+  PROMPT
+
+  # 绩效打分建议：为一张考核表的各指标算「建议分」。items 由控制器拼好，
+  # 每项含 name/dimension/weight/standard/target/baseline/actual。返回 [{ 'i', 'score', 'reason' }, ...]。
+  def score_suggestions(pass_score:, cap_pct:, items:)
+    lines = items.each_with_index.map do |it, i|
+      <<~ITEM.strip
+        指标#{i}｜#{it[:name]}（维度：#{it[:dimension].presence || '—'}，满分权重：#{it[:weight]}）
+          考核标准：#{it[:standard].presence || '—'}
+          目标值：#{it[:target].presence || '—'}；基准值：#{it[:baseline].presence || '—'}
+          员工完成值：#{it[:actual].presence || '（未填）'}
+      ITEM
+    end.join("\n\n")
+    raw = ask(KPI_SCORING_SYSTEM, "及格线：#{pass_score}；单项计分上限：#{cap_pct}%\n\n#{lines}")
+    Array(parse_json(raw)['suggestions'])
+  end
+
   # 写信/回信：返回 [主题, 正文]。original 为回复场景带入的原文引用（可含用户已写内容）。
   def compose(intent:, original: nil)
     prompt = "写信意图：#{intent}"

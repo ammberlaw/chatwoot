@@ -41,5 +41,5 @@ json.completeness_grade resource.completeness_grade
 
 json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f) } }
 
-json.created_at resource.created_at.to_i
-json.updated_at resource.updated_at.to_i
+json.created_at resource.created_at
+json.updated_at resource.updated_at

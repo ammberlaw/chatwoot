@@ -529,11 +529,19 @@
         "MONTHLY_SALARY": "月薪总额",
         "PERF_RATIO": "绩效占比",
         "BASELINE_TARGET": "月度业绩底线",
-        "RANK_NOTE": "职级/备注"
+        "RANK_NOTE": "职级/备注",
+        "ACTIONS": "操作",
+        "EDIT": "编辑",
+        "DELETE": "删除"
       },
       "FORM": {
         "NAME": "员工/备注",
         "MEMBER": "关联成员",
+        "PAY_GRADE": "职级档位",
+        "PAY_GRADE_PLACEHOLDER": "选档位自动带出下面三项…",
+        "PAY_GRADE_HINT": "按晋升体系表选档位，自动带出月薪(底薪)/绩效占比/月度业绩底线；如需微调可直接改下面的值。选了关联成员后，会按其入职日期只显示对应阶段。",
+        "STAGE_WITHIN_12M": "入职12个月内（P3）",
+        "STAGE_OVER_12M": "入职满12个月（P4~P9）",
         "MONTHLY_SALARY": "月薪总额(元)",
         "PERF_RATIO": "绩效占比(%)",
         "BASELINE_TARGET": "月度业绩底线(元)",
@@ -543,6 +551,16 @@
         "TITLE": "新建薪资配置",
         "SUCCESS": "薪资配置已创建",
         "ERROR": "创建失败"
+      },
+      "EDIT": {
+        "TITLE": "编辑薪资配置",
+        "SUCCESS": "薪资配置已更新",
+        "ERROR": "更新失败"
+      },
+      "DELETE": {
+        "CONFIRM": "确定删除「{name}」的薪资配置？删除后不可恢复。",
+        "SUCCESS": "薪资配置已删除",
+        "ERROR": "删除失败"
       }
     },
     "KPI_SHEETS": {
@@ -562,6 +580,7 @@
       "BASE": "绩效基数",
       "COEFFICIENT": "发放系数",
       "ACTUAL_PAYOUT": "本月实发绩效",
+      "PROBATION_NOTE": "该员工本考核月处于试用期，不参与绩效薪资核算（考核得分仅作评估）。转正当月起自动恢复核算。",
       "SIGN": "电子签名与审批",
       "SIGN_EMPLOYEE": "被考核人（员工）签",
       "SIGN_MANAGER": "考核人（主管）签",
@@ -575,6 +594,24 @@
       "SAVE_ERROR": "保存失败",
       "SUBMIT": "提交并签名",
       "SCORE": "打分并签名",
+      "AI_SUGGEST": "AI 建议分",
+      "AI_ADOPT_ALL": "全部采纳",
+      "AI_HINT": "建议 {score} · 采纳",
+      "AI_DONE": "AI 已给出建议分，仅供参考，请主管核定",
+      "AI_ERROR": "AI 建议分生成失败，请稍后再试或到 AI 设置检查 Key",
+      "RETURN": "退回重填",
+      "RETURN_TITLE": "退回给员工重填",
+      "RETURN_PLACEHOLDER": "填写退回原因，员工会看到并据此修改",
+      "RETURN_CONFIRM": "确认退回",
+      "RETURN_NEED_REASON": "请填写退回原因",
+      "RETURNED_OK": "已退回，员工可修改后重新提交",
+      "RETURNED_BANNER": "本表已被退回，请修改后重新提交。原因：",
+      "CANCEL": "取消",
+      "DEADLINE_HINT": "请在 {date} 前提交，逾期将无法提交",
+      "REMARK": "备注 / 补充条款",
+      "REMARK_PLACEHOLDER": "补充说明或条款，随表存档，员工可见",
+      "REMARK_SAVE": "保存备注",
+      "REMARK_SAVED": "备注已保存",
       "HR_CONFIRM": "人事确认",
       "GM_CONFIRM": "总经理确认",
       "STEP_OK": "已完成本步",
@@ -586,6 +623,13 @@
       "COL_STATUS": "状态",
       "COL_SCORE": "总分",
       "COL_PAYOUT": "实发绩效",
+      "COL_ACTIONS": "操作",
+      "RECALL": {
+        "BUTTON": "撤回",
+        "CONFIRM": "确定撤回下发给「{name}」的这张考核表？整张表将被删除，可重新下发。（仅未提交的表可撤回）",
+        "SUCCESS": "考核表已撤回",
+        "ERROR": "撤回失败"
+      },
       "STATUS": {
         "PENDING": "待填报",
         "SUBMITTED": "待打分",
@@ -664,8 +708,8 @@
       "BILLING_NOTE": "费用说明：调用按量计费，由所选服务商向你的账户扣费。以 DeepSeek 为例，每百万 tokens 约一两元，正常使用每月通常仅几十元。"
     },
     "PERF_SETTINGS": {
-      "HEADER": "绩效审批人设置",
-      "SUBTITLE": "指定谁是人事、总经理（决定考核表审批链的第 3、4 步由谁确认）",
+      "HEADER": "绩效设置",
+      "SUBTITLE": "指定人事/总经理审批人、业务员提交截止日与各板块可见性",
       "LOADING": "加载中…",
       "LOAD_ERROR": "加载失败",
       "SAVE": "保存",
@@ -675,6 +719,10 @@
       "HR_HINT": "主管打分后，由此人做人事确认+签",
       "GM": "总经理",
       "GM_HINT": "人事确认后，由此人做总经理确认+签，签完归档",
+      "DEADLINE": "业务员提交截止日",
+      "DEADLINE_HINT": "业务员须在「考核月次月」的这一天前提交考核表，逾期任何人都无法再提交（含管理员/人事，不代交）。留空=不限制。",
+      "DEADLINE_PLACEHOLDER": "不限",
+      "DEADLINE_UNIT": "号（次月）",
       "VISIBILITY": "板块可见性（按角色）",
       "VISIBILITY_HINT": "勾选各角色能看到哪些项。管理员始终全部可见；被指定的人事/总经理始终可见考核表。",
       "ROLE_SALES": "业务员",

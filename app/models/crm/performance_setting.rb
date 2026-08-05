@@ -8,6 +8,7 @@
 #  scheme_visible_sales   :boolean          default(TRUE), not null
 #  sheet_visible_manager  :boolean          default(TRUE), not null
 #  sheet_visible_sales    :boolean          default(TRUE), not null
+#  submit_deadline_day    :integer
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  account_id             :bigint           not null
@@ -27,6 +28,10 @@ class Crm::PerformanceSetting < ApplicationRecord
   belongs_to :account
   belongs_to :hr_owner, class_name: 'User', optional: true
   belongs_to :gm_owner, class_name: 'User', optional: true
+
+  # 提交截止日：考核月次月的第 N 天（1-28，避开月末不存在的日子）；留空=不限制。
+  validates :submit_deadline_day, numericality: { only_integer: true, greater_than_or_equal_to: 1, less_than_or_equal_to: 28 },
+                                  allow_nil: true
 
   # 单记录：取或建。
   def self.for_account(account)

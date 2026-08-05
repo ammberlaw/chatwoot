@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useCrmKpiSheetsStore } from 'dashboard/stores/crm/kpiSheets';
@@ -33,6 +34,28 @@ const open = sheet =>
     params: { accountId: accountId.value },
     query: { id: sheet.id },
   });
+
+// 撤回下发：仅「待填报」阶段、且管理员/副管理员/主管可见（作用域由后端最终把关）。
+const canRecall = computed(
+  () => isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value
+);
+const recall = async sheet => {
+  if (
+    !window.confirm(
+      t('CRM.KPI_SHEETS.RECALL.CONFIRM', {
+        name: sheet.ownerName || '该员工',
+      })
+    )
+  ) {
+    return;
+  }
+  try {
+    await store.delete(sheet.id);
+    useAlert(t('CRM.KPI_SHEETS.RECALL.SUCCESS'));
+  } catch (e) {
+    useAlert(e?.response?.data?.error || t('CRM.KPI_SHEETS.RECALL.ERROR'));
+  }
+};
 
 const yuan = m =>
   m == null ? '—' : `¥${Math.round(m / 1_000_000).toLocaleString()}`;
@@ -166,6 +189,9 @@ const statusClass = s =>
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.KPI_SHEETS.COL_PAYOUT') }}
             </th>
+            <th v-if="canRecall" class="px-3 py-2 font-medium text-right">
+              {{ t('CRM.KPI_SHEETS.COL_ACTIONS') }}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -195,6 +221,15 @@ const statusClass = s =>
             </td>
             <td class="px-3 py-2 font-medium text-n-slate-12">
               {{ yuan(s.actualPayoutMicros) }}
+            </td>
+            <td v-if="canRecall" class="px-3 py-2 text-right">
+              <button
+                v-if="s.status === 'PENDING'"
+                class="px-2 py-1 text-xs rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
+                @click.stop="recall(s)"
+              >
+                {{ t('CRM.KPI_SHEETS.RECALL.BUTTON') }}
+              </button>
             </td>
           </tr>
         </tbody>

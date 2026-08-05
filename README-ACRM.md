@@ -204,3 +204,17 @@ docker compose exec rails bundle exec rails db:migrate db:seed
 - 金额 `*_micros`(与 Twenty 1:1,便于 ETL);枚举字符串列 + `inclusion` 校验 + `%w[]` 常量。
 - i18n 仅改 `en/*.json`(本 fork 内填中文);Vue 一律组合式 `<script setup>`;Tailwind only,颜色查 `tailwind.config.js`。
 - Commit 用 Conventional Commits,不引用 AI。
+
+---
+
+## 近期更新(2026-07 下旬 ~ 08-05)
+
+- **客户查重模块**:邮箱/电话/WhatsApp/同名四维度重复分组 + 主动查重检索 + 邮箱身份识别悬浮卡(同事/我的/撞单/陌生)。
+- **邮件模块增强**:多邮箱按人隔离、「我的/团队」切换、垃圾邮件(SPAM)、邮箱连通检测、IMAP/POP3 双协议收信、中文邮件乱码修复、网易企业邮单封坏邮件堵死整箱修复、防误关。
+- **邮件 AI 助手**:写信/翻译/往来摘要三件套 + 管理员自助「AI 设置」页(DeepSeek 等,全公司共用一把 key,DB 优先 env 兜底)。
+- **工作月报邮件**:每月 1 号自动推上月经营数据(对标小满 OKKI),按 AccessScope 权限收口,公海设置页总开关。
+- **客户 AI 背调**:输邮箱 → 抓官网 → AI 判断公司背景 + 查库预警。
+- **团队看板**:增加月份/年份下拉筛选。
+- **绩效/KPI**:考核指标权重支持小数(decimal 5,1)、考核表 AI 建议(`ai_suggest`)与退回(`return_sheet`)、退回备注与提交截止、「审批人设置」更名「绩效设置」。
+- **小满公海迁移**:公海企业域名邮箱客户 7,087 条导入生产公海池(无负责人),补齐 4,573 私海之后的公海侧。
+- **客户「创建于」显示修复**:`_crm_customer` 序列化的 `created_at`/`updated_at` 由秒级时间戳改为 ISO(前端曾把秒当毫秒渲染成 1970)。

@@ -18,10 +18,13 @@ const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
+const isUpdating = computed(() => uiFlags.value.updatingItem);
+const isDialogLoading = computed(() => isCreating.value || isUpdating.value);
 
 const fetchRecords = () => store.get();
 
 const openCreateDialog = () => createDialogRef.value?.open();
+const openEditDialog = record => createDialogRef.value?.openEdit(record);
 
 const createRecord = async payload => {
   try {
@@ -30,6 +33,32 @@ const createRecord = async payload => {
     useAlert(t('CRM.EMPLOYEE_COMPS.CREATE.SUCCESS'));
   } catch {
     useAlert(t('CRM.EMPLOYEE_COMPS.CREATE.ERROR'));
+  }
+};
+
+const updateRecord = async payload => {
+  try {
+    await store.update(payload);
+    createDialogRef.value?.onSuccess();
+    useAlert(t('CRM.EMPLOYEE_COMPS.EDIT.SUCCESS'));
+  } catch {
+    useAlert(t('CRM.EMPLOYEE_COMPS.EDIT.ERROR'));
+  }
+};
+
+const deleteRecord = async record => {
+  if (
+    !window.confirm(
+      t('CRM.EMPLOYEE_COMPS.DELETE.CONFIRM', { name: record.name })
+    )
+  ) {
+    return;
+  }
+  try {
+    await store.delete(record.id);
+    useAlert(t('CRM.EMPLOYEE_COMPS.DELETE.SUCCESS'));
+  } catch {
+    useAlert(t('CRM.EMPLOYEE_COMPS.DELETE.ERROR'));
   }
 };
 
@@ -179,6 +208,9 @@ const fmtMoney = micros => {
             <th class="px-3 py-2 font-medium">
               {{ t('CRM.EMPLOYEE_COMPS.TABLE.RANK_NOTE') }}
             </th>
+            <th class="px-3 py-2 font-medium text-right">
+              {{ t('CRM.EMPLOYEE_COMPS.TABLE.ACTIONS') }}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -209,6 +241,26 @@ const fmtMoney = micros => {
             <td class="px-3 py-2 text-n-slate-11">
               {{ record.rankNote ?? '—' }}
             </td>
+            <td class="px-3 py-2">
+              <div class="flex items-center justify-end gap-1">
+                <Button
+                  :label="t('CRM.EMPLOYEE_COMPS.TABLE.EDIT')"
+                  icon="i-lucide-pencil"
+                  color="slate"
+                  variant="ghost"
+                  size="sm"
+                  @click="openEditDialog(record)"
+                />
+                <Button
+                  :label="t('CRM.EMPLOYEE_COMPS.TABLE.DELETE')"
+                  icon="i-lucide-trash-2"
+                  color="ruby"
+                  variant="ghost"
+                  size="sm"
+                  @click="deleteRecord(record)"
+                />
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -216,8 +268,9 @@ const fmtMoney = micros => {
 
     <CrmEmployeeCompCreateDialog
       ref="createDialogRef"
-      :is-loading="isCreating"
+      :is-loading="isDialogLoading"
       @create="createRecord"
+      @update="updateRecord"
     />
   </div>
 </template>

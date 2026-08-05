@@ -23,6 +23,7 @@ class Api::V1::Accounts::Crm::PerformanceSettingsController < Api::V1::Accounts:
   def setting_params
     params.require(:setting).permit(:hr_owner_id, :gm_owner_id,
                                     :scheme_visible_sales, :scheme_visible_manager,
-                                    :sheet_visible_sales, :sheet_visible_manager)
+                                    :sheet_visible_sales, :sheet_visible_manager,
+                                    :submit_deadline_day)
   end
 end

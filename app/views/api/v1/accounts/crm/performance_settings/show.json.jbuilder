@@ -6,3 +6,4 @@ json.scheme_visible_sales @setting.scheme_visible_sales
 json.scheme_visible_manager @setting.scheme_visible_manager
 json.sheet_visible_sales @setting.sheet_visible_sales
 json.sheet_visible_manager @setting.sheet_visible_manager
+json.submit_deadline_day @setting.submit_deadline_day

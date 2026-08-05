@@ -12,6 +12,7 @@ json.baseline_target_micros resource.baseline_target_micros
 json.performance_base_micros resource.performance_base_micros
 json.payout_coefficient resource.payout_coefficient
 json.actual_payout_micros resource.actual_payout_micros
+json.probation resource.probation?
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
 json.manager_id resource.manager_id
@@ -20,6 +21,10 @@ json.hr_id resource.hr_id
 json.hr_name resource.hr&.name
 json.gm_id resource.gm_id
 json.gm_name resource.gm&.name
+json.remark resource.remark
+json.return_reason resource.return_reason
+json.returned_at resource.returned_at
+json.returned_by_name resource.returned_by&.name
 json.employee_signed_at resource.employee_signed_at
 json.manager_signed_at resource.manager_signed_at
 json.hr_confirmed_at resource.hr_confirmed_at

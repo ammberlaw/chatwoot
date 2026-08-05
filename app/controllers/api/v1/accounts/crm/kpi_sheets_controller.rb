@@ -4,7 +4,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   skip_before_action :ensure_crm_access
   before_action :ensure_kpi_access
   before_action :check_authorization
-  before_action :fetch_sheet, only: [:show, :update, :destroy, :submit, :score, :hr_confirm, :gm_confirm]
+  before_action :fetch_sheet, only: [:show, :update, :destroy, :submit, :score, :hr_confirm, :gm_confirm, :ai_suggest, :return_sheet]
 
   # 数据范围：超管/管理员/指定人事/总经理看全部；部门负责人看本部门（含下级）+ 自己；业务员只看自己。
   def index
@@ -16,7 +16,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   def show; end
 
-  # 保存完成值(员工)/得分(主管)。按行 id 更新。
+  # 保存完成值(员工)/得分(主管)。按行 id 更新。备注/补充条款仅主管·管理员可改。
   def update
     Array(params.dig(:sheet, :sheet_items)).each do |raw|
       item = @sheet.sheet_items.find_by(id: raw[:id])
@@ -25,11 +25,15 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
       attrs = raw.permit(:actual_value, :score).to_h
       item.update!(attrs) if attrs.present?
     end
+    @sheet.update!(remark: params.dig(:sheet, :remark)) if can_manage? && params[:sheet]&.key?(:remark)
     @sheet.reload
     render 'show'
   end
 
+  # 撤回下发：把整张考核表删掉（发错人/发错月/方案发早了）。仅「待填报」阶段可撤回，避免误删已填数据。
   def destroy
+    return unless ensure_can_recall!
+
     @sheet.destroy!
     head :ok
   end
@@ -37,12 +41,26 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   # ── 审批链（每步：上传本方电子签 + 状态流转）。守卫失败即渲染错误并中断 ──
   def submit
     return unless ensure_owner!
+    return unless ensure_before_deadline!
     return unless ensure_signature!
     return unless transition!('PENDING', 'SUBMITTED') do
       attach_signature(:employee_signature)
       @sheet.employee_signed_at = Time.current
+      # 重新提交则清掉上次退回痕迹
+      @sheet.assign_attributes(return_reason: nil, returned_at: nil, returned_by_id: nil)
     end
 
+    render 'show'
+  end
+
+  # 退回重填：审批人在自己那一步发现问题，退回到「待填报」，须填原因；员工改完重走流程。
+  def return_sheet
+    return unless ensure_can_return!
+
+    reason = params[:reason].to_s.strip
+    return render_error('请填写退回原因', :unprocessable_entity) if reason.blank?
+
+    @sheet.reset_for_return!(reason: reason, by: current_user)
     render 'show'
   end
 
@@ -83,7 +101,42 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     render 'show'
   end
 
+  # AI 打分建议：为各指标算建议分（存入 suggested_score），理由随本次响应返回供主管参考。
+  # 仅打分权限者可用；最终分仍由主管手填，AI 只作参考。
+  def ai_suggest
+    return unless ensure_manager!
+
+    rows = @sheet.sheet_items.ordered.to_a
+    render json: { suggestions: apply_ai_suggestions(rows, ai_score_suggestions(rows)) }
+  rescue Crm::EmailAiService::NotConfigured => e
+    render_error(e.message, :unprocessable_entity)
+  rescue RubyLLM::Error, Faraday::Error
+    render_error('AI 服务暂时不可用，请稍后再试', :bad_gateway)
+  end
+
   private
+
+  def ai_score_suggestions(rows)
+    Crm::EmailAiService.new(account: Current.account).score_suggestions(
+      pass_score: @sheet.pass_score,
+      cap_pct: @sheet.item_score_cap_pct,
+      items: rows.map do |i|
+        { name: i.name, dimension: i.dimension, weight: i.weight, standard: i.standard,
+          target: i.target_value, baseline: i.baseline_value, actual: i.actual_value }
+      end
+    )
+  end
+
+  # 按序号回填建议分并存库，返回带理由的列表（理由不入库，仅本次响应展示）。
+  def apply_ai_suggestions(rows, suggestions)
+    rows.each_with_index.filter_map do |item, idx|
+      hint = suggestions.find { |s| s['i'] == idx }
+      next unless hint && hint['score']
+
+      item.update!(suggested_score: hint['score'])
+      { id: item.id, suggested_score: item.suggested_score, reason: hint['reason'] }
+    end
+  end
 
   def fetch_sheet
     @sheet = Current.account.crm_kpi_sheets.includes(:sheet_items, :owner).find(params[:id])
@@ -165,11 +218,50 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     @my_signature ||= Current.account.crm_signatures.find_by(user_id: current_user.id)
   end
 
-  # 守卫：通过返回 true；失败渲染错误并返回 false。
+  # 守卫：仅被考核本人可提交（管理员/人事不代交）。
   def ensure_owner!
-    return true if @sheet.owner_id == current_user.id || Current.account_user&.administrator?
+    return true if @sheet.owner_id == current_user.id
 
-    render_error('仅本人可提交', :forbidden)
+    render_error('仅被考核本人可提交', :forbidden)
+    false
+  end
+
+  # 提交截止：须在考核月「次月」的第 N 天前提交，逾期任何人都不能再提交（管理员/人事也不代交）。
+  def ensure_before_deadline!
+    day = perf_setting.submit_deadline_day
+    return true if day.blank?
+
+    deadline = @sheet.period_month.to_date.next_month.change(day: day).end_of_day
+    return true if Time.zone.now <= deadline
+
+    render_error("提交已截止（截止 #{deadline.strftime('%-m月%-d日')}），逾期无法提交", :unprocessable_entity)
+    false
+  end
+
+  # 撤回权限：仅「待填报」可撤回（已提交请用退回重填）；管理员/副管理员撤任意，主管仅限本部门（含下级）。
+  def ensure_can_recall!
+    unless @sheet.status == 'PENDING'
+      render_error('该考核表已提交，不能撤回；如需修改请用「退回重填」', :unprocessable_entity)
+      return false
+    end
+
+    au = Current.account_user
+    return true if au&.administrator? || au&.crm_deputy_admin?
+    return true if au&.crm_manager? && visible_sheet_owner_ids.include?(@sheet.owner_id)
+
+    render_error('你无权撤回这张考核表', :forbidden)
+    false
+  end
+
+  # 退回权限：当前状态下的审批人（主管/人事/总经理）或管理员可退回；已归档/待填报不可退。
+  def ensure_can_return!
+    admin = Current.account_user&.administrator?
+    allowed = { 'SUBMITTED' => can_manage?,
+                'SCORED' => admin || current_user.id == perf_setting.hr_owner_id,
+                'HR_CONFIRMED' => admin || current_user.id == perf_setting.gm_owner_id }[@sheet.status]
+    return true if allowed
+
+    render_error('当前状态下你无权退回', :forbidden)
     false
   end
 

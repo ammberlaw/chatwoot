@@ -69,4 +69,21 @@ class Crm::Employee < ApplicationRecord
   validates :gender, inclusion: { in: GENDERS }, allow_blank: true
   validates :contract_type, inclusion: { in: CONTRACT_TYPES }, allow_blank: true
   validates :resign_type, inclusion: { in: RESIGN_TYPES }, allow_blank: true
+
+  # 指定月份（考核月）该员工是否处于试用期。绩效核算据此判断是否发绩效薪资。
+  # 优先按转正日期；无转正日期时按「入职日 + 试用期月数」推算；再兜底看当前状态。
+  def probation_in?(month)
+    end_date = probation_end_date
+    return status == 'PROBATION' unless end_date
+
+    month.to_date.beginning_of_month < end_date.beginning_of_month
+  end
+
+  # 试用期结束日：转正日期优先，否则入职日 + 试用期月数；都缺则无法推算。
+  def probation_end_date
+    return regular_date if regular_date
+    return hire_date + probation_months.months if hire_date && probation_months
+
+    nil
+  end
 end
