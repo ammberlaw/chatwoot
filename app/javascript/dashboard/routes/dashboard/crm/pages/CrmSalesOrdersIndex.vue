@@ -46,7 +46,10 @@ const totalCount = computed(() => store.getMeta.count || 0);
 const crmBase = () => `/api/v1/accounts/${accountId.value}/crm`;
 
 const STATUSES = {
-  PENDING_CONFIRMATION: { label: '待确认', class: 'bg-n-slate-3 text-n-slate-11' },
+  PENDING_CONFIRMATION: {
+    label: '待确认',
+    class: 'bg-n-slate-3 text-n-slate-11',
+  },
   IN_PRODUCTION: { label: '生产中', class: 'bg-n-blue-3 text-n-blue-11' },
   PENDING_SHIPMENT: { label: '待出货', class: 'bg-n-iris-3 text-n-iris-11' },
   SHIPPED: { label: '已出货', class: 'bg-n-iris-3 text-n-iris-11' },
@@ -228,7 +231,10 @@ const detailSections = computed(() => {
     {
       title: '金额',
       rows: [
-        { label: '订单金额', value: fmtMoney(o.orderAmountMicros, o.orderCurrency) },
+        {
+          label: '订单金额',
+          value: fmtMoney(o.orderAmountMicros, o.orderCurrency),
+        },
         { label: '币种', value: o.orderCurrency },
         {
           label: '汇率',
@@ -323,7 +329,9 @@ watch(
 </script>
 
 <template>
-  <div class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
+  <div
+    class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div
         class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
@@ -460,7 +468,9 @@ watch(
                   <td
                     class="px-4 py-3 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
                   >
-                    {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
+                    {{
+                      fmtMoney(record.orderAmountMicros, record.orderCurrency)
+                    }}
                   </td>
                   <td class="px-4 py-3 text-n-slate-11 whitespace-nowrap">
                     {{ fmtDate(record.orderDate) }}

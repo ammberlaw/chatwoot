@@ -387,7 +387,9 @@ const PERIODS = [
           v-model.number="selectedYear"
           class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
         >
-          <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
+          <option v-for="y in yearOptions" :key="y" :value="y">
+            {{ y }}年
+          </option>
         </select>
       </div>
     </div>
@@ -631,7 +633,9 @@ const PERIODS = [
 
       <!-- ═══ 第 5 行：业务员回复时长 + 资料完善度 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150">
+        <div
+          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+        >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             业务员平均回复时长（越短越好）
           </h2>
@@ -653,7 +657,9 @@ const PERIODS = [
           </div>
         </div>
 
-        <div class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150">
+        <div
+          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+        >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             业务员资料完善度（越高越好）
           </h2>

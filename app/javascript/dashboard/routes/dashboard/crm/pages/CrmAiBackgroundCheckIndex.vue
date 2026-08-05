@@ -12,13 +12,27 @@ const result = ref(null); // null=未查询；{ status, domain, url, profile, db
 
 // 真实性判断三态：颜色 + 文案
 const LEGIT_MAP = {
-  real: { label: '像真实运营公司', cls: 'bg-n-teal-3 text-n-teal-11', icon: 'i-lucide-badge-check' },
-  suspicious: { label: '存疑，需人工核实', cls: 'bg-n-ruby-4 text-n-ruby-11', icon: 'i-lucide-alert-triangle' },
-  unknown: { label: '信息不足，待核实', cls: 'bg-n-alpha-2 text-n-slate-11', icon: 'i-lucide-help-circle' },
+  real: {
+    label: '像真实运营公司',
+    cls: 'bg-n-teal-3 text-n-teal-11',
+    icon: 'i-lucide-badge-check',
+  },
+  suspicious: {
+    label: '存疑，需人工核实',
+    cls: 'bg-n-ruby-4 text-n-ruby-11',
+    icon: 'i-lucide-alert-triangle',
+  },
+  unknown: {
+    label: '信息不足，待核实',
+    cls: 'bg-n-alpha-2 text-n-slate-11',
+    icon: 'i-lucide-help-circle',
+  },
 };
 
 const profile = computed(() => result.value?.profile || {});
-const legit = computed(() => LEGIT_MAP[profile.value.legit] || LEGIT_MAP.unknown);
+const legit = computed(
+  () => LEGIT_MAP[profile.value.legit] || LEGIT_MAP.unknown
+);
 
 // 背调结果字段（官网抓取后 AI 判断）
 const FIELDS = [
@@ -28,7 +42,9 @@ const FIELDS = [
   { key: 'country', label: '国家/地区', icon: 'i-lucide-map-pin' },
 ];
 
-const dbMatch = computed(() => result.value?.db_match || { total: 0, visible: [] });
+const dbMatch = computed(
+  () => result.value?.db_match || { total: 0, visible: [] }
+);
 const hiddenCount = computed(
   () => dbMatch.value.total - dbMatch.value.visible.length
 );
@@ -67,7 +83,8 @@ const openCustomer = customer => {
     <div class="px-6 pt-6 pb-4 border-b border-n-weak">
       <div class="text-lg font-medium text-n-slate-12">AI 背调</div>
       <div class="mt-0.5 text-xs text-n-slate-10">
-        输入客户邮箱，AI 自动抓取其企业官网，判断这家公司做什么、规模多大、是否真实可靠
+        输入客户邮箱，AI
+        自动抓取其企业官网，判断这家公司做什么、规模多大、是否真实可靠
       </div>
     </div>
 
@@ -92,7 +109,11 @@ const openCustomer = customer => {
           @click="run"
         >
           <span
-            :class="loading ? 'i-lucide-loader-2 animate-spin' : 'i-lucide-search-check'"
+            :class="
+              loading
+                ? 'i-lucide-loader-2 animate-spin'
+                : 'i-lucide-search-check'
+            "
             class="size-4"
           />
           背调
@@ -133,7 +154,9 @@ const openCustomer = customer => {
     >
       <span class="i-lucide-user size-8" />
       <div class="text-center">
-        <div class="font-medium text-n-slate-11">{{ result.domain }} 是个人/公共邮箱</div>
+        <div class="font-medium text-n-slate-11">
+          {{ result.domain }} 是个人/公共邮箱
+        </div>
         <div class="mt-1 text-xs">没有对应的企业官网，查不到公司背景</div>
       </div>
     </div>
@@ -145,7 +168,9 @@ const openCustomer = customer => {
     >
       <span class="i-lucide-unplug size-8" />
       <div class="text-center">
-        <div class="font-medium text-n-slate-11">没能抓取到 {{ result.domain }} 的官网</div>
+        <div class="font-medium text-n-slate-11">
+          没能抓取到 {{ result.domain }} 的官网
+        </div>
         <div class="mt-1 text-xs">
           可能对方网站防爬、是纯前端渲染，或该域名没有官网。可手动搜索核实。
         </div>
@@ -210,7 +235,9 @@ const openCustomer = customer => {
         v-if="dbMatch.total > 0"
         class="p-4 border rounded-xl border-n-amber-6 bg-n-amber-2"
       >
-        <div class="flex items-center gap-1.5 text-sm font-medium text-n-amber-11">
+        <div
+          class="flex items-center gap-1.5 text-sm font-medium text-n-amber-11"
+        >
           <span class="i-lucide-alert-triangle size-4" />
           该域名已在系统建档（共 {{ dbMatch.total }} 家），注意避免重复开发
         </div>
@@ -221,7 +248,9 @@ const openCustomer = customer => {
             class="flex items-center justify-between px-3 py-2 text-sm bg-white rounded-lg cursor-pointer hover:brightness-95"
             @click="openCustomer(c)"
           >
-            <span class="font-medium truncate text-n-slate-12">{{ c.name }}</span>
+            <span class="font-medium truncate text-n-slate-12">{{
+              c.name
+            }}</span>
             <span class="flex items-center gap-2 shrink-0 text-n-slate-10">
               <span
                 v-if="c.mine"

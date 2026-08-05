@@ -76,8 +76,7 @@ const ROLE_OPTIONS = computed(() =>
     .filter(([value]) => {
       if (value === 'administrator')
         return currentUser.value?.role === 'administrator';
-      if (value === 'deputy_admin')
-        return currentUser.value?.crm_role !== 'hr';
+      if (value === 'deputy_admin') return currentUser.value?.crm_role !== 'hr';
       return true;
     })
     .map(([value, label]) => ({ value, label }))

@@ -27,7 +27,10 @@ const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
 
 const STAGES = {
-  NEEDS_CONFIRMED: { label: '需求确认（已报价）', class: 'bg-n-blue-3 text-n-blue-11' },
+  NEEDS_CONFIRMED: {
+    label: '需求确认（已报价）',
+    class: 'bg-n-blue-3 text-n-blue-11',
+  },
   SAMPLING: { label: '样品中', class: 'bg-n-iris-3 text-n-iris-11' },
   WON: { label: '已成交', class: 'bg-n-teal-3 text-n-teal-11' },
   LOST: { label: '输单', class: 'bg-n-ruby-3 text-n-ruby-11' },
@@ -74,7 +77,11 @@ const setFilter = key => {
 const openEditDialog = record => createDialogRef.value?.open(record);
 
 const removeRecord = async record => {
-  if (!window.confirm(t('CRM.OPPORTUNITIES.DELETE.CONFIRM', { name: record.name })))
+  if (
+    !window.confirm(
+      t('CRM.OPPORTUNITIES.DELETE.CONFIRM', { name: record.name })
+    )
+  )
     return;
   try {
     await store.delete(record.id);
@@ -113,7 +120,9 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >

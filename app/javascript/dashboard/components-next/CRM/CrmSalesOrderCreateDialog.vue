@@ -82,7 +82,9 @@ const customerDisplayLabel = computed(() => {
 const opportunityOptions = computed(() => {
   const records = opportunitiesStore.getRecords || [];
   const filtered = form.crmCustomerId
-    ? records.filter(o => String(o.crmCustomerId) === String(form.crmCustomerId))
+    ? records.filter(
+        o => String(o.crmCustomerId) === String(form.crmCustomerId)
+      )
     : records;
   return [
     { value: '', label: '— 无 —' },
@@ -146,14 +148,23 @@ const open = record => {
       ? { id: record.crmCustomerId, name: record.customerName || '客户' }
       : null;
     form.name = record.name || '';
-    form.crmCustomerId = record.crmCustomerId ? String(record.crmCustomerId) : '';
-    form.crmOpportunityId = record.crmOpportunityId ? String(record.crmOpportunityId) : '';
+    form.crmCustomerId = record.crmCustomerId
+      ? String(record.crmCustomerId)
+      : '';
+    form.crmOpportunityId = record.crmOpportunityId
+      ? String(record.crmOpportunityId)
+      : '';
     form.status = record.status || 'IN_PRODUCTION';
     form.orderDate = record.orderDate ? record.orderDate.slice(0, 10) : today();
-    form.deliveryDate = record.deliveryDate ? record.deliveryDate.slice(0, 10) : '';
-    form.amount = record.orderAmountMicros ? String(record.orderAmountMicros / 1_000_000) : '';
+    form.deliveryDate = record.deliveryDate
+      ? record.deliveryDate.slice(0, 10)
+      : '';
+    form.amount = record.orderAmountMicros
+      ? String(record.orderAmountMicros / 1_000_000)
+      : '';
     form.orderCurrency = record.orderCurrency || 'CNY';
-    form.exchangeRate = record.exchangeRate != null ? String(record.exchangeRate) : '';
+    form.exchangeRate =
+      record.exchangeRate != null ? String(record.exchangeRate) : '';
     form.remark = record.remark || '';
   }
   loadPrivateCustomers();
@@ -257,7 +268,11 @@ defineExpose({ dialogRef, onSuccess, open });
     width="3xl"
     overflow-y-auto
     confirm-button-color="iris"
-    :title="isEditing ? t('CRM.SALES_ORDERS.EDIT.TITLE') : t('CRM.SALES_ORDERS.CREATE.TITLE')"
+    :title="
+      isEditing
+        ? t('CRM.SALES_ORDERS.EDIT.TITLE')
+        : t('CRM.SALES_ORDERS.CREATE.TITLE')
+    "
     :description="t('CRM.SALES_ORDERS.CREATE.DESCRIPTION')"
     :is-loading="isLoading"
     :disable-confirm-button="isFormInvalid"
@@ -300,7 +315,11 @@ defineExpose({ dialogRef, onSuccess, open });
             v-model="form.crmCustomerId"
             :options="customerOptions"
             :display-label="customerDisplayLabel"
-            :placeholder="loadingCustomers ? t('CRM.SALES_ORDERS.FORM.CUSTOMER_LOADING') : t('CRM.SALES_ORDERS.FORM.CUSTOMER_PLACEHOLDER')"
+            :placeholder="
+              loadingCustomers
+                ? t('CRM.SALES_ORDERS.FORM.CUSTOMER_LOADING')
+                : t('CRM.SALES_ORDERS.FORM.CUSTOMER_PLACEHOLDER')
+            "
             :search-placeholder="t('CRM.SALES_ORDERS.FORM.CUSTOMER_SEARCH')"
             :empty-state="t('CRM.SALES_ORDERS.FORM.CUSTOMER_EMPTY')"
           />
@@ -368,7 +387,9 @@ defineExpose({ dialogRef, onSuccess, open });
       <!-- 附件（新建必填：PI / 生产订单）-->
       <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+          <span
+            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
             {{ t('CRM.SALES_ORDERS.ATTACH.TITLE') }}
             <span v-if="!isEditing" class="text-n-ruby-11">*</span>
           </span>
@@ -379,7 +400,11 @@ defineExpose({ dialogRef, onSuccess, open });
             @click="triggerUpload"
           >
             <span class="i-lucide-paperclip size-4" />
-            {{ uploading ? t('CRM.SALES_ORDERS.ATTACH.UPLOADING') : t('CRM.SALES_ORDERS.ATTACH.ADD') }}
+            {{
+              uploading
+                ? t('CRM.SALES_ORDERS.ATTACH.UPLOADING')
+                : t('CRM.SALES_ORDERS.ATTACH.ADD')
+            }}
           </button>
           <input
             ref="fileInputRef"
@@ -412,7 +437,9 @@ defineExpose({ dialogRef, onSuccess, open });
           <span class="flex items-center gap-2 text-sm text-n-slate-12">
             <span class="i-lucide-file size-4" />
             {{ file.name }}
-            <span class="text-xs text-n-slate-10">{{ prettySize(file.size) }}</span>
+            <span class="text-xs text-n-slate-10">{{
+              prettySize(file.size)
+            }}</span>
           </span>
           <button
             type="button"
@@ -438,7 +465,9 @@ defineExpose({ dialogRef, onSuccess, open });
           >
             <span class="i-lucide-file size-4" />
             {{ file.filename }}
-            <span class="text-xs text-n-slate-10">{{ prettySize(file.byte_size) }}</span>
+            <span class="text-xs text-n-slate-10">{{
+              prettySize(file.byte_size)
+            }}</span>
           </a>
           <button
             type="button"

@@ -205,7 +205,11 @@ defineExpose({ dialogRef, onSuccess, open });
   >
     <div class="flex flex-col gap-5">
       <span class="py-1 text-sm font-medium text-n-slate-12">
-        {{ isEditing ? t('CRM.CUSTOMERS.EDIT.TITLE') : t('CRM.CUSTOMERS.CREATE.TITLE') }}
+        {{
+          isEditing
+            ? t('CRM.CUSTOMERS.EDIT.TITLE')
+            : t('CRM.CUSTOMERS.CREATE.TITLE')
+        }}
       </span>
 
       <!-- 基本 -->
@@ -221,7 +225,11 @@ defineExpose({ dialogRef, onSuccess, open });
           :label="t('CRM.CUSTOMERS.CREATE.FIELDS.CODE')"
           disabled
         />
-        <Input v-model="form.website" label="公司网址 / 域名" :disabled="isLoading" />
+        <Input
+          v-model="form.website"
+          label="公司网址 / 域名"
+          :disabled="isLoading"
+        />
         <Select
           v-model="form.tradeCountry"
           :options="countryOptions"
@@ -230,7 +238,9 @@ defineExpose({ dialogRef, onSuccess, open });
       </div>
 
       <!-- 业务 -->
-      <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
         业务信息
       </div>
       <div class="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
@@ -262,14 +272,32 @@ defineExpose({ dialogRef, onSuccess, open });
       </div>
 
       <!-- 联系 -->
-      <div class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
         联系信息
       </div>
       <div class="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
-        <Input v-model="form.primaryContactName" label="主要联系人" :disabled="isLoading" />
-        <Input v-model="form.contactJobTitle" label="职位" :disabled="isLoading" />
-        <Input v-model="form.contactEmail" label="联系邮箱" :disabled="isLoading" />
-        <Input v-model="form.contactPhone" label="联系电话" :disabled="isLoading" />
+        <Input
+          v-model="form.primaryContactName"
+          label="主要联系人"
+          :disabled="isLoading"
+        />
+        <Input
+          v-model="form.contactJobTitle"
+          label="职位"
+          :disabled="isLoading"
+        />
+        <Input
+          v-model="form.contactEmail"
+          label="联系邮箱"
+          :disabled="isLoading"
+        />
+        <Input
+          v-model="form.contactPhone"
+          label="联系电话"
+          :disabled="isLoading"
+        />
         <Input v-model="form.whatsApp" label="WhatsApp" :disabled="isLoading" />
         <Input v-model="form.wechat" label="微信" :disabled="isLoading" />
         <Input v-model="form.linkedin" label="Linkedin" :disabled="isLoading" />
@@ -278,7 +306,12 @@ defineExpose({ dialogRef, onSuccess, open });
           :options="preferenceOptions"
           placeholder="联系偏好"
         />
-        <Input v-model="form.address" label="地址" :disabled="isLoading" class="sm:col-span-2" />
+        <Input
+          v-model="form.address"
+          label="地址"
+          :disabled="isLoading"
+          class="sm:col-span-2"
+        />
       </div>
 
       <TextArea
@@ -294,7 +327,9 @@ defineExpose({ dialogRef, onSuccess, open });
       <!-- 附件（仅编辑模式）-->
       <div v-if="isEditing" class="flex flex-col gap-2">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold tracking-wide uppercase text-n-slate-10">
+          <span
+            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
             附件
           </span>
           <button
@@ -330,7 +365,9 @@ defineExpose({ dialogRef, onSuccess, open });
           >
             <span class="i-lucide-file size-4" />
             {{ file.filename }}
-            <span class="text-xs text-n-slate-10">{{ prettySize(file.byte_size) }}</span>
+            <span class="text-xs text-n-slate-10">{{
+              prettySize(file.byte_size)
+            }}</span>
           </a>
           <button
             type="button"
@@ -354,7 +391,9 @@ defineExpose({ dialogRef, onSuccess, open });
           @click="closeDialog"
         />
         <Button
-          :label="isEditing ? t('CRM.CUSTOMERS.EDIT.SAVE') : t('CRM.CUSTOMERS.NEW')"
+          :label="
+            isEditing ? t('CRM.CUSTOMERS.EDIT.SAVE') : t('CRM.CUSTOMERS.NEW')
+          "
           color="iris"
           type="submit"
           :disabled="isFormInvalid || isLoading"

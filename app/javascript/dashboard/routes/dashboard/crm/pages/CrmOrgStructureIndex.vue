@@ -31,6 +31,10 @@ const L = {
   addRoot: '新建部门',
   addChild: '添加子部门',
   rename: '重命名',
+  move: '移动到其他部门',
+  moveTitle: '移动部门',
+  moveTargetLabel: '新的上级部门',
+  moveTop: '— 设为顶级部门 —',
   remove: '删除',
   emptyTree: '还没有部门，点「新建部门」开始',
   namePrompt: '部门名称',
@@ -150,6 +154,12 @@ const addChild = async dept => {
   const name = window.prompt(L.namePrompt);
   if (!name?.trim()) return;
   await deptStore.create({ name: name.trim(), parentId: dept.id });
+  // 父节点折叠时新子部门会被整个跳过不渲染（看起来像没加上），自动展开让它立刻可见。
+  if (collapsedIds.value.has(dept.id)) {
+    const next = new Set(collapsedIds.value);
+    next.delete(dept.id);
+    collapsedIds.value = next;
+  }
   useAlert(L.saved);
 };
 
@@ -166,6 +176,62 @@ const deleteDept = async dept => {
   if (!window.confirm(L.deleteConfirm)) return;
   await deptStore.delete(dept.id);
   if (selectedDeptId.value === dept.id) selectedDeptId.value = null;
+  useAlert(L.saved);
+};
+
+// ---- 移动部门（更换上级，任意层级）----
+const moveDialogRef = ref(null);
+const movingDept = ref(null);
+const moveTargetId = ref('');
+
+// 目标上级选项：排除自己与全部子孙（防环，后端同样校验）；缩进体现层级。
+const moveTargetOptions = computed(() => {
+  if (!movingDept.value) return [];
+  const excluded = new Set([movingDept.value.id]);
+  const collectDescendants = id => {
+    (byParentMap.value[id] || []).forEach(c => {
+      excluded.add(c.id);
+      collectDescendants(c.id);
+    });
+  };
+  collectDescendants(movingDept.value.id);
+  const out = [{ value: '', label: L.moveTop }];
+  const walk = (parentId, depth) => {
+    (byParentMap.value[parentId || 0] || []).forEach(d => {
+      if (excluded.has(d.id)) return;
+      out.push({
+        value: String(d.id),
+        label: `${'　'.repeat(depth)}${d.name}`,
+      });
+      walk(d.id, depth + 1);
+    });
+  };
+  walk(0, 0);
+  return out;
+});
+
+const moveDept = dept => {
+  movingDept.value = dept;
+  moveTargetId.value = dept.parentId ? String(dept.parentId) : '';
+  moveDialogRef.value?.open();
+};
+
+const confirmMove = async () => {
+  const dept = movingDept.value;
+  if (!dept) return;
+  const parentId = moveTargetId.value ? Number(moveTargetId.value) : null;
+  if ((dept.parentId || null) === parentId) {
+    moveDialogRef.value?.close();
+    return;
+  }
+  await deptStore.update({ id: dept.id, parentId });
+  // 展开新上级，让移动结果立刻可见。
+  if (parentId && collapsedIds.value.has(parentId)) {
+    const next = new Set(collapsedIds.value);
+    next.delete(parentId);
+    collapsedIds.value = next;
+  }
+  moveDialogRef.value?.close();
   useAlert(L.saved);
 };
 
@@ -400,6 +466,13 @@ onMounted(async () => {
                   <Icon icon="i-lucide-pencil" class="size-4" />
                 </button>
                 <button
+                  class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11 hover:bg-n-alpha-2"
+                  :title="L.move"
+                  @click.stop="moveDept(node)"
+                >
+                  <Icon icon="i-lucide-corner-down-right" class="size-4" />
+                </button>
+                <button
                   class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-ruby-11 hover:bg-n-alpha-2"
                   :title="L.remove"
                   @click.stop="deleteDept(node)"
@@ -566,6 +639,25 @@ onMounted(async () => {
           />
           {{ L.primary }}
         </label>
+      </div>
+    </Dialog>
+
+    <!-- 移动部门：选择新的上级（任意层级），后端防环校验兜底 -->
+    <Dialog
+      ref="moveDialogRef"
+      :title="movingDept ? `${L.moveTitle}：${movingDept.name}` : L.moveTitle"
+      confirm-button-color="iris"
+      @confirm="confirmMove"
+    >
+      <div>
+        <label class="block mb-0.5 text-heading-3 text-n-slate-12">
+          {{ L.moveTargetLabel }}
+        </label>
+        <Select
+          v-model="moveTargetId"
+          class="w-full"
+          :options="moveTargetOptions"
+        />
       </div>
     </Dialog>
   </div>

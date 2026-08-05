@@ -106,12 +106,19 @@ const open = record => {
   if (record) {
     editingId.value = record.id;
     form.name = record.name || '';
-    form.crmCustomerId = record.crmCustomerId ? String(record.crmCustomerId) : '';
+    form.crmCustomerId = record.crmCustomerId
+      ? String(record.crmCustomerId)
+      : '';
     form.salesStage = record.salesStage || 'NEEDS_CONFIRMED';
-    form.amount = record.amountMicros ? String(record.amountMicros / 1_000_000) : '';
+    form.amount = record.amountMicros
+      ? String(record.amountMicros / 1_000_000)
+      : '';
     form.currency = record.currency || 'USD';
-    form.probability = record.probability != null ? String(record.probability) : '';
-    form.expectedCloseDate = record.expectedCloseDate ? record.expectedCloseDate.slice(0, 10) : '';
+    form.probability =
+      record.probability != null ? String(record.probability) : '';
+    form.expectedCloseDate = record.expectedCloseDate
+      ? record.expectedCloseDate.slice(0, 10)
+      : '';
     form.opportunityRemark = record.opportunityRemark || '';
     form.lossReason = record.lossReason || '';
     form.important = record.important === true;

@@ -34,7 +34,7 @@ class Crm::CompanyLookupService
   private
 
   def extract_domain(email)
-    return if email.blank? || !email.include?('@')
+    return if email.blank? || email.exclude?('@')
 
     email.split('@').last.to_s.strip.downcase.presence
   end
