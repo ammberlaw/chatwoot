@@ -8,5 +8,5 @@ json.note invite.note
 json.status invite.status
 json.expires_at invite.expires_at
 json.used_at invite.used_at
-json.used_by_name invite.used_by&.name
+json.used_by_name invite.used_by&.crm_display_name
 json.created_at invite.created_at

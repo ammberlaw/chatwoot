@@ -98,10 +98,11 @@ const fetchMembers = async () => {
 const accountDialog = ref(null);
 const editTarget = ref(null);
 const savingAccount = ref(false);
-const editForm = reactive({ name: '', email: '', password: '' });
+const editForm = reactive({ name: '', crm_name: '', email: '', password: '' });
 const openAccountEdit = m => {
   editTarget.value = m;
   editForm.name = m.name || '';
+  editForm.crm_name = m.crm_name || '';
   editForm.email = m.email || '';
   editForm.password = '';
   accountDialog.value?.open();
@@ -112,7 +113,11 @@ const saveAccount = async () => {
   try {
     const payload = isManagerOnly.value
       ? { password: editForm.password }
-      : { name: editForm.name.trim(), email: editForm.email.trim() };
+      : {
+          name: editForm.name.trim(),
+          crm_name: editForm.crm_name.trim(),
+          email: editForm.email.trim(),
+        };
     if (!isManagerOnly.value && editForm.password)
       payload.password = editForm.password;
     await MembersAPI.update(editTarget.value.id, { member: payload });
@@ -312,11 +317,9 @@ onMounted(fetchMembers);
             </td>
             <td class="px-6 py-3 text-n-slate-11">{{ scopeLabel(m) }}</td>
             <td class="px-6 py-3 text-right">
-              <!-- 自己走头像→个人资料改；管理员不可动超管账号 -->
+              <!-- 自己也可改（中文名/CRM英文名，个人资料改不了英文名）；管理员不可动超管账号；改角色仍禁止改自己（后端拦） -->
               <button
-                v-if="
-                  m.user_id !== currentUserId && (isSuperAdmin || !m.is_admin)
-                "
+                v-if="isSuperAdmin || !m.is_admin"
                 class="text-xs text-n-iris-11 hover:underline"
                 @click="openAccountEdit(m)"
               >
@@ -337,10 +340,20 @@ onMounted(fetchMembers);
     >
       <div class="flex flex-col gap-4">
         <label v-if="!isManagerOnly" class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">姓名</span>
+          <span class="text-xs text-n-slate-11">姓名（中文）</span>
           <input
             v-model="editForm.name"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+          />
+        </label>
+        <label v-if="!isManagerOnly" class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">
+            CRM 英文名（留空则用中文名）
+          </span>
+          <input
+            v-model="editForm.crm_name"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="如 Ken Chen — CRM 界面与对外邮件发件人显示"
           />
         </label>
         <label v-if="!isManagerOnly" class="flex flex-col gap-1">

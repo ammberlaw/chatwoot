@@ -1,6 +1,7 @@
 json.id member.id
 json.user_id member.user_id
 json.name member.user.name
+json.crm_name member.user.crm_name
 json.email member.user.email
 json.avatar_url member.user.avatar_url
 json.role member.role

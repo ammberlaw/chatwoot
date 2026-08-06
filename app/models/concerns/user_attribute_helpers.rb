@@ -5,6 +5,11 @@ module UserAttributeHelpers
     self[:display_name].presence || name
   end
 
+  # CRM 专用显示名：CRM 界面 / 对外邮件发件人用英文名；未设置则回退中文 name。
+  def crm_display_name
+    self[:crm_name].presence || name
+  end
+
   def availability_status
     current_account_user&.availability_status
   end

@@ -28,8 +28,11 @@ class Crm::EmailSendService
 
   def deliver(mail_account)
     email = @email
+    # 发件人显示名：owner 设了 CRM 英文名就用「英文名 <邮箱>」，没设则纯邮箱（不塞中文名进外发 From）。
+    from_name = email.owner&.crm_name.to_s.strip
+    from_value = from_name.present? ? "#{from_name} <#{mail_account.email_address}>" : mail_account.email_address
     message = Mail.new do
-      from    mail_account.email_address
+      from    from_value
       to      email.to_address
       cc      email.cc_address if email.cc_address.present?
       bcc     email.bcc_address if email.bcc_address.present?

@@ -10,6 +10,7 @@ json.hmac_identifier resource.hmac_identifier if GlobalConfig.get('CHATWOOT_INBO
 json.id resource.id
 json.inviter_id resource.active_account_user&.inviter_id
 json.name resource.name
+json.crm_name resource.crm_name
 json.provider resource.provider
 json.pubsub_token resource.pubsub_token
 json.custom_attributes resource.custom_attributes if resource.custom_attributes.present?

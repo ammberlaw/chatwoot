@@ -16,9 +16,12 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   end
 
   # 左栏文件夹计数（各文件夹总数 + 收件箱未读），一次查询喂列表页角标。
+  # can_view_team：当前用户是否能看「团队邮件」（系统管理员或 CRM 团队负责人）——前端据此显示「我的/团队」切换。
   def counts
+    ids = crm_mail_visible_owner_ids
     scope = visible_emails
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
+    scope = scope.where.not(owner_id: params[:exclude_owner_id]) if params[:exclude_owner_id].present?
     scope = filter_by_mailbox(scope) if params[:mailbox].present?
     by_folder = scope.group(:folder).count
     render json: {
@@ -28,7 +31,8 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
       BULK: by_folder['BULK'].to_i,
       SPAM: by_folder['SPAM'].to_i,
       unread: scope.unread.count,
-      starred: scope.starred.count
+      starred: scope.starred.count,
+      can_view_team: ids == :all || ids.size > 1
     }
   end
 
@@ -148,10 +152,12 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     scope
   end
 
-  # 视图 filter（未读/星标/我的）+ 按业务员 + 按客户 + 按邮箱。
+  # 视图 filter（未读/星标/我的）+ 按业务员 + 排除某人 + 按客户 + 按邮箱。
   def apply_scope_filters(scope)
     scope = apply_view_filter(scope)
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
+    # 团队邮件（未指定成员）排除自己——自己的在「我的邮件」里。
+    scope = scope.where.not(owner_id: params[:exclude_owner_id]) if params[:exclude_owner_id].present?
     scope = filter_by_mailbox(scope) if params[:mailbox].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
     scope
@@ -185,7 +191,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   end
 
   def permitted_params
-    params.permit(:page, :folder, :filter, :customer_id, :owner_id, :q)
+    params.permit(:page, :folder, :filter, :customer_id, :owner_id, :exclude_owner_id, :q)
   end
 
   # 列表头像按「对方」身份着色，与邮箱身份识别悬浮卡同口径：

@@ -79,7 +79,10 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
 
   # 防自锁 → 防提权（管理员/人事各自边界）→ 负责人只可重置下属密码。
   def update_error
-    return { message: '不能修改自己的角色', status: :unprocessable_entity } if @member.id == Current.account_user.id
+    # 仅在改角色时禁止改自己（防自我提权/降权）；改自己的 CRM 英文名等非角色字段允许。
+    if @member.id == Current.account_user.id && params[:member].key?(:system_role)
+      return { message: '不能修改自己的角色', status: :unprocessable_entity }
+    end
     return { message: '仅超级管理员可任免超级管理员', status: :forbidden } if escalation_attempt?
     return { message: '人事不可管理超级管理员/管理员账号', status: :forbidden } if hr_overreach?
     return { message: '部门负责人仅可为下属成员重置密码', status: :forbidden } if manager_overreach?
@@ -121,11 +124,12 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     record.errors.full_messages.join('；')
   end
 
-  # 超级管理员/管理员可直接修改成员账号：姓名、登录邮箱、重置密码（改邮箱免二次确认，即时生效）。
+  # 超级管理员/管理员可直接修改成员账号：姓名、CRM 英文名、登录邮箱、重置密码（改邮箱免二次确认，即时生效）。
   def apply_user_updates
     m = params[:member]
     attrs = {}
     attrs[:name] = m[:name].to_s.strip if m[:name].present?
+    attrs[:crm_name] = m[:crm_name].to_s.strip if m.key?(:crm_name)
     attrs[:email] = m[:email].to_s.strip.downcase if m[:email].present?
     attrs[:password] = m[:password] if m[:password].present?
     return if attrs.empty?

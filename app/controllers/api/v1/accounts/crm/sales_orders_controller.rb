@@ -59,7 +59,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
         id: audit.id,
         action: audit.action,
         changed_fields: audit.audited_changes.keys,
-        user_name: audit.user&.name || audit.username || '系统',
+        user_name: audit.user&.crm_display_name || audit.username || '系统',
         created_at: audit.created_at
       }
     end

@@ -17,7 +17,10 @@ const { accountScopedRoute } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
 
 const stats = ref({ todo: 0, mine: 0, approverView: true, dept: 0, unread: 0 });
-const userName = computed(() => currentUser.value?.name || '');
+// CRM 工作台优先显示 CRM 英文名，未设置则回退中文名。
+const userName = computed(
+  () => currentUser.value?.crm_name || currentUser.value?.name || ''
+);
 // 非 CRM 人员（无 crm_role 且非系统管理员）看到置灰的 CRM 旗舰卡（不可进入）。后端仍以 403 兜底。
 const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
 

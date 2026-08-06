@@ -41,7 +41,7 @@ json.notes @notes do |note|
   json.body note.body
   json.follow_up_method note.follow_up_method
   json.result_tag note.result_tag
-  json.owner_name note.owner&.name
+  json.owner_name note.owner&.crm_display_name
   json.created_at note.created_at
 end
 
@@ -52,5 +52,5 @@ json.tasks @tasks do |task|
   json.due_at task.due_at
   json.status task.status
   json.task_type task.task_type
-  json.assignee_name task.assignee&.name
+  json.assignee_name task.assignee&.crm_display_name
 end

@@ -85,7 +85,7 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
     {
       total: all.count,
       visible: visible.limit(10).map do |c|
-        { id: c.id, name: c.name, owner: c.account_owner&.name, mine: c.account_owner_id == Current.user&.id }
+        { id: c.id, name: c.name, owner: c.account_owner&.crm_display_name, mine: c.account_owner_id == Current.user&.id }
       end
     }
   end

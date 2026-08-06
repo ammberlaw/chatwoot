@@ -210,7 +210,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
         id: audit.id,
         action: audit.action,
         changed_fields: audit.audited_changes.keys,
-        user_name: audit.user&.name || audit.username || '系统',
+        user_name: audit.user&.crm_display_name || audit.username || '系统',
         created_at: audit.created_at
       }
     end
@@ -434,7 +434,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   def owner_label(customer)
     return '🌊 公海' if customer.is_in_public_pool
-    return "👤 #{customer.account_owner.name}" if customer.account_owner_id
+    return "👤 #{customer.account_owner.crm_display_name}" if customer.account_owner_id
 
     '未分配'
   end

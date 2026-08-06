@@ -27,8 +27,11 @@ const currentUserId = useMapGetter('getCurrentUserID');
 const composeDialogRef = ref(null);
 const searchTerm = ref('');
 const selectedEmail = ref(null);
-// 管理员的邮件范围：'mine' 我的邮件 / 'team' 团队邮件（默认看自己的）。
+// 邮件范围：'mine' 我的邮件 / 'team' 团队邮件（默认看自己的）。
 const mailScope = ref('mine');
+// 能否看「团队邮件」（系统管理员或 CRM 团队负责人）——由后端 counts.can_view_team 决定，
+// 决定是否显示「我的/团队」切换。业务员只看自己，不显示切换。
+const canViewTeam = ref(false);
 // 管理员可按业务员筛选（团队模式下）；'' = 全部成员。
 const members = ref([]);
 const activeOwner = ref('');
@@ -36,10 +39,10 @@ const activeOwner = ref('');
 const mailboxList = ref([]);
 const activeMailbox = ref('');
 
-// 实际用于过滤的负责人 id：非管理员由后端按角色收口（不传）；
-// 管理员「我的」= 自己，「团队」= 选中成员或全部（''）。
+// 实际用于过滤的负责人 id：只看自己的普通业务员由后端按角色收口（不传）；
+// 能看团队者（管理员/团队负责人）「我的」= 自己，「团队」= 选中成员或全部（''，后端给其可见范围）。
 const effectiveOwnerId = computed(() => {
-  if (!isAdmin.value) return '';
+  if (!isAdmin.value && !canViewTeam.value) return '';
   return mailScope.value === 'mine' ? currentUserId.value : activeOwner.value;
 });
 const counts = ref({
@@ -161,7 +164,15 @@ const baseParams = () =>
 // 当前 owner_id + mailbox 过滤参数（我的/团队 + 选中邮箱）。
 const scopeParams = () => {
   const p = {};
-  if (effectiveOwnerId.value) p.owner_id = effectiveOwnerId.value;
+  if (effectiveOwnerId.value) {
+    p.owner_id = effectiveOwnerId.value;
+  } else if (
+    mailScope.value === 'team' &&
+    (isAdmin.value || canViewTeam.value)
+  ) {
+    // 团队邮件（未指定具体成员）：排除自己，自己的在「我的邮件」里。
+    p.exclude_owner_id = currentUserId.value;
+  }
   if (activeMailbox.value) p.mailbox = activeMailbox.value;
   return p;
 };
@@ -170,6 +181,7 @@ const fetchCounts = async () => {
   try {
     const { data } = await CrmEmailAPI.counts(scopeParams());
     counts.value = data;
+    canViewTeam.value = !!data.can_view_team;
   } catch {
     // 角标失败不影响主流程
   }
@@ -667,9 +679,9 @@ watch(
             class="w-full py-2 pl-9 pr-3 text-sm border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
         </div>
-        <!-- 我的/团队 邮件切换（仅管理员）-->
+        <!-- 我的/团队 邮件切换（系统管理员 或 CRM 团队负责人）-->
         <div
-          v-if="isAdmin"
+          v-if="isAdmin || canViewTeam"
           class="flex gap-0.5 p-0.5 mt-2 rounded-lg bg-n-alpha-2"
         >
           <button
