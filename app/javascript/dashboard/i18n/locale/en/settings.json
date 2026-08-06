@@ -436,6 +436,7 @@
     "CRM_AI_BACKGROUND_CHECK": "AI 背调",
     "CRM_CHURN_RISK": "流失预警",
     "CRM_POOL_SETTINGS": "公海设置",
+    "CRM_CUSTOMER_SETTINGS": "客户设置",
     "CRM_G_SALES_FLOW": "销售流程",
     "CRM_FUNNEL": "商机看板",
     "CRM_ORDERS_NO_CUSTOMER": "未关联客户的订单",

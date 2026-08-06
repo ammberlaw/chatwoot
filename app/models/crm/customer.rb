@@ -122,10 +122,9 @@ class Crm::Customer < ApplicationRecord
   validates :trade_region, inclusion: { in: TRADE_REGIONS }, allow_blank: true
   validates :industry, inclusion: { in: INDUSTRIES }, allow_blank: true
   validates :customer_level, inclusion: { in: CUSTOMER_LEVELS }, allow_blank: true
-  validates :source_channel, inclusion: { in: SOURCE_CHANNELS }, allow_blank: true
+  # source_channel / customer_group 现由「客户设置」动态配置（Crm::OptionItem 的 code），故不再做枚举校验。
   validates :currency_preference, inclusion: { in: CURRENCIES }, allow_blank: true
   validates :customer_status, inclusion: { in: CUSTOMER_STATUSES }, allow_blank: true
-  validates :customer_group, inclusion: { in: CUSTOMER_GROUPS }, allow_blank: true
   validates :product_group, inclusion: { in: PRODUCT_GROUPS }, allow_blank: true
   validates :risk_level, inclusion: { in: RISK_LEVELS }, allow_blank: true
   validates :contact_preference, inclusion: { in: CONTACT_PREFERENCES }, allow_blank: true
@@ -150,5 +149,33 @@ class Crm::Customer < ApplicationRecord
       first_deal_at: stats[2],
       last_deal_at: stats[3]
     )
+  end
+
+  # 建档录入的联系人：按邮箱建/复用一条 Contact 并挂到本客户，
+  # 使采购/经理/客户任一邮箱来信都能识别归属（收信识别走 Contact.crm_customer_id）。
+  # 无邮箱的行跳过（识别以邮箱为键）；单个联系人建失败不阻断建档。
+  def sync_contacts(entries)
+    Array(entries).each do |entry|
+      attrs = entry.symbolize_keys
+      email = attrs[:email].to_s.strip.downcase
+      next if email.blank?
+
+      upsert_contact(email, attrs)
+    end
+  end
+
+  private
+
+  def upsert_contact(email, attrs)
+    contact = account.contacts.where('LOWER(email) = ?', email).first_or_initialize
+    contact.email = email if contact.new_record?
+    contact.crm_customer_id = id
+    contact.name = contact.name.presence || attrs[:name].to_s.strip.presence || email
+    contact.is_primary_contact = true if attrs[:is_primary]
+    extra = { 'job_title' => attrs[:job_title].to_s.strip.presence, 'phone' => attrs[:phone].to_s.strip.presence }.compact
+    contact.additional_attributes = (contact.additional_attributes || {}).merge(extra) if extra.any?
+    contact.save!
+  rescue ActiveRecord::RecordInvalid
+    nil
   end
 end

@@ -10,6 +10,11 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 
+// 嵌入「商机看板」作为列表视图时：隐藏自身标题头、去掉卡片外框、不受外层路由 query 影响。
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+});
+
 const { t } = useI18n();
 const route = useRoute();
 const store = useCrmOpportunitiesStore();
@@ -106,9 +111,25 @@ onMounted(fetchRecords);
 watch(
   () => route.query.filter,
   value => {
+    if (props.embedded) return;
     activeFilter.value = normalizeFilter(value);
     fetchRecords();
   }
+);
+
+// 从客户详情跳来时带 ?focus=<id>，列表加载后自动打开该商机（仅一次）。
+const focusOpened = ref(false);
+watch(
+  records,
+  list => {
+    if (props.embedded || focusOpened.value || !route.query.focus) return;
+    const rec = list.find(r => String(r.id) === String(route.query.focus));
+    if (rec) {
+      openEditDialog(rec);
+      focusOpened.value = true;
+    }
+  },
+  { immediate: true }
 );
 
 const CURRENCY_SYMBOL = { CNY: '¥', USD: '$', EUR: '€' };
@@ -121,9 +142,15 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
 
 <template>
   <div
-    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full overflow-auto"
+    :class="
+      embedded
+        ? ''
+        : 'bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5'
+    "
   >
     <div
+      v-if="!embedded"
       class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
     >
       <h1 class="text-xl font-medium text-n-slate-12">

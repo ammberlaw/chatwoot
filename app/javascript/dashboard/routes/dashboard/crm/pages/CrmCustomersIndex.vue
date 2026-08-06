@@ -16,6 +16,7 @@ import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCr
 import CrmCustomerImportDialog from 'dashboard/components-next/CRM/CrmCustomerImportDialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 
 // 与后端 CustomersController::RESULTS_PER_PAGE 保持一致。
 const ITEMS_PER_PAGE = 15;
@@ -60,29 +61,25 @@ const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
 const totalCount = computed(() => customersStore.getMeta.count || 0);
 
-// 客户分组 / 产品分组下拉（空值 = 全部）；标签与建档/编辑弹窗保持一致。
-const customerGroupOptions = [
+// 客户分组 / 客户来源：从「客户设置」动态读取（含二级），全站下拉与标签共享缓存。
+const { ensureLoaded, groupOptions, sourceOptions, groupLabel, sourceLabel } =
+  useCrmOptions();
+
+// 客户分组下拉（空值 = 全部）
+const customerGroupOptions = computed(() => [
   { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_CUSTOMER_GROUP') },
-  { value: 'KEY_ACCOUNT_WON', label: '成交重点客户' },
-  { value: 'WON', label: '成交客户' },
-  { value: 'SAMPLE_WON', label: '成交样品客户' },
-  { value: 'NOT_WON', label: '未成交客户' },
-  { value: 'SOCIAL_MEDIA', label: '社媒开发客户' },
-];
+  ...groupOptions.value,
+]);
 const productGroupOptions = [
   { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_PRODUCT_GROUP') },
   { value: 'TABLET', label: '平板电脑' },
   { value: 'COMMERCIAL_DISPLAY', label: '商显工控' },
 ];
-// 客户来源下拉（空值 = 全部）；取值对齐 Crm::Customer::SOURCE_CHANNELS。
-const sourceChannelOptions = [
+// 客户来源下拉（空值 = 全部）
+const sourceChannelOptions = computed(() => [
   { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_SOURCE_CHANNEL') },
-  { value: 'ALIBABA', label: '阿里巴巴国际站' },
-  { value: 'WEBSITE', label: '官网' },
-  { value: 'EXHIBITION', label: '展会' },
-  { value: 'EMAIL', label: '邮件开发' },
-  { value: 'OTHER', label: '其他' },
-];
+  ...sourceOptions.value,
+]);
 
 // 部门主管：不筛团队，直接筛自己团队的业务员（本人 + 下属，成员接口已按辖区收口）。
 const teamMembers = ref([]);
@@ -321,6 +318,7 @@ const activeTab = ref('fields');
 const panelNotes = ref([]);
 const panelEmails = ref([]);
 const panelAudits = ref([]);
+const panelContacts = ref([]);
 
 // 审计字段 → 中文标签（用于「操作历史」文案）
 const AUDIT_LABELS = {
@@ -386,6 +384,12 @@ const fetchAudits = async () => {
   );
   panelAudits.value = data.payload || [];
 };
+const fetchContacts = async () => {
+  const { data } = await axios.get(`${crmBase()}/contacts`, {
+    params: { customer_id: selectedCustomer.value.id },
+  });
+  panelContacts.value = data.payload || [];
+};
 
 const setTab = async key => {
   activeTab.value = key;
@@ -408,10 +412,23 @@ const selectCustomer = customer => {
   panelNotes.value = [];
   panelEmails.value = [];
   panelAudits.value = [];
+  panelContacts.value = [];
   newNote.value = '';
+  // 字段是默认 tab，其他联系人随详情直接展示，故进面板即拉取。
+  fetchContacts().catch(() => {
+    panelContacts.value = [];
+  });
 };
 const closePanel = () => {
   selectedCustomer.value = null;
+};
+// 跳转到客户全页详情。
+const openDetailPage = () => {
+  if (!selectedCustomer.value) return;
+  router.push({
+    name: 'crm_customer_detail_index',
+    params: { accountId: accountId.value, id: selectedCustomer.value.id },
+  });
 };
 
 const addNote = async () => {
@@ -547,14 +564,15 @@ const STATUS_META = {
   DORMANT: { label: '沉默客户', color: 'iris' },
   LOST: { label: '流失客户', color: 'ruby' },
 };
-const SOURCE_META = {
-  ALIBABA: { label: '阿里巴巴国际站', color: 'iris' },
-  WEBSITE: { label: '官网', color: 'blue' },
-  EXHIBITION: { label: '展会', color: 'teal' },
-  REFERRAL: { label: '转介绍', color: 'iris' },
-  EMAIL: { label: '邮件开发', color: 'iris' },
-  SOCIAL_MEDIA: { label: '社媒开发', color: 'ruby' },
-  OTHER: { label: '其他', color: 'slate' },
+// 来源来自「客户设置」，无固定色；按 code 哈希稳定取一个色，保持彩色胶囊观感。
+const SOURCE_COLORS = ['iris', 'blue', 'teal', 'ruby', 'amber', 'slate'];
+const sourceColor = code => {
+  const s = String(code || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    h = (h + s.charCodeAt(i)) % SOURCE_COLORS.length;
+  }
+  return SOURCE_COLORS[h];
 };
 const LEVEL_COLOR = { A: 'teal', B: 'blue', C: 'iris', D: 'slate' };
 const REGION_META = {
@@ -571,7 +589,10 @@ const COUNTRY_MAP = COUNTRY_LABELS;
 
 const gradeMeta = c => GRADE_META[c.completenessGrade] || null;
 const statusMeta = c => STATUS_META[c.customerStatus] || null;
-const sourceMeta = c => SOURCE_META[c.sourceChannel] || null;
+const sourceMeta = c =>
+  c.sourceChannel
+    ? { label: sourceLabel(c.sourceChannel), color: sourceColor(c.sourceChannel) }
+    : null;
 const regionMeta = c => REGION_META[c.tradeRegion] || null;
 const levelColor = level => LEVEL_COLOR[level] || 'slate';
 const countryLabel = country => COUNTRY_MAP[country] || country || '—';
@@ -589,19 +610,17 @@ const money = micros =>
 
 const formatDate = value => (value ? new Date(value).toLocaleDateString() : '');
 
-const CUSTOMER_GROUP_LABELS = {
-  KEY_ACCOUNT_WON: '成交重点客户',
-  WON: '成交客户',
-  SAMPLE_WON: '成交样品客户',
-  NOT_WON: '未成交客户',
-  SOCIAL_MEDIA: '社媒开发客户',
-};
 const PRODUCT_GROUP_LABELS = {
   TABLET: '平板电脑',
   COMMERCIAL_DISPLAY: '商显工控',
   // 兼容历史数据：迁移前的「工控」值仍显示为商显工控
   INDUSTRIAL_CONTROL: '商显工控',
 };
+
+// 详情面板展示的其他联系人：排除主联系人（已在「联系方式」呈现）。
+const otherContacts = computed(() =>
+  panelContacts.value.filter(ct => !ct.is_primary_contact)
+);
 
 // 右侧详情面板：分组字段数据（value 纯文本 / tag 彩色胶囊 / link 可点）
 const detailSections = computed(() => {
@@ -647,7 +666,7 @@ const detailSections = computed(() => {
           value: c.tradeCountry ? countryLabel(c.tradeCountry) : null,
         },
         { label: '贸易区域', tag: tag(regionMeta(c)) },
-        { label: '客户分组', value: CUSTOMER_GROUP_LABELS[c.customerGroup] },
+        { label: '客户分组', value: groupLabel(c.customerGroup) },
         { label: '产品分组', value: PRODUCT_GROUP_LABELS[c.productGroup] },
         { label: '客户来源', tag: tag(sourceMeta(c)) },
         { label: '累计成交额', value: money(c.dealTotalAmountMicros) },
@@ -673,6 +692,17 @@ const detailSections = computed(() => {
         { label: '联系偏好', value: c.contactPreference },
       ],
     },
+    ...(otherContacts.value.length
+      ? [
+          {
+            title: '其他联系人',
+            rows: otherContacts.value.map(ct => ({
+              label: ct.name || '联系人',
+              value: [ct.job_title, ct.email].filter(Boolean).join(' · '),
+            })),
+          },
+        ]
+      : []),
     {
       title: '备注',
       rows: [{ label: '备注', value: c.customerRemark, full: true }],
@@ -691,6 +721,7 @@ onMounted(() => {
   ) {
     fetchAllAgentsForAssign();
   }
+  ensureLoaded();
   fetchCustomers();
 });
 watch(
@@ -1086,6 +1117,12 @@ watch(
             创建于 {{ formatDate(selectedCustomer.createdAt) }}
           </div>
         </div>
+        <button
+          class="px-2.5 py-1 mr-1 text-xs rounded-md text-n-iris-11 hover:bg-n-iris-2"
+          @click="openDetailPage"
+        >
+          查看详情
+        </button>
         <button
           class="p-1 rounded-md text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-1"
           @click="closePanel"

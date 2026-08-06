@@ -30,6 +30,8 @@ import CrmKpiSheetsIndex from './pages/CrmKpiSheetsIndex.vue';
 import CrmKpiSheetDetailIndex from './pages/CrmKpiSheetDetailIndex.vue';
 import CrmPerformanceSettingsIndex from './pages/CrmPerformanceSettingsIndex.vue';
 import CrmPublicPoolSettingsIndex from './pages/CrmPublicPoolSettingsIndex.vue';
+import CrmCustomerSettingsIndex from './pages/CrmCustomerSettingsIndex.vue';
+import CrmCustomerDetailIndex from './pages/CrmCustomerDetailIndex.vue';
 import CrmEmployeeCompsIndex from './pages/CrmEmployeeCompsIndex.vue';
 import CrmEmployeesIndex from './pages/CrmEmployeesIndex.vue';
 import CrmAttendanceIndex from './pages/CrmAttendanceIndex.vue';
@@ -67,6 +69,7 @@ export const routes = [
     CrmCustomerOnboardingIndex
   ),
   crmPage('customers', 'crm_customers_index', CrmCustomersIndex),
+  crmPage('customers/:id', 'crm_customer_detail_index', CrmCustomerDetailIndex),
   crmPage('customer-dupes', 'crm_customer_dupes_index', CrmCustomerDupesIndex),
   crmPage(
     'ai-background-check',
@@ -77,6 +80,11 @@ export const routes = [
     'public-pool-settings',
     'crm_public_pool_settings_index',
     CrmPublicPoolSettingsIndex
+  ),
+  crmPage(
+    'customer-settings',
+    'crm_customer_settings_index',
+    CrmCustomerSettingsIndex
   ),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),

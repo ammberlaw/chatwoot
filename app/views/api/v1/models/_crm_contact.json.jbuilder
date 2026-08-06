@@ -7,6 +7,7 @@ json.crm_customer_id resource.crm_customer_id
 json.whats_app resource.whats_app
 json.wechat resource.wechat
 json.is_primary_contact resource.is_primary_contact
+json.job_title resource.additional_attributes&.dig('job_title')
 json.contact_preference resource.contact_preference
 json.crm_last_contact_at resource.crm_last_contact_at
 json.contact_remark resource.contact_remark

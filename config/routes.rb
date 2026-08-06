@@ -67,6 +67,7 @@ Rails.application.routes.draw do
               end
               member do
                 get :audits
+                get :detail
                 post :claim
                 post :release
                 post :attach
@@ -74,6 +75,11 @@ Rails.application.routes.draw do
               end
             end
             resources :contacts, only: [:index, :update]
+            resources :option_items, only: [:index, :create, :update, :destroy] do
+              collection do
+                post :reorder
+              end
+            end
             resources :opportunities do
               member do
                 post :claim

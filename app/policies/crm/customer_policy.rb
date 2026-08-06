@@ -3,6 +3,11 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 客户详情大页：可见范围与列表一致（辖区收口在控制器 fetch_customer）。
+  def detail?
+    true
+  end
+
   def check_duplicate?
     true
   end

@@ -12,7 +12,7 @@ module Crm::ContactExtensions
     validates :contact_preference, inclusion: { in: Crm::Customer::CONTACT_PREFERENCES }, allow_blank: true
     validates :product_category, inclusion: { in: PRODUCT_CATEGORIES }, allow_blank: true
     validates :country_region, inclusion: { in: Crm::Customer::COUNTRIES }, allow_blank: true
-    validates :customer_group, inclusion: { in: Crm::Customer::CUSTOMER_GROUPS }, allow_blank: true
+    # customer_group 现由「客户设置」动态配置（Crm::OptionItem），不再做枚举校验。
     validate :crm_customer_belongs_to_same_account
 
     scope :primary_contacts, -> { where(is_primary_contact: true) }

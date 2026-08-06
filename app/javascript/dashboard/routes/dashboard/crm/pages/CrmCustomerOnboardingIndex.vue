@@ -1,34 +1,28 @@
 <script setup>
 /* global axios */
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 
 const { accountId } = useAccount();
 const currentUserId = useMapGetter('getCurrentUserID');
 
-// 国家：[码, '国旗 中文名'] 对，供 <option> 遍历
-const COUNTRY = Object.entries(COUNTRY_LABELS);
-const CUSTOMER_GROUP = [
-  ['KEY_ACCOUNT_WON', '成交重点客户'],
-  ['WON', '成交客户'],
-  ['SAMPLE_WON', '成交样品客户'],
-  ['NOT_WON', '未成交客户'],
-  ['SOCIAL_MEDIA', '社媒开发客户'],
-];
+// 国家：{ value, label } 供可搜索 ComboBox 使用
+const countryOptions = Object.entries(COUNTRY_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+// 客户分组 / 客户来源：从「客户设置」动态读取（含二级层级），不再写死。
+const { ensureLoaded, groupOptions, sourceOptions } = useCrmOptions();
+onMounted(ensureLoaded);
+
 const PRODUCT_GROUP = [
   ['TABLET', '平板电脑'],
   ['COMMERCIAL_DISPLAY', '商显工控'],
-];
-const SOURCE = [
-  ['ALIBABA', '阿里巴巴国际站'],
-  ['WEBSITE', '官网'],
-  ['EXHIBITION', '展会'],
-  ['EMAIL', '邮件开发'],
-  ['SOCIAL_MEDIA', '社媒开发'],
-  ['OTHER', '其他'],
 ];
 const LEVEL = [
   ['A', 'A'],
@@ -70,6 +64,12 @@ const emailHit = ref(null);
 const nameHits = ref([]);
 const submitting = ref(false);
 const result = ref(null);
+
+// 其他联系人（采购/经理等）：每个邮箱建档时挂到本客户，任一邮箱来信都自动归属。
+const extraContacts = ref([]);
+const addContact = () =>
+  extraContacts.value.push({ name: '', jobTitle: '', email: '', phone: '' });
+const removeContact = i => extraContacts.value.splice(i, 1);
 
 const api = () => `/api/v1/accounts/${accountId.value}/crm`;
 
@@ -119,6 +119,7 @@ const resetForm = () => {
   Object.keys(form).forEach(k => {
     form[k] = '';
   });
+  extraContacts.value = [];
   emailHit.value = null;
   nameHits.value = [];
 };
@@ -149,6 +150,14 @@ const submit = async () => {
     account_owner_id: currentUserId.value,
     is_in_public_pool: false,
     customer_status: 'PROSPECT',
+    contacts: extraContacts.value
+      .filter(x => x.email.trim())
+      .map(x => ({
+        name: x.name.trim(),
+        job_title: x.jobTitle.trim(),
+        email: x.email.trim(),
+        phone: x.phone.trim(),
+      })),
   };
   try {
     const { data } = await axios.post(`${api()}/customers`, {
@@ -242,18 +251,15 @@ const submit = async () => {
         业务信息
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">国家地区 <span class="text-n-ruby-11">*</span></span>
-          <select
+          <ComboBox
             v-model="form.tradeCountry"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">选择国家/地区</option>
-            <option v-for="[val, lab] in COUNTRY" :key="val" :value="val">
-              {{ lab }}
-            </option>
-          </select>
-        </label>
+            :options="countryOptions"
+            placeholder="选择国家/地区"
+            search-placeholder="搜索国家/地区"
+          />
+        </div>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">客户来源</span>
           <select
@@ -261,8 +267,12 @@ const submit = async () => {
             class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
           >
             <option value="">选择来源（选填）</option>
-            <option v-for="[val, lab] in SOURCE" :key="val" :value="val">
-              {{ lab }}
+            <option
+              v-for="opt in sourceOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
             </option>
           </select>
         </label>
@@ -274,11 +284,11 @@ const submit = async () => {
           >
             <option value="">选择客户分组</option>
             <option
-              v-for="[val, lab] in CUSTOMER_GROUP"
-              :key="val"
-              :value="val"
+              v-for="opt in groupOptions"
+              :key="opt.value"
+              :value="opt.value"
             >
-              {{ lab }}
+              {{ opt.label }}
             </option>
           </select>
         </label>
@@ -396,6 +406,58 @@ const submit = async () => {
             placeholder="客户地址（选填）"
           />
         </label>
+      </div>
+
+      <!-- 其他联系人（采购/经理等）：多个邮箱一并录入，任一来信都自动归属本客户 -->
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
+        其他联系人
+      </div>
+      <p class="-mt-2 text-xs text-n-slate-10">
+        采购、经理等其他邮箱可一并录入；任一邮箱来信都会自动识别归属本客户。
+      </p>
+      <div class="flex flex-col gap-2">
+        <div
+          v-for="(ct, i) in extraContacts"
+          :key="i"
+          class="grid grid-cols-1 gap-2 sm:grid-cols-12 sm:items-center"
+        >
+          <input
+            v-model="ct.name"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-3"
+            placeholder="姓名"
+          />
+          <input
+            v-model="ct.jobTitle"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-3"
+            placeholder="职位（如 采购）"
+          />
+          <input
+            v-model="ct.email"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-3"
+            placeholder="邮箱"
+          />
+          <input
+            v-model="ct.phone"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-2"
+            placeholder="电话（选填）"
+          />
+          <button
+            type="button"
+            class="h-9 text-xs rounded-lg text-n-ruby-11 hover:bg-n-ruby-2 sm:col-span-1"
+            @click="removeContact(i)"
+          >
+            删除
+          </button>
+        </div>
+        <button
+          type="button"
+          class="self-start h-9 px-3 text-sm border border-dashed rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+          @click="addContact"
+        >
+          + 添加联系人
+        </button>
       </div>
 
       <div class="flex items-center gap-3 mt-1">

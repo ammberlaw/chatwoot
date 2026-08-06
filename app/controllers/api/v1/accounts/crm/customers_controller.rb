@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :attach, :detach, :audits]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :attach, :detach, :audits, :detail]
 
   RESULTS_PER_PAGE = 15
   MAX_IMPORT_ROWS = 2000
@@ -42,6 +42,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   def create
     @customer = Current.account.crm_customers.create!(customer_params)
+    @customer.sync_contacts(contact_entries)
   end
 
   # 电话归一化：只留数字，再剥中国手机号的 86/0086 前缀（86+1 开头 11 位），
@@ -81,7 +82,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     render json: { count: restrict_by_org(churn_risk_scope(Current.account.crm_customers)).count }
   end
 
-  # 邮箱身份识别（邮件阅读区悬浮卡）：同事 / 我的客户 / 同事客户(撞单) / 陌生人。
+  # 邮箱身份识别（邮件阅读区悬浮卡）：同事 / 我的客户 / 公海客户 / 同事客户(撞单) / 陌生人。
   def identify
     email = params[:email].to_s.strip.downcase
     return render json: { type: 'stranger' } if email.blank?
@@ -92,10 +93,14 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     customer = Current.account.crm_customers.where('LOWER(contact_email) = ?', email).first
     return render json: { type: 'stranger' } if customer.nil?
 
-    render json: {
-      type: customer.account_owner_id == current_user.id ? 'mine' : 'other',
-      customer: dedupe_row(customer)
-    }
+    type = if customer.is_in_public_pool
+             'public'
+           elsif customer.account_owner_id == current_user.id
+             'mine'
+           else
+             'other'
+           end
+    render json: { type: type, customer: dedupe_row(customer) }
   end
 
   DEDUPE_SEARCH_LIMIT = 50
@@ -184,6 +189,18 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   def destroy
     @customer.destroy!
     head :ok
+  end
+
+  # 客户详情大页：一次聚合客户 + 商机 / 跟进时间线 / 待办 / 订单 / 报价（文件已在客户里）。
+  def detail
+    @opportunities = @customer.opportunities.order(updated_at: :desc).limit(20)
+    @orders = @customer.sales_orders.order(order_date: :desc).limit(20)
+    @quotes = @customer.quotes.order(Arel.sql('COALESCE(quote_date, created_at) DESC')).limit(20)
+    @notes = Current.account.crm_follow_up_notes
+                    .where(crm_customer_id: @customer.id).order(created_at: :desc).limit(30)
+    @tasks = Current.account.crm_follow_up_tasks
+                    .where(crm_customer_id: @customer.id)
+                    .order(Arel.sql('due_at IS NULL, due_at ASC')).limit(30)
   end
 
   # 操作历史：该客户的审计记录（谁在何时改了哪些字段）。
@@ -282,6 +299,22 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   def churn_risk_scope(scope)
     scope.where(is_in_public_pool: false).where.not(first_deal_at: nil)
          .where("#{LAST_TOUCH_SQL} < ?", CHURN_RISK_DAYS.days.ago)
+  end
+
+  # 建档联系人：主联系人（快照字段）+ 建档页录入的其他联系人，逐个建/复用 Contact 挂到客户。
+  def contact_entries
+    primary = {
+      name: @customer.primary_contact_name, email: @customer.contact_email,
+      phone: @customer.contact_phone, job_title: @customer.contact_job_title, is_primary: true
+    }
+    [primary, *extra_contact_params]
+  end
+
+  def extra_contact_params
+    Array(params.dig(:customer, :contacts)).filter_map do |raw|
+      permitted = raw.permit(:name, :email, :phone, :job_title).to_h.symbolize_keys
+      permitted if permitted[:email].present?
+    end
   end
 
   def customer_params

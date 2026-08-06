@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -9,8 +9,10 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 
 defineProps({
   isLoading: { type: Boolean, default: false },
@@ -53,24 +55,13 @@ const statusOptions = [
   { value: 'LOST', label: '流失客户' },
 ];
 const levelOptions = ['A', 'B', 'C', 'D'].map(v => ({ value: v, label: v }));
-const groupOptions = [
-  { value: 'KEY_ACCOUNT_WON', label: '成交重点客户' },
-  { value: 'WON', label: '成交客户' },
-  { value: 'SAMPLE_WON', label: '成交样品客户' },
-  { value: 'NOT_WON', label: '未成交客户' },
-  { value: 'SOCIAL_MEDIA', label: '社媒开发客户' },
-];
+// 客户分组 / 客户来源：从「客户设置」动态读取（含二级层级），不再写死。
+const { ensureLoaded, groupOptions, sourceOptions } = useCrmOptions();
+onMounted(ensureLoaded);
+
 const productGroupOptions = [
   { value: 'TABLET', label: '平板电脑' },
   { value: 'COMMERCIAL_DISPLAY', label: '商显工控' },
-];
-const sourceOptions = [
-  { value: 'ALIBABA', label: '阿里巴巴国际站' },
-  { value: 'WEBSITE', label: '官网' },
-  { value: 'EXHIBITION', label: '展会' },
-  { value: 'EMAIL', label: '邮件开发' },
-  { value: 'SOCIAL_MEDIA', label: '社媒开发' },
-  { value: 'OTHER', label: '其他' },
 ];
 const preferenceOptions = [
   { value: 'EMAIL', label: '邮件' },
@@ -230,10 +221,11 @@ defineExpose({ dialogRef, onSuccess, open });
           label="公司网址 / 域名"
           :disabled="isLoading"
         />
-        <Select
+        <ComboBox
           v-model="form.tradeCountry"
           :options="countryOptions"
           placeholder="国家地区"
+          search-placeholder="搜索国家/地区"
         />
       </div>
 

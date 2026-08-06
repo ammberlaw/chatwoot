@@ -728,6 +728,47 @@ const menuItems = computed(() => {
         ],
       },
       {
+        name: 'CRM Mail Center',
+        label: t('SIDEBAR.CRM_G_MAIL'),
+        icon: 'i-lucide-mail',
+        activeOn: [
+          'crm_emails_index',
+          'crm_mail_accounts_index',
+          'crm_email_templates_index',
+          'crm_ai_settings_index',
+        ],
+        children: [
+          {
+            name: 'CRM Read Emails',
+            label: t('SIDEBAR.CRM_READ_EMAILS'),
+            to: accountScopedRoute('crm_emails_index'),
+            activeOn: ['crm_emails_index'],
+          },
+          {
+            name: 'CRM Email Templates',
+            label: t('SIDEBAR.CRM_EMAIL_TEMPLATES'),
+            to: accountScopedRoute('crm_email_templates_index'),
+            activeOn: ['crm_email_templates_index'],
+          },
+          {
+            name: 'CRM Mail Accounts',
+            label: t('SIDEBAR.CRM_MAIL_ACCOUNTS'),
+            to: accountScopedRoute('crm_mail_accounts_index'),
+            activeOn: ['crm_mail_accounts_index'],
+          },
+          ...(isAdminLike.value
+            ? [
+                {
+                  name: 'CRM AI Settings',
+                  label: t('SIDEBAR.CRM_AI_SETTINGS'),
+                  to: accountScopedRoute('crm_ai_settings_index'),
+                  activeOn: ['crm_ai_settings_index'],
+                },
+              ]
+            : []),
+        ],
+      },
+      {
         name: 'CRM Customers Group',
         label: t('SIDEBAR.CRM_G_CUSTOMERS'),
         icon: 'i-lucide-users',
@@ -794,6 +835,12 @@ const menuItems = computed(() => {
                   to: accountScopedRoute('crm_public_pool_settings_index'),
                   activeOn: ['crm_public_pool_settings_index'],
                 },
+                {
+                  name: 'CRM Customer Settings',
+                  label: t('SIDEBAR.CRM_CUSTOMER_SETTINGS'),
+                  to: accountScopedRoute('crm_customer_settings_index'),
+                  activeOn: ['crm_customer_settings_index'],
+                },
               ]
             : []),
         ],
@@ -812,13 +859,8 @@ const menuItems = computed(() => {
             name: 'CRM Funnel',
             label: t('SIDEBAR.CRM_FUNNEL'),
             to: accountScopedRoute('crm_funnel_index'),
-            activeOn: ['crm_funnel_index'],
-          },
-          {
-            name: 'CRM Opportunities',
-            label: t('SIDEBAR.CRM_OPPORTUNITIES'),
-            to: accountScopedRoute('crm_opportunities_index'),
-            activeOn: ['crm_opportunities_index'],
+            // 商机列表已并入看板页（页内「列表」视图），直接访问列表 URL 也高亮此项。
+            activeOn: ['crm_funnel_index', 'crm_opportunities_index'],
           },
           {
             name: 'CRM Sales Orders',
@@ -835,47 +877,6 @@ const menuItems = computed(() => {
               { filter: 'no_customer' }
             ),
           },
-        ],
-      },
-      {
-        name: 'CRM Mail Center',
-        label: t('SIDEBAR.CRM_G_MAIL'),
-        icon: 'i-lucide-mail',
-        activeOn: [
-          'crm_emails_index',
-          'crm_mail_accounts_index',
-          'crm_email_templates_index',
-          'crm_ai_settings_index',
-        ],
-        children: [
-          {
-            name: 'CRM Read Emails',
-            label: t('SIDEBAR.CRM_READ_EMAILS'),
-            to: accountScopedRoute('crm_emails_index'),
-            activeOn: ['crm_emails_index'],
-          },
-          {
-            name: 'CRM Email Templates',
-            label: t('SIDEBAR.CRM_EMAIL_TEMPLATES'),
-            to: accountScopedRoute('crm_email_templates_index'),
-            activeOn: ['crm_email_templates_index'],
-          },
-          {
-            name: 'CRM Mail Accounts',
-            label: t('SIDEBAR.CRM_MAIL_ACCOUNTS'),
-            to: accountScopedRoute('crm_mail_accounts_index'),
-            activeOn: ['crm_mail_accounts_index'],
-          },
-          ...(isAdminLike.value
-            ? [
-                {
-                  name: 'CRM AI Settings',
-                  label: t('SIDEBAR.CRM_AI_SETTINGS'),
-                  to: accountScopedRoute('crm_ai_settings_index'),
-                  activeOn: ['crm_ai_settings_index'],
-                },
-              ]
-            : []),
         ],
       },
       {

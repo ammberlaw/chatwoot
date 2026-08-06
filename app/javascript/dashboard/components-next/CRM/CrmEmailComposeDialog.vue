@@ -85,7 +85,6 @@ const L = {
   applyTemplate: '套用模板',
   noTemplate: '— 不套用 —',
   sentOk: '✅ 成功发送',
-  sentBanner: '✅ 邮件发送成功。可继续写下一封。',
   submittedBanner: '已提交发送，仍在投递中，结果稍后见邮件列表状态。',
   draftBanner: '已存入草稿箱。',
   needTo: '请填写收件人',
@@ -572,10 +571,14 @@ const send = async () => {
         msg: result.error || '发送失败，请见邮件列表状态。',
       };
     } else if (result.status === 'SENT') {
-      status.value = { state: 'sent', msg: '' };
       useAlert(L.sentOk);
+      visible.value = false;
+      reset();
     } else {
-      status.value = { state: 'submitted', msg: '' };
+      // 仍在投递中：以 toast 告知，弹窗直接关闭（结果去邮件列表看），不再停留需手动关。
+      useAlert(L.submittedBanner);
+      visible.value = false;
+      reset();
     }
     emit('refresh');
   } catch (e) {
@@ -1260,19 +1263,7 @@ defineExpose({ open, close });
 
       <!-- 状态提示 -->
       <div
-        v-if="status.state === 'sent'"
-        class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-teal-11 border-n-teal-7 bg-n-teal-2"
-      >
-        {{ L.sentBanner }}
-      </div>
-      <div
-        v-else-if="status.state === 'submitted'"
-        class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-blue-11 border-n-blue-7 bg-n-blue-2"
-      >
-        {{ L.submittedBanner }}
-      </div>
-      <div
-        v-else-if="status.state === 'draft'"
+        v-if="status.state === 'draft'"
         class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-blue-11 border-n-blue-7 bg-n-blue-2"
       >
         {{ L.draftBanner }}

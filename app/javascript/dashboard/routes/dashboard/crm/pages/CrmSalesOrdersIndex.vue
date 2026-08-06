@@ -326,6 +326,21 @@ watch(
     fetchRecords();
   }
 );
+
+// 从客户详情跳来时带 ?focus=<id>，列表加载后自动打开该订单面板（仅一次）。
+const focusOpened = ref(false);
+watch(
+  records,
+  list => {
+    if (focusOpened.value || !route.query.focus) return;
+    const rec = list.find(r => String(r.id) === String(route.query.focus));
+    if (rec) {
+      selectOrder(rec);
+      focusOpened.value = true;
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>

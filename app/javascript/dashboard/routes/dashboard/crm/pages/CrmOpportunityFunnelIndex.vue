@@ -12,6 +12,7 @@ import CrmMemberAPI from 'dashboard/api/crm/members';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
+import CrmOpportunitiesIndex from 'dashboard/routes/dashboard/crm/pages/CrmOpportunitiesIndex.vue';
 
 const { t } = useI18n();
 const { accountId } = useAccount();
@@ -81,7 +82,8 @@ const refreshBoard = () =>
 
 const setView = value => {
   view.value = value;
-  refreshBoard();
+  // 列表视图由嵌入的商机列表组件自行取数，无需再拉看板数据。
+  if (value !== 'list') refreshBoard();
 };
 
 const sortOptions = [
@@ -244,7 +246,7 @@ onMounted(() => {
         <p class="mt-0.5 text-sm text-n-slate-11">{{ t('CRM.FUNNEL.HINT') }}</p>
       </div>
       <div class="flex items-center gap-2">
-        <!-- 视图切换：看板 / 商机公海 -->
+        <!-- 视图切换：看板 / 列表 / 商机公海 -->
         <div class="flex items-center gap-1 p-1 rounded-lg bg-n-alpha-2">
           <Button
             :label="t('CRM.FUNNEL.VIEW_BOARD')"
@@ -252,6 +254,13 @@ onMounted(() => {
             :variant="view === 'board' ? 'solid' : 'ghost'"
             :color="view === 'board' ? 'iris' : 'slate'"
             @click="setView('board')"
+          />
+          <Button
+            :label="t('CRM.FUNNEL.VIEW_LIST')"
+            sm
+            :variant="view === 'list' ? 'solid' : 'ghost'"
+            :color="view === 'list' ? 'iris' : 'slate'"
+            @click="setView('list')"
           />
           <Button
             :label="t('CRM.FUNNEL.VIEW_POOL')"
@@ -303,7 +312,7 @@ onMounted(() => {
           @update:model-value="setOwner"
         />
         <Button
-          v-if="view === 'board'"
+          v-if="view !== 'pool'"
           :label="t('CRM.OPPORTUNITIES.NEW')"
           icon="i-lucide-plus"
           color="iris"
@@ -312,7 +321,10 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="isFetching" class="p-8 text-center text-n-slate-11">
+    <!-- 列表视图：复用商机列表页（嵌入模式，隐藏其标题头） -->
+    <CrmOpportunitiesIndex v-if="view === 'list'" embedded />
+
+    <div v-else-if="isFetching" class="p-8 text-center text-n-slate-11">
       {{ t('CRM.FUNNEL.LOADING') }}
     </div>
 

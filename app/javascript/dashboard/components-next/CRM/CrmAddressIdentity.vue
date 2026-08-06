@@ -37,7 +37,8 @@ onMounted(async () => {
   }
 });
 
-// 身份视觉：图标颜色 + 徽标文案（对齐小满：蓝=客户、橙=撞单、黄=同事、灰=陌生人）
+// 身份视觉：图标颜色 + 徽标文案
+// 蓝=我的客户(私海) / 青=公海客户 / 橙=同事客户(撞单) / 橙=同事 / 灰=陌生人
 const style = computed(() => {
   switch (info.value?.type) {
     case 'mine':
@@ -46,11 +47,17 @@ const style = computed(() => {
         badge: '我的客户',
         badgeCls: 'bg-n-blue-9',
       };
+    case 'public':
+      return {
+        icon: 'text-n-teal-9',
+        badge: '公海客户',
+        badgeCls: 'bg-n-teal-9',
+      };
     case 'other':
       return {
-        icon: 'text-n-ruby-9',
+        icon: 'text-n-amber-10',
         badge: '同事客户 · 撞单',
-        badgeCls: 'bg-n-ruby-9',
+        badgeCls: 'bg-n-amber-10',
       };
     case 'colleague':
       return {
