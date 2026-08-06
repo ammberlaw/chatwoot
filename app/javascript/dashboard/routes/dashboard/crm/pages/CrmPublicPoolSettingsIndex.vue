@@ -4,17 +4,20 @@ import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import CrmPoolSettingsAPI from 'dashboard/api/crm/publicPoolSettings';
 import CrmMemberAPI from 'dashboard/api/crm/members';
+import CrmOptionItemsAPI from 'dashboard/api/crm/optionItems';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 
 const { t } = useI18n();
-// 与后端 PublicPoolSetting 列一一对应：pool_limit_* 私海上限，recycle_days_* 分组回收天数
+// 与后端 PublicPoolSetting 列一一对应：pool_limit_* 私海上限，recycle_days_* 分组回收天数。
+// key 是列名后缀，其大写即客户设置里对应分组的 code；显示名优先取「客户设置→分组设置」的当前名字，
+// 取不到再回退到这里的默认名（管理员在客户设置改了分组名，这张表跟着变）。
 const GROUPS = [
-  { key: 'key_account_won', label: '大客户（成交）' },
-  { key: 'won', label: '已成交' },
-  { key: 'sample_won', label: '样品成交' },
-  { key: 'not_won', label: '未成交' },
-  { key: 'social_media', label: '社媒客户' },
+  { key: 'key_account_won', label: '成交重点客户' },
+  { key: 'won', label: '成交客户' },
+  { key: 'sample_won', label: '成交样品客户' },
+  { key: 'not_won', label: '未成交客户' },
+  { key: 'social_media', label: '社媒开发客户' },
 ];
 
 const form = reactive({
@@ -32,6 +35,11 @@ const form = reactive({
 const loading = ref(true);
 const busy = ref(false);
 
+// 分组显示名：默认取 GROUPS 里的回退名，onMounted 后按 code 用客户设置里的当前名覆盖。
+const groupLabels = reactive(
+  Object.fromEntries(GROUPS.map(g => [g.key, g.label]))
+);
+
 // 回收豁免名单的候选成员（该页仅管理员可见，成员接口返回全员）。
 const members = ref([]);
 const fetchMembers = async () => {
@@ -40,6 +48,22 @@ const fetchMembers = async () => {
     members.value = data.payload || [];
   } catch {
     members.value = [];
+  }
+};
+
+// 用「客户设置→分组设置」的当前名字覆盖公海分组名（按 code 匹配，key 大写即 code）。
+const fetchGroupNames = async () => {
+  try {
+    const { data } = await CrmOptionItemsAPI.get('customer_group');
+    const byCode = Object.fromEntries(
+      (data.payload || []).map(i => [i.code, i.name])
+    );
+    GROUPS.forEach(g => {
+      const name = byCode[g.key.toUpperCase()];
+      if (name) groupLabels[g.key] = name;
+    });
+  } catch {
+    // 取不到就用回退名，不阻断
   }
 };
 
@@ -59,6 +83,7 @@ onMounted(async () => {
     form.claimCooldownDays = data.claim_cooldown_days ?? 30;
     form.monthlyReportEnabled = data.monthly_report_enabled !== false;
     fetchMembers();
+    fetchGroupNames();
   } catch {
     useAlert(t('CRM.POOL_SETTINGS.LOAD_ERROR'));
   } finally {
@@ -248,7 +273,9 @@ const fieldCls =
               :key="row.key"
               class="border-b border-n-weak"
             >
-              <td class="py-2.5 pr-4 text-n-slate-12">{{ row.label }}</td>
+              <td class="py-2.5 pr-4 text-n-slate-12">
+                {{ groupLabels[row.key] }}
+              </td>
               <td class="px-4 py-1.5">
                 <input
                   v-model="form.recycleDays[row.key]"
