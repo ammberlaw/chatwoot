@@ -42,14 +42,23 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
     render json: { summary: service.summarize(transcript: build_transcript(address, emails)) }
   end
 
-  # 客户 AI 背调：输入邮箱→取企业域名→抓官网→AI 判断公司做什么/规模，并顺带查库是否已建档。
+  # 客户 AI 背调：输入邮箱/域名/网址→取企业域名→抓官网 + Apollo 概况，并顺带查库是否已建档。
   def company_lookup
-    email = params[:email].to_s.strip
-    return render json: { message: '请输入邮箱地址' }, status: :unprocessable_entity if email.blank?
+    query = params[:query].to_s.strip
+    return render json: { message: '请输入邮箱、公司域名或公司名' }, status: :unprocessable_entity if query.blank?
 
-    result = Crm::CompanyLookupService.new(account: Current.account).call(email: email)
+    result = Crm::CompanyLookupService.new(account: Current.account).call(query: query)
     result[:db_match] = company_db_match(result[:domain]) if result[:domain].present?
     render json: result
+  end
+
+  # 按公司名搜候选公司（Apollo），返回候选列表供前端挑一个再背调。
+  def company_search
+    name = params[:name].to_s.strip
+    return render json: { message: '请输入公司名' }, status: :unprocessable_entity if name.blank?
+
+    candidates = Crm::ApolloClient.new(account: Current.account).search_organizations(name: name)
+    render json: { candidates: candidates }
   end
 
   private

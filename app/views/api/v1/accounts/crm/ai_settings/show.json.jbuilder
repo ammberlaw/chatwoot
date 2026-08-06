@@ -4,3 +4,8 @@ json.configured key.present?
 json.key_hint key.present? ? key[-4..] : nil
 json.model @setting.model
 json.api_base @setting.api_base
+
+# Apollo 企业库 key 同样脱敏，只回是否已配 + 尾 4 位。
+apollo = @setting.apollo_api_key.to_s
+json.apollo_configured apollo.present?
+json.apollo_key_hint apollo.present? ? apollo[-4..] : nil

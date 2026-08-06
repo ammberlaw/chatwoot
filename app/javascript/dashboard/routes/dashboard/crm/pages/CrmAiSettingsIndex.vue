@@ -34,9 +34,12 @@ const form = reactive({
   apiKey: '',
   model: 'deepseek-chat',
   apiBase: 'https://api.deepseek.com/v1',
+  apolloKey: '',
 });
 const configured = ref(false);
 const keyHint = ref(null);
+const apolloConfigured = ref(false);
+const apolloKeyHint = ref(null);
 const loading = ref(true);
 const busy = ref(false);
 const testing = ref(false);
@@ -60,6 +63,8 @@ onMounted(async () => {
     const { data } = await CrmAiSettingsAPI.get();
     configured.value = data.configured;
     keyHint.value = data.key_hint;
+    apolloConfigured.value = data.apollo_configured;
+    apolloKeyHint.value = data.apollo_key_hint;
     form.model = data.model || 'deepseek-chat';
     form.apiBase = data.api_base || 'https://api.deepseek.com/v1';
   } catch {
@@ -84,11 +89,15 @@ const save = async () => {
         api_key: form.apiKey.trim(),
         model: form.model.trim() || 'deepseek-chat',
         api_base: form.apiBase.trim(),
+        apollo_api_key: form.apolloKey.trim(),
       },
     });
     configured.value = data.configured;
     keyHint.value = data.key_hint;
+    apolloConfigured.value = data.apollo_configured;
+    apolloKeyHint.value = data.apollo_key_hint;
     form.apiKey = ''; // 存完清空输入，回到「已配置 ••••xxxx」态
+    form.apolloKey = '';
     useAlert(t('CRM.AI_SETTINGS.SAVED'));
   } catch {
     useAlert(t('CRM.AI_SETTINGS.SAVE_ERROR'));
@@ -221,6 +230,34 @@ const fieldCls =
         <input v-model="form.apiBase" type="text" :class="[fieldCls]" />
         <span class="text-xs text-n-slate-10">
           {{ t('CRM.AI_SETTINGS.API_BASE_HINT') }}
+        </span>
+      </label>
+
+      <!-- Apollo 企业库（客户背调按域名补全公司概况 + 联系人） -->
+      <label class="flex flex-col gap-1.5 pt-4 border-t border-n-weak">
+        <span class="text-sm font-medium text-n-slate-12">
+          {{ t('CRM.AI_SETTINGS.APOLLO_KEY') }}
+        </span>
+        <span
+          v-if="apolloConfigured"
+          class="inline-flex items-center gap-1.5 text-xs text-n-teal-11"
+        >
+          <Icon icon="i-lucide-check-circle-2" class="size-3.5" />
+          {{ t('CRM.AI_SETTINGS.KEY_CONFIGURED', { hint: apolloKeyHint }) }}
+        </span>
+        <input
+          v-model="form.apolloKey"
+          type="password"
+          autocomplete="off"
+          :placeholder="
+            apolloConfigured
+              ? t('CRM.AI_SETTINGS.KEY_PLACEHOLDER_SET')
+              : t('CRM.AI_SETTINGS.KEY_PLACEHOLDER_NEW')
+          "
+          :class="[fieldCls]"
+        />
+        <span class="text-xs text-n-slate-10">
+          {{ t('CRM.AI_SETTINGS.APOLLO_HINT') }}
         </span>
       </label>
 

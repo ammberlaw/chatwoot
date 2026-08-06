@@ -6,9 +6,11 @@ import CrmAiAPI from 'dashboard/api/crm/ai';
 
 const router = useRouter();
 
-const email = ref('');
-const loading = ref(false);
-const result = ref(null); // null=未查询；{ status, domain, url, profile, db_match }
+const queryText = ref('');
+const loading = ref(false); // 背调进行中
+const searching = ref(false); // 按公司名搜候选中
+const result = ref(null); // null=未查询；{ status, domain, url, profile, enrichment, db_match }
+const candidates = ref([]); // 公司名搜索的候选公司，供用户挑一个再背调
 
 // 真实性判断三态：颜色 + 文案
 const LEGIT_MAP = {
@@ -42,6 +44,13 @@ const FIELDS = [
   { key: 'country', label: '国家/地区', icon: 'i-lucide-map-pin' },
 ];
 
+// Apollo 企业库补全（按域名，不依赖官网可爬）：公司概况硬字段
+const enrichment = computed(() => result.value?.enrichment || null);
+const enrichLocation = computed(() => {
+  const e = enrichment.value;
+  return e ? [e.city, e.country].filter(Boolean).join('，') : '';
+});
+
 const dbMatch = computed(
   () => result.value?.db_match || { total: 0, visible: [] }
 );
@@ -49,16 +58,18 @@ const hiddenCount = computed(
   () => dbMatch.value.total - dbMatch.value.visible.length
 );
 
-const run = async () => {
-  const value = email.value.trim();
-  if (!value.includes('@')) {
-    useAlert('请输入有效的邮箱地址');
-    return;
-  }
+// 输入是否像域名/网址：带协议头，或不含 @、无空格、含点（如 acme.com、https://acme.com/x）。
+const looksLikeDomain = v =>
+  /^https?:\/\//i.test(v) ||
+  (!v.includes('@') && !/\s/.test(v) && v.includes('.'));
+
+// 对一个邮箱/域名直接背调。
+const lookup = async query => {
   loading.value = true;
   result.value = null;
+  candidates.value = [];
   try {
-    const { data } = await CrmAiAPI.companyLookup(value);
+    const { data } = await CrmAiAPI.companyLookup(query);
     result.value = data;
   } catch (e) {
     useAlert(e?.response?.data?.message || 'AI 背调失败，请稍后再试');
@@ -66,6 +77,41 @@ const run = async () => {
     loading.value = false;
   }
 };
+
+// 按公司名搜候选公司（Apollo），列出来让用户挑一个。
+const searchByName = async name => {
+  searching.value = true;
+  result.value = null;
+  candidates.value = [];
+  try {
+    const { data } = await CrmAiAPI.companySearch(name);
+    candidates.value = data.candidates || [];
+    if (!candidates.value.length) {
+      useAlert('没搜到这家公司，换个更完整的名字，或直接用公司域名/邮箱背调');
+    }
+  } catch (e) {
+    useAlert(e?.response?.data?.message || '搜索失败，请稍后再试');
+  } finally {
+    searching.value = false;
+  }
+};
+
+// 智能分流：邮箱/域名/网址→直接背调；否则当公司名→先搜候选。
+const run = () => {
+  const value = queryText.value.trim();
+  if (!value) {
+    useAlert('请输入邮箱、公司域名或公司名');
+    return;
+  }
+  if (value.includes('@') || looksLikeDomain(value)) {
+    lookup(value);
+  } else {
+    searchByName(value);
+  }
+};
+
+// 选中某个候选公司→对它的域名背调。
+const pickCandidate = candidate => lookup(candidate.domain);
 
 const openCustomer = customer => {
   router.push({
@@ -83,34 +129,34 @@ const openCustomer = customer => {
     <div class="px-6 pt-6 pb-4 border-b border-n-weak">
       <div class="text-lg font-medium text-n-slate-12">AI 背调</div>
       <div class="mt-0.5 text-xs text-n-slate-10">
-        输入客户邮箱，AI
-        自动抓取其企业官网，判断这家公司做什么、规模多大、是否真实可靠
+        输入客户邮箱、公司域名或公司名，AI 自动抓取官网 + 查询 Apollo
+        企业库，判断这家公司做什么、规模多大、是否真实可靠，并补全公司概况
       </div>
     </div>
 
-    <!-- 邮箱输入 + 背调按钮：图标绝对定位进框内，按钮贴右侧，整框水平居中 -->
+    <!-- 输入 + 背调按钮：图标绝对定位进框内，按钮贴右侧，整框水平居中 -->
     <div class="flex justify-center w-full px-6 pt-5 pb-1">
       <div class="relative w-full max-w-2xl">
         <span
-          class="absolute -translate-y-1/2 pointer-events-none i-lucide-mail size-4 left-4 top-1/2 text-n-slate-10"
+          class="absolute -translate-y-1/2 pointer-events-none i-lucide-search size-4 left-4 top-1/2 text-n-slate-10"
         />
         <input
-          v-model="email"
-          type="email"
-          name="background-email"
+          v-model="queryText"
+          type="text"
+          name="background-query"
           autocomplete="off"
-          placeholder="例如 procurement@example.com"
+          placeholder="邮箱 / 公司域名 / 公司名，如 buyer@acme.com、acme.com、Acme Ltd"
           class="reset-base w-full h-11 m-0 pl-11 pr-28 text-sm border rounded-lg outline-none bg-n-solid-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-9 focus:border-n-brand"
           @keyup.enter="run"
         />
         <button
           class="absolute top-0 bottom-0 right-0 flex items-center gap-1.5 px-5 text-sm font-medium text-white rounded-r-lg outline-none bg-n-brand hover:enabled:brightness-110 focus-visible:brightness-110 disabled:opacity-60"
-          :disabled="loading"
+          :disabled="loading || searching"
           @click="run"
         >
           <span
             :class="
-              loading
+              loading || searching
                 ? 'i-lucide-loader-2 animate-spin'
                 : 'i-lucide-search-check'
             "
@@ -121,13 +167,53 @@ const openCustomer = customer => {
       </div>
     </div>
 
-    <!-- 加载中 -->
+    <!-- 搜索公司名中 -->
     <div
-      v-if="loading"
+      v-if="searching"
+      class="flex flex-col items-center justify-center flex-1 gap-2 text-n-slate-10"
+    >
+      <span class="i-lucide-loader-2 animate-spin size-6" />
+      正在搜索公司…
+    </div>
+
+    <!-- 背调中 -->
+    <div
+      v-else-if="loading"
       class="flex flex-col items-center justify-center flex-1 gap-2 text-n-slate-10"
     >
       <span class="i-lucide-loader-2 animate-spin size-6" />
       正在抓取官网并分析…
+    </div>
+
+    <!-- 公司名候选：挑一个再背调 -->
+    <div v-else-if="candidates.length" class="flex flex-col gap-2 px-6 py-5">
+      <div class="text-xs text-n-slate-10">
+        搜到 {{ candidates.length }} 家同/近名公司，点一个开始背调：
+      </div>
+      <button
+        v-for="(c, i) in candidates"
+        :key="i"
+        class="flex items-center justify-between w-full gap-3 px-4 py-3 text-left border rounded-xl border-n-weak hover:border-n-brand hover:bg-n-alpha-1"
+        @click="pickCandidate(c)"
+      >
+        <div class="min-w-0">
+          <div class="text-sm font-medium truncate text-n-slate-12">
+            {{ c.name }}
+          </div>
+          <div class="text-xs truncate text-n-slate-10">
+            {{ c.domain }}
+            <span v-if="c.industry || c.country">
+              ·
+              {{
+                [c.industry, [c.city, c.country].filter(Boolean).join('，')]
+                  .filter(Boolean)
+                  .join(' · ')
+              }}
+            </span>
+          </div>
+        </div>
+        <span class="i-lucide-chevron-right size-4 shrink-0 text-n-slate-9" />
+      </button>
     </div>
 
     <!-- 初始空态 -->
@@ -136,7 +222,7 @@ const openCustomer = customer => {
       class="flex flex-col items-center justify-center flex-1 gap-2 text-n-slate-9"
     >
       <span class="i-lucide-building-2 size-8" />
-      输入一个客户邮箱，开始背调
+      输入邮箱、公司域名或公司名，开始背调
     </div>
 
     <!-- 无效邮箱 -->
@@ -227,6 +313,64 @@ const openCustomer = customer => {
           <div class="mt-1.5 text-sm text-n-slate-12">
             {{ profile[f.key] || '未提及' }}
           </div>
+        </div>
+      </div>
+
+      <!-- Apollo 企业库：公司概况硬字段（规模/成立/营收/所在地/领英/电话） -->
+      <div
+        v-if="enrichment"
+        class="p-5 border rounded-2xl border-n-iris-6 bg-n-iris-2"
+      >
+        <div
+          class="flex items-center gap-1.5 text-sm font-medium text-n-iris-11"
+        >
+          <span class="i-lucide-database size-4" />
+          Apollo 企业库
+        </div>
+        <div class="grid grid-cols-2 gap-3 mt-3 sm:grid-cols-4">
+          <div v-if="enrichment.employees">
+            <div class="text-xs text-n-slate-10">员工规模</div>
+            <div class="mt-0.5 text-sm font-medium text-n-slate-12">
+              约 {{ enrichment.employees }} 人
+            </div>
+          </div>
+          <div v-if="enrichment.founded_year">
+            <div class="text-xs text-n-slate-10">成立年份</div>
+            <div class="mt-0.5 text-sm font-medium text-n-slate-12">
+              {{ enrichment.founded_year }}
+            </div>
+          </div>
+          <div v-if="enrichment.revenue">
+            <div class="text-xs text-n-slate-10">年营收</div>
+            <div class="mt-0.5 text-sm font-medium text-n-slate-12">
+              {{ enrichment.revenue }}
+            </div>
+          </div>
+          <div v-if="enrichLocation">
+            <div class="text-xs text-n-slate-10">所在地</div>
+            <div class="mt-0.5 text-sm font-medium text-n-slate-12">
+              {{ enrichLocation }}
+            </div>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-4 mt-3">
+          <a
+            v-if="enrichment.linkedin"
+            :href="enrichment.linkedin"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1 text-xs text-n-brand hover:underline"
+          >
+            <span class="i-lucide-linkedin size-3.5" />
+            领英主页
+          </a>
+          <span
+            v-if="enrichment.phone"
+            class="inline-flex items-center gap-1 text-xs text-n-slate-11"
+          >
+            <span class="i-lucide-phone size-3.5" />
+            {{ enrichment.phone }}
+          </span>
         </div>
       </div>
 

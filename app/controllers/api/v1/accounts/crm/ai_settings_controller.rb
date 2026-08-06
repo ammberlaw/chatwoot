@@ -10,8 +10,9 @@ class Api::V1::Accounts::Crm::AiSettingsController < Api::V1::Accounts::Crm::Bas
   def update
     @setting = Crm::AiSetting.for_account(Current.account)
     attrs = setting_params
-    # api_key 留空 = 保持原 key 不变（前端不回显完整 key，改模型/端点时不必重填）。
+    # api_key / apollo_api_key 留空 = 保持原值不变（前端不回显完整 key，改其它设置时不必重填）。
     attrs = attrs.except(:api_key) if attrs[:api_key].blank?
+    attrs = attrs.except(:apollo_api_key) if attrs[:apollo_api_key].blank?
     @setting.assign_attributes(attrs)
     @setting.save!
     render :show
@@ -41,6 +42,6 @@ class Api::V1::Accounts::Crm::AiSettingsController < Api::V1::Accounts::Crm::Bas
   end
 
   def setting_params
-    params.require(:setting).permit(:api_key, :model, :api_base)
+    params.require(:setting).permit(:api_key, :model, :api_base, :apollo_api_key)
   end
 end

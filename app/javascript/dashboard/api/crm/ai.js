@@ -22,9 +22,14 @@ class CrmAiAPI extends ApiClient {
     return axios.post(`${this.url}/summarize`, { address });
   }
 
-  // 客户 AI 背调：输入邮箱→抓官网→判断公司背景 + 查库是否已建档。
-  companyLookup(email) {
-    return axios.post(`${this.url}/company_lookup`, { email });
+  // 客户 AI 背调：query 可为邮箱 / 域名 / 网址（解析出域名）→ 抓官网 + Apollo 概况 + 查库。
+  companyLookup(query) {
+    return axios.post(`${this.url}/company_lookup`, { query });
+  }
+
+  // 按公司名从 Apollo 搜候选公司（名称歧义时让用户挑一个再背调）。
+  companySearch(name) {
+    return axios.post(`${this.url}/company_search`, { name });
   }
 }
 

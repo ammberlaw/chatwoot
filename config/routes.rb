@@ -98,8 +98,9 @@ Rails.application.routes.draw do
             post 'ai/compose', to: 'ai#compose'
             post 'ai/translate', to: 'ai#translate'
             post 'ai/summarize', to: 'ai#summarize'
-            # 客户 AI 背调：输入邮箱→抓官网→判断公司背景。
+            # 客户 AI 背调：输入邮箱/域名/网址→抓官网 + Apollo 概况；公司名先搜候选。
             post 'ai/company_lookup', to: 'ai#company_lookup'
+            post 'ai/company_search', to: 'ai#company_search'
             resources :emails do
               collection do
                 get :counts

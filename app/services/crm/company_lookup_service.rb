@@ -18,25 +18,50 @@ class Crm::CompanyLookupService
     @account = account
   end
 
-  # 返回 { status:, domain:, url:, profile: } —— status 取 invalid / public_domain / no_site / ok。
-  def call(email:)
-    domain = extract_domain(email)
+  # 返回 { status:, domain:, url:, profile:, enrichment: } —— status 取 invalid / public_domain / no_site / ok。
+  # query 可为邮箱 / 域名 / 网址，统一解析出企业域名；enrichment 来自 Apollo 企业库（按域名，不依赖官网可爬）。
+  def call(query:)
+    domain = extract_domain(query)
     return { status: 'invalid' } if domain.blank?
     return { status: 'public_domain', domain: domain } if PUBLIC_DOMAINS.include?(domain)
 
-    site = fetch_website(domain)
-    return { status: 'no_site', domain: domain } if site[:text].blank?
+    enrichment = Crm::ApolloClient.new(account: @account).organization(domain: domain)
 
-    profile = Crm::EmailAiService.new(account: @account).company_profile(domain: domain, site_text: site[:text])
-    { status: 'ok', domain: domain, url: site[:url], profile: profile }
+    site = fetch_website(domain)
+    if site[:text].present?
+      profile = Crm::EmailAiService.new(account: @account).company_profile(domain: domain, site_text: site[:text])
+      { status: 'ok', domain: domain, url: site[:url], profile: profile, enrichment: enrichment }
+    elsif enrichment
+      # 官网抓不到，但 Apollo 有这家公司 → 用企业库数据兜底，避免「背调不到」的死胡同。
+      { status: 'ok', domain: domain, url: enrichment[:website], profile: profile_from_enrichment(enrichment), enrichment: enrichment }
+    else
+      { status: 'no_site', domain: domain }
+    end
   end
 
   private
 
-  def extract_domain(email)
-    return if email.blank? || email.exclude?('@')
+  # 无官网正文时，用 Apollo 企业库数据拼出与 AI 背调同结构的 profile，供前端头卡/字段网格复用。
+  # 能进 Apollo 企业库且有员工数或领英，视作真实运营公司。
+  def profile_from_enrichment(enrichment)
+    {
+      'company_name' => enrichment[:name],
+      'legit' => (enrichment[:employees].to_i.positive? || enrichment[:linkedin].present?) ? 'real' : 'unknown',
+      'business' => enrichment[:description],
+      'industry' => enrichment[:industry],
+      'size_hint' => enrichment[:employees] ? "约 #{enrichment[:employees]} 人" : nil,
+      'country' => enrichment[:country]
+    }.compact
+  end
 
-    email.split('@').last.to_s.strip.downcase.presence
+  # 从邮箱 / 域名 / 网址里解析出企业域名：邮箱取 @ 后段；域名/网址剥掉协议、路径、端口与 www 前缀。
+  def extract_domain(query)
+    raw = query.to_s.strip.downcase
+    return if raw.blank?
+
+    raw = raw.split('@').last.to_s if raw.include?('@')
+    raw = raw.sub(%r{\Ahttps?://}, '').sub(%r{[/:?].*\z}, '').sub(/\Awww\./, '')
+    raw.include?('.') ? raw.presence : nil
   end
 
   # 依次尝试 https://域名 与 https://www.域名，任一抓到正文即返回。

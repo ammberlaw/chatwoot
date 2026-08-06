@@ -4,13 +4,14 @@
 #
 # Table name: crm_ai_settings
 #
-#  id         :bigint           not null, primary key
-#  api_base   :string
-#  api_key    :text
-#  model      :string           default("deepseek-chat"), not null
-#  created_at :datetime         not null
-#  updated_at :datetime         not null
-#  account_id :bigint           not null
+#  id             :bigint           not null, primary key
+#  api_base       :string
+#  api_key        :text
+#  apollo_api_key :text
+#  model          :string           default("deepseek-chat"), not null
+#  created_at     :datetime         not null
+#  updated_at     :datetime         not null
+#  account_id     :bigint           not null
 #
 # Indexes
 #
