@@ -135,9 +135,9 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     authorize(Crm::Email)
   end
 
-  # 可见范围（邮件私密口径）：管理员/副管也不看全员，只有部门负责人看所辖团队，其余只看自己。
+  # 可见范围（邮件私密口径）：系统管理员看全员；CRM 团队负责人看本团队；其余只看自己。
   def visible_emails
-    Current.account.crm_emails.where(owner_id: crm_mail_visible_owner_ids)
+    scope_by_mail_owner(Current.account.crm_emails)
   end
 
   # 阅读邮件视图筛选：文件夹/未读/星标/我的、按业务员（管理员）、按客户、搜主题/邮箱。

@@ -212,6 +212,8 @@ docker compose exec rails bundle exec rails db:migrate db:seed
 - **PI 形式发票模块**(新):在系统里建 PI、按模板灵活改、状态草稿/已付款/已作废。侧栏「PI 形式发票」。买方信息选客户自动带入(存快照)、逐行产品明细可传图、金额自动汇总。**导出 1:1 Excel**——直接把数据填进公司原始 PI 模板(`lib/pi/pi_template.xlsx`),字体/线条/logo/合并原样保留,多明细自动克隆行 + 扩 SUM;PDF 打开另存即可。新表 `crm_pis` / `crm_pi_items`,服务 `Crm::PiTemplateFiller`(rubyzip 改 XML,注意 UTF-8 强制编码)。
 - **销售订单读取 PI 自动填单**(新):新建订单点【上传 PI 识别】→ 上传 PDF(文字版)/xlsx → 后端抽文本 → DeepSeek 抽字段 → 自动填客户/PI号/日期/币种/金额/明细,PI 原件作附件。客户仅在本业务员名下模糊匹配(匹配不上留空,不新建)。订单加 `pi_no` + `line_items`(jsonb 内联明细)。依赖 `pdf-reader` + `roo`。
 - **客户详情全页 + 分组/来源自定义设置**(08-06):客户详情独立全页(商机/订单点击跳转);分组/来源可自定义(二级/显隐/拖拽,管理员·副管理员);商机列表并入看板;邮件建档优化。
+- **侧栏文案**:「订单管理」→「销售订单」、「PI 形式发票」→「PI 管理」。
+- **邮件可见范围重构**:`ai_controller`/`emails_controller` 的 `visible_emails` 统一改走 `scope_by_mail_owner`(系统管理员看全员 / CRM 团队负责人看本团队 / 其余只看自己)。
 
 ## 近期更新(2026-07 下旬 ~ 08-05)
 
