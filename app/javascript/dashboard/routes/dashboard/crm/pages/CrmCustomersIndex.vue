@@ -635,8 +635,10 @@ const detailSections = computed(() => {
         { label: '客户编码', value: c.customerCode },
         { label: '官网', value: c.website, link: true },
         {
-          label: '负责人',
-          value: c.isInPublicPool ? '🌊 公海' : c.accountOwnerName || '未分配',
+          label: c.isInPublicPool ? '原跟进人' : '负责人',
+          value: c.isInPublicPool
+            ? c.previousOwnerName || '—'
+            : c.accountOwnerName || '未分配',
         },
         { label: '客户状态', tag: tag(statusMeta(c)) },
         {
@@ -947,7 +949,11 @@ watch(
                     {{ t('CRM.CUSTOMERS.TABLE.REGION') }}
                   </th>
                   <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.CUSTOMERS.TABLE.OWNER') }}
+                    {{
+                      activeFilter === 'public_pool'
+                        ? '原跟进人'
+                        : t('CRM.CUSTOMERS.TABLE.OWNER')
+                    }}
                   </th>
                   <th
                     class="px-4 py-3 font-medium text-right whitespace-nowrap"
@@ -1050,9 +1056,12 @@ watch(
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
                   <td class="px-4 py-3 whitespace-nowrap text-n-slate-11">
-                    <span v-if="customer.isInPublicPool" class="text-n-blue-11">
-                      🌊 公海
-                    </span>
+                    <template v-if="customer.isInPublicPool">
+                      <span v-if="customer.previousOwnerName">
+                        {{ customer.previousOwnerName }}
+                      </span>
+                      <span v-else class="text-n-slate-10">—</span>
+                    </template>
                     <span v-else-if="customer.accountOwnerName">
                       {{ customer.accountOwnerName }}
                     </span>

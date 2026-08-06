@@ -598,7 +598,7 @@
       "AI_ADOPT_ALL": "全部采纳",
       "AI_HINT": "建议 {score} · 采纳",
       "AI_DONE": "AI 已给出建议分，仅供参考，请主管核定",
-      "AI_ERROR": "AI 建议分生成失败，请稍后再试或到 AI 设置检查 Key",
+      "AI_ERROR": "AI 建议分生成失败，请稍后再试或到 AI 配置检查 Key",
       "RETURN": "退回重填",
       "RETURN_TITLE": "退回给员工重填",
       "RETURN_PLACEHOLDER": "填写退回原因，员工会看到并据此修改",
@@ -683,7 +683,7 @@
       "GROUP_NOTE": "注：回收天数留空的分组按默认时限流转；上限留空为不限，达到上限后认领或分配该分组客户会被拒绝，已有存量不受影响。"
     },
     "AI_SETTINGS": {
-      "HEADER": "AI 设置",
+      "HEADER": "AI 配置",
       "SUBTITLE": "配置邮件 AI 助手（写信 / 翻译 / 往来摘要）用的大模型 API，全公司共用一把 Key",
       "LOADING": "加载中…",
       "LOAD_ERROR": "加载失败",

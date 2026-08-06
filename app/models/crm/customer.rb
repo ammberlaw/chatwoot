@@ -97,6 +97,8 @@ class Crm::Customer < ApplicationRecord
 
   belongs_to :account
   belongs_to :account_owner, class_name: 'User', optional: true
+  # 进公海时记录的原跟进人，供公海列表展示「原跟进人」。
+  belongs_to :previous_owner, class_name: 'User', optional: true
 
   # 审计：记录客户字段的创建/编辑/分配，供「操作历史」展示。
   # 排除自动重算的成交统计与时间戳，避免噪音记录。

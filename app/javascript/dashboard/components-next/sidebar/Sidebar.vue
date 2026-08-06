@@ -281,7 +281,6 @@ const fetchChurnRiskCount = async () => {
   }
 };
 
-
 onMounted(() => {
   store.dispatch('labels/get');
   store.dispatch('inboxes/get');
@@ -735,7 +734,6 @@ const menuItems = computed(() => {
           'crm_emails_index',
           'crm_mail_accounts_index',
           'crm_email_templates_index',
-          'crm_ai_settings_index',
         ],
         children: [
           {
@@ -756,16 +754,6 @@ const menuItems = computed(() => {
             to: accountScopedRoute('crm_mail_accounts_index'),
             activeOn: ['crm_mail_accounts_index'],
           },
-          ...(isAdminLike.value
-            ? [
-                {
-                  name: 'CRM AI Settings',
-                  label: t('SIDEBAR.CRM_AI_SETTINGS'),
-                  to: accountScopedRoute('crm_ai_settings_index'),
-                  activeOn: ['crm_ai_settings_index'],
-                },
-              ]
-            : []),
         ],
       },
       {
@@ -777,7 +765,6 @@ const menuItems = computed(() => {
           'crm_customer_intake_index',
           'crm_customer_dupes_index',
           'crm_ai_background_check_index',
-          'crm_public_pool_settings_index',
         ],
         children: [
           {
@@ -827,22 +814,6 @@ const menuItems = computed(() => {
             to: accountScopedRoute('crm_ai_background_check_index'),
             activeOn: ['crm_ai_background_check_index'],
           },
-          ...(isAdminLike.value
-            ? [
-                {
-                  name: 'CRM Pool Settings',
-                  label: t('SIDEBAR.CRM_POOL_SETTINGS'),
-                  to: accountScopedRoute('crm_public_pool_settings_index'),
-                  activeOn: ['crm_public_pool_settings_index'],
-                },
-                {
-                  name: 'CRM Customer Settings',
-                  label: t('SIDEBAR.CRM_CUSTOMER_SETTINGS'),
-                  to: accountScopedRoute('crm_customer_settings_index'),
-                  activeOn: ['crm_customer_settings_index'],
-                },
-              ]
-            : []),
         ],
       },
       {
@@ -906,6 +877,41 @@ const menuItems = computed(() => {
           },
         ],
       },
+      // 设置：管理员/副管理员的账号级 CRM 配置归档（客户设置/公海设置/AI 设置），置于 CRM 模块底部。
+      ...(isAdminLike.value
+        ? [
+            {
+              name: 'CRM Settings',
+              label: t('SIDEBAR.CRM_G_SETTINGS'),
+              icon: 'i-lucide-settings',
+              activeOn: [
+                'crm_customer_settings_index',
+                'crm_public_pool_settings_index',
+                'crm_ai_settings_index',
+              ],
+              children: [
+                {
+                  name: 'CRM Customer Settings',
+                  label: t('SIDEBAR.CRM_CUSTOMER_SETTINGS'),
+                  to: accountScopedRoute('crm_customer_settings_index'),
+                  activeOn: ['crm_customer_settings_index'],
+                },
+                {
+                  name: 'CRM Pool Settings',
+                  label: t('SIDEBAR.CRM_POOL_SETTINGS'),
+                  to: accountScopedRoute('crm_public_pool_settings_index'),
+                  activeOn: ['crm_public_pool_settings_index'],
+                },
+                {
+                  name: 'CRM AI Settings',
+                  label: t('SIDEBAR.CRM_AI_SETTINGS'),
+                  to: accountScopedRoute('crm_ai_settings_index'),
+                  activeOn: ['crm_ai_settings_index'],
+                },
+              ],
+            },
+          ]
+        : []),
       {
         name: 'CRM Doc Center',
         label: t('SIDEBAR.CRM_G_DOC_CENTER'),
