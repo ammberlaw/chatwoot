@@ -1,6 +1,8 @@
 json.id resource.id
 json.name resource.name
 json.order_no resource.order_no
+json.pi_no resource.pi_no
+json.line_items resource.line_items
 json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.contact_id resource.contact_id

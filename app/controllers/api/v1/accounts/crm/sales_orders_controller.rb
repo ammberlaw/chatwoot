@@ -16,11 +16,25 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   def show; end
 
   def create
-    @sales_order = Current.account.crm_sales_orders.create!(sales_order_params.merge(owner_id: sales_order_params[:owner_id] || current_user.id))
+    attrs = order_attributes
+    @sales_order = Current.account.crm_sales_orders.create!(attrs.merge(owner_id: attrs[:owner_id] || current_user.id))
   end
 
   def update
-    @sales_order.update!(sales_order_params)
+    @sales_order.update!(order_attributes)
+  end
+
+  # 读取 PI 自动识别：上传 PDF/Excel，返回字段化结果供前端校对（不落库）。
+  def parse_pi
+    return render json: { error: '请上传 PI 文件' }, status: :unprocessable_entity if params[:file].blank?
+
+    result = Crm::PiParseService.new(account: Current.account, user: current_user, file: params[:file]).call
+    render json: result
+  rescue Crm::PiParseService::UnsupportedType, Crm::EmailAiService::NotConfigured => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  rescue StandardError => e
+    Rails.logger.error("[PI parse] #{e.class}: #{e.message}")
+    render json: { error: 'PI 识别失败，请检查文件或稍后重试' }, status: :unprocessable_entity
   end
 
   def destroy
@@ -103,11 +117,42 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   def sales_order_params
     params.require(:sales_order).permit(
-      :name, :order_no, :crm_customer_id, :contact_id, :crm_opportunity_id, :owner_id,
+      :name, :order_no, :pi_no, :crm_customer_id, :contact_id, :crm_opportunity_id, :owner_id,
       :status, :order_date, :delivery_date, :order_currency, :exchange_rate,
       :order_amount_micros, :cost_amount_micros, :profit_amount_micros, :profit_rate, :remark,
+      :line_items_json,
       files: []
     )
+  end
+
+  # 明细以 JSON 字符串传入（multipart 建单无法带嵌套数组），这里解析成 line_items 数组存 jsonb。
+  def order_attributes
+    attrs = sales_order_params.to_h.symbolize_keys
+    json = attrs.delete(:line_items_json)
+    attrs[:line_items] = parse_line_items(json) unless json.nil?
+    attrs
+  end
+
+  def parse_line_items(json)
+    items = JSON.parse(json.to_s)
+    return [] unless items.is_a?(Array)
+
+    items.filter_map do |item|
+      next unless item.is_a?(Hash)
+
+      name = item['name'].to_s.strip
+      next if name.blank?
+
+      {
+        'name' => name,
+        'spec' => item['spec'].to_s.strip,
+        'quantity' => item['quantity'],
+        'unit_price' => item['unit_price'],
+        'amount' => item['amount']
+      }
+    end
+  rescue JSON::ParserError
+    []
   end
 
   def permitted_params

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
@@ -33,17 +33,32 @@ const fetchRecords = () => store.get();
 
 // ── 按年份归档筛选：默认当年，可切历史年份或全部 ──
 const yearFilter = ref(String(new Date().getFullYear()));
+const monthFilter = ref(''); // 空 = 全部月份
 const yearOf = r => String(new Date(r.schemeMonth).getFullYear());
+const monthOf = r => String(new Date(r.schemeMonth).getMonth() + 1);
 const yearOptions = computed(() => {
   const years = new Set(records.value.map(yearOf));
   years.add(String(new Date().getFullYear()));
   return [...years].sort().reverse();
 });
-const filteredRecords = computed(() =>
-  yearFilter.value
+// 当前年份下有方案的月份（供月份下拉），倒序。
+const monthOptions = computed(() => {
+  const inYear = yearFilter.value
     ? records.value.filter(r => yearOf(r) === yearFilter.value)
-    : records.value
+    : records.value;
+  return [...new Set(inYear.map(monthOf))].sort((a, b) => Number(b) - Number(a));
+});
+const filteredRecords = computed(() =>
+  records.value.filter(
+    r =>
+      (!yearFilter.value || yearOf(r) === yearFilter.value) &&
+      (!monthFilter.value || monthOf(r) === monthFilter.value)
+  )
 );
+// 切换年份时重置月份筛选，避免残留无效月份导致空列表。
+watch(yearFilter, () => {
+  monthFilter.value = '';
+});
 
 const openCreate = () =>
   router.push({
@@ -105,15 +120,24 @@ const fmtMonth = value => {
     </div>
 
     <div class="flex-1 px-6 py-4">
-      <!-- 年份归档筛选 -->
+      <!-- 年份 / 月份归档筛选 -->
       <div class="flex items-center gap-2 mb-3">
         <select
           v-model="yearFilter"
-          class="h-8 px-2 mb-0 text-sm border rounded-lg reset-base w-32 border-n-weak bg-n-solid-1 text-n-slate-12"
+          class="h-8 px-2 mb-0 text-sm text-center border rounded-lg reset-base w-24 border-n-weak bg-n-solid-1 text-n-slate-12"
         >
           <option value="">全部年份</option>
           <option v-for="y in yearOptions" :key="y" :value="y">
             {{ y }} 年
+          </option>
+        </select>
+        <select
+          v-model="monthFilter"
+          class="h-8 px-2 mb-0 text-sm text-center border rounded-lg reset-base w-24 border-n-weak bg-n-solid-1 text-n-slate-12"
+        >
+          <option value="">全部月份</option>
+          <option v-for="m in monthOptions" :key="m" :value="m">
+            {{ m }} 月
           </option>
         </select>
         <span class="text-xs text-n-slate-10">

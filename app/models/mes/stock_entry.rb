@@ -2,38 +2,50 @@
 #
 # Table name: mes_stock_entries
 #
-#  id                  :bigint           not null, primary key
-#  entry_no            :string           not null
-#  is_checked          :boolean          default(FALSE), not null
-#  posted_at           :datetime
-#  purpose             :string           not null
-#  remark              :text
-#  status              :string           default("DRAFT"), not null
-#  created_at          :datetime         not null
-#  updated_at          :datetime         not null
-#  account_id          :bigint           not null
-#  checked_by_id       :bigint
-#  from_warehouse_id   :bigint
-#  owner_id            :bigint
-#  production_order_id :bigint
-#  purchase_order_id   :bigint
-#  received_by_id      :bigint
-#  to_warehouse_id     :bigint
+#  id                        :bigint           not null, primary key
+#  actual_inbound_date       :datetime
+#  color                     :string
+#  entry_no                  :string           not null
+#  is_checked                :boolean          default(FALSE), not null
+#  posted_at                 :datetime
+#  product_line              :string
+#  purpose                   :string           not null
+#  remark                    :text
+#  status                    :string           default("DRAFT"), not null
+#  warehouse_confirmed_at    :datetime
+#  workshop_confirmed_at     :datetime
+#  created_at                :datetime         not null
+#  updated_at                :datetime         not null
+#  account_id                :bigint           not null
+#  checked_by_id             :bigint
+#  from_warehouse_id         :bigint
+#  owner_id                  :bigint
+#  production_order_id       :bigint
+#  purchase_order_id         :bigint
+#  received_by_id            :bigint
+#  to_warehouse_id           :bigint
+#  warehouse_confirmed_by_id :bigint
+#  workshop_confirmed_by_id  :bigint
 #
 # Indexes
 #
-#  index_mes_stock_entries_on_account_id               (account_id)
-#  index_mes_stock_entries_on_account_id_and_entry_no  (account_id,entry_no) UNIQUE
-#  index_mes_stock_entries_on_account_id_and_purpose   (account_id,purpose)
-#  index_mes_stock_entries_on_owner_id                 (owner_id)
-#  index_mes_stock_entries_on_production_order_id      (production_order_id)
-#  index_mes_stock_entries_on_purchase_order_id        (purchase_order_id)
+#  index_mes_stock_entries_on_account_and_product_line   (account_id,product_line)
+#  index_mes_stock_entries_on_account_id                 (account_id)
+#  index_mes_stock_entries_on_account_id_and_entry_no    (account_id,entry_no) UNIQUE
+#  index_mes_stock_entries_on_account_id_and_purpose     (account_id,purpose)
+#  index_mes_stock_entries_on_owner_id                   (owner_id)
+#  index_mes_stock_entries_on_production_order_id        (production_order_id)
+#  index_mes_stock_entries_on_purchase_order_id          (purchase_order_id)
+#  index_mes_stock_entries_on_warehouse_confirmed_by_id  (warehouse_confirmed_by_id)
+#  index_mes_stock_entries_on_workshop_confirmed_by_id   (workshop_confirmed_by_id)
 #
 # Foreign Keys
 #
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (production_order_id => mes_production_orders.id) ON DELETE => nullify
 #  fk_rails_...  (purchase_order_id => mes_purchase_orders.id) ON DELETE => nullify
+#  fk_rails_...  (warehouse_confirmed_by_id => users.id) ON DELETE => nullify
+#  fk_rails_...  (workshop_confirmed_by_id => users.id) ON DELETE => nullify
 #
 class Mes::StockEntry < ApplicationRecord
   include Mes::DocumentNumber

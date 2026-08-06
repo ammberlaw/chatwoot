@@ -9,6 +9,7 @@
 #  is_active         :boolean          default(TRUE), not null
 #  name              :string           not null
 #  pricing_currency  :string           default("USD")
+#  product_line      :string
 #  remark            :text
 #  sale_price_micros :bigint
 #  sku               :string           not null
@@ -20,8 +21,9 @@
 #
 # Indexes
 #
-#  index_crm_products_on_account_id          (account_id)
-#  index_crm_products_on_account_id_and_sku  (account_id,sku) UNIQUE
+#  index_crm_products_on_account_and_product_line  (account_id,product_line)
+#  index_crm_products_on_account_id                (account_id)
+#  index_crm_products_on_account_id_and_sku        (account_id,sku) UNIQUE
 #
 class Crm::Product < ApplicationRecord
   CATEGORIES = %w[STANDARD CUSTOMIZED ACCESSORY OTHER].freeze

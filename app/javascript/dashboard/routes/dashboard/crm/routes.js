@@ -5,6 +5,7 @@ import CrmAiBackgroundCheckIndex from './pages/CrmAiBackgroundCheckIndex.vue';
 import CrmOpportunitiesIndex from './pages/CrmOpportunitiesIndex.vue';
 import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
 import CrmSalesOrdersIndex from './pages/CrmSalesOrdersIndex.vue';
+import CrmPisIndex from './pages/CrmPisIndex.vue';
 import CrmEmailsIndex from './pages/CrmEmailsIndex.vue';
 import CrmKnowledgeDocsIndex from './pages/CrmKnowledgeDocsIndex.vue';
 import CrmSalesTargetsIndex from './pages/CrmSalesTargetsIndex.vue';
@@ -88,6 +89,7 @@ export const routes = [
   ),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
+  crmPage('pis', 'crm_pis_index', CrmPisIndex),
   crmPage('sales-orders', 'crm_sales_orders_index', CrmSalesOrdersIndex),
   crmPage('emails', 'crm_emails_index', CrmEmailsIndex),
   crmPage('knowledge-docs', 'crm_knowledge_docs_index', CrmKnowledgeDocsIndex, {

@@ -183,6 +183,15 @@ const fmtMoney = (micros, currency) =>
 const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
 const fmtDateTime = v => (v ? new Date(v).toLocaleString() : '');
 
+// 明细副行文案：「规格 · 数量 × 单价」，符号放进 JS 避免模板裸字符串。
+const itemMeta = li => {
+  const qty = li.quantity != null ? li.quantity : '—';
+  const price = li.unitPrice != null ? li.unitPrice : '—';
+  const prefix = li.spec ? `${li.spec} · ` : '';
+  return `${prefix}${qty} × ${price}`;
+};
+const itemAmount = li => (li.amount != null ? String(li.amount) : '—');
+
 const AVATAR = [
   'bg-n-blue-9',
   'bg-n-teal-9',
@@ -212,7 +221,8 @@ const detailSections = computed(() => {
     {
       title: '基本信息',
       rows: [
-        { label: 'PI号', value: o.name },
+        { label: '名称', value: o.name },
+        { label: 'PI号', value: o.piNo },
         { label: '订单号', value: o.orderNo },
         {
           label: '状态',
@@ -254,8 +264,10 @@ const detailSections = computed(() => {
 });
 
 const AUDIT_LABELS = {
-  name: 'PI号',
+  name: '订单名称',
+  pi_no: 'PI号',
   order_no: '订单号',
+  line_items: '订单明细',
   status: '状态',
   order_date: '下单日期',
   delivery_date: '交期',
@@ -613,6 +625,37 @@ watch(
                     {{ row.value }}
                   </span>
                   <span v-else-if="!row.tag" class="text-n-slate-10">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 订单明细 -->
+          <div
+            v-if="selectedOrder.lineItems && selectedOrder.lineItems.length"
+            class="px-5 py-4 border-b border-n-weak"
+          >
+            <div
+              class="mb-3 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              {{ t('CRM.SALES_ORDERS.FORM.SECTION_ITEMS') }}
+            </div>
+            <div class="flex flex-col gap-2">
+              <div
+                v-for="(li, i) in selectedOrder.lineItems"
+                :key="i"
+                class="flex flex-col gap-0.5 pb-2 border-b border-dashed last:border-0 border-n-weak"
+              >
+                <div class="flex items-center justify-between gap-2 text-sm">
+                  <span class="font-medium truncate text-n-slate-12">
+                    {{ li.name }}
+                  </span>
+                  <span class="shrink-0 text-n-slate-11 tabular-nums">
+                    {{ itemAmount(li) }}
+                  </span>
+                </div>
+                <div class="text-xs text-n-slate-10">
+                  {{ itemMeta(li) }}
                 </div>
               </div>
             </div>

@@ -4,9 +4,13 @@
 #
 #  id              :bigint           not null, primary key
 #  amount_micros   :bigint
+#  category        :string           default("MACHINE"), not null
+#  material_name   :string
+#  material_no     :string
 #  qty             :decimal(14, 3)   not null
 #  rate_micros     :bigint
 #  remark          :text
+#  specification   :string
 #  unit            :string
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null

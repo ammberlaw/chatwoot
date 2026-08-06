@@ -23,6 +23,7 @@ json.customer_name resource.crm_customer&.name
 json.contact_id resource.contact_id
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
+json.counterparty_type local_assigns[:counterparty_type]
 visible_files = resource.files.reject { |f| f.blob.metadata['inline'] }
 json.files(visible_files) do |f|
   json.id f.id

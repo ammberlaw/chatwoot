@@ -5,6 +5,7 @@ end
 
 json.payload do
   json.array! @emails do |email|
-    json.partial! 'api/v1/models/crm_email', formats: [:json], resource: email
+    json.partial! 'api/v1/models/crm_email', formats: [:json], resource: email,
+                                             counterparty_type: @counterparty_types[email.id]
   end
 end

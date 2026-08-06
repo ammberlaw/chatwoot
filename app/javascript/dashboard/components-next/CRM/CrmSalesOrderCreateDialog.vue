@@ -41,6 +41,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const form = reactive({
   name: '',
+  piNo: '',
   crmCustomerId: '',
   crmOpportunityId: '',
   status: 'IN_PRODUCTION',
@@ -50,7 +51,90 @@ const form = reactive({
   orderCurrency: 'CNY',
   exchangeRate: '',
   remark: '',
+  lineItems: [], // [{ name, spec, quantity, unitPrice, amount }]
 });
+
+// ── 读取 PI 自动识别 ──
+const piInputRef = ref(null);
+const parsingPi = ref(false);
+const piMatchHint = ref(''); // 客户未匹配上时的提示（识别到的公司名）
+
+const triggerPiUpload = () => piInputRef.value?.click();
+
+// 把识别结果填进表单；PI 原件同时进附件（满足新建必传附件 + 留档）。
+const applyParsedPi = (data, file) => {
+  if (data.name) form.name = data.name;
+  if (data.pi_no) form.piNo = data.pi_no;
+  if (data.order_date) form.orderDate = data.order_date;
+  if (data.delivery_date) form.deliveryDate = data.delivery_date;
+  if (data.currency) form.orderCurrency = data.currency;
+  if (data.amount != null) form.amount = String(data.amount);
+  form.lineItems = Array.isArray(data.line_items)
+    ? data.line_items.map(li => ({
+        name: li.name || '',
+        spec: li.spec || '',
+        quantity: li.quantity ?? '',
+        unitPrice: li.unit_price ?? '',
+        amount: li.amount ?? '',
+      }))
+    : [];
+
+  const c = data.customer || {};
+  if (c.matched_id) {
+    const idStr = String(c.matched_id);
+    // 后端在「本人名下客户」里匹配，但下拉可能被 per_page 截断，未命中则补进选项保证可见。
+    if (!privateCustomers.value.some(pc => String(pc.id) === idStr)) {
+      privateCustomers.value = [
+        ...privateCustomers.value,
+        { id: c.matched_id, name: c.matched_name || c.raw_name || '客户' },
+      ];
+    }
+    form.crmCustomerId = idStr;
+    piMatchHint.value = '';
+  } else {
+    form.crmCustomerId = '';
+    piMatchHint.value = c.raw_name
+      ? t('CRM.SALES_ORDERS.PI.CUSTOMER_UNMATCHED', { name: c.raw_name })
+      : '';
+  }
+
+  pendingFiles.value = [...pendingFiles.value, file];
+};
+
+const onPiSelected = async event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  parsingPi.value = true;
+  piMatchHint.value = '';
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const { data } = await axios.post(
+      `/api/v1/accounts/${accountId.value}/crm/sales_orders/parse_pi`,
+      fd,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    applyParsedPi(data, file);
+    useAlert(t('CRM.SALES_ORDERS.PI.PARSE_SUCCESS'));
+  } catch (error) {
+    useAlert(
+      error?.response?.data?.error || t('CRM.SALES_ORDERS.PI.PARSE_ERROR')
+    );
+  } finally {
+    parsingPi.value = false;
+  }
+};
+
+const addLineItem = () =>
+  form.lineItems.push({
+    name: '',
+    spec: '',
+    quantity: '',
+    unitPrice: '',
+    amount: '',
+  });
+const removeLineItem = index => form.lineItems.splice(index, 1);
 
 // 上传的订单均为已付款订单，无「待确认」环节，默认从「生产中」起。
 const statusOptions = [
@@ -107,7 +191,9 @@ const resetForm = () => {
   editingCustomer.value = null;
   pendingFiles.value = [];
   attachments.value = [];
+  piMatchHint.value = '';
   form.name = '';
+  form.piNo = '';
   form.crmCustomerId = '';
   form.crmOpportunityId = '';
   form.status = 'IN_PRODUCTION';
@@ -117,6 +203,7 @@ const resetForm = () => {
   form.orderCurrency = 'CNY';
   form.exchangeRate = '';
   form.remark = '';
+  form.lineItems = [];
 };
 
 // 拉取当前业务员名下私海客户（一次拿全）。
@@ -148,6 +235,16 @@ const open = record => {
       ? { id: record.crmCustomerId, name: record.customerName || '客户' }
       : null;
     form.name = record.name || '';
+    form.piNo = record.piNo || '';
+    form.lineItems = Array.isArray(record.lineItems)
+      ? record.lineItems.map(li => ({
+          name: li.name || '',
+          spec: li.spec || '',
+          quantity: li.quantity ?? '',
+          unitPrice: li.unitPrice ?? '',
+          amount: li.amount ?? '',
+        }))
+      : [];
     form.crmCustomerId = record.crmCustomerId
       ? String(record.crmCustomerId)
       : '';
@@ -182,8 +279,25 @@ const onSuccess = () => {
 const handleConfirm = () => {
   if (isFormInvalid.value) return;
 
+  // 明细以 snake_case 键序列化成 JSON 字符串（multipart 建单无法带嵌套数组），后端解析入 line_items。
+  const num = v => {
+    if (v === '' || v === null || v === undefined) return null;
+    const n = parseFloat(v);
+    return Number.isNaN(n) ? null : n;
+  };
+  const lineItemsPayload = form.lineItems
+    .map(li => ({
+      name: (li.name || '').trim(),
+      spec: (li.spec || '').trim(),
+      quantity: num(li.quantity),
+      unit_price: num(li.unitPrice),
+      amount: num(li.amount),
+    }))
+    .filter(li => li.name);
+
   const payload = {
     name: form.name.trim(),
+    piNo: form.piNo.trim() || null,
     crmCustomerId: form.crmCustomerId || null,
     crmOpportunityId: form.crmOpportunityId || null,
     status: form.status,
@@ -195,6 +309,7 @@ const handleConfirm = () => {
     orderCurrency: form.orderCurrency,
     exchangeRate: form.exchangeRate ? parseFloat(form.exchangeRate) : null,
     remark: form.remark.trim() || null,
+    lineItemsJson: JSON.stringify(lineItemsPayload),
   };
   if (isEditing.value) {
     emit('update', { id: editingId.value, ...payload });
@@ -280,6 +395,44 @@ defineExpose({ dialogRef, onSuccess, open });
     @close="resetForm"
   >
     <div class="flex flex-col gap-4">
+      <!-- 读取 PI 自动识别（仅新建）：上传 PDF/Excel，自动填客户/PI号/金额/明细 -->
+      <div
+        v-if="!isEditing"
+        class="flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
+      >
+        <div class="flex items-center gap-2 text-sm text-n-slate-11">
+          <span class="i-lucide-sparkles size-4 text-n-iris-9" />
+          {{ t('CRM.SALES_ORDERS.PI.HINT') }}
+        </div>
+        <button
+          type="button"
+          class="flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+          :disabled="parsingPi"
+          @click="triggerPiUpload"
+        >
+          <span
+            class="size-4"
+            :class="
+              parsingPi
+                ? 'i-lucide-loader-circle animate-spin'
+                : 'i-lucide-sparkles'
+            "
+          />
+          {{
+            parsingPi
+              ? t('CRM.SALES_ORDERS.PI.PARSING')
+              : t('CRM.SALES_ORDERS.PI.UPLOAD')
+          }}
+        </button>
+        <input
+          ref="piInputRef"
+          type="file"
+          accept=".pdf,.xlsx,.csv"
+          class="hidden"
+          @change="onPiSelected"
+        />
+      </div>
+
       <div
         class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
       >
@@ -293,6 +446,12 @@ defineExpose({ dialogRef, onSuccess, open });
             <span class="text-n-ruby-11">*</span>
           </label>
           <Input v-model="form.name" autofocus />
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.SALES_ORDERS.FORM.PI_NO') }}
+          </label>
+          <Input v-model="form.piNo" />
         </div>
         <div v-if="isEditing" class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
@@ -323,6 +482,9 @@ defineExpose({ dialogRef, onSuccess, open });
             :search-placeholder="t('CRM.SALES_ORDERS.FORM.CUSTOMER_SEARCH')"
             :empty-state="t('CRM.SALES_ORDERS.FORM.CUSTOMER_EMPTY')"
           />
+          <p v-if="piMatchHint" class="text-xs text-n-amber-11">
+            {{ piMatchHint }}
+          </p>
         </div>
         <div class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
@@ -383,6 +545,59 @@ defineExpose({ dialogRef, onSuccess, open });
         v-model="form.remark"
         :label="t('CRM.SALES_ORDERS.FORM.REMARK')"
       />
+
+      <!-- 订单明细（PI 识别自动填入，可增删改）-->
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span
+            class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
+          >
+            <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
+            {{ t('CRM.SALES_ORDERS.FORM.SECTION_ITEMS') }}
+          </span>
+          <button
+            type="button"
+            class="flex items-center gap-1 h-8 px-3 text-sm border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+            @click="addLineItem"
+          >
+            <span class="i-lucide-plus size-4" />
+            {{ t('CRM.SALES_ORDERS.ITEMS.ADD') }}
+          </button>
+        </div>
+
+        <div v-if="!form.lineItems.length" class="text-xs text-n-slate-10">
+          {{ t('CRM.SALES_ORDERS.ITEMS.EMPTY') }}
+        </div>
+        <div v-else class="flex flex-col gap-1.5">
+          <div class="flex gap-2 px-1 text-xs font-medium text-n-slate-10">
+            <span class="flex-[3]">{{ t('CRM.SALES_ORDERS.ITEMS.NAME') }}</span>
+            <span class="flex-[2]">{{ t('CRM.SALES_ORDERS.ITEMS.SPEC') }}</span>
+            <span class="flex-1">{{ t('CRM.SALES_ORDERS.ITEMS.QTY') }}</span>
+            <span class="flex-1">{{ t('CRM.SALES_ORDERS.ITEMS.PRICE') }}</span>
+            <span class="flex-1">{{ t('CRM.SALES_ORDERS.ITEMS.AMOUNT') }}</span>
+            <span class="w-6 shrink-0" />
+          </div>
+          <div
+            v-for="(li, index) in form.lineItems"
+            :key="index"
+            class="flex items-center gap-2"
+          >
+            <Input v-model="li.name" class="flex-[3]" />
+            <Input v-model="li.spec" class="flex-[2]" />
+            <Input v-model="li.quantity" type="number" class="flex-1" />
+            <Input v-model="li.unitPrice" type="number" class="flex-1" />
+            <Input v-model="li.amount" type="number" class="flex-1" />
+            <button
+              type="button"
+              class="flex items-center justify-center w-6 shrink-0 text-n-slate-10 hover:text-n-ruby-11"
+              :title="t('CRM.SALES_ORDERS.ITEMS.REMOVE')"
+              @click="removeLineItem(index)"
+            >
+              <span class="i-lucide-x size-4" />
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- 附件（新建必填：PI / 生产订单）-->
       <div class="flex flex-col gap-2">

@@ -99,6 +99,18 @@ const activeFolderLabel = computed(
 
 const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 
+// 列表头像按对方身份着色，与邮箱身份识别悬浮卡同色系：
+// 同事/同事客户→琥珀，我的客户→蓝，公海→青，陌生人→灰，未识别→靛(默认)。
+const AVATAR_STYLES = {
+  colleague: 'bg-n-amber-4 text-n-amber-11',
+  other: 'bg-n-amber-4 text-n-amber-11',
+  mine: 'bg-n-blue-4 text-n-blue-11',
+  public: 'bg-n-teal-4 text-n-teal-11',
+  stranger: 'bg-n-slate-3 text-n-slate-11',
+};
+const avatarClass = record =>
+  AVATAR_STYLES[record.counterpartyType] || 'bg-n-iris-4 text-n-iris-11';
+
 // 卡片/阅读窗格显示的「对方」：收件箱看发件人，其余看收件人。
 const counterparty = email =>
   email.folder === 'INBOX' ? email.fromAddress : email.toAddress;
@@ -719,7 +731,8 @@ watch(
             @click="selectEmail(record)"
           >
             <div
-              class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9 bg-n-iris-4 text-n-iris-11"
+              class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9"
+              :class="avatarClass(record)"
             >
               {{ initial(counterparty(record)) }}
             </div>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_06_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -55,14 +55,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.bigint "crm_team_id"
     t.string "crm_role"
     t.text "module_access", default: ["crm", "erp", "mes"], null: false, array: true
+    t.string "erp_role"
+    t.string "mes_roles", default: [], null: false, array: true
     t.string "mes_role"
     t.index ["account_id", "crm_role"], name: "index_account_users_on_account_id_and_crm_role"
-    t.index ["account_id", "mes_role"], name: "index_account_users_on_account_id_and_mes_role"
+    t.index ["account_id", "erp_role"], name: "index_account_users_on_account_id_and_erp_role"
     t.index ["account_id", "user_id"], name: "uniq_user_id_per_account_id", unique: true
     t.index ["account_id"], name: "index_account_users_on_account_id"
     t.index ["agent_capacity_policy_id"], name: "index_account_users_on_agent_capacity_policy_id"
     t.index ["crm_team_id"], name: "index_account_users_on_crm_team_id"
     t.index ["custom_role_id"], name: "index_account_users_on_custom_role_id"
+    t.index ["mes_roles"], name: "index_account_users_on_mes_roles", using: :gin
     t.index ["user_id"], name: "index_account_users_on_user_id"
   end
 
@@ -835,6 +838,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.index ["account_id", "resource_type", "resource_id", "created_at"], name: "idx_crm_access_logs_on_resource"
   end
 
+  create_table "crm_ai_settings", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.text "api_key"
+    t.string "model", default: "deepseek-chat", null: false
+    t.string "api_base"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "apollo_api_key"
+    t.index ["account_id"], name: "index_crm_ai_settings_on_account_id", unique: true
+  end
+
   create_table "crm_attendance_groups", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -907,6 +921,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.string "completeness_grade"
     t.string "address"
     t.string "linkedin"
+    t.bigint "previous_owner_id"
     t.index ["account_id", "customer_code"], name: "index_crm_customers_on_account_id_and_customer_code", unique: true, where: "(customer_code IS NOT NULL)"
     t.index ["account_id", "customer_status"], name: "index_crm_customers_on_account_id_and_customer_status"
     t.index ["account_id", "is_in_public_pool"], name: "index_crm_customers_on_account_id_and_is_in_public_pool"
@@ -936,6 +951,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.string "country"
     t.string "city"
     t.index ["crm_email_id"], name: "index_crm_email_opens_on_crm_email_id"
+  end
+
+  create_table "crm_email_signatures", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.string "name", null: false
+    t.text "body"
+    t.boolean "is_default", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "body_html"
+    t.index ["account_id"], name: "index_crm_email_signatures_on_account_id"
+    t.index ["owner_id"], name: "index_crm_email_signatures_on_owner_id"
   end
 
   create_table "crm_email_templates", force: :cascade do |t|
@@ -978,6 +1006,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.datetime "first_opened_at"
     t.datetime "last_opened_at"
     t.string "message_id"
+    t.datetime "scheduled_at"
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
@@ -988,6 +1017,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.index ["contact_id"], name: "index_crm_emails_on_contact_id"
     t.index ["crm_customer_id"], name: "index_crm_emails_on_crm_customer_id"
     t.index ["owner_id"], name: "index_crm_emails_on_owner_id"
+    t.index ["send_status", "scheduled_at"], name: "index_crm_emails_on_send_status_and_scheduled_at"
     t.index ["tracking_token"], name: "index_crm_emails_on_tracking_token", unique: true, where: "(tracking_token IS NOT NULL)"
   end
 
@@ -1131,11 +1161,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.integer "item_score_cap_pct", default: 120
     t.text "payout_note"
     t.string "status", default: "DRAFT", null: false
-    t.jsonb "detail_tables", default: [], null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "result_note"
     t.bigint "created_by_id"
+    t.jsonb "detail_tables", default: [], null: false
     t.index ["account_id", "scheme_month"], name: "index_crm_kpi_schemes_on_account_id_and_scheme_month"
     t.index ["account_id"], name: "index_crm_kpi_schemes_on_account_id"
     t.index ["created_by_id"], name: "index_crm_kpi_schemes_on_created_by_id"
@@ -1186,11 +1216,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.datetime "gm_confirmed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "remark"
+    t.text "return_reason"
+    t.datetime "returned_at"
+    t.bigint "returned_by_id"
     t.index ["account_id", "period_month"], name: "index_crm_kpi_sheets_on_account_id_and_period_month"
     t.index ["account_id"], name: "index_crm_kpi_sheets_on_account_id"
     t.index ["crm_kpi_scheme_id", "owner_id"], name: "index_crm_kpi_sheets_on_crm_kpi_scheme_id_and_owner_id"
     t.index ["crm_kpi_scheme_id"], name: "index_crm_kpi_sheets_on_crm_kpi_scheme_id"
     t.index ["owner_id"], name: "index_crm_kpi_sheets_on_owner_id"
+    t.index ["returned_by_id"], name: "index_crm_kpi_sheets_on_returned_by_id"
   end
 
   create_table "crm_mail_accounts", force: :cascade do |t|
@@ -1213,6 +1248,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.integer "imap_port"
     t.boolean "imap_ssl", default: true, null: false
     t.datetime "imap_synced_at"
+    t.string "receive_protocol", default: "IMAP", null: false
+    t.boolean "is_default", default: false, null: false
     t.index ["account_id"], name: "index_crm_mail_accounts_on_account_id"
     t.index ["owner_id"], name: "index_crm_mail_accounts_on_owner_id"
   end
@@ -1262,6 +1299,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.index ["owner_id"], name: "index_crm_opportunities_on_owner_id"
   end
 
+  create_table "crm_option_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "category", null: false
+    t.string "name", null: false
+    t.string "code", null: false
+    t.bigint "parent_id"
+    t.integer "position", default: 0, null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "category", "code"], name: "idx_crm_option_items_code", unique: true
+    t.index ["account_id", "category", "parent_id", "position"], name: "idx_crm_option_items_tree"
+  end
+
   create_table "crm_payout_tiers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_kpi_scheme_id", null: false
@@ -1287,7 +1338,57 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.boolean "scheme_visible_manager", default: true, null: false
     t.boolean "sheet_visible_sales", default: true, null: false
     t.boolean "sheet_visible_manager", default: true, null: false
+    t.integer "submit_deadline_day"
     t.index ["account_id"], name: "index_crm_performance_settings_on_account_id", unique: true
+  end
+
+  create_table "crm_pi_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_pi_id", null: false
+    t.integer "position", default: 0, null: false
+    t.string "model"
+    t.text "description"
+    t.decimal "quantity", precision: 12, scale: 2
+    t.bigint "unit_price_micros"
+    t.bigint "amount_micros"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_pi_items_on_account_id"
+    t.index ["crm_pi_id"], name: "index_crm_pi_items_on_crm_pi_id"
+  end
+
+  create_table "crm_pis", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.bigint "crm_customer_id"
+    t.bigint "contact_id"
+    t.string "pi_no", null: false
+    t.datetime "pi_date", null: false
+    t.string "status", default: "DRAFT", null: false
+    t.string "currency", default: "USD", null: false
+    t.string "attention"
+    t.string "buyer_company"
+    t.text "buyer_address"
+    t.string "buyer_email"
+    t.string "buyer_tel"
+    t.string "buyer_eori"
+    t.string "port_of_shipment"
+    t.string "port_of_destination"
+    t.string "country_of_origin"
+    t.string "shipping_method"
+    t.string "shipping_cost_label"
+    t.bigint "shipping_cost_micros"
+    t.bigint "total_amount_micros"
+    t.text "terms"
+    t.string "issued_by"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "pi_no"], name: "index_crm_pis_on_account_id_and_pi_no", unique: true
+    t.index ["account_id", "status"], name: "index_crm_pis_on_account_id_and_status"
+    t.index ["account_id"], name: "index_crm_pis_on_account_id"
+    t.index ["crm_customer_id"], name: "index_crm_pis_on_crm_customer_id"
+    t.index ["owner_id"], name: "index_crm_pis_on_owner_id"
   end
 
   create_table "crm_products", force: :cascade do |t|
@@ -1304,6 +1405,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.index ["account_id", "product_line"], name: "index_crm_products_on_account_and_product_line"
     t.index ["account_id", "sku"], name: "index_crm_products_on_account_id_and_sku", unique: true
     t.index ["account_id"], name: "index_crm_products_on_account_id"
   end
@@ -1328,6 +1431,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.integer "recycle_days_social_media"
     t.boolean "opportunity_recycle_enabled", default: true, null: false
     t.integer "opportunity_stale_days", default: 30, null: false
+    t.bigint "exempt_user_ids", default: [], null: false, array: true
+    t.integer "claim_cooldown_days", default: 30, null: false
+    t.boolean "monthly_report_enabled", default: true, null: false
     t.index ["account_id"], name: "index_crm_public_pool_settings_on_account_id", unique: true
   end
 
@@ -1401,6 +1507,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.datetime "updated_at", null: false
     t.bigint "crm_quote_id"
     t.bigint "crm_team_id"
+    t.string "pi_no"
+    t.jsonb "line_items", default: [], null: false
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_sales_orders_on_account_id_and_status"
@@ -1700,6 +1808,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.index ["user_id"], name: "index_mentions_on_user_id"
   end
 
+  create_table "mes_board_owners", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "board_key", null: false
+    t.bigint "manager_ids", default: [], null: false, array: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "board_key"], name: "index_mes_board_owners_on_account_id_and_board_key", unique: true
+    t.index ["account_id"], name: "index_mes_board_owners_on_account_id"
+  end
+
   create_table "mes_bom_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "bom_id", null: false
@@ -1711,9 +1829,48 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "material_no"
+    t.string "material_name"
+    t.string "specification"
+    t.string "category", default: "MACHINE", null: false
     t.index ["account_id"], name: "index_mes_bom_items_on_account_id"
     t.index ["bom_id"], name: "index_mes_bom_items_on_bom_id"
     t.index ["mes_material_id"], name: "index_mes_bom_items_on_mes_material_id"
+  end
+
+  create_table "mes_bom_template_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "bom_template_id", null: false
+    t.string "material_no"
+    t.string "material_name"
+    t.string "specification"
+    t.string "unit"
+    t.decimal "qty", precision: 14, scale: 3, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_bom_template_items_on_account_id"
+    t.index ["bom_template_id"], name: "index_mes_bom_template_items_on_bom_template_id"
+  end
+
+  create_table "mes_bom_templates", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "product_line"
+    t.decimal "base_qty", precision: 14, scale: 3, default: "1.0", null: false
+    t.string "unit"
+    t.integer "purchasing_days"
+    t.integer "material_inbound_days"
+    t.integer "picking_days"
+    t.integer "production_days"
+    t.integer "fg_inbound_days"
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_bom_templates_on_account_id"
+    t.index ["owner_id"], name: "index_mes_bom_templates_on_owner_id"
+    t.index ["product_line"], name: "index_mes_bom_templates_on_product_line"
   end
 
   create_table "mes_boms", force: :cascade do |t|
@@ -1730,10 +1887,46 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.integer "purchasing_days"
+    t.integer "material_inbound_days"
+    t.integer "picking_days"
+    t.integer "production_days"
+    t.integer "fg_inbound_days"
+    t.string "status", default: "DRAFT", null: false
+    t.date "submit_date"
+    t.string "doc_no"
+    t.string "customer_name"
+    t.string "model"
+    t.string "product_code"
+    t.integer "order_qty"
+    t.string "bare_color"
+    t.string "case_color"
+    t.bigint "sales_owner_id"
     t.index ["account_id", "bom_no"], name: "index_mes_boms_on_account_id_and_bom_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_boms_on_account_and_product_line"
+    t.index ["account_id", "status"], name: "index_mes_boms_on_account_id_and_status"
     t.index ["account_id"], name: "index_mes_boms_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_boms_on_crm_product_id"
     t.index ["owner_id"], name: "index_mes_boms_on_owner_id"
+    t.index ["sales_owner_id"], name: "index_mes_boms_on_sales_owner_id"
+  end
+
+  create_table "mes_document_returns", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "returnable_type", null: false
+    t.bigint "returnable_id", null: false
+    t.bigint "returned_by_id"
+    t.text "reason", null: false
+    t.string "from_board_key"
+    t.string "to_board_key", null: false
+    t.datetime "resolved_at"
+    t.bigint "resolved_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_document_returns_on_account_id"
+    t.index ["returnable_type", "returnable_id", "resolved_at"], name: "index_mes_document_returns_on_returnable_and_resolved"
+    t.index ["returnable_type", "returnable_id"], name: "index_mes_document_returns_on_returnable"
   end
 
   create_table "mes_inspections", force: :cascade do |t|
@@ -1755,7 +1948,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "kind"], name: "index_mes_inspections_on_account_id_and_kind"
+    t.index ["account_id", "product_line"], name: "index_mes_inspections_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_inspections_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_inspections_on_crm_product_id"
     t.index ["mes_material_id"], name: "index_mes_inspections_on_mes_material_id"
@@ -1778,9 +1973,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "material_no"], name: "index_mes_materials_on_account_id_and_material_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_materials_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_materials_on_account_id"
     t.index ["default_supplier_id"], name: "index_mes_materials_on_default_supplier_id"
+  end
+
+  create_table "mes_notifications", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "recipient_id", null: false
+    t.bigint "production_order_id"
+    t.string "kind", null: false
+    t.string "title", null: false
+    t.text "body"
+    t.datetime "read_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "recipient_id", "read_at"], name: "idx_on_account_id_recipient_id_read_at_4123636370"
+    t.index ["account_id"], name: "index_mes_notifications_on_account_id"
+    t.index ["production_order_id"], name: "index_mes_notifications_on_production_order_id"
   end
 
   create_table "mes_production_order_stage_events", force: :cascade do |t|
@@ -1791,7 +2003,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.bigint "actor_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "note"
+    t.datetime "acked_at"
+    t.bigint "acked_by_id"
     t.index ["account_id"], name: "index_mes_production_order_stage_events_on_account_id"
+    t.index ["acked_by_id"], name: "index_mes_production_order_stage_events_on_acked_by_id"
     t.index ["production_order_id", "stage"], name: "index_mes_po_stage_events_unique", unique: true
     t.index ["production_order_id"], name: "index_mes_production_order_stage_events_on_production_order_id"
   end
@@ -1817,13 +2033,44 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.datetime "stage_ack_at"
+    t.bigint "stage_ack_by_id"
+    t.jsonb "spec", default: {}, null: false
+    t.boolean "is_draft", default: false, null: false
+    t.string "pi_no"
+    t.string "approval_status", default: "DRAFT", null: false
+    t.bigint "manager_id"
+    t.bigint "gm_id"
+    t.datetime "submitted_at"
+    t.datetime "manager_acted_at"
+    t.text "manager_comment"
+    t.datetime "gm_acted_at"
+    t.text "gm_comment"
+    t.string "product_code"
+    t.datetime "bom_confirmed_at"
+    t.bigint "bom_confirmed_by_id"
+    t.string "order_kind", default: "CUSTOMER", null: false
+    t.boolean "is_outsourced", default: false, null: false
+    t.bigint "outsource_supplier_id"
+    t.index ["account_id", "approval_status"], name: "index_mes_production_orders_on_account_id_and_approval_status"
+    t.index ["account_id", "is_draft"], name: "index_mes_production_orders_on_account_id_and_is_draft"
+    t.index ["account_id", "is_outsourced"], name: "index_mes_production_orders_on_account_id_and_is_outsourced"
+    t.index ["account_id", "order_kind"], name: "index_mes_production_orders_on_account_id_and_order_kind"
     t.index ["account_id", "order_no"], name: "index_mes_production_orders_on_account_id_and_order_no", unique: true
+    t.index ["account_id", "product_code"], name: "index_mes_production_orders_on_account_and_product_code"
+    t.index ["account_id", "product_line"], name: "index_mes_production_orders_on_account_and_product_line"
     t.index ["account_id", "stage"], name: "index_mes_production_orders_on_account_id_and_stage"
     t.index ["account_id"], name: "index_mes_production_orders_on_account_id"
+    t.index ["bom_confirmed_by_id"], name: "index_mes_production_orders_on_bom_confirmed_by_id"
     t.index ["bom_id"], name: "index_mes_production_orders_on_bom_id"
     t.index ["crm_product_id"], name: "index_mes_production_orders_on_crm_product_id"
     t.index ["crm_sales_order_id"], name: "index_mes_production_orders_on_crm_sales_order_id"
+    t.index ["gm_id"], name: "index_mes_production_orders_on_gm_id"
+    t.index ["manager_id"], name: "index_mes_production_orders_on_manager_id"
+    t.index ["outsource_supplier_id"], name: "index_mes_production_orders_on_outsource_supplier_id"
     t.index ["owner_id"], name: "index_mes_production_orders_on_owner_id"
+    t.index ["stage_ack_by_id"], name: "index_mes_production_orders_on_stage_ack_by_id"
   end
 
   create_table "mes_production_records", force: :cascade do |t|
@@ -1838,6 +2085,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.index ["account_id", "product_line"], name: "index_mes_production_records_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_production_records_on_account_id"
     t.index ["operator_id"], name: "index_mes_production_records_on_operator_id"
     t.index ["production_order_id"], name: "index_mes_production_records_on_production_order_id"
@@ -1855,15 +2104,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "item_type", default: "MATERIAL", null: false
+    t.bigint "crm_product_id"
+    t.bigint "mes_supplier_id"
+    t.datetime "arrival_date"
     t.index ["account_id"], name: "index_mes_purchase_items_on_account_id"
+    t.index ["crm_product_id"], name: "index_mes_purchase_items_on_crm_product_id"
     t.index ["mes_material_id"], name: "index_mes_purchase_items_on_mes_material_id"
+    t.index ["mes_supplier_id"], name: "index_mes_purchase_items_on_mes_supplier_id"
     t.index ["purchase_order_id"], name: "index_mes_purchase_items_on_purchase_order_id"
   end
 
   create_table "mes_purchase_orders", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "po_no", null: false
-    t.bigint "mes_supplier_id"
     t.bigint "production_order_id"
     t.string "status", default: "DRAFT", null: false
     t.datetime "expected_date"
@@ -1875,10 +2129,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "po_no"], name: "index_mes_purchase_orders_on_account_id_and_po_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_purchase_orders_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_purchase_orders_on_account_id_and_status"
     t.index ["account_id"], name: "index_mes_purchase_orders_on_account_id"
-    t.index ["mes_supplier_id"], name: "index_mes_purchase_orders_on_mes_supplier_id"
     t.index ["owner_id"], name: "index_mes_purchase_orders_on_owner_id"
     t.index ["production_order_id"], name: "index_mes_purchase_orders_on_production_order_id"
   end
@@ -1893,6 +2148,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.index ["account_id", "product_line"], name: "index_mes_serial_numbers_on_account_and_product_line"
     t.index ["account_id", "sn"], name: "index_mes_serial_numbers_on_account_id_and_sn", unique: true
     t.index ["account_id"], name: "index_mes_serial_numbers_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_serial_numbers_on_crm_product_id"
@@ -1928,10 +2185,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.string "kind", default: "PRODUCTION", null: false
+    t.bigint "manager_id"
+    t.datetime "submitted_at"
+    t.datetime "approved_at"
+    t.text "reject_reason"
+    t.index ["account_id", "product_line"], name: "index_mes_shipments_on_account_and_product_line"
     t.index ["account_id", "shipment_no"], name: "index_mes_shipments_on_account_id_and_shipment_no", unique: true
     t.index ["account_id"], name: "index_mes_shipments_on_account_id"
     t.index ["crm_customer_id"], name: "index_mes_shipments_on_crm_customer_id"
     t.index ["crm_sales_order_id"], name: "index_mes_shipments_on_crm_sales_order_id"
+    t.index ["manager_id"], name: "index_mes_shipments_on_manager_id"
     t.index ["owner_id"], name: "index_mes_shipments_on_owner_id"
     t.index ["production_order_id"], name: "index_mes_shipments_on_production_order_id"
   end
@@ -1945,7 +2210,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.decimal "qty", precision: 16, scale: 3, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "item_type", "mes_material_id", "crm_product_id", "warehouse_id"], name: "index_mes_stock_balances_unique", unique: true, nulls_not_distinct: true
+    t.index ["account_id", "product_line"], name: "index_mes_stock_balances_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_stock_balances_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_stock_balances_on_crm_product_id"
     t.index ["mes_material_id"], name: "index_mes_stock_balances_on_mes_material_id"
@@ -1968,12 +2235,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.datetime "actual_inbound_date"
+    t.string "color"
+    t.datetime "workshop_confirmed_at"
+    t.datetime "warehouse_confirmed_at"
+    t.bigint "workshop_confirmed_by_id"
+    t.bigint "warehouse_confirmed_by_id"
     t.index ["account_id", "entry_no"], name: "index_mes_stock_entries_on_account_id_and_entry_no", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_stock_entries_on_account_and_product_line"
     t.index ["account_id", "purpose"], name: "index_mes_stock_entries_on_account_id_and_purpose"
     t.index ["account_id"], name: "index_mes_stock_entries_on_account_id"
     t.index ["owner_id"], name: "index_mes_stock_entries_on_owner_id"
     t.index ["production_order_id"], name: "index_mes_stock_entries_on_production_order_id"
     t.index ["purchase_order_id"], name: "index_mes_stock_entries_on_purchase_order_id"
+    t.index ["warehouse_confirmed_by_id"], name: "index_mes_stock_entries_on_warehouse_confirmed_by_id"
+    t.index ["workshop_confirmed_by_id"], name: "index_mes_stock_entries_on_workshop_confirmed_by_id"
   end
 
   create_table "mes_stock_entry_items", force: :cascade do |t|
@@ -2014,6 +2291,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.index ["stock_entry_id"], name: "index_mes_stock_ledgers_on_stock_entry_id"
   end
 
+  create_table "mes_supplier_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "supplier_id", null: false
+    t.bigint "mes_material_id"
+    t.string "material_code", null: false
+    t.string "name", null: false
+    t.string "color", null: false
+    t.string "specification", null: false
+    t.string "unit", null: false
+    t.decimal "unit_price", precision: 14, scale: 4, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "category"
+    t.index ["account_id"], name: "index_mes_supplier_items_on_account_id"
+    t.index ["category"], name: "index_mes_supplier_items_on_category"
+    t.index ["mes_material_id"], name: "index_mes_supplier_items_on_mes_material_id"
+    t.index ["supplier_id", "material_code"], name: "index_mes_supplier_items_on_supplier_id_and_material_code", unique: true
+    t.index ["supplier_id"], name: "index_mes_supplier_items_on_supplier_id"
+  end
+
   create_table "mes_suppliers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "supplier_no", null: false
@@ -2027,6 +2324,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
+    t.string "category"
+    t.decimal "tax_rate", precision: 5, scale: 2
+    t.string "invoice_title"
+    t.string "tax_no"
+    t.string "bank_name"
+    t.string "bank_account"
+    t.string "bank_address"
     t.index ["account_id", "supplier_no"], name: "index_mes_suppliers_on_account_id_and_supplier_no", unique: true
     t.index ["account_id"], name: "index_mes_suppliers_on_account_id"
     t.index ["owner_id"], name: "index_mes_suppliers_on_owner_id"
@@ -2042,7 +2347,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
     t.boolean "is_active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "code"], name: "index_mes_warehouses_on_account_id_and_code", unique: true
+    t.index ["account_id", "product_line"], name: "index_mes_warehouses_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_warehouses_on_account_id"
     t.index ["parent_id"], name: "index_mes_warehouses_on_parent_id"
   end
@@ -2488,6 +2795,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
   add_foreign_key "chat_messages", "chat_conversations", column: "conversation_id", on_delete: :cascade
   add_foreign_key "chat_participants", "chat_conversations", column: "conversation_id", on_delete: :cascade
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
+  add_foreign_key "crm_ai_settings", "accounts"
   add_foreign_key "crm_customers", "accounts"
   add_foreign_key "crm_email_opens", "crm_emails", on_delete: :cascade
   add_foreign_key "crm_emails", "contacts", on_delete: :nullify
@@ -2509,12 +2817,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
   add_foreign_key "crm_kpi_sheet_items", "crm_kpi_sheets", on_delete: :cascade
   add_foreign_key "crm_kpi_sheets", "crm_kpi_schemes", on_delete: :nullify
   add_foreign_key "crm_kpi_sheets", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_kpi_sheets", "users", column: "returned_by_id", on_delete: :nullify
   add_foreign_key "crm_mail_accounts", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_opportunities", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_opportunities", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "crm_option_items", "accounts", on_delete: :cascade
+  add_foreign_key "crm_option_items", "crm_option_items", column: "parent_id", on_delete: :cascade
   add_foreign_key "crm_payout_tiers", "crm_kpi_schemes", on_delete: :cascade
   add_foreign_key "crm_performance_settings", "users", column: "gm_owner_id", on_delete: :nullify
   add_foreign_key "crm_performance_settings", "users", column: "hr_owner_id", on_delete: :nullify
+  add_foreign_key "crm_pi_items", "accounts"
+  add_foreign_key "crm_pi_items", "crm_pis"
+  add_foreign_key "crm_pis", "accounts"
   add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_quotes", on_delete: :cascade
   add_foreign_key "crm_quotes", "contacts", on_delete: :nullify
@@ -2533,28 +2847,38 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "mes_board_owners", "accounts"
   add_foreign_key "mes_bom_items", "mes_boms", column: "bom_id", on_delete: :cascade
   add_foreign_key "mes_bom_items", "mes_materials", on_delete: :nullify
+  add_foreign_key "mes_bom_template_items", "mes_bom_templates", column: "bom_template_id", on_delete: :cascade
+  add_foreign_key "mes_bom_templates", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_boms", "crm_products", on_delete: :nullify
   add_foreign_key "mes_boms", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_boms", "users", column: "sales_owner_id", on_delete: :nullify
+  add_foreign_key "mes_document_returns", "accounts"
   add_foreign_key "mes_inspections", "crm_products", on_delete: :nullify
   add_foreign_key "mes_inspections", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_inspections", "mes_production_orders", column: "production_order_id", on_delete: :nullify
   add_foreign_key "mes_inspections", "mes_purchase_orders", column: "purchase_order_id", on_delete: :nullify
   add_foreign_key "mes_inspections", "users", column: "inspector_id", on_delete: :nullify
   add_foreign_key "mes_materials", "mes_suppliers", column: "default_supplier_id", on_delete: :nullify
+  add_foreign_key "mes_notifications", "mes_production_orders", column: "production_order_id", on_delete: :cascade
+  add_foreign_key "mes_notifications", "users", column: "recipient_id", on_delete: :cascade
   add_foreign_key "mes_production_order_stage_events", "mes_production_orders", column: "production_order_id", on_delete: :cascade
+  add_foreign_key "mes_production_order_stage_events", "users", column: "acked_by_id", on_delete: :nullify
   add_foreign_key "mes_production_order_stage_events", "users", column: "actor_id", on_delete: :nullify
   add_foreign_key "mes_production_orders", "crm_products", on_delete: :nullify
   add_foreign_key "mes_production_orders", "crm_sales_orders", on_delete: :nullify
   add_foreign_key "mes_production_orders", "mes_boms", column: "bom_id", on_delete: :nullify
+  add_foreign_key "mes_production_orders", "users", column: "bom_confirmed_by_id", on_delete: :nullify
   add_foreign_key "mes_production_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_production_records", "mes_production_orders", column: "production_order_id", on_delete: :cascade
   add_foreign_key "mes_production_records", "users", column: "operator_id", on_delete: :nullify
+  add_foreign_key "mes_purchase_items", "crm_products", on_delete: :nullify
   add_foreign_key "mes_purchase_items", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_purchase_items", "mes_purchase_orders", column: "purchase_order_id", on_delete: :cascade
+  add_foreign_key "mes_purchase_items", "mes_suppliers", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "mes_production_orders", column: "production_order_id", on_delete: :nullify
-  add_foreign_key "mes_purchase_orders", "mes_suppliers", on_delete: :nullify
   add_foreign_key "mes_purchase_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_serial_numbers", "crm_products", on_delete: :nullify
   add_foreign_key "mes_serial_numbers", "mes_production_orders", column: "production_order_id", on_delete: :nullify
@@ -2564,13 +2888,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_120000) do
   add_foreign_key "mes_shipments", "crm_customers", on_delete: :nullify
   add_foreign_key "mes_shipments", "crm_sales_orders", on_delete: :nullify
   add_foreign_key "mes_shipments", "mes_production_orders", column: "production_order_id", on_delete: :nullify
+  add_foreign_key "mes_shipments", "users", column: "manager_id", on_delete: :nullify
   add_foreign_key "mes_shipments", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_stock_entries", "mes_production_orders", column: "production_order_id", on_delete: :nullify
   add_foreign_key "mes_stock_entries", "mes_purchase_orders", column: "purchase_order_id", on_delete: :nullify
   add_foreign_key "mes_stock_entries", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_stock_entries", "users", column: "warehouse_confirmed_by_id", on_delete: :nullify
+  add_foreign_key "mes_stock_entries", "users", column: "workshop_confirmed_by_id", on_delete: :nullify
   add_foreign_key "mes_stock_entry_items", "crm_products", on_delete: :nullify
   add_foreign_key "mes_stock_entry_items", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_stock_entry_items", "mes_stock_entries", column: "stock_entry_id", on_delete: :cascade
+  add_foreign_key "mes_supplier_items", "mes_materials", on_delete: :nullify
+  add_foreign_key "mes_supplier_items", "mes_suppliers", column: "supplier_id", on_delete: :cascade
   add_foreign_key "mes_suppliers", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "mes_warehouses", "mes_warehouses", column: "parent_id", on_delete: :nullify
   add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :cascade

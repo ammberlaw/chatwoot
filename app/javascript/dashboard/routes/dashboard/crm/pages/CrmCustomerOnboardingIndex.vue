@@ -7,6 +7,7 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
+import { LocalStorage } from 'shared/helpers/localStorage';
 
 const { accountId } = useAccount();
 const currentUserId = useMapGetter('getCurrentUserID');
@@ -56,9 +57,8 @@ const form = reactive({
   contactPreference: '',
 });
 
-// 从邮件身份卡「新建为客户」跳来时预填联系邮箱。
+// 从邮件身份卡「新建为客户」跳来时预填联系邮箱（在草稿恢复后应用，见 onMounted）。
 const route = useRoute();
-if (route.query.email) form.email = String(route.query.email);
 
 const emailHit = ref(null);
 const nameHits = ref([]);
@@ -70,6 +70,54 @@ const extraContacts = ref([]);
 const addContact = () =>
   extraContacts.value.push({ name: '', jobTitle: '', email: '', phone: '' });
 const removeContact = i => extraContacts.value.splice(i, 1);
+
+// ── 未提交草稿持久化 ──
+// 建档只有点「建档」才写库；填一半切到别的板块/刷新页面时组件会被销毁，
+// 这里把草稿存进 localStorage，回到本页自动回填，建档成功后清除。
+// 按 账号+用户 隔离，避免共用机器时串号。
+const draftKey = () =>
+  `crm:onboarding-draft::${accountId.value}::${currentUserId.value}`;
+const draftRestored = ref(false);
+const clearDraft = () => LocalStorage.remove(draftKey());
+
+const hasContent = () =>
+  Object.values(form).some(v => v && String(v).trim()) ||
+  extraContacts.value.length > 0;
+
+const saveDraft = () => {
+  if (hasContent()) {
+    LocalStorage.set(draftKey(), {
+      ...form,
+      extraContacts: extraContacts.value,
+    });
+  } else {
+    clearDraft();
+  }
+};
+
+let saveTimer = null;
+watch(
+  () => JSON.stringify({ f: form, e: extraContacts.value }),
+  () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveDraft, 300);
+  }
+);
+
+onMounted(() => {
+  const saved = LocalStorage.get(draftKey());
+  if (saved && typeof saved === 'object') {
+    Object.keys(form).forEach(k => {
+      if (saved[k] != null) form[k] = saved[k];
+    });
+    if (Array.isArray(saved.extraContacts)) {
+      extraContacts.value = saved.extraContacts;
+    }
+    draftRestored.value = hasContent();
+  }
+  // 从邮件身份卡跳来的邮箱优先于草稿。
+  if (route.query.email) form.email = String(route.query.email);
+});
 
 const api = () => `/api/v1/accounts/${accountId.value}/crm`;
 
@@ -115,6 +163,12 @@ const canSubmit = computed(
   () => missing.value.length === 0 && !emailHit.value && !submitting.value
 );
 
+const formHasContent = computed(
+  () =>
+    Object.values(form).some(v => v && String(v).trim()) ||
+    extraContacts.value.length > 0
+);
+
 const resetForm = () => {
   Object.keys(form).forEach(k => {
     form[k] = '';
@@ -122,6 +176,14 @@ const resetForm = () => {
   extraContacts.value = [];
   emailHit.value = null;
   nameHits.value = [];
+  draftRestored.value = false;
+  clearDraft();
+};
+
+// 手动清空表单（丢弃已恢复的草稿），并清掉上一次的结果提示。
+const discardDraft = () => {
+  resetForm();
+  result.value = null;
 };
 
 const trimmed = v => (v && v.trim ? v.trim() : v) || null;
@@ -194,6 +256,20 @@ const submit = async () => {
         <span class="text-n-ruby-11">*</span>
         为必填；同一邮箱只能被一个客户建档。
       </p>
+
+      <div
+        v-if="draftRestored"
+        class="flex items-center justify-between gap-2 p-3 text-sm border rounded-lg border-n-amber-8 text-n-amber-11"
+      >
+        <span>📝 已恢复上次未提交的建档内容，可继续填写。</span>
+        <button
+          type="button"
+          class="flex-shrink-0 text-xs underline text-n-slate-11 hover:text-n-slate-12"
+          @click="discardDraft"
+        >
+          清空表单
+        </button>
+      </div>
 
       <div
         v-if="emailHit"
@@ -467,6 +543,14 @@ const submit = async () => {
           @click="submit"
         >
           {{ submitting ? '建档中…' : '建档' }}
+        </button>
+        <button
+          v-if="formHasContent"
+          type="button"
+          class="h-10 px-4 text-sm font-medium transition-colors border rounded-lg text-n-slate-11 border-n-weak hover:bg-n-alpha-1"
+          @click="discardDraft"
+        >
+          清空
         </button>
         <span v-if="missing.length" class="text-xs text-n-slate-11">
           请填写：{{ missing.join('、') }}

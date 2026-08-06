@@ -87,7 +87,18 @@ Rails.application.routes.draw do
               end
             end
             resources :products
+            resources :pis do
+              collection do
+                get :prefill
+              end
+              member do
+                get :xlsx
+              end
+            end
             resources :sales_orders do
+              collection do
+                post :parse_pi
+              end
               member do
                 get :audits
                 post :attach

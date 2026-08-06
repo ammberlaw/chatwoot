@@ -2,40 +2,72 @@
 #
 # Table name: mes_production_orders
 #
-#  id                 :bigint           not null, primary key
-#  actual_end_date    :datetime
-#  actual_start_date  :datetime
-#  delivery_date      :datetime
-#  order_no           :string           not null
-#  planned_end_date   :datetime
-#  planned_start_date :datetime
-#  produced_qty       :decimal(14, 3)   default(0.0), not null
-#  product_name       :string           not null
-#  qty                :decimal(14, 3)   not null
-#  remark             :text
-#  stage              :string           default("SALES_CONFIRMED"), not null
-#  status             :string           default("IN_PROGRESS"), not null
-#  unit               :string
-#  created_at         :datetime         not null
-#  updated_at         :datetime         not null
-#  account_id         :bigint           not null
-#  bom_id             :bigint
-#  crm_product_id     :bigint
-#  crm_sales_order_id :bigint
-#  owner_id           :bigint
+#  id                    :bigint           not null, primary key
+#  actual_end_date       :datetime
+#  actual_start_date     :datetime
+#  approval_status       :string           default("DRAFT"), not null
+#  bom_confirmed_at      :datetime
+#  delivery_date         :datetime
+#  gm_acted_at           :datetime
+#  gm_comment            :text
+#  is_draft              :boolean          default(FALSE), not null
+#  is_outsourced         :boolean          default(FALSE), not null
+#  manager_acted_at      :datetime
+#  manager_comment       :text
+#  order_kind            :string           default("CUSTOMER"), not null
+#  order_no              :string           not null
+#  pi_no                 :string
+#  planned_end_date      :datetime
+#  planned_start_date    :datetime
+#  produced_qty          :decimal(14, 3)   default(0.0), not null
+#  product_code          :string
+#  product_line          :string
+#  product_name          :string           not null
+#  qty                   :decimal(14, 3)   not null
+#  remark                :text
+#  spec                  :jsonb            not null
+#  stage                 :string           default("SALES_CONFIRMED"), not null
+#  stage_ack_at          :datetime
+#  status                :string           default("IN_PROGRESS"), not null
+#  submitted_at          :datetime
+#  unit                  :string
+#  created_at            :datetime         not null
+#  updated_at            :datetime         not null
+#  account_id            :bigint           not null
+#  bom_confirmed_by_id   :bigint
+#  bom_id                :bigint
+#  crm_product_id        :bigint
+#  crm_sales_order_id    :bigint
+#  gm_id                 :bigint
+#  manager_id            :bigint
+#  outsource_supplier_id :bigint
+#  owner_id              :bigint
+#  stage_ack_by_id       :bigint
 #
 # Indexes
 #
-#  index_mes_production_orders_on_account_id               (account_id)
-#  index_mes_production_orders_on_account_id_and_order_no  (account_id,order_no) UNIQUE
-#  index_mes_production_orders_on_account_id_and_stage     (account_id,stage)
-#  index_mes_production_orders_on_bom_id                   (bom_id)
-#  index_mes_production_orders_on_crm_product_id           (crm_product_id)
-#  index_mes_production_orders_on_crm_sales_order_id       (crm_sales_order_id)
-#  index_mes_production_orders_on_owner_id                 (owner_id)
+#  index_mes_production_orders_on_account_and_product_code        (account_id,product_code)
+#  index_mes_production_orders_on_account_and_product_line        (account_id,product_line)
+#  index_mes_production_orders_on_account_id                      (account_id)
+#  index_mes_production_orders_on_account_id_and_approval_status  (account_id,approval_status)
+#  index_mes_production_orders_on_account_id_and_is_draft         (account_id,is_draft)
+#  index_mes_production_orders_on_account_id_and_is_outsourced    (account_id,is_outsourced)
+#  index_mes_production_orders_on_account_id_and_order_kind       (account_id,order_kind)
+#  index_mes_production_orders_on_account_id_and_order_no         (account_id,order_no) UNIQUE
+#  index_mes_production_orders_on_account_id_and_stage            (account_id,stage)
+#  index_mes_production_orders_on_bom_confirmed_by_id             (bom_confirmed_by_id)
+#  index_mes_production_orders_on_bom_id                          (bom_id)
+#  index_mes_production_orders_on_crm_product_id                  (crm_product_id)
+#  index_mes_production_orders_on_crm_sales_order_id              (crm_sales_order_id)
+#  index_mes_production_orders_on_gm_id                           (gm_id)
+#  index_mes_production_orders_on_manager_id                      (manager_id)
+#  index_mes_production_orders_on_outsource_supplier_id           (outsource_supplier_id)
+#  index_mes_production_orders_on_owner_id                        (owner_id)
+#  index_mes_production_orders_on_stage_ack_by_id                 (stage_ack_by_id)
 #
 # Foreign Keys
 #
+#  fk_rails_...  (bom_confirmed_by_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (bom_id => mes_boms.id) ON DELETE => nullify
 #  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => nullify
 #  fk_rails_...  (crm_sales_order_id => crm_sales_orders.id) ON DELETE => nullify

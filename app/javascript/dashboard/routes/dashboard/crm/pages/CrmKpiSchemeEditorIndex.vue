@@ -17,7 +17,7 @@ const router = useRouter();
 const store = useCrmKpiSchemesStore();
 const { accountId } = useAccount();
 
-const DATA_SOURCES = ['CRM_SALES', 'CRM_NEWCUST', 'MANUAL', 'MANAGER'];
+const DATA_SOURCES = ['CRM_SALES', 'CRM_NEWCUST', 'MANUAL', 'MANAGER', 'SYSTEM'];
 const DIM_PRESETS = t('CRM.KPI_SCHEMES.ITEMS.DIM_PRESETS').split(',');
 const STAT_KEYS = [
   ['INQUIRY_TM', 'MANUAL'],

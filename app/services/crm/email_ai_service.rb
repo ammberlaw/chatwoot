@@ -68,6 +68,34 @@ class Crm::EmailAiService
     其中 i 是指标序号（从 0 开始，对应我给你的「指标N」），score 是建议分（数字，可含一位小数），每条指标都要给出一项。
   PROMPT
 
+  PI_SYSTEM = <<~PROMPT.freeze
+    你是一家中国外贸公司的单证助手，从形式发票（Proforma Invoice, PI）的文本里抽取建订单所需字段。
+    文本可能来自 PDF 或 Excel（表格已按行拼成文本），排版可能凌乱，请尽力理解。
+    规则：
+    - 「客户」取买方（Buyer / Messrs / To / Consignee / Sold to），不要取卖方（我方/Seller/Beneficiary/Shipper）。
+    - 金额只保留数字，去掉货币符号和千分位逗号；币种用三位字母代码（USD/CNY/EUR…），见 $ 默认 USD、￥/RMB 默认 CNY。
+    - 日期统一成 YYYY-MM-DD；拿不准或没有就给 null。
+    - 明细逐行抽取；单价/金额是对客户的售价（不是成本）。数量、单价、金额都只保留数字。
+    - 没有的字段给 null，明细没有就给空数组，绝不编造。
+    只返回一个 JSON 对象，不要输出任何多余文字、不要用代码块包裹。字段：
+    {
+      "pi_no": "PI 号",
+      "order_date": "YYYY-MM-DD 或 null",
+      "delivery_date": "YYYY-MM-DD 或 null",
+      "customer_name": "买方公司名",
+      "currency": "三位币种代码",
+      "total_amount": 数字或 null,
+      "line_items": [
+        { "name": "品名", "spec": "规格/型号", "quantity": 数字, "unit_price": 数字, "amount": 数字 }
+      ]
+    }
+  PROMPT
+
+  # PI 识别：把 PI 文本（PDF/Excel 抽出的纯文本）抽成字段化 Hash，供销售订单自动填单。
+  def pi_extract(text:)
+    parse_json(ask(PI_SYSTEM, truncate(text, 12_000)))
+  end
+
   # 绩效打分建议：为一张考核表的各指标算「建议分」。items 由控制器拼好，
   # 每项含 name/dimension/weight/standard/target/baseline/actual。返回 [{ 'i', 'score', 'reason' }, ...]。
   def score_suggestions(pass_score:, cap_pct:, items:)

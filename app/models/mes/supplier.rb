@@ -1,3 +1,39 @@
+# == Schema Information
+#
+# Table name: mes_suppliers
+#
+#  id            :bigint           not null, primary key
+#  address       :text
+#  bank_account  :string
+#  bank_address  :string
+#  bank_name     :string
+#  category      :string
+#  contact_name  :string
+#  email         :string
+#  invoice_title :string
+#  is_active     :boolean          default(TRUE), not null
+#  name          :string           not null
+#  phone         :string
+#  product_line  :string
+#  remark        :text
+#  supplier_no   :string           not null
+#  tax_no        :string
+#  tax_rate      :decimal(5, 2)
+#  created_at    :datetime         not null
+#  updated_at    :datetime         not null
+#  account_id    :bigint           not null
+#  owner_id      :bigint
+#
+# Indexes
+#
+#  index_mes_suppliers_on_account_id                  (account_id)
+#  index_mes_suppliers_on_account_id_and_supplier_no  (account_id,supplier_no) UNIQUE
+#  index_mes_suppliers_on_owner_id                    (owner_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
+#
 class Mes::Supplier < ApplicationRecord
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true

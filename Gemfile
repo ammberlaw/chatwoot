@@ -58,6 +58,10 @@ gem 'azure-storage-blob', git: 'https://github.com/chatwoot/azure-storage-ruby',
 gem 'google-cloud-storage', '>= 1.48.0', require: false
 gem 'image_processing'
 
+##-- 读取 PI 文件（销售订单自动填单）：pdf-reader 抽 PDF 文字，roo 读 Excel 单元格 --##
+gem 'pdf-reader', '~> 2.12'
+gem 'roo', '~> 2.10'
+
 ##-- for actionmailbox --##
 gem 'aws-actionmailbox-ses', '~> 0'
 

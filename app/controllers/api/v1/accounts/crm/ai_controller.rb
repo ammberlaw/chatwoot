@@ -71,9 +71,9 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
     @service ||= Crm::EmailAiService.new(account: Current.account)
   end
 
-  # 可见范围与邮件列表同口径：管理员全员 / 主管团队 / 业务员自己。
+  # 可见范围与邮件列表同口径（邮件私密）：管理员/副管也不看全员，只按团队/本人收口。
   def visible_emails
-    scope_by_owner(Current.account.crm_emails)
+    Current.account.crm_emails.where(owner_id: crm_mail_visible_owner_ids)
   end
 
   # 该域名在系统里是否已建档：total 为全账户命中数（供去重预警），visible 仅返回当前用户可见范围的详情

@@ -29,7 +29,7 @@
 #  fk_rails_...  (crm_kpi_scheme_id => crm_kpi_schemes.id) ON DELETE => cascade
 #
 class Crm::SchemeItem < ApplicationRecord
-  DATA_SOURCES = %w[CRM_SALES CRM_NEWCUST MANUAL MANAGER].freeze
+  DATA_SOURCES = %w[CRM_SALES CRM_NEWCUST MANUAL MANAGER SYSTEM].freeze
 
   belongs_to :account
   belongs_to :scheme, class_name: 'Crm::KpiScheme', foreign_key: :crm_kpi_scheme_id, inverse_of: :scheme_items

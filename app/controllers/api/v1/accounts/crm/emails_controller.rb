@@ -12,6 +12,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
               .order(email_date: :desc)
               .page(permitted_params[:page] || 1)
               .per(RESULTS_PER_PAGE)
+    @counterparty_types = build_counterparty_types(@emails)
   end
 
   # 左栏文件夹计数（各文件夹总数 + 收件箱未读），一次查询喂列表页角标。
@@ -58,7 +59,9 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     render json: { enqueued: ids.size }
   end
 
-  def show; end
+  def show
+    @counterparty_type = counterparty_type_for(@email)
+  end
 
   # 作为附件转发：把本邮件重建成 RFC822 .eml（含原附件）返回，前端拿去当新邮件的附件。
   def eml
@@ -99,11 +102,13 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
         @email.files.attach(io: file, filename: att.filename.to_s, content_type: att.blob.content_type)
       end
     end
+    @counterparty_type = counterparty_type_for(@email)
     render 'api/v1/accounts/crm/emails/show'
   end
 
   def create
     @email = Current.account.crm_emails.create!(email_params.merge(owner_id: email_params[:owner_id] || current_user.id))
+    @counterparty_type = counterparty_type_for(@email)
   end
 
   # 更新：文字字段就地改；带来的新附件走 attach 追加（不覆盖已有附件，
@@ -112,6 +117,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     new_files = email_params[:files]
     @email.update!(email_params.except(:files))
     Array(new_files).compact_blank.each { |file| @email.files.attach(file) }
+    @counterparty_type = counterparty_type_for(@email)
   end
 
   def destroy
@@ -129,9 +135,9 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     authorize(Crm::Email)
   end
 
-  # 可见范围（按 CRM 角色）：管理员看全员；主管看团队；业务员看自己的。
+  # 可见范围（邮件私密口径）：管理员/副管也不看全员，只有部门负责人看所辖团队，其余只看自己。
   def visible_emails
-    scope_by_owner(Current.account.crm_emails)
+    Current.account.crm_emails.where(owner_id: crm_mail_visible_owner_ids)
   end
 
   # 阅读邮件视图筛选：文件夹/未读/星标/我的、按业务员（管理员）、按客户、搜主题/邮箱。
@@ -180,5 +186,44 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
 
   def permitted_params
     params.permit(:page, :folder, :filter, :customer_id, :owner_id, :q)
+  end
+
+  # 列表头像按「对方」身份着色，与邮箱身份识别悬浮卡同口径：
+  # 同事 / 我的客户 / 公海 / 同事客户(撞单) / 陌生人。整页批量解析，避免逐行查库。
+  def build_counterparty_types(emails)
+    addresses = emails.to_h { |e| [e.id, counterparty_address(e)] }
+    lookup = addresses.values.compact.map(&:downcase).uniq
+    return {} if lookup.empty?
+
+    colleagues = Current.account.users.where('LOWER(users.email) IN (?)', lookup)
+                        .pluck(Arel.sql('LOWER(users.email)')).to_set
+    customers = Current.account.crm_customers.where('LOWER(contact_email) IN (?)', lookup)
+                       .pluck(Arel.sql('LOWER(contact_email)'), :is_in_public_pool, :account_owner_id)
+                       .index_by(&:first)
+
+    addresses.transform_values { |addr| classify_counterparty(addr&.downcase, colleagues, customers) }
+  end
+
+  # 单封邮件的对方身份（show/update/create 用），复用批量口径。
+  def counterparty_type_for(email)
+    build_counterparty_types([email])[email.id]
+  end
+
+  # 收件箱看发件人，其余看收件人；地址串取第一个邮箱。
+  def counterparty_address(email)
+    raw = email.folder == 'INBOX' ? email.from_address : email.to_address
+    raw.to_s.split(/[;,]/).map(&:strip).find(&:present?)
+  end
+
+  def classify_counterparty(addr, colleagues, customers)
+    return 'stranger' if addr.blank?
+    return 'colleague' if colleagues.include?(addr)
+
+    _email, in_pool, owner_id = customers[addr]
+    return 'stranger' if _email.nil?
+    return 'public' if in_pool
+    return 'mine' if owner_id == current_user.id
+
+    'other'
   end
 end

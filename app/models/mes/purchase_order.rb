@@ -8,28 +8,27 @@
 #  follow_up_date      :datetime
 #  has_exception       :boolean          default(FALSE), not null
 #  po_no               :string           not null
+#  product_line        :string
 #  remark              :text
 #  status              :string           default("DRAFT"), not null
 #  total_amount_micros :bigint
 #  created_at          :datetime         not null
 #  updated_at          :datetime         not null
 #  account_id          :bigint           not null
-#  mes_supplier_id     :bigint
 #  owner_id            :bigint
 #  production_order_id :bigint
 #
 # Indexes
 #
-#  index_mes_purchase_orders_on_account_id             (account_id)
-#  index_mes_purchase_orders_on_account_id_and_po_no   (account_id,po_no) UNIQUE
-#  index_mes_purchase_orders_on_account_id_and_status  (account_id,status)
-#  index_mes_purchase_orders_on_mes_supplier_id        (mes_supplier_id)
-#  index_mes_purchase_orders_on_owner_id               (owner_id)
-#  index_mes_purchase_orders_on_production_order_id    (production_order_id)
+#  index_mes_purchase_orders_on_account_and_product_line  (account_id,product_line)
+#  index_mes_purchase_orders_on_account_id                (account_id)
+#  index_mes_purchase_orders_on_account_id_and_po_no      (account_id,po_no) UNIQUE
+#  index_mes_purchase_orders_on_account_id_and_status     (account_id,status)
+#  index_mes_purchase_orders_on_owner_id                  (owner_id)
+#  index_mes_purchase_orders_on_production_order_id       (production_order_id)
 #
 # Foreign Keys
 #
-#  fk_rails_...  (mes_supplier_id => mes_suppliers.id) ON DELETE => nullify
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (production_order_id => mes_production_orders.id) ON DELETE => nullify
 #

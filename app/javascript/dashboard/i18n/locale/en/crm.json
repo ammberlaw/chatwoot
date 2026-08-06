@@ -123,6 +123,77 @@
         "RELEASE_ERROR": "操作失败"
       }
     },
+    "PI": {
+      "HEADER": "PI 形式发票",
+      "SUBTITLE": "在系统里建 PI，按你的模板 1:1 导出 Excel 发客户（要 PDF 打开另存即可）",
+      "NEW": "新建 PI",
+      "LOADING": "加载中…",
+      "EMPTY": "暂无 PI，点右上角新建",
+      "SEARCH_PLACEHOLDER": "搜索 PI号 / 买方 / 客户",
+      "FILTERS": { "ALL_STATUS": "全部状态" },
+      "STATUS": { "DRAFT": "草稿", "PAID": "已付款", "VOID": "已作废" },
+      "COL": {
+        "PI_NO": "PI 号",
+        "BUYER": "买方",
+        "AMOUNT": "总额",
+        "STATUS": "状态",
+        "DATE": "日期"
+      },
+      "ACTION": {
+        "XLSX": "下载 Excel（1:1 模板，可另存为 PDF）",
+        "EDIT": "编辑",
+        "DELETE": "删除"
+      },
+      "EXPORT": {
+        "XLSX_ERROR": "Excel 导出失败，请重试"
+      },
+      "DELETE": {
+        "CONFIRM": "确定删除 PI「{no}」？",
+        "SUCCESS": "已删除",
+        "ERROR": "删除失败"
+      },
+      "FORM": {
+        "NEW_TITLE": "新建 PI",
+        "EDIT_TITLE": "编辑 PI",
+        "PI_NO": "PI 号",
+        "PI_NO_PLACEHOLDER": "留空自动生成（WT+日期）",
+        "DATE": "日期",
+        "STATUS": "状态",
+        "CURRENCY": "币种",
+        "CUSTOMER": "关联客户",
+        "CUSTOMER_LOADING": "加载客户…",
+        "CUSTOMER_PLACEHOLDER": "选客户自动带入买方信息",
+        "SECTION_BUYER": "买方 BILL TO",
+        "ATTENTION": "Attention 联系人",
+        "COMPANY": "Company 公司",
+        "ADDRESS": "Address 地址",
+        "EMAIL": "Email",
+        "TEL": "Tel. 电话",
+        "EORI": "EORI",
+        "SECTION_SHIP": "装运与付款",
+        "PORT_SHIP": "起运港",
+        "PORT_DEST": "目的港",
+        "ORIGIN": "原产国",
+        "SHIP_METHOD": "运输方式",
+        "SECTION_ITEMS": "产品明细",
+        "ADD_ITEM": "加一行",
+        "ITEMS_EMPTY": "暂无明细，点「加一行」添加产品",
+        "ITEM_PIC": "上传图片",
+        "ITEM_MODEL": "型号 MODEL",
+        "ITEM_DESC": "描述 DESCRIPTION",
+        "ITEM_QTY": "数量",
+        "ITEM_PRICE": "单价",
+        "ITEM_REMOVE": "删除该行",
+        "SHIP_COST_LABEL": "运费标签",
+        "SHIP_COST": "运费",
+        "GRAND_TOTAL": "总计 GRAND TOTAL",
+        "TERMS": "条款 TERMS & CONDITIONS",
+        "ISSUED_BY": "开单人 ISSUED BY",
+        "REMARK": "备注（内部）",
+        "SAVED": "PI 已保存",
+        "SAVE_ERROR": "保存失败"
+      }
+    },
     "SALES_ORDERS": {
       "HEADER": "销售订单",
       "NEW": "新建订单",
@@ -154,7 +225,7 @@
         "ERROR": "创建失败"
       },
       "FORM": {
-        "NAME": "PI号",
+        "NAME": "订单名称",
         "ORDER_NO": "订单号",
         "ORDER_NO_HINT": "创建后自动生成",
         "CUSTOMER": "关联私海客户",
@@ -170,8 +241,28 @@
         "CURRENCY": "币种",
         "EXCHANGE_RATE": "汇率",
         "REMARK": "备注",
+        "PI_NO": "PI 号",
         "SECTION_BASIC": "基本信息",
-        "SECTION_AMOUNT": "金额"
+        "SECTION_AMOUNT": "金额",
+        "SECTION_ITEMS": "订单明细"
+      },
+      "PI": {
+        "HINT": "上传 PI（PDF / Excel）自动识别填单",
+        "UPLOAD": "上传 PI 识别",
+        "PARSING": "识别中…",
+        "PARSE_SUCCESS": "已识别并填入，请核对后保存",
+        "PARSE_ERROR": "PI 识别失败，请检查文件或稍后重试",
+        "CUSTOMER_UNMATCHED": "识别到客户「{name}」，未在你的客户中找到，请手动选择"
+      },
+      "ITEMS": {
+        "ADD": "加一行",
+        "EMPTY": "暂无明细，可上传 PI 识别或手动添加",
+        "NAME": "品名",
+        "SPEC": "规格",
+        "QTY": "数量",
+        "PRICE": "单价",
+        "AMOUNT": "金额",
+        "REMOVE": "删除该行"
       },
       "EDIT": {
         "TITLE": "编辑订单",
@@ -269,6 +360,13 @@
       "SEARCH_PLACEHOLDER": "搜索标题 / 摘要",
       "ADD_IN_COLUMN": "新",
       "UNCATEGORIZED": "未分类",
+      "VIEW": {
+        "BOARD": "看板",
+        "FOLDER": "文件夹",
+        "BACK": "返回全部分类",
+        "COUNT": "{count} 篇",
+        "EMPTY_FOLDER": "该分类下暂无文档"
+      },
       "PANEL": {
         "DETAIL": "详情",
         "TIMELINE": "时间轴",
@@ -428,7 +526,8 @@
         "CRM_SALES": "CRM·业绩额",
         "CRM_NEWCUST": "CRM·新客户",
         "MANUAL": "手动填报",
-        "MANAGER": "主管判定"
+        "MANAGER": "主管判定",
+        "SYSTEM": "系统判定"
       },
       "TABLE": {
         "NAME": "方案名称",

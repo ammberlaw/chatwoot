@@ -1,3 +1,30 @@
+# == Schema Information
+#
+# Table name: mes_warehouses
+#
+#  id           :bigint           not null, primary key
+#  code         :string           not null
+#  is_active    :boolean          default(TRUE), not null
+#  kind         :string
+#  name         :string           not null
+#  position     :integer
+#  product_line :string
+#  created_at   :datetime         not null
+#  updated_at   :datetime         not null
+#  account_id   :bigint           not null
+#  parent_id    :bigint
+#
+# Indexes
+#
+#  index_mes_warehouses_on_account_and_product_line  (account_id,product_line)
+#  index_mes_warehouses_on_account_id                (account_id)
+#  index_mes_warehouses_on_account_id_and_code       (account_id,code) UNIQUE
+#  index_mes_warehouses_on_parent_id                 (parent_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (parent_id => mes_warehouses.id) ON DELETE => nullify
+#
 class Mes::Warehouse < ApplicationRecord
   KINDS = %w[RAW WIP FINISHED SCRAP].freeze
 

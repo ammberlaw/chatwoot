@@ -3,12 +3,27 @@
 # Table name: mes_boms
 #
 #  id                         :bigint           not null, primary key
+#  bare_color                 :string
 #  base_qty                   :decimal(14, 3)   default(1.0), not null
 #  bom_no                     :string           not null
+#  case_color                 :string
+#  customer_name              :string
+#  doc_no                     :string
 #  estimated_lead_days        :integer
+#  fg_inbound_days            :integer
 #  is_active                  :boolean          default(TRUE), not null
 #  is_default                 :boolean          default(FALSE), not null
+#  material_inbound_days      :integer
+#  model                      :string
+#  order_qty                  :integer
+#  picking_days               :integer
+#  product_code               :string
+#  product_line               :string
+#  production_days            :integer
+#  purchasing_days            :integer
 #  remark                     :text
+#  status                     :string           default("DRAFT"), not null
+#  submit_date                :date
 #  total_material_cost_micros :bigint
 #  unit                       :string
 #  created_at                 :datetime         not null
@@ -16,18 +31,23 @@
 #  account_id                 :bigint           not null
 #  crm_product_id             :bigint
 #  owner_id                   :bigint
+#  sales_owner_id             :bigint
 #
 # Indexes
 #
-#  index_mes_boms_on_account_id             (account_id)
-#  index_mes_boms_on_account_id_and_bom_no  (account_id,bom_no) UNIQUE
-#  index_mes_boms_on_crm_product_id         (crm_product_id)
-#  index_mes_boms_on_owner_id               (owner_id)
+#  index_mes_boms_on_account_and_product_line  (account_id,product_line)
+#  index_mes_boms_on_account_id                (account_id)
+#  index_mes_boms_on_account_id_and_bom_no     (account_id,bom_no) UNIQUE
+#  index_mes_boms_on_account_id_and_status     (account_id,status)
+#  index_mes_boms_on_crm_product_id            (crm_product_id)
+#  index_mes_boms_on_owner_id                  (owner_id)
+#  index_mes_boms_on_sales_owner_id            (sales_owner_id)
 #
 # Foreign Keys
 #
 #  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => nullify
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
+#  fk_rails_...  (sales_owner_id => users.id) ON DELETE => nullify
 #
 class Mes::Bom < ApplicationRecord
   include Mes::DocumentNumber

@@ -8,11 +8,13 @@
 #  cost_amount_micros   :bigint
 #  delivery_date        :datetime
 #  exchange_rate        :decimal(12, 6)
+#  line_items           :jsonb            not null
 #  name                 :string           not null
 #  order_amount_micros  :bigint
 #  order_currency       :string           default("CNY")
 #  order_date           :datetime         not null
 #  order_no             :string           not null
+#  pi_no                :string
 #  profit_amount_micros :bigint
 #  profit_rate          :decimal(6, 2)
 #  remark               :text

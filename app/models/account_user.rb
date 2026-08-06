@@ -7,7 +7,9 @@
 #  auto_offline             :boolean          default(TRUE), not null
 #  availability             :integer          default("online"), not null
 #  crm_role                 :string
+#  erp_role                 :string
 #  mes_role                 :string
+#  mes_roles                :string           default([]), not null, is an Array
 #  module_access            :text             default(["crm", "erp", "mes"]), not null, is an Array
 #  role                     :integer          default("agent")
 #  created_at               :datetime         not null
@@ -23,10 +25,11 @@
 #
 #  index_account_users_on_account_id                (account_id)
 #  index_account_users_on_account_id_and_crm_role   (account_id,crm_role)
-#  index_account_users_on_account_id_and_mes_role   (account_id,mes_role)
+#  index_account_users_on_account_id_and_erp_role   (account_id,erp_role)
 #  index_account_users_on_agent_capacity_policy_id  (agent_capacity_policy_id)
 #  index_account_users_on_crm_team_id               (crm_team_id)
 #  index_account_users_on_custom_role_id            (custom_role_id)
+#  index_account_users_on_mes_roles                 (mes_roles) USING gin
 #  index_account_users_on_user_id                   (user_id)
 #  uniq_user_id_per_account_id                      (account_id,user_id) UNIQUE
 #

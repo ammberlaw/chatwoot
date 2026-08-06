@@ -11,6 +11,10 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
     true
   end
 
+  def parse_pi?
+    true
+  end
+
   def update?
     true
   end

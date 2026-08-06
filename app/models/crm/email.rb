@@ -19,6 +19,7 @@
 #  last_opened_at      :datetime
 #  open_count          :integer          default(0), not null
 #  reply_latency_hours :decimal(10, 2)
+#  scheduled_at        :datetime
 #  send_error          :text
 #  send_now            :boolean          default(FALSE), not null
 #  send_status         :string           default("DRAFT"), not null
@@ -36,17 +37,18 @@
 #
 # Indexes
 #
-#  index_crm_emails_on_account_id                 (account_id)
-#  index_crm_emails_on_account_id_and_email_date  (account_id,email_date)
-#  index_crm_emails_on_account_id_and_folder      (account_id,folder)
-#  index_crm_emails_on_account_id_and_is_read     (account_id,is_read)
-#  index_crm_emails_on_account_id_and_message_id  (account_id,message_id) UNIQUE WHERE (message_id IS NOT NULL)
-#  index_crm_emails_on_chatwoot_message_id        (chatwoot_message_id) UNIQUE WHERE (chatwoot_message_id IS NOT NULL)
-#  index_crm_emails_on_contact_id                 (contact_id)
-#  index_crm_emails_on_crm_customer_id            (crm_customer_id)
-#  index_crm_emails_on_owner_id                   (owner_id)
-#  index_crm_emails_on_tracking_token             (tracking_token) UNIQUE WHERE (tracking_token IS NOT NULL)
-#  index_crm_emails_starred                       (account_id,is_starred) WHERE is_starred
+#  index_crm_emails_on_account_id                    (account_id)
+#  index_crm_emails_on_account_id_and_email_date     (account_id,email_date)
+#  index_crm_emails_on_account_id_and_folder         (account_id,folder)
+#  index_crm_emails_on_account_id_and_is_read        (account_id,is_read)
+#  index_crm_emails_on_account_id_and_message_id     (account_id,message_id) UNIQUE WHERE (message_id IS NOT NULL)
+#  index_crm_emails_on_chatwoot_message_id           (chatwoot_message_id) UNIQUE WHERE (chatwoot_message_id IS NOT NULL)
+#  index_crm_emails_on_contact_id                    (contact_id)
+#  index_crm_emails_on_crm_customer_id               (crm_customer_id)
+#  index_crm_emails_on_owner_id                      (owner_id)
+#  index_crm_emails_on_send_status_and_scheduled_at  (send_status,scheduled_at)
+#  index_crm_emails_on_tracking_token                (tracking_token) UNIQUE WHERE (tracking_token IS NOT NULL)
+#  index_crm_emails_starred                          (account_id,is_starred) WHERE is_starred
 #
 # Foreign Keys
 #
