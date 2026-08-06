@@ -124,7 +124,7 @@
       }
     },
     "PI": {
-      "HEADER": "PI 形式发票",
+      "HEADER": "PI 管理",
       "SUBTITLE": "在系统里建 PI，按你的模板 1:1 导出 Excel 发客户（要 PDF 打开另存即可）",
       "NEW": "新建 PI",
       "LOADING": "加载中…",
