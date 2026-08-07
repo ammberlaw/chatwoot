@@ -116,15 +116,70 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   private
 
+  # 业绩类指标（CRM_SALES）按公式硬算建议分 = 完成 ÷ 保底 × 权重（保底取薪资配置），其余指标交 AI 参考。
+  # 返回 [{ 'i', 'score', 'reason' }, ...]，'i' 为在 rows 中的原始序号。
   def ai_score_suggestions(rows)
-    Crm::EmailAiService.new(account: Current.account).score_suggestions(
+    indexed = rows.each_with_index.to_a
+    formula_rows, ai_rows = indexed.partition { |item, _| item.data_source == 'CRM_SALES' && perf_baseline_micros.to_i.positive? }
+
+    results = formula_rows.map { |item, idx| formula_perf_suggestion(item, idx) }
+    results.concat(ai_suggestions_for(ai_rows)) if ai_rows.any?
+    results
+  end
+
+  # 调 AI 给非业绩指标打建议分；AI 返回的 'i' 是它收到列表内的位置，需映射回 rows 原始序号。
+  def ai_suggestions_for(ai_rows)
+    hints = Crm::EmailAiService.new(account: Current.account).score_suggestions(
       pass_score: @sheet.pass_score,
       cap_pct: @sheet.item_score_cap_pct,
-      items: rows.map do |i|
-        { name: i.name, dimension: i.dimension, weight: i.weight, standard: i.standard,
-          target: i.target_value, baseline: i.baseline_value, actual: i.actual_value }
+      items: ai_rows.map do |item, _|
+        { name: item.name, dimension: item.dimension, weight: item.weight, standard: item.standard,
+          target: item.target_value, baseline: item.baseline_value, actual: item.actual_value }
       end
     )
+    hints.filter_map do |h|
+      orig_idx = ai_rows[h['i'].to_i]&.last
+      { 'i' => orig_idx, 'score' => h['score'], 'reason' => h['reason'] } if orig_idx
+    end
+  end
+
+  # 业绩建议分：完成 ÷ 保底 × 权重，按单项上限封顶（未设上限则允许溢出）。完成值未填按 0 分。
+  def formula_perf_suggestion(item, idx)
+    baseline_yuan = perf_baseline_micros.to_f / 1_000_000
+    weight = item.weight.to_f
+    cap = @sheet.item_score_cap_pct ? (@sheet.item_score_cap_pct.to_f / 100) : Float::INFINITY
+    actual_yuan = parse_amount_yuan(item.actual_value)
+
+    if actual_yuan.nil?
+      return { 'i' => idx, 'score' => 0, 'reason' => "完成值未填，暂给 0 分（保底 #{fmt_wan(baseline_yuan)}）" }
+    end
+
+    ratio = actual_yuan / baseline_yuan
+    score = [ratio * weight, weight * cap].min.round(1)
+    { 'i' => idx, 'score' => score,
+      'reason' => "完成 #{fmt_wan(actual_yuan)} ÷ 保底 #{fmt_wan(baseline_yuan)} = #{(ratio * 100).round}%，×权重 #{weight.round(1)} = #{score} 分" }
+  end
+
+  # 保底目标（micros）：优先考核表下发时的快照，为空则回退读该业务员当前薪资配置（治「配置晚于下发」的空值）。
+  def perf_baseline_micros
+    return @perf_baseline_micros if defined?(@perf_baseline_micros)
+
+    @perf_baseline_micros = @sheet.baseline_target_micros.presence ||
+                            Current.account.crm_employee_comps.owned_by(@sheet.owner_id)
+                                   .order(created_at: :desc).first&.baseline_target_micros
+  end
+
+  # 把业务员手填的完成值文本解析成「元」数值：去掉千分位/货币符号，识别「万」单位；纯数字按元计。
+  def parse_amount_yuan(str)
+    cleaned = str.to_s.gsub(/[,，\s¥￥元]/, '')
+    num = cleaned[/-?\d+(\.\d+)?/]
+    return nil if num.blank?
+
+    cleaned.include?('万') ? num.to_f * 10_000 : num.to_f
+  end
+
+  def fmt_wan(yuan)
+    "#{(yuan / 10_000.0).round(2)}万"
   end
 
   # 按序号回填建议分并存库，返回带理由的列表（理由不入库，仅本次响应展示）。
