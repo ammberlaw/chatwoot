@@ -64,12 +64,16 @@ const canManage = computed(
     currentUser.value?.crm_role === 'manager'
 );
 const isOwner = computed(() => sheet.value?.ownerId === uid.value);
-const isHr = computed(
-  () => isAdmin.value || uid.value === setting.value?.hrOwnerId
+// 审批人 id 优先取考核表自带的(show 已下发)；再兜底那个仅管理员能拉的绩效设置。
+// 关键：人事/总经理不是管理员，拉不到绩效设置，只能靠考核表自带的 hrOwnerId/gmOwnerId。
+const hrOwnerId = computed(
+  () => sheet.value?.hrOwnerId ?? setting.value?.hrOwnerId
 );
-const isGm = computed(
-  () => isAdmin.value || uid.value === setting.value?.gmOwnerId
+const gmOwnerId = computed(
+  () => sheet.value?.gmOwnerId ?? setting.value?.gmOwnerId
 );
+const isHr = computed(() => isAdmin.value || uid.value === hrOwnerId.value);
+const isGm = computed(() => isAdmin.value || uid.value === gmOwnerId.value);
 const status = computed(() => sheet.value?.status);
 
 const stepIndex = computed(() => STEPS.indexOf(status.value));
