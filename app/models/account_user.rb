@@ -6,6 +6,7 @@
 #  active_at                :datetime
 #  auto_offline             :boolean          default(TRUE), not null
 #  availability             :integer          default("online"), not null
+#  crm_finance              :boolean          default(FALSE), not null
 #  crm_role                 :string
 #  erp_role                 :string
 #  mes_role                 :string
@@ -104,6 +105,11 @@ class AccountUser < ApplicationRecord
 
   def crm_hr?
     crm_role == 'hr'
+  end
+
+  # 财务身份（与业务员身份叠加）：可查看全员「已通过」提成表并导出。管理员天然具备。
+  def crm_finance?
+    administrator? || self[:crm_finance]
   end
 
   # CRM 数据条线是否主管（部门负责人）：看本部门（含下级）；业务员/其他看自己。

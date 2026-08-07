@@ -105,6 +105,15 @@ Rails.application.routes.draw do
                 delete 'attach/:attachment_id', action: :detach
               end
             end
+            resources :commission_sheets do
+              member do
+                post :pull_orders
+                post :submit
+                post :approve
+                post :return_sheet
+                get :xlsx
+              end
+            end
             # 邮件 AI 助手：写信 / 翻译 / 往来摘要（同步生成，前端等待）。
             post 'ai/compose', to: 'ai#compose'
             post 'ai/translate', to: 'ai#translate'

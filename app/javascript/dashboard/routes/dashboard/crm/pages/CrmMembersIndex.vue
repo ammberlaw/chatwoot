@@ -171,6 +171,23 @@ const onMesRoleChange = async (member, value) => {
   }
 };
 
+// 财务身份：可查看全员「已通过」提成表并导出（与业务员身份叠加）。
+const onFinanceToggle = async (member, checked) => {
+  savingId.value = member.id;
+  try {
+    const { data } = await MembersAPI.update(member.id, {
+      member: { crm_finance: checked },
+    });
+    Object.assign(member, data);
+    useAlert(L.saved);
+  } catch {
+    useAlert(L.error);
+    fetchMembers();
+  } finally {
+    savingId.value = null;
+  }
+};
+
 const onModuleToggle = async (member, key, checked) => {
   const modules = new Set(member.module_access || []);
   if (checked) modules.add(key);
@@ -213,6 +230,7 @@ onMounted(fetchMembers);
             <th class="px-6 py-3 font-medium">{{ L.colMember }}</th>
             <th class="px-6 py-3 font-medium w-56">{{ L.colSystemRole }}</th>
             <th class="px-6 py-3 font-medium w-40">MES 角色</th>
+            <th class="px-6 py-3 font-medium w-20">财务</th>
             <th class="px-6 py-3 font-medium">{{ L.colModules }}</th>
             <th class="px-6 py-3 font-medium">{{ L.colScope }}</th>
             <th class="px-6 py-3 font-medium text-right">
@@ -284,6 +302,24 @@ onMounted(fetchMembers);
                 :disabled="savingId === m.id"
                 @update:model-value="value => onMesRoleChange(m, value)"
               />
+            </td>
+            <td class="px-6 py-3">
+              <!-- 财务身份：可查看全员已通过提成表 + 导出。管理员天然具备。 -->
+              <span v-if="m.is_admin" class="text-xs text-n-slate-10">默认</span>
+              <label
+                v-else
+                class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+                title="勾选后可查看全员已通过的提成表并导出"
+              >
+                <input
+                  type="checkbox"
+                  class="accent-n-iris-9"
+                  :checked="m.crm_finance"
+                  :disabled="savingId === m.id || isManagerOnly"
+                  @change="e => onFinanceToggle(m, e.target.checked)"
+                />
+                财务
+              </label>
             </td>
             <td class="px-6 py-3">
               <!-- 管理员始终全模块；其他人按开关 -->

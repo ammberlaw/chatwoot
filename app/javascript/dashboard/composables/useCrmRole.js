@@ -20,6 +20,10 @@ export function useCrmRole() {
       currentUser.value?.crm_role === 'manager'
   );
   const isCrmHr = computed(() => currentUser.value?.crm_role === 'hr');
+  // 财务身份（与业务员身份叠加）：可查看全员「已通过」提成表并导出。管理员天然具备。
+  const isCrmFinance = computed(
+    () => isAdmin.value || currentUser.value?.crm_finance === true
+  );
   const isCrmSales = computed(
     () => !isAdmin.value && !isCrmDeputyAdmin.value && !isCrmManager.value
   );
@@ -29,6 +33,7 @@ export function useCrmRole() {
     isCrmDeputyAdmin,
     isCrmManager,
     isCrmHr,
+    isCrmFinance,
     isCrmSales,
   };
 }

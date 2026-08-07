@@ -6,6 +6,8 @@ import CrmOpportunitiesIndex from './pages/CrmOpportunitiesIndex.vue';
 import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
 import CrmSalesOrdersIndex from './pages/CrmSalesOrdersIndex.vue';
 import CrmPisIndex from './pages/CrmPisIndex.vue';
+import CrmCommissionSheetsIndex from './pages/CrmCommissionSheetsIndex.vue';
+import CrmCommissionSheetDetailIndex from './pages/CrmCommissionSheetDetailIndex.vue';
 import CrmEmailsIndex from './pages/CrmEmailsIndex.vue';
 import CrmKnowledgeDocsIndex from './pages/CrmKnowledgeDocsIndex.vue';
 import CrmSalesTargetsIndex from './pages/CrmSalesTargetsIndex.vue';
@@ -91,6 +93,20 @@ export const routes = [
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
   crmPage('pis', 'crm_pis_index', CrmPisIndex),
   crmPage('sales-orders', 'crm_sales_orders_index', CrmSalesOrdersIndex),
+  // 提成表在「人事绩效」组，与 KPI 考核表一样走 SHARED（不加 requiresCrmAccess 守卫，
+  // 避免 store 里 can_access_crm 缓存缺失时被弹到 crm/workspace）；数据权限由后端 ensure_crm_access 把关。
+  crmPage(
+    'commission-sheets',
+    'crm_commission_sheets_index',
+    CrmCommissionSheetsIndex,
+    SHARED
+  ),
+  crmPage(
+    'commission-sheets/detail',
+    'crm_commission_sheet_detail',
+    CrmCommissionSheetDetailIndex,
+    SHARED
+  ),
   crmPage('emails', 'crm_emails_index', CrmEmailsIndex),
   crmPage('knowledge-docs', 'crm_knowledge_docs_index', CrmKnowledgeDocsIndex, {
     library: 'SALES',

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_07_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_07_000002) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -58,6 +58,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000001) do
     t.string "erp_role"
     t.string "mes_roles", default: [], null: false, array: true
     t.string "mes_role"
+    t.boolean "crm_finance", default: false, null: false
     t.index ["account_id", "crm_role"], name: "index_account_users_on_account_id_and_crm_role"
     t.index ["account_id", "erp_role"], name: "index_account_users_on_account_id_and_erp_role"
     t.index ["account_id", "user_id"], name: "uniq_user_id_per_account_id", unique: true
@@ -880,6 +881,53 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "user_id", "work_date"], name: "idx_crm_attendance_on_user_date", unique: true
     t.index ["account_id", "work_date"], name: "index_crm_attendance_records_on_account_id_and_work_date"
+  end
+
+  create_table "crm_commission_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_commission_sheet_id", null: false
+    t.bigint "crm_sales_order_id"
+    t.integer "position", default: 0
+    t.string "product_category"
+    t.string "country"
+    t.string "customer_name"
+    t.string "order_no"
+    t.bigint "order_amount_micros"
+    t.string "currency", default: "USD"
+    t.bigint "shipping_micros"
+    t.bigint "received_amount_micros"
+    t.decimal "exchange_rate", precision: 12, scale: 6
+    t.bigint "received_rmb_micros"
+    t.bigint "sales_rmb_micros"
+    t.string "payment_channel"
+    t.datetime "payment_date"
+    t.string "product"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_commission_items_on_account_id"
+    t.index ["crm_commission_sheet_id"], name: "index_crm_commission_items_on_crm_commission_sheet_id"
+    t.index ["crm_sales_order_id"], name: "index_crm_commission_items_on_crm_sales_order_id"
+  end
+
+  create_table "crm_commission_sheets", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.datetime "period_month", null: false
+    t.string "status", default: "DRAFT", null: false
+    t.bigint "manager_id"
+    t.datetime "submitted_at"
+    t.datetime "approved_at"
+    t.datetime "returned_at"
+    t.bigint "returned_by_id"
+    t.text "return_reason"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "owner_id", "period_month"], name: "uniq_commission_sheet_owner_month", unique: true
+    t.index ["account_id", "period_month"], name: "index_crm_commission_sheets_on_account_id_and_period_month"
+    t.index ["account_id"], name: "index_crm_commission_sheets_on_account_id"
+    t.index ["owner_id"], name: "index_crm_commission_sheets_on_owner_id"
   end
 
   create_table "crm_customers", force: :cascade do |t|

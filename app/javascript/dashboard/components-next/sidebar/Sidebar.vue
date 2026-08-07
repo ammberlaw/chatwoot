@@ -1028,6 +1028,8 @@ const menuItems = computed(() => {
           'crm_kpi_schemes_index',
           'crm_kpi_sheets_index',
           'crm_performance_settings_index',
+          'crm_commission_sheets_index',
+          'crm_commission_sheet_detail',
         ],
         children: [
           // 考核方案 / 考核表：按角色可见性开关（管理员始终可见）。
@@ -1051,6 +1053,16 @@ const menuItems = computed(() => {
                 },
               ]
             : []),
+          // 提成表：业务员按月填报订单明细 → 主管审批 → 财务查看/导出。CRM 成员均可入（页内按角色控权）。
+          {
+            name: 'CRM Commission Sheets',
+            label: t('SIDEBAR.CRM_COMMISSION_SHEETS'),
+            to: accountScopedRoute('crm_commission_sheets_index'),
+            activeOn: [
+              'crm_commission_sheets_index',
+              'crm_commission_sheet_detail',
+            ],
+          },
           // 审批人设置：超级管理员与管理员可见。
           ...(isAdminLike.value
             ? [
@@ -1430,6 +1442,8 @@ const ROUTE_MODULE = {
   crm_kpi_scheme_editor: 'hr',
   crm_kpi_sheets_index: 'hr',
   crm_kpi_sheet_detail: 'hr',
+  crm_commission_sheets_index: 'hr',
+  crm_commission_sheet_detail: 'hr',
   crm_performance_settings_index: 'hr',
   crm_employee_comps_index: 'hr',
   crm_attendance_index: 'hr',
