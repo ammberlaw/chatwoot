@@ -30,7 +30,7 @@ class Crm::ImapFetchService
       uids = imap.uid_search(['SINCE', since_date]).last(MAX_PER_RUN)
       uids.each do |uid|
         created += 1 if ingest_uid(imap, uid)
-      rescue Net::IMAP::Error, IOError => e
+      rescue Net::IMAP::Error, IOError, Errno::ECONNRESET, Errno::ETIMEDOUT => e
         Rails.logger.warn("[Crm::ImapFetch] account=#{@account.id} skip uid=#{uid}: #{e.class}: #{e.message}")
         imap = reopen(imap)
       end
@@ -58,12 +58,25 @@ class Crm::ImapFetchService
   end
 
   # 按 UID 取一封邮件原文入库；入库逻辑见 Crm::EmailIngestion。返回 true 表示新建了记录。
+  # 先取 Message-ID 头判重（tiny），已入库的直接跳过、不下载整封正文：跨境/大邮箱 catch-up 时
+  # 避免每轮把最近 MAX_PER_RUN 封整封重下一遍拖爆 RUN_TIMEOUT（Gmail 卡死根因），也省掉所有
+  # IMAP 账户每轮重下已收邮件的浪费。无 Message-ID 时兜底走整封（ingest_raw 内部再判重）。
   # 网易对坏邮件可能返回空 RFC822（非崩溃），空内容直接跳过不入库。
   def ingest_uid(imap, uid)
+    mid = message_id_of(imap, uid)
+    return false if mid && duplicate?(mid)
+
     raw = imap.uid_fetch(uid, 'RFC822')&.first&.attr&.dig('RFC822')
     return false if raw.blank?
 
     ingest_raw(raw, fallback_uid: uid)
+  end
+
+  # 只取 Message-ID 头（不拉正文），清洗后与入库去重键（Crm::EmailIngestion#ingest_raw）口径一致。
+  def message_id_of(imap, uid)
+    hdr = imap.uid_fetch(uid, 'BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)]')&.first&.attr&.values&.find { |v| v.is_a?(String) }
+    inner = hdr.to_s[/<(.+?)>/, 1]
+    inner && Crm::MailCharset.scrub(inner)
   end
 
   # 单封邮件把连接搞崩后，关掉重开一条干净连接继续收后面的。
