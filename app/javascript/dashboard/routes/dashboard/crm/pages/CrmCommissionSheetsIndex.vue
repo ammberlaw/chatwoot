@@ -100,6 +100,8 @@ const fmtMonth = v => {
 const fmtDateTime = v => (v ? new Date(v).toLocaleString() : '—');
 const yuan = m =>
   m == null ? '—' : `¥${Math.round(m / 1_000_000).toLocaleString()}`;
+const usd = m =>
+  !m ? '—' : `US$${Math.round(m / 1_000_000).toLocaleString()}`;
 
 const filteredRecords = computed(() => {
   const kw = q.value.trim().toLowerCase();
@@ -223,6 +225,9 @@ const canRemove = s =>
               {{ t('CRM.COMMISSION.COL.SALES_RMB') }}
             </th>
             <th class="px-3 py-2 font-medium">
+              {{ t('CRM.COMMISSION.COL.SALES_USD') }}
+            </th>
+            <th class="px-3 py-2 font-medium">
               {{ t('CRM.COMMISSION.COL.UPDATED') }}
             </th>
             <th class="px-3 py-2 font-medium text-right">
@@ -259,6 +264,9 @@ const canRemove = s =>
             </td>
             <td class="px-3 py-2 font-medium text-n-slate-12">
               {{ yuan(s.totals?.salesRmbMicros) }}
+            </td>
+            <td class="px-3 py-2 font-medium text-n-slate-12">
+              {{ usd(s.totals?.salesUsdMicros) }}
             </td>
             <td class="px-3 py-2 text-n-slate-11">
               {{ fmtDateTime(s.updatedAt) }}

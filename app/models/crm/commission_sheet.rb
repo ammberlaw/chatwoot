@@ -72,13 +72,15 @@ class Crm::CommissionSheet < ApplicationRecord
             manager_id: nil, approved_at: nil)
   end
 
-  # 汇总：按产品品类分组小计 + 全表总计（订单金额按币种可能混合，仅汇总 RMB 口径与运费）。
+  # 汇总：全表总计。销售额分两口径——RMB 单看 sales_rmb；美金单(USD/EUR 等非 CNY)看订单金额净值
+  # （收款=订单+运费，故订单金额即净销售），供列表 RMB/USD 两列并列展示。
   def totals
     rows = items.to_a
     {
       shipping_micros: rows.sum { |i| i.shipping_micros.to_i },
       received_rmb_micros: rows.sum { |i| i.received_rmb_micros.to_i },
       sales_rmb_micros: rows.sum { |i| i.sales_rmb_micros.to_i },
+      sales_usd_micros: rows.reject { |i| i.currency == 'CNY' }.sum { |i| i.order_amount_micros.to_i },
       count: rows.size
     }
   end

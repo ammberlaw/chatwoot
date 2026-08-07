@@ -89,7 +89,9 @@ ok "构建已启动，等待完成（增量约 10–20 分钟）…"
 
 # 轮询构建日志直到出现 Built / 失败
 while true; do
-  STATUS="$(remote "grep -c 'wintouch-crm:prod Built' ~/build.log 2>/dev/null || true; grep -ciE 'error|failed to solve|did not complete' ~/build.log 2>/dev/null || true" 2>/dev/null || echo '0 0')"
+  # 失败信号：排除 asset 预编译期的良性 app 报错（如 "Failed to configure AI Agents SDK: ...5432 Connection refused"，
+  # 构建时连不上 DB，无害），只认真正的构建失败，避免误判 die 在拉起服务前留站点停机。
+  STATUS="$(remote "grep -c 'wintouch-crm:prod Built' ~/build.log 2>/dev/null || true; grep -iE 'error|failed to solve|did not complete' ~/build.log 2>/dev/null | grep -viE 'Failed to configure AI Agents SDK|Connection refused|IP_LOOKUP' | grep -c . || true" 2>/dev/null || echo '0 0')"
   BUILT="$(echo "$STATUS" | sed -n '1p')"
   ERRS="$(echo "$STATUS" | sed -n '2p')"
   if [ "${BUILT:-0}" != 0 ]; then ok "镜像构建完成"; break; fi

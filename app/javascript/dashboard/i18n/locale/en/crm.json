@@ -30,6 +30,7 @@
         "STATUS": "状态",
         "COUNT": "订单数",
         "SALES_RMB": "销售额RMB",
+        "SALES_USD": "销售额USD",
         "UPDATED": "更新时间",
         "ACTION": "操作"
       },
