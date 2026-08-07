@@ -1,7 +1,8 @@
-# CRM 客户设置（分组 / 来源）：仅超级管理员与 CRM 副管理员可读写（业务员/主管不可）。
+# CRM 客户设置（分组 / 来源）：仅超级管理员与 CRM 副管理员可写（增删改/排序）；
+# 读取（下拉选项）对全体登录成员开放——建档/编辑客户人人都要选分组与来源。
 class Crm::OptionItemPolicy < ApplicationPolicy
   def index?
-    admin_like?
+    true
   end
 
   def create?
