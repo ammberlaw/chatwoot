@@ -10,10 +10,12 @@ module Crm::EmailIngestion
     return false if raw.blank?
 
     mail = Mail.read_from_string(raw)
-    message_id = mail.message_id.presence || "#{@account.id}-#{fallback_uid}"
+    # 邮件头可能带非 UTF-8 原始字节，入库前先清洗——message_id / from 还要先进 PG 查询
+    # （去重 / 关联联系人），不清洗会在查询阶段就抛 PG::CharacterNotInRepertoire 丢整封。
+    message_id = Crm::MailCharset.scrub(mail.message_id.presence || "#{@account.id}-#{fallback_uid}")
     return false if duplicate?(message_id)
 
-    from = Array(mail.from).first.to_s
+    from = Crm::MailCharset.scrub(Array(mail.from).first.to_s)
     return false if notification_sender?(from)
 
     create_email(mail, message_id, from)
@@ -52,9 +54,9 @@ module Crm::EmailIngestion
       is_read: false,
       send_status: 'SENT',
       from_address: from,
-      to_address: Array(mail.to).join(', ').presence || @account.email_address,
-      cc_address: Array(mail.cc).join(', ').presence,
-      subject: mail.subject.presence || '(无主题)',
+      to_address: Crm::MailCharset.scrub(Array(mail.to).join(', ').presence || @account.email_address),
+      cc_address: Crm::MailCharset.scrub(Array(mail.cc).join(', ').presence),
+      subject: Crm::MailCharset.scrub(mail.subject.presence || '(无主题)'),
       email_date: mail.date&.to_time || Time.current,
       body: truncate_text(text_body(mail)),
       body_html: html,

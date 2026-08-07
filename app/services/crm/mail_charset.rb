@@ -7,6 +7,28 @@
 module Crm::MailCharset
   module_function
 
+  # 邮件头字段（主题/发件人/收件人/Message-ID）清洗成合法 UTF-8。
+  # 部分中文客户端把 GBK 原始字节直接塞进邮件头、不做 RFC2047 编码，mail gem 原样返回；
+  # 这类字节直接入库会触发 PG::CharacterNotInRepertoire，整封邮件被丢（客户来信收不到）。
+  # 先按 UTF-8 采信、非法再试 GB18030 补救、仍不行才用 '?' 替换非法字节——绝不丢整封。
+  def scrub(str)
+    return str if str.nil?
+
+    s = str.to_s
+    return s if s.encoding == Encoding::UTF_8 && s.valid_encoding?
+
+    bytes = s.b
+    utf8 = bytes.dup.force_encoding('UTF-8')
+    return utf8 if utf8.valid_encoding?
+
+    gb = bytes.dup.force_encoding('GB18030')
+    return gb.encode('UTF-8', invalid: :replace, undef: :replace) if gb.valid_encoding?
+
+    bytes.force_encoding('UTF-8').scrub('?')
+  rescue StandardError
+    str.to_s.scrub('?')
+  end
+
   def decoded(part)
     body = part.decoded
     body = body.force_encoding(guessed_charset(part, body)) if body.encoding == Encoding::ASCII_8BIT
