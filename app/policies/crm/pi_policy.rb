@@ -19,6 +19,10 @@ class Crm::PiPolicy < ApplicationPolicy
     true
   end
 
+  def company_headers?
+    true
+  end
+
   def xlsx?
     true
   end

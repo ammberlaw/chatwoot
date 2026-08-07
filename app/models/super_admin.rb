@@ -8,6 +8,7 @@
 #  confirmation_token     :string
 #  confirmed_at           :datetime
 #  consumed_timestep      :integer
+#  crm_name               :string
 #  current_sign_in_at     :datetime
 #  current_sign_in_ip     :string
 #  custom_attributes      :jsonb

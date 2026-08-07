@@ -6,6 +6,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import PisAPI from 'dashboard/api/crm/pis';
+import PiSellerProfileAPI from 'dashboard/api/crm/piSellerProfiles';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -34,6 +35,7 @@ const blankForm = () => ({
   status: 'DRAFT',
   currency: 'USD',
   crmCustomerId: '',
+  companyHeader: '',
   attention: '',
   buyerCompany: '',
   buyerAddress: '',
@@ -48,6 +50,8 @@ const blankForm = () => ({
   shippingCost: '',
   terms: DEFAULT_TERMS,
   issuedBy: '',
+  sellerMobile: '',
+  sellerEmail: '',
   remark: '',
   items: [],
 });
@@ -105,6 +109,21 @@ const onCustomerChange = async id => {
   }
 };
 
+// ── 公司抬头（3选1的公司主体：导出时公司名/地址/银行按此填） ──
+const companyHeaderOptions = ref([]);
+const loadCompanyHeaders = async () => {
+  if (companyHeaderOptions.value.length) return;
+  try {
+    const { data } = await PisAPI.companyHeaders(accountId.value);
+    companyHeaderOptions.value = (data || []).map(h => ({
+      value: h.key,
+      label: h.name,
+    }));
+  } catch {
+    companyHeaderOptions.value = [];
+  }
+};
+
 // ── 明细 ──
 const num = v => {
   if (v === '' || v === null || v === undefined) return null;
@@ -154,9 +173,26 @@ const reset = () => {
   form.issuedBy = currentUser.value?.name || '';
 };
 
+// 新建时用「我的卖方信息」预录带入卖方落款（联系人/手机/邮箱），本单仍可改。
+const loadSellerDefaults = async () => {
+  try {
+    const { data } = await PiSellerProfileAPI.get();
+    form.issuedBy = data.contact_name || form.issuedBy;
+    form.sellerMobile = data.mobile || '';
+    form.sellerEmail = data.email || '';
+  } catch {
+    // 无预录/失败：留空，导出时后端会拦并提示先填
+  }
+};
+
 const open = record => {
   reset();
   loadCustomers();
+  loadCompanyHeaders().then(() => {
+    if (!editingId.value && !form.companyHeader) {
+      form.companyHeader = companyHeaderOptions.value[0]?.value || '';
+    }
+  });
   if (record) {
     editingId.value = record.id;
     editingCustomerLabel.value = record.customerName || '';
@@ -167,6 +203,7 @@ const open = record => {
     form.crmCustomerId = record.crmCustomerId
       ? String(record.crmCustomerId)
       : '';
+    form.companyHeader = record.companyHeader || '';
     form.attention = record.attention || '';
     form.buyerCompany = record.buyerCompany || '';
     form.buyerAddress = record.buyerAddress || '';
@@ -184,6 +221,8 @@ const open = record => {
         : '';
     form.terms = record.terms || '';
     form.issuedBy = record.issuedBy || '';
+    form.sellerMobile = record.sellerMobile || '';
+    form.sellerEmail = record.sellerEmail || '';
     form.remark = record.remark || '';
     form.items = (record.items || []).map(it => ({
       id: it.id,
@@ -195,6 +234,8 @@ const open = record => {
       pictureUrl: it.pictureUrl || null,
       pictureFile: null,
     }));
+  } else {
+    loadSellerDefaults();
   }
   dialogRef.value?.open();
 };
@@ -214,6 +255,7 @@ const buildFormData = () => {
   set('status', form.status);
   set('currency', form.currency);
   set('crm_customer_id', form.crmCustomerId || '');
+  set('company_header', form.companyHeader);
   set('attention', form.attention);
   set('buyer_company', form.buyerCompany);
   set('buyer_address', form.buyerAddress);
@@ -228,6 +270,8 @@ const buildFormData = () => {
   set('shipping_cost_micros', toMicros(form.shippingCost));
   set('terms', form.terms);
   set('issued_by', form.issuedBy);
+  set('seller_mobile', form.sellerMobile);
+  set('seller_email', form.sellerEmail);
   set('remark', form.remark);
 
   form.items.forEach((it, i) => {
@@ -306,21 +350,36 @@ defineExpose({ open });
         </div>
       </div>
 
-      <div class="flex flex-col min-w-0 gap-1">
-        <label class="mb-0.5 text-heading-3 text-n-slate-12">
-          {{ t('CRM.PI.FORM.CUSTOMER') }}
-        </label>
-        <ComboBox
-          :model-value="form.crmCustomerId"
-          :options="customerOptions"
-          :display-label="editingCustomerLabel"
-          :placeholder="
-            loadingCustomers
-              ? t('CRM.PI.FORM.CUSTOMER_LOADING')
-              : t('CRM.PI.FORM.CUSTOMER_PLACEHOLDER')
-          "
-          @update:model-value="onCustomerChange"
-        />
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.PI.FORM.CUSTOMER') }}
+          </label>
+          <ComboBox
+            :model-value="form.crmCustomerId"
+            :options="customerOptions"
+            :display-label="editingCustomerLabel"
+            :placeholder="
+              loadingCustomers
+                ? t('CRM.PI.FORM.CUSTOMER_LOADING')
+                : t('CRM.PI.FORM.CUSTOMER_PLACEHOLDER')
+            "
+            @update:model-value="onCustomerChange"
+          />
+        </div>
+
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.PI.FORM.COMPANY_HEADER') }}
+          </label>
+          <Select
+            v-model="form.companyHeader"
+            :options="companyHeaderOptions"
+          />
+          <p class="text-xs text-n-slate-10">
+            {{ t('CRM.PI.FORM.COMPANY_HEADER_HINT') }}
+          </p>
+        </div>
       </div>
 
       <!-- 买方 -->
@@ -480,12 +539,30 @@ defineExpose({ open });
         </span>
       </div>
 
-      <!-- 条款 / 开单人 -->
+      <!-- 条款 -->
       <TextArea v-model="form.terms" :label="t('CRM.PI.FORM.TERMS')" />
-      <div class="grid grid-cols-2 gap-3">
-        <Input v-model="form.issuedBy" :label="t('CRM.PI.FORM.ISSUED_BY')" />
-        <Input v-model="form.remark" :label="t('CRM.PI.FORM.REMARK')" />
+
+      <!-- 卖方落款（按业务员预录带入，可当次改） -->
+      <div
+        class="flex items-center gap-2 mt-1 text-xs font-semibold tracking-wide uppercase text-n-slate-11"
+      >
+        {{ t('CRM.PI.FORM.SECTION_SELLER') }}
       </div>
+      <p class="-mt-2 text-xs text-n-slate-10">
+        {{ t('CRM.PI.FORM.SELLER_HINT') }}
+      </p>
+      <div class="grid grid-cols-3 gap-3">
+        <Input v-model="form.issuedBy" :label="t('CRM.PI.FORM.ISSUED_BY')" />
+        <Input
+          v-model="form.sellerMobile"
+          :label="t('CRM.PI.FORM.SELLER_MOBILE')"
+        />
+        <Input
+          v-model="form.sellerEmail"
+          :label="t('CRM.PI.FORM.SELLER_EMAIL')"
+        />
+      </div>
+      <Input v-model="form.remark" :label="t('CRM.PI.FORM.REMARK')" />
     </div>
   </Dialog>
 </template>

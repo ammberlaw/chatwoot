@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_07_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_07_000004) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1405,6 +1405,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000002) do
     t.index ["crm_pi_id"], name: "index_crm_pi_items_on_crm_pi_id"
   end
 
+  create_table "crm_pi_seller_profiles", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id"
+    t.string "contact_name"
+    t.string "mobile"
+    t.string "email"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "owner_id"], name: "idx_crm_pi_seller_profiles_account_owner", unique: true
+  end
+
   create_table "crm_pis", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1432,6 +1443,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000002) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "seller_mobile"
+    t.string "seller_email"
+    t.string "company_header"
     t.index ["account_id", "pi_no"], name: "index_crm_pis_on_account_id_and_pi_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_pis_on_account_id_and_status"
     t.index ["account_id"], name: "index_crm_pis_on_account_id"

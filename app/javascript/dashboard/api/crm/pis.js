@@ -30,4 +30,7 @@ export default {
   xlsx(accountId, id) {
     return axios.get(`${base(accountId)}/${id}/xlsx`, { responseType: 'blob' });
   },
+  companyHeaders(accountId) {
+    return axios.get(`${base(accountId)}/company_headers`);
+  },
 };

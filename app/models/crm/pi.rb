@@ -1,6 +1,53 @@
 # 形式发票（Proforma Invoice）。业务在系统里建 PI、按模板改、导出 PDF 发客户。
 # 买方/装运信息存快照（选客户带入、可改），改 PI 不影响客户档案。
 # 状态：草稿(DRAFT) → 已付款(PAID) → 已作废(VOID)。付款后转生成销售订单（二期）。
+# == Schema Information
+#
+# Table name: crm_pis
+#
+#  id                   :bigint           not null, primary key
+#  attention            :string
+#  buyer_address        :text
+#  buyer_company        :string
+#  buyer_email          :string
+#  buyer_eori           :string
+#  buyer_tel            :string
+#  company_header       :string
+#  country_of_origin    :string
+#  currency             :string           default("USD"), not null
+#  issued_by            :string
+#  pi_date              :datetime         not null
+#  pi_no                :string           not null
+#  port_of_destination  :string
+#  port_of_shipment     :string
+#  remark               :text
+#  seller_email         :string
+#  seller_mobile        :string
+#  shipping_cost_label  :string
+#  shipping_cost_micros :bigint
+#  shipping_method      :string
+#  status               :string           default("DRAFT"), not null
+#  terms                :text
+#  total_amount_micros  :bigint
+#  created_at           :datetime         not null
+#  updated_at           :datetime         not null
+#  account_id           :bigint           not null
+#  contact_id           :bigint
+#  crm_customer_id      :bigint
+#  owner_id             :bigint
+#
+# Indexes
+#
+#  index_crm_pis_on_account_id             (account_id)
+#  index_crm_pis_on_account_id_and_pi_no   (account_id,pi_no) UNIQUE
+#  index_crm_pis_on_account_id_and_status  (account_id,status)
+#  index_crm_pis_on_crm_customer_id        (crm_customer_id)
+#  index_crm_pis_on_owner_id               (owner_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (account_id => accounts.id)
+#
 class Crm::Pi < ApplicationRecord
   STATUSES = %w[DRAFT PAID VOID].freeze
 

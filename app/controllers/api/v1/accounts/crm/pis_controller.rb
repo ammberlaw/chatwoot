@@ -18,6 +18,7 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   def create
     @pi = Current.account.crm_pis.new(pi_params)
     @pi.owner_id ||= current_user.id
+    apply_seller_profile_defaults
     @pi.save!
     render :show
   end
@@ -33,11 +34,21 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   end
 
   # 导出 xlsx：把数据填进原始模板（真·1:1），流式下载。
+  # 卖方落款（联系人/手机/邮箱）缺失则拦住——提示业务员先填「我的卖方信息」预录。
   def xlsx
+    if [@pi.issued_by, @pi.seller_mobile, @pi.seller_email].any?(&:blank?)
+      return render json: { error: '请先填写「我的卖方信息」（PI 落款：联系人 / 手机 / 邮箱）' }, status: :unprocessable_entity
+    end
+
     stream = Crm::PiTemplateFiller.new(@pi).to_stream
     send_data stream.read,
               filename: "PI-#{@pi.pi_no}.xlsx",
               type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  end
+
+  # 公司抬头下拉选项（3 选 1 的主体列表，导出时公司名/地址/银行按此填）。
+  def company_headers
+    render json: Crm::PiTemplateFiller.header_options
   end
 
   # 选客户后预填买方快照（业务仍可改）。EORI 客户档案没有，留空。
@@ -57,6 +68,17 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
 
   def fetch_pi
     @pi = Current.account.crm_pis.find(params[:id])
+  end
+
+  # 建单时用业务员预录兜底卖方落款（前端一般已带入；此处兜住前端没传的情况）。
+  # 联系人姓名复用 issued_by 列（Contact 行与 ISSUED BY 行同名）。
+  def apply_seller_profile_defaults
+    profile = Current.account.crm_pi_seller_profiles.owned_by(@pi.owner_id).first
+    return unless profile
+
+    @pi.issued_by = profile.contact_name if @pi.issued_by.blank?
+    @pi.seller_mobile = profile.mobile if @pi.seller_mobile.blank?
+    @pi.seller_email = profile.email if @pi.seller_email.blank?
   end
 
   def check_authorization
@@ -80,10 +102,11 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
 
   def pi_params
     params.require(:pi).permit(
-      :pi_no, :pi_date, :status, :currency, :crm_customer_id, :contact_id, :owner_id,
+      :pi_no, :pi_date, :status, :currency, :crm_customer_id, :contact_id, :owner_id, :company_header,
       :attention, :buyer_company, :buyer_address, :buyer_email, :buyer_tel, :buyer_eori,
       :port_of_shipment, :port_of_destination, :country_of_origin, :shipping_method,
       :shipping_cost_label, :shipping_cost_micros, :terms, :issued_by, :remark,
+      :seller_mobile, :seller_email,
       pi_items_attributes: [
         :id, :position, :model, :description, :quantity, :unit_price_micros, :picture, :_destroy
       ]

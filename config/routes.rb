@@ -90,11 +90,13 @@ Rails.application.routes.draw do
             resources :pis do
               collection do
                 get :prefill
+                get :company_headers
               end
               member do
                 get :xlsx
               end
             end
+            resource :pi_seller_profile, only: [:show, :update], controller: 'pi_seller_profiles'
             resources :sales_orders do
               collection do
                 post :parse_pi

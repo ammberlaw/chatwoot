@@ -11,6 +11,7 @@ import Select from 'dashboard/components-next/select/Select.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import CrmPiFormDialog from 'dashboard/components-next/CRM/CrmPiFormDialog.vue';
+import CrmPiSellerProfileDialog from 'dashboard/components-next/CRM/CrmPiSellerProfileDialog.vue';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -24,6 +25,7 @@ const isFetching = ref(false);
 const activeStatus = ref('');
 const searchQuery = ref('');
 const formRef = ref(null);
+const sellerProfileRef = ref(null);
 
 const STATUSES = {
   DRAFT: {
@@ -86,7 +88,21 @@ const onPageChange = page => {
 
 const openCreate = () => formRef.value?.open();
 const openEdit = record => formRef.value?.open(record);
+const openSellerProfile = () => sellerProfileRef.value?.open();
 const onSaved = () => fetchRecords();
+
+// 导出失败时取后端返回的具体提示（xlsx 走 blob，422 的 JSON 在 Blob 里）。
+const extractError = async error => {
+  const data = error?.response?.data;
+  if (data instanceof Blob) {
+    try {
+      return JSON.parse(await data.text()).error;
+    } catch {
+      return null;
+    }
+  }
+  return data?.error || null;
+};
 
 const exportingXlsxId = ref(null);
 const exportXlsx = async record => {
@@ -101,8 +117,9 @@ const exportXlsx = async record => {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  } catch {
-    useAlert(t('CRM.PI.EXPORT.XLSX_ERROR'));
+  } catch (error) {
+    const msg = await extractError(error);
+    useAlert(msg || t('CRM.PI.EXPORT.XLSX_ERROR'));
   } finally {
     exportingXlsxId.value = null;
   }
@@ -136,12 +153,21 @@ onMounted(fetchRecords);
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ t('CRM.PI.SUBTITLE') }}</p>
       </div>
-      <Button
-        :label="t('CRM.PI.NEW')"
-        icon="i-lucide-plus"
-        color="iris"
-        @click="openCreate"
-      />
+      <div class="flex items-center gap-2">
+        <Button
+          :label="t('CRM.PI.SELLER_PROFILE.BUTTON')"
+          icon="i-lucide-contact"
+          variant="faded"
+          color="slate"
+          @click="openSellerProfile"
+        />
+        <Button
+          :label="t('CRM.PI.NEW')"
+          icon="i-lucide-plus"
+          color="iris"
+          @click="openCreate"
+        />
+      </div>
     </div>
 
     <div class="flex items-center gap-2 px-6 py-3 border-b border-n-weak">
@@ -268,5 +294,6 @@ onMounted(fetchRecords);
     />
 
     <CrmPiFormDialog ref="formRef" @saved="onSaved" />
+    <CrmPiSellerProfileDialog ref="sellerProfileRef" />
   </div>
 </template>

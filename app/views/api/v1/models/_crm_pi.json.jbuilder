@@ -23,6 +23,9 @@ json.shipping_cost_micros resource.shipping_cost_micros
 json.total_amount_micros resource.total_amount_micros
 json.terms resource.terms
 json.issued_by resource.issued_by
+json.company_header resource.company_header
+json.seller_mobile resource.seller_mobile
+json.seller_email resource.seller_email
 json.remark resource.remark
 json.created_at resource.created_at
 json.updated_at resource.updated_at
