@@ -27,14 +27,28 @@ class Crm::AccessScope
   def mail_visible_owner_ids
     return :all if @account_user&.administrator?
 
+    crm_team_owner_ids
+  end
+
+  # CRM 团队口径的业务数据范围（当前用于销售订单）：管理员/副管理员看全部；
+  # CRM 团队负责人（crm_teams.team_lead_id）看本团队；其余业务员只看自己。
+  # 与邮件同按 crm_teams 划团队，但「全部」沿用业务数据口径（含副管理员），不止老板。
+  def team_visible_owner_ids
+    return :all if all_access?
+
+    crm_team_owner_ids
+  end
+
+  private
+
+  # 本人担任负责人的 CRM 团队的全体成员 + 自己；未带任何团队则仅自己。
+  def crm_team_owner_ids
     led_team_ids = @account.crm_teams.where(team_lead_id: @user_id).pluck(:id)
     return [@user_id] if led_team_ids.empty?
 
     member_ids = @account.account_users.where(crm_team_id: led_team_ids).pluck(:user_id)
     (member_ids + [@user_id]).uniq
   end
-
-  private
 
   # 按部门负责人关系算团队：带团队者看「本部门（含下级）全员 + 自己」，否则只看自己。
   def team_owner_ids

@@ -24,11 +24,13 @@ const { accountId } = useAccount();
 const store = useCrmSalesOrdersStore();
 
 const createDialogRef = ref(null);
-const { isCrmSales, isCrmManager } = useCrmRole();
+const { isCrmSales, isCrmManager, isCrmTeamLead } = useCrmRole();
 const currentUserForFilter = useMapGetter('getCurrentUser');
-// 普通业务只看个人订单：无「全部」视图，默认落在「我的」（未关联客户视图保留）。
+// 能看「本人以外」的订单：管理员/副管理员/部门主管，或 CRM 团队负责人（订单按 CRM 团队收口）。
+const canViewTeam = computed(() => !isCrmSales.value || isCrmTeamLead.value);
+// 纯业务员只看个人订单：无「全部」视图，默认落在「我的」（未关联客户视图保留）。
 const normalizeFilter = value =>
-  isCrmSales.value && (!value || value === 'all') ? 'mine' : value || 'all';
+  !canViewTeam.value && (!value || value === 'all') ? 'mine' : value || 'all';
 const activeFilter = ref(normalizeFilter(route.query.filter));
 const activeStatus = ref('');
 const currentPage = ref(1);
@@ -58,9 +60,9 @@ const STATUSES = {
 };
 
 const filterTabs = computed(() => [
-  ...(isCrmSales.value
-    ? []
-    : [{ key: 'all', label: t('CRM.SALES_ORDERS.FILTERS.ALL') }]),
+  ...(canViewTeam.value
+    ? [{ key: 'all', label: t('CRM.SALES_ORDERS.FILTERS.ALL') }]
+    : []),
   { key: 'mine', label: t('CRM.SALES_ORDERS.FILTERS.MINE') },
 ]);
 
@@ -75,10 +77,10 @@ const ownerFilterOptions = computed(() => [
   { value: '', label: t('CRM.SALES_ORDERS.FILTERS.ALL_OWNER') },
   ...agents.value.map(a => ({ value: String(a.id), label: a.name })),
 ]);
-// 部门主管：业务员下拉只列自己团队（本人 + 下属，成员接口已按辖区收口）；管理员列全账号成员。
+// 主管/CRM 团队负责人：业务员下拉只列自己团队（成员接口已按辖区收口）；管理员列全账号成员。
 const fetchAgents = async () => {
   try {
-    if (isCrmManager.value) {
+    if (isCrmManager.value || isCrmTeamLead.value) {
       const { data } = await CrmMemberAPI.get();
       const me = currentUserForFilter.value || {};
       agents.value = [
@@ -402,7 +404,7 @@ watch(
           @change="onMonthChange"
         />
         <Select
-          v-if="!isCrmSales"
+          v-if="canViewTeam"
           :model-value="activeOwnerId"
           :options="ownerFilterOptions"
           @update:model-value="setOwner"

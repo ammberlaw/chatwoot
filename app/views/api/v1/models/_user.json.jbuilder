@@ -18,6 +18,8 @@ json.role resource.active_account_user&.role
 json.crm_role resource.active_account_user&.crm_role
 # 有效主管身份（角色为主管，或副管理员/管理员兼任业务部门负责人），前端判主管一律用它
 json.crm_manager resource.active_account_user&.crm_manager? || false
+# 是否 CRM 团队负责人（crm_teams.team_lead_id）。销售订单按 CRM 团队收口，前端据此放行「全部」视图。
+json.crm_team_lead resource.active_account_user&.crm_team_lead? || false
 # 财务身份：可查看全员「已通过」提成表并导出（与业务员身份叠加）。
 json.crm_finance resource.active_account_user&.crm_finance? || false
 json.mes_role resource.active_account_user&.mes_role

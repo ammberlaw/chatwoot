@@ -19,6 +19,10 @@ export function useCrmRole() {
       currentUser.value?.crm_manager === true ||
       currentUser.value?.crm_role === 'manager'
   );
+  // CRM 团队负责人（crm_teams.team_lead_id）——独立于部门主管，销售订单按 CRM 团队放行「全部」视图用。
+  const isCrmTeamLead = computed(
+    () => currentUser.value?.crm_team_lead === true
+  );
   const isCrmHr = computed(() => currentUser.value?.crm_role === 'hr');
   // 财务身份（与业务员身份叠加）：可查看全员「已通过」提成表并导出。管理员天然具备。
   const isCrmFinance = computed(
@@ -32,6 +36,7 @@ export function useCrmRole() {
     isAdmin,
     isCrmDeputyAdmin,
     isCrmManager,
+    isCrmTeamLead,
     isCrmHr,
     isCrmFinance,
     isCrmSales,

@@ -68,8 +68,10 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   private
 
+  # 单条订单也按可见范围收口：业务员只能取本人订单，主管取本团队，管理员取全部。
+  # 否则列表虽已隐藏，仍可凭 id 直接 show/update/destroy/attach 越权访问他人订单。
   def fetch_sales_order
-    @sales_order = Current.account.crm_sales_orders.find(params[:id])
+    @sales_order = visible_sales_orders.find(params[:id])
   end
 
   def check_authorization
@@ -96,8 +98,10 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     scope
   end
 
+  # 销售订单按 CRM 团队收口：业务员看本人，CRM 团队负责人看本团队，管理员/副管理员看全部。
+  # 刻意用 CRM 团队（scope_by_team_owner）而非组织部门——与客户/商机的部门口径不同。
   def visible_sales_orders
-    scope_by_owner(Current.account.crm_sales_orders)
+    scope_by_team_owner(Current.account.crm_sales_orders)
   end
 
   # 按下单月份筛选（month 形如 2026-07）；格式非法则忽略。

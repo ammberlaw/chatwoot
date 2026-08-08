@@ -128,6 +128,14 @@ class AccountUser < ApplicationRecord
     @leads_business_department = account.org_departments.where(leader_id: user_id).exists?
   end
 
+  # 是否任一 CRM 团队的负责人（crm_teams.team_lead_id）。销售订单/邮件等按 CRM 团队收口时用；
+  # 与部门负责人相互独立——CRM 团队负责人不一定是组织部门负责人。
+  def crm_team_lead?
+    return @crm_team_lead if defined?(@crm_team_lead)
+
+    @crm_team_lead = account.crm_teams.where(team_lead_id: user_id).exists?
+  end
+
   # 副管理员：CRM 内数据范围与文档管理同管理员；账号级管理（成员权限/回收站等）仍仅系统管理员。
   def crm_deputy_admin?
     crm_role == 'deputy_admin'
