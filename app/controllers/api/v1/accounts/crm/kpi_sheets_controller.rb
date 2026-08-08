@@ -64,6 +64,15 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     render 'show'
   end
 
+  # 退回主管改分：已交人事（SCORED）时，人事或主管发现主管打错分，退回到「待打分」；
+  # 员工填报/签名不动，主管改完分重新提交。原因选填。
+  def reopen_scoring
+    return unless ensure_can_reopen_scoring!
+
+    @sheet.reopen_scoring!(reason: params[:reason].to_s.strip, by: current_user)
+    render 'show'
+  end
+
   def score
     return unless ensure_manager!
     return unless ensure_signature!
@@ -71,6 +80,8 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
       attach_signature(:manager_signature)
       @sheet.manager_id = current_user.id
       @sheet.manager_signed_at = Time.current
+      # 主管改完分重新提交则清掉「退回主管改分」痕迹
+      @sheet.assign_attributes(return_reason: nil, returned_at: nil, returned_by_id: nil)
     end
 
     @sheet.recompute_payout!
@@ -317,6 +328,21 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     return true if allowed
 
     render_error('当前状态下你无权退回', :forbidden)
+    false
+  end
+
+  # 退回主管改分权限：仅「待人事确认/待总经理确认」可退；主管、人事、总经理或管理员均可触发。
+  def ensure_can_reopen_scoring!
+    unless %w[SCORED HR_CONFIRMED].include?(@sheet.status)
+      render_error('仅待人事/总经理确认的表可退回主管改分', :unprocessable_entity)
+      return false
+    end
+
+    allowed = can_manage? ||
+              [perf_setting.hr_owner_id, perf_setting.gm_owner_id].include?(current_user.id)
+    return true if allowed
+
+    render_error('你无权退回此表', :forbidden)
     false
   end
 

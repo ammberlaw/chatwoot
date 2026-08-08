@@ -189,6 +189,7 @@ Rails.application.routes.draw do
                 post :gm_confirm
                 post :ai_suggest
                 post :return_sheet
+                post :reopen_scoring
               end
             end
             resources :employee_comps

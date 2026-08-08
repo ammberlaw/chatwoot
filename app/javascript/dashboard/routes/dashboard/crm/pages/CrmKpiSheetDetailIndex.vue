@@ -30,6 +30,8 @@ const signatureDialogRef = ref(null);
 const remark = ref('');
 const returning = ref(false);
 const returnReason = ref('');
+const reopening = ref(false);
+const reopenReason = ref('');
 
 const camel = async data =>
   (await import('camelcase-keys')).default(data, { deep: true });
@@ -91,9 +93,21 @@ const canReturn = computed(() => {
   if (status.value === 'HR_CONFIRMED') return isGm.value;
   return false;
 });
+// 退回主管改分：已交人事(待人事确认)或待总经理确认时，主管/人事/总经理均可退回到「待打分」。
+const canReopenScoring = computed(
+  () =>
+    ['SCORED', 'HR_CONFIRMED'].includes(status.value) &&
+    (canManage.value || isHr.value || isGm.value)
+);
 // 被退回提醒：回到待填报且带退回原因时展示给员工。
 const returnedNotice = computed(() =>
   status.value === 'PENDING' && sheet.value?.returnReason
+    ? sheet.value.returnReason
+    : ''
+);
+// 退回主管改分提醒：回到待打分且带原因时展示给主管。
+const reopenNotice = computed(() =>
+  status.value === 'SUBMITTED' && sheet.value?.returnReason
     ? sheet.value.returnReason
     : ''
 );
@@ -243,6 +257,27 @@ const submitReturn = async () => {
   }
 };
 
+// 退回主管改分：退回到「待打分」，原因选填；员工填报与签名不动。
+const submitReopen = async () => {
+  busy.value = true;
+  try {
+    const { data } = await CrmKpiSheetAPI.reopenScoring(
+      sheetId,
+      reopenReason.value.trim()
+    );
+    sheet.value = await camel(data);
+    items.value = sheet.value.sheetItems || [];
+    remark.value = sheet.value.remark || '';
+    reopening.value = false;
+    reopenReason.value = '';
+    useAlert(t('CRM.KPI_SHEETS.REOPEN_OK'));
+  } catch (err) {
+    useAlert(err?.response?.data?.error || t('CRM.KPI_SHEETS.STEP_ERROR'));
+  } finally {
+    busy.value = false;
+  }
+};
+
 const submitSheet = () => save().then(() => runAction(CrmKpiSheetAPI.submit));
 const scoreSheet = () => save().then(() => runAction(CrmKpiSheetAPI.score));
 const hrConfirm = () => runAction(CrmKpiSheetAPI.hrConfirm);
@@ -322,6 +357,16 @@ const inCls =
           color="ruby"
           :is-disabled="busy"
           @click="returning = true"
+        />
+        <Button
+          v-if="canReopenScoring"
+          :label="t('CRM.KPI_SHEETS.REOPEN')"
+          icon="i-lucide-rotate-ccw"
+          size="sm"
+          variant="faded"
+          color="amber"
+          :is-disabled="busy"
+          @click="reopening = true"
         />
         <Button
           v-if="isOwner && status === 'PENDING'"
@@ -414,6 +459,39 @@ const inCls =
         </div>
       </div>
 
+      <!-- 退回主管改分 原因输入面板（原因选填） -->
+      <div
+        v-if="reopening"
+        class="flex flex-col gap-2 p-4 border rounded-2xl border-n-amber-6 bg-n-amber-2"
+      >
+        <div class="text-sm font-medium text-n-amber-11">
+          {{ t('CRM.KPI_SHEETS.REOPEN_TITLE') }}
+        </div>
+        <textarea
+          v-model="reopenReason"
+          rows="2"
+          :placeholder="t('CRM.KPI_SHEETS.REOPEN_PLACEHOLDER')"
+          class="reset-base w-full p-2 text-sm border rounded-lg outline-none resize-none border-n-weak bg-n-solid-1 text-n-slate-12 focus:border-n-amber-8"
+        />
+        <div class="flex items-center gap-2">
+          <Button
+            :label="t('CRM.KPI_SHEETS.REOPEN_CONFIRM')"
+            size="sm"
+            color="amber"
+            :is-disabled="busy"
+            @click="submitReopen"
+          />
+          <Button
+            :label="t('CRM.KPI_SHEETS.CANCEL')"
+            size="sm"
+            variant="ghost"
+            color="slate"
+            :is-disabled="busy"
+            @click="reopening = false"
+          />
+        </div>
+      </div>
+
       <!-- 被退回提醒（员工侧） -->
       <div
         v-if="returnedNotice"
@@ -429,6 +507,23 @@ class="text-xs text-n-slate-10"
             >（{{ sheet.returnedByName }} ·
             {{ fmtDate(sheet.returnedAt) }}）</span>
           <div class="mt-1">{{ returnedNotice }}</div>
+        </div>
+      </div>
+
+      <!-- 退回主管改分 提醒（主管侧） -->
+      <div
+        v-if="reopenNotice"
+        class="flex items-start gap-2 p-4 border rounded-2xl border-n-amber-6 bg-n-amber-2"
+      >
+        <span class="i-lucide-rotate-ccw size-4 mt-0.5 shrink-0 text-n-amber-11" />
+        <div class="text-sm text-n-slate-12">
+          <span class="font-medium text-n-amber-11">{{
+            t('CRM.KPI_SHEETS.REOPEN_BANNER')
+          }}</span>
+          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
+            >（{{ sheet.returnedByName }} ·
+            {{ fmtDate(sheet.returnedAt) }}）</span>
+          <div class="mt-1">{{ reopenNotice }}</div>
         </div>
       </div>
 

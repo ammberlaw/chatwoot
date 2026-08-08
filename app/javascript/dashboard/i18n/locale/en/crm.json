@@ -473,7 +473,10 @@
         "FOLDER": "文件夹",
         "BACK": "返回全部分类",
         "COUNT": "{count} 篇",
-        "EMPTY_FOLDER": "该分类下暂无文档"
+        "EMPTY_FOLDER": "该分类下暂无文档",
+        "SEARCH_RESULT": "搜索结果",
+        "NO_MATCH": "没有匹配的文档",
+        "ADD_FOLDER": "新建分类"
       },
       "PANEL": {
         "DETAIL": "详情",
@@ -813,6 +816,12 @@
       "RETURN_NEED_REASON": "请填写退回原因",
       "RETURNED_OK": "已退回，员工可修改后重新提交",
       "RETURNED_BANNER": "本表已被退回，请修改后重新提交。原因：",
+      "REOPEN": "退回主管改分",
+      "REOPEN_TITLE": "退回给主管改分（回到待打分，员工填报不变）",
+      "REOPEN_PLACEHOLDER": "可填写原因（选填），主管会看到",
+      "REOPEN_CONFIRM": "确认退回",
+      "REOPEN_OK": "已退回主管，可修改分数后重新提交",
+      "REOPEN_BANNER": "本表已退回改分，请修改分数后重新提交。原因：",
       "CANCEL": "取消",
       "DEADLINE_HINT": "请在 {date} 前提交，逾期将无法提交",
       "REMARK": "备注 / 补充条款",

@@ -24,4 +24,8 @@ client.aiSuggest = id => axios.post(`${client.url}/${id}/ai_suggest`);
 client.returnSheet = (id, reason) =>
   axios.post(`${client.url}/${id}/return_sheet`, { reason });
 
+// 退回主管改分：待人事/总经理确认时退回到「待打分」，原因选填。
+client.reopenScoring = (id, reason) =>
+  axios.post(`${client.url}/${id}/reopen_scoring`, { reason });
+
 export default client;

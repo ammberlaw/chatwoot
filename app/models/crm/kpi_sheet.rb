@@ -116,6 +116,20 @@ class Crm::KpiSheet < ApplicationRecord
     save!
   end
 
+  # 退回主管改分：SCORED 或 HR_CONFIRMED（待总经理确认）回到 SUBMITTED（待打分）。
+  # 清主管签名/核算，并清掉人事确认与签名（分数改了须人事重新确认）；
+  # 员工填报、员工签名、各项已打分数一律保留（供主管在原分上改错的那项即可）。
+  def reopen_scoring!(reason:, by:)
+    assign_attributes(
+      status: 'SUBMITTED', return_reason: reason.presence, returned_at: Time.current, returned_by_id: by.id,
+      manager_id: nil, manager_signed_at: nil,
+      hr_id: nil, hr_confirmed_at: nil,
+      total_score: nil, payout_coefficient: nil, actual_payout_micros: nil
+    )
+    [manager_signature, hr_signature].each { |sig| sig.purge if sig.attached? }
+    save!
+  end
+
   private
 
   # 试用期：清空绩效基数/系数/实发（考核得分保留）。
