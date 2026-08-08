@@ -10,6 +10,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import CrmSalesOrderCreateDialog from 'dashboard/components-next/CRM/CrmSalesOrderCreateDialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
@@ -179,17 +180,6 @@ const itemMeta = li => {
   return `${prefix}${qty} × ${price}`;
 };
 const itemAmount = li => (li.amount != null ? String(li.amount) : '—');
-
-const AVATAR = [
-  'bg-n-blue-9',
-  'bg-n-teal-9',
-  'bg-n-iris-9',
-  'bg-n-iris-9',
-  'bg-n-ruby-9',
-];
-const avatarCls = name =>
-  AVATAR[((name || '?').charCodeAt(0) || 0) % AVATAR.length];
-const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 
 // ── 右侧订单详情面板（点行展开；编辑仍走弹窗）──
 const PANEL_TABS = [
@@ -498,12 +488,12 @@ watch(
                       v-if="record.ownerName"
                       class="inline-flex items-center gap-1.5 text-n-slate-11"
                     >
-                      <span
-                        class="flex items-center justify-center w-5 h-5 text-xs font-semibold text-white rounded"
-                        :class="avatarCls(record.ownerName)"
-                      >
-                        {{ initial(record.ownerName) }}
-                      </span>
+                      <Avatar
+                        :name="record.ownerName"
+                        :src="record.ownerAvatarUrl || ''"
+                        :size="20"
+                        rounded-full
+                      />
                       {{ record.ownerName }}
                     </span>
                     <span v-else class="text-n-slate-10">—</span>

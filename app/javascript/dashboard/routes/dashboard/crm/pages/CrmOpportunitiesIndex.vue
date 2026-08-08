@@ -8,6 +8,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 
 // 嵌入「商机看板」作为列表视图时：隐藏自身标题头、去掉卡片外框、不受外层路由 query 影响。
@@ -49,17 +50,6 @@ const LOSS_REASONS = {
   CANCELLED: '客户取消',
   NEED_CHANGED: '需求变化',
 };
-
-const AVATAR = [
-  'bg-n-blue-9',
-  'bg-n-teal-9',
-  'bg-n-iris-9',
-  'bg-n-iris-9',
-  'bg-n-ruby-9',
-];
-const avatarCls = name =>
-  AVATAR[((name || '?').charCodeAt(0) || 0) % AVATAR.length];
-const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 
 const filterTabs = computed(() => [
   ...(isCrmSales.value
@@ -258,12 +248,12 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
                 v-if="record.ownerName"
                 class="inline-flex items-center gap-1.5 text-n-slate-11"
               >
-                <span
-                  class="flex items-center justify-center w-5 h-5 text-xs font-semibold text-white rounded"
-                  :class="avatarCls(record.ownerName)"
-                >
-                  {{ initial(record.ownerName) }}
-                </span>
+                <Avatar
+                  :name="record.ownerName"
+                  :src="record.ownerAvatarUrl || ''"
+                  :size="20"
+                  rounded-full
+                />
                 {{ record.ownerName }}
               </span>
               <span v-else class="text-n-slate-10">—</span>

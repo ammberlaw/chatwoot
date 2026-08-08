@@ -9,6 +9,7 @@ json.contact_id resource.contact_id
 json.crm_opportunity_id resource.crm_opportunity_id
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.crm_display_name
+json.owner_avatar_url resource.owner&.avatar_url
 json.status resource.status
 json.order_date resource.order_date
 json.delivery_date resource.delivery_date
