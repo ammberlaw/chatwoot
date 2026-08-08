@@ -1132,28 +1132,30 @@ watch(
                   </div>
                 </div>
                 <div
-                  class="flex items-center flex-shrink-0 gap-1.5 self-start pt-0.5"
+                  class="flex flex-col items-center flex-shrink-0 gap-2 self-start pt-1"
                 >
-                  <span
-                    v-if="record.folder === 'INBOX' && !record.isRead"
-                    class="w-2 h-2 rounded-full bg-n-iris-9"
-                  />
-                  <button
-                    class="transition-colors"
-                    :class="
-                      record.isStarred
-                        ? 'text-n-iris-9'
-                        : 'text-n-slate-8 hover:text-n-iris-9'
-                    "
-                    @click.stop="toggleStar(record)"
-                  >
-                    <Icon
-                      :icon="
-                        record.isStarred ? 'i-ph-star-fill' : 'i-lucide-star'
-                      "
-                      class="size-4"
+                  <div class="flex items-center gap-1.5">
+                    <span
+                      v-if="record.folder === 'INBOX' && !record.isRead"
+                      class="w-2 h-2 rounded-full bg-n-iris-9"
                     />
-                  </button>
+                    <button
+                      class="transition-colors"
+                      :class="
+                        record.isStarred
+                          ? 'text-n-iris-9'
+                          : 'text-n-slate-8 hover:text-n-iris-9'
+                      "
+                      @click.stop="toggleStar(record)"
+                    >
+                      <Icon
+                        :icon="
+                          record.isStarred ? 'i-ph-star-fill' : 'i-lucide-star'
+                        "
+                        class="size-4"
+                      />
+                    </button>
+                  </div>
                   <label
                     class="flex items-center transition-opacity cursor-pointer"
                     :class="
