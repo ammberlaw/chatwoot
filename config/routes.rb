@@ -97,6 +97,7 @@ Rails.application.routes.draw do
               end
             end
             resource :pi_seller_profile, only: [:show, :update], controller: 'pi_seller_profiles'
+            resources :recipient_suggestions, only: [:index]
             resources :sales_orders do
               collection do
                 post :parse_pi

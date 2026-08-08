@@ -10,6 +10,7 @@ class Crm::CustomerImportService
   # 归一化字典：小满/外贸常见中文写法 → 模型枚举码。键统一 downcase+去空格后匹配，
   # 已经是英文码（USA/ALIBABA…）的原样命中。
   COUNTRY_MAP = {
+    '中国' => 'CHINA', '中国大陆' => 'CHINA', '中国内地' => 'CHINA',
     '美国' => 'USA', '德国' => 'GERMANY', '英国' => 'UK', '法国' => 'FRANCE', '意大利' => 'ITALY',
     '西班牙' => 'SPAIN', '加拿大' => 'CANADA', '澳大利亚' => 'AUSTRALIA', '澳洲' => 'AUSTRALIA',
     '日本' => 'JAPAN', '韩国' => 'SOUTH_KOREA', '印度' => 'INDIA', '俄罗斯' => 'RUSSIA',

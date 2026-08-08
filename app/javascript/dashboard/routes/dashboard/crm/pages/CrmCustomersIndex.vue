@@ -46,6 +46,8 @@ const activeFilter = ref(route.query.filter || 'private');
 const activeCustomerGroup = ref('');
 const activeProductGroup = ref('');
 const activeSourceChannel = ref('');
+const activeStatus = ref('');
+const activeLevel = ref('');
 const currentPage = ref(1);
 const sortKey = ref(''); // '' = 默认(更新时间倒序)；'deal_amount' = 累计成交额
 const sortDir = ref('desc');
@@ -80,6 +82,15 @@ const sourceChannelOptions = computed(() => [
   { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_SOURCE_CHANNEL') },
   ...sourceOptions.value,
 ]);
+// 客户状态 / 客户等级下拉（空值 = 全部）；状态标签取 STATUS_META（getter 惰性，无 TDZ）。
+const statusFilterOptions = computed(() => [
+  { value: '', label: '全部客户状态' },
+  ...Object.entries(STATUS_META).map(([value, m]) => ({ value, label: m.label })),
+]);
+const levelFilterOptions = [
+  { value: '', label: '全部客户等级' },
+  ...['A', 'B', 'C', 'D'].map(v => ({ value: v, label: `${v} 级` })),
+];
 
 // 部门主管：不筛团队，直接筛自己团队的业务员（本人 + 下属，成员接口已按辖区收口）。
 const teamMembers = ref([]);
@@ -125,6 +136,8 @@ const fetchCustomers = () => {
     customer_group: activeCustomerGroup.value || undefined,
     product_group: activeProductGroup.value || undefined,
     source_channel: activeSourceChannel.value || undefined,
+    status: activeStatus.value || undefined,
+    customer_level: activeLevel.value || undefined,
     q: searchQuery.value.trim() || undefined,
     team_id: selectedTeamId.value || undefined,
     account_owner_id: selectedOwnerId.value || undefined,
@@ -291,6 +304,18 @@ const setProductGroup = value => {
 
 const setSourceChannel = value => {
   activeSourceChannel.value = value;
+  currentPage.value = 1;
+  fetchCustomers();
+};
+
+const setStatus = value => {
+  activeStatus.value = value;
+  currentPage.value = 1;
+  fetchCustomers();
+};
+
+const setLevel = value => {
+  activeLevel.value = value;
   currentPage.value = 1;
   fetchCustomers();
 };
@@ -876,6 +901,16 @@ watch(
             :options="sourceChannelOptions"
             @update:model-value="setSourceChannel"
           />
+          <Select
+            :model-value="activeStatus"
+            :options="statusFilterOptions"
+            @update:model-value="setStatus"
+          />
+          <Select
+            :model-value="activeLevel"
+            :options="levelFilterOptions"
+            @update:model-value="setLevel"
+          />
         </div>
       </div>
 
@@ -912,7 +947,19 @@ watch(
                     {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
                   </th>
                   <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.CUSTOMERS.TABLE.GRADE') }}
+                    <button
+                      class="inline-flex items-center gap-1 transition-colors hover:text-n-slate-12"
+                      :class="
+                        sortKey === 'completeness' ? 'text-n-slate-12' : ''
+                      "
+                      @click="toggleSort('completeness')"
+                    >
+                      {{ t('CRM.CUSTOMERS.TABLE.GRADE') }}
+                      <span
+                        class="size-3.5"
+                        :class="sortIcon('completeness')"
+                      />
+                    </button>
                   </th>
                   <th
                     class="px-4 py-3 font-medium text-right whitespace-nowrap"
@@ -931,7 +978,14 @@ watch(
                   <th
                     class="px-4 py-3 font-medium text-right whitespace-nowrap"
                   >
-                    {{ t('CRM.CUSTOMERS.TABLE.DEAL_COUNT') }}
+                    <button
+                      class="inline-flex items-center gap-1 ml-auto transition-colors hover:text-n-slate-12"
+                      :class="sortKey === 'deal_count' ? 'text-n-slate-12' : ''"
+                      @click="toggleSort('deal_count')"
+                    >
+                      {{ t('CRM.CUSTOMERS.TABLE.DEAL_COUNT') }}
+                      <span class="size-3.5" :class="sortIcon('deal_count')" />
+                    </button>
                   </th>
                   <th class="px-4 py-3 font-medium whitespace-nowrap">
                     {{ t('CRM.CUSTOMERS.TABLE.STATUS') }}

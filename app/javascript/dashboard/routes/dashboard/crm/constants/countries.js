@@ -9,6 +9,7 @@ export const COUNTRY_LABELS = {
   SPAIN: '🇪🇸 西班牙',
   CANADA: '🇨🇦 加拿大',
   AUSTRALIA: '🇦🇺 澳大利亚',
+  CHINA: '🇨🇳 中国',
   JAPAN: '🇯🇵 日本',
   SOUTH_KOREA: '🇰🇷 韩国',
   INDIA: '🇮🇳 印度',

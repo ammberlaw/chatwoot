@@ -1,4 +1,5 @@
 import { frontendURL } from '../../../helper/URLHelper';
+import CrmLayout from './CrmLayout.vue';
 import CrmCustomersIndex from './pages/CrmCustomersIndex.vue';
 import CrmCustomerDupesIndex from './pages/CrmCustomerDupesIndex.vue';
 import CrmAiBackgroundCheckIndex from './pages/CrmAiBackgroundCheckIndex.vue';
@@ -61,7 +62,7 @@ const crmPage = (path, name, component, extraMeta = {}) => {
 };
 
 // Wintouch-CRM routes
-export const routes = [
+const crmPages = [
   crmPage('workspace', 'crm_workspace_index', CrmWorkspaceHome, SHARED),
   crmPage('dashboard', 'crm_dashboard_index', CrmDashboardIndex),
   crmPage('team-dashboard', 'crm_team_dashboard_index', CrmTeamDashboardIndex),
@@ -179,4 +180,14 @@ export const routes = [
     CrmMemberInvitesIndex,
     SHARED
   ),
+];
+
+// 用 CrmLayout 包住所有 CRM 页 → 写信窗挂在这层，CRM 各模块间切换不卸载、常驻不消失。
+// 子路由沿用各自绝对路径，父层只提供常驻布局壳（不改变 URL 与路由名）。
+export const routes = [
+  {
+    path: frontendURL('accounts/:accountId/crm'),
+    component: CrmLayout,
+    children: crmPages,
+  },
 ];

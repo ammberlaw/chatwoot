@@ -34,6 +34,7 @@ import { vOnClickOutside } from '@vueuse/components';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
 import CrmColorPalette from 'dashboard/components-next/CRM/CrmColorPalette.vue';
+import CrmRecipientInput from 'dashboard/components-next/CRM/CrmRecipientInput.vue';
 
 const emit = defineEmits(['refresh']);
 const store = useCrmEmailsStore();
@@ -146,14 +147,57 @@ const activeSignature = computed(
 );
 
 const form = reactive({
-  to: '',
-  cc: '',
-  bcc: '',
+  to: [],
+  cc: [],
+  bcc: [],
   subject: '',
   body: '',
 });
+
+// 收件人 chip 数组 <-> 逗号分隔字符串互转（后端仍收发字符串）。
+const parseRecipients = str =>
+  (str || '')
+    .split(/[,;]/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(email => ({ email, name: '', type: 'manual' }));
+const joinRecipients = arr => (arr || []).map(r => r.email).join(', ');
+const addRecipient = (field, r) => {
+  if (form[field].some(x => x.email.toLowerCase() === r.email.toLowerCase())) {
+    return;
+  }
+  form[field] = [...form[field], r];
+};
 const showCc = ref(false);
 const showBcc = ref(false);
+
+// 写信窗口形态（仿 Gmail）：small=右下停靠小窗（无遮罩，可操作背后页面、点别处不关）；
+// large=居中放大（带遮罩）；minimized=只留标题栏。
+const composeMode = ref('small');
+const minimized = ref(false);
+const toggleMaximize = () => {
+  composeMode.value = composeMode.value === 'large' ? 'small' : 'large';
+  minimized.value = false;
+};
+const toggleMinimize = () => {
+  minimized.value = !minimized.value;
+};
+const rootClass = computed(() => {
+  // 最小化优先：不论大/小窗，都收成右下角标题条（无遮罩、不挡页面）。
+  if (minimized.value || composeMode.value !== 'large') {
+    return 'fixed bottom-0 right-4 z-50';
+  }
+  return 'fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40';
+});
+const cardWrapClass = computed(() => {
+  if (minimized.value) {
+    return 'flex flex-col w-[360px] max-w-[calc(100vw-2rem)] h-[46px]';
+  }
+  if (composeMode.value === 'large') {
+    return 'flex flex-col w-full max-w-[1080px] h-[calc(100vh-3rem)] max-h-[900px]';
+  }
+  return 'flex flex-col w-[720px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[80vh]';
+});
 
 // ---- AI 写信：中文意图 → DeepSeek 生成英文商务邮件，插到正文最上方 ----
 const aiOpen = ref(false);
@@ -203,8 +247,17 @@ const FONT_FAMILIES = [
   { label: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
   { label: 'Tahoma', value: 'Tahoma, Geneva, sans-serif' },
   { label: '宋体', value: '"Songti SC", SimSun, serif' },
+  { label: '新宋体', value: 'NSimSun, "Songti SC", SimSun, serif' },
   { label: '黑体', value: '"Heiti SC", SimHei, sans-serif' },
   { label: '楷体', value: '"Kaiti SC", KaiTi, serif' },
+  { label: '仿宋', value: 'FangSong, STFangsong, serif' },
+  { label: '微软雅黑', value: '"Microsoft YaHei", "PingFang SC", sans-serif' },
+  { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
+  { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+  { label: 'Trebuchet MS', value: '"Trebuchet MS", Helvetica, sans-serif' },
+  { label: 'Comic Sans MS', value: '"Comic Sans MS", "Comic Sans", cursive' },
+  { label: 'Garamond', value: 'Garamond, Baskerville, serif' },
+  { label: 'Courier New', value: '"Courier New", Courier, monospace' },
 ];
 const FONT_SIZES = [
   { label: '正常', value: '' },
@@ -425,24 +478,41 @@ const pickCustomer = async hit => {
   );
   contacts.value = list;
   if (list[0]) {
-    form.to = list[0].email;
+    addRecipient('to', {
+      email: list[0].email,
+      name: list[0].name || '',
+      type: 'contact',
+    });
     contactId.value = list[0].id;
   }
 };
 
 const pickContact = c => {
   contactId.value = c.id;
-  form.to = c.email;
+  addRecipient('to', { email: c.email, name: c.name || '', type: 'contact' });
 };
 
 // ---- 模板 / 签名 ----
-const applyTemplate = () => {
+const applyTemplate = async () => {
   const tpl = templates.value.find(
     x => String(x.id) === String(templateId.value)
   );
   if (!tpl) return;
   if (tpl.subjectTemplate) form.subject = tpl.subjectTemplate;
   form.body = tpl.body || '';
+  // 模板附件随邮件带出：下载成 File 加进附件列表（走现有上传流）。
+  await Promise.all(
+    (tpl.files || []).map(async f => {
+      try {
+        const blob = await (await fetch(f.url)).blob();
+        attachments.value.push(
+          new File([blob], f.filename, { type: blob.type })
+        );
+      } catch {
+        // 单个附件下载失败不阻断套用
+      }
+    })
+  );
 };
 
 // 签名做「附加块」：选一条即设为当前签名（拼到正文后），选「不加签名」则移除。
@@ -486,9 +556,10 @@ const kbPicksForDoc = docId =>
 const buildFields = () => {
   const fields = {
     subject: form.subject.trim() || '(无主题)',
-    toAddress: form.to.trim(),
-    ccAddress: showCc.value && form.cc.trim() ? form.cc.trim() : null,
-    bccAddress: showBcc.value && form.bcc.trim() ? form.bcc.trim() : null,
+    toAddress: joinRecipients(form.to),
+    ccAddress: showCc.value && form.cc.length ? joinRecipients(form.cc) : null,
+    bccAddress:
+      showBcc.value && form.bcc.length ? joinRecipients(form.bcc) : null,
     fromAddress: fromAccount.value?.emailAddress || null,
     body: composedText.value,
     bodyHtml: composedHtml.value,
@@ -535,7 +606,7 @@ const persist = async () => {
 };
 
 const saveDraft = async () => {
-  if (!form.to.trim()) {
+  if (!form.to.length) {
     status.value = { state: 'failed', msg: L.needTo };
     return;
   }
@@ -550,7 +621,7 @@ const saveDraft = async () => {
 };
 
 const send = async () => {
-  if (!form.to.trim()) {
+  if (!form.to.length) {
     status.value = { state: 'failed', msg: L.needTo };
     return;
   }
@@ -651,7 +722,7 @@ const scheduleLocalHint = computed(() => {
 });
 
 const scheduleSend = async () => {
-  if (!form.to.trim()) {
+  if (!form.to.length) {
     status.value = { state: 'failed', msg: L.needTo };
     return;
   }
@@ -686,14 +757,15 @@ const scheduleSend = async () => {
 
 // ---- 开关 / 复位 ----
 const reset = () => {
-  form.to = '';
-  form.cc = '';
-  form.bcc = '';
+  form.to = [];
+  form.cc = [];
+  form.bcc = [];
   form.subject = '';
   form.body = '';
   form.crmCustomerId = null;
   showCc.value = false;
   showBcc.value = false;
+  minimized.value = false;
   customerQuery.value = '';
   customerHits.value = [];
   customer.value = null;
@@ -718,9 +790,9 @@ const reset = () => {
 // 有内容则算「脏」——关闭前提醒，避免写好的邮件误关丢失。
 const isDirty = () =>
   !!(
-    form.to.trim() ||
-    form.cc.trim() ||
-    form.bcc.trim() ||
+    form.to.length ||
+    form.cc.length ||
+    form.bcc.length ||
     form.subject.trim() ||
     form.body.trim() ||
     attachments.value.length
@@ -748,13 +820,13 @@ const open = async prefill => {
     if (prefill.attachmentFiles?.length) {
       attachments.value = [...prefill.attachmentFiles];
     }
-    if (prefill.toAddress) form.to = prefill.toAddress;
+    if (prefill.toAddress) form.to = parseRecipients(prefill.toAddress);
     if (prefill.ccAddress) {
-      form.cc = prefill.ccAddress;
+      form.cc = parseRecipients(prefill.ccAddress);
       showCc.value = true;
     }
     if (prefill.bccAddress) {
-      form.bcc = prefill.bccAddress;
+      form.bcc = parseRecipients(prefill.bccAddress);
       showBcc.value = true;
     }
     if (prefill.subject) form.subject = prefill.subject;
@@ -789,14 +861,9 @@ defineExpose({ open, close });
 </script>
 
 <template>
-  <!-- 遮罩不再点击即关：点窗口外不会关闭，避免写好的邮件被误关丢失（只能点「取消」）。 -->
-  <div
-    v-show="visible"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40"
-  >
-    <div
-      class="flex flex-col w-full max-w-[1080px] h-[calc(100vh-3rem)] max-h-[900px]"
-    >
+  <!-- 写信窗（仿 Gmail）：small 右下停靠不挡页面、large 居中放大带遮罩；点窗外一律不关闭。 -->
+  <div v-show="visible" :class="rootClass">
+    <div :class="cardWrapClass">
       <div
         class="flex flex-col flex-1 min-h-0 overflow-hidden border shadow-xl rounded-xl border-n-weak bg-n-solid-1"
       >
@@ -804,7 +871,16 @@ defineExpose({ open, close });
         <div
           class="flex items-center flex-shrink-0 gap-2 px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak"
         >
+          <span
+            v-if="minimized"
+            class="flex-1 text-sm font-medium truncate cursor-pointer text-n-slate-12"
+            :title="L.previewTitle"
+            @click="toggleMinimize"
+          >
+            {{ form.subject || '新邮件' }}
+          </span>
           <button
+            v-show="!minimized"
             class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
             :disabled="sending"
             @click="send"
@@ -812,6 +888,7 @@ defineExpose({ open, close });
             {{ sending ? L.sending : L.send }}
           </button>
           <button
+            v-show="!minimized"
             class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-60"
             :disabled="sending"
             @click="saveDraft"
@@ -819,6 +896,7 @@ defineExpose({ open, close });
             {{ L.draft }}
           </button>
           <button
+            v-show="composeMode === 'large' && !minimized"
             class="px-4 py-1.5 text-sm rounded-full border disabled:opacity-60"
             :class="
               scheduleAt
@@ -831,12 +909,40 @@ defineExpose({ open, close });
             {{ L.schedule }}
           </button>
           <button
+            v-show="composeMode === 'large' && !minimized"
             class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
             @click="showPreview = true"
           >
             {{ L.preview }}
           </button>
           <span class="flex-1" />
+          <button
+            type="button"
+            class="grid p-1.5 rounded-full text-n-slate-11 hover:bg-n-alpha-2 place-items-center"
+            :title="minimized ? '还原' : '最小化'"
+            @click="toggleMinimize"
+          >
+            <span
+              :class="minimized ? 'i-lucide-chevron-up' : 'i-lucide-minus'"
+              class="block size-4"
+            />
+          </button>
+          <button
+            v-show="!minimized"
+            type="button"
+            class="grid p-1.5 rounded-full text-n-slate-11 hover:bg-n-alpha-2 place-items-center"
+            :title="composeMode === 'large' ? '还原' : '放大'"
+            @click="toggleMaximize"
+          >
+            <span
+              :class="
+                composeMode === 'large'
+                  ? 'i-lucide-minimize-2'
+                  : 'i-lucide-maximize-2'
+              "
+              class="block size-4"
+            />
+          </button>
           <button
             class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
             @click="close"
@@ -861,7 +967,7 @@ defineExpose({ open, close });
             <span class="w-14 text-[13px] text-n-slate-10">{{ L.from }}</span>
             <select
               v-model="fromId"
-              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 focus:outline-none focus:ring-0"
+              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 outline-none focus:outline-none focus:ring-0 ltr:!pl-0 rtl:!pr-0"
             >
               <option v-if="!accounts.length" value="">
                 {{ L.noAccountOption }}
@@ -879,9 +985,9 @@ defineExpose({ open, close });
             <span class="w-14 pt-2.5 text-[13px] text-n-slate-10">
               {{ L.to }}
             </span>
-            <input
+            <CrmRecipientInput
               v-model="form.to"
-              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+              class="flex-1 py-1.5"
               :placeholder="L.toPlaceholder"
             />
             <div class="flex items-center gap-3 pt-2.5">
@@ -917,7 +1023,7 @@ defineExpose({ open, close });
                 />
                 <input
                   v-model="customerQuery"
-                  class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+                  class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 outline-none focus:outline-none focus:ring-0"
                   :placeholder="L.customerPlaceholder"
                   @input="customer = null"
                 />
@@ -959,9 +1065,9 @@ defineExpose({ open, close });
             class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
           >
             <span class="w-14 text-[13px] text-n-slate-10">{{ L.cc }}</span>
-            <input
+            <CrmRecipientInput
               v-model="form.cc"
-              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+              class="flex-1 py-1.5"
               :placeholder="L.ccPlaceholder"
             />
           </div>
@@ -970,9 +1076,9 @@ defineExpose({ open, close });
             class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
           >
             <span class="w-14 text-[13px] text-n-slate-10">{{ L.bcc }}</span>
-            <input
+            <CrmRecipientInput
               v-model="form.bcc"
-              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+              class="flex-1 py-1.5"
               :placeholder="L.bccPlaceholder"
             />
           </div>
@@ -986,7 +1092,7 @@ defineExpose({ open, close });
             }}</span>
             <input
               v-model="form.subject"
-              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-0"
+              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 outline-none focus:outline-none focus:ring-0"
               :placeholder="L.subjectPlaceholder"
             />
           </div>
@@ -1055,7 +1161,7 @@ defineExpose({ open, close });
               </div>
               <select
                 v-model="fontFamily"
-                class="h-7 px-1.5 mb-0 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-0 w-[124px]"
+                class="h-7 px-1.5 mb-0 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 outline-none focus:outline-none focus:ring-0 w-[124px]"
               >
                 <option
                   v-for="f in FONT_FAMILIES"
@@ -1067,7 +1173,7 @@ defineExpose({ open, close });
               </select>
               <select
                 v-model="fontSize"
-                class="h-7 px-1.5 mb-0 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-0"
+                class="h-7 px-1.5 mb-0 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 outline-none focus:outline-none focus:ring-0"
               >
                 <option v-for="s in FONT_SIZES" :key="s.label" :value="s.value">
                   {{ s.label }}
@@ -1134,12 +1240,12 @@ defineExpose({ open, close });
             class="relative flex-shrink-0"
           >
             <button
-              class="inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-amber-9 text-n-amber-11 hover:bg-n-amber-2 disabled:opacity-60"
+              class="inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-iris-9 text-n-iris-11 hover:bg-n-iris-2 disabled:opacity-60"
               :disabled="sending"
               :title="L.aiTitle"
               @click="aiOpen = !aiOpen"
             >
-              <Icon icon="i-lucide-sparkles" class="size-4" />
+              <Icon icon="i-lucide-sparkle" class="size-4" />
               {{ L.aiButton }}
             </button>
             <div
@@ -1241,7 +1347,7 @@ defineExpose({ open, close });
           <select
             v-if="signatures.length"
             v-model="activeSignatureId"
-            class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0 max-w-[128px] flex-shrink-0"
+            class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 outline-none focus:outline-none focus:ring-0 max-w-[128px] flex-shrink-0"
           >
             <option value="">{{ L.noSignature }}</option>
             <option v-for="s in signatures" :key="s.id" :value="s.id">
@@ -1250,7 +1356,7 @@ defineExpose({ open, close });
           </select>
           <select
             v-model="templateId"
-            class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0 max-w-[128px] flex-shrink-0"
+            class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 outline-none focus:outline-none focus:ring-0 max-w-[128px] flex-shrink-0"
             @change="applyTemplate"
           >
             <option value="">{{ L.noTemplate }}</option>
@@ -1307,7 +1413,7 @@ defineExpose({ open, close });
             <span class="text-sm text-n-slate-11">{{ L.scheduleTzLabel }}</span>
             <select
               v-model="scheduleTz"
-              class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+              class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 outline-none focus:outline-none focus:ring-0"
             >
               <option v-for="z in tzOptions" :key="z.value" :value="z.value">
                 {{ z.label }}
@@ -1322,7 +1428,7 @@ defineExpose({ open, close });
               v-model="scheduleAt"
               type="datetime-local"
               :min="minScheduleAt"
-              class="w-full h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
+              class="w-full h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 outline-none focus:outline-none focus:ring-0"
             />
             <span v-if="scheduleLocalHint" class="text-xs text-n-slate-11">
               {{ scheduleLocalHint }}
@@ -1370,8 +1476,10 @@ defineExpose({ open, close });
           class="px-4 py-3 text-sm leading-loose border-b text-n-slate-11 border-n-weak"
         >
           <div>{{ L.previewFrom }}{{ fromAccount?.emailAddress || '—' }}</div>
-          <div>{{ L.previewTo }}{{ form.to || '—' }}</div>
-          <div v-if="showCc && form.cc">{{ L.previewCc }}{{ form.cc }}</div>
+          <div>{{ L.previewTo }}{{ joinRecipients(form.to) || '—' }}</div>
+          <div v-if="showCc && form.cc.length">
+            {{ L.previewCc }}{{ joinRecipients(form.cc) }}
+          </div>
           <div>{{ L.previewSubject }}{{ form.subject || '(无主题)' }}</div>
         </div>
         <!-- eslint-disable-next-line vue/no-v-html -->
@@ -1566,6 +1674,23 @@ defineExpose({ open, close });
 .crm-email-body :deep(.ProseMirror-woot-style) {
   min-height: 18rem;
   max-height: none;
+}
+
+/* 正文默认排版对齐 Gmail 观感：干净无衬线 + 舒适行距（未选字体时生效） */
+.crm-email-body :deep(.ProseMirror) {
+  font-family:
+    Arial, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 隐藏编辑器内置的 Copilot「Ask」按钮：未配 Captain，是死按钮，且与「AI 写信」重复。
+   class 可能加在内层图标，故一并按 title="Copilot" 隐藏整个菜单项。 */
+.crm-email-body :deep(.ProseMirror-copilot),
+.crm-email-body :deep(.ProseMirror-menuitem:has(.ProseMirror-copilot)),
+.crm-email-body :deep([title='Copilot']) {
+  display: none !important;
 }
 
 /* 签名预览条：约束签名里的图片，链接沿用蓝色下划线 */

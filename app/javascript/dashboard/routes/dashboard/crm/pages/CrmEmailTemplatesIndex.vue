@@ -9,7 +9,8 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
-import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
+import Editor from 'dashboard/components-next/Editor/Editor.vue';
+import TemplatesAPI from 'dashboard/api/crm/emailTemplates';
 
 const { t } = useI18n();
 const store = useCrmEmailTemplatesStore();
@@ -45,6 +46,9 @@ const L = {
   saved: '已保存',
   deleted: '已删除',
   error: '操作失败',
+  bodyLabel: '正文（可插入图片）',
+  attachLabel: '附件（套用模板时随邮件带出）',
+  addFile: '加附件',
 };
 
 const activeCategory = ref('');
@@ -63,6 +67,12 @@ const form = reactive({
   description: '',
 });
 
+// 附件：existingFiles=编辑时已有(可删)、newFiles=本次新上传、removedFileIds=勾掉的已有附件id。
+const existingFiles = ref([]);
+const newFiles = ref([]);
+const removedFileIds = ref([]);
+const fileInput = ref(null);
+
 const resetForm = () => {
   Object.assign(form, {
     name: '',
@@ -71,6 +81,24 @@ const resetForm = () => {
     body: '',
     description: '',
   });
+  existingFiles.value = [];
+  newFiles.value = [];
+  removedFileIds.value = [];
+};
+
+const pickFiles = e => {
+  newFiles.value = [...newFiles.value, ...Array.from(e.target.files || [])];
+  e.target.value = '';
+};
+const removeNewFile = i => newFiles.value.splice(i, 1);
+const removeExistingFile = f => {
+  removedFileIds.value.push(f.id);
+  existingFiles.value = existingFiles.value.filter(x => x.id !== f.id);
+};
+const fmtSize = n => {
+  if (n < 1024) return `${n}B`;
+  if (n < 1048576) return `${Math.round(n / 1024)}KB`;
+  return `${(n / 1048576).toFixed(1)}MB`;
 };
 
 const openCreate = () => {
@@ -88,24 +116,32 @@ const openEdit = record => {
     body: record.body || '',
     description: record.description || '',
   });
+  existingFiles.value = record.files || [];
+  newFiles.value = [];
+  removedFileIds.value = [];
   dialogRef.value?.open();
 };
 
 const handleConfirm = async () => {
   if (!form.name.trim()) return;
-  const payload = {
-    name: form.name.trim(),
-    category: form.category,
-    subjectTemplate: form.subjectTemplate.trim() || null,
-    body: form.body || null,
-    description: form.description.trim() || null,
-  };
+  // 含附件走 multipart；文本字段一并用 FormData 传（后端 params.require(:template)）。
+  const fd = new FormData();
+  fd.append('template[name]', form.name.trim());
+  fd.append('template[category]', form.category);
+  fd.append('template[subject_template]', form.subjectTemplate.trim());
+  fd.append('template[body]', form.body || '');
+  fd.append('template[description]', form.description.trim());
+  newFiles.value.forEach(f => fd.append('template[files][]', f));
+  removedFileIds.value.forEach(id =>
+    fd.append('template[remove_file_ids][]', id)
+  );
   try {
     if (editingId.value) {
-      await store.update({ id: editingId.value, ...payload });
+      await TemplatesAPI.updateWithFiles(editingId.value, fd);
     } else {
-      await store.create(payload);
+      await TemplatesAPI.createWithFiles(fd);
     }
+    await store.get();
     dialogRef.value?.close();
     useAlert(L.saved);
   } catch {
@@ -254,11 +290,72 @@ onMounted(() => store.get());
           v-model="form.subjectTemplate"
           :label="t('CRM.EMAIL_TEMPLATES.FORM.SUBJECT')"
         />
-        <TextArea
-          v-model="form.body"
-          :label="t('CRM.EMAIL_TEMPLATES.FORM.BODY')"
-          :rows="6"
-        />
+        <div>
+          <label class="block mb-0.5 text-heading-3 text-n-slate-12">
+            {{ L.bodyLabel }}
+          </label>
+          <div
+            class="overflow-y-auto border rounded-lg reset-base border-n-weak bg-n-solid-1 min-h-[180px] max-h-[360px] px-3 py-2"
+          >
+            <Editor
+              v-model="form.body"
+              editor-key="crm-email-template"
+              channel-type="Channel::Email"
+              enable-text-color
+              :enable-canned-responses="false"
+              :show-character-count="false"
+            />
+          </div>
+        </div>
+
+        <!-- 附件 -->
+        <div>
+          <label class="block mb-1 text-heading-3 text-n-slate-12">
+            {{ L.attachLabel }}
+          </label>
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              v-for="f in existingFiles"
+              :key="`ex-${f.id}`"
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-n-slate-3 text-n-slate-12"
+            >
+              <Icon icon="i-lucide-paperclip" class="size-3" />
+              <span class="truncate max-w-[160px]">{{ f.filename }}</span>
+              <button
+                class="i-lucide-x size-3 text-n-slate-10 hover:text-n-slate-12"
+                @click="removeExistingFile(f)"
+              />
+            </span>
+            <span
+              v-for="(f, i) in newFiles"
+              :key="`new-${i}`"
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-n-teal-3 text-n-teal-11"
+            >
+              <Icon icon="i-lucide-paperclip" class="size-3" />
+              <span class="truncate max-w-[160px]">{{ f.name }}</span>
+              <span class="text-n-teal-11/70">{{ fmtSize(f.size) }}</span>
+              <button
+                class="i-lucide-x size-3 hover:opacity-70"
+                @click="removeNewFile(i)"
+              />
+            </span>
+            <button
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs border border-dashed rounded-md border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+              @click="fileInput?.click()"
+            >
+              <Icon icon="i-lucide-plus" class="size-3" />
+              {{ L.addFile }}
+            </button>
+            <input
+              ref="fileInput"
+              type="file"
+              multiple
+              class="hidden"
+              @change="pickFiles"
+            />
+          </div>
+        </div>
+
         <Input
           v-model="form.description"
           :label="t('CRM.EMAIL_TEMPLATES.FORM.DESCRIPTION')"

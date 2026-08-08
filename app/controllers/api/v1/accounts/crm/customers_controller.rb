@@ -8,14 +8,19 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   # 列筛选：查询参数 → 数据库列，逐个按 present? 叠加。
   COLUMN_FILTERS = {
     status: :customer_status,
+    customer_level: :customer_level,
     customer_group: :customer_group,
     product_group: :product_group,
     source_channel: :source_channel,
     account_owner_id: :account_owner_id
   }.freeze
 
-  # 可排序列白名单（防注入）：查询参数 sort → 数据库列。
-  SORT_COLUMNS = { 'deal_amount' => :deal_total_amount_micros }.freeze
+  # 可排序列白名单（防注入）：查询参数 sort → 数据库列。均为数字列，走 sort_clause 的 COALESCE(col,0)。
+  SORT_COLUMNS = {
+    'deal_amount' => :deal_total_amount_micros,
+    'deal_count' => :deal_order_count,
+    'completeness' => :info_completeness_score
+  }.freeze
 
   def index
     @customers_scope = filtered_customers
@@ -446,6 +451,6 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   def permitted_params
-    params.permit(:page, :per_page, :filter, :status, :customer_group, :product_group, :source_channel, :account_owner_id)
+    params.permit(:page, :per_page, :filter, :status, :customer_level, :customer_group, :product_group, :source_channel, :account_owner_id)
   end
 end

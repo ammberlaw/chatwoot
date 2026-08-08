@@ -21,6 +21,8 @@ class Crm::EmailTemplate < ApplicationRecord
   CATEGORIES = %w[DEVELOPMENT QUOTATION FOLLOW_UP PAYMENT_REMINDER GREETING OTHER].freeze
 
   belongs_to :account
+  # 模板附件（如产品目录/报价单）：套用模板时随邮件一起带出。正文内联图片走 body 富文本(HTML)另存 blob。
+  has_many_attached :files
 
   validates :name, presence: true
   validates :category, inclusion: { in: CATEGORIES }

@@ -15,7 +15,7 @@ import { stripTextColorMarkers } from 'dashboard/helper/editorTextColor';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
-import CrmEmailComposeDialog from 'dashboard/components-next/CRM/CrmEmailComposeDialog.vue';
+import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
 import CrmAddressIdentity from 'dashboard/components-next/CRM/CrmAddressIdentity.vue';
 
 const { t } = useI18n();
@@ -24,7 +24,7 @@ const store = useCrmEmailsStore();
 const { isAdmin } = useAdmin();
 const currentUserId = useMapGetter('getCurrentUserID');
 
-const composeDialogRef = ref(null);
+const composeStore = useCrmComposeStore();
 const searchTerm = ref('');
 const selectedEmail = ref(null);
 // 邮件范围：'mine' 我的邮件 / 'team' 团队邮件（默认看自己的）。
@@ -282,13 +282,15 @@ const setFolder = key => {
   fetchRecords();
 };
 
-const openCompose = prefill => composeDialogRef.value?.open(prefill);
+const openCompose = prefill => composeStore.open(prefill);
 
 // 写信面板发送/存草稿后刷新列表与角标。
 const onComposeRefresh = () => {
   fetchRecords();
   fetchCounts();
 };
+// 常驻写信窗（挂在 CRM 布局层）发信/存草稿后，刷新本页邮件列表与角标。
+watch(() => composeStore.refreshSeq, onComposeRefresh);
 
 const emailOpens = ref([]);
 
@@ -1209,6 +1211,5 @@ watch(
       </template>
     </section>
 
-    <CrmEmailComposeDialog ref="composeDialogRef" @refresh="onComposeRefresh" />
   </div>
 </template>
