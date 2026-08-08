@@ -27,8 +27,9 @@ class Api::V1::Accounts::Crm::FollowUpTasksController < Api::V1::Accounts::Crm::
 
   private
 
+  # 单条也按可见范围收口（负责人列=assignee_id），防止凭 id 越权查看/改他人跟进任务。
   def fetch_task
-    @task = Current.account.crm_follow_up_tasks.find(params[:id])
+    @task = scope_by_team_owner(Current.account.crm_follow_up_tasks, column: :assignee_id).find(params[:id])
   end
 
   def check_authorization
@@ -36,8 +37,9 @@ class Api::V1::Accounts::Crm::FollowUpTasksController < Api::V1::Accounts::Crm::
   end
 
   # 待办跟进视图：open（未完成）、我的、按客户、按类型。
+  # 数据范围按 CRM 团队收口（负责人列=assignee_id）：业务员看自己 / 团队负责人看本队 / 管理员看全部。
   def filtered_tasks
-    scope = Current.account.crm_follow_up_tasks
+    scope = scope_by_team_owner(Current.account.crm_follow_up_tasks, column: :assignee_id)
     scope = scope.open_tasks if params[:filter] == 'open'
     scope = scope.assigned_to(current_user.id) if params[:filter] == 'mine'
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?

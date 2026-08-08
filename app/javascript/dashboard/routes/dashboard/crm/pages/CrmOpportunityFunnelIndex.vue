@@ -7,7 +7,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
-import CrmMemberAPI from 'dashboard/api/crm/members';
+import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -52,7 +52,7 @@ const ownerOptions = computed(() => {
 const teamMembers = ref([]);
 const fetchTeamMembers = async () => {
   try {
-    const { data } = await CrmMemberAPI.get();
+    const { data } = await CrmAgentAPI.get(accountId.value, 'team');
     teamMembers.value = data.payload || [];
   } catch {
     teamMembers.value = [];
@@ -413,6 +413,15 @@ onMounted(() => {
               <span class="truncate">
                 {{ item.customerName || '未关联客户' }}
               </span>
+            </div>
+
+            <!-- 归属人（谁的商机） -->
+            <div
+              v-if="item.ownerName"
+              class="flex items-center gap-1.5 mt-1.5 text-xs text-n-slate-10"
+            >
+              <span class="i-lucide-user size-3.5 shrink-0" />
+              <span class="truncate">{{ item.ownerName }}</span>
             </div>
 
             <!-- 备注 -->

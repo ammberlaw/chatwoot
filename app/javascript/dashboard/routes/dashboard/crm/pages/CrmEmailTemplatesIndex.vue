@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmEmailTemplatesStore } from 'dashboard/stores/crm/emailTemplates';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -16,8 +18,27 @@ const { t } = useI18n();
 const store = useCrmEmailTemplatesStore();
 const dialogRef = ref(null);
 
+// 企业模版可管理者：超管/副管/主管；个人模版仅归属人。与销售资料同口径。
+const { isAdmin, isCrmDeputyAdmin, isCrmManager } = useCrmRole();
+const meId = useMapGetter('getCurrentUserID');
+const canManageCompany = computed(
+  () => isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value
+);
+const canManage = record =>
+  record.scope === 'PERSONAL'
+    ? record.ownerId === meId.value
+    : canManageCompany.value;
+
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
+
+// 归属范围：企业模版(全员可用) / 个人模版(本人私有)。
+const SCOPE_META = {
+  COMPANY: { label: '企业模版', chip: 'bg-n-iris-3 text-n-iris-11' },
+  PERSONAL: { label: '个人模版', chip: 'bg-n-teal-3 text-n-teal-11' },
+};
+const activeScope = ref('');
+const readonly = ref(false);
 
 // 分类：标签 + 色块（颜色写成字面量类，防 purge）。
 const CATEGORY_META = {
@@ -49,19 +70,34 @@ const L = {
   bodyLabel: '正文（可插入图片）',
   attachLabel: '附件（套用模板时随邮件带出）',
   addFile: '加附件',
+  allScope: '全部',
+  scopeLabel: '归属范围',
+  readonlyHint:
+    '企业模版仅管理员/主管可编辑；你可查看或复制内容，或另存为个人模版。',
 };
+
+// 建模板可选归属：有企业管理权可建企业/个人，否则只能建个人。
+const scopeOptions = computed(() =>
+  (canManageCompany.value ? ['COMPANY', 'PERSONAL'] : ['PERSONAL']).map(v => ({
+    value: v,
+    label: SCOPE_META[v].label,
+  }))
+);
 
 const activeCategory = ref('');
 const filteredRecords = computed(() =>
-  activeCategory.value
-    ? records.value.filter(r => r.category === activeCategory.value)
-    : records.value
+  records.value.filter(
+    r =>
+      (!activeScope.value || r.scope === activeScope.value) &&
+      (!activeCategory.value || r.category === activeCategory.value)
+  )
 );
 
 const editingId = ref(null);
 const form = reactive({
   name: '',
   category: 'DEVELOPMENT',
+  scope: 'PERSONAL',
   subjectTemplate: '',
   body: '',
   description: '',
@@ -77,6 +113,8 @@ const resetForm = () => {
   Object.assign(form, {
     name: '',
     category: 'DEVELOPMENT',
+    // 有企业管理权默认建企业模版，否则只能建个人模版。
+    scope: canManageCompany.value ? 'COMPANY' : 'PERSONAL',
     subjectTemplate: '',
     body: '',
     description: '',
@@ -103,15 +141,18 @@ const fmtSize = n => {
 
 const openCreate = () => {
   editingId.value = null;
+  readonly.value = false;
   resetForm();
   dialogRef.value?.open();
 };
 
 const openEdit = record => {
   editingId.value = record.id;
+  readonly.value = !canManage(record); // 无权者（如业务员看企业模版）只读查看
   Object.assign(form, {
     name: record.name || '',
     category: record.category || 'OTHER',
+    scope: record.scope || 'COMPANY',
     subjectTemplate: record.subjectTemplate || '',
     body: record.body || '',
     description: record.description || '',
@@ -123,11 +164,12 @@ const openEdit = record => {
 };
 
 const handleConfirm = async () => {
-  if (!form.name.trim()) return;
+  if (readonly.value || !form.name.trim()) return;
   // 含附件走 multipart；文本字段一并用 FormData 传（后端 params.require(:template)）。
   const fd = new FormData();
   fd.append('template[name]', form.name.trim());
   fd.append('template[category]', form.category);
+  fd.append('template[scope]', form.scope);
   fd.append('template[subject_template]', form.subjectTemplate.trim());
   fd.append('template[body]', form.body || '');
   fd.append('template[description]', form.description.trim());
@@ -185,8 +227,29 @@ onMounted(() => store.get());
       />
     </div>
 
+    <!-- 归属范围：企业模版 / 个人模版 -->
+    <div class="flex gap-1.5 px-6 pt-4">
+      <button
+        v-for="opt in [
+          { value: '', label: L.allScope },
+          { value: 'COMPANY', label: SCOPE_META.COMPANY.label },
+          { value: 'PERSONAL', label: SCOPE_META.PERSONAL.label },
+        ]"
+        :key="opt.value"
+        class="px-3.5 py-1 text-sm font-medium rounded-lg transition-colors"
+        :class="
+          activeScope === opt.value
+            ? 'bg-n-iris-9 text-white'
+            : 'text-n-slate-11 hover:bg-n-alpha-1'
+        "
+        @click="activeScope = opt.value"
+      >
+        {{ opt.label }}
+      </button>
+    </div>
+
     <!-- 分类筛选 -->
-    <div class="flex flex-wrap gap-1.5 px-6 pt-4">
+    <div class="flex flex-wrap gap-1.5 px-6 pt-3">
       <button
         class="px-3 py-1 text-xs border rounded-full transition-colors"
         :class="
@@ -234,12 +297,20 @@ onMounted(() => store.get());
             <h3 class="font-medium truncate text-n-slate-12">
               {{ record.name }}
             </h3>
-            <span
-              class="px-2 py-0.5 rounded-full text-[11px] flex-shrink-0"
-              :class="CATEGORY_META[record.category]?.chip"
-            >
-              {{ CATEGORY_META[record.category]?.label || record.category }}
-            </span>
+            <div class="flex flex-shrink-0 gap-1">
+              <span
+                class="px-2 py-0.5 rounded-full text-[11px]"
+                :class="SCOPE_META[record.scope]?.chip"
+              >
+                {{ SCOPE_META[record.scope]?.label }}
+              </span>
+              <span
+                class="px-2 py-0.5 rounded-full text-[11px]"
+                :class="CATEGORY_META[record.category]?.chip"
+              >
+                {{ CATEGORY_META[record.category]?.label || record.category }}
+              </span>
+            </div>
           </div>
           <p
             v-if="record.subjectTemplate"
@@ -266,10 +337,18 @@ onMounted(() => store.get());
       overflow-y-auto
       :title="editingId ? L.edit : t('CRM.EMAIL_TEMPLATES.CREATE.TITLE')"
       confirm-button-color="iris"
+      :show-confirm-button="!readonly"
       @confirm="handleConfirm"
     >
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-4">
+        <div
+          v-if="readonly"
+          class="flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-n-slate-3 text-n-slate-11"
+        >
+          <Icon icon="i-lucide-lock" class="size-3.5" />
+          {{ L.readonlyHint }}
+        </div>
+        <div class="grid grid-cols-3 gap-4">
           <Input
             v-model="form.name"
             :label="t('CRM.EMAIL_TEMPLATES.FORM.NAME')"
@@ -284,6 +363,25 @@ onMounted(() => store.get());
               class="w-full"
               :options="categoryOptions"
             />
+          </div>
+          <div>
+            <label class="block mb-0.5 text-heading-3 text-n-slate-12">
+              {{ L.scopeLabel }}
+            </label>
+            <!-- 归属：新建可选(有权者含企业)；编辑时固定不可改 -->
+            <Select
+              v-if="!editingId"
+              v-model="form.scope"
+              class="w-full"
+              :options="scopeOptions"
+            />
+            <div
+              v-else
+              class="inline-flex items-center h-9 px-2.5 rounded-lg text-sm"
+              :class="SCOPE_META[form.scope]?.chip"
+            >
+              {{ SCOPE_META[form.scope]?.label }}
+            </div>
           </div>
         </div>
         <Input
@@ -361,7 +459,7 @@ onMounted(() => store.get());
           :label="t('CRM.EMAIL_TEMPLATES.FORM.DESCRIPTION')"
         />
         <button
-          v-if="editingId"
+          v-if="editingId && !readonly"
           class="inline-flex items-center self-start gap-1 text-xs text-n-ruby-11 hover:underline"
           @click="removeRecord"
         >

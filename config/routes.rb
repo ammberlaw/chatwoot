@@ -70,6 +70,7 @@ Rails.application.routes.draw do
                 get :detail
                 post :claim
                 post :release
+                post :share
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
               end
@@ -98,6 +99,8 @@ Rails.application.routes.draw do
             end
             resource :pi_seller_profile, only: [:show, :update], controller: 'pi_seller_profiles'
             resources :recipient_suggestions, only: [:index]
+            resources :agents, only: [:index]
+            resources :quick_texts, only: [:index, :create, :update, :destroy]
             resources :sales_orders do
               collection do
                 post :parse_pi
@@ -129,6 +132,7 @@ Rails.application.routes.draw do
                 get :counts
                 get :mailboxes
                 post :fetch
+                post :move_to_folder
               end
               member do
                 post :attach_kb
@@ -136,6 +140,7 @@ Rails.application.routes.draw do
                 get :eml
               end
             end
+            resources :email_folders, only: [:index, :create, :destroy]
             resources :quotes do
               resources :line_items, only: [:index, :create], controller: 'quote_line_items'
             end

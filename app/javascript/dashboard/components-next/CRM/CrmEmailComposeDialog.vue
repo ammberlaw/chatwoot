@@ -8,6 +8,7 @@ import {
   onMounted,
   onBeforeUnmount,
 } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
 import snakecaseKeys from 'snakecase-keys';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
@@ -15,6 +16,7 @@ import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
 import MailAccountsAPI from 'dashboard/api/crm/mailAccounts';
 import EmailTemplatesAPI from 'dashboard/api/crm/emailTemplates';
+import QuickTextsAPI from 'dashboard/api/crm/quickTexts';
 import EmailSignaturesAPI from 'dashboard/api/crm/emailSignatures';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import ContactsAPI from 'dashboard/api/crm/contacts';
@@ -85,6 +87,29 @@ const L = {
   sigRemove: '移除',
   applyTemplate: '套用模板',
   noTemplate: '— 不套用 —',
+  templateBtn: '模版',
+  tplPickTitle: '选择模板',
+  tplSearch: '请输入模版名称',
+  tplManage: '模版管理',
+  tplEmpty: '暂无模板',
+  tplNew: '新建模板',
+  tplTabPersonal: '个人模板',
+  tplTabCompany: '企业模板',
+  quickTextBtn: '快速文本',
+  qtPickTitle: '选择文本',
+  qtSearch: '请搜索标题、正文',
+  qtEmpty: '暂无数据，点右下「新建文本」添加',
+  qtNew: '新建文本',
+  qtNewTitle: '新建文本',
+  qtEditTitle: '编辑文本',
+  qtHint: '写邮件时可一键把常用片段插入正文；点某条即插入。',
+  qtTitleLabel: '标题',
+  qtTitlePh: '请输入标题',
+  qtBodyLabel: '正文',
+  qtBodyPh: '请输入常用片段内容',
+  qtSave: '保存',
+  qtCancel: '取消',
+  qtDelete: '删除',
   sentOk: '✅ 成功发送',
   submittedBanner: '已提交发送，仍在投递中，结果稍后见邮件列表状态。',
   draftBanner: '已存入草稿箱。',
@@ -132,10 +157,63 @@ const visible = ref(false);
 const status = ref({ state: 'idle', msg: '' });
 const sending = computed(() => status.value.state === 'sending');
 
+const route = useRoute();
+const router = useRouter();
+
 const accounts = ref([]);
 const fromId = ref('');
 const templates = ref([]);
-const templateId = ref('');
+// —— 模板选择弹窗（点「模版」打开，个人/企业分 tab，仿小满 OKKI）——
+const templatePickerOpen = ref(false);
+const templateTab = ref('PERSONAL');
+const templateSearch = ref('');
+const templateCategory = ref('');
+const TPL_CATEGORY_LABELS = {
+  DEVELOPMENT: '开发信',
+  QUOTATION: '报价',
+  FOLLOW_UP: '跟进',
+  PAYMENT_REMINDER: '催款',
+  GREETING: '节日问候',
+  OTHER: '其他',
+};
+const templateCategoryOptions = [
+  { value: '', label: '全部模版类型' },
+  ...Object.entries(TPL_CATEGORY_LABELS).map(([value, label]) => ({
+    value,
+    label,
+  })),
+];
+const categoryMenuOpen = ref(false);
+const currentCategoryLabel = computed(
+  () =>
+    templateCategoryOptions.find(o => o.value === templateCategory.value)
+      ?.label || templateCategoryOptions[0].label
+);
+const pickerTemplates = computed(() => {
+  const kw = templateSearch.value.trim().toLowerCase();
+  return templates.value.filter(
+    tp =>
+      (tp.scope || 'COMPANY') === templateTab.value &&
+      (!templateCategory.value || tp.category === templateCategory.value) &&
+      (!kw || (tp.name || '').toLowerCase().includes(kw))
+  );
+});
+// —— 快速文本（个人常用片段，写邮件时一键插入正文）——
+const quickTextPickerOpen = ref(false);
+const quickTexts = ref([]);
+const quickTextSearch = ref('');
+const quickTextFormOpen = ref(false);
+const quickTextForm = reactive({ id: null, title: '', body: '' });
+const filteredQuickTexts = computed(() => {
+  const kw = quickTextSearch.value.trim().toLowerCase();
+  if (!kw) return quickTexts.value;
+  return quickTexts.value.filter(
+    q =>
+      (q.title || '').toLowerCase().includes(kw) ||
+      (q.body || '').toLowerCase().includes(kw)
+  );
+});
+
 const signatures = ref([]);
 // 当前签名以「附加块」形式拼进发出的邮件（不塞进 markdown 编辑器），可切换/移除。
 const activeSignatureId = ref('');
@@ -267,6 +345,19 @@ const FONT_SIZES = [
 ];
 const fontFamily = ref('');
 const fontSize = ref('');
+// 字体/字号：无边框「文字 + 符号」下拉（仿小满，替代原生 select 的框）。
+const showFontMenu = ref(false);
+const showSizeMenu = ref(false);
+const currentFontLabel = computed(
+  () =>
+    FONT_FAMILIES.find(f => f.value === fontFamily.value)?.label ||
+    FONT_FAMILIES[0].label
+);
+const currentSizeLabel = computed(
+  () =>
+    FONT_SIZES.find(s => s.value === fontSize.value)?.label ||
+    FONT_SIZES[0].label
+);
 
 // 选中文字颜色：颜料盘组件（预设色板/最近使用/渐变取色/hex 输入）见 CrmColorPalette。
 const editorRef = ref(null);
@@ -493,10 +584,19 @@ const pickContact = c => {
 };
 
 // ---- 模板 / 签名 ----
-const applyTemplate = async () => {
-  const tpl = templates.value.find(
-    x => String(x.id) === String(templateId.value)
-  );
+const openTemplatePicker = () => {
+  templateSearch.value = '';
+  templateCategory.value = '';
+  templatePickerOpen.value = true;
+};
+const openTemplateManage = () => {
+  const href = router.resolve({
+    name: 'crm_email_templates_index',
+    params: { accountId: route.params.accountId },
+  }).href;
+  window.open(href, '_blank'); // 新标签打开，避免丢失当前写信草稿
+};
+const applyTemplate = async tpl => {
   if (!tpl) return;
   if (tpl.subjectTemplate) form.subject = tpl.subjectTemplate;
   form.body = tpl.body || '';
@@ -513,6 +613,77 @@ const applyTemplate = async () => {
       }
     })
   );
+};
+
+const applyTemplateFromPicker = async tpl => {
+  await applyTemplate(tpl);
+  templatePickerOpen.value = false;
+};
+
+// —— 快速文本 ——
+const qtAccountId = () => route.params.accountId;
+const loadQuickTexts = async () => {
+  try {
+    const { data } = await QuickTextsAPI.get(qtAccountId());
+    quickTexts.value = camelcaseKeys(data.payload || [], { deep: true });
+  } catch {
+    quickTexts.value = [];
+  }
+};
+const openQuickTextPicker = async () => {
+  quickTextSearch.value = '';
+  quickTextFormOpen.value = false;
+  quickTextPickerOpen.value = true;
+  await loadQuickTexts();
+};
+// 列表预览去掉 HTML 标签只显示纯文本。
+const stripHtml = html =>
+  String(html || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+// 片段以富文本(HTML)存，插入时直接追加到当前正文末尾。
+const insertQuickText = qt => {
+  form.body = (form.body || '') + (qt.body || '');
+  quickTextPickerOpen.value = false;
+};
+const openQuickTextCreate = () => {
+  quickTextForm.id = null;
+  quickTextForm.title = '';
+  quickTextForm.body = '';
+  quickTextFormOpen.value = true;
+};
+const openQuickTextEdit = qt => {
+  quickTextForm.id = qt.id;
+  quickTextForm.title = qt.title || '';
+  quickTextForm.body = qt.body || '';
+  quickTextFormOpen.value = true;
+};
+const saveQuickText = async () => {
+  if (!quickTextForm.title.trim()) return;
+  const payload = {
+    title: quickTextForm.title.trim(),
+    body: quickTextForm.body,
+  };
+  try {
+    if (quickTextForm.id) {
+      await QuickTextsAPI.update(qtAccountId(), quickTextForm.id, payload);
+    } else {
+      await QuickTextsAPI.create(qtAccountId(), payload);
+    }
+    quickTextFormOpen.value = false;
+    await loadQuickTexts();
+  } catch {
+    // 保存失败静默（多为标题空）
+  }
+};
+const deleteQuickText = async qt => {
+  try {
+    await QuickTextsAPI.delete(qtAccountId(), qt.id);
+    await loadQuickTexts();
+  } catch {
+    // ignore
+  }
 };
 
 // 签名做「附加块」：选一条即设为当前签名（拼到正文后），选「不加签名」则移除。
@@ -771,7 +942,6 @@ const reset = () => {
   customer.value = null;
   contacts.value = [];
   contactId.value = '';
-  templateId.value = '';
   activeSignatureId.value = '';
   editId.value = null;
   existingFiles.value = [];
@@ -833,6 +1003,8 @@ const open = async prefill => {
     if (prefill.body) form.body = prefill.body;
     if (prefill.crmCustomerId) form.crmCustomerId = prefill.crmCustomerId;
     if (prefill.contactId) contactId.value = prefill.contactId;
+    // 从客户列表「写邮件」：带客户对象 → 自动带出客户+联系人+收件人。
+    if (prefill.customer) await pickCustomer(prefill.customer);
     // 编辑草稿：发件人对齐草稿原邮箱。
     if (prefill.fromAddress) {
       const acc = accounts.value.find(
@@ -1120,7 +1292,7 @@ defineExpose({ open, close });
               <!-- 文字颜色：A 直接套当前色，▾ 展开色板（含清除/自定义取色） -->
               <div
                 v-on-click-outside="() => (showColorMenu = false)"
-                class="relative flex items-stretch overflow-hidden border rounded shrink-0 border-n-weak"
+                class="relative flex items-center rounded shrink-0"
               >
                 <button
                   class="flex flex-col items-center justify-center h-7 w-7 hover:bg-n-alpha-2"
@@ -1139,7 +1311,7 @@ defineExpose({ open, close });
                   />
                 </button>
                 <button
-                  class="flex items-center justify-center h-7 w-5 border-l border-n-weak bg-n-alpha-1 hover:bg-n-alpha-2"
+                  class="flex items-center justify-center rounded h-7 w-4 hover:bg-n-alpha-2"
                   :title="L.colorPalette"
                   @mousedown.prevent
                   @click="showColorMenu = !showColorMenu"
@@ -1159,26 +1331,83 @@ defineExpose({ open, close });
                   />
                 </div>
               </div>
-              <select
-                v-model="fontFamily"
-                class="h-7 px-1.5 mb-0 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 outline-none focus:outline-none focus:ring-0 w-[124px]"
+              <!-- 字体：无边框「文字 + 符号」 -->
+              <div
+                v-on-click-outside="() => (showFontMenu = false)"
+                class="relative shrink-0"
               >
-                <option
-                  v-for="f in FONT_FAMILIES"
-                  :key="f.label"
-                  :value="f.value"
+                <button
+                  class="flex items-center h-7 gap-0.5 px-1.5 text-xs rounded text-n-slate-12 hover:bg-n-alpha-2"
+                  @mousedown.prevent
+                  @click="showFontMenu = !showFontMenu"
                 >
-                  {{ f.label }}
-                </option>
-              </select>
-              <select
-                v-model="fontSize"
-                class="h-7 px-1.5 mb-0 text-xs rounded reset-base bg-transparent border-0 text-n-slate-12 hover:bg-n-alpha-2 outline-none focus:outline-none focus:ring-0"
+                  {{ currentFontLabel }}
+                  <span
+                    class="i-lucide-chevron-down size-3.5 text-n-slate-10"
+                  />
+                </button>
+                <div
+                  v-if="showFontMenu"
+                  class="absolute left-0 z-20 py-1 overflow-y-auto border rounded-lg shadow-lg top-8 max-h-64 min-w-[140px] border-n-weak bg-n-solid-1"
+                >
+                  <button
+                    v-for="f in FONT_FAMILIES"
+                    :key="f.label"
+                    class="flex w-full px-3 py-1.5 text-xs text-left whitespace-nowrap hover:bg-n-alpha-1"
+                    :class="
+                      f.value === fontFamily
+                        ? 'text-n-blue-11 font-medium'
+                        : 'text-n-slate-12'
+                    "
+                    :style="f.value ? { fontFamily: f.value } : {}"
+                    @mousedown.prevent
+                    @click="
+                      fontFamily = f.value;
+                      showFontMenu = false;
+                    "
+                  >
+                    {{ f.label }}
+                  </button>
+                </div>
+              </div>
+              <!-- 字号：无边框「文字 + 符号」 -->
+              <div
+                v-on-click-outside="() => (showSizeMenu = false)"
+                class="relative shrink-0"
               >
-                <option v-for="s in FONT_SIZES" :key="s.label" :value="s.value">
-                  {{ s.label }}
-                </option>
-              </select>
+                <button
+                  class="flex items-center h-7 gap-0.5 px-1.5 text-xs rounded text-n-slate-12 hover:bg-n-alpha-2"
+                  @mousedown.prevent
+                  @click="showSizeMenu = !showSizeMenu"
+                >
+                  {{ currentSizeLabel }}
+                  <span
+                    class="i-lucide-chevron-down size-3.5 text-n-slate-10"
+                  />
+                </button>
+                <div
+                  v-if="showSizeMenu"
+                  class="absolute left-0 z-20 py-1 overflow-y-auto border rounded-lg shadow-lg top-8 max-h-64 min-w-[96px] border-n-weak bg-n-solid-1"
+                >
+                  <button
+                    v-for="s in FONT_SIZES"
+                    :key="s.label"
+                    class="flex w-full px-3 py-1.5 text-xs text-left whitespace-nowrap hover:bg-n-alpha-1"
+                    :class="
+                      s.value === fontSize
+                        ? 'text-n-blue-11 font-medium'
+                        : 'text-n-slate-12'
+                    "
+                    @mousedown.prevent
+                    @click="
+                      fontSize = s.value;
+                      showSizeMenu = false;
+                    "
+                  >
+                    {{ s.label }}
+                  </button>
+                </div>
+              </div>
             </div>
             <div
               class="flex flex-col px-3 pt-2 pb-3 crm-email-body"
@@ -1344,26 +1573,22 @@ defineExpose({ open, close });
             </span>
           </div>
 
-          <select
-            v-if="signatures.length"
-            v-model="activeSignatureId"
-            class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 outline-none focus:outline-none focus:ring-0 max-w-[128px] flex-shrink-0"
+          <button
+            type="button"
+            class="flex items-center flex-shrink-0 h-8 gap-1 px-3 text-xs border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+            @click="openTemplatePicker"
           >
-            <option value="">{{ L.noSignature }}</option>
-            <option v-for="s in signatures" :key="s.id" :value="s.id">
-              {{ s.name }}{{ s.isDefault ? L.defaultSig : '' }}
-            </option>
-          </select>
-          <select
-            v-model="templateId"
-            class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 outline-none focus:outline-none focus:ring-0 max-w-[128px] flex-shrink-0"
-            @change="applyTemplate"
+            <Icon icon="i-lucide-layout-template" class="size-3.5" />
+            {{ L.templateBtn }}
+          </button>
+          <button
+            type="button"
+            class="flex items-center flex-shrink-0 h-8 gap-1 px-3 text-xs border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+            @click="openQuickTextPicker"
           >
-            <option value="">{{ L.noTemplate }}</option>
-            <option v-for="tp in templates" :key="tp.id" :value="tp.id">
-              {{ `[${tp.category}] ${tp.name}` }}
-            </option>
-          </select>
+            <Icon icon="i-lucide-zap" class="size-3.5" />
+            {{ L.quickTextBtn }}
+          </button>
         </div>
       </div>
 
@@ -1661,6 +1886,311 @@ defineExpose({ open, close });
       </div>
     </div>
   </div>
+
+  <!-- 选择模板弹窗（仿小满 OKKI）：点「模版」打开，个人/企业分 tab，点某条即套用 -->
+  <Teleport to="body">
+    <div
+      v-if="templatePickerOpen"
+      class="fixed inset-0 z-[70] flex items-center justify-center bg-black/40"
+      @click.self="templatePickerOpen = false"
+    >
+      <div
+        class="flex flex-col w-[860px] max-w-[92vw] h-[560px] max-h-[88vh] overflow-hidden shadow-2xl bg-n-solid-1 rounded-2xl"
+      >
+        <div
+          class="flex items-center justify-between px-6 py-4 border-b border-n-weak"
+        >
+          <h3 class="text-lg font-medium text-n-slate-12">
+            {{ L.tplPickTitle }}
+          </h3>
+          <button
+            class="text-n-slate-10 hover:text-n-slate-12"
+            @click="templatePickerOpen = false"
+          >
+            <Icon icon="i-lucide-x" class="size-5" />
+          </button>
+        </div>
+
+        <div class="flex gap-6 px-6 border-b border-n-weak">
+          <button
+            v-for="tab in [
+              { value: 'PERSONAL', label: L.tplTabPersonal },
+              { value: 'COMPANY', label: L.tplTabCompany },
+            ]"
+            :key="tab.value"
+            class="py-3 -mb-px text-sm font-medium border-b-2"
+            :class="
+              templateTab === tab.value
+                ? 'border-n-blue-9 text-n-blue-11'
+                : 'border-transparent text-n-slate-11 hover:text-n-slate-12'
+            "
+            @click="templateTab = tab.value"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3 px-6 py-3">
+          <input
+            v-model="templateSearch"
+            type="text"
+            :placeholder="L.tplSearch"
+            class="h-9 px-3 text-sm border rounded-lg reset-base w-56 border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand"
+          />
+          <!-- 类型筛选：无边框「文字 + 符号」下拉（仿小满，整洁） -->
+          <div class="relative">
+            <button
+              type="button"
+              class="flex items-center h-9 gap-1 text-sm text-n-slate-12 hover:text-n-slate-11"
+              @click="categoryMenuOpen = !categoryMenuOpen"
+            >
+              {{ currentCategoryLabel }}
+              <span
+                class="size-4 text-n-slate-10"
+                :class="
+                  categoryMenuOpen
+                    ? 'i-lucide-chevron-up'
+                    : 'i-lucide-chevron-down'
+                "
+              />
+            </button>
+            <template v-if="categoryMenuOpen">
+              <div
+                class="fixed inset-0 z-[75]"
+                @click="categoryMenuOpen = false"
+              />
+              <div
+                class="absolute left-0 z-[80] mt-1 py-1 overflow-hidden border rounded-lg shadow-lg min-w-[140px] border-n-weak bg-n-solid-1"
+              >
+                <button
+                  v-for="opt in templateCategoryOptions"
+                  :key="opt.value"
+                  type="button"
+                  class="flex w-full px-3 py-1.5 text-sm text-left whitespace-nowrap hover:bg-n-alpha-1"
+                  :class="
+                    opt.value === templateCategory
+                      ? 'text-n-blue-11 font-medium'
+                      : 'text-n-slate-12'
+                  "
+                  @click="
+                    templateCategory = opt.value;
+                    categoryMenuOpen = false;
+                  "
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="flex-1 px-6 pb-4 overflow-y-auto">
+          <div
+            v-if="!pickerTemplates.length"
+            class="flex flex-col items-center justify-center h-full gap-3 text-n-slate-10"
+          >
+            <Icon icon="i-lucide-folder-open" class="size-10 opacity-40" />
+            <p class="text-sm">{{ L.tplEmpty }}</p>
+            <button
+              class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10"
+              @click="openTemplateManage"
+            >
+              {{ L.tplNew }}
+            </button>
+          </div>
+          <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <button
+              v-for="tp in pickerTemplates"
+              :key="tp.id"
+              type="button"
+              class="flex flex-col gap-2 p-4 text-left transition-all border rounded-xl border-n-weak bg-n-solid-1 hover:border-n-iris-7 hover:shadow-sm"
+              @click="applyTemplateFromPicker(tp)"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="font-medium truncate text-n-slate-12">
+                  {{ tp.name }}
+                </span>
+                <span
+                  class="px-1.5 py-0.5 rounded-full text-[11px] shrink-0 bg-n-slate-3 text-n-slate-11 ml-auto"
+                >
+                  {{ TPL_CATEGORY_LABELS[tp.category] || tp.category }}
+                </span>
+                <span
+                  v-if="tp.files && tp.files.length"
+                  class="inline-flex items-center gap-0.5 text-[11px] text-n-slate-10 shrink-0"
+                >
+                  <Icon icon="i-lucide-paperclip" class="size-3" />{{
+                    tp.files.length
+                  }}
+                </span>
+              </div>
+              <p
+                v-if="tp.subjectTemplate"
+                class="text-xs truncate text-n-slate-11"
+              >
+                {{ tp.subjectTemplate }}
+              </p>
+              <p
+                class="text-xs whitespace-pre-wrap line-clamp-3 text-n-slate-10"
+              >
+                {{ tp.body || '（无正文）' }}
+              </p>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- 快速文本：选择文本弹窗（点某条即插入正文；右下新建/编辑） -->
+  <Teleport to="body">
+    <div
+      v-if="quickTextPickerOpen"
+      class="fixed inset-0 z-[70] flex items-center justify-center bg-black/40"
+      @click.self="quickTextPickerOpen = false"
+    >
+      <div
+        class="flex flex-col w-[720px] max-w-[92vw] h-[520px] max-h-[86vh] overflow-hidden shadow-2xl bg-n-solid-1 rounded-2xl"
+      >
+        <div
+          class="flex items-center justify-between px-6 py-4 border-b border-n-weak"
+        >
+          <h3 class="text-lg font-medium text-n-slate-12">
+            {{ quickTextFormOpen ? L.qtNewTitle : L.qtPickTitle }}
+          </h3>
+          <button
+            class="text-n-slate-10 hover:text-n-slate-12"
+            @click="quickTextPickerOpen = false"
+          >
+            <Icon icon="i-lucide-x" class="size-5" />
+          </button>
+        </div>
+
+        <!-- 列表态 -->
+        <template v-if="!quickTextFormOpen">
+          <div class="px-6 py-3">
+            <input
+              v-model="quickTextSearch"
+              type="text"
+              :placeholder="L.qtSearch"
+              class="w-64 h-9 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand"
+            />
+          </div>
+          <div class="flex-1 px-6 overflow-y-auto">
+            <div
+              v-if="!filteredQuickTexts.length"
+              class="flex flex-col items-center justify-center h-full gap-2 text-n-slate-10"
+            >
+              <Icon icon="i-lucide-folder-open" class="size-10 opacity-40" />
+              <p class="text-sm">{{ L.qtEmpty }}</p>
+            </div>
+            <div v-else class="flex flex-col gap-2 pb-2">
+              <div
+                v-for="qt in filteredQuickTexts"
+                :key="qt.id"
+                class="flex items-start gap-2 p-3 transition-colors border cursor-pointer group rounded-xl border-n-weak hover:border-n-iris-7 hover:bg-n-alpha-1"
+                @click="insertQuickText(qt)"
+              >
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium truncate text-n-slate-12">
+                    {{ qt.title }}
+                  </div>
+                  <div class="text-xs line-clamp-2 text-n-slate-10">
+                    {{ stripHtml(qt.body) }}
+                  </div>
+                </div>
+                <div
+                  class="flex items-center gap-1 opacity-0 shrink-0 group-hover:opacity-100"
+                >
+                  <button
+                    class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                    @click.stop="openQuickTextEdit(qt)"
+                  >
+                    <Icon icon="i-lucide-pencil" class="size-3.5" />
+                  </button>
+                  <button
+                    class="p-1 rounded text-n-slate-10 hover:text-n-ruby-11 hover:bg-n-alpha-2"
+                    @click.stop="deleteQuickText(qt)"
+                  >
+                    <Icon icon="i-lucide-trash-2" class="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex items-center px-6 py-3 border-t border-n-weak bg-n-alpha-1"
+          >
+            <button
+              class="inline-flex items-center gap-1 text-sm font-medium text-n-iris-11 hover:text-n-iris-10"
+              @click="openQuickTextCreate"
+            >
+              <Icon icon="i-lucide-plus" class="size-4" />
+              {{ L.qtNew }}
+            </button>
+          </div>
+        </template>
+
+        <!-- 新建/编辑态 -->
+        <template v-else>
+          <div class="flex flex-col flex-1 gap-4 px-6 py-4 overflow-y-auto">
+            <div
+              class="flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-n-blue-2 text-n-blue-11"
+            >
+              <Icon icon="i-lucide-info" class="size-3.5 shrink-0" />
+              {{ L.qtHint }}
+            </div>
+            <div>
+              <label class="block mb-1 text-heading-3 text-n-slate-12">
+                {{ L.qtTitleLabel }}
+              </label>
+              <input
+                v-model="quickTextForm.title"
+                type="text"
+                :placeholder="L.qtTitlePh"
+                class="w-full h-9 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand"
+              />
+            </div>
+            <div class="flex flex-col flex-1 min-h-0">
+              <label class="block mb-1 text-heading-3 text-n-slate-12">
+                {{ L.qtBodyLabel }}
+              </label>
+              <div
+                class="flex-1 overflow-y-auto border rounded-lg reset-base border-n-weak bg-n-solid-1 min-h-[220px] px-3 py-2 crm-email-body"
+              >
+                <Editor
+                  v-model="quickTextForm.body"
+                  editor-key="crm-quick-text"
+                  channel-type="Channel::Email"
+                  enable-text-color
+                  :enable-canned-responses="false"
+                  :show-character-count="false"
+                  :placeholder="L.qtBodyPh"
+                />
+              </div>
+            </div>
+          </div>
+          <div
+            class="flex items-center justify-end gap-2 px-6 py-3 border-t border-n-weak"
+          >
+            <button
+              class="px-4 py-1.5 text-sm border rounded-full border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+              @click="quickTextFormOpen = false"
+            >
+              {{ L.qtCancel }}
+            </button>
+            <button
+              class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+              :disabled="!quickTextForm.title.trim()"
+              @click="saveQuickText"
+            >
+              {{ L.qtSave }}
+            </button>
+          </div>
+        </template>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1678,9 +2208,8 @@ defineExpose({ open, close });
 
 /* 正文默认排版对齐 Gmail 观感：干净无衬线 + 舒适行距（未选字体时生效） */
 .crm-email-body :deep(.ProseMirror) {
-  font-family:
-    Arial, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
+  font-family: Arial, 'Helvetica Neue', Helvetica, 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
   font-size: 14px;
   line-height: 1.6;
 }

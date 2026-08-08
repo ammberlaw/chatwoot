@@ -7,8 +7,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
-import { useMapGetter } from 'dashboard/composables/store';
-import CrmMemberAPI from 'dashboard/api/crm/members';
+import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -24,8 +23,7 @@ const { accountId } = useAccount();
 const store = useCrmSalesOrdersStore();
 
 const createDialogRef = ref(null);
-const { isCrmSales, isCrmManager, isCrmTeamLead } = useCrmRole();
-const currentUserForFilter = useMapGetter('getCurrentUser');
+const { isCrmSales, isCrmTeamLead } = useCrmRole();
 // 能看「本人以外」的订单：管理员/副管理员/部门主管，或 CRM 团队负责人（订单按 CRM 团队收口）。
 const canViewTeam = computed(() => !isCrmSales.value || isCrmTeamLead.value);
 // 纯业务员只看个人订单：无「全部」视图，默认落在「我的」（未关联客户视图保留）。
@@ -77,24 +75,12 @@ const ownerFilterOptions = computed(() => [
   { value: '', label: t('CRM.SALES_ORDERS.FILTERS.ALL_OWNER') },
   ...agents.value.map(a => ({ value: String(a.id), label: a.name })),
 ]);
-// 主管/CRM 团队负责人：业务员下拉只列自己团队（成员接口已按辖区收口）；管理员列全账号成员。
+// 业务员下拉只列 CRM 成员，按 CRM 团队口径收口（与订单可见范围一致）：
+// 业务员=自己、团队负责人=本团队、管理员=全部 CRM 成员。
 const fetchAgents = async () => {
   try {
-    if (isCrmManager.value || isCrmTeamLead.value) {
-      const { data } = await CrmMemberAPI.get();
-      const me = currentUserForFilter.value || {};
-      agents.value = [
-        { id: me.id, name: `${me.name}（我）` },
-        ...(data.payload || [])
-          .filter(m => m.user_id !== me.id)
-          .map(m => ({ id: m.user_id, name: m.name })),
-      ];
-      return;
-    }
-    const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/agents`
-    );
-    agents.value = data || [];
+    const { data } = await CrmAgentAPI.get(accountId.value, 'team');
+    agents.value = data.payload || [];
   } catch {
     agents.value = [];
   }

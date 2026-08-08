@@ -54,6 +54,10 @@
 class Crm::SalesOrder < ApplicationRecord
   STATUSES = %w[PENDING_CONFIRMATION IN_PRODUCTION PENDING_SHIPMENT SHIPPED COMPLETED CANCELLED].freeze
 
+  # 折算人民币的金额表达式（现汇买入价锁定在 exchange_rate；CNY/无汇率按 1）。
+  # 看板/统计一律用它做 SUM，避免多币种直接混加。列名带表前缀以兼容 join 查询。
+  RMB_AMOUNT_MICROS_SQL = 'ROUND(crm_sales_orders.order_amount_micros * COALESCE(crm_sales_orders.exchange_rate, 1))'.freeze
+
   belongs_to :account
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true
   belongs_to :contact, optional: true
@@ -70,6 +74,7 @@ class Crm::SalesOrder < ApplicationRecord
 
   before_validation :generate_order_no, on: :create
   before_save :assign_team_from_owner, if: :will_save_change_to_owner_id?
+  before_save :lock_exchange_rate
 
   validates :name, presence: true
   validates :order_no, presence: true, uniqueness: { scope: :account_id }
@@ -85,6 +90,15 @@ class Crm::SalesOrder < ApplicationRecord
   scope :dealt, -> { where.not(status: 'CANCELLED') }
 
   private
+
+  # 外币订单锁定「做单当日」中行现汇买入价折算汇率；手填优先，抓不到则留空（看板按 1 处理/可后补）。
+  def lock_exchange_rate
+    return if order_currency.blank? || order_currency == 'CNY'
+    return if exchange_rate.present?
+
+    rate = Crm::FxRate.rate_for(order_currency, order_date || Time.zone.today)
+    self.exchange_rate = rate if rate
+  end
 
   # 新建订单必须至少上传一个附件（如 PI、生产订单）。
   def require_attachment_on_create

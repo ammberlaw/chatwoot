@@ -8,6 +8,7 @@ import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
+import EmailFoldersAPI from 'dashboard/api/crm/emailFolders';
 import CrmAiAPI from 'dashboard/api/crm/ai';
 import AgentAPI from 'dashboard/api/agents';
 import { stripTextColorMarkers } from 'dashboard/helper/editorTextColor';
@@ -62,10 +63,102 @@ const folderFromRoute = () => {
   return route.query.folder || 'INBOX';
 };
 const activeFolder = ref(folderFromRoute());
+// 自定义文件夹（个人）当前选中 id；非空时列表按该文件夹取数。
+const activeCustomFolderId = ref(null);
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
+
+// —— 按日期分组（今天/昨天/本周/本月/更早按年月），互斥桶，列表已按日期倒序 ——
+const dateBucket = dateStr => {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return { key: 'unknown', label: '未知日期' };
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startYesterday = new Date(startToday);
+  startYesterday.setDate(startToday.getDate() - 1);
+  const dow = (startToday.getDay() + 6) % 7; // 周一=0
+  const startWeek = new Date(startToday);
+  startWeek.setDate(startToday.getDate() - dow);
+  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  if (d >= startToday) return { key: 'today', label: '今天' };
+  if (d >= startYesterday) return { key: 'yesterday', label: '昨天' };
+  if (d >= startWeek) return { key: 'week', label: '本周' };
+  if (d >= startMonth) return { key: 'month', label: '本月' };
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return { key: `${y}-${m}`, label: `${y}年${m}月` };
+};
+const groupedRecords = computed(() => {
+  const groups = [];
+  const map = {};
+  records.value.forEach(r => {
+    const b = dateBucket(r.emailDate);
+    if (!map[b.key]) {
+      map[b.key] = { key: b.key, label: b.label, items: [] };
+      groups.push(map[b.key]);
+    }
+    map[b.key].items.push(r);
+  });
+  return groups;
+});
+
+// —— 多选 + 批量操作 ——
+const selectedIds = ref([]);
+const selectionActive = computed(() => selectedIds.value.length > 0);
+const toggleSelect = id => {
+  const i = selectedIds.value.indexOf(id);
+  if (i >= 0) selectedIds.value.splice(i, 1);
+  else selectedIds.value.push(id);
+};
+const allLoadedSelected = computed(
+  () =>
+    records.value.length > 0 &&
+    selectedIds.value.length === records.value.length
+);
+const toggleSelectAll = () => {
+  selectedIds.value = allLoadedSelected.value
+    ? []
+    : records.value.map(r => r.id);
+};
+const clearSelection = () => {
+  selectedIds.value = [];
+};
+const bulkBusy = ref(false);
+const bulkMarkRead = async isRead => {
+  bulkBusy.value = true;
+  try {
+    await Promise.all(
+      selectedIds.value.map(id => store.update({ id, isRead }))
+    );
+    useAlert(isRead ? '已标记为已读' : '已标记为未读');
+    clearSelection();
+    fetchCounts();
+  } catch {
+    useAlert('操作失败');
+  } finally {
+    bulkBusy.value = false;
+  }
+};
+const bulkDelete = async () => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(`确定删除选中的 ${selectedIds.value.length} 封邮件？`))
+    return;
+  bulkBusy.value = true;
+  try {
+    await Promise.all(selectedIds.value.map(id => store.delete(id)));
+    useAlert('已删除');
+    clearSelection();
+    fetchRecords();
+    fetchCounts();
+    fetchMailboxes();
+  } catch {
+    useAlert('删除失败');
+  } finally {
+    bulkBusy.value = false;
+  }
+};
 
 const SEND_STATUSES = {
   DRAFT: { label: '草稿', class: 'bg-n-slate-3 text-n-slate-11' },
@@ -156,10 +249,14 @@ const safeBodyHtml = computed(() =>
     : ''
 );
 
-const baseParams = () =>
-  FILTER_FOLDERS.includes(activeFolder.value)
+const baseParams = () => {
+  if (activeCustomFolderId.value) {
+    return { page: 1, email_folder_id: activeCustomFolderId.value };
+  }
+  return FILTER_FOLDERS.includes(activeFolder.value)
     ? { page: 1, filter: activeFolder.value }
     : { page: 1, folder: activeFolder.value };
+};
 
 // 当前 owner_id + mailbox 过滤参数（我的/团队 + 选中邮箱）。
 const scopeParams = () => {
@@ -201,8 +298,10 @@ const fetchMailboxes = async () => {
 };
 
 const fetchRecords = () => {
-  const params = { ...baseParams(), ...scopeParams() };
+  // 列表按日期分组需一次多取（上限 200），覆盖近几个月，分组封数才准。
+  const params = { ...baseParams(), ...scopeParams(), per_page: 200 };
   if (searchTerm.value.trim()) params.q = searchTerm.value.trim();
+  selectedIds.value = [];
   store.get(params);
 };
 
@@ -273,13 +372,81 @@ const fetchMembers = async () => {
 };
 
 const setFolder = key => {
-  if (activeFolder.value === key) return;
+  if (activeFolder.value === key && !activeCustomFolderId.value) return;
   activeFolder.value = key;
+  activeCustomFolderId.value = null;
   activeMailbox.value = '';
   selectedEmail.value = null;
   fetchMailboxes();
   fetchCounts();
   fetchRecords();
+};
+
+// —— 自定义文件夹（个人私有：把选中邮件归集）——
+const acctId = () => route.params.accountId;
+const emailFolders = ref([]);
+const foldersExpanded = ref(true);
+const moveMenuOpen = ref(false);
+const fetchFolders = async () => {
+  try {
+    const { data } = await EmailFoldersAPI.get(acctId());
+    emailFolders.value = data.payload || [];
+  } catch {
+    emailFolders.value = [];
+  }
+};
+const selectCustomFolder = id => {
+  activeCustomFolderId.value = id;
+  activeMailbox.value = '';
+  selectedEmail.value = null;
+  fetchRecords();
+};
+const createFolder = async () => {
+  // eslint-disable-next-line no-alert
+  const name = window.prompt('新建文件夹名称');
+  if (!name || !name.trim()) return null;
+  try {
+    const { data } = await EmailFoldersAPI.create(acctId(), name.trim());
+    await fetchFolders();
+    return data.id;
+  } catch {
+    useAlert('新建失败');
+    return null;
+  }
+};
+const deleteFolder = async folder => {
+  // eslint-disable-next-line no-alert
+  if (
+    !window.confirm(
+      `删除文件夹「${folder.name}」？里面的邮件会回到收件箱等原处。`
+    )
+  )
+    return;
+  try {
+    await EmailFoldersAPI.delete(acctId(), folder.id);
+    if (activeCustomFolderId.value === folder.id) setFolder('INBOX');
+    await fetchFolders();
+  } catch {
+    useAlert('删除失败');
+  }
+};
+// 批量移动到文件夹（folderId=null 移出到系统视图）
+const moveToFolder = async folderId => {
+  moveMenuOpen.value = false;
+  try {
+    await EmailFoldersAPI.move(acctId(), selectedIds.value, folderId);
+    useAlert('已移动');
+    clearSelection();
+    fetchRecords();
+    fetchCounts();
+    fetchFolders();
+  } catch {
+    useAlert('移动失败');
+  }
+};
+const moveToNewFolder = async () => {
+  const id = await createFolder();
+  if (id) moveToFolder(id);
 };
 
 const openCompose = prefill => composeStore.open(prefill);
@@ -543,6 +710,7 @@ onMounted(() => {
   fetchCounts();
   fetchMembers();
   fetchMailboxes();
+  fetchFolders();
   if (route.query.compose) openCompose();
 });
 
@@ -633,6 +801,54 @@ watch(
             </button>
           </div>
         </template>
+
+        <!-- 文件夹：可折叠父项，点击展开子文件夹 -->
+        <button
+          class="flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors text-n-slate-11 hover:bg-n-alpha-1"
+          @click="foldersExpanded = !foldersExpanded"
+        >
+          <Icon icon="i-lucide-folder" class="flex-shrink-0 size-4" />
+          <span class="flex-1 text-left">文件夹</span>
+          <Icon
+            :icon="
+              foldersExpanded ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'
+            "
+            class="size-4 text-n-slate-10"
+          />
+        </button>
+        <div
+          v-if="foldersExpanded"
+          class="flex flex-col mb-1 border-l gap-0.5 ml-5 pl-1.5 border-n-weak"
+        >
+          <button
+            v-for="f in emailFolders"
+            :key="f.id"
+            class="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors group"
+            :class="
+              activeCustomFolderId === f.id
+                ? 'bg-n-iris-2 text-n-iris-11 font-medium'
+                : 'text-n-slate-11 hover:bg-n-alpha-1'
+            "
+            @click="selectCustomFolder(f.id)"
+          >
+            <span class="flex-1 text-left truncate">{{ f.name }}</span>
+            <span v-if="f.count" class="text-xs tabular-nums text-n-slate-10">
+              {{ f.count }}
+            </span>
+            <Icon
+              icon="i-lucide-trash-2"
+              class="size-3.5 opacity-0 group-hover:opacity-100 hover:text-n-ruby-11"
+              @click.stop="deleteFolder(f)"
+            />
+          </button>
+          <button
+            class="flex items-center gap-1 px-2 py-1.5 text-sm rounded-md text-n-slate-10 hover:bg-n-alpha-1"
+            @click="createFolder"
+          >
+            <Icon icon="i-lucide-plus" class="size-3.5" />
+            新建文件夹
+          </button>
+        </div>
       </nav>
     </aside>
 
@@ -733,108 +949,231 @@ watch(
           {{ t('CRM.EMAILS.EMPTY') }}
         </div>
         <template v-else>
-          <button
-            v-for="record in records"
-            :key="record.id"
-            class="flex w-full gap-3 px-4 py-3 text-left transition-colors border-b border-n-weak"
-            :class="
-              selectedEmail?.id === record.id
-                ? 'bg-n-iris-2'
-                : 'hover:bg-n-alpha-1'
-            "
-            @click="selectEmail(record)"
+          <!-- 批量操作条：紧凑图标 + tooltip -->
+          <div
+            v-if="selectedIds.length"
+            class="sticky top-0 z-10 flex items-center gap-2 px-3 py-2 border-b bg-n-iris-2 border-n-weak"
           >
-            <div
-              class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9"
-              :class="avatarClass(record)"
-            >
-              {{ initial(counterparty(record)) }}
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center justify-between gap-2">
-                <span
-                  class="text-sm truncate"
-                  :class="
-                    record.folder === 'INBOX' && !record.isRead
-                      ? 'font-semibold text-n-slate-12'
-                      : 'font-medium text-n-slate-11'
-                  "
-                >
-                  {{ counterparty(record) || '—' }}
-                </span>
-                <span class="flex-shrink-0 text-xs text-n-slate-10">
-                  {{ relTime(record.emailDate) }}
-                </span>
-              </div>
-              <div
-                class="mt-0.5 text-sm truncate"
-                :class="
-                  record.folder === 'INBOX' && !record.isRead
-                    ? 'font-medium text-n-slate-12'
-                    : 'text-n-slate-11'
-                "
-              >
-                {{ record.subject || '(无主题)' }}
-              </div>
-              <div class="mt-0.5 text-xs truncate text-n-slate-10">
-                {{ stripTextColorMarkers(record.body) || '（无正文）' }}
-              </div>
-              <div class="flex items-center gap-2 mt-1.5">
-                <span
-                  v-if="record.folder !== 'INBOX'"
-                  class="px-1.5 py-0.5 rounded text-[11px] font-medium"
-                  :class="SEND_STATUSES[record.sendStatus]?.class"
-                >
-                  {{ SEND_STATUSES[record.sendStatus]?.label }}
-                </span>
-                <span
-                  v-if="isAdmin && record.ownerName"
-                  class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] bg-n-iris-3 text-n-iris-11 truncate max-w-[96px]"
-                >
-                  <Icon icon="i-lucide-user" class="size-3" />
-                  {{ record.ownerName }}
-                </span>
-                <span
-                  v-if="record.customerName"
-                  class="px-1.5 py-0.5 rounded text-[11px] bg-n-alpha-2 text-n-slate-11 truncate max-w-[140px]"
-                >
-                  {{ record.customerName }}
-                </span>
-                <Icon
-                  v-if="record.files?.length"
-                  icon="i-lucide-paperclip"
-                  class="size-3 text-n-slate-10"
-                />
-                <span
-                  v-if="record.tracked && record.openCount"
-                  class="inline-flex items-center gap-0.5 text-[11px] text-n-teal-11"
-                >
-                  <Icon icon="i-lucide-eye" class="size-3" />
-                  {{ record.openCount }}
-                </span>
-              </div>
-            </div>
-            <div class="flex flex-col items-center flex-shrink-0 gap-1.5">
-              <span
-                v-if="record.folder === 'INBOX' && !record.isRead"
-                class="w-2 h-2 rounded-full bg-n-iris-9"
-              />
+            <input
+              type="checkbox"
+              class="accent-n-iris-9"
+              title="全选"
+              :checked="allLoadedSelected"
+              @change="toggleSelectAll"
+            />
+            <span class="text-xs whitespace-nowrap text-n-slate-11">
+              已选 {{ selectedIds.length }}
+            </span>
+            <div class="flex items-center gap-0.5 ml-auto">
               <button
-                class="transition-colors"
-                :class="
-                  record.isStarred
-                    ? 'text-n-iris-9'
-                    : 'text-n-slate-8 hover:text-n-iris-9'
-                "
-                @click.stop="toggleStar(record)"
+                class="flex items-center justify-center rounded size-8 text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
+                title="标记已读"
+                :disabled="bulkBusy"
+                @click="bulkMarkRead(true)"
               >
-                <Icon
-                  :icon="record.isStarred ? 'i-ph-star-fill' : 'i-lucide-star'"
-                  class="size-4"
-                />
+                <Icon icon="i-lucide-mail-open" class="size-5" />
+              </button>
+              <button
+                class="flex items-center justify-center rounded size-8 text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
+                title="标记未读"
+                :disabled="bulkBusy"
+                @click="bulkMarkRead(false)"
+              >
+                <Icon icon="i-lucide-mail" class="size-5" />
+              </button>
+              <div class="relative">
+                <button
+                  class="flex items-center justify-center rounded size-8 text-n-slate-11 hover:bg-n-alpha-2"
+                  title="移动至文件夹"
+                  @click="moveMenuOpen = !moveMenuOpen"
+                >
+                  <Icon icon="i-lucide-folder-input" class="size-5" />
+                </button>
+                <template v-if="moveMenuOpen">
+                  <div
+                    class="fixed inset-0 z-20"
+                    @click="moveMenuOpen = false"
+                  />
+                  <div
+                    class="absolute right-0 z-30 mt-1 py-1 overflow-y-auto border rounded-lg shadow-lg min-w-[150px] max-h-64 border-n-weak bg-n-solid-1"
+                  >
+                    <button
+                      v-for="f in emailFolders"
+                      :key="f.id"
+                      class="flex w-full px-3 py-1.5 text-sm text-left whitespace-nowrap hover:bg-n-alpha-1 text-n-slate-12"
+                      @click="moveToFolder(f.id)"
+                    >
+                      {{ f.name }}
+                    </button>
+                    <div
+                      v-if="emailFolders.length"
+                      class="my-1 border-t border-n-weak"
+                    />
+                    <button
+                      class="flex items-center w-full gap-1 px-3 py-1.5 text-sm text-left text-n-iris-11 hover:bg-n-alpha-1"
+                      @click="moveToNewFolder"
+                    >
+                      <Icon icon="i-lucide-plus" class="size-3.5" />新建文件夹
+                    </button>
+                  </div>
+                </template>
+              </div>
+              <button
+                class="flex items-center justify-center rounded size-8 text-n-ruby-11 hover:bg-n-ruby-3 disabled:opacity-50"
+                title="删除"
+                :disabled="bulkBusy"
+                @click="bulkDelete"
+              >
+                <Icon icon="i-lucide-trash-2" class="size-5" />
+              </button>
+              <button
+                class="flex items-center justify-center rounded size-8 text-n-slate-10 hover:bg-n-alpha-2"
+                title="取消"
+                @click="clearSelection"
+              >
+                <Icon icon="i-lucide-x" class="size-4" />
               </button>
             </div>
-          </button>
+          </div>
+
+          <template v-for="group in groupedRecords" :key="group.key">
+            <div
+              class="flex items-center gap-2 px-4 py-1.5 text-xs font-medium bg-n-alpha-1 text-n-slate-11"
+            >
+              {{ group.label }}
+              <span class="text-n-slate-10"
+                >（{{ group.items.length }} 封）</span
+              >
+            </div>
+            <div
+              v-for="record in group.items"
+              :key="record.id"
+              class="flex items-center border-b group border-n-weak"
+              :class="
+                selectedEmail?.id === record.id
+                  ? 'bg-n-iris-2'
+                  : selectedIds.includes(record.id)
+                    ? 'bg-n-iris-1'
+                    : 'hover:bg-n-alpha-1'
+              "
+            >
+              <button
+                class="flex flex-1 min-w-0 gap-3 py-3 pl-1 pr-4 text-left"
+                @click="selectEmail(record)"
+              >
+                <div
+                  class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9"
+                  :class="avatarClass(record)"
+                >
+                  {{ initial(counterparty(record)) }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between gap-2">
+                    <span
+                      class="text-sm truncate"
+                      :class="
+                        record.folder === 'INBOX' && !record.isRead
+                          ? 'font-semibold text-n-slate-12'
+                          : 'font-medium text-n-slate-11'
+                      "
+                    >
+                      {{ counterparty(record) || '—' }}
+                    </span>
+                    <span class="flex-shrink-0 text-xs text-n-slate-10">
+                      {{ relTime(record.emailDate) }}
+                    </span>
+                  </div>
+                  <div
+                    class="mt-0.5 text-sm truncate"
+                    :class="
+                      record.folder === 'INBOX' && !record.isRead
+                        ? 'font-medium text-n-slate-12'
+                        : 'text-n-slate-11'
+                    "
+                  >
+                    {{ record.subject || '(无主题)' }}
+                  </div>
+                  <div class="mt-0.5 text-xs truncate text-n-slate-10">
+                    {{ stripTextColorMarkers(record.body) || '（无正文）' }}
+                  </div>
+                  <div class="flex items-center gap-2 mt-1.5">
+                    <span
+                      v-if="record.folder !== 'INBOX'"
+                      class="px-1.5 py-0.5 rounded text-[11px] font-medium"
+                      :class="SEND_STATUSES[record.sendStatus]?.class"
+                    >
+                      {{ SEND_STATUSES[record.sendStatus]?.label }}
+                    </span>
+                    <span
+                      v-if="mailScope === 'team' && record.ownerName"
+                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] bg-n-iris-3 text-n-iris-11 truncate max-w-[96px]"
+                    >
+                      <Icon icon="i-lucide-user" class="size-3" />
+                      {{ record.ownerName }}
+                    </span>
+                    <span
+                      v-if="record.customerName"
+                      class="px-1.5 py-0.5 rounded text-[11px] bg-n-alpha-2 text-n-slate-11 truncate max-w-[140px]"
+                    >
+                      {{ record.customerName }}
+                    </span>
+                    <Icon
+                      v-if="record.files?.length"
+                      icon="i-lucide-paperclip"
+                      class="size-3 text-n-slate-10"
+                    />
+                    <span
+                      v-if="record.tracked && record.openCount"
+                      class="inline-flex items-center gap-0.5 text-[11px] text-n-teal-11"
+                    >
+                      <Icon icon="i-lucide-eye" class="size-3" />
+                      {{ record.openCount }}
+                    </span>
+                  </div>
+                </div>
+                <div
+                  class="flex items-center flex-shrink-0 gap-1.5 self-start pt-0.5"
+                >
+                  <span
+                    v-if="record.folder === 'INBOX' && !record.isRead"
+                    class="w-2 h-2 rounded-full bg-n-iris-9"
+                  />
+                  <button
+                    class="transition-colors"
+                    :class="
+                      record.isStarred
+                        ? 'text-n-iris-9'
+                        : 'text-n-slate-8 hover:text-n-iris-9'
+                    "
+                    @click.stop="toggleStar(record)"
+                  >
+                    <Icon
+                      :icon="
+                        record.isStarred ? 'i-ph-star-fill' : 'i-lucide-star'
+                      "
+                      class="size-4"
+                    />
+                  </button>
+                  <label
+                    class="flex items-center transition-opacity cursor-pointer"
+                    :class="
+                      selectionActive || selectedIds.includes(record.id)
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100'
+                    "
+                    @click.stop
+                  >
+                    <input
+                      type="checkbox"
+                      class="accent-n-iris-9"
+                      :checked="selectedIds.includes(record.id)"
+                      @change="toggleSelect(record.id)"
+                    />
+                  </label>
+                </div>
+              </button>
+            </div>
+          </template>
         </template>
       </div>
     </section>
@@ -1210,6 +1549,5 @@ watch(
         </div>
       </template>
     </section>
-
   </div>
 </template>

@@ -11,7 +11,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
               .includes(:crm_customer, :owner)
               .order(email_date: :desc)
               .page(permitted_params[:page] || 1)
-              .per(RESULTS_PER_PAGE)
+              .per(page_size)
     @counterparty_types = build_counterparty_types(@emails)
   end
 
@@ -23,6 +23,8 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
     scope = scope.where.not(owner_id: params[:exclude_owner_id]) if params[:exclude_owner_id].present?
     scope = filter_by_mailbox(scope) if params[:mailbox].present?
+    # 系统文件夹角标排除已移入自定义文件夹的邮件（与列表移动语义一致）。
+    scope = scope.where(crm_email_folder_id: nil)
     by_folder = scope.group(:folder).count
     render json: {
       INBOX: by_folder['INBOX'].to_i,
@@ -129,6 +131,17 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     head :ok
   end
 
+  # 批量移动到自定义文件夹（email_folder_id 为空=移出文件夹回到系统视图）。只动可见邮件。
+  def move_to_folder
+    folder_id = params[:email_folder_id].presence
+    if folder_id && !Current.account.crm_email_folders.owned_by(current_user.id).exists?(id: folder_id)
+      return render json: { error: '文件夹不存在' }, status: :unprocessable_entity
+    end
+
+    visible_emails.where(id: Array(params[:ids])).update_all(crm_email_folder_id: folder_id, updated_at: Time.current)
+    head :ok
+  end
+
   private
 
   def fetch_email
@@ -147,7 +160,14 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   # 阅读邮件视图筛选：文件夹/未读/星标/我的、按业务员（管理员）、按客户、搜主题/邮箱。
   def filtered_emails
     scope = apply_scope_filters(visible_emails)
-    scope = scope.in_folder(params[:folder]) if params[:folder].present?
+    if params[:email_folder_id].present?
+      # 自定义文件夹视图：只看该文件夹内的邮件。
+      scope = scope.where(crm_email_folder_id: params[:email_folder_id])
+    else
+      # 系统视图（收件箱/发件箱等）排除已移入自定义文件夹的邮件（移动语义）。
+      scope = scope.where(crm_email_folder_id: nil)
+      scope = scope.in_folder(params[:folder]) if params[:folder].present?
+    end
     scope = search_emails(scope, params[:q]) if params[:q].present?
     scope
   end
@@ -190,8 +210,14 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     )
   end
 
+  # 每页条数：默认 25；列表页按日期分组需一次多取，允许 per_page 覆盖（上限 200）。
+  def page_size
+    req = permitted_params[:per_page].to_i
+    req.positive? ? [req, 200].min : RESULTS_PER_PAGE
+  end
+
   def permitted_params
-    params.permit(:page, :folder, :filter, :customer_id, :owner_id, :exclude_owner_id, :q)
+    params.permit(:page, :per_page, :folder, :filter, :customer_id, :owner_id, :exclude_owner_id, :q, :email_folder_id)
   end
 
   # 列表头像按「对方」身份着色，与邮箱身份识别悬浮卡同口径：

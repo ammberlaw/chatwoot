@@ -27,16 +27,18 @@ class Api::V1::Accounts::Crm::FollowUpNotesController < Api::V1::Accounts::Crm::
 
   private
 
+  # 单条也按可见范围收口，防止凭 id 越权查看/改他人跟进记录。
   def fetch_note
-    @note = Current.account.crm_follow_up_notes.find(params[:id])
+    @note = scope_by_team_owner(Current.account.crm_follow_up_notes).find(params[:id])
   end
 
   def check_authorization
     authorize(Crm::FollowUpNote)
   end
 
+  # 数据范围按 CRM 团队收口（负责人列=owner_id）：业务员看自己 / 团队负责人看本队 / 管理员看全部。
   def filtered_notes
-    scope = Current.account.crm_follow_up_notes
+    scope = scope_by_team_owner(Current.account.crm_follow_up_notes)
     scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
     scope

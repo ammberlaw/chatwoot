@@ -33,6 +33,7 @@
 #  product_group            :string
 #  public_pool_at           :datetime
 #  risk_level               :string
+#  shared_user_ids          :bigint           default([]), not null, is an Array
 #  source_channel           :string
 #  trade_city               :string
 #  trade_country            :string
@@ -54,6 +55,7 @@
 #  index_crm_customers_on_account_id_and_is_in_public_pool  (account_id,is_in_public_pool)
 #  index_crm_customers_on_account_id_and_last_follow_up_at  (account_id,last_follow_up_at)
 #  index_crm_customers_on_account_owner_id                  (account_owner_id)
+#  index_crm_customers_on_shared_user_ids                   (shared_user_ids) USING gin
 #
 # Foreign Keys
 #

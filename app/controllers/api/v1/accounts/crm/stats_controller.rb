@@ -70,7 +70,7 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
 
   def buckets_by(unit, count)
     trunc = Arel.sql("DATE_TRUNC('#{unit}', order_date)")
-    amount = year_orders.group(trunc).sum(:order_amount_micros)
+    amount = year_orders.group(trunc).sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
     counts = year_orders.group(trunc).count
     distinct = year_orders.where.not(crm_customer_id: nil).group(trunc).distinct.count(:crm_customer_id)
     new_trunc = Arel.sql("DATE_TRUNC('#{unit}', first_deal_at)")
@@ -92,7 +92,7 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
   def yearly_bucket
     {
       period: @year,
-      amount_micros: year_orders.sum(:order_amount_micros),
+      amount_micros: year_orders.sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL)),
       order_count: year_orders.count,
       deal_customers: year_orders.where.not(crm_customer_id: nil).distinct.count(:crm_customer_id),
       new_customers: customers.where(first_deal_at: year_range).count
@@ -122,7 +122,7 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
       total_customers: customers.count,
       won_customers: customers.where(customer_status: 'WON').count,
       open_opportunities: opportunities.open_stages.count,
-      total_order_amount_micros: all_orders.sum(:order_amount_micros),
+      total_order_amount_micros: all_orders.sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL)),
       dealt_customers_total: customers.where.not(first_deal_at: nil).count,
       public_pool_customers: Current.account.crm_customers.in_public_pool.count,
       avg_reply_latency_hours: emails.average(:reply_latency_hours)&.to_f&.round(1)
@@ -131,8 +131,8 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
 
   def team_stats
     {
-      by_team_amount: all_orders.joins(:crm_team).group('crm_teams.name').sum(:order_amount_micros),
-      by_owner_amount: all_orders.joins(:owner).group('users.name').sum(:order_amount_micros),
+      by_team_amount: all_orders.joins(:crm_team).group('crm_teams.name').sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL)),
+      by_owner_amount: all_orders.joins(:owner).group('users.name').sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL)),
       by_owner_won_customers: customers.where(customer_status: 'WON').joins(:account_owner).group('users.name').count,
       by_owner_completeness: completeness_by_owner,
       by_owner_reply_latency: emails.joins(:owner).group('users.name').average(:reply_latency_hours)
@@ -161,6 +161,6 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
   end
 
   def this_month_amount
-    all_orders.where(order_date: Time.zone.today.beginning_of_month..).sum(:order_amount_micros)
+    all_orders.where(order_date: Time.zone.today.beginning_of_month..).sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
   end
 end

@@ -37,7 +37,7 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
 
   # 释放到商机公海：仅可释放自己数据范围内的商机。
   def release
-    @opportunity = scope_by_owner(Current.account.crm_opportunities).find(params[:id])
+    @opportunity = scope_by_team_owner(Current.account.crm_opportunities).find(params[:id])
     @opportunity.move_to_public_pool!
     render :show
   end
@@ -47,7 +47,7 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
   # 按可见范围取商机：业务员只能查看/编辑/删除自己的，主管本团队，管理员全部。
   # 越权访问（如业务员删他人商机）会因不在范围内而 RecordNotFound → 404。
   def fetch_opportunity
-    @opportunity = scope_by_owner(Current.account.crm_opportunities).find(params[:id])
+    @opportunity = scope_by_team_owner(Current.account.crm_opportunities).find(params[:id])
   end
 
   def check_authorization
@@ -61,7 +61,7 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
     return Current.account.crm_opportunities.in_public_pool if params[:filter] == 'public_pool'
 
     # 数据范围（按 CRM 角色）：管理员全部 / 主管团队 / 业务员本人。公海商机不混入常规视图。
-    scope = scope_by_owner(view_scoped(Current.account.crm_opportunities.in_private_pool))
+    scope = scope_by_team_owner(view_scoped(Current.account.crm_opportunities.in_private_pool))
     scope = scope.where(sales_stage: params[:sales_stage]) if params[:sales_stage].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
     scope = scope.where(owner_id: filter_owner_ids) if filter_owner_ids

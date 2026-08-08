@@ -32,6 +32,7 @@
 #  chatwoot_message_id :bigint
 #  contact_id          :bigint
 #  crm_customer_id     :bigint
+#  crm_email_folder_id :bigint
 #  message_id          :string
 #  owner_id            :bigint
 #
@@ -45,6 +46,7 @@
 #  index_crm_emails_on_chatwoot_message_id           (chatwoot_message_id) UNIQUE WHERE (chatwoot_message_id IS NOT NULL)
 #  index_crm_emails_on_contact_id                    (contact_id)
 #  index_crm_emails_on_crm_customer_id               (crm_customer_id)
+#  index_crm_emails_on_crm_email_folder_id           (crm_email_folder_id)
 #  index_crm_emails_on_owner_id                      (owner_id)
 #  index_crm_emails_on_send_status_and_scheduled_at  (send_status,scheduled_at)
 #  index_crm_emails_on_tracking_token                (tracking_token) UNIQUE WHERE (tracking_token IS NOT NULL)
@@ -65,6 +67,7 @@ class Crm::Email < ApplicationRecord
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true
   belongs_to :contact, optional: true
   belongs_to :owner, class_name: 'User', optional: true
+  belongs_to :crm_email_folder, class_name: 'Crm::EmailFolder', optional: true, inverse_of: :emails
 
   has_many :opens, class_name: 'Crm::EmailOpen', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
   has_many_attached :files

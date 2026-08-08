@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_07_000004) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_08_000005) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -970,12 +970,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000004) do
     t.string "address"
     t.string "linkedin"
     t.bigint "previous_owner_id"
+    t.bigint "shared_user_ids", default: [], null: false, array: true
     t.index ["account_id", "customer_code"], name: "index_crm_customers_on_account_id_and_customer_code", unique: true, where: "(customer_code IS NOT NULL)"
     t.index ["account_id", "customer_status"], name: "index_crm_customers_on_account_id_and_customer_status"
     t.index ["account_id", "is_in_public_pool"], name: "index_crm_customers_on_account_id_and_is_in_public_pool"
     t.index ["account_id", "last_follow_up_at"], name: "index_crm_customers_on_account_id_and_last_follow_up_at"
     t.index ["account_id"], name: "index_crm_customers_on_account_id"
     t.index ["account_owner_id"], name: "index_crm_customers_on_account_owner_id"
+    t.index ["shared_user_ids"], name: "index_crm_customers_on_shared_user_ids", using: :gin
   end
 
   create_table "crm_doc_sections", force: :cascade do |t|
@@ -988,6 +990,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000004) do
     t.bigint "viewer_ids", default: [], null: false, array: true
     t.index ["account_id", "name"], name: "index_crm_doc_sections_on_account_id_and_name", unique: true
     t.index ["account_id"], name: "index_crm_doc_sections_on_account_id"
+  end
+
+  create_table "crm_email_folders", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id", null: false
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "owner_id"], name: "index_crm_email_folders_on_account_id_and_owner_id"
   end
 
   create_table "crm_email_opens", force: :cascade do |t|
@@ -1023,7 +1034,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000004) do
     t.string "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "scope", default: "COMPANY", null: false
+    t.bigint "owner_id"
+    t.index ["account_id", "scope"], name: "index_crm_email_templates_on_account_id_and_scope"
     t.index ["account_id"], name: "index_crm_email_templates_on_account_id"
+    t.index ["owner_id"], name: "index_crm_email_templates_on_owner_id"
   end
 
   create_table "crm_emails", force: :cascade do |t|
@@ -1055,6 +1070,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000004) do
     t.datetime "last_opened_at"
     t.string "message_id"
     t.datetime "scheduled_at"
+    t.bigint "crm_email_folder_id"
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
@@ -1064,6 +1080,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000004) do
     t.index ["chatwoot_message_id"], name: "index_crm_emails_on_chatwoot_message_id", unique: true, where: "(chatwoot_message_id IS NOT NULL)"
     t.index ["contact_id"], name: "index_crm_emails_on_contact_id"
     t.index ["crm_customer_id"], name: "index_crm_emails_on_crm_customer_id"
+    t.index ["crm_email_folder_id"], name: "index_crm_emails_on_crm_email_folder_id"
     t.index ["owner_id"], name: "index_crm_emails_on_owner_id"
     t.index ["send_status", "scheduled_at"], name: "index_crm_emails_on_send_status_and_scheduled_at"
     t.index ["tracking_token"], name: "index_crm_emails_on_tracking_token", unique: true, where: "(tracking_token IS NOT NULL)"
@@ -1161,6 +1178,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000004) do
     t.index ["contact_id"], name: "index_crm_follow_up_tasks_on_contact_id"
     t.index ["crm_customer_id"], name: "index_crm_follow_up_tasks_on_crm_customer_id"
     t.index ["crm_opportunity_id"], name: "index_crm_follow_up_tasks_on_crm_opportunity_id"
+  end
+
+  create_table "crm_fx_rates", force: :cascade do |t|
+    t.string "currency", null: false
+    t.date "quote_date", null: false
+    t.decimal "rate", precision: 16, scale: 6, null: false
+    t.string "source", default: "BOC", null: false
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["currency", "quote_date"], name: "index_crm_fx_rates_on_currency_and_quote_date", unique: true
   end
 
   create_table "crm_knowledge_categories", force: :cascade do |t|
@@ -1497,6 +1525,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_000004) do
     t.integer "claim_cooldown_days", default: 30, null: false
     t.boolean "monthly_report_enabled", default: true, null: false
     t.index ["account_id"], name: "index_crm_public_pool_settings_on_account_id", unique: true
+  end
+
+  create_table "crm_quick_texts", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id", null: false
+    t.string "title", null: false
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "owner_id"], name: "index_crm_quick_texts_on_account_id_and_owner_id"
   end
 
   create_table "crm_quote_line_items", force: :cascade do |t|

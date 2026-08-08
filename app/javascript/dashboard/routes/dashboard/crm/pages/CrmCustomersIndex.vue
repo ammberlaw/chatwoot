@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
@@ -8,18 +8,22 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useMapGetter } from 'dashboard/composables/store';
-import CrmMemberAPI from 'dashboard/api/crm/members';
+import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
+import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmCustomerImportDialog from 'dashboard/components-next/CRM/CrmCustomerImportDialog.vue';
-import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import CrmPagination from 'dashboard/components-next/CRM/CrmPagination.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
+import { COUNTRY_TZ } from 'dashboard/routes/dashboard/crm/helper/scheduleTimezone';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 
 // 与后端 CustomersController::RESULTS_PER_PAGE 保持一致。
-const ITEMS_PER_PAGE = 15;
+const PAGE_SIZE_OPTIONS = [15, 30, 50, 100];
+const pageSize = ref(15);
 
 const { t } = useI18n();
 const route = useRoute();
@@ -85,7 +89,10 @@ const sourceChannelOptions = computed(() => [
 // 客户状态 / 客户等级下拉（空值 = 全部）；状态标签取 STATUS_META（getter 惰性，无 TDZ）。
 const statusFilterOptions = computed(() => [
   { value: '', label: '全部客户状态' },
-  ...Object.entries(STATUS_META).map(([value, m]) => ({ value, label: m.label })),
+  ...Object.entries(STATUS_META).map(([value, m]) => ({
+    value,
+    label: m.label,
+  })),
 ]);
 const levelFilterOptions = [
   { value: '', label: '全部客户等级' },
@@ -96,7 +103,7 @@ const levelFilterOptions = [
 const teamMembers = ref([]);
 const fetchTeamMembers = async () => {
   try {
-    const { data } = await CrmMemberAPI.get();
+    const { data } = await CrmAgentAPI.get(accountId.value, 'team');
     teamMembers.value = data.payload || [];
   } catch {
     teamMembers.value = [];
@@ -132,6 +139,7 @@ const fetchCustomers = () => {
   }
   return customersStore.get({
     page: currentPage.value,
+    per_page: pageSize.value,
     filter,
     customer_group: activeCustomerGroup.value || undefined,
     product_group: activeProductGroup.value || undefined,
@@ -190,10 +198,9 @@ const canSelectRows = computed(
 const allAgentsForAssign = ref([]);
 const fetchAllAgentsForAssign = async () => {
   try {
-    const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/agents`
-    );
-    allAgentsForAssign.value = data || [];
+    // 分配/转移目标：可指派给任意 CRM 成员（scope=all，不按可见范围收），但只列 CRM 成员。
+    const { data } = await CrmAgentAPI.get(accountId.value, 'all');
+    allAgentsForAssign.value = data.payload || [];
   } catch {
     allAgentsForAssign.value = [];
   }
@@ -322,6 +329,12 @@ const setLevel = value => {
 
 const onPageChange = page => {
   currentPage.value = page;
+  fetchCustomers();
+};
+
+const onPageSizeChange = value => {
+  pageSize.value = Number(value);
+  currentPage.value = 1;
   fetchCustomers();
 };
 
@@ -557,6 +570,169 @@ const releaseCustomer = async customer => {
   }
 };
 
+// —— 行操作菜单 + sticky 列偏移 ——
+const composeStore = useCrmComposeStore();
+const openMenuId = ref(null);
+const STICKY = { cb: 44, name: 200 };
+const nameLeft = computed(() => (canSelectRows.value ? STICKY.cb : 0));
+const countryLeft = computed(() => nameLeft.value + STICKY.name);
+// sticky 单元格需不透明底色（否则右滑时会透出下层内容）；选中行用 iris-2。
+const rowStickyBg = customer =>
+  selectedCustomer.value?.id === customer.id ? 'bg-n-iris-2' : 'bg-n-solid-1';
+
+// 时区列：按客户国家取当地当前时间 + UTC 偏移（如 08:42 UTC+0），每分钟刷新。
+const now = ref(new Date());
+let clockTimer = null;
+const customerTime = customer => {
+  const tz = COUNTRY_TZ[customer.tradeCountry];
+  if (!tz) return '';
+  try {
+    const time = new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(now.value);
+    const off =
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        timeZoneName: 'shortOffset',
+      })
+        .formatToParts(now.value)
+        .find(p => p.type === 'timeZoneName')?.value || 'GMT';
+    const utc = off === 'GMT' ? 'UTC+0' : off.replace('GMT', 'UTC');
+    return `${time} ${utc}`;
+  } catch {
+    return '';
+  }
+};
+// 行操作菜单 Teleport 到 body（避开表格横向滚动容器裁剪），按按钮位置定位。
+const menuAnchor = ref({ top: 0, left: 0 });
+const menuCustomer = computed(
+  () => customers.value.find(c => c.id === openMenuId.value) || null
+);
+const toggleRowMenu = (id, event) => {
+  if (openMenuId.value === id) {
+    openMenuId.value = null;
+    return;
+  }
+  const r = event.currentTarget.getBoundingClientRect();
+  menuAnchor.value = { top: r.bottom + 4, left: r.right - 148 };
+  openMenuId.value = id;
+};
+
+// 写邮件：常驻写信窗，带客户预填（自动带出联系人/收件人）。
+const writeEmail = customer => {
+  openMenuId.value = null;
+  composeStore.open({
+    customer: {
+      id: customer.id,
+      name: customer.name,
+      tradeCountry: customer.tradeCountry,
+    },
+  });
+};
+
+// 目标客户（分组/转移/共享 弹窗共用）
+const rowTarget = ref(null);
+const moveGroupDialogRef = ref(null);
+const transferDialogRef = ref(null);
+const shareDialogRef = ref(null);
+const moveGroupValue = ref('');
+const transferValue = ref('');
+const shareUserIds = ref([]);
+
+const moveGroupOptions = computed(() => [
+  { value: '', label: '不分组' },
+  ...groupOptions.value,
+]);
+const openMoveGroup = customer => {
+  openMenuId.value = null;
+  rowTarget.value = customer;
+  moveGroupValue.value = customer.customerGroup || '';
+  moveGroupDialogRef.value?.open();
+};
+const saveMoveGroup = async () => {
+  try {
+    await axios.patch(`${crmApi()}/${rowTarget.value.id}`, {
+      customer: { customer_group: moveGroupValue.value || null },
+    });
+    useAlert('已移动分组');
+    fetchCustomers();
+  } catch {
+    useAlert('操作失败');
+  }
+};
+
+const ensureAgents = async () => {
+  if (!allAgentsForAssign.value.length) await fetchAllAgentsForAssign();
+};
+const transferOptions = computed(() => [
+  { value: '', label: '选择业务员…' },
+  ...allAgentsForAssign.value
+    .filter(a => a.id !== rowTarget.value?.accountOwnerId)
+    .map(a => ({ value: String(a.id), label: a.name })),
+]);
+// 级联项：转移客户时是否把商机/订单/邮件一并转给新负责人（默认全带）。
+const transferCascade = ref({
+  opportunities: true,
+  orders: true,
+  emails: true,
+});
+const transferTitle = computed(() =>
+  rowTarget.value ? `将【${rowTarget.value.name}】转移给` : '转移给'
+);
+const openTransfer = async customer => {
+  openMenuId.value = null;
+  rowTarget.value = customer;
+  transferValue.value = '';
+  transferCascade.value = { opportunities: true, orders: true, emails: true };
+  await ensureAgents();
+  transferDialogRef.value?.open();
+};
+const saveTransfer = async () => {
+  if (!transferValue.value) return;
+  try {
+    await axios.post(`${crmApi()}/reassign`, {
+      ids: [rowTarget.value.id],
+      owner_id: Number(transferValue.value),
+      cascade: transferCascade.value,
+    });
+    useAlert('已转移');
+    fetchCustomers();
+  } catch (e) {
+    useAlert(e.response?.data?.error || '转移失败');
+  }
+};
+
+// 共享候选：除负责人本人外的全部 CRM 成员。
+const shareCandidates = computed(() =>
+  allAgentsForAssign.value.filter(a => a.id !== rowTarget.value?.accountOwnerId)
+);
+const openShare = async customer => {
+  openMenuId.value = null;
+  rowTarget.value = customer;
+  shareUserIds.value = [...(customer.sharedUserIds || [])];
+  await ensureAgents();
+  shareDialogRef.value?.open();
+};
+const toggleShareUser = id => {
+  const i = shareUserIds.value.indexOf(id);
+  if (i >= 0) shareUserIds.value.splice(i, 1);
+  else shareUserIds.value.push(id);
+};
+const saveShare = async () => {
+  try {
+    await axios.post(`${crmApi()}/${rowTarget.value.id}/share`, {
+      user_ids: shareUserIds.value,
+    });
+    useAlert('已更新共享');
+    fetchCustomers();
+  } catch (e) {
+    useAlert(e.response?.data?.error || '共享失败');
+  }
+};
+
 // 软色胶囊：浅底 + 同色文字，仿 Twenty 标签观感。
 // 用字面量类名(Tailwind 只编译源码里出现的完整类名，动态拼接会被漏掉)。
 const PILL = {
@@ -616,7 +792,10 @@ const gradeMeta = c => GRADE_META[c.completenessGrade] || null;
 const statusMeta = c => STATUS_META[c.customerStatus] || null;
 const sourceMeta = c =>
   c.sourceChannel
-    ? { label: sourceLabel(c.sourceChannel), color: sourceColor(c.sourceChannel) }
+    ? {
+        label: sourceLabel(c.sourceChannel),
+        color: sourceColor(c.sourceChannel),
+      }
     : null;
 const regionMeta = c => REGION_META[c.tradeRegion] || null;
 const levelColor = level => LEVEL_COLOR[level] || 'slate';
@@ -750,7 +929,11 @@ onMounted(() => {
   }
   ensureLoaded();
   fetchCustomers();
+  clockTimer = setInterval(() => {
+    now.value = new Date();
+  }, 60000);
 });
+onBeforeUnmount(() => clearInterval(clockTimer));
 watch(
   () => route.query.filter,
   value => {
@@ -933,9 +1116,12 @@ watch(
         >
           <div class="overflow-x-auto">
             <table class="w-full text-sm text-left border-collapse">
-              <thead class="bg-n-alpha-1 text-n-slate-11">
+              <thead class="bg-n-solid-1 text-n-slate-11">
                 <tr class="border-b border-n-weak">
-                  <th v-if="canSelectRows" class="w-10 px-3 py-3">
+                  <th
+                    v-if="canSelectRows"
+                    class="sticky left-0 z-20 w-11 px-3 py-3 bg-n-solid-1"
+                  >
                     <input
                       type="checkbox"
                       class="accent-n-iris-9"
@@ -943,8 +1129,24 @@ watch(
                       @change="toggleSelectAll"
                     />
                   </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  <th
+                    class="sticky z-20 px-4 py-3 font-medium bg-n-solid-1 whitespace-nowrap"
+                    :style="{
+                      left: nameLeft + 'px',
+                      width: STICKY.name + 'px',
+                    }"
+                  >
                     {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
+                  </th>
+                  <th
+                    class="sticky z-20 px-4 py-3 font-medium border-r bg-n-solid-1 whitespace-nowrap border-n-weak"
+                    :style="{ left: countryLeft + 'px' }"
+                  >
+                    {{ t('CRM.CUSTOMERS.TABLE.COUNTRY') }}
+                  </th>
+                  <th class="px-4 py-3 font-medium whitespace-nowrap">时区</th>
+                  <th class="px-4 py-3 font-medium whitespace-nowrap">
+                    主要联系人
                   </th>
                   <th class="px-4 py-3 font-medium whitespace-nowrap">
                     <button
@@ -997,9 +1199,6 @@ watch(
                     {{ t('CRM.CUSTOMERS.TABLE.SOURCE') }}
                   </th>
                   <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.CUSTOMERS.TABLE.COUNTRY') }}
-                  </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
                     {{ t('CRM.CUSTOMERS.TABLE.REGION') }}
                   </th>
                   <th class="px-4 py-3 font-medium whitespace-nowrap">
@@ -1010,7 +1209,7 @@ watch(
                     }}
                   </th>
                   <th
-                    class="px-4 py-3 font-medium text-right whitespace-nowrap"
+                    class="sticky right-0 z-20 px-4 py-3 font-medium text-right border-l bg-n-solid-1 whitespace-nowrap border-n-weak"
                   >
                     {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
                   </th>
@@ -1026,7 +1225,12 @@ watch(
                   }"
                   @click="selectCustomer(customer)"
                 >
-                  <td v-if="canSelectRows" class="w-10 px-3 py-3" @click.stop>
+                  <td
+                    v-if="canSelectRows"
+                    class="sticky left-0 z-10 w-11 px-3 py-3"
+                    :class="rowStickyBg(customer)"
+                    @click.stop
+                  >
                     <input
                       type="checkbox"
                       class="accent-n-iris-9"
@@ -1034,16 +1238,40 @@ watch(
                       @change="toggleSelect(customer.id)"
                     />
                   </td>
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-2 whitespace-nowrap">
+                  <td
+                    class="sticky z-10 px-4 py-3"
+                    :class="rowStickyBg(customer)"
+                    :style="{
+                      left: nameLeft + 'px',
+                      width: STICKY.name + 'px',
+                    }"
+                  >
+                    <div class="flex items-center gap-2 min-w-0">
                       <span
                         class="flex items-center justify-center flex-shrink-0 text-xs font-semibold rounded-lg w-6 h-6"
                         :class="avatarCls(customer.name)"
                       >
                         {{ initial(customer.name) }}
                       </span>
-                      <span class="text-n-slate-12">{{ customer.name }}</span>
+                      <span class="truncate text-n-slate-12">
+                        {{ customer.name }}
+                      </span>
                     </div>
+                  </td>
+                  <td
+                    class="sticky z-10 px-4 py-3 border-r whitespace-nowrap border-n-weak text-n-slate-11"
+                    :class="rowStickyBg(customer)"
+                    :style="{ left: countryLeft + 'px' }"
+                  >
+                    {{ countryLabel(customer.tradeCountry) }}
+                  </td>
+                  <td
+                    class="px-4 py-3 whitespace-nowrap text-n-slate-11 tabular-nums"
+                  >
+                    {{ customerTime(customer) || '—' }}
+                  </td>
+                  <td class="px-4 py-3 whitespace-nowrap text-n-slate-11">
+                    {{ customer.primaryContactName || '—' }}
                   </td>
                   <td class="px-4 py-3">
                     <span
@@ -1096,9 +1324,6 @@ watch(
                     </span>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
-                  <td class="px-4 py-3 text-n-slate-11 whitespace-nowrap">
-                    {{ countryLabel(customer.tradeCountry) }}
-                  </td>
                   <td class="px-4 py-3">
                     <span
                       v-if="regionMeta(customer)"
@@ -1121,7 +1346,11 @@ watch(
                     </span>
                     <span v-else class="text-n-slate-10">未分配</span>
                   </td>
-                  <td class="px-4 py-3 text-right" @click.stop>
+                  <td
+                    class="sticky right-0 z-10 px-4 py-3 text-right border-l border-n-weak"
+                    :class="rowStickyBg(customer)"
+                    @click.stop
+                  >
                     <Button
                       v-if="customer.isInPublicPool"
                       :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
@@ -1130,15 +1359,13 @@ watch(
                       :is-loading="actingId === customer.id"
                       @click="claimCustomer(customer)"
                     />
-                    <Button
+                    <button
                       v-else
-                      :label="t('CRM.CUSTOMERS.POOL.RELEASE')"
-                      size="sm"
-                      variant="faded"
-                      color="slate"
-                      :is-loading="actingId === customer.id"
-                      @click="releaseCustomer(customer)"
-                    />
+                      class="inline-flex items-center justify-center rounded size-7 text-n-slate-11 hover:bg-n-alpha-2"
+                      @click="toggleRowMenu(customer.id, $event)"
+                    >
+                      <span class="i-lucide-ellipsis-vertical size-4" />
+                    </button>
                   </td>
                 </tr>
               </tbody>
@@ -1147,14 +1374,19 @@ watch(
         </div>
       </div>
 
-      <PaginationFooter
-        v-if="totalCount > ITEMS_PER_PAGE"
-        :current-page="currentPage"
-        :total-items="totalCount"
-        :items-per-page="ITEMS_PER_PAGE"
-        class="flex-shrink-0"
-        @update:current-page="onPageChange"
-      />
+      <div
+        v-if="totalCount > 0"
+        class="flex items-center justify-end flex-shrink-0 px-6 py-3 border-t border-n-weak bg-n-surface-1"
+      >
+        <CrmPagination
+          :total="totalCount"
+          :current-page="currentPage"
+          :page-size="pageSize"
+          :page-size-options="PAGE_SIZE_OPTIONS"
+          @update:current-page="onPageChange"
+          @update:page-size="onPageSizeChange"
+        />
+      </div>
     </div>
 
     <!-- 右侧客户详情面板 -->
@@ -1468,5 +1700,164 @@ watch(
       :member-options="importMemberOptions"
       @imported="fetchCustomers"
     />
+
+    <!-- 行操作菜单（Teleport 到 body，避开表格滚动容器裁剪） -->
+    <Teleport to="body">
+      <template v-if="menuCustomer">
+        <div class="fixed inset-0 z-[60]" @click="openMenuId = null" />
+        <div
+          class="fixed z-[61] py-1 border rounded-lg shadow-lg w-[148px] border-n-weak bg-n-solid-1"
+          :style="{ top: menuAnchor.top + 'px', left: menuAnchor.left + 'px' }"
+        >
+          <button
+            class="w-full px-4 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            @click="writeEmail(menuCustomer)"
+          >
+            写邮件
+          </button>
+          <button
+            class="w-full px-4 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            @click="openMoveGroup(menuCustomer)"
+          >
+            移动至分组
+          </button>
+          <button
+            class="w-full px-4 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            @click="openTransfer(menuCustomer)"
+          >
+            转移给
+          </button>
+          <button
+            class="w-full px-4 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            @click="openShare(menuCustomer)"
+          >
+            共享客户
+          </button>
+          <div class="my-1 border-t border-n-weak" />
+          <button
+            class="w-full px-4 py-2 text-sm text-left text-n-ruby-11 hover:bg-n-alpha-1"
+            @click="
+              releaseCustomer(menuCustomer);
+              openMenuId = null;
+            "
+          >
+            移入公海
+          </button>
+        </div>
+      </template>
+    </Teleport>
+
+    <!-- 移动至分组 -->
+    <Dialog
+      ref="moveGroupDialogRef"
+      title="移动至分组"
+      confirm-button-color="iris"
+      @confirm="saveMoveGroup"
+    >
+      <div class="flex flex-col gap-1.5">
+        <label class="text-heading-3 text-n-slate-12">选择分组</label>
+        <Select v-model="moveGroupValue" :options="moveGroupOptions" />
+      </div>
+    </Dialog>
+
+    <!-- 转移给 -->
+    <Dialog
+      ref="transferDialogRef"
+      :title="transferTitle"
+      confirm-button-color="iris"
+      :disable-confirm-button="!transferValue"
+      @confirm="saveTransfer"
+    >
+      <div class="flex flex-col gap-4">
+        <div
+          class="flex items-start gap-2 px-3 py-2 text-xs rounded-lg bg-n-blue-2 text-n-blue-11"
+        >
+          <span class="i-lucide-info size-3.5 shrink-0 mt-0.5" />
+          转移客户后，新负责人将可见该客户的全部详细资料。
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-heading-3 text-n-slate-12">转移给</label>
+          <Select
+            v-model="transferValue"
+            :options="transferOptions"
+            placeholder="请选择"
+          />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label
+            class="flex items-center gap-2.5 cursor-pointer text-sm text-n-slate-12"
+          >
+            <input
+              type="checkbox"
+              class="accent-n-iris-9"
+              :checked="transferCascade.opportunities"
+              @change="
+                transferCascade.opportunities = !transferCascade.opportunities
+              "
+            />
+            一并转移客户商机
+          </label>
+          <label
+            class="flex items-center gap-2.5 cursor-pointer text-sm text-n-slate-12"
+          >
+            <input
+              type="checkbox"
+              class="accent-n-iris-9"
+              :checked="transferCascade.orders"
+              @change="transferCascade.orders = !transferCascade.orders"
+            />
+            一并转移客户订单（含报价）
+          </label>
+          <label
+            class="flex items-center gap-2.5 cursor-pointer text-sm text-n-slate-12"
+          >
+            <input
+              type="checkbox"
+              class="accent-n-iris-9"
+              :checked="transferCascade.emails"
+              @change="transferCascade.emails = !transferCascade.emails"
+            />
+            一并转移客户邮件
+          </label>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 共享客户 -->
+    <Dialog
+      ref="shareDialogRef"
+      title="共享客户"
+      confirm-button-color="iris"
+      @confirm="saveShare"
+    >
+      <div class="flex flex-col gap-3">
+        <p class="text-xs text-n-slate-10">
+          被共享的成员可查看该客户（不改变归属）。
+        </p>
+        <div
+          class="flex flex-col gap-1 p-2 overflow-y-auto border rounded-lg max-h-64 border-n-weak"
+        >
+          <label
+            v-for="m in shareCandidates"
+            :key="m.id"
+            class="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-n-alpha-1"
+          >
+            <input
+              type="checkbox"
+              class="accent-n-iris-9"
+              :checked="shareUserIds.includes(m.id)"
+              @change="toggleShareUser(m.id)"
+            />
+            <span class="text-sm text-n-slate-12">{{ m.name }}</span>
+          </label>
+          <p
+            v-if="!shareCandidates.length"
+            class="px-2 py-4 text-sm text-center text-n-slate-10"
+          >
+            暂无可共享成员
+          </p>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>

@@ -8,6 +8,13 @@ internal_check_new_versions_job:
   cron: '0 0 * * *'
   class: 'Internal::TriggerDailyScheduledItemsJob'
   queue: scheduled_jobs
+
+# 抓取中国银行现汇买入价（外币销售订单折算人民币用），每天多次覆盖当日更新
+# UTC 01/05/09 = 北京时间 09/13/17 点，覆盖中行日间多次刷新
+crm_fx_rate_sync_job:
+  cron: '0 1,5,9 * * *'
+  class: 'Crm::FxRateSyncJob'
+  queue: scheduled_jobs
 # # executed At every 5th minute..
 trigger_scheduled_items_job:
   cron: '*/5 * * * *'

@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :attach, :detach, :audits, :detail]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail]
 
   RESULTS_PER_PAGE = 15
   MAX_IMPORT_ROWS = 2000
@@ -152,13 +152,13 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     target_id = params[:owner_id].to_i
     return render json: { error: '目标成员不存在' }, status: :unprocessable_entity unless Current.account.account_users.exists?(user_id: target_id)
 
-    scope = scope_by_owner(Current.account.crm_customers.where(is_in_public_pool: false), column: :account_owner_id)
+    scope = scope_by_team_owner(Current.account.crm_customers.where(is_in_public_pool: false), column: :account_owner_id)
     customers = scope.where(id: Array(params[:ids]))
     return render json: { error: '只能分配给自己团队的业务员' }, status: :forbidden unless reassign_target_allowed?(customers, target_id)
 
     customer_ids = customers.pluck(:id)
     Current.account.crm_customers.where(id: customer_ids).update_all(account_owner_id: target_id, updated_at: Time.current)
-    cascade_reassign(customer_ids, target_id)
+    cascade_reassign(customer_ids, target_id, cascade_options)
     render json: { reassigned: customer_ids.size }
   end
 
@@ -176,6 +176,15 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   # 转公海：清空负责人、进公海。
   def release
     @customer.move_to_public_pool!
+    render 'api/v1/accounts/crm/customers/show'
+  end
+
+  # 共享客户：设置协作人（被共享成员可见该客户）。仅负责人本人或管理员/副管理员可共享。
+  def share
+    return render json: { error: '无权共享该客户' }, status: :forbidden unless share_allowed?
+
+    ids = Array(params[:user_ids]).map(&:to_i).select(&:positive?).uniq
+    @customer.update!(shared_user_ids: ids)
     render 'api/v1/accounts/crm/customers/show'
   end
 
@@ -225,19 +234,32 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   private
 
   # 分配级联：公海中的商机不动（保持共享池语义），其余关联数据全部随客户换负责人。
-  def cascade_reassign(customer_ids, target_id)
+  # 转移勾选项：商机/订单(含报价)/邮件 是否随客户转给新负责人。未传 cascade 时默认全带（向后兼容）。
+  def cascade_options
+    c = params[:cascade]
+    return { opportunities: true, orders: true, emails: true } if c.blank?
+
+    bool = ->(v) { ActiveModel::Type::Boolean.new.cast(v) }
+    { opportunities: bool.call(c[:opportunities]), orders: bool.call(c[:orders]), emails: bool.call(c[:emails]) }
+  end
+
+  def cascade_reassign(customer_ids, target_id, opts)
     return if customer_ids.empty?
 
     stamp = { owner_id: target_id, updated_at: Time.current }
-    Current.account.crm_opportunities.where(crm_customer_id: customer_ids, is_in_public_pool: false).update_all(stamp)
-    Current.account.crm_sales_orders.where(crm_customer_id: customer_ids).update_all(stamp)
-    Current.account.crm_quotes.where(crm_customer_id: customer_ids).update_all(stamp)
-    Current.account.crm_emails.where(crm_customer_id: customer_ids).update_all(stamp)
+    if opts[:opportunities]
+      Current.account.crm_opportunities.where(crm_customer_id: customer_ids, is_in_public_pool: false).update_all(stamp)
+    end
+    if opts[:orders]
+      Current.account.crm_sales_orders.where(crm_customer_id: customer_ids).update_all(stamp)
+      Current.account.crm_quotes.where(crm_customer_id: customer_ids).update_all(stamp)
+    end
+    Current.account.crm_emails.where(crm_customer_id: customer_ids).update_all(stamp) if opts[:emails]
   end
 
   # 目标校验：全是自己的客户→任意成员；含团队成员的客户→目标须在自己辖区内；管理员不限。
   def reassign_target_allowed?(customers, target_id)
-    visible = crm_visible_owner_ids
+    visible = crm_team_visible_owner_ids
     return true if visible == :all || visible.include?(target_id)
 
     customers.where.not(account_owner_id: current_user.id).none?
@@ -263,7 +285,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   # 支持常用视图筛选：公海池/我的/未分配 + 按状态/客户分组/产品分组/负责人。
-  # 私海侧按部门授权收口（管理员看全部/主管看本部门/业务员看自己）；公海是共享池不限。
+  # 私海侧按 CRM 团队收口（管理员看全部/CRM 团队负责人看本团队/业务员看自己）；公海是共享池不限。
   def filtered_customers
     scope = pool_scope(Current.account.crm_customers)
     scope = restrict_by_org(scope) unless params[:filter] == 'public_pool'
@@ -279,9 +301,22 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     scope
   end
 
-  # 按 CRM 角色限定可见负责人（非公海视图）：管理员全部 / 主管团队 / 业务员本人。
+  # 按 CRM 角色限定可见负责人（非公海视图）：管理员全部 / 主管团队 / 业务员本人；
+  # 额外：被共享（协作人含我）的客户也可见。
   def restrict_by_org(scope)
-    scope_by_owner(scope, column: :account_owner_id)
+    ids = crm_team_visible_owner_ids
+    return scope if ids == :all
+
+    scope.where(
+      'crm_customers.account_owner_id IN (:ids) OR :uid = ANY(crm_customers.shared_user_ids)',
+      ids: ids, uid: current_user.id
+    )
+  end
+
+  # 共享权限：管理员/副管理员，或该客户当前负责人本人。
+  def share_allowed?
+    au = Current.account_user
+    au.administrator? || au.crm_deputy_admin? || @customer.account_owner_id == current_user.id
   end
 
   # 团队成员的 user id 集合（admin 按团队筛选客户）。

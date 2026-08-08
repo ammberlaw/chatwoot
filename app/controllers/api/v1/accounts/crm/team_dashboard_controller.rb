@@ -30,7 +30,7 @@ class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::
   def actual_amount_by_owner
     @actual_amount_by_owner ||=
       Current.account.crm_sales_orders.dealt
-             .where(order_date: month_range).group(:owner_id).sum(:order_amount_micros)
+             .where(order_date: month_range).group(:owner_id).sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
   end
 
   def actual_count_by_owner
