@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_08_000005) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_10_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -905,9 +905,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_08_000005) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "is_public_receipt", default: false, null: false
     t.index ["account_id"], name: "index_crm_commission_items_on_account_id"
     t.index ["crm_commission_sheet_id"], name: "index_crm_commission_items_on_crm_commission_sheet_id"
     t.index ["crm_sales_order_id"], name: "index_crm_commission_items_on_crm_sales_order_id"
+  end
+
+  create_table "crm_commission_rates", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "product_category", null: false
+    t.decimal "rate", precision: 7, scale: 4, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "product_category"], name: "idx_crm_commission_rates_category", unique: true
   end
 
   create_table "crm_commission_sheets", force: :cascade do |t|
@@ -924,6 +934,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_08_000005) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "paid_at"
+    t.bigint "paid_by_id"
+    t.bigint "paid_amount_micros"
+    t.text "paid_note"
     t.index ["account_id", "owner_id", "period_month"], name: "uniq_commission_sheet_owner_month", unique: true
     t.index ["account_id", "period_month"], name: "index_crm_commission_sheets_on_account_id_and_period_month"
     t.index ["account_id"], name: "index_crm_commission_sheets_on_account_id"
@@ -1296,6 +1310,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_08_000005) do
     t.text "return_reason"
     t.datetime "returned_at"
     t.bigint "returned_by_id"
+    t.datetime "paid_at"
+    t.bigint "paid_by_id"
     t.index ["account_id", "period_month"], name: "index_crm_kpi_sheets_on_account_id_and_period_month"
     t.index ["account_id"], name: "index_crm_kpi_sheets_on_account_id"
     t.index ["crm_kpi_scheme_id", "owner_id"], name: "index_crm_kpi_sheets_on_crm_kpi_scheme_id_and_owner_id"

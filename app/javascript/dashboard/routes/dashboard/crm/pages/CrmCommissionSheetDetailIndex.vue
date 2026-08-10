@@ -19,12 +19,14 @@ const { currentUser, isAdmin, isCrmDeputyAdmin, isCrmManager, isCrmFinance } =
 
 const sheet = ref(null);
 const items = ref([]);
+const rateMap = ref({}); // 品类 => 提成点(百分数)，用于逐行算提成基数/工资
 const deleted = ref([]); // 已删除的既有行 id
 const isLoading = ref(true);
 const isBusy = ref(false);
 const captureRef = ref(null); // 只读表容器，导出图片时截取
 
-const COMMON_CATEGORIES = ['平板', '显示器', '广告机', '一体机', '其它'];
+// 产品品类统一为两类，下拉固定选择，保证与提成点配置匹配。
+const PRODUCT_CATEGORIES = ['平板电脑', '商显工控'];
 const CURRENCIES = ['USD', 'CNY', 'EUR'];
 const yuanFromMicros = m =>
   m == null ? null : Math.round((m / 1_000_000) * 100) / 100;
@@ -53,12 +55,15 @@ const toLocal = it => ({
   paymentDate: dateOnly(it.paymentDate),
   product: it.product || '',
   remark: it.remark || '',
+  isPublicReceipt: !!it.isPublicReceipt,
 });
 
 const applySheet = data => {
   const s = camelcaseKeys(data, { deep: true });
   sheet.value = s;
   items.value = (s.items || []).map(toLocal);
+  // 品类名（中文）不走驼峰转换，直接用原始 map，避免键被改写。
+  rateMap.value = data.commission_rates || {};
   deleted.value = [];
 };
 
@@ -101,6 +106,10 @@ const canExport = computed(
     status.value === 'APPROVED' &&
     (isCrmFinance.value || isOwner.value || isAdmin.value)
 );
+// 财务发放：仅已通过表可标记已发放。
+const canMarkPaid = computed(
+  () => isCrmFinance.value && status.value === 'APPROVED'
+);
 
 const title = computed(() => {
   if (!sheet.value) return t('CRM.COMMISSION.HEADER');
@@ -129,6 +138,7 @@ const addRow = () =>
       paymentDate: '',
       product: '',
       remark: '',
+      isPublicReceipt: false,
     })
   );
 
@@ -170,6 +180,7 @@ const buildPayload = () => {
     payment_date: r.paymentDate || null,
     product: r.product || null,
     remark: r.remark || null,
+    is_public_receipt: !!r.isPublicReceipt,
   }));
   deleted.value.forEach(id => attrs.push({ id, _destroy: true }));
   return { remark: sheet.value.remark || '', items_attributes: attrs };
@@ -216,6 +227,86 @@ const pull = async () => {
     useAlert(e?.response?.data?.error || t('CRM.COMMISSION.DETAIL.PULL_ERROR'));
   } finally {
     isBusy.value = false;
+  }
+};
+
+// ── 选单导入：从该业务员的销售订单里勾选导入（含跨月订单）──
+const showOrderPicker = ref(false);
+const pickerOrders = ref([]);
+const pickerSelected = ref([]);
+const pickerSearch = ref('');
+const pickerBusy = ref(false);
+const pickerCategory = ref(PRODUCT_CATEGORIES[0]); // 导入时统一归的品类
+
+const filteredPickerOrders = computed(() => {
+  const kw = pickerSearch.value.trim().toLowerCase();
+  if (!kw) return pickerOrders.value;
+  return pickerOrders.value.filter(o =>
+    `${o.orderNo || ''} ${o.customerName || ''} ${o.country || ''}`
+      .toLowerCase()
+      .includes(kw)
+  );
+});
+const pickerYuan = m =>
+  m == null ? '—' : Math.round(m / 1_000_000).toLocaleString();
+
+const openOrderPicker = async () => {
+  pickerBusy.value = true;
+  showOrderPicker.value = true;
+  pickerSelected.value = [];
+  pickerSearch.value = '';
+  try {
+    const { data } = await CommissionSheetsAPI.selectableOrders(
+      accountId.value,
+      sheet.value.id
+    );
+    pickerOrders.value = camelcaseKeys(data.orders || [], { deep: true });
+  } catch (e) {
+    useAlert(e?.response?.data?.error || t('CRM.COMMISSION.LOAD_ERROR'));
+  } finally {
+    pickerBusy.value = false;
+  }
+};
+const togglePick = id => {
+  pickerSelected.value = pickerSelected.value.includes(id)
+    ? pickerSelected.value.filter(x => x !== id)
+    : [...pickerSelected.value, id];
+};
+const allPickerSelected = computed(
+  () =>
+    filteredPickerOrders.value.length > 0 &&
+    filteredPickerOrders.value.every(o => pickerSelected.value.includes(o.id))
+);
+const togglePickAll = () => {
+  pickerSelected.value = allPickerSelected.value
+    ? []
+    : filteredPickerOrders.value.map(o => o.id);
+};
+
+const importSelectedOrders = async () => {
+  if (!pickerSelected.value.length) return;
+  pickerBusy.value = true;
+  try {
+    // 先保存当前编辑，避免导入后覆盖未保存内容。
+    await CommissionSheetsAPI.update(
+      accountId.value,
+      sheet.value.id,
+      buildPayload()
+    );
+    const { data } = await CommissionSheetsAPI.importOrders(
+      accountId.value,
+      sheet.value.id,
+      pickerSelected.value,
+      pickerCategory.value
+    );
+    applySheet(data);
+    const added = camelcaseKeys(data, { deep: true }).added || 0;
+    useAlert(t('CRM.COMMISSION.DETAIL.PULLED', { n: added }));
+    showOrderPicker.value = false;
+  } catch (e) {
+    useAlert(e?.response?.data?.error || t('CRM.COMMISSION.DETAIL.SAVE_ERROR'));
+  } finally {
+    pickerBusy.value = false;
   }
 };
 
@@ -286,6 +377,53 @@ const returnSheet = async () => {
   }
 };
 
+// ── 财务发放：仅已通过(APPROVED)表可标记，须填实发提成金额 + 可选备注 ──
+const payAmount = ref('');
+const payNote = ref('');
+const markPaid = async () => {
+  isBusy.value = true;
+  try {
+    const payItems = [
+      {
+        id: sheet.value.id,
+        paid_amount_micros:
+          payAmount.value === ''
+            ? null
+            : Math.round(Number(payAmount.value) * 1_000_000),
+        paid_note: payNote.value.trim(),
+      },
+    ];
+    const { data } = await CommissionSheetsAPI.markPaid(
+      accountId.value,
+      payItems
+    );
+    await load();
+    payAmount.value = '';
+    payNote.value = '';
+    useAlert(t('CRM.COMMISSION.PAYOUT.MARKED', { n: data?.count ?? 0 }));
+  } catch (e) {
+    useAlert(e?.response?.data?.error || t('CRM.COMMISSION.PAYOUT.ERROR'));
+  } finally {
+    isBusy.value = false;
+  }
+};
+const unmarkPaid = async () => {
+  if (!window.confirm(t('CRM.COMMISSION.PAYOUT.UNMARK_CONFIRM'))) return;
+  isBusy.value = true;
+  try {
+    await CommissionSheetsAPI.unmarkPaid(accountId.value, [sheet.value.id]);
+    await load();
+    useAlert(t('CRM.COMMISSION.PAYOUT.UNMARKED'));
+  } catch (e) {
+    useAlert(e?.response?.data?.error || t('CRM.COMMISSION.PAYOUT.ERROR'));
+  } finally {
+    isBusy.value = false;
+  }
+};
+const yuanText = m =>
+  m == null ? '—' : `¥${Math.round(m / 1_000_000).toLocaleString()}`;
+const fmtDate = v => (v ? new Date(v).toLocaleDateString() : '');
+
 const exportXlsx = async () => {
   try {
     const { data } = await CommissionSheetsAPI.xlsx(
@@ -338,6 +476,21 @@ const fmtYuan2 = v =>
       });
 const sum = (rows, key) =>
   rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+
+// 提成点(%)：按品类查表；提成基数：对公则销售额RMB÷1.13；提成工资=基数×点位/100。
+const rateOf = r => Number(rateMap.value[r.productCategory]) || 0;
+const baseOf = r => {
+  if (r.salesRmb == null || r.salesRmb === '') return null;
+  const s = Number(r.salesRmb);
+  return r.isPublicReceipt ? Math.round((s / 1.13) * 100) / 100 : s;
+};
+const salaryOf = r => {
+  const base = baseOf(r);
+  const rate = rateOf(r);
+  if (base == null || !rate) return null;
+  return Math.round(((base * rate) / 100) * 100) / 100;
+};
+const sumSalary = rows => rows.reduce((acc, r) => acc + (salaryOf(r) || 0), 0);
 const groups = computed(() => {
   const map = new Map();
   items.value.forEach(r => {
@@ -351,6 +504,7 @@ const grand = computed(() => ({
   shipping: sum(items.value, 'shipping'),
   receivedRmb: sum(items.value, 'receivedRmb'),
   salesRmb: sum(items.value, 'salesRmb'),
+  salary: sumSalary(items.value),
 }));
 </script>
 
@@ -377,6 +531,12 @@ const grand = computed(() => ({
         >
           {{ t(`CRM.COMMISSION.STATUS.${status}`) }}
         </span>
+        <span
+          v-if="sheet && sheet.paidAt"
+          class="inline-flex px-2 py-0.5 rounded-full text-xs shrink-0 bg-n-teal-3 text-n-teal-11"
+        >
+          {{ t('CRM.COMMISSION.PAYOUT.PAID') }}
+        </span>
       </div>
       <div class="flex items-center gap-2 shrink-0">
         <template v-if="editable">
@@ -386,6 +546,13 @@ const grand = computed(() => ({
             @click="pull"
           >
             {{ t('CRM.COMMISSION.DETAIL.PULL') }}
+          </button>
+          <button
+            class="h-8 px-3 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
+            :disabled="isBusy"
+            @click="openOrderPicker"
+          >
+            {{ t('CRM.COMMISSION.DETAIL.IMPORT_ORDERS') }}
           </button>
           <button
             class="h-8 px-3 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
@@ -454,12 +621,67 @@ const grand = computed(() => ({
         {{ t('CRM.COMMISSION.DETAIL.RETURNED_PREFIX') }}{{ sheet.returnReason }}
       </div>
 
+      <!-- 财务发放：已通过表标记实发提成（未发放时填金额；已发放显示信息） -->
+      <div
+        v-if="canMarkPaid && !sheet.paidAt"
+        class="flex flex-wrap items-center gap-2 px-3 py-3 mb-3 border rounded-xl border-n-teal-6 bg-n-teal-2"
+      >
+        <span class="text-sm font-medium text-n-teal-11">
+          {{ t('CRM.COMMISSION.PAYOUT.MARK_TITLE') }}
+        </span>
+        <div class="flex items-center gap-1">
+          <span class="text-xs text-n-slate-10">¥</span>
+          <input
+            v-model="payAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            :placeholder="t('CRM.COMMISSION.PAYOUT.AMOUNT_PLACEHOLDER')"
+            class="h-8 px-2 text-sm text-right border rounded-lg reset-base w-32 border-n-weak bg-n-solid-1 text-n-slate-12"
+          />
+        </div>
+        <input
+          v-model="payNote"
+          :placeholder="t('CRM.COMMISSION.PAYOUT.NOTE_PLACEHOLDER')"
+          class="flex-1 h-8 px-2 text-sm border rounded-lg reset-base min-w-40 border-n-weak bg-n-solid-1 text-n-slate-12"
+        />
+        <button
+          class="h-8 px-4 text-sm font-medium text-white rounded-lg bg-n-teal-9 hover:bg-n-teal-10 disabled:opacity-50"
+          :disabled="isBusy"
+          @click="markPaid"
+        >
+          {{ t('CRM.COMMISSION.PAYOUT.MARK_ONE') }}
+        </button>
+      </div>
+      <div
+        v-else-if="sheet.paidAt"
+        class="flex flex-wrap items-center gap-2 px-3 py-2 mb-3 text-sm border rounded-xl border-n-teal-6 bg-n-teal-2 text-n-slate-12"
+      >
+        <span class="i-lucide-banknote size-4 shrink-0 text-n-teal-11" />
+        <span class="font-medium text-n-teal-11">{{
+          t('CRM.COMMISSION.PAYOUT.PAID_LABEL')
+        }}</span>
+        <span class="font-medium">{{ yuanText(sheet.paidAmountMicros) }}</span>
+        <span class="text-xs text-n-slate-10"
+          >（{{ sheet.paidByName || '' }} · {{ fmtDate(sheet.paidAt) }}）</span
+        >
+        <span
+v-if="sheet.paidNote" class="text-xs text-n-slate-11"
+          >· {{ sheet.paidNote }}</span
+        >
+        <button
+          v-if="isCrmFinance"
+          class="h-7 px-2 ml-auto text-xs rounded-lg text-n-slate-10 hover:bg-n-alpha-2"
+          :disabled="isBusy"
+          @click="unmarkPaid"
+        >
+          {{ t('CRM.COMMISSION.PAYOUT.UNMARK') }}
+        </button>
+      </div>
+
       <!-- 编辑态：可编辑网格 -->
       <div v-if="editable" class="overflow-x-auto">
-        <datalist id="commission-categories">
-          <option v-for="c in COMMON_CATEGORIES" :key="c" :value="c" />
-        </datalist>
-        <table class="text-xs border-collapse table-fixed w-max">
+        <table class="w-max text-xs border-collapse whitespace-nowrap">
           <colgroup>
             <col class="w-8" />
             <col class="w-24" />
@@ -476,6 +698,10 @@ const grand = computed(() => ({
             <col class="w-28" />
             <col class="w-36" />
             <col class="w-40" />
+            <col class="w-28" />
+            <col class="w-12" />
+            <col class="w-28" />
+            <col class="w-16" />
             <col class="w-28" />
             <col class="w-8" />
           </colgroup>
@@ -494,25 +720,25 @@ const grand = computed(() => ({
               <th class="px-1 py-2 font-medium text-left">
                 {{ t('CRM.COMMISSION.COLS.ORDER_NO') }}
               </th>
-              <th class="px-1 py-2 font-medium text-right">
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.ORDER_AMOUNT') }}
               </th>
               <th class="px-1 py-2 font-medium text-left">
                 {{ t('CRM.COMMISSION.COLS.CURRENCY') }}
               </th>
-              <th class="px-1 py-2 font-medium text-right">
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.SHIPPING') }}
               </th>
-              <th class="px-1 py-2 font-medium text-right">
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.RECEIVED') }}
               </th>
-              <th class="px-1 py-2 font-medium text-right">
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.RATE') }}
               </th>
-              <th class="px-1 py-2 font-medium text-right">
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.RECEIVED_RMB') }}
               </th>
-              <th class="px-1 py-2 font-medium text-right">
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.SALES_RMB') }}
               </th>
               <th class="px-1 py-2 font-medium text-left">
@@ -527,6 +753,18 @@ const grand = computed(() => ({
               <th class="px-1 py-2 font-medium text-left">
                 {{ t('CRM.COMMISSION.COLS.REMARK') }}
               </th>
+              <th class="px-1 py-2 font-medium text-center">
+                {{ t('CRM.COMMISSION.COLS.IS_PUBLIC') }}
+              </th>
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
+                {{ t('CRM.COMMISSION.COLS.COMM_BASE') }}
+              </th>
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
+                {{ t('CRM.COMMISSION.COLS.COMM_RATE') }}
+              </th>
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
+                {{ t('CRM.COMMISSION.COLS.COMM_SALARY') }}
+              </th>
               <th class="px-1 py-2 w-8" />
             </tr>
           </thead>
@@ -534,11 +772,15 @@ const grand = computed(() => ({
             <tr v-for="(r, i) in items" :key="i" class="border-b border-n-weak">
               <td class="px-1 py-1 text-n-slate-10">{{ i + 1 }}</td>
               <td class="px-1 py-1">
-                <input
+                <select
                   v-model="r.productCategory"
-                  list="commission-categories"
-                  class="w-full h-7 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
-                />
+                  class="w-full h-7 px-1 mb-0 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                >
+                  <option value="">—</option>
+                  <option v-for="c in PRODUCT_CATEGORIES" :key="c" :value="c">
+                    {{ c }}
+                  </option>
+                </select>
               </td>
               <td class="px-1 py-1">
                 <input
@@ -642,6 +884,24 @@ const grand = computed(() => ({
                 />
               </td>
               <td class="px-1 py-1 text-center">
+                <input
+                  v-model="r.isPublicReceipt"
+                  type="checkbox"
+                  class="accent-n-iris-9"
+                />
+              </td>
+              <td class="pl-1 pr-2 py-1 text-right tabular-nums text-n-slate-11">
+                {{ fmtYuan2(baseOf(r)) }}
+              </td>
+              <td class="pl-1 pr-2 py-1 text-right tabular-nums text-n-slate-11">
+                {{ rateOf(r) ? `${rateOf(r)}%` : '—' }}
+              </td>
+              <td
+                class="pl-1 pr-2 py-1 text-right tabular-nums font-medium text-n-slate-12"
+              >
+                {{ fmtYuan2(salaryOf(r)) }}
+              </td>
+              <td class="px-1 py-1 text-center">
                 <button
                   class="text-n-ruby-11 hover:text-n-ruby-10"
                   @click="removeRow(i)"
@@ -651,7 +911,7 @@ const grand = computed(() => ({
               </td>
             </tr>
             <tr v-if="!items.length">
-              <td colspan="17" class="px-3 py-6 text-center text-n-slate-10">
+              <td colspan="21" class="px-3 py-6 text-center text-n-slate-10">
                 {{ t('CRM.COMMISSION.DETAIL.NO_ITEMS_EDIT') }}
               </td>
             </tr>
@@ -674,7 +934,7 @@ const grand = computed(() => ({
           <div class="mb-2 text-sm font-semibold text-n-slate-12">
             {{ title }}
           </div>
-          <table class="min-w-full text-xs border-collapse">
+          <table class="w-max min-w-full text-xs border-collapse whitespace-nowrap">
             <thead class="text-n-slate-11">
               <tr class="border-b border-n-weak">
                 <th class="px-2 py-2 font-medium text-left">
@@ -725,6 +985,18 @@ const grand = computed(() => ({
                 <th class="px-2 py-2 font-medium text-left">
                   {{ t('CRM.COMMISSION.COLS.REMARK') }}
                 </th>
+                <th class="px-2 py-2 font-medium text-center">
+                  {{ t('CRM.COMMISSION.COLS.IS_PUBLIC') }}
+                </th>
+                <th class="px-2 py-2 font-medium text-right">
+                  {{ t('CRM.COMMISSION.COLS.COMM_BASE') }}
+                </th>
+                <th class="px-2 py-2 font-medium text-right">
+                  {{ t('CRM.COMMISSION.COLS.COMM_RATE') }}
+                </th>
+                <th class="px-2 py-2 font-medium text-right">
+                  {{ t('CRM.COMMISSION.COLS.COMM_SALARY') }}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -769,6 +1041,20 @@ const grand = computed(() => ({
                   <td class="px-2 py-1.5">{{ r.paymentDate || '—' }}</td>
                   <td class="px-2 py-1.5">{{ r.product || '—' }}</td>
                   <td class="px-2 py-1.5">{{ r.remark || '—' }}</td>
+                  <td class="px-2 py-1.5 text-center">
+                    {{ r.isPublicReceipt ? '是' : '—' }}
+                  </td>
+                  <td class="px-2 py-1.5 text-right tabular-nums">
+                    {{ fmtYuan2(baseOf(r)) }}
+                  </td>
+                  <td class="px-2 py-1.5 text-right tabular-nums">
+                    {{ rateOf(r) ? `${rateOf(r)}%` : '—' }}
+                  </td>
+                  <td
+                    class="px-2 py-1.5 text-right tabular-nums font-medium text-n-slate-12"
+                  >
+                    {{ fmtYuan2(salaryOf(r)) }}
+                  </td>
                 </tr>
                 <tr class="border-b border-n-weak bg-n-alpha-1 font-medium">
                   <td class="px-2 py-1.5" colspan="2">
@@ -786,11 +1072,14 @@ const grand = computed(() => ({
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(sum(g.rows, 'salesRmb')) }}
                   </td>
-                  <td colspan="4" />
+                  <td colspan="7" />
+                  <td class="px-2 py-1.5 text-right tabular-nums">
+                    {{ fmtYuan2(sumSalary(g.rows)) }}
+                  </td>
                 </tr>
               </template>
               <tr v-if="!items.length">
-                <td colspan="16" class="px-3 py-6 text-center text-n-slate-10">
+                <td colspan="20" class="px-3 py-6 text-center text-n-slate-10">
                   {{ t('CRM.COMMISSION.DETAIL.NO_ITEMS') }}
                 </td>
               </tr>
@@ -812,10 +1101,144 @@ const grand = computed(() => ({
                 <td class="px-2 py-2 text-right tabular-nums">
                   {{ fmtYuan2(grand.salesRmb) }}
                 </td>
-                <td colspan="4" />
+                <td colspan="7" />
+                <td class="px-2 py-2 text-right tabular-nums">
+                  {{ fmtYuan2(grand.salary) }}
+                </td>
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 选单导入弹窗：从该业务员的销售订单勾选导入 -->
+    <div
+      v-if="showOrderPicker"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+      @click.self="showOrderPicker = false"
+    >
+      <div
+        class="flex flex-col w-full max-w-2xl overflow-hidden bg-n-solid-1 rounded-2xl shadow-xl max-h-[80vh]"
+      >
+        <div
+          class="flex items-center justify-between px-5 py-4 border-b border-n-weak"
+        >
+          <h2 class="text-base font-medium text-n-slate-12">
+            {{ t('CRM.COMMISSION.DETAIL.IMPORT_ORDERS') }}
+          </h2>
+          <button
+            class="text-n-slate-10 hover:text-n-slate-12"
+            @click="showOrderPicker = false"
+          >
+            <Icon icon="i-lucide-x" class="size-5" />
+          </button>
+        </div>
+        <div class="px-5 py-3 border-b border-n-weak">
+          <input
+            v-model="pickerSearch"
+            :placeholder="t('CRM.COMMISSION.DETAIL.PICKER_SEARCH')"
+            class="w-full h-8 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12"
+          />
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <table class="min-w-full text-xs">
+            <thead
+              class="sticky top-0 text-n-slate-11 bg-n-solid-1 border-b border-n-weak"
+            >
+              <tr>
+                <th class="w-8 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    class="accent-n-iris-9"
+                    :checked="allPickerSelected"
+                    @change="togglePickAll"
+                  />
+                </th>
+                <th class="px-2 py-2 font-medium text-left">
+                  {{ t('CRM.COMMISSION.COLS.ORDER_NO') }}
+                </th>
+                <th class="px-2 py-2 font-medium text-left">
+                  {{ t('CRM.COMMISSION.COLS.CUSTOMER') }}
+                </th>
+                <th class="px-2 py-2 font-medium text-right">
+                  {{ t('CRM.COMMISSION.COLS.ORDER_AMOUNT') }}
+                </th>
+                <th class="px-2 py-2 font-medium text-left">
+                  {{ t('CRM.COMMISSION.COLS.PAY_DATE') }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="o in filteredPickerOrders"
+                :key="o.id"
+                class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
+                @click="togglePick(o.id)"
+              >
+                <td class="px-3 py-2" @click.stop>
+                  <input
+                    type="checkbox"
+                    class="accent-n-iris-9"
+                    :checked="pickerSelected.includes(o.id)"
+                    @change="togglePick(o.id)"
+                  />
+                </td>
+                <td class="px-2 py-2 text-n-slate-12">
+                  {{ o.orderNo || '—' }}
+                </td>
+                <td class="px-2 py-2">{{ o.customerName || '—' }}</td>
+                <td class="px-2 py-2 text-right tabular-nums">
+                  {{ o.currency }} {{ pickerYuan(o.amountMicros) }}
+                </td>
+                <td class="px-2 py-2">{{ dateOnly(o.orderDate) || '—' }}</td>
+              </tr>
+              <tr v-if="!pickerBusy && !filteredPickerOrders.length">
+                <td colspan="5" class="px-3 py-8 text-center text-n-slate-10">
+                  {{ t('CRM.COMMISSION.DETAIL.PICKER_EMPTY') }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div
+          class="flex flex-wrap items-center justify-between px-5 py-3 gap-y-2 border-t border-n-weak"
+        >
+          <div class="flex items-center gap-2">
+            <span class="text-xs whitespace-nowrap text-n-slate-10">
+              {{
+                t('CRM.COMMISSION.DETAIL.PICKER_SELECTED', {
+                  n: pickerSelected.length,
+                })
+              }}
+            </span>
+            <span class="text-xs whitespace-nowrap text-n-slate-11">
+              {{ t('CRM.COMMISSION.DETAIL.PICKER_AS_CATEGORY') }}
+            </span>
+            <select
+              v-model="pickerCategory"
+              class="h-8 py-0 px-6 mb-0 text-sm leading-8 text-center border rounded-lg reset-base w-32 border-n-weak bg-n-solid-1 text-n-slate-12"
+            >
+              <option v-for="c in PRODUCT_CATEGORIES" :key="c" :value="c">
+                {{ c }}
+              </option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              class="h-8 px-3 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
+              @click="showOrderPicker = false"
+            >
+              {{ t('CRM.COMMISSION.DETAIL.CANCEL') }}
+            </button>
+            <button
+              class="h-8 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+              :disabled="pickerBusy || !pickerSelected.length"
+              @click="importSelectedOrders"
+            >
+              {{ t('CRM.COMMISSION.DETAIL.IMPORT_CONFIRM') }}
+            </button>
+          </div>
         </div>
       </div>
     </div>

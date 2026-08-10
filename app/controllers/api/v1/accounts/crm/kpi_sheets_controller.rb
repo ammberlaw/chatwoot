@@ -7,11 +7,36 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   before_action :fetch_sheet, only: [:show, :update, :destroy, :submit, :score, :hr_confirm, :gm_confirm, :ai_suggest, :return_sheet]
 
   # 数据范围：超管/管理员/指定人事/总经理看全部；部门负责人看本部门（含下级）+ 自己；业务员只看自己。
+  # 财务额外看全员「已归档」表（发放绩效薪资用），叠加在自身可见范围上。
   def index
     scope = Current.account.crm_kpi_sheets.includes(:owner, :sheet_items)
-    scope = scope.where(owner_id: visible_sheet_owner_ids) unless all_sheets_visible?
+    unless all_sheets_visible?
+      ids = visible_sheet_owner_ids
+      scope = if Current.account_user&.crm_finance?
+                scope.where('crm_kpi_sheets.owner_id IN (:ids) OR crm_kpi_sheets.status = :st', ids: ids, st: 'ARCHIVED')
+              else
+                scope.where(owner_id: ids)
+              end
+    end
     scope = scope.for_month(Date.parse(params[:month])) if params[:month].present?
     @sheets = scope.order(period_month: :desc, id: :desc)
+  end
+
+  # 财务批量发放：把选中的「已归档」绩效表标记为已发放（金额=系统已算的 actual_payout_micros）。
+  def mark_paid
+    return unless ensure_finance!
+
+    sheets = Current.account.crm_kpi_sheets.where(id: Array(params[:ids]), status: 'ARCHIVED').to_a
+    sheets.each { |s| s.mark_paid!(by: current_user) }
+    render json: { count: sheets.size }
+  end
+
+  # 财务撤销发放（点错兜底）。
+  def unmark_paid
+    return unless ensure_finance!
+
+    Current.account.crm_kpi_sheets.where(id: Array(params[:ids])).find_each(&:unmark_paid!)
+    head :ok
   end
 
   def show; end
@@ -312,7 +337,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     end
 
     au = Current.account_user
-    return true if au&.administrator? || au&.crm_deputy_admin?
+    return true if au&.administrator? || au&.crm_deputy_admin? || au&.crm_hr?
     return true if au&.crm_manager? && visible_sheet_owner_ids.include?(@sheet.owner_id)
 
     render_error('你无权撤回这张考核表', :forbidden)
@@ -350,6 +375,13 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     return true if can_manage?
 
     render_error('仅主管/管理员可打分', :forbidden)
+    false
+  end
+
+  def ensure_finance!
+    return true if Current.account_user&.crm_finance?
+
+    render_error('仅财务可操作发放', :forbidden)
     false
   end
 

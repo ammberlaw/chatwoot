@@ -6,13 +6,17 @@ require 'zip'
 class Crm::CommissionXlsxService
   # 表头（与前端明细表一致）；nil 品类归到「未分类」。
   HEADERS = ['序号', '产品品类', '国家', '客户名称', 'PI号', '订单金额', '币种', '运费',
-             '收款金额', '汇率', '收款额RMB', '销售额RMB', '汇款途径', '到款日期', '产品', '备注'].freeze
-  COL_WIDTHS = [5, 12, 10, 22, 20, 12, 7, 10, 12, 8, 12, 12, 16, 12, 24, 16].freeze
+             '收款金额', '汇率', '收款额RMB', '销售额RMB', '汇款途径', '到款日期', '产品', '备注',
+             '对公', '提成基数RMB', '提成点(%)', '提成工资'].freeze
+  COL_WIDTHS = [5, 12, 10, 22, 20, 12, 7, 10, 12, 8, 12, 12, 16, 12, 24, 16, 6, 14, 10, 14].freeze
   MONEY_COLS = [5, 7, 8, 10, 11].freeze # 0-based：订单金额/运费/收款金额/收款额RMB/销售额RMB
   RATE_COL = 9
+  BASE_COL = 17 # 提成基数RMB
+  SALARY_COL = 19 # 提成工资
 
   def initialize(sheet)
     @sheet = sheet
+    @rates = Crm::CommissionRate.map_for(sheet.account)
   end
 
   def to_stream
@@ -55,13 +59,16 @@ class Crm::CommissionXlsxService
   end
 
   def data_row(seq, item)
+    pct = @rates[item.product_category]
     [
       [seq, :n, :center], [item.product_category.presence || '未分类', :s, :text],
       [item.country, :s, :center], [item.customer_name, :s, :text], [item.order_no, :s, :text],
       money(item.order_amount_micros), [item.currency, :s, :center], money(item.shipping_micros),
       money(item.received_amount_micros), rate(item.exchange_rate), money(item.received_rmb_micros),
       money(item.sales_rmb_micros), [item.payment_channel, :s, :text], [fmt_date(item.payment_date), :s, :center],
-      [item.product, :s, :text], [item.remark, :s, :text]
+      [item.product, :s, :text], [item.remark, :s, :text],
+      [item.is_public_receipt ? '是' : '', :s, :center], money(item.commission_base_micros),
+      pct.nil? ? ['', :s, :center] : [pct.to_f.round(2), :n, :money], money(item.commission_salary_micros(pct))
     ]
   end
 
@@ -71,6 +78,7 @@ class Crm::CommissionXlsxService
     row[7] = subtotal_money(items, :shipping_micros)
     row[10] = subtotal_money(items, :received_rmb_micros)
     row[11] = subtotal_money(items, :sales_rmb_micros)
+    row[SALARY_COL] = subtotal_salary(items)
     row
   end
 
@@ -81,7 +89,14 @@ class Crm::CommissionXlsxService
     row[7] = subtotal_money(all, :shipping_micros)
     row[10] = subtotal_money(all, :received_rmb_micros)
     row[11] = subtotal_money(all, :sales_rmb_micros)
+    row[SALARY_COL] = subtotal_salary(all)
     row
+  end
+
+  # 提成工资小计：逐行按品类点位算后求和（品类没配点位的行记 0）。
+  def subtotal_salary(items)
+    total = items.sum { |i| i.commission_salary_micros(@rates[i.product_category]).to_i }
+    [(total.to_f / 1_000_000).round(2), :n, :subtotal_money]
   end
 
   # 按产品品类分组，保留出现顺序。

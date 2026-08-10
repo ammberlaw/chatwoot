@@ -9,6 +9,7 @@
 #  currency                :string           default("USD")
 #  customer_name           :string
 #  exchange_rate           :decimal(12, 6)
+#  is_public_receipt       :boolean          default(FALSE), not null
 #  order_amount_micros     :bigint
 #  order_no                :string
 #  payment_channel         :string
@@ -41,6 +42,26 @@ class Crm::CommissionItem < ApplicationRecord
              foreign_key: :crm_sales_order_id, optional: true
 
   before_validation :inherit_account, on: :create
+
+  # 对公收款算提成基数时销售额RMB要扣 13 个增值税点（÷1.13）。
+  VAT_DIVISOR = 1.13
+
+  # 提成基数（微分）：对公则销售额RMB ÷1.13，否则即销售额RMB。销售额RMB 未填则为 nil。
+  def commission_base_micros
+    return nil if sales_rmb_micros.nil?
+
+    base = sales_rmb_micros.to_i
+    is_public_receipt ? (base / VAT_DIVISOR).round : base
+  end
+
+  # 提成工资（微分）= 提成基数 × 提成点% / 100。基数空或点位为 0 则为 nil。
+  def commission_salary_micros(rate)
+    base = commission_base_micros
+    r = rate.to_f
+    return nil if base.nil? || r.zero?
+
+    (base * r / 100.0).round
+  end
 
   private
 

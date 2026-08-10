@@ -2,6 +2,26 @@
   "CRM": {
     "COMMISSION": {
       "HEADER": "提成表",
+      "PAYOUT": {
+        "PAID": "已发放",
+        "UNPAID": "待发放",
+        "FILTER_ALL": "发放状态",
+        "COL_PAID": "实发提成",
+        "MARK_ONE": "标记已发放",
+        "MARK_TITLE": "实发提成金额",
+        "MARK_BATCH": "批量标记已发放（{n}）",
+        "UNMARK": "撤销发放",
+        "UNMARK_CONFIRM": "确认撤销该表的发放标记？",
+        "MARKED": "已标记 {n} 张为已发放",
+        "UNMARKED": "已撤销发放标记",
+        "PAID_LABEL": "已发放实发提成",
+        "AMOUNT_PLACEHOLDER": "实发金额",
+        "NOTE_PLACEHOLDER": "备注（选填）",
+        "DIALOG_TITLE": "标记已发放 · 逐张填实发提成金额",
+        "CANCEL": "取消",
+        "CONFIRM": "确认发放",
+        "ERROR": "操作失败，请重试"
+      },
       "SUBTITLE_TEAM": "业务员按月填报订单明细，交主管审批，财务查看导出",
       "SUBTITLE_SELF": "你的月度提成表：自动带出本月订单，补齐后提交主管审批",
       "NEW": "新建提成表",
@@ -37,6 +57,13 @@
       "DETAIL": {
         "BACK": "返回",
         "PULL": "重新带出订单",
+        "IMPORT_ORDERS": "选单导入",
+        "PICKER_SEARCH": "搜索订单号 / 客户 / 国家",
+        "PICKER_EMPTY": "没有可导入的订单（该业务员的订单可能都已在表里）",
+        "PICKER_SELECTED": "已选 {n} 单",
+        "PICKER_AS_CATEGORY": "导入为品类",
+        "IMPORT_CONFIRM": "导入选中",
+        "CANCEL": "取消",
         "FILL_RMB": "按汇率折算RMB",
         "SAVE": "保存",
         "SUBMIT": "提交审批",
@@ -70,21 +97,25 @@
       },
       "COLS": {
         "SEQ": "序号",
-        "CATEGORY": "产品品类",
+        "CATEGORY": "品类",
         "COUNTRY": "国家",
-        "CUSTOMER": "客户名称",
+        "CUSTOMER": "客户",
         "ORDER_NO": "PI号",
-        "ORDER_AMOUNT": "订单金额",
+        "ORDER_AMOUNT": "订单额",
         "CURRENCY": "币种",
         "SHIPPING": "运费",
-        "RECEIVED": "收款金额",
+        "RECEIVED": "收款额",
         "RATE": "汇率",
-        "RECEIVED_RMB": "收款额RMB",
-        "SALES_RMB": "销售额RMB",
+        "RECEIVED_RMB": "收款¥",
+        "SALES_RMB": "销售¥",
         "CHANNEL": "汇款途径",
-        "PAY_DATE": "到款日期",
+        "PAY_DATE": "到款日",
         "PRODUCT": "产品",
-        "REMARK": "备注"
+        "REMARK": "备注",
+        "IS_PUBLIC": "对公",
+        "COMM_BASE": "提成基数",
+        "COMM_RATE": "提成点%",
+        "COMM_SALARY": "提成工资"
       }
     },
     "CUSTOMERS": {
@@ -217,14 +248,21 @@
       "LOADING": "加载中…",
       "EMPTY": "暂无 PI，点右上角新建",
       "SEARCH_PLACEHOLDER": "搜索 PI号 / 买方 / 客户",
-      "FILTERS": { "ALL_STATUS": "全部状态" },
-      "STATUS": { "DRAFT": "草稿", "PAID": "已付款", "VOID": "已作废" },
+      "FILTERS": {
+        "ALL_STATUS": "全部状态"
+      },
+      "STATUS": {
+        "DRAFT": "草稿",
+        "PAID": "已付款",
+        "VOID": "已作废"
+      },
       "COL": {
         "PI_NO": "PI 号",
         "BUYER": "买方",
         "AMOUNT": "总额",
         "STATUS": "状态",
-        "DATE": "日期"
+        "DATE": "日期",
+        "CREATOR": "创建人"
       },
       "ACTION": {
         "XLSX": "下载 Excel（1:1 模板，可另存为 PDF）",
@@ -300,6 +338,14 @@
         "SAVED": "卖方信息已保存",
         "SAVE_ERROR": "保存失败，请检查联系人/手机/邮箱是否都填了",
         "LOADING": "加载中…"
+      },
+      "PI": {
+        "HINT": "上传 PI（PDF / Excel）自动识别填单",
+        "UPLOAD": "上传 PI 识别",
+        "PARSING": "识别中…",
+        "PARSE_SUCCESS": "已识别并填入，请核对后保存",
+        "PARSE_ERROR": "PI 识别失败，请检查文件或稍后重试",
+        "CUSTOMER_UNMATCHED": "识别到客户「{name}」，未在你的客户中找到，请手动选择"
       }
     },
     "SALES_ORDERS": {
@@ -786,7 +832,18 @@
       "ACTUAL": "完成值",
       "SCORE_COL": "得分",
       "TOTAL": "总分",
-      "PAYOUT": "绩效薪资核算",
+      "PAYOUT": {
+        "PAID": "已发放",
+        "UNPAID": "待发放",
+        "MARK_ONE": "标记已发放",
+        "MARK_BATCH": "批量标记已发放（{n}）",
+        "UNMARK": "撤销发放",
+        "UNMARK_CONFIRM": "确认撤销该表的发放标记？",
+        "MARKED": "已标记 {n} 张为已发放",
+        "UNMARKED": "已撤销发放标记",
+        "PAID_BANNER": "本表绩效薪资已发放",
+        "ERROR": "操作失败，请重试"
+      },
       "BASE": "绩效基数",
       "COEFFICIENT": "发放系数",
       "ACTUAL_PAYOUT": "本月实发绩效",

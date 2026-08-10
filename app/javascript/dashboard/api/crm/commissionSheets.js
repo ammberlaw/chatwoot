@@ -23,6 +23,16 @@ export default {
   pullOrders(accountId, id) {
     return axios.post(`${base(accountId)}/${id}/pull_orders`);
   },
+  // 选单导入：列出可选销售订单 / 导入选中的订单。
+  selectableOrders(accountId, id) {
+    return axios.get(`${base(accountId)}/${id}/selectable_orders`);
+  },
+  importOrders(accountId, id, orderIds, productCategory) {
+    return axios.post(`${base(accountId)}/${id}/import_orders`, {
+      order_ids: orderIds,
+      product_category: productCategory,
+    });
+  },
   submit(accountId, id) {
     return axios.post(`${base(accountId)}/${id}/submit`);
   },
@@ -34,5 +44,20 @@ export default {
   },
   xlsx(accountId, id) {
     return axios.get(`${base(accountId)}/${id}/xlsx`, { responseType: 'blob' });
+  },
+  // 财务发放：批量标记「已通过」提成表为已发放，逐张带实发金额/备注。
+  // items = [{ id, paid_amount_micros, paid_note }]；单张亦走此接口。
+  markPaid(accountId, items) {
+    return axios.post(`${base(accountId)}/mark_paid`, { items });
+  },
+  unmarkPaid(accountId, ids) {
+    return axios.post(`${base(accountId)}/unmark_paid`, { ids });
+  },
+  // 提成点配置（品类→点位%）：列出 / 批量保存。
+  rates(accountId) {
+    return axios.get(`${base(accountId)}/rates`);
+  },
+  saveRates(accountId, rows) {
+    return axios.post(`${base(accountId)}/save_rates`, { rates: rows });
   },
 };

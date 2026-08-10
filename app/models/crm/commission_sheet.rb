@@ -5,20 +5,24 @@
 #
 # Table name: crm_commission_sheets
 #
-#  id             :bigint           not null, primary key
-#  approved_at    :datetime
-#  period_month   :datetime         not null
-#  remark         :text
-#  return_reason  :text
-#  returned_at    :datetime
-#  status         :string           default("DRAFT"), not null
-#  submitted_at   :datetime
-#  created_at     :datetime         not null
-#  updated_at     :datetime         not null
-#  account_id     :bigint           not null
-#  manager_id     :bigint
-#  owner_id       :bigint
-#  returned_by_id :bigint
+#  id                 :bigint           not null, primary key
+#  approved_at        :datetime
+#  paid_amount_micros :bigint
+#  paid_at            :datetime
+#  paid_note          :text
+#  period_month       :datetime         not null
+#  remark             :text
+#  return_reason      :text
+#  returned_at        :datetime
+#  status             :string           default("DRAFT"), not null
+#  submitted_at       :datetime
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  account_id         :bigint           not null
+#  manager_id         :bigint
+#  owner_id           :bigint
+#  paid_by_id         :bigint
+#  returned_by_id     :bigint
 #
 # Indexes
 #
@@ -35,6 +39,7 @@ class Crm::CommissionSheet < ApplicationRecord
   belongs_to :owner, class_name: 'User', optional: true
   belongs_to :manager, class_name: 'User', optional: true
   belongs_to :returned_by, class_name: 'User', optional: true
+  belongs_to :paid_by, class_name: 'User', optional: true
 
   has_many :items, -> { order(:position, :id) },
            class_name: 'Crm::CommissionItem', foreign_key: :crm_commission_sheet_id,
@@ -70,6 +75,17 @@ class Crm::CommissionSheet < ApplicationRecord
     update!(status: 'RETURNED', return_reason: reason,
             returned_at: Time.current, returned_by_id: by.id,
             manager_id: nil, approved_at: nil)
+  end
+
+  # 财务发放：仅已通过(APPROVED)表可标记「已发放」，须填实发提成金额(系统不算)+可选备注。
+  def mark_paid!(by:, amount_micros: nil, note: nil)
+    update!(paid_at: Time.current, paid_by_id: by.id,
+            paid_amount_micros: amount_micros, paid_note: note.presence)
+  end
+
+  # 撤销发放（财务/管理员点错兜底）。
+  def unmark_paid!
+    update!(paid_at: nil, paid_by_id: nil, paid_amount_micros: nil, paid_note: nil)
   end
 
   # 汇总：全表总计。销售额分两口径——RMB 单看 sales_rmb；美金单(USD/EUR 等非 CNY)看订单金额净值

@@ -11,6 +11,10 @@ json.returned_at resource.returned_at
 json.returned_by_name resource.returned_by&.crm_display_name
 json.return_reason resource.return_reason
 json.remark resource.remark
+json.paid_at resource.paid_at
+json.paid_by_name resource.paid_by&.crm_display_name
+json.paid_amount_micros resource.paid_amount_micros
+json.paid_note resource.paid_note
 json.totals resource.totals
 json.created_at resource.created_at
 json.updated_at resource.updated_at

@@ -92,6 +92,7 @@ Rails.application.routes.draw do
               collection do
                 get :prefill
                 get :company_headers
+                post :parse_pi
               end
               member do
                 get :xlsx
@@ -112,12 +113,20 @@ Rails.application.routes.draw do
               end
             end
             resources :commission_sheets do
+              collection do
+                post :mark_paid
+                post :unmark_paid
+                get :rates
+                post :save_rates
+              end
               member do
                 post :pull_orders
                 post :submit
                 post :approve
                 post :return_sheet
                 get :xlsx
+                get :selectable_orders
+                post :import_orders
               end
             end
             # 邮件 AI 助手：写信 / 翻译 / 往来摘要（同步生成，前端等待）。
@@ -182,6 +191,10 @@ Rails.application.routes.draw do
               member { post :distribute }
             end
             resources :kpi_sheets do
+              collection do
+                post :mark_paid
+                post :unmark_paid
+              end
               member do
                 post :submit
                 post :score

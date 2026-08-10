@@ -16,3 +16,4 @@ json.payment_channel resource.payment_channel
 json.payment_date resource.payment_date
 json.product resource.product
 json.remark resource.remark
+json.is_public_receipt resource.is_public_receipt

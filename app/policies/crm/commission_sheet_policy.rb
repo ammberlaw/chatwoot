@@ -10,4 +10,10 @@ class Crm::CommissionSheetPolicy < ApplicationPolicy
   def approve? = true
   def return_sheet? = true
   def xlsx? = true
+  def mark_paid? = true
+  def unmark_paid? = true
+  def rates? = true
+  def save_rates? = true
+  def selectable_orders? = true
+  def import_orders? = true
 end
