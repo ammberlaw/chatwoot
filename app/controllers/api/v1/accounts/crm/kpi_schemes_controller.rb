@@ -53,6 +53,7 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
       crm_kpi_scheme_id: @scheme.id, owner_id: owner_id, scheme_name: @scheme.name,
       period_month: month, status: 'PENDING', pass_score: @scheme.pass_score,
       item_score_cap_pct: @scheme.item_score_cap_pct,
+      payout_note: @scheme.payout_note, result_note: @scheme.result_note,
       monthly_salary_micros: comp&.monthly_salary_micros, performance_ratio: comp&.performance_ratio,
       baseline_target_micros: comp&.baseline_target_micros
     )

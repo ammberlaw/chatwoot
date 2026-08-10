@@ -5,6 +5,8 @@ json.period_month resource.period_month
 json.status resource.status
 json.pass_score resource.pass_score
 json.item_score_cap_pct resource.item_score_cap_pct
+json.payout_note resource.payout_note
+json.result_note resource.result_note
 json.total_score resource.total_score
 json.monthly_salary_micros resource.monthly_salary_micros
 json.performance_ratio resource.performance_ratio

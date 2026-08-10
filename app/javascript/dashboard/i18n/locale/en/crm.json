@@ -834,6 +834,8 @@
       "ACTUAL": "完成值",
       "SCORE_COL": "得分",
       "TOTAL": "总分",
+      "SECTION_RULES": "💰 评分与绩效发放规则",
+      "SECTION_RESULT": "📌 考核结果应用",
       "PAYOUT": {
         "PAID": "已发放",
         "UNPAID": "待发放",

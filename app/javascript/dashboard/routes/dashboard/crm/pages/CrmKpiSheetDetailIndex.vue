@@ -76,7 +76,14 @@ const gmOwnerId = computed(
 );
 const isHr = computed(() => isAdmin.value || uid.value === hrOwnerId.value);
 const isGm = computed(() => isAdmin.value || uid.value === gmOwnerId.value);
+const isCrmFinance = computed(
+  () => isAdmin.value || currentUser.value?.crm_finance === true
+);
 const status = computed(() => sheet.value?.status);
+// 财务发放：仅归档表可标记已发放（金额=系统已算的绩效薪资）。
+const canMarkPaid = computed(
+  () => isCrmFinance.value && status.value === 'ARCHIVED'
+);
 
 const stepIndex = computed(() => STEPS.indexOf(status.value));
 const canFillActual = computed(
@@ -278,6 +285,33 @@ const submitReopen = async () => {
   }
 };
 
+// 财务发放：标记 / 撤销「已发放」，成功后重载表。
+const markPaid = async () => {
+  busy.value = true;
+  try {
+    await CrmKpiSheetAPI.markPaid([sheetId]);
+    await load();
+    useAlert(t('CRM.KPI_SHEETS.PAYOUT.MARKED', { n: 1 }));
+  } catch (err) {
+    useAlert(err?.response?.data?.error || t('CRM.KPI_SHEETS.PAYOUT.ERROR'));
+  } finally {
+    busy.value = false;
+  }
+};
+const unmarkPaid = async () => {
+  if (!window.confirm(t('CRM.KPI_SHEETS.PAYOUT.UNMARK_CONFIRM'))) return;
+  busy.value = true;
+  try {
+    await CrmKpiSheetAPI.unmarkPaid([sheetId]);
+    await load();
+    useAlert(t('CRM.KPI_SHEETS.PAYOUT.UNMARKED'));
+  } catch (err) {
+    useAlert(err?.response?.data?.error || t('CRM.KPI_SHEETS.PAYOUT.ERROR'));
+  } finally {
+    busy.value = false;
+  }
+};
+
 const submitSheet = () => save().then(() => runAction(CrmKpiSheetAPI.submit));
 const scoreSheet = () => save().then(() => runAction(CrmKpiSheetAPI.score));
 const hrConfirm = () => runAction(CrmKpiSheetAPI.hrConfirm);
@@ -309,7 +343,8 @@ const inCls =
             {{ t('CRM.KPI_SHEETS.TITLE', { name: sheet.ownerName || '—' }) }}
             <span
               class="ml-2 inline-flex px-2 py-0.5 rounded-full text-xs bg-n-iris-3 text-n-iris-11"
-              >{{ t(`CRM.KPI_SHEETS.STATUS.${status}`) }}</span>
+              >{{ t(`CRM.KPI_SHEETS.STATUS.${status}`) }}</span
+            >
           </h1>
           <p class="mt-0.5 text-xs text-n-slate-11">
             {{ fmtMonth(sheet.periodMonth) }} · {{ sheet.schemeName }}
@@ -383,6 +418,24 @@ const inCls =
           color="teal"
           :is-disabled="busy"
           @click="scoreSheet"
+        />
+        <Button
+          v-if="canMarkPaid && !sheet.paidAt"
+          :label="t('CRM.KPI_SHEETS.PAYOUT.MARK_ONE')"
+          icon="i-lucide-banknote"
+          color="teal"
+          :is-disabled="busy"
+          @click="markPaid"
+        />
+        <Button
+          v-if="isCrmFinance && sheet.paidAt"
+          :label="t('CRM.KPI_SHEETS.PAYOUT.UNMARK')"
+          icon="i-lucide-undo-2"
+          size="sm"
+          variant="faded"
+          color="slate"
+          :is-disabled="busy"
+          @click="unmarkPaid"
         />
       </div>
     </div>
@@ -502,10 +555,10 @@ const inCls =
           <span class="font-medium text-n-ruby-11">{{
             t('CRM.KPI_SHEETS.RETURNED_BANNER')
           }}</span>
-          <span v-if="sheet.returnedByName"
-class="text-xs text-n-slate-10"
+          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
             >（{{ sheet.returnedByName }} ·
-            {{ fmtDate(sheet.returnedAt) }}）</span>
+            {{ fmtDate(sheet.returnedAt) }}）</span
+          >
           <div class="mt-1">{{ returnedNotice }}</div>
         </div>
       </div>
@@ -515,15 +568,35 @@ class="text-xs text-n-slate-10"
         v-if="reopenNotice"
         class="flex items-start gap-2 p-4 border rounded-2xl border-n-amber-6 bg-n-amber-2"
       >
-        <span class="i-lucide-rotate-ccw size-4 mt-0.5 shrink-0 text-n-amber-11" />
+        <span
+          class="i-lucide-rotate-ccw size-4 mt-0.5 shrink-0 text-n-amber-11"
+        />
         <div class="text-sm text-n-slate-12">
           <span class="font-medium text-n-amber-11">{{
             t('CRM.KPI_SHEETS.REOPEN_BANNER')
           }}</span>
           <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
             >（{{ sheet.returnedByName }} ·
-            {{ fmtDate(sheet.returnedAt) }}）</span>
+            {{ fmtDate(sheet.returnedAt) }}）</span
+          >
           <div class="mt-1">{{ reopenNotice }}</div>
+        </div>
+      </div>
+
+      <!-- 已发放提醒（财务标记后，全员可见） -->
+      <div
+        v-if="sheet.paidAt"
+        class="flex items-center gap-2 p-4 border rounded-2xl border-n-teal-6 bg-n-teal-2"
+      >
+        <span class="i-lucide-banknote size-4 shrink-0 text-n-teal-11" />
+        <div class="text-sm text-n-slate-12">
+          <span class="font-medium text-n-teal-11">{{
+            t('CRM.KPI_SHEETS.PAYOUT.PAID_BANNER')
+          }}</span>
+          <span class="text-xs text-n-slate-10"
+            >（{{ sheet.paidByName || '' }} ·
+            {{ fmtDate(sheet.paidAt) }}）</span
+          >
         </div>
       </div>
 
@@ -616,7 +689,8 @@ class="text-xs text-n-slate-10"
                 <td class="px-2 py-2">
                   <span
                     class="inline-block px-2 py-0.5 rounded text-xs bg-n-iris-3 text-n-iris-11"
-                    >{{ item.dimension || '—' }}</span>
+                    >{{ item.dimension || '—' }}</span
+                  >
                 </td>
                 <td class="px-2 py-2 font-medium text-n-slate-12">
                   {{ item.name }}
@@ -684,6 +758,39 @@ class="text-xs text-n-slate-10"
               </tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- 评分与发放规则 / 考核结果应用（下发时从方案快照）-->
+      <section
+        v-if="sheet.payoutNote || sheet.resultNote"
+        class="grid grid-cols-1 gap-4 lg:grid-cols-2"
+      >
+        <div
+          v-if="sheet.payoutNote"
+          class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60"
+        >
+          <span class="text-sm font-medium text-n-slate-12">
+            {{ t('CRM.KPI_SHEETS.SECTION_RULES') }}
+          </span>
+          <p
+            class="text-sm leading-relaxed whitespace-pre-wrap text-n-slate-11"
+          >
+            {{ sheet.payoutNote }}
+          </p>
+        </div>
+        <div
+          v-if="sheet.resultNote"
+          class="flex flex-col gap-2 p-4 rounded-2xl border border-n-weak bg-n-solid-1/60"
+        >
+          <span class="text-sm font-medium text-n-slate-12">
+            {{ t('CRM.KPI_SHEETS.SECTION_RESULT') }}
+          </span>
+          <p
+            class="text-sm leading-relaxed whitespace-pre-wrap text-n-slate-11"
+          >
+            {{ sheet.resultNote }}
+          </p>
         </div>
       </section>
 
