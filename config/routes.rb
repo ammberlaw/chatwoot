@@ -558,6 +558,13 @@ Rails.application.routes.draw do
 
           namespace :tiktok do
             resource :authorization, only: [:create]
+            # TikTok 板块（店铺经营）：今日速览 / 看板 / 每日录入 / 利润统计 / 店铺设置 / 部门管理
+            resource :dashboard, only: [:show], controller: 'dashboard'
+            get 'today', to: 'dashboard#today'
+            resources :departments, only: [:index, :create, :update, :destroy]
+            resources :shops, only: [:index, :create, :update, :destroy]
+            resources :sales_records, only: [:index, :create, :update, :destroy]
+            resources :profit_records, only: [:index, :create, :update, :destroy]
           end
 
           namespace :notion do

@@ -46,6 +46,7 @@ class AccountUser < ApplicationRecord
   belongs_to :user
   belongs_to :inviter, class_name: 'User', optional: true
   belongs_to :crm_team, class_name: 'Crm::Team', optional: true, inverse_of: :account_users
+  belongs_to :tiktok_department, class_name: 'Tiktok::Department', optional: true, inverse_of: :account_users
 
   enum role: { agent: 0, administrator: 1 }
   enum availability: { online: 0, offline: 1, busy: 2 }
@@ -105,6 +106,11 @@ class AccountUser < ApplicationRecord
 
   def crm_hr?
     crm_role == 'hr'
+  end
+
+  # 能否进入 TikTok 板块：管理员/副管理员/财务，或任一 TK 部门的负责人/成员。
+  def can_access_tiktok?
+    Tiktok::AccessScope.new(account, self).can_access?
   end
 
   # 财务身份（与业务员身份叠加）：可查看全员「已通过」提成表并导出。管理员天然具备。

@@ -23,6 +23,10 @@ const userName = computed(
 );
 // 非 CRM 人员（无 crm_role 且非系统管理员）看到置灰的 CRM 旗舰卡（不可进入）。后端仍以 403 兜底。
 const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
+// TikTok 板块（店铺经营）：管理层/财务/TK 部门负责人成员可见（后端派生 can_access_tiktok）。
+const canAccessTiktok = computed(
+  () => currentUser.value?.can_access_tiktok === true
+);
 
 // 按时段问候，落地页有温度但不喧哗。
 const now = new Date();
@@ -89,6 +93,18 @@ const LIVE = computed(() => [
     to: 'crm_doc_center_index',
     accent: 'violet',
   },
+  ...(canAccessTiktok.value
+    ? [
+        {
+          key: 'tiktok',
+          label: 'TikTok 经营',
+          desc: '店铺每日销量 · 利润 · 看板',
+          icon: 'i-lucide-shopping-bag',
+          to: 'tiktok_dashboard_index',
+          accent: 'blue',
+        },
+      ]
+    : []),
 ]);
 
 // 未上线模块，安静收在底部。ERP/MES 按成员模块权限显隐（管理员全模块）。

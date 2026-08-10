@@ -107,6 +107,11 @@ class Account < ApplicationRecord
   has_many :crm_signatures, class_name: 'Crm::Signature', dependent: :destroy_async
   has_many :crm_option_items, class_name: 'Crm::OptionItem', dependent: :destroy_async
   has_one :crm_performance_setting, class_name: 'Crm::PerformanceSetting', dependent: :destroy_async
+  # TikTok 板块（店铺经营日报 + 利润表 + 部门）
+  has_many :tiktok_departments, class_name: 'Tiktok::Department', dependent: :destroy_async
+  has_many :tiktok_shops, class_name: 'Tiktok::Shop', dependent: :destroy_async
+  has_many :tiktok_daily_sales_records, class_name: 'Tiktok::DailySalesRecord', dependent: :destroy_async
+  has_many :tiktok_profit_records, class_name: 'Tiktok::ProfitRecord', dependent: :destroy_async
   has_many :mes_suppliers, class_name: 'Mes::Supplier', dependent: :destroy_async
   has_many :mes_warehouses, class_name: 'Mes::Warehouse', dependent: :destroy_async
   has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async

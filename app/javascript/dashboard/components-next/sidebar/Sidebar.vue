@@ -68,6 +68,14 @@ const canAccessCrm = computed(
 );
 // ERP 财务板块仅财务角色/管理员可见（后端 Erp::BaseController 403 兜底）。
 const canAccessErp = computed(() => currentUser.value?.can_access_erp === true);
+// TikTok 板块：管理员/副管理员/财务，或 TK 部门负责人/成员（后端派生 can_access_tiktok）。
+const canAccessTiktok = computed(
+  () => currentUser.value?.can_access_tiktok === true
+);
+// TK 板块管理（店铺设置/部门管理）仅管理员/副管理员。
+const tiktokCanManage = computed(
+  () => currentUser.value?.tiktok_can_manage === true
+);
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
 // 超级管理员或管理员（deputy_admin）：账号级管理入口（成员/邀请/员工档案/薪资/审批人/公海规则）。
 const isAdminLike = computed(
@@ -81,11 +89,14 @@ const isCrmManager = computed(
 );
 // 人事角色：组织架构/成员管理/绩效/员工档案入口（无 CRM 销售数据）。
 const isCrmHr = computed(() => currentUser.value?.crm_role === 'hr');
-// 普通业务（非管理员/副管理员/部门负责人）：隐藏公司级看板等团队之外的数据入口。
+// 财务：全公司数据只读，需看到公司级看板等入口，不能按普通业务收窄。
+const isCrmFinance = computed(() => currentUser.value?.crm_role === 'finance');
+// 普通业务（非管理员/副管理员/部门负责人/财务）：隐藏公司级看板等团队之外的数据入口。
 const isCrmSales = computed(
   () =>
     !isAdmin.value &&
     !isCrmManager.value &&
+    !isCrmFinance.value &&
     currentUser.value?.crm_role !== 'deputy_admin'
 );
 // 绩效板块按角色可见性（服务端按当前用户角色算好；管理员始终 true）。
@@ -680,6 +691,63 @@ const menuItems = computed(() => {
             ),
             activeOn: ['companies_dashboard_index', 'companies_dashboard_show'],
           },
+        ],
+      },
+      // ── TikTok 板块（店铺经营，独立模块）。看板/日报/利润=有权成员可见（后端按部门收口）；
+      //    店铺设置/部门管理=仅管理员/副管理员。整组可见性走 canAccessTiktok。──
+      {
+        name: 'TikTok',
+        label: t('SIDEBAR.TIKTOK'),
+        icon: 'i-lucide-shopping-bag',
+        activeOn: [
+          'tiktok_today_index',
+          'tiktok_dashboard_index',
+          'tiktok_sales_records_index',
+          'tiktok_profit_index',
+          'tiktok_shop_settings_index',
+          'tiktok_departments_index',
+        ],
+        children: [
+          {
+            name: 'TikTok Today',
+            label: t('SIDEBAR.TIKTOK_TODAY'),
+            to: accountScopedRoute('tiktok_today_index'),
+            activeOn: ['tiktok_today_index'],
+          },
+          {
+            name: 'TikTok Dashboard',
+            label: t('SIDEBAR.TIKTOK_DASHBOARD'),
+            to: accountScopedRoute('tiktok_dashboard_index'),
+            activeOn: ['tiktok_dashboard_index'],
+          },
+          {
+            name: 'TikTok Sales Records',
+            label: t('SIDEBAR.TIKTOK_SALES_RECORDS'),
+            to: accountScopedRoute('tiktok_sales_records_index'),
+            activeOn: ['tiktok_sales_records_index'],
+          },
+          {
+            name: 'TikTok Profit',
+            label: t('SIDEBAR.TIKTOK_PROFIT'),
+            to: accountScopedRoute('tiktok_profit_index'),
+            activeOn: ['tiktok_profit_index'],
+          },
+          ...(tiktokCanManage.value
+            ? [
+                {
+                  name: 'TikTok Shop Settings',
+                  label: t('SIDEBAR.TIKTOK_SHOP_SETTINGS'),
+                  to: accountScopedRoute('tiktok_shop_settings_index'),
+                  activeOn: ['tiktok_shop_settings_index'],
+                },
+                {
+                  name: 'TikTok Departments',
+                  label: t('SIDEBAR.TIKTOK_DEPARTMENTS'),
+                  to: accountScopedRoute('tiktok_departments_index'),
+                  activeOn: ['tiktok_departments_index'],
+                },
+              ]
+            : []),
         ],
       },
       // ── Wintouch-CRM 五分区（对齐 Twenty 侧栏结构）──
@@ -1407,6 +1475,8 @@ const menuItems = computed(() => {
       )
       // ERP 财务板块仅财务角色/管理员可见。
       .filter(item => item.name !== 'Finance ERP' || canAccessErp.value)
+      // TikTok 板块可见性：管理层/财务/TK 部门负责人成员（后端派生）。
+      .filter(item => item.name !== 'TikTok' || canAccessTiktok.value)
       // 「设置」（账号管理后台）仅系统管理员可见；个人资料走左下角头像菜单。
       .filter(item => item.name !== 'Settings' || isAdmin.value)
   );
@@ -1418,6 +1488,7 @@ const route = useRoute();
 const PINNED_ITEMS = ['CRM Workspace'];
 // 各顶级项归属的业务系统。未列出的（含原生会话/收件箱、CRM 销售各组）默认归 CRM。
 const ITEM_MODULE = {
+  TikTok: 'tiktok',
   'CRM Team Chat': 'chat',
   'CRM Approvals': 'oa',
   'CRM Org': 'hr',
@@ -1430,6 +1501,12 @@ const ITEM_MODULE = {
 const itemModule = name => ITEM_MODULE[name] || 'crm';
 // 当前路由属于哪个系统（默认 CRM，含工作台/销售各页/会话）。
 const ROUTE_MODULE = {
+  tiktok_today_index: 'tiktok',
+  tiktok_dashboard_index: 'tiktok',
+  tiktok_sales_records_index: 'tiktok',
+  tiktok_profit_index: 'tiktok',
+  tiktok_shop_settings_index: 'tiktok',
+  tiktok_departments_index: 'tiktok',
   crm_team_chat_index: 'chat',
   crm_approvals_index: 'oa',
   crm_approval_templates_index: 'oa',
