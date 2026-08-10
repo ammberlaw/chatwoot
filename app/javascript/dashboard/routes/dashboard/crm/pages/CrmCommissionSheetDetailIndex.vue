@@ -86,13 +86,26 @@ onMounted(load);
 // ── 角色 / 状态 → 可做的操作 ──
 const status = computed(() => sheet.value?.status);
 const isOwner = computed(() => sheet.value?.ownerId === currentUser.value?.id);
-const editable = computed(
+// 财务复核时手动进入编辑（默认只读+可导出，点「编辑」才改，存完回只读）。
+const financeEditing = ref(false);
+// 常规草稿工作流可编辑：草稿/退回态 + 本人/管理员/副管。
+const draftEditable = computed(
   () =>
     ['DRAFT', 'RETURNED'].includes(status.value) &&
     (isOwner.value || isAdmin.value || isCrmDeputyAdmin.value)
 );
+// 「可改单元格」态：常规草稿可编辑，或财务主动进入编辑（任意状态，含已通过，补汇率复核用）。
+const editable = computed(
+  () => draftEditable.value || (isCrmFinance.value && financeEditing.value)
+);
+// 财务「编辑」入口：已通过表且当前未在编辑时露出。
+const canFinanceEdit = computed(
+  () => isCrmFinance.value && status.value === 'APPROVED' && !editable.value
+);
+// 拉单/导单仅常规草稿工作流可用（财务补汇率不涉及）。
+const canPullImport = computed(() => draftEditable.value);
 const canSubmit = computed(
-  () => editable.value && (isOwner.value || isAdmin.value)
+  () => draftEditable.value && (isOwner.value || isAdmin.value)
 );
 const canApprove = computed(
   () =>
@@ -195,12 +208,19 @@ const save = async () => {
       buildPayload()
     );
     applySheet(data);
+    financeEditing.value = false;
     useAlert(t('CRM.COMMISSION.DETAIL.SAVED'));
   } catch (e) {
     useAlert(e?.response?.data?.error || t('CRM.COMMISSION.DETAIL.SAVE_ERROR'));
   } finally {
     isBusy.value = false;
   }
+};
+
+// 财务取消编辑：丢弃未存改动，重载回只读态。
+const cancelFinanceEdit = () => {
+  financeEditing.value = false;
+  load();
 };
 
 const pull = async () => {
@@ -541,6 +561,7 @@ const grand = computed(() => ({
       <div class="flex items-center gap-2 shrink-0">
         <template v-if="editable">
           <button
+            v-if="canPullImport"
             class="h-8 px-3 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
             :disabled="isBusy"
             @click="pull"
@@ -548,6 +569,7 @@ const grand = computed(() => ({
             {{ t('CRM.COMMISSION.DETAIL.PULL') }}
           </button>
           <button
+            v-if="canPullImport"
             class="h-8 px-3 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
             :disabled="isBusy"
             @click="openOrderPicker"
@@ -566,6 +588,14 @@ const grand = computed(() => ({
             @click="save"
           >
             {{ t('CRM.COMMISSION.DETAIL.SAVE') }}
+          </button>
+          <button
+            v-if="financeEditing"
+            class="h-8 px-3 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
+            :disabled="isBusy"
+            @click="cancelFinanceEdit"
+          >
+            {{ t('CRM.COMMISSION.DETAIL.FINANCE_CANCEL') }}
           </button>
           <button
             v-if="canSubmit"
@@ -593,7 +623,14 @@ const grand = computed(() => ({
           </button>
         </template>
         <button
-          v-if="canExport"
+          v-if="canFinanceEdit"
+          class="h-8 px-4 text-sm font-medium rounded-lg border border-n-iris-6 text-n-iris-11 hover:bg-n-iris-3"
+          @click="financeEditing = true"
+        >
+          {{ t('CRM.COMMISSION.DETAIL.FINANCE_EDIT') }}
+        </button>
+        <button
+          v-if="canExport && !editable"
           class="h-8 px-4 text-sm font-medium rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
           @click="exportImage"
         >

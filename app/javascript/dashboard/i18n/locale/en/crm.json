@@ -65,6 +65,8 @@
         "IMPORT_CONFIRM": "导入选中",
         "CANCEL": "取消",
         "FILL_RMB": "按汇率折算RMB",
+        "FINANCE_EDIT": "编辑（补汇率）",
+        "FINANCE_CANCEL": "取消编辑",
         "SAVE": "保存",
         "SUBMIT": "提交审批",
         "APPROVE": "通过",

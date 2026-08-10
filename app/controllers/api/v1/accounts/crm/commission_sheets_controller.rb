@@ -43,10 +43,12 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     render :show
   end
 
-  # 保存明细行 + 备注。仅草稿/退回态且有编辑权（本人或管理员）可改。
+  # 保存明细行 + 备注。业务员本人/管理员/副管：仅草稿/退回态可改。
+  # 财务(crm_finance)：可对任意状态（含已通过）全字段编辑，用于复核阶段补汇率等。
   def update
-    return render_error('该提成表当前状态不可编辑', :unprocessable_entity) unless @sheet.editable?
-    return render_error('无权编辑该提成表', :forbidden) unless can_edit?(@sheet)
+    finance = Current.account_user&.crm_finance?
+    return render_error('该提成表当前状态不可编辑', :unprocessable_entity) unless @sheet.editable? || finance
+    return render_error('无权编辑该提成表', :forbidden) unless can_edit?(@sheet) || finance
 
     @sheet.update!(sheet_params)
     @sheet.reload
