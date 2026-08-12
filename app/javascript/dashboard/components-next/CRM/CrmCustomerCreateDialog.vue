@@ -8,7 +8,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
@@ -221,12 +221,16 @@ defineExpose({ dialogRef, onSuccess, open });
           label="公司网址 / 域名"
           :disabled="isLoading"
         />
-        <ComboBox
-          v-model="form.tradeCountry"
-          :options="countryOptions"
-          placeholder="国家地区"
-          search-placeholder="搜索国家/地区"
-        />
+        <!-- 套 Input 同款标签壳（flex-col gap-1 + label），与同行「公司网址」等高对齐，避免无标签下拉浮高 -->
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">国家 / 地区</label>
+          <ComboBox
+            v-model="form.tradeCountry"
+            :options="countryOptions"
+            placeholder="国家地区"
+            search-placeholder="搜索国家/地区"
+          />
+        </div>
       </div>
 
       <!-- 业务 -->
@@ -236,27 +240,27 @@ defineExpose({ dialogRef, onSuccess, open });
         业务信息
       </div>
       <div class="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
-        <Select
+        <SelectCard
           v-model="form.customerStatus"
           :options="statusOptions"
           placeholder="客户状态"
         />
-        <Select
+        <SelectCard
           v-model="form.customerLevel"
           :options="levelOptions"
           placeholder="客户等级"
         />
-        <Select
+        <SelectCard
           v-model="form.customerGroup"
           :options="groupOptions"
           placeholder="客户分组"
         />
-        <Select
+        <SelectCard
           v-model="form.productGroup"
           :options="productGroupOptions"
           placeholder="产品分组"
         />
-        <Select
+        <SelectCard
           v-model="form.sourceChannel"
           :options="sourceOptions"
           placeholder="客户来源"
@@ -293,11 +297,16 @@ defineExpose({ dialogRef, onSuccess, open });
         <Input v-model="form.whatsApp" label="WhatsApp" :disabled="isLoading" />
         <Input v-model="form.wechat" label="微信" :disabled="isLoading" />
         <Input v-model="form.linkedin" label="Linkedin" :disabled="isLoading" />
-        <Select
-          v-model="form.contactPreference"
-          :options="preferenceOptions"
-          placeholder="联系偏好"
-        />
+        <!-- 套 Input 同款标签壳，与同行 Linkedin 等高对齐；block 撑满与左侧输入框同宽 -->
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">联系偏好</label>
+          <SelectCard
+            v-model="form.contactPreference"
+            :options="preferenceOptions"
+            placeholder="联系偏好"
+            block
+          />
+        </div>
         <Input
           v-model="form.address"
           label="地址"
