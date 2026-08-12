@@ -5,6 +5,8 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useTiktokShopsStore } from 'dashboard/stores/tiktok/shops';
 import { useTiktokSalesRecordsStore } from 'dashboard/stores/tiktok/salesRecords';
 import Button from 'dashboard/components-next/button/Button.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 // TikTok 每日录入：一店一天一行。取消率/有效率由台数派生（后端算，前端只做录入预览）；
 // 销售额换算 RMB 于录入时按实时汇率存快照。
@@ -27,6 +29,11 @@ const thisMonth = () => today().slice(0, 7);
 const filters = ref({ month: thisMonth(), shopId: '' });
 
 const activeShops = computed(() => shops.value.filter(s => s.active));
+// 紫玻璃店铺筛选下拉选项（含「全部店铺」）
+const shopFilterOptions = computed(() => [
+  { value: '', label: '全部店铺' },
+  ...shops.value.map(s => ({ value: s.id, label: s.name })),
+]);
 const shopName = id => shops.value.find(s => s.id === id)?.name || '—';
 
 const pct = v => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
@@ -221,22 +228,18 @@ const barWidth = rate => {
           </p>
         </div>
         <div class="flex items-center gap-2">
-          <input
+          <MonthPicker
             v-model="filters.month"
-            type="month"
-            class="w-40 h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+            trigger-class="w-40 h-10"
+            :clearable="false"
             @change="loadRecords"
           />
-          <select
+          <SelectCard
             v-model="filters.shopId"
-            class="w-40 h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            @change="loadRecords"
-          >
-            <option value="">全部店铺</option>
-            <option v-for="s in shops" :key="s.id" :value="s.id">
-              {{ s.name }}
-            </option>
-          </select>
+            :options="shopFilterOptions"
+            trigger-class="w-40 h-10"
+            @update:model-value="loadRecords"
+          />
           <Button
             color="iris"
             icon="i-lucide-plus"

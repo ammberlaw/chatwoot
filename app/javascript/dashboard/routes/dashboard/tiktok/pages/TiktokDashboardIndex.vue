@@ -4,6 +4,8 @@ import { useAlert } from 'dashboard/composables';
 import TiktokDashboardAPI from 'dashboard/api/tiktok/dashboard';
 import { useTiktokShopsStore } from 'dashboard/stores/tiktok/shops';
 import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 // TikTok 数据看板：按月 + 店铺汇总。KPI 卡 + 每日趋势（RMB）+ 分店铺明细。
 // 金额一律用录入时的 RMB 快照汇总，口径稳定。
@@ -34,6 +36,11 @@ const teams = computed(() => {
   });
   return [...map].map(([id, name]) => ({ id, name }));
 });
+// 紫玻璃团队筛选下拉选项（含「全部团队」）
+const teamFilterOptions = computed(() => [
+  { value: '', label: '全部团队' },
+  ...teams.value.map(t => ({ value: t.id, label: t.name })),
+]);
 
 const summary = computed(() => data.value?.summary || {});
 const byTeam = computed(() => data.value?.by_team || []);
@@ -107,22 +114,18 @@ onMounted(async () => {
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-xl font-semibold text-n-slate-12">TikTok 数据看板</h1>
         <div class="flex items-center gap-2">
-          <input
+          <MonthPicker
             v-model="filters.month"
-            type="month"
-            class="w-40 h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+            trigger-class="w-40 h-10"
+            :clearable="false"
             @change="load"
           />
-          <select
+          <SelectCard
             v-model="filters.teamId"
-            class="w-40 h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            @change="load"
-          >
-            <option value="">全部团队</option>
-            <option v-for="tm in teams" :key="tm.id" :value="tm.id">
-              {{ tm.name }}
-            </option>
-          </select>
+            :options="teamFilterOptions"
+            trigger-class="w-40 h-10"
+            @update:model-value="load"
+          />
         </div>
       </div>
 

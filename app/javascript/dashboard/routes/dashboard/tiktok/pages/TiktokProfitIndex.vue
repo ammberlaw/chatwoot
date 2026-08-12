@@ -6,6 +6,8 @@ import { useTiktokShopsStore } from 'dashboard/stores/tiktok/shops';
 import { useTiktokDepartmentsStore } from 'dashboard/stores/tiktok/departments';
 import { useTiktokProfitRecordsStore } from 'dashboard/stores/tiktok/profitRecords';
 import Button from 'dashboard/components-next/button/Button.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 // TikTok 出库利润表：按 店铺 × 型号 × 月份。负责人填，系统自动算毛利/净利润。
 // 成本/佣金/税费/其它均 CNY 直填；已入账金额按币种换算 RMB。
@@ -36,6 +38,11 @@ const departmentOptions = computed(() => {
   const usedIds = new Set(shops.value.map(s => s.departmentId).filter(Boolean));
   return departments.value.filter(d => usedIds.has(d.id));
 });
+// 紫玻璃部门筛选下拉选项（含「全部部门」）
+const departmentFilterOptions = computed(() => [
+  { value: '', label: '全部部门' },
+  ...departmentOptions.value.map(d => ({ value: d.id, label: d.name })),
+]);
 
 // 按部门过滤后的记录（部门为空=全部）；KPI/合计/表格都基于它。
 const filteredRecords = computed(() => {
@@ -278,21 +285,17 @@ onMounted(async () => {
           </p>
         </div>
         <div class="flex items-center gap-2">
-          <input
+          <MonthPicker
             v-model="filters.month"
-            type="month"
-            class="w-40 h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+            trigger-class="w-40 h-10"
+            :clearable="false"
             @change="loadRecords"
           />
-          <select
+          <SelectCard
             v-model="filters.departmentId"
-            class="w-40 h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">全部部门</option>
-            <option v-for="d in departmentOptions" :key="d.id" :value="d.id">
-              {{ d.name }}
-            </option>
-          </select>
+            :options="departmentFilterOptions"
+            trigger-class="w-40 h-10"
+          />
           <Button
             color="iris"
             icon="i-lucide-plus"
