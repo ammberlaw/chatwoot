@@ -34,7 +34,8 @@ const fetchRecords = () => store.get();
 
 // ── 按年份归档筛选：默认当年，可切历史年份或全部 ──
 const yearFilter = ref(String(new Date().getFullYear()));
-const monthFilter = ref(''); // 空 = 全部月份
+// 进入默认本月（可在下拉选「全部月份」看全部）
+const monthFilter = ref(String(new Date().getMonth() + 1));
 const yearOf = r => String(new Date(r.schemeMonth).getFullYear());
 const monthOf = r => String(new Date(r.schemeMonth).getMonth() + 1);
 const yearOptions = computed(() => {

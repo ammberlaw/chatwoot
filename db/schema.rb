@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_11_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_12_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -59,6 +59,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_11_000003) do
     t.string "mes_roles", default: [], null: false, array: true
     t.string "mes_role"
     t.boolean "crm_finance", default: false, null: false
+    t.bigint "tiktok_department_id"
     t.index ["account_id", "crm_role"], name: "index_account_users_on_account_id_and_crm_role"
     t.index ["account_id", "erp_role"], name: "index_account_users_on_account_id_and_erp_role"
     t.index ["account_id", "user_id"], name: "uniq_user_id_per_account_id", unique: true
@@ -67,6 +68,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_11_000003) do
     t.index ["crm_team_id"], name: "index_account_users_on_crm_team_id"
     t.index ["custom_role_id"], name: "index_account_users_on_custom_role_id"
     t.index ["mes_roles"], name: "index_account_users_on_mes_roles", using: :gin
+    t.index ["tiktok_department_id"], name: "index_account_users_on_tiktok_department_id"
     t.index ["user_id"], name: "index_account_users_on_user_id"
   end
 
@@ -1214,9 +1216,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_11_000003) do
     t.datetime "updated_at", null: false
     t.bigint "user_id"
     t.bigint "section_id"
+    t.bigint "parent_id"
     t.index "account_id, COALESCE(section_id, (0)::bigint), name", name: "idx_crm_knowledge_cats_company_name", unique: true, where: "(user_id IS NULL)"
     t.index ["account_id", "user_id", "name"], name: "idx_crm_knowledge_cats_personal_name", unique: true, where: "(user_id IS NOT NULL)"
     t.index ["account_id"], name: "index_crm_knowledge_categories_on_account_id"
+    t.index ["parent_id"], name: "index_crm_knowledge_categories_on_parent_id"
     t.index ["section_id"], name: "index_crm_knowledge_categories_on_section_id"
     t.index ["user_id"], name: "index_crm_knowledge_categories_on_user_id"
   end
@@ -2820,6 +2824,77 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_11_000003) do
     t.index ["name", "account_id"], name: "index_teams_on_name_and_account_id", unique: true
   end
 
+  create_table "tiktok_daily_sales_records", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "shop_id", null: false
+    t.date "sale_date", null: false
+    t.integer "total_orders", default: 0, null: false
+    t.integer "total_units", default: 0, null: false
+    t.decimal "sales_amount", precision: 14, scale: 2, default: "0.0"
+    t.string "currency", default: "PHP", null: false
+    t.decimal "sales_amount_cny", precision: 14, scale: 2, default: "0.0"
+    t.decimal "fx_rate", precision: 14, scale: 6, default: "0.0"
+    t.integer "cancelled_units", default: 0, null: false
+    t.integer "shipped_units", default: 0, null: false
+    t.integer "influencer_units", default: 0, null: false
+    t.text "remark"
+    t.bigint "creator_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "sale_date"], name: "index_tiktok_daily_sales_records_on_account_id_and_sale_date"
+    t.index ["account_id", "shop_id", "sale_date"], name: "idx_tiktok_daily_shop_date", unique: true
+  end
+
+  create_table "tiktok_departments", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.bigint "leader_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "name"], name: "idx_tiktok_departments_name", unique: true
+    t.index ["leader_id"], name: "index_tiktok_departments_on_leader_id"
+  end
+
+  create_table "tiktok_profit_records", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "shop_id", null: false
+    t.string "product_model", null: false
+    t.string "stat_month", null: false
+    t.string "period_note"
+    t.integer "recorded_quantity", default: 0, null: false
+    t.integer "platform_negative", default: 0, null: false
+    t.decimal "recorded_amount", precision: 14, scale: 2, default: "0.0"
+    t.string "currency", default: "PHP", null: false
+    t.decimal "recorded_amount_cny", precision: 14, scale: 2, default: "0.0"
+    t.decimal "fx_rate", precision: 14, scale: 6, default: "0.0"
+    t.decimal "cost_unit_price", precision: 14, scale: 2, default: "0.0"
+    t.decimal "influencer_commission", precision: 14, scale: 2, default: "0.0"
+    t.decimal "platform_commission", precision: 14, scale: 2, default: "0.0"
+    t.decimal "tax", precision: 14, scale: 2, default: "0.0"
+    t.decimal "other_cost", precision: 14, scale: 2, default: "0.0"
+    t.text "other_cost_note"
+    t.bigint "creator_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "extra_expenses", default: [], null: false
+    t.index ["account_id", "shop_id", "stat_month", "product_model"], name: "idx_tiktok_profit_uniq", unique: true
+    t.index ["account_id", "stat_month"], name: "index_tiktok_profit_records_on_account_id_and_stat_month"
+  end
+
+  create_table "tiktok_shops", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "region"
+    t.boolean "active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "department_id"
+    t.index ["account_id", "name"], name: "idx_tiktok_shops_name", unique: true
+    t.index ["account_id", "position"], name: "index_tiktok_shops_on_account_id_and_position"
+    t.index ["department_id"], name: "index_tiktok_shops_on_department_id"
+  end
+
   create_table "user_sessions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "client_id", null: false
@@ -2911,6 +2986,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_11_000003) do
   end
 
   add_foreign_key "account_users", "crm_teams", on_delete: :nullify
+  add_foreign_key "account_users", "tiktok_departments", on_delete: :nullify
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "chat_messages", "chat_conversations", column: "conversation_id", on_delete: :cascade
@@ -3026,6 +3102,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_11_000003) do
   add_foreign_key "oa_approval_requests", "oa_approval_templates", column: "template_id", on_delete: :cascade
   add_foreign_key "oa_approval_steps", "oa_approval_requests", column: "request_id", on_delete: :cascade
   add_foreign_key "org_memberships", "org_departments", column: "department_id", on_delete: :cascade
+  add_foreign_key "tiktok_daily_sales_records", "accounts", on_delete: :cascade
+  add_foreign_key "tiktok_daily_sales_records", "tiktok_shops", column: "shop_id", on_delete: :cascade
+  add_foreign_key "tiktok_daily_sales_records", "users", column: "creator_id", on_delete: :nullify
+  add_foreign_key "tiktok_departments", "accounts", on_delete: :cascade
+  add_foreign_key "tiktok_departments", "users", column: "leader_id", on_delete: :nullify
+  add_foreign_key "tiktok_profit_records", "accounts", on_delete: :cascade
+  add_foreign_key "tiktok_profit_records", "tiktok_shops", column: "shop_id", on_delete: :cascade
+  add_foreign_key "tiktok_profit_records", "users", column: "creator_id", on_delete: :nullify
+  add_foreign_key "tiktok_shops", "accounts", on_delete: :cascade
+  add_foreign_key "tiktok_shops", "tiktok_departments", column: "department_id", on_delete: :nullify
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").

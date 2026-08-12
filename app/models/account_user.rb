@@ -20,6 +20,7 @@
 #  crm_team_id              :bigint
 #  custom_role_id           :bigint
 #  inviter_id               :bigint
+#  tiktok_department_id     :bigint
 #  user_id                  :bigint
 #
 # Indexes
@@ -31,12 +32,14 @@
 #  index_account_users_on_crm_team_id               (crm_team_id)
 #  index_account_users_on_custom_role_id            (custom_role_id)
 #  index_account_users_on_mes_roles                 (mes_roles) USING gin
+#  index_account_users_on_tiktok_department_id      (tiktok_department_id)
 #  index_account_users_on_user_id                   (user_id)
 #  uniq_user_id_per_account_id                      (account_id,user_id) UNIQUE
 #
 # Foreign Keys
 #
 #  fk_rails_...  (crm_team_id => crm_teams.id) ON DELETE => nullify
+#  fk_rails_...  (tiktok_department_id => tiktok_departments.id) ON DELETE => nullify
 #
 
 class AccountUser < ApplicationRecord

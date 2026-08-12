@@ -1,7 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -17,10 +17,12 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
 const { t } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const { accountId } = useAccount();
 const store = useCrmKnowledgeDocsStore();
 const categoriesStore = useCrmKnowledgeCategoriesStore();
@@ -278,30 +280,6 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 const scopeLabel = scope => (scope === 'PERSONAL' ? '个人' : '公司');
 const fmtDateTime = v => (v ? new Date(v).toLocaleString() : '');
 
-// 看板列：分类表顺序 + 文档里出现但已不在分类表的（兜底，不丢文档）+ 未分类。
-const columns = computed(() => {
-  const known = categories.value.map(c => c.name);
-  const orphans = [
-    ...new Set(
-      records.value
-        .map(r => r.category)
-        .filter(cat => cat && !known.includes(cat))
-    ),
-  ];
-  const cols = [
-    ...categories.value.map(c => ({ id: c.id, name: c.name })),
-    ...orphans.map(name => ({ id: null, name })),
-  ];
-  const hasUncategorized = records.value.some(r => !r.category);
-  if (hasUncategorized) cols.push({ id: null, name: '', uncategorized: true });
-  return cols.map(col => ({
-    ...col,
-    docs: records.value.filter(doc =>
-      col.uncategorized ? !doc.category : doc.category === col.name
-    ),
-  }));
-});
-
 const categoryOptions = computed(() =>
   categories.value.map(c => ({ value: c.name, label: c.name }))
 );
@@ -310,38 +288,165 @@ const scopeOptions = [
   { value: 'PERSONAL', label: '个人' },
 ];
 
-// ── 文件夹视图：一级=分类文件夹网格；点进去=该文件夹下的文档；搜索时平铺命中结果 ──
-const UNCATEGORIZED_KEY = '__uncategorized__';
-const activeFolderKey = ref(null); // null=文件夹网格；分类名或 UNCATEGORIZED_KEY=已进入某文件夹
+// ── 三级目录导航：path 栈（板块 → 分类 → 子分类）。当前节点决定显示的子文件夹与文档 ──
+// path 元素：{ type:'section'|'category'|'orphan'|'uncategorized', id, name }
+const pathStack = ref([]); // 空=根
+const selectedFolderKey = ref(null); // 单击选中的文件夹（驱动右侧 Info 面板）
 const isSearching = computed(() => !!searchQuery.value.trim());
-const folderKeyOf = col => (col.uncategorized ? UNCATEGORIZED_KEY : col.name);
-const activeFolder = computed(() =>
-  activeFolderKey.value == null
-    ? null
-    : columns.value.find(c => folderKeyOf(c) === activeFolderKey.value) || null
+
+const currentNode = computed(() =>
+  pathStack.value.length ? pathStack.value[pathStack.value.length - 1] : null
 );
-const openFolder = col => {
-  activeFolderKey.value = folderKeyOf(col);
+const currentCategoryId = computed(() =>
+  currentNode.value?.type === 'category' ? currentNode.value.id : null
+);
+// 新建文档时归属的分类名（分类/孤儿节点=其名；未分类/板块=无）
+const currentDocCategory = computed(() => {
+  const n = currentNode.value;
+  return n?.type === 'category' || n?.type === 'orphan' ? n.name : undefined;
+});
+// 当前层能否新建子文件夹：有管理权 + 非搜索 + 非 GENERAL 根(板块由「板块设置」维护) + 非叶子(孤儿/未分类)
+const canAddFolderHere = computed(
+  () =>
+    canManageBoard.value &&
+    !isSearching.value &&
+    !(isGeneral.value && !currentNode.value) &&
+    !['orphan', 'uncategorized'].includes(currentNode.value?.type)
+);
+// 当前层能否新建文档：需处于分类/孤儿/未分类叶子里
+const canCreateDocsHere = computed(
+  () =>
+    canCreateDocs.value &&
+    !isSearching.value &&
+    ['category', 'orphan', 'uncategorized'].includes(currentNode.value?.type)
+);
+// 文档中心根层能否新建板块（左侧栏的文档分组项）：管理员/副管理员，与「板块设置」同权
+const canAddSectionHere = computed(
+  () =>
+    isGeneral.value &&
+    !isSearching.value &&
+    !currentNode.value &&
+    (isAdmin.value || isCrmDeputyAdmin.value)
+);
+
+// 分类树：按 parentId 取子分类；名字在同板块内唯一，故文档按名字归属。
+const childrenOf = parentId =>
+  categories.value.filter(c => (c.parentId ?? null) === (parentId ?? null));
+const descendantNames = catId => {
+  const names = [];
+  const self = categories.value.find(c => c.id === catId);
+  if (self) names.push(self.name);
+  const walk = id =>
+    childrenOf(id).forEach(c => {
+      names.push(c.name);
+      walk(c.id);
+    });
+  walk(catId);
+  return names;
 };
-const backToFolders = () => {
-  activeFolderKey.value = null;
+// 分类文件夹的子树文档（该分类及其所有后代分类下的文档）
+const subtreeDocsOf = catId => {
+  const names = new Set(descendantNames(catId));
+  return records.value.filter(d => d.category && names.has(d.category));
 };
 
-// 当前要展示的文档：搜索=全部命中；进入文件夹=该文件夹内；否则空（显示文件夹网格）。
-const visibleDocs = computed(() => {
-  if (isSearching.value) return records.value;
-  if (activeFolder.value) return activeFolder.value.docs;
+// 某父级下的分类文件夹；顶层（parentId 为空）追加孤儿/未分类兜底，避免丢文档。
+const buildCatFolders = parentId => {
+  const folders = childrenOf(parentId).map(c => ({
+    type: 'category',
+    id: c.id,
+    name: c.name,
+    docs: subtreeDocsOf(c.id),
+    childCount: childrenOf(c.id).length,
+  }));
+  if (parentId == null) {
+    const known = categories.value.map(c => c.name);
+    [
+      ...new Set(
+        records.value.map(r => r.category).filter(n => n && !known.includes(n))
+      ),
+    ].forEach(name =>
+      folders.push({
+        type: 'orphan',
+        id: name,
+        name,
+        docs: records.value.filter(d => d.category === name),
+        childCount: 0,
+      })
+    );
+    if (records.value.some(r => !r.category)) {
+      folders.push({
+        type: 'uncategorized',
+        id: '__uncat__',
+        name: '',
+        uncategorized: true,
+        docs: records.value.filter(d => !d.category),
+        childCount: 0,
+      });
+    }
+  }
+  return folders;
+};
+
+// 当前节点下的子文件夹
+const currentFolders = computed(() => {
+  const n = currentNode.value;
+  if (!n) {
+    if (isGeneral.value) {
+      return sections.value.map(s => ({
+        type: 'section',
+        id: s.id,
+        name: s.name,
+        docs: [],
+        childCount: null,
+      }));
+    }
+    return buildCatFolders(null);
+  }
+  if (n.type === 'section') return buildCatFolders(null);
+  if (n.type === 'category') return buildCatFolders(n.id);
   return [];
 });
 
-const folderClass = col =>
-  col.uncategorized ? 'bg-n-slate-3 text-n-slate-11' : colorOf(col.name);
+// 当前节点下直接归属的文档（分类/孤儿/未分类叶子才有；搜索时平铺全部命中）
+const currentDocs = computed(() => {
+  if (isSearching.value) return records.value;
+  const n = currentNode.value;
+  if (!n) return [];
+  if (n.type === 'uncategorized') return records.value.filter(d => !d.category);
+  if (n.type === 'orphan' || n.type === 'category')
+    return records.value.filter(d => d.category === n.name);
+  return [];
+});
 
-// 文件夹大小 = 该分类下所有文档附件字节数之和（无附件则不显示）。
-const folderBytes = col =>
-  (col.docs || []).reduce(
+// 面包屑：板块名从 sections 兜底解析
+const breadcrumb = computed(() =>
+  pathStack.value.map(n =>
+    n.type === 'section'
+      ? {
+          ...n,
+          label:
+            sections.value.find(x => x.id === n.id)?.name ||
+            n.name ||
+            t('CRM.KNOWLEDGE_DOCS.SECTION.NONE'),
+        }
+      : {
+          ...n,
+          label: n.uncategorized
+            ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
+            : n.name,
+        }
+  )
+);
+
+const folderClass = f =>
+  f.uncategorized ? 'bg-n-slate-3 text-n-slate-11' : colorOf(f.name);
+
+// 文件夹大小 = 其（子树）文档附件字节和；最近修改 = 其文档最新 updatedAt
+const folderBytes = f =>
+  (f.docs || []).reduce(
     (sum, d) =>
-      sum + (d.files || []).reduce((s, f) => s + (f.byteSize || 0), 0),
+      sum + (d.files || []).reduce((s, x) => s + (x.byteSize || 0), 0),
     0
   );
 const SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -354,6 +459,85 @@ const fmtSize = bytes => {
   const n = bytes / 1024 ** i;
   return `${n.toFixed(i === 0 || n >= 100 ? 0 : 1)} ${SIZE_UNITS[i]}`;
 };
+const folderLastModified = f => {
+  const times = (f.docs || []).map(d => d.updatedAt).filter(Boolean);
+  return times.length ? times.reduce((a, b) => (a > b ? a : b)) : null;
+};
+
+// ── 文件夹选中（Info 面板） + 进入/返回导航 ──
+const folderKeyOf = f => `${f.type}:${f.id}`;
+const selectedFolder = computed(() =>
+  selectedFolderKey.value == null
+    ? null
+    : currentFolders.value.find(
+        f => folderKeyOf(f) === selectedFolderKey.value
+      ) || null
+);
+const isFolderSelected = f => selectedFolderKey.value === folderKeyOf(f);
+const selectFolder = f => {
+  selectedFolderKey.value = folderKeyOf(f);
+};
+const clearFolderSelection = () => {
+  selectedFolderKey.value = null;
+};
+
+// 进入文件夹：板块→经路由切 section_id（由 route watcher 同步 path 并拉数据、也同步侧栏/URL）；分类/叶子→压栈
+const enterFolder = f => {
+  clearFolderSelection();
+  if (f.type === 'section') {
+    router.replace({ query: { ...route.query, section_id: f.id } });
+    return;
+  }
+  pathStack.value = [
+    ...pathStack.value,
+    { type: f.type, id: f.id, name: f.name, uncategorized: f.uncategorized },
+  ];
+};
+// 面包屑跳转：i<0 回根（GENERAL 在板块内则经路由清 section_id）
+const goToDepth = i => {
+  clearFolderSelection();
+  if (i < 0) {
+    if (isGeneral.value && route.query.section_id) {
+      router.replace({ query: { ...route.query, section_id: undefined } });
+    } else {
+      pathStack.value = [];
+    }
+    return;
+  }
+  pathStack.value = pathStack.value.slice(0, i + 1);
+};
+// 回根（库切换/筛选切换时复位）
+const backToFolders = () => {
+  pathStack.value = [];
+  selectedFolderKey.value = null;
+};
+
+// ── Filter：文件夹排序（默认顺序 / 名称 / 文档数 / 大小 / 最近修改）──
+const FOLDER_SORTS = [
+  { value: 'default', label: '默认顺序' },
+  { value: 'name', label: '按名称' },
+  { value: 'count', label: '按文档数' },
+  { value: 'size', label: '按大小' },
+  { value: 'recent', label: '按最近修改' },
+];
+const folderSort = ref('default');
+const sortedFolders = computed(() => {
+  const list = [...currentFolders.value];
+  switch (folderSort.value) {
+    case 'name':
+      return list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh')); // prettier-ignore
+    case 'count':
+      return list.sort((a, b) => b.docs.length - a.docs.length);
+    case 'size':
+      return list.sort((a, b) => folderBytes(b) - folderBytes(a));
+    case 'recent':
+      return list.sort((a, b) =>
+        (folderLastModified(b) || '').localeCompare(folderLastModified(a) || '')
+      );
+    default:
+      return list;
+  }
+});
 
 // 文档中心（GENERAL）没有「我的文档」——个人资料在 CRM 知识库维护；此处只有公司文档（+管理员回收站）。
 const filterTabs = computed(() => [
@@ -462,34 +646,6 @@ const onSearchInput = () => {
 };
 
 const fmtDate = v => (v ? new Date(v).toLocaleDateString() : '');
-
-// ── 拖拽：文件夹网格里按住卡片可重排分类顺序 ──
-const dragColId = ref(null);
-const onColDrop = async targetCol => {
-  const id = dragColId.value;
-  dragColId.value = null;
-  if (!id || !targetCol.id || id === targetCol.id) return;
-  const list = [...categories.value];
-  const from = list.findIndex(c => c.id === id);
-  const to = list.findIndex(c => c.id === targetCol.id);
-  if (from < 0 || to < 0) return;
-  const [moved] = list.splice(from, 1);
-  list.splice(to, 0, moved);
-  try {
-    await Promise.all(
-      list
-        .map((c, i) =>
-          c.position !== i
-            ? categoriesStore.update({ id: c.id, position: i })
-            : null
-        )
-        .filter(Boolean)
-    );
-    await fetchCategories();
-  } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.CATEGORY.SAVE_ERROR'));
-  }
-};
 
 // ── 右侧详情侧边栏（查看 / 内联编辑 / 新建 / 时间轴）──
 const PANEL_TABS = [
@@ -705,10 +861,32 @@ const saveAdd = async () => {
       personal: isMineView.value,
       library: currentLibrary.value,
       section_id: sectionParam(),
+      parent_id: currentCategoryId.value, // 在某分类里新建=其子分类
     });
     await fetchCategories();
   } catch {
     useAlert(t('CRM.KNOWLEDGE_DOCS.CATEGORY.SAVE_ERROR'));
+  }
+};
+
+// ── 根层新建板块（左侧栏文档分组项）：与「板块设置」同一后端，建完即时进网格 + 侧栏 ──
+const addingRootSection = ref(false);
+const newRootSectionName = ref('');
+const startAddSection = () => {
+  addingRootSection.value = true;
+  newRootSectionName.value = '';
+};
+const saveAddSection = async () => {
+  const name = newRootSectionName.value.trim();
+  addingRootSection.value = false;
+  if (!name) return;
+  try {
+    await DocSectionsAPI.createSection({ section: { name } });
+    await fetchSections();
+    emitter.emit('crmDocSectionsUpdated'); // 通知左侧栏刷新
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.ADDED'));
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.ADD_ERROR'));
   }
 };
 
@@ -763,6 +941,12 @@ const fetchPermissionContext = () => {
 };
 
 onMounted(() => {
+  // 侧栏带 ?section_id= 进来时，直接定位到该板块层
+  if (route.query.section_id) {
+    pathStack.value = [
+      { type: 'section', id: Number(route.query.section_id), name: '' },
+    ];
+  }
   fetchRecords();
   fetchCategories();
   fetchPermissionContext();
@@ -774,7 +958,11 @@ watch(
     activeFilter.value = filter || 'company';
     activeSectionId.value = sectionId || '';
     closePanel();
-    backToFolders();
+    clearFolderSelection();
+    // 侧栏切板块→落到该板块层；无板块→回根（GENERAL 显示板块网格）
+    pathStack.value = sectionId
+      ? [{ type: 'section', id: Number(sectionId), name: '' }]
+      : [];
     fetchRecords();
     fetchCategories();
   }
@@ -836,10 +1024,19 @@ watch(
           :label="t('CRM.KNOWLEDGE_DOCS.SECTION.SETTINGS')"
           @click="openSectionDialog"
         />
+        <!-- Filter：文件夹排序 -->
+        <SelectCard
+          v-if="!isRecycle"
+          v-model="folderSort"
+          :options="FOLDER_SORTS"
+          align="right"
+          class="ml-auto"
+          trigger-class="w-32 h-9"
+        />
         <Input
           v-model="searchQuery"
           :placeholder="t('CRM.KNOWLEDGE_DOCS.SEARCH_PLACEHOLDER')"
-          class="ml-auto w-56"
+          :class="isRecycle ? 'ml-auto w-56' : 'w-56'"
           @input="onSearchInput"
         />
       </div>
@@ -1025,272 +1222,384 @@ watch(
         </table>
       </div>
 
-      <!-- 文档列表：进入某文件夹后 / 搜索命中时，平铺该范围的文档卡片 -->
-      <div
-        v-else-if="isSearching || activeFolder"
-        class="flex flex-col flex-1 overflow-hidden"
-      >
-        <!-- 面包屑 / 搜索头 -->
-        <div class="flex items-center gap-2 px-6 py-3 border-b border-n-weak">
+      <!-- 三级目录浏览器：面包屑 + 子文件夹网格 + 本层文档（搜索时平铺命中）-->
+      <div v-else class="flex flex-col flex-1 overflow-hidden">
+        <!-- 面包屑 -->
+        <div
+          class="flex items-center gap-1.5 px-6 py-3 text-sm border-b border-n-weak min-w-0"
+        >
           <button
-            v-if="activeFolder && !isSearching"
+            v-if="pathStack.length || isSearching"
             type="button"
             class="flex items-center justify-center rounded-lg size-7 shrink-0 text-n-slate-11 hover:bg-n-alpha-1"
             :title="t('CRM.KNOWLEDGE_DOCS.VIEW.BACK')"
-            @click="backToFolders"
+            @click="
+              isSearching ? (searchQuery = '') : goToDepth(pathStack.length - 2)
+            "
           >
             <span class="i-lucide-arrow-left size-4" />
           </button>
-          <div class="flex items-center gap-1.5 text-sm min-w-0">
-            <button
-              type="button"
-              class="text-n-slate-10 hover:text-n-slate-12 shrink-0"
-              @click="backToFolders"
-            >
+          <button
+            type="button"
+            class="shrink-0 text-n-slate-10 hover:text-n-slate-12"
+            @click="goToDepth(-1)"
+          >
+            {{
+              isGeneral
+                ? t('CRM.KNOWLEDGE_DOCS.HEADER_GENERAL')
+                : t('CRM.KNOWLEDGE_DOCS.HEADER')
+            }}
+          </button>
+          <template v-if="isSearching">
+            <span
+              class="i-lucide-chevron-right size-3.5 text-n-slate-8 shrink-0"
+            />
+            <span class="font-medium text-n-slate-12">
+              {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SEARCH_RESULT') }}
+            </span>
+            <span class="shrink-0 text-n-slate-10">
               {{
-                isGeneral
-                  ? t('CRM.KNOWLEDGE_DOCS.HEADER_GENERAL')
-                  : t('CRM.KNOWLEDGE_DOCS.HEADER')
+                t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
+                  count: currentDocs.length,
+                })
               }}
-            </button>
-            <template v-if="activeFolder && !isSearching">
-              <span class="i-lucide-chevron-right size-3.5 text-n-slate-8" />
-              <span class="font-medium truncate text-n-slate-12">
-                {{
-                  activeFolder.uncategorized
-                    ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
-                    : activeFolder.name
-                }}
-              </span>
-              <span class="shrink-0 text-n-slate-10">
-                {{
-                  t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
-                    count: activeFolder.docs.length,
-                  })
-                }}
-              </span>
+            </span>
+          </template>
+          <template v-else>
+            <template v-for="(node, i) in breadcrumb" :key="i">
+              <span
+                class="i-lucide-chevron-right size-3.5 text-n-slate-8 shrink-0"
+              />
+              <button
+                type="button"
+                class="truncate shrink-0 max-w-[10rem]"
+                :class="
+                  i === breadcrumb.length - 1
+                    ? 'font-medium text-n-slate-12'
+                    : 'text-n-slate-10 hover:text-n-slate-12'
+                "
+                @click="goToDepth(i)"
+              >
+                {{ node.label }}
+              </button>
             </template>
-            <template v-else>
-              <span class="i-lucide-chevron-right size-3.5 text-n-slate-8" />
-              <span class="font-medium text-n-slate-12">
-                {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SEARCH_RESULT') }}
-              </span>
-              <span class="shrink-0 text-n-slate-10">
-                {{
-                  t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
-                    count: visibleDocs.length,
-                  })
-                }}
-              </span>
-            </template>
-          </div>
+          </template>
         </div>
 
         <div class="flex-1 px-6 py-4 overflow-y-auto">
+          <!-- 空态 -->
           <div
-            v-if="!visibleDocs.length"
+            v-if="
+              isSearching
+                ? !currentDocs.length
+                : !sortedFolders.length &&
+                  !currentDocs.length &&
+                  !canAddFolderHere &&
+                  !canAddSectionHere &&
+                  !canCreateDocsHere
+            "
             class="flex flex-col items-center gap-2 mt-20 text-n-slate-10"
           >
-            <span class="i-lucide-file-text size-8 opacity-40" />
+            <span
+              class="size-8 opacity-40"
+              :class="
+                isSearching ? 'i-lucide-file-text' : 'i-lucide-folder-open'
+              "
+            />
             <p class="text-sm">
               {{
                 isSearching
                   ? t('CRM.KNOWLEDGE_DOCS.VIEW.NO_MATCH')
-                  : t('CRM.KNOWLEDGE_DOCS.VIEW.EMPTY_FOLDER')
+                  : currentNode
+                    ? t('CRM.KNOWLEDGE_DOCS.VIEW.EMPTY_FOLDER')
+                    : t('CRM.KNOWLEDGE_DOCS.EMPTY')
               }}
             </p>
           </div>
-          <div
-            v-else
-            class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3"
-          >
-            <button
-              v-for="doc in visibleDocs"
-              :key="doc.id"
-              type="button"
-              class="flex flex-col gap-2 p-3 text-left transition-all border rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-              :class="
-                selectedDoc && selectedDoc.id === doc.id
-                  ? 'border-n-blue-8 ring-1 ring-n-blue-8'
-                  : ''
-              "
-              @click="openPanel(doc)"
-            >
-              <div class="flex items-center gap-2 min-w-0">
-                <span
-                  class="flex items-center justify-center text-xs font-semibold rounded shrink-0 size-6"
-                  :class="colorOf(doc.name)"
-                >
-                  {{ initial(doc.name) }}
-                </span>
-                <span class="text-sm font-medium truncate text-n-slate-12">
-                  {{ doc.name }}
-                </span>
-                <span
-                  v-if="doc.files && doc.files.length"
-                  class="inline-flex items-center gap-0.5 ml-auto text-xs shrink-0 text-n-slate-10"
-                >
-                  <span class="i-lucide-paperclip size-3" />
-                  {{ doc.files.length }}
-                </span>
-              </div>
-              <div class="flex items-center gap-1.5 text-xs text-n-slate-10">
-                <span class="i-lucide-align-left size-3.5 shrink-0" />
-                <span class="truncate">{{ doc.summary || '摘要' }}</span>
-              </div>
-              <div
-                class="flex items-center gap-1 pt-1.5 text-xs border-t text-n-slate-10 border-n-weak"
-              >
-                <span v-if="isSearching && doc.category" class="truncate">
-                  {{ doc.category }}
-                </span>
-                <span v-else class="i-lucide-clock size-3 shrink-0" />
-                <span :class="isSearching && doc.category ? 'ml-auto' : ''">
-                  {{ fmtDate(doc.updatedAt) }}
-                </span>
-              </div>
-            </button>
 
-            <button
-              v-if="canCreateDocs && activeFolder && !isSearching"
-              type="button"
-              class="flex items-center justify-center gap-1 p-3 text-sm border border-dashed rounded-xl text-n-slate-10 border-n-weak hover:bg-n-alpha-1 hover:text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-              @click="
-                openCreatePanel(
-                  activeFolder.uncategorized ? undefined : activeFolder.name
-                )
-              "
-            >
-              <span class="i-lucide-plus size-4" />
-              {{ t('CRM.KNOWLEDGE_DOCS.NEW') }}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 文件夹网格：一级=分类文件夹，点开进入该文件夹的文档 -->
-      <div v-else class="flex-1 px-6 py-4 overflow-y-auto">
-        <div
-          v-if="!columns.length && !canManageBoard"
-          class="flex flex-col items-center gap-2 mt-20 text-n-slate-10"
-        >
-          <span class="i-lucide-folder-open size-8 opacity-40" />
-          <p class="text-sm">{{ t('CRM.KNOWLEDGE_DOCS.EMPTY') }}</p>
-        </div>
-        <div
-          v-else
-          class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
-        >
+          <!-- 子文件夹网格（非搜索）-->
           <div
-            v-for="col in columns"
-            :key="col.id || col.name || 'uncategorized'"
-            class="relative group/folder"
+            v-if="
+              !isSearching &&
+              (sortedFolders.length || canAddFolderHere || canAddSectionHere)
+            "
+            class="grid grid-cols-4 gap-3 sm:grid-cols-5 xl:grid-cols-6"
           >
-            <!-- 重命名内联输入 -->
-            <input
-              v-if="editingId && editingId === col.id"
-              v-model="editingName"
-              class="absolute z-10 left-3 right-3 top-1/2 -translate-y-1/2 h-8 px-2 text-sm border rounded-md border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-              @keyup.enter="saveRename"
-              @blur="saveRename"
-              @click.stop
-            />
-            <button
-              type="button"
-              :draggable="col.id ? 'true' : 'false'"
-              class="block w-full text-left cursor-pointer group-hover/folder:-translate-y-0.5 transition-transform"
-              @click="openFolder(col)"
-              @dragstart.stop="dragColId = col.id"
-              @dragend="dragColId = null"
-              @dragover.prevent
-              @drop="onColDrop(col)"
+            <div
+              v-for="folder in sortedFolders"
+              :key="folderKeyOf(folder)"
+              class="relative group/folder"
             >
-              <!-- 文件夹页签 -->
-              <div
-                class="h-3 rounded-t-lg w-2/5 -mb-0.5 ml-1"
-                :class="folderClass(col)"
+              <!-- 重命名内联输入（仅分类文件夹）-->
+              <input
+                v-if="
+                  editingId &&
+                  folder.type === 'category' &&
+                  editingId === folder.id
+                "
+                v-model="editingName"
+                class="absolute z-10 left-3 right-3 top-1/2 -translate-y-1/2 h-8 px-2 text-sm border rounded-md border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                @keyup.enter="saveRename"
+                @blur="saveRename"
+                @click.stop
               />
-              <!-- 文件夹主体 -->
-              <div
-                class="relative flex flex-col justify-end h-32 p-4 overflow-hidden border shadow-sm rounded-xl rounded-tl-none border-n-weak group-hover/folder:shadow-md"
-                :class="folderClass(col)"
+              <!-- 单击选中看信息，双击进入 -->
+              <button
+                type="button"
+                class="relative block w-full pt-2 text-left cursor-pointer transition-transform group-hover/folder:-translate-y-1"
+                @click="selectFolder(folder)"
+                @dblclick="enterFolder(folder)"
               >
-                <!-- 内页纸张（露出的白边，增加层次） -->
-                <span
-                  class="absolute left-3 right-3 h-6 rounded-md pointer-events-none -top-1 bg-white/70"
+                <!-- 露出的纸张（两层玻璃叠纸） -->
+                <div
+                  class="absolute h-6 -top-1 inset-x-4 rounded-t-lg border border-b-0 border-white/40 bg-white/25 backdrop-blur-sm"
                 />
-                <span
-                  class="absolute i-lucide-folder top-3 right-3 size-5 opacity-30"
+                <div
+                  class="absolute shadow-sm h-7 inset-x-3 -top-0 rounded-t-lg border border-b-0 border-white/60 bg-white/40 backdrop-blur-md"
                 />
-                <div class="relative min-w-0">
-                  <div class="text-sm font-semibold truncate text-n-slate-12">
-                    {{
-                      col.uncategorized
-                        ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
-                        : col.name
-                    }}
+                <!-- 文件夹主体（玻璃）-->
+                <div
+                  class="relative flex flex-col justify-end p-3 overflow-hidden transition-all border shadow-sm h-28 rounded-xl rounded-tl-md ring-1 ring-inset backdrop-blur-xl backdrop-saturate-150"
+                  :class="
+                    isFolderSelected(folder)
+                      ? 'border-white/20 ring-white/20 bg-gradient-to-br from-n-iris-9/75 to-n-iris-10/60 shadow-lg shadow-n-iris-9/25'
+                      : 'border-white/60 ring-white/40 bg-gradient-to-br from-white/50 to-n-iris-3/25 group-hover/folder:from-white/70 group-hover/folder:shadow-md'
+                  "
+                >
+                  <span
+                    class="absolute i-lucide-folder top-2.5 right-2.5 size-4"
+                    :class="
+                      isFolderSelected(folder)
+                        ? 'text-white/70'
+                        : 'text-n-slate-9'
+                    "
+                  />
+                  <!-- 选中时露出首篇文档预览 -->
+                  <div
+                    v-if="isFolderSelected(folder) && folder.docs.length"
+                    class="absolute text-xs leading-snug left-3 right-8 top-2.5 line-clamp-1 text-white/85"
+                  >
+                    {{ folder.docs[0].summary || folder.docs[0].name }}
                   </div>
-                  <div class="mt-1 text-xs text-n-slate-11">
-                    {{
-                      t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
-                        count: col.docs.length,
-                      })
-                    }}
-                    <span v-if="folderBytes(col)">
-                      · {{ fmtSize(folderBytes(col)) }}
-                    </span>
+                  <div class="relative min-w-0">
+                    <div
+                      class="text-sm font-semibold truncate"
+                      :class="
+                        isFolderSelected(folder)
+                          ? 'text-white'
+                          : 'text-n-slate-12'
+                      "
+                    >
+                      {{
+                        folder.uncategorized
+                          ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
+                          : folder.name
+                      }}
+                    </div>
+                    <!-- 板块：显示「板块」；其余：文档数(+子文件夹) + 大小 -->
+                    <div
+                      v-if="folder.type === 'section'"
+                      class="mt-0.5 text-xs"
+                      :class="
+                        isFolderSelected(folder)
+                          ? 'text-white/75'
+                          : 'text-n-slate-10'
+                      "
+                    >
+                      {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SECTION_LABEL') }}
+                    </div>
+                    <template v-else>
+                      <div
+                        class="mt-0.5 text-xs"
+                        :class="
+                          isFolderSelected(folder)
+                            ? 'text-white/75'
+                            : 'text-n-slate-10'
+                        "
+                      >
+                        {{
+                          t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
+                            count: folder.docs.length,
+                          })
+                        }}
+                        <span v-if="folder.childCount">
+                          ·
+                          {{
+                            t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS', {
+                              count: folder.childCount,
+                            })
+                          }}
+                        </span>
+                      </div>
+                      <div
+                        v-if="folderBytes(folder)"
+                        class="mt-0.5 text-xs tabular-nums"
+                        :class="
+                          isFolderSelected(folder)
+                            ? 'text-white/60'
+                            : 'text-n-slate-9'
+                        "
+                      >
+                        {{ fmtSize(folderBytes(folder)) }}
+                      </div>
+                    </template>
                   </div>
                 </div>
-              </div>
-            </button>
+              </button>
 
-            <!-- 悬停操作：重命名 / 删除空分类 -->
-            <div
-              v-if="col.id && canManageBoard && editingId !== col.id"
-              class="absolute z-10 flex items-center gap-0.5 top-4 right-2 opacity-0 group-hover/folder:opacity-100"
-            >
-              <button
-                type="button"
-                class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-slate-12 hover:bg-n-solid-1"
-                :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.RENAME')"
-                @click.stop="startRename(col)"
+              <!-- 悬停操作：重命名 / 删除（仅分类文件夹，空且无子文件夹才可删）-->
+              <div
+                v-if="
+                  folder.type === 'category' &&
+                  canManageBoard &&
+                  editingId !== folder.id
+                "
+                class="absolute z-10 flex items-center gap-0.5 top-4 right-2 opacity-0 group-hover/folder:opacity-100"
               >
-                <span class="i-lucide-pencil size-3.5" />
-              </button>
-              <button
-                v-if="!col.docs.length"
-                type="button"
-                class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-ruby-11 hover:bg-n-solid-1"
-                :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.DELETE')"
-                @click.stop="removeCategory(col)"
+                <button
+                  type="button"
+                  class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-slate-12 hover:bg-n-solid-1"
+                  :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.RENAME')"
+                  @click.stop="startRename(folder)"
+                >
+                  <span class="i-lucide-pencil size-3.5" />
+                </button>
+                <button
+                  v-if="!folder.docs.length && !folder.childCount"
+                  type="button"
+                  class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-ruby-11 hover:bg-n-solid-1"
+                  :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.DELETE')"
+                  @click.stop="removeCategory(folder)"
+                >
+                  <span class="i-lucide-trash-2 size-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <!-- 新建文件夹（当前层允许时）-->
+            <div v-if="canAddFolderHere" class="flex flex-col pt-2">
+              <div
+                class="flex items-center justify-center border border-dashed h-28 rounded-xl border-white/60 bg-white/15 backdrop-blur-xl"
               >
-                <span class="i-lucide-trash-2 size-3.5" />
-              </button>
+                <input
+                  v-if="adding"
+                  v-model="newCategoryName"
+                  :placeholder="
+                    t('CRM.KNOWLEDGE_DOCS.CATEGORY.NAME_PLACEHOLDER')
+                  "
+                  class="w-11/12 h-8 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                  @keyup.enter="saveAdd"
+                  @blur="saveAdd"
+                />
+                <button
+                  v-else
+                  type="button"
+                  class="flex flex-col items-center gap-1 text-sm text-n-slate-10 hover:text-n-slate-12"
+                  @click="startAdd"
+                >
+                  <span class="i-lucide-folder-plus size-6" />
+                  {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_FOLDER') }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 新建板块（文档中心根层；建完即时进网格 + 左侧栏）-->
+            <div v-if="canAddSectionHere" class="flex flex-col pt-2">
+              <div
+                class="flex items-center justify-center border border-dashed h-28 rounded-xl border-n-iris-6 bg-n-iris-3/40 backdrop-blur-xl"
+              >
+                <input
+                  v-if="addingRootSection"
+                  v-model="newRootSectionName"
+                  :placeholder="
+                    t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_SECTION_PLACEHOLDER')
+                  "
+                  class="w-11/12 h-8 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                  @keyup.enter="saveAddSection"
+                  @blur="saveAddSection"
+                />
+                <button
+                  v-else
+                  type="button"
+                  class="flex flex-col items-center gap-1 text-sm text-n-iris-11 hover:text-n-iris-12"
+                  @click="startAddSection"
+                >
+                  <span class="i-lucide-folder-plus size-6" />
+                  {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_SECTION') }}
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- 新建分类文件夹 -->
-          <div v-if="canManageBoard" class="flex flex-col">
-            <div class="h-3 -mb-0.5 ml-1 w-2/5" />
+          <!-- 本层文档（搜索时平铺命中；分类/叶子节点显示其文档）-->
+          <div
+            v-if="currentDocs.length || (!isSearching && canCreateDocsHere)"
+            :class="!isSearching && sortedFolders.length ? 'mt-6' : ''"
+          >
             <div
-              class="flex items-center justify-center h-32 border border-dashed rounded-xl border-n-weak"
+              v-if="!isSearching && sortedFolders.length && currentDocs.length"
+              class="mb-2 text-xs font-medium text-n-slate-10"
             >
-              <input
-                v-if="adding"
-                v-model="newCategoryName"
-                :placeholder="t('CRM.KNOWLEDGE_DOCS.CATEGORY.NAME_PLACEHOLDER')"
-                class="w-11/12 h-8 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                @keyup.enter="saveAdd"
-                @blur="saveAdd"
-              />
+              {{ t('CRM.KNOWLEDGE_DOCS.VIEW.DOCS_HERE') }}
+            </div>
+            <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
               <button
-                v-else
+                v-for="doc in currentDocs"
+                :key="doc.id"
                 type="button"
-                class="flex flex-col items-center gap-1 text-sm text-n-slate-10 hover:text-n-slate-12"
-                @click="startAdd"
+                class="flex flex-col gap-2 p-3 text-left transition-all border rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                :class="
+                  selectedDoc && selectedDoc.id === doc.id
+                    ? 'border-n-blue-8 ring-1 ring-n-blue-8'
+                    : ''
+                "
+                @click="openPanel(doc)"
               >
-                <span class="i-lucide-folder-plus size-6" />
-                {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_FOLDER') }}
+                <div class="flex items-center gap-2 min-w-0">
+                  <span
+                    class="flex items-center justify-center text-xs font-semibold rounded shrink-0 size-6"
+                    :class="colorOf(doc.name)"
+                  >
+                    {{ initial(doc.name) }}
+                  </span>
+                  <span class="text-sm font-medium truncate text-n-slate-12">
+                    {{ doc.name }}
+                  </span>
+                  <span
+                    v-if="doc.files && doc.files.length"
+                    class="inline-flex items-center gap-0.5 ml-auto text-xs shrink-0 text-n-slate-10"
+                  >
+                    <span class="i-lucide-paperclip size-3" />
+                    {{ doc.files.length }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-n-slate-10">
+                  <span class="i-lucide-align-left size-3.5 shrink-0" />
+                  <span class="truncate">
+                    {{ doc.summary || t('CRM.KNOWLEDGE_DOCS.PANEL.SUMMARY') }}
+                  </span>
+                </div>
+                <div
+                  class="flex items-center gap-1 pt-1.5 text-xs border-t text-n-slate-10 border-n-weak"
+                >
+                  <span v-if="isSearching && doc.category" class="truncate">
+                    {{ doc.category }}
+                  </span>
+                  <span v-else class="i-lucide-clock size-3 shrink-0" />
+                  <span :class="isSearching && doc.category ? 'ml-auto' : ''">
+                    {{ fmtDate(doc.updatedAt) }}
+                  </span>
+                </div>
+              </button>
+
+              <button
+                v-if="!isSearching && canCreateDocsHere"
+                type="button"
+                class="flex items-center justify-center gap-1 p-3 text-sm border border-dashed rounded-xl text-n-slate-10 border-n-weak hover:bg-n-alpha-1 hover:text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                @click="openCreatePanel(currentDocCategory)"
+              >
+                <span class="i-lucide-plus size-4" />
+                {{ t('CRM.KNOWLEDGE_DOCS.NEW') }}
               </button>
             </div>
           </div>
@@ -1619,6 +1928,130 @@ watch(
             </div>
           </div>
         </div>
+      </div>
+    </aside>
+
+    <!-- 右侧文件夹信息面板（参考图 Info）：网格里选中文件夹时展示其属性 -->
+    <aside
+      v-if="!panelMode && selectedFolder && !isSearching && !isRecycle"
+      class="flex flex-col w-[340px] flex-shrink-0 overflow-hidden border-l border-n-weak bg-n-solid-1"
+    >
+      <div
+        class="flex items-center justify-between px-5 py-4 border-b border-n-weak"
+      >
+        <span class="text-base font-semibold text-n-slate-12">
+          {{ t('CRM.KNOWLEDGE_DOCS.INFO.TITLE') }}
+        </span>
+        <button
+          type="button"
+          class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-1"
+          @click="clearFolderSelection"
+        >
+          <span class="i-lucide-x size-4" />
+        </button>
+      </div>
+
+      <div class="flex flex-col flex-1 gap-5 p-5 overflow-y-auto">
+        <!-- 文件夹标识 -->
+        <div class="flex items-center gap-3">
+          <span
+            class="flex items-center justify-center rounded-lg shrink-0 size-9"
+            :class="folderClass(selectedFolder)"
+          >
+            <span class="i-lucide-folder size-4" />
+          </span>
+          <div class="min-w-0">
+            <div class="text-base font-semibold truncate text-n-slate-12">
+              {{
+                selectedFolder.uncategorized
+                  ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
+                  : selectedFolder.name
+              }}
+            </div>
+            <div class="text-xs text-n-slate-10">
+              {{
+                t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
+                  count: selectedFolder.docs.length,
+                })
+              }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 概要数字 -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="p-3 border rounded-xl border-n-weak">
+            <div class="text-2xl font-semibold tabular-nums text-n-slate-12">
+              {{ selectedFolder.docs.length }}
+            </div>
+            <div class="text-xs text-n-slate-10">
+              {{ t('CRM.KNOWLEDGE_DOCS.INFO.DOC_COUNT') }}
+            </div>
+          </div>
+          <div class="p-3 border rounded-xl border-n-weak">
+            <div class="text-2xl font-semibold tabular-nums text-n-slate-12">
+              {{ fmtSize(folderBytes(selectedFolder)) || '—' }}
+            </div>
+            <div class="text-xs text-n-slate-10">
+              {{ t('CRM.KNOWLEDGE_DOCS.INFO.SIZE') }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 属性 -->
+        <div>
+          <div class="mb-2 text-xs font-medium text-n-slate-10">
+            {{ t('CRM.KNOWLEDGE_DOCS.INFO.PROPERTIES') }}
+          </div>
+          <div class="flex flex-col gap-2 text-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-n-slate-10">
+                {{ t('CRM.KNOWLEDGE_DOCS.INFO.SIZE') }}
+              </span>
+              <span class="text-n-slate-12 tabular-nums">
+                {{ fmtSize(folderBytes(selectedFolder)) || '—' }}
+              </span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-n-slate-10">
+                {{ t('CRM.KNOWLEDGE_DOCS.INFO.LAST_MODIFIED') }}
+              </span>
+              <span class="text-n-slate-12 tabular-nums">
+                {{ fmtDate(folderLastModified(selectedFolder)) || '—' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 标签 -->
+        <div>
+          <div class="mb-2 text-xs font-medium text-n-slate-10">
+            {{ t('CRM.KNOWLEDGE_DOCS.INFO.TAGS') }}
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <span
+              v-if="activeSection"
+              class="px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+            >
+              {{ activeSection.name }}
+            </span>
+            <span
+              class="px-2 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"
+            >
+              {{ t('CRM.KNOWLEDGE_DOCS.INFO.SCOPE_COMPANY') }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-5 py-4 border-t border-n-weak">
+        <Button
+          :label="t('CRM.KNOWLEDGE_DOCS.INFO.OPEN')"
+          icon="i-lucide-folder-open"
+          color="iris"
+          class="justify-center w-full"
+          @click="enterFolder(selectedFolder)"
+        />
       </div>
     </aside>
 

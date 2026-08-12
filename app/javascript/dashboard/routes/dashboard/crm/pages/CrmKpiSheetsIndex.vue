@@ -73,7 +73,8 @@ const fmtMonth = v => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 // ── 月份 / 状态筛选（客户端过滤，考核表量级小）──
-const monthFilter = ref('');
+// 进入默认本月：月份堆多了不用每次手动筛（可清空看全部）
+const monthFilter = ref(fmtMonth(new Date()));
 const statusFilter = ref('');
 const paidFilter = ref(''); // 财务专用：'' 全部 / 'unpaid' 待发放 / 'paid' 已发放
 const q = ref('');

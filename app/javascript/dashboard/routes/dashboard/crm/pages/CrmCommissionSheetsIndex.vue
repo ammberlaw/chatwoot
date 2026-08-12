@@ -84,7 +84,8 @@ const removeSheet = async sheet => {
 };
 
 // ── 客户端筛选（提成表量级小）──
-const monthFilter = ref('');
+// 进入默认本月：月份堆多了不用每次手动筛（可清空看全部）
+const monthFilter = ref(currentMonth);
 const statusFilter = ref('');
 const paidFilter = ref(''); // 财务专用：'' 全部 / 'unpaid' 待发放 / 'paid' 已发放
 const q = ref('');

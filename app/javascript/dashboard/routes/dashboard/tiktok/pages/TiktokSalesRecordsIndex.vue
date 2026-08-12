@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useTiktokShopsStore } from 'dashboard/stores/tiktok/shops';
 import { useTiktokSalesRecordsStore } from 'dashboard/stores/tiktok/salesRecords';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -11,6 +12,10 @@ const CURRENCIES = ['PHP', 'USD', 'EUR', 'CNY'];
 
 const shopsStore = useTiktokShopsStore();
 const recordsStore = useTiktokSalesRecordsStore();
+
+// 仅管理员/副管理员能管理店铺；非管理员看不到店铺时提示改为「联系管理员分配」而非「去新增店铺」。
+const { isAdmin, isCrmDeputyAdmin } = useCrmRole();
+const canManageShops = computed(() => isAdmin.value || isCrmDeputyAdmin.value);
 
 const shops = ref([]);
 const records = ref([]);
@@ -123,7 +128,11 @@ const loadRecords = async () => {
 
 const openNew = () => {
   if (!activeShops.value.length) {
-    useAlert('请先到「店铺设置」新增店铺');
+    useAlert(
+      canManageShops.value
+        ? '请先到「店铺设置」新增店铺'
+        : '你所在部门还没有分配店铺，请联系管理员在「店铺设置」里分配'
+    );
     return;
   }
   form.value = emptyForm();

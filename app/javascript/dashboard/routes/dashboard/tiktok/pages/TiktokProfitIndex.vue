@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useTiktokShopsStore } from 'dashboard/stores/tiktok/shops';
+import { useTiktokDepartmentsStore } from 'dashboard/stores/tiktok/departments';
 import { useTiktokProfitRecordsStore } from 'dashboard/stores/tiktok/profitRecords';
 import Button from 'dashboard/components-next/button/Button.vue';
 
@@ -10,16 +12,38 @@ import Button from 'dashboard/components-next/button/Button.vue';
 const CURRENCIES = ['PHP', 'USD', 'EUR', 'CNY'];
 
 const shopsStore = useTiktokShopsStore();
+const deptStore = useTiktokDepartmentsStore();
 const store = useTiktokProfitRecordsStore();
 
+const { isAdmin, isCrmDeputyAdmin } = useCrmRole();
+const canManageShops = computed(() => isAdmin.value || isCrmDeputyAdmin.value);
+
 const shops = ref([]);
+const departments = ref([]);
 const records = ref([]);
 const loading = ref(false);
 
 const thisMonth = () => new Date().toISOString().slice(0, 7);
-const filters = ref({ month: thisMonth(), shopId: '' });
+// 按「部门」筛选（原按店铺）：店铺归属部门，选部门即看该部门名下所有店铺的利润。
+const filters = ref({ month: thisMonth(), departmentId: '' });
 
 const shopName = id => shops.value.find(s => s.id === id)?.name || '—';
+const shopDeptId = id =>
+  shops.value.find(s => s.id === id)?.departmentId ?? null;
+
+// 部门下拉：只列出「当前可见店铺」实际归属到的部门（非管理员自然只看到自己部门）。
+const departmentOptions = computed(() => {
+  const usedIds = new Set(shops.value.map(s => s.departmentId).filter(Boolean));
+  return departments.value.filter(d => usedIds.has(d.id));
+});
+
+// 按部门过滤后的记录（部门为空=全部）；KPI/合计/表格都基于它。
+const filteredRecords = computed(() => {
+  if (!filters.value.departmentId) return records.value;
+  return records.value.filter(
+    r => shopDeptId(r.shopId) === filters.value.departmentId
+  );
+});
 const num = v => Number(v || 0);
 const cny = v =>
   `¥${num(v).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
@@ -77,7 +101,7 @@ const preview = computed(() => {
 });
 
 const totals = computed(() =>
-  records.value.reduce(
+  filteredRecords.value.reduce(
     (t, r) => ({
       qty: t.qty + num(r.recordedQuantity),
       amountCny: t.amountCny + num(r.recordedAmountCny),
@@ -123,7 +147,7 @@ const kpis = computed(() => [
     icon: 'i-lucide-wallet',
     gradient: 'from-n-blue-3 to-n-iris-5',
     valueClass: 'text-n-slate-12',
-    sub: `${records.value.length} 条记录`,
+    sub: `${filteredRecords.value.length} 条记录`,
   },
   {
     key: 'cost',
@@ -139,9 +163,9 @@ const kpis = computed(() => [
 const loadRecords = async () => {
   loading.value = true;
   try {
+    // 拉当月全部可见记录，部门过滤在前端做（filteredRecords）。
     records.value = await store.get({
       month: filters.value.month,
-      shop_id: filters.value.shopId,
     });
   } catch (e) {
     useAlert(e?.message || '加载失败');
@@ -152,7 +176,11 @@ const loadRecords = async () => {
 
 const openNew = () => {
   if (!shops.value.length) {
-    useAlert('请先到「店铺设置」新增店铺');
+    useAlert(
+      canManageShops.value
+        ? '请先到「店铺设置」新增店铺'
+        : '你所在部门还没有分配店铺，请联系管理员在「店铺设置」里分配'
+    );
     return;
   }
   form.value = emptyForm();
@@ -227,9 +255,12 @@ const remove = async r => {
 
 onMounted(async () => {
   try {
-    shops.value = await shopsStore.get();
+    [shops.value, departments.value] = await Promise.all([
+      shopsStore.get(),
+      deptStore.get(),
+    ]);
   } catch (e) {
-    /* 店铺取不到不阻塞 */
+    /* 店铺/部门取不到不阻塞 */
   }
   await loadRecords();
 });
@@ -254,13 +285,12 @@ onMounted(async () => {
             @change="loadRecords"
           />
           <select
-            v-model="filters.shopId"
+            v-model="filters.departmentId"
             class="w-40 h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            @change="loadRecords"
           >
-            <option value="">全部店铺</option>
-            <option v-for="s in shops" :key="s.id" :value="s.id">
-              {{ s.name }}
+            <option value="">全部部门</option>
+            <option v-for="d in departmentOptions" :key="d.id" :value="d.id">
+              {{ d.name }}
             </option>
           </select>
           <Button
@@ -323,7 +353,7 @@ onMounted(async () => {
           </thead>
           <tbody>
             <tr
-              v-for="r in records"
+              v-for="r in filteredRecords"
               :key="r.id"
               class="border-t border-n-weak hover:bg-n-alpha-1"
             >
@@ -375,13 +405,13 @@ onMounted(async () => {
                 </div>
               </td>
             </tr>
-            <tr v-if="!records.length">
+            <tr v-if="!filteredRecords.length">
               <td colspan="9" class="px-4 py-12 text-center text-n-slate-10">
                 本月暂无利润记录，点右上角「新增」开始录入。
               </td>
             </tr>
           </tbody>
-          <tfoot v-if="records.length">
+          <tfoot v-if="filteredRecords.length">
             <tr
               class="border-t-2 border-n-weak bg-n-alpha-1 font-medium text-n-slate-12"
             >

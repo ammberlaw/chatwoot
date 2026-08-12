@@ -527,7 +527,22 @@
         "EMPTY_FOLDER": "该分类下暂无文档",
         "SEARCH_RESULT": "搜索结果",
         "NO_MATCH": "没有匹配的文档",
-        "ADD_FOLDER": "新建分类"
+        "ADD_FOLDER": "新建文件夹",
+        "ADD_SECTION": "新建板块",
+        "ADD_SECTION_PLACEHOLDER": "板块名称，回车创建",
+        "SECTION_LABEL": "板块",
+        "SUBFOLDERS": "{count} 个子文件夹",
+        "DOCS_HERE": "本层文档"
+      },
+      "INFO": {
+        "TITLE": "信息",
+        "DOC_COUNT": "文档数",
+        "SIZE": "大小",
+        "PROPERTIES": "属性",
+        "LAST_MODIFIED": "最近修改",
+        "TAGS": "标签",
+        "SCOPE_COMPANY": "公司",
+        "OPEN": "打开文件夹"
       },
       "PANEL": {
         "DETAIL": "详情",

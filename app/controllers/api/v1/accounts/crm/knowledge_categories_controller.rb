@@ -86,6 +86,6 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
   end
 
   def category_params
-    params.require(:category).permit(:name, :position)
+    params.require(:category).permit(:name, :position, :parent_id)
   end
 end

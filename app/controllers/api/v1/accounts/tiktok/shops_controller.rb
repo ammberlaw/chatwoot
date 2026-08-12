@@ -5,7 +5,10 @@ class Api::V1::Accounts::Tiktok::ShopsController < Api::V1::Accounts::Tiktok::Ba
 
   def index
     Tiktok::Shop.ensure_defaults!(Current.account) if tiktok_scope.can_manage?
-    @shops = scope_visible(Current.account.tiktok_shops.includes(:department)).ordered
+    # 店铺表自身主键是 id（无 shop_id 列），不能用按 shop_id 收口的 scope_visible，否则非管理员查询报错。
+    scope = Current.account.tiktok_shops.includes(:department)
+    ids = tiktok_scope.visible_shop_ids
+    @shops = (ids == :all ? scope : scope.where(id: ids)).ordered
   end
 
   def create

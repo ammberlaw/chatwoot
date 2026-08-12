@@ -9,6 +9,7 @@
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
 #  account_id :bigint           not null
+#  parent_id  :bigint
 #  section_id :bigint
 #  user_id    :bigint
 #
@@ -17,6 +18,7 @@
 #  idx_crm_knowledge_cats_company_name           (account_id, COALESCE(section_id, (0)::bigint), name) UNIQUE WHERE (user_id IS NULL)
 #  idx_crm_knowledge_cats_personal_name          (account_id,user_id,name) UNIQUE WHERE (user_id IS NOT NULL)
 #  index_crm_knowledge_categories_on_account_id  (account_id)
+#  index_crm_knowledge_categories_on_parent_id   (parent_id)
 #  index_crm_knowledge_categories_on_section_id  (section_id)
 #  index_crm_knowledge_categories_on_user_id     (user_id)
 #
@@ -28,6 +30,9 @@ class Crm::KnowledgeCategory < ApplicationRecord
   belongs_to :account
   # 空=公司分类（管理员/负责人维护）；非空=个人分类（本人自建自管）。
   belongs_to :user, optional: true
+  # 自嵌套：parent 为空=板块下顶层分类；非空=子分类（三级目录第三级）。
+  belongs_to :parent, class_name: 'Crm::KnowledgeCategory', optional: true
+  has_many :children, class_name: 'Crm::KnowledgeCategory', foreign_key: :parent_id, dependent: :destroy, inverse_of: :parent
 
   validates :name, presence: true, uniqueness: { scope: [:account_id, :user_id, :section_id] }
 
