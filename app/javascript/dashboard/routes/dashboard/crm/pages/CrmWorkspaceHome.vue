@@ -23,6 +23,10 @@ const userName = computed(
 );
 // 非 CRM 人员（无 crm_role 且非系统管理员）看到置灰的 CRM 旗舰卡（不可进入）。后端仍以 403 兜底。
 const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
+// TikTok 板块（店铺经营）：管理层/财务/TK 部门负责人成员可见（后端派生 can_access_tiktok）。
+const canAccessTiktok = computed(
+  () => currentUser.value?.can_access_tiktok === true
+);
 
 // 按时段问候，落地页有温度但不喧哗。
 const now = new Date();
@@ -88,6 +92,18 @@ const LIVE = computed(() => [
     icon: 'i-lucide-book-open',
     to: 'crm_doc_center_index',
     accent: 'violet',
+  },
+  // TikTok 板块：无论有无权限都在一级界面露出；无权限时置灰锁定、不可进入（后端仍 403 兜底）。
+  {
+    key: 'tiktok',
+    label: 'TikTok 经营',
+    desc: canAccessTiktok.value
+      ? '店铺每日销量 · 利润 · 看板'
+      : '暂无权限 · 如需使用请联系管理员',
+    icon: 'i-lucide-shopping-bag',
+    to: 'tiktok_dashboard_index',
+    accent: 'blue',
+    locked: !canAccessTiktok.value,
   },
 ]);
 
@@ -265,8 +281,13 @@ onMounted(async () => {
               v-for="m in LIVE"
               :key="m.key"
               type="button"
-              class="group relative flex items-center flex-1 gap-4 p-4 text-left transition-all duration-200 ease-out bg-white border shadow-sm outline-none rounded-3xl border-n-weak hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-n-slate-8 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-              :class="ACCENT[m.accent].ring"
+              :disabled="m.locked"
+              class="group relative flex items-center flex-1 gap-4 p-4 text-left transition-all duration-200 ease-out bg-white border shadow-sm outline-none rounded-3xl border-n-weak focus-visible:ring-2 focus-visible:ring-n-slate-8 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+              :class="
+                m.locked
+                  ? 'opacity-60 saturate-50 cursor-not-allowed'
+                  : ['hover:-translate-y-0.5 hover:shadow-md', ACCENT[m.accent].ring]
+              "
               @click="go(m.to)"
             >
               <div
@@ -296,7 +317,7 @@ onMounted(async () => {
               </div>
               <Icon
                 v-else
-                icon="i-lucide-arrow-up-right"
+                :icon="m.locked ? 'i-lucide-lock' : 'i-lucide-arrow-up-right'"
                 class="ml-auto transition-colors shrink-0 size-4 text-n-slate-9 group-hover:text-n-slate-11"
               />
               <span

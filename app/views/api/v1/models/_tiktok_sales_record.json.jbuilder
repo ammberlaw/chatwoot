@@ -1,0 +1,17 @@
+json.id resource.id
+json.sale_date resource.sale_date
+json.shop_id resource.shop_id
+json.shop_name resource.shop&.name
+json.total_orders resource.total_orders
+json.total_units resource.total_units
+json.sales_amount resource.sales_amount
+json.currency resource.currency
+json.sales_amount_cny resource.sales_amount_cny
+json.fx_rate resource.fx_rate
+json.cancelled_units resource.cancelled_units
+json.shipped_units resource.shipped_units
+json.influencer_units resource.influencer_units
+json.cancel_rate resource.cancel_rate
+json.valid_rate resource.valid_rate
+json.remark resource.remark
+json.created_at resource.created_at
