@@ -6,6 +6,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import { LocalStorage } from 'shared/helpers/localStorage';
 
@@ -36,6 +37,29 @@ const CONTACT_PREFERENCE = [
   ['PHONE', '电话'],
   ['WHATSAPP', 'WhatsApp'],
   ['WECHAT', '微信'],
+];
+
+// 原生 <select> 换成紫玻璃 SelectCard 的选项：各前置一个空值项，等价原生「选择X」清空项。
+const tup = arr => arr.map(([value, label]) => ({ value, label }));
+const sourceSelectOptions = computed(() => [
+  { value: '', label: '选择来源（选填）' },
+  ...sourceOptions.value,
+]);
+const groupSelectOptions = computed(() => [
+  { value: '', label: '选择客户分组' },
+  ...groupOptions.value,
+]);
+const productGroupSelectOptions = [
+  { value: '', label: '选择产品分组' },
+  ...tup(PRODUCT_GROUP),
+];
+const levelSelectOptions = [
+  { value: '', label: '选择等级（选填）' },
+  ...tup(LEVEL),
+];
+const prefSelectOptions = [
+  { value: '', label: '选择偏好（选填）' },
+  ...tup(CONTACT_PREFERENCE),
 ];
 
 const form = reactive({
@@ -336,62 +360,38 @@ const submit = async () => {
             search-placeholder="搜索国家/地区"
           />
         </div>
-        <label class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">客户来源</span>
-          <select
+          <SelectCard
             v-model="form.sourceChannel"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">选择来源（选填）</option>
-            <option
-              v-for="opt in sourceOptions"
-              :key="opt.value"
-              :value="opt.value"
-            >
-              {{ opt.label }}
-            </option>
-          </select>
-        </label>
-        <label class="flex flex-col gap-1">
+            :options="sourceSelectOptions"
+            block
+          />
+        </div>
+        <div class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">客户分组 <span class="text-n-ruby-11">*</span></span>
-          <select
+          <SelectCard
             v-model="form.customerGroup"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">选择客户分组</option>
-            <option
-              v-for="opt in groupOptions"
-              :key="opt.value"
-              :value="opt.value"
-            >
-              {{ opt.label }}
-            </option>
-          </select>
-        </label>
-        <label class="flex flex-col gap-1">
+            :options="groupSelectOptions"
+            block
+          />
+        </div>
+        <div class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">产品分组 <span class="text-n-ruby-11">*</span></span>
-          <select
+          <SelectCard
             v-model="form.productGroup"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">选择产品分组</option>
-            <option v-for="[val, lab] in PRODUCT_GROUP" :key="val" :value="val">
-              {{ lab }}
-            </option>
-          </select>
-        </label>
-        <label class="flex flex-col gap-1">
+            :options="productGroupSelectOptions"
+            block
+          />
+        </div>
+        <div class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">客户等级</span>
-          <select
+          <SelectCard
             v-model="form.customerLevel"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">选择等级（选填）</option>
-            <option v-for="[val, lab] in LEVEL" :key="val" :value="val">
-              {{ lab }}
-            </option>
-          </select>
-        </label>
+            :options="levelSelectOptions"
+            block
+          />
+        </div>
       </div>
 
       <!-- 联系信息 -->
@@ -458,22 +458,14 @@ const submit = async () => {
             placeholder="Linkedin 链接"
           />
         </label>
-        <label class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">联系偏好</span>
-          <select
+          <SelectCard
             v-model="form.contactPreference"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">选择偏好（选填）</option>
-            <option
-              v-for="[val, lab] in CONTACT_PREFERENCE"
-              :key="val"
-              :value="val"
-            >
-              {{ lab }}
-            </option>
-          </select>
-        </label>
+            :options="prefSelectOptions"
+            block
+          />
+        </div>
         <label class="flex flex-col gap-1 sm:col-span-2">
           <span class="text-xs text-n-slate-11">地址</span>
           <input

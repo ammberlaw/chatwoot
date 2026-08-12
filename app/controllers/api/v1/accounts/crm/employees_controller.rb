@@ -61,7 +61,7 @@ class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::Base
   def change_rows
     @employee.audits.order(created_at: :desc).limit(60).map do |a|
       { kind: 'change', action: a.action, changed_fields: a.audited_changes.keys,
-        user_name: a.user&.crm_display_name || '系统', created_at: a.created_at }
+        user_name: a.user&.name || '系统', created_at: a.created_at }
     end
   end
 
@@ -69,7 +69,7 @@ class Api::V1::Accounts::Crm::EmployeesController < Api::V1::Accounts::Crm::Base
     Current.account.crm_access_logs
            .where(resource_type: 'Crm::Employee', resource_id: @employee.id, action: 'view')
            .order(created_at: :desc).limit(40).includes(:user)
-           .map { |l| { kind: 'view', action: 'view', user_name: l.user.crm_display_name, created_at: l.created_at } }
+           .map { |l| { kind: 'view', action: 'view', user_name: l.user.name, created_at: l.created_at } }
   end
 
   # 敏感区闸口：需先通过二次密码验证（15 分钟内免验）。

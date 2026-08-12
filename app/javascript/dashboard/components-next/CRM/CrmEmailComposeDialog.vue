@@ -31,10 +31,12 @@ import {
 } from 'dashboard/routes/dashboard/crm/helper/scheduleTimezone';
 import { useAlert } from 'dashboard/composables';
 import { renderTextColorSpans } from 'dashboard/helper/editorTextColor';
+import { uploadInlineDataUriImages } from 'dashboard/helper/uploadHelper';
 import { vOnClickOutside } from '@vueuse/components';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import CrmColorPalette from 'dashboard/components-next/CRM/CrmColorPalette.vue';
 import CrmRecipientInput from 'dashboard/components-next/CRM/CrmRecipientInput.vue';
 
@@ -376,7 +378,15 @@ const customerHits = ref([]);
 const customer = ref(null);
 const contacts = ref([]);
 const contactId = ref('');
+const customerFocused = ref(false); // 搜索结果只在聚焦时显示，失焦收起，避免下拉盖住「主题」
 let customerTimer = null;
+
+// 失焦延迟收起，给结果项的点击留出触发时间。
+const blurCustomerSoon = () => {
+  setTimeout(() => {
+    customerFocused.value = false;
+  }, 150);
+};
 // 定时发送时区（默认用户本地；选中客户后按其国家自动预选）——在 pickCustomer 前声明。
 const scheduleTz = ref(browserTz());
 
@@ -746,6 +756,9 @@ const buildFields = () => {
 
 // 建草稿 / 就地更新草稿 → 挂知识库附件（快照）→ 返回 id；发送时再翻 sendNow。
 const persist = async () => {
+  // 正文里粘贴进来的 base64 内联图先上传换成短链接，否则会撑爆 body/body_html
+  // （文本列上限 2 万字），发送/存草稿直接失败。
+  form.body = await uploadInlineDataUriImages(form.body || '');
   const { __files: files, ...fields } = buildFields();
   let id;
   if (editId.value) {
@@ -1198,22 +1211,27 @@ defineExpose({ open, close });
                   class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 placeholder:text-n-slate-9 outline-none focus:outline-none focus:ring-0"
                   :placeholder="L.customerPlaceholder"
                   @input="customer = null"
+                  @focus="customerFocused = true"
+                  @blur="blurCustomerSoon"
                 />
               </div>
               <div
-                v-if="customerHits.length"
+                v-if="customerFocused && customerHits.length"
                 class="absolute z-10 mt-1 overflow-hidden border rounded-lg shadow-lg left-14 right-4 bg-n-solid-1 border-n-weak"
               >
                 <button
                   v-for="c in customerHits"
                   :key="c.id"
                   class="block w-full px-3 py-2 text-sm text-left border-b text-n-slate-12 border-n-weak hover:bg-n-alpha-1"
-                  @click="pickCustomer(c)"
+                  @mousedown.prevent="pickCustomer(c)"
                 >
                   {{ c.name }}
                 </button>
               </div>
-              <div v-if="contacts.length" class="flex flex-wrap gap-1.5 pb-2">
+              <div
+                v-if="customerFocused && contacts.length"
+                class="flex flex-wrap gap-1.5 pb-2"
+              >
                 <button
                   v-for="c in contacts"
                   :key="c.id"
@@ -1223,7 +1241,7 @@ defineExpose({ open, close });
                       ? 'border-n-iris-9 text-n-iris-11 bg-n-iris-2'
                       : 'border-n-weak text-n-slate-11'
                   "
-                  @click="pickContact(c)"
+                  @mousedown.prevent="pickContact(c)"
                 >
                   {{ c.name }} · {{ c.email }}
                 </button>
@@ -1419,6 +1437,7 @@ defineExpose({ open, close });
                 editor-key="crm-email-compose"
                 channel-type="Channel::Email"
                 enable-text-color
+                enable-inline-image-paste
                 :enable-canned-responses="false"
                 :show-character-count="false"
                 :placeholder="L.bodyPlaceholder"
@@ -1636,14 +1655,7 @@ defineExpose({ open, close });
         <div class="flex flex-col gap-4 px-5 py-4">
           <div class="flex flex-col gap-1.5">
             <span class="text-sm text-n-slate-11">{{ L.scheduleTzLabel }}</span>
-            <select
-              v-model="scheduleTz"
-              class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 outline-none focus:outline-none focus:ring-0"
-            >
-              <option v-for="z in tzOptions" :key="z.value" :value="z.value">
-                {{ z.label }}
-              </option>
-            </select>
+            <SelectCard v-model="scheduleTz" :options="tzOptions" block />
           </div>
           <div class="flex flex-col gap-1.5">
             <span class="text-sm text-n-slate-11">{{

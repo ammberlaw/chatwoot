@@ -42,10 +42,12 @@ const filteredOptions = computed(() => {
     return props.options;
   }
 
-  // For local search, filter options based on search term
+  // For local search, filter by label + optional searchText (e.g. 关联联系人).
   const searchTerm = search.value.toLowerCase();
   return props.options.filter(option =>
-    option.label.toLowerCase().includes(searchTerm)
+    `${option.label} ${option.searchText || ''}`
+      .toLowerCase()
+      .includes(searchTerm)
   );
 });
 const selectPlaceholder = computed(() => {

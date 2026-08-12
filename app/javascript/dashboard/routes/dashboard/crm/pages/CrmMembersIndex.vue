@@ -13,11 +13,9 @@ const L = {
   subtitle: '为每个成员设置系统角色；只有被赋予角色的成员才能进入 CRM。',
   managerSubtitle:
     '部门负责人视图：仅显示你所辖部门（含下级）的成员，可为其重置密码。',
-  colMember: '成员',
   colSystemRole: '系统角色',
   colModules: '模块使用权限',
   colScope: '数据范围',
-  colAction: '操作',
   self: '当前账号',
   allModules: '全部模块',
   scopeAll: '全部数据',
@@ -28,8 +26,21 @@ const L = {
   saved: '已保存',
   error: '保存失败',
   loading: '加载中…',
-  hint: '权限口径：超级管理员=一切；管理员=一切，除了任免/修改超级管理员；部门负责人=自己部门的一切（数据、考核打分、下属密码、考勤汇总）；业务员=只管自己；无角色=仅共享模块（文档/审批/沟通/考勤）。人事部门成员额外可维护组织架构、审批模板并自改密码。模块开关控制能否使用对应业务系统（关闭 CRM 后即使有角色也无法进入）。',
 };
+
+// 底部「权限说明」折叠区：把原来一堵灰字口径拆成逐行对照，末尾一条补充说明。
+const ROLE_LEGEND = [
+  { role: '超级管理员', desc: '一切权限' },
+  { role: '管理员', desc: '一切，除了任免 / 修改超级管理员' },
+  {
+    role: '部门负责人',
+    desc: '本部门的一切：数据、考核打分、下属密码、考勤汇总',
+  },
+  { role: '业务员', desc: '只管自己' },
+  { role: '无角色', desc: '仅共享模块（文档 / 审批 / 沟通 / 考勤）' },
+];
+const LEGEND_NOTE =
+  '人事部门成员额外可维护组织架构、审批模板并自改密码。财务身份可与业务员身份叠加，用于查看全员已通过提成表并导出。模块开关控制能否使用对应业务系统（关闭 CRM 后即使有角色也无法进入）。';
 
 // 业务系统模块开关（与后端 AccountUser::MODULES 对应）
 // ERP/MES 未上线：开关置灰，功能上线后去掉 disabled 即开放设置。
@@ -73,6 +84,13 @@ const members = ref([]);
 const loading = ref(true);
 const savingId = ref(null);
 
+// 主从式：左侧列表选中谁，右侧就展示谁的权限
+const selectedId = ref(null);
+const selectedMember = computed(
+  () => members.value.find(m => m.id === selectedId.value) || null
+);
+const showHint = ref(false);
+
 const scopeLabel = m => {
   if (m.is_admin) return L.scopeAll;
   if (m.crm_role === 'deputy_admin') return L.scopeDeputy;
@@ -82,11 +100,63 @@ const scopeLabel = m => {
 };
 const roleValue = m => (m.is_admin ? 'administrator' : m.crm_role || '');
 
+// 系统角色只读的三种情况：自己那行（防自锁）、管理员看超管行、部门负责人视图全只读
+const isRoleReadonly = m =>
+  m.user_id === currentUserId.value ||
+  (m.is_admin && !isSuperAdmin.value) ||
+  isManagerOnly.value;
+
+// 左栏检索 + 角色筛选（~50 人规模下快速定位）
+const searchQuery = ref('');
+const roleFilter = ref('all');
+const ROLE_FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: 'sales', label: '业务员' },
+  { key: 'manager', label: '负责人' },
+  { key: 'admin', label: '管理员' },
+  { key: 'hr', label: '人事' },
+  { key: 'finance', label: '财务' },
+  { key: 'none', label: '无角色' },
+];
+const matchRoleFilter = m => {
+  const v = roleValue(m);
+  switch (roleFilter.value) {
+    case 'sales':
+      return v === 'sales';
+    case 'manager':
+      return v === 'manager';
+    case 'admin':
+      return v === 'administrator' || v === 'deputy_admin';
+    case 'hr':
+      return v === 'hr';
+    case 'finance':
+      // 财务是叠加身份（crm_finance 布尔），非系统角色；管理员天然具备
+      return !!m.crm_finance;
+    case 'none':
+      return v === '';
+    default:
+      return true;
+  }
+};
+const filteredMembers = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  return members.value.filter(m => {
+    if (!matchRoleFilter(m)) return false;
+    if (!q) return true;
+    return [m.name, m.email, m.crm_name].some(s =>
+      (s || '').toLowerCase().includes(q)
+    );
+  });
+});
+
 const fetchMembers = async () => {
   loading.value = true;
   try {
     const { data } = await MembersAPI.get();
     members.value = data.payload || [];
+    if (!members.value.some(m => m.id === selectedId.value)) {
+      selectedId.value = members.value[0]?.id ?? null;
+    }
   } catch {
     useAlert(L.error);
   } finally {
@@ -221,153 +291,275 @@ onMounted(fetchMembers);
       </p>
     </div>
 
-    <div class="flex-1 overflow-y-auto">
-      <p v-if="loading" class="p-6 text-sm text-n-slate-10">{{ L.loading }}</p>
+    <p v-if="loading" class="p-6 text-sm text-n-slate-10">{{ L.loading }}</p>
 
-      <table v-else class="w-full text-sm">
-        <thead>
-          <tr class="text-left border-b border-n-weak text-n-slate-10">
-            <th class="px-6 py-3 font-medium">{{ L.colMember }}</th>
-            <th class="px-6 py-3 font-medium w-56">{{ L.colSystemRole }}</th>
-            <th class="px-6 py-3 font-medium w-40">MES 角色</th>
-            <th class="px-6 py-3 font-medium w-20">财务</th>
-            <th class="px-6 py-3 font-medium">{{ L.colModules }}</th>
-            <th class="px-6 py-3 font-medium">{{ L.colScope }}</th>
-            <th class="px-6 py-3 font-medium text-right">
-              {{ L.colAction }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="m in members"
+    <!-- 两栏主从式：左列表选人，右面板设权限 -->
+    <div v-else class="flex flex-1 min-h-0">
+      <!-- 左：搜索 + 角色筛选 + 成员列表 -->
+      <div class="flex flex-col flex-shrink-0 border-r w-60 border-n-weak">
+        <div
+          class="flex flex-col flex-shrink-0 gap-2 p-2 border-b border-n-weak/60"
+        >
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索姓名 / 英文名 / 邮箱…"
+            class="h-8 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+          />
+          <div class="flex flex-wrap gap-1">
+            <button
+              v-for="rf in ROLE_FILTERS"
+              :key="rf.key"
+              class="px-2 py-0.5 text-xs rounded-full transition-colors"
+              :class="
+                roleFilter === rf.key
+                  ? 'bg-n-iris-9 text-white'
+                  : 'bg-n-alpha-2 text-n-slate-11 hover:bg-n-alpha-3'
+              "
+              @click="roleFilter = rf.key"
+            >
+              {{ rf.label }}
+            </button>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <button
+            v-for="m in filteredMembers"
             :key="m.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="flex items-center w-full gap-3 px-4 py-2.5 text-left border-b border-n-weak/60 hover:bg-n-alpha-1"
+            :class="m.id === selectedId ? 'bg-n-iris-3/50' : ''"
+            @click="selectedId = m.id"
           >
-            <td class="px-6 py-3">
-              <div class="flex items-center gap-3">
-                <Avatar
-                  :name="m.name"
-                  :src="m.avatar_url || ''"
-                  :size="34"
-                  rounded-full
-                />
-                <div class="min-w-0">
-                  <div class="font-medium truncate text-n-slate-12">
-                    {{ m.name }}
-                  </div>
-                  <div class="text-xs truncate text-n-slate-10">
-                    {{ m.email }}
-                  </div>
-                </div>
+            <Avatar
+              :name="m.name"
+              :src="m.avatar_url || ''"
+              :size="32"
+              rounded-full
+            />
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate text-n-slate-12">
+                {{ m.name }}
               </div>
-            </td>
-            <td class="px-6 py-3">
-              <!-- 自己那行不可改（防自锁）；管理员对超管行只读；部门负责人全只读 -->
-              <div
-                v-if="
-                  m.user_id === currentUserId ||
-                  (m.is_admin && !isSuperAdmin) ||
-                  isManagerOnly
-                "
-                class="flex items-center gap-2"
+              <div class="text-xs truncate text-n-slate-10">
+                {{ ROLE_OPTIONS.find(o => o.value === roleValue(m))?.label }}
+                <span v-if="m.crm_finance" class="text-n-iris-11">· 财务</span>
+              </div>
+            </div>
+          </button>
+          <p
+            v-if="!filteredMembers.length"
+            class="px-4 py-6 text-xs text-center text-n-slate-9"
+          >
+            无匹配成员
+          </p>
+        </div>
+      </div>
+
+      <!-- 右：选中成员的权限面板 -->
+      <div
+        v-if="selectedMember"
+        :key="selectedMember.id"
+        class="flex-1 min-w-0 overflow-y-auto"
+      >
+        <div class="flex items-center gap-3 px-6 py-4 border-b border-n-weak">
+          <Avatar
+            :name="selectedMember.name"
+            :src="selectedMember.avatar_url || ''"
+            :size="40"
+            rounded-full
+          />
+          <div class="min-w-0">
+            <div class="font-medium truncate text-n-slate-12">
+              {{ selectedMember.name }}
+            </div>
+            <div class="text-xs truncate text-n-slate-10">
+              {{ selectedMember.email }}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-5 px-6 py-5 max-w-xl">
+          <!-- 系统角色 -->
+          <div class="flex items-center gap-4">
+            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
+              {{ L.colSystemRole }}
+            </span>
+            <!-- 自己那行不可改（防自锁）；管理员对超管行只读；部门负责人全只读 -->
+            <div
+              v-if="isRoleReadonly(selectedMember)"
+              class="flex items-center gap-2"
+            >
+              <span
+                class="px-2 py-0.5 rounded-full text-xs bg-n-iris-3 text-n-iris-11"
               >
-                <span
-                  class="px-2 py-0.5 rounded-full text-xs bg-n-iris-3 text-n-iris-11"
-                >
-                  {{ ROLE_OPTIONS.find(o => o.value === roleValue(m))?.label }}
-                </span>
-                <span
-                  v-if="m.user_id === currentUserId"
-                  class="text-xs text-n-slate-9"
-                  >{{ L.self }}</span
-                >
-              </div>
-              <Select
-                v-else
-                class="w-full"
-                :model-value="roleValue(m)"
-                :options="roleOptions"
-                :disabled="savingId === m.id"
-                @update:model-value="value => onRoleChange(m, value)"
+                {{
+                  ROLE_OPTIONS.find(o => o.value === roleValue(selectedMember))
+                    ?.label
+                }}
+              </span>
+              <span
+                v-if="selectedMember.user_id === currentUserId"
+                class="text-xs text-n-slate-9"
+                >{{ L.self }}</span
+              >
+            </div>
+            <Select
+              v-else
+              class="flex-1"
+              :model-value="roleValue(selectedMember)"
+              :options="roleOptions"
+              :disabled="savingId === selectedMember.id"
+              @update:model-value="value => onRoleChange(selectedMember, value)"
+            />
+          </div>
+
+          <!-- MES 角色 -->
+          <div class="flex items-center gap-4">
+            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
+              MES 角色
+            </span>
+            <span
+              v-if="selectedMember.is_admin"
+              class="text-sm text-n-slate-10"
+            >
+              全部
+            </span>
+            <Select
+              v-else
+              class="flex-1"
+              :model-value="selectedMember.mes_role || ''"
+              :options="MES_ROLE_OPTIONS"
+              :disabled="savingId === selectedMember.id"
+              @update:model-value="
+                value => onMesRoleChange(selectedMember, value)
+              "
+            />
+          </div>
+
+          <!-- 财务身份：可查看全员已通过提成表 + 导出，与业务员身份叠加。管理员天然具备。 -->
+          <div class="flex items-center gap-4">
+            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
+              财务身份
+            </span>
+            <span
+              v-if="selectedMember.is_admin"
+              class="text-sm text-n-slate-10"
+            >
+              默认具备
+            </span>
+            <label
+              v-else
+              class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+            >
+              <input
+                type="checkbox"
+                class="accent-n-iris-9"
+                :checked="selectedMember.crm_finance"
+                :disabled="savingId === selectedMember.id || isManagerOnly"
+                @change="e => onFinanceToggle(selectedMember, e.target.checked)"
               />
-            </td>
-            <td class="px-6 py-3">
-              <span v-if="m.is_admin" class="text-xs text-n-slate-10">全部</span>
-              <Select
-                v-else
-                class="w-full"
-                :model-value="m.mes_role || ''"
-                :options="MES_ROLE_OPTIONS"
-                :disabled="savingId === m.id"
-                @update:model-value="value => onMesRoleChange(m, value)"
-              />
-            </td>
-            <td class="px-6 py-3">
-              <!-- 财务身份：可查看全员已通过提成表 + 导出。管理员天然具备。 -->
-              <span v-if="m.is_admin" class="text-xs text-n-slate-10">默认</span>
+              可查看全员已通过提成表并导出
+            </label>
+          </div>
+
+          <!-- 模块使用权限 -->
+          <div class="flex items-start gap-4">
+            <span class="flex-shrink-0 pt-0.5 text-sm w-24 text-n-slate-11">
+              {{ L.colModules }}
+            </span>
+            <!-- 管理员始终全模块；其他人按开关 -->
+            <span
+              v-if="selectedMember.is_admin"
+              class="text-sm text-n-slate-10"
+            >
+              {{ L.allModules }}
+            </span>
+            <div v-else class="flex flex-wrap items-center gap-4">
               <label
-                v-else
-                class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
-                title="勾选后可查看全员已通过的提成表并导出"
+                v-for="mod in MODULE_OPTIONS"
+                :key="mod.key"
+                class="flex items-center gap-1.5 text-sm text-n-slate-11"
+                :class="
+                  mod.disabled
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'cursor-pointer'
+                "
+                :title="mod.disabled ? '该模块未上线，上线后开放设置' : ''"
               >
                 <input
                   type="checkbox"
                   class="accent-n-iris-9"
-                  :checked="m.crm_finance"
-                  :disabled="savingId === m.id || isManagerOnly"
-                  @change="e => onFinanceToggle(m, e.target.checked)"
-                />
-                财务
-              </label>
-            </td>
-            <td class="px-6 py-3">
-              <!-- 管理员始终全模块；其他人按开关 -->
-              <span v-if="m.is_admin" class="text-xs text-n-slate-10">
-                {{ L.allModules }}
-              </span>
-              <div v-else class="flex items-center gap-4">
-                <label
-                  v-for="mod in MODULE_OPTIONS"
-                  :key="mod.key"
-                  class="flex items-center gap-1.5 text-sm text-n-slate-11"
-                  :class="
-                    mod.disabled
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'cursor-pointer'
+                  :checked="
+                    (selectedMember.module_access || []).includes(mod.key)
                   "
-                  :title="mod.disabled ? '该模块未上线，上线后开放设置' : ''"
-                >
-                  <input
-                    type="checkbox"
-                    class="accent-n-iris-9"
-                    :checked="(m.module_access || []).includes(mod.key)"
-                    :disabled="
-                      savingId === m.id || mod.disabled || isManagerOnly
-                    "
-                    @change="e => onModuleToggle(m, mod.key, e.target.checked)"
-                  />
-                  {{ mod.label }}
-                </label>
-              </div>
-            </td>
-            <td class="px-6 py-3 text-n-slate-11">{{ scopeLabel(m) }}</td>
-            <td class="px-6 py-3 text-right">
-              <!-- 自己也可改（中文名/CRM英文名，个人资料改不了英文名）；管理员不可动超管账号；改角色仍禁止改自己（后端拦） -->
-              <button
-                v-if="isSuperAdmin || !m.is_admin"
-                class="text-xs text-n-iris-11 hover:underline"
-                @click="openAccountEdit(m)"
-              >
-                {{ isManagerOnly ? '重置密码' : '修改账号' }}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                  :disabled="
+                    savingId === selectedMember.id ||
+                    mod.disabled ||
+                    isManagerOnly
+                  "
+                  @change="
+                    e =>
+                      onModuleToggle(selectedMember, mod.key, e.target.checked)
+                  "
+                />
+                {{ mod.label }}
+              </label>
+            </div>
+          </div>
 
-      <p class="px-6 py-3 text-xs text-n-slate-9">{{ L.hint }}</p>
+          <!-- 数据范围 -->
+          <div class="flex items-center gap-4">
+            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
+              {{ L.colScope }}
+            </span>
+            <span class="text-sm text-n-slate-11">
+              {{ scopeLabel(selectedMember) }}
+            </span>
+          </div>
+
+          <!-- 操作：自己也可改中文名/CRM英文名；管理员不可动超管账号 -->
+          <div
+            v-if="isSuperAdmin || !selectedMember.is_admin"
+            class="flex items-center gap-4 pt-1"
+          >
+            <span class="flex-shrink-0 w-24" />
+            <button
+              class="h-9 px-4 text-sm font-medium border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+              @click="openAccountEdit(selectedMember)"
+            >
+              {{ isManagerOnly ? '重置密码' : '修改账号' }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
+
+    <!-- 权限说明：原来一堵灰字，折成可展开的逐行对照 -->
+    <div v-if="!loading" class="flex-shrink-0 border-t border-n-weak">
+      <button
+        class="flex items-center gap-1.5 w-full px-6 py-2.5 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-1"
+        @click="showHint = !showHint"
+      >
+        <span>权限说明</span>
+        <span class="text-n-slate-9">{{ showHint ? '▾' : '▸' }}</span>
+      </button>
+      <div v-if="showHint" class="px-6 pb-4">
+        <div class="flex flex-col gap-1.5 max-w-2xl">
+          <div
+            v-for="item in ROLE_LEGEND"
+            :key="item.role"
+            class="flex gap-3 text-xs"
+          >
+            <span class="flex-shrink-0 w-20 font-medium text-n-slate-11">
+              {{ item.role }}
+            </span>
+            <span class="text-n-slate-10">{{ item.desc }}</span>
+          </div>
+          <p class="mt-1.5 text-xs text-n-slate-9">{{ LEGEND_NOTE }}</p>
+        </div>
+      </div>
+    </div>
+
     <!-- 修改成员账号弹窗 -->
     <Dialog
       ref="accountDialog"

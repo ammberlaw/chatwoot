@@ -13,6 +13,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
 import TemplatesAPI from 'dashboard/api/crm/emailTemplates';
+import { uploadInlineDataUriImages } from 'dashboard/helper/uploadHelper';
 
 const { t } = useI18n();
 const store = useCrmEmailTemplatesStore();
@@ -165,13 +166,23 @@ const openEdit = record => {
 
 const handleConfirm = async () => {
   if (readonly.value || !form.name.trim()) return;
+  // 正文里若有粘贴进来的 base64 内联图，先上传换成短链接：
+  // 否则单张图几百 KB 就把正文撑爆（模板正文有 2 万字上限），保存直接失败。
+  let body = form.body || '';
+  try {
+    body = await uploadInlineDataUriImages(body);
+    form.body = body;
+  } catch {
+    useAlert(L.error);
+    return;
+  }
   // 含附件走 multipart；文本字段一并用 FormData 传（后端 params.require(:template)）。
   const fd = new FormData();
   fd.append('template[name]', form.name.trim());
   fd.append('template[category]', form.category);
   fd.append('template[scope]', form.scope);
   fd.append('template[subject_template]', form.subjectTemplate.trim());
-  fd.append('template[body]', form.body || '');
+  fd.append('template[body]', body);
   fd.append('template[description]', form.description.trim());
   newFiles.value.forEach(f => fd.append('template[files][]', f));
   removedFileIds.value.forEach(id =>
@@ -420,6 +431,7 @@ onMounted(() => store.get());
               <Icon icon="i-lucide-paperclip" class="size-3" />
               <span class="truncate max-w-[160px]">{{ f.filename }}</span>
               <button
+                type="button"
                 class="i-lucide-x size-3 text-n-slate-10 hover:text-n-slate-12"
                 @click="removeExistingFile(f)"
               />
@@ -433,11 +445,13 @@ onMounted(() => store.get());
               <span class="truncate max-w-[160px]">{{ f.name }}</span>
               <span class="text-n-teal-11/70">{{ fmtSize(f.size) }}</span>
               <button
+                type="button"
                 class="i-lucide-x size-3 hover:opacity-70"
                 @click="removeNewFile(i)"
               />
             </span>
             <button
+              type="button"
               class="inline-flex items-center gap-1 px-2 py-1 text-xs border border-dashed rounded-md border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
               @click="fileInput?.click()"
             >
@@ -460,6 +474,7 @@ onMounted(() => store.get());
         />
         <button
           v-if="editingId && !readonly"
+          type="button"
           class="inline-flex items-center self-start gap-1 text-xs text-n-ruby-11 hover:underline"
           @click="removeRecord"
         >

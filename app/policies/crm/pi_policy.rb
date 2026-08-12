@@ -23,6 +23,10 @@ class Crm::PiPolicy < ApplicationPolicy
     true
   end
 
+  def parse_pi?
+    true
+  end
+
   def xlsx?
     true
   end

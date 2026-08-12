@@ -11,7 +11,8 @@ import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmSalesOrderCreateDialog from 'dashboard/components-next/CRM/CrmSalesOrderCreateDialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 
@@ -372,20 +373,18 @@ watch(
           class="reset-base h-9 px-3 text-sm border rounded-lg w-44 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
           @input="onSearchInput"
         />
-        <input
+        <MonthPicker
           v-model="activeMonth"
-          type="month"
-          :aria-label="t('CRM.SALES_ORDERS.FILTERS.MONTH')"
-          class="reset-base h-9 px-3 text-sm border rounded-lg w-36 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+          trigger-class="w-36 h-9"
           @change="onMonthChange"
         />
-        <Select
+        <SelectCard
           v-if="canViewTeam"
           :model-value="activeOwnerId"
           :options="ownerFilterOptions"
           @update:model-value="setOwner"
         />
-        <Select
+        <SelectCard
           :model-value="activeStatus"
           :options="statusFilterOptions"
           @update:model-value="setStatus"

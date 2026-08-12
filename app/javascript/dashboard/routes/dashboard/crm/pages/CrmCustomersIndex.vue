@@ -13,6 +13,7 @@ import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmCustomerImportDialog from 'dashboard/components-next/CRM/CrmCustomerImportDialog.vue';
@@ -533,6 +534,76 @@ const updateCustomer = async customer => {
   }
 };
 
+// ── 行内单元格：悬停复制 + 铅笔就地编辑（公司名称/主要联系人/邮箱）──
+const vFocus = { mounted: el => el.focus() };
+const editingCell = ref(null); // { id, field }
+const editingValue = ref('');
+const savingCell = ref(false);
+
+const isEditingCell = (customer, field) =>
+  editingCell.value?.id === customer.id && editingCell.value?.field === field;
+
+const startCellEdit = (customer, field) => {
+  editingCell.value = { id: customer.id, field };
+  editingValue.value = customer[field] || '';
+};
+const cancelCellEdit = () => {
+  editingCell.value = null;
+  editingValue.value = '';
+};
+
+const saveCellEdit = async customer => {
+  const cell = editingCell.value;
+  if (!cell || savingCell.value) return;
+  const { field } = cell;
+  const next = editingValue.value.trim();
+  if (next === (customer[field] || '')) {
+    cancelCellEdit();
+    return;
+  }
+  savingCell.value = true;
+  try {
+    const updated = await customersStore.update({
+      id: customer.id,
+      [field]: next,
+    });
+    if (selectedCustomer.value?.id === customer.id)
+      selectedCustomer.value = updated;
+    useAlert('已保存');
+  } catch {
+    useAlert('保存失败');
+  } finally {
+    savingCell.value = false;
+    // 保存期间若已切到别的格子就别清空，避免误关新编辑
+    if (isEditingCell(customer, field)) cancelCellEdit();
+  }
+};
+
+// HTTP 环境（生产 IP 直连无 HTTPS）没有 navigator.clipboard，退回 execCommand 复制。
+const copyCell = async value => {
+  const text = String(value ?? '').trim();
+  if (!text) return;
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const holder = document.createElement('textarea');
+      holder.value = text;
+      holder.setAttribute('readonly', '');
+      holder.style.position = 'fixed';
+      holder.style.opacity = '0';
+      document.body.appendChild(holder);
+      holder.select();
+      const ok = document.execCommand('copy');
+      holder.remove();
+      if (!ok) throw new Error('copy unsupported');
+    }
+    useAlert('已复制');
+  } catch {
+    useAlert('复制失败');
+  }
+};
+
 const crmApi = () => `/api/v1/accounts/${accountId.value}/crm/customers`;
 
 // 认领：公海客户归我私海；转公海：私海客户放回公海。行按钮，阻止冒泡避免触发编辑。
@@ -1022,7 +1093,7 @@ watch(
             @input="onSearchInput"
           />
           <!-- 公海全公司共享，不提供团队/业务员筛选 -->
-          <Select
+          <SelectCard
             v-if="
               !isCrmSales && !isCrmManager && activeFilter !== 'public_pool'
             "
@@ -1030,7 +1101,7 @@ watch(
             :options="teamOptions"
             @update:model-value="setTeam"
           />
-          <Select
+          <SelectCard
             v-if="
               !isCrmSales &&
               !isCrmManager &&
@@ -1042,7 +1113,7 @@ watch(
             @update:model-value="setOwner"
           />
           <!-- 部门主管：团队客户视图下按自己团队的业务员筛选 -->
-          <Select
+          <SelectCard
             v-if="isManagerTeamView"
             :model-value="selectedOwnerId"
             :options="managerOwnerOptions"
@@ -1053,9 +1124,10 @@ watch(
             <span class="text-sm text-n-slate-11">
               已选 {{ selectedIds.length }} 个
             </span>
-            <Select
+            <SelectCard
               :model-value="reassignTargetId"
               :options="assignTargetOptions"
+              placeholder="选择业务员"
               @update:model-value="v => (reassignTargetId = v)"
             />
             <Button
@@ -1069,27 +1141,27 @@ watch(
               @click="reassignSelected"
             />
           </template>
-          <Select
+          <SelectCard
             :model-value="activeCustomerGroup"
             :options="customerGroupOptions"
             @update:model-value="setCustomerGroup"
           />
-          <Select
+          <SelectCard
             :model-value="activeProductGroup"
             :options="productGroupOptions"
             @update:model-value="setProductGroup"
           />
-          <Select
+          <SelectCard
             :model-value="activeSourceChannel"
             :options="sourceChannelOptions"
             @update:model-value="setSourceChannel"
           />
-          <Select
+          <SelectCard
             :model-value="activeStatus"
             :options="statusFilterOptions"
             @update:model-value="setStatus"
           />
-          <Select
+          <SelectCard
             :model-value="activeLevel"
             :options="levelFilterOptions"
             @update:model-value="setLevel"
@@ -1120,7 +1192,7 @@ watch(
                 <tr class="border-b border-n-weak">
                   <th
                     v-if="canSelectRows"
-                    class="sticky left-0 z-20 w-11 px-3 py-3 bg-n-solid-1"
+                    class="sticky left-0 z-20 w-11 px-3 py-2 bg-n-solid-1"
                   >
                     <input
                       type="checkbox"
@@ -1130,7 +1202,7 @@ watch(
                     />
                   </th>
                   <th
-                    class="sticky z-20 px-4 py-3 font-medium bg-n-solid-1 whitespace-nowrap"
+                    class="sticky z-20 px-4 py-2 font-medium bg-n-solid-1 whitespace-nowrap"
                     :style="{
                       left: nameLeft + 'px',
                       width: STICKY.name + 'px',
@@ -1139,16 +1211,17 @@ watch(
                     {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
                   </th>
                   <th
-                    class="sticky z-20 px-4 py-3 font-medium border-r bg-n-solid-1 whitespace-nowrap border-n-weak"
+                    class="sticky z-20 px-4 py-2 font-medium border-r bg-n-solid-1 whitespace-nowrap border-n-weak"
                     :style="{ left: countryLeft + 'px' }"
                   >
                     {{ t('CRM.CUSTOMERS.TABLE.COUNTRY') }}
                   </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">时区</th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  <th class="px-4 py-2 font-medium whitespace-nowrap">时区</th>
+                  <th class="px-4 py-2 font-medium whitespace-nowrap">
                     主要联系人
                   </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  <th class="px-4 py-2 font-medium whitespace-nowrap">邮箱</th>
+                  <th class="px-4 py-2 font-medium whitespace-nowrap">
                     <button
                       class="inline-flex items-center gap-1 transition-colors hover:text-n-slate-12"
                       :class="
@@ -1164,7 +1237,7 @@ watch(
                     </button>
                   </th>
                   <th
-                    class="px-4 py-3 font-medium text-right whitespace-nowrap"
+                    class="px-4 py-2 font-medium text-right whitespace-nowrap"
                   >
                     <button
                       class="inline-flex items-center gap-1 ml-auto transition-colors hover:text-n-slate-12"
@@ -1178,7 +1251,7 @@ watch(
                     </button>
                   </th>
                   <th
-                    class="px-4 py-3 font-medium text-right whitespace-nowrap"
+                    class="px-4 py-2 font-medium text-right whitespace-nowrap"
                   >
                     <button
                       class="inline-flex items-center gap-1 ml-auto transition-colors hover:text-n-slate-12"
@@ -1189,19 +1262,19 @@ watch(
                       <span class="size-3.5" :class="sortIcon('deal_count')" />
                     </button>
                   </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  <th class="px-4 py-2 font-medium whitespace-nowrap">
                     {{ t('CRM.CUSTOMERS.TABLE.STATUS') }}
                   </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  <th class="px-4 py-2 font-medium whitespace-nowrap">
                     {{ t('CRM.CUSTOMERS.TABLE.LEVEL') }}
                   </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  <th class="px-4 py-2 font-medium whitespace-nowrap">
                     {{ t('CRM.CUSTOMERS.TABLE.SOURCE') }}
                   </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  <th class="px-4 py-2 font-medium whitespace-nowrap">
                     {{ t('CRM.CUSTOMERS.TABLE.REGION') }}
                   </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
+                  <th class="px-4 py-2 font-medium whitespace-nowrap">
                     {{
                       activeFilter === 'public_pool'
                         ? '原跟进人'
@@ -1209,7 +1282,7 @@ watch(
                     }}
                   </th>
                   <th
-                    class="sticky right-0 z-20 px-4 py-3 font-medium text-right border-l bg-n-solid-1 whitespace-nowrap border-n-weak"
+                    class="sticky right-0 z-20 px-4 py-2 font-medium text-right border-l bg-n-solid-1 whitespace-nowrap border-n-weak"
                   >
                     {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
                   </th>
@@ -1227,7 +1300,7 @@ watch(
                 >
                   <td
                     v-if="canSelectRows"
-                    class="sticky left-0 z-10 w-11 px-3 py-3"
+                    class="sticky left-0 z-10 w-11 px-3 py-2"
                     :class="rowStickyBg(customer)"
                     @click.stop
                   >
@@ -1239,41 +1312,152 @@ watch(
                     />
                   </td>
                   <td
-                    class="sticky z-10 px-4 py-3"
+                    class="sticky z-10 px-4 py-2"
                     :class="rowStickyBg(customer)"
                     :style="{
                       left: nameLeft + 'px',
                       width: STICKY.name + 'px',
                     }"
                   >
-                    <div class="flex items-center gap-2 min-w-0">
-                      <span
-                        class="flex items-center justify-center flex-shrink-0 text-xs font-semibold rounded-lg w-6 h-6"
-                        :class="avatarCls(customer.name)"
-                      >
-                        {{ initial(customer.name) }}
-                      </span>
-                      <span class="truncate text-n-slate-12">
-                        {{ customer.name }}
-                      </span>
+                    <div class="flex items-center gap-2 min-w-0 group">
+                      <input
+                        v-if="isEditingCell(customer, 'name')"
+                        v-model="editingValue"
+                        v-focus
+                        class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
+                        @click.stop
+                        @keyup.enter="saveCellEdit(customer)"
+                        @keyup.esc="cancelCellEdit"
+                        @blur="saveCellEdit(customer)"
+                      />
+                      <template v-else>
+                        <span class="truncate text-n-slate-12">
+                          {{ customer.name }}
+                        </span>
+                        <span
+                          class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+                          @click.stop
+                        >
+                          <button
+                            type="button"
+                            title="复制"
+                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                            @click.stop="copyCell(customer.name)"
+                          >
+                            <span class="i-lucide-copy size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="编辑"
+                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                            @click.stop="startCellEdit(customer, 'name')"
+                          >
+                            <span class="i-lucide-pencil size-3.5" />
+                          </button>
+                        </span>
+                      </template>
                     </div>
                   </td>
                   <td
-                    class="sticky z-10 px-4 py-3 border-r whitespace-nowrap border-n-weak text-n-slate-11"
+                    class="sticky z-10 px-4 py-2 border-r whitespace-nowrap border-n-weak text-n-slate-11"
                     :class="rowStickyBg(customer)"
                     :style="{ left: countryLeft + 'px' }"
                   >
                     {{ countryLabel(customer.tradeCountry) }}
                   </td>
                   <td
-                    class="px-4 py-3 whitespace-nowrap text-n-slate-11 tabular-nums"
+                    class="px-4 py-2 whitespace-nowrap text-n-slate-11 tabular-nums"
                   >
                     {{ customerTime(customer) || '—' }}
                   </td>
-                  <td class="px-4 py-3 whitespace-nowrap text-n-slate-11">
-                    {{ customer.primaryContactName || '—' }}
+                  <td class="px-4 py-2 whitespace-nowrap text-n-slate-11">
+                    <div class="flex items-center min-w-0 gap-1 group">
+                      <input
+                        v-if="isEditingCell(customer, 'primaryContactName')"
+                        v-model="editingValue"
+                        v-focus
+                        class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
+                        @click.stop
+                        @keyup.enter="saveCellEdit(customer)"
+                        @keyup.esc="cancelCellEdit"
+                        @blur="saveCellEdit(customer)"
+                      />
+                      <template v-else>
+                        <span class="truncate">
+                          {{ customer.primaryContactName || '—' }}
+                        </span>
+                        <span
+                          class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+                          @click.stop
+                        >
+                          <button
+                            v-if="customer.primaryContactName"
+                            type="button"
+                            title="复制"
+                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                            @click.stop="copyCell(customer.primaryContactName)"
+                          >
+                            <span class="i-lucide-copy size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="编辑"
+                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                            @click.stop="
+                              startCellEdit(customer, 'primaryContactName')
+                            "
+                          >
+                            <span class="i-lucide-pencil size-3.5" />
+                          </button>
+                        </span>
+                      </template>
+                    </div>
                   </td>
-                  <td class="px-4 py-3">
+                  <td class="px-4 py-2 whitespace-nowrap text-n-slate-11">
+                    <div class="flex items-center min-w-0 gap-1 group">
+                      <input
+                        v-if="isEditingCell(customer, 'contactEmail')"
+                        v-model="editingValue"
+                        v-focus
+                        type="email"
+                        class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
+                        @click.stop
+                        @keyup.enter="saveCellEdit(customer)"
+                        @keyup.esc="cancelCellEdit"
+                        @blur="saveCellEdit(customer)"
+                      />
+                      <template v-else>
+                        <span class="truncate">
+                          {{ customer.contactEmail || '—' }}
+                        </span>
+                        <span
+                          class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+                          @click.stop
+                        >
+                          <button
+                            v-if="customer.contactEmail"
+                            type="button"
+                            title="复制"
+                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                            @click.stop="copyCell(customer.contactEmail)"
+                          >
+                            <span class="i-lucide-copy size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="编辑"
+                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                            @click.stop="
+                              startCellEdit(customer, 'contactEmail')
+                            "
+                          >
+                            <span class="i-lucide-pencil size-3.5" />
+                          </button>
+                        </span>
+                      </template>
+                    </div>
+                  </td>
+                  <td class="px-4 py-2">
                     <span
                       v-if="gradeMeta(customer)"
                       class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
@@ -1287,14 +1471,14 @@ watch(
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
                   <td
-                    class="px-4 py-3 text-right text-n-slate-11 whitespace-nowrap"
+                    class="px-4 py-2 text-right text-n-slate-11 whitespace-nowrap"
                   >
                     {{ money(customer.dealTotalAmountMicros) }}
                   </td>
-                  <td class="px-4 py-3 text-right text-n-slate-11">
+                  <td class="px-4 py-2 text-right text-n-slate-11">
                     {{ customer.dealOrderCount || 0 }}
                   </td>
-                  <td class="px-4 py-3">
+                  <td class="px-4 py-2">
                     <span
                       v-if="statusMeta(customer)"
                       class="inline-flex px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
@@ -1304,7 +1488,7 @@ watch(
                     </span>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
-                  <td class="px-4 py-3">
+                  <td class="px-4 py-2">
                     <span
                       v-if="customer.customerLevel"
                       class="inline-flex items-center justify-center w-5 h-5 rounded text-xs font-medium"
@@ -1314,7 +1498,7 @@ watch(
                     </span>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
-                  <td class="px-4 py-3">
+                  <td class="px-4 py-2">
                     <span
                       v-if="sourceMeta(customer)"
                       class="inline-flex px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
@@ -1324,7 +1508,7 @@ watch(
                     </span>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
-                  <td class="px-4 py-3">
+                  <td class="px-4 py-2">
                     <span
                       v-if="regionMeta(customer)"
                       class="inline-flex px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
@@ -1334,7 +1518,7 @@ watch(
                     </span>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
-                  <td class="px-4 py-3 whitespace-nowrap text-n-slate-11">
+                  <td class="px-4 py-2 whitespace-nowrap text-n-slate-11">
                     <template v-if="customer.isInPublicPool">
                       <span v-if="customer.previousOwnerName">
                         {{ customer.previousOwnerName }}
@@ -1347,7 +1531,7 @@ watch(
                     <span v-else class="text-n-slate-10">未分配</span>
                   </td>
                   <td
-                    class="sticky right-0 z-10 px-4 py-3 text-right border-l border-n-weak"
+                    class="sticky right-0 z-10 px-4 py-2 text-right border-l border-n-weak"
                     :class="rowStickyBg(customer)"
                     @click.stop
                   >

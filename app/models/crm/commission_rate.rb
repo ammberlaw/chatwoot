@@ -1,5 +1,20 @@
 # 提成点配置：一账号一「产品品类 → 提成点」。rate 为百分数（3.0 = 3%）。
 # 提成表按行的 product_category 匹配取点位，算提成工资时用（品类没配则点位为 0）。
+# == Schema Information
+#
+# Table name: crm_commission_rates
+#
+#  id               :bigint           not null, primary key
+#  product_category :string           not null
+#  rate             :decimal(7, 4)    default(0.0), not null
+#  created_at       :datetime         not null
+#  updated_at       :datetime         not null
+#  account_id       :bigint           not null
+#
+# Indexes
+#
+#  idx_crm_commission_rates_category  (account_id,product_category) UNIQUE
+#
 class Crm::CommissionRate < ApplicationRecord
   belongs_to :account
 

@@ -32,4 +32,15 @@ class Crm::FxRate < ApplicationRecord
     where(currency: currency).where('quote_date <= ?', date)
                              .order(quote_date: :desc).limit(1).pick(:rate)&.to_f
   end
+
+  # 指定币种在给定日期（含）之后最近一个牌价的折算汇率。用于提成按「每月第一天」取价：
+  # 月初逢周末/节假日无牌价时往后顺延到当月第一个交易日，而非回退到上月。
+  # CNY 恒为 1；查不到（例如当月还没牌价）返回 nil。
+  def self.rate_on_or_after(currency, date)
+    return 1.0 if currency.blank? || currency == 'CNY'
+    return nil if date.blank?
+
+    where(currency: currency).where('quote_date >= ?', date)
+                             .order(quote_date: :asc).limit(1).pick(:rate)&.to_f
+  end
 end

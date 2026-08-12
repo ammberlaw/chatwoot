@@ -10,6 +10,8 @@ import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue'
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import { themeColor } from 'dashboard/components-next/CRM/charts/chartColors';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -35,6 +37,22 @@ const selectedQuarter = computed({
     selectedMonth.value = (q - 1) * 3 + 1;
   },
 });
+
+// 月份筛选桥接到紫玻璃 MonthPicker（值 'YYYY-MM'，拆合回写年/月两个 ref）。
+const pad = n => String(n).padStart(2, '0');
+const monthModel = computed({
+  get: () => `${selectedYear.value}-${pad(selectedMonth.value)}`,
+  set: v => {
+    const [y, m] = (v || '').split('-');
+    if (y && m) {
+      selectedYear.value = Number(y);
+      selectedMonth.value = Number(m);
+    }
+  },
+});
+// 季度 / 年度用紫玻璃 SelectCard。
+const quarterOptions = [1, 2, 3, 4].map(q => ({ value: q, label: `Q${q}` }));
+const yearSelectOptions = yearOptions.map(y => ({ value: y, label: `${y}年` }));
 
 const { isCrmSales } = useCrmRole();
 // 普通业务无公司看板权限：无论 URL 参数如何都走个人口径（后端同样强制）。
@@ -236,10 +254,20 @@ const sourceDonut = computed(() => {
   };
 });
 
-// ── 业务员成交排行（横向柱） ──
+// ── 业务员成交排行（横向柱，跟随所选期间，按下单日期）──
+const periodMonths = computed(() => {
+  if (period.value === 'year') return Array.from({ length: 12 }, (_, i) => i);
+  if (period.value === 'quarter') {
+    const q = Math.floor((selectedMonth.value - 1) / 3);
+    return [q * 3, q * 3 + 1, q * 3 + 2];
+  }
+  return [selectedMonth.value - 1];
+});
 const ownerRank = computed(() => {
-  const by = stats.value?.team?.by_owner_amount || {};
+  const by = stats.value?.team?.by_owner_monthly || {};
+  const months = periodMonths.value;
   const rows = Object.entries(by)
+    .map(([name, arr]) => [name, months.reduce((s, i) => s + (arr[i] || 0), 0)])
     .filter(([, v]) => v)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8);
@@ -368,29 +396,27 @@ const PERIODS = [
             {{ p.l }}
           </button>
         </div>
-        <select
+        <MonthPicker
           v-if="period === 'month'"
-          v-model.number="selectedMonth"
-          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-        >
-          <option v-for="m in 12" :key="m" :value="m">{{ m }}月</option>
-        </select>
-        <select
+          v-model="monthModel"
+          align="right"
+          trigger-class="w-36 h-9"
+          :clearable="false"
+        />
+        <SelectCard
           v-else-if="period === 'quarter'"
-          v-model.number="selectedQuarter"
-          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-        >
-          <option v-for="q in 4" :key="q" :value="q">Q{{ q }}</option>
-        </select>
-        <select
+          v-model="selectedQuarter"
+          :options="quarterOptions"
+          align="right"
+          trigger-class="w-24"
+        />
+        <SelectCard
           v-else
-          v-model.number="selectedYear"
-          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg shrink-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-        >
-          <option v-for="y in yearOptions" :key="y" :value="y">
-            {{ y }}年
-          </option>
-        </select>
+          v-model="selectedYear"
+          :options="yearSelectOptions"
+          align="right"
+          trigger-class="w-24"
+        />
       </div>
     </div>
 
@@ -587,6 +613,9 @@ const PERIODS = [
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             业务员成交排行
+            <span class="ml-1 text-sm font-normal text-n-slate-10">
+              · {{ periodLabel }}
+            </span>
           </h2>
           <div class="h-72">
             <CrmBarChart

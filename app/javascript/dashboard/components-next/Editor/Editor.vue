@@ -27,6 +27,7 @@ const props = defineProps({
   channelType: { type: String, default: '' },
   medium: { type: String, default: '' },
   enableTextColor: { type: Boolean, default: false },
+  enableInlineImagePaste: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'executeCopilotAction']);
@@ -124,6 +125,7 @@ watch(
         :channel-type="channelType"
         :medium="medium"
         :enable-text-color="enableTextColor"
+        :enable-inline-image-paste="enableInlineImagePaste"
         @input="handleInput"
         @focus="handleFocus"
         @blur="handleBlur"

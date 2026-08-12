@@ -16,6 +16,7 @@ json.delivery_date resource.delivery_date
 json.order_currency resource.order_currency
 json.exchange_rate resource.exchange_rate
 json.order_amount_micros resource.order_amount_micros
+json.shipping_micros resource.shipping_micros
 json.cost_amount_micros resource.cost_amount_micros
 json.profit_amount_micros resource.profit_amount_micros
 json.profit_rate resource.profit_rate

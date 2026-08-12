@@ -296,7 +296,13 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
-    scope = scope.where('name ILIKE ?', "%#{params[:q]}%") if params[:q].present?
+    if params[:q].present?
+      # 关键词同时匹配公司名 + 联系人 + 联系邮箱/电话，便于按联系人找客户。
+      scope = scope.where(
+        'name ILIKE :q OR primary_contact_name ILIKE :q OR contact_email ILIKE :q OR contact_phone ILIKE :q',
+        q: "%#{params[:q]}%"
+      )
+    end
     scope = scope.where(account_owner_id: team_member_ids(params[:team_id])) if params[:team_id].present?
     scope
   end

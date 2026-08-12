@@ -10,7 +10,8 @@ import PiSellerProfileAPI from 'dashboard/api/crm/piSellerProfiles';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
@@ -46,7 +47,7 @@ const blankForm = () => ({
   portOfDestination: '',
   countryOfOrigin: 'China',
   shippingMethod: 'UPS',
-  shippingCostLabel: 'SHIPPING COST (UPS)',
+  shippingCostLabel: 'SHIPPING COST',
   shippingCost: '',
   terms: DEFAULT_TERMS,
   issuedBy: '',
@@ -73,7 +74,14 @@ const customers = ref([]);
 const loadingCustomers = ref(false);
 const editingCustomerLabel = ref('');
 const customerOptions = computed(() =>
-  customers.value.map(c => ({ value: String(c.id), label: c.name }))
+  customers.value.map(c => ({
+    value: String(c.id),
+    label: c.name,
+    // 搜索也命中联系人/邮箱/电话（不改显示标签）。
+    searchText: [c.contactName, c.contactEmail, c.contactPhone]
+      .filter(Boolean)
+      .join(' '),
+  }))
 );
 const loadCustomers = async () => {
   loadingCustomers.value = true;
@@ -85,6 +93,9 @@ const loadCustomers = async () => {
     customers.value = (data.payload || []).map(c => ({
       id: c.id,
       name: c.name,
+      contactName: c.primary_contact_name,
+      contactEmail: c.contact_email,
+      contactPhone: c.contact_phone,
     }));
   } catch {
     customers.value = [];
@@ -106,6 +117,66 @@ const onCustomerChange = async id => {
     form.portOfDestination = data.port_of_destination || form.portOfDestination;
   } catch {
     // 预填失败不阻断，业务可手填
+  }
+};
+
+// ── 上传 PI 自动识别（与订单自动填单同引擎）：填 PI号/日期/币种/客户/明细 ──
+const piInputRef = ref(null);
+const parsingPi = ref(false);
+const piMatchHint = ref(''); // 客户未匹配上时的提示（识别到的公司名）
+const triggerPiUpload = () => piInputRef.value?.click();
+
+const applyParsedPi = data => {
+  if (data.pi_no) form.piNo = data.pi_no;
+  if (data.order_date) form.piDate = data.order_date;
+  if (data.currency) form.currency = data.currency;
+  form.items = Array.isArray(data.line_items)
+    ? data.line_items.map(li => ({
+        id: null,
+        model: li.name || '',
+        description: li.spec || '',
+        quantity: li.quantity ?? '',
+        unitPrice: li.unit_price ?? '',
+        pictureUrl: null,
+        pictureFile: null,
+      }))
+    : [];
+
+  const c = data.customer || {};
+  if (c.matched_id) {
+    const idStr = String(c.matched_id);
+    if (!customers.value.some(pc => String(pc.id) === idStr)) {
+      customers.value = [
+        ...customers.value,
+        { id: c.matched_id, name: c.matched_name || c.raw_name || '客户' },
+      ];
+    }
+    editingCustomerLabel.value = c.matched_name || c.raw_name || '';
+    onCustomerChange(idStr); // 带出买方快照
+    piMatchHint.value = '';
+  } else {
+    piMatchHint.value = c.raw_name
+      ? t('CRM.PI.PI.CUSTOMER_UNMATCHED', { name: c.raw_name })
+      : '';
+  }
+};
+
+const onPiSelected = async event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  parsingPi.value = true;
+  piMatchHint.value = '';
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const { data } = await PisAPI.parsePi(accountId.value, fd);
+    applyParsedPi(data);
+    useAlert(t('CRM.PI.PI.PARSE_SUCCESS'));
+  } catch (error) {
+    useAlert(error?.response?.data?.error || t('CRM.PI.PI.PARSE_ERROR'));
+  } finally {
+    parsingPi.value = false;
   }
 };
 
@@ -169,6 +240,7 @@ const onItemPic = (event, i) => {
 const reset = () => {
   editingId.value = null;
   editingCustomerLabel.value = '';
+  piMatchHint.value = '';
   Object.assign(form, blankForm());
   form.issuedBy = currentUser.value?.name || '';
 };
@@ -187,6 +259,7 @@ const loadSellerDefaults = async () => {
 
 const open = record => {
   reset();
+  if (!record) addItem(); // 新建默认给一行产品，免得每次手动「加一行」
   loadCustomers();
   loadCompanyHeaders().then(() => {
     if (!editingId.value && !form.companyHeader) {
@@ -324,6 +397,44 @@ defineExpose({ open });
     @confirm="submit"
   >
     <div class="flex flex-col gap-4">
+      <!-- 上传 PI 自动识别（仅新建）：上传 PDF/Excel，自动填 PI号/日期/币种/客户/明细 -->
+      <div v-if="!editingId" class="flex flex-col gap-1.5">
+        <div
+          class="flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
+        >
+          <div class="flex items-center gap-2 text-sm text-n-slate-11">
+            <span class="i-lucide-sparkles size-4 text-n-iris-9" />
+            {{ t('CRM.PI.PI.HINT') }}
+          </div>
+          <button
+            type="button"
+            class="flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+            :disabled="parsingPi"
+            @click="triggerPiUpload"
+          >
+            <span
+              class="size-4"
+              :class="
+                parsingPi
+                  ? 'i-lucide-loader-circle animate-spin'
+                  : 'i-lucide-sparkles'
+              "
+            />
+            {{ parsingPi ? t('CRM.PI.PI.PARSING') : t('CRM.PI.PI.UPLOAD') }}
+          </button>
+          <input
+            ref="piInputRef"
+            type="file"
+            accept=".pdf,.xlsx,.csv"
+            class="hidden"
+            @change="onPiSelected"
+          />
+        </div>
+        <p v-if="piMatchHint" class="text-xs text-n-amber-11">
+          {{ piMatchHint }}
+        </p>
+      </div>
+
       <!-- 基本 -->
       <div class="grid grid-cols-4 gap-3">
         <Input
@@ -331,22 +442,23 @@ defineExpose({ open });
           :label="t('CRM.PI.FORM.PI_NO')"
           :placeholder="t('CRM.PI.FORM.PI_NO_PLACEHOLDER')"
         />
-        <Input
-          v-model="form.piDate"
-          type="date"
-          :label="t('CRM.PI.FORM.DATE')"
-        />
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.PI.FORM.DATE') }}
+          </label>
+          <DatePicker v-model="form.piDate" block />
+        </div>
         <div class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.PI.FORM.STATUS') }}
           </label>
-          <Select v-model="form.status" :options="statusOptions" />
+          <SelectCard v-model="form.status" :options="statusOptions" />
         </div>
         <div class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.PI.FORM.CURRENCY') }}
           </label>
-          <Select v-model="form.currency" :options="currencyOptions" />
+          <SelectCard v-model="form.currency" :options="currencyOptions" />
         </div>
       </div>
 
@@ -372,7 +484,7 @@ defineExpose({ open });
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.PI.FORM.COMPANY_HEADER') }}
           </label>
-          <Select
+          <SelectCard
             v-model="form.companyHeader"
             :options="companyHeaderOptions"
           />

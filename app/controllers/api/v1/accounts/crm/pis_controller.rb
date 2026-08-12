@@ -51,6 +51,19 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
     render json: Crm::PiTemplateFiller.header_options
   end
 
+  # 读取 PI 自动识别：上传 PDF/Excel，返回字段化结果供前端校对（不落库）。与订单自动填单同引擎。
+  def parse_pi
+    return render json: { error: '请上传 PI 文件' }, status: :unprocessable_entity if params[:file].blank?
+
+    result = Crm::PiParseService.new(account: Current.account, user: current_user, file: params[:file]).call
+    render json: result
+  rescue Crm::PiParseService::UnsupportedType, Crm::EmailAiService::NotConfigured => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  rescue StandardError => e
+    Rails.logger.error("[PI parse] #{e.class}: #{e.message}")
+    render json: { error: 'PI 识别失败，请检查文件或稍后重试' }, status: :unprocessable_entity
+  end
+
   # 选客户后预填买方快照（业务仍可改）。EORI 客户档案没有，留空。
   def prefill
     customer = Current.account.crm_customers.find(params[:customer_id])

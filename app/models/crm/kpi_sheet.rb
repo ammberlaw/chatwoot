@@ -18,10 +18,12 @@
 #  paid_at                 :datetime
 #  pass_score              :integer
 #  payout_coefficient      :decimal(6, 3)
+#  payout_note             :text
 #  performance_base_micros :bigint
 #  performance_ratio       :integer
 #  period_month            :datetime         not null
 #  remark                  :text
+#  result_note             :text
 #  return_reason           :text
 #  returned_at             :datetime
 #  scheme_name             :string
@@ -127,9 +129,11 @@ class Crm::KpiSheet < ApplicationRecord
       status: 'SUBMITTED', return_reason: reason.presence, returned_at: Time.current, returned_by_id: by.id,
       manager_id: nil, manager_signed_at: nil,
       hr_id: nil, hr_confirmed_at: nil,
+      # 从已归档退回时也要清掉总经理确认与签名，避免残留归档痕迹（非归档场景这些本就是 nil，无副作用）。
+      gm_id: nil, gm_confirmed_at: nil,
       total_score: nil, payout_coefficient: nil, actual_payout_micros: nil
     )
-    [manager_signature, hr_signature].each { |sig| sig.purge if sig.attached? }
+    [manager_signature, hr_signature, gm_signature].each { |sig| sig.purge if sig.attached? }
     save!
   end
 

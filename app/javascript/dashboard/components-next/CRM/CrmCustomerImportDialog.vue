@@ -11,15 +11,22 @@ import { useAlert } from 'dashboard/composables';
 import * as XLSX from 'xlsx';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 
-defineProps({
+const props = defineProps({
   // [{ value, label }]：可指派的负责人（本人+辖区成员），空值=未分配。
   memberOptions: {
     type: Array,
     default: () => [],
   },
 });
+
+// 原生 select → 紫玻璃 SelectCard：空值项「未分配」+ 有值成员。
+const ownerImportOptions = computed(() => [
+  { value: '', label: '未分配' },
+  ...props.memberOptions.filter(o => o.value),
+]);
 
 const emit = defineEmits(['imported']);
 
@@ -312,19 +319,11 @@ defineExpose({ open });
 
         <div class="flex items-center gap-3">
           <label class="text-sm text-n-slate-11">导入后负责人</label>
-          <select
+          <SelectCard
             v-model="defaultOwnerId"
-            class="h-8 px-2 text-sm border rounded-md w-52 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-          >
-            <option value="">未分配</option>
-            <option
-              v-for="m in memberOptions.filter(o => o.value)"
-              :key="m.value"
-              :value="m.value"
-            >
-              {{ m.label }}
-            </option>
-          </select>
+            :options="ownerImportOptions"
+            trigger-class="w-52"
+          />
         </div>
       </div>
 

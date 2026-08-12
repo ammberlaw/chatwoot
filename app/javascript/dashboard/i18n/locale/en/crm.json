@@ -103,6 +103,7 @@
         "COUNTRY": "国家",
         "CUSTOMER": "客户",
         "ORDER_NO": "PI号",
+        "ORDER_STATUS": "订单状态",
         "ORDER_AMOUNT": "订单额",
         "CURRENCY": "币种",
         "SHIPPING": "运费",
@@ -115,6 +116,7 @@
         "PRODUCT": "产品",
         "REMARK": "备注",
         "IS_PUBLIC": "对公",
+        "TAX_RATE": "税点",
         "COMM_BASE": "提成基数",
         "COMM_RATE": "提成点%",
         "COMM_SALARY": "提成工资"
@@ -394,6 +396,7 @@
         "ORDER_DATE": "下单日期",
         "DELIVERY_DATE": "交期",
         "AMOUNT": "订单金额",
+        "SHIPPING": "运费",
         "CURRENCY": "币种",
         "EXCHANGE_RATE": "汇率",
         "REMARK": "备注",
@@ -837,6 +840,7 @@
       "SECTION_RULES": "💰 评分与绩效发放规则",
       "SECTION_RESULT": "📌 考核结果应用",
       "PAYOUT": {
+        "TITLE": "绩效薪资核算",
         "PAID": "已发放",
         "UNPAID": "待发放",
         "MARK_ONE": "标记已发放",

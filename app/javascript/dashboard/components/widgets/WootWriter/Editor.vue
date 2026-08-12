@@ -103,6 +103,9 @@ const props = defineProps({
   focusOnMount: { type: Boolean, default: true },
   // 选中文字改颜色（CRM 写邮件用）：扩展 textColor mark 及其 markdown 序列化。
   enableTextColor: { type: Boolean, default: false },
+  // 直接粘贴图片内联（CRM 写邮件用）：普通 Ctrl/Cmd+V 粘贴剪贴板图片即上传并插入正文。
+  // 默认关闭——会话回复框靠 ReplyBox 的 onPaste 把粘贴文件转成附件，开了会重复插入。
+  enableInlineImagePaste: { type: Boolean, default: false },
 });
 
 const emit = defineEmits([
@@ -783,6 +786,17 @@ function createEditorView() {
         const { files } = event.clipboardData;
         if (!files.length) return;
         event.preventDefault();
+        // 直接粘贴图片内联（写邮件用）：普通 Ctrl/Cmd+V 粘贴的图片直接上传并插入正文，
+        // 免去「必须走上传按钮」。仅在显式开启时生效，避免影响会话回复框的粘贴转附件。
+        if (props.enableInlineImagePaste) {
+          const imageFiles = Array.from(files).filter(file =>
+            INLINE_IMAGE_PASTE_TYPES.includes(file.type)
+          );
+          if (imageFiles.length) {
+            imageFiles.forEach(file => uploadImageIfWithinSizeLimit(file));
+            return;
+          }
+        }
         // Paste text content alongside files (e.g., spreadsheet data from Numbers app)
         // Numbers app includes invalid 0-byte attachments with text, so we paste the text here
         // while ReplyBox filters and handles valid file attachments

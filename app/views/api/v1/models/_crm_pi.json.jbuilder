@@ -7,7 +7,7 @@ json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.contact_id resource.contact_id
 json.owner_id resource.owner_id
-json.owner_name resource.owner&.name
+json.owner_name resource.owner&.crm_display_name
 json.attention resource.attention
 json.buyer_company resource.buyer_company
 json.buyer_address resource.buyer_address

@@ -2,6 +2,8 @@
 /* global axios */
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useAccount } from 'dashboard/composables/useAccount';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 
 const { accountId } = useAccount();
 const api = () => `/api/v1/accounts/${accountId.value}/crm/employees`;
@@ -178,6 +180,40 @@ const masked = v => {
 const historyOpen = ref(false);
 const historyRows = ref([]);
 const historyLoading = ref(false);
+
+// ── 表单下拉选项（紫玻璃 SelectCard）──
+const genderOptions = computed(() => [
+  { value: '', label: '选择性别' },
+  ...GENDER.map(([value, label]) => ({ value, label })),
+]);
+const departmentOptions = computed(() => [
+  { value: '', label: '选择部门' },
+  ...departments.value.map(d => ({ value: String(d.id), label: d.name })),
+]);
+const userOptions = computed(() => [
+  { value: '', label: '未关联（离职交接需要）' },
+  ...agents.value.map(a => ({
+    value: String(a.id),
+    label: `${a.name}（${a.email}）`,
+  })),
+]);
+const statusOptions = computed(() =>
+  STATUS.map(([value, label]) => ({ value, label }))
+);
+const contractTypeOptions = computed(() => [
+  { value: '', label: '选择合同类型' },
+  ...CONTRACT_TYPE.map(([value, label]) => ({ value, label })),
+]);
+const handoverTargetOptions = computed(() => [
+  { value: '', label: '选择接手人' },
+  ...agents.value
+    .filter(x => String(x.id) !== form.userId)
+    .map(a => ({ value: String(a.id), label: a.name })),
+]);
+const resignTypeOptions = computed(() => [
+  { value: '', label: '选择离职类型' },
+  ...RESIGN_TYPE.map(([value, label]) => ({ value, label })),
+]);
 
 const filtered = computed(() => {
   const kw = q.value.trim().toLowerCase();
@@ -727,15 +763,7 @@ const removeEmployee = async row => {
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">性别</span>
-          <select
-            v-model="form.gender"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">选择性别</option>
-            <option v-for="[val, lab] in GENDER" :key="val" :value="val">
-              {{ lab }}
-            </option>
-          </select>
+          <SelectCard v-model="form.gender" :options="genderOptions" block />
         </label>
         <div class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">身份证号</span>
@@ -763,11 +791,7 @@ const removeEmployee = async row => {
         </div>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">出生日期</span>
-          <input
-            v-model="form.birthDate"
-            type="date"
-            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          />
+          <DatePicker v-model="form.birthDate" block />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">籍贯</span>
@@ -862,27 +886,15 @@ const removeEmployee = async row => {
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">所属部门</span>
-          <select
+          <SelectCard
             v-model="form.departmentId"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">选择部门</option>
-            <option v-for="d in departments" :key="d.id" :value="String(d.id)">
-              {{ d.name }}
-            </option>
-          </select>
+            :options="departmentOptions"
+            block
+          />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">关联系统账号</span>
-          <select
-            v-model="form.userId"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">未关联（离职交接需要）</option>
-            <option v-for="a in agents" :key="a.id" :value="String(a.id)">
-              {{ a.name }}（{{ a.email }}）
-            </option>
-          </select>
+          <SelectCard v-model="form.userId" :options="userOptions" block />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">岗位名称</span>
@@ -919,30 +931,15 @@ const removeEmployee = async row => {
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">员工状态</span>
-          <select
-            v-model="form.status"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option v-for="[val, lab] in STATUS" :key="val" :value="val">
-              {{ lab }}
-            </option>
-          </select>
+          <SelectCard v-model="form.status" :options="statusOptions" block />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">入职日期</span>
-          <input
-            v-model="form.hireDate"
-            type="date"
-            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          />
+          <DatePicker v-model="form.hireDate" block />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">转正日期</span>
-          <input
-            v-model="form.regularDate"
-            type="date"
-            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          />
+          <DatePicker v-model="form.regularDate" block />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">试用期期限（月）</span>
@@ -970,15 +967,11 @@ const removeEmployee = async row => {
         </div>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">合同类型</span>
-          <select
+          <SelectCard
             v-model="form.contractType"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">选择合同类型</option>
-            <option v-for="[val, lab] in CONTRACT_TYPE" :key="val" :value="val">
-              {{ lab }}
-            </option>
-          </select>
+            :options="contractTypeOptions"
+            block
+          />
         </label>
         <label
           v-if="form.contractType === 'RENEWAL'"
@@ -995,19 +988,11 @@ const removeEmployee = async row => {
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">合同开始日期</span>
-          <input
-            v-model="form.contractStartDate"
-            type="date"
-            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          />
+          <DatePicker v-model="form.contractStartDate" block />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">合同结束日期</span>
-          <input
-            v-model="form.contractEndDate"
-            type="date"
-            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          />
+          <DatePicker v-model="form.contractEndDate" block />
         </label>
       </div>
 
@@ -1134,42 +1119,26 @@ const removeEmployee = async row => {
               />
               转移给指定成员
             </label>
-            <select
+            <SelectCard
               v-if="form.handoverMode === 'transfer'"
               v-model="form.handoverTargetId"
-              class="h-8 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            >
-              <option value="">选择接手人</option>
-              <option
-                v-for="a in agents.filter(x => String(x.id) !== form.userId)"
-                :key="a.id"
-                :value="String(a.id)"
-              >
-                {{ a.name }}
-              </option>
-            </select>
+              :options="handoverTargetOptions"
+              block
+            />
           </div>
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label class="flex flex-col gap-1">
             <span class="text-xs text-n-slate-11">离职日期</span>
-            <input
-              v-model="form.resignDate"
-              type="date"
-              class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            />
+            <DatePicker v-model="form.resignDate" block />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-xs text-n-slate-11">离职类型</span>
-            <select
+            <SelectCard
               v-model="form.resignType"
-              class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            >
-              <option value="">选择离职类型</option>
-              <option v-for="[val, lab] in RESIGN_TYPE" :key="val" :value="val">
-                {{ lab }}
-              </option>
-            </select>
+              :options="resignTypeOptions"
+              block
+            />
           </label>
           <label class="flex flex-col gap-1 sm:col-span-2">
             <span class="text-xs text-n-slate-11">离职原因</span>

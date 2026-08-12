@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const router = useRouter();
 
@@ -120,54 +121,48 @@ const openCustomer = customer => {
       />
     </div>
 
-    <!-- 主动查重：居中一体式搜索栏（范围下拉 | 关键词输入 | 清空 | 查重，等高贴合） -->
+    <!-- 主动查重：范围紫卡片 + 搜索栏（关键词 | 清空 | 查重，等高贴合） -->
     <div class="flex justify-center w-full px-6 pt-5 pb-1">
-      <div
-        class="flex items-stretch w-full max-w-4xl overflow-hidden border rounded-lg h-11 bg-n-solid-1 border-n-weak focus-within:border-n-brand"
-      >
-        <div class="relative shrink-0">
-          <select
-            v-model="searchScope"
-            class="h-full pl-4 text-sm bg-transparent border-r outline-none appearance-none cursor-pointer w-36 pr-9 border-n-weak text-n-slate-12"
-          >
-            <option v-for="s in SEARCH_SCOPES" :key="s.value" :value="s.value">
-              {{ s.label }}
-            </option>
-          </select>
-          <span
-            class="absolute -translate-y-1/2 pointer-events-none i-lucide-chevron-down size-4 right-3 top-1/2 text-n-slate-10"
-          />
-        </div>
-        <input
-          v-model="searchQuery"
-          type="text"
-          name="dedupe-keyword"
-          autocomplete="off"
-          placeholder="搜索公司名称/简称、客户编号、邮箱地址、邮箱后缀、联系人名称、电话、社交账号"
-          class="flex-1 h-full min-w-0 px-4 text-sm bg-transparent outline-none text-n-slate-12 placeholder:text-n-slate-9"
-          @keyup.enter="runSearch"
+      <div class="flex items-center w-full max-w-4xl gap-2">
+        <SelectCard
+          v-model="searchScope"
+          :options="SEARCH_SCOPES"
+          trigger-class="w-36"
         />
-        <button
-          v-if="searchResults !== null || searchQuery"
-          class="flex items-center h-full px-3 outline-none shrink-0 text-n-slate-10 hover:text-n-slate-12 focus-visible:text-n-slate-12"
-          title="清空"
-          @click="clearSearch"
+        <div
+          class="flex items-stretch flex-1 min-w-0 overflow-hidden border rounded-lg h-9 bg-n-solid-1 border-n-weak focus-within:border-n-iris-9"
         >
-          <span class="i-lucide-x size-4" />
-        </button>
-        <button
-          class="flex items-center h-full gap-1.5 px-5 text-sm font-medium text-white outline-none shrink-0 bg-n-brand hover:enabled:brightness-110 focus-visible:brightness-110 disabled:opacity-60"
-          :disabled="searching"
-          @click="runSearch"
-        >
-          <span
-            :class="
-              searching ? 'i-lucide-loader-2 animate-spin' : 'i-lucide-search'
-            "
-            class="size-4"
+          <input
+            v-model="searchQuery"
+            type="text"
+            name="dedupe-keyword"
+            autocomplete="off"
+            placeholder="搜索公司名称/简称、客户编号、邮箱地址、邮箱后缀、联系人名称、电话、社交账号"
+            class="flex-1 h-full min-w-0 px-4 text-sm bg-transparent outline-none text-n-slate-12 placeholder:text-n-slate-9"
+            @keyup.enter="runSearch"
           />
-          查重
-        </button>
+          <button
+            v-if="searchResults !== null || searchQuery"
+            class="flex items-center h-full px-3 outline-none shrink-0 text-n-slate-10 hover:text-n-slate-12 focus-visible:text-n-slate-12"
+            title="清空"
+            @click="clearSearch"
+          >
+            <span class="i-lucide-x size-4" />
+          </button>
+          <button
+            class="flex items-center h-full gap-1.5 px-5 text-sm font-medium text-white outline-none shrink-0 bg-n-iris-9 hover:enabled:brightness-110 focus-visible:brightness-110 disabled:opacity-60"
+            :disabled="searching"
+            @click="runSearch"
+          >
+            <span
+              :class="
+                searching ? 'i-lucide-loader-2 animate-spin' : 'i-lucide-search'
+              "
+              class="size-4"
+            />
+            查重
+          </button>
+        </div>
       </div>
     </div>
 
@@ -251,7 +246,7 @@ const openCustomer = customer => {
           class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors"
           :class="
             activeDim === dim.key
-              ? 'border-n-brand text-n-brand bg-n-brand/5 font-medium'
+              ? 'border-n-iris-9 text-n-iris-11 bg-n-iris-9/5 font-medium'
               : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
           "
           @click="activeDim = dim.key"

@@ -7,6 +7,7 @@ import CrmMemberAPI from 'dashboard/api/crm/members';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 defineProps({
   isLoading: { type: Boolean, default: false },
@@ -119,6 +120,11 @@ const dialogRef = ref(null);
 // 有值=编辑该配置，null=新建。
 const editingId = ref(null);
 const members = ref([]);
+// 原生 select → 紫玻璃 SelectCard 选项（含空值项「—」）。
+const ownerOptions = computed(() => [
+  { value: '', label: '—' },
+  ...members.value.map(m => ({ value: m.user_id, label: m.name })),
+]);
 // user_id -> hire_date（用于按入职时长判断阶段，只显示对应档位）
 const hireByUser = ref({});
 
@@ -283,15 +289,7 @@ defineExpose({ dialogRef, onSuccess, open, openEdit });
       />
       <label class="flex flex-col gap-1 text-sm text-n-slate-12">
         {{ t('CRM.EMPLOYEE_COMPS.FORM.MEMBER') }}
-        <select
-          v-model="form.ownerId"
-          class="h-10 px-3 rounded-lg border border-n-weak bg-n-solid-1 text-n-slate-12"
-        >
-          <option value="">—</option>
-          <option v-for="m in members" :key="m.user_id" :value="m.user_id">
-            {{ m.name }}
-          </option>
-        </select>
+        <SelectCard v-model="form.ownerId" :options="ownerOptions" block />
       </label>
       <label class="flex flex-col gap-1 text-sm text-n-slate-12">
         {{ t('CRM.EMPLOYEE_COMPS.FORM.PAY_GRADE') }}

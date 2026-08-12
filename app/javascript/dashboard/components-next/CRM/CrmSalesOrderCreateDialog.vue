@@ -8,7 +8,8 @@ import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
@@ -48,6 +49,7 @@ const form = reactive({
   orderDate: today(),
   deliveryDate: '',
   amount: '',
+  shipping: '',
   orderCurrency: 'CNY',
   exchangeRate: '',
   remark: '',
@@ -151,7 +153,14 @@ const currencyOptions = ['CNY', 'USD', 'EUR'].map(v => ({
 }));
 
 const customerOptions = computed(() =>
-  privateCustomers.value.map(c => ({ value: String(c.id), label: c.name }))
+  privateCustomers.value.map(c => ({
+    value: String(c.id),
+    label: c.name,
+    // 搜索也命中联系人/邮箱/电话（不改显示标签）。
+    searchText: [c.contactName, c.contactEmail, c.contactPhone]
+      .filter(Boolean)
+      .join(' '),
+  }))
 );
 
 // 编辑态原客户若已不在私海列表（转公海/换负责人），用 displayLabel 兜底显示，避免变空白。
@@ -200,6 +209,7 @@ const resetForm = () => {
   form.orderDate = today();
   form.deliveryDate = '';
   form.amount = '';
+  form.shipping = '';
   form.orderCurrency = 'CNY';
   form.exchangeRate = '';
   form.remark = '';
@@ -217,6 +227,9 @@ const loadPrivateCustomers = async () => {
     privateCustomers.value = (data.payload || []).map(c => ({
       id: c.id,
       name: c.name,
+      contactName: c.primary_contact_name,
+      contactEmail: c.contact_email,
+      contactPhone: c.contact_phone,
     }));
   } catch {
     privateCustomers.value = [];
@@ -259,6 +272,9 @@ const open = record => {
     form.amount = record.orderAmountMicros
       ? String(record.orderAmountMicros / 1_000_000)
       : '';
+    form.shipping = record.shippingMicros
+      ? String(record.shippingMicros / 1_000_000)
+      : '';
     form.orderCurrency = record.orderCurrency || 'CNY';
     form.exchangeRate =
       record.exchangeRate != null ? String(record.exchangeRate) : '';
@@ -266,7 +282,8 @@ const open = record => {
   }
   loadPrivateCustomers();
   if (!opportunitiesStore.getRecords.length) {
-    opportunitiesStore.get({ page: 1, perPage: 100 });
+    // 后端读 per_page（下划线）；驼峰 perPage 不生效会回落到每页 15 条，商机选择器漏项。
+    opportunitiesStore.get({ page: 1, per_page: 100 });
   }
   dialogRef.value?.open();
 };
@@ -305,6 +322,9 @@ const handleConfirm = () => {
     deliveryDate: form.deliveryDate || null,
     orderAmountMicros: form.amount
       ? Math.round(parseFloat(form.amount) * 1_000_000)
+      : null,
+    shippingMicros: form.shipping
+      ? Math.round(parseFloat(form.shipping) * 1_000_000)
       : null,
     orderCurrency: form.orderCurrency,
     exchangeRate: form.exchangeRate ? parseFloat(form.exchangeRate) : null,
@@ -490,7 +510,7 @@ defineExpose({ dialogRef, onSuccess, open });
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.SALES_ORDERS.FORM.OPPORTUNITY') }}
           </label>
-          <Select
+          <SelectCard
             v-model="form.crmOpportunityId"
             :options="opportunityOptions"
           />
@@ -502,18 +522,20 @@ defineExpose({ dialogRef, onSuccess, open });
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.SALES_ORDERS.FORM.STATUS') }}
           </label>
-          <Select v-model="form.status" :options="statusOptions" />
+          <SelectCard v-model="form.status" :options="statusOptions" />
         </div>
-        <Input
-          v-model="form.orderDate"
-          type="date"
-          :label="t('CRM.SALES_ORDERS.FORM.ORDER_DATE')"
-        />
-        <Input
-          v-model="form.deliveryDate"
-          type="date"
-          :label="t('CRM.SALES_ORDERS.FORM.DELIVERY_DATE')"
-        />
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.SALES_ORDERS.FORM.ORDER_DATE') }}
+          </label>
+          <DatePicker v-model="form.orderDate" block />
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.SALES_ORDERS.FORM.DELIVERY_DATE') }}
+          </label>
+          <DatePicker v-model="form.deliveryDate" block />
+        </div>
       </div>
 
       <div
@@ -522,17 +544,22 @@ defineExpose({ dialogRef, onSuccess, open });
         <span class="w-1 rounded-full h-3.5 bg-n-iris-9" />
         {{ t('CRM.SALES_ORDERS.FORM.SECTION_AMOUNT') }}
       </div>
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-4 gap-4">
         <Input
           v-model="form.amount"
           type="number"
           :label="t('CRM.SALES_ORDERS.FORM.AMOUNT')"
         />
+        <Input
+          v-model="form.shipping"
+          type="number"
+          :label="t('CRM.SALES_ORDERS.FORM.SHIPPING')"
+        />
         <div class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.SALES_ORDERS.FORM.CURRENCY') }}
           </label>
-          <Select v-model="form.orderCurrency" :options="currencyOptions" />
+          <SelectCard v-model="form.orderCurrency" :options="currencyOptions" />
         </div>
         <Input
           v-model="form.exchangeRate"

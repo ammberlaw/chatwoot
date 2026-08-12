@@ -61,7 +61,9 @@ const filterTabs = computed(() => [
 
 const fetchRecords = () => {
   const filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
-  store.get({ page: 1, filter });
+  // 列表无翻页控件，取满一页（接口上限 100），避免 >15 条被截断「消失」。
+  // 注意后端读 per_page（下划线），驼峰 perPage 不会被识别。
+  store.get({ page: 1, per_page: 100, filter });
 };
 
 const setFilter = key => {

@@ -18,6 +18,9 @@ json.tracked resource.tracking_token.present?
 json.open_count resource.open_count
 json.first_opened_at resource.first_opened_at
 json.last_opened_at resource.last_opened_at
+last_open = local_assigns[:last_open]
+json.last_open_country last_open&.country
+json.last_open_city last_open&.city
 json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.contact_id resource.contact_id

@@ -1,14 +1,27 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import CrmMemberAPI from 'dashboard/api/crm/members';
 import CrmPerfSettingsAPI from 'dashboard/api/crm/performanceSettings';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { t } = useI18n();
 const members = ref([]);
+// 原生 select → 紫玻璃 SelectCard 选项。
+const memberOptions = computed(() => [
+  { value: '', label: '—' },
+  ...members.value.map(m => ({ value: m.user_id, label: m.name })),
+]);
+const deadlineDayOptions = computed(() => [
+  { value: '', label: t('CRM.PERF_SETTINGS.DEADLINE_PLACEHOLDER') },
+  ...Array.from({ length: 28 }, (_, i) => ({
+    value: i + 1,
+    label: String(i + 1),
+  })),
+]);
 const form = reactive({
   hrOwnerId: '',
   gmOwnerId: '',
@@ -48,7 +61,8 @@ const save = async () => {
       setting: {
         hr_owner_id: form.hrOwnerId || null,
         gm_owner_id: form.gmOwnerId || null,
-        submit_deadline_day: form.submitDeadlineDay === '' ? null : Number(form.submitDeadlineDay),
+        submit_deadline_day:
+          form.submitDeadlineDay === '' ? null : Number(form.submitDeadlineDay),
         scheme_visible_manager: form.schemeVisibleManager,
         sheet_visible_sales: form.sheetVisibleSales,
         sheet_visible_manager: form.sheetVisibleManager,
@@ -61,9 +75,6 @@ const save = async () => {
     busy.value = false;
   }
 };
-
-const fieldCls =
-  'h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12';
 </script>
 
 <template>
@@ -96,43 +107,43 @@ const fieldCls =
       {{ t('CRM.PERF_SETTINGS.LOADING') }}
     </div>
     <div v-else class="flex flex-col w-full max-w-xl gap-5 px-6 py-6">
-      <label class="flex flex-col gap-1.5">
+      <div class="flex flex-col gap-1.5">
         <span class="text-sm text-n-slate-12">{{
           t('CRM.PERF_SETTINGS.HR')
         }}</span>
         <span class="text-xs text-n-slate-10">{{
           t('CRM.PERF_SETTINGS.HR_HINT')
         }}</span>
-        <select v-model="form.hrOwnerId" :class="fieldCls">
-          <option value="">—</option>
-          <option v-for="m in members" :key="m.user_id" :value="m.user_id">
-            {{ m.name }}
-          </option>
-        </select>
-      </label>
-      <label class="flex flex-col gap-1.5">
+        <SelectCard v-model="form.hrOwnerId" :options="memberOptions" block />
+      </div>
+      <div class="flex flex-col gap-1.5">
         <span class="text-sm text-n-slate-12">{{
           t('CRM.PERF_SETTINGS.GM')
         }}</span>
         <span class="text-xs text-n-slate-10">{{
           t('CRM.PERF_SETTINGS.GM_HINT')
         }}</span>
-        <select v-model="form.gmOwnerId" :class="fieldCls">
-          <option value="">—</option>
-          <option v-for="m in members" :key="m.user_id" :value="m.user_id">
-            {{ m.name }}
-          </option>
-        </select>
-      </label>
+        <SelectCard v-model="form.gmOwnerId" :options="memberOptions" block />
+      </div>
 
-      <label class="flex flex-col gap-1.5 pt-4 mt-1 border-t border-n-weak">
-        <span class="text-sm text-n-slate-12">{{ t('CRM.PERF_SETTINGS.DEADLINE') }}</span>
-        <span class="text-xs text-n-slate-10">{{ t('CRM.PERF_SETTINGS.DEADLINE_HINT') }}</span>
+      <div class="flex flex-col gap-1.5 pt-4 mt-1 border-t border-n-weak">
+        <span class="text-sm text-n-slate-12">{{
+          t('CRM.PERF_SETTINGS.DEADLINE')
+        }}</span>
+        <span class="text-xs text-n-slate-10">{{
+          t('CRM.PERF_SETTINGS.DEADLINE_HINT')
+        }}</span>
         <div class="flex items-center gap-2">
-          <input v-model="form.submitDeadlineDay" type="number" min="1" max="28" :class="fieldCls" class="w-24" :placeholder="t('CRM.PERF_SETTINGS.DEADLINE_PLACEHOLDER')" />
-          <span class="text-sm text-n-slate-11">{{ t('CRM.PERF_SETTINGS.DEADLINE_UNIT') }}</span>
+          <SelectCard
+            v-model="form.submitDeadlineDay"
+            :options="deadlineDayOptions"
+            trigger-class="w-24"
+          />
+          <span class="text-sm whitespace-nowrap shrink-0 text-n-slate-11">{{
+            t('CRM.PERF_SETTINGS.DEADLINE_UNIT')
+          }}</span>
         </div>
-      </label>
+      </div>
 
       <!-- 板块可见性矩阵 -->
       <div class="flex flex-col gap-3 pt-4 mt-2 border-t border-n-weak">

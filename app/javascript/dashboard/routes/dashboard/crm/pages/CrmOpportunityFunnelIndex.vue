@@ -10,7 +10,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 import CrmOpportunitiesIndex from 'dashboard/routes/dashboard/crm/pages/CrmOpportunitiesIndex.vue';
 
@@ -72,7 +72,8 @@ const createDialogRef = ref(null);
 const refreshBoard = () =>
   store.get({
     page: 1,
-    perPage: 100,
+    // 后端读 per_page（下划线）；驼峰 perPage 不生效，会回落到每页 15 条导致看板漏单。
+    per_page: 100,
     filter: view.value === 'pool' ? 'public_pool' : undefined,
     team_id: selectedTeamId.value || undefined,
     owner_id: selectedOwnerId.value || undefined,
@@ -270,7 +271,7 @@ onMounted(() => {
             @click="setView('pool')"
           />
         </div>
-        <Select
+        <SelectCard
           :model-value="sortKey"
           :options="sortOptions"
           @update:model-value="setSort"
@@ -290,13 +291,13 @@ onMounted(() => {
           "
           @click="toggleSortDir"
         />
-        <Select
+        <SelectCard
           v-if="!isCrmSales && !isCrmManager && view === 'board'"
           :model-value="selectedTeamId"
           :options="teamOptions"
           @update:model-value="setTeam"
         />
-        <Select
+        <SelectCard
           v-if="
             !isCrmSales && !isCrmManager && view === 'board' && selectedTeamId
           "
@@ -305,7 +306,7 @@ onMounted(() => {
           @update:model-value="setOwner"
         />
         <!-- 部门主管：直接按自己团队的业务员筛选 -->
-        <Select
+        <SelectCard
           v-if="isCrmManager && view === 'board'"
           :model-value="selectedOwnerId"
           :options="managerOwnerOptions"

@@ -146,11 +146,11 @@ const openCustomer = customer => {
           name="background-query"
           autocomplete="off"
           placeholder="邮箱 / 公司域名 / 公司名，如 buyer@acme.com、acme.com、Acme Ltd"
-          class="reset-base w-full h-11 m-0 pl-11 pr-28 text-sm border rounded-lg outline-none bg-n-solid-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-9 focus:border-n-brand"
+          class="reset-base w-full h-11 m-0 pl-11 pr-28 text-sm border rounded-lg outline-none bg-n-solid-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-9 focus:border-n-iris-9"
           @keyup.enter="run"
         />
         <button
-          class="absolute top-0 bottom-0 right-0 flex items-center gap-1.5 px-5 text-sm font-medium text-white rounded-r-lg outline-none bg-n-brand hover:enabled:brightness-110 focus-visible:brightness-110 disabled:opacity-60"
+          class="absolute top-0 bottom-0 right-0 flex items-center gap-1.5 px-5 text-sm font-medium text-white rounded-r-lg outline-none bg-n-iris-9 hover:enabled:brightness-110 focus-visible:brightness-110 disabled:opacity-60"
           :disabled="loading || searching"
           @click="run"
         >
@@ -193,7 +193,7 @@ const openCustomer = customer => {
       <button
         v-for="(c, i) in candidates"
         :key="i"
-        class="flex items-center justify-between w-full gap-3 px-4 py-3 text-left border rounded-xl border-n-weak hover:border-n-brand hover:bg-n-alpha-1"
+        class="flex items-center justify-between w-full gap-3 px-4 py-3 text-left border rounded-xl border-n-weak hover:border-n-iris-9 hover:bg-n-alpha-1"
         @click="pickCandidate(c)"
       >
         <div class="min-w-0">
@@ -276,7 +276,7 @@ const openCustomer = customer => {
               :href="result.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-1 mt-1 text-xs text-n-brand hover:underline"
+              class="inline-flex items-center gap-1 mt-1 text-xs text-n-iris-11 hover:underline"
             >
               <span class="i-lucide-external-link size-3" />
               {{ result.url }}
@@ -293,9 +293,9 @@ const openCustomer = customer => {
 
         <div
           v-if="profile.note"
-          class="p-3 mt-4 text-sm rounded-lg text-n-slate-12 bg-n-brand/5"
+          class="p-3 mt-4 text-sm rounded-lg text-n-slate-12 bg-n-iris-9/5"
         >
-          <span class="font-medium text-n-brand">AI 判断：</span>{{ profile.note }}
+          <span class="font-medium text-n-iris-11">AI 判断：</span>{{ profile.note }}
         </div>
       </div>
 
@@ -359,7 +359,7 @@ const openCustomer = customer => {
             :href="enrichment.linkedin"
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex items-center gap-1 text-xs text-n-brand hover:underline"
+            class="inline-flex items-center gap-1 text-xs text-n-iris-11 hover:underline"
           >
             <span class="i-lucide-linkedin size-3.5" />
             领英主页

@@ -10,6 +10,8 @@ import { useCrmKpiSchemesStore } from 'dashboard/stores/crm/kpiSchemes';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import CrmKpiDistributeDialog from 'dashboard/components-next/CRM/CrmKpiDistributeDialog.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -17,7 +19,24 @@ const router = useRouter();
 const store = useCrmKpiSchemesStore();
 const { accountId } = useAccount();
 
-const DATA_SOURCES = ['CRM_SALES', 'CRM_NEWCUST', 'MANUAL', 'MANAGER', 'SYSTEM'];
+const DATA_SOURCES = [
+  'CRM_SALES',
+  'CRM_NEWCUST',
+  'MANUAL',
+  'MANAGER',
+  'SYSTEM',
+];
+// 原生 select → 紫玻璃 SelectCard 的选项。
+const statusOptions = computed(() => [
+  { value: 'DRAFT', label: t('CRM.KPI_SCHEMES.STATUS.DRAFT') },
+  { value: 'PUBLISHED', label: t('CRM.KPI_SCHEMES.STATUS.PUBLISHED') },
+]);
+const dataSourceOptions = computed(() =>
+  DATA_SOURCES.map(ds => ({
+    value: ds,
+    label: t(`CRM.KPI_SCHEMES.SOURCE.${ds}`),
+  }))
+);
 const DIM_PRESETS = t('CRM.KPI_SCHEMES.ITEMS.DIM_PRESETS').split(',');
 const STAT_KEYS = [
   ['INQUIRY_TM', 'MANUAL'],
@@ -320,20 +339,13 @@ const fieldCls =
               {{ t('CRM.KPI_SCHEMES.FORM.MONTH') }}
               <span class="text-n-ruby-11">*</span>
             </span>
-            <input v-model="form.month" type="month" :class="fieldCls" />
+            <MonthPicker v-model="form.month" block />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-xs text-n-slate-11">{{
               t('CRM.KPI_SCHEMES.FORM.STATUS')
             }}</span>
-            <select v-model="form.status" :class="fieldCls">
-              <option value="DRAFT">
-                {{ t('CRM.KPI_SCHEMES.STATUS.DRAFT') }}
-              </option>
-              <option value="PUBLISHED">
-                {{ t('CRM.KPI_SCHEMES.STATUS.PUBLISHED') }}
-              </option>
-            </select>
+            <SelectCard v-model="form.status" :options="statusOptions" block />
           </label>
           <label class="flex flex-col gap-1">
             <span class="text-xs text-n-slate-11">{{
@@ -455,11 +467,11 @@ const fieldCls =
                   <input v-model="item.targetValue" :class="inputCls" />
                 </td>
                 <td class="px-1 py-1">
-                  <select v-model="item.dataSource" :class="inputCls">
-                    <option v-for="ds in DATA_SOURCES" :key="ds" :value="ds">
-                      {{ t(`CRM.KPI_SCHEMES.SOURCE.${ds}`) }}
-                    </option>
-                  </select>
+                  <SelectCard
+                    v-model="item.dataSource"
+                    :options="dataSourceOptions"
+                    block
+                  />
                 </td>
                 <td class="px-1 py-1 text-center">
                   <Button

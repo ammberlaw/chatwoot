@@ -7,7 +7,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import PisAPI from 'dashboard/api/crm/pis';
 
 import Button from 'dashboard/components-next/button/Button.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import CrmPiFormDialog from 'dashboard/components-next/CRM/CrmPiFormDialog.vue';
@@ -171,7 +171,7 @@ onMounted(fetchRecords);
     </div>
 
     <div class="flex items-center gap-2 px-6 py-3 border-b border-n-weak">
-      <Select
+      <SelectCard
         :model-value="activeStatus"
         :options="statusFilterOptions"
         class="w-40"
@@ -212,6 +212,9 @@ onMounted(fetchRecords);
               {{ t('CRM.PI.COL.STATUS') }}
             </th>
             <th class="py-2.5 pr-4 font-medium">{{ t('CRM.PI.COL.DATE') }}</th>
+            <th class="py-2.5 pr-4 font-medium">
+              {{ t('CRM.PI.COL.CREATOR') }}
+            </th>
             <th class="py-2.5 font-medium w-32" />
           </tr>
         </thead>
@@ -242,6 +245,9 @@ onMounted(fetchRecords);
             </td>
             <td class="py-2.5 pr-4 text-n-slate-11 tabular-nums">
               {{ fmtDate(record.piDate) }}
+            </td>
+            <td class="py-2.5 pr-4 text-n-slate-11">
+              {{ record.ownerName || '—' }}
             </td>
             <td class="py-2.5">
               <div class="flex items-center justify-end gap-1">

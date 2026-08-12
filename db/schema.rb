@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_10_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_11_000003) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -906,6 +906,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_10_000001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "is_public_receipt", default: false, null: false
+    t.integer "tax_rate", default: 13, null: false
     t.index ["account_id"], name: "index_crm_commission_items_on_account_id"
     t.index ["crm_commission_sheet_id"], name: "index_crm_commission_items_on_crm_commission_sheet_id"
     t.index ["crm_sales_order_id"], name: "index_crm_commission_items_on_crm_sales_order_id"
@@ -1312,6 +1313,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_10_000001) do
     t.bigint "returned_by_id"
     t.datetime "paid_at"
     t.bigint "paid_by_id"
+    t.text "payout_note"
+    t.text "result_note"
     t.index ["account_id", "period_month"], name: "index_crm_kpi_sheets_on_account_id_and_period_month"
     t.index ["account_id"], name: "index_crm_kpi_sheets_on_account_id"
     t.index ["crm_kpi_scheme_id", "owner_id"], name: "index_crm_kpi_sheets_on_crm_kpi_scheme_id_and_owner_id"
@@ -1625,6 +1628,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_10_000001) do
     t.bigint "crm_team_id"
     t.string "pi_no"
     t.jsonb "line_items", default: [], null: false
+    t.bigint "shipping_micros"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_sales_orders_on_account_id_and_status"

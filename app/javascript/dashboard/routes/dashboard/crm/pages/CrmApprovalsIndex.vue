@@ -10,6 +10,7 @@ import AgentAPI from 'dashboard/api/agents';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const L = {
   header: '审批中心',
@@ -259,6 +260,19 @@ const templateFields = computed(
   () =>
     activeTemplate.value?.formFields || activeTemplate.value?.form_fields || []
 );
+
+// 原生 select → 紫玻璃 SelectCard 选项（保留原首个「请选择」空值项）。
+const fieldSelectOptions = f => [
+  { value: '', label: '请选择' },
+  ...(f.options || []).map(opt => ({ value: opt, label: opt })),
+];
+const deptOptions = computed(() => [
+  { value: '', label: L.deptPlaceholder },
+  ...myDepartments.value.map(d => ({
+    value: String(d.department_id),
+    label: d.department_name,
+  })),
+]);
 
 const onPickFiles = event => {
   attachments.value.push(...Array.from(event.target.files || []));
@@ -636,16 +650,12 @@ onMounted(async () => {
             rows="3"
             class="w-full px-3 py-2 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
-          <select
+          <SelectCard
             v-else-if="f.type === 'select'"
             v-model="formValues[f.key]"
-            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
-          >
-            <option value="">{{ '请选择' }}</option>
-            <option v-for="opt in f.options || []" :key="opt" :value="opt">
-              {{ opt }}
-            </option>
-          </select>
+            :options="fieldSelectOptions(f)"
+            block
+          />
           <input
             v-else
             v-model="formValues[f.key]"
@@ -671,19 +681,7 @@ onMounted(async () => {
           <label class="block mb-0.5 text-heading-3 text-n-slate-12">
             {{ `${L.dept} *` }}
           </label>
-          <select
-            v-model="selectedDeptId"
-            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
-          >
-            <option value="">{{ L.deptPlaceholder }}</option>
-            <option
-              v-for="d in myDepartments"
-              :key="d.id"
-              :value="String(d.department_id)"
-            >
-              {{ d.department_name }}
-            </option>
-          </select>
+          <SelectCard v-model="selectedDeptId" :options="deptOptions" block />
         </div>
 
         <!-- 附件 -->

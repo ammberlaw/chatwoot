@@ -6,6 +6,8 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { useAlert } from 'dashboard/composables';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 
 const { accountId } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
@@ -32,6 +34,10 @@ const STATUS_META = {
   LEAVE: { label: '请假', cls: 'bg-n-iris-3 text-n-iris-11' },
 };
 const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
+
+const statusOptions = computed(() =>
+  Object.entries(STATUS_META).map(([k, meta]) => ({ value: k, label: meta.label }))
+);
 
 // ── 视图与月份 ──
 const view = ref('mine');
@@ -677,11 +683,7 @@ onMounted(fetchMine);
                 节假日（不计工作日，如法定假期）
               </span>
               <div class="flex items-center gap-2">
-                <input
-                  v-model="newHoliday"
-                  type="date"
-                  class="h-9 px-3 text-sm border rounded-lg reset-base w-44 border-n-weak bg-n-solid-1 text-n-slate-12"
-                />
+                <DatePicker v-model="newHoliday" />
                 <button
                   class="h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-2"
                   @click="addHoliday"
@@ -765,22 +767,11 @@ onMounted(fetchMine);
       <div class="flex flex-col gap-4">
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">日期</span>
-          <input
-            v-model="adjustForm.workDate"
-            type="date"
-            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          />
+          <DatePicker v-model="adjustForm.workDate" block />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">状态</span>
-          <select
-            v-model="adjustForm.status"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option v-for="(meta, k) in STATUS_META" :key="k" :value="k">
-              {{ meta.label }}
-            </option>
-          </select>
+          <SelectCard v-model="adjustForm.status" :options="statusOptions" block />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">备注</span>

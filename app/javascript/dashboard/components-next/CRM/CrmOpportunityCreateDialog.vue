@@ -6,7 +6,8 @@ import { useAccount } from 'dashboard/composables/useAccount';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
@@ -202,7 +203,7 @@ defineExpose({ dialogRef, onSuccess, open });
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.OPPORTUNITIES.FORM.STAGE') }}
           </label>
-          <Select v-model="form.salesStage" :options="stageOptions" />
+          <SelectCard v-model="form.salesStage" :options="stageOptions" />
         </div>
       </div>
       <div class="grid items-end grid-cols-3 gap-4">
@@ -215,7 +216,7 @@ defineExpose({ dialogRef, onSuccess, open });
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.OPPORTUNITIES.FORM.CURRENCY') }}
           </label>
-          <Select v-model="form.currency" :options="currencyOptions" />
+          <SelectCard v-model="form.currency" :options="currencyOptions" />
         </div>
         <Input
           v-model="form.probability"
@@ -223,11 +224,12 @@ defineExpose({ dialogRef, onSuccess, open });
           :label="t('CRM.OPPORTUNITIES.FORM.PROBABILITY')"
         />
       </div>
-      <Input
-        v-model="form.expectedCloseDate"
-        type="date"
-        :label="t('CRM.OPPORTUNITIES.FORM.EXPECTED_CLOSE')"
-      />
+      <div class="flex flex-col gap-1">
+        <label class="mb-0.5 text-heading-3 text-n-slate-12">
+          {{ t('CRM.OPPORTUNITIES.FORM.EXPECTED_CLOSE') }}
+        </label>
+        <DatePicker v-model="form.expectedCloseDate" />
+      </div>
       <label class="flex items-center gap-2 text-sm text-n-slate-12">
         <input v-model="form.important" type="checkbox" />
         <span class="i-lucide-star size-4 text-n-blue-9" />
@@ -235,7 +237,7 @@ defineExpose({ dialogRef, onSuccess, open });
       </label>
       <div v-if="form.salesStage === 'LOST'" class="flex flex-col gap-1">
         <label class="mb-0.5 text-heading-3 text-n-slate-12">丢单原因</label>
-        <Select v-model="form.lossReason" :options="lossReasonOptions" />
+        <SelectCard v-model="form.lossReason" :options="lossReasonOptions" />
       </div>
       <TextArea
         v-model="form.opportunityRemark"

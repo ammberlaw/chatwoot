@@ -9,6 +9,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 // 维护权：管理员或人事部门成员（与后端 oa_template_maintainer? 一致）；其他人整页不可见。
 const currentUser = useMapGetter('getCurrentUser');
@@ -173,6 +174,17 @@ const ccCandidates = computed(() =>
   agents.value.filter(a => !form.value.ccUserIds.includes(String(a.id)))
 );
 
+// 原生 select → 紫玻璃 SelectCard 选项（保留原首个空值项）。
+const attendanceKindOptions = computed(() => [
+  { value: '', label: '不联动' },
+  { value: 'leave', label: '请假单（按日期区间标记请假）' },
+  { value: 'reclock', label: '补卡申请（该日补为正常）' },
+]);
+const ccCandidateOptions = computed(() => [
+  { value: '', label: L.ccAdd },
+  ...ccCandidates.value.map(a => ({ value: String(a.id), label: a.name })),
+]);
+
 const save = async () => {
   if (!form.value.name.trim()) {
     useAlert(L.needName);
@@ -333,14 +345,11 @@ onMounted(async () => {
         <!-- 考勤联动：请假/补卡模板审批通过后自动写入考勤 -->
         <label class="flex flex-col gap-1">
           <span class="text-sm font-medium text-n-slate-12">考勤联动</span>
-          <select
+          <SelectCard
             v-model="form.attendanceKind"
-            class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-          >
-            <option value="">不联动</option>
-            <option value="leave">请假单（按日期区间标记请假）</option>
-            <option value="reclock">补卡申请（该日补为正常）</option>
-          </select>
+            :options="attendanceKindOptions"
+            block
+          />
           <span v-if="form.attendanceKind" class="text-xs text-n-slate-10">
             表单需包含日期字段：请假取最早/最晚两个日期为区间，补卡取第一个日期；整单审批通过后自动写入考勤（留痕）。
           </span>
@@ -496,20 +505,13 @@ onMounted(async () => {
               </button>
             </span>
           </div>
-          <select
-            class="w-full h-8 px-2 text-xs border rounded reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:ring-0"
-            @change="
-              e => {
-                if (e.target.value) toggleCc(e.target.value);
-                e.target.value = '';
-              }
-            "
-          >
-            <option value="">{{ L.ccAdd }}</option>
-            <option v-for="a in ccCandidates" :key="a.id" :value="String(a.id)">
-              {{ a.name }}
-            </option>
-          </select>
+          <SelectCard
+            :model-value="''"
+            :options="ccCandidateOptions"
+            :placeholder="L.ccAdd"
+            block
+            @update:model-value="val => val && toggleCc(val)"
+          />
         </div>
 
         <button

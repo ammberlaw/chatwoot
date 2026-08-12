@@ -16,6 +16,7 @@ import { stripTextColorMarkers } from 'dashboard/helper/editorTextColor';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
 import CrmAddressIdentity from 'dashboard/components-next/CRM/CrmAddressIdentity.vue';
 
@@ -57,7 +58,7 @@ const counts = ref({
 });
 
 // filter 参数驱动的伪文件夹（非真实 folder 列）。
-const FILTER_FOLDERS = ['unread', 'starred'];
+const FILTER_FOLDERS = ['unread', 'starred', 'tracking'];
 const folderFromRoute = () => {
   if (FILTER_FOLDERS.includes(route.query.filter)) return route.query.filter;
   return route.query.folder || 'INBOX';
@@ -65,6 +66,8 @@ const folderFromRoute = () => {
 const activeFolder = ref(folderFromRoute());
 // 自定义文件夹（个人）当前选中 id；非空时列表按该文件夹取数。
 const activeCustomFolderId = ref(null);
+// 追踪视图的「已打开/未打开」分栏：'1' 已打开、'0' 未打开。
+const trackingOpened = ref('1');
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
@@ -187,6 +190,12 @@ const FOLDERS = [
     icon: 'i-lucide-shield-alert',
     countKey: 'SPAM',
   },
+  {
+    key: 'tracking',
+    label: '追踪信息',
+    icon: 'i-lucide-radar',
+    countKey: 'tracking',
+  },
 ];
 
 const activeFolderLabel = computed(
@@ -252,6 +261,9 @@ const safeBodyHtml = computed(() =>
 const baseParams = () => {
   if (activeCustomFolderId.value) {
     return { page: 1, email_folder_id: activeCustomFolderId.value };
+  }
+  if (activeFolder.value === 'tracking') {
+    return { page: 1, filter: 'tracking', opened: trackingOpened.value };
   }
   return FILTER_FOLDERS.includes(activeFolder.value)
     ? { page: 1, filter: activeFolder.value }
@@ -332,6 +344,11 @@ const fetchNewMail = async () => {
   }
 };
 
+const ownerOptions = computed(() => [
+  { value: '', label: '全部成员' },
+  ...members.value.map(m => ({ value: m.id, label: m.name })),
+]);
+
 const onOwnerChange = () => {
   activeMailbox.value = '';
   selectedEmail.value = null;
@@ -379,6 +396,14 @@ const setFolder = key => {
   selectedEmail.value = null;
   fetchMailboxes();
   fetchCounts();
+  fetchRecords();
+};
+
+// 追踪视图切换「已打开/未打开」分栏：换栏后重取列表。
+const setTrackingTab = opened => {
+  if (trackingOpened.value === opened) return;
+  trackingOpened.value = opened;
+  selectedEmail.value = null;
   fetchRecords();
 };
 
@@ -473,6 +498,9 @@ const openLocation = open => {
   const place = [open.city, open.country].filter(Boolean).join(', ');
   return place || (open.ip ? `IP ${open.ip}` : '未知');
 };
+// 追踪列表行：最近一次打开的归属地（城市, 国家）。
+const trackingLocation = record =>
+  [record.lastOpenCity, record.lastOpenCountry].filter(Boolean).join(', ');
 const selectEmail = async email => {
   selectedEmail.value = email;
   emailOpens.value = [];
@@ -925,17 +953,38 @@ watch(
           class="flex items-center gap-2 mt-2"
         >
           <Icon icon="i-lucide-users" class="size-4 text-n-slate-10" />
-          <select
+          <SelectCard
             v-model="activeOwner"
-            class="flex-1 py-1.5 px-2 text-xs border rounded-lg reset-base bg-n-alpha-1 border-n-weak text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
-            @change="onOwnerChange"
-          >
-            <option value="">{{ '全部成员' }}</option>
-            <option v-for="m in members" :key="m.id" :value="m.id">
-              {{ m.name }}
-            </option>
-          </select>
+            :options="ownerOptions"
+            block
+            @update:model-value="onOwnerChange"
+          />
         </div>
+        <!-- 追踪视图：已打开 / 未打开 分栏 + 追踪说明 -->
+        <template v-if="activeFolder === 'tracking'">
+          <div class="flex gap-0.5 p-0.5 mt-2 rounded-lg bg-n-alpha-2">
+            <button
+              v-for="opt in [
+                { v: '1', l: '已打开邮件' },
+                { v: '0', l: '未打开邮件' },
+              ]"
+              :key="opt.v"
+              class="flex-1 py-1 text-xs rounded-md transition-colors"
+              :class="
+                trackingOpened === opt.v
+                  ? 'bg-n-solid-1 text-n-slate-12 shadow-sm font-medium'
+                  : 'text-n-slate-10 hover:text-n-slate-12'
+              "
+              @click="setTrackingTab(opt.v)"
+            >
+              {{ opt.l }}
+            </button>
+          </div>
+          <p class="mt-2 text-[11px] leading-snug text-n-slate-10">
+            通过邮件里的追踪像素统计打开次数与来源地区；部分邮箱（如
+            Gmail）会代理图片加载，打开信息仅供参考。
+          </p>
+        </template>
       </div>
 
       <div class="flex-1 overflow-y-auto">
@@ -1099,7 +1148,7 @@ watch(
                   <div class="flex items-center gap-2 mt-1.5">
                     <span
                       v-if="record.folder !== 'INBOX'"
-                      class="px-1.5 py-0.5 rounded text-[11px] font-medium"
+                      class="px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 whitespace-nowrap"
                       :class="SEND_STATUSES[record.sendStatus]?.class"
                     >
                       {{ SEND_STATUSES[record.sendStatus]?.label }}
@@ -1123,11 +1172,39 @@ watch(
                       class="size-3 text-n-slate-10"
                     />
                     <span
-                      v-if="record.tracked && record.openCount"
-                      class="inline-flex items-center gap-0.5 text-[11px] text-n-teal-11"
+                      v-if="
+                        record.tracked &&
+                        record.openCount &&
+                        activeFolder !== 'tracking'
+                      "
+                      class="inline-flex items-center gap-0.5 text-[11px] text-n-teal-11 flex-shrink-0"
                     >
                       <Icon icon="i-lucide-eye" class="size-3" />
                       {{ record.openCount }}
+                    </span>
+                  </div>
+                  <!-- 追踪视图：打开信息单独一行，避免和状态/客户挤在一起 -->
+                  <div
+                    v-if="activeFolder === 'tracking'"
+                    class="flex items-center gap-3 mt-1 text-[11px] text-n-slate-10"
+                  >
+                    <span
+                      v-if="record.openCount"
+                      class="inline-flex items-center gap-1 flex-shrink-0 text-n-teal-11"
+                    >
+                      <Icon icon="i-lucide-eye" class="size-3" />
+                      打开 {{ record.openCount }} 次
+                    </span>
+                    <span v-else class="flex-shrink-0">未打开</span>
+                    <span
+                      v-if="trackingLocation(record)"
+                      class="inline-flex items-center gap-1 min-w-0 truncate"
+                    >
+                      <Icon
+                        icon="i-lucide-map-pin"
+                        class="flex-shrink-0 size-3"
+                      />
+                      {{ trackingLocation(record) }}
                     </span>
                   </div>
                 </div>

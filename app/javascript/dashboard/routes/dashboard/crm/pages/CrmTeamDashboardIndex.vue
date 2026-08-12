@@ -4,6 +4,8 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { t } = useI18n();
 const { accountId } = useAccount();
@@ -16,9 +18,18 @@ const selectedTeamId = ref(null);
 const now = new Date();
 const selectedYear = ref(now.getFullYear());
 const selectedMonth = ref(now.getMonth() + 1);
-const yearOptions = computed(() => {
-  const y = new Date().getFullYear();
-  return [y, y - 1, y - 2];
+
+// 年+月合成一个紫玻璃 MonthPicker（值 'YYYY-MM'）；团队用 SelectCard（见 teams 之后）。
+const pad = n => String(n).padStart(2, '0');
+const monthModel = computed({
+  get: () => `${selectedYear.value}-${pad(selectedMonth.value)}`,
+  set: v => {
+    const [y, m] = (v || '').split('-');
+    if (y && m) {
+      selectedYear.value = Number(y);
+      selectedMonth.value = Number(m);
+    }
+  },
 });
 
 const fetchData = async () => {
@@ -44,6 +55,9 @@ const money = micros =>
   `¥${Math.round((micros || 0) / 1_000_000).toLocaleString()}`;
 
 const teams = computed(() => data.value?.teams || []);
+const teamSelectOptions = computed(() =>
+  teams.value.map(x => ({ value: x.id, label: x.name }))
+);
 const team = computed(
   () => teams.value.find(x => x.id === selectedTeamId.value) || teams.value[0]
 );
@@ -133,29 +147,19 @@ const kpiCards = computed(() => [
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <select
-          v-model.number="selectedYear"
-          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-        >
-          <option v-for="y in yearOptions" :key="y" :value="y">
-            {{ y }}年
-          </option>
-        </select>
-        <select
-          v-model.number="selectedMonth"
-          class="w-24 mb-0 h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-        >
-          <option v-for="m in 12" :key="m" :value="m">{{ m }}月</option>
-        </select>
-        <select
+        <MonthPicker
+          v-model="monthModel"
+          align="right"
+          trigger-class="w-36 h-9"
+          :clearable="false"
+        />
+        <SelectCard
           v-if="teams.length"
-          v-model.number="selectedTeamId"
-          class="w-auto mb-0 h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-        >
-          <option v-for="team_ in teams" :key="team_.id" :value="team_.id">
-            {{ team_.name }}
-          </option>
-        </select>
+          v-model="selectedTeamId"
+          :options="teamSelectOptions"
+          align="right"
+          trigger-class="w-32"
+        />
       </div>
     </div>
 

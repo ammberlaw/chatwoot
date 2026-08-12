@@ -132,12 +132,23 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
   def team_stats
     {
       by_team_amount: all_orders.joins(:crm_team).group('crm_teams.name').sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL)),
-      by_owner_amount: all_orders.joins(:owner).group('users.name').sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL)),
+      by_owner_monthly: owner_monthly_amount,
       by_owner_won_customers: customers.where(customer_status: 'WON').joins(:account_owner).group('users.name').count,
       by_owner_completeness: completeness_by_owner,
       by_owner_reply_latency: emails.joins(:owner).group('users.name').average(:reply_latency_hours)
                                     .transform_values { |v| v.to_f.round(1) }
     }
+  end
+
+  # 业务员成交排行：当年按「业务员 × 月份」预聚合（下单日期口径），
+  # 返回 { 姓名 => [1..12月金额] }，前端按所选期间（月/季/年）即时汇总，无需重取。
+  def owner_monthly_amount
+    trunc = Arel.sql("DATE_TRUNC('month', order_date)")
+    raw = year_orders.joins(:owner).group('users.name', trunc)
+                     .sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
+    raw.each_with_object(Hash.new { |h, k| h[k] = Array.new(12, 0) }) do |((name, month), amount), acc|
+      acc[name][month.month - 1] = amount.to_i
+    end
   end
 
   def completeness_by_owner

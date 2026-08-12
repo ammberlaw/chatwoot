@@ -33,4 +33,9 @@ export default {
   companyHeaders(accountId) {
     return axios.get(`${base(accountId)}/company_headers`);
   },
+  parsePi(accountId, formData) {
+    return axios.post(`${base(accountId)}/parse_pi`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };

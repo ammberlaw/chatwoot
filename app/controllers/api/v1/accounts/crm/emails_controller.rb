@@ -13,6 +13,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
               .page(permitted_params[:page] || 1)
               .per(page_size)
     @counterparty_types = build_counterparty_types(@emails)
+    @last_opens = last_opens_for(@emails)
   end
 
   # 左栏文件夹计数（各文件夹总数 + 收件箱未读），一次查询喂列表页角标。
@@ -180,7 +181,23 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     scope = scope.where.not(owner_id: params[:exclude_owner_id]) if params[:exclude_owner_id].present?
     scope = filter_by_mailbox(scope) if params[:mailbox].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
+    # 追踪视图的「已打开/未打开」分栏。
+    scope = scope.where('open_count > 0') if params[:opened] == '1'
+    scope = scope.where(open_count: 0) if params[:opened] == '0'
     scope
+  end
+
+  # 追踪视图列表用：每封邮件最近一次打开的归属地（一次 DISTINCT ON 查询，避免逐行查库）。
+  def last_opens_for(emails)
+    return {} unless params[:filter] == 'tracking'
+
+    ids = emails.map(&:id)
+    return {} if ids.empty?
+
+    Crm::EmailOpen.where(crm_email_id: ids)
+                  .select('DISTINCT ON (crm_email_id) crm_email_id, country, city, created_at')
+                  .order('crm_email_id, created_at DESC')
+                  .index_by(&:crm_email_id)
   end
 
   # 按邮箱地址收口：发件箱看 from，其余看 to（收件人含该邮箱）。
@@ -194,6 +211,8 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     when 'unread' then scope.unread
     when 'starred' then scope.starred
     when 'mine' then scope.owned_by(current_user.id)
+    # 追踪视图：已发送且埋了追踪像素的邮件（能统计打开）。
+    when 'tracking' then scope.where(folder: 'SENT').where.not(tracking_token: nil)
     else scope
     end
   end
@@ -217,7 +236,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   end
 
   def permitted_params
-    params.permit(:page, :per_page, :folder, :filter, :customer_id, :owner_id, :exclude_owner_id, :q, :email_folder_id)
+    params.permit(:page, :per_page, :folder, :filter, :opened, :customer_id, :owner_id, :exclude_owner_id, :q, :email_folder_id)
   end
 
   # 列表头像按「对方」身份着色，与邮箱身份识别悬浮卡同口径：

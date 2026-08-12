@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 
 defineProps({
   isLoading: { type: Boolean, default: false },
@@ -74,11 +75,12 @@ defineExpose({ dialogRef, onSuccess, open });
         :label="t('CRM.SALES_TARGETS.FORM.NAME')"
         autofocus
       />
-      <Input
-        v-model="form.month"
-        type="month"
-        :label="t('CRM.SALES_TARGETS.FORM.MONTH')"
-      />
+      <div class="relative flex flex-col min-w-0 gap-1">
+        <label class="mb-0.5 text-heading-3 text-n-slate-12">
+          {{ t('CRM.SALES_TARGETS.FORM.MONTH') }}
+        </label>
+        <MonthPicker v-model="form.month" block />
+      </div>
       <div class="grid grid-cols-2 gap-4">
         <Input
           v-model="form.amount"

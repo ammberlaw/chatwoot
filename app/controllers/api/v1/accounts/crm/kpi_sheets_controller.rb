@@ -4,7 +4,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   skip_before_action :ensure_crm_access
   before_action :ensure_kpi_access
   before_action :check_authorization
-  before_action :fetch_sheet, only: [:show, :update, :destroy, :submit, :score, :hr_confirm, :gm_confirm, :ai_suggest, :return_sheet]
+  before_action :fetch_sheet, only: [:show, :update, :destroy, :submit, :score, :hr_confirm, :gm_confirm, :ai_suggest, :return_sheet, :reopen_scoring]
 
   # 数据范围：超管/管理员/指定人事/总经理看全部；部门负责人看本部门（含下级）+ 自己；业务员只看自己。
   # 财务额外看全员「已归档」表（发放绩效薪资用），叠加在自身可见范围上。
@@ -344,27 +344,35 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     false
   end
 
-  # 退回权限：当前状态下的审批人（主管/人事/总经理）或管理员可退回；已归档/待填报不可退。
+  # 退回权限：当前状态下的审批人（主管/人事/总经理）或管理员可退回；总经理可任意阶段越级打回；已归档/待填报不可退。
   def ensure_can_return!
     admin = Current.account_user&.administrator?
-    allowed = { 'SUBMITTED' => can_manage?,
-                'SCORED' => admin || current_user.id == perf_setting.hr_owner_id,
-                'HR_CONFIRMED' => admin || current_user.id == perf_setting.gm_owner_id }[@sheet.status]
+    gm = current_user.id == perf_setting.gm_owner_id
+    allowed = { 'SUBMITTED' => can_manage? || gm,
+                'SCORED' => admin || gm || current_user.id == perf_setting.hr_owner_id,
+                'HR_CONFIRMED' => admin || gm,
+                # 已归档：仅总经理/管理员可退回重填（越级打回，回到待填报重走流程）。
+                'ARCHIVED' => admin || gm }[@sheet.status]
     return true if allowed
 
     render_error('当前状态下你无权退回', :forbidden)
     false
   end
 
-  # 退回主管改分权限：仅「待人事确认/待总经理确认」可退；主管、人事、总经理或管理员均可触发。
+  # 退回主管改分权限：待人事确认/待总经理确认时主管/人事/总经理可退；已归档时仅总经理/管理员可退（越级打回到待打分）。
   def ensure_can_reopen_scoring!
-    unless %w[SCORED HR_CONFIRMED].include?(@sheet.status)
-      render_error('仅待人事/总经理确认的表可退回主管改分', :unprocessable_entity)
+    unless %w[SCORED HR_CONFIRMED ARCHIVED].include?(@sheet.status)
+      render_error('仅待人事/总经理确认或已归档的表可退回主管改分', :unprocessable_entity)
       return false
     end
 
-    allowed = can_manage? ||
-              [perf_setting.hr_owner_id, perf_setting.gm_owner_id].include?(current_user.id)
+    allowed =
+      if @sheet.status == 'ARCHIVED'
+        Current.account_user&.administrator? || current_user.id == perf_setting.gm_owner_id
+      else
+        can_manage? ||
+          [perf_setting.hr_owner_id, perf_setting.gm_owner_id].include?(current_user.id)
+      end
     return true if allowed
 
     render_error('你无权退回此表', :forbidden)

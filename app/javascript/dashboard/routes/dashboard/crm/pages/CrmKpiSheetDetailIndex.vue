@@ -93,19 +93,23 @@ const canScore = computed(
   () => canManage.value && status.value === 'SUBMITTED'
 );
 
-// 退回权限：当前审批步的审批人可退回到「待填报」。
+// 退回权限：当前审批步的审批人可退回到「待填报」；总经理可任意阶段越级打回。
 const canReturn = computed(() => {
-  if (status.value === 'SUBMITTED') return canManage.value;
-  if (status.value === 'SCORED') return isHr.value;
+  if (status.value === 'SUBMITTED') return canManage.value || isGm.value;
+  if (status.value === 'SCORED') return isHr.value || isGm.value;
   if (status.value === 'HR_CONFIRMED') return isGm.value;
+  // 已归档：仅总经理/管理员可退回重填。
+  if (status.value === 'ARCHIVED') return isAdmin.value || isGm.value;
   return false;
 });
-// 退回主管改分：已交人事(待人事确认)或待总经理确认时，主管/人事/总经理均可退回到「待打分」。
-const canReopenScoring = computed(
-  () =>
+// 退回主管改分：待人事/待总经理确认时主管/人事/总经理可退；已归档时仅总经理/管理员可退，均回到「待打分」。
+const canReopenScoring = computed(() => {
+  if (status.value === 'ARCHIVED') return isAdmin.value || isGm.value;
+  return (
     ['SCORED', 'HR_CONFIRMED'].includes(status.value) &&
     (canManage.value || isHr.value || isGm.value)
-);
+  );
+});
 // 被退回提醒：回到待填报且带退回原因时展示给员工。
 const returnedNotice = computed(() =>
   status.value === 'PENDING' && sheet.value?.returnReason
@@ -799,7 +803,7 @@ const inCls =
         <div
           class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
         >
-          {{ t('CRM.KPI_SHEETS.PAYOUT') }}
+          {{ t('CRM.KPI_SHEETS.PAYOUT.TITLE') }}
         </div>
         <div
           v-if="sheet.probation"

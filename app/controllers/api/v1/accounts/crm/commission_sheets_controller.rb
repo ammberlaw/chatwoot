@@ -75,11 +75,12 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     render :show
   end
 
-  # 选单导入：列出该业务员「未取消 + 尚未在本表」的销售订单，供前端勾选。
+  # 选单导入：列出该业务员「已完成 + 尚未在本表」的销售订单，供前端勾选。
+  # 提成只认已完成订单（发货月口径），未完成的不出现在可选列表。
   def selectable_orders
     return render_error('无权编辑该提成表', :forbidden) unless can_edit?(@sheet)
 
-    orders = Current.account.crm_sales_orders.owned_by(@sheet.owner_id).dealt
+    orders = Current.account.crm_sales_orders.owned_by(@sheet.owner_id).completed
                     .where.not(id: imported_order_ids(@sheet))
                     .includes(:crm_customer)
                     .order(order_date: :desc, id: :desc).limit(500)
@@ -101,7 +102,7 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     return render_error('无权编辑该提成表', :forbidden) unless can_edit?(@sheet)
 
     ids = Array(params[:order_ids]).map(&:to_i)
-    orders = Current.account.crm_sales_orders.owned_by(@sheet.owner_id).dealt
+    orders = Current.account.crm_sales_orders.owned_by(@sheet.owner_id).completed
                     .where(id: ids).where.not(id: imported_order_ids(@sheet))
                     .includes(:crm_customer).order(:order_date, :id)
     before = @sheet.items.count
@@ -212,7 +213,8 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
   end
 
   def fetch_sheet
-    @sheet = Current.account.crm_commission_sheets.includes(:items, :owner, :manager, :returned_by).find(params[:id])
+    @sheet = Current.account.crm_commission_sheets
+                    .includes(:owner, :manager, :returned_by, items: :sales_order).find(params[:id])
   end
 
   def check_authorization
@@ -224,10 +226,10 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     params[:owner_id].presence&.to_i || current_user.id
   end
 
-  # 从该业务员当月的（未取消）销售订单带出明细，跳过已在表里的订单。
+  # 带出该业务员「已完成」且尚未在任何表里的销售订单为明细。
+  # 归月口径：订单完成后第一次拉单即落入当月表，不再按下单日期归月。
   def build_items_from_orders(sheet)
-    orders = Current.account.crm_sales_orders.owned_by(sheet.owner_id).dealt
-                    .where(order_date: sheet.period_month.beginning_of_month..sheet.period_month.end_of_month)
+    orders = Current.account.crm_sales_orders.owned_by(sheet.owner_id).completed
                     .where.not(id: imported_order_ids(sheet))
                     .includes(:crm_customer)
                     .order(:order_date, :id)
@@ -240,19 +242,31 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     pos = sheet.items.maximum(:position).to_i
     orders.each do |o|
       pos += 1
-      attrs = item_attrs_from_order(o).merge(position: pos)
+      attrs = item_attrs_from_order(o, sheet.period_month).merge(position: pos)
       attrs[:product_category] = category if category.present?
       sheet.items.create!(attrs)
     end
   end
 
-  def item_attrs_from_order(order)
+  # 提成基数折算按「本月第一天」中行现汇买入价（无牌价往后顺延）；CNY 恒 1。
+  # 订单金额=净销售(不含运费)，收款额=订单金额+运费。带单自动带出运费/收款额/两个RMB列：
+  #   销售额RMB = 净销售 × 汇率（进提成基数），收款额RMB = 收款额 × 汇率。
+  # 抓不到汇率则 RMB 列留空由业务员手填；CNY 单汇率列留空但 RMB 仍按面值带出。
+  def item_attrs_from_order(order, period_month)
+    cny = order.order_currency.blank? || order.order_currency == 'CNY'
+    rate = Crm::FxRate.rate_on_or_after(order.order_currency, period_month.beginning_of_month)
+    net = order.order_amount_micros
+    received = net ? net.to_i + order.shipping_micros.to_i : nil
     {
       crm_sales_order_id: order.id,
       customer_name: order.crm_customer&.name, country: order.crm_customer&.trade_country,
       order_no: order.pi_no.presence || order.order_no,
-      order_amount_micros: order.order_amount_micros, currency: order.order_currency,
-      exchange_rate: order.exchange_rate, product: product_summary(order.line_items)
+      order_amount_micros: net, currency: order.order_currency,
+      shipping_micros: order.shipping_micros, received_amount_micros: received,
+      exchange_rate: cny ? nil : rate,
+      sales_rmb_micros: rate && net ? (net * rate).round : nil,
+      received_rmb_micros: rate && received ? (received * rate).round : nil,
+      product: product_summary(order.line_items)
     }
   end
 
@@ -309,7 +323,7 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
   end
 
   def sheet_label(sheet)
-    "#{sheet.owner&.crm_display_name}-#{sheet.period_month.strftime('%Y年%-m月')}"
+    "#{sheet.owner&.name}-#{sheet.period_month.strftime('%Y年%-m月')}"
   end
 
   def sheet_params
@@ -319,7 +333,7 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
         :id, :position, :product_category, :country, :customer_name, :order_no, :crm_sales_order_id,
         :order_amount_micros, :currency, :shipping_micros, :received_amount_micros, :exchange_rate,
         :received_rmb_micros, :sales_rmb_micros, :payment_channel, :payment_date, :product, :remark,
-        :is_public_receipt, :_destroy
+        :is_public_receipt, :tax_rate, :_destroy
       ]
     )
   end

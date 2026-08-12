@@ -8,6 +8,7 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmKpiSchemesStore } from 'dashboard/stores/crm/kpiSchemes';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -46,8 +47,19 @@ const monthOptions = computed(() => {
   const inYear = yearFilter.value
     ? records.value.filter(r => yearOf(r) === yearFilter.value)
     : records.value;
-  return [...new Set(inYear.map(monthOf))].sort((a, b) => Number(b) - Number(a));
+  return [...new Set(inYear.map(monthOf))].sort(
+    (a, b) => Number(b) - Number(a)
+  );
 });
+// 年/月归档筛选的紫玻璃 SelectCard 选项（含「全部」空值项）。
+const yearFilterOptions = computed(() => [
+  { value: '', label: '全部年份' },
+  ...yearOptions.value.map(y => ({ value: y, label: `${y} 年` })),
+]);
+const monthFilterOptions = computed(() => [
+  { value: '', label: '全部月份' },
+  ...monthOptions.value.map(m => ({ value: m, label: `${m} 月` })),
+]);
 const filteredRecords = computed(() =>
   records.value.filter(
     r =>
@@ -122,24 +134,16 @@ const fmtMonth = value => {
     <div class="flex-1 px-6 py-4">
       <!-- 年份 / 月份归档筛选 -->
       <div class="flex items-center gap-2 mb-3">
-        <select
+        <SelectCard
           v-model="yearFilter"
-          class="h-8 px-2 mb-0 text-sm text-center border rounded-lg reset-base w-24 border-n-weak bg-n-solid-1 text-n-slate-12"
-        >
-          <option value="">全部年份</option>
-          <option v-for="y in yearOptions" :key="y" :value="y">
-            {{ y }} 年
-          </option>
-        </select>
-        <select
+          :options="yearFilterOptions"
+          trigger-class="w-28"
+        />
+        <SelectCard
           v-model="monthFilter"
-          class="h-8 px-2 mb-0 text-sm text-center border rounded-lg reset-base w-24 border-n-weak bg-n-solid-1 text-n-slate-12"
-        >
-          <option value="">全部月份</option>
-          <option v-for="m in monthOptions" :key="m" :value="m">
-            {{ m }} 月
-          </option>
-        </select>
+          :options="monthFilterOptions"
+          trigger-class="w-28"
+        />
         <span class="text-xs text-n-slate-10">
           {{ `共 ${filteredRecords.length} 套方案` }}
         </span>

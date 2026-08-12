@@ -7,5 +7,5 @@ json.library resource.library
 json.section_id resource.section_id
 json.body resource.body
 json.owner_id resource.owner_id
-json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }
+json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f), byte_size: f.byte_size } }
 json.updated_at resource.updated_at

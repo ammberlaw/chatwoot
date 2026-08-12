@@ -17,3 +17,5 @@ json.payment_date resource.payment_date
 json.product resource.product
 json.remark resource.remark
 json.is_public_receipt resource.is_public_receipt
+json.tax_rate resource.tax_rate
+json.order_status resource.sales_order&.status

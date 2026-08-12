@@ -22,6 +22,7 @@
 #  remark                  :text
 #  sales_rmb_micros        :bigint
 #  shipping_micros         :bigint
+#  tax_rate                :integer          default(13), not null
 #  created_at              :datetime         not null
 #  updated_at              :datetime         not null
 #  account_id              :bigint           not null
@@ -43,15 +44,17 @@ class Crm::CommissionItem < ApplicationRecord
 
   before_validation :inherit_account, on: :create
 
-  # 对公收款算提成基数时销售额RMB要扣 13 个增值税点（÷1.13）。
-  VAT_DIVISOR = 1.13
+  # 对公时可选的增值税点（每行手选）；默认 13。
+  TAX_RATES = [13, 11].freeze
 
-  # 提成基数（微分）：对公则销售额RMB ÷1.13，否则即销售额RMB。销售额RMB 未填则为 nil。
+  # 提成基数（微分）：对公则销售额RMB ÷(1+税点%)，否则即销售额RMB。销售额RMB 未填则为 nil。
   def commission_base_micros
     return nil if sales_rmb_micros.nil?
 
     base = sales_rmb_micros.to_i
-    is_public_receipt ? (base / VAT_DIVISOR).round : base
+    return base unless is_public_receipt
+
+    (base / (1 + tax_rate.to_f / 100)).round
   end
 
   # 提成工资（微分）= 提成基数 × 提成点% / 100。基数空或点位为 0 则为 nil。

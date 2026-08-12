@@ -6,6 +6,7 @@ import CrmAiSettingsAPI from 'dashboard/api/crm/aiSettings';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { t } = useI18n();
 
@@ -48,6 +49,10 @@ const testResult = ref(null); // { ok, message }
 // 当前端点匹配到的供应商名（用于下拉高亮）；没匹配到即「自定义」。
 const activeProvider = computed(
   () => PROVIDERS.find(p => p.base === form.apiBase)?.label || '自定义'
+);
+
+const providerOptions = computed(() =>
+  PROVIDERS.map(p => ({ value: p.label, label: p.label }))
 );
 
 const applyProvider = label => {
@@ -166,16 +171,12 @@ const fieldCls =
         <span class="text-xs text-n-slate-10">
           {{ t('CRM.AI_SETTINGS.PROVIDER_HINT') }}
         </span>
-        <select
-          :value="activeProvider"
-          class="w-56"
-          :class="[fieldCls]"
-          @change="applyProvider($event.target.value)"
-        >
-          <option v-for="p in PROVIDERS" :key="p.label" :value="p.label">
-            {{ p.label }}
-          </option>
-        </select>
+        <SelectCard
+          :model-value="activeProvider"
+          :options="providerOptions"
+          trigger-class="w-56"
+          @update:model-value="applyProvider"
+        />
       </label>
 
       <!-- API Key -->

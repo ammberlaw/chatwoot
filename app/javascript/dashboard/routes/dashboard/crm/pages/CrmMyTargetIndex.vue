@@ -4,6 +4,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { accountId } = useAccount();
 
@@ -21,6 +22,7 @@ const amountInput = ref('');
 const countInput = ref('');
 
 const yearOptions = [nowYear - 2, nowYear - 1, nowYear, nowYear + 1];
+const yearSelectOptions = yearOptions.map(y => ({ value: y, label: `${y}年` }));
 
 const api = () => `/api/v1/accounts/${accountId.value}/crm`;
 
@@ -248,7 +250,7 @@ const cell = (r, isAmt) => {
   <div
     class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
           我的目标
@@ -264,12 +266,12 @@ const cell = (r, isAmt) => {
           · 未完成结转下月、每季度清零
         </p>
       </div>
-      <select
-        v-model.number="year"
-        class="h-9 px-2 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-      >
-        <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}年</option>
-      </select>
+      <SelectCard
+        v-model="year"
+        :options="yearSelectOptions"
+        align="right"
+        trigger-class="w-28"
+      />
     </div>
 
     <div v-if="loading" class="p-8 text-center text-n-slate-11">加载中…</div>

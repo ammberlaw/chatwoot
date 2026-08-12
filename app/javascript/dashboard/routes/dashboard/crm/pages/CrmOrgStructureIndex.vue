@@ -12,6 +12,7 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { isAdmin } = useAdmin();
 const currentUser = useMapGetter('getCurrentUser');
@@ -235,8 +236,7 @@ const confirmMove = async () => {
   useAlert(L.saved);
 };
 
-const setLeader = async event => {
-  const value = event.target.value;
+const setLeader = async value => {
   await deptStore.update({
     id: selectedDept.value.id,
     leaderId: value ? Number(value) : null,
@@ -506,22 +506,15 @@ onMounted(async () => {
               <span class="text-xs whitespace-nowrap text-n-slate-10">{{
                 L.leader
               }}</span>
-              <select
+              <SelectCard
                 v-if="canManage"
-                :value="
+                :model-value="
                   selectedDept.leaderId ? String(selectedDept.leaderId) : ''
                 "
-                class="h-8 px-2 text-xs border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
-                @change="setLeader"
-              >
-                <option
-                  v-for="opt in leaderOptions"
-                  :key="opt.value"
-                  :value="opt.value"
-                >
-                  {{ opt.label }}
-                </option>
-              </select>
+                :options="leaderOptions"
+                trigger-class="w-40"
+                @update:model-value="setLeader"
+              />
               <span v-else class="text-xs text-n-slate-12">
                 {{ selectedDept.leaderName || L.noLeader }}
               </span>

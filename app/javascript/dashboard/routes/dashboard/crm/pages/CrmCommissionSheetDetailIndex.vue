@@ -28,6 +28,18 @@ const captureRef = ref(null); // 只读表容器，导出图片时截取
 // 产品品类统一为两类，下拉固定选择，保证与提成点配置匹配。
 const PRODUCT_CATEGORIES = ['平板电脑', '商显工控'];
 const CURRENCIES = ['USD', 'CNY', 'EUR'];
+// 对公可选税点（每行手选）。
+const TAX_RATES = [13, 11];
+// 关联销售订单状态 → 中文（与销售订单列表口径一致，只读展示）。
+const ORDER_STATUS_LABEL = {
+  PENDING_CONFIRMATION: '待确认',
+  IN_PRODUCTION: '生产中',
+  PENDING_SHIPMENT: '待出货',
+  SHIPPED: '已出货',
+  COMPLETED: '已完成',
+  CANCELLED: '已取消',
+};
+const orderStatusText = s => ORDER_STATUS_LABEL[s] || '';
 const yuanFromMicros = m =>
   m == null ? null : Math.round((m / 1_000_000) * 100) / 100;
 const microsFromYuan = y =>
@@ -56,6 +68,8 @@ const toLocal = it => ({
   product: it.product || '',
   remark: it.remark || '',
   isPublicReceipt: !!it.isPublicReceipt,
+  taxRate: it.taxRate ?? 13,
+  orderStatus: it.orderStatus || '',
 });
 
 const applySheet = data => {
@@ -152,6 +166,8 @@ const addRow = () =>
       product: '',
       remark: '',
       isPublicReceipt: false,
+      taxRate: 13,
+      orderStatus: '',
     })
   );
 
@@ -194,6 +210,7 @@ const buildPayload = () => {
     product: r.product || null,
     remark: r.remark || null,
     is_public_receipt: !!r.isPublicReceipt,
+    tax_rate: r.taxRate ?? 13,
   }));
   deleted.value.forEach(id => attrs.push({ id, _destroy: true }));
   return { remark: sheet.value.remark || '', items_attributes: attrs };
@@ -497,12 +514,14 @@ const fmtYuan2 = v =>
 const sum = (rows, key) =>
   rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
 
-// 提成点(%)：按品类查表；提成基数：对公则销售额RMB÷1.13；提成工资=基数×点位/100。
+// 提成点(%)：按品类查表；提成基数：对公则销售额RMB÷(1+税点%)；提成工资=基数×点位/100。
 const rateOf = r => Number(rateMap.value[r.productCategory]) || 0;
 const baseOf = r => {
   if (r.salesRmb == null || r.salesRmb === '') return null;
   const s = Number(r.salesRmb);
-  return r.isPublicReceipt ? Math.round((s / 1.13) * 100) / 100 : s;
+  if (!r.isPublicReceipt) return s;
+  const tax = Number(r.taxRate) || 13;
+  return Math.round((s / (1 + tax / 100)) * 100) / 100;
 };
 const salaryOf = r => {
   const base = baseOf(r);
@@ -725,6 +744,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
             <col class="w-16" />
             <col class="w-40" />
             <col class="w-36" />
+            <col class="w-20" />
             <col class="w-24" />
             <col class="w-16" />
             <col class="w-16" />
@@ -737,6 +757,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
             <col class="w-40" />
             <col class="w-28" />
             <col class="w-12" />
+            <col class="w-16" />
             <col class="w-28" />
             <col class="w-16" />
             <col class="w-28" />
@@ -756,6 +777,9 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
               </th>
               <th class="px-1 py-2 font-medium text-left">
                 {{ t('CRM.COMMISSION.COLS.ORDER_NO') }}
+              </th>
+              <th class="px-1 py-2 font-medium text-left">
+                {{ t('CRM.COMMISSION.COLS.ORDER_STATUS') }}
               </th>
               <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.ORDER_AMOUNT') }}
@@ -793,6 +817,9 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
               <th class="px-1 py-2 font-medium text-center">
                 {{ t('CRM.COMMISSION.COLS.IS_PUBLIC') }}
               </th>
+              <th class="px-1 py-2 font-medium text-center">
+                {{ t('CRM.COMMISSION.COLS.TAX_RATE') }}
+              </th>
               <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.COMM_BASE') }}
               </th>
@@ -811,7 +838,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
               <td class="px-1 py-1">
                 <select
                   v-model="r.productCategory"
-                  class="w-full h-7 px-1 mb-0 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 py-0 mb-0 text-xs leading-8 border rounded reset-base border-n-weak bg-n-solid-1"
                 >
                   <option value="">—</option>
                   <option v-for="c in PRODUCT_CATEGORIES" :key="c" :value="c">
@@ -822,33 +849,36 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
               <td class="px-1 py-1">
                 <input
                   v-model="r.country"
-                  class="w-full h-7 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
                 <input
                   v-model="r.customerName"
-                  class="w-full h-7 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
                 <input
                   v-model="r.orderNo"
-                  class="w-full h-7 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
                 />
+              </td>
+              <td class="px-1 py-1 text-n-slate-11">
+                {{ orderStatusText(r.orderStatus) || '—' }}
               </td>
               <td class="px-1 py-1">
                 <input
                   v-model.number="r.orderAmount"
                   type="number"
                   step="0.01"
-                  class="w-full h-7 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
                 <select
                   v-model="r.currency"
-                  class="w-full h-7 px-1 mb-0 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 py-0 mb-0 text-xs leading-8 border rounded reset-base border-n-weak bg-n-solid-1"
                 >
                   <option v-for="c in CURRENCIES" :key="c" :value="c">
                     {{ c }}
@@ -860,7 +890,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                   v-model.number="r.shipping"
                   type="number"
                   step="0.01"
-                  class="w-full h-7 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
@@ -868,7 +898,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                   v-model.number="r.receivedAmount"
                   type="number"
                   step="0.01"
-                  class="w-full h-7 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
@@ -876,7 +906,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                   v-model.number="r.exchangeRate"
                   type="number"
                   step="0.0001"
-                  class="w-full h-7 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
@@ -884,7 +914,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                   v-model.number="r.receivedRmb"
                   type="number"
                   step="0.01"
-                  class="w-full h-7 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
@@ -892,32 +922,32 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                   v-model.number="r.salesRmb"
                   type="number"
                   step="0.01"
-                  class="w-full h-7 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
                 <input
                   v-model="r.paymentChannel"
-                  class="w-full h-7 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
                 <input
                   v-model="r.paymentDate"
                   type="date"
-                  class="w-full h-7 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
                 <input
                   v-model="r.product"
-                  class="w-full h-7 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1">
                 <input
                   v-model="r.remark"
-                  class="w-full h-7 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
+                  class="w-full h-8 px-1 text-xs border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
               <td class="px-1 py-1 text-center">
@@ -927,10 +957,25 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                   class="accent-n-iris-9"
                 />
               </td>
-              <td class="pl-1 pr-2 py-1 text-right tabular-nums text-n-slate-11">
+              <td class="px-1 py-1">
+                <select
+                  v-model.number="r.taxRate"
+                  :disabled="!r.isPublicReceipt"
+                  class="w-full h-8 px-1 py-0 mb-0 text-xs leading-8 border rounded reset-base border-n-weak bg-n-solid-1 disabled:opacity-40"
+                >
+                  <option v-for="tr in TAX_RATES" :key="tr" :value="tr">
+                    {{ tr }}%
+                  </option>
+                </select>
+              </td>
+              <td
+                class="pl-1 pr-2 py-1 text-right tabular-nums text-n-slate-11"
+              >
                 {{ fmtYuan2(baseOf(r)) }}
               </td>
-              <td class="pl-1 pr-2 py-1 text-right tabular-nums text-n-slate-11">
+              <td
+                class="pl-1 pr-2 py-1 text-right tabular-nums text-n-slate-11"
+              >
                 {{ rateOf(r) ? `${rateOf(r)}%` : '—' }}
               </td>
               <td
@@ -948,7 +993,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
               </td>
             </tr>
             <tr v-if="!items.length">
-              <td colspan="21" class="px-3 py-6 text-center text-n-slate-10">
+              <td colspan="23" class="px-3 py-6 text-center text-n-slate-10">
                 {{ t('CRM.COMMISSION.DETAIL.NO_ITEMS_EDIT') }}
               </td>
             </tr>
@@ -971,7 +1016,9 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
           <div class="mb-2 text-sm font-semibold text-n-slate-12">
             {{ title }}
           </div>
-          <table class="w-max min-w-full text-xs border-collapse whitespace-nowrap">
+          <table
+            class="w-max min-w-full text-xs border-collapse whitespace-nowrap"
+          >
             <thead class="text-n-slate-11">
               <tr class="border-b border-n-weak">
                 <th class="px-2 py-2 font-medium text-left">
@@ -988,6 +1035,9 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                 </th>
                 <th class="px-2 py-2 font-medium text-left">
                   {{ t('CRM.COMMISSION.COLS.ORDER_NO') }}
+                </th>
+                <th class="px-2 py-2 font-medium text-left">
+                  {{ t('CRM.COMMISSION.COLS.ORDER_STATUS') }}
                 </th>
                 <th class="px-2 py-2 font-medium text-right">
                   {{ t('CRM.COMMISSION.COLS.ORDER_AMOUNT') }}
@@ -1025,6 +1075,9 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                 <th class="px-2 py-2 font-medium text-center">
                   {{ t('CRM.COMMISSION.COLS.IS_PUBLIC') }}
                 </th>
+                <th class="px-2 py-2 font-medium text-center">
+                  {{ t('CRM.COMMISSION.COLS.TAX_RATE') }}
+                </th>
                 <th class="px-2 py-2 font-medium text-right">
                   {{ t('CRM.COMMISSION.COLS.COMM_BASE') }}
                 </th>
@@ -1055,6 +1108,9 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                     {{ r.customerName || '—' }}
                   </td>
                   <td class="px-2 py-1.5">{{ r.orderNo || '—' }}</td>
+                  <td class="px-2 py-1.5 text-n-slate-11">
+                    {{ orderStatusText(r.orderStatus) || '—' }}
+                  </td>
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(r.orderAmount) }}
                   </td>
@@ -1081,6 +1137,9 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                   <td class="px-2 py-1.5 text-center">
                     {{ r.isPublicReceipt ? '是' : '—' }}
                   </td>
+                  <td class="px-2 py-1.5 text-center">
+                    {{ r.isPublicReceipt ? `${r.taxRate}%` : '—' }}
+                  </td>
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(baseOf(r)) }}
                   </td>
@@ -1098,7 +1157,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                     {{ g.category }}
                     {{ t('CRM.COMMISSION.DETAIL.SUBTOTAL_SUFFIX') }}
                   </td>
-                  <td colspan="5" />
+                  <td colspan="6" />
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(sum(g.rows, 'shipping')) }}
                   </td>
@@ -1109,14 +1168,14 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(sum(g.rows, 'salesRmb')) }}
                   </td>
-                  <td colspan="7" />
+                  <td colspan="8" />
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(sumSalary(g.rows)) }}
                   </td>
                 </tr>
               </template>
               <tr v-if="!items.length">
-                <td colspan="20" class="px-3 py-6 text-center text-n-slate-10">
+                <td colspan="22" class="px-3 py-6 text-center text-n-slate-10">
                   {{ t('CRM.COMMISSION.DETAIL.NO_ITEMS') }}
                 </td>
               </tr>
@@ -1127,7 +1186,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                 <td class="px-2 py-2" colspan="2">
                   {{ t('CRM.COMMISSION.DETAIL.TOTAL') }}
                 </td>
-                <td colspan="5" />
+                <td colspan="6" />
                 <td class="px-2 py-2 text-right tabular-nums">
                   {{ fmtYuan2(grand.shipping) }}
                 </td>
@@ -1138,7 +1197,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                 <td class="px-2 py-2 text-right tabular-nums">
                   {{ fmtYuan2(grand.salesRmb) }}
                 </td>
-                <td colspan="7" />
+                <td colspan="8" />
                 <td class="px-2 py-2 text-right tabular-nums">
                   {{ fmtYuan2(grand.salary) }}
                 </td>
@@ -1159,9 +1218,9 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
         class="flex flex-col w-full max-w-2xl overflow-hidden bg-n-solid-1 rounded-2xl shadow-xl max-h-[80vh]"
       >
         <div
-          class="flex items-center justify-between px-5 py-4 border-b border-n-weak"
+          class="flex items-center justify-between px-5 py-3 border-b border-n-weak"
         >
-          <h2 class="text-base font-medium text-n-slate-12">
+          <h2 class="text-sm font-semibold text-n-slate-12">
             {{ t('CRM.COMMISSION.DETAIL.IMPORT_ORDERS') }}
           </h2>
           <button
@@ -1198,11 +1257,11 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                 <th class="px-2 py-2 font-medium text-left">
                   {{ t('CRM.COMMISSION.COLS.CUSTOMER') }}
                 </th>
+                <th class="px-2 py-2 font-medium text-left">
+                  {{ t('CRM.COMMISSION.COLS.COUNTRY') }}
+                </th>
                 <th class="px-2 py-2 font-medium text-right">
                   {{ t('CRM.COMMISSION.COLS.ORDER_AMOUNT') }}
-                </th>
-                <th class="px-2 py-2 font-medium text-left">
-                  {{ t('CRM.COMMISSION.COLS.PAY_DATE') }}
                 </th>
               </tr>
             </thead>
@@ -1221,17 +1280,17 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
                     @change="togglePick(o.id)"
                   />
                 </td>
-                <td class="px-2 py-2 text-n-slate-12">
+                <td class="px-2 py-1.5 text-n-slate-12">
                   {{ o.orderNo || '—' }}
                 </td>
-                <td class="px-2 py-2">{{ o.customerName || '—' }}</td>
-                <td class="px-2 py-2 text-right tabular-nums">
+                <td class="px-2 py-1.5">{{ o.customerName || '—' }}</td>
+                <td class="px-2 py-1.5">{{ o.country || '—' }}</td>
+                <td class="px-2 py-1.5 text-right tabular-nums">
                   {{ o.currency }} {{ pickerYuan(o.amountMicros) }}
                 </td>
-                <td class="px-2 py-2">{{ dateOnly(o.orderDate) || '—' }}</td>
               </tr>
               <tr v-if="!pickerBusy && !filteredPickerOrders.length">
-                <td colspan="5" class="px-3 py-8 text-center text-n-slate-10">
+                <td colspan="5" class="px-3 py-6 text-center text-n-slate-10">
                   {{ t('CRM.COMMISSION.DETAIL.PICKER_EMPTY') }}
                 </td>
               </tr>

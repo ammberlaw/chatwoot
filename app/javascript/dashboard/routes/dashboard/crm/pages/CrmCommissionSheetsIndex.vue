@@ -8,6 +8,8 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import CommissionSheetsAPI from 'dashboard/api/crm/commissionSheets';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -93,6 +95,19 @@ const STATUS_CLASS = {
   RETURNED: 'bg-n-ruby-3 text-n-ruby-11',
 };
 const STATUS_KEYS = Object.keys(STATUS_CLASS);
+// 原生 select → 紫玻璃 SelectCard 的筛选选项（含「全部」空值项）。
+const statusFilterOptions = computed(() => [
+  { value: '', label: t('CRM.COMMISSION.ALL_STATUS') },
+  ...STATUS_KEYS.map(k => ({
+    value: k,
+    label: t(`CRM.COMMISSION.STATUS.${k}`),
+  })),
+]);
+const paidFilterOptions = computed(() => [
+  { value: '', label: t('CRM.COMMISSION.PAYOUT.FILTER_ALL') },
+  { value: 'unpaid', label: t('CRM.COMMISSION.PAYOUT.UNPAID') },
+  { value: 'paid', label: t('CRM.COMMISSION.PAYOUT.PAID') },
+]);
 
 const fmtMonth = v => {
   if (!v) return '—';
@@ -267,10 +282,11 @@ const unmarkPaid = async s => {
         >
           提成点设置
         </button>
-        <input
+        <MonthPicker
           v-model="newMonth"
-          type="month"
-          class="h-9 px-2 text-sm border rounded-lg reset-base w-36 border-n-weak bg-n-solid-1 text-n-slate-12"
+          align="right"
+          trigger-class="w-36 h-9"
+          :clearable="false"
         />
         <button
           class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
@@ -353,37 +369,24 @@ const unmarkPaid = async s => {
         <input
           v-if="showTeamView"
           v-model="q"
-          class="h-8 px-3 text-sm border rounded-lg reset-base w-52 border-n-weak bg-n-solid-1 text-n-slate-12"
+          class="h-9 px-3 text-sm border rounded-lg reset-base w-52 border-n-weak bg-n-solid-1 text-n-slate-12"
           :placeholder="t('CRM.COMMISSION.SEARCH_OWNER')"
         />
-        <input
-          v-model="monthFilter"
-          type="month"
-          class="h-8 px-2 text-sm border rounded-lg reset-base w-44 border-n-weak bg-n-solid-1 text-n-slate-12"
-        />
-        <select
+        <MonthPicker v-model="monthFilter" trigger-class="w-44 h-9" />
+        <SelectCard
           v-model="statusFilter"
-          class="h-8 px-2 mb-0 text-sm border rounded-lg reset-base w-36 border-n-weak bg-n-solid-1 text-n-slate-12"
-        >
-          <option value="">{{ t('CRM.COMMISSION.ALL_STATUS') }}</option>
-          <option v-for="k in STATUS_KEYS" :key="k" :value="k">
-            {{ t(`CRM.COMMISSION.STATUS.${k}`) }}
-          </option>
-        </select>
-        <select
+          :options="statusFilterOptions"
+          trigger-class="w-36"
+        />
+        <SelectCard
           v-if="isCrmFinance"
           v-model="paidFilter"
-          class="h-8 px-2 mb-0 text-sm border rounded-lg reset-base w-32 border-n-weak bg-n-solid-1 text-n-slate-12"
-        >
-          <option value="">{{ t('CRM.COMMISSION.PAYOUT.FILTER_ALL') }}</option>
-          <option value="unpaid">
-            {{ t('CRM.COMMISSION.PAYOUT.UNPAID') }}
-          </option>
-          <option value="paid">{{ t('CRM.COMMISSION.PAYOUT.PAID') }}</option>
-        </select>
+          :options="paidFilterOptions"
+          trigger-class="w-32"
+        />
         <button
           v-if="q || monthFilter || statusFilter || paidFilter"
-          class="h-8 px-2 text-xs rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
+          class="h-9 px-2 text-xs rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
           @click="
             q = '';
             monthFilter = '';

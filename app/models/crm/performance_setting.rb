@@ -63,9 +63,10 @@ class Crm::PerformanceSetting < ApplicationRecord
     account_user.crm_manager? && (setting.nil? || setting.scheme_visible_manager)
   end
 
-  # 考核表对该成员是否可见（管理员/副管理员/被指定人事/总经理始终可见——审批需要）。
+  # 考核表对该成员是否可见（管理员/副管理员/被指定人事/总经理始终可见——审批需要；
+  # 财务需查看归档表以发放绩效薪资，一并放行）。
   def self.sheet_visible?(setting, account_user)
-    return true if admin_like?(account_user) || account_user.crm_hr?
+    return true if admin_like?(account_user) || account_user.crm_hr? || account_user.crm_finance?
     return true if setting && [setting.hr_owner_id, setting.gm_owner_id].include?(account_user.user_id)
 
     role_visible?(setting, account_user, :sheet_visible_manager, :sheet_visible_sales)

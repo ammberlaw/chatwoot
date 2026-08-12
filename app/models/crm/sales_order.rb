@@ -18,6 +18,7 @@
 #  profit_amount_micros :bigint
 #  profit_rate          :decimal(6, 2)
 #  remark               :text
+#  shipping_micros      :bigint
 #  status               :string           default("PENDING_CONFIRMATION"), not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
@@ -88,6 +89,7 @@ class Crm::SalesOrder < ApplicationRecord
 
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
   scope :dealt, -> { where.not(status: 'CANCELLED') }
+  scope :completed, -> { where(status: 'COMPLETED') }
 
   private
 
