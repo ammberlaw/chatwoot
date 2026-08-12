@@ -532,6 +532,7 @@
         "ADD_SECTION_PLACEHOLDER": "板块名称，回车创建",
         "SECTION_LABEL": "板块",
         "SUBFOLDERS": "{count} 个子文件夹",
+        "SUBFOLDERS_TITLE": "子文件夹",
         "DOCS_HERE": "本层文档"
       },
       "INFO": {

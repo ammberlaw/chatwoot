@@ -1317,99 +1317,144 @@ watch(
             </p>
           </div>
 
-          <!-- 子文件夹网格（非搜索）-->
+          <!-- 子文件夹 / 板块 分区：标题 + 右上角紧凑新建；网格只放真实文件夹 -->
           <div
             v-if="
               !isSearching &&
               (sortedFolders.length || canAddFolderHere || canAddSectionHere)
             "
-            class="grid grid-cols-4 gap-3 sm:grid-cols-5 xl:grid-cols-6"
           >
-            <div
-              v-for="folder in sortedFolders"
-              :key="folderKeyOf(folder)"
-              class="relative group/folder"
-            >
-              <!-- 重命名内联输入（仅分类文件夹）-->
-              <input
-                v-if="
-                  editingId &&
-                  folder.type === 'category' &&
-                  editingId === folder.id
-                "
-                v-model="editingName"
-                class="absolute z-10 left-3 right-3 top-1/2 -translate-y-1/2 h-8 px-2 text-sm border rounded-md border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                @keyup.enter="saveRename"
-                @blur="saveRename"
-                @click.stop
-              />
-              <!-- 单击选中看信息，双击进入 -->
-              <button
-                type="button"
-                class="relative block w-full pt-2 text-left cursor-pointer transition-transform group-hover/folder:-translate-y-1"
-                @click="selectFolder(folder)"
-                @dblclick="enterFolder(folder)"
-              >
-                <!-- 露出的纸张（两层玻璃叠纸） -->
-                <div
-                  class="absolute h-6 -top-1 inset-x-4 rounded-t-lg border border-b-0 border-white/40 bg-white/25 backdrop-blur-sm"
-                />
-                <div
-                  class="absolute shadow-sm h-7 inset-x-3 -top-0 rounded-t-lg border border-b-0 border-white/60 bg-white/40 backdrop-blur-md"
-                />
-                <!-- 文件夹主体（玻璃）-->
-                <div
-                  class="relative flex flex-col justify-end p-3 overflow-hidden transition-all border shadow-sm h-28 rounded-xl rounded-tl-md ring-1 ring-inset backdrop-blur-xl backdrop-saturate-150"
-                  :class="
-                    isFolderSelected(folder)
-                      ? 'border-white/20 ring-white/20 bg-gradient-to-br from-n-iris-9/75 to-n-iris-10/60 shadow-lg shadow-n-iris-9/25'
-                      : 'border-white/60 ring-white/40 bg-gradient-to-br from-white/50 to-n-iris-3/25 group-hover/folder:from-white/70 group-hover/folder:shadow-md'
+            <div class="flex items-center justify-between h-8 mb-2">
+              <span class="text-xs font-medium text-n-slate-10">
+                {{
+                  currentNode
+                    ? t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS_TITLE')
+                    : t('CRM.KNOWLEDGE_DOCS.VIEW.SECTION_LABEL')
+                }}
+              </span>
+              <!-- 根层=新建板块；分类层=新建文件夹 -->
+              <template v-if="canAddSectionHere">
+                <input
+                  v-if="addingRootSection"
+                  v-model="newRootSectionName"
+                  :placeholder="
+                    t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_SECTION_PLACEHOLDER')
                   "
+                  class="h-8 px-2 text-sm border rounded-md w-52 border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                  @keyup.enter="saveAddSection"
+                  @blur="saveAddSection"
+                />
+                <button
+                  v-else
+                  type="button"
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-n-iris-11 hover:bg-n-iris-3"
+                  @click="startAddSection"
                 >
-                  <span
-                    class="absolute i-lucide-folder top-2.5 right-2.5 size-4"
+                  <span class="i-lucide-folder-plus size-3.5" />
+                  {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_SECTION') }}
+                </button>
+              </template>
+              <template v-else-if="canAddFolderHere">
+                <input
+                  v-if="adding"
+                  v-model="newCategoryName"
+                  :placeholder="
+                    t('CRM.KNOWLEDGE_DOCS.CATEGORY.NAME_PLACEHOLDER')
+                  "
+                  class="h-8 px-2 text-sm border rounded-md w-52 border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                  @keyup.enter="saveAdd"
+                  @blur="saveAdd"
+                />
+                <button
+                  v-else
+                  type="button"
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+                  @click="startAdd"
+                >
+                  <span class="i-lucide-folder-plus size-3.5" />
+                  {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_FOLDER') }}
+                </button>
+              </template>
+            </div>
+
+            <div
+              v-if="sortedFolders.length"
+              class="grid grid-cols-4 gap-3 sm:grid-cols-5 xl:grid-cols-6"
+            >
+              <div
+                v-for="folder in sortedFolders"
+                :key="folderKeyOf(folder)"
+                class="relative group/folder"
+              >
+                <!-- 重命名内联输入（仅分类文件夹）-->
+                <input
+                  v-if="
+                    editingId &&
+                    folder.type === 'category' &&
+                    editingId === folder.id
+                  "
+                  v-model="editingName"
+                  class="absolute z-10 left-3 right-3 top-1/2 -translate-y-1/2 h-8 px-2 text-sm border rounded-md border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                  @keyup.enter="saveRename"
+                  @blur="saveRename"
+                  @click.stop
+                />
+                <!-- 单击选中看信息，双击进入 -->
+                <button
+                  type="button"
+                  class="relative block w-full pt-2 text-left cursor-pointer transition-transform group-hover/folder:-translate-y-1"
+                  @click="selectFolder(folder)"
+                  @dblclick="enterFolder(folder)"
+                >
+                  <!-- 露出的纸张（两层玻璃叠纸） -->
+                  <div
+                    class="absolute h-6 -top-1 inset-x-4 rounded-t-lg border border-b-0 border-white/40 bg-white/25 backdrop-blur-sm"
+                  />
+                  <div
+                    class="absolute shadow-sm h-7 inset-x-3 -top-0 rounded-t-lg border border-b-0 border-white/60 bg-white/40 backdrop-blur-md"
+                  />
+                  <!-- 文件夹主体（玻璃）-->
+                  <div
+                    class="relative flex flex-col justify-end p-3 overflow-hidden transition-all border shadow-sm h-28 rounded-xl rounded-tl-md ring-1 ring-inset backdrop-blur-xl backdrop-saturate-150"
                     :class="
                       isFolderSelected(folder)
-                        ? 'text-white/70'
-                        : 'text-n-slate-9'
+                        ? 'border-white/20 ring-white/20 bg-gradient-to-br from-n-iris-9/75 to-n-iris-10/60 shadow-lg shadow-n-iris-9/25'
+                        : 'border-white/60 ring-white/40 bg-gradient-to-br from-white/50 to-n-iris-3/25 group-hover/folder:from-white/70 group-hover/folder:shadow-md'
                     "
-                  />
-                  <!-- 选中时露出首篇文档预览 -->
-                  <div
-                    v-if="isFolderSelected(folder) && folder.docs.length"
-                    class="absolute text-xs leading-snug left-3 right-8 top-2.5 line-clamp-1 text-white/85"
                   >
-                    {{ folder.docs[0].summary || folder.docs[0].name }}
-                  </div>
-                  <div class="relative min-w-0">
-                    <div
-                      class="text-sm font-semibold truncate"
+                    <span
+                      class="absolute i-lucide-folder top-2.5 right-2.5 size-4"
                       :class="
                         isFolderSelected(folder)
-                          ? 'text-white'
-                          : 'text-n-slate-12'
+                          ? 'text-white/70'
+                          : 'text-n-slate-9'
                       "
-                    >
-                      {{
-                        folder.uncategorized
-                          ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
-                          : folder.name
-                      }}
-                    </div>
-                    <!-- 板块：显示「板块」；其余：文档数(+子文件夹) + 大小 -->
+                    />
+                    <!-- 选中时露出首篇文档预览 -->
                     <div
-                      v-if="folder.type === 'section'"
-                      class="mt-0.5 text-xs"
-                      :class="
-                        isFolderSelected(folder)
-                          ? 'text-white/75'
-                          : 'text-n-slate-10'
-                      "
+                      v-if="isFolderSelected(folder) && folder.docs.length"
+                      class="absolute text-xs leading-snug left-3 right-8 top-2.5 line-clamp-1 text-white/85"
                     >
-                      {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SECTION_LABEL') }}
+                      {{ folder.docs[0].summary || folder.docs[0].name }}
                     </div>
-                    <template v-else>
+                    <div class="relative min-w-0">
                       <div
+                        class="text-sm font-semibold truncate"
+                        :class="
+                          isFolderSelected(folder)
+                            ? 'text-white'
+                            : 'text-n-slate-12'
+                        "
+                      >
+                        {{
+                          folder.uncategorized
+                            ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
+                            : folder.name
+                        }}
+                      </div>
+                      <!-- 板块：显示「板块」；其余：文档数(+子文件夹) + 大小 -->
+                      <div
+                        v-if="folder.type === 'section'"
                         class="mt-0.5 text-xs"
                         :class="
                           isFolderSelected(folder)
@@ -1417,132 +1462,109 @@ watch(
                             : 'text-n-slate-10'
                         "
                       >
-                        {{
-                          t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
-                            count: folder.docs.length,
-                          })
-                        }}
-                        <span v-if="folder.childCount">
-                          ·
+                        {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SECTION_LABEL') }}
+                      </div>
+                      <template v-else>
+                        <div
+                          class="mt-0.5 text-xs"
+                          :class="
+                            isFolderSelected(folder)
+                              ? 'text-white/75'
+                              : 'text-n-slate-10'
+                          "
+                        >
                           {{
-                            t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS', {
-                              count: folder.childCount,
+                            t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
+                              count: folder.docs.length,
                             })
                           }}
-                        </span>
-                      </div>
-                      <div
-                        v-if="folderBytes(folder)"
-                        class="mt-0.5 text-xs tabular-nums"
-                        :class="
-                          isFolderSelected(folder)
-                            ? 'text-white/60'
-                            : 'text-n-slate-9'
-                        "
-                      >
-                        {{ fmtSize(folderBytes(folder)) }}
-                      </div>
-                    </template>
+                          <span v-if="folder.childCount">
+                            ·
+                            {{
+                              t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS', {
+                                count: folder.childCount,
+                              })
+                            }}
+                          </span>
+                        </div>
+                        <div
+                          v-if="folderBytes(folder)"
+                          class="mt-0.5 text-xs tabular-nums"
+                          :class="
+                            isFolderSelected(folder)
+                              ? 'text-white/60'
+                              : 'text-n-slate-9'
+                          "
+                        >
+                          {{ fmtSize(folderBytes(folder)) }}
+                        </div>
+                      </template>
+                    </div>
                   </div>
+                </button>
+
+                <!-- 悬停操作：重命名 / 删除（仅分类文件夹，空且无子文件夹才可删）-->
+                <div
+                  v-if="
+                    folder.type === 'category' &&
+                    canManageBoard &&
+                    editingId !== folder.id
+                  "
+                  class="absolute z-10 flex items-center gap-0.5 top-4 right-2 opacity-0 group-hover/folder:opacity-100"
+                >
+                  <button
+                    type="button"
+                    class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-slate-12 hover:bg-n-solid-1"
+                    :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.RENAME')"
+                    @click.stop="startRename(folder)"
+                  >
+                    <span class="i-lucide-pencil size-3.5" />
+                  </button>
+                  <button
+                    v-if="!folder.docs.length && !folder.childCount"
+                    type="button"
+                    class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-ruby-11 hover:bg-n-solid-1"
+                    :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.DELETE')"
+                    @click.stop="removeCategory(folder)"
+                  >
+                    <span class="i-lucide-trash-2 size-3.5" />
+                  </button>
                 </div>
-              </button>
-
-              <!-- 悬停操作：重命名 / 删除（仅分类文件夹，空且无子文件夹才可删）-->
-              <div
-                v-if="
-                  folder.type === 'category' &&
-                  canManageBoard &&
-                  editingId !== folder.id
-                "
-                class="absolute z-10 flex items-center gap-0.5 top-4 right-2 opacity-0 group-hover/folder:opacity-100"
-              >
-                <button
-                  type="button"
-                  class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-slate-12 hover:bg-n-solid-1"
-                  :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.RENAME')"
-                  @click.stop="startRename(folder)"
-                >
-                  <span class="i-lucide-pencil size-3.5" />
-                </button>
-                <button
-                  v-if="!folder.docs.length && !folder.childCount"
-                  type="button"
-                  class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-ruby-11 hover:bg-n-solid-1"
-                  :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.DELETE')"
-                  @click.stop="removeCategory(folder)"
-                >
-                  <span class="i-lucide-trash-2 size-3.5" />
-                </button>
-              </div>
-            </div>
-
-            <!-- 新建文件夹（当前层允许时）-->
-            <div v-if="canAddFolderHere" class="flex flex-col pt-2">
-              <div
-                class="flex items-center justify-center border border-dashed h-28 rounded-xl border-white/60 bg-white/15 backdrop-blur-xl"
-              >
-                <input
-                  v-if="adding"
-                  v-model="newCategoryName"
-                  :placeholder="
-                    t('CRM.KNOWLEDGE_DOCS.CATEGORY.NAME_PLACEHOLDER')
-                  "
-                  class="w-11/12 h-8 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                  @keyup.enter="saveAdd"
-                  @blur="saveAdd"
-                />
-                <button
-                  v-else
-                  type="button"
-                  class="flex flex-col items-center gap-1 text-sm text-n-slate-10 hover:text-n-slate-12"
-                  @click="startAdd"
-                >
-                  <span class="i-lucide-folder-plus size-6" />
-                  {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_FOLDER') }}
-                </button>
-              </div>
-            </div>
-
-            <!-- 新建板块（文档中心根层；建完即时进网格 + 左侧栏）-->
-            <div v-if="canAddSectionHere" class="flex flex-col pt-2">
-              <div
-                class="flex items-center justify-center border border-dashed h-28 rounded-xl border-n-iris-6 bg-n-iris-3/40 backdrop-blur-xl"
-              >
-                <input
-                  v-if="addingRootSection"
-                  v-model="newRootSectionName"
-                  :placeholder="
-                    t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_SECTION_PLACEHOLDER')
-                  "
-                  class="w-11/12 h-8 px-2 text-sm border rounded-md border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                  @keyup.enter="saveAddSection"
-                  @blur="saveAddSection"
-                />
-                <button
-                  v-else
-                  type="button"
-                  class="flex flex-col items-center gap-1 text-sm text-n-iris-11 hover:text-n-iris-12"
-                  @click="startAddSection"
-                >
-                  <span class="i-lucide-folder-plus size-6" />
-                  {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_SECTION') }}
-                </button>
               </div>
             </div>
           </div>
 
-          <!-- 本层文档（搜索时平铺命中；分类/叶子节点显示其文档）-->
+          <!-- 本层文档：标题 + 右上角新建文档；网格只放真实文档（搜索时平铺命中）-->
           <div
             v-if="currentDocs.length || (!isSearching && canCreateDocsHere)"
-            :class="!isSearching && sortedFolders.length ? 'mt-6' : ''"
+            :class="
+              !isSearching &&
+              (sortedFolders.length || canAddFolderHere || canAddSectionHere)
+                ? 'mt-6'
+                : ''
+            "
           >
             <div
-              v-if="!isSearching && sortedFolders.length && currentDocs.length"
-              class="mb-2 text-xs font-medium text-n-slate-10"
+              v-if="!isSearching"
+              class="flex items-center justify-between h-8 mb-2"
             >
-              {{ t('CRM.KNOWLEDGE_DOCS.VIEW.DOCS_HERE') }}
+              <span class="text-xs font-medium text-n-slate-10">
+                {{ t('CRM.KNOWLEDGE_DOCS.VIEW.DOCS_HERE') }}
+              </span>
+              <button
+                v-if="canCreateDocsHere"
+                type="button"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-n-iris-11 hover:bg-n-iris-3"
+                @click="openCreatePanel(currentDocCategory)"
+              >
+                <span class="i-lucide-plus size-3.5" />
+                {{ t('CRM.KNOWLEDGE_DOCS.NEW') }}
+              </button>
             </div>
-            <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            <div
+              v-if="currentDocs.length"
+              class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3"
+            >
               <button
                 v-for="doc in currentDocs"
                 :key="doc.id"
@@ -1590,16 +1612,6 @@ watch(
                     {{ fmtDate(doc.updatedAt) }}
                   </span>
                 </div>
-              </button>
-
-              <button
-                v-if="!isSearching && canCreateDocsHere"
-                type="button"
-                class="flex items-center justify-center gap-1 p-3 text-sm border border-dashed rounded-xl text-n-slate-10 border-n-weak hover:bg-n-alpha-1 hover:text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                @click="openCreatePanel(currentDocCategory)"
-              >
-                <span class="i-lucide-plus size-4" />
-                {{ t('CRM.KNOWLEDGE_DOCS.NEW') }}
               </button>
             </div>
           </div>
