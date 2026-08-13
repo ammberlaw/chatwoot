@@ -44,10 +44,17 @@
 #
 class Mes::Shipment < ApplicationRecord
   include Mes::DocumentNumber
+  include Mes::LineScoped
 
-  STATUSES = %w[DRAFT SHIPPED CANCELLED].freeze
+  # PRODUCTION 出库：DRAFT → SHIPPED（生产流转，原样）。
+  # STOCK 现货出库：PENDING_APPROVAL →(主管审核)→ APPROVED →(仓库)→ SHIPPED；驳回 REJECTED（业务员改后重提）。
+  STATUSES = %w[DRAFT PENDING_APPROVAL APPROVED REJECTED SHIPPED CANCELLED].freeze
+  KINDS = %w[PRODUCTION STOCK].freeze
+  # 现货出库「提交即预占」：待审核/已审核未出库的单占用成品库存，可用=物理结存−预占。
+  RESERVING_STATUSES = %w[PENDING_APPROVAL APPROVED].freeze
   # 出库时销售订单可推进到 SHIPPED 的前置状态。
   SALES_ORDER_ADVANCEABLE = %w[PENDING_CONFIRMATION IN_PRODUCTION PENDING_SHIPMENT].freeze
+  SHIPMENTS_BOARD_KEY = 'mes_shipments_index'
 
   belongs_to :account
   belongs_to :crm_sales_order, class_name: 'Crm::SalesOrder', optional: true
@@ -55,15 +62,72 @@ class Mes::Shipment < ApplicationRecord
   belongs_to :production_order, class_name: 'Mes::ProductionOrder', optional: true
   belongs_to :warehouse, class_name: 'Mes::Warehouse', optional: true
   belongs_to :owner, class_name: 'User', optional: true
+  belongs_to :manager, class_name: 'User', optional: true # 现货出库审核人（CRM 部门主管）
   has_many :shipment_items, class_name: 'Mes::ShipmentItem', dependent: :destroy, inverse_of: :shipment
   accepts_nested_attributes_for :shipment_items, allow_destroy: true
   has_many_attached :files
 
   validates :shipment_no, presence: true, uniqueness: { scope: :account_id }
   validates :status, inclusion: { in: STATUSES }
+  validates :kind, inclusion: { in: KINDS }
 
   def self.document_number_prefix = 'DN'
   def self.document_number_column = :shipment_no
+
+  scope :reserving, -> { where(kind: 'STOCK', status: RESERVING_STATUSES) }
+
+  # 预占量：待审核/已审核未出库的现货出库单占用的成品，按 [crm_product_id, warehouse_id] 汇总。
+  # exclude_id 用于提交自身时排除本单，只看「别人」已预占多少。
+  def self.reserved_qty_map(account, exclude_id: nil)
+    rel = account.mes_shipment_items
+                 .joins(:shipment)
+                 .where(mes_shipments: { kind: 'STOCK', status: RESERVING_STATUSES })
+                 .where.not(crm_product_id: nil)
+    rel = rel.where.not(shipment_id: exclude_id) if exclude_id
+    rel.group('mes_shipment_items.crm_product_id', 'mes_shipments.warehouse_id').sum('mes_shipment_items.qty')
+  end
+
+  def stock? = kind == 'STOCK'
+
+  # 现货出库提交审核：解析业务员所属 CRM 部门主管并落库通知。无主管则直接进「待出库」推仓库。
+  # 重提（REJECTED）沿用同一路径重走审核。
+  def submit_for_approval!(_actor = nil)
+    raise StandardError, '仅现货出库单需要审核' unless stock?
+    raise StandardError, '当前状态无法提交审核' unless %w[DRAFT REJECTED].include?(status)
+
+    ensure_available_for_reservation!
+    self.manager_id = resolve_manager_id
+    self.submitted_at = Time.current
+    self.reject_reason = nil
+    if manager_id.present?
+      update!(status: 'PENDING_APPROVAL')
+      notify_approval_pending
+    else
+      approve_without_manager!
+    end
+    self
+  end
+
+  # 主管审核通过 → 待出库，并推仓库（通知出库板块负责人备货执行）。
+  def approve!(actor)
+    raise StandardError, '非「待审核」环节' unless status == 'PENDING_APPROVAL'
+
+    update!(status: 'APPROVED', manager_id: actor.id, approved_at: Time.current)
+    notify_warehouse_ready
+    self
+  end
+
+  # 主管驳回 → 退回业务员（可改后重提）。需填原因。
+  def reject!(actor, reason:)
+    raise StandardError, '非「待审核」环节' unless status == 'PENDING_APPROVAL'
+
+    update!(status: 'REJECTED', manager_id: actor.id, reject_reason: reason)
+    Mes::Notifier.notify(
+      account: account, recipients: owner_id, kind: 'shipment_rejected',
+      title: "现货出库被驳回：#{shipment_no}", body: "驳回原因：#{reason}"
+    )
+    self
+  end
 
   # 通知出库（XMind 节点8）：仅打时间戳，供仓管/业务员据此备货。
   def notify!
@@ -71,9 +135,12 @@ class Mes::Shipment < ApplicationRecord
   end
 
   # 出库：开成品出库 StockEntry 扣成品库存（并把生产订单推进 SHIPPED），
-  # 回写来源销售订单为「已出货」。
+  # 回写来源销售订单为「已出货」。现货出库须主管审核通过（APPROVED）后仓库方可出库。
   def ship!
-    raise StandardError, '单据已出库或已作废' unless status == 'DRAFT'
+    raise StandardError, '现货出库单需主管审核通过后才能出库' if stock? && status != 'APPROVED'
+    raise StandardError, '单据已出库或已作废' unless stock? || status == 'DRAFT'
+
+    ensure_stock_sufficient!
 
     transaction do
       ts = Time.current
@@ -92,10 +159,91 @@ class Mes::Shipment < ApplicationRecord
 
   private
 
+  def product_line_source = production_order
+
   def writeback_sales_order(timestamp)
     return if crm_sales_order.nil?
     return unless SALES_ORDER_ADVANCEABLE.include?(crm_sales_order.status)
 
     crm_sales_order.update_columns(status: 'SHIPPED', updated_at: timestamp)
+  end
+
+  # 库存不足拦截：逐行校验成品仓结存 ≥ 出库量，不足报错列出缺口（正/现货出库均适用，杜绝负库存）。
+  def ensure_stock_sufficient!
+    shortages = shipment_items.filter_map do |item|
+      balance = account.mes_stock_balances.find_by(
+        item_type: 'PRODUCT', crm_product_id: item.crm_product_id, warehouse_id: warehouse_id
+      )
+      on_hand = balance&.qty.to_d
+      next if on_hand >= item.qty.to_d
+
+      "#{item.crm_product&.name || "成品##{item.crm_product_id}"}（现货 #{fnum(on_hand)}，需 #{fnum(item.qty)}）"
+    end
+    raise StandardError, "成品库存不足，无法出库：#{shortages.join('；')}" if shortages.any?
+  end
+
+  # 提交预占校验：可用（物理结存 − 其他待出库单已预占）≥ 本单出库量，否则拦截，防多人抢同一批现货。
+  def ensure_available_for_reservation!
+    reserved = self.class.reserved_qty_map(account, exclude_id: id)
+    shortages = shipment_items.filter_map { |item| reservation_shortage(item, reserved) }
+    raise StandardError, "可用现货不足（已被其他待出库单预占），无法提交：#{shortages.join('；')}" if shortages.any?
+  end
+
+  def reservation_shortage(item, reserved)
+    balance = account.mes_stock_balances.find_by(
+      item_type: 'PRODUCT', crm_product_id: item.crm_product_id, warehouse_id: warehouse_id
+    )
+    available = balance&.qty.to_d - reserved[[item.crm_product_id, warehouse_id]].to_d
+    return if available >= item.qty.to_d
+
+    "#{item.crm_product&.name || "成品##{item.crm_product_id}"}（可用 #{fnum(available)}，需 #{fnum(item.qty)}）"
+  end
+
+  # 现货出库审核人=业务员所属（主）部门负责人；本人即负责人则向上找上级部门负责人。
+  def resolve_manager_id
+    return nil if owner_id.nil?
+
+    membership = account.org_memberships.where(user_id: owner_id).order(is_primary: :desc, id: :asc).first
+    dept = membership && account.org_departments.find_by(id: membership.department_id)
+    while dept
+      return dept.leader_id if dept.leader_id.present? && dept.leader_id != owner_id
+
+      dept = dept.parent_id && account.org_departments.find_by(id: dept.parent_id)
+    end
+    nil
+  end
+
+  # 无部门主管时：跳过审核直接进「待出库」并推仓库。
+  def approve_without_manager!
+    update!(status: 'APPROVED', approved_at: Time.current)
+    notify_warehouse_ready
+  end
+
+  def notify_approval_pending
+    Mes::Notifier.notify(
+      account: account, recipients: manager_id, kind: 'shipment_approval_pending',
+      title: "待审核：现货出库 #{shipment_no}",
+      body: "#{owner&.name || '业务员'} 提交了现货出库单，待你（部门主管）审核。"
+    )
+  end
+
+  # 推仓库：通知出库板块负责人（仓管）备货执行。
+  def notify_warehouse_ready
+    recipients = account.mes_board_owners.find_by(board_key: SHIPMENTS_BOARD_KEY)&.manager_ids || []
+    Mes::Notifier.notify(
+      account: account, recipients: recipients, kind: 'shipment_approved',
+      title: "待出库：现货出库 #{shipment_no}",
+      body: "#{customer_label}现货出库单已审核通过，请仓库出库。"
+    )
+  end
+
+  def customer_label
+    name = crm_customer&.name
+    name.present? ? "#{name} 的" : ''
+  end
+
+  # 数量文案：去掉多余小数（50.0 → 50）。
+  def fnum(value)
+    format('%g', value.to_f)
   end
 end

@@ -30,6 +30,9 @@
 #  fk_rails_...  (production_order_id => mes_production_orders.id) ON DELETE => cascade
 #
 class Mes::ProductionRecord < ApplicationRecord
+  include Mes::LineScoped
+  include Mes::Returnable
+
   belongs_to :account
   belongs_to :production_order, class_name: 'Mes::ProductionOrder'
   belongs_to :operator, class_name: 'User', optional: true
@@ -41,18 +44,29 @@ class Mes::ProductionRecord < ApplicationRecord
   validates :qty_completed, numericality: { greater_than_or_equal_to: 0 }
   validates :qty_returned, :qty_scrap, numericality: { greater_than_or_equal_to: 0 }
 
+  # ── 单据退回（Mes::Returnable）──：退回目标 = 生产领料板块（料不对退回仓库/领料）。
+  # 报工无过账态、无单号，恒可退，单号用 报工#id。
+  def document_board_key = 'mes_production_records_index'
+  def return_document_label = '生产报工单'
+  def return_document_no = "报工##{id}"
+  def returnable? = true
+
   private
 
   def inherit_account
     self.account_id ||= production_order&.account_id
   end
 
+  def product_line_source = production_order
+
   def stamp_recorded_at
     self.recorded_at ||= Time.current
   end
 
-  # 报工累加已产数量并推进阶段（首次报工 PICKING → PRODUCTION）。
+  # 报工累加已产数量并推进阶段（首次报工 PICKING → PRODUCTION），
+  # 有实际产出则通知仓库来做成品入库（全部/部分完工都推）。
   def apply_to_production_order
     production_order.add_produced!(qty_completed)
+    production_order.notify_fg_inbound_ready(qty_completed, actor: operator) if qty_completed.to_d.positive?
   end
 end

@@ -1,6 +1,8 @@
 class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::BaseController
+  include Api::V1::Accounts::Mes::DocumentReturnable
+
   before_action :check_authorization
-  before_action :fetch_stock_entry, only: [:show, :update, :destroy, :post]
+  before_action :fetch_stock_entry, only: [:show, :update, :destroy, :post, :confirm_warehouse]
 
   COLUMN_FILTERS = {
     purpose: :purpose, status: :status,
@@ -8,7 +10,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   }.freeze
 
   def index
-    scope = Current.account.mes_stock_entries
+    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_stock_entries))
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
@@ -19,13 +21,20 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   def show; end
 
   def create
-    @stock_entry = Current.account.mes_stock_entries.create!(
+    @stock_entry = Current.account.mes_stock_entries.new(
       stock_entry_params.merge(owner_id: stock_entry_params[:owner_id] || current_user.id)
     )
+    # 成品入库(MANUFACTURE)由车间(report)开单；其余库存单仍限仓管(stock)。
+    raise Pundit::NotAuthorizedError if @stock_entry.purpose != 'MANUFACTURE' && !Current.account_user.mes_can?(:stock)
+
+    @stock_entry.fallback_product_line = current_product_line
+    @stock_entry.save!
     render 'api/v1/accounts/mes/stock_entries/show'
   end
 
   def update
+    raise Pundit::NotAuthorizedError if @stock_entry.purpose != 'MANUFACTURE' && !Current.account_user.mes_can?(:stock)
+
     @stock_entry.update!(stock_entry_params)
     render 'api/v1/accounts/mes/stock_entries/show'
   end
@@ -43,10 +52,26 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # 成品入库：仓管清点数量确认（stock 能力），确认后直接过账入库。
+  def confirm_warehouse
+    @stock_entry.confirm_warehouse!(current_user)
+    render 'api/v1/accounts/mes/stock_entries/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
 
   def fetch_stock_entry
     @stock_entry = Current.account.mes_stock_entries.find(params[:id])
+  end
+
+  # DocumentReturnable 钩子
+  def returnable_record = Current.account.mes_stock_entries.find(params[:id])
+
+  def render_returnable(record)
+    @stock_entry = record
+    render 'api/v1/accounts/mes/stock_entries/show'
   end
 
   def check_authorization
@@ -56,7 +81,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   def stock_entry_params
     params.require(:stock_entry).permit(
       :purpose, :production_order_id, :purchase_order_id, :from_warehouse_id, :to_warehouse_id,
-      :is_checked, :checked_by_id, :received_by_id, :owner_id, :remark,
+      :is_checked, :checked_by_id, :received_by_id, :owner_id, :remark, :actual_inbound_date, :color,
       stock_entry_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :qty, :received_qty, :unit, :warehouse_id, :remark, :_destroy
       ]

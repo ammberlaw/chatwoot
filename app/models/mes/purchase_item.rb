@@ -35,14 +35,20 @@
 #  fk_rails_...  (purchase_order_id => mes_purchase_orders.id) ON DELETE => cascade
 #
 class Mes::PurchaseItem < ApplicationRecord
+  # MATERIAL=生产用料（挂 mes_material）；PRODUCT=外购成品（挂 crm_product，不经过生产部）。
+  ITEM_TYPES = %w[MATERIAL PRODUCT].freeze
+
   belongs_to :account
   belongs_to :purchase_order, class_name: 'Mes::PurchaseOrder', inverse_of: :purchase_items
   belongs_to :mes_material, class_name: 'Mes::Material', optional: true
+  belongs_to :crm_product, class_name: 'Crm::Product', optional: true
+  belongs_to :mes_supplier, class_name: 'Mes::Supplier', optional: true
 
   before_validation :inherit_account, :compute_amount
-  after_save :sync_total
   after_destroy :sync_total
+  after_save :sync_total
 
+  validates :item_type, inclusion: { in: ITEM_TYPES }
   validates :qty, presence: true, numericality: { greater_than: 0 }
 
   private

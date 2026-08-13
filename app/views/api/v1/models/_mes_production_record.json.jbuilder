@@ -1,6 +1,7 @@
 json.id resource.id
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
+json.production_order_owner_name resource.production_order&.owner&.name
 json.operation_name resource.operation_name
 json.qty_completed resource.qty_completed
 json.qty_returned resource.qty_returned
@@ -9,4 +10,5 @@ json.operator_id resource.operator_id
 json.operator_name resource.operator&.name
 json.recorded_at resource.recorded_at
 json.remark resource.remark
+json.partial! 'api/v1/models/mes_return_state', formats: [:json], resource: resource
 json.created_at resource.created_at

@@ -43,6 +43,8 @@
 #  fk_rails_...  (purchase_order_id => mes_purchase_orders.id) ON DELETE => nullify
 #
 class Mes::Inspection < ApplicationRecord
+  include Mes::LineScoped
+
   KINDS = %w[IQC IPQC FQC AGING].freeze
   RESULTS = %w[PASS FAIL CONDITIONAL].freeze
 
@@ -63,6 +65,8 @@ class Mes::Inspection < ApplicationRecord
   scope :this_month, -> { where(inspected_at: Time.current.beginning_of_month..Time.current.end_of_month) }
 
   private
+
+  def product_line_source = production_order || purchase_order || crm_product || mes_material
 
   def stamp_inspected_at
     self.inspected_at ||= Time.current

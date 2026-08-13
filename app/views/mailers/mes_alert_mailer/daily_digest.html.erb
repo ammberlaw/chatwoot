@@ -1,5 +1,5 @@
 <% stage_labels = {
-  'SALES_CONFIRMED' => '销售订单确定', 'BOM_READY' => '工程BOM', 'PURCHASING' => '采购原料',
+  'SALES_CONFIRMED' => '销售订单确定', 'BOM_READY' => '工程/PMC BOM', 'PURCHASING' => '采购原料',
   'MATERIAL_INBOUND' => '原料入库', 'PICKING' => '生产领料', 'PRODUCTION' => '生产',
   'FG_INBOUND' => '成品入库', 'SHIPPED' => '销售出库'
 } %>
@@ -29,6 +29,15 @@
   <ul>
     <% @alerts[:stalled].each do |o| %>
       <li><%= o[:order_no] %> — 停留在「<%= stage_labels[o[:stage]] %>」<%= o[:days] %> 天</li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if Array(@alerts[:unacked]).any? %>
+  <h3 style="color:#c0392b;">🔴 未接单超时（<%= @alerts[:unacked].size %>）</h3>
+  <ul>
+    <% @alerts[:unacked].each do |o| %>
+      <li><%= o[:order_no] %> · <%= o[:product_name] %> — 停在「<%= stage_labels[o[:stage]] %>」已 <%= o[:hours] %> 小时未接单</li>
     <% end %>
   </ul>
 <% end %>

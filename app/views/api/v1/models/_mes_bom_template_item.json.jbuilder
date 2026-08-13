@@ -1,0 +1,7 @@
+json.id resource.id
+json.material_no resource.material_no
+json.material_name resource.material_name
+json.specification resource.specification
+json.qty resource.qty
+json.unit resource.unit
+json.remark resource.remark

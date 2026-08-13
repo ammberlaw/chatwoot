@@ -4,16 +4,20 @@ class Mes::AlertScannerService
   STALL_DAYS = 3
   DUE_SOON_DAYS = 3
 
-  def initialize(account)
+  def initialize(account, product_line: nil, owner_ids: :all)
     @account = account
+    @product_line = product_line.presence
+    @owner_ids = owner_ids
   end
 
   def call
-    open_orders = @account.mes_production_orders
+    open_orders = @account.mes_production_orders.published
                           .where.not(status: 'CANCELLED').where.not(stage: 'SHIPPED')
                           .includes(:stage_events)
-    overdue, due_soon, stalled = classify(open_orders)
-    { overdue: overdue, due_soon: due_soon, stalled: stalled, shortages: shortages }
+    open_orders = open_orders.where(product_line: @product_line) if @product_line
+    open_orders = open_orders.where(owner_id: @owner_ids) unless @owner_ids == :all
+    overdue, due_soon, stalled, unacked = classify(open_orders)
+    { overdue: overdue, due_soon: due_soon, stalled: stalled, unacked: unacked, shortages: shortages }
   end
 
   private
@@ -23,6 +27,7 @@ class Mes::AlertScannerService
     overdue = []
     due_soon = []
     stalled = []
+    unacked = []
     orders.each do |po|
       row = order_row(po)
       if po.delivery_date.present? && po.delivery_date < now
@@ -30,13 +35,26 @@ class Mes::AlertScannerService
       elsif po.delivery_date.present? && po.delivery_date <= now + DUE_SOON_DAYS.days
         due_soon << row.merge(days: ((po.delivery_date - now) / 1.day).ceil)
       end
+      # 未接单超时（装死）：进入阶段过了接单时限仍没人接单。小时数按工作时间累计（跳周末/下班）。
+      unacked << row.merge(hours: worked_hours_since(po.stage_entered_at, now), owner_names: po.current_stage_owner_names) if po.ack_overdue?
+
       ev = po.stage_events.find { |e| e.stage == po.stage }
       next unless ev
 
       days = ((now - ev.entered_at) / 1.day).floor
       stalled << row.merge(days: days) if days >= STALL_DAYS
     end
-    [overdue.sort_by { |r| -r[:days] }, due_soon.sort_by { |r| r[:days] }, stalled.sort_by { |r| -r[:days] }]
+    [
+      overdue.sort_by { |r| -r[:days] },
+      due_soon.sort_by { |r| r[:days] },
+      stalled.sort_by { |r| -r[:days] },
+      unacked.sort_by { |r| -r[:hours] }
+    ]
+  end
+
+  # 两时刻间的工作小时数（工作日 08:00–17:30、跳周末），向下取整。
+  def worked_hours_since(from, to)
+    (WorkingHours.working_time_between(from, to) / 1.hour).floor
   end
 
   def order_row(po)
@@ -44,8 +62,9 @@ class Mes::AlertScannerService
   end
 
   def shortages
-    @account.mes_stock_balances.includes(:mes_material, :warehouse).where('qty <> 0')
-            .select(&:short?)
+    scope = @account.mes_stock_balances.includes(:mes_material, :warehouse).where('qty <> 0')
+    scope = scope.where(product_line: @product_line) if @product_line
+    scope.select(&:short?)
             .map do |b|
       { material_name: b.mes_material&.name, warehouse_name: b.warehouse&.name, qty: b.qty, safety_stock: b.mes_material&.safety_stock }
     end

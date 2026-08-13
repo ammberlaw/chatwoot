@@ -1,8 +1,10 @@
 class Api::V1::Accounts::Mes::ProductionRecordsController < Api::V1::Accounts::Mes::BaseController
+  include Api::V1::Accounts::Mes::DocumentReturnable
+
   before_action :check_authorization
 
   def index
-    scope = Current.account.mes_production_records
+    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_production_records))
     scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?
     @production_records_count = scope.count
     @production_records = scope.order(recorded_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
@@ -21,6 +23,14 @@ class Api::V1::Accounts::Mes::ProductionRecordsController < Api::V1::Accounts::M
   end
 
   private
+
+  # DocumentReturnable 钩子
+  def returnable_record = Current.account.mes_production_records.find(params[:id])
+
+  def render_returnable(record)
+    @production_record = record
+    render 'api/v1/accounts/mes/production_records/show'
+  end
 
   def check_authorization
     authorize(Mes::ProductionRecord)

@@ -3,6 +3,9 @@ class Mes::ProductionRecordPolicy < ApplicationPolicy
 
   def create? = @account_user.mes_can?(:report)
 
+  def return_document? = @account_user.mes_can?(:report)
+  def reactivate? = @account_user.mes_can?(:report)
+
   def destroy? = @account_user.administrator?
 end
 

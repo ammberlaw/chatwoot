@@ -1,11 +1,13 @@
 class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes::BaseController
+  include Api::V1::Accounts::Mes::DocumentReturnable
+
   before_action :check_authorization
   before_action :fetch_purchase_order, only: [:show, :update, :destroy]
 
-  COLUMN_FILTERS = { status: :status, mes_supplier_id: :mes_supplier_id, production_order_id: :production_order_id }.freeze
+  COLUMN_FILTERS = { status: :status, production_order_id: :production_order_id }.freeze
 
   def index
-    scope = Current.account.mes_purchase_orders
+    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_purchase_orders))
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
@@ -18,9 +20,11 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   def show; end
 
   def create
-    @purchase_order = Current.account.mes_purchase_orders.create!(
+    @purchase_order = Current.account.mes_purchase_orders.new(
       purchase_order_params.merge(owner_id: purchase_order_params[:owner_id] || current_user.id)
     )
+    @purchase_order.fallback_product_line = current_product_line
+    @purchase_order.save!
     render 'api/v1/accounts/mes/purchase_orders/show'
   end
 
@@ -37,7 +41,8 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   # BOM 算料：按生产订单的 BOM 展开采购需求，供采购单预填。
   def requirement
     production_order = Current.account.mes_production_orders.find(params[:production_order_id])
-    render json: { payload: production_order.material_requirements }
+    # category 可选：MACHINE 主料(整机料) / PACKAGING 辅料(包装料)——支持两个采购员分料建单。
+    render json: { payload: production_order.material_requirements(category: params[:category].presence) }
   end
 
   private
@@ -46,15 +51,26 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     @purchase_order = Current.account.mes_purchase_orders.find(params[:id])
   end
 
+  # DocumentReturnable 钩子
+  def returnable_record = Current.account.mes_purchase_orders.find(params[:id])
+
+  def render_returnable(record)
+    @purchase_order = record
+    render 'api/v1/accounts/mes/purchase_orders/show'
+  end
+
   def check_authorization
     authorize(Mes::PurchaseOrder)
   end
 
   def purchase_order_params
     params.require(:purchase_order).permit(
-      :mes_supplier_id, :production_order_id, :status, :expected_date, :follow_up_date,
+      :production_order_id, :status, :expected_date, :follow_up_date,
       :has_exception, :exception_note, :owner_id, :remark,
-      purchase_items_attributes: [:id, :mes_material_id, :qty, :unit, :rate_micros, :received_qty, :remark, :_destroy]
+      purchase_items_attributes: [
+        :id, :item_type, :mes_material_id, :crm_product_id, :mes_supplier_id, :arrival_date,
+        :qty, :unit, :rate_micros, :received_qty, :remark, :_destroy
+      ]
     )
   end
 end

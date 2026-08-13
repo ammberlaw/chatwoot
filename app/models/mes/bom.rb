@@ -51,23 +51,43 @@
 #
 class Mes::Bom < ApplicationRecord
   include Mes::DocumentNumber
+  include Mes::LineScoped
 
   belongs_to :account
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true
-  belongs_to :owner, class_name: 'User', optional: true
+  belongs_to :owner, class_name: 'User', optional: true # 负责人：起草本 BOM 的工程/PMC 账号
+  belongs_to :sales_owner, class_name: 'User', optional: true # 订单归属业务员
   has_many :bom_items, class_name: 'Mes::BomItem', dependent: :destroy, inverse_of: :bom
   accepts_nested_attributes_for :bom_items, allow_destroy: true
+  has_many_attached :images # 结构图/样品图（缩略展示）
+  has_many_attached :files  # 附件（工艺文档/图纸等）
+
+  # 按阶段预估天数（工程/PMC 分部门填），求和 = 预计生产周期（不含销售出库/物流）。
+  LEAD_DAY_COLUMNS = %i[purchasing_days material_inbound_days picking_days production_days fg_inbound_days].freeze
+
+  # 草稿/下发：草稿可反复编辑、对下游隐藏；下发后才可被生产订单挂用。
+  STATUSES = %w[DRAFT RELEASED].freeze
 
   validates :bom_no, presence: true, uniqueness: { scope: :account_id }
   validates :base_qty, numericality: { greater_than: 0 }
+  validates :status, inclusion: { in: STATUSES }
 
   scope :active, -> { where(is_active: true) }
+  scope :released, -> { where(status: 'RELEASED') }
+
+  def released? = status == 'RELEASED'
+  def draft? = status == 'DRAFT'
 
   def self.document_number_prefix = 'BOM'
   def self.document_number_column = :bom_no
 
-  # 用料汇总成本（只读，随明细增改回写）。
-  def recompute_total_cost!
-    update_column(:total_material_cost_micros, bom_items.sum(:amount_micros))
+  # 各阶段预估天数求和；无填写则回退旧的整体预估交期。
+  def total_lead_days
+    sum = LEAD_DAY_COLUMNS.sum { |col| public_send(col).to_i }
+    sum.positive? ? sum : estimated_lead_days.to_i
   end
+
+  private
+
+  def product_line_source = crm_product
 end

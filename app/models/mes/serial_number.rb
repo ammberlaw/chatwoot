@@ -31,6 +31,8 @@
 #  fk_rails_...  (shipment_id => mes_shipments.id) ON DELETE => nullify
 #
 class Mes::SerialNumber < ApplicationRecord
+  include Mes::LineScoped
+
   STATUSES = %w[IN_STOCK SHIPPED RMA].freeze
 
   belongs_to :account
@@ -40,4 +42,8 @@ class Mes::SerialNumber < ApplicationRecord
 
   validates :sn, presence: true, uniqueness: { scope: :account_id }
   validates :status, inclusion: { in: STATUSES }
+
+  private
+
+  def product_line_source = production_order || crm_product
 end

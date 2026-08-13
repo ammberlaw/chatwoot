@@ -38,6 +38,9 @@ class Mes::Supplier < ApplicationRecord
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true
   has_many :materials, class_name: 'Mes::Material', foreign_key: :default_supplier_id, dependent: :nullify, inverse_of: :default_supplier
+  has_many :supplier_items, class_name: 'Mes::SupplierItem', dependent: :destroy, inverse_of: :supplier
+
+  accepts_nested_attributes_for :supplier_items, allow_destroy: true
 
   before_validation :assign_supplier_no, on: :create
 

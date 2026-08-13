@@ -8,10 +8,12 @@ import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
@@ -29,13 +31,44 @@ const KIND_LABELS = {
   FQC: '成品检验',
   AGING: '老化测试',
 };
-const kindOptions = Object.entries(KIND_LABELS).map(([value, label]) => ({ value, label }));
+const kindOptions = Object.entries(KIND_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
 const kindLabel = k => KIND_LABELS[k] || k;
 const RESULT = {
   PASS: { label: '合格', cls: 'bg-n-teal-3 text-n-teal-11' },
   FAIL: { label: '不合格', cls: 'bg-n-ruby-3 text-n-ruby-11' },
   CONDITIONAL: { label: '让步接收', cls: 'bg-n-amber-3 text-n-amber-11' },
 };
+
+// 只读查看
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = r => {
+  viewing.value = r;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const r = viewing.value || {};
+  return [
+    { label: '检验类型', value: kindLabel(r.kind) },
+    {
+      label: '对象',
+      value: r.productionOrderNo || r.materialName || r.productName,
+    },
+    { label: '归属人', value: r.productionOrderOwnerName },
+    { label: '检验数', value: r.inspectedQty },
+    { label: '合格数', value: r.passedQty },
+    { label: '不良数', value: r.failedQty },
+    { label: '结果', value: RESULT[r.result]?.label || r.result },
+    { label: '不良原因', value: r.defectReason },
+    { label: '需返修', value: r.needRework ? '是' : '否' },
+    { label: '检验员', value: r.inspectorName },
+    { label: '检验日期', value: day(r.inspectedAt) },
+    { label: '备注', value: r.remark },
+  ];
+});
 
 const productionOrders = ref([]);
 const productionOrderOptions = computed(() => [
@@ -132,29 +165,42 @@ onMounted(() => {
       />
     </div>
 
+    <MesBoardOwnerBar board-key="mes_inspections_index" />
+
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">类型</th>
             <th class="px-3 py-3 font-medium">对象</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">检验/合格/不良</th>
             <th class="px-3 py-3 font-medium">结果</th>
             <th class="px-3 py-3 font-medium">不良原因</th>
             <th class="px-3 py-3 font-medium">检验员</th>
             <th class="px-3 py-3 font-medium">日期</th>
+            <th class="px-3 py-3" />
           </tr>
         </thead>
         <tbody>
           <tr v-for="r in records" :key="r.id" class="border-b border-n-weak">
             <td class="px-3 py-3 text-n-slate-12">{{ kindLabel(r.kind) }}</td>
             <td class="px-3 py-3 text-n-slate-11">
-              {{ r.productionOrderNo || r.materialName || r.productName || '—' }}
+              {{
+                r.productionOrderNo || r.materialName || r.productName || '—'
+              }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ r.productionOrderOwnerName || '—' }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ r.inspectedQty }} / {{ r.passedQty }} /
-              <span :class="r.failedQty > 0 ? 'text-n-ruby-11' : ''">{{ r.failedQty }}</span>
+              <span :class="r.failedQty > 0 ? 'text-n-ruby-11' : ''">{{
+                r.failedQty
+              }}</span>
             </td>
             <td class="px-3 py-3">
               <span
@@ -165,12 +211,24 @@ onMounted(() => {
                 {{ RESULT[r.result].label }}
               </span>
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ r.defectReason || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ r.inspectorName || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ r.defectReason || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ r.inspectorName || '—' }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(r.inspectedAt) }}</td>
+            <td class="px-3 py-3 text-right">
+              <Button
+                label="查看"
+                variant="ghost"
+                size="sm"
+                @click="openView(r)"
+              />
+            </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
               还没有检验记录。
             </td>
           </tr>
@@ -192,7 +250,8 @@ onMounted(() => {
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">检验类型</label>
-            <Select
+            <SelectCard
+              size="form"
               :model-value="form.kind"
               :options="kindOptions"
               @update:model-value="v => (form.kind = v)"
@@ -208,8 +267,9 @@ onMounted(() => {
               :options="materialOptions"
               placeholder="选择物料"
             />
-            <Select
+            <SelectCard
               v-else
+              size="form"
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
               @update:model-value="v => (form.productionOrderId = v)"
@@ -234,7 +294,10 @@ onMounted(() => {
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">不良原因</label>
-          <Input v-model="form.defectReason" placeholder="如：触摸失灵 / 玻璃划伤" />
+          <Input
+            v-model="form.defectReason"
+            placeholder="如：触摸失灵 / 玻璃划伤"
+          />
         </div>
         <label class="flex items-center gap-2 text-heading-3 text-n-slate-12">
           <input v-model="form.needRework" type="checkbox" />
@@ -242,5 +305,7 @@ onMounted(() => {
         </label>
       </div>
     </Dialog>
+
+    <MesViewDialog ref="viewDialogRef" title="质检明细" :fields="viewFields" />
   </div>
 </template>

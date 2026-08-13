@@ -1,11 +1,15 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
-  before_action :fetch_production_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :requirement]
+  before_action :fetch_production_order,
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :confirm_bom, :release_purchasing, :requirement,
+                       :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced]
+  before_action :ensure_own_draft!, only: [:update, :attach, :detach]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
   def index
-    scope = Current.account.mes_production_orders
+    scope = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders.visible_to(current_user)))
+    scope = apply_list_scope(scope)
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
@@ -17,38 +21,194 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   def show; end
 
   def create
-    @production_order = Current.account.mes_production_orders.create!(
+    @production_order = Current.account.mes_production_orders.new(
       production_order_params.merge(owner_id: production_order_params[:owner_id] || current_user.id)
     )
+    # 无 :order 能力的业务角色：只能给自己建「按单生产」单（备货/代建仍归 PMC/管理员）。
+    unless Current.account_user.mes_can?(:order)
+      @production_order.owner_id = current_user.id
+      @production_order.order_kind = 'CUSTOMER'
+      # 业务员建单：订单编号须从 CRM 销售订单下拉选择关联（带出 PI 号）。
+      if @production_order.crm_sales_order_id.blank?
+        return render json: { error: '请先关联 CRM 销售订单（订单编号从销售订单下拉选择）' }, status: :unprocessable_entity
+      end
+    end
+    @production_order.fallback_product_line = current_product_line
+    @production_order.save!
+    # submit=true：建单即提交审批（业务员点「提交审批」）；否则留草稿。
+    @production_order.submit_for_approval!(current_user) if boolean_param(:submit)
     render 'api/v1/accounts/mes/production_orders/show'
+  end
+
+  # 暂存文件为 ActiveStorage blob（建单前即可上传）：返回 signed_id，建单时通过 images/files 挂载。
+  def stage_blob
+    file = params[:file]
+    return render json: { error: '未收到文件' }, status: :unprocessable_entity if file.blank?
+
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: file.open, filename: file.original_filename, content_type: file.content_type
+    )
+    render json: { signed_id: blob.signed_id, filename: blob.filename.to_s, url: rails_blob_path(blob, only_path: true) }
   end
 
   # 从销售订单一键转生产订单（脊柱起点）。成品/数量优先取参数，缺则从销售订单带默认。
   def convert
     sales_order = Current.account.crm_sales_orders.find(params[:crm_sales_order_id])
     product = Current.account.crm_products.find_by(id: params[:crm_product_id])
-    @production_order = Current.account.mes_production_orders.create!(
+    @production_order = Current.account.mes_production_orders.new(
       crm_sales_order: sales_order,
       crm_product: product,
       product_name: params[:product_name].presence || product&.name,
       qty: params[:qty],
       unit: params[:unit],
       delivery_date: params[:delivery_date].presence || sales_order.delivery_date,
-      owner_id: params[:owner_id] || current_user.id
+      owner_id: params[:owner_id] || current_user.id,
+      approval_status: 'APPROVED' # 由已确认销售订单转入，直接生效、进入生产流转
     )
+    @production_order.fallback_product_line = current_product_line
+    @production_order.save!
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
-  # 按 BOM 推料（生产领料预填）：返回该生产订单的用料需求。
+  # 按 BOM 推料（生产领料预填）：默认只推**整机生产物料**（包装物料未到不挡开产，
+  # 打包时再另领）；传 category=PACKAGING 可单推包装料。
   def requirement
-    render json: { payload: @production_order.material_requirements }
+    category = params[:category].presence || 'MACHINE'
+    render json: { payload: @production_order.material_requirements(category: category) }
   end
 
-  # 挂工程 BOM（阶段 2）：绑 BOM + 预估交期 → 进 BOM_READY。
+  # 挂工程 BOM（阶段 2）：绑 BOM + 期望交期 → 进 BOM_READY。预估完工仍按 BOM 天数自动算。
   def attach_bom
     bom = Current.account.mes_boms.find(params[:bom_id])
-    @production_order.attach_bom!(bom, planned_end: params[:planned_end_date])
+    @production_order.update!(delivery_date: params[:delivery_date]) if params[:delivery_date].present?
+    @production_order.attach_bom!(bom)
     render 'api/v1/accounts/mes/production_orders/show'
+  end
+
+  # 业务二次确认 BOM（BOM_READY 段内的闸）：仅创建人（业务员）或管理员可确认。
+  def confirm_bom
+    return render json: { error: '只有业务员可二次确认 BOM' }, status: :forbidden unless @production_order.owner_id == current_user.id || admin_like?
+
+    @production_order.confirm_bom!(current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING）。
+  def release_purchasing
+    @production_order.release_to_purchasing!(actor: current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 工程判定为外购成品：选定产品+供应商，跳过 BOM 直接进采购（短版脊柱）。
+  def mark_outsourced
+    @production_order.mark_outsourced!(
+      crm_product_id: params[:crm_product_id].presence,
+      supplier_id: params[:mes_supplier_id].presence,
+      product_name: params[:product_name].presence,
+      actor: current_user
+    )
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 接单：本阶段负责人（或管理员）确认接手。计时不受影响，仅定性。
+  def acknowledge
+    return render json: { error: '只有本阶段负责人可接单' }, status: :forbidden unless can_handle_stage?(@production_order)
+
+    @production_order.acknowledge!(current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 拒收打回：退回上一阶段并记原因，责任明确回上游。
+  def reject
+    return render json: { error: '只有本阶段负责人可拒收' }, status: :forbidden unless can_handle_stage?(@production_order)
+
+    reason = params[:reason].to_s.strip
+    return render json: { error: '请填写退回原因' }, status: :unprocessable_entity if reason.blank?
+
+    @production_order.reject_to_previous!(actor: current_user, reason: reason)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 我的待办：当前停在「我负责的阶段」的在产订单（到岗通知的拉取面）。
+  def inbox
+    owners = Current.account.mes_board_owners.index_by(&:board_key)
+    open_orders = Current.account.mes_production_orders.published
+                         .where(status: 'IN_PROGRESS').where.not(stage: 'SHIPPED')
+                         .includes(:stage_events).order(created_at: :desc)
+    mine = open_orders.select do |po|
+      key = Mes::ProductionOrder::INBOX_BOARD_KEYS[po.stage]
+      key && owners[key]&.manager_ids&.include?(current_user.id)
+    end
+    render json: { payload: mine.map { |po| inbox_row(po) } }
+  end
+
+  # ── 审批链：提交 → 部门主管通过/驳回 → 总经理通过/驳回 ──
+
+  # 提交审批（草稿/被驳回 → 待部门主管）。仅创建人或管理员可提交。
+  def submit_approval
+    return render json: { error: '只有创建人可提交审批' }, status: :forbidden unless @production_order.owner_id == current_user.id || admin_like?
+
+    @production_order.submit_for_approval!(current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 通过：按当前环节校验审批人（部门主管本人 / 总经理本人 / 管理员）。
+  def approve
+    return render json: { error: '无权审批当前环节' }, status: :forbidden unless can_approve?(@production_order)
+
+    comment = params[:comment].to_s.strip.presence
+    case @production_order.approval_status
+    when 'SUBMITTED' then @production_order.manager_approve!(current_user, comment: comment)
+    when 'MANAGER_APPROVED' then @production_order.gm_approve!(current_user, comment: comment)
+    else return render json: { error: '当前状态无法审批' }, status: :unprocessable_entity
+    end
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 驳回：退回业务员（可改后重提）。需填原因。
+  def deny
+    return render json: { error: '无权审批当前环节' }, status: :forbidden unless can_approve?(@production_order)
+
+    reason = params[:reason].to_s.strip
+    return render json: { error: '请填写驳回原因' }, status: :unprocessable_entity if reason.blank?
+
+    @production_order.reject_approval!(current_user, reason: reason)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 待我确认：停在我这一级的审批单（部门主管/总经理）+ 待我二次确认 BOM 的单（业务员）。
+  def approval_inbox
+    base = Current.account.mes_production_orders
+    scope = base.awaiting_manager_for(current_user.id)
+                .or(base.awaiting_gm_for(current_user.id))
+                .or(base.awaiting_bom_confirm_for(current_user.id))
+    @production_orders = scope.includes(:owner).order(submitted_at: :desc)
+    @production_orders_count = @production_orders.size
+    render 'api/v1/accounts/mes/production_orders/index'
+  end
+
+  # 产品编码：由工程/PMC 编写（唯一，供 ERP 共享）。策略 set_product_code? 限 bom 能力。
+  def set_product_code
+    @production_order.update!(product_code: params[:product_code].to_s.strip.presence)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { error: e.record.errors[:product_code].first || e.message }, status: :unprocessable_entity
   end
 
   def update
@@ -61,13 +221,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     head :ok
   end
 
+  # kind = images（产品图片）| files（附件），默认 files。
+  ATTACH_COLLECTIONS = { 'images' => :images, 'files' => :files }.freeze
+
   def attach
-    @production_order.files.attach(params[:files])
+    @production_order.public_send(attach_collection).attach(params[:files])
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
   def detach
-    @production_order.files.find(params[:attachment_id]).purge
+    @production_order.public_send(attach_collection).find(params[:attachment_id]).purge
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
@@ -86,19 +249,79 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   private
 
+  # 列表分档：mine=我的客户订单（归属我）｜ stock=库存备货（全业务共享）｜ all=可见全部。
+  def apply_list_scope(scope)
+    case params[:list_scope]
+    when 'mine' then scope.where(owner_id: current_user.id, order_kind: 'CUSTOMER')
+    when 'stock' then scope.stock
+    else scope
+    end
+  end
+
   def fetch_production_order
     @production_order = Current.account.mes_production_orders.find(params[:id])
+  end
+
+  def attach_collection
+    ATTACH_COLLECTIONS[params[:kind]] || :files
+  end
+
+  # 能否处理该阶段：本阶段负责人本人，或管理员/副管理员。
+  def can_handle_stage?(order)
+    admin_like? || order.current_stage_owner_ids.include?(current_user.id)
+  end
+
+  def admin_like?
+    Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+  end
+
+  # 能否审批当前环节：管理员，或本环节指定审批人本人。
+  def can_approve?(order)
+    return false unless order.pending_approval?
+    return true if admin_like?
+
+    order.current_approver_id == current_user.id
+  end
+
+  def boolean_param(key)
+    ActiveModel::Type::Boolean.new.cast(params[key])
+  end
+
+  def inbox_row(order)
+    {
+      id: order.id,
+      order_no: order.order_no,
+      product_name: order.product_name,
+      stage: order.stage,
+      awaiting_ack: order.awaiting_ack?,
+      ack_overdue: order.ack_overdue?,
+      ack_deadline: order.ack_deadline,
+      entered_at: order.stage_entered_at
+    }
   end
 
   def check_authorization
     authorize(Mes::ProductionOrder)
   end
 
+  # 无 :order 能力的业务角色只能改**本人的草稿**（建单后调整/驳回重提）；PMC/管理员不受限。
+  def ensure_own_draft!
+    return if Current.account_user.mes_can?(:order)
+    return if @production_order.is_draft && @production_order.owner_id == current_user.id
+
+    render json: { error: '仅本人草稿可修改' }, status: :forbidden
+  end
+
   def production_order_params
-    params.require(:production_order).permit(
-      :crm_sales_order_id, :crm_product_id, :product_name, :qty, :unit, :produced_qty,
-      :bom_id, :stage, :status, :delivery_date, :planned_start_date, :planned_end_date,
-      :actual_start_date, :actual_end_date, :owner_id, :remark, files: []
+    permitted = params.require(:production_order).permit(
+      :crm_sales_order_id, :crm_customer_id, :crm_product_id, :product_name, :qty, :unit, :produced_qty, :pi_no,
+      :bom_id, :stage, :status, :order_kind, :delivery_date, :planned_start_date, :planned_end_date,
+      :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line,
+      images: [], files: [] # 建单时挂载已暂存的 blob signed_id
     )
+    # spec 为按产品线的定制规格 jsonb（字段动态），整体透传。
+    raw_spec = params.require(:production_order)[:spec]
+    permitted[:spec] = raw_spec.respond_to?(:permit!) ? raw_spec.permit!.to_h : raw_spec if raw_spec.present?
+    permitted
   end
 end

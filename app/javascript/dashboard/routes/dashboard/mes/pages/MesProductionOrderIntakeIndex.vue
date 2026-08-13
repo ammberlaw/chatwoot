@@ -1,0 +1,714 @@
+<script setup>
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAlert } from 'dashboard/composables';
+import { useMapGetter } from 'dashboard/composables/store';
+import { useAccount } from 'dashboard/composables/useAccount';
+import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
+import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
+import CrmSalesOrderAPI from 'dashboard/api/crm/salesOrders';
+import CrmCustomerAPI from 'dashboard/api/crm/customers';
+import { getActiveProductLine } from 'dashboard/composables/useMesProductLine';
+import {
+  SPEC_TEMPLATES,
+  blankSpec,
+} from 'dashboard/routes/dashboard/mes/pages/orderSpecFields';
+import MesOrderSpecForm from 'dashboard/components-next/mes/MesOrderSpecForm.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import { useMesRole } from 'dashboard/composables/useMesRole';
+
+const router = useRouter();
+const { accountScopedRoute } = useAccount();
+const store = useMesProductionOrdersStore();
+// 备货单仅 order 能力（PMC/管理员）可建；业务员只建「按单生产」（后端强制同口径）。
+const { mesCan } = useMesRole();
+const canCreateStock = computed(() => mesCan('order'));
+
+const TEMPLATES = Object.entries(SPEC_TEMPLATES); // [[value, {label,fields}], ...]
+const defaultTemplate = () => {
+  const line = getActiveProductLine();
+  return SPEC_TEMPLATES[line] ? line : 'TABLET';
+};
+
+const template = ref(defaultTemplate());
+// 订单性质：CUSTOMER 按单生产（默认）｜ STOCK 外贸备货（全业务共享库存，须指定责任业务员）。
+const orderKind = ref('CUSTOMER');
+const stewardId = ref(''); // 备货订单的责任人（业务员），复用 owner_id
+const isStock = computed(() => orderKind.value === 'STOCK');
+const agents = useMapGetter('agents/getAgents');
+const stewardOptions = computed(() =>
+  (agents.value || []).map(a => ({ id: String(a.id), name: a.name }))
+);
+const base = reactive({
+  piNo: '',
+  productName: '',
+  qty: '',
+  unit: '台',
+  deliveryDate: '',
+});
+const spec = ref(blankSpec(template.value));
+
+const setTemplate = t => {
+  template.value = t;
+  spec.value = blankSpec(t); // 换模板重置规格
+};
+
+// ── 需求1：业务员建单须关联 CRM 销售订单（带出 PI 号）+ 从 CRM 客户带出国家 ──
+// 业务员 = 无 order 能力（PMC/管理员例外）。CUSTOMER 单才需关联；备货(STOCK)无客户。
+const isSalesUser = computed(() => !mesCan('order'));
+const needSalesLink = computed(() => isSalesUser.value && !isStock.value);
+const showLink = computed(() => !isStock.value); // 按单生产都展示关联区
+
+const link = reactive({
+  salesOrderId: '',
+  salesOrderNo: '',
+  customerId: '',
+  customerName: '',
+  country: '',
+});
+
+// 关联销售订单（只取自己的，前端按 单号/PI/客户 过滤）
+const salesOrders = ref([]);
+const soQuery = ref('');
+const soOpen = ref(false);
+const loadSalesOrders = async () => {
+  try {
+    const { data } = await CrmSalesOrderAPI.get({ filter: 'mine', page: 1 });
+    salesOrders.value = data?.payload || [];
+  } catch {
+    salesOrders.value = [];
+  }
+};
+const filteredSO = computed(() => {
+  const q = soQuery.value.trim().toLowerCase();
+  const list = salesOrders.value;
+  if (!q) return list.slice(0, 8);
+  return list
+    .filter(o =>
+      `${o.order_no} ${o.pi_no || ''} ${o.customer_name || ''}`
+        .toLowerCase()
+        .includes(q)
+    )
+    .slice(0, 8);
+});
+const pickSalesOrder = o => {
+  link.salesOrderId = String(o.id);
+  link.salesOrderNo = o.order_no;
+  if (o.pi_no) base.piNo = o.pi_no; // 带出 PI 号
+  if (o.crm_customer_id) {
+    // 顺带带出客户+国家（可再改）
+    link.customerId = String(o.crm_customer_id);
+    link.customerName = o.customer_name || '';
+    link.country = o.customer_country || '';
+  }
+  soQuery.value = '';
+  soOpen.value = false;
+};
+const clearSalesOrder = () => {
+  link.salesOrderId = '';
+  link.salesOrderNo = '';
+};
+
+// 客户搜索（CRM 客户，选中带出国家 trade_country）
+const custQuery = ref('');
+const custResults = ref([]);
+const custOpen = ref(false);
+let custTimer = null;
+const runCustSearch = kw => {
+  clearTimeout(custTimer);
+  const q = (kw || '').trim();
+  if (!q) {
+    custResults.value = [];
+    custOpen.value = false;
+    return;
+  }
+  custTimer = setTimeout(async () => {
+    try {
+      const { data } = await CrmCustomerAPI.get({ q, page: 1 });
+      custResults.value = (data?.payload || []).slice(0, 8);
+      custOpen.value = custResults.value.length > 0;
+    } catch {
+      custResults.value = [];
+      custOpen.value = false;
+    }
+  }, 300);
+};
+const onCustInput = v => {
+  custQuery.value = v;
+  runCustSearch(v);
+};
+const pickCustomer = c => {
+  link.customerId = String(c.id);
+  link.customerName = c.name;
+  link.country = c.trade_country || '';
+  custQuery.value = '';
+  custResults.value = [];
+  custOpen.value = false;
+};
+const clearCustomer = () => {
+  link.customerId = '';
+  link.customerName = '';
+  link.country = '';
+};
+
+// ── 需求3：从自己账号的历史生产订单导入（回填产品线/成品/数量/规格）──
+const history = ref([]);
+const importId = ref('');
+const loadHistory = async () => {
+  try {
+    const { data } = await MesProductionOrderAPI.get({
+      list_scope: 'mine',
+      per_page: 50,
+    });
+    history.value = data?.payload || [];
+  } catch {
+    history.value = [];
+  }
+};
+const importFrom = () => {
+  const o = history.value.find(h => String(h.id) === String(importId.value));
+  if (!o) return;
+  if (o.product_line && SPEC_TEMPLATES[o.product_line]) {
+    template.value = o.product_line;
+  }
+  base.productName = o.product_name || '';
+  base.qty = o.qty != null ? String(o.qty) : '';
+  base.unit = o.unit || base.unit;
+  // 深拷贝规格，避免与源单共享引用
+  spec.value = o.spec
+    ? JSON.parse(JSON.stringify(o.spec))
+    : blankSpec(template.value);
+  useAlert(`已从 ${o.order_no} 导入产品与规格，可再调整`);
+};
+
+onMounted(() => {
+  loadSalesOrders();
+  loadHistory();
+});
+
+// SelectCard 选项（[{value,label}]）
+const orderKindOptions = computed(() => [
+  { value: 'CUSTOMER', label: '业务订单（按单生产）' },
+  ...(canCreateStock.value
+    ? [{ value: 'STOCK', label: '库存备货（外贸共享库存）' }]
+    : []),
+]);
+const stewardCardOptions = computed(() =>
+  stewardOptions.value.map(a => ({ value: String(a.id), label: a.name }))
+);
+const templateOptions = computed(() =>
+  TEMPLATES.map(([val, t]) => ({ value: val, label: t.label }))
+);
+const historyOptions = computed(() =>
+  history.value.map(h => ({
+    value: String(h.id),
+    label: `${h.order_no} · ${h.product_name}`,
+  }))
+);
+
+// 选文件即刻暂存为 blob（拿到 signed_id），建单时一并挂载 —— 不提交也已真上传。
+const pendingImages = ref([]); // [{ name, signedId, previewUrl }]
+const pendingFiles = ref([]);
+const staging = ref(false);
+// 用 kind 取 ref（模板里 ref 会被解包成数组，故不能把 ref 当参数传）。
+const pendingFor = kind => (kind === 'images' ? pendingImages : pendingFiles);
+const pick = async (event, kind) => {
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  if (!files.length) return;
+  const isImage = kind === 'images';
+  staging.value = true;
+  try {
+    const staged = await Promise.all(
+      files.map(file => {
+        const fd = new FormData();
+        fd.append('file', file);
+        return MesProductionOrderAPI.stageBlob(fd).then(({ data }) => ({
+          name: data.filename,
+          signedId: data.signed_id,
+          previewUrl: isImage ? URL.createObjectURL(file) : '',
+        }));
+      })
+    );
+    pendingFor(kind).value.push(...staged);
+  } catch (e) {
+    useAlert(
+      `上传失败：${e?.response?.data?.error || e?.message || '未知错误'}`
+    );
+  } finally {
+    staging.value = false;
+  }
+};
+const removePick = (kind, i) => pendingFor(kind).value.splice(i, 1);
+
+const submitting = ref(false);
+const result = ref(null);
+
+const missing = computed(() => {
+  const m = [];
+  if (needSalesLink.value && !link.salesOrderId) m.push('关联销售订单');
+  if (needSalesLink.value && !link.customerId) m.push('客户');
+  if (!base.productName.trim()) m.push('成品名称&型号');
+  if (!Number(base.qty)) m.push('数量');
+  if (isStock.value && !stewardId.value) m.push('责任人');
+  return m;
+});
+const canSubmit = computed(
+  () => missing.value.length === 0 && !submitting.value && !staging.value
+);
+
+const reset = () => {
+  Object.assign(base, {
+    piNo: '',
+    productName: '',
+    qty: '',
+    unit: '台',
+    deliveryDate: '',
+  });
+  spec.value = blankSpec(template.value);
+  stewardId.value = '';
+  Object.assign(link, {
+    salesOrderId: '',
+    salesOrderNo: '',
+    customerId: '',
+    customerName: '',
+    country: '',
+  });
+  soQuery.value = '';
+  custQuery.value = '';
+  importId.value = '';
+  pendingImages.value = [];
+  pendingFiles.value = [];
+};
+
+// doSubmit=false 存草稿（仅自己可见）；true 建单即提交审批（→部门主管→总经理）。
+// 图片/附件已在选择时暂存为 blob，建单时用 signed_id 一并挂载。
+const submit = async doSubmit => {
+  if (!canSubmit.value) return;
+  submitting.value = true;
+  result.value = null;
+  try {
+    // 客户名/国家同步进 spec（列表/详情按 spec.customer / spec.country 展示，保持一致；
+    // 建单页已隐藏规格内的客户/国家输入，值由「关联信息」带出）。
+    const specOut = link.customerId
+      ? { ...spec.value, customer: link.customerName, country: link.country }
+      : spec.value;
+    const ok = await store.create(
+      {
+        piNo: base.piNo.trim() || undefined,
+        productName: base.productName.trim(),
+        qty: Number(base.qty),
+        unit: base.unit,
+        deliveryDate: base.deliveryDate || undefined,
+        productLine: template.value,
+        orderKind: orderKind.value,
+        ownerId: isStock.value ? Number(stewardId.value) : undefined,
+        crmSalesOrderId: link.salesOrderId
+          ? Number(link.salesOrderId)
+          : undefined,
+        crmCustomerId: link.customerId ? Number(link.customerId) : undefined,
+        spec: specOut,
+        images: pendingImages.value.map(p => p.signedId),
+        files: pendingFiles.value.map(p => p.signedId),
+      },
+      doSubmit
+    );
+    if (ok) {
+      result.value = { ok: true, orderNo: ok.orderNo, submitted: doSubmit };
+      reset();
+    } else {
+      result.value = { ok: false, msg: '保存失败' };
+    }
+  } catch (e) {
+    result.value = { ok: false, msg: e?.response?.data?.error || '保存失败' };
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const backToList = () =>
+  router.push(accountScopedRoute('mes_production_orders_index'));
+</script>
+
+<template>
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
+    <div
+      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+    >
+      <h1 class="text-xl font-medium text-n-slate-12">新建生产订单</h1>
+      <button
+        class="text-sm text-n-slate-11 hover:text-n-slate-12"
+        @click="backToList"
+      >
+        ← 返回生产订单
+      </button>
+    </div>
+
+    <div class="flex flex-col w-full max-w-3xl gap-4 px-6 py-5">
+      <p class="text-xs text-n-slate-11">
+        定制生产订单建单。先选产品线，按对应模板填规格；带
+        <span class="text-n-ruby-11">*</span>
+        为必填。建单后进入「销售订单确定」阶段，可挂 BOM、下发采购。
+      </p>
+
+      <!-- 从历史订单导入（回填产品线/成品/数量/规格） -->
+      <div v-if="history.length" class="flex flex-wrap items-center gap-2">
+        <span class="text-xs text-n-slate-11">从历史订单导入：</span>
+        <SelectCard
+          v-model="importId"
+          :options="historyOptions"
+          placeholder="选择我的历史订单…"
+          trigger-class="w-60"
+        />
+        <button
+          type="button"
+          class="h-8 px-3 text-xs border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1 disabled:opacity-40"
+          :disabled="!importId"
+          @click="importFrom"
+        >
+          导入
+        </button>
+      </div>
+
+      <!-- 关联信息（按单生产）：订单编号=关联销售订单，客户带出国家 -->
+      <template v-if="showLink">
+        <div
+          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+        >
+          关联信息
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <!-- 订单编号：关联 CRM 销售订单 -->
+          <label class="relative flex flex-col gap-1">
+            <span class="text-xs text-n-slate-11">
+              订单编号（关联销售订单）
+              <span v-if="needSalesLink" class="text-n-ruby-11">*</span>
+            </span>
+            <div
+              v-if="link.salesOrderId"
+              class="flex items-center h-9 gap-2 px-3 border rounded-lg border-n-weak bg-n-solid-1"
+            >
+              <span class="text-sm truncate text-n-slate-12">
+                {{ link.salesOrderNo }}
+              </span>
+              <button
+                type="button"
+                class="ml-auto text-n-slate-10 hover:text-n-ruby-11"
+                @click="clearSalesOrder"
+              >
+                ✕
+              </button>
+            </div>
+            <template v-else>
+              <input
+                :value="soQuery"
+                placeholder="搜索销售订单号 / PI / 客户…"
+                class="h-9 px-3 text-sm border rounded-lg outline-none border-n-weak bg-n-solid-1 text-n-slate-12"
+                @focus="soOpen = true"
+                @input="
+                  e => {
+                    soQuery = e.target.value;
+                    soOpen = true;
+                  }
+                "
+                @blur="() => setTimeout(() => (soOpen = false), 150)"
+              />
+              <ul
+                v-if="soOpen && filteredSO.length"
+                class="absolute left-0 right-0 z-20 mt-1 overflow-auto border rounded-lg shadow-lg top-full max-h-52 border-n-weak bg-n-solid-1"
+              >
+                <li
+                  v-for="o in filteredSO"
+                  :key="o.id"
+                  class="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-n-alpha-1 text-n-slate-12"
+                  @mousedown.prevent="pickSalesOrder(o)"
+                >
+                  <span class="truncate">{{ o.order_no }}</span>
+                  <span class="ml-2 text-xs shrink-0 text-n-slate-10">
+                    {{ o.pi_no ? `PI ${o.pi_no}` : '' }}
+                    {{ o.customer_name || '' }}
+                  </span>
+                </li>
+              </ul>
+            </template>
+          </label>
+
+          <!-- 客户：CRM 客户搜索选择 -->
+          <label class="relative flex flex-col gap-1">
+            <span class="text-xs text-n-slate-11">
+              客户 <span v-if="needSalesLink" class="text-n-ruby-11">*</span>
+            </span>
+            <div
+              v-if="link.customerId"
+              class="flex items-center h-9 gap-2 px-3 border rounded-lg border-n-weak bg-n-solid-1"
+            >
+              <span class="text-sm truncate text-n-slate-12">
+                {{ link.customerName }}
+              </span>
+              <button
+                type="button"
+                class="ml-auto text-n-slate-10 hover:text-n-ruby-11"
+                @click="clearCustomer"
+              >
+                ✕
+              </button>
+            </div>
+            <template v-else>
+              <input
+                :value="custQuery"
+                placeholder="搜索 CRM 客户…"
+                class="h-9 px-3 text-sm border rounded-lg outline-none border-n-weak bg-n-solid-1 text-n-slate-12"
+                @focus="runCustSearch(custQuery)"
+                @input="e => onCustInput(e.target.value)"
+                @blur="() => setTimeout(() => (custOpen = false), 150)"
+              />
+              <ul
+                v-if="custOpen && custResults.length"
+                class="absolute left-0 right-0 z-20 mt-1 overflow-auto border rounded-lg shadow-lg top-full max-h-52 border-n-weak bg-n-solid-1"
+              >
+                <li
+                  v-for="c in custResults"
+                  :key="c.id"
+                  class="flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-n-alpha-1 text-n-slate-12"
+                  @mousedown.prevent="pickCustomer(c)"
+                >
+                  <span class="truncate">{{ c.name }}</span>
+                  <span class="ml-2 text-xs shrink-0 text-n-slate-10">
+                    {{ c.trade_country || '' }}
+                  </span>
+                </li>
+              </ul>
+            </template>
+          </label>
+
+          <!-- 国家：从客户自动带出（只读） -->
+          <label class="flex flex-col gap-1">
+            <span class="text-xs text-n-slate-11">国家（客户带出）</span>
+            <input
+              :value="link.country"
+              readonly
+              placeholder="选客户后自动带出"
+              class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-alpha-black1 text-n-slate-11"
+            />
+          </label>
+        </div>
+      </template>
+
+      <!-- 基本信息 -->
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
+        基本信息
+      </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">
+            订单类型 <span class="text-n-ruby-11">*</span>
+          </span>
+          <SelectCard v-model="orderKind" :options="orderKindOptions" block />
+        </label>
+        <label v-if="isStock" class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">
+            责任人（业务员） <span class="text-n-ruby-11">*</span>
+          </span>
+          <SelectCard
+            v-model="stewardId"
+            :options="stewardCardOptions"
+            placeholder="选择责任业务员…"
+            block
+          />
+        </label>
+        <p v-if="isStock" class="text-xs sm:col-span-2 text-n-slate-11">
+          备货订单不归属单一业务员、对全业务可见；这里的责任人只是指定一个业务员跟进。可不填客户交期。
+        </p>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">
+            产品线 / 模板 <span class="text-n-ruby-11">*</span>
+          </span>
+          <SelectCard
+            :model-value="template"
+            :options="templateOptions"
+            block
+            @update:model-value="setTemplate"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">PI 编号</span>
+          <input
+            v-model="base.piNo"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="形式发票号，如 PI-2026-0788"
+          />
+        </label>
+        <label class="flex flex-col gap-1 sm:col-span-2">
+          <span class="text-xs text-n-slate-11">
+            成品名称&型号 <span class="text-n-ruby-11">*</span>
+          </span>
+          <input
+            v-model="base.productName"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="如：商显一体机 43寸 / Winny K11"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">
+            数量 <span class="text-n-ruby-11">*</span>
+          </span>
+          <input
+            v-model="base.qty"
+            type="number"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="400"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">单位</span>
+          <input
+            v-model="base.unit"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="台 / 片 / pcs"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">期望交期</span>
+          <input
+            v-model="base.deliveryDate"
+            type="date"
+            class="h-9 px-3 text-sm border rounded-lg outline-none border-n-weak bg-n-solid-1 text-n-slate-12"
+          />
+        </label>
+      </div>
+
+      <!-- 定制规格 -->
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
+        定制规格 · {{ (SPEC_TEMPLATES[template] || {}).label }}
+      </div>
+      <MesOrderSpecForm
+        v-model:spec="spec"
+        :template="template"
+        :hide-customer="showLink"
+      />
+
+      <!-- 产品图片（选择即上传） -->
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
+        产品图片
+        <span v-if="staging" class="ml-1 normal-case text-n-amber-11"
+          >上传中…</span
+        >
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <div
+          v-for="(f, i) in pendingImages"
+          :key="i"
+          class="relative w-20 h-20 group"
+        >
+          <img
+            :src="f.previewUrl"
+            class="object-cover w-20 h-20 border rounded-lg border-n-weak"
+          />
+          <button
+            type="button"
+            class="absolute items-center justify-center hidden w-5 h-5 text-xs text-white rounded-full top-1 right-1 bg-n-slate-12/70 group-hover:flex"
+            @click="removePick('images', i)"
+          >
+            ✕
+          </button>
+        </div>
+        <label
+          class="flex items-center justify-center w-20 h-20 text-xs border border-dashed rounded-lg cursor-pointer border-n-weak text-n-slate-11 hover:text-n-slate-12"
+        >
+          + 图片
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            class="hidden"
+            @change="e => pick(e, 'images')"
+          />
+        </label>
+      </div>
+
+      <!-- 附件 -->
+      <div
+        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+      >
+        附件
+      </div>
+      <div class="flex flex-col gap-2">
+        <div
+          v-for="(f, i) in pendingFiles"
+          :key="i"
+          class="flex items-center justify-between text-xs"
+        >
+          <span class="truncate text-n-slate-12">{{ f.name }}</span>
+          <button
+            type="button"
+            class="ml-2 text-n-slate-10 hover:text-n-ruby-11"
+            @click="removePick('files', i)"
+          >
+            ✕
+          </button>
+        </div>
+        <label
+          class="text-xs cursor-pointer text-n-iris-11 hover:underline w-max"
+        >
+          + 上传附件
+          <input
+            type="file"
+            multiple
+            class="hidden"
+            @change="e => pick(e, 'files')"
+          />
+        </label>
+      </div>
+
+      <div class="flex items-center gap-3 mt-1">
+        <button
+          class="h-10 px-5 text-sm font-medium transition-colors border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="!canSubmit"
+          @click="submit(false)"
+        >
+          {{ submitting ? '保存中…' : '存草稿' }}
+        </button>
+        <button
+          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="!canSubmit"
+          @click="submit(true)"
+        >
+          {{ submitting ? '提交中…' : '提交审批' }}
+        </button>
+        <span v-if="missing.length" class="text-xs text-n-slate-11">
+          请填写：{{ missing.join('、') }}
+        </span>
+      </div>
+
+      <div
+        v-if="result?.ok"
+        class="flex items-center gap-3 p-3 text-sm border rounded-lg border-n-teal-8 text-n-teal-11"
+      >
+        <span>
+          ✅ {{ result.submitted ? '已提交审批' : '已存草稿' }}
+          {{ result.orderNo }}
+          <template v-if="result.submitted">（已转部门主管审批）</template>
+          <template v-else>（仅你可见，可稍后提交审批）</template>
+          ，可继续建下一单。
+        </span>
+        <button class="underline text-n-iris-11" @click="backToList">
+          去生产订单查看
+        </button>
+      </div>
+      <div
+        v-else-if="result && !result.ok"
+        class="p-3 text-sm border rounded-lg border-n-ruby-8 text-n-ruby-11"
+      >
+        ❌ {{ result.msg }}
+      </div>
+    </div>
+  </div>
+</template>

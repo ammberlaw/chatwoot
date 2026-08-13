@@ -34,11 +34,12 @@
 #
 class Mes::PurchaseOrder < ApplicationRecord
   include Mes::DocumentNumber
+  include Mes::LineScoped
+  include Mes::Returnable
 
   STATUSES = %w[DRAFT SUBMITTED PARTIAL_RECEIVED RECEIVED CANCELLED].freeze
 
   belongs_to :account
-  belongs_to :mes_supplier, class_name: 'Mes::Supplier', optional: true
   belongs_to :production_order, class_name: 'Mes::ProductionOrder', optional: true
   belongs_to :owner, class_name: 'User', optional: true
   has_many :purchase_items, class_name: 'Mes::PurchaseItem', dependent: :destroy, inverse_of: :purchase_order
@@ -56,7 +57,38 @@ class Mes::PurchaseOrder < ApplicationRecord
     update_column(:total_amount_micros, purchase_items.sum(:amount_micros))
   end
 
+  # 收货齐套状态：按明细 received_qty 与订购量派生——全部收齐=RECEIVED、部分=PARTIAL_RECEIVED。
+  # 收货由挂本单的原料入库单过账驱动（见 Mes::StockEntry#sync_purchase_receipt!），非手工改。
+  # 支撑生产订单齐套判定（一单多采购单时，所有采购单都 RECEIVED 才推进到原料入库）。
+  def recompute_receipt_status!
+    return if status == 'CANCELLED'
+
+    items = purchase_items.to_a
+    return if items.empty?
+
+    new_status =
+      if items.all? { |i| i.received_qty.to_d >= i.qty.to_d }
+        'RECEIVED'
+      elsif items.any? { |i| i.received_qty.to_d.positive? }
+        'PARTIAL_RECEIVED'
+      else
+        status
+      end
+    update_column(:status, new_status) if new_status != status
+  end
+
+  def received? = status == 'RECEIVED'
+
+  # ── 单据退回（Mes::Returnable）──：退回目标 = 工程/PMC BOM 板块。
+  def document_board_key = 'mes_purchase_orders_index'
+  def return_document_label = '采购单'
+  def return_document_no = po_no
+  # 已全部收货 / 已作废的采购单不可退回。
+  def returnable? = %w[DRAFT SUBMITTED PARTIAL_RECEIVED].include?(status)
+
   private
+
+  def product_line_source = production_order
 
   # 建采购单即把关联生产订单从「工程BOM」推进到「采购原料」。
   def advance_production_order

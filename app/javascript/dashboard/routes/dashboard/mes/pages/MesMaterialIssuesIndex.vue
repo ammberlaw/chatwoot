@@ -9,11 +9,14 @@ import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -27,6 +30,43 @@ const saving = computed(() => store.getUIFlags.creatingItem);
 const posting = computed(() => store.getUIFlags.updatingItem);
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 const STATUS_LABELS = { DRAFT: '草稿', POSTED: '已过账', CANCELLED: '已取消' };
+
+// 只读查看
+const whName = id =>
+  (warehousesStore.getRecords || []).find(w => w.id === id)?.name || '—';
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = e => {
+  viewing.value = e;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const e = viewing.value || {};
+  return [
+    { label: '单号', value: e.entryNo },
+    { label: '生产订单', value: e.productionOrderNo },
+    { label: '归属人', value: e.productionOrderOwnerName },
+    { label: '领料仓', value: whName(e.fromWarehouseId) },
+    { label: '状态', value: STATUS_LABELS[e.status] || e.status },
+    { label: '过账时间', value: day(e.postedAt) },
+    { label: '制单人', value: e.ownerName },
+    { label: '备注', value: e.remark },
+  ];
+});
+const VIEW_ITEM_COLS = [
+  { label: '物料编码', key: 'materialNo' },
+  { label: '物料名称', key: 'name' },
+  { label: '领用量', key: 'qty', align: 'right' },
+  { label: '单位', key: 'unit' },
+];
+const viewItems = computed(() =>
+  (viewing.value?.stockEntryItems || []).map(it => ({
+    materialNo: it.materialNo,
+    name: it.materialName || it.productName,
+    qty: it.qty,
+    unit: it.unit,
+  }))
+);
 
 const fetchList = () => store.get({ purpose: 'MATERIAL_ISSUE' });
 
@@ -74,7 +114,9 @@ const pushFromBom = async () => {
     return;
   }
   try {
-    const { data } = await MesProductionOrderAPI.requirement(form.productionOrderId);
+    const { data } = await MesProductionOrderAPI.requirement(
+      form.productionOrderId
+    );
     const reqs = data?.payload || [];
     if (!reqs.length) {
       useAlert('该生产订单未挂 BOM 或无用料');
@@ -143,16 +185,27 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">生产领料</h1>
-      <Button v-if="mesCan('stock')" label="新建领料单" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('stock')"
+        label="新建领料单"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
+    <MesBoardOwnerBar board-key="mes_material_issues_index" />
+
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">单号</th>
             <th class="px-3 py-3 font-medium">生产订单</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium">过账时间</th>
             <th class="px-3 py-3" />
@@ -160,25 +213,45 @@ onMounted(async () => {
         </thead>
         <tbody>
           <tr v-for="e in records" :key="e.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-medium text-n-slate-12">{{ e.entryNo }}</td>
+            <td class="px-3 py-3 font-medium text-n-slate-12">
+              {{ e.entryNo }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.productionOrderNo || '—' }}
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ STATUS_LABELS[e.status] }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ e.productionOrderOwnerName || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ STATUS_LABELS[e.status] }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
             <td class="px-3 py-3 text-right">
-              <Button
-                v-if="e.status === 'DRAFT' && mesCan('stock')"
-                label="过账"
-                color="iris"
-                size="sm"
-                :is-loading="posting"
-                @click="postEntry(e)"
-              />
+              <div class="flex justify-end gap-1">
+                <Button
+                  label="查看"
+                  variant="ghost"
+                  size="sm"
+                  @click="openView(e)"
+                />
+                <Button
+                  v-if="e.status === 'DRAFT' && mesCan('stock')"
+                  label="过账"
+                  color="iris"
+                  size="sm"
+                  :is-loading="posting"
+                  @click="postEntry(e)"
+                />
+                <MesReturnControls
+                  :record="e"
+                  :store="store"
+                  :can-manage="mesCan('stock')"
+                />
+              </div>
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="5" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
               还没有领料单。
             </td>
           </tr>
@@ -203,18 +276,26 @@ onMounted(async () => {
             <label class="text-heading-3 text-n-slate-12">
               生产订单 <span class="text-n-ruby-11">*</span>
             </label>
-            <Select
+            <SelectCard
+              size="form"
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
               @update:model-value="v => (form.productionOrderId = v)"
             />
           </div>
-          <Button label="按 BOM 推料" color="slate" size="sm" @click="pushFromBom" />
+          <Button
+            label="按 BOM 推料"
+            type="button"
+            color="slate"
+            size="sm"
+            @click="pushFromBom"
+          />
         </div>
 
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">领料仓库</label>
-          <Select
+          <SelectCard
+            size="form"
             :model-value="form.warehouseId"
             :options="warehouseOptions"
             @update:model-value="v => (form.warehouseId = v)"
@@ -225,7 +306,13 @@ onMounted(async () => {
           <span class="text-heading-3 text-n-slate-12">
             领料明细 <span class="text-n-ruby-11">*</span>
           </span>
-          <Button label="+ 加一行" variant="ghost" size="sm" @click="addRow" />
+          <Button
+            label="+ 加一行"
+            type="button"
+            variant="ghost"
+            size="sm"
+            @click="addRow"
+          />
         </div>
         <div class="flex flex-col gap-2">
           <div
@@ -240,7 +327,12 @@ onMounted(async () => {
                 placeholder="选择物料"
               />
             </div>
-            <Input v-model="row.qty" type="number" placeholder="领用量" class="col-span-3" />
+            <Input
+              v-model="row.qty"
+              type="number"
+              placeholder="领用量"
+              class="col-span-3"
+            />
             <button
               type="button"
               class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
@@ -252,5 +344,14 @@ onMounted(async () => {
         </div>
       </div>
     </Dialog>
+
+    <MesViewDialog
+      ref="viewDialogRef"
+      :title="viewing ? `领料单 ${viewing.entryNo}` : '领料单明细'"
+      :fields="viewFields"
+      items-title="领料明细"
+      :item-columns="VIEW_ITEM_COLS"
+      :items="viewItems"
+    />
   </div>
 </template>

@@ -3,6 +3,7 @@ import snakecaseKeys from 'snakecase-keys';
 import MesStockEntryAPI from 'dashboard/api/mes/stockEntries';
 import { createStore } from 'dashboard/store/storeFactory';
 import { throwErrorMessage } from 'dashboard/store/utils/api';
+import { buildMesReturnActions } from './_returnActions';
 
 const camelize = data => camelcaseKeys(data || {}, { deep: true });
 const normalizeMeta = meta => ({
@@ -19,6 +20,8 @@ export const useMesStockEntriesStore = createStore({
     getRecords: state => state.records,
   },
   actions: () => ({
+    ...buildMesReturnActions(MesStockEntryAPI),
+
     async get(params = {}) {
       this.setUIFlag({ fetchingList: true });
       try {
@@ -46,6 +49,22 @@ export const useMesStockEntriesStore = createStore({
         return throwErrorMessage(error);
       } finally {
         this.setUIFlag({ creatingItem: false });
+      }
+    },
+
+    // 仓库清点确认（确认即过账）：调用后就地替换记录。
+    async confirmWarehouse(id) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await MesStockEntryAPI.confirmWarehouse(id);
+        const record = camelize(data);
+        const index = this.records.findIndex(r => r.id === record.id);
+        if (index !== -1) this.records[index] = record;
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
       }
     },
 

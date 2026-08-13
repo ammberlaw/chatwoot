@@ -31,7 +31,10 @@
 #  fk_rails_...  (default_supplier_id => mes_suppliers.id) ON DELETE => nullify
 #
 class Mes::Material < ApplicationRecord
-  CATEGORIES = %w[RAW SEMI CONSUMABLE].freeze
+  include Mes::LineScoped
+
+  # 前三项为早期物料分类；后四项与供应商供应物料的 SKU 仓别分类共用（成品仓/主料/辅料/不良品仓）。
+  CATEGORIES = %w[RAW SEMI CONSUMABLE FINISHED RAW_MAIN RAW_AUX DEFECTIVE].freeze
   CURRENCIES = %w[CNY USD EUR].freeze
 
   belongs_to :account
@@ -54,7 +57,7 @@ class Mes::Material < ApplicationRecord
 
     last = self.class.where(account_id: account_id)
                .where("material_no ~ '^MAT[0-9]+$'")
-               .pick(Arel.sql("MAX(SUBSTRING(material_no FROM 4)::int)")) || 0
+               .pick(Arel.sql('MAX(SUBSTRING(material_no FROM 4)::int)')) || 0
     self.material_no = format('MAT%05d', last + 1)
   end
 end

@@ -32,4 +32,5 @@ class Mes::ProductionOrderStageEvent < ApplicationRecord
   belongs_to :account
   belongs_to :production_order, class_name: 'Mes::ProductionOrder', inverse_of: :stage_events
   belongs_to :actor, class_name: 'User', optional: true
+  belongs_to :acked_by, class_name: 'User', optional: true
 end

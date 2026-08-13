@@ -2,19 +2,19 @@ import { frontendURL } from '../../../helper/URLHelper';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 import MesDashboardIndex from './pages/MesDashboardIndex.vue';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
+import MesProductionOrderIntakeIndex from './pages/MesProductionOrderIntakeIndex.vue';
 import MesBomsIndex from './pages/MesBomsIndex.vue';
+import MesProductsIndex from './pages/MesProductsIndex.vue';
 import MesPurchaseOrdersIndex from './pages/MesPurchaseOrdersIndex.vue';
+import MesSuppliersIndex from './pages/MesSuppliersIndex.vue';
 import MesStockEntriesIndex from './pages/MesStockEntriesIndex.vue';
 import MesMaterialIssuesIndex from './pages/MesMaterialIssuesIndex.vue';
 import MesProductionRecordsIndex from './pages/MesProductionRecordsIndex.vue';
 import MesInspectionsIndex from './pages/MesInspectionsIndex.vue';
 import MesFgInboundIndex from './pages/MesFgInboundIndex.vue';
-import MesSerialNumbersIndex from './pages/MesSerialNumbersIndex.vue';
 import MesShipmentsIndex from './pages/MesShipmentsIndex.vue';
-import MesStockBalancesIndex from './pages/MesStockBalancesIndex.vue';
-import MesMaterialsIndex from './pages/MesMaterialsIndex.vue';
-import MesSuppliersIndex from './pages/MesSuppliersIndex.vue';
-import MesWarehousesIndex from './pages/MesWarehousesIndex.vue';
+import MesNotificationsIndex from './pages/MesNotificationsIndex.vue';
+import MesTodoIndex from './pages/MesTodoIndex.vue';
 
 // MES 生产管理：与 CRM 同账号同登录；S0 全员可见（车间/仓管未必有 crm_role），
 // 故 requiresCrmAccess: false，仅受 CRM 功能开关约束。
@@ -36,18 +36,38 @@ const mesPage = (path, name, component) => {
 
 export const routes = [
   mesPage('dashboard', 'mes_dashboard_index', MesDashboardIndex),
-  mesPage('production-orders', 'mes_production_orders_index', MesProductionOrdersIndex),
+  mesPage('todo', 'mes_todo_index', MesTodoIndex),
+  mesPage(
+    'production-orders',
+    'mes_production_orders_index',
+    MesProductionOrdersIndex
+  ),
+  mesPage(
+    'production-order-intake',
+    'mes_production_order_intake_index',
+    MesProductionOrderIntakeIndex
+  ),
   mesPage('boms', 'mes_boms_index', MesBomsIndex),
-  mesPage('purchase-orders', 'mes_purchase_orders_index', MesPurchaseOrdersIndex),
+  mesPage('products', 'mes_products_index', MesProductsIndex),
+  mesPage(
+    'purchase-orders',
+    'mes_purchase_orders_index',
+    MesPurchaseOrdersIndex
+  ),
+  mesPage('suppliers', 'mes_suppliers_index', MesSuppliersIndex),
   mesPage('stock-entries', 'mes_stock_entries_index', MesStockEntriesIndex),
-  mesPage('material-issues', 'mes_material_issues_index', MesMaterialIssuesIndex),
-  mesPage('production-records', 'mes_production_records_index', MesProductionRecordsIndex),
+  mesPage(
+    'material-issues',
+    'mes_material_issues_index',
+    MesMaterialIssuesIndex
+  ),
+  mesPage(
+    'production-records',
+    'mes_production_records_index',
+    MesProductionRecordsIndex
+  ),
   mesPage('inspections', 'mes_inspections_index', MesInspectionsIndex),
   mesPage('fg-inbound', 'mes_fg_inbound_index', MesFgInboundIndex),
-  mesPage('serial-numbers', 'mes_serial_numbers_index', MesSerialNumbersIndex),
   mesPage('shipments', 'mes_shipments_index', MesShipmentsIndex),
-  mesPage('stock-balances', 'mes_stock_balances_index', MesStockBalancesIndex),
-  mesPage('materials', 'mes_materials_index', MesMaterialsIndex),
-  mesPage('suppliers', 'mes_suppliers_index', MesSuppliersIndex),
-  mesPage('warehouses', 'mes_warehouses_index', MesWarehousesIndex),
+  mesPage('notifications', 'mes_notifications_index', MesNotificationsIndex),
 ];

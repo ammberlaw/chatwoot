@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesPurchaseOrdersStore } from 'dashboard/stores/mes/purchaseOrders';
@@ -9,13 +10,17 @@ import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
 const { accountId } = useAccount();
+const route = useRoute();
 const store = useMesPurchaseOrdersStore();
 const { mesCan } = useMesRole();
 const suppliersStore = useMesSuppliersStore();
@@ -27,7 +32,6 @@ const saving = computed(
   () => store.getUIFlags.creatingItem || store.getUIFlags.updatingItem
 );
 
-const yuan = micros => (micros ? (micros / 1e6).toFixed(2) : '0.00');
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 
 const STATUS_LABELS = {
@@ -41,6 +45,58 @@ const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({
   value,
   label,
 }));
+
+// 只读查看
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = po => {
+  viewing.value = po;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const p = viewing.value || {};
+  return [
+    { label: '采购单号', value: p.poNo },
+    { label: '供应商', value: (p.supplierNames || []).join('、') || '—' },
+    { label: '生产订单', value: p.productionOrderNo },
+    { label: '归属人', value: p.productionOrderOwnerName },
+    { label: '状态', value: STATUS_LABELS[p.status] || p.status },
+    { label: '回复交期', value: day(p.expectedDate) },
+    { label: '跟进日期', value: day(p.followUpDate) },
+    {
+      label: '异常',
+      value: p.hasException ? p.exceptionNote || '有异常' : '无',
+    },
+    { label: '制单人', value: p.ownerName },
+    { label: '备注', value: p.remark },
+  ];
+});
+const VIEW_ITEM_COLS = [
+  { label: '类型', key: 'typeLabel' },
+  { label: '编码', key: 'code' },
+  { label: '名称', key: 'name' },
+  { label: '规格型号', key: 'spec' },
+  { label: '供应商', key: 'supplierName' },
+  { label: '采购量', key: 'qty', align: 'right' },
+  { label: '已到料', key: 'receivedQty', align: 'right' },
+  { label: '单位', key: 'unit' },
+  { label: '实际到料时间', key: 'arrival' },
+  { label: '备注', key: 'remark' },
+];
+const viewItems = computed(() =>
+  (viewing.value?.purchaseItems || []).map(it => ({
+    typeLabel: it.itemType === 'PRODUCT' ? '成品(外购)' : '物料',
+    code: it.itemType === 'PRODUCT' ? it.productSku : it.materialNo,
+    name: it.itemType === 'PRODUCT' ? it.productName : it.materialName,
+    spec: it.itemType === 'PRODUCT' ? '—' : it.specification || '—',
+    supplierName: it.supplierName || '—',
+    qty: it.qty,
+    receivedQty: it.receivedQty,
+    unit: it.unit,
+    arrival: day(it.arrivalDate),
+    remark: it.remark,
+  }))
+);
 
 const productionOrders = ref([]);
 const productionOrderOptions = computed(() => [
@@ -62,55 +118,115 @@ const materialOptions = computed(() =>
     label: `${m.name}（${m.unit}）`,
   }))
 );
+// 规格型号取自所选物料档案（物料行必选物料，故始终可得）。
+const materialSpec = id =>
+  (materialsStore.getRecords || []).find(m => String(m.id) === String(id))
+    ?.specification || '';
+
+// 采购行类型：物料（生产用料）/ 成品（外购贸易品，不经过生产部）。
+const ITEM_TYPE_OPTIONS = [
+  { value: 'MATERIAL', label: '物料' },
+  { value: 'PRODUCT', label: '成品(外购)' },
+];
+
+// CRM 成品选项：服务端搜索（成品可能较多），并保留已选项的标签。
+const productOptions = ref([]);
+const mergeProductOptions = list => {
+  const seen = new Set(productOptions.value.map(o => o.value));
+  list.forEach(o => {
+    if (!seen.has(o.value)) {
+      productOptions.value.push(o);
+      seen.add(o.value);
+    }
+  });
+};
+const loadProducts = async (q = '') => {
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/products`,
+      { params: { filter: 'active', q } }
+    );
+    mergeProductOptions(
+      (data?.payload || []).map(p => ({
+        value: String(p.id),
+        label: `${p.name}${p.sku ? `（${p.sku}）` : ''}`,
+        unit: p.unit || '',
+      }))
+    );
+  } catch {
+    // 忽略：搜索失败保留现有选项
+  }
+};
+const productUnit = id =>
+  productOptions.value.find(o => o.value === String(id))?.unit || '';
 
 const dialogRef = ref(null);
 const editingId = ref(null);
 const removedItemIds = ref([]);
-const form = reactive({
+// 明细行：供应商、实际到料时间都在行上（一单多料、多供应商、到货时间各异）。
+const blankRow = () => ({
+  itemType: 'MATERIAL',
+  mesMaterialId: '',
+  crmProductId: '',
   mesSupplierId: '',
+  arrivalDate: '',
+  qty: '1',
+  remark: '',
+});
+const form = reactive({
   productionOrderId: '',
   status: 'DRAFT',
   expectedDate: '',
   followUpDate: '',
   hasException: false,
   exceptionNote: '',
-  rows: [], // { id?, mesMaterialId, qty, rateMicros }
+  rows: [],
 });
 
-const rowAmount = row => (Number(row.qty) || 0) * (Number(row.rateMicros) || 0);
-const totalMicros = computed(() =>
-  form.rows.reduce((s, r) => s + rowAmount(r), 0)
-);
+const rowIncomplete = r =>
+  !Number(r.qty) ||
+  (r.itemType === 'PRODUCT' ? !r.crmProductId : !r.mesMaterialId);
 const invalid = computed(
-  () =>
-    !form.rows.length || form.rows.some(r => !r.mesMaterialId || !Number(r.qty))
+  () => !form.rows.length || form.rows.some(rowIncomplete)
 );
 
-const addRow = () =>
-  form.rows.push({ mesMaterialId: '', qty: '1', rateMicros: '' });
+const addRow = () => form.rows.push(blankRow());
 const removeRow = i => {
   const [r] = form.rows.splice(i, 1);
   if (r?.id) removedItemIds.value.push(r.id);
 };
 
 // 从关联的生产订单 BOM 算料，覆盖当前明细行。
-const explode = async () => {
+// category='' 全部 / 'MACHINE' 只主料(整机料) / 'PACKAGING' 只辅料(包装料)——两个采购员分料建单。
+const explode = async (category = '') => {
   if (!form.productionOrderId) {
     useAlert('请先选生产订单');
     return;
   }
   try {
-    const { data } = await MesPurchaseOrderAPI.requirement(form.productionOrderId);
+    const { data } = await MesPurchaseOrderAPI.requirement(
+      form.productionOrderId,
+      category
+    );
     const reqs = data?.payload || [];
     if (!reqs.length) {
-      useAlert('该生产订单未挂 BOM 或无用料');
+      useAlert(
+        category ? '该类别（主料/辅料）无用料' : '该生产订单未挂 BOM 或无用料'
+      );
       return;
     }
     form.rows.forEach(r => r.id && removedItemIds.value.push(r.id));
     form.rows = reqs.map(r => ({
-      mesMaterialId: String(r.mes_material_id),
+      ...blankRow(),
+      mesMaterialId: r.mes_material_id ? String(r.mes_material_id) : '',
+      mesSupplierId: r.mes_supplier_id ? String(r.mes_supplier_id) : '',
       qty: String(r.qty),
-      rateMicros: r.rate_micros ?? '',
+      // 物料已关联则名称/规格自带；仅未关联的自由文本物料把信息留在备注作提示。
+      remark: r.mes_material_id
+        ? ''
+        : [r.material_no, r.material_name, r.specification]
+            .filter(Boolean)
+            .join(' '),
     }));
   } catch {
     useAlert('算料失败');
@@ -121,14 +237,13 @@ const resetForm = () => {
   editingId.value = null;
   removedItemIds.value = [];
   Object.assign(form, {
-    mesSupplierId: '',
     productionOrderId: '',
     status: 'DRAFT',
     expectedDate: '',
     followUpDate: '',
     hasException: false,
     exceptionNote: '',
-    rows: [{ mesMaterialId: '', qty: '1', rateMicros: '' }],
+    rows: [blankRow()],
   });
 };
 
@@ -136,11 +251,16 @@ const openCreate = () => {
   resetForm();
   dialogRef.value?.open();
 };
+// 从工程/PMC BOM 的「新建成品采购单」跳来：首行直接切成外购成品。
+const openProductCreate = () => {
+  resetForm();
+  form.rows[0].itemType = 'PRODUCT';
+  dialogRef.value?.open();
+};
 const openEdit = po => {
   editingId.value = po.id;
   removedItemIds.value = [];
   Object.assign(form, {
-    mesSupplierId: po.mesSupplierId ? String(po.mesSupplierId) : '',
     productionOrderId: po.productionOrderId ? String(po.productionOrderId) : '',
     status: po.status,
     expectedDate: po.expectedDate ? po.expectedDate.slice(0, 10) : '',
@@ -149,11 +269,25 @@ const openEdit = po => {
     exceptionNote: po.exceptionNote || '',
     rows: (po.purchaseItems || []).map(it => ({
       id: it.id,
-      mesMaterialId: String(it.mesMaterialId),
+      itemType: it.itemType || 'MATERIAL',
+      mesMaterialId: it.mesMaterialId ? String(it.mesMaterialId) : '',
+      crmProductId: it.crmProductId ? String(it.crmProductId) : '',
+      mesSupplierId: it.mesSupplierId ? String(it.mesSupplierId) : '',
+      arrivalDate: it.arrivalDate ? it.arrivalDate.slice(0, 10) : '',
       qty: String(it.qty),
-      rateMicros: it.rateMicros ?? '',
+      remark: it.remark || '',
     })),
   });
+  // 回填已选成品的标签，保证下拉能显示名称
+  mergeProductOptions(
+    (po.purchaseItems || [])
+      .filter(it => it.crmProductId)
+      .map(it => ({
+        value: String(it.crmProductId),
+        label: `${it.productName || ''}${it.productSku ? `（${it.productSku}）` : ''}`,
+        unit: it.unit || '',
+      }))
+  );
   dialogRef.value?.open();
 };
 
@@ -162,14 +296,18 @@ const submit = async () => {
   const itemsAttributes = [
     ...form.rows.map(r => ({
       id: r.id || undefined,
-      mesMaterialId: Number(r.mesMaterialId),
+      itemType: r.itemType,
+      mesMaterialId: r.itemType === 'PRODUCT' ? null : Number(r.mesMaterialId),
+      crmProductId: r.itemType === 'PRODUCT' ? Number(r.crmProductId) : null,
+      mesSupplierId: r.mesSupplierId ? Number(r.mesSupplierId) : null,
+      arrivalDate: r.arrivalDate || null,
+      unit: r.itemType === 'PRODUCT' ? productUnit(r.crmProductId) : undefined,
       qty: Number(r.qty),
-      rateMicros: Number(r.rateMicros) || 0,
+      remark: r.remark || '',
     })),
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
   ];
   const payload = {
-    mesSupplierId: form.mesSupplierId || null,
     productionOrderId: form.productionOrderId || null,
     status: form.status,
     expectedDate: form.expectedDate || null,
@@ -191,6 +329,7 @@ onMounted(async () => {
   store.get();
   suppliersStore.get();
   materialsStore.get();
+  loadProducts('');
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/production_orders`
@@ -199,6 +338,7 @@ onMounted(async () => {
   } catch {
     productionOrders.value = [];
   }
+  if (route.query.new === 'product' && mesCan('purchase')) openProductCreate();
 });
 </script>
 
@@ -206,21 +346,31 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">采购单</h1>
-      <Button v-if="mesCan('purchase')" label="新建采购单" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('purchase')"
+        label="新建采购单"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
+    <MesBoardOwnerBar board-key="mes_purchase_orders_index" />
+
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-3 font-medium">采购单号</th>
-            <th class="px-3 py-3 font-medium">供应商</th>
-            <th class="px-3 py-3 font-medium">生产订单</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3 font-medium">回复交期</th>
-            <th class="px-3 py-3 font-medium">跟进</th>
-            <th class="px-3 py-3 font-medium">金额</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">采购单号</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">回复交期</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">跟进</th>
             <th class="px-3 py-3" />
           </tr>
         </thead>
@@ -236,20 +386,41 @@ onMounted(async () => {
                 ⚠
               </span>
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ p.supplierName || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ (p.supplierNames || []).join('、') || '—' }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ p.productionOrderNo || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ p.productionOrderOwnerName || '—' }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ STATUS_LABELS[p.status] }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.expectedDate) }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.followUpDate) }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              ¥{{ yuan(p.totalAmountMicros) }}
-            </td>
             <td class="px-3 py-3 text-right">
-              <Button v-if="mesCan('purchase')" label="编辑" variant="ghost" size="sm" @click="openEdit(p)" />
+              <div class="flex justify-end gap-1">
+                <Button
+                  label="查看"
+                  variant="ghost"
+                  size="sm"
+                  @click="openView(p)"
+                />
+                <Button
+                  v-if="mesCan('purchase')"
+                  label="编辑"
+                  variant="ghost"
+                  size="sm"
+                  @click="openEdit(p)"
+                />
+                <MesReturnControls
+                  :record="p"
+                  :store="store"
+                  :can-manage="mesCan('purchase')"
+                />
+              </div>
             </td>
           </tr>
           <tr v-if="!records.length">
@@ -272,38 +443,56 @@ onMounted(async () => {
       @confirm="submit"
     >
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-4">
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">供应商</label>
-            <ComboBox
-              v-model="form.mesSupplierId"
-              :options="supplierOptions"
-              placeholder="选择供应商"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">状态</label>
-            <Select
-              :model-value="form.status"
-              :options="statusOptions"
-              @update:model-value="v => (form.status = v)"
-            />
-          </div>
-        </div>
-
         <div class="flex items-end gap-2">
           <div class="flex flex-col flex-1 gap-1">
             <label class="text-heading-3 text-n-slate-12">关联生产订单</label>
-            <Select
+            <SelectCard
+              size="form"
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
               @update:model-value="v => (form.productionOrderId = v)"
             />
           </div>
-          <Button label="BOM 算料" color="slate" size="sm" @click="explode" />
+          <div class="flex items-center gap-1">
+            <Button
+              label="算全部料"
+              type="button"
+              color="slate"
+              size="sm"
+              @click="explode('')"
+            />
+            <Button
+              label="只算主料"
+              type="button"
+              variant="outline"
+              color="slate"
+              size="sm"
+              @click="explode('MACHINE')"
+            />
+            <Button
+              label="只算辅料"
+              type="button"
+              variant="outline"
+              color="slate"
+              size="sm"
+              @click="explode('PACKAGING')"
+            />
+          </div>
         </div>
+        <p class="-mt-2 text-xs text-n-slate-10">
+          一张生产订单可开多张采购单（如主料、辅料各一张，不同采购员各建各的）。
+        </p>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-3 gap-4">
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">状态</label>
+            <SelectCard
+              size="form"
+              :model-value="form.status"
+              :options="statusOptions"
+              @update:model-value="v => (form.status = v)"
+            />
+          </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">回复采购时间</label>
             <Input v-model="form.expectedDate" type="date" />
@@ -330,31 +519,57 @@ onMounted(async () => {
           <span class="text-heading-3 text-n-slate-12">
             采购明细 <span class="text-n-ruby-11">*</span>
           </span>
-          <Button label="+ 加一行" variant="ghost" size="sm" @click="addRow" />
+          <Button
+            label="+ 加一行"
+            type="button"
+            variant="ghost"
+            size="sm"
+            @click="addRow"
+          />
         </div>
         <div class="flex flex-col gap-2">
           <div
             v-for="(row, i) in form.rows"
             :key="i"
-            class="grid items-center grid-cols-12 gap-2"
+            class="grid items-center grid-cols-12 gap-2 p-2 border rounded-lg border-n-weak"
           >
-            <div class="col-span-5">
+            <div class="col-span-2">
+              <SelectCard
+                size="form"
+                :model-value="row.itemType"
+                :options="ITEM_TYPE_OPTIONS"
+                @update:model-value="v => (row.itemType = v)"
+              />
+            </div>
+            <div class="col-span-4">
               <ComboBox
+                v-if="row.itemType === 'PRODUCT'"
+                v-model="row.crmProductId"
+                :options="productOptions"
+                use-api-results
+                placeholder="选择外购成品"
+                @search="loadProducts"
+              />
+              <ComboBox
+                v-else
                 v-model="row.mesMaterialId"
                 :options="materialOptions"
                 placeholder="选择物料"
               />
             </div>
-            <Input v-model="row.qty" type="number" placeholder="数量" class="col-span-2" />
+            <div class="col-span-3">
+              <ComboBox
+                v-model="row.mesSupplierId"
+                :options="supplierOptions"
+                placeholder="选择供应商"
+              />
+            </div>
             <Input
-              v-model="row.rateMicros"
+              v-model="row.qty"
               type="number"
-              placeholder="单价(微分)"
-              class="col-span-3"
+              placeholder="数量"
+              class="col-span-2"
             />
-            <span class="col-span-1 text-xs text-right text-n-slate-11">
-              ¥{{ yuan(rowAmount(row)) }}
-            </span>
             <button
               type="button"
               class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
@@ -362,14 +577,33 @@ onMounted(async () => {
             >
               ✕
             </button>
+            <div class="flex items-center col-span-4 gap-2">
+              <label class="text-xs shrink-0 text-n-slate-11">规格</label>
+              <span class="flex-1 text-xs truncate text-n-slate-11">
+                {{
+                  row.itemType === 'PRODUCT'
+                    ? '—'
+                    : materialSpec(row.mesMaterialId) || '—'
+                }}
+              </span>
+            </div>
+            <div class="flex items-center col-span-4 gap-2">
+              <label class="text-xs shrink-0 text-n-slate-11">实际到料</label>
+              <Input v-model="row.arrivalDate" type="date" class="flex-1" />
+            </div>
+            <Input v-model="row.remark" placeholder="备注" class="col-span-4" />
           </div>
-        </div>
-        <div
-          class="flex justify-end pt-2 text-sm font-medium border-t text-n-slate-12 border-n-weak"
-        >
-          采购金额合计：¥{{ yuan(totalMicros) }}
         </div>
       </div>
     </Dialog>
+
+    <MesViewDialog
+      ref="viewDialogRef"
+      :title="viewing ? `采购单 ${viewing.poNo}` : '采购单明细'"
+      :fields="viewFields"
+      items-title="采购明细"
+      :item-columns="VIEW_ITEM_COLS"
+      :items="viewItems"
+    />
   </div>
 </template>

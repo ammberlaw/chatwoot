@@ -5,6 +5,7 @@ json.pi_no resource.pi_no
 json.line_items resource.line_items
 json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
+json.customer_country resource.crm_customer&.trade_country
 json.contact_id resource.contact_id
 json.crm_opportunity_id resource.crm_opportunity_id
 json.owner_id resource.owner_id

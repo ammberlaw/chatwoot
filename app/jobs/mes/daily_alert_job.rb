@@ -51,6 +51,7 @@ class Mes::DailyAlertJob < ApplicationJob
   def keys_for(account_user)
     return ALL_KEYS if account_user.administrator? || account_user.crm_deputy_admin?
 
-    ROLE_KEYS[account_user.mes_role]
+    # 多角色取并集：兼岗者收到各角色对应的预警类别。
+    account_user.mes_roles.to_a.flat_map { |r| ROLE_KEYS[r] || [] }.uniq
   end
 end

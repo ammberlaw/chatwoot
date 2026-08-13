@@ -6,7 +6,7 @@ import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const store = useMesWarehousesStore();
@@ -47,11 +47,19 @@ onMounted(() => store.get());
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">仓库</h1>
-      <Button v-if="mesCan('master')" label="新增仓库" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('master')"
+        label="新增仓库"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -96,7 +104,8 @@ onMounted(() => store.get());
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">类型</label>
-          <Select
+          <SelectCard
+            size="form"
             :model-value="form.kind"
             :options="KINDS"
             @update:model-value="v => (form.kind = v)"

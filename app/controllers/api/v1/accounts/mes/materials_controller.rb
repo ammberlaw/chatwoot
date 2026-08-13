@@ -3,7 +3,7 @@ class Api::V1::Accounts::Mes::MaterialsController < Api::V1::Accounts::Mes::Base
   before_action :fetch_material, only: [:show, :update, :destroy]
 
   def index
-    scope = Current.account.mes_materials
+    scope = scoped_by_product_line(Current.account.mes_materials)
     scope = scope.where(category: params[:category]) if params[:category].present?
     scope = scope.where(is_active: true) if params[:active] == 'true'
     scope = scope.where('name ILIKE :t OR material_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
@@ -14,7 +14,9 @@ class Api::V1::Accounts::Mes::MaterialsController < Api::V1::Accounts::Mes::Base
   def show; end
 
   def create
-    @material = Current.account.mes_materials.create!(material_params)
+    @material = Current.account.mes_materials.new(material_params)
+    @material.fallback_product_line = current_product_line
+    @material.save!
     render 'api/v1/accounts/mes/materials/show'
   end
 
@@ -40,7 +42,7 @@ class Api::V1::Accounts::Mes::MaterialsController < Api::V1::Accounts::Mes::Base
 
   def material_params
     params.require(:material).permit(
-      :material_no, :name, :category, :specification, :unit,
+      :material_no, :name, :category, :specification, :unit, :product_line,
       :cost_price_micros, :currency, :safety_stock, :default_supplier_id, :is_active, :remark
     )
   end

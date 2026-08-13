@@ -8,7 +8,7 @@ import MesSerialNumberAPI from 'dashboard/api/mes/serialNumbers';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId } = useAccount();
@@ -119,17 +119,27 @@ onMounted(() => {
           class="flex-1 h-9 px-3 text-sm border rounded-lg outline-none border-n-weak bg-n-alpha-black1 text-n-slate-12"
           @keyup.enter="doTrace"
         />
-        <Button label="追溯" color="iris" size="sm" :is-loading="tracing" @click="doTrace" />
+        <Button
+          label="追溯"
+          color="iris"
+          size="sm"
+          :is-loading="tracing"
+          @click="doTrace"
+        />
       </div>
 
-      <div v-if="traceError" class="mt-3 text-sm text-n-ruby-11">{{ traceError }}</div>
+      <div v-if="traceError" class="mt-3 text-sm text-n-ruby-11">
+        {{ traceError }}
+      </div>
       <div
         v-else-if="trace"
         class="p-5 mt-3 rounded-xl bg-n-alpha-black1 border border-n-weak"
       >
         <div class="flex items-center justify-between mb-3">
           <span class="font-semibold text-n-slate-12">{{ trace.sn }}</span>
-          <span class="text-xs text-n-slate-11">{{ STATUS_LABELS[trace.status] }}</span>
+          <span class="text-xs text-n-slate-11">{{
+            STATUS_LABELS[trace.status]
+          }}</span>
         </div>
         <dl class="grid grid-cols-2 gap-y-2 text-sm">
           <dt class="text-n-slate-11">成品</dt>
@@ -138,7 +148,7 @@ onMounted(() => {
           <dd class="text-n-slate-12">
             {{ trace.production_order?.order_no || '—' }}
           </dd>
-          <dt class="text-n-slate-11">工程 BOM</dt>
+          <dt class="text-n-slate-11">工程/PMC BOM</dt>
           <dd class="text-n-slate-12">{{ trace.bom?.bom_no || '—' }}</dd>
           <dt class="text-n-slate-11">用料</dt>
           <dd class="text-n-slate-12">
@@ -151,7 +161,11 @@ onMounted(() => {
           <dt class="text-n-slate-11">出库单</dt>
           <dd class="text-n-slate-12">
             {{ trace.shipment?.shipment_no || '—' }}
-            {{ trace.shipment?.shipped_at ? `（${day(trace.shipment.shipped_at)}）` : '' }}
+            {{
+              trace.shipment?.shipped_at
+                ? `（${day(trace.shipment.shipped_at)}）`
+                : ''
+            }}
           </dd>
         </dl>
       </div>
@@ -159,7 +173,9 @@ onMounted(() => {
 
     <!-- SN 列表 -->
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="loading" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="loading" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -173,9 +189,15 @@ onMounted(() => {
         <tbody>
           <tr v-for="s in records" :key="s.id" class="border-b border-n-weak">
             <td class="px-3 py-3 font-medium text-n-slate-12">{{ s.sn }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ s.product_name || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ s.production_order_no || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ STATUS_LABELS[s.status] }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ s.product_name || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ s.production_order_no || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ STATUS_LABELS[s.status] }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(s.created_at) }}</td>
           </tr>
           <tr v-if="!records.length">
@@ -202,7 +224,8 @@ onMounted(() => {
           <label class="text-heading-3 text-n-slate-12">
             生产订单 <span class="text-n-ruby-11">*</span>
           </label>
-          <Select
+          <SelectCard
+            size="form"
             :model-value="form.productionOrderId"
             :options="productionOrderOptions"
             @update:model-value="v => (form.productionOrderId = v)"
@@ -212,7 +235,11 @@ onMounted(() => {
           <label class="text-heading-3 text-n-slate-12">
             数量 <span class="text-n-ruby-11">*</span>
           </label>
-          <Input v-model="form.count" type="number" placeholder="生成多少个 SN" />
+          <Input
+            v-model="form.count"
+            type="number"
+            placeholder="生成多少个 SN"
+          />
         </div>
       </div>
     </Dialog>

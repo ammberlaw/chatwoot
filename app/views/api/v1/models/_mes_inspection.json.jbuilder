@@ -7,6 +7,7 @@ json.crm_product_id resource.crm_product_id
 json.product_name resource.crm_product&.name
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
+json.production_order_owner_name resource.production_order&.owner&.name
 json.inspected_qty resource.inspected_qty
 json.passed_qty resource.passed_qty
 json.failed_qty resource.failed_qty

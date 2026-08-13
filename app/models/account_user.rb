@@ -59,30 +59,49 @@ class AccountUser < ApplicationRecord
   validates :crm_role, inclusion: { in: CRM_ROLES }, allow_nil: true
 
   # MES 条线角色：PMC(计划) / 工程 / 采购 / 仓管 / 生产(车间)；空=只读可见，不可写。
+  # 多值——支持同模块兼岗（如 PMC 同时负责采购）；能力取各角色并集。
   MES_ROLES = %w[pmc engineer buyer warehouse production].freeze
-  validates :mes_role, inclusion: { in: MES_ROLES }, allow_nil: true
+  validate :mes_roles_valid
+
+  def mes_roles_valid
+    invalid = mes_roles.to_a - MES_ROLES
+    errors.add(:mes_roles, "含非法角色：#{invalid.join(',')}") if invalid.any?
+  end
 
   # 角色 → 可写能力域。管理员/副管理员全能力。
+  # product = 产品档案/编码（仅工程与 PMC 可增删改；采购管供应商/物料走 master，不含产品）。
   MES_CAPABILITIES = {
-    'pmc' => %w[order master],
-    'engineer' => %w[bom master],
+    'pmc' => %w[order bom master product],
+    'engineer' => %w[bom master product],
     'buyer' => %w[purchase master],
     'warehouse' => %w[stock shipment quality],
     'production' => %w[report quality]
   }.freeze
 
-  # 能否在 MES 某能力域写操作（下单/BOM/采购/库存/报工/出库/主数据）。
+  # 能否在 MES 某能力域写操作（下单/BOM/采购/库存/报工/出库/主数据/产品档案）。
+  # 多角色取并集：任一角色具备该能力即可。
   def mes_can?(capability)
     return true if administrator? || crm_deputy_admin?
 
-    MES_CAPABILITIES.fetch(mes_role.to_s, []).include?(capability.to_s)
+    mes_capability_list.include?(capability.to_s)
   end
 
-  # 前端用：该成员可写的 MES 能力域列表（管理员/副管理员全给）。
+  # 该成员的有效 MES 角色：多值 mes_roles 优先，兼容基线单值 mes_role（成员页仍单值下拉）。
+  def effective_mes_roles
+    (mes_roles.to_a + [mes_role]).reject(&:blank?).uniq
+  end
+
+  # MES 操作岗（有任一 MES 角色）或管理员/副管理员。供应商/采购单含采购价与供应商资料，
+  # 纯 CRM 业务角色（销售端）不可读——生态硬约束：销售端绝不可见成本/供应商。
+  def mes_staff?
+    administrator? || crm_deputy_admin? || effective_mes_roles.any?
+  end
+
+  # 前端用：该成员可写的 MES 能力域列表（管理员/副管理员全给；多角色取并集）。
   def mes_capability_list
     return MES_CAPABILITIES.values.flatten.uniq if administrator? || crm_deputy_admin?
 
-    MES_CAPABILITIES.fetch(mes_role.to_s, [])
+    effective_mes_roles.flat_map { |r| MES_CAPABILITIES.fetch(r, []) }.uniq
   end
 
   # 业务系统模块使用权限（成员权限页按人开关）；管理员始终全模块。

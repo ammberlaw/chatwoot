@@ -6,13 +6,15 @@ import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const store = useMesMaterialsStore();
 const { mesCan } = useMesRole();
+const { activeProductLine, options: productLineOptions } = useMesProductLine();
 const suppliersStore = useMesSuppliersStore();
 
 const records = computed(() => store.getRecords);
@@ -39,6 +41,7 @@ const form = reactive({
   name: '',
   unit: '',
   category: '',
+  productLine: '',
   specification: '',
   safetyStock: '',
   defaultSupplierId: '',
@@ -51,6 +54,7 @@ const openCreate = () => {
     name: '',
     unit: '',
     category: '',
+    productLine: activeProductLine.value || '',
     specification: '',
     safetyStock: '',
     defaultSupplierId: '',
@@ -78,11 +82,19 @@ onMounted(() => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">物料</h1>
-      <Button v-if="mesCan('master')" label="新增物料" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('master')"
+        label="新增物料"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
@@ -98,10 +110,16 @@ onMounted(() => {
           <tr v-for="m in records" :key="m.id" class="border-b border-n-weak">
             <td class="px-3 py-3 text-n-slate-11">{{ m.materialNo }}</td>
             <td class="px-3 py-3 font-medium text-n-slate-12">{{ m.name }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ categoryLabel(m.category) }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ categoryLabel(m.category) }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ m.unit }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ m.specification || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ m.safetyStock || '—' }}</td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ m.specification || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ m.safetyStock || '—' }}
+            </td>
           </tr>
           <tr v-if="!records.length">
             <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
@@ -139,7 +157,8 @@ onMounted(() => {
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">类别</label>
-            <Select
+            <SelectCard
+              size="form"
               :model-value="form.category"
               :options="categoryOptions"
               @update:model-value="v => (form.category = v)"
@@ -149,6 +168,15 @@ onMounted(() => {
             <label class="text-heading-3 text-n-slate-12">安全库存</label>
             <Input v-model="form.safetyStock" type="number" />
           </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">产品线</label>
+          <SelectCard
+            size="form"
+            :model-value="form.productLine"
+            :options="productLineOptions"
+            @update:model-value="v => (form.productLine = v)"
+          />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">规格型号</label>

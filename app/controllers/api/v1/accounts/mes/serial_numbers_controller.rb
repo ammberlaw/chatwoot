@@ -2,7 +2,7 @@ class Api::V1::Accounts::Mes::SerialNumbersController < Api::V1::Accounts::Mes::
   before_action :check_authorization
 
   def index
-    scope = Current.account.mes_serial_numbers.includes(:crm_product, :production_order)
+    scope = scoped_by_product_line(Current.account.mes_serial_numbers.includes(:crm_product, :production_order))
     scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?
     scope = scope.where('sn ILIKE ?', "%#{params[:q].strip}%") if params[:q].present?
     @serial_numbers_count = scope.count

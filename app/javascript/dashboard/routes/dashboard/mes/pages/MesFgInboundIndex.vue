@@ -7,10 +7,13 @@ import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -23,6 +26,45 @@ const saving = computed(() => store.getUIFlags.creatingItem);
 const posting = computed(() => store.getUIFlags.updatingItem);
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 const STATUS_LABELS = { DRAFT: '草稿', POSTED: '已过账', CANCELLED: '已取消' };
+
+// 只读查看
+const whName = id =>
+  (warehousesStore.getRecords || []).find(w => w.id === id)?.name || '—';
+const viewDialogRef = ref(null);
+const viewing = ref(null);
+const openView = e => {
+  viewing.value = e;
+  viewDialogRef.value?.open();
+};
+const viewFields = computed(() => {
+  const e = viewing.value || {};
+  return [
+    { label: '单号', value: e.entryNo },
+    { label: '生产订单', value: e.productionOrderNo },
+    { label: '归属人', value: e.productionOrderOwnerName },
+    { label: '成品仓', value: whName(e.toWarehouseId) },
+    { label: '颜色', value: e.color },
+    { label: '实际入库日期', value: day(e.actualInboundDate) },
+    { label: '交接', value: e.isChecked ? '已交接' : '未交接' },
+    { label: '状态', value: STATUS_LABELS[e.status] || e.status },
+    { label: '过账时间', value: day(e.postedAt) },
+    { label: '收货人', value: e.receivedByName },
+    { label: '制单人', value: e.ownerName },
+    { label: '备注', value: e.remark },
+  ];
+});
+const VIEW_ITEM_COLS = [
+  { label: '成品', key: 'name' },
+  { label: '数量', key: 'qty', align: 'right' },
+  { label: '单位', key: 'unit' },
+];
+const viewItems = computed(() =>
+  (viewing.value?.stockEntryItems || []).map(it => ({
+    name: it.productName || it.materialName,
+    qty: it.qty,
+    unit: it.unit,
+  }))
+);
 
 const fetchList = () => store.get({ purpose: 'MANUFACTURE' });
 
@@ -46,10 +88,16 @@ const form = reactive({
   productionOrderId: '',
   warehouseId: '',
   qty: '',
+  color: '',
+  actualInboundDate: '',
+  remark: '',
   isChecked: false,
 });
+const today = () => new Date().toISOString().slice(0, 10);
 const selectedOrder = computed(() =>
-  productionOrders.value.find(p => String(p.id) === String(form.productionOrderId))
+  productionOrders.value.find(
+    p => String(p.id) === String(form.productionOrderId)
+  )
 );
 const invalid = computed(
   () => !form.productionOrderId || !form.warehouseId || !Number(form.qty)
@@ -63,11 +111,16 @@ const onPickOrder = v => {
 };
 
 const openCreate = () => {
-  const fin = (warehousesStore.getRecords || []).find(w => w.kind === 'FINISHED');
+  const fin = (warehousesStore.getRecords || []).find(
+    w => w.kind === 'FINISHED'
+  );
   Object.assign(form, {
     productionOrderId: '',
     warehouseId: fin ? String(fin.id) : '',
     qty: '',
+    color: '',
+    actualInboundDate: today(),
+    remark: '',
     isChecked: false,
   });
   dialogRef.value?.open();
@@ -80,6 +133,9 @@ const submit = async () => {
     purpose: 'MANUFACTURE',
     productionOrderId: Number(form.productionOrderId),
     toWarehouseId: Number(form.warehouseId),
+    color: form.color.trim() || null,
+    actualInboundDate: form.actualInboundDate || null,
+    remark: form.remark.trim() || null,
     isChecked: form.isChecked,
     stockEntryItemsAttributes: [
       {
@@ -96,9 +152,10 @@ const submit = async () => {
   }
 };
 
-const postEntry = async entry => {
-  const ok = await store.post(entry.id);
-  if (ok) useAlert(`${ok.entryNo} 已过账，成品入库`);
+// 流程：车间（report）开单交接 → 仓库（stock）清点数量确认，确认即过账入库。
+const confirmWarehouse = async entry => {
+  const ok = await store.confirmWarehouse(entry.id);
+  if (ok) useAlert(`${ok.entryNo} 已清点确认，成品入库`);
 };
 
 onMounted(() => {
@@ -119,17 +176,29 @@ onMounted(() => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">成品入库</h1>
-      <Button v-if="mesCan('stock')" label="新建成品入库单" color="iris" size="sm" @click="openCreate" />
+      <Button
+        v-if="mesCan('report')"
+        label="新建成品入库单"
+        color="iris"
+        size="sm"
+        @click="openCreate"
+      />
     </div>
 
+    <MesBoardOwnerBar board-key="mes_fg_inbound_index" />
+
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">加载中…</div>
+      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+        加载中…
+      </div>
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">单号</th>
             <th class="px-3 py-3 font-medium">生产订单</th>
-            <th class="px-3 py-3 font-medium">交接</th>
+            <th class="px-3 py-3 font-medium">颜色</th>
+            <th class="px-3 py-3 font-medium">归属人</th>
+            <th class="px-3 py-3 font-medium">仓库清点</th>
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium">过账时间</th>
             <th class="px-3 py-3" />
@@ -137,28 +206,55 @@ onMounted(() => {
         </thead>
         <tbody>
           <tr v-for="e in records" :key="e.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-medium text-n-slate-12">{{ e.entryNo }}</td>
+            <td class="px-3 py-3 font-medium text-n-slate-12">
+              {{ e.entryNo }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ e.productionOrderNo || '—' }}
             </td>
+            <td class="px-3 py-3 text-n-slate-11">{{ e.color || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">
-              {{ e.isChecked ? '已交接' : '—' }}
+              {{ e.productionOrderOwnerName || '—' }}
             </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ STATUS_LABELS[e.status] }}</td>
+            <td class="px-3 py-3 text-xs">
+              <span v-if="e.warehouseConfirmedAt" class="text-n-teal-11">
+                ✓ {{ e.warehouseConfirmedByName || '' }}
+              </span>
+              <span v-else-if="e.status === 'DRAFT'" class="text-n-slate-10">
+                待清点
+              </span>
+              <span v-else class="text-n-slate-10">—</span>
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ STATUS_LABELS[e.status] }}
+            </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
             <td class="px-3 py-3 text-right">
-              <Button
-                v-if="e.status === 'DRAFT' && mesCan('stock')"
-                label="过账"
-                color="iris"
-                size="sm"
-                :is-loading="posting"
-                @click="postEntry(e)"
-              />
+              <div class="flex justify-end gap-1">
+                <Button
+                  label="查看"
+                  variant="ghost"
+                  size="sm"
+                  @click="openView(e)"
+                />
+                <Button
+                  v-if="e.status === 'DRAFT' && mesCan('stock')"
+                  label="清点确认入库"
+                  color="iris"
+                  size="sm"
+                  :is-loading="posting"
+                  @click="confirmWarehouse(e)"
+                />
+                <MesReturnControls
+                  :record="e"
+                  :store="store"
+                  :can-manage="mesCan('stock')"
+                />
+              </div>
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               还没有成品入库单。
             </td>
           </tr>
@@ -171,7 +267,7 @@ onMounted(() => {
       width="lg"
       confirm-button-color="iris"
       title="新建成品入库单"
-      description="选生产订单带出已产数量，入成品仓；确认入库交接后过账刷新库存。"
+      description="车间完工后开单交接（选生产订单带出已产数量）；仓库清点数量确认后自动过账入库。"
       :is-loading="saving"
       :disable-confirm-button="invalid"
       @confirm="submit"
@@ -181,7 +277,8 @@ onMounted(() => {
           <label class="text-heading-3 text-n-slate-12">
             生产订单 <span class="text-n-ruby-11">*</span>
           </label>
-          <Select
+          <SelectCard
+            size="form"
             :model-value="form.productionOrderId"
             :options="productionOrderOptions"
             @update:model-value="onPickOrder"
@@ -200,12 +297,27 @@ onMounted(() => {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">入库仓库</label>
-            <Select
+            <SelectCard
+              size="form"
               :model-value="form.warehouseId"
               :options="warehouseOptions"
               @update:model-value="v => (form.warehouseId = v)"
             />
           </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">颜色</label>
+            <Input v-model="form.color" placeholder="如 黑色 / 白色 / 定制色" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">实际入库日期</label>
+            <Input v-model="form.actualInboundDate" type="date" />
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">备注</label>
+          <Input v-model="form.remark" placeholder="选填" />
         </div>
         <label class="flex items-center gap-2 text-heading-3 text-n-slate-12">
           <input v-model="form.isChecked" type="checkbox" />
@@ -213,5 +325,14 @@ onMounted(() => {
         </label>
       </div>
     </Dialog>
+
+    <MesViewDialog
+      ref="viewDialogRef"
+      :title="viewing ? `成品入库单 ${viewing.entryNo}` : '成品入库明细'"
+      :fields="viewFields"
+      items-title="成品明细"
+      :item-columns="VIEW_ITEM_COLS"
+      :items="viewItems"
+    />
   </div>
 </template>

@@ -22,6 +22,8 @@
 #  index_mes_stock_balances_unique                       (account_id,item_type,mes_material_id,crm_product_id,warehouse_id) UNIQUE NULLS NOT DISTINCT
 #
 class Mes::StockBalance < ApplicationRecord
+  include Mes::LineScoped
+
   belongs_to :account
   belongs_to :mes_material, class_name: 'Mes::Material', optional: true
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true
@@ -44,4 +46,8 @@ class Mes::StockBalance < ApplicationRecord
     end
     row.qty
   end
+
+  private
+
+  def product_line_source = mes_material || crm_product
 end
