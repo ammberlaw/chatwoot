@@ -31,9 +31,18 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
     true
   end
 
-  # 仅管理员可删除（业务员/主管不可删订单——A-CRM 权限口径）。
+  # 删除（软删进回收箱）：负责人本人 或 管理员/副管。具体归属在控制器 can_delete_order? 把关。
   def destroy?
-    @account_user.administrator?
+    true
+  end
+
+  # 回收箱（列表 + 恢复）：仅管理员/副管理员，避免业务员自行捞回引发矛盾。
+  def deleted?
+    @account_user.administrator? || @account_user.crm_deputy_admin?
+  end
+
+  def restore?
+    deleted?
   end
 end
 

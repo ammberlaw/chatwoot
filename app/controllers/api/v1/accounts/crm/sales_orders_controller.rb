@@ -37,8 +37,31 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     render json: { error: 'PI 识别失败，请检查文件或稍后重试' }, status: :unprocessable_entity
   end
 
+  # 软删除：进回收箱，不真删。负责人本人可删自己的单；管理员/副管可删任意。
   def destroy
-    @sales_order.destroy!
+    unless can_delete_order?(@sales_order)
+      return render json: { error: '无权删除该订单（仅负责人本人或管理员可删）' }, status: :forbidden
+    end
+
+    @sales_order.soft_delete!(current_user)
+    head :ok
+  end
+
+  # 回收箱列表（仅管理员/副管）：已删订单，供恢复。
+  def deleted
+    orders = Current.account.crm_sales_orders.only_deleted
+                    .includes(:owner, :deleted_by, :crm_customer)
+                    .order(deleted_at: :desc)
+    render json: {
+      payload: orders.map { |o| deleted_order_json(o) },
+      count: orders.size
+    }
+  end
+
+  # 从回收箱恢复（仅管理员/副管）。
+  def restore
+    order = Current.account.crm_sales_orders.only_deleted.find(params[:id])
+    order.restore!
     head :ok
   end
 
@@ -76,6 +99,27 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   def check_authorization
     authorize(Crm::SalesOrder)
+  end
+
+  # 能否删除某订单：负责人本人 或 管理员/副管理员。
+  def can_delete_order?(order)
+    au = Current.account_user
+    au&.administrator? || au&.crm_deputy_admin? || order.owner_id == current_user.id
+  end
+
+  # 回收箱条目：够展示 + 恢复即可，轻量 JSON。
+  def deleted_order_json(order)
+    {
+      id: order.id,
+      name: order.name,
+      order_no: order.order_no,
+      customer_name: order.crm_customer&.name,
+      amount_micros: order.order_amount_micros,
+      currency: order.order_currency,
+      owner_name: order.owner&.name,
+      deleted_at: order.deleted_at,
+      deleted_by_name: order.deleted_by&.name
+    }
   end
 
   # 视图筛选：我的订单、未关联客户（数据兜底）、按状态（生产中…）、按客户。

@@ -6,6 +6,7 @@
 #
 #  id                   :bigint           not null, primary key
 #  cost_amount_micros   :bigint
+#  deleted_at           :datetime
 #  delivery_date        :datetime
 #  exchange_rate        :decimal(12, 6)
 #  line_items           :jsonb            not null
@@ -28,6 +29,7 @@
 #  crm_opportunity_id   :bigint
 #  crm_quote_id         :bigint
 #  crm_team_id          :bigint
+#  deleted_by_id        :bigint
 #  owner_id             :bigint
 #
 # Indexes
@@ -41,6 +43,7 @@
 #  index_crm_sales_orders_on_crm_opportunity_id         (crm_opportunity_id)
 #  index_crm_sales_orders_on_crm_quote_id               (crm_quote_id)
 #  index_crm_sales_orders_on_crm_team_id                (crm_team_id)
+#  index_crm_sales_orders_on_deleted_at                 (deleted_at)
 #  index_crm_sales_orders_on_owner_id                   (owner_id)
 #
 # Foreign Keys
@@ -66,6 +69,8 @@ class Crm::SalesOrder < ApplicationRecord
   belongs_to :quote, class_name: 'Crm::Quote', foreign_key: :crm_quote_id, optional: true, inverse_of: :sales_orders
   belongs_to :owner, class_name: 'User', optional: true
   belongs_to :crm_team, class_name: 'Crm::Team', optional: true, inverse_of: :sales_orders
+  # 软删除人（回收箱展示）。
+  belongs_to :deleted_by, class_name: 'User', optional: true
 
   # 审计：记录订单的创建/编辑，供详情面板「操作历史」展示。
   audited except: %i[created_at updated_at], on: %i[create update]
@@ -73,32 +78,52 @@ class Crm::SalesOrder < ApplicationRecord
   # 订单附件（PI、生产订单等）。新建订单强制至少一个附件。
   has_many_attached :files
 
+  # PI 付款自动转单等系统内转换：单据即 PI 本身，豁免「必须带附件」硬校验。
+  attr_accessor :skip_attachment_check
+
   before_validation :generate_order_no, on: :create
   before_save :assign_team_from_owner, if: :will_save_change_to_owner_id?
   before_save :lock_exchange_rate
 
   validates :name, presence: true
-  validates :order_no, presence: true, uniqueness: { scope: :account_id }
+  validates :order_no, presence: true,
+                       uniqueness: { scope: :account_id, conditions: -> { where(deleted_at: nil) } }
   validates :status, inclusion: { in: STATUSES }
   validates :order_date, presence: true
   validates :order_currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
-  validate :require_attachment_on_create, on: :create
+  validate :require_attachment_on_create, on: :create, unless: :skip_attachment_check
 
-  after_save :rollup_customer_deals
   after_destroy :rollup_customer_deals
+  after_save :rollup_customer_deals
+
+  # 软删除：默认只查未删单（看板/统计/列表/客户成交额一律自动排除已删），
+  # 回收箱用 only_deleted（去掉默认条件后取已删）。
+  default_scope { where(deleted_at: nil) }
+  scope :only_deleted, -> { unscope(where: :deleted_at).where.not(deleted_at: nil) }
 
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
   scope :dealt, -> { where.not(status: 'CANCELLED') }
   scope :completed, -> { where(status: 'COMPLETED') }
 
+  # 软删除 / 恢复。删除后 after_save 触发客户成交额重算（已删不再计入）。
+  def soft_delete!(user)
+    update!(deleted_at: Time.current, deleted_by_id: user&.id)
+  end
+
+  def restore!
+    update!(deleted_at: nil, deleted_by_id: nil)
+  end
+
   private
 
-  # 外币订单锁定「做单当日」中行现汇买入价折算汇率；手填优先，抓不到则留空（看板按 1 处理/可后补）。
+  # 外币订单锁定「做单当日」中行现汇买入价折算汇率；手填优先。
+  # 当日及之前无牌价时（如订单日期早于 FX 历史起点）回退到最早可得牌价，避免留空被当 1:1 不换算。
   def lock_exchange_rate
     return if order_currency.blank? || order_currency == 'CNY'
     return if exchange_rate.present?
 
-    rate = Crm::FxRate.rate_for(order_currency, order_date || Time.zone.today)
+    on = order_date || Time.zone.today
+    rate = Crm::FxRate.rate_for(order_currency, on) || Crm::FxRate.rate_on_or_after(order_currency, on)
     self.exchange_rate = rate if rate
   end
 
