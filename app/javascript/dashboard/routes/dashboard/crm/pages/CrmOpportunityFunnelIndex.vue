@@ -370,7 +370,7 @@ onMounted(() => {
                 ? 'cursor-pointer hover:shadow-md'
                 : 'cursor-default',
               item.important
-                ? 'bg-n-blue-4/60 backdrop-blur-xl backdrop-saturate-150 border-white/70 hover:border-n-blue-8 shadow-lg shadow-n-blue-9/15'
+                ? 'bg-[#fdf3cf]/85 backdrop-blur-xl backdrop-saturate-150 border-[#ecd88f] hover:border-[#e0c25e] shadow-lg shadow-[#e0a72a]/20'
                 : 'bg-n-solid-1 border-n-weak hover:border-n-iris-8',
             ]"
             :draggable="view === 'board'"
@@ -396,12 +396,11 @@ onMounted(() => {
                 :class="col.color"
               />
               <div
-                class="text-sm font-semibold leading-snug line-clamp-2"
-                :class="item.important ? 'text-n-blue-12' : 'text-n-slate-12'"
+                class="text-sm font-semibold leading-snug line-clamp-2 text-n-slate-12"
               >
                 <span
                   v-if="item.important"
-                  class="inline-block i-lucide-star size-3.5 text-n-blue-9 me-1 align-[-2px]"
+                  class="inline-block i-ri-star-fill size-3.5 text-[#f5c451] me-1 align-[-2px]"
                   :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
                 />
                 {{ item.name }}
