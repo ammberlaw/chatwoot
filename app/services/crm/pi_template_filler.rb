@@ -291,8 +291,17 @@ class Crm::PiTemplateFiller
     # 运费金额（原 H22，位于 tail）——移位后由 shift 处理行号，这里先按原行号写值。
     new_data = "<sheetData>#{head}#{item_region}#{tail}</sheetData>"
     new_data = set_cell_value(new_data, "H#{22 + delta}", 23, @pi.shipping_cost_micros)
+    # GRAND TOTAL：SUM 公式随位移已扩范围，但缓存值仍是模板旧值（不重算的查看器/PDF 会显示错），
+    # 覆盖成实算总额（各项金额 + 运费），保住公式的同时让预览也正确。
+    new_data = set_formula_cache(new_data, "H#{23 + delta}", grand_total)
     # SWIFT 值不在 sharedStrings（模板里是 H32 的字面值），随明细行数位移后单独覆盖写入。
     new_data = set_cell_str(new_data, "H#{32 + delta}", 35, header[:swift])
+    # 条款续行（terms[1..] 挤在第 27 行同一格、多行换行）：按条数把该行行高加高，
+    # 导出的 Excel 直接完整显示所有条款，不用手动拉大单元格。
+    term_count = @pi.terms.to_s.split("\n").map(&:strip).reject(&:empty?).length
+    if term_count > 2
+      new_data = set_row_height(new_data, 27 + delta, [26, (term_count - 1) * 15].max)
+    end
 
     xml = xml.sub(%r{<sheetData>.*?</sheetData>}m, new_data)
     rebuild_merges(xml, items.length, delta)
@@ -312,6 +321,7 @@ class Crm::PiTemplateFiller
     desc = item ? xml_escape(item.description) : ''
     qty = item&.quantity
     price = item&.unit_price_micros
+    amount = item ? item_amount(item) : nil
     <<~ROW.delete("\n")
       <row r="#{top}" ht="38" customHeight="1" spans="1:8">
       <c r="A#{top}" s="19" t="inlineStr"><is><t xml:space="preserve">#{model}</t></is></c>
@@ -320,7 +330,7 @@ class Crm::PiTemplateFiller
       <c r="E#{top}" s="19"/>
       <c r="F#{top}" s="19">#{num_v(qty)}</c>
       <c r="G#{top}" s="21">#{num_v(micros_to_f(price))}</c>
-      <c r="H#{top}" s="21"><f>F#{top}*G#{top}</f></c>
+      <c r="H#{top}" s="21"><f>F#{top}*G#{top}</f>#{num_v(amount)}</c>
       </row>
       <row r="#{bottom}" ht="38" customHeight="1" spans="1:8">
       <c r="A#{bottom}" s="19"/><c r="B#{bottom}" s="20"/><c r="C#{bottom}" s="20"/>
@@ -343,6 +353,30 @@ class Crm::PiTemplateFiller
     end
   end
 
+  # 单项金额 = 数量 × 单价（元）；数量或单价缺失则 nil（该格只留公式、不写缓存）。
+  def item_amount(item)
+    qty = item.quantity
+    price = micros_to_f(item.unit_price_micros)
+    return nil if qty.nil? || price.nil?
+
+    amt = qty * price
+    (amt % 1).zero? ? amt.to_i : amt
+  end
+
+  # 总额 = 各项金额之和 + 运费（元），用于覆盖 GRAND TOTAL 的缓存值。
+  def grand_total
+    total = @pi.pi_items.to_a.sum { |it| item_amount(it) || 0 }
+    total += micros_to_f(@pi.shipping_cost_micros) || 0
+    (total % 1).zero? ? total.to_i : total
+  end
+
+  # 覆盖公式单元格的缓存值 <v>（保留 <f> 公式）：给不重算公式的查看器（微信/预览/PDF）显示正确数值。
+  def set_formula_cache(data, ref, value)
+    data.sub(%r{(<c r="#{ref}"[^>]*><f>.*?</f>)(?:<v>.*?</v>)?</c>}m) do
+      "#{Regexp.last_match(1)}<v>#{value}</v></c>"
+    end
+  end
+
   # 设置某单元格的数值（保留样式 s）；micros→元。
   def set_cell_value(data, ref, style, micros)
     v = micros.nil? ? '' : "<v>#{micros_to_f(micros)}</v>"
@@ -353,6 +387,14 @@ class Crm::PiTemplateFiller
   def set_cell_str(data, ref, style, value)
     cell = %(<c r="#{ref}" s="#{style}" t="inlineStr"><is>#{t_node(value)}</is></c>)
     data.sub(%r{<c r="#{ref}"[^>]*?(?:/>|>.*?</c>)}m, cell)
+  end
+
+  # 覆盖某行的行高（ht），并确保 customHeight="1" 让 Excel 用该高度。
+  def set_row_height(data, row, ht)
+    data.sub(%r{<row r="#{row}"[^>]*?>}m) do |tag|
+      t = tag.sub(/\s*ht="[\d.]+"/, '').sub(/\s*customHeight="[01]"/, '')
+      t.sub(/\/?>$/) { %( ht="#{ht}" customHeight="1"#{Regexp.last_match(0)}) }
+    end
   end
 
   # 重建 mergeCells：表头合并保留；明细块合并按项数复制；>=22 的合并 +delta。

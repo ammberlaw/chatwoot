@@ -651,8 +651,13 @@ defineExpose({ open });
         </span>
       </div>
 
-      <!-- 条款 -->
-      <TextArea v-model="form.terms" :label="t('CRM.PI.FORM.TERMS')" />
+      <!-- 条款（自适应高度，写多少显示多少，不用滚动） -->
+      <TextArea
+        v-model="form.terms"
+        :label="t('CRM.PI.FORM.TERMS')"
+        auto-height
+        resize
+      />
 
       <!-- 卖方落款（按业务员预录带入，可当次改） -->
       <div
@@ -674,7 +679,12 @@ defineExpose({ open });
           :label="t('CRM.PI.FORM.SELLER_EMAIL')"
         />
       </div>
-      <Input v-model="form.remark" :label="t('CRM.PI.FORM.REMARK')" />
+      <TextArea
+        v-model="form.remark"
+        :label="t('CRM.PI.FORM.REMARK')"
+        auto-height
+        resize
+      />
     </div>
   </Dialog>
 </template>
