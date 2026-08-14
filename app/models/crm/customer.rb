@@ -117,7 +117,10 @@ class Crm::Customer < ApplicationRecord
   has_many :opportunities, class_name: 'Crm::Opportunity', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
   has_many :sales_orders, class_name: 'Crm::SalesOrder', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
   has_many :quotes, class_name: 'Crm::Quote', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
+  has_many :crm_pis, class_name: 'Crm::Pi', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
   has_many :emails, class_name: 'Crm::Email', foreign_key: :crm_customer_id, dependent: :nullify, inverse_of: :crm_customer
+  # 特别关注（每人各标）：客户被哪些人收藏。
+  has_many :favorites, class_name: 'Crm::CustomerFavorite', foreign_key: :crm_customer_id, dependent: :delete_all, inverse_of: :customer
 
   validates :account_id, presence: true
   validates :name, presence: true
@@ -137,6 +140,8 @@ class Crm::Customer < ApplicationRecord
   scope :in_public_pool, -> { where(is_in_public_pool: true) }
   scope :assigned, -> { where.not(account_owner_id: nil) }
   scope :owned_by, ->(user_id) { where(account_owner_id: user_id) }
+  # 当前用户特别关注的客户。
+  scope :favorited_by, ->(user_id) { joins(:favorites).where(crm_customer_favorites: { user_id: user_id }) }
 
   # 进公海：清空负责人并记录时间与原归属人（领回冷却期校验用）。供公海回收定时任务与手动操作复用。
   def move_to_public_pool!(at: Time.current)
@@ -146,7 +151,10 @@ class Crm::Customer < ApplicationRecord
   # 成交汇总回写（对应 Twenty customer-deal-rollup 触发器）：
   # 累计成交额 / 成交订单数 / 首次·最近成交时间，口径=非 CANCELLED 订单。
   def recompute_deal_rollup!
-    stats = sales_orders.dealt.pick(Arel.sql('SUM(order_amount_micros), COUNT(*), MIN(order_date), MAX(order_date)'))
+    # 多币种订单先折人民币再汇总（与看板/提成同口径），避免美金金额被当人民币直接相加。
+    stats = sales_orders.dealt.pick(
+      Arel.sql("SUM(#{Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL}), COUNT(*), MIN(order_date), MAX(order_date)")
+    )
     # 跳过校验/回调是有意的：缓存统计写回不应触发审计日志或校验。
     update_columns( # rubocop:disable Rails/SkipsModelValidations
       deal_total_amount_micros: stats[0],

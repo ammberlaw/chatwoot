@@ -5,6 +5,8 @@ json.account_owner_id resource.account_owner_id
 json.account_owner_name resource.account_owner&.crm_display_name
 json.previous_owner_name resource.previous_owner&.crm_display_name
 json.shared_user_ids resource.shared_user_ids || []
+# 当前用户是否「特别关注」该客户（每人各标；@favorited_ids 由列表控制器预载，其他渲染处默认 false）。
+json.favorited(@favorited_ids&.include?(resource.id) || false)
 
 json.trade_country resource.trade_country
 json.trade_region resource.trade_region

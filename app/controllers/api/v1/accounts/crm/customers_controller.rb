@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail, :favorite, :unfavorite]
 
   RESULTS_PER_PAGE = 15
   MAX_IMPORT_ROWS = 2000
@@ -29,6 +29,22 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
                  .order(sort_clause)
                  .page(permitted_params[:page] || 1)
                  .per(results_per_page)
+    @favorited_ids = favorited_ids_for(@customers.map(&:id))
+  end
+
+  # 特别关注（每人各标）：收藏 / 取消收藏。
+  def favorite
+    Crm::CustomerFavorite.find_or_create_by!(
+      account_id: Current.account.id, user_id: current_user.id, crm_customer_id: @customer.id
+    )
+    head :ok
+  end
+
+  def unfavorite
+    Crm::CustomerFavorite.where(
+      account_id: Current.account.id, user_id: current_user.id, crm_customer_id: @customer.id
+    ).delete_all
+    head :ok
   end
 
   # 指定 sort 列时按 asc/desc 排序，否则默认按更新时间倒序；
@@ -208,7 +224,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   # 客户详情大页：一次聚合客户 + 商机 / 跟进时间线 / 待办 / 订单 / 报价（文件已在客户里）。
   def detail
     @opportunities = @customer.opportunities.order(updated_at: :desc).limit(20)
-    @orders = @customer.sales_orders.order(order_date: :desc).limit(20)
+    @orders = @customer.sales_orders.order(order_date: :desc).limit(20).with_attached_files
+    @pis = @customer.crm_pis.order(pi_date: :desc).limit(20)
     @quotes = @customer.quotes.order(Arel.sql('COALESCE(quote_date, created_at) DESC')).limit(20)
     @notes = Current.account.crm_follow_up_notes
                     .where(crm_customer_id: @customer.id).order(created_at: :desc).limit(30)
@@ -289,7 +306,19 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   def filtered_customers
     scope = pool_scope(Current.account.crm_customers)
     scope = restrict_by_org(scope) unless params[:filter] == 'public_pool'
+    scope = scope.favorited_by(current_user.id) if params[:favorited_only].present?
     apply_customer_filters(scope)
+  end
+
+  # 当前用户在给定客户里收藏了哪些（列表 favorited 标记用）。
+  def favorited_ids_for(ids)
+    return Set.new if ids.blank?
+
+    Set.new(
+      Crm::CustomerFavorite
+        .where(account_id: Current.account.id, user_id: current_user.id, crm_customer_id: ids)
+        .pluck(:crm_customer_id)
+    )
   end
 
   def apply_customer_filters(scope)

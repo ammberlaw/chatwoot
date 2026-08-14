@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_12_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_14_000002) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -947,6 +947,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_12_000001) do
     t.index ["owner_id"], name: "index_crm_commission_sheets_on_owner_id"
   end
 
+  create_table "crm_customer_favorites", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "crm_customer_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id"], name: "index_crm_customer_favorites_on_account_id_and_user_id"
+    t.index ["crm_customer_id"], name: "index_crm_customer_favorites_on_crm_customer_id"
+    t.index ["user_id", "crm_customer_id"], name: "idx_crm_cust_fav_user_customer", unique: true
+  end
+
   create_table "crm_customers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "account_owner_id"
@@ -1633,6 +1644,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_12_000001) do
     t.string "pi_no"
     t.jsonb "line_items", default: [], null: false
     t.bigint "shipping_micros"
+    t.datetime "deleted_at"
+    t.bigint "deleted_by_id"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_sales_orders_on_account_id_and_status"
@@ -1642,6 +1655,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_12_000001) do
     t.index ["crm_opportunity_id"], name: "index_crm_sales_orders_on_crm_opportunity_id"
     t.index ["crm_quote_id"], name: "index_crm_sales_orders_on_crm_quote_id"
     t.index ["crm_team_id"], name: "index_crm_sales_orders_on_crm_team_id"
+    t.index ["deleted_at"], name: "index_crm_sales_orders_on_deleted_at"
     t.index ["owner_id"], name: "index_crm_sales_orders_on_owner_id"
   end
 

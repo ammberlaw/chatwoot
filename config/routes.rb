@@ -73,6 +73,8 @@ Rails.application.routes.draw do
                 post :share
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
+                post :favorite
+                delete :favorite, action: :unfavorite
               end
             end
             resources :contacts, only: [:index, :update]
@@ -105,11 +107,13 @@ Rails.application.routes.draw do
             resources :sales_orders do
               collection do
                 post :parse_pi
+                get :deleted
               end
               member do
                 get :audits
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
+                post :restore
               end
             end
             resources :commission_sheets do

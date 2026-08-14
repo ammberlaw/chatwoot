@@ -8,6 +8,15 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 特别关注（每人各标）：任何可见该客户的 CRM 成员都能标自己的，辖区收口在 fetch_customer。
+  def favorite?
+    true
+  end
+
+  def unfavorite?
+    true
+  end
+
   def check_duplicate?
     true
   end

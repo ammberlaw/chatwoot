@@ -41,6 +41,15 @@ class CrmCustomerAPI extends ApiClient {
     return axios.get(`${this.url}/churn_risk_count`);
   }
 
+  // 特别关注（每人各标）：收藏 / 取消收藏。
+  favorite(id) {
+    return axios.post(`${this.url}/${id}/favorite`);
+  }
+
+  unfavorite(id) {
+    return axios.delete(`${this.url}/${id}/favorite`);
+  }
+
   // 批量导入：rows 为前端映射好的行（键=CRM字段），defaultOwnerId 为统一负责人（可空）。
   import({ rows, defaultOwnerId }) {
     return axios.post(`${this.url}/import`, {
