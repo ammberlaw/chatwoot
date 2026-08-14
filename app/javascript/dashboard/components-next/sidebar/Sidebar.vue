@@ -12,6 +12,8 @@ import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
+import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
+import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import { emitter } from 'shared/helpers/mitt';
 import { useWindowSize, useEventListener } from '@vueuse/core';
 
@@ -89,6 +91,9 @@ const isCrmManager = computed(
 );
 // 人事角色：组织架构/成员管理/绩效/员工档案入口（无 CRM 销售数据）。
 const isCrmHr = computed(() => currentUser.value?.crm_role === 'hr');
+const isMesStaff = computed(
+  () => isAdminLike.value || (currentUser.value?.mes_roles || []).length > 0
+);
 // 财务：全公司数据只读，需看到公司级看板等入口，不能按普通业务收窄。
 const isCrmFinance = computed(() => currentUser.value?.crm_role === 'finance');
 // 普通业务（非管理员/副管理员/部门负责人/财务）：隐藏公司级看板等团队之外的数据入口。
@@ -282,6 +287,22 @@ const getSidebarSectionSort = useMapGetter(
 );
 
 // 流失预警角标：可见范围内超期未互动的成交客户数（实时计算，无存储）。
+const mesNotificationsStore = useMesNotificationsStore();
+const mesUnreadCount = computed(() => mesNotificationsStore.getUnreadCount);
+const mesTodoCount = ref(0);
+const fetchMesTodoCount = async () => {
+  try {
+    const [approvalRes, inboxRes] = await Promise.all([
+      MesProductionOrderAPI.approvalInbox(),
+      MesProductionOrderAPI.inbox(),
+    ]);
+    mesTodoCount.value =
+      (approvalRes?.data?.payload?.length || 0) +
+      (inboxRes?.data?.payload?.length || 0);
+  } catch {
+    mesTodoCount.value = 0;
+  }
+};
 const churnRiskCount = ref(0);
 const fetchChurnRiskCount = async () => {
   try {
@@ -300,6 +321,8 @@ onMounted(() => {
   store.dispatch('attributes/get');
   store.dispatch('customViews/get', 'conversation');
   store.dispatch('customViews/get', 'contact');
+  mesNotificationsStore.fetchUnreadCount();
+  fetchMesTodoCount();
   fetchChurnRiskCount();
 });
 
@@ -926,6 +949,134 @@ const menuItems = computed(() => {
         ],
       },
       {
+        name: 'MES Production',
+        label: t('SIDEBAR.MES_G_PRODUCTION'),
+        icon: 'i-lucide-factory',
+        activeOn: [
+          'mes_dashboard_index',
+          'mes_todo_index',
+          'mes_production_orders_index',
+          'mes_boms_index',
+          'mes_products_index',
+          'mes_purchase_orders_index',
+          'mes_suppliers_index',
+          'mes_stock_entries_index',
+          'mes_material_issues_index',
+          'mes_production_records_index',
+          'mes_inspections_index',
+          'mes_fg_inbound_index',
+          'mes_shipments_index',
+          'mes_notifications_index',
+        ],
+        children: [
+          {
+            name: 'MES Dashboard',
+            label: t('SIDEBAR.MES_DASHBOARD'),
+            to: accountScopedRoute('mes_dashboard_index'),
+            activeOn: ['mes_dashboard_index'],
+          },
+          {
+            name: 'MES Todo',
+            label: t('SIDEBAR.MES_TODO'),
+            badgeCount: mesTodoCount.value,
+            to: accountScopedRoute('mes_todo_index'),
+            activeOn: ['mes_todo_index'],
+          },
+          {
+            name: 'MES Notifications',
+            label: t('SIDEBAR.MES_NOTIFICATIONS'),
+            badgeCount: mesUnreadCount.value,
+            to: accountScopedRoute('mes_notifications_index'),
+            activeOn: ['mes_notifications_index'],
+          },
+          {
+            name: 'MES Production Orders',
+            label: t('SIDEBAR.MES_PRODUCTION_ORDERS'),
+            to: accountScopedRoute('mes_production_orders_index'),
+            activeOn: ['mes_production_orders_index'],
+          },
+          {
+            name: 'MES BOMs',
+            label: t('SIDEBAR.MES_BOMS'),
+            to: accountScopedRoute('mes_boms_index'),
+            activeOn: ['mes_boms_index'],
+          },
+          {
+            name: 'MES Products',
+            label: t('SIDEBAR.MES_PRODUCTS'),
+            to: accountScopedRoute('mes_products_index'),
+            activeOn: ['mes_products_index'],
+          },
+          // 采购单/供应商含采购价与供应商资料，销售端不可见（生态硬约束）。
+          ...(isMesStaff.value
+            ? [
+                {
+                  name: 'MES Purchase Orders',
+                  label: t('SIDEBAR.MES_PURCHASE_ORDERS'),
+                  to: accountScopedRoute('mes_purchase_orders_index'),
+                  activeOn: ['mes_purchase_orders_index'],
+                },
+                {
+                  name: 'MES Suppliers',
+                  label: t('SIDEBAR.MES_SUPPLIERS'),
+                  to: accountScopedRoute('mes_suppliers_index'),
+                  activeOn: ['mes_suppliers_index'],
+                },
+              ]
+            : []),
+          {
+            name: 'MES Stock Entries',
+            label: t('SIDEBAR.MES_STOCK_ENTRIES'),
+            to: accountScopedRoute('mes_stock_entries_index'),
+            activeOn: ['mes_stock_entries_index'],
+          },
+          {
+            name: 'MES Shopfloor',
+            label: t('SIDEBAR.MES_G_SHOPFLOOR'),
+            icon: '',
+            collapsible: true,
+            showTreeLine: true,
+            activeOn: [
+              'mes_material_issues_index',
+              'mes_production_records_index',
+              'mes_inspections_index',
+            ],
+            children: [
+              {
+                name: 'MES Material Issues',
+                label: t('SIDEBAR.MES_MATERIAL_ISSUES'),
+                to: accountScopedRoute('mes_material_issues_index'),
+                activeOn: ['mes_material_issues_index'],
+              },
+              {
+                name: 'MES Production Records',
+                label: t('SIDEBAR.MES_PRODUCTION_RECORDS'),
+                to: accountScopedRoute('mes_production_records_index'),
+                activeOn: ['mes_production_records_index'],
+              },
+              {
+                name: 'MES Inspections',
+                label: t('SIDEBAR.MES_INSPECTIONS'),
+                to: accountScopedRoute('mes_inspections_index'),
+                activeOn: ['mes_inspections_index'],
+              },
+            ],
+          },
+          {
+            name: 'MES FG Inbound',
+            label: t('SIDEBAR.MES_FG_INBOUND'),
+            to: accountScopedRoute('mes_fg_inbound_index'),
+            activeOn: ['mes_fg_inbound_index'],
+          },
+          {
+            name: 'MES Shipments',
+            label: t('SIDEBAR.MES_SHIPMENTS'),
+            to: accountScopedRoute('mes_shipments_index'),
+            activeOn: ['mes_shipments_index'],
+          },
+        ],
+      },
+      {
         name: 'CRM Knowledge',
         label: t('SIDEBAR.CRM_G_KNOWLEDGE'),
         icon: 'i-lucide-book-open',
@@ -1497,6 +1648,7 @@ const ITEM_MODULE = {
   'CRM Employees': 'hr',
   'CRM Employee Comps': 'hr',
   'CRM Doc Center': 'doc',
+  'MES Production': 'mes',
 };
 const itemModule = name => ITEM_MODULE[name] || 'crm';
 // 当前路由属于哪个系统（默认 CRM，含工作台/销售各页/会话）。
@@ -1526,6 +1678,25 @@ const ROUTE_MODULE = {
   crm_attendance_index: 'hr',
   crm_employees_index: 'hr',
   crm_doc_center_index: 'doc',
+  mes_dashboard_index: 'mes',
+  mes_todo_index: 'mes',
+  mes_production_orders_index: 'mes',
+  mes_production_order_intake_index: 'mes',
+  mes_boms_index: 'mes',
+  mes_products_index: 'mes',
+  mes_purchase_orders_index: 'mes',
+  mes_suppliers_index: 'mes',
+  mes_stock_entries_index: 'mes',
+  mes_material_issues_index: 'mes',
+  mes_production_records_index: 'mes',
+  mes_inspections_index: 'mes',
+  mes_fg_inbound_index: 'mes',
+  mes_shipments_index: 'mes',
+  mes_notifications_index: 'mes',
+  mes_serial_numbers_index: 'mes',
+  mes_materials_index: 'mes',
+  mes_warehouses_index: 'mes',
+  mes_stock_balances_index: 'mes',
 };
 const activeModule = computed(() => ROUTE_MODULE[route.name] || 'crm');
 

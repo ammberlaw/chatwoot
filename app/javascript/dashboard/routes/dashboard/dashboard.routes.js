@@ -5,6 +5,7 @@ import { routes as contactRoutes } from './contacts/routes';
 import { routes as companyRoutes } from './companies/routes';
 import { routes as crmRoutes } from './crm/routes';
 import { routes as tiktokRoutes } from './tiktok/routes';
+import { routes as mesRoutes } from './mes/routes';
 import { routes as notificationRoutes } from './notifications/routes';
 import { routes as inboxRoutes } from './inbox/routes';
 import { frontendURL } from '../../helper/URLHelper';
@@ -31,6 +32,7 @@ export default {
         ...companyRoutes,
         ...crmRoutes,
         ...tiktokRoutes,
+        ...mesRoutes,
         ...searchRoutes,
         ...notificationRoutes,
         ...helpcenterRoutes.routes,
