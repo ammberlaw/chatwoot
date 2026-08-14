@@ -114,6 +114,11 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   end
 
   def create
+    blocked = poaching_blocked_recipients(email_params[:to_address])
+    if blocked.any?
+      return render json: { error: poaching_error(blocked) }, status: :unprocessable_entity
+    end
+
     @email = Current.account.crm_emails.create!(email_params.merge(owner_id: email_params[:owner_id] || current_user.id))
     @counterparty_type = counterparty_type_for(@email)
   end
@@ -121,6 +126,13 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   # 更新：文字字段就地改；带来的新附件走 attach 追加（不覆盖已有附件，
   # 因 has_many_attached 直接赋值会整组替换，编辑草稿再传附件会丢原件）。
   def update
+    if email_params[:to_address].present?
+      blocked = poaching_blocked_recipients(email_params[:to_address])
+      if blocked.any?
+        return render json: { error: poaching_error(blocked) }, status: :unprocessable_entity
+      end
+    end
+
     new_files = email_params[:files]
     @email.update!(email_params.except(:files))
     Array(new_files).compact_blank.each { |file| @email.files.attach(file) }
@@ -144,6 +156,39 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   end
 
   private
+
+  # 防撞单：收件邮箱若属于「别人建档且你够不到」的客户，则拦截发送（单发/群发/回复通用）。
+  # 豁免：管理员·超管·副管（early return）/ 负责人本人 / 被共享 / 该客户负责人在你邮件可见范围（主管看本团队）。
+  # 匹配按客户「主要联系邮箱」，无主/公海客户不拦（谁都能捡）。
+  def poaching_blocked_recipients(to_string)
+    au = Current.account_user
+    return [] if au.nil? || au.administrator? || au.crm_deputy_admin?
+
+    addrs = to_string.to_s.scan(/[^\s,;<>"']+@[^\s,;<>"']+/).map(&:downcase).uniq
+    return [] if addrs.empty?
+
+    visible = Crm::AccessScope.new(Current.account, au).mail_visible_owner_ids
+    return [] if visible == :all
+
+    uid = current_user.id
+    addrs.filter_map do |addr|
+      cust = Current.account.crm_customers
+                    .where.not(account_owner_id: nil)
+                    .where('lower(contact_email) = ?', addr)
+                    .first
+      next if cust.nil?
+      next if cust.account_owner_id == uid
+      next if cust.shared_user_ids.include?(uid)
+      next if visible.include?(cust.account_owner_id)
+
+      { email: addr, owner: cust.account_owner&.name }
+    end
+  end
+
+  def poaching_error(blocked)
+    list = blocked.map { |b| "#{b[:email]}（已被#{b[:owner] || '同事'}建档）" }.join('、')
+    "无法发送：#{list}。该客户已被同事建档，需分发或共享给你后才能联系。"
+  end
 
   def fetch_email
     @email = visible_emails.find(params[:id])
