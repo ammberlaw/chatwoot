@@ -38,6 +38,14 @@ class Tiktok::AccessScope
     shop_ids_for(own_department_ids)
   end
 
+  # 可见部门 id：管理层/财务看全部（:all），否则仅本人负责/在编的部门。
+  # 供数据看板团队筛选下拉用（含未挂店铺的新部门）。
+  def visible_department_ids
+    return :all if all_access?
+
+    own_department_ids
+  end
+
   private
 
   # 该成员所属（负责/在编）的 TK 部门 id。

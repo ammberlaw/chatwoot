@@ -8,15 +8,17 @@ class Api::V1::Accounts::Tiktok::DashboardController < Api::V1::Accounts::Tiktok
       currency: 'CNY',
       summary: summary(records),
       by_team: by_team(records),
-      daily: daily(records)
+      daily: daily(records),
+      teams: visible_teams
     }
   end
 
-  # 今日速览：当天各店售出数据 + 汇总；含未录入的活跃店铺（提示老板哪些还没报数）。
+  # 今日速览：展示「最近有数据的一天」各店售出数据 + 汇总（TK 日报常报前一日，
+  # 严格取当天多为空，故回退到最新已录入的一天；无任何数据时才用今天）。
   def today
-    date = Time.zone.today
-    records = scope_visible(Current.account.tiktok_daily_sales_records)
-              .where(sale_date: date).includes(shop: :department).to_a
+    visible = scope_visible(Current.account.tiktok_daily_sales_records)
+    date = visible.maximum(:sale_date) || Time.zone.today
+    records = visible.where(sale_date: date).includes(shop: :department).to_a
     shops = visible_active_shops
     render json: {
       date: date,
@@ -29,6 +31,14 @@ class Api::V1::Accounts::Tiktok::DashboardController < Api::V1::Accounts::Tiktok
   end
 
   private
+
+  # 看板团队筛选下拉：当前成员可见的全部 TK 部门（含未挂店铺的新部门，与 by_team 靠记录聚合不同）。
+  def visible_teams
+    ids = tiktok_scope.visible_department_ids
+    scope = Current.account.tiktok_departments.order(:name)
+    scope = scope.where(id: ids) unless ids == :all
+    scope.map { |dept| { id: dept.id, name: dept.name } }
+  end
 
   # 当前成员可见的活跃店铺（含所属团队），用于今日速览逐店展示。
   def visible_active_shops
