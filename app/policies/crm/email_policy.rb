@@ -11,6 +11,11 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  # 群发单显：与建单同权限，数据范围由控制器收口。
+  def bulk_create?
+    true
+  end
+
   def counts?
     true
   end

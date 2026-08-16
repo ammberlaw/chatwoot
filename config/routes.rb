@@ -148,6 +148,7 @@ Rails.application.routes.draw do
                 get :mailboxes
                 post :fetch
                 post :move_to_folder
+                post :bulk_create
               end
               member do
                 post :attach_kb

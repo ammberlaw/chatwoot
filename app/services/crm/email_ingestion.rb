@@ -120,15 +120,42 @@ module Crm::EmailIngestion
   end
 
   # 汇总待落地的部件：先取被正文 cid: 引用的内联部件（不论是否被识别为附件），
-  # 再取其余真附件（cid 已被内联收走的排除）。返回 [part, cid, inline] 三元组。
+  # 再把其余部件分成「嵌入图」(如 Outlook 签名 image00X.png，归内联、不列附件)与「真附件」。
+  # 返回 [part, cid, inline] 三元组。
   def collect_parts(mail, referenced)
-    inline = mail.all_parts.reject(&:multipart?).filter_map do |p|
+    inline = referenced_inline_parts(mail, referenced)
+    inline_ids = inline.to_set { |part, _cid, _flag| part.object_id }
+    rest = mail.attachments.reject { |a| inline_ids.include?(a.object_id) || inline_ref?(a, referenced) }
+    embedded, real = rest.partition { |a| embedded_image?(a) }
+    inline +
+      embedded.map { |a| [a, normalize_cid(a.content_id), true] } +
+      real.map { |a| [a, nil, false] }
+  end
+
+  # 被正文 cid: 引用的内联部件（不论是否被识别为附件）。
+  def referenced_inline_parts(mail, referenced)
+    mail.all_parts.reject(&:multipart?).filter_map do |p|
       cid = normalize_cid(p.content_id)
       [p, cid, true] if cid && referenced.include?(cid)
     end
-    inline_ids = inline.to_set { |part, _cid, _flag| part.object_id }
-    attachments = mail.attachments.reject { |a| inline_ids.include?(a.object_id) || inline_ref?(a, referenced) }
-    inline + attachments.map { |a| [a, nil, false] }
+  end
+
+  # 嵌入式装饰图（签名 logo / 社媒图标等）：图片类型 + 非显式 attachment 声明 +
+  # (有 Content-ID 或 Outlook 自动命名 imageNNN.ext)。这类图不该占据附件列表，
+  # 否则一封长邮件 / 多封往来的签名小图会全堆到底部。用户真正「另存的附件」通常
+  # 是 Content-Disposition: attachment，或非图片(PDF/表格/压缩包)，不会被误伤。
+  def embedded_image?(part)
+    return false unless part.content_type.to_s.downcase.start_with?('image/')
+    return false if attachment_disposition?(part)
+
+    normalize_cid(part.content_id).present? ||
+      part.filename.to_s.match?(/\Aimage\d+\.(?:png|jpe?g|gif|bmp)\z/i)
+  end
+
+  def attachment_disposition?(part)
+    part.header[:content_disposition].to_s.downcase.include?('attachment')
+  rescue StandardError
+    false
   end
 
   # 该部件是否为被正文 cid: 引用的内联部件。

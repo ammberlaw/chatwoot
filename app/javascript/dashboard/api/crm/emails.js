@@ -35,4 +35,10 @@ client.updateWithFiles = (id, formData) =>
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
+// 群发单显：一份正文 + recipients 列表，后端给每人各建一封独立邮件逐封发（multipart，带附件）。
+client.bulkCreate = formData =>
+  axios.post(`${client.url}/bulk_create`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
 export default client;

@@ -155,6 +155,33 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     head :ok
   end
 
+  # 群发单显：给每个收件人各建一条独立邮件（各自单独 To，互相不可见），逐封投递。
+  # 同一份正文/签名/附件复制到每封；folder=BULK 归入「群发箱」；send_status=PENDING 触发发送队列。
+  def bulk_create
+    recipients = parsed_bulk_recipients
+    return render json: { error: '没有有效收件人（缺邮箱）' }, status: :unprocessable_entity if recipients.blank?
+
+    files = Array(email_params[:files]).compact_blank
+    base = email_params.except(:to_address, :crm_customer_id, :contact_id, :files, :folder, :send_status, :send_now)
+    count = 0
+    recipients.each do |r|
+      email = Current.account.crm_emails.new(
+        base.merge(
+          owner_id: email_params[:owner_id] || current_user.id,
+          folder: 'BULK',
+          to_address: r[:email],
+          crm_customer_id: r[:crm_customer_id].presence,
+          contact_id: r[:contact_id].presence,
+          send_status: 'PENDING'
+        )
+      )
+      files.each { |f| email.files.attach(f) }
+      email.save!
+      count += 1
+    end
+    render json: { count: count }
+  end
+
   private
 
   # 防撞单：收件邮箱若属于「别人建档且你够不到」的客户，则拦截发送（单发/群发/回复通用）。
@@ -264,6 +291,22 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
 
   def search_emails(scope, query)
     scope.where('subject ILIKE :q OR from_address ILIKE :q OR to_address ILIKE :q', q: "%#{query}%")
+  end
+
+  # 群发收件人列表：[{ email, crm_customer_id?, contact_id? }, …]，兼容 JSON 字符串/数组两种传法。
+  def parsed_bulk_recipients
+    raw = params[:recipients]
+    raw = JSON.parse(raw) if raw.is_a?(String)
+    Array(raw).filter_map do |r|
+      r = r.respond_to?(:to_unsafe_h) ? r.to_unsafe_h : r
+      email = r['email'].presence || r[:email].presence
+      next if email.blank?
+
+      { email: email, crm_customer_id: r['crm_customer_id'] || r[:crm_customer_id],
+        contact_id: r['contact_id'] || r[:contact_id] }
+    end
+  rescue JSON::ParserError
+    []
   end
 
   def email_params
