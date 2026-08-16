@@ -3,6 +3,11 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 客户列表页顶 KPI 汇总（客户数/本月新增/在谈商机/成交订单）：可见范围收口在控制器 filtered_customers。
+  def stats?
+    true
+  end
+
   # 客户详情大页：可见范围与列表一致（辖区收口在控制器 fetch_customer）。
   def detail?
     true
