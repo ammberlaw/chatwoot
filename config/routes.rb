@@ -95,6 +95,7 @@ Rails.application.routes.draw do
               collection do
                 get :prefill
                 get :company_headers
+                get :summary
                 post :parse_pi
               end
               member do

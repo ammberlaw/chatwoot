@@ -6,6 +6,9 @@ export default {
   list(accountId, params = {}) {
     return axios.get(base(accountId), { params });
   },
+  summary(accountId, params = {}) {
+    return axios.get(`${base(accountId)}/summary`, { params });
+  },
   get(accountId, id) {
     return axios.get(`${base(accountId)}/${id}`);
   },

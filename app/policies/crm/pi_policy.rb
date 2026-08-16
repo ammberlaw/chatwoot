@@ -3,6 +3,10 @@ class Crm::PiPolicy < ApplicationPolicy
     true
   end
 
+  def summary?
+    true
+  end
+
   def show?
     true
   end

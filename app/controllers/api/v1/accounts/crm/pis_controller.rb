@@ -3,6 +3,7 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   before_action :fetch_pi, only: [:show, :update, :destroy, :xlsx]
 
   RESULTS_PER_PAGE = 15
+  SUMMARY_STATUSES = %w[DRAFT PAID VOID].freeze
 
   def index
     scope = filtered_pis
@@ -13,6 +14,26 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
                 .per(RESULTS_PER_PAGE)
   end
 
+  # KPI 汇总：按状态给出全量张数 + 各币种金额合计（不受状态 tab / 搜索约束，
+  # 只受可见范围收口，供页顶 KPI 卡与状态 tab 计数使用）。
+  def summary
+    scope = scope_by_owner(Current.account.crm_pis)
+    scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
+
+    counts = scope.group(:status).count
+    amounts = scope.where.not(total_amount_micros: nil)
+                   .group(:status, :currency)
+                   .sum(:total_amount_micros)
+    render json: build_summary(counts, amounts).merge(creators: creators_for(scope))
+  end
+
+  # 可见范围内实际有 PI 的创建人（owner），供「创建人」筛选下拉。
+  def creators_for(scope)
+    User.where(id: scope.where.not(owner_id: nil).select(:owner_id))
+        .order(:name)
+        .map { |u| { id: u.id, name: u.crm_display_name } }
+  end
+
   def show; end
 
   def create
@@ -20,11 +41,16 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
     @pi.owner_id ||= current_user.id
     apply_seller_profile_defaults
     @pi.save!
+    # 建单时直接选「已付款」也要落销售订单（与 update 同口径；服务按 pi_no 幂等）。
+    @converted_order = convert_to_sales_order if @pi.status == 'PAID'
     render :show
   end
 
   def update
     @pi.update!(pi_params)
+    # 只要是「已付款」就落一张销售订单（幂等：按 pi_no 只建一次，重存不会重复，
+    # 也给此前漏转的 PI 一条补救路径）。失败只记日志、不阻断 PI 保存。
+    @converted_order = convert_to_sales_order if @pi.status == 'PAID'
     render :show
   end
 
@@ -83,6 +109,14 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
     @pi = Current.account.crm_pis.find(params[:id])
   end
 
+  # 付款自动转销售订单；转单失败只记日志、不影响 PI 已保存的结果。
+  def convert_to_sales_order
+    Crm::PiToSalesOrder.new(@pi).call
+  rescue StandardError => e
+    Rails.logger.error("[PI→SO] pi=#{@pi.id}: #{e.class} #{e.message}")
+    nil
+  end
+
   # 建单时用业务员预录兜底卖方落款（前端一般已带入；此处兜住前端没传的情况）。
   # 联系人姓名复用 issued_by 列（Contact 行与 ISSUED BY 行同名）。
   def apply_seller_profile_defaults
@@ -98,9 +132,28 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
     authorize(Crm::Pi)
   end
 
+  # 把 group(:status).count 与 group(:status,:currency).sum 拼成前端好用的结构：
+  # { all: { count:, amounts: {USD:..} }, DRAFT: {...}, PAID: {...}, VOID: {...} }
+  # 金额跨币种不折算，按币种分开列（PI 无汇率字段，合并会失真）。
+  def build_summary(counts, amounts)
+    buckets = (['all'] + SUMMARY_STATUSES).index_with { { count: 0, amounts: Hash.new(0) } }
+
+    counts.each do |status, n|
+      buckets[status][:count] = n if buckets.key?(status)
+      buckets['all'][:count] += n
+    end
+    amounts.each do |(status, currency), micros|
+      cur = currency.presence || 'USD'
+      buckets[status][:amounts][cur] += micros if buckets.key?(status)
+      buckets['all'][:amounts][cur] += micros
+    end
+    buckets
+  end
+
   def filtered_pis
     scope = scope_by_owner(Current.account.crm_pis)
     scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
+    scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = search(scope, params[:q]) if params[:q].present?
     scope
@@ -127,6 +180,6 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   end
 
   def permitted_params
-    params.permit(:page, :filter, :status, :q)
+    params.permit(:page, :filter, :status, :q, :owner_id)
   end
 end
