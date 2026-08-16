@@ -291,7 +291,6 @@ const scopeOptions = [
 // ── 三级目录导航：path 栈（板块 → 分类 → 子分类）。当前节点决定显示的子文件夹与文档 ──
 // path 元素：{ type:'section'|'category'|'orphan'|'uncategorized', id, name }
 const pathStack = ref([]); // 空=根
-const selectedFolderKey = ref(null); // 单击选中的文件夹（驱动右侧 Info 面板）
 const isSearching = computed(() => !!searchQuery.value.trim());
 
 const currentNode = computed(() =>
@@ -439,9 +438,6 @@ const breadcrumb = computed(() =>
   )
 );
 
-const folderClass = f =>
-  f.uncategorized ? 'bg-n-slate-3 text-n-slate-11' : colorOf(f.name);
-
 // 文件夹大小 = 其（子树）文档附件字节和；最近修改 = 其文档最新 updatedAt
 const folderBytes = f =>
   (f.docs || []).reduce(
@@ -464,26 +460,11 @@ const folderLastModified = f => {
   return times.length ? times.reduce((a, b) => (a > b ? a : b)) : null;
 };
 
-// ── 文件夹选中（Info 面板） + 进入/返回导航 ──
+// ── 进入 / 返回导航（像电脑文件夹逐级下钻）──
 const folderKeyOf = f => `${f.type}:${f.id}`;
-const selectedFolder = computed(() =>
-  selectedFolderKey.value == null
-    ? null
-    : currentFolders.value.find(
-        f => folderKeyOf(f) === selectedFolderKey.value
-      ) || null
-);
-const isFolderSelected = f => selectedFolderKey.value === folderKeyOf(f);
-const selectFolder = f => {
-  selectedFolderKey.value = folderKeyOf(f);
-};
-const clearFolderSelection = () => {
-  selectedFolderKey.value = null;
-};
 
 // 进入文件夹：板块→经路由切 section_id（由 route watcher 同步 path 并拉数据、也同步侧栏/URL）；分类/叶子→压栈
 const enterFolder = f => {
-  clearFolderSelection();
   if (f.type === 'section') {
     router.replace({ query: { ...route.query, section_id: f.id } });
     return;
@@ -495,7 +476,6 @@ const enterFolder = f => {
 };
 // 面包屑跳转：i<0 回根（GENERAL 在板块内则经路由清 section_id）
 const goToDepth = i => {
-  clearFolderSelection();
   if (i < 0) {
     if (isGeneral.value && route.query.section_id) {
       router.replace({ query: { ...route.query, section_id: undefined } });
@@ -509,7 +489,6 @@ const goToDepth = i => {
 // 回根（库切换/筛选切换时复位）
 const backToFolders = () => {
   pathStack.value = [];
-  selectedFolderKey.value = null;
 };
 
 // ── Filter：文件夹排序（默认顺序 / 名称 / 文档数 / 大小 / 最近修改）──
@@ -958,7 +937,6 @@ watch(
     activeFilter.value = filter || 'company';
     activeSectionId.value = sectionId || '';
     closePanel();
-    clearFolderSelection();
     // 侧栏切板块→落到该板块层；无板块→回根（GENERAL 显示板块网格）
     pathStack.value = sectionId
       ? [{ type: 'section', id: Number(sectionId), name: '' }]
@@ -1399,52 +1377,49 @@ watch(
                   @blur="saveRename"
                   @click.stop
                 />
-                <!-- 单击选中看信息，双击进入 -->
+                <!-- 单击直接进入（像电脑文件夹逐级下钻）-->
                 <button
                   type="button"
-                  class="relative block w-full pt-2 text-left cursor-pointer transition-transform group-hover/folder:-translate-y-1"
-                  @click="selectFolder(folder)"
-                  @dblclick="enterFolder(folder)"
+                  class="relative block w-full text-left cursor-pointer transition-transform group-hover/folder:-translate-y-1"
+                  @click="enterFolder(folder)"
                 >
-                  <!-- 露出的纸张（两层玻璃叠纸） -->
-                  <div
-                    class="absolute h-6 -top-1 inset-x-4 rounded-t-lg border border-b-0 border-white/40 bg-white/25 backdrop-blur-sm"
-                  />
-                  <div
-                    class="absolute shadow-sm h-7 inset-x-3 -top-0 rounded-t-lg border border-b-0 border-white/60 bg-white/40 backdrop-blur-md"
-                  />
-                  <!-- 文件夹主体（玻璃）-->
-                  <div
-                    class="relative flex flex-col justify-end p-3 overflow-hidden transition-all border shadow-sm h-28 rounded-xl rounded-tl-md ring-1 ring-inset backdrop-blur-xl backdrop-saturate-150"
-                    :class="
-                      isFolderSelected(folder)
-                        ? 'border-white/20 ring-white/20 bg-gradient-to-br from-n-iris-9/75 to-n-iris-10/60 shadow-lg shadow-n-iris-9/25'
-                        : 'border-white/60 ring-white/40 bg-gradient-to-br from-white/50 to-n-iris-3/25 group-hover/folder:from-white/70 group-hover/folder:shadow-md'
-                    "
-                  >
-                    <span
-                      class="absolute i-lucide-folder top-2.5 right-2.5 size-4"
-                      :class="
-                        isFolderSelected(folder)
-                          ? 'text-white/70'
-                          : 'text-n-slate-9'
-                      "
-                    />
-                    <!-- 选中时露出首篇文档预览 -->
+                  <!-- iOS「文件」风立体文件夹：蓝亮前袋 + 粉/白(带文字线)/黄纸扇形探出 + 前袋写名 -->
+                  <div class="relative w-full aspect-[8/7]">
+                    <!-- 后板 -->
                     <div
-                      v-if="isFolderSelected(folder) && folder.docs.length"
-                      class="absolute text-xs leading-snug left-3 right-8 top-2.5 line-clamp-1 text-white/85"
+                      class="absolute left-[11%] right-[11%] top-[17%] bottom-[7%] rounded-[16px] bg-gradient-to-b from-[#5aa6ff] to-[#3f8bf7]"
+                    />
+                    <!-- 纸张：粉(左) / 黄(右) / 白(中·文字线) 扇形探出 -->
+                    <div
+                      class="absolute left-[21%] top-[15%] h-[41%] w-[25%] origin-bottom-right -rotate-[10deg] rounded-[6px] bg-gradient-to-b from-[#ffd7e1] to-[#f8bacb] shadow-sm"
+                    />
+                    <div
+                      class="absolute right-[21%] top-[15%] h-[41%] w-[25%] origin-bottom-left rotate-[10deg] rounded-[6px] bg-gradient-to-b from-[#ffe9a4] to-[#ffd977] shadow-sm"
+                    />
+                    <div
+                      class="absolute left-1/2 top-[10%] h-[45%] w-[37%] -translate-x-1/2 overflow-hidden rounded-[6px] bg-white shadow-sm"
                     >
-                      {{ folder.docs[0].summary || folder.docs[0].name }}
+                      <div class="mt-[26%] mx-[15%] space-y-[3.5px]">
+                        <div
+                          v-for="i in 4"
+                          :key="i"
+                          class="h-[2px] rounded-full bg-n-slate-4"
+                          :class="i === 4 ? 'w-1/2' : 'w-full'"
+                        />
+                      </div>
                     </div>
-                    <div class="relative min-w-0">
+                    <!-- 前袋（发亮）-->
+                    <div
+                      class="absolute left-[11%] right-[11%] bottom-[7%] h-[47%] overflow-hidden rounded-[16px] rounded-t-[13px] bg-gradient-to-b from-[#63acff] to-[#4691fb] shadow-[0_10px_20px_-4px_rgba(64,120,230,0.45)]"
+                    >
                       <div
-                        class="text-sm font-semibold truncate"
-                        :class="
-                          isFolderSelected(folder)
-                            ? 'text-white'
-                            : 'text-n-slate-12'
-                        "
+                        class="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent"
+                      />
+                    </div>
+                    <!-- 前袋文字：名称 + 计数/大小 -->
+                    <div class="absolute left-[16%] right-[13%] bottom-[12%] min-w-0">
+                      <div
+                        class="text-[15px] font-bold leading-tight truncate text-white drop-shadow-sm"
                       >
                         {{
                           folder.uncategorized
@@ -1452,53 +1427,29 @@ watch(
                             : folder.name
                         }}
                       </div>
-                      <!-- 板块：显示「板块」；其余：文档数(+子文件夹) + 大小 -->
-                      <div
-                        v-if="folder.type === 'section'"
-                        class="mt-0.5 text-xs"
-                        :class="
-                          isFolderSelected(folder)
-                            ? 'text-white/75'
-                            : 'text-n-slate-10'
-                        "
-                      >
-                        {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SECTION_LABEL') }}
-                      </div>
-                      <template v-else>
-                        <div
-                          class="mt-0.5 text-xs"
-                          :class="
-                            isFolderSelected(folder)
-                              ? 'text-white/75'
-                              : 'text-n-slate-10'
-                          "
-                        >
+                      <div class="mt-0.5 text-[11px] truncate text-white/85">
+                        <template v-if="folder.type === 'section'">
+                          {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SECTION_LABEL') }}
+                        </template>
+                        <template v-else>
                           {{
                             t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
                               count: folder.docs.length,
                             })
                           }}
-                          <span v-if="folder.childCount">
+                          <template v-if="folder.childCount">
                             ·
                             {{
                               t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS', {
                                 count: folder.childCount,
                               })
                             }}
-                          </span>
-                        </div>
-                        <div
-                          v-if="folderBytes(folder)"
-                          class="mt-0.5 text-xs tabular-nums"
-                          :class="
-                            isFolderSelected(folder)
-                              ? 'text-white/60'
-                              : 'text-n-slate-9'
-                          "
-                        >
-                          {{ fmtSize(folderBytes(folder)) }}
-                        </div>
-                      </template>
+                          </template>
+                          <template v-if="folderBytes(folder)">
+                            · {{ fmtSize(folderBytes(folder)) }}
+                          </template>
+                        </template>
+                      </div>
                     </div>
                   </div>
                 </button>
@@ -1940,130 +1891,6 @@ watch(
             </div>
           </div>
         </div>
-      </div>
-    </aside>
-
-    <!-- 右侧文件夹信息面板（参考图 Info）：网格里选中文件夹时展示其属性 -->
-    <aside
-      v-if="!panelMode && selectedFolder && !isSearching && !isRecycle"
-      class="flex flex-col w-[340px] flex-shrink-0 overflow-hidden border-l border-n-weak bg-n-solid-1"
-    >
-      <div
-        class="flex items-center justify-between px-5 py-4 border-b border-n-weak"
-      >
-        <span class="text-base font-semibold text-n-slate-12">
-          {{ t('CRM.KNOWLEDGE_DOCS.INFO.TITLE') }}
-        </span>
-        <button
-          type="button"
-          class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-1"
-          @click="clearFolderSelection"
-        >
-          <span class="i-lucide-x size-4" />
-        </button>
-      </div>
-
-      <div class="flex flex-col flex-1 gap-5 p-5 overflow-y-auto">
-        <!-- 文件夹标识 -->
-        <div class="flex items-center gap-3">
-          <span
-            class="flex items-center justify-center rounded-lg shrink-0 size-9"
-            :class="folderClass(selectedFolder)"
-          >
-            <span class="i-lucide-folder size-4" />
-          </span>
-          <div class="min-w-0">
-            <div class="text-base font-semibold truncate text-n-slate-12">
-              {{
-                selectedFolder.uncategorized
-                  ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
-                  : selectedFolder.name
-              }}
-            </div>
-            <div class="text-xs text-n-slate-10">
-              {{
-                t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
-                  count: selectedFolder.docs.length,
-                })
-              }}
-            </div>
-          </div>
-        </div>
-
-        <!-- 概要数字 -->
-        <div class="grid grid-cols-2 gap-3">
-          <div class="p-3 border rounded-xl border-n-weak">
-            <div class="text-2xl font-semibold tabular-nums text-n-slate-12">
-              {{ selectedFolder.docs.length }}
-            </div>
-            <div class="text-xs text-n-slate-10">
-              {{ t('CRM.KNOWLEDGE_DOCS.INFO.DOC_COUNT') }}
-            </div>
-          </div>
-          <div class="p-3 border rounded-xl border-n-weak">
-            <div class="text-2xl font-semibold tabular-nums text-n-slate-12">
-              {{ fmtSize(folderBytes(selectedFolder)) || '—' }}
-            </div>
-            <div class="text-xs text-n-slate-10">
-              {{ t('CRM.KNOWLEDGE_DOCS.INFO.SIZE') }}
-            </div>
-          </div>
-        </div>
-
-        <!-- 属性 -->
-        <div>
-          <div class="mb-2 text-xs font-medium text-n-slate-10">
-            {{ t('CRM.KNOWLEDGE_DOCS.INFO.PROPERTIES') }}
-          </div>
-          <div class="flex flex-col gap-2 text-sm">
-            <div class="flex items-center justify-between">
-              <span class="text-n-slate-10">
-                {{ t('CRM.KNOWLEDGE_DOCS.INFO.SIZE') }}
-              </span>
-              <span class="text-n-slate-12 tabular-nums">
-                {{ fmtSize(folderBytes(selectedFolder)) || '—' }}
-              </span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-n-slate-10">
-                {{ t('CRM.KNOWLEDGE_DOCS.INFO.LAST_MODIFIED') }}
-              </span>
-              <span class="text-n-slate-12 tabular-nums">
-                {{ fmtDate(folderLastModified(selectedFolder)) || '—' }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 标签 -->
-        <div>
-          <div class="mb-2 text-xs font-medium text-n-slate-10">
-            {{ t('CRM.KNOWLEDGE_DOCS.INFO.TAGS') }}
-          </div>
-          <div class="flex flex-wrap gap-1.5">
-            <span
-              v-if="activeSection"
-              class="px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
-            >
-              {{ activeSection.name }}
-            </span>
-            <span
-              class="px-2 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"
-            >
-              {{ t('CRM.KNOWLEDGE_DOCS.INFO.SCOPE_COMPANY') }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div class="px-5 py-4 border-t border-n-weak">
-        <Button
-          :label="t('CRM.KNOWLEDGE_DOCS.INFO.OPEN')"
-          icon="i-lucide-folder-open"
-          color="iris"
-          class="justify-center w-full"
-          @click="enterFolder(selectedFolder)"
-        />
       </div>
     </aside>
 

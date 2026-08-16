@@ -647,6 +647,36 @@ const editDraft = email => {
   });
 };
 
+// 再次编辑（类小满）：把已发邮件的收/抄/密/主题/正文/发件人/客户灌进写信框，当「新邮件」编辑后再发；
+// 原有附件下载后作为新附件一并带上；不带 editId = 不动原件（原件仍留在发件箱）。
+const reEdit = async email => {
+  let attachmentFiles = [];
+  try {
+    attachmentFiles = await Promise.all(
+      (email.files || []).map(async f => {
+        const blob = await (await fetch(f.url)).blob();
+        return new File([blob], f.filename, {
+          type: blob.type || 'application/octet-stream',
+        });
+      })
+    );
+  } catch {
+    attachmentFiles = [];
+    useAlert('部分附件载入失败，正文已带入');
+  }
+  openCompose({
+    toAddress: email.toAddress || '',
+    ccAddress: email.ccAddress || '',
+    bccAddress: email.bccAddress || '',
+    subject: email.subject || '',
+    body: email.body || '',
+    fromAddress: email.fromAddress || '',
+    attachmentFiles,
+    crmCustomerId: email.crmCustomerId || null,
+    contactId: email.contactId || null,
+  });
+};
+
 // 删除邮件（草稿为主，任意邮件可删）：确认后删除并刷新列表/角标/邮箱。
 const deleteEmail = async email => {
   // eslint-disable-next-line no-alert
@@ -691,6 +721,7 @@ const moreMenuItems = computed(() => {
     {
       label: aiSummarizing.value ? '摘要生成中…' : 'AI 往来摘要',
       icon: 'i-lucide-scroll-text',
+      menuClass: 'crm-ai-item',
       run: () => summarizeThread(e),
     },
     { label: '转发', icon: 'i-lucide-forward', run: () => forward(e) },
@@ -700,6 +731,14 @@ const moreMenuItems = computed(() => {
       run: () => forwardAsAttachment(e),
     },
   ];
+  // 再次编辑：仅对「已发送」邮件（收件人才是真正的对方；收件箱邮件的收件人是自己）。
+  if (e.sendStatus === 'SENT' || e.folder === 'SENT') {
+    items.push({
+      label: '再次编辑',
+      icon: 'i-lucide-pencil-line',
+      run: () => reEdit(e),
+    });
+  }
   if (e.sendStatus === 'FAILED') {
     items.push({
       label: '重新发送',
@@ -1323,6 +1362,7 @@ watch(
             <!-- 其他邮件：翻译 + 回复 + 全部回复 + 更多 -->
             <template v-else>
               <Button
+                class="crm-ai"
                 :label="aiTranslation ? '收起翻译' : '翻译'"
                 :icon="
                   aiTranslating

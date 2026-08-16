@@ -10,6 +10,10 @@ import Avatar from 'next/avatar/Avatar.vue';
 import SidebarProfileMenuStatus from './SidebarProfileMenuStatus.vue';
 import MySignatureDialog from 'dashboard/components-next/CRM/MySignatureDialog.vue';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
+import { applyColorPalette } from 'dashboard/helper/themeHelper';
+import { LocalStorage } from 'shared/helpers/localStorage';
+import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
+import { useUISettings } from 'dashboard/composables/useUISettings';
 
 defineProps({
   isCollapsed: { type: Boolean, default: false },
@@ -65,6 +69,41 @@ const onAvatarSelected = async event => {
 // 我的签名（KPI 电子签）：存一次可复用，各签字环节一键盖章。
 const signatureDialogRef = ref(null);
 const openSignatureDialog = () => signatureDialogRef.value?.open();
+
+// 配色主题：紫玻璃（默认）/ 蓝色商务。localStorage 即时生效不闪 + 镜像 ui_settings 跨设备恢复。
+const { updateUISettings } = useUISettings();
+const paletteMenuTitle = '配色主题';
+const PALETTES = [
+  {
+    key: 'purple',
+    label: '紫玻璃',
+    swatch: 'bg-gradient-to-br from-[#5b5bd6] to-[#7c6cf0]',
+  },
+  {
+    key: 'blue',
+    label: '蓝色商务',
+    swatch: 'bg-gradient-to-br from-[#2563eb] to-[#60a5fa]',
+  },
+  {
+    key: 'beebot',
+    label: '云白微光',
+    swatch: 'bg-gradient-to-br from-[#f4f5f8] via-[#dfe0ff] to-[#7c7ef0]',
+  },
+  {
+    key: 'classic',
+    label: '经典灰',
+    swatch: 'bg-gradient-to-br from-[#f4f4f5] to-[#373a40]',
+  },
+];
+const activePalette = ref(
+  LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE) || 'purple'
+);
+const selectPalette = key => {
+  activePalette.value = key;
+  LocalStorage.set(LOCAL_STORAGE_KEYS.COLOR_PALETTE, key);
+  applyColorPalette(key);
+  updateUISettings({ ui_palette: key });
+};
 
 const accountId = useMapGetter('getCurrentAccountId');
 const globalConfig = useMapGetter('globalConfig/get');
@@ -190,6 +229,36 @@ const allowedMenuItems = computed(() => {
     </template>
     <DropdownBody class="bottom-12 z-50 mb-2 w-80 ltr:left-0 rtl:right-0">
       <SidebarProfileMenuStatus />
+      <DropdownSeparator />
+      <div class="px-2 py-2">
+        <div class="px-2 pb-1.5 text-xs font-medium text-n-slate-11">
+          {{ paletteMenuTitle }}
+        </div>
+        <div class="grid grid-cols-2 gap-2 px-2">
+          <button
+            v-for="p in PALETTES"
+            :key="p.key"
+            type="button"
+            class="flex gap-2 items-center px-2.5 h-9 rounded-lg border transition-colors"
+            :class="
+              activePalette === p.key
+                ? 'border-n-iris-9 bg-n-alpha-1'
+                : 'border-n-weak hover:bg-n-alpha-1'
+            "
+            @click="selectPalette(p.key)"
+          >
+            <span
+              class="flex-shrink-0 w-4 h-4 rounded-full shadow-sm"
+              :class="p.swatch"
+            />
+            <span class="text-sm truncate text-n-slate-12">{{ p.label }}</span>
+            <span
+              v-if="activePalette === p.key"
+              class="flex-shrink-0 ml-auto size-4 i-lucide-check text-n-iris-9"
+            />
+          </button>
+        </div>
+      </div>
       <DropdownSeparator />
       <template v-for="item in allowedMenuItems" :key="item.label">
         <CustomBrandPolicyWrapper

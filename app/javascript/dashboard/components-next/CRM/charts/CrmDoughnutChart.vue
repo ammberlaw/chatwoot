@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Doughnut } from 'vue-chartjs';
 import { Chart as ChartJS, Tooltip, ArcElement } from 'chart.js';
 import { chartPalette, FONT_FAMILY } from './chartColors';
+import { useThemeSignal } from './useThemeSignal';
 
 const props = defineProps({
   labels: { type: Array, default: () => [] },
@@ -14,9 +15,13 @@ const props = defineProps({
   valueFormat: { type: Function, default: v => v },
 });
 
+// 切主题时触发 computed 重算 → 图表重绘（详见 useThemeSignal）。
+const themeSignal = useThemeSignal();
+
 ChartJS.register(Tooltip, ArcElement);
 
 const collection = computed(() => {
+  void themeSignal.value;
   const c = chartPalette();
   const fallback = [c.brand, c.amber, c.iris, c.blue, c.ruby];
   const bg = props.gauge
@@ -39,6 +44,7 @@ const collection = computed(() => {
 });
 
 const options = computed(() => {
+  void themeSignal.value;
   const c = chartPalette();
   return {
     responsive: true,

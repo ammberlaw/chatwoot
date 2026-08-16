@@ -62,6 +62,7 @@ Rails.application.routes.draw do
                 get :dedupe_search
                 get :identify
                 get :churn_risk_count
+                get :stats
                 post :reassign
                 post :import
               end

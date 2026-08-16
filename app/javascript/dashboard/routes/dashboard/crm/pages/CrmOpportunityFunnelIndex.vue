@@ -13,6 +13,8 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 import CrmOpportunitiesIndex from 'dashboard/routes/dashboard/crm/pages/CrmOpportunitiesIndex.vue';
+import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+import { useThemeSignal } from 'dashboard/components-next/CRM/charts/useThemeSignal';
 
 const { t } = useI18n();
 const { accountId } = useAccount();
@@ -190,17 +192,31 @@ const updateRecord = async payload => {
   }
 };
 
-const STAGES = [
-  { key: 'NEEDS_CONFIRMED', label: '需求确认（已报价）', color: 'bg-n-blue-9' },
-  { key: 'SAMPLING', label: '样品中', color: 'bg-n-iris-9' },
+// 阶段点颜色：仅经典灰下 需求确认→紫、样品中→黄（blue/iris 在经典灰塌成灰）；其它主题保持原色，跟随主题实时切换。
+const themeSignal = useThemeSignal();
+const isClassic = computed(() => {
+  void themeSignal.value;
+  return isClassicTheme();
+});
+const STAGES = computed(() => [
+  {
+    key: 'NEEDS_CONFIRMED',
+    label: '需求确认（已报价）',
+    color: isClassic.value ? 'bg-n-violet-9' : 'bg-n-blue-9',
+  },
+  {
+    key: 'SAMPLING',
+    label: '样品中',
+    color: isClassic.value ? 'bg-n-amber-9' : 'bg-n-iris-9',
+  },
   { key: 'WON', label: '已成交', color: 'bg-n-teal-9' },
   { key: 'LOST', label: '输单', color: 'bg-n-ruby-9' },
-];
+]);
 
 const CURRENCY_SYMBOL = { USD: '$', CNY: '¥', EUR: '€' };
 
 const columns = computed(() =>
-  STAGES.map(stage => {
+  STAGES.value.map(stage => {
     const items = records.value.filter(r => r.salesStage === stage.key);
     const total = items.reduce((s, r) => s + (r.amountMicros || 0), 0);
     const currency = items[0]?.currency || 'USD';
@@ -329,11 +345,11 @@ onMounted(() => {
       {{ t('CRM.FUNNEL.LOADING') }}
     </div>
 
-    <div v-else class="flex flex-1 gap-4 p-6 overflow-x-auto">
+    <div v-else class="flex flex-1 gap-4 p-6 overflow-hidden">
       <div
         v-for="col in columns"
         :key="col.key"
-        class="flex flex-col flex-shrink-0 overflow-hidden w-72 rounded-2xl bg-n-alpha-1"
+        class="flex flex-col flex-1 min-w-0 overflow-hidden rounded-2xl bg-n-alpha-1"
         @dragover.prevent
         @drop="onDrop(col.key)"
       >

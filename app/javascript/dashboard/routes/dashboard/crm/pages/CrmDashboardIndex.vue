@@ -9,7 +9,11 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue';
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
-import { themeColor } from 'dashboard/components-next/CRM/charts/chartColors';
+import {
+  themeColor,
+  isClassicTheme,
+} from 'dashboard/components-next/CRM/charts/chartColors';
+import { useThemeSignal } from 'dashboard/components-next/CRM/charts/useThemeSignal';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
@@ -72,6 +76,13 @@ const STAGE_COLORS = {
   WON: 'iris-10',
   LOST: 'ruby-9',
 };
+// 经典灰专属：商机阶段用黄黑灰（炭黑/金黄/灰/浅灰）。
+const CLASSIC_STAGE_COLORS = {
+  NEEDS_CONFIRMED: '#2a2e37',
+  SAMPLING: '#f5c451',
+  WON: '#6b6f78',
+  LOST: '#b9bcc4',
+};
 
 const SOURCE_LABELS = {
   ALIBABA: '阿里巴巴国际站',
@@ -131,7 +142,6 @@ watch([scope, selectedYear], fetchStats);
 const toYuan = micros => Math.round((micros || 0) / 1_000_000);
 const money = micros => `¥${toYuan(micros).toLocaleString()}`;
 const moneyYuan = v => `¥${Math.round(v).toLocaleString()}`;
-const hoursFmt = v => `${v}h`;
 const scoreFmt = v => `${v}分`;
 
 // ── KPI（按 period 读桶 + 真实环比） ──
@@ -191,6 +201,10 @@ const salesKpis = computed(() => {
   ];
 });
 
+// themeSignal：body class（主题）变化时自增。图表色板 chartPalette()/themeColor()
+// 读 DOM 非响应式，切主题不会自动重算；下面产色的 computed 依赖它即可跟随切换。
+const themeSignal = useThemeSignal();
+
 // ── 目标完成率（半圆仪表） ──
 const targetProgress = computed(() => {
   const targetMicros = stats.value?.target?.amount_micros || 0;
@@ -217,6 +231,7 @@ const trendChart = computed(() => {
 
 // ── 商机阶段（柱状图，与其它图表统一 Chart.js 风格） ──
 const stageChart = computed(() => {
+  void themeSignal.value;
   const byStage = stats.value?.trends?.opportunity_amount_by_stage || {};
   const rows = Object.keys(STAGE_LABELS)
     .map(stage => ({ stage, micros: byStage[stage] || 0 }))
@@ -224,7 +239,11 @@ const stageChart = computed(() => {
   return {
     labels: rows.map(r => STAGE_LABELS[r.stage]),
     data: rows.map(r => toYuan(r.micros)),
-    colors: rows.map(r => themeColor(STAGE_COLORS[r.stage])),
+    colors: rows.map(r =>
+      isClassicTheme()
+        ? CLASSIC_STAGE_COLORS[r.stage]
+        : themeColor(STAGE_COLORS[r.stage])
+    ),
     empty: !rows.length,
   };
 });
@@ -239,6 +258,7 @@ const winRate = computed(() => {
 
 // ── 客户来源占比（环形） ──
 const sourceDonut = computed(() => {
+  void themeSignal.value;
   const breakdown = stats.value?.source_breakdown || {};
   const rows = Object.entries(breakdown)
     .filter(([k, v]) => v && k !== 'REFERRAL')
@@ -270,24 +290,10 @@ const ownerRank = computed(() => {
     .map(([name, arr]) => [name, months.reduce((s, i) => s + (arr[i] || 0), 0)])
     .filter(([, v]) => v)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 8);
+    .slice(0, 50);
   return {
     labels: rows.map(([k]) => k),
     data: rows.map(([, v]) => toYuan(v)),
-    empty: !rows.length,
-  };
-});
-
-// ── 业务员平均回复时长（越短越好，升序排） ──
-const ownerLatency = computed(() => {
-  const by = stats.value?.team?.by_owner_reply_latency || {};
-  const rows = Object.entries(by)
-    .filter(([, v]) => v != null)
-    .sort((a, b) => a[1] - b[1])
-    .slice(0, 8);
-  return {
-    labels: rows.map(([k]) => k),
-    data: rows.map(([, v]) => v),
     empty: !rows.length,
   };
 });
@@ -352,6 +358,56 @@ const totalCards = computed(() => {
     },
   ];
 });
+
+// ── 经典灰专属：图表改 HTML 排版（黄黑灰）。响应式跟随主题切换（无需刷新）。──
+// isClassic 依赖 themeSignal 重算，图表用它做 :key 重绘。
+const isClassic = computed(() => {
+  void themeSignal.value;
+  return isClassicTheme();
+});
+const RANK_PALETTE = ['#f5c451', '#2a2e37', '#6b6f78', '#b9bcc4'];
+const isLightBar = c => c === '#f5c451' || c === '#b9bcc4';
+
+// 商机阶段：横向标签长条
+const classicStageBars = computed(() => {
+  const { labels, data, colors } = stageChart.value;
+  const max = Math.max(...data, 1);
+  return labels.map((label, i) => ({
+    label,
+    amount: moneyYuan(data[i]),
+    pct: Math.max((data[i] / max) * 100, 10),
+    color: colors[i],
+  }));
+});
+
+// 排行/回复/完善度：奖牌序号 + 头像 + 进度条 行
+const buildRankRows = (chart, { inverse = false, fmt }) => {
+  const { labels, data } = chart;
+  if (!labels.length) return [];
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data);
+  return labels.map((name, i) => {
+    let pct = Math.max((data[i] / max) * 100, 6);
+    if (inverse) {
+      pct = max === min ? 100 : ((max - data[i]) / (max - min)) * 76 + 24;
+    }
+    const color = RANK_PALETTE[Math.min(i, RANK_PALETTE.length - 1)];
+    return {
+      name,
+      initial: (name || '?').slice(0, 1),
+      value: fmt(data[i]),
+      pct,
+      color,
+      dark: isLightBar(color),
+    };
+  });
+};
+const classicRank = computed(() =>
+  buildRankRows(ownerRank.value, { fmt: moneyYuan })
+);
+const classicCompleteness = computed(() =>
+  buildRankRows(ownerCompleteness.value, { fmt: scoreFmt })
+);
 
 const PERIODS = [
   { k: 'month', l: '月度' },
@@ -466,33 +522,77 @@ const PERIODS = [
         </div>
       </div>
 
-      <!-- ═══ 第 2 行：商机阶段漏斗 + 目标仪表 ═══ -->
+      <!-- ═══ 第 2 行：业务员成交排行 + 目标仪表 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div
           class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-base font-medium text-n-slate-12">商机阶段分布</h2>
-            <span v-if="winRate != null" class="text-xs text-n-slate-11">
-              成交转化率
-              <span class="font-semibold text-n-iris-11">{{ winRate }}%</span>
+          <h2 class="mb-4 text-base font-medium text-n-slate-12">
+            业务员成交排行
+            <span class="ml-1 text-sm font-normal text-n-slate-10">
+              · {{ periodLabel }}
             </span>
-          </div>
-          <div class="h-64">
+          </h2>
+          <div class="h-72">
+            <div
+              v-if="ownerRank.empty"
+              class="flex items-center justify-center h-full text-sm text-n-slate-10"
+            >
+              暂无成交数据
+            </div>
+            <div
+              v-else-if="isClassic"
+              class="flex flex-col h-full gap-3 overflow-y-auto pr-1"
+            >
+              <div
+                v-for="(row, i) in classicRank"
+                :key="row.name"
+                class="flex items-center gap-2.5"
+              >
+                <div
+                  class="grid text-[11px] font-bold rounded size-5 place-items-center shrink-0"
+                  :style="{
+                    backgroundColor: row.color,
+                    color: row.dark ? '#26340a' : '#fff',
+                  }"
+                >
+                  {{ i + 1 }}
+                </div>
+                <div
+                  class="grid rounded-lg size-7 place-items-center bg-n-slate-3 text-[11px] font-bold text-n-slate-11 shrink-0"
+                >
+                  {{ row.initial }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[13px] font-medium truncate text-n-slate-12">
+                    {{ row.name }}
+                  </div>
+                  <div
+                    class="h-1.5 mt-1 overflow-hidden rounded-full bg-n-slate-3"
+                  >
+                    <div
+                      class="h-full rounded-full"
+                      :style="{
+                        width: row.pct + '%',
+                        backgroundColor: row.color,
+                      }"
+                    />
+                  </div>
+                </div>
+                <div class="text-[13px] font-bold text-n-slate-12 shrink-0">
+                  {{ row.value }}
+                </div>
+              </div>
+            </div>
             <CrmBarChart
-              v-if="!stageChart.empty"
-              :labels="stageChart.labels"
-              :data="stageChart.data"
-              :colors="stageChart.colors"
+              v-else
+              :key="themeSignal"
+              :labels="ownerRank.labels.slice(0, 8)"
+              :data="ownerRank.data.slice(0, 8)"
+              horizontal
               show-values
               :value-format="moneyYuan"
             />
-            <div
-              v-else
-              class="flex items-center justify-center h-full text-sm text-n-slate-10"
-            >
-              暂无商机数据
-            </div>
           </div>
         </div>
 
@@ -505,6 +605,7 @@ const PERIODS = [
           <template v-if="targetProgress">
             <div class="h-48 mx-auto max-w-[16rem]">
               <CrmDoughnutChart
+                :key="themeSignal"
                 :data="[targetProgress.pct, 100 - targetProgress.pct]"
                 gauge
                 cutout="78%"
@@ -536,25 +637,87 @@ const PERIODS = [
 
       <!-- ═══ 第 3 行：趋势面积图 + 来源环形 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div
-          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="mb-4 text-base font-medium text-n-slate-12">
-            订单金额趋势
-          </h2>
-          <div class="h-64">
-            <CrmAreaChart
-              v-if="!trendChart.empty"
-              :labels="trendChart.labels"
-              :data="trendChart.data"
-              :active-index="trendChart.activeIndex"
-              :value-format="moneyYuan"
-            />
-            <div
-              v-else
-              class="flex items-center justify-center h-full text-sm text-n-slate-10"
-            >
-              暂无趋势数据
+        <!-- 左栏堆叠两张小卡：订单金额趋势 + 商机阶段分布 -->
+        <div class="flex flex-col gap-4 lg:col-span-2">
+          <div
+            class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+          >
+            <h2 class="mb-4 text-base font-medium text-n-slate-12">
+              订单金额趋势
+            </h2>
+            <div class="h-40">
+              <CrmAreaChart
+                v-if="!trendChart.empty"
+                :key="themeSignal"
+                :labels="trendChart.labels"
+                :data="trendChart.data"
+                :active-index="trendChart.activeIndex"
+                :value-format="moneyYuan"
+              />
+              <div
+                v-else
+                class="flex items-center justify-center h-full text-sm text-n-slate-10"
+              >
+                暂无趋势数据
+              </div>
+            </div>
+          </div>
+          <div
+            class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+          >
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-base font-medium text-n-slate-12">商机阶段分布</h2>
+              <span v-if="winRate != null" class="text-xs text-n-slate-11">
+                成交转化率
+                <span class="font-semibold text-n-iris-11">{{ winRate }}%</span>
+              </span>
+            </div>
+            <div class="h-40">
+              <div
+                v-if="stageChart.empty"
+                class="flex items-center justify-center h-full text-sm text-n-slate-10"
+              >
+                暂无商机数据
+              </div>
+              <div
+                v-else-if="isClassic"
+                class="flex flex-col justify-center h-full gap-3"
+              >
+                <div
+                  v-for="row in classicStageBars"
+                  :key="row.label"
+                  class="flex items-center gap-3"
+                >
+                  <div
+                    class="w-20 text-[13px] font-medium text-n-slate-11 shrink-0"
+                  >
+                    {{ row.label }}
+                  </div>
+                  <div class="flex-1 h-7 overflow-hidden rounded-lg bg-n-slate-3">
+                    <div
+                      class="h-full rounded-lg"
+                      :style="{
+                        width: row.pct + '%',
+                        backgroundColor: row.color,
+                      }"
+                    />
+                  </div>
+                  <div
+                    class="w-24 text-[13px] font-bold text-right text-n-slate-12 shrink-0"
+                  >
+                    {{ row.amount }}
+                  </div>
+                </div>
+              </div>
+              <CrmBarChart
+                v-else
+                :key="themeSignal"
+                :labels="stageChart.labels"
+                :data="stageChart.data"
+                :colors="stageChart.colors"
+                show-values
+                :value-format="moneyYuan"
+              />
             </div>
           </div>
         </div>
@@ -568,6 +731,7 @@ const PERIODS = [
           <template v-if="!sourceDonut.empty">
             <div class="relative h-40 mx-auto max-w-[12rem]">
               <CrmDoughnutChart
+                :key="themeSignal"
                 :labels="sourceDonut.labels"
                 :data="sourceDonut.data"
                 :colors="sourceDonut.colors"
@@ -606,35 +770,8 @@ const PERIODS = [
         </div>
       </div>
 
-      <!-- ═══ 第 4 行：业务员排行 + 累计概览 ═══ -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div
-          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="mb-4 text-base font-medium text-n-slate-12">
-            业务员成交排行
-            <span class="ml-1 text-sm font-normal text-n-slate-10">
-              · {{ periodLabel }}
-            </span>
-          </h2>
-          <div class="h-72">
-            <CrmBarChart
-              v-if="!ownerRank.empty"
-              :labels="ownerRank.labels"
-              :data="ownerRank.data"
-              horizontal
-              show-values
-              :value-format="moneyYuan"
-            />
-            <div
-              v-else
-              class="flex items-center justify-center h-full text-sm text-n-slate-10"
-            >
-              暂无成交数据
-            </div>
-          </div>
-        </div>
-
+      <!-- ═══ 第 4 行：累计概览 + 业务员资料完善度 ═══ -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div
           class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
@@ -658,55 +795,72 @@ const PERIODS = [
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- ═══ 第 5 行：业务员回复时长 + 资料完善度 ═══ -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div
-          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="mb-4 text-base font-medium text-n-slate-12">
-            业务员平均回复时长（越短越好）
-          </h2>
-          <div class="h-64">
-            <CrmBarChart
-              v-if="!ownerLatency.empty"
-              :labels="ownerLatency.labels"
-              :data="ownerLatency.data"
-              horizontal
-              show-values
-              :value-format="hoursFmt"
-            />
-            <div
-              v-else
-              class="flex items-center justify-center h-full text-sm text-n-slate-10"
-            >
-              暂无回复时长数据
-            </div>
-          </div>
-        </div>
-
         <div
           class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             业务员资料完善度（越高越好）
           </h2>
-          <div class="h-64">
+          <div class="h-72">
+            <div
+              v-if="ownerCompleteness.empty"
+              class="flex items-center justify-center h-full text-sm text-n-slate-10"
+            >
+              暂无完善度数据
+            </div>
+            <div
+              v-else-if="isClassic"
+              class="flex flex-col h-full gap-3 overflow-y-auto pr-1"
+            >
+              <div
+                v-for="(row, i) in classicCompleteness"
+                :key="row.name"
+                class="flex items-center gap-2.5"
+              >
+                <div
+                  class="grid text-[11px] font-bold rounded size-5 place-items-center shrink-0"
+                  :style="{
+                    backgroundColor: row.color,
+                    color: row.dark ? '#26340a' : '#fff',
+                  }"
+                >
+                  {{ i + 1 }}
+                </div>
+                <div
+                  class="grid rounded-lg size-7 place-items-center bg-n-slate-3 text-[11px] font-bold text-n-slate-11 shrink-0"
+                >
+                  {{ row.initial }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-[13px] font-medium truncate text-n-slate-12">
+                    {{ row.name }}
+                  </div>
+                  <div
+                    class="h-1.5 mt-1 overflow-hidden rounded-full bg-n-slate-3"
+                  >
+                    <div
+                      class="h-full rounded-full"
+                      :style="{
+                        width: row.pct + '%',
+                        backgroundColor: row.color,
+                      }"
+                    />
+                  </div>
+                </div>
+                <div class="text-[13px] font-bold text-n-slate-12 shrink-0">
+                  {{ row.value }}
+                </div>
+              </div>
+            </div>
             <CrmBarChart
-              v-if="!ownerCompleteness.empty"
+              v-else
+              :key="themeSignal"
               :labels="ownerCompleteness.labels"
               :data="ownerCompleteness.data"
               horizontal
               show-values
               :value-format="scoreFmt"
             />
-            <div
-              v-else
-              class="flex items-center justify-center h-full text-sm text-n-slate-10"
-            >
-              暂无完善度数据
-            </div>
           </div>
         </div>
       </div>

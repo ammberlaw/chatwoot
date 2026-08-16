@@ -41,6 +41,12 @@ class CrmCustomerAPI extends ApiClient {
     return axios.get(`${this.url}/churn_risk_count`);
   }
 
+  // 列表顶部概览卡：客户数 / 本月新增 / 在谈商机 / 有成交订单（沿用当前视图筛选）。
+  stats(params = {}) {
+    const query = buildParams(params);
+    return axios.get(query ? `${this.url}/stats?${query}` : `${this.url}/stats`);
+  }
+
   // 特别关注（每人各标）：收藏 / 取消收藏。
   favorite(id) {
     return axios.post(`${this.url}/${id}/favorite`);

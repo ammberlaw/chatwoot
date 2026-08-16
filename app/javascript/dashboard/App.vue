@@ -10,7 +10,9 @@ import vueActionCable from './helper/actionCable';
 import { useRouter } from 'vue-router';
 import { useStore } from 'dashboard/composables/store';
 import WootSnackbarBox from './components/SnackbarContainer.vue';
-import { setColorTheme } from './helper/themeHelper';
+import { setColorTheme, applyColorPalette } from './helper/themeHelper';
+import { LocalStorage } from 'shared/helpers/localStorage';
+import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import { isOnOnboardingView } from 'v3/helpers/RouteHelper';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useFontSize } from 'dashboard/composables/useFontSize';
@@ -76,9 +78,24 @@ export default {
         }
       },
     },
+    // 换设备恢复：本地没设过配色时，采用账号里存的 ui_palette。
+    uiSettings: {
+      immediate: true,
+      handler(settings) {
+        const stored = LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE);
+        if (!stored && settings?.ui_palette) {
+          LocalStorage.set(
+            LOCAL_STORAGE_KEYS.COLOR_PALETTE,
+            settings.ui_palette
+          );
+          applyColorPalette(settings.ui_palette);
+        }
+      },
+    },
   },
   mounted() {
     this.initializeColorTheme();
+    applyColorPalette();
     this.listenToThemeChanges();
     // If user locale is set, use it; otherwise use account locale
     this.setLocale(

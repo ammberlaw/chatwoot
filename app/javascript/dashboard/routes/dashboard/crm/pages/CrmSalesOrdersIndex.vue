@@ -7,14 +7,17 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import { useMapGetter } from 'dashboard/composables/store';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
+import SalesOrdersAPI from 'dashboard/api/crm/salesOrders';
+import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmSalesOrderCreateDialog from 'dashboard/components-next/CRM/CrmSalesOrderCreateDialog.vue';
-import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 
 // 与后端 SalesOrdersController::RESULTS_PER_PAGE 保持一致。
 const ITEMS_PER_PAGE = 15;
@@ -26,6 +29,16 @@ const store = useCrmSalesOrdersStore();
 
 const createDialogRef = ref(null);
 const { isCrmSales, isCrmTeamLead } = useCrmRole();
+// 删除：负责人本人可删自己的单；管理员/副管可删任意 + 用回收箱。
+const currentUser = useMapGetter('getCurrentUser');
+const isAdmin = computed(
+  () =>
+    currentUser.value?.role === 'administrator' ||
+    currentUser.value?.crm_role === 'deputy_admin'
+);
+const canDeleteSelected = computed(
+  () => isAdmin.value || selectedOrder.value?.ownerId === currentUser.value?.id
+);
 // 能看「本人以外」的订单：管理员/副管理员/部门主管，或 CRM 团队负责人（订单按 CRM 团队收口）。
 const canViewTeam = computed(() => !isCrmSales.value || isCrmTeamLead.value);
 // 纯业务员只看个人订单：无「全部」视图，默认落在「我的」（未关联客户视图保留）。
@@ -44,32 +57,88 @@ const uiFlags = computed(() => store.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
 const totalCount = computed(() => store.getMeta.count || 0);
+// 自绘分页器（还原效果图页脚）：共 N 条 · 每页 15 条 + ‹ 页码 ›
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(totalCount.value / ITEMS_PER_PAGE))
+);
+// 页码窗口化：页多时首页 … 当前±1 … 末页，避免一长排按钮。
+const pageList = computed(() => {
+  const total = totalPages.value;
+  const cur = currentPage.value;
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const wanted = [1, total, cur, cur - 1, cur + 1].filter(
+    p => p >= 1 && p <= total
+  );
+  const sorted = [...new Set(wanted)].sort((a, b) => a - b);
+  const result = [];
+  let prev = 0;
+  sorted.forEach(p => {
+    if (p - prev > 1) result.push('…');
+    result.push(p);
+    prev = p;
+  });
+  return result;
+});
 
 const crmBase = () => `/api/v1/accounts/${accountId.value}/crm`;
 
-const STATUSES = {
-  PENDING_CONFIRMATION: {
-    label: '待确认',
-    class: 'bg-n-slate-3 text-n-slate-11',
-  },
-  IN_PRODUCTION: { label: '生产中', class: 'bg-n-blue-3 text-n-blue-11' },
-  PENDING_SHIPMENT: { label: '待出货', class: 'bg-n-iris-3 text-n-iris-11' },
-  SHIPPED: { label: '已出货', class: 'bg-n-iris-3 text-n-iris-11' },
-  COMPLETED: { label: '已完成', class: 'bg-n-teal-3 text-n-teal-11' },
-  CANCELLED: { label: '已取消', class: 'bg-n-ruby-3 text-n-ruby-11' },
-};
+const isClassic = ref(isClassicTheme());
+// 状态配色：仅经典灰用不褪色语义色(金/紫/绿/实心绿终态)；其它主题保持原始 blue/iris/teal（不同步）。
+const STATUSES = computed(() => {
+  const c = isClassic.value;
+  return {
+    PENDING_CONFIRMATION: {
+      label: '待确认',
+      class: 'bg-n-slate-3 text-n-slate-11',
+    },
+    IN_PRODUCTION: {
+      label: '生产中',
+      class: c ? 'bg-n-amber-3 text-n-amber-11' : 'bg-n-blue-3 text-n-blue-11',
+    },
+    PENDING_SHIPMENT: {
+      label: '待出货',
+      class: c ? 'bg-n-violet-3 text-n-violet-11' : 'bg-n-iris-3 text-n-iris-11',
+    },
+    SHIPPED: {
+      label: '已出货',
+      class: c ? 'bg-n-teal-3 text-n-teal-11' : 'bg-n-iris-3 text-n-iris-11',
+    },
+    COMPLETED: {
+      label: '已完成',
+      class: c ? 'bg-n-teal-9 text-white' : 'bg-n-teal-3 text-n-teal-11',
+    },
+    CANCELLED: { label: '已取消', class: 'bg-n-ruby-3 text-n-ruby-11' },
+  };
+});
 
-const filterTabs = computed(() => [
-  ...(canViewTeam.value
-    ? [{ key: 'all', label: t('CRM.SALES_ORDERS.FILTERS.ALL') }]
-    : []),
-  { key: 'mine', label: t('CRM.SALES_ORDERS.FILTERS.MINE') },
-]);
+// 视图 tab（我的/全部）带计数：计数取自列表 meta 的 mineCount/allCount。
+const filterTabs = computed(() => {
+  const meta = store.getMeta;
+  return [
+    ...(canViewTeam.value
+      ? [
+          {
+            key: 'all',
+            label: t('CRM.SALES_ORDERS.FILTERS.ALL'),
+            count: meta.allCount,
+          },
+        ]
+      : []),
+    {
+      key: 'mine',
+      label: t('CRM.SALES_ORDERS.FILTERS.MINE'),
+      count: meta.mineCount,
+    },
+  ];
+});
 
 // 状态筛选下拉，空值 = 全部状态；标签复用上面的 STATUSES 定义。
 const statusFilterOptions = [
   { value: '', label: t('CRM.SALES_ORDERS.FILTERS.ALL_STATUS') },
-  ...Object.entries(STATUSES).map(([value, { label }]) => ({ value, label })),
+  ...Object.entries(STATUSES.value).map(([value, { label }]) => ({
+    value,
+    label,
+  })),
 ];
 
 // 业务员下拉（空值 = 全部业务员），取自账号成员。
@@ -195,7 +264,7 @@ const tabLoading = ref(false);
 const detailSections = computed(() => {
   const o = selectedOrder.value;
   if (!o) return [];
-  const statusMeta = STATUSES[o.status];
+  const statusMeta = STATUSES.value[o.status];
   return [
     {
       title: '基本信息',
@@ -304,6 +373,59 @@ const closePanel = () => {
   selectedOrder.value = null;
 };
 
+// 删除销售订单（删重复单）：软删进回收箱，管理员可恢复。负责人本人/管理员可删。
+const deleteOrder = async () => {
+  const order = selectedOrder.value;
+  if (!order) return;
+  // eslint-disable-next-line no-alert
+  if (
+    !window.confirm(
+      `确定删除销售订单「${order.name || order.orderNo}」？将移入回收箱，管理员可恢复。`
+    )
+  ) {
+    return;
+  }
+  try {
+    await store.delete(order.id);
+    useAlert('已移入回收箱');
+    closePanel();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '删除失败');
+  }
+};
+
+// ── 回收箱（仅管理员/副管）：已删订单列表 + 恢复 ──
+const binDialogRef = ref(null);
+const binOrders = ref([]);
+const binLoading = ref(false);
+const openBin = async () => {
+  binDialogRef.value?.open();
+  binLoading.value = true;
+  try {
+    const { data } = await SalesOrdersAPI.deleted();
+    binOrders.value = data.payload || [];
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '加载回收箱失败');
+  } finally {
+    binLoading.value = false;
+  }
+};
+const restoreOrder = async id => {
+  try {
+    await SalesOrdersAPI.restore(id);
+    binOrders.value = binOrders.value.filter(o => o.id !== id);
+    useAlert('已恢复');
+    fetchRecords();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '恢复失败');
+  }
+};
+const fmtBinAmount = o => {
+  if (o.amount_micros == null) return '—';
+  const v = Math.round(o.amount_micros / 1_000_000).toLocaleString();
+  return `${o.currency || ''} ${v}`;
+};
+
 onMounted(() => {
   fetchRecords();
   fetchAgents();
@@ -339,179 +461,281 @@ watch(
     class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <!-- 标题 + 新建订单 -->
       <div
-        class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+        class="flex items-center justify-between px-[26px] pt-[18px] pb-3.5 border-b border-n-weak"
       >
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
           {{ t('CRM.SALES_ORDERS.HEADER') }}
         </h1>
-        <Button
-          :label="t('CRM.SALES_ORDERS.NEW')"
-          icon="i-lucide-plus"
-          color="iris"
-          @click="openCreateDialog"
-        />
+        <div class="flex items-center gap-2">
+          <button
+            v-if="isAdmin"
+            type="button"
+            title="回收箱"
+            class="inline-flex items-center gap-1.5 h-[34px] px-3 text-[13px] font-medium rounded-[9px] border border-n-weak text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+            @click="openBin"
+          >
+            <span class="i-lucide-trash-2 size-4" />
+            回收箱
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium text-white rounded-[9px] bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-lg shadow-n-iris-9/30 hover:brightness-105"
+            @click="openCreateDialog"
+          >
+            <span class="i-lucide-plus size-4" />
+            {{ t('CRM.SALES_ORDERS.NEW') }}
+          </button>
+        </div>
       </div>
 
-      <div
-        class="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-n-weak"
-      >
-        <Button
-          v-for="tab in filterTabs"
-          :key="tab.key"
-          :label="tab.label"
-          size="sm"
-          :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-          :color="activeFilter === tab.key ? 'iris' : 'slate'"
-          @click="setFilter(tab.key)"
-        />
-        <div class="w-px h-6 mx-1 bg-n-weak" />
-        <input
-          v-model="searchQuery"
-          type="text"
-          :placeholder="t('CRM.SALES_ORDERS.SEARCH_PLACEHOLDER')"
-          class="reset-base h-9 px-3 text-sm border rounded-lg w-44 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-          @input="onSearchInput"
-        />
+      <!-- 筛选工具条 -->
+      <div class="flex flex-wrap items-center gap-2.5 px-[26px] pt-3.5 pb-2.5">
+        <div
+          class="flex items-center flex-1 min-w-[200px] h-[38px] gap-2 px-3 text-[13px] border rounded-[10px] border-n-weak bg-n-solid-1/60 focus-within:ring-2 focus-within:ring-n-iris-9"
+        >
+          <span class="i-lucide-search size-4 shrink-0 text-n-slate-9" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            :placeholder="t('CRM.SALES_ORDERS.SEARCH_PLACEHOLDER')"
+            class="flex-1 h-full bg-transparent reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none"
+            @input="onSearchInput"
+          />
+        </div>
         <MonthPicker
           v-model="activeMonth"
-          trigger-class="w-36 h-9"
+          trigger-class="h-[38px]"
           @change="onMonthChange"
+        />
+        <SelectCard
+          :model-value="activeStatus"
+          :options="statusFilterOptions"
+          trigger-class="h-[38px]"
+          @update:model-value="setStatus"
         />
         <SelectCard
           v-if="canViewTeam"
           :model-value="activeOwnerId"
           :options="ownerFilterOptions"
+          trigger-class="h-[38px]"
           @update:model-value="setOwner"
-        />
-        <SelectCard
-          :model-value="activeStatus"
-          :options="statusFilterOptions"
-          @update:model-value="setStatus"
         />
       </div>
 
-      <div class="flex-1 px-6 py-4 overflow-auto">
+      <!-- 视图下划线 tab -->
+      <div
+        v-if="filterTabs.length > 1"
+        class="flex items-center gap-[22px] px-[26px] pt-0.5 border-b border-n-weak"
+      >
+        <button
+          v-for="tab in filterTabs"
+          :key="tab.key"
+          type="button"
+          class="relative flex items-center gap-[7px] py-2.5 text-[13.5px] transition-colors"
+          :class="
+            activeFilter === tab.key
+              ? 'font-semibold text-n-iris-11'
+              : 'text-n-slate-10 hover:text-n-slate-12'
+          "
+          @click="setFilter(tab.key)"
+        >
+          {{ tab.label }}
+          <span
+            v-if="tab.count != null"
+            class="px-[7px] py-px text-[11px] rounded-full tabular-nums"
+            :class="
+              activeFilter === tab.key
+                ? 'bg-n-iris-4 text-n-iris-11'
+                : 'bg-n-slate-3 text-n-slate-11'
+            "
+          >
+            {{ tab.count }}
+          </span>
+          <span
+            v-if="activeFilter === tab.key"
+            class="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-n-iris-9"
+          />
+        </button>
+      </div>
+
+      <div class="flex-1 px-3.5 py-1.5 overflow-auto">
         <div
           v-if="isFetching"
-          class="flex items-center justify-center p-8 text-base text-n-slate-11"
+          class="flex items-center justify-center p-8 text-sm text-n-slate-11"
         >
           {{ t('CRM.SALES_ORDERS.LOADING') }}
         </div>
         <div
           v-else-if="!records.length"
-          class="flex items-center justify-center p-8 text-base text-n-slate-11"
+          class="flex items-center justify-center p-8 text-sm text-n-slate-11"
         >
           {{ t('CRM.SALES_ORDERS.EMPTY') }}
         </div>
-        <div
-          v-else
-          class="overflow-hidden border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
-        >
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left border-collapse">
-              <thead class="bg-n-alpha-1 text-n-slate-11">
-                <tr class="border-b border-n-weak">
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.SALES_ORDERS.TABLE.NAME') }}
-                  </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.SALES_ORDERS.TABLE.ORDER_NO') }}
-                  </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.SALES_ORDERS.TABLE.CUSTOMER') }}
-                  </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.SALES_ORDERS.TABLE.STATUS') }}
-                  </th>
-                  <th
-                    class="px-4 py-3 font-medium text-right whitespace-nowrap"
-                  >
-                    {{ t('CRM.SALES_ORDERS.TABLE.AMOUNT') }}
-                  </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.SALES_ORDERS.TABLE.ORDER_DATE') }}
-                  </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.SALES_ORDERS.TABLE.DELIVERY_DATE') }}
-                  </th>
-                  <th class="px-4 py-3 font-medium whitespace-nowrap">
-                    {{ t('CRM.SALES_ORDERS.TABLE.OWNER') }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="record in records"
-                  :key="record.id"
-                  class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
-                  :class="{
-                    'bg-n-iris-2': selectedOrder?.id === record.id,
-                  }"
-                  @click="selectOrder(record)"
+        <table v-else class="w-full text-[13px] border-collapse">
+          <thead>
+            <tr>
+              <th
+                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+              >
+                {{ t('CRM.SALES_ORDERS.TABLE.NAME') }}
+              </th>
+              <th
+                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+              >
+                {{ t('CRM.SALES_ORDERS.TABLE.ORDER_NO') }}
+              </th>
+              <th
+                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+              >
+                {{ t('CRM.SALES_ORDERS.TABLE.CUSTOMER') }}
+              </th>
+              <th
+                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+              >
+                {{ t('CRM.SALES_ORDERS.TABLE.STATUS') }}
+              </th>
+              <th
+                class="px-3 py-2.5 text-right text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+              >
+                {{ t('CRM.SALES_ORDERS.TABLE.AMOUNT') }}
+              </th>
+              <th
+                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+              >
+                {{ t('CRM.SALES_ORDERS.TABLE.ORDER_DATE') }}
+              </th>
+              <th
+                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+              >
+                {{ t('CRM.SALES_ORDERS.TABLE.DELIVERY_DATE') }}
+              </th>
+              <th
+                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+              >
+                {{ t('CRM.SALES_ORDERS.TABLE.OWNER') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="record in records"
+              :key="record.id"
+              class="border-t cursor-pointer border-n-weak hover:bg-n-iris-9/[0.04]"
+              :class="{ 'bg-n-iris-2': selectedOrder?.id === record.id }"
+              @click="selectOrder(record)"
+            >
+              <td
+                class="px-3 py-3 font-semibold text-n-slate-12 whitespace-nowrap"
+              >
+                {{ record.piNo || record.name }}
+              </td>
+              <td
+                class="px-3 py-3 font-mono text-[12px] text-n-slate-10 whitespace-nowrap"
+              >
+                {{ record.orderNo }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-12 whitespace-nowrap">
+                {{ record.customerName || '—' }}
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap">
+                <span
+                  class="inline-flex items-center gap-[5px] px-2.5 py-[3px] rounded-full text-[12px] font-medium"
+                  :class="STATUSES[record.status]?.class"
                 >
-                  <td
-                    class="px-4 py-3 font-medium text-n-slate-12 whitespace-nowrap"
-                  >
-                    {{ record.name }}
-                  </td>
-                  <td class="px-4 py-3 text-n-slate-11 whitespace-nowrap">
-                    {{ record.orderNo }}
-                  </td>
-                  <td class="px-4 py-3 text-n-slate-11 whitespace-nowrap">
-                    {{ record.customerName || '—' }}
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <span
-                      class="px-2 py-0.5 rounded-md text-xs font-medium"
-                      :class="STATUSES[record.status]?.class"
-                    >
-                      {{ STATUSES[record.status]?.label || record.status }}
-                    </span>
-                  </td>
-                  <td
-                    class="px-4 py-3 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
-                  >
-                    {{
-                      fmtMoney(record.orderAmountMicros, record.orderCurrency)
-                    }}
-                  </td>
-                  <td class="px-4 py-3 text-n-slate-11 whitespace-nowrap">
-                    {{ fmtDate(record.orderDate) }}
-                  </td>
-                  <td class="px-4 py-3 text-n-slate-11 whitespace-nowrap">
-                    {{ fmtDate(record.deliveryDate) }}
-                  </td>
-                  <td class="px-4 py-3 whitespace-nowrap">
-                    <span
-                      v-if="record.ownerName"
-                      class="inline-flex items-center gap-1.5 text-n-slate-11"
-                    >
-                      <Avatar
-                        :name="record.ownerName"
-                        :src="record.ownerAvatarUrl || ''"
-                        :size="20"
-                        rounded-full
-                      />
-                      {{ record.ownerName }}
-                    </span>
-                    <span v-else class="text-n-slate-10">—</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  <span class="rounded-full size-1.5 bg-current opacity-90" />
+                  {{ STATUSES[record.status]?.label || record.status }}
+                </span>
+              </td>
+              <td
+                class="px-3 py-3 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
+              >
+                {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
+              </td>
+              <td
+                class="px-3 py-3 tabular-nums text-n-slate-10 whitespace-nowrap"
+              >
+                {{ fmtDate(record.orderDate) }}
+              </td>
+              <td
+                class="px-3 py-3 tabular-nums text-n-slate-10 whitespace-nowrap"
+              >
+                {{ fmtDate(record.deliveryDate) }}
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap">
+                <span
+                  v-if="record.ownerName"
+                  class="inline-flex items-center gap-2 text-n-slate-11"
+                >
+                  <Avatar
+                    :name="record.ownerName"
+                    :src="record.ownerAvatarUrl || ''"
+                    :size="26"
+                    rounded-full
+                  />
+                  {{ record.ownerName }}
+                </span>
+                <span v-else class="text-n-slate-10">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      <PaginationFooter
-        v-if="totalCount > ITEMS_PER_PAGE"
-        :current-page="currentPage"
-        :total-items="totalCount"
-        :items-per-page="ITEMS_PER_PAGE"
-        class="flex-shrink-0"
-        @update:current-page="onPageChange"
-      />
+      <!-- 页脚：共 N 条 · 每页 15 条 + 页码 -->
+      <div
+        v-if="totalCount"
+        class="flex items-center justify-between px-[26px] py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
+      >
+        <span>
+          {{
+            t('CRM.SALES_ORDERS.FOOTER_COUNT', {
+              total: totalCount,
+              per: ITEMS_PER_PAGE,
+            })
+          }}
+        </span>
+        <div v-if="totalPages > 1" class="flex items-center gap-1">
+          <button
+            type="button"
+            class="flex items-center justify-center min-w-[28px] h-7 px-1.5 border rounded-lg border-n-weak bg-n-solid-1/60 text-n-slate-11 disabled:opacity-40"
+            :disabled="currentPage === 1"
+            @click="onPageChange(currentPage - 1)"
+          >
+            <span class="i-lucide-chevron-left size-4" />
+          </button>
+          <template v-for="(p, i) in pageList" :key="i">
+            <span
+              v-if="p === '…'"
+              class="flex items-center justify-center min-w-[28px] h-7 text-n-slate-9"
+            >
+              {{ p }}
+            </span>
+            <button
+              v-else
+              type="button"
+              class="flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg tabular-nums"
+              :class="
+                p === currentPage
+                  ? 'bg-n-iris-9 text-white font-semibold'
+                  : 'text-n-slate-11 hover:bg-n-alpha-2'
+              "
+              @click="onPageChange(p)"
+            >
+              {{ p }}
+            </button>
+          </template>
+          <button
+            type="button"
+            class="flex items-center justify-center min-w-[28px] h-7 px-1.5 border rounded-lg border-n-weak bg-n-solid-1/60 text-n-slate-11 disabled:opacity-40"
+            :disabled="currentPage === totalPages"
+            @click="onPageChange(currentPage + 1)"
+          >
+            <span class="i-lucide-chevron-right size-4" />
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 右侧订单详情面板 -->
@@ -535,6 +759,15 @@ watch(
           color="slate"
           variant="faded"
           @click="openEditDialog(selectedOrder)"
+        />
+        <Button
+          v-if="canDeleteSelected"
+          label="删除"
+          icon="i-lucide-trash-2"
+          size="sm"
+          color="ruby"
+          variant="faded"
+          @click="deleteOrder"
         />
         <button
           class="p-1 rounded-md text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-1"
@@ -714,5 +947,78 @@ watch(
       @update="updateRecord"
       @refresh="fetchRecords"
     />
+
+    <!-- 回收箱（管理员/副管）：已删订单，可恢复 -->
+    <Dialog
+      ref="binDialogRef"
+      title="订单回收箱"
+      description="已删除的销售订单，管理员可恢复。"
+      :show-cancel-button="false"
+      :show-confirm-button="false"
+      width="2xl"
+    >
+      <div class="max-h-[60vh] overflow-auto -mx-1">
+        <div
+          v-if="binLoading"
+          class="py-10 text-sm text-center text-n-slate-10"
+        >
+          加载中…
+        </div>
+        <div
+          v-else-if="!binOrders.length"
+          class="py-10 text-sm text-center text-n-slate-10"
+        >
+          回收箱是空的
+        </div>
+        <table v-else class="w-full">
+          <thead>
+            <tr class="text-[11.5px] text-n-slate-10">
+              <th class="px-2 py-2 font-medium text-left">订单</th>
+              <th class="px-2 py-2 font-medium text-left">客户</th>
+              <th class="px-2 py-2 font-medium text-right">金额</th>
+              <th class="px-2 py-2 font-medium text-left">负责人</th>
+              <th class="px-2 py-2 font-medium text-left">删除</th>
+              <th class="px-2 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="o in binOrders"
+              :key="o.id"
+              class="border-t border-n-weak text-[13px]"
+            >
+              <td class="px-2 py-2.5">
+                <div class="font-medium text-n-slate-12">{{ o.name }}</div>
+                <div class="text-[11px] text-n-slate-10">{{ o.order_no }}</div>
+              </td>
+              <td class="px-2 py-2.5 text-n-slate-11">
+                {{ o.customer_name || '—' }}
+              </td>
+              <td
+                class="px-2 py-2.5 font-semibold text-right tabular-nums text-n-slate-12"
+              >
+                {{ fmtBinAmount(o) }}
+              </td>
+              <td class="px-2 py-2.5 text-n-slate-11">
+                {{ o.owner_name || '—' }}
+              </td>
+              <td class="px-2 py-2.5 text-[11px] text-n-slate-10">
+                {{ o.deleted_by_name || '—' }}
+              </td>
+              <td class="px-2 py-2.5 text-right">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 h-7 px-2.5 text-[12px] font-medium rounded-md border border-n-weak text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                  @click="restoreOrder(o.id)"
+                >
+                  <span class="i-lucide-rotate-ccw size-3.5" />
+                  恢复
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Dialog>
   </div>
 </template>

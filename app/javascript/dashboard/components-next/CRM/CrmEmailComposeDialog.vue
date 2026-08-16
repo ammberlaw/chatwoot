@@ -31,7 +31,10 @@ import {
 } from 'dashboard/routes/dashboard/crm/helper/scheduleTimezone';
 import { useAlert } from 'dashboard/composables';
 import { renderTextColorSpans } from 'dashboard/helper/editorTextColor';
-import { uploadInlineDataUriImages } from 'dashboard/helper/uploadHelper';
+import {
+  uploadInlineDataUriImages,
+  uploadInlineHtmlImages,
+} from 'dashboard/helper/uploadHelper';
 import { vOnClickOutside } from '@vueuse/components';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -234,6 +237,10 @@ const form = reactive({
   body: '',
 });
 
+// 群发单显：非空即进入群发模式（收件人来自客户列表勾选，各自单独发、互不可见）。
+const bulkRecipients = ref([]);
+const isBulk = computed(() => bulkRecipients.value.length > 0);
+
 // 收件人 chip 数组 <-> 逗号分隔字符串互转（后端仍收发字符串）。
 const parseRecipients = str =>
   (str || '')
@@ -422,13 +429,17 @@ const bodyStyle = computed(() => {
   if (fontSize.value) style.fontSize = fontSize.value;
   return style;
 });
-const bodyHtml = computed(() => {
-  const html = markdownToHtml(form.body);
+// 回复/转发时正文里「原邮件」引用的分隔标记（与 CrmEmailsIndex 的 quotedBody 一致）。
+// 签名要插在「回复正文」与「原邮件引用」之间，而不是整封（含引用）最底部。
+const QUOTE_MARKER = '------ 原邮件 ------';
+
+const fontWrap = html => {
   const parts = [];
   if (fontFamily.value) parts.push(`font-family:${fontFamily.value}`);
   if (fontSize.value) parts.push(`font-size:${fontSize.value}`);
   return parts.length ? `<div style="${parts.join(';')}">${html}</div>` : html;
-});
+};
+const bodyHtml = computed(() => fontWrap(markdownToHtml(form.body)));
 
 // 签名以富文本块拼在正文之后（HTML 发送用），纯文本兜底拼在 text part。
 const signatureHtml = computed(() => {
@@ -438,11 +449,31 @@ const signatureHtml = computed(() => {
     sig.bodyHtml || (sig.body ? sig.body.replace(/\n/g, '<br>') : '');
   return inner ? `<br><br>--<br>${inner}` : '';
 });
-const composedHtml = computed(() => `${bodyHtml.value}${signatureHtml.value}`);
+// 发送前把签名 HTML 里的 base64 内联图上传换成 URL 的结果（见 persist）；
+// 未清洗时回退到原签名 HTML（用于草稿本地拼接，最终发送以清洗后为准）。
+const cleanedSignatureHtml = ref(null);
+const composedHtml = computed(() => {
+  const sig = cleanedSignatureHtml.value ?? signatureHtml.value;
+  const body = form.body || '';
+  const idx = body.indexOf(QUOTE_MARKER);
+  // 有原邮件引用：签名插到回复正文之后、引用之前；否则拼在正文末尾。
+  if (sig && idx !== -1) {
+    const replyHtml = markdownToHtml(body.slice(0, idx));
+    const quoteHtml = markdownToHtml(body.slice(idx));
+    return fontWrap(`${replyHtml}${sig}${quoteHtml}`);
+  }
+  return `${bodyHtml.value}${sig}`;
+});
 const composedText = computed(() => {
   const sig = activeSignature.value;
   const plain = sig?.body ? `\n\n--\n${sig.body}` : '';
-  return `${form.body}${plain}`;
+  const body = form.body || '';
+  const idx = body.indexOf(QUOTE_MARKER);
+  // 纯文本兜底同理：签名夹在回复正文与原邮件引用之间。
+  if (plain && idx !== -1) {
+    return `${body.slice(0, idx)}${plain}\n\n${body.slice(idx)}`;
+  }
+  return `${body}${plain}`;
 });
 
 // 字体/字号浮层贴到编辑器工具栏按钮组右侧：运行时量出按钮条位置。
@@ -759,6 +790,11 @@ const persist = async () => {
   // 正文里粘贴进来的 base64 内联图先上传换成短链接，否则会撑爆 body/body_html
   // （文本列上限 2 万字），发送/存草稿直接失败。
   form.body = await uploadInlineDataUriImages(form.body || '');
+  // 签名里设计的图片以 base64 内嵌在签名 HTML → 上传换成 URL，否则随邮件发出后
+  // 收件端（Gmail 剥离 data: 图 / Outlook 降级成附件）显示不出内联签名图。
+  cleanedSignatureHtml.value = await uploadInlineHtmlImages(
+    signatureHtml.value
+  );
   const { __files: files, ...fields } = buildFields();
   let id;
   if (editId.value) {
@@ -804,7 +840,58 @@ const saveDraft = async () => {
   }
 };
 
+// 群发单显：一份正文发给所有勾选客户，后端给每人各建一封独立邮件逐封发（互不可见）。
+const bulkSend = async () => {
+  if (!hasAccount.value) {
+    status.value = { state: 'failed', msg: L.needAccount };
+    return;
+  }
+  status.value = { state: 'sending', msg: '' };
+  try {
+    // 与单发同款清洗：正文内联图 + 签名内嵌图上传换 URL，避免撑爆列/收件端显示不出。
+    form.body = await uploadInlineDataUriImages(form.body || '');
+    cleanedSignatureHtml.value = await uploadInlineHtmlImages(
+      signatureHtml.value
+    );
+    const { __files: files, ...fields } = buildFields();
+    const snake = snakecaseKeys(fields, { deep: true });
+    const fd = new FormData();
+    Object.entries(snake).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && key !== 'to_address') {
+        fd.append(`email[${key}]`, value);
+      }
+    });
+    (files || []).forEach(f => fd.append('email[files][]', f));
+    fd.append(
+      'recipients',
+      JSON.stringify(
+        bulkRecipients.value.map(r => ({
+          email: r.email,
+          crm_customer_id: r.crmCustomerId ?? null,
+          contact_id: r.contactId ?? null,
+        }))
+      )
+    );
+    const { data } = await CrmEmailAPI.bulkCreate(fd);
+    useAlert(
+      `已群发给 ${data.count} 位客户（发送队列进行中，进度见「群发箱」）`
+    );
+    visible.value = false;
+    reset();
+    emit('refresh');
+  } catch (e) {
+    status.value = {
+      state: 'failed',
+      msg: e?.response?.data?.error || String(e?.message || e),
+    };
+  }
+};
+
 const send = async () => {
+  if (isBulk.value) {
+    await bulkSend();
+    return;
+  }
   if (!form.to.length) {
     status.value = { state: 'failed', msg: L.needTo };
     return;
@@ -837,7 +924,10 @@ const send = async () => {
     }
     emit('refresh');
   } catch (e) {
-    status.value = { state: 'failed', msg: String(e?.message || e) };
+    status.value = {
+      state: 'failed',
+      msg: e?.response?.data?.error || String(e?.message || e),
+    };
   }
 };
 
@@ -956,6 +1046,7 @@ const reset = () => {
   contacts.value = [];
   contactId.value = '';
   activeSignatureId.value = '';
+  cleanedSignatureHtml.value = null;
   editId.value = null;
   existingFiles.value = [];
   fontFamily.value = '';
@@ -968,6 +1059,7 @@ const reset = () => {
   scheduleAt.value = '';
   scheduleTz.value = browserTz();
   status.value = { state: 'idle', msg: '' };
+  bulkRecipients.value = [];
 };
 
 // 有内容则算「脏」——关闭前提醒，避免写好的邮件误关丢失。
@@ -997,6 +1089,9 @@ const open = async prefill => {
     loadSignatures(),
   ]);
   if (prefill && typeof prefill === 'object') {
+    if (prefill.bulkRecipients?.length) {
+      bulkRecipients.value = prefill.bulkRecipients;
+    }
     if (prefill.editId) editId.value = prefill.editId;
     if (prefill.files) existingFiles.value = prefill.files;
     // 预置附件（如「作为附件转发」把原邮件 .eml 作为附件带入）。
@@ -1070,10 +1165,16 @@ defineExpose({ open, close });
             :disabled="sending"
             @click="send"
           >
-            {{ sending ? L.sending : L.send }}
+            {{
+              sending
+                ? L.sending
+                : isBulk
+                  ? `群发 (${bulkRecipients.length})`
+                  : L.send
+            }}
           </button>
           <button
-            v-show="!minimized"
+            v-show="!minimized && !isBulk"
             class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-60"
             :disabled="sending"
             @click="saveDraft"
@@ -1081,7 +1182,7 @@ defineExpose({ open, close });
             {{ L.draft }}
           </button>
           <button
-            v-show="composeMode === 'large' && !minimized"
+            v-show="composeMode === 'large' && !minimized && !isBulk"
             class="px-4 py-1.5 text-sm rounded-full border disabled:opacity-60"
             :class="
               scheduleAt
@@ -1163,8 +1264,23 @@ defineExpose({ open, close });
             </select>
           </div>
 
+          <!-- 群发单显：收件人来自客户列表勾选，各自单独发、互不可见 -->
+          <div
+            v-if="isBulk"
+            class="flex items-center gap-2 px-4 py-2.5 border-b border-n-weak bg-n-iris-2"
+          >
+            <span class="i-lucide-users size-4 text-n-iris-11" />
+            <span class="text-[13px] text-n-slate-12 font-medium">
+              群发 {{ bulkRecipients.length }} 位客户
+            </span>
+            <span class="text-xs text-n-slate-10">
+              （每人各收到一封独立邮件，互相不可见）
+            </span>
+          </div>
+
           <!-- 收件人 -->
           <div
+            v-else
             class="flex items-start px-4 border-b border-n-weak min-h-[38px]"
           >
             <span class="w-14 pt-2.5 text-[13px] text-n-slate-10">
@@ -1193,8 +1309,9 @@ defineExpose({ open, close });
             </div>
           </div>
 
-          <!-- 客户 -->
+          <!-- 客户（群发时隐藏：客户已由勾选批量确定） -->
           <div
+            v-if="!isBulk"
             class="relative flex items-start px-4 border-b border-n-weak min-h-[38px]"
           >
             <span class="w-14 pt-2.5 text-[13px] text-n-slate-10">
@@ -1488,7 +1605,7 @@ defineExpose({ open, close });
             class="relative flex-shrink-0"
           >
             <button
-              class="inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-iris-9 text-n-iris-11 hover:bg-n-iris-2 disabled:opacity-60"
+              class="crm-ai inline-flex items-center flex-shrink-0 gap-1 px-2.5 h-8 text-sm border rounded-lg border-n-iris-9 text-n-iris-11 hover:bg-n-iris-2 disabled:opacity-60"
               :disabled="sending"
               :title="L.aiTitle"
               @click="aiOpen = !aiOpen"

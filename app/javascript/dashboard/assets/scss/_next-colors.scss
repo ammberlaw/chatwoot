@@ -130,6 +130,7 @@
     --solid-purple: 230 231 255;
     --solid-red: 254 200 201;
     --solid-amber-button: 255 221 141;
+    --accent-grad: 124 108 240; // 品牌渐变尾色（紫），换肤时随 .theme-* 覆盖
     --card-color: 255 255 255;
     --overlay: 0, 0, 0, 0.12;
     --overlay-avatar: 255, 255, 255, 0.67;
@@ -281,6 +282,7 @@
     --solid-purple: 51 51 107;
     --solid-red: 90 33 34;
     --solid-amber-button: 255 221 141;
+    --accent-grad: 124 108 240;
     --card-color: 28 30 34;
     --overlay: 0, 0, 0, 0.4;
     --overlay-avatar: 0, 0, 0, 0.05;
@@ -304,5 +306,347 @@
     --call-widget-text: 237, 238, 240, 1;
     --call-widget-sub-text: 173, 177, 184, 1;
   }
+
+  // ============================================================
+  // 配色主题：蓝色商务。只覆盖承载「品牌紫」身份的令牌（iris 色阶 +
+  // solid-iris/solid-purple/text-purple/accent-grad），其余中性令牌
+  // （slate/背景/玻璃）不动，保留玻璃质感。整站随 body.theme-blue 生效。
+  // ============================================================
+  .theme-blue {
+    --iris-1: 250 253 255;
+    --iris-2: 243 249 255;
+    --iris-3: 233 244 255;
+    --iris-4: 220 237 255;
+    --iris-5: 204 228 255;
+    --iris-6: 183 214 253;
+    --iris-7: 152 194 250;
+    --iris-8: 116 172 244;
+    --iris-9: 74 146 234;
+    --iris-10: 58 130 222;
+    --iris-11: 50 112 196;
+    --iris-12: 22 52 104;
+    --solid-iris: 222 238 255;
+    --solid-purple: 222 238 255;
+    --text-purple: 16 46 96;
+    --accent-grad: 138 190 252;
+  }
+
+  .theme-blue.dark {
+    --iris-1: 16 21 33;
+    --iris-2: 19 27 43;
+    --iris-3: 22 40 70;
+    --iris-4: 20 50 95;
+    --iris-5: 26 62 114;
+    --iris-6: 34 76 136;
+    --iris-7: 42 94 162;
+    --iris-8: 46 112 196;
+    --iris-9: 59 130 246;
+    --iris-10: 45 116 232;
+    --iris-11: 130 180 255;
+    --iris-12: 208 228 255;
+    --solid-iris: 20 50 95;
+    --solid-purple: 24 46 84;
+    --text-purple: 208 228 255;
+    --accent-grad: 96 165 250;
+  }
+
+  // ================= 云白微光（BeeBot 风：近白干净底 + 柔薰衣草强调 + 底部淡虹光） =================
+  .theme-beebot {
+    --iris-1: 252 252 255;
+    --iris-2: 249 249 255;
+    --iris-3: 242 243 255;
+    --iris-4: 233 234 255;
+    --iris-5: 222 224 255;
+    --iris-6: 208 210 253;
+    --iris-7: 189 191 247;
+    --iris-8: 162 164 240;
+    --iris-9: 124 126 240;
+    --iris-10: 110 112 228;
+    --iris-11: 98 100 205;
+    --iris-12: 45 46 104;
+    --solid-iris: 233 234 255;
+    --solid-purple: 233 234 255;
+    --text-purple: 40 40 82;
+    --accent-grad: 158 148 246;
+    --background-color: 251 252 255;
+    --surface-1: 255 255 255;
+    --surface-2: 255 255 255;
+    --solid-1: 255 255 255;
+    --solid-2: 255 255 255;
+    --solid-3: 255 255 255;
+    --card-color: 255 255 255;
+    --border-weak: 242 243 248;
+  }
+
+  .theme-beebot.dark {
+    --iris-1: 20 20 30;
+    --iris-2: 24 24 38;
+    --iris-3: 34 35 70;
+    --iris-4: 40 42 100;
+    --iris-5: 50 52 116;
+    --iris-6: 62 63 132;
+    --iris-7: 76 76 150;
+    --iris-8: 96 96 186;
+    --iris-9: 140 142 244;
+    --iris-10: 128 130 234;
+    --iris-11: 178 180 255;
+    --iris-12: 226 227 254;
+    --solid-iris: 40 42 100;
+    --solid-purple: 51 51 107;
+    --text-purple: 226 227 254;
+    --accent-grad: 150 142 240;
+  }
+
+  // 云白微光壁纸：底部中央一抹极淡虹彩微光（蓝/绿/粉），仅此主题生效。
+  body.theme-beebot #app {
+    background-image:
+      radial-gradient(
+        60% 50% at 58% 82%,
+        rgba(150, 168, 255, 0.2),
+        rgba(150, 168, 255, 0) 72%
+      ),
+      radial-gradient(
+        46% 40% at 82% 88%,
+        rgba(150, 226, 198, 0.16),
+        rgba(150, 226, 198, 0) 72%
+      ),
+      radial-gradient(
+        42% 38% at 40% 90%,
+        rgba(228, 178, 228, 0.15),
+        rgba(228, 178, 228, 0) 72%
+      ),
+      radial-gradient(
+        40% 30% at 62% 28%,
+        rgba(180, 190, 255, 0.1),
+        rgba(180, 190, 255, 0) 70%
+      );
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+
+  body.theme-beebot.dark #app {
+    background-image:
+      radial-gradient(
+        50% 40% at 60% 84%,
+        rgba(130, 150, 240, 0.12),
+        rgba(130, 150, 240, 0) 70%
+      ),
+      radial-gradient(
+        38% 32% at 80% 90%,
+        rgba(120, 200, 175, 0.08),
+        rgba(120, 200, 175, 0) 70%
+      );
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+
+  // ================= 经典灰（TRAE 风：浅灰侧栏 + 纯白内容 + 石墨强调，最传统） =================
+  .theme-classic {
+    --iris-1: 250 250 251;
+    --iris-2: 246 246 247;
+    --iris-3: 240 240 242;
+    --iris-4: 233 233 236;
+    --iris-5: 224 225 228;
+    --iris-6: 213 214 218;
+    --iris-7: 197 198 203;
+    --iris-8: 165 167 173;
+    --iris-9: 51 54 60;
+    --iris-10: 40 43 48;
+    --iris-11: 60 63 70;
+    --iris-12: 22 24 28;
+    --solid-iris: 236 237 239;
+    --solid-purple: 236 237 239;
+    --text-purple: 26 28 32;
+    --accent-grad: 90 94 102;
+    // 去蓝：整条 blue 色阶压成中性灰（画布渐变 via/to 用的是 blue-4/blue-6）
+    --blue-1: 250 250 251;
+    --blue-2: 246 246 247;
+    --blue-3: 240 240 242;
+    --blue-4: 233 233 236;
+    --blue-5: 224 225 228;
+    --blue-6: 213 214 218;
+    --blue-7: 197 198 203;
+    --blue-8: 165 167 173;
+    --blue-9: 90 94 102;
+    --blue-10: 78 82 90;
+    --blue-11: 60 63 70;
+    --blue-12: 22 24 28;
+    --solid-blue: 236 237 239;
+    --solid-blue-2: 250 250 251;
+    --text-blue: 26 28 32;
+    --background-color: 245 245 246;
+    --surface-1: 255 255 255;
+    --surface-2: 255 255 255;
+    --solid-1: 255 255 255;
+    --solid-2: 255 255 255;
+    --solid-3: 255 255 255;
+    --card-color: 255 255 255;
+    --border-weak: 236 236 238;
+  }
+
+  .theme-classic.dark {
+    --iris-1: 20 21 23;
+    --iris-2: 25 26 28;
+    --iris-3: 33 34 37;
+    --iris-4: 40 41 45;
+    --iris-5: 48 49 54;
+    --iris-6: 58 60 66;
+    --iris-7: 72 74 82;
+    --iris-8: 92 95 104;
+    --iris-9: 90 94 104;
+    --iris-10: 80 84 94;
+    --iris-11: 176 180 188;
+    --iris-12: 228 230 234;
+    --solid-iris: 44 46 52;
+    --solid-purple: 44 46 52;
+    --text-purple: 228 230 234;
+    --accent-grad: 120 124 132;
+    // 去蓝（深色）：blue 色阶压成中性灰
+    --blue-1: 20 21 23;
+    --blue-2: 25 26 28;
+    --blue-3: 33 34 37;
+    --blue-4: 40 41 45;
+    --blue-5: 48 49 54;
+    --blue-6: 58 60 66;
+    --blue-7: 72 74 82;
+    --blue-8: 92 95 104;
+    --blue-9: 90 94 104;
+    --blue-10: 80 84 94;
+    --blue-11: 176 180 188;
+    --blue-12: 228 230 234;
+    --solid-blue: 44 46 52;
+    --solid-blue-2: 26 27 30;
+    --text-blue: 228 230 234;
+  }
+}
+
+// 经典灰：浅灰底 + 白卡（同参考图）。大圆弧外框浅灰、内层小卡纯白+浅灰描边，
+// 让白卡从底上清爽分离。用 main 作用域把左侧导航栏(main 外)排除。
+// 放 @layer 外，优先级高于工具类；仅浅色经典灰生效。
+// 外框(页面根 /40)：纯白
+body.theme-classic:not(.dark) main .bg-n-solid-1\/40 {
+  background-color: #ffffff;
+}
+// 内层面板(/45 /50)：纯白 + 浅灰描边（原 border-white/50 改灰可见）
+body.theme-classic:not(.dark) main .bg-n-solid-1\/45,
+body.theme-classic:not(.dark) main .bg-n-solid-1\/50 {
+  background-color: #ffffff;
+  border-color: #e6e6ec;
+}
+// KPI 卡（经典灰）：核心卡强调 + 余白。卡1(GMV)=深石墨实心+白字+金图标；卡2/3/4=纯白+浅边+轻投影+小彩图标。
+$kpi: 'body.theme-classic:not(.dark) main .bg-gradient-to-br.rounded-2xl';
+
+// 卡1 GMV：核心强调——深石墨实心（非玻璃，干净利落）。
+#{$kpi}:nth-child(1) {
+  background-image: none;
+  background-color: #1e222b;
+  border: 1px solid #1e222b;
+  box-shadow: 0 12px 26px rgba(20, 24, 32, 0.24);
+}
+#{$kpi}:nth-child(1) .text-n-slate-12 {
+  color: #ffffff;
+}
+#{$kpi}:nth-child(1) .text-n-slate-11 {
+  color: #b9bdc6;
+}
+#{$kpi}:nth-child(1) .text-n-slate-10 {
+  color: #9095a0;
+}
+#{$kpi}:nth-child(1) .text-n-iris-11 {
+  color: #ffcf52; // 金图标点缀
+}
+#{$kpi}:nth-child(1) .bg-n-solid-1\/70 {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+// 卡2/3/4：纯白极简——白底 + 浅灰边 + 轻投影（深数字/灰标签走默认）。
+#{$kpi}:nth-child(2),
+#{$kpi}:nth-child(3),
+#{$kpi}:nth-child(4) {
+  background-image: none;
+  background-color: #ffffff;
+  border: 1px solid #ecedf1;
+  box-shadow: 0 4px 14px rgba(30, 35, 50, 0.05);
+}
+// 白卡图标块浅灰 + 各留一点点色，避免死板。
+#{$kpi}:nth-child(2) .bg-n-solid-1\/70,
+#{$kpi}:nth-child(3) .bg-n-solid-1\/70,
+#{$kpi}:nth-child(4) .bg-n-solid-1\/70 {
+  background-color: #f3f4f6;
+}
+#{$kpi}:nth-child(2) .text-n-iris-11 {
+  color: #b07d0a; // 成交订单数：暖金
+}
+#{$kpi}:nth-child(3) .text-n-iris-11 {
+  color: #2e7d6b; // 成交客户数：松绿
+}
+#{$kpi}:nth-child(4) .text-n-iris-11 {
+  color: #5c6270; // 新成交客户数：中性灰
+}
+
+// 经典灰：左侧导航栏 = 渐变玻璃。斜向白高光渐变(自带光泽) + 磨砂 + 右侧亮边高光，
+// 配下面 #app 的淡冷微光，半透侧栏透出料 → 真玻璃深度，不再扁平发灰。仅经典灰生效。
+body.theme-classic aside {
+  background-color: transparent;
+  background-image: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.24) 0%,
+    rgba(246, 247, 251, 0.06) 42%,
+    rgba(238, 240, 248, 0.14) 100%
+  );
+  backdrop-filter: blur(64px) saturate(1.85) brightness(1.05);
+  -webkit-backdrop-filter: blur(64px) saturate(1.85) brightness(1.05);
+  border-right: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.3),
+    inset 1px 0 0 rgba(255, 255, 255, 0.6);
+}
+
+// 经典灰壁纸：左上/左下两抹极淡冷调微光（蓝/淡紫），只为给左侧玻璃侧栏透出深度，
+// 内容区几乎不受影响（微光集中在左边缘）。
+body.theme-classic #app {
+  background-image:
+    radial-gradient(
+      58% 48% at 5% 3%,
+      rgba(198, 206, 216, 0.16),
+      rgba(198, 206, 216, 0) 62%
+    ),
+    radial-gradient(
+      52% 46% at 1% 97%,
+      rgba(208, 212, 216, 0.12),
+      rgba(208, 212, 216, 0) 66%
+    );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+// 经典灰：私海表冻结列的硬编码淡蓝紫底(#e4eeff) → 纯白，融进白表不突兀。
+body.theme-classic .bg-\[\#e4eeff\] {
+  background-color: #ffffff;
+}
+
+// 经典灰：AI 相关按钮统一金黄（仅经典灰；其它主题保持原色）。
+// crm-ai = 淡金底 + 金边 + 金字/图标（图标随 currentColor）；crm-ai-solid = 实心金 + 白字。
+body.theme-classic .crm-ai:not(.crm-ai-solid) {
+  background-color: rgb(var(--amber-3)) !important;
+  border-color: rgb(var(--amber-7)) !important;
+  color: rgb(var(--amber-11)) !important;
+}
+body.theme-classic .crm-ai-solid {
+  background-color: rgb(var(--amber-9)) !important;
+  border-color: rgb(var(--amber-9)) !important;
+  color: #ffffff !important;
+}
+// PI 识别：虚线框 + 提示小图标也金化，跟按钮成套。
+body.theme-classic .crm-ai-box {
+  border-color: rgb(var(--amber-7)) !important;
+  background-color: rgb(var(--amber-2)) !important;
+}
+body.theme-classic .crm-ai-box .i-lucide-sparkles {
+  color: rgb(var(--amber-9)) !important;
+}
+// AI 往来摘要（下拉菜单项）金化：文字 + 图标随 currentColor。
+body.theme-classic .crm-ai-item {
+  color: rgb(var(--amber-11)) !important;
 }
 // NEXT COLORS END

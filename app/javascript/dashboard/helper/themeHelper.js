@@ -15,3 +15,26 @@ export const setColorTheme = isOSOnDarkMode => {
     document.documentElement.style.setProperty('color-scheme', 'light');
   }
 };
+
+// 配色主题（与深浅模式正交）：紫玻璃=默认（无 class，走 :root），其余各挂 body.theme-*。
+export const DEFAULT_COLOR_PALETTE = 'purple';
+const PALETTE_CLASSES = {
+  blue: 'theme-blue',
+  beebot: 'theme-beebot',
+  classic: 'theme-classic',
+};
+export const COLOR_PALETTES = [
+  DEFAULT_COLOR_PALETTE,
+  ...Object.keys(PALETTE_CLASSES),
+];
+
+export const applyColorPalette = palette => {
+  const selected =
+    palette ||
+    LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE) ||
+    DEFAULT_COLOR_PALETTE;
+  const { classList } = document.body;
+  classList.remove(...Object.values(PALETTE_CLASSES));
+  if (PALETTE_CLASSES[selected]) classList.add(PALETTE_CLASSES[selected]);
+  return selected;
+};

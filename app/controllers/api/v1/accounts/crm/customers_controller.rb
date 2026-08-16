@@ -103,6 +103,17 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     render json: { count: restrict_by_org(churn_risk_scope(Current.account.crm_customers)).count }
   end
 
+  # 列表顶部概览卡：沿用当前视图/筛选口径（我的/团队/搜索均同步）。
+  def stats
+    scope = filtered_customers
+    render json: {
+      customers: scope.count,
+      new_this_month: scope.where('crm_customers.created_at >= ?', Time.current.beginning_of_month).count,
+      open_opportunities: Current.account.crm_opportunities.open_stages.where(crm_customer_id: scope.select(:id)).count,
+      with_orders: scope.where('deal_order_count > 0').count
+    }
+  end
+
   # 邮箱身份识别（邮件阅读区悬浮卡）：同事 / 我的客户 / 公海客户 / 同事客户(撞单) / 陌生人。
   def identify
     email = params[:email].to_s.strip.downcase

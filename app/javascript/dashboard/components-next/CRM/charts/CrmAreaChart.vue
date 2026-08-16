@@ -11,6 +11,7 @@ import {
   LinearScale,
 } from 'chart.js';
 import { chartPalette, FONT_FAMILY } from './chartColors';
+import { useThemeSignal } from './useThemeSignal';
 
 const props = defineProps({
   labels: { type: Array, required: true },
@@ -18,6 +19,9 @@ const props = defineProps({
   activeIndex: { type: Number, default: -1 },
   valueFormat: { type: Function, default: v => v },
 });
+
+// 切主题时 body class 变化 → 信号自增 → 下面 computed 重算 → 图表用新主题色重绘。
+const themeSignal = useThemeSignal();
 
 ChartJS.register(
   Tooltip,
@@ -29,6 +33,7 @@ ChartJS.register(
 );
 
 const collection = computed(() => {
+  void themeSignal.value;
   const c = chartPalette();
   return {
     labels: props.labels,
@@ -66,6 +71,7 @@ const collection = computed(() => {
 });
 
 const options = computed(() => {
+  void themeSignal.value;
   const c = chartPalette();
   return {
     responsive: true,

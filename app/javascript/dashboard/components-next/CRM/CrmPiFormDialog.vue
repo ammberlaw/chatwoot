@@ -365,12 +365,22 @@ const submit = async () => {
   saving.value = true;
   try {
     const fd = buildFormData();
+    let convertedOrderNo = null;
     if (editingId.value) {
-      await PisAPI.update(accountId.value, editingId.value, fd);
+      const { data } = await PisAPI.update(
+        accountId.value,
+        editingId.value,
+        fd
+      );
+      convertedOrderNo = data?.converted_order_no;
     } else {
       await PisAPI.create(accountId.value, fd);
     }
-    useAlert(t('CRM.PI.FORM.SAVED'));
+    useAlert(
+      convertedOrderNo
+        ? t('CRM.PI.FORM.SAVED_CONVERTED', { no: convertedOrderNo })
+        : t('CRM.PI.FORM.SAVED')
+    );
     dialogRef.value?.close();
     emit('saved');
   } catch {
@@ -400,7 +410,7 @@ defineExpose({ open });
       <!-- 上传 PI 自动识别（仅新建）：上传 PDF/Excel，自动填 PI号/日期/币种/客户/明细 -->
       <div v-if="!editingId" class="flex flex-col gap-1.5">
         <div
-          class="flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
+          class="crm-ai-box flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
         >
           <div class="flex items-center gap-2 text-sm text-n-slate-11">
             <span class="i-lucide-sparkles size-4 text-n-iris-9" />
@@ -408,7 +418,7 @@ defineExpose({ open });
           </div>
           <button
             type="button"
-            class="flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+            class="crm-ai crm-ai-solid flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
             :disabled="parsingPi"
             @click="triggerPiUpload"
           >

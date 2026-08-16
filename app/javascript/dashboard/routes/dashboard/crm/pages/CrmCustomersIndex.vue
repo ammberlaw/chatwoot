@@ -17,13 +17,31 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmCustomerImportDialog from 'dashboard/components-next/CRM/CrmCustomerImportDialog.vue';
-import CrmPagination from 'dashboard/components-next/CRM/CrmPagination.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { COUNTRY_TZ } from 'dashboard/routes/dashboard/crm/helper/scheduleTimezone';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
+import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+import CustomerAPI from 'dashboard/api/crm/customers';
 
-// 与后端 CustomersController::RESULTS_PER_PAGE 保持一致。
+// 经典灰专属：资料完善度进度条改金黄；其它主题保持原样。切主题需刷新。
+const isClassic = ref(isClassicTheme());
+
+// 特别关注（每人各标）：乐观切换爱心 → 调收藏/取消接口，失败回滚。
+const toggleFavorite = async customer => {
+  const next = !customer.favorited;
+  customer.favorited = next;
+  try {
+    if (next) await CustomerAPI.favorite(customer.id);
+    else await CustomerAPI.unfavorite(customer.id);
+  } catch (e) {
+    customer.favorited = !next;
+    useAlert(e?.response?.data?.error || '操作失败');
+  }
+};
+
+// 每页条数（默认 15，与后端 RESULTS_PER_PAGE 一致；后端上限 200）。
 const PAGE_SIZE_OPTIONS = [15, 30, 50, 100];
+const pageSizeOptions = PAGE_SIZE_OPTIONS.map(s => ({ value: s, label: String(s) }));
 const pageSize = ref(15);
 
 const { t } = useI18n();
@@ -51,6 +69,13 @@ const activeFilter = ref(route.query.filter || 'private');
 const activeCustomerGroup = ref('');
 const activeProductGroup = ref('');
 const activeSourceChannel = ref('');
+// 只看特别关注（每人各标）。
+const favoritesOnly = ref(false);
+const toggleFavoritesOnly = () => {
+  favoritesOnly.value = !favoritesOnly.value;
+  currentPage.value = 1;
+  fetchCustomers();
+};
 const activeStatus = ref('');
 const activeLevel = ref('');
 const currentPage = ref(1);
@@ -67,6 +92,27 @@ const uiFlags = computed(() => customersStore.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
 const totalCount = computed(() => customersStore.getMeta.count || 0);
+// 自绘页脚分页（还原效果图）：页多时窗口化（首页 … 当前±1 … 末页）。
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(totalCount.value / pageSize.value))
+);
+const pageList = computed(() => {
+  const total = totalPages.value;
+  const cur = currentPage.value;
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const wanted = [1, total, cur, cur - 1, cur + 1].filter(
+    p => p >= 1 && p <= total
+  );
+  const sorted = [...new Set(wanted)].sort((a, b) => a - b);
+  const result = [];
+  let prev = 0;
+  sorted.forEach(p => {
+    if (p - prev > 1) result.push('…');
+    result.push(p);
+    prev = p;
+  });
+  return result;
+});
 
 // 客户分组 / 客户来源：从「客户设置」动态读取（含二级），全站下拉与标签共享缓存。
 const { ensureLoaded, groupOptions, sourceOptions, groupLabel, sourceLabel } =
@@ -89,14 +135,14 @@ const sourceChannelOptions = computed(() => [
 ]);
 // 客户状态 / 客户等级下拉（空值 = 全部）；状态标签取 STATUS_META（getter 惰性，无 TDZ）。
 const statusFilterOptions = computed(() => [
-  { value: '', label: '全部客户状态' },
+  { value: '', label: '状态 全部' },
   ...Object.entries(STATUS_META).map(([value, m]) => ({
     value,
     label: m.label,
   })),
 ]);
 const levelFilterOptions = [
-  { value: '', label: '全部客户等级' },
+  { value: '', label: '等级 全部' },
   ...['A', 'B', 'C', 'D'].map(v => ({ value: v, label: `${v} 级` })),
 ];
 
@@ -129,7 +175,8 @@ const isManagerTeamView = computed(
     managerView.value === 'team'
 );
 
-const fetchCustomers = () => {
+// 列表与概览卡共用的筛选口径（视图/分组/来源/状态/等级/搜索/团队/业务员）。
+const currentFilterParams = () => {
   let filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
   if (
     isCrmManager.value &&
@@ -138,18 +185,79 @@ const fetchCustomers = () => {
   ) {
     filter = 'mine';
   }
-  return customersStore.get({
-    page: currentPage.value,
-    per_page: pageSize.value,
+  return {
     filter,
     customer_group: activeCustomerGroup.value || undefined,
     product_group: activeProductGroup.value || undefined,
     source_channel: activeSourceChannel.value || undefined,
+    favorited_only: favoritesOnly.value ? 1 : undefined,
     status: activeStatus.value || undefined,
     customer_level: activeLevel.value || undefined,
     q: searchQuery.value.trim() || undefined,
     team_id: selectedTeamId.value || undefined,
     account_owner_id: selectedOwnerId.value || undefined,
+  };
+};
+
+// 顶部概览卡：我的客户 / 本月新增 / 在谈商机 / 有成交订单（随筛选联动）。
+const stats = ref({
+  customers: 0,
+  newThisMonth: 0,
+  openOpportunities: 0,
+  withOrders: 0,
+});
+const fetchStats = async () => {
+  try {
+    const { data } = await CustomerAPI.stats(currentFilterParams());
+    stats.value = {
+      customers: data.customers || 0,
+      newThisMonth: data.new_this_month || 0,
+      openOpportunities: data.open_opportunities || 0,
+      withOrders: data.with_orders || 0,
+    };
+  } catch (e) {
+    // 概览卡取数失败不阻塞列表
+  }
+};
+
+// 概览卡展示配置（值来自 stats，配色随主题令牌）。
+const statCards = computed(() => [
+  {
+    key: 'customers',
+    label: isManagerTeamView.value ? '团队客户' : '我的客户',
+    value: stats.value.customers,
+    icon: 'i-lucide-users',
+    tile: 'bg-n-amber-3 text-n-amber-11',
+  },
+  {
+    key: 'new',
+    label: '本月新增',
+    value: stats.value.newThisMonth,
+    icon: 'i-lucide-user-plus',
+    tile: 'bg-n-slate-4 text-n-slate-12',
+  },
+  {
+    key: 'opps',
+    label: '在谈商机',
+    value: stats.value.openOpportunities,
+    icon: 'i-lucide-target',
+    tile: 'bg-n-blue-3 text-n-blue-11',
+  },
+  {
+    key: 'orders',
+    label: '有成交订单',
+    value: stats.value.withOrders,
+    icon: 'i-lucide-package',
+    tile: 'bg-n-teal-3 text-n-teal-11',
+  },
+]);
+
+const fetchCustomers = () => {
+  fetchStats();
+  return customersStore.get({
+    page: currentPage.value,
+    per_page: pageSize.value,
+    ...currentFilterParams(),
     sort: sortKey.value || undefined,
     direction: sortKey.value ? sortDir.value : undefined,
   });
@@ -247,7 +355,7 @@ const onSearchInput = () => {
 
 // admin 团队 → 业务员逐级筛选
 const teamOptions = computed(() => [
-  { value: '', label: '全部团队' },
+  { value: '', label: '团队 全部' },
   ...teams.value.map(tm => ({ value: String(tm.id), label: tm.name })),
 ]);
 const ownerOptions = computed(() => {
@@ -333,8 +441,9 @@ const onPageChange = page => {
   fetchCustomers();
 };
 
-const onPageSizeChange = value => {
-  pageSize.value = Number(value);
+// 切每页条数：回到第 1 页重新取数。
+const setPageSize = size => {
+  pageSize.value = Number(size);
   currentPage.value = 1;
   fetchCustomers();
 };
@@ -641,15 +750,9 @@ const releaseCustomer = async customer => {
   }
 };
 
-// —— 行操作菜单 + sticky 列偏移 ——
+// —— 行操作菜单 ——
 const composeStore = useCrmComposeStore();
 const openMenuId = ref(null);
-const STICKY = { cb: 44, name: 200 };
-const nameLeft = computed(() => (canSelectRows.value ? STICKY.cb : 0));
-const countryLeft = computed(() => nameLeft.value + STICKY.name);
-// sticky 单元格需不透明底色（否则右滑时会透出下层内容）；选中行用 iris-2。
-const rowStickyBg = customer =>
-  selectedCustomer.value?.id === customer.id ? 'bg-n-iris-2' : 'bg-n-solid-1';
 
 // 时区列：按客户国家取当地当前时间 + UTC 偏移（如 08:42 UTC+0），每分钟刷新。
 const now = ref(new Date());
@@ -701,7 +804,46 @@ const writeEmail = customer => {
       name: customer.name,
       tradeCountry: customer.tradeCountry,
     },
+    // 点客户邮箱写信时，直接把该邮箱预填为收件人。
+    toAddress: customer.contactEmail || undefined,
   });
+};
+
+// 客户往来邮件里直接回复：带出对方地址 + 原邮件引用，复用写信窗。
+const replyPanelEmail = e => {
+  const isSent = e.folder === 'SENT';
+  const to = isSent ? e.to_address : e.from_address;
+  const quote = `\n\n------ 原邮件 ------\n发件人：${e.from_address || '—'}\n时间：${fmtDateTime(
+    e.email_date || e.created_at
+  )}\n主题：${e.subject || '(无主题)'}\n\n${e.body || ''}`;
+  composeStore.open({
+    toAddress: to || '',
+    subject: e.subject?.startsWith('Re:')
+      ? e.subject
+      : `Re: ${e.subject || ''}`,
+    body: quote,
+    crmCustomerId: e.crm_customer_id || selectedCustomer.value?.id || null,
+    contactId: e.contact_id || null,
+    focusReplyTop: true,
+  });
+};
+
+// 群发单显：勾选多个客户 → 打开写信窗群发（每人各收一封独立邮件，互不可见）。
+const bulkSendSelected = () => {
+  const recipients = customers.value
+    .filter(c => selectedIds.value.includes(c.id))
+    .map(c => ({
+      email: c.contactEmail,
+      crmCustomerId: c.id,
+      contactId: c.contactId || null,
+      name: c.name,
+    }))
+    .filter(r => r.email);
+  if (!recipients.length) {
+    useAlert('勾选的客户都没有邮箱，无法群发');
+    return;
+  }
+  composeStore.open({ bulkRecipients: recipients });
 };
 
 // 目标客户（分组/转移/共享 弹窗共用）
@@ -810,10 +952,14 @@ const PILL = {
   teal: 'bg-n-teal-3 text-n-teal-11',
   blue: 'bg-n-blue-3 text-n-blue-11',
   amber: 'bg-n-iris-3 text-n-iris-11',
+  gold: 'bg-n-amber-3 text-n-amber-11',
+  violet: 'bg-n-violet-3 text-n-violet-11',
   ruby: 'bg-n-ruby-3 text-n-ruby-11',
   iris: 'bg-n-iris-3 text-n-iris-11',
   slate: 'bg-n-slate-4 text-n-slate-11',
 };
+// 仅经典灰：blue/iris 在经典灰下塌成灰，重映射到不褪色的 gold/violet；其它主题保持原色。
+const CLASSIC_PILL_REMAP = { blue: 'gold', iris: 'violet' };
 const AVATAR = {
   blue: 'bg-n-blue-9 text-white',
   teal: 'bg-n-teal-9 text-white',
@@ -821,7 +967,8 @@ const AVATAR = {
   amber: 'bg-n-iris-9 text-white',
   ruby: 'bg-n-ruby-9 text-white',
 };
-const pillCls = color => PILL[color] || PILL.slate;
+const pillCls = color =>
+  PILL[(isClassic.value && CLASSIC_PILL_REMAP[color]) || color] || PILL.slate;
 
 const GRADE_META = {
   COMPLETE: { label: '完善', color: 'teal' },
@@ -879,6 +1026,10 @@ const avatarCls = name => {
   return AVATAR[AVATAR_COLORS[key % AVATAR_COLORS.length]];
 };
 const initial = name => (name || '?').trim().charAt(0).toUpperCase();
+
+// 负责人显示名：公海显示原跟进人，其余显示负责人（无则空）。
+const ownerDisplayName = c =>
+  c.isInPublicPool ? c.previousOwnerName : c.accountOwnerName;
 
 const money = micros =>
   micros ? `¥${Math.round(micros / 1_000_000).toLocaleString()}` : '¥0';
@@ -1016,15 +1167,13 @@ watch(
 </script>
 
 <template>
-  <div
-    class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border-white/50 shadow-n-iris-9/5"
-  >
-    <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
-      <div
-        class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
-      >
+  <div class="flex w-full h-full overflow-hidden font-sans">
+    <div
+      class="flex flex-col flex-1 min-w-0 overflow-hidden gap-3.5 px-5 py-4"
+    >
+      <div class="flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+          <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
             {{
               activeFilter === 'churn_risk'
                 ? '流失预警'
@@ -1049,23 +1198,54 @@ watch(
             color="slate"
             @click="importDialogRef?.open()"
           />
-          <Button
-            :label="t('CRM.CUSTOMERS.NEW')"
-            icon="i-lucide-plus"
-            color="iris"
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium text-white rounded-[9px] bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-lg shadow-n-iris-9/30 hover:brightness-105"
             @click="goToIntake"
-          />
+          >
+            <span class="i-lucide-plus size-4" />
+            {{ t('CRM.CUSTOMERS.NEW') }}
+          </button>
         </div>
       </div>
 
+      <!-- 概览卡区（第 1 框）：随筛选联动 -->
       <div
-        class="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-n-weak"
+        v-if="activeFilter !== 'churn_risk'"
+        class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 flex-shrink-0"
       >
+        <div
+          v-for="card in statCards"
+          :key="card.key"
+          class="flex items-center gap-3.5 p-4 rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/40"
+        >
+          <div
+            class="grid place-items-center flex-none rounded-xl size-11"
+            :class="card.tile"
+          >
+            <span :class="[card.icon, 'size-5']" />
+          </div>
+          <div class="min-w-0">
+            <div
+              class="text-2xl font-bold tracking-[-0.02em] text-n-slate-12 tabular-nums"
+            >
+              {{ card.value }}
+            </div>
+            <div class="mt-0.5 text-xs text-n-slate-11">{{ card.label }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 筛选区（第 2 框） -->
+      <div
+        class="flex flex-col gap-2.5 flex-shrink-0 px-4 py-3.5 rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/30"
+      >
+        <!-- 第 1 行：视图切换 + 搜索 + 只看关注 + 批量操作 -->
         <div class="flex flex-wrap items-center gap-2">
           <!-- 部门主管：我的客户 / 团队客户 双视图 -->
           <div
             v-if="isCrmManager && activeFilter === 'private'"
-            class="flex items-center p-0.5 rounded-lg bg-n-alpha-2"
+            class="flex items-center gap-0.5 p-[3px] rounded-[10px] bg-n-slate-3"
           >
             <button
               v-for="tab in [
@@ -1074,10 +1254,10 @@ watch(
               ]"
               :key="tab.key"
               type="button"
-              class="px-3 py-1.5 text-sm rounded-md transition-colors"
+              class="px-3 py-1.5 text-[13px] rounded-lg transition-colors"
               :class="
                 managerView === tab.key
-                  ? 'bg-n-iris-9 text-white font-medium'
+                  ? 'bg-n-iris-9 text-white font-semibold shadow-sm shadow-n-iris-9/30'
                   : 'text-n-slate-11 hover:text-n-slate-12'
               "
               @click="setManagerView(tab.key)"
@@ -1085,40 +1265,35 @@ watch(
               {{ tab.label }}
             </button>
           </div>
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="搜索客户名…"
-            class="h-9 px-3 text-sm border rounded-lg w-44 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-            @input="onSearchInput"
-          />
-          <!-- 公海全公司共享，不提供团队/业务员筛选 -->
-          <SelectCard
-            v-if="
-              !isCrmSales && !isCrmManager && activeFilter !== 'public_pool'
+          <div
+            class="flex items-center gap-2 px-3 h-[38px] w-60 text-[13px] border rounded-[10px] border-n-weak bg-n-solid-1/60 focus-within:ring-2 focus-within:ring-n-iris-9"
+          >
+            <span class="i-lucide-search size-4 shrink-0 text-n-slate-9" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="搜索客户名…"
+              class="flex-1 h-full bg-transparent reset-base text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none"
+              @input="onSearchInput"
+            />
+          </div>
+          <!-- 只看特别关注（每人各标） -->
+          <button
+            type="button"
+            class="flex items-center gap-1.5 px-3 h-[38px] text-[13px] font-medium border rounded-[10px] shrink-0 transition-colors"
+            :class="
+              favoritesOnly
+                ? 'border-[#ffb3b5] bg-[#fff2f2] text-[#ff5a5f]'
+                : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-2'
             "
-            :model-value="selectedTeamId"
-            :options="teamOptions"
-            @update:model-value="setTeam"
-          />
-          <SelectCard
-            v-if="
-              !isCrmSales &&
-              !isCrmManager &&
-              activeFilter !== 'public_pool' &&
-              selectedTeamId
-            "
-            :model-value="selectedOwnerId"
-            :options="ownerOptions"
-            @update:model-value="setOwner"
-          />
-          <!-- 部门主管：团队客户视图下按自己团队的业务员筛选 -->
-          <SelectCard
-            v-if="isManagerTeamView"
-            :model-value="selectedOwnerId"
-            :options="managerOwnerOptions"
-            @update:model-value="setOwner"
-          />
+            @click="toggleFavoritesOnly"
+          >
+            <span
+              class="size-4"
+              :class="favoritesOnly ? 'i-ri-heart-fill' : 'i-ri-heart-line'"
+            />
+            只看关注
+          </button>
           <!-- 勾选分配：选中客户连同商机/订单/报价/邮件分配给新业务员 -->
           <template v-if="canSelectRows && selectedIds.length">
             <span class="text-sm text-n-slate-11">
@@ -1140,59 +1315,116 @@ watch(
               :disabled="!reassignTargetId || reassigning"
               @click="reassignSelected"
             />
+            <Button
+              v-tooltip.top="
+                '给勾选客户群发同一封邮件，每人各收到一封独立邮件、互相不可见'
+              "
+              label="群发邮件"
+              icon="i-lucide-mail"
+              color="teal"
+              size="sm"
+              @click="bulkSendSelected"
+            />
           </template>
+        </div>
+
+        <!-- 第 2 行：筛选下拉 -->
+        <div
+          class="flex flex-wrap items-center gap-2 pt-2.5 border-t border-n-weak"
+        >
+          <span class="text-[11.5px] font-semibold tracking-wide text-n-slate-10">
+            筛选
+          </span>
+          <!-- 公海全公司共享，不提供团队/业务员筛选 -->
           <SelectCard
-            :model-value="activeCustomerGroup"
-            :options="customerGroupOptions"
-            @update:model-value="setCustomerGroup"
+            v-if="
+              !isCrmSales && !isCrmManager && activeFilter !== 'public_pool'
+            "
+            :model-value="selectedTeamId"
+            :options="teamOptions"
+            trigger-class="!text-[13px]"
+            @update:model-value="setTeam"
           />
           <SelectCard
-            :model-value="activeProductGroup"
-            :options="productGroupOptions"
-            @update:model-value="setProductGroup"
+            v-if="
+              !isCrmSales &&
+              !isCrmManager &&
+              activeFilter !== 'public_pool' &&
+              selectedTeamId
+            "
+            :model-value="selectedOwnerId"
+            :options="ownerOptions"
+            trigger-class="!text-[13px]"
+            @update:model-value="setOwner"
           />
+          <!-- 部门主管：团队客户视图下按自己团队的业务员筛选 -->
           <SelectCard
-            :model-value="activeSourceChannel"
-            :options="sourceChannelOptions"
-            @update:model-value="setSourceChannel"
+            v-if="isManagerTeamView"
+            :model-value="selectedOwnerId"
+            :options="managerOwnerOptions"
+            trigger-class="!text-[13px]"
+            @update:model-value="setOwner"
           />
           <SelectCard
             :model-value="activeStatus"
             :options="statusFilterOptions"
+            trigger-class="!text-[13px]"
             @update:model-value="setStatus"
           />
           <SelectCard
             :model-value="activeLevel"
             :options="levelFilterOptions"
+            trigger-class="!text-[13px]"
             @update:model-value="setLevel"
+          />
+          <SelectCard
+            :model-value="activeSourceChannel"
+            :options="sourceChannelOptions"
+            trigger-class="!text-[13px]"
+            @update:model-value="setSourceChannel"
+          />
+          <SelectCard
+            :model-value="activeCustomerGroup"
+            :options="customerGroupOptions"
+            trigger-class="!text-[13px]"
+            @update:model-value="setCustomerGroup"
+          />
+          <SelectCard
+            :model-value="activeProductGroup"
+            :options="productGroupOptions"
+            trigger-class="!text-[13px]"
+            @update:model-value="setProductGroup"
           />
         </div>
       </div>
 
-      <div class="flex-1 px-6 py-4 overflow-auto">
-        <div
-          v-if="isFetching"
-          class="flex items-center justify-center p-8 text-base text-n-slate-11"
-        >
-          {{ t('CRM.CUSTOMERS.LOADING') }}
+      <!-- 表格区（第 3 框）：内含滚动表格 + 分页页脚 -->
+      <div
+        class="flex flex-col flex-1 min-h-0 overflow-hidden rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/30"
+      >
+        <div class="flex-1 min-h-0 px-3.5 py-1 overflow-auto">
+          <div
+            v-if="isFetching"
+            class="flex items-center justify-center p-8 text-sm text-n-slate-11"
+          >
+            {{ t('CRM.CUSTOMERS.LOADING') }}
         </div>
         <div
           v-else-if="!customers.length"
-          class="flex items-center justify-center p-8 text-base text-n-slate-11"
+          class="flex items-center justify-center p-8 text-sm text-n-slate-11"
         >
           {{ t('CRM.CUSTOMERS.EMPTY') }}
         </div>
-        <div
-          v-else
-          class="overflow-hidden border shadow-sm rounded-2xl border-n-weak bg-n-solid-1"
-        >
+        <div v-else class="overflow-x-auto">
           <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left border-collapse">
-              <thead class="bg-n-solid-1 text-n-slate-11">
-                <tr class="border-b border-n-weak">
+            <table
+              class="w-full text-[13px] text-left border-separate border-spacing-0"
+            >
+              <thead class="text-n-slate-10">
+                <tr class="[&>th]:border-b [&>th]:border-n-weak">
                   <th
                     v-if="canSelectRows"
-                    class="sticky left-0 z-20 w-11 px-3 py-2 bg-n-solid-1"
+                    class="sticky left-0 z-20 w-11 px-3 py-2.5 bg-white"
                   >
                     <input
                       type="checkbox"
@@ -1202,28 +1434,36 @@ watch(
                     />
                   </th>
                   <th
-                    class="sticky z-20 px-4 py-2 font-medium bg-n-solid-1 whitespace-nowrap"
-                    :style="{
-                      left: nameLeft + 'px',
-                      width: STICKY.name + 'px',
-                    }"
+                    class="sticky z-20 px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
+                    :class="canSelectRows ? 'left-11' : 'left-0'"
                   >
                     {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
                   </th>
                   <th
-                    class="sticky z-20 px-4 py-2 font-medium border-r bg-n-solid-1 whitespace-nowrap border-n-weak"
-                    :style="{ left: countryLeft + 'px' }"
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
                   >
                     {{ t('CRM.CUSTOMERS.TABLE.COUNTRY') }}
                   </th>
-                  <th class="px-4 py-2 font-medium whitespace-nowrap">时区</th>
-                  <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  <th
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                  >
+                    时区
+                  </th>
+                  <th
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                  >
                     主要联系人
                   </th>
-                  <th class="px-4 py-2 font-medium whitespace-nowrap">邮箱</th>
-                  <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  <th
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                  >
+                    邮箱
+                  </th>
+                  <th
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                  >
                     <button
-                      class="inline-flex items-center gap-1 transition-colors hover:text-n-slate-12"
+                      class="inline-flex items-center gap-1 text-[13px] transition-colors hover:text-n-slate-12"
                       :class="
                         sortKey === 'completeness' ? 'text-n-slate-12' : ''
                       "
@@ -1237,10 +1477,10 @@ watch(
                     </button>
                   </th>
                   <th
-                    class="px-4 py-2 font-medium text-right whitespace-nowrap"
+                    class="px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap"
                   >
                     <button
-                      class="inline-flex items-center gap-1 ml-auto transition-colors hover:text-n-slate-12"
+                      class="inline-flex items-center gap-1 ml-auto text-[13px] transition-colors hover:text-n-slate-12"
                       :class="
                         sortKey === 'deal_amount' ? 'text-n-slate-12' : ''
                       "
@@ -1251,10 +1491,10 @@ watch(
                     </button>
                   </th>
                   <th
-                    class="px-4 py-2 font-medium text-right whitespace-nowrap"
+                    class="px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap"
                   >
                     <button
-                      class="inline-flex items-center gap-1 ml-auto transition-colors hover:text-n-slate-12"
+                      class="inline-flex items-center gap-1 ml-auto text-[13px] transition-colors hover:text-n-slate-12"
                       :class="sortKey === 'deal_count' ? 'text-n-slate-12' : ''"
                       @click="toggleSort('deal_count')"
                     >
@@ -1262,19 +1502,29 @@ watch(
                       <span class="size-3.5" :class="sortIcon('deal_count')" />
                     </button>
                   </th>
-                  <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  <th
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                  >
                     {{ t('CRM.CUSTOMERS.TABLE.STATUS') }}
                   </th>
-                  <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  <th
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                  >
                     {{ t('CRM.CUSTOMERS.TABLE.LEVEL') }}
                   </th>
-                  <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  <th
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                  >
                     {{ t('CRM.CUSTOMERS.TABLE.SOURCE') }}
                   </th>
-                  <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  <th
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                  >
                     {{ t('CRM.CUSTOMERS.TABLE.REGION') }}
                   </th>
-                  <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  <th
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                  >
                     {{
                       activeFilter === 'public_pool'
                         ? '原跟进人'
@@ -1282,7 +1532,7 @@ watch(
                     }}
                   </th>
                   <th
-                    class="sticky right-0 z-20 px-4 py-2 font-medium text-right border-l bg-n-solid-1 whitespace-nowrap border-n-weak"
+                    class="px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap"
                   >
                     {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
                   </th>
@@ -1292,7 +1542,7 @@ watch(
                 <tr
                   v-for="customer in customers"
                   :key="customer.id"
-                  class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
+                  class="cursor-pointer [&>td]:border-b [&>td]:border-n-weak hover:bg-n-iris-9/[0.04]"
                   :class="{
                     'bg-n-iris-2': selectedCustomer?.id === customer.id,
                   }"
@@ -1300,8 +1550,7 @@ watch(
                 >
                   <td
                     v-if="canSelectRows"
-                    class="sticky left-0 z-10 w-11 px-3 py-2"
-                    :class="rowStickyBg(customer)"
+                    class="sticky left-0 z-10 w-11 px-3 py-2.5 bg-white"
                     @click.stop
                   >
                     <input
@@ -1312,14 +1561,15 @@ watch(
                     />
                   </td>
                   <td
-                    class="sticky z-10 px-4 py-2"
-                    :class="rowStickyBg(customer)"
-                    :style="{
-                      left: nameLeft + 'px',
-                      width: STICKY.name + 'px',
-                    }"
+                    class="sticky z-10 px-3 py-2.5 min-w-[180px] bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
+                    :class="canSelectRows ? 'left-11' : 'left-0'"
                   >
-                    <div class="flex items-center gap-2 min-w-0 group">
+                    <div class="flex items-center gap-2.5 min-w-0 group">
+                      <span
+                        class="grid flex-none text-xs font-bold rounded-lg size-7 place-items-center bg-n-slate-4 text-n-slate-11"
+                      >
+                        {{ initial(customer.name) }}
+                      </span>
                       <input
                         v-if="isEditingCell(customer, 'name')"
                         v-model="editingValue"
@@ -1331,9 +1581,31 @@ watch(
                         @blur="saveCellEdit(customer)"
                       />
                       <template v-else>
-                        <span class="truncate text-n-slate-12">
+                        <span class="font-semibold truncate text-n-slate-12">
                           {{ customer.name }}
                         </span>
+                        <button
+                          type="button"
+                          :title="
+                            customer.favorited ? '取消特别关注' : '特别关注'
+                          "
+                          class="flex-shrink-0 transition"
+                          :class="
+                            customer.favorited
+                              ? 'text-[#ff5a5f]'
+                              : 'text-n-slate-8 opacity-0 group-hover:opacity-100 hover:text-[#ff8a8d]'
+                          "
+                          @click.stop="toggleFavorite(customer)"
+                        >
+                          <span
+                            class="size-4"
+                            :class="
+                              customer.favorited
+                                ? 'i-ri-heart-fill'
+                                : 'i-ri-heart-line'
+                            "
+                          />
+                        </button>
                         <span
                           class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
                           @click.stop
@@ -1358,19 +1630,15 @@ watch(
                       </template>
                     </div>
                   </td>
-                  <td
-                    class="sticky z-10 px-4 py-2 border-r whitespace-nowrap border-n-weak text-n-slate-11"
-                    :class="rowStickyBg(customer)"
-                    :style="{ left: countryLeft + 'px' }"
-                  >
+                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
                     {{ countryLabel(customer.tradeCountry) }}
                   </td>
                   <td
-                    class="px-4 py-2 whitespace-nowrap text-n-slate-11 tabular-nums"
+                    class="px-3 py-2.5 whitespace-nowrap text-n-slate-11 tabular-nums"
                   >
                     {{ customerTime(customer) || '—' }}
                   </td>
-                  <td class="px-4 py-2 whitespace-nowrap text-n-slate-11">
+                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
                     <div class="flex items-center min-w-0 gap-1 group">
                       <input
                         v-if="isEditingCell(customer, 'primaryContactName')"
@@ -1413,7 +1681,7 @@ watch(
                       </template>
                     </div>
                   </td>
-                  <td class="px-4 py-2 whitespace-nowrap text-n-slate-11">
+                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
                     <div class="flex items-center min-w-0 gap-1 group">
                       <input
                         v-if="isEditingCell(customer, 'contactEmail')"
@@ -1427,9 +1695,16 @@ watch(
                         @blur="saveCellEdit(customer)"
                       />
                       <template v-else>
-                        <span class="truncate">
-                          {{ customer.contactEmail || '—' }}
-                        </span>
+                        <button
+                          v-if="customer.contactEmail"
+                          type="button"
+                          title="点击写邮件"
+                          class="truncate text-left transition-colors hover:text-n-iris-11 hover:underline"
+                          @click.stop="writeEmail(customer)"
+                        >
+                          {{ customer.contactEmail }}
+                        </button>
+                        <span v-else class="truncate">—</span>
                         <span
                           class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
                           @click.stop
@@ -1457,84 +1732,102 @@ watch(
                       </template>
                     </div>
                   </td>
-                  <td class="px-4 py-2">
-                    <span
+                  <td class="px-3 py-2.5">
+                    <div
                       v-if="gradeMeta(customer)"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
-                      :class="pillCls(gradeMeta(customer).color)"
+                      class="flex items-center gap-2"
                     >
-                      {{ gradeMeta(customer).label }}
-                      <span class="opacity-70">{{
-                        customer.infoCompletenessScore
-                      }}</span>
-                    </span>
+                      <div
+                        class="w-11 h-[5px] rounded-full bg-n-slate-4 overflow-hidden"
+                      >
+                        <div
+                          class="h-full rounded-full"
+                          :class="
+                            isClassic
+                              ? 'bg-[#f5c451]'
+                              : 'bg-gradient-to-r from-n-iris-9 to-n-accent-grad'
+                          "
+                          :style="{
+                            width:
+                              Math.min(
+                                100,
+                                Math.max(0, customer.infoCompletenessScore || 0)
+                              ) + '%',
+                          }"
+                        />
+                      </div>
+                      <span class="text-[11px] text-n-slate-10 tabular-nums">
+                        {{ customer.infoCompletenessScore }}
+                      </span>
+                    </div>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
                   <td
-                    class="px-4 py-2 text-right text-n-slate-11 whitespace-nowrap"
+                    class="px-3 py-2.5 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
                   >
                     {{ money(customer.dealTotalAmountMicros) }}
                   </td>
-                  <td class="px-4 py-2 text-right text-n-slate-11">
+                  <td
+                    class="px-3 py-2.5 text-right tabular-nums text-n-slate-11"
+                  >
                     {{ customer.dealOrderCount || 0 }}
                   </td>
-                  <td class="px-4 py-2">
+                  <td class="px-3 py-2.5">
                     <span
                       v-if="statusMeta(customer)"
-                      class="inline-flex px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
+                      class="inline-flex items-center px-2.5 py-[3px] rounded-full text-[11.5px] font-bold whitespace-nowrap"
                       :class="pillCls(statusMeta(customer).color)"
                     >
                       {{ statusMeta(customer).label }}
                     </span>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
-                  <td class="px-4 py-2">
+                  <td class="px-3 py-2.5">
                     <span
                       v-if="customer.customerLevel"
-                      class="inline-flex items-center justify-center w-5 h-5 rounded text-xs font-medium"
+                      class="inline-flex items-center justify-center rounded-md size-[22px] text-xs font-bold"
                       :class="pillCls(levelColor(customer.customerLevel))"
                     >
                       {{ customer.customerLevel }}
                     </span>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
-                  <td class="px-4 py-2">
+                  <td class="px-3 py-2.5">
                     <span
                       v-if="sourceMeta(customer)"
-                      class="inline-flex px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
+                      class="inline-flex px-2.5 py-[3px] rounded-full text-[11px] font-bold whitespace-nowrap"
                       :class="pillCls(sourceMeta(customer).color)"
                     >
                       {{ sourceMeta(customer).label }}
                     </span>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
-                  <td class="px-4 py-2">
-                    <span
-                      v-if="regionMeta(customer)"
-                      class="inline-flex px-2 py-0.5 rounded-md text-xs whitespace-nowrap"
-                      :class="pillCls(regionMeta(customer).color)"
-                    >
+                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
+                    <span v-if="regionMeta(customer)">
                       {{ regionMeta(customer).label }}
                     </span>
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
-                  <td class="px-4 py-2 whitespace-nowrap text-n-slate-11">
-                    <template v-if="customer.isInPublicPool">
-                      <span v-if="customer.previousOwnerName">
-                        {{ customer.previousOwnerName }}
+                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
+                    <div
+                      v-if="ownerDisplayName(customer)"
+                      class="flex items-center gap-2"
+                    >
+                      <span
+                        class="grid flex-none text-[11px] font-bold rounded-md size-6 place-items-center bg-n-slate-4 text-n-slate-11"
+                      >
+                        {{ initial(ownerDisplayName(customer)) }}
                       </span>
-                      <span v-else class="text-n-slate-10">—</span>
-                    </template>
-                    <span v-else-if="customer.accountOwnerName">
-                      {{ customer.accountOwnerName }}
+                      <span class="truncate">
+                        {{ ownerDisplayName(customer) }}
+                      </span>
+                    </div>
+                    <span v-else class="text-n-slate-10">
+                      <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+                      {{ customer.isInPublicPool ? '—' : '未分配' }}
                     </span>
-                    <span v-else class="text-n-slate-10">未分配</span>
                   </td>
-                  <td
-                    class="sticky right-0 z-10 px-4 py-2 text-right border-l border-n-weak"
-                    :class="rowStickyBg(customer)"
-                    @click.stop
-                  >
+                  <td class="px-3 py-2.5 text-right" @click.stop>
                     <Button
                       v-if="customer.isInPublicPool"
                       :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
@@ -1560,16 +1853,65 @@ watch(
 
       <div
         v-if="totalCount > 0"
-        class="flex items-center justify-end flex-shrink-0 px-6 py-3 border-t border-n-weak bg-n-surface-1"
+        class="flex items-center justify-between flex-shrink-0 px-4 py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
       >
-        <CrmPagination
-          :total="totalCount"
-          :current-page="currentPage"
-          :page-size="pageSize"
-          :page-size-options="PAGE_SIZE_OPTIONS"
-          @update:current-page="onPageChange"
-          @update:page-size="onPageSizeChange"
-        />
+        <div class="flex items-center gap-3 shrink-0 whitespace-nowrap">
+          <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+          <span>共 {{ totalCount }} 条</span>
+          <div class="flex items-center gap-1.5">
+            <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+            <span>每页</span>
+            <SelectCard
+              :model-value="pageSize"
+              :options="pageSizeOptions"
+              align="right"
+              trigger-class="!h-[26px] !text-[12.5px] !pl-2.5 !pr-1.5 !gap-1"
+              @update:model-value="setPageSize"
+            />
+            <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+            <span>条</span>
+          </div>
+        </div>
+        <div v-if="totalPages > 1" class="flex items-center gap-1">
+          <button
+            type="button"
+            class="flex items-center justify-center min-w-[28px] h-7 px-1.5 border rounded-lg border-n-weak bg-n-solid-1/60 text-n-slate-11 disabled:opacity-40"
+            :disabled="currentPage === 1"
+            @click="onPageChange(currentPage - 1)"
+          >
+            <span class="i-lucide-chevron-left size-4" />
+          </button>
+          <template v-for="(p, i) in pageList" :key="i">
+            <span
+              v-if="p === '…'"
+              class="flex items-center justify-center min-w-[28px] h-7 text-n-slate-9"
+            >
+              {{ p }}
+            </span>
+            <button
+              v-else
+              type="button"
+              class="flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg tabular-nums"
+              :class="
+                p === currentPage
+                  ? 'bg-n-iris-9 text-white font-semibold'
+                  : 'text-n-slate-11 hover:bg-n-alpha-2'
+              "
+              @click="onPageChange(p)"
+            >
+              {{ p }}
+            </button>
+          </template>
+          <button
+            type="button"
+            class="flex items-center justify-center min-w-[28px] h-7 px-1.5 border rounded-lg border-n-weak bg-n-solid-1/60 text-n-slate-11 disabled:opacity-40"
+            :disabled="currentPage === totalPages"
+            @click="onPageChange(currentPage + 1)"
+          >
+            <span class="i-lucide-chevron-right size-4" />
+          </button>
+        </div>
+      </div>
       </div>
     </div>
 
@@ -1832,6 +2174,14 @@ watch(
                 <span class="ml-auto text-xs text-n-slate-10">
                   {{ fmtDateTime(e.email_date || e.created_at) }}
                 </span>
+                <button
+                  class="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md text-n-iris-11 bg-n-iris-3 hover:bg-n-iris-4 transition-colors"
+                  title="回复"
+                  @click.stop="replyPanelEmail(e)"
+                >
+                  <span class="i-lucide-reply size-3.5" />
+                  回复
+                </button>
               </div>
               <div class="mt-1 text-sm font-medium truncate text-n-slate-12">
                 {{ e.subject || '(无主题)' }}
@@ -1894,32 +2244,32 @@ watch(
           :style="{ top: menuAnchor.top + 'px', left: menuAnchor.left + 'px' }"
         >
           <button
-            class="w-full px-4 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            class="w-full px-3 py-2.5 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
             @click="writeEmail(menuCustomer)"
           >
             写邮件
           </button>
           <button
-            class="w-full px-4 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            class="w-full px-3 py-2.5 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
             @click="openMoveGroup(menuCustomer)"
           >
             移动至分组
           </button>
           <button
-            class="w-full px-4 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            class="w-full px-3 py-2.5 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
             @click="openTransfer(menuCustomer)"
           >
             转移给
           </button>
           <button
-            class="w-full px-4 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            class="w-full px-3 py-2.5 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
             @click="openShare(menuCustomer)"
           >
             共享客户
           </button>
           <div class="my-1 border-t border-n-weak" />
           <button
-            class="w-full px-4 py-2 text-sm text-left text-n-ruby-11 hover:bg-n-alpha-1"
+            class="w-full px-3 py-2.5 text-sm text-left text-n-ruby-11 hover:bg-n-alpha-1"
             @click="
               releaseCustomer(menuCustomer);
               openMenuId = null;

@@ -418,7 +418,7 @@ defineExpose({ dialogRef, onSuccess, open });
       <!-- 读取 PI 自动识别（仅新建）：上传 PDF/Excel，自动填客户/PI号/金额/明细 -->
       <div
         v-if="!isEditing"
-        class="flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
+        class="crm-ai-box flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
       >
         <div class="flex items-center gap-2 text-sm text-n-slate-11">
           <span class="i-lucide-sparkles size-4 text-n-iris-9" />
@@ -426,7 +426,7 @@ defineExpose({ dialogRef, onSuccess, open });
         </div>
         <button
           type="button"
-          class="flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+          class="crm-ai crm-ai-solid flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
           :disabled="parsingPi"
           @click="triggerPiUpload"
         >
