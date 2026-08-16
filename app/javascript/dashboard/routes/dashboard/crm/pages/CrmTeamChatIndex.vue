@@ -114,6 +114,21 @@ const convStatus = conv =>
     : agentMap.value[conv.peer_id]?.availability_status || null;
 const senderSrc = msg => agentMap.value[msg.sender_id]?.thumbnail || '';
 
+// 消息里的 http(s) 链接转成可点击 <a>（如提成表/绩效表转发过来的回跳链接）。
+// 先转义 HTML 再替换，防 XSS；只处理 URL，不做 markdown，保留 whitespace-pre-wrap 的换行。
+const escapeHtml = s =>
+  (s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+const linkifyContent = content =>
+  escapeHtml(content).replace(
+    /(https?:\/\/[^\s<]+)/g,
+    url =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline font-medium">${url}</a>`
+  );
+
 const otherAgents = computed(() =>
   agents.value.filter(a => a.id !== currentUserId.value)
 );
@@ -736,7 +751,8 @@ onBeforeUnmount(() => {
                       : 'bg-n-slate-12 text-n-slate-1 rounded-bl-md'
                   "
                 >
-                  {{ msg.content }}
+                  <!-- eslint-disable-next-line vue/no-v-html -->
+                  <span v-html="linkifyContent(msg.content)" />
                 </div>
                 <!-- 附件 -->
                 <div

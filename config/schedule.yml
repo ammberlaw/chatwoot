@@ -100,6 +100,12 @@ crm_monthly_report_job:
   class: 'Crm::MonthlyReportJob'
   queue: scheduled_jobs
 
+# CRM：每月 1 号在团队沟通提醒成员填报上月绩效考核表与提成表（北京时间 08:05 = UTC 00:05）
+crm_monthly_filing_reminder_job:
+  cron: '5 0 1 * *'
+  class: 'Crm::MonthlyFilingReminderJob'
+  queue: scheduled_jobs
+
 # CRM：业务员邮箱 IMAP/POP 收信，每 1 分钟拉取新邮件（被动延迟≤1分钟；用户可在邮件页手动「收取」立即拉）
 crm_fetch_imap_emails_job:
   cron: '* * * * *'

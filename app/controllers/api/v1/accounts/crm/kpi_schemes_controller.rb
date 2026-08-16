@@ -41,10 +41,24 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
                       .for_month(month).pluck(:owner_id)
     created = (owner_ids - existing).map { |uid| build_sheet_for(uid, month) }
     @scheme.update!(status: 'PUBLISHED') if created.any? && @scheme.status != 'PUBLISHED'
+    notify_distributed(created)
     render json: { created: created.size, skipped: existing.size }
   end
 
   private
+
+  # 下发后自动在团队沟通提醒每位新下发的成员（已存在跳过的不重复提醒）。
+  def notify_distributed(sheets)
+    return if sheets.empty?
+
+    notifier = Chat::NotifyService.new(account: Current.account, sender: Crm::SystemUser.for(Current.account))
+    sheets.each do |sheet|
+      notifier.notify(
+        sheet.owner_id,
+        "【绩效考核】#{sheet.scheme_name} 已下发，请及时到「考核表」填报本月绩效考核。"
+      )
+    end
+  end
 
   # 快照方案 + 员工薪资，复制指标行，生成一张考核表。
   def build_sheet_for(owner_id, month)

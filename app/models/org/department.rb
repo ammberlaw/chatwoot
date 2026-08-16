@@ -70,6 +70,27 @@ class Org::Department < ApplicationRecord
     ids
   end
 
+  # 某成员的直属主管们 user_id：成员可能属于多个部门，各部门分别向上找最近一个
+  # 有 leader（且非本人）的部门的 leader，去重返回（提交考核/提成后通知这些人去审）。
+  def self.managers_of(account, user_id)
+    account.org_memberships.where(user_id: user_id).pluck(:department_id)
+           .filter_map { |dept_id| nearest_leader(account, dept_id, user_id) }.uniq
+  end
+
+  # 从某部门向上找最近一个有 leader（且非本人）的部门的 leader；无则 nil。
+  def self.nearest_leader(account, dept_id, user_id)
+    seen = []
+    while dept_id && seen.exclude?(dept_id)
+      seen << dept_id
+      dept = account.org_departments.find_by(id: dept_id)
+      return nil unless dept
+      return dept.leader_id if dept.leader_id.present? && dept.leader_id != user_id
+
+      dept_id = dept.parent_id
+    end
+    nil
+  end
+
   private
 
   def sync_leader_crm_role

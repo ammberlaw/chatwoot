@@ -9,6 +9,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { toPng } from 'html-to-image';
 import CommissionSheetsAPI from 'dashboard/api/crm/commissionSheets';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import CrmForwardToTeamChatDialog from 'dashboard/components-next/CRM/CrmForwardToTeamChatDialog.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -545,6 +546,41 @@ const grand = computed(() => ({
   salesRmb: sum(items.value, 'salesRmb'),
   salary: sumSalary(items.value),
 }));
+
+// ── 转发到团队沟通：把本提成表的摘要 + 回跳链接（可选表图）发到某个团队沟通会话 ──
+const forwardRef = ref(null);
+// 现场把只读分组表截成 PNG File 当附件（复用导出图片的 captureRef/toPng）。
+const makeSheetImage = async () => {
+  if (!captureRef.value) return null;
+  const dataUrl = await toPng(captureRef.value, {
+    backgroundColor: '#ffffff',
+    pixelRatio: 2,
+    cacheBust: true,
+  });
+  const blob = await (await fetch(dataUrl)).blob();
+  const d = new Date(sheet.value.periodMonth);
+  const name = `${t('CRM.COMMISSION.HEADER')}-${sheet.value.ownerName || ''}-${d.getFullYear()}-${d.getMonth() + 1}.png`;
+  return new File([blob], name, { type: 'image/png' });
+};
+const openForward = () => {
+  if (!sheet.value) return;
+  const link = `${window.location.origin}${
+    router.resolve({
+      name: 'crm_commission_sheet_detail',
+      query: { id: sheet.value.id },
+    }).href
+  }`;
+  const statusLabel = t(`CRM.COMMISSION.STATUS.${status.value}`);
+  const text =
+    `${title.value} 提成表\n` +
+    `提成合计 ¥${fmtYuan2(grand.value.salary)} · ${statusLabel}\n` +
+    `${link}`;
+  // 截图容器仅只读态渲染；编辑态取不到就只发链接（不显示表图选项）。
+  forwardRef.value?.open(
+    text,
+    captureRef.value ? { makeImage: makeSheetImage } : undefined
+  );
+};
 </script>
 
 <template>
@@ -578,6 +614,14 @@ const grand = computed(() => ({
         </span>
       </div>
       <div class="flex items-center gap-2 shrink-0">
+        <button
+          v-if="sheet"
+          class="inline-flex items-center gap-1.5 h-8 px-3 text-sm rounded-lg border border-n-iris-6 text-n-iris-11 hover:bg-n-iris-3"
+          @click="openForward"
+        >
+          <Icon icon="i-lucide-send" class="size-4" />
+          转发到团队沟通
+        </button>
         <template v-if="editable">
           <button
             v-if="canPullImport"
@@ -1007,8 +1051,14 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
         </button>
       </div>
 
-      <!-- 只读态：按产品品类分组 + 小计 + 总计（captureRef 供导出图片截取）-->
-      <div v-else class="overflow-x-auto">
+      <!-- 只读分组视图（按品类分组 + 小计 + 总计）：始终渲染供转发/导出截图；
+           编辑态时移到屏幕外只作快照源（不能 display:none，否则 toPng 截不到）。-->
+      <div
+        class="overflow-x-auto"
+        :class="
+          editable ? 'absolute -left-[10000px] top-0 pointer-events-none' : ''
+        "
+      >
         <div
           ref="captureRef"
           class="inline-block min-w-full p-4 bg-n-background"
@@ -1338,5 +1388,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
         </div>
       </div>
     </div>
+
+    <CrmForwardToTeamChatDialog ref="forwardRef" />
   </div>
 </template>

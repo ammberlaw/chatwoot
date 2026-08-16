@@ -75,6 +75,8 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
       @sheet.assign_attributes(return_reason: nil, returned_at: nil, returned_by_id: nil)
     end
 
+    crm_notify_managers_of(@sheet.owner_id,
+                           "【绩效考核】#{@sheet.owner&.name} 提交了「#{@sheet.scheme_name}」，请及时到「考核表」打分。")
     render 'show'
   end
 
@@ -86,6 +88,8 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     return render_error('请填写退回原因', :unprocessable_entity) if reason.blank?
 
     @sheet.reset_for_return!(reason: reason, by: current_user)
+    crm_notify(@sheet.owner_id,
+               "【绩效考核】你的「#{@sheet.scheme_name}」被退回，原因：#{reason}，请修改后重新提交。")
     render 'show'
   end
 
@@ -110,6 +114,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     end
 
     @sheet.recompute_payout!
+    notify_scored
     render 'show'
   end
 
@@ -134,6 +139,8 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
       @sheet.gm_confirmed_at = Time.current
     end
 
+    crm_notify(@sheet.owner_id,
+               "【绩效考核】你的「#{@sheet.scheme_name}」已完成全部审批并归档，最终得分 #{@sheet.total_score}/100。")
     render 'show'
   end
 
@@ -151,6 +158,14 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   end
 
   private
+
+  # 主管打分后自动在团队沟通通知被考核成员打分结果。失败只记日志、不阻断打分。
+  def notify_scored
+    Chat::NotifyService.new(account: Current.account, sender: Crm::SystemUser.for(Current.account)).notify(
+      @sheet.owner_id,
+      "【绩效考核】你的「#{@sheet.scheme_name}」已完成主管打分，总分 #{@sheet.total_score}/100，详情见「考核表」。"
+    )
+  end
 
   # 业绩类指标（CRM_SALES）按公式硬算建议分 = 完成 ÷ 保底 × 权重（保底取薪资配置），其余指标交 AI 参考。
   # 返回 [{ 'i', 'score', 'reason' }, ...]，'i' 为在 rows 中的原始序号。

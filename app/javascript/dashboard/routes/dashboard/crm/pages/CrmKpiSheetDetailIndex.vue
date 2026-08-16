@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { toPng } from 'html-to-image';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -10,6 +11,7 @@ import CrmPerfSettingsAPI from 'dashboard/api/crm/performanceSettings';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import MySignatureDialog from 'dashboard/components-next/CRM/MySignatureDialog.vue';
+import CrmForwardToTeamChatDialog from 'dashboard/components-next/CRM/CrmForwardToTeamChatDialog.vue';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -144,6 +146,36 @@ const goBack = () =>
     name: 'crm_kpi_sheets_index',
     params: { accountId: accountId.value },
   });
+
+// ── 转发到团队沟通：把本绩效表的摘要 + 回跳链接（可选表图）发到某个团队沟通会话 ──
+const forwardRef = ref(null);
+const captureRef = ref(null);
+// 现场把绩效表主体截成 PNG File 当附件。
+const makeSheetImage = async () => {
+  if (!captureRef.value) return null;
+  const dataUrl = await toPng(captureRef.value, {
+    backgroundColor: '#ffffff',
+    pixelRatio: 2,
+    cacheBust: true,
+  });
+  const blob = await (await fetch(dataUrl)).blob();
+  const name = `绩效表-${sheet.value.ownerName || ''}-${fmtMonth(sheet.value.periodMonth)}.png`;
+  return new File([blob], name, { type: 'image/png' });
+};
+const openForward = () => {
+  if (!sheet.value) return;
+  const resolved = router.resolve({
+    name: 'crm_kpi_sheet_detail',
+    query: { id: sheetId },
+  });
+  const link = `${window.location.origin}${resolved.href}`;
+  const statusLabel = t(`CRM.KPI_SHEETS.STATUS.${status.value}`);
+  const month = fmtMonth(sheet.value.periodMonth);
+  const text =
+    `${sheet.value.ownerName || '—'} · ${month} 绩效表\n` +
+    `合计得分 ${totalScore.value} · ${statusLabel}\n${link}`;
+  forwardRef.value?.open(text, { makeImage: makeSheetImage });
+};
 
 const yuan = m =>
   m == null ? '—' : `¥${Math.round(m / 1_000_000).toLocaleString()}`;
@@ -357,6 +389,14 @@ const inCls =
       </div>
       <div v-if="sheet" class="flex items-center gap-2">
         <Button
+          label="转发到团队沟通"
+          icon="i-lucide-send"
+          size="sm"
+          variant="faded"
+          color="iris"
+          @click="openForward"
+        />
+        <Button
           v-if="canScore"
           :label="t('CRM.KPI_SHEETS.AI_SUGGEST')"
           icon="i-lucide-sparkles"
@@ -451,7 +491,11 @@ const inCls =
       {{ t('CRM.KPI_SHEETS.LOADING') }}
     </div>
 
-    <div v-else-if="sheet" class="flex flex-col gap-7 px-6 py-6">
+    <div
+      v-else-if="sheet"
+      ref="captureRef"
+      class="flex flex-col gap-7 px-6 py-6"
+    >
       <!-- 步骤条 -->
       <div class="flex items-center flex-wrap gap-1 text-sm">
         <template v-for="(st, i) in STEPS" :key="st">
@@ -983,5 +1027,6 @@ const inCls =
       </section>
     </div>
     <MySignatureDialog ref="signatureDialogRef" />
+    <CrmForwardToTeamChatDialog ref="forwardRef" />
   </div>
 </template>
