@@ -422,11 +422,12 @@ const fromAccount = computed(
 );
 const hasAccount = computed(() => accounts.value.length > 0);
 
-// 编辑区实时预览用的样式；发送/预览时把同样的字体套在正文外层。
+// 编辑区实时预览用的样式：用 CSS 变量下发字体/字号（自定义属性会穿透所有中间层，
+// 而 font-size:inherit 只取直接父级，编辑器中间包一层带字号会挡住选择 → 字号不生效）。
 const bodyStyle = computed(() => {
   const style = {};
-  if (fontFamily.value) style.fontFamily = fontFamily.value;
-  if (fontSize.value) style.fontSize = fontSize.value;
+  if (fontFamily.value) style['--crm-font-family'] = fontFamily.value;
+  if (fontSize.value) style['--crm-font-size'] = fontSize.value;
   return style;
 });
 // 回复/转发时正文里「原邮件」引用的分隔标记（与 CrmEmailsIndex 的 quotedBody 一致）。
@@ -447,8 +448,12 @@ const signatureHtml = computed(() => {
   if (!sig) return '';
   const inner =
     sig.bodyHtml || (sig.body ? sig.body.replace(/\n/g, '<br>') : '');
-  return inner ? `<br><br>--<br>${inner}` : '';
+  // 只空一行接签名（不加 -- 分隔符）；正文尾部空白已在拼接处裁掉，避免签名前一大段空白。
+  return inner ? `<br><br>${inner}` : '';
 });
+// 拼接签名前裁掉正文尾部空白（回复正文末尾常带空行），
+// 否则与签名自带的空行叠加，签名前会留一大段空白（用户反馈「间隔好大」）。
+const trimTrailing = s => (s || '').replace(/\s+$/, '');
 // 发送前把签名 HTML 里的 base64 内联图上传换成 URL 的结果（见 persist）；
 // 未清洗时回退到原签名 HTML（用于草稿本地拼接，最终发送以清洗后为准）。
 const cleanedSignatureHtml = ref(null);
@@ -458,53 +463,69 @@ const composedHtml = computed(() => {
   const idx = body.indexOf(QUOTE_MARKER);
   // 有原邮件引用：签名插到回复正文之后、引用之前；否则拼在正文末尾。
   if (sig && idx !== -1) {
-    const replyHtml = markdownToHtml(body.slice(0, idx));
+    const replyHtml = markdownToHtml(trimTrailing(body.slice(0, idx)));
     const quoteHtml = markdownToHtml(body.slice(idx));
     return fontWrap(`${replyHtml}${sig}${quoteHtml}`);
   }
-  return `${bodyHtml.value}${sig}`;
+  if (sig) return `${fontWrap(markdownToHtml(trimTrailing(body)))}${sig}`;
+  return bodyHtml.value;
 });
 const composedText = computed(() => {
   const sig = activeSignature.value;
-  const plain = sig?.body ? `\n\n--\n${sig.body}` : '';
+  const plain = sig?.body ? `\n\n${sig.body}` : '';
   const body = form.body || '';
   const idx = body.indexOf(QUOTE_MARKER);
   // 纯文本兜底同理：签名夹在回复正文与原邮件引用之间。
   if (plain && idx !== -1) {
-    return `${body.slice(0, idx)}${plain}\n\n${body.slice(idx)}`;
+    return `${trimTrailing(body.slice(0, idx))}${plain}\n\n${body.slice(idx)}`;
   }
-  return `${body}${plain}`;
+  if (plain) return `${trimTrailing(body)}${plain}`;
+  return body;
 });
 
-// 字体/字号浮层贴到编辑器工具栏按钮组右侧：运行时量出按钮条位置。
+// 字体/颜色/下划线控件贴在编辑器菜单栏（B I <> …）右侧、同一行。
+// 关键：用菜单栏「真实中线」对齐（bar.top + bar.height/2），不猜像素；
+// 对开窗动画瞬间的脏测量（曾量到 top=-348）做范围保护，量到合理值前不显示。
 const bodyRef = ref(null);
-const toolbarPos = ref(null);
+const toolbarPos = ref(null); // {left, top}；null=尚未量到合理位置，先隐藏
 const measureToolbar = () => {
   const root = bodyRef.value;
   const menubar = root?.querySelector('.ProseMirror-menubar');
-  if (!menubar) {
-    toolbarPos.value = null;
-    return;
-  }
+  if (!menubar) return;
   const base = root.getBoundingClientRect();
   const bar = menubar.getBoundingClientRect();
-  // 垂直对齐到菜单栏图标的中线（浮层自身固定 h-7=28px），而非菜单栏顶边。
-  const item = menubar.querySelector('.ProseMirror-menuitem') || menubar;
-  const itemRect = item.getBoundingClientRect();
-  toolbarPos.value = bar.width
-    ? {
-        left: bar.right - base.left + 8,
-        top: itemRect.top + itemRect.height / 2 - base.top - 14,
-      }
-    : null;
+  if (!bar.width || !bar.height) return;
+  const left = Math.round(bar.right - base.left + 8);
+  // 浮层自身 h-7=28px，用 -14 让其竖直中线对齐菜单栏中线。
+  const top = Math.round(bar.top + bar.height / 2 - base.top - 14);
+  // 只接受合理范围，异常值（动画瞬间/未就绪）直接忽略、等下一次重试。
+  if (top < 0 || top > 200 || left < 0 || left + 60 > base.width) return;
+  toolbarPos.value = { left, top };
 };
 const fontToolbarStyle = computed(() =>
   toolbarPos.value
     ? { left: `${toolbarPos.value.left}px`, top: `${toolbarPos.value.top}px` }
-    : { right: '16px', top: '20px' }
+    : {}
 );
+// 打开后编辑器菜单栏布局要几帧才稳定（回复预填正文更晚），轮询重试到量到合理值为止。
+let measureTimer = null;
+const startMeasuring = () => {
+  let tries = 0;
+  window.clearInterval(measureTimer);
+  measureTimer = window.setInterval(() => {
+    measureToolbar();
+    tries += 1;
+    // 量到位后再多量几次吸收布局微调；~2s 兜底停止。
+    if ((toolbarPos.value && tries > 6) || tries > 40) {
+      window.clearInterval(measureTimer);
+    }
+  }, 50);
+};
 onMounted(() => window.addEventListener('resize', measureToolbar));
-onBeforeUnmount(() => window.removeEventListener('resize', measureToolbar));
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', measureToolbar);
+  window.clearInterval(measureTimer);
+});
 
 const kbScopeChips = [
   { value: '', label: '全部' },
@@ -1127,10 +1148,9 @@ const open = async prefill => {
     if (defaultSig) activeSignatureId.value = defaultSig.id;
   }
   visible.value = true;
+  toolbarPos.value = null; // 重开先隐藏，量到合理位置再显示，避免错位闪一下
   await nextTick();
-  measureToolbar();
-  // 编辑器布局稳定后再量一次（首帧菜单栏宽度可能还没定）。
-  window.setTimeout(measureToolbar, 60);
+  startMeasuring();
   // 回复/转发：编辑器挂载后把光标定到引用原文上方的空白回复区，免去手动点击回车。
   if (prefill?.focusReplyTop) {
     window.setTimeout(() => editorRef.value?.focusReplyStart(), 80);
@@ -1406,8 +1426,10 @@ defineExpose({ open, close });
 
           <!-- 正文：所见即所得富文本（加粗/斜体/链接/列表 + 内联插图上传/粘贴） -->
           <div ref="bodyRef" class="relative flex flex-col">
-            <!-- 字体 / 字号：贴到编辑器工具栏按钮组右侧，整封生效、实时预览 -->
+            <!-- 字体/字号/颜色/下划线：贴在编辑器菜单栏右侧、同一行；
+                 位置由菜单栏真实中线量出（见 measureToolbar），量到前先隐藏避免错位闪。 -->
             <div
+              v-show="toolbarPos"
               class="absolute z-10 flex items-center gap-0.5 h-7"
               :style="fontToolbarStyle"
             >
@@ -2335,11 +2357,27 @@ defineExpose({ open, close });
   max-height: none;
 }
 
-/* 正文默认排版对齐 Gmail 观感：干净无衬线 + 舒适行距（未选字体时生效） */
-.crm-email-body :deep(.ProseMirror) {
+/* 正文默认排版对齐 Gmail 观感（未选字体时生效）。默认字体/字号放在容器上，
+   编辑器 .ProseMirror 用 inherit 跟随——选了字体/字号时由容器的 :style(bodyStyle)
+   覆盖并向下继承生效，否则 ProseMirror 自带的 font 会把用户选择盖掉。 */
+.crm-email-body {
   font-family: Arial, 'Helvetica Neue', Helvetica, 'PingFang SC',
     'Microsoft YaHei', sans-serif;
   font-size: 14px;
+  line-height: 1.6;
+}
+.crm-email-body :deep(.ProseMirror),
+.crm-email-body :deep(.ProseMirror p) {
+  font-family: var(
+    --crm-font-family,
+    Arial,
+    'Helvetica Neue',
+    Helvetica,
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif
+  );
+  font-size: var(--crm-font-size, 14px);
   line-height: 1.6;
 }
 
