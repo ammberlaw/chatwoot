@@ -10,6 +10,10 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+
+// 经典灰专属：模板卡图标底改金黄，避免被压灰像停用。切主题需刷新。
+const isClassic = ref(isClassicTheme());
 
 // 维护权：管理员或人事部门成员（与后端 oa_template_maintainer? 一致）；其他人整页不可见。
 const currentUser = useMapGetter('getCurrentUser');
@@ -301,7 +305,12 @@ onMounted(async () => {
           @click="openEdit(tpl)"
         >
           <div
-            class="flex items-center justify-center flex-shrink-0 rounded-lg size-10 bg-n-iris-4 text-n-iris-11"
+            class="flex items-center justify-center flex-shrink-0 rounded-lg size-10"
+            :class="
+              isClassic
+                ? 'bg-[#fdf1c6] text-[#a97e0c]'
+                : 'bg-n-iris-4 text-n-iris-11'
+            "
           >
             <Icon :icon="tpl.icon || 'i-lucide-file-check'" class="size-5" />
           </div>
@@ -506,7 +515,7 @@ onMounted(async () => {
             </span>
           </div>
           <SelectCard
-            :model-value="''"
+            model-value=""
             :options="ccCandidateOptions"
             :placeholder="L.ccAdd"
             block

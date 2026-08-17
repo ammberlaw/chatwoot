@@ -9,11 +9,20 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 // TikTok 数据看板：按月 + 店铺汇总。KPI 卡 + 每日趋势（RMB）+ 分店铺明细。
 // 金额一律用录入时的 RMB 快照汇总，口径稳定。
+// KPI 卡撞色调色板（参考图风格）：青柠黄绿 / 暖金黄 / 淡紫 / 珊瑚红。
+// 固定色不跟主题走，任何主题都出彩；卡片用亮色浅调保证深色文字可读。
 const CARD_GRADIENTS = [
-  'from-n-iris-3 to-n-iris-5',
-  'from-n-iris-4 to-n-blue-4',
-  'from-n-blue-3 to-n-iris-5',
-  'from-n-iris-3 to-n-iris-6',
+  'from-[#eef8c0] to-[#dff186]',
+  'from-[#fdf1c6] to-[#fbe08e]',
+  'from-[#ece6ff] to-[#dbccff]',
+  'from-[#ffe6e0] to-[#ffcabf]',
+];
+// 对应图标底实色（青柠/金黄用深色图标，淡紫/珊瑚用白图标）
+const CARD_ICONS = [
+  'bg-[#b6e82a] text-[#26340a]',
+  'bg-[#f4bc3a] text-[#3a2a04]',
+  'bg-[#9a7cf5] text-white',
+  'bg-[#ff6f61] text-white',
 ];
 
 const shopsStore = useTiktokShopsStore();
@@ -143,7 +152,8 @@ onMounted(async () => {
             :class="CARD_GRADIENTS[i]"
           >
             <div
-              class="flex items-center justify-center rounded-lg size-9 bg-n-solid-1/70 text-n-iris-11"
+              class="flex items-center justify-center rounded-lg size-9"
+              :class="CARD_ICONS[i]"
             >
               <span class="size-5" :class="[kpi.icon]" />
             </div>

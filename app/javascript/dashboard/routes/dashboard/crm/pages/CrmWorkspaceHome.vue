@@ -11,6 +11,10 @@ import DepartmentsAPI from 'dashboard/api/org/departments';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import wintouchLockup from 'dashboard/assets/images/wintouch/lockup.png';
+import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+
+// 经典灰专属：CRM 图标改黄；被压灰(iris/blue)的模块卡改琥珀，避免像停用。切主题需刷新。
+const isClassic = ref(isClassicTheme());
 
 const router = useRouter();
 const { accountScopedRoute } = useAccount();
@@ -22,7 +26,9 @@ const userName = computed(
   () => currentUser.value?.crm_name || currentUser.value?.name || ''
 );
 // 非 CRM 人员（无 crm_role 且非系统管理员）看到置灰的 CRM 旗舰卡（不可进入）。后端仍以 403 兜底。
-const canAccessCrm = computed(() => currentUser.value?.can_access_crm !== false);
+const canAccessCrm = computed(
+  () => currentUser.value?.can_access_crm !== false
+);
 // TikTok 板块（店铺经营）：管理层/财务/TK 部门负责人成员可见（后端派生 can_access_tiktok）。
 const canAccessTiktok = computed(
   () => currentUser.value?.can_access_tiktok === true
@@ -121,7 +127,7 @@ const SOON = computed(() => {
 });
 
 // 每个强调色对应一套 icon 徽章 + hover 描边类。Radix n-* 色阶，全部预声明避免动态 class 被 purge。
-const ACCENT = {
+const ACCENT_DEFAULT = {
   blue: {
     badge: 'bg-n-blue-4 text-n-blue-11',
     metric: 'text-n-blue-11',
@@ -143,6 +149,24 @@ const ACCENT = {
     ring: 'hover:border-n-violet-7',
   },
 };
+// 经典灰：iris/blue 会被压成灰(像停用) → 改琥珀；teal(绿)/violet(紫) 本就有色，保留。
+const ACCENT_CLASSIC = {
+  blue: {
+    badge: 'bg-[#fdf1c6] text-[#a97e0c]',
+    metric: 'text-[#a97e0c]',
+    ring: 'hover:border-[#f0dca0]',
+  },
+  teal: ACCENT_DEFAULT.teal,
+  iris: {
+    badge: 'bg-[#fdf1c6] text-[#a97e0c]',
+    metric: 'text-[#a97e0c]',
+    ring: 'hover:border-[#f0dca0]',
+  },
+  violet: ACCENT_DEFAULT.violet,
+};
+const ACCENT = computed(() =>
+  isClassic.value ? ACCENT_CLASSIC : ACCENT_DEFAULT
+);
 
 const go = to => router.push(accountScopedRoute(to));
 const soonHint = label => useAlert(`${label} 模块即将上线`);
@@ -206,15 +230,17 @@ onMounted(async () => {
         />
 
         <!-- 问候 -->
-        <header class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-          <h1 class="text-4xl font-semibold tracking-tight text-balance text-n-slate-12">
+        <header
+          class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1"
+        >
+          <h1
+            class="text-4xl font-semibold tracking-tight text-balance text-n-slate-12"
+          >
             {{ greeting }}<template v-if="userName">，{{ userName }}</template>
           </h1>
           <p class="text-sm tabular-nums text-n-slate-11">{{ dateLabel }}</p>
         </header>
-        <p class="mt-2 text-[15px] text-n-slate-11">
-          选择一个系统开始工作。
-        </p>
+        <p class="mt-2 text-[15px] text-n-slate-11">选择一个系统开始工作。</p>
 
         <!-- 主区：CRM 旗舰 + 协同模块竖列（无 CRM 权限时仅展示共享模块） -->
         <div class="grid gap-4 mt-9 lg:grid-cols-5">
@@ -236,8 +262,15 @@ onMounted(async () => {
               class="absolute -top-6 -right-6 size-40 text-n-iris-4 transition-transform duration-500 ease-out group-hover:scale-110"
             />
             <div class="relative flex flex-col h-full">
-              <div class="flex items-center justify-center bg-n-iris-9 shadow-sm size-14 rounded-2xl">
-                <Icon :icon="HERO.icon" class="text-white size-7" />
+              <div
+                class="flex items-center justify-center shadow-sm size-14 rounded-2xl"
+                :class="isClassic ? 'bg-[#f5c451]' : 'bg-n-iris-9'"
+              >
+                <Icon
+                  :icon="HERO.icon"
+                  class="size-7"
+                  :class="isClassic ? 'text-[#3a2a04]' : 'text-white'"
+                />
               </div>
               <h2 class="mt-5 text-2xl font-semibold text-n-iris-12">
                 {{ HERO.label }}
@@ -286,7 +319,10 @@ onMounted(async () => {
               :class="
                 m.locked
                   ? 'opacity-60 saturate-50 cursor-not-allowed'
-                  : ['hover:-translate-y-0.5 hover:shadow-md', ACCENT[m.accent].ring]
+                  : [
+                      'hover:-translate-y-0.5 hover:shadow-md',
+                      ACCENT[m.accent].ring,
+                    ]
               "
               @click="go(m.to)"
             >
@@ -313,7 +349,9 @@ onMounted(async () => {
                 >
                   {{ m.metric }}
                 </div>
-                <div class="text-[11px] text-n-slate-10">{{ m.metricLabel }}</div>
+                <div class="text-[11px] text-n-slate-10">
+                  {{ m.metricLabel }}
+                </div>
               </div>
               <Icon
                 v-else
