@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail, :favorite, :unfavorite]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail, :favorite, :unfavorite, :attach_contact]
 
   RESULTS_PER_PAGE = 15
   MAX_IMPORT_ROWS = 2000
@@ -123,6 +123,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     return render json: { type: 'colleague', name: colleague.name } if colleague
 
     customer = Current.account.crm_customers.where('LOWER(contact_email) = ?', email).first
+    # 次要联系人：主邮箱没命中时，按已挂到客户的 Contact 找归属（与收信归档口径一致）。
+    customer ||= customer_by_contact(email)
     return render json: { type: 'stranger' } if customer.nil?
 
     type = if customer.is_in_public_pool
@@ -133,6 +135,19 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
              'other'
            end
     render json: { type: type, customer: dedupe_row(customer) }
+  end
+
+  # 添加到已有的顾客：把某邮箱作为联系人挂到本客户（小满只同步了公司一个联系人时，
+  # 用来收编同公司其他来信人），并把该地址已收的未归档邮件补挂到本客户。
+  def attach_contact
+    email = params[:email].to_s.strip.downcase
+    return render json: { error: '邮箱无效' }, status: :unprocessable_entity unless email.include?('@')
+
+    @customer.sync_contacts([{ email: email, name: params[:name].to_s.strip }])
+    Current.account.crm_emails.where(crm_customer_id: nil)
+           .where('LOWER(from_address) = ?', email)
+           .update_all(crm_customer_id: @customer.id)
+    render json: { ok: true, customer: dedupe_row(@customer) }
   end
 
   DEDUPE_SEARCH_LIMIT = 50
@@ -295,6 +310,13 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   def fetch_customer
     @customer = Current.account.crm_customers.find(params[:id])
+  end
+
+  # 按已挂客户的 Contact（次要联系人）邮箱找归属客户；无则 nil。
+  def customer_by_contact(email)
+    contact = Current.account.contacts
+                     .where('LOWER(email) = ?', email).where.not(crm_customer_id: nil).first
+    contact && Current.account.crm_customers.find_by(id: contact.crm_customer_id)
   end
 
   # 领回冷却：原归属人在冷却天数内不能把自己转入公海的客户领回；返回拦截文案，nil = 放行。

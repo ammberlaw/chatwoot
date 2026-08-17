@@ -73,6 +73,7 @@ Rails.application.routes.draw do
                 post :release
                 post :share
                 post :attach
+                post :attach_contact
                 delete 'attach/:attachment_id', action: :detach
                 post :favorite
                 delete :favorite, action: :unfavorite

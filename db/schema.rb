@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_14_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_17_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1026,7 +1026,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_14_000002) do
     t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "parent_id"
     t.index ["account_id", "owner_id"], name: "index_crm_email_folders_on_account_id_and_owner_id"
+    t.index ["parent_id"], name: "index_crm_email_folders_on_parent_id"
   end
 
   create_table "crm_email_opens", force: :cascade do |t|

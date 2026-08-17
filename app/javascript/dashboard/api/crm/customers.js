@@ -36,6 +36,11 @@ class CrmCustomerAPI extends ApiClient {
     return axios.get(`${this.url}/identify?${buildParams({ email })}`);
   }
 
+  // 添加到已有的顾客：把某来信邮箱收编为该客户的联系人（并补挂其散邮件）。
+  attachContact(id, { email, name }) {
+    return axios.post(`${this.url}/${id}/attach_contact`, { email, name });
+  }
+
   // 流失预警角标：可见范围内超期未互动的成交客户数。
   churnRiskCount() {
     return axios.get(`${this.url}/churn_risk_count`);
@@ -44,7 +49,9 @@ class CrmCustomerAPI extends ApiClient {
   // 列表顶部概览卡：客户数 / 本月新增 / 在谈商机 / 有成交订单（沿用当前视图筛选）。
   stats(params = {}) {
     const query = buildParams(params);
-    return axios.get(query ? `${this.url}/stats?${query}` : `${this.url}/stats`);
+    return axios.get(
+      query ? `${this.url}/stats?${query}` : `${this.url}/stats`
+    );
   }
 
   // 特别关注（每人各标）：收藏 / 取消收藏。

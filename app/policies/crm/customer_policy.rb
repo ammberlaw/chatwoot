@@ -69,6 +69,11 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 把某来信邮箱收编为已有客户的联系人：任何 CRM 成员可操作（辖区收口在控制器 fetch_customer）。
+  def attach_contact?
+    true
+  end
+
   def show?
     true
   end

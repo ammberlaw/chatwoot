@@ -426,12 +426,67 @@ const selectCustomFolder = id => {
   selectedEmail.value = null;
   fetchRecords();
 };
-const createFolder = async () => {
+// 展开的文件夹 id 集合（有子级的才可展开）。
+const expandedFolders = ref(new Set());
+const toggleFolderExpand = id => {
+  const s = new Set(expandedFolders.value);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  expandedFolders.value = s;
+};
+// 把扁平文件夹（含 parent_id）拍平成带 depth / 有无子级的可见行，按层级缩进渲染（无限层级）。
+const visibleFolders = computed(() => {
+  const byParent = new Map();
+  emailFolders.value.forEach(f => {
+    const p = f.parent_id || null;
+    if (!byParent.has(p)) byParent.set(p, []);
+    byParent.get(p).push(f);
+  });
+  const rows = [];
+  const walk = (parentId, depth) => {
+    (byParent.get(parentId) || []).forEach(f => {
+      const hasChildren = (byParent.get(f.id) || []).length > 0;
+      rows.push({ ...f, depth, hasChildren });
+      if (hasChildren && expandedFolders.value.has(f.id)) walk(f.id, depth + 1);
+    });
+  };
+  walk(null, 0);
+  return rows;
+});
+// 全量拍平（不受折叠影响）：移动至文件夹菜单用，按层级缩进列出所有文件夹。
+const allFoldersFlat = computed(() => {
+  const byParent = new Map();
+  emailFolders.value.forEach(f => {
+    const p = f.parent_id || null;
+    if (!byParent.has(p)) byParent.set(p, []);
+    byParent.get(p).push(f);
+  });
+  const rows = [];
+  const walk = (parentId, depth) => {
+    (byParent.get(parentId) || []).forEach(f => {
+      rows.push({ ...f, depth });
+      walk(f.id, depth + 1);
+    });
+  };
+  walk(null, 0);
+  return rows;
+});
+
+const createFolder = async (parentId = null) => {
   // eslint-disable-next-line no-alert
-  const name = window.prompt('新建文件夹名称');
+  const name = window.prompt(parentId ? '新建子文件夹名称' : '新建文件夹名称');
   if (!name || !name.trim()) return null;
   try {
-    const { data } = await EmailFoldersAPI.create(acctId(), name.trim());
+    const { data } = await EmailFoldersAPI.create(
+      acctId(),
+      name.trim(),
+      parentId
+    );
+    if (parentId) {
+      const s = new Set(expandedFolders.value);
+      s.add(parentId);
+      expandedFolders.value = s;
+    }
     await fetchFolders();
     return data.id;
   } catch {
@@ -439,6 +494,7 @@ const createFolder = async () => {
     return null;
   }
 };
+const createSubfolder = folder => createFolder(folder.id);
 const deleteFolder = async folder => {
   // eslint-disable-next-line no-alert
   if (
@@ -887,30 +943,56 @@ watch(
           v-if="foldersExpanded"
           class="flex flex-col mb-1 border-l gap-0.5 ml-5 pl-1.5 border-n-weak"
         >
-          <button
-            v-for="f in emailFolders"
+          <div
+            v-for="f in visibleFolders"
             :key="f.id"
-            class="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors group"
+            class="flex items-center rounded-md transition-colors group"
             :class="
               activeCustomFolderId === f.id
                 ? 'bg-n-iris-2 text-n-iris-11 font-medium'
                 : 'text-n-slate-11 hover:bg-n-alpha-1'
             "
-            @click="selectCustomFolder(f.id)"
+            :style="{ paddingLeft: f.depth * 12 + 'px' }"
           >
-            <span class="flex-1 text-left truncate">{{ f.name }}</span>
-            <span v-if="f.count" class="text-xs tabular-nums text-n-slate-10">
-              {{ f.count }}
-            </span>
+            <button
+              v-if="f.hasChildren"
+              class="p-0.5 shrink-0"
+              @click.stop="toggleFolderExpand(f.id)"
+            >
+              <Icon
+                :icon="
+                  expandedFolders.has(f.id)
+                    ? 'i-lucide-chevron-down'
+                    : 'i-lucide-chevron-right'
+                "
+                class="size-3.5 text-n-slate-10"
+              />
+            </button>
+            <span v-else class="w-[18px] shrink-0" />
+            <button
+              class="flex items-center flex-1 min-w-0 gap-2 py-1.5 pr-1 text-sm text-left"
+              @click="selectCustomFolder(f.id)"
+            >
+              <span class="flex-1 truncate">{{ f.name }}</span>
+              <span v-if="f.count" class="text-xs tabular-nums text-n-slate-10">
+                {{ f.count }}
+              </span>
+            </button>
+            <Icon
+              icon="i-lucide-folder-plus"
+              title="新建子文件夹"
+              class="mr-1 opacity-0 size-3.5 group-hover:opacity-100 shrink-0 hover:text-n-iris-11"
+              @click.stop="createSubfolder(f)"
+            />
             <Icon
               icon="i-lucide-trash-2"
-              class="size-3.5 opacity-0 group-hover:opacity-100 hover:text-n-ruby-11"
+              class="mr-1.5 opacity-0 size-3.5 group-hover:opacity-100 shrink-0 hover:text-n-ruby-11"
               @click.stop="deleteFolder(f)"
             />
-          </button>
+          </div>
           <button
             class="flex items-center gap-1 px-2 py-1.5 text-sm rounded-md text-n-slate-10 hover:bg-n-alpha-1"
-            @click="createFolder"
+            @click="createFolder()"
           >
             <Icon icon="i-lucide-plus" class="size-3.5" />
             新建文件夹
@@ -1086,9 +1168,10 @@ watch(
                     class="absolute right-0 z-30 mt-1 py-1 overflow-y-auto border rounded-lg shadow-lg min-w-[150px] max-h-64 border-n-weak bg-n-solid-1"
                   >
                     <button
-                      v-for="f in emailFolders"
+                      v-for="f in allFoldersFlat"
                       :key="f.id"
                       class="flex w-full px-3 py-1.5 text-sm text-left whitespace-nowrap hover:bg-n-alpha-1 text-n-slate-12"
+                      :style="{ paddingLeft: 12 + f.depth * 14 + 'px' }"
                       @click="moveToFolder(f.id)"
                     >
                       {{ f.name }}
