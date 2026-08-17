@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import { uploadFile } from 'dashboard/helper/uploadHelper';
 
 const emit = defineEmits(['update:text']);
 // 富文本签名编辑器：原生 contenteditable + execCommand 工具栏，输出内联样式 HTML，
@@ -106,7 +107,7 @@ const insertLink = () => {
 };
 
 const pickImage = () => fileRef.value?.click();
-const onImage = event => {
+const onImage = async event => {
   const file = event.target.files?.[0];
   event.target.value = '';
   if (!file) return;
@@ -115,9 +116,15 @@ const onImage = event => {
     window.alert(L.imageTooBig);
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => exec('insertImage', reader.result);
-  reader.readAsDataURL(file);
+  // 先上传成托管 URL 再插入：签名图以 <img src="URL"> 内联，随邮件发出时收件端能正常
+  // 显示；若内嵌 base64，Gmail 会剥离、Outlook 常降级成附件，签名图就显示不出来。
+  try {
+    const { fileUrl } = await uploadFile(file);
+    if (fileUrl) exec('insertImage', fileUrl);
+  } catch {
+    // eslint-disable-next-line no-alert
+    window.alert('签名图片上传失败，请重试');
+  }
 };
 
 const onInput = () => sync();

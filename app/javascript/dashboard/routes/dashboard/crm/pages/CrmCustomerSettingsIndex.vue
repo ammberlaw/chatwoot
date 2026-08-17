@@ -128,9 +128,9 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
     <div class="w-full max-w-3xl px-8 py-6 mx-auto">
-      <h1 class="mb-1 text-xl font-semibold text-n-slate-12">客户设置</h1>
+      <h1 class="mb-1 text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">客户设置</h1>
       <p class="mb-5 text-sm text-n-slate-11">
         自定义客户分组与客户来源（支持二级、拖拽排序、隐藏）。仅管理员可维护。
       </p>
@@ -143,7 +143,7 @@ onMounted(load);
           class="px-4 py-2 -mb-px text-sm border-b-2"
           :class="
             activeTab === tab.key
-              ? 'border-n-brand text-n-brand font-medium'
+              ? 'border-n-iris-9 text-n-iris-11 font-medium'
               : 'border-transparent text-n-slate-11 hover:text-n-slate-12'
           "
           @click="switchTab(tab.key)"
@@ -166,7 +166,7 @@ onMounted(load);
           @end="onReorderRoots"
         >
           <template #item="{ element: root }">
-            <div class="border rounded-lg border-n-weak bg-n-solid-1">
+            <div class="border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
               <!-- 一级行 -->
               <div class="flex items-center gap-2 px-3 py-2.5">
                 <span
@@ -175,7 +175,7 @@ onMounted(load);
                 <template v-if="editing.id === root.id">
                   <input
                     v-model="editing.name"
-                    class="flex-1 h-8 px-2 text-sm border rounded border-n-weak bg-n-solid-1 text-n-slate-12"
+                    class="flex-1 h-8 px-2 text-sm border rounded-lg border-white/70 bg-n-solid-1/70 text-n-slate-12"
                     @keyup.enter="saveEdit(root)"
                     @blur="saveEdit(root)"
                   />
@@ -243,7 +243,7 @@ onMounted(load);
                     <template v-if="editing.id === child.id">
                       <input
                         v-model="editing.name"
-                        class="flex-1 h-8 px-2 text-sm border rounded border-n-weak bg-n-solid-1 text-n-slate-12"
+                        class="flex-1 h-8 px-2 text-sm border rounded-lg border-white/70 bg-n-solid-1/70 text-n-slate-12"
                         @keyup.enter="saveEdit(child)"
                         @blur="saveEdit(child)"
                       />
@@ -296,12 +296,12 @@ onMounted(load);
               >
                 <input
                   v-model="newChildName"
-                  class="flex-1 h-8 px-2 text-sm border rounded border-n-weak bg-n-solid-1 text-n-slate-12"
+                  class="flex-1 h-8 px-2 text-sm border rounded-lg border-white/70 bg-n-solid-1/70 text-n-slate-12"
                   placeholder="子项名称"
                   @keyup.enter="addChild(root)"
                 />
                 <button
-                  class="h-8 px-3 text-sm text-white rounded bg-n-brand"
+                  class="h-8 px-3 text-sm text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-sm hover:opacity-90"
                   @click="addChild(root)"
                 >
                   添加
@@ -321,7 +321,7 @@ onMounted(load);
         <div class="flex items-center gap-2 mt-4">
           <input
             v-model="newRootName"
-            class="flex-1 h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            class="flex-1 h-9 px-3 text-sm border rounded-lg border-white/70 bg-n-solid-1/70 text-n-slate-12"
             :placeholder="
               activeTab === 'customer_group'
                 ? '新增一级分组名称'
@@ -330,7 +330,7 @@ onMounted(load);
             @keyup.enter="addRoot"
           />
           <button
-            class="h-9 px-4 text-sm text-white rounded-lg bg-n-brand hover:opacity-90"
+            class="h-9 px-4 text-sm text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-sm hover:opacity-90"
             @click="addRoot"
           >
             添加
