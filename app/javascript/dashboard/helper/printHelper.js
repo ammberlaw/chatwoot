@@ -21,12 +21,18 @@ export function printElement(el, title = '') {
   doc.close();
   if (title) doc.title = title;
 
-  // 拷贝当前页所有样式（<link rel=stylesheet> + <style>），让 Tailwind 类在 iframe 内生效
+  // iframe 是 about:blank，先注入 <base> 让被拷样式表/图片里的相对链接按主站解析
+  // （否则生产的外链 CSS/字体解析不到，打出无样式版）。
+  const base = doc.createElement('base');
+  base.href = document.baseURI;
+  doc.head.appendChild(base);
+
+  // 拷贝当前页所有样式（<link rel=stylesheet> 外链 + <style> 内联），让 Tailwind 类在 iframe 内生效。
   document
     .querySelectorAll('link[rel="stylesheet"], style')
     .forEach(node => doc.head.appendChild(node.cloneNode(true)));
 
-  // 打印时保留背景/渐变配色（浏览器默认会省略背景色），并去掉页边距外的空隙
+  // 打印时保留背景/渐变配色（浏览器默认会省略背景色），并去掉页边距外的空隙。
   const printStyle = doc.createElement('style');
   printStyle.textContent =
     '@media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}' +
@@ -45,22 +51,28 @@ export function printElement(el, title = '') {
     setTimeout(() => iframe.remove(), 1000);
   };
 
-  // 等图片（签名图等）加载完再打印，避免缺图；无图则短延时等样式生效
+  // 等外链样式表 + 图片都就绪再打印：生产用 <link> 外链 CSS（含 CDN），异步加载，
+  // 不等它 load 完就 print 会打出无样式版（本地 dev 是内联 <style>，本就瞬时生效不受影响）。
+  const links = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
   const imgs = Array.from(doc.images || []);
-  if (imgs.length) {
-    let pending = imgs.length;
+  const waitables = [...links, ...imgs];
+  if (waitables.length) {
+    let pending = waitables.length;
     const onReady = () => {
       pending -= 1;
-      if (pending <= 0) setTimeout(trigger, 100);
+      if (pending <= 0) setTimeout(trigger, 150);
     };
-    imgs.forEach(img => {
-      if (img.complete) onReady();
+    waitables.forEach(node => {
+      // 图片看 complete；样式表看 sheet 是否已就绪，否则挂 load/error 事件。
+      const ready =
+        node.tagName === 'IMG' ? node.complete : Boolean(node.sheet);
+      if (ready) onReady();
       else {
-        img.addEventListener('load', onReady);
-        img.addEventListener('error', onReady);
+        node.addEventListener('load', onReady);
+        node.addEventListener('error', onReady);
       }
     });
-    setTimeout(trigger, 2000); // 兜底：图片迟迟不回也别卡死
+    setTimeout(trigger, 4000); // 兜底：外链迟迟不回也别卡死
   } else {
     setTimeout(trigger, 300);
   }
