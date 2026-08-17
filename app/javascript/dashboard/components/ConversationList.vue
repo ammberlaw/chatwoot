@@ -67,7 +67,7 @@ defineExpose({ conversationListRef });
       ref="virtualListRef"
       v-slot="{ item }"
       :data="conversationList"
-      class="[&>div:has(+_div_.active)>*]:!border-n-surface-1 [&>div:has(+_div_.selected)>*]:!border-n-surface-1"
+      class="[&>div:has(+_div_.active)>*]:!border-n-surface-1 [&>div:has(+_div_.selected)>*]:!border-n-surface-1 [&>div]:px-2 [&>div]:py-0.5 [&_.conversation]:!border-b-0 [&_.conversation]:rounded-2xl"
     >
       <ConversationItem
         :source="item"

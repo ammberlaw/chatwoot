@@ -7,6 +7,7 @@ import { useAlert } from 'dashboard/composables';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
+import PisAPI from 'dashboard/api/crm/pis';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 
 const route = useRoute();
@@ -39,6 +40,7 @@ const notes = computed(() => data.value?.notes || []);
 const tasks = computed(() => data.value?.tasks || []);
 const opportunities = computed(() => data.value?.opportunities || []);
 const orders = computed(() => data.value?.orders || []);
+const pis = computed(() => data.value?.pis || []);
 const quotes = computed(() => data.value?.quotes || []);
 const files = computed(() => customer.value.files || []);
 const primaryOpp = computed(() => opportunities.value[0] || null);
@@ -68,6 +70,37 @@ const ORDER_STATUS = {
   SHIPPED: '已发货',
   COMPLETED: '已完成',
   CANCELLED: '已取消',
+};
+const PI_STATUS = {
+  DRAFT: { label: '草稿', cls: 'bg-n-slate-3 text-n-slate-11' },
+  PAID: { label: '已付款', cls: 'bg-n-teal-3 text-n-teal-11' },
+  VOID: { label: '已作废', cls: 'bg-n-ruby-3 text-n-ruby-11' },
+};
+
+// 导出某张 PI 的 Excel（复用 PI 模块的模板导出）。
+const downloadingPiId = ref(null);
+const downloadPi = async pi => {
+  downloadingPiId.value = pi.id;
+  try {
+    const { data: blob } = await PisAPI.xlsx(accountId.value, pi.id);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `PI-${pi.pi_no || 'export'}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    const msg = error?.response?.data;
+    useAlert(
+      msg instanceof Blob
+        ? JSON.parse(await msg.text()).error
+        : msg?.error || '导出失败'
+    );
+  } finally {
+    downloadingPiId.value = null;
+  }
 };
 const METHOD = {
   EMAIL: '邮件',
@@ -202,7 +235,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-background">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div v-if="loading" class="py-20 text-sm text-center text-n-slate-10">
       加载中…
     </div>
@@ -217,10 +252,12 @@ onMounted(() => {
           >
             <span class="i-lucide-arrow-left size-5" />
           </button>
-          <h1 class="text-xl font-semibold text-n-slate-12">客户详情</h1>
+          <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
+            客户详情
+          </h1>
         </div>
         <button
-          class="flex items-center gap-1.5 h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+          class="flex items-center gap-1.5 h-9 px-3 text-sm rounded-[9px] border border-n-weak bg-n-solid-1/70 text-n-slate-12 hover:bg-n-alpha-2"
           @click="openEdit"
         >
           <span class="i-lucide-pencil size-4" />
@@ -229,7 +266,7 @@ onMounted(() => {
       </div>
 
       <!-- 顶部客户卡 -->
-      <div class="p-5 mb-4 border rounded-xl border-n-weak bg-n-solid-1">
+      <div class="p-5 mb-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
         <div class="flex items-start gap-4">
           <div
             class="flex items-center justify-center text-lg font-semibold text-white rounded-xl size-14 shrink-0 bg-n-teal-9"
@@ -270,7 +307,7 @@ onMounted(() => {
 
       <!-- KPI 卡 -->
       <div class="grid grid-cols-2 gap-4 mb-4 lg:grid-cols-4">
-        <div class="p-4 border rounded-xl border-n-weak bg-n-solid-1">
+        <div class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
           <div class="flex items-center gap-2 text-xs text-n-slate-10">
             <span class="i-lucide-phone-call size-4" /> 最近联系
           </div>
@@ -278,7 +315,7 @@ onMounted(() => {
             {{ fmtDate(customer.last_follow_up_at) }}
           </div>
         </div>
-        <div class="p-4 border rounded-xl border-n-weak bg-n-solid-1">
+        <div class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
           <div class="flex items-center gap-2 text-xs text-n-slate-10">
             <span class="i-lucide-file-text size-4" /> 当前状态
           </div>
@@ -286,7 +323,7 @@ onMounted(() => {
             {{ statusLabel(customer.customer_status) }}
           </div>
         </div>
-        <div class="p-4 border rounded-xl border-n-weak bg-n-solid-1">
+        <div class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
           <div class="flex items-center gap-2 text-xs text-n-slate-10">
             <span class="i-lucide-lightbulb size-4" /> 下一步建议
           </div>
@@ -294,7 +331,7 @@ onMounted(() => {
             {{ nextSuggestion }}
           </div>
         </div>
-        <div class="p-4 border rounded-xl border-n-weak bg-n-solid-1">
+        <div class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
           <div class="flex items-center gap-2 text-xs text-n-slate-10">
             <span class="i-lucide-receipt size-4" /> 最近报价
           </div>
@@ -316,7 +353,7 @@ onMounted(() => {
         <!-- 左列 -->
         <div class="flex flex-col gap-4">
           <!-- 沟通时间线 -->
-          <section class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
+          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">
               沟通时间线
             </h3>
@@ -332,7 +369,9 @@ onMounted(() => {
                 <span
                   class="absolute -left-[5px] top-1.5 rounded-full size-2 bg-n-teal-9"
                 />
-                <div class="flex items-center gap-2 text-xs font-medium text-n-slate-11">
+                <div
+                  class="flex items-center gap-2 text-xs font-medium text-n-slate-11"
+                >
                   {{ fmtDate(n.created_at) }}
                   <span
                     v-if="n.follow_up_method"
@@ -361,7 +400,7 @@ onMounted(() => {
           </section>
 
           <!-- 商机信息 -->
-          <section class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
+          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-sm font-semibold text-n-slate-12">商机信息</h3>
               <button
@@ -406,7 +445,7 @@ onMounted(() => {
           </section>
 
           <!-- 文件附件 -->
-          <section class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
+          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">文件附件</h3>
             <div v-if="!files.length" class="text-sm text-n-slate-10">
               暂无文件
@@ -430,7 +469,7 @@ onMounted(() => {
 
           <!-- AI 销售建议（占位，后续接 DeepSeek） -->
           <section
-            class="p-5 border border-dashed rounded-xl border-n-weak bg-n-alpha-1"
+            class="p-5 border border-dashed rounded-2xl border-white/60 bg-n-solid-1/30"
           >
             <h3
               class="flex items-center gap-2 text-sm font-semibold text-n-slate-11"
@@ -446,7 +485,7 @@ onMounted(() => {
         <!-- 右列 -->
         <div class="flex flex-col gap-4">
           <!-- 待办任务 -->
-          <section class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
+          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">待办任务</h3>
             <div v-if="!openTasks.length" class="text-sm text-n-slate-10">
               暂无待办
@@ -471,7 +510,7 @@ onMounted(() => {
 
           <!-- 样品记录（占位，后续新建样品模块） -->
           <section
-            class="p-5 border border-dashed rounded-xl border-n-weak bg-n-alpha-1"
+            class="p-5 border border-dashed rounded-2xl border-white/60 bg-n-solid-1/30"
           >
             <h3
               class="flex items-center gap-2 text-sm font-semibold text-n-slate-11"
@@ -484,7 +523,7 @@ onMounted(() => {
           </section>
 
           <!-- 订单记录 -->
-          <section class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
+          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">订单记录</h3>
             <div v-if="!orders.length" class="text-sm text-n-slate-10">
               暂无订单
@@ -510,11 +549,75 @@ onMounted(() => {
                 {{ fmtDate(o.order_date) }}
                 <span v-if="o.delivery_date">· 预计出货 {{ fmtDate(o.delivery_date) }}</span>
               </div>
+              <div
+                v-if="o.files && o.files.length"
+                class="flex flex-wrap gap-1.5 mt-2"
+                @click.stop
+              >
+                <a
+                  v-for="f in o.files"
+                  :key="f.id"
+                  :href="f.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-md border-n-weak text-n-blue-11 hover:bg-n-alpha-1"
+                >
+                  <span class="i-lucide-paperclip size-3 shrink-0" />
+                  <span class="truncate max-w-[180px]">{{ f.filename }}</span>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <!-- PI 记录 -->
+          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">PI 记录</h3>
+            <div v-if="!pis.length" class="text-sm text-n-slate-10">
+              暂无 PI
+            </div>
+            <div
+              v-for="p in pis"
+              :key="p.id"
+              class="flex items-center justify-between gap-2 py-2.5 border-b last:border-b-0 border-n-weak"
+            >
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-sm truncate text-n-slate-12">
+                    {{ p.pi_no }}
+                  </span>
+                  <span
+                    class="px-2 py-0.5 text-xs rounded-md shrink-0"
+                    :class="PI_STATUS[p.status]?.cls"
+                  >
+                    {{ PI_STATUS[p.status]?.label || p.status }}
+                  </span>
+                </div>
+                <div class="mt-0.5 text-xs text-n-slate-10">
+                  {{ money(p.total_amount_micros, p.currency) }} ·
+                  {{ fmtDate(p.pi_date) }}
+                </div>
+              </div>
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md shrink-0 text-n-iris-11 hover:bg-n-iris-3 disabled:opacity-50"
+                :disabled="downloadingPiId === p.id"
+                @click="downloadPi(p)"
+              >
+                <span
+                  class="size-3.5"
+                  :class="
+                    downloadingPiId === p.id
+                      ? 'i-lucide-loader-circle animate-spin'
+                      : 'i-lucide-download'
+                  "
+                />
+                导出 Excel
+              </button>
             </div>
           </section>
 
           <!-- 报价记录 -->
-          <section class="p-5 border rounded-xl border-n-weak bg-n-solid-1">
+          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">报价记录</h3>
             <div v-if="!quotes.length" class="text-sm text-n-slate-10">
               暂无报价

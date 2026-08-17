@@ -18,11 +18,23 @@ json.orders @orders do |order|
   json.id order.id
   json.order_no order.order_no
   json.name order.name
+  json.pi_no order.pi_no
   json.order_amount_micros order.order_amount_micros
   json.order_currency order.order_currency
   json.order_date order.order_date
   json.delivery_date order.delivery_date
   json.status order.status
+  json.files order.files.map { |f| { id: f.id, filename: f.filename.to_s, url: url_for(f) } }
+end
+
+json.pis @pis do |pi|
+  json.id pi.id
+  json.pi_no pi.pi_no
+  json.buyer pi.buyer_company.presence || pi.crm_customer&.name
+  json.total_amount_micros pi.total_amount_micros
+  json.currency pi.currency
+  json.status pi.status
+  json.pi_date pi.pi_date
 end
 
 json.quotes @quotes do |quote|

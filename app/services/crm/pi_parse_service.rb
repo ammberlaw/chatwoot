@@ -69,20 +69,31 @@ class Crm::PiParseService
   def build_result(data)
     raw_name = data['customer_name'].to_s.strip
     matched = match_customer(raw_name)
+    line_items = Array(data['line_items']).filter_map { |li| clean_item(li) }
     {
       pi_no: data['pi_no'].presence,
       name: order_name(raw_name, data['pi_no']),
       order_date: normalize_date(data['order_date']),
       delivery_date: normalize_date(data['delivery_date']),
       currency: normalize_currency(data['currency']),
-      amount: numeric(data['total_amount']),
+      amount: sane_total(numeric(data['total_amount']), line_items),
       customer: {
         raw_name: raw_name.presence,
         matched_id: matched&.id,
         matched_name: matched&.name
       },
-      line_items: Array(data['line_items']).filter_map { |li| clean_item(li) }
+      line_items: line_items
     }
+  end
+
+  # 防呆：AI 偶发把总额多写个 0（10×）等误识别。明细存在且 AI 总额 > 明细合计 3 倍时，
+  # 判为误识别、改用明细合计（正常含运费的总额一般只比货值高 10~50%，不会到 3 倍）。
+  def sane_total(ai_total, line_items)
+    items_sum = line_items.sum { |li| li['amount'].to_f }
+    return ai_total unless items_sum.positive?
+    return items_sum if ai_total.nil? || ai_total > items_sum * 3
+
+    ai_total
   end
 
   # 只在「本业务员名下客户」里匹配（与新建订单下拉同口径）：先归一化全等，再互相包含。

@@ -110,6 +110,39 @@ export async function uploadInlineDataUriImages(markdown, accountId) {
 }
 
 /**
+ * 把 HTML 里的 <img src="data:...;base64,..."> 内联图上传到存储、替换成短链接。
+ * 用于邮件签名：设计签名时插入的图片以 base64 内嵌在 body_html，直接随邮件发出时
+ * 收件端（Gmail 会剥离 data: 图、Outlook 常降级成附件）显示不出。转成 URL 后照常内联显示。
+ *
+ * @param {string} html
+ * @param {string} accountId
+ * @returns {Promise<string>} 替换后的 HTML（无内联图则原样返回）
+ */
+export async function uploadInlineHtmlImages(html, accountId) {
+  if (!html || !html.includes('base64,')) return html;
+
+  const regex = /<img[^>]+src\s*=\s*["'](data:[^;]+;base64,[^"']+)["']/gi;
+  // 去重：同一张图出现多次只上传一次。
+  const dataUris = [...new Set([...html.matchAll(regex)].map(m => m[1]))];
+  if (!dataUris.length) return html;
+
+  const uploaded = await Promise.all(
+    dataUris.map(async dataUri => {
+      const file = dataUriToImageFile(dataUri);
+      if (!file) return null;
+      const { fileUrl } = await uploadFile(file, accountId);
+      return fileUrl ? { dataUri, fileUrl } : null;
+    })
+  );
+
+  let result = html;
+  uploaded.filter(Boolean).forEach(({ dataUri, fileUrl }) => {
+    result = result.split(dataUri).join(fileUrl);
+  });
+  return result;
+}
+
+/**
  * Uploads an image from an external URL.
  *
  * @param {string} url - The external URL of the image.

@@ -11,6 +11,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
                     .order(order_date: :desc)
                     .page(permitted_params[:page] || 1)
                     .per(RESULTS_PER_PAGE)
+    compute_tab_counts
   end
 
   def show; end
@@ -129,6 +130,16 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
     scope = scope.where(crm_customer_id: nil) if params[:filter] == 'no_customer'
     apply_order_filters(scope)
+  end
+
+  # 视图 tab 计数（我的/全部）：受状态/业务员/月份/搜索约束，但不受 mine 本身约束，
+  # 让两个 tab 都能各自显示条数（供页面下划线 tab 上的计数徽章用）。
+  def compute_tab_counts
+    scope = visible_sales_orders
+    scope = scope.where(crm_customer_id: nil) if params[:filter] == 'no_customer'
+    base = apply_order_filters(scope)
+    @all_count = base.count
+    @mine_count = base.owned_by(current_user.id).count
   end
 
   ORDER_COLUMN_FILTERS = { status: :status, customer_id: :crm_customer_id, owner_id: :owner_id }.freeze
