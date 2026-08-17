@@ -7,6 +7,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { toPng } from 'html-to-image';
+import { printElement } from 'dashboard/helper/printHelper';
 import CommissionSheetsAPI from 'dashboard/api/crm/commissionSheets';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import CrmForwardToTeamChatDialog from 'dashboard/components-next/CRM/CrmForwardToTeamChatDialog.vue';
@@ -502,6 +503,17 @@ const exportImage = async () => {
   }
 };
 
+// 直接打印：把只读分组表（品类分组+小计+总计）交给浏览器打印对话框，可出纸或另存 PDF。
+const printSheet = () => {
+  if (!sheet.value) return;
+  const d = new Date(sheet.value.periodMonth);
+  const label = `${d.getFullYear()}-${d.getMonth() + 1}`;
+  printElement(
+    captureRef.value,
+    `${t('CRM.COMMISSION.HEADER')}-${sheet.value.ownerName || ''}-${label}`
+  );
+};
+
 const back = () => router.push({ name: 'crm_commission_sheets_index' });
 
 // ── 只读分组视图（含小计/总计），镜像导出版式 ──
@@ -691,6 +703,13 @@ const openForward = () => {
           @click="financeEditing = true"
         >
           {{ t('CRM.COMMISSION.DETAIL.FINANCE_EDIT') }}
+        </button>
+        <button
+          v-if="!editable"
+          class="h-8 px-4 text-sm font-medium rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+          @click="printSheet"
+        >
+          打印
         </button>
         <button
           v-if="canExport && !editable"

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { toPng } from 'html-to-image';
+import { printElement } from 'dashboard/helper/printHelper';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -161,6 +162,14 @@ const makeSheetImage = async () => {
   const blob = await (await fetch(dataUrl)).blob();
   const name = `绩效表-${sheet.value.ownerName || ''}-${fmtMonth(sheet.value.periodMonth)}.png`;
   return new File([blob], name, { type: 'image/png' });
+};
+// 直接打印：把考核表主体（步骤/指标/得分/签名）交给浏览器打印对话框，可出纸或另存 PDF。
+const printSheet = () => {
+  if (!sheet.value) return;
+  printElement(
+    captureRef.value,
+    `绩效考核表-${sheet.value.ownerName || ''}-${fmtMonth(sheet.value.periodMonth)}`
+  );
 };
 const openForward = () => {
   if (!sheet.value) return;
@@ -388,6 +397,14 @@ const inCls =
         </div>
       </div>
       <div v-if="sheet" class="flex items-center gap-2">
+        <Button
+          label="打印"
+          icon="i-lucide-printer"
+          size="sm"
+          variant="faded"
+          color="slate"
+          @click="printSheet"
+        />
         <Button
           label="转发到团队沟通"
           icon="i-lucide-send"
