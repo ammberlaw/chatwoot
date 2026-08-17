@@ -107,8 +107,16 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
     {
       monthly_amount_micros: monthly,
       opportunity_amount_by_stage: STAGE_ORDER.index_with { |s| stage_amount[s] || 0 },
-      opportunity_count_by_stage: STAGE_ORDER.index_with { |s| stage_count[s] || 0 }
+      opportunity_count_by_stage: STAGE_ORDER.index_with { |s| stage_count[s] || 0 },
+      opportunity_currency: dominant_opportunity_currency
     }
+  end
+
+  # 商机阶段分布图的显示币种：取金额占比最大的币种（同司通常单一币种；混币时以主币种示意）。
+  def dominant_opportunity_currency
+    opportunities.where.not(amount_micros: nil)
+                 .group(:currency).sum(:amount_micros)
+                 .max_by { |_, micros| micros.to_i }&.first.presence || 'CNY'
   end
 
   # 客户来源占比：按建档时间（当年）统计各来源客户数

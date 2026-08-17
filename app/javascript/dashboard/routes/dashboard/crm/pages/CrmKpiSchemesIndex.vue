@@ -6,6 +6,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmKpiSchemesStore } from 'dashboard/stores/crm/kpiSchemes';
+import CrmKpiSchemeAPI from 'dashboard/api/crm/kpiSchemes';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -96,6 +97,18 @@ const deleteScheme = async (scheme, event) => {
     useAlert(t('CRM.KPI_SCHEMES.DELETE.SUCCESS'));
   } catch {
     useAlert(t('CRM.KPI_SCHEMES.DELETE.ERROR'));
+  }
+};
+
+// 复制方案：整份拷贝出一份「(副本)」草稿，复制后刷新列表。
+const duplicateScheme = async (scheme, event) => {
+  event.stopPropagation();
+  try {
+    await CrmKpiSchemeAPI.duplicate(scheme.id);
+    await store.get();
+    useAlert('已复制为草稿副本');
+  } catch {
+    useAlert('复制失败，请重试');
   }
 };
 
@@ -227,6 +240,14 @@ const fmtMonth = value => {
               {{ record.createdByName || '—' }}
             </td>
             <td v-if="canManage" class="px-3 py-2 text-right">
+              <Button
+                icon="i-lucide-copy"
+                size="sm"
+                variant="ghost"
+                color="slate"
+                title="复制方案"
+                @click="duplicateScheme(record, $event)"
+              />
               <Button
                 icon="i-lucide-trash-2"
                 size="sm"

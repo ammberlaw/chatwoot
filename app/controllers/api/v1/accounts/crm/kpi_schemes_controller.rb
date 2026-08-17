@@ -2,7 +2,7 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
   # HR 板块：人事部成员可能没有 CRM 角色，放行 CRM 门禁，可见性由 KpiSchemePolicy 管。
   skip_before_action :ensure_crm_access
   before_action :check_authorization
-  before_action :fetch_scheme, only: [:show, :update, :destroy, :distribute]
+  before_action :fetch_scheme, only: [:show, :update, :destroy, :distribute, :duplicate]
 
   def index
     @schemes = Current.account.crm_kpi_schemes
@@ -43,6 +43,22 @@ class Api::V1::Accounts::Crm::KpiSchemesController < Api::V1::Accounts::Crm::Bas
     @scheme.update!(status: 'PUBLISHED') if created.any? && @scheme.status != 'PUBLISHED'
     notify_distributed(created)
     render json: { created: created.size, skipped: existing.size }
+  end
+
+  # 复制方案：整份拷贝（含指标/发放档/明细表），名字加「(副本)」，状态回草稿、创建人=当前用户。
+  def duplicate
+    copy = Current.account.crm_kpi_schemes.new(
+      @scheme.attributes.slice('scheme_month', 'pass_score', 'item_score_cap_pct',
+                               'payout_note', 'result_note', 'detail_tables')
+    )
+    copy.name = "#{@scheme.name} (副本)"
+    copy.status = 'DRAFT'
+    copy.created_by = Current.user
+    copy.scheme_items = @scheme.scheme_items.map(&:dup)
+    copy.payout_tiers = @scheme.payout_tiers.map(&:dup)
+    copy.save!
+    @scheme = copy
+    render :show
   end
 
   private

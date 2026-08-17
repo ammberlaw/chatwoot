@@ -144,6 +144,14 @@ const money = micros => `¥${toYuan(micros).toLocaleString()}`;
 const moneyYuan = v => `¥${Math.round(v).toLocaleString()}`;
 const scoreFmt = v => `${v}分`;
 
+// 商机金额按商机币种显示（商机可能是美金/欧元，不能一律 ¥）。后端返回主币种。
+const CURRENCY_SYMBOL = { CNY: '¥', USD: '$', EUR: '€' };
+const oppCurrency = computed(
+  () => stats.value?.trends?.opportunity_currency || 'CNY'
+);
+const moneyOpp = v =>
+  `${CURRENCY_SYMBOL[oppCurrency.value] || ''}${Math.round(v).toLocaleString()}`;
+
 // ── KPI（按 period 读桶 + 真实环比） ──
 const periodStat = computed(() => {
   const ps = stats.value?.period_stats;
@@ -374,7 +382,7 @@ const classicStageBars = computed(() => {
   const max = Math.max(...data, 1);
   return labels.map((label, i) => ({
     label,
-    amount: moneyYuan(data[i]),
+    amount: moneyOpp(data[i]),
     pct: Math.max((data[i] / max) * 100, 10),
     color: colors[i],
   }));
@@ -716,7 +724,7 @@ const PERIODS = [
                 :data="stageChart.data"
                 :colors="stageChart.colors"
                 show-values
-                :value-format="moneyYuan"
+                :value-format="moneyOpp"
               />
             </div>
           </div>

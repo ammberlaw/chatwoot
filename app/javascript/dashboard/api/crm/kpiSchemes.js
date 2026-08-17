@@ -7,4 +7,7 @@ const client = buildCrmClient('kpi_schemes');
 client.distribute = (id, ownerIds) =>
   axios.post(`${client.url}/${id}/distribute`, { owner_ids: ownerIds });
 
+// 复制方案：整份拷贝出一份「(副本)」草稿。
+client.duplicate = id => axios.post(`${client.url}/${id}/duplicate`);
+
 export default client;

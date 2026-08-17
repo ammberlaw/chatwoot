@@ -24,6 +24,11 @@ class Crm::KpiSchemePolicy < ApplicationPolicy
     manage?
   end
 
+  # 复制方案：与增改删同权（管理员/副管理员/人事/主管）。
+  def duplicate?
+    manage?
+  end
+
   private
 
   def manage?

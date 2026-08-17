@@ -195,7 +195,10 @@ Rails.application.routes.draw do
             resources :members, only: [:index, :create, :update]
             resources :member_invites, only: [:index, :create, :destroy]
             resources :kpi_schemes do
-              member { post :distribute }
+              member do
+                post :distribute
+                post :duplicate
+              end
             end
             resources :kpi_sheets do
               collection do
