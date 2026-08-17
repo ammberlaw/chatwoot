@@ -2193,6 +2193,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_000001) do
     t.string "order_kind", default: "CUSTOMER", null: false
     t.boolean "is_outsourced", default: false, null: false
     t.bigint "outsource_supplier_id"
+    t.bigint "crm_customer_id"
     t.index ["account_id", "approval_status"], name: "index_mes_production_orders_on_account_id_and_approval_status"
     t.index ["account_id", "is_draft"], name: "index_mes_production_orders_on_account_id_and_is_draft"
     t.index ["account_id", "is_outsourced"], name: "index_mes_production_orders_on_account_id_and_is_outsourced"
@@ -2204,6 +2205,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_000001) do
     t.index ["account_id"], name: "index_mes_production_orders_on_account_id"
     t.index ["bom_confirmed_by_id"], name: "index_mes_production_orders_on_bom_confirmed_by_id"
     t.index ["bom_id"], name: "index_mes_production_orders_on_bom_id"
+    t.index ["crm_customer_id"], name: "index_mes_production_orders_on_crm_customer_id"
     t.index ["crm_product_id"], name: "index_mes_production_orders_on_crm_product_id"
     t.index ["crm_sales_order_id"], name: "index_mes_production_orders_on_crm_sales_order_id"
     t.index ["gm_id"], name: "index_mes_production_orders_on_gm_id"
