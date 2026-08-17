@@ -24,6 +24,9 @@ class Crm::EmailSignature < ApplicationRecord
   belongs_to :owner, class_name: 'User', optional: true
 
   validates :name, presence: true
+  # 富文本签名（含内联样式/图）体积远超普通字段，显式放宽以跳过全局 20000 text 上限。
+  validates :body, length: { maximum: 200_000 }
+  validates :body_html, length: { maximum: 200_000 }
 
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
 

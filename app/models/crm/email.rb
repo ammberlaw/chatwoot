@@ -74,6 +74,9 @@ class Crm::Email < ApplicationRecord
 
   validates :folder, inclusion: { in: FOLDERS }
   validates :send_status, inclusion: { in: SEND_STATUSES }
+  # 邮件正文（含内联样式签名/富文本）体积远超普通字段，显式放宽以跳过全局 20000 text 上限。
+  validates :body, length: { maximum: 200_000 }
+  validates :body_html, length: { maximum: 200_000 }
 
   # 发送触发（对应 Twenty send-email 的 DB 事件）：send_now 归一为 PENDING，
   # 状态刚变成 PENDING 时入队 SMTP 发送；成功/失败由 EmailSendService 回写。
