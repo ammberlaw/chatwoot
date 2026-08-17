@@ -25,7 +25,9 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
 
   def show; end
 
-  # 建表：一人一月一张。已存在则直接返回（不重复建），新建时自动带出本月订单明细。
+  # 建表：一人一月一张。已存在则直接返回（不重复建）。
+  # 新建即空白表——订单一律由业务员用「选单导入」按月手动选进来，
+  # 避免自动带单把别月已填的订单又带过来（提成一单只进一张表）。
   def create
     month = Date.parse(params[:month]).beginning_of_month
     owner_id = resolve_owner_id
@@ -38,8 +40,6 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     end
 
     @sheet = Current.account.crm_commission_sheets.create!(owner_id: owner_id, period_month: month, status: 'DRAFT')
-    build_items_from_orders(@sheet)
-    @sheet.reload
     render :show
   end
 
@@ -280,8 +280,13 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     }
   end
 
+  # 该业务员「所有月份提成表」已导入的订单 id：一单只进一张表，
+  # 首次拉单落月后其余月份不再带出（否则新建上月表会把本月已填的单又带过去）。
   def imported_order_ids(sheet)
-    sheet.items.where.not(crm_sales_order_id: nil).pluck(:crm_sales_order_id)
+    owner_sheet_ids = Current.account.crm_commission_sheets.owned_by(sheet.owner_id).select(:id)
+    Crm::CommissionItem.where(crm_commission_sheet_id: owner_sheet_ids)
+                       .where.not(crm_sales_order_id: nil)
+                       .pluck(:crm_sales_order_id)
   end
 
   # 产品列摘要：把订单明细拼成「数量×名称，…」。
@@ -333,7 +338,7 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
   end
 
   def sheet_label(sheet)
-    "#{sheet.owner&.name}-#{sheet.period_month.strftime('%Y年%-m月')}"
+    "#{sheet.owner&.crm_display_name}-#{sheet.period_month.strftime('%Y年%-m月')}"
   end
 
   def sheet_params
