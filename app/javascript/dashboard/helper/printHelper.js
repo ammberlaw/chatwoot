@@ -9,23 +9,68 @@
 // 内联的视觉属性白名单：只搬「颜色/字体/边框/间距/弹性布局」等，
 // 不搬 width/height/position 等尺寸定位（避免把屏幕像素宽度焊死导致打印溢出）。
 const PRINT_PROPS = [
-  'color', 'background-color', 'background-image', 'background-size',
-  'background-position', 'background-repeat', 'background-clip',
-  '-webkit-background-clip', '-webkit-text-fill-color',
-  'font-family', 'font-size', 'font-weight', 'font-style', 'line-height',
-  'letter-spacing', 'text-align', 'text-decoration', 'text-transform',
-  'white-space', 'vertical-align', 'text-overflow', 'word-break',
-  'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-  'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
-  'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
-  'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
-  'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
-  'border-top-left-radius', 'border-top-right-radius',
-  'border-bottom-left-radius', 'border-bottom-right-radius',
-  'display', 'flex-direction', 'flex-wrap', 'align-items', 'align-self',
-  'justify-content', 'gap', 'flex-grow', 'flex-shrink', 'flex-basis',
-  'table-layout', 'border-collapse', 'border-spacing',
-  'box-shadow', 'opacity', 'overflow',
+  'color',
+  'background-color',
+  'background-image',
+  'background-size',
+  'background-position',
+  'background-repeat',
+  'background-clip',
+  '-webkit-background-clip',
+  '-webkit-text-fill-color',
+  'font-family',
+  'font-size',
+  'font-weight',
+  'font-style',
+  'line-height',
+  'letter-spacing',
+  'text-align',
+  'text-decoration',
+  'text-transform',
+  'white-space',
+  'vertical-align',
+  'text-overflow',
+  'word-break',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
+  'margin-top',
+  'margin-right',
+  'margin-bottom',
+  'margin-left',
+  'border-top-width',
+  'border-right-width',
+  'border-bottom-width',
+  'border-left-width',
+  'border-top-style',
+  'border-right-style',
+  'border-bottom-style',
+  'border-left-style',
+  'border-top-color',
+  'border-right-color',
+  'border-bottom-color',
+  'border-left-color',
+  'border-top-left-radius',
+  'border-top-right-radius',
+  'border-bottom-left-radius',
+  'border-bottom-right-radius',
+  'display',
+  'flex-direction',
+  'flex-wrap',
+  'align-items',
+  'align-self',
+  'justify-content',
+  'gap',
+  'flex-grow',
+  'flex-shrink',
+  'flex-basis',
+  'table-layout',
+  'border-collapse',
+  'border-spacing',
+  'box-shadow',
+  'opacity',
+  'overflow',
 ];
 
 function inlineComputedStyles(src, dst) {
@@ -56,7 +101,8 @@ export function printElement(el, title = '') {
     const dst = dstFields[i];
     if (!dst) return;
     if (src.tagName === 'SELECT') dst.value = src.value;
-    else if (src.type === 'checkbox' || src.type === 'radio') dst.checked = src.checked;
+    else if (src.type === 'checkbox' || src.type === 'radio')
+      dst.checked = src.checked;
     else if (src.tagName === 'TEXTAREA') dst.textContent = src.value;
     else dst.setAttribute('value', src.value);
   });
@@ -70,7 +116,10 @@ export function printElement(el, title = '') {
 
   // 顶部品牌头：左上角 Wintouch 橙色字标（与 PI 单据同一 logo），尺寸用内联样式保证生效。
   const header = document.createElement('div');
-  header.setAttribute('style', 'display:flex;align-items:center;margin-bottom:16px;');
+  header.setAttribute(
+    'style',
+    'display:flex;align-items:center;margin-bottom:16px;'
+  );
   const logo = document.createElement('img');
   logo.src = '/brand-assets/pi-logo.png';
   logo.alt = 'Wintouch';
