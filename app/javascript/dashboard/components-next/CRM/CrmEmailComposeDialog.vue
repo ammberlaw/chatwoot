@@ -862,7 +862,7 @@ const saveDraft = async () => {
 };
 
 // 群发单显：一份正文发给所有勾选客户，后端给每人各建一封独立邮件逐封发（互不可见）。
-const bulkSend = async () => {
+const bulkSend = async (scheduledIso = null) => {
   if (!hasAccount.value) {
     status.value = { state: 'failed', msg: L.needAccount };
     return;
@@ -883,6 +883,7 @@ const bulkSend = async () => {
       }
     });
     (files || []).forEach(f => fd.append('email[files][]', f));
+    if (scheduledIso) fd.append('email[scheduled_at]', scheduledIso);
     fd.append(
       'recipients',
       JSON.stringify(
@@ -895,7 +896,9 @@ const bulkSend = async () => {
     );
     const { data } = await CrmEmailAPI.bulkCreate(fd);
     useAlert(
-      `已群发给 ${data.count} 位客户（发送队列进行中，进度见「群发箱」）`
+      scheduledIso
+        ? `已加入定时群发队列（${data.count} 位客户，到点自动发送，可在「群发箱」查看）`
+        : `已群发给 ${data.count} 位客户（发送队列进行中，进度见「群发箱」）`
     );
     visible.value = false;
     reset();
@@ -1017,7 +1020,7 @@ const scheduleLocalHint = computed(() => {
 });
 
 const scheduleSend = async () => {
-  if (!form.to.length) {
+  if (!isBulk.value && !form.to.length) {
     status.value = { state: 'failed', msg: L.needTo };
     return;
   }
@@ -1032,6 +1035,12 @@ const scheduleSend = async () => {
   const when = zonedWallClockToUtc(scheduleAt.value, scheduleTz.value);
   if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
     status.value = { state: 'failed', msg: L.scheduleFuture };
+    return;
+  }
+  // 群发模式：定时群发——各客户各建一封 SCHEDULED，到点由后端 job 逐封发。
+  if (isBulk.value) {
+    showSchedule.value = false;
+    await bulkSend(when.toISOString());
     return;
   }
   status.value = { state: 'sending', msg: '' };
@@ -1202,7 +1211,7 @@ defineExpose({ open, close });
             {{ L.draft }}
           </button>
           <button
-            v-show="composeMode === 'large' && !minimized && !isBulk"
+            v-show="!minimized && (composeMode === 'large' || isBulk)"
             class="px-4 py-1.5 text-sm rounded-full border disabled:opacity-60"
             :class="
               scheduleAt
@@ -1212,7 +1221,7 @@ defineExpose({ open, close });
             :disabled="sending"
             @click="showSchedule = true"
           >
-            {{ L.schedule }}
+            {{ isBulk ? '定时群发' : L.schedule }}
           </button>
           <button
             v-show="composeMode === 'large' && !minimized"

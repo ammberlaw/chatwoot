@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb, :opens, :eml]
+  before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb, :opens, :eml, :distribute, :distributions]
 
   RESULTS_PER_PAGE = 25
 
@@ -35,6 +35,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
       SPAM: by_folder['SPAM'].to_i,
       unread: scope.unread.count,
       starred: scope.starred.count,
+      distributed: Current.account.crm_email_distributions.to_user(current_user.id).count,
       can_view_team: ids == :all || ids.size > 1
     }
   end
@@ -163,6 +164,9 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
 
     files = Array(email_params[:files]).compact_blank
     base = email_params.except(:to_address, :crm_customer_id, :contact_id, :files, :folder, :send_status, :send_now)
+    # 定时群发：scheduled_at 在未来 → 每封置 SCHEDULED（到点由 DispatchScheduledEmailsJob 转 PENDING 发送）；否则立即 PENDING。
+    scheduled = email_params[:scheduled_at].present? && Time.zone.parse(email_params[:scheduled_at].to_s) > Time.zone.now
+    status = scheduled ? 'SCHEDULED' : 'PENDING'
     count = 0
     recipients.each do |r|
       email = Current.account.crm_emails.new(
@@ -172,14 +176,54 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
           to_address: r[:email],
           crm_customer_id: r[:crm_customer_id].presence,
           contact_id: r[:contact_id].presence,
-          send_status: 'PENDING'
+          send_status: status
         )
       )
       files.each { |f| email.files.attach(f) }
       email.save!
       count += 1
     end
-    render json: { count: count }
+    render json: { count: count, scheduled: scheduled }
+  end
+
+  # 内部分发：把本邮件（正文+附件）分发给公司内部同事查看（站内流转，不外发）。
+  # 每个被分发人一条记录（去重、排除自己）+ 站内通知。附件不复制，被分发人查看的是同一封邮件。
+  def distribute
+    user_ids = Array(params[:user_ids]).map(&:to_i).uniq - [current_user.id]
+    note = params[:note].to_s
+    users = Current.account.users.where(id: user_ids)
+    created = 0
+    users.each do |u|
+      dist = @email.distributions.find_or_initialize_by(to_user_id: u.id)
+      next if dist.persisted?
+
+      dist.assign_attributes(account: Current.account, from_user_id: current_user.id, note: note.presence)
+      dist.save!
+      created += 1
+      subj = @email.subject.presence || '(无主题)'
+      crm_notify(u.id, "#{current_user.crm_display_name} 给你分发了一封邮件：#{subj}#{note.present? ? "（#{note}）" : ''}")
+    end
+    render json: { distributed: created }
+  end
+
+  # 本邮件的分发历史（谁分给了谁 / 何时 / 备注）——供邮件详情展示。
+  def distributions
+    @distributions = @email.distributions.includes(:to_user, :from_user).order(created_at: :desc)
+  end
+
+  # 分发给我的邮件（含正文+附件），按分发时间倒序。复用邮件列表渲染。
+  def distributed
+    ids_recent = Current.account.crm_email_distributions
+                        .to_user(current_user.id).order(created_at: :desc).pluck(:crm_email_id)
+    @emails_count = ids_recent.size
+    page = (permitted_params[:page] || 1).to_i
+    ids_page = ids_recent.slice((page - 1) * page_size, page_size) || []
+    @emails = Current.account.crm_emails.where(id: ids_page)
+                     .includes(:crm_customer, :owner)
+                     .sort_by { |e| ids_page.index(e.id) }
+    @counterparty_types = build_counterparty_types(@emails)
+    @last_opens = last_opens_for(@emails)
+    render :index
   end
 
   private

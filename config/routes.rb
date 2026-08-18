@@ -77,6 +77,7 @@ Rails.application.routes.draw do
                 delete 'attach/:attachment_id', action: :detach
                 post :favorite
                 delete :favorite, action: :unfavorite
+                post :schedule_follow_up
               end
             end
             resources :contacts, only: [:index, :update]
@@ -107,6 +108,9 @@ Rails.application.routes.draw do
             resources :recipient_suggestions, only: [:index]
             resources :agents, only: [:index]
             resources :quick_texts, only: [:index, :create, :update, :destroy]
+            resources :schedule_events, only: [:index, :create, :update, :destroy] do
+              member { post :toggle_done }
+            end
             resources :sales_orders do
               collection do
                 post :parse_pi
@@ -150,11 +154,14 @@ Rails.application.routes.draw do
                 post :fetch
                 post :move_to_folder
                 post :bulk_create
+                get :distributed
               end
               member do
                 post :attach_kb
                 get :opens
                 get :eml
+                post :distribute
+                get :distributions
               end
             end
             resources :email_folders, only: [:index, :create, :destroy]

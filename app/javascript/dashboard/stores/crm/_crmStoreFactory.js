@@ -35,6 +35,21 @@ export const buildCrmStore = ({ name, API, paramKey }) =>
         }
       },
 
+      // 「分发给我的」列表：走 API.distributed（仅邮件 store 用）；载入格式与 get 一致。
+      async getDistributed(params = {}) {
+        this.setUIFlag({ fetchingList: true });
+        try {
+          const { data } = await API.distributed(params);
+          this.records = camelize(data.payload);
+          this.meta = normalizeMeta(data.meta);
+          return this.records;
+        } catch (error) {
+          return throwErrorMessage(error);
+        } finally {
+          this.setUIFlag({ fetchingList: false });
+        }
+      },
+
       async create(obj) {
         this.setUIFlag({ creatingItem: true });
         try {

@@ -22,6 +22,11 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 仅设置「下次跟进时间」：辖区收口在控制器 fetch_customer。
+  def schedule_follow_up?
+    true
+  end
+
   def check_duplicate?
     true
   end

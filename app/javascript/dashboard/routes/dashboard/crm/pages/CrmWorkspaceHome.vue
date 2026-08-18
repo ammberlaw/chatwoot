@@ -7,34 +7,36 @@ import { useAlert } from 'dashboard/composables';
 import Auth from 'dashboard/api/auth';
 import RequestsAPI from 'dashboard/api/oa/approvalRequests';
 import ChatAPI from 'dashboard/api/chat/conversations';
-import DepartmentsAPI from 'dashboard/api/org/departments';
+import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import wintouchLockup from 'dashboard/assets/images/wintouch/lockup.png';
-import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
-
-// 经典灰专属：CRM 图标改黄；被压灰(iris/blue)的模块卡改琥珀，避免像停用。切主题需刷新。
-const isClassic = ref(isClassicTheme());
 
 const router = useRouter();
-const { accountScopedRoute } = useAccount();
+const { accountScopedRoute, accountId } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
 
-const stats = ref({ todo: 0, mine: 0, approverView: true, dept: 0, unread: 0 });
-// CRM 工作台优先显示 CRM 英文名，未设置则回退中文名。
+const stats = ref({ todo: 0, mine: 0, approverView: true, unread: 0 });
+
+// 工作台优先显示 CRM 英文名，未设置回退中文名。
 const userName = computed(
   () => currentUser.value?.crm_name || currentUser.value?.name || ''
 );
-// 非 CRM 人员（无 crm_role 且非系统管理员）看到置灰的 CRM 旗舰卡（不可进入）。后端仍以 403 兜底。
+// 权限门：非 CRM 人员看到置灰旗舰卡（不可进入，后端 403 兜底）。
 const canAccessCrm = computed(
   () => currentUser.value?.can_access_crm !== false
 );
-// TikTok 板块（店铺经营）：管理层/财务/TK 部门负责人成员可见（后端派生 can_access_tiktok）。
+// TikTok：管理层/财务/TK 部门成员可见（后端派生 can_access_tiktok）。
 const canAccessTiktok = computed(
   () => currentUser.value?.can_access_tiktok === true
 );
 
-// 按时段问候，落地页有温度但不喧哗。
+// OA 真实待办数（审批人看待我审批，其余看我的申请）。
+const oaMetric = computed(() =>
+  stats.value.approverView ? stats.value.todo : stats.value.mine
+);
+
+// 按时段问候。
 const now = new Date();
 const greeting = computed(() => {
   const h = now.getHours();
@@ -45,138 +47,49 @@ const greeting = computed(() => {
   return '晚上好';
 });
 const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-const dateLabel = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 · ${WEEK[now.getDay()]}`;
+const monthLabel = `${now.getFullYear()} 年 ${now.getMonth() + 1} 月`;
+const todayNum = now.getDate();
+const todayWeek = WEEK[now.getDay()];
 
-// 旗舰模块：CRM 独占主视觉。
-const HERO = {
-  label: 'CRM 客户管理',
-  desc: '外贸全流程 · 从客户建档到成交回款',
-  icon: 'i-lucide-users',
-  to: 'crm_dashboard_index',
-  chips: ['客户', '商机', '报价', '订单', '邮件', '资料'],
-};
+// 本月日程（真实数据）：主栏日历打点 + 今日议程。
+const monthEvents = ref([]);
+const pad = n => String(n).padStart(2, '0');
+const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(todayNum)}`;
+const eventsByDate = computed(() => {
+  const map = {};
+  monthEvents.value.forEach(o => {
+    (map[o.occurrence_date] ||= []).push(o);
+  });
+  return map;
+});
+const todayEvents = computed(() =>
+  (eventsByDate.value[todayStr] || [])
+    .slice()
+    .sort((a, b) => (a.starts_at < b.starts_at ? -1 : 1))
+);
+const hhmm = iso => (iso ? iso.slice(11, 16) : '');
 
-// 已上线的协同模块，各自承载一项真实指标。
-const LIVE = computed(() => [
-  {
-    key: 'mes',
-    label: 'MES 生产制造',
-    desc: '销售订单 → 工单 → 8 阶段生产 · 库存齐套',
-    icon: 'i-lucide-factory',
-    to: 'mes_production_orders_index',
-    accent: 'teal',
-  },
-  {
-    key: 'oa',
-    label: 'OA 审批',
-    desc: '请假 · 报销 · 付款流程',
-    icon: 'i-lucide-file-check',
-    to: 'crm_approvals_index',
-    accent: 'blue',
-    metric: stats.value.approverView ? stats.value.todo : stats.value.mine,
-    metricLabel: stats.value.approverView ? '待我审批' : '我的申请',
-    urgent: stats.value.approverView && stats.value.todo > 0,
-  },
-  {
-    key: 'chat',
-    label: '团队协同',
-    desc: '内部单聊 · 群聊 · 已读回执',
-    icon: 'i-lucide-messages-square',
-    to: 'crm_team_chat_index',
-    accent: 'teal',
-    metric: stats.value.unread,
-    metricLabel: '未读消息',
-    urgent: stats.value.unread > 0,
-  },
-  {
-    key: 'hr',
-    label: 'HR 组织人事',
-    desc: '组织架构 · 部门 · 成员职位',
-    icon: 'i-lucide-network',
-    to: 'crm_org_structure_index',
-    accent: 'iris',
-    metric: stats.value.dept,
-    metricLabel: '个部门',
-  },
-  {
-    key: 'docs',
-    label: '文档中心',
-    desc: '制度 · 流程 · 培训 · 全公司知识',
-    icon: 'i-lucide-book-open',
-    to: 'crm_doc_center_index',
-    accent: 'violet',
-  },
-  // TikTok 板块：无论有无权限都在一级界面露出；无权限时置灰锁定、不可进入（后端仍 403 兜底）。
-  {
-    key: 'tiktok',
-    label: 'TikTok 经营',
-    desc: canAccessTiktok.value
-      ? '店铺每日销量 · 利润 · 看板'
-      : '暂无权限 · 如需使用请联系管理员',
-    icon: 'i-lucide-shopping-bag',
-    to: 'tiktok_dashboard_index',
-    accent: 'blue',
-    locked: !canAccessTiktok.value,
-  },
-]);
-
-// 未上线模块，安静收在底部。ERP/MES 按成员模块权限显隐（管理员全模块）。
-const ALL_SOON = [
-  { key: 'erp', label: 'ERP 进销存', icon: 'i-lucide-package' },
-  { key: 'schedule', label: '日程 Schedule', icon: 'i-lucide-calendar-days' },
-];
-const SOON = computed(() => {
-  if (currentUser.value?.role === 'administrator') return ALL_SOON;
-  const allowed = currentUser.value?.module_access || [];
-  return ALL_SOON.filter(
-    m => !['erp', 'mes'].includes(m.key) || allowed.includes(m.key)
-  );
+// 当月日历（周一起），今日高亮，有安排的日子打点。
+const calCells = computed(() => {
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const startDow = (new Date(y, m, 1).getDay() + 6) % 7; // 周一=0
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const prevDays = new Date(y, m, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startDow; i += 1)
+    cells.push({ n: prevDays - startDow + 1 + i, mut: true });
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    const key = `${y}-${pad(m + 1)}-${pad(d)}`;
+    cells.push({ n: d, mut: false, now: d === todayNum, has: !!eventsByDate.value[key] });
+  }
+  let next = 1;
+  while (cells.length % 7 !== 0) cells.push({ n: next++, mut: true });
+  return cells;
 });
 
-// 每个强调色对应一套 icon 徽章 + hover 描边类。Radix n-* 色阶，全部预声明避免动态 class 被 purge。
-const ACCENT_DEFAULT = {
-  blue: {
-    badge: 'bg-n-blue-4 text-n-blue-11',
-    metric: 'text-n-blue-11',
-    ring: 'hover:border-n-blue-7',
-  },
-  teal: {
-    badge: 'bg-n-teal-4 text-n-teal-11',
-    metric: 'text-n-teal-11',
-    ring: 'hover:border-n-teal-7',
-  },
-  iris: {
-    badge: 'bg-n-iris-4 text-n-iris-11',
-    metric: 'text-n-iris-11',
-    ring: 'hover:border-n-iris-7',
-  },
-  violet: {
-    badge: 'bg-n-violet-4 text-n-violet-11',
-    metric: 'text-n-violet-11',
-    ring: 'hover:border-n-violet-7',
-  },
-};
-// 经典灰：iris/blue 会被压成灰(像停用) → 改琥珀；teal(绿)/violet(紫) 本就有色，保留。
-const ACCENT_CLASSIC = {
-  blue: {
-    badge: 'bg-[#fdf1c6] text-[#a97e0c]',
-    metric: 'text-[#a97e0c]',
-    ring: 'hover:border-[#f0dca0]',
-  },
-  teal: ACCENT_DEFAULT.teal,
-  iris: {
-    badge: 'bg-[#fdf1c6] text-[#a97e0c]',
-    metric: 'text-[#a97e0c]',
-    ring: 'hover:border-[#f0dca0]',
-  },
-  violet: ACCENT_DEFAULT.violet,
-};
-const ACCENT = computed(() =>
-  isClassic.value ? ACCENT_CLASSIC : ACCENT_DEFAULT
-);
-
 const go = to => router.push(accountScopedRoute(to));
-const soonHint = label => useAlert(`${label} 模块即将上线`);
+const soon = label => useAlert(`${label} 即将上线`);
 
 onMounted(async () => {
   try {
@@ -197,197 +110,408 @@ onMounted(async () => {
     /* ignore */
   }
   try {
-    const { data } = await DepartmentsAPI.get();
-    stats.value.dept = (data.payload || []).length;
+    const first = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const last = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(lastDay)}`;
+    const { data } = await ScheduleAPI.get(accountId.value, { from: first, to: last });
+    monthEvents.value = data.payload || [];
   } catch {
-    /* ignore */
+    /* 日程取不到不阻塞落地页 */
   }
 });
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 overflow-auto bg-n-background">
-      <!-- 暖橙氛围光斑，托在不透明底色上，随内容垂直居中而不失衡 -->
-      <div
-        class="pointer-events-none absolute -top-32 -left-24 size-[560px] rounded-full bg-n-iris-4/70 blur-[130px]"
-      />
-      <div
-        class="pointer-events-none absolute top-40 right-[-8rem] size-[360px] rounded-full bg-n-iris-3/50 blur-[130px]"
-      />
-
-      <!-- 退出登录：固定在视口最右上 -->
-      <button
-        type="button"
-        class="fixed z-10 top-5 right-6 flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
-        @click="Auth.logout"
-      >
+    <div class="wsh-root">
+      <!-- 退出登录 -->
+      <button type="button" class="wsh-logout" @click="Auth.logout">
         <Icon icon="i-lucide-power" class="size-4" />
         退出登录
       </button>
 
-      <div
-        class="relative flex flex-col justify-center w-full max-w-[1080px] min-h-full mx-auto px-6 sm:px-10 py-12"
-      >
-        <!-- 品牌 -->
-        <img
-          :src="wintouchLockup"
-          alt="Wintouch"
-          class="w-auto h-10 mb-8 self-start"
-        />
+      <div class="wsh-wrap">
+        <div class="wsh-top">
+          <div>
+            <img :src="wintouchLockup" alt="Wintouch" class="wsh-logo" />
+            <h1 class="wsh-hello">
+              {{ greeting }}<template v-if="userName">，{{ userName }}</template>
+            </h1>
+            <div class="wsh-sub">选择一个系统开始工作</div>
+          </div>
+        </div>
 
-        <!-- 问候 -->
-        <header
-          class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1"
-        >
-          <h1
-            class="text-4xl font-semibold tracking-tight text-balance text-n-slate-12"
-          >
-            {{ greeting }}<template v-if="userName">，{{ userName }}</template>
-          </h1>
-          <p class="text-sm tabular-nums text-n-slate-11">{{ dateLabel }}</p>
-        </header>
-        <p class="mt-2 text-[15px] text-n-slate-11">选择一个系统开始工作。</p>
-
-        <!-- 主区：CRM 旗舰 + 协同模块竖列（无 CRM 权限时仅展示共享模块） -->
-        <div class="grid gap-4 mt-9 lg:grid-cols-5">
-          <!-- CRM 旗舰主卡 -->
-          <button
-            type="button"
-            class="group relative flex flex-col overflow-hidden text-left transition-all duration-200 ease-out border shadow-sm outline-none lg:col-span-3 rounded-[28px] border-n-iris-6 bg-n-iris-2 p-7 focus-visible:ring-2 focus-visible:ring-n-iris-8 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-            :class="
-              canAccessCrm
-                ? 'hover:-translate-y-0.5 hover:shadow-lg hover:border-n-iris-8'
-                : 'opacity-60 saturate-50 cursor-not-allowed'
-            "
-            :disabled="!canAccessCrm"
-            @click="go(HERO.to)"
-          >
-            <!-- 角落大图标水印 -->
-            <Icon
-              :icon="HERO.icon"
-              class="absolute -top-6 -right-6 size-40 text-n-iris-4 transition-transform duration-500 ease-out group-hover:scale-110"
-            />
-            <div class="relative flex flex-col h-full">
-              <div
-                class="flex items-center justify-center shadow-sm size-14 rounded-2xl"
-                :class="isClassic ? 'bg-[#f5c451]' : 'bg-n-iris-9'"
+        <div class="wsh-layout">
+          <!-- 左侧三列 bento -->
+          <div class="wsh-main">
+            <!-- 列1 -->
+            <div class="wsh-col">
+              <!-- CRM 旗舰 -->
+              <button
+                type="button"
+                class="wsh-card wsh-solid c-crm"
+                :class="{ locked: !canAccessCrm }"
+                :disabled="!canAccessCrm"
+                @click="go('crm_dashboard_index')"
               >
-                <Icon
-                  :icon="HERO.icon"
-                  class="size-7"
-                  :class="isClassic ? 'text-[#3a2a04]' : 'text-white'"
-                />
-              </div>
-              <h2 class="mt-5 text-2xl font-semibold text-n-iris-12">
-                {{ HERO.label }}
-              </h2>
-              <p class="mt-1.5 text-sm text-n-iris-11">{{ HERO.desc }}</p>
+                <span class="blob" style="width:150px;height:150px;right:-30px;top:-40px" />
+                <div class="lbl"><Icon icon="i-lucide-users" /> CRM 客户管理</div>
+                <div class="big">6</div>
+                <div class="unit">位客户 · 今日待跟进</div>
+                <div class="statrow">
+                  <div><b>3</b><span>今日新增</span></div>
+                  <div><b>12</b><span>本周回访</span></div>
+                  <div><b>1</b><span>待处理</span></div>
+                </div>
+                <div v-if="canAccessCrm" class="cta">
+                  进入工作区 <Icon icon="i-lucide-arrow-right" />
+                </div>
+                <div v-else class="cta">
+                  <Icon icon="i-lucide-lock" /> 未开通 · 联系管理员
+                </div>
+              </button>
 
-              <!-- 子域 chips -->
-              <div class="flex flex-wrap gap-1.5 mt-5">
-                <span
-                  v-for="chip in HERO.chips"
-                  :key="chip"
-                  class="px-2.5 py-1 text-xs font-medium rounded-full bg-n-iris-3 text-n-iris-11 ring-1 ring-inset ring-n-iris-5"
-                >
-                  {{ chip }}
-                </span>
-              </div>
+              <!-- ERP（即将上线） -->
+              <button type="button" class="wsh-card wsh-glass" @click="soon('ERP 进销存')">
+                <div class="lbl a-teal">
+                  <Icon icon="i-lucide-package" /> ERP 进销存·财务
+                  <span class="tag">即将上线</span>
+                </div>
+                <div class="sub2">采购 · 库存 · 凭证一体化</div>
+                <svg viewBox="0 0 300 58" class="chart" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="erpF" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#9cbb28" stop-opacity=".38" />
+                      <stop offset="1" stop-color="#9cbb28" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M0,44 C40,40 60,22 100,27 S170,12 210,23 S270,10 300,15 L300,58 L0,58 Z" fill="url(#erpF)" />
+                  <path d="M0,44 C40,40 60,22 100,27 S170,12 210,23 S270,10 300,15" fill="none" stroke="#5cbf6a" stroke-width="2.5" />
+                </svg>
+                <div class="chips"><span>采购</span><span>库存</span><span>凭证</span></div>
+              </button>
 
-              <div
-                v-if="canAccessCrm"
-                class="flex items-center gap-1.5 mt-auto pt-7 text-sm font-medium text-n-iris-11"
+              <!-- HR -->
+              <button type="button" class="wsh-card wsh-glass" @click="go('crm_org_structure_index')">
+                <div class="lbl a-sky"><Icon icon="i-lucide-network" /> HR 组织人事</div>
+                <div class="sub2">组织架构 · 我的考勤</div>
+                <div class="big" style="font-size:30px">全勤</div>
+                <div class="unit gray">本周出勤正常</div>
+                <div class="week">
+                  <div v-for="(d, i) in ['一','二','三','四','五','六','日']" :key="d" class="wd">
+                    <span>{{ d }}</span>
+                    <div class="o" :class="i < 5 ? 'on' : 'off'">
+                      <Icon :icon="i < 5 ? 'i-lucide-check' : 'i-lucide-minus'" />
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            <!-- 列2 -->
+            <div class="wsh-col">
+              <!-- MES -->
+              <button type="button" class="wsh-card wsh-solid c-mes" @click="go('mes_production_orders_index')">
+                <span class="blob" style="width:140px;height:140px;right:-40px;bottom:-50px" />
+                <div class="lbl"><Icon icon="i-lucide-factory" /> MES 生产制造</div>
+                <div class="wsh-ring">
+                  <svg width="80" height="80" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="31" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="8" />
+                    <circle cx="40" cy="40" r="31" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-dasharray="194.8" stroke-dashoffset="77.9" transform="rotate(-90 40 40)" />
+                    <text x="40" y="45" text-anchor="middle" class="pct">3 / 5</text>
+                  </svg>
+                  <div>
+                    <div class="wsh-ring-t">我的工单</div>
+                    <div class="unit">进行到「质检」阶段</div>
+                  </div>
+                </div>
+                <div class="checks">
+                  <div class="ck done"><span class="ci"><Icon icon="i-lucide-check" /></span>已排产</div>
+                  <div class="ck done"><span class="ci"><Icon icon="i-lucide-check" /></span>质检中</div>
+                  <div class="ck wait"><span class="ci"><Icon icon="i-lucide-clock" /></span>待入库</div>
+                </div>
+              </button>
+
+              <!-- OA（真实待办数） -->
+              <button type="button" class="wsh-card wsh-glass" @click="go('crm_approvals_index')">
+                <div class="lbl a-lime"><Icon icon="i-lucide-clipboard-check" /> OA 审批 · 我的待办</div>
+                <div class="big" style="font-size:34px">{{ oaMetric }}</div>
+                <div class="unit gray">
+                  {{ stats.approverView ? '条待我审批' : '条我的申请' }}
+                </div>
+                <div class="olist">
+                  <div class="oi"><span class="oic bg-lime"><Icon icon="i-lucide-plane" /></span><div class="ot">请假申请<small>我提交的</small></div><span class="ost">审批中</span></div>
+                  <div class="oi"><span class="oic bg-teal"><Icon icon="i-lucide-receipt" /></span><div class="ot">费用报销<small>我提交的</small></div><span class="ost">待补件</span></div>
+                  <div class="oi"><span class="oic bg-sky"><Icon icon="i-lucide-stamp" /></span><div class="ot">用印申请<small>待我审批</small></div><span class="ost">待审批</span></div>
+                </div>
+              </button>
+            </div>
+
+            <!-- 列3 -->
+            <div class="wsh-col">
+              <!-- 团队协同（真实未读） -->
+              <button type="button" class="wsh-card wsh-glass" @click="go('crm_team_chat_index')">
+                <div class="lbl a-teal"><Icon icon="i-lucide-messages-square" /> 团队协同</div>
+                <div class="big" style="font-size:32px">{{ stats.unread }}</div>
+                <div class="unit gray">条未读消息</div>
+                <div class="avs">
+                  <span class="av a1" /><span class="av a2" /><span class="av a3" /><span class="av a4" /><span class="more">+9</span>
+                </div>
+                <div class="msg"><b>外贸一组：</b>下午 3 点开个短会对一下本周排期 👌</div>
+              </button>
+
+              <!-- TikTok（权限门） -->
+              <button
+                type="button"
+                class="wsh-card wsh-solid c-tik"
+                :class="{ locked: !canAccessTiktok }"
+                :disabled="!canAccessTiktok"
+                @click="go('tiktok_dashboard_index')"
               >
-                进入工作区
-                <Icon
-                  icon="i-lucide-arrow-right"
-                  class="transition-transform duration-200 size-4 group-hover:translate-x-1 motion-reduce:transition-none"
-                />
+                <span class="blob" style="width:150px;height:150px;right:-40px;top:-50px" />
+                <div class="lbl">
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="tk"><path d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" /></svg>
+                  TikTok 经营
+                </div>
+                <div class="big" style="font-size:24px;margin-top:14px">跨境店铺经营</div>
+                <div class="unit">店铺 · 订单 · 数据看板</div>
+                <div v-if="!canAccessTiktok" class="cta"><Icon icon="i-lucide-lock" /> 暂无权限</div>
+              </button>
+
+              <!-- 文档中心 -->
+              <button type="button" class="wsh-card wsh-glass" @click="go('crm_doc_center_index')">
+                <div class="lbl a-violet"><Icon icon="i-lucide-book-open" /> 文档中心</div>
+                <div class="sub2">制度 · 流程 · 培训 · 知识</div>
+                <div class="olist">
+                  <div class="oi"><span class="oic bg-violet"><Icon icon="i-lucide-file-text" /></span><div class="ot">外贸操作手册 v3<small>更新于 昨天</small></div></div>
+                  <div class="oi"><span class="oic bg-sky"><Icon icon="i-lucide-git-branch" /></span><div class="ot">报价审批 SOP<small>流程规范</small></div></div>
+                  <div class="oi"><span class="oic bg-teal"><Icon icon="i-lucide-graduation-cap" /></span><div class="ot">新人培训包<small>入职必读</small></div></div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- 右侧日程主栏（静态占位） -->
+          <div class="wsh-rail">
+            <span class="r-aura" />
+            <div class="rhead">
+              <div>
+                <div class="rl"><Icon icon="i-lucide-calendar-days" /> 日程 Schedule</div>
+                <h2>{{ monthLabel }}</h2>
               </div>
-              <div
-                v-else
-                class="flex items-center gap-1.5 mt-auto pt-7 text-sm font-medium text-n-slate-10"
-              >
-                <Icon icon="i-lucide-lock" class="size-4" />
-                未开通 · 如需使用请联系管理员
+              <div class="today"><b>{{ todayNum }}</b><span>{{ todayWeek }}</span></div>
+            </div>
+
+            <div class="cal">
+              <div class="hd"><span v-for="d in ['一','二','三','四','五','六','日']" :key="d">{{ d }}</span></div>
+              <div class="bd">
+                <span v-for="(c, i) in calCells" :key="i" :class="{ mut: c.mut, now: c.now, has: c.has }">{{ c.n }}</span>
               </div>
             </div>
-          </button>
 
-          <!-- 协同模块：竖列在 CRM 旗舰侧 -->
-          <div class="flex flex-col gap-4 lg:col-span-2">
-            <button
-              v-for="m in LIVE"
-              :key="m.key"
-              type="button"
-              :disabled="m.locked"
-              class="group relative flex items-center flex-1 gap-4 p-4 text-left transition-all duration-200 ease-out bg-white border shadow-sm outline-none rounded-3xl border-n-weak focus-visible:ring-2 focus-visible:ring-n-slate-8 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-              :class="
-                m.locked
-                  ? 'opacity-60 saturate-50 cursor-not-allowed'
-                  : [
-                      'hover:-translate-y-0.5 hover:shadow-md',
-                      ACCENT[m.accent].ring,
-                    ]
-              "
-              @click="go(m.to)"
-            >
-              <div
-                class="flex items-center justify-center shrink-0 size-11 rounded-2xl"
-                :class="ACCENT[m.accent].badge"
-              >
-                <Icon :icon="m.icon" class="size-5" />
-              </div>
-              <div class="min-w-0">
-                <h3 class="text-[15px] font-medium truncate text-n-slate-12">
-                  {{ m.label }}
-                </h3>
-                <p class="text-xs truncate text-n-slate-11">{{ m.desc }}</p>
-              </div>
-              <!-- 实时指标；无指标的模块显示进入箭头 -->
-              <div
-                v-if="m.metric !== undefined"
-                class="ml-auto text-right shrink-0"
-              >
+            <div class="agenda">
+              <div class="ahd"><b>今日安排</b><span>{{ todayEvents.length }} 项</span></div>
+              <template v-if="todayEvents.length">
                 <div
-                  class="text-xl font-semibold tabular-nums"
-                  :class="m.urgent ? 'text-n-iris-11' : ACCENT[m.accent].metric"
+                  v-for="e in todayEvents"
+                  :key="e.id + e.starts_at"
+                  class="ev"
+                  :class="e.color"
                 >
-                  {{ m.metric }}
+                  <div class="tm">{{ e.all_day ? '全天' : hhmm(e.starts_at) }}</div>
+                  <div class="eb">
+                    <b>{{ e.title }}</b>
+                    <small>
+                      {{ e.owner_name
+                      }}<template v-if="e.participant_names && e.participant_names.length"
+                        >、{{ e.participant_names.join('、') }}</template
+                      >
+                    </small>
+                  </div>
                 </div>
-                <div class="text-[11px] text-n-slate-10">
-                  {{ m.metricLabel }}
-                </div>
-              </div>
-              <Icon
-                v-else
-                :icon="m.locked ? 'i-lucide-lock' : 'i-lucide-arrow-up-right'"
-                class="ml-auto transition-colors shrink-0 size-4 text-n-slate-9 group-hover:text-n-slate-11"
-              />
-              <span
-                v-if="m.urgent"
-                class="absolute rounded-full size-2 top-3 right-3 bg-n-iris-9 ring-2 ring-white"
-              />
+              </template>
+              <div v-else class="ev-empty">今天暂无安排</div>
+            </div>
+
+            <button type="button" class="newbtn" @click="go('crm_schedule_index')">
+              <Icon icon="i-lucide-plus" /> 新建日程
             </button>
           </div>
         </div>
 
-        <!-- 未上线：安静收底 -->
-        <div class="flex flex-wrap items-center gap-2 mt-8">
-          <span class="mr-1 text-xs font-medium text-n-slate-10">即将上线</span>
-          <button
-            v-for="m in SOON"
-            :key="m.key"
-            type="button"
-            class="inline-flex items-center gap-2 py-2 pl-2.5 pr-3.5 text-xs transition-colors rounded-full bg-n-slate-2 text-n-slate-10 border border-transparent hover:border-n-slate-5 hover:text-n-slate-11"
-            @click="soonHint(m.label)"
-          >
-            <Icon :icon="m.icon" class="size-4 text-n-slate-9" />
-            {{ m.label }}
-          </button>
-        </div>
+        <div class="wsh-foot">WintouchSpace · Designed &amp; Developed by Amber Law</div>
       </div>
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.wsh-root {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: auto;
+  color: #232833;
+  background:
+    radial-gradient(58vw 52vh at 8% 2%, rgba(122, 170, 250, 0.34), transparent 56%),
+    radial-gradient(52vw 46vh at 94% 0%, rgba(160, 132, 248, 0.3), transparent 54%),
+    radial-gradient(52vw 52vh at 88% 100%, rgba(102, 216, 186, 0.28), transparent 56%),
+    radial-gradient(48vw 46vh at 0% 100%, rgba(198, 232, 154, 0.28), transparent 56%),
+    #e9eff7;
+}
+.wsh-logout {
+  position: fixed;
+  z-index: 10;
+  top: 20px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  border-radius: 12px;
+  color: #5a6472;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+.wsh-logout:hover { color: #232833; }
+.wsh-wrap { max-width: 1320px; margin: 0 auto; padding: 14px 64px 12px; }
+.wsh-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 9px; }
+.wsh-logo { height: 34px; width: auto; margin-bottom: 7px; display: block; }
+.wsh-hello { font-size: 21px; font-weight: 800; letter-spacing: -0.5px; }
+.wsh-sub { font-size: 14px; color: #6b7482; font-weight: 600; margin-top: 6px; }
+.wsh-date {
+  font-size: 13px; font-weight: 700; color: #232833; padding: 10px 16px;
+  border-radius: 14px; background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(14px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+.wsh-layout { display: grid; grid-template-columns: 1fr 320px; gap: 11px; align-items: start; }
+.wsh-main { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; align-items: start; }
+.wsh-col { display: flex; flex-direction: column; gap: 11px; }
+@media (max-width: 1200px) { .wsh-main { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1080px) { .wsh-layout { grid-template-columns: 1fr; } }
+
+.wsh-card {
+  width: 100%; text-align: left; font-family: inherit; color: inherit; cursor: pointer;
+  border-radius: 16px; padding: 12px 14px; position: relative; overflow: hidden; display: block;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.wsh-card:hover { transform: translateY(-3px); }
+.wsh-card.locked { opacity: 0.55; filter: saturate(0.5); cursor: not-allowed; }
+.wsh-card.locked:hover { transform: none; }
+.wsh-glass {
+  background: rgba(255, 255, 255, 0.55); backdrop-filter: blur(22px) saturate(155%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 16px 40px -22px rgba(60, 90, 150, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.wsh-solid { color: #fff; border: 1px solid rgba(255, 255, 255, 0.26); box-shadow: 0 18px 44px -20px rgba(60, 90, 150, 0.5); }
+.c-crm { background: linear-gradient(155deg, #7cb6f7, #4f8fea); }
+.c-mes { background: linear-gradient(155deg, #b3a4f5, #8b78ee); }
+.c-tik { background: linear-gradient(155deg, #4fd1e6, #22b8d4); }
+.blob { position: absolute; border-radius: 50%; filter: blur(30px); opacity: 0.5; background: rgba(255, 255, 255, 0.6); z-index: 1; }
+
+.lbl { font-size: 12.5px; font-weight: 800; display: flex; align-items: center; gap: 6px; position: relative; z-index: 2; }
+.lbl :deep([class*='i-lucide-']), .lbl .tk { width: 15px; height: 15px; }
+.a-teal { color: #1f9d80; } .a-lime { color: #6ba01f; } .a-violet { color: #7a67dc; } .a-sky { color: #3f7fe0; }
+.tag { margin-left: auto; font-size: 10.5px; font-weight: 700; color: #9aa0ac; background: rgba(120, 140, 170, 0.12); border-radius: 20px; padding: 3px 8px; }
+.big { font-size: 25px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; margin-top: 5px; position: relative; z-index: 2; }
+.unit { font-size: 13px; margin-top: 2px; position: relative; z-index: 2; color: rgba(255, 255, 255, 0.85); }
+.unit.gray { color: #9aa0ac; }
+.sub2 { font-size: 12.5px; color: #9aa0ac; margin-top: 8px; }
+.statrow { display: flex; gap: 14px; margin-top: 6px; position: relative; z-index: 2; }
+.statrow b { font-size: 19px; font-weight: 800; display: block; letter-spacing: -0.5px; }
+.statrow span { font-size: 11.5px; color: rgba(255, 255, 255, 0.8); }
+.cta { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; padding: 8px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.22); position: relative; z-index: 2; }
+.cta :deep([class*='i-lucide-']) { width: 15px; height: 15px; }
+
+.chart { width: 100%; height: 58px; margin-top: 10px; }
+.chips { display: flex; gap: 8px; margin-top: 14px; }
+.chips span { font-size: 12px; font-weight: 700; color: #5f6570; background: rgba(120, 140, 170, 0.1); border-radius: 9px; padding: 5px 11px; }
+
+.week { display: flex; justify-content: space-between; margin-top: 10px; }
+.wd { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.wd span { font-size: 11px; color: #9aa0ac; font-weight: 600; }
+.wd .o { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; }
+.wd .on { background: linear-gradient(150deg, #9cc9f8, #5b9bef); color: #fff; }
+.wd .off { background: #eef2f7; color: #c2cad4; }
+.wd .o :deep([class*='i-lucide-']) { width: 14px; height: 14px; }
+
+.wsh-ring { display: flex; align-items: center; gap: 14px; margin-top: 9px; position: relative; z-index: 2; }
+.wsh-ring .pct { font-size: 15px; font-weight: 800; fill: #fff; }
+.wsh-ring-t { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+.checks { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; position: relative; z-index: 2; }
+.ck { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.ck .ci { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; }
+.ck .ci :deep([class*='i-lucide-']) { width: 12px; height: 12px; }
+.ck.done .ci { background: rgba(255, 255, 255, 0.9); color: #8b78ee; }
+.ck.wait { color: rgba(255, 255, 255, 0.75); }
+.ck.wait .ci { background: rgba(255, 255, 255, 0.25); color: rgba(255, 255, 255, 0.7); }
+
+.olist { margin-top: 12px; display: flex; flex-direction: column; }
+.oi { display: flex; align-items: center; gap: 11px; padding: 9px 0; border-top: 1px solid #eef0f3; }
+.oi:first-child { border-top: 0; }
+.oic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff; flex: none; }
+.oic :deep([class*='i-lucide-']) { width: 15px; height: 15px; }
+.bg-lime { background: linear-gradient(150deg, #bfe388, #9fd162); }
+.bg-teal { background: linear-gradient(150deg, #86ddc6, #3ec3a2); }
+.bg-sky { background: linear-gradient(150deg, #9cc9f8, #5b9bef); }
+.bg-violet { background: linear-gradient(150deg, #b3a4f5, #8b78ee); }
+.ot { font-size: 13px; font-weight: 700; flex: 1; min-width: 0; }
+.ot small { display: block; font-size: 10.5px; color: #9aa0ac; font-weight: 500; margin-top: 1px; }
+.ost { font-size: 11px; font-weight: 700; color: #6f8a1a; background: #eef6d5; border-radius: 7px; padding: 3px 8px; }
+
+.avs { display: flex; margin-top: 16px; }
+.avs .av { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff; margin-left: -9px; }
+.avs .av:first-child { margin-left: 0; }
+.av.a1 { background: linear-gradient(150deg, #9cc9f8, #5b9bef); }
+.av.a2 { background: linear-gradient(150deg, #b3a4f5, #8b78ee); }
+.av.a3 { background: linear-gradient(150deg, #86ddc6, #3ec3a2); }
+.av.a4 { background: linear-gradient(150deg, #f7b0c0, #f088a0); }
+.avs .more { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff; margin-left: -9px; background: #e7effe; color: #3f7fe0; font-size: 11.5px; font-weight: 800; display: grid; place-items: center; }
+.msg { margin-top: 14px; background: rgba(255, 255, 255, 0.6); border: 1px solid #eef0f3; border-radius: 12px; padding: 11px 13px; font-size: 12.5px; color: #9aa0ac; }
+.msg b { font-weight: 800; color: #232833; }
+
+/* 日程主栏 */
+.wsh-rail {
+  border-radius: 16px; padding: 12px 14px; position: relative; overflow: hidden; min-height: 0;
+  background: rgba(255, 255, 255, 0.58); backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 20px 50px -22px rgba(60, 90, 150, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+.r-aura { position: absolute; width: 260px; height: 200px; right: -60px; top: -70px; border-radius: 50%; filter: blur(46px); background: radial-gradient(circle, rgba(122, 170, 250, 0.5), transparent 68%); z-index: 1; }
+.rhead { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 2; }
+.rl { font-size: 12.5px; font-weight: 800; color: #3f7fe0; display: flex; align-items: center; gap: 6px; }
+.rl :deep([class*='i-lucide-']) { width: 15px; height: 15px; }
+.rhead h2 { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; margin-top: 4px; }
+.today { text-align: center; background: linear-gradient(150deg, #7db8f7, #5691ec); color: #fff; border-radius: 12px; padding: 5px 11px; box-shadow: 0 10px 20px -8px rgba(86, 145, 236, 0.6); }
+.today b { font-size: 24px; font-weight: 800; display: block; line-height: 1; }
+.today span { font-size: 10.5px; opacity: 0.9; }
+.cal { margin-top: 8px; position: relative; z-index: 2; }
+.cal .hd { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 8px; }
+.cal .hd span { font-size: 11px; color: #9aa0ac; text-align: center; font-weight: 700; }
+.cal .bd { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px 0; }
+.cal .bd span { position: relative; font-size: 12px; text-align: center; padding: 4px 0; font-weight: 600; color: #404855; border-radius: 8px; }
+.cal .bd .mut { color: #cbd1da; }
+.cal .bd .now { background: linear-gradient(150deg, #7db8f7, #5691ec); color: #fff; font-weight: 800; box-shadow: 0 8px 16px -6px rgba(86, 145, 236, 0.55); }
+.cal .bd .has::after { content: ''; position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: #8b78ee; }
+.cal .bd .now.has::after { background: #fff; }
+.agenda { margin-top: 9px; position: relative; z-index: 2; }
+.ahd { display: flex; justify-content: space-between; align-items: center; }
+.ahd b { font-size: 14px; font-weight: 800; }
+.ahd span { font-size: 12px; color: #9aa0ac; font-weight: 600; }
+.ev { display: flex; gap: 12px; margin-top: 7px; }
+.ev .tm { width: 44px; flex: none; font-size: 12px; font-weight: 800; color: #4b535f; padding-top: 2px; }
+.ev .eb { flex: 1; border-left: 3px solid; padding: 2px 0 2px 12px; }
+.ev .eb b { font-size: 13.5px; font-weight: 700; display: block; }
+.ev .eb small { font-size: 11.5px; color: #9aa0ac; }
+.ev.blue .eb { border-color: #5b9bef; } .ev.teal .eb { border-color: #3ec3a2; }
+.ev.violet .eb { border-color: #8b78ee; } .ev.rose .eb { border-color: #ef7f9c; }
+.ev.lime .eb { border-color: #9fd162; } .ev.sky .eb { border-color: #38bdf8; }
+.ev-empty { margin-top: 14px; padding: 18px 0; text-align: center; font-size: 12.5px; color: #9aa0ac; }
+.newbtn { margin-top: 14px; width: 100%; font-family: inherit; font-size: 13px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #6aa8f2, #4f8fea); border: none; border-radius: 12px; padding: 10px 0; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; box-shadow: 0 12px 24px -10px rgba(79, 143, 234, 0.6); position: relative; z-index: 2; }
+.newbtn :deep([class*='i-lucide-']) { width: 16px; height: 16px; }
+
+.wsh-foot { text-align: center; color: #aeb6c1; font-size: 12px; margin-top: 12px; font-weight: 600; }
+</style>

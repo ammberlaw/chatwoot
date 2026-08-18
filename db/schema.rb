@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_17_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_18_000003) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1020,6 +1020,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_000001) do
     t.index ["account_id"], name: "index_crm_doc_sections_on_account_id"
   end
 
+  create_table "crm_email_distributions", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_email_id", null: false
+    t.bigint "from_user_id", null: false
+    t.bigint "to_user_id", null: false
+    t.text "note"
+    t.datetime "read_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "to_user_id"], name: "index_crm_email_distributions_on_account_id_and_to_user_id"
+    t.index ["crm_email_id", "to_user_id"], name: "idx_crm_email_dist_email_user", unique: true
+    t.index ["crm_email_id"], name: "index_crm_email_distributions_on_crm_email_id"
+  end
+
   create_table "crm_email_folders", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id", null: false
@@ -1673,6 +1687,34 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_17_000001) do
     t.index ["account_id", "target_month"], name: "index_crm_sales_targets_on_account_id_and_target_month"
     t.index ["account_id"], name: "index_crm_sales_targets_on_account_id"
     t.index ["owner_id"], name: "index_crm_sales_targets_on_owner_id"
+  end
+
+  create_table "crm_schedule_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "owner_id", null: false
+    t.string "title", null: false
+    t.datetime "starts_at", null: false
+    t.datetime "ends_at", null: false
+    t.boolean "all_day", default: false, null: false
+    t.string "location"
+    t.text "note"
+    t.string "color", default: "blue", null: false
+    t.string "recurrence", default: "none", null: false
+    t.date "recurrence_until"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.date "completed_dates", default: [], null: false, array: true
+    t.index ["account_id", "owner_id"], name: "index_crm_schedule_events_on_account_id_and_owner_id"
+    t.index ["account_id", "starts_at"], name: "index_crm_schedule_events_on_account_id_and_starts_at"
+  end
+
+  create_table "crm_schedule_participants", force: :cascade do |t|
+    t.bigint "crm_schedule_event_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["crm_schedule_event_id", "user_id"], name: "idx_crm_sched_participant", unique: true
+    t.index ["user_id"], name: "index_crm_schedule_participants_on_user_id"
   end
 
   create_table "crm_scheme_items", force: :cascade do |t|

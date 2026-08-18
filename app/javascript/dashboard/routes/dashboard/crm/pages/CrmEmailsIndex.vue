@@ -196,6 +196,12 @@ const FOLDERS = [
     icon: 'i-lucide-radar',
     countKey: 'tracking',
   },
+  {
+    key: 'DISTRIBUTED',
+    label: '分发给我的',
+    icon: 'i-lucide-share-2',
+    countKey: 'distributed',
+  },
 ];
 
 const activeFolderLabel = computed(
@@ -310,10 +316,15 @@ const fetchMailboxes = async () => {
 };
 
 const fetchRecords = () => {
+  selectedIds.value = [];
+  // 分发给我的：跨负责人取数，走专用端点（不带 folder/owner 收口）。
+  if (activeFolder.value === 'DISTRIBUTED') {
+    store.getDistributed({ page: 1, per_page: 200 });
+    return;
+  }
   // 列表按日期分组需一次多取（上限 200），覆盖近几个月，分组封数才准。
   const params = { ...baseParams(), ...scopeParams(), per_page: 200 };
   if (searchTerm.value.trim()) params.q = searchTerm.value.trim();
-  selectedIds.value = [];
   store.get(params);
 };
 
@@ -563,7 +574,11 @@ const selectEmail = async email => {
   // 换邮件时收起 AI 翻译/摘要面板（翻译按邮件缓存，重开秒出）。
   aiTranslation.value = null;
   aiSummary.value = null;
-  if (email.folder === 'INBOX' && !email.isRead) {
+  if (
+    activeFolder.value !== 'DISTRIBUTED' &&
+    email.folder === 'INBOX' &&
+    !email.isRead
+  ) {
     await store.update({ id: email.id, isRead: true });
     email.isRead = true;
     fetchCounts();
@@ -768,6 +783,80 @@ const toggleSpam = async email => {
   fetchMailboxes();
 };
 
+// —— 邮件内部分发（站内流转，不外发；含正文+附件+记录）——
+// 独立成员列表（全员可分发，不复用管理员专用的 members/fetchMembers）。
+const distMembers = ref([]);
+const loadDistMembers = async () => {
+  if (distMembers.value.length) return;
+  try {
+    const { data } = await AgentAPI.get();
+    distMembers.value = data || [];
+  } catch {
+    distMembers.value = [];
+  }
+};
+const distributeDialog = ref(false);
+const distributeEmail = ref(null);
+const distributeIds = ref([]);
+const distributeNote = ref('');
+const distributeQuery = ref('');
+const distributing = ref(false);
+const openDistribute = e => {
+  distributeEmail.value = e;
+  distributeIds.value = [];
+  distributeNote.value = '';
+  distributeQuery.value = '';
+  distributeDialog.value = true;
+  loadDistMembers();
+};
+const distributeMembers = computed(() => {
+  const q = distributeQuery.value.trim().toLowerCase();
+  return distMembers.value
+    .filter(m => m.id !== currentUserId.value)
+    .filter(m => !q || `${m.name || ''}`.toLowerCase().includes(q));
+});
+const toggleDistId = id => {
+  const i = distributeIds.value.indexOf(id);
+  if (i >= 0) distributeIds.value.splice(i, 1);
+  else distributeIds.value.push(id);
+};
+const submitDistribute = async () => {
+  if (!distributeIds.value.length) {
+    useAlert('请选择要分发的同事');
+    return;
+  }
+  distributing.value = true;
+  try {
+    const { data } = await CrmEmailAPI.distribute(distributeEmail.value.id, {
+      user_ids: distributeIds.value,
+      note: distributeNote.value,
+    });
+    useAlert(`已分发给 ${data.distributed} 位同事`);
+    distributeDialog.value = false;
+    if (selectedEmail.value?.id === distributeEmail.value.id) {
+      loadDistributions(selectedEmail.value.id);
+    }
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '分发失败');
+  } finally {
+    distributing.value = false;
+  }
+};
+// 分发历史（详情面板）
+const distributions = ref([]);
+const loadDistributions = async id => {
+  try {
+    const { data } = await CrmEmailAPI.distributions(id);
+    distributions.value = data.payload || [];
+  } catch {
+    distributions.value = [];
+  }
+};
+watch(selectedEmail, e => {
+  distributions.value = [];
+  if (e?.id) loadDistributions(e.id);
+});
+
 // 阅读栏「更多」下拉：把次要操作（转发/附件转发/重新发送/垃圾邮件/删除）收进去，避免按钮太挤。
 const showMore = ref(false);
 const moreMenuItems = computed(() => {
@@ -786,6 +875,7 @@ const moreMenuItems = computed(() => {
       icon: 'i-lucide-paperclip',
       run: () => forwardAsAttachment(e),
     },
+    { label: '分发给同事', icon: 'i-lucide-share-2', run: () => openDistribute(e) },
   ];
   // 再次编辑：仅对「已发送」邮件（收件人才是真正的对方；收件箱邮件的收件人是自己）。
   if (e.sendStatus === 'SENT' || e.folder === 'SENT') {
@@ -1751,5 +1841,122 @@ watch(
         </div>
       </template>
     </section>
+
+    <!-- 邮件分发弹窗 -->
+    <div
+      v-if="distributeDialog"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-n-alpha-black2"
+      @click.self="distributeDialog = false"
+    >
+      <div
+        class="w-full max-w-[440px] max-h-[90vh] overflow-auto p-5 border rounded-2xl bg-n-solid-1 shadow-xl border-n-weak"
+      >
+        <div class="flex items-center justify-between mb-1">
+          <h3 class="text-base font-semibold text-n-slate-12">分发给同事</h3>
+          <button
+            class="grid rounded-lg size-7 place-items-center text-n-slate-10 hover:bg-n-alpha-2"
+            @click="distributeDialog = false"
+          >
+            <Icon icon="i-lucide-x" class="size-4" />
+          </button>
+        </div>
+        <p class="mb-3 text-xs text-n-slate-10">
+          把这封邮件（含正文和附件）分发给公司内部同事查看 · 站内流转不外发
+        </p>
+        <div
+          class="p-2.5 mb-3 text-sm rounded-lg bg-n-alpha-1 text-n-slate-12 truncate"
+        >
+          📧 {{ distributeEmail?.subject || '(无主题)' }}
+        </div>
+
+        <div v-if="distributions.length" class="mb-3">
+          <div class="mb-1 text-xs text-n-slate-10">已分发记录</div>
+          <div class="flex flex-col gap-1 overflow-auto max-h-24">
+            <div
+              v-for="d in distributions"
+              :key="d.id"
+              class="flex items-center justify-between text-xs text-n-slate-11"
+            >
+              <span class="truncate">
+                {{ d.from_user_name }} → {{ d.to_user_name }}
+                <span v-if="d.note" class="text-n-slate-9">（{{ d.note }}）</span>
+              </span>
+              <span class="text-n-slate-9 shrink-0">{{ (d.created_at || '').slice(0, 10) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-1.5 text-xs text-n-slate-10">选择同事</div>
+        <div v-if="distributeIds.length" class="flex flex-wrap gap-1.5 mb-2">
+          <span
+            v-for="m in distMembers.filter(x => distributeIds.includes(x.id))"
+            :key="m.id"
+            class="inline-flex items-center gap-1 py-1 pl-2.5 pr-1.5 text-xs text-white rounded-full bg-n-iris-9"
+          >
+            {{ m.name }}
+            <button
+              type="button"
+              class="grid rounded-full size-4 place-items-center hover:bg-white/20"
+              @click="toggleDistId(m.id)"
+            >
+              <Icon icon="i-lucide-x" class="size-3" />
+            </button>
+          </span>
+        </div>
+        <input
+          v-model="distributeQuery"
+          type="text"
+          placeholder="搜索同事…"
+          class="w-full px-3 py-2 mb-1 text-sm border rounded-lg outline-none bg-n-alpha-1 border-n-weak text-n-slate-12 focus:border-n-iris-7"
+        />
+        <div
+          class="flex flex-col gap-0.5 mb-3 overflow-auto border rounded-lg max-h-40 border-n-weak"
+        >
+          <button
+            v-for="m in distributeMembers"
+            :key="m.id"
+            type="button"
+            class="flex items-center justify-between px-3 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-2"
+            @click="toggleDistId(m.id)"
+          >
+            <span class="truncate">{{ m.name }}</span>
+            <Icon
+              v-if="distributeIds.includes(m.id)"
+              icon="i-lucide-check"
+              class="size-4 text-n-iris-11 shrink-0"
+            />
+          </button>
+          <div
+            v-if="!distributeMembers.length"
+            class="px-3 py-2 text-xs text-n-slate-9"
+          >
+            无匹配同事
+          </div>
+        </div>
+
+        <textarea
+          v-model="distributeNote"
+          rows="2"
+          placeholder="附言（可空）"
+          class="w-full px-3 py-2 mb-4 text-sm border rounded-lg outline-none resize-none bg-n-alpha-1 border-n-weak text-n-slate-12 focus:border-n-iris-7"
+        />
+
+        <div class="flex justify-end gap-2">
+          <button
+            class="px-4 py-2 text-sm font-medium rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
+            @click="distributeDialog = false"
+          >
+            取消
+          </button>
+          <button
+            class="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+            :disabled="distributing"
+            @click="submitDistribute"
+          >
+            {{ distributing ? '分发中…' : '分发' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

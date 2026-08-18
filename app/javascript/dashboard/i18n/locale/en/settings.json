@@ -522,7 +522,9 @@
     "CRM_APPROVALS": "我的审批",
     "CRM_APPROVAL_TEMPLATES": "审批模板",
     "CRM_G_CHAT": "团队沟通",
-    "CRM_TEAM_CHAT": "消息"
+    "CRM_TEAM_CHAT": "消息",
+    "CRM_G_SCHEDULE": "日程",
+    "CRM_SCHEDULE": "日程 Schedule"
   },
   "CAPTAIN_SETTINGS": {
     "TITLE": "Captain Settings",

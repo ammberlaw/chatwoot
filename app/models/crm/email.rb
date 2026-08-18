@@ -70,6 +70,7 @@ class Crm::Email < ApplicationRecord
   belongs_to :crm_email_folder, class_name: 'Crm::EmailFolder', optional: true, inverse_of: :emails
 
   has_many :opens, class_name: 'Crm::EmailOpen', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
+  has_many :distributions, class_name: 'Crm::EmailDistribution', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
   has_many_attached :files
 
   validates :folder, inclusion: { in: FOLDERS }

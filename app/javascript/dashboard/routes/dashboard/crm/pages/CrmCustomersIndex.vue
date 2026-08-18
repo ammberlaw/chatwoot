@@ -14,6 +14,8 @@ import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmCustomerImportDialog from 'dashboard/components-next/CRM/CrmCustomerImportDialog.vue';
@@ -455,6 +457,70 @@ const openEditDialog = record => createDialogRef.value?.open(record);
 
 // 右侧详情面板：点行选中展开，编辑仍走弹窗。
 const selectedCustomer = ref(null);
+
+// 面板内「下次跟进 + 加入日程」——不用点进详情页。
+const nextDate = ref('');
+const nextTime = ref('09:00');
+const addToSchedule = ref(true);
+const savingNext = ref(false);
+const pad2 = n => String(n).padStart(2, '0');
+const timeOptions = (() => {
+  const out = [];
+  for (let h = 0; h < 24; h += 1) {
+    ['00', '30'].forEach(mm =>
+      out.push({ value: `${pad2(h)}:${mm}`, label: `${pad2(h)}:${mm}` })
+    );
+  }
+  return out;
+})();
+watch(selectedCustomer, c => {
+  if (c?.next_follow_up_at) {
+    nextDate.value = c.next_follow_up_at.slice(0, 10);
+    nextTime.value = c.next_follow_up_at.slice(11, 16) || '09:00';
+  } else {
+    nextDate.value = '';
+    nextTime.value = '09:00';
+  }
+});
+const addMinutes = (t, mins) => {
+  let [h, m] = t.split(':').map(Number);
+  m += mins;
+  h = (h + Math.floor(m / 60)) % 24;
+  m %= 60;
+  return `${pad2(h)}:${pad2(m)}`;
+};
+const saveNextFollowUp = async () => {
+  if (!selectedCustomer.value || !nextDate.value) {
+    useAlert('请选择下次跟进日期');
+    return;
+  }
+  const startAt = `${nextDate.value}T${nextTime.value}:00`;
+  const endAt = `${nextDate.value}T${addMinutes(nextTime.value, 30)}:00`;
+  savingNext.value = true;
+  try {
+    await axios.post(
+      `${crmBase()}/customers/${selectedCustomer.value.id}/schedule_follow_up`,
+      { next_follow_up_at: startAt }
+    );
+    if (addToSchedule.value) {
+      await ScheduleAPI.create(accountId.value, {
+        title: `跟进：${selectedCustomer.value.name}`,
+        starts_at: startAt,
+        ends_at: endAt,
+        all_day: false,
+        color: 'blue',
+        recurrence: 'none',
+        note: `客户跟进 · ${selectedCustomer.value.name}`,
+      });
+    }
+    selectedCustomer.value.next_follow_up_at = startAt;
+    useAlert(addToSchedule.value ? '下次跟进已保存并加入日程' : '下次跟进已保存');
+  } catch {
+    useAlert('保存失败');
+  } finally {
+    savingNext.value = false;
+  }
+};
 const PANEL_TABS = [
   { key: 'fields', label: '主页', icon: 'i-lucide-house' },
   { key: 'timeline', label: '操作历史', icon: 'i-lucide-history' },
@@ -1918,7 +1984,7 @@ watch(
     <!-- 右侧客户详情面板 -->
     <aside
       v-if="selectedCustomer"
-      class="flex flex-col w-[400px] flex-shrink-0 overflow-hidden border-l border-n-weak bg-n-solid-1"
+      class="flex flex-col w-[400px] flex-shrink-0 overflow-hidden my-3 mr-3 rounded-3xl border border-white/50 bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 shadow-lg shadow-n-iris-9/5"
     >
       <div class="flex items-center gap-3 px-5 py-4 border-b border-n-weak">
         <span
@@ -1973,6 +2039,39 @@ watch(
       <div class="flex-1 overflow-y-auto">
         <!-- 主页：字段 -->
         <template v-if="activeTab === 'fields'">
+          <!-- 下次跟进 + 加入日程（置顶，免点详情/免下拉） -->
+          <div class="px-5 py-4 border-b border-n-weak">
+            <div
+              class="mb-3 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              下次跟进
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="w-36">
+                <DatePicker v-model="nextDate" block :clearable="false" />
+              </div>
+              <div class="w-24">
+                <SelectCard v-model="nextTime" :options="timeOptions" block />
+              </div>
+            </div>
+            <label
+              class="flex items-center gap-1.5 mt-3 text-sm text-n-slate-11"
+            >
+              <input
+                v-model="addToSchedule"
+                type="checkbox"
+                class="accent-n-iris-9"
+              />
+              加入我的日程
+            </label>
+            <button
+              class="w-full py-2 mt-3 text-sm font-semibold text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+              :disabled="savingNext"
+              @click="saveNextFollowUp"
+            >
+              {{ savingNext ? '保存中…' : '保存下次跟进' }}
+            </button>
+          </div>
           <div
             v-for="section in detailSections"
             :key="section.title"

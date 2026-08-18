@@ -41,4 +41,13 @@ client.bulkCreate = formData =>
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
+// 内部分发：把本邮件（正文+附件）分发给内部同事查看（站内流转，不外发）。
+client.distribute = (id, payload) =>
+  axios.post(`${client.url}/${id}/distribute`, payload);
+// 本邮件的分发历史。
+client.distributions = id => axios.get(`${client.url}/${id}/distributions`);
+// 分发给我的邮件（含正文+附件）。
+client.distributed = (params = {}) =>
+  axios.get(`${client.url}/distributed${qs(params)}`);
+
 export default client;

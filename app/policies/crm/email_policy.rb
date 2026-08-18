@@ -40,6 +40,18 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  def distribute?
+    true
+  end
+
+  def distributions?
+    true
+  end
+
+  def distributed?
+    true
+  end
+
   # 邮件 AI 助手（写信/翻译/摘要）：全员可用，数据范围由控制器 visible_emails 收口。
   def compose?
     true

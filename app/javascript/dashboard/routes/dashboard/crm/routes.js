@@ -39,6 +39,7 @@ import CrmCustomerDetailIndex from './pages/CrmCustomerDetailIndex.vue';
 import CrmEmployeeCompsIndex from './pages/CrmEmployeeCompsIndex.vue';
 import CrmEmployeesIndex from './pages/CrmEmployeesIndex.vue';
 import CrmAttendanceIndex from './pages/CrmAttendanceIndex.vue';
+import CrmScheduleIndex from './pages/CrmScheduleIndex.vue';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 
 const commonMeta = {
@@ -64,6 +65,7 @@ const crmPage = (path, name, component, extraMeta = {}) => {
 // Wintouch-CRM routes
 const crmPages = [
   crmPage('workspace', 'crm_workspace_index', CrmWorkspaceHome, SHARED),
+  crmPage('schedule', 'crm_schedule_index', CrmScheduleIndex, SHARED),
   crmPage('dashboard', 'crm_dashboard_index', CrmDashboardIndex),
   crmPage('team-dashboard', 'crm_team_dashboard_index', CrmTeamDashboardIndex),
   crmPage('my-target', 'crm_my_target_index', CrmMyTargetIndex),

@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail, :favorite, :unfavorite, :attach_contact]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail, :favorite, :unfavorite, :attach_contact, :schedule_follow_up]
 
   RESULTS_PER_PAGE = 15
   MAX_IMPORT_ROWS = 2000
@@ -60,6 +60,13 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   def show; end
+
+  # 只设置「下次跟进时间」。用 update_columns 跳过全量校验——历史/小满迁入客户
+  # 常有既有脏数据（如 trade_country 非法），不该阻塞这一窄字段的写入。
+  def schedule_follow_up
+    @customer.update_columns(next_follow_up_at: params[:next_follow_up_at], updated_at: Time.current)
+    head :ok
+  end
 
   def create
     @customer = Current.account.crm_customers.create!(customer_params)

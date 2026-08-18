@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useAlert } from 'dashboard/composables';
@@ -8,7 +8,10 @@ import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import PisAPI from 'dashboard/api/crm/pis';
+import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -37,6 +40,73 @@ const load = async () => {
 
 const customer = computed(() => data.value?.customer || {});
 const notes = computed(() => data.value?.notes || []);
+
+// ---- 下次跟进 + 一键加入日程 ----
+const nextDate = ref('');
+const nextTime = ref('09:00');
+const addToSchedule = ref(true);
+const savingNext = ref(false);
+const pad2 = n => String(n).padStart(2, '0');
+const timeOptions = (() => {
+  const out = [];
+  for (let h = 0; h < 24; h += 1) {
+    ['00', '30'].forEach(mm => {
+      const v = `${pad2(h)}:${mm}`;
+      out.push({ value: v, label: v });
+    });
+  }
+  return out;
+})();
+// 用客户当前的下次跟进时间回填编辑器。
+watch(
+  customer,
+  c => {
+    if (c?.next_follow_up_at) {
+      nextDate.value = c.next_follow_up_at.slice(0, 10);
+      nextTime.value = c.next_follow_up_at.slice(11, 16) || '09:00';
+    }
+  },
+  { immediate: true }
+);
+const addMinutes = (t, mins) => {
+  let [h, m] = t.split(':').map(Number);
+  m += mins;
+  h = (h + Math.floor(m / 60)) % 24;
+  m %= 60;
+  return `${pad2(h)}:${pad2(m)}`;
+};
+const saveNextFollowUp = async () => {
+  if (!nextDate.value) {
+    useAlert('请选择下次跟进日期');
+    return;
+  }
+  const startAt = `${nextDate.value}T${nextTime.value}:00`;
+  const endAt = `${nextDate.value}T${addMinutes(nextTime.value, 30)}:00`;
+  savingNext.value = true;
+  try {
+    await axios.post(
+      `${crmBase()}/customers/${customer.value.id}/schedule_follow_up`,
+      { next_follow_up_at: startAt }
+    );
+    if (addToSchedule.value) {
+      await ScheduleAPI.create(accountId.value, {
+        title: `跟进：${customer.value.name}`,
+        starts_at: startAt,
+        ends_at: endAt,
+        all_day: false,
+        color: 'blue',
+        recurrence: 'none',
+        note: `客户跟进 · ${customer.value.name}`,
+      });
+    }
+    await load();
+    useAlert(addToSchedule.value ? '下次跟进已保存并加入日程' : '下次跟进已保存');
+  } catch {
+    useAlert('保存失败');
+  } finally {
+    savingNext.value = false;
+  }
+};
 const tasks = computed(() => data.value?.tasks || []);
 const opportunities = computed(() => data.value?.opportunities || []);
 const orders = computed(() => data.value?.orders || []);
@@ -352,6 +422,42 @@ onMounted(() => {
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <!-- 左列 -->
         <div class="flex flex-col gap-4">
+          <!-- 下次跟进 + 加入日程 -->
+          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold text-n-slate-12">下次跟进</h3>
+              <span
+                v-if="customer.next_follow_up_at"
+                class="text-xs text-n-slate-10"
+              >
+                当前：{{ customer.next_follow_up_at.slice(0, 16).replace('T', ' ') }}
+              </span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="w-40">
+                <DatePicker v-model="nextDate" block :clearable="false" />
+              </div>
+              <div class="w-28">
+                <SelectCard v-model="nextTime" :options="timeOptions" block />
+              </div>
+              <label class="flex items-center gap-1.5 text-sm text-n-slate-11">
+                <input
+                  v-model="addToSchedule"
+                  type="checkbox"
+                  class="accent-n-iris-9"
+                />
+                加入我的日程
+              </label>
+              <button
+                class="px-3.5 py-2 text-sm font-semibold text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+                :disabled="savingNext"
+                @click="saveNextFollowUp"
+              >
+                {{ savingNext ? '保存中…' : '保存' }}
+              </button>
+            </div>
+          </section>
+
           <!-- 沟通时间线 -->
           <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">

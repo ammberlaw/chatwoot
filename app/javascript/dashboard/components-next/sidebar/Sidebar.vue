@@ -1362,6 +1362,20 @@ const menuItems = computed(() => {
         ],
       },
       {
+        name: 'CRM Schedule',
+        label: t('SIDEBAR.CRM_G_SCHEDULE'),
+        icon: 'i-lucide-calendar-days',
+        activeOn: ['crm_schedule_index'],
+        children: [
+          {
+            name: 'CRM Schedule Index',
+            label: t('SIDEBAR.CRM_SCHEDULE'),
+            to: accountScopedRoute('crm_schedule_index'),
+            activeOn: ['crm_schedule_index'],
+          },
+        ],
+      },
+      {
         name: 'Reports',
         label: t('SIDEBAR.REPORTS'),
         icon: 'i-lucide-chart-spline',
@@ -1648,6 +1662,7 @@ const ITEM_MODULE = {
   'CRM Employees': 'hr',
   'CRM Employee Comps': 'hr',
   'CRM Doc Center': 'doc',
+  'CRM Schedule': 'schedule',
   'MES Production': 'mes',
 };
 const itemModule = name => ITEM_MODULE[name] || 'crm';
@@ -1660,6 +1675,7 @@ const ROUTE_MODULE = {
   tiktok_shop_settings_index: 'tiktok',
   tiktok_departments_index: 'tiktok',
   crm_team_chat_index: 'chat',
+  crm_schedule_index: 'schedule',
   crm_approvals_index: 'oa',
   crm_approval_templates_index: 'oa',
   crm_org_structure_index: 'hr',
