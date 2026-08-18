@@ -289,8 +289,14 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- 右侧日程主栏（静态占位） -->
-          <div class="wsh-rail">
+          <!-- 右侧日程主栏：整块可点进日程 -->
+          <div
+            class="wsh-rail"
+            role="button"
+            tabindex="0"
+            @click="go('crm_schedule_index')"
+            @keydown.enter="go('crm_schedule_index')"
+          >
             <span class="r-aura" />
             <div class="rhead">
               <div>
@@ -331,7 +337,7 @@ onMounted(async () => {
               <div v-else class="ev-empty">今天暂无安排</div>
             </div>
 
-            <button type="button" class="newbtn" @click="go('crm_schedule_index')">
+            <button type="button" class="newbtn" @click.stop="go('crm_schedule_index')">
               <Icon icon="i-lucide-plus" /> 新建日程
             </button>
           </div>
@@ -480,7 +486,10 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.58); backdrop-filter: blur(24px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.65);
   box-shadow: 0 20px 50px -22px rgba(60, 90, 150, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  cursor: pointer; transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
+.wsh-rail:hover { transform: translateY(-2px); box-shadow: 0 26px 56px -20px rgba(60, 90, 150, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.75); }
+.wsh-rail:focus-visible { outline: 2px solid #5691ec; outline-offset: 2px; }
 .r-aura { position: absolute; width: 260px; height: 200px; right: -60px; top: -70px; border-radius: 50%; filter: blur(46px); background: radial-gradient(circle, rgba(122, 170, 250, 0.5), transparent 68%); z-index: 1; }
 .rhead { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 2; }
 .rl { font-size: 12.5px; font-weight: 800; color: #3f7fe0; display: flex; align-items: center; gap: 6px; }

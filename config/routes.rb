@@ -109,7 +109,11 @@ Rails.application.routes.draw do
             resources :agents, only: [:index]
             resources :quick_texts, only: [:index, :create, :update, :destroy]
             resources :schedule_events, only: [:index, :create, :update, :destroy] do
-              member { post :toggle_done }
+              member do
+                post :toggle_done
+                post :complete_follow_up
+              end
+              collection { get :pending_count }
             end
             get 'home_stats', to: 'home_stats#index'
             resources :sales_orders do

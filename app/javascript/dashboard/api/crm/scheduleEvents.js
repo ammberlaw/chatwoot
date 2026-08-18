@@ -21,4 +21,13 @@ export default {
   toggleDone(accountId, id, date) {
     return axios.post(`${base(accountId)}/${id}/toggle_done`, { date });
   },
+  // 侧栏角标：今日到期 + 已逾期未完成的日程数。
+  pendingCount(accountId) {
+    return axios.get(`${base(accountId)}/pending_count`);
+  },
+  // 在日程里完成一条跟进提醒：写跟进记录 + 顺延/清除提醒。
+  // payload: { body, follow_up_method, result_tag, next_follow_up_at }
+  completeFollowUp(accountId, id, payload) {
+    return axios.post(`${base(accountId)}/${id}/complete_follow_up`, payload);
+  },
 };

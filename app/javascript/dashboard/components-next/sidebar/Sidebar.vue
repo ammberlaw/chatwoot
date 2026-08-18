@@ -12,6 +12,7 @@ import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
+import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import { emitter } from 'shared/helpers/mitt';
@@ -312,6 +313,17 @@ const fetchChurnRiskCount = async () => {
     churnRiskCount.value = 0;
   }
 };
+// 日程角标：今日到期 + 已逾期未完成的日程数（含客户跟进提醒）。
+const scheduleTodoCount = ref(0);
+const fetchScheduleTodoCount = async () => {
+  if (!accountId.value) return;
+  try {
+    const { data } = await ScheduleAPI.pendingCount(accountId.value);
+    scheduleTodoCount.value = data.count || 0;
+  } catch {
+    scheduleTodoCount.value = 0;
+  }
+};
 
 onMounted(() => {
   store.dispatch('labels/get');
@@ -324,6 +336,7 @@ onMounted(() => {
   mesNotificationsStore.fetchUnreadCount();
   fetchMesTodoCount();
   fetchChurnRiskCount();
+  fetchScheduleTodoCount();
 });
 
 watch([accountId, hasConversationUnreadCounts], fetchConversationUnreadCounts, {
@@ -1370,6 +1383,7 @@ const menuItems = computed(() => {
           {
             name: 'CRM Schedule Index',
             label: t('SIDEBAR.CRM_SCHEDULE'),
+            badgeCount: scheduleTodoCount.value,
             to: accountScopedRoute('crm_schedule_index'),
             activeOn: ['crm_schedule_index'],
           },

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_18_000004) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_18_000006) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1706,8 +1706,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_000004) do
     t.date "completed_dates", default: [], null: false, array: true
     t.bigint "customer_id"
     t.string "kind", default: "manual", null: false
+    t.string "ref_type"
+    t.bigint "ref_id"
     t.index ["account_id", "customer_id"], name: "index_crm_schedule_events_on_account_id_and_customer_id"
     t.index ["account_id", "owner_id"], name: "index_crm_schedule_events_on_account_id_and_owner_id"
+    t.index ["account_id", "ref_type", "ref_id"], name: "idx_on_account_id_ref_type_ref_id_0ed352b1aa"
     t.index ["account_id", "starts_at"], name: "index_crm_schedule_events_on_account_id_and_starts_at"
   end
 

@@ -11,6 +11,9 @@ json.recurrence_until resource.recurrence_until
 json.kind resource.kind
 json.customer_id resource.customer_id
 json.customer_name resource.customer&.name if resource.customer_id
+json.ref_type resource.ref_type
+json.ref_id resource.ref_id
+json.ref_name resource.ref_name if resource.ref_type.present?
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.crm_display_name
 json.is_owner resource.owner_id == current_user.id

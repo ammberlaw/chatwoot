@@ -2,7 +2,7 @@
 # 每人只看/管自己创建 + 被邀参与的日程；改/删仅创建者。
 class Api::V1::Accounts::Crm::ScheduleEventsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_event, only: [:update, :destroy, :toggle_done]
+  before_action :fetch_event, only: [:update, :destroy, :toggle_done, :complete_follow_up]
 
   # 按 from/to 窗口返回展开后的日程发生（含重复）。默认本月。
   def index
@@ -33,6 +33,35 @@ class Api::V1::Accounts::Crm::ScheduleEventsController < Api::V1::Accounts::Base
 
   def destroy
     @event.destroy!
+    head :ok
+  end
+
+  # 侧栏角标：本人可见、今日到期或已逾期、且未打勾的日程发生数（近 60 天窗口内展开重复）。
+  def pending_count
+    today = Time.zone.today
+    win_start = (today - 60).beginning_of_day
+    win_end = today.end_of_day
+    count = Current.account.crm_schedule_events.visible_to(current_user.id).sum do |ev|
+      done = ev.completed_dates.map(&:to_s)
+      ev.occurrences_in(win_start, win_end).count { |occ| done.exclude?(occ[:starts_at].to_date.to_s) }
+    end
+    render json: { count: count }
+  end
+
+  # 在日程里直接完成一条「跟进提醒」：落一条客户跟进记录，并把提醒顺延到下次跟进时间（清空则删除提醒）。
+  def complete_follow_up
+    customer = Current.account.crm_customers.find(@event.customer_id)
+    Current.account.crm_follow_up_notes.create!(
+      title: "跟进：#{customer.name}",
+      body: params[:body],
+      follow_up_method: params[:follow_up_method].presence,
+      result_tag: params[:result_tag].presence,
+      crm_customer_id: customer.id,
+      owner_id: current_user.id
+    )
+    next_at = params[:next_follow_up_at]
+    customer.update_columns(next_follow_up_at: next_at.presence, updated_at: Time.current)
+    Crm::ScheduleEvent.sync_follow_up(Current.account, customer, next_at, next_at.present?, current_user.id)
     head :ok
   end
 
@@ -67,7 +96,8 @@ class Api::V1::Accounts::Crm::ScheduleEventsController < Api::V1::Accounts::Base
 
   def event_params
     params.require(:schedule_event).permit(
-      :title, :starts_at, :ends_at, :all_day, :location, :note, :color, :recurrence, :recurrence_until
+      :title, :starts_at, :ends_at, :all_day, :location, :note, :color, :recurrence, :recurrence_until,
+      :ref_type, :ref_id
     )
   end
 end
