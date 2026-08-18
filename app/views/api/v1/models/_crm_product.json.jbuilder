@@ -4,7 +4,10 @@ json.sku resource.sku
 json.category resource.category
 json.specification resource.specification
 json.unit resource.unit
-json.cost_price_micros resource.cost_price_micros
+# 成本价属采购/财务口径，销售端不可见（生态硬约束）——仅管理员/财务/MES 员工可读。
+if Current.account_user&.crm_finance? || Current.account_user&.mes_staff?
+  json.cost_price_micros resource.cost_price_micros
+end
 json.sale_price_micros resource.sale_price_micros
 json.pricing_currency resource.pricing_currency
 json.is_active resource.is_active

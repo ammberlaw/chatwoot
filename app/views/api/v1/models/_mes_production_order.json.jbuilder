@@ -14,8 +14,11 @@ json.produced_qty resource.produced_qty
 json.progress_ratio resource.progress_ratio
 json.bom_id resource.bom_id
 json.is_outsourced resource.is_outsourced
-json.outsource_supplier_id resource.outsource_supplier_id
-json.outsource_supplier_name resource.outsource_supplier&.name
+# 外购供应商含供应商资料，销售端不可见（生态硬约束）——仅 MES 员工下发。
+if Current.account_user&.mes_staff?
+  json.outsource_supplier_id resource.outsource_supplier_id
+  json.outsource_supplier_name resource.outsource_supplier&.name
+end
 json.bom_no resource.bom&.bom_no
 # 业务二次确认 BOM（空 = 尚未确认，未确认前不得下发采购）。
 json.bom_confirmed_at resource.bom_confirmed_at
@@ -66,12 +69,17 @@ json.remark resource.remark
 json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 # 关联采购单概要（一单多采购单：主料/辅料各一张，不同采购员）——供订单详情展示。
-json.purchase_orders resource.purchase_orders.includes(:owner, :purchase_items).order(:created_at) do |po|
-  json.id po.id
-  json.po_no po.po_no
-  json.status po.status
-  json.owner_name po.owner&.name
-  json.item_count po.purchase_items.size
+# 含采购员/采购信息，销售端不可见（生态硬约束）——仅 MES 员工下发，其余给空数组。
+if Current.account_user&.mes_staff?
+  json.purchase_orders resource.purchase_orders.includes(:owner, :purchase_items).order(:created_at) do |po|
+    json.id po.id
+    json.po_no po.po_no
+    json.status po.status
+    json.owner_name po.owner&.name
+    json.item_count po.purchase_items.size
+  end
+else
+  json.purchase_orders []
 end
 json.created_at resource.created_at
 json.updated_at resource.updated_at

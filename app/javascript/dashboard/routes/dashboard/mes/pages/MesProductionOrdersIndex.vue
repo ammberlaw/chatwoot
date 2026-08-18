@@ -34,7 +34,8 @@ const { accountId, accountScopedRoute } = useAccount();
 const route = useRoute();
 const router = useRouter();
 const { mesCan } = useMesRole();
-const { isAdmin, isCrmDeputyAdmin, currentUser } = useCrmRole();
+const { isAdmin, isCrmDeputyAdmin, isCrmTeamLead, isCrmSales, currentUser } =
+  useCrmRole();
 const currentUserId = useMapGetter('getCurrentUserID');
 // 业务角色可建定制单（草稿→三级审批）；备货单/从销售订单转入仍仅 order 能力。
 // 与后端 ProductionOrderPolicy#create? 同口径，后端 403 兜底。
@@ -44,6 +45,21 @@ const canCreateOrder = computed(
 // CRM 业务身份（业务员/主管/管理员）：「我的订单」「待我确认」tab 只对他们有内容；
 // 纯 MES 操作岗（车间/仓管/PMC 等，无 CRM 角色）两个 tab 永远为空，不展示。
 const isCrmMember = computed(() => currentUser.value?.can_access_crm !== false);
+// 纯业务员（CRM 业务身份，非主管/团队负责人）：只看本人数据。对其隐藏「全部」页签
+// 与「全部业务员」筛选下拉——名册对业务员是泄露，且选别人也被后端过滤为空。
+// 管理员/副管理员/主管/团队负责人 及 非 CRM 操作岗（车间/仓管/采购/PMC）不受限，照旧全看。
+const isPlainSales = computed(
+  () => isCrmMember.value && isCrmSales.value && !isCrmTeamLead.value
+);
+const canSeeAllScope = computed(() => !isPlainSales.value);
+// MES 员工（管理员/副管理员 或 有 mes_roles）：与后端 AccountUser#mes_staff? 同口径。
+// 供应商/关联采购单含供应商与采购信息，销售端不可见（生态硬约束），仅 MES 员工可见。
+const isMesStaff = computed(
+  () =>
+    isAdmin.value ||
+    isCrmDeputyAdmin.value ||
+    (currentUser.value?.mes_roles || []).length > 0
+);
 const store = useMesProductionOrdersStore();
 
 // 8 阶段（与后端 Mes::ProductionOrder::STAGES 顺序一致）。
@@ -779,6 +795,8 @@ const saveProductCode = async () => {
 
 const rootStore = useStore();
 onMounted(async () => {
+  // 纯业务员没有「全部」页签，默认落到「我的订单」，避免默认档无对应高亮页签。
+  if (isPlainSales.value && listScope.value === 'all') listScope.value = 'mine';
   // 从看板「待我审批」跳转：进「待我审批」视图。
   if (route.query.view === 'approval') viewMode.value = 'inbox';
   if (!agents.value?.length) rootStore.dispatch('agents/get');
@@ -850,6 +868,7 @@ watch(currentPage, fetchRecords);
         库存备货
       </button>
       <button
+        v-if="canSeeAllScope"
         class="px-3 py-1.5 text-sm rounded-lg border"
         :class="
           tabActive('all', 'all')
@@ -890,6 +909,7 @@ watch(currentPage, fetchRecords);
         @update:model-value="v => (activeStatus = v)"
       />
       <SelectCard
+        v-if="canSeeAllScope"
         :model-value="activeOwner"
         :options="ownerFilterOptions"
         @update:model-value="v => (activeOwner = v)"
@@ -1382,15 +1402,15 @@ watch(currentPage, fetchRecords);
             >
               外购成品
             </span>
-            <span class="text-n-slate-11">
+            <span v-if="isMesStaff" class="text-n-slate-11">
               供应商：{{ selected.outsourceSupplierName || '—' }}
             </span>
           </div>
         </div>
 
-        <!-- 关联采购单（一单多采购单：主料/辅料各一张，不同采购员） -->
+        <!-- 关联采购单（一单多采购单：主料/辅料各一张，不同采购员）——销售端不可见（生态硬约束） -->
         <div
-          v-if="(selected.purchaseOrders || []).length"
+          v-if="isMesStaff && (selected.purchaseOrders || []).length"
           class="pt-3 mt-3 border-t border-n-weak"
         >
           <div class="flex items-center justify-between mb-2">
