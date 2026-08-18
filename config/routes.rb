@@ -252,38 +252,87 @@ Rails.application.routes.draw do
           end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard'
+            resources :board_owners, only: [:index] do
+              put :set, on: :collection
+            end
+            resources :notifications, only: [:index] do
+              collection do
+                get :unread_count
+                post :mark_all_read
+              end
+              member { post :mark_read }
+            end
             resources :suppliers
             resources :warehouses, except: [:show]
             resources :materials
-            resources :boms
+            resources :products, only: [:index, :create, :update, :destroy]
+            resources :boms do
+              collection { post :stage_blob }
+              member do
+                post :release
+                post :attach
+                delete 'attach/:attachment_id', action: :detach
+              end
+            end
+            resources :bom_templates, except: [:new, :edit]
             resources :purchase_orders do
               collection { get :requirement }
+              member do
+                post :return_document
+                post :reactivate
+              end
             end
             resources :stock_entries do
-              member { post :post }
+              member do
+                post :post
+                post :confirm_warehouse
+                post :return_document
+                post :reactivate
+              end
             end
             resources :stock_balances, only: [:index]
-            resources :production_records, only: [:index, :create, :destroy]
+            resources :production_records, only: [:index, :create, :destroy] do
+              member do
+                post :return_document
+                post :reactivate
+              end
+            end
             resources :inspections, only: [:index, :create, :destroy]
             resources :serial_numbers, only: [:index, :create, :destroy] do
               collection { get :trace }
             end
             resources :shipments do
+              collection { get :approval_inbox }
               member do
                 post :notify
+                post :submit
+                post :approve
+                post :reject
                 post :ship
               end
             end
             resources :production_orders do
               collection do
                 post :convert
+                get :inbox
+                get :approval_inbox
+                post :stage_blob
               end
               member do
                 get :audits
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :attach_bom
+                post :confirm_bom
+                post :release_purchasing
+                post :mark_outsourced
                 get :requirement
+                post :acknowledge
+                post :reject
+                post :submit_approval
+                post :approve
+                post :deny
+                post :set_product_code
               end
             end
           end

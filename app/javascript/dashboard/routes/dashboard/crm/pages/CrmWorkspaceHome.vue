@@ -228,16 +228,17 @@ onMounted(async () => {
 
             <!-- 列2 -->
             <div class="wsh-col">
-              <!-- MES（即将上线） -->
-              <button type="button" class="wsh-card wsh-solid c-mes" @click="soon('MES 生产制造')">
+              <!-- MES 生产制造 -->
+              <button type="button" class="wsh-card wsh-solid c-mes" @click="go('mes_dashboard_index')">
                 <span class="blob" style="width:140px;height:140px;right:-40px;bottom:-50px" />
                 <div class="lbl">
                   <Icon icon="i-lucide-factory" /> MES 生产制造
-                  <span class="tag" style="background:rgba(255,255,255,.22);color:#fff">即将上线</span>
                 </div>
                 <div class="big" style="font-size:24px;margin-top:16px">智能生产制造</div>
                 <div class="unit">工单 · 排产 · 质检 · 入库</div>
-                <div class="cta">敬请期待</div>
+                <div class="cta">
+                  进入 MES 生产制造 <Icon icon="i-lucide-arrow-right" />
+                </div>
               </button>
 
               <!-- OA（真实待办数） -->

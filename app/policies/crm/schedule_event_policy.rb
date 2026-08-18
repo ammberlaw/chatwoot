@@ -19,4 +19,9 @@ class Crm::ScheduleEventPolicy < ApplicationPolicy
   def toggle_done?
     true
   end
+
+  # 日程待办角标计数：登录用户均可查自己的（数据范围在控制器收口）
+  def pending_count?
+    true
+  end
 end
