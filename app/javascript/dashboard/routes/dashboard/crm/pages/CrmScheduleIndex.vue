@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAlert } from 'dashboard/composables';
@@ -10,6 +11,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { onClickOutside } from '@vueuse/core';
 
 const { accountId } = useAccount();
+const router = useRouter();
 const store = useStore();
 const agents = useMapGetter('agents/getAgents');
 const currentUser = useMapGetter('getCurrentUser');
@@ -255,8 +257,18 @@ const openEdit = occ => {
     participantIds: [...(occ.participant_ids || [])],
     location: occ.location || '',
     note: occ.note || '',
+    customerId: occ.customer_id || null,
+    customerName: occ.customer_name || '',
   };
   dialog.value = true;
+};
+const gotoCustomer = () => {
+  if (!form.value.customerId) return;
+  dialog.value = false;
+  router.push({
+    name: 'crm_customer_detail_index',
+    params: { accountId: accountId.value, id: form.value.customerId },
+  });
 };
 const toggleParticipant = id => {
   const arr = form.value.participantIds;
@@ -578,6 +590,19 @@ onMounted(() => {
             placeholder="日程标题"
             class="w-full px-3 py-2 text-sm border rounded-lg outline-none bg-n-alpha-1 border-n-weak text-n-slate-12 focus:border-n-iris-7"
           />
+
+          <button
+            v-if="form.customerId"
+            type="button"
+            class="flex items-center justify-between w-full px-3 py-2 text-sm border rounded-lg bg-n-iris-2 border-n-iris-6 text-n-iris-11 hover:bg-n-iris-3"
+            @click="gotoCustomer"
+          >
+            <span class="flex items-center gap-1.5 truncate">
+              <Icon icon="i-lucide-building-2" class="size-4 shrink-0" />
+              <span class="truncate">关联客户：{{ form.customerName || '查看客户' }}</span>
+            </span>
+            <Icon icon="i-lucide-arrow-right" class="size-4 shrink-0" />
+          </button>
 
           <div class="flex items-center gap-3">
             <div class="flex-1">

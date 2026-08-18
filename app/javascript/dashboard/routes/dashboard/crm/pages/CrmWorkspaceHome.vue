@@ -1,4 +1,5 @@
 <script setup>
+/* global axios */
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -17,6 +18,18 @@ const { accountScopedRoute, accountId } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
 
 const stats = ref({ todo: 0, mine: 0, approverView: true, unread: 0 });
+
+// 首页卡片真实数据（当前用户视角）。
+const homeStats = ref(null);
+const crmStats = computed(() => homeStats.value?.crm || {});
+const hrDays = computed(() => homeStats.value?.hr?.days || []);
+const hrAllPresent = computed(() => homeStats.value?.hr?.all_present);
+const hrLabel = computed(() => {
+  const wd = hrDays.value.filter(d => d?.workday);
+  if (!wd.length) return hrAllPresent.value === false ? '—' : '全勤';
+  const present = wd.filter(d => d.present).length;
+  return present >= wd.length ? '全勤' : `${present}/${wd.length}`;
+});
 
 // 工作台优先显示 CRM 英文名，未设置回退中文名。
 const userName = computed(
@@ -118,6 +131,14 @@ onMounted(async () => {
   } catch {
     /* 日程取不到不阻塞落地页 */
   }
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/crm/home_stats`
+    );
+    homeStats.value = data;
+  } catch {
+    /* 首页卡片真实数据取不到不阻塞 */
+  }
 });
 </script>
 
@@ -156,12 +177,12 @@ onMounted(async () => {
               >
                 <span class="blob" style="width:150px;height:150px;right:-30px;top:-40px" />
                 <div class="lbl"><Icon icon="i-lucide-users" /> CRM 客户管理</div>
-                <div class="big">6</div>
+                <div class="big">{{ crmStats.follow_up_due ?? 0 }}</div>
                 <div class="unit">位客户 · 今日待跟进</div>
                 <div class="statrow">
-                  <div><b>3</b><span>今日新增</span></div>
-                  <div><b>12</b><span>本周回访</span></div>
-                  <div><b>1</b><span>待处理</span></div>
+                  <div><b>{{ crmStats.new_today ?? 0 }}</b><span>今日新增</span></div>
+                  <div><b>{{ crmStats.revisit_week ?? 0 }}</b><span>本周回访</span></div>
+                  <div><b>{{ crmStats.overdue ?? 0 }}</b><span>待处理</span></div>
                 </div>
                 <div v-if="canAccessCrm" class="cta">
                   进入工作区 <Icon icon="i-lucide-arrow-right" />
@@ -178,30 +199,27 @@ onMounted(async () => {
                   <span class="tag">即将上线</span>
                 </div>
                 <div class="sub2">采购 · 库存 · 凭证一体化</div>
-                <svg viewBox="0 0 300 58" class="chart" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="erpF" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0" stop-color="#9cbb28" stop-opacity=".38" />
-                      <stop offset="1" stop-color="#9cbb28" stop-opacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <path d="M0,44 C40,40 60,22 100,27 S170,12 210,23 S270,10 300,15 L300,58 L0,58 Z" fill="url(#erpF)" />
-                  <path d="M0,44 C40,40 60,22 100,27 S170,12 210,23 S270,10 300,15" fill="none" stroke="#5cbf6a" stroke-width="2.5" />
-                </svg>
-                <div class="chips"><span>采购</span><span>库存</span><span>凭证</span></div>
+                <div class="chips"><span>采购</span><span>库存</span><span>凭证</span><span>报表</span></div>
+                <div class="cta2 muted">敬请期待</div>
               </button>
 
               <!-- HR -->
               <button type="button" class="wsh-card wsh-glass" @click="go('crm_org_structure_index')">
                 <div class="lbl a-sky"><Icon icon="i-lucide-network" /> HR 组织人事</div>
                 <div class="sub2">组织架构 · 我的考勤</div>
-                <div class="big" style="font-size:30px">全勤</div>
-                <div class="unit gray">本周出勤正常</div>
+                <div class="big" style="font-size:30px">{{ hrLabel }}</div>
+                <div class="unit gray">本周出勤</div>
                 <div class="week">
-                  <div v-for="(d, i) in ['一','二','三','四','五','六','日']" :key="d" class="wd">
-                    <span>{{ d }}</span>
-                    <div class="o" :class="i < 5 ? 'on' : 'off'">
-                      <Icon :icon="i < 5 ? 'i-lucide-check' : 'i-lucide-minus'" />
+                  <div
+                    v-for="(label, i) in ['一', '二', '三', '四', '五', '六', '日']"
+                    :key="label"
+                    class="wd"
+                  >
+                    <span>{{ label }}</span>
+                    <div class="o" :class="hrDays[i] && hrDays[i].present ? 'on' : 'off'">
+                      <Icon
+                        :icon="hrDays[i] && hrDays[i].present ? 'i-lucide-check' : 'i-lucide-minus'"
+                      />
                     </div>
                   </div>
                 </div>
@@ -210,26 +228,16 @@ onMounted(async () => {
 
             <!-- 列2 -->
             <div class="wsh-col">
-              <!-- MES -->
-              <button type="button" class="wsh-card wsh-solid c-mes" @click="go('mes_production_orders_index')">
+              <!-- MES（即将上线） -->
+              <button type="button" class="wsh-card wsh-solid c-mes" @click="soon('MES 生产制造')">
                 <span class="blob" style="width:140px;height:140px;right:-40px;bottom:-50px" />
-                <div class="lbl"><Icon icon="i-lucide-factory" /> MES 生产制造</div>
-                <div class="wsh-ring">
-                  <svg width="80" height="80" viewBox="0 0 80 80">
-                    <circle cx="40" cy="40" r="31" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="8" />
-                    <circle cx="40" cy="40" r="31" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-dasharray="194.8" stroke-dashoffset="77.9" transform="rotate(-90 40 40)" />
-                    <text x="40" y="45" text-anchor="middle" class="pct">3 / 5</text>
-                  </svg>
-                  <div>
-                    <div class="wsh-ring-t">我的工单</div>
-                    <div class="unit">进行到「质检」阶段</div>
-                  </div>
+                <div class="lbl">
+                  <Icon icon="i-lucide-factory" /> MES 生产制造
+                  <span class="tag" style="background:rgba(255,255,255,.22);color:#fff">即将上线</span>
                 </div>
-                <div class="checks">
-                  <div class="ck done"><span class="ci"><Icon icon="i-lucide-check" /></span>已排产</div>
-                  <div class="ck done"><span class="ci"><Icon icon="i-lucide-check" /></span>质检中</div>
-                  <div class="ck wait"><span class="ci"><Icon icon="i-lucide-clock" /></span>待入库</div>
-                </div>
+                <div class="big" style="font-size:24px;margin-top:16px">智能生产制造</div>
+                <div class="unit">工单 · 排产 · 质检 · 入库</div>
+                <div class="cta">敬请期待</div>
               </button>
 
               <!-- OA（真实待办数） -->
@@ -239,11 +247,7 @@ onMounted(async () => {
                 <div class="unit gray">
                   {{ stats.approverView ? '条待我审批' : '条我的申请' }}
                 </div>
-                <div class="olist">
-                  <div class="oi"><span class="oic bg-lime"><Icon icon="i-lucide-plane" /></span><div class="ot">请假申请<small>我提交的</small></div><span class="ost">审批中</span></div>
-                  <div class="oi"><span class="oic bg-teal"><Icon icon="i-lucide-receipt" /></span><div class="ot">费用报销<small>我提交的</small></div><span class="ost">待补件</span></div>
-                  <div class="oi"><span class="oic bg-sky"><Icon icon="i-lucide-stamp" /></span><div class="ot">用印申请<small>待我审批</small></div><span class="ost">待审批</span></div>
-                </div>
+                <div class="cta2">进入 OA 审批 <Icon icon="i-lucide-arrow-right" /></div>
               </button>
             </div>
 
@@ -254,10 +258,7 @@ onMounted(async () => {
                 <div class="lbl a-teal"><Icon icon="i-lucide-messages-square" /> 团队协同</div>
                 <div class="big" style="font-size:32px">{{ stats.unread }}</div>
                 <div class="unit gray">条未读消息</div>
-                <div class="avs">
-                  <span class="av a1" /><span class="av a2" /><span class="av a3" /><span class="av a4" /><span class="more">+9</span>
-                </div>
-                <div class="msg"><b>外贸一组：</b>下午 3 点开个短会对一下本周排期 👌</div>
+                <div class="cta2">进入团队协同 <Icon icon="i-lucide-arrow-right" /></div>
               </button>
 
               <!-- TikTok（权限门） -->
@@ -282,11 +283,8 @@ onMounted(async () => {
               <button type="button" class="wsh-card wsh-glass" @click="go('crm_doc_center_index')">
                 <div class="lbl a-violet"><Icon icon="i-lucide-book-open" /> 文档中心</div>
                 <div class="sub2">制度 · 流程 · 培训 · 知识</div>
-                <div class="olist">
-                  <div class="oi"><span class="oic bg-violet"><Icon icon="i-lucide-file-text" /></span><div class="ot">外贸操作手册 v3<small>更新于 昨天</small></div></div>
-                  <div class="oi"><span class="oic bg-sky"><Icon icon="i-lucide-git-branch" /></span><div class="ot">报价审批 SOP<small>流程规范</small></div></div>
-                  <div class="oi"><span class="oic bg-teal"><Icon icon="i-lucide-graduation-cap" /></span><div class="ot">新人培训包<small>入职必读</small></div></div>
-                </div>
+                <div class="chips"><span>制度</span><span>流程</span><span>培训</span><span>知识</span></div>
+                <div class="cta2">进入文档中心 <Icon icon="i-lucide-arrow-right" /></div>
               </button>
             </div>
           </div>
@@ -425,6 +423,9 @@ onMounted(async () => {
 .statrow span { font-size: 11.5px; color: rgba(255, 255, 255, 0.8); }
 .cta { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; padding: 8px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.22); position: relative; z-index: 2; }
 .cta :deep([class*='i-lucide-']) { width: 15px; height: 15px; }
+.cta2 { margin-top: auto; padding-top: 14px; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: #6b7180; }
+.cta2.muted { color: #9aa0ac; }
+.cta2 :deep([class*='i-lucide-']) { width: 14px; height: 14px; }
 
 .chart { width: 100%; height: 58px; margin-top: 10px; }
 .chips { display: flex; gap: 8px; margin-top: 14px; }

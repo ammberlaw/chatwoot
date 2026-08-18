@@ -10,7 +10,7 @@ class Api::V1::Accounts::Crm::ScheduleEventsController < Api::V1::Accounts::Base
     win_end = params[:to].present? ? Time.zone.parse(params[:to]).end_of_day : Time.zone.now.end_of_month
     events = Current.account.crm_schedule_events
                     .visible_to(current_user.id)
-                    .includes(:owner, :participant_users)
+                    .includes(:owner, :participant_users, :customer)
     @occurrences = events.flat_map do |ev|
       ev.occurrences_in(win_start, win_end).map do |occ|
         { event: ev, starts_at: occ[:starts_at], ends_at: occ[:ends_at] }

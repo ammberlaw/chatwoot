@@ -15,7 +15,6 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
-import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmCustomerImportDialog from 'dashboard/components-next/CRM/CrmCustomerImportDialog.vue';
@@ -482,37 +481,18 @@ watch(selectedCustomer, c => {
     nextTime.value = '09:00';
   }
 });
-const addMinutes = (t, mins) => {
-  let [h, m] = t.split(':').map(Number);
-  m += mins;
-  h = (h + Math.floor(m / 60)) % 24;
-  m %= 60;
-  return `${pad2(h)}:${pad2(m)}`;
-};
 const saveNextFollowUp = async () => {
   if (!selectedCustomer.value || !nextDate.value) {
     useAlert('请选择下次跟进日期');
     return;
   }
   const startAt = `${nextDate.value}T${nextTime.value}:00`;
-  const endAt = `${nextDate.value}T${addMinutes(nextTime.value, 30)}:00`;
   savingNext.value = true;
   try {
     await axios.post(
       `${crmBase()}/customers/${selectedCustomer.value.id}/schedule_follow_up`,
-      { next_follow_up_at: startAt }
+      { next_follow_up_at: startAt, add_to_schedule: addToSchedule.value }
     );
-    if (addToSchedule.value) {
-      await ScheduleAPI.create(accountId.value, {
-        title: `跟进：${selectedCustomer.value.name}`,
-        starts_at: startAt,
-        ends_at: endAt,
-        all_day: false,
-        color: 'blue',
-        recurrence: 'none',
-        note: `客户跟进 · ${selectedCustomer.value.name}`,
-      });
-    }
     selectedCustomer.value.next_follow_up_at = startAt;
     useAlert(addToSchedule.value ? '下次跟进已保存并加入日程' : '下次跟进已保存');
   } catch {

@@ -111,6 +111,7 @@ Rails.application.routes.draw do
             resources :schedule_events, only: [:index, :create, :update, :destroy] do
               member { post :toggle_done }
             end
+            get 'home_stats', to: 'home_stats#index'
             resources :sales_orders do
               collection do
                 post :parse_pi

@@ -9,6 +9,7 @@
 #  color            :string           default("blue"), not null
 #  completed_dates  :date             default([]), not null, is an Array
 #  ends_at          :datetime         not null
+#  kind             :string           default("manual"), not null
 #  location         :string
 #  note             :text
 #  recurrence       :string           default("none"), not null
@@ -18,12 +19,14 @@
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #  account_id       :bigint           not null
+#  customer_id      :bigint
 #  owner_id         :bigint           not null
 #
 # Indexes
 #
-#  index_crm_schedule_events_on_account_id_and_owner_id   (account_id,owner_id)
-#  index_crm_schedule_events_on_account_id_and_starts_at  (account_id,starts_at)
+#  index_crm_schedule_events_on_account_id_and_customer_id  (account_id,customer_id)
+#  index_crm_schedule_events_on_account_id_and_owner_id     (account_id,owner_id)
+#  index_crm_schedule_events_on_account_id_and_starts_at    (account_id,starts_at)
 #
 class Crm::ScheduleEvent < ApplicationRecord
   COLORS = %w[blue teal violet rose lime sky].freeze
@@ -31,6 +34,7 @@ class Crm::ScheduleEvent < ApplicationRecord
 
   belongs_to :account
   belongs_to :owner, class_name: 'User'
+  belongs_to :customer, class_name: 'Crm::Customer', optional: true
   has_many :participants, class_name: 'Crm::ScheduleParticipant',
                           foreign_key: :crm_schedule_event_id, inverse_of: :schedule_event, dependent: :destroy
   has_many :participant_users, through: :participants, source: :user

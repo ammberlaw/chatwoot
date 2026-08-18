@@ -63,8 +63,11 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   # 只设置「下次跟进时间」。用 update_columns 跳过全量校验——历史/小满迁入客户
   # 常有既有脏数据（如 trade_country 非法），不该阻塞这一窄字段的写入。
+  # add_to_schedule 为真时同步 upsert 一条关联本客户的日程提醒（幂等，可从日程跳回客户）。
   def schedule_follow_up
-    @customer.update_columns(next_follow_up_at: params[:next_follow_up_at], updated_at: Time.current)
+    at = params[:next_follow_up_at]
+    @customer.update_columns(next_follow_up_at: at, updated_at: Time.current)
+    sync_follow_up_event(@customer, at, params[:add_to_schedule])
     head :ok
   end
 
@@ -317,6 +320,25 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   def fetch_customer
     @customer = Current.account.crm_customers.find(params[:id])
+  end
+
+  # 同步「跟进提醒」日程：每个客户至多一条 kind=follow_up 事件（幂等，重复保存只更新不新增）。
+  # add 为假或时间清空时删除该提醒；事件归属客户负责人（无则当前用户）。
+  def sync_follow_up_event(customer, at, add)
+    event = Current.account.crm_schedule_events.find_or_initialize_by(customer_id: customer.id, kind: 'follow_up')
+    if at.blank? || !ActiveModel::Type::Boolean.new.cast(add)
+      event.destroy if event.persisted?
+      return
+    end
+    starts = Time.zone.parse(at.to_s)
+    event.assign_attributes(
+      owner_id: customer.account_owner_id || current_user.id,
+      title: "跟进客户：#{customer.name}",
+      starts_at: starts, ends_at: starts + 30.minutes,
+      color: 'rose', recurrence: 'none', all_day: false,
+      note: "客户跟进提醒 · #{customer.name}"
+    )
+    event.save!
   end
 
   # 按已挂客户的 Contact（次要联系人）邮箱找归属客户；无则 nil。

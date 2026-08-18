@@ -8,6 +8,9 @@ json.note resource.note
 json.color resource.color
 json.recurrence resource.recurrence
 json.recurrence_until resource.recurrence_until
+json.kind resource.kind
+json.customer_id resource.customer_id
+json.customer_name resource.customer&.name if resource.customer_id
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.crm_display_name
 json.is_owner resource.owner_id == current_user.id
