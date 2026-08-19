@@ -29,6 +29,11 @@ const currentUserId = useMapGetter('getCurrentUserID');
 const composeStore = useCrmComposeStore();
 const searchTerm = ref('');
 const selectedEmail = ref(null);
+// 中栏邮件列表折叠：折叠后阅读窗格占满，读长邮件更舒服（记忆到本地）。
+const listCollapsed = ref(localStorage.getItem('crmEmailListCollapsed') === '1');
+watch(listCollapsed, v =>
+  localStorage.setItem('crmEmailListCollapsed', v ? '1' : '0')
+);
 // 邮件范围：'mine' 我的邮件 / 'team' 团队邮件（默认看自己的）。
 const mailScope = ref('mine');
 // 能否看「团队邮件」（系统管理员或 CRM 团队负责人）——由后端 counts.can_view_team 决定，
@@ -1107,8 +1112,28 @@ watch(
       </nav>
     </aside>
 
+    <!-- 中栏折叠后的细条：只留一个展开按钮，把空间让给阅读窗格 -->
+    <div
+      v-if="listCollapsed"
+      class="flex flex-col items-center flex-shrink-0 w-10 gap-3 py-3 border-r border-n-weak bg-n-solid-1"
+    >
+      <button
+        class="flex items-center justify-center rounded-lg size-8 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11"
+        title="展开邮件列表"
+        @click="listCollapsed = false"
+      >
+        <Icon icon="i-lucide-panel-left-open" class="size-5" />
+      </button>
+      <span
+        class="text-xs font-medium tracking-wide text-n-slate-11 [writing-mode:vertical-rl]"
+      >
+        {{ activeFolderLabel }}
+      </span>
+    </div>
+
     <!-- 中栏：邮件列表 -->
     <section
+      v-show="!listCollapsed"
       class="flex flex-col flex-shrink-0 border-r w-[380px] border-n-weak bg-n-solid-1"
     >
       <div class="flex-shrink-0 px-4 pt-4 pb-3 border-b border-n-weak">
@@ -1137,6 +1162,14 @@ watch(
                 :class="fetchingNow ? 'animate-spin' : ''"
               />
               {{ fetchingNow ? '收取中…' : '收取' }}
+            </button>
+            <button
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11"
+              title="折叠列表，读信更宽"
+              @click="listCollapsed = true"
+            >
+              <Icon icon="i-lucide-panel-left-close" class="size-3.5" />
+              收起
             </button>
           </div>
         </div>

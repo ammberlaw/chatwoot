@@ -255,6 +255,9 @@
       "FILTERS": {
         "ALL_STATUS": "全部状态"
       },
+      "KPI": {
+        "ALL": "全部"
+      },
       "STATUS": {
         "DRAFT": "草稿",
         "PAID": "已付款",

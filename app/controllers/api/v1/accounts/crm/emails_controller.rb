@@ -3,6 +3,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb, :opens, :eml, :distribute, :distributions]
 
   RESULTS_PER_PAGE = 25
+  EMAIL_RE = /[^\s,;<>"']+@[^\s,;<>"']+/
 
   def index
     @emails_scope = filtered_emails
@@ -120,7 +121,12 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
       return render json: { error: poaching_error(blocked) }, status: :unprocessable_entity
     end
 
-    @email = Current.account.crm_emails.create!(email_params.merge(owner_id: email_params[:owner_id] || current_user.id))
+    @email = Current.account.crm_emails.create!(
+      email_params.merge(
+        owner_id: email_params[:owner_id] || current_user.id,
+        cc_address: merge_forced_cc(email_params[:cc_address], forced_cc_for(email_params[:to_address]))
+      )
+    )
     @counterparty_type = counterparty_type_for(@email)
   end
 
@@ -135,7 +141,10 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     end
 
     new_files = email_params[:files]
-    @email.update!(email_params.except(:files))
+    attrs = email_params.except(:files)
+    # 草稿改为发送/编辑收件人时，同样强制补齐分发抄送。
+    attrs[:cc_address] = merge_forced_cc(email_params[:cc_address], forced_cc_for(email_params[:to_address])) if email_params[:to_address].present?
+    @email.update!(attrs)
     Array(new_files).compact_blank.each { |file| @email.files.attach(file) }
     @counterparty_type = counterparty_type_for(@email)
   end
@@ -174,6 +183,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
           owner_id: email_params[:owner_id] || current_user.id,
           folder: 'BULK',
           to_address: r[:email],
+          cc_address: merge_forced_cc(base[:cc_address], forced_cc_for(r[:email])),
           crm_customer_id: r[:crm_customer_id].presence,
           contact_id: r[:contact_id].presence,
           send_status: status
@@ -259,6 +269,42 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   def poaching_error(blocked)
     list = blocked.map { |b| "#{b[:email]}（已被#{b[:owner] || '同事'}建档）" }.join('、')
     "无法发送：#{list}。该客户已被同事建档，需分发或共享给你后才能联系。"
+  end
+
+  # 分发强制抄送：老板把某客户的邮件分发给业务员后，业务员再与「同一客户」往来时，
+  # 必须抄送回分发人当初收/发该客户邮件的自有邮箱，让老板留档在环。
+  # 返回：给 to_string 里的客户发信时，必须强制加入 cc 的邮箱地址（可能多个分发人）。
+  def forced_cc_for(to_string)
+    addrs = to_string.to_s.scan(EMAIL_RE).map(&:downcase).uniq
+    return [] if addrs.empty?
+
+    Current.account.crm_email_distributions
+           .to_user(current_user.id).includes(:crm_email)
+           .filter_map { |dist| cc_from_distribution(dist.crm_email, addrs) }
+           .uniq
+  end
+
+  # 单条分发记录：若被分发邮件的对方(客户)命中本次收件人，返回分发人自有邮箱(应抄送地址)。
+  # 对方侧：收件箱看发件人，其余看收件人；分发人侧则取相反的一侧。
+  def cc_from_distribution(email, addrs)
+    return nil if email.nil?
+
+    inbox = email.folder == 'INBOX'
+    counterparty = (inbox ? email.from_address : email.to_address).to_s.downcase
+    return nil unless addrs.any? { |a| counterparty.include?(a) }
+
+    (inbox ? email.to_address : email.from_address).to_s[EMAIL_RE]
+  end
+
+  # 把强制抄送地址并入现有 cc 串（大小写去重、保留用户原填的抄送）。
+  def merge_forced_cc(existing_cc, forced)
+    return existing_cc if forced.blank?
+
+    existing_set = existing_cc.to_s.scan(EMAIL_RE).map(&:downcase)
+    add = forced.reject { |a| existing_set.include?(a.downcase) }
+    return existing_cc if add.empty?
+
+    [existing_cc.presence, *add].compact.join(', ')
   end
 
   def fetch_email

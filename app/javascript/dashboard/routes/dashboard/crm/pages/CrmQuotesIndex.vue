@@ -275,7 +275,7 @@ onMounted(() => {
     >
       <div>
         <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
-          报价管理
+          报价单管理
         </h1>
         <p
           class="mt-1 text-[12.5px] leading-relaxed text-n-slate-10 max-w-[440px]"
@@ -297,7 +297,7 @@ onMounted(() => {
 
     <!-- 顶部 KPI 环形卡 -->
     <div
-      class="grid flex-shrink-0 grid-cols-2 gap-3 px-[26px] pt-3.5 pb-1 md:grid-cols-3 xl:grid-cols-6"
+      class="grid flex-shrink-0 grid-cols-2 gap-3 px-[26px] pt-3.5 pb-1 md:grid-cols-3 xl:grid-cols-5"
     >
       <div
         v-for="card in kpiCards"

@@ -56,6 +56,11 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 共享客户给同事：能否共享（负责人本人/管理层）由控制器 share_allowed? 校验。
+  def share?
+    true
+  end
+
   # 批量转移：角色与范围校验在控制器（reassign_allowed? + 辖区收口）。
   def reassign?
     true
