@@ -25,6 +25,7 @@ import MesOrderSpecForm from 'dashboard/components-next/mes/MesOrderSpecForm.vue
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 
@@ -318,13 +319,14 @@ const convertForm = ref({
   unit: '',
 });
 
-const salesOrderOptions = computed(() => [
-  { value: '', label: '选择销售订单…' },
-  ...salesOrders.value.map(o => ({
+// 转单选销售订单：用 ComboBox（可搜索订单号 / PI / 客户），不含占位项。
+const salesOrderOptions = computed(() =>
+  salesOrders.value.map(o => ({
     value: String(o.id),
     label: `${o.order_no}${o.customer_name ? ` · ${o.customer_name}` : ''}`,
-  })),
-]);
+    searchText: `${o.pi_no || ''} ${o.customer_name || ''}`,
+  }))
+);
 const productOptions = computed(() =>
   products.value.map(p => ({ value: String(p.id), label: p.name }))
 );
@@ -1639,7 +1641,7 @@ watch(currentPage, fetchRecords);
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">期望交期</label>
-            <Input v-model="orderBase.deliveryDate" type="date" />
+            <DatePicker v-model="orderBase.deliveryDate" block />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
@@ -1678,11 +1680,12 @@ watch(currentPage, fetchRecords);
           <label class="text-heading-3 text-n-slate-12">
             销售订单 <span class="text-n-ruby-11">*</span>
           </label>
-          <SelectCard
-            size="form"
-            :model-value="convertForm.crmSalesOrderId"
+          <ComboBox
+            v-model="convertForm.crmSalesOrderId"
             :options="salesOrderOptions"
-            @update:model-value="v => (convertForm.crmSalesOrderId = v)"
+            placeholder="选择销售订单…"
+            search-placeholder="搜索订单号 / PI / 客户…"
+            empty-state="无匹配的销售订单"
           />
         </div>
         <div class="flex flex-col gap-1">
@@ -1742,7 +1745,7 @@ watch(currentPage, fetchRecords);
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">期望交期</label>
-          <Input v-model="bomForm.deliveryDate" type="date" />
+          <DatePicker v-model="bomForm.deliveryDate" block />
         </div>
       </div>
     </Dialog>

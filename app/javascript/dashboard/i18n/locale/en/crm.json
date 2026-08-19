@@ -142,7 +142,7 @@
         "CODE": "编号",
         "COUNTRY": "国家地区",
         "STATUS": "客户状态",
-        "LEVEL": "客户等级",
+        "LEVEL": "客户星级",
         "REGION": "地区",
         "LAST_FOLLOW_UP": "最近跟进",
         "SOURCE": "客户来源",
@@ -175,7 +175,7 @@
           "CODE": "客户编号",
           "COUNTRY": "国家",
           "STATUS": "状态",
-          "LEVEL": "等级",
+          "LEVEL": "客户星级",
           "REMARK": "备注"
         }
       },

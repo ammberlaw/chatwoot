@@ -15,6 +15,7 @@ import {
 } from 'dashboard/routes/dashboard/mes/pages/orderSpecFields';
 import MesOrderSpecForm from 'dashboard/components-next/mes/MesOrderSpecForm.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 
 const router = useRouter();
@@ -320,7 +321,16 @@ const submit = async doSubmit => {
       result.value = { ok: false, msg: '保存失败' };
     }
   } catch (e) {
-    result.value = { ok: false, msg: e?.response?.data?.error || '保存失败' };
+    // 后端校验失败会走全局 render_record_invalid → data.message（含具体缺哪个字段）；
+    // store 层再抛为普通 Error，真实原因落在 e.message，优先展示，避免只显示笼统「保存失败」。
+    result.value = {
+      ok: false,
+      msg:
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        '保存失败',
+    };
   } finally {
     submitting.value = false;
   }
@@ -573,11 +583,7 @@ const backToList = () =>
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">期望交期</span>
-          <input
-            v-model="base.deliveryDate"
-            type="date"
-            class="h-9 px-3 text-sm border rounded-lg outline-none border-n-weak bg-n-solid-1 text-n-slate-12"
-          />
+          <DatePicker v-model="base.deliveryDate" block />
         </label>
       </div>
 

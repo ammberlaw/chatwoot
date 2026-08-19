@@ -8,6 +8,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useMapGetter } from 'dashboard/composables/store';
+import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 import SalesOrdersAPI from 'dashboard/api/crm/salesOrders';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
@@ -270,8 +271,8 @@ const detailSections = computed(() => {
       title: '基本信息',
       rows: [
         { label: '名称', value: o.name },
-        { label: 'PI号', value: o.piNo },
-        { label: '订单号', value: o.orderNo },
+        { label: 'PI号', value: o.piNo, copyable: true },
+        { label: '订单号', value: o.orderNo, copyable: true },
         {
           label: '状态',
           tag: statusMeta
@@ -371,6 +372,13 @@ const selectOrder = record => {
 };
 const closePanel = () => {
   selectedOrder.value = null;
+};
+
+// 一键复制 PI号 / 订单号（详情面板字段行的复制按钮）。
+const copyValue = async (label, value) => {
+  if (!value) return;
+  await copyTextToClipboard(String(value));
+  useAlert(`已复制${label}`);
 };
 
 // 删除销售订单（删重复单）：软删进回收箱，管理员可恢复。负责人本人/管理员可删。
@@ -834,7 +842,17 @@ watch(
                   >
                     {{ row.value }}
                   </span>
-                  <span v-else-if="!row.tag" class="text-n-slate-10">—</span>
+                  <button
+                    v-if="row.copyable && row.value"
+                    v-tooltip.top="`复制${row.label}`"
+                    class="shrink-0 p-1 rounded-md text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-1"
+                    @click="copyValue(row.label, row.value)"
+                  >
+                    <span class="i-lucide-copy size-3.5" />
+                  </button>
+                  <span v-if="!row.tag && !row.value" class="text-n-slate-10"
+                    >—</span
+                  >
                 </div>
               </div>
             </div>

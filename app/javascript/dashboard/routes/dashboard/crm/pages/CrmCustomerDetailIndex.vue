@@ -9,6 +9,7 @@ import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countri
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import PisAPI from 'dashboard/api/crm/pis';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
+import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
@@ -214,9 +215,10 @@ const fields = computed(() => {
       value: sourceLabel(c.source_channel) || '—',
     },
     {
-      icon: 'i-lucide-award',
-      label: '客户等级',
-      value: dash(c.customer_level),
+      icon: 'i-lucide-star',
+      label: '客户星级',
+      stars: true,
+      micros: c.deal_total_amount_micros,
     },
     {
       icon: 'i-lucide-box',
@@ -350,7 +352,8 @@ onMounted(() => {
           >
             <span :class="f.icon" class="size-4 text-n-slate-9 shrink-0" />
             <span class="text-n-slate-10 shrink-0">{{ f.label }}：</span>
-            <span class="truncate text-n-slate-12">{{ f.value }}</span>
+            <CrmStarRating v-if="f.stars" :micros="f.micros" />
+            <span v-else class="truncate text-n-slate-12">{{ f.value }}</span>
           </div>
         </div>
       </div>

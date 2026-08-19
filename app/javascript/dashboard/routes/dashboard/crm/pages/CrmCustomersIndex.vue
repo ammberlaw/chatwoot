@@ -18,6 +18,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmCustomerImportDialog from 'dashboard/components-next/CRM/CrmCustomerImportDialog.vue';
+import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { COUNTRY_TZ } from 'dashboard/routes/dashboard/crm/helper/scheduleTimezone';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
@@ -78,7 +79,7 @@ const toggleFavoritesOnly = () => {
   fetchCustomers();
 };
 const activeStatus = ref('');
-const activeLevel = ref('');
+const activeStar = ref('');
 const currentPage = ref(1);
 const sortKey = ref(''); // '' = 默认(更新时间倒序)；'deal_amount' = 累计成交额
 const sortDir = ref('desc');
@@ -134,7 +135,7 @@ const sourceChannelOptions = computed(() => [
   { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_SOURCE_CHANNEL') },
   ...sourceOptions.value,
 ]);
-// 客户状态 / 客户等级下拉（空值 = 全部）；状态标签取 STATUS_META（getter 惰性，无 TDZ）。
+// 客户状态 / 客户星级下拉（空值 = 全部）；状态标签取 STATUS_META（getter 惰性，无 TDZ）。
 const statusFilterOptions = computed(() => [
   { value: '', label: '状态 全部' },
   ...Object.entries(STATUS_META).map(([value, m]) => ({
@@ -142,9 +143,9 @@ const statusFilterOptions = computed(() => [
     label: m.label,
   })),
 ]);
-const levelFilterOptions = [
-  { value: '', label: '等级 全部' },
-  ...['A', 'B', 'C', 'D'].map(v => ({ value: v, label: `${v} 级` })),
+const starFilterOptions = [
+  { value: '', label: '星级 全部' },
+  ...[0, 1, 2, 3, 4, 5].map(v => ({ value: String(v), label: `${v} 星` })),
 ];
 
 // 部门主管：不筛团队，直接筛自己团队的业务员（本人 + 下属，成员接口已按辖区收口）。
@@ -193,7 +194,7 @@ const currentFilterParams = () => {
     source_channel: activeSourceChannel.value || undefined,
     favorited_only: favoritesOnly.value ? 1 : undefined,
     status: activeStatus.value || undefined,
-    customer_level: activeLevel.value || undefined,
+    star: activeStar.value || undefined,
     q: searchQuery.value.trim() || undefined,
     team_id: selectedTeamId.value || undefined,
     account_owner_id: selectedOwnerId.value || undefined,
@@ -431,8 +432,8 @@ const setStatus = value => {
   fetchCustomers();
 };
 
-const setLevel = value => {
-  activeLevel.value = value;
+const setStar = value => {
+  activeStar.value = value;
   currentPage.value = 1;
   fetchCustomers();
 };
@@ -1039,7 +1040,6 @@ const sourceColor = code => {
   }
   return SOURCE_COLORS[h];
 };
-const LEVEL_COLOR = { A: 'teal', B: 'blue', C: 'iris', D: 'slate' };
 const REGION_META = {
   NORTH_AMERICA: { label: '北美', color: 'blue' },
   EUROPE: { label: '欧洲', color: 'iris' },
@@ -1062,7 +1062,6 @@ const sourceMeta = c =>
       }
     : null;
 const regionMeta = c => REGION_META[c.tradeRegion] || null;
-const levelColor = level => LEVEL_COLOR[level] || 'slate';
 const countryLabel = country => COUNTRY_MAP[country] || country || '—';
 
 // 公司首字母头像色：按名称哈希取一个稳定色
@@ -1114,13 +1113,9 @@ const detailSections = computed(() => {
         },
         { label: '客户状态', tag: tag(statusMeta(c)) },
         {
-          label: '客户级别',
-          tag: c.customerLevel
-            ? {
-                text: c.customerLevel,
-                cls: pillCls(levelColor(c.customerLevel)),
-              }
-            : null,
+          label: '客户星级',
+          stars: true,
+          micros: c.dealTotalAmountMicros,
         },
         {
           label: '完善度',
@@ -1418,10 +1413,10 @@ watch(
             @update:model-value="setStatus"
           />
           <SelectCard
-            :model-value="activeLevel"
-            :options="levelFilterOptions"
+            :model-value="activeStar"
+            :options="starFilterOptions"
             trigger-class="!text-[13px]"
-            @update:model-value="setLevel"
+            @update:model-value="setStar"
           />
           <SelectCard
             :model-value="activeSourceChannel"
@@ -1829,14 +1824,7 @@ watch(
                     <span v-else class="text-n-slate-10">—</span>
                   </td>
                   <td class="px-3 py-2.5">
-                    <span
-                      v-if="customer.customerLevel"
-                      class="inline-flex items-center justify-center rounded-md size-[22px] text-xs font-bold"
-                      :class="pillCls(levelColor(customer.customerLevel))"
-                    >
-                      {{ customer.customerLevel }}
-                    </span>
-                    <span v-else class="text-n-slate-10">—</span>
+                    <CrmStarRating :micros="customer.dealTotalAmountMicros" />
                   </td>
                   <td class="px-3 py-2.5">
                     <span
@@ -2072,6 +2060,7 @@ watch(
                   {{ row.label }}
                 </span>
                 <div class="flex flex-wrap items-center flex-1 min-w-0 gap-2">
+                  <CrmStarRating v-if="row.stars" :micros="row.micros" />
                   <span
                     v-if="row.tag"
                     class="inline-flex px-2 py-0.5 text-xs rounded-md"
@@ -2097,7 +2086,11 @@ watch(
                   >
                     {{ row.value }}
                   </span>
-                  <span v-else-if="!row.tag" class="text-n-slate-10">—</span>
+                  <span
+                    v-else-if="!row.tag && !row.stars"
+                    class="text-n-slate-10"
+                    >—</span
+                  >
                 </div>
               </div>
             </div>

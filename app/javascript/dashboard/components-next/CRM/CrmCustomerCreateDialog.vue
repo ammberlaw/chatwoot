@@ -11,6 +11,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
+import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 
@@ -24,13 +25,14 @@ const { t } = useI18n();
 const { accountId } = useAccount();
 const dialogRef = ref(null);
 const editingId = ref(null);
+// 客户星级由累计成交额自动评定（只读展示）；编辑时取该客户当前成交额，新建时为 0。
+const editingStarMicros = ref(0);
 
 const form = reactive({
   name: '',
   customerCode: '',
   website: '',
   customerStatus: '',
-  customerLevel: '',
   customerGroup: '',
   productGroup: '',
   sourceChannel: '',
@@ -54,7 +56,6 @@ const statusOptions = [
   { value: 'DORMANT', label: '沉默客户' },
   { value: 'LOST', label: '流失客户' },
 ];
-const levelOptions = ['A', 'B', 'C', 'D'].map(v => ({ value: v, label: v }));
 // 客户分组 / 客户来源：从「客户设置」动态读取（含二级层级），不再写死。
 const { ensureLoaded, groupOptions, sourceOptions } = useCrmOptions();
 onMounted(ensureLoaded);
@@ -94,11 +95,14 @@ const resetForm = () => {
 // 传 record 进入编辑模式；不传为新建。
 const open = record => {
   resetForm();
+  editingStarMicros.value = 0;
   if (record) {
     editingId.value = record.id;
     Object.keys(form).forEach(key => {
       form[key] = record[key] || '';
     });
+    editingStarMicros.value =
+      record.dealTotalAmountMicros ?? record.deal_total_amount_micros ?? 0;
     attachments.value = record.files || [];
   }
   dialogRef.value?.open();
@@ -116,7 +120,6 @@ const handleConfirm = () => {
     name: form.name.trim(),
     website: form.website.trim() || null,
     customerStatus: form.customerStatus || null,
-    customerLevel: form.customerLevel || null,
     customerGroup: form.customerGroup || null,
     productGroup: form.productGroup || null,
     sourceChannel: form.sourceChannel || null,
@@ -245,11 +248,13 @@ defineExpose({ dialogRef, onSuccess, open });
           :options="statusOptions"
           placeholder="客户状态"
         />
-        <SelectCard
-          v-model="form.customerLevel"
-          :options="levelOptions"
-          placeholder="客户等级"
-        />
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">客户星级</label>
+          <div class="flex items-center h-9 gap-2">
+            <CrmStarRating :micros="editingStarMicros" size="md" />
+            <span class="text-xs text-n-slate-10">系统按累计成交额自动评定</span>
+          </div>
+        </div>
         <SelectCard
           v-model="form.customerGroup"
           :options="groupOptions"

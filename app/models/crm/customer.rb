@@ -67,6 +67,9 @@ class Crm::Customer < ApplicationRecord
   TRADE_REGIONS = %w[NORTH_AMERICA EUROPE SOUTH_AMERICA MIDDLE_EAST SOUTHEAST_ASIA AFRICA OTHER].freeze
   INDUSTRIES = %w[RETAIL WHOLESALE DISTRIBUTOR MANUFACTURING ECOMMERCE OTHER].freeze
   CUSTOMER_LEVELS = %w[A B C D].freeze
+  # 客户星级：按累计成交额（人民币）自动评定 0–5 星。这 5 个是上切点（元），
+  # 与前端 helper/customerStar.js 的 STAR_TIERS_RMB 同口径。
+  STAR_TIERS_RMB = [20_000, 100_000, 300_000, 1_000_000, 3_000_000].freeze
   SOURCE_CHANNELS = %w[ALIBABA WEBSITE EXHIBITION REFERRAL EMAIL OTHER].freeze
   CURRENCIES = %w[USD CNY EUR].freeze
   CUSTOMER_STATUSES = %w[PROSPECT FOLLOWING WON DORMANT LOST].freeze
@@ -142,10 +145,24 @@ class Crm::Customer < ApplicationRecord
   scope :owned_by, ->(user_id) { where(account_owner_id: user_id) }
   # 当前用户特别关注的客户。
   scope :favorited_by, ->(user_id) { joins(:favorites).where(crm_customer_favorites: { user_id: user_id }) }
+  # 按客户星级筛选（star=0..5 → 累计成交额 micros 区间）。
+  scope :by_star, lambda { |star|
+    s = star.to_i
+    low = s.zero? ? 0 : STAR_TIERS_RMB[s - 1]
+    rel = where('COALESCE(deal_total_amount_micros, 0) >= ?', low * 1_000_000)
+    rel = rel.where('COALESCE(deal_total_amount_micros, 0) < ?', STAR_TIERS_RMB[s] * 1_000_000) if s < 5
+    rel
+  }
 
   # 进公海：清空负责人并记录时间与原归属人（领回冷却期校验用）。供公海回收定时任务与手动操作复用。
   def move_to_public_pool!(at: Time.current)
     update!(is_in_public_pool: true, public_pool_at: at, previous_owner_id: account_owner_id, account_owner_id: nil)
+  end
+
+  # 客户星级 0–5：按累计成交额（人民币）自动评定。deal_total_amount_micros 已是折人民币口径。
+  def customer_star
+    rmb = (deal_total_amount_micros || 0) / 1_000_000.0
+    STAR_TIERS_RMB.count { |tier| rmb >= tier }
   end
 
   # 成交汇总回写（对应 Twenty customer-deal-rollup 触发器）：

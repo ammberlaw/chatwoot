@@ -8,7 +8,6 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   # 列筛选：查询参数 → 数据库列，逐个按 present? 叠加。
   COLUMN_FILTERS = {
     status: :customer_status,
-    customer_level: :customer_level,
     customer_group: :customer_group,
     product_group: :product_group,
     source_channel: :source_channel,
@@ -368,15 +367,21 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
-    if params[:q].present?
-      # 关键词同时匹配公司名 + 联系人 + 联系邮箱/电话，便于按联系人找客户。
-      scope = scope.where(
-        'name ILIKE :q OR primary_contact_name ILIKE :q OR contact_email ILIKE :q OR contact_phone ILIKE :q',
-        q: "%#{params[:q]}%"
-      )
-    end
+    # 客户星级筛选（star=0..5，按累计成交额区间）。
+    scope = scope.by_star(params[:star]) if params[:star].present?
+    scope = apply_keyword_filter(scope)
     scope = scope.where(account_owner_id: team_member_ids(params[:team_id])) if params[:team_id].present?
     scope
+  end
+
+  # 关键词同时匹配公司名 + 联系人 + 联系邮箱/电话，便于按联系人找客户。
+  def apply_keyword_filter(scope)
+    return scope if params[:q].blank?
+
+    scope.where(
+      'name ILIKE :q OR primary_contact_name ILIKE :q OR contact_email ILIKE :q OR contact_phone ILIKE :q',
+      q: "%#{params[:q]}%"
+    )
   end
 
   # 按 CRM 角色限定可见负责人（非公海视图）：管理员全部 / 主管团队 / 业务员本人；
@@ -564,6 +569,6 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   def permitted_params
-    params.permit(:page, :per_page, :filter, :status, :customer_level, :customer_group, :product_group, :source_channel, :account_owner_id)
+    params.permit(:page, :per_page, :filter, :status, :star, :customer_group, :product_group, :source_channel, :account_owner_id)
   end
 end

@@ -36,6 +36,7 @@ json.contact_preference resource.contact_preference
 json.customer_remark resource.customer_remark
 
 json.deal_total_amount_micros resource.deal_total_amount_micros
+json.customer_star resource.customer_star
 json.deal_order_count resource.deal_order_count
 json.first_deal_at resource.first_deal_at
 json.last_deal_at resource.last_deal_at

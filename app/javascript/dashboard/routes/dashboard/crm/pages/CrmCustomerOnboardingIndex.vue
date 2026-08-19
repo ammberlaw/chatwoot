@@ -2,11 +2,14 @@
 /* global axios */
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
+import CrmAiAPI from 'dashboard/api/crm/ai';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import { LocalStorage } from 'shared/helpers/localStorage';
 
@@ -25,12 +28,6 @@ onMounted(ensureLoaded);
 const PRODUCT_GROUP = [
   ['TABLET', '平板电脑'],
   ['COMMERCIAL_DISPLAY', '商显工控'],
-];
-const LEVEL = [
-  ['A', 'A'],
-  ['B', 'B'],
-  ['C', 'C'],
-  ['D', 'D'],
 ];
 const CONTACT_PREFERENCE = [
   ['EMAIL', '邮件'],
@@ -53,10 +50,6 @@ const productGroupSelectOptions = [
   { value: '', label: '选择产品分组' },
   ...tup(PRODUCT_GROUP),
 ];
-const levelSelectOptions = [
-  { value: '', label: '选择等级（选填）' },
-  ...tup(LEVEL),
-];
 const prefSelectOptions = [
   { value: '', label: '选择偏好（选填）' },
   ...tup(CONTACT_PREFERENCE),
@@ -69,7 +62,6 @@ const form = reactive({
   customerGroup: '',
   productGroup: '',
   sourceChannel: '',
-  customerLevel: '',
   address: '',
   linkedin: '',
   primaryContactName: '',
@@ -79,6 +71,7 @@ const form = reactive({
   wechat: '',
   whatsApp: '',
   contactPreference: '',
+  customerRemark: '',
 });
 
 // 从邮件身份卡「新建为客户」跳来时预填联系邮箱（在草稿恢复后应用，见 onMounted）。
@@ -173,6 +166,78 @@ watch(
   }
 );
 
+// ── 一键背调（复用 AI 背调：抓官网 + Apollo 概况，判断公司真伪/概况）──
+const bgLoading = ref(false);
+const bgResult = ref(null); // { status, domain, url, profile, enrichment, db_match }
+const bgCandidates = ref([]); // 按公司名搜到的候选，供挑一个再背调
+const bgProfile = computed(() => bgResult.value?.profile || {});
+const BG_LEGIT = {
+  real: { label: '像真实运营公司', cls: 'bg-n-teal-3 text-n-teal-11' },
+  suspicious: { label: '存疑，需人工核实', cls: 'bg-n-ruby-4 text-n-ruby-11' },
+  unknown: { label: '信息不足，待核实', cls: 'bg-n-alpha-2 text-n-slate-11' },
+};
+const bgLegit = computed(
+  () => BG_LEGIT[bgProfile.value.legit] || BG_LEGIT.unknown
+);
+const bgEnrich = computed(() => bgResult.value?.enrichment || null);
+const bgFields = [
+  { key: 'business', label: '主营业务' },
+  { key: 'industry', label: '所属行业' },
+  { key: 'size_hint', label: '规模线索' },
+  { key: 'country', label: '国家/地区' },
+];
+// 输入是否像域名/网址：带协议头，或不含 @、无空格、含点。
+const bgLooksLikeDomain = v =>
+  /^https?:\/\//i.test(v) ||
+  (!v.includes('@') && !/\s/.test(v) && v.includes('.'));
+// 背调取值优先级：公司网址 → 联系邮箱 → 公司名。
+const bgQuery = computed(
+  () =>
+    (form.website || '').trim() ||
+    (form.email || '').trim() ||
+    (form.name || '').trim()
+);
+const bgLookup = async query => {
+  bgLoading.value = true;
+  bgResult.value = null;
+  bgCandidates.value = [];
+  try {
+    const { data } = await CrmAiAPI.companyLookup(query);
+    bgResult.value = data;
+  } catch (e) {
+    useAlert(e?.response?.data?.message || 'AI 背调失败，请稍后再试');
+  } finally {
+    bgLoading.value = false;
+  }
+};
+const runBackgroundCheck = async () => {
+  const q = bgQuery.value;
+  if (!q) {
+    useAlert('请先填公司网址/域名、联系邮箱或公司名');
+    return;
+  }
+  // 邮箱/域名/网址→直接背调；否则当公司名→先搜候选。
+  if (bgLooksLikeDomain(q) || q.includes('@')) {
+    await bgLookup(q);
+    return;
+  }
+  bgLoading.value = true;
+  bgResult.value = null;
+  bgCandidates.value = [];
+  try {
+    const { data } = await CrmAiAPI.companySearch(q);
+    bgCandidates.value = data.candidates || [];
+    if (!bgCandidates.value.length) {
+      useAlert('没搜到这家公司，换公司域名/邮箱再试');
+    }
+  } catch (e) {
+    useAlert(e?.response?.data?.message || 'AI 背调失败，请稍后再试');
+  } finally {
+    bgLoading.value = false;
+  }
+};
+const pickBgCandidate = candidate => bgLookup(candidate.domain);
+
 const missing = computed(() => {
   const m = [];
   if (!form.tradeCountry) m.push('国家');
@@ -200,6 +265,8 @@ const resetForm = () => {
   extraContacts.value = [];
   emailHit.value = null;
   nameHits.value = [];
+  bgResult.value = null;
+  bgCandidates.value = [];
   draftRestored.value = false;
   clearDraft();
 };
@@ -223,7 +290,6 @@ const submit = async () => {
     customer_group: form.customerGroup,
     product_group: form.productGroup,
     source_channel: form.sourceChannel || null,
-    customer_level: form.customerLevel || null,
     address: trimmed(form.address),
     linkedin: trimmed(form.linkedin),
     primary_contact_name: form.primaryContactName.trim(),
@@ -233,6 +299,7 @@ const submit = async () => {
     wechat: trimmed(form.wechat),
     whats_app: trimmed(form.whatsApp),
     contact_preference: form.contactPreference || null,
+    customer_remark: trimmed(form.customerRemark),
     account_owner_id: currentUserId.value,
     is_in_public_pool: false,
     customer_status: 'PROSPECT',
@@ -342,6 +409,140 @@ const submit = async () => {
             placeholder="https://example.com（选填，有助查重）"
           />
         </label>
+
+        <!-- 一键背调：抓官网 + Apollo 概况，判断公司真伪与概况 -->
+        <div class="flex flex-col gap-2 sm:col-span-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex items-center gap-1.5 h-9 px-3 text-sm rounded-lg border border-n-iris-8 text-n-iris-11 hover:bg-n-iris-3 disabled:opacity-50"
+              :disabled="bgLoading"
+              @click="runBackgroundCheck"
+            >
+              <span class="i-lucide-search-check size-4" />
+              {{ bgLoading ? '背调中…' : '一键背调' }}
+            </button>
+            <span class="text-xs text-n-slate-10">
+              取 公司网址 / 邮箱 / 公司名，抓官网 + Apollo
+              企业库判断真伪并补全概况
+            </span>
+          </div>
+
+          <!-- 公司名搜到多个候选：挑一家再背调 -->
+          <div
+            v-if="bgCandidates.length"
+            class="flex flex-col gap-1 p-2 border rounded-lg border-n-weak bg-n-alpha-1"
+          >
+            <span class="text-xs text-n-slate-10">挑一家再背调：</span>
+            <button
+              v-for="(c, i) in bgCandidates"
+              :key="i"
+              type="button"
+              class="flex flex-col items-start px-2 py-1.5 text-left rounded-md hover:bg-n-alpha-2"
+              @click="pickBgCandidate(c)"
+            >
+              <span class="text-sm text-n-slate-12">{{ c.name }}</span>
+              <span class="text-xs text-n-slate-10">
+                {{ c.domain }}
+                <template v-if="c.industry || c.country">
+                  ·
+                  {{
+                    [c.industry, [c.city, c.country].filter(Boolean).join('，')]
+                      .filter(Boolean)
+                      .join(' · ')
+                  }}
+                </template>
+              </span>
+            </button>
+          </div>
+
+          <!-- 背调结果卡 -->
+          <div
+            v-if="bgResult"
+            class="flex flex-col gap-2 p-3 border rounded-lg border-n-weak bg-n-solid-1"
+          >
+            <span
+              v-if="
+                ['invalid', 'public_domain', 'no_site'].includes(
+                  bgResult.status
+                )
+              "
+              class="text-xs text-n-amber-11"
+            >
+              {{
+                bgResult.status === 'public_domain'
+                  ? `${bgResult.domain} 是个人/公共邮箱，判断不了公司`
+                  : bgResult.status === 'no_site'
+                    ? `没抓到 ${bgResult.domain} 的官网，可换公司名或域名再试`
+                    : '输入无法识别为有效域名 / 邮箱'
+              }}
+            </span>
+            <template v-else>
+              <div class="flex flex-wrap items-center gap-2">
+                <span
+                  class="inline-flex items-center px-2 py-0.5 text-xs rounded-md"
+                  :class="bgLegit.cls"
+                >
+                  {{ bgLegit.label }}
+                </span>
+                <span class="text-sm font-medium text-n-slate-12">
+                  {{ bgProfile.company_name || bgResult.domain }}
+                </span>
+                <a
+                  v-if="bgResult.url"
+                  :href="bgResult.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-xs break-all text-n-iris-11 hover:underline"
+                >
+                  {{ bgResult.url }}
+                </a>
+              </div>
+              <p v-if="bgProfile.note" class="text-xs text-n-slate-11">
+                <span class="font-medium text-n-iris-11">AI 判断：</span
+                >{{ bgProfile.note }}
+              </p>
+              <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div
+                  v-for="f in bgFields"
+                  v-show="bgProfile[f.key]"
+                  :key="f.key"
+                  class="text-xs"
+                >
+                  <span class="text-n-slate-10">{{ f.label }}：</span>
+                  <span class="text-n-slate-12">{{ bgProfile[f.key] }}</span>
+                </div>
+                <div v-if="bgEnrich && bgEnrich.employees" class="text-xs">
+                  <span class="text-n-slate-10">员工规模：</span>
+                  <span class="text-n-slate-12">约 {{ bgEnrich.employees }} 人</span>
+                </div>
+                <div v-if="bgEnrich && bgEnrich.founded_year" class="text-xs">
+                  <span class="text-n-slate-10">成立年份：</span>
+                  <span class="text-n-slate-12">{{
+                    bgEnrich.founded_year
+                  }}</span>
+                </div>
+              </div>
+              <div
+                v-if="bgResult.db_match && bgResult.db_match.total"
+                class="text-xs text-n-amber-11"
+              >
+                ⚠️ 库里已有 {{ bgResult.db_match.total }} 家相似公司，注意查重
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- 备注 -->
+        <label class="flex flex-col gap-1 sm:col-span-2">
+          <span class="text-xs text-n-slate-11">备注</span>
+          <textarea
+            v-model="form.customerRemark"
+            rows="3"
+            class="px-3 py-2 text-sm border rounded-lg outline-none resize-y border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="客户补充信息、跟进注意事项等（选填）"
+          />
+        </label>
       </div>
 
       <!-- 业务信息 -->
@@ -385,12 +586,11 @@ const submit = async () => {
           />
         </div>
         <div class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">客户等级</span>
-          <SelectCard
-            v-model="form.customerLevel"
-            :options="levelSelectOptions"
-            block
-          />
+          <span class="text-xs text-n-slate-11">客户星级</span>
+          <div class="flex items-center gap-2 h-9">
+            <CrmStarRating :micros="0" size="md" />
+            <span class="text-xs text-n-slate-10">系统按累计成交额自动评定</span>
+          </div>
         </div>
       </div>
 
