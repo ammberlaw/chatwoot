@@ -265,9 +265,11 @@ const minimized = ref(false);
 const toggleMaximize = () => {
   composeMode.value = composeMode.value === 'large' ? 'small' : 'large';
   minimized.value = false;
+  resetDrag();
 };
 const toggleMinimize = () => {
   minimized.value = !minimized.value;
+  resetDrag();
 };
 const rootClass = computed(() => {
   // 最小化优先：不论大/小窗，都收成右下角标题条（无遮罩、不挡页面）。
@@ -285,6 +287,62 @@ const cardWrapClass = computed(() => {
   }
   return 'flex flex-col w-[720px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[80vh]';
 });
+
+// ---- 写信窗拖动：拖标题栏移动窗口（业务反馈：窗口挡住原邮件、无法移开看原文）----
+const cardRef = ref(null);
+const dragOffset = ref({ x: 0, y: 0 });
+let dragStart = null;
+const dragStyle = computed(() =>
+  dragOffset.value.x || dragOffset.value.y
+    ? {
+        transform: `translate(${dragOffset.value.x}px, ${dragOffset.value.y}px)`,
+      }
+    : {}
+);
+const resetDrag = () => {
+  dragOffset.value = { x: 0, y: 0 };
+};
+const onDragMove = e => {
+  if (!dragStart) return;
+  let x = dragStart.ox + (e.clientX - dragStart.mx);
+  let y = dragStart.oy + (e.clientY - dragStart.my);
+  // 夹在视口内，始终留住标题栏可抓，避免拖出屏幕后再也点不回来。
+  const el = cardRef.value;
+  if (el) {
+    const r = el.getBoundingClientRect();
+    const baseLeft = r.left - dragOffset.value.x;
+    const baseTop = r.top - dragOffset.value.y;
+    const margin = 48;
+    x = Math.min(
+      Math.max(x, margin - r.width - baseLeft),
+      window.innerWidth - margin - baseLeft
+    );
+    y = Math.min(
+      Math.max(y, -baseTop),
+      window.innerHeight - margin - baseTop
+    );
+  }
+  dragOffset.value = { x, y };
+};
+const stopDrag = () => {
+  dragStart = null;
+  window.removeEventListener('mousemove', onDragMove);
+  window.removeEventListener('mouseup', stopDrag);
+};
+const startDrag = e => {
+  // 只从标题栏空白处起拖；点到按钮/输入等交互元素不触发。
+  if (e.button !== 0) return;
+  if (e.target.closest('button, input, textarea, a, select, [contenteditable]'))
+    return;
+  dragStart = {
+    mx: e.clientX,
+    my: e.clientY,
+    ox: dragOffset.value.x,
+    oy: dragOffset.value.y,
+  };
+  window.addEventListener('mousemove', onDragMove);
+  window.addEventListener('mouseup', stopDrag);
+};
 
 // ---- AI 写信：中文意图 → DeepSeek 生成英文商务邮件，插到正文最上方 ----
 const aiOpen = ref(false);
@@ -340,6 +398,10 @@ const FONT_FAMILIES = [
   { label: '仿宋', value: 'FangSong, STFangsong, serif' },
   { label: '微软雅黑', value: '"Microsoft YaHei", "PingFang SC", sans-serif' },
   { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
+  {
+    label: 'Calibri',
+    value: 'Calibri, "Segoe UI", Candara, "Trebuchet MS", Arial, sans-serif',
+  },
   { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
   { label: 'Trebuchet MS', value: '"Trebuchet MS", Helvetica, sans-serif' },
   { label: 'Comic Sans MS', value: '"Comic Sans MS", "Comic Sans", cursive' },
@@ -446,10 +508,16 @@ const bodyHtml = computed(() => fontWrap(markdownToHtml(form.body)));
 const signatureHtml = computed(() => {
   const sig = activeSignature.value;
   if (!sig) return '';
-  const inner =
-    sig.bodyHtml || (sig.body ? sig.body.replace(/\n/g, '<br>') : '');
-  // 只空一行接签名（不加 -- 分隔符）；正文尾部空白已在拼接处裁掉，避免签名前一大段空白。
-  return inner ? `<br><br>${inner}` : '';
+  const inner = (
+    sig.bodyHtml || (sig.body ? sig.body.replace(/\n/g, '<br>') : '')
+  )
+    // 剥掉签名自身开头的空行/空段，否则与下面的换行叠加，签名前留一大段空白（业务反馈「间隔太远」）。
+    .replace(
+      /^(?:\s|&nbsp;|<br\s*\/?>|<div>\s*<\/div>|<p>\s*<\/p>)+/i,
+      ''
+    );
+  // 正文与签名之间只留一个换行（正文段落自带下边距已够分隔），避免间隔太远。
+  return inner ? `<br>${inner}` : '';
 });
 // 拼接签名前裁掉正文尾部空白（回复正文末尾常带空行），
 // 否则与签名自带的空行叠加，签名前会留一大段空白（用户反馈「间隔好大」）。
@@ -1070,6 +1138,7 @@ const reset = () => {
   showCc.value = false;
   showBcc.value = false;
   minimized.value = false;
+  resetDrag();
   customerQuery.value = '';
   customerHits.value = [];
   customer.value = null;
@@ -1172,13 +1241,14 @@ defineExpose({ open, close });
 <template>
   <!-- 写信窗（仿 Gmail）：small 右下停靠不挡页面、large 居中放大带遮罩；点窗外一律不关闭。 -->
   <div v-show="visible" :class="rootClass">
-    <div :class="cardWrapClass">
+    <div ref="cardRef" :class="cardWrapClass" :style="dragStyle">
       <div
         class="flex flex-col flex-1 min-h-0 overflow-hidden border shadow-xl rounded-xl border-n-weak bg-n-solid-1"
       >
-        <!-- 顶部操作栏 -->
+        <!-- 顶部操作栏（可拖动移动窗口） -->
         <div
-          class="flex items-center flex-shrink-0 gap-2 px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak"
+          class="flex items-center flex-shrink-0 gap-2 px-4 py-2.5 border-b cursor-move select-none bg-n-alpha-1 border-n-weak"
+          @mousedown="startDrag"
         >
           <span
             v-if="minimized"
