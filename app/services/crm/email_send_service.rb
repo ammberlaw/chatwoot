@@ -77,7 +77,12 @@ class Crm::EmailSendService
     settings = {
       address: mail_account.resolved_host,
       port: mail_account.resolved_port,
-      domain: mail_account.email_address.split('@').last
+      domain: mail_account.email_address.split('@').last,
+      # 坏邮箱（授权码失效/服务器不响应）会让 deliver! 无限阻塞：拖垮 Sidekiq 发信队列，
+      # 且留下「PENDING 无错」的僵尸草稿（前端表现为卡发送中/退回草稿）。
+      # 加连接/读取超时 → 快速失败落 FAILED + 明确错误，不再无声挂死。
+      open_timeout: 15,
+      read_timeout: 20
     }
     if mail_account.smtp_password.present?
       settings[:user_name] = mail_account.smtp_user.presence || mail_account.email_address
