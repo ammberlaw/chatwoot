@@ -1,5 +1,5 @@
 # 报价单主体。对应 A-CRM(Twenty) 的 quote（CRM_SPEC §2.2/§5）。
-# 状态机：DRAFT→SENT→CONFIRMED（确认后转销售订单）；EXPIRED/REJECTED 为失败态。
+# 状态机：DRAFT→SENT→CONFIRMED（确认后转销售订单）；EXPIRED 为失败态。
 # == Schema Information
 #
 # Table name: crm_quotes
@@ -44,7 +44,7 @@
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::Quote < ApplicationRecord
-  STATUSES = %w[DRAFT SENT CONFIRMED EXPIRED REJECTED].freeze
+  STATUSES = %w[DRAFT SENT CONFIRMED EXPIRED].freeze
 
   belongs_to :account
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true
@@ -54,6 +54,9 @@ class Crm::Quote < ApplicationRecord
   # 唯一的级联关系：删报价即删明细（CRM_SPEC §4）
   has_many :line_items, class_name: 'Crm::QuoteLineItem', foreign_key: :crm_quote_id, dependent: :destroy, inverse_of: :quote
   has_many :sales_orders, class_name: 'Crm::SalesOrder', foreign_key: :crm_quote_id, dependent: :nullify, inverse_of: :quote
+  # 明细随报价整体提交（含每行产品图 picture + 删除标记 _destroy），同 PI。
+  accepts_nested_attributes_for :line_items, allow_destroy: true,
+                                             reject_if: ->(a) { a[:id].blank? && a[:name].blank? && a[:crm_product_id].blank? }
 
   before_validation :generate_quote_no, on: :create
 

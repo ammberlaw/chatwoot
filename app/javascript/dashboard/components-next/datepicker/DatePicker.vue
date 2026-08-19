@@ -156,13 +156,15 @@ const today = () => {
         leave-from-class="opacity-100 scale-100"
         leave-to-class="opacity-0 scale-95"
       >
-        <!-- @pointerdown.stop：在对话框里用时，别让点日历被外层 onClickOutside 当「点外部」关掉对话框。 -->
+        <!-- data-glass-popover：Teleport 成对话框内容的兄弟节点后，让对话框的 onClickOutside 忽略它，
+             点日历不关整个对话框。注意：靠 @vueuse 的 ignore 判定（它在 pointerdown 阶段查 ignore），
+             所以这里绝不能再 @pointerdown.stop——一 stop 就把 ignore 判定也挡掉了，反而会关。 -->
         <div
           v-if="open"
           ref="popoverEl"
+          data-glass-popover
           :style="popStyle"
           class="z-[9999] p-3 origin-top border shadow-xl w-[260px] rounded-2xl border-white/50 bg-n-solid-1/70 backdrop-blur-2xl backdrop-saturate-150 shadow-n-iris-9/15"
-          @pointerdown.stop
         >
           <!-- 年月切换 -->
           <div class="flex items-center justify-between px-1 mb-2">

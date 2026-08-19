@@ -3,7 +3,23 @@ class Crm::QuotePolicy < ApplicationPolicy
     true
   end
 
+  def summary?
+    true
+  end
+
   def show?
+    true
+  end
+
+  def prefill?
+    true
+  end
+
+  def xlsx?
+    true
+  end
+
+  def convert_to_sales_order?
     true
   end
 

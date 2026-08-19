@@ -262,6 +262,9 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     @orders = @customer.sales_orders.order(order_date: :desc).limit(20).with_attached_files
     @pis = @customer.crm_pis.order(pi_date: :desc).limit(20)
     @quotes = @customer.quotes.order(Arel.sql('COALESCE(quote_date, created_at) DESC')).limit(20)
+    # 该客户的 MES 生产订单（不看创建人：助理在共享客户上建的生产单，老板也在此看到）。
+    @production_orders = Current.account.mes_production_orders
+                                .where(crm_customer_id: @customer.id).order(created_at: :desc).limit(20)
     @notes = Current.account.crm_follow_up_notes
                     .where(crm_customer_id: @customer.id).order(created_at: :desc).limit(30)
     @tasks = Current.account.crm_follow_up_tasks
@@ -413,6 +416,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     when 'public_pool' then scope.in_public_pool
     when 'private' then scope.where(is_in_public_pool: false)
     when 'mine' then scope.owned_by(current_user.id)
+    # 建单可选客户：本人名下 + 共享给本人的（助理在共享客户上建 PI/报价/订单）。
+    when 'mine_shared' then scope.where('crm_customers.account_owner_id = :uid OR :uid = ANY(crm_customers.shared_user_ids)', uid: current_user.id)
     when 'unassigned' then scope.where(account_owner_id: nil, is_in_public_pool: false)
     when 'churn_risk' then churn_risk_scope(scope)
     else scope

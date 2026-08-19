@@ -172,6 +172,14 @@ Rails.application.routes.draw do
             resources :email_folders, only: [:index, :create, :destroy]
             resources :quotes do
               resources :line_items, only: [:index, :create], controller: 'quote_line_items'
+              collection do
+                get :prefill
+                get :summary
+              end
+              member do
+                get :xlsx
+                post :convert_to_sales_order
+              end
             end
             resources :quote_line_items, only: [:update, :destroy]
             resources :email_signatures

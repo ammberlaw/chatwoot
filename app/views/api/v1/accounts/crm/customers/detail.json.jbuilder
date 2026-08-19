@@ -47,6 +47,21 @@ json.quotes @quotes do |quote|
   json.status quote.status
 end
 
+json.production_orders @production_orders do |po|
+  json.id po.id
+  json.order_no po.order_no
+  json.product_name po.product_name
+  json.qty po.qty
+  json.produced_qty po.produced_qty
+  json.unit po.unit
+  json.stage po.stage
+  json.status po.status
+  json.order_kind po.order_kind
+  json.pi_no po.pi_no
+  json.delivery_date po.delivery_date
+  json.owner_name po.owner&.crm_display_name
+end
+
 json.notes @notes do |note|
   json.id note.id
   json.title note.title

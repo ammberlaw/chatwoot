@@ -4,7 +4,11 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useAlert } from 'dashboard/composables';
+import { useMapGetter, useStore } from 'dashboard/composables/store';
+import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import PisAPI from 'dashboard/api/crm/pis';
@@ -93,6 +97,24 @@ const opportunities = computed(() => data.value?.opportunities || []);
 const orders = computed(() => data.value?.orders || []);
 const pis = computed(() => data.value?.pis || []);
 const quotes = computed(() => data.value?.quotes || []);
+const productionOrders = computed(() => data.value?.production_orders || []);
+// MES 生产订单 8 阶段 / 状态中文（与 MES 模块一致）。
+const MES_STAGE = {
+  SALES_CONFIRMED: '销售订单确定',
+  BOM_READY: '工程/PMC BOM',
+  PURCHASING: '采购原料',
+  MATERIAL_INBOUND: '原料入库',
+  PICKING: '生产领料',
+  PRODUCTION: '生产',
+  FG_INBOUND: '成品入库',
+  SHIPPED: '销售出库',
+};
+const MES_ORDER_STATUS = {
+  IN_PROGRESS: '进行中',
+  COMPLETED: '已完成',
+  STOPPED: '已终止',
+  CANCELLED: '已取消',
+};
 const files = computed(() => customer.value.files || []);
 const primaryOpp = computed(() => opportunities.value[0] || null);
 const latestQuote = computed(() => quotes.value[0] || null);
@@ -256,6 +278,13 @@ const goToOrder = id =>
     params: { accountId: accountId.value },
     query: { focus: id },
   });
+// 点生产订单 → 跳 MES 生产订单页并按工单号自动打开详情。
+const goToProductionOrder = orderNo =>
+  router.push({
+    name: 'mes_production_orders_index',
+    params: { accountId: accountId.value },
+    query: { q: orderNo },
+  });
 
 // 详情接口回 snake_case，编辑弹窗 open() 读 camelCase 表单键，故转换后再喂。
 const toCamel = obj =>
@@ -267,6 +296,47 @@ const toCamel = obj =>
   );
 const openEdit = () =>
   editDialogRef.value?.open({ ...toCamel(customer.value), files: files.value });
+
+// ── 共享客户：老板把客户共享给助理，助理即可在该客户上建 PI/报价/订单等 ──
+const rootStore = useStore();
+const { isAdmin, isCrmDeputyAdmin } = useCrmRole();
+const currentUserId = useMapGetter('getCurrentUserID');
+const agents = useMapGetter('agents/getAgents');
+const shareDialogRef = ref(null);
+const shareUserIds = ref([]);
+// 仅负责人本人 / 管理员 / 副管理员可共享（与后端 share_allowed? 同口径）。
+const canShare = computed(
+  () =>
+    isAdmin.value ||
+    isCrmDeputyAdmin.value ||
+    customer.value.account_owner_id === currentUserId.value
+);
+// 共享候选：除负责人本人外的全部成员。
+const shareCandidates = computed(() =>
+  (agents.value || []).filter(a => a.id !== customer.value.account_owner_id)
+);
+const openShare = () => {
+  if (!agents.value?.length) rootStore.dispatch('agents/get');
+  shareUserIds.value = [...(customer.value.shared_user_ids || [])];
+  shareDialogRef.value?.open();
+};
+const toggleShareUser = id => {
+  const i = shareUserIds.value.indexOf(id);
+  if (i >= 0) shareUserIds.value.splice(i, 1);
+  else shareUserIds.value.push(id);
+};
+const saveShare = async () => {
+  try {
+    await axios.post(`${crmBase()}/customers/${customer.value.id}/share`, {
+      user_ids: shareUserIds.value,
+    });
+    useAlert('已更新共享');
+    shareDialogRef.value?.close();
+    load();
+  } catch (e) {
+    useAlert(e.response?.data?.error || '共享失败');
+  }
+};
 
 // 弹窗把保存委托给父组件（与客户列表一致）：走 store.update 再重载详情。
 const onUpdate = async payload => {
@@ -308,13 +378,29 @@ onMounted(() => {
             客户详情
           </h1>
         </div>
-        <button
-          class="flex items-center gap-1.5 h-9 px-3 text-sm rounded-[9px] border border-n-weak bg-n-solid-1/70 text-n-slate-12 hover:bg-n-alpha-2"
-          @click="openEdit"
-        >
-          <span class="i-lucide-pencil size-4" />
-          编辑资料
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="canShare"
+            class="flex items-center gap-1.5 h-9 px-3 text-sm rounded-[9px] border border-n-weak bg-n-solid-1/70 text-n-slate-12 hover:bg-n-alpha-2"
+            @click="openShare"
+          >
+            <span class="i-lucide-users size-4" />
+            共享
+            <span
+              v-if="(customer.shared_user_ids || []).length"
+              class="px-1.5 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+            >
+              {{ customer.shared_user_ids.length }}
+            </span>
+          </button>
+          <button
+            class="flex items-center gap-1.5 h-9 px-3 text-sm rounded-[9px] border border-n-weak bg-n-solid-1/70 text-n-slate-12 hover:bg-n-alpha-2"
+            @click="openEdit"
+          >
+            <span class="i-lucide-pencil size-4" />
+            编辑资料
+          </button>
+        </div>
       </div>
 
       <!-- 顶部客户卡 -->
@@ -729,6 +815,45 @@ onMounted(() => {
               </div>
             </div>
           </section>
+
+          <!-- 生产订单（MES）：本客户下的生产单，不分创建人，点击跳 MES -->
+          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">生产订单</h3>
+            <div
+              v-if="!productionOrders.length"
+              class="text-sm text-n-slate-10"
+            >
+              暂无生产订单
+            </div>
+            <div
+              v-for="po in productionOrders"
+              :key="po.id"
+              class="px-2 -mx-2 py-3 border-b last:border-b-0 border-n-weak rounded-lg cursor-pointer hover:bg-n-alpha-1"
+              @click="goToProductionOrder(po.order_no)"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-medium truncate text-n-iris-11">
+                  {{ po.order_no }}
+                </span>
+                <span
+                  class="px-2 py-0.5 text-xs rounded-md shrink-0 bg-n-iris-3 text-n-iris-11"
+                >
+                  {{ MES_STAGE[po.stage] || po.stage }}
+                </span>
+              </div>
+              <div class="mt-1 text-xs text-n-slate-10">
+                {{ po.product_name }} · {{ po.produced_qty }}/{{ po.qty }}
+                {{ po.unit }}
+                <span v-if="po.status !== 'IN_PROGRESS'">
+                  · {{ MES_ORDER_STATUS[po.status] || po.status }}
+                </span>
+                <span v-if="po.delivery_date">
+                  · 交期 {{ fmtDate(po.delivery_date) }}
+                </span>
+                <span v-if="po.owner_name">· {{ po.owner_name }}</span>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -738,5 +863,46 @@ onMounted(() => {
       @update="onUpdate"
       @refresh="load"
     />
+
+    <!-- 共享客户：勾选成员即把本客户共享给他们（可建单，单据归本客户） -->
+    <Dialog
+      ref="shareDialogRef"
+      title="共享客户"
+      description="被共享的成员可在该客户上建 PI / 报价 / 销售订单 / 生产订单，记录都归到本客户详情下。"
+      confirm-button-label="保存"
+      @confirm="saveShare"
+    >
+      <div class="flex flex-col gap-1 -mx-1 overflow-y-auto max-h-80">
+        <button
+          v-for="a in shareCandidates"
+          :key="a.id"
+          type="button"
+          class="flex items-center gap-3 px-3 py-2 text-left rounded-lg hover:bg-n-alpha-1"
+          @click="toggleShareUser(a.id)"
+        >
+          <span
+            class="flex items-center justify-center border rounded size-4 shrink-0"
+            :class="
+              shareUserIds.includes(a.id)
+                ? 'bg-n-iris-9 border-n-iris-9 text-white'
+                : 'border-n-weak'
+            "
+          >
+            <span
+              v-if="shareUserIds.includes(a.id)"
+              class="i-lucide-check size-3"
+            />
+          </span>
+          <Avatar :name="a.name" :src="a.thumbnail || ''" :size="26" />
+          <span class="text-sm text-n-slate-12">{{ a.name }}</span>
+        </button>
+        <p
+          v-if="!shareCandidates.length"
+          class="px-3 py-6 text-sm text-center text-n-slate-10"
+        >
+          暂无可共享的成员
+        </p>
+      </div>
+    </Dialog>
   </div>
 </template>

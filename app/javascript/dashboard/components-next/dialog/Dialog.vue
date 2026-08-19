@@ -137,7 +137,13 @@ defineExpose({ open, close });
       ]"
       @close.prevent="handleDialogClose"
     >
-      <OnClickOutside @trigger="handleClickOutside">
+      <!-- 忽略 Teleport 出去的玻璃弹层（DatePicker/SelectCard/MonthPicker 等，标 data-glass-popover）：
+           它们是对话框内容的兄弟节点，点选项不该被当「点外部」关掉整个对话框。@vueuse 走 capture 阶段，
+           光靠弹层 @pointerdown.stop 拦不住，必须在此按 composedPath 忽略。 -->
+      <OnClickOutside
+        :options="{ ignore: ['[data-glass-popover]'] }"
+        @trigger="handleClickOutside"
+      >
         <form
           ref="dialogContentRef"
           class="flex flex-col w-full h-auto gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl rounded-xl"

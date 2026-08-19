@@ -132,13 +132,14 @@ const isCurrent = month => viewYear.value === curYear && curMonth === month;
         leave-from-class="opacity-100 scale-100"
         leave-to-class="opacity-0 scale-95"
       >
-        <!-- @pointerdown.stop：在对话框里用时，别让点弹层被外层 onClickOutside 当「点外部」关掉对话框。 -->
+        <!-- data-glass-popover：对话框 onClickOutside 按此忽略本弹层。靠 @vueuse ignore 判定，
+             不能再 @pointerdown.stop（stop 会把 ignore 判定也挡掉，反而关掉对话框）。 -->
         <div
           v-if="open"
           ref="popoverEl"
+          data-glass-popover
           :style="popStyle"
           class="z-[9999] p-3 origin-top border shadow-xl w-60 rounded-2xl border-white/50 bg-n-solid-1/70 backdrop-blur-2xl backdrop-saturate-150 shadow-n-iris-9/15"
-          @pointerdown.stop
         >
           <!-- 年份切换 -->
           <div class="flex items-center justify-between px-1 mb-2">

@@ -7,6 +7,7 @@ import CrmOpportunitiesIndex from './pages/CrmOpportunitiesIndex.vue';
 import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
 import CrmSalesOrdersIndex from './pages/CrmSalesOrdersIndex.vue';
 import CrmPisIndex from './pages/CrmPisIndex.vue';
+import CrmQuotesIndex from './pages/CrmQuotesIndex.vue';
 import CrmCommissionSheetsIndex from './pages/CrmCommissionSheetsIndex.vue';
 import CrmCommissionSheetDetailIndex from './pages/CrmCommissionSheetDetailIndex.vue';
 import CrmEmailsIndex from './pages/CrmEmailsIndex.vue';
@@ -94,6 +95,7 @@ const crmPages = [
   ),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
+  crmPage('quotes', 'crm_quotes_index', CrmQuotesIndex),
   crmPage('pis', 'crm_pis_index', CrmPisIndex),
   crmPage('sales-orders', 'crm_sales_orders_index', CrmSalesOrdersIndex),
   // 提成表在「人事绩效」组，与 KPI 考核表一样走 SHARED（不加 requiresCrmAccess 守卫，

@@ -1,8 +1,10 @@
 class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_quote, only: [:show, :update, :destroy]
+  before_action :fetch_quote, only: [:show, :update, :destroy, :xlsx, :convert_to_sales_order]
 
   RESULTS_PER_PAGE = 15
+  SUMMARY_STATUSES = Crm::Quote::STATUSES
+  XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'.freeze
 
   def index
     @quotes_scope = filtered_quotes
@@ -13,19 +15,71 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
               .per(RESULTS_PER_PAGE)
   end
 
+  # 页顶汇总：各状态张数 + 按币种金额 + 可见范围内创建人（供筛选）。
+  def summary
+    scope = scope_by_owner(Current.account.crm_quotes)
+    scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
+
+    counts = scope.group(:status).count
+    amounts = scope.where.not(total_amount_micros: nil)
+                   .group(:status, :quote_currency)
+                   .sum(:total_amount_micros)
+    render json: build_summary(counts, amounts).merge(creators: creators_for(scope))
+  end
+
   def show; end
 
   def create
-    @quote = Current.account.crm_quotes.create!(quote_params)
+    @quote = Current.account.crm_quotes.new(quote_params)
+    @quote.owner_id ||= current_user.id
+    @quote.save!
+    recompute_totals!
+    render :show
   end
 
   def update
     @quote.update!(quote_params)
+    recompute_totals!
+    render :show
   end
 
   def destroy
     @quote.destroy!
     head :ok
+  end
+
+  # 导出 xlsx：填公司报价单模板 1:1。模板未配置时明确提示（模板由公司提供后接入）。
+  def xlsx
+    unless quote_template_ready?
+      render json: { error: '报价单模板未配置，等公司模板上传后即可导出' }, status: :unprocessable_entity
+      return
+    end
+
+    stream = Crm::QuoteTemplateFiller.new(@quote).to_stream
+    send_data stream.read, filename: "Quote-#{@quote.quote_no}.xlsx", type: XLSX_MIME
+  end
+
+  # 报价确认后一键转销售订单（幂等：同一 quote_no 只转一次）。
+  def convert_to_sales_order
+    order = Crm::QuoteToSalesOrder.new(@quote).call
+    return render json: { error: '转单失败，请检查报价明细与客户' }, status: :unprocessable_entity if order.nil?
+
+    render json: { id: order.id, name: order.name }
+  rescue StandardError => e
+    Rails.logger.error("[Quote->SO] quote=#{@quote.id}: #{e.class} #{e.message}")
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 选客户后带出买方信息（业务仍可改）。
+  def prefill
+    customer = Current.account.crm_customers.find(params[:customer_id])
+    render json: {
+      customer_name: customer.name,
+      contact_name: customer.primary_contact_name,
+      contact_email: customer.contact_email,
+      contact_phone: customer.contact_phone,
+      quote_currency: customer.currency_preference.presence || 'USD'
+    }
   end
 
   private
@@ -38,27 +92,75 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
     authorize(Crm::Quote)
   end
 
-  # 视图筛选：待处理报价(DRAFT/SENT)、我的、按状态、按客户。
+  # 小计=明细金额合计；总额=小计−折扣+运费+税（各项前端传，缺省 0）。明细金额已在行模型算好。
+  def recompute_totals!
+    subtotal = @quote.line_items.sum(:amount_micros)
+    total = subtotal - @quote.discount_amount_micros.to_i + @quote.shipping_fee_micros.to_i + @quote.tax_amount_micros.to_i
+    # 缓存统计写回，不触发校验/审计。
+    @quote.update_columns(subtotal_micros: subtotal, total_amount_micros: total) # rubocop:disable Rails/SkipsModelValidations
+  end
+
+  def build_summary(counts, amounts)
+    buckets = (['all'] + SUMMARY_STATUSES).index_with { { count: 0, amounts: Hash.new(0) } }
+
+    counts.each do |status, n|
+      buckets[status][:count] = n if buckets.key?(status)
+      buckets['all'][:count] += n
+    end
+    amounts.each do |(status, currency), micros|
+      cur = currency.presence || 'USD'
+      buckets[status][:amounts][cur] += micros if buckets.key?(status)
+      buckets['all'][:amounts][cur] += micros
+    end
+    buckets
+  end
+
+  def creators_for(scope)
+    User.where(id: scope.where.not(owner_id: nil).select(:owner_id))
+        .order(:name)
+        .map { |u| { id: u.id, name: u.crm_display_name } }
+  end
+
   def filtered_quotes
-    # 数据范围（按 CRM 角色）：管理员全部 / 主管团队 / 业务员本人。
-    scope = scope_by_owner(Current.account.crm_quotes)
-    scope = scope.pending if params[:filter] == 'pending'
-    scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
+    scope = apply_view_filter(scope_by_owner(Current.account.crm_quotes))
+    scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
+    scope = search(scope, params[:q]) if params[:q].present?
     scope
+  end
+
+  # 视图档：pending=待处理(DRAFT/SENT)、mine=我的。
+  def apply_view_filter(scope)
+    return scope.pending if params[:filter] == 'pending'
+    return scope.owned_by(current_user.id) if params[:filter] == 'mine'
+
+    scope
+  end
+
+  # 搜索：报价单号 / 名称 / 关联客户名。
+  def search(scope, query)
+    term = "%#{query.strip}%"
+    scope.left_joins(:crm_customer)
+         .where('crm_quotes.quote_no ILIKE :t OR crm_quotes.name ILIKE :t OR crm_customers.name ILIKE :t', t: term)
   end
 
   def quote_params
     params.require(:quote).permit(
       :name, :quote_no, :crm_customer_id, :contact_id, :crm_opportunity_id, :owner_id,
       :quote_date, :valid_until, :status, :quote_currency, :exchange_rate,
-      :subtotal_micros, :discount_amount_micros, :shipping_fee_micros,
-      :tax_amount_micros, :total_amount_micros, :remark
+      :discount_amount_micros, :shipping_fee_micros, :tax_amount_micros, :remark,
+      line_items_attributes: [
+        :id, :name, :quantity, :unit_price_micros, :spec_snapshot, :remark, :crm_product_id, :picture, :_destroy
+      ]
     )
   end
 
+  def quote_template_ready?
+    File.exist?(Crm::QuoteTemplateFiller::TEMPLATE)
+  end
+
   def permitted_params
-    params.permit(:page, :filter, :status, :customer_id)
+    params.permit(:page, :filter, :status, :owner_id, :q, :customer_id)
   end
 end

@@ -8,3 +8,4 @@ json.quantity resource.quantity
 json.unit_price_micros resource.unit_price_micros
 json.amount_micros resource.amount_micros
 json.remark resource.remark
+json.picture_url resource.picture.attached? ? url_for(resource.picture) : nil

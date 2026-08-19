@@ -129,14 +129,14 @@ const pick = opt => {
         leave-from-class="opacity-100 scale-100"
         leave-to-class="opacity-0 scale-95"
       >
-        <!-- @pointerdown.stop：弹层 Teleport 到 <dialog> 后成了对话框内容的兄弟节点，
-             不 stop 的话点选项会被对话框的 onClickOutside 当成「点外部」而关掉整个弹窗。 -->
+        <!-- data-glass-popover：对话框 onClickOutside 按此忽略本弹层（点选项不关整个对话框）。
+             靠 @vueuse ignore 判定，不能再 @pointerdown.stop（stop 会把 ignore 判定也挡掉）。 -->
         <div
           v-if="open"
           ref="popoverEl"
+          data-glass-popover
           :style="popStyle"
           class="z-[9999] p-1.5 origin-top overflow-y-auto border shadow-xl max-h-72 rounded-2xl border-white/50 bg-n-solid-1/70 backdrop-blur-2xl backdrop-saturate-150 shadow-n-iris-9/15"
-          @pointerdown.stop
         >
           <button
             v-for="opt in options"

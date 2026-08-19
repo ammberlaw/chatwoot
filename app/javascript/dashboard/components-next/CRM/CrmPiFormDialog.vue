@@ -88,7 +88,7 @@ const loadCustomers = async () => {
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/crm/customers`,
-      { params: { filter: 'mine', per_page: 200 } }
+      { params: { filter: 'mine_shared', per_page: 200 } }
     );
     customers.value = (data.payload || []).map(c => ({
       id: c.id,
