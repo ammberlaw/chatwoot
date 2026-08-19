@@ -651,6 +651,22 @@ const summarizeThread = async email => {
 const quotedBody = email =>
   `\n\n------ 原邮件 ------\n发件人：${email.fromAddress || '—'}\n时间：${fmtDateTime(email.emailDate)}\n主题：${email.subject || '(无主题)'}\n\n${email.body || ''}`;
 
+// 原邮件引用：有 HTML（body_html）就走富文本独立引用块（保留颜色/加重/内嵌图/表格），
+// 没有 HTML 才回退旧的纯文本引用塞进正文。
+const quotePrefill = email =>
+  email.bodyHtml
+    ? {
+        body: '',
+        quoteHtml: email.bodyHtml,
+        quotePlain: email.body || '',
+        quoteMeta: {
+          from: email.fromAddress || '—',
+          date: fmtDateTime(email.emailDate),
+          subject: email.subject || '(无主题)',
+        },
+      }
+    : { body: quotedBody(email) };
+
 const reply = (email, all = false) => {
   openCompose({
     toAddress: email.fromAddress || '',
@@ -658,7 +674,7 @@ const reply = (email, all = false) => {
     subject: email.subject?.startsWith('Re:')
       ? email.subject
       : `Re: ${email.subject || ''}`,
-    body: quotedBody(email),
+    ...quotePrefill(email),
     crmCustomerId: email.crmCustomerId || null,
     contactId: email.contactId || null,
     focusReplyTop: true,
@@ -671,7 +687,7 @@ const forward = email => {
     subject: email.subject?.startsWith('Fwd:')
       ? email.subject
       : `Fwd: ${email.subject || ''}`,
-    body: quotedBody(email),
+    ...quotePrefill(email),
     focusReplyTop: true,
   });
 };

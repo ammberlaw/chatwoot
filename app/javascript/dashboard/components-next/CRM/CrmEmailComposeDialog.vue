@@ -37,6 +37,7 @@ import {
 } from 'dashboard/helper/uploadHelper';
 import { vOnClickOutside } from '@vueuse/components';
 
+import DOMPurify from 'dompurify';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -496,6 +497,39 @@ const bodyStyle = computed(() => {
 // 签名要插在「回复正文」与「原邮件引用」之间，而不是整封（含引用）最底部。
 const QUOTE_MARKER = '------ 原邮件 ------';
 
+// ---- 回复/转发：原邮件富文本引用（保留顾客颜色/加重/内嵌图/表格，只读展示 + 原样带回）----
+// 原邮件的 HTML 存在 Crm::Email.body_html，回复时作为独立引用块拼进发出的 HTML，
+// 不塞进 markdown 编辑器（markdown schema 会把颜色/表格/图拍平）。
+const quoteHtmlRaw = ref(''); // 原邮件 HTML（已 DOMPurify 清洗）
+const quotePlain = ref(''); // 原邮件纯文本兜底
+const quoteMeta = ref(null); // { from, date, subject }
+const showQuote = ref(true); // UI 折叠开关
+const escapeHtml = s =>
+  String(s ?? '').replace(
+    /[&<>]/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]
+  );
+const quoteHeaderHtml = computed(() => {
+  const m = quoteMeta.value;
+  if (!m) return QUOTE_MARKER;
+  return `${QUOTE_MARKER}<br>发件人：${escapeHtml(m.from || '—')}<br>时间：${escapeHtml(m.date || '')}<br>主题：${escapeHtml(m.subject || '(无主题)')}`;
+});
+// 发出的 HTML 里的引用块：分隔头 + 原邮件 HTML（灰色引用条样式，收件端习惯）。
+const quoteBlockHtml = computed(() =>
+  quoteHtmlRaw.value
+    ? `<br><br><div style="color:#6b7280;font-size:13px">${quoteHeaderHtml.value}</div>` +
+      `<blockquote style="margin:8px 0 0;padding-left:12px;border-left:2px solid #d1d5db">${quoteHtmlRaw.value}</blockquote>`
+    : ''
+);
+const quoteBlockText = computed(() => {
+  if (!quoteHtmlRaw.value && !quotePlain.value) return '';
+  const m = quoteMeta.value;
+  const header = m
+    ? `${QUOTE_MARKER}\n发件人：${m.from || '—'}\n时间：${m.date || ''}\n主题：${m.subject || '(无主题)'}`
+    : QUOTE_MARKER;
+  return `\n\n${header}\n\n${quotePlain.value}`;
+});
+
 const fontWrap = html => {
   const parts = [];
   if (fontFamily.value) parts.push(`font-family:${fontFamily.value}`);
@@ -528,12 +562,17 @@ const cleanedSignatureHtml = ref(null);
 const composedHtml = computed(() => {
   const sig = cleanedSignatureHtml.value ?? signatureHtml.value;
   const body = form.body || '';
+  // 新版回复：原邮件走独立 HTML 引用块（quoteBlockHtml），编辑器里只有回信正文。
+  if (quoteBlockHtml.value) {
+    const replyHtml = fontWrap(markdownToHtml(trimTrailing(body)));
+    return `${replyHtml}${sig}${quoteBlockHtml.value}`;
+  }
+  // 旧版兼容：引用以文本形式内嵌在 body（草稿等）。
   const idx = body.indexOf(QUOTE_MARKER);
-  // 有原邮件引用：签名插到回复正文之后、引用之前；否则拼在正文末尾。
   if (sig && idx !== -1) {
     const replyHtml = markdownToHtml(trimTrailing(body.slice(0, idx)));
-    const quoteHtml = markdownToHtml(body.slice(idx));
-    return fontWrap(`${replyHtml}${sig}${quoteHtml}`);
+    const quotedHtml = markdownToHtml(body.slice(idx));
+    return fontWrap(`${replyHtml}${sig}${quotedHtml}`);
   }
   if (sig) return `${fontWrap(markdownToHtml(trimTrailing(body)))}${sig}`;
   return bodyHtml.value;
@@ -542,8 +581,11 @@ const composedText = computed(() => {
   const sig = activeSignature.value;
   const plain = sig?.body ? `\n\n${sig.body}` : '';
   const body = form.body || '';
+  // 新版回复：纯文本兜底 = 回信 + 签名 + 原邮件纯文本引用。
+  if (quoteBlockText.value) {
+    return `${trimTrailing(body)}${plain}${quoteBlockText.value}`;
+  }
   const idx = body.indexOf(QUOTE_MARKER);
-  // 纯文本兜底同理：签名夹在回复正文与原邮件引用之间。
   if (plain && idx !== -1) {
     return `${trimTrailing(body.slice(0, idx))}${plain}\n\n${body.slice(idx)}`;
   }
@@ -1139,6 +1181,10 @@ const reset = () => {
   showBcc.value = false;
   minimized.value = false;
   resetDrag();
+  quoteHtmlRaw.value = '';
+  quotePlain.value = '';
+  quoteMeta.value = null;
+  showQuote.value = true;
   customerQuery.value = '';
   customerHits.value = [];
   customer.value = null;
@@ -1208,6 +1254,13 @@ const open = async prefill => {
     }
     if (prefill.subject) form.subject = prefill.subject;
     if (prefill.body) form.body = prefill.body;
+    // 回复/转发的原邮件富文本引用（清洗后只读展示 + 原样带回）。
+    if (prefill.quoteHtml) {
+      quoteHtmlRaw.value = DOMPurify.sanitize(prefill.quoteHtml);
+      quotePlain.value = prefill.quotePlain || '';
+      quoteMeta.value = prefill.quoteMeta || null;
+      showQuote.value = true;
+    }
     if (prefill.crmCustomerId) form.crmCustomerId = prefill.crmCustomerId;
     if (prefill.contactId) contactId.value = prefill.contactId;
     // 从客户列表「写邮件」：带客户对象 → 自动带出客户+联系人+收件人。
@@ -1685,6 +1738,41 @@ defineExpose({ open, close });
               class="crm-sig-strip text-sm text-n-slate-12"
               v-html="signatureHtml"
             />
+          </div>
+
+          <!-- 原邮件富文本引用：回复/转发时保留顾客颜色/加重/内嵌图/表格，只读展示，发送原样带回 -->
+          <div v-if="quoteHtmlRaw" class="px-3 pb-3 bg-n-solid-1">
+            <div
+              class="flex items-center gap-2 pt-2 mb-1 border-t border-n-weak"
+            >
+              <Icon icon="i-lucide-reply" class="size-3.5 text-n-slate-9" />
+              <span class="text-[11px] text-n-slate-9">原邮件（保留原格式）</span>
+              <span class="flex-1" />
+              <button
+                class="text-[11px] text-n-slate-9 hover:text-n-slate-11"
+                @click="showQuote = !showQuote"
+              >
+                {{ showQuote ? '隐藏' : '显示' }}
+              </button>
+            </div>
+            <div
+              v-if="showQuote"
+              class="pl-3 border-l-2 border-n-weak max-h-80 overflow-auto"
+            >
+              <div
+                v-if="quoteMeta"
+                class="mb-2 text-[11px] leading-5 text-n-slate-9"
+              >
+                <div>发件人：{{ quoteMeta.from || '—' }}</div>
+                <div>时间：{{ quoteMeta.date || '' }}</div>
+                <div>主题：{{ quoteMeta.subject || '(无主题)' }}</div>
+              </div>
+              <!-- eslint-disable-next-line vue/no-v-html -->
+              <div
+                class="text-sm crm-quote-preview text-n-slate-12 [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full"
+                v-html="quoteHtmlRaw"
+              />
+            </div>
           </div>
         </div>
         <!-- /可滚动区 -->
