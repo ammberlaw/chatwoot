@@ -1,5 +1,5 @@
 <script setup>
-import { ref, unref, provide, computed, watch, onMounted } from 'vue';
+import { ref, unref, provide, computed, watch, onMounted, nextTick } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -76,6 +76,12 @@ const activeAssigneeTab = ref(wootConstants.ASSIGNEE_TYPE.ME);
 const activeStatus = ref(wootConstants.STATUS_TYPE.OPEN);
 const activeSortBy = ref(wootConstants.SORT_BY_TYPE.LAST_ACTIVITY_AT_DESC);
 const showAdvancedFilters = ref(false);
+// The conversation list column has `overflow-hidden` + `backdrop-filter`
+// (glass card), which clips any teleport target rendered inside it. So the
+// advanced filter panel is teleported to <body> and positioned as fixed,
+// anchored to the filter button, to escape that clipping context.
+const filterPanelStyle = ref({ visibility: 'hidden' });
+const filterPanelRef = ref(null);
 // chatsOnView is to store the chats that are currently visible on the screen,
 // which mirrors the conversationList.
 const chatsOnView = ref([]);
@@ -548,6 +554,33 @@ function initalizeAppliedFiltersToModal() {
   appliedFilter.value = [...appliedFilters.value];
 }
 
+function positionFilterPanel() {
+  const button = document.getElementById('toggleConversationFilterButton');
+  const panel = filterPanelRef.value;
+  if (!button || !panel) return;
+  const rect = button.getBoundingClientRect();
+  const gap = 8;
+  const width = panel.offsetWidth;
+  // Right-align the panel to the filter button, then clamp within the viewport.
+  const maxLeft = Math.max(gap, window.innerWidth - width - gap);
+  const left = Math.min(Math.max(rect.right - width, gap), maxLeft);
+  filterPanelStyle.value = {
+    top: `${rect.bottom + gap}px`,
+    left: `${left}px`,
+  };
+}
+
+watch(showAdvancedFilters, isOpen => {
+  if (isOpen) {
+    window.addEventListener('resize', positionFilterPanel);
+    window.addEventListener('scroll', positionFilterPanel, true);
+  } else {
+    filterPanelStyle.value = { visibility: 'hidden' };
+    window.removeEventListener('resize', positionFilterPanel);
+    window.removeEventListener('scroll', positionFilterPanel, true);
+  }
+});
+
 function onToggleAdvanceFiltersModal() {
   if (showAdvancedFilters.value === true) {
     closeAdvanceFiltersModal();
@@ -565,6 +598,7 @@ function onToggleAdvanceFiltersModal() {
   }
 
   showAdvancedFilters.value = true;
+  nextTick(positionFilterPanel);
 }
 
 function fetchConversations() {
@@ -976,18 +1010,17 @@ watch(conversationFilters, (newVal, oldVal) => {
       @confirm="deleteConversation"
       @close="selectedConversationId = null"
     />
-    <TeleportWithDirection
-      v-if="showAdvancedFilters"
-      to="#conversationFilterTeleportTarget"
-    >
-      <ConversationFilter
-        v-model="appliedFilter"
-        :folder-name="activeFolderName"
-        :is-folder-view="hasActiveFolders"
-        @apply-filter="onApplyFilter"
-        @update-folder="onUpdateSavedFilter"
-        @close="closeAdvanceFiltersModal"
-      />
+    <TeleportWithDirection v-if="showAdvancedFilters" to="body">
+      <div ref="filterPanelRef" class="fixed z-50" :style="filterPanelStyle">
+        <ConversationFilter
+          v-model="appliedFilter"
+          :folder-name="activeFolderName"
+          :is-folder-view="hasActiveFolders"
+          @apply-filter="onApplyFilter"
+          @update-folder="onUpdateSavedFilter"
+          @close="closeAdvanceFiltersModal"
+        />
+      </div>
     </TeleportWithDirection>
     <ConversationResolveAttributesModal
       ref="resolveAttributesModalRef"
