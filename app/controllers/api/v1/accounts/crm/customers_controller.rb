@@ -350,7 +350,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   # 私海侧按 CRM 团队收口（管理员看全部/CRM 团队负责人看本团队/业务员看自己）；公海是共享池不限。
   def filtered_customers
     scope = pool_scope(Current.account.crm_customers)
-    scope = restrict_by_org(scope) unless params[:filter] == 'public_pool'
+    # 公海全公司共享、「共享给我的」已按 shared_user_ids 收口，均不再叠加团队辖区限制。
+    scope = restrict_by_org(scope) unless params[:filter].in?(%w[public_pool shared])
     scope = scope.favorited_by(current_user.id) if params[:favorited_only].present?
     apply_customer_filters(scope)
   end
@@ -418,6 +419,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     when 'mine' then scope.owned_by(current_user.id)
     # 建单可选客户：本人名下 + 共享给本人的（助理在共享客户上建 PI/报价/订单）。
     when 'mine_shared' then scope.where('crm_customers.account_owner_id = :uid OR :uid = ANY(crm_customers.shared_user_ids)', uid: current_user.id)
+    # 「共享给我的」列表视图：只看别人共享给本人的客户（不含自己名下的）。
+    when 'shared' then scope.where(':uid = ANY(crm_customers.shared_user_ids)', uid: current_user.id)
     when 'unassigned' then scope.where(account_owner_id: nil, is_in_public_pool: false)
     when 'churn_risk' then churn_risk_scope(scope)
     else scope

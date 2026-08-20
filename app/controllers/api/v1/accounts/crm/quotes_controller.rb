@@ -17,8 +17,8 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
 
   # 页顶汇总：各状态张数 + 按币种金额 + 可见范围内创建人（供筛选）。
   def summary
-    scope = scope_by_owner(Current.account.crm_quotes)
-    scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
+    scope = scope_docs_visible(Current.account.crm_quotes)
+    scope = scope_docs_mine(scope) if params[:filter] == 'mine'
 
     counts = scope.group(:status).count
     amounts = scope.where.not(total_amount_micros: nil)
@@ -31,7 +31,9 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
 
   def create
     @quote = Current.account.crm_quotes.new(quote_params)
-    @quote.owner_id ||= current_user.id
+    # 业绩归属人 = 客户归属人（共享客户助理建报价，业绩归老板）；handled_by = 实际建单人（留痕）。
+    @quote.owner_id ||= performance_owner_id(@quote.crm_customer_id)
+    @quote.handled_by_id ||= current_user.id
     @quote.save!
     recompute_totals!
     render :show
@@ -122,7 +124,7 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
   end
 
   def filtered_quotes
-    scope = apply_view_filter(scope_by_owner(Current.account.crm_quotes))
+    scope = apply_view_filter(scope_docs_visible(Current.account.crm_quotes))
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
@@ -133,7 +135,7 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
   # 视图档：pending=待处理(DRAFT/SENT)、mine=我的。
   def apply_view_filter(scope)
     return scope.pending if params[:filter] == 'pending'
-    return scope.owned_by(current_user.id) if params[:filter] == 'mine'
+    return scope_docs_mine(scope) if params[:filter] == 'mine'
 
     scope
   end

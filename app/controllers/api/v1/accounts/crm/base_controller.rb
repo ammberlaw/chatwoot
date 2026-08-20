@@ -61,4 +61,27 @@ class Api::V1::Accounts::Crm::BaseController < Api::V1::Accounts::BaseController
     ids = crm_visible_owner_ids
     ids == :all ? relation : relation.where(column => ids)
   end
+
+  # 单据业绩归属人：PI/销售订单/报价的业绩计入「客户归属人」而非创建人。
+  # 共享客户里被共享的助理建单，业绩仍归客户归属人（老板）；公海/未分配客户回落到创建人。
+  def performance_owner_id(crm_customer_id)
+    return current_user.id if crm_customer_id.blank?
+
+    owner = Current.account.crm_customers.where(id: crm_customer_id).pick(:account_owner_id)
+    owner || current_user.id
+  end
+
+  # 单据(PI/销售订单/报价)可见范围：按负责人授权 + 额外放行「我经办的」。
+  # 经办人(共享客户里实际建单的助理)在自己账号也能看到这些单（业绩仍归老板）。
+  def scope_docs_visible(relation, team: false)
+    ids = team ? crm_team_visible_owner_ids : crm_visible_owner_ids
+    return relation if ids == :all
+
+    relation.where('owner_id IN (:ids) OR handled_by_id = :uid', ids: ids, uid: current_user.id)
+  end
+
+  # 「我的」单据 = 我负责的(业绩归我) + 我经办的(共享客户里我建的)。
+  def scope_docs_mine(relation)
+    relation.where('owner_id = :uid OR handled_by_id = :uid', uid: current_user.id)
+  end
 end

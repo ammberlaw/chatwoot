@@ -27,6 +27,7 @@ class Crm::QuoteToSalesOrder
       crm_customer_id: @quote.crm_customer_id,
       contact_id: @quote.contact_id,
       owner_id: @quote.owner_id,
+      handled_by_id: @quote.handled_by_id,
       status: 'PENDING_CONFIRMATION',
       order_date: Time.current,
       order_currency: @quote.quote_currency,

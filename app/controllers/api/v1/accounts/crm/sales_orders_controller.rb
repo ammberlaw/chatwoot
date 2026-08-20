@@ -18,7 +18,14 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   def create
     attrs = order_attributes
-    @sales_order = Current.account.crm_sales_orders.create!(attrs.merge(owner_id: attrs[:owner_id] || current_user.id))
+    # 业绩归属人 = 客户归属人（共享客户助理建单，业绩归老板）；显式传 owner_id 优先。
+    # handled_by = 实际建单人（留痕）。
+    @sales_order = Current.account.crm_sales_orders.create!(
+      attrs.merge(
+        owner_id: attrs[:owner_id].presence || performance_owner_id(attrs[:crm_customer_id]),
+        handled_by_id: current_user.id
+      )
+    )
   end
 
   def update
@@ -127,7 +134,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   # 基础可见范围按部门授权（管理员全部/主管本部门及下级/业务员自己）。
   def filtered_sales_orders
     scope = visible_sales_orders
-    scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
+    scope = scope_docs_mine(scope) if params[:filter] == 'mine'
     scope = scope.where(crm_customer_id: nil) if params[:filter] == 'no_customer'
     apply_order_filters(scope)
   end
@@ -139,7 +146,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     scope = scope.where(crm_customer_id: nil) if params[:filter] == 'no_customer'
     base = apply_order_filters(scope)
     @all_count = base.count
-    @mine_count = base.owned_by(current_user.id).count
+    @mine_count = scope_docs_mine(base).count
   end
 
   ORDER_COLUMN_FILTERS = { status: :status, customer_id: :crm_customer_id, owner_id: :owner_id }.freeze
@@ -156,7 +163,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   # 销售订单按 CRM 团队收口：业务员看本人，CRM 团队负责人看本团队，管理员/副管理员看全部。
   # 刻意用 CRM 团队（scope_by_team_owner）而非组织部门——与客户/商机的部门口径不同。
   def visible_sales_orders
-    scope_by_team_owner(Current.account.crm_sales_orders)
+    scope_docs_visible(Current.account.crm_sales_orders, team: true)
   end
 
   # 按下单月份筛选（month 形如 2026-07）；格式非法则忽略。

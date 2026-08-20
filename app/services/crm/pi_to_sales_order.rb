@@ -33,6 +33,7 @@ class Crm::PiToSalesOrder
       crm_customer_id: @pi.crm_customer_id,
       contact_id: @pi.contact_id,
       owner_id: @pi.owner_id,
+      handled_by_id: @pi.handled_by_id,
       status: 'IN_PRODUCTION',
       order_date: Time.current,
       order_currency: @pi.currency,

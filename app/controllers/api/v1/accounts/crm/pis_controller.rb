@@ -17,8 +17,8 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   # KPI 汇总：按状态给出全量张数 + 各币种金额合计（不受状态 tab / 搜索约束，
   # 只受可见范围收口，供页顶 KPI 卡与状态 tab 计数使用）。
   def summary
-    scope = scope_by_owner(Current.account.crm_pis)
-    scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
+    scope = scope_docs_visible(Current.account.crm_pis)
+    scope = scope_docs_mine(scope) if params[:filter] == 'mine'
 
     counts = scope.group(:status).count
     amounts = scope.where.not(total_amount_micros: nil)
@@ -38,7 +38,9 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
 
   def create
     @pi = Current.account.crm_pis.new(pi_params)
-    @pi.owner_id ||= current_user.id
+    # 业绩归属人 = 客户归属人（共享客户助理建 PI，业绩归老板）；handled_by = 实际建单人（留痕）。
+    @pi.owner_id ||= performance_owner_id(@pi.crm_customer_id)
+    @pi.handled_by_id ||= current_user.id
     apply_seller_profile_defaults
     @pi.save!
     # 建单时直接选「已付款」也要落销售订单（与 update 同口径；服务按 pi_no 幂等）。
@@ -151,8 +153,8 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   end
 
   def filtered_pis
-    scope = scope_by_owner(Current.account.crm_pis)
-    scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
+    scope = scope_docs_visible(Current.account.crm_pis)
+    scope = scope_docs_mine(scope) if params[:filter] == 'mine'
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = search(scope, params[:q]) if params[:q].present?

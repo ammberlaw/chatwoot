@@ -540,18 +540,26 @@ onMounted(() => {
               {{ fmtDate(record.piDate) }}
             </td>
             <td class="px-3 py-3 whitespace-nowrap">
-              <span
-                v-if="record.ownerName"
-                class="inline-flex items-center gap-2 text-n-slate-11"
-              >
-                <Avatar
-                  :name="record.ownerName"
-                  :src="record.ownerAvatarUrl || ''"
-                  :size="26"
-                  rounded-full
-                />
-                {{ record.ownerName }}
-              </span>
+              <div v-if="record.ownerName" class="flex flex-col gap-0.5">
+                <span class="inline-flex items-center gap-2 text-n-slate-11">
+                  <Avatar
+                    :name="record.ownerName"
+                    :src="record.ownerAvatarUrl || ''"
+                    :size="26"
+                    rounded-full
+                  />
+                  {{ record.ownerName }}
+                </span>
+                <span
+                  v-if="
+                    record.handledByName &&
+                    record.handledById !== record.ownerId
+                  "
+                  class="pl-[34px] text-[11px] text-n-slate-10"
+                >
+                  经办：{{ record.handledByName }}
+                </span>
+              </div>
               <span v-else class="text-n-slate-10">—</span>
             </td>
             <td class="px-3 py-3">

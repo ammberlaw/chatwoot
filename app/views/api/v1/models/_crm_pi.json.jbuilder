@@ -9,6 +9,8 @@ json.contact_id resource.contact_id
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.crm_display_name
 json.owner_avatar_url resource.owner&.avatar_url
+json.handled_by_id resource.handled_by_id
+json.handled_by_name resource.handled_by&.crm_display_name
 json.attention resource.attention
 json.buyer_company resource.buyer_company
 json.buyer_address resource.buyer_address

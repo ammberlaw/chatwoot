@@ -24,6 +24,7 @@
 #  contact_id             :bigint
 #  crm_customer_id        :bigint
 #  crm_opportunity_id     :bigint
+#  handled_by_id          :bigint
 #  owner_id               :bigint
 #
 # Indexes
@@ -34,6 +35,7 @@
 #  index_crm_quotes_on_contact_id               (contact_id)
 #  index_crm_quotes_on_crm_customer_id          (crm_customer_id)
 #  index_crm_quotes_on_crm_opportunity_id       (crm_opportunity_id)
+#  index_crm_quotes_on_handled_by_id            (handled_by_id)
 #  index_crm_quotes_on_owner_id                 (owner_id)
 #
 # Foreign Keys
@@ -41,6 +43,7 @@
 #  fk_rails_...  (contact_id => contacts.id) ON DELETE => nullify
 #  fk_rails_...  (crm_customer_id => crm_customers.id) ON DELETE => nullify
 #  fk_rails_...  (crm_opportunity_id => crm_opportunities.id) ON DELETE => nullify
+#  fk_rails_...  (handled_by_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::Quote < ApplicationRecord
@@ -51,6 +54,8 @@ class Crm::Quote < ApplicationRecord
   belongs_to :contact, optional: true
   belongs_to :crm_opportunity, class_name: 'Crm::Opportunity', optional: true
   belongs_to :owner, class_name: 'User', optional: true
+  # 经办人：实际建单的人（业绩仍归 owner=客户归属人，此字段仅留痕）。
+  belongs_to :handled_by, class_name: 'User', optional: true
   # 唯一的级联关系：删报价即删明细（CRM_SPEC §4）
   has_many :line_items, class_name: 'Crm::QuoteLineItem', foreign_key: :crm_quote_id, dependent: :destroy, inverse_of: :quote
   has_many :sales_orders, class_name: 'Crm::SalesOrder', foreign_key: :crm_quote_id, dependent: :nullify, inverse_of: :quote

@@ -168,8 +168,9 @@ const managerOwnerOptions = computed(() => {
   ];
 });
 
-// 部门主管私海双视图：我的客户(mine) / 团队客户(private 全辖区)
-const managerView = ref('team');
+// 私海视图切换：我的客户(mine) / 团队客户(team，主管全辖区) / 共享给我的(shared)。
+// 主管默认团队客户；业务员默认我的客户。「共享给我的」是独立视图(走 activeFilter='shared')。
+const managerView = ref(isCrmManager.value ? 'team' : 'mine');
 const isManagerTeamView = computed(
   () =>
     isCrmManager.value &&
@@ -177,13 +178,43 @@ const isManagerTeamView = computed(
     managerView.value === 'team'
 );
 
+// 视图切换标签：主管[我的/团队/共享给我的]，业务员[我的/共享给我的]，其余角色不显示切换。
+const viewTabs = computed(() => {
+  if (isCrmManager.value) {
+    return [
+      { key: 'mine', label: '我的客户' },
+      { key: 'team', label: '团队客户' },
+      { key: 'shared', label: '共享给我的' },
+    ];
+  }
+  if (isCrmSales.value) {
+    return [
+      { key: 'mine', label: '我的客户' },
+      { key: 'shared', label: '共享给我的' },
+    ];
+  }
+  return [];
+});
+const showViewTabs = computed(
+  () =>
+    viewTabs.value.length > 0 &&
+    (activeFilter.value === 'private' || activeFilter.value === 'shared')
+);
+// 当前高亮的视图
+const currentView = computed(() => {
+  if (activeFilter.value === 'shared') return 'shared';
+  return isCrmManager.value ? managerView.value : 'mine';
+});
+
 // 列表与概览卡共用的筛选口径（视图/分组/来源/状态/等级/搜索/团队/业务员）。
 const currentFilterParams = () => {
   let filter = activeFilter.value === 'all' ? undefined : activeFilter.value;
+  // 私海内选「我的客户」映射到 mine（只看本人名下）；主管与业务员通用。
+  // activeFilter='shared'（共享给我的）直接透传，后端按 shared_user_ids 收口。
   if (
-    isCrmManager.value &&
     filter === 'private' &&
-    managerView.value === 'mine'
+    managerView.value === 'mine' &&
+    (isCrmManager.value || isCrmSales.value)
   ) {
     filter = 'mine';
   }
@@ -226,7 +257,12 @@ const fetchStats = async () => {
 const statCards = computed(() => [
   {
     key: 'customers',
-    label: isManagerTeamView.value ? '团队客户' : '我的客户',
+    label:
+      activeFilter.value === 'shared'
+        ? '共享给我的'
+        : isManagerTeamView.value
+          ? '团队客户'
+          : '我的客户',
     value: stats.value.customers,
     icon: 'i-lucide-users',
     tile: 'bg-n-amber-3 text-n-amber-11',
@@ -268,12 +304,19 @@ const fetchCustomers = () => {
 // —— 勾选批量转移（主管团队视图）——
 const selectedIds = ref([]);
 
-const setManagerView = view => {
-  managerView.value = view;
+// 切换视图：共享走 activeFilter='shared'；我的/团队走 managerView(私海内子视图)。
+const selectView = key => {
+  if (key === 'shared') {
+    activeFilter.value = 'shared';
+  } else {
+    if (activeFilter.value === 'shared') activeFilter.value = 'private';
+    managerView.value = key;
+  }
   selectedIds.value = [];
   currentPage.value = 1;
   fetchCustomers();
 };
+
 const reassignTargetId = ref('');
 const reassigning = ref(false);
 const toggleSelect = id => {
@@ -1283,25 +1326,22 @@ watch(
       >
         <!-- 第 1 行：视图切换 + 搜索 + 只看关注 + 批量操作 -->
         <div class="flex flex-wrap items-center gap-2">
-          <!-- 部门主管：我的客户 / 团队客户 双视图 -->
+          <!-- 视图切换：我的客户 / 团队客户(主管) / 共享给我的 -->
           <div
-            v-if="isCrmManager && activeFilter === 'private'"
+            v-if="showViewTabs"
             class="flex items-center gap-0.5 p-[3px] rounded-[10px] bg-n-slate-3"
           >
             <button
-              v-for="tab in [
-                { key: 'mine', label: '我的客户' },
-                { key: 'team', label: '团队客户' },
-              ]"
+              v-for="tab in viewTabs"
               :key="tab.key"
               type="button"
               class="px-3 py-1.5 text-[13px] rounded-lg transition-colors"
               :class="
-                managerView === tab.key
+                currentView === tab.key
                   ? 'bg-n-iris-9 text-white font-semibold shadow-sm shadow-n-iris-9/30'
                   : 'text-n-slate-11 hover:text-n-slate-12'
               "
-              @click="setManagerView(tab.key)"
+              @click="selectView(tab.key)"
             >
               {{ tab.label }}
             </button>

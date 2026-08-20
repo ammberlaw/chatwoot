@@ -30,6 +30,7 @@
 #  crm_quote_id         :bigint
 #  crm_team_id          :bigint
 #  deleted_by_id        :bigint
+#  handled_by_id        :bigint
 #  owner_id             :bigint
 #
 # Indexes
@@ -44,6 +45,7 @@
 #  index_crm_sales_orders_on_crm_quote_id               (crm_quote_id)
 #  index_crm_sales_orders_on_crm_team_id                (crm_team_id)
 #  index_crm_sales_orders_on_deleted_at                 (deleted_at)
+#  index_crm_sales_orders_on_handled_by_id              (handled_by_id)
 #  index_crm_sales_orders_on_owner_id                   (owner_id)
 #
 # Foreign Keys
@@ -53,6 +55,7 @@
 #  fk_rails_...  (crm_opportunity_id => crm_opportunities.id) ON DELETE => nullify
 #  fk_rails_...  (crm_quote_id => crm_quotes.id) ON DELETE => nullify
 #  fk_rails_...  (crm_team_id => crm_teams.id) ON DELETE => nullify
+#  fk_rails_...  (handled_by_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::SalesOrder < ApplicationRecord
@@ -68,6 +71,8 @@ class Crm::SalesOrder < ApplicationRecord
   belongs_to :crm_opportunity, class_name: 'Crm::Opportunity', optional: true
   belongs_to :quote, class_name: 'Crm::Quote', foreign_key: :crm_quote_id, optional: true, inverse_of: :sales_orders
   belongs_to :owner, class_name: 'User', optional: true
+  # 经办人：实际建单的人（业绩仍归 owner=客户归属人，此字段仅留痕）。
+  belongs_to :handled_by, class_name: 'User', optional: true
   belongs_to :crm_team, class_name: 'Crm::Team', optional: true, inverse_of: :sales_orders
   # 软删除人（回收箱展示）。
   belongs_to :deleted_by, class_name: 'User', optional: true

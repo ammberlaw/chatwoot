@@ -8,6 +8,8 @@ json.crm_opportunity_id resource.crm_opportunity_id
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.crm_display_name
 json.owner_avatar_url resource.owner&.avatar_url
+json.handled_by_id resource.handled_by_id
+json.handled_by_name resource.handled_by&.crm_display_name
 json.contact_name resource.contact&.name
 json.quote_date resource.quote_date
 json.valid_until resource.valid_until

@@ -34,6 +34,7 @@
 #  account_id           :bigint           not null
 #  contact_id           :bigint
 #  crm_customer_id      :bigint
+#  handled_by_id        :bigint
 #  owner_id             :bigint
 #
 # Indexes
@@ -42,17 +43,21 @@
 #  index_crm_pis_on_account_id_and_pi_no   (account_id,pi_no) UNIQUE
 #  index_crm_pis_on_account_id_and_status  (account_id,status)
 #  index_crm_pis_on_crm_customer_id        (crm_customer_id)
+#  index_crm_pis_on_handled_by_id          (handled_by_id)
 #  index_crm_pis_on_owner_id               (owner_id)
 #
 # Foreign Keys
 #
 #  fk_rails_...  (account_id => accounts.id)
+#  fk_rails_...  (handled_by_id => users.id) ON DELETE => nullify
 #
 class Crm::Pi < ApplicationRecord
   STATUSES = %w[DRAFT PAID VOID].freeze
 
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true
+  # 经办人：实际建单的人（业绩仍归 owner=客户归属人，此字段仅留痕）。
+  belongs_to :handled_by, class_name: 'User', optional: true
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true
   belongs_to :contact, optional: true
 

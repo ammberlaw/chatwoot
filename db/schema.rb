@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_18_000006) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_20_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1524,10 +1524,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_000006) do
     t.string "seller_mobile"
     t.string "seller_email"
     t.string "company_header"
+    t.bigint "handled_by_id"
     t.index ["account_id", "pi_no"], name: "index_crm_pis_on_account_id_and_pi_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_pis_on_account_id_and_status"
     t.index ["account_id"], name: "index_crm_pis_on_account_id"
     t.index ["crm_customer_id"], name: "index_crm_pis_on_crm_customer_id"
+    t.index ["handled_by_id"], name: "index_crm_pis_on_handled_by_id"
     t.index ["owner_id"], name: "index_crm_pis_on_owner_id"
   end
 
@@ -1626,12 +1628,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_000006) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "handled_by_id"
     t.index ["account_id", "quote_no"], name: "index_crm_quotes_on_account_id_and_quote_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_quotes_on_account_id_and_status"
     t.index ["account_id"], name: "index_crm_quotes_on_account_id"
     t.index ["contact_id"], name: "index_crm_quotes_on_contact_id"
     t.index ["crm_customer_id"], name: "index_crm_quotes_on_crm_customer_id"
     t.index ["crm_opportunity_id"], name: "index_crm_quotes_on_crm_opportunity_id"
+    t.index ["handled_by_id"], name: "index_crm_quotes_on_handled_by_id"
     t.index ["owner_id"], name: "index_crm_quotes_on_owner_id"
   end
 
@@ -1662,6 +1666,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_000006) do
     t.bigint "shipping_micros"
     t.datetime "deleted_at"
     t.bigint "deleted_by_id"
+    t.bigint "handled_by_id"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_sales_orders_on_account_id_and_status"
@@ -1672,6 +1677,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_000006) do
     t.index ["crm_quote_id"], name: "index_crm_sales_orders_on_crm_quote_id"
     t.index ["crm_team_id"], name: "index_crm_sales_orders_on_crm_team_id"
     t.index ["deleted_at"], name: "index_crm_sales_orders_on_deleted_at"
+    t.index ["handled_by_id"], name: "index_crm_sales_orders_on_handled_by_id"
     t.index ["owner_id"], name: "index_crm_sales_orders_on_owner_id"
   end
 
@@ -3092,17 +3098,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_000006) do
   add_foreign_key "crm_pi_items", "accounts"
   add_foreign_key "crm_pi_items", "crm_pis"
   add_foreign_key "crm_pis", "accounts"
+  add_foreign_key "crm_pis", "users", column: "handled_by_id", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_quotes", on_delete: :cascade
   add_foreign_key "crm_quotes", "contacts", on_delete: :nullify
   add_foreign_key "crm_quotes", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_quotes", "crm_opportunities", on_delete: :nullify
+  add_foreign_key "crm_quotes", "users", column: "handled_by_id", on_delete: :nullify
   add_foreign_key "crm_quotes", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "contacts", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "crm_opportunities", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "crm_quotes", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "crm_teams", on_delete: :nullify
+  add_foreign_key "crm_sales_orders", "users", column: "handled_by_id", on_delete: :nullify
   add_foreign_key "crm_sales_orders", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_sales_targets", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_scheme_items", "crm_kpi_schemes", on_delete: :cascade
