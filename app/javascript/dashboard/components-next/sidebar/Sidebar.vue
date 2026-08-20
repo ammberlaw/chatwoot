@@ -27,6 +27,7 @@ import SidebarChangelogButton from './SidebarChangelogButton.vue';
 import ChannelLeaf from './ChannelLeaf.vue';
 import ChannelIcon from 'next/icon/ChannelIcon.vue';
 import SidebarAccountSwitcher from './SidebarAccountSwitcher.vue';
+import MesProductLineSwitcher from './MesProductLineSwitcher.vue';
 import wintouchIcon from 'dashboard/assets/images/wintouch/icon.png';
 import ComposeConversation from 'dashboard/components-next/NewConversation/ComposeConversation.vue';
 import {
@@ -1870,6 +1871,9 @@ const filteredMenuItems = computed(() =>
         </ComposeConversation>
       </div>
     </section>
+    <MesProductLineSwitcher
+      v-if="activeModule === 'mes' && !isEffectivelyCollapsed"
+    />
     <nav
       class="grid overflow-y-scroll flex-grow gap-2 pb-5 no-scrollbar min-w-0"
       :class="isEffectivelyCollapsed ? 'px-1' : 'px-2'"
