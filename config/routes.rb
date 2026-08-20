@@ -259,7 +259,9 @@ Rails.application.routes.draw do
             resource :dashboard, only: [:show], controller: 'dashboard'
           end
           namespace :mes do
-            resource :dashboard, only: [:show], controller: 'dashboard'
+            resource :dashboard, only: [:show], controller: 'dashboard' do
+              get :pipeline
+            end
             resources :board_owners, only: [:index] do
               put :set, on: :collection
             end

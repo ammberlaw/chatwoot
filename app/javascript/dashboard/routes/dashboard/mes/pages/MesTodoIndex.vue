@@ -20,6 +20,22 @@ const STAGE_LABELS = {
 };
 const stageLabel = s => STAGE_LABELS[s] || s;
 
+// 本阶段停留天数（进入阶段至今）。
+const stallDays = enteredAt => {
+  if (!enteredAt) return null;
+  return Math.round((Date.now() - new Date(enteredAt)) / 86400000);
+};
+// 接单截止时间（工作时间口径，后端已算好）：短日期时间。
+const deadlineText = at =>
+  at
+    ? new Date(at).toLocaleString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '';
+
 const loading = ref(true);
 
 // 待我确认：停在我这一级的审批单（部门主管/总经理）+ 待我二次确认 BOM 的单（业务员）。
@@ -167,13 +183,23 @@ onMounted(load);
           <li
             v-for="o in inbox"
             :key="o.id"
-            class="flex items-center justify-between text-sm cursor-pointer group"
+            class="flex items-start justify-between gap-2 text-sm cursor-pointer group"
             @click="goOrder(o.order_no)"
           >
-            <span class="text-n-slate-12 group-hover:underline">
-              {{ o.order_no }} · {{ o.product_name }} ·
-              {{ stageLabel(o.stage) }}
-            </span>
+            <div class="min-w-0">
+              <span class="text-n-slate-12 group-hover:underline">
+                {{ o.order_no }} · {{ o.product_name }} ·
+                {{ stageLabel(o.stage) }}
+              </span>
+              <div class="text-[11px] text-n-slate-10">
+                <span v-if="stallDays(o.entered_at) !== null">
+                  停留 {{ stallDays(o.entered_at) }} 天
+                </span>
+                <span v-if="o.ack_deadline">
+                  · 接单截止 {{ deadlineText(o.ack_deadline) }}
+                </span>
+              </div>
+            </div>
             <span v-if="o.ack_overdue" class="shrink-0 text-n-ruby-11">
               🔴 超时未接单
             </span>

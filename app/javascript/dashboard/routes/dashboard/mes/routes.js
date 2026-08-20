@@ -1,6 +1,7 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 import MesDashboardIndex from './pages/MesDashboardIndex.vue';
+import MesPipelineBoardIndex from './pages/MesPipelineBoardIndex.vue';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
 import MesProductionOrderIntakeIndex from './pages/MesProductionOrderIntakeIndex.vue';
 import MesBomsIndex from './pages/MesBomsIndex.vue';
@@ -36,6 +37,7 @@ const mesPage = (path, name, component) => {
 
 export const routes = [
   mesPage('dashboard', 'mes_dashboard_index', MesDashboardIndex),
+  mesPage('pipeline', 'mes_pipeline_index', MesPipelineBoardIndex),
   mesPage('todo', 'mes_todo_index', MesTodoIndex),
   mesPage(
     'production-orders',

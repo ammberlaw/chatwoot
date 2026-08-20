@@ -292,6 +292,19 @@ const stallDays = po => {
 };
 const isStalled = po => stallDays(po) >= STALL_DAYS;
 
+// 列表阶段列的「等谁」：当前阶段负责人（未配则空；建单/出货阶段无板块负责人）。
+const stageWaitingText = po =>
+  (po?.stageOwnerNames || []).length ? `等：${po.stageOwnerNames.join('、')}` : '';
+
+// 列表阶段列的接单态徽标（与详情面板同口径）：已接单 / 超时未接单 / 待接单。
+const ackChip = po => {
+  if (!po || po.stage === 'SHIPPED') return null;
+  if (po.stageAckAt) return { text: '✓ 已接单', cls: 'text-n-teal-11' };
+  if (po.ackOverdue) return { text: '🔴 超时未接单', cls: 'text-n-ruby-11' };
+  if (po.awaitingAck) return { text: '⏳ 待接单', cls: 'text-n-amber-11' };
+  return null;
+};
+
 // 交期状态：已出货不预警；逾期红 / 临近橙 / 正常灰。
 const deliveryStatus = po => {
   if (!po?.deliveryDate || po.stage === 'SHIPPED') return null;
@@ -992,19 +1005,31 @@ watch(currentPage, fetchRecords);
               <td class="px-3 py-3 text-n-slate-11">
                 {{ po.producedQty }} / {{ po.qty }} {{ po.unit }}
               </td>
-              <td class="px-3 py-3">
-                <span
-                  class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
-                >
-                  {{ stageLabel(po.stage) }}
-                </span>
-                <span
-                  v-if="isStalled(po)"
-                  v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
-                  class="ml-1 text-xs text-n-amber-11"
-                >
-                  ⚠
-                </span>
+              <td class="px-3 py-3 align-top">
+                <div class="flex items-center">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+                  >
+                    {{ stageLabel(po.stage) }}
+                  </span>
+                  <span
+                    v-if="isStalled(po)"
+                    v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
+                    class="ml-1 text-xs text-n-amber-11"
+                  >
+                    ⚠
+                  </span>
+                </div>
+                <!-- 卡在谁那·卡了多久·接单态：不点开也一眼看清 -->
+                <div class="mt-1 text-[11px] leading-tight text-n-slate-10">
+                  <span v-if="stageWaitingText(po)" class="block truncate">
+                    {{ stageWaitingText(po) }}
+                  </span>
+                  <span v-if="ackChip(po)">
+                    <span :class="ackChip(po).cls">{{ ackChip(po).text }}</span>
+                    <span v-if="stallDays(po) > 0"> · 停留 {{ stallDays(po) }} 天</span>
+                  </span>
+                </div>
               </td>
               <td class="px-3 py-3 text-xs">
                 <span

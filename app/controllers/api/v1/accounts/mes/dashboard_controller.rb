@@ -16,7 +16,58 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     render 'api/v1/accounts/mes/dashboard/show'
   end
 
+  # 流水看板（泳道）：在产订单按当前阶段分组，每单一张卡，暴露「等谁 / 接单状态 /
+  # 停留天数 / 逾期临期」——一屏看全公司所有单卡在哪、等谁、卡了多久。
+  # 复用看板可见范围（业务员看自己/主管看团队/操作岗看全部）+ 产品线过滤。
+  def pipeline
+    orders = scoped_by_owner(scoped_by_product_line(
+      Current.account.mes_production_orders.published
+        .where.not(status: 'CANCELLED').where.not(stage: 'SHIPPED')
+    )).includes(:owner, :crm_customer, :stage_events)
+
+    # 阶段负责人一次性预载（board_key → user_ids），避免逐单查 Mes::BoardOwner。
+    board_map = Current.account.mes_board_owners.pluck(:board_key, :manager_ids).to_h
+    names = Current.account.users.where(id: board_map.values.flatten.uniq).pluck(:id, :name).to_h
+
+    @stages = Mes::ProductionOrder::STAGES - ['SHIPPED']
+    grouped = orders.group_by(&:stage)
+    now = Time.current
+    @cards_by_stage = @stages.index_with do |stage|
+      (grouped[stage] || []).map { |po| pipeline_card(po, board_map, names, now) }
+                            .sort_by { |c| -(c[:stall_days] || 0) }
+    end
+    render 'api/v1/accounts/mes/dashboard/pipeline'
+  end
+
   private
+
+  def pipeline_card(po, board_map, names, now)
+    ev = po.stage_events.select { |e| e.stage == po.stage }.max_by(&:entered_at)
+    stall_days = ev&.entered_at ? ((now - ev.entered_at) / 1.day).floor : nil
+    key = Mes::ProductionOrder::STAGE_BOARD_KEYS[po.stage]
+    waiting = key ? (board_map[key] || []).filter_map { |id| names[id] } : []
+    { id: po.id, order_no: po.order_no, product_name: po.product_name,
+      customer_name: po.crm_customer&.name, order_kind: po.order_kind,
+      owner_name: po.owner&.name, stage: po.stage, waiting_names: waiting,
+      stall_days: stall_days, ack_state: pipeline_ack_state(po),
+      alert: pipeline_alert(po, now), delivery_date: po.delivery_date }
+  end
+
+  # 接单态：none 无需接单（建单阶段）/ waiting 待接单 / overdue 超时未接单 / processing 已接单处理中。
+  def pipeline_ack_state(po)
+    return 'none' unless po.ack_required?
+    return 'overdue' if po.ack_overdue?
+
+    po.awaiting_ack? ? 'waiting' : 'processing'
+  end
+
+  # 交期告警：overdue 已逾期 / due_soon 临近（3 天内）/ nil 正常或无交期。
+  def pipeline_alert(po, now)
+    return nil if po.delivery_date.blank?
+    return 'overdue' if po.delivery_date < now
+
+    po.delivery_date <= now + Mes::AlertScannerService::DUE_SOON_DAYS.days ? 'due_soon' : nil
+  end
 
   # 各环节接单响应时长：接单时刻 − 进入本环节时刻，按本期内发生的接单聚合。
   # 顶层按 6 个接单环节，每环节下钻到接单人（stage_events.acked_by）。未接单不计入。

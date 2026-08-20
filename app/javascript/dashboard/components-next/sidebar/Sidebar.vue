@@ -15,6 +15,7 @@ import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
+import MesShipmentAPI from 'dashboard/api/mes/shipments';
 import { emitter } from 'shared/helpers/mitt';
 import { useWindowSize, useEventListener } from '@vueuse/core';
 
@@ -293,13 +294,15 @@ const mesUnreadCount = computed(() => mesNotificationsStore.getUnreadCount);
 const mesTodoCount = ref(0);
 const fetchMesTodoCount = async () => {
   try {
-    const [approvalRes, inboxRes] = await Promise.all([
+    const [approvalRes, inboxRes, shipmentRes] = await Promise.all([
       MesProductionOrderAPI.approvalInbox(),
       MesProductionOrderAPI.inbox(),
+      MesShipmentAPI.approvalInbox().catch(() => ({ data: { payload: [] } })),
     ]);
     mesTodoCount.value =
       (approvalRes?.data?.payload?.length || 0) +
-      (inboxRes?.data?.payload?.length || 0);
+      (inboxRes?.data?.payload?.length || 0) +
+      (shipmentRes?.data?.payload?.length || 0);
   } catch {
     mesTodoCount.value = 0;
   }
@@ -974,6 +977,7 @@ const menuItems = computed(() => {
         icon: 'i-lucide-factory',
         activeOn: [
           'mes_dashboard_index',
+          'mes_pipeline_index',
           'mes_todo_index',
           'mes_production_orders_index',
           'mes_boms_index',
@@ -994,6 +998,12 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_DASHBOARD'),
             to: accountScopedRoute('mes_dashboard_index'),
             activeOn: ['mes_dashboard_index'],
+          },
+          {
+            name: 'MES Pipeline',
+            label: t('SIDEBAR.MES_PIPELINE'),
+            to: accountScopedRoute('mes_pipeline_index'),
+            activeOn: ['mes_pipeline_index'],
           },
           {
             name: 'MES Todo',
@@ -1716,6 +1726,7 @@ const ROUTE_MODULE = {
   crm_employees_index: 'hr',
   crm_doc_center_index: 'doc',
   mes_dashboard_index: 'mes',
+  mes_pipeline_index: 'mes',
   mes_todo_index: 'mes',
   mes_production_orders_index: 'mes',
   mes_production_order_intake_index: 'mes',
