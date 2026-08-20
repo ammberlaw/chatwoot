@@ -322,9 +322,15 @@ class Mes::ProductionOrder < ApplicationRecord
     awaiting_ack? && ack_deadline.present? && ack_deadline < Time.current
   end
 
-  # 指定板块的负责人 user_id。
-  def board_owner_ids(board_key)
-    account.mes_board_owners.find_by(board_key: board_key)&.manager_ids || []
+  # 指定板块的负责人 user_id，按产品线路由（默认取本单所属线）：
+  # 优先该产品线专属负责人；未配则回落「全部产线」(product_line '') 通用负责人。
+  # 现有调用（通知/待办/点名）不传 line 即自动按本单 product_line 分流。
+  def board_owner_ids(board_key, line = product_line)
+    rows = account.mes_board_owners.where(board_key: board_key).to_a
+    specific = line.present? ? rows.find { |r| r.product_line == line }&.manager_ids : nil
+    return specific if specific.present?
+
+    rows.find { |r| r.product_line.blank? }&.manager_ids || []
   end
 
   # 当前阶段负责人的 user_id（取该阶段板块负责人）。

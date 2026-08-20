@@ -1,5 +1,6 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import { FEATURE_FLAGS } from '../../../featureFlags';
+import MesLayout from './MesLayout.vue';
 import MesDashboardIndex from './pages/MesDashboardIndex.vue';
 import MesPipelineBoardIndex from './pages/MesPipelineBoardIndex.vue';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
@@ -25,11 +26,13 @@ const mesMeta = {
   requiresCrmAccess: false,
 };
 
+// 外层用 MesLayout 壳（带以产品线为 key 的 router-view）；实际页面作为其子路由渲染，
+// 切换产品线时只重挂该页（重跑 onMounted 拉取），整站 MES 页按线过滤，且不刷新整个应用。
 const mesPage = (path, name, component) => {
   const meta = { ...mesMeta };
   return {
     path: frontendURL(`accounts/:accountId/mes/${path}`),
-    component,
+    component: MesLayout,
     meta,
     children: [{ path: '', name, component, meta }],
   };

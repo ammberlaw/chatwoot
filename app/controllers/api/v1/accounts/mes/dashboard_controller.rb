@@ -25,9 +25,10 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
         .where.not(status: 'CANCELLED').where.not(stage: 'SHIPPED')
     )).includes(:owner, :crm_customer, :stage_events)
 
-    # 阶段负责人一次性预载（board_key → user_ids），避免逐单查 Mes::BoardOwner。
-    board_map = Current.account.mes_board_owners.pluck(:board_key, :manager_ids).to_h
-    names = Current.account.users.where(id: board_map.values.flatten.uniq).pluck(:id, :name).to_h
+    # 阶段负责人一次性预载（(board_key, product_line) → user_ids），避免逐单查 Mes::BoardOwner。
+    board_rows = Current.account.mes_board_owners.to_a
+    board_map = board_rows.index_by { |o| [o.board_key, o.product_line.to_s] }.transform_values(&:manager_ids)
+    names = Current.account.users.where(id: board_rows.flat_map(&:manager_ids).uniq).pluck(:id, :name).to_h
 
     @stages = Mes::ProductionOrder::STAGES - ['SHIPPED']
     grouped = orders.group_by(&:stage)
@@ -45,12 +46,18 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     ev = po.stage_events.select { |e| e.stage == po.stage }.max_by(&:entered_at)
     stall_days = ev&.entered_at ? ((now - ev.entered_at) / 1.day).floor : nil
     key = Mes::ProductionOrder::STAGE_BOARD_KEYS[po.stage]
-    waiting = key ? (board_map[key] || []).filter_map { |id| names[id] } : []
+    ids = key ? pipeline_owner_ids(board_map, key, po.product_line.to_s) : []
+    waiting = ids.filter_map { |id| names[id] }
     { id: po.id, order_no: po.order_no, product_name: po.product_name,
       customer_name: po.crm_customer&.name, order_kind: po.order_kind,
       owner_name: po.owner&.name, stage: po.stage, waiting_names: waiting,
       stall_days: stall_days, ack_state: pipeline_ack_state(po),
       alert: pipeline_alert(po, now), delivery_date: po.delivery_date }
+  end
+
+  # 按 (板块, 产品线) 取负责人；未配专属线则回落「全部产线」。
+  def pipeline_owner_ids(board_map, key, line)
+    (line.present? && board_map[[key, line]].presence) || board_map[[key, '']] || []
   end
 
   # 接单态：none 无需接单（建单阶段）/ waiting 待接单 / overdue 超时未接单 / processing 已接单处理中。

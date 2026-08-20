@@ -4,6 +4,10 @@ import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 // 生产管理产品线切换：商显工控 / 平板 / 全部。切换后全站 MES 页面按线过滤（axios 拦截注入）。
 const { activeProductLine, options, setActiveProductLine } =
   useMesProductLine();
+
+// 切线即改产品线；MES 布局壳（MesLayout）的 router-view 以产品线为 key，
+// 切换时只重挂当前 MES 页（重跑 onMounted 拉取），不刷新整个应用，丝滑很多。
+const selectLine = value => setActiveProductLine(value);
 </script>
 
 <template>
@@ -25,7 +29,7 @@ const { activeProductLine, options, setActiveProductLine } =
             : 'text-n-slate-10 hover:text-n-slate-12'
         "
         :title="opt.label"
-        @click="setActiveProductLine(opt.value)"
+        @click="selectLine(opt.value)"
       >
         {{ opt.short }}
       </button>

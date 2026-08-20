@@ -2,7 +2,14 @@
 import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
-import { useMesBoardOwners } from 'dashboard/composables/useMesBoardOwners';
+import {
+  useMesBoardOwners,
+  boardOwnerKey,
+} from 'dashboard/composables/useMesBoardOwners';
+import {
+  useMesProductLine,
+  productLineLabel,
+} from 'dashboard/composables/useMesProductLine';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -17,10 +24,20 @@ const canManage = computed(() => isAdmin.value || isCrmDeputyAdmin.value);
 
 const { ownersByKey, members, loadOwners, ensureMembers, saveOwners } =
   useMesBoardOwners();
+// 阶段负责人按当前切换的产品线配置/展示（全部产线 = 通用负责人）。
+const { activeProductLine } = useMesProductLine();
+const lineLabel = computed(
+  () => productLineLabel(activeProductLine.value) || '全部产线'
+);
 
 const current = computed(
   () =>
-    ownersByKey.value[props.boardKey] || { managerIds: [], managerNames: [] }
+    ownersByKey.value[
+      boardOwnerKey(props.boardKey, activeProductLine.value)
+    ] || {
+      managerIds: [],
+      managerNames: [],
+    }
 );
 
 const dialogRef = ref(null);
@@ -49,7 +66,7 @@ const toggle = userId => {
 const save = async () => {
   saving.value = true;
   try {
-    await saveOwners(props.boardKey, draftIds.value);
+    await saveOwners(props.boardKey, draftIds.value, activeProductLine.value);
     dialogRef.value?.close();
     useAlert('负责人已更新');
   } catch {
@@ -66,7 +83,10 @@ onMounted(loadOwners);
   <div
     class="flex flex-wrap items-center gap-2 px-6 py-2 border-b border-n-weak bg-n-alpha-1/40"
   >
-    <span class="text-xs font-medium text-n-slate-11">阶段负责人</span>
+    <span class="text-xs font-medium text-n-slate-11">
+      阶段负责人
+      <span class="text-n-iris-11">· {{ lineLabel }}</span>
+    </span>
     <template v-if="current.managerNames.length">
       <span
         v-for="name in current.managerNames"
@@ -91,13 +111,18 @@ onMounted(loadOwners);
     <Dialog
       ref="dialogRef"
       confirm-button-color="iris"
-      title="设置阶段负责人"
+      :title="`设置阶段负责人 · ${lineLabel}`"
       :is-loading="saving"
       @confirm="save"
     >
       <div class="flex flex-col gap-3">
         <p class="text-xs text-n-slate-10">
-          勾选的成员会作为本阶段负责人展示，业务据此知道该找谁。
+          正在设置
+          <b class="text-n-iris-11">{{ lineLabel }}</b>
+          的本阶段负责人：该产品线的单进到此阶段时，只通知这些人、只进他们的待办。
+          <template v-if="activeProductLine">
+            未单独配置该线时，回落到「全部产线」的通用负责人。
+          </template>
         </p>
         <Input v-model="search" placeholder="搜索成员姓名 / 邮箱" />
         <div

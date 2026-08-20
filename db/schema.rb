@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_20_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_21_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2008,7 +2008,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_20_000001) do
     t.bigint "manager_ids", default: [], null: false, array: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["account_id", "board_key"], name: "index_mes_board_owners_on_account_id_and_board_key", unique: true
+    t.string "product_line", default: "", null: false
+    t.index ["account_id", "board_key", "product_line"], name: "index_mes_board_owners_on_account_board_line", unique: true
     t.index ["account_id"], name: "index_mes_board_owners_on_account_id"
   end
 

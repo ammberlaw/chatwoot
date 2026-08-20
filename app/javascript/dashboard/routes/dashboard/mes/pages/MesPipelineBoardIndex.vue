@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
@@ -88,7 +88,7 @@ const goOrder = orderNo =>
     accountScopedRoute('mes_production_orders_index', {}, { q: orderNo })
   );
 
-watch(activeProductLine, load);
+// 产品线切换由 MesLayout 壳的 keyed router-view 触发页面重挂（onMounted 重拉），无需在此 watch。
 onMounted(load);
 </script>
 

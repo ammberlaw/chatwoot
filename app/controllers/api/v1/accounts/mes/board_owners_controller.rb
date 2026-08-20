@@ -1,13 +1,9 @@
 # MES 阶段板块负责人：index 全员可读（业务要知道各阶段找谁）；set 仅管理员/副管理员配置。
 class Api::V1::Accounts::Mes::BoardOwnersController < Api::V1::Accounts::Mes::BaseController
   def index
-    owners = Current.account.mes_board_owners.index_by(&:board_key)
-    names = user_names_for(owners.values.flat_map(&:manager_ids))
-    render json: {
-      payload: owners.map do |board_key, owner|
-        board_owner_json(board_key, owner.manager_ids, names)
-      end
-    }
+    rows = Current.account.mes_board_owners.to_a
+    names = user_names_for(rows.flat_map(&:manager_ids))
+    render json: { payload: rows.map { |o| board_owner_json(o.board_key, o.product_line, o.manager_ids, names) } }
   end
 
   def set
@@ -16,16 +12,19 @@ class Api::V1::Accounts::Mes::BoardOwnersController < Api::V1::Accounts::Mes::Ba
     board_key = params[:board_key].to_s.strip
     return render json: { error: '板块标识不能为空' }, status: :unprocessable_entity if board_key.blank?
 
-    owner = Current.account.mes_board_owners.find_or_initialize_by(board_key: board_key)
+    # product_line '' = 全部产线（通用/回落）；'TABLET'/'COMMERCIAL_DISPLAY' = 该线专属。
+    line = params[:product_line].to_s
+    owner = Current.account.mes_board_owners.find_or_initialize_by(board_key: board_key, product_line: line)
     owner.update!(manager_ids: sanitized_member_ids)
-    render json: board_owner_json(owner.board_key, owner.manager_ids, user_names_for(owner.manager_ids))
+    render json: board_owner_json(owner.board_key, owner.product_line, owner.manager_ids, user_names_for(owner.manager_ids))
   end
 
   private
 
-  def board_owner_json(board_key, manager_ids, names)
+  def board_owner_json(board_key, product_line, manager_ids, names)
     {
       board_key: board_key,
+      product_line: product_line.to_s,
       manager_ids: manager_ids,
       manager_names: manager_ids.filter_map { |id| names[id] }
     }

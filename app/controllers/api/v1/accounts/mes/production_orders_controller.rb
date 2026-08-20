@@ -141,13 +141,19 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   # 我的待办：当前停在「我负责的阶段」的在产订单（到岗通知的拉取面）。
   def inbox
-    owners = Current.account.mes_board_owners.index_by(&:board_key)
+    # 按 (板块, 产品线) 预载负责人；每单按其产品线取，未配专属则回落「全部产线」。
+    by_key_line = Current.account.mes_board_owners.to_a
+                         .index_by { |o| [o.board_key, o.product_line.to_s] }
+    resolve = lambda do |key, line|
+      (line.present? && by_key_line[[key, line]]&.manager_ids.presence) ||
+        by_key_line[[key, '']]&.manager_ids || []
+    end
     open_orders = Current.account.mes_production_orders.published
                          .where(status: 'IN_PROGRESS').where.not(stage: 'SHIPPED')
                          .includes(:stage_events).order(created_at: :desc)
     mine = open_orders.select do |po|
       key = Mes::ProductionOrder::INBOX_BOARD_KEYS[po.stage]
-      key && owners[key]&.manager_ids&.include?(current_user.id)
+      key && resolve.call(key, po.product_line.to_s).include?(current_user.id)
     end
     render json: { payload: mine.map { |po| inbox_row(po) } }
   end
