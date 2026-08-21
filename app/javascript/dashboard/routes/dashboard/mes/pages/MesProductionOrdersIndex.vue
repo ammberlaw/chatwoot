@@ -648,6 +648,12 @@ const canEditSelected = computed(
     mesCan('order') ||
     (canCreateOrder.value && isOwner.value && selected.value?.isDraft)
 );
+// 列表行级「编辑」：与 canEditSelected 同口径（order 能力 / 本人草稿），
+// 且订单须有定制规格表（编辑弹窗基于规格模板，外购单无规格不走此入口）。
+const canEditRow = po =>
+  !!po.spec?.template &&
+  (mesCan('order') ||
+    (canCreateOrder.value && po.ownerId === currentUserId.value && po.isDraft));
 // 业务二次确认 BOM：BOM_READY 段、已挂 BOM 且未确认，创建人（业务员）或管理员可确认。
 const canConfirmBom = computed(() => {
   const po = selected.value;
@@ -1047,12 +1053,22 @@ watch(currentPage, fetchRecords);
                 {{ po.ownerName || '—' }}
               </td>
               <td class="px-3 py-3 text-right" @click.stop>
-                <Button
-                  label="查看"
-                  variant="ghost"
-                  size="sm"
-                  @click="openDetail(po)"
-                />
+                <div class="flex items-center justify-end gap-1">
+                  <Button
+                    v-if="canEditRow(po)"
+                    label="编辑"
+                    variant="ghost"
+                    color="iris"
+                    size="sm"
+                    @click="openEditSpec(po)"
+                  />
+                  <Button
+                    label="查看"
+                    variant="ghost"
+                    size="sm"
+                    @click="openDetail(po)"
+                  />
+                </div>
               </td>
             </tr>
             <tr v-if="!records.length">
@@ -1499,7 +1515,7 @@ watch(currentPage, fetchRecords);
             </span>
             <Button
               v-if="canEditSelected"
-              label="编辑规格"
+              label="编辑订单"
               variant="ghost"
               size="xs"
               @click="openEditSpec(selected)"
