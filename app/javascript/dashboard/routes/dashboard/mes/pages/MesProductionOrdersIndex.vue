@@ -405,6 +405,7 @@ const templateOptions = Object.entries(SPEC_TEMPLATES).map(([value, t]) => ({
 }));
 const orderBase = reactive({
   piNo: '',
+  crmProductId: '',
   productName: '',
   qty: '',
   unit: '台',
@@ -412,7 +413,52 @@ const orderBase = reactive({
 });
 const orderSpec = ref(blankSpec('TABLET'));
 const orderInvalid = computed(
-  () => !orderBase.productName.trim() || !Number(orderBase.qty)
+  () =>
+    !orderBase.crmProductId ||
+    !orderBase.productName.trim() ||
+    !Number(orderBase.qty)
+);
+
+// 编辑订单：商品编码选择器（关联产品档案，API 搜索）。用独立 state，与转单/外协的
+// products 隔离互不干扰。产品档案数千条，输入即带 q 查后端、不本地全量加载。
+const orderProducts = ref([]);
+const selectedOrderProductLabel = ref('');
+const orderProductLabel = p => (p.sku ? `${p.sku} · ${p.name}` : p.name);
+const orderProductOptions = computed(() =>
+  orderProducts.value.map(p => ({
+    value: String(p.id),
+    label: orderProductLabel(p),
+    searchText: p.name,
+  }))
+);
+const loadOrderProducts = async (q = '') => {
+  try {
+    const res = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/products`,
+      { params: { q: q || undefined, per_page: 30 } }
+    );
+    orderProducts.value = res.data?.payload || res.data || [];
+  } catch {
+    orderProducts.value = [];
+  }
+};
+let orderProductTimer = null;
+const onOrderProductSearch = q => {
+  clearTimeout(orderProductTimer);
+  orderProductTimer = setTimeout(() => loadOrderProducts(q), 250);
+};
+const onOrderProductOpen = () => {
+  if (!orderProducts.value.length) loadOrderProducts();
+};
+watch(
+  () => orderBase.crmProductId,
+  id => {
+    const p = orderProducts.value.find(x => String(x.id) === String(id));
+    if (p) {
+      selectedOrderProductLabel.value = orderProductLabel(p);
+      if (!orderBase.productName.trim()) orderBase.productName = p.name;
+    }
+  }
 );
 const setTemplate = t => {
   orderTemplate.value = t;
@@ -428,6 +474,7 @@ const openEditSpec = order => {
     (SPEC_TEMPLATES[order.productLine] ? order.productLine : 'TABLET');
   Object.assign(orderBase, {
     piNo: order.piNo || '',
+    crmProductId: order.crmProductId ? String(order.crmProductId) : '',
     productName: order.productName || '',
     qty: String(order.qty ?? ''),
     unit: order.unit || '台',
@@ -435,6 +482,11 @@ const openEditSpec = order => {
       ? String(order.deliveryDate).slice(0, 10)
       : '',
   });
+  // 已关联产品名先兜底显示（下拉未加载时也有标签）；点开搜索改选后转 sku·名称。
+  selectedOrderProductLabel.value = order.crmProductId
+    ? order.productName || ''
+    : '';
+  orderProducts.value = [];
   orderSpec.value = {
     ...blankSpec(orderTemplate.value),
     ...(order.spec || {}),
@@ -446,6 +498,9 @@ const submitOrder = async () => {
   if (orderInvalid.value) return;
   const payload = {
     piNo: orderBase.piNo.trim() || undefined,
+    crmProductId: orderBase.crmProductId
+      ? Number(orderBase.crmProductId)
+      : undefined,
     productName: orderBase.productName.trim(),
     qty: Number(orderBase.qty),
     unit: orderBase.unit,
@@ -1681,8 +1736,20 @@ watch(currentPage, fetchRecords);
             />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">期望交期</label>
-            <DatePicker v-model="orderBase.deliveryDate" block />
+            <label class="text-heading-3 text-n-slate-12">
+              商品编码 <span class="text-n-ruby-11">*</span>
+            </label>
+            <ComboBox
+              v-model="orderBase.crmProductId"
+              :options="orderProductOptions"
+              use-api-results
+              :display-label="selectedOrderProductLabel"
+              placeholder="选择商品编码（关联产品档案）"
+              search-placeholder="搜编码 / 名称"
+              empty-state="无匹配商品"
+              @open="onOrderProductOpen"
+              @search="onOrderProductSearch"
+            />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
@@ -1693,6 +1760,10 @@ watch(currentPage, fetchRecords);
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">单位</label>
             <Input v-model="orderBase.unit" placeholder="台 / 片 / pcs" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">期望交期</label>
+            <DatePicker v-model="orderBase.deliveryDate" block />
           </div>
         </div>
 
