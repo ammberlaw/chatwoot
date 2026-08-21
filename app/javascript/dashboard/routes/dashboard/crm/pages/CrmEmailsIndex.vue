@@ -4,12 +4,14 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import DOMPurify from 'dompurify';
+import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
 import EmailFoldersAPI from 'dashboard/api/crm/emailFolders';
+import EmailLabelsAPI from 'dashboard/api/crm/emailLabels';
 import CrmAiAPI from 'dashboard/api/crm/ai';
 import AgentAPI from 'dashboard/api/agents';
 import { stripTextColorMarkers } from 'dashboard/helper/editorTextColor';
@@ -339,6 +341,7 @@ const fetchRecords = () => {
       }
     : { ...baseParams(), ...scopeParams(), per_page: 200 };
   if (searchTerm.value.trim()) params.q = searchTerm.value.trim();
+  if (activeLabelId.value) params.label_id = activeLabelId.value;
   store.get(params);
 };
 
@@ -479,6 +482,7 @@ const setFolder = key => {
   if (activeFolder.value === key && !activeCustomFolderId.value) return;
   activeFolder.value = key;
   activeCustomFolderId.value = null;
+  activeLabelId.value = null;
   activeMailbox.value = '';
   selectedEmail.value = null;
   fetchMailboxes();
@@ -617,6 +621,107 @@ const moveToNewFolder = async () => {
   if (id) moveToFolder(id);
 };
 
+// —— 邮件标签（每账户一套定义；邮件上的归属存 label_ids 数组）——
+const labels = ref([]);
+const activeLabelId = ref(null);
+const LABEL_COLORS = [
+  'iris',
+  'blue',
+  'teal',
+  'amber',
+  'ruby',
+  'violet',
+  'slate',
+];
+// 字面量类名（Tailwind 只编译源码里出现的完整类名）。
+const LABEL_DOT = {
+  slate: 'bg-n-slate-9',
+  iris: 'bg-n-iris-9',
+  blue: 'bg-n-blue-9',
+  teal: 'bg-n-teal-9',
+  amber: 'bg-n-amber-9',
+  ruby: 'bg-n-ruby-9',
+  violet: 'bg-n-violet-9',
+};
+const LABEL_PILL = {
+  slate: 'bg-n-slate-3 text-n-slate-11',
+  iris: 'bg-n-iris-3 text-n-iris-11',
+  blue: 'bg-n-blue-3 text-n-blue-11',
+  teal: 'bg-n-teal-3 text-n-teal-11',
+  amber: 'bg-n-amber-3 text-n-amber-11',
+  ruby: 'bg-n-ruby-3 text-n-ruby-11',
+  violet: 'bg-n-violet-3 text-n-violet-11',
+};
+const labelDot = c => LABEL_DOT[c] || LABEL_DOT.slate;
+const labelPill = c => LABEL_PILL[c] || LABEL_PILL.slate;
+const labelById = computed(() =>
+  Object.fromEntries(labels.value.map(l => [l.id, l]))
+);
+// 某封邮件当前挂的标签对象列表（按定义顺序）。
+const emailLabels = email =>
+  (email.labelIds || []).map(id => labelById.value[id]).filter(Boolean);
+
+const fetchLabels = async () => {
+  try {
+    const { data } = await EmailLabelsAPI.get(acctId());
+    labels.value = data.payload || [];
+  } catch {
+    labels.value = [];
+  }
+};
+const setLabelFilter = id => {
+  activeLabelId.value = activeLabelId.value === id ? null : id;
+  selectedEmail.value = null;
+  fetchRecords();
+};
+// 打/去标签：本地乐观更新 label_ids，再 PATCH（store.update 会把 labelIds → label_ids）。
+const toggleEmailLabel = async (email, labelId) => {
+  const cur = Array.isArray(email.labelIds) ? [...email.labelIds] : [];
+  const i = cur.indexOf(labelId);
+  if (i >= 0) cur.splice(i, 1);
+  else cur.push(labelId);
+  email.labelIds = cur;
+  if (selectedEmail.value?.id === email.id) selectedEmail.value.labelIds = cur;
+  try {
+    await store.update({ id: email.id, labelIds: cur });
+    if (activeLabelId.value && !cur.includes(activeLabelId.value))
+      fetchRecords();
+  } catch {
+    useAlert('标签更新失败');
+  }
+};
+const createLabel = async () => {
+  // eslint-disable-next-line no-alert
+  const name = window.prompt('新建标签名称');
+  if (!name || !name.trim()) return;
+  const color = LABEL_COLORS[labels.value.length % LABEL_COLORS.length];
+  try {
+    await EmailLabelsAPI.create(acctId(), { name: name.trim(), color });
+    await fetchLabels();
+  } catch (e) {
+    useAlert(e?.response?.data?.errors?.[0] || '新建失败（可能重名）');
+  }
+};
+const deleteLabel = async label => {
+  // eslint-disable-next-line no-alert
+  if (
+    !window.confirm(`删除标签「${label.name}」？会从所有邮件上移除该标签。`)
+  )
+    return;
+  try {
+    await EmailLabelsAPI.delete(acctId(), label.id);
+    if (activeLabelId.value === label.id) activeLabelId.value = null;
+    await fetchLabels();
+    fetchRecords();
+  } catch {
+    useAlert('删除失败');
+  }
+};
+// 阅读栏「加标签」下拉开合。
+const labelMenuOpen = ref(false);
+// 左栏「标签」分组展开。
+const labelsExpanded = ref(true);
+
 const openCompose = prefill => composeStore.open(prefill);
 
 // 写信面板发送/存草稿后刷新列表与角标。
@@ -628,6 +733,19 @@ const onComposeRefresh = () => {
 watch(() => composeStore.refreshSeq, onComposeRefresh);
 
 const emailOpens = ref([]);
+
+// —— 会话线程：与当前邮件同一往来的全部邮件（后端实时按客户/对方地址+归一主题匹配）——
+const threadEmails = ref([]);
+const threadExpanded = ref(false);
+const fetchThread = async id => {
+  threadEmails.value = [];
+  try {
+    const { data } = await CrmEmailAPI.thread(id);
+    threadEmails.value = camelcaseKeys(data.payload || [], { deep: true });
+  } catch {
+    threadEmails.value = [];
+  }
+};
 
 // ---- AI 翻译 / 往来摘要（DeepSeek）状态 ----
 const aiTranslation = ref(null); // { subject, body }
@@ -650,6 +768,8 @@ const selectEmail = async email => {
   // 换邮件时收起 AI 翻译/摘要面板（翻译按邮件缓存，重开秒出）。
   aiTranslation.value = null;
   aiSummary.value = null;
+  // 拉取本封邮件所属会话（同往来的全部邮件），供阅读栏「会话往来」展示。
+  fetchThread(email.id);
   if (
     activeFolder.value !== 'DISTRIBUTED' &&
     email.folder === 'INBOX' &&
@@ -720,6 +840,59 @@ const summarizeThread = async email => {
     useAlert(e?.response?.data?.message || 'AI 摘要失败，请稍后再试');
   } finally {
     aiSummarizing.value = false;
+  }
+};
+
+// 明天上午 9 点（转跟进任务的默认到期时间）。
+const tomorrow9am = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  return d.toISOString();
+};
+
+// 转跟进任务：把邮件落成一条待办（默认指派给自己、明天到期、类型=待回复邮件）。
+// 关联到邮件所属客户/联系人（若有），处理完在客户跟进里可见。
+const toFollowUpTask = async email => {
+  try {
+    await axios.post(
+      `/api/v1/accounts/${route.params.accountId}/crm/follow_up_tasks`,
+      {
+        task: {
+          title: `回复：${email.subject || '(无主题)'}`,
+          task_type: 'EMAIL_REPLY',
+          crm_customer_id: email.crmCustomerId || null,
+          contact_id: email.contactId || null,
+          due_at: tomorrow9am(),
+        },
+      }
+    );
+    useAlert('已转为跟进任务（指派给我 · 明天到期）');
+  } catch {
+    useAlert('转跟进任务失败，请重试');
+  }
+};
+
+// 转商机：把邮件落成一条商机（需已关联客户）；金额/阶段到商机看板补充。
+const toOpportunity = async email => {
+  if (!email.crmCustomerId) {
+    useAlert('该邮件未关联客户，无法转商机');
+    return;
+  }
+  try {
+    await axios.post(
+      `/api/v1/accounts/${route.params.accountId}/crm/opportunities`,
+      {
+        opportunity: {
+          name: email.subject || '(无主题)',
+          crm_customer_id: email.crmCustomerId,
+          sales_stage: 'NEEDS_CONFIRMED',
+        },
+      }
+    );
+    useAlert('已转为商机，可到商机看板补充金额与阶段');
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '转商机失败，请重试');
   }
 };
 
@@ -961,6 +1134,20 @@ const moreMenuItems = computed(() => {
       menuClass: 'crm-ai-item',
       run: () => summarizeThread(e),
     },
+    {
+      label: '转跟进任务',
+      icon: 'i-lucide-list-checks',
+      run: () => toFollowUpTask(e),
+    },
+    ...(e.crmCustomerId
+      ? [
+          {
+            label: '转商机',
+            icon: 'i-lucide-trending-up',
+            run: () => toOpportunity(e),
+          },
+        ]
+      : []),
     { label: '转发', icon: 'i-lucide-forward', run: () => forward(e) },
     {
       label: '附件转发',
@@ -1016,6 +1203,7 @@ onMounted(() => {
   fetchMembers();
   fetchMailboxes();
   fetchFolders();
+  fetchLabels();
   if (route.query.compose) openCompose();
 });
 
@@ -1179,6 +1367,59 @@ watch(
           >
             <Icon icon="i-lucide-plus" class="size-3.5" />
             新建文件夹
+          </button>
+        </div>
+
+        <!-- 标签：按标签跨文件夹筛选邮件（点选=过滤，再点=取消）-->
+        <button
+          class="flex items-center gap-2.5 px-3 py-2 mt-1 text-sm rounded-lg transition-colors text-n-slate-11 hover:bg-n-alpha-1"
+          @click="labelsExpanded = !labelsExpanded"
+        >
+          <Icon icon="i-lucide-tag" class="flex-shrink-0 size-4" />
+          <span class="flex-1 text-left">标签</span>
+          <Icon
+            :icon="
+              labelsExpanded ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'
+            "
+            class="size-4 text-n-slate-10"
+          />
+        </button>
+        <div
+          v-if="labelsExpanded"
+          class="flex flex-col mb-1 border-l gap-0.5 ml-5 pl-1.5 border-n-weak"
+        >
+          <div
+            v-for="l in labels"
+            :key="l.id"
+            class="flex items-center rounded-md transition-colors group"
+            :class="
+              activeLabelId === l.id
+                ? 'bg-n-iris-2 text-n-iris-11 font-medium'
+                : 'text-n-slate-11 hover:bg-n-alpha-1'
+            "
+          >
+            <button
+              class="flex items-center flex-1 min-w-0 gap-2 px-2 py-1.5 text-sm text-left"
+              @click="setLabelFilter(l.id)"
+            >
+              <span
+                class="rounded-full size-2 shrink-0"
+                :class="labelDot(l.color)"
+              />
+              <span class="flex-1 truncate">{{ l.name }}</span>
+            </button>
+            <Icon
+              icon="i-lucide-trash-2"
+              class="mr-1.5 opacity-0 size-3.5 group-hover:opacity-100 shrink-0 hover:text-n-ruby-11"
+              @click.stop="deleteLabel(l)"
+            />
+          </div>
+          <button
+            class="flex items-center gap-1 px-2 py-1.5 text-sm rounded-md text-n-slate-10 hover:bg-n-alpha-1"
+            @click="createLabel"
+          >
+            <Icon icon="i-lucide-plus" class="size-3.5" />
+            新建标签
           </button>
         </div>
       </nav>
@@ -1504,6 +1745,13 @@ watch(
                   </div>
                   <div class="flex items-center gap-2 mt-1.5">
                     <span
+                      v-for="l in emailLabels(record)"
+                      :key="`rl-${l.id}`"
+                      class="rounded-full size-2 shrink-0"
+                      :class="labelDot(l.color)"
+                      :title="l.name"
+                    />
+                    <span
                       v-if="record.folder !== 'INBOX'"
                       class="px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 whitespace-nowrap"
                       :class="SEND_STATUSES[record.sendStatus]?.class"
@@ -1658,6 +1906,50 @@ watch(
                 class="size-4"
               />
             </button>
+            <!-- 标签：给这封邮件打/去标签（勾选切换）+ 新建标签 -->
+            <div class="relative">
+              <button
+                class="flex items-center justify-center transition-colors rounded-lg size-8 text-n-slate-10 hover:bg-n-alpha-1 hover:text-n-iris-11"
+                title="标签"
+                @click="labelMenuOpen = !labelMenuOpen"
+              >
+                <Icon icon="i-lucide-tag" class="size-4" />
+              </button>
+              <template v-if="labelMenuOpen">
+                <div
+                  class="fixed inset-0 z-40"
+                  @click="labelMenuOpen = false"
+                />
+                <div
+                  class="absolute right-0 z-50 py-1 mt-1 overflow-y-auto border rounded-lg shadow-lg top-9 min-w-[160px] max-h-72 border-n-weak bg-n-solid-1"
+                >
+                  <button
+                    v-for="l in labels"
+                    :key="l.id"
+                    class="flex items-center w-full gap-2 px-3 py-1.5 text-sm text-left hover:bg-n-alpha-1 text-n-slate-12"
+                    @click="toggleEmailLabel(selectedEmail, l.id)"
+                  >
+                    <span
+                      class="rounded-full size-2 shrink-0"
+                      :class="labelDot(l.color)"
+                    />
+                    <span class="flex-1 truncate">{{ l.name }}</span>
+                    <Icon
+                      v-if="(selectedEmail.labelIds || []).includes(l.id)"
+                      icon="i-lucide-check"
+                      class="size-3.5 text-n-iris-11"
+                    />
+                  </button>
+                  <div v-if="labels.length" class="my-1 border-t border-n-weak" />
+                  <button
+                    class="flex items-center w-full gap-1 px-3 py-1.5 text-sm text-left text-n-iris-11 hover:bg-n-alpha-1"
+                    @click="createLabel"
+                  >
+                    <Icon icon="i-lucide-plus" class="size-3.5" />新建标签
+                  </button>
+                </div>
+              </template>
+            </div>
             <!-- 草稿：只留 编辑 + 删除 -->
             <template v-if="selectedEmail.folder === 'DRAFT'">
               <Button
@@ -1798,7 +2090,89 @@ watch(
                     })
                   }}
                 </span>
+                <span
+                  v-for="l in emailLabels(selectedEmail)"
+                  :key="`lbl-${l.id}`"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                  :class="labelPill(l.color)"
+                >
+                  {{ l.name }}
+                  <button
+                    class="hover:opacity-70"
+                    title="移除标签"
+                    @click="toggleEmailLabel(selectedEmail, l.id)"
+                  >
+                    <Icon icon="i-lucide-x" class="size-3" />
+                  </button>
+                </span>
               </div>
+            </div>
+          </div>
+
+          <!-- 会话往来：同一往来的多封邮件（同客户/同对方 + 主题归一），点选切换 -->
+          <div
+            v-if="threadEmails.length > 1"
+            class="py-3 border-b border-n-weak"
+          >
+            <button
+              class="flex items-center w-full gap-2 text-sm text-n-slate-11 hover:text-n-slate-12"
+              @click="threadExpanded = !threadExpanded"
+            >
+              <Icon
+                icon="i-lucide-messages-square"
+                class="size-4 text-n-iris-11"
+              />
+              <span class="font-medium">
+                会话往来（{{ threadEmails.length }} 封）
+              </span>
+              <Icon
+                :icon="
+                  threadExpanded
+                    ? 'i-lucide-chevron-up'
+                    : 'i-lucide-chevron-down'
+                "
+                class="ml-auto size-4 text-n-slate-10"
+              />
+            </button>
+            <div v-if="threadExpanded" class="flex flex-col mt-2 gap-0.5">
+              <button
+                v-for="te in threadEmails"
+                :key="te.id"
+                class="flex items-center gap-2 px-3 py-2 text-left rounded-lg transition-colors"
+                :class="
+                  te.id === selectedEmail.id ? 'bg-n-iris-2' : 'hover:bg-n-alpha-1'
+                "
+                @click="selectEmail(te)"
+              >
+                <Icon
+                  :icon="
+                    te.folder === 'INBOX'
+                      ? 'i-lucide-arrow-down-left'
+                      : 'i-lucide-arrow-up-right'
+                  "
+                  class="size-3.5 shrink-0"
+                  :class="
+                    te.folder === 'INBOX' ? 'text-n-teal-11' : 'text-n-blue-11'
+                  "
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs truncate text-n-slate-12">
+                    {{ counterparty(te) || '—' }}
+                  </div>
+                  <div class="text-[11px] truncate text-n-slate-10">
+                    {{
+                      stripTextColorMarkers(te.body) ||
+                      te.subject ||
+                      '（无正文）'
+                    }}
+                  </div>
+                </div>
+                <span
+                  class="text-[11px] tabular-nums text-n-slate-10 shrink-0"
+                >
+                  {{ relTime(te.emailDate) }}
+                </span>
+              </button>
             </div>
           </div>
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_22_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_23_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1045,6 +1045,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_22_000001) do
     t.index ["parent_id"], name: "index_crm_email_folders_on_parent_id"
   end
 
+  create_table "crm_email_labels", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "color", default: "slate", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "name"], name: "index_crm_email_labels_on_account_id_and_name", unique: true
+    t.index ["account_id"], name: "index_crm_email_labels_on_account_id"
+  end
+
   create_table "crm_email_opens", force: :cascade do |t|
     t.bigint "crm_email_id", null: false
     t.string "ip_address"
@@ -1115,6 +1126,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_22_000001) do
     t.string "message_id"
     t.datetime "scheduled_at"
     t.bigint "crm_email_folder_id"
+    t.bigint "label_ids", default: [], null: false, array: true
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
@@ -1125,6 +1137,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_22_000001) do
     t.index ["contact_id"], name: "index_crm_emails_on_contact_id"
     t.index ["crm_customer_id"], name: "index_crm_emails_on_crm_customer_id"
     t.index ["crm_email_folder_id"], name: "index_crm_emails_on_crm_email_folder_id"
+    t.index ["label_ids"], name: "index_crm_emails_on_label_ids", using: :gin
     t.index ["owner_id"], name: "index_crm_emails_on_owner_id"
     t.index ["send_status", "scheduled_at"], name: "index_crm_emails_on_send_status_and_scheduled_at"
     t.index ["tracking_token"], name: "index_crm_emails_on_tracking_token", unique: true, where: "(tracking_token IS NOT NULL)"
@@ -3069,6 +3082,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_22_000001) do
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_ai_settings", "accounts"
   add_foreign_key "crm_customers", "accounts"
+  add_foreign_key "crm_email_labels", "accounts"
   add_foreign_key "crm_email_opens", "crm_emails", on_delete: :cascade
   add_foreign_key "crm_emails", "contacts", on_delete: :nullify
   add_foreign_key "crm_emails", "crm_customers", on_delete: :nullify

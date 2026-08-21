@@ -64,6 +64,7 @@ Rails.application.routes.draw do
                 get :churn_risk_count
                 get :stats
                 post :reassign
+                post :bulk_update
                 post :import
               end
               member do
@@ -165,11 +166,13 @@ Rails.application.routes.draw do
                 post :attach_kb
                 get :opens
                 get :eml
+                get :thread
                 post :distribute
                 get :distributions
               end
             end
             resources :email_folders, only: [:index, :create, :destroy]
+            resources :email_labels, only: [:index, :create, :update, :destroy]
             resources :quotes do
               resources :line_items, only: [:index, :create], controller: 'quote_line_items'
               collection do

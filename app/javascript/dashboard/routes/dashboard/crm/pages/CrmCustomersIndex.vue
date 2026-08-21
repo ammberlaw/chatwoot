@@ -1102,6 +1102,37 @@ const bulkSendSelected = () => {
   composeStore.open({ bulkRecipients: recipients });
 };
 
+// 批量改字段：勾选客户后一次性改「客户状态」/「客户分组」（权限同分配，后端只改辖区内私海客户）。
+const bulkFieldBusy = ref(false);
+const bulkStatusOptions = computed(() => [
+  { value: '', label: '批量改状态…' },
+  ...Object.entries(STATUS_META).map(([value, m]) => ({
+    value,
+    label: m.label,
+  })),
+]);
+const bulkGroupOptions = computed(() => [
+  { value: '', label: '批量改分组…' },
+  ...groupOptions.value,
+]);
+const applyBulkField = async (field, value) => {
+  if (!value || !selectedIds.value.length) return;
+  bulkFieldBusy.value = true;
+  try {
+    const { data } = await axios.post(`${crmApi()}/bulk_update`, {
+      ids: selectedIds.value,
+      [field]: value,
+    });
+    useAlert(`已更新 ${data.updated} 个客户`);
+    selectedIds.value = [];
+    fetchCustomers();
+  } catch (e) {
+    useAlert(e.response?.data?.error || '操作失败');
+  } finally {
+    bulkFieldBusy.value = false;
+  }
+};
+
 // 目标客户（分组/转移/共享 弹窗共用）
 const rowTarget = ref(null);
 const moveGroupDialogRef = ref(null);
@@ -1573,6 +1604,18 @@ watch(
               color="teal"
               size="sm"
               @click="bulkSendSelected"
+            />
+            <SelectCard
+              :model-value="''"
+              :options="bulkStatusOptions"
+              :disabled="bulkFieldBusy"
+              @update:model-value="v => applyBulkField('customer_status', v)"
+            />
+            <SelectCard
+              :model-value="''"
+              :options="bulkGroupOptions"
+              :disabled="bulkFieldBusy"
+              @update:model-value="v => applyBulkField('customer_group', v)"
             />
           </template>
         </div>

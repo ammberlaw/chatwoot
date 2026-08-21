@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb, :opens, :eml, :distribute, :distributions]
+  before_action :fetch_email, only: [:show, :update, :destroy, :attach_kb, :opens, :eml, :distribute, :distributions, :thread]
 
   RESULTS_PER_PAGE = 25
   EMAIL_RE = /[^\s,;<>"']+@[^\s,;<>"']+/
@@ -90,6 +90,17 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     @email.files.each { |file| mail.add_file(filename: file.filename.to_s, content: file.download) }
     name = "#{@email.subject.presence || 'email'}.eml".gsub(%r{[/\\:*?"<>|]}, '_')
     send_data mail.to_s, filename: name, type: 'message/rfc822', disposition: 'attachment'
+  end
+
+  # 会话线程：与本邮件同一往来的所有可见邮件（同客户，或无客户时同对方地址；主题归一后相同），
+  # 按时间正序。实时计算不落库，对存量邮件立即生效；草稿不计入。
+  def thread
+    key = Crm::Email.normalize_thread(@email.subject)
+    return render json: { payload: [] } if key.blank?
+
+    @thread_emails = thread_candidates(@email)
+                     .select { |e| Crm::Email.normalize_thread(e.subject) == key }
+                     .sort_by { |e| e.email_date || e.created_at }
   end
 
   # 阅读追踪明细：每次打开的时间 + IP + UA（倒序）。
@@ -343,6 +354,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     scope = scope.where.not(owner_id: params[:exclude_owner_id]) if params[:exclude_owner_id].present?
     scope = filter_by_mailbox(scope) if params[:mailbox].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
+    scope = scope.with_label(params[:label_id]) if params[:label_id].present?
     # 追踪视图的「已打开/未打开」分栏。
     scope = scope.where('open_count > 0') if params[:opened] == '1'
     scope = scope.where(open_count: 0) if params[:opened] == '0'
@@ -379,8 +391,14 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     end
   end
 
+  # 搜索：主题 / 收发件人 / 抄送 / 正文（纯文本 + HTML）。正文匹配让业务员能按邮件内容
+  # （产品名 / 报价 / 订单号等）翻回历史往来，而不只是主题和邮箱。
   def search_emails(scope, query)
-    scope.where('subject ILIKE :q OR from_address ILIKE :q OR to_address ILIKE :q', q: "%#{query}%")
+    scope.where(
+      'subject ILIKE :q OR from_address ILIKE :q OR to_address ILIKE :q OR cc_address ILIKE :q ' \
+      'OR body ILIKE :q OR body_html ILIKE :q',
+      q: "%#{query}%"
+    )
   end
 
   # 群发收件人列表：[{ email, crm_customer_id?, contact_id? }, …]，兼容 JSON 字符串/数组两种传法。
@@ -403,7 +421,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     params.require(:email).permit(
       :subject, :folder, :is_read, :is_starred, :from_address, :to_address, :cc_address, :bcc_address,
       :email_date, :body, :body_html, :send_now, :send_status, :send_error, :scheduled_at,
-      :crm_customer_id, :contact_id, :owner_id, files: []
+      :crm_customer_id, :contact_id, :owner_id, files: [], label_ids: []
     )
   end
 
@@ -436,6 +454,20 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   # 单封邮件的对方身份（show/update/create 用），复用批量口径。
   def counterparty_type_for(email)
     build_counterparty_types([email])[email.id]
+  end
+
+  # 线程候选集（再由主题归一精筛）：同客户则取该客户全部往来；无客户则取与对方地址收发相关的邮件。
+  # 限量 300 封兜底，避免大账户全表 Ruby 过滤。
+  def thread_candidates(email)
+    scope = visible_emails.where.not(folder: 'DRAFT').includes(:owner, :crm_customer)
+    if email.crm_customer_id
+      scope.where(crm_customer_id: email.crm_customer_id).limit(300).to_a
+    else
+      addr = counterparty_address(email)
+      return [email] if addr.blank?
+
+      scope.where('from_address ILIKE :a OR to_address ILIKE :a', a: "%#{addr}%").limit(300).to_a
+    end
   end
 
   # 收件箱看发件人，其余看收件人；地址串取第一个邮箱。

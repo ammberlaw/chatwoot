@@ -463,7 +463,7 @@
       },
       "LIST": {
         "COUNT": "共 {count} 封 · 未读 {unread}",
-        "SEARCH_PLACEHOLDER": "搜索主题、发件人、收件人"
+        "SEARCH_PLACEHOLDER": "搜索主题、正文、发件人、收件人"
       },
       "ACTIONS": {
         "REPLY": "回复",

@@ -16,6 +16,7 @@
 #  from_address        :string
 #  is_read             :boolean          default(FALSE), not null
 #  is_starred          :boolean          default(FALSE), not null
+#  label_ids           :bigint           default([]), not null, is an Array
 #  last_opened_at      :datetime
 #  open_count          :integer          default(0), not null
 #  reply_latency_hours :decimal(10, 2)
@@ -47,6 +48,7 @@
 #  index_crm_emails_on_contact_id                    (contact_id)
 #  index_crm_emails_on_crm_customer_id               (crm_customer_id)
 #  index_crm_emails_on_crm_email_folder_id           (crm_email_folder_id)
+#  index_crm_emails_on_label_ids                     (label_ids) USING gin
 #  index_crm_emails_on_owner_id                      (owner_id)
 #  index_crm_emails_on_send_status_and_scheduled_at  (send_status,scheduled_at)
 #  index_crm_emails_on_tracking_token                (tracking_token) UNIQUE WHERE (tracking_token IS NOT NULL)
@@ -88,6 +90,23 @@ class Crm::Email < ApplicationRecord
   scope :unread, -> { where(folder: 'INBOX', is_read: false) }
   scope :starred, -> { where(is_starred: true) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
+  # 按标签筛选（label_ids 数组列，GIN 索引支撑）。
+  scope :with_label, ->(label_id) { where('label_ids @> ARRAY[?]::bigint[]', label_id.to_i) }
+
+  # 会话线程键：把主题反复剥掉 Re:/Fwd:/回复:/答复:/转发: 等前缀后归一（小写、压空白），
+  # 同一往来的多封邮件得到同一个键。实时计算，不落库（对存量邮件立即生效）。
+  THREAD_PREFIX_RE = /\A\s*(?:re|r\s*e|fw|fwd|答复|回复|回覆|转发|轉發|答覆)\s*[:：]\s*/i
+
+  def self.normalize_thread(subject)
+    s = subject.to_s.strip
+    loop do
+      stripped = s.sub(THREAD_PREFIX_RE, '')
+      break if stripped == s
+
+      s = stripped
+    end
+    s.downcase.gsub(/\s+/, ' ').strip
+  end
 
   # 发信前生成追踪令牌（追踪像素 URL 用），已有则复用。
   def ensure_tracking_token!

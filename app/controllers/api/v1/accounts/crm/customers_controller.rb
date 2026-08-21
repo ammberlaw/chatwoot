@@ -228,6 +228,20 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     render json: { reassigned: customer_ids.size }
   end
 
+  # 批量改字段：勾选客户后批量改「客户状态」/「客户分组」。权限同分配——
+  # 只动自己辖区内(业务员本人/主管本团队/管理员全部)的私海客户；未传/无效字段忽略。
+  def bulk_update
+    attrs = bulk_update_attrs
+    return render json: { error: '没有要修改的字段' }, status: :unprocessable_entity if attrs.blank?
+
+    scope = scope_by_team_owner(Current.account.crm_customers.where(is_in_public_pool: false), column: :account_owner_id)
+    ids = scope.where(id: Array(params[:ids])).pluck(:id)
+    return render json: { updated: 0 } if ids.empty?
+
+    Current.account.crm_customers.where(id: ids).update_all(attrs.merge(updated_at: Time.current))
+    render json: { updated: ids.size }
+  end
+
   # 认领：公海客户归当前用户私海。分组私海上限由模型 pool_limit 校验拦截；
   # 原归属人受领回冷却期限制（豁免名单成员除外）。
   def claim
@@ -302,6 +316,17 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   private
+
+  # 批量修改字段：状态限枚举、分组走「客户设置」动态配置（与单条编辑同口径，不硬校验）。
+  # 仅收传入的字段，避免误清空未提及的列。
+  def bulk_update_attrs
+    attrs = {}
+    status = params[:customer_status].to_s.strip
+    attrs[:customer_status] = status if Crm::Customer::CUSTOMER_STATUSES.include?(status)
+    group = params[:customer_group].to_s.strip
+    attrs[:customer_group] = group if group.present?
+    attrs
+  end
 
   # 分配级联：公海中的商机不动（保持共享池语义），其余关联数据全部随客户换负责人。
   # 转移勾选项：商机/订单(含报价)/邮件 是否随客户转给新负责人。未传 cascade 时默认全带（向后兼容）。

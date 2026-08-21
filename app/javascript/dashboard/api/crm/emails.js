@@ -22,6 +22,9 @@ client.attachKb = (id, fileIds) =>
 // 阅读追踪明细：每次打开的时间 + IP + UA。
 client.opens = id => axios.get(`${client.url}/${id}/opens`);
 
+// 会话线程：与本邮件同一往来的全部可见邮件（按时间正序）。
+client.thread = id => axios.get(`${client.url}/${id}/thread`);
+
 // 手动收取：立即为当前用户邮箱排拉取任务（比每分钟轮询更实时）。
 client.fetchNow = () => axios.post(`${client.url}/fetch`);
 

@@ -21,6 +21,7 @@ json.last_opened_at resource.last_opened_at
 last_open = local_assigns[:last_open]
 json.last_open_country last_open&.country
 json.last_open_city last_open&.city
+json.label_ids resource.label_ids
 json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.contact_id resource.contact_id

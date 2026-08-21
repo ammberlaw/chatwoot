@@ -93,6 +93,7 @@ class Account < ApplicationRecord
   has_many :crm_email_templates, class_name: 'Crm::EmailTemplate', dependent: :destroy_async
   has_many :crm_email_signatures, class_name: 'Crm::EmailSignature', dependent: :destroy_async
   has_many :crm_email_folders, class_name: 'Crm::EmailFolder', dependent: :destroy_async
+  has_many :crm_email_labels, class_name: 'Crm::EmailLabel', dependent: :destroy_async
   has_many :crm_quick_texts, class_name: 'Crm::QuickText', dependent: :destroy_async
   has_many :crm_kpi_schemes, class_name: 'Crm::KpiScheme', dependent: :destroy_async
   has_many :crm_scheme_items, class_name: 'Crm::SchemeItem', dependent: :destroy_async
