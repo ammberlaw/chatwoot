@@ -533,6 +533,27 @@ body.theme-classic:not(.dark) main .bg-n-solid-1\/50 {
   background-color: #ffffff;
   border-color: #e6e6ec;
 }
+
+// 经典灰：MES 裸页整页白卡。生产订单/产品档案/采购单等根为 flex w-full h-full 的页
+// 没套白卡类 → 灰蒙蒙。这里给这些裸页根做成整页白圆角卡；卡直接填满 main 的内容盒
+// （main 自带 p-3=12px），四周均匀 12px 灰边距，与侧栏离窗口 12px 一致、左右等宽。
+// 已自带卡的页（根带 bg-n-solid-1/xx，如生产看板/站内通知/数据看板/接单）用 :not 排除，
+// 保持原状不叠加。仅浅色经典灰生效；紫玻璃下 .mes-canvas 无样式 = 纯透传。
+body.theme-classic:not(.dark) .mes-canvas > *:not([class*='bg-n-solid-1']) {
+  background-color: #ffffff;
+  border: 1px solid #ecedf1;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(30, 35, 50, 0.05);
+  overflow: hidden;
+}
+
+// 经典灰：流水看板阶段列。原 bg-n-alpha-black1/50 + border-white/40 在白卡上糊成一片、
+// 框不明显。改浅灰底 + 可见灰边，让每阶段列框清晰、内部白卡片浮起来。此类仅此页用。
+// 仅浅色经典灰生效；紫玻璃保持原玻璃列不动。
+body.theme-classic:not(.dark) main .bg-n-alpha-black1\/50 {
+  background-color: #f4f5f7;
+  border-color: #e3e5ea;
+}
 // KPI 卡（经典灰）：核心卡强调 + 余白。卡1(GMV)=深石墨实心+白字+金图标；卡2/3/4=纯白+浅边+轻投影+小彩图标。
 $kpi: 'body.theme-classic:not(.dark) main .bg-gradient-to-br.rounded-2xl';
 

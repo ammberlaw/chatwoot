@@ -1,5 +1,6 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+/* global axios */
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -15,11 +16,12 @@ import {
 } from 'dashboard/routes/dashboard/mes/pages/orderSpecFields';
 import MesOrderSpecForm from 'dashboard/components-next/mes/MesOrderSpecForm.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 
 const router = useRouter();
-const { accountScopedRoute } = useAccount();
+const { accountId, accountScopedRoute } = useAccount();
 const store = useMesProductionOrdersStore();
 // 备货单仅 order 能力（PMC/管理员）可建；业务员只建「按单生产」（后端强制同口径）。
 const { mesCan } = useMesRole();
@@ -42,12 +44,57 @@ const stewardOptions = computed(() =>
 );
 const base = reactive({
   piNo: '',
+  crmProductId: '',
   productName: '',
   qty: '',
   unit: '台',
   deliveryDate: '',
 });
 const spec = ref(blankSpec(template.value));
+
+// 商品编码：关联产品档案（Crm::Product），下拉搜索、只能选不可自定义输入。
+// 产品档案数千条，走 ComboBox 的 API 搜索模式（输入即带 q 查后端），不本地全量加载。
+const products = ref([]);
+const selectedProductLabel = ref('');
+const productLabel = p => (p.sku ? `${p.sku} · ${p.name}` : p.name);
+const productOptions = computed(() =>
+  products.value.map(p => ({
+    value: String(p.id),
+    label: productLabel(p),
+    searchText: p.name,
+  }))
+);
+const loadProducts = async (q = '') => {
+  try {
+    const res = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/products`,
+      { params: { q: q || undefined, per_page: 30 } }
+    );
+    products.value = res.data?.payload || res.data || [];
+  } catch {
+    products.value = [];
+  }
+};
+let productSearchTimer = null;
+const onProductSearch = q => {
+  clearTimeout(productSearchTimer);
+  productSearchTimer = setTimeout(() => loadProducts(q), 250);
+};
+const onProductOpen = () => {
+  if (!products.value.length) loadProducts();
+};
+// 选定商品编码时：固定显示已选标签；成品名称&型号为空则带出产品名
+// （已填则不覆盖，允许业务在型号上加后缀）。
+watch(
+  () => base.crmProductId,
+  id => {
+    const p = products.value.find(x => String(x.id) === String(id));
+    if (p) {
+      selectedProductLabel.value = productLabel(p);
+      if (!base.productName.trim()) base.productName = p.name;
+    }
+  }
+);
 
 const setTemplate = t => {
   template.value = t;
@@ -185,6 +232,7 @@ const importFrom = () => {
 onMounted(() => {
   loadSalesOrders();
   loadHistory();
+  loadProducts();
 });
 
 // SelectCard 选项（[{value,label}]）
@@ -249,6 +297,7 @@ const missing = computed(() => {
   const m = [];
   if (needSalesLink.value && !link.salesOrderId) m.push('关联销售订单');
   if (needSalesLink.value && !link.customerId) m.push('客户');
+  if (!base.crmProductId) m.push('商品编码');
   if (!base.productName.trim()) m.push('成品名称&型号');
   if (!Number(base.qty)) m.push('数量');
   if (isStock.value && !stewardId.value) m.push('责任人');
@@ -261,6 +310,7 @@ const canSubmit = computed(
 const reset = () => {
   Object.assign(base, {
     piNo: '',
+    crmProductId: '',
     productName: '',
     qty: '',
     unit: '台',
@@ -297,6 +347,7 @@ const submit = async doSubmit => {
     const ok = await store.create(
       {
         piNo: base.piNo.trim() || undefined,
+        crmProductId: base.crmProductId ? Number(base.crmProductId) : undefined,
         productName: base.productName.trim(),
         qty: Number(base.qty),
         unit: base.unit,
@@ -544,7 +595,7 @@ const backToList = () =>
             @update:model-value="setTemplate"
           />
         </label>
-        <label class="flex flex-col gap-1">
+        <label class="flex flex-col gap-1 sm:col-span-2">
           <span class="text-xs text-n-slate-11">PI 编号</span>
           <input
             v-model="base.piNo"
@@ -552,7 +603,7 @@ const backToList = () =>
             placeholder="形式发票号，如 PI-2026-0788"
           />
         </label>
-        <label class="flex flex-col gap-1 sm:col-span-2">
+        <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">
             成品名称&型号 <span class="text-n-ruby-11">*</span>
           </span>
@@ -560,6 +611,22 @@ const backToList = () =>
             v-model="base.productName"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
             placeholder="如：商显一体机 43寸 / Winny K11"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">
+            商品编码 <span class="text-n-ruby-11">*</span>
+          </span>
+          <ComboBox
+            v-model="base.crmProductId"
+            :options="productOptions"
+            use-api-results
+            :display-label="selectedProductLabel"
+            placeholder="选择商品编码（关联产品档案）"
+            search-placeholder="搜编码 / 名称"
+            empty-state="无匹配商品"
+            @open="onProductOpen"
+            @search="onProductSearch"
           />
         </label>
         <label class="flex flex-col gap-1">

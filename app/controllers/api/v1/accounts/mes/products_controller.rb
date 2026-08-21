@@ -16,7 +16,7 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
       )
     end
     @products_count = scope.count
-    @products = scope.order(updated_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @products = scope.order(updated_at: :desc).page(page_param).per(per_page_param)
   end
 
   def create
@@ -33,6 +33,14 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
   end
 
   private
+
+  # 默认 15/页（产品档案列表）；商品编码选择器等可传 per_page 取更多，封顶 100。
+  def per_page_param
+    n = params[:per_page].to_i
+    return RESULTS_PER_PAGE if n <= 0
+
+    [n, 100].min
+  end
 
   def fetch_product
     @product = Current.account.crm_products.find(params[:id])

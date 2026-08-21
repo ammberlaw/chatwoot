@@ -116,7 +116,7 @@ onMounted(load);
             v-model="keyword"
             type="text"
             placeholder="订单号 / 产品 / 业务员"
-            class="h-8 w-56 pl-8 pr-2 text-sm rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-n-iris-8"
+            class="no-margin h-8 w-56 pl-8 pr-2 text-sm rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-n-iris-8"
           />
         </div>
         <button

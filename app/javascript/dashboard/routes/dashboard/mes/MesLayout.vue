@@ -8,5 +8,9 @@ const { activeProductLine } = useMesProductLine();
 </script>
 
 <template>
-  <router-view :key="`mes-${activeProductLine || 'all'}`" />
+  <!-- mes-canvas：仅经典灰主题下作为「整页白卡」的挂钩层（见 _next-colors.scss）。
+       紫玻璃默认主题下无任何样式 = 纯透传，不影响原布局。 -->
+  <div class="mes-canvas w-full h-full">
+    <router-view :key="`mes-${activeProductLine || 'all'}`" />
+  </div>
 </template>
