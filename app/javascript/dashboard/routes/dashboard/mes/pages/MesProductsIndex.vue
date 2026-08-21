@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useMesProductsStore } from 'dashboard/stores/mes/products';
 import { useMesRole } from 'dashboard/composables/useMesRole';
@@ -12,11 +12,14 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 
 const store = useMesProductsStore();
 const { mesCan } = useMesRole();
 
+const ITEMS_PER_PAGE = 15;
 const records = computed(() => store.getRecords);
+const totalCount = computed(() => store.getMeta.count || 0);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
 const saving = computed(
   () => store.getUIFlags.creatingItem || store.getUIFlags.updatingItem
@@ -51,14 +54,23 @@ const productLineOptions = [
 const keyword = ref('');
 const categoryFilter = ref('');
 const categoryFilterOptions = [{ value: '', label: '全部分类' }, ...CATEGORIES];
+const currentPage = ref(1);
 const load = () =>
   store.get({
+    page: currentPage.value,
+    per_page: ITEMS_PER_PAGE,
     q: keyword.value.trim() || undefined,
     category: categoryFilter.value || undefined,
   });
+// 翻页触发重拉；搜索/筛选先回到第 1 页（页码变则由 watch 拉，未变则直接拉）。
+watch(currentPage, load);
+const reload = () => {
+  if (currentPage.value !== 1) currentPage.value = 1;
+  else load();
+};
 const changeCategoryFilter = v => {
   categoryFilter.value = v;
-  load();
+  reload();
 };
 
 const dialogRef = ref(null);
@@ -157,13 +169,16 @@ const doDelete = async () => {
   deleting.value = null;
 };
 
-onMounted(() => store.get());
+onMounted(load);
 </script>
 
 <template>
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-6 py-4">
-      <h1 class="text-xl font-semibold text-n-slate-12">产品档案</h1>
+      <div class="flex items-baseline gap-2">
+        <h1 class="text-xl font-semibold text-n-slate-12">产品档案</h1>
+        <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
+      </div>
       <div class="flex items-center gap-2">
         <SelectCard
           :model-value="categoryFilter"
@@ -175,14 +190,14 @@ onMounted(() => store.get());
           v-model="keyword"
           placeholder="搜索编码 / 名称 / 类别"
           class="h-9 px-3 text-sm rounded-lg outline-none w-56 border border-n-weak bg-n-solid-1 text-n-slate-12"
-          @keyup.enter="load"
+          @keyup.enter="reload"
         />
         <Button
           label="搜索"
           variant="outline"
           color="slate"
           size="sm"
-          @click="load"
+          @click="reload"
         />
         <Button
           v-if="canManage"
@@ -273,6 +288,15 @@ onMounted(() => store.get());
           </tr>
         </tbody>
       </table>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="mt-3 !bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
 
     <Dialog
