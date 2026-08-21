@@ -9,6 +9,7 @@ class Crm::PiTemplateFiller
 
   SHEET = 'xl/worksheets/sheet1.xml'.freeze
   STRINGS = 'xl/sharedStrings.xml'.freeze
+  STYLES = 'xl/styles.xml'.freeze
   DRAWING = 'xl/drawings/drawing1.xml'.freeze
   DRAWING_RELS = 'xl/drawings/_rels/drawing1.xml.rels'.freeze
   CONTENT_TYPES = '[Content_Types].xml'.freeze
@@ -74,6 +75,7 @@ class Crm::PiTemplateFiller
     entries[SHEET] = entries[SHEET].force_encoding('UTF-8')
     map = string_map
     entries[STRINGS] = fill_strings(entries[STRINGS], map)
+    entries[STYLES] = fill_styles(entries[STYLES].force_encoding('UTF-8'))
     entries[SHEET] = fill_sheet(entries[SHEET])
     embed_item_pictures(entries)
     repackage(entries)
@@ -115,6 +117,15 @@ class Crm::PiTemplateFiller
       47 => (terms.length > 2 ? terms[1..].join("\n") : terms[1]),
       58 => "ISSUED BY\n#{@pi.issued_by}"
     }
+  end
+
+  # 模板把金额数字格式硬编码成「USD 」前缀（numFmt 176），人民币等其它币种的 PI 导出后金额仍显示 USD。
+  # 按 PI 实际币种改写该数字格式（单价/金额/运费/GRAND TOTAL 共用此格式，一处改全表生效）。
+  def fill_styles(xml)
+    cur = @pi.currency.presence || 'USD'
+    return xml if cur == 'USD'
+
+    xml.sub(%r{<numFmt numFmtId="176"[^/]*/>}) { |tag| tag.sub('USD', xml_escape(cur)) }
   end
 
   # 所选公司抬头（无效/空则回落默认主体，即模板原有的香港抬头）。

@@ -7,6 +7,7 @@ import QuotesAPI from 'dashboard/api/crm/quotes';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmQuoteFormDialog from 'dashboard/components-next/CRM/CrmQuoteFormDialog.vue';
 
 const ITEMS_PER_PAGE = 15;
@@ -19,6 +20,8 @@ const currentPage = ref(1);
 const isFetching = ref(false);
 const activeStatus = ref('');
 const activeOwner = ref(''); // 创建人筛选（owner_id，空=全部）
+const activeMonth = ref(''); // 报价月份筛选（YYYY-MM，空=全部）
+const dateDir = ref(''); // 报价日期排序方向：'' 默认(更新倒序) / 'desc' / 'asc'
 const searchQuery = ref('');
 const summary = ref(null);
 const formRef = ref(null);
@@ -117,6 +120,8 @@ const fetchRecords = async () => {
       page: currentPage.value,
       status: activeStatus.value || undefined,
       owner_id: activeOwner.value || undefined,
+      month: activeMonth.value || undefined,
+      date_dir: dateDir.value || undefined,
       q: searchQuery.value.trim() || undefined,
     });
     records.value = camelcaseKeys(data.payload || [], { deep: true });
@@ -150,6 +155,24 @@ const setStatus = value => {
   currentPage.value = 1;
   fetchRecords();
 };
+const setMonth = value => {
+  activeMonth.value = value || '';
+  currentPage.value = 1;
+  fetchRecords();
+};
+// 报价日期表头排序：降序 → 升序 → 取消（回默认更新倒序）。
+const toggleDateSort = () => {
+  if (dateDir.value === '') dateDir.value = 'desc';
+  else if (dateDir.value === 'desc') dateDir.value = 'asc';
+  else dateDir.value = '';
+  currentPage.value = 1;
+  fetchRecords();
+};
+const dateSortIcon = computed(() => {
+  if (dateDir.value === 'asc') return 'i-lucide-arrow-up';
+  if (dateDir.value === 'desc') return 'i-lucide-arrow-down';
+  return 'i-lucide-chevrons-up-down opacity-40';
+});
 // 创建人筛选选项（含「全部」），来自 summary 接口可见范围内的实际创建人。
 const creatorOptions = computed(() => [
   { value: '', label: '全部创建人' },
@@ -362,6 +385,13 @@ onMounted(() => {
       class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-[26px] pt-1 border-b border-n-weak"
     >
       <div class="flex items-center gap-2 ml-auto">
+        <MonthPicker
+          :model-value="activeMonth"
+          placeholder="全部月份"
+          align="right"
+          trigger-class="w-36 h-9 !text-[13px]"
+          @update:model-value="setMonth"
+        />
         <SelectCard
           :model-value="activeOwner"
           :options="creatorOptions"
@@ -426,7 +456,14 @@ onMounted(() => {
             <th
               class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
             >
-              报价日期
+              <button
+                class="inline-flex items-center gap-1 text-[11.5px] font-semibold transition-colors hover:text-n-slate-12"
+                :class="dateDir ? 'text-n-slate-12' : ''"
+                @click="toggleDateSort"
+              >
+                报价日期
+                <span class="size-3.5" :class="dateSortIcon" />
+              </button>
             </th>
             <th
               class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"

@@ -10,9 +10,17 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
     @quotes_scope = filtered_quotes
     @quotes_count = @quotes_scope.count
     @quotes = @quotes_scope
-              .order(updated_at: :desc)
+              .order(quotes_order_clause)
               .page(permitted_params[:page] || 1)
               .per(RESULTS_PER_PAGE)
+  end
+
+  # 默认按更新时间倒序；用户点「报价日期」表头排序时改按 quote_date（空值垫底）。
+  def quotes_order_clause
+    return { updated_at: :desc } if params[:date_dir].blank?
+
+    dir = params[:date_dir] == 'asc' ? 'ASC' : 'DESC'
+    Arel.sql("quote_date #{dir} NULLS LAST, id DESC")
   end
 
   # 页顶汇总：各状态张数 + 按币种金额 + 可见范围内创建人（供筛选）。
@@ -128,7 +136,16 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
+    scope = filter_by_month(scope, params[:month]) if params[:month].present?
     scope = search(scope, params[:q]) if params[:q].present?
+    scope
+  end
+
+  # 按月份（YYYY-MM）筛选 quote_date 落在该自然月内的报价单。非法值不筛。
+  def filter_by_month(scope, month)
+    start_date = Date.strptime(month, '%Y-%m')
+    scope.where(quote_date: start_date..start_date.end_of_month)
+  rescue ArgumentError
     scope
   end
 
@@ -163,6 +180,6 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
   end
 
   def permitted_params
-    params.permit(:page, :filter, :status, :owner_id, :q, :customer_id)
+    params.permit(:page, :filter, :status, :owner_id, :q, :customer_id, :month, :date_dir)
   end
 end

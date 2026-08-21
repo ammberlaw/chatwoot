@@ -1,4 +1,5 @@
 <script setup>
+/* global axios */
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -327,10 +328,80 @@ const fetchRecords = () => {
     store.getDistributed({ page: 1, per_page: 200 });
     return;
   }
-  // 列表按日期分组需一次多取（上限 200），覆盖近几个月，分组封数才准。
-  const params = { ...baseParams(), ...scopeParams(), per_page: 200 };
+  // 「往来邮件」视图：只按客户过滤、跨系统文件夹（收+发都进），不带 folder。
+  // 否则按当前文件夹/范围取（列表按日期分组需一次多取，上限 200，分组封数才准）。
+  const params = customerFilter.value
+    ? {
+        page: 1,
+        customer_id: customerFilter.value.id,
+        ...scopeParams(),
+        per_page: 200,
+      }
+    : { ...baseParams(), ...scopeParams(), per_page: 200 };
   if (searchTerm.value.trim()) params.q = searchTerm.value.trim();
   store.get(params);
+};
+
+// ── 头像快捷卡（写跟进 / 往来邮件）+ 按客户过滤往来邮件 ──
+const avatarCard = ref(null); // { record, top, left }
+const customerFilter = ref(null); // { id, name }
+const openAvatarCard = (record, ev) => {
+  const rect = ev.currentTarget.getBoundingClientRect();
+  avatarCard.value = { record, top: rect.bottom + 6, left: rect.left };
+};
+const closeAvatarCard = () => {
+  avatarCard.value = null;
+};
+// 写跟进：不跳转，在右侧抽屉里直接记一条跟进（POST /follow_up_notes）。
+const followUpDrawer = ref(null); // { customerId, customerName }
+const followUpText = ref('');
+const followUpSaving = ref(false);
+const cardWriteFollowUp = () => {
+  const rec = avatarCard.value?.record;
+  closeAvatarCard();
+  if (!rec?.crmCustomerId) return;
+  followUpDrawer.value = {
+    customerId: rec.crmCustomerId,
+    customerName: rec.customerName || counterparty(rec),
+  };
+  followUpText.value = '';
+};
+const closeFollowUp = () => {
+  followUpDrawer.value = null;
+  followUpText.value = '';
+};
+const saveFollowUp = async () => {
+  const title = followUpText.value.trim();
+  if (!title || !followUpDrawer.value) return;
+  followUpSaving.value = true;
+  try {
+    await axios.post(
+      `/api/v1/accounts/${route.params.accountId}/crm/follow_up_notes`,
+      { note: { title, crm_customer_id: followUpDrawer.value.customerId } }
+    );
+    useAlert('跟进已保存');
+    closeFollowUp();
+  } catch {
+    useAlert('跟进保存失败，请重试');
+  } finally {
+    followUpSaving.value = false;
+  }
+};
+const cardShowCorrespondence = () => {
+  const rec = avatarCard.value?.record;
+  closeAvatarCard();
+  if (!rec?.crmCustomerId) return;
+  customerFilter.value = {
+    id: rec.crmCustomerId,
+    name: rec.customerName || counterparty(rec),
+  };
+  selectedEmail.value = null;
+  searchTerm.value = '';
+  fetchRecords();
+};
+const clearCustomerFilter = () => {
+  customerFilter.value = null;
+  fetchRecords();
 };
 
 // 手动收取新邮件：立即为本人邮箱排拉取任务（比每分钟定时轮询更实时），
@@ -953,6 +1024,7 @@ watch(
   () => {
     activeFolder.value = folderFromRoute();
     selectedEmail.value = null;
+    customerFilter.value = null; // 切换文件夹退出「往来邮件」客户过滤
     fetchRecords();
     if (route.query.compose) openCompose();
   }
@@ -1346,6 +1418,28 @@ watch(
             </div>
           </div>
 
+          <!-- 「往来邮件」客户过滤条：显示当前只看某客户的收发件记录，可一键清除 -->
+          <div
+            v-if="customerFilter"
+            class="flex items-center gap-2 px-4 py-2 text-xs border-b border-n-weak bg-n-iris-2 text-n-slate-11"
+          >
+            <Icon icon="i-lucide-mails" class="size-3.5 text-n-iris-11" />
+            <span class="truncate">
+              只看
+              <span class="font-semibold text-n-slate-12">{{
+                customerFilter.name
+              }}</span>
+              的往来邮件（收 + 发）
+            </span>
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 ml-auto rounded text-n-slate-11 hover:bg-n-alpha-2"
+              @click="clearCustomerFilter"
+            >
+              <Icon icon="i-lucide-x" class="size-3" />
+              返回
+            </button>
+          </div>
+
           <template v-for="group in groupedRecords" :key="group.key">
             <div
               class="flex items-center gap-2 px-4 py-1.5 text-xs font-medium bg-n-alpha-1 text-n-slate-11"
@@ -1372,8 +1466,10 @@ watch(
                 @click="selectEmail(record)"
               >
                 <div
-                  class="flex items-center justify-center flex-shrink-0 text-sm font-medium rounded-full size-9"
+                  class="flex items-center justify-center flex-shrink-0 text-sm font-medium transition-transform rounded-full cursor-pointer size-9 hover:ring-2 hover:ring-n-iris-8 hover:ring-offset-1"
                   :class="avatarClass(record)"
+                  title="快捷操作：写跟进 / 往来邮件"
+                  @click.stop="openAvatarCard(record, $event)"
                 >
                   {{ initial(counterparty(record)) }}
                 </div>
@@ -2007,5 +2103,94 @@ watch(
         </div>
       </div>
     </div>
+
+    <!-- 头像快捷卡：点邮件头像弹出，写跟进 / 往来邮件 -->
+    <Teleport to="body">
+      <template v-if="avatarCard">
+        <div class="fixed inset-0 z-[60]" @click="closeAvatarCard" />
+        <div
+          class="fixed z-[61] w-56 py-2 border rounded-xl shadow-xl border-n-weak bg-n-solid-1"
+          :style="{ top: avatarCard.top + 'px', left: avatarCard.left + 'px' }"
+        >
+          <div class="px-3 pb-2 mb-1 border-b border-n-weak">
+            <div class="text-sm font-semibold truncate text-n-slate-12">
+              {{
+                avatarCard.record.customerName ||
+                counterparty(avatarCard.record)
+              }}
+            </div>
+            <div class="text-xs truncate text-n-slate-10">
+              {{ counterparty(avatarCard.record) }}
+            </div>
+          </div>
+          <template v-if="avatarCard.record.crmCustomerId">
+            <button
+              class="flex items-center w-full gap-2 px-3 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+              @click="cardWriteFollowUp"
+            >
+              <Icon icon="i-lucide-pencil-line" class="size-4 text-n-iris-11" />
+              写跟进
+            </button>
+            <button
+              class="flex items-center w-full gap-2 px-3 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+              @click="cardShowCorrespondence"
+            >
+              <Icon icon="i-lucide-mails" class="size-4 text-n-iris-11" />
+              往来邮件（收 + 发）
+            </button>
+          </template>
+          <div v-else class="px-3 py-2 text-xs text-n-slate-10">
+            该邮箱尚未建档为客户
+          </div>
+        </div>
+      </template>
+    </Teleport>
+
+    <!-- 写跟进右侧抽屉：不跳转，直接记一条跟进 -->
+    <Teleport to="body">
+      <template v-if="followUpDrawer">
+        <div class="fixed inset-0 z-[70] bg-black/20" @click="closeFollowUp" />
+        <div
+          class="fixed top-0 right-0 z-[71] flex flex-col w-full h-full max-w-md border-l shadow-2xl bg-n-solid-1 border-n-weak"
+        >
+          <div
+            class="flex items-center justify-between px-5 py-4 border-b border-n-weak"
+          >
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-n-slate-12">写跟进</div>
+              <div class="text-xs truncate text-n-slate-10">
+                {{ followUpDrawer.customerName }}
+              </div>
+            </div>
+            <button
+              class="flex items-center justify-center rounded size-8 text-n-slate-10 hover:bg-n-alpha-2"
+              @click="closeFollowUp"
+            >
+              <Icon icon="i-lucide-x" class="size-4" />
+            </button>
+          </div>
+          <div class="flex-1 p-5 overflow-y-auto">
+            <textarea
+              v-model="followUpText"
+              rows="8"
+              placeholder="记录这次跟进的内容、结果、下一步…"
+              class="w-full px-3 py-2 text-sm border rounded-lg resize-none no-margin border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-2 focus:ring-n-iris-9"
+            />
+          </div>
+          <div
+            class="flex items-center justify-end gap-2 px-5 py-4 border-t border-n-weak"
+          >
+            <Button label="取消" variant="link" @click="closeFollowUp" />
+            <Button
+              label="保存跟进"
+              color="iris"
+              :disabled="!followUpText.trim() || followUpSaving"
+              :is-loading="followUpSaving"
+              @click="saveFollowUp"
+            />
+          </div>
+        </div>
+      </template>
+    </Teleport>
   </div>
 </template>

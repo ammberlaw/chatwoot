@@ -63,6 +63,10 @@ const importDialogRef = ref(null);
 const canImport = computed(
   () => isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value
 );
+// 管理层（管理员/副管理员/部门主管）：共享视图看「我共享出去的」而非「共享给我的」。
+const isManagerial = computed(
+  () => isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value
+);
 const importMemberOptions = computed(() =>
   allAgentsForAssign.value.map(a => ({ value: String(a.id), label: a.name }))
 );
@@ -170,7 +174,7 @@ const managerOwnerOptions = computed(() => {
 
 // 私海视图切换：我的客户(mine) / 团队客户(team，主管全辖区) / 共享给我的(shared)。
 // 主管默认团队客户；业务员默认我的客户。「共享给我的」是独立视图(走 activeFilter='shared')。
-const managerView = ref(isCrmManager.value ? 'team' : 'mine');
+const managerView = ref(isManagerial.value ? 'team' : 'mine');
 const isManagerTeamView = computed(
   () =>
     isCrmManager.value &&
@@ -178,13 +182,14 @@ const isManagerTeamView = computed(
     managerView.value === 'team'
 );
 
-// 视图切换标签：主管[我的/团队/共享给我的]，业务员[我的/共享给我的]，其余角色不显示切换。
+// 视图切换标签：管理层[我的/团队/我共享出去的]，业务员[我的/共享给我的]，其余角色不显示切换。
+// 管理层向下共享客户，看「我共享出去的」；业务员是被共享方，看「共享给我的」。
 const viewTabs = computed(() => {
-  if (isCrmManager.value) {
+  if (isManagerial.value) {
     return [
       { key: 'mine', label: '我的客户' },
       { key: 'team', label: '团队客户' },
-      { key: 'shared', label: '共享给我的' },
+      { key: 'shared_out', label: '我共享出去的' },
     ];
   }
   if (isCrmSales.value) {
@@ -198,12 +203,13 @@ const viewTabs = computed(() => {
 const showViewTabs = computed(
   () =>
     viewTabs.value.length > 0 &&
-    (activeFilter.value === 'private' || activeFilter.value === 'shared')
+    ['private', 'shared', 'shared_out'].includes(activeFilter.value)
 );
 // 当前高亮的视图
 const currentView = computed(() => {
+  if (activeFilter.value === 'shared_out') return 'shared_out';
   if (activeFilter.value === 'shared') return 'shared';
-  return isCrmManager.value ? managerView.value : 'mine';
+  return isManagerial.value ? managerView.value : 'mine';
 });
 
 // 列表与概览卡共用的筛选口径（视图/分组/来源/状态/等级/搜索/团队/业务员）。
@@ -214,7 +220,7 @@ const currentFilterParams = () => {
   if (
     filter === 'private' &&
     managerView.value === 'mine' &&
-    (isCrmManager.value || isCrmSales.value)
+    (isManagerial.value || isCrmSales.value)
   ) {
     filter = 'mine';
   }
@@ -253,16 +259,17 @@ const fetchStats = async () => {
   }
 };
 
+// 首张概览卡标题：随当前视图口径切换。
+const primaryStatLabel = computed(() => {
+  if (activeFilter.value === 'shared_out') return '我共享出去的';
+  if (activeFilter.value === 'shared') return '共享给我的';
+  return isManagerTeamView.value ? '团队客户' : '我的客户';
+});
 // 概览卡展示配置（值来自 stats，配色随主题令牌）。
 const statCards = computed(() => [
   {
     key: 'customers',
-    label:
-      activeFilter.value === 'shared'
-        ? '共享给我的'
-        : isManagerTeamView.value
-          ? '团队客户'
-          : '我的客户',
+    label: primaryStatLabel.value,
     value: stats.value.customers,
     icon: 'i-lucide-users',
     tile: 'bg-n-amber-3 text-n-amber-11',
@@ -304,12 +311,14 @@ const fetchCustomers = () => {
 // —— 勾选批量转移（主管团队视图）——
 const selectedIds = ref([]);
 
-// 切换视图：共享走 activeFilter='shared'；我的/团队走 managerView(私海内子视图)。
+// 切换视图：共享走 activeFilter='shared'/'shared_out'；我的/团队走 managerView(私海内子视图)。
 const selectView = key => {
-  if (key === 'shared') {
-    activeFilter.value = 'shared';
+  if (key === 'shared' || key === 'shared_out') {
+    activeFilter.value = key;
   } else {
-    if (activeFilter.value === 'shared') activeFilter.value = 'private';
+    if (['shared', 'shared_out'].includes(activeFilter.value)) {
+      activeFilter.value = 'private';
+    }
     managerView.value = key;
   }
   selectedIds.value = [];
@@ -359,6 +368,18 @@ const fetchAllAgentsForAssign = async () => {
     allAgentsForAssign.value = [];
   }
 };
+// 「我共享出去的」视图用：user_id → 显示名，把客户的 sharedUserIds 渲染成协作人名字。
+const agentNameById = computed(() => {
+  const map = {};
+  allAgentsForAssign.value.forEach(a => {
+    map[a.id] = a.name;
+  });
+  return map;
+});
+const sharedToNames = customer =>
+  (customer.sharedUserIds || [])
+    .map(id => agentNameById.value[id])
+    .filter(Boolean);
 const assignTargetOptions = computed(() => {
   if (isManagerTeamView.value) return reassignTargetOptions.value;
   const me = currentUserForFilter.value || {};
@@ -449,6 +470,146 @@ const toggleSort = key => {
 const sortIcon = key => {
   if (sortKey.value !== key) return 'i-lucide-chevrons-up-down opacity-40';
   return sortDir.value === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down';
+};
+
+// ── 可拖拽重排 + 可排序的中间列（冻结列：勾选 / 公司名 / 操作 不参与）──
+// sort 值须与后端 SORT_EXPRESSIONS 白名单一致；tdClass 沿用原各列单元格样式。
+const COLUMN_DEFS = [
+  {
+    key: 'country',
+    label: () => t('CRM.CUSTOMERS.TABLE.COUNTRY'),
+    tdClass: 'px-3 py-2.5 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'timezone',
+    label: () => '时区',
+    tdClass: 'px-3 py-2.5 whitespace-nowrap text-n-slate-11 tabular-nums',
+  },
+  {
+    key: 'contact',
+    label: () => '主要联系人',
+    tdClass: 'px-3 py-2.5 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'email',
+    label: () => '邮箱',
+    sort: 'email',
+    tdClass: 'px-3 py-2.5 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'completeness',
+    label: () => t('CRM.CUSTOMERS.TABLE.GRADE'),
+    sort: 'completeness',
+    tdClass: 'px-3 py-2.5',
+  },
+  {
+    key: 'last_touch',
+    label: () => '最近联系时间',
+    sort: 'last_touch',
+    tdClass: 'px-3 py-2.5 whitespace-nowrap text-n-slate-11 tabular-nums',
+  },
+  {
+    key: 'deal_amount',
+    label: () => t('CRM.CUSTOMERS.TABLE.DEAL_AMOUNT'),
+    sort: 'deal_amount',
+    align: 'right',
+    tdClass:
+      'px-3 py-2.5 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap',
+  },
+  {
+    key: 'deal_count',
+    label: () => t('CRM.CUSTOMERS.TABLE.DEAL_COUNT'),
+    sort: 'deal_count',
+    align: 'right',
+    tdClass: 'px-3 py-2.5 text-right tabular-nums text-n-slate-11',
+  },
+  {
+    key: 'status',
+    label: () => t('CRM.CUSTOMERS.TABLE.STATUS'),
+    sort: 'status',
+    tdClass: 'px-3 py-2.5',
+  },
+  {
+    key: 'star',
+    label: () => t('CRM.CUSTOMERS.TABLE.LEVEL'),
+    sort: 'star',
+    tdClass: 'px-3 py-2.5',
+  },
+  {
+    key: 'source',
+    label: () => t('CRM.CUSTOMERS.TABLE.SOURCE'),
+    sort: 'source',
+    tdClass: 'px-3 py-2.5',
+  },
+  {
+    key: 'region',
+    label: () => t('CRM.CUSTOMERS.TABLE.REGION'),
+    tdClass: 'px-3 py-2.5 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'owner',
+    label: () =>
+      activeFilter.value === 'public_pool'
+        ? '原跟进人'
+        : t('CRM.CUSTOMERS.TABLE.OWNER'),
+    tdClass: 'px-3 py-2.5 whitespace-nowrap text-n-slate-11',
+  },
+];
+const DEFAULT_COL_KEYS = COLUMN_DEFS.map(c => c.key);
+const colStorageKey = computed(
+  () => `crmCustomerColsV1:${currentUserForFilter.value?.id || 0}`
+);
+const orderedKeys = ref([...DEFAULT_COL_KEYS]);
+// 载入本人保存的列顺序；剔除已下线列、补齐新列（新列排末尾），保证向后兼容。
+const loadColOrder = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(colStorageKey.value) || 'null');
+    if (Array.isArray(saved)) {
+      const kept = saved.filter(k => DEFAULT_COL_KEYS.includes(k));
+      const missing = DEFAULT_COL_KEYS.filter(k => !kept.includes(k));
+      orderedKeys.value = [...kept, ...missing];
+      return;
+    }
+  } catch {
+    // 解析失败回落默认顺序
+  }
+  orderedKeys.value = [...DEFAULT_COL_KEYS];
+};
+const saveColOrder = () => {
+  try {
+    localStorage.setItem(colStorageKey.value, JSON.stringify(orderedKeys.value));
+  } catch {
+    // localStorage 不可用时忽略（顺序本次会话内仍生效）
+  }
+};
+const orderedColumns = computed(() =>
+  orderedKeys.value.map(k => COLUMN_DEFS.find(c => c.key === k)).filter(Boolean)
+);
+// 表头拖拽重排（原生 HTML5 DnD，避免 vuedraggable 对 <tr> 子元素混排的限制）。
+const dragColKey = ref(null);
+const onColDragStart = key => {
+  dragColKey.value = key;
+};
+const onColDrop = targetKey => {
+  const from = dragColKey.value;
+  dragColKey.value = null;
+  if (!from || from === targetKey) return;
+  const arr = [...orderedKeys.value];
+  const fromIdx = arr.indexOf(from);
+  const toIdx = arr.indexOf(targetKey);
+  if (fromIdx < 0 || toIdx < 0) return;
+  arr.splice(fromIdx, 1);
+  arr.splice(toIdx, 0, from);
+  orderedKeys.value = arr;
+  saveColOrder();
+};
+// 最近联系时间：仅显示日期（YYYY-MM-DD），无值显示 —。
+const fmtLastTouch = value => {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
 const setCustomerGroup = value => {
@@ -672,11 +833,16 @@ const openDetailPage = () => {
 const addNote = async () => {
   const title = newNote.value.trim();
   if (!title || !selectedCustomer.value) return;
-  await axios.post(`${crmBase()}/follow_up_notes`, {
-    note: { title, crm_customer_id: selectedCustomer.value.id },
-  });
-  newNote.value = '';
-  fetchNotes();
+  try {
+    await axios.post(`${crmBase()}/follow_up_notes`, {
+      note: { title, crm_customer_id: selectedCustomer.value.id },
+    });
+    newNote.value = '';
+    useAlert('跟进已保存');
+    fetchNotes();
+  } catch {
+    useAlert('跟进保存失败，请重试');
+  }
 };
 // 文件上传/删除后重取列表并重新定位选中客户（保证 files 为最新 camelCase）。
 const resyncSelected = async () => {
@@ -1208,8 +1374,9 @@ const detailSections = computed(() => {
       ? [
           {
             title: '其他联系人',
+            // 自动建档的联系人常以邮箱当姓名；此时标签用「联系人」，邮箱放到值里，避免标签栏塞满长邮箱。
             rows: otherContacts.value.map(ct => ({
-              label: ct.name || '联系人',
+              label: ct.name && ct.name !== ct.email ? ct.name : '联系人',
               value: [ct.job_title, ct.email].filter(Boolean).join(' · '),
             })),
           },
@@ -1223,6 +1390,7 @@ const detailSections = computed(() => {
 });
 
 onMounted(() => {
+  loadColOrder();
   if (isCrmManager.value) fetchTeamMembers();
   else fetchTeams();
   if (
@@ -1520,97 +1688,34 @@ watch(
                   >
                     {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
                   </th>
+                  <!-- 中间列：可拖拽重排（拖列头即可）+ 可点排序，顺序按人记住 -->
                   <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
-                  >
-                    {{ t('CRM.CUSTOMERS.TABLE.COUNTRY') }}
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
-                  >
-                    时区
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
-                  >
-                    主要联系人
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
-                  >
-                    邮箱
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
+                    v-for="col in orderedColumns"
+                    :key="col.key"
+                    draggable="true"
+                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap cursor-move select-none transition-colors"
+                    :class="[
+                      col.align === 'right' ? 'text-right' : '',
+                      dragColKey === col.key ? 'opacity-40' : '',
+                    ]"
+                    :title="`拖动可调整列顺序${col.sort ? '，点击可排序' : ''}`"
+                    @dragstart="onColDragStart(col.key)"
+                    @dragover.prevent
+                    @drop="onColDrop(col.key)"
                   >
                     <button
+                      v-if="col.sort"
                       class="inline-flex items-center gap-1 text-[13px] transition-colors hover:text-n-slate-12"
-                      :class="
-                        sortKey === 'completeness' ? 'text-n-slate-12' : ''
-                      "
-                      @click="toggleSort('completeness')"
+                      :class="[
+                        col.align === 'right' ? 'ml-auto' : '',
+                        sortKey === col.sort ? 'text-n-slate-12' : '',
+                      ]"
+                      @click="toggleSort(col.sort)"
                     >
-                      {{ t('CRM.CUSTOMERS.TABLE.GRADE') }}
-                      <span
-                        class="size-3.5"
-                        :class="sortIcon('completeness')"
-                      />
+                      {{ col.label() }}
+                      <span class="size-3.5" :class="sortIcon(col.sort)" />
                     </button>
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap"
-                  >
-                    <button
-                      class="inline-flex items-center gap-1 ml-auto text-[13px] transition-colors hover:text-n-slate-12"
-                      :class="
-                        sortKey === 'deal_amount' ? 'text-n-slate-12' : ''
-                      "
-                      @click="toggleSort('deal_amount')"
-                    >
-                      {{ t('CRM.CUSTOMERS.TABLE.DEAL_AMOUNT') }}
-                      <span class="size-3.5" :class="sortIcon('deal_amount')" />
-                    </button>
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap"
-                  >
-                    <button
-                      class="inline-flex items-center gap-1 ml-auto text-[13px] transition-colors hover:text-n-slate-12"
-                      :class="sortKey === 'deal_count' ? 'text-n-slate-12' : ''"
-                      @click="toggleSort('deal_count')"
-                    >
-                      {{ t('CRM.CUSTOMERS.TABLE.DEAL_COUNT') }}
-                      <span class="size-3.5" :class="sortIcon('deal_count')" />
-                    </button>
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
-                  >
-                    {{ t('CRM.CUSTOMERS.TABLE.STATUS') }}
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
-                  >
-                    {{ t('CRM.CUSTOMERS.TABLE.LEVEL') }}
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
-                  >
-                    {{ t('CRM.CUSTOMERS.TABLE.SOURCE') }}
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
-                  >
-                    {{ t('CRM.CUSTOMERS.TABLE.REGION') }}
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap"
-                  >
-                    {{
-                      activeFilter === 'public_pool'
-                        ? '原跟进人'
-                        : t('CRM.CUSTOMERS.TABLE.OWNER')
-                    }}
+                    <span v-else>{{ col.label() }}</span>
                   </th>
                   <th
                     class="px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap"
@@ -1710,196 +1815,217 @@ watch(
                         </span>
                       </template>
                     </div>
-                  </td>
-                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
-                    {{ countryLabel(customer.tradeCountry) }}
-                  </td>
-                  <td
-                    class="px-3 py-2.5 whitespace-nowrap text-n-slate-11 tabular-nums"
-                  >
-                    {{ customerTime(customer) || '—' }}
-                  </td>
-                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
-                    <div class="flex items-center min-w-0 gap-1 group">
-                      <input
-                        v-if="isEditingCell(customer, 'primaryContactName')"
-                        v-model="editingValue"
-                        v-focus
-                        class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
-                        @click.stop
-                        @keyup.enter="saveCellEdit(customer)"
-                        @keyup.esc="cancelCellEdit"
-                        @blur="saveCellEdit(customer)"
-                      />
-                      <template v-else>
-                        <span class="truncate">
-                          {{ customer.primaryContactName || '—' }}
-                        </span>
-                        <span
-                          class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
-                          @click.stop
-                        >
-                          <button
-                            v-if="customer.primaryContactName"
-                            type="button"
-                            title="复制"
-                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                            @click.stop="copyCell(customer.primaryContactName)"
-                          >
-                            <span class="i-lucide-copy size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            title="编辑"
-                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                            @click.stop="
-                              startCellEdit(customer, 'primaryContactName')
-                            "
-                          >
-                            <span class="i-lucide-pencil size-3.5" />
-                          </button>
-                        </span>
-                      </template>
+                    <!-- 「我共享出去的」视图：在客户名下方列出被共享的协作人 -->
+                    <div
+                      v-if="
+                        currentView === 'shared_out' &&
+                        sharedToNames(customer).length
+                      "
+                      class="flex flex-wrap items-center gap-1 mt-1 pl-[38px]"
+                    >
+                      <span class="text-[11px] leading-5 text-n-slate-10">
+                        共享给
+                      </span>
+                      <span
+                        v-for="n in sharedToNames(customer)"
+                        :key="n"
+                        class="px-1.5 leading-5 text-[11px] rounded bg-n-iris-3 text-n-iris-11"
+                      >
+                        {{ n }}
+                      </span>
                     </div>
                   </td>
-                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
-                    <div class="flex items-center min-w-0 gap-1 group">
-                      <input
-                        v-if="isEditingCell(customer, 'contactEmail')"
-                        v-model="editingValue"
-                        v-focus
-                        type="email"
-                        class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
-                        @click.stop
-                        @keyup.enter="saveCellEdit(customer)"
-                        @keyup.esc="cancelCellEdit"
-                        @blur="saveCellEdit(customer)"
-                      />
-                      <template v-else>
-                        <button
-                          v-if="customer.contactEmail"
-                          type="button"
-                          title="点击写邮件"
-                          class="truncate text-left transition-colors hover:text-n-iris-11 hover:underline"
-                          @click.stop="writeEmail(customer)"
-                        >
-                          {{ customer.contactEmail }}
-                        </button>
-                        <span v-else class="truncate">—</span>
-                        <span
-                          class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+                  <!-- 中间列：按 orderedColumns 动态渲染（顺序随表头拖拽实时变化）-->
+                  <td
+                    v-for="col in orderedColumns"
+                    :key="col.key"
+                    :class="col.tdClass"
+                  >
+                    <template v-if="col.key === 'country'">
+                      {{ countryLabel(customer.tradeCountry) }}
+                    </template>
+                    <template v-else-if="col.key === 'timezone'">
+                      {{ customerTime(customer) || '—' }}
+                    </template>
+                    <template v-else-if="col.key === 'contact'">
+                      <div class="flex items-center min-w-0 gap-1 group">
+                        <input
+                          v-if="isEditingCell(customer, 'primaryContactName')"
+                          v-model="editingValue"
+                          v-focus
+                          class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
                           @click.stop
-                        >
+                          @keyup.enter="saveCellEdit(customer)"
+                          @keyup.esc="cancelCellEdit"
+                          @blur="saveCellEdit(customer)"
+                        />
+                        <template v-else>
+                          <span class="truncate">
+                            {{ customer.primaryContactName || '—' }}
+                          </span>
+                          <span
+                            class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+                            @click.stop
+                          >
+                            <button
+                              v-if="customer.primaryContactName"
+                              type="button"
+                              title="复制"
+                              class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                              @click.stop="copyCell(customer.primaryContactName)"
+                            >
+                              <span class="i-lucide-copy size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="编辑"
+                              class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                              @click.stop="
+                                startCellEdit(customer, 'primaryContactName')
+                              "
+                            >
+                              <span class="i-lucide-pencil size-3.5" />
+                            </button>
+                          </span>
+                        </template>
+                      </div>
+                    </template>
+                    <template v-else-if="col.key === 'email'">
+                      <div class="flex items-center min-w-0 gap-1 group">
+                        <input
+                          v-if="isEditingCell(customer, 'contactEmail')"
+                          v-model="editingValue"
+                          v-focus
+                          type="email"
+                          class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
+                          @click.stop
+                          @keyup.enter="saveCellEdit(customer)"
+                          @keyup.esc="cancelCellEdit"
+                          @blur="saveCellEdit(customer)"
+                        />
+                        <template v-else>
                           <button
                             v-if="customer.contactEmail"
                             type="button"
-                            title="复制"
-                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                            @click.stop="copyCell(customer.contactEmail)"
+                            title="点击写邮件"
+                            class="truncate text-left transition-colors hover:text-n-iris-11 hover:underline"
+                            @click.stop="writeEmail(customer)"
                           >
-                            <span class="i-lucide-copy size-3.5" />
+                            {{ customer.contactEmail }}
                           </button>
-                          <button
-                            type="button"
-                            title="编辑"
-                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                            @click.stop="
-                              startCellEdit(customer, 'contactEmail')
-                            "
+                          <span v-else class="truncate">—</span>
+                          <span
+                            class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+                            @click.stop
                           >
-                            <span class="i-lucide-pencil size-3.5" />
-                          </button>
-                        </span>
-                      </template>
-                    </div>
-                  </td>
-                  <td class="px-3 py-2.5">
-                    <div
-                      v-if="gradeMeta(customer)"
-                      class="flex items-center gap-2"
-                    >
+                            <button
+                              v-if="customer.contactEmail"
+                              type="button"
+                              title="复制"
+                              class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                              @click.stop="copyCell(customer.contactEmail)"
+                            >
+                              <span class="i-lucide-copy size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="编辑"
+                              class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                              @click.stop="startCellEdit(customer, 'contactEmail')"
+                            >
+                              <span class="i-lucide-pencil size-3.5" />
+                            </button>
+                          </span>
+                        </template>
+                      </div>
+                    </template>
+                    <template v-else-if="col.key === 'completeness'">
                       <div
-                        class="w-11 h-[5px] rounded-full bg-n-slate-4 overflow-hidden"
+                        v-if="gradeMeta(customer)"
+                        class="flex items-center gap-2"
                       >
                         <div
-                          class="h-full rounded-full"
-                          :class="
-                            isClassic
-                              ? 'bg-[#f5c451]'
-                              : 'bg-gradient-to-r from-n-iris-9 to-n-accent-grad'
-                          "
-                          :style="{
-                            width:
-                              Math.min(
-                                100,
-                                Math.max(0, customer.infoCompletenessScore || 0)
-                              ) + '%',
-                          }"
-                        />
+                          class="w-11 h-[5px] rounded-full bg-n-slate-4 overflow-hidden"
+                        >
+                          <div
+                            class="h-full rounded-full"
+                            :class="
+                              isClassic
+                                ? 'bg-[#f5c451]'
+                                : 'bg-gradient-to-r from-n-iris-9 to-n-accent-grad'
+                            "
+                            :style="{
+                              width:
+                                Math.min(
+                                  100,
+                                  Math.max(0, customer.infoCompletenessScore || 0)
+                                ) + '%',
+                            }"
+                          />
+                        </div>
+                        <span class="text-[11px] text-n-slate-10 tabular-nums">
+                          {{ customer.infoCompletenessScore }}
+                        </span>
                       </div>
-                      <span class="text-[11px] text-n-slate-10 tabular-nums">
-                        {{ customer.infoCompletenessScore }}
-                      </span>
-                    </div>
-                    <span v-else class="text-n-slate-10">—</span>
-                  </td>
-                  <td
-                    class="px-3 py-2.5 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
-                  >
-                    {{ money(customer.dealTotalAmountMicros) }}
-                  </td>
-                  <td
-                    class="px-3 py-2.5 text-right tabular-nums text-n-slate-11"
-                  >
-                    {{ customer.dealOrderCount || 0 }}
-                  </td>
-                  <td class="px-3 py-2.5">
-                    <span
-                      v-if="statusMeta(customer)"
-                      class="inline-flex items-center px-2.5 py-[3px] rounded-full text-[11.5px] font-bold whitespace-nowrap"
-                      :class="pillCls(statusMeta(customer).color)"
-                    >
-                      {{ statusMeta(customer).label }}
-                    </span>
-                    <span v-else class="text-n-slate-10">—</span>
-                  </td>
-                  <td class="px-3 py-2.5">
-                    <CrmStarRating :micros="customer.dealTotalAmountMicros" />
-                  </td>
-                  <td class="px-3 py-2.5">
-                    <span
-                      v-if="sourceMeta(customer)"
-                      class="inline-flex px-2.5 py-[3px] rounded-full text-[11px] font-bold whitespace-nowrap"
-                      :class="pillCls(sourceMeta(customer).color)"
-                    >
-                      {{ sourceMeta(customer).label }}
-                    </span>
-                    <span v-else class="text-n-slate-10">—</span>
-                  </td>
-                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
-                    <span v-if="regionMeta(customer)">
-                      {{ regionMeta(customer).label }}
-                    </span>
-                    <span v-else class="text-n-slate-10">—</span>
-                  </td>
-                  <td class="px-3 py-2.5 whitespace-nowrap text-n-slate-11">
-                    <div
-                      v-if="ownerDisplayName(customer)"
-                      class="flex items-center gap-2"
-                    >
+                      <span v-else class="text-n-slate-10">—</span>
+                    </template>
+                    <template v-else-if="col.key === 'last_touch'">
+                      {{ fmtLastTouch(customer.lastTouchAt) }}
+                    </template>
+                    <template v-else-if="col.key === 'deal_amount'">
+                      {{ money(customer.dealTotalAmountMicros) }}
+                    </template>
+                    <template v-else-if="col.key === 'deal_count'">
+                      {{ customer.dealOrderCount || 0 }}
+                    </template>
+                    <template v-else-if="col.key === 'status'">
                       <span
-                        class="grid flex-none text-[11px] font-bold rounded-md size-6 place-items-center bg-n-slate-4 text-n-slate-11"
+                        v-if="statusMeta(customer)"
+                        class="inline-flex items-center px-2.5 py-[3px] rounded-full text-[11.5px] font-bold whitespace-nowrap"
+                        :class="pillCls(statusMeta(customer).color)"
                       >
-                        {{ initial(ownerDisplayName(customer)) }}
+                        {{ statusMeta(customer).label }}
                       </span>
-                      <span class="truncate">
-                        {{ ownerDisplayName(customer) }}
+                      <span v-else class="text-n-slate-10">—</span>
+                    </template>
+                    <template v-else-if="col.key === 'star'">
+                      <CrmStarRating :micros="customer.dealTotalAmountMicros" />
+                    </template>
+                    <template v-else-if="col.key === 'source'">
+                      <span
+                        v-if="sourceMeta(customer)"
+                        class="inline-flex px-2.5 py-[3px] rounded-full text-[11px] font-bold whitespace-nowrap"
+                        :class="pillCls(sourceMeta(customer).color)"
+                      >
+                        {{ sourceMeta(customer).label }}
                       </span>
-                    </div>
-                    <span v-else class="text-n-slate-10">
-                      <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
-                      {{ customer.isInPublicPool ? '—' : '未分配' }}
-                    </span>
+                      <span v-else class="text-n-slate-10">—</span>
+                    </template>
+                    <template v-else-if="col.key === 'region'">
+                      <span v-if="regionMeta(customer)">
+                        {{ regionMeta(customer).label }}
+                      </span>
+                      <span v-else class="text-n-slate-10">—</span>
+                    </template>
+                    <template v-else-if="col.key === 'owner'">
+                      <div
+                        v-if="ownerDisplayName(customer)"
+                        class="flex items-center gap-2"
+                      >
+                        <span
+                          class="grid flex-none text-[11px] font-bold rounded-md size-6 place-items-center bg-n-slate-4 text-n-slate-11"
+                        >
+                          {{ initial(ownerDisplayName(customer)) }}
+                        </span>
+                        <span class="truncate">
+                          {{ ownerDisplayName(customer) }}
+                        </span>
+                      </div>
+                      <span v-else class="text-n-slate-10">
+                        <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+                        {{ customer.isInPublicPool ? '—' : '未分配' }}
+                      </span>
+                    </template>
                   </td>
                   <td class="px-3 py-2.5 text-right" @click.stop>
                     <Button
@@ -2080,6 +2206,27 @@ watch(
               {{ savingNext ? '保存中…' : '保存下次跟进' }}
             </button>
           </div>
+          <!-- 写跟进：直接在右侧面板记一条跟进（存入「备注」跟进记录）-->
+          <div class="px-5 py-4 border-b border-n-weak">
+            <div
+              class="mb-3 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              写跟进
+            </div>
+            <textarea
+              v-model="newNote"
+              rows="3"
+              placeholder="记录这次跟进的内容、结果、下一步…"
+              class="w-full px-3 py-2 text-sm border rounded-lg resize-none no-margin border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-2 focus:ring-n-iris-9"
+            />
+            <button
+              class="w-full py-2 mt-2 text-sm font-semibold text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+              :disabled="!newNote.trim()"
+              @click="addNote"
+            >
+              保存跟进
+            </button>
+          </div>
           <div
             v-for="section in detailSections"
             :key="section.title"
@@ -2096,7 +2243,7 @@ watch(
                 :key="row.label"
                 class="flex items-start gap-3 text-sm"
               >
-                <span class="w-20 shrink-0 text-n-slate-10">
+                <span class="w-20 shrink-0 break-all text-n-slate-10">
                   {{ row.label }}
                 </span>
                 <div class="flex flex-wrap items-center flex-1 min-w-0 gap-2">

@@ -14,17 +14,27 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     account_owner_id: :account_owner_id
   }.freeze
 
-  # 可排序列白名单（防注入）：查询参数 sort → 数据库列。均为数字列，走 sort_clause 的 COALESCE(col,0)。
-  SORT_COLUMNS = {
-    'deal_amount' => :deal_total_amount_micros,
-    'deal_count' => :deal_order_count,
-    'completeness' => :info_completeness_score
+  # 可排序列白名单（防注入）：sort 参数 → SQL 排序表达式。文本列按 LOWER 排、数字列 COALESCE 兜 NULL。
+  # 「最近联系时间」(last_touch) 用 LAST_TOUCH_SQL，在 sort_clause 里单独处理（该常量定义在本行之后）。
+  SORT_EXPRESSIONS = {
+    'name' => 'LOWER(crm_customers.name)',
+    'country' => 'LOWER(crm_customers.trade_country)',
+    'contact' => 'LOWER(crm_customers.primary_contact_name)',
+    'email' => 'LOWER(crm_customers.contact_email)',
+    'completeness' => 'COALESCE(crm_customers.info_completeness_score, 0)',
+    'deal_amount' => 'COALESCE(crm_customers.deal_total_amount_micros, 0)',
+    'star' => 'COALESCE(crm_customers.deal_total_amount_micros, 0)',
+    'deal_count' => 'COALESCE(crm_customers.deal_order_count, 0)',
+    'status' => 'LOWER(crm_customers.customer_status)',
+    'source' => 'LOWER(crm_customers.source_channel)',
+    'region' => 'LOWER(crm_customers.trade_region)'
   }.freeze
 
   def index
     @customers_scope = filtered_customers
     @customers_count = @customers_scope.count
     @customers = @customers_scope
+                 .select("crm_customers.*, (#{LAST_TOUCH_SQL}) AS last_touch_at")
                  .order(sort_clause)
                  .page(permitted_params[:page] || 1)
                  .per(results_per_page)
@@ -50,12 +60,15 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   # 流失预警视图默认按最久未互动优先（分诊语义）。
   # 用 COALESCE 把 NULL 当 0（与表格显示的 ¥0 一致），避免 NULL 被排到最前/最后。
   def sort_clause
-    column = SORT_COLUMNS[params[:sort]]
-    return Arel.sql("#{LAST_TOUCH_SQL} ASC") if column.nil? && params[:filter] == 'churn_risk'
-    return { updated_at: :desc } unless column
-
     direction = params[:direction] == 'asc' ? 'ASC' : 'DESC'
-    Arel.sql("COALESCE(#{column}, 0) #{direction}, id DESC")
+    # 「最近联系时间」排序：跟进/往来邮件/订单三者最新（LAST_TOUCH_SQL），默认倒序（最近在前）。
+    return Arel.sql("#{LAST_TOUCH_SQL} #{direction}, crm_customers.id DESC") if params[:sort] == 'last_touch'
+
+    expr = SORT_EXPRESSIONS[params[:sort]]
+    return Arel.sql("#{LAST_TOUCH_SQL} ASC") if expr.nil? && params[:filter] == 'churn_risk'
+    return { updated_at: :desc } unless expr
+
+    Arel.sql("#{expr} #{direction} NULLS LAST, crm_customers.id DESC")
   end
 
   def show; end
@@ -194,6 +207,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   def update
     @customer.update!(customer_params)
+    # 编辑弹窗带来的「其他联系人」：upsert（不删除既有邮件自动挂接的联系人）。
+    @customer.sync_contacts(contact_entries) if params.dig(:customer, :contacts).present?
   end
 
   # 批量分配：任何 CRM 角色都可把「自己名下」的私海客户分配给任意成员；
@@ -350,8 +365,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   # 私海侧按 CRM 团队收口（管理员看全部/CRM 团队负责人看本团队/业务员看自己）；公海是共享池不限。
   def filtered_customers
     scope = pool_scope(Current.account.crm_customers)
-    # 公海全公司共享、「共享给我的」已按 shared_user_ids 收口，均不再叠加团队辖区限制。
-    scope = restrict_by_org(scope) unless params[:filter].in?(%w[public_pool shared])
+    # 公海=全公司共享；shared 按 shared_user_ids 收口；shared_out 已按 owner 收口——均不叠加团队辖区限制。
+    scope = restrict_by_org(scope) unless params[:filter].in?(%w[public_pool shared shared_out])
     scope = scope.favorited_by(current_user.id) if params[:favorited_only].present?
     apply_customer_filters(scope)
   end
@@ -421,6 +436,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     when 'mine_shared' then scope.where('crm_customers.account_owner_id = :uid OR :uid = ANY(crm_customers.shared_user_ids)', uid: current_user.id)
     # 「共享给我的」列表视图：只看别人共享给本人的客户（不含自己名下的）。
     when 'shared' then scope.where(':uid = ANY(crm_customers.shared_user_ids)', uid: current_user.id)
+    # 「我共享出去的」（管理层）：本人名下、且已共享给协作人的客户。
+    when 'shared_out' then scope.where("crm_customers.account_owner_id = :uid AND crm_customers.shared_user_ids <> '{}'", uid: current_user.id)
     when 'unassigned' then scope.where(account_owner_id: nil, is_in_public_pool: false)
     when 'churn_risk' then churn_risk_scope(scope)
     else scope

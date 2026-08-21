@@ -8,8 +8,9 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   def index
     scope = filtered_pis
     @pis_count = scope.count
+    date_dir = params[:date_dir] == 'asc' ? :asc : :desc
     @pis = scope.includes(:crm_customer, :owner, pi_items: { picture_attachment: :blob })
-                .order(pi_date: :desc, id: :desc)
+                .order(pi_date: date_dir, id: :desc)
                 .page(permitted_params[:page] || 1)
                 .per(RESULTS_PER_PAGE)
   end
@@ -157,7 +158,16 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
     scope = scope_docs_mine(scope) if params[:filter] == 'mine'
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
+    scope = filter_by_month(scope, params[:month]) if params[:month].present?
     scope = search(scope, params[:q]) if params[:q].present?
+    scope
+  end
+
+  # 按月份（YYYY-MM）筛选 pi_date 落在该自然月内的 PI。非法值不筛。
+  def filter_by_month(scope, month)
+    start_date = Date.strptime(month, '%Y-%m')
+    scope.where(pi_date: start_date..start_date.end_of_month)
+  rescue ArgumentError
     scope
   end
 
@@ -182,6 +192,6 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   end
 
   def permitted_params
-    params.permit(:page, :filter, :status, :q, :owner_id)
+    params.permit(:page, :filter, :status, :q, :owner_id, :month, :date_dir)
   end
 end

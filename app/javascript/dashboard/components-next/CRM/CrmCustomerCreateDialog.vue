@@ -84,12 +84,38 @@ const attachments = ref([]);
 const uploading = ref(false);
 const fileInputRef = ref(null);
 
+// 其他联系人（采购/经理等）：编辑时载入既有非主联系人，可增改；保存走 upsert（不删既有）。
+const extraContacts = ref([]);
+const addContact = () =>
+  extraContacts.value.push({ name: '', jobTitle: '', email: '', phone: '' });
+const removeContact = i => extraContacts.value.splice(i, 1);
+const loadContacts = async id => {
+  extraContacts.value = [];
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/crm/contacts`,
+      { params: { customer_id: id } }
+    );
+    extraContacts.value = (data.payload || [])
+      .filter(c => !c.is_primary_contact)
+      .map(c => ({
+        name: c.name || '',
+        jobTitle: c.job_title || '',
+        email: c.email || '',
+        phone: c.phone_number || '',
+      }));
+  } catch {
+    extraContacts.value = [];
+  }
+};
+
 const resetForm = () => {
   editingId.value = null;
   Object.keys(form).forEach(key => {
     form[key] = '';
   });
   attachments.value = [];
+  extraContacts.value = [];
 };
 
 // 传 record 进入编辑模式；不传为新建。
@@ -104,6 +130,7 @@ const open = record => {
     editingStarMicros.value =
       record.dealTotalAmountMicros ?? record.deal_total_amount_micros ?? 0;
     attachments.value = record.files || [];
+    loadContacts(record.id);
   }
   dialogRef.value?.open();
 };
@@ -134,6 +161,14 @@ const handleConfirm = () => {
     address: form.address.trim() || null,
     contactPreference: form.contactPreference || null,
     customerRemark: form.customerRemark.trim() || null,
+    contacts: extraContacts.value
+      .filter(x => x.email.trim())
+      .map(x => ({
+        name: x.name.trim(),
+        job_title: x.jobTitle.trim(),
+        email: x.email.trim(),
+        phone: x.phone.trim(),
+      })),
   };
   if (isEditing.value) {
     emit('update', { id: editingId.value, ...payload });
@@ -329,6 +364,58 @@ defineExpose({ dialogRef, onSuccess, open });
         show-character-count
         auto-height
       />
+
+      <!-- 其他联系人（采购/经理等）：可增改，任一邮箱来信自动归属本客户 -->
+      <div class="flex flex-col gap-2">
+        <div
+          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+        >
+          其他联系人
+        </div>
+        <p class="text-xs text-n-slate-10">
+          采购、经理等其他邮箱可一并录入；任一邮箱来信都会自动识别归属本客户。
+        </p>
+        <div
+          v-for="(ct, i) in extraContacts"
+          :key="i"
+          class="grid grid-cols-1 gap-2 sm:grid-cols-12 sm:items-center"
+        >
+          <input
+            v-model="ct.name"
+            class="h-9 px-3 text-sm border rounded-lg no-margin border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-3"
+            placeholder="姓名"
+          />
+          <input
+            v-model="ct.jobTitle"
+            class="h-9 px-3 text-sm border rounded-lg no-margin border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-3"
+            placeholder="职位（如 采购）"
+          />
+          <input
+            v-model="ct.email"
+            class="h-9 px-3 text-sm border rounded-lg no-margin border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-3"
+            placeholder="邮箱"
+          />
+          <input
+            v-model="ct.phone"
+            class="h-9 px-3 text-sm border rounded-lg no-margin border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-2"
+            placeholder="电话（选填）"
+          />
+          <button
+            type="button"
+            class="h-9 text-xs rounded-lg text-n-ruby-11 hover:bg-n-ruby-2 sm:col-span-1"
+            @click="removeContact(i)"
+          >
+            删除
+          </button>
+        </div>
+        <button
+          type="button"
+          class="self-start h-9 px-3 text-sm border border-dashed rounded-lg no-margin border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
+          @click="addContact"
+        >
+          + 添加联系人
+        </button>
+      </div>
 
       <!-- 附件（仅编辑模式）-->
       <div v-if="isEditing" class="flex flex-col gap-2">
