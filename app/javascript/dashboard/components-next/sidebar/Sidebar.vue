@@ -995,6 +995,13 @@ const menuItems = computed(() => {
         ],
         children: [
           {
+            name: 'MES Todo',
+            label: t('SIDEBAR.MES_TODO'),
+            badgeCount: mesTodoCount.value,
+            to: accountScopedRoute('mes_todo_index'),
+            activeOn: ['mes_todo_index'],
+          },
+          {
             name: 'MES Dashboard',
             label: t('SIDEBAR.MES_DASHBOARD'),
             to: accountScopedRoute('mes_dashboard_index'),
@@ -1005,13 +1012,6 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_PIPELINE'),
             to: accountScopedRoute('mes_pipeline_index'),
             activeOn: ['mes_pipeline_index'],
-          },
-          {
-            name: 'MES Todo',
-            label: t('SIDEBAR.MES_TODO'),
-            badgeCount: mesTodoCount.value,
-            to: accountScopedRoute('mes_todo_index'),
-            activeOn: ['mes_todo_index'],
           },
           {
             name: 'MES Notifications',

@@ -95,16 +95,43 @@ const goOrder = orderNo =>
     accountScopedRoute('mes_production_orders_index', {}, { q: orderNo })
   );
 
+// 「待我处理」每个阶段对应一步具体操作 + 落到哪个操作页（携订单号预筛）。
+// 与后端 INBOX_BOARD_KEYS 同口径：inbox 返回的就是我负责阶段上的在产订单。
+const STAGE_ACTION = {
+  SALES_CONFIRMED: { label: '去挂 BOM', route: 'mes_boms_index' },
+  BOM_READY: { label: '去做 BOM', route: 'mes_boms_index' },
+  PURCHASING: { label: '去下采购单', route: 'mes_purchase_orders_index' },
+  MATERIAL_INBOUND: { label: '去收货入库', route: 'mes_stock_entries_index' },
+  PICKING: { label: '去领料', route: 'mes_material_issues_index' },
+  PRODUCTION: { label: '去报工', route: 'mes_production_records_index' },
+  FG_INBOUND: { label: '去成品入库', route: 'mes_fg_inbound_index' },
+};
+const stageAction = stage => STAGE_ACTION[stage] || null;
+// 点「去操作」→ 对应操作页并按订单号预筛；无映射兜底回订单详情。
+const goAction = o => {
+  const a = stageAction(o.stage);
+  if (!a) {
+    goOrder(o.order_no);
+    return;
+  }
+  router.push(accountScopedRoute(a.route, {}, { q: o.order_no }));
+};
+
 onMounted(load);
 </script>
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto">
     <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-      <h1 class="text-xl font-semibold text-n-slate-12">
-        我的待办
-        <span v-if="total" class="text-n-amber-11">({{ total }})</span>
-      </h1>
+      <div>
+        <h1 class="text-xl font-semibold text-n-slate-12">
+          我的工作台
+          <span v-if="total" class="text-n-amber-11">({{ total }})</span>
+        </h1>
+        <p class="mt-0.5 text-xs text-n-slate-10">
+          这里是「待你处理的事」，处理完自动消失；想看历史消息（谁批了/退了）请去「站内通知」。
+        </p>
+      </div>
       <button
         type="button"
         class="px-3 py-1 text-xs font-medium rounded-md outline outline-1 outline-n-weak text-n-slate-11 hover:text-n-slate-12"
@@ -170,28 +197,37 @@ onMounted(load);
         </ul>
       </div>
 
-      <!-- 待我接单：到岗通知拉取面 -->
+      <!-- 待我处理：停在我负责阶段的在产订单——一句话说清下一步 + 一键跳到那步操作页 -->
       <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
         <div class="mb-3 font-medium text-n-slate-12">
-          待我接单
+          待我处理
           <span class="text-n-iris-11">({{ inbox.length }})</span>
         </div>
         <div v-if="!inbox.length" class="text-sm text-n-slate-11">
-          暂无待你接单的在产订单。
+          暂无待你处理的在产订单。
         </div>
         <ul v-else class="flex flex-col gap-2">
           <li
             v-for="o in inbox"
             :key="o.id"
-            class="flex items-start justify-between gap-2 text-sm cursor-pointer group"
-            @click="goOrder(o.order_no)"
+            class="flex items-center justify-between gap-3 py-1 text-sm"
           >
-            <div class="min-w-0">
+            <div
+              class="min-w-0 cursor-pointer group"
+              @click="goOrder(o.order_no)"
+            >
               <span class="text-n-slate-12 group-hover:underline">
                 {{ o.order_no }} · {{ o.product_name }} ·
                 {{ stageLabel(o.stage) }}
               </span>
               <div class="text-[11px] text-n-slate-10">
+                <span v-if="o.ack_overdue" class="text-n-ruby-11">
+                  🔴 超时未接单 ·
+                </span>
+                <span v-else-if="o.awaiting_ack" class="text-n-amber-11">
+                  ⏳ 待接单 ·
+                </span>
+                <span v-else class="text-n-teal-11">✓ 处理中 · </span>
                 <span v-if="stallDays(o.entered_at) !== null">
                   停留 {{ stallDays(o.entered_at) }} 天
                 </span>
@@ -200,13 +236,15 @@ onMounted(load);
                 </span>
               </div>
             </div>
-            <span v-if="o.ack_overdue" class="shrink-0 text-n-ruby-11">
-              🔴 超时未接单
-            </span>
-            <span v-else-if="o.awaiting_ack" class="shrink-0 text-n-amber-11">
-              ⏳ 待接单
-            </span>
-            <span v-else class="shrink-0 text-n-teal-11">已接单 · 处理中</span>
+            <button
+              v-if="stageAction(o.stage)"
+              type="button"
+              class="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md shrink-0 text-white bg-n-iris-9 hover:bg-n-iris-10"
+              @click="goAction(o)"
+            >
+              {{ stageAction(o.stage).label }}
+              <span class="i-lucide-arrow-right size-3" />
+            </button>
           </li>
         </ul>
       </div>
