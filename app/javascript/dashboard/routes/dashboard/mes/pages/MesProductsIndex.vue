@@ -68,6 +68,7 @@ const form = reactive({
   sku: '',
   productLine: '',
   category: '',
+  sourceCategory: '',
   unit: '',
   specification: '',
   remark: '',
@@ -90,6 +91,7 @@ const openCreate = () => {
     sku: '',
     productLine: '',
     category: '',
+    sourceCategory: '',
     unit: '',
     specification: '',
     remark: '',
@@ -104,6 +106,7 @@ const openEdit = p => {
     sku: p.sku || '',
     productLine: p.productLine || '',
     category: p.category || '',
+    sourceCategory: p.sourceCategory || '',
     unit: p.unit || '',
     specification: p.specification || '',
     remark: p.remark || '',
@@ -119,6 +122,7 @@ const submit = async () => {
     sku: form.sku.trim(),
     productLine: form.productLine || null,
     category: form.category || null,
+    sourceCategory: form.sourceCategory.trim() || null,
     unit: form.unit.trim() || null,
     specification: form.specification.trim() || null,
     remark: form.remark.trim() || null,
@@ -169,7 +173,7 @@ onMounted(() => store.get());
         />
         <input
           v-model="keyword"
-          placeholder="搜索编码 / 名称"
+          placeholder="搜索编码 / 名称 / 类别"
           class="h-9 px-3 text-sm rounded-lg outline-none w-56 border border-n-weak bg-n-solid-1 text-n-slate-12"
           @keyup.enter="load"
         />
@@ -204,6 +208,7 @@ onMounted(() => store.get());
             <th class="px-3 py-3 font-medium">商品名称</th>
             <th class="px-3 py-3 font-medium">产品线</th>
             <th class="px-3 py-3 font-medium">商品类别</th>
+            <th class="px-3 py-3 font-medium">仓别分类</th>
             <th class="px-3 py-3 font-medium">单位</th>
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium text-right">操作</th>
@@ -215,6 +220,9 @@ onMounted(() => store.get());
             <td class="px-3 py-3 font-medium text-n-slate-12">{{ p.name }}</td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ productLineLabel(p.productLine) || '—' }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ p.sourceCategory || '—' }}
             </td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ categoryLabel(p.category) }}
@@ -259,7 +267,7 @@ onMounted(() => store.get());
             </td>
           </tr>
           <tr v-if="!records.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
               还没有产品。
             </td>
           </tr>
@@ -303,6 +311,15 @@ onMounted(() => store.get());
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">商品类别</label>
+            <Input
+              v-model="form.sourceCategory"
+              placeholder="如 背包屏 / 商显主板"
+            />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">仓别分类</label>
             <SelectCard
               size="form"
               :model-value="form.category"
@@ -310,16 +327,14 @@ onMounted(() => store.get());
               @update:model-value="v => (form.category = v)"
             />
           </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">单位</label>
             <Input v-model="form.unit" placeholder="台 / 个 / pcs" />
           </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">规格型号</label>
-            <Input v-model="form.specification" />
-          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">规格型号</label>
+          <Input v-model="form.specification" />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">备注</label>

@@ -8,7 +8,13 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
     scope = scoped_by_product_line(Current.account.crm_products)
     scope = scope.active if params[:filter] == 'active'
     scope = scope.where(category: params[:category]) if params[:category].present?
-    scope = scope.where('sku ILIKE :q OR name ILIKE :q', q: "%#{params[:q].strip}%") if params[:q].present?
+    scope = scope.where(source_category: params[:source_category]) if params[:source_category].present?
+    if params[:q].present?
+      scope = scope.where(
+        'sku ILIKE :q OR name ILIKE :q OR source_category ILIKE :q',
+        q: "%#{params[:q].strip}%"
+      )
+    end
     @products_count = scope.count
     @products = scope.order(updated_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
@@ -38,7 +44,7 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
 
   def product_params
     params.require(:product).permit(
-      :name, :sku, :category, :specification, :unit, :product_line,
+      :name, :sku, :category, :source_category, :specification, :unit, :product_line,
       :cost_price_micros, :sale_price_micros, :pricing_currency, :is_active, :remark
     )
   end

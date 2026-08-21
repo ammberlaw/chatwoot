@@ -13,6 +13,7 @@
 #  remark            :text
 #  sale_price_micros :bigint
 #  sku               :string           not null
+#  source_category   :string
 #  specification     :string
 #  unit              :string
 #  created_at        :datetime         not null
@@ -21,9 +22,10 @@
 #
 # Indexes
 #
-#  index_crm_products_on_account_and_product_line  (account_id,product_line)
-#  index_crm_products_on_account_id                (account_id)
-#  index_crm_products_on_account_id_and_sku        (account_id,sku) UNIQUE
+#  index_crm_products_on_account_and_product_line     (account_id,product_line)
+#  index_crm_products_on_account_and_source_category  (account_id,source_category)
+#  index_crm_products_on_account_id                   (account_id)
+#  index_crm_products_on_account_id_and_sku           (account_id,sku) UNIQUE
 #
 class Crm::Product < ApplicationRecord
   CATEGORIES = %w[STANDARD CUSTOMIZED ACCESSORY OTHER].freeze

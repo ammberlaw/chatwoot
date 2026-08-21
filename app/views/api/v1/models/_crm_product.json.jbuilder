@@ -2,6 +2,8 @@ json.id resource.id
 json.name resource.name
 json.sku resource.sku
 json.category resource.category
+json.source_category resource.source_category
+json.product_line resource.product_line
 json.specification resource.specification
 json.unit resource.unit
 # 成本价属采购/财务口径，销售端不可见（生态硬约束）——仅管理员/财务/MES 员工可读。

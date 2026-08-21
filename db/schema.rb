@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_21_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_22_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1548,8 +1548,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_21_000001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "product_line"
+    t.string "source_category"
     t.index ["account_id", "product_line"], name: "index_crm_products_on_account_and_product_line"
     t.index ["account_id", "sku"], name: "index_crm_products_on_account_id_and_sku", unique: true
+    t.index ["account_id", "source_category"], name: "index_crm_products_on_account_and_source_category"
     t.index ["account_id"], name: "index_crm_products_on_account_id"
   end
 
