@@ -10,13 +10,16 @@
 #  body                :text
 #  body_html           :text
 #  cc_address          :text
+#  click_count         :integer          default(0), not null
 #  email_date          :datetime
+#  first_clicked_at    :datetime
 #  first_opened_at     :datetime
 #  folder              :string           default("INBOX"), not null
 #  from_address        :string
 #  is_read             :boolean          default(FALSE), not null
 #  is_starred          :boolean          default(FALSE), not null
 #  label_ids           :bigint           default([]), not null, is an Array
+#  last_clicked_at     :datetime
 #  last_opened_at      :datetime
 #  open_count          :integer          default(0), not null
 #  reply_latency_hours :decimal(10, 2)
@@ -72,6 +75,7 @@ class Crm::Email < ApplicationRecord
   belongs_to :crm_email_folder, class_name: 'Crm::EmailFolder', optional: true, inverse_of: :emails
 
   has_many :opens, class_name: 'Crm::EmailOpen', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
+  has_many :clicks, class_name: 'Crm::EmailClick', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
   has_many :distributions, class_name: 'Crm::EmailDistribution', foreign_key: :crm_email_id, inverse_of: :crm_email, dependent: :destroy
   has_many_attached :files
 
@@ -127,6 +131,18 @@ class Crm::Email < ApplicationRecord
       open_count: open_count + 1,
       first_opened_at: first_opened_at || now,
       last_opened_at: now,
+      updated_at: now
+    )
+  end
+
+  # 记录一次链接点击：明细 + 累加聚合。追踪回调走公开路径，绕开校验/回调。
+  def register_click!(url:, ip:, user_agent:)
+    now = Time.current
+    clicks.create!(url: url, ip_address: ip, user_agent: user_agent)
+    update_columns( # rubocop:disable Rails/SkipsModelValidations
+      click_count: click_count + 1,
+      first_clicked_at: first_clicked_at || now,
+      last_clicked_at: now,
       updated_at: now
     )
   end

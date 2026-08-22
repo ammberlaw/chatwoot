@@ -101,10 +101,54 @@ const dateBucket = dateStr => {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   return { key: `${y}-${m}`, label: `${y}年${m}月` };
 };
+// —— 会话视图（列表级折叠）：把当前列表按会话（规范化主题 + 同客户/对方）折叠，
+// 每串只留最新一封 + 封数徽标；点开进阅读栏「会话往来」翻整串。开关记忆到本地。——
+const threadListMode = ref(localStorage.getItem('crmEmailThreadMode') === '1');
+watch(threadListMode, v =>
+  localStorage.setItem('crmEmailThreadMode', v ? '1' : '0')
+);
+// 与后端 Crm::Email.normalize_thread 同口径：反复剥 Re:/Fwd:/回复:/转发: 等前缀后归一。
+const THREAD_PREFIX_RE =
+  /^\s*(?:re|r\s*e|fw|fwd|答复|回复|回覆|转发|轉發|答覆)\s*[:：]\s*/i;
+const normalizeThreadJs = subject => {
+  let s = (subject || '').trim();
+  for (;;) {
+    const stripped = s.replace(THREAD_PREFIX_RE, '');
+    if (stripped === s) break;
+    s = stripped;
+  }
+  return s.toLowerCase().replace(/\s+/g, ' ').trim();
+};
+const threadKeyOf = r => {
+  const who = r.crmCustomerId
+    ? `c${r.crmCustomerId}`
+    : (splitAddresses(counterparty(r))[0] || '').toLowerCase();
+  return `${who}::${normalizeThreadJs(r.subject)}`;
+};
+// records 已按日期倒序，故每串首见即最新一封。
+const displayRecords = computed(() => {
+  if (!threadListMode.value) return records.value;
+  const seen = new Map();
+  const out = [];
+  records.value.forEach(r => {
+    const key = normalizeThreadJs(r.subject)
+      ? threadKeyOf(r)
+      : `__single_${r.id}`;
+    const hit = seen.get(key);
+    if (hit) {
+      hit._threadCount += 1;
+      return;
+    }
+    const clone = { ...r, _threadCount: 1 };
+    seen.set(key, clone);
+    out.push(clone);
+  });
+  return out;
+});
 const groupedRecords = computed(() => {
   const groups = [];
   const map = {};
-  records.value.forEach(r => {
+  displayRecords.value.forEach(r => {
     const b = dateBucket(r.emailDate);
     if (!map[b.key]) {
       map[b.key] = { key: b.key, label: b.label, items: [] };
@@ -166,6 +210,32 @@ const bulkDelete = async () => {
     fetchMailboxes();
   } catch {
     useAlert('删除失败');
+  } finally {
+    bulkBusy.value = false;
+  }
+};
+
+// 批量打标签：给选中的多封邮件都加上某标签（已有则跳过），逐封 merge label_ids。
+const bulkLabelMenuOpen = ref(false);
+const bulkAddLabel = async labelId => {
+  bulkLabelMenuOpen.value = false;
+  bulkBusy.value = true;
+  try {
+    await Promise.all(
+      selectedIds.value
+        .map(id => {
+          const rec = records.value.find(r => r.id === id);
+          const cur = Array.isArray(rec?.labelIds) ? rec.labelIds : [];
+          if (cur.includes(labelId)) return null;
+          return store.update({ id, labelIds: [...cur, labelId] });
+        })
+        .filter(Boolean)
+    );
+    useAlert('已批量打标签');
+    clearSelection();
+    fetchRecords();
+  } catch {
+    useAlert('打标签失败');
   } finally {
     bulkBusy.value = false;
   }
@@ -1477,6 +1547,19 @@ watch(
               {{ fetchingNow ? '收取中…' : '收取' }}
             </button>
             <button
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md hover:bg-n-alpha-2"
+              :class="
+                threadListMode
+                  ? 'text-n-iris-11 bg-n-iris-3'
+                  : 'text-n-slate-11 hover:text-n-iris-11'
+              "
+              title="会话视图：把同一往来的邮件折叠成一串"
+              @click="threadListMode = !threadListMode"
+            >
+              <Icon icon="i-lucide-messages-square" class="size-3.5" />
+              会话
+            </button>
+            <button
               class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11"
               title="折叠列表，读信更宽"
               @click="listCollapsed = true"
@@ -1641,6 +1724,44 @@ watch(
                   </div>
                 </template>
               </div>
+              <div class="relative">
+                <button
+                  class="flex items-center justify-center rounded size-8 text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
+                  title="打标签"
+                  :disabled="bulkBusy"
+                  @click="bulkLabelMenuOpen = !bulkLabelMenuOpen"
+                >
+                  <Icon icon="i-lucide-tag" class="size-5" />
+                </button>
+                <template v-if="bulkLabelMenuOpen">
+                  <div
+                    class="fixed inset-0 z-20"
+                    @click="bulkLabelMenuOpen = false"
+                  />
+                  <div
+                    class="absolute right-0 z-30 mt-1 py-1 overflow-y-auto border rounded-lg shadow-lg min-w-[150px] max-h-64 border-n-weak bg-n-solid-1"
+                  >
+                    <button
+                      v-for="l in labels"
+                      :key="l.id"
+                      class="flex items-center w-full gap-2 px-3 py-1.5 text-sm text-left hover:bg-n-alpha-1 text-n-slate-12"
+                      @click="bulkAddLabel(l.id)"
+                    >
+                      <span
+                        class="rounded-full size-2 shrink-0"
+                        :class="labelDot(l.color)"
+                      />
+                      <span class="flex-1 truncate">{{ l.name }}</span>
+                    </button>
+                    <div
+                      v-if="!labels.length"
+                      class="px-3 py-1.5 text-xs text-n-slate-10"
+                    >
+                      暂无标签
+                    </div>
+                  </div>
+                </template>
+              </div>
               <button
                 class="flex items-center justify-center rounded size-8 text-n-ruby-11 hover:bg-n-ruby-3 disabled:opacity-50"
                 title="删除"
@@ -1738,6 +1859,14 @@ watch(
                         : 'text-n-slate-11'
                     "
                   >
+                    <span
+                      v-if="record._threadCount > 1"
+                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 mr-1 rounded text-[10px] font-semibold align-middle bg-n-iris-3 text-n-iris-11"
+                      title="本会话邮件数"
+                    >
+                      <Icon icon="i-lucide-messages-square" class="size-3" />
+                      {{ record._threadCount }}
+                    </span>
                     {{ record.subject || '(无主题)' }}
                   </div>
                   <div class="mt-0.5 text-xs truncate text-n-slate-10">
@@ -2226,6 +2355,30 @@ watch(
               </span>
               <span v-if="selectedEmail.lastOpenedAt" class="text-n-slate-10">
                 {{ `最近 ${fmtDateTime(selectedEmail.lastOpenedAt)}` }}
+              </span>
+              <span class="inline-flex items-center gap-1.5 font-medium">
+                <Icon
+                  icon="i-lucide-mouse-pointer-click"
+                  class="size-4"
+                  :class="
+                    selectedEmail.clickCount
+                      ? 'text-n-iris-11'
+                      : 'text-n-slate-10'
+                  "
+                />
+                <span
+                  :class="
+                    selectedEmail.clickCount
+                      ? 'text-n-iris-11'
+                      : 'text-n-slate-10'
+                  "
+                >
+                  {{
+                    selectedEmail.clickCount
+                      ? `点击 · ${selectedEmail.clickCount} 次`
+                      : '未点击'
+                  }}
+                </span>
               </span>
             </div>
             <div

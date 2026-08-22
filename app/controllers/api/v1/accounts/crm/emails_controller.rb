@@ -189,6 +189,8 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     status = scheduled ? 'SCHEDULED' : 'PENDING'
     count = 0
     recipients.each do |r|
+      cust = r[:crm_customer_id].present? ? Current.account.crm_customers.find_by(id: r[:crm_customer_id]) : nil
+      contact = r[:contact_id].present? ? Current.account.contacts.find_by(id: r[:contact_id]) : nil
       email = Current.account.crm_emails.new(
         base.merge(
           owner_id: email_params[:owner_id] || current_user.id,
@@ -197,6 +199,9 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
           cc_address: merge_forced_cc(base[:cc_address], forced_cc_for(r[:email])),
           crm_customer_id: r[:crm_customer_id].presence,
           contact_id: r[:contact_id].presence,
+          subject: fill_template_vars(base[:subject], cust, contact),
+          body: fill_template_vars(base[:body], cust, contact),
+          body_html: fill_template_vars(base[:body_html], cust, contact),
           send_status: status
         )
       )
@@ -316,6 +321,20 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     return existing_cc if add.empty?
 
     [existing_cc.presence, *add].compact.join(', ')
+  end
+
+  # 邮件模板变量替换（群发按每个收件人的客户/联系人逐封填充）：
+  # {{公司}}/{{客户名}}/{{客户} → 客户名；{{联系人}} → 联系人名；{{我的名字}}/{{我}}/{{发件人}} → 本人。
+  # 未知/无值的变量保留原样。
+  def fill_template_vars(text, customer, contact)
+    return text if text.blank?
+
+    company = customer&.name.to_s
+    cname = contact&.name.presence || customer&.primary_contact_name.to_s
+    me = current_user.crm_display_name.to_s
+    text.gsub(/\{\{\s*(?:公司|客户名|客户)\s*\}\}/) { |m| company.presence || m }
+        .gsub(/\{\{\s*联系人\s*\}\}/) { |m| cname.presence || m }
+        .gsub(/\{\{\s*(?:我的名字|我|发件人)\s*\}\}/) { |m| me.presence || m }
   end
 
   def fetch_email

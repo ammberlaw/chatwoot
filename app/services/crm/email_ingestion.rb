@@ -41,7 +41,32 @@ module Crm::EmailIngestion
     email = Crm::Email.create!(inbound_attrs(mail, message_id, from, html))
     rewritten = attach_files(email, mail, html)
     email.update!(body_html: truncate_text(rewritten)) if rewritten != html
+    maybe_create_reply_reminder(email)
     email
+  end
+
+  # 客户来信自动提醒：为已建档客户的来信在「日程」里放一条当天全天提醒（归客户负责人），
+  # 直接进日程/首页今日安排。每客户至多一条 kind=reply_reminder（幂等）：来新信只刷新到当天+更新主题，
+  # 不重复堆；业务员回信后可在日程里标完成/删除。
+  def maybe_create_reply_reminder(email)
+    return if email.crm_customer_id.blank?
+
+    customer = Crm::Customer.find_by(id: email.crm_customer_id)
+    owner_id = customer&.account_owner_id
+    return if owner_id.blank?
+
+    today = Time.zone.today
+    event = @account.account.crm_schedule_events.find_or_initialize_by(customer_id: customer.id, kind: 'reply_reminder')
+    event.assign_attributes(
+      owner_id: owner_id, title: "回复客户来信：#{email.subject.presence || '(无主题)'}",
+      starts_at: today.beginning_of_day, ends_at: today.end_of_day,
+      all_day: true, color: 'rose', recurrence: 'none',
+      ref_type: 'customer', ref_id: customer.id,
+      note: "客户来信待回复 · #{customer.name}"
+    )
+    event.save!
+  rescue StandardError => e
+    Rails.logger.warn("[Crm::MailFetch] reply reminder failed email=#{email.id}: #{e.message}")
   end
 
   def inbound_attrs(mail, message_id, from, html)

@@ -75,6 +75,7 @@ Rails.application.routes.draw do
                 post :share
                 post :attach
                 post :attach_contact
+                post :merge
                 delete 'attach/:attachment_id', action: :detach
                 post :favorite
                 delete :favorite, action: :unfavorite
@@ -949,6 +950,7 @@ Rails.application.routes.draw do
 
   # CRM 邮件追踪像素（公开、免登录）：收件人打开邮件加载像素即回调记录。
   get 'crm_email_open/:token', to: 'crm/email_tracking#show', constraints: { token: /[a-f0-9]+/ }
+  get 'crm_email_click/:token', to: 'crm/email_tracking#click', constraints: { token: /[a-f0-9]+/ }
 
   # ----------------------------------------------------------------------
   # Routes for channel integrations

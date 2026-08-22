@@ -69,8 +69,24 @@ class Crm::EmailSendService
   def html_with_tracking_pixel
     token = @email.ensure_tracking_token!
     base = ENV.fetch('FRONTEND_URL', 'http://localhost:3000')
+    html = rewrite_links_for_tracking(@email.body_html, token, base)
     pixel = %(<img src="#{base}/crm_email_open/#{token}.png" width="1" height="1" alt="" style="display:none" />)
-    "#{@email.body_html}#{pixel}"
+    "#{html}#{pixel}"
+  end
+
+  # 把正文里的 http(s) 链接改写成带 token 的跳转链接：收件人点开先命中回调记录点击，再 302 到原地址。
+  # 仅重写发出的 SMTP 副本（CRM 内存 body_html 保持干净）；已是追踪链接的跳过。
+  def rewrite_links_for_tracking(html, token, base)
+    return html if html.blank?
+
+    html.gsub(/href="(https?:\/\/[^"]+)"/i) do
+      url = Regexp.last_match(1)
+      if url.include?('/crm_email_click/') || url.include?('/crm_email_open/')
+        %(href="#{url}")
+      else
+        %(href="#{base}/crm_email_click/#{token}?u=#{CGI.escape(url)}")
+      end
+    end
   end
 
   def smtp_settings(mail_account)

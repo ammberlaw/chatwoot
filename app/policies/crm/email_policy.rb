@@ -40,6 +40,11 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  # 会话线程：与本邮件同一往来的可见邮件（内部已按邮件可见范围收口）。
+  def thread?
+    true
+  end
+
   def distribute?
     true
   end

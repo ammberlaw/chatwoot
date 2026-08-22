@@ -88,6 +88,12 @@ crm_recycle_stale_customers_job:
   class: 'Crm::RecycleStaleCustomersJob'
   queue: scheduled_jobs
 
+# CRM：报价单有效期到期自动置 EXPIRED（北京时间 02:10 = UTC 前一日 18:10）
+crm_expire_quotes_job:
+  cron: '10 18 * * *'
+  class: 'Crm::ExpireQuotesJob'
+  queue: scheduled_jobs
+
 # CRM：商机超期自动进商机公海（同客户公海节奏）
 crm_recycle_stale_opportunities_job:
   cron: '0 18 * * *'

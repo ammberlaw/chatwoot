@@ -9,6 +9,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmQuoteFormDialog from 'dashboard/components-next/CRM/CrmQuoteFormDialog.vue';
+import CrmPiSellerProfileDialog from 'dashboard/components-next/CRM/CrmPiSellerProfileDialog.vue';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -81,6 +82,14 @@ const fmtMoney = (micros, currency) =>
         { minimumFractionDigits: 2, maximumFractionDigits: 2 }
       )}`;
 const fmtDate = v => (v ? String(v).slice(0, 10) : '—');
+
+// 快到期提示：未成交(DRAFT/SENT)、有有效期、7 天内到期 → 返回剩余天数（0=今天）；
+// 已过期由后台定时任务置 EXPIRED，这里只提醒临近的。
+const expiringDays = record => {
+  if (!['DRAFT', 'SENT'].includes(record.status) || !record.validUntil) return null;
+  const days = Math.ceil((new Date(record.validUntil) - Date.now()) / 86400000);
+  return days >= 0 && days <= 7 ? days : null;
+};
 
 // KPI 卡金额：跨币种不折算，按币种分列，显示完整金额（千分位）。
 const fullMoney = micros =>
@@ -193,6 +202,10 @@ const onPageChange = page => {
 
 const openCreate = () => formRef.value?.open();
 const openEdit = record => formRef.value?.open(record);
+
+// 我的卖方信息（与 PI 共用同一份预录）：报价单导出的联系人/手机/邮箱/落款按此填。
+const sellerProfileRef = ref(null);
+const openSellerProfile = () => sellerProfileRef.value?.open();
 const onSaved = () => {
   fetchRecords();
   fetchSummary();
@@ -307,6 +320,14 @@ onMounted(() => {
         </p>
       </div>
       <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium border rounded-[9px] border-n-weak bg-n-solid-1/70 text-n-slate-11 hover:bg-n-alpha-2"
+          @click="openSellerProfile"
+        >
+          <span class="i-lucide-user size-[15px]" />
+          我的卖方信息
+        </button>
         <button
           type="button"
           class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium text-white rounded-[9px] bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-lg shadow-n-iris-9/30 hover:brightness-105"
@@ -506,6 +527,18 @@ onMounted(() => {
                 <span class="rounded-full size-1.5 bg-current opacity-90" />
                 {{ STATUSES[record.status]?.label || record.status }}
               </span>
+              <span
+                v-if="expiringDays(record) !== null"
+                v-tooltip.top="`有效期至 ${fmtDate(record.validUntil)}`"
+                class="ml-1.5 inline-flex items-center gap-1 px-2 py-[3px] text-[11px] font-medium rounded-full bg-n-amber-3 text-n-amber-11 align-middle"
+              >
+                <span class="i-lucide-clock size-3" />
+                {{
+                  expiringDays(record) === 0
+                    ? '今天到期'
+                    : `${expiringDays(record)} 天后到期`
+                }}
+              </span>
             </td>
             <td
               class="px-3 py-3 tabular-nums text-n-slate-10 whitespace-nowrap"
@@ -640,5 +673,6 @@ onMounted(() => {
     </div>
 
     <CrmQuoteFormDialog ref="formRef" @saved="onSaved" />
+    <CrmPiSellerProfileDialog ref="sellerProfileRef" />
   </div>
 </template>

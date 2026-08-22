@@ -86,6 +86,42 @@ const totalCount = computed(() =>
   DIMENSIONS.reduce((sum, d) => sum + dimCount(d.key), 0)
 );
 
+// —— 合并：每组选一个「保留」项，一键把其余合并进来（迁移邮件/订单/商机/跟进后删除被并方）——
+const survivorByGroup = ref({});
+const survivorFor = group =>
+  survivorByGroup.value[group.value] ?? group.customers[0]?.id;
+const setSurvivor = (group, id) => {
+  survivorByGroup.value = { ...survivorByGroup.value, [group.value]: id };
+};
+const merging = ref('');
+const mergeGroup = async group => {
+  const survivorId = survivorFor(group);
+  const sources = group.customers.filter(c => c.id !== survivorId);
+  if (!sources.length) return;
+  const survivorName = group.customers.find(c => c.id === survivorId)?.name;
+  // eslint-disable-next-line no-alert
+  if (
+    !window.confirm(
+      `把其余 ${sources.length} 条合并到「${survivorName}」？\n被合并客户的邮件/订单/商机/跟进会转移过来，被合并客户将被删除，不可撤销。`
+    )
+  ) {
+    return;
+  }
+  merging.value = group.value;
+  try {
+    await sources.reduce(
+      (p, s) => p.then(() => CrmCustomerAPI.merge(survivorId, s.id)),
+      Promise.resolve()
+    );
+    useAlert('合并完成');
+    await load();
+  } catch (e) {
+    useAlert(e.response?.data?.error || '合并失败');
+  } finally {
+    merging.value = '';
+  }
+};
+
 // 跳到客户列表并按名称搜索定位；公海客户切公海视图，其余走私海视图
 const openCustomer = customer => {
   router.push({
@@ -298,10 +334,27 @@ const openCustomer = customer => {
             >
               {{ group.customers.length }} 条
             </span>
+            <button
+              class="flex items-center gap-1 px-2.5 py-1 ml-auto text-xs font-medium rounded-md shrink-0 text-white bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+              :disabled="merging === group.value"
+              title="把其余客户合并到选中的「保留」项"
+              @click="mergeGroup(group)"
+            >
+              <span
+                :class="
+                  merging === group.value
+                    ? 'i-lucide-loader-2 animate-spin'
+                    : 'i-lucide-merge'
+                "
+                class="size-3.5"
+              />
+              合并到保留项
+            </button>
           </div>
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left border-b border-n-weak text-n-slate-10">
+                <th class="px-4 font-medium py-1.5 w-14">保留</th>
                 <th class="px-4 font-medium py-1.5">公司名称</th>
                 <th class="px-4 font-medium py-1.5">客户编号</th>
                 <th class="px-4 font-medium py-1.5">归属</th>
@@ -316,6 +369,19 @@ const openCustomer = customer => {
                 class="border-b cursor-pointer border-n-weak last:border-0 hover:bg-n-alpha-1"
                 @click="openCustomer(customer)"
               >
+                <td class="px-4 py-2" @click.stop>
+                  <input
+                    type="radio"
+                    class="accent-n-iris-9"
+                    :checked="survivorFor(group) === customer.id"
+                    :title="
+                      survivorFor(group) === customer.id
+                        ? '保留此客户'
+                        : '设为保留项'
+                    "
+                    @change="setSurvivor(group, customer.id)"
+                  />
+                </td>
                 <td class="px-4 py-2 font-medium text-n-slate-12">
                   {{ customer.name }}
                 </td>

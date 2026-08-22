@@ -16,6 +16,7 @@ json.scheduled_at resource.scheduled_at
 json.reply_latency_hours resource.reply_latency_hours
 json.tracked resource.tracking_token.present?
 json.open_count resource.open_count
+json.click_count resource.click_count
 json.first_opened_at resource.first_opened_at
 json.last_opened_at resource.last_opened_at
 last_open = local_assigns[:last_open]

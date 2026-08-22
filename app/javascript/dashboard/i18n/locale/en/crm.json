@@ -333,8 +333,8 @@
       },
       "SELLER_PROFILE": {
         "BUTTON": "我的卖方信息",
-        "TITLE": "我的卖方信息（PI 落款）",
-        "SUBTITLE": "录一次，之后新建 PI 卖方抬头（联系人/手机/邮箱）自动按这里带入。公司名、地址、网址、银行为全公司公用，不在此维护。",
+        "TITLE": "我的卖方信息（PI / 报价单 落款）",
+        "SUBTITLE": "录一次，PI 与报价单的卖方抬头（联系人/手机/邮箱）及导出落款都按这里自动带入。公司名、地址、网址、银行为全公司公用，不在此维护。",
         "CONTACT": "联系人 Contact",
         "CONTACT_PLACEHOLDER": "对外显示的英文名，如 Amber Law",
         "MOBILE": "手机 Mobile",

@@ -17,6 +17,8 @@ class Crm::QuoteTemplateFiller
 
   ITEM_TOP = 20        # 明细起始行（20-25，单行一项）
   MAX_ITEMS = 6        # 模板自带 6 行
+  # 卖方抬头静态网址（与 PI 一致；联系人/手机/邮箱走业务员「我的卖方信息」预录）。
+  SELLER_WEB = 'www.wintouchcn.com   |   https://wintouchtech.com'.freeze
   PICTURE_COL = 1      # PICTURE 列 = B（0 基）
 
   EMU_PER_PX = 9525
@@ -40,8 +42,10 @@ class Crm::QuoteTemplateFiller
 
   private
 
+  MAX_TOTAL_ITEMS = 50 # 上限兜底，避免超大报价把导出撑爆
+
   def items
-    @items ||= @quote.line_items.order(:id).to_a.first(MAX_ITEMS)
+    @items ||= @quote.line_items.order(:id).to_a.first(MAX_TOTAL_ITEMS)
   end
 
   def customer
@@ -49,7 +53,7 @@ class Crm::QuoteTemplateFiller
   end
 
   def fill_sheet(xml)
-    data = xml[%r{<sheetData>.*?</sheetData>}m].dup
+    data = xml[%r{<sheetData[^>]*>.*?</sheetData>}m].dup
 
     # 表头 + 买方（写进既有空格，保留样式）。
     data = set_cell_str(data, 'C8', @quote.quote_no)
@@ -62,29 +66,140 @@ class Crm::QuoteTemplateFiller
     data = set_cell_str(data, 'B16', customer&.website)
     data = set_cell_str(data, 'F11', @quote.quote_currency.presence || 'USD')
 
-    # 明细行 20-25：有货填数据、无货清空（H 列保留公式、缓存值随之更新）。
-    (0...MAX_ITEMS).each do |i|
-      row = ITEM_TOP + i
-      item = items[i]
-      data = fill_item_row(data, row, item)
+    # 卖方落款（联系人/手机/邮箱）：按报价单业务员的「我的卖方信息」预录填，未录则保留模板默认。
+    if (sp = seller_profile)
+      data = set_cell_str(data, 'D2', "Contact: #{sp.contact_name}   |   Mobile: #{sp.mobile}")
+      data = set_cell_str(data, 'D3', "Email: #{sp.email}   |   #{SELLER_WEB}")
     end
 
-    # 小计 / 运费 / 总额（公式缓存值覆盖成实算值，非重算预览也正确）。
+    # 明细：模板自带 6 行；明细多于 6 行时克隆明细行、把下方（小计/运费/总额/条款/落款）整体下移 delta。
+    n = items.size
+    rows_needed = [n, MAX_ITEMS].max
+    delta = rows_needed - MAX_ITEMS
+    data = rebuild_item_area(data, rows_needed, delta)
+
+    # 小计 / 运费 / 总额（写到下移后的行号）。
     subtotal = items.sum { |it| it.amount_micros.to_i }
     total = @quote.total_amount_micros.to_i
-    data = set_formula_cache(data, 'H26', micros_to_num(subtotal))
-    data = set_cell_num(data, 'H27', micros_to_num(total - subtotal)) # 运费=总额−小计（含折扣/税净额）
-    data = set_formula_cache(data, 'H28', micros_to_num(total))
+    last_item_row = ITEM_TOP + rows_needed - 1
+    data = set_subtotal_cell(data, 26 + delta, subtotal, last_item_row)
+    data = set_cell_num(data, "H#{27 + delta}", micros_to_num(total - subtotal)) # 运费=总额−小计（含折扣/税净额）
+    # 总额格是加粗大字，纯数字在窄列会显示成 ####；改写成「币种 金额」文本，靠右溢出显示不再 ####。
+    data = set_cell_str(data, "H#{28 + delta}", format_money(total))
+    # 落款「ISSUED BY / 姓名」随报价单业务员走（外发文档优先英文名），不再写死模板里的名字。
+    data = set_cell_str(data, "A#{38 + delta}", "ISSUED BY\n#{issuer_name}")
 
-    xml.sub(%r{<sheetData>.*?</sheetData>}m, data)
+    xml = xml.sub(%r{<sheetData[^>]*>.*?</sheetData>}m, data)
+    rebuild_merges(xml, rows_needed, delta)
   end
 
-  def fill_item_row(data, row, item)
-    data = set_cell_str(data, "A#{row}", item&.name)
-    data = set_cell_str(data, "D#{row}", item ? (item.spec_snapshot.presence || item.remark) : nil)
-    data = set_cell_num(data, "F#{row}", item&.quantity)
-    data = set_cell_num(data, "G#{row}", item ? micros_to_num(item.unit_price_micros) : nil)
-    set_formula_cache(data, "H#{row}", item ? micros_to_num(item.amount_micros) : nil)
+  # 报价单业务员的「我的卖方信息」预录（复用 PI 的同一份，按 owner→经办人 取）。
+  def seller_profile
+    return @seller_profile if defined?(@seller_profile)
+
+    uid = @quote.owner_id || @quote.handled_by_id
+    @seller_profile = uid && Crm::PiSellerProfile.find_by(account_id: @quote.account_id, owner_id: uid)
+  end
+
+  # 报价单落款署名：优先「我的卖方信息」联系人；否则业务员英文名（兜底真名）。
+  def issuer_name
+    return seller_profile.contact_name if seller_profile
+
+    user = User.find_by(id: @quote.owner_id || @quote.handled_by_id)
+    (user&.crm_name.presence || user&.name).to_s
+  end
+
+  # 「币种 千分位金额」文本，如 "USD 54,516.00"。
+  def format_money(micros)
+    return '' if micros.nil?
+
+    cur = @quote.quote_currency.presence || 'USD'
+    "#{cur} #{ActiveSupport::NumberHelper.number_to_delimited(format('%.2f', micros / 1_000_000.0))}"
+  end
+
+  # 把明细区重建成 rows_needed 行：保留行首(<20)、按模板克隆明细行(20..19+rows_needed)、
+  # 下方行(>=26)整体下移 delta。以行元素数组处理，避免整串正则误伤。
+  def rebuild_item_area(data, rows_needed, delta)
+    open_tag = data[/<sheetData[^>]*>/]
+    inner = data[/<sheetData[^>]*>(.*)<\/sheetData>/m, 1]
+
+    head = []
+    tail = []
+    template = nil
+    last_orig_item = ITEM_TOP + MAX_ITEMS - 1
+    inner.scan(/<row r="(\d+)"[^>]*?(?:\/>|>.*?<\/row>)/m) do
+      num = Regexp.last_match(1).to_i
+      rxml = Regexp.last_match(0)
+      if num < ITEM_TOP
+        head << rxml
+      elsif num <= last_orig_item
+        template = rxml if num == ITEM_TOP # 原始明细行(20-25)丢弃，用模板行 20 重建
+      else
+        tail << renumber_row(rxml, num, num + delta)
+      end
+    end
+
+    new_items = (0...rows_needed).map { |i| build_item_row(template, ITEM_TOP + i, items[i]) }
+    "#{open_tag}#{(head + new_items + tail).join}</sheetData>"
+  end
+
+  # 用模板行(row 20)克隆出第 rownum 行并填入 item（无 item 则留空行，保留边框/样式）。
+  def build_item_row(template, rownum, item)
+    r = renumber_row(template, ITEM_TOP, rownum)
+    r = set_cell_str(r, "A#{rownum}", item&.name)
+    r = set_cell_str(r, "D#{rownum}", item ? (item.spec_snapshot.presence || item.remark) : nil)
+    r = set_cell_num(r, "F#{rownum}", item&.quantity)
+    r = set_cell_num(r, "G#{rownum}", item ? micros_to_num(item.unit_price_micros) : nil)
+    set_amount_cell(r, rownum, item)
+  end
+
+  # 行金额格：保留 IF 公式（引用本行 F/G）+ 覆盖缓存值。
+  def set_amount_cell(row_xml, rownum, item)
+    cache = item ? "<v>#{micros_to_num(item.amount_micros)}</v>" : ''
+    row_xml.sub(/<c r="H#{rownum}"([^>]*?)(?:\/>|>.*?<\/c>)/m) do
+      style = Regexp.last_match(1)[/s="\d+"/] || 's="15"'
+      %(<c r="H#{rownum}" #{style} t="n"><f aca="false">IF(F#{rownum}="","",F#{rownum}*G#{rownum})</f>#{cache}</c>)
+    end
+  end
+
+  # 小计格：改写公式为覆盖全部明细行的 SUM + 覆盖缓存值。
+  def set_subtotal_cell(data, row, subtotal_micros, last_item_row)
+    data.sub(/<c r="H#{row}"([^>]*?)(?:\/>|>.*?<\/c>)/m) do
+      style = Regexp.last_match(1)[/s="\d+"/] || 's="20"'
+      %(<c r="H#{row}" #{style} t="n"><f aca="false">SUM(H#{ITEM_TOP}:H#{last_item_row})</f><v>#{micros_to_num(subtotal_micros)}</v></c>)
+    end
+  end
+
+  # 行号平移：只改 <row r=> 与 <c r=> 的行号，不动公式体（相关公式格另行整格重写）。
+  def renumber_row(row_xml, oldnum, newnum)
+    row_xml.sub(/<row r="#{oldnum}"/, %(<row r="#{newnum}"))
+           .gsub(/<c r="([A-Z]+)#{oldnum}"/) { %(<c r="#{Regexp.last_match(1)}#{newnum}") }
+  end
+
+  # 重建合并单元格：行首(<20)保留；明细行合并按 rows_needed 重新生成；下方(>=26)整体下移 delta。
+  def rebuild_merges(xml, rows_needed, delta)
+    block = xml[/<mergeCells count="\d+">.*?<\/mergeCells>/m]
+    return xml if block.nil?
+
+    last_orig_item = ITEM_TOP + MAX_ITEMS - 1
+    out = []
+    block.scan(/<mergeCell ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/) do
+      c1, r1, c2, r2 = Regexp.last_match(1), Regexp.last_match(2).to_i, Regexp.last_match(3), Regexp.last_match(4).to_i
+      next if r1 >= ITEM_TOP && r1 <= last_orig_item # 原明细行合并丢弃，下面按需重建
+
+      if r1 >= ITEM_TOP + MAX_ITEMS
+        out << "#{c1}#{r1 + delta}:#{c2}#{r2 + delta}"
+      else
+        out << "#{c1}#{r1}:#{c2}#{r2}"
+      end
+    end
+    (0...rows_needed).each do |i|
+      r = ITEM_TOP + i
+      out << "B#{r}:C#{r}"
+      out << "D#{r}:E#{r}"
+    end
+    cells = out.map { |ref| %(<mergeCell ref="#{ref}"/>) }.join
+    xml.sub(/<mergeCells count="\d+">.*?<\/mergeCells>/m, %(<mergeCells count="#{out.size}">#{cells}</mergeCells>))
   end
 
   def contact_name

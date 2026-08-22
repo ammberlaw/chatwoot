@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail, :favorite, :unfavorite, :attach_contact, :schedule_follow_up]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail, :favorite, :unfavorite, :attach_contact, :schedule_follow_up, :merge]
 
   RESULTS_PER_PAGE = 15
   MAX_IMPORT_ROWS = 2000
@@ -242,6 +242,25 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     render json: { updated: ids.size }
   end
 
+  # 客户合并：把 source 客户的邮件/订单/PI/报价/商机/跟进/联系人/生产单迁移到本客户（存活方），
+  # 空字段用 source 补齐后删除 source。权限：管理员/副管，或两个客户都归当前用户。
+  def merge
+    source = Current.account.crm_customers.find_by(id: params[:source_id])
+    if source.nil? || source.id == @customer.id
+      return render json: { error: '要合并的客户无效' }, status: :unprocessable_entity
+    end
+    return render json: { error: '无权合并该客户' }, status: :forbidden unless merge_allowed?(source)
+
+    ActiveRecord::Base.transaction do
+      migrate_customer_associations(source.id, @customer.id)
+      fill_blank_fields(@customer, source)
+      @customer.save!(validate: false)
+      source.destroy!
+    end
+    @customer.recompute_deal_rollup!
+    render 'api/v1/accounts/crm/customers/show'
+  end
+
   # 认领：公海客户归当前用户私海。分组私海上限由模型 pool_limit 校验拦截；
   # 原归属人受领回冷却期限制（豁免名单成员除外）。
   def claim
@@ -316,6 +335,39 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   private
+
+  # 合并权限：管理员/副管，或存活方与被并方都归当前用户。
+  def merge_allowed?(source)
+    au = Current.account_user
+    return true if au.administrator? || au.crm_deputy_admin?
+
+    @customer.account_owner_id == current_user.id && source.account_owner_id == current_user.id
+  end
+
+  # 空字段合并：存活方为空、被并方有值时用被并方补齐。
+  MERGE_FILL_FIELDS = %w[website industry address trade_country trade_region trade_city
+                         currency_preference customer_group customer_level product_group
+                         source_channel customer_status risk_level primary_contact_name
+                         contact_job_title contact_email contact_phone whats_app wechat
+                         linkedin customer_remark].freeze
+
+  def fill_blank_fields(target, source)
+    MERGE_FILL_FIELDS.each do |f|
+      target[f] = source[f] if target[f].blank? && source[f].present?
+    end
+  end
+
+  # 关联迁移：按 account_id + crm_customer_id 直改归属；收藏去重（删被并方的收藏）。
+  def migrate_customer_associations(from_id, to_id)
+    aid = Current.account.id
+    stamp = { crm_customer_id: to_id, updated_at: Time.current }
+    [Crm::Email, Crm::SalesOrder, Crm::Pi, Crm::Quote, Crm::Opportunity,
+     Crm::FollowUpNote, Crm::FollowUpTask, Mes::ProductionOrder].each do |klass|
+      klass.where(account_id: aid, crm_customer_id: from_id).update_all(stamp)
+    end
+    Contact.where(account_id: aid, crm_customer_id: from_id).update_all(crm_customer_id: to_id, updated_at: Time.current)
+    Crm::CustomerFavorite.where(account_id: aid, crm_customer_id: from_id).delete_all
+  end
 
   # 批量修改字段：状态限枚举、分组走「客户设置」动态配置（与单条编辑同口径，不硬校验）。
   # 仅收传入的字段，避免误清空未提及的列。

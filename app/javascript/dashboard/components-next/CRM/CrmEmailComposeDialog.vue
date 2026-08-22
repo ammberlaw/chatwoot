@@ -13,6 +13,7 @@ import camelcaseKeys from 'camelcase-keys';
 import snakecaseKeys from 'snakecase-keys';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { useCrmEmailsStore } from 'dashboard/stores/crm/emails';
+import { useMapGetter } from 'dashboard/composables/store';
 import CrmEmailAPI from 'dashboard/api/crm/emails';
 import MailAccountsAPI from 'dashboard/api/crm/mailAccounts';
 import EmailTemplatesAPI from 'dashboard/api/crm/emailTemplates';
@@ -46,6 +47,7 @@ import CrmRecipientInput from 'dashboard/components-next/CRM/CrmRecipientInput.v
 
 const emit = defineEmits(['refresh']);
 const store = useCrmEmailsStore();
+const currentUser = useMapGetter('getCurrentUser');
 const { formatMessage } = useMessageFormatter();
 
 // 界面中文文案（CRM 模块为中文，绑定到模板避免 bare-string）。
@@ -768,10 +770,27 @@ const openTemplateManage = () => {
   }).href;
   window.open(href, '_blank'); // 新标签打开，避免丢失当前写信草稿
 };
+// 邮件模板变量：套模板时按当前客户/联系人/本人替换；未选客户则保留 {{...}} 原样
+// （可手改，群发时由后端按每个收件人再填）。支持 {{公司}}/{{客户名}}/{{联系人}}/{{我的名字}}。
+const currentContactName = () => {
+  const c = contacts.value.find(x => x.id === contactId.value);
+  return c?.name || customer.value?.primaryContactName || '';
+};
+const fillTemplateVars = text => {
+  if (!text) return text;
+  const company = customer.value?.name || '';
+  const contact = currentContactName();
+  const me = currentUser.value?.crm_name || currentUser.value?.name || '';
+  return text
+    .replace(/\{\{\s*(?:公司|客户名|客户)\s*\}\}/g, m => company || m)
+    .replace(/\{\{\s*联系人\s*\}\}/g, m => contact || m)
+    .replace(/\{\{\s*(?:我的名字|我|发件人)\s*\}\}/g, m => me || m);
+};
+
 const applyTemplate = async tpl => {
   if (!tpl) return;
-  if (tpl.subjectTemplate) form.subject = tpl.subjectTemplate;
-  form.body = tpl.body || '';
+  if (tpl.subjectTemplate) form.subject = fillTemplateVars(tpl.subjectTemplate);
+  form.body = fillTemplateVars(tpl.body || '');
   // 模板附件随邮件带出：下载成 File 加进附件列表（走现有上传流）。
   await Promise.all(
     (tpl.files || []).map(async f => {
@@ -2303,6 +2322,13 @@ defineExpose({ open, close });
         </div>
 
         <div class="flex-1 px-6 pb-4 overflow-y-auto">
+          <p
+            v-pre
+            class="mb-3 text-[11px] leading-snug text-n-slate-10"
+          >
+            提示：模板/正文可用变量 {{公司}} {{联系人}} {{我的名字}}，套用 /
+            群发时自动替换成对应客户信息。
+          </p>
           <div
             v-if="!pickerTemplates.length"
             class="flex flex-col items-center justify-center h-full gap-3 text-n-slate-10"

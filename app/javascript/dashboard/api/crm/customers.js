@@ -41,6 +41,11 @@ class CrmCustomerAPI extends ApiClient {
     return axios.post(`${this.url}/${id}/attach_contact`, { email, name });
   }
 
+  // 客户合并：把 sourceId 客户合并进 id（存活方），迁移其邮件/订单/商机/跟进后删除 source。
+  merge(id, sourceId) {
+    return axios.post(`${this.url}/${id}/merge`, { source_id: sourceId });
+  }
+
   // 流失预警角标：可见范围内超期未互动的成交客户数。
   churnRiskCount() {
     return axios.get(`${this.url}/churn_risk_count`);

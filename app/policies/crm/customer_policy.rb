@@ -66,6 +66,16 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 批量改字段：范围校验在控制器（按团队口径只改辖区内私海客户）。
+  def bulk_update?
+    true
+  end
+
+  # 客户合并：具体权限在控制器 merge_allowed?（管理员/副管，或两客户都归本人）。
+  def merge?
+    true
+  end
+
   # 批量导入限管理层：系统管理员 / 副管理员 / 部门主管。
   def import?
     @account_user.administrator? || @account_user.crm_deputy_admin? || @account_user.crm_manager?

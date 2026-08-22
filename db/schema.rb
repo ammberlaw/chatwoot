@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_23_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_24_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1020,6 +1020,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_23_000001) do
     t.index ["account_id"], name: "index_crm_doc_sections_on_account_id"
   end
 
+  create_table "crm_email_clicks", force: :cascade do |t|
+    t.bigint "crm_email_id", null: false
+    t.string "url"
+    t.string "ip_address"
+    t.string "user_agent"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["crm_email_id"], name: "index_crm_email_clicks_on_crm_email_id"
+  end
+
   create_table "crm_email_distributions", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_email_id", null: false
@@ -1127,6 +1137,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_23_000001) do
     t.datetime "scheduled_at"
     t.bigint "crm_email_folder_id"
     t.bigint "label_ids", default: [], null: false, array: true
+    t.integer "click_count", default: 0, null: false
+    t.datetime "first_clicked_at"
+    t.datetime "last_clicked_at"
     t.index ["account_id", "email_date"], name: "index_crm_emails_on_account_id_and_email_date"
     t.index ["account_id", "folder"], name: "index_crm_emails_on_account_id_and_folder"
     t.index ["account_id", "is_read"], name: "index_crm_emails_on_account_id_and_is_read"
@@ -3082,6 +3095,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_23_000001) do
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_ai_settings", "accounts"
   add_foreign_key "crm_customers", "accounts"
+  add_foreign_key "crm_email_clicks", "crm_emails", on_delete: :cascade
   add_foreign_key "crm_email_labels", "accounts"
   add_foreign_key "crm_email_opens", "crm_emails", on_delete: :cascade
   add_foreign_key "crm_emails", "contacts", on_delete: :nullify
