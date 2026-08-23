@@ -1185,16 +1185,6 @@ const menuItems = computed(() => {
             ),
             activeOn: ['crm_doc_center_index'],
           },
-          // 资料板块（仅列出当前用户可见的；可见性按部门在文档中心配置）
-          ...docSections.value.map(section => ({
-            name: `CRM Doc Section ${section.id}`,
-            label: section.name,
-            to: accountScopedRoute(
-              'crm_doc_center_index',
-              {},
-              { filter: 'company', section_id: String(section.id) }
-            ),
-          })),
           // 文档回收站：超级管理员与管理员可见可清理
           ...(isAdminLike.value
             ? [

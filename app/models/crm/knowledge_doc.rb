@@ -15,6 +15,7 @@
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null
 #  account_id      :bigint           not null
+#  category_id     :bigint
 #  discarded_by_id :bigint
 #  owner_id        :bigint
 #  section_id      :bigint
@@ -27,10 +28,12 @@
 #  index_crm_knowledge_docs_on_account_id_and_library       (account_id,library)
 #  index_crm_knowledge_docs_on_account_id_and_scope         (account_id,scope)
 #  index_crm_knowledge_docs_on_account_id_and_section_id    (account_id,section_id)
+#  index_crm_knowledge_docs_on_category_id                  (category_id)
 #  index_crm_knowledge_docs_on_owner_id                     (owner_id)
 #
 # Foreign Keys
 #
+#  fk_rails_...  (category_id => crm_knowledge_categories.id) ON DELETE => nullify
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (section_id => crm_doc_sections.id) ON DELETE => nullify
 #
@@ -43,6 +46,8 @@ class Crm::KnowledgeDoc < ApplicationRecord
   belongs_to :owner, class_name: 'User', optional: true
   # 文档中心资料板块（GENERAL 库使用）；板块可按部门配置可见性。
   belongs_to :section, class_name: 'Crm::DocSection', optional: true
+  # 归属文件夹（分类），按 ID 认路以支持任意层级 + 同名子文件夹；category 字符串仅作展示冗余。
+  belongs_to :folder, class_name: 'Crm::KnowledgeCategory', foreign_key: :category_id, optional: true, inverse_of: false
   belongs_to :discarded_by, class_name: 'User', optional: true
 
   # 审计：记录文档的创建/编辑，供侧边栏「时间轴」展示。

@@ -1,6 +1,7 @@
 json.id resource.id
 json.name resource.name
 json.category resource.category
+json.category_id resource.category_id
 json.summary resource.summary
 json.scope resource.scope
 json.library resource.library

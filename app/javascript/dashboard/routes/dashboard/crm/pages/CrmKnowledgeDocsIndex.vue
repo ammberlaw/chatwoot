@@ -1,20 +1,17 @@
 <script setup>
 /* global axios */
 import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
-import { emitter } from 'shared/helpers/mitt';
+import * as XLSX from 'xlsx';
 import { useCrmKnowledgeDocsStore } from 'dashboard/stores/crm/knowledgeDocs';
 import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCategories';
-import CrmMemberAPI from 'dashboard/api/crm/members';
-import DocSectionsAPI from 'dashboard/api/crm/docSections';
 
 import Button from 'dashboard/components-next/button/Button.vue';
-import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -22,7 +19,6 @@ import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
 const { t } = useI18n();
 const route = useRoute();
-const router = useRouter();
 const { accountId } = useAccount();
 const store = useCrmKnowledgeDocsStore();
 const categoriesStore = useCrmKnowledgeCategoriesStore();
@@ -38,17 +34,6 @@ const isGeneral = computed(() => currentLibrary.value === 'GENERAL');
 // ── 权限：公司文档管理权=管理员/副管理员/部门负责人（文档中心另加指定负责人）；其他人只能浏览下载 ──
 const currentUserId = useMapGetter('getCurrentUserID');
 const { isAdmin, isCrmDeputyAdmin, isCrmManager } = useCrmRole();
-const members = ref([]);
-
-// 成员列表：供「文档负责人」多选（仅超管/管理员分配）。
-const fetchMembers = async () => {
-  try {
-    const { data } = await CrmMemberAPI.get();
-    members.value = data.payload || [];
-  } catch {
-    members.value = [];
-  }
-};
 
 const isAdminLike = computed(() => isAdmin.value || isCrmDeputyAdmin.value);
 
@@ -64,197 +49,20 @@ const canManageBoard = computed(
   () => isMineView.value || canManageCompany.value
 );
 
-// 当前侧栏选中的板块 id（?section_id= 驱动）；分类隔离与板块负责人展示都依赖它。
-const activeSectionId = ref(route.query.section_id || '');
-// 公司分类按板块隔离：SALES 库映射到「销售资料」板块，GENERAL 取当前板块（聚合视图无板块）。
-const sectionParam = () =>
-  isGeneral.value && activeSectionId.value ? activeSectionId.value : undefined;
+// 文档中心＝扁平网盘：不分板块，直接取全部公司文件夹/文件。
 const fetchCategories = () =>
   categoriesStore.get(
-    isMineView.value
-      ? { view: 'mine' }
-      : { library: currentLibrary.value, section_id: sectionParam() }
+    isMineView.value ? { view: 'mine' } : { library: currentLibrary.value }
   );
 
-// ── 资料板块（文档中心）：侧边栏子项经 ?section_id= 驱动切换；管理员可按部门配置各板块可见性 ──
-const sections = ref([]);
-const fetchSections = async () => {
-  try {
-    const { data } = await DocSectionsAPI.get();
-    sections.value = data.payload || [];
-  } catch {
-    sections.value = [];
-  }
-};
-const sectionFormOptions = computed(() => [
-  { value: '', label: t('CRM.KNOWLEDGE_DOCS.SECTION.NONE') },
-  ...sections.value.map(s => ({ value: String(s.id), label: s.name })),
-]);
-
-// 当前侧栏选中的板块（用于展示/设置板块负责人）。
-const activeSection = computed(() =>
-  sections.value.find(s => String(s.id) === String(activeSectionId.value))
-);
-
-// ── 板块负责人（可多人）：页面上直接展示；超管/管理员点「设置负责人」勾选成员 ──
-const ownerDialogRef = ref(null);
-const ownerDraftIds = ref([]);
-const ownerSearch = ref('');
-const savingOwners = ref(false);
-const ownerCandidates = computed(() => {
-  const kw = ownerSearch.value.trim().toLowerCase();
-  if (!kw) return members.value;
-  return members.value.filter(m =>
-    `${m.name} ${m.email}`.toLowerCase().includes(kw)
-  );
-});
-const openOwnerDialog = () => {
-  if (!activeSection.value) return;
-  ownerDraftIds.value = [...(activeSection.value.manager_ids || [])];
-  ownerSearch.value = '';
-  ownerDialogRef.value?.open();
-};
-const toggleOwner = userId => {
-  const idx = ownerDraftIds.value.indexOf(userId);
-  if (idx >= 0) ownerDraftIds.value.splice(idx, 1);
-  else ownerDraftIds.value.push(userId);
-};
-const saveSectionOwners = async () => {
-  if (!activeSection.value) return;
-  savingOwners.value = true;
-  try {
-    await DocSectionsAPI.updateSection(activeSection.value.id, {
-      section: { manager_ids: ownerDraftIds.value },
-    });
-    await fetchSections();
-    emitter.emit('crmDocSectionsUpdated');
-    ownerDialogRef.value?.close();
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_SAVED'));
-  } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_ERROR'));
-  } finally {
-    savingOwners.value = false;
-  }
-};
-
-// ── 板块可见成员（可多人）：空=全员可见；超管/管理员点「设置可见成员」搜索勾选 ──
-const viewerDialogRef = ref(null);
-const viewerDraftIds = ref([]);
-const viewerSearch = ref('');
-const savingViewers = ref(false);
-const viewerCandidates = computed(() => {
-  const kw = viewerSearch.value.trim().toLowerCase();
-  if (!kw) return members.value;
-  return members.value.filter(m =>
-    `${m.name} ${m.email}`.toLowerCase().includes(kw)
-  );
-});
-const openViewerDialog = () => {
-  if (!activeSection.value) return;
-  viewerDraftIds.value = [...(activeSection.value.viewer_ids || [])];
-  viewerSearch.value = '';
-  viewerDialogRef.value?.open();
-};
-const toggleViewer = userId => {
-  const idx = viewerDraftIds.value.indexOf(userId);
-  if (idx >= 0) viewerDraftIds.value.splice(idx, 1);
-  else viewerDraftIds.value.push(userId);
-};
-const saveSectionViewers = async () => {
-  if (!activeSection.value) return;
-  savingViewers.value = true;
-  try {
-    await DocSectionsAPI.updateSection(activeSection.value.id, {
-      section: { viewer_ids: viewerDraftIds.value },
-    });
-    await fetchSections();
-    emitter.emit('crmDocSectionsUpdated');
-    viewerDialogRef.value?.close();
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SAVED'));
-  } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_ERROR'));
-  } finally {
-    savingViewers.value = false;
-  }
-};
-
-// 板块管理弹窗（管理员）：新增/删除自定义板块。可见性（可见成员）在各板块顶栏就地设置。
-const sectionDialogRef = ref(null);
-const sectionDraft = ref([]);
-const newSectionName = ref('');
-const addingSection = ref(false);
-const pendingSectionDeleteId = ref(null);
-const openSectionDialog = () => {
-  sectionDraft.value = sections.value.map(s => ({
-    id: s.id,
-    name: s.name,
-    isDefault: s.is_default,
-  }));
-  newSectionName.value = '';
-  pendingSectionDeleteId.value = null;
-  sectionDialogRef.value?.open();
-};
-// 自定义新增板块：立即入库并追加到草稿；删除仅限自定义板块（两步确认）。
-const addSection = async () => {
-  const name = newSectionName.value.trim();
-  if (!name || addingSection.value) return;
-  addingSection.value = true;
-  try {
-    const { data } = await DocSectionsAPI.createSection({
-      section: { name },
-    });
-    sectionDraft.value.push({
-      id: data.id,
-      name: data.name,
-      isDefault: false,
-    });
-    newSectionName.value = '';
-    await fetchSections();
-    emitter.emit('crmDocSectionsUpdated');
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.ADDED'));
-  } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.ADD_ERROR'));
-  } finally {
-    addingSection.value = false;
-  }
-};
-const deleteSection = async draft => {
-  if (pendingSectionDeleteId.value !== draft.id) {
-    pendingSectionDeleteId.value = draft.id;
-    return;
-  }
-  pendingSectionDeleteId.value = null;
-  try {
-    await DocSectionsAPI.deleteSection(draft.id);
-    sectionDraft.value = sectionDraft.value.filter(s => s.id !== draft.id);
-    await fetchSections();
-    emitter.emit('crmDocSectionsUpdated');
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.DELETED'));
-  } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.DELETE_ERROR'));
-  }
-};
-// 当前用户负责的板块 id 集合（板块负责人可管该板块下所有公司文档）。
-const managedSectionIds = computed(() =>
-  sections.value
-    .filter(s => (s.manager_ids || []).includes(currentUserId.value))
-    .map(s => s.id)
-);
-// 个人文档归属人可管；公司文档=超管/管理员+该文档所属板块负责人；销售资料另放开部门负责人。
+// 个人文档归属人可管；公司文档=超管/管理员；销售资料另放开部门负责人。
 const canManageDoc = doc => {
   if (doc?.scope === 'PERSONAL') return doc.ownerId === currentUserId.value;
   if (isAdminLike.value) return true;
-  if (doc?.sectionId && managedSectionIds.value.includes(doc.sectionId))
-    return true;
   return !isGeneral.value && isCrmManager.value;
 };
-// 新建入口：超管/管理员随处；板块负责人在自己负责的板块；销售资料人人可建（个人文档）。
-const canCreateDocs = computed(() => {
-  if (isAdminLike.value) return true;
-  if (activeSectionId.value)
-    return managedSectionIds.value.includes(Number(activeSectionId.value));
-  return !isGeneral.value;
-});
+// 新建入口：超管/管理员随处；销售资料人人可建（个人文档）。
+const canCreateDocs = computed(() => isAdminLike.value || !isGeneral.value);
 
 const records = computed(() => store.getRecords);
 const categories = computed(() => categoriesStore.getRecords);
@@ -276,13 +84,118 @@ const hash = str => {
   return sum;
 };
 const colorOf = name => PALETTE[hash(name) % PALETTE.length];
+
+// ── 纯文件识别：直传的文件=单附件 + 标题就是文件名 + 没写正文/摘要。
+// 这类当「文件」处理（图标+大小、点击直接下载），不再弹文档详情壳子；
+// 写了正文/摘要或多附件的仍是「文档」，照旧开详情。
+const isFileDoc = doc => {
+  const files = doc.files || [];
+  if (files.length !== 1) return false;
+  const hasText =
+    (doc.body && doc.body.trim()) || (doc.summary && doc.summary.trim());
+  return !hasText; // 单附件 + 没写正文/摘要 = 文件（改名后仍是文件）
+};
+const FILE_ICONS = [
+  {
+    ext: ['pdf'],
+    icon: 'i-lucide-file-text',
+    color: 'bg-n-ruby-3 text-n-ruby-11',
+  },
+  {
+    ext: ['xls', 'xlsx', 'csv'],
+    icon: 'i-lucide-file-spreadsheet',
+    color: 'bg-n-teal-3 text-n-teal-11',
+  },
+  {
+    ext: ['doc', 'docx'],
+    icon: 'i-lucide-file-text',
+    color: 'bg-n-blue-3 text-n-blue-11',
+  },
+  {
+    ext: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
+    icon: 'i-lucide-image',
+    color: 'bg-n-iris-3 text-n-iris-11',
+  },
+  {
+    ext: ['zip', 'rar', '7z', 'tar', 'gz'],
+    icon: 'i-lucide-file-archive',
+    color: 'bg-n-slate-3 text-n-slate-11',
+  },
+];
+const fileMeta = filename => {
+  const ext = (filename || '').split('.').pop().toLowerCase();
+  return (
+    FILE_ICONS.find(m => m.ext.includes(ext)) || {
+      icon: 'i-lucide-file',
+      color: 'bg-n-slate-3 text-n-slate-11',
+    }
+  );
+};
+const openDocFile = doc => {
+  const file = (doc.files || [])[0];
+  if (file?.url) window.open(file.url, '_blank', 'noopener');
+};
+
+// ── 在线预览：视频/图片/PDF/音频直接看；Excel 前端解析成表格；其余提示下载 ──
+const PREVIEW_KINDS = {
+  video: ['mp4', 'webm', 'ogv', 'mov', 'm4v'],
+  image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif'],
+  pdf: ['pdf'],
+  audio: ['mp3', 'wav', 'm4a', 'aac', 'oga', 'ogg'],
+  excel: ['xlsx', 'xls', 'csv'],
+};
+const previewDoc = ref(null);
+const excelHtml = ref('');
+const excelLoading = ref(false);
+const previewKind = computed(() => {
+  const ext = (previewDoc.value?.name || '').split('.').pop().toLowerCase();
+  return (
+    Object.keys(PREVIEW_KINDS).find(k => PREVIEW_KINDS[k].includes(ext)) ||
+    'other'
+  );
+});
+const previewUrl = computed(() => previewDoc.value?.files?.[0]?.url || '');
+// Excel 前端解析成 HTML 表格预览（不用后端、不用公开文件）
+const loadExcel = async () => {
+  excelLoading.value = true;
+  excelHtml.value = '';
+  try {
+    const buf = await (await fetch(previewUrl.value)).arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    excelHtml.value = sheet ? XLSX.utils.sheet_to_html(sheet) : '';
+  } catch {
+    excelHtml.value = '';
+  } finally {
+    excelLoading.value = false;
+  }
+};
+const openPreview = doc => {
+  previewDoc.value = doc;
+  const ext = (doc?.name || '').split('.').pop().toLowerCase();
+  if (['xlsx', 'xls', 'csv'].includes(ext)) loadExcel();
+};
 const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 const scopeLabel = scope => (scope === 'PERSONAL' ? '个人' : '公司');
 const fmtDateTime = v => (v ? new Date(v).toLocaleString() : '');
 
-const categoryOptions = computed(() =>
-  categories.value.map(c => ({ value: c.name, label: c.name }))
-);
+// 分类全路径标签（多级目录里同名文件夹靠路径区分），供建档表单下拉。
+const categoryById = id => categories.value.find(c => c.id === id);
+const categoryPath = cat => {
+  const parts = [];
+  const seen = new Set();
+  let cur = cat;
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    parts.unshift(cur.name);
+    cur = cur.parentId ? categoryById(cur.parentId) : null;
+  }
+  return parts.join(' / ');
+};
+const categoryOptions = computed(() => [
+  { value: null, label: t('CRM.KNOWLEDGE_DOCS.FORM.ROOT') },
+  ...categories.value.map(c => ({ value: c.id, label: categoryPath(c) })),
+]);
 const scopeOptions = [
   { value: 'COMPANY', label: '公司' },
   { value: 'PERSONAL', label: '个人' },
@@ -296,146 +209,71 @@ const isSearching = computed(() => !!searchQuery.value.trim());
 const currentNode = computed(() =>
   pathStack.value.length ? pathStack.value[pathStack.value.length - 1] : null
 );
+// 当前所在文件夹 ID（分类节点=其 id；板块/根=null，即松散文件）
 const currentCategoryId = computed(() =>
   currentNode.value?.type === 'category' ? currentNode.value.id : null
 );
-// 新建文档时归属的分类名（分类/孤儿节点=其名；未分类/板块=无）
-const currentDocCategory = computed(() => {
-  const n = currentNode.value;
-  return n?.type === 'category' || n?.type === 'orphan' ? n.name : undefined;
-});
-// 当前层能否新建子文件夹：有管理权 + 非搜索 + 非 GENERAL 根(板块由「板块设置」维护) + 非叶子(孤儿/未分类)
+// 能否在当前层新建子文件夹：有管理权 + 非搜索（根层与任意文件夹内都可，像电脑盘）
 const canAddFolderHere = computed(
-  () =>
-    canManageBoard.value &&
-    !isSearching.value &&
-    !(isGeneral.value && !currentNode.value) &&
-    !['orphan', 'uncategorized'].includes(currentNode.value?.type)
+  () => canManageBoard.value && !isSearching.value
 );
-// 当前层能否新建文档：需处于分类/孤儿/未分类叶子里
-const canCreateDocsHere = computed(
-  () =>
-    canCreateDocs.value &&
-    !isSearching.value &&
-    ['category', 'orphan', 'uncategorized'].includes(currentNode.value?.type)
-);
-// 文档中心根层能否新建板块（左侧栏的文档分组项）：管理员/副管理员，与「板块设置」同权
-const canAddSectionHere = computed(
-  () =>
-    isGeneral.value &&
-    !isSearching.value &&
-    !currentNode.value &&
-    (isAdmin.value || isCrmDeputyAdmin.value)
-);
+// 能否在当前层新建文档/传文件：文件夹内或根层（松散文件）
+const canCreateDocsHere = computed(() => {
+  if (!canCreateDocs.value || isSearching.value) return false;
+  const type = currentNode.value?.type;
+  return type === 'category' || !currentNode.value;
+});
 
-// 分类树：按 parentId 取子分类；名字在同板块内唯一，故文档按名字归属。
+// 分类树：按 parentId 取子分类；文档按 category_id 归属（支持任意层级 + 同名子文件夹）。
 const childrenOf = parentId =>
   categories.value.filter(c => (c.parentId ?? null) === (parentId ?? null));
-const descendantNames = catId => {
-  const names = [];
-  const self = categories.value.find(c => c.id === catId);
-  if (self) names.push(self.name);
+const descendantIds = catId => {
+  const ids = [catId];
   const walk = id =>
     childrenOf(id).forEach(c => {
-      names.push(c.name);
+      ids.push(c.id);
       walk(c.id);
     });
   walk(catId);
-  return names;
+  return ids;
 };
 // 分类文件夹的子树文档（该分类及其所有后代分类下的文档）
 const subtreeDocsOf = catId => {
-  const names = new Set(descendantNames(catId));
-  return records.value.filter(d => d.category && names.has(d.category));
+  const ids = new Set(descendantIds(catId));
+  return records.value.filter(d => d.categoryId && ids.has(d.categoryId));
 };
 
-// 某父级下的分类文件夹；顶层（parentId 为空）追加孤儿/未分类兜底，避免丢文档。
-const buildCatFolders = parentId => {
-  const folders = childrenOf(parentId).map(c => ({
+// 某父级下的分类文件夹
+const buildCatFolders = parentId =>
+  childrenOf(parentId).map(c => ({
     type: 'category',
     id: c.id,
     name: c.name,
     docs: subtreeDocsOf(c.id),
     childCount: childrenOf(c.id).length,
   }));
-  if (parentId == null) {
-    const known = categories.value.map(c => c.name);
-    [
-      ...new Set(
-        records.value.map(r => r.category).filter(n => n && !known.includes(n))
-      ),
-    ].forEach(name =>
-      folders.push({
-        type: 'orphan',
-        id: name,
-        name,
-        docs: records.value.filter(d => d.category === name),
-        childCount: 0,
-      })
-    );
-    if (records.value.some(r => !r.category)) {
-      folders.push({
-        type: 'uncategorized',
-        id: '__uncat__',
-        name: '',
-        uncategorized: true,
-        docs: records.value.filter(d => !d.category),
-        childCount: 0,
-      });
-    }
-  }
-  return folders;
-};
 
-// 当前节点下的子文件夹
+// 当前节点下的子文件夹（根层=顶层文件夹）
 const currentFolders = computed(() => {
   const n = currentNode.value;
-  if (!n) {
-    if (isGeneral.value) {
-      return sections.value.map(s => ({
-        type: 'section',
-        id: s.id,
-        name: s.name,
-        docs: [],
-        childCount: null,
-      }));
-    }
-    return buildCatFolders(null);
-  }
-  if (n.type === 'section') return buildCatFolders(null);
+  if (!n) return buildCatFolders(null);
   if (n.type === 'category') return buildCatFolders(n.id);
   return [];
 });
 
-// 当前节点下直接归属的文档（分类/孤儿/未分类叶子才有；搜索时平铺全部命中）
+// 当前节点下直接归属的文档（按 category_id）；根层显示未归档的松散文件。
 const currentDocs = computed(() => {
   if (isSearching.value) return records.value;
   const n = currentNode.value;
-  if (!n) return [];
-  if (n.type === 'uncategorized') return records.value.filter(d => !d.category);
-  if (n.type === 'orphan' || n.type === 'category')
-    return records.value.filter(d => d.category === n.name);
+  if (!n) return records.value.filter(d => !d.categoryId);
+  if (n.type === 'category')
+    return records.value.filter(d => d.categoryId === n.id);
   return [];
 });
 
-// 面包屑：板块名从 sections 兜底解析
+// 面包屑
 const breadcrumb = computed(() =>
-  pathStack.value.map(n =>
-    n.type === 'section'
-      ? {
-          ...n,
-          label:
-            sections.value.find(x => x.id === n.id)?.name ||
-            n.name ||
-            t('CRM.KNOWLEDGE_DOCS.SECTION.NONE'),
-        }
-      : {
-          ...n,
-          label: n.uncategorized
-            ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
-            : n.name,
-        }
-  )
+  pathStack.value.map(n => ({ ...n, label: n.name }))
 );
 
 // 文件夹大小 = 其（子树）文档附件字节和；最近修改 = 其文档最新 updatedAt
@@ -463,28 +301,16 @@ const folderLastModified = f => {
 // ── 进入 / 返回导航（像电脑文件夹逐级下钻）──
 const folderKeyOf = f => `${f.type}:${f.id}`;
 
-// 进入文件夹：板块→经路由切 section_id（由 route watcher 同步 path 并拉数据、也同步侧栏/URL）；分类/叶子→压栈
+// 进入文件夹：逐级压栈（像电脑文件夹下钻）
 const enterFolder = f => {
-  if (f.type === 'section') {
-    router.replace({ query: { ...route.query, section_id: f.id } });
-    return;
-  }
   pathStack.value = [
     ...pathStack.value,
-    { type: f.type, id: f.id, name: f.name, uncategorized: f.uncategorized },
+    { type: f.type, id: f.id, name: f.name },
   ];
 };
-// 面包屑跳转：i<0 回根（GENERAL 在板块内则经路由清 section_id）
+// 面包屑跳转：i<0 回根
 const goToDepth = i => {
-  if (i < 0) {
-    if (isGeneral.value && route.query.section_id) {
-      router.replace({ query: { ...route.query, section_id: undefined } });
-    } else {
-      pathStack.value = [];
-    }
-    return;
-  }
-  pathStack.value = pathStack.value.slice(0, i + 1);
+  pathStack.value = i < 0 ? [] : pathStack.value.slice(0, i + 1);
 };
 // 回根（库切换/筛选切换时复位）
 const backToFolders = () => {
@@ -597,10 +423,6 @@ const fetchRecords = () => {
   store.get({
     library: currentLibrary.value,
     filter: activeFilter.value,
-    section_id:
-      isGeneral.value && activeSectionId.value
-        ? activeSectionId.value
-        : undefined,
     q: searchQuery.value.trim() || undefined,
     per_page: 200,
   });
@@ -646,9 +468,8 @@ const uploading = ref(false);
 const panelFileInput = ref(null);
 const editForm = reactive({
   name: '',
-  category: '',
+  categoryId: null,
   scope: 'COMPANY',
-  sectionId: '',
   summary: '',
   body: '',
 });
@@ -669,32 +490,12 @@ const auditMessage = audit => {
   return fields.length ? `编辑了 ${fields.join('、')}` : '编辑了文档';
 };
 
-const resetForm = (category = '') => {
-  editForm.name = '';
-  editForm.category = category || categories.value[0]?.name || '';
-  // 文档中心一律公司文档；CRM 知识库里无公司文档管理权的成员只能建个人文档
-  editForm.scope =
-    !isGeneral.value && (isMineView.value || !canManageCompany.value)
-      ? 'PERSONAL'
-      : 'COMPANY';
-  editForm.sectionId = activeSectionId.value || '';
-  editForm.summary = '';
-  editForm.body = '';
-};
-
 const openPanel = doc => {
   selectedDoc.value = doc;
   panelMode.value = 'view';
   panelTab.value = 'detail';
   panelAudits.value = [];
   panelAttachments.value = doc.files || [];
-};
-const openCreatePanel = category => {
-  selectedDoc.value = null;
-  panelMode.value = 'create';
-  panelTab.value = 'detail';
-  pendingFiles.value = [];
-  resetForm(category);
 };
 const closePanel = () => {
   panelMode.value = null;
@@ -719,9 +520,8 @@ const setPanelTab = key => {
 const startEdit = () => {
   const doc = selectedDoc.value;
   editForm.name = doc.name || '';
-  editForm.category = doc.category || '';
+  editForm.categoryId = doc.categoryId ?? null;
   editForm.scope = doc.scope || 'COMPANY';
-  editForm.sectionId = doc.sectionId ? String(doc.sectionId) : '';
   editForm.summary = doc.summary || '';
   editForm.body = doc.body || '';
   panelMode.value = 'edit';
@@ -736,10 +536,9 @@ const saveForm = async () => {
   saving.value = true;
   const payload = {
     name: editForm.name.trim(),
-    category: editForm.category || null,
+    categoryId: editForm.categoryId ?? null,
     scope: editForm.scope,
     library: currentLibrary.value,
-    sectionId: isGeneral.value ? editForm.sectionId || null : null,
     summary: editForm.summary.trim() || null,
     body: editForm.body || null,
   };
@@ -819,53 +618,117 @@ const removeAttachment = async id => {
   }
 };
 
+// ── 网盘式直传：选/拖文件 → 每个文件直接成一条文档（标题=文件名，免填摘要正文）──
+const directFileInput = ref(null);
+const directUploading = ref(false);
+const directProgress = reactive({ done: 0, total: 0 });
+const isDragging = ref(false);
+
+const defaultDocScope = () =>
+  !isGeneral.value && (isMineView.value || !canManageCompany.value)
+    ? 'PERSONAL'
+    : 'COMPANY';
+
+const triggerDirectUpload = () => directFileInput.value?.click();
+
+const uploadFilesAsDocs = async fileList => {
+  const files = Array.from(fileList || []).filter(Boolean);
+  if (!files.length) return;
+  if (!canCreateDocsHere.value) {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.UPLOAD.NO_PERMISSION'));
+    return;
+  }
+  directUploading.value = true;
+  directProgress.total = files.length;
+  directProgress.done = 0;
+  let ok = 0;
+  // 逐个建档：复用 create（含权限/板块/分类校验 + multipart 附件）。
+  // eslint-disable-next-line no-restricted-syntax
+  for (const file of files) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await store.create({
+        name: file.name,
+        categoryId: currentCategoryId.value,
+        scope: defaultDocScope(),
+        library: currentLibrary.value,
+        summary: null,
+        body: null,
+        __files: [file],
+      });
+      ok += 1;
+    } catch {
+      // 单个失败不中断，继续传其余文件
+    }
+    directProgress.done += 1;
+  }
+  directUploading.value = false;
+  fetchRecords();
+  const fail = files.length - ok;
+  if (!fail) useAlert(t('CRM.KNOWLEDGE_DOCS.UPLOAD.SUCCESS', { count: ok }));
+  else if (ok) useAlert(t('CRM.KNOWLEDGE_DOCS.UPLOAD.PARTIAL', { ok, fail }));
+  else useAlert(t('CRM.KNOWLEDGE_DOCS.UPLOAD.ERROR'));
+};
+
+const onDirectFiles = event => {
+  // 先拷成数组再清空 input：直接持有实时 FileList 再置空 value 会把它清空。
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  uploadFilesAsDocs(files);
+};
+
+const onContentDragOver = () => {
+  if (canCreateDocsHere.value && !directUploading.value)
+    isDragging.value = true;
+};
+const onContentDragLeave = () => {
+  isDragging.value = false;
+};
+const onContentDrop = event => {
+  isDragging.value = false;
+  uploadFilesAsDocs(event.dataTransfer?.files);
+};
+
 // ── 分类管理（新增 / 重命名 / 删除空分类）──
-const adding = ref(false);
-const newCategoryName = ref('');
 const editingId = ref(null);
 const editingName = ref('');
+// 当前悬停的文件夹（用 JS 控制改名/删除按钮显隐，比 CSS group-hover 稳）
+const hoveredFolderId = ref(null);
 
-const startAdd = () => {
-  adding.value = true;
-  newCategoryName.value = '';
+// 就地重命名输入框自动聚焦并全选（仅首次挂载时；已聚焦则跳过，避免每次输入被重新全选）
+const focusRename = el => {
+  if (!el || el === document.activeElement) return;
+  el.focus();
+  el.select?.();
 };
-const saveAdd = async () => {
-  const name = newCategoryName.value.trim();
-  adding.value = false;
-  if (!name) return;
+
+// Finder 式新建文件夹：立刻建「未命名文件夹」（同层自动去重）并进入就地改名。
+const createUnnamedFolder = async () => {
+  const base = t('CRM.KNOWLEDGE_DOCS.VIEW.NEW_FOLDER_DEFAULT');
+  const siblings = new Set(
+    currentFolders.value.filter(f => f.type === 'category').map(f => f.name)
+  );
+  let name = base;
+  let i = 2;
+  while (siblings.has(name)) {
+    name = `${base} ${i}`;
+    i += 1;
+  }
   try {
-    await categoriesStore.create({
+    const created = await categoriesStore.create({
       name,
       position: categories.value.length,
       personal: isMineView.value,
       library: currentLibrary.value,
-      section_id: sectionParam(),
       parent_id: currentCategoryId.value, // 在某分类里新建=其子分类
     });
     await fetchCategories();
+    if (created?.id) {
+      editingId.value = created.id;
+      editingName.value = created.name;
+    }
   } catch {
     useAlert(t('CRM.KNOWLEDGE_DOCS.CATEGORY.SAVE_ERROR'));
-  }
-};
-
-// ── 根层新建板块（左侧栏文档分组项）：与「板块设置」同一后端，建完即时进网格 + 侧栏 ──
-const addingRootSection = ref(false);
-const newRootSectionName = ref('');
-const startAddSection = () => {
-  addingRootSection.value = true;
-  newRootSectionName.value = '';
-};
-const saveAddSection = async () => {
-  const name = newRootSectionName.value.trim();
-  addingRootSection.value = false;
-  if (!name) return;
-  try {
-    await DocSectionsAPI.createSection({ section: { name } });
-    await fetchSections();
-    emitter.emit('crmDocSectionsUpdated'); // 通知左侧栏刷新
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.ADDED'));
-  } catch {
-    useAlert(t('CRM.KNOWLEDGE_DOCS.SECTION.ADD_ERROR'));
   }
 };
 
@@ -913,34 +776,49 @@ const removeDoc = async () => {
   }
 };
 
-const fetchPermissionContext = () => {
-  if (!isGeneral.value) return;
-  fetchSections();
-  if (isAdminLike.value) fetchMembers();
+// ── 文件（网格卡片）就地改名 / 删除 ──
+const hoveredDocId = ref(null);
+const editingDocId = ref(null);
+const editingDocName = ref('');
+const startRenameDoc = doc => {
+  editingDocId.value = doc.id;
+  editingDocName.value = doc.name;
+};
+const saveRenameDoc = async () => {
+  const id = editingDocId.value;
+  const name = editingDocName.value.trim();
+  editingDocId.value = null;
+  if (!id || !name) return;
+  try {
+    await store.update({ id, name });
+    fetchRecords();
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.EDIT.ERROR'));
+  }
+};
+const removeDocDirect = async doc => {
+  const ok = window.confirm(
+    t('CRM.KNOWLEDGE_DOCS.DELETE.CONFIRM', { name: doc.name })
+  );
+  if (!ok) return;
+  try {
+    await store.delete(doc.id);
+    fetchRecords();
+  } catch {
+    useAlert(t('CRM.KNOWLEDGE_DOCS.DELETE.ERROR'));
+  }
 };
 
 onMounted(() => {
-  // 侧栏带 ?section_id= 进来时，直接定位到该板块层
-  if (route.query.section_id) {
-    pathStack.value = [
-      { type: 'section', id: Number(route.query.section_id), name: '' },
-    ];
-  }
   fetchRecords();
   fetchCategories();
-  fetchPermissionContext();
 });
-watch(currentLibrary, fetchPermissionContext);
 watch(
-  () => [route.query.filter, route.query.section_id],
-  ([filter, sectionId]) => {
+  () => route.query.filter,
+  filter => {
     activeFilter.value = filter || 'company';
-    activeSectionId.value = sectionId || '';
     closePanel();
-    // 侧栏切板块→落到该板块层；无板块→回根（GENERAL 显示板块网格）
-    pathStack.value = sectionId
-      ? [{ type: 'section', id: Number(sectionId), name: '' }]
-      : [];
+    pathStack.value = [];
     fetchRecords();
     fetchCategories();
   }
@@ -971,15 +849,7 @@ watch(
             }}
           </p>
         </div>
-        <div class="flex items-center gap-3">
-          <Button
-            v-if="canCreateDocs && !isRecycle"
-            :label="t('CRM.KNOWLEDGE_DOCS.NEW')"
-            icon="i-lucide-plus"
-            color="iris"
-            @click="openCreatePanel()"
-          />
-        </div>
+        <div class="flex items-center gap-3" />
       </div>
 
       <div class="flex items-center gap-2 px-6 py-3 border-b border-n-weak">
@@ -991,16 +861,6 @@ watch(
           :variant="activeFilter === tab.key ? 'solid' : 'faded'"
           :color="activeFilter === tab.key ? 'iris' : 'slate'"
           @click="setFilter(tab.key)"
-        />
-        <!-- 文档中心：板块（文件夹）管理入口——新增/删除自定义板块、按部门配置可见性 -->
-        <Button
-          v-if="isGeneral && (isAdmin || isCrmDeputyAdmin)"
-          size="sm"
-          variant="faded"
-          color="slate"
-          icon="i-lucide-settings-2"
-          :label="t('CRM.KNOWLEDGE_DOCS.SECTION.SETTINGS')"
-          @click="openSectionDialog"
         />
         <!-- Filter：文件夹排序 -->
         <SelectCard
@@ -1017,70 +877,6 @@ watch(
           :class="isRecycle ? 'ml-auto w-56' : 'w-56'"
           @input="onSearchInput"
         />
-      </div>
-
-      <!-- 板块负责人 + 可见范围：选中某板块时展示，超管/管理员可就地设置 -->
-      <div
-        v-if="isGeneral && activeSection && !isRecycle"
-        class="flex flex-col gap-1.5 px-6 py-2.5 border-b border-n-weak bg-n-alpha-1/40"
-      >
-        <!-- 负责人（能管该板块文档的人，人人可见） -->
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-medium text-n-slate-11">
-            {{ activeSection.name }} ·
-            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER') }}
-          </span>
-          <template v-if="(activeSection.manager_names || []).length">
-            <span
-              v-for="name in activeSection.manager_names"
-              :key="name"
-              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-12"
-            >
-              <span class="i-lucide-user-round size-3" />
-              {{ name }}
-            </span>
-          </template>
-          <span v-else class="text-xs text-n-slate-10">
-            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_NONE') }}
-          </span>
-          <Button
-            v-if="isAdmin || isCrmDeputyAdmin"
-            size="xs"
-            variant="ghost"
-            color="slate"
-            icon="i-lucide-pencil"
-            :label="t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_SET')"
-            @click="openOwnerDialog"
-          />
-        </div>
-        <!-- 可见范围（可见成员白名单，空=全员可见） -->
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-medium text-n-slate-11">
-            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER') }}
-          </span>
-          <template v-if="(activeSection.viewer_names || []).length">
-            <span
-              v-for="name in activeSection.viewer_names"
-              :key="name"
-              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-12"
-            >
-              <span class="i-lucide-eye size-3" />
-              {{ name }}
-            </span>
-          </template>
-          <span v-else class="text-xs text-n-slate-10">
-            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_ALL') }}
-          </span>
-          <Button
-            v-if="isAdmin || isCrmDeputyAdmin"
-            size="xs"
-            variant="ghost"
-            color="slate"
-            icon="i-lucide-pencil"
-            :label="t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SET')"
-            @click="openViewerDialog"
-          />
-        </div>
       </div>
 
       <div
@@ -1264,7 +1060,29 @@ watch(
           </template>
         </div>
 
-        <div class="flex-1 px-6 py-4 overflow-y-auto">
+        <div
+          class="relative flex-1 px-6 py-4 overflow-y-auto"
+          @dragover.prevent="onContentDragOver"
+          @dragleave="onContentDragLeave"
+          @drop.prevent="onContentDrop"
+        >
+          <!-- 拖拽上传高亮遮罩 -->
+          <div
+            v-if="isDragging"
+            class="absolute inset-3 z-20 flex flex-col items-center justify-center gap-2 border-2 border-dashed pointer-events-none rounded-2xl border-n-iris-8 bg-n-iris-3/70 backdrop-blur-sm"
+          >
+            <span class="i-lucide-upload-cloud size-8 text-n-iris-11" />
+            <span class="text-sm font-medium text-n-iris-11">
+              {{ t('CRM.KNOWLEDGE_DOCS.UPLOAD.DROP_HINT') }}
+            </span>
+          </div>
+          <input
+            ref="directFileInput"
+            type="file"
+            multiple
+            class="hidden"
+            @change="onDirectFiles"
+          />
           <!-- 空态 -->
           <div
             v-if="
@@ -1273,7 +1091,6 @@ watch(
                 : !sortedFolders.length &&
                   !currentDocs.length &&
                   !canAddFolderHere &&
-                  !canAddSectionHere &&
                   !canCreateDocsHere
             "
             class="flex flex-col items-center gap-2 mt-20 text-n-slate-10"
@@ -1295,101 +1112,85 @@ watch(
             </p>
           </div>
 
-          <!-- 子文件夹 / 板块 分区：标题 + 右上角紧凑新建；网格只放真实文件夹 -->
+          <!-- 文件夹区：顶部工具栏（上传文件 + 新建文件夹并排）；立体玻璃文件夹（原设计）-->
           <div
             v-if="
               !isSearching &&
-              (sortedFolders.length || canAddFolderHere || canAddSectionHere)
+              (sortedFolders.length || canAddFolderHere || canCreateDocsHere)
             "
           >
-            <div class="flex items-center justify-between h-8 mb-2">
-              <span class="text-xs font-medium text-n-slate-10">
+            <div
+              v-if="canCreateDocsHere || canAddFolderHere"
+              class="flex items-center justify-end gap-1.5 h-8 mb-2"
+            >
+              <button
+                v-if="canAddFolderHere"
+                type="button"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+                @click="createUnnamedFolder"
+              >
+                <span class="i-lucide-folder-plus size-3.5" />
+                {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_FOLDER') }}
+              </button>
+              <button
+                v-if="canCreateDocsHere"
+                type="button"
+                :disabled="directUploading"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md text-white bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+                @click="triggerDirectUpload"
+              >
+                <span
+                  :class="
+                    directUploading
+                      ? 'i-lucide-loader-2 animate-spin'
+                      : 'i-lucide-upload'
+                  "
+                  class="size-3.5"
+                />
                 {{
-                  currentNode
-                    ? t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS_TITLE')
-                    : t('CRM.KNOWLEDGE_DOCS.VIEW.SECTION_LABEL')
+                  directUploading
+                    ? t('CRM.KNOWLEDGE_DOCS.UPLOAD.UPLOADING', {
+                        done: directProgress.done,
+                        total: directProgress.total,
+                      })
+                    : t('CRM.KNOWLEDGE_DOCS.UPLOAD.BTN')
                 }}
-              </span>
-              <!-- 根层=新建板块；分类层=新建文件夹 -->
-              <template v-if="canAddSectionHere">
-                <input
-                  v-if="addingRootSection"
-                  v-model="newRootSectionName"
-                  :placeholder="
-                    t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_SECTION_PLACEHOLDER')
-                  "
-                  class="h-8 px-2 text-sm border rounded-md w-52 border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                  @keyup.enter="saveAddSection"
-                  @blur="saveAddSection"
-                />
-                <button
-                  v-else
-                  type="button"
-                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-n-iris-11 hover:bg-n-iris-3"
-                  @click="startAddSection"
-                >
-                  <span class="i-lucide-folder-plus size-3.5" />
-                  {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_SECTION') }}
-                </button>
-              </template>
-              <template v-else-if="canAddFolderHere">
-                <input
-                  v-if="adding"
-                  v-model="newCategoryName"
-                  :placeholder="
-                    t('CRM.KNOWLEDGE_DOCS.CATEGORY.NAME_PLACEHOLDER')
-                  "
-                  class="h-8 px-2 text-sm border rounded-md w-52 border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                  @keyup.enter="saveAdd"
-                  @blur="saveAdd"
-                />
-                <button
-                  v-else
-                  type="button"
-                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-n-slate-11 hover:bg-n-alpha-2"
-                  @click="startAdd"
-                >
-                  <span class="i-lucide-folder-plus size-3.5" />
-                  {{ t('CRM.KNOWLEDGE_DOCS.VIEW.ADD_FOLDER') }}
-                </button>
-              </template>
+              </button>
             </div>
 
             <div
               v-if="sortedFolders.length"
-              class="grid grid-cols-4 gap-3 sm:grid-cols-5 xl:grid-cols-6"
+              class="grid grid-cols-5 gap-2.5 sm:grid-cols-6 xl:grid-cols-8"
             >
               <div
                 v-for="folder in sortedFolders"
                 :key="folderKeyOf(folder)"
-                class="relative group/folder"
+                class="relative"
+                @mouseenter="hoveredFolderId = folder.id"
+                @mouseleave="hoveredFolderId = null"
               >
-                <!-- 重命名内联输入（仅分类文件夹）-->
+                <!-- 重命名内联输入 -->
                 <input
-                  v-if="
-                    editingId &&
-                    folder.type === 'category' &&
-                    editingId === folder.id
-                  "
+                  v-if="editingId === folder.id"
+                  :ref="focusRename"
                   v-model="editingName"
                   class="absolute z-10 left-3 right-3 top-1/2 -translate-y-1/2 h-8 px-2 text-sm border rounded-md border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
                   @keyup.enter="saveRename"
                   @blur="saveRename"
                   @click.stop
                 />
-                <!-- 单击直接进入（像电脑文件夹逐级下钻）-->
+                <!-- 单击直接进入（逐级下钻）-->
                 <button
                   type="button"
-                  class="relative block w-full text-left cursor-pointer transition-transform group-hover/folder:-translate-y-1"
+                  class="relative block w-full text-left transition-transform cursor-pointer"
+                  :class="hoveredFolderId === folder.id ? '-translate-y-1' : ''"
                   @click="enterFolder(folder)"
                 >
-                  <!-- iOS「文件」风立体文件夹：蓝亮前袋 + 粉/白(带文字线)/黄纸扇形探出 + 前袋写名 -->
+                  <!-- iOS「文件」风立体文件夹：蓝亮前袋 + 粉/白/黄纸扇形探出 + 前袋写名 -->
                   <div class="relative w-full aspect-[8/7]">
-                    <!-- 后板 -->
                     <div
                       class="absolute left-[11%] right-[11%] top-[17%] bottom-[7%] rounded-[16px] bg-gradient-to-b from-[#5aa6ff] to-[#3f8bf7]"
                     />
-                    <!-- 纸张：粉(左) / 黄(右) / 白(中·文字线) 扇形探出 -->
                     <div
                       class="absolute left-[21%] top-[15%] h-[41%] w-[25%] origin-bottom-right -rotate-[10deg] rounded-[6px] bg-gradient-to-b from-[#ffd7e1] to-[#f8bacb] shadow-sm"
                     />
@@ -1408,7 +1209,6 @@ watch(
                         />
                       </div>
                     </div>
-                    <!-- 前袋（发亮）-->
                     <div
                       class="absolute left-[11%] right-[11%] bottom-[7%] h-[47%] overflow-hidden rounded-[16px] rounded-t-[13px] bg-gradient-to-b from-[#63acff] to-[#4691fb] shadow-[0_10px_20px_-4px_rgba(64,120,230,0.45)]"
                     >
@@ -1416,154 +1216,199 @@ watch(
                         class="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent"
                       />
                     </div>
-                    <!-- 前袋文字：名称 + 计数/大小 -->
-                    <div class="absolute left-[16%] right-[13%] bottom-[12%] min-w-0">
+                    <div
+                      class="absolute left-[16%] right-[13%] bottom-[12%] min-w-0"
+                    >
                       <div
-                        class="text-[15px] font-bold leading-tight truncate text-white drop-shadow-sm"
+                        class="text-[12px] font-bold leading-tight truncate text-white drop-shadow-sm"
                       >
-                        {{
-                          folder.uncategorized
-                            ? t('CRM.KNOWLEDGE_DOCS.UNCATEGORIZED')
-                            : folder.name
-                        }}
+                        {{ folder.name }}
                       </div>
-                      <div class="mt-0.5 text-[11px] truncate text-white/85">
-                        <template v-if="folder.type === 'section'">
-                          {{ t('CRM.KNOWLEDGE_DOCS.VIEW.SECTION_LABEL') }}
-                        </template>
-                        <template v-else>
+                      <div class="mt-0.5 text-[9px] truncate text-white/85">
+                        {{
+                          t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
+                            count: folder.docs.length,
+                          })
+                        }}
+                        <template v-if="folder.childCount">
+                          ·
                           {{
-                            t('CRM.KNOWLEDGE_DOCS.VIEW.COUNT', {
-                              count: folder.docs.length,
+                            t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS', {
+                              count: folder.childCount,
                             })
                           }}
-                          <template v-if="folder.childCount">
-                            ·
-                            {{
-                              t('CRM.KNOWLEDGE_DOCS.VIEW.SUBFOLDERS', {
-                                count: folder.childCount,
-                              })
-                            }}
-                          </template>
-                          <template v-if="folderBytes(folder)">
-                            · {{ fmtSize(folderBytes(folder)) }}
-                          </template>
+                        </template>
+                        <template v-if="folderBytes(folder)">
+                          · {{ fmtSize(folderBytes(folder)) }}
                         </template>
                       </div>
                     </div>
                   </div>
                 </button>
 
-                <!-- 悬停操作：重命名 / 删除（仅分类文件夹，空且无子文件夹才可删）-->
+                <!-- 悬停操作：重命名 / 删除（空且无子文件夹才可删）-->
                 <div
-                  v-if="
-                    folder.type === 'category' &&
+                  v-show="
                     canManageBoard &&
-                    editingId !== folder.id
+                    editingId !== folder.id &&
+                    hoveredFolderId === folder.id
                   "
-                  class="absolute z-10 flex items-center gap-0.5 top-4 right-2 opacity-0 group-hover/folder:opacity-100"
+                  class="absolute z-20 flex items-center gap-1 top-0 right-0"
                 >
                   <button
                     type="button"
-                    class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-slate-12 hover:bg-n-solid-1"
+                    class="flex items-center justify-center border rounded-full shadow-md size-7 border-n-weak bg-n-solid-1 text-n-slate-12 hover:text-n-iris-11 hover:border-n-iris-8"
                     :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.RENAME')"
                     @click.stop="startRename(folder)"
                   >
-                    <span class="i-lucide-pencil size-3.5" />
+                    <span class="i-lucide-pencil size-4" />
                   </button>
                   <button
                     v-if="!folder.docs.length && !folder.childCount"
                     type="button"
-                    class="flex items-center justify-center rounded size-6 bg-n-solid-1/80 text-n-slate-11 hover:text-n-ruby-11 hover:bg-n-solid-1"
+                    class="flex items-center justify-center border rounded-full shadow-md size-7 border-n-weak bg-n-solid-1 text-n-slate-12 hover:text-n-ruby-11 hover:border-n-ruby-8"
                     :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.DELETE')"
                     @click.stop="removeCategory(folder)"
                   >
-                    <span class="i-lucide-trash-2 size-3.5" />
+                    <span class="i-lucide-trash-2 size-4" />
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 本层文档：标题 + 右上角新建文档；网格只放真实文档（搜索时平铺命中）-->
+          <!-- 文件区：文件/文档卡片（原设计）；上传入口在顶部工具栏 -->
           <div
-            v-if="currentDocs.length || (!isSearching && canCreateDocsHere)"
+            v-if="currentDocs.length"
             :class="
-              !isSearching &&
-              (sortedFolders.length || canAddFolderHere || canAddSectionHere)
+              !isSearching && (sortedFolders.length || canAddFolderHere)
                 ? 'mt-6'
                 : ''
             "
           >
-            <div
-              v-if="!isSearching"
-              class="flex items-center justify-between h-8 mb-2"
-            >
-              <span class="text-xs font-medium text-n-slate-10">
-                {{ t('CRM.KNOWLEDGE_DOCS.VIEW.DOCS_HERE') }}
-              </span>
-              <button
-                v-if="canCreateDocsHere"
-                type="button"
-                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md text-n-iris-11 hover:bg-n-iris-3"
-                @click="openCreatePanel(currentDocCategory)"
-              >
-                <span class="i-lucide-plus size-3.5" />
-                {{ t('CRM.KNOWLEDGE_DOCS.NEW') }}
-              </button>
-            </div>
-            <div
-              v-if="currentDocs.length"
-              class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3"
-            >
-              <button
-                v-for="doc in currentDocs"
-                :key="doc.id"
-                type="button"
-                class="flex flex-col gap-2 p-3 text-left transition-all border rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                :class="
-                  selectedDoc && selectedDoc.id === doc.id
-                    ? 'border-n-blue-8 ring-1 ring-n-blue-8'
-                    : ''
-                "
-                @click="openPanel(doc)"
-              >
-                <div class="flex items-center gap-2 min-w-0">
-                  <span
-                    class="flex items-center justify-center text-xs font-semibold rounded shrink-0 size-6"
-                    :class="colorOf(doc.name)"
-                  >
-                    {{ initial(doc.name) }}
-                  </span>
-                  <span class="text-sm font-medium truncate text-n-slate-12">
-                    {{ doc.name }}
-                  </span>
-                  <span
-                    v-if="doc.files && doc.files.length"
-                    class="inline-flex items-center gap-0.5 ml-auto text-xs shrink-0 text-n-slate-10"
-                  >
-                    <span class="i-lucide-paperclip size-3" />
-                    {{ doc.files.length }}
-                  </span>
-                </div>
-                <div class="flex items-center gap-1.5 text-xs text-n-slate-10">
-                  <span class="i-lucide-align-left size-3.5 shrink-0" />
-                  <span class="truncate">
-                    {{ doc.summary || t('CRM.KNOWLEDGE_DOCS.PANEL.SUMMARY') }}
-                  </span>
-                </div>
+            <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+              <template v-for="doc in currentDocs" :key="doc.id">
+                <!-- 纯文件卡：图标 + 文件名 + 大小；点击下载，悬停可改名/删除 -->
                 <div
-                  class="flex items-center gap-1 pt-1.5 text-xs border-t text-n-slate-10 border-n-weak"
+                  v-if="isFileDoc(doc)"
+                  class="relative"
+                  @mouseenter="hoveredDocId = doc.id"
+                  @mouseleave="hoveredDocId = null"
                 >
-                  <span v-if="isSearching && doc.category" class="truncate">
-                    {{ doc.category }}
-                  </span>
-                  <span v-else class="i-lucide-clock size-3 shrink-0" />
-                  <span :class="isSearching && doc.category ? 'ml-auto' : ''">
-                    {{ fmtDate(doc.updatedAt) }}
-                  </span>
+                  <button
+                    type="button"
+                    class="flex items-center w-full gap-3 p-3 text-left transition-all border rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                    @click="openPreview(doc)"
+                  >
+                    <span
+                      class="flex items-center justify-center rounded-lg shrink-0 size-9"
+                      :class="fileMeta(doc.name).color"
+                    >
+                      <span :class="fileMeta(doc.name).icon" class="size-5" />
+                    </span>
+                    <span class="flex flex-col min-w-0">
+                      <input
+                        v-if="editingDocId === doc.id"
+                        :ref="focusRename"
+                        v-model="editingDocName"
+                        class="w-full h-7 px-1.5 text-sm border rounded border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-8"
+                        @keyup.enter="saveRenameDoc"
+                        @blur="saveRenameDoc"
+                        @click.stop
+                      />
+                      <span
+                        v-else
+                        class="text-sm font-medium truncate text-n-slate-12"
+                      >
+                        {{ doc.name }}
+                      </span>
+                      <span class="text-xs text-n-slate-10">
+                        {{ fmtSize(doc.files[0].byteSize) }} ·
+                        {{ fmtDate(doc.updatedAt) }}
+                      </span>
+                    </span>
+                    <span
+                      class="ml-auto i-lucide-download size-4 shrink-0 text-n-slate-9"
+                    />
+                  </button>
+                  <!-- 悬停：改名 / 删除 -->
+                  <div
+                    v-show="
+                      canManageDoc(doc) &&
+                      editingDocId !== doc.id &&
+                      hoveredDocId === doc.id
+                    "
+                    class="absolute z-20 flex items-center gap-1 top-1 right-1"
+                  >
+                    <button
+                      type="button"
+                      class="flex items-center justify-center border rounded-full shadow-md size-7 border-n-weak bg-n-solid-1 text-n-slate-12 hover:text-n-iris-11 hover:border-n-iris-8"
+                      :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.RENAME')"
+                      @click.stop="startRenameDoc(doc)"
+                    >
+                      <span class="i-lucide-pencil size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      class="flex items-center justify-center border rounded-full shadow-md size-7 border-n-weak bg-n-solid-1 text-n-slate-12 hover:text-n-ruby-11 hover:border-n-ruby-8"
+                      :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.DELETE')"
+                      @click.stop="removeDocDirect(doc)"
+                    >
+                      <span class="i-lucide-trash-2 size-4" />
+                    </button>
+                  </div>
                 </div>
-              </button>
+                <!-- 文档卡（写了正文/摘要或多附件）：照旧开详情 -->
+                <button
+                  v-else
+                  type="button"
+                  class="flex flex-col gap-2 p-3 text-left transition-all border rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                  :class="
+                    selectedDoc && selectedDoc.id === doc.id
+                      ? 'border-n-blue-8 ring-1 ring-n-blue-8'
+                      : ''
+                  "
+                  @click="openPanel(doc)"
+                >
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span
+                      class="flex items-center justify-center text-xs font-semibold rounded shrink-0 size-6"
+                      :class="colorOf(doc.name)"
+                    >
+                      {{ initial(doc.name) }}
+                    </span>
+                    <span class="text-sm font-medium truncate text-n-slate-12">
+                      {{ doc.name }}
+                    </span>
+                    <span
+                      v-if="doc.files && doc.files.length"
+                      class="inline-flex items-center gap-0.5 ml-auto text-xs shrink-0 text-n-slate-10"
+                    >
+                      <span class="i-lucide-paperclip size-3" />
+                      {{ doc.files.length }}
+                    </span>
+                  </div>
+                  <div
+                    class="flex items-center gap-1.5 text-xs text-n-slate-10"
+                  >
+                    <span class="i-lucide-align-left size-3.5 shrink-0" />
+                    <span class="truncate">
+                      {{ doc.summary || t('CRM.KNOWLEDGE_DOCS.PANEL.SUMMARY') }}
+                    </span>
+                  </div>
+                  <div
+                    class="flex items-center gap-1 pt-1.5 text-xs border-t text-n-slate-10 border-n-weak"
+                  >
+                    <span v-if="isSearching && doc.category" class="truncate">
+                      {{ doc.category }}
+                    </span>
+                    <span v-else class="i-lucide-clock size-3 shrink-0" />
+                    <span :class="isSearching && doc.category ? 'ml-auto' : ''">
+                      {{ fmtDate(doc.updatedAt) }}
+                    </span>
+                  </div>
+                </button>
+              </template>
             </div>
           </div>
         </div>
@@ -1757,7 +1602,7 @@ watch(
                   {{ t('CRM.KNOWLEDGE_DOCS.FORM.CATEGORY') }}
                 </label>
                 <Select
-                  v-model="editForm.category"
+                  v-model="editForm.categoryId"
                   :options="categoryOptions"
                 />
               </div>
@@ -1771,15 +1616,6 @@ watch(
                 </label>
                 <Select v-model="editForm.scope" :options="scopeOptions" />
               </div>
-            </div>
-            <div v-if="isGeneral" class="flex flex-col min-w-0 gap-1">
-              <label class="mb-0.5 text-heading-3 text-n-slate-12">
-                {{ t('CRM.KNOWLEDGE_DOCS.FORM.SECTION') }}
-              </label>
-              <Select
-                v-model="editForm.sectionId"
-                :options="sectionFormOptions"
-              />
             </div>
             <Input
               v-model="editForm.summary"
@@ -1894,169 +1730,124 @@ watch(
       </div>
     </aside>
 
-    <!-- 板块管理（管理员）：新增/删除自定义板块。可见性在各板块顶栏「设置可见成员」 -->
-    <Dialog
-      ref="sectionDialogRef"
-      width="md"
-      overflow-y-auto
-      confirm-button-color="iris"
-      :title="t('CRM.KNOWLEDGE_DOCS.SECTION.SETTINGS')"
-      @confirm="sectionDialogRef?.close()"
-    >
-      <p class="mb-4 text-xs text-n-slate-10">
-        {{ t('CRM.KNOWLEDGE_DOCS.SECTION.MANAGE_HINT') }}
-      </p>
-      <div class="flex flex-col gap-4">
-        <div class="flex flex-col">
+    <!-- 在线预览浮层：视频/图片/PDF/音频直接看，其余提示下载 -->
+    <Teleport to="body">
+      <div
+        v-if="previewDoc"
+        class="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-8 bg-black/70 backdrop-blur-sm"
+        @click="previewDoc = null"
+      >
+        <div
+          class="relative flex flex-col w-full max-w-5xl max-h-[92vh] overflow-hidden shadow-2xl bg-n-solid-1 rounded-2xl"
+          @click.stop
+        >
           <div
-            v-for="draft in sectionDraft"
-            :key="draft.id"
-            class="flex items-center justify-between gap-2 py-1.5 border-b border-n-weak last:border-b-0"
+            class="flex items-center gap-3 px-4 py-3 border-b border-n-weak shrink-0"
           >
-            <div class="text-sm font-medium text-n-slate-12">
-              {{ draft.name }}
-            </div>
+            <span
+              :class="fileMeta(previewDoc.name).icon"
+              class="size-5 shrink-0 text-n-slate-11"
+            />
+            <span class="text-sm font-medium truncate text-n-slate-12">
+              {{ previewDoc.name }}
+            </span>
             <button
-              v-if="!draft.isDefault"
               type="button"
-              class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full shrink-0"
-              :class="
-                pendingSectionDeleteId === draft.id
-                  ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
-                  : 'text-n-ruby-11 hover:bg-n-ruby-3'
-              "
-              @click="deleteSection(draft)"
+              class="inline-flex items-center gap-1 px-2.5 py-1 ml-auto text-xs font-medium rounded-md shrink-0 text-n-slate-11 hover:bg-n-alpha-2"
+              @click="openDocFile(previewDoc)"
             >
-              {{
-                pendingSectionDeleteId === draft.id
-                  ? t('CRM.KNOWLEDGE_DOCS.SECTION.CONFIRM_DELETE')
-                  : t('CRM.KNOWLEDGE_DOCS.SECTION.DELETE')
-              }}
+              <span class="i-lucide-download size-3.5" />
+              {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.DOWNLOAD') }}
+            </button>
+            <button
+              type="button"
+              class="flex items-center justify-center rounded-md size-7 shrink-0 text-n-slate-11 hover:bg-n-alpha-2"
+              @click="previewDoc = null"
+            >
+              <span class="i-lucide-x size-4" />
             </button>
           </div>
-        </div>
-
-        <!-- 新增自定义板块 -->
-        <div class="flex flex-col gap-1.5 pt-1">
-          <div class="text-sm font-medium text-n-slate-12">
-            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.ADD_TITLE') }}
-          </div>
-          <div class="flex items-center gap-2">
-            <Input
-              v-model="newSectionName"
-              class="flex-1"
-              :placeholder="t('CRM.KNOWLEDGE_DOCS.SECTION.ADD_PLACEHOLDER')"
-              @keydown.enter.prevent="addSection"
-            />
-            <Button
-              type="button"
-              :label="t('CRM.KNOWLEDGE_DOCS.SECTION.ADD')"
-              color="iris"
-              size="sm"
-              :is-loading="addingSection"
-              :disabled="!newSectionName.trim()"
-              @click="addSection"
-            />
-          </div>
-          <p class="text-xs text-n-slate-10">
-            {{ t('CRM.KNOWLEDGE_DOCS.SECTION.DELETE_NOTE') }}
-          </p>
-        </div>
-      </div>
-    </Dialog>
-
-    <!-- 板块负责人设置（超管/管理员）：勾选成员，负责人可管该板块下全部公司文档 -->
-    <Dialog
-      ref="ownerDialogRef"
-      confirm-button-color="iris"
-      :title="
-        activeSection
-          ? `${activeSection.name} · ${t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_SET')}`
-          : t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_SET')
-      "
-      :is-loading="savingOwners"
-      @confirm="saveSectionOwners"
-    >
-      <div class="flex flex-col gap-3">
-        <p class="text-xs text-n-slate-10">
-          {{ t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_HINT') }}
-        </p>
-        <Input
-          v-model="ownerSearch"
-          :placeholder="t('CRM.KNOWLEDGE_DOCS.SECTION.OWNER_SEARCH')"
-        />
-        <div
-          class="flex flex-col gap-1 p-2 overflow-y-auto border rounded-lg max-h-64 border-n-weak"
-        >
-          <label
-            v-for="m in ownerCandidates"
-            :key="m.user_id"
-            class="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-n-alpha-1"
+          <div
+            class="flex items-center justify-center flex-1 min-h-0 overflow-auto bg-black/5"
           >
-            <input
-              type="checkbox"
-              class="accent-n-brand"
-              :checked="ownerDraftIds.includes(m.user_id)"
-              @change="toggleOwner(m.user_id)"
+            <video
+              v-if="previewKind === 'video'"
+              :src="previewUrl"
+              controls
+              autoplay
+              class="max-h-[80vh] max-w-full"
             />
-            <span class="flex-1 min-w-0">
-              <span class="block text-sm truncate text-n-slate-12">
-                {{ m.name }}
-              </span>
-              <span class="block text-xs truncate text-n-slate-10">
-                {{ m.email }}
-              </span>
-            </span>
-          </label>
+            <img
+              v-else-if="previewKind === 'image'"
+              :src="previewUrl"
+              :alt="previewDoc.name"
+              class="max-h-[80vh] max-w-full object-contain"
+            />
+            <iframe
+              v-else-if="previewKind === 'pdf'"
+              :src="previewUrl"
+              class="w-full h-[82vh] border-0"
+            />
+            <audio
+              v-else-if="previewKind === 'audio'"
+              :src="previewUrl"
+              controls
+              class="w-4/5"
+            />
+            <div
+              v-else-if="previewKind === 'excel'"
+              class="w-full h-[82vh] overflow-auto bg-n-solid-1 p-3"
+            >
+              <div
+                v-if="excelLoading"
+                class="flex items-center justify-center h-full text-sm text-n-slate-11"
+              >
+                <span class="mr-2 i-lucide-loader-2 size-4 animate-spin" />
+                {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.LOADING') }}
+              </div>
+              <div
+                v-else-if="excelHtml"
+                class="text-xs text-n-slate-12 [&_table]:border-collapse [&_td]:border [&_td]:border-n-weak [&_td]:px-2 [&_td]:py-1 [&_td]:whitespace-nowrap [&_th]:border [&_th]:border-n-weak [&_th]:px-2 [&_th]:py-1"
+                v-html="excelHtml"
+              />
+              <div
+                v-else
+                class="flex flex-col items-center gap-3 py-16 text-center"
+              >
+                <span class="i-lucide-file-question size-10 text-n-slate-9" />
+                <p class="text-sm text-n-slate-11">
+                  {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.UNSUPPORTED') }}
+                </p>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                  @click="openDocFile(previewDoc)"
+                >
+                  <span class="i-lucide-download size-3.5" />
+                  {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.DOWNLOAD') }}
+                </button>
+              </div>
+            </div>
+            <div
+              v-else
+              class="flex flex-col items-center gap-3 px-6 py-16 text-center"
+            >
+              <span class="i-lucide-file-question size-10 text-n-slate-9" />
+              <p class="text-sm text-n-slate-11">
+                {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.UNSUPPORTED') }}
+              </p>
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                @click="openDocFile(previewDoc)"
+              >
+                <span class="i-lucide-download size-3.5" />
+                {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.DOWNLOAD') }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </Dialog>
-
-    <!-- 板块可见成员设置（超管/管理员）：搜索勾选成员，空=全员可见 -->
-    <Dialog
-      ref="viewerDialogRef"
-      confirm-button-color="iris"
-      :title="
-        activeSection
-          ? `${activeSection.name} · ${t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SET')}`
-          : t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SET')
-      "
-      :is-loading="savingViewers"
-      @confirm="saveSectionViewers"
-    >
-      <div class="flex flex-col gap-3">
-        <p class="text-xs text-n-slate-10">
-          {{ t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_HINT') }}
-        </p>
-        <Input
-          v-model="viewerSearch"
-          :placeholder="t('CRM.KNOWLEDGE_DOCS.SECTION.VIEWER_SEARCH')"
-        />
-        <div
-          class="flex flex-col gap-1 p-2 overflow-y-auto border rounded-lg max-h-64 border-n-weak"
-        >
-          <label
-            v-for="m in viewerCandidates"
-            :key="m.user_id"
-            class="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-n-alpha-1"
-          >
-            <input
-              type="checkbox"
-              class="accent-n-brand"
-              :checked="viewerDraftIds.includes(m.user_id)"
-              @change="toggleViewer(m.user_id)"
-            />
-            <span class="flex-1 min-w-0">
-              <span class="block text-sm truncate text-n-slate-12">
-                {{ m.name }}
-              </span>
-              <span class="block text-xs truncate text-n-slate-10">
-                {{ m.email }}
-              </span>
-            </span>
-          </label>
-        </div>
-      </div>
-    </Dialog>
+    </Teleport>
   </div>
 </template>

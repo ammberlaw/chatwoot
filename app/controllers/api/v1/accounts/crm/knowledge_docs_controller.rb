@@ -21,12 +21,12 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     return render_forbidden if attrs[:scope] == 'COMPANY' && !company_docs_creatable?(attrs[:library].presence || 'SALES', attrs[:section_id])
 
     @doc = Current.account.crm_knowledge_docs.create!(
-      sync_sales_section(attrs).merge(owner_id: current_user.id, scope: attrs[:scope].presence || 'PERSONAL')
+      with_folder_name(sync_sales_section(attrs)).merge(owner_id: current_user.id, scope: attrs[:scope].presence || 'PERSONAL')
     )
   end
 
   def update
-    @doc.update!(update_params)
+    @doc.update!(with_folder_name(update_params))
   end
 
   # 删除=移入回收站（软删除）；彻底删除由超级管理员/管理员在回收站执行。
@@ -222,7 +222,15 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   end
 
   def doc_params
-    params.require(:doc).permit(:name, :category, :summary, :scope, :library, :section_id, :body, files: [])
+    params.require(:doc).permit(:name, :category, :category_id, :summary, :scope, :library, :section_id, :body, files: [])
+  end
+
+  # 文档按 category_id 归属；同步冗余 category 名（供展示/搜索），传了文件夹则以其名为准，根目录清空。
+  def with_folder_name(attrs)
+    return attrs unless attrs.key?(:category_id)
+
+    folder = attrs[:category_id].present? ? Current.account.crm_knowledge_categories.find_by(id: attrs[:category_id]) : nil
+    attrs.merge(category: folder&.name)
   end
 
   # 编辑时个人文档不可自行升级为公司文档（越权发布）；公司文档（已过 ensure_doc_manageable）可调整范围。

@@ -9,6 +9,9 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
     scope = Current.account.crm_knowledge_categories
     scope = if params[:view] == 'mine'
               scope.personal_of(current_user.id)
+            elsif (params[:library] || params.dig(:category, :library)) == 'GENERAL'
+              # 文档中心＝扁平网盘：返回全部公司文件夹（不分板块）
+              scope.company_scope
             else
               scope.company_scope.for_section(scoped_section_id)
             end
@@ -27,6 +30,8 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
 
   def update
     @category.update!(category_params)
+    # 同步归属该文件夹的文档冗余分类名（文档按 category_id 认路，此名仅供展示/搜索）。
+    Current.account.crm_knowledge_docs.where(category_id: @category.id).update_all(category: @category.name)
   end
 
   def destroy
