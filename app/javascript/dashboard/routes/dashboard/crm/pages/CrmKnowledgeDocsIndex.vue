@@ -7,10 +7,12 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import { emitter } from 'shared/helpers/mitt';
 import * as XLSX from 'xlsx';
 import { useCrmKnowledgeDocsStore } from 'dashboard/stores/crm/knowledgeDocs';
 import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCategories';
 
+import CrmDocSectionManager from 'dashboard/components-next/CRM/CrmDocSectionManager.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -24,8 +26,17 @@ const store = useCrmKnowledgeDocsStore();
 const categoriesStore = useCrmKnowledgeCategoriesStore();
 
 const activeFilter = ref(route.query.filter || 'company');
+// 文档中心「板块」筛选：侧栏板块子项带 ?section=<id>；为空=「全公司文档」(全部板块)。
+const activeSectionId = ref(route.query.section ? Number(route.query.section) : null);
 const searchQuery = ref('');
 let searchTimer = null;
+
+// 管理板块面板（管理员）。改动后广播，侧栏板块即时刷新；当前视图也重拉。
+const showSectionManager = ref(false);
+const onSectionsUpdated = () => {
+  emitter.emit('crmDocSectionsUpdated');
+  fetchCategories();
+};
 
 // 资料库归属由路由 meta 决定：销售资料(SALES) / 全公司知识(GENERAL)。同一组件两路由复用。
 const currentLibrary = computed(() => route.meta.library || 'SALES');
@@ -49,11 +60,15 @@ const canManageBoard = computed(
   () => isMineView.value || canManageCompany.value
 );
 
-// 文档中心＝扁平网盘：不分板块，直接取全部公司文件夹/文件。
-const fetchCategories = () =>
-  categoriesStore.get(
-    isMineView.value ? { view: 'mine' } : { library: currentLibrary.value }
-  );
+// 文档中心：选中板块则取该板块文件夹；「全公司文档」取全部。
+const fetchCategories = () => {
+  if (isMineView.value) return categoriesStore.get({ view: 'mine' });
+  const params = { library: currentLibrary.value };
+  if (isGeneral.value && activeSectionId.value) {
+    params.section_id = activeSectionId.value;
+  }
+  return categoriesStore.get(params);
+};
 
 // 个人文档归属人可管；公司文档=超管/管理员；销售资料另放开部门负责人。
 const canManageDoc = doc => {
@@ -423,6 +438,10 @@ const fetchRecords = () => {
   store.get({
     library: currentLibrary.value,
     filter: activeFilter.value,
+    section_id:
+      isGeneral.value && activeSectionId.value
+        ? activeSectionId.value
+        : undefined,
     q: searchQuery.value.trim() || undefined,
     per_page: 200,
   });
@@ -433,6 +452,20 @@ watch(currentLibrary, () => {
   backToFolders();
   fetchRecords();
 });
+
+// 侧栏切换板块 / 视图（同一路由改 query）时同步状态并重新拉取。
+watch(
+  () => [route.query.section, route.query.filter],
+  () => {
+    activeSectionId.value = route.query.section
+      ? Number(route.query.section)
+      : null;
+    activeFilter.value = route.query.filter || 'company';
+    backToFolders();
+    fetchRecords();
+    fetchCategories();
+  }
+);
 
 const setFilter = key => {
   activeFilter.value = key;
@@ -546,6 +579,7 @@ const saveForm = async () => {
     if (isCreate.value) {
       const created = await store.create({
         ...payload,
+        sectionId: isGeneral.value ? activeSectionId.value : undefined,
         __files: pendingFiles.value,
       });
       useAlert(t('CRM.KNOWLEDGE_DOCS.CREATE.SUCCESS'));
@@ -650,6 +684,7 @@ const uploadFilesAsDocs = async fileList => {
       await store.create({
         name: file.name,
         categoryId: currentCategoryId.value,
+        sectionId: isGeneral.value ? activeSectionId.value : undefined,
         scope: defaultDocScope(),
         library: currentLibrary.value,
         summary: null,
@@ -721,6 +756,7 @@ const createUnnamedFolder = async () => {
       personal: isMineView.value,
       library: currentLibrary.value,
       parent_id: currentCategoryId.value, // 在某分类里新建=其子分类
+      section_id: isGeneral.value ? activeSectionId.value : undefined, // 在板块内新建=归该板块
     });
     await fetchCategories();
     if (created?.id) {
@@ -849,7 +885,17 @@ watch(
             }}
           </p>
         </div>
-        <div class="flex items-center gap-3" />
+        <div class="flex items-center gap-3">
+          <Button
+            v-if="isGeneral && isAdminLike"
+            label="管理板块"
+            icon="i-lucide-folder-cog"
+            variant="outline"
+            color="slate"
+            size="sm"
+            @click="showSectionManager = true"
+          />
+        </div>
       </div>
 
       <div class="flex items-center gap-2 px-6 py-3 border-b border-n-weak">
@@ -1849,5 +1895,11 @@ watch(
         </div>
       </div>
     </Teleport>
+
+    <CrmDocSectionManager
+      :show="showSectionManager"
+      @close="showSectionManager = false"
+      @updated="onSectionsUpdated"
+    />
   </div>
 </template>

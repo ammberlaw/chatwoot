@@ -1185,6 +1185,16 @@ const menuItems = computed(() => {
             ),
             activeOn: ['crm_doc_center_index'],
           },
+          // 资料板块：点进去只看该板块的文件夹/文件（可见性由后端按部门配置）。
+          ...docSections.value.map(s => ({
+            name: `CRM Doc Section ${s.id}`,
+            label: s.name,
+            to: accountScopedRoute(
+              'crm_doc_center_index',
+              {},
+              { section: String(s.id) }
+            ),
+          })),
           // 文档回收站：超级管理员与管理员可见可清理
           ...(isAdminLike.value
             ? [

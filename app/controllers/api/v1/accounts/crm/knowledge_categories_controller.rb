@@ -10,8 +10,9 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
     scope = if params[:view] == 'mine'
               scope.personal_of(current_user.id)
             elsif (params[:library] || params.dig(:category, :library)) == 'GENERAL'
-              # 文档中心＝扁平网盘：返回全部公司文件夹（不分板块）
-              scope.company_scope
+              # 文档中心：传 section_id 则按板块过滤；不传则全部公司文件夹（「全公司文档」视图）
+              s = scope.company_scope
+              params[:section_id].present? ? s.for_section(params[:section_id]) : s
             else
               scope.company_scope.for_section(scoped_section_id)
             end
