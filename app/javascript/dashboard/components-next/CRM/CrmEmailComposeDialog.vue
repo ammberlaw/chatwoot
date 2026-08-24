@@ -2608,20 +2608,28 @@ defineExpose({ open, close });
       class="fixed inset-0 z-[10000] flex flex-col bg-black/80"
       @click.self="closeAttPreview"
     >
-      <div class="flex items-center justify-between gap-3 px-4 py-3 text-white">
-        <span class="text-sm truncate">{{ attPreview.name }}</span>
-        <div class="flex items-center flex-shrink-0 gap-4">
+      <div
+        class="flex items-center justify-between h-14 gap-3 px-4 border-b bg-n-slate-12 border-white/15 shrink-0"
+      >
+        <span class="text-sm truncate text-white/90">{{ attPreview.name }}</span>
+        <div class="flex items-center flex-shrink-0 gap-2">
           <a
             :href="attPreview.url"
             download
             target="_blank"
             rel="noopener noreferrer"
-            class="text-sm hover:underline"
+            class="inline-flex items-center gap-1.5 px-3 h-9 text-sm text-white rounded-lg bg-white/15 hover:bg-white/25"
           >
+            <Icon icon="i-lucide-download" class="size-4" />
             下载
           </a>
-          <button type="button" @click="closeAttPreview">
-            <Icon icon="i-lucide-x" class="size-6" />
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 px-4 h-9 text-sm font-semibold text-n-slate-12 bg-white rounded-lg hover:bg-white/90"
+            @click="closeAttPreview"
+          >
+            <Icon icon="i-lucide-x" class="size-4" />
+            关闭
           </button>
         </div>
       </div>
