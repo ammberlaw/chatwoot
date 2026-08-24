@@ -597,6 +597,11 @@ watch(
               <th
                 class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
               >
+                {{ t('CRM.SALES_ORDERS.TABLE.ORDER_NAME') }}
+              </th>
+              <th
+                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+              >
                 {{ t('CRM.SALES_ORDERS.TABLE.CUSTOMER') }}
               </th>
               <th
@@ -643,6 +648,12 @@ watch(
                 class="px-3 py-3 font-mono text-[12px] text-n-slate-10 whitespace-nowrap"
               >
                 {{ record.orderNo }}
+              </td>
+              <td
+                class="px-3 py-3 text-n-slate-12 max-w-[220px] truncate"
+                :title="record.name"
+              >
+                {{ record.name || '—' }}
               </td>
               <td class="px-3 py-3 text-n-slate-12 whitespace-nowrap">
                 {{ record.customerName || '—' }}

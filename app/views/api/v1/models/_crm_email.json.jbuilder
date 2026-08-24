@@ -34,6 +34,7 @@ json.files(visible_files) do |f|
   json.id f.id
   json.filename f.filename.to_s
   json.byte_size f.byte_size
+  json.content_type f.content_type
   json.url url_for(f)
 end
 json.created_at resource.created_at

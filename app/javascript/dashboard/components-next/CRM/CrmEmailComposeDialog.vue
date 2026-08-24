@@ -886,6 +886,45 @@ const onPickFiles = event => {
 };
 const removeAttachment = index => attachments.value.splice(index, 1);
 
+// ---- 附件预览：图片灯箱 / PDF 站内 iframe（写信时确认加对了文件）----
+const isImgName = n => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(n || '');
+const isPdfName = n => /\.pdf$/i.test(n || '');
+// 新加的本地文件（File 对象）
+const canPreviewFile = f =>
+  (f.type || '').startsWith('image/') ||
+  f.type === 'application/pdf' ||
+  isImgName(f.name) ||
+  isPdfName(f.name);
+// 草稿已有附件（带 url）
+const canPreviewExisting = f =>
+  (f.contentType || '').startsWith('image/') ||
+  f.contentType === 'application/pdf' ||
+  isImgName(f.filename) ||
+  isPdfName(f.filename);
+
+const attPreview = ref(null); // { url, name, isImage, revoke }
+const openFilePreview = f => {
+  if (!canPreviewFile(f)) return;
+  const isImage =
+    (f.type || '').startsWith('image/') || isImgName(f.name);
+  attPreview.value = {
+    url: URL.createObjectURL(f),
+    name: f.name,
+    isImage,
+    revoke: true,
+  };
+};
+const openExistingPreview = f => {
+  if (!canPreviewExisting(f)) return;
+  const isImage =
+    (f.contentType || '').startsWith('image/') || isImgName(f.filename);
+  attPreview.value = { url: f.url, name: f.filename, isImage, revoke: false };
+};
+const closeAttPreview = () => {
+  if (attPreview.value?.revoke) URL.revokeObjectURL(attPreview.value.url);
+  attPreview.value = null;
+};
+
 // ---- 知识库选择器 ----
 const openKbPicker = () => {
   showKb.value = true;
@@ -1881,9 +1920,22 @@ defineExpose({ open, close });
               v-for="file in existingFiles"
               :key="`e${file.id}`"
               class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full whitespace-nowrap border-n-weak text-n-slate-10 bg-n-alpha-1"
-              :title="L.existingFile"
+              :class="
+                canPreviewExisting(file)
+                  ? 'cursor-pointer hover:bg-n-alpha-2'
+                  : ''
+              "
+              :title="canPreviewExisting(file) ? '点击预览' : L.existingFile"
+              @click="openExistingPreview(file)"
             >
-              <Icon icon="i-lucide-paperclip" class="size-3 text-n-slate-9" />
+              <Icon
+                :icon="
+                  canPreviewExisting(file)
+                    ? 'i-lucide-eye'
+                    : 'i-lucide-paperclip'
+                "
+                class="size-3 text-n-slate-9"
+              />
               {{ file.filename }}
             </span>
             <span
@@ -1891,8 +1943,21 @@ defineExpose({ open, close });
               :key="`f${index}`"
               class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full whitespace-nowrap border-n-weak text-n-slate-11 bg-n-solid-1"
             >
-              <Icon icon="i-lucide-file" class="size-3 text-n-iris-11" />
-              {{ file.name }}
+              <button
+                type="button"
+                class="inline-flex items-center gap-1"
+                :class="canPreviewFile(file) ? 'hover:text-n-iris-11' : ''"
+                :title="canPreviewFile(file) ? '点击预览' : ''"
+                @click="openFilePreview(file)"
+              >
+                <Icon
+                  :icon="
+                    canPreviewFile(file) ? 'i-lucide-eye' : 'i-lucide-file'
+                  "
+                  class="size-3 text-n-iris-11"
+                />
+                {{ file.name }}
+              </button>
               <button
                 class="text-n-slate-10 hover:text-n-ruby-11"
                 @click="removeAttachment(index)"
@@ -2532,6 +2597,50 @@ defineExpose({ open, close });
             </button>
           </div>
         </template>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- 附件预览：图片灯箱 / PDF 站内 iframe -->
+  <Teleport to="body">
+    <div
+      v-if="attPreview"
+      class="fixed inset-0 z-[10000] flex flex-col bg-black/80"
+      @click.self="closeAttPreview"
+    >
+      <div class="flex items-center justify-between gap-3 px-4 py-3 text-white">
+        <span class="text-sm truncate">{{ attPreview.name }}</span>
+        <div class="flex items-center flex-shrink-0 gap-4">
+          <a
+            :href="attPreview.url"
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-sm hover:underline"
+          >
+            下载
+          </a>
+          <button type="button" @click="closeAttPreview">
+            <Icon icon="i-lucide-x" class="size-6" />
+          </button>
+        </div>
+      </div>
+      <div
+        class="flex items-center justify-center flex-1 min-h-0 p-4"
+        @click.self="closeAttPreview"
+      >
+        <img
+          v-if="attPreview.isImage"
+          :src="attPreview.url"
+          :alt="attPreview.name"
+          class="object-contain max-w-full max-h-full rounded shadow-2xl"
+        />
+        <iframe
+          v-else
+          :src="attPreview.url"
+          :title="attPreview.name"
+          class="w-full h-full bg-white rounded"
+        />
       </div>
     </div>
   </Teleport>

@@ -335,6 +335,23 @@ const fmtSize = bytes => {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
+// ── 附件预览：图片走站内灯箱，PDF 走站内 iframe，其余仍下载 ──
+const isImageFile = f =>
+  (f.contentType || '').startsWith('image/') ||
+  /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(f.filename || '');
+const isPdfFile = f =>
+  (f.contentType || '') === 'application/pdf' ||
+  /\.pdf$/i.test(f.filename || '');
+const canPreview = f => isImageFile(f) || isPdfFile(f);
+const previewFile = ref(null);
+const openPreview = f => {
+  if (canPreview(f)) previewFile.value = f;
+  else window.open(f.url, '_blank', 'noopener');
+};
+const closePreview = () => {
+  previewFile.value = null;
+};
+
 // 富文本正文渲染前用 DOMPurify 消毒（收信方 HTML 可能不可信）。
 const safeBodyHtml = computed(() =>
   selectedEmail.value?.bodyHtml
@@ -2487,19 +2504,30 @@ watch(
               }}
             </p>
             <div class="grid grid-cols-2 gap-3">
-              <a
+              <div
                 v-for="file in selectedEmail.files"
                 :key="file.id"
-                :href="file.url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="flex items-center gap-3 p-3 transition-colors border rounded-lg border-n-weak hover:bg-n-alpha-1"
+                class="flex items-center gap-3 p-3 border rounded-lg border-n-weak"
               >
-                <Icon
-                  icon="i-lucide-file"
-                  class="flex-shrink-0 size-8 text-n-iris-11"
+                <img
+                  v-if="isImageFile(file)"
+                  :src="file.url"
+                  :alt="file.filename"
+                  class="flex-shrink-0 object-cover transition-opacity rounded cursor-pointer size-10 bg-n-alpha-2 hover:opacity-80"
+                  @click="openPreview(file)"
                 />
-                <div class="min-w-0">
+                <span
+                  v-else
+                  class="grid flex-shrink-0 rounded size-10 place-items-center bg-n-iris-3 text-n-iris-11"
+                >
+                  <Icon
+                    :icon="
+                      isPdfFile(file) ? 'i-lucide-file-text' : 'i-lucide-file'
+                    "
+                    class="size-5"
+                  />
+                </span>
+                <div class="flex-1 min-w-0">
                   <p class="text-sm truncate text-n-slate-12">
                     {{ file.filename }}
                   </p>
@@ -2507,7 +2535,28 @@ watch(
                     {{ fmtSize(file.byteSize) }}
                   </p>
                 </div>
-              </a>
+                <div class="flex items-center flex-shrink-0 gap-1">
+                  <button
+                    v-if="canPreview(file)"
+                    type="button"
+                    class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-iris-11 hover:bg-n-iris-3"
+                    @click="openPreview(file)"
+                  >
+                    <Icon icon="i-lucide-eye" class="size-3.5" />
+                    预览
+                  </button>
+                  <a
+                    :href="file.url"
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+                  >
+                    <Icon icon="i-lucide-download" class="size-3.5" />
+                    下载
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2718,6 +2767,50 @@ watch(
           </div>
         </div>
       </template>
+    </Teleport>
+
+    <!-- 附件预览：图片灯箱 / PDF 站内 iframe，无需下载即可查看 -->
+    <Teleport to="body">
+      <div
+        v-if="previewFile"
+        class="fixed inset-0 z-[9999] flex flex-col bg-black/80"
+        @click.self="closePreview"
+      >
+        <div class="flex items-center justify-between gap-3 px-4 py-3 text-white">
+          <span class="text-sm truncate">{{ previewFile.filename }}</span>
+          <div class="flex items-center flex-shrink-0 gap-4">
+            <a
+              :href="previewFile.url"
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-sm hover:underline"
+            >
+              下载
+            </a>
+            <button type="button" @click="closePreview">
+              <Icon icon="i-lucide-x" class="size-6" />
+            </button>
+          </div>
+        </div>
+        <div
+          class="flex items-center justify-center flex-1 min-h-0 p-4"
+          @click.self="closePreview"
+        >
+          <img
+            v-if="isImageFile(previewFile)"
+            :src="previewFile.url"
+            :alt="previewFile.filename"
+            class="object-contain max-w-full max-h-full rounded shadow-2xl"
+          />
+          <iframe
+            v-else
+            :src="previewFile.url"
+            :title="previewFile.filename"
+            class="w-full h-full bg-white rounded"
+          />
+        </div>
+      </div>
     </Teleport>
   </div>
 </template>
