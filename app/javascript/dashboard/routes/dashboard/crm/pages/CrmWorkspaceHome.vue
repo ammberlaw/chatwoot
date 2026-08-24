@@ -19,6 +19,9 @@ const currentUser = useMapGetter('getCurrentUser');
 
 const stats = ref({ todo: 0, mine: 0, approverView: true, unread: 0 });
 
+// 右上角「使用指南」下拉：CRM / MES 两份指南（新标签打开 public 下静态页）。
+const showGuide = ref(false);
+
 // 首页卡片真实数据（当前用户视角）。
 const homeStats = ref(null);
 const crmStats = computed(() => homeStats.value?.crm || {});
@@ -145,11 +148,49 @@ onMounted(async () => {
 <template>
   <Teleport to="body">
     <div class="wsh-root">
-      <!-- 退出登录 -->
-      <button type="button" class="wsh-logout" @click="Auth.logout">
-        <Icon icon="i-lucide-power" class="size-4" />
-        退出登录
-      </button>
+      <!-- 右上角：使用指南（CRM/MES 下拉）+ 退出登录 -->
+      <div
+        v-if="showGuide"
+        class="wsh-guide-backdrop"
+        @click="showGuide = false"
+      />
+      <div class="wsh-actions">
+        <div class="wsh-guide-wrap">
+          <button
+            type="button"
+            class="wsh-guide"
+            @click="showGuide = !showGuide"
+          >
+            <Icon icon="i-lucide-book-open" class="size-4" />
+            使用指南
+            <Icon icon="i-lucide-chevron-down" class="size-3" />
+          </button>
+          <div v-if="showGuide" class="wsh-guide-menu">
+            <a
+              href="/wintouch-crm-guide.html"
+              target="_blank"
+              rel="noopener"
+              @click="showGuide = false"
+            >
+              <Icon icon="i-lucide-book-open" class="size-4" />
+              CRM 使用指南
+            </a>
+            <a
+              href="/wintouch-mes-guide.html"
+              target="_blank"
+              rel="noopener"
+              @click="showGuide = false"
+            >
+              <Icon icon="i-lucide-book-open" class="size-4" />
+              MES 使用指南
+            </a>
+          </div>
+        </div>
+        <button type="button" class="wsh-logout" @click="Auth.logout">
+          <Icon icon="i-lucide-power" class="size-4" />
+          退出登录
+        </button>
+      </div>
 
       <div class="wsh-wrap">
         <div class="wsh-top">
@@ -364,11 +405,17 @@ onMounted(async () => {
     radial-gradient(48vw 46vh at 0% 100%, rgba(198, 232, 154, 0.28), transparent 56%),
     #e9eff7;
 }
-.wsh-logout {
+.wsh-actions {
   position: fixed;
   z-index: 10;
   top: 20px;
   right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wsh-guide,
+.wsh-logout {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -380,7 +427,44 @@ onMounted(async () => {
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.6);
 }
+.wsh-guide { cursor: pointer; }
+.wsh-guide:hover,
 .wsh-logout:hover { color: #232833; }
+.wsh-guide-wrap { position: relative; }
+.wsh-guide-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  gap: 2px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 24px rgba(40, 50, 80, 0.14);
+}
+.wsh-guide-menu a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+  color: #4a5462;
+  white-space: nowrap;
+}
+.wsh-guide-menu a:hover {
+  color: #232833;
+  background: rgba(99, 102, 241, 0.1);
+}
+.wsh-guide-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+}
 .wsh-wrap { max-width: 1320px; margin: 0 auto; padding: 14px 64px 12px; }
 .wsh-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 9px; }
 .wsh-logo { height: 34px; width: auto; margin-bottom: 7px; display: block; }

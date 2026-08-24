@@ -188,7 +188,7 @@ onMounted(load);
         />
         <input
           v-model="keyword"
-          placeholder="搜索编码 / 名称 / 类别"
+          placeholder="搜索编码 / 名称 / 规格 / 类别"
           class="h-9 px-3 text-sm rounded-lg outline-none w-56 border border-n-weak bg-n-solid-1 text-n-slate-12"
           @keyup.enter="reload"
         />
@@ -221,6 +221,7 @@ onMounted(load);
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">商品编码</th>
             <th class="px-3 py-3 font-medium">商品名称</th>
+            <th class="px-3 py-3 font-medium">规格</th>
             <th class="px-3 py-3 font-medium">产品线</th>
             <th class="px-3 py-3 font-medium">商品类别</th>
             <th class="px-3 py-3 font-medium">仓别分类</th>
@@ -233,6 +234,7 @@ onMounted(load);
           <tr v-for="p in records" :key="p.id" class="border-b border-n-weak">
             <td class="px-3 py-3 font-mono text-n-slate-11">{{ p.sku }}</td>
             <td class="px-3 py-3 font-medium text-n-slate-12">{{ p.name }}</td>
+            <td class="px-3 py-3 text-n-slate-11">{{ p.specification || '—' }}</td>
             <td class="px-3 py-3 text-n-slate-11">
               {{ productLineLabel(p.productLine) || '—' }}
             </td>

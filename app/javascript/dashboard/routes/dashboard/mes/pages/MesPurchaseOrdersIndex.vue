@@ -149,7 +149,9 @@ const loadProducts = async (q = '') => {
     mergeProductOptions(
       (data?.payload || []).map(p => ({
         value: String(p.id),
-        label: `${p.name}${p.sku ? `（${p.sku}）` : ''}`,
+        label: `${p.name}${p.sku ? `（${p.sku}）` : ''}${
+          p.specification ? ` · ${p.specification}` : ''
+        }`,
         unit: p.unit || '',
       }))
     );
@@ -400,7 +402,7 @@ onMounted(async () => {
             </td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.expectedDate) }}</td>
             <td class="px-3 py-3 text-n-slate-11">{{ day(p.followUpDate) }}</td>
-            <td class="px-3 py-3 text-right">
+            <td class="px-3 py-3 text-right whitespace-nowrap">
               <div class="flex justify-end gap-1">
                 <Button
                   label="查看"

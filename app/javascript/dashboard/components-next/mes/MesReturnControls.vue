@@ -42,10 +42,10 @@ const reactivate = async () => {
 </script>
 
 <template>
-  <span class="inline-flex items-center gap-1">
+  <span class="inline-flex items-center gap-1 shrink-0 whitespace-nowrap">
     <span
       v-if="record.returned"
-      class="px-2 py-0.5 text-xs rounded-full bg-n-amber-3 text-n-amber-11"
+      class="px-2 py-0.5 text-xs rounded-full bg-n-amber-3 text-n-amber-11 shrink-0 whitespace-nowrap"
       :title="record.returnReason || ''"
     >
       已退回

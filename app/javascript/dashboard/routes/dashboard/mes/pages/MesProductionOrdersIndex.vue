@@ -294,7 +294,9 @@ const isStalled = po => stallDays(po) >= STALL_DAYS;
 
 // 列表阶段列的「等谁」：当前阶段负责人（未配则空；建单/出货阶段无板块负责人）。
 const stageWaitingText = po =>
-  (po?.stageOwnerNames || []).length ? `等：${po.stageOwnerNames.join('、')}` : '';
+  (po?.stageOwnerNames || []).length
+    ? `等：${po.stageOwnerNames.join('、')}`
+    : '';
 
 // 列表阶段列的接单态徽标（与详情面板同口径）：已接单 / 超时未接单 / 待接单。
 const ackChip = po => {
@@ -423,12 +425,15 @@ const orderInvalid = computed(
 // products 隔离互不干扰。产品档案数千条，输入即带 q 查后端、不本地全量加载。
 const orderProducts = ref([]);
 const selectedOrderProductLabel = ref('');
-const orderProductLabel = p => (p.sku ? `${p.sku} · ${p.name}` : p.name);
+const orderProductLabel = p => {
+  const base = p.sku ? `${p.sku} · ${p.name}` : p.name;
+  return p.specification ? `${base} · ${p.specification}` : base;
+};
 const orderProductOptions = computed(() =>
   orderProducts.value.map(p => ({
     value: String(p.id),
     label: orderProductLabel(p),
-    searchText: p.name,
+    searchText: `${p.name} ${p.specification || ''}`,
   }))
 );
 const loadOrderProducts = async (q = '') => {
@@ -1088,7 +1093,8 @@ watch(currentPage, fetchRecords);
                   </span>
                   <span v-if="ackChip(po)">
                     <span :class="ackChip(po).cls">{{ ackChip(po).text }}</span>
-                    <span v-if="stallDays(po) > 0"> · 停留 {{ stallDays(po) }} 天</span>
+                    <span v-if="stallDays(po) > 0">
+                      · 停留 {{ stallDays(po) }} 天</span>
                   </span>
                 </div>
               </td>

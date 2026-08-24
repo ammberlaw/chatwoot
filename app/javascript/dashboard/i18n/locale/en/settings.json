@@ -258,6 +258,8 @@
     "DOCS": "Read documentation",
     "CHANGELOG": "Changelog",
     "USER_GUIDE": "User guide",
+    "USER_GUIDE_CRM": "CRM User Guide",
+    "USER_GUIDE_MES": "MES User Guide",
     "MY_SIGNATURE": "我的签名",
     "LOGOUT": "Log out"
   },

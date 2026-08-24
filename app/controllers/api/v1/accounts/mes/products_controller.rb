@@ -11,7 +11,7 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
     scope = scope.where(source_category: params[:source_category]) if params[:source_category].present?
     if params[:q].present?
       scope = scope.where(
-        'sku ILIKE :q OR name ILIKE :q OR source_category ILIKE :q',
+        'sku ILIKE :q OR name ILIKE :q OR source_category ILIKE :q OR specification ILIKE :q',
         q: "%#{params[:q].strip}%"
       )
     end

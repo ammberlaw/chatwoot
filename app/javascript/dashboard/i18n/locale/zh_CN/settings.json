@@ -247,6 +247,8 @@
     "DOCS": "阅读文档",
     "CHANGELOG": "更新日志",
     "USER_GUIDE": "用户使用指南",
+    "USER_GUIDE_CRM": "CRM 使用指南",
+    "USER_GUIDE_MES": "MES 使用指南",
     "LOGOUT": "注销"
   },
   "APP_GLOBAL": {

@@ -56,12 +56,15 @@ const spec = ref(blankSpec(template.value));
 // 产品档案数千条，走 ComboBox 的 API 搜索模式（输入即带 q 查后端），不本地全量加载。
 const products = ref([]);
 const selectedProductLabel = ref('');
-const productLabel = p => (p.sku ? `${p.sku} · ${p.name}` : p.name);
+const productLabel = p => {
+  const base = p.sku ? `${p.sku} · ${p.name}` : p.name;
+  return p.specification ? `${base} · ${p.specification}` : base;
+};
 const productOptions = computed(() =>
   products.value.map(p => ({
     value: String(p.id),
     label: productLabel(p),
-    searchText: p.name,
+    searchText: `${p.name} ${p.specification || ''}`,
   }))
 );
 const loadProducts = async (q = '') => {
@@ -671,7 +674,8 @@ const backToList = () =>
         class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
       >
         产品图片
-        <span v-if="staging" class="ml-1 normal-case text-n-amber-11"
+        <span
+v-if="staging" class="ml-1 normal-case text-n-amber-11"
           >上传中…</span
         >
       </div>
