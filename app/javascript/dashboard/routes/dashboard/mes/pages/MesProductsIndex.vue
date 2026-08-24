@@ -354,7 +354,7 @@ onMounted(load);
             />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">单位</label>
+            <label class="text-heading-3 text-n-slate-12">计量单位</label>
             <Input v-model="form.unit" placeholder="台 / 个 / pcs" />
           </div>
         </div>

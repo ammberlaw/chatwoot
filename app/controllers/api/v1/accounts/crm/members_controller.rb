@@ -6,7 +6,7 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
   # 人事角色不走 CRM 门禁（无 CRM 数据权限），本控制器由 ensure_admin 把关。
   skip_before_action :ensure_crm_access
   before_action :ensure_admin
-  before_action :fetch_member, only: [:update]
+  before_action :fetch_member, only: [:update, :deactivate, :reactivate]
 
   SYSTEM_ROLE_MAP = {
     'administrator' => [:administrator, nil],
@@ -58,7 +58,40 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     render json: { error: friendly_invalid_message(e.record) }, status: :unprocessable_entity
   end
 
+  # 停用（离职）：名下客户/商机按 handover_mode 退回公海或转交，个人文档进回收站，
+  # 账号 CRM 角色置无 + 标记停用 + 踢下线并禁止再次登录。可恢复。仅超管/管理员。
+  def deactivate
+    error = deactivate_error
+    return render json: { error: error[:message] }, status: error[:status] if error
+
+    Crm::OffboardingService.new(
+      account: Current.account, user_id: @member.user_id,
+      mode: params[:handover_mode].to_s, target_user_id: params[:handover_target_id].presence
+    ).perform
+    @member.reload
+    render :show
+  end
+
+  # 恢复：解除停用（可再次登录）。角色/客户不自动还原，由管理员重新分配。
+  def reactivate
+    return render json: { error: '仅超级管理员或管理员可操作' }, status: :forbidden unless admin_like?
+
+    @member.update!(deactivated_at: nil)
+    @member.reload
+    render :show
+  end
+
   private
+
+  def deactivate_error
+    return { message: '仅超级管理员或管理员可停用成员', status: :forbidden } unless admin_like?
+    return { message: '不能停用自己', status: :unprocessable_entity } if @member.id == Current.account_user.id
+    if @member.administrator? || @member.crm_role == 'deputy_admin'
+      return { message: '不能停用超级管理员/管理员账号', status: :forbidden }
+    end
+
+    nil
+  end
 
   def ensure_admin
     return if admin_like? || Current.account_user&.crm_hr? || Current.account_user&.crm_manager?

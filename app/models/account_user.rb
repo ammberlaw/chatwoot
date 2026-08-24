@@ -8,6 +8,7 @@
 #  availability             :integer          default("online"), not null
 #  crm_finance              :boolean          default(FALSE), not null
 #  crm_role                 :string
+#  deactivated_at           :datetime
 #  erp_role                 :string
 #  mes_role                 :string
 #  mes_roles                :string           default([]), not null, is an Array
@@ -114,6 +115,13 @@ class AccountUser < ApplicationRecord
   after_save :update_presence_in_redis, if: :saved_change_to_availability?
 
   validates :user_id, uniqueness: { scope: :account_id }
+
+  # 离职/停用：deactivated_at 有值＝已停用（禁止登录、退出各业务系统）；空＝在职。可恢复。
+  scope :active_members, -> { where(deactivated_at: nil) }
+
+  def deactivated?
+    deactivated_at.present?
+  end
 
   # 模块使用权限：管理员始终全模块；其他人按成员权限页的开关。
   def module_enabled?(mod)

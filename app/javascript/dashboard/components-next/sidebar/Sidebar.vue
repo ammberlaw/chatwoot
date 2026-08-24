@@ -13,6 +13,7 @@ import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
+import ChatConversationAPI from 'dashboard/api/chat/conversations';
 import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import MesShipmentAPI from 'dashboard/api/mes/shipments';
@@ -329,6 +330,23 @@ const fetchScheduleTodoCount = async () => {
   }
 };
 
+// 团队协同角标：内部 IM 全局未读消息数；实时事件到达时增量刷新。
+const teamChatUnread = ref(0);
+const fetchTeamChatUnread = async () => {
+  if (!accountId.value) return;
+  try {
+    const { data } = await ChatConversationAPI.unreadTotal();
+    teamChatUnread.value = data.count || 0;
+  } catch {
+    teamChatUnread.value = 0;
+  }
+};
+// 实时新消息：非当前用户发的才计数；轻量兜底直接重取总数（次数很少）。
+const onChatRealtime = data => {
+  if (data?.sender_id === currentUserId.value) return;
+  fetchTeamChatUnread();
+};
+
 onMounted(() => {
   store.dispatch('labels/get');
   store.dispatch('inboxes/get');
@@ -341,6 +359,14 @@ onMounted(() => {
   fetchMesTodoCount();
   fetchChurnRiskCount();
   fetchScheduleTodoCount();
+  fetchTeamChatUnread();
+  emitter.on('CHAT_MESSAGE_CREATED', onChatRealtime);
+  // 协同页读完消息后广播，用于即时清角标。
+  emitter.on('CHAT_UNREAD_CHANGED', fetchTeamChatUnread);
+});
+onBeforeUnmount(() => {
+  emitter.off('CHAT_MESSAGE_CREATED', onChatRealtime);
+  emitter.off('CHAT_UNREAD_CHANGED', fetchTeamChatUnread);
 });
 
 watch([accountId, hasConversationUnreadCounts], fetchConversationUnreadCounts, {
@@ -1387,6 +1413,7 @@ const menuItems = computed(() => {
           {
             name: 'CRM Team Chat Messages',
             label: t('SIDEBAR.CRM_TEAM_CHAT'),
+            badgeCount: teamChatUnread.value,
             to: accountScopedRoute('crm_team_chat_index'),
             activeOn: ['crm_team_chat_index'],
           },

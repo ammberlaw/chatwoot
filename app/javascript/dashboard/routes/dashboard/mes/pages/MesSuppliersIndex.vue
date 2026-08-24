@@ -131,8 +131,10 @@ const selectCode = (row, v) => {
 };
 
 const blankForm = () => ({
+  supplierNo: '',
   name: '',
   productLine: '',
+  department: '',
   category: '',
   contactName: '',
   phone: '',
@@ -210,8 +212,10 @@ const openEdit = s => {
   removedItemIds.value = [];
   hadItems.value = (s.supplierItems || []).length > 0;
   Object.assign(form, {
+    supplierNo: s.supplierNo || '',
     name: s.name || '',
     productLine: s.productLine || '',
+    department: s.department || '',
     category: s.category || '',
     contactName: s.contactName || '',
     phone: s.phone || '',
@@ -259,8 +263,10 @@ const submit = async () => {
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
   ];
   const payload = {
+    supplierNo: trimmed(form.supplierNo) || null,
     name: form.name.trim(),
     productLine: form.productLine || null,
+    department: trimmed(form.department) || null,
     category: trimmed(form.category) || null,
     contactName: trimmed(form.contactName) || null,
     phone: trimmed(form.phone) || null,
@@ -448,10 +454,23 @@ onMounted(() => {
           <h3 class="text-heading-3 font-semibold text-n-slate-12">基本信息</h3>
           <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
+              <label class="text-heading-3 text-n-slate-12">供应商编码</label>
+              <Input
+                v-model="form.supplierNo"
+                placeholder="留空自动生成 SUPxxxx"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">
-                名称 <span class="text-n-ruby-11">*</span>
+                供应商名称 <span class="text-n-ruby-11">*</span>
               </label>
               <Input v-model="form.name" autofocus />
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1">
+              <label class="text-heading-3 text-n-slate-12">部门</label>
+              <Input v-model="form.department" />
             </div>
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">事业部</label>
@@ -478,7 +497,7 @@ onMounted(() => {
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
-              <label class="text-heading-3 text-n-slate-12">电话</label>
+              <label class="text-heading-3 text-n-slate-12">手机</label>
               <Input v-model="form.phone" />
             </div>
             <div class="flex flex-col gap-1">

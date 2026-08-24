@@ -217,7 +217,12 @@ Rails.application.routes.draw do
               member { post :test }
             end
             resources :email_templates
-            resources :members, only: [:index, :create, :update]
+            resources :members, only: [:index, :create, :update] do
+              member do
+                post :deactivate
+                post :reactivate
+              end
+            end
             resources :member_invites, only: [:index, :create, :destroy]
             resources :kpi_schemes do
               member do
@@ -369,6 +374,9 @@ Rails.application.routes.draw do
           end
           namespace :chat do
             resources :conversations, only: [:index, :show, :create, :update] do
+              collection do
+                get :unread_total
+              end
               member do
                 post :read
                 post :remove_participant
