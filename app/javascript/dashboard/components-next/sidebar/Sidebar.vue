@@ -973,6 +973,64 @@ const menuItems = computed(() => {
         ],
       },
       {
+        name: 'Finance ERP',
+        label: '财务管理',
+        icon: 'i-lucide-landmark',
+        activeOn: [
+          'erp_dashboard_index',
+          'erp_accounts_index',
+          'erp_vouchers_index',
+          'erp_ledgers_index',
+          'erp_reports_index',
+          'erp_receivables_index',
+          'erp_payables_index',
+        ],
+        children: [
+          {
+            name: 'ERP Dashboard',
+            label: '财务看板',
+            to: accountScopedRoute('erp_dashboard_index'),
+            activeOn: ['erp_dashboard_index'],
+          },
+          {
+            name: 'ERP Accounts',
+            label: '会计科目表',
+            to: accountScopedRoute('erp_accounts_index'),
+            activeOn: ['erp_accounts_index'],
+          },
+          {
+            name: 'ERP Vouchers',
+            label: '记账凭证',
+            to: accountScopedRoute('erp_vouchers_index'),
+            activeOn: ['erp_vouchers_index'],
+          },
+          {
+            name: 'ERP Ledgers',
+            label: '账簿',
+            to: accountScopedRoute('erp_ledgers_index'),
+            activeOn: ['erp_ledgers_index'],
+          },
+          {
+            name: 'ERP Reports',
+            label: '财务报表',
+            to: accountScopedRoute('erp_reports_index'),
+            activeOn: ['erp_reports_index'],
+          },
+          {
+            name: 'ERP Receivables',
+            label: '应收台账',
+            to: accountScopedRoute('erp_receivables_index'),
+            activeOn: ['erp_receivables_index'],
+          },
+          {
+            name: 'ERP Payables',
+            label: '应付台账',
+            to: accountScopedRoute('erp_payables_index'),
+            activeOn: ['erp_payables_index'],
+          },
+        ],
+      },
+      {
         name: 'MES Production',
         label: t('SIDEBAR.MES_G_PRODUCTION'),
         icon: 'i-lucide-factory',
@@ -1700,6 +1758,13 @@ const ITEM_MODULE = {
 const itemModule = name => ITEM_MODULE[name] || 'crm';
 // 当前路由属于哪个系统（默认 CRM，含工作台/销售各页/会话）。
 const ROUTE_MODULE = {
+  erp_dashboard_index: 'erp',
+  erp_accounts_index: 'erp',
+  erp_vouchers_index: 'erp',
+  erp_ledgers_index: 'erp',
+  erp_reports_index: 'erp',
+  erp_receivables_index: 'erp',
+  erp_payables_index: 'erp',
   tiktok_today_index: 'tiktok',
   tiktok_dashboard_index: 'tiktok',
   tiktok_sales_records_index: 'tiktok',

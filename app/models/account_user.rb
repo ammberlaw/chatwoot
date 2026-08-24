@@ -8,6 +8,7 @@
 #  availability             :integer          default("online"), not null
 #  crm_finance              :boolean          default(FALSE), not null
 #  crm_role                 :string
+#  deactivated_at           :datetime
 #  erp_role                 :string
 #  mes_role                 :string
 #  mes_roles                :string           default([]), not null, is an Array
