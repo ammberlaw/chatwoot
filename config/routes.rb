@@ -262,6 +262,9 @@ Rails.application.routes.draw do
           namespace :erp do
             resource :dashboard, only: [:show], controller: 'dashboard'
           end
+          namespace :erp do
+            resource :dashboard, only: [:show], controller: 'dashboard'
+          end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard' do
               get :pipeline

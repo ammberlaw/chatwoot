@@ -104,6 +104,44 @@ class AccountUser < ApplicationRecord
     effective_mes_roles.flat_map { |r| MES_CAPABILITIES.fetch(r, []) }.uniq
   end
 
+  # ERP（财务管理）条线角色：finance(财务，全域) / cashier(出纳，预留，仅收付+资金)。
+  # 空=无 ERP 权限。单值——财务条线一档即可，与 MES 多岗不同。
+  # ⚠️ 生态硬约束：ERP 承载成本/供应商/毛利，纯销售角色绝不可进（见 can_access_erp?）。
+  ERP_ROLES = %w[finance cashier].freeze
+  validates :erp_role, inclusion: { in: ERP_ROLES }, allow_nil: true
+
+  # 角色 → 可写能力域。管理员/副管理员全能力。
+  ERP_CAPABILITIES = {
+    'finance' => %w[receivable payable payment cash cost ledger voucher report close asset doc claim supplier],
+    'cashier' => %w[payment cash]
+  }.freeze
+
+  # 能否在 ERP 某能力域写操作（应收/应付/收付/资金/成本/账簿/凭证/报表/结账/资产/单证/报销/供应商）。
+  def erp_can?(capability)
+    return true if administrator? || crm_deputy_admin?
+
+    erp_capability_list.include?(capability.to_s)
+  end
+
+  # 前端用：该成员可写的 ERP 能力域列表（管理员/副管理员全给）。
+  def erp_capability_list
+    return ERP_CAPABILITIES.values.flatten.uniq if administrator? || crm_deputy_admin?
+    return [] if erp_role.blank?
+
+    ERP_CAPABILITIES.fetch(erp_role, [])
+  end
+
+  # ERP 操作岗（有 erp_role）或管理员/副管理员。
+  def erp_staff?
+    administrator? || crm_deputy_admin? || erp_role.present?
+  end
+
+  # 能否进入 ERP：管理员/副管理员自动可入；否则需被赋予 erp_role 且 ERP 模块开关打开。
+  # 销售端（仅 crm_role、无 erp_role）一律不可入——成本/供应商/毛利硬隔离。
+  def can_access_erp?
+    administrator? || crm_deputy_admin? || (erp_role.present? && module_enabled?('erp'))
+  end
+
   # 业务系统模块使用权限（成员权限页按人开关）；管理员始终全模块。
   MODULES = %w[crm erp mes].freeze
 

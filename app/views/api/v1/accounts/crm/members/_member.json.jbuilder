@@ -9,5 +9,6 @@ json.is_admin member.administrator?
 json.crm_role member.crm_role
 json.crm_finance member.crm_finance
 json.mes_role member.mes_role
+json.erp_role member.erp_role
 json.can_access_crm member.can_access_crm?
 json.module_access member.module_access

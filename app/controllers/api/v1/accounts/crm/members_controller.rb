@@ -49,6 +49,7 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
 
     updates[:module_access] = normalized_modules if params[:member].key?(:module_access)
     updates[:mes_role] = params[:member][:mes_role].presence if params[:member].key?(:mes_role)
+    updates[:erp_role] = params[:member][:erp_role].presence if params[:member].key?(:erp_role)
     if params[:member].key?(:crm_finance)
       updates[:crm_finance] = ActiveModel::Type::Boolean.new.cast(params[:member][:crm_finance])
     end
