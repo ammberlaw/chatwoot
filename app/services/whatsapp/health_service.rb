@@ -1,5 +1,6 @@
 class Whatsapp::HealthService
-  BASE_URI = 'https://graph.facebook.com'.freeze
+  # Same relay override as FacebookApiClient — lets the China-hosted server reach GFW-blocked Meta.
+  BASE_URI = ENV.fetch('WHATSAPP_CLOUD_BASE_URL', 'https://graph.facebook.com').freeze
 
   def initialize(channel)
     @channel = channel

@@ -1,5 +1,7 @@
 class Whatsapp::FacebookApiClient
-  BASE_URI = 'https://graph.facebook.com'.freeze
+  # Route Graph API calls through an optional relay (WHATSAPP_CLOUD_BASE_URL) so the
+  # China-hosted server can reach Meta, which is otherwise GFW-blocked. Defaults to Meta direct.
+  BASE_URI = ENV.fetch('WHATSAPP_CLOUD_BASE_URL', 'https://graph.facebook.com').freeze
   # Base webhook fields resent on every subscribe so Meta won't reset to defaults. `calls` is added by callers only when voice is enabled.
   WEBHOOK_DEFAULT_FIELDS = %w[messages smb_message_echoes].freeze
 
