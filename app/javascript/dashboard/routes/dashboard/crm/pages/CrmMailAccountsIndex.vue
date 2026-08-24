@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmMailAccountsStore } from 'dashboard/stores/crm/mailAccounts';
 import { useCrmEmailSignaturesStore } from 'dashboard/stores/crm/emailSignatures';
 import MailAccountAPI from 'dashboard/api/crm/mailAccounts';
@@ -12,12 +13,25 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import CrmSignatureEditor from 'dashboard/components-next/CRM/CrmSignatureEditor.vue';
+import CrmSignatureGenerator from 'dashboard/components-next/CRM/CrmSignatureGenerator.vue';
 
 const { t } = useI18n();
 const store = useCrmMailAccountsStore();
 const sigStore = useCrmEmailSignaturesStore();
 const dialogRef = ref(null);
 const sigDialogRef = ref(null);
+
+const currentUser = useMapGetter('getCurrentUser');
+const currentAccount = useMapGetter('getCurrentAccount');
+
+// 生成器打开状态 + 自动带出的资料（少打字）。
+const showGenerator = ref(false);
+const genPrefill = computed(() => ({
+  name: currentUser.value?.name || '',
+  enName: currentUser.value?.crm_name || '',
+  email: records.value?.[0]?.email || currentUser.value?.email || '',
+  company: currentAccount.value?.name || '',
+}));
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -313,6 +327,18 @@ const removeSignature = async () => {
   }
 };
 
+// 生成器：把生成的 HTML 存成一条签名。
+const handleGeneratorSave = async payload => {
+  try {
+    await sigStore.create(payload);
+    await sigStore.get();
+    showGenerator.value = false;
+    useAlert(L.saved);
+  } catch {
+    useAlert(L.error);
+  }
+};
+
 onMounted(() => {
   store.get();
   sigStore.get();
@@ -463,13 +489,23 @@ onMounted(() => {
             </h2>
             <p class="mt-0.5 text-xs text-n-slate-10">{{ L.sigHint }}</p>
           </div>
-          <Button
-            :label="L.sigNew"
-            icon="i-lucide-plus"
-            size="sm"
-            color="iris"
-            @click="openSigCreate"
-          />
+          <div class="flex items-center gap-2">
+            <Button
+              label="用模板生成"
+              icon="i-lucide-wand-sparkles"
+              size="sm"
+              color="iris"
+              @click="showGenerator = true"
+            />
+            <Button
+              :label="L.sigNew"
+              icon="i-lucide-plus"
+              size="sm"
+              variant="outline"
+              color="slate"
+              @click="openSigCreate"
+            />
+          </div>
         </div>
         <div
           v-if="!signatures.length"
@@ -673,6 +709,13 @@ onMounted(() => {
         </button>
       </div>
     </Dialog>
+
+    <CrmSignatureGenerator
+      :show="showGenerator"
+      :prefill="genPrefill"
+      @close="showGenerator = false"
+      @save="handleGeneratorSave"
+    />
   </div>
 </template>
 
