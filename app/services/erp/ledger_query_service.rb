@@ -11,10 +11,12 @@ class Erp::LedgerQueryService
 
   # 科目余额表：期初 + 本期借贷发生 + 期末，按科目树汇总。
   # 返回按 code 排序的数组，每项含 account 与四个金额（micros）。
-  def balances(from:, to:)
+  # exclude_closing=true 排除期末结转凭证——利润表要「结转前」的本期损益，
+  # 否则结完账损益科目被冲平，利润表会显示 0（踩过）。
+  def balances(from:, to:, exclude_closing: false)
     accounts = @account.erp_ledger_accounts.order(:code).to_a
-    opening = grouped_sums(scope_before(from))
-    period = grouped_sums(scope_between(from, to))
+    opening = grouped_sums(scope_before(from, exclude_closing: exclude_closing))
+    period = grouped_sums(scope_between(from, to, exclude_closing: exclude_closing))
 
     rows = accounts.to_h { |account| [account.id, build_row(account, opening, period)] }
     rollup!(accounts, rows)
@@ -60,16 +62,22 @@ class Erp::LedgerQueryService
     { id: key, name: name, debit_micros: debit, credit_micros: credit, net_micros: debit - credit }
   end
 
-  def posted_lines
-    @account.erp_voucher_lines.joins(:voucher).where(erp_vouchers: { status: Erp::Voucher::POSTED })
+  CLOSING_SOURCE = 'Erp::PeriodClose'.freeze
+
+  def posted_lines(exclude_closing: false)
+    scope = @account.erp_voucher_lines.joins(:voucher).where(erp_vouchers: { status: Erp::Voucher::POSTED })
+    return scope unless exclude_closing
+
+    scope.where.not(erp_vouchers: { source_type: CLOSING_SOURCE })
+         .or(scope.where(erp_vouchers: { source_type: nil }))
   end
 
-  def scope_before(from)
-    posted_lines.where(erp_vouchers: { voucher_date: ...from })
+  def scope_before(from, exclude_closing: false)
+    posted_lines(exclude_closing: exclude_closing).where(erp_vouchers: { voucher_date: ...from })
   end
 
-  def scope_between(from, to)
-    posted_lines.where(erp_vouchers: { voucher_date: from..to })
+  def scope_between(from, to, exclude_closing: false)
+    posted_lines(exclude_closing: exclude_closing).where(erp_vouchers: { voucher_date: from..to })
   end
 
   def grouped_sums(scope)

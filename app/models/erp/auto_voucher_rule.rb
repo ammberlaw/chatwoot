@@ -3,6 +3,25 @@
 #
 # config 里可覆盖科目映射（如手续费想进「财务费用-手续费」以外的明细科目）；
 # 不填就按科目的 account_type 找默认科目。
+# == Schema Information
+#
+# Table name: erp_auto_voucher_rules
+#
+#  id         :bigint           not null, primary key
+#  config     :jsonb            not null
+#  event_key  :string           not null
+#  is_active  :boolean          default(TRUE), not null
+#  name       :string           not null
+#  remark     :text
+#  created_at :datetime         not null
+#  updated_at :datetime         not null
+#  account_id :bigint           not null
+#
+# Indexes
+#
+#  index_erp_auto_voucher_rules_on_account_id                (account_id)
+#  index_erp_auto_voucher_rules_on_account_id_and_event_key  (account_id,event_key) UNIQUE
+#
 class Erp::AutoVoucherRule < ApplicationRecord
   RECEIPT = 'RECEIPT'.freeze
   PAYMENT = 'PAYMENT'.freeze

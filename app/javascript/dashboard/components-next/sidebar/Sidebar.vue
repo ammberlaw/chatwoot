@@ -1011,6 +1011,7 @@ const menuItems = computed(() => {
           'erp_receivables_index',
           'erp_payables_index',
           'erp_cash_index',
+          'erp_periods_index',
         ],
         children: [
           {
@@ -1060,6 +1061,12 @@ const menuItems = computed(() => {
             label: '资金账户',
             to: accountScopedRoute('erp_cash_index'),
             activeOn: ['erp_cash_index'],
+          },
+          {
+            name: 'ERP Periods',
+            label: '期末结账',
+            to: accountScopedRoute('erp_periods_index'),
+            activeOn: ['erp_periods_index'],
           },
         ],
       },
@@ -1801,6 +1808,7 @@ const ROUTE_MODULE = {
   erp_receivables_index: 'erp',
   erp_payables_index: 'erp',
   erp_cash_index: 'erp',
+  erp_periods_index: 'erp',
   tiktok_today_index: 'tiktok',
   tiktok_dashboard_index: 'tiktok',
   tiktok_sales_records_index: 'tiktok',

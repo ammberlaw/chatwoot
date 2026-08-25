@@ -46,6 +46,9 @@ class Erp::Voucher < ApplicationRecord
   STATUSES = [DRAFT, POSTED, VOID].freeze
   STATUS_LABELS = { DRAFT => '待过账', POSTED => '已记账', VOID => '已作废' }.freeze
 
+  # 期末结转凭证由结账流程自己生成，绕过期间冻结校验（否则结账时自己拦自己）。
+  attr_accessor :skip_period_guard
+
   belongs_to :account
   belongs_to :prepared_by, class_name: 'User', optional: true
   belongs_to :posted_by, class_name: 'User', optional: true
@@ -60,6 +63,7 @@ class Erp::Voucher < ApplicationRecord
   validates :voucher_no, presence: true, uniqueness: { scope: :account_id }
   validates :voucher_date, presence: true
   validates :status, inclusion: { in: STATUSES }
+  validate :validate_period_open
 
   before_validation :assign_period
   before_validation :assign_voucher_no, on: :create
@@ -87,6 +91,16 @@ class Erp::Voucher < ApplicationRecord
   end
 
   private
+
+  # 已结账期间冻结（§13-6）：该期间的凭证不许新增/修改。
+  # 期末结转凭证本身是结账过程生成的，用 skip_period_guard 放行。
+  def validate_period_open
+    return if skip_period_guard
+    return if period.blank?
+    return unless Erp::FiscalPeriod.closed?(account, period)
+
+    errors.add(:base, "会计期间 #{period} 已结账，凭证已冻结；要改请先由管理员反结账")
+  end
 
   def sum_base(rows)
     Array(rows).sum { |line| line.base_amount_micros.to_i }

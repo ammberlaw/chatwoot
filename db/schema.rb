@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_29_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_30_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1946,6 +1946,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_29_000003) do
     t.index ["account_id"], name: "index_erp_cash_transactions_on_account_id"
     t.index ["cash_account_id"], name: "index_erp_cash_transactions_on_cash_account_id"
     t.index ["source_type", "source_id"], name: "index_erp_cash_transactions_on_source_type_and_source_id"
+  end
+
+  create_table "erp_fiscal_periods", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "period", null: false
+    t.string "status", default: "OPEN", null: false
+    t.datetime "closed_at"
+    t.bigint "closed_by_id"
+    t.bigint "closing_voucher_id"
+    t.datetime "reopened_at"
+    t.bigint "reopened_by_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "period"], name: "index_erp_fiscal_periods_on_account_id_and_period", unique: true
+    t.index ["account_id"], name: "index_erp_fiscal_periods_on_account_id"
   end
 
   create_table "erp_ledger_accounts", force: :cascade do |t|

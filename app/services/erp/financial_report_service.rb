@@ -69,9 +69,10 @@ class Erp::FinancialReportService
     }
   end
 
-  # 利润表（期间表）：本期发生额口径。
+  # 利润表（期间表）：本期发生额口径，**排除期末结转凭证**——
+  # 结转把损益科目冲平了，算进来利润表会变成 0。
   def income_statement(from:, to:)
-    rows = leaf_rows(from: from, to: to, period_only: true)
+    rows = leaf_rows(from: from, to: to, period_only: true, exclude_closing: true)
     values = INCOME_ROWS.index_with { |row| row_amount(rows, row) }
 
     operating = OPERATING_PLUS.sum { |k| values[find_row(k)] } - OPERATING_MINUS.sum { |k| values[find_row(k)] }
@@ -95,8 +96,9 @@ class Erp::FinancialReportService
 
   # 只取末级科目（分类科目是汇总数，会重复计）。
   # period_only=true 时用本期发生额（利润表），否则用累计余额（资产负债表）。
-  def leaf_rows(from:, to:, period_only: false)
-    @query.balances(from: from, to: to).reject { |row| row[:account].is_group? }.map do |row|
+  def leaf_rows(from:, to:, period_only: false, exclude_closing: false)
+    balances = @query.balances(from: from, to: to, exclude_closing: exclude_closing)
+    balances.reject { |row| row[:account].is_group? }.map do |row|
       amount = if period_only
                  directional(row[:account].direction, row[:debit_micros], row[:credit_micros])
                else

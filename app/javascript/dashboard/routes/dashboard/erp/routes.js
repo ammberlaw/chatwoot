@@ -8,6 +8,7 @@ import ErpReportsIndex from './pages/ErpReportsIndex.vue';
 import ErpReceivablesIndex from './pages/ErpReceivablesIndex.vue';
 import ErpPayablesIndex from './pages/ErpPayablesIndex.vue';
 import ErpCashIndex from './pages/ErpCashIndex.vue';
+import ErpPeriodsIndex from './pages/ErpPeriodsIndex.vue';
 
 // ERP（财务管理）板块：与 CRM 同账号同登录；页面级前端只做展示，
 // 数据权限后端把关（Erp::BaseController 403，仅管理员/副管理员/财务）。
@@ -38,4 +39,5 @@ export const routes = [
   erpPage('receivables', 'erp_receivables_index', ErpReceivablesIndex),
   erpPage('payables', 'erp_payables_index', ErpPayablesIndex),
   erpPage('cash', 'erp_cash_index', ErpCashIndex),
+  erpPage('periods', 'erp_periods_index', ErpPeriodsIndex),
 ];

@@ -304,6 +304,12 @@ Rails.application.routes.draw do
               end
             end
             resources :auto_voucher_rules, only: [:index, :update]
+            resources :fiscal_periods, only: [:index] do
+              collection do
+                post :close
+                post :reopen
+              end
+            end
             # 财务报表：资产负债表（时点）/ 利润表（期间）
             get 'reports/balance_sheet', to: 'reports#balance_sheet'
             get 'reports/income_statement', to: 'reports#income_statement'
