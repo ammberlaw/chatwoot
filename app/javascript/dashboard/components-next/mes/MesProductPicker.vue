@@ -28,7 +28,18 @@ const rows = ref([]);
 const loading = ref(false);
 
 onClickOutside(triggerEl, () => { open.value = false; }, { ignore: [popoverEl] }); // prettier-ignore
-useEventListener('scroll', () => { if (open.value) open.value = false; }, { capture: true, passive: true }); // prettier-ignore
+// 页面滚动时关闭（fixed 弹层会与触发器错位）；但弹层内部列表滚动不关。
+useEventListener(
+  'scroll',
+  e => {
+    if (!open.value) return;
+    const t = e.target;
+    if (popoverEl.value && t instanceof Node && popoverEl.value.contains(t))
+      return;
+    open.value = false;
+  },
+  { capture: true, passive: true }
+);
 useEventListener('resize', () => {
   if (open.value) open.value = false;
 });
@@ -86,7 +97,8 @@ const toggle = async () => {
   if (!rows.value.length) fetchRows('');
   await nextTick();
   positionPopover();
-  searchEl.value?.focus();
+  // preventScroll：聚焦搜索框时别让浏览器滚动页面，否则会触发上面的滚动监听把刚开的弹层关掉。
+  searchEl.value?.focus({ preventScroll: true });
 };
 
 const pick = p => {
