@@ -27,8 +27,6 @@ json.remark resource.remark
 json.return_reason resource.return_reason
 json.returned_at resource.returned_at
 json.returned_by_name resource.returned_by&.name
-json.paid_at resource.paid_at
-json.paid_by_name resource.paid_by&.name
 json.employee_signed_at resource.employee_signed_at
 json.manager_signed_at resource.manager_signed_at
 json.hr_confirmed_at resource.hr_confirmed_at

@@ -231,10 +231,6 @@ Rails.application.routes.draw do
               end
             end
             resources :kpi_sheets do
-              collection do
-                post :mark_paid
-                post :unmark_paid
-              end
               member do
                 post :submit
                 post :score

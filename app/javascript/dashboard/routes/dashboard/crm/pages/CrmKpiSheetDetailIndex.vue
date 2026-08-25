@@ -79,14 +79,7 @@ const gmOwnerId = computed(
 );
 const isHr = computed(() => isAdmin.value || uid.value === hrOwnerId.value);
 const isGm = computed(() => isAdmin.value || uid.value === gmOwnerId.value);
-const isCrmFinance = computed(
-  () => isAdmin.value || currentUser.value?.crm_finance === true
-);
 const status = computed(() => sheet.value?.status);
-// 财务发放：仅归档表可标记已发放（金额=系统已算的绩效薪资）。
-const canMarkPaid = computed(
-  () => isCrmFinance.value && status.value === 'ARCHIVED'
-);
 
 const stepIndex = computed(() => STEPS.indexOf(status.value));
 const canFillActual = computed(
@@ -330,33 +323,6 @@ const submitReopen = async () => {
   }
 };
 
-// 财务发放：标记 / 撤销「已发放」，成功后重载表。
-const markPaid = async () => {
-  busy.value = true;
-  try {
-    await CrmKpiSheetAPI.markPaid([sheetId]);
-    await load();
-    useAlert(t('CRM.KPI_SHEETS.PAYOUT.MARKED', { n: 1 }));
-  } catch (err) {
-    useAlert(err?.response?.data?.error || t('CRM.KPI_SHEETS.PAYOUT.ERROR'));
-  } finally {
-    busy.value = false;
-  }
-};
-const unmarkPaid = async () => {
-  if (!window.confirm(t('CRM.KPI_SHEETS.PAYOUT.UNMARK_CONFIRM'))) return;
-  busy.value = true;
-  try {
-    await CrmKpiSheetAPI.unmarkPaid([sheetId]);
-    await load();
-    useAlert(t('CRM.KPI_SHEETS.PAYOUT.UNMARKED'));
-  } catch (err) {
-    useAlert(err?.response?.data?.error || t('CRM.KPI_SHEETS.PAYOUT.ERROR'));
-  } finally {
-    busy.value = false;
-  }
-};
-
 const submitSheet = () => save().then(() => runAction(CrmKpiSheetAPI.submit));
 const scoreSheet = () => save().then(() => runAction(CrmKpiSheetAPI.score));
 const hrConfirm = () => runAction(CrmKpiSheetAPI.hrConfirm);
@@ -479,24 +445,6 @@ const inCls =
           color="teal"
           :is-disabled="busy"
           @click="scoreSheet"
-        />
-        <Button
-          v-if="canMarkPaid && !sheet.paidAt"
-          :label="t('CRM.KPI_SHEETS.PAYOUT.MARK_ONE')"
-          icon="i-lucide-banknote"
-          color="teal"
-          :is-disabled="busy"
-          @click="markPaid"
-        />
-        <Button
-          v-if="isCrmFinance && sheet.paidAt"
-          :label="t('CRM.KPI_SHEETS.PAYOUT.UNMARK')"
-          icon="i-lucide-undo-2"
-          size="sm"
-          variant="faded"
-          color="slate"
-          :is-disabled="busy"
-          @click="unmarkPaid"
         />
       </div>
     </div>
@@ -647,23 +595,6 @@ v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
             {{ fmtDate(sheet.returnedAt) }}）</span
           >
           <div class="mt-1">{{ reopenNotice }}</div>
-        </div>
-      </div>
-
-      <!-- 已发放提醒（财务标记后，全员可见） -->
-      <div
-        v-if="sheet.paidAt"
-        class="flex items-center gap-2 p-4 border rounded-2xl border-n-teal-6 bg-n-teal-2"
-      >
-        <span class="i-lucide-banknote size-4 shrink-0 text-n-teal-11" />
-        <div class="text-sm text-n-slate-12">
-          <span class="font-medium text-n-teal-11">{{
-            t('CRM.KPI_SHEETS.PAYOUT.PAID_BANNER')
-          }}</span>
-          <span class="text-xs text-n-slate-10"
-            >（{{ sheet.paidByName || '' }} ·
-            {{ fmtDate(sheet.paidAt) }}）</span
-          >
         </div>
       </div>
 

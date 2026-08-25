@@ -28,8 +28,4 @@ client.returnSheet = (id, reason) =>
 client.reopenScoring = (id, reason) =>
   axios.post(`${client.url}/${id}/reopen_scoring`, { reason });
 
-// 财务发放：批量标记「已归档」绩效表为已发放（金额=系统已算）；单张亦传 [id]。
-client.markPaid = ids => axios.post(`${client.url}/mark_paid`, { ids });
-client.unmarkPaid = ids => axios.post(`${client.url}/unmark_paid`, { ids });
-
 export default client;

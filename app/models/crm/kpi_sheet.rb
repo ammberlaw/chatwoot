@@ -65,7 +65,6 @@ class Crm::KpiSheet < ApplicationRecord
   belongs_to :hr, class_name: 'User', optional: true
   belongs_to :gm, class_name: 'User', optional: true
   belongs_to :returned_by, class_name: 'User', optional: true
-  belongs_to :paid_by, class_name: 'User', optional: true
 
   has_many :sheet_items, class_name: 'Crm::KpiSheetItem', foreign_key: :crm_kpi_sheet_id, dependent: :destroy, inverse_of: :sheet
 
@@ -135,16 +134,6 @@ class Crm::KpiSheet < ApplicationRecord
     )
     [manager_signature, hr_signature, gm_signature].each { |sig| sig.purge if sig.attached? }
     save!
-  end
-
-  # 财务发放：仅归档(ARCHIVED)表可标记「已发放」，金额用系统已算的 actual_payout_micros。
-  def mark_paid!(by:)
-    update!(paid_at: Time.current, paid_by_id: by.id)
-  end
-
-  # 撤销发放（财务/管理员点错兜底）。
-  def unmark_paid!
-    update!(paid_at: nil, paid_by_id: nil)
   end
 
   private
