@@ -60,6 +60,46 @@ const productOptions = computed(() => [
   ...products.value.map(p => ({ value: String(p.id), label: p.name })),
 ]);
 
+// —— 用料明细：物料改从产品档案下拉搜索选择（按商品编码/名称/规格搜，选中自动带出编码/名称/规格/单位）——
+const materialOptions = ref([]); // [{ value, label, sku, name, specification, unit }]
+const searchMaterials = async (q = '') => {
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/products`,
+      { params: { q: q || undefined, per_page: 50, filter: 'active' } }
+    );
+    const list = data?.payload || data || [];
+    materialOptions.value = list.map(p => ({
+      value: String(p.id),
+      label: p.sku ? `${p.sku} · ${p.name}` : p.name,
+      sku: p.sku || '',
+      name: p.name || '',
+      specification: p.specification || '',
+      unit: p.unit || '',
+    }));
+  } catch {
+    materialOptions.value = [];
+  }
+};
+let materialSearchTimer = null;
+const onMaterialSearch = q => {
+  clearTimeout(materialSearchTimer);
+  materialSearchTimer = setTimeout(() => searchMaterials(q), 300);
+};
+const onMaterialOpen = () => {
+  if (!materialOptions.value.length) searchMaterials('');
+};
+// 选中产品档案 → 回填该行的编码/名称/规格/单位。
+const pickMaterial = (row, id) => {
+  row.productId = id;
+  const p = materialOptions.value.find(o => o.value === id);
+  if (!p) return;
+  row.materialNo = p.sku;
+  row.materialName = p.name;
+  if (p.specification) row.specification = p.specification;
+  if (p.unit) row.unit = p.unit;
+};
+
 // 订单归属业务员：只列真正的业务角色（可归属 CRM 订单）——业务员/部门负责人/
 // 副管理员；排除 HR 与无 CRM 角色的普通成员。选填。
 const SALES_CRM_ROLES = ['sales', 'manager', 'deputy_admin'];
@@ -147,6 +187,7 @@ const printBom = () => printNode(viewContentRef.value, bomExportData().title);
 
 // 用料明细每行照生产任务单直接填。
 const blankRow = () => ({
+  productId: '',
   materialNo: '',
   materialName: '',
   specification: '',
@@ -316,6 +357,7 @@ const openEdit = bom => {
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, bom[s.key] ?? ''])),
     rows: (bom.bomItems || []).map(it => ({
       id: it.id,
+      productId: '',
       materialNo: it.materialNo || '',
       materialName: it.materialName || '',
       specification: it.specification || '',
@@ -428,6 +470,7 @@ const applyTemplate = t => {
     ...blankHeader(),
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, t[s.key] ?? ''])),
     rows: (t.bomTemplateItems || []).map(it => ({
+      productId: '',
       materialNo: it.materialNo || '',
       materialName: it.materialName || '',
       specification: it.specification || '',
@@ -866,14 +909,26 @@ onMounted(async () => {
                 block
               />
             </div>
-            <Input
-              v-model="row.materialNo"
-              placeholder="P.03.201"
+            <ComboBox
+              :model-value="row.productId"
+              :options="materialOptions"
+              :display-label="
+                row.materialNo
+                  ? `${row.materialNo}${row.materialName ? ` · ${row.materialName}` : ''}`
+                  : ''
+              "
+              use-api-results
+              placeholder="搜商品编码/名称"
+              search-placeholder="输入编码或名称搜索"
               class="col-span-2"
+              @open="onMaterialOpen"
+              @search="onMaterialSearch"
+              @update:model-value="id => pickMaterial(row, id)"
             />
             <Input
-              v-model="row.materialName"
-              placeholder="P30主板"
+              :model-value="row.materialName"
+              placeholder="选编码自动带出"
+              disabled
               class="col-span-2"
             />
             <Input
