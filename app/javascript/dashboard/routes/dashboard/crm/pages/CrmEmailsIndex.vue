@@ -2029,7 +2029,7 @@ watch(
       <template v-else>
         <!-- 工具栏 -->
         <div
-          class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 sm:px-6 border-b border-n-weak"
+          class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 flex-shrink-0 px-4 py-3 sm:px-6 border-b border-n-weak"
         >
           <div class="flex items-center min-w-0 gap-2">
             <button
