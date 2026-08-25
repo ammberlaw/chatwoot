@@ -236,15 +236,22 @@ onMounted(async () => {
                 </div>
               </button>
 
-              <!-- ERP（即将上线） -->
-              <button type="button" class="wsh-card wsh-glass" @click="soon('ERP 进销存')">
+              <!-- ERP：财务岗/管理员进得去，其余人看到的还是「即将上线」占位 -->
+              <button
+                type="button"
+                class="wsh-card wsh-glass"
+                @click="canAccessErp ? go('erp_dashboard_index') : soon('ERP 进销存')"
+              >
                 <div class="lbl a-teal">
                   <Icon icon="i-lucide-package" /> ERP 进销存·财务
-                  <span class="tag">即将上线</span>
+                  <span v-if="!canAccessErp" class="tag">即将上线</span>
                 </div>
-                <div class="sub2">采购 · 库存 · 凭证一体化</div>
-                <div class="chips"><span>采购</span><span>库存</span><span>凭证</span><span>报表</span></div>
-                <div class="cta2 muted">敬请期待</div>
+                <div class="sub2">科目 · 凭证 · 账簿 · 报表</div>
+                <div class="chips"><span>科目</span><span>凭证</span><span>账簿</span><span>报表</span></div>
+                <div v-if="canAccessErp" class="cta2">
+                  进入财务 ERP <Icon icon="i-lucide-arrow-right" />
+                </div>
+                <div v-else class="cta2 muted">敬请期待</div>
               </button>
 
               <!-- HR -->
@@ -283,23 +290,6 @@ onMounted(async () => {
                 <div class="cta">
                   进入 MES 生产制造 <Icon icon="i-lucide-arrow-right" />
                 </div>
-              </button>
-
-              <!-- 财务 ERP（仅财务岗/管理员可见） -->
-              <button
-                v-if="canAccessErp"
-                type="button"
-                class="wsh-card wsh-glass"
-                @click="go('erp_dashboard_index')"
-              >
-                <div class="lbl a-violet">
-                  <Icon icon="i-lucide-landmark" /> 财务 ERP
-                </div>
-                <div class="sub2">科目 · 凭证 · 账簿 · 报表</div>
-                <div class="chips">
-                  <span>应收</span><span>应付</span><span>凭证</span><span>报表</span>
-                </div>
-                <div class="cta2">进入财务 ERP <Icon icon="i-lucide-arrow-right" /></div>
               </button>
 
               <!-- OA（真实待办数） -->
