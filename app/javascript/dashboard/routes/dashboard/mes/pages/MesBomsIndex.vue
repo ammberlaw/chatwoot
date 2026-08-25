@@ -71,7 +71,8 @@ const searchMaterials = async (q = '') => {
     const list = data?.payload || data || [];
     materialOptions.value = list.map(p => ({
       value: String(p.id),
-      label: p.sku ? `${p.sku} · ${p.name}` : p.name,
+      // 料号 · 名称 · 规格 一起显示：同名不同规格的料才分得清（工程反馈）。
+      label: [p.sku, p.name, p.specification].filter(Boolean).join(' · '),
       sku: p.sku || '',
       name: p.name || '',
       specification: p.specification || '',
