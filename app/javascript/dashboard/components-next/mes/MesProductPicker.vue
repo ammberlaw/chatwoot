@@ -79,9 +79,14 @@ const positionPopover = () => {
     below + popH > window.innerHeight && r.top - popH - 6 > 0
       ? r.top - popH - 6
       : below;
-  const width = Math.min(POP_W, window.innerWidth - 16);
+  // 弹层若在对话框内，限制在对话框边界内，避免比对话框宽而溢出错位；否则回退到视口。
+  const dialog = el.closest('dialog');
+  const b = dialog
+    ? dialog.getBoundingClientRect()
+    : { left: 8, right: window.innerWidth - 8 };
+  const width = Math.min(POP_W, b.right - b.left - 16);
   let left = r.left;
-  left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+  left = Math.max(b.left + 8, Math.min(left, b.right - width - 8));
   popStyle.value = {
     position: 'fixed',
     top: `${top}px`,

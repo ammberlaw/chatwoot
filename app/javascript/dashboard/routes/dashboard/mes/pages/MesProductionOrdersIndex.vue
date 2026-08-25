@@ -6,6 +6,7 @@ import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import camelcaseKeys from 'camelcase-keys';
+import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import MesBomAPI from 'dashboard/api/mes/boms';
@@ -649,14 +650,9 @@ const outsourceForm = ref({
   supplierId: '',
   productName: '',
 });
-const supplierOptions = computed(() => [
-  { value: '', label: '选择供应商…' },
-  ...suppliers.value.map(s => ({ value: String(s.id), label: s.name })),
-]);
-const outsourceProductOptions = computed(() => [
-  { value: '', label: '选择外购成品…' },
-  ...products.value.map(p => ({ value: String(p.id), label: p.name })),
-]);
+const supplierOptions = computed(() =>
+  suppliers.value.map(s => ({ value: String(s.id), label: s.name }))
+);
 const outsourceInvalid = computed(
   () => !outsourceForm.value.crmProductId || !outsourceForm.value.supplierId
 );
@@ -668,7 +664,6 @@ const openMarkOutsourced = async () => {
     supplierId: '',
     productName: selected.value?.productName || '',
   };
-  if (!products.value.length) fetchPickerData();
   if (!suppliers.value.length) {
     try {
       const { data } = await axios.get(
@@ -1563,24 +1558,74 @@ watch(currentPage, fetchRecords);
             <div class="text-xs text-n-slate-11">
               工程/PMC BOM：{{ selected.bomNo }}
             </div>
-            <!-- 业务二次确认状态 -->
+            <!-- 两步流程指引：谁做、到哪步了，避免「业务确认后到底谁下发采购」的误解 -->
             <div
               v-if="selected.stage === 'BOM_READY'"
-              class="mt-1 text-xs"
-              :class="
-                selected.bomConfirmedAt ? 'text-n-teal-11' : 'text-n-amber-11'
-              "
+              class="flex flex-col gap-2 p-3 mt-2 text-xs rounded-lg bg-n-alpha-1"
             >
-              <template v-if="selected.bomConfirmedAt">
-                ✓ 业务已确认BOM{{
-                  selected.bomConfirmedByName
-                    ? `（${selected.bomConfirmedByName}）`
-                    : ''
-                }}
-              </template>
-              <template v-else>
-                ⏳ 待业务二次确认BOM，确认后方可下发采购
-              </template>
+              <div class="flex items-start gap-2">
+                <span
+                  class="flex items-center justify-center w-4 h-4 text-white rounded-full shrink-0 text-[10px]"
+                  :class="
+                    selected.bomConfirmedAt ? 'bg-n-teal-9' : 'bg-n-amber-9'
+                  "
+                >
+                  {{ selected.bomConfirmedAt ? '✓' : '1' }}
+                </span>
+                <div class="flex flex-col">
+                  <span class="font-medium text-n-slate-12">
+                    业务核对确认用料
+                  </span>
+                  <span
+                    :class="
+                      selected.bomConfirmedAt
+                        ? 'text-n-teal-11'
+                        : 'text-n-amber-11'
+                    "
+                  >
+                    {{
+                      selected.bomConfirmedAt
+                        ? `已确认${
+                            selected.bomConfirmedByName
+                              ? `（${selected.bomConfirmedByName}）`
+                              : ''
+                          }`
+                        : '待业务确认（点下方「业务确认BOM」）'
+                    }}
+                  </span>
+                </div>
+              </div>
+              <div class="flex items-start gap-2">
+                <span
+                  class="flex items-center justify-center w-4 h-4 rounded-full shrink-0 text-[10px]"
+                  :class="
+                    selected.bomConfirmedAt
+                      ? 'bg-n-iris-9 text-white'
+                      : 'bg-n-slate-4 text-n-slate-10'
+                  "
+                >
+                  2
+                </span>
+                <div class="flex flex-col">
+                  <span
+                    class="font-medium"
+                    :class="
+                      selected.bomConfirmedAt
+                        ? 'text-n-slate-12'
+                        : 'text-n-slate-10'
+                    "
+                  >
+                    工程/PMC 下发采购
+                  </span>
+                  <span class="text-n-slate-10">
+                    {{
+                      selected.bomConfirmedAt
+                        ? '业务已确认，由工程/PMC 下发采购'
+                        : '待业务确认后，由工程/PMC 下发（非业务操作）'
+                    }}
+                  </span>
+                </div>
+              </div>
             </div>
             <!-- 查看工程做的用料清单（弹窗看完整明细） -->
             <Button
@@ -2090,7 +2135,7 @@ watch(currentPage, fetchRecords);
     <!-- 标记外购弹窗（工程判定外购成品：选产品+供应商，跳过 BOM 直接进采购） -->
     <Dialog
       ref="outsourceDialogRef"
-      width="lg"
+      width="3xl"
       confirm-button-color="iris"
       title="标记外购成品"
       description="外购成品不走生产：选定产品与供应商后，订单直接进入采购阶段，由采购按单下采购单。跳过 BOM/领料/报工/质检。"
@@ -2103,21 +2148,24 @@ watch(currentPage, fetchRecords);
           <label class="text-heading-3 text-n-slate-12">
             外购成品 <span class="text-n-ruby-11">*</span>
           </label>
-          <SelectCard
-            size="form"
+          <MesProductPicker
+            :account-id="accountId"
             :model-value="outsourceForm.crmProductId"
-            :options="outsourceProductOptions"
+            :display-text="outsourceForm.productName"
+            placeholder="搜索并选择外购成品（编码/名称/规格）"
             @update:model-value="v => (outsourceForm.crmProductId = v)"
+            @select="p => (outsourceForm.productName = p.name)"
           />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">
             供应商 <span class="text-n-ruby-11">*</span>
           </label>
-          <SelectCard
-            size="form"
+          <ComboBox
             :model-value="outsourceForm.supplierId"
             :options="supplierOptions"
+            placeholder="选择供应商"
+            search-placeholder="搜索供应商"
             @update:model-value="v => (outsourceForm.supplierId = v)"
           />
         </div>

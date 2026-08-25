@@ -16,6 +16,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
@@ -140,27 +141,21 @@ const mergeProductOptions = list => {
     }
   });
 };
-const loadProducts = async (q = '') => {
-  try {
-    const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/products`,
-      { params: { filter: 'active', q } }
-    );
-    mergeProductOptions(
-      (data?.payload || []).map(p => ({
-        value: String(p.id),
-        label: `${p.name}${p.sku ? `（${p.sku}）` : ''}${
-          p.specification ? ` · ${p.specification}` : ''
-        }`,
-        unit: p.unit || '',
-      }))
-    );
-  } catch {
-    // 忽略：搜索失败保留现有选项
-  }
-};
 const productUnit = id =>
   productOptions.value.find(o => o.value === String(id))?.unit || '';
+const productLabel = id =>
+  productOptions.value.find(o => o.value === String(id))?.label || '';
+// MesProductPicker 选中：把该成品并入 productOptions，保证行内显示文本与提交单位都可查。
+const onProductPicked = p =>
+  mergeProductOptions([
+    {
+      value: String(p.id),
+      label: `${p.name}${p.sku ? `（${p.sku}）` : ''}${
+        p.specification ? ` · ${p.specification}` : ''
+      }`,
+      unit: p.unit || '',
+    },
+  ]);
 
 const dialogRef = ref(null);
 const editingId = ref(null);
@@ -332,7 +327,6 @@ onMounted(async () => {
   // 供应商下拉需全量，默认分页只出第一页会漏选。
   suppliersStore.get({ per_page: 500 });
   materialsStore.get();
-  loadProducts('');
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/production_orders`
@@ -604,13 +598,14 @@ onMounted(async () => {
               />
             </div>
             <div class="md:col-span-4">
-              <ComboBox
+              <MesProductPicker
                 v-if="row.itemType === 'PRODUCT'"
-                v-model="row.crmProductId"
-                :options="productOptions"
-                use-api-results
-                placeholder="选择外购成品"
-                @search="loadProducts"
+                :account-id="accountId"
+                :model-value="row.crmProductId"
+                :display-text="productLabel(row.crmProductId)"
+                placeholder="选择外购成品（编码/名称/规格）"
+                @update:model-value="v => (row.crmProductId = v)"
+                @select="onProductPicked"
               />
               <ComboBox
                 v-else
