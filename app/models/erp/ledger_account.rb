@@ -4,6 +4,40 @@
 #
 # 树形：is_group=true 的是分类节点（只汇总不记账），叶子科目才能挂分录行（凭证侧校验）。
 # 余额方向 direction 决定报表取数与增减符号；备抵科目（累计折旧/坏账准备）方向与大类相反，故单列一字段。
+# == Schema Information
+#
+# Table name: erp_ledger_accounts
+#
+#  id           :bigint           not null, primary key
+#  account_type :string
+#  bs_section   :string
+#  category     :string           not null
+#  code         :string           not null
+#  currency     :string
+#  dimensions   :jsonb            not null
+#  direction    :string           not null
+#  is_active    :boolean          default(TRUE), not null
+#  is_group     :boolean          default(FALSE), not null
+#  is_system    :boolean          default(FALSE), not null
+#  name         :string           not null
+#  position     :integer          default(0), not null
+#  remark       :text
+#  created_at   :datetime         not null
+#  updated_at   :datetime         not null
+#  account_id   :bigint           not null
+#  parent_id    :bigint
+#
+# Indexes
+#
+#  index_erp_ledger_accounts_on_account_id               (account_id)
+#  index_erp_ledger_accounts_on_account_id_and_category  (account_id,category)
+#  index_erp_ledger_accounts_on_account_id_and_code      (account_id,code) UNIQUE
+#  index_erp_ledger_accounts_on_parent_id                (parent_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (parent_id => erp_ledger_accounts.id) ON DELETE => restrict
+#
 class Erp::LedgerAccount < ApplicationRecord
   # 国标五大类。收入与费用同属「损益类(6)」，靠 direction 区分（收入贷方、费用借方），与金蝶一致。
   CATEGORIES = %w[ASSET LIABILITY EQUITY COST PL].freeze
