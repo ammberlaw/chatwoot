@@ -282,6 +282,9 @@ Rails.application.routes.draw do
             get 'ledgers/balances', to: 'ledgers#balances'
             get 'ledgers/entries', to: 'ledgers#entries'
             get 'ledgers/dimensions', to: 'ledgers#dimensions'
+            # 财务报表：资产负债表（时点）/ 利润表（期间）
+            get 'reports/balance_sheet', to: 'reports#balance_sheet'
+            get 'reports/income_statement', to: 'reports#income_statement'
           end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard' do
