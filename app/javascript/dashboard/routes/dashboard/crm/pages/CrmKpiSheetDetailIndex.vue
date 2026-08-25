@@ -620,7 +620,8 @@ const inCls =
           <span class="font-medium text-n-ruby-11">{{
             t('CRM.KPI_SHEETS.RETURNED_BANNER')
           }}</span>
-          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
+          <span
+v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
             >（{{ sheet.returnedByName }} ·
             {{ fmtDate(sheet.returnedAt) }}）</span
           >
@@ -640,7 +641,8 @@ const inCls =
           <span class="font-medium text-n-amber-11">{{
             t('CRM.KPI_SHEETS.REOPEN_BANNER')
           }}</span>
-          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
+          <span
+v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
             >（{{ sheet.returnedByName }} ·
             {{ fmtDate(sheet.returnedAt) }}）</span
           >

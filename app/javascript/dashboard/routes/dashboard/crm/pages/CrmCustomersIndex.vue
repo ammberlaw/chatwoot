@@ -43,7 +43,10 @@ const toggleFavorite = async customer => {
 
 // 每页条数（默认 15，与后端 RESULTS_PER_PAGE 一致；后端上限 200）。
 const PAGE_SIZE_OPTIONS = [15, 30, 50, 100];
-const pageSizeOptions = PAGE_SIZE_OPTIONS.map(s => ({ value: s, label: String(s) }));
+const pageSizeOptions = PAGE_SIZE_OPTIONS.map(s => ({
+  value: s,
+  label: String(s),
+}));
 const pageSize = ref(15);
 
 const { t } = useI18n();
@@ -563,7 +566,9 @@ const orderedKeys = ref([...DEFAULT_COL_KEYS]);
 // 载入本人保存的列顺序；剔除已下线列、补齐新列（新列排末尾），保证向后兼容。
 const loadColOrder = () => {
   try {
-    const saved = JSON.parse(localStorage.getItem(colStorageKey.value) || 'null');
+    const saved = JSON.parse(
+      localStorage.getItem(colStorageKey.value) || 'null'
+    );
     if (Array.isArray(saved)) {
       const kept = saved.filter(k => DEFAULT_COL_KEYS.includes(k));
       const missing = DEFAULT_COL_KEYS.filter(k => !kept.includes(k));
@@ -577,7 +582,10 @@ const loadColOrder = () => {
 };
 const saveColOrder = () => {
   try {
-    localStorage.setItem(colStorageKey.value, JSON.stringify(orderedKeys.value));
+    localStorage.setItem(
+      colStorageKey.value,
+      JSON.stringify(orderedKeys.value)
+    );
   } catch {
     // localStorage 不可用时忽略（顺序本次会话内仍生效）
   }
@@ -699,7 +707,9 @@ const saveNextFollowUp = async () => {
       { next_follow_up_at: startAt, add_to_schedule: addToSchedule.value }
     );
     selectedCustomer.value.next_follow_up_at = startAt;
-    useAlert(addToSchedule.value ? '下次跟进已保存并加入日程' : '下次跟进已保存');
+    useAlert(
+      addToSchedule.value ? '下次跟进已保存并加入日程' : '下次跟进已保存'
+    );
   } catch {
     useAlert('保存失败');
   } finally {
@@ -1451,9 +1461,7 @@ watch(
 
 <template>
   <div class="flex w-full h-full overflow-hidden font-sans">
-    <div
-      class="flex flex-col flex-1 min-w-0 overflow-hidden gap-3.5 px-5 py-4"
-    >
+    <div class="flex flex-col flex-1 min-w-0 overflow-hidden gap-3.5 px-5 py-4">
       <div class="flex items-center justify-between flex-shrink-0">
         <div>
           <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
@@ -1506,7 +1514,7 @@ watch(
             class="grid place-items-center flex-none rounded-xl size-11"
             :class="card.tile"
           >
-            <span :class="[card.icon, 'size-5']" />
+            <span class="size-5" :class="[card.icon]" />
           </div>
           <div class="min-w-0">
             <div
@@ -1606,13 +1614,13 @@ watch(
               @click="bulkSendSelected"
             />
             <SelectCard
-              :model-value="''"
+              model-value=""
               :options="bulkStatusOptions"
               :disabled="bulkFieldBusy"
               @update:model-value="v => applyBulkField('customer_status', v)"
             />
             <SelectCard
-              :model-value="''"
+              model-value=""
               :options="bulkGroupOptions"
               :disabled="bulkFieldBusy"
               @update:model-value="v => applyBulkField('customer_group', v)"
@@ -1624,7 +1632,9 @@ watch(
         <div
           class="flex flex-wrap items-center gap-2 pt-2.5 border-t border-n-weak"
         >
-          <span class="text-[11.5px] font-semibold tracking-wide text-n-slate-10">
+          <span
+            class="text-[11.5px] font-semibold tracking-wide text-n-slate-10"
+          >
             筛选
           </span>
           <!-- 公海全公司共享，不提供团队/业务员筛选 -->
@@ -1700,200 +1710,107 @@ watch(
             class="flex items-center justify-center p-8 text-sm text-n-slate-11"
           >
             {{ t('CRM.CUSTOMERS.LOADING') }}
-        </div>
-        <div
-          v-else-if="!customers.length"
-          class="flex items-center justify-center p-8 text-sm text-n-slate-11"
-        >
-          {{ t('CRM.CUSTOMERS.EMPTY') }}
-        </div>
-        <div v-else class="overflow-x-auto">
-          <div class="overflow-x-auto">
-            <table
-              class="w-full text-[13px] text-left border-separate border-spacing-0"
-            >
-              <thead class="text-n-slate-10">
-                <tr class="[&>th]:border-b [&>th]:border-n-weak">
-                  <th
-                    v-if="canSelectRows"
-                    class="sticky left-0 z-20 w-11 px-3 py-2.5 bg-white"
-                  >
-                    <input
-                      type="checkbox"
-                      class="accent-n-iris-9"
-                      :checked="allSelected"
-                      @change="toggleSelectAll"
-                    />
-                  </th>
-                  <th
-                    class="sticky z-20 px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
-                    :class="canSelectRows ? 'left-11' : 'left-0'"
-                  >
-                    {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
-                  </th>
-                  <!-- 中间列：可拖拽重排（拖列头即可）+ 可点排序，顺序按人记住 -->
-                  <th
-                    v-for="col in orderedColumns"
-                    :key="col.key"
-                    draggable="true"
-                    class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap cursor-move select-none transition-colors"
-                    :class="[
-                      col.align === 'right' ? 'text-right' : '',
-                      dragColKey === col.key ? 'opacity-40' : '',
-                    ]"
-                    :title="`拖动可调整列顺序${col.sort ? '，点击可排序' : ''}`"
-                    @dragstart="onColDragStart(col.key)"
-                    @dragover.prevent
-                    @drop="onColDrop(col.key)"
-                  >
-                    <button
-                      v-if="col.sort"
-                      class="inline-flex items-center gap-1 text-[13px] transition-colors hover:text-n-slate-12"
-                      :class="[
-                        col.align === 'right' ? 'ml-auto' : '',
-                        sortKey === col.sort ? 'text-n-slate-12' : '',
-                      ]"
-                      @click="toggleSort(col.sort)"
+          </div>
+          <div
+            v-else-if="!customers.length"
+            class="flex items-center justify-center p-8 text-sm text-n-slate-11"
+          >
+            {{ t('CRM.CUSTOMERS.EMPTY') }}
+          </div>
+          <div v-else class="overflow-x-auto">
+            <div class="overflow-x-auto">
+              <table
+                class="w-full text-[13px] text-left border-separate border-spacing-0"
+              >
+                <thead class="text-n-slate-10">
+                  <tr class="[&>th]:border-b [&>th]:border-n-weak">
+                    <th
+                      v-if="canSelectRows"
+                      class="sticky left-0 z-20 w-11 px-3 py-2.5 bg-white"
                     >
-                      {{ col.label() }}
-                      <span class="size-3.5" :class="sortIcon(col.sort)" />
-                    </button>
-                    <span v-else>{{ col.label() }}</span>
-                  </th>
-                  <th
-                    class="px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap"
-                  >
-                    {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="customer in customers"
-                  :key="customer.id"
-                  class="cursor-pointer [&>td]:border-b [&>td]:border-n-weak hover:bg-n-iris-9/[0.04]"
-                  :class="{
-                    'bg-n-iris-2': selectedCustomer?.id === customer.id,
-                  }"
-                  @click="selectCustomer(customer)"
-                >
-                  <td
-                    v-if="canSelectRows"
-                    class="sticky left-0 z-10 w-11 px-3 py-2.5 bg-white"
-                    @click.stop
-                  >
-                    <input
-                      type="checkbox"
-                      class="accent-n-iris-9"
-                      :checked="selectedIds.includes(customer.id)"
-                      @change="toggleSelect(customer.id)"
-                    />
-                  </td>
-                  <td
-                    class="sticky z-10 px-3 py-2.5 min-w-[180px] bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
-                    :class="canSelectRows ? 'left-11' : 'left-0'"
-                  >
-                    <div class="flex items-center gap-2.5 min-w-0 group">
-                      <span
-                        class="grid flex-none text-xs font-bold rounded-lg size-7 place-items-center bg-n-slate-4 text-n-slate-11"
-                      >
-                        {{ initial(customer.name) }}
-                      </span>
                       <input
-                        v-if="isEditingCell(customer, 'name')"
-                        v-model="editingValue"
-                        v-focus
-                        class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
-                        @click.stop
-                        @keyup.enter="saveCellEdit(customer)"
-                        @keyup.esc="cancelCellEdit"
-                        @blur="saveCellEdit(customer)"
+                        type="checkbox"
+                        class="accent-n-iris-9"
+                        :checked="allSelected"
+                        @change="toggleSelectAll"
                       />
-                      <template v-else>
-                        <span class="font-semibold truncate text-n-slate-12">
-                          {{ customer.name }}
-                        </span>
-                        <button
-                          type="button"
-                          :title="
-                            customer.favorited ? '取消特别关注' : '特别关注'
-                          "
-                          class="flex-shrink-0 transition"
-                          :class="
-                            customer.favorited
-                              ? 'text-[#ff5a5f]'
-                              : 'text-n-slate-8 opacity-0 group-hover:opacity-100 hover:text-[#ff8a8d]'
-                          "
-                          @click.stop="toggleFavorite(customer)"
-                        >
-                          <span
-                            class="size-4"
-                            :class="
-                              customer.favorited
-                                ? 'i-ri-heart-fill'
-                                : 'i-ri-heart-line'
-                            "
-                          />
-                        </button>
-                        <span
-                          class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
-                          @click.stop
-                        >
-                          <button
-                            type="button"
-                            title="复制"
-                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                            @click.stop="copyCell(customer.name)"
-                          >
-                            <span class="i-lucide-copy size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            title="编辑"
-                            class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                            @click.stop="startCellEdit(customer, 'name')"
-                          >
-                            <span class="i-lucide-pencil size-3.5" />
-                          </button>
-                        </span>
-                      </template>
-                    </div>
-                    <!-- 「我共享出去的」视图：在客户名下方列出被共享的协作人 -->
-                    <div
-                      v-if="
-                        currentView === 'shared_out' &&
-                        sharedToNames(customer).length
-                      "
-                      class="flex flex-wrap items-center gap-1 mt-1 pl-[38px]"
+                    </th>
+                    <th
+                      class="sticky z-20 px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
+                      :class="canSelectRows ? 'left-11' : 'left-0'"
                     >
-                      <span class="text-[11px] leading-5 text-n-slate-10">
-                        共享给
-                      </span>
-                      <span
-                        v-for="n in sharedToNames(customer)"
-                        :key="n"
-                        class="px-1.5 leading-5 text-[11px] rounded bg-n-iris-3 text-n-iris-11"
+                      {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
+                    </th>
+                    <!-- 中间列：可拖拽重排（拖列头即可）+ 可点排序，顺序按人记住 -->
+                    <th
+                      v-for="col in orderedColumns"
+                      :key="col.key"
+                      draggable="true"
+                      class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap cursor-move select-none transition-colors"
+                      :class="[
+                        col.align === 'right' ? 'text-right' : '',
+                        dragColKey === col.key ? 'opacity-40' : '',
+                      ]"
+                      :title="`拖动可调整列顺序${col.sort ? '，点击可排序' : ''}`"
+                      @dragstart="onColDragStart(col.key)"
+                      @dragover.prevent
+                      @drop="onColDrop(col.key)"
+                    >
+                      <button
+                        v-if="col.sort"
+                        class="inline-flex items-center gap-1 text-[13px] transition-colors hover:text-n-slate-12"
+                        :class="[
+                          col.align === 'right' ? 'ml-auto' : '',
+                          sortKey === col.sort ? 'text-n-slate-12' : '',
+                        ]"
+                        @click="toggleSort(col.sort)"
                       >
-                        {{ n }}
-                      </span>
-                    </div>
-                  </td>
-                  <!-- 中间列：按 orderedColumns 动态渲染（顺序随表头拖拽实时变化）-->
-                  <td
-                    v-for="col in orderedColumns"
-                    :key="col.key"
-                    :class="col.tdClass"
+                        {{ col.label() }}
+                        <span class="size-3.5" :class="sortIcon(col.sort)" />
+                      </button>
+                      <span v-else>{{ col.label() }}</span>
+                    </th>
+                    <th
+                      class="px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap"
+                    >
+                      {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="customer in customers"
+                    :key="customer.id"
+                    class="cursor-pointer [&>td]:border-b [&>td]:border-n-weak hover:bg-n-iris-9/[0.04]"
+                    :class="{
+                      'bg-n-iris-2': selectedCustomer?.id === customer.id,
+                    }"
+                    @click="selectCustomer(customer)"
                   >
-                    <template v-if="col.key === 'country'">
-                      {{ countryLabel(customer.tradeCountry) }}
-                    </template>
-                    <template v-else-if="col.key === 'timezone'">
-                      {{ customerTime(customer) || '—' }}
-                    </template>
-                    <template v-else-if="col.key === 'contact'">
-                      <div class="flex items-center min-w-0 gap-1 group">
+                    <td
+                      v-if="canSelectRows"
+                      class="sticky left-0 z-10 w-11 px-3 py-2.5 bg-white"
+                      @click.stop
+                    >
+                      <input
+                        type="checkbox"
+                        class="accent-n-iris-9"
+                        :checked="selectedIds.includes(customer.id)"
+                        @change="toggleSelect(customer.id)"
+                      />
+                    </td>
+                    <td
+                      class="sticky z-10 px-3 py-2.5 min-w-[180px] bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
+                      :class="canSelectRows ? 'left-11' : 'left-0'"
+                    >
+                      <div class="flex items-center gap-2.5 min-w-0 group">
+                        <span
+                          class="grid flex-none text-xs font-bold rounded-lg size-7 place-items-center bg-n-slate-4 text-n-slate-11"
+                        >
+                          {{ initial(customer.name) }}
+                        </span>
                         <input
-                          v-if="isEditingCell(customer, 'primaryContactName')"
+                          v-if="isEditingCell(customer, 'name')"
                           v-model="editingValue"
                           v-focus
                           class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
@@ -1903,19 +1820,40 @@ watch(
                           @blur="saveCellEdit(customer)"
                         />
                         <template v-else>
-                          <span class="truncate">
-                            {{ customer.primaryContactName || '—' }}
+                          <span class="font-semibold truncate text-n-slate-12">
+                            {{ customer.name }}
                           </span>
+                          <button
+                            type="button"
+                            :title="
+                              customer.favorited ? '取消特别关注' : '特别关注'
+                            "
+                            class="flex-shrink-0 transition"
+                            :class="
+                              customer.favorited
+                                ? 'text-[#ff5a5f]'
+                                : 'text-n-slate-8 opacity-0 group-hover:opacity-100 hover:text-[#ff8a8d]'
+                            "
+                            @click.stop="toggleFavorite(customer)"
+                          >
+                            <span
+                              class="size-4"
+                              :class="
+                                customer.favorited
+                                  ? 'i-ri-heart-fill'
+                                  : 'i-ri-heart-line'
+                              "
+                            />
+                          </button>
                           <span
                             class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
                             @click.stop
                           >
                             <button
-                              v-if="customer.primaryContactName"
                               type="button"
                               title="复制"
                               class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                              @click.stop="copyCell(customer.primaryContactName)"
+                              @click.stop="copyCell(customer.name)"
                             >
                               <span class="i-lucide-copy size-3.5" />
                             </button>
@@ -1923,238 +1861,321 @@ watch(
                               type="button"
                               title="编辑"
                               class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                              @click.stop="
-                                startCellEdit(customer, 'primaryContactName')
-                              "
+                              @click.stop="startCellEdit(customer, 'name')"
                             >
                               <span class="i-lucide-pencil size-3.5" />
                             </button>
                           </span>
                         </template>
                       </div>
-                    </template>
-                    <template v-else-if="col.key === 'email'">
-                      <div class="flex items-center min-w-0 gap-1 group">
-                        <input
-                          v-if="isEditingCell(customer, 'contactEmail')"
-                          v-model="editingValue"
-                          v-focus
-                          type="email"
-                          class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
-                          @click.stop
-                          @keyup.enter="saveCellEdit(customer)"
-                          @keyup.esc="cancelCellEdit"
-                          @blur="saveCellEdit(customer)"
-                        />
-                        <template v-else>
-                          <button
-                            v-if="customer.contactEmail"
-                            type="button"
-                            title="点击写邮件"
-                            class="truncate text-left transition-colors hover:text-n-iris-11 hover:underline"
-                            @click.stop="writeEmail(customer)"
-                          >
-                            {{ customer.contactEmail }}
-                          </button>
-                          <span v-else class="truncate">—</span>
-                          <span
-                            class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+                      <!-- 「我共享出去的」视图：在客户名下方列出被共享的协作人 -->
+                      <div
+                        v-if="
+                          currentView === 'shared_out' &&
+                          sharedToNames(customer).length
+                        "
+                        class="flex flex-wrap items-center gap-1 mt-1 pl-[38px]"
+                      >
+                        <span class="text-[11px] leading-5 text-n-slate-10">
+                          共享给
+                        </span>
+                        <span
+                          v-for="n in sharedToNames(customer)"
+                          :key="n"
+                          class="px-1.5 leading-5 text-[11px] rounded bg-n-iris-3 text-n-iris-11"
+                        >
+                          {{ n }}
+                        </span>
+                      </div>
+                    </td>
+                    <!-- 中间列：按 orderedColumns 动态渲染（顺序随表头拖拽实时变化）-->
+                    <td
+                      v-for="col in orderedColumns"
+                      :key="col.key"
+                      :class="col.tdClass"
+                    >
+                      <template v-if="col.key === 'country'">
+                        {{ countryLabel(customer.tradeCountry) }}
+                      </template>
+                      <template v-else-if="col.key === 'timezone'">
+                        {{ customerTime(customer) || '—' }}
+                      </template>
+                      <template v-else-if="col.key === 'contact'">
+                        <div class="flex items-center min-w-0 gap-1 group">
+                          <input
+                            v-if="isEditingCell(customer, 'primaryContactName')"
+                            v-model="editingValue"
+                            v-focus
+                            class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
                             @click.stop
-                          >
+                            @keyup.enter="saveCellEdit(customer)"
+                            @keyup.esc="cancelCellEdit"
+                            @blur="saveCellEdit(customer)"
+                          />
+                          <template v-else>
+                            <span class="truncate">
+                              {{ customer.primaryContactName || '—' }}
+                            </span>
+                            <span
+                              class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+                              @click.stop
+                            >
+                              <button
+                                v-if="customer.primaryContactName"
+                                type="button"
+                                title="复制"
+                                class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                                @click.stop="
+                                  copyCell(customer.primaryContactName)
+                                "
+                              >
+                                <span class="i-lucide-copy size-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="编辑"
+                                class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                                @click.stop="
+                                  startCellEdit(customer, 'primaryContactName')
+                                "
+                              >
+                                <span class="i-lucide-pencil size-3.5" />
+                              </button>
+                            </span>
+                          </template>
+                        </div>
+                      </template>
+                      <template v-else-if="col.key === 'email'">
+                        <div class="flex items-center min-w-0 gap-1 group">
+                          <input
+                            v-if="isEditingCell(customer, 'contactEmail')"
+                            v-model="editingValue"
+                            v-focus
+                            type="email"
+                            class="w-full min-w-0 px-1.5 py-0.5 text-sm border rounded bg-n-solid-1 border-n-iris-8 text-n-slate-12 focus:outline-none"
+                            @click.stop
+                            @keyup.enter="saveCellEdit(customer)"
+                            @keyup.esc="cancelCellEdit"
+                            @blur="saveCellEdit(customer)"
+                          />
+                          <template v-else>
                             <button
                               v-if="customer.contactEmail"
                               type="button"
-                              title="复制"
-                              class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                              @click.stop="copyCell(customer.contactEmail)"
+                              title="点击写邮件"
+                              class="truncate text-left transition-colors hover:text-n-iris-11 hover:underline"
+                              @click.stop="writeEmail(customer)"
                             >
-                              <span class="i-lucide-copy size-3.5" />
+                              {{ customer.contactEmail }}
                             </button>
-                            <button
-                              type="button"
-                              title="编辑"
-                              class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
-                              @click.stop="startCellEdit(customer, 'contactEmail')"
+                            <span v-else class="truncate">—</span>
+                            <span
+                              class="flex items-center flex-shrink-0 gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+                              @click.stop
                             >
-                              <span class="i-lucide-pencil size-3.5" />
-                            </button>
-                          </span>
-                        </template>
-                      </div>
-                    </template>
-                    <template v-else-if="col.key === 'completeness'">
-                      <div
-                        v-if="gradeMeta(customer)"
-                        class="flex items-center gap-2"
-                      >
+                              <button
+                                v-if="customer.contactEmail"
+                                type="button"
+                                title="复制"
+                                class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                                @click.stop="copyCell(customer.contactEmail)"
+                              >
+                                <span class="i-lucide-copy size-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="编辑"
+                                class="p-1 rounded text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2"
+                                @click.stop="
+                                  startCellEdit(customer, 'contactEmail')
+                                "
+                              >
+                                <span class="i-lucide-pencil size-3.5" />
+                              </button>
+                            </span>
+                          </template>
+                        </div>
+                      </template>
+                      <template v-else-if="col.key === 'completeness'">
                         <div
-                          class="w-11 h-[5px] rounded-full bg-n-slate-4 overflow-hidden"
+                          v-if="gradeMeta(customer)"
+                          class="flex items-center gap-2"
                         >
                           <div
-                            class="h-full rounded-full"
-                            :class="
-                              isClassic
-                                ? 'bg-[#f5c451]'
-                                : 'bg-gradient-to-r from-n-iris-9 to-n-accent-grad'
-                            "
-                            :style="{
-                              width:
-                                Math.min(
-                                  100,
-                                  Math.max(0, customer.infoCompletenessScore || 0)
-                                ) + '%',
-                            }"
-                          />
+                            class="w-11 h-[5px] rounded-full bg-n-slate-4 overflow-hidden"
+                          >
+                            <div
+                              class="h-full rounded-full"
+                              :class="
+                                isClassic
+                                  ? 'bg-[#f5c451]'
+                                  : 'bg-gradient-to-r from-n-iris-9 to-n-accent-grad'
+                              "
+                              :style="{
+                                width:
+                                  Math.min(
+                                    100,
+                                    Math.max(
+                                      0,
+                                      customer.infoCompletenessScore || 0
+                                    )
+                                  ) + '%',
+                              }"
+                            />
+                          </div>
+                          <span
+                            class="text-[11px] text-n-slate-10 tabular-nums"
+                          >
+                            {{ customer.infoCompletenessScore }}
+                          </span>
                         </div>
-                        <span class="text-[11px] text-n-slate-10 tabular-nums">
-                          {{ customer.infoCompletenessScore }}
-                        </span>
-                      </div>
-                      <span v-else class="text-n-slate-10">—</span>
-                    </template>
-                    <template v-else-if="col.key === 'last_touch'">
-                      {{ fmtLastTouch(customer.lastTouchAt) }}
-                    </template>
-                    <template v-else-if="col.key === 'deal_amount'">
-                      {{ money(customer.dealTotalAmountMicros) }}
-                    </template>
-                    <template v-else-if="col.key === 'deal_count'">
-                      {{ customer.dealOrderCount || 0 }}
-                    </template>
-                    <template v-else-if="col.key === 'status'">
-                      <span
-                        v-if="statusMeta(customer)"
-                        class="inline-flex items-center px-2.5 py-[3px] rounded-full text-[11.5px] font-bold whitespace-nowrap"
-                        :class="pillCls(statusMeta(customer).color)"
-                      >
-                        {{ statusMeta(customer).label }}
-                      </span>
-                      <span v-else class="text-n-slate-10">—</span>
-                    </template>
-                    <template v-else-if="col.key === 'star'">
-                      <CrmStarRating :micros="customer.dealTotalAmountMicros" />
-                    </template>
-                    <template v-else-if="col.key === 'source'">
-                      <span
-                        v-if="sourceMeta(customer)"
-                        class="inline-flex px-2.5 py-[3px] rounded-full text-[11px] font-bold whitespace-nowrap"
-                        :class="pillCls(sourceMeta(customer).color)"
-                      >
-                        {{ sourceMeta(customer).label }}
-                      </span>
-                      <span v-else class="text-n-slate-10">—</span>
-                    </template>
-                    <template v-else-if="col.key === 'region'">
-                      <span v-if="regionMeta(customer)">
-                        {{ regionMeta(customer).label }}
-                      </span>
-                      <span v-else class="text-n-slate-10">—</span>
-                    </template>
-                    <template v-else-if="col.key === 'owner'">
-                      <div
-                        v-if="ownerDisplayName(customer)"
-                        class="flex items-center gap-2"
-                      >
+                        <span v-else class="text-n-slate-10">—</span>
+                      </template>
+                      <template v-else-if="col.key === 'last_touch'">
+                        {{ fmtLastTouch(customer.lastTouchAt) }}
+                      </template>
+                      <template v-else-if="col.key === 'deal_amount'">
+                        {{ money(customer.dealTotalAmountMicros) }}
+                      </template>
+                      <template v-else-if="col.key === 'deal_count'">
+                        {{ customer.dealOrderCount || 0 }}
+                      </template>
+                      <template v-else-if="col.key === 'status'">
                         <span
-                          class="grid flex-none text-[11px] font-bold rounded-md size-6 place-items-center bg-n-slate-4 text-n-slate-11"
+                          v-if="statusMeta(customer)"
+                          class="inline-flex items-center px-2.5 py-[3px] rounded-full text-[11.5px] font-bold whitespace-nowrap"
+                          :class="pillCls(statusMeta(customer).color)"
                         >
-                          {{ initial(ownerDisplayName(customer)) }}
+                          {{ statusMeta(customer).label }}
                         </span>
-                        <span class="truncate">
-                          {{ ownerDisplayName(customer) }}
+                        <span v-else class="text-n-slate-10">—</span>
+                      </template>
+                      <template v-else-if="col.key === 'star'">
+                        <CrmStarRating
+                          :micros="customer.dealTotalAmountMicros"
+                        />
+                      </template>
+                      <template v-else-if="col.key === 'source'">
+                        <span
+                          v-if="sourceMeta(customer)"
+                          class="inline-flex px-2.5 py-[3px] rounded-full text-[11px] font-bold whitespace-nowrap"
+                          :class="pillCls(sourceMeta(customer).color)"
+                        >
+                          {{ sourceMeta(customer).label }}
                         </span>
-                      </div>
-                      <span v-else class="text-n-slate-10">
-                        <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
-                        {{ customer.isInPublicPool ? '—' : '未分配' }}
-                      </span>
-                    </template>
-                  </td>
-                  <td class="px-3 py-2.5 text-right" @click.stop>
-                    <Button
-                      v-if="customer.isInPublicPool"
-                      :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
-                      size="sm"
-                      color="iris"
-                      :is-loading="actingId === customer.id"
-                      @click="claimCustomer(customer)"
-                    />
-                    <button
-                      v-else
-                      class="inline-flex items-center justify-center rounded size-7 text-n-slate-11 hover:bg-n-alpha-2"
-                      @click="toggleRowMenu(customer.id, $event)"
-                    >
-                      <span class="i-lucide-ellipsis-vertical size-4" />
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                        <span v-else class="text-n-slate-10">—</span>
+                      </template>
+                      <template v-else-if="col.key === 'region'">
+                        <span v-if="regionMeta(customer)">
+                          {{ regionMeta(customer).label }}
+                        </span>
+                        <span v-else class="text-n-slate-10">—</span>
+                      </template>
+                      <template v-else-if="col.key === 'owner'">
+                        <div
+                          v-if="ownerDisplayName(customer)"
+                          class="flex items-center gap-2"
+                        >
+                          <span
+                            class="grid flex-none text-[11px] font-bold rounded-md size-6 place-items-center bg-n-slate-4 text-n-slate-11"
+                          >
+                            {{ initial(ownerDisplayName(customer)) }}
+                          </span>
+                          <span class="truncate">
+                            {{ ownerDisplayName(customer) }}
+                          </span>
+                        </div>
+                        <span v-else class="text-n-slate-10">
+                          <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+                          {{ customer.isInPublicPool ? '—' : '未分配' }}
+                        </span>
+                      </template>
+                    </td>
+                    <td class="px-3 py-2.5 text-right" @click.stop>
+                      <Button
+                        v-if="customer.isInPublicPool"
+                        :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
+                        size="sm"
+                        color="iris"
+                        :is-loading="actingId === customer.id"
+                        @click="claimCustomer(customer)"
+                      />
+                      <button
+                        v-else
+                        class="inline-flex items-center justify-center rounded size-7 text-n-slate-11 hover:bg-n-alpha-2"
+                        @click="toggleRowMenu(customer.id, $event)"
+                      >
+                        <span class="i-lucide-ellipsis-vertical size-4" />
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div
-        v-if="totalCount > 0"
-        class="flex items-center justify-between flex-shrink-0 px-4 py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
-      >
-        <div class="flex items-center gap-3 shrink-0 whitespace-nowrap">
-          <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
-          <span>共 {{ totalCount }} 条</span>
-          <div class="flex items-center gap-1.5">
+        <div
+          v-if="totalCount > 0"
+          class="flex items-center justify-between flex-shrink-0 px-4 py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
+        >
+          <div class="flex items-center gap-3 shrink-0 whitespace-nowrap">
             <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
-            <span>每页</span>
-            <SelectCard
-              :model-value="pageSize"
-              :options="pageSizeOptions"
-              align="right"
-              trigger-class="!h-[26px] !text-[12.5px] !pl-2.5 !pr-1.5 !gap-1"
-              @update:model-value="setPageSize"
-            />
-            <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
-            <span>条</span>
+            <span>共 {{ totalCount }} 条</span>
+            <div class="flex items-center gap-1.5">
+              <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+              <span>每页</span>
+              <SelectCard
+                :model-value="pageSize"
+                :options="pageSizeOptions"
+                align="right"
+                trigger-class="!h-[26px] !text-[12.5px] !pl-2.5 !pr-1.5 !gap-1"
+                @update:model-value="setPageSize"
+              />
+              <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
+              <span>条</span>
+            </div>
+          </div>
+          <div v-if="totalPages > 1" class="flex items-center gap-1">
+            <button
+              type="button"
+              class="flex items-center justify-center min-w-[28px] h-7 px-1.5 border rounded-lg border-n-weak bg-n-solid-1/60 text-n-slate-11 disabled:opacity-40"
+              :disabled="currentPage === 1"
+              @click="onPageChange(currentPage - 1)"
+            >
+              <span class="i-lucide-chevron-left size-4" />
+            </button>
+            <template v-for="(p, i) in pageList" :key="i">
+              <span
+                v-if="p === '…'"
+                class="flex items-center justify-center min-w-[28px] h-7 text-n-slate-9"
+              >
+                {{ p }}
+              </span>
+              <button
+                v-else
+                type="button"
+                class="flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg tabular-nums"
+                :class="
+                  p === currentPage
+                    ? 'bg-n-iris-9 text-white font-semibold'
+                    : 'text-n-slate-11 hover:bg-n-alpha-2'
+                "
+                @click="onPageChange(p)"
+              >
+                {{ p }}
+              </button>
+            </template>
+            <button
+              type="button"
+              class="flex items-center justify-center min-w-[28px] h-7 px-1.5 border rounded-lg border-n-weak bg-n-solid-1/60 text-n-slate-11 disabled:opacity-40"
+              :disabled="currentPage === totalPages"
+              @click="onPageChange(currentPage + 1)"
+            >
+              <span class="i-lucide-chevron-right size-4" />
+            </button>
           </div>
         </div>
-        <div v-if="totalPages > 1" class="flex items-center gap-1">
-          <button
-            type="button"
-            class="flex items-center justify-center min-w-[28px] h-7 px-1.5 border rounded-lg border-n-weak bg-n-solid-1/60 text-n-slate-11 disabled:opacity-40"
-            :disabled="currentPage === 1"
-            @click="onPageChange(currentPage - 1)"
-          >
-            <span class="i-lucide-chevron-left size-4" />
-          </button>
-          <template v-for="(p, i) in pageList" :key="i">
-            <span
-              v-if="p === '…'"
-              class="flex items-center justify-center min-w-[28px] h-7 text-n-slate-9"
-            >
-              {{ p }}
-            </span>
-            <button
-              v-else
-              type="button"
-              class="flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg tabular-nums"
-              :class="
-                p === currentPage
-                  ? 'bg-n-iris-9 text-white font-semibold'
-                  : 'text-n-slate-11 hover:bg-n-alpha-2'
-              "
-              @click="onPageChange(p)"
-            >
-              {{ p }}
-            </button>
-          </template>
-          <button
-            type="button"
-            class="flex items-center justify-center min-w-[28px] h-7 px-1.5 border rounded-lg border-n-weak bg-n-solid-1/60 text-n-slate-11 disabled:opacity-40"
-            :disabled="currentPage === totalPages"
-            @click="onPageChange(currentPage + 1)"
-          >
-            <span class="i-lucide-chevron-right size-4" />
-          </button>
-        </div>
-      </div>
       </div>
     </div>
 

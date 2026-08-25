@@ -320,10 +320,7 @@ const onDragMove = e => {
       Math.max(x, margin - r.width - baseLeft),
       window.innerWidth - margin - baseLeft
     );
-    y = Math.min(
-      Math.max(y, -baseTop),
-      window.innerHeight - margin - baseTop
-    );
+    y = Math.min(Math.max(y, -baseTop), window.innerHeight - margin - baseTop);
   }
   dragOffset.value = { x, y };
 };
@@ -548,10 +545,7 @@ const signatureHtml = computed(() => {
     sig.bodyHtml || (sig.body ? sig.body.replace(/\n/g, '<br>') : '')
   )
     // 剥掉签名自身开头的空行/空段，否则与下面的换行叠加，签名前留一大段空白（业务反馈「间隔太远」）。
-    .replace(
-      /^(?:\s|&nbsp;|<br\s*\/?>|<div>\s*<\/div>|<p>\s*<\/p>)+/i,
-      ''
-    );
+    .replace(/^(?:\s|&nbsp;|<br\s*\/?>|<div>\s*<\/div>|<p>\s*<\/p>)+/i, '');
   // 正文与签名之间只留一个换行（正文段落自带下边距已够分隔），避免间隔太远。
   return inner ? `<br>${inner}` : '';
 });
@@ -2387,12 +2381,9 @@ defineExpose({ open, close });
         </div>
 
         <div class="flex-1 px-6 pb-4 overflow-y-auto">
-          <p
-            v-pre
-            class="mb-3 text-[11px] leading-snug text-n-slate-10"
-          >
-            提示：模板/正文可用变量 {{公司}} {{联系人}} {{我的名字}}，套用 /
-            群发时自动替换成对应客户信息。
+          <p v-pre class="mb-3 text-[11px] leading-snug text-n-slate-10">
+            提示：模板/正文可用变量 {{ 公司 }} {{ 联系人 }} {{ 我的名字 }}，套用
+            / 群发时自动替换成对应客户信息。
           </p>
           <div
             v-if="!pickerTemplates.length"

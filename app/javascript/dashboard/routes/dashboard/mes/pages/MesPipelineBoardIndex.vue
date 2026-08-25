@@ -80,7 +80,8 @@ const stallText = days => {
   if (days === null || days === undefined) return '';
   return days <= 0 ? '今日进入' : `停留 ${days} 天`;
 };
-const stallCls = days => (days >= 3 ? 'text-n-ruby-11 font-medium' : 'text-n-slate-10');
+const stallCls = days =>
+  days >= 3 ? 'text-n-ruby-11 font-medium' : 'text-n-slate-10';
 
 // 点卡 → 生产订单页并按订单号搜索、自动打开详情面板（复用看板既有跳转口径）。
 const goOrder = orderNo =>
@@ -146,7 +147,9 @@ onMounted(load);
         <div
           class="flex items-center justify-between px-3 py-2.5 border-b border-n-weak/60 shrink-0"
         >
-          <span class="text-sm font-medium text-n-slate-12">{{ col.label }}</span>
+          <span class="text-sm font-medium text-n-slate-12">{{
+            col.label
+          }}</span>
           <span
             class="px-1.5 min-w-5 text-center text-xs font-medium rounded-full text-n-slate-11 bg-n-alpha-black2"
           >
@@ -195,7 +198,11 @@ onMounted(load);
             <div class="mt-1.5 space-y-0.5 text-[11px] text-n-slate-10">
               <p class="truncate">业务：{{ card.ownerName || '—' }}</p>
               <p class="truncate">
-                等：{{ card.waitingNames.length ? card.waitingNames.join('、') : '未指派' }}
+                等：{{
+                  card.waitingNames.length
+                    ? card.waitingNames.join('、')
+                    : '未指派'
+                }}
               </p>
             </div>
             <!-- 接单态 · 停留 -->
@@ -208,7 +215,10 @@ onMounted(load);
                 {{ ackBadge(card.ackState).text }}
               </span>
               <span v-else />
-              <span class="text-[11px] shrink-0" :class="stallCls(card.stallDays)">
+              <span
+                class="text-[11px] shrink-0"
+                :class="stallCls(card.stallDays)"
+              >
                 {{ stallText(card.stallDays) }}
               </span>
             </div>

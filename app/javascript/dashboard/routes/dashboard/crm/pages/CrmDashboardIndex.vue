@@ -674,7 +674,9 @@ const PERIODS = [
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <div class="flex items-center justify-between mb-4">
-              <h2 class="text-base font-medium text-n-slate-12">商机阶段分布</h2>
+              <h2 class="text-base font-medium text-n-slate-12">
+                商机阶段分布
+              </h2>
               <span v-if="winRate != null" class="text-xs text-n-slate-11">
                 成交转化率
                 <span class="font-semibold text-n-iris-11">{{ winRate }}%</span>
@@ -701,7 +703,9 @@ const PERIODS = [
                   >
                     {{ row.label }}
                   </div>
-                  <div class="flex-1 h-7 overflow-hidden rounded-lg bg-n-slate-3">
+                  <div
+                    class="flex-1 h-7 overflow-hidden rounded-lg bg-n-slate-3"
+                  >
                     <div
                       class="h-full rounded-lg"
                       :style="{

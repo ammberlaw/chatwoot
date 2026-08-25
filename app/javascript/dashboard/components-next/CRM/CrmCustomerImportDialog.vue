@@ -22,13 +22,13 @@ const props = defineProps({
   },
 });
 
+const emit = defineEmits(['imported']);
+
 // 原生 select → 紫玻璃 SelectCard：空值项「未分配」+ 有值成员。
 const ownerImportOptions = computed(() => [
   { value: '', label: '未分配' },
   ...props.memberOptions.filter(o => o.value),
 ]);
-
-const emit = defineEmits(['imported']);
 
 const dialogRef = ref(null);
 const step = ref('upload'); // upload | mapping | result

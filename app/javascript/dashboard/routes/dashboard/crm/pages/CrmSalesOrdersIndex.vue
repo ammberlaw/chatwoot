@@ -98,7 +98,9 @@ const STATUSES = computed(() => {
     },
     PENDING_SHIPMENT: {
       label: '待出货',
-      class: c ? 'bg-n-violet-3 text-n-violet-11' : 'bg-n-iris-3 text-n-iris-11',
+      class: c
+        ? 'bg-n-violet-3 text-n-violet-11'
+        : 'bg-n-iris-3 text-n-iris-11',
     },
     SHIPPED: {
       label: '已出货',

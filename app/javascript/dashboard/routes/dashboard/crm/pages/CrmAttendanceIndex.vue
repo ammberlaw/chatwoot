@@ -36,7 +36,10 @@ const STATUS_META = {
 const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
 
 const statusOptions = computed(() =>
-  Object.entries(STATUS_META).map(([k, meta]) => ({ value: k, label: meta.label }))
+  Object.entries(STATUS_META).map(([k, meta]) => ({
+    value: k,
+    label: meta.label,
+  }))
 );
 
 // ── 视图与月份 ──
@@ -771,7 +774,11 @@ onMounted(fetchMine);
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">状态</span>
-          <SelectCard v-model="adjustForm.status" :options="statusOptions" block />
+          <SelectCard
+            v-model="adjustForm.status"
+            :options="statusOptions"
+            block
+          />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">备注</span>

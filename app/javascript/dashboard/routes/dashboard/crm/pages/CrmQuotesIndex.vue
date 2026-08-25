@@ -86,7 +86,8 @@ const fmtDate = v => (v ? String(v).slice(0, 10) : '—');
 // 快到期提示：未成交(DRAFT/SENT)、有有效期、7 天内到期 → 返回剩余天数（0=今天）；
 // 已过期由后台定时任务置 EXPIRED，这里只提醒临近的。
 const expiringDays = record => {
-  if (!['DRAFT', 'SENT'].includes(record.status) || !record.validUntil) return null;
+  if (!['DRAFT', 'SENT'].includes(record.status) || !record.validUntil)
+    return null;
   const days = Math.ceil((new Date(record.validUntil) - Date.now()) / 86400000);
   return days >= 0 && days <= 7 ? days : null;
 };

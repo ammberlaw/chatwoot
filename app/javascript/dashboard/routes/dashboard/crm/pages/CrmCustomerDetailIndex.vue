@@ -85,7 +85,9 @@ const saveNextFollowUp = async () => {
       { next_follow_up_at: startAt, add_to_schedule: addToSchedule.value }
     );
     await load();
-    useAlert(addToSchedule.value ? '下次跟进已保存并加入日程' : '下次跟进已保存');
+    useAlert(
+      addToSchedule.value ? '下次跟进已保存并加入日程' : '下次跟进已保存'
+    );
   } catch {
     useAlert('保存失败');
   } finally {
@@ -404,7 +406,9 @@ onMounted(() => {
       </div>
 
       <!-- 顶部客户卡 -->
-      <div class="p-5 mb-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+      <div
+        class="p-5 mb-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+      >
         <div class="flex items-start gap-4">
           <div
             class="flex items-center justify-center text-lg font-semibold text-white rounded-xl size-14 shrink-0 bg-n-teal-9"
@@ -446,7 +450,9 @@ onMounted(() => {
 
       <!-- KPI 卡 -->
       <div class="grid grid-cols-2 gap-4 mb-4 lg:grid-cols-4">
-        <div class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+        <div
+          class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+        >
           <div class="flex items-center gap-2 text-xs text-n-slate-10">
             <span class="i-lucide-phone-call size-4" /> 最近联系
           </div>
@@ -454,7 +460,9 @@ onMounted(() => {
             {{ fmtDate(customer.last_follow_up_at) }}
           </div>
         </div>
-        <div class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+        <div
+          class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+        >
           <div class="flex items-center gap-2 text-xs text-n-slate-10">
             <span class="i-lucide-file-text size-4" /> 当前状态
           </div>
@@ -462,7 +470,9 @@ onMounted(() => {
             {{ statusLabel(customer.customer_status) }}
           </div>
         </div>
-        <div class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+        <div
+          class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+        >
           <div class="flex items-center gap-2 text-xs text-n-slate-10">
             <span class="i-lucide-lightbulb size-4" /> 下一步建议
           </div>
@@ -470,7 +480,9 @@ onMounted(() => {
             {{ nextSuggestion }}
           </div>
         </div>
-        <div class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+        <div
+          class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+        >
           <div class="flex items-center gap-2 text-xs text-n-slate-10">
             <span class="i-lucide-receipt size-4" /> 最近报价
           </div>
@@ -492,14 +504,18 @@ onMounted(() => {
         <!-- 左列 -->
         <div class="flex flex-col gap-4">
           <!-- 下次跟进 + 加入日程 -->
-          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+          <section
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-sm font-semibold text-n-slate-12">下次跟进</h3>
               <span
                 v-if="customer.next_follow_up_at"
                 class="text-xs text-n-slate-10"
               >
-                当前：{{ customer.next_follow_up_at.slice(0, 16).replace('T', ' ') }}
+                当前：{{
+                  customer.next_follow_up_at.slice(0, 16).replace('T', ' ')
+                }}
               </span>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -528,7 +544,9 @@ onMounted(() => {
           </section>
 
           <!-- 沟通时间线 -->
-          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+          <section
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">
               沟通时间线
             </h3>
@@ -575,7 +593,9 @@ onMounted(() => {
           </section>
 
           <!-- 商机信息 -->
-          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+          <section
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-sm font-semibold text-n-slate-12">商机信息</h3>
               <button
@@ -620,7 +640,9 @@ onMounted(() => {
           </section>
 
           <!-- 文件附件 -->
-          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+          <section
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">文件附件</h3>
             <div v-if="!files.length" class="text-sm text-n-slate-10">
               暂无文件
@@ -660,7 +682,9 @@ onMounted(() => {
         <!-- 右列 -->
         <div class="flex flex-col gap-4">
           <!-- 待办任务 -->
-          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+          <section
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">待办任务</h3>
             <div v-if="!openTasks.length" class="text-sm text-n-slate-10">
               暂无待办
@@ -698,7 +722,9 @@ onMounted(() => {
           </section>
 
           <!-- 订单记录 -->
-          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+          <section
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">订单记录</h3>
             <div v-if="!orders.length" class="text-sm text-n-slate-10">
               暂无订单
@@ -745,7 +771,9 @@ onMounted(() => {
           </section>
 
           <!-- PI 记录 -->
-          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+          <section
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">PI 记录</h3>
             <div v-if="!pis.length" class="text-sm text-n-slate-10">
               暂无 PI
@@ -792,7 +820,9 @@ onMounted(() => {
           </section>
 
           <!-- 报价记录 -->
-          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+          <section
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">报价记录</h3>
             <div v-if="!quotes.length" class="text-sm text-n-slate-10">
               暂无报价
@@ -817,7 +847,9 @@ onMounted(() => {
           </section>
 
           <!-- 生产订单（MES）：本客户下的生产单，不分创建人，点击跳 MES -->
-          <section class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+          <section
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
             <h3 class="mb-4 text-sm font-semibold text-n-slate-12">生产订单</h3>
             <div
               v-if="!productionOrders.length"

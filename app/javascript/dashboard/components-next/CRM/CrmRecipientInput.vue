@@ -119,9 +119,7 @@ const chipTitle = r => (r.name ? `${r.name} <${r.email}>` : r.email);
 </script>
 
 <template>
-  <div
-    class="relative flex flex-wrap items-center gap-1.5 min-h-[38px] w-full"
-  >
+  <div class="relative flex flex-wrap items-center gap-1.5 min-h-[38px] w-full">
     <span
       v-for="(r, i) in modelValue"
       :key="`${r.email}-${i}`"

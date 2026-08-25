@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_24_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_26_000003) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -60,6 +60,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_24_000001) do
     t.string "mes_role"
     t.boolean "crm_finance", default: false, null: false
     t.bigint "tiktok_department_id"
+    t.datetime "deactivated_at"
     t.index ["account_id", "crm_role"], name: "index_account_users_on_account_id_and_crm_role"
     t.index ["account_id", "erp_role"], name: "index_account_users_on_account_id_and_erp_role"
     t.index ["account_id", "user_id"], name: "uniq_user_id_per_account_id", unique: true
@@ -656,8 +657,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_24_000001) do
     t.text "content"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "mentioned_ids", default: [], null: false, array: true
+    t.string "ref_type"
+    t.bigint "ref_id"
+    t.jsonb "ref_snapshot"
     t.index ["account_id"], name: "index_chat_messages_on_account_id"
     t.index ["conversation_id"], name: "index_chat_messages_on_conversation_id"
+    t.index ["mentioned_ids"], name: "index_chat_messages_on_mentioned_ids", using: :gin
     t.index ["sender_id"], name: "index_chat_messages_on_sender_id"
   end
 
@@ -1270,8 +1276,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_24_000001) do
     t.bigint "user_id"
     t.bigint "section_id"
     t.bigint "parent_id"
-    t.index "account_id, COALESCE(section_id, (0)::bigint), name", name: "idx_crm_knowledge_cats_company_name", unique: true, where: "(user_id IS NULL)"
-    t.index ["account_id", "user_id", "name"], name: "idx_crm_knowledge_cats_personal_name", unique: true, where: "(user_id IS NOT NULL)"
+    t.index "account_id, COALESCE(section_id, (0)::bigint), COALESCE(parent_id, (0)::bigint), name", name: "idx_crm_knowledge_cats_company_name", unique: true, where: "(user_id IS NULL)"
+    t.index "account_id, user_id, COALESCE(parent_id, (0)::bigint), name", name: "idx_crm_knowledge_cats_personal_name", unique: true, where: "(user_id IS NOT NULL)"
     t.index ["account_id"], name: "index_crm_knowledge_categories_on_account_id"
     t.index ["parent_id"], name: "index_crm_knowledge_categories_on_parent_id"
     t.index ["section_id"], name: "index_crm_knowledge_categories_on_section_id"
@@ -1292,12 +1298,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_24_000001) do
     t.bigint "section_id"
     t.datetime "discarded_at"
     t.bigint "discarded_by_id"
+    t.bigint "category_id"
     t.index ["account_id", "category"], name: "index_crm_knowledge_docs_on_account_id_and_category"
     t.index ["account_id", "discarded_at"], name: "index_crm_knowledge_docs_on_account_id_and_discarded_at"
     t.index ["account_id", "library"], name: "index_crm_knowledge_docs_on_account_id_and_library"
     t.index ["account_id", "scope"], name: "index_crm_knowledge_docs_on_account_id_and_scope"
     t.index ["account_id", "section_id"], name: "index_crm_knowledge_docs_on_account_id_and_section_id"
     t.index ["account_id"], name: "index_crm_knowledge_docs_on_account_id"
+    t.index ["category_id"], name: "index_crm_knowledge_docs_on_category_id"
     t.index ["owner_id"], name: "index_crm_knowledge_docs_on_owner_id"
   end
 
@@ -2557,6 +2565,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_24_000001) do
     t.string "bank_name"
     t.string "bank_account"
     t.string "bank_address"
+    t.string "department"
     t.index ["account_id", "supplier_no"], name: "index_mes_suppliers_on_account_id_and_supplier_no", unique: true
     t.index ["account_id"], name: "index_mes_suppliers_on_account_id"
     t.index ["owner_id"], name: "index_mes_suppliers_on_owner_id"
@@ -3112,6 +3121,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_24_000001) do
   add_foreign_key "crm_follow_up_tasks", "users", column: "assignee_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_categories", "accounts"
   add_foreign_key "crm_knowledge_docs", "crm_doc_sections", column: "section_id", on_delete: :nullify
+  add_foreign_key "crm_knowledge_docs", "crm_knowledge_categories", column: "category_id", on_delete: :nullify
   add_foreign_key "crm_knowledge_docs", "users", column: "owner_id", on_delete: :nullify
   add_foreign_key "crm_kpi_schemes", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "crm_kpi_sheet_items", "crm_kpi_sheets", on_delete: :cascade

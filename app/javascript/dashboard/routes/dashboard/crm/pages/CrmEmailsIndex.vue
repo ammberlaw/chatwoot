@@ -33,7 +33,9 @@ const composeStore = useCrmComposeStore();
 const searchTerm = ref('');
 const selectedEmail = ref(null);
 // 中栏邮件列表折叠：折叠后阅读窗格占满，读长邮件更舒服（记忆到本地）。
-const listCollapsed = ref(localStorage.getItem('crmEmailListCollapsed') === '1');
+const listCollapsed = ref(
+  localStorage.getItem('crmEmailListCollapsed') === '1'
+);
 watch(listCollapsed, v =>
   localStorage.setItem('crmEmailListCollapsed', v ? '1' : '0')
 );
@@ -791,9 +793,7 @@ const createLabel = async () => {
 };
 const deleteLabel = async label => {
   // eslint-disable-next-line no-alert
-  if (
-    !window.confirm(`删除标签「${label.name}」？会从所有邮件上移除该标签。`)
-  )
+  if (!window.confirm(`删除标签「${label.name}」？会从所有邮件上移除该标签。`))
     return;
   try {
     await EmailLabelsAPI.delete(acctId(), label.id);
@@ -1241,7 +1241,11 @@ const moreMenuItems = computed(() => {
       icon: 'i-lucide-paperclip',
       run: () => forwardAsAttachment(e),
     },
-    { label: '分发给同事', icon: 'i-lucide-share-2', run: () => openDistribute(e) },
+    {
+      label: '分发给同事',
+      icon: 'i-lucide-share-2',
+      run: () => openDistribute(e),
+    },
   ];
   // 再次编辑：仅对「已发送」邮件（收件人才是真正的对方；收件箱邮件的收件人是自己）。
   if (e.sendStatus === 'SENT' || e.folder === 'SENT') {
@@ -2086,7 +2090,10 @@ watch(
                       class="size-3.5 text-n-iris-11"
                     />
                   </button>
-                  <div v-if="labels.length" class="my-1 border-t border-n-weak" />
+                  <div
+                    v-if="labels.length"
+                    class="my-1 border-t border-n-weak"
+                  />
                   <button
                     class="flex items-center w-full gap-1 px-3 py-1.5 text-sm text-left text-n-iris-11 hover:bg-n-alpha-1"
                     @click="createLabel"
@@ -2286,7 +2293,9 @@ watch(
                 :key="te.id"
                 class="flex items-center gap-2 px-3 py-2 text-left rounded-lg transition-colors"
                 :class="
-                  te.id === selectedEmail.id ? 'bg-n-iris-2' : 'hover:bg-n-alpha-1'
+                  te.id === selectedEmail.id
+                    ? 'bg-n-iris-2'
+                    : 'hover:bg-n-alpha-1'
                 "
                 @click="selectEmail(te)"
               >
@@ -2313,9 +2322,7 @@ watch(
                     }}
                   </div>
                 </div>
-                <span
-                  class="text-[11px] tabular-nums text-n-slate-10 shrink-0"
-                >
+                <span class="text-[11px] tabular-nums text-n-slate-10 shrink-0">
                   {{ relTime(te.emailDate) }}
                 </span>
               </button>
@@ -2600,9 +2607,13 @@ watch(
             >
               <span class="truncate">
                 {{ d.from_user_name }} → {{ d.to_user_name }}
-                <span v-if="d.note" class="text-n-slate-9">（{{ d.note }}）</span>
+                <span v-if="d.note"
+class="text-n-slate-9"
+                  >（{{ d.note }}）</span>
               </span>
-              <span class="text-n-slate-9 shrink-0">{{ (d.created_at || '').slice(0, 10) }}</span>
+              <span class="text-n-slate-9 shrink-0">{{
+                (d.created_at || '').slice(0, 10)
+              }}</span>
             </div>
           </div>
         </div>
