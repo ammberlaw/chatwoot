@@ -278,6 +278,10 @@ Rails.application.routes.draw do
                 post :void
               end
             end
+            # 账簿：余额表 / 明细账 / 维度明细账（只读实时查询）
+            get 'ledgers/balances', to: 'ledgers#balances'
+            get 'ledgers/entries', to: 'ledgers#entries'
+            get 'ledgers/dimensions', to: 'ledgers#dimensions'
           end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard' do

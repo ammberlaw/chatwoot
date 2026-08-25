@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useErpVouchersStore } from 'dashboard/stores/erp/vouchers';
 import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
@@ -276,7 +277,11 @@ const doDelete = async () => {
   }
 };
 
+const route = useRoute();
+
 onMounted(() => {
+  // 从账簿明细账点凭证号跳过来时带 ?q=字号，直接过滤到那张凭证。
+  if (route.query.q) keyword.value = String(route.query.q);
   fetchList();
   if (!accountStore.getRecords.length) accountStore.get({});
 });

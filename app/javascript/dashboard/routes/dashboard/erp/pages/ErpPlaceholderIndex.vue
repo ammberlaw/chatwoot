@@ -4,7 +4,6 @@ import { useRoute } from 'vue-router';
 
 // E0 共用占位页：按路由名显示所属板块标题 + 所属切片，实现某板块时替换为独立组件。
 const TITLES = {
-  erp_ledgers_index: ['账簿', 'E2 账簿报表'],
   erp_reports_index: ['财务报表', 'E2 账簿报表'],
   erp_receivables_index: ['应收台账', 'E3 应收应付'],
   erp_payables_index: ['应付台账', 'E3 应收应付'],

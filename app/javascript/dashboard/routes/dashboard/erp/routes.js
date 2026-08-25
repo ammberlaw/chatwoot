@@ -3,6 +3,7 @@ import { FEATURE_FLAGS } from '../../../featureFlags';
 import ErpDashboardIndex from './pages/ErpDashboardIndex.vue';
 import ErpAccountsIndex from './pages/ErpAccountsIndex.vue';
 import ErpVouchersIndex from './pages/ErpVouchersIndex.vue';
+import ErpLedgersIndex from './pages/ErpLedgersIndex.vue';
 import ErpPlaceholderIndex from './pages/ErpPlaceholderIndex.vue';
 
 // ERP（财务管理）板块：与 CRM 同账号同登录；页面级前端只做展示，
@@ -29,7 +30,7 @@ export const routes = [
   erpPage('dashboard', 'erp_dashboard_index', ErpDashboardIndex),
   erpPage('accounts', 'erp_accounts_index', ErpAccountsIndex),
   erpPage('vouchers', 'erp_vouchers_index', ErpVouchersIndex),
-  erpPage('ledgers', 'erp_ledgers_index', ErpPlaceholderIndex),
+  erpPage('ledgers', 'erp_ledgers_index', ErpLedgersIndex),
   erpPage('reports', 'erp_reports_index', ErpPlaceholderIndex),
   erpPage('receivables', 'erp_receivables_index', ErpPlaceholderIndex),
   erpPage('payables', 'erp_payables_index', ErpPlaceholderIndex),
