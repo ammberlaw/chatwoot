@@ -1012,6 +1012,7 @@ const menuItems = computed(() => {
           'erp_payables_index',
           'erp_cash_index',
           'erp_periods_index',
+          'erp_fixed_assets_index',
         ],
         children: [
           {
@@ -1061,6 +1062,12 @@ const menuItems = computed(() => {
             label: '资金账户',
             to: accountScopedRoute('erp_cash_index'),
             activeOn: ['erp_cash_index'],
+          },
+          {
+            name: 'ERP Fixed Assets',
+            label: '固定资产',
+            to: accountScopedRoute('erp_fixed_assets_index'),
+            activeOn: ['erp_fixed_assets_index'],
           },
           {
             name: 'ERP Periods',
@@ -1809,6 +1816,7 @@ const ROUTE_MODULE = {
   erp_payables_index: 'erp',
   erp_cash_index: 'erp',
   erp_periods_index: 'erp',
+  erp_fixed_assets_index: 'erp',
   tiktok_today_index: 'tiktok',
   tiktok_dashboard_index: 'tiktok',
   tiktok_sales_records_index: 'tiktok',

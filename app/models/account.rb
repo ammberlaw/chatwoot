@@ -131,6 +131,8 @@ class Account < ApplicationRecord
   has_many :erp_cash_transactions, class_name: 'Erp::CashTransaction', dependent: :destroy_async
   has_many :erp_auto_voucher_rules, class_name: 'Erp::AutoVoucherRule', dependent: :destroy_async
   has_many :erp_fiscal_periods, class_name: 'Erp::FiscalPeriod', dependent: :destroy_async
+  has_many :erp_fixed_assets, class_name: 'Erp::FixedAsset', dependent: :destroy_async
+  has_many :erp_depreciation_entries, class_name: 'Erp::DepreciationEntry', dependent: :destroy_async
   has_many :mes_suppliers, class_name: 'Mes::Supplier', dependent: :destroy_async
   has_many :mes_warehouses, class_name: 'Mes::Warehouse', dependent: :destroy_async
   has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async

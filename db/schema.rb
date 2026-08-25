@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_30_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_31_000002) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1948,6 +1948,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_30_000001) do
     t.index ["source_type", "source_id"], name: "index_erp_cash_transactions_on_source_type_and_source_id"
   end
 
+  create_table "erp_depreciation_entries", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "fixed_asset_id", null: false
+    t.string "period", null: false
+    t.bigint "amount_micros", null: false
+    t.bigint "voucher_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "period"], name: "index_erp_depreciation_entries_on_account_id_and_period"
+    t.index ["account_id"], name: "index_erp_depreciation_entries_on_account_id"
+    t.index ["fixed_asset_id", "period"], name: "index_erp_depreciation_entries_on_fixed_asset_id_and_period", unique: true
+    t.index ["fixed_asset_id"], name: "index_erp_depreciation_entries_on_fixed_asset_id"
+  end
+
   create_table "erp_fiscal_periods", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "period", null: false
@@ -1962,6 +1976,29 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_30_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "period"], name: "index_erp_fiscal_periods_on_account_id_and_period", unique: true
     t.index ["account_id"], name: "index_erp_fiscal_periods_on_account_id"
+  end
+
+  create_table "erp_fixed_assets", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "asset_no", null: false
+    t.string "name", null: false
+    t.string "category", default: "EQUIPMENT", null: false
+    t.date "purchased_at", null: false
+    t.bigint "original_value_micros", null: false
+    t.decimal "residual_rate", precision: 5, scale: 2, default: "5.0", null: false
+    t.integer "useful_months", default: 60, null: false
+    t.bigint "accumulated_depreciation_micros", default: 0, null: false
+    t.string "status", default: "IN_USE", null: false
+    t.date "disposed_at"
+    t.bigint "disposal_income_micros", default: 0, null: false
+    t.bigint "department_id"
+    t.bigint "keeper_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "asset_no"], name: "index_erp_fixed_assets_on_account_id_and_asset_no", unique: true
+    t.index ["account_id", "status"], name: "index_erp_fixed_assets_on_account_id_and_status"
+    t.index ["account_id"], name: "index_erp_fixed_assets_on_account_id"
   end
 
   create_table "erp_ledger_accounts", force: :cascade do |t|
@@ -3440,6 +3477,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_30_000001) do
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "erp_cash_transactions", "erp_cash_accounts", column: "cash_account_id", on_delete: :restrict
+  add_foreign_key "erp_depreciation_entries", "erp_fixed_assets", column: "fixed_asset_id", on_delete: :cascade
   add_foreign_key "erp_ledger_accounts", "erp_ledger_accounts", column: "parent_id", on_delete: :restrict
   add_foreign_key "erp_payment_allocations", "erp_payables", column: "payable_id", on_delete: :restrict
   add_foreign_key "erp_payment_allocations", "erp_payment_records", column: "payment_record_id", on_delete: :cascade

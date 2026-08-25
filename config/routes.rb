@@ -304,6 +304,10 @@ Rails.application.routes.draw do
               end
             end
             resources :auto_voucher_rules, only: [:index, :update]
+            resources :fixed_assets, only: [:index, :show, :create, :update, :destroy] do
+              collection { post :depreciate }
+              member { post :dispose }
+            end
             resources :fiscal_periods, only: [:index] do
               collection do
                 post :close
