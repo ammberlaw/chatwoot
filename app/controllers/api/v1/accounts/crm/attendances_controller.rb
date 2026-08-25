@@ -17,17 +17,32 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
 
   # 上班/下班打卡：第一次记上班，之后记下班（重复打卡取更晚时间，加班晚走再点一次即可）。
   def clock
+    group = group_for(current_user.id)
+    lat = params[:lat]
+    lng = params[:lng]
+    ip = request.remote_ip
+    unless group.location_ok?(lat: lat, lng: lng, ip: ip)
+      return render json: { error: location_error(group) }, status: :unprocessable_entity
+    end
+
     now = Time.current.in_time_zone(Crm::AttendanceRecord::TZ)
     rec = Current.account.crm_attendance_records
                  .find_or_initialize_by(user_id: current_user.id, work_date: now.to_date)
     if rec.clock_in_at.nil?
       rec.clock_in_at = now
+      rec.assign_attributes(clock_in_ip: ip, clock_in_lat: lat.presence, clock_in_lng: lng.presence)
     else
       rec.clock_out_at = now
+      rec.assign_attributes(clock_out_ip: ip, clock_out_lat: lat.presence, clock_out_lng: lng.presence)
     end
-    rec.recompute_status!(group_for(current_user.id))
+    rec.recompute_status!(group)
     rec.save!
     render json: record_json(rec)
+  end
+
+  # 返回当前请求的公网 IP，供管理员「把当前网络设为打卡网络」一键抓取。
+  def my_network
+    render json: { ip: request.remote_ip }
   end
 
   # 月度汇总：每人出勤/迟到/早退/缺卡/请假计数。
@@ -60,6 +75,14 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
   def group_for(user_id)
     @groups_cache ||= {}
     @groups_cache[user_id] ||= Crm::AttendanceGroup.for_user(Current.account, user_id)
+  end
+
+  # 打卡地点校验失败文案：按该组开启的方式提示。
+  def location_error(group)
+    ways = []
+    ways << '在打卡范围内(GPS)' if group.geo_enabled?
+    ways << '连接公司网络(WiFi)' if group.ip_enabled?
+    "打卡失败：需#{ways.join(' 或 ')}。请确认后重试"
   end
 
   def admin_like?
@@ -141,6 +164,9 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
   def group_json(group)
     { name: group.name, work_days: group.work_days, clock_in_time: group.clock_in_time,
       clock_out_time: group.clock_out_time, grace_minutes: group.grace_minutes,
-      holidays: group.holidays }
+      holidays: group.holidays,
+      geo_enabled: group.geo_enabled, ip_enabled: group.ip_enabled,
+      office_lat: group.office_lat&.to_f, office_lng: group.office_lng&.to_f,
+      geo_radius_m: group.geo_radius_m }
   end
 end

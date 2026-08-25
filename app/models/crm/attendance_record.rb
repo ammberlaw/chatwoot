@@ -4,7 +4,13 @@
 #
 #  id             :bigint           not null, primary key
 #  clock_in_at    :datetime
+#  clock_in_ip    :string
+#  clock_in_lat   :decimal(10, 7)
+#  clock_in_lng   :decimal(10, 7)
 #  clock_out_at   :datetime
+#  clock_out_ip   :string
+#  clock_out_lat  :decimal(10, 7)
+#  clock_out_lng  :decimal(10, 7)
 #  note           :string
 #  status         :string           default("NORMAL"), not null
 #  work_date      :date             not null

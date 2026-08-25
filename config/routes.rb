@@ -256,6 +256,7 @@ Rails.application.routes.draw do
                 post :clock
                 get :summary
                 post :adjust
+                get :my_network
               end
             end
             resource :performance_settings, only: [:show, :update], controller: 'performance_settings'

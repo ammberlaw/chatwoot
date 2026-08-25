@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_26_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_27_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -872,6 +872,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_000003) do
     t.datetime "updated_at", null: false
     t.integer "reclock_limit", default: 3, null: false
     t.integer "reclock_window_days", default: 30, null: false
+    t.boolean "geo_enabled", default: false, null: false
+    t.decimal "office_lat", precision: 10, scale: 7
+    t.decimal "office_lng", precision: 10, scale: 7
+    t.integer "geo_radius_m", default: 300, null: false
+    t.boolean "ip_enabled", default: false, null: false
+    t.string "allowed_ips", default: [], null: false, array: true
     t.index ["account_id", "name"], name: "index_crm_attendance_groups_on_account_id_and_name", unique: true
     t.index ["account_id"], name: "index_crm_attendance_groups_on_account_id"
   end
@@ -887,6 +893,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_000003) do
     t.bigint "adjusted_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "clock_in_ip"
+    t.decimal "clock_in_lat", precision: 10, scale: 7
+    t.decimal "clock_in_lng", precision: 10, scale: 7
+    t.string "clock_out_ip"
+    t.decimal "clock_out_lat", precision: 10, scale: 7
+    t.decimal "clock_out_lng", precision: 10, scale: 7
     t.index ["account_id", "user_id", "work_date"], name: "idx_crm_attendance_on_user_date", unique: true
     t.index ["account_id", "work_date"], name: "index_crm_attendance_records_on_account_id_and_work_date"
   end

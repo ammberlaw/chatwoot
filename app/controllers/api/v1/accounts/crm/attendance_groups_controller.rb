@@ -57,6 +57,18 @@ class Api::V1::Accounts::Crm::AttendanceGroupsController < Api::V1::Accounts::Cr
       grace_minutes: group_params[:grace_minutes].to_i,
       reclock_limit: group_params[:reclock_limit].to_i,
       reclock_window_days: group_params[:reclock_window_days].to_i
+    }.merge(location_attrs(group_params))
+  end
+
+  # 打卡地点/网络校验配置。
+  def location_attrs(g)
+    {
+      geo_enabled: ActiveModel::Type::Boolean.new.cast(g[:geo_enabled]) || false,
+      office_lat: g[:office_lat].presence,
+      office_lng: g[:office_lng].presence,
+      geo_radius_m: g[:geo_radius_m].present? ? g[:geo_radius_m].to_i : 300,
+      ip_enabled: ActiveModel::Type::Boolean.new.cast(g[:ip_enabled]) || false,
+      allowed_ips: Array(g[:allowed_ips]).map { |x| x.to_s.strip }.reject(&:blank?).uniq
     }
   end
 
@@ -75,6 +87,9 @@ class Api::V1::Accounts::Crm::AttendanceGroupsController < Api::V1::Accounts::Cr
       work_days: group.work_days, clock_in_time: group.clock_in_time,
       clock_out_time: group.clock_out_time, grace_minutes: group.grace_minutes,
       reclock_limit: group.reclock_limit, reclock_window_days: group.reclock_window_days,
-      holidays: group.holidays, user_ids: group.user_ids }
+      holidays: group.holidays, user_ids: group.user_ids,
+      geo_enabled: group.geo_enabled, office_lat: group.office_lat&.to_f,
+      office_lng: group.office_lng&.to_f, geo_radius_m: group.geo_radius_m,
+      ip_enabled: group.ip_enabled, allowed_ips: group.allowed_ips }
   end
 end

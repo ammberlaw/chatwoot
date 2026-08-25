@@ -119,15 +119,30 @@ const mineCounts = computed(() => {
 
 // ── 打卡 ──
 const clocking = ref(false);
+// 浏览器取当前定位（考勤组开启 GPS 校验时打卡前调用）。失败/拒绝授权则返回空，交后端判定。
+const getGeo = () =>
+  new Promise(resolve => {
+    if (!navigator.geolocation) {
+      resolve({});
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve({}),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  });
 const clock = async () => {
   if (clocking.value) return;
   clocking.value = true;
   try {
-    await axios.post(`${api()}/clock`);
+    // 组开启 GPS 校验时先取定位；仅网络(IP)校验则无需定位。
+    const body = setting.value?.geo_enabled ? await getGeo() : {};
+    await axios.post(`${api()}/clock`, body);
     useAlert(todayRec.value?.clock_in_at ? '下班打卡成功' : '上班打卡成功');
     fetchMine();
-  } catch {
-    useAlert('打卡失败，请重试');
+  } catch (e) {
+    useAlert(e.response?.data?.error || '打卡失败，请重试');
   } finally {
     clocking.value = false;
   }
@@ -207,6 +222,13 @@ const groupForm = reactive({
   reclockWindowDays: 30,
   holidays: [],
   userIds: [],
+  // 打卡范围
+  geoEnabled: false,
+  officeLat: null,
+  officeLng: null,
+  geoRadius: 300,
+  ipEnabled: false,
+  allowedIps: [],
 });
 const agents = ref([]);
 const fetchAgents = async () => {
@@ -230,6 +252,12 @@ const loadGroupForm = g => {
   groupForm.reclockWindowDays = g?.reclock_window_days ?? 30;
   groupForm.holidays = [...(g?.holidays || [])];
   groupForm.userIds = [...(g?.user_ids || [])];
+  groupForm.geoEnabled = !!g?.geo_enabled;
+  groupForm.officeLat = g?.office_lat ?? null;
+  groupForm.officeLng = g?.office_lng ?? null;
+  groupForm.geoRadius = g?.geo_radius_m ?? 300;
+  groupForm.ipEnabled = !!g?.ip_enabled;
+  groupForm.allowedIps = [...(g?.allowed_ips || [])];
 };
 const selectGroup = g => {
   selectedGroupId.value = g.id;
@@ -277,6 +305,52 @@ const toggleMember = id => {
   if (i >= 0) groupForm.userIds.splice(i, 1);
   else groupForm.userIds.push(id);
 };
+// 抓取当前位置设为办公室坐标（管理员在办公室点一下）。
+const capturingGeo = ref(false);
+const captureOfficeLocation = () => {
+  if (!navigator.geolocation) {
+    useAlert('当前浏览器不支持定位');
+    return;
+  }
+  capturingGeo.value = true;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      groupForm.officeLat = Number(pos.coords.latitude.toFixed(7));
+      groupForm.officeLng = Number(pos.coords.longitude.toFixed(7));
+      capturingGeo.value = false;
+      useAlert('已抓取当前位置为办公室坐标');
+    },
+    () => {
+      capturingGeo.value = false;
+      useAlert('定位失败：请允许定位权限后重试');
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
+};
+
+// 把当前网络的公网 IP 设为打卡网络（管理员在办公室 WiFi 下点一下）。
+const capturingIp = ref(false);
+const captureCurrentIp = async () => {
+  capturingIp.value = true;
+  try {
+    const { data } = await axios.get(`${api()}/my_network`);
+    const ip = data?.ip;
+    if (ip && !groupForm.allowedIps.includes(ip)) {
+      groupForm.allowedIps.push(ip);
+      useAlert(`已把当前网络 ${ip} 设为打卡网络`);
+    } else if (ip) {
+      useAlert('当前网络已在打卡网络列表中');
+    }
+  } catch {
+    useAlert('获取当前网络失败');
+  } finally {
+    capturingIp.value = false;
+  }
+};
+const removeIp = ip => {
+  groupForm.allowedIps = groupForm.allowedIps.filter(x => x !== ip);
+};
+
 const saveGroup = async () => {
   if (savingSetting.value || !groupForm.name.trim()) return;
   savingSetting.value = true;
@@ -291,6 +365,12 @@ const saveGroup = async () => {
       reclock_window_days: groupForm.reclockWindowDays,
       holidays: groupForm.holidays,
       user_ids: groupForm.userIds,
+      geo_enabled: groupForm.geoEnabled,
+      office_lat: groupForm.officeLat,
+      office_lng: groupForm.officeLng,
+      geo_radius_m: groupForm.geoRadius,
+      ip_enabled: groupForm.ipEnabled,
+      allowed_ips: groupForm.allowedIps,
     },
   };
   try {
@@ -727,6 +807,98 @@ onMounted(fetchMine);
               补卡上限 0 = 不允许补卡；补卡时限 0 =
               不限。提交补卡审批时按申请人所属组校验。
             </p>
+
+            <!-- 打卡范围（钉钉式：定位 + 办公网络，任一命中即可打卡）-->
+            <div
+              class="flex flex-col gap-3 p-3 border rounded-xl border-n-weak bg-n-alpha-1"
+            >
+              <span class="text-sm font-medium text-n-slate-12">打卡范围（可选）</span>
+
+              <!-- GPS 定位打卡 -->
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  v-model="groupForm.geoEnabled"
+                  type="checkbox"
+                  class="accent-n-iris-9"
+                />
+                <span class="text-sm text-n-slate-12">定位打卡（GPS 地理围栏）</span>
+              </label>
+              <div v-if="groupForm.geoEnabled" class="flex flex-col gap-2 pl-6">
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    class="h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-60"
+                    :disabled="capturingGeo"
+                    @click="captureOfficeLocation"
+                  >
+                    {{ capturingGeo ? '定位中…' : '抓取当前位置为办公室' }}
+                  </button>
+                  <span class="text-xs text-n-slate-11">
+                    {{
+                      groupForm.officeLat
+                        ? `已设：${groupForm.officeLat}, ${groupForm.officeLng}`
+                        : '尚未设置办公室坐标'
+                    }}
+                  </span>
+                </div>
+                <label class="flex items-center gap-2">
+                  <span class="text-xs text-n-slate-11">允许半径（米）</span>
+                  <input
+                    v-model.number="groupForm.geoRadius"
+                    type="number"
+                    min="20"
+                    class="w-24 h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+                  />
+                </label>
+              </div>
+
+              <!-- 办公网络(IP)打卡 -->
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  v-model="groupForm.ipEnabled"
+                  type="checkbox"
+                  class="accent-n-iris-9"
+                />
+                <span class="text-sm text-n-slate-12">
+                  办公网络打卡（连公司 WiFi/网络才能打）
+                </span>
+              </label>
+              <div v-if="groupForm.ipEnabled" class="flex flex-col gap-2 pl-6">
+                <button
+                  class="self-start h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-60"
+                  :disabled="capturingIp"
+                  @click="captureCurrentIp"
+                >
+                  {{ capturingIp ? '获取中…' : '把当前网络设为打卡网络' }}
+                </button>
+                <div
+                  v-if="groupForm.allowedIps.length"
+                  class="flex flex-wrap gap-1.5"
+                >
+                  <span
+                    v-for="ip in groupForm.allowedIps"
+                    :key="ip"
+                    class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-n-alpha-2 text-n-slate-12"
+                  >
+                    {{ ip }}
+                    <button
+                      class="text-n-slate-10 hover:text-n-ruby-11"
+                      @click="removeIp(ip)"
+                    >
+                      <span class="i-lucide-x size-3" />
+                    </button>
+                  </span>
+                </div>
+                <p class="text-xs text-n-slate-10">
+                  在公司 WiFi 下点上面按钮抓取公司公网 IP。手机浏览器读不到 WiFi
+                  名，故用「连同一网络=同一公网 IP」来判定，等效 WiFi 打卡。
+                </p>
+              </div>
+              <p class="text-xs text-n-slate-10">
+                两项都不开 =
+                不限制打卡地点；都开则「在定位范围内」或「在办公网络」任一满足即可打卡。
+              </p>
+            </div>
+
             <div class="flex flex-col gap-1.5">
               <span class="text-xs text-n-slate-11">
                 节假日（不计工作日，如法定假期）
