@@ -27,6 +27,8 @@ const view = ref('board');
 // 排序：默认最近更新；可按创建时间/金额，正序倒序
 const sortKey = ref('');
 const sortDir = ref('desc');
+// 看板快速查找：按商机名/客户名搜（后端过滤，能搜全量而非仅当前页）。
+const searchQuery = ref('');
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -81,7 +83,15 @@ const refreshBoard = () =>
     owner_id: selectedOwnerId.value || undefined,
     sort: sortKey.value || undefined,
     direction: sortKey.value ? sortDir.value : undefined,
+    q: searchQuery.value.trim() || undefined,
   });
+
+// 搜索防抖：输入停 300ms 再拉，避免逐字请求。
+let searchTimer = null;
+const onSearch = () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(refreshBoard, 300);
+};
 
 const setView = value => {
   view.value = value;
@@ -287,6 +297,18 @@ onMounted(() => {
             :variant="view === 'pool' ? 'solid' : 'ghost'"
             :color="view === 'pool' ? 'iris' : 'slate'"
             @click="setView('pool')"
+          />
+        </div>
+        <div v-if="view !== 'list'" class="relative">
+          <span
+            class="absolute z-10 -translate-y-1/2 pointer-events-none i-lucide-search left-2.5 top-1/2 size-4 text-n-slate-10"
+          />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索商机名 / 客户名…"
+            class="w-48 py-0 pr-3 mb-0 text-sm rounded-lg reset-base h-9 pl-8 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 hover:outline-n-brand focus:outline-n-brand"
+            @input="onSearch"
           />
         </div>
         <SelectCard

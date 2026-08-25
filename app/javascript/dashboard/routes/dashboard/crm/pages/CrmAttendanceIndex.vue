@@ -241,6 +241,90 @@ const fetchAgents = async () => {
     agents.value = [];
   }
 };
+
+// 组织架构：部门树 + 归属，用来把「组成员」按部门分组选择（比平铺清爽）。
+const departments = ref([]);
+const memberships = ref([]);
+const collapsedDepts = reactive({});
+const fetchOrg = async () => {
+  try {
+    const [dept, mem] = await Promise.all([
+      axios.get(`/api/v1/accounts/${accountId.value}/org/departments`),
+      axios.get(`/api/v1/accounts/${accountId.value}/org/memberships`),
+    ]);
+    departments.value = dept.data?.payload || [];
+    memberships.value = mem.data?.payload || [];
+  } catch {
+    departments.value = [];
+    memberships.value = [];
+  }
+};
+
+// 部门按组织架构树 DFS 展平（保留层级 depth 做缩进），同级按 position 排。
+const orderedDepts = computed(() => {
+  const byParent = {};
+  departments.value.forEach(d => {
+    (byParent[d.parent_id || 0] ||= []).push(d);
+  });
+  Object.values(byParent).forEach(arr =>
+    arr.sort((a, b) => a.position - b.position || a.id - b.id)
+  );
+  const out = [];
+  const walk = (pid, depth) => {
+    (byParent[pid] || []).forEach(d => {
+      out.push({ id: d.id, name: d.name, depth });
+      walk(d.id, depth + 1);
+    });
+  };
+  walk(0, 0);
+  return out;
+});
+
+// 用户 → 归属部门 id：优先 is_primary，其次首个归属；无归属归 0（未分配）。
+const userDeptMap = computed(() => {
+  const map = {};
+  memberships.value.forEach(m => {
+    if (m.is_primary) map[m.user_id] = m.department_id;
+  });
+  memberships.value.forEach(m => {
+    if (map[m.user_id] == null) map[m.user_id] = m.department_id;
+  });
+  return map;
+});
+
+// 组成员按部门分组：{ id, name, depth, members[] }，未分配部门排最后。
+const memberGroups = computed(() => {
+  const byDept = {};
+  agents.value.forEach(a => {
+    (byDept[userDeptMap.value[a.id] ?? 0] ||= []).push(a);
+  });
+  const list = orderedDepts.value
+    .filter(d => byDept[d.id]?.length)
+    .map(d => ({ ...d, members: byDept[d.id] }));
+  if (byDept[0]?.length) {
+    list.push({ id: 0, name: '未分配部门', depth: 0, members: byDept[0] });
+  }
+  return list;
+});
+
+const deptSelectedCount = g =>
+  g.members.filter(m => groupForm.userIds.includes(m.id)).length;
+const deptAllChecked = g =>
+  g.members.length > 0 &&
+  g.members.every(m => groupForm.userIds.includes(m.id));
+const toggleDept = g => {
+  const ids = g.members.map(m => m.id);
+  if (deptAllChecked(g)) {
+    groupForm.userIds = groupForm.userIds.filter(id => !ids.includes(id));
+  } else {
+    ids.forEach(id => {
+      if (!groupForm.userIds.includes(id)) groupForm.userIds.push(id);
+    });
+  }
+};
+const toggleCollapse = id => {
+  collapsedDepts[id] = !collapsedDepts[id];
+};
 const loadGroupForm = g => {
   groupForm.name = g?.name || '';
   groupForm.isDefault = !!g?.is_default;
@@ -283,6 +367,7 @@ const openSettings = () => {
   view.value = 'settings';
   fetchGroups();
   if (!agents.value.length) fetchAgents();
+  if (!departments.value.length) fetchOrg();
 };
 const newHoliday = ref('');
 const addHoliday = () => {
@@ -812,7 +897,9 @@ onMounted(fetchMine);
             <div
               class="flex flex-col gap-3 p-3 border rounded-xl border-n-weak bg-n-alpha-1"
             >
-              <span class="text-sm font-medium text-n-slate-12">打卡范围（可选）</span>
+              <span class="text-sm font-medium text-n-slate-12"
+                >打卡范围（可选）</span
+              >
 
               <!-- GPS 定位打卡 -->
               <label class="flex items-center gap-2 cursor-pointer">
@@ -821,7 +908,9 @@ onMounted(fetchMine);
                   type="checkbox"
                   class="accent-n-iris-9"
                 />
-                <span class="text-sm text-n-slate-12">定位打卡（GPS 地理围栏）</span>
+                <span class="text-sm text-n-slate-12"
+                  >定位打卡（GPS 地理围栏）</span
+                >
               </label>
               <div v-if="groupForm.geoEnabled" class="flex flex-col gap-2 pl-6">
                 <div class="flex flex-wrap items-center gap-2">
@@ -932,21 +1021,83 @@ onMounted(fetchMine);
               </div>
             </div>
             <div v-if="!groupForm.isDefault" class="flex flex-col gap-1.5">
-              <span class="text-xs text-n-slate-11">组成员</span>
-              <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-                <label
-                  v-for="a in agents"
-                  :key="a.id"
-                  class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-n-slate-11"
+                  >组成员（按部门选择）</span
                 >
-                  <input
-                    type="checkbox"
-                    class="accent-n-iris-9"
-                    :checked="groupForm.userIds.includes(a.id)"
-                    @change="toggleMember(a.id)"
-                  />
-                  {{ a.name }}
-                </label>
+                <span class="text-xs text-n-slate-10">
+                  已选 {{ groupForm.userIds.length }} 人
+                </span>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden border divide-y rounded-lg border-n-weak divide-n-weak"
+              >
+                <div
+                  v-for="g in memberGroups"
+                  :key="g.id"
+                  class="flex flex-col"
+                >
+                  <!-- 部门头：折叠 + 全选本部门 -->
+                  <div
+                    class="flex items-center gap-2 px-3 py-2 bg-n-alpha-1"
+                    :style="{ paddingLeft: `${12 + g.depth * 16}px` }"
+                  >
+                    <button
+                      type="button"
+                      class="flex items-center gap-1 text-sm font-medium text-n-slate-12"
+                      @click="toggleCollapse(g.id)"
+                    >
+                      <span
+                        class="size-4 text-n-slate-10"
+                        :class="
+                          collapsedDepts[g.id]
+                            ? 'i-lucide-chevron-right'
+                            : 'i-lucide-chevron-down'
+                        "
+                      />
+                      {{ g.name }}
+                    </button>
+                    <span class="text-xs text-n-slate-10">
+                      {{ deptSelectedCount(g) }}/{{ g.members.length }}
+                    </span>
+                    <label
+                      class="flex items-center gap-1 ml-auto text-xs cursor-pointer text-n-slate-11"
+                    >
+                      <input
+                        type="checkbox"
+                        class="accent-n-iris-9"
+                        :checked="deptAllChecked(g)"
+                        @change="toggleDept(g)"
+                      />
+                      全选
+                    </label>
+                  </div>
+                  <!-- 部门成员 -->
+                  <div
+                    v-if="!collapsedDepts[g.id]"
+                    class="flex flex-wrap px-3 py-2 gap-x-4 gap-y-1.5"
+                  >
+                    <label
+                      v-for="a in g.members"
+                      :key="a.id"
+                      class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+                    >
+                      <input
+                        type="checkbox"
+                        class="accent-n-iris-9"
+                        :checked="groupForm.userIds.includes(a.id)"
+                        @change="toggleMember(a.id)"
+                      />
+                      {{ a.name }}
+                    </label>
+                  </div>
+                </div>
+                <div
+                  v-if="!memberGroups.length"
+                  class="px-3 py-4 text-sm text-center text-n-slate-10"
+                >
+                  暂无成员，请先在「组织架构」维护部门与人员
+                </div>
               </div>
             </div>
             <div class="flex items-center gap-2">

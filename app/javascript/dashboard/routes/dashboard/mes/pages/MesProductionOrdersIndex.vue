@@ -652,7 +652,7 @@ const openMarkOutsourced = async () => {
     try {
       const { data } = await axios.get(
         `/api/v1/accounts/${accountId.value}/mes/suppliers`,
-        { params: { active: 'true' } }
+        { params: { active: 'true', per_page: 500 } }
       );
       suppliers.value = data?.payload || data || [];
     } catch {

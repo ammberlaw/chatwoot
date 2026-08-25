@@ -329,7 +329,8 @@ const submit = async () => {
 
 onMounted(async () => {
   store.get();
-  suppliersStore.get();
+  // 供应商下拉需全量，默认分页只出第一页会漏选。
+  suppliersStore.get({ per_page: 500 });
   materialsStore.get();
   loadProducts('');
   try {

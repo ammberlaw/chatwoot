@@ -52,6 +52,7 @@ const load = () =>
   store.get({
     q: keyword.value.trim() || undefined,
     item_category: itemCategory.value || undefined,
+    per_page: 500,
   });
 const changeCategoryFilter = v => {
   itemCategory.value = v;
@@ -314,7 +315,7 @@ const doDelete = async () => {
 };
 
 onMounted(() => {
-  store.get();
+  store.get({ per_page: 500 });
   loadMaterials();
 });
 </script>

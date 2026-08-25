@@ -60,7 +60,7 @@ const openCreate = () => {
     defaultSupplierId: '',
     remark: '',
   });
-  if (!suppliersStore.getRecords?.length) suppliersStore.get();
+  if (!suppliersStore.getRecords?.length) suppliersStore.get({ per_page: 500 });
   dialogRef.value?.open();
 };
 const submit = async () => {
@@ -74,7 +74,7 @@ const submit = async () => {
 
 onMounted(() => {
   store.get();
-  suppliersStore.get();
+  suppliersStore.get({ per_page: 500 });
 });
 </script>
 
