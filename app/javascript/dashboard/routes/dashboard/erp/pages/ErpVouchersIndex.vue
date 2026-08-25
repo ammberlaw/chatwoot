@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useErpVouchersStore } from 'dashboard/stores/erp/vouchers';
@@ -16,6 +16,8 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import ErpDimensionFields from 'dashboard/components-next/erp/ErpDimensionFields.vue';
+import ErpVoucherPrintSheet from 'dashboard/components-next/erp/ErpVoucherPrintSheet.vue';
+import { printElement } from 'dashboard/helper/printHelper';
 
 // 记账凭证：手工凭证录入 + 过账 / 红冲 / 作废。
 // 硬规则在后端（借贷本位币必平才能过账；已记账不可改删只能红冲），前端只做录入体验与显隐。
@@ -239,6 +241,49 @@ const submit = async (andPost = false) => {
   fetchList();
 };
 
+// 打印：把选中的凭证渲染进屏幕外的打印区，再交给 printHelper（提成表/考核表同款）。
+// 多张时每张一页（打印版式自带 page-break-after）。
+const printAreaRef = ref(null);
+const printSheets = ref([]);
+const printing = ref(false);
+const selectedIds = ref([]);
+
+const allSelected = computed(
+  () =>
+    records.value.length > 0 &&
+    selectedIds.value.length === records.value.length
+);
+const toggleSelectAll = () => {
+  selectedIds.value = allSelected.value ? [] : records.value.map(v => v.id);
+};
+const toggleSelect = id => {
+  const index = selectedIds.value.indexOf(id);
+  if (index === -1) selectedIds.value.push(id);
+  else selectedIds.value.splice(index, 1);
+};
+
+// 列表接口不带分录行，打印前逐张取详情（凭证张数有限，直接并发取）。
+const printVouchers = async (ids, title) => {
+  if (!ids.length) return;
+  printing.value = true;
+  try {
+    const results = await Promise.all(ids.map(id => ErpVoucherAPI.show(id)));
+    printSheets.value = results.map(r => r.data);
+    await nextTick();
+    printElement(printAreaRef.value, title);
+  } finally {
+    printing.value = false;
+  }
+};
+
+const printOne = voucher =>
+  printVouchers(
+    [voucher.id],
+    `凭证 ${voucher.voucherNo || voucher.voucher_no}`
+  );
+const printSelected = () =>
+  printVouchers(selectedIds.value, `记账凭证 ${selectedIds.value.length} 张`);
+
 const viewRef = ref(null);
 const viewing = ref(null);
 const openView = async voucher => {
@@ -305,6 +350,15 @@ onMounted(() => {
         />
         <Button label="查询" color="slate" size="sm" @click="resetAndFetch" />
         <Button
+          v-if="selectedIds.length"
+          :label="`打印选中 ${selectedIds.length} 张`"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="printing"
+          @click="printSelected"
+        />
+        <Button
           v-if="canWrite"
           label="新建凭证"
           color="iris"
@@ -336,6 +390,14 @@ onMounted(() => {
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium w-9">
+                <input
+                  type="checkbox"
+                  class="w-4 h-4"
+                  :checked="allSelected"
+                  @change="toggleSelectAll"
+                />
+              </th>
               <th class="px-3 py-3 font-medium">凭证字号</th>
               <th class="px-3 py-3 font-medium">日期</th>
               <th class="px-3 py-3 font-medium">摘要</th>
@@ -353,6 +415,14 @@ onMounted(() => {
               class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
               @click="openView(v)"
             >
+              <td class="px-3 py-2" @click.stop>
+                <input
+                  type="checkbox"
+                  class="w-4 h-4"
+                  :checked="selectedIds.includes(v.id)"
+                  @change="toggleSelect(v.id)"
+                />
+              </td>
               <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
                 {{ v.voucherNo }}
                 <span v-if="v.reversalOfNo" class="text-xs text-n-ruby-11">
@@ -388,6 +458,13 @@ onMounted(() => {
               </td>
               <td class="px-3 py-2" @click.stop>
                 <div class="flex items-center justify-end gap-1">
+                  <Button
+                    label="打印"
+                    color="slate"
+                    variant="ghost"
+                    size="xs"
+                    @click="printOne(v)"
+                  />
                   <template v-if="canWrite && v.status === 'DRAFT'">
                     <Button
                       label="过账"
@@ -432,7 +509,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!records.length">
-              <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+              <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
                 该期间还没有凭证。点右上角「新建凭证」开始记账。
               </td>
             </tr>
@@ -728,8 +805,34 @@ onMounted(() => {
         <div v-else-if="viewing.reversed_by_no" class="text-sm text-n-slate-11">
           本张已被 {{ viewing.reversed_by_no }} 红冲
         </div>
+
+        <div class="flex items-center justify-end pt-2 border-t border-n-weak">
+          <Button
+            label="打印本张"
+            icon="i-lucide-printer"
+            color="slate"
+            size="sm"
+            :is-loading="printing"
+            @click="printOne(viewing)"
+          />
+        </div>
       </div>
     </Dialog>
+
+    <!-- 打印区。两个坑：
+         ① 不能用 display:none 藏——printElement 靠 getComputedStyle 把样式内联进克隆，会连 none 一起内联，打出空白页；
+         ② 「移出屏幕」的定位必须放在**外层**：克隆的是里层节点，定位类若在它身上会被一起复制，
+            克隆到打印容器后照样跑到 -10000px，打印同样是空白（踩过）。
+         宽度按 A4 正文宽（96dpi≈794px）撑开，排版所见即所得。 -->
+    <div class="fixed top-0 -left-[10000px] w-[794px]">
+      <div ref="printAreaRef">
+        <ErpVoucherPrintSheet
+          v-for="sheet in printSheets"
+          :key="sheet.id"
+          :voucher="sheet"
+        />
+      </div>
+    </div>
 
     <Dialog
       ref="confirmRef"
