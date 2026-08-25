@@ -1,5 +1,32 @@
 # 应付台账：按采购单 × 供应商建账（一张采购单多个供应商就拆多条），也可脱离采购单手工建。
 # paid_amount_micros 只经核销代码路径维护（Erp::AllocationService）。
+# == Schema Information
+#
+# Table name: erp_payables
+#
+#  id                    :bigint           not null, primary key
+#  currency              :string           default("CNY"), not null
+#  due_date              :date
+#  exchange_rate         :decimal(12, 6)   default(1.0), not null
+#  paid_amount_micros    :bigint           default(0), not null
+#  payable_no            :string           not null
+#  remark                :text
+#  status                :string           default("UNPAID"), not null
+#  total_amount_micros   :bigint           default(0), not null
+#  created_at            :datetime         not null
+#  updated_at            :datetime         not null
+#  account_id            :bigint           not null
+#  mes_purchase_order_id :bigint
+#  mes_supplier_id       :bigint           not null
+#
+# Indexes
+#
+#  index_erp_payables_on_account_id                 (account_id)
+#  index_erp_payables_on_account_id_and_payable_no  (account_id,payable_no) UNIQUE
+#  index_erp_payables_on_account_id_and_status      (account_id,status)
+#  index_erp_payables_on_mes_purchase_order_id      (mes_purchase_order_id)
+#  index_erp_payables_on_mes_supplier_id            (mes_supplier_id)
+#
 class Erp::Payable < ApplicationRecord
   UNPAID = 'UNPAID'.freeze
   PARTIAL = 'PARTIAL'.freeze

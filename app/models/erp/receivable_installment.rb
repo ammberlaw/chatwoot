@@ -1,4 +1,32 @@
 # 分期收款计划：订金/尾款按约定条件到期，扫描后派生 DUE_SOON / OVERDUE 供催款提醒用。
+# == Schema Information
+#
+# Table name: erp_receivable_installments
+#
+#  id            :bigint           not null, primary key
+#  amount_micros :bigint           default(0), not null
+#  due_basis     :string           default("FIXED"), not null
+#  due_date      :date
+#  due_days      :integer
+#  kind          :string           default("BALANCE"), not null
+#  remark        :text
+#  seq           :integer          default(1), not null
+#  status        :string           default("PENDING"), not null
+#  created_at    :datetime         not null
+#  updated_at    :datetime         not null
+#  account_id    :bigint           not null
+#  receivable_id :bigint           not null
+#
+# Indexes
+#
+#  index_erp_receivable_installments_on_account_id               (account_id)
+#  index_erp_receivable_installments_on_account_id_and_due_date  (account_id,due_date)
+#  index_erp_receivable_installments_on_receivable_id            (receivable_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (receivable_id => erp_receivables.id) ON DELETE => cascade
+#
 class Erp::ReceivableInstallment < ApplicationRecord
   KINDS = %w[DEPOSIT BALANCE OTHER].freeze
   KIND_LABELS = { 'DEPOSIT' => '订金', 'BALANCE' => '尾款', 'OTHER' => '其他' }.freeze

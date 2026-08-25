@@ -6,6 +6,7 @@ import { useErpVouchersStore } from 'dashboard/stores/erp/vouchers';
 import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import ErpVoucherAPI from 'dashboard/api/erp/vouchers';
+import ErpAutoVoucherRuleAPI from 'dashboard/api/erp/autoVoucherRules';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -284,6 +285,20 @@ const printOne = voucher =>
 const printSelected = () =>
   printVouchers(selectedIds.value, `记账凭证 ${selectedIds.value.length} 张`);
 
+/* 自动凭证规则：收款/付款/划转落库时自动生成待过账凭证，可按事件停用。 */
+const rulesRef = ref(null);
+const rules = ref([]);
+const openRules = async () => {
+  const { data } = await ErpAutoVoucherRuleAPI.get();
+  rules.value = data.payload;
+  rulesRef.value?.open();
+};
+const toggleRule = async rule => {
+  await ErpAutoVoucherRuleAPI.toggle(rule.id, !rule.is_active);
+  rule.is_active = !rule.is_active;
+  useAlert(`${rule.name} 已${rule.is_active ? '启用' : '停用'}`);
+};
+
 const viewRef = ref(null);
 const viewing = ref(null);
 const openView = async voucher => {
@@ -357,6 +372,14 @@ onMounted(() => {
           size="sm"
           :is-loading="printing"
           @click="printSelected"
+        />
+        <Button
+          v-if="canWrite"
+          label="自动凭证规则"
+          color="slate"
+          variant="faded"
+          size="sm"
+          @click="openRules"
         />
         <Button
           v-if="canWrite"
@@ -815,6 +838,42 @@ onMounted(() => {
             :is-loading="printing"
             @click="printOne(viewing)"
           />
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 自动凭证规则 -->
+    <Dialog
+      ref="rulesRef"
+      width="2xl"
+      title="自动凭证规则"
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+    >
+      <div class="flex flex-col gap-2">
+        <p class="text-sm text-n-slate-11">
+          业务单据落库时按规则自动生成「待过账」凭证，财务审一眼点过账即可——不会自动记账。
+        </p>
+        <div
+          v-for="rule in rules"
+          :key="rule.id"
+          class="flex items-center justify-between px-3 py-2 border rounded-lg border-n-weak"
+        >
+          <div class="flex flex-col">
+            <span class="text-sm text-n-slate-12">{{ rule.name }}</span>
+            <span class="font-mono text-xs text-n-slate-10">{{
+              rule.event_key
+            }}</span>
+          </div>
+          <label class="flex items-center gap-2 text-sm text-n-slate-11">
+            <input
+              type="checkbox"
+              class="w-4 h-4"
+              :checked="rule.is_active"
+              @change="toggleRule(rule)"
+            />
+            启用
+          </label>
         </div>
       </div>
     </Dialog>

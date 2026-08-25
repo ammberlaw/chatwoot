@@ -1,5 +1,35 @@
 # 收款单（水单）：客户实际到账记录。核销到应收台账后台账余额才动。
 # 已核销的收款单不可改删，只能作废（VOID）——作废时自动回滚核销与台账余额。
+# == Schema Information
+#
+# Table name: erp_receipt_records
+#
+#  id                 :bigint           not null, primary key
+#  amount_micros      :bigint           not null
+#  bank_charge_micros :bigint           default(0), not null
+#  currency           :string           default("CNY"), not null
+#  exchange_rate      :decimal(12, 6)   default(1.0), not null
+#  method             :string           default("TT"), not null
+#  receipt_no         :string           not null
+#  received_at        :date             not null
+#  reference_no       :string
+#  remark             :text
+#  status             :string           default("NORMAL"), not null
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  account_id         :bigint           not null
+#  cash_account_id    :bigint
+#  crm_customer_id    :bigint           not null
+#  recorded_by_id     :bigint
+#
+# Indexes
+#
+#  index_erp_receipt_records_on_account_id                  (account_id)
+#  index_erp_receipt_records_on_account_id_and_receipt_no   (account_id,receipt_no) UNIQUE
+#  index_erp_receipt_records_on_account_id_and_received_at  (account_id,received_at)
+#  index_erp_receipt_records_on_cash_account_id             (cash_account_id)
+#  index_erp_receipt_records_on_crm_customer_id             (crm_customer_id)
+#
 class Erp::ReceiptRecord < ApplicationRecord
   NORMAL = 'NORMAL'.freeze
   VOID = 'VOID'.freeze
@@ -24,6 +54,11 @@ class Erp::ReceiptRecord < ApplicationRecord
   before_validation :assign_receipt_no, on: :create
 
   scope :normal, -> { where(status: NORMAL) }
+
+  # 收付方式中文名。⚠️ 用 self[:method] 取值：method 与 Object#method 同名，直接写 method 会拿到方法对象。
+  def method_label
+    METHOD_LABELS[self[:method]]
+  end
 
   def allocated_micros
     allocations.sum(:amount_micros)

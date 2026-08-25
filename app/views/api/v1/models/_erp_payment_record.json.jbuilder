@@ -7,8 +7,8 @@ json.amount_micros resource.amount_micros
 json.currency resource.currency
 json.exchange_rate resource.exchange_rate
 json.bank_charge_micros resource.bank_charge_micros
-json.method resource.method
-json.method_label Erp::PaymentRecord::METHOD_LABELS[resource.method]
+json.method resource[:method]
+json.method_label resource.method_label
 json.paid_at resource.paid_at
 json.reference_no resource.reference_no
 json.status resource.status

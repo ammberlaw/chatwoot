@@ -57,7 +57,7 @@ class Erp::LedgerBuilderService
     return 0 if supplier.blank?
 
     net = items.sum { |item| item.qty.to_d * unit_price_for(supplier, item) }
-    (net * (1 + supplier.tax_rate.to_d / 100) * 1_000_000).round
+    (net * (1 + (supplier.tax_rate.to_d / 100)) * 1_000_000).round
   end
 
   def unit_price_for(supplier, item)

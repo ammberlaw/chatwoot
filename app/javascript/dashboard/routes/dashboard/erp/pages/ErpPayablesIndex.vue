@@ -383,9 +383,9 @@ onMounted(loadLedgers);
             </td>
             <td class="px-3 py-2 text-n-slate-12">
               {{ row.supplier_name }}
-              <span v-if="row.po_no"
-class="text-xs text-n-slate-10"
-                >· {{ row.po_no }}</span>
+              <span v-if="row.po_no" class="text-xs text-n-slate-10">
+                · {{ row.po_no }}
+              </span>
             </td>
             <td class="px-3 py-2 font-mono text-right text-n-slate-12">
               {{ row.currency }} {{ money(row.total_amount_micros) }}

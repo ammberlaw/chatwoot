@@ -18,6 +18,7 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
     @payment.recorded_by_id = current_user.id
     @payment.save!
     allocate!
+    sync_side_effects
     render 'api/v1/accounts/erp/payment_records/show'
   rescue Erp::AllocationService::Error => e
     @payment&.destroy
@@ -29,6 +30,7 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
 
     @payment.update!(payment_params)
     allocate!
+    sync_side_effects
     render 'api/v1/accounts/erp/payment_records/show'
   rescue Erp::AllocationService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -36,6 +38,8 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
 
   def void
     Erp::AllocationService.new(@payment, :payment).void!
+    Erp::CashLedgerService.new(Current.account, current_user).reverse_for(@payment)
+    @posted_voucher_no = Erp::AutoVoucherService.new(Current.account).void_for(@payment)
     render 'api/v1/accounts/erp/payment_records/show'
   rescue Erp::AllocationService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -49,6 +53,12 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
   end
 
   private
+
+  # 付款单落库后：记一笔资金流出 + 生成待过账凭证。
+  def sync_side_effects
+    Erp::CashLedgerService.new(Current.account, current_user).sync_for(@payment, direction: Erp::CashTransaction::OUT)
+    Erp::AutoVoucherService.new(Current.account).for_payment(@payment)
+  end
 
   def allocate!
     Erp::AllocationService.new(@payment, :payment).apply!(allocation_specs)

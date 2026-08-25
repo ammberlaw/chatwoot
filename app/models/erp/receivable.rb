@@ -1,5 +1,33 @@
 # 应收台账：一张销售订单一条账（也可脱离订单手工建）。
 # received_amount_micros **只经核销代码路径维护**（Erp::AllocationService），页面与接口都不许直接改。
+# == Schema Information
+#
+# Table name: erp_receivables
+#
+#  id                     :bigint           not null, primary key
+#  currency               :string           default("CNY"), not null
+#  exchange_rate          :decimal(12, 6)   default(1.0), not null
+#  receivable_no          :string           not null
+#  received_amount_micros :bigint           default(0), not null
+#  remark                 :text
+#  status                 :string           default("UNPAID"), not null
+#  total_amount_micros    :bigint           default(0), not null
+#  created_at             :datetime         not null
+#  updated_at             :datetime         not null
+#  account_id             :bigint           not null
+#  crm_customer_id        :bigint           not null
+#  crm_sales_order_id     :bigint
+#  owner_id               :bigint
+#
+# Indexes
+#
+#  index_erp_receivables_on_account_and_order             (account_id,crm_sales_order_id) UNIQUE WHERE (crm_sales_order_id IS NOT NULL)
+#  index_erp_receivables_on_account_id                    (account_id)
+#  index_erp_receivables_on_account_id_and_receivable_no  (account_id,receivable_no) UNIQUE
+#  index_erp_receivables_on_account_id_and_status         (account_id,status)
+#  index_erp_receivables_on_crm_customer_id               (crm_customer_id)
+#  index_erp_receivables_on_crm_sales_order_id            (crm_sales_order_id)
+#
 class Erp::Receivable < ApplicationRecord
   UNPAID = 'UNPAID'.freeze
   PARTIAL = 'PARTIAL'.freeze

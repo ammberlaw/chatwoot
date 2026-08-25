@@ -18,6 +18,7 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
     @receipt.recorded_by_id = current_user.id
     @receipt.save!
     allocate!
+    sync_side_effects
     render 'api/v1/accounts/erp/receipt_records/show'
   rescue Erp::AllocationService::Error => e
     @receipt&.destroy
@@ -29,6 +30,7 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
 
     @receipt.update!(receipt_params)
     allocate!
+    sync_side_effects
     render 'api/v1/accounts/erp/receipt_records/show'
   rescue Erp::AllocationService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -37,6 +39,8 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
   # 作废：回滚核销与台账余额，单据留痕（已核销的单不许删，只许作废）。
   def void
     Erp::AllocationService.new(@receipt, :receipt).void!
+    Erp::CashLedgerService.new(Current.account, current_user).reverse_for(@receipt)
+    @posted_voucher_no = Erp::AutoVoucherService.new(Current.account).void_for(@receipt)
     render 'api/v1/accounts/erp/receipt_records/show'
   rescue Erp::AllocationService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -50,6 +54,12 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
   end
 
   private
+
+  # 收款单落库后的两件事：记一笔资金流入 + 生成待过账凭证（财务审一眼即可）。
+  def sync_side_effects
+    Erp::CashLedgerService.new(Current.account, current_user).sync_for(@receipt, direction: Erp::CashTransaction::IN)
+    Erp::AutoVoucherService.new(Current.account).for_receipt(@receipt)
+  end
 
   def allocate!
     Erp::AllocationService.new(@receipt, :receipt).apply!(allocation_specs)

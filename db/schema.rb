@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_28_000007) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_29_000003) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1895,6 +1895,59 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_28_000007) do
     t.index ["name", "account_id"], name: "index_email_templates_on_name_and_account_id", unique: true
   end
 
+  create_table "erp_auto_voucher_rules", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "event_key", null: false
+    t.string "name", null: false
+    t.boolean "is_active", default: true, null: false
+    t.jsonb "config", default: {}, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "event_key"], name: "index_erp_auto_voucher_rules_on_account_id_and_event_key", unique: true
+    t.index ["account_id"], name: "index_erp_auto_voucher_rules_on_account_id"
+  end
+
+  create_table "erp_cash_accounts", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "kind", default: "BANK", null: false
+    t.string "currency", default: "CNY", null: false
+    t.string "account_no"
+    t.string "bank_name"
+    t.bigint "ledger_account_id"
+    t.bigint "opening_balance_micros", default: 0, null: false
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "name"], name: "index_erp_cash_accounts_on_account_id_and_name", unique: true
+    t.index ["account_id"], name: "index_erp_cash_accounts_on_account_id"
+    t.index ["ledger_account_id"], name: "index_erp_cash_accounts_on_ledger_account_id"
+  end
+
+  create_table "erp_cash_transactions", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "cash_account_id", null: false
+    t.string "direction", null: false
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.date "happened_at", null: false
+    t.string "source_type"
+    t.bigint "source_id"
+    t.string "summary"
+    t.string "counterparty"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "happened_at"], name: "index_erp_cash_transactions_on_account_id_and_happened_at"
+    t.index ["account_id"], name: "index_erp_cash_transactions_on_account_id"
+    t.index ["cash_account_id"], name: "index_erp_cash_transactions_on_cash_account_id"
+    t.index ["source_type", "source_id"], name: "index_erp_cash_transactions_on_source_type_and_source_id"
+  end
+
   create_table "erp_ledger_accounts", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "code", null: false
@@ -3370,6 +3423,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_28_000007) do
   add_foreign_key "crm_signatures", "accounts", on_delete: :cascade
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
+  add_foreign_key "erp_cash_transactions", "erp_cash_accounts", column: "cash_account_id", on_delete: :restrict
   add_foreign_key "erp_ledger_accounts", "erp_ledger_accounts", column: "parent_id", on_delete: :restrict
   add_foreign_key "erp_payment_allocations", "erp_payables", column: "payable_id", on_delete: :restrict
   add_foreign_key "erp_payment_allocations", "erp_payment_records", column: "payment_record_id", on_delete: :cascade
