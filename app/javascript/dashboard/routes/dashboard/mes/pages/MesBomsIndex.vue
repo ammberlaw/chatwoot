@@ -22,6 +22,7 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId, accountScopedRoute } = useAccount();
@@ -60,43 +61,13 @@ const productOptions = computed(() => [
   ...products.value.map(p => ({ value: String(p.id), label: p.name })),
 ]);
 
-// —— 用料明细：物料改从产品档案下拉搜索选择（按商品编码/名称/规格搜，选中自动带出编码/名称/规格/单位）——
-const materialOptions = ref([]); // [{ value, label, sku, name, specification, unit }]
-const searchMaterials = async (q = '') => {
-  try {
-    const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/products`,
-      { params: { q: q || undefined, per_page: 50, filter: 'active' } }
-    );
-    const list = data?.payload || data || [];
-    materialOptions.value = list.map(p => ({
-      value: String(p.id),
-      // 料号 · 名称 · 规格 一起显示：同名不同规格的料才分得清（工程反馈）。
-      label: [p.sku, p.name, p.specification].filter(Boolean).join(' · '),
-      sku: p.sku || '',
-      name: p.name || '',
-      specification: p.specification || '',
-      unit: p.unit || '',
-    }));
-  } catch {
-    materialOptions.value = [];
-  }
-};
-let materialSearchTimer = null;
-const onMaterialSearch = q => {
-  clearTimeout(materialSearchTimer);
-  materialSearchTimer = setTimeout(() => searchMaterials(q), 300);
-};
-const onMaterialOpen = () => {
-  if (!materialOptions.value.length) searchMaterials('');
-};
-// 选中产品档案 → 回填该行的编码/名称/规格/单位。
-const pickMaterial = (row, id) => {
-  row.productId = id;
-  const p = materialOptions.value.find(o => o.value === id);
+// —— 用料明细：物料从产品档案「金蝶式表格下拉」选择（MesProductPicker），
+// 选中回填该行的编码/名称/规格/单位。 ——
+const pickMaterial = (row, p) => {
   if (!p) return;
-  row.materialNo = p.sku;
-  row.materialName = p.name;
+  row.productId = String(p.id);
+  row.materialNo = p.sku || '';
+  row.materialName = p.name || '';
   if (p.specification) row.specification = p.specification;
   if (p.unit) row.unit = p.unit;
 };
@@ -910,21 +881,17 @@ onMounted(async () => {
                 block
               />
             </div>
-            <ComboBox
+            <MesProductPicker
               :model-value="row.productId"
-              :options="materialOptions"
-              :display-label="
+              :account-id="accountId"
+              :display-text="
                 row.materialNo
                   ? `${row.materialNo}${row.materialName ? ` · ${row.materialName}` : ''}`
                   : ''
               "
-              use-api-results
-              placeholder="搜商品编码/名称"
-              search-placeholder="输入编码或名称搜索"
-              class="col-span-2"
-              @open="onMaterialOpen"
-              @search="onMaterialSearch"
-              @update:model-value="id => pickMaterial(row, id)"
+              placeholder="选物料"
+              trigger-class="col-span-2"
+              @select="p => pickMaterial(row, p)"
             />
             <Input
               :model-value="row.materialName"
