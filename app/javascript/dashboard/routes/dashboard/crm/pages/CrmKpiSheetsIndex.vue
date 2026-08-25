@@ -131,13 +131,13 @@ const statusClass = s =>
         </p>
       </div>
     </div>
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <!-- 月份 / 状态筛选 -->
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <input
           v-if="showSearch"
           v-model="q"
-          class="h-9 px-3 text-sm border rounded-lg reset-base w-52 border-n-weak bg-n-solid-1 text-n-slate-12"
+          class="h-9 px-3 text-sm border rounded-lg reset-base w-full sm:w-52 border-n-weak bg-n-solid-1 text-n-slate-12"
           placeholder="搜索业务员 / 方案名"
         />
         <MonthPicker v-model="monthFilter" trigger-class="w-44 h-9" />
@@ -175,74 +175,125 @@ const statusClass = s =>
           t(showSearch ? 'CRM.KPI_SHEETS.EMPTY' : 'CRM.KPI_SHEETS.EMPTY_SELF')
         }}
       </div>
-      <table v-else class="w-full text-sm text-left border-collapse">
-        <thead class="text-n-slate-11">
-          <tr class="border-b border-n-weak">
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SHEETS.COL_OWNER') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SHEETS.COL_MONTH') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SHEETS.COL_SCHEME') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SHEETS.COL_STATUS') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SHEETS.COL_SCORE') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SHEETS.COL_PAYOUT') }}
-            </th>
-            <th v-if="canRecall" class="px-3 py-2 font-medium text-right">
-              {{ t('CRM.KPI_SHEETS.COL_ACTIONS') }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
+      <!-- 有数据：手机卡片(<md) + 桌面表格(≥md) -->
+      <template v-else>
+        <!-- 手机：卡片列表 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
             v-for="s in filteredRecords"
             :key="s.id"
-            class="border-b border-n-weak cursor-pointer hover:bg-n-alpha-1"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
             @click="open(s)"
           >
-            <td class="px-3 py-2 font-medium text-n-slate-12">
-              {{ s.ownerName || '—' }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ fmtMonth(s.periodMonth) }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">{{ s.schemeName || '—' }}</td>
-            <td class="px-3 py-2">
-              <div class="flex items-center gap-1.5">
-                <span
-                  class="inline-flex px-2 py-0.5 rounded-full text-xs"
-                  :class="statusClass(s.status)"
-                >
-                  {{ t(`CRM.KPI_SHEETS.STATUS.${s.status}`) }}
-                </span>
-              </div>
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ s.totalScore != null ? `${s.totalScore}/100` : '—' }}
-            </td>
-            <td class="px-3 py-2 font-medium text-n-slate-12">
-              {{ yuan(s.actualPayoutMicros) }}
-            </td>
-            <td v-if="canRecall" class="px-3 py-2 text-right" @click.stop>
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-n-slate-12 truncate">
+                {{ s.ownerName || '—' }}
+              </span>
+              <span
+                class="inline-flex px-2 py-0.5 rounded-full text-xs shrink-0"
+                :class="statusClass(s.status)"
+              >
+                {{ t(`CRM.KPI_SHEETS.STATUS.${s.status}`) }}
+              </span>
+              <span class="flex-1" />
               <button
                 v-if="canRecall && s.status === 'PENDING'"
-                class="px-2 py-1 text-xs rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
-                @click="recall(s)"
+                class="px-2 py-1 text-xs rounded-lg text-n-ruby-11 hover:bg-n-ruby-3 shrink-0"
+                @click.stop="recall(s)"
               >
                 {{ t('CRM.KPI_SHEETS.RECALL.BUTTON') }}
               </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+            <div class="mt-1 text-xs text-n-slate-11">
+              {{ fmtMonth(s.periodMonth) }} · {{ s.schemeName || '—' }}
+            </div>
+            <div class="flex items-center gap-3 mt-1.5 text-xs">
+              <span class="text-n-slate-11">
+                {{ t('CRM.KPI_SHEETS.COL_SCORE') }}：{{
+                  s.totalScore != null ? `${s.totalScore}/100` : '—'
+                }}
+              </span>
+              <span class="font-medium text-n-slate-12">
+                {{ t('CRM.KPI_SHEETS.COL_PAYOUT') }}：{{
+                  yuan(s.actualPayoutMicros)
+                }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 桌面：表格 -->
+        <table class="hidden w-full text-sm text-left border-collapse md:table">
+          <thead class="text-n-slate-11">
+            <tr class="border-b border-n-weak">
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SHEETS.COL_OWNER') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SHEETS.COL_MONTH') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SHEETS.COL_SCHEME') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SHEETS.COL_STATUS') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SHEETS.COL_SCORE') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SHEETS.COL_PAYOUT') }}
+              </th>
+              <th v-if="canRecall" class="px-3 py-2 font-medium text-right">
+                {{ t('CRM.KPI_SHEETS.COL_ACTIONS') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="s in filteredRecords"
+              :key="s.id"
+              class="border-b border-n-weak cursor-pointer hover:bg-n-alpha-1"
+              @click="open(s)"
+            >
+              <td class="px-3 py-2 font-medium text-n-slate-12">
+                {{ s.ownerName || '—' }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ fmtMonth(s.periodMonth) }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ s.schemeName || '—' }}
+              </td>
+              <td class="px-3 py-2">
+                <div class="flex items-center gap-1.5">
+                  <span
+                    class="inline-flex px-2 py-0.5 rounded-full text-xs"
+                    :class="statusClass(s.status)"
+                  >
+                    {{ t(`CRM.KPI_SHEETS.STATUS.${s.status}`) }}
+                  </span>
+                </div>
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ s.totalScore != null ? `${s.totalScore}/100` : '—' }}
+              </td>
+              <td class="px-3 py-2 font-medium text-n-slate-12">
+                {{ yuan(s.actualPayoutMicros) }}
+              </td>
+              <td v-if="canRecall" class="px-3 py-2 text-right" @click.stop>
+                <button
+                  v-if="canRecall && s.status === 'PENDING'"
+                  class="px-2 py-1 text-xs rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
+                  @click="recall(s)"
+                >
+                  {{ t('CRM.KPI_SHEETS.RECALL.BUTTON') }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
   </div>
 </template>
