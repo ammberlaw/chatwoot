@@ -282,6 +282,21 @@ Rails.application.routes.draw do
             get 'ledgers/balances', to: 'ledgers#balances'
             get 'ledgers/entries', to: 'ledgers#entries'
             get 'ledgers/dimensions', to: 'ledgers#dimensions'
+            resources :receivables, only: [:index, :show, :create, :update, :destroy] do
+              collection { get :open_list }
+            end
+            resources :receipt_records, only: [:index, :show, :create, :update, :destroy] do
+              member { post :void }
+            end
+            resources :payables, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                get :open_list
+                get :supplier_statement
+              end
+            end
+            resources :payment_records, only: [:index, :show, :create, :update, :destroy] do
+              member { post :void }
+            end
             # 财务报表：资产负债表（时点）/ 利润表（期间）
             get 'reports/balance_sheet', to: 'reports#balance_sheet'
             get 'reports/income_statement', to: 'reports#income_statement'

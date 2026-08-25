@@ -120,6 +120,13 @@ class Account < ApplicationRecord
   has_many :erp_ledger_accounts, class_name: 'Erp::LedgerAccount', dependent: :destroy_async
   has_many :erp_vouchers, class_name: 'Erp::Voucher', dependent: :destroy_async
   has_many :erp_voucher_lines, class_name: 'Erp::VoucherLine', dependent: :destroy_async
+  has_many :erp_receivables, class_name: 'Erp::Receivable', dependent: :destroy_async
+  has_many :erp_receivable_installments, class_name: 'Erp::ReceivableInstallment', dependent: :destroy_async
+  has_many :erp_receipt_records, class_name: 'Erp::ReceiptRecord', dependent: :destroy_async
+  has_many :erp_receipt_allocations, class_name: 'Erp::ReceiptAllocation', dependent: :destroy_async
+  has_many :erp_payables, class_name: 'Erp::Payable', dependent: :destroy_async
+  has_many :erp_payment_records, class_name: 'Erp::PaymentRecord', dependent: :destroy_async
+  has_many :erp_payment_allocations, class_name: 'Erp::PaymentAllocation', dependent: :destroy_async
   has_many :mes_suppliers, class_name: 'Mes::Supplier', dependent: :destroy_async
   has_many :mes_warehouses, class_name: 'Mes::Warehouse', dependent: :destroy_async
   has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async

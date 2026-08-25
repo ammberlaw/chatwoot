@@ -1,0 +1,15 @@
+json.id resource.id
+json.payable_no resource.payable_no
+json.mes_supplier_id resource.mes_supplier_id
+json.supplier_name resource.mes_supplier&.name
+json.mes_purchase_order_id resource.mes_purchase_order_id
+json.po_no resource.mes_purchase_order&.po_no
+json.currency resource.currency
+json.exchange_rate resource.exchange_rate
+json.total_amount_micros resource.total_amount_micros
+json.paid_amount_micros resource.paid_amount_micros
+json.outstanding_micros resource.outstanding_micros
+json.status resource.status
+json.status_label Erp::Payable::STATUS_LABELS[resource.status]
+json.due_date resource.due_date
+json.remark resource.remark

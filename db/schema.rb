@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_27_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_28_000007) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1919,6 +1919,139 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_27_000002) do
     t.index ["parent_id"], name: "index_erp_ledger_accounts_on_parent_id"
   end
 
+  create_table "erp_payables", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "payable_no", null: false
+    t.bigint "mes_purchase_order_id"
+    t.bigint "mes_supplier_id", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "total_amount_micros", default: 0, null: false
+    t.bigint "paid_amount_micros", default: 0, null: false
+    t.string "status", default: "UNPAID", null: false
+    t.date "due_date"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "payable_no"], name: "index_erp_payables_on_account_id_and_payable_no", unique: true
+    t.index ["account_id", "status"], name: "index_erp_payables_on_account_id_and_status"
+    t.index ["account_id"], name: "index_erp_payables_on_account_id"
+    t.index ["mes_purchase_order_id"], name: "index_erp_payables_on_mes_purchase_order_id"
+    t.index ["mes_supplier_id"], name: "index_erp_payables_on_mes_supplier_id"
+  end
+
+  create_table "erp_payment_allocations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "payment_record_id", null: false
+    t.bigint "payable_id", null: false
+    t.bigint "amount_micros", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_erp_payment_allocations_on_account_id"
+    t.index ["payable_id"], name: "index_erp_payment_allocations_on_payable_id"
+    t.index ["payment_record_id"], name: "index_erp_payment_allocations_on_payment_record_id"
+  end
+
+  create_table "erp_payment_records", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "payment_no", null: false
+    t.bigint "mes_supplier_id", null: false
+    t.bigint "cash_account_id"
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "bank_charge_micros", default: 0, null: false
+    t.string "method", default: "TT", null: false
+    t.date "paid_at", null: false
+    t.string "reference_no"
+    t.string "status", default: "NORMAL", null: false
+    t.bigint "recorded_by_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "paid_at"], name: "index_erp_payment_records_on_account_id_and_paid_at"
+    t.index ["account_id", "payment_no"], name: "index_erp_payment_records_on_account_id_and_payment_no", unique: true
+    t.index ["account_id"], name: "index_erp_payment_records_on_account_id"
+    t.index ["cash_account_id"], name: "index_erp_payment_records_on_cash_account_id"
+    t.index ["mes_supplier_id"], name: "index_erp_payment_records_on_mes_supplier_id"
+  end
+
+  create_table "erp_receipt_allocations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "receipt_record_id", null: false
+    t.bigint "receivable_id", null: false
+    t.bigint "amount_micros", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_erp_receipt_allocations_on_account_id"
+    t.index ["receipt_record_id"], name: "index_erp_receipt_allocations_on_receipt_record_id"
+    t.index ["receivable_id"], name: "index_erp_receipt_allocations_on_receivable_id"
+  end
+
+  create_table "erp_receipt_records", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "receipt_no", null: false
+    t.bigint "crm_customer_id", null: false
+    t.bigint "cash_account_id"
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "bank_charge_micros", default: 0, null: false
+    t.string "method", default: "TT", null: false
+    t.date "received_at", null: false
+    t.string "reference_no"
+    t.string "status", default: "NORMAL", null: false
+    t.bigint "recorded_by_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "receipt_no"], name: "index_erp_receipt_records_on_account_id_and_receipt_no", unique: true
+    t.index ["account_id", "received_at"], name: "index_erp_receipt_records_on_account_id_and_received_at"
+    t.index ["account_id"], name: "index_erp_receipt_records_on_account_id"
+    t.index ["cash_account_id"], name: "index_erp_receipt_records_on_cash_account_id"
+    t.index ["crm_customer_id"], name: "index_erp_receipt_records_on_crm_customer_id"
+  end
+
+  create_table "erp_receivable_installments", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "receivable_id", null: false
+    t.integer "seq", default: 1, null: false
+    t.string "kind", default: "BALANCE", null: false
+    t.bigint "amount_micros", default: 0, null: false
+    t.string "due_basis", default: "FIXED", null: false
+    t.integer "due_days"
+    t.date "due_date"
+    t.string "status", default: "PENDING", null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "due_date"], name: "index_erp_receivable_installments_on_account_id_and_due_date"
+    t.index ["account_id"], name: "index_erp_receivable_installments_on_account_id"
+    t.index ["receivable_id"], name: "index_erp_receivable_installments_on_receivable_id"
+  end
+
+  create_table "erp_receivables", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "receivable_no", null: false
+    t.bigint "crm_sales_order_id"
+    t.bigint "crm_customer_id", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "total_amount_micros", default: 0, null: false
+    t.bigint "received_amount_micros", default: 0, null: false
+    t.string "status", default: "UNPAID", null: false
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "crm_sales_order_id"], name: "index_erp_receivables_on_account_and_order", unique: true, where: "(crm_sales_order_id IS NOT NULL)"
+    t.index ["account_id", "receivable_no"], name: "index_erp_receivables_on_account_id_and_receivable_no", unique: true
+    t.index ["account_id", "status"], name: "index_erp_receivables_on_account_id_and_status"
+    t.index ["account_id"], name: "index_erp_receivables_on_account_id"
+    t.index ["crm_customer_id"], name: "index_erp_receivables_on_crm_customer_id"
+    t.index ["crm_sales_order_id"], name: "index_erp_receivables_on_crm_sales_order_id"
+  end
+
   create_table "erp_voucher_lines", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "voucher_id", null: false
@@ -3238,6 +3371,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_27_000002) do
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "erp_ledger_accounts", "erp_ledger_accounts", column: "parent_id", on_delete: :restrict
+  add_foreign_key "erp_payment_allocations", "erp_payables", column: "payable_id", on_delete: :restrict
+  add_foreign_key "erp_payment_allocations", "erp_payment_records", column: "payment_record_id", on_delete: :cascade
+  add_foreign_key "erp_receipt_allocations", "erp_receipt_records", column: "receipt_record_id", on_delete: :cascade
+  add_foreign_key "erp_receipt_allocations", "erp_receivables", column: "receivable_id", on_delete: :restrict
+  add_foreign_key "erp_receivable_installments", "erp_receivables", column: "receivable_id", on_delete: :cascade
   add_foreign_key "erp_voucher_lines", "erp_ledger_accounts", column: "ledger_account_id", on_delete: :restrict
   add_foreign_key "erp_voucher_lines", "erp_vouchers", column: "voucher_id", on_delete: :cascade
   add_foreign_key "erp_vouchers", "erp_vouchers", column: "reversal_of_id", on_delete: :nullify
