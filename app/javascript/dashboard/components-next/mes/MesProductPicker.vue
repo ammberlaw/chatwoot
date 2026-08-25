@@ -22,6 +22,8 @@ const triggerEl = ref(null);
 const popoverEl = ref(null);
 const searchEl = ref(null);
 const popStyle = ref({});
+// 若在原生 <dialog>（showModal 顶层）内，弹层要 Teleport 进该 dialog 才不被顶层遮住；否则回退 body。
+const teleportTarget = ref('body');
 
 const q = ref('');
 const rows = ref([]);
@@ -93,6 +95,7 @@ const toggle = async () => {
     open.value = false;
     return;
   }
+  teleportTarget.value = triggerEl.value?.closest('dialog') || 'body';
   open.value = true;
   if (!rows.value.length) fetchRows('');
   await nextTick();
@@ -125,7 +128,7 @@ const pick = p => {
       <span class="text-n-slate-10 i-lucide-chevron-down size-4 shrink-0" />
     </button>
 
-    <teleport to="body">
+    <teleport :to="teleportTarget">
       <transition
         enter-active-class="transition duration-150 ease-out"
         enter-from-class="opacity-0 scale-95 -translate-y-1"
