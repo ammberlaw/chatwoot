@@ -102,7 +102,7 @@ const quotes = computed(() => data.value?.quotes || []);
 const productionOrders = computed(() => data.value?.production_orders || []);
 // MES 生产订单 8 阶段 / 状态中文（与 MES 模块一致）。
 const MES_STAGE = {
-  SALES_CONFIRMED: '销售订单确定',
+  SALES_CONFIRMED: '待工程接单',
   BOM_READY: '工程/PMC BOM',
   PURCHASING: '采购原料',
   MATERIAL_INBOUND: '原料入库',

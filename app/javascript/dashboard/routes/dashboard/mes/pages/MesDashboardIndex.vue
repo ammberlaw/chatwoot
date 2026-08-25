@@ -16,7 +16,7 @@ const CARD =
   'p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150';
 
 const STAGE_LABELS = {
-  SALES_CONFIRMED: '销售订单确定',
+  SALES_CONFIRMED: '待工程接单',
   BOM_READY: '工程/PMC BOM',
   PURCHASING: '采购原料',
   MATERIAL_INBOUND: '原料入库',

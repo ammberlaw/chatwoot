@@ -9,7 +9,7 @@ const { accountScopedRoute } = useAccount();
 const router = useRouter();
 
 const STAGE_LABELS = {
-  SALES_CONFIRMED: '销售订单确定',
+  SALES_CONFIRMED: '待工程接单',
   BOM_READY: '工程/PMC BOM',
   PURCHASING: '采购原料',
   MATERIAL_INBOUND: '原料入库',

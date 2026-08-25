@@ -65,7 +65,7 @@ const store = useMesProductionOrdersStore();
 
 // 8 阶段（与后端 Mes::ProductionOrder::STAGES 顺序一致）。
 const STAGES = [
-  { value: 'SALES_CONFIRMED', label: '销售订单确定' },
+  { value: 'SALES_CONFIRMED', label: '待工程接单' },
   { value: 'BOM_READY', label: '工程/PMC BOM' },
   { value: 'PURCHASING', label: '采购原料' },
   { value: 'MATERIAL_INBOUND', label: '原料入库' },
@@ -1430,12 +1430,10 @@ watch(currentPage, fetchRecords);
         </div>
 
         <!-- 接单确认（P1）：当前阶段负责人 + 接单状态 + 接单/拒收。
-             建单阶段（SALES_CONFIRMED）由业务自建、不入接单机制，不展示。 -->
+             建单生效后归工程/PMC 接单出 BOM；SHIPPED 为终点无需接单。 -->
         <div
           v-if="
-            selected.stage !== 'SALES_CONFIRMED' &&
-            selected.stage !== 'SHIPPED' &&
-            selected.status === 'IN_PROGRESS'
+            selected.stage !== 'SHIPPED' && selected.status === 'IN_PROGRESS'
           "
           class="flex flex-col gap-2 p-3 mb-4 rounded-lg bg-n-alpha-black1 border border-n-weak"
         >
