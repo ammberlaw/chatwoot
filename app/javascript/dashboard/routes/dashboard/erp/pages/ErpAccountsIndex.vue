@@ -390,7 +390,11 @@ onMounted(fetchList);
               {{ row.direction === 'DEBIT' ? '借' : '贷' }}
             </td>
             <td class="px-3 py-2 text-n-slate-11">
-              {{ row.isGroup ? '分类（不记账）' : accountTypeLabel(row.accountType) }}
+              {{
+                row.isGroup
+                  ? '分类（不记账）'
+                  : accountTypeLabel(row.accountType)
+              }}
             </td>
             <td class="px-3 py-2 text-n-slate-11">
               {{ row.currency || 'CNY' }}

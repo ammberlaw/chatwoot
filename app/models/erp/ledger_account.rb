@@ -57,6 +57,14 @@ class Erp::LedgerAccount < ApplicationRecord
 
   # 分录行可带的管理维度（比金蝶强的点：维度明细账，见 §9.1）。
   DIMENSIONS = %w[customer supplier order department member].freeze
+  DIMENSION_LABELS = {
+    'customer' => '客户', 'supplier' => '供应商', 'order' => '订单',
+    'department' => '部门', 'member' => '业务员'
+  }.freeze
+
+  # 必填维度只卡往来科目：应收必须挂客户、应付必须挂供应商，否则往来对账查不出「谁欠我多少」。
+  # 其余维度是「可填」，给毛利/费用分析用，不硬拦财务录凭证。
+  REQUIRED_DIMENSION_BY_TYPE = { 'RECEIVABLE' => 'customer', 'PAYABLE' => 'supplier' }.freeze
 
   # 资产负债表归属段（报表按此分组出行，不靠树层级猜）。
   BS_SECTIONS = %w[CURRENT_ASSET NON_CURRENT_ASSET CURRENT_LIABILITY NON_CURRENT_LIABILITY EQUITY].freeze
@@ -88,6 +96,11 @@ class Erp::LedgerAccount < ApplicationRecord
 
   def label
     "#{code} #{name}"
+  end
+
+  # 该科目录凭证时必须带的维度（往来科目才有），nil＝无强制。
+  def required_dimension
+    REQUIRED_DIMENSION_BY_TYPE[account_type]
   end
 
   # 祖先链（含自身），面包屑/报表层级展开用。

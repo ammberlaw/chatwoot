@@ -1,0 +1,28 @@
+json.id resource.id
+json.voucher_no resource.voucher_no
+json.period resource.period
+json.voucher_date resource.voucher_date
+json.status resource.status
+json.status_label Erp::Voucher::STATUS_LABELS[resource.status]
+json.summary resource.summary
+json.remark resource.remark
+json.attachment_count resource.attachment_count
+json.source_type resource.source_type
+json.source_id resource.source_id
+json.total_debit_micros resource.total_debit_micros
+json.total_credit_micros resource.total_credit_micros
+json.balanced resource.balanced?
+json.editable resource.editable?
+json.prepared_by_name resource.prepared_by&.crm_name.presence || resource.prepared_by&.name
+json.posted_by_name resource.posted_by&.crm_name.presence || resource.posted_by&.name
+json.posted_at resource.posted_at
+json.reversal_of_no resource.reversal_of&.voucher_no
+json.reversed_by_no resource.reversed_by&.voucher_no
+
+if local_assigns[:with_lines]
+  json.lines do
+    json.array! resource.lines do |line|
+      json.partial! 'api/v1/models/erp_voucher_line', formats: [:json], resource: line
+    end
+  end
+end

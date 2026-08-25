@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_27_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_27_000002) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1919,6 +1919,60 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_27_000001) do
     t.index ["parent_id"], name: "index_erp_ledger_accounts_on_parent_id"
   end
 
+  create_table "erp_voucher_lines", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "voucher_id", null: false
+    t.bigint "ledger_account_id", null: false
+    t.string "direction", null: false
+    t.string "summary"
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "base_amount_micros", null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "crm_customer_id"
+    t.bigint "mes_supplier_id"
+    t.bigint "crm_sales_order_id"
+    t.bigint "department_id"
+    t.bigint "member_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "ledger_account_id"], name: "index_erp_voucher_lines_on_account_id_and_ledger_account_id"
+    t.index ["account_id"], name: "index_erp_voucher_lines_on_account_id"
+    t.index ["crm_customer_id"], name: "index_erp_voucher_lines_on_crm_customer_id"
+    t.index ["crm_sales_order_id"], name: "index_erp_voucher_lines_on_crm_sales_order_id"
+    t.index ["ledger_account_id"], name: "index_erp_voucher_lines_on_ledger_account_id"
+    t.index ["mes_supplier_id"], name: "index_erp_voucher_lines_on_mes_supplier_id"
+    t.index ["voucher_id"], name: "index_erp_voucher_lines_on_voucher_id"
+  end
+
+  create_table "erp_vouchers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "voucher_no", null: false
+    t.string "period", null: false
+    t.date "voucher_date", null: false
+    t.string "status", default: "DRAFT", null: false
+    t.string "summary"
+    t.string "source_type"
+    t.bigint "source_id"
+    t.bigint "prepared_by_id"
+    t.bigint "posted_by_id"
+    t.datetime "posted_at"
+    t.bigint "reversal_of_id"
+    t.bigint "total_debit_micros", default: 0, null: false
+    t.bigint "total_credit_micros", default: 0, null: false
+    t.integer "attachment_count", default: 0, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "period"], name: "index_erp_vouchers_on_account_id_and_period"
+    t.index ["account_id", "status"], name: "index_erp_vouchers_on_account_id_and_status"
+    t.index ["account_id", "voucher_date"], name: "index_erp_vouchers_on_account_id_and_voucher_date"
+    t.index ["account_id", "voucher_no"], name: "index_erp_vouchers_on_account_id_and_voucher_no", unique: true
+    t.index ["account_id"], name: "index_erp_vouchers_on_account_id"
+    t.index ["source_type", "source_id"], name: "index_erp_vouchers_on_source_type_and_source_id"
+  end
+
   create_table "folders", force: :cascade do |t|
     t.integer "account_id", null: false
     t.integer "category_id", null: false
@@ -3184,6 +3238,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_27_000001) do
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "erp_ledger_accounts", "erp_ledger_accounts", column: "parent_id", on_delete: :restrict
+  add_foreign_key "erp_voucher_lines", "erp_ledger_accounts", column: "ledger_account_id", on_delete: :restrict
+  add_foreign_key "erp_voucher_lines", "erp_vouchers", column: "voucher_id", on_delete: :cascade
+  add_foreign_key "erp_vouchers", "erp_vouchers", column: "reversal_of_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "mes_board_owners", "accounts"
   add_foreign_key "mes_bom_items", "mes_boms", column: "bom_id", on_delete: :cascade

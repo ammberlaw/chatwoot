@@ -2,12 +2,42 @@
 // 财务看板（E0）：6 张 KPI 占位卡，全为零值。真实数据在各切片落地后接入
 // （回款/应收/应付=E3，资金/毛利=E4）。后端 GET erp/dashboard 已就绪并做 403 门禁。
 const KPIS = [
-  { key: 'month_receipt', label: '本月回款', slice: 'E3', icon: 'i-lucide-hand-coins' },
-  { key: 'receivable_balance', label: '应收余额', slice: 'E3', icon: 'i-lucide-file-input' },
-  { key: 'overdue_receivable', label: '逾期应收', slice: 'E3', icon: 'i-lucide-alarm-clock' },
-  { key: 'payable_balance', label: '应付余额', slice: 'E3', icon: 'i-lucide-file-output' },
-  { key: 'cash_balance', label: '资金余额', slice: 'E4', icon: 'i-lucide-wallet' },
-  { key: 'month_profit', label: '本月毛利', slice: 'E4', icon: 'i-lucide-trending-up' },
+  {
+    key: 'month_receipt',
+    label: '本月回款',
+    slice: 'E3',
+    icon: 'i-lucide-hand-coins',
+  },
+  {
+    key: 'receivable_balance',
+    label: '应收余额',
+    slice: 'E3',
+    icon: 'i-lucide-file-input',
+  },
+  {
+    key: 'overdue_receivable',
+    label: '逾期应收',
+    slice: 'E3',
+    icon: 'i-lucide-alarm-clock',
+  },
+  {
+    key: 'payable_balance',
+    label: '应付余额',
+    slice: 'E3',
+    icon: 'i-lucide-file-output',
+  },
+  {
+    key: 'cash_balance',
+    label: '资金余额',
+    slice: 'E4',
+    icon: 'i-lucide-wallet',
+  },
+  {
+    key: 'month_profit',
+    label: '本月毛利',
+    slice: 'E4',
+    icon: 'i-lucide-trending-up',
+  },
 ];
 </script>
 

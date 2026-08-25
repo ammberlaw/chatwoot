@@ -1,0 +1,104 @@
+# 分录行：凭证的借贷明细。原币金额 × 汇率 = 本位币金额（base_amount_micros），
+# 借贷平衡以本位币为准（外币单据按录入时汇率快照折算，事后改汇率不重算历史，见 §13-8）。
+# == Schema Information
+#
+# Table name: erp_voucher_lines
+#
+#  id                 :bigint           not null, primary key
+#  amount_micros      :bigint           not null
+#  base_amount_micros :bigint           not null
+#  currency           :string           default("CNY"), not null
+#  direction          :string           not null
+#  exchange_rate      :decimal(12, 6)   default(1.0), not null
+#  position           :integer          default(0), not null
+#  summary            :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  account_id         :bigint           not null
+#  crm_customer_id    :bigint
+#  crm_sales_order_id :bigint
+#  department_id      :bigint
+#  ledger_account_id  :bigint           not null
+#  member_id          :bigint
+#  mes_supplier_id    :bigint
+#  voucher_id         :bigint           not null
+#
+# Indexes
+#
+#  index_erp_voucher_lines_on_account_id                        (account_id)
+#  index_erp_voucher_lines_on_account_id_and_ledger_account_id  (account_id,ledger_account_id)
+#  index_erp_voucher_lines_on_crm_customer_id                   (crm_customer_id)
+#  index_erp_voucher_lines_on_crm_sales_order_id                (crm_sales_order_id)
+#  index_erp_voucher_lines_on_ledger_account_id                 (ledger_account_id)
+#  index_erp_voucher_lines_on_mes_supplier_id                   (mes_supplier_id)
+#  index_erp_voucher_lines_on_voucher_id                        (voucher_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (ledger_account_id => erp_ledger_accounts.id) ON DELETE => restrict
+#  fk_rails_...  (voucher_id => erp_vouchers.id) ON DELETE => cascade
+#
+class Erp::VoucherLine < ApplicationRecord
+  DEBIT = 'DEBIT'.freeze
+  CREDIT = 'CREDIT'.freeze
+  DIRECTIONS = [DEBIT, CREDIT].freeze
+
+  belongs_to :account
+  belongs_to :voucher, class_name: 'Erp::Voucher', inverse_of: :lines
+  belongs_to :ledger_account, class_name: 'Erp::LedgerAccount'
+  # 管理维度（都可空）：维度明细账与往来对账靠它们切片。
+  belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true
+  belongs_to :mes_supplier, class_name: 'Mes::Supplier', optional: true
+  belongs_to :crm_sales_order, class_name: 'Crm::SalesOrder', optional: true
+  belongs_to :department, class_name: 'Org::Department', optional: true
+  belongs_to :member, class_name: 'User', optional: true
+
+  validates :direction, inclusion: { in: DIRECTIONS }
+  validates :amount_micros, numericality: { greater_than: 0 }
+  validates :base_amount_micros, numericality: { greater_than: 0 }
+  validate :validate_postable_account
+  validate :validate_required_dimensions
+
+  before_validation :assign_account_and_base_amount
+
+  def dimension_value(dimension)
+    case dimension
+    when 'customer' then crm_customer_id
+    when 'supplier' then mes_supplier_id
+    when 'order' then crm_sales_order_id
+    when 'department' then department_id
+    when 'member' then member_id
+    end
+  end
+
+  private
+
+  def assign_account_and_base_amount
+    self.account_id ||= voucher&.account_id
+    self.currency = 'CNY' if currency.blank?
+    self.exchange_rate = 1 if exchange_rate.blank? || exchange_rate.to_d.zero?
+    return if amount_micros.blank?
+
+    self.base_amount_micros = (amount_micros * exchange_rate.to_d).round
+  end
+
+  def validate_postable_account
+    return if ledger_account.blank?
+
+    errors.add(:ledger_account_id, '分类科目不能直接记账，请选到末级明细科目') if ledger_account.is_group?
+    errors.add(:ledger_account_id, "科目「#{ledger_account.label}」已停用") unless ledger_account.is_active?
+    return if ledger_account.currency.blank? || ledger_account.currency == currency
+
+    errors.add(:currency, "科目「#{ledger_account.label}」是 #{ledger_account.currency} 外币科目，币种须一致")
+  end
+
+  # 只卡往来科目的必填维度（应收挂客户、应付挂供应商），其余维度可填不强制——
+  # 往来不挂单位，供应商对账和「这个客户还欠多少」就查不出来。
+  def validate_required_dimensions
+    dimension = ledger_account&.required_dimension
+    return if dimension.blank? || dimension_value(dimension).present?
+
+    label = Erp::LedgerAccount::DIMENSION_LABELS[dimension]
+    errors.add(:base, "科目「#{ledger_account.label}」是往来科目，必须填写#{label}")
+  end
+end

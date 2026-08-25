@@ -271,6 +271,13 @@ Rails.application.routes.draw do
                 post :initialize_standard
               end
             end
+            resources :vouchers, only: [:index, :show, :create, :update, :destroy] do
+              member do
+                post :post_voucher
+                post :reverse
+                post :void
+              end
+            end
           end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard' do
