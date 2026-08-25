@@ -1754,6 +1754,7 @@ const ITEM_MODULE = {
   'CRM Doc Center': 'doc',
   'CRM Schedule': 'schedule',
   'MES Production': 'mes',
+  'Finance ERP': 'erp',
 };
 const itemModule = name => ITEM_MODULE[name] || 'crm';
 // 当前路由属于哪个系统（默认 CRM，含工作台/销售各页/会话）。

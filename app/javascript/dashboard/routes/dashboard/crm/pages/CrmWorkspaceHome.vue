@@ -46,6 +46,9 @@ const canAccessCrm = computed(
 const canAccessTiktok = computed(
   () => currentUser.value?.can_access_tiktok === true
 );
+// 财务 ERP：仅管理员/副管理员/财务岗可见（后端派生 can_access_erp）。
+// 承载成本/供应商/毛利，销售端连入口都不显示——不是置灰而是整卡不渲染。
+const canAccessErp = computed(() => currentUser.value?.can_access_erp === true);
 
 // OA 真实待办数（审批人看待我审批，其余看我的申请）。
 const oaMetric = computed(() =>
@@ -280,6 +283,23 @@ onMounted(async () => {
                 <div class="cta">
                   进入 MES 生产制造 <Icon icon="i-lucide-arrow-right" />
                 </div>
+              </button>
+
+              <!-- 财务 ERP（仅财务岗/管理员可见） -->
+              <button
+                v-if="canAccessErp"
+                type="button"
+                class="wsh-card wsh-glass"
+                @click="go('erp_dashboard_index')"
+              >
+                <div class="lbl a-violet">
+                  <Icon icon="i-lucide-landmark" /> 财务 ERP
+                </div>
+                <div class="sub2">科目 · 凭证 · 账簿 · 报表</div>
+                <div class="chips">
+                  <span>应收</span><span>应付</span><span>凭证</span><span>报表</span>
+                </div>
+                <div class="cta2">进入财务 ERP <Icon icon="i-lucide-arrow-right" /></div>
               </button>
 
               <!-- OA（真实待办数） -->

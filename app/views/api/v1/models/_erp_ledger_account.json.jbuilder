@@ -1,0 +1,16 @@
+json.id resource.id
+json.code resource.code
+json.name resource.name
+json.category resource.category
+json.category_label Erp::LedgerAccount::CATEGORY_LABELS[resource.category]
+json.direction resource.direction
+json.parent_id resource.parent_id
+json.is_group resource.is_group
+json.account_type resource.account_type
+json.currency resource.currency
+json.bs_section resource.bs_section
+json.dimensions resource.dimensions
+json.is_active resource.is_active
+json.is_system resource.is_system
+json.position resource.position
+json.remark resource.remark

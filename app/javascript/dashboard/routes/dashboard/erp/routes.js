@@ -1,6 +1,7 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 import ErpDashboardIndex from './pages/ErpDashboardIndex.vue';
+import ErpAccountsIndex from './pages/ErpAccountsIndex.vue';
 import ErpPlaceholderIndex from './pages/ErpPlaceholderIndex.vue';
 
 // ERP（财务管理）板块：与 CRM 同账号同登录；页面级前端只做展示，
@@ -25,7 +26,7 @@ const erpPage = (path, name, component) => {
 // E0：看板已有独立页；其余板块先挂共用占位页，随各切片落地再替换为独立组件。
 export const routes = [
   erpPage('dashboard', 'erp_dashboard_index', ErpDashboardIndex),
-  erpPage('accounts', 'erp_accounts_index', ErpPlaceholderIndex),
+  erpPage('accounts', 'erp_accounts_index', ErpAccountsIndex),
   erpPage('vouchers', 'erp_vouchers_index', ErpPlaceholderIndex),
   erpPage('ledgers', 'erp_ledgers_index', ErpPlaceholderIndex),
   erpPage('reports', 'erp_reports_index', ErpPlaceholderIndex),

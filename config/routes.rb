@@ -261,9 +261,11 @@ Rails.application.routes.draw do
           end
           namespace :erp do
             resource :dashboard, only: [:show], controller: 'dashboard'
-          end
-          namespace :erp do
-            resource :dashboard, only: [:show], controller: 'dashboard'
+            resources :ledger_accounts, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                post :initialize_standard
+              end
+            end
           end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard' do

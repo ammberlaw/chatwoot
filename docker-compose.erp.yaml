@@ -1,0 +1,128 @@
+version: '3'
+
+# ERP 独立 dev 栈（与 CRM(wintouch-crm) / MES(chatwoot) 彻底隔离）：
+#   - 独立项目名：docker compose -p wintouch-erpapp -f docker-compose.erp.yaml up -d
+#   - 独立对外端口（rails 3002 / vite 3038 / pg 5434 / redis 6381 / mailhog 1027,8027）
+#   - 独立本地 DB 卷（wintouch-erpapp_pgdata），首次从 CRM 库克隆一份再跑 erp 迁移
+#   - 复用已构建镜像 chatwoot-rails:development / chatwoot-vite:development（不重新 build）
+services:
+  base: &base
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+      args:
+        BUNDLE_WITHOUT: ''
+        EXECJS_RUNTIME: 'Node'
+        RAILS_ENV: 'development'
+        RAILS_SERVE_STATIC_FILES: 'false'
+    tty: true
+    stdin_open: true
+    image: chatwoot:development
+    env_file: .env
+
+  rails:
+    <<: *base
+    build:
+      context: .
+      dockerfile: ./docker/dockerfiles/rails.Dockerfile
+    image: chatwoot-rails:development
+    volumes:
+      - ./:/app:delegated
+      - node_modules:/app/node_modules
+      - packs:/app/public/packs
+      - cache:/app/tmp/cache
+      - gems:/gems
+    depends_on:
+      - postgres
+      - redis
+      - vite
+      - mailhog
+      - sidekiq
+    ports:
+      - 3002:3000
+    env_file: .env
+    environment:
+      - VITE_RUBY_HOST=vite
+      - NODE_OPTIONS=--max-old-space-size=6144
+      - NODE_ENV=development
+      - RAILS_ENV=development
+    entrypoint: docker/entrypoints/rails.sh
+    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+
+  sidekiq:
+    <<: *base
+    image: chatwoot-rails:development
+    volumes:
+      - ./:/app:delegated
+      - node_modules:/app/node_modules
+      - packs:/app/public/packs
+      - cache:/app/tmp/cache
+      - gems:/gems
+    depends_on:
+      - postgres
+      - redis
+      - mailhog
+    environment:
+      - NODE_ENV=development
+      - RAILS_ENV=development
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+
+  vite:
+    <<: *base
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: ./docker/dockerfiles/vite.Dockerfile
+    image: chatwoot-vite:development
+    volumes:
+      - ./:/app:delegated
+      - node_modules:/app/node_modules
+      - packs:/app/public/packs
+      - cache:/app/tmp/cache
+      - gems:/gems
+    ports:
+      - "3038:3036" # Vite dev server（独立端口，避免与 CRM/MES 撞）
+    environment:
+      - VITE_RUBY_HOST=0.0.0.0
+      - NODE_ENV=development
+      - RAILS_ENV=development
+    entrypoint: docker/entrypoints/vite.sh
+    command: bin/vite dev
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: always
+    ports:
+      - '5434:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=chatwoot
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=
+      - POSTGRES_HOST_AUTH_METHOD=trust
+
+  redis:
+    image: redis:alpine
+    restart: always
+    command: ["sh", "-c", "redis-server --requirepass \"$REDIS_PASSWORD\""]
+    env_file: .env
+    volumes:
+      - redis:/data/redis
+    ports:
+      - '6381:6379'
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - 1027:1025
+      - 8027:8025
+
+volumes:
+  gems:
+  postgres:
+  pgdata:
+  node_modules:
+  packs:
+  cache:
+  redis:

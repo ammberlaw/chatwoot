@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_26_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_27_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1895,6 +1895,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_000003) do
     t.index ["name", "account_id"], name: "index_email_templates_on_name_and_account_id", unique: true
   end
 
+  create_table "erp_ledger_accounts", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "category", null: false
+    t.string "direction", null: false
+    t.bigint "parent_id"
+    t.boolean "is_group", default: false, null: false
+    t.string "account_type"
+    t.string "currency"
+    t.string "bs_section"
+    t.jsonb "dimensions", default: [], null: false
+    t.boolean "is_active", default: true, null: false
+    t.boolean "is_system", default: false, null: false
+    t.integer "position", default: 0, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "category"], name: "index_erp_ledger_accounts_on_account_id_and_category"
+    t.index ["account_id", "code"], name: "index_erp_ledger_accounts_on_account_id_and_code", unique: true
+    t.index ["account_id"], name: "index_erp_ledger_accounts_on_account_id"
+    t.index ["parent_id"], name: "index_erp_ledger_accounts_on_parent_id"
+  end
+
   create_table "folders", force: :cascade do |t|
     t.integer "account_id", null: false
     t.integer "category_id", null: false
@@ -3159,6 +3183,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_000003) do
   add_foreign_key "crm_signatures", "accounts", on_delete: :cascade
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
+  add_foreign_key "erp_ledger_accounts", "erp_ledger_accounts", column: "parent_id", on_delete: :restrict
   add_foreign_key "inboxes", "portals"
   add_foreign_key "mes_board_owners", "accounts"
   add_foreign_key "mes_bom_items", "mes_boms", column: "bom_id", on_delete: :cascade

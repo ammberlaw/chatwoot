@@ -116,6 +116,8 @@ class Account < ApplicationRecord
   has_many :tiktok_shops, class_name: 'Tiktok::Shop', dependent: :destroy_async
   has_many :tiktok_daily_sales_records, class_name: 'Tiktok::DailySalesRecord', dependent: :destroy_async
   has_many :tiktok_profit_records, class_name: 'Tiktok::ProfitRecord', dependent: :destroy_async
+  # ERP（财务管理）：会计科目表是记账地基，凭证/账簿/报表都挂它。
+  has_many :erp_ledger_accounts, class_name: 'Erp::LedgerAccount', dependent: :destroy_async
   has_many :mes_suppliers, class_name: 'Mes::Supplier', dependent: :destroy_async
   has_many :mes_warehouses, class_name: 'Mes::Warehouse', dependent: :destroy_async
   has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async
