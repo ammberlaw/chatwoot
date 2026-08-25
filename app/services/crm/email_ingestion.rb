@@ -33,7 +33,10 @@ module Crm::EmailIngestion
 
   def notification_sender?(from)
     domain = from.split('@').last.to_s.downcase
-    Crm::EmailIntakeService::NOTIFICATION_DOMAINS.include?(domain) || domain.end_with?('.linkedin.com')
+    Crm::EmailIntakeService::NOTIFICATION_DOMAINS.include?(domain) ||
+      domain.end_with?('.linkedin.com') ||
+      # 小满系统通知（noreply@k.xiaomanmail.com「消息通知」）不是客户来信，别灌收件箱。
+      domain.end_with?('.xiaomanmail.com') || domain == 'xiaomanmail.com'
   end
 
   def create_email(mail, message_id, from)

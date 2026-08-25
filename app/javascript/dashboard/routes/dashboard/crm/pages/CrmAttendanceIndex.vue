@@ -32,6 +32,7 @@ const STATUS_META = {
   LATE_EARLY: { label: '迟到+早退', cls: 'bg-n-amber-3 text-n-amber-11' },
   ABSENT: { label: '缺卡', cls: 'bg-n-ruby-3 text-n-ruby-11' },
   LEAVE: { label: '请假', cls: 'bg-n-iris-3 text-n-iris-11' },
+  FIELD: { label: '外勤', cls: 'bg-n-blue-3 text-n-blue-11' },
 };
 const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -101,6 +102,7 @@ const mineCounts = computed(() => {
     early: 0,
     absent: 0,
     leave: 0,
+    field: 0,
   };
   calendarCells.value.forEach(d => {
     if (!d) return;
@@ -108,7 +110,10 @@ const mineCounts = computed(() => {
     if (!st) return;
     if (st === 'ABSENT') c.absent += 1;
     else if (st === 'LEAVE') c.leave += 1;
-    else {
+    else if (st === 'FIELD') {
+      c.present += 1;
+      c.field += 1;
+    } else {
       c.present += 1;
       if (st === 'LATE' || st === 'LATE_EARLY') c.late += 1;
       if (st === 'EARLY_LEAVE' || st === 'LATE_EARLY') c.early += 1;
@@ -132,14 +137,17 @@ const getGeo = () =>
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
     );
   });
-const clock = async () => {
+const clock = async (field = false) => {
   if (clocking.value) return;
   clocking.value = true;
   try {
-    // 组开启 GPS 校验时先取定位；仅网络(IP)校验则无需定位。
-    const body = setting.value?.geo_enabled ? await getGeo() : {};
+    // 组开启 GPS 校验时先取定位；仅网络(IP)校验则无需定位。外勤仍带定位做留痕。
+    const body = setting.value?.geo_enabled || field ? await getGeo() : {};
+    if (field) body.field = true;
     await axios.post(`${api()}/clock`, body);
-    useAlert(todayRec.value?.clock_in_at ? '下班打卡成功' : '上班打卡成功');
+    if (field) useAlert('外勤打卡成功');
+    else
+      useAlert(todayRec.value?.clock_in_at ? '下班打卡成功' : '上班打卡成功');
     fetchMine();
   } catch (e) {
     useAlert(e.response?.data?.error || '打卡失败，请重试');
@@ -148,23 +156,67 @@ const clock = async () => {
   }
 };
 
-// ── 汇总 ──
+// ── 汇总（日/周/月粒度 + 今日概览）──
+const PERIODS = [
+  { value: 'day', label: '日' },
+  { value: 'week', label: '周' },
+  { value: 'month', label: '月' },
+];
+const period = ref('day');
+const summaryDate = ref(todayStr());
+const summaryRange = ref(null);
+const overview = ref(null);
 const summaryRows = ref([]);
 const loadingSummary = ref(false);
 const fetchSummary = async () => {
   loadingSummary.value = true;
   try {
     const { data } = await axios.get(`${api()}/summary`, {
-      params: { month: month.value },
+      params: { period: period.value, date: summaryDate.value },
     });
     summaryRows.value = data.payload || [];
+    overview.value = data.overview || null;
+    summaryRange.value = data.range || null;
     setting.value = data.setting;
   } catch {
     summaryRows.value = [];
+    overview.value = null;
   } finally {
     loadingSummary.value = false;
   }
 };
+const setPeriod = p => {
+  period.value = p;
+  fetchSummary();
+};
+const shiftSummaryDate = delta => {
+  const d = new Date(`${summaryDate.value}T12:00:00`);
+  if (period.value === 'day') d.setDate(d.getDate() + delta);
+  else if (period.value === 'week') d.setDate(d.getDate() + delta * 7);
+  else d.setMonth(d.getMonth() + delta);
+  summaryDate.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+    d.getDate()
+  )}`;
+  fetchSummary();
+};
+const rangeLabel = computed(() => {
+  if (period.value === 'month') return summaryDate.value.slice(0, 7);
+  if (period.value === 'day') return summaryDate.value;
+  if (summaryRange.value) {
+    return `${summaryRange.value.start} ~ ${summaryRange.value.end}`;
+  }
+  return summaryDate.value;
+});
+// 打卡率仪表盘：已到岗 / 应到，环形进度用（周长 2πr, r=52 ≈ 326.7）。
+const GAUGE_CIRC = 326.7;
+const gaugePct = computed(() => {
+  const o = overview.value;
+  if (!o || !o.expected) return 0;
+  return Math.min(1, o.present / o.expected);
+});
+const gaugeDash = computed(
+  () => `${(gaugePct.value * GAUGE_CIRC).toFixed(1)} ${GAUGE_CIRC}`
+);
 
 // ── HR 修正 ──
 const adjustDialog = ref(null);
@@ -598,15 +650,23 @@ onMounted(fetchMine);
           <button
             class="h-10 px-6 text-sm font-medium text-white rounded-xl shrink-0 whitespace-nowrap bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
             :disabled="clocking"
-            @click="clock"
+            @click="clock()"
           >
             {{ todayRec?.clock_in_at ? '下班打卡' : '上班打卡' }}
+          </button>
+          <button
+            class="h-10 px-4 text-sm font-medium rounded-xl shrink-0 whitespace-nowrap border border-n-blue-7 text-n-blue-11 hover:bg-n-blue-3 disabled:opacity-50"
+            :disabled="clocking"
+            title="出差 / 客户现场打卡，不受打卡范围限制"
+            @click="clock(true)"
+          >
+            外勤打卡
           </button>
         </div>
       </div>
 
-      <!-- 月份切换（我的/汇总） -->
-      <div v-if="view !== 'settings'" class="flex items-center gap-2">
+      <!-- 月份切换（我的考勤） -->
+      <div v-if="view === 'mine'" class="flex items-center gap-2">
         <button
           class="h-8 px-2 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
           @click="shiftMonth(-1)"
@@ -660,12 +720,132 @@ onMounted(fetchMine);
           <span>迟到 {{ mineCounts.late }} 次</span>
           <span>早退 {{ mineCounts.early }} 次</span>
           <span>缺卡 {{ mineCounts.absent }} 天</span>
+          <span>外勤 {{ mineCounts.field }} 天</span>
           <span>请假 {{ mineCounts.leave }} 天</span>
         </div>
       </template>
 
       <!-- ── 考勤汇总 ── -->
       <template v-else-if="view === 'summary'">
+        <!-- 粒度切换 + 区间导航 -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex p-0.5 rounded-lg bg-n-alpha-1">
+            <button
+              v-for="p in PERIODS"
+              :key="p.value"
+              class="h-8 px-4 text-sm rounded-md"
+              :class="
+                period === p.value
+                  ? 'bg-n-solid-1 text-n-iris-11 font-medium shadow-sm'
+                  : 'text-n-slate-11 hover:text-n-slate-12'
+              "
+              @click="setPeriod(p.value)"
+            >
+              {{ p.label }}统计
+            </button>
+          </div>
+          <div class="flex items-center gap-1">
+            <button
+              class="h-8 px-2 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
+              @click="shiftSummaryDate(-1)"
+            >
+              ‹
+            </button>
+            <span
+              class="min-w-[7rem] text-sm font-medium text-center text-n-slate-12"
+            >
+              {{ rangeLabel }}
+            </span>
+            <button
+              class="h-8 px-2 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
+              @click="shiftSummaryDate(1)"
+            >
+              ›
+            </button>
+          </div>
+        </div>
+
+        <!-- 今日/区间概览仪表盘 -->
+        <div
+          v-if="overview"
+          class="flex flex-wrap items-center gap-6 p-4 border rounded-2xl border-n-weak bg-n-solid-1/60"
+        >
+          <div class="relative shrink-0 size-28">
+            <svg viewBox="0 0 120 120" class="-rotate-90 size-28">
+              <circle
+                cx="60"
+                cy="60"
+                r="52"
+                fill="none"
+                stroke-width="12"
+                class="stroke-n-alpha-2"
+              />
+              <circle
+                cx="60"
+                cy="60"
+                r="52"
+                fill="none"
+                stroke-width="12"
+                stroke-linecap="round"
+                class="stroke-n-iris-9"
+                :stroke-dasharray="gaugeDash"
+              />
+            </svg>
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center"
+            >
+              <span class="text-xl font-semibold text-n-slate-12">
+                {{ overview.present }}/{{ overview.expected }}
+              </span>
+              <span class="text-[11px] text-n-slate-10">已打卡/应到</span>
+            </div>
+          </div>
+          <div
+            class="grid flex-1 grid-cols-3 gap-3 sm:grid-cols-5 min-w-[240px]"
+          >
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-slate-12">
+                {{ overview.expected }}
+              </span>
+              <span class="text-xs text-n-slate-10">应到</span>
+            </div>
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-teal-11">
+                {{ overview.present }}
+              </span>
+              <span class="text-xs text-n-slate-10">已打卡</span>
+            </div>
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-amber-11">
+                {{ overview.late }}
+              </span>
+              <span class="text-xs text-n-slate-10">迟到</span>
+            </div>
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-ruby-11">
+                {{ overview.absent }}
+              </span>
+              <span class="text-xs text-n-slate-10">缺卡</span>
+            </div>
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-blue-11">
+                {{ overview.field }}
+              </span>
+              <span class="text-xs text-n-slate-10">外勤</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 手机卡片 -->
         <div class="flex flex-col gap-2 md:hidden">
           <p
@@ -706,6 +886,9 @@ onMounted(fetchMine);
               <span :class="row.absent ? 'text-n-ruby-11' : ''">
                 缺卡：{{ row.absent }}
               </span>
+              <span :class="row.field ? 'text-n-blue-11' : ''">
+                外勤：{{ row.field }}
+              </span>
               <span>请假：{{ row.leave }}</span>
             </div>
           </div>
@@ -721,6 +904,7 @@ onMounted(fetchMine);
                 <th class="px-3 py-2 font-medium">迟到</th>
                 <th class="px-3 py-2 font-medium">早退</th>
                 <th class="px-3 py-2 font-medium">缺卡</th>
+                <th class="px-3 py-2 font-medium">外勤</th>
                 <th class="px-3 py-2 font-medium">请假</th>
                 <th v-if="isAdminLike" class="px-3 py-2 font-medium text-right">
                   操作
@@ -729,7 +913,7 @@ onMounted(fetchMine);
             </thead>
             <tbody>
               <tr v-if="loadingSummary">
-                <td colspan="7" class="px-3 py-6 text-center text-n-slate-11">
+                <td colspan="8" class="px-3 py-6 text-center text-n-slate-11">
                   加载中…
                 </td>
               </tr>
@@ -759,6 +943,12 @@ onMounted(fetchMine);
                   >
                     {{ row.absent }}
                   </td>
+                  <td
+                    class="px-3 py-2"
+                    :class="row.field ? 'text-n-blue-11' : ''"
+                  >
+                    {{ row.field }}
+                  </td>
                   <td class="px-3 py-2">{{ row.leave }}</td>
                   <td v-if="isAdminLike" class="px-3 py-2 text-right">
                     <button
@@ -774,7 +964,7 @@ onMounted(fetchMine);
           </table>
         </div>
         <p class="text-xs text-n-slate-10">
-          口径：只统计工作日且不含未来日期；缺卡=当天没有任何打卡记录；修正会留审计痕迹。
+          口径：只统计工作日且不含未来日期；缺卡=当天没有任何打卡记录；外勤=出差/客户现场打卡（计出勤、单列，不判迟到）；修正会留审计痕迹。
         </p>
       </template>
 

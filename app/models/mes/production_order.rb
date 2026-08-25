@@ -219,6 +219,8 @@ class Mes::ProductionOrder < ApplicationRecord
     updates = { bom_id: bom.id, bom_confirmed_at: nil, bom_confirmed_by_id: nil }
     updates[:planned_end_date] = planned if planned
     update!(updates)
+    # 工程建 BOM 常留空产品线；继承订单产品线，否则业务员按产品线筛会漏看这张 BOM。
+    bom.update!(product_line: product_line) if bom.product_line.blank? && product_line.present?
     enter_stage!('BOM_READY', actor: actor) if stage == 'SALES_CONFIRMED'
     notify_bom_reconfirm(bom)
     self
@@ -234,6 +236,7 @@ class Mes::ProductionOrder < ApplicationRecord
     raise StandardError, 'BOM 已确认，无需重复' if bom_confirmed_at.present?
 
     update!(bom_confirmed_at: Time.current, bom_confirmed_by_id: actor&.id)
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'bom_reconfirm')
     notify_stage_owners(
       kind: 'bom_confirmed',
       title: "BOM 已二次确认：生产订单 #{order_no}",
@@ -371,6 +374,7 @@ class Mes::ProductionOrder < ApplicationRecord
     now = Time.current
     update!(stage_ack_at: now, stage_ack_by_id: actor&.id)
     stage_events.where(stage: stage).update_all(acked_at: now, acked_by_id: actor&.id, updated_at: now)
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'stage_assigned')
     self
   end
 
@@ -432,6 +436,7 @@ class Mes::ProductionOrder < ApplicationRecord
 
     update!(approval_status: 'MANAGER_APPROVED', manager_id: actor.id,
             manager_acted_at: Time.current, manager_comment: comment)
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
     notify_approval_pending
     self
   end
@@ -442,6 +447,7 @@ class Mes::ProductionOrder < ApplicationRecord
 
     update!(approval_status: 'APPROVED', gm_id: actor.id,
             gm_acted_at: Time.current, gm_comment: comment)
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
     Mes::Notifier.notify(
       account: account, recipients: owner_id, kind: 'approval_approved',
       title: "审批通过：生产订单 #{order_no}",
@@ -466,6 +472,7 @@ class Mes::ProductionOrder < ApplicationRecord
     end
     self.approval_status = 'REJECTED'
     save!
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
     Mes::Notifier.notify(
       account: account, recipients: owner_id, kind: 'approval_rejected',
       title: "审批被驳回：生产订单 #{order_no}",

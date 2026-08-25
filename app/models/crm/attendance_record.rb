@@ -30,7 +30,8 @@
 class Crm::AttendanceRecord < ApplicationRecord
   # 打卡与工作日均按中国时区口径。
   TZ = 'Asia/Shanghai'.freeze
-  STATUSES = %w[NORMAL LATE EARLY_LEAVE LATE_EARLY ABSENT LEAVE].freeze
+  # FIELD = 外勤（出差/客户现场打卡），计出勤但单列；不参与迟到/早退判定。
+  STATUSES = %w[NORMAL LATE EARLY_LEAVE LATE_EARLY ABSENT LEAVE FIELD].freeze
 
   belongs_to :account
   belongs_to :user

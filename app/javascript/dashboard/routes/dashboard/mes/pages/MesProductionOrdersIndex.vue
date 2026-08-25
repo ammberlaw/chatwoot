@@ -5,8 +5,10 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
+import camelcaseKeys from 'camelcase-keys';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
+import MesBomAPI from 'dashboard/api/mes/boms';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import {
@@ -568,6 +570,25 @@ const removeAttachment = async (attachmentId, kind) => {
 
 // —— 挂 BOM（阶段 2 触点）——
 const bomsStore = useMesBomsStore();
+
+// 业务二次确认前要能看到工程做的用料清单：订单详情选中且已挂 BOM 时，按 bomId 拉 BOM 明细。
+const CATEGORY_LABELS = { MACHINE: '整机生产物料', PACKAGING: '包装物料' };
+const categoryLabel = c => CATEGORY_LABELS[c] || '整机生产物料';
+const bomDetail = ref(null);
+const bomViewDialogRef = ref(null);
+const loadBomDetail = async id => {
+  bomDetail.value = null;
+  if (!id) return;
+  try {
+    const { data } = await MesBomAPI.show(id);
+    bomDetail.value = camelcaseKeys(data, { deep: true });
+  } catch {
+    bomDetail.value = null;
+  }
+};
+watch(() => selected.value?.bomId, loadBomDetail, { immediate: true });
+const openBomView = () => bomViewDialogRef.value?.open();
+
 const bomDialogRef = ref(null);
 const bomForm = ref({ bomId: '', deliveryDate: '' });
 const attaching = computed(
@@ -1561,6 +1582,18 @@ watch(currentPage, fetchRecords);
                 ⏳ 待业务二次确认BOM，确认后方可下发采购
               </template>
             </div>
+            <!-- 查看工程做的用料清单（弹窗看完整明细） -->
+            <Button
+              v-if="
+                bomDetail && bomDetail.bomItems && bomDetail.bomItems.length
+              "
+              :label="`查看 BOM 明细（${bomDetail.bomItems.length} 项）`"
+              variant="outline"
+              color="slate"
+              size="sm"
+              class="w-full mt-2"
+              @click="openBomView"
+            />
             <!-- 业务确认 BOM 按钮 -->
             <Button
               v-if="canConfirmBom"
@@ -1981,6 +2014,75 @@ watch(currentPage, fetchRecords);
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">期望交期</label>
           <DatePicker v-model="bomForm.deliveryDate" block />
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 查看 BOM 完整用料明细弹窗（业务二次确认前核对） -->
+    <Dialog
+      ref="bomViewDialogRef"
+      width="xl"
+      :title="`工程/PMC BOM 明细${bomDetail?.bomNo ? ` · ${bomDetail.bomNo}` : ''}`"
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+    >
+      <div v-if="bomDetail" class="flex flex-col gap-3">
+        <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-n-slate-11">
+          <span v-if="bomDetail.productName">
+            产品：<span class="text-n-slate-12">{{
+              bomDetail.productName
+            }}</span>
+          </span>
+          <span v-if="bomDetail.baseQty">
+            基准产量：<span class="text-n-slate-12">
+              {{ bomDetail.baseQty }} {{ bomDetail.unit }}
+            </span>
+          </span>
+          <span>
+            用料项：<span class="text-n-slate-12">
+              {{ bomDetail.bomItems ? bomDetail.bomItems.length : 0 }}
+            </span>
+          </span>
+        </div>
+        <div class="overflow-auto border rounded-lg border-n-weak max-h-[60vh]">
+          <table class="w-full text-sm">
+            <thead class="sticky top-0 bg-n-solid-2">
+              <tr class="text-left text-n-slate-11">
+                <th class="px-3 py-2 font-medium">#</th>
+                <th class="px-3 py-2 font-medium">物料名称</th>
+                <th class="px-3 py-2 font-medium">料号</th>
+                <th class="px-3 py-2 font-medium">规格</th>
+                <th class="px-3 py-2 font-medium text-right">用量</th>
+                <th class="px-3 py-2 font-medium">类别</th>
+                <th class="px-3 py-2 font-medium">备注</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(it, idx) in bomDetail.bomItems"
+                :key="it.id"
+                class="border-t border-n-weak/60 text-n-slate-12"
+              >
+                <td class="px-3 py-2 text-n-slate-10">{{ idx + 1 }}</td>
+                <td class="px-3 py-2">{{ it.materialName }}</td>
+                <td class="px-3 py-2 text-n-slate-11">
+                  {{ it.materialNo || '—' }}
+                </td>
+                <td class="px-3 py-2 text-n-slate-11">
+                  {{ it.specification || '—' }}
+                </td>
+                <td class="px-3 py-2 text-right whitespace-nowrap">
+                  {{ it.qty }} {{ it.unit }}
+                </td>
+                <td class="px-3 py-2 text-n-slate-11">
+                  {{ categoryLabel(it.category) }}
+                </td>
+                <td class="px-3 py-2 text-n-slate-11">
+                  {{ it.remark || '—' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </Dialog>

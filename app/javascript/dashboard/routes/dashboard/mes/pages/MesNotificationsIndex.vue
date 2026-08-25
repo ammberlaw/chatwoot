@@ -57,11 +57,17 @@ const groupOf = kind => kindMeta(kind).group;
 
 const activeGroup = ref('all');
 const allRecords = computed(() => store.getRecords);
-const records = computed(() =>
-  activeGroup.value === 'all'
-    ? allRecords.value
-    : allRecords.value.filter(n => groupOf(n.kind) === activeGroup.value)
-);
+const records = computed(() => {
+  if (activeGroup.value === 'all') return allRecords.value;
+  const inGroup = allRecords.value.filter(
+    n => groupOf(n.kind) === activeGroup.value
+  );
+  // 待处理只显未办结（未读）：办结动作（审批/确认BOM/接单）会由后端把对应待办置已读；
+  // 「点开查看」不置已读（见 openNotification），所以看一眼不会误消失。
+  return activeGroup.value === 'todo'
+    ? inGroup.filter(n => !n.readAt)
+    : inGroup;
+});
 // 各分类未读数（tab 角标）。
 const groupUnread = computed(() => {
   const counts = { all: 0, todo: 0, progress: 0, rejected: 0 };
@@ -81,7 +87,9 @@ const fmt = ts =>
 const load = () => store.get();
 
 const openNotification = async n => {
-  if (!n.readAt) await store.markRead(n.id);
+  // 待办类不因「点开查看」置已读——只有真正办结（审批/确认等动作）才由后端销掉，避免误清。
+  // 进展/退回类是知会信息，点开即已读。
+  if (!n.readAt && groupOf(n.kind) !== 'todo') await store.markRead(n.id);
   if (n.kind && n.kind.startsWith('shipment_')) {
     router.push(
       accountScopedRoute('mes_shipments_index', {}, { kind: 'STOCK' })
