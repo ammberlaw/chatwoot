@@ -344,9 +344,9 @@ onMounted(() => {
   >
     <!-- 头部：标题 + 副标题 + 卖方信息/新建 -->
     <div
-      class="flex items-start justify-between flex-shrink-0 px-[26px] pt-[18px] pb-1.5"
+      class="flex flex-col gap-3 sm:flex-row items-start justify-between flex-shrink-0 px-4 sm:px-[26px] pt-4 sm:pt-[18px] pb-1.5"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
           {{ t('CRM.PI.HEADER') }}
         </h1>
@@ -356,7 +356,7 @@ onMounted(() => {
           {{ t('CRM.PI.SUBTITLE') }}
         </p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button
           type="button"
           class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium border rounded-[9px] border-n-weak bg-n-solid-1/70 text-n-slate-11 hover:bg-n-alpha-2"
@@ -378,7 +378,7 @@ onMounted(() => {
 
     <!-- 顶部 KPI 环形卡 -->
     <div
-      class="grid flex-shrink-0 grid-cols-2 gap-3 px-[26px] pt-3.5 pb-1 xl:grid-cols-4"
+      class="grid flex-shrink-0 grid-cols-2 gap-3 px-4 sm:px-[26px] pt-3.5 pb-1 xl:grid-cols-4"
     >
       <div
         v-for="card in kpiCards"
@@ -440,9 +440,9 @@ onMounted(() => {
 
     <!-- 状态下划线 tab + 搜索 -->
     <div
-      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-[26px] pt-1 border-b border-n-weak"
+      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-4 sm:px-[26px] pt-1 pb-3 sm:pb-0 border-b border-n-weak"
     >
-      <div class="flex items-center gap-2 ml-auto">
+      <div class="flex flex-wrap items-center gap-2 ml-auto w-full sm:w-auto">
         <MonthPicker
           :model-value="activeMonth"
           placeholder="全部月份"
@@ -459,7 +459,7 @@ onMounted(() => {
           @update:model-value="setOwner"
         />
         <div
-          class="flex items-center h-9 gap-2 px-3 text-[13px] border rounded-[10px] min-w-[240px] border-n-weak bg-n-solid-1/60 focus-within:ring-2 focus-within:ring-n-iris-9"
+          class="flex items-center h-9 gap-2 px-3 text-[13px] border rounded-[10px] w-full sm:w-auto sm:min-w-[240px] border-n-weak bg-n-solid-1/60 focus-within:ring-2 focus-within:ring-n-iris-9"
         >
           <span class="i-lucide-search size-4 shrink-0 text-n-slate-9" />
           <input
@@ -488,7 +488,94 @@ onMounted(() => {
     </div>
 
     <div v-else class="flex-1 px-3.5 py-0.5 overflow-y-auto">
-      <table class="w-full text-[13px] border-collapse">
+      <!-- 手机卡片列表 -->
+      <div class="flex flex-col gap-2 py-2 md:hidden">
+        <div
+          v-for="record in records"
+          :key="record.id"
+          class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+          @click="openEdit(record)"
+        >
+          <div class="flex items-center gap-2">
+            <span class="font-mono font-semibold text-n-slate-12 truncate">
+              {{ record.piNo }}
+            </span>
+            <span
+              class="inline-flex items-center gap-[5px] px-2.5 py-[3px] text-[12px] font-medium rounded-full shrink-0"
+              :class="STATUSES[record.status]?.class"
+            >
+              <span class="rounded-full size-1.5 bg-current opacity-90" />
+              {{ STATUSES[record.status]?.label || record.status }}
+            </span>
+            <span class="flex-1" />
+            <button
+              type="button"
+              class="shrink-0 text-n-slate-9 hover:text-n-iris-11 disabled:opacity-50"
+              :title="t('CRM.PI.ACTION.XLSX')"
+              :disabled="exportingXlsxId === record.id"
+              @click.stop="exportXlsx(record)"
+            >
+              <span
+                class="size-4"
+                :class="
+                  exportingXlsxId === record.id
+                    ? 'i-lucide-loader-circle animate-spin'
+                    : 'i-lucide-table'
+                "
+              />
+            </button>
+            <button
+              type="button"
+              class="shrink-0 text-n-slate-9 hover:text-n-ruby-11"
+              :title="t('CRM.PI.ACTION.DELETE')"
+              @click.stop="removeRecord(record)"
+            >
+              <span class="i-lucide-trash-2 size-4" />
+            </button>
+          </div>
+          <div class="mt-1.5 text-[13px] font-medium text-n-slate-12 truncate">
+            {{ buyerLabel(record) }}
+          </div>
+          <div
+            v-if="record.attention"
+            class="text-[11px] truncate text-n-slate-10"
+          >
+            {{ attnLabel(record.attention) }}
+          </div>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
+            <span
+              class="text-[13px] font-semibold tabular-nums text-n-slate-12"
+            >
+              {{ fmtMoney(record.totalAmountMicros, record.currency) }}
+            </span>
+            <span class="text-xs text-n-slate-11 tabular-nums">
+              {{ fmtDate(record.piDate) }}
+            </span>
+          </div>
+          <div
+            v-if="record.ownerName"
+            class="flex items-center gap-2 mt-2 text-xs text-n-slate-11"
+          >
+            <Avatar
+              :name="record.ownerName"
+              :src="record.ownerAvatarUrl || ''"
+              :size="22"
+              rounded-full
+            />
+            <span class="truncate">{{ record.ownerName }}</span>
+            <span
+              v-if="
+                record.handledByName && record.handledById !== record.ownerId
+              "
+              class="text-[11px] text-n-slate-10 truncate"
+            >
+              经办：{{ record.handledByName }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <table class="hidden md:table w-full text-[13px] border-collapse">
         <thead>
           <tr>
             <th
@@ -643,7 +730,7 @@ onMounted(() => {
     <!-- 页脚：共 N 条 · 每页 15 条 + 页码 -->
     <div
       v-if="totalCount"
-      class="flex items-center justify-between flex-shrink-0 px-[26px] py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
+      class="flex items-center justify-between flex-shrink-0 px-4 sm:px-[26px] py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
     >
       <span>
         {{

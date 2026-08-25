@@ -747,8 +747,11 @@ onBeforeUnmount(() => {
     <div
       class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 border-white/50 rounded-3xl shadow-n-iris-9/5"
     >
-      <!-- 左：会话列表 -->
-      <aside class="flex flex-col shrink-0 w-[300px] border-r border-n-weak">
+      <!-- 左：会话列表（手机端：有选中会话时隐藏，让消息区占满） -->
+      <aside
+        class="flex-col shrink-0 w-full md:w-[300px] border-r border-n-weak"
+        :class="activeConv ? 'hidden md:flex' : 'flex'"
+      >
         <!-- 搜索 -->
         <div class="p-4 pb-3">
           <div class="relative">
@@ -867,9 +870,11 @@ onBeforeUnmount(() => {
         </div>
       </aside>
 
-      <!-- 右：消息（薄荷底色，头部/输入框保持白色浮于其上） -->
+      <!-- 右：消息（薄荷底色，头部/输入框保持白色浮于其上）
+           手机端：无选中会话时隐藏，让列表占满 -->
       <section
-        class="flex flex-col flex-1 min-w-0 bg-gradient-to-b from-n-iris-1/60 to-n-iris-2/60"
+        class="flex-col flex-1 min-w-0 bg-gradient-to-b from-n-iris-1/60 to-n-iris-2/60"
+        :class="activeConv ? 'flex' : 'hidden md:flex'"
       >
         <!-- 空状态 -->
         <div
@@ -888,8 +893,15 @@ onBeforeUnmount(() => {
         <template v-else>
           <!-- 会话头部 -->
           <header
-            class="flex items-center gap-3 px-6 py-4 shrink-0 border-b border-n-weak bg-n-solid-1"
+            class="flex items-center gap-3 px-4 py-3 sm:px-6 sm:py-4 shrink-0 border-b border-n-weak bg-n-solid-1"
           >
+            <button
+              type="button"
+              class="grid transition-colors rounded-full shrink-0 size-8 -ml-1 place-items-center md:hidden text-n-slate-11 hover:bg-n-alpha-2"
+              @click="activeConv = null"
+            >
+              <Icon icon="i-lucide-chevron-left" class="size-5" />
+            </button>
             <Avatar
               :name="activeConv.name"
               :src="convSrc(activeConv)"
@@ -938,7 +950,7 @@ onBeforeUnmount(() => {
           <button
             v-if="activeConv.kind === 'group' && activeConv.announcement"
             type="button"
-            class="flex items-start gap-2.5 mx-6 mt-3 px-4 py-2.5 text-left transition-colors rounded-2xl bg-n-solid-1/80 ring-1 ring-inset ring-n-weak shadow-sm hover:bg-n-solid-1"
+            class="flex items-start gap-2.5 mx-4 sm:mx-6 mt-3 px-4 py-2.5 text-left transition-colors rounded-2xl bg-n-solid-1/80 ring-1 ring-inset ring-n-weak shadow-sm hover:bg-n-solid-1"
             @click="openGroupDetail"
           >
             <Icon
@@ -951,7 +963,10 @@ onBeforeUnmount(() => {
           </button>
 
           <!-- 消息流 -->
-          <div ref="threadRef" class="flex-1 px-6 py-5 overflow-y-auto">
+          <div
+            ref="threadRef"
+            class="flex-1 px-4 py-4 sm:px-6 sm:py-5 overflow-y-auto"
+          >
             <div
               v-for="msg in messages"
               :key="msg.id"

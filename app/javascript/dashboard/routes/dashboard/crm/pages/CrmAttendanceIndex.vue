@@ -350,10 +350,10 @@ onMounted(fetchMine);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
       <h1 class="text-xl font-medium text-n-slate-12">考勤</h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button
           class="h-8 px-3 text-sm rounded-lg border"
           :class="
@@ -392,7 +392,7 @@ onMounted(fetchMine);
       </div>
     </div>
 
-    <div class="flex flex-col gap-4 px-6 py-5">
+    <div class="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
       <!-- 打卡卡片（始终显示） -->
       <div
         v-if="view !== 'settings'"
@@ -501,7 +501,53 @@ onMounted(fetchMine);
 
       <!-- ── 考勤汇总 ── -->
       <template v-else-if="view === 'summary'">
-        <div class="overflow-x-auto border rounded-xl border-n-weak">
+        <!-- 手机卡片 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <p
+            v-if="loadingSummary"
+            class="py-6 text-sm text-center text-n-slate-11"
+          >
+            加载中…
+          </p>
+          <div
+            v-for="row in summaryRows"
+            v-else
+            :key="row.user_id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate text-n-slate-12">
+                {{ row.name }}
+              </span>
+              <span class="flex-1" />
+              <button
+                v-if="isAdminLike"
+                class="text-xs shrink-0 text-n-iris-11 hover:underline"
+                @click.stop="openAdjust(row)"
+              >
+                修正
+              </button>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-n-slate-11"
+            >
+              <span>出勤：{{ row.present }}</span>
+              <span :class="row.late ? 'text-n-amber-11' : ''">
+                迟到：{{ row.late }}
+              </span>
+              <span :class="row.early_leave ? 'text-n-amber-11' : ''">
+                早退：{{ row.early_leave }}
+              </span>
+              <span :class="row.absent ? 'text-n-ruby-11' : ''">
+                缺卡：{{ row.absent }}
+              </span>
+              <span>请假：{{ row.leave }}</span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="hidden overflow-x-auto border rounded-xl md:block border-n-weak"
+        >
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left border-b text-n-slate-11 border-n-weak">
@@ -628,7 +674,7 @@ onMounted(fetchMine);
                 </button>
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label class="flex flex-col gap-1">
                 <span class="text-xs text-n-slate-11">上班时间</span>
                 <input
@@ -646,7 +692,7 @@ onMounted(fetchMine);
                 />
               </label>
             </div>
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <label class="flex flex-col gap-1">
                 <span class="text-xs text-n-slate-11">宽限（分钟）</span>
                 <input

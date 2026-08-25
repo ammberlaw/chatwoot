@@ -268,7 +268,11 @@ const doDeactivate = async () => {
 
 const doReactivate = async m => {
   // eslint-disable-next-line no-alert
-  if (!window.confirm(`恢复「${m.name}」的账号？恢复后可再次登录，需重新分配角色。`))
+  if (
+    !window.confirm(
+      `恢复「${m.name}」的账号？恢复后可再次登录，需重新分配角色。`
+    )
+  )
     return;
   savingId.value = m.id;
   try {
@@ -366,7 +370,7 @@ onMounted(fetchMembers);
   <div
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="flex-shrink-0 px-6 py-4 border-b border-n-weak">
+    <div class="flex-shrink-0 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak">
       <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
       <p class="mt-0.5 text-xs text-n-slate-10">
         {{ isManagerOnly ? L.managerSubtitle : L.subtitle }}
@@ -375,10 +379,12 @@ onMounted(fetchMembers);
 
     <p v-if="loading" class="p-6 text-sm text-n-slate-10">{{ L.loading }}</p>
 
-    <!-- 两栏主从式：左列表选人，右面板设权限 -->
-    <div v-else class="flex flex-1 min-h-0">
+    <!-- 两栏主从式：左列表选人，右面板设权限（手机上下堆叠） -->
+    <div v-else class="flex flex-col md:flex-row flex-1 min-h-0">
       <!-- 左：搜索 + 角色筛选 + 成员列表 -->
-      <div class="flex flex-col flex-shrink-0 border-r w-60 border-n-weak">
+      <div
+        class="flex flex-col flex-shrink-0 border-b md:border-b-0 md:border-r w-full md:w-60 max-h-56 md:max-h-none border-n-weak"
+      >
         <div
           class="flex flex-col flex-shrink-0 gap-2 p-2 border-b border-n-weak/60"
         >
@@ -428,7 +434,9 @@ onMounted(fetchMembers);
                 </template>
                 <template v-else>
                   {{ ROLE_OPTIONS.find(o => o.value === roleValue(m))?.label }}
-                  <span v-if="m.crm_finance" class="text-n-iris-11">· 财务</span>
+                  <span v-if="m.crm_finance"
+class="text-n-iris-11"
+                    >· 财务</span>
                 </template>
               </div>
             </div>
@@ -448,7 +456,9 @@ onMounted(fetchMembers);
         :key="selectedMember.id"
         class="flex-1 min-w-0 overflow-y-auto"
       >
-        <div class="flex items-center gap-3 px-6 py-4 border-b border-n-weak">
+        <div
+          class="flex items-center gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+        >
           <Avatar
             :name="selectedMember.name"
             :src="selectedMember.avatar_url || ''"
@@ -473,7 +483,7 @@ onMounted(fetchMembers);
           </div>
         </div>
 
-        <div class="flex flex-col gap-5 px-6 py-5 max-w-xl">
+        <div class="flex flex-col gap-5 px-4 py-4 sm:px-6 sm:py-5 max-w-xl">
           <!-- 系统角色 -->
           <div class="flex items-center gap-4">
             <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
@@ -615,7 +625,7 @@ onMounted(fetchMembers);
           <!-- 操作：自己也可改中文名/CRM英文名；管理员不可动超管账号 -->
           <div
             v-if="isSuperAdmin || !selectedMember.is_admin"
-            class="flex items-center gap-3 pt-1"
+            class="flex flex-wrap items-center gap-3 pt-1"
           >
             <span class="flex-shrink-0 w-24" />
             <button
@@ -647,13 +657,13 @@ onMounted(fetchMembers);
     <!-- 权限说明：原来一堵灰字，折成可展开的逐行对照 -->
     <div v-if="!loading" class="flex-shrink-0 border-t border-n-weak">
       <button
-        class="flex items-center gap-1.5 w-full px-6 py-2.5 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-1"
+        class="flex items-center gap-1.5 w-full px-4 sm:px-6 py-2.5 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-1"
         @click="showHint = !showHint"
       >
         <span>权限说明</span>
         <span class="text-n-slate-9">{{ showHint ? '▾' : '▸' }}</span>
       </button>
-      <div v-if="showHint" class="px-6 pb-4">
+      <div v-if="showHint" class="px-4 sm:px-6 pb-4">
         <div class="flex flex-col gap-1.5 max-w-2xl">
           <div
             v-for="item in ROLE_LEGEND"
@@ -742,14 +752,17 @@ onMounted(fetchMembers);
         <p class="text-xs leading-relaxed text-n-slate-11">
           停用后该账号将
           <span class="font-medium text-n-ruby-11">立即退出并禁止登录</span
-          >，CRM 角色置无，个人文档进回收站。名下客户 / 商机按下面方式交接。误操作可在此页「恢复账号」。
+          >，CRM 角色置无，个人文档进回收站。名下客户 /
+          商机按下面方式交接。误操作可在此页「恢复账号」。
         </p>
 
         <div class="flex flex-col gap-2">
           <span class="text-xs text-n-slate-11">名下客户 / 商机交接</span>
           <label
             class="flex items-start gap-2 p-2.5 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
-            :class="handoverMode === 'pool' ? 'border-n-iris-8 bg-n-iris-2' : ''"
+            :class="
+              handoverMode === 'pool' ? 'border-n-iris-8 bg-n-iris-2' : ''
+            "
           >
             <input
               v-model="handoverMode"

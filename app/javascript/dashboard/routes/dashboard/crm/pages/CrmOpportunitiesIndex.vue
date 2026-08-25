@@ -143,14 +143,16 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
   >
     <div
       v-if="!embedded"
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
       <h1 class="text-xl font-medium text-n-slate-12">
         {{ t('CRM.OPPORTUNITIES.HEADER') }}
       </h1>
     </div>
 
-    <div class="flex items-center gap-2 px-6 py-3 border-b border-n-weak">
+    <div
+      class="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-n-weak"
+    >
       <Button
         v-for="tab in filterTabs"
         :key="tab.key"
@@ -162,7 +164,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
       />
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <div
         v-if="isFetching"
         class="flex items-center justify-center p-8 text-base text-n-slate-11"
@@ -175,80 +177,72 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
       >
         {{ t('CRM.OPPORTUNITIES.EMPTY') }}
       </div>
-      <table v-else class="w-full text-sm text-left border-collapse">
-        <thead class="text-n-slate-11">
-          <tr class="border-b border-n-weak">
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.OPPORTUNITIES.TABLE.NAME') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.OPPORTUNITIES.TABLE.CUSTOMER') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.OPPORTUNITIES.TABLE.STAGE') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.OPPORTUNITIES.TABLE.AMOUNT') }}
-            </th>
-            <th class="px-3 py-2 font-medium text-right">
-              {{ t('CRM.OPPORTUNITIES.TABLE.PROBABILITY') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.OPPORTUNITIES.TABLE.EXPECTED_CLOSE') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.OPPORTUNITIES.TABLE.OWNER') }}
-            </th>
-            <th class="px-3 py-2 font-medium text-right">
-              {{ t('CRM.OPPORTUNITIES.TABLE.ACTIONS') }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
+      <template v-else>
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
             v-for="record in records"
             :key="record.id"
-            class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
             @click="openEditDialog(record)"
           >
-            <td class="px-3 py-2 font-medium text-n-slate-12 whitespace-nowrap">
+            <div class="flex items-center gap-2">
               <span
                 v-if="record.important"
-                class="inline-block i-ri-star-fill size-3.5 text-[#f5c451] me-1 align-[-2px]"
+                class="inline-block i-ri-star-fill size-3.5 text-[#f5c451] shrink-0"
                 :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
               />
-              {{ record.name }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
-              {{ record.customerName || '—' }}
-            </td>
-            <td class="px-3 py-2 whitespace-nowrap">
+              <span class="font-medium text-n-slate-12 truncate">
+                {{ record.name }}
+              </span>
               <span
-                class="px-2 py-0.5 rounded text-xs font-medium"
+                class="px-2 py-0.5 rounded text-xs font-medium shrink-0"
                 :class="STAGES[record.salesStage]?.class"
               >
                 {{ STAGES[record.salesStage]?.label || record.salesStage }}
               </span>
               <span
                 v-if="record.salesStage === 'LOST' && record.lossReason"
-                class="ml-1 px-1.5 py-0.5 rounded text-xs bg-n-ruby-3 text-n-ruby-11"
+                class="px-1.5 py-0.5 rounded text-xs bg-n-ruby-3 text-n-ruby-11 shrink-0"
               >
                 {{ LOSS_REASONS[record.lossReason] || record.lossReason }}
               </span>
-            </td>
-            <td class="px-3 py-2 text-right text-n-slate-12 whitespace-nowrap">
-              {{ fmtMoney(record.amountMicros, record.currency) }}
-            </td>
-            <td class="px-3 py-2 text-right text-n-slate-11">
-              {{ record.probability != null ? `${record.probability}%` : '—' }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
-              {{ fmtDate(record.expectedCloseDate) }}
-            </td>
-            <td class="px-3 py-2 whitespace-nowrap">
+              <span class="flex-1" />
+              <button
+                type="button"
+                :title="t('CRM.OPPORTUNITIES.DELETE.LABEL')"
+                class="inline-flex items-center justify-center transition-colors rounded-md shrink-0 size-7 text-n-slate-10 hover:bg-n-ruby-3 hover:text-n-ruby-11"
+                @click.stop="removeRecord(record)"
+              >
+                <Icon icon="i-lucide-trash-2" class="size-4" />
+              </button>
+            </div>
+            <div class="mt-1.5 text-xs text-n-slate-11">
+              {{ t('CRM.OPPORTUNITIES.TABLE.CUSTOMER') }}：{{
+                record.customerName || '—'
+              }}
+            </div>
+            <div class="mt-1 flex flex-wrap gap-3 text-xs text-n-slate-11">
+              <span
+                >{{ t('CRM.OPPORTUNITIES.TABLE.AMOUNT') }}：{{
+                  fmtMoney(record.amountMicros, record.currency)
+                }}</span
+              >
+              <span
+                >{{ t('CRM.OPPORTUNITIES.TABLE.PROBABILITY') }}：{{
+                  record.probability != null ? `${record.probability}%` : '—'
+                }}</span
+              >
+              <span
+                >{{ t('CRM.OPPORTUNITIES.TABLE.EXPECTED_CLOSE') }}：{{
+                  fmtDate(record.expectedCloseDate)
+                }}</span
+              >
+            </div>
+            <div class="mt-1 flex items-center gap-1.5 text-xs text-n-slate-11">
+              <span>{{ t('CRM.OPPORTUNITIES.TABLE.OWNER') }}：</span>
               <span
                 v-if="record.ownerName"
-                class="inline-flex items-center gap-1.5 text-n-slate-11"
+                class="inline-flex items-center gap-1.5"
               >
                 <Avatar
                   :name="record.ownerName"
@@ -259,20 +253,114 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
                 {{ record.ownerName }}
               </span>
               <span v-else class="text-n-slate-10">—</span>
-            </td>
-            <td class="px-3 py-2 text-right whitespace-nowrap">
-              <button
-                type="button"
-                :title="t('CRM.OPPORTUNITIES.DELETE.LABEL')"
-                class="inline-flex items-center justify-center transition-colors rounded-md size-7 text-n-slate-10 hover:bg-n-ruby-3 hover:text-n-ruby-11"
-                @click.stop="removeRecord(record)"
+            </div>
+          </div>
+        </div>
+        <table class="hidden md:table w-full text-sm text-left border-collapse">
+          <thead class="text-n-slate-11">
+            <tr class="border-b border-n-weak">
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.OPPORTUNITIES.TABLE.NAME') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.OPPORTUNITIES.TABLE.CUSTOMER') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.OPPORTUNITIES.TABLE.STAGE') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.OPPORTUNITIES.TABLE.AMOUNT') }}
+              </th>
+              <th class="px-3 py-2 font-medium text-right">
+                {{ t('CRM.OPPORTUNITIES.TABLE.PROBABILITY') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.OPPORTUNITIES.TABLE.EXPECTED_CLOSE') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.OPPORTUNITIES.TABLE.OWNER') }}
+              </th>
+              <th class="px-3 py-2 font-medium text-right">
+                {{ t('CRM.OPPORTUNITIES.TABLE.ACTIONS') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="record in records"
+              :key="record.id"
+              class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
+              @click="openEditDialog(record)"
+            >
+              <td
+                class="px-3 py-2 font-medium text-n-slate-12 whitespace-nowrap"
               >
-                <Icon icon="i-lucide-trash-2" class="size-4" />
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                <span
+                  v-if="record.important"
+                  class="inline-block i-ri-star-fill size-3.5 text-[#f5c451] me-1 align-[-2px]"
+                  :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
+                />
+                {{ record.name }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
+                {{ record.customerName || '—' }}
+              </td>
+              <td class="px-3 py-2 whitespace-nowrap">
+                <span
+                  class="px-2 py-0.5 rounded text-xs font-medium"
+                  :class="STAGES[record.salesStage]?.class"
+                >
+                  {{ STAGES[record.salesStage]?.label || record.salesStage }}
+                </span>
+                <span
+                  v-if="record.salesStage === 'LOST' && record.lossReason"
+                  class="ml-1 px-1.5 py-0.5 rounded text-xs bg-n-ruby-3 text-n-ruby-11"
+                >
+                  {{ LOSS_REASONS[record.lossReason] || record.lossReason }}
+                </span>
+              </td>
+              <td
+                class="px-3 py-2 text-right text-n-slate-12 whitespace-nowrap"
+              >
+                {{ fmtMoney(record.amountMicros, record.currency) }}
+              </td>
+              <td class="px-3 py-2 text-right text-n-slate-11">
+                {{
+                  record.probability != null ? `${record.probability}%` : '—'
+                }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11 whitespace-nowrap">
+                {{ fmtDate(record.expectedCloseDate) }}
+              </td>
+              <td class="px-3 py-2 whitespace-nowrap">
+                <span
+                  v-if="record.ownerName"
+                  class="inline-flex items-center gap-1.5 text-n-slate-11"
+                >
+                  <Avatar
+                    :name="record.ownerName"
+                    :src="record.ownerAvatarUrl || ''"
+                    :size="20"
+                    rounded-full
+                  />
+                  {{ record.ownerName }}
+                </span>
+                <span v-else class="text-n-slate-10">—</span>
+              </td>
+              <td class="px-3 py-2 text-right whitespace-nowrap">
+                <button
+                  type="button"
+                  :title="t('CRM.OPPORTUNITIES.DELETE.LABEL')"
+                  class="inline-flex items-center justify-center transition-colors rounded-md size-7 text-n-slate-10 hover:bg-n-ruby-3 hover:text-n-ruby-11"
+                  @click.stop="removeRecord(record)"
+                >
+                  <Icon icon="i-lucide-trash-2" class="size-4" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <CrmOpportunityCreateDialog

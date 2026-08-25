@@ -116,9 +116,9 @@ const fmtMoney = micros => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-xl font-medium text-n-slate-12">
           {{ t('CRM.EMPLOYEE_COMPS.HEADER') }}
         </h1>
@@ -126,7 +126,10 @@ const fmtMoney = micros => {
           {{ t('CRM.EMPLOYEE_COMPS.SUBTITLE') }}
         </p>
       </div>
-      <div v-if="sudoActive" class="flex items-center gap-2">
+      <div
+        v-if="sudoActive"
+        class="flex flex-wrap items-center justify-end gap-2"
+      >
         <Button
           :label="showMoney ? '隐藏金额' : '显示金额'"
           :icon="showMoney ? 'i-lucide-eye-off' : 'i-lucide-eye'"
@@ -174,7 +177,7 @@ const fmtMoney = micros => {
       </span>
     </div>
 
-    <div v-else class="flex-1 px-6 py-4">
+    <div v-else class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <div
         v-if="isFetching"
         class="flex items-center justify-center p-8 text-base text-n-slate-11"
@@ -187,83 +190,147 @@ const fmtMoney = micros => {
       >
         {{ t('CRM.EMPLOYEE_COMPS.EMPTY') }}
       </div>
-      <table v-else class="w-full text-sm text-left border-collapse">
-        <thead class="text-n-slate-11">
-          <tr class="border-b border-n-weak">
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.EMPLOYEE_COMPS.TABLE.NAME') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.EMPLOYEE_COMPS.TABLE.MEMBER') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.EMPLOYEE_COMPS.TABLE.MONTHLY_SALARY') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.EMPLOYEE_COMPS.TABLE.PERF_RATIO') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.EMPLOYEE_COMPS.TABLE.BASELINE_TARGET') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.EMPLOYEE_COMPS.TABLE.RANK_NOTE') }}
-            </th>
-            <th class="px-3 py-2 font-medium text-right">
-              {{ t('CRM.EMPLOYEE_COMPS.TABLE.ACTIONS') }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
+      <template v-else>
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
             v-for="record in records"
             :key="record.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            @click="openEditDialog(record)"
           >
-            <td class="px-3 py-2 font-medium text-n-slate-12">
-              {{ record.name }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ record.ownerName ?? '—' }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ fmtMoney(record.monthlySalaryMicros) }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{
-                record.performanceRatio != null
-                  ? `${record.performanceRatio}%`
-                  : '—'
-              }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ fmtMoney(record.baselineTargetMicros) }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ record.rankNote ?? '—' }}
-            </td>
-            <td class="px-3 py-2">
-              <div class="flex items-center justify-end gap-1">
-                <Button
-                  :label="t('CRM.EMPLOYEE_COMPS.TABLE.EDIT')"
-                  icon="i-lucide-pencil"
-                  color="slate"
-                  variant="ghost"
-                  size="sm"
-                  @click="openEditDialog(record)"
-                />
-                <Button
-                  :label="t('CRM.EMPLOYEE_COMPS.TABLE.DELETE')"
-                  icon="i-lucide-trash-2"
-                  color="ruby"
-                  variant="ghost"
-                  size="sm"
-                  @click="deleteRecord(record)"
-                />
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate text-n-slate-12">
+                {{ record.name }}
+              </span>
+              <span class="flex-1" />
+              <Button
+                :label="t('CRM.EMPLOYEE_COMPS.TABLE.EDIT')"
+                icon="i-lucide-pencil"
+                color="slate"
+                variant="ghost"
+                size="sm"
+                @click.stop="openEditDialog(record)"
+              />
+              <Button
+                :label="t('CRM.EMPLOYEE_COMPS.TABLE.DELETE')"
+                icon="i-lucide-trash-2"
+                color="ruby"
+                variant="ghost"
+                size="sm"
+                @click.stop="deleteRecord(record)"
+              />
+            </div>
+            <div
+              class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
+            >
+              <span>
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.MEMBER') }}：{{
+                  record.ownerName ?? '—'
+                }}
+              </span>
+              <span>
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.MONTHLY_SALARY') }}：{{
+                  fmtMoney(record.monthlySalaryMicros)
+                }}
+              </span>
+              <span>
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.PERF_RATIO') }}：{{
+                  record.performanceRatio != null
+                    ? `${record.performanceRatio}%`
+                    : '—'
+                }}
+              </span>
+              <span>
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.BASELINE_TARGET') }}：{{
+                  fmtMoney(record.baselineTargetMicros)
+                }}
+              </span>
+              <span>
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.RANK_NOTE') }}：{{
+                  record.rankNote ?? '—'
+                }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <table class="hidden w-full text-sm text-left border-collapse md:table">
+          <thead class="text-n-slate-11">
+            <tr class="border-b border-n-weak">
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.NAME') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.MEMBER') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.MONTHLY_SALARY') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.PERF_RATIO') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.BASELINE_TARGET') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.RANK_NOTE') }}
+              </th>
+              <th class="px-3 py-2 font-medium text-right">
+                {{ t('CRM.EMPLOYEE_COMPS.TABLE.ACTIONS') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="record in records"
+              :key="record.id"
+              class="border-b border-n-weak hover:bg-n-alpha-1"
+            >
+              <td class="px-3 py-2 font-medium text-n-slate-12">
+                {{ record.name }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ record.ownerName ?? '—' }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ fmtMoney(record.monthlySalaryMicros) }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{
+                  record.performanceRatio != null
+                    ? `${record.performanceRatio}%`
+                    : '—'
+                }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ fmtMoney(record.baselineTargetMicros) }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ record.rankNote ?? '—' }}
+              </td>
+              <td class="px-3 py-2">
+                <div class="flex items-center justify-end gap-1">
+                  <Button
+                    :label="t('CRM.EMPLOYEE_COMPS.TABLE.EDIT')"
+                    icon="i-lucide-pencil"
+                    color="slate"
+                    variant="ghost"
+                    size="sm"
+                    @click="openEditDialog(record)"
+                  />
+                  <Button
+                    :label="t('CRM.EMPLOYEE_COMPS.TABLE.DELETE')"
+                    icon="i-lucide-trash-2"
+                    color="ruby"
+                    variant="ghost"
+                    size="sm"
+                    @click="deleteRecord(record)"
+                  />
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <CrmEmployeeCompCreateDialog

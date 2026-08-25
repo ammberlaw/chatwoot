@@ -346,7 +346,7 @@ onMounted(async () => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-6 py-4">
+    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">采购单</h1>
       <Button
         v-if="mesCan('purchase')"
@@ -359,57 +359,34 @@ onMounted(async () => {
 
     <MesBoardOwnerBar board-key="mes_purchase_orders_index" />
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
-      <table v-else class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-3 font-medium whitespace-nowrap">采购单号</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">回复交期</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">跟进</th>
-            <th class="px-3 py-3" />
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="p in records" :key="p.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-medium text-n-slate-12">
-              {{ p.poNo }}
+      <template v-else>
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="p in records"
+            :key="p.id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            @click="openView(p)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate text-n-slate-12">
+                {{ p.poNo }}
+              </span>
               <span
                 v-if="p.hasException"
-                class="ml-1 text-xs text-n-ruby-11"
+                class="text-xs shrink-0 text-n-ruby-11"
                 title="采购异常"
               >
                 ⚠
               </span>
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ (p.supplierNames || []).join('、') || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ p.productionOrderNo || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ p.productionOrderOwnerName || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ STATUS_LABELS[p.status] }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ day(p.expectedDate) }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ day(p.followUpDate) }}</td>
-            <td class="px-3 py-3 text-right whitespace-nowrap">
-              <div class="flex justify-end gap-1">
-                <Button
-                  label="查看"
-                  variant="ghost"
-                  size="sm"
-                  @click="openView(p)"
-                />
+              <span class="text-xs shrink-0 text-n-slate-11">
+                {{ STATUS_LABELS[p.status] }}
+              </span>
+              <span class="flex-1" />
+              <div class="flex gap-1 shrink-0" @click.stop>
                 <Button
                   v-if="mesCan('purchase')"
                   label="编辑"
@@ -423,15 +400,97 @@ onMounted(async () => {
                   :can-manage="mesCan('purchase')"
                 />
               </div>
-            </td>
-          </tr>
-          <tr v-if="!records.length">
-            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
-              还没有采购单。
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+            <div class="mt-1 text-xs text-n-slate-11">
+              供应商：{{ (p.supplierNames || []).join('、') || '—' }}
+            </div>
+            <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
+              <span>生产订单：{{ p.productionOrderNo || '—' }}</span>
+              <span>归属人：{{ p.productionOrderOwnerName || '—' }}</span>
+            </div>
+            <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
+              <span>回复交期：{{ day(p.expectedDate) }}</span>
+              <span>跟进：{{ day(p.followUpDate) }}</span>
+            </div>
+          </div>
+          <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
+            还没有采购单。
+          </div>
+        </div>
+        <table class="hidden w-full text-sm md:table">
+          <thead>
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium whitespace-nowrap">采购单号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">回复交期</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">跟进</th>
+              <th class="px-3 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in records" :key="p.id" class="border-b border-n-weak">
+              <td class="px-3 py-3 font-medium text-n-slate-12">
+                {{ p.poNo }}
+                <span
+                  v-if="p.hasException"
+                  class="ml-1 text-xs text-n-ruby-11"
+                  title="采购异常"
+                >
+                  ⚠
+                </span>
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ (p.supplierNames || []).join('、') || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ p.productionOrderNo || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ p.productionOrderOwnerName || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ STATUS_LABELS[p.status] }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ day(p.expectedDate) }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ day(p.followUpDate) }}
+              </td>
+              <td class="px-3 py-3 text-right whitespace-nowrap">
+                <div class="flex justify-end gap-1">
+                  <Button
+                    label="查看"
+                    variant="ghost"
+                    size="sm"
+                    @click="openView(p)"
+                  />
+                  <Button
+                    v-if="mesCan('purchase')"
+                    label="编辑"
+                    variant="ghost"
+                    size="sm"
+                    @click="openEdit(p)"
+                  />
+                  <MesReturnControls
+                    :record="p"
+                    :store="store"
+                    :can-manage="mesCan('purchase')"
+                  />
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!records.length">
+              <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+                还没有采购单。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <Dialog
@@ -445,7 +504,7 @@ onMounted(async () => {
       @confirm="submit"
     >
       <div class="flex flex-col gap-4">
-        <div class="flex items-end gap-2">
+        <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
           <div class="flex flex-col flex-1 gap-1">
             <label class="text-heading-3 text-n-slate-12">关联生产订单</label>
             <SelectCard
@@ -455,7 +514,7 @@ onMounted(async () => {
               @update:model-value="v => (form.productionOrderId = v)"
             />
           </div>
-          <div class="flex items-center gap-1">
+          <div class="flex flex-wrap items-center gap-1">
             <Button
               label="算全部料"
               type="button"
@@ -485,7 +544,7 @@ onMounted(async () => {
           一张生产订单可开多张采购单（如主料、辅料各一张，不同采购员各建各的）。
         </p>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">状态</label>
             <SelectCard
@@ -533,9 +592,9 @@ onMounted(async () => {
           <div
             v-for="(row, i) in form.rows"
             :key="i"
-            class="grid items-center grid-cols-12 gap-2 p-2 border rounded-lg border-n-weak"
+            class="grid items-center grid-cols-1 gap-2 p-2 border rounded-lg md:grid-cols-12 border-n-weak"
           >
-            <div class="col-span-2">
+            <div class="md:col-span-2">
               <SelectCard
                 size="form"
                 :model-value="row.itemType"
@@ -543,7 +602,7 @@ onMounted(async () => {
                 @update:model-value="v => (row.itemType = v)"
               />
             </div>
-            <div class="col-span-4">
+            <div class="md:col-span-4">
               <ComboBox
                 v-if="row.itemType === 'PRODUCT'"
                 v-model="row.crmProductId"
@@ -559,7 +618,7 @@ onMounted(async () => {
                 placeholder="选择物料"
               />
             </div>
-            <div class="col-span-3">
+            <div class="md:col-span-3">
               <ComboBox
                 v-model="row.mesSupplierId"
                 :options="supplierOptions"
@@ -570,16 +629,16 @@ onMounted(async () => {
               v-model="row.qty"
               type="number"
               placeholder="数量"
-              class="col-span-2"
+              class="md:col-span-2"
             />
             <button
               type="button"
-              class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
+              class="text-left md:col-span-1 md:text-center text-n-slate-10 hover:text-n-ruby-11"
               @click="removeRow(i)"
             >
               ✕
             </button>
-            <div class="flex items-center col-span-4 gap-2">
+            <div class="flex items-center gap-2 md:col-span-4">
               <label class="text-xs shrink-0 text-n-slate-11">规格</label>
               <span class="flex-1 text-xs truncate text-n-slate-11">
                 {{
@@ -589,11 +648,15 @@ onMounted(async () => {
                 }}
               </span>
             </div>
-            <div class="flex items-center col-span-4 gap-2">
+            <div class="flex items-center gap-2 md:col-span-4">
               <label class="text-xs shrink-0 text-n-slate-11">实际到料</label>
               <Input v-model="row.arrivalDate" type="date" class="flex-1" />
             </div>
-            <Input v-model="row.remark" placeholder="备注" class="col-span-4" />
+            <Input
+              v-model="row.remark"
+              placeholder="备注"
+              class="md:col-span-4"
+            />
           </div>
         </div>
       </div>

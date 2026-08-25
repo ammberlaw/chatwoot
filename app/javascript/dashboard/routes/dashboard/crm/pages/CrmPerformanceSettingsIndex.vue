@@ -82,9 +82,9 @@ const save = async () => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-xl font-medium text-n-slate-12">
           {{ t('CRM.PERF_SETTINGS.HEADER') }}
         </h1>
@@ -106,7 +106,10 @@ const save = async () => {
     >
       {{ t('CRM.PERF_SETTINGS.LOADING') }}
     </div>
-    <div v-else class="flex flex-col w-full max-w-xl gap-5 px-6 py-6">
+    <div
+      v-else
+      class="flex flex-col w-full max-w-xl gap-5 px-4 py-4 sm:px-6 sm:py-6"
+    >
       <div class="flex flex-col gap-1.5">
         <span class="text-sm text-n-slate-12">{{
           t('CRM.PERF_SETTINGS.HR')
@@ -155,59 +158,61 @@ const save = async () => {
             {{ t('CRM.PERF_SETTINGS.VISIBILITY_HINT') }}
           </div>
         </div>
-        <table class="text-sm border-collapse">
-          <thead class="text-n-slate-11">
-            <tr class="border-b border-n-weak">
-              <th class="py-2 pr-4 font-medium text-left" />
-              <th class="px-4 py-2 font-medium text-center">
-                {{ t('CRM.PERF_SETTINGS.ROLE_SALES') }}
-              </th>
-              <th class="px-4 py-2 font-medium text-center">
-                {{ t('CRM.PERF_SETTINGS.ROLE_MANAGER') }}
-              </th>
-              <th class="px-4 py-2 font-medium text-center text-n-slate-10">
-                {{ t('CRM.PERF_SETTINGS.ROLE_ADMIN') }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr class="border-b border-n-weak">
-              <td class="py-2.5 pr-4 text-n-slate-12">
-                {{ t('CRM.PERF_SETTINGS.ITEM_SCHEME') }}
-              </td>
-              <td
-                class="px-4 text-center text-n-slate-10"
-                title="考核方案对业务员/普通成员固定不可见"
-              >
-                —
-              </td>
-              <td class="px-4 text-center">
-                <input v-model="form.schemeVisibleManager" type="checkbox" />
-              </td>
-              <td class="px-4 text-center text-n-slate-10">✓</td>
-            </tr>
-            <tr class="border-b border-n-weak">
-              <td class="py-2.5 pr-4 text-n-slate-12">
-                {{ t('CRM.PERF_SETTINGS.ITEM_SHEET') }}
-              </td>
-              <td class="px-4 text-center">
-                <input v-model="form.sheetVisibleSales" type="checkbox" />
-              </td>
-              <td class="px-4 text-center">
-                <input v-model="form.sheetVisibleManager" type="checkbox" />
-              </td>
-              <td class="px-4 text-center text-n-slate-10">✓</td>
-            </tr>
-            <tr>
-              <td class="py-2.5 pr-4 text-n-slate-11">
-                {{ t('CRM.PERF_SETTINGS.ITEM_COMP') }}
-              </td>
-              <td class="px-4 text-center text-n-slate-9">—</td>
-              <td class="px-4 text-center text-n-slate-9">—</td>
-              <td class="px-4 text-center text-n-slate-10">✓</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <table class="text-sm border-collapse">
+            <thead class="text-n-slate-11">
+              <tr class="border-b border-n-weak">
+                <th class="py-2 pr-4 font-medium text-left" />
+                <th class="px-4 py-2 font-medium text-center">
+                  {{ t('CRM.PERF_SETTINGS.ROLE_SALES') }}
+                </th>
+                <th class="px-4 py-2 font-medium text-center">
+                  {{ t('CRM.PERF_SETTINGS.ROLE_MANAGER') }}
+                </th>
+                <th class="px-4 py-2 font-medium text-center text-n-slate-10">
+                  {{ t('CRM.PERF_SETTINGS.ROLE_ADMIN') }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-b border-n-weak">
+                <td class="py-2.5 pr-4 text-n-slate-12">
+                  {{ t('CRM.PERF_SETTINGS.ITEM_SCHEME') }}
+                </td>
+                <td
+                  class="px-4 text-center text-n-slate-10"
+                  title="考核方案对业务员/普通成员固定不可见"
+                >
+                  —
+                </td>
+                <td class="px-4 text-center">
+                  <input v-model="form.schemeVisibleManager" type="checkbox" />
+                </td>
+                <td class="px-4 text-center text-n-slate-10">✓</td>
+              </tr>
+              <tr class="border-b border-n-weak">
+                <td class="py-2.5 pr-4 text-n-slate-12">
+                  {{ t('CRM.PERF_SETTINGS.ITEM_SHEET') }}
+                </td>
+                <td class="px-4 text-center">
+                  <input v-model="form.sheetVisibleSales" type="checkbox" />
+                </td>
+                <td class="px-4 text-center">
+                  <input v-model="form.sheetVisibleManager" type="checkbox" />
+                </td>
+                <td class="px-4 text-center text-n-slate-10">✓</td>
+              </tr>
+              <tr>
+                <td class="py-2.5 pr-4 text-n-slate-11">
+                  {{ t('CRM.PERF_SETTINGS.ITEM_COMP') }}
+                </td>
+                <td class="px-4 text-center text-n-slate-9">—</td>
+                <td class="px-4 text-center text-n-slate-9">—</td>
+                <td class="px-4 text-center text-n-slate-10">✓</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p class="text-xs text-n-slate-10">
           {{ t('CRM.PERF_SETTINGS.VISIBILITY_NOTE') }}
         </p>

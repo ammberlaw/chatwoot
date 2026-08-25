@@ -602,7 +602,7 @@ onMounted(() => {
   >
     <!-- 头 -->
     <div
-      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-6 py-4 border-b border-n-weak"
+      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4"
     >
       <h1 class="text-xl font-semibold text-n-slate-12">日程 Schedule</h1>
       <div class="flex items-center gap-3">
@@ -634,7 +634,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="flex-1 overflow-hidden p-5">
+    <div class="flex-1 overflow-hidden p-3 sm:p-5">
       <div
         v-if="mode === 'month'"
         class="grid h-full gap-5 lg:grid-cols-[280px_1fr]"
@@ -914,11 +914,13 @@ onMounted(() => {
             回到本周
           </button>
         </div>
-        <div class="grid flex-1 grid-cols-7 gap-2 overflow-hidden">
+        <div
+          class="flex flex-1 gap-2 overflow-x-auto md:grid md:grid-cols-7 md:overflow-hidden"
+        >
           <div
             v-for="col in weekColumns"
             :key="col.key"
-            class="flex flex-col min-h-0 border rounded-xl border-n-weak bg-n-solid-1/50"
+            class="flex flex-col min-h-0 border rounded-xl shrink-0 basis-[46%] sm:basis-[32%] md:basis-auto md:shrink border-n-weak bg-n-solid-1/50"
             :class="draggedOcc ? 'ring-1 ring-inset ring-n-iris-6/40' : ''"
             @dragover.prevent
             @drop.prevent="onDropDay(col.key)"

@@ -130,9 +130,9 @@ const fieldCls =
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-xl font-medium text-n-slate-12">
           {{ t('CRM.POOL_SETTINGS.HEADER') }}
         </h1>
@@ -144,6 +144,7 @@ const fieldCls =
         :label="t('CRM.POOL_SETTINGS.SAVE')"
         icon="i-lucide-check"
         color="iris"
+        class="shrink-0"
         :is-disabled="busy || loading"
         @click="save"
       />
@@ -154,7 +155,10 @@ const fieldCls =
     >
       {{ t('CRM.POOL_SETTINGS.LOADING') }}
     </div>
-    <div v-else class="flex flex-col w-full max-w-xl gap-5 px-6 py-6">
+    <div
+      v-else
+      class="flex flex-col w-full max-w-xl gap-5 px-4 py-4 sm:px-6 sm:py-6"
+    >
       <!-- 客户流转规则 -->
       <div class="flex flex-col gap-3">
         <div>
@@ -253,7 +257,47 @@ const fieldCls =
             {{ t('CRM.POOL_SETTINGS.GROUP_HINT') }}
           </div>
         </div>
-        <table class="text-sm border-collapse">
+        <!-- 手机卡片：每个分组一张卡 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="row in GROUPS"
+            :key="`m-${row.key}`"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
+          >
+            <div class="text-sm font-medium text-n-slate-12">
+              {{ groupLabels[row.key] }}
+            </div>
+            <label class="flex flex-col gap-1 mt-2">
+              <span class="text-xs text-n-slate-11">
+                {{ t('CRM.POOL_SETTINGS.COL_DAYS') }}
+              </span>
+              <input
+                v-model="form.recycleDays[row.key]"
+                type="number"
+                min="1"
+                :placeholder="
+                  t('CRM.POOL_SETTINGS.USE_DEFAULT', { days: form.staleDays })
+                "
+                class="w-full"
+                :class="[fieldCls]"
+              />
+            </label>
+            <label class="flex flex-col gap-1 mt-2">
+              <span class="text-xs text-n-slate-11">
+                {{ t('CRM.POOL_SETTINGS.COL_LIMIT') }}
+              </span>
+              <input
+                v-model="form.limits[row.key]"
+                type="number"
+                min="0"
+                :placeholder="t('CRM.POOL_SETTINGS.NO_LIMIT')"
+                class="w-full"
+                :class="[fieldCls]"
+              />
+            </label>
+          </div>
+        </div>
+        <table class="hidden text-sm border-collapse md:table">
           <thead class="text-n-slate-11">
             <tr class="border-b border-n-weak">
               <th class="py-2 pr-4 font-medium text-left">

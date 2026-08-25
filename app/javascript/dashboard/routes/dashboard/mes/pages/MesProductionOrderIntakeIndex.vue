@@ -409,18 +409,22 @@ const backToList = () =>
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4"
     >
-      <h1 class="text-xl font-medium text-n-slate-12">新建生产订单</h1>
+      <h1
+        class="text-lg font-medium min-w-0 truncate text-n-slate-12 sm:text-xl"
+      >
+        新建生产订单
+      </h1>
       <button
-        class="text-sm text-n-slate-11 hover:text-n-slate-12"
+        class="text-sm shrink-0 text-n-slate-11 hover:text-n-slate-12"
         @click="backToList"
       >
         ← 返回生产订单
       </button>
     </div>
 
-    <div class="flex flex-col w-full max-w-3xl gap-4 px-6 py-5">
+    <div class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5">
       <p class="text-xs text-n-slate-11">
         定制生产订单建单。先选产品线，按对应模板填规格；带
         <span class="text-n-ruby-11">*</span>
@@ -434,7 +438,7 @@ const backToList = () =>
           v-model="importId"
           :options="historyOptions"
           placeholder="选择我的历史订单…"
-          trigger-class="w-60"
+          trigger-class="w-full sm:w-60"
         />
         <button
           type="button"
@@ -687,7 +691,8 @@ const backToList = () =>
         class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
       >
         产品图片
-        <span v-if="staging" class="ml-1 normal-case text-n-amber-11"
+        <span
+v-if="staging" class="ml-1 normal-case text-n-amber-11"
           >上传中…</span
         >
       </div>
@@ -757,7 +762,7 @@ const backToList = () =>
         </label>
       </div>
 
-      <div class="flex items-center gap-3 mt-1">
+      <div class="flex flex-wrap items-center gap-3 mt-1">
         <button
           class="h-10 px-5 text-sm font-medium transition-colors border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSaveDraft"
@@ -782,7 +787,7 @@ const backToList = () =>
 
       <div
         v-if="result?.ok"
-        class="flex items-center gap-3 p-3 text-sm border rounded-lg border-n-teal-8 text-n-teal-11"
+        class="flex flex-wrap items-center gap-3 p-3 text-sm border rounded-lg border-n-teal-8 text-n-teal-11"
       >
         <span>
           ✅ {{ result.submitted ? '已提交审批' : '已存草稿' }}

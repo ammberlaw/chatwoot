@@ -135,7 +135,7 @@ const kpiCards = computed(() => [
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-4 px-4 py-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -146,7 +146,7 @@ const kpiCards = computed(() => [
           {{ data?.month_label }}
         </p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <MonthPicker
           v-model="monthModel"
           align="right"
@@ -223,7 +223,7 @@ const kpiCards = computed(() => [
               :key="line.label"
               class="flex items-center gap-3 text-sm"
             >
-              <span class="w-16 text-xs shrink-0 text-n-slate-11">
+              <span class="w-12 md:w-16 text-xs shrink-0 text-n-slate-11">
                 {{ line.label }}
               </span>
               <div
@@ -235,7 +235,9 @@ const kpiCards = computed(() => [
                   :style="{ width: line.m.barWidth }"
                 />
               </div>
-              <span class="w-48 text-xs text-right shrink-0 text-n-slate-12">
+              <span
+                class="w-28 md:w-48 text-xs text-right shrink-0 text-n-slate-12"
+              >
                 {{ line.m.text }}
               </span>
             </div>
@@ -322,7 +324,7 @@ const kpiCards = computed(() => [
                 :key="line.label"
                 class="flex items-center gap-3 text-sm"
               >
-                <span class="w-16 text-xs shrink-0 text-n-slate-11">
+                <span class="w-12 md:w-16 text-xs shrink-0 text-n-slate-11">
                   {{ line.label }}
                 </span>
                 <div
@@ -334,7 +336,9 @@ const kpiCards = computed(() => [
                     :style="{ width: line.m.barWidth }"
                   />
                 </div>
-                <span class="w-44 text-xs text-right shrink-0 text-n-slate-12">
+                <span
+                  class="w-28 md:w-44 text-xs text-right shrink-0 text-n-slate-12"
+                >
                   {{ line.m.text }}
                 </span>
               </div>

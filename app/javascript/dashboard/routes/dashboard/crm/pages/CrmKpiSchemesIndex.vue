@@ -126,7 +126,7 @@ const fmtMonth = value => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
       <div>
         <h1 class="text-xl font-medium text-n-slate-12">
@@ -145,9 +145,9 @@ const fmtMonth = value => {
       />
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <!-- 年份 / 月份归档筛选 -->
-      <div class="flex items-center gap-2 mb-3">
+      <div class="flex flex-wrap items-center gap-2 mb-3">
         <SelectCard
           v-model="yearFilter"
           :options="yearFilterOptions"
@@ -174,50 +174,22 @@ const fmtMonth = value => {
       >
         {{ t('CRM.KPI_SCHEMES.EMPTY') }}
       </div>
-      <table v-else class="w-full text-sm text-left border-collapse">
-        <thead class="text-n-slate-11">
-          <tr class="border-b border-n-weak">
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SCHEMES.TABLE.NAME') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SCHEMES.TABLE.MONTH') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SCHEMES.TABLE.STATUS') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SCHEMES.TABLE.PASS_SCORE') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SCHEMES.TABLE.ITEMS') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SCHEMES.TABLE.TIERS') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.KPI_SCHEMES.TABLE.CREATOR') }}
-            </th>
-            <th v-if="canManage" class="px-3 py-2" />
-          </tr>
-        </thead>
-        <tbody>
-          <tr
+      <template v-else>
+        <!-- 手机卡片列表 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
             v-for="record in filteredRecords"
             :key="record.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
             :class="{ 'cursor-pointer': canManage }"
             @click="openEdit(record)"
           >
-            <td class="px-3 py-2 font-medium text-n-slate-12">
-              {{ record.name }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ fmtMonth(record.schemeMonth) }}
-            </td>
-            <td class="px-3 py-2">
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-n-slate-12 truncate">
+                {{ record.name }}
+              </span>
               <span
-                class="inline-flex px-2 py-0.5 rounded-full text-xs"
+                class="shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs"
                 :class="
                   record.status === 'PUBLISHED'
                     ? 'bg-n-teal-3 text-n-teal-11'
@@ -226,39 +198,142 @@ const fmtMonth = value => {
               >
                 {{ t(`CRM.KPI_SCHEMES.STATUS.${record.status}`) }}
               </span>
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ record.passScore ?? '—' }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ (record.schemeItems || []).length }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ (record.payoutTiers || []).length }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ record.createdByName || '—' }}
-            </td>
-            <td v-if="canManage" class="px-3 py-2 text-right">
-              <Button
-                icon="i-lucide-copy"
-                size="sm"
-                variant="ghost"
-                color="slate"
-                title="复制方案"
-                @click="duplicateScheme(record, $event)"
-              />
-              <Button
-                icon="i-lucide-trash-2"
-                size="sm"
-                variant="ghost"
-                color="ruby"
-                @click="deleteScheme(record, $event)"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <span class="flex-1" />
+              <template v-if="canManage">
+                <Button
+                  icon="i-lucide-copy"
+                  size="sm"
+                  variant="ghost"
+                  color="slate"
+                  title="复制方案"
+                  @click.stop="duplicateScheme(record, $event)"
+                />
+                <Button
+                  icon="i-lucide-trash-2"
+                  size="sm"
+                  variant="ghost"
+                  color="ruby"
+                  @click.stop="deleteScheme(record, $event)"
+                />
+              </template>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-n-slate-11"
+            >
+              <span>
+                {{
+                  `${t('CRM.KPI_SCHEMES.TABLE.MONTH')}：${fmtMonth(record.schemeMonth)}`
+                }}
+              </span>
+              <span>
+                {{
+                  `${t('CRM.KPI_SCHEMES.TABLE.PASS_SCORE')}：${record.passScore ?? '—'}`
+                }}
+              </span>
+              <span>
+                {{
+                  `${t('CRM.KPI_SCHEMES.TABLE.ITEMS')}：${(record.schemeItems || []).length}`
+                }}
+              </span>
+              <span>
+                {{
+                  `${t('CRM.KPI_SCHEMES.TABLE.TIERS')}：${(record.payoutTiers || []).length}`
+                }}
+              </span>
+              <span>
+                {{
+                  `${t('CRM.KPI_SCHEMES.TABLE.CREATOR')}：${record.createdByName || '—'}`
+                }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <table class="hidden md:table w-full text-sm text-left border-collapse">
+          <thead class="text-n-slate-11">
+            <tr class="border-b border-n-weak">
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SCHEMES.TABLE.NAME') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SCHEMES.TABLE.MONTH') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SCHEMES.TABLE.STATUS') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SCHEMES.TABLE.PASS_SCORE') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SCHEMES.TABLE.ITEMS') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SCHEMES.TABLE.TIERS') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.KPI_SCHEMES.TABLE.CREATOR') }}
+              </th>
+              <th v-if="canManage" class="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="record in filteredRecords"
+              :key="record.id"
+              class="border-b border-n-weak hover:bg-n-alpha-1"
+              :class="{ 'cursor-pointer': canManage }"
+              @click="openEdit(record)"
+            >
+              <td class="px-3 py-2 font-medium text-n-slate-12">
+                {{ record.name }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ fmtMonth(record.schemeMonth) }}
+              </td>
+              <td class="px-3 py-2">
+                <span
+                  class="inline-flex px-2 py-0.5 rounded-full text-xs"
+                  :class="
+                    record.status === 'PUBLISHED'
+                      ? 'bg-n-teal-3 text-n-teal-11'
+                      : 'bg-n-slate-3 text-n-slate-11'
+                  "
+                >
+                  {{ t(`CRM.KPI_SCHEMES.STATUS.${record.status}`) }}
+                </span>
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ record.passScore ?? '—' }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ (record.schemeItems || []).length }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ (record.payoutTiers || []).length }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ record.createdByName || '—' }}
+              </td>
+              <td v-if="canManage" class="px-3 py-2 text-right">
+                <Button
+                  icon="i-lucide-copy"
+                  size="sm"
+                  variant="ghost"
+                  color="slate"
+                  title="复制方案"
+                  @click="duplicateScheme(record, $event)"
+                />
+                <Button
+                  icon="i-lucide-trash-2"
+                  size="sm"
+                  variant="ghost"
+                  color="ruby"
+                  @click="deleteScheme(record, $event)"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
   </div>
 </template>

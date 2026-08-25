@@ -171,9 +171,9 @@ onMounted(() => {
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-start justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:items-center sm:px-6 sm:py-4 border-n-weak"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-lg font-semibold text-n-slate-12">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
@@ -182,11 +182,12 @@ onMounted(() => {
         icon="i-lucide-plus"
         size="sm"
         color="iris"
+        class="shrink-0"
         @click="openAdd"
       />
     </div>
 
-    <div class="flex-1 p-6 overflow-y-auto">
+    <div class="flex-1 p-4 overflow-y-auto sm:p-6">
       <div v-if="loading" class="p-8 text-sm text-center text-n-slate-11">
         {{ '…' }}
       </div>

@@ -342,9 +342,11 @@ onMounted(async () => {
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
-      <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
+      <h1 class="text-xl font-medium truncate text-n-slate-12">
+        {{ L.header }}
+      </h1>
       <Button
         :label="L.start"
         icon="i-lucide-plus"
@@ -354,9 +356,10 @@ onMounted(async () => {
     </div>
 
     <div class="flex flex-1 min-h-0">
-      <!-- 左：列表 -->
+      <!-- 左：列表（手机：仅未选中时全宽显示） -->
       <section
-        class="flex flex-col flex-shrink-0 border-r w-[380px] border-n-weak bg-n-solid-1"
+        class="flex-col flex-shrink-0 w-full border-r md:flex md:w-[380px] border-n-weak bg-n-solid-1"
+        :class="selected ? 'hidden' : 'flex'"
       >
         <div class="flex items-center gap-1 px-3 py-2 border-b border-n-weak">
           <button
@@ -428,8 +431,11 @@ onMounted(async () => {
         </div>
       </section>
 
-      <!-- 右：详情 -->
-      <section class="flex flex-col flex-1 min-w-0">
+      <!-- 右：详情（手机：仅选中时全宽显示） -->
+      <section
+        class="flex-col flex-1 min-w-0 md:flex"
+        :class="selected ? 'flex' : 'hidden'"
+      >
         <div
           v-if="!selected"
           class="flex flex-col items-center justify-center flex-1 gap-3 text-n-slate-10"
@@ -439,8 +445,16 @@ onMounted(async () => {
         </div>
 
         <template v-else>
-          <div class="flex items-center gap-3 px-6 py-4 border-b border-n-weak">
-            <h2 class="text-base font-medium truncate text-n-slate-12">
+          <div
+            class="flex items-center gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+          >
+            <button
+              class="flex items-center justify-center flex-shrink-0 rounded-lg size-8 text-n-slate-11 hover:bg-n-alpha-1 md:hidden"
+              @click="selected = null"
+            >
+              <Icon icon="i-lucide-arrow-left" class="size-5" />
+            </button>
+            <h2 class="min-w-0 text-base font-medium truncate text-n-slate-12">
               {{ selected.title }}
             </h2>
             <span
@@ -451,7 +465,7 @@ onMounted(async () => {
             </span>
           </div>
 
-          <div class="flex-1 p-6 overflow-y-auto">
+          <div class="flex-1 p-4 overflow-y-auto sm:p-6">
             <div class="flex items-center gap-2 mb-4 text-sm text-n-slate-11">
               <div
                 class="flex items-center justify-center rounded-full size-7 bg-n-iris-4 text-n-iris-11 text-xs"
@@ -466,7 +480,7 @@ onMounted(async () => {
 
             <!-- 表单内容 -->
             <div
-              class="grid grid-cols-2 gap-3 p-4 mb-6 rounded-xl bg-n-alpha-1"
+              class="grid grid-cols-1 gap-3 p-4 mb-6 sm:grid-cols-2 rounded-xl bg-n-alpha-1"
             >
               <div v-if="selected.department_name" class="min-w-0">
                 <div class="text-[11px] text-n-slate-10">{{ L.dept }}</div>
@@ -487,7 +501,7 @@ onMounted(async () => {
               <p class="mb-2 text-xs font-medium text-n-slate-10">
                 {{ L.attachments }}
               </p>
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <a
                   v-for="file in selected.files"
                   :key="file.id"
@@ -604,7 +618,7 @@ onMounted(async () => {
       :title="L.pickTemplate"
       :show-confirm-button="false"
     >
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <button
           v-for="tpl in templates"
           :key="tpl.id"

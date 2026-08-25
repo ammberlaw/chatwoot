@@ -222,9 +222,9 @@ onMounted(() => store.get());
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-xl font-medium text-n-slate-12">
           {{ t('CRM.EMAIL_TEMPLATES.HEADER') }}
         </h1>
@@ -234,12 +234,13 @@ onMounted(() => store.get());
         :label="L.new"
         icon="i-lucide-plus"
         color="iris"
+        class="shrink-0"
         @click="openCreate"
       />
     </div>
 
     <!-- 归属范围：企业模版 / 个人模版 -->
-    <div class="flex gap-1.5 px-6 pt-4">
+    <div class="flex flex-wrap gap-1.5 px-4 pt-4 sm:px-6">
       <button
         v-for="opt in [
           { value: '', label: L.allScope },
@@ -260,7 +261,7 @@ onMounted(() => store.get());
     </div>
 
     <!-- 分类筛选 -->
-    <div class="flex flex-wrap gap-1.5 px-6 pt-3">
+    <div class="flex flex-wrap gap-1.5 px-4 pt-3 sm:px-6">
       <button
         class="px-3 py-1 text-xs border rounded-full transition-colors"
         :class="
@@ -287,7 +288,7 @@ onMounted(() => store.get());
       </button>
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <div v-if="isFetching" class="p-8 text-sm text-center text-n-slate-11">
         {{ t('CRM.EMAILS.LOADING') }}
       </div>
@@ -359,7 +360,7 @@ onMounted(() => store.get());
           <Icon icon="i-lucide-lock" class="size-3.5" />
           {{ L.readonlyHint }}
         </div>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Input
             v-model="form.name"
             :label="t('CRM.EMAIL_TEMPLATES.FORM.NAME')"

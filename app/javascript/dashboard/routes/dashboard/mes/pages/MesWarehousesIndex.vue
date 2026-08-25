@@ -45,7 +45,7 @@ onMounted(() => store.get());
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-6 py-4">
+    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">仓库</h1>
       <Button
         v-if="mesCan('master')"
@@ -56,26 +56,48 @@ onMounted(() => store.get());
       />
     </div>
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
-      <table v-else class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-3 font-medium">编码</th>
-            <th class="px-3 py-3 font-medium">名称</th>
-            <th class="px-3 py-3 font-medium">类型</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="w in records" :key="w.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 text-n-slate-11">{{ w.code }}</td>
-            <td class="px-3 py-3 font-medium text-n-slate-12">{{ w.name }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ kindLabel(w.kind) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <template v-else>
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="w in records"
+            :key="w.id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-n-slate-12 truncate">{{
+                w.name
+              }}</span>
+              <span
+                class="shrink-0 text-xs px-2 py-0.5 rounded-md bg-n-alpha-1 text-n-slate-11"
+                >{{ kindLabel(w.kind) }}</span
+              >
+            </div>
+            <div class="mt-1 text-xs text-n-slate-11">编码：{{ w.code }}</div>
+          </div>
+        </div>
+        <table class="hidden md:table w-full text-sm">
+          <thead>
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium">编码</th>
+              <th class="px-3 py-3 font-medium">名称</th>
+              <th class="px-3 py-3 font-medium">类型</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="w in records" :key="w.id" class="border-b border-n-weak">
+              <td class="px-3 py-3 text-n-slate-11">{{ w.code }}</td>
+              <td class="px-3 py-3 font-medium text-n-slate-12">
+                {{ w.name }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">{{ kindLabel(w.kind) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <Dialog
@@ -88,7 +110,7 @@ onMounted(() => store.get());
       @confirm="submit"
     >
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
               编码 <span class="text-n-ruby-11">*</span>

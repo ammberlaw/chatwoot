@@ -254,15 +254,17 @@ onMounted(() => {
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+      <div class="min-w-0">
+        <h1
+          class="text-xl md:text-2xl font-semibold tracking-tight text-n-slate-12"
+        >
           {{ t('CRM.FUNNEL.HEADER') }}
         </h1>
         <p class="mt-0.5 text-sm text-n-slate-11">{{ t('CRM.FUNNEL.HINT') }}</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <!-- 视图切换：看板 / 列表 / 商机公海 -->
         <div class="flex items-center gap-1 p-1 rounded-lg bg-n-alpha-2">
           <Button
@@ -345,11 +347,14 @@ onMounted(() => {
       {{ t('CRM.FUNNEL.LOADING') }}
     </div>
 
-    <div v-else class="flex flex-1 gap-4 p-6 overflow-hidden">
+    <div
+      v-else
+      class="flex flex-1 gap-4 p-4 sm:p-6 overflow-x-auto md:overflow-hidden"
+    >
       <div
         v-for="col in columns"
         :key="col.key"
-        class="flex flex-col flex-1 min-w-0 overflow-hidden rounded-2xl bg-n-alpha-1"
+        class="flex flex-col w-[78vw] shrink-0 md:w-auto md:flex-1 md:min-w-0 md:shrink overflow-hidden rounded-2xl bg-n-alpha-1"
         @dragover.prevent
         @drop="onDrop(col.key)"
       >

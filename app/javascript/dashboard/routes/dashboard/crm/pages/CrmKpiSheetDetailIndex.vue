@@ -339,9 +339,9 @@ const inCls =
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-start md:items-center justify-between flex-wrap gap-y-3 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 min-w-0">
         <Button
           icon="i-lucide-arrow-left"
           size="sm"
@@ -349,20 +349,20 @@ const inCls =
           color="slate"
           @click="goBack"
         />
-        <div v-if="sheet">
-          <h1 class="text-xl font-medium text-n-slate-12">
+        <div v-if="sheet" class="min-w-0">
+          <h1 class="text-lg sm:text-xl font-medium text-n-slate-12">
             {{ t('CRM.KPI_SHEETS.TITLE', { name: sheet.ownerName || '—' }) }}
             <span
               class="ml-2 inline-flex px-2 py-0.5 rounded-full text-xs bg-n-iris-3 text-n-iris-11"
               >{{ t(`CRM.KPI_SHEETS.STATUS.${status}`) }}</span
             >
           </h1>
-          <p class="mt-0.5 text-xs text-n-slate-11">
+          <p class="mt-0.5 text-xs text-n-slate-11 truncate">
             {{ fmtMonth(sheet.periodMonth) }} · {{ sheet.schemeName }}
           </p>
         </div>
       </div>
-      <div v-if="sheet" class="flex items-center gap-2">
+      <div v-if="sheet" class="flex items-center flex-wrap gap-2">
         <Button
           label="打印"
           icon="i-lucide-printer"
@@ -459,7 +459,7 @@ const inCls =
     <div
       v-else-if="sheet"
       ref="captureRef"
-      class="flex flex-col gap-7 px-6 py-6"
+      class="flex flex-col gap-7 px-4 py-4 sm:px-6 sm:py-6"
     >
       <!-- 步骤条 -->
       <div class="flex items-center flex-wrap gap-1 text-sm">

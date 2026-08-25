@@ -27,7 +27,9 @@ const categoriesStore = useCrmKnowledgeCategoriesStore();
 
 const activeFilter = ref(route.query.filter || 'company');
 // 文档中心「板块」筛选：侧栏板块子项带 ?section=<id>；为空=「全公司文档」(全部板块)。
-const activeSectionId = ref(route.query.section ? Number(route.query.section) : null);
+const activeSectionId = ref(
+  route.query.section ? Number(route.query.section) : null
+);
 const searchQuery = ref('');
 let searchTimer = null;
 
@@ -867,10 +869,10 @@ watch(
   >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div
-        class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+        class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
       >
-        <div>
-          <h1 class="text-xl font-medium text-n-slate-12">
+        <div class="min-w-0">
+          <h1 class="text-xl font-medium truncate text-n-slate-12">
             {{
               isGeneral
                 ? t('CRM.KNOWLEDGE_DOCS.HEADER_GENERAL')
@@ -885,7 +887,7 @@ watch(
             }}
           </p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 shrink-0">
           <Button
             v-if="isGeneral && isAdminLike"
             label="管理板块"
@@ -898,7 +900,9 @@ watch(
         </div>
       </div>
 
-      <div class="flex items-center gap-2 px-6 py-3 border-b border-n-weak">
+      <div
+        class="flex flex-wrap items-center gap-2 px-4 py-3 border-b sm:px-6 border-n-weak"
+      >
         <Button
           v-for="tab in filterTabs"
           :key="tab.key"
@@ -920,7 +924,7 @@ watch(
         <Input
           v-model="searchQuery"
           :placeholder="t('CRM.KNOWLEDGE_DOCS.SEARCH_PLACEHOLDER')"
-          :class="isRecycle ? 'ml-auto w-56' : 'w-56'"
+          :class="isRecycle ? 'w-full sm:ml-auto sm:w-56' : 'w-full sm:w-56'"
           @input="onSearchInput"
         />
       </div>
@@ -933,7 +937,10 @@ watch(
       </div>
 
       <!-- 文档回收站（仅管理员）：可恢复 / 彻底删除 / 清空 -->
-      <div v-else-if="isRecycle" class="flex-1 px-6 py-4 overflow-y-auto">
+      <div
+        v-else-if="isRecycle"
+        class="flex-1 px-4 py-3 overflow-y-auto sm:px-6 sm:py-4"
+      >
         <div class="flex items-center justify-between mb-3">
           <p class="text-xs text-n-slate-10">
             {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.HINT') }}
@@ -965,34 +972,20 @@ watch(
           <p class="text-sm">{{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.EMPTY') }}</p>
         </div>
 
-        <table v-else class="w-full text-sm">
-          <thead>
-            <tr class="text-left border-b border-n-weak text-n-slate-10">
-              <th class="py-2.5 pr-4 font-medium">
-                {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DOC_NAME') }}
-              </th>
-              <th class="py-2.5 pr-4 font-medium">
-                {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.OWNER') }}
-              </th>
-              <th class="py-2.5 pr-4 font-medium">
-                {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DELETED_BY') }}
-              </th>
-              <th class="py-2.5 pr-4 font-medium">
-                {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DELETED_AT') }}
-              </th>
-              <th class="py-2.5 font-medium w-44" />
-            </tr>
-          </thead>
-          <tbody>
-            <tr
+        <template v-else>
+          <!-- 手机卡片 -->
+          <div class="flex flex-col gap-2 md:hidden">
+            <div
               v-for="doc in recycleDocs"
-              :key="doc.id"
-              class="border-b border-n-weak hover:bg-n-alpha-1"
+              :key="`m-${doc.id}`"
+              class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
             >
-              <td class="py-2.5 pr-4">
-                <span class="font-medium text-n-slate-12">{{ doc.name }}</span>
+              <div class="flex items-center gap-2">
+                <span class="font-medium truncate text-n-slate-12">
+                  {{ doc.name }}
+                </span>
                 <span
-                  class="ml-2 px-1.5 py-0.5 text-[11px] rounded-full bg-n-slate-3 text-n-slate-11"
+                  class="px-1.5 py-0.5 text-[11px] rounded-full shrink-0 bg-n-slate-3 text-n-slate-11"
                 >
                   {{
                     doc.scope === 'PERSONAL'
@@ -1000,53 +993,136 @@ watch(
                       : t('CRM.KNOWLEDGE_DOCS.RECYCLE.SCOPE_COMPANY')
                   }}
                 </span>
-              </td>
-              <td class="py-2.5 pr-4 text-n-slate-11">
-                {{ doc.owner_name || '—' }}
-              </td>
-              <td class="py-2.5 pr-4 text-n-slate-11">
-                {{ doc.discarded_by_name || '—' }}
-              </td>
-              <td class="py-2.5 pr-4 text-n-slate-11 tabular-nums">
-                {{ fmtDateTime(doc.discarded_at) }}
-              </td>
-              <td class="py-2.5">
-                <div class="flex items-center justify-end gap-1.5">
-                  <button
-                    type="button"
-                    class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full text-n-iris-11 hover:bg-n-iris-3"
-                    @click="restoreDoc(doc)"
-                  >
-                    {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.RESTORE') }}
-                  </button>
-                  <button
-                    type="button"
-                    class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
-                    :class="
-                      pendingPurgeId === doc.id
-                        ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
-                        : 'text-n-ruby-11 hover:bg-n-ruby-3'
-                    "
-                    @click="purgeDoc(doc)"
+              </div>
+              <div
+                class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
+              >
+                <span>
+                  {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.OWNER') }}:
+                  {{ doc.owner_name || '—' }}
+                </span>
+                <span>
+                  {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DELETED_BY') }}:
+                  {{ doc.discarded_by_name || '—' }}
+                </span>
+                <span class="tabular-nums">
+                  {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DELETED_AT') }}:
+                  {{ fmtDateTime(doc.discarded_at) }}
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-2">
+                <button
+                  type="button"
+                  class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full text-n-iris-11 hover:bg-n-iris-3"
+                  @click="restoreDoc(doc)"
+                >
+                  {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.RESTORE') }}
+                </button>
+                <button
+                  type="button"
+                  class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
+                  :class="
+                    pendingPurgeId === doc.id
+                      ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                      : 'text-n-ruby-11 hover:bg-n-ruby-3'
+                  "
+                  @click="purgeDoc(doc)"
+                >
+                  {{
+                    pendingPurgeId === doc.id
+                      ? t('CRM.KNOWLEDGE_DOCS.RECYCLE.CONFIRM_PURGE')
+                      : t('CRM.KNOWLEDGE_DOCS.RECYCLE.PURGE')
+                  }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <table class="hidden w-full text-sm md:table">
+            <thead>
+              <tr class="text-left border-b border-n-weak text-n-slate-10">
+                <th class="py-2.5 pr-4 font-medium">
+                  {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DOC_NAME') }}
+                </th>
+                <th class="py-2.5 pr-4 font-medium">
+                  {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.OWNER') }}
+                </th>
+                <th class="py-2.5 pr-4 font-medium">
+                  {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DELETED_BY') }}
+                </th>
+                <th class="py-2.5 pr-4 font-medium">
+                  {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.DELETED_AT') }}
+                </th>
+                <th class="py-2.5 font-medium w-44" />
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="doc in recycleDocs"
+                :key="doc.id"
+                class="border-b border-n-weak hover:bg-n-alpha-1"
+              >
+                <td class="py-2.5 pr-4">
+                  <span class="font-medium text-n-slate-12">{{
+                    doc.name
+                  }}</span>
+                  <span
+                    class="ml-2 px-1.5 py-0.5 text-[11px] rounded-full bg-n-slate-3 text-n-slate-11"
                   >
                     {{
-                      pendingPurgeId === doc.id
-                        ? t('CRM.KNOWLEDGE_DOCS.RECYCLE.CONFIRM_PURGE')
-                        : t('CRM.KNOWLEDGE_DOCS.RECYCLE.PURGE')
+                      doc.scope === 'PERSONAL'
+                        ? t('CRM.KNOWLEDGE_DOCS.RECYCLE.SCOPE_PERSONAL')
+                        : t('CRM.KNOWLEDGE_DOCS.RECYCLE.SCOPE_COMPANY')
                     }}
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  </span>
+                </td>
+                <td class="py-2.5 pr-4 text-n-slate-11">
+                  {{ doc.owner_name || '—' }}
+                </td>
+                <td class="py-2.5 pr-4 text-n-slate-11">
+                  {{ doc.discarded_by_name || '—' }}
+                </td>
+                <td class="py-2.5 pr-4 text-n-slate-11 tabular-nums">
+                  {{ fmtDateTime(doc.discarded_at) }}
+                </td>
+                <td class="py-2.5">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full text-n-iris-11 hover:bg-n-iris-3"
+                      @click="restoreDoc(doc)"
+                    >
+                      {{ t('CRM.KNOWLEDGE_DOCS.RECYCLE.RESTORE') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
+                      :class="
+                        pendingPurgeId === doc.id
+                          ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                          : 'text-n-ruby-11 hover:bg-n-ruby-3'
+                      "
+                      @click="purgeDoc(doc)"
+                    >
+                      {{
+                        pendingPurgeId === doc.id
+                          ? t('CRM.KNOWLEDGE_DOCS.RECYCLE.CONFIRM_PURGE')
+                          : t('CRM.KNOWLEDGE_DOCS.RECYCLE.PURGE')
+                      }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </div>
 
       <!-- 三级目录浏览器：面包屑 + 子文件夹网格 + 本层文档（搜索时平铺命中）-->
       <div v-else class="flex flex-col flex-1 overflow-hidden">
         <!-- 面包屑 -->
         <div
-          class="flex items-center gap-1.5 px-6 py-3 text-sm border-b border-n-weak min-w-0"
+          class="flex items-center gap-1.5 px-4 py-3 text-sm border-b sm:px-6 border-n-weak min-w-0"
         >
           <button
             v-if="pathStack.length || isSearching"
@@ -1107,7 +1183,7 @@ watch(
         </div>
 
         <div
-          class="relative flex-1 px-6 py-4 overflow-y-auto"
+          class="relative flex-1 px-4 py-3 overflow-y-auto sm:px-6 sm:py-4"
           @dragover.prevent="onContentDragOver"
           @dragleave="onContentDragLeave"
           @drop.prevent="onContentDrop"
@@ -1206,7 +1282,7 @@ watch(
 
             <div
               v-if="sortedFolders.length"
-              class="grid grid-cols-5 gap-2.5 sm:grid-cols-6 xl:grid-cols-8"
+              class="grid grid-cols-3 gap-2.5 sm:grid-cols-6 xl:grid-cols-8"
             >
               <div
                 v-for="folder in sortedFolders"
@@ -1464,7 +1540,7 @@ watch(
     <!-- 右侧详情侧边栏 -->
     <aside
       v-if="panelMode"
-      class="flex flex-col w-[420px] flex-shrink-0 overflow-hidden border-l border-n-weak bg-n-solid-1"
+      class="fixed inset-0 z-40 flex flex-col overflow-hidden border-l md:static md:inset-auto md:z-auto md:w-[420px] md:flex-shrink-0 border-n-weak bg-n-solid-1"
     >
       <div
         class="flex items-start justify-between gap-2 px-5 py-4 border-b border-n-weak"

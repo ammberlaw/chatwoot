@@ -176,9 +176,9 @@ onMounted(() => {
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-wrap gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-lg font-semibold text-n-slate-12">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
@@ -192,7 +192,7 @@ onMounted(() => {
       />
     </div>
 
-    <div class="flex-1 p-6 overflow-y-auto">
+    <div class="flex-1 p-4 sm:p-6 overflow-y-auto">
       <div v-if="loading" class="p-8 text-sm text-center text-n-slate-11">
         {{ '…' }}
       </div>
@@ -232,14 +232,14 @@ onMounted(() => {
             </div>
             <template v-if="canManage">
               <button
-                class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11 hover:bg-n-alpha-2"
+                class="flex items-center justify-center flex-shrink-0 rounded-md opacity-100 md:opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-iris-11 hover:bg-n-alpha-2"
                 :title="L.editTeam"
                 @click="openEdit(team)"
               >
                 <Icon icon="i-lucide-pencil" class="size-4" />
               </button>
               <button
-                class="flex items-center justify-center flex-shrink-0 rounded-md opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-ruby-11 hover:bg-n-alpha-2"
+                class="flex items-center justify-center flex-shrink-0 rounded-md opacity-100 md:opacity-0 size-7 group-hover:opacity-100 text-n-slate-10 hover:text-n-ruby-11 hover:bg-n-alpha-2"
                 :title="L.remove"
                 @click="removeTeam(team)"
               >

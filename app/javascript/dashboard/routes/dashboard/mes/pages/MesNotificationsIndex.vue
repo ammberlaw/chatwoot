@@ -103,10 +103,10 @@ onMounted(load);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
-      <div class="flex items-center gap-2">
-        <h1 class="text-xl font-semibold text-n-slate-12">站内通知</h1>
+      <div class="flex items-center min-w-0 gap-2">
+        <h1 class="text-xl font-semibold truncate text-n-slate-12">站内通知</h1>
         <span
           v-if="unreadCount > 0"
           class="px-2 py-0.5 text-xs font-medium rounded-full bg-n-ruby-9 text-white"
@@ -114,7 +114,7 @@ onMounted(load);
           {{ unreadCount }} 未读
         </span>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <Button
           label="刷新"
           variant="outline"
@@ -134,7 +134,7 @@ onMounted(load);
     </div>
 
     <!-- 分类筛选 -->
-    <div class="flex items-center gap-2 px-6 pt-3">
+    <div class="flex flex-wrap items-center gap-2 px-4 pt-3 sm:px-6">
       <button
         v-for="g in GROUPS"
         :key="g.key"
@@ -156,7 +156,7 @@ onMounted(load);
       </button>
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <div
         v-if="!fetching && records.length === 0"
         class="flex items-center justify-center py-20 text-n-slate-11"

@@ -266,9 +266,9 @@ const fieldCls =
   >
     <!-- 顶栏 -->
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 flex-wrap"
     >
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 min-w-0">
         <Button
           icon="i-lucide-arrow-left"
           size="sm"
@@ -276,8 +276,8 @@ const fieldCls =
           color="slate"
           @click="goBack"
         />
-        <div>
-          <h1 class="text-xl font-medium text-n-slate-12">
+        <div class="min-w-0">
+          <h1 class="text-xl font-medium text-n-slate-12 truncate">
             {{
               isEdit
                 ? t('CRM.KPI_SCHEMES.EDIT.TITLE')
@@ -289,7 +289,7 @@ const fieldCls =
           </p>
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <Button
           :label="t('CRM.KPI_SCHEMES.EDITOR.DISTRIBUTE')"
           icon="i-lucide-send"
@@ -318,7 +318,7 @@ const fieldCls =
       {{ t('CRM.KPI_SCHEMES.LOADING') }}
     </div>
 
-    <div v-else class="flex flex-col w-full gap-8 px-6 py-6">
+    <div v-else class="flex flex-col w-full gap-8 px-4 py-4 sm:px-6 sm:py-6">
       <!-- 方案基本信息 -->
       <section class="flex flex-col gap-3">
         <div
@@ -533,54 +533,58 @@ const fieldCls =
               @click="removeTable(ti)"
             />
           </div>
-          <table class="w-full text-sm border-collapse">
-            <thead>
-              <tr class="border-b border-n-weak">
-                <th
-                  v-for="(col, ci) in tbl.columns"
-                  :key="ci"
-                  class="px-1 py-1 font-medium"
+          <div class="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+            <table class="w-full text-sm border-collapse min-w-[480px]">
+              <thead>
+                <tr class="border-b border-n-weak">
+                  <th
+                    v-for="(col, ci) in tbl.columns"
+                    :key="ci"
+                    class="px-1 py-1 font-medium"
+                  >
+                    <div class="flex items-center gap-1">
+                      <input
+                        v-model="tbl.columns[ci]"
+                        :placeholder="
+                          t('CRM.KPI_SCHEMES.TABLES.COL_PLACEHOLDER')
+                        "
+                        :class="inputCls"
+                        class="text-center"
+                      />
+                      <button
+                        v-if="tbl.columns.length > 1"
+                        class="text-n-slate-9 hover:text-n-ruby-11"
+                        @click="removeTableColumn(tbl, ci)"
+                      >
+                        <Icon icon="i-lucide-x" class="size-3.5" />
+                      </button>
+                    </div>
+                  </th>
+                  <th class="w-9" />
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(row, ri) in tbl.rows"
+                  :key="ri"
+                  class="border-b border-n-weak/60"
                 >
-                  <div class="flex items-center gap-1">
-                    <input
-                      v-model="tbl.columns[ci]"
-                      :placeholder="t('CRM.KPI_SCHEMES.TABLES.COL_PLACEHOLDER')"
-                      :class="inputCls"
-                      class="text-center"
+                  <td v-for="(cell, ci) in row" :key="ci" class="px-1 py-1">
+                    <input v-model="row[ci]" :class="inputCls" />
+                  </td>
+                  <td class="px-1 py-1 text-center">
+                    <Button
+                      icon="i-lucide-trash-2"
+                      size="sm"
+                      variant="ghost"
+                      color="ruby"
+                      @click="removeTableRow(tbl, ri)"
                     />
-                    <button
-                      v-if="tbl.columns.length > 1"
-                      class="text-n-slate-9 hover:text-n-ruby-11"
-                      @click="removeTableColumn(tbl, ci)"
-                    >
-                      <Icon icon="i-lucide-x" class="size-3.5" />
-                    </button>
-                  </div>
-                </th>
-                <th class="w-9" />
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(row, ri) in tbl.rows"
-                :key="ri"
-                class="border-b border-n-weak/60"
-              >
-                <td v-for="(cell, ci) in row" :key="ci" class="px-1 py-1">
-                  <input v-model="row[ci]" :class="inputCls" />
-                </td>
-                <td class="px-1 py-1 text-center">
-                  <Button
-                    icon="i-lucide-trash-2"
-                    size="sm"
-                    variant="ghost"
-                    color="ruby"
-                    @click="removeTableRow(tbl, ri)"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <div>
             <Button
               :label="t('CRM.KPI_SCHEMES.TABLES.ADD_ROW')"
@@ -637,73 +641,75 @@ const fieldCls =
             @click="addTier"
           />
         </div>
-        <table class="w-full text-sm border-collapse">
-          <thead class="text-n-slate-11">
-            <tr class="border-b border-n-weak">
-              <th class="px-2 py-1.5 font-medium text-left">
-                {{ t('CRM.KPI_SCHEMES.TIERS.NAME') }}
-              </th>
-              <th class="px-2 py-1.5 font-medium text-left w-28">
-                {{ t('CRM.KPI_SCHEMES.TIERS.MIN') }}
-              </th>
-              <th class="px-2 py-1.5 font-medium text-left w-28">
-                {{ t('CRM.KPI_SCHEMES.TIERS.MAX') }}
-              </th>
-              <th class="px-2 py-1.5 font-medium text-left w-28">
-                {{ t('CRM.KPI_SCHEMES.TIERS.COEFFICIENT') }}
-              </th>
-              <th class="px-2 py-1.5 font-medium text-left w-36">
-                {{ t('CRM.KPI_SCHEMES.TIERS.PROPORTIONAL') }}
-              </th>
-              <th class="w-10" />
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(tier, i) in form.tiers"
-              :key="`tier-${i}`"
-              class="border-b border-n-weak"
-            >
-              <td class="px-1 py-1">
-                <input v-model="tier.name" :class="inputCls" />
-              </td>
-              <td class="px-1 py-1">
-                <input
-                  v-model="tier.minScore"
-                  type="number"
-                  :class="inputCls"
-                />
-              </td>
-              <td class="px-1 py-1">
-                <input
-                  v-model="tier.maxScore"
-                  type="number"
-                  :class="inputCls"
-                />
-              </td>
-              <td class="px-1 py-1">
-                <input
-                  v-model="tier.coefficient"
-                  type="number"
-                  step="0.01"
-                  :class="inputCls"
-                />
-              </td>
-              <td class="px-2 py-1 text-center">
-                <input v-model="tier.proportional" type="checkbox" />
-              </td>
-              <td class="px-1 py-1 text-center">
-                <Button
-                  icon="i-lucide-trash-2"
-                  size="sm"
-                  variant="ghost"
-                  color="ruby"
-                  @click="removeTier(i)"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <table class="w-full text-sm border-collapse min-w-[640px]">
+            <thead class="text-n-slate-11">
+              <tr class="border-b border-n-weak">
+                <th class="px-2 py-1.5 font-medium text-left">
+                  {{ t('CRM.KPI_SCHEMES.TIERS.NAME') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left w-28">
+                  {{ t('CRM.KPI_SCHEMES.TIERS.MIN') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left w-28">
+                  {{ t('CRM.KPI_SCHEMES.TIERS.MAX') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left w-28">
+                  {{ t('CRM.KPI_SCHEMES.TIERS.COEFFICIENT') }}
+                </th>
+                <th class="px-2 py-1.5 font-medium text-left w-36">
+                  {{ t('CRM.KPI_SCHEMES.TIERS.PROPORTIONAL') }}
+                </th>
+                <th class="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(tier, i) in form.tiers"
+                :key="`tier-${i}`"
+                class="border-b border-n-weak"
+              >
+                <td class="px-1 py-1">
+                  <input v-model="tier.name" :class="inputCls" />
+                </td>
+                <td class="px-1 py-1">
+                  <input
+                    v-model="tier.minScore"
+                    type="number"
+                    :class="inputCls"
+                  />
+                </td>
+                <td class="px-1 py-1">
+                  <input
+                    v-model="tier.maxScore"
+                    type="number"
+                    :class="inputCls"
+                  />
+                </td>
+                <td class="px-1 py-1">
+                  <input
+                    v-model="tier.coefficient"
+                    type="number"
+                    step="0.01"
+                    :class="inputCls"
+                  />
+                </td>
+                <td class="px-2 py-1 text-center">
+                  <input v-model="tier.proportional" type="checkbox" />
+                </td>
+                <td class="px-1 py-1 text-center">
+                  <Button
+                    icon="i-lucide-trash-2"
+                    size="sm"
+                    variant="ghost"
+                    color="ruby"
+                    @click="removeTier(i)"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <!-- 规则 & 结果应用 -->

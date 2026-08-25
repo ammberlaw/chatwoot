@@ -95,7 +95,7 @@ onMounted(load);
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-6 overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-4 px-4 py-3 sm:p-6 overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <!-- 顶栏 -->
     <div class="flex flex-wrap items-center justify-between gap-3 shrink-0">
@@ -108,8 +108,8 @@ onMounted(load);
           每单落在当前阶段列，一眼看全「卡在哪、等谁、卡多久」
         </p>
       </div>
-      <div class="flex items-center gap-2">
-        <div class="relative">
+      <div class="flex items-center gap-2 w-full sm:w-auto">
+        <div class="relative flex-1 sm:flex-none">
           <span
             class="absolute -translate-y-1/2 i-lucide-search size-4 text-n-slate-10 left-2.5 top-1/2"
           />
@@ -117,7 +117,7 @@ onMounted(load);
             v-model="keyword"
             type="text"
             placeholder="订单号 / 产品 / 业务员"
-            class="no-margin h-8 w-56 pl-8 pr-2 text-sm rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-n-iris-8"
+            class="no-margin h-8 w-full sm:w-56 pl-8 pr-2 text-sm rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-n-iris-8"
           />
         </div>
         <button

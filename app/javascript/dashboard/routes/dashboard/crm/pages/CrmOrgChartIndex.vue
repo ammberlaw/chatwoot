@@ -65,13 +65,13 @@ onMounted(() => deptStore.get());
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-lg font-semibold text-n-slate-12">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
-      <div class="flex items-center gap-1">
+      <div class="flex items-center flex-shrink-0 gap-1">
         <button
           class="flex items-center justify-center rounded-md size-7 text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-40 disabled:pointer-events-none"
           :title="L.zoomOut"
@@ -108,7 +108,7 @@ onMounted(() => deptStore.get());
         <Icon icon="i-lucide-network" class="size-12 opacity-40" />
         <p class="text-sm">{{ L.empty }}</p>
       </div>
-      <div v-else class="min-w-max p-10">
+      <div v-else class="min-w-max p-4 sm:p-10">
         <div
           class="flex items-start justify-center gap-10 origin-top transition-transform"
           :class="zoom.class"

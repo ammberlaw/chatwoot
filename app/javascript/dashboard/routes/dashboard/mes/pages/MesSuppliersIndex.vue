@@ -321,19 +321,21 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-6 py-4">
+    <div
+      class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4"
+    >
       <h1 class="text-xl font-semibold text-n-slate-12">供应商</h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <SelectCard
           :model-value="itemCategory"
           :options="skuCategoryFilterOptions"
-          class="w-44"
+          class="w-full sm:w-44"
           @update:model-value="changeCategoryFilter"
         />
         <input
           v-model="keyword"
           placeholder="搜索编号 / 名称"
-          class="h-9 px-3 text-sm rounded-lg outline-none w-56 border border-n-weak bg-n-solid-1 text-n-slate-12"
+          class="h-9 px-3 text-sm rounded-lg outline-none w-full sm:w-56 border border-n-weak bg-n-solid-1 text-n-slate-12"
           @keyup.enter="load"
         />
         <Button
@@ -353,47 +355,28 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-4 pb-4 sm:px-6 sm:pb-6 overflow-auto">
       <p v-if="!canManage" class="mb-3 text-xs text-n-slate-11">
         供应商档案由采购 / PMC 维护，你当前为只读。
       </p>
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
-      <table v-else class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-3 font-medium">编号</th>
-            <th class="px-3 py-3 font-medium">名称</th>
-            <th class="px-3 py-3 font-medium">事业部</th>
-            <th class="px-3 py-3 font-medium">分类</th>
-            <th class="px-3 py-3 font-medium">联系人</th>
-            <th class="px-3 py-3 font-medium">电话</th>
-            <th class="px-3 py-3 font-medium">供应物料</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3 font-medium text-right">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="s in records" :key="s.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-mono text-n-slate-11">
-              {{ s.supplierNo }}
-            </td>
-            <td class="px-3 py-3 font-medium text-n-slate-12">{{ s.name }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ productLineLabel(s.productLine) || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ s.category || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ s.contactName || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ s.phone || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ (s.supplierItems || []).length || '—' }}
-            </td>
-            <td class="px-3 py-3">
+      <template v-else>
+        <!-- 手机卡片列表 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="s in records"
+            :key="s.id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            @click="canManage && openEdit(s)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-n-slate-12 truncate">
+                {{ s.name }}
+              </span>
               <span
-                class="px-2 py-0.5 text-xs rounded-full"
+                class="shrink-0 px-2 py-0.5 text-xs rounded-full"
                 :class="
                   s.isActive
                     ? 'bg-n-teal-3 text-n-teal-12'
@@ -402,40 +385,127 @@ onMounted(() => {
               >
                 {{ s.isActive ? '启用' : '已停用' }}
               </span>
-            </td>
-            <td class="px-3 py-3">
-              <div v-if="canManage" class="flex justify-end gap-1">
-                <Button
-                  label="编辑"
-                  variant="ghost"
-                  size="sm"
-                  @click="openEdit(s)"
-                />
-                <Button
-                  :label="s.isActive ? '停用' : '启用'"
-                  variant="ghost"
-                  color="slate"
-                  size="sm"
-                  @click="toggleActive(s)"
-                />
-                <Button
-                  label="删除"
-                  variant="ghost"
-                  color="ruby"
-                  size="sm"
-                  @click="askDelete(s)"
-                />
-              </div>
-              <span v-else class="block text-right text-n-slate-10">—</span>
-            </td>
-          </tr>
-          <tr v-if="!records.length">
-            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
-              还没有供应商。
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <span class="flex-1" />
+              <span class="shrink-0 font-mono text-xs text-n-slate-11">
+                {{ s.supplierNo }}
+              </span>
+            </div>
+            <div
+              class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
+            >
+              <span>事业部：{{ productLineLabel(s.productLine) || '—' }}</span>
+              <span>分类：{{ s.category || '—' }}</span>
+              <span>联系人：{{ s.contactName || '—' }}</span>
+              <span>电话：{{ s.phone || '—' }}</span>
+              <span>供应物料：{{ (s.supplierItems || []).length || '—' }}</span>
+            </div>
+            <div v-if="canManage" class="mt-2 flex flex-wrap gap-1">
+              <Button
+                label="编辑"
+                variant="ghost"
+                size="sm"
+                @click.stop="openEdit(s)"
+              />
+              <Button
+                :label="s.isActive ? '停用' : '启用'"
+                variant="ghost"
+                color="slate"
+                size="sm"
+                @click.stop="toggleActive(s)"
+              />
+              <Button
+                label="删除"
+                variant="ghost"
+                color="ruby"
+                size="sm"
+                @click.stop="askDelete(s)"
+              />
+            </div>
+          </div>
+          <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
+            还没有供应商。
+          </div>
+        </div>
+
+        <table class="hidden md:table w-full text-sm">
+          <thead>
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium">编号</th>
+              <th class="px-3 py-3 font-medium">名称</th>
+              <th class="px-3 py-3 font-medium">事业部</th>
+              <th class="px-3 py-3 font-medium">分类</th>
+              <th class="px-3 py-3 font-medium">联系人</th>
+              <th class="px-3 py-3 font-medium">电话</th>
+              <th class="px-3 py-3 font-medium">供应物料</th>
+              <th class="px-3 py-3 font-medium">状态</th>
+              <th class="px-3 py-3 font-medium text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in records" :key="s.id" class="border-b border-n-weak">
+              <td class="px-3 py-3 font-mono text-n-slate-11">
+                {{ s.supplierNo }}
+              </td>
+              <td class="px-3 py-3 font-medium text-n-slate-12">
+                {{ s.name }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ productLineLabel(s.productLine) || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">{{ s.category || '—' }}</td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ s.contactName || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">{{ s.phone || '—' }}</td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ (s.supplierItems || []).length || '—' }}
+              </td>
+              <td class="px-3 py-3">
+                <span
+                  class="px-2 py-0.5 text-xs rounded-full"
+                  :class="
+                    s.isActive
+                      ? 'bg-n-teal-3 text-n-teal-12'
+                      : 'bg-n-slate-4 text-n-slate-11'
+                  "
+                >
+                  {{ s.isActive ? '启用' : '已停用' }}
+                </span>
+              </td>
+              <td class="px-3 py-3">
+                <div v-if="canManage" class="flex justify-end gap-1">
+                  <Button
+                    label="编辑"
+                    variant="ghost"
+                    size="sm"
+                    @click="openEdit(s)"
+                  />
+                  <Button
+                    :label="s.isActive ? '停用' : '启用'"
+                    variant="ghost"
+                    color="slate"
+                    size="sm"
+                    @click="toggleActive(s)"
+                  />
+                  <Button
+                    label="删除"
+                    variant="ghost"
+                    color="ruby"
+                    size="sm"
+                    @click="askDelete(s)"
+                  />
+                </div>
+                <span v-else class="block text-right text-n-slate-10">—</span>
+              </td>
+            </tr>
+            <tr v-if="!records.length">
+              <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
+                还没有供应商。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <Dialog
@@ -452,7 +522,7 @@ onMounted(() => {
         <!-- 基本信息 -->
         <div class="flex flex-col gap-4">
           <h3 class="text-heading-3 font-semibold text-n-slate-12">基本信息</h3>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">供应商编码</label>
               <Input
@@ -467,7 +537,7 @@ onMounted(() => {
               <Input v-model="form.name" autofocus />
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">部门</label>
               <Input v-model="form.department" />
@@ -482,7 +552,7 @@ onMounted(() => {
               />
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">供应商分类</label>
               <Input
@@ -495,7 +565,7 @@ onMounted(() => {
               <Input v-model="form.contactName" />
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">手机</label>
               <Input v-model="form.phone" />
@@ -530,72 +600,80 @@ onMounted(() => {
           <p class="text-xs text-n-slate-11">
             物料编码与物料档案共享且唯一：下拉可搜索选择已有编码（自动带出分类/名称/规格/单位）；输入档案没有的新编码可直接选用，保存后自动建物料档案。含税单价按上方税率自动计算。
           </p>
-          <div
-            v-if="form.items.length"
-            class="grid grid-cols-[repeat(16,minmax(0,1fr))] gap-2 text-xs text-n-slate-11"
-          >
-            <span class="col-span-3">物料编码 *</span>
-            <span class="col-span-2">分类 *</span>
-            <span class="col-span-2">产品名称 *</span>
-            <span class="col-span-1">颜色 *</span>
-            <span class="col-span-2">规格型号 *</span>
-            <span class="col-span-1">单位 *</span>
-            <span class="col-span-2">未税单价 *</span>
-            <span class="col-span-2">含税单价</span>
-            <span class="col-span-1" />
-          </div>
-          <div
-            v-for="(row, idx) in form.items"
-            :key="idx"
-            class="grid grid-cols-[repeat(16,minmax(0,1fr))] gap-2 items-center"
-          >
-            <div class="col-span-2">
-              <ComboBox
-                :model-value="row.materialCode"
-                :options="codeOptionsFor(row)"
-                use-api-results
-                placeholder="选择/输入编码"
-                search-placeholder="输入编码或名称搜索"
-                @search="term => onCodeSearch(row, term)"
-                @update:model-value="v => selectCode(row, v)"
-              />
-              <p
-                v-if="duplicateCodes.has(row.materialCode.trim())"
-                class="mt-0.5 text-xs text-n-ruby-11"
+          <div class="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+            <div class="min-w-[720px] md:min-w-0 flex flex-col gap-2">
+              <div
+                v-if="form.items.length"
+                class="grid grid-cols-[repeat(16,minmax(0,1fr))] gap-2 text-xs text-n-slate-11"
               >
-                编码重复
-              </p>
-            </div>
-            <SelectCard
-              size="form"
-              :model-value="row.category"
-              :options="SKU_CATEGORIES"
-              class="col-span-2"
-              @update:model-value="v => (row.category = v)"
-            />
-            <Input v-model="row.name" class="col-span-2" />
-            <Input v-model="row.color" class="col-span-1" />
-            <Input v-model="row.specification" class="col-span-2" />
-            <Input v-model="row.unit" class="col-span-1" placeholder="个/件" />
-            <Input
-              v-model="row.unitPrice"
-              type="number"
-              min="0"
-              step="0.0001"
-              class="col-span-2"
-            />
-            <span class="col-span-1 text-sm text-n-slate-12">
-              {{ taxedPrice(row) }}
-            </span>
-            <div class="col-span-1 flex justify-end">
-              <Button
-                type="button"
-                label="删"
-                variant="ghost"
-                color="ruby"
-                size="sm"
-                @click="removeItem(idx)"
-              />
+                <span class="col-span-3">物料编码 *</span>
+                <span class="col-span-2">分类 *</span>
+                <span class="col-span-2">产品名称 *</span>
+                <span class="col-span-1">颜色 *</span>
+                <span class="col-span-2">规格型号 *</span>
+                <span class="col-span-1">单位 *</span>
+                <span class="col-span-2">未税单价 *</span>
+                <span class="col-span-2">含税单价</span>
+                <span class="col-span-1" />
+              </div>
+              <div
+                v-for="(row, idx) in form.items"
+                :key="idx"
+                class="grid grid-cols-[repeat(16,minmax(0,1fr))] gap-2 items-center"
+              >
+                <div class="col-span-2">
+                  <ComboBox
+                    :model-value="row.materialCode"
+                    :options="codeOptionsFor(row)"
+                    use-api-results
+                    placeholder="选择/输入编码"
+                    search-placeholder="输入编码或名称搜索"
+                    @search="term => onCodeSearch(row, term)"
+                    @update:model-value="v => selectCode(row, v)"
+                  />
+                  <p
+                    v-if="duplicateCodes.has(row.materialCode.trim())"
+                    class="mt-0.5 text-xs text-n-ruby-11"
+                  >
+                    编码重复
+                  </p>
+                </div>
+                <SelectCard
+                  size="form"
+                  :model-value="row.category"
+                  :options="SKU_CATEGORIES"
+                  class="col-span-2"
+                  @update:model-value="v => (row.category = v)"
+                />
+                <Input v-model="row.name" class="col-span-2" />
+                <Input v-model="row.color" class="col-span-1" />
+                <Input v-model="row.specification" class="col-span-2" />
+                <Input
+                  v-model="row.unit"
+                  class="col-span-1"
+                  placeholder="个/件"
+                />
+                <Input
+                  v-model="row.unitPrice"
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  class="col-span-2"
+                />
+                <span class="col-span-1 text-sm text-n-slate-12">
+                  {{ taxedPrice(row) }}
+                </span>
+                <div class="col-span-1 flex justify-end">
+                  <Button
+                    type="button"
+                    label="删"
+                    variant="ghost"
+                    color="ruby"
+                    size="sm"
+                    @click="removeItem(idx)"
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <p
@@ -611,7 +689,7 @@ onMounted(() => {
           <h3 class="text-heading-3 font-semibold text-n-slate-12 pt-2">
             财务信息
           </h3>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">
                 增值税税率（%）
@@ -627,7 +705,7 @@ onMounted(() => {
             <label class="text-heading-3 text-n-slate-12">开票税号</label>
             <Input v-model="form.taxNo" />
           </div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">开户行</label>
               <Input v-model="form.bankName" />

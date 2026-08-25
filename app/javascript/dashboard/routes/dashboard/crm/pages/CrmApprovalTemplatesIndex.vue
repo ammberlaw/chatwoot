@@ -262,9 +262,9 @@ onMounted(async () => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
@@ -273,6 +273,7 @@ onMounted(async () => {
         :label="L.new"
         icon="i-lucide-plus"
         color="iris"
+        class="shrink-0"
         @click="openCreate"
       />
     </div>
@@ -290,7 +291,7 @@ onMounted(async () => {
       <p class="text-sm text-n-slate-11">{{ L.noAccess }}</p>
     </div>
 
-    <div v-else class="flex-1 px-6 py-4">
+    <div v-else class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <div
         v-if="!templates.length"
         class="p-8 text-sm text-center text-n-slate-10"
@@ -346,7 +347,7 @@ onMounted(async () => {
       @confirm="save"
     >
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input v-model="form.name" :label="L.name" autofocus />
           <Input v-model="form.description" :label="L.desc" />
         </div>

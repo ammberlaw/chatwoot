@@ -96,7 +96,7 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto">
-    <div class="w-full max-w-3xl px-8 py-6 mx-auto">
+    <div class="w-full max-w-3xl px-4 py-4 mx-auto sm:px-8 sm:py-6">
       <h1 class="mb-1 text-xl font-semibold text-n-slate-12">店铺设置</h1>
       <p class="mb-5 text-sm text-n-slate-11">
         维护 TikTok
@@ -114,18 +114,18 @@ onMounted(() => {
           <div
             v-for="shop in shops"
             :key="shop.id"
-            class="flex items-center gap-3 px-4 border-b h-14 last:border-b-0 border-n-weak"
+            class="flex flex-wrap items-center gap-3 px-4 py-3 border-b md:flex-nowrap md:py-0 md:h-14 last:border-b-0 border-n-weak"
           >
             <template v-if="editing.id === shop.id">
               <input
                 v-model="editing.name"
-                class="flex-1 h-8 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+                class="w-full h-8 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 md:flex-1 md:w-auto"
                 placeholder="店铺名称"
                 @keyup.enter="saveEdit"
               />
               <input
                 v-model="editing.region"
-                class="w-24 h-8 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+                class="flex-1 h-8 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 md:flex-none md:w-24"
                 placeholder="地区"
                 @keyup.enter="saveEdit"
               />
@@ -147,7 +147,7 @@ onMounted(() => {
             </template>
             <template v-else>
               <span
-                class="text-sm font-medium truncate w-44 shrink-0"
+                class="flex-1 min-w-0 text-sm font-medium truncate md:flex-none md:w-44 md:shrink-0"
                 :class="
                   shop.active
                     ? 'text-n-slate-12'
@@ -162,10 +162,10 @@ onMounted(() => {
               >
                 {{ shop.region }}
               </span>
-              <span class="flex-1" />
+              <span class="hidden flex-1 md:block" />
               <select
                 :value="shop.departmentId || ''"
-                class="w-40 h-8 pl-2 !pr-7 text-xs rounded-lg shrink-0 reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-11"
+                class="flex-1 h-8 pl-2 !pr-7 text-xs rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-11 md:flex-none md:w-40 md:shrink-0"
                 title="归属部门"
                 @change="setDepartment(shop, $event.target.value)"
               >
@@ -207,16 +207,16 @@ onMounted(() => {
         </div>
 
         <!-- 新增店铺 -->
-        <div class="flex items-center gap-2 mt-4">
+        <div class="flex flex-wrap items-center gap-2 mt-4 md:flex-nowrap">
           <input
             v-model="draft.name"
-            class="flex-1 h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak focus:outline-n-brand bg-n-solid-1 text-n-slate-12"
+            class="w-full h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak focus:outline-n-brand bg-n-solid-1 text-n-slate-12 md:flex-1 md:w-auto"
             placeholder="新增店铺名称（如 KidzTab PH）"
             @keyup.enter="addShop"
           />
           <input
             v-model="draft.region"
-            class="w-28 h-10 pl-3 !pr-8 text-sm rounded-lg shrink-0 reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+            class="flex-1 h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 md:flex-none md:w-28 md:shrink-0"
             placeholder="地区（选填）"
             @keyup.enter="addShop"
           />

@@ -426,11 +426,11 @@ const PERIODS = [
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <!-- 顶栏 -->
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
+      <div class="min-w-0">
         <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
           {{
             scope === 'mine'
@@ -443,7 +443,7 @@ const PERIODS = [
           {{ scope === 'mine' ? '我的业绩' : '全公司概览' }}
         </p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <div class="flex items-center h-9 gap-1 px-1 rounded-lg bg-n-alpha-1">
           <button
             v-for="p in PERIODS"
@@ -533,7 +533,7 @@ const PERIODS = [
       <!-- ═══ 第 2 行：业务员成交排行 + 目标仪表 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div
-          class="p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+          class="p-5 border shadow-sm lg:col-span-2 min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             业务员成交排行
@@ -541,7 +541,7 @@ const PERIODS = [
               · {{ periodLabel }}
             </span>
           </h2>
-          <div class="h-72">
+          <div class="h-72 min-w-0">
             <div
               v-if="ownerRank.empty"
               class="flex items-center justify-center h-full text-sm text-n-slate-10"
@@ -646,14 +646,14 @@ const PERIODS = [
       <!-- ═══ 第 3 行：趋势面积图 + 来源环形 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <!-- 左栏堆叠两张小卡：订单金额趋势 + 商机阶段分布 -->
-        <div class="flex flex-col gap-4 lg:col-span-2">
+        <div class="flex flex-col gap-4 lg:col-span-2 min-w-0">
           <div
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="mb-4 text-base font-medium text-n-slate-12">
               订单金额趋势
             </h2>
-            <div class="h-40">
+            <div class="h-40 min-w-0">
               <CrmAreaChart
                 v-if="!trendChart.empty"
                 :key="themeSignal"
@@ -682,7 +682,7 @@ const PERIODS = [
                 <span class="font-semibold text-n-iris-11">{{ winRate }}%</span>
               </span>
             </div>
-            <div class="h-40">
+            <div class="h-40 min-w-0">
               <div
                 v-if="stageChart.empty"
                 class="flex items-center justify-center h-full text-sm text-n-slate-10"
@@ -813,7 +813,7 @@ const PERIODS = [
           <h2 class="mb-4 text-base font-medium text-n-slate-12">
             业务员资料完善度（越高越好）
           </h2>
-          <div class="h-72">
+          <div class="h-72 min-w-0">
             <div
               v-if="ownerCompleteness.empty"
               class="flex items-center justify-center h-full text-sm text-n-slate-10"

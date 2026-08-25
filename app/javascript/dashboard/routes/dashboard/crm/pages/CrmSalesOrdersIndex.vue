@@ -468,17 +468,19 @@ watch(
 
 <template>
   <div
-    class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="relative flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <!-- 标题 + 新建订单 -->
       <div
-        class="flex items-center justify-between px-[26px] pt-[18px] pb-3.5 border-b border-n-weak"
+        class="flex items-center justify-between gap-2 px-4 sm:px-[26px] pt-[18px] pb-3.5 border-b border-n-weak"
       >
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
+        <h1
+          class="min-w-0 truncate text-[22px] font-bold tracking-[-0.01em] text-n-slate-12"
+        >
           {{ t('CRM.SALES_ORDERS.HEADER') }}
         </h1>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 shrink-0">
           <button
             v-if="isAdmin"
             type="button"
@@ -501,7 +503,9 @@ watch(
       </div>
 
       <!-- 筛选工具条 -->
-      <div class="flex flex-wrap items-center gap-2.5 px-[26px] pt-3.5 pb-2.5">
+      <div
+        class="flex flex-wrap items-center gap-2.5 px-4 sm:px-[26px] pt-3.5 pb-2.5"
+      >
         <div
           class="flex items-center flex-1 min-w-[200px] h-[38px] gap-2 px-3 text-[13px] border rounded-[10px] border-n-weak bg-n-solid-1/60 focus-within:ring-2 focus-within:ring-n-iris-9"
         >
@@ -537,7 +541,7 @@ watch(
       <!-- 视图下划线 tab -->
       <div
         v-if="filterTabs.length > 1"
-        class="flex items-center gap-[22px] px-[26px] pt-0.5 border-b border-n-weak"
+        class="flex items-center gap-[22px] px-4 sm:px-[26px] pt-0.5 border-b border-n-weak"
       >
         <button
           v-for="tab in filterTabs"
@@ -583,139 +587,218 @@ watch(
         >
           {{ t('CRM.SALES_ORDERS.EMPTY') }}
         </div>
-        <table v-else class="w-full text-[13px] border-collapse">
-          <thead>
-            <tr>
-              <th
-                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
-              >
-                {{ t('CRM.SALES_ORDERS.TABLE.NAME') }}
-              </th>
-              <th
-                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
-              >
-                {{ t('CRM.SALES_ORDERS.TABLE.ORDER_NO') }}
-              </th>
-              <th
-                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
-              >
-                {{ t('CRM.SALES_ORDERS.TABLE.ORDER_NAME') }}
-              </th>
-              <th
-                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
-              >
-                {{ t('CRM.SALES_ORDERS.TABLE.CUSTOMER') }}
-              </th>
-              <th
-                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
-              >
-                {{ t('CRM.SALES_ORDERS.TABLE.STATUS') }}
-              </th>
-              <th
-                class="px-3 py-2.5 text-right text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
-              >
-                {{ t('CRM.SALES_ORDERS.TABLE.AMOUNT') }}
-              </th>
-              <th
-                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
-              >
-                {{ t('CRM.SALES_ORDERS.TABLE.ORDER_DATE') }}
-              </th>
-              <th
-                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
-              >
-                {{ t('CRM.SALES_ORDERS.TABLE.DELIVERY_DATE') }}
-              </th>
-              <th
-                class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
-              >
-                {{ t('CRM.SALES_ORDERS.TABLE.OWNER') }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
+        <template v-else>
+          <!-- 手机卡片列表 -->
+          <div class="flex flex-col gap-2 md:hidden">
+            <div
               v-for="record in records"
               :key="record.id"
-              class="border-t cursor-pointer border-n-weak hover:bg-n-iris-9/[0.04]"
-              :class="{ 'bg-n-iris-2': selectedOrder?.id === record.id }"
+              class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+              :class="{
+                'ring-1 ring-n-iris-9': selectedOrder?.id === record.id,
+              }"
               @click="selectOrder(record)"
             >
-              <td
-                class="px-3 py-3 font-semibold text-n-slate-12 whitespace-nowrap"
-              >
-                {{ record.piNo || record.name }}
-              </td>
-              <td
-                class="px-3 py-3 font-mono text-[12px] text-n-slate-10 whitespace-nowrap"
-              >
-                {{ record.orderNo }}
-              </td>
-              <td
-                class="px-3 py-3 text-n-slate-12 max-w-[220px] truncate"
-                :title="record.name"
-              >
-                {{ record.name || '—' }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-12 whitespace-nowrap">
-                {{ record.customerName || '—' }}
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap">
+              <div class="flex items-center gap-2">
+                <span class="font-medium truncate text-n-slate-12">
+                  {{ record.piNo || record.name }}
+                </span>
                 <span
-                  class="inline-flex items-center gap-[5px] px-2.5 py-[3px] rounded-full text-[12px] font-medium"
+                  class="inline-flex items-center gap-[5px] px-2.5 py-[3px] shrink-0 rounded-full text-[12px] font-medium"
                   :class="STATUSES[record.status]?.class"
                 >
                   <span class="rounded-full size-1.5 bg-current opacity-90" />
                   {{ STATUSES[record.status]?.label || record.status }}
                 </span>
-              </td>
-              <td
-                class="px-3 py-3 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
+                <span class="flex-1" />
+                <span
+                  class="font-semibold shrink-0 tabular-nums text-n-slate-12"
+                >
+                  {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
+                </span>
+              </div>
+              <div
+                class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
               >
-                {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
-              </td>
-              <td
-                class="px-3 py-3 tabular-nums text-n-slate-10 whitespace-nowrap"
+                <span v-if="record.orderNo" class="font-mono">
+                  {{ record.orderNo }}
+                </span>
+                <span v-if="record.name" class="truncate">
+                  {{ t('CRM.SALES_ORDERS.TABLE.ORDER_NAME') }}：{{
+                    record.name
+                  }}
+                </span>
+                <span>
+                  {{ t('CRM.SALES_ORDERS.TABLE.CUSTOMER') }}：{{
+                    record.customerName || '—'
+                  }}
+                </span>
+              </div>
+              <div
+                class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
               >
-                {{ fmtDate(record.orderDate) }}
-              </td>
-              <td
-                class="px-3 py-3 tabular-nums text-n-slate-10 whitespace-nowrap"
+                <span>
+                  {{ t('CRM.SALES_ORDERS.TABLE.ORDER_DATE') }}：{{
+                    fmtDate(record.orderDate)
+                  }}
+                </span>
+                <span>
+                  {{ t('CRM.SALES_ORDERS.TABLE.DELIVERY_DATE') }}：{{
+                    fmtDate(record.deliveryDate)
+                  }}
+                </span>
+                <span
+                  v-if="record.ownerName"
+                  class="inline-flex items-center gap-1.5"
+                >
+                  <Avatar
+                    :name="record.ownerName"
+                    :src="record.ownerAvatarUrl || ''"
+                    :size="18"
+                    rounded-full
+                  />
+                  {{ record.ownerName }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <table class="hidden md:table w-full text-[13px] border-collapse">
+            <thead>
+              <tr>
+                <th
+                  class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.NAME') }}
+                </th>
+                <th
+                  class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.ORDER_NO') }}
+                </th>
+                <th
+                  class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.ORDER_NAME') }}
+                </th>
+                <th
+                  class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.CUSTOMER') }}
+                </th>
+                <th
+                  class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.STATUS') }}
+                </th>
+                <th
+                  class="px-3 py-2.5 text-right text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.AMOUNT') }}
+                </th>
+                <th
+                  class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.ORDER_DATE') }}
+                </th>
+                <th
+                  class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.DELIVERY_DATE') }}
+                </th>
+                <th
+                  class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.OWNER') }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="record in records"
+                :key="record.id"
+                class="border-t cursor-pointer border-n-weak hover:bg-n-iris-9/[0.04]"
+                :class="{ 'bg-n-iris-2': selectedOrder?.id === record.id }"
+                @click="selectOrder(record)"
               >
-                {{ fmtDate(record.deliveryDate) }}
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap">
-                <div v-if="record.ownerName" class="flex flex-col gap-0.5">
-                  <span class="inline-flex items-center gap-2 text-n-slate-11">
-                    <Avatar
-                      :name="record.ownerName"
-                      :src="record.ownerAvatarUrl || ''"
-                      :size="26"
-                      rounded-full
-                    />
-                    {{ record.ownerName }}
-                  </span>
+                <td
+                  class="px-3 py-3 font-semibold text-n-slate-12 whitespace-nowrap"
+                >
+                  {{ record.piNo || record.name }}
+                </td>
+                <td
+                  class="px-3 py-3 font-mono text-[12px] text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ record.orderNo }}
+                </td>
+                <td
+                  class="px-3 py-3 text-n-slate-12 max-w-[220px] truncate"
+                  :title="record.name"
+                >
+                  {{ record.name || '—' }}
+                </td>
+                <td class="px-3 py-3 text-n-slate-12 whitespace-nowrap">
+                  {{ record.customerName || '—' }}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap">
                   <span
-                    v-if="
-                      record.handledByName &&
-                      record.handledById !== record.ownerId
-                    "
-                    class="pl-[34px] text-[11px] text-n-slate-10"
+                    class="inline-flex items-center gap-[5px] px-2.5 py-[3px] rounded-full text-[12px] font-medium"
+                    :class="STATUSES[record.status]?.class"
                   >
-                    经办：{{ record.handledByName }}
+                    <span class="rounded-full size-1.5 bg-current opacity-90" />
+                    {{ STATUSES[record.status]?.label || record.status }}
                   </span>
-                </div>
-                <span v-else class="text-n-slate-10">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                </td>
+                <td
+                  class="px-3 py-3 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
+                >
+                  {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
+                </td>
+                <td
+                  class="px-3 py-3 tabular-nums text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ fmtDate(record.orderDate) }}
+                </td>
+                <td
+                  class="px-3 py-3 tabular-nums text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ fmtDate(record.deliveryDate) }}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap">
+                  <div v-if="record.ownerName" class="flex flex-col gap-0.5">
+                    <span
+                      class="inline-flex items-center gap-2 text-n-slate-11"
+                    >
+                      <Avatar
+                        :name="record.ownerName"
+                        :src="record.ownerAvatarUrl || ''"
+                        :size="26"
+                        rounded-full
+                      />
+                      {{ record.ownerName }}
+                    </span>
+                    <span
+                      v-if="
+                        record.handledByName &&
+                        record.handledById !== record.ownerId
+                      "
+                      class="pl-[34px] text-[11px] text-n-slate-10"
+                    >
+                      经办：{{ record.handledByName }}
+                    </span>
+                  </div>
+                  <span v-else class="text-n-slate-10">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </div>
 
       <!-- 页脚：共 N 条 · 每页 15 条 + 页码 -->
       <div
         v-if="totalCount"
-        class="flex items-center justify-between px-[26px] py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
+        class="flex items-center justify-between px-4 sm:px-[26px] py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
       >
         <span>
           {{
@@ -770,7 +853,7 @@ watch(
     <!-- 右侧订单详情面板 -->
     <aside
       v-if="selectedOrder"
-      class="flex flex-col w-[400px] flex-shrink-0 overflow-hidden border-l border-n-weak bg-n-solid-1"
+      class="absolute inset-0 z-20 flex flex-col flex-shrink-0 overflow-hidden border-l border-n-weak bg-n-solid-1 md:static md:inset-auto md:z-auto md:w-[400px]"
     >
       <div class="flex items-center gap-3 px-5 py-4 border-b border-n-weak">
         <div class="flex-1 min-w-0">
@@ -871,7 +954,8 @@ watch(
                   >
                     <span class="i-lucide-copy size-3.5" />
                   </button>
-                  <span v-if="!row.tag && !row.value" class="text-n-slate-10"
+                  <span
+v-if="!row.tag && !row.value" class="text-n-slate-10"
                     >—</span
                   >
                 </div>

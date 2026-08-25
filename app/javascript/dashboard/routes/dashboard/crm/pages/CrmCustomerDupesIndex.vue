@@ -139,7 +139,7 @@ const openCustomer = customer => {
     class="flex flex-col w-full h-full overflow-auto border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border-white/50 shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between gap-3 px-6 pt-6 pb-4 border-b border-n-weak"
+      class="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:pt-6 sm:pb-4 border-b border-n-weak"
     >
       <div>
         <div class="text-lg font-medium text-n-slate-12">客户查重</div>
@@ -158,7 +158,7 @@ const openCustomer = customer => {
     </div>
 
     <!-- 主动查重：范围紫卡片 + 搜索栏（关键词 | 清空 | 查重，等高贴合） -->
-    <div class="flex justify-center w-full px-6 pt-5 pb-1">
+    <div class="flex justify-center w-full px-4 sm:px-6 pt-5 pb-1">
       <div class="flex items-center w-full max-w-4xl gap-2">
         <SelectCard
           v-model="searchScope"
@@ -210,9 +210,47 @@ const openCustomer = customer => {
       >
         没有匹配的客户，可放心建档
       </div>
-      <div v-else class="px-6 py-5">
+      <div v-else class="px-4 sm:px-6 py-5">
+        <!-- 手机卡片列表 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="customer in searchResults"
+            :key="customer.id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            @click="openCustomer(customer)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate text-n-slate-12">
+                {{ customer.name }}
+              </span>
+              <span class="flex-1" />
+              <span class="text-xs shrink-0 text-n-slate-11">
+                {{ customer.owner }}
+              </span>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-n-slate-11"
+            >
+              <span>客户编号：{{ customer.customer_code || '—' }}</span>
+              <span>客户阶段：{{ customer.status || '—' }}</span>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-n-slate-11"
+            >
+              <span>联系人：{{ customer.contact_name || '—' }}</span>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-n-slate-11"
+            >
+              <span>邮箱：{{ customer.email || '—' }}</span>
+              <span>电话：{{ customer.phone || '—' }}</span>
+            </div>
+          </div>
+        </div>
         <!-- table 的 border-collapse 会吃掉圆角，圆角放外层 div 上裁切 -->
-        <div class="overflow-hidden border rounded-xl border-n-weak">
+        <div
+          class="hidden md:block overflow-hidden border rounded-xl border-n-weak"
+        >
           <table class="w-full text-sm">
             <thead>
               <tr
@@ -275,7 +313,7 @@ const openCustomer = customer => {
 
     <template v-else>
       <!-- 维度页签 -->
-      <div class="flex items-center gap-2 px-6 pt-4">
+      <div class="flex flex-wrap items-center gap-2 px-4 sm:px-6 pt-4">
         <button
           v-for="dim in DIMENSIONS"
           :key="dim.key"
@@ -317,7 +355,7 @@ const openCustomer = customer => {
         该维度下没有重复客户
       </div>
 
-      <div v-else class="flex flex-col gap-4 px-6 py-5">
+      <div v-else class="flex flex-col gap-4 px-4 sm:px-6 py-5">
         <div
           v-for="group in activeGroups"
           :key="group.value"
@@ -351,7 +389,50 @@ const openCustomer = customer => {
               合并到保留项
             </button>
           </div>
-          <table class="w-full text-sm">
+          <!-- 手机卡片列表 -->
+          <div class="flex flex-col gap-2 p-3 md:hidden">
+            <div
+              v-for="customer in group.customers"
+              :key="customer.id"
+              class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+              @click="openCustomer(customer)"
+            >
+              <div class="flex items-center gap-2">
+                <span class="shrink-0" @click.stop>
+                  <input
+                    type="radio"
+                    class="accent-n-iris-9 align-middle"
+                    :checked="survivorFor(group) === customer.id"
+                    :title="
+                      survivorFor(group) === customer.id
+                        ? '保留此客户'
+                        : '设为保留项'
+                    "
+                    @change="setSurvivor(group, customer.id)"
+                  />
+                </span>
+                <span class="font-medium truncate text-n-slate-12">
+                  {{ customer.name }}
+                </span>
+                <span class="flex-1" />
+                <span
+                  class="i-lucide-chevron-right size-4 shrink-0 text-n-slate-9"
+                />
+              </div>
+              <div
+                class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-n-slate-11"
+              >
+                <span>客户编号：{{ customer.customer_code || '—' }}</span>
+                <span>归属：{{ customer.owner }}</span>
+              </div>
+              <div
+                class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-n-slate-11"
+              >
+                <span>客户阶段：{{ customer.status || '—' }}</span>
+              </div>
+            </div>
+          </div>
+          <table class="hidden md:table w-full text-sm">
             <thead>
               <tr class="text-left border-b border-n-weak text-n-slate-10">
                 <th class="px-4 font-medium py-1.5 w-14">保留</th>

@@ -366,21 +366,23 @@ onMounted(() => {
       加载中…
     </div>
 
-    <div v-else class="w-full max-w-6xl px-6 py-5 mx-auto">
+    <div v-else class="w-full max-w-6xl px-4 py-4 mx-auto sm:px-6 sm:py-5">
       <!-- Header -->
-      <div class="flex items-center justify-between mb-5">
-        <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+        <div class="flex items-center gap-3 min-w-0">
           <button
-            class="p-1.5 rounded-lg text-n-slate-11 hover:bg-n-alpha-1"
+            class="p-1.5 rounded-lg text-n-slate-11 hover:bg-n-alpha-1 shrink-0"
             @click="goBack"
           >
             <span class="i-lucide-arrow-left size-5" />
           </button>
-          <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
+          <h1
+            class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 min-w-0 truncate"
+          >
             客户详情
           </h1>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <button
             v-if="canShare"
             class="flex items-center gap-1.5 h-9 px-3 text-sm rounded-[9px] border border-n-weak bg-n-solid-1/70 text-n-slate-12 hover:bg-n-alpha-2"
@@ -519,10 +521,10 @@ onMounted(() => {
               </span>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <div class="w-40">
+              <div class="w-full sm:w-40">
                 <DatePicker v-model="nextDate" block :clearable="false" />
               </div>
-              <div class="w-28">
+              <div class="w-full sm:w-28">
                 <SelectCard v-model="nextTime" :options="timeOptions" block />
               </div>
               <label class="flex items-center gap-1.5 text-sm text-n-slate-11">
