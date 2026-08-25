@@ -1,11 +1,15 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAlert } from 'dashboard/composables';
+import { emitter } from 'shared/helpers/mitt';
 import ChatAPI from 'dashboard/api/chat/conversations';
 import AgentAPI from 'dashboard/api/agents';
 import DepartmentsAPI from 'dashboard/api/org/departments';
 import MembershipsAPI from 'dashboard/api/org/memberships';
+import CustomerAPI from 'dashboard/api/crm/customers';
+import SalesOrderAPI from 'dashboard/api/crm/salesOrders';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -15,6 +19,8 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
 const currentUserId = useMapGetter('getCurrentUserID');
+const accountId = useMapGetter('getCurrentAccountId');
+const router = useRouter();
 
 const L = {
   messages: '消息',
@@ -65,6 +71,16 @@ const L = {
   remove: '移除',
   confirmRemove: '确认移除',
   removed: '已移除该成员',
+  mentionMe: '@我',
+  kindCustomer: '客户',
+  kindOrder: '订单',
+  refColon: '：',
+  sendCard: '发送客户 / 订单卡片',
+  pickRefTitle: '选择业务对象',
+  searchCustomer: '搜索客户名称',
+  searchOrder: '搜索订单号',
+  loadingText: '加载中…',
+  noResult: '无匹配结果',
 };
 
 const conversations = ref([]);
@@ -128,6 +144,26 @@ const linkifyContent = content =>
     url =>
       `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline font-medium">${url}</a>`
   );
+
+// 正文渲染：链接化 + 高亮被 @ 到的成员名（按消息 mentioned_ids 精确匹配，避免误伤）。
+// 提及做成小胶囊，且按气泡深浅取色——自己(浅底)深紫，别人(深底)亮紫白字，两种底都清晰。
+const renderContent = msg => {
+  const own = msg.sender_id === currentUserId.value;
+  const cls = own
+    ? 'rounded px-0.5 font-semibold text-n-iris-11 bg-n-iris-3'
+    : 'rounded px-0.5 font-semibold text-white bg-n-iris-9';
+  let html = linkifyContent(msg.content);
+  (msg.mentioned_ids || []).forEach(uid => {
+    const name = agentMap.value[uid]?.name;
+    if (!name) return;
+    const token = escapeHtml(`@${name}`);
+    html = html.split(token).join(`<span class="${cls}">${token}</span>`);
+  });
+  return html;
+};
+const isMentionedMe = msg =>
+  (msg.mentioned_ids || []).includes(currentUserId.value) &&
+  msg.sender_id !== currentUserId.value;
 
 const otherAgents = computed(() =>
   agents.value.filter(a => a.id !== currentUserId.value)
@@ -239,6 +275,7 @@ const pollActive = async () => {
       messages.value.push(...msgs.payload);
       scrollToBottom();
       ChatAPI.markRead(activeConv.value.id);
+      emitter.emit('CHAT_UNREAD_CHANGED');
     }
     activeParticipants.value = conv.participants || [];
     if (activeConv.value && activeConv.value.id === conv.id) {
@@ -269,6 +306,7 @@ const openConversation = async conv => {
     activeParticipants.value = full.participants || [];
     scrollToBottom();
     conv.unread_count = 0;
+    emitter.emit('CHAT_UNREAD_CHANGED');
   } catch {
     /* ignore */
   }
@@ -277,11 +315,48 @@ const openConversation = async conv => {
 // 待发附件
 const pendingFiles = ref([]);
 const chatFileInput = ref(null);
+// 图片待发项的缩略图预览（像微信一样先看到图再发）。
+const previewCache = new Map();
+const previewUrl = f => {
+  if (!f?.type?.startsWith('image/')) return '';
+  if (!previewCache.has(f)) previewCache.set(f, URL.createObjectURL(f));
+  return previewCache.get(f);
+};
+const revokePreview = f => {
+  if (previewCache.has(f)) {
+    URL.revokeObjectURL(previewCache.get(f));
+    previewCache.delete(f);
+  }
+};
 const onFilesPicked = e => {
   pendingFiles.value.push(...Array.from(e.target.files || []));
   e.target.value = '';
 };
-const removePending = i => pendingFiles.value.splice(i, 1);
+const removePending = i => {
+  const [f] = pendingFiles.value.splice(i, 1);
+  revokePreview(f);
+};
+
+// 直接粘贴截图（Ctrl/⌘+V）：抓剪贴板里的图片塞进待发列表，和微信一致。
+const onComposerPaste = e => {
+  const items = Array.from(e.clipboardData?.items || []);
+  const imgs = items
+    .filter(it => it.type?.startsWith('image/'))
+    .map(it => it.getAsFile())
+    .filter(Boolean);
+  if (!imgs.length) return;
+  e.preventDefault(); // 阻止把图片的文件名等塞进文本框
+  imgs.forEach((f, i) => {
+    // 剪贴板图片常统一叫 image.png，补个带时间戳的名字避免同名。
+    const named =
+      f.name && f.name !== 'image.png'
+        ? f
+        : new File([f], `screenshot-${Date.now()}-${i}.png`, {
+            type: f.type || 'image/png',
+          });
+    pendingFiles.value.push(named);
+  });
+};
 const fmtSize = b =>
   b < 1024
     ? `${b}B`
@@ -289,20 +364,171 @@ const fmtSize = b =>
       ? `${Math.round(b / 1024)}KB`
       : `${(b / 1048576).toFixed(1)}MB`;
 
+// ── @提及（仅群聊）──────────────────────────────────────────
+// 群成员（除自己），供 @ 下拉。
+const mentionMembers = computed(() =>
+  activeConv.value?.kind === 'group'
+    ? activeParticipants.value.filter(p => p.user_id !== currentUserId.value)
+    : []
+);
+const mentionOpen = ref(false);
+const mentionQuery = ref('');
+// 已插入的 @ 记录：{ name, userId }，发送时据文本是否仍含 @name 判定生效。
+const mentionedList = ref([]);
+const composerRef = ref(null);
+
+const mentionCandidates = computed(() => {
+  const q = mentionQuery.value.toLowerCase();
+  return mentionMembers.value.filter(
+    m => !q || (m.name || '').toLowerCase().includes(q)
+  );
+});
+
+// 输入时检测末尾的「@关键词」，弹出候选（群聊）。
+const onComposerInput = () => {
+  if (activeConv.value?.kind !== 'group') return;
+  const m = newText.value.match(/@([^\s@]*)$/);
+  if (m) {
+    mentionQuery.value = m[1];
+    mentionOpen.value = true;
+  } else {
+    mentionOpen.value = false;
+  }
+};
+
+const pickMention = member => {
+  newText.value = newText.value.replace(/@([^\s@]*)$/, `@${member.name} `);
+  if (!mentionedList.value.some(x => x.userId === member.user_id)) {
+    mentionedList.value.push({ name: member.name, userId: member.user_id });
+  }
+  mentionOpen.value = false;
+  nextTick(() => composerRef.value?.focus?.());
+};
+
+// ── 业务对象进群（客户 / 订单卡片）────────────────────────
+const REF_TYPE_LABEL = { customer: '客户', sales_order: '订单' };
+const pendingRef = ref(null); // { ref_type, ref_id, snapshot:{title,subtitle,code} }
+const refDialog = ref(null);
+const refKind = ref('customer');
+const refQuery = ref('');
+const refResults = ref([]);
+const refLoading = ref(false);
+
+const searchRef = async () => {
+  refLoading.value = true;
+  try {
+    if (refKind.value === 'customer') {
+      const { data } = await CustomerAPI.get({
+        q: refQuery.value,
+        per_page: 20,
+      });
+      refResults.value = (data.payload || []).map(c => ({
+        ref_type: 'customer',
+        ref_id: c.id,
+        snapshot: { title: c.name, subtitle: '', code: '' },
+      }));
+    } else {
+      const { data } = await SalesOrderAPI.get({ q: refQuery.value });
+      refResults.value = (data.payload || []).map(o => ({
+        ref_type: 'sales_order',
+        ref_id: o.id,
+        snapshot: {
+          title: o.order_no,
+          subtitle: o.customer_name || '',
+          code: o.order_no,
+        },
+      }));
+    }
+  } catch {
+    refResults.value = [];
+  } finally {
+    refLoading.value = false;
+  }
+};
+
+const openRefPicker = () => {
+  refKind.value = 'customer';
+  refQuery.value = '';
+  refResults.value = [];
+  refDialog.value?.open();
+  searchRef();
+};
+
+const chooseRef = item => {
+  pendingRef.value = item;
+  refDialog.value?.close();
+};
+const clearPendingRef = () => {
+  pendingRef.value = null;
+};
+
+// 点击消息里的业务卡片 → 跳转对象详情。
+const openRef = target => {
+  if (target.type === 'customer') {
+    router.push({
+      name: 'crm_customer_detail_index',
+      params: { accountId: accountId.value, id: target.id },
+    });
+  } else if (target.type === 'sales_order') {
+    router.push({
+      name: 'crm_sales_orders_index',
+      params: { accountId: accountId.value },
+    });
+  }
+};
+
+const buildSendExtra = content => {
+  const mentionedIds = mentionedList.value
+    .filter(x => content.includes(`@${x.name}`))
+    .map(x => x.userId);
+  const r = pendingRef.value;
+  return {
+    mentioned_ids: mentionedIds,
+    ref_type: r?.ref_type,
+    ref_id: r?.ref_id,
+    ref_snapshot: r?.snapshot,
+  };
+};
+
 const sendMessage = async () => {
-  const content = newText.value.trim();
+  if (mentionOpen.value) return; // @ 面板打开时回车用于选人，不发送
+  let content = newText.value.trim();
   const files = pendingFiles.value;
-  if ((!content && !files.length) || !activeConv.value) return;
+  const heldRef = pendingRef.value;
+  if ((!content && !files.length && !heldRef) || !activeConv.value) return;
+  // 仅带业务卡片、无正文无附件时，用卡片标题兜底正文（后端要求正文/附件二选一）。
+  if (!content && !files.length && heldRef) {
+    content = `[${REF_TYPE_LABEL[heldRef.ref_type]}] ${heldRef.snapshot?.title || ''}`;
+  }
+  const extra = buildSendExtra(content);
   newText.value = '';
   pendingFiles.value = [];
+  pendingRef.value = null;
+  mentionedList.value = [];
   try {
-    const { data } = await ChatAPI.send(activeConv.value.id, content, files);
+    const { data } = await ChatAPI.send(
+      activeConv.value.id,
+      content,
+      files,
+      extra
+    );
     messages.value.push(data);
     scrollToBottom();
     fetchConversations();
+    files.forEach(revokePreview);
   } catch {
     useAlert(L.error);
+    pendingRef.value = heldRef;
   }
+};
+
+// 回车：@ 面板开着时选中首个候选，否则发送。
+const onEnter = () => {
+  if (mentionOpen.value && mentionCandidates.value.length) {
+    pickMention(mentionCandidates.value[0]);
+    return;
+  }
+  sendMessage();
 };
 
 // 某条消息的已读/未读成员（除发送者外）。
@@ -335,12 +561,13 @@ const readDialogRef = ref(null);
 const readDetail = ref({ read: [], unread: [] });
 const openReadDetail = msg => {
   const { read, unread } = readSplit(msg);
-  readDetail.value = {
-    read: read.map(p => p.name),
-    unread: unread.map(p => p.name),
-  };
+  const pick = p => ({ user_id: p.user_id, name: p.name });
+  readDetail.value = { read: read.map(pick), unread: unread.map(pick) };
   readDialogRef.value?.open();
 };
+
+// 钉钉式：消息旁展示已读者的前几个头像（点开看完整名单）。
+const readAvatars = msg => readSplit(msg).read.slice(0, 3);
 
 // ---- 发起会话 ----
 const openUserPicker = () => userDialog.value?.open();
@@ -483,19 +710,35 @@ const loadAgents = async () => {
   }
 };
 
+// 实时新消息：活跃会话即时拉取，列表即时刷新未读/排序。
+const onRealtimeMessage = async data => {
+  if (!data || data.conversation_id == null) return;
+  const isActive =
+    activeConv.value && activeConv.value.id === data.conversation_id;
+  if (isActive) await pollActive();
+  await fetchConversations();
+  if (isActive) {
+    const c = conversations.value.find(x => x.id === data.conversation_id);
+    if (c) c.unread_count = 0;
+  }
+};
+
 onMounted(async () => {
   fetchConversations();
   loadAgents();
   loadOrgData();
+  emitter.on('CHAT_MESSAGE_CREATED', onRealtimeMessage);
+  // 实时优先；轮询降级为兜底（刷新在线状态 + 断线自愈）。
   listTimer = setInterval(() => {
     fetchConversations();
-    loadAgents(); // 顺带刷新在线状态
-  }, 6000);
-  msgTimer = setInterval(pollActive, 3000);
+    loadAgents();
+  }, 15000);
+  msgTimer = setInterval(pollActive, 12000);
 });
 onBeforeUnmount(() => {
   clearInterval(listTimer);
   clearInterval(msgTimer);
+  emitter.off('CHAT_MESSAGE_CREATED', onRealtimeMessage);
 });
 </script>
 
@@ -745,15 +988,62 @@ onBeforeUnmount(() => {
                 <div
                   v-if="msg.content"
                   class="px-4 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap shadow-sm rounded-[20px]"
-                  :class="
+                  :class="[
                     msg.sender_id === currentUserId
                       ? 'bg-n-solid-1 text-n-slate-12 ring-1 ring-inset ring-n-weak rounded-br-md'
-                      : 'bg-n-slate-12 text-n-slate-1 rounded-bl-md'
-                  "
+                      : 'bg-n-slate-12 text-n-slate-1 rounded-bl-md',
+                    isMentionedMe(msg) ? 'ring-2 ring-n-iris-8' : '',
+                  ]"
                 >
+                  <span
+                    v-if="isMentionedMe(msg)"
+                    class="inline-block mr-1 px-1.5 rounded text-[10px] font-semibold bg-n-iris-9 text-white align-[2px]"
+                  >
+                    {{ L.mentionMe }}
+                  </span>
                   <!-- eslint-disable-next-line vue/no-v-html -->
-                  <span v-html="linkifyContent(msg.content)" />
+                  <span v-html="renderContent(msg)" />
                 </div>
+                <!-- 业务对象卡片：点击跳转客户/订单 -->
+                <button
+                  v-if="msg.ref"
+                  type="button"
+                  class="flex items-center gap-2.5 mt-1.5 px-3 py-2 max-w-[260px] text-left rounded-2xl bg-n-solid-1 ring-1 ring-inset ring-n-weak shadow-sm hover:bg-n-alpha-1 transition-colors"
+                  @click="openRef(msg.ref)"
+                >
+                  <span
+                    class="grid rounded-lg shrink-0 size-9 place-items-center bg-n-teal-3 text-n-teal-11"
+                  >
+                    <Icon
+                      :icon="
+                        msg.ref.type === 'customer'
+                          ? 'i-lucide-building-2'
+                          : 'i-lucide-file-text'
+                      "
+                      class="size-[18px]"
+                    />
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block text-xs text-n-slate-10">
+                      {{
+                        msg.ref.type === 'customer'
+                          ? L.kindCustomer
+                          : L.kindOrder
+                      }}
+                    </span>
+                    <span
+                      class="block text-sm font-medium truncate text-n-slate-12"
+                    >
+                      {{ msg.ref.snapshot?.title }}
+                    </span>
+                    <span
+                      v-if="msg.ref.snapshot?.subtitle"
+                      class="block text-[11px] truncate text-n-slate-10"
+                    >
+                      {{ msg.ref.snapshot.subtitle }}
+                    </span>
+                  </span>
+                </button>
                 <!-- 附件 -->
                 <div
                   v-if="msg.files && msg.files.length"
@@ -770,7 +1060,7 @@ onBeforeUnmount(() => {
                       v-if="f.is_image"
                       :href="f.url"
                       target="_blank"
-                      rel="noopener"
+                      rel="noopener noreferrer"
                     >
                       <img
                         :src="f.url"
@@ -782,7 +1072,7 @@ onBeforeUnmount(() => {
                       v-else
                       :href="f.url"
                       target="_blank"
-                      rel="noopener"
+                      rel="noopener noreferrer"
                       download
                       class="flex items-center gap-2.5 px-3 py-2 max-w-[240px] rounded-2xl bg-n-solid-1 ring-1 ring-inset ring-n-weak shadow-sm hover:bg-n-alpha-1 transition-colors"
                     >
@@ -813,10 +1103,28 @@ onBeforeUnmount(() => {
                     <button
                       v-if="activeConv.kind === 'group' && groupReadLabel(msg)"
                       type="button"
-                      class="text-[10px] text-n-teal-11 hover:underline"
+                      class="flex items-center gap-1 group/read"
                       @click="openReadDetail(msg)"
                     >
-                      {{ groupReadLabel(msg) }}
+                      <span
+                        v-if="readAvatars(msg).length"
+                        class="flex items-center -space-x-1.5"
+                      >
+                        <Avatar
+                          v-for="p in readAvatars(msg)"
+                          :key="p.user_id"
+                          :name="p.name"
+                          :src="agentMap[p.user_id]?.thumbnail || ''"
+                          :size="16"
+                          rounded-full
+                          class="ring-1 ring-n-solid-1"
+                        />
+                      </span>
+                      <span
+                        class="text-[10px] text-n-teal-11 group-hover/read:underline"
+                      >
+                        {{ groupReadLabel(msg) }}
+                      </span>
                     </button>
                     <span
                       v-else-if="
@@ -841,32 +1149,104 @@ onBeforeUnmount(() => {
           <div
             class="flex flex-col gap-2 px-4 py-3.5 shrink-0 border-t border-n-weak bg-n-solid-1"
           >
-            <!-- 待发附件 -->
+            <!-- 待发附件（图片显示缩略图，可粘贴截图直接进来）-->
             <div v-if="pendingFiles.length" class="flex flex-wrap gap-2">
-              <div
-                v-for="(f, i) in pendingFiles"
-                :key="i"
-                class="flex items-center gap-1.5 py-1 pl-2.5 pr-1.5 text-xs rounded-lg bg-n-alpha-1 ring-1 ring-inset ring-n-weak text-n-slate-11"
-              >
-                <Icon icon="i-lucide-paperclip" class="size-3.5 shrink-0" />
-                <span class="max-w-[140px] truncate">{{ f.name }}</span>
-                <button
-                  type="button"
-                  class="grid rounded size-4 place-items-center hover:bg-n-alpha-2"
-                  @click="removePending(i)"
+              <template v-for="(f, i) in pendingFiles" :key="i">
+                <!-- 图片：缩略图 + 悬浮删除 -->
+                <div
+                  v-if="previewUrl(f)"
+                  class="relative rounded-lg overflow-hidden ring-1 ring-inset ring-n-weak size-16 group"
                 >
-                  <Icon icon="i-lucide-x" class="size-3" />
+                  <img
+                    :src="previewUrl(f)"
+                    :alt="f.name"
+                    class="object-cover size-full"
+                  />
+                  <button
+                    type="button"
+                    class="absolute top-0.5 right-0.5 grid rounded-full size-4 place-items-center bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    @click="removePending(i)"
+                  >
+                    <Icon icon="i-lucide-x" class="size-3" />
+                  </button>
+                </div>
+                <!-- 非图片：文件名胶囊 -->
+                <div
+                  v-else
+                  class="flex items-center gap-1.5 py-1 pl-2.5 pr-1.5 text-xs rounded-lg bg-n-alpha-1 ring-1 ring-inset ring-n-weak text-n-slate-11"
+                >
+                  <Icon icon="i-lucide-paperclip" class="size-3.5 shrink-0" />
+                  <span class="max-w-[140px] truncate">{{ f.name }}</span>
+                  <button
+                    type="button"
+                    class="grid rounded size-4 place-items-center hover:bg-n-alpha-2"
+                    @click="removePending(i)"
+                  >
+                    <Icon icon="i-lucide-x" class="size-3" />
+                  </button>
+                </div>
+              </template>
+            </div>
+            <!-- 待发业务卡片 -->
+            <div
+              v-if="pendingRef"
+              class="flex items-center gap-2 py-1.5 pl-2.5 pr-1.5 max-w-max text-xs rounded-lg bg-n-teal-3 ring-1 ring-inset ring-n-teal-6 text-n-teal-11"
+            >
+              <Icon
+                :icon="
+                  pendingRef.ref_type === 'customer'
+                    ? 'i-lucide-building-2'
+                    : 'i-lucide-file-text'
+                "
+                class="size-3.5 shrink-0"
+              />
+              <span class="max-w-[200px] truncate">
+                {{
+                  pendingRef.ref_type === 'customer'
+                    ? L.kindCustomer
+                    : L.kindOrder
+                }}{{ L.refColon }}{{ pendingRef.snapshot?.title }}
+              </span>
+              <button
+                type="button"
+                class="grid rounded size-4 place-items-center hover:bg-n-teal-5"
+                @click="clearPendingRef"
+              >
+                <Icon icon="i-lucide-x" class="size-3" />
+              </button>
+            </div>
+            <!-- 一体化输入条：图标 + 文本 + 发送同处一栏，紧凑对齐 -->
+            <div
+              class="relative flex items-center gap-1 pl-2 pr-1.5 py-1.5 transition-shadow rounded-2xl bg-n-alpha-1 ring-1 ring-inset ring-n-weak focus-within:ring-2 focus-within:ring-n-iris-7"
+            >
+              <!-- @提及候选（群聊，输入 @ 触发）-->
+              <div
+                v-if="mentionOpen && mentionCandidates.length"
+                class="absolute left-2 bottom-full mb-2 z-20 w-56 max-h-52 overflow-y-auto p-1 rounded-xl bg-n-solid-1 ring-1 ring-inset ring-n-weak shadow-xl"
+              >
+                <button
+                  v-for="m in mentionCandidates"
+                  :key="m.user_id"
+                  type="button"
+                  class="flex items-center w-full gap-2 px-2 py-1.5 text-left text-sm rounded-lg hover:bg-n-alpha-1 text-n-slate-12"
+                  @click="pickMention(m)"
+                >
+                  <Avatar
+                    :name="m.name"
+                    :src="agentMap[m.user_id]?.thumbnail || ''"
+                    :size="24"
+                    rounded-full
+                  />
+                  {{ m.name }}
                 </button>
               </div>
-            </div>
-            <div class="flex items-end gap-2.5">
               <button
                 type="button"
                 :title="L.attach"
-                class="grid transition-colors rounded-full shrink-0 size-11 place-items-center text-n-slate-10 hover:bg-n-alpha-1 hover:text-n-slate-12"
+                class="grid transition-colors rounded-lg shrink-0 size-8 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
                 @click="chatFileInput?.click()"
               >
-                <Icon icon="i-lucide-paperclip" class="size-5" />
+                <Icon icon="i-lucide-paperclip" class="size-[18px]" />
               </button>
               <input
                 ref="chatFileInput"
@@ -875,21 +1255,31 @@ onBeforeUnmount(() => {
                 class="hidden"
                 @change="onFilesPicked"
               />
-              <div
-                class="flex items-center flex-1 px-4 py-2.5 transition-shadow rounded-full bg-n-alpha-1 ring-1 ring-inset ring-n-weak focus-within:ring-2 focus-within:ring-n-iris-7"
-              >
-                <textarea
-                  v-model="newText"
-                  rows="1"
-                  :placeholder="L.placeholder"
-                  class="flex-1 h-6 text-sm leading-6 bg-transparent resize-none reset-base text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none"
-                  @keydown.enter.exact.prevent="sendMessage"
-                />
-              </div>
               <button
                 type="button"
-                :disabled="!newText.trim() && !pendingFiles.length"
-                class="grid transition-colors rounded-full shrink-0 size-11 place-items-center bg-n-iris-9 text-white hover:bg-n-iris-10 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-7 focus-visible:ring-offset-2 focus-visible:ring-offset-n-solid-1"
+                :title="L.sendCard"
+                class="grid transition-colors rounded-lg shrink-0 size-8 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-teal-11"
+                @click="openRefPicker"
+              >
+                <Icon icon="i-lucide-link" class="size-[18px]" />
+              </button>
+              <textarea
+                ref="composerRef"
+                v-model="newText"
+                rows="1"
+                :placeholder="L.placeholder"
+                class="flex-1 self-center h-6 m-0 px-1.5 text-sm leading-6 bg-transparent border-0 outline-none resize-none reset-base text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus:ring-0"
+                @input="onComposerInput"
+                @paste="onComposerPaste"
+                @keydown.enter.exact.prevent="onEnter"
+                @keydown.esc="mentionOpen = false"
+              />
+              <button
+                type="button"
+                :disabled="
+                  !newText.trim() && !pendingFiles.length && !pendingRef
+                "
+                class="grid transition-colors rounded-full shrink-0 size-9 place-items-center bg-n-iris-9 text-white hover:bg-n-iris-10 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-7"
                 @click="sendMessage"
               >
                 <Icon icon="i-lucide-send-horizontal" class="size-[18px]" />
@@ -1151,12 +1541,17 @@ onBeforeUnmount(() => {
           </p>
           <div class="flex flex-wrap gap-1.5">
             <span
-              v-for="name in readDetail.read"
-              :key="`r-${name}`"
+              v-for="p in readDetail.read"
+              :key="`r-${p.user_id}`"
               class="inline-flex items-center gap-1.5 py-1 pl-1 pr-2.5 text-xs rounded-full bg-n-alpha-1 text-n-slate-12"
             >
-              <Avatar :name="name" :size="20" rounded-full />
-              {{ name }}
+              <Avatar
+                :name="p.name"
+                :src="agentMap[p.user_id]?.thumbnail || ''"
+                :size="20"
+                rounded-full
+              />
+              {{ p.name }}
             </span>
             <span
               v-if="!readDetail.read.length"
@@ -1172,12 +1567,17 @@ onBeforeUnmount(() => {
           </p>
           <div class="flex flex-wrap gap-1.5">
             <span
-              v-for="name in readDetail.unread"
-              :key="`u-${name}`"
+              v-for="p in readDetail.unread"
+              :key="`u-${p.user_id}`"
               class="inline-flex items-center gap-1.5 py-1 pl-1 pr-2.5 text-xs rounded-full bg-n-alpha-1 text-n-slate-11"
             >
-              <Avatar :name="name" :size="20" rounded-full />
-              {{ name }}
+              <Avatar
+                :name="p.name"
+                :src="agentMap[p.user_id]?.thumbnail || ''"
+                :size="20"
+                rounded-full
+              />
+              {{ p.name }}
             </span>
             <span
               v-if="!readDetail.unread.length"
@@ -1186,6 +1586,85 @@ onBeforeUnmount(() => {
               {{ L.none }}
             </span>
           </div>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 业务对象选择：客户 / 订单 -->
+    <Dialog
+      ref="refDialog"
+      :title="L.pickRefTitle"
+      :show-confirm-button="false"
+    >
+      <div class="flex flex-col gap-3">
+        <div class="flex gap-1 p-0.5 rounded-lg bg-n-alpha-1 max-w-max">
+          <button
+            v-for="k in ['customer', 'sales_order']"
+            :key="k"
+            type="button"
+            class="px-3 py-1 text-sm rounded-md transition-colors"
+            :class="
+              refKind === k
+                ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
+                : 'text-n-slate-10 hover:text-n-slate-12'
+            "
+            @click="
+              refKind = k;
+              searchRef();
+            "
+          >
+            {{ k === 'customer' ? L.kindCustomer : L.kindOrder }}
+          </button>
+        </div>
+        <Input
+          v-model="refQuery"
+          :placeholder="
+            refKind === 'customer' ? L.searchCustomer : L.searchOrder
+          "
+          class="reset-base"
+          @keyup.enter="searchRef"
+        />
+        <div class="flex flex-col gap-1 max-h-[46vh] overflow-y-auto">
+          <p v-if="refLoading" class="p-6 text-sm text-center text-n-slate-10">
+            {{ L.loadingText }}
+          </p>
+          <p
+            v-else-if="!refResults.length"
+            class="p-6 text-sm text-center text-n-slate-10"
+          >
+            {{ L.noResult }}
+          </p>
+          <button
+            v-for="item in refResults"
+            :key="`${item.ref_type}-${item.ref_id}`"
+            type="button"
+            class="flex items-center gap-3 p-2 text-left rounded-lg hover:bg-n-alpha-1"
+            @click="chooseRef(item)"
+          >
+            <span
+              class="grid rounded-lg shrink-0 size-9 place-items-center bg-n-teal-3 text-n-teal-11"
+            >
+              <Icon
+                :icon="
+                  item.ref_type === 'customer'
+                    ? 'i-lucide-building-2'
+                    : 'i-lucide-file-text'
+                "
+                class="size-[18px]"
+              />
+            </span>
+            <span class="min-w-0">
+              <span class="block text-sm font-medium truncate text-n-slate-12">
+                {{ item.snapshot.title }}
+              </span>
+              <span
+                v-if="item.snapshot.subtitle"
+                class="block text-xs truncate text-n-slate-10"
+              >
+                {{ item.snapshot.subtitle }}
+              </span>
+            </span>
+          </button>
         </div>
       </div>
     </Dialog>

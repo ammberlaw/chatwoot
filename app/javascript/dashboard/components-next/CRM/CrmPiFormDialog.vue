@@ -83,12 +83,14 @@ const customerOptions = computed(() =>
       .join(' '),
   }))
 );
-const loadCustomers = async () => {
+// 客户可能数千条（小满迁入），改服务端搜索：按私海可见口径（你在私海能看到的都能选，
+// 含管理员/主管看到的本团队客户），输入即查后端，避免旧版一次性取 200 条后本地搜、超出就选不到。
+const loadCustomers = async (q = '') => {
   loadingCustomers.value = true;
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/crm/customers`,
-      { params: { filter: 'mine_shared', per_page: 200 } }
+      { params: { filter: 'private', q: q || undefined, per_page: 50 } }
     );
     customers.value = (data.payload || []).map(c => ({
       id: c.id,
@@ -102,6 +104,14 @@ const loadCustomers = async () => {
   } finally {
     loadingCustomers.value = false;
   }
+};
+let customerSearchTimer = null;
+const onCustomerSearch = q => {
+  clearTimeout(customerSearchTimer);
+  customerSearchTimer = setTimeout(() => loadCustomers(q), 250);
+};
+const onCustomerOpen = () => {
+  if (!customers.value.length) loadCustomers();
 };
 
 const onCustomerChange = async id => {
@@ -480,12 +490,16 @@ defineExpose({ open });
           <ComboBox
             :model-value="form.crmCustomerId"
             :options="customerOptions"
+            use-api-results
             :display-label="editingCustomerLabel"
             :placeholder="
               loadingCustomers
                 ? t('CRM.PI.FORM.CUSTOMER_LOADING')
                 : t('CRM.PI.FORM.CUSTOMER_PLACEHOLDER')
             "
+            search-placeholder="搜客户名 / 联系人 / 邮箱"
+            @open="onCustomerOpen"
+            @search="onCustomerSearch"
             @update:model-value="onCustomerChange"
           />
         </div>

@@ -10,6 +10,10 @@ class ChatConversationAPI extends ApiClient {
     return axios.get(this.url);
   }
 
+  unreadTotal() {
+    return axios.get(`${this.url}/unread_total`);
+  }
+
   create(payload) {
     return axios.post(this.url, payload);
   }
@@ -42,13 +46,34 @@ class ChatConversationAPI extends ApiClient {
     return axios.get(`${this.url}/${id}/messages?after=${after}`);
   }
 
-  send(id, content, files = []) {
+  // extra: { mentioned_ids: [], ref_type, ref_id, ref_snapshot: {title, subtitle, code} }
+  send(id, content, files = [], extra = {}) {
+    const {
+      mentioned_ids: mentionedIds = [],
+      ref_type: refType,
+      ref_id: refId,
+      ref_snapshot: refSnapshot,
+    } = extra;
     if (!files.length) {
-      return axios.post(`${this.url}/${id}/messages`, { content });
+      return axios.post(`${this.url}/${id}/messages`, {
+        content,
+        mentioned_ids: mentionedIds,
+        ref_type: refType,
+        ref_id: refId,
+        ref_snapshot: refSnapshot,
+      });
     }
     const fd = new FormData();
     fd.append('content', content || '');
     files.forEach(f => fd.append('files[]', f));
+    mentionedIds.forEach(uid => fd.append('mentioned_ids[]', uid));
+    if (refType) {
+      fd.append('ref_type', refType);
+      fd.append('ref_id', refId);
+      Object.entries(refSnapshot || {}).forEach(([k, v]) =>
+        fd.append(`ref_snapshot[${k}]`, v ?? '')
+      );
+    }
     return axios.post(`${this.url}/${id}/messages`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

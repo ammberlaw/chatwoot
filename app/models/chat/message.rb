@@ -5,16 +5,21 @@
 #
 #  id              :bigint           not null, primary key
 #  content         :text
+#  mentioned_ids   :bigint           default([]), not null, is an Array
+#  ref_snapshot    :jsonb
+#  ref_type        :string
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null
 #  account_id      :bigint           not null
 #  conversation_id :bigint           not null
+#  ref_id          :bigint
 #  sender_id       :bigint           not null
 #
 # Indexes
 #
 #  index_chat_messages_on_account_id       (account_id)
 #  index_chat_messages_on_conversation_id  (conversation_id)
+#  index_chat_messages_on_mentioned_ids    (mentioned_ids) USING gin
 #  index_chat_messages_on_sender_id        (sender_id)
 #
 # Foreign Keys

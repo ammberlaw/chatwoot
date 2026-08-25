@@ -136,6 +136,21 @@ class User < ApplicationRecord
     self.uid = email
   end
 
+  # 离职/停用禁止登录：账号在所有关联的 account 里都被停用时，拒绝密码登录。
+  # 超级管理员不会被停用（停用入口拦截），故不会误伤老板账号。
+  def active_for_authentication?
+    super && !all_memberships_deactivated?
+  end
+
+  def inactive_message
+    all_memberships_deactivated? ? :account_deactivated : super
+  end
+
+  def all_memberships_deactivated?
+    account_users.loaded? ? account_users.any? && account_users.all?(&:deactivated?)
+                          : account_users.exists? && !account_users.active_members.exists?
+  end
+
   def assigned_inboxes
     administrator? ? Current.account.inboxes : inboxes.where(account_id: Current.account.id)
   end

@@ -10,6 +10,7 @@ json.owner_name resource.owner&.name
 json.is_active resource.is_active
 json.remark resource.remark
 json.product_line resource.product_line
+json.department resource.department
 json.category resource.category
 json.tax_rate resource.tax_rate
 json.invoice_title resource.invoice_title

@@ -38,7 +38,7 @@ class Crm::EmailSendService
       bcc     email.bcc_address if email.bcc_address.present?
       subject email.subject.presence || '(无主题)'
     end
-    apply_body(message)
+    apply_body(message, @email.files.attached?)
     attach_files(message)
     message.delivery_method(:smtp, smtp_settings(mail_account))
     message.deliver!
@@ -53,14 +53,27 @@ class Crm::EmailSendService
   TEXT_COLOR_MARKER = %r{<span style=color:#\h{6}>|</span>|</?u>}
 
   # HTML 邮件走 html/text 双 part（HTML 埋追踪像素）；纯文本邮件直接正文。
-  def apply_body(message)
+  # ⚠ 有附件时必须显式把 html/text 包进一层 multipart/alternative：否则 Mail 会把附件
+  # 直接并入顶层 multipart/alternative，收件端把附件当成"正文的备选格式"忽略——
+  # 表现为"正文收到、附件不见"。包一层后顶层随附件成为 multipart/mixed，附件正常显示。
+  def apply_body(message, has_files)
     plain_body = @email.body.to_s.gsub(TEXT_COLOR_MARKER, '')
-    if @email.body_html.present?
-      message.html_part = Mail::Part.new(body: html_with_tracking_pixel, content_type: 'text/html; charset=UTF-8')
-      message.text_part = Mail::Part.new(body: plain_body, content_type: 'text/plain; charset=UTF-8')
-    else
+    unless @email.body_html.present?
       message.body = plain_body
       message.charset = 'UTF-8'
+      return
+    end
+
+    text = Mail::Part.new(body: plain_body, content_type: 'text/plain; charset=UTF-8')
+    html = Mail::Part.new(body: html_with_tracking_pixel, content_type: 'text/html; charset=UTF-8')
+    if has_files
+      alternative = Mail::Part.new(content_type: 'multipart/alternative')
+      alternative.add_part(text) # text 在前、html 在后：客户端优先展示更"富"的 html
+      alternative.add_part(html)
+      message.add_part(alternative)
+    else
+      message.text_part = text
+      message.html_part = html
     end
   end
 

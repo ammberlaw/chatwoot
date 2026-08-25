@@ -12,6 +12,13 @@ class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::Base
 
   def show; end
 
+  # 全局未读总数（侧栏「团队协同」角标用）。
+  def unread_total
+    total = Current.account.chat_conversations.for_user(current_user.id)
+                   .includes(:participants).sum { |c| c.unread_count_for(current_user.id) }
+    render json: { count: total }
+  end
+
   def create
     if params[:kind] == 'group'
       return render json: { error: '建群需要填写群公告' }, status: :unprocessable_entity if params[:announcement].blank?
@@ -94,8 +101,9 @@ class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::Base
   end
 
   def post_system_message(content)
-    @conversation.messages.create!(account_id: Current.account.id, sender_id: current_user.id, content: content)
+    message = @conversation.messages.create!(account_id: Current.account.id, sender_id: current_user.id, content: content)
     @conversation.update!(last_message_at: Time.current)
+    Chat::EventBroadcaster.broadcast_message(@conversation, message)
   end
 
   def check_authorization

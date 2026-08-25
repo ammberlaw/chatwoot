@@ -3,6 +3,14 @@ json.content resource.content
 json.sender_id resource.sender_id
 json.sender_name resource.sender&.name
 json.read_by resource.read_by_count
+json.mentioned_ids resource.mentioned_ids
+if resource.ref_type.present?
+  json.ref do
+    json.type resource.ref_type
+    json.id resource.ref_id
+    json.snapshot resource.ref_snapshot
+  end
+end
 json.files resource.files.map { |f|
   {
     id: f.id,

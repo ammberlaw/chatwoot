@@ -54,8 +54,15 @@ class ActionCableConnector extends BaseActionCableConnector {
       'voice_call.outbound_connected': this.onVoiceCallOutboundConnected,
       'voice_call.outbound_accepted': this.onVoiceCallOutboundAccepted,
       'voice_call.ended': this.onVoiceCallEnded,
+      'chat.message.created': this.onChatMessageCreated,
     };
   }
+
+  // 团队协同实时：把内部 IM 新消息转成全局事件，供协同页与侧栏角标即时响应。
+  // eslint-disable-next-line class-methods-use-this
+  onChatMessageCreated = data => {
+    emitter.emit('CHAT_MESSAGE_CREATED', data);
+  };
 
   // eslint-disable-next-line class-methods-use-this
   onReconnect = () => {

@@ -33,7 +33,9 @@ const composeStore = useCrmComposeStore();
 const searchTerm = ref('');
 const selectedEmail = ref(null);
 // 中栏邮件列表折叠：折叠后阅读窗格占满，读长邮件更舒服（记忆到本地）。
-const listCollapsed = ref(localStorage.getItem('crmEmailListCollapsed') === '1');
+const listCollapsed = ref(
+  localStorage.getItem('crmEmailListCollapsed') === '1'
+);
 watch(listCollapsed, v =>
   localStorage.setItem('crmEmailListCollapsed', v ? '1' : '0')
 );
@@ -333,6 +335,23 @@ const fmtSize = bytes => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
+// ── 附件预览：图片走站内灯箱，PDF 走站内 iframe，其余仍下载 ──
+const isImageFile = f =>
+  (f.contentType || '').startsWith('image/') ||
+  /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(f.filename || '');
+const isPdfFile = f =>
+  (f.contentType || '') === 'application/pdf' ||
+  /\.pdf$/i.test(f.filename || '');
+const canPreview = f => isImageFile(f) || isPdfFile(f);
+const previewFile = ref(null);
+const openPreview = f => {
+  if (canPreview(f)) previewFile.value = f;
+  else window.open(f.url, '_blank', 'noopener');
+};
+const closePreview = () => {
+  previewFile.value = null;
 };
 
 // 富文本正文渲染前用 DOMPurify 消毒（收信方 HTML 可能不可信）。
@@ -774,9 +793,7 @@ const createLabel = async () => {
 };
 const deleteLabel = async label => {
   // eslint-disable-next-line no-alert
-  if (
-    !window.confirm(`删除标签「${label.name}」？会从所有邮件上移除该标签。`)
-  )
+  if (!window.confirm(`删除标签「${label.name}」？会从所有邮件上移除该标签。`))
     return;
   try {
     await EmailLabelsAPI.delete(acctId(), label.id);
@@ -1224,7 +1241,11 @@ const moreMenuItems = computed(() => {
       icon: 'i-lucide-paperclip',
       run: () => forwardAsAttachment(e),
     },
-    { label: '分发给同事', icon: 'i-lucide-share-2', run: () => openDistribute(e) },
+    {
+      label: '分发给同事',
+      icon: 'i-lucide-share-2',
+      run: () => openDistribute(e),
+    },
   ];
   // 再次编辑：仅对「已发送」邮件（收件人才是真正的对方；收件箱邮件的收件人是自己）。
   if (e.sendStatus === 'SENT' || e.folder === 'SENT') {
@@ -2069,7 +2090,10 @@ watch(
                       class="size-3.5 text-n-iris-11"
                     />
                   </button>
-                  <div v-if="labels.length" class="my-1 border-t border-n-weak" />
+                  <div
+                    v-if="labels.length"
+                    class="my-1 border-t border-n-weak"
+                  />
                   <button
                     class="flex items-center w-full gap-1 px-3 py-1.5 text-sm text-left text-n-iris-11 hover:bg-n-alpha-1"
                     @click="createLabel"
@@ -2269,7 +2293,9 @@ watch(
                 :key="te.id"
                 class="flex items-center gap-2 px-3 py-2 text-left rounded-lg transition-colors"
                 :class="
-                  te.id === selectedEmail.id ? 'bg-n-iris-2' : 'hover:bg-n-alpha-1'
+                  te.id === selectedEmail.id
+                    ? 'bg-n-iris-2'
+                    : 'hover:bg-n-alpha-1'
                 "
                 @click="selectEmail(te)"
               >
@@ -2296,9 +2322,7 @@ watch(
                     }}
                   </div>
                 </div>
-                <span
-                  class="text-[11px] tabular-nums text-n-slate-10 shrink-0"
-                >
+                <span class="text-[11px] tabular-nums text-n-slate-10 shrink-0">
                   {{ relTime(te.emailDate) }}
                 </span>
               </button>
@@ -2487,19 +2511,30 @@ watch(
               }}
             </p>
             <div class="grid grid-cols-2 gap-3">
-              <a
+              <div
                 v-for="file in selectedEmail.files"
                 :key="file.id"
-                :href="file.url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="flex items-center gap-3 p-3 transition-colors border rounded-lg border-n-weak hover:bg-n-alpha-1"
+                class="flex items-center gap-3 p-3 border rounded-lg border-n-weak"
               >
-                <Icon
-                  icon="i-lucide-file"
-                  class="flex-shrink-0 size-8 text-n-iris-11"
+                <img
+                  v-if="isImageFile(file)"
+                  :src="file.url"
+                  :alt="file.filename"
+                  class="flex-shrink-0 object-cover transition-opacity rounded cursor-pointer size-10 bg-n-alpha-2 hover:opacity-80"
+                  @click="openPreview(file)"
                 />
-                <div class="min-w-0">
+                <span
+                  v-else
+                  class="grid flex-shrink-0 rounded size-10 place-items-center bg-n-iris-3 text-n-iris-11"
+                >
+                  <Icon
+                    :icon="
+                      isPdfFile(file) ? 'i-lucide-file-text' : 'i-lucide-file'
+                    "
+                    class="size-5"
+                  />
+                </span>
+                <div class="flex-1 min-w-0">
                   <p class="text-sm truncate text-n-slate-12">
                     {{ file.filename }}
                   </p>
@@ -2507,7 +2542,28 @@ watch(
                     {{ fmtSize(file.byteSize) }}
                   </p>
                 </div>
-              </a>
+                <div class="flex items-center flex-shrink-0 gap-1">
+                  <button
+                    v-if="canPreview(file)"
+                    type="button"
+                    class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-iris-11 hover:bg-n-iris-3"
+                    @click="openPreview(file)"
+                  >
+                    <Icon icon="i-lucide-eye" class="size-3.5" />
+                    预览
+                  </button>
+                  <a
+                    :href="file.url"
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+                  >
+                    <Icon icon="i-lucide-download" class="size-3.5" />
+                    下载
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2551,9 +2607,13 @@ watch(
             >
               <span class="truncate">
                 {{ d.from_user_name }} → {{ d.to_user_name }}
-                <span v-if="d.note" class="text-n-slate-9">（{{ d.note }}）</span>
+                <span v-if="d.note"
+class="text-n-slate-9"
+                  >（{{ d.note }}）</span>
               </span>
-              <span class="text-n-slate-9 shrink-0">{{ (d.created_at || '').slice(0, 10) }}</span>
+              <span class="text-n-slate-9 shrink-0">{{
+                (d.created_at || '').slice(0, 10)
+              }}</span>
             </div>
           </div>
         </div>
@@ -2718,6 +2778,60 @@ watch(
           </div>
         </div>
       </template>
+    </Teleport>
+
+    <!-- 附件预览：图片灯箱 / PDF 站内 iframe，无需下载即可查看 -->
+    <Teleport to="body">
+      <div
+        v-if="previewFile"
+        class="fixed inset-0 z-[9999] flex flex-col bg-black/80"
+        @click.self="closePreview"
+      >
+        <div
+          class="flex items-center justify-between h-14 gap-3 px-4 border-b bg-n-slate-12 border-white/15 shrink-0"
+        >
+          <span class="text-sm truncate text-white/90">
+            {{ previewFile.filename }}
+          </span>
+          <div class="flex items-center flex-shrink-0 gap-2">
+            <a
+              :href="previewFile.url"
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 px-3 h-9 text-sm text-white rounded-lg bg-white/15 hover:bg-white/25"
+            >
+              <Icon icon="i-lucide-download" class="size-4" />
+              下载
+            </a>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1.5 px-4 h-9 text-sm font-semibold text-n-slate-12 bg-white rounded-lg hover:bg-white/90"
+              @click="closePreview"
+            >
+              <Icon icon="i-lucide-x" class="size-4" />
+              关闭
+            </button>
+          </div>
+        </div>
+        <div
+          class="flex items-center justify-center flex-1 min-h-0 p-4"
+          @click.self="closePreview"
+        >
+          <img
+            v-if="isImageFile(previewFile)"
+            :src="previewFile.url"
+            :alt="previewFile.filename"
+            class="object-contain max-w-full max-h-full rounded shadow-2xl"
+          />
+          <iframe
+            v-else
+            :src="previewFile.url"
+            :title="previewFile.filename"
+            class="w-full h-full bg-white rounded"
+          />
+        </div>
+      </div>
     </Teleport>
   </div>
 </template>

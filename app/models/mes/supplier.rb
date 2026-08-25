@@ -9,6 +9,7 @@
 #  bank_name     :string
 #  category      :string
 #  contact_name  :string
+#  department    :string
 #  email         :string
 #  invoice_title :string
 #  is_active     :boolean          default(TRUE), not null

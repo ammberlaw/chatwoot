@@ -80,6 +80,17 @@ const roleOptions = computed(() => {
 const isManagerOnly = computed(
   () => !isSuperAdmin.value && currentUser.value?.crm_role === 'manager'
 );
+// 停用/恢复仅超管与管理员可操作。
+const isAdminLike = computed(
+  () => isSuperAdmin.value || currentUser.value?.crm_role === 'deputy_admin'
+);
+const isDeactivated = m => !!m.deactivated_at;
+// 可否对该成员执行停用：管理层操作、非自己、且目标不是超管/管理员。
+const canDeactivate = m =>
+  isAdminLike.value &&
+  m.user_id !== currentUserId.value &&
+  !m.is_admin &&
+  m.crm_role !== 'deputy_admin';
 const members = ref([]);
 const loading = ref(true);
 const savingId = ref(null);
@@ -117,6 +128,7 @@ const ROLE_FILTERS = [
   { key: 'hr', label: '人事' },
   { key: 'finance', label: '财务' },
   { key: 'none', label: '无角色' },
+  { key: 'deactivated', label: '已停用' },
 ];
 const matchRoleFilter = m => {
   const v = roleValue(m);
@@ -134,6 +146,8 @@ const matchRoleFilter = m => {
       return !!m.crm_finance;
     case 'none':
       return v === '';
+    case 'deactivated':
+      return isDeactivated(m);
     default:
       return true;
   }
@@ -198,6 +212,74 @@ const saveAccount = async () => {
     useAlert(e.response?.data?.error || L.error);
   } finally {
     savingAccount.value = false;
+  }
+};
+
+// ── 停用（离职）/ 恢复 ──
+const deactivateDialog = ref(null);
+const deactivateTarget = ref(null);
+const handoverMode = ref('pool');
+const handoverTargetId = ref('');
+const deactivating = ref(false);
+
+// 接手人候选：在职、非本人、且能进入 CRM（可持有客户）。
+const handoverTargetOptions = computed(() => {
+  const opts = members.value
+    .filter(
+      m =>
+        !isDeactivated(m) &&
+        m.user_id !== deactivateTarget.value?.user_id &&
+        m.can_access_crm
+    )
+    .map(m => ({ value: String(m.user_id), label: m.crm_name || m.name }));
+  return [{ value: '', label: '选择接手人' }, ...opts];
+});
+
+const openDeactivate = m => {
+  deactivateTarget.value = m;
+  handoverMode.value = 'pool';
+  handoverTargetId.value = '';
+  deactivateDialog.value?.open();
+};
+
+const doDeactivate = async () => {
+  if (deactivating.value || !deactivateTarget.value) return;
+  if (handoverMode.value === 'transfer' && !handoverTargetId.value) {
+    useAlert('请选择接手人');
+    return;
+  }
+  deactivating.value = true;
+  try {
+    const { data } = await MembersAPI.deactivate(deactivateTarget.value.id, {
+      handover_mode: handoverMode.value,
+      handover_target_id:
+        handoverMode.value === 'transfer' ? handoverTargetId.value : null,
+    });
+    Object.assign(deactivateTarget.value, data);
+    deactivateDialog.value?.close();
+    useAlert('已停用，该账号已退出并禁止登录');
+    fetchMembers();
+  } catch (e) {
+    useAlert(e.response?.data?.error || L.error);
+  } finally {
+    deactivating.value = false;
+  }
+};
+
+const doReactivate = async m => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(`恢复「${m.name}」的账号？恢复后可再次登录，需重新分配角色。`))
+    return;
+  savingId.value = m.id;
+  try {
+    const { data } = await MembersAPI.reactivate(m.id);
+    Object.assign(m, data);
+    useAlert('已恢复');
+  } catch (e) {
+    useAlert(e.response?.data?.error || L.error);
+    fetchMembers();
+  } finally {
+    savingId.value = null;
   }
 };
 
@@ -341,8 +423,13 @@ onMounted(fetchMembers);
                 {{ m.name }}
               </div>
               <div class="text-xs truncate text-n-slate-10">
-                {{ ROLE_OPTIONS.find(o => o.value === roleValue(m))?.label }}
-                <span v-if="m.crm_finance" class="text-n-iris-11">· 财务</span>
+                <template v-if="isDeactivated(m)">
+                  <span class="text-n-ruby-11">已停用</span>
+                </template>
+                <template v-else>
+                  {{ ROLE_OPTIONS.find(o => o.value === roleValue(m))?.label }}
+                  <span v-if="m.crm_finance" class="text-n-iris-11">· 财务</span>
+                </template>
               </div>
             </div>
           </button>
@@ -369,8 +456,16 @@ onMounted(fetchMembers);
             rounded-full
           />
           <div class="min-w-0">
-            <div class="font-medium truncate text-n-slate-12">
-              {{ selectedMember.name }}
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate text-n-slate-12">
+                {{ selectedMember.name }}
+              </span>
+              <span
+                v-if="isDeactivated(selectedMember)"
+                class="flex-shrink-0 px-2 py-0.5 rounded-full text-xs bg-n-ruby-3 text-n-ruby-11"
+              >
+                已停用
+              </span>
             </div>
             <div class="text-xs truncate text-n-slate-10">
               {{ selectedMember.email }}
@@ -520,7 +615,7 @@ onMounted(fetchMembers);
           <!-- 操作：自己也可改中文名/CRM英文名；管理员不可动超管账号 -->
           <div
             v-if="isSuperAdmin || !selectedMember.is_admin"
-            class="flex items-center gap-4 pt-1"
+            class="flex items-center gap-3 pt-1"
           >
             <span class="flex-shrink-0 w-24" />
             <button
@@ -528,6 +623,21 @@ onMounted(fetchMembers);
               @click="openAccountEdit(selectedMember)"
             >
               {{ isManagerOnly ? '重置密码' : '修改账号' }}
+            </button>
+            <button
+              v-if="isDeactivated(selectedMember) && isAdminLike"
+              class="h-9 px-4 text-sm font-medium border rounded-lg border-n-grass-7 text-n-grass-11 hover:bg-n-grass-3"
+              :disabled="savingId === selectedMember.id"
+              @click="doReactivate(selectedMember)"
+            >
+              恢复账号
+            </button>
+            <button
+              v-else-if="canDeactivate(selectedMember)"
+              class="h-9 px-4 text-sm font-medium border rounded-lg border-n-ruby-7 text-n-ruby-11 hover:bg-n-ruby-3"
+              @click="openDeactivate(selectedMember)"
+            >
+              停用 / 离职
             </button>
           </div>
         </div>
@@ -617,6 +727,85 @@ onMounted(fetchMembers);
             @click="saveAccount"
           >
             {{ savingAccount ? '保存中…' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 停用（离职）弹窗：选交接方式后一键停用 -->
+    <Dialog
+      ref="deactivateDialog"
+      :title="`停用 / 离职${deactivateTarget ? ` · ${deactivateTarget.name}` : ''}`"
+      :show-confirm-button="false"
+    >
+      <div class="flex flex-col gap-4">
+        <p class="text-xs leading-relaxed text-n-slate-11">
+          停用后该账号将
+          <span class="font-medium text-n-ruby-11">立即退出并禁止登录</span
+          >，CRM 角色置无，个人文档进回收站。名下客户 / 商机按下面方式交接。误操作可在此页「恢复账号」。
+        </p>
+
+        <div class="flex flex-col gap-2">
+          <span class="text-xs text-n-slate-11">名下客户 / 商机交接</span>
+          <label
+            class="flex items-start gap-2 p-2.5 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
+            :class="handoverMode === 'pool' ? 'border-n-iris-8 bg-n-iris-2' : ''"
+          >
+            <input
+              v-model="handoverMode"
+              type="radio"
+              value="pool"
+              class="mt-0.5 accent-n-iris-9"
+            />
+            <span class="text-sm text-n-slate-12">
+              退回公海
+              <span class="block text-xs text-n-slate-10">
+                客户回到公海池，其他业务员可认领。
+              </span>
+            </span>
+          </label>
+          <label
+            class="flex items-start gap-2 p-2.5 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
+            :class="
+              handoverMode === 'transfer' ? 'border-n-iris-8 bg-n-iris-2' : ''
+            "
+          >
+            <input
+              v-model="handoverMode"
+              type="radio"
+              value="transfer"
+              class="mt-0.5 accent-n-iris-9"
+            />
+            <span class="flex-1 text-sm text-n-slate-12">
+              转交给接手人
+              <span class="block mb-2 text-xs text-n-slate-10">
+                客户 / 商机整体转到指定业务员名下。
+              </span>
+              <Select
+                v-if="handoverMode === 'transfer'"
+                :model-value="handoverTargetId"
+                :options="handoverTargetOptions"
+                @update:model-value="v => (handoverTargetId = v)"
+              />
+            </span>
+          </label>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            class="h-9 px-4 text-sm font-medium border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+            @click="deactivateDialog?.close()"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-ruby-9 hover:bg-n-ruby-10 disabled:opacity-50"
+            :disabled="deactivating"
+            @click="doDeactivate"
+          >
+            {{ deactivating ? '处理中…' : '确认停用' }}
           </button>
         </div>
       </div>

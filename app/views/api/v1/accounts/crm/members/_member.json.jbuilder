@@ -12,3 +12,4 @@ json.mes_role member.mes_role
 json.erp_role member.erp_role
 json.can_access_crm member.can_access_crm?
 json.module_access member.module_access
+json.deactivated_at member.deactivated_at

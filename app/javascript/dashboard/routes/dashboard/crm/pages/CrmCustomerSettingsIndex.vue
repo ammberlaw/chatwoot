@@ -128,9 +128,13 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div class="w-full max-w-3xl px-8 py-6 mx-auto">
-      <h1 class="mb-1 text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">客户设置</h1>
+      <h1 class="mb-1 text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
+        客户设置
+      </h1>
       <p class="mb-5 text-sm text-n-slate-11">
         自定义客户分组与客户来源（支持二级、拖拽排序、隐藏）。仅管理员可维护。
       </p>
@@ -166,7 +170,9 @@ onMounted(load);
           @end="onReorderRoots"
         >
           <template #item="{ element: root }">
-            <div class="border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm">
+            <div
+              class="border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+            >
               <!-- 一级行 -->
               <div class="flex items-center gap-2 px-3 py-2.5">
                 <span

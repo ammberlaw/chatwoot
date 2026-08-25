@@ -296,16 +296,26 @@ const removePick = (kind, i) => pendingFor(kind).value.splice(i, 1);
 const submitting = ref(false);
 const result = ref(null);
 
-const missing = computed(() => {
+// 存草稿的最低要求：商品编码可留空（常见于等工程建商品编码），其余仍需齐全。
+const missingForDraft = computed(() => {
   const m = [];
   if (needSalesLink.value && !link.salesOrderId) m.push('关联销售订单');
   if (needSalesLink.value && !link.customerId) m.push('客户');
-  if (!base.crmProductId) m.push('商品编码');
   if (!base.productName.trim()) m.push('成品名称&型号');
   if (!Number(base.qty)) m.push('数量');
   if (isStock.value && !stewardId.value) m.push('责任人');
   return m;
 });
+// 提交审批：在草稿要求之上，额外必须有商品编码（下游 BOM/采购/出库要挂产品档案）。
+const missing = computed(() =>
+  base.crmProductId
+    ? missingForDraft.value
+    : [...missingForDraft.value, '商品编码']
+);
+const canSaveDraft = computed(
+  () =>
+    missingForDraft.value.length === 0 && !submitting.value && !staging.value
+);
 const canSubmit = computed(
   () => missing.value.length === 0 && !submitting.value && !staging.value
 );
@@ -338,7 +348,7 @@ const reset = () => {
 // doSubmit=false 存草稿（仅自己可见）；true 建单即提交审批（→部门主管→总经理）。
 // 图片/附件已在选择时暂存为 blob，建单时用 signed_id 一并挂载。
 const submit = async doSubmit => {
-  if (!canSubmit.value) return;
+  if (doSubmit ? !canSubmit.value : !canSaveDraft.value) return;
   submitting.value = true;
   result.value = null;
   try {
@@ -618,7 +628,10 @@ const backToList = () =>
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">
-            商品编码 <span class="text-n-ruby-11">*</span>
+            商品编码
+            <span class="text-n-slate-10">
+              （存草稿可留空，提交审批前必填）
+            </span>
           </span>
           <ComboBox
             v-model="base.crmProductId"
@@ -674,8 +687,7 @@ const backToList = () =>
         class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
       >
         产品图片
-        <span
-v-if="staging" class="ml-1 normal-case text-n-amber-11"
+        <span v-if="staging" class="ml-1 normal-case text-n-amber-11"
           >上传中…</span
         >
       </div>
@@ -748,7 +760,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
       <div class="flex items-center gap-3 mt-1">
         <button
           class="h-10 px-5 text-sm font-medium transition-colors border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="!canSubmit"
+          :disabled="!canSaveDraft"
           @click="submit(false)"
         >
           {{ submitting ? '保存中…' : '存草稿' }}
@@ -760,8 +772,11 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
         >
           {{ submitting ? '提交中…' : '提交审批' }}
         </button>
-        <span v-if="missing.length" class="text-xs text-n-slate-11">
-          请填写：{{ missing.join('、') }}
+        <span v-if="missingForDraft.length" class="text-xs text-n-slate-11">
+          请填写：{{ missingForDraft.join('、') }}
+        </span>
+        <span v-else-if="!base.crmProductId" class="text-xs text-n-slate-11">
+          商品编码待工程建码，可先「存草稿」；提交审批前需补填
         </span>
       </div>
 
