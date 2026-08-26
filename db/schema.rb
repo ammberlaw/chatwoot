@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_31_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_01_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2023,6 +2023,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_31_000002) do
     t.index ["account_id", "code"], name: "index_erp_ledger_accounts_on_account_id_and_code", unique: true
     t.index ["account_id"], name: "index_erp_ledger_accounts_on_account_id"
     t.index ["parent_id"], name: "index_erp_ledger_accounts_on_parent_id"
+  end
+
+  create_table "erp_order_costs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_sales_order_id", null: false
+    t.string "cost_type", default: "MATERIAL", null: false
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.date "happened_at"
+    t.string "source_type"
+    t.bigint "source_id"
+    t.bigint "mes_supplier_id"
+    t.text "remark"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "cost_type"], name: "index_erp_order_costs_on_account_id_and_cost_type"
+    t.index ["account_id"], name: "index_erp_order_costs_on_account_id"
+    t.index ["crm_sales_order_id"], name: "index_erp_order_costs_on_crm_sales_order_id"
   end
 
   create_table "erp_payables", force: :cascade do |t|

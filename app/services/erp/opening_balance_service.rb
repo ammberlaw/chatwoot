@@ -45,12 +45,17 @@ class Erp::OpeningBalanceService
     return if debit.zero? && credit.zero?
 
     ledger = accounts[row[:ledger_account_id].to_i]
-    rate = row[:exchange_rate].presence || 1
+    build_line(row, ledger, debit: debit, credit: credit)
+  end
+
+  def build_line(row, ledger, debit:, credit:)
     {
       ledger_account_id: row[:ledger_account_id].to_i,
       direction: debit.positive? ? Erp::VoucherLine::DEBIT : Erp::VoucherLine::CREDIT,
       amount_micros: debit.positive? ? debit : credit,
-      summary: '期初余额', currency: ledger&.currency.presence || 'CNY', exchange_rate: rate
+      summary: '期初余额',
+      currency: ledger&.currency.presence || 'CNY',
+      exchange_rate: row[:exchange_rate].presence || 1
     }
   end
 

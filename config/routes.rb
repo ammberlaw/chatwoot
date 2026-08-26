@@ -304,6 +304,9 @@ Rails.application.routes.draw do
               end
             end
             resources :auto_voucher_rules, only: [:index, :update]
+            resources :order_costs, only: [:index, :create, :update, :destroy] do
+              collection { get :margin }
+            end
             resources :fixed_assets, only: [:index, :show, :create, :update, :destroy] do
               collection { post :depreciate }
               member { post :dispose }
