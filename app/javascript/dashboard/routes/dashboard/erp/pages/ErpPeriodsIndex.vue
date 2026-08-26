@@ -663,6 +663,7 @@ onMounted(load);
             <th class="px-3 py-3 font-medium text-right">借方合计</th>
             <th class="px-3 py-3 font-medium text-right">贷方合计</th>
             <th class="px-3 py-3 font-medium">试算</th>
+            <th class="px-3 py-3 font-medium">期末事项</th>
             <th class="px-3 py-3 font-medium">状态</th>
             <th class="px-3 py-3 font-medium text-right">操作</th>
           </tr>
@@ -702,6 +703,24 @@ onMounted(load);
               >
                 {{ row.balanced ? '平' : '不平' }}
               </span>
+            </td>
+            <td class="px-3 py-2">
+              <div v-if="row.checklist.length" class="flex flex-wrap gap-1">
+                <span
+                  v-for="item in row.checklist"
+                  :key="item.key"
+                  class="px-2 py-0.5 text-xs rounded whitespace-nowrap"
+                  :class="
+                    item.done
+                      ? 'bg-n-teal-3 text-n-teal-11'
+                      : 'bg-n-amber-3 text-n-amber-11'
+                  "
+                  :title="item.done ? '本期已做' : item.hint"
+                >
+                  {{ item.done ? '✓' : '待' }} {{ item.label }}
+                </span>
+              </div>
+              <span v-else class="text-xs text-n-slate-10">—</span>
             </td>
             <td class="px-3 py-2">
               <span
@@ -744,7 +763,7 @@ onMounted(load);
             </td>
           </tr>
           <tr v-if="!rows.length">
-            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
               还没有凭证，无需结账。
             </td>
           </tr>
@@ -753,7 +772,7 @@ onMounted(load);
 
       <p class="mt-4 text-xs text-n-slate-10">
         结账条件：该期间没有待过账凭证、且借贷试算平衡。结账后凭证冻结，需管理员反结账才能改。
-        有外币业务的月份，结账前先到「期末调汇」按期末汇率调一次，否则汇兑损益不会入账。
+        「期末事项」是提示不是硬拦——做不做是会计政策，但结完账再想起来就得反结账重来。
       </p>
     </div>
 
