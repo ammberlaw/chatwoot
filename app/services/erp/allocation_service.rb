@@ -19,6 +19,10 @@ class Erp::AllocationService
     ActiveRecord::Base.transaction do
       touched = @record.allocations.map(&ledger_key).uniq
       @record.allocations.destroy_all
+      # 删核销行只是删了明细，台账的已收/已付是**缓存字段**，得先刷一遍把本单占用的额度还回去，
+      # 再去校验新的核销额。不刷的话 outstanding_excluding_self 读到的还是含本单的旧值，
+      # 改单时（哪怕金额没变）必报「核销金额超出未结余额」。
+      touched.each { |id| refresh_ledger!(id) }
       rows.each { |row| create_allocation!(row) }
       validate_record_total!
       (touched + rows.map { |row| row[:ledger_id] }).uniq.each { |id| refresh_ledger!(id) }
