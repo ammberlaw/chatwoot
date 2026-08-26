@@ -90,14 +90,31 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
     render json: { error: '公司分类仅超级管理员、管理员或部门负责人可管理' }, status: :forbidden
   end
 
-  # 文档中心（GENERAL 库）分类与个人分类对全员共享（无 CRM 销售数据权限者如人事亦可）；
-  # 销售资料（SALES 库）公司分类仍受 CRM 门禁，公司分类写权另由 company_manageable? 限管理员/负责人。
+  # 文档中心（GENERAL 库）分类与个人分类对全员共享（无 CRM 销售数据权限者如人事/纯文档负责人亦可）；
+  # 销售资料（SALES 库）公司分类仍受 CRM 门禁，公司分类写权另由 company_manageable?/manages_section? 限管理员/负责人。
   def ensure_crm_access
-    lib = params[:library] || params.dig(:category, :library)
-    return if lib == 'GENERAL'
-    return if params[:view] == 'mine' || personal_request?
+    return if doc_center_scope?
 
     super
+  end
+
+  # index/新建按请求 library 参数判断；成员操作（update/destroy 不带 library）按目标分类推断。
+  def doc_center_scope?
+    lib = params[:library].presence || params.dig(:category, :library).presence
+    return lib == 'GENERAL' if lib.present?
+    return true if params[:view] == 'mine' || personal_request?
+
+    target_general_category?
+  end
+
+  # 目标分类是否属文档中心（GENERAL）：个人分类交由归属人判断；公司分类只要不在「销售资料」板块即 GENERAL。
+  def target_general_category?
+    return false if params[:id].blank?
+
+    cat = Current.account.crm_knowledge_categories.select(:user_id, :section_id).find_by(id: params[:id])
+    return false unless cat
+
+    cat.user_id.present? || (cat.section_id.present? && cat.section_id != sales_section_id)
   end
 
   def check_authorization
