@@ -18,3 +18,6 @@ json.inspector_id resource.inspector_id
 json.inspector_name resource.inspector&.name
 json.inspected_at resource.inspected_at
 json.remark resource.remark
+json.videos resource.videos.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
+json.photos resource.photos.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
+json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }

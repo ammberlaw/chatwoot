@@ -11,4 +11,10 @@ client.post = id => axios.post(`${client.url}/${id}/post`);
 client.confirmWarehouse = id =>
   axios.post(`${client.url}/${id}/confirm_warehouse`);
 
+// 收货单文件暂存为 blob，返回 signed_id（原料入库必传）。
+client.stageBlob = formData =>
+  axios.post(`${client.url}/stage_blob`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
 export default client;

@@ -4,6 +4,7 @@ import { ref, computed, reactive, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
+import MesStockEntryAPI from 'dashboard/api/mes/stockEntries';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 
@@ -159,8 +160,42 @@ const form = reactive({
 const rowIncomplete = r =>
   !Number(r.qty) ||
   (r.itemType === 'PRODUCT' ? !r.crmProductId : !r.mesMaterialId);
+
+// 收货单：原料入库必传（留证）。选文件即暂存为 blob，提交带 signed_id。
+const needReceipt = computed(() => form.purpose === 'MATERIAL_RECEIPT');
+const pendingReceipts = ref([]);
+const uploadingReceipt = ref(false);
+const pickReceipt = async e => {
+  const list = Array.from(e.target?.files || []);
+  e.target.value = '';
+  if (!list.length) return;
+  uploadingReceipt.value = true;
+  try {
+    await Promise.all(
+      list.map(async file => {
+        const fd = new FormData();
+        fd.append('file', file);
+        const { data } = await MesStockEntryAPI.stageBlob(fd);
+        pendingReceipts.value.push({
+          name: data.filename,
+          signedId: data.signed_id,
+        });
+      })
+    );
+  } catch {
+    useAlert('收货单上传失败，请重试');
+  } finally {
+    uploadingReceipt.value = false;
+  }
+};
+const removeReceipt = i => pendingReceipts.value.splice(i, 1);
+
 const invalid = computed(
-  () => !form.warehouseId || !form.rows.length || form.rows.some(rowIncomplete)
+  () =>
+    !form.warehouseId ||
+    !form.rows.length ||
+    form.rows.some(rowIncomplete) ||
+    (needReceipt.value && !pendingReceipts.value.length)
 );
 
 const addRow = () =>
@@ -225,6 +260,7 @@ const openCreate = () => {
       },
     ],
   });
+  pendingReceipts.value = [];
   dialogRef.value?.open();
 };
 
@@ -247,6 +283,7 @@ const submit = async () => {
       receivedQty: Number(r.receivedQty) || Number(r.qty),
       warehouseId: Number(form.warehouseId),
     })),
+    receipts: pendingReceipts.value.map(r => r.signedId),
   };
   const ok = await store.create(payload);
   if (ok) {
@@ -440,6 +477,52 @@ onMounted(async () => {
               <input v-model="form.isChecked" type="checkbox" class="mr-1" />
               已核对物料齐整度
             </label>
+          </div>
+        </div>
+
+        <!-- 收货单：原料入库必传（留证） -->
+        <div v-if="needReceipt" class="flex flex-col gap-1.5">
+          <div class="flex flex-wrap items-center gap-2">
+            <label class="text-heading-3 text-n-slate-12">
+              收货单 <span class="text-n-ruby-11">*</span>
+            </label>
+            <label
+              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md cursor-pointer border border-n-weak text-n-slate-11 hover:border-n-brand hover:text-n-slate-12"
+            >
+              <span class="i-lucide-upload size-3" />
+              上传
+              <input
+                type="file"
+                multiple
+                class="hidden"
+                @change="pickReceipt"
+              />
+            </label>
+            <span v-if="uploadingReceipt" class="text-xs text-n-slate-10">
+              上传中…
+            </span>
+            <span
+              v-else-if="!pendingReceipts.length"
+              class="text-xs text-n-amber-11"
+            >
+              必须上传收货单才能建单
+            </span>
+          </div>
+          <div v-if="pendingReceipts.length" class="flex flex-wrap gap-1.5">
+            <span
+              v-for="(f, i) in pendingReceipts"
+              :key="i"
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-n-alpha-2 text-n-slate-12 max-w-[16rem]"
+            >
+              <span class="truncate">{{ f.name }}</span>
+              <button
+                type="button"
+                class="shrink-0 text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeReceipt(i)"
+              >
+                <span class="i-lucide-x size-3" />
+              </button>
+            </span>
           </div>
         </div>
 

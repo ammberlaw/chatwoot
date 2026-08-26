@@ -55,6 +55,11 @@ class Mes::Inspection < ApplicationRecord
   belongs_to :purchase_order, class_name: 'Mes::PurchaseOrder', optional: true
   belongs_to :inspector, class_name: 'User', optional: true
 
+  # 检验留证：检测视频 / 照片 / 附件（检验报告等）。
+  has_many_attached :videos
+  has_many_attached :photos
+  has_many_attached :files
+
   before_validation :stamp_inspected_at, on: :create
   before_validation :derive_result
 

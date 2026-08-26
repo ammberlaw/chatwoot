@@ -14,7 +14,19 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
     @inspection = Current.account.mes_inspections.create!(
       inspection_params.merge(inspector_id: inspection_params[:inspector_id] || current_user.id)
     )
+    attach_staged_blobs
     render 'api/v1/accounts/mes/inspections/show'
+  end
+
+  # 录检验前先把文件暂存为 blob，拿到 signed_id，录入时通过 videos/photos/files 一并挂载。
+  def stage_blob
+    file = params[:file]
+    return render json: { error: '未收到文件' }, status: :unprocessable_entity if file.blank?
+
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: file.open, filename: file.original_filename, content_type: file.content_type
+    )
+    render json: { signed_id: blob.signed_id, filename: blob.filename.to_s, url: rails_blob_path(blob, only_path: true) }
   end
 
   def destroy
@@ -26,6 +38,14 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
 
   def check_authorization
     authorize(Mes::Inspection)
+  end
+
+  # 录入时把已暂存的 blob signed_id 追加挂载（检测视频 / 照片 / 附件）。
+  def attach_staged_blobs
+    %i[videos photos files].each do |kind|
+      ids = params.dig(:inspection, kind)
+      @inspection.public_send(kind).attach(ids) if ids.present?
+    end
   end
 
   def inspection_params

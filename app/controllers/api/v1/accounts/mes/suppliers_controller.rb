@@ -39,6 +39,8 @@ class Api::V1::Accounts::Mes::SuppliersController < Api::V1::Accounts::Mes::Base
     scope = Current.account.mes_suppliers.includes(:supplier_items)
     scope = scope.where('name ILIKE :t OR supplier_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
     scope = scope.where(is_active: true) if params[:active] == 'true'
+    # 按事业部（产品线）筛供应商
+    scope = scope.where(product_line: params[:product_line]) if params[:product_line].present?
     # 按供应物料的 SKU 分类筛供应商（如找「供辅料的供应商」）
     scope = scope.joins(:supplier_items).where(mes_supplier_items: { category: params[:item_category] }).distinct if params[:item_category].present?
     scope

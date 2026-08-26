@@ -362,6 +362,7 @@ Rails.application.routes.draw do
                 post :return_document
                 post :reactivate
               end
+              collection { post :stage_blob }
             end
             resources :stock_balances, only: [:index]
             resources :production_records, only: [:index, :create, :destroy] do
@@ -370,7 +371,9 @@ Rails.application.routes.draw do
                 post :reactivate
               end
             end
-            resources :inspections, only: [:index, :create, :destroy]
+            resources :inspections, only: [:index, :create, :destroy] do
+              collection { post :stage_blob }
+            end
             resources :serial_numbers, only: [:index, :create, :destroy] do
               collection { get :trace }
             end

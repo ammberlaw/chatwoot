@@ -785,16 +785,12 @@ const confirmDeny = async () => {
 };
 
 // —— 接单确认（P1）——
-// 只有本阶段负责人本人或管理员能接单/拒收。
+// 只有本阶段负责人本人能接单/拒收；管理员/副管理员不代接（职责到人）。
 const canHandleStage = computed(() => {
   const po = selected.value;
   if (!po || po.stage === 'SHIPPED' || po.status !== 'IN_PROGRESS')
     return false;
-  return (
-    isAdmin.value ||
-    isCrmDeputyAdmin.value ||
-    (po.stageOwnerIds || []).includes(currentUserId.value)
-  );
+  return (po.stageOwnerIds || []).includes(currentUserId.value);
 });
 const fmtDateTime = d =>
   d ? new Date(d).toLocaleString(undefined, { hour12: false }) : '';
