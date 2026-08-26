@@ -317,9 +317,9 @@ onMounted(async () => {
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between gap-3 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
@@ -332,14 +332,17 @@ onMounted(async () => {
       />
     </div>
 
-    <div v-if="!canManage" class="px-6 py-2 text-xs bg-n-iris-3 text-n-iris-11">
+    <div
+      v-if="!canManage"
+      class="px-4 sm:px-6 py-2 text-xs bg-n-iris-3 text-n-iris-11"
+    >
       {{ L.readonly }}
     </div>
 
-    <div class="flex flex-1 min-h-0">
+    <div class="flex flex-col md:flex-row flex-1 min-h-0">
       <!-- 左：部门树 -->
       <aside
-        class="flex flex-col flex-shrink-0 border-r w-80 border-n-weak bg-n-solid-1"
+        class="flex flex-col flex-shrink-0 w-full max-h-64 border-b md:max-h-none md:w-80 md:border-b-0 md:border-r border-n-weak bg-n-solid-1"
       >
         <div class="flex-1 p-3 overflow-y-auto">
           <div
@@ -497,7 +500,7 @@ onMounted(async () => {
 
         <template v-else>
           <div
-            class="flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-4 border-b border-n-weak"
+            class="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
           >
             <h2 class="text-base font-medium text-n-slate-12">
               {{ selectedDept.name }}
@@ -539,7 +542,7 @@ onMounted(async () => {
             />
           </div>
 
-          <div class="flex-1 p-6 overflow-y-auto">
+          <div class="flex-1 p-4 sm:p-6 overflow-y-auto">
             <div
               v-if="!members.length"
               class="p-8 text-sm text-center text-n-slate-10"

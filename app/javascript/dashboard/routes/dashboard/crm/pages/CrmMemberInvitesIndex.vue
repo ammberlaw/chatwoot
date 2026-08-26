@@ -329,7 +329,7 @@ onMounted(() => {
   <div
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="flex-shrink-0 px-6 py-4 border-b border-n-weak">
+    <div class="flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak">
       <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
       <p class="mt-0.5 text-xs text-n-slate-10">{{ L.subtitle }}</p>
     </div>
@@ -337,9 +337,9 @@ onMounted(() => {
     <div class="flex-1 overflow-y-auto">
       <!-- 生成邀请 -->
       <div
-        class="flex flex-wrap items-end gap-4 px-6 py-4 border-b border-n-weak"
+        class="flex flex-wrap items-end gap-4 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
       >
-        <div class="flex flex-col gap-1 w-36">
+        <div class="flex flex-col gap-1 w-full sm:w-36">
           <span class="text-xs font-medium text-n-slate-11">{{ L.role }}</span>
           <Select v-model="form.systemRole" :options="ROLE_OPTIONS" />
         </div>
@@ -370,24 +370,25 @@ onMounted(() => {
             </label>
           </div>
         </div>
-        <div class="flex flex-col gap-1 w-40">
+        <div class="flex flex-col gap-1 w-full sm:w-40">
           <span class="text-xs font-medium text-n-slate-11">
             {{ L.department }}
           </span>
           <Select v-model="form.departmentId" :options="departmentOptions" />
         </div>
-        <div class="flex flex-col gap-1 w-28">
+        <div class="flex flex-col gap-1 w-full sm:w-28">
           <span class="text-xs font-medium text-n-slate-11">
             {{ L.expires }}
           </span>
           <Select v-model="form.expiresDays" :options="EXPIRES_OPTIONS" />
         </div>
-        <div class="flex flex-col flex-1 min-w-48 gap-1">
+        <div class="flex flex-col flex-1 w-full sm:min-w-48 gap-1">
           <span class="text-xs font-medium text-n-slate-11">{{ L.note }}</span>
           <Input v-model="form.note" :placeholder="L.notePlaceholder" />
         </div>
         <Button
           type="button"
+          class="w-full sm:w-auto"
           :label="L.generate"
           icon="i-lucide-link"
           color="iris"
@@ -397,7 +398,7 @@ onMounted(() => {
       </div>
 
       <!-- 直接新建成员（免链接） -->
-      <div class="px-6 py-4 border-b border-n-weak">
+      <div class="px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak">
         <p class="text-xs font-medium text-n-slate-11">
           {{ L.directHeader }}
           <span class="ml-2 font-normal text-n-slate-10">
@@ -405,7 +406,7 @@ onMounted(() => {
           </span>
         </p>
         <div class="flex flex-wrap items-end gap-4 mt-3">
-          <div class="flex flex-col gap-1 w-32">
+          <div class="flex flex-col gap-1 w-full sm:w-32">
             <span class="text-xs font-medium text-n-slate-11">
               {{ L.directName }}
             </span>
@@ -414,14 +415,14 @@ onMounted(() => {
               :placeholder="L.directNamePlaceholder"
             />
           </div>
-          <div class="flex flex-col gap-1">
+          <div class="flex flex-col gap-1 w-full sm:w-auto">
             <span class="text-xs font-medium text-n-slate-11">
               {{ L.directEmail }}
             </span>
             <div class="flex items-center gap-1">
               <Input
                 v-model="directForm.email"
-                class="w-36"
+                class="flex-1 sm:flex-none sm:w-36"
                 :placeholder="L.directEmailPlaceholder"
               />
               <span
@@ -432,13 +433,14 @@ onMounted(() => {
               </span>
             </div>
           </div>
-          <div class="flex flex-col gap-1 w-48">
+          <div class="flex flex-col gap-1 w-full sm:w-48">
             <span class="text-xs font-medium text-n-slate-11">
               {{ L.directPassword }}
             </span>
             <div class="flex items-center gap-1">
               <Input
                 v-model="directForm.password"
+                class="flex-1 sm:flex-none"
                 :placeholder="L.directPasswordPlaceholder"
               />
               <Button
@@ -451,13 +453,13 @@ onMounted(() => {
               />
             </div>
           </div>
-          <div class="flex flex-col gap-1 w-36">
+          <div class="flex flex-col gap-1 w-full sm:w-36">
             <span class="text-xs font-medium text-n-slate-11">
               {{ L.role }}
             </span>
             <Select v-model="directForm.systemRole" :options="ROLE_OPTIONS" />
           </div>
-          <div class="flex flex-col gap-1 w-40">
+          <div class="flex flex-col gap-1 w-full sm:w-40">
             <span class="text-xs font-medium text-n-slate-11">
               {{ L.department }}
             </span>
@@ -468,6 +470,7 @@ onMounted(() => {
           </div>
           <Button
             type="button"
+            class="w-full sm:w-auto"
             :label="L.directCreate"
             icon="i-lucide-user-plus"
             color="iris"
@@ -487,40 +490,20 @@ onMounted(() => {
         <p class="text-sm">{{ L.empty }}</p>
       </div>
 
-      <table v-else class="w-full text-sm">
-        <thead>
-          <tr class="text-left border-b border-n-weak text-n-slate-10">
-            <th class="px-6 py-3 font-medium">{{ L.colInvite }}</th>
-            <th class="px-6 py-3 font-medium">{{ L.colRole }}</th>
-            <th class="px-6 py-3 font-medium">{{ L.colStatus }}</th>
-            <th class="px-6 py-3 font-medium">{{ L.colExpires }}</th>
-            <th class="px-6 py-3 font-medium w-48" />
-          </tr>
-        </thead>
-        <tbody>
-          <tr
+      <template v-else>
+        <!-- 手机卡片 -->
+        <div class="flex flex-col gap-2 px-4 py-3 md:hidden">
+          <div
             v-for="invite in invites"
             :key="invite.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
           >
-            <td class="px-6 py-3">
-              <div class="font-medium text-n-slate-12">
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-n-slate-12 truncate">
                 {{ invite.note || `邀请 #${invite.id}` }}
-              </div>
-              <div class="text-xs text-n-slate-10">
-                {{ fmtDateTime(invite.created_at) }} ·
-                {{ (invite.module_access || []).join(' / ').toUpperCase() }}
-              </div>
-            </td>
-            <td class="px-6 py-3 text-n-slate-11">
-              {{ ROLE_LABELS[invite.system_role] || invite.system_role }}
-              <span v-if="invite.department_name" class="text-n-slate-10">
-                · {{ invite.department_name }}
               </span>
-            </td>
-            <td class="px-6 py-3">
               <span
-                class="px-2 py-0.5 rounded-full text-xs"
+                class="shrink-0 px-2 py-0.5 rounded-full text-xs"
                 :class="{
                   'bg-n-amber-3 text-n-amber-11': invite.status === 'pending',
                   'bg-n-teal-3 text-n-teal-11': invite.status === 'used',
@@ -529,46 +512,136 @@ onMounted(() => {
               >
                 {{ statusLabel(invite) }}
               </span>
-              <span
-                v-if="invite.used_by_name"
-                class="ml-1.5 text-xs text-n-slate-10"
-              >
-                {{ invite.used_by_name }}
+              <span class="flex-1" />
+            </div>
+            <div class="mt-1 text-xs text-n-slate-11">
+              {{ ROLE_LABELS[invite.system_role] || invite.system_role }}
+              <span v-if="invite.department_name" class="text-n-slate-10">
+                · {{ invite.department_name }}
               </span>
-            </td>
-            <td class="px-6 py-3 text-n-slate-11 tabular-nums">
-              {{ fmtDateTime(invite.expires_at) }}
-            </td>
-            <td class="px-6 py-3">
-              <div class="flex items-center justify-end gap-1.5">
-                <button
-                  v-if="invite.status === 'pending'"
-                  type="button"
-                  class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full text-n-iris-11 hover:bg-n-iris-3"
-                  @click="copyLink(invite)"
+              <span v-if="invite.used_by_name" class="text-n-slate-10">
+                · {{ invite.used_by_name }}
+              </span>
+            </div>
+            <div class="mt-1 flex flex-wrap gap-3 text-xs text-n-slate-11">
+              <span>
+                {{ (invite.module_access || []).join(' / ').toUpperCase() }}
+              </span>
+              <span class="tabular-nums">
+                {{ L.colExpires }}：{{ fmtDateTime(invite.expires_at) }}
+              </span>
+            </div>
+            <div
+              v-if="invite.status !== 'used'"
+              class="mt-2 flex items-center gap-1.5"
+            >
+              <button
+                v-if="invite.status === 'pending'"
+                type="button"
+                class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full text-n-iris-11 hover:bg-n-iris-3"
+                @click.stop="copyLink(invite)"
+              >
+                {{ L.copy }}
+              </button>
+              <button
+                type="button"
+                class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
+                :class="
+                  pendingRevokeId === invite.id
+                    ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                    : 'text-n-ruby-11 hover:bg-n-ruby-3'
+                "
+                @click.stop="revokeInvite(invite)"
+              >
+                {{ pendingRevokeId === invite.id ? L.confirmRevoke : L.revoke }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <table class="hidden md:table w-full text-sm">
+          <thead>
+            <tr class="text-left border-b border-n-weak text-n-slate-10">
+              <th class="px-6 py-3 font-medium">{{ L.colInvite }}</th>
+              <th class="px-6 py-3 font-medium">{{ L.colRole }}</th>
+              <th class="px-6 py-3 font-medium">{{ L.colStatus }}</th>
+              <th class="px-6 py-3 font-medium">{{ L.colExpires }}</th>
+              <th class="px-6 py-3 font-medium w-48" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="invite in invites"
+              :key="invite.id"
+              class="border-b border-n-weak hover:bg-n-alpha-1"
+            >
+              <td class="px-6 py-3">
+                <div class="font-medium text-n-slate-12">
+                  {{ invite.note || `邀请 #${invite.id}` }}
+                </div>
+                <div class="text-xs text-n-slate-10">
+                  {{ fmtDateTime(invite.created_at) }} ·
+                  {{ (invite.module_access || []).join(' / ').toUpperCase() }}
+                </div>
+              </td>
+              <td class="px-6 py-3 text-n-slate-11">
+                {{ ROLE_LABELS[invite.system_role] || invite.system_role }}
+                <span v-if="invite.department_name" class="text-n-slate-10">
+                  · {{ invite.department_name }}
+                </span>
+              </td>
+              <td class="px-6 py-3">
+                <span
+                  class="px-2 py-0.5 rounded-full text-xs"
+                  :class="{
+                    'bg-n-amber-3 text-n-amber-11': invite.status === 'pending',
+                    'bg-n-teal-3 text-n-teal-11': invite.status === 'used',
+                    'bg-n-slate-3 text-n-slate-11': invite.status === 'expired',
+                  }"
                 >
-                  {{ L.copy }}
-                </button>
-                <button
-                  v-if="invite.status !== 'used'"
-                  type="button"
-                  class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
-                  :class="
-                    pendingRevokeId === invite.id
-                      ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
-                      : 'text-n-ruby-11 hover:bg-n-ruby-3'
-                  "
-                  @click="revokeInvite(invite)"
+                  {{ statusLabel(invite) }}
+                </span>
+                <span
+                  v-if="invite.used_by_name"
+                  class="ml-1.5 text-xs text-n-slate-10"
                 >
-                  {{
-                    pendingRevokeId === invite.id ? L.confirmRevoke : L.revoke
-                  }}
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                  {{ invite.used_by_name }}
+                </span>
+              </td>
+              <td class="px-6 py-3 text-n-slate-11 tabular-nums">
+                {{ fmtDateTime(invite.expires_at) }}
+              </td>
+              <td class="px-6 py-3">
+                <div class="flex items-center justify-end gap-1.5">
+                  <button
+                    v-if="invite.status === 'pending'"
+                    type="button"
+                    class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full text-n-iris-11 hover:bg-n-iris-3"
+                    @click="copyLink(invite)"
+                  >
+                    {{ L.copy }}
+                  </button>
+                  <button
+                    v-if="invite.status !== 'used'"
+                    type="button"
+                    class="px-2.5 py-1 text-xs font-medium transition-colors rounded-full"
+                    :class="
+                      pendingRevokeId === invite.id
+                        ? 'bg-n-ruby-9 text-white hover:bg-n-ruby-10'
+                        : 'text-n-ruby-11 hover:bg-n-ruby-3'
+                    "
+                    @click="revokeInvite(invite)"
+                  >
+                    {{
+                      pendingRevokeId === invite.id ? L.confirmRevoke : L.revoke
+                    }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
   </div>
 </template>

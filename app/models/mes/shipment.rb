@@ -113,6 +113,7 @@ class Mes::Shipment < ApplicationRecord
     raise StandardError, '非「待审核」环节' unless status == 'PENDING_APPROVAL'
 
     update!(status: 'APPROVED', manager_id: actor.id, approved_at: Time.current)
+    Mes::Notifier.resolve(account: account, kinds: 'shipment_approval_pending', title_like: shipment_no)
     notify_warehouse_ready
     self
   end
@@ -122,6 +123,7 @@ class Mes::Shipment < ApplicationRecord
     raise StandardError, '非「待审核」环节' unless status == 'PENDING_APPROVAL'
 
     update!(status: 'REJECTED', manager_id: actor.id, reject_reason: reason)
+    Mes::Notifier.resolve(account: account, kinds: 'shipment_approval_pending', title_like: shipment_no)
     Mes::Notifier.notify(
       account: account, recipients: owner_id, kind: 'shipment_rejected',
       title: "现货出库被驳回：#{shipment_no}", body: "驳回原因：#{reason}"
@@ -154,6 +156,7 @@ class Mes::Shipment < ApplicationRecord
       update_columns(status: 'SHIPPED', shipped_at: ts, updated_at: ts)
       writeback_sales_order(ts)
     end
+    Mes::Notifier.resolve(account: account, kinds: 'shipment_approved', title_like: shipment_no)
     self
   end
 

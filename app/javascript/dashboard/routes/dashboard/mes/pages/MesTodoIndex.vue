@@ -9,7 +9,7 @@ const { accountScopedRoute } = useAccount();
 const router = useRouter();
 
 const STAGE_LABELS = {
-  SALES_CONFIRMED: '销售订单确定',
+  SALES_CONFIRMED: '待工程接单',
   BOM_READY: '工程/PMC BOM',
   PURCHASING: '采购原料',
   MATERIAL_INBOUND: '原料入库',
@@ -122,7 +122,9 @@ onMounted(load);
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto">
-    <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4"
+    >
       <div>
         <h1 class="text-xl font-semibold text-n-slate-12">
           我的工作台
@@ -143,9 +145,9 @@ onMounted(load);
 
     <div v-if="loading" class="py-10 text-center text-n-slate-11">加载中…</div>
 
-    <div v-else class="flex flex-col gap-4 px-6 pb-6">
+    <div v-else class="flex flex-col gap-4 px-4 pb-4 sm:px-6 sm:pb-6">
       <!-- 待我确认：停在我这一级的审批单 + 待我二次确认 BOM 的单 -->
-      <div class="p-5 rounded-xl bg-n-amber-2 border border-n-amber-6">
+      <div class="p-4 sm:p-5 rounded-xl bg-n-amber-2 border border-n-amber-6">
         <div class="mb-3 font-medium text-n-slate-12">
           待我确认
           <span class="text-n-amber-11">({{ approvalInbox.length }})</span>
@@ -157,10 +159,10 @@ onMounted(load);
           <li
             v-for="o in approvalInbox"
             :key="o.id"
-            class="flex items-center justify-between text-sm cursor-pointer group"
+            class="flex items-center justify-between gap-2 text-sm cursor-pointer group"
             @click="goApproval(o.order_no)"
           >
-            <span class="text-n-slate-12 group-hover:underline">
+            <span class="min-w-0 text-n-slate-12 group-hover:underline">
               {{ o.order_no }} · {{ o.product_name }}
               <template v-if="o.pi_no"> · PI {{ o.pi_no }}</template>
               · {{ o.owner_name }}
@@ -175,7 +177,7 @@ onMounted(load);
       <!-- 待我审核：现货出库单 -->
       <div
         v-if="shipmentInbox.length"
-        class="p-5 rounded-xl bg-n-teal-2 border border-n-teal-6"
+        class="p-4 sm:p-5 rounded-xl bg-n-teal-2 border border-n-teal-6"
       >
         <div class="mb-3 font-medium text-n-slate-12">
           待我审核（现货出库）
@@ -185,10 +187,10 @@ onMounted(load);
           <li
             v-for="s in shipmentInbox"
             :key="s.id"
-            class="flex items-center justify-between text-sm cursor-pointer group"
+            class="flex items-center justify-between gap-2 text-sm cursor-pointer group"
             @click="goShipment"
           >
-            <span class="text-n-slate-12 group-hover:underline">
+            <span class="min-w-0 text-n-slate-12 group-hover:underline">
               {{ s.shipment_no }} · {{ s.customer_name || '—' }} ·
               {{ s.owner_name }}
             </span>
@@ -198,7 +200,7 @@ onMounted(load);
       </div>
 
       <!-- 待我处理：停在我负责阶段的在产订单——一句话说清下一步 + 一键跳到那步操作页 -->
-      <div class="p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
+      <div class="p-4 sm:p-5 rounded-xl bg-n-alpha-black1 border border-n-weak">
         <div class="mb-3 font-medium text-n-slate-12">
           待我处理
           <span class="text-n-iris-11">({{ inbox.length }})</span>

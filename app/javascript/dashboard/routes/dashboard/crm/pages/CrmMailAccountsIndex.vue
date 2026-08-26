@@ -350,9 +350,9 @@ onMounted(() => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-xl font-medium text-n-slate-12">
           {{ t('CRM.MAIL_ACCOUNTS.HEADER') }}
         </h1>
@@ -368,7 +368,7 @@ onMounted(() => {
       />
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <div v-if="isFetching" class="p-8 text-sm text-center text-n-slate-11">
         {{ t('CRM.EMAILS.LOADING') }}
       </div>
@@ -381,13 +381,15 @@ onMounted(() => {
       <template v-else>
         <!-- 默认邮箱：多邮箱时发信默认选中的那个 -->
         <div class="mb-5">
-          <div class="flex items-center gap-3">
+          <div
+            class="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3"
+          >
             <label
-              class="text-sm font-medium text-n-slate-12 w-20 flex-shrink-0"
+              class="text-sm font-medium text-n-slate-12 sm:w-20 sm:flex-shrink-0"
             >
               {{ L.defaultTitle }}
             </label>
-            <div class="flex-1 max-w-md">
+            <div class="flex-1 w-full max-w-md">
               <Select
                 class="w-full"
                 :model-value="String(defaultAccountId)"
@@ -396,7 +398,7 @@ onMounted(() => {
               />
             </div>
           </div>
-          <p class="mt-1.5 pl-[92px] text-xs text-n-slate-10">
+          <p class="mt-1.5 text-xs text-n-slate-10 sm:pl-[92px]">
             {{ L.defaultHint }}
           </p>
         </div>
@@ -482,14 +484,16 @@ onMounted(() => {
 
       <!-- 个性签名库 -->
       <div class="pt-6 mt-6 border-t border-n-weak">
-        <div class="flex items-center justify-between mb-3">
-          <div>
+        <div
+          class="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="min-w-0">
             <h2 class="text-base font-medium text-n-slate-12">
               {{ L.sigTitle }}
             </h2>
             <p class="mt-0.5 text-xs text-n-slate-10">{{ L.sigHint }}</p>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <Button
               label="用模板生成"
               icon="i-lucide-wand-sparkles"
@@ -561,7 +565,7 @@ onMounted(() => {
       @confirm="handleConfirm"
     >
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             v-model="form.name"
             :label="t('CRM.MAIL_ACCOUNTS.FORM.NAME')"
@@ -572,7 +576,7 @@ onMounted(() => {
             :label="t('CRM.MAIL_ACCOUNTS.FORM.EMAIL')"
           />
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label class="block mb-0.5 text-heading-3 text-n-slate-12">
               {{ t('CRM.MAIL_ACCOUNTS.FORM.PROVIDER') }}
@@ -594,7 +598,10 @@ onMounted(() => {
             />
           </div>
         </div>
-        <div v-if="form.provider === 'CUSTOM'" class="grid grid-cols-2 gap-4">
+        <div
+          v-if="form.provider === 'CUSTOM'"
+          class="grid grid-cols-1 gap-4 sm:grid-cols-2"
+        >
           <Input
             v-model="form.smtpHost"
             :label="t('CRM.MAIL_ACCOUNTS.FORM.HOST')"
@@ -617,7 +624,7 @@ onMounted(() => {
         />
         <!-- 收件设置（IMAP / POP3）：认证复用上面的授权码 -->
         <div class="pt-2 mt-1 border-t border-n-weak">
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label class="block mb-0.5 text-heading-3 text-n-slate-12">
                 收件方式
@@ -641,7 +648,7 @@ onMounted(() => {
           </div>
           <div
             v-if="form.receiveMode !== 'off' && form.provider === 'CUSTOM'"
-            class="grid grid-cols-2 gap-4 mt-3"
+            class="grid grid-cols-1 gap-4 mt-3 sm:grid-cols-2"
           >
             <Input v-model="form.imapHost" label="收件主机" />
             <Input v-model="form.imapPort" type="number" label="收件端口" />

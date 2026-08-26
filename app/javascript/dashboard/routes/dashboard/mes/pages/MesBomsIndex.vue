@@ -1,7 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -22,10 +22,12 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
+const route = useRoute();
 const rootStore = useStore();
 
 // 外购成品不经过生产：直接跳采购单页，自动进「成品(外购)」建单模式。
@@ -59,6 +61,17 @@ const productOptions = computed(() => [
   { value: '', label: '不关联成品' },
   ...products.value.map(p => ({ value: String(p.id), label: p.name })),
 ]);
+
+// —— 用料明细：物料从产品档案「金蝶式表格下拉」选择（MesProductPicker），
+// 选中回填该行的编码/名称/规格/单位。 ——
+const pickMaterial = (row, p) => {
+  if (!p) return;
+  row.productId = String(p.id);
+  row.materialNo = p.sku || '';
+  row.materialName = p.name || '';
+  if (p.specification) row.specification = p.specification;
+  if (p.unit) row.unit = p.unit;
+};
 
 // 订单归属业务员：只列真正的业务角色（可归属 CRM 订单）——业务员/部门负责人/
 // 副管理员；排除 HR 与无 CRM 角色的普通成员。选填。
@@ -147,6 +160,7 @@ const printBom = () => printNode(viewContentRef.value, bomExportData().title);
 
 // 用料明细每行照生产任务单直接填。
 const blankRow = () => ({
+  productId: '',
   materialNo: '',
   materialName: '',
   specification: '',
@@ -201,7 +215,7 @@ const removeRow = i => {
 const attachOrderId = ref('');
 const attachableOrders = ref([]);
 const attachOrderOptions = computed(() => [
-  { value: '', label: '不关联（稍后可在订单页「挂 BOM」）' },
+  { value: '', label: '不关联（仅建 BOM，不挂到订单）' },
   ...attachableOrders.value.map(o => ({
     value: String(o.id),
     label: `${o.order_no} · ${o.product_name} × ${o.qty} · ${o.owner_name || ''}`,
@@ -273,13 +287,13 @@ const resetAttachments = () => {
   existingFiles.value = [];
 };
 
-const openCreate = () => {
+// preOrderId：从生产订单页「去建 BOM」带来的预关联订单（自动选中「关联生产订单」）。
+const openCreate = async (preOrderId = '') => {
   editingId.value = null;
   editingStatus.value = null;
   removedItemIds.value = [];
   attachOrderId.value = '';
   resetAttachments();
-  loadAttachableOrders();
   Object.assign(form, {
     crmProductId: '',
     salesOwnerId: '',
@@ -290,6 +304,14 @@ const openCreate = () => {
     ...blankLeadDays(),
     rows: [blankRow()],
   });
+  await loadAttachableOrders();
+  // 预关联订单须在可挂列表里（SALES_CONFIRMED 待挂 BOM）才回填。
+  if (
+    preOrderId &&
+    attachableOrders.value.some(o => String(o.id) === String(preOrderId))
+  ) {
+    attachOrderId.value = String(preOrderId);
+  }
   dialogRef.value?.open();
 };
 const openEdit = bom => {
@@ -316,6 +338,7 @@ const openEdit = bom => {
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, bom[s.key] ?? ''])),
     rows: (bom.bomItems || []).map(it => ({
       id: it.id,
+      productId: '',
       materialNo: it.materialNo || '',
       materialName: it.materialName || '',
       specification: it.specification || '',
@@ -428,6 +451,7 @@ const applyTemplate = t => {
     ...blankHeader(),
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, t[s.key] ?? ''])),
     rows: (t.bomTemplateItems || []).map(it => ({
+      productId: '',
       materialNo: it.materialNo || '',
       materialName: it.materialName || '',
       specification: it.specification || '',
@@ -502,14 +526,21 @@ onMounted(async () => {
   } catch {
     products.value = [];
   }
+  // 从生产订单页「去建 BOM」跳来：自动打开新建 BOM 并预关联该订单。
+  if (route.query.new_for_order) {
+    openCreate(route.query.new_for_order);
+    router.replace({ query: {} });
+  }
 });
 </script>
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-6 py-4">
+    <div
+      class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4"
+    >
       <h1 class="text-xl font-semibold text-n-slate-12">工程/PMC BOM</h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <Button
           v-if="mesCan('purchase')"
           label="新建成品采购单"
@@ -526,63 +557,37 @@ onMounted(async () => {
             size="sm"
             @click="openTemplates"
           />
-          <Button label="新建 BOM" color="iris" size="sm" @click="openCreate" />
+          <Button
+            label="新建 BOM"
+            color="iris"
+            size="sm"
+            @click="openCreate()"
+          />
         </template>
       </div>
     </div>
 
     <MesBoardOwnerBar board-key="mes_boms_index" />
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
-      <table v-else class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-3 font-medium">BOM 号</th>
-            <th class="px-3 py-3 font-medium">型号 / 成品</th>
-            <th class="px-3 py-3 font-medium">负责人</th>
-            <th class="px-3 py-3 font-medium">归属业务员</th>
-            <th class="px-3 py-3 font-medium">基准产量</th>
-            <th class="px-3 py-3 font-medium">用料项</th>
-            <th class="px-3 py-3 font-medium">预估周期(天)</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3" />
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="b in records" :key="b.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-medium text-n-slate-12">{{ b.bomNo }}</td>
-            <td class="px-3 py-3">
-              <div class="text-n-slate-12">
-                {{ b.model || b.productName || '—' }}
-              </div>
-              <div
-                v-if="b.productCode || b.customerName"
-                class="text-xs text-n-slate-10"
-              >
-                {{
-                  [b.productCode, b.customerName].filter(Boolean).join(' · ')
-                }}
-              </div>
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ b.ownerName || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ b.salesOwnerName || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ b.baseQty }} {{ b.unit }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ (b.bomItems || []).length }} 项
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ b.totalLeadDays || '—' }}
-            </td>
-            <td class="px-3 py-3">
+      <template v-else>
+        <!-- 手机端卡片列表 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="b in records"
+            :key="`card-${b.id}`"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            @click="openView(b)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate text-n-slate-12">{{
+                b.bomNo
+              }}</span>
               <span
-                class="px-2 py-0.5 text-xs rounded-full"
+                class="px-2 py-0.5 text-xs rounded-full shrink-0"
                 :class="
                   b.status === 'RELEASED'
                     ? 'bg-n-teal-3 text-n-teal-12'
@@ -591,40 +596,142 @@ onMounted(async () => {
               >
                 {{ b.status === 'RELEASED' ? '已下发' : '草稿' }}
               </span>
-            </td>
-            <td class="px-3 py-3 text-right">
-              <div class="flex justify-end gap-1">
-                <Button
-                  v-if="mesCan('bom') && b.status !== 'RELEASED'"
-                  label="下发"
-                  color="iris"
-                  size="sm"
-                  :is-loading="releasingId === b.id"
-                  @click="release(b)"
-                />
-                <Button
-                  label="查看"
-                  variant="ghost"
-                  size="sm"
-                  @click="openView(b)"
-                />
-                <Button
-                  v-if="mesCan('bom')"
-                  label="编辑"
-                  variant="ghost"
-                  size="sm"
-                  @click="openEdit(b)"
-                />
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!records.length">
-            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
-              还没有 BOM。
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <span class="flex-1" />
+              <Button
+                v-if="mesCan('bom') && b.status !== 'RELEASED'"
+                label="下发"
+                color="iris"
+                size="sm"
+                class="shrink-0"
+                :is-loading="releasingId === b.id"
+                @click.stop="release(b)"
+              />
+              <Button
+                v-if="mesCan('bom')"
+                label="编辑"
+                variant="ghost"
+                size="sm"
+                class="shrink-0"
+                @click.stop="openEdit(b)"
+              />
+            </div>
+            <div class="mt-1 text-xs text-n-slate-11">
+              型号 / 成品：{{ b.model || b.productName || '—' }}
+            </div>
+            <div
+              v-if="b.productCode || b.customerName"
+              class="text-xs text-n-slate-11"
+            >
+              {{ [b.productCode, b.customerName].filter(Boolean).join(' · ') }}
+            </div>
+            <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
+              <span>负责人：{{ b.ownerName || '—' }}</span>
+              <span>业务员：{{ b.salesOwnerName || '—' }}</span>
+            </div>
+            <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
+              <span>基准产量：{{ b.baseQty }} {{ b.unit }}</span>
+              <span>用料项：{{ (b.bomItems || []).length }} 项</span>
+              <span>预估周期：{{ b.totalLeadDays || '—' }} 天</span>
+            </div>
+          </div>
+          <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
+            还没有 BOM。
+          </div>
+        </div>
+
+        <table class="hidden w-full text-sm md:table">
+          <thead>
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium">BOM 号</th>
+              <th class="px-3 py-3 font-medium">型号 / 成品</th>
+              <th class="px-3 py-3 font-medium">负责人</th>
+              <th class="px-3 py-3 font-medium">归属业务员</th>
+              <th class="px-3 py-3 font-medium">基准产量</th>
+              <th class="px-3 py-3 font-medium">用料项</th>
+              <th class="px-3 py-3 font-medium">预估周期(天)</th>
+              <th class="px-3 py-3 font-medium">状态</th>
+              <th class="px-3 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="b in records" :key="b.id" class="border-b border-n-weak">
+              <td class="px-3 py-3 font-medium text-n-slate-12">
+                {{ b.bomNo }}
+              </td>
+              <td class="px-3 py-3">
+                <div class="text-n-slate-12">
+                  {{ b.model || b.productName || '—' }}
+                </div>
+                <div
+                  v-if="b.productCode || b.customerName"
+                  class="text-xs text-n-slate-10"
+                >
+                  {{
+                    [b.productCode, b.customerName].filter(Boolean).join(' · ')
+                  }}
+                </div>
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ b.ownerName || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ b.salesOwnerName || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ b.baseQty }} {{ b.unit }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ (b.bomItems || []).length }} 项
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ b.totalLeadDays || '—' }}
+              </td>
+              <td class="px-3 py-3">
+                <span
+                  class="px-2 py-0.5 text-xs rounded-full"
+                  :class="
+                    b.status === 'RELEASED'
+                      ? 'bg-n-teal-3 text-n-teal-12'
+                      : 'bg-n-slate-4 text-n-slate-11'
+                  "
+                >
+                  {{ b.status === 'RELEASED' ? '已下发' : '草稿' }}
+                </span>
+              </td>
+              <td class="px-3 py-3 text-right">
+                <div class="flex justify-end gap-1">
+                  <Button
+                    v-if="mesCan('bom') && b.status !== 'RELEASED'"
+                    label="下发"
+                    color="iris"
+                    size="sm"
+                    :is-loading="releasingId === b.id"
+                    @click="release(b)"
+                  />
+                  <Button
+                    label="查看"
+                    variant="ghost"
+                    size="sm"
+                    @click="openView(b)"
+                  />
+                  <Button
+                    v-if="mesCan('bom')"
+                    label="编辑"
+                    variant="ghost"
+                    size="sm"
+                    @click="openEdit(b)"
+                  />
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!records.length">
+              <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
+                还没有 BOM。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <Dialog
@@ -793,14 +900,22 @@ onMounted(async () => {
                 block
               />
             </div>
-            <Input
-              v-model="row.materialNo"
-              placeholder="P.03.201"
-              class="col-span-2"
+            <MesProductPicker
+              :model-value="row.productId"
+              :account-id="accountId"
+              :display-text="
+                row.materialNo
+                  ? `${row.materialNo}${row.materialName ? ` · ${row.materialName}` : ''}`
+                  : ''
+              "
+              placeholder="选物料"
+              trigger-class="col-span-2"
+              @select="p => pickMaterial(row, p)"
             />
             <Input
-              v-model="row.materialName"
-              placeholder="P30主板"
+              :model-value="row.materialName"
+              placeholder="选编码自动带出"
+              disabled
               class="col-span-2"
             />
             <Input

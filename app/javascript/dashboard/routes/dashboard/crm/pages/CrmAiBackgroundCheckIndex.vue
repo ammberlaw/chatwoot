@@ -126,7 +126,7 @@ const openCustomer = customer => {
   <div
     class="flex flex-col w-full h-full overflow-auto border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border-white/50 shadow-n-iris-9/5"
   >
-    <div class="px-6 pt-6 pb-4 border-b border-n-weak">
+    <div class="px-4 pt-4 pb-3 border-b sm:px-6 sm:pt-6 sm:pb-4 border-n-weak">
       <div class="text-lg font-medium text-n-slate-12">AI 背调</div>
       <div class="mt-0.5 text-xs text-n-slate-10">
         输入客户邮箱、公司域名或公司名，AI 自动抓取官网 + 查询 Apollo
@@ -135,7 +135,7 @@ const openCustomer = customer => {
     </div>
 
     <!-- 输入 + 背调按钮：图标绝对定位进框内，按钮贴右侧，整框水平居中 -->
-    <div class="flex justify-center w-full px-6 pt-5 pb-1">
+    <div class="flex justify-center w-full px-4 pt-5 pb-1 sm:px-6">
       <div class="relative w-full max-w-2xl">
         <span
           class="absolute -translate-y-1/2 pointer-events-none i-lucide-search size-4 left-4 top-1/2 text-n-slate-10"
@@ -186,7 +186,10 @@ const openCustomer = customer => {
     </div>
 
     <!-- 公司名候选：挑一个再背调 -->
-    <div v-else-if="candidates.length" class="flex flex-col gap-2 px-6 py-5">
+    <div
+      v-else-if="candidates.length"
+      class="flex flex-col gap-2 px-4 py-5 sm:px-6"
+    >
       <div class="text-xs text-n-slate-10">
         搜到 {{ candidates.length }} 家同/近名公司，点一个开始背调：
       </div>
@@ -264,9 +267,9 @@ const openCustomer = customer => {
     </div>
 
     <!-- 背调结果 -->
-    <div v-else class="flex flex-col gap-4 px-6 py-5">
+    <div v-else class="flex flex-col gap-4 px-4 py-5 sm:px-6">
       <!-- 头卡：公司名 + 官网 + 真实性徽标 -->
-      <div class="p-5 border rounded-2xl border-n-weak bg-n-alpha-1">
+      <div class="p-4 border sm:p-5 rounded-2xl border-n-weak bg-n-alpha-1">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="text-base font-semibold truncate text-n-slate-12">
@@ -276,9 +279,9 @@ const openCustomer = customer => {
               :href="result.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-1 mt-1 text-xs text-n-iris-11 hover:underline"
+              class="inline-flex items-center max-w-full gap-1 mt-1 text-xs break-all text-n-iris-11 hover:underline"
             >
-              <span class="i-lucide-external-link size-3" />
+              <span class="i-lucide-external-link shrink-0 size-3" />
               {{ result.url }}
             </a>
           </div>
@@ -319,7 +322,7 @@ const openCustomer = customer => {
       <!-- Apollo 企业库：公司概况硬字段（规模/成立/营收/所在地/领英/电话） -->
       <div
         v-if="enrichment"
-        class="p-5 border rounded-2xl border-n-iris-6 bg-n-iris-2"
+        class="p-4 border sm:p-5 rounded-2xl border-n-iris-6 bg-n-iris-2"
       >
         <div
           class="flex items-center gap-1.5 text-sm font-medium text-n-iris-11"

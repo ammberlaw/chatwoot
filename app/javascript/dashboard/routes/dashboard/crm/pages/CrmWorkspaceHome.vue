@@ -100,7 +100,12 @@ const calCells = computed(() => {
     cells.push({ n: prevDays - startDow + 1 + i, mut: true });
   for (let d = 1; d <= daysInMonth; d += 1) {
     const key = `${y}-${pad(m + 1)}-${pad(d)}`;
-    cells.push({ n: d, mut: false, now: d === todayNum, has: !!eventsByDate.value[key] });
+    cells.push({
+      n: d,
+      mut: false,
+      now: d === todayNum,
+      has: !!eventsByDate.value[key],
+    });
   }
   let next = 1;
   while (cells.length % 7 !== 0) cells.push({ n: next++, mut: true });
@@ -130,9 +135,16 @@ onMounted(async () => {
   }
   try {
     const first = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const lastDay = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0
+    ).getDate();
     const last = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(lastDay)}`;
-    const { data } = await ScheduleAPI.get(accountId.value, { from: first, to: last });
+    const { data } = await ScheduleAPI.get(accountId.value, {
+      from: first,
+      to: last,
+    });
     monthEvents.value = data.payload || [];
   } catch {
     /* 日程取不到不阻塞落地页 */
@@ -200,7 +212,8 @@ onMounted(async () => {
           <div>
             <img :src="wintouchLockup" alt="Wintouch" class="wsh-logo" />
             <h1 class="wsh-hello">
-              {{ greeting }}<template v-if="userName">，{{ userName }}</template>
+              {{ greeting
+              }}<template v-if="userName">，{{ userName }}</template>
             </h1>
             <div class="wsh-sub">选择一个系统开始工作</div>
           </div>
@@ -219,14 +232,25 @@ onMounted(async () => {
                 :disabled="!canAccessCrm"
                 @click="go('crm_dashboard_index')"
               >
-                <span class="blob" style="width:150px;height:150px;right:-30px;top:-40px" />
-                <div class="lbl"><Icon icon="i-lucide-users" /> CRM 客户管理</div>
+                <span
+                  class="blob"
+                  style="width: 150px; height: 150px; right: -30px; top: -40px"
+                />
+                <div class="lbl">
+                  <Icon icon="i-lucide-users" /> CRM 客户管理
+                </div>
                 <div class="big">{{ crmStats.follow_up_due ?? 0 }}</div>
                 <div class="unit">位客户 · 今日待跟进</div>
                 <div class="statrow">
-                  <div><b>{{ crmStats.new_today ?? 0 }}</b><span>今日新增</span></div>
-                  <div><b>{{ crmStats.revisit_week ?? 0 }}</b><span>本周回访</span></div>
-                  <div><b>{{ crmStats.overdue ?? 0 }}</b><span>待处理</span></div>
+                  <div>
+                    <b>{{ crmStats.new_today ?? 0 }}</b><span>今日新增</span>
+                  </div>
+                  <div>
+                    <b>{{ crmStats.revisit_week ?? 0 }}</b><span>本周回访</span>
+                  </div>
+                  <div>
+                    <b>{{ crmStats.overdue ?? 0 }}</b><span>待处理</span>
+                  </div>
                 </div>
                 <div v-if="canAccessCrm" class="cta">
                   进入工作区 <Icon icon="i-lucide-arrow-right" />
@@ -247,7 +271,9 @@ onMounted(async () => {
                   <span v-if="!canAccessErp" class="tag">即将上线</span>
                 </div>
                 <div class="sub2">科目 · 凭证 · 账簿 · 报表</div>
-                <div class="chips"><span>科目</span><span>凭证</span><span>账簿</span><span>报表</span></div>
+                <div class="chips">
+                  <span>科目</span><span>凭证</span><span>账簿</span><span>报表</span>
+                </div>
                 <div v-if="canAccessErp" class="cta2">
                   进入财务 ERP <Icon icon="i-lucide-arrow-right" />
                 </div>
@@ -255,21 +281,42 @@ onMounted(async () => {
               </button>
 
               <!-- HR -->
-              <button type="button" class="wsh-card wsh-glass" @click="go('crm_org_structure_index')">
-                <div class="lbl a-sky"><Icon icon="i-lucide-network" /> HR 组织人事</div>
+              <button
+                type="button"
+                class="wsh-card wsh-glass"
+                @click="go('crm_org_structure_index')"
+              >
+                <div class="lbl a-sky">
+                  <Icon icon="i-lucide-network" /> HR 组织人事
+                </div>
                 <div class="sub2">组织架构 · 我的考勤</div>
-                <div class="big" style="font-size:30px">{{ hrLabel }}</div>
+                <div class="big" style="font-size: 30px">{{ hrLabel }}</div>
                 <div class="unit gray">本周出勤</div>
                 <div class="week">
                   <div
-                    v-for="(label, i) in ['一', '二', '三', '四', '五', '六', '日']"
+                    v-for="(label, i) in [
+                      '一',
+                      '二',
+                      '三',
+                      '四',
+                      '五',
+                      '六',
+                      '日',
+                    ]"
                     :key="label"
                     class="wd"
                   >
                     <span>{{ label }}</span>
-                    <div class="o" :class="hrDays[i] && hrDays[i].present ? 'on' : 'off'">
+                    <div
+                      class="o"
+                      :class="hrDays[i] && hrDays[i].present ? 'on' : 'off'"
+                    >
                       <Icon
-                        :icon="hrDays[i] && hrDays[i].present ? 'i-lucide-check' : 'i-lucide-minus'"
+                        :icon="
+                          hrDays[i] && hrDays[i].present
+                            ? 'i-lucide-check'
+                            : 'i-lucide-minus'
+                        "
                       />
                     </div>
                   </div>
@@ -280,12 +327,26 @@ onMounted(async () => {
             <!-- 列2 -->
             <div class="wsh-col">
               <!-- MES 生产制造 -->
-              <button type="button" class="wsh-card wsh-solid c-mes" @click="go('mes_dashboard_index')">
-                <span class="blob" style="width:140px;height:140px;right:-40px;bottom:-50px" />
+              <button
+                type="button"
+                class="wsh-card wsh-solid c-mes"
+                @click="go('mes_dashboard_index')"
+              >
+                <span
+                  class="blob"
+                  style="
+                    width: 140px;
+                    height: 140px;
+                    right: -40px;
+                    bottom: -50px;
+                  "
+                />
                 <div class="lbl">
                   <Icon icon="i-lucide-factory" /> MES 生产制造
                 </div>
-                <div class="big" style="font-size:24px;margin-top:16px">智能生产制造</div>
+                <div class="big" style="font-size: 24px; margin-top: 16px">
+                  智能生产制造
+                </div>
                 <div class="unit">工单 · 排产 · 质检 · 入库</div>
                 <div class="cta">
                   进入 MES 生产制造 <Icon icon="i-lucide-arrow-right" />
@@ -293,24 +354,42 @@ onMounted(async () => {
               </button>
 
               <!-- OA（真实待办数） -->
-              <button type="button" class="wsh-card wsh-glass" @click="go('crm_approvals_index')">
-                <div class="lbl a-lime"><Icon icon="i-lucide-clipboard-check" /> OA 审批 · 我的待办</div>
-                <div class="big" style="font-size:34px">{{ oaMetric }}</div>
+              <button
+                type="button"
+                class="wsh-card wsh-glass"
+                @click="go('crm_approvals_index')"
+              >
+                <div class="lbl a-lime">
+                  <Icon icon="i-lucide-clipboard-check" /> OA 审批 · 我的待办
+                </div>
+                <div class="big" style="font-size: 34px">{{ oaMetric }}</div>
                 <div class="unit gray">
                   {{ stats.approverView ? '条待我审批' : '条我的申请' }}
                 </div>
-                <div class="cta2">进入 OA 审批 <Icon icon="i-lucide-arrow-right" /></div>
+                <div class="cta2">
+                  进入 OA 审批 <Icon icon="i-lucide-arrow-right" />
+                </div>
               </button>
             </div>
 
             <!-- 列3 -->
             <div class="wsh-col">
               <!-- 团队协同（真实未读） -->
-              <button type="button" class="wsh-card wsh-glass" @click="go('crm_team_chat_index')">
-                <div class="lbl a-teal"><Icon icon="i-lucide-messages-square" /> 团队协同</div>
-                <div class="big" style="font-size:32px">{{ stats.unread }}</div>
+              <button
+                type="button"
+                class="wsh-card wsh-glass"
+                @click="go('crm_team_chat_index')"
+              >
+                <div class="lbl a-teal">
+                  <Icon icon="i-lucide-messages-square" /> 团队协同
+                </div>
+                <div class="big" style="font-size: 32px">
+                  {{ stats.unread }}
+                </div>
                 <div class="unit gray">条未读消息</div>
-                <div class="cta2">进入团队协同 <Icon icon="i-lucide-arrow-right" /></div>
+                <div class="cta2">
+                  进入团队协同 <Icon icon="i-lucide-arrow-right" />
+                </div>
               </button>
 
               <!-- TikTok（权限门） -->
@@ -321,22 +400,43 @@ onMounted(async () => {
                 :disabled="!canAccessTiktok"
                 @click="go('tiktok_dashboard_index')"
               >
-                <span class="blob" style="width:150px;height:150px;right:-40px;top:-50px" />
+                <span
+                  class="blob"
+                  style="width: 150px; height: 150px; right: -40px; top: -50px"
+                />
                 <div class="lbl">
-                  <svg viewBox="0 0 24 24" fill="currentColor" class="tk"><path d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" /></svg>
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="tk">
+                    <path
+                      d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"
+                    />
+                  </svg>
                   TikTok 经营
                 </div>
-                <div class="big" style="font-size:24px;margin-top:14px">跨境店铺经营</div>
+                <div class="big" style="font-size: 24px; margin-top: 14px">
+                  跨境店铺经营
+                </div>
                 <div class="unit">店铺 · 订单 · 数据看板</div>
-                <div v-if="!canAccessTiktok" class="cta"><Icon icon="i-lucide-lock" /> 暂无权限</div>
+                <div v-if="!canAccessTiktok" class="cta">
+                  <Icon icon="i-lucide-lock" /> 暂无权限
+                </div>
               </button>
 
               <!-- 文档中心 -->
-              <button type="button" class="wsh-card wsh-glass" @click="go('crm_doc_center_index')">
-                <div class="lbl a-violet"><Icon icon="i-lucide-book-open" /> 文档中心</div>
+              <button
+                type="button"
+                class="wsh-card wsh-glass"
+                @click="go('crm_doc_center_index')"
+              >
+                <div class="lbl a-violet">
+                  <Icon icon="i-lucide-book-open" /> 文档中心
+                </div>
                 <div class="sub2">制度 · 流程 · 培训 · 知识</div>
-                <div class="chips"><span>制度</span><span>流程</span><span>培训</span><span>知识</span></div>
-                <div class="cta2">进入文档中心 <Icon icon="i-lucide-arrow-right" /></div>
+                <div class="chips">
+                  <span>制度</span><span>流程</span><span>培训</span><span>知识</span>
+                </div>
+                <div class="cta2">
+                  进入文档中心 <Icon icon="i-lucide-arrow-right" />
+                </div>
               </button>
             </div>
           </div>
@@ -352,21 +452,36 @@ onMounted(async () => {
             <span class="r-aura" />
             <div class="rhead">
               <div>
-                <div class="rl"><Icon icon="i-lucide-calendar-days" /> 日程 Schedule</div>
+                <div class="rl">
+                  <Icon icon="i-lucide-calendar-days" /> 日程 Schedule
+                </div>
                 <h2>{{ monthLabel }}</h2>
               </div>
-              <div class="today"><b>{{ todayNum }}</b><span>{{ todayWeek }}</span></div>
+              <div class="today">
+                <b>{{ todayNum }}</b><span>{{ todayWeek }}</span>
+              </div>
             </div>
 
             <div class="cal">
-              <div class="hd"><span v-for="d in ['一','二','三','四','五','六','日']" :key="d">{{ d }}</span></div>
+              <div class="hd">
+                <span
+                  v-for="d in ['一', '二', '三', '四', '五', '六', '日']"
+                  :key="d"
+                  >{{ d }}</span>
+              </div>
               <div class="bd">
-                <span v-for="(c, i) in calCells" :key="i" :class="{ mut: c.mut, now: c.now, has: c.has }">{{ c.n }}</span>
+                <span
+                  v-for="(c, i) in calCells"
+                  :key="i"
+                  :class="{ mut: c.mut, now: c.now, has: c.has }"
+                  >{{ c.n }}</span>
               </div>
             </div>
 
             <div class="agenda">
-              <div class="ahd"><b>今日安排</b><span>{{ todayEvents.length }} 项</span></div>
+              <div class="ahd">
+                <b>今日安排</b><span>{{ todayEvents.length }} 项</span>
+              </div>
               <template v-if="todayEvents.length">
                 <div
                   v-for="e in todayEvents"
@@ -374,14 +489,16 @@ onMounted(async () => {
                   class="ev"
                   :class="e.color"
                 >
-                  <div class="tm">{{ e.all_day ? '全天' : hhmm(e.starts_at) }}</div>
+                  <div class="tm">
+                    {{ e.all_day ? '全天' : hhmm(e.starts_at) }}
+                  </div>
                   <div class="eb">
                     <b>{{ e.title }}</b>
                     <small>
                       {{ e.owner_name
-                      }}<template v-if="e.participant_names && e.participant_names.length"
-                        >、{{ e.participant_names.join('、') }}</template
-                      >
+                      }}<template
+                        v-if="e.participant_names && e.participant_names.length"
+                        >、{{ e.participant_names.join('、') }}</template>
                     </small>
                   </div>
                 </div>
@@ -389,13 +506,19 @@ onMounted(async () => {
               <div v-else class="ev-empty">今天暂无安排</div>
             </div>
 
-            <button type="button" class="newbtn" @click.stop="go('crm_schedule_index')">
+            <button
+              type="button"
+              class="newbtn"
+              @click.stop="go('crm_schedule_index')"
+            >
               <Icon icon="i-lucide-plus" /> 新建日程
             </button>
           </div>
         </div>
 
-        <div class="wsh-foot">WintouchSpace · Designed &amp; Developed by Amber Law</div>
+        <div class="wsh-foot">
+          WintouchSpace · Designed &amp; Developed by Amber Law
+        </div>
       </div>
     </div>
   </Teleport>
@@ -408,11 +531,26 @@ onMounted(async () => {
   z-index: 50;
   overflow: auto;
   color: #232833;
-  background:
-    radial-gradient(58vw 52vh at 8% 2%, rgba(122, 170, 250, 0.34), transparent 56%),
-    radial-gradient(52vw 46vh at 94% 0%, rgba(160, 132, 248, 0.3), transparent 54%),
-    radial-gradient(52vw 52vh at 88% 100%, rgba(102, 216, 186, 0.28), transparent 56%),
-    radial-gradient(48vw 46vh at 0% 100%, rgba(198, 232, 154, 0.28), transparent 56%),
+  background: radial-gradient(
+      58vw 52vh at 8% 2%,
+      rgba(122, 170, 250, 0.34),
+      transparent 56%
+    ),
+    radial-gradient(
+      52vw 46vh at 94% 0%,
+      rgba(160, 132, 248, 0.3),
+      transparent 54%
+    ),
+    radial-gradient(
+      52vw 52vh at 88% 100%,
+      rgba(102, 216, 186, 0.28),
+      transparent 56%
+    ),
+    radial-gradient(
+      48vw 46vh at 0% 100%,
+      rgba(198, 232, 154, 0.28),
+      transparent 56%
+    ),
     #e9eff7;
 }
 .wsh-actions {
@@ -437,10 +575,16 @@ onMounted(async () => {
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.6);
 }
-.wsh-guide { cursor: pointer; }
+.wsh-guide {
+  cursor: pointer;
+}
 .wsh-guide:hover,
-.wsh-logout:hover { color: #232833; }
-.wsh-guide-wrap { position: relative; }
+.wsh-logout:hover {
+  color: #232833;
+}
+.wsh-guide-wrap {
+  position: relative;
+}
 .wsh-guide-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -475,148 +619,730 @@ onMounted(async () => {
   inset: 0;
   z-index: 9;
 }
-.wsh-wrap { max-width: 1320px; margin: 0 auto; padding: 14px 64px 12px; }
-.wsh-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 9px; }
-.wsh-logo { height: 34px; width: auto; margin-bottom: 7px; display: block; }
-.wsh-hello { font-size: 21px; font-weight: 800; letter-spacing: -0.5px; }
-.wsh-sub { font-size: 14px; color: #6b7482; font-weight: 600; margin-top: 6px; }
+.wsh-wrap {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 14px 64px 12px;
+}
+.wsh-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 9px;
+}
+.wsh-logo {
+  height: 34px;
+  width: auto;
+  margin-bottom: 7px;
+  display: block;
+}
+.wsh-hello {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.wsh-sub {
+  font-size: 14px;
+  color: #6b7482;
+  font-weight: 600;
+  margin-top: 6px;
+}
 .wsh-date {
-  font-size: 13px; font-weight: 700; color: #232833; padding: 10px 16px;
-  border-radius: 14px; background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(14px) saturate(150%); border: 1px solid rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  font-weight: 700;
+  color: #232833;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
 }
 
-.wsh-layout { display: grid; grid-template-columns: 1fr 320px; gap: 11px; align-items: start; }
-.wsh-main { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; align-items: start; }
-.wsh-col { display: flex; flex-direction: column; gap: 11px; }
-@media (max-width: 1200px) { .wsh-main { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 1080px) { .wsh-layout { grid-template-columns: 1fr; } }
+.wsh-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 11px;
+  align-items: start;
+}
+.wsh-main {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 11px;
+  align-items: start;
+}
+.wsh-col {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+@media (max-width: 1200px) {
+  .wsh-main {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 1080px) {
+  .wsh-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 767px) {
+  .wsh-wrap {
+    padding: 12px 16px 12px;
+  }
+  .wsh-actions {
+    top: 12px;
+    right: 12px;
+    gap: 6px;
+  }
+  .wsh-guide,
+  .wsh-logout {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .wsh-top {
+    margin-top: 44px;
+  }
+  .wsh-main {
+    grid-template-columns: 1fr;
+  }
+  .wsh-rail {
+    min-width: 0;
+  }
+}
 
 .wsh-card {
-  width: 100%; text-align: left; font-family: inherit; color: inherit; cursor: pointer;
-  border-radius: 16px; padding: 12px 14px; position: relative; overflow: hidden; display: block;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 16px;
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+  display: block;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 }
-.wsh-card:hover { transform: translateY(-3px); }
-.wsh-card.locked { opacity: 0.55; filter: saturate(0.5); cursor: not-allowed; }
-.wsh-card.locked:hover { transform: none; }
+.wsh-card:hover {
+  transform: translateY(-3px);
+}
+.wsh-card.locked {
+  opacity: 0.55;
+  filter: saturate(0.5);
+  cursor: not-allowed;
+}
+.wsh-card.locked:hover {
+  transform: none;
+}
 .wsh-glass {
-  background: rgba(255, 255, 255, 0.55); backdrop-filter: blur(22px) saturate(155%);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(22px) saturate(155%);
   border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 16px 40px -22px rgba(60, 90, 150, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 16px 40px -22px rgba(60, 90, 150, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
-.wsh-solid { color: #fff; border: 1px solid rgba(255, 255, 255, 0.26); box-shadow: 0 18px 44px -20px rgba(60, 90, 150, 0.5); }
-.c-crm { background: linear-gradient(155deg, #7cb6f7, #4f8fea); }
-.c-mes { background: linear-gradient(155deg, #b3a4f5, #8b78ee); }
-.c-tik { background: linear-gradient(155deg, #4fd1e6, #22b8d4); }
-.blob { position: absolute; border-radius: 50%; filter: blur(30px); opacity: 0.5; background: rgba(255, 255, 255, 0.6); z-index: 1; }
+.wsh-solid {
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  box-shadow: 0 18px 44px -20px rgba(60, 90, 150, 0.5);
+}
+.c-crm {
+  background: linear-gradient(155deg, #7cb6f7, #4f8fea);
+}
+.c-mes {
+  background: linear-gradient(155deg, #b3a4f5, #8b78ee);
+}
+.c-tik {
+  background: linear-gradient(155deg, #4fd1e6, #22b8d4);
+}
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(30px);
+  opacity: 0.5;
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 1;
+}
 
-.lbl { font-size: 12.5px; font-weight: 800; display: flex; align-items: center; gap: 6px; position: relative; z-index: 2; }
-.lbl :deep([class*='i-lucide-']), .lbl .tk { width: 15px; height: 15px; }
-.a-teal { color: #1f9d80; } .a-lime { color: #6ba01f; } .a-violet { color: #7a67dc; } .a-sky { color: #3f7fe0; }
-.tag { margin-left: auto; font-size: 10.5px; font-weight: 700; color: #9aa0ac; background: rgba(120, 140, 170, 0.12); border-radius: 20px; padding: 3px 8px; }
-.big { font-size: 25px; font-weight: 800; letter-spacing: -1px; line-height: 1.1; margin-top: 5px; position: relative; z-index: 2; }
-.unit { font-size: 13px; margin-top: 2px; position: relative; z-index: 2; color: rgba(255, 255, 255, 0.85); }
-.unit.gray { color: #9aa0ac; }
-.sub2 { font-size: 12.5px; color: #9aa0ac; margin-top: 8px; }
-.statrow { display: flex; gap: 14px; margin-top: 6px; position: relative; z-index: 2; }
-.statrow b { font-size: 19px; font-weight: 800; display: block; letter-spacing: -0.5px; }
-.statrow span { font-size: 11.5px; color: rgba(255, 255, 255, 0.8); }
-.cta { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; padding: 8px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.22); position: relative; z-index: 2; }
-.cta :deep([class*='i-lucide-']) { width: 15px; height: 15px; }
-.cta2 { margin-top: auto; padding-top: 14px; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: #6b7180; }
-.cta2.muted { color: #9aa0ac; }
-.cta2 :deep([class*='i-lucide-']) { width: 14px; height: 14px; }
+.lbl {
+  font-size: 12.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 2;
+}
+.lbl :deep([class*='i-lucide-']),
+.lbl .tk {
+  width: 15px;
+  height: 15px;
+}
+.a-teal {
+  color: #1f9d80;
+}
+.a-lime {
+  color: #6ba01f;
+}
+.a-violet {
+  color: #7a67dc;
+}
+.a-sky {
+  color: #3f7fe0;
+}
+.tag {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #9aa0ac;
+  background: rgba(120, 140, 170, 0.12);
+  border-radius: 20px;
+  padding: 3px 8px;
+}
+.big {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.1;
+  margin-top: 5px;
+  position: relative;
+  z-index: 2;
+}
+.unit {
+  font-size: 13px;
+  margin-top: 2px;
+  position: relative;
+  z-index: 2;
+  color: rgba(255, 255, 255, 0.85);
+}
+.unit.gray {
+  color: #9aa0ac;
+}
+.sub2 {
+  font-size: 12.5px;
+  color: #9aa0ac;
+  margin-top: 8px;
+}
+.statrow {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  position: relative;
+  z-index: 2;
+}
+.statrow b {
+  font-size: 19px;
+  font-weight: 800;
+  display: block;
+  letter-spacing: -0.5px;
+}
+.statrow span {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.8);
+}
+.cta {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.22);
+  position: relative;
+  z-index: 2;
+}
+.cta :deep([class*='i-lucide-']) {
+  width: 15px;
+  height: 15px;
+}
+.cta2 {
+  margin-top: auto;
+  padding-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #6b7180;
+}
+.cta2.muted {
+  color: #9aa0ac;
+}
+.cta2 :deep([class*='i-lucide-']) {
+  width: 14px;
+  height: 14px;
+}
 
-.chart { width: 100%; height: 58px; margin-top: 10px; }
-.chips { display: flex; gap: 8px; margin-top: 14px; }
-.chips span { font-size: 12px; font-weight: 700; color: #5f6570; background: rgba(120, 140, 170, 0.1); border-radius: 9px; padding: 5px 11px; }
+.chart {
+  width: 100%;
+  height: 58px;
+  margin-top: 10px;
+}
+.chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.chips span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5f6570;
+  background: rgba(120, 140, 170, 0.1);
+  border-radius: 9px;
+  padding: 5px 11px;
+}
 
-.week { display: flex; justify-content: space-between; margin-top: 10px; }
-.wd { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.wd span { font-size: 11px; color: #9aa0ac; font-weight: 600; }
-.wd .o { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; }
-.wd .on { background: linear-gradient(150deg, #9cc9f8, #5b9bef); color: #fff; }
-.wd .off { background: #eef2f7; color: #c2cad4; }
-.wd .o :deep([class*='i-lucide-']) { width: 14px; height: 14px; }
+.week {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+.wd {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.wd span {
+  font-size: 11px;
+  color: #9aa0ac;
+  font-weight: 600;
+}
+.wd .o {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.wd .on {
+  background: linear-gradient(150deg, #9cc9f8, #5b9bef);
+  color: #fff;
+}
+.wd .off {
+  background: #eef2f7;
+  color: #c2cad4;
+}
+.wd .o :deep([class*='i-lucide-']) {
+  width: 14px;
+  height: 14px;
+}
 
-.wsh-ring { display: flex; align-items: center; gap: 14px; margin-top: 9px; position: relative; z-index: 2; }
-.wsh-ring .pct { font-size: 15px; font-weight: 800; fill: #fff; }
-.wsh-ring-t { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
-.checks { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; position: relative; z-index: 2; }
-.ck { display: flex; align-items: center; gap: 9px; font-size: 13px; }
-.ck .ci { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; }
-.ck .ci :deep([class*='i-lucide-']) { width: 12px; height: 12px; }
-.ck.done .ci { background: rgba(255, 255, 255, 0.9); color: #8b78ee; }
-.ck.wait { color: rgba(255, 255, 255, 0.75); }
-.ck.wait .ci { background: rgba(255, 255, 255, 0.25); color: rgba(255, 255, 255, 0.7); }
+.wsh-ring {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 9px;
+  position: relative;
+  z-index: 2;
+}
+.wsh-ring .pct {
+  font-size: 15px;
+  font-weight: 800;
+  fill: #fff;
+}
+.wsh-ring-t {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.checks {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  z-index: 2;
+}
+.ck {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+}
+.ck .ci {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.ck .ci :deep([class*='i-lucide-']) {
+  width: 12px;
+  height: 12px;
+}
+.ck.done .ci {
+  background: rgba(255, 255, 255, 0.9);
+  color: #8b78ee;
+}
+.ck.wait {
+  color: rgba(255, 255, 255, 0.75);
+}
+.ck.wait .ci {
+  background: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.7);
+}
 
-.olist { margin-top: 12px; display: flex; flex-direction: column; }
-.oi { display: flex; align-items: center; gap: 11px; padding: 9px 0; border-top: 1px solid #eef0f3; }
-.oi:first-child { border-top: 0; }
-.oic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff; flex: none; }
-.oic :deep([class*='i-lucide-']) { width: 15px; height: 15px; }
-.bg-lime { background: linear-gradient(150deg, #bfe388, #9fd162); }
-.bg-teal { background: linear-gradient(150deg, #86ddc6, #3ec3a2); }
-.bg-sky { background: linear-gradient(150deg, #9cc9f8, #5b9bef); }
-.bg-violet { background: linear-gradient(150deg, #b3a4f5, #8b78ee); }
-.ot { font-size: 13px; font-weight: 700; flex: 1; min-width: 0; }
-.ot small { display: block; font-size: 10.5px; color: #9aa0ac; font-weight: 500; margin-top: 1px; }
-.ost { font-size: 11px; font-weight: 700; color: #6f8a1a; background: #eef6d5; border-radius: 7px; padding: 3px 8px; }
+.olist {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.oi {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 0;
+  border-top: 1px solid #eef0f3;
+}
+.oi:first-child {
+  border-top: 0;
+}
+.oic {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  flex: none;
+}
+.oic :deep([class*='i-lucide-']) {
+  width: 15px;
+  height: 15px;
+}
+.bg-lime {
+  background: linear-gradient(150deg, #bfe388, #9fd162);
+}
+.bg-teal {
+  background: linear-gradient(150deg, #86ddc6, #3ec3a2);
+}
+.bg-sky {
+  background: linear-gradient(150deg, #9cc9f8, #5b9bef);
+}
+.bg-violet {
+  background: linear-gradient(150deg, #b3a4f5, #8b78ee);
+}
+.ot {
+  font-size: 13px;
+  font-weight: 700;
+  flex: 1;
+  min-width: 0;
+}
+.ot small {
+  display: block;
+  font-size: 10.5px;
+  color: #9aa0ac;
+  font-weight: 500;
+  margin-top: 1px;
+}
+.ost {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6f8a1a;
+  background: #eef6d5;
+  border-radius: 7px;
+  padding: 3px 8px;
+}
 
-.avs { display: flex; margin-top: 16px; }
-.avs .av { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff; margin-left: -9px; }
-.avs .av:first-child { margin-left: 0; }
-.av.a1 { background: linear-gradient(150deg, #9cc9f8, #5b9bef); }
-.av.a2 { background: linear-gradient(150deg, #b3a4f5, #8b78ee); }
-.av.a3 { background: linear-gradient(150deg, #86ddc6, #3ec3a2); }
-.av.a4 { background: linear-gradient(150deg, #f7b0c0, #f088a0); }
-.avs .more { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff; margin-left: -9px; background: #e7effe; color: #3f7fe0; font-size: 11.5px; font-weight: 800; display: grid; place-items: center; }
-.msg { margin-top: 14px; background: rgba(255, 255, 255, 0.6); border: 1px solid #eef0f3; border-radius: 12px; padding: 11px 13px; font-size: 12.5px; color: #9aa0ac; }
-.msg b { font-weight: 800; color: #232833; }
+.avs {
+  display: flex;
+  margin-top: 16px;
+}
+.avs .av {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  margin-left: -9px;
+}
+.avs .av:first-child {
+  margin-left: 0;
+}
+.av.a1 {
+  background: linear-gradient(150deg, #9cc9f8, #5b9bef);
+}
+.av.a2 {
+  background: linear-gradient(150deg, #b3a4f5, #8b78ee);
+}
+.av.a3 {
+  background: linear-gradient(150deg, #86ddc6, #3ec3a2);
+}
+.av.a4 {
+  background: linear-gradient(150deg, #f7b0c0, #f088a0);
+}
+.avs .more {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  margin-left: -9px;
+  background: #e7effe;
+  color: #3f7fe0;
+  font-size: 11.5px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+.msg {
+  margin-top: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid #eef0f3;
+  border-radius: 12px;
+  padding: 11px 13px;
+  font-size: 12.5px;
+  color: #9aa0ac;
+}
+.msg b {
+  font-weight: 800;
+  color: #232833;
+}
 
 /* 日程主栏 */
 .wsh-rail {
-  border-radius: 16px; padding: 12px 14px; position: relative; overflow: hidden; min-height: 0;
-  background: rgba(255, 255, 255, 0.58); backdrop-filter: blur(24px) saturate(160%);
+  border-radius: 16px;
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(24px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.65);
-  box-shadow: 0 20px 50px -22px rgba(60, 90, 150, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.75);
-  cursor: pointer; transition: transform 0.16s ease, box-shadow 0.16s ease;
+  box-shadow:
+    0 20px 50px -22px rgba(60, 90, 150, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 }
-.wsh-rail:hover { transform: translateY(-2px); box-shadow: 0 26px 56px -20px rgba(60, 90, 150, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.75); }
-.wsh-rail:focus-visible { outline: 2px solid #5691ec; outline-offset: 2px; }
-.r-aura { position: absolute; width: 260px; height: 200px; right: -60px; top: -70px; border-radius: 50%; filter: blur(46px); background: radial-gradient(circle, rgba(122, 170, 250, 0.5), transparent 68%); z-index: 1; }
-.rhead { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 2; }
-.rl { font-size: 12.5px; font-weight: 800; color: #3f7fe0; display: flex; align-items: center; gap: 6px; }
-.rl :deep([class*='i-lucide-']) { width: 15px; height: 15px; }
-.rhead h2 { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; margin-top: 4px; }
-.today { text-align: center; background: linear-gradient(150deg, #7db8f7, #5691ec); color: #fff; border-radius: 12px; padding: 5px 11px; box-shadow: 0 10px 20px -8px rgba(86, 145, 236, 0.6); }
-.today b { font-size: 24px; font-weight: 800; display: block; line-height: 1; }
-.today span { font-size: 10.5px; opacity: 0.9; }
-.cal { margin-top: 8px; position: relative; z-index: 2; }
-.cal .hd { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 8px; }
-.cal .hd span { font-size: 11px; color: #9aa0ac; text-align: center; font-weight: 700; }
-.cal .bd { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px 0; }
-.cal .bd span { position: relative; font-size: 12px; text-align: center; padding: 4px 0; font-weight: 600; color: #404855; border-radius: 8px; }
-.cal .bd .mut { color: #cbd1da; }
-.cal .bd .now { background: linear-gradient(150deg, #7db8f7, #5691ec); color: #fff; font-weight: 800; box-shadow: 0 8px 16px -6px rgba(86, 145, 236, 0.55); }
-.cal .bd .has::after { content: ''; position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: #8b78ee; }
-.cal .bd .now.has::after { background: #fff; }
-.agenda { margin-top: 9px; position: relative; z-index: 2; }
-.ahd { display: flex; justify-content: space-between; align-items: center; }
-.ahd b { font-size: 14px; font-weight: 800; }
-.ahd span { font-size: 12px; color: #9aa0ac; font-weight: 600; }
-.ev { display: flex; gap: 12px; margin-top: 7px; }
-.ev .tm { width: 44px; flex: none; font-size: 12px; font-weight: 800; color: #4b535f; padding-top: 2px; }
-.ev .eb { flex: 1; border-left: 3px solid; padding: 2px 0 2px 12px; }
-.ev .eb b { font-size: 13.5px; font-weight: 700; display: block; }
-.ev .eb small { font-size: 11.5px; color: #9aa0ac; }
-.ev.blue .eb { border-color: #5b9bef; } .ev.teal .eb { border-color: #3ec3a2; }
-.ev.violet .eb { border-color: #8b78ee; } .ev.rose .eb { border-color: #ef7f9c; }
-.ev.lime .eb { border-color: #9fd162; } .ev.sky .eb { border-color: #38bdf8; }
-.ev-empty { margin-top: 14px; padding: 18px 0; text-align: center; font-size: 12.5px; color: #9aa0ac; }
-.newbtn { margin-top: 14px; width: 100%; font-family: inherit; font-size: 13px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #6aa8f2, #4f8fea); border: none; border-radius: 12px; padding: 10px 0; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; box-shadow: 0 12px 24px -10px rgba(79, 143, 234, 0.6); position: relative; z-index: 2; }
-.newbtn :deep([class*='i-lucide-']) { width: 16px; height: 16px; }
+.wsh-rail:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 26px 56px -20px rgba(60, 90, 150, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+.wsh-rail:focus-visible {
+  outline: 2px solid #5691ec;
+  outline-offset: 2px;
+}
+.r-aura {
+  position: absolute;
+  width: 260px;
+  height: 200px;
+  right: -60px;
+  top: -70px;
+  border-radius: 50%;
+  filter: blur(46px);
+  background: radial-gradient(
+    circle,
+    rgba(122, 170, 250, 0.5),
+    transparent 68%
+  );
+  z-index: 1;
+}
+.rhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+  z-index: 2;
+}
+.rl {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #3f7fe0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rl :deep([class*='i-lucide-']) {
+  width: 15px;
+  height: 15px;
+}
+.rhead h2 {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  margin-top: 4px;
+}
+.today {
+  text-align: center;
+  background: linear-gradient(150deg, #7db8f7, #5691ec);
+  color: #fff;
+  border-radius: 12px;
+  padding: 5px 11px;
+  box-shadow: 0 10px 20px -8px rgba(86, 145, 236, 0.6);
+}
+.today b {
+  font-size: 24px;
+  font-weight: 800;
+  display: block;
+  line-height: 1;
+}
+.today span {
+  font-size: 10.5px;
+  opacity: 0.9;
+}
+.cal {
+  margin-top: 8px;
+  position: relative;
+  z-index: 2;
+}
+.cal .hd {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 8px;
+}
+.cal .hd span {
+  font-size: 11px;
+  color: #9aa0ac;
+  text-align: center;
+  font-weight: 700;
+}
+.cal .bd {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px 0;
+}
+.cal .bd span {
+  position: relative;
+  font-size: 12px;
+  text-align: center;
+  padding: 4px 0;
+  font-weight: 600;
+  color: #404855;
+  border-radius: 8px;
+}
+.cal .bd .mut {
+  color: #cbd1da;
+}
+.cal .bd .now {
+  background: linear-gradient(150deg, #7db8f7, #5691ec);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 8px 16px -6px rgba(86, 145, 236, 0.55);
+}
+.cal .bd .has::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #8b78ee;
+}
+.cal .bd .now.has::after {
+  background: #fff;
+}
+.agenda {
+  margin-top: 9px;
+  position: relative;
+  z-index: 2;
+}
+.ahd {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ahd b {
+  font-size: 14px;
+  font-weight: 800;
+}
+.ahd span {
+  font-size: 12px;
+  color: #9aa0ac;
+  font-weight: 600;
+}
+.ev {
+  display: flex;
+  gap: 12px;
+  margin-top: 7px;
+}
+.ev .tm {
+  width: 44px;
+  flex: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: #4b535f;
+  padding-top: 2px;
+}
+.ev .eb {
+  flex: 1;
+  border-left: 3px solid;
+  padding: 2px 0 2px 12px;
+}
+.ev .eb b {
+  font-size: 13.5px;
+  font-weight: 700;
+  display: block;
+}
+.ev .eb small {
+  font-size: 11.5px;
+  color: #9aa0ac;
+}
+.ev.blue .eb {
+  border-color: #5b9bef;
+}
+.ev.teal .eb {
+  border-color: #3ec3a2;
+}
+.ev.violet .eb {
+  border-color: #8b78ee;
+}
+.ev.rose .eb {
+  border-color: #ef7f9c;
+}
+.ev.lime .eb {
+  border-color: #9fd162;
+}
+.ev.sky .eb {
+  border-color: #38bdf8;
+}
+.ev-empty {
+  margin-top: 14px;
+  padding: 18px 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: #9aa0ac;
+}
+.newbtn {
+  margin-top: 14px;
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #6aa8f2, #4f8fea);
+  border: none;
+  border-radius: 12px;
+  padding: 10px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  box-shadow: 0 12px 24px -10px rgba(79, 143, 234, 0.6);
+  position: relative;
+  z-index: 2;
+}
+.newbtn :deep([class*='i-lucide-']) {
+  width: 16px;
+  height: 16px;
+}
 
-.wsh-foot { text-align: center; color: #aeb6c1; font-size: 12px; margin-top: 12px; font-weight: 600; }
+.wsh-foot {
+  text-align: center;
+  color: #aeb6c1;
+  font-size: 12px;
+  margin-top: 12px;
+  font-weight: 600;
+}
 </style>

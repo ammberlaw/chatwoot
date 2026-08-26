@@ -3,6 +3,8 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import MembersAPI from 'dashboard/api/crm/members';
+import OrgDepartmentAPI from 'dashboard/api/org/departments';
+import OrgMembershipAPI from 'dashboard/api/org/memberships';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -163,6 +165,80 @@ const filteredMembers = computed(() => {
   });
 });
 
+// 组织架构：左栏成员列表按部门分组（复用系统已有「组织架构」的部门+归属）。
+const departments = ref([]);
+const memberships = ref([]);
+const collapsedDepts = reactive({});
+const fetchOrg = async () => {
+  try {
+    const [dept, mem] = await Promise.all([
+      OrgDepartmentAPI.get(),
+      OrgMembershipAPI.get(),
+    ]);
+    departments.value = dept.data?.payload || [];
+    memberships.value = mem.data?.payload || [];
+  } catch {
+    departments.value = [];
+    memberships.value = [];
+  }
+};
+
+// 部门按组织架构树 DFS 展平（保留层级 depth 做缩进），同级按 position 排。
+const orderedDepts = computed(() => {
+  const byParent = {};
+  departments.value.forEach(d => {
+    (byParent[d.parent_id || 0] ||= []).push(d);
+  });
+  Object.values(byParent).forEach(arr =>
+    arr.sort((a, b) => a.position - b.position || a.id - b.id)
+  );
+  const out = [];
+  const walk = (pid, depth) => {
+    (byParent[pid] || []).forEach(d => {
+      out.push({ id: d.id, name: d.name, depth });
+      walk(d.id, depth + 1);
+    });
+  };
+  walk(0, 0);
+  return out;
+});
+
+// 用户 → 归属部门 id：优先 is_primary，其次首个归属；无归属归 0（未分配）。
+const userDeptMap = computed(() => {
+  const map = {};
+  memberships.value.forEach(m => {
+    if (m.is_primary) map[m.user_id] = m.department_id;
+  });
+  memberships.value.forEach(m => {
+    if (map[m.user_id] == null) map[m.user_id] = m.department_id;
+  });
+  return map;
+});
+
+// 检索/筛选进行中时强制展开，方便看到命中结果。
+const isFiltering = computed(
+  () => !!searchQuery.value.trim() || roleFilter.value !== 'all'
+);
+const isDeptCollapsed = g => !isFiltering.value && !!collapsedDepts[g.id];
+const toggleCollapse = id => {
+  collapsedDepts[id] = !collapsedDepts[id];
+};
+
+// 左栏成员按部门分组：{ id, name, depth, members[] }，未分配部门排最后。
+const memberGroups = computed(() => {
+  const byDept = {};
+  filteredMembers.value.forEach(m => {
+    (byDept[userDeptMap.value[m.user_id] ?? 0] ||= []).push(m);
+  });
+  const list = orderedDepts.value
+    .filter(d => byDept[d.id]?.length)
+    .map(d => ({ ...d, members: byDept[d.id] }));
+  if (byDept[0]?.length) {
+    list.push({ id: 0, name: '未分配部门', depth: 0, members: byDept[0] });
+  }
+  return list;
+});
+
 const fetchMembers = async () => {
   loading.value = true;
   try {
@@ -268,7 +344,11 @@ const doDeactivate = async () => {
 
 const doReactivate = async m => {
   // eslint-disable-next-line no-alert
-  if (!window.confirm(`恢复「${m.name}」的账号？恢复后可再次登录，需重新分配角色。`))
+  if (
+    !window.confirm(
+      `恢复「${m.name}」的账号？恢复后可再次登录，需重新分配角色。`
+    )
+  )
     return;
   savingId.value = m.id;
   try {
@@ -359,14 +439,17 @@ const onModuleToggle = async (member, key, checked) => {
   }
 };
 
-onMounted(fetchMembers);
+onMounted(() => {
+  fetchMembers();
+  fetchOrg();
+});
 </script>
 
 <template>
   <div
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="flex-shrink-0 px-6 py-4 border-b border-n-weak">
+    <div class="flex-shrink-0 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak">
       <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
       <p class="mt-0.5 text-xs text-n-slate-10">
         {{ isManagerOnly ? L.managerSubtitle : L.subtitle }}
@@ -375,10 +458,12 @@ onMounted(fetchMembers);
 
     <p v-if="loading" class="p-6 text-sm text-n-slate-10">{{ L.loading }}</p>
 
-    <!-- 两栏主从式：左列表选人，右面板设权限 -->
-    <div v-else class="flex flex-1 min-h-0">
+    <!-- 两栏主从式：左列表选人，右面板设权限（手机上下堆叠） -->
+    <div v-else class="flex flex-col md:flex-row flex-1 min-h-0">
       <!-- 左：搜索 + 角色筛选 + 成员列表 -->
-      <div class="flex flex-col flex-shrink-0 border-r w-60 border-n-weak">
+      <div
+        class="flex flex-col flex-shrink-0 border-b md:border-b-0 md:border-r w-full md:w-60 max-h-56 md:max-h-none border-n-weak"
+      >
         <div
           class="flex flex-col flex-shrink-0 gap-2 p-2 border-b border-n-weak/60"
         >
@@ -405,34 +490,60 @@ onMounted(fetchMembers);
           </div>
         </div>
         <div class="flex-1 overflow-y-auto">
-          <button
-            v-for="m in filteredMembers"
-            :key="m.id"
-            class="flex items-center w-full gap-3 px-4 py-2.5 text-left border-b border-n-weak/60 hover:bg-n-alpha-1"
-            :class="m.id === selectedId ? 'bg-n-iris-3/50' : ''"
-            @click="selectedId = m.id"
-          >
-            <Avatar
-              :name="m.name"
-              :src="m.avatar_url || ''"
-              :size="32"
-              rounded-full
-            />
-            <div class="flex-1 min-w-0">
-              <div class="text-sm font-medium truncate text-n-slate-12">
-                {{ m.name }}
-              </div>
-              <div class="text-xs truncate text-n-slate-10">
-                <template v-if="isDeactivated(m)">
-                  <span class="text-n-ruby-11">已停用</span>
-                </template>
-                <template v-else>
-                  {{ ROLE_OPTIONS.find(o => o.value === roleValue(m))?.label }}
-                  <span v-if="m.crm_finance" class="text-n-iris-11">· 财务</span>
-                </template>
-              </div>
-            </div>
-          </button>
+          <div v-for="g in memberGroups" :key="g.id">
+            <!-- 部门头：折叠 + 人数 -->
+            <button
+              class="sticky top-0 z-10 flex items-center w-full gap-1.5 px-3 py-1.5 text-xs font-medium border-b bg-n-alpha-1 backdrop-blur text-n-slate-11 border-n-weak/60"
+              :style="{ paddingLeft: `${12 + g.depth * 14}px` }"
+              @click="toggleCollapse(g.id)"
+            >
+              <span
+                class="size-3.5 text-n-slate-10"
+                :class="
+                  isDeptCollapsed(g)
+                    ? 'i-lucide-chevron-right'
+                    : 'i-lucide-chevron-down'
+                "
+              />
+              <span class="truncate">{{ g.name }}</span>
+              <span class="ml-auto text-n-slate-9">{{ g.members.length }}</span>
+            </button>
+            <!-- 部门成员 -->
+            <template v-if="!isDeptCollapsed(g)">
+              <button
+                v-for="m in g.members"
+                :key="m.id"
+                class="flex items-center w-full gap-3 px-4 py-2.5 text-left border-b border-n-weak/60 hover:bg-n-alpha-1"
+                :class="m.id === selectedId ? 'bg-n-iris-3/50' : ''"
+                @click="selectedId = m.id"
+              >
+                <Avatar
+                  :name="m.name"
+                  :src="m.avatar_url || ''"
+                  :size="32"
+                  rounded-full
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium truncate text-n-slate-12">
+                    {{ m.name }}
+                  </div>
+                  <div class="text-xs truncate text-n-slate-10">
+                    <template v-if="isDeactivated(m)">
+                      <span class="text-n-ruby-11">已停用</span>
+                    </template>
+                    <template v-else>
+                      <span>{{
+                        ROLE_OPTIONS.find(o => o.value === roleValue(m))?.label
+                      }}</span>
+                      <span v-if="m.crm_finance" class="text-n-iris-11">
+                        · 财务
+                      </span>
+                    </template>
+                  </div>
+                </div>
+              </button>
+            </template>
+          </div>
           <p
             v-if="!filteredMembers.length"
             class="px-4 py-6 text-xs text-center text-n-slate-9"
@@ -448,7 +559,9 @@ onMounted(fetchMembers);
         :key="selectedMember.id"
         class="flex-1 min-w-0 overflow-y-auto"
       >
-        <div class="flex items-center gap-3 px-6 py-4 border-b border-n-weak">
+        <div
+          class="flex items-center gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+        >
           <Avatar
             :name="selectedMember.name"
             :src="selectedMember.avatar_url || ''"
@@ -473,7 +586,7 @@ onMounted(fetchMembers);
           </div>
         </div>
 
-        <div class="flex flex-col gap-5 px-6 py-5 max-w-xl">
+        <div class="flex flex-col gap-5 px-4 py-4 sm:px-6 sm:py-5 max-w-xl">
           <!-- 系统角色 -->
           <div class="flex items-center gap-4">
             <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
@@ -615,7 +728,7 @@ onMounted(fetchMembers);
           <!-- 操作：自己也可改中文名/CRM英文名；管理员不可动超管账号 -->
           <div
             v-if="isSuperAdmin || !selectedMember.is_admin"
-            class="flex items-center gap-3 pt-1"
+            class="flex flex-wrap items-center gap-3 pt-1"
           >
             <span class="flex-shrink-0 w-24" />
             <button
@@ -647,13 +760,13 @@ onMounted(fetchMembers);
     <!-- 权限说明：原来一堵灰字，折成可展开的逐行对照 -->
     <div v-if="!loading" class="flex-shrink-0 border-t border-n-weak">
       <button
-        class="flex items-center gap-1.5 w-full px-6 py-2.5 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-1"
+        class="flex items-center gap-1.5 w-full px-4 sm:px-6 py-2.5 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-1"
         @click="showHint = !showHint"
       >
         <span>权限说明</span>
         <span class="text-n-slate-9">{{ showHint ? '▾' : '▸' }}</span>
       </button>
-      <div v-if="showHint" class="px-6 pb-4">
+      <div v-if="showHint" class="px-4 sm:px-6 pb-4">
         <div class="flex flex-col gap-1.5 max-w-2xl">
           <div
             v-for="item in ROLE_LEGEND"
@@ -742,14 +855,17 @@ onMounted(fetchMembers);
         <p class="text-xs leading-relaxed text-n-slate-11">
           停用后该账号将
           <span class="font-medium text-n-ruby-11">立即退出并禁止登录</span
-          >，CRM 角色置无，个人文档进回收站。名下客户 / 商机按下面方式交接。误操作可在此页「恢复账号」。
+          >，CRM 角色置无，个人文档进回收站。名下客户 /
+          商机按下面方式交接。误操作可在此页「恢复账号」。
         </p>
 
         <div class="flex flex-col gap-2">
           <span class="text-xs text-n-slate-11">名下客户 / 商机交接</span>
           <label
             class="flex items-start gap-2 p-2.5 border rounded-lg cursor-pointer border-n-weak hover:bg-n-alpha-1"
-            :class="handoverMode === 'pool' ? 'border-n-iris-8 bg-n-iris-2' : ''"
+            :class="
+              handoverMode === 'pool' ? 'border-n-iris-8 bg-n-iris-2' : ''
+            "
           >
             <input
               v-model="handoverMode"

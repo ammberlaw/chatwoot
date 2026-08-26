@@ -22,23 +22,6 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     @sheets = scope.order(period_month: :desc, id: :desc)
   end
 
-  # 财务批量发放：把选中的「已归档」绩效表标记为已发放（金额=系统已算的 actual_payout_micros）。
-  def mark_paid
-    return unless ensure_finance!
-
-    sheets = Current.account.crm_kpi_sheets.where(id: Array(params[:ids]), status: 'ARCHIVED').to_a
-    sheets.each { |s| s.mark_paid!(by: current_user) }
-    render json: { count: sheets.size }
-  end
-
-  # 财务撤销发放（点错兜底）。
-  def unmark_paid
-    return unless ensure_finance!
-
-    Current.account.crm_kpi_sheets.where(id: Array(params[:ids])).find_each(&:unmark_paid!)
-    head :ok
-  end
-
   def show; end
 
   # 保存完成值(员工)/得分(主管)。按行 id 更新。备注/补充条款仅主管·管理员可改。
@@ -398,13 +381,6 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     return true if can_manage?
 
     render_error('仅主管/管理员可打分', :forbidden)
-    false
-  end
-
-  def ensure_finance!
-    return true if Current.account_user&.crm_finance?
-
-    render_error('仅财务可操作发放', :forbidden)
     false
   end
 

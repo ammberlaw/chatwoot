@@ -5,7 +5,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   COLUMN_FILTERS = { status: :status, kind: :kind, crm_sales_order_id: :crm_sales_order_id }.freeze
 
   def index
-    scope = scoped_by_product_line(Current.account.mes_shipments)
+    scope = scope_by_product_line_or_stock(Current.account.mes_shipments)
     COLUMN_FILTERS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
     scope = scope_visible(scope)
     @shipments_count = scope.count

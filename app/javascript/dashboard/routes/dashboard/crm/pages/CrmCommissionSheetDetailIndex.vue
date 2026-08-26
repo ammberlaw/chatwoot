@@ -600,16 +600,16 @@ const openForward = () => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 gap-3 px-6 py-4 border-b border-n-weak"
+      class="flex flex-col md:flex-row md:items-center md:justify-between flex-shrink-0 gap-3 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
       <div class="flex items-center gap-3 min-w-0">
         <button
-          class="h-8 px-3 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
+          class="h-8 px-3 text-sm rounded-lg shrink-0 text-n-slate-11 hover:bg-n-alpha-2"
           @click="back"
         >
           {{ t('CRM.COMMISSION.DETAIL.BACK') }}
         </button>
-        <h1 class="text-lg font-medium truncate text-n-slate-12">
+        <h1 class="text-lg font-medium truncate min-w-0 text-n-slate-12">
           {{ title }}
         </h1>
         <span
@@ -625,7 +625,7 @@ const openForward = () => {
           {{ t('CRM.COMMISSION.PAYOUT.PAID') }}
         </span>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
+      <div class="flex flex-wrap items-center gap-2 md:shrink-0">
         <button
           v-if="sheet"
           class="inline-flex items-center gap-1.5 h-8 px-3 text-sm rounded-lg border border-n-iris-6 text-n-iris-11 hover:bg-n-iris-3"
@@ -731,7 +731,7 @@ const openForward = () => {
     <div v-if="isLoading" class="flex-1 p-8 text-center text-n-slate-11">
       {{ t('CRM.COMMISSION.LOADING') }}
     </div>
-    <div v-else-if="sheet" class="flex-1 px-6 py-4">
+    <div v-else-if="sheet" class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <!-- 退回原因提示 -->
       <div
         v-if="status === 'RETURNED' && sheet.returnReason"

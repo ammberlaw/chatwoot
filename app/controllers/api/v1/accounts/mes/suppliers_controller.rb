@@ -5,7 +5,7 @@ class Api::V1::Accounts::Mes::SuppliersController < Api::V1::Accounts::Mes::Base
   def index
     scope = filtered_scope
     @suppliers_count = scope.count
-    @suppliers = scope.order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @suppliers = scope.order(created_at: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -26,6 +26,14 @@ class Api::V1::Accounts::Mes::SuppliersController < Api::V1::Accounts::Mes::Base
   end
 
   private
+
+  # 默认 15/页；采购单/物料表单的供应商下拉需要全量，可传 per_page，封顶 500。
+  def per_page_param
+    n = params[:per_page].to_i
+    return RESULTS_PER_PAGE if n <= 0
+
+    [n, 500].min
+  end
 
   def filtered_scope
     scope = Current.account.mes_suppliers.includes(:supplier_items)

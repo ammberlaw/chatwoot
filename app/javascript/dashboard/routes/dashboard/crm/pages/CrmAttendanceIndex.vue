@@ -32,6 +32,7 @@ const STATUS_META = {
   LATE_EARLY: { label: '迟到+早退', cls: 'bg-n-amber-3 text-n-amber-11' },
   ABSENT: { label: '缺卡', cls: 'bg-n-ruby-3 text-n-ruby-11' },
   LEAVE: { label: '请假', cls: 'bg-n-iris-3 text-n-iris-11' },
+  FIELD: { label: '外勤', cls: 'bg-n-blue-3 text-n-blue-11' },
 };
 const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -101,6 +102,7 @@ const mineCounts = computed(() => {
     early: 0,
     absent: 0,
     leave: 0,
+    field: 0,
   };
   calendarCells.value.forEach(d => {
     if (!d) return;
@@ -108,7 +110,10 @@ const mineCounts = computed(() => {
     if (!st) return;
     if (st === 'ABSENT') c.absent += 1;
     else if (st === 'LEAVE') c.leave += 1;
-    else {
+    else if (st === 'FIELD') {
+      c.present += 1;
+      c.field += 1;
+    } else {
       c.present += 1;
       if (st === 'LATE' || st === 'LATE_EARLY') c.late += 1;
       if (st === 'EARLY_LEAVE' || st === 'LATE_EARLY') c.early += 1;
@@ -119,37 +124,99 @@ const mineCounts = computed(() => {
 
 // ── 打卡 ──
 const clocking = ref(false);
-const clock = async () => {
+// 浏览器取当前定位（考勤组开启 GPS 校验时打卡前调用）。失败/拒绝授权则返回空，交后端判定。
+const getGeo = () =>
+  new Promise(resolve => {
+    if (!navigator.geolocation) {
+      resolve({});
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve({}),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  });
+const clock = async (field = false) => {
   if (clocking.value) return;
   clocking.value = true;
   try {
-    await axios.post(`${api()}/clock`);
-    useAlert(todayRec.value?.clock_in_at ? '下班打卡成功' : '上班打卡成功');
+    // 组开启 GPS 校验时先取定位；仅网络(IP)校验则无需定位。外勤仍带定位做留痕。
+    const body = setting.value?.geo_enabled || field ? await getGeo() : {};
+    if (field) body.field = true;
+    await axios.post(`${api()}/clock`, body);
+    if (field) useAlert('外勤打卡成功');
+    else
+      useAlert(todayRec.value?.clock_in_at ? '下班打卡成功' : '上班打卡成功');
     fetchMine();
-  } catch {
-    useAlert('打卡失败，请重试');
+  } catch (e) {
+    useAlert(e.response?.data?.error || '打卡失败，请重试');
   } finally {
     clocking.value = false;
   }
 };
 
-// ── 汇总 ──
+// ── 汇总（日/周/月粒度 + 今日概览）──
+const PERIODS = [
+  { value: 'day', label: '日' },
+  { value: 'week', label: '周' },
+  { value: 'month', label: '月' },
+];
+const period = ref('day');
+const summaryDate = ref(todayStr());
+const summaryRange = ref(null);
+const overview = ref(null);
 const summaryRows = ref([]);
 const loadingSummary = ref(false);
 const fetchSummary = async () => {
   loadingSummary.value = true;
   try {
     const { data } = await axios.get(`${api()}/summary`, {
-      params: { month: month.value },
+      params: { period: period.value, date: summaryDate.value },
     });
     summaryRows.value = data.payload || [];
+    overview.value = data.overview || null;
+    summaryRange.value = data.range || null;
     setting.value = data.setting;
   } catch {
     summaryRows.value = [];
+    overview.value = null;
   } finally {
     loadingSummary.value = false;
   }
 };
+const setPeriod = p => {
+  period.value = p;
+  fetchSummary();
+};
+const shiftSummaryDate = delta => {
+  const d = new Date(`${summaryDate.value}T12:00:00`);
+  if (period.value === 'day') d.setDate(d.getDate() + delta);
+  else if (period.value === 'week') d.setDate(d.getDate() + delta * 7);
+  else d.setMonth(d.getMonth() + delta);
+  summaryDate.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+    d.getDate()
+  )}`;
+  fetchSummary();
+};
+const rangeLabel = computed(() => {
+  if (period.value === 'month') return summaryDate.value.slice(0, 7);
+  if (period.value === 'day') return summaryDate.value;
+  if (summaryRange.value) {
+    return `${summaryRange.value.start} ~ ${summaryRange.value.end}`;
+  }
+  return summaryDate.value;
+});
+// 打卡率仪表盘：已到岗 / 应到，环形进度用（周长 2πr, r=52 ≈ 326.7）。
+const GAUGE_CIRC = 326.7;
+const gaugePct = computed(() => {
+  const o = overview.value;
+  if (!o || !o.expected) return 0;
+  return Math.min(1, o.present / o.expected);
+});
+const gaugeDash = computed(
+  () => `${(gaugePct.value * GAUGE_CIRC).toFixed(1)} ${GAUGE_CIRC}`
+);
 
 // ── HR 修正 ──
 const adjustDialog = ref(null);
@@ -207,6 +274,13 @@ const groupForm = reactive({
   reclockWindowDays: 30,
   holidays: [],
   userIds: [],
+  // 打卡范围
+  geoEnabled: false,
+  officeLat: null,
+  officeLng: null,
+  geoRadius: 300,
+  ipEnabled: false,
+  allowedIps: [],
 });
 const agents = ref([]);
 const fetchAgents = async () => {
@@ -219,6 +293,90 @@ const fetchAgents = async () => {
     agents.value = [];
   }
 };
+
+// 组织架构：部门树 + 归属，用来把「组成员」按部门分组选择（比平铺清爽）。
+const departments = ref([]);
+const memberships = ref([]);
+const collapsedDepts = reactive({});
+const fetchOrg = async () => {
+  try {
+    const [dept, mem] = await Promise.all([
+      axios.get(`/api/v1/accounts/${accountId.value}/org/departments`),
+      axios.get(`/api/v1/accounts/${accountId.value}/org/memberships`),
+    ]);
+    departments.value = dept.data?.payload || [];
+    memberships.value = mem.data?.payload || [];
+  } catch {
+    departments.value = [];
+    memberships.value = [];
+  }
+};
+
+// 部门按组织架构树 DFS 展平（保留层级 depth 做缩进），同级按 position 排。
+const orderedDepts = computed(() => {
+  const byParent = {};
+  departments.value.forEach(d => {
+    (byParent[d.parent_id || 0] ||= []).push(d);
+  });
+  Object.values(byParent).forEach(arr =>
+    arr.sort((a, b) => a.position - b.position || a.id - b.id)
+  );
+  const out = [];
+  const walk = (pid, depth) => {
+    (byParent[pid] || []).forEach(d => {
+      out.push({ id: d.id, name: d.name, depth });
+      walk(d.id, depth + 1);
+    });
+  };
+  walk(0, 0);
+  return out;
+});
+
+// 用户 → 归属部门 id：优先 is_primary，其次首个归属；无归属归 0（未分配）。
+const userDeptMap = computed(() => {
+  const map = {};
+  memberships.value.forEach(m => {
+    if (m.is_primary) map[m.user_id] = m.department_id;
+  });
+  memberships.value.forEach(m => {
+    if (map[m.user_id] == null) map[m.user_id] = m.department_id;
+  });
+  return map;
+});
+
+// 组成员按部门分组：{ id, name, depth, members[] }，未分配部门排最后。
+const memberGroups = computed(() => {
+  const byDept = {};
+  agents.value.forEach(a => {
+    (byDept[userDeptMap.value[a.id] ?? 0] ||= []).push(a);
+  });
+  const list = orderedDepts.value
+    .filter(d => byDept[d.id]?.length)
+    .map(d => ({ ...d, members: byDept[d.id] }));
+  if (byDept[0]?.length) {
+    list.push({ id: 0, name: '未分配部门', depth: 0, members: byDept[0] });
+  }
+  return list;
+});
+
+const deptSelectedCount = g =>
+  g.members.filter(m => groupForm.userIds.includes(m.id)).length;
+const deptAllChecked = g =>
+  g.members.length > 0 &&
+  g.members.every(m => groupForm.userIds.includes(m.id));
+const toggleDept = g => {
+  const ids = g.members.map(m => m.id);
+  if (deptAllChecked(g)) {
+    groupForm.userIds = groupForm.userIds.filter(id => !ids.includes(id));
+  } else {
+    ids.forEach(id => {
+      if (!groupForm.userIds.includes(id)) groupForm.userIds.push(id);
+    });
+  }
+};
+const toggleCollapse = id => {
+  collapsedDepts[id] = !collapsedDepts[id];
+};
 const loadGroupForm = g => {
   groupForm.name = g?.name || '';
   groupForm.isDefault = !!g?.is_default;
@@ -230,6 +388,12 @@ const loadGroupForm = g => {
   groupForm.reclockWindowDays = g?.reclock_window_days ?? 30;
   groupForm.holidays = [...(g?.holidays || [])];
   groupForm.userIds = [...(g?.user_ids || [])];
+  groupForm.geoEnabled = !!g?.geo_enabled;
+  groupForm.officeLat = g?.office_lat ?? null;
+  groupForm.officeLng = g?.office_lng ?? null;
+  groupForm.geoRadius = g?.geo_radius_m ?? 300;
+  groupForm.ipEnabled = !!g?.ip_enabled;
+  groupForm.allowedIps = [...(g?.allowed_ips || [])];
 };
 const selectGroup = g => {
   selectedGroupId.value = g.id;
@@ -255,6 +419,7 @@ const openSettings = () => {
   view.value = 'settings';
   fetchGroups();
   if (!agents.value.length) fetchAgents();
+  if (!departments.value.length) fetchOrg();
 };
 const newHoliday = ref('');
 const addHoliday = () => {
@@ -277,6 +442,52 @@ const toggleMember = id => {
   if (i >= 0) groupForm.userIds.splice(i, 1);
   else groupForm.userIds.push(id);
 };
+// 抓取当前位置设为办公室坐标（管理员在办公室点一下）。
+const capturingGeo = ref(false);
+const captureOfficeLocation = () => {
+  if (!navigator.geolocation) {
+    useAlert('当前浏览器不支持定位');
+    return;
+  }
+  capturingGeo.value = true;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      groupForm.officeLat = Number(pos.coords.latitude.toFixed(7));
+      groupForm.officeLng = Number(pos.coords.longitude.toFixed(7));
+      capturingGeo.value = false;
+      useAlert('已抓取当前位置为办公室坐标');
+    },
+    () => {
+      capturingGeo.value = false;
+      useAlert('定位失败：请允许定位权限后重试');
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
+};
+
+// 把当前网络的公网 IP 设为打卡网络（管理员在办公室 WiFi 下点一下）。
+const capturingIp = ref(false);
+const captureCurrentIp = async () => {
+  capturingIp.value = true;
+  try {
+    const { data } = await axios.get(`${api()}/my_network`);
+    const ip = data?.ip;
+    if (ip && !groupForm.allowedIps.includes(ip)) {
+      groupForm.allowedIps.push(ip);
+      useAlert(`已把当前网络 ${ip} 设为打卡网络`);
+    } else if (ip) {
+      useAlert('当前网络已在打卡网络列表中');
+    }
+  } catch {
+    useAlert('获取当前网络失败');
+  } finally {
+    capturingIp.value = false;
+  }
+};
+const removeIp = ip => {
+  groupForm.allowedIps = groupForm.allowedIps.filter(x => x !== ip);
+};
+
 const saveGroup = async () => {
   if (savingSetting.value || !groupForm.name.trim()) return;
   savingSetting.value = true;
@@ -291,6 +502,12 @@ const saveGroup = async () => {
       reclock_window_days: groupForm.reclockWindowDays,
       holidays: groupForm.holidays,
       user_ids: groupForm.userIds,
+      geo_enabled: groupForm.geoEnabled,
+      office_lat: groupForm.officeLat,
+      office_lng: groupForm.officeLng,
+      geo_radius_m: groupForm.geoRadius,
+      ip_enabled: groupForm.ipEnabled,
+      allowed_ips: groupForm.allowedIps,
     },
   };
   try {
@@ -350,10 +567,10 @@ onMounted(fetchMine);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
       <h1 class="text-xl font-medium text-n-slate-12">考勤</h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button
           class="h-8 px-3 text-sm rounded-lg border"
           :class="
@@ -392,7 +609,7 @@ onMounted(fetchMine);
       </div>
     </div>
 
-    <div class="flex flex-col gap-4 px-6 py-5">
+    <div class="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
       <!-- 打卡卡片（始终显示） -->
       <div
         v-if="view !== 'settings'"
@@ -433,15 +650,23 @@ onMounted(fetchMine);
           <button
             class="h-10 px-6 text-sm font-medium text-white rounded-xl shrink-0 whitespace-nowrap bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
             :disabled="clocking"
-            @click="clock"
+            @click="clock()"
           >
             {{ todayRec?.clock_in_at ? '下班打卡' : '上班打卡' }}
+          </button>
+          <button
+            class="h-10 px-4 text-sm font-medium rounded-xl shrink-0 whitespace-nowrap border border-n-blue-7 text-n-blue-11 hover:bg-n-blue-3 disabled:opacity-50"
+            :disabled="clocking"
+            title="出差 / 客户现场打卡，不受打卡范围限制"
+            @click="clock(true)"
+          >
+            外勤打卡
           </button>
         </div>
       </div>
 
-      <!-- 月份切换（我的/汇总） -->
-      <div v-if="view !== 'settings'" class="flex items-center gap-2">
+      <!-- 月份切换（我的考勤） -->
+      <div v-if="view === 'mine'" class="flex items-center gap-2">
         <button
           class="h-8 px-2 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
           @click="shiftMonth(-1)"
@@ -495,13 +720,182 @@ onMounted(fetchMine);
           <span>迟到 {{ mineCounts.late }} 次</span>
           <span>早退 {{ mineCounts.early }} 次</span>
           <span>缺卡 {{ mineCounts.absent }} 天</span>
+          <span>外勤 {{ mineCounts.field }} 天</span>
           <span>请假 {{ mineCounts.leave }} 天</span>
         </div>
       </template>
 
       <!-- ── 考勤汇总 ── -->
       <template v-else-if="view === 'summary'">
-        <div class="overflow-x-auto border rounded-xl border-n-weak">
+        <!-- 粒度切换 + 区间导航 -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex p-0.5 rounded-lg bg-n-alpha-1">
+            <button
+              v-for="p in PERIODS"
+              :key="p.value"
+              class="h-8 px-4 text-sm rounded-md"
+              :class="
+                period === p.value
+                  ? 'bg-n-solid-1 text-n-iris-11 font-medium shadow-sm'
+                  : 'text-n-slate-11 hover:text-n-slate-12'
+              "
+              @click="setPeriod(p.value)"
+            >
+              {{ p.label }}统计
+            </button>
+          </div>
+          <div class="flex items-center gap-1">
+            <button
+              class="h-8 px-2 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
+              @click="shiftSummaryDate(-1)"
+            >
+              ‹
+            </button>
+            <span
+              class="min-w-[7rem] text-sm font-medium text-center text-n-slate-12"
+            >
+              {{ rangeLabel }}
+            </span>
+            <button
+              class="h-8 px-2 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
+              @click="shiftSummaryDate(1)"
+            >
+              ›
+            </button>
+          </div>
+        </div>
+
+        <!-- 今日/区间概览仪表盘 -->
+        <div
+          v-if="overview"
+          class="flex flex-wrap items-center gap-6 p-4 border rounded-2xl border-n-weak bg-n-solid-1/60"
+        >
+          <div class="relative shrink-0 size-28">
+            <svg viewBox="0 0 120 120" class="-rotate-90 size-28">
+              <circle
+                cx="60"
+                cy="60"
+                r="52"
+                fill="none"
+                stroke-width="12"
+                class="stroke-n-alpha-2"
+              />
+              <circle
+                cx="60"
+                cy="60"
+                r="52"
+                fill="none"
+                stroke-width="12"
+                stroke-linecap="round"
+                class="stroke-n-iris-9"
+                :stroke-dasharray="gaugeDash"
+              />
+            </svg>
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center"
+            >
+              <span class="text-xl font-semibold text-n-slate-12">
+                {{ overview.present }}/{{ overview.expected }}
+              </span>
+              <span class="text-[11px] text-n-slate-10">已打卡/应到</span>
+            </div>
+          </div>
+          <div
+            class="grid flex-1 grid-cols-3 gap-3 sm:grid-cols-5 min-w-[240px]"
+          >
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-slate-12">
+                {{ overview.expected }}
+              </span>
+              <span class="text-xs text-n-slate-10">应到</span>
+            </div>
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-teal-11">
+                {{ overview.present }}
+              </span>
+              <span class="text-xs text-n-slate-10">已打卡</span>
+            </div>
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-amber-11">
+                {{ overview.late }}
+              </span>
+              <span class="text-xs text-n-slate-10">迟到</span>
+            </div>
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-ruby-11">
+                {{ overview.absent }}
+              </span>
+              <span class="text-xs text-n-slate-10">缺卡</span>
+            </div>
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-blue-11">
+                {{ overview.field }}
+              </span>
+              <span class="text-xs text-n-slate-10">外勤</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 手机卡片 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <p
+            v-if="loadingSummary"
+            class="py-6 text-sm text-center text-n-slate-11"
+          >
+            加载中…
+          </p>
+          <div
+            v-for="row in summaryRows"
+            v-else
+            :key="row.user_id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate text-n-slate-12">
+                {{ row.name }}
+              </span>
+              <span class="flex-1" />
+              <button
+                v-if="isAdminLike"
+                class="text-xs shrink-0 text-n-iris-11 hover:underline"
+                @click.stop="openAdjust(row)"
+              >
+                修正
+              </button>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-n-slate-11"
+            >
+              <span>出勤：{{ row.present }}</span>
+              <span :class="row.late ? 'text-n-amber-11' : ''">
+                迟到：{{ row.late }}
+              </span>
+              <span :class="row.early_leave ? 'text-n-amber-11' : ''">
+                早退：{{ row.early_leave }}
+              </span>
+              <span :class="row.absent ? 'text-n-ruby-11' : ''">
+                缺卡：{{ row.absent }}
+              </span>
+              <span :class="row.field ? 'text-n-blue-11' : ''">
+                外勤：{{ row.field }}
+              </span>
+              <span>请假：{{ row.leave }}</span>
+            </div>
+          </div>
+        </div>
+        <div
+          class="hidden overflow-x-auto border rounded-xl md:block border-n-weak"
+        >
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left border-b text-n-slate-11 border-n-weak">
@@ -510,6 +904,7 @@ onMounted(fetchMine);
                 <th class="px-3 py-2 font-medium">迟到</th>
                 <th class="px-3 py-2 font-medium">早退</th>
                 <th class="px-3 py-2 font-medium">缺卡</th>
+                <th class="px-3 py-2 font-medium">外勤</th>
                 <th class="px-3 py-2 font-medium">请假</th>
                 <th v-if="isAdminLike" class="px-3 py-2 font-medium text-right">
                   操作
@@ -518,7 +913,7 @@ onMounted(fetchMine);
             </thead>
             <tbody>
               <tr v-if="loadingSummary">
-                <td colspan="7" class="px-3 py-6 text-center text-n-slate-11">
+                <td colspan="8" class="px-3 py-6 text-center text-n-slate-11">
                   加载中…
                 </td>
               </tr>
@@ -548,6 +943,12 @@ onMounted(fetchMine);
                   >
                     {{ row.absent }}
                   </td>
+                  <td
+                    class="px-3 py-2"
+                    :class="row.field ? 'text-n-blue-11' : ''"
+                  >
+                    {{ row.field }}
+                  </td>
                   <td class="px-3 py-2">{{ row.leave }}</td>
                   <td v-if="isAdminLike" class="px-3 py-2 text-right">
                     <button
@@ -563,7 +964,7 @@ onMounted(fetchMine);
           </table>
         </div>
         <p class="text-xs text-n-slate-10">
-          口径：只统计工作日且不含未来日期；缺卡=当天没有任何打卡记录；修正会留审计痕迹。
+          口径：只统计工作日且不含未来日期；缺卡=当天没有任何打卡记录；外勤=出差/客户现场打卡（计出勤、单列，不判迟到）；修正会留审计痕迹。
         </p>
       </template>
 
@@ -628,7 +1029,7 @@ onMounted(fetchMine);
                 </button>
               </div>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label class="flex flex-col gap-1">
                 <span class="text-xs text-n-slate-11">上班时间</span>
                 <input
@@ -646,7 +1047,7 @@ onMounted(fetchMine);
                 />
               </label>
             </div>
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <label class="flex flex-col gap-1">
                 <span class="text-xs text-n-slate-11">宽限（分钟）</span>
                 <input
@@ -681,6 +1082,102 @@ onMounted(fetchMine);
               补卡上限 0 = 不允许补卡；补卡时限 0 =
               不限。提交补卡审批时按申请人所属组校验。
             </p>
+
+            <!-- 打卡范围（钉钉式：定位 + 办公网络，任一命中即可打卡）-->
+            <div
+              class="flex flex-col gap-3 p-3 border rounded-xl border-n-weak bg-n-alpha-1"
+            >
+              <span class="text-sm font-medium text-n-slate-12"
+                >打卡范围（可选）</span
+              >
+
+              <!-- GPS 定位打卡 -->
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  v-model="groupForm.geoEnabled"
+                  type="checkbox"
+                  class="accent-n-iris-9"
+                />
+                <span class="text-sm text-n-slate-12"
+                  >定位打卡（GPS 地理围栏）</span
+                >
+              </label>
+              <div v-if="groupForm.geoEnabled" class="flex flex-col gap-2 pl-6">
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    class="h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-60"
+                    :disabled="capturingGeo"
+                    @click="captureOfficeLocation"
+                  >
+                    {{ capturingGeo ? '定位中…' : '抓取当前位置为办公室' }}
+                  </button>
+                  <span class="text-xs text-n-slate-11">
+                    {{
+                      groupForm.officeLat
+                        ? `已设：${groupForm.officeLat}, ${groupForm.officeLng}`
+                        : '尚未设置办公室坐标'
+                    }}
+                  </span>
+                </div>
+                <label class="flex items-center gap-2">
+                  <span class="text-xs text-n-slate-11">允许半径（米）</span>
+                  <input
+                    v-model.number="groupForm.geoRadius"
+                    type="number"
+                    min="20"
+                    class="w-24 h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+                  />
+                </label>
+              </div>
+
+              <!-- 办公网络(IP)打卡 -->
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  v-model="groupForm.ipEnabled"
+                  type="checkbox"
+                  class="accent-n-iris-9"
+                />
+                <span class="text-sm text-n-slate-12">
+                  办公网络打卡（连公司 WiFi/网络才能打）
+                </span>
+              </label>
+              <div v-if="groupForm.ipEnabled" class="flex flex-col gap-2 pl-6">
+                <button
+                  class="self-start h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-60"
+                  :disabled="capturingIp"
+                  @click="captureCurrentIp"
+                >
+                  {{ capturingIp ? '获取中…' : '把当前网络设为打卡网络' }}
+                </button>
+                <div
+                  v-if="groupForm.allowedIps.length"
+                  class="flex flex-wrap gap-1.5"
+                >
+                  <span
+                    v-for="ip in groupForm.allowedIps"
+                    :key="ip"
+                    class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-n-alpha-2 text-n-slate-12"
+                  >
+                    {{ ip }}
+                    <button
+                      class="text-n-slate-10 hover:text-n-ruby-11"
+                      @click="removeIp(ip)"
+                    >
+                      <span class="i-lucide-x size-3" />
+                    </button>
+                  </span>
+                </div>
+                <p class="text-xs text-n-slate-10">
+                  在公司 WiFi 下点上面按钮抓取公司公网 IP。手机浏览器读不到 WiFi
+                  名，故用「连同一网络=同一公网 IP」来判定，等效 WiFi 打卡。
+                </p>
+              </div>
+              <p class="text-xs text-n-slate-10">
+                两项都不开 =
+                不限制打卡地点；都开则「在定位范围内」或「在办公网络」任一满足即可打卡。
+              </p>
+            </div>
+
             <div class="flex flex-col gap-1.5">
               <span class="text-xs text-n-slate-11">
                 节假日（不计工作日，如法定假期）
@@ -714,21 +1211,83 @@ onMounted(fetchMine);
               </div>
             </div>
             <div v-if="!groupForm.isDefault" class="flex flex-col gap-1.5">
-              <span class="text-xs text-n-slate-11">组成员</span>
-              <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-                <label
-                  v-for="a in agents"
-                  :key="a.id"
-                  class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-n-slate-11"
+                  >组成员（按部门选择）</span
                 >
-                  <input
-                    type="checkbox"
-                    class="accent-n-iris-9"
-                    :checked="groupForm.userIds.includes(a.id)"
-                    @change="toggleMember(a.id)"
-                  />
-                  {{ a.name }}
-                </label>
+                <span class="text-xs text-n-slate-10">
+                  已选 {{ groupForm.userIds.length }} 人
+                </span>
+              </div>
+              <div
+                class="flex flex-col overflow-hidden border divide-y rounded-lg border-n-weak divide-n-weak"
+              >
+                <div
+                  v-for="g in memberGroups"
+                  :key="g.id"
+                  class="flex flex-col"
+                >
+                  <!-- 部门头：折叠 + 全选本部门 -->
+                  <div
+                    class="flex items-center gap-2 px-3 py-2 bg-n-alpha-1"
+                    :style="{ paddingLeft: `${12 + g.depth * 16}px` }"
+                  >
+                    <button
+                      type="button"
+                      class="flex items-center gap-1 text-sm font-medium text-n-slate-12"
+                      @click="toggleCollapse(g.id)"
+                    >
+                      <span
+                        class="size-4 text-n-slate-10"
+                        :class="
+                          collapsedDepts[g.id]
+                            ? 'i-lucide-chevron-right'
+                            : 'i-lucide-chevron-down'
+                        "
+                      />
+                      {{ g.name }}
+                    </button>
+                    <span class="text-xs text-n-slate-10">
+                      {{ deptSelectedCount(g) }}/{{ g.members.length }}
+                    </span>
+                    <label
+                      class="flex items-center gap-1 ml-auto text-xs cursor-pointer text-n-slate-11"
+                    >
+                      <input
+                        type="checkbox"
+                        class="accent-n-iris-9"
+                        :checked="deptAllChecked(g)"
+                        @change="toggleDept(g)"
+                      />
+                      全选
+                    </label>
+                  </div>
+                  <!-- 部门成员 -->
+                  <div
+                    v-if="!collapsedDepts[g.id]"
+                    class="flex flex-wrap px-3 py-2 gap-x-4 gap-y-1.5"
+                  >
+                    <label
+                      v-for="a in g.members"
+                      :key="a.id"
+                      class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+                    >
+                      <input
+                        type="checkbox"
+                        class="accent-n-iris-9"
+                        :checked="groupForm.userIds.includes(a.id)"
+                        @change="toggleMember(a.id)"
+                      />
+                      {{ a.name }}
+                    </label>
+                  </div>
+                </div>
+                <div
+                  v-if="!memberGroups.length"
+                  class="px-3 py-4 text-sm text-center text-n-slate-10"
+                >
+                  暂无成员，请先在「组织架构」维护部门与人员
+                </div>
               </div>
             </div>
             <div class="flex items-center gap-2">

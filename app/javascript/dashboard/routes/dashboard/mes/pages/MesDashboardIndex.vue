@@ -16,7 +16,7 @@ const CARD =
   'p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150';
 
 const STAGE_LABELS = {
-  SALES_CONFIRMED: '销售订单确定',
+  SALES_CONFIRMED: '待工程接单',
   BOM_READY: '工程/PMC BOM',
   PURCHASING: '采购原料',
   MATERIAL_INBOUND: '原料入库',
@@ -263,7 +263,7 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <!-- 顶栏 -->
     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -375,7 +375,7 @@ onMounted(() => {
 
       <!-- 阶段分布 + 按时交货率 -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="lg:col-span-2" :class="CARD">
+        <div class="lg:col-span-2 min-w-0" :class="CARD">
           <h2
             class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
           >

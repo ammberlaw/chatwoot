@@ -558,7 +558,7 @@ const removeEmployee = async row => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
       <h1 class="text-xl font-medium text-n-slate-12">
         {{ mode === 'list' ? '员工档案' : editingId ? '编辑员工' : '新增员工' }}
@@ -613,7 +613,10 @@ const removeEmployee = async row => {
     </div>
 
     <!-- ── 列表视图 ── -->
-    <div v-else-if="mode === 'list'" class="flex flex-col gap-4 px-6 py-5">
+    <div
+      v-else-if="mode === 'list'"
+      class="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5"
+    >
       <div class="flex flex-wrap items-center gap-2">
         <button
           v-for="[val, lab] in TABS"
@@ -630,12 +633,89 @@ const removeEmployee = async row => {
         </button>
         <input
           v-model="q"
-          class="h-8 px-3 ml-auto text-sm border rounded-lg w-52 border-n-weak bg-n-solid-1 text-n-slate-12"
+          class="h-8 px-3 text-sm border rounded-lg w-full sm:ml-auto sm:w-52 border-n-weak bg-n-solid-1 text-n-slate-12"
           placeholder="搜索姓名 / 工号 / 手机号"
         />
       </div>
 
-      <div class="overflow-x-auto border rounded-xl border-n-weak">
+      <!-- ── 手机卡片列表 ── -->
+      <div class="flex flex-col gap-2 md:hidden">
+        <div v-if="loading" class="py-6 text-sm text-center text-n-slate-11">
+          加载中…
+        </div>
+        <div
+          v-else-if="!filtered.length"
+          class="py-6 text-sm text-center text-n-slate-11"
+        >
+          暂无员工档案
+        </div>
+        <template v-else>
+          <div
+            v-for="row in filtered"
+            :key="`card-${row.id}`"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            @click="openEdit(row)"
+          >
+            <div class="flex items-center gap-2">
+              <img
+                v-if="row.photo_url"
+                :src="row.photo_url"
+                class="object-cover w-6 h-6 rounded-full shrink-0"
+              />
+              <span class="font-medium truncate text-n-slate-12">
+                {{ row.name }}
+              </span>
+              <span
+                class="px-2 py-0.5 text-xs rounded-full shrink-0"
+                :class="STATUS_STYLE[row.status]"
+              >
+                {{ STATUS_LABEL[row.status] || row.status }}
+              </span>
+              <span class="flex-1" />
+              <div class="shrink-0" @click.stop>
+                <button
+                  class="px-2 text-xs text-n-iris-11 hover:underline"
+                  @click="openEdit(row)"
+                >
+                  编辑
+                </button>
+                <button
+                  class="px-2 text-xs hover:underline"
+                  :class="
+                    pendingDeleteId === row.id
+                      ? 'text-n-ruby-11 font-medium'
+                      : 'text-n-slate-11'
+                  "
+                  @click="removeEmployee(row)"
+                >
+                  {{ pendingDeleteId === row.id ? '确认删除' : '删除' }}
+                </button>
+              </div>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-n-slate-11"
+            >
+              <span>工号：{{ row.employee_no }}</span>
+              <span>性别：{{ GENDER_LABEL[row.gender] || '—' }}</span>
+              <span>部门：{{ row.department_name || '—' }}</span>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-n-slate-11"
+            >
+              <span>岗位：{{ row.job_title || '—' }}</span>
+              <span>入职：{{ row.hire_date || '—' }}</span>
+              <span>工龄：{{ seniority(row) }}</span>
+            </div>
+            <div class="mt-1 text-xs text-n-slate-11">
+              手机：{{ row.phone || '—' }}
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div
+        class="hidden overflow-x-auto border md:block rounded-xl border-n-weak"
+      >
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
@@ -727,7 +807,10 @@ const removeEmployee = async row => {
     </div>
 
     <!-- ── 建档 / 编辑表单 ── -->
-    <div v-else class="flex flex-col w-full max-w-3xl gap-4 px-6 py-5">
+    <div
+      v-else
+      class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5"
+    >
       <p class="text-xs text-n-slate-11">
         员工主数据建档。带
         <span class="text-n-ruby-11">*</span>

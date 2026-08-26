@@ -57,6 +57,16 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
   # 支持视图筛选：我的商机、商机推进（排除终态）、按阶段（漏斗列）、按客户；
   # admin 看板按团队/业务员：team_id 过滤该团队成员的商机，owner_id 精确到某业务员。
   def filtered_opportunities
+    scope = scoped_opportunities
+    return scope if params[:q].blank?
+
+    # 看板快速查找：按商机名或客户名模糊搜（覆盖常规看板与公海）。
+    keyword = "%#{params[:q].strip}%"
+    scope.left_joins(:crm_customer)
+         .where('crm_opportunities.name ILIKE :q OR crm_customers.name ILIKE :q', q: keyword)
+  end
+
+  def scoped_opportunities
     # 商机公海：全员可见全公司的池子，不按 owner 过滤（与客户公海同口径）。
     return Current.account.crm_opportunities.in_public_pool if params[:filter] == 'public_pool'
 

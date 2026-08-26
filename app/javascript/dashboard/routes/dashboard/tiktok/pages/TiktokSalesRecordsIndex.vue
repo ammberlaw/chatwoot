@@ -218,7 +218,7 @@ const barWidth = rate => {
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto">
-    <div class="w-full max-w-5xl px-8 py-6 mx-auto">
+    <div class="w-full max-w-5xl px-4 py-4 mx-auto sm:px-8 sm:py-6">
       <!-- 头部：标题 + 筛选 + 新增 -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
@@ -227,7 +227,7 @@ const barWidth = rate => {
             每天每店录一张卡；取消率、有效率、RMB 金额自动计算。
           </p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center w-full gap-2 sm:w-auto">
           <MonthPicker
             v-model="filters.month"
             trigger-class="w-40 h-10"
@@ -253,7 +253,7 @@ const barWidth = rate => {
       <!-- 本月合计汇总条 -->
       <div
         v-if="!loading && records.length"
-        class="flex flex-wrap items-center gap-x-8 gap-y-3 px-6 py-4 mb-5 rounded-2xl border border-n-weak bg-gradient-to-r from-n-alpha-1 to-n-alpha-2"
+        class="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 mb-5 rounded-2xl border border-n-weak bg-gradient-to-r from-n-alpha-1 to-n-alpha-2 sm:gap-x-8 sm:px-6 sm:py-4"
       >
         <div class="flex flex-col">
           <span class="text-[11px] text-n-slate-11">本月合计</span>
@@ -486,13 +486,13 @@ const barWidth = rate => {
       @click.self="showForm = false"
     >
       <div
-        class="w-full max-w-lg p-6 overflow-y-auto max-h-[90vh] rounded-2xl bg-n-solid-1 shadow-xl"
+        class="w-full max-w-[95vw] sm:max-w-lg p-4 sm:p-6 overflow-y-auto max-h-[90vh] rounded-2xl bg-n-solid-1 shadow-xl"
       >
         <h2 class="mb-4 text-lg font-semibold text-n-slate-12">
           {{ isEdit ? '编辑记录' : '新增记录' }}
         </h2>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label class="flex flex-col gap-1">
             <span class="text-xs text-n-slate-11">日期</span>
             <input
@@ -578,7 +578,7 @@ const barWidth = rate => {
               class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
             />
           </label>
-          <label class="flex flex-col col-span-2 gap-1">
+          <label class="flex flex-col col-span-1 gap-1 sm:col-span-2">
             <span class="text-xs text-n-slate-11">备注（选填）</span>
             <input
               v-model="form.remark"
@@ -590,7 +590,7 @@ const barWidth = rate => {
 
         <!-- 自动计算预览 -->
         <div
-          class="flex gap-4 px-3 py-2 mt-4 text-xs rounded-lg text-n-slate-11 bg-n-alpha-1"
+          class="flex flex-wrap gap-x-4 gap-y-1 px-3 py-2 mt-4 text-xs rounded-lg text-n-slate-11 bg-n-alpha-1"
         >
           <span
             >取消率 <b class="text-n-slate-12">{{ previewCancelRate }}</b></span

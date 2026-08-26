@@ -1314,9 +1314,9 @@ watch(
   <div
     class="flex w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <!-- 左栏：文件夹 -->
+    <!-- 左栏：文件夹（手机端隐藏，让列表/阅读占满屏） -->
     <aside
-      class="flex flex-col flex-shrink-0 border-r w-52 border-n-weak bg-n-solid-1"
+      class="hidden md:flex flex-col flex-shrink-0 border-r w-52 border-n-weak bg-n-solid-1"
     >
       <div class="p-3">
         <Button
@@ -1516,10 +1516,10 @@ watch(
       </nav>
     </aside>
 
-    <!-- 中栏折叠后的细条：只留一个展开按钮，把空间让给阅读窗格 -->
+    <!-- 中栏折叠后的细条：只留一个展开按钮，把空间让给阅读窗格（仅桌面） -->
     <div
       v-if="listCollapsed"
-      class="flex flex-col items-center flex-shrink-0 w-10 gap-3 py-3 border-r border-n-weak bg-n-solid-1"
+      class="hidden md:flex flex-col items-center flex-shrink-0 w-10 gap-3 py-3 border-r border-n-weak bg-n-solid-1"
     >
       <button
         class="flex items-center justify-center rounded-lg size-8 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11"
@@ -1535,17 +1535,18 @@ watch(
       </span>
     </div>
 
-    <!-- 中栏：邮件列表 -->
+    <!-- 中栏：邮件列表（手机端占满，选中邮件后让位给阅读窗格） -->
     <section
       v-show="!listCollapsed"
-      class="flex flex-col flex-shrink-0 border-r w-[380px] border-n-weak bg-n-solid-1"
+      class="flex-col flex-shrink-0 border-r w-full md:w-[380px] border-n-weak bg-n-solid-1"
+      :class="selectedEmail ? 'hidden md:flex' : 'flex'"
     >
       <div class="flex-shrink-0 px-4 pt-4 pb-3 border-b border-n-weak">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
           <h1 class="text-lg font-medium text-n-slate-12">
             {{ activeFolderLabel }}
           </h1>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center flex-wrap gap-2">
             <span class="text-xs text-n-slate-10">
               {{
                 t('CRM.EMAILS.LIST.COUNT', {
@@ -1581,7 +1582,7 @@ watch(
               会话
             </button>
             <button
-              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11"
+              class="hidden md:inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11"
               title="折叠列表，读信更宽"
               @click="listCollapsed = true"
             >
@@ -2012,8 +2013,11 @@ watch(
       </div>
     </section>
 
-    <!-- 右栏：阅读窗格 -->
-    <section class="flex flex-col flex-1 min-w-0 bg-n-background">
+    <!-- 右栏：阅读窗格（手机端仅在选中邮件时占满显示） -->
+    <section
+      class="flex-col flex-1 min-w-0 bg-n-background"
+      :class="selectedEmail ? 'flex' : 'hidden md:flex'"
+    >
       <div
         v-if="!selectedEmail"
         class="flex flex-col items-center justify-center flex-1 gap-3 text-n-slate-10"
@@ -2025,9 +2029,16 @@ watch(
       <template v-else>
         <!-- 工具栏 -->
         <div
-          class="flex items-center justify-between flex-shrink-0 gap-3 px-6 py-3 border-b border-n-weak"
+          class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 flex-shrink-0 px-4 py-3 sm:px-6 border-b border-n-weak"
         >
           <div class="flex items-center min-w-0 gap-2">
+            <button
+              class="flex items-center justify-center rounded-lg size-8 md:hidden shrink-0 text-n-slate-11 hover:bg-n-alpha-1 hover:text-n-iris-11"
+              title="返回列表"
+              @click="selectedEmail = null"
+            >
+              <Icon icon="i-lucide-arrow-left" class="size-4" />
+            </button>
             <h2 class="text-base font-medium truncate text-n-slate-12">
               {{ selectedEmail.subject || '(无主题)' }}
             </h2>
@@ -2038,7 +2049,9 @@ watch(
               {{ SEND_STATUSES[selectedEmail.sendStatus]?.label }}
             </span>
           </div>
-          <div class="flex items-center flex-shrink-0 gap-1">
+          <div
+            class="flex items-center flex-wrap justify-end flex-shrink-0 gap-1"
+          >
             <button
               class="flex items-center justify-center rounded-lg size-8 transition-colors hover:bg-n-alpha-1"
               :class="
@@ -2175,7 +2188,7 @@ watch(
           </div>
         </div>
 
-        <div class="flex-1 px-6 py-5 overflow-y-auto">
+        <div class="flex-1 px-4 py-4 sm:px-6 sm:py-5 overflow-y-auto">
           <!-- 收发信息 -->
           <div class="flex gap-3 pb-5 border-b border-n-weak">
             <div

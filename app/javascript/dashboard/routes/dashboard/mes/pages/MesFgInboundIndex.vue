@@ -174,7 +174,7 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-6 py-4">
+    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">成品入库</h1>
       <Button
         v-if="mesCan('report')"
@@ -187,79 +187,140 @@ onMounted(() => {
 
     <MesBoardOwnerBar board-key="mes_fg_inbound_index" />
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-4 pb-4 sm:px-6 sm:pb-6 overflow-auto">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
-      <table v-else class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-3 font-medium">单号</th>
-            <th class="px-3 py-3 font-medium">生产订单</th>
-            <th class="px-3 py-3 font-medium">颜色</th>
-            <th class="px-3 py-3 font-medium">归属人</th>
-            <th class="px-3 py-3 font-medium">仓库清点</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3 font-medium">过账时间</th>
-            <th class="px-3 py-3" />
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="e in records" :key="e.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-medium text-n-slate-12">
-              {{ e.entryNo }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ e.productionOrderNo || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ e.color || '—' }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ e.productionOrderOwnerName || '—' }}
-            </td>
-            <td class="px-3 py-3 text-xs">
-              <span v-if="e.warehouseConfirmedAt" class="text-n-teal-11">
-                ✓ {{ e.warehouseConfirmedByName || '' }}
+      <template v-else>
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="e in records"
+            :key="e.id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            @click="openView(e)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-n-slate-12 truncate">
+                {{ e.entryNo }}
               </span>
-              <span v-else-if="e.status === 'DRAFT'" class="text-n-slate-10">
-                待清点
+              <span class="shrink-0 text-xs text-n-slate-11">
+                {{ STATUS_LABELS[e.status] }}
               </span>
-              <span v-else class="text-n-slate-10">—</span>
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ STATUS_LABELS[e.status] }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
-            <td class="px-3 py-3 text-right">
-              <div class="flex justify-end gap-1">
-                <Button
-                  label="查看"
-                  variant="ghost"
-                  size="sm"
-                  @click="openView(e)"
-                />
-                <Button
-                  v-if="e.status === 'DRAFT' && mesCan('stock')"
-                  label="清点确认入库"
-                  color="iris"
-                  size="sm"
-                  :is-loading="posting"
-                  @click="confirmWarehouse(e)"
-                />
-                <MesReturnControls
-                  :record="e"
-                  :store="store"
-                  :can-manage="mesCan('stock')"
-                />
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!records.length">
-            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
-              还没有成品入库单。
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <span class="flex-1" />
+              <Button
+                v-if="e.status === 'DRAFT' && mesCan('stock')"
+                label="清点确认入库"
+                color="iris"
+                size="sm"
+                class="shrink-0"
+                :is-loading="posting"
+                @click.stop="confirmWarehouse(e)"
+              />
+            </div>
+            <div
+              class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
+            >
+              <span>生产订单：{{ e.productionOrderNo || '—' }}</span>
+              <span>颜色：{{ e.color || '—' }}</span>
+              <span>归属人：{{ e.productionOrderOwnerName || '—' }}</span>
+            </div>
+            <div
+              class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
+            >
+              <span>
+                仓库清点：
+                <span v-if="e.warehouseConfirmedAt" class="text-n-teal-11">
+                  ✓ {{ e.warehouseConfirmedByName || '' }}
+                </span>
+                <span v-else-if="e.status === 'DRAFT'" class="text-n-slate-10">
+                  待清点
+                </span>
+                <span v-else class="text-n-slate-10">—</span>
+              </span>
+              <span>过账时间：{{ day(e.postedAt) }}</span>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-1" @click.stop>
+              <MesReturnControls
+                :record="e"
+                :store="store"
+                :can-manage="mesCan('stock')"
+              />
+            </div>
+          </div>
+          <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
+            还没有成品入库单。
+          </div>
+        </div>
+        <table class="hidden md:table w-full text-sm">
+          <thead>
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium">单号</th>
+              <th class="px-3 py-3 font-medium">生产订单</th>
+              <th class="px-3 py-3 font-medium">颜色</th>
+              <th class="px-3 py-3 font-medium">归属人</th>
+              <th class="px-3 py-3 font-medium">仓库清点</th>
+              <th class="px-3 py-3 font-medium">状态</th>
+              <th class="px-3 py-3 font-medium">过账时间</th>
+              <th class="px-3 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="e in records" :key="e.id" class="border-b border-n-weak">
+              <td class="px-3 py-3 font-medium text-n-slate-12">
+                {{ e.entryNo }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ e.productionOrderNo || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">{{ e.color || '—' }}</td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ e.productionOrderOwnerName || '—' }}
+              </td>
+              <td class="px-3 py-3 text-xs">
+                <span v-if="e.warehouseConfirmedAt" class="text-n-teal-11">
+                  ✓ {{ e.warehouseConfirmedByName || '' }}
+                </span>
+                <span v-else-if="e.status === 'DRAFT'" class="text-n-slate-10">
+                  待清点
+                </span>
+                <span v-else class="text-n-slate-10">—</span>
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ STATUS_LABELS[e.status] }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
+              <td class="px-3 py-3 text-right">
+                <div class="flex justify-end gap-1">
+                  <Button
+                    label="查看"
+                    variant="ghost"
+                    size="sm"
+                    @click="openView(e)"
+                  />
+                  <Button
+                    v-if="e.status === 'DRAFT' && mesCan('stock')"
+                    label="清点确认入库"
+                    color="iris"
+                    size="sm"
+                    :is-loading="posting"
+                    @click="confirmWarehouse(e)"
+                  />
+                  <MesReturnControls
+                    :record="e"
+                    :store="store"
+                    :can-manage="mesCan('stock')"
+                  />
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!records.length">
+              <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+                还没有成品入库单。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <Dialog
@@ -288,7 +349,7 @@ onMounted(() => {
             {{ selectedOrder.produced_qty }} / {{ selectedOrder.qty }}
           </span>
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
               入库数量 <span class="text-n-ruby-11">*</span>
@@ -305,7 +366,7 @@ onMounted(() => {
             />
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">颜色</label>
             <Input v-model="form.color" placeholder="如 黑色 / 白色 / 定制色" />

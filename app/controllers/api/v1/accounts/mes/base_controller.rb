@@ -19,6 +19,14 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     current_product_line ? scope.where(product_line: current_product_line) : scope
   end
 
+  # 出库单专用：现货出库(STOCK)是跨产品线的共享库存，不按产品线分流——否则仓管切了产品线
+  # 就找不到现货出库单去处理（点「待出库」通知落到空列表）。生产出库随其订单产品线正常分流。
+  def scope_by_product_line_or_stock(scope)
+    return scope unless current_product_line
+
+    scope.where('kind = :stock OR product_line = :pl', stock: 'STOCK', pl: current_product_line)
+  end
+
   # 业务可见范围：CRM 业务角色按 Crm::AccessScope 收敛（业务员仅本人、主管本团队、
   # 管理员/副管理员全部）；非 CRM 成员（车间/仓管/采购等 MES 操作岗）不受限、看全部，
   # 否则他们看不到订单就没法干活。返回 :all 或可见 owner_id 数组。
@@ -48,13 +56,15 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     scope.where(production_order_id: visible)
   end
 
-  # BOM 按订单归属业务员（sales_owner）过滤（制单人多为 PMC，故以归属业务员为准）。
-  # 挂在备货订单上的 BOM 同样全业务可见。
-  def scoped_by_sales_owner(scope)
+  # BOM 可见性跟着它挂的生产订单走：看得到订单（归属可见 或 备货单）就看得到其 BOM，
+  # 外加自己起草的草稿。工程做 BOM 无需再单独关联业务员——BOM 天然经订单与业务员产生关系。
+  def scoped_by_bom_visibility(scope)
     ids = mes_visible_owner_ids
     return scope if ids == :all
 
-    stock_bom_ids = Current.account.mes_production_orders.stock.where.not(bom_id: nil).select(:bom_id)
-    scope.where('sales_owner_id IN (:ids) OR id IN (:bids)', ids: ids, bids: stock_bom_ids)
+    order_bom_ids = Current.account.mes_production_orders
+                           .where('owner_id IN (:ids) OR order_kind = :stock', ids: ids, stock: 'STOCK')
+                           .where.not(bom_id: nil).select(:bom_id)
+    scope.where('id IN (:bids) OR owner_id IN (:ids)', bids: order_bom_ids, ids: ids)
   end
 end

@@ -24,7 +24,7 @@ ENV NODE_OPTIONS ${NODE_OPTIONS}
 
 ENV BUNDLE_PATH="/gems"
 
-RUN apk update && apk add --no-cache \
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.tencentyun.com#g' /etc/apk/repositories && apk update && apk add --no-cache \
   openssl \
   tar \
   build-base \
@@ -62,7 +62,7 @@ COPY Gemfile Gemfile.lock ./
 # https://github.com/googleapis/google-cloud-ruby/issues/13306
 # adding xz as nokogiri was failing to build libxml
 # https://github.com/chatwoot/chatwoot/issues/4045
-RUN apk update && apk add --no-cache build-base musl ruby-full ruby-dev gcc make musl-dev openssl openssl-dev g++ linux-headers xz vips
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.tencentyun.com#g' /etc/apk/repositories && apk update && apk add --no-cache build-base musl ruby-full ruby-dev gcc make musl-dev openssl openssl-dev g++ linux-headers xz vips
 RUN bundle config set --local force_ruby_platform true && bundle config set --local mirror.https://rubygems.org https://mirrors.tuna.tsinghua.edu.cn/rubygems
 # git 源 gem 走国内 GitHub 代理：腾讯服务器直连 github.com 时通时断，ghfast.top 透明中转能拿精确 pinned SHA
 RUN git config --global url."https://ghfast.top/https://github.com/".insteadOf "https://github.com/"
@@ -122,7 +122,7 @@ ARG RAILS_ENV=production
 ENV RAILS_ENV ${RAILS_ENV}
 ENV BUNDLE_PATH="/gems"
 
-RUN apk update && apk add --no-cache \
+RUN sed -i 's#dl-cdn.alpinelinux.org#mirrors.tencentyun.com#g' /etc/apk/repositories && apk update && apk add --no-cache \
   build-base \
   openssl \
   tzdata \

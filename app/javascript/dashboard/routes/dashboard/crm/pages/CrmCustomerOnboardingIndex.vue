@@ -336,11 +336,11 @@ const submit = async () => {
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="flex-shrink-0 px-6 py-4 border-b border-n-weak">
+    <div class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4">
       <h1 class="text-xl font-medium text-n-slate-12">客户建档</h1>
     </div>
 
-    <div class="flex flex-col w-full max-w-3xl gap-4 px-6 py-5">
+    <div class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5">
       <p class="text-xs text-n-slate-11">
         新客户建档。<strong class="text-n-slate-12">建档后客户自动归你名下（私海）</strong
         >，客户编号自动生成。带
@@ -728,7 +728,7 @@ const submit = async () => {
         </button>
       </div>
 
-      <div class="flex items-center gap-3 mt-1">
+      <div class="flex flex-wrap items-center gap-3 mt-1">
         <button
           class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit"

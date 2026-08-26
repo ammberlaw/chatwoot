@@ -261,9 +261,9 @@ const unmarkPaid = async s => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-xl font-medium text-n-slate-12">
           {{ t('CRM.COMMISSION.HEADER') }}
         </h1>
@@ -275,7 +275,7 @@ const unmarkPaid = async s => {
           }}
         </p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button
           v-if="canManageRates"
           class="h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
@@ -365,12 +365,12 @@ const unmarkPaid = async s => {
         </div>
       </div>
     </div>
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <input
           v-if="showTeamView"
           v-model="q"
-          class="h-9 px-3 text-sm border rounded-lg reset-base w-52 border-n-weak bg-n-solid-1 text-n-slate-12"
+          class="h-9 px-3 text-sm border rounded-lg reset-base w-full sm:w-52 border-n-weak bg-n-solid-1 text-n-slate-12"
           :placeholder="t('CRM.COMMISSION.SEARCH_OWNER')"
         />
         <MonthPicker v-model="monthFilter" trigger-class="w-44 h-9" />
@@ -424,108 +424,89 @@ const unmarkPaid = async s => {
             : t('CRM.COMMISSION.EMPTY_SELF')
         }}
       </div>
-      <table v-else class="w-full text-sm text-left border-collapse">
-        <thead class="text-n-slate-11">
-          <tr class="border-b border-n-weak">
-            <th v-if="isCrmFinance" class="w-8 px-3 py-2">
-              <input
-                type="checkbox"
-                class="accent-n-teal-9"
-                :checked="allSelected"
-                :disabled="!selectableIds.length"
-                @change="toggleAll"
-              />
-            </th>
-            <th v-if="showTeamView" class="px-3 py-2 font-medium">
-              {{ t('CRM.COMMISSION.COL.OWNER') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.COMMISSION.COL.MONTH') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.COMMISSION.COL.STATUS') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.COMMISSION.COL.COUNT') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.COMMISSION.COL.SALES_RMB') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.COMMISSION.COL.SALES_USD') }}
-            </th>
-            <th v-if="isCrmFinance" class="px-3 py-2 font-medium">
-              {{ t('CRM.COMMISSION.PAYOUT.COL_PAID') }}
-            </th>
-            <th class="px-3 py-2 font-medium">
-              {{ t('CRM.COMMISSION.COL.UPDATED') }}
-            </th>
-            <th class="px-3 py-2 font-medium text-right">
-              {{ t('CRM.COMMISSION.COL.ACTION') }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
+      <template v-else>
+        <!-- 手机卡片列表 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
             v-for="s in filteredRecords"
             :key="s.id"
-            class="border-b border-n-weak cursor-pointer hover:bg-n-alpha-1"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
             @click="open(s)"
           >
-            <td v-if="isCrmFinance" class="px-3 py-2" @click.stop>
+            <div class="flex items-center gap-2">
               <input
-                v-if="isSelectable(s)"
+                v-if="isCrmFinance && isSelectable(s)"
                 type="checkbox"
-                class="accent-n-teal-9"
+                class="shrink-0 accent-n-teal-9"
                 :checked="selected.includes(s.id)"
+                @click.stop
                 @change="toggleSelect(s.id)"
               />
-            </td>
-            <td
-              v-if="showTeamView"
-              class="px-3 py-2 font-medium text-n-slate-12"
+              <span
+                v-if="showTeamView"
+                class="font-medium text-n-slate-12 truncate"
+              >
+                {{ s.ownerName || '—' }}
+              </span>
+              <span
+                class="shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs"
+                :class="STATUS_CLASS[s.status]"
+              >
+                {{ t(`CRM.COMMISSION.STATUS.${s.status}`) }}
+              </span>
+              <span
+                v-if="s.paidAt"
+                class="shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs bg-n-teal-3 text-n-teal-11"
+              >
+                {{ t('CRM.COMMISSION.PAYOUT.PAID') }}
+              </span>
+              <span class="flex-1" />
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-n-slate-11"
             >
-              {{ s.ownerName || '—' }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ fmtMonth(s.periodMonth) }}
-            </td>
-            <td class="px-3 py-2">
-              <div class="flex items-center gap-1.5">
-                <span
-                  class="inline-flex px-2 py-0.5 rounded-full text-xs"
-                  :class="STATUS_CLASS[s.status]"
-                >
-                  {{ t(`CRM.COMMISSION.STATUS.${s.status}`) }}
-                </span>
-                <span
-                  v-if="s.paidAt"
-                  class="inline-flex px-2 py-0.5 rounded-full text-xs bg-n-teal-3 text-n-teal-11"
-                  :title="`${s.paidByName || ''} · ${fmtDate(s.paidAt)}`"
-                >
-                  {{ t('CRM.COMMISSION.PAYOUT.PAID') }}
-                </span>
-              </div>
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ s.totals?.count ?? 0 }}
-            </td>
-            <td class="px-3 py-2 font-medium text-n-slate-12">
-              {{ yuan(s.totals?.salesRmbMicros) }}
-            </td>
-            <td class="px-3 py-2 font-medium text-n-slate-12">
-              {{ usd(s.totals?.salesUsdMicros) }}
-            </td>
-            <td
-              v-if="isCrmFinance"
-              class="px-3 py-2 font-medium text-n-teal-11"
+              <span>
+                {{ t('CRM.COMMISSION.COL.MONTH') }}：{{
+                  fmtMonth(s.periodMonth)
+                }}
+              </span>
+              <span>
+                {{ t('CRM.COMMISSION.COL.COUNT') }}：{{ s.totals?.count ?? 0 }}
+              </span>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-n-slate-11"
             >
-              {{ s.paidAt ? yuan(s.paidAmountMicros) : '—' }}
-            </td>
-            <td class="px-3 py-2 text-n-slate-11">
-              {{ fmtDateTime(s.updatedAt) }}
-            </td>
-            <td class="px-3 py-2 text-right" @click.stop>
+              <span>
+                {{ t('CRM.COMMISSION.COL.SALES_RMB') }}：{{
+                  yuan(s.totals?.salesRmbMicros)
+                }}
+              </span>
+              <span>
+                {{ t('CRM.COMMISSION.COL.SALES_USD') }}：{{
+                  usd(s.totals?.salesUsdMicros)
+                }}
+              </span>
+            </div>
+            <div v-if="isCrmFinance" class="mt-1 text-xs text-n-teal-11">
+              {{ t('CRM.COMMISSION.PAYOUT.COL_PAID') }}：{{
+                s.paidAt ? yuan(s.paidAmountMicros) : '—'
+              }}
+            </div>
+            <div class="mt-1 text-xs text-n-slate-10">
+              {{ t('CRM.COMMISSION.COL.UPDATED') }}：{{
+                fmtDateTime(s.updatedAt)
+              }}
+            </div>
+            <div
+              v-if="
+                canRemove(s) ||
+                (isCrmFinance && s.status === 'APPROVED' && !s.paidAt) ||
+                (isCrmFinance && s.paidAt)
+              "
+              class="flex flex-wrap gap-2 mt-2"
+              @click.stop
+            >
               <button
                 v-if="canRemove(s)"
                 class="px-2 py-1 text-xs rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
@@ -547,10 +528,138 @@ const unmarkPaid = async s => {
               >
                 {{ t('CRM.COMMISSION.PAYOUT.UNMARK') }}
               </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+          </div>
+        </div>
+        <!-- 桌面表格 -->
+        <table class="hidden md:table w-full text-sm text-left border-collapse">
+          <thead class="text-n-slate-11">
+            <tr class="border-b border-n-weak">
+              <th v-if="isCrmFinance" class="w-8 px-3 py-2">
+                <input
+                  type="checkbox"
+                  class="accent-n-teal-9"
+                  :checked="allSelected"
+                  :disabled="!selectableIds.length"
+                  @change="toggleAll"
+                />
+              </th>
+              <th v-if="showTeamView" class="px-3 py-2 font-medium">
+                {{ t('CRM.COMMISSION.COL.OWNER') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.COMMISSION.COL.MONTH') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.COMMISSION.COL.STATUS') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.COMMISSION.COL.COUNT') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.COMMISSION.COL.SALES_RMB') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.COMMISSION.COL.SALES_USD') }}
+              </th>
+              <th v-if="isCrmFinance" class="px-3 py-2 font-medium">
+                {{ t('CRM.COMMISSION.PAYOUT.COL_PAID') }}
+              </th>
+              <th class="px-3 py-2 font-medium">
+                {{ t('CRM.COMMISSION.COL.UPDATED') }}
+              </th>
+              <th class="px-3 py-2 font-medium text-right">
+                {{ t('CRM.COMMISSION.COL.ACTION') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="s in filteredRecords"
+              :key="s.id"
+              class="border-b border-n-weak cursor-pointer hover:bg-n-alpha-1"
+              @click="open(s)"
+            >
+              <td v-if="isCrmFinance" class="px-3 py-2" @click.stop>
+                <input
+                  v-if="isSelectable(s)"
+                  type="checkbox"
+                  class="accent-n-teal-9"
+                  :checked="selected.includes(s.id)"
+                  @change="toggleSelect(s.id)"
+                />
+              </td>
+              <td
+                v-if="showTeamView"
+                class="px-3 py-2 font-medium text-n-slate-12"
+              >
+                {{ s.ownerName || '—' }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ fmtMonth(s.periodMonth) }}
+              </td>
+              <td class="px-3 py-2">
+                <div class="flex items-center gap-1.5">
+                  <span
+                    class="inline-flex px-2 py-0.5 rounded-full text-xs"
+                    :class="STATUS_CLASS[s.status]"
+                  >
+                    {{ t(`CRM.COMMISSION.STATUS.${s.status}`) }}
+                  </span>
+                  <span
+                    v-if="s.paidAt"
+                    class="inline-flex px-2 py-0.5 rounded-full text-xs bg-n-teal-3 text-n-teal-11"
+                    :title="`${s.paidByName || ''} · ${fmtDate(s.paidAt)}`"
+                  >
+                    {{ t('CRM.COMMISSION.PAYOUT.PAID') }}
+                  </span>
+                </div>
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ s.totals?.count ?? 0 }}
+              </td>
+              <td class="px-3 py-2 font-medium text-n-slate-12">
+                {{ yuan(s.totals?.salesRmbMicros) }}
+              </td>
+              <td class="px-3 py-2 font-medium text-n-slate-12">
+                {{ usd(s.totals?.salesUsdMicros) }}
+              </td>
+              <td
+                v-if="isCrmFinance"
+                class="px-3 py-2 font-medium text-n-teal-11"
+              >
+                {{ s.paidAt ? yuan(s.paidAmountMicros) : '—' }}
+              </td>
+              <td class="px-3 py-2 text-n-slate-11">
+                {{ fmtDateTime(s.updatedAt) }}
+              </td>
+              <td class="px-3 py-2 text-right" @click.stop>
+                <button
+                  v-if="canRemove(s)"
+                  class="px-2 py-1 text-xs rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
+                  @click="removeSheet(s)"
+                >
+                  {{ t('CRM.COMMISSION.DELETE') }}
+                </button>
+                <button
+                  v-if="isCrmFinance && s.status === 'APPROVED' && !s.paidAt"
+                  class="px-2 py-1 text-xs rounded-lg text-n-teal-11 hover:bg-n-teal-3"
+                  @click="openPayout([s.id])"
+                >
+                  {{ t('CRM.COMMISSION.PAYOUT.MARK_ONE') }}
+                </button>
+                <button
+                  v-if="isCrmFinance && s.paidAt"
+                  class="px-2 py-1 text-xs rounded-lg text-n-slate-10 hover:bg-n-alpha-2"
+                  @click="unmarkPaid(s)"
+                >
+                  {{ t('CRM.COMMISSION.PAYOUT.UNMARK') }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
   </div>
 

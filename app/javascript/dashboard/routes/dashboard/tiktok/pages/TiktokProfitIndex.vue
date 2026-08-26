@@ -275,7 +275,7 @@ onMounted(async () => {
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto">
-    <div class="w-full px-8 py-6 mx-auto max-w-7xl">
+    <div class="w-full px-4 py-4 mx-auto sm:px-8 sm:py-6 max-w-7xl">
       <!-- 头部 + 工具栏 -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
@@ -284,17 +284,17 @@ onMounted(async () => {
             本月经营摘要，明细可点行内「编辑」查看全部 17 项。
           </p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <MonthPicker
             v-model="filters.month"
-            trigger-class="w-40 h-10"
+            trigger-class="w-full sm:w-40 h-10"
             :clearable="false"
             @change="loadRecords"
           />
           <SelectCard
             v-model="filters.departmentId"
             :options="departmentFilterOptions"
-            trigger-class="w-40 h-10"
+            trigger-class="w-full sm:w-40 h-10"
           />
           <Button
             color="iris"
@@ -336,115 +336,205 @@ onMounted(async () => {
       </div>
 
       <!-- 精简明细表 -->
-      <div
-        v-else
-        class="overflow-x-auto border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
-      >
-        <table class="w-full text-sm whitespace-nowrap">
-          <thead>
-            <tr class="text-xs text-left text-n-slate-11 bg-n-alpha-1">
-              <th class="px-4 py-3 font-medium">店铺</th>
-              <th class="px-4 py-3 font-medium">型号</th>
-              <th class="px-4 py-3 font-medium text-right">数量</th>
-              <th class="px-4 py-3 font-medium text-right">入账RMB</th>
-              <th class="px-4 py-3 font-medium text-right">售出总成本</th>
-              <th class="px-4 py-3 font-medium text-right">总毛利</th>
-              <th class="px-4 py-3 font-medium text-right">净利润</th>
-              <th class="px-4 py-3 font-medium text-right">毛利率</th>
-              <th class="px-4 py-3 font-medium text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="r in filteredRecords"
-              :key="r.id"
-              class="border-t border-n-weak hover:bg-n-alpha-1"
-            >
-              <td class="px-4 py-3 text-n-slate-12">
-                {{ r.shopName || shopName(r.shopId) }}
-              </td>
-              <td class="px-4 py-3 font-medium text-n-slate-12">
+      <template v-else>
+        <!-- 手机卡片列表 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="r in filteredRecords"
+            :key="r.id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            @click="openEdit(r)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-n-slate-12 truncate">
                 {{ r.productModel }}
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums text-n-slate-11">
-                {{ r.recordedQuantity }}
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums text-n-slate-12">
-                {{ cny(r.recordedAmountCny) }}
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums text-n-slate-11">
-                {{ cny(r.totalCost) }}
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums text-n-slate-12">
-                {{ cny(r.grossProfit) }}
-              </td>
-              <td
-                class="px-4 py-3 text-right tabular-nums font-medium"
+              </span>
+              <span class="flex-1" />
+              <span
+                class="shrink-0 text-xs font-medium tabular-nums"
                 :class="
                   num(r.netProfit) < 0 ? 'text-n-ruby-11' : 'text-n-teal-11'
                 "
               >
                 {{ cny(r.netProfit) }}
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums text-n-slate-11">
-                {{ marginPct(r.grossProfit, r.recordedAmountCny) }}
-              </td>
-              <td class="px-4 py-3 text-right">
-                <div class="inline-flex items-center gap-0.5">
-                  <Button
-                    variant="ghost"
-                    color="slate"
-                    size="xs"
-                    icon="i-lucide-pencil"
-                    @click="openEdit(r)"
-                  />
-                  <Button
-                    variant="ghost"
-                    color="ruby"
-                    size="xs"
-                    icon="i-lucide-trash-2"
-                    @click="remove(r)"
-                  />
-                </div>
-              </td>
-            </tr>
-            <tr v-if="!filteredRecords.length">
-              <td colspan="9" class="px-4 py-12 text-center text-n-slate-10">
-                本月暂无利润记录，点右上角「新增」开始录入。
-              </td>
-            </tr>
-          </tbody>
-          <tfoot v-if="filteredRecords.length">
-            <tr
-              class="border-t-2 border-n-weak bg-n-alpha-1 font-medium text-n-slate-12"
+              </span>
+              <Button
+                variant="ghost"
+                color="slate"
+                size="xs"
+                icon="i-lucide-pencil"
+                class="shrink-0"
+                @click.stop="openEdit(r)"
+              />
+              <Button
+                variant="ghost"
+                color="ruby"
+                size="xs"
+                icon="i-lucide-trash-2"
+                class="shrink-0"
+                @click.stop="remove(r)"
+              />
+            </div>
+            <div class="mt-1 text-xs text-n-slate-11 truncate">
+              {{ r.shopName || shopName(r.shopId) }}
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-n-slate-11"
             >
-              <td class="px-4 py-3" colspan="2">合计</td>
-              <td class="px-4 py-3 text-right tabular-nums">
-                {{ totals.qty }}
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums">
-                {{ cny(totals.amountCny) }}
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums">
-                {{ cny(totals.cost) }}
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums">
-                {{ cny(totals.gross) }}
-              </td>
-              <td
-                class="px-4 py-3 text-right tabular-nums"
+              <span>数量：{{ r.recordedQuantity }}</span>
+              <span>入账RMB：{{ cny(r.recordedAmountCny) }}</span>
+              <span>售出总成本：{{ cny(r.totalCost) }}</span>
+              <span>总毛利：{{ cny(r.grossProfit) }}</span>
+              <span
+                >毛利率：{{
+                  marginPct(r.grossProfit, r.recordedAmountCny)
+                }}</span
+              >
+            </div>
+          </div>
+          <div
+            v-if="!filteredRecords.length"
+            class="p-6 text-sm text-center border rounded-xl border-white/60 bg-n-solid-1/75 text-n-slate-10"
+          >
+            本月暂无利润记录，点右上角「新增」开始录入。
+          </div>
+          <div
+            v-if="filteredRecords.length"
+            class="p-3 border rounded-xl border-white/60 bg-n-alpha-1 font-medium text-n-slate-12"
+          >
+            <div class="flex items-center gap-2">
+              <span>合计</span>
+              <span class="flex-1" />
+              <span
+                class="text-xs tabular-nums"
                 :class="totals.net < 0 ? 'text-n-ruby-11' : 'text-n-teal-11'"
               >
                 {{ cny(totals.net) }}
-              </td>
-              <td class="px-4 py-3 text-right tabular-nums">
-                {{ marginPct(totals.gross, totals.amountCny) }}
-              </td>
-              <td class="px-4 py-3" />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+              </span>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-n-slate-11"
+            >
+              <span>数量：{{ totals.qty }}</span>
+              <span>入账RMB：{{ cny(totals.amountCny) }}</span>
+              <span>售出总成本：{{ cny(totals.cost) }}</span>
+              <span>总毛利：{{ cny(totals.gross) }}</span>
+              <span
+                >毛利率：{{ marginPct(totals.gross, totals.amountCny) }}</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="hidden md:block overflow-x-auto border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
+        >
+          <table class="w-full text-sm whitespace-nowrap">
+            <thead>
+              <tr class="text-xs text-left text-n-slate-11 bg-n-alpha-1">
+                <th class="px-4 py-3 font-medium">店铺</th>
+                <th class="px-4 py-3 font-medium">型号</th>
+                <th class="px-4 py-3 font-medium text-right">数量</th>
+                <th class="px-4 py-3 font-medium text-right">入账RMB</th>
+                <th class="px-4 py-3 font-medium text-right">售出总成本</th>
+                <th class="px-4 py-3 font-medium text-right">总毛利</th>
+                <th class="px-4 py-3 font-medium text-right">净利润</th>
+                <th class="px-4 py-3 font-medium text-right">毛利率</th>
+                <th class="px-4 py-3 font-medium text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="r in filteredRecords"
+                :key="r.id"
+                class="border-t border-n-weak hover:bg-n-alpha-1"
+              >
+                <td class="px-4 py-3 text-n-slate-12">
+                  {{ r.shopName || shopName(r.shopId) }}
+                </td>
+                <td class="px-4 py-3 font-medium text-n-slate-12">
+                  {{ r.productModel }}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums text-n-slate-11">
+                  {{ r.recordedQuantity }}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums text-n-slate-12">
+                  {{ cny(r.recordedAmountCny) }}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums text-n-slate-11">
+                  {{ cny(r.totalCost) }}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums text-n-slate-12">
+                  {{ cny(r.grossProfit) }}
+                </td>
+                <td
+                  class="px-4 py-3 text-right tabular-nums font-medium"
+                  :class="
+                    num(r.netProfit) < 0 ? 'text-n-ruby-11' : 'text-n-teal-11'
+                  "
+                >
+                  {{ cny(r.netProfit) }}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums text-n-slate-11">
+                  {{ marginPct(r.grossProfit, r.recordedAmountCny) }}
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <div class="inline-flex items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      color="slate"
+                      size="xs"
+                      icon="i-lucide-pencil"
+                      @click="openEdit(r)"
+                    />
+                    <Button
+                      variant="ghost"
+                      color="ruby"
+                      size="xs"
+                      icon="i-lucide-trash-2"
+                      @click="remove(r)"
+                    />
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="!filteredRecords.length">
+                <td colspan="9" class="px-4 py-12 text-center text-n-slate-10">
+                  本月暂无利润记录，点右上角「新增」开始录入。
+                </td>
+              </tr>
+            </tbody>
+            <tfoot v-if="filteredRecords.length">
+              <tr
+                class="border-t-2 border-n-weak bg-n-alpha-1 font-medium text-n-slate-12"
+              >
+                <td class="px-4 py-3" colspan="2">合计</td>
+                <td class="px-4 py-3 text-right tabular-nums">
+                  {{ totals.qty }}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums">
+                  {{ cny(totals.amountCny) }}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums">
+                  {{ cny(totals.cost) }}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums">
+                  {{ cny(totals.gross) }}
+                </td>
+                <td
+                  class="px-4 py-3 text-right tabular-nums"
+                  :class="totals.net < 0 ? 'text-n-ruby-11' : 'text-n-teal-11'"
+                >
+                  {{ cny(totals.net) }}
+                </td>
+                <td class="px-4 py-3 text-right tabular-nums">
+                  {{ marginPct(totals.gross, totals.amountCny) }}
+                </td>
+                <td class="px-4 py-3" />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </template>
     </div>
 
     <!-- 录入/编辑弹窗（保留全部 17 项） -->
@@ -454,13 +544,13 @@ onMounted(async () => {
       @click.self="showForm = false"
     >
       <div
-        class="w-full max-w-2xl p-6 overflow-y-auto max-h-[90vh] rounded-2xl bg-n-solid-1 shadow-xl"
+        class="w-full max-w-[95vw] sm:max-w-2xl p-4 sm:p-6 overflow-y-auto max-h-[90vh] rounded-2xl bg-n-solid-1 shadow-xl"
       >
         <h2 class="mb-4 text-lg font-semibold text-n-slate-12">
           {{ isEdit ? '编辑利润记录' : '新增利润记录' }}
         </h2>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <label class="flex flex-col gap-1">
             <span class="text-xs text-n-slate-11">店铺</span>
             <select

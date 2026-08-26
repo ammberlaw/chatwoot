@@ -76,7 +76,9 @@ onMounted(load);
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto">
-    <div class="flex flex-col w-full max-w-6xl gap-4 px-8 py-6 mx-auto">
+    <div
+      class="flex flex-col w-full max-w-6xl gap-4 px-4 py-4 mx-auto sm:px-8 sm:py-6"
+    >
       <!-- 头部 -->
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <h1 class="text-xl font-semibold text-n-slate-12">今日速览</h1>
@@ -120,10 +122,62 @@ onMounted(load);
 
         <!-- 各店今日 -->
         <div
-          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45"
+          class="p-4 border shadow-sm sm:p-5 rounded-2xl border-white/60 bg-n-solid-1/45"
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">各店今日</h2>
-          <div class="overflow-x-auto">
+
+          <!-- 手机卡片 -->
+          <div class="flex flex-col gap-2 md:hidden">
+            <div
+              v-for="row in shops"
+              :key="`m-${row.shop_id}`"
+              class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
+              :class="{ 'opacity-50': !row.has_data }"
+            >
+              <div class="flex items-center gap-2">
+                <span class="font-medium truncate text-n-slate-12">
+                  {{ row.shop_name }}
+                </span>
+                <span class="flex-1" />
+                <span
+                  v-if="row.has_data"
+                  class="text-lg font-bold shrink-0 tabular-nums text-n-slate-12"
+                >
+                  {{ row.total_units }}
+                </span>
+                <span v-else class="text-xs shrink-0 text-n-slate-9">
+                  今日未录入
+                </span>
+              </div>
+              <div class="mt-1 text-xs text-n-slate-11">
+                团队：{{ row.team_name || '—' }}
+              </div>
+              <div
+                v-if="row.has_data"
+                class="flex flex-wrap mt-2 text-xs gap-x-3 gap-y-1 text-n-slate-11"
+              >
+                <span>订单：{{ row.total_orders }}</span>
+                <span>销售额：{{ cny(row.amount_cny) }}</span>
+                <span>签收：{{ row.shipped_units }}</span>
+                <span>达人：{{ row.influencer_units }}</span>
+                <span
+                  :class="
+                    row.cancel_rate > 0.3 ? 'text-n-ruby-11 font-medium' : ''
+                  "
+                >
+                  取消率：{{ pct(row.cancel_rate) }}
+                </span>
+              </div>
+            </div>
+            <div
+              v-if="!shops.length"
+              class="py-10 text-sm text-center text-n-slate-10"
+            >
+              暂无店铺，先到「店铺设置」新增。
+            </div>
+          </div>
+
+          <div class="hidden overflow-x-auto md:block">
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-xs text-left text-n-slate-11">

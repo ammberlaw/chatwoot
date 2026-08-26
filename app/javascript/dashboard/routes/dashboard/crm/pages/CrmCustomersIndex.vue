@@ -1461,9 +1461,13 @@ watch(
 
 <template>
   <div class="flex w-full h-full overflow-hidden font-sans">
-    <div class="flex flex-col flex-1 min-w-0 overflow-hidden gap-3.5 px-5 py-4">
-      <div class="flex items-center justify-between flex-shrink-0">
-        <div>
+    <div
+      class="flex flex-col flex-1 min-w-0 overflow-hidden gap-3.5 px-4 py-3 sm:px-5 sm:py-4"
+    >
+      <div
+        class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0"
+      >
+        <div class="min-w-0">
           <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
             {{
               activeFilter === 'churn_risk'
@@ -2182,7 +2186,7 @@ watch(
     <!-- 右侧客户详情面板 -->
     <aside
       v-if="selectedCustomer"
-      class="flex flex-col w-[400px] flex-shrink-0 overflow-hidden my-3 mr-3 rounded-3xl border border-white/50 bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 shadow-lg shadow-n-iris-9/5"
+      class="fixed inset-0 z-50 flex flex-col overflow-hidden bg-n-solid-1 md:static md:z-auto md:inset-auto md:w-[400px] md:flex-shrink-0 md:my-3 md:mr-3 md:rounded-3xl md:border md:border-white/50 md:bg-n-solid-1/40 md:backdrop-blur-2xl md:backdrop-saturate-150 md:shadow-lg md:shadow-n-iris-9/5"
     >
       <div class="flex items-center gap-3 px-5 py-4 border-b border-n-weak">
         <span

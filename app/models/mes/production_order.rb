@@ -102,8 +102,10 @@ class Mes::ProductionOrder < ApplicationRecord
   APPROVAL_STATUSES = %w[DRAFT SUBMITTED MANAGER_APPROVED APPROVED REJECTED].freeze
 
   # 每个阶段对应的前端板块（board_key），用于查该阶段负责人（Mes::BoardOwner）。
-  # SALES_CONFIRMED（建单）由各业务自建、无统一板块负责人，不入接单机制；SHIPPED 为终点无需接单。
+  # SALES_CONFIRMED（建单生效）归工程/PMC 板块——订单生效后工程/PMC 须接单出 BOM，
+  # 纳入接单机制（待接单/超时/升级），堵住"无人认领长期卡单"；SHIPPED 为终点无需接单。
   STAGE_BOARD_KEYS = {
+    'SALES_CONFIRMED' => 'mes_boms_index',
     'BOM_READY' => 'mes_boms_index',
     'PURCHASING' => 'mes_purchase_orders_index',
     'MATERIAL_INBOUND' => 'mes_stock_entries_index',
@@ -118,7 +120,7 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 阶段中文名（用于站内通知文案）。
   STAGE_LABELS = {
-    'SALES_CONFIRMED' => '销售订单确定',
+    'SALES_CONFIRMED' => '待工程接单',
     'BOM_READY' => '工程/PMC BOM',
     'PURCHASING' => '采购原料',
     'MATERIAL_INBOUND' => '原料入库',
@@ -217,6 +219,8 @@ class Mes::ProductionOrder < ApplicationRecord
     updates = { bom_id: bom.id, bom_confirmed_at: nil, bom_confirmed_by_id: nil }
     updates[:planned_end_date] = planned if planned
     update!(updates)
+    # 工程建 BOM 常留空产品线；继承订单产品线，否则业务员按产品线筛会漏看这张 BOM。
+    bom.update!(product_line: product_line) if bom.product_line.blank? && product_line.present?
     enter_stage!('BOM_READY', actor: actor) if stage == 'SALES_CONFIRMED'
     notify_bom_reconfirm(bom)
     self
@@ -232,10 +236,13 @@ class Mes::ProductionOrder < ApplicationRecord
     raise StandardError, 'BOM 已确认，无需重复' if bom_confirmed_at.present?
 
     update!(bom_confirmed_at: Time.current, bom_confirmed_by_id: actor&.id)
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'bom_reconfirm')
+    # 业务确认后，「下发采购」是工程/PMC 的待办——发 todo 类通知进其「待处理」，
+    # 而非仅知会（否则易漏）；下发采购时（release_to_purchasing!）自动销掉。
     notify_stage_owners(
-      kind: 'bom_confirmed',
-      title: "BOM 已二次确认：生产订单 #{order_no}",
-      body: "#{actor&.name || '业务'} 已确认 BOM #{bom&.bom_no}，可下发采购。"
+      kind: 'purchase_release_pending',
+      title: "待下发采购：生产订单 #{order_no}",
+      body: "#{actor&.name || '业务'} 已二次确认 BOM #{bom&.bom_no}，请核对后点「下发到采购」。"
     )
     self
   end
@@ -247,6 +254,7 @@ class Mes::ProductionOrder < ApplicationRecord
     raise StandardError, '当前阶段无法下发采购' unless stage == 'BOM_READY'
     raise StandardError, '需业务二次确认 BOM 后方可下发采购' if bom_confirmed_at.nil?
 
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'purchase_release_pending')
     enter_stage!('PURCHASING', actor: actor)
     self
   end
@@ -302,9 +310,10 @@ class Mes::ProductionOrder < ApplicationRecord
     stage_events.select { |e| e.stage == stage }.map(&:entered_at).compact.max
   end
 
-  # 本阶段需要接单吗？终点（SHIPPED，无 board_key）与非进行中订单不需要。
+  # 本阶段需要接单吗？终点（SHIPPED，无 board_key）、草稿/审批中、非进行中订单不需要。
+  # 建单阶段仅在审批「生效」后才计接单（审批期间是草稿，计时从生效起算，见 activate_stage_ack!）。
   def ack_required?
-    status == 'IN_PROGRESS' && STAGE_BOARD_KEYS.key?(stage)
+    status == 'IN_PROGRESS' && !is_draft && STAGE_BOARD_KEYS.key?(stage)
   end
 
   def awaiting_ack?
@@ -368,6 +377,7 @@ class Mes::ProductionOrder < ApplicationRecord
     now = Time.current
     update!(stage_ack_at: now, stage_ack_by_id: actor&.id)
     stage_events.where(stage: stage).update_all(acked_at: now, acked_by_id: actor&.id, updated_at: now)
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'stage_assigned')
     self
   end
 
@@ -429,6 +439,7 @@ class Mes::ProductionOrder < ApplicationRecord
 
     update!(approval_status: 'MANAGER_APPROVED', manager_id: actor.id,
             manager_acted_at: Time.current, manager_comment: comment)
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
     notify_approval_pending
     self
   end
@@ -439,12 +450,13 @@ class Mes::ProductionOrder < ApplicationRecord
 
     update!(approval_status: 'APPROVED', gm_id: actor.id,
             gm_acted_at: Time.current, gm_comment: comment)
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
     Mes::Notifier.notify(
       account: account, recipients: owner_id, kind: 'approval_approved',
       title: "审批通过：生产订单 #{order_no}",
       body: '总经理已通过，订单已生效并进入生产流转。', order: self
     )
-    notify_bom_owners_order_effective
+    activate_stage_ack!
     self
   end
 
@@ -463,6 +475,7 @@ class Mes::ProductionOrder < ApplicationRecord
     end
     self.approval_status = 'REJECTED'
     save!
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
     Mes::Notifier.notify(
       account: account, recipients: owner_id, kind: 'approval_rejected',
       title: "审批被驳回：生产订单 #{order_no}",
@@ -514,17 +527,16 @@ class Mes::ProductionOrder < ApplicationRecord
     Mes::Notifier.notify(account: account, recipients: recipients, kind: kind, title: title, body: body, order: self)
   end
 
-  # 生效即通知 BOM 板块负责人（PMC/工程）来编制 BOM——否则订单停在
-  # 「销售订单确定」（无板块映射），PMC 只能靠刷列表发现新单。
-  def notify_bom_owners_order_effective
-    recipients = board_owner_ids('mes_boms_index')
-    return if recipients.blank?
+  # 审批生效：建单阶段的接单计时从「生效时刻」起算（审批期间是草稿不计时），
+  # 清掉旧接单留痕并通知工程/PMC 负责人接单出 BOM。
+  def activate_stage_ack!
+    return unless stage == 'SALES_CONFIRMED'
 
-    Mes::Notifier.notify(
-      account: account, recipients: recipients, kind: 'stage_assigned',
-      title: "新订单生效：#{order_no}",
-      body: "#{product_name} 已通过审批生效，请编制/挂接工程 BOM。", order: self
-    )
+    now = Time.current
+    stage_events.where(stage: 'SALES_CONFIRMED')
+                .update_all(entered_at: now, acked_at: nil, acked_by_id: nil, updated_at: now)
+    update_columns(stage_ack_at: nil, stage_ack_by_id: nil)
+    notify_stage_assigned(nil)
   end
 
   # 挂 BOM 后通知业务员二次确认。

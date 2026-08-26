@@ -248,7 +248,7 @@ const cell = (r, isAmt) => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -327,7 +327,9 @@ const cell = (r, isAmt) => {
                   :style="{ width: line.m.barWidth }"
                 />
               </div>
-              <span class="w-52 text-xs text-right shrink-0 text-n-slate-12">
+              <span
+                class="w-32 sm:w-52 text-xs text-right shrink-0 text-n-slate-12"
+              >
                 {{ line.m.text }}
               </span>
             </div>
@@ -414,7 +416,49 @@ const cell = (r, isAmt) => {
             </button>
           </div>
         </div>
-        <table class="w-full text-xs">
+        <!-- 手机卡片 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="r in rows"
+            :key="r.month"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            :class="{
+              'ring-1 ring-n-iris-9': r.month === selMonth,
+              'opacity-70': r.isFuture,
+            }"
+            @click="selectMonth(r.month)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate text-n-slate-12">
+                {{ r.month + 1 }}月
+              </span>
+              <span class="flex-1" />
+              <span class="text-xs shrink-0 text-n-slate-11">
+                {{ cell(r, tableMetric === 'amount').achieve }}
+              </span>
+            </div>
+            <div
+              class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-n-slate-11"
+            >
+              <span>基础目标：{{ cell(r, tableMetric === 'amount').base }}</span>
+              <span
+                :class="
+                  cell(r, tableMetric === 'amount').carry === '—'
+                    ? ''
+                    : cell(r, tableMetric === 'amount').carryUp
+                      ? 'text-n-iris-11'
+                      : 'text-n-teal-11'
+                "
+              >
+                结转：{{ cell(r, tableMetric === 'amount').carry }}
+              </span>
+              <span>有效目标：{{ cell(r, tableMetric === 'amount').eff }}</span>
+              <span>已完成：{{ cell(r, tableMetric === 'amount').actual }}</span>
+            </div>
+          </div>
+        </div>
+
+        <table class="hidden w-full text-xs md:table">
           <thead class="text-n-slate-10">
             <tr class="border-b border-n-weak">
               <th class="px-2 py-2 font-medium text-left">月份</th>

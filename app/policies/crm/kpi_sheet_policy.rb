@@ -10,8 +10,6 @@ class Crm::KpiSheetPolicy < ApplicationPolicy
   def ai_suggest? = true
   def return_sheet? = true
   def reopen_scoring? = true
-  def mark_paid? = true
-  def unmark_paid? = true
 
   # 撤回下发（删除考核表）：管理员/副管理员/主管可发起；具体「仅待填报 + 主管限本部门」在控制器守卫。
   def destroy?

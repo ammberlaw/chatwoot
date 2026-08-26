@@ -120,7 +120,7 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-6 py-4">
+    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">生产报工</h1>
       <Button
         v-if="mesCan('report')"
@@ -133,44 +133,25 @@ onMounted(() => {
 
     <MesBoardOwnerBar board-key="mes_production_records_index" />
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
-      <table v-else class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-3 font-medium">生产订单</th>
-            <th class="px-3 py-3 font-medium">归属人</th>
-            <th class="px-3 py-3 font-medium">工序</th>
-            <th class="px-3 py-3 font-medium">完成</th>
-            <th class="px-3 py-3 font-medium">退料</th>
-            <th class="px-3 py-3 font-medium">清尾</th>
-            <th class="px-3 py-3 font-medium">报工人</th>
-            <th class="px-3 py-3 font-medium">时间</th>
-            <th class="px-3 py-3" />
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in records" :key="r.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-medium text-n-slate-12">
-              {{ r.productionOrderNo || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ r.productionOrderOwnerName || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ r.operationName || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-12">{{ r.qtyCompleted }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ r.qtyReturned }}</td>
-            <td class="px-3 py-3 text-n-slate-11">{{ r.qtyScrap }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ r.operatorName || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ time(r.recordedAt) }}</td>
-            <td class="px-3 py-3 text-right">
-              <div class="inline-flex items-center justify-end gap-1">
+      <template v-else>
+        <!-- 手机卡片 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="r in records"
+            :key="r.id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+            @click="openView(r)"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium truncate text-n-slate-12">
+                {{ r.productionOrderNo || '—' }}
+              </span>
+              <span class="flex-1" />
+              <div class="shrink-0 inline-flex items-center gap-1" @click.stop>
                 <Button
                   label="查看"
                   variant="ghost"
@@ -183,15 +164,85 @@ onMounted(() => {
                   :can-manage="mesCan('report')"
                 />
               </div>
-            </td>
-          </tr>
-          <tr v-if="!records.length">
-            <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
-              还没有报工记录。
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+            <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
+              <span>归属人：{{ r.productionOrderOwnerName || '—' }}</span>
+              <span>工序：{{ r.operationName || '—' }}</span>
+              <span>报工人：{{ r.operatorName || '—' }}</span>
+            </div>
+            <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
+              <span>完成：{{ r.qtyCompleted }}</span>
+              <span>退料：{{ r.qtyReturned }}</span>
+              <span>清尾：{{ r.qtyScrap }}</span>
+            </div>
+            <div class="mt-1 text-xs text-n-slate-11">
+              时间：{{ time(r.recordedAt) }}
+            </div>
+          </div>
+          <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
+            还没有报工记录。
+          </div>
+        </div>
+
+        <!-- 桌面表格 -->
+        <table class="hidden w-full text-sm md:table">
+          <thead>
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium">生产订单</th>
+              <th class="px-3 py-3 font-medium">归属人</th>
+              <th class="px-3 py-3 font-medium">工序</th>
+              <th class="px-3 py-3 font-medium">完成</th>
+              <th class="px-3 py-3 font-medium">退料</th>
+              <th class="px-3 py-3 font-medium">清尾</th>
+              <th class="px-3 py-3 font-medium">报工人</th>
+              <th class="px-3 py-3 font-medium">时间</th>
+              <th class="px-3 py-3" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in records" :key="r.id" class="border-b border-n-weak">
+              <td class="px-3 py-3 font-medium text-n-slate-12">
+                {{ r.productionOrderNo || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ r.productionOrderOwnerName || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ r.operationName || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-12">{{ r.qtyCompleted }}</td>
+              <td class="px-3 py-3 text-n-slate-11">{{ r.qtyReturned }}</td>
+              <td class="px-3 py-3 text-n-slate-11">{{ r.qtyScrap }}</td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ r.operatorName || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ time(r.recordedAt) }}
+              </td>
+              <td class="px-3 py-3 text-right">
+                <div class="inline-flex items-center justify-end gap-1">
+                  <Button
+                    label="查看"
+                    variant="ghost"
+                    size="sm"
+                    @click="openView(r)"
+                  />
+                  <MesReturnControls
+                    :record="r"
+                    :store="store"
+                    :can-manage="mesCan('report')"
+                  />
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!records.length">
+              <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
+                还没有报工记录。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <Dialog

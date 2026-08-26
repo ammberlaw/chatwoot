@@ -118,7 +118,9 @@ onMounted(async () => {
 
 <template>
   <div class="flex flex-col w-full h-full overflow-auto">
-    <div class="flex flex-col w-full max-w-6xl gap-4 px-8 py-6 mx-auto">
+    <div
+      class="flex flex-col w-full max-w-6xl gap-4 px-4 py-4 mx-auto sm:px-8 sm:py-6"
+    >
       <!-- 头部 -->
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-xl font-semibold text-n-slate-12">TikTok 数据看板</h1>
@@ -221,7 +223,54 @@ onMounted(async () => {
           class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45"
         >
           <h2 class="mb-4 text-base font-medium text-n-slate-12">分团队明细</h2>
-          <div class="overflow-x-auto">
+
+          <!-- 手机卡片 -->
+          <div class="flex flex-col gap-2 md:hidden">
+            <div
+              v-for="row in byTeam"
+              :key="row.team_id ?? 'none'"
+              class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
+            >
+              <div class="flex items-center gap-2">
+                <span class="font-medium truncate text-n-slate-12">
+                  {{ row.team_name }}
+                </span>
+                <span class="flex-1" />
+                <span
+                  class="text-sm font-medium tabular-nums shrink-0 text-n-slate-12"
+                >
+                  {{ cny(row.amount_cny) }}
+                </span>
+              </div>
+              <div
+                class="grid grid-cols-2 mt-2 gap-x-3 gap-y-1 text-xs text-n-slate-11"
+              >
+                <div>店铺数：{{ row.shop_count }}</div>
+                <div>订单：{{ row.total_orders }}</div>
+                <div>台数：{{ row.total_units }}</div>
+                <div>实发：{{ row.shipped_units }}</div>
+                <div>达人：{{ row.influencer_units }}</div>
+                <div>有效率：{{ pct(row.valid_rate) }}</div>
+                <div
+                  :class="
+                    row.cancel_rate > 0.3
+                      ? 'text-n-ruby-11 font-medium'
+                      : 'text-n-slate-11'
+                  "
+                >
+                  取消率：{{ pct(row.cancel_rate) }}
+                </div>
+              </div>
+            </div>
+            <div
+              v-if="!byTeam.length"
+              class="py-10 text-sm text-center text-n-slate-10"
+            >
+              本月暂无数据
+            </div>
+          </div>
+
+          <div class="hidden overflow-x-auto md:block">
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-xs text-left text-n-slate-11">

@@ -98,7 +98,7 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-6 py-4">
+    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">SN 追溯</h1>
       <Button
         v-if="mesCan('stock')"
@@ -110,7 +110,7 @@ onMounted(() => {
     </div>
 
     <!-- 追溯查询 -->
-    <div class="px-6 pb-4">
+    <div class="px-4 pb-4 sm:px-6">
       <div class="flex gap-2">
         <input
           v-model="query"
@@ -172,41 +172,74 @@ onMounted(() => {
     </div>
 
     <!-- SN 列表 -->
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
-      <table v-else class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-3 font-medium">序列号</th>
-            <th class="px-3 py-3 font-medium">成品</th>
-            <th class="px-3 py-3 font-medium">生产订单</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3 font-medium">登记时间</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="s in records" :key="s.id" class="border-b border-n-weak">
-            <td class="px-3 py-3 font-medium text-n-slate-12">{{ s.sn }}</td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ s.product_name || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ s.production_order_no || '—' }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ STATUS_LABELS[s.status] }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">{{ day(s.created_at) }}</td>
-          </tr>
-          <tr v-if="!records.length">
-            <td colspan="5" class="px-3 py-10 text-center text-n-slate-11">
-              还没有登记序列号。
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <template v-else>
+        <!-- 手机卡片 -->
+        <div class="flex flex-col gap-2 md:hidden">
+          <div
+            v-for="s in records"
+            :key="s.id"
+            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+          >
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-n-slate-12 truncate">{{
+                s.sn
+              }}</span>
+              <span class="shrink-0 text-xs text-n-slate-11">{{
+                STATUS_LABELS[s.status]
+              }}</span>
+            </div>
+            <div class="mt-1 text-xs text-n-slate-11">
+              成品：{{ s.product_name || '—' }}
+            </div>
+            <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
+              <span>生产订单：{{ s.production_order_no || '—' }}</span>
+              <span>登记：{{ day(s.created_at) }}</span>
+            </div>
+          </div>
+          <div
+            v-if="!records.length"
+            class="px-3 py-10 text-center text-n-slate-11"
+          >
+            还没有登记序列号。
+          </div>
+        </div>
+
+        <table class="hidden w-full text-sm md:table">
+          <thead>
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium">序列号</th>
+              <th class="px-3 py-3 font-medium">成品</th>
+              <th class="px-3 py-3 font-medium">生产订单</th>
+              <th class="px-3 py-3 font-medium">状态</th>
+              <th class="px-3 py-3 font-medium">登记时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in records" :key="s.id" class="border-b border-n-weak">
+              <td class="px-3 py-3 font-medium text-n-slate-12">{{ s.sn }}</td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ s.product_name || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ s.production_order_no || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ STATUS_LABELS[s.status] }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">{{ day(s.created_at) }}</td>
+            </tr>
+            <tr v-if="!records.length">
+              <td colspan="5" class="px-3 py-10 text-center text-n-slate-11">
+                还没有登记序列号。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </div>
 
     <Dialog

@@ -136,9 +136,9 @@ const fieldCls =
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4"
     >
-      <div>
+      <div class="min-w-0">
         <h1 class="text-xl font-medium text-n-slate-12">
           {{ t('CRM.AI_SETTINGS.HEADER') }}
         </h1>
@@ -147,6 +147,7 @@ const fieldCls =
         </p>
       </div>
       <Button
+        class="shrink-0"
         :label="t('CRM.AI_SETTINGS.SAVE')"
         icon="i-lucide-check"
         color="iris"
@@ -162,7 +163,10 @@ const fieldCls =
       {{ t('CRM.AI_SETTINGS.LOADING') }}
     </div>
 
-    <div v-else class="flex flex-col w-full max-w-xl gap-6 px-6 py-6">
+    <div
+      v-else
+      class="flex flex-col w-full max-w-xl gap-6 px-4 py-4 sm:px-6 sm:py-6"
+    >
       <!-- 供应商 -->
       <label class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-n-slate-12">
@@ -174,7 +178,7 @@ const fieldCls =
         <SelectCard
           :model-value="activeProvider"
           :options="providerOptions"
-          trigger-class="w-56"
+          trigger-class="w-full sm:w-56"
           @update:model-value="applyProvider"
         />
       </label>
@@ -215,7 +219,7 @@ const fieldCls =
         <input
           v-model="form.model"
           type="text"
-          class="w-56"
+          class="w-full sm:w-56"
           :class="[fieldCls]"
         />
         <span class="text-xs text-n-slate-10">
@@ -264,7 +268,7 @@ const fieldCls =
 
       <!-- 测试连接 -->
       <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
           <Button
             :label="
               testing ? t('CRM.AI_SETTINGS.TESTING') : t('CRM.AI_SETTINGS.TEST')

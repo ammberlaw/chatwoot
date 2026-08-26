@@ -27,6 +27,11 @@ const KIND_META = {
   approval_rejected: { label: '被驳回', dot: 'bg-n-ruby-9', group: 'rejected' },
   bom_reconfirm: { label: '待确认BOM', dot: 'bg-n-amber-9', group: 'todo' },
   bom_confirmed: { label: 'BOM已确认', dot: 'bg-n-teal-9', group: 'progress' },
+  purchase_release_pending: {
+    label: '待下发采购',
+    dot: 'bg-n-amber-9',
+    group: 'todo',
+  },
   stage_assigned: { label: '待接单', dot: 'bg-n-iris-9', group: 'todo' },
   stage_returned: { label: '被退回', dot: 'bg-n-ruby-9', group: 'rejected' },
   production_reported: {
@@ -57,11 +62,17 @@ const groupOf = kind => kindMeta(kind).group;
 
 const activeGroup = ref('all');
 const allRecords = computed(() => store.getRecords);
-const records = computed(() =>
-  activeGroup.value === 'all'
-    ? allRecords.value
-    : allRecords.value.filter(n => groupOf(n.kind) === activeGroup.value)
-);
+const records = computed(() => {
+  if (activeGroup.value === 'all') return allRecords.value;
+  const inGroup = allRecords.value.filter(
+    n => groupOf(n.kind) === activeGroup.value
+  );
+  // 待处理只显未办结（未读）：办结动作（审批/确认BOM/接单）会由后端把对应待办置已读；
+  // 「点开查看」不置已读（见 openNotification），所以看一眼不会误消失。
+  return activeGroup.value === 'todo'
+    ? inGroup.filter(n => !n.readAt)
+    : inGroup;
+});
 // 各分类未读数（tab 角标）。
 const groupUnread = computed(() => {
   const counts = { all: 0, todo: 0, progress: 0, rejected: 0 };
@@ -81,7 +92,9 @@ const fmt = ts =>
 const load = () => store.get();
 
 const openNotification = async n => {
-  if (!n.readAt) await store.markRead(n.id);
+  // 待办类不因「点开查看」置已读——只有真正办结（审批/确认等动作）才由后端销掉，避免误清。
+  // 进展/退回类是知会信息，点开即已读。
+  if (!n.readAt && groupOf(n.kind) !== 'todo') await store.markRead(n.id);
   if (n.kind && n.kind.startsWith('shipment_')) {
     router.push(
       accountScopedRoute('mes_shipments_index', {}, { kind: 'STOCK' })
@@ -103,10 +116,10 @@ onMounted(load);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
-      <div class="flex items-center gap-2">
-        <h1 class="text-xl font-semibold text-n-slate-12">站内通知</h1>
+      <div class="flex items-center min-w-0 gap-2">
+        <h1 class="text-xl font-semibold truncate text-n-slate-12">站内通知</h1>
         <span
           v-if="unreadCount > 0"
           class="px-2 py-0.5 text-xs font-medium rounded-full bg-n-ruby-9 text-white"
@@ -114,7 +127,7 @@ onMounted(load);
           {{ unreadCount }} 未读
         </span>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <Button
           label="刷新"
           variant="outline"
@@ -134,7 +147,7 @@ onMounted(load);
     </div>
 
     <!-- 分类筛选 -->
-    <div class="flex items-center gap-2 px-6 pt-3">
+    <div class="flex flex-wrap items-center gap-2 px-4 pt-3 sm:px-6">
       <button
         v-for="g in GROUPS"
         :key="g.key"
@@ -156,7 +169,7 @@ onMounted(load);
       </button>
     </div>
 
-    <div class="flex-1 px-6 py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
       <div
         v-if="!fetching && records.length === 0"
         class="flex items-center justify-center py-20 text-n-slate-11"

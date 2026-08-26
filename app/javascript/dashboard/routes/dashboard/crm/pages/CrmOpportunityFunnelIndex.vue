@@ -27,6 +27,8 @@ const view = ref('board');
 // 排序：默认最近更新；可按创建时间/金额，正序倒序
 const sortKey = ref('');
 const sortDir = ref('desc');
+// 看板快速查找：按商机名/客户名搜（后端过滤，能搜全量而非仅当前页）。
+const searchQuery = ref('');
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -81,7 +83,15 @@ const refreshBoard = () =>
     owner_id: selectedOwnerId.value || undefined,
     sort: sortKey.value || undefined,
     direction: sortKey.value ? sortDir.value : undefined,
+    q: searchQuery.value.trim() || undefined,
   });
+
+// 搜索防抖：输入停 300ms 再拉，避免逐字请求。
+let searchTimer = null;
+const onSearch = () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(refreshBoard, 300);
+};
 
 const setView = value => {
   view.value = value;
@@ -254,15 +264,17 @@ onMounted(() => {
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+      <div class="min-w-0">
+        <h1
+          class="text-xl md:text-2xl font-semibold tracking-tight text-n-slate-12"
+        >
           {{ t('CRM.FUNNEL.HEADER') }}
         </h1>
         <p class="mt-0.5 text-sm text-n-slate-11">{{ t('CRM.FUNNEL.HINT') }}</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <!-- 视图切换：看板 / 列表 / 商机公海 -->
         <div class="flex items-center gap-1 p-1 rounded-lg bg-n-alpha-2">
           <Button
@@ -285,6 +297,18 @@ onMounted(() => {
             :variant="view === 'pool' ? 'solid' : 'ghost'"
             :color="view === 'pool' ? 'iris' : 'slate'"
             @click="setView('pool')"
+          />
+        </div>
+        <div v-if="view !== 'list'" class="relative">
+          <span
+            class="absolute z-10 -translate-y-1/2 pointer-events-none i-lucide-search left-2.5 top-1/2 size-4 text-n-slate-10"
+          />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索商机名 / 客户名…"
+            class="w-48 py-0 pr-3 mb-0 text-sm rounded-lg reset-base h-9 pl-8 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 hover:outline-n-brand focus:outline-n-brand"
+            @input="onSearch"
           />
         </div>
         <SelectCard
@@ -345,11 +369,14 @@ onMounted(() => {
       {{ t('CRM.FUNNEL.LOADING') }}
     </div>
 
-    <div v-else class="flex flex-1 gap-4 p-6 overflow-hidden">
+    <div
+      v-else
+      class="flex flex-1 gap-4 p-4 sm:p-6 overflow-x-auto md:overflow-hidden"
+    >
       <div
         v-for="col in columns"
         :key="col.key"
-        class="flex flex-col flex-1 min-w-0 overflow-hidden rounded-2xl bg-n-alpha-1"
+        class="flex flex-col w-[78vw] shrink-0 md:w-auto md:flex-1 md:min-w-0 md:shrink overflow-hidden rounded-2xl bg-n-alpha-1"
         @dragover.prevent
         @drop="onDrop(col.key)"
       >
