@@ -2498,6 +2498,32 @@ watch(
                 >
                   {{ e.folder === 'SENT' ? '发件' : '收件' }}
                 </span>
+                <!-- 邮件追踪：发出的信是否被客户打开（已读/未读） -->
+                <span
+                  v-if="e.folder === 'SENT' && e.tracked"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-md"
+                  :class="
+                    e.open_count > 0
+                      ? 'bg-n-teal-3 text-n-teal-11'
+                      : 'bg-n-alpha-2 text-n-slate-10'
+                  "
+                  :title="
+                    e.open_count > 0
+                      ? `客户已读 · 首次 ${fmtDateTime(e.first_opened_at)}${
+                          e.open_count > 1 ? ` · 共 ${e.open_count} 次` : ''
+                        }`
+                      : '客户尚未打开'
+                  "
+                >
+                  <span
+                    :class="
+                      e.open_count > 0
+                        ? 'i-lucide-mail-open size-3'
+                        : 'i-lucide-mail size-3'
+                    "
+                  />
+                  {{ e.open_count > 0 ? '已读' : '未读' }}
+                </span>
                 <span class="ml-auto text-xs text-n-slate-10">
                   {{ fmtDateTime(e.email_date || e.created_at) }}
                 </span>
@@ -2515,6 +2541,14 @@ watch(
               </div>
               <div class="text-xs truncate text-n-slate-10">
                 {{ e.from_address }} → {{ e.to_address }}
+              </div>
+              <div
+                v-if="e.folder === 'SENT' && e.open_count > 0"
+                class="mt-1 flex items-center gap-1 text-[11px] text-n-teal-11"
+              >
+                <span class="i-lucide-eye size-3" />
+                客户已读 · 首次 {{ fmtDateTime(e.first_opened_at) }}
+                <span v-if="e.open_count > 1">· 共 {{ e.open_count }} 次</span>
               </div>
             </div>
           </div>

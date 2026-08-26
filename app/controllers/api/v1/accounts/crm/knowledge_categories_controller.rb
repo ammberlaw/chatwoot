@@ -23,7 +23,7 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
     if personal_request?
       @category = Current.account.crm_knowledge_categories.create!(category_params.merge(user_id: current_user.id))
     else
-      return render_forbidden unless company_manageable?
+      return render_forbidden unless company_manageable? || manages_section?(scoped_section_id)
 
       @category = Current.account.crm_knowledge_categories.create!(category_params.merge(section_id: scoped_section_id))
     end
@@ -47,12 +47,25 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
   end
 
   def ensure_manageable
-    manageable = @category.user_id ? @category.user_id == current_user.id : company_manageable?
+    manageable = if @category.user_id
+                   @category.user_id == current_user.id
+                 else
+                   company_manageable? || manages_section?(@category.section_id)
+                 end
     render_forbidden unless manageable
   end
 
   def company_manageable?
     Current.account_user.administrator? || Current.account_user.crm_deputy_admin? || Current.account_user.crm_manager?
+  end
+
+  # 板块负责人：在自己负责的文档中心板块内可管理文件夹（与前端授权 + 文档控制器保持一致）。
+  def manages_section?(section_id)
+    section_id.present? && managed_section_ids.include?(section_id.to_i)
+  end
+
+  def managed_section_ids
+    @managed_section_ids ||= Crm::DocSection.managed_ids_for(Current.account, current_user.id)
   end
 
   def personal_request?
