@@ -7,11 +7,12 @@ import { printElement } from 'dashboard/helper/printHelper';
 import Button from 'dashboard/components-next/button/Button.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 
-// 财务报表：资产负债表（时点）/ 利润表（期间），实时按已记账凭证算。
+// 财务报表：资产负债表（时点）/ 利润表 / 现金流量表（期间），实时按已记账凭证算。
 // 资产负债表按传统左右分栏排（左资产、右负债与所有者权益），打印直接出这个版式。
 const TABS = [
   { key: 'balance', label: '资产负债表' },
   { key: 'income', label: '利润表' },
+  { key: 'cashflow', label: '现金流量表' },
 ];
 
 const monthStart = () => {
@@ -37,6 +38,7 @@ const loading = ref(false);
 
 const balanceSheet = ref(null);
 const incomeStatement = ref(null);
+const cashFlow = ref(null);
 const reportRef = ref(null);
 
 const loadBalanceSheet = async () => {
@@ -62,21 +64,40 @@ const loadIncomeStatement = async () => {
   }
 };
 
-const reload = () =>
-  activeTab.value === 'balance' ? loadBalanceSheet() : loadIncomeStatement();
+const loadCashFlow = async () => {
+  loading.value = true;
+  try {
+    const { data } = await ErpReportAPI.cashFlow({
+      from: from.value,
+      to: to.value,
+    });
+    cashFlow.value = data;
+  } finally {
+    loading.value = false;
+  }
+};
+
+const LOADERS = {
+  balance: loadBalanceSheet,
+  income: loadIncomeStatement,
+  cashflow: loadCashFlow,
+};
+
+const reload = () => LOADERS[activeTab.value]();
 
 const switchTab = key => {
   activeTab.value = key;
   reload();
 };
 
+const PRINT_TITLES = {
+  balance: () => `资产负债表 ${asOf.value}`,
+  income: () => `利润表 ${from.value} 至 ${to.value}`,
+  cashflow: () => `现金流量表 ${from.value} 至 ${to.value}`,
+};
+
 const print = () =>
-  printElement(
-    reportRef.value,
-    activeTab.value === 'balance'
-      ? `资产负债表 ${asOf.value}`
-      : `利润表 ${from.value} 至 ${to.value}`
-  );
+  printElement(reportRef.value, PRINT_TITLES[activeTab.value]());
 
 const section = key => balanceSheet.value?.sections?.[key];
 const totals = computed(() => balanceSheet.value?.meta?.totals || {});
@@ -117,6 +138,21 @@ onMounted(loadBalanceSheet);
           "
         >
           {{ balanceSheet.meta.balanced ? '资产 = 负债 + 权益' : '两边不平' }}
+        </span>
+        <span
+          v-if="activeTab === 'cashflow' && cashFlow"
+          class="px-2 py-0.5 text-xs rounded"
+          :class="
+            cashFlow.meta.balanced
+              ? 'bg-n-teal-3 text-n-teal-11'
+              : 'bg-n-ruby-3 text-n-ruby-11'
+          "
+        >
+          {{
+            cashFlow.meta.balanced
+              ? '净增加额 = 期末 − 期初'
+              : `与现金余额差 ${money(cashFlow.meta.variance_micros)}`
+          }}
         </span>
       </div>
       <div class="flex items-center gap-2">
@@ -313,6 +349,89 @@ onMounted(loadBalanceSheet);
               </tr>
             </tbody>
           </table>
+        </template>
+
+        <!-- 现金流量表（直接法）：三大活动 + 汇率变动 + 净增加额，末尾与现金余额勾稽 -->
+        <template v-else-if="activeTab === 'cashflow' && cashFlow">
+          <div class="mb-1 text-lg font-semibold text-center text-n-slate-12">
+            现 金 流 量 表
+          </div>
+          <div class="mb-3 text-xs text-center text-n-slate-11">
+            {{ cashFlow.meta.from }} 至 {{ cashFlow.meta.to }} · 单位：元
+          </div>
+          <table class="w-full max-w-2xl mx-auto text-sm">
+            <thead>
+              <tr class="text-left border-b text-n-slate-11 border-n-weak">
+                <th class="px-2 py-2 font-medium">项&#12288;目</th>
+                <th class="px-2 py-2 font-medium text-right">本期金额</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="sec in cashFlow.payload" :key="sec.key">
+                <tr class="border-b bg-n-alpha-1 border-n-weak">
+                  <td class="px-2 py-2 font-medium text-n-slate-12" colspan="2">
+                    {{ sec.label }}
+                  </td>
+                </tr>
+                <tr
+                  v-for="row in sec.rows"
+                  :key="row.code"
+                  class="border-b border-n-weak"
+                >
+                  <td class="px-2 py-1.5 pl-6 text-n-slate-12">
+                    {{ row.label }}
+                  </td>
+                  <td class="px-2 py-1.5 font-mono text-right text-n-slate-12">
+                    {{ money(row.amount_micros) }}
+                  </td>
+                </tr>
+                <tr class="font-medium border-b border-n-weak">
+                  <td class="px-2 py-1.5 pl-6 text-n-slate-12">
+                    {{ sec.short_label }}活动产生的现金流量净额
+                  </td>
+                  <td class="px-2 py-1.5 font-mono text-right text-n-slate-12">
+                    {{ money(sec.net_micros) }}
+                  </td>
+                </tr>
+              </template>
+              <tr class="border-b border-n-weak">
+                <td class="px-2 py-2 font-medium text-n-slate-12">
+                  四、汇率变动对现金及现金等价物的影响
+                </td>
+                <td class="px-2 py-2 font-mono text-right text-n-slate-12">
+                  {{ money(cashFlow.meta.fx_effect_micros) }}
+                </td>
+              </tr>
+              <tr class="font-medium border-b border-n-weak">
+                <td class="px-2 py-2 text-n-slate-12">
+                  五、现金及现金等价物净增加额
+                </td>
+                <td class="px-2 py-2 font-mono text-right text-n-slate-12">
+                  {{ money(cashFlow.meta.net_increase_micros) }}
+                </td>
+              </tr>
+              <tr class="border-b border-n-weak">
+                <td class="px-2 py-1.5 pl-6 text-n-slate-11">
+                  加：期初现金及现金等价物余额
+                </td>
+                <td class="px-2 py-1.5 font-mono text-right text-n-slate-11">
+                  {{ money(cashFlow.meta.opening_cash_micros) }}
+                </td>
+              </tr>
+              <tr class="font-semibold">
+                <td class="px-2 py-2 text-n-slate-12">
+                  六、期末现金及现金等价物余额
+                </td>
+                <td class="px-2 py-2 font-mono text-right text-n-slate-12">
+                  {{ money(cashFlow.meta.closing_cash_micros) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="max-w-2xl mx-auto mt-3 text-xs text-n-slate-11">
+            现金流量项目默认按凭证的对方科目自动判定；判定不对时可在凭证的货币资金分录上手工指定。
+            内部划转（银行↔现金、人民币户↔外币户）不计入现金流量。
+          </p>
         </template>
       </div>
     </div>

@@ -7,6 +7,7 @@
 #  id                 :bigint           not null, primary key
 #  amount_micros      :bigint           not null
 #  base_amount_micros :bigint           not null
+#  cash_flow_item     :string
 #  currency           :string           default("CNY"), not null
 #  direction          :string           not null
 #  exchange_rate      :decimal(12, 6)   default(1.0), not null
@@ -26,6 +27,7 @@
 # Indexes
 #
 #  index_erp_voucher_lines_on_account_id                        (account_id)
+#  index_erp_voucher_lines_on_account_id_and_cash_flow_item     (account_id,cash_flow_item)
 #  index_erp_voucher_lines_on_account_id_and_ledger_account_id  (account_id,ledger_account_id)
 #  index_erp_voucher_lines_on_crm_customer_id                   (crm_customer_id)
 #  index_erp_voucher_lines_on_crm_sales_order_id                (crm_sales_order_id)
@@ -54,6 +56,7 @@ class Erp::VoucherLine < ApplicationRecord
   belongs_to :member, class_name: 'User', optional: true
 
   validates :direction, inclusion: { in: DIRECTIONS }
+  validates :cash_flow_item, inclusion: { in: Erp::CashFlowItem::CODES }, allow_blank: true
   validates :amount_micros, numericality: { greater_than: 0 }
   validates :base_amount_micros, numericality: { greater_than: 0 }
   validate :validate_postable_account

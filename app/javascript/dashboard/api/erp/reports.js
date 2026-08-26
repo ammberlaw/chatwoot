@@ -8,7 +8,7 @@ const buildParams = params =>
     )
   ).toString();
 
-// 财务报表：资产负债表（时点）/ 利润表（期间），只读实时算。
+// 财务报表：资产负债表（时点）/ 利润表 / 现金流量表（期间），只读实时算。
 class ErpReportAPI extends ApiClient {
   constructor() {
     super('erp/reports', { accountScoped: true });
@@ -20,6 +20,14 @@ class ErpReportAPI extends ApiClient {
 
   incomeStatement(params = {}) {
     return axios.get(`${this.url}/income_statement?${buildParams(params)}`);
+  }
+
+  cashFlow(params = {}) {
+    return axios.get(`${this.url}/cash_flow?${buildParams(params)}`);
+  }
+
+  cashFlowItems() {
+    return axios.get(`${this.url}/cash_flow_items`);
   }
 }
 

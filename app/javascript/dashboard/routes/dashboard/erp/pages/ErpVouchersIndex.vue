@@ -7,6 +7,7 @@ import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import ErpVoucherAPI from 'dashboard/api/erp/vouchers';
 import ErpAutoVoucherRuleAPI from 'dashboard/api/erp/autoVoucherRules';
+import ErpReportAPI from 'dashboard/api/erp/reports';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -102,7 +103,21 @@ const blankLine = () => ({
   crmSalesOrderId: '',
   departmentId: '',
   memberId: '',
+  cashFlowItem: '',
 });
+
+// 现金流量项目：只有货币资金科目的分录才要，留空＝现金流量表按对方科目自动判定。
+const CASH_TYPES = ['CASH', 'BANK'];
+const cashFlowItemOptions = ref([]);
+const isCashLine = line =>
+  CASH_TYPES.includes(accountById(line.ledgerAccountId)?.accountType);
+const loadCashFlowItems = async () => {
+  const { data } = await ErpReportAPI.cashFlowItems();
+  cashFlowItemOptions.value = (data?.payload || []).map(item => ({
+    value: item.code,
+    label: `${item.section_label.slice(2, 4)}·${item.label}`,
+  }));
+};
 
 const dialogRef = ref(null);
 const editing = ref(null);
@@ -186,6 +201,7 @@ const openEdit = async voucher => {
       crmSalesOrderNo: l.crm_sales_order_no || '',
       departmentId: l.department_id || '',
       memberId: l.member_id || '',
+      cashFlowItem: l.cash_flow_item || '',
     })),
   });
   dialogRef.value?.open();
@@ -218,6 +234,7 @@ const buildPayload = () => ({
       crmSalesOrderId: l.crmSalesOrderId || null,
       departmentId: l.departmentId || null,
       memberId: l.memberId || null,
+      cashFlowItem: l.cashFlowItem || null,
     })),
 });
 
@@ -344,6 +361,7 @@ onMounted(() => {
   if (route.query.q) keyword.value = String(route.query.q);
   fetchList();
   if (!accountStore.getRecords.length) accountStore.get({});
+  loadCashFlowItems();
 });
 </script>
 
@@ -667,6 +685,20 @@ onMounted(() => {
                 ] || ''
               "
             />
+
+            <!-- 货币资金分录才出现：留空由现金流量表按对方科目自动判定 -->
+            <div v-if="isCashLine(line)" class="flex items-center gap-1.5">
+              <span class="text-xs whitespace-nowrap text-n-slate-11">
+                现金流量项目
+              </span>
+              <div class="w-72">
+                <ComboBox
+                  v-model="line.cashFlowItem"
+                  :options="cashFlowItemOptions"
+                  placeholder="自动判定"
+                />
+              </div>
+            </div>
           </div>
 
           <div class="flex items-center justify-between">

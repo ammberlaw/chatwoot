@@ -1,4 +1,4 @@
-# 财务报表：资产负债表（时点）/ 利润表（期间）。只读，门禁走基类。
+# 财务报表：资产负债表（时点）/ 利润表（期间）/ 现金流量表（期间）。只读，门禁走基类。
 class Api::V1::Accounts::Erp::ReportsController < Api::V1::Accounts::Erp::BaseController
   def balance_sheet
     @report = report_service.balance_sheet(as_of: as_of_date)
@@ -6,6 +6,15 @@ class Api::V1::Accounts::Erp::ReportsController < Api::V1::Accounts::Erp::BaseCo
 
   def income_statement
     @report = report_service.income_statement(from: from_date, to: to_date)
+  end
+
+  def cash_flow
+    @report = Erp::CashFlowService.new(Current.account).statement(from: from_date, to: to_date)
+  end
+
+  # 现金流量项目字典（凭证录入时给现金分录挑项目用）。
+  def cash_flow_items
+    render json: { payload: Erp::CashFlowItem.items_for_select }
   end
 
   private

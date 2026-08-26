@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_01_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_02_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2208,6 +2208,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_000001) do
     t.bigint "member_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "cash_flow_item"
+    t.index ["account_id", "cash_flow_item"], name: "index_erp_voucher_lines_on_account_id_and_cash_flow_item"
     t.index ["account_id", "ledger_account_id"], name: "index_erp_voucher_lines_on_account_id_and_ledger_account_id"
     t.index ["account_id"], name: "index_erp_voucher_lines_on_account_id"
     t.index ["crm_customer_id"], name: "index_erp_voucher_lines_on_crm_customer_id"

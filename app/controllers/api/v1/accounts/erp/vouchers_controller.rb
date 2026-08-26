@@ -91,7 +91,8 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
       :voucher_date, :summary, :remark, :attachment_count,
       lines_attributes: [
         :id, :ledger_account_id, :direction, :summary, :amount_micros, :currency, :exchange_rate, :position,
-        :crm_customer_id, :mes_supplier_id, :crm_sales_order_id, :department_id, :member_id, :_destroy
+        :crm_customer_id, :mes_supplier_id, :crm_sales_order_id, :department_id, :member_id,
+        :cash_flow_item, :_destroy
       ]
     )
   end

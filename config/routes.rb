@@ -317,9 +317,11 @@ Rails.application.routes.draw do
                 get :reconciliation
               end
             end
-            # 财务报表：资产负债表（时点）/ 利润表（期间）
+            # 财务报表：资产负债表（时点）/ 利润表（期间）/ 现金流量表（期间）
             get 'reports/balance_sheet', to: 'reports#balance_sheet'
             get 'reports/income_statement', to: 'reports#income_statement'
+            get 'reports/cash_flow', to: 'reports#cash_flow'
+            get 'reports/cash_flow_items', to: 'reports#cash_flow_items'
           end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard' do
