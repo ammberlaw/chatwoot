@@ -18,5 +18,9 @@ API.revalue = payload => axios.post(`${API.url}/revalue`, payload);
 API.badDebt = params => axios.get(`${API.url}/bad_debt`, { params });
 API.provisionBadDebt = payload =>
   axios.post(`${API.url}/provision_bad_debt`, payload);
+// 年度结转：本年利润 → 利润分配，可选提取法定盈余公积；可反年结。
+API.yearEnd = params => axios.get(`${API.url}/year_end`, { params });
+API.closeYear = payload => axios.post(`${API.url}/close_year`, payload);
+API.reopenYear = payload => axios.post(`${API.url}/reopen_year`, payload);
 
 export default API;

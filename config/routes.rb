@@ -331,6 +331,9 @@ Rails.application.routes.draw do
                 post :revalue
                 get :bad_debt
                 post :provision_bad_debt
+                get :year_end
+                post :close_year
+                post :reopen_year
               end
             end
             # 财务报表：资产负债表（时点）/ 利润表（期间）/ 现金流量表（期间）

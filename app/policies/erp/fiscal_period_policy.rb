@@ -6,6 +6,9 @@ class Erp::FiscalPeriodPolicy < ApplicationPolicy
   def revalue? = @account_user.erp_can?(:close)
   def bad_debt? = @account_user.can_access_erp?
   def provision_bad_debt? = @account_user.erp_can?(:close)
+  def year_end? = @account_user.can_access_erp?
+  def close_year? = @account_user.erp_can?(:close)
+  def reopen_year? = @account_user.erp_can?(:close)
   def save_opening_balance? = @account_user.erp_can?(:close)
 
   # 结账是会计动作，限 close 能力域；反结账在控制器里另外卡管理员。

@@ -83,7 +83,38 @@ class Api::V1::Accounts::Erp::FiscalPeriodsController < Api::V1::Accounts::Erp::
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # 年度结转：本年利润 → 利润分配，可选提取法定盈余公积。
+  def year_end
+    @year_end = year_end_service.preview(year: params[:year], surplus_rate: params[:surplus_rate].to_d)
+    render 'api/v1/accounts/erp/fiscal_periods/year_end'
+  rescue Erp::YearEndCloseService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def close_year
+    @year_end = year_end_service.run!(year: params[:year], surplus_rate: params[:surplus_rate].to_d)
+    render 'api/v1/accounts/erp/fiscal_periods/year_end'
+  rescue Erp::YearEndCloseService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 反年结限管理员，与反结账同一把闸。
+  def reopen_year
+    return render json: { error: '反年结仅限管理员操作' }, status: :forbidden unless Current.account_user.administrator?
+
+    @year_end = year_end_service.reopen!(year: params[:year]).merge(
+      year_end_service.preview(year: params[:year])
+    )
+    render 'api/v1/accounts/erp/fiscal_periods/year_end'
+  rescue Erp::YearEndCloseService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
+
+  def year_end_service
+    @year_end_service ||= Erp::YearEndCloseService.new(Current.account, current_user)
+  end
 
   def bad_debt_service
     @bad_debt_service ||= Erp::BadDebtService.new(Current.account, current_user)

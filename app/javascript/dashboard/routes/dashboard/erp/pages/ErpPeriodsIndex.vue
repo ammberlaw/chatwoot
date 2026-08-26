@@ -34,6 +34,7 @@ const TABS = [
   { key: 'reconcile', label: '两账对平' },
   { key: 'revalue', label: '期末调汇' },
   { key: 'baddebt', label: '坏账计提' },
+  { key: 'yearend', label: '年度结转' },
 ];
 const activeTab = ref('close');
 const accountStore = useErpLedgerAccountsStore();
@@ -205,9 +206,55 @@ const doProvision = async () => {
   }
 };
 
+/* 年度结转：本年利润 → 利润分配。年结是一次性重大动作，单独一步，不挂在 12 月结账里 */
+const yearEndYear = ref(String(new Date().getFullYear()));
+const surplusRate = ref('');
+const yearEndMeta = ref(null);
+const yearEndError = ref('');
+
+const loadYearEnd = async () => {
+  yearEndError.value = '';
+  try {
+    const { data } = await ErpFiscalPeriodAPI.yearEnd({
+      year: yearEndYear.value,
+      surplus_rate: surplusRate.value || 0,
+    });
+    yearEndMeta.value = data.meta;
+  } catch (error) {
+    yearEndError.value = error?.response?.data?.error || '取数失败';
+    yearEndMeta.value = null;
+  }
+};
+
+const doCloseYear = async () => {
+  try {
+    const { data } = await ErpFiscalPeriodAPI.closeYear({
+      year: yearEndYear.value,
+      surplus_rate: surplusRate.value || 0,
+    });
+    yearEndMeta.value = data.meta;
+    useAlert(`${yearEndYear.value} 年度已结转，凭证 ${data.meta.voucher_no}`);
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '年结失败');
+  }
+};
+
+const doReopenYear = async () => {
+  try {
+    const { data } = await ErpFiscalPeriodAPI.reopenYear({
+      year: yearEndYear.value,
+    });
+    yearEndMeta.value = data.meta;
+    useAlert(`${yearEndYear.value} 年度已反年结`);
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '反年结失败');
+  }
+};
+
 const switchTab = async key => {
   activeTab.value = key;
   if (key === 'close') await load();
+  if (key === 'yearend') await loadYearEnd();
   if (key === 'baddebt') await loadBadDebt();
   if (key === 'opening') await loadOpening();
   if (key === 'reconcile') await loadReconcile();
@@ -646,6 +693,102 @@ onMounted(load);
         账龄按「建账日」算（不是到期日）。坏账准备是余额科目，本次只补「应有 −
         已提」的差额，
         应有数变小时会自动生成转回分录，重复试算不会翻倍。计提比例是公司会计政策，改了要一贯执行。
+      </p>
+    </div>
+
+    <!-- 年度结转 -->
+    <div
+      v-else-if="activeTab === 'yearend'"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+    >
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="text-sm text-n-slate-11">会计年度</span>
+        <div class="w-24">
+          <Input v-model="yearEndYear" size="sm" type="number" />
+        </div>
+        <span class="text-sm text-n-slate-11">法定盈余公积（%）</span>
+        <div class="w-20">
+          <Input
+            v-model="surplusRate"
+            size="sm"
+            type="number"
+            placeholder="不提"
+          />
+        </div>
+        <Button label="试算" color="slate" size="sm" @click="loadYearEnd" />
+        <Button
+          v-if="canClose && yearEndMeta && !yearEndMeta.voucher_no"
+          label="执行年度结转"
+          color="iris"
+          size="sm"
+          @click="doCloseYear"
+        />
+        <Button
+          v-if="isAdmin && yearEndMeta && yearEndMeta.voucher_no"
+          label="反年结"
+          color="ruby"
+          variant="faded"
+          size="sm"
+          @click="doReopenYear"
+        />
+      </div>
+
+      <p v-if="yearEndError" class="mb-3 text-sm text-n-ruby-11">
+        {{ yearEndError }}
+      </p>
+
+      <template v-if="yearEndMeta">
+        <p
+          v-if="yearEndMeta.unclosed_periods.length"
+          class="mb-3 text-sm text-n-amber-11"
+        >
+          {{ yearEndMeta.unclosed_periods.join('、') }}
+          还没结账，全年 12 个月都结完才能年结。
+        </p>
+        <p
+          v-else-if="yearEndMeta.voucher_no"
+          class="mb-3 text-sm text-n-teal-11"
+        >
+          {{ yearEndMeta.year }} 年度已结转，凭证 {{ yearEndMeta.voucher_no }}。
+        </p>
+
+        <table class="w-full max-w-2xl text-sm">
+          <tbody>
+            <tr class="border-b border-n-weak">
+              <td class="px-3 py-2 text-n-slate-12">
+                本年利润（{{ yearEndMeta.year }} 年度）
+              </td>
+              <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+                {{ money0(yearEndMeta.profit_micros) }}
+              </td>
+            </tr>
+            <tr class="border-b border-n-weak">
+              <td class="px-3 py-2 text-n-slate-11">
+                减：提取法定盈余公积
+                <span class="text-xs text-n-slate-10">
+                  {{ Number(yearEndMeta.surplus_rate) }}%
+                </span>
+              </td>
+              <td class="px-3 py-2 font-mono text-right text-n-slate-11">
+                {{ money0(yearEndMeta.surplus_micros) }}
+              </td>
+            </tr>
+            <tr class="font-semibold">
+              <td class="px-3 py-2 text-n-slate-12">转入未分配利润</td>
+              <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+                {{ money0(yearEndMeta.retained_micros) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
+
+      <p class="mt-4 text-xs text-n-slate-10">
+        月度结账只把损益结转到「本年利润」，本年利润自己不会归零；不做年结，第二年起
+        资产负债表上的本年利润里就混着以前年度的利润、未分配利润永远是 0。
+        年结是单独一步、不挂在 12
+        月结账里；做完之后要反结该年度的月份，得先反年结。
+        法定盈余公积留空就是不提。
       </p>
     </div>
 
