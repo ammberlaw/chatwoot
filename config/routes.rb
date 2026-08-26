@@ -312,6 +312,9 @@ Rails.application.routes.draw do
               collection do
                 post :close
                 post :reopen
+                get :opening_balance
+                post :save_opening_balance
+                get :reconciliation
               end
             end
             # 财务报表：资产负债表（时点）/ 利润表（期间）

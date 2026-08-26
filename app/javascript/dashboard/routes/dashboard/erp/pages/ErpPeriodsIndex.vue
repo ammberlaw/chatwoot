@@ -8,6 +8,10 @@ import ErpFiscalPeriodAPI from 'dashboard/api/erp/fiscalPeriods';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import Input from 'dashboard/components-next/input/Input.vue';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
 
 // 期末结账：一个月一行，显示凭证数/待过账/借贷是否平，够条件才让结账。
 // 结账会生成损益结转凭证并冻结该期间；反结账限管理员且留痕。
@@ -17,8 +21,100 @@ const canClose = computed(() => erpCan('close'));
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
+const toMicros = value => Math.round(Number(value || 0) * 1_000_000);
 const rows = ref([]);
 const loading = ref(false);
+
+const TABS = [
+  { key: 'close', label: '期末结账' },
+  { key: 'opening', label: '期初建账' },
+  { key: 'reconcile', label: '两账对平' },
+];
+const activeTab = ref('close');
+const accountStore = useErpLedgerAccountsStore();
+
+/* 期初建账：一张特殊凭证，借贷必平才让存 */
+const openingRows = ref([]);
+const openingAsOf = ref(new Date().toISOString().slice(0, 10));
+const openingMeta = ref({});
+const leafOptions = computed(() =>
+  accountStore.getRecords
+    .filter(a => !a.isGroup && a.isActive)
+    .map(a => ({ value: a.id, label: `${a.code} ${a.name}` }))
+);
+// 合计按本位币算（外币行 × 汇率），与后端平衡校验同口径。
+const baseOf = (value, rate) => Math.round(toMicros(value) * Number(rate || 1));
+const openingDebit = computed(() =>
+  openingRows.value.reduce(
+    (sum, row) => sum + baseOf(row.debit, row.exchangeRate),
+    0
+  )
+);
+const openingCredit = computed(() =>
+  openingRows.value.reduce(
+    (sum, row) => sum + baseOf(row.credit, row.exchangeRate),
+    0
+  )
+);
+const openingBalanced = computed(
+  () => openingDebit.value === openingCredit.value && openingDebit.value > 0
+);
+
+// 外币科目按外币录，汇率折本位币；本位币科目汇率留 1。
+const addOpeningRow = () =>
+  openingRows.value.push({
+    ledgerAccountId: '',
+    debit: '',
+    credit: '',
+    exchangeRate: 1,
+  });
+
+const loadOpening = async () => {
+  if (!accountStore.getRecords.length) await accountStore.get({});
+  const { data } = await ErpFiscalPeriodAPI.openingBalance();
+  openingMeta.value = data;
+  openingRows.value = (data.rows || []).map(row => ({
+    ledgerAccountId: row.ledger_account_id,
+    debit: row.debit_micros ? (row.debit_micros / 1_000_000).toFixed(2) : '',
+    credit: row.credit_micros ? (row.credit_micros / 1_000_000).toFixed(2) : '',
+    exchangeRate: Number(row.exchange_rate || 1),
+  }));
+  if (data.as_of) openingAsOf.value = data.as_of;
+  if (!openingRows.value.length) addOpeningRow();
+};
+const removeOpeningRow = index => openingRows.value.splice(index, 1);
+const saveOpening = async () => {
+  try {
+    const { data } = await ErpFiscalPeriodAPI.saveOpeningBalance({
+      as_of: openingAsOf.value,
+      rows: openingRows.value
+        .filter(row => row.ledgerAccountId && (row.debit || row.credit))
+        .map(row => ({
+          ledger_account_id: row.ledgerAccountId,
+          debit_micros: toMicros(row.debit),
+          credit_micros: toMicros(row.credit),
+          exchange_rate: row.exchangeRate || 1,
+        })),
+    });
+    useAlert(`期初已保存，凭证 ${data.voucher_no}`);
+    loadOpening();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '保存失败');
+  }
+};
+
+/* 两账对平 */
+const reconcileRows = ref([]);
+const loadReconcile = async () => {
+  const { data } = await ErpFiscalPeriodAPI.reconciliation();
+  reconcileRows.value = data.payload;
+};
+
+const switchTab = async key => {
+  activeTab.value = key;
+  if (key === 'opening') await loadOpening();
+  if (key === 'reconcile') await loadReconcile();
+};
 
 const load = async () => {
   loading.value = true;
@@ -82,7 +178,182 @@ onMounted(load);
       <Button label="刷新" color="slate" size="sm" @click="load" />
     </div>
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex items-center gap-2 px-6 pb-3">
+      <button
+        v-for="tab in TABS"
+        :key="tab.key"
+        class="h-9 px-3 text-sm transition-colors rounded-lg"
+        :class="
+          activeTab === tab.key
+            ? 'bg-n-iris-9 text-white'
+            : 'text-n-slate-11 hover:bg-n-alpha-2'
+        "
+        @click="switchTab(tab.key)"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
+
+    <!-- 期初建账 -->
+    <div
+      v-if="activeTab === 'opening'"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+    >
+      <div class="flex flex-wrap items-center gap-3 mb-3">
+        <span class="text-sm text-n-slate-11">启用日期</span>
+        <DatePicker
+          v-model="openingAsOf"
+          :clearable="false"
+          trigger-class="w-36"
+        />
+        <span class="text-sm text-n-slate-11">
+          借方合计
+          <span class="font-mono text-n-slate-12">{{
+            money(openingDebit)
+          }}</span>
+          · 贷方合计
+          <span class="font-mono text-n-slate-12">
+            {{ money(openingCredit) }}
+          </span>
+        </span>
+        <span
+          class="px-2 py-0.5 text-xs rounded"
+          :class="
+            openingBalanced
+              ? 'bg-n-teal-3 text-n-teal-11'
+              : 'bg-n-ruby-3 text-n-ruby-11'
+          "
+        >
+          {{ openingBalanced ? '借贷平衡' : '借贷不平' }}
+        </span>
+        <Button
+          label="加一行"
+          color="slate"
+          variant="faded"
+          size="sm"
+          @click="addOpeningRow"
+        />
+        <Button
+          label="保存期初"
+          color="iris"
+          size="sm"
+          :disabled="!openingBalanced"
+          @click="saveOpening"
+        />
+        <span v-if="openingMeta.voucher_no" class="text-xs text-n-slate-10">
+          当前期初凭证 {{ openingMeta.voucher_no }}
+        </span>
+      </div>
+
+      <div class="flex flex-col max-w-4xl gap-2">
+        <div
+          v-for="(row, index) in openingRows"
+          :key="index"
+          class="grid items-center grid-cols-12 gap-2"
+        >
+          <div class="col-span-5">
+            <ComboBox
+              v-model="row.ledgerAccountId"
+              :options="leafOptions"
+              placeholder="选末级科目"
+            />
+          </div>
+          <div class="col-span-2">
+            <Input
+              v-model="row.debit"
+              size="sm"
+              type="number"
+              placeholder="借方期初"
+            />
+          </div>
+          <div class="col-span-2">
+            <Input
+              v-model="row.credit"
+              size="sm"
+              type="number"
+              placeholder="贷方期初"
+            />
+          </div>
+          <div class="col-span-1">
+            <Input
+              v-model="row.exchangeRate"
+              size="sm"
+              type="number"
+              placeholder="汇率"
+            />
+          </div>
+          <button
+            class="flex items-center justify-center col-span-1 size-8 text-n-slate-11 hover:text-n-ruby-11"
+            @click="removeOpeningRow(index)"
+          >
+            <div class="i-lucide-trash-2 size-4" />
+          </button>
+        </div>
+      </div>
+      <p class="mt-4 text-xs text-n-slate-10">
+        期初会生成一张已记账的「期初建账」凭证（日期＝启用日），账簿与报表的期初余额由它带出；重新保存＝整张替换。
+      </p>
+    </div>
+
+    <!-- 两账对平 -->
+    <div
+      v-else-if="activeTab === 'reconcile'"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+    >
+      <table class="w-full max-w-3xl text-sm">
+        <thead>
+          <tr class="text-left border-b text-n-slate-11 border-n-weak">
+            <th class="px-3 py-3 font-medium">对账项</th>
+            <th class="px-3 py-3 font-medium text-right">业务台账</th>
+            <th class="px-3 py-3 font-medium text-right">会计总账</th>
+            <th class="px-3 py-3 font-medium text-right">差额</th>
+            <th class="px-3 py-3 font-medium">结果</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in reconcileRows"
+            :key="row.key"
+            class="border-b border-n-weak"
+          >
+            <td class="px-3 py-2 text-n-slate-12">{{ row.label }}</td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+              {{ money(row.business_micros) }}
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+              {{ money(row.ledger_micros) }}
+            </td>
+            <td
+              class="px-3 py-2 font-mono text-right"
+              :class="row.matched ? 'text-n-slate-11' : 'text-n-ruby-11'"
+            >
+              {{ money(row.diff_micros) }}
+            </td>
+            <td class="px-3 py-2">
+              <span
+                class="px-2 py-0.5 text-xs rounded whitespace-nowrap"
+                :class="
+                  row.matched
+                    ? 'bg-n-teal-3 text-n-teal-11'
+                    : 'bg-n-ruby-3 text-n-ruby-11'
+                "
+              >
+                {{ row.matched ? '对平' : '有差异' }}
+              </span>
+              <span v-if="row.note" class="block mt-1 text-xs text-n-slate-10">
+                {{ row.note }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="mt-4 text-xs text-n-slate-10">
+        每月结账前这三行都应为「对平」。有差异通常是单据没生成凭证、或凭证记错了科目。
+      </p>
+    </div>
+
+    <!-- 期末结账 -->
+    <div v-else class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>

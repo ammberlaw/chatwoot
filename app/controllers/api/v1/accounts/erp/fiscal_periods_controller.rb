@@ -26,7 +26,38 @@ class Api::V1::Accounts::Erp::FiscalPeriodsController < Api::V1::Accounts::Erp::
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # 期初建账：读当前期初凭证。
+  def opening_balance
+    @voucher = Erp::OpeningBalanceService.new(Current.account).current
+    render 'api/v1/accounts/erp/fiscal_periods/opening_balance'
+  end
+
+  def save_opening_balance
+    @voucher = Erp::OpeningBalanceService.new(Current.account, current_user).save!(
+      rows: opening_rows, as_of: params[:as_of].presence || Time.zone.today
+    )
+    render 'api/v1/accounts/erp/fiscal_periods/opening_balance'
+  rescue Erp::OpeningBalanceService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 两账对平：台账 vs 总账，结账前置检查。
+  def reconciliation
+    @rows = Erp::ReconciliationService.new(Current.account).call(
+      as_of: params[:as_of].presence&.to_date || Time.zone.today
+    )
+    render 'api/v1/accounts/erp/fiscal_periods/reconciliation'
+  end
+
   private
+
+  def opening_rows
+    Array(params[:rows]).map do |row|
+      permitted = row.permit(:ledger_account_id, :debit_micros, :credit_micros, :exchange_rate)
+      { ledger_account_id: permitted[:ledger_account_id], debit_micros: permitted[:debit_micros],
+        credit_micros: permitted[:credit_micros], exchange_rate: permitted[:exchange_rate] }
+    end
+  end
 
   def check_authorization
     authorize(Erp::FiscalPeriod)

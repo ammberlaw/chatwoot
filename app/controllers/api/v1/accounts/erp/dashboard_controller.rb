@@ -78,7 +78,7 @@ class Api::V1::Accounts::Erp::DashboardController < Api::V1::Accounts::Erp::Base
   end
 
   def cash_balance
-    account.erp_cash_accounts.active.sum { |cash| cash.balance_micros }
+    account.erp_cash_accounts.active.sum(&:balance_micros)
   end
 
   def month_profit
