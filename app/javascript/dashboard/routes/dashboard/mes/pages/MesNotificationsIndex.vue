@@ -27,6 +27,11 @@ const KIND_META = {
   approval_rejected: { label: '被驳回', dot: 'bg-n-ruby-9', group: 'rejected' },
   bom_reconfirm: { label: '待确认BOM', dot: 'bg-n-amber-9', group: 'todo' },
   bom_confirmed: { label: 'BOM已确认', dot: 'bg-n-teal-9', group: 'progress' },
+  purchase_release_pending: {
+    label: '待下发采购',
+    dot: 'bg-n-amber-9',
+    group: 'todo',
+  },
   stage_assigned: { label: '待接单', dot: 'bg-n-iris-9', group: 'todo' },
   stage_returned: { label: '被退回', dot: 'bg-n-ruby-9', group: 'rejected' },
   production_reported: {

@@ -8,7 +8,6 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import camelcaseKeys from 'camelcase-keys';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
-import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import MesBomAPI from 'dashboard/api/mes/boms';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
@@ -569,9 +568,6 @@ const removeAttachment = async (attachmentId, kind) => {
   if (ok) selected.value = ok;
 };
 
-// —— 挂 BOM（阶段 2 触点）——
-const bomsStore = useMesBomsStore();
-
 // 业务二次确认前要能看到工程做的用料清单：订单详情选中且已挂 BOM 时，按 bomId 拉 BOM 明细。
 const CATEGORY_LABELS = { MACHINE: '整机生产物料', PACKAGING: '包装物料' };
 const categoryLabel = c => CATEGORY_LABELS[c] || '整机生产物料';
@@ -590,45 +586,17 @@ const loadBomDetail = async id => {
 watch(() => selected.value?.bomId, loadBomDetail, { immediate: true });
 const openBomView = () => bomViewDialogRef.value?.open();
 
-const bomDialogRef = ref(null);
-const bomForm = ref({ bomId: '', deliveryDate: '' });
-const attaching = computed(
-  () => bomsStore.getUIFlags.updatingItem || uiFlags.value.updatingItem
-);
-const bomOptions = computed(() => [
-  { value: '', label: '选择 BOM…' },
-  // 只列已下发的 BOM，草稿不可挂。
-  ...(bomsStore.getRecords || [])
-    .filter(b => b.status === 'RELEASED')
-    .map(b => ({
-      value: String(b.id),
-      label: `${b.bomNo}${b.productName ? ` · ${b.productName}` : ''}`,
-    })),
-]);
-const openAttachBom = () => {
-  // 期望交期预填订单现有交期，工程/PMC 可在此确认或调整。
-  bomForm.value = {
-    bomId: '',
-    deliveryDate: selected.value?.deliveryDate
-      ? String(selected.value.deliveryDate).slice(0, 10)
-      : '',
-  };
-  if (!bomsStore.getRecords?.length) bomsStore.get();
-  bomDialogRef.value?.open();
-};
-const submitAttachBom = async () => {
-  if (!bomForm.value.bomId || !selected.value) return;
-  const ok = await store.attachBom({
-    id: selected.value.id,
-    bomId: Number(bomForm.value.bomId),
-    deliveryDate: bomForm.value.deliveryDate || undefined,
-  });
-  if (ok) {
-    useAlert('已挂 BOM，进入「工程/PMC BOM」阶段');
-    selected.value = ok;
-    bomDialogRef.value?.close();
-    fetchRecords();
-  }
+// 自产：不在订单页手动挂 BOM，而是跳到「工程 BOM」板块新建 BOM 并预关联本订单，
+// 「保存并下发」即自动挂到本单（进 BOM_READY、通知业务员确认），无需回订单页操作。
+const goCreateBomForOrder = () => {
+  if (!selected.value) return;
+  router.push(
+    accountScopedRoute(
+      'mes_boms_index',
+      {},
+      { new_for_order: selected.value.id }
+    )
+  );
 };
 
 // 业务二次确认 BOM（BOM_READY 段内的闸，确认后方可下发采购）。
@@ -1664,7 +1632,7 @@ watch(currentPage, fetchRecords);
               @click="releasePurchasing"
             />
           </template>
-          <!-- 工程判定：自产走挂 BOM，外购走标记外购（二选一，都在建单阶段） -->
+          <!-- 工程判定：自产去「工程BOM」建BOM并关联本单（自动挂），外购走标记外购 -->
           <div
             v-else-if="
               selected.stage === 'SALES_CONFIRMED' &&
@@ -1672,12 +1640,16 @@ watch(currentPage, fetchRecords);
             "
             class="flex flex-col gap-2"
           >
+            <p class="text-xs text-n-slate-10">
+              自产：去「工程 BOM」建 BOM
+              并关联本订单，保存并下发即自动挂到本单。
+            </p>
             <Button
-              label="挂工程/PMC BOM（自产）"
+              label="去建 BOM（自产）"
               color="iris"
               size="sm"
               class="w-full"
-              @click="openAttachBom"
+              @click="goCreateBomForOrder"
             />
             <Button
               label="标记外购（跳过生产）"
@@ -2029,36 +2001,6 @@ watch(currentPage, fetchRecords);
             <label class="text-heading-3 text-n-slate-12">单位</label>
             <Input v-model="convertForm.unit" placeholder="台 / 片 / pcs" />
           </div>
-        </div>
-      </div>
-    </Dialog>
-
-    <!-- 挂 BOM 弹窗 -->
-    <Dialog
-      ref="bomDialogRef"
-      width="lg"
-      confirm-button-color="iris"
-      title="挂工程/PMC BOM"
-      description="选择该成品的已下发 BOM，填期望交期，生产订单进入「工程/PMC BOM」阶段。"
-      :is-loading="attaching"
-      :disable-confirm-button="!bomForm.bomId"
-      @confirm="submitAttachBom"
-    >
-      <div class="flex flex-col gap-4">
-        <div class="flex flex-col gap-1">
-          <label class="text-heading-3 text-n-slate-12">
-            BOM <span class="text-n-ruby-11">*</span>
-          </label>
-          <SelectCard
-            size="form"
-            :model-value="bomForm.bomId"
-            :options="bomOptions"
-            @update:model-value="v => (bomForm.bomId = v)"
-          />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-heading-3 text-n-slate-12">期望交期</label>
-          <DatePicker v-model="bomForm.deliveryDate" block />
         </div>
       </div>
     </Dialog>

@@ -1,7 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -27,6 +27,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
+const route = useRoute();
 const rootStore = useStore();
 
 // 外购成品不经过生产：直接跳采购单页，自动进「成品(外购)」建单模式。
@@ -214,7 +215,7 @@ const removeRow = i => {
 const attachOrderId = ref('');
 const attachableOrders = ref([]);
 const attachOrderOptions = computed(() => [
-  { value: '', label: '不关联（稍后可在订单页「挂 BOM」）' },
+  { value: '', label: '不关联（仅建 BOM，不挂到订单）' },
   ...attachableOrders.value.map(o => ({
     value: String(o.id),
     label: `${o.order_no} · ${o.product_name} × ${o.qty} · ${o.owner_name || ''}`,
@@ -286,13 +287,13 @@ const resetAttachments = () => {
   existingFiles.value = [];
 };
 
-const openCreate = () => {
+// preOrderId：从生产订单页「去建 BOM」带来的预关联订单（自动选中「关联生产订单」）。
+const openCreate = async (preOrderId = '') => {
   editingId.value = null;
   editingStatus.value = null;
   removedItemIds.value = [];
   attachOrderId.value = '';
   resetAttachments();
-  loadAttachableOrders();
   Object.assign(form, {
     crmProductId: '',
     salesOwnerId: '',
@@ -303,6 +304,14 @@ const openCreate = () => {
     ...blankLeadDays(),
     rows: [blankRow()],
   });
+  await loadAttachableOrders();
+  // 预关联订单须在可挂列表里（SALES_CONFIRMED 待挂 BOM）才回填。
+  if (
+    preOrderId &&
+    attachableOrders.value.some(o => String(o.id) === String(preOrderId))
+  ) {
+    attachOrderId.value = String(preOrderId);
+  }
   dialogRef.value?.open();
 };
 const openEdit = bom => {
@@ -517,6 +526,11 @@ onMounted(async () => {
   } catch {
     products.value = [];
   }
+  // 从生产订单页「去建 BOM」跳来：自动打开新建 BOM 并预关联该订单。
+  if (route.query.new_for_order) {
+    openCreate(route.query.new_for_order);
+    router.replace({ query: {} });
+  }
 });
 </script>
 
@@ -543,7 +557,12 @@ onMounted(async () => {
             size="sm"
             @click="openTemplates"
           />
-          <Button label="新建 BOM" color="iris" size="sm" @click="openCreate" />
+          <Button
+            label="新建 BOM"
+            color="iris"
+            size="sm"
+            @click="openCreate()"
+          />
         </template>
       </div>
     </div>

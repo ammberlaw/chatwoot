@@ -237,10 +237,12 @@ class Mes::ProductionOrder < ApplicationRecord
 
     update!(bom_confirmed_at: Time.current, bom_confirmed_by_id: actor&.id)
     Mes::Notifier.resolve(account: account, order: self, kinds: 'bom_reconfirm')
+    # 业务确认后，「下发采购」是工程/PMC 的待办——发 todo 类通知进其「待处理」，
+    # 而非仅知会（否则易漏）；下发采购时（release_to_purchasing!）自动销掉。
     notify_stage_owners(
-      kind: 'bom_confirmed',
-      title: "BOM 已二次确认：生产订单 #{order_no}",
-      body: "#{actor&.name || '业务'} 已确认 BOM #{bom&.bom_no}，可下发采购。"
+      kind: 'purchase_release_pending',
+      title: "待下发采购：生产订单 #{order_no}",
+      body: "#{actor&.name || '业务'} 已二次确认 BOM #{bom&.bom_no}，请核对后点「下发到采购」。"
     )
     self
   end
@@ -252,6 +254,7 @@ class Mes::ProductionOrder < ApplicationRecord
     raise StandardError, '当前阶段无法下发采购' unless stage == 'BOM_READY'
     raise StandardError, '需业务二次确认 BOM 后方可下发采购' if bom_confirmed_at.nil?
 
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'purchase_release_pending')
     enter_stage!('PURCHASING', actor: actor)
     self
   end
