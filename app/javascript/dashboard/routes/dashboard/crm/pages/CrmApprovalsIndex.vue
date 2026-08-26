@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import TemplatesAPI from 'dashboard/api/oa/approvalTemplates';
@@ -321,6 +322,24 @@ const detailFields = computed(
   () => selected.value?.formFields || selected.value?.form_fields || []
 );
 
+const route = useRoute();
+// 从考勤页深链：?compose=reclock|leave 自动打开对应考勤联动模板的发起表单。
+const openComposeFromQuery = async () => {
+  const kind = route.query.compose;
+  if (!kind) return;
+  try {
+    const { data } = await TemplatesAPI.get({ active: true });
+    templates.value = data.payload || [];
+    const tpl = templates.value.find(
+      t => (t.attendanceKind || t.attendance_kind) === kind
+    );
+    if (tpl) pickTemplate(tpl);
+    else useAlert('没有找到对应的审批模板，请先在「审批模板」里配置');
+  } catch {
+    /* ignore */
+  }
+};
+
 onMounted(async () => {
   await fetchCounts();
   fetchRequests();
@@ -334,6 +353,7 @@ onMounted(async () => {
   } catch {
     /* ignore */
   }
+  openComposeFromQuery();
 });
 </script>
 

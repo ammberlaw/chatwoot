@@ -23,6 +23,9 @@ const memberships = ref([]);
 const sections = ref([]);
 const newName = ref('');
 const busy = ref(false);
+// 正在改名（自定义）的板块 id 及其编辑中的名称。
+const editingId = ref(null);
+const editName = ref('');
 // 展开中的成员选择器：`${sectionId}-manager_ids` / `-viewer_ids`
 const openPicker = ref('');
 // 当前展开选择器内的搜索词（同一时刻只开一个）
@@ -42,6 +45,7 @@ const load = async () => {
     sections.value = (s.data.payload || []).map(x => ({
       id: x.id,
       name: x.name,
+      is_protected: !!x.is_protected,
       manager_ids: [...(x.manager_ids || [])],
       viewer_ids: [...(x.viewer_ids || [])],
     }));
@@ -152,8 +156,38 @@ const removeSection = async sec => {
     await DocSectionsAPI.deleteSection(sec.id);
     await load();
     emit('updated');
-  } catch {
-    useAlert('删除失败');
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '删除失败');
+  }
+};
+
+const startRename = sec => {
+  editingId.value = sec.id;
+  editName.value = sec.name;
+};
+
+const cancelRename = () => {
+  editingId.value = null;
+  editName.value = '';
+};
+
+const saveRename = async sec => {
+  const name = editName.value.trim();
+  if (!name || busy.value) return;
+  if (name === sec.name) {
+    cancelRename();
+    return;
+  }
+  busy.value = true;
+  try {
+    await DocSectionsAPI.updateSection(sec.id, { section: { name } });
+    cancelRename();
+    await load();
+    emit('updated');
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '改名失败');
+  } finally {
+    busy.value = false;
   }
 };
 
@@ -240,16 +274,58 @@ const togglePicker = key => {
             class="p-3 border rounded-xl border-n-weak bg-n-solid-1"
           >
             <div class="flex items-center gap-2">
-              <div class="flex-1 text-sm font-medium text-n-slate-12">
-                {{ sec.name }}
-              </div>
-              <button
-                class="p-1.5 rounded-lg text-n-ruby-11 hover:bg-n-alpha-1"
-                title="删除板块"
-                @click="removeSection(sec)"
-              >
-                <Icon icon="i-lucide-trash-2" class="size-4" />
-              </button>
+              <!-- 改名（自定义）中：内联输入 + 保存/取消 -->
+              <template v-if="editingId === sec.id">
+                <Input
+                  v-model="editName"
+                  custom-input-class="!h-8"
+                  class="flex-1"
+                  @keyup.enter="saveRename(sec)"
+                  @keyup.esc="cancelRename"
+                />
+                <button
+                  class="p-1.5 rounded-lg text-n-teal-11 hover:bg-n-alpha-1"
+                  title="保存"
+                  :disabled="busy || !editName.trim()"
+                  @click="saveRename(sec)"
+                >
+                  <Icon icon="i-lucide-check" class="size-4" />
+                </button>
+                <button
+                  class="p-1.5 rounded-lg text-n-slate-11 hover:bg-n-alpha-1"
+                  title="取消"
+                  @click="cancelRename"
+                >
+                  <Icon icon="i-lucide-x" class="size-4" />
+                </button>
+              </template>
+              <template v-else>
+                <div class="flex-1 text-sm font-medium text-n-slate-12">
+                  {{ sec.name }}
+                </div>
+                <span
+                  v-if="sec.is_protected"
+                  class="px-1.5 py-0.5 text-xs rounded text-n-slate-10 bg-n-alpha-1 shrink-0"
+                >
+                  系统板块
+                </span>
+                <template v-else>
+                  <button
+                    class="p-1.5 rounded-lg text-n-slate-11 hover:bg-n-alpha-1"
+                    title="重命名板块"
+                    @click="startRename(sec)"
+                  >
+                    <Icon icon="i-lucide-pencil" class="size-4" />
+                  </button>
+                  <button
+                    class="p-1.5 rounded-lg text-n-ruby-11 hover:bg-n-alpha-1"
+                    title="删除板块"
+                    @click="removeSection(sec)"
+                  >
+                    <Icon icon="i-lucide-trash-2" class="size-4" />
+                  </button>
+                </template>
+              </template>
             </div>
 
             <div class="grid grid-cols-2 gap-2 mt-2">

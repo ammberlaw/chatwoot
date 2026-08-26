@@ -41,9 +41,12 @@ class Crm::DocSection < ApplicationRecord
     where(account_id: account.id).where('? = ANY(manager_ids)', user_id).pluck(:id)
   end
 
+  # 仅在账号还没有任何板块时初始化一次默认板块；之后管理员删除的默认板块不再自动重建。
   def self.ensure_defaults!(account)
+    return if account.crm_doc_sections.exists?
+
     DEFAULT_SECTIONS.each_with_index do |name, index|
-      account.crm_doc_sections.find_or_create_by!(name: name) { |s| s.position = index }
+      account.crm_doc_sections.create!(name: name, position: index)
     end
   end
 

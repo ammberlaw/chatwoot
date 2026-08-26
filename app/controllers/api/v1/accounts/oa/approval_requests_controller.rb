@@ -56,7 +56,7 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
       request: @request, actor: current_user, decision: decision, comment: params[:comment]
     ).perform
     render :show
-  rescue Oa::ActOnApprovalService::InvalidAction => e
+  rescue Oa::ActOnApprovalService::InvalidAction, Crm::AttendanceApprovalService::WriteError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 

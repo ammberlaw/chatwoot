@@ -8,6 +8,7 @@ class Api::V1::Accounts::Tiktok::DashboardController < Api::V1::Accounts::Tiktok
       currency: 'CNY',
       summary: summary(records),
       by_team: by_team(records),
+      by_source: by_source(records),
       daily: daily(records),
       teams: visible_teams
     }
@@ -19,6 +20,7 @@ class Api::V1::Accounts::Tiktok::DashboardController < Api::V1::Accounts::Tiktok
     visible = scope_visible(Current.account.tiktok_daily_sales_records)
     date = visible.maximum(:sale_date) || Time.zone.today
     records = visible.where(sale_date: date).includes(shop: :department).to_a
+    prev_records = visible.where(sale_date: date - 1).to_a
     shops = visible_active_shops
     render json: {
       date: date,
@@ -26,7 +28,8 @@ class Api::V1::Accounts::Tiktok::DashboardController < Api::V1::Accounts::Tiktok
       summary: summary(records),
       shops: shops.map { |shop| shop_today(shop, records) },
       recorded_shops: records.map(&:shop_id).uniq.size,
-      total_shops: shops.size
+      total_shops: shops.size,
+      day_compare: { today: day_metrics(records), yesterday: day_metrics(prev_records) }
     }
   end
 
@@ -69,16 +72,39 @@ class Api::V1::Accounts::Tiktok::DashboardController < Api::V1::Accounts::Tiktok
     params[:month].presence || Time.zone.today.strftime('%Y-%m')
   end
 
-  # 支持按团队(team_id)筛选：限定该团队名下店铺的记录。
-  def month_scope
-    start_date = Date.strptime(month_str, '%Y-%m')
-    scope = scope_visible(Current.account.tiktok_daily_sales_records).where(sale_date: start_date..start_date.end_of_month)
+  # 当前成员可见 + 团队(team_id)筛选后的记录集（不限日期）。
+  def visible_team_scope
+    scope = scope_visible(Current.account.tiktok_daily_sales_records)
     return scope if params[:team_id].blank?
 
     shop_ids = Current.account.tiktok_shops.where(department_id: params[:team_id]).pluck(:id)
     scope.where(shop_id: shop_ids)
+  end
+
+  def month_scope
+    start_date = Date.strptime(month_str, '%Y-%m')
+    visible_team_scope.where(sale_date: start_date..start_date.end_of_month)
   rescue ArgumentError
     Current.account.tiktok_daily_sales_records.none
+  end
+
+  # 订单来源饼图：本月四类订单来源合计（联盟直播/联盟/商品卡/商家）。
+  def by_source(records)
+    {
+      alliance_live: records.sum(&:alliance_live_orders),
+      alliance: records.sum(&:alliance_orders),
+      product_card: records.sum(&:product_card_orders),
+      merchant: records.sum(&:merchant_orders)
+    }
+  end
+
+  # 今日 vs 昨日环比口径：销售额(RMB)/订单/台数。
+  def day_metrics(rows)
+    {
+      amount_cny: rows.sum { |r| r.sales_amount_cny.to_f }.round(2),
+      total_orders: rows.sum(&:total_orders),
+      total_units: rows.sum(&:total_units)
+    }
   end
 
   # KPI 卡：总销售额(RMB) / 总订单 / 总台数 / 签收(实发)台数 / 达人台数 / 加权平均取消率+有效率。

@@ -51,7 +51,8 @@ class Api::V1::Accounts::Tiktok::SalesRecordsController < Api::V1::Accounts::Tik
   def record_params
     params.require(:sales_record).permit(
       :sale_date, :shop_id, :total_orders, :total_units, :sales_amount, :currency,
-      :cancelled_units, :shipped_units, :influencer_units, :remark
+      :cancelled_units, :shipped_units, :influencer_units, :remark,
+      :alliance_live_orders, :alliance_orders, :product_card_orders, :merchant_orders
     )
   end
 end

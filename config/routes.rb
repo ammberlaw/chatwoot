@@ -255,6 +255,8 @@ Rails.application.routes.draw do
               collection do
                 post :clock
                 get :summary
+                get :export
+                get :user_summary
                 post :adjust
                 get :my_network
               end

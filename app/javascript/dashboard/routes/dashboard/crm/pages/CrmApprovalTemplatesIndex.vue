@@ -181,8 +181,12 @@ const ccCandidates = computed(() =>
 // 原生 select → 紫玻璃 SelectCard 选项（保留原首个空值项）。
 const attendanceKindOptions = computed(() => [
   { value: '', label: '不联动' },
-  { value: 'leave', label: '请假单（按日期区间标记请假）' },
+  {
+    value: 'leave',
+    label: '请假单（按日期区间标记请假；单日+时段字段填上午/下午=半天假）',
+  },
   { value: 'reclock', label: '补卡申请（该日补为正常）' },
+  { value: 'trip', label: '出差单（按日期区间标记外勤）' },
 ]);
 const ccCandidateOptions = computed(() => [
   { value: '', label: L.ccAdd },

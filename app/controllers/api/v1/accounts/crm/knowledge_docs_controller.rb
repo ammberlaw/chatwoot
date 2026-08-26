@@ -10,7 +10,10 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
   def index
     @docs_scope = filtered_docs
     @docs_count = @docs_scope.count
-    @docs = @docs_scope.order(updated_at: :desc).page(params[:page] || 1).per(per_page)
+    # 一次拉多（上限 5000）时预载附件，避免 files 逐条查 ActiveStorage 造成 N+1。
+    @docs = @docs_scope.order(updated_at: :desc)
+                       .includes(files_attachments: :blob)
+                       .page(params[:page] || 1).per(per_page)
   end
 
   def show; end
@@ -240,8 +243,9 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     doc_params.except(:scope, :library)
   end
 
-  # 看板视图一次拉全（上限 200）；未传时回落默认页大小。
+  # 文档中心按板块一次拉全（文档仅元数据行，视频不预载）；上限放到 5000 防极端情况打爆内存。
+  # meta.count 始终为真实总数，前端据此在超上限时提示，不静默截断。
   def per_page
-    [(params[:per_page].presence || RESULTS_PER_PAGE).to_i, 200].min
+    [(params[:per_page].presence || RESULTS_PER_PAGE).to_i, 5000].min
   end
 end

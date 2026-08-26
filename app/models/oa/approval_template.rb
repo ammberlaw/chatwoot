@@ -29,8 +29,8 @@ class Oa::ApprovalTemplate < ApplicationRecord
                       inverse_of: :template, dependent: :destroy
 
   validates :name, presence: true
-  # 考勤联动：leave 请假单 / reclock 补卡申请；空=不联动。
-  validates :attendance_kind, inclusion: { in: %w[leave reclock] }, allow_blank: true
+  # 考勤联动：leave 请假单 / reclock 补卡申请 / trip 出差单；空=不联动。
+  validates :attendance_kind, inclusion: { in: %w[leave reclock trip] }, allow_blank: true
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(:position, :id) }

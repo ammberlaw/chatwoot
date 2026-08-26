@@ -5,23 +5,27 @@
 #
 # Table name: tiktok_daily_sales_records
 #
-#  id               :bigint           not null, primary key
-#  cancelled_units  :integer          default(0), not null
-#  currency         :string           default("PHP"), not null
-#  fx_rate          :decimal(14, 6)   default(0.0)
-#  influencer_units :integer          default(0), not null
-#  remark           :text
-#  sale_date        :date             not null
-#  sales_amount     :decimal(14, 2)   default(0.0)
-#  sales_amount_cny :decimal(14, 2)   default(0.0)
-#  shipped_units    :integer          default(0), not null
-#  total_orders     :integer          default(0), not null
-#  total_units      :integer          default(0), not null
-#  created_at       :datetime         not null
-#  updated_at       :datetime         not null
-#  account_id       :bigint           not null
-#  creator_id       :bigint
-#  shop_id          :bigint           not null
+#  id                   :bigint           not null, primary key
+#  alliance_live_orders :integer          default(0), not null
+#  alliance_orders      :integer          default(0), not null
+#  cancelled_units      :integer          default(0), not null
+#  currency             :string           default("PHP"), not null
+#  fx_rate              :decimal(14, 6)   default(0.0)
+#  influencer_units     :integer          default(0), not null
+#  merchant_orders      :integer          default(0), not null
+#  product_card_orders  :integer          default(0), not null
+#  remark               :text
+#  sale_date            :date             not null
+#  sales_amount         :decimal(14, 2)   default(0.0)
+#  sales_amount_cny     :decimal(14, 2)   default(0.0)
+#  shipped_units        :integer          default(0), not null
+#  total_orders         :integer          default(0), not null
+#  total_units          :integer          default(0), not null
+#  created_at           :datetime         not null
+#  updated_at           :datetime         not null
+#  account_id           :bigint           not null
+#  creator_id           :bigint
+#  shop_id              :bigint           not null
 #
 # Indexes
 #
@@ -36,6 +40,8 @@
 #
 class Tiktok::DailySalesRecord < ApplicationRecord
   CURRENCIES = %w[USD EUR PHP CNY].freeze
+  # 订单来源四拆分（看板饼图口径）：联盟直播 / 联盟 / 商品卡 / 商家。
+  ORDER_SOURCE_FIELDS = %i[alliance_live_orders alliance_orders product_card_orders merchant_orders].freeze
 
   belongs_to :account
   belongs_to :shop, class_name: 'Tiktok::Shop'
@@ -45,10 +51,17 @@ class Tiktok::DailySalesRecord < ApplicationRecord
   validates :sale_date, uniqueness: { scope: %i[account_id shop_id], message: '该店铺当天已有记录' }
   validates :currency, inclusion: { in: CURRENCIES }
   validates :total_orders, :total_units, :cancelled_units, :shipped_units, :influencer_units,
+            *ORDER_SOURCE_FIELDS,
             numericality: { greater_than_or_equal_to: 0 }
   validates :sales_amount, numericality: { greater_than_or_equal_to: 0 }
 
   before_save :snapshot_cny
+  before_save :sum_total_orders
+
+  # 订单来源合计（联盟直播+联盟+商品卡+商家）。
+  def order_source_total
+    ORDER_SOURCE_FIELDS.sum { |field| self[field].to_i }
+  end
 
   # 取消率 = 当天取消台数 ÷ 总台数（Excel 口径）。总台数为 0 返回 nil。
   def cancel_rate
@@ -73,5 +86,11 @@ class Tiktok::DailySalesRecord < ApplicationRecord
     rate = Tiktok::CurrencyConverter.rate_to_cny(currency)
     self.fx_rate = rate
     self.sales_amount_cny = (sales_amount.to_d * rate.to_d).round(2)
+  end
+
+  # 填了订单来源拆分时，总订单以四项之和为准；存量（未拆分）记录保持原总订单不动。
+  def sum_total_orders
+    total = order_source_total
+    self.total_orders = total if total.positive?
   end
 end

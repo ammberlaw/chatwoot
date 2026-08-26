@@ -14,8 +14,11 @@ class Oa::ActOnApprovalService
     step = @request.current_step
     raise InvalidAction, '当前无你可审批的步骤' unless actionable?(step)
 
-    step.update!(status: @decision, comment: @comment, acted_at: Time.current)
-    @decision == 'rejected' ? @request.update!(status: 'rejected') : advance
+    # 步骤落定 + 整单状态 + 考勤写回同一事务：写回失败则整单不通过，绝不出现「已通过但考勤没写/只写一半」。
+    ApplicationRecord.transaction do
+      step.update!(status: @decision, comment: @comment, acted_at: Time.current)
+      @decision == 'rejected' ? @request.update!(status: 'rejected') : advance
+    end
     @request
   end
 

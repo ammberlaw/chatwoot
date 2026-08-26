@@ -44,6 +44,10 @@ const emptyForm = () => ({
   id: null,
   saleDate: today(),
   shopId: activeShops.value[0]?.id || '',
+  allianceLiveOrders: 0,
+  allianceOrders: 0,
+  productCardOrders: 0,
+  merchantOrders: 0,
   totalOrders: 0,
   totalUnits: 0,
   salesAmount: 0,
@@ -56,6 +60,17 @@ const emptyForm = () => ({
 const form = ref(emptyForm());
 const showForm = ref(false);
 const isEdit = computed(() => form.value.id != null);
+
+// 订单来源四拆分合计＝总订单（表单只读展示，保存时以此为准）。
+const orderSourceTotal = computed(() => {
+  const n = v => Number(v || 0);
+  return (
+    n(form.value.allianceLiveOrders) +
+    n(form.value.allianceOrders) +
+    n(form.value.productCardOrders) +
+    n(form.value.merchantOrders)
+  );
+});
 
 // 录入预览：与后端同口径（总台数为 0 时不显示）。
 const previewCancelRate = computed(() =>
@@ -151,6 +166,10 @@ const openEdit = record => {
     id: record.id,
     saleDate: record.saleDate,
     shopId: record.shopId,
+    allianceLiveOrders: record.allianceLiveOrders || 0,
+    allianceOrders: record.allianceOrders || 0,
+    productCardOrders: record.productCardOrders || 0,
+    merchantOrders: record.merchantOrders || 0,
     totalOrders: record.totalOrders,
     totalUnits: record.totalUnits,
     salesAmount: Number(record.salesAmount),
@@ -166,7 +185,8 @@ const openEdit = record => {
 const submit = async () => {
   if (!form.value.shopId) return useAlert('请选择店铺');
   if (!form.value.saleDate) return useAlert('请选择日期');
-  const payload = { ...form.value };
+  // 总订单以订单来源四项之和为准（后端亦会兜底求和）。
+  const payload = { ...form.value, totalOrders: orderSourceTotal.value };
   try {
     if (isEdit.value) {
       await recordsStore.update(payload);
@@ -217,7 +237,9 @@ const barWidth = rate => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div class="w-full max-w-5xl px-4 py-4 mx-auto sm:px-8 sm:py-6">
       <!-- 头部：标题 + 筛选 + 新增 -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -513,12 +535,48 @@ const barWidth = rate => {
             </select>
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">总订单</span>
+            <span class="text-xs text-n-slate-11">联盟直播订单</span>
             <input
-              v-model.number="form.totalOrders"
+              v-model.number="form.allianceLiveOrders"
               type="number"
               min="0"
               class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-xs text-n-slate-11">联盟订单</span>
+            <input
+              v-model.number="form.allianceOrders"
+              type="number"
+              min="0"
+              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-xs text-n-slate-11">商品卡订单</span>
+            <input
+              v-model.number="form.productCardOrders"
+              type="number"
+              min="0"
+              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-xs text-n-slate-11">商家订单</span>
+            <input
+              v-model.number="form.merchantOrders"
+              type="number"
+              min="0"
+              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-xs text-n-slate-11">总订单（自动合计）</span>
+            <input
+              :value="orderSourceTotal"
+              type="number"
+              readonly
+              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-alpha-1 text-n-slate-12"
             />
           </label>
           <label class="flex flex-col gap-1">

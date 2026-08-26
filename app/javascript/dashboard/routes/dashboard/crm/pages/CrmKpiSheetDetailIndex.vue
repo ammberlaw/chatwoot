@@ -1,4 +1,5 @@
 <script setup>
+/* global axios */
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { toPng } from 'html-to-image';
@@ -39,6 +40,25 @@ const reopenReason = ref('');
 const camel = async data =>
   (await import('camelcase-keys')).default(data, { deep: true });
 
+// 只读考勤参考：拉考核对象在考核月的出勤/迟到/缺勤/请假/出勤率（后端按权限收口）。
+const attendance = ref(null);
+const loadAttendance = async () => {
+  attendance.value = null;
+  const pm = sheet.value?.periodMonth;
+  if (!sheet.value?.ownerId || !pm) return;
+  const d = new Date(pm);
+  const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/crm/attendances/user_summary`,
+      { params: { user_id: sheet.value.ownerId, month } }
+    );
+    attendance.value = data;
+  } catch {
+    attendance.value = null;
+  }
+};
+
 const load = async () => {
   loading.value = true;
   try {
@@ -46,6 +66,7 @@ const load = async () => {
     sheet.value = await camel(data);
     items.value = sheet.value.sheetItems || [];
     remark.value = sheet.value.remark || '';
+    loadAttendance();
     try {
       const s = await CrmPerfSettingsAPI.get();
       setting.value = await camel(s.data);
@@ -360,6 +381,48 @@ const inCls =
           <p class="mt-0.5 text-xs text-n-slate-11 truncate">
             {{ fmtMonth(sheet.periodMonth) }} · {{ sheet.schemeName }}
           </p>
+          <!-- 本月考勤只读参考（供打分/核薪时参考，不自动扣分扣款） -->
+          <div
+            v-if="attendance"
+            class="flex flex-wrap items-center mt-1.5 gap-x-3 gap-y-1 text-xs"
+          >
+            <span class="text-n-slate-10">本月考勤</span>
+            <span class="text-n-slate-11">
+              出勤
+              <b class="text-n-slate-12">{{ attendance.present }}</b>
+              /{{ attendance.expected }}
+            </span>
+            <span class="text-n-slate-11">
+              迟到
+              <b
+                :class="attendance.late ? 'text-n-amber-11' : 'text-n-slate-12'"
+              >
+                {{ attendance.late }}
+              </b>
+            </span>
+            <span class="text-n-slate-11">
+              缺勤
+              <b
+                :class="
+                  attendance.absent ? 'text-n-ruby-11' : 'text-n-slate-12'
+                "
+              >
+                {{ attendance.absent }}
+              </b>
+            </span>
+            <span class="text-n-slate-11">
+              请假 <b class="text-n-slate-12">{{ attendance.leave }}</b>
+            </span>
+            <span v-if="attendance.field" class="text-n-slate-11">
+              外勤 <b class="text-n-slate-12">{{ attendance.field }}</b>
+            </span>
+            <span v-if="attendance.rate != null" class="text-n-slate-11">
+              出勤率
+              <b class="text-n-teal-11">
+                {{ (attendance.rate * 100).toFixed(0) }}%
+              </b>
+            </span>
+          </div>
         </div>
       </div>
       <div v-if="sheet" class="flex items-center flex-wrap gap-2">
