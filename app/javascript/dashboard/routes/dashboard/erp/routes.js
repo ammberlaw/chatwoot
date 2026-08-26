@@ -1,5 +1,6 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import { FEATURE_FLAGS } from '../../../featureFlags';
+import ErpLayout from './ErpLayout.vue';
 import ErpDashboardIndex from './pages/ErpDashboardIndex.vue';
 import ErpAccountsIndex from './pages/ErpAccountsIndex.vue';
 import ErpVouchersIndex from './pages/ErpVouchersIndex.vue';
@@ -21,11 +22,12 @@ const erpMeta = {
   requiresCrmAccess: false,
 };
 
+// 外层套 ErpLayout（白卡挂钩层），页面作为子路由渲染——与 MES 同结构。
 const erpPage = (path, name, component) => {
   const meta = { ...erpMeta };
   return {
     path: frontendURL(`accounts/:accountId/erp/${path}`),
-    component,
+    component: ErpLayout,
     meta,
     children: [{ path: '', name, component, meta }],
   };
