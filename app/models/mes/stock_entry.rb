@@ -68,6 +68,9 @@ class Mes::StockEntry < ApplicationRecord
   has_many :stock_entry_items, class_name: 'Mes::StockEntryItem', dependent: :destroy, inverse_of: :stock_entry
   accepts_nested_attributes_for :stock_entry_items, allow_destroy: true
 
+  # 收货单留证（原料入库必传，校验在控制器）。
+  has_many_attached :receipts
+
   validates :entry_no, presence: true, uniqueness: { scope: :account_id }
   validates :purpose, inclusion: { in: PURPOSES }
   validates :status, inclusion: { in: STATUSES }

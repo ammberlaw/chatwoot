@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesInspectionsStore } from 'dashboard/stores/mes/inspections';
 import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
+import MesInspectionAPI from 'dashboard/api/mes/inspections';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -100,6 +101,41 @@ const form = reactive({
 const isIqc = computed(() => form.kind === 'IQC');
 const invalid = computed(() => !Number(form.inspectedQty));
 
+// 检验留证附件：检测视频 / 照片 / 附件。选文件即暂存为 blob（拿 signed_id），提交时带上。
+const UPLOAD_KINDS = [
+  { kind: 'videos', label: '检测视频', accept: 'video/*' },
+  { kind: 'photos', label: '检验照片', accept: 'image/*' },
+  { kind: 'files', label: '附件（报告等）', accept: '' },
+];
+const pending = reactive({ videos: [], photos: [], files: [] });
+const uploading = ref(false);
+const pickAttachment = async (e, kind) => {
+  const list = Array.from(e.target?.files || []);
+  e.target.value = '';
+  if (!list.length) return;
+  uploading.value = true;
+  try {
+    await Promise.all(
+      list.map(async file => {
+        const fd = new FormData();
+        fd.append('file', file);
+        const { data } = await MesInspectionAPI.stageBlob(fd);
+        pending[kind].push({ name: data.filename, signedId: data.signed_id });
+      })
+    );
+  } catch {
+    useAlert('上传失败，请重试');
+  } finally {
+    uploading.value = false;
+  }
+};
+const removePending = (kind, i) => pending[kind].splice(i, 1);
+const resetAttachments = () => {
+  pending.videos = [];
+  pending.photos = [];
+  pending.files = [];
+};
+
 const openCreate = () => {
   Object.assign(form, {
     kind: 'FQC',
@@ -112,6 +148,7 @@ const openCreate = () => {
     needRework: false,
     remark: '',
   });
+  resetAttachments();
   dialogRef.value?.open();
 };
 
@@ -132,6 +169,9 @@ const submit = async () => {
     defectReason: form.defectReason,
     needRework: form.needRework,
     remark: form.remark,
+    videos: pending.videos.map(p => p.signedId),
+    photos: pending.photos.map(p => p.signedId),
+    files: pending.files.map(p => p.signedId),
   });
   if (ok) {
     useAlert('检验记录已录入');
@@ -370,6 +410,53 @@ onMounted(() => {
           <input v-model="form.needRework" type="checkbox" />
           需返修
         </label>
+
+        <!-- 检验留证：检测视频 / 照片 / 附件 -->
+        <div class="flex flex-col gap-2 pt-1 border-t border-n-weak">
+          <div
+            v-for="u in UPLOAD_KINDS"
+            :key="u.kind"
+            class="flex flex-col gap-1.5"
+          >
+            <div class="flex items-center gap-2">
+              <label class="text-heading-3 text-n-slate-12">{{
+                u.label
+              }}</label>
+              <label
+                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md cursor-pointer border border-n-weak text-n-slate-11 hover:border-n-brand hover:text-n-slate-12"
+              >
+                <span class="i-lucide-upload size-3" />
+                上传
+                <input
+                  type="file"
+                  multiple
+                  :accept="u.accept"
+                  class="hidden"
+                  @change="e => pickAttachment(e, u.kind)"
+                />
+              </label>
+              <span v-if="uploading" class="text-xs text-n-slate-10">
+                上传中…
+              </span>
+            </div>
+            <div v-if="pending[u.kind].length" class="flex flex-wrap gap-1.5">
+              <span
+                v-for="(f, i) in pending[u.kind]"
+                :key="i"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-n-alpha-2 text-n-slate-12 max-w-[16rem]"
+              >
+                <span class="truncate">{{ f.name }}</span>
+                <button
+                  type="button"
+                  class="shrink-0 text-n-slate-10 hover:text-n-ruby-11"
+                  @click="removePending(u.kind, i)"
+                >
+                  <span class="i-lucide-x size-3" />
+                </button>
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </Dialog>
 

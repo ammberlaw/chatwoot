@@ -27,9 +27,27 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     # 成品入库(MANUFACTURE)由车间(report)开单；其余库存单仍限仓管(stock)。
     raise Pundit::NotAuthorizedError if @stock_entry.purpose != 'MANUFACTURE' && !Current.account_user.mes_can?(:stock)
 
+    # 原料入库必须上传收货单（留证）。
+    receipts = params.dig(:stock_entry, :receipts)
+    if @stock_entry.purpose == 'MATERIAL_RECEIPT' && receipts.blank?
+      return render json: { error: '原料入库必须上传收货单' }, status: :unprocessable_entity
+    end
+
     @stock_entry.fallback_product_line = current_product_line
     @stock_entry.save!
+    @stock_entry.receipts.attach(receipts) if receipts.present?
     render 'api/v1/accounts/mes/stock_entries/show'
+  end
+
+  # 建单前把收货单文件暂存为 blob，拿到 signed_id，建单时通过 receipts 一并挂载。
+  def stage_blob
+    file = params[:file]
+    return render json: { error: '未收到文件' }, status: :unprocessable_entity if file.blank?
+
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: file.open, filename: file.original_filename, content_type: file.content_type
+    )
+    render json: { signed_id: blob.signed_id, filename: blob.filename.to_s, url: rails_blob_path(blob, only_path: true) }
   end
 
   def update

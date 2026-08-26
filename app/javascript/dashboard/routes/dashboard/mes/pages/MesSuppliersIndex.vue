@@ -46,16 +46,27 @@ const skuCategoryFilterOptions = [
 ];
 const skuCategoryValues = SKU_CATEGORIES.map(o => o.value);
 
+// 事业部筛选（列表）：全部 = 不按事业部筛。
+const productLineFilterOptions = [
+  { value: '', label: '全部事业部' },
+  ...MES_PRODUCT_LINES.filter(o => o.value),
+];
 const keyword = ref('');
 const itemCategory = ref('');
+const productLineFilter = ref('');
 const load = () =>
   store.get({
     q: keyword.value.trim() || undefined,
     item_category: itemCategory.value || undefined,
+    product_line: productLineFilter.value || undefined,
     per_page: 500,
   });
 const changeCategoryFilter = v => {
   itemCategory.value = v;
+  load();
+};
+const changeProductLineFilter = v => {
+  productLineFilter.value = v;
   load();
 };
 
@@ -330,8 +341,12 @@ onMounted(() => {
         <SelectCard
           :model-value="itemCategory"
           :options="skuCategoryFilterOptions"
-          class="w-full sm:w-44"
           @update:model-value="changeCategoryFilter"
+        />
+        <SelectCard
+          :model-value="productLineFilter"
+          :options="productLineFilterOptions"
+          @update:model-value="changeProductLineFilter"
         />
         <input
           v-model="keyword"

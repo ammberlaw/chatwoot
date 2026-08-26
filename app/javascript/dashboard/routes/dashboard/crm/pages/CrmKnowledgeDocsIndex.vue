@@ -11,6 +11,7 @@ import { emitter } from 'shared/helpers/mitt';
 import * as XLSX from 'xlsx';
 import { useCrmKnowledgeDocsStore } from 'dashboard/stores/crm/knowledgeDocs';
 import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCategories';
+import DocSectionsAPI from 'dashboard/api/crm/docSections';
 
 import CrmDocSectionManager from 'dashboard/components-next/CRM/CrmDocSectionManager.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -37,6 +38,7 @@ let searchTimer = null;
 const showSectionManager = ref(false);
 const onSectionsUpdated = () => {
   emitter.emit('crmDocSectionsUpdated');
+  fetchDocSections();
   fetchCategories();
 };
 
@@ -54,12 +56,43 @@ const canManageCompany = computed(
   () => isAdminLike.value || isCrmManager.value
 );
 
+// 文档中心「板块负责人」(manager_ids)：可管理/上传/编辑该板块下的公司文档。
+// 板块数据带 manager_ids，从 doc_sections 接口取（与侧栏同源）。
+const docSections = ref([]);
+const fetchDocSections = async () => {
+  try {
+    const { data } = await DocSectionsAPI.get();
+    docSections.value = data.payload || [];
+  } catch {
+    docSections.value = [];
+  }
+};
+const managedSectionIds = computed(() =>
+  docSections.value
+    .filter(s => (s.manager_ids || []).includes(currentUserId.value))
+    .map(s => s.id)
+);
+// 当前板块是否由本人负责（仅文档中心 GENERAL 库按板块授权）。
+const managesActiveSection = computed(
+  () =>
+    isGeneral.value &&
+    !!activeSectionId.value &&
+    managedSectionIds.value.includes(activeSectionId.value)
+);
+// 当前板块负责人（展示给全员，让大家知道该板块归谁、该找谁）。
+const activeSection = computed(
+  () => docSections.value.find(s => s.id === activeSectionId.value) || null
+);
+const activeSectionManagerNames = computed(
+  () => activeSection.value?.manager_names || []
+);
+
 // 我的资料视图：看板列是个人分类，人人可自建自管；公司视图的分类仍按公司管理权。
 const isMineView = computed(
   () => !isGeneral.value && activeFilter.value === 'mine'
 );
 const canManageBoard = computed(
-  () => isMineView.value || canManageCompany.value
+  () => isMineView.value || canManageCompany.value || managesActiveSection.value
 );
 
 // 文档中心：选中板块则取该板块文件夹；「全公司文档」取全部。
@@ -76,10 +109,16 @@ const fetchCategories = () => {
 const canManageDoc = doc => {
   if (doc?.scope === 'PERSONAL') return doc.ownerId === currentUserId.value;
   if (isAdminLike.value) return true;
+  // 板块负责人可管本板块下的公司文档。
+  if (doc?.sectionId && managedSectionIds.value.includes(doc.sectionId)) {
+    return true;
+  }
   return !isGeneral.value && isCrmManager.value;
 };
-// 新建入口：超管/管理员随处；销售资料人人可建（个人文档）。
-const canCreateDocs = computed(() => isAdminLike.value || !isGeneral.value);
+// 新建入口：超管/管理员随处；销售资料人人可建（个人文档）；板块负责人可在自己板块建。
+const canCreateDocs = computed(
+  () => isAdminLike.value || !isGeneral.value || managesActiveSection.value
+);
 
 const records = computed(() => store.getRecords);
 const categories = computed(() => categoriesStore.getRecords);
@@ -850,6 +889,7 @@ const removeDocDirect = async doc => {
 onMounted(() => {
   fetchRecords();
   fetchCategories();
+  if (isGeneral.value) fetchDocSections();
 });
 watch(
   () => route.query.filter,
@@ -1180,6 +1220,20 @@ watch(
               </button>
             </template>
           </template>
+
+          <!-- 当前板块负责人：全员可见，方便知道该板块归谁、该找谁 -->
+          <div
+            v-if="isGeneral && activeSectionManagerNames.length"
+            class="flex items-center gap-1 ml-auto shrink-0 text-xs text-n-slate-11"
+          >
+            <span
+              class="i-lucide-user-round-cog size-3.5 text-n-slate-10 shrink-0"
+            />
+            <span class="text-n-slate-10">负责人：</span>
+            <span class="font-medium truncate text-n-slate-12 max-w-[16rem]">
+              {{ activeSectionManagerNames.join('、') }}
+            </span>
+          </div>
         </div>
 
         <div
