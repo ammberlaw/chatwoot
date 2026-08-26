@@ -318,6 +318,40 @@ const toggleRule = async rule => {
 
 const viewRef = ref(null);
 const viewing = ref(null);
+
+/* 原始单据影像：发票 / 水单扫描件，已过账凭证也能补传 */
+const fileInputRef = ref(null);
+const uploading = ref(false);
+const pickFiles = () => fileInputRef.value?.click();
+const onFilesPicked = async event => {
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  if (!files.length || !viewing.value) return;
+  uploading.value = true;
+  try {
+    const { data } = await ErpVoucherAPI.attach(viewing.value.id, files);
+    viewing.value = data;
+    store.get({ page: currentPage.value });
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '上传失败');
+  } finally {
+    uploading.value = false;
+  }
+};
+const removeDocument = async doc => {
+  try {
+    const { data } = await ErpVoucherAPI.detach(viewing.value.id, doc.id);
+    viewing.value = data;
+    store.get({ page: currentPage.value });
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '删除失败');
+  }
+};
+const fileSize = bytes =>
+  bytes > 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
 const openView = async voucher => {
   const { data } = await ErpVoucherAPI.show(voucher.id);
   viewing.value = data;
@@ -479,7 +513,17 @@ onMounted(() => {
               <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
                 {{ v.voucherDate }}
               </td>
-              <td class="px-3 py-2 text-n-slate-12">{{ v.summary || '—' }}</td>
+              <td class="px-3 py-2 text-n-slate-12">
+                {{ v.summary || '—' }}
+                <span
+                  v-if="v.documentCount"
+                  class="inline-flex items-center gap-0.5 ml-1 text-xs text-n-slate-10"
+                  title="已附原始单据影像"
+                >
+                  <span class="i-lucide-paperclip size-3" />
+                  {{ v.documentCount }}
+                </span>
+              </td>
               <td class="px-3 py-2 font-mono text-right text-n-slate-12">
                 {{ money(v.totalDebitMicros) }}
               </td>
@@ -859,6 +903,57 @@ onMounted(() => {
         </div>
         <div v-else-if="viewing.reversed_by_no" class="text-sm text-n-slate-11">
           本张已被 {{ viewing.reversed_by_no }} 红冲
+        </div>
+
+        <div class="pt-2 border-t border-n-weak">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-sm font-medium text-n-slate-12">
+              原始单据影像
+            </span>
+            <span class="text-xs text-n-slate-10">
+              发票 / 水单扫描件，已记账凭证也可补传
+            </span>
+            <Button
+              v-if="canWrite"
+              label="上传"
+              icon="i-lucide-paperclip"
+              color="slate"
+              variant="faded"
+              size="xs"
+              :is-loading="uploading"
+              @click="pickFiles"
+            />
+            <input
+              ref="fileInputRef"
+              type="file"
+              multiple
+              class="hidden"
+              @change="onFilesPicked"
+            />
+          </div>
+          <div v-if="viewing.documents?.length" class="flex flex-wrap gap-2">
+            <div
+              v-for="doc in viewing.documents"
+              :key="doc.id"
+              class="flex items-center gap-2 px-2 py-1 text-xs rounded-lg bg-n-alpha-1"
+            >
+              <a
+                :href="doc.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-n-iris-11 hover:underline"
+              >
+                {{ doc.filename }}
+              </a>
+              <span class="text-n-slate-10">{{ fileSize(doc.byte_size) }}</span>
+              <button
+                v-if="canWrite"
+                class="i-lucide-x size-3 text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeDocument(doc)"
+              />
+            </div>
+          </div>
+          <p v-else class="text-xs text-n-slate-10">还没有上传原始单据。</p>
         </div>
 
         <div class="flex items-center justify-end pt-2 border-t border-n-weak">

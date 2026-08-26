@@ -273,6 +273,8 @@ Rails.application.routes.draw do
                 post :post_voucher
                 post :reverse
                 post :void
+                post :attach
+                delete :detach
               end
             end
             # 账簿：余额表 / 明细账 / 维度明细账（只读实时查询）

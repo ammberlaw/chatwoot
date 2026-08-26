@@ -2,12 +2,12 @@
 # 硬规则在 Erp::Voucher / VoucherLine / VoucherPostingService 里，控制器只做取数与状态闸。
 class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseController
   before_action :check_authorization
-  before_action :fetch_voucher, only: [:show, :update, :destroy, :post_voucher, :reverse, :void]
+  before_action :fetch_voucher, only: [:show, :update, :destroy, :post_voucher, :reverse, :void, :attach, :detach]
 
   def index
     scope = filtered_scope
     @vouchers_count = scope.count
-    @vouchers = scope.includes(:prepared_by, :posted_by, :reversal_of)
+    @vouchers = scope.includes(:prepared_by, :posted_by, :reversal_of, :documents_attachments)
                      .order(voucher_date: :desc, voucher_no: :desc)
                      .page(page_param).per(RESULTS_PER_PAGE)
   end
@@ -61,6 +61,20 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     render 'api/v1/accounts/erp/vouchers/show'
   end
 
+  # 原始单据影像。已过账凭证也放行——补一张扫描件不改账，不该逼人红冲重做。
+  def attach
+    return render json: { error: '未收到文件' }, status: :unprocessable_entity if params[:files].blank?
+
+    @voucher.documents.attach(params[:files])
+    render 'api/v1/accounts/erp/vouchers/show'
+  end
+
+  def detach
+    @voucher.documents.find(params[:attachment_id]).purge
+    @voucher.reload
+    render 'api/v1/accounts/erp/vouchers/show'
+  end
+
   private
 
   def filtered_scope
@@ -79,7 +93,7 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
   end
 
   def fetch_voucher
-    @voucher = Current.account.erp_vouchers.includes(lines: :ledger_account).find(params[:id])
+    @voucher = Current.account.erp_vouchers.includes(:documents_attachments, lines: :ledger_account).find(params[:id])
   end
 
   def check_authorization

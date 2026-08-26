@@ -10,6 +10,8 @@ class Erp::VoucherPolicy < ApplicationPolicy
   def post_voucher? = @account_user.erp_can?(:voucher)
   def reverse? = @account_user.erp_can?(:voucher)
   def void? = @account_user.erp_can?(:voucher)
+  def attach? = @account_user.erp_can?(:voucher)
+  def detach? = @account_user.erp_can?(:voucher)
 end
 
 Erp::VoucherPolicy.prepend_mod_with('Erp::VoucherPolicy')

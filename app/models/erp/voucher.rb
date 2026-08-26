@@ -60,6 +60,10 @@ class Erp::Voucher < ApplicationRecord
 
   accepts_nested_attributes_for :lines, allow_destroy: true
 
+  # 原始单据影像（发票、水单、报销单扫描件）。已过账凭证也允许补传——
+  # 补一张扫描件不改变账，不该逼财务去红冲重做。
+  has_many_attached :documents
+
   validates :voucher_no, presence: true, uniqueness: { scope: :account_id }
   validates :voucher_date, presence: true
   validates :status, inclusion: { in: STATUSES }
