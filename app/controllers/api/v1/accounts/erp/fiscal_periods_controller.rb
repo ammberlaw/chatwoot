@@ -49,7 +49,32 @@ class Api::V1::Accounts::Erp::FiscalPeriodsController < Api::V1::Accounts::Erp::
     render 'api/v1/accounts/erp/fiscal_periods/reconciliation'
   end
 
+  # 期末调汇：预览各外币科目的调汇差额（不落库）。
+  def revaluation
+    @revaluation = revaluation_service.preview(period: params[:period], rates: rate_params)
+    render 'api/v1/accounts/erp/fiscal_periods/revaluation'
+  rescue Erp::RevaluationService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 生成调汇凭证（待过账）。
+  def revalue
+    @revaluation = revaluation_service.run!(period: params[:period], rates: rate_params)
+    render 'api/v1/accounts/erp/fiscal_periods/revaluation'
+  rescue Erp::RevaluationService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
+
+  def revaluation_service
+    @revaluation_service ||= Erp::RevaluationService.new(Current.account, current_user)
+  end
+
+  # rates 形如 { "USD" => "7.12" }；没填汇率时给空 hash，由 service 报「还没填汇率」。
+  def rate_params
+    params[:rates].present? ? params[:rates].permit!.to_h : {}
+  end
 
   def opening_rows
     Array(params[:rows]).map do |row|

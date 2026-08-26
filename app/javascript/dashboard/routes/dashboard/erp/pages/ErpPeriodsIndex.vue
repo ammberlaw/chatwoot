@@ -11,6 +11,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
 
 // 期末结账：一个月一行，显示凭证数/待过账/借贷是否平，够条件才让结账。
@@ -29,6 +30,7 @@ const TABS = [
   { key: 'close', label: '期末结账' },
   { key: 'opening', label: '期初建账' },
   { key: 'reconcile', label: '两账对平' },
+  { key: 'revalue', label: '期末调汇' },
 ];
 const activeTab = ref('close');
 const accountStore = useErpLedgerAccountsStore();
@@ -110,10 +112,45 @@ const loadReconcile = async () => {
   reconcileRows.value = data.payload;
 };
 
-const switchTab = async key => {
-  activeTab.value = key;
-  if (key === 'opening') await loadOpening();
-  if (key === 'reconcile') await loadReconcile();
+/* 期末调汇：外币科目按期末汇率重算本位币，差额进汇兑损益 */
+const revalPeriod = ref(new Date().toISOString().slice(0, 7));
+const revalRates = ref({});
+const revalRows = ref([]);
+const revalMeta = ref(null);
+const revalError = ref('');
+
+const loadRevaluation = async () => {
+  revalError.value = '';
+  try {
+    const { data } = await ErpFiscalPeriodAPI.revaluation({
+      period: revalPeriod.value,
+      rates: revalRates.value,
+    });
+    revalMeta.value = data.meta;
+    revalRows.value = data.payload;
+  } catch (error) {
+    // 汇率没填全时后端会直接拒；把币种列表捞回来好渲染输入框。
+    revalError.value = error?.response?.data?.error || '取数失败';
+    revalRows.value = [];
+  }
+};
+
+const doRevalue = async () => {
+  try {
+    const { data } = await ErpFiscalPeriodAPI.revalue({
+      period: revalPeriod.value,
+      rates: revalRates.value,
+    });
+    revalMeta.value = data.meta;
+    revalRows.value = data.payload;
+    useAlert(
+      data.meta.voucher_no
+        ? `调汇凭证 ${data.meta.voucher_no} 已生成（待过账）`
+        : '各外币科目已按该汇率折算，没有调汇差额'
+    );
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '调汇失败');
+  }
 };
 
 const load = async () => {
@@ -124,6 +161,14 @@ const load = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const switchTab = async key => {
+  activeTab.value = key;
+  if (key === 'close') await load();
+  if (key === 'opening') await loadOpening();
+  if (key === 'reconcile') await loadReconcile();
+  if (key === 'revalue') await loadRevaluation();
 };
 
 const closable = row =>
@@ -352,6 +397,108 @@ onMounted(load);
       </p>
     </div>
 
+    <!-- 期末调汇 -->
+    <div
+      v-else-if="activeTab === 'revalue'"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+    >
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="text-sm text-n-slate-11">会计期间</span>
+        <MonthPicker v-model="revalPeriod" :clearable="false" />
+        <template
+          v-for="currency in revalMeta?.currencies || []"
+          :key="currency"
+        >
+          <span class="text-sm text-n-slate-11">{{ currency }} 期末汇率</span>
+          <div class="w-28">
+            <Input
+              v-model="revalRates[currency]"
+              size="sm"
+              type="number"
+              placeholder="如 7.1200"
+            />
+          </div>
+        </template>
+        <Button label="试算" color="slate" size="sm" @click="loadRevaluation" />
+        <Button
+          v-if="canClose"
+          label="生成调汇凭证"
+          color="iris"
+          size="sm"
+          :disabled="!revalMeta?.rates_ready"
+          @click="doRevalue"
+        />
+      </div>
+
+      <p v-if="revalError" class="mb-3 text-sm text-n-ruby-11">
+        {{ revalError }}
+      </p>
+      <p
+        v-else-if="revalMeta && !revalMeta.rates_ready"
+        class="mb-3 text-sm text-n-slate-11"
+      >
+        填入各外币的期末汇率后点「试算」，先看差额再决定是否生成凭证。
+      </p>
+
+      <table v-if="revalRows.length" class="w-full max-w-5xl text-sm">
+        <thead>
+          <tr class="text-left border-b text-n-slate-11 border-n-weak">
+            <th class="px-3 py-3 font-medium">科目</th>
+            <th class="px-3 py-3 font-medium">核算单位</th>
+            <th class="px-3 py-3 font-medium text-right">原币余额</th>
+            <th class="px-3 py-3 font-medium text-right">账面本位币</th>
+            <th class="px-3 py-3 font-medium text-right">期末应有</th>
+            <th class="px-3 py-3 font-medium text-right">调汇差额</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="(row, index) in revalRows"
+            :key="`${row.ledger_account_id}-${row.party_id || index}`"
+            class="border-b border-n-weak"
+          >
+            <td class="px-3 py-2 text-n-slate-12">
+              <span class="font-mono text-xs text-n-slate-11">
+                {{ row.code }}
+              </span>
+              {{ row.name }}
+            </td>
+            <td class="px-3 py-2 text-n-slate-11">
+              {{ row.party_name || '—' }}
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+              {{ row.currency }} {{ money(row.original_micros) }}
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-11">
+              {{ money(row.booked_micros) }}
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-11">
+              {{ money(row.should_be_micros) }}
+            </td>
+            <td
+              class="px-3 py-2 font-mono text-right"
+              :class="row.diff_micros ? 'text-n-amber-11' : 'text-n-slate-11'"
+            >
+              {{ money(row.diff_micros) }}
+            </td>
+          </tr>
+          <tr class="font-semibold">
+            <td class="px-3 py-2 text-n-slate-12" colspan="5">
+              净调汇差额（进汇兑损益）
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+              {{ money(revalMeta?.total_diff_micros) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="mt-4 text-xs text-n-slate-10">
+        调汇只调本位币、不动原币；生成的是「待过账」凭证，记账仍要财务点过账。
+        同一汇率重复调汇不会翻倍——账面调平后差额自然为 0。
+      </p>
+    </div>
+
     <!-- 期末结账 -->
     <div v-else class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
@@ -456,6 +603,7 @@ onMounted(load);
 
       <p class="mt-4 text-xs text-n-slate-10">
         结账条件：该期间没有待过账凭证、且借贷试算平衡。结账后凭证冻结，需管理员反结账才能改。
+        有外币业务的月份，结账前先到「期末调汇」按期末汇率调一次，否则汇兑损益不会入账。
       </p>
     </div>
 

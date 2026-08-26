@@ -57,7 +57,9 @@ class Erp::VoucherLine < ApplicationRecord
 
   validates :direction, inclusion: { in: DIRECTIONS }
   validates :cash_flow_item, inclusion: { in: Erp::CashFlowItem::CODES }, allow_blank: true
-  validates :amount_micros, numericality: { greater_than: 0 }
+  # 期末调汇分录是原币 0、只动本位币的（见 Erp::RevaluationService），所以原币放行 0；
+  # 本位币仍然必须为正，空行照样进不来。
+  validates :amount_micros, numericality: { greater_than_or_equal_to: 0 }
   validates :base_amount_micros, numericality: { greater_than: 0 }
   validate :validate_postable_account
   validate :validate_required_dimensions
@@ -80,9 +82,12 @@ class Erp::VoucherLine < ApplicationRecord
     self.account_id ||= voucher&.account_id
     self.currency = 'CNY' if currency.blank?
     self.exchange_rate = 1 if exchange_rate.blank? || exchange_rate.to_d.zero?
-    return if amount_micros.blank?
+    self.base_amount_micros = (amount_micros * exchange_rate.to_d).round unless base_given_directly?
+  end
 
-    self.base_amount_micros = (amount_micros * exchange_rate.to_d).round
+  # 调汇分录原币是 0、本位币由调用方直接给，乘出来只会是 0，不能覆盖。
+  def base_given_directly?
+    amount_micros.blank? || (amount_micros.zero? && base_amount_micros.to_i.positive?)
   end
 
   def validate_postable_account
