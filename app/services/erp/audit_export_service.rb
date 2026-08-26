@@ -66,7 +66,8 @@ class Erp::AuditExportService
   end
 
   def ledger_accounts
-    @ledger_accounts ||= @account.erp_ledger_accounts.order(:code).to_a
+    # 科目表要输出「上级编码」，不预加载 parent 就是一个科目一次查询（109 个科目 109 次）。
+    @ledger_accounts ||= @account.erp_ledger_accounts.includes(:parent).order(:code).to_a
   end
 
   # 只认已记账凭证：草稿与作废不是账。

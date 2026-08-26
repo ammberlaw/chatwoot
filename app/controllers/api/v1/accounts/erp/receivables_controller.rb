@@ -46,7 +46,7 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   def open_list
     scope = Current.account.erp_receivables.open
     scope = scope.where(crm_customer_id: params[:crm_customer_id]) if params[:crm_customer_id].present?
-    @receivables = scope.includes(:crm_customer, :crm_sales_order).order(:receivable_no)
+    @receivables = scope.includes(:crm_customer, :crm_sales_order, :owner).order(:receivable_no)
     render 'api/v1/accounts/erp/receivables/open_list'
   end
 

@@ -94,7 +94,7 @@ class Erp::RevaluationService
   end
 
   def build_row(ledger_account, rate, dimension, party_id, sums)
-    should_be = (sums[:original] * rate).round
+    should_be = Erp::VoucherLine.round_to_cent(sums[:original] * rate)
     {
       ledger_account_id: ledger_account.id, code: ledger_account.code, name: ledger_account.name,
       currency: ledger_account.currency, rate: rate,

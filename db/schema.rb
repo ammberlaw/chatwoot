@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_02_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_02_000004) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2222,7 +2222,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_02_000003) do
     t.index ["account_id"], name: "index_erp_voucher_lines_on_account_id"
     t.index ["crm_customer_id"], name: "index_erp_voucher_lines_on_crm_customer_id"
     t.index ["crm_sales_order_id"], name: "index_erp_voucher_lines_on_crm_sales_order_id"
+    t.index ["department_id"], name: "index_erp_voucher_lines_on_department_id"
     t.index ["ledger_account_id"], name: "index_erp_voucher_lines_on_ledger_account_id"
+    t.index ["member_id"], name: "index_erp_voucher_lines_on_member_id"
     t.index ["mes_supplier_id"], name: "index_erp_voucher_lines_on_mes_supplier_id"
     t.index ["voucher_id"], name: "index_erp_voucher_lines_on_voucher_id"
   end
@@ -2263,6 +2265,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_02_000003) do
     t.index ["account_id", "voucher_date"], name: "index_erp_vouchers_on_account_id_and_voucher_date"
     t.index ["account_id", "voucher_no"], name: "index_erp_vouchers_on_account_id_and_voucher_no", unique: true
     t.index ["account_id"], name: "index_erp_vouchers_on_account_id"
+    t.index ["reversal_of_id"], name: "index_erp_vouchers_on_reversal_of_id"
     t.index ["source_type", "source_id"], name: "index_erp_vouchers_on_source_type_and_source_id"
   end
 

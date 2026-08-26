@@ -7,7 +7,7 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
   def index
     scope = filtered_scope
     @vouchers_count = scope.count
-    @vouchers = scope.includes(:prepared_by, :posted_by, :reversal_of, :documents_attachments)
+    @vouchers = scope.includes(:prepared_by, :posted_by, :reversal_of, :reversed_by, :documents_attachments)
                      .order(voucher_date: :desc, voucher_no: :desc)
                      .page(page_param).per(RESULTS_PER_PAGE)
   end
@@ -114,8 +114,13 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     scope.where('voucher_no ILIKE :t OR summary ILIKE :t', t: "%#{params[:q].strip}%")
   end
 
+  # 分录票面要渲染 5 个维度的名字（_erp_voucher_line 局部模板），不预加载就是每行 5 次查询。
+  LINE_INCLUDES = [:ledger_account, :crm_customer, :mes_supplier, :crm_sales_order, :department, :member].freeze
+
   def fetch_voucher
-    @voucher = Current.account.erp_vouchers.includes(:documents_attachments, lines: :ledger_account).find(params[:id])
+    @voucher = Current.account.erp_vouchers
+                      .includes(:documents_attachments, lines: LINE_INCLUDES)
+                      .find(params[:id])
   end
 
   def check_authorization

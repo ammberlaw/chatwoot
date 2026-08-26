@@ -76,7 +76,7 @@ class Erp::BadDebtService
   end
 
   def provision(base_micros, rate)
-    (base_micros * rate.to_d / 100).round
+    Erp::VoucherLine.round_to_cent(base_micros * rate.to_d / 100)
   end
 
   def build_report(period, as_of, table, buckets, rows)

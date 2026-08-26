@@ -31,7 +31,9 @@
 #  index_erp_voucher_lines_on_account_id_and_ledger_account_id  (account_id,ledger_account_id)
 #  index_erp_voucher_lines_on_crm_customer_id                   (crm_customer_id)
 #  index_erp_voucher_lines_on_crm_sales_order_id                (crm_sales_order_id)
+#  index_erp_voucher_lines_on_department_id                     (department_id)
 #  index_erp_voucher_lines_on_ledger_account_id                 (ledger_account_id)
+#  index_erp_voucher_lines_on_member_id                         (member_id)
 #  index_erp_voucher_lines_on_mes_supplier_id                   (mes_supplier_id)
 #  index_erp_voucher_lines_on_voucher_id                        (voucher_id)
 #
@@ -44,6 +46,12 @@ class Erp::VoucherLine < ApplicationRecord
   DEBIT = 'DEBIT'.freeze
   CREDIT = 'CREDIT'.freeze
   DIRECTIONS = [DEBIT, CREDIT].freeze
+
+  # 1 分 = 10,000 micros。**本位币金额一律取整到分**（金蝶同口径）：
+  # 汇率是 6 位小数，1000 USD × 7.123456 = 7123.456 元，带厘。
+  # 对方按 7123.46 录，两边差 0.004 元过不了账，而报错里两个数都显示成 7123.46——
+  # 财务看到「借方 7123.46 / 贷方 7123.46，借贷不平」根本没法排查。
+  CENT = 10_000
 
   belongs_to :account
   belongs_to :voucher, class_name: 'Erp::Voucher', inverse_of: :lines
@@ -66,6 +74,11 @@ class Erp::VoucherLine < ApplicationRecord
 
   before_validation :assign_account_and_base_amount
 
+  # 折本位币一律到分：调汇等直接给 base 的地方也走这里，口径统一。
+  def self.round_to_cent(value)
+    (value.to_d / CENT).round * CENT
+  end
+
   def dimension_value(dimension)
     case dimension
     when 'customer' then crm_customer_id
@@ -82,7 +95,7 @@ class Erp::VoucherLine < ApplicationRecord
     self.account_id ||= voucher&.account_id
     self.currency = 'CNY' if currency.blank?
     self.exchange_rate = 1 if exchange_rate.blank? || exchange_rate.to_d.zero?
-    self.base_amount_micros = (amount_micros * exchange_rate.to_d).round unless base_given_directly?
+    self.base_amount_micros = self.class.round_to_cent(amount_micros * exchange_rate.to_d) unless base_given_directly?
   end
 
   # 调汇分录原币是 0、本位币由调用方直接给，乘出来只会是 0，不能覆盖。

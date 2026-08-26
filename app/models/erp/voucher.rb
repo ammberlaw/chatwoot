@@ -33,6 +33,7 @@
 #  index_erp_vouchers_on_account_id_and_status        (account_id,status)
 #  index_erp_vouchers_on_account_id_and_voucher_date  (account_id,voucher_date)
 #  index_erp_vouchers_on_account_id_and_voucher_no    (account_id,voucher_no) UNIQUE
+#  index_erp_vouchers_on_reversal_of_id               (reversal_of_id)
 #  index_erp_vouchers_on_source_type_and_source_id    (source_type,source_id)
 #
 # Foreign Keys

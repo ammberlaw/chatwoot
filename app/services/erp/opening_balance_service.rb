@@ -35,7 +35,7 @@ class Erp::OpeningBalanceService
   # 币种跟随科目（外币科目必须按外币录，否则分录行的币种校验会拦）；
   # 外币行按填的汇率折本位币，平衡校验用本位币金额。
   def normalize(rows)
-    accounts = @account.erp_ledger_accounts.where(id: Array(rows).map { |row| row[:ledger_account_id] }).index_by(&:id)
+    accounts = @account.erp_ledger_accounts.where(id: Array(rows).pluck(:ledger_account_id)).index_by(&:id)
     Array(rows).filter_map { |row| normalize_row(row, accounts) }
   end
 

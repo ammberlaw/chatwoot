@@ -71,6 +71,45 @@ RSpec.describe 'ERP 金额守恒与幂等' do
     end
   end
 
+  describe '本位币取整到分' do
+    let(:usd_ar) { account.erp_ledger_accounts.find_by(code: '112202') }
+    let(:income) { account.erp_ledger_accounts.find_by(code: '6001') }
+
+    # 汇率 6 位小数会算出带「厘」的本位币，跟对方按分录的金额差几毫；
+    # 过账被拒，而报错里两个数都四舍五入成一样，财务根本没法排查。
+    it '6 位汇率的外币分录能与按分录入的对方分录配平' do
+      voucher = account.erp_vouchers.create!(
+        voucher_date: Date.new(2026, 6, 15), status: Erp::Voucher::DRAFT, prepared_by_id: user.id,
+        lines_attributes: [
+          { ledger_account_id: usd_ar.id, direction: 'DEBIT', amount_micros: 1_000_000_000,
+            currency: 'USD', exchange_rate: 7.123456, crm_customer_id: customer.id, position: 0 },
+          { ledger_account_id: income.id, direction: 'CREDIT', amount_micros: 7_123_460_000,
+            currency: 'CNY', exchange_rate: 1, position: 1 }
+        ]
+      )
+      voucher.refresh_totals!
+
+      # 1000 USD × 7.123456 = 7123.456 元 → 取整到分 7123.46
+      expect(voucher.lines.first.base_amount_micros).to eq(7_123_460_000)
+      expect(voucher.reload).to be_balanced
+      expect { Erp::VoucherPostingService.new(voucher, user).post! }.not_to raise_error
+    end
+
+    it '本位币金额永远是分的整数倍' do
+      voucher = account.erp_vouchers.create!(
+        voucher_date: Date.new(2026, 6, 15), status: Erp::Voucher::DRAFT, prepared_by_id: user.id,
+        lines_attributes: [
+          { ledger_account_id: usd_ar.id, direction: 'DEBIT', amount_micros: 333_330_000,
+            currency: 'USD', exchange_rate: 7.111111, crm_customer_id: customer.id, position: 0 },
+          { ledger_account_id: income.id, direction: 'CREDIT', amount_micros: 2_370_360_000,
+            currency: 'CNY', exchange_rate: 1, position: 1 }
+        ]
+      )
+
+      expect(voucher.lines.map { |line| line.base_amount_micros % Erp::VoucherLine::CENT }).to all(eq(0))
+    end
+  end
+
   describe '期末事项幂等' do
     let(:bank) { account.erp_ledger_accounts.find_by(code: '100201') }
     let(:usd_bank) { account.erp_ledger_accounts.find_by(code: '100202') }
