@@ -115,13 +115,12 @@ class Erp::Voucher < ApplicationRecord
   end
 
   # 记-YYYY-MM-####：按月连续编号，与金蝶/用友的「记字第N号」同习惯。
-  # 并发下靠 (account_id, voucher_no) 唯一索引兜底，冲突时由 service 重试。
+  # 取号并发安全（advisory lock + 序号按数值取最大），见 Erp::SequenceAllocator。
   def assign_voucher_no
     return if voucher_no.present? || voucher_date.blank?
 
-    prefix = "记-#{period}-"
-    last = account.erp_vouchers.where('voucher_no LIKE ?', "#{prefix}%").order(:voucher_no).last
-    seq = last ? last.voucher_no.split('-').last.to_i + 1 : 1
-    self.voucher_no = format('%<prefix>s%<seq>04d', prefix: prefix, seq: seq)
+    self.voucher_no = Erp::SequenceAllocator.next_number(
+      account, account.erp_vouchers, :voucher_no, "记-#{period}-", 4
+    )
   end
 end
