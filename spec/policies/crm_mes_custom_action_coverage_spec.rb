@@ -1,3 +1,5 @@
+require 'rails_helper'
+
 # Guard against the Pundit::NotDefinedError bug class.
 #
 # Every custom controller under the CRM/MES/OA/ORG namespaces uses a bare
