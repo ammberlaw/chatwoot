@@ -21,6 +21,7 @@ class Erp::PeriodCloseService
     record = @account.erp_fiscal_periods.find_or_initialize_by(period: period)
     raise Error, "会计期间 #{period} 已经结过账了" if record.status == Erp::FiscalPeriod::CLOSED
 
+    ensure_earlier_periods_closed!(period)
     ensure_no_drafts!(period)
     ensure_balanced!(period)
 
@@ -39,6 +40,8 @@ class Erp::PeriodCloseService
   def reopen!(period)
     record = @account.erp_fiscal_periods.find_by(period: period)
     raise Error, "会计期间 #{period} 没有结过账" if record.blank? || record.status != Erp::FiscalPeriod::CLOSED
+
+    ensure_later_periods_open!(period)
 
     ActiveRecord::Base.transaction do
       closing = record.closing_voucher
@@ -127,6 +130,27 @@ class Erp::PeriodCloseService
 
   def validate_period_format!(period)
     raise Error, '会计期间格式应为 YYYY-MM' unless period.to_s.match?(/\A\d{4}-\d{2}\z/)
+  end
+
+  # 结账必须**从早到晚**、反结账必须**从晚到早**（金蝶/用友同规矩）。
+  #
+  # 目前月度结转是各月独立算的，所以跳着结数字还不会错；但「已结账」这三个字的意思是
+  # 此前所有期间都封存了——跳着结会出现「4 月已锁、3 月还能随便改」，审计一看就质疑账簿严肃性。
+  # 而且**年末结转一旦做起来就是累积的**，那时顺序错就是真的数字错了。
+  def ensure_earlier_periods_closed!(period)
+    closed = @account.erp_fiscal_periods.where(status: Erp::FiscalPeriod::CLOSED).pluck(:period)
+    open_before = @account.erp_vouchers.where(period: ...period).distinct.pluck(:period) - closed
+    return if open_before.empty?
+
+    raise Error, "#{open_before.min} 还没结账，会计期间要从早到晚依次结；先结 #{open_before.min}"
+  end
+
+  def ensure_later_periods_open!(period)
+    later = @account.erp_fiscal_periods.where(status: Erp::FiscalPeriod::CLOSED)
+                    .where('period > ?', period).pluck(:period)
+    return if later.empty?
+
+    raise Error, "#{later.max} 还锁着，反结账要从晚到早依次做；先反结 #{later.max}"
   end
 
   def ensure_no_drafts!(period)
