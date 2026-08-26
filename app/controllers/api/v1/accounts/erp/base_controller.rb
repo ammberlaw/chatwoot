@@ -18,4 +18,13 @@ class Api::V1::Accounts::Erp::BaseController < Api::V1::Accounts::BaseController
   def page_param
     params[:page] || 1
   end
+
+  # 账龄分析的两个入参（应收/应付两个控制器共用）。
+  def aging_as_of
+    params[:as_of].presence&.to_date || Time.zone.today
+  end
+
+  def aging_basis
+    params[:basis] == Erp::AgingService::INVOICE ? Erp::AgingService::INVOICE : Erp::AgingService::DUE
+  end
 end

@@ -61,6 +61,12 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     render 'api/v1/accounts/erp/payables/supplier_statement'
   end
 
+  # 账龄分析：basis=due 逾期账龄 / basis=invoice 账龄（按建账日）。
+  def aging
+    @aging = Erp::AgingService.new(Current.account).payables(as_of: aging_as_of, basis: aging_basis)
+    render 'api/v1/accounts/erp/shared/aging'
+  end
+
   private
 
   def filtered_scope

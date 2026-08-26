@@ -7,5 +7,6 @@ API.openList = params => axios.get(`${API.url}/open_list`, { params });
 API.supplierStatement = () => axios.get(`${API.url}/supplier_statement`);
 API.buildFromPurchaseOrder = purchaseOrderId =>
   axios.post(API.url, { mes_purchase_order_id: purchaseOrderId });
+API.aging = params => axios.get(`${API.url}/aging`, { params });
 
 export default API;

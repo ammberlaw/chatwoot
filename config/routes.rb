@@ -280,7 +280,10 @@ Rails.application.routes.draw do
             get 'ledgers/entries', to: 'ledgers#entries'
             get 'ledgers/dimensions', to: 'ledgers#dimensions'
             resources :receivables, only: [:index, :show, :create, :update, :destroy] do
-              collection { get :open_list }
+              collection do
+                get :open_list
+                get :aging
+              end
             end
             resources :receipt_records, only: [:index, :show, :create, :update, :destroy] do
               member { post :void }
@@ -289,6 +292,7 @@ Rails.application.routes.draw do
               collection do
                 get :open_list
                 get :supplier_statement
+                get :aging
               end
             end
             resources :payment_records, only: [:index, :show, :create, :update, :destroy] do

@@ -3,6 +3,7 @@ class Erp::PayablePolicy < ApplicationPolicy
   def show? = @account_user.can_access_erp?
   def open_list? = @account_user.can_access_erp?
   def supplier_statement? = @account_user.can_access_erp?
+  def aging? = @account_user.can_access_erp?
 
   def create? = @account_user.erp_can?(:payable)
   def update? = @account_user.erp_can?(:payable)

@@ -16,6 +16,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEditor.vue';
+import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
 import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
 
 // 应收：台账（从销售订单建账 + 分期计划）与收款记录（水单 + 核销）两页签。
@@ -27,6 +28,7 @@ const canSettle = computed(() => erpCan('payment'));
 const TABS = [
   { key: 'ledger', label: '应收台账' },
   { key: 'receipts', label: '收款记录' },
+  { key: 'aging', label: '账龄分析' },
 ];
 const STATUS_OPTIONS = [
   { value: '', label: '全部状态' },
@@ -109,11 +111,17 @@ const loadReceipts = async () => {
   }
 };
 
-const reload = () =>
-  activeTab.value === 'ledger' ? loadLedgers() : loadReceipts();
+const agingRef = ref(null);
+// 账龄分析有自己的查询条（口径 + 截至日），隐掉顶部关键字搜索。
+const isDocTab = computed(() => activeTab.value !== 'aging');
+const reload = () => {
+  if (activeTab.value === 'ledger') return loadLedgers();
+  if (activeTab.value === 'receipts') return loadReceipts();
+  return agingRef.value?.load();
+};
 const switchTab = key => {
   activeTab.value = key;
-  reload();
+  nextTick(reload);
 };
 
 /* ---------------- 建账（从销售订单） ---------------- */
@@ -322,19 +330,29 @@ onMounted(loadLedgers);
             money(ledgerMeta.outstanding_micros)
           }}</span>
         </span>
-        <span v-else class="text-sm text-n-slate-11">
+        <span
+          v-else-if="activeTab === 'receipts'"
+          class="text-sm text-n-slate-11"
+        >
           本页收款合计 {{ money(receiptMeta.amount_micros) }}
         </span>
       </div>
       <div class="flex items-center gap-2">
         <Input
+          v-if="isDocTab"
           v-model="keyword"
           size="sm"
           placeholder="搜单号 / 客户"
           custom-input-class="w-44"
           @keyup.enter="reload"
         />
-        <Button label="查询" color="slate" size="sm" @click="reload" />
+        <Button
+          v-if="isDocTab"
+          label="查询"
+          color="slate"
+          size="sm"
+          @click="reload"
+        />
         <Button
           v-if="canLedger && activeTab === 'ledger'"
           label="从销售订单建账"
@@ -447,6 +465,15 @@ onMounted(loadLedgers);
           </tr>
         </tbody>
       </table>
+
+      <!-- 账龄分析 -->
+      <ErpAgingTable
+        v-else-if="activeTab === 'aging'"
+        ref="agingRef"
+        title="应收账龄分析表"
+        party-label="客户"
+        :fetcher="ErpReceivableAPI.aging"
+      />
 
       <!-- 收款记录 -->
       <table v-else class="w-full text-sm">

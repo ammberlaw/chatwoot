@@ -18,6 +18,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEditor.vue';
 import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
+import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
 
 // 应付：台账（按采购单建账，按明细行供应商分组）/ 付款记录（核销）/ 供应商对账 三页签。
 // 与应收同构；台账「已付」只由核销维护。
@@ -29,6 +30,7 @@ const TABS = [
   { key: 'ledger', label: '应付台账' },
   { key: 'payments', label: '付款记录' },
   { key: 'statement', label: '供应商对账' },
+  { key: 'aging', label: '账龄分析' },
 ];
 const STATUS_OPTIONS = [
   { value: '', label: '全部状态' },
@@ -104,14 +106,20 @@ const loadStatement = async () => {
   }
 };
 
+const agingRef = ref(null);
+// 供应商对账与账龄分析不吃关键字（各自有自己的查询条），隐掉顶部搜索。
+const isDocTab = computed(() =>
+  ['ledger', 'payments'].includes(activeTab.value)
+);
 const reload = () => {
   if (activeTab.value === 'ledger') return loadLedgers();
   if (activeTab.value === 'payments') return loadPayments();
-  return loadStatement();
+  if (activeTab.value === 'statement') return loadStatement();
+  return agingRef.value?.load();
 };
 const switchTab = key => {
   activeTab.value = key;
-  reload();
+  nextTick(reload);
 };
 
 /* ---------------- 从采购单建账 ---------------- */
@@ -307,14 +315,20 @@ onMounted(loadLedgers);
       </div>
       <div class="flex items-center gap-2">
         <Input
-          v-if="activeTab !== 'statement'"
+          v-if="isDocTab"
           v-model="keyword"
           size="sm"
           placeholder="搜单号 / 供应商"
           custom-input-class="w-44"
           @keyup.enter="reload"
         />
-        <Button label="查询" color="slate" size="sm" @click="reload" />
+        <Button
+          v-if="isDocTab"
+          label="查询"
+          color="slate"
+          size="sm"
+          @click="reload"
+        />
         <Button
           v-if="canLedger && activeTab === 'ledger'"
           label="从采购单建账"
@@ -510,6 +524,15 @@ onMounted(loadLedgers);
           </tr>
         </tbody>
       </table>
+
+      <!-- 账龄分析 -->
+      <ErpAgingTable
+        v-else-if="activeTab === 'aging'"
+        ref="agingRef"
+        title="应付账龄分析表"
+        party-label="供应商"
+        :fetcher="ErpPayableAPI.aging"
+      />
 
       <!-- 供应商对账 -->
       <table v-else class="w-full max-w-3xl text-sm">
