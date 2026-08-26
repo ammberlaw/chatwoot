@@ -21,6 +21,7 @@ import PaginationFooter from 'dashboard/components-next/pagination/PaginationFoo
 import ErpDimensionFields from 'dashboard/components-next/erp/ErpDimensionFields.vue';
 import ErpVoucherPrintSheet from 'dashboard/components-next/erp/ErpVoucherPrintSheet.vue';
 import { printElement } from 'dashboard/helper/printHelper';
+import { downloadBlob } from 'dashboard/helper/erpDownload';
 
 // 记账凭证：手工凭证录入 + 过账 / 红冲 / 作废。
 // 硬规则在后端（借贷本位币必平才能过账；已记账不可改删只能红冲），前端只做录入体验与显隐。
@@ -271,8 +272,9 @@ const importDialogRef = ref(null);
 const importFileRef = ref(null);
 const importing = ref(false);
 const importResult = ref(null);
-const downloadImportTemplate = () => {
-  window.open(ErpVoucherAPI.importTemplateUrl(), '_blank');
+const downloadImportTemplate = async () => {
+  const { data } = await ErpVoucherAPI.importTemplate();
+  downloadBlob(data, '凭证导入模板.csv');
 };
 const openImport = () => {
   importResult.value = null;

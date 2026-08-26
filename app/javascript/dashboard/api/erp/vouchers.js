@@ -26,6 +26,7 @@ API.import = file => {
   form.append('file', file);
   return axios.post(`${API.url}/import`, form);
 };
-API.importTemplateUrl = () => `${API.url}/import_template`;
+API.importTemplate = () =>
+  axios.get(`${API.url}/import_template`, { responseType: 'blob' });
 
 export default API;

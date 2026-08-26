@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import ErpReportAPI from 'dashboard/api/erp/reports';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
 import { printElement } from 'dashboard/helper/printHelper';
+import { downloadBlob } from 'dashboard/helper/erpDownload';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
@@ -99,6 +100,21 @@ const PRINT_TITLES = {
 const print = () =>
   printElement(reportRef.value, PRINT_TITLES[activeTab.value]());
 
+// 审计接口：把当前期间的已记账数据打包给会计师事务所。
+const exporting = ref(false);
+const downloadAuditPack = async () => {
+  exporting.value = true;
+  try {
+    const { data } = await ErpReportAPI.auditExport({
+      from: from.value,
+      to: to.value,
+    });
+    downloadBlob(data, `财务数据_${from.value}_至_${to.value}.zip`);
+  } finally {
+    exporting.value = false;
+  }
+};
+
 const section = key => balanceSheet.value?.sections?.[key];
 const totals = computed(() => balanceSheet.value?.meta?.totals || {});
 
@@ -173,6 +189,15 @@ onMounted(loadBalanceSheet);
           variant="faded"
           size="sm"
           @click="print"
+        />
+        <Button
+          label="审计数据包"
+          icon="i-lucide-file-archive"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="exporting"
+          @click="downloadAuditPack"
         />
       </div>
     </div>

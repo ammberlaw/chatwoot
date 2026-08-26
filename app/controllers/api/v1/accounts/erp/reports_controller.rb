@@ -17,6 +17,14 @@ class Api::V1::Accounts::Erp::ReportsController < Api::V1::Accounts::Erp::BaseCo
     render json: { payload: Erp::CashFlowItem.items_for_select }
   end
 
+  # 审计接口：把区间内的已记账数据打成 zip（科目表/序时簿/余额表/国标 XML）给事务所。
+  def audit_export
+    service = Erp::AuditExportService.new(Current.account)
+    send_data service.export(from: from_date, to: to_date),
+              filename: service.filename(from: from_date, to: to_date),
+              type: 'application/zip'
+  end
+
   private
 
   def report_service

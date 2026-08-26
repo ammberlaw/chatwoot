@@ -29,6 +29,13 @@ class ErpReportAPI extends ApiClient {
   cashFlowItems() {
     return axios.get(`${this.url}/cash_flow_items`);
   }
+
+  // 审计接口：区间内已记账数据打包 zip（科目表/序时簿/余额表/国标 XML）。
+  auditExport(params = {}) {
+    return axios.get(`${this.url}/audit_export?${buildParams(params)}`, {
+      responseType: 'blob',
+    });
+  }
 }
 
 export default new ErpReportAPI();

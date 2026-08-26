@@ -338,6 +338,7 @@ Rails.application.routes.draw do
             get 'reports/income_statement', to: 'reports#income_statement'
             get 'reports/cash_flow', to: 'reports#cash_flow'
             get 'reports/cash_flow_items', to: 'reports#cash_flow_items'
+            get 'reports/audit_export', to: 'reports#audit_export'
           end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard' do
