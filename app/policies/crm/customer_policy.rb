@@ -98,6 +98,11 @@ class Crm::CustomerPolicy < ApplicationPolicy
     true
   end
 
+  # 客户操作记录（审计时间轴）：与查看同权。
+  def audits?
+    show?
+  end
+
   def create?
     true
   end

@@ -84,6 +84,11 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  # 移动到文件夹：与编辑同权（数据范围由控制器 visible_emails 收口）。
+  def move_to_folder?
+    update?
+  end
+
   # 删除范围由控制器 visible_emails 收口（业务员仅自己、主管团队、管理员全部），
   # 故此处放开让本人可删自己的邮件（尤其草稿），不再限管理员。
   def destroy?

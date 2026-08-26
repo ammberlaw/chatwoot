@@ -20,6 +20,11 @@ class Crm::ScheduleEventPolicy < ApplicationPolicy
     true
   end
 
+  # 一键完成跟进（写回跟进记录）：与勾选完成同权。
+  def complete_follow_up?
+    true
+  end
+
   # 日程待办角标计数：登录用户均可查自己的（数据范围在控制器收口）
   def pending_count?
     true
