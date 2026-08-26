@@ -75,6 +75,28 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     render 'api/v1/accounts/erp/vouchers/show'
   end
 
+  # 常用摘要：从已录的分录摘要里按使用频次取，越常用排越前。不另建摘要库表。
+  def summaries
+    scope = Current.account.erp_voucher_lines.where.not(summary: [nil, ''])
+    scope = scope.where('summary ILIKE ?', "%#{params[:q].strip}%") if params[:q].present?
+    render json: { payload: scope.group(:summary).order(Arel.sql('COUNT(*) DESC')).limit(20).count.keys }
+  end
+
+  # 批量导入：CSV 逐组建待过账凭证，一张凭证有错就整张跳过并报错。
+  def import
+    return render json: { error: '未收到文件' }, status: :unprocessable_entity if params[:file].blank?
+
+    result = Erp::VoucherImportService.new(Current.account, current_user).import!(params[:file].read.force_encoding('UTF-8'))
+    render json: result
+  rescue Erp::VoucherImportService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def import_template
+    send_data "\xEF\xBB\xBF#{Erp::VoucherImportService.template_csv}",
+              filename: '凭证导入模板.csv', type: 'text/csv'
+  end
+
   private
 
   def filtered_scope

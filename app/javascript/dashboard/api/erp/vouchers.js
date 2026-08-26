@@ -19,4 +19,13 @@ API.detach = (id, attachmentId) =>
     params: { attachment_id: attachmentId },
   });
 
+// 录入效率三件套：常用摘要联想 / 凭证模板 / CSV 批量导入。
+API.summaries = q => axios.get(`${API.url}/summaries`, { params: { q } });
+API.import = file => {
+  const form = new FormData();
+  form.append('file', file);
+  return axios.post(`${API.url}/import`, form);
+};
+API.importTemplateUrl = () => `${API.url}/import_template`;
+
 export default API;

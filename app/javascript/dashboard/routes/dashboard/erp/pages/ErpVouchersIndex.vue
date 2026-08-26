@@ -8,6 +8,7 @@ import { useErpRole } from 'dashboard/composables/useErpRole';
 import ErpVoucherAPI from 'dashboard/api/erp/vouchers';
 import ErpAutoVoucherRuleAPI from 'dashboard/api/erp/autoVoucherRules';
 import ErpReportAPI from 'dashboard/api/erp/reports';
+import ErpVoucherTemplateAPI from 'dashboard/api/erp/voucherTemplates';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -119,6 +120,28 @@ const loadCashFlowItems = async () => {
   }));
 };
 
+/* 常用摘要：从已录分录的摘要里按使用频次取，绑到摘要输入框的 datalist 上 */
+const summaryOptions = ref([]);
+const loadSummaries = async () => {
+  const { data } = await ErpVoucherAPI.summaries();
+  summaryOptions.value = data?.payload || [];
+};
+
+/* 凭证模板：每月重复的分录存一份，新建时一键带出 */
+const templates = ref([]);
+const templateOptions = computed(() => [
+  { value: '', label: '不用模板' },
+  ...templates.value.map(t => ({
+    value: t.id,
+    label: `${t.name}（${t.line_count} 行）`,
+  })),
+]);
+const selectedTemplateId = ref('');
+const loadTemplates = async () => {
+  const { data } = await ErpVoucherTemplateAPI.get();
+  templates.value = data?.payload || [];
+};
+
 const dialogRef = ref(null);
 const editing = ref(null);
 const form = reactive({
@@ -167,6 +190,7 @@ const onAccountChange = line => {
 
 const openCreate = () => {
   editing.value = null;
+  selectedTemplateId.value = '';
   Object.assign(form, {
     voucherDate: new Date().toISOString().slice(0, 10),
     summary: '',
@@ -175,6 +199,99 @@ const openCreate = () => {
     lines: [blankLine(), blankLine()],
   });
   dialogRef.value?.open();
+};
+
+// 套模板：只带科目/方向/摘要/维度，金额留空等着填（每月金额本来就不一样）。
+const applyTemplate = id => {
+  const template = templates.value.find(t => t.id === id);
+  if (!template) return;
+  form.summary = template.summary || form.summary;
+  form.lines = template.lines.map(line => ({
+    ...blankLine(),
+    ledgerAccountId: line.ledger_account_id,
+    summary: line.summary || '',
+    debit:
+      line.direction === 'DEBIT' && line.amount_micros
+        ? line.amount_micros / 1_000_000
+        : '',
+    credit:
+      line.direction === 'CREDIT' && line.amount_micros
+        ? line.amount_micros / 1_000_000
+        : '',
+    currency: line.currency || 'CNY',
+    exchangeRate: Number(line.exchange_rate || 1),
+    crmCustomerId: line.crm_customer_id || '',
+    mesSupplierId: line.mes_supplier_id || '',
+    crmSalesOrderId: line.crm_sales_order_id || '',
+    departmentId: line.department_id || '',
+    memberId: line.member_id || '',
+    cashFlowItem: line.cash_flow_item || '',
+  }));
+};
+
+const saveAsTemplate = async () => {
+  // eslint-disable-next-line no-alert
+  const name = window.prompt('模板名称', form.summary || '');
+  if (!name) return;
+  try {
+    await ErpVoucherTemplateAPI.create({
+      template: {
+        name,
+        summary: form.summary,
+        lines: form.lines
+          .filter(l => l.ledgerAccountId)
+          .map(l => ({
+            ledger_account_id: l.ledgerAccountId,
+            direction: l.debit ? 'DEBIT' : 'CREDIT',
+            summary: l.summary,
+            currency: l.currency,
+            exchange_rate: l.exchangeRate,
+            crm_customer_id: l.crmCustomerId || null,
+            mes_supplier_id: l.mesSupplierId || null,
+            crm_sales_order_id: l.crmSalesOrderId || null,
+            department_id: l.departmentId || null,
+            member_id: l.memberId || null,
+            cash_flow_item: l.cashFlowItem || null,
+          })),
+      },
+    });
+    useAlert(`模板「${name}」已保存`);
+    loadTemplates();
+  } catch (error) {
+    useAlert(
+      error?.response?.data?.errors?.join('；') ||
+        error?.response?.data?.error ||
+        '模板保存失败'
+    );
+  }
+};
+
+/* CSV 批量导入：整组要么全进要么全不进，进来的一律是待过账凭证 */
+const importDialogRef = ref(null);
+const importFileRef = ref(null);
+const importing = ref(false);
+const importResult = ref(null);
+const downloadImportTemplate = () => {
+  window.open(ErpVoucherAPI.importTemplateUrl(), '_blank');
+};
+const openImport = () => {
+  importResult.value = null;
+  importDialogRef.value?.open();
+};
+const onImportPicked = async event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  importing.value = true;
+  try {
+    const { data } = await ErpVoucherAPI.import(file);
+    importResult.value = data;
+    resetAndFetch();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '导入失败');
+  } finally {
+    importing.value = false;
+  }
 };
 
 const openEdit = async voucher => {
@@ -396,6 +513,8 @@ onMounted(() => {
   fetchList();
   if (!accountStore.getRecords.length) accountStore.get({});
   loadCashFlowItems();
+  loadSummaries();
+  loadTemplates();
 });
 </script>
 
@@ -424,6 +543,15 @@ onMounted(() => {
           size="sm"
           :is-loading="printing"
           @click="printSelected"
+        />
+        <Button
+          v-if="canWrite"
+          label="批量导入"
+          icon="i-lucide-upload"
+          color="slate"
+          variant="faded"
+          size="sm"
+          @click="openImport"
         />
         <Button
           v-if="canWrite"
@@ -621,7 +749,20 @@ onMounted(() => {
       :show-cancel-button="false"
     >
       <div class="flex flex-col gap-4">
+        <!-- 常用摘要联想：摘要输入框靠 list 属性接这里 -->
+        <datalist id="erp-summary-options">
+          <option v-for="item in summaryOptions" :key="item" :value="item" />
+        </datalist>
+
         <div class="flex flex-wrap items-end gap-4">
+          <div v-if="!editing" class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">套用模板</label>
+            <SelectCard
+              v-model="selectedTemplateId"
+              :options="templateOptions"
+              @update:model-value="applyTemplate"
+            />
+          </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">凭证日期</label>
             <DatePicker v-model="form.voucherDate" :clearable="false" />
@@ -633,6 +774,7 @@ onMounted(() => {
               size="sm"
               custom-input-class="!h-9"
               placeholder="如：确认8月货款收入"
+              list="erp-summary-options"
             />
           </div>
           <div class="flex flex-col gap-1 w-28">
@@ -654,7 +796,12 @@ onMounted(() => {
           >
             <div class="grid items-center grid-cols-12 gap-2">
               <div class="col-span-3">
-                <Input v-model="line.summary" size="sm" placeholder="摘要" />
+                <Input
+                  v-model="line.summary"
+                  size="sm"
+                  placeholder="摘要"
+                  list="erp-summary-options"
+                />
               </div>
               <div class="col-span-4">
                 <ComboBox
@@ -778,6 +925,15 @@ onMounted(() => {
         <div
           class="flex items-center justify-end gap-2 pt-2 border-t border-n-weak"
         >
+          <Button
+            label="存为模板"
+            icon="i-lucide-bookmark"
+            color="slate"
+            variant="faded"
+            size="sm"
+            :disabled="invalid"
+            @click="saveAsTemplate"
+          />
           <Button
             label="取消"
             color="slate"
@@ -965,6 +1121,77 @@ onMounted(() => {
             :is-loading="printing"
             @click="printOne(viewing)"
           />
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 批量导入 -->
+    <Dialog
+      ref="importDialogRef"
+      width="2xl"
+      title="批量导入凭证"
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+    >
+      <div class="flex flex-col gap-3">
+        <p class="text-sm text-n-slate-11">
+          CSV 表头：组号 / 日期 / 事由 / 摘要 / 科目编码 / 借方金额 / 贷方金额 /
+          币种 / 汇率 / 客户 / 供应商。
+          <span class="text-n-slate-12">组号相同的行合成一张凭证</span>；
+          一张凭证里有一行不合格，这张就整张不导入，其余照常。
+          导进来的都是待过账凭证，仍要逐张审过账。
+        </p>
+        <div class="flex items-center gap-2">
+          <Button
+            label="下载 CSV 模板"
+            icon="i-lucide-download"
+            color="slate"
+            variant="faded"
+            size="sm"
+            @click="downloadImportTemplate"
+          />
+          <Button
+            label="选择 CSV 文件"
+            icon="i-lucide-upload"
+            color="iris"
+            size="sm"
+            :is-loading="importing"
+            @click="importFileRef?.click()"
+          />
+          <input
+            ref="importFileRef"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden"
+            @change="onImportPicked"
+          />
+        </div>
+
+        <div v-if="importResult" class="flex flex-col gap-2 text-sm">
+          <div class="text-n-slate-12">
+            共 {{ importResult.total_groups }} 张，成功
+            <span class="text-n-teal-11">
+              {{ importResult.created.length }}
+            </span>
+            张，失败
+            <span class="text-n-ruby-11">
+              {{ importResult.failed.length }}
+            </span>
+            张
+          </div>
+          <div
+            v-if="importResult.created.length"
+            class="text-xs text-n-slate-11"
+          >
+            已生成：{{ importResult.created.join('、') }}
+          </div>
+          <div
+            v-for="fail in importResult.failed"
+            :key="fail.group"
+            class="text-xs text-n-ruby-11"
+          >
+            组 {{ fail.group }}：{{ fail.errors.join('；') }}
+          </div>
         </div>
       </div>
     </Dialog>

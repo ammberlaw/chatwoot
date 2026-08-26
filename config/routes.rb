@@ -268,7 +268,13 @@ Rails.application.routes.draw do
                 post :initialize_standard
               end
             end
+            resources :voucher_templates, only: [:index, :create, :destroy]
             resources :vouchers, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                get :summaries
+                get :import_template
+                post :import
+              end
               member do
                 post :post_voucher
                 post :reverse

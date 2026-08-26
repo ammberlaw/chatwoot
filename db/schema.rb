@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_02_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_02_000003) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2225,6 +2225,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_02_000002) do
     t.index ["ledger_account_id"], name: "index_erp_voucher_lines_on_ledger_account_id"
     t.index ["mes_supplier_id"], name: "index_erp_voucher_lines_on_mes_supplier_id"
     t.index ["voucher_id"], name: "index_erp_voucher_lines_on_voucher_id"
+  end
+
+  create_table "erp_voucher_templates", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "summary"
+    t.jsonb "lines", default: [], null: false
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "name"], name: "index_erp_voucher_templates_on_account_id_and_name", unique: true
+    t.index ["account_id"], name: "index_erp_voucher_templates_on_account_id"
   end
 
   create_table "erp_vouchers", force: :cascade do |t|
