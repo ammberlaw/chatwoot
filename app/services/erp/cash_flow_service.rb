@@ -33,7 +33,7 @@ class Erp::CashFlowService
         if item.nil?
           fx_effect += signed
         else
-          buckets[item] += line.base_amount_micros
+          buckets[item] += natural_amount(item, line)
         end
       end
     end
@@ -71,6 +71,17 @@ class Erp::CashFlowService
     return [nil, signed] if counterpart&.ledger_account&.account_type == EXCHANGE_DIFF
 
     [line.cash_flow_item.presence || Erp::CashFlowItem.infer(counterpart&.ledger_account&.code, inflow: inflow), signed]
+  end
+
+  # 落到项目里的金额要**带符号**，按「该项目的天然方向」算：
+  #   流入项目 + 现金增加 → 正；流入项目 + 现金减少 → 负（销售退回、红冲）
+  #   流出项目 + 现金减少 → 正；流出项目 + 现金增加 → 负（付款退回）
+  # 无符号累加会让红冲和销售退回**另算一笔**而不是冲减原项目，
+  # 一笔 1 万的红冲能把现金流量表撑成 2 万（踩过）。
+  def natural_amount(item, line)
+    inflow_item = Erp::CashFlowItem::BY_CODE.dig(item, :flow) == Erp::CashFlowItem::INFLOW
+    debit = line.direction == Erp::VoucherLine::DEBIT
+    inflow_item == debit ? line.base_amount_micros : -line.base_amount_micros
   end
 
   # 对方科目：优先取**反方向**里金额最大的那行（一借多贷时最能代表这笔现金的去向）。

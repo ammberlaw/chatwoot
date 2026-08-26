@@ -6,6 +6,8 @@
 # - 科目按 account_type 找（BANK/CASH/RECEIVABLE/PAYABLE/EXPENSE），不靠中文名匹配；
 #   规则 config 里可覆盖具体科目 id。
 class Erp::AutoVoucherService
+  class Error < StandardError; end
+
   FEE_ACCOUNT_CODE = '660302'.freeze # 财务费用-手续费
 
   def initialize(account)
@@ -130,6 +132,23 @@ class Erp::AutoVoucherService
     create_voucher!(source_type: record.class.name, source_id: record.id, date: date, summary: summary, lines: lines)
   end
 
+  # 已记账的自动凭证不会被重写。原来是**静默**返回旧凭证——
+  # 于是「改了单据金额 → 台账和资金流水都跟着变、凭证还停在旧金额」，
+  # 总账与台账就此不平，而且没有任何人被告知。
+  # 现在：分录没变就照旧返回（改备注之类不该报错），一旦金额/科目/维度变了就拦下来。
+  def guard_posted!(previous, lines)
+    return previous if signature(previous.lines) == signature(lines)
+
+    raise Error, "本单已生成凭证 #{previous.voucher_no} 并已记账，改动不会自动同步到凭证。" \
+                 '请先红冲该凭证，再修改单据。'
+  end
+
+  SIGNATURE_KEYS = %i[ledger_account_id direction amount_micros crm_customer_id mes_supplier_id].freeze
+
+  def signature(lines)
+    lines.map { |line| SIGNATURE_KEYS.map { |key| line.is_a?(Hash) ? line[key] : line.public_send(key) } }.sort_by(&:to_s)
+  end
+
   def existing_voucher(record)
     @account.erp_vouchers.where(source_type: record.class.name, source_id: record.id)
             .where.not(status: Erp::Voucher::VOID).order(:id).last
@@ -139,7 +158,7 @@ class Erp::AutoVoucherService
   def create_voucher!(source_type:, source_id:, date:, summary:, lines:)
     previous = @account.erp_vouchers.where(source_type: source_type, source_id: source_id)
                        .where.not(status: Erp::Voucher::VOID).order(:id).last
-    return previous if previous&.status == Erp::Voucher::POSTED
+    return guard_posted!(previous, lines) if previous&.status == Erp::Voucher::POSTED
 
     ActiveRecord::Base.transaction do
       previous&.destroy

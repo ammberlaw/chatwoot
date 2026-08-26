@@ -16,23 +16,28 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
   def create
     @receipt = Current.account.erp_receipt_records.new(receipt_params)
     @receipt.recorded_by_id = current_user.id
-    @receipt.save!
-    allocate!
-    sync_side_effects
+    ActiveRecord::Base.transaction do
+      @receipt.save!
+      allocate!
+      sync_side_effects
+    end
     render 'api/v1/accounts/erp/receipt_records/show'
-  rescue Erp::AllocationService::Error => e
-    @receipt&.destroy
+  rescue Erp::AllocationService::Error, Erp::AutoVoucherService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def update
     return render json: { error: '已作废的收款单不能修改' }, status: :unprocessable_entity unless @receipt.voidable?
 
-    @receipt.update!(receipt_params)
-    allocate!
-    sync_side_effects
+    # 单据 / 核销 / 流水 / 自动凭证要么一起成，要么一起不动——
+    # 原来任何一步抛错都会把单据留在改了一半的状态。
+    ActiveRecord::Base.transaction do
+      @receipt.update!(receipt_params)
+      allocate!
+      sync_side_effects
+    end
     render 'api/v1/accounts/erp/receipt_records/show'
-  rescue Erp::AllocationService::Error => e
+  rescue Erp::AllocationService::Error, Erp::AutoVoucherService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 

@@ -46,7 +46,7 @@ class Api::V1::Accounts::Erp::CashAccountsController < Api::V1::Accounts::Erp::B
     )
     @cash_accounts = cash_accounts_scope
     render 'api/v1/accounts/erp/cash_accounts/index'
-  rescue Erp::CashLedgerService::Error => e
+  rescue Erp::CashLedgerService::Error, Erp::AutoVoucherService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 

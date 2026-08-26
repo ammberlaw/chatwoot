@@ -61,7 +61,10 @@ class Erp::VoucherPostingService
         mes_supplier_id: line.mes_supplier_id,
         crm_sales_order_id: line.crm_sales_order_id,
         department_id: line.department_id,
-        member_id: line.member_id
+        member_id: line.member_id,
+        # 现金流量项目必须一起带过来：不带的话红冲分录会按对方科目重新推断，
+        # 大概率落到另一个项目，现金流量表上原单与红冲各算一笔、非但不抵消还翻倍。
+        cash_flow_item: line.cash_flow_item
       }
     end
   end

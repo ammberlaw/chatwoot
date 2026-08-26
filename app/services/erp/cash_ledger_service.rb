@@ -10,9 +10,11 @@ class Erp::CashLedgerService
 
   # 收款单 → 流入；付款单 → 流出。改单时先撤旧流水再记新的（撤＝反向冲销，不删）。
   def sync_for(record, direction:)
+    # 冲销要在「有没有资金账户」这道判断**之前**做：
+    # 改单时把资金账户清空了，旧流水照样得冲掉，否则那个账户的余额一直虚高。
+    reverse_for(record, reason: '单据修改')
     return if record.cash_account_id.blank?
 
-    reverse_for(record, reason: '单据修改')
     create_transaction(
       cash_account_id: record.cash_account_id, direction: direction,
       amount_micros: record.amount_micros, currency: record.currency, exchange_rate: record.exchange_rate,

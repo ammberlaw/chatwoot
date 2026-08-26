@@ -16,23 +16,28 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
   def create
     @payment = Current.account.erp_payment_records.new(payment_params)
     @payment.recorded_by_id = current_user.id
-    @payment.save!
-    allocate!
-    sync_side_effects
+    ActiveRecord::Base.transaction do
+      @payment.save!
+      allocate!
+      sync_side_effects
+    end
     render 'api/v1/accounts/erp/payment_records/show'
-  rescue Erp::AllocationService::Error => e
-    @payment&.destroy
+  rescue Erp::AllocationService::Error, Erp::AutoVoucherService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def update
     return render json: { error: '已作废的付款单不能修改' }, status: :unprocessable_entity unless @payment.voidable?
 
-    @payment.update!(payment_params)
-    allocate!
-    sync_side_effects
+    # 单据 / 核销 / 流水 / 自动凭证要么一起成，要么一起不动——
+    # 原来任何一步抛错都会把单据留在改了一半的状态。
+    ActiveRecord::Base.transaction do
+      @payment.update!(payment_params)
+      allocate!
+      sync_side_effects
+    end
     render 'api/v1/accounts/erp/payment_records/show'
-  rescue Erp::AllocationService::Error => e
+  rescue Erp::AllocationService::Error, Erp::AutoVoucherService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
