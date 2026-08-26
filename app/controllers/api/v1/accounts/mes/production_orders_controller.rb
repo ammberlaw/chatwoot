@@ -74,7 +74,10 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 打包时再另领）；传 category=PACKAGING 可单推包装料。
   def requirement
     category = params[:category].presence || 'MACHINE'
-    render json: { payload: @production_order.material_requirements(category: category) }
+    rows = @production_order.material_requirements(category: category)
+    # 供应商信息只对 MES 人员可见；销售等非 MES 角色隐去 mes_supplier_id（与 jbuilder 同门禁）。
+    rows.each { |r| r.delete(:mes_supplier_id) } unless Current.account_user&.mes_staff?
+    render json: { payload: rows }
   end
 
   # 挂工程 BOM（阶段 2）：绑 BOM + 期望交期 → 进 BOM_READY。预估完工仍按 BOM 天数自动算。

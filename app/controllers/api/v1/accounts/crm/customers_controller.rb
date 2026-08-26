@@ -412,8 +412,10 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     customers.where.not(account_owner_id: current_user.id).none?
   end
 
+  # 按 id 直取收口到可读范围（可见私海 ∪ 公海，见 base_controller#visible_customers）。
+  # 否则任意业务员可越权读改他人私海客户及其商机/订单/PI/报价（IDOR）。管理员/副管不受限。
   def fetch_customer
-    @customer = Current.account.crm_customers.find(params[:id])
+    @customer = visible_customers.find(params[:id])
   end
 
   # 按已挂客户的 Contact（次要联系人）邮箱找归属客户；无则 nil。

@@ -46,15 +46,32 @@ class Tiktok::AccessScope
     own_department_ids
   end
 
+  # 利润表可读：管理层/财务，或至少负责一个 TK 部门的负责人（普通成员不可见）。
+  def can_view_profit?
+    all_access? || led_department_ids.any?
+  end
+
+  # 利润表可见店铺：管理层/财务看全部；部门负责人看所负责部门的店铺；其余无。
+  def profit_visible_shop_ids
+    return :all if all_access?
+
+    shop_ids_for(led_department_ids)
+  end
+
   private
+
+  # 该成员负责（leader）的 TK 部门 id。
+  def led_department_ids
+    @led_department_ids ||= @account.tiktok_departments.where(leader_id: @uid).pluck(:id)
+  end
 
   # 该成员所属（负责/在编）的 TK 部门 id。
   def own_department_ids
-    @own_department_ids ||= begin
-      led = @account.tiktok_departments.where(leader_id: @uid).pluck(:id)
-      member = @au&.tiktok_department_id ? [@au.tiktok_department_id] : []
-      (led + member).uniq
-    end
+    @own_department_ids ||= (led_department_ids + member_department_ids).uniq
+  end
+
+  def member_department_ids
+    @au&.tiktok_department_id ? [@au.tiktok_department_id] : []
   end
 
   def shop_ids_for(dept_ids)

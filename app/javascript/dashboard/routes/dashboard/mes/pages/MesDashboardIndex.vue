@@ -3,6 +3,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useAlert } from 'dashboard/composables';
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import { themeColor } from 'dashboard/components-next/CRM/charts/chartColors';
@@ -237,6 +238,9 @@ const load = async () => {
       onTime: res.on_time || {},
       ackResponse: res.ack_response || [],
     };
+  } catch (e) {
+    // 拉取失败（超时/网络/500）时不把 data 留成 null 让整页白屏，提示后维持空态。
+    useAlert('看板数据加载失败，请重试');
   } finally {
     loading.value = false;
   }
@@ -308,6 +312,13 @@ onMounted(() => {
       class="flex items-center justify-center flex-1 gap-2 text-sm text-n-slate-11"
     >
       <span class="i-lucide-loader-circle size-4 animate-spin" /> 加载中…
+    </div>
+
+    <div
+      v-else-if="!data"
+      class="flex items-center justify-center flex-1 gap-2 text-sm text-n-slate-10"
+    >
+      看板数据加载失败，请刷新重试
     </div>
 
     <template v-else>
