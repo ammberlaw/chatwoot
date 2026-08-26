@@ -22,6 +22,8 @@ const canClose = computed(() => erpCan('close'));
 const isAdmin = computed(() => currentUser.value?.role === 'administrator');
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
+// 汇总行的 0 要实打实显示 0.00，显示成「—」会让人以为没算。
+const money0 = micros => fmtMoney(micros || 0);
 const toMicros = value => Math.round(Number(value || 0) * 1_000_000);
 const rows = ref([]);
 const loading = ref(false);
@@ -31,6 +33,7 @@ const TABS = [
   { key: 'opening', label: '期初建账' },
   { key: 'reconcile', label: '两账对平' },
   { key: 'revalue', label: '期末调汇' },
+  { key: 'baddebt', label: '坏账计提' },
 ];
 const activeTab = ref('close');
 const accountStore = useErpLedgerAccountsStore();
@@ -163,9 +166,49 @@ const load = async () => {
   }
 };
 
+/* 坏账计提：按建账日账龄分段乘比例，只补「应有 − 已提」的差额 */
+const badDebtPeriod = ref(new Date().toISOString().slice(0, 7));
+const badDebtRates = ref({});
+const badDebtRows = ref([]);
+const badDebtMeta = ref(null);
+
+const loadBadDebt = async () => {
+  const { data } = await ErpFiscalPeriodAPI.badDebt({
+    period: badDebtPeriod.value,
+    rates: Object.keys(badDebtRates.value).length
+      ? badDebtRates.value
+      : undefined,
+  });
+  badDebtMeta.value = data.meta;
+  badDebtRows.value = data.payload;
+  // 首次进来用账套已存的比例回填输入框。
+  if (!Object.keys(badDebtRates.value).length) {
+    badDebtRates.value = { ...data.meta.rates };
+  }
+};
+
+const doProvision = async () => {
+  try {
+    const { data } = await ErpFiscalPeriodAPI.provisionBadDebt({
+      period: badDebtPeriod.value,
+      rates: badDebtRates.value,
+    });
+    badDebtMeta.value = data.meta;
+    badDebtRows.value = data.payload;
+    useAlert(
+      data.meta.voucher_no
+        ? `凭证 ${data.meta.voucher_no} 已生成（待过账）`
+        : '坏账准备余额已经等于应计提数，无需调整'
+    );
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '计提失败');
+  }
+};
+
 const switchTab = async key => {
   activeTab.value = key;
   if (key === 'close') await load();
+  if (key === 'baddebt') await loadBadDebt();
   if (key === 'opening') await loadOpening();
   if (key === 'reconcile') await loadReconcile();
   if (key === 'revalue') await loadRevaluation();
@@ -496,6 +539,113 @@ onMounted(load);
       <p class="mt-4 text-xs text-n-slate-10">
         调汇只调本位币、不动原币；生成的是「待过账」凭证，记账仍要财务点过账。
         同一汇率重复调汇不会翻倍——账面调平后差额自然为 0。
+      </p>
+    </div>
+
+    <!-- 坏账计提（账龄分析法） -->
+    <div
+      v-else-if="activeTab === 'baddebt'"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+    >
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="text-sm text-n-slate-11">会计期间</span>
+        <MonthPicker v-model="badDebtPeriod" :clearable="false" />
+        <Button label="试算" color="slate" size="sm" @click="loadBadDebt" />
+        <Button
+          v-if="canClose"
+          label="生成计提凭证"
+          color="iris"
+          size="sm"
+          @click="doProvision"
+        />
+      </div>
+
+      <div
+        v-if="badDebtMeta"
+        class="flex flex-wrap items-center gap-3 p-3 mb-4 rounded-lg bg-n-alpha-1"
+      >
+        <span class="text-sm text-n-slate-11">计提比例（%）</span>
+        <div
+          v-for="bucket in badDebtMeta.buckets"
+          :key="bucket.key"
+          class="flex items-center gap-1.5"
+        >
+          <span class="text-xs whitespace-nowrap text-n-slate-11">
+            {{ bucket.label }}
+          </span>
+          <div class="w-20">
+            <Input v-model="badDebtRates[bucket.key]" size="sm" type="number" />
+          </div>
+        </div>
+      </div>
+
+      <table v-if="badDebtRows.length" class="w-full max-w-5xl text-sm">
+        <thead>
+          <tr class="text-left border-b text-n-slate-11 border-n-weak">
+            <th class="px-3 py-3 font-medium">客户</th>
+            <th class="px-3 py-3 font-medium text-right">未结应收</th>
+            <th
+              v-for="bucket in badDebtMeta.buckets"
+              :key="bucket.key"
+              class="px-3 py-3 font-medium text-right whitespace-nowrap"
+            >
+              {{ bucket.label }}
+            </th>
+            <th class="px-3 py-3 font-medium text-right">应计提</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in badDebtRows"
+            :key="row.party_id"
+            class="border-b border-n-weak"
+          >
+            <td class="px-3 py-2 text-n-slate-12">{{ row.party_name }}</td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+              {{ money(row.total_micros) }}
+            </td>
+            <td
+              v-for="bucket in badDebtMeta.buckets"
+              :key="bucket.key"
+              class="px-3 py-2 font-mono text-right text-n-slate-11"
+            >
+              {{ money(row.cells[bucket.key].base_micros) }}
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+              {{ money(row.provision_micros) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div
+        v-if="badDebtMeta"
+        class="flex flex-wrap gap-6 max-w-5xl px-3 py-3 mt-3 text-sm border-t border-n-weak"
+      >
+        <span class="text-n-slate-11">
+          期末应有坏账准备
+          <span class="font-mono text-n-slate-12">
+            {{ money0(badDebtMeta.required_micros) }}
+          </span>
+        </span>
+        <span class="text-n-slate-11">
+          已计提
+          <span class="font-mono text-n-slate-12">
+            {{ money0(badDebtMeta.booked_micros) }}
+          </span>
+        </span>
+        <span class="font-medium text-n-slate-11">
+          本次{{ badDebtMeta.adjustment_micros < 0 ? '转回' : '计提' }}
+          <span class="font-mono text-n-slate-12">
+            {{ money0(Math.abs(badDebtMeta.adjustment_micros)) }}
+          </span>
+        </span>
+      </div>
+
+      <p class="mt-4 text-xs text-n-slate-10">
+        账龄按「建账日」算（不是到期日）。坏账准备是余额科目，本次只补「应有 −
+        已提」的差额，
+        应有数变小时会自动生成转回分录，重复试算不会翻倍。计提比例是公司会计政策，改了要一贯执行。
       </p>
     </div>
 

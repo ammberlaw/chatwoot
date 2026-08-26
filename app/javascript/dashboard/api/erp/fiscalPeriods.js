@@ -14,5 +14,9 @@ API.reconciliation = params =>
 // 期末调汇：先预览差额，确认后生成待过账的调汇凭证。
 API.revaluation = params => axios.get(`${API.url}/revaluation`, { params });
 API.revalue = payload => axios.post(`${API.url}/revalue`, payload);
+// 坏账计提（账龄分析法）：预览各段计提额，确认后生成计提/转回凭证。
+API.badDebt = params => axios.get(`${API.url}/bad_debt`, { params });
+API.provisionBadDebt = payload =>
+  axios.post(`${API.url}/provision_bad_debt`, payload);
 
 export default API;

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_02_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_02_000002) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2188,6 +2188,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_02_000001) do
     t.index ["account_id"], name: "index_erp_receivables_on_account_id"
     t.index ["crm_customer_id"], name: "index_erp_receivables_on_crm_customer_id"
     t.index ["crm_sales_order_id"], name: "index_erp_receivables_on_crm_sales_order_id"
+  end
+
+  create_table "erp_settings", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.jsonb "bad_debt_rates", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_erp_settings_on_account_id", unique: true
   end
 
   create_table "erp_voucher_lines", force: :cascade do |t|

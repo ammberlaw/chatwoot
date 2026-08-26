@@ -65,7 +65,29 @@ class Api::V1::Accounts::Erp::FiscalPeriodsController < Api::V1::Accounts::Erp::
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # 坏账计提：预览各客户按账龄段的计提额与需补提/转回的差额。
+  def bad_debt
+    @bad_debt = bad_debt_service.preview(period: params[:period], rates: params[:rates]&.permit!&.to_h)
+    render 'api/v1/accounts/erp/fiscal_periods/bad_debt'
+  rescue Erp::BadDebtService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 生成计提/转回凭证；带 rates 时同时把比例存成账套政策。
+  def provision_bad_debt
+    rates = params[:rates]&.permit!&.to_h
+    bad_debt_service.save_rates!(rates) if rates.present?
+    @bad_debt = bad_debt_service.run!(period: params[:period], rates: rates)
+    render 'api/v1/accounts/erp/fiscal_periods/bad_debt'
+  rescue Erp::BadDebtService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
+
+  def bad_debt_service
+    @bad_debt_service ||= Erp::BadDebtService.new(Current.account, current_user)
+  end
 
   def revaluation_service
     @revaluation_service ||= Erp::RevaluationService.new(Current.account, current_user)
