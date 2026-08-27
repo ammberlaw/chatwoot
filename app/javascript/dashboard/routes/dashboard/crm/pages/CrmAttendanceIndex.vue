@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAlert } from 'dashboard/composables';
@@ -8,10 +9,21 @@ import { useAlert } from 'dashboard/composables';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 
 const { accountId } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
+const router = useRouter();
 const api = () => `/api/v1/accounts/${accountId.value}/crm/attendances`;
+
+// 从考勤页跳到 OA 审批提交补卡/请假单（compose 参数供审批页预开对应模板）。
+const goApproval = kind => {
+  router.push({
+    name: 'crm_approvals_index',
+    params: { accountId: accountId.value },
+    query: { compose: kind },
+  });
+};
 
 const isAdminLike = computed(
   () =>
@@ -32,6 +44,7 @@ const STATUS_META = {
   LATE_EARLY: { label: '迟到+早退', cls: 'bg-n-amber-3 text-n-amber-11' },
   ABSENT: { label: '缺卡', cls: 'bg-n-ruby-3 text-n-ruby-11' },
   LEAVE: { label: '请假', cls: 'bg-n-iris-3 text-n-iris-11' },
+  HALF_LEAVE: { label: '请假(半天)', cls: 'bg-n-iris-3 text-n-iris-11' },
   FIELD: { label: '外勤', cls: 'bg-n-blue-3 text-n-blue-11' },
 };
 const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
@@ -90,9 +103,12 @@ const dayStatus = d => {
   const rec = recordByDate.value[dateStr];
   if (rec) return rec.status;
   if (!setting.value) return null;
-  const dow = new Date(`${dateStr}T12:00:00`).getDay() || 7;
-  if (!setting.value.work_days.includes(dow)) return null;
   if ((setting.value.holidays || []).includes(dateStr)) return null;
+  const dow = new Date(`${dateStr}T12:00:00`).getDay() || 7;
+  const isWorkday =
+    setting.value.work_days.includes(dow) ||
+    (setting.value.extra_workdays || []).includes(dateStr);
+  if (!isWorkday) return null;
   return dateStr < todayStr() ? 'ABSENT' : null;
 };
 const mineCounts = computed(() => {
@@ -110,7 +126,10 @@ const mineCounts = computed(() => {
     if (!st) return;
     if (st === 'ABSENT') c.absent += 1;
     else if (st === 'LEAVE') c.leave += 1;
-    else if (st === 'FIELD') {
+    else if (st === 'HALF_LEAVE') {
+      c.present += 0.5;
+      c.leave += 0.5;
+    } else if (st === 'FIELD') {
       c.present += 1;
       c.field += 1;
     } else {
@@ -139,15 +158,23 @@ const getGeo = () =>
   });
 const clock = async (field = false) => {
   if (clocking.value) return;
+  // 外勤一键会把当天标记为外勤且用户不可自行撤销，误点代价高，先确认。
+  // eslint-disable-next-line no-alert
+  if (
+    field &&
+    !window.confirm('确认外勤打卡？将把今日标记为「外勤」（计出勤、不判迟到）')
+  )
+    return;
   clocking.value = true;
   try {
     // 组开启 GPS 校验时先取定位；仅网络(IP)校验则无需定位。外勤仍带定位做留痕。
     const body = setting.value?.geo_enabled || field ? await getGeo() : {};
     if (field) body.field = true;
+    // 打卡前先判断这是上班还是下班（成功后 todayRec 会刷新）。
+    const wasClockedIn = !!todayRec.value?.clock_in_at;
     await axios.post(`${api()}/clock`, body);
     if (field) useAlert('外勤打卡成功');
-    else
-      useAlert(todayRec.value?.clock_in_at ? '下班打卡成功' : '上班打卡成功');
+    else useAlert(wasClockedIn ? '下班打卡成功' : '上班打卡成功');
     fetchMine();
   } catch (e) {
     useAlert(e.response?.data?.error || '打卡失败，请重试');
@@ -155,6 +182,23 @@ const clock = async (field = false) => {
     clocking.value = false;
   }
 };
+
+// 上班迟到提醒：当前已过「上班时间+宽限」且今天还没打上班卡时，给个预警。
+const lateHint = computed(() => {
+  if (!setting.value || todayRec.value?.clock_in_at) return null;
+  const [h, m] = (setting.value.clock_in_time || '09:00')
+    .split(':')
+    .map(Number);
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const dueMin = h * 60 + m + (setting.value.grace_minutes || 0);
+  const dow = now.getDay() || 7;
+  if (!setting.value.work_days.includes(dow)) return null;
+  if ((setting.value.holidays || []).includes(todayStr())) return null;
+  return nowMin > dueMin
+    ? `已超过上班时间 ${nowMin - dueMin} 分钟，现在打卡将记迟到`
+    : null;
+});
 
 // ── 汇总（日/周/月粒度 + 今日概览）──
 const PERIODS = [
@@ -167,20 +211,34 @@ const summaryDate = ref(todayStr());
 const summaryRange = ref(null);
 const overview = ref(null);
 const summaryRows = ref([]);
+const notClockedToday = ref([]);
+const summaryGroupId = ref('');
+const summaryGroups = ref([]);
+const summaryGroupOptions = computed(() => [
+  { value: '', label: '全部考勤组' },
+  ...summaryGroups.value.map(g => ({ value: String(g.id), label: g.name })),
+]);
 const loadingSummary = ref(false);
 const fetchSummary = async () => {
   loadingSummary.value = true;
   try {
     const { data } = await axios.get(`${api()}/summary`, {
-      params: { period: period.value, date: summaryDate.value },
+      params: {
+        period: period.value,
+        date: summaryDate.value,
+        group_id: summaryGroupId.value || undefined,
+      },
     });
     summaryRows.value = data.payload || [];
     overview.value = data.overview || null;
     summaryRange.value = data.range || null;
     setting.value = data.setting;
-  } catch {
+    notClockedToday.value = data.not_clocked_today || [];
+    summaryGroups.value = data.groups || [];
+  } catch (e) {
     summaryRows.value = [];
     overview.value = null;
+    useAlert(e.response?.data?.error || '加载考勤汇总失败');
   } finally {
     loadingSummary.value = false;
   }
@@ -188,6 +246,32 @@ const fetchSummary = async () => {
 const setPeriod = p => {
   period.value = p;
   fetchSummary();
+};
+// 导出当前区间考勤 CSV（带鉴权，走 axios blob 触发下载）。
+const exporting = ref(false);
+const exportCsv = async () => {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const { data } = await axios.get(`${api()}/export`, {
+      params: {
+        period: period.value,
+        date: summaryDate.value,
+        group_id: summaryGroupId.value || undefined,
+      },
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(new Blob([data], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `考勤_${summaryDate.value}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
 };
 const shiftSummaryDate = delta => {
   const d = new Date(`${summaryDate.value}T12:00:00`);
@@ -207,8 +291,9 @@ const rangeLabel = computed(() => {
   }
   return summaryDate.value;
 });
-// 打卡率仪表盘：已到岗 / 应到，环形进度用（周长 2πr, r=52 ≈ 326.7）。
-const GAUGE_CIRC = 326.7;
+// 打卡率仪表盘：已到岗 / 应到，环形进度用（周长 2πr, r=52）。
+const GAUGE_R = 52;
+const GAUGE_CIRC = 2 * Math.PI * GAUGE_R;
 const gaugePct = computed(() => {
   const o = overview.value;
   if (!o || !o.expected) return 0;
@@ -273,6 +358,7 @@ const groupForm = reactive({
   reclockLimit: 3,
   reclockWindowDays: 30,
   holidays: [],
+  extraWorkdays: [],
   userIds: [],
   // 打卡范围
   geoEnabled: false,
@@ -387,6 +473,7 @@ const loadGroupForm = g => {
   groupForm.reclockLimit = g?.reclock_limit ?? 3;
   groupForm.reclockWindowDays = g?.reclock_window_days ?? 30;
   groupForm.holidays = [...(g?.holidays || [])];
+  groupForm.extraWorkdays = [...(g?.extra_workdays || [])];
   groupForm.userIds = [...(g?.user_ids || [])];
   groupForm.geoEnabled = !!g?.geo_enabled;
   groupForm.officeLat = g?.office_lat ?? null;
@@ -431,6 +518,17 @@ const addHoliday = () => {
 };
 const removeHoliday = d => {
   groupForm.holidays = groupForm.holidays.filter(x => x !== d);
+};
+const newExtraWorkday = ref('');
+const addExtraWorkday = () => {
+  const d = newExtraWorkday.value;
+  if (!d || groupForm.extraWorkdays.includes(d)) return;
+  groupForm.extraWorkdays.push(d);
+  groupForm.extraWorkdays.sort();
+  newExtraWorkday.value = '';
+};
+const removeExtraWorkday = d => {
+  groupForm.extraWorkdays = groupForm.extraWorkdays.filter(x => x !== d);
 };
 const toggleWorkDay = d => {
   const i = groupForm.workDays.indexOf(d);
@@ -501,6 +599,7 @@ const saveGroup = async () => {
       reclock_limit: groupForm.reclockLimit,
       reclock_window_days: groupForm.reclockWindowDays,
       holidays: groupForm.holidays,
+      extra_workdays: groupForm.extraWorkdays,
       user_ids: groupForm.userIds,
       geo_enabled: groupForm.geoEnabled,
       office_lat: groupForm.officeLat,
@@ -626,6 +725,16 @@ onMounted(fetchMine);
               （宽限 {{ setting.grace_minutes }} 分钟）
             </template>
           </span>
+          <span v-else class="text-xs text-n-slate-10">
+            你还没加入任何考勤组，暂无打卡规则，请联系管理员分配
+          </span>
+          <span
+            v-if="lateHint"
+            class="inline-flex items-center gap-1 mt-0.5 text-xs font-medium text-n-amber-11"
+          >
+            <span class="i-lucide-alarm-clock size-3.5" />
+            {{ lateHint }}
+          </span>
         </div>
         <div class="flex items-center gap-4 ml-auto">
           <div class="flex flex-col items-center gap-0.5 text-xs">
@@ -665,26 +774,39 @@ onMounted(fetchMine);
         </div>
       </div>
 
-      <!-- 月份切换（我的考勤） -->
+      <!-- 月份切换（我的考勤）：紫玻璃月份选择器，可直接跳月 -->
       <div v-if="view === 'mine'" class="flex items-center gap-2">
         <button
-          class="h-8 px-2 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
+          class="flex items-center justify-center rounded-lg size-8 border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
+          title="上个月"
           @click="shiftMonth(-1)"
         >
-          ‹
+          <span class="i-lucide-chevron-left size-4" />
         </button>
-        <span class="text-sm font-medium text-n-slate-12">{{ month }}</span>
+        <MonthPicker
+          v-model="month"
+          :clearable="false"
+          trigger-class="w-32 h-8"
+          @change="loadView"
+        />
         <button
-          class="h-8 px-2 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
+          class="flex items-center justify-center rounded-lg size-8 border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
+          title="下个月"
           @click="shiftMonth(1)"
         >
-          ›
+          <span class="i-lucide-chevron-right size-4" />
         </button>
       </div>
 
       <!-- ── 我的考勤：月历 ── -->
       <template v-if="view === 'mine'">
-        <div class="grid grid-cols-7 gap-1.5 max-w-2xl">
+        <div
+          v-if="loadingMine"
+          class="py-10 text-sm text-center text-n-slate-11 max-w-2xl"
+        >
+          加载中…
+        </div>
+        <div v-else class="grid grid-cols-7 gap-1.5 max-w-2xl">
           <div
             v-for="w in WEEK_LABELS"
             :key="w"
@@ -722,6 +844,33 @@ onMounted(fetchMine);
           <span>缺卡 {{ mineCounts.absent }} 天</span>
           <span>外勤 {{ mineCounts.field }} 天</span>
           <span>请假 {{ mineCounts.leave }} 天</span>
+        </div>
+        <!-- 状态颜色图例 -->
+        <div class="flex flex-wrap gap-x-3 gap-y-1.5 max-w-2xl">
+          <span
+            v-for="(meta, key) in STATUS_META"
+            :key="key"
+            class="px-1.5 py-0.5 text-[10px] rounded-full"
+            :class="meta.cls"
+          >
+            {{ meta.label }}
+          </span>
+        </div>
+        <!-- 缺卡/迟到快捷入口：跳转 OA 提交补卡/请假 -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs text-n-slate-10">卡有问题？</span>
+          <button
+            class="h-7 px-3 text-xs rounded-lg border border-n-iris-7 text-n-iris-11 hover:bg-n-iris-3"
+            @click="goApproval('reclock')"
+          >
+            申请补卡
+          </button>
+          <button
+            class="h-7 px-3 text-xs rounded-lg border border-n-iris-7 text-n-iris-11 hover:bg-n-iris-3"
+            @click="goApproval('leave')"
+          >
+            请假申请
+          </button>
         </div>
       </template>
 
@@ -763,6 +912,23 @@ onMounted(fetchMine);
               ›
             </button>
           </div>
+          <SelectCard
+            v-if="summaryGroupOptions.length > 1"
+            v-model="summaryGroupId"
+            :options="summaryGroupOptions"
+            trigger-class="w-36 h-8 ml-auto"
+            @update:model-value="fetchSummary"
+          />
+          <button
+            class="inline-flex items-center h-8 gap-1.5 px-3 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
+            :class="summaryGroupOptions.length > 1 ? '' : 'ml-auto'"
+            :disabled="exporting || !summaryRows.length"
+            title="导出当前区间考勤为 CSV（Excel 可打开）"
+            @click="exportCsv"
+          >
+            <span class="i-lucide-download size-4" />
+            导出
+          </button>
         </div>
 
         <!-- 今日/区间概览仪表盘 -->
@@ -801,7 +967,7 @@ onMounted(fetchMine);
             </div>
           </div>
           <div
-            class="grid flex-1 grid-cols-3 gap-3 sm:grid-cols-5 min-w-[240px]"
+            class="grid flex-1 grid-cols-3 gap-3 sm:grid-cols-6 min-w-[240px]"
           >
             <div
               class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
@@ -843,7 +1009,33 @@ onMounted(fetchMine);
               </span>
               <span class="text-xs text-n-slate-10">外勤</span>
             </div>
+            <div
+              class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
+            >
+              <span class="text-xl font-semibold text-n-iris-11">
+                {{ overview.leave }}
+              </span>
+              <span class="text-xs text-n-slate-10">请假</span>
+            </div>
           </div>
+        </div>
+
+        <!-- 今日未打卡名单（负责人早上一眼看谁没到） -->
+        <div
+          v-if="notClockedToday.length"
+          class="flex flex-wrap items-center gap-2 p-3 border rounded-2xl border-n-amber-6 bg-n-amber-3/40"
+        >
+          <span class="text-sm font-medium text-n-amber-11">
+            <span class="i-lucide-user-x size-4 align-middle" />
+            今日未打卡（{{ notClockedToday.length }}）
+          </span>
+          <span
+            v-for="p in notClockedToday"
+            :key="p.user_id"
+            class="px-2 py-0.5 text-xs rounded-full bg-n-solid-1/70 text-n-slate-11"
+          >
+            {{ p.name }}
+          </span>
         </div>
 
         <!-- 手机卡片 -->
@@ -1204,6 +1396,39 @@ onMounted(fetchMine);
                   <button
                     class="hover:text-n-ruby-11"
                     @click="removeHoliday(d)"
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <span class="text-xs text-n-slate-11">
+                额外上班日（调休补班，如某个周六上班）
+              </span>
+              <div class="flex items-center gap-2">
+                <DatePicker v-model="newExtraWorkday" />
+                <button
+                  class="h-9 px-3 text-sm rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-2"
+                  @click="addExtraWorkday"
+                >
+                  添加
+                </button>
+              </div>
+              <div
+                v-if="groupForm.extraWorkdays.length"
+                class="flex flex-wrap gap-1.5"
+              >
+                <span
+                  v-for="d in groupForm.extraWorkdays"
+                  :key="d"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"
+                >
+                  {{ d }}
+                  <button
+                    class="hover:text-n-ruby-11"
+                    @click="removeExtraWorkday(d)"
                   >
                     ×
                   </button>

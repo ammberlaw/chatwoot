@@ -54,7 +54,7 @@ class Api::V1::Accounts::Crm::MyTargetController < Api::V1::Accounts::Crm::BaseC
   def actual_amounts(year)
     Current.account.crm_sales_orders.dealt.owned_by(current_user.id)
            .where(order_date: year_range(year))
-           .group(month_expr('order_date')).sum(:order_amount_micros)
+           .group(month_expr('order_date')).sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
   end
 
   # 新成交客户：负责人=当前用户、首次成交日期落在该月的客户（按客户去重，first_deal_at 每客户唯一）

@@ -10,7 +10,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     @sales_orders = @sales_orders_scope
                     .order(order_date: :desc)
                     .page(permitted_params[:page] || 1)
-                    .per(RESULTS_PER_PAGE)
+                    .per(results_per_page)
     compute_tab_counts
   end
 
@@ -222,6 +222,9 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   end
 
   def permitted_params
-    params.permit(:page, :filter, :status, :customer_id, :q, :owner_id, :month)
+    params.permit(:page, :per_page, :filter, :status, :customer_id, :q, :owner_id, :month)
   end
+
+  # 默认每页 15；调用方可传 per_page 放宽（封顶 200，供 MES 拉销售订单选单器）。
+  def results_per_page = permitted_params[:per_page].to_i.then { |n| n.positive? ? [n, 200].min : RESULTS_PER_PAGE }
 end

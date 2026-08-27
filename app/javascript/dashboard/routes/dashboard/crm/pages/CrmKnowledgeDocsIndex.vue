@@ -87,6 +87,14 @@ const activeSectionManagerNames = computed(
   () => activeSection.value?.manager_names || []
 );
 
+// 面包屑根节点标签：文档中心内选中板块显板块名（销售资料/公司制度…），未选＝「全公司文档」；
+// 避免「文档中心」在标题/侧栏/面包屑重复三次。销售资料库仍用其固定标题。
+const rootLabel = computed(() => {
+  if (!isGeneral.value) return t('CRM.KNOWLEDGE_DOCS.HEADER');
+  if (activeSection.value) return activeSection.value.name;
+  return t('CRM.KNOWLEDGE_DOCS.ALL_COMPANY');
+});
+
 // 我的资料视图：看板列是个人分类，人人可自建自管；公司视图的分类仍按公司管理权。
 const isMineView = computed(
   () => !isGeneral.value && activeFilter.value === 'mine'
@@ -121,6 +129,8 @@ const canCreateDocs = computed(
 );
 
 const records = computed(() => store.getRecords);
+// 真实总数（后端 meta.count，不受一次拉取上限影响）。
+const totalCount = computed(() => store.meta?.count || 0);
 const categories = computed(() => categoriesStore.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
 
@@ -261,6 +271,10 @@ const scopeOptions = [
 // path 元素：{ type:'section'|'category'|'orphan'|'uncategorized', id, name }
 const pathStack = ref([]); // 空=根
 const isSearching = computed(() => !!searchQuery.value.trim());
+// 已加载数 < 真实总数 = 超一次拉取上限被截断，显式提示，绝不静默吞掉文档。
+const isTruncated = computed(
+  () => !isSearching.value && totalCount.value > records.value.length
+);
 
 const currentNode = computed(() =>
   pathStack.value.length ? pathStack.value[pathStack.value.length - 1] : null
@@ -484,7 +498,7 @@ const fetchRecords = () => {
         ? activeSectionId.value
         : undefined,
     q: searchQuery.value.trim() || undefined,
-    per_page: 200,
+    per_page: 5000,
   });
 };
 
@@ -1180,11 +1194,7 @@ watch(
             class="shrink-0 text-n-slate-10 hover:text-n-slate-12"
             @click="goToDepth(-1)"
           >
-            {{
-              isGeneral
-                ? t('CRM.KNOWLEDGE_DOCS.HEADER_GENERAL')
-                : t('CRM.KNOWLEDGE_DOCS.HEADER')
-            }}
+            {{ rootLabel }}
           </button>
           <template v-if="isSearching">
             <span
@@ -1242,6 +1252,16 @@ watch(
           @dragleave="onContentDragLeave"
           @drop.prevent="onContentDrop"
         >
+          <!-- 超一次拉取上限提示：显式告知未全部加载，绝不静默吞文档 -->
+          <div
+            v-if="isTruncated"
+            class="flex items-center gap-2 px-3 py-2 mb-3 text-xs border rounded-xl border-n-amber-6 bg-n-amber-3/40 text-n-amber-11"
+          >
+            <span class="i-lucide-triangle-alert size-4 shrink-0" />
+            本板块文档较多（共 {{ totalCount }} 条），当前仅加载最新
+            {{ records.length }} 条，其余请用右上角搜索定位。
+          </div>
+
           <!-- 拖拽上传高亮遮罩 -->
           <div
             v-if="isDragging"

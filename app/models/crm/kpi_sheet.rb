@@ -85,7 +85,7 @@ class Crm::KpiSheet < ApplicationRecord
     self.total_score = sheet_items.sum { |i| i.score || 0 }
     return clear_payout! if probation?
 
-    base = ((monthly_salary_micros || 0) * (performance_ratio || 0)) / 100
+    base = ((monthly_salary_micros || 0) * (performance_ratio || 0) / 100.0).round
     self.performance_base_micros = base
     tier = matched_tier
     if tier

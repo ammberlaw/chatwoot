@@ -878,7 +878,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_02_000004) do
     t.integer "geo_radius_m", default: 300, null: false
     t.boolean "ip_enabled", default: false, null: false
     t.string "allowed_ips", default: [], null: false, array: true
+    t.string "extra_workdays", default: [], null: false, array: true
     t.index ["account_id", "name"], name: "index_crm_attendance_groups_on_account_id_and_name", unique: true
+    t.index ["account_id"], name: "idx_crm_attendance_groups_single_default", unique: true, where: "is_default"
     t.index ["account_id"], name: "index_crm_attendance_groups_on_account_id"
   end
 
@@ -899,6 +901,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_02_000004) do
     t.string "clock_out_ip"
     t.decimal "clock_out_lat", precision: 10, scale: 7
     t.decimal "clock_out_lng", precision: 10, scale: 7
+    t.boolean "field", default: false, null: false
+    t.string "source", default: "clock", null: false
     t.index ["account_id", "user_id", "work_date"], name: "idx_crm_attendance_on_user_date", unique: true
     t.index ["account_id", "work_date"], name: "index_crm_attendance_records_on_account_id_and_work_date"
   end
@@ -3325,6 +3329,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_02_000004) do
     t.bigint "creator_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "alliance_live_orders", default: 0, null: false
+    t.integer "alliance_orders", default: 0, null: false
+    t.integer "product_card_orders", default: 0, null: false
+    t.integer "merchant_orders", default: 0, null: false
     t.index ["account_id", "sale_date"], name: "index_tiktok_daily_sales_records_on_account_id_and_sale_date"
     t.index ["account_id", "shop_id", "sale_date"], name: "idx_tiktok_daily_shop_date", unique: true
   end

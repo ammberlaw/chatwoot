@@ -45,9 +45,14 @@ class Api::V1::Accounts::Crm::AttendanceGroupsController < Api::V1::Accounts::Cr
     rule_attrs(g).merge(
       name: g[:name].to_s.strip,
       work_days: Array(g[:work_days]).map(&:to_i) & (1..7).to_a,
-      holidays: Array(g[:holidays]).map(&:to_s).grep(/\A\d{4}-\d{2}-\d{2}\z/).uniq.sort,
+      holidays: date_list(g[:holidays]),
+      extra_workdays: date_list(g[:extra_workdays]),
       user_ids: Array(g[:user_ids]).map(&:to_i).uniq
     )
+  end
+
+  def date_list(raw)
+    Array(raw).map(&:to_s).grep(/\A\d{4}-\d{2}-\d{2}\z/).uniq.sort
   end
 
   def rule_attrs(group_params)
@@ -87,7 +92,7 @@ class Api::V1::Accounts::Crm::AttendanceGroupsController < Api::V1::Accounts::Cr
       work_days: group.work_days, clock_in_time: group.clock_in_time,
       clock_out_time: group.clock_out_time, grace_minutes: group.grace_minutes,
       reclock_limit: group.reclock_limit, reclock_window_days: group.reclock_window_days,
-      holidays: group.holidays, user_ids: group.user_ids,
+      holidays: group.holidays, extra_workdays: group.extra_workdays, user_ids: group.user_ids,
       geo_enabled: group.geo_enabled, office_lat: group.office_lat&.to_f,
       office_lng: group.office_lng&.to_f, geo_radius_m: group.geo_radius_m,
       ip_enabled: group.ip_enabled, allowed_ips: group.allowed_ips }

@@ -181,6 +181,11 @@ class AccountUser < ApplicationRecord
     Tiktok::AccessScope.new(account, self).can_access?
   end
 
+  # 能否查看 TikTok 利润表（含成本/毛利/净利）：管理层/财务，或 TK 部门负责人；普通成员不可见。
+  def can_view_tiktok_profit?
+    Tiktok::AccessScope.new(account, self).can_view_profit?
+  end
+
   # 财务身份（与业务员身份叠加）：可查看全员「已通过」提成表并导出。管理员天然具备。
   def crm_finance?
     administrator? || self[:crm_finance]

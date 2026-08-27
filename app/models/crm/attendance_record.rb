@@ -11,7 +11,9 @@
 #  clock_out_ip   :string
 #  clock_out_lat  :decimal(10, 7)
 #  clock_out_lng  :decimal(10, 7)
+#  field          :boolean          default(FALSE), not null
 #  note           :string
+#  source         :string           default("clock"), not null
 #  status         :string           default("NORMAL"), not null
 #  work_date      :date             not null
 #  created_at     :datetime         not null
@@ -31,7 +33,8 @@ class Crm::AttendanceRecord < ApplicationRecord
   # 打卡与工作日均按中国时区口径。
   TZ = 'Asia/Shanghai'.freeze
   # FIELD = 外勤（出差/客户现场打卡），计出勤但单列；不参与迟到/早退判定。
-  STATUSES = %w[NORMAL LATE EARLY_LEAVE LATE_EARLY ABSENT LEAVE FIELD].freeze
+  # HALF_LEAVE = 请假半天（另半天上班），汇总计 0.5 出勤 + 0.5 请假。
+  STATUSES = %w[NORMAL LATE EARLY_LEAVE LATE_EARLY ABSENT LEAVE HALF_LEAVE FIELD].freeze
 
   belongs_to :account
   belongs_to :user

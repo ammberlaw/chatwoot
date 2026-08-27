@@ -95,7 +95,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div class="w-full max-w-3xl px-4 py-4 mx-auto sm:px-8 sm:py-6">
       <h1 class="mb-1 text-xl font-semibold text-n-slate-12">店铺设置</h1>
       <p class="mb-5 text-sm text-n-slate-11">

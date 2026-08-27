@@ -108,8 +108,9 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
 
   private
 
+  # 按 id 直取也必须走可见范围收口（与 index 一致），否则任意成员可越权读改他人 PI。
   def fetch_pi
-    @pi = Current.account.crm_pis.find(params[:id])
+    @pi = scope_docs_visible(Current.account.crm_pis).find(params[:id])
   end
 
   # 付款自动转销售订单；转单失败只记日志、不影响 PI 已保存的结果。

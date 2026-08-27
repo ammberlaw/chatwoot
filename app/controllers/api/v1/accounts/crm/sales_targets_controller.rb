@@ -24,17 +24,18 @@ class Api::V1::Accounts::Crm::SalesTargetsController < Api::V1::Accounts::Crm::B
 
   private
 
+  # 按归属收口：业务员只能取/改自己的目标，主管取本部门，管理员/副管全部。
   def fetch_target
-    @target = Current.account.crm_sales_targets.find(params[:id])
+    @target = scope_by_owner(Current.account.crm_sales_targets).find(params[:id])
   end
 
   def check_authorization
     authorize(Crm::SalesTarget)
   end
 
-  # 我的目标 / 按月份。
+  # 我的目标 / 按月份。列表按归属收口，防止业务员看到全员业绩指标。
   def filtered_targets
-    scope = Current.account.crm_sales_targets
+    scope = scope_by_owner(Current.account.crm_sales_targets)
     scope = scope.owned_by(current_user.id) if params[:filter] == 'mine'
     scope = scope.for_month(Date.parse(params[:month])) if params[:month].present?
     scope

@@ -3,6 +3,9 @@
 class Api::V1::Accounts::Crm::DocSectionsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
 
+  # 「销售资料」板块是销售资料知识库的结构容器（其它控制器按名解析），删除/改名会破坏该库，单独保护。
+  PROTECTED_NAME = '销售资料'.freeze
+
   def index
     Crm::DocSection.ensure_defaults!(Current.account)
     all = Current.account.crm_doc_sections.order(:position, :id)
@@ -25,25 +28,52 @@ class Api::V1::Accounts::Crm::DocSectionsController < Api::V1::Accounts::Crm::Ba
     render json: section_json(@section)
   end
 
+  # 管理员/副管理员可改名（自定义）+ 配置负责人/可见成员；「销售资料」板块名受保护。
   def update
     @section = Current.account.crm_doc_sections.find(params[:id])
-    updates = {}
-    updates[:viewer_ids] = sanitized_member_ids(:viewer_ids) if params[:section].key?(:viewer_ids)
-    updates[:manager_ids] = sanitized_member_ids(:manager_ids) if params[:section].key?(:manager_ids)
+    updates = member_updates.merge(name_update)
+    return if performed?
+
     @section.update!(updates)
     render json: section_json(@section)
   end
 
-  # 默认板块随 index 自动重建，只允许删自定义板块；板块下文档回落为「未分板块」。
+  # 管理员/副管理员可删任意板块；板块下文档回落为「未分板块」。「销售资料」板块受保护。
+  # 删除的默认板块不再自动重建（ensure_defaults! 仅在账号无任何板块时初始化一次）。
   def destroy
     section = Current.account.crm_doc_sections.find(params[:id])
-    return render json: { error: '默认板块不可删除' }, status: :unprocessable_entity if Crm::DocSection::DEFAULT_SECTIONS.include?(section.name)
+    return render json: { error: '「销售资料」板块不可删除' }, status: :unprocessable_entity if section.name == PROTECTED_NAME
 
     section.destroy!
     head :ok
   end
 
   private
+
+  def member_updates
+    updates = {}
+    updates[:viewer_ids] = sanitized_member_ids(:viewer_ids) if params[:section].key?(:viewer_ids)
+    updates[:manager_ids] = sanitized_member_ids(:manager_ids) if params[:section].key?(:manager_ids)
+    updates
+  end
+
+  # 改名：「销售资料」板块受保护、名称不可空；校验失败直接渲染错误（调用方以 performed? 判定）。
+  def name_update
+    return {} unless params[:section].key?(:name)
+
+    if @section.name == PROTECTED_NAME
+      render json: { error: '「销售资料」板块不可改名' }, status: :unprocessable_entity
+      return {}
+    end
+
+    name = params[:section][:name].to_s.strip
+    if name.blank?
+      render json: { error: '板块名称不能为空' }, status: :unprocessable_entity
+      return {}
+    end
+
+    { name: name }
+  end
 
   def section_json(section)
     {
@@ -52,7 +82,8 @@ class Api::V1::Accounts::Crm::DocSectionsController < Api::V1::Accounts::Crm::Ba
       viewer_names: User.where(id: section.viewer_ids).pluck(:name),
       manager_ids: section.manager_ids,
       manager_names: User.where(id: section.manager_ids).pluck(:name),
-      is_default: Crm::DocSection::DEFAULT_SECTIONS.include?(section.name)
+      is_default: Crm::DocSection::DEFAULT_SECTIONS.include?(section.name),
+      is_protected: section.name == PROTECTED_NAME
     }
   end
 

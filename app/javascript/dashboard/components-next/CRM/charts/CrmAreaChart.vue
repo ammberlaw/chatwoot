@@ -14,8 +14,8 @@ import { chartPalette, FONT_FAMILY } from './chartColors';
 import { useThemeSignal } from './useThemeSignal';
 
 const props = defineProps({
-  labels: { type: Array, required: true },
-  data: { type: Array, required: true },
+  labels: { type: Array, default: () => [] },
+  data: { type: Array, default: () => [] },
   activeIndex: { type: Number, default: -1 },
   valueFormat: { type: Function, default: v => v },
 });

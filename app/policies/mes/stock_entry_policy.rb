@@ -4,6 +4,9 @@ class Mes::StockEntryPolicy < ApplicationPolicy
 
   # 成品入库(MANUFACTURE)由车间(report)开单，其余 purpose 控制器里收紧到 stock。
   def create? = @account_user.mes_can?(:stock) || @account_user.mes_can?(:report)
+
+  # 收货单暂存 blob：与建单同权（原料入库前上传留证）。
+  def stage_blob? = create?
   def update? = @account_user.mes_can?(:stock) || @account_user.mes_can?(:report)
   def post? = @account_user.mes_can?(:stock)
 

@@ -11,6 +11,10 @@ json.fx_rate resource.fx_rate
 json.cancelled_units resource.cancelled_units
 json.shipped_units resource.shipped_units
 json.influencer_units resource.influencer_units
+json.alliance_live_orders resource.alliance_live_orders
+json.alliance_orders resource.alliance_orders
+json.product_card_orders resource.product_card_orders
+json.merchant_orders resource.merchant_orders
 json.cancel_rate resource.cancel_rate
 json.valid_rate resource.valid_rate
 json.remark resource.remark

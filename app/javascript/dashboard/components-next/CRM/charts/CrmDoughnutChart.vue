@@ -7,7 +7,7 @@ import { useThemeSignal } from './useThemeSignal';
 
 const props = defineProps({
   labels: { type: Array, default: () => [] },
-  data: { type: Array, required: true },
+  data: { type: Array, default: () => [] },
   colors: { type: Array, default: () => [] },
   // gauge: 底部半圆仪表（首段为进度、末段为轨道）；否则普通环形。
   gauge: { type: Boolean, default: false },

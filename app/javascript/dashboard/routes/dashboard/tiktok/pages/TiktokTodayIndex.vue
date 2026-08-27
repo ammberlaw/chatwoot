@@ -14,6 +14,37 @@ const pct = v => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
 const summary = computed(() => data.value?.summary || {});
 const shops = computed(() => data.value?.shops || []);
 
+// 今日 vs 昨日环比：销售额 / 订单 / 台数（较所示日的前一天）。昨日为 0 时不显示涨跌。
+const dayCompare = computed(() => {
+  const dc = data.value?.day_compare || {};
+  const t = dc.today || {};
+  const y = dc.yesterday || {};
+  const delta = (a, b) => {
+    const na = Number(a || 0);
+    const nb = Number(b || 0);
+    if (!nb) return null;
+    return (na - nb) / nb;
+  };
+  return [
+    {
+      label: '销售额',
+      value: cny(t.amount_cny),
+      change: delta(t.amount_cny, y.amount_cny),
+    },
+    {
+      label: '订单',
+      value: `${Number(t.total_orders || 0)} 笔`,
+      change: delta(t.total_orders, y.total_orders),
+    },
+    {
+      label: '台数',
+      value: `${Number(t.total_units || 0)} 台`,
+      change: delta(t.total_units, y.total_units),
+    },
+  ];
+});
+const changePct = v => `${v > 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
+
 const dateLabel = computed(() => {
   const d = data.value?.date;
   if (!d) return '';
@@ -75,7 +106,9 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div
       class="flex flex-col w-full max-w-6xl gap-4 px-4 py-4 mx-auto sm:px-8 sm:py-6"
     >
@@ -95,6 +128,44 @@ onMounted(load);
       </div>
 
       <template v-else>
+        <!-- 今日 vs 昨日环比 -->
+        <div
+          class="flex flex-wrap items-stretch gap-x-8 gap-y-3 px-5 py-4 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45"
+        >
+          <div class="flex items-center gap-1.5 text-sm text-n-slate-11">
+            <span class="i-lucide-calendar-clock size-4 text-n-iris-11" />
+            今日 vs 昨日
+          </div>
+          <div
+            v-for="item in dayCompare"
+            :key="item.label"
+            class="flex flex-col gap-0.5"
+          >
+            <span class="text-xs text-n-slate-10">{{ item.label }}</span>
+            <div class="flex items-baseline gap-2">
+              <span class="text-lg font-bold text-n-slate-12">
+                {{ item.value }}
+              </span>
+              <span
+                v-if="item.change != null"
+                class="text-xs font-medium"
+                :class="item.change >= 0 ? 'text-n-teal-11' : 'text-n-ruby-11'"
+              >
+                <span
+                  class="size-3 align-middle"
+                  :class="
+                    item.change >= 0
+                      ? 'i-lucide-trending-up'
+                      : 'i-lucide-trending-down'
+                  "
+                />
+                {{ changePct(item.change) }}
+              </span>
+              <span v-else class="text-xs text-n-slate-9">昨日无</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 今日 KPI -->
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div

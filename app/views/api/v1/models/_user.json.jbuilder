@@ -31,6 +31,7 @@ json.can_access_erp resource.active_account_user&.can_access_erp? || false
 json.can_access_crm resource.active_account_user&.can_access_crm? || false
 json.can_access_tiktok resource.active_account_user&.can_access_tiktok? || false
 json.tiktok_can_manage(resource.active_account_user&.administrator? || resource.active_account_user&.crm_deputy_admin? || false)
+json.tiktok_can_view_profit resource.active_account_user&.can_view_tiktok_profit? || false
 json.module_access resource.active_account_user&.module_access || []
 json.oa_template_maintainer resource.active_account_user&.oa_template_maintainer? || false
 json.org_maintainer resource.active_account_user&.org_maintainer? || false

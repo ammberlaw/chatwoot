@@ -274,7 +274,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div class="w-full px-4 py-4 mx-auto sm:px-8 sm:py-6 max-w-7xl">
       <!-- 头部 + 工具栏 -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-6">

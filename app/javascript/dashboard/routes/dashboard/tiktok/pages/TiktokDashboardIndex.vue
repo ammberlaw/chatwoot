@@ -4,6 +4,7 @@ import { useAlert } from 'dashboard/composables';
 import TiktokDashboardAPI from 'dashboard/api/tiktok/dashboard';
 import { useTiktokShopsStore } from 'dashboard/stores/tiktok/shops';
 import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue';
+import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
@@ -54,6 +55,34 @@ const teamFilterOptions = computed(() => [
 const summary = computed(() => data.value?.summary || {});
 const byTeam = computed(() => data.value?.by_team || []);
 const daily = computed(() => data.value?.daily || []);
+
+// 订单来源饼图：本月四类订单来源占比（联盟直播/联盟/商品卡/商家）。
+// 固定协调色板（紫玻璃主题基调：紫→青→金→珊瑚），白底玻璃卡上清晰又不刺眼。
+const SOURCE_META = [
+  { key: 'alliance_live', label: '联盟直播订单', color: '#8B5CF6' },
+  { key: 'alliance', label: '联盟订单', color: '#14B8A6' },
+  { key: 'product_card', label: '商品卡订单', color: '#F5A524' },
+  { key: 'merchant', label: '商家订单', color: '#FB7185' },
+];
+const bySource = computed(() => {
+  const src = data.value?.by_source || {};
+  const rows = SOURCE_META.map(m => ({
+    ...m,
+    value: Number(src[m.key] || 0),
+  }));
+  const total = rows.reduce((s, r) => s + r.value, 0);
+  return {
+    rows: rows.map(r => ({
+      ...r,
+      pct: total ? r.value / total : 0,
+    })),
+    total,
+    labels: rows.map(r => r.label),
+    data: rows.map(r => r.value),
+    colors: rows.map(r => r.color),
+    empty: total === 0,
+  };
+});
 
 const kpis = computed(() => {
   const s = summary.value;
@@ -117,7 +146,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full overflow-auto">
+  <div
+    class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+  >
     <div
       class="flex flex-col w-full max-w-6xl gap-4 px-4 py-4 mx-auto sm:px-8 sm:py-6"
     >
@@ -214,6 +245,57 @@ onMounted(async () => {
               class="flex items-center justify-center h-full text-sm text-n-slate-10"
             >
               本月暂无数据
+            </div>
+          </div>
+        </div>
+
+        <!-- 订单来源占比（本月，按订单数） -->
+        <div
+          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45"
+        >
+          <h2 class="mb-4 text-base font-medium text-n-slate-12">
+            订单来源占比（本月）
+          </h2>
+          <div
+            v-if="bySource.empty"
+            class="flex items-center justify-center h-48 text-sm text-n-slate-10"
+          >
+            本月暂无订单来源数据（录入时填写四类订单即可）
+          </div>
+          <div v-else class="flex flex-wrap items-center gap-8">
+            <div class="relative h-56 w-56 shrink-0">
+              <CrmDoughnutChart
+                :labels="bySource.labels"
+                :data="bySource.data"
+                :colors="bySource.colors"
+                :value-format="v => `${v} 笔`"
+              >
+                <template #center>
+                  <span class="text-xs text-n-slate-10">总订单</span>
+                  <span class="text-2xl font-bold text-n-slate-12">
+                    {{ bySource.total }}
+                  </span>
+                </template>
+              </CrmDoughnutChart>
+            </div>
+            <div class="flex flex-col flex-1 min-w-[16rem] gap-2.5">
+              <div
+                v-for="row in bySource.rows"
+                :key="row.key"
+                class="flex items-center gap-3 text-sm"
+              >
+                <span
+                  class="rounded-full size-2.5 shrink-0"
+                  :style="{ backgroundColor: row.color }"
+                />
+                <span class="flex-1 text-n-slate-11">{{ row.label }}</span>
+                <span class="font-medium tabular-nums text-n-slate-12">
+                  {{ row.value }} 笔
+                </span>
+                <span class="w-12 text-right tabular-nums text-n-slate-10">
+                  {{ pct(row.pct) }}
+                </span>
+              </div>
             </div>
           </div>
         </div>

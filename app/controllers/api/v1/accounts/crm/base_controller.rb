@@ -56,6 +56,18 @@ class Api::V1::Accounts::Crm::BaseController < Api::V1::Accounts::BaseController
     ids == :all ? relation : relation.where(column => ids)
   end
 
+  # 客户可见范围：可见私海（团队口径归属 + 被共享）∪ 公海（认领/查看用）；:all 不加限制。
+  # 客户及其联系人的按 id 直取都应走此收口，防止越权读改他人私海客户（IDOR）。
+  def visible_customers
+    ids = crm_team_visible_owner_ids
+    return Current.account.crm_customers if ids == :all
+
+    Current.account.crm_customers.where(
+      'crm_customers.account_owner_id IN (:ids) OR :uid = ANY(crm_customers.shared_user_ids) OR crm_customers.is_in_public_pool',
+      ids: ids, uid: current_user.id
+    )
+  end
+
   # 按负责人列限定数据范围；:all 不加限制。默认列 owner_id（客户用 account_owner_id）。
   def scope_by_owner(relation, column: :owner_id)
     ids = crm_visible_owner_ids

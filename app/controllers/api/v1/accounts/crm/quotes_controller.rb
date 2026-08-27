@@ -94,8 +94,9 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
 
   private
 
+  # 按 id 直取也必须走可见范围收口（与 index 一致），否则任意成员可越权读改他人报价单。
   def fetch_quote
-    @quote = Current.account.crm_quotes.find(params[:id])
+    @quote = scope_docs_visible(Current.account.crm_quotes).find(params[:id])
   end
 
   def check_authorization

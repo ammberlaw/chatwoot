@@ -7,5 +7,6 @@ json.payload do
     json.manager_ids section.manager_ids
     json.manager_names User.where(id: section.manager_ids).pluck(:name)
     json.is_default Crm::DocSection::DEFAULT_SECTIONS.include?(section.name)
+    json.is_protected section.name == Api::V1::Accounts::Crm::DocSectionsController::PROTECTED_NAME
   end
 end

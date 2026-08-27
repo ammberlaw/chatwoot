@@ -4,11 +4,11 @@ class Api::V1::Accounts::Crm::QuoteLineItemsController < Api::V1::Accounts::Crm:
   before_action :fetch_line_item, only: [:update, :destroy]
 
   def index
-    @line_items = Current.account.crm_quote_line_items.where(crm_quote_id: params[:quote_id]).order(:id)
+    @line_items = visible_quotes.find(params[:quote_id]).line_items.order(:id)
   end
 
   def create
-    quote = Current.account.crm_quotes.find(params[:quote_id])
+    quote = visible_quotes.find(params[:quote_id])
     @line_item = quote.line_items.create!(line_item_params.merge(account_id: Current.account.id))
   end
 
@@ -23,8 +23,14 @@ class Api::V1::Accounts::Crm::QuoteLineItemsController < Api::V1::Accounts::Crm:
 
   private
 
+  # 明细按 id 直达也必须收口到可见报价单，否则任意成员可越权改删他人报价明细。
   def fetch_line_item
-    @line_item = Current.account.crm_quote_line_items.find(params[:id])
+    @line_item = Current.account.crm_quote_line_items
+                        .where(crm_quote_id: visible_quotes.select(:id)).find(params[:id])
+  end
+
+  def visible_quotes
+    scope_docs_visible(Current.account.crm_quotes)
   end
 
   def check_authorization

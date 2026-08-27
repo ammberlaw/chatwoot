@@ -49,7 +49,7 @@ class Crm::MonthlyReportService
 
   def deal_amount(range)
     apply_scope(@account.crm_sales_orders.dealt, :owner_id)
-      .where(order_date: range).sum(:order_amount_micros)
+      .where(order_date: range).sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
   end
 
   def new_customers(range)
@@ -69,7 +69,7 @@ class Crm::MonthlyReportService
 
     top = apply_scope(@account.crm_sales_orders.dealt, :owner_id)
           .where(order_date: month_range(@report_month))
-          .group(:owner_id).sum(:order_amount_micros)
+          .group(:owner_id).sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
           .max_by { |_, amount| amount }
     return nil if top.nil? || top.last.to_i <= 0
 
