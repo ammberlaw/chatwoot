@@ -109,6 +109,7 @@ onMounted(loadOwners);
     />
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
       confirm-button-color="iris"
       :title="`设置阶段负责人 · ${lineLabel}`"

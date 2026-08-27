@@ -4,6 +4,9 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
   def index? = @account_user.mes_staff?
   def show? = @account_user.mes_staff?
   def requirement? = @account_user.mes_staff?
+  # 按供应商拆单导出（发供应商用），与查看同权。
+  def export? = @account_user.mes_staff?
+  def export_data? = @account_user.mes_staff?
 
   def create? = @account_user.mes_can?(:purchase)
   def update? = @account_user.mes_can?(:purchase)

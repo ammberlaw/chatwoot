@@ -9,6 +9,7 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
     scope = scope.active if params[:filter] == 'active'
     scope = scope.where(category: params[:category]) if params[:category].present?
     scope = scope.where(source_category: params[:source_category]) if params[:source_category].present?
+    scope = filter_by_group(scope) if params[:group_code].present?
     if params[:q].present?
       scope = scope.where(
         'sku ILIKE :q OR name ILIKE :q OR source_category ILIKE :q OR specification ILIKE :q',
@@ -34,6 +35,15 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
 
   private
 
+  # 按分组筛选：点某分组连带其整棵子树的产品（收集该节点 + 全部后代的 code）。
+  def filter_by_group(scope)
+    node = Current.account.crm_option_items.for_category('product_group').find_by(code: params[:group_code])
+    return scope.none if node.nil?
+
+    codes = Current.account.crm_option_items.where(id: node.self_and_descendant_ids).pluck(:code)
+    scope.where(group_code: codes)
+  end
+
   # 默认 15/页（产品档案列表）；商品编码选择器等可传 per_page 取更多，封顶 100。
   def per_page_param
     n = params[:per_page].to_i
@@ -53,7 +63,7 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
   def product_params
     params.require(:product).permit(
       :name, :sku, :category, :source_category, :specification, :unit, :product_line,
-      :cost_price_micros, :sale_price_micros, :pricing_currency, :is_active, :remark
+      :cost_price_micros, :sale_price_micros, :pricing_currency, :is_active, :remark, :group_code
     )
   end
 end

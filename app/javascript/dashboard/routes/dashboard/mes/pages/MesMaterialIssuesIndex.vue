@@ -5,7 +5,6 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
-import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -13,8 +12,8 @@ import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
-import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
@@ -22,7 +21,6 @@ const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
 const { mesCan } = useMesRole();
 const warehousesStore = useMesWarehousesStore();
-const materialsStore = useMesMaterialsStore();
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -84,27 +82,42 @@ const warehouseOptions = computed(() =>
     label: w.name,
   }))
 );
-const materialOptions = computed(() =>
-  (materialsStore.getRecords || []).map(m => ({
-    value: String(m.id),
-    label: `${m.name}（${m.unit}）`,
-  }))
-);
+// 领料物料从「产品档案」(crm_products) 搜索选（不允许手输，防料号打错）；保留已选项标签。
+const productOptions = ref([]);
+const mergeProductOptions = list => {
+  const seen = new Set(productOptions.value.map(o => o.value));
+  list.forEach(o => {
+    if (o.value && !seen.has(o.value)) {
+      productOptions.value.push(o);
+      seen.add(o.value);
+    }
+  });
+};
+const productLabel = id =>
+  productOptions.value.find(o => o.value === String(id))?.label || '';
+const onProductPicked = p =>
+  mergeProductOptions([
+    {
+      value: String(p.id),
+      label: `${p.name}${p.sku ? `（${p.sku}）` : ''}`,
+      unit: p.unit || '',
+    },
+  ]);
 
 const dialogRef = ref(null);
 const form = reactive({
   productionOrderId: '',
   warehouseId: '',
-  rows: [], // { mesMaterialId, qty }
+  rows: [], // { crmProductId, qty }
 });
 const invalid = computed(
   () =>
     !form.warehouseId ||
     !form.rows.length ||
-    form.rows.some(r => !r.mesMaterialId || !Number(r.qty))
+    form.rows.some(r => !r.crmProductId || !Number(r.qty))
 );
 
-const addRow = () => form.rows.push({ mesMaterialId: '', qty: '1' });
+const addRow = () => form.rows.push({ crmProductId: '', qty: '1' });
 const removeRow = i => form.rows.splice(i, 1);
 
 // 按选中生产订单的 BOM 推料。
@@ -122,10 +135,24 @@ const pushFromBom = async () => {
       useAlert('该生产订单未挂 BOM 或无用料');
       return;
     }
+    // 已匹配产品的行并入显示标签(料名·料号)，让选择器显示已带出的产品；未匹配的留空待人工搜选。
+    mergeProductOptions(
+      reqs
+        .filter(r => r.crm_product_id)
+        .map(r => ({
+          value: String(r.crm_product_id),
+          label: `${r.material_name || ''}${r.material_no ? `（${r.material_no}）` : ''}`,
+          unit: r.unit || '',
+        }))
+    );
     form.rows = reqs.map(r => ({
-      mesMaterialId: String(r.mes_material_id),
+      crmProductId: r.crm_product_id ? String(r.crm_product_id) : '',
       qty: String(r.qty),
     }));
+    const unmatched = reqs.filter(r => !r.crm_product_id).length;
+    if (unmatched) {
+      useAlert(`已推料；${unmatched} 项料号在产品档案未匹配，请手动搜索选择`);
+    }
   } catch {
     useAlert('推料失败');
   }
@@ -136,7 +163,7 @@ const openCreate = () => {
   Object.assign(form, {
     productionOrderId: '',
     warehouseId: raw ? String(raw.id) : '',
-    rows: [{ mesMaterialId: '', qty: '1' }],
+    rows: [{ crmProductId: '', qty: '1' }],
   });
   dialogRef.value?.open();
 };
@@ -148,8 +175,8 @@ const submit = async () => {
     productionOrderId: form.productionOrderId || null,
     fromWarehouseId: Number(form.warehouseId),
     stockEntryItemsAttributes: form.rows.map(r => ({
-      itemType: 'MATERIAL',
-      mesMaterialId: Number(r.mesMaterialId),
+      itemType: 'PRODUCT',
+      crmProductId: Number(r.crmProductId),
       qty: Number(r.qty),
       warehouseId: Number(form.warehouseId),
     })),
@@ -169,7 +196,6 @@ const postEntry = async entry => {
 onMounted(async () => {
   fetchList();
   warehousesStore.get();
-  materialsStore.get();
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/production_orders`
@@ -306,8 +332,9 @@ onMounted(async () => {
     </div>
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
-      width="3xl"
+      width="5xl"
       overflow-y-auto
       confirm-button-color="iris"
       title="新建生产领料单"
@@ -323,7 +350,7 @@ onMounted(async () => {
               生产订单 <span class="text-n-ruby-11">*</span>
             </label>
             <SelectCard
-              size="form"
+              block
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
               @update:model-value="v => (form.productionOrderId = v)"
@@ -334,6 +361,7 @@ onMounted(async () => {
             type="button"
             color="slate"
             size="sm"
+            class="!h-9"
             @click="pushFromBom"
           />
         </div>
@@ -341,7 +369,7 @@ onMounted(async () => {
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">领料仓库</label>
           <SelectCard
-            size="form"
+            block
             :model-value="form.warehouseId"
             :options="warehouseOptions"
             @update:model-value="v => (form.warehouseId = v)"
@@ -367,10 +395,13 @@ onMounted(async () => {
             class="grid items-center grid-cols-12 gap-2"
           >
             <div class="col-span-8">
-              <ComboBox
-                v-model="row.mesMaterialId"
-                :options="materialOptions"
-                placeholder="选择物料"
+              <MesProductPicker
+                :account-id="accountId"
+                :model-value="row.crmProductId"
+                :display-text="productLabel(row.crmProductId)"
+                placeholder="从产品档案搜索选料（编码/名称/规格）"
+                @update:model-value="v => (row.crmProductId = v)"
+                @select="onProductPicked"
               />
             </div>
             <Input

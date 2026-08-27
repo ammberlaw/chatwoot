@@ -8,11 +8,14 @@ import {
   productLineLabel,
 } from 'dashboard/composables/useMesProductLine';
 
+import ProductGroupsAPI from 'dashboard/api/mes/productGroups';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import MesProductGroupNode from 'dashboard/components-next/mes/MesProductGroupNode.vue';
+import MesProductGroupManager from 'dashboard/components-next/mes/MesProductGroupManager.vue';
 
 const store = useMesProductsStore();
 const { mesCan } = useMesRole();
@@ -55,12 +58,44 @@ const keyword = ref('');
 const categoryFilter = ref('');
 const categoryFilterOptions = [{ value: '', label: '全部分类' }, ...CATEGORIES];
 const currentPage = ref(1);
+
+// —— 产品分组树（不限层级）——
+const groups = ref([]); // 扁平列表 [{id, code, name, parent_id, position, active}]
+const selectedGroup = ref(''); // 当前筛选分组 code（''=全部）
+const managerRef = ref(null);
+
+const buildGroupTree = list => {
+  const byId = new Map(list.map(i => [i.id, { ...i, children: [] }]));
+  const roots = [];
+  list.forEach(i => {
+    const node = byId.get(i.id);
+    if (i.parent_id && byId.has(i.parent_id))
+      byId.get(i.parent_id).children.push(node);
+    else roots.push(node);
+  });
+  const sortRec = nodes => {
+    nodes.sort((a, b) => a.position - b.position);
+    nodes.forEach(n => sortRec(n.children));
+  };
+  sortRec(roots);
+  return roots;
+};
+const groupTree = computed(() => buildGroupTree(groups.value));
+const groupLabelByCode = computed(() =>
+  Object.fromEntries(groups.value.map(g => [g.code, g.name]))
+);
+const loadGroups = async () => {
+  const { data } = await ProductGroupsAPI.get();
+  groups.value = data.payload || [];
+};
+
 const load = () =>
   store.get({
     page: currentPage.value,
     per_page: ITEMS_PER_PAGE,
     q: keyword.value.trim() || undefined,
     category: categoryFilter.value || undefined,
+    group_code: selectedGroup.value || undefined,
   });
 // 翻页触发重拉；搜索/筛选先回到第 1 页（页码变则由 watch 拉，未变则直接拉）。
 watch(currentPage, load);
@@ -70,6 +105,10 @@ const reload = () => {
 };
 const changeCategoryFilter = v => {
   categoryFilter.value = v;
+  reload();
+};
+const selectGroup = code => {
+  selectedGroup.value = selectedGroup.value === code ? '' : code;
   reload();
 };
 
@@ -84,6 +123,7 @@ const form = reactive({
   unit: '',
   specification: '',
   remark: '',
+  groupCode: '',
   isActive: true,
 });
 const invalid = computed(() => !form.name.trim() || !form.sku.trim());
@@ -93,6 +133,21 @@ const categoryOptions = computed(() => {
   const opts = [{ value: '', label: '未分类' }, ...CATEGORIES];
   const legacy = LEGACY_CATEGORIES.find(c => c.value === form.category);
   if (legacy) opts.push({ ...legacy, label: `${legacy.label}（旧）` });
+  return opts;
+});
+
+// 表单分组下拉：拍平成「一级 / 二级 / 三级」全路径缩进项（隐藏项不列，编辑时保留当前值）。
+const groupSelectOptions = computed(() => {
+  const opts = [{ value: '', label: '未分组' }];
+  const walk = (nodes, prefix) => {
+    nodes.forEach(n => {
+      const path = prefix ? `${prefix} / ${n.name}` : n.name;
+      if (n.active || n.code === form.groupCode)
+        opts.push({ value: n.code, label: path });
+      walk(n.children, path);
+    });
+  };
+  walk(groupTree.value, '');
   return opts;
 });
 
@@ -107,6 +162,7 @@ const openCreate = () => {
     unit: '',
     specification: '',
     remark: '',
+    groupCode: selectedGroup.value || '',
     isActive: true,
   });
   dialogRef.value?.open();
@@ -122,6 +178,7 @@ const openEdit = p => {
     unit: p.unit || '',
     specification: p.specification || '',
     remark: p.remark || '',
+    groupCode: p.groupCode || '',
     isActive: p.isActive !== false,
   });
   dialogRef.value?.open();
@@ -138,14 +195,19 @@ const submit = async () => {
     unit: form.unit.trim() || null,
     specification: form.specification.trim() || null,
     remark: form.remark.trim() || null,
+    groupCode: form.groupCode || null,
     isActive: form.isActive,
   };
-  const ok = editingId.value
-    ? await store.update({ id: editingId.value, ...payload })
-    : await store.create(payload);
-  if (ok) {
-    useAlert(editingId.value ? '产品已更新' : `已新增产品 ${ok.sku}`);
-    dialogRef.value?.close();
+  try {
+    const ok = editingId.value
+      ? await store.update({ id: editingId.value, ...payload })
+      : await store.create(payload);
+    if (ok) {
+      useAlert(editingId.value ? '产品已更新' : `已新增产品 ${ok.sku}`);
+      dialogRef.value?.close();
+    }
+  } catch (error) {
+    useAlert(error?.message || '保存失败，请检查填写内容');
   }
 };
 
@@ -169,7 +231,10 @@ const doDelete = async () => {
   deleting.value = null;
 };
 
-onMounted(load);
+onMounted(() => {
+  load();
+  loadGroups();
+});
 </script>
 
 <template>
@@ -211,112 +276,70 @@ onMounted(load);
       </div>
     </div>
 
-    <div class="flex-1 min-h-0 px-4 pb-6 sm:px-6 overflow-auto">
-      <p v-if="!canManage" class="mb-3 text-xs text-n-slate-11">
-        产品编码由工程 / PMC 维护，你当前为只读。
-      </p>
-      <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
-        加载中…
-      </div>
-      <template v-else>
-        <!-- 手机卡片列表 -->
-        <div class="flex flex-col gap-2 md:hidden">
-          <div
-            v-for="p in records"
-            :key="p.id"
-            class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
-            @click="canManage && openEdit(p)"
+    <div class="flex flex-1 min-h-0">
+      <!-- 左侧分组树（不限层级）：点节点连带子树筛选 -->
+      <aside
+        class="flex-col hidden gap-1 px-2 py-3 overflow-y-auto border-r md:flex w-52 shrink-0 border-n-weak"
+      >
+        <div class="flex items-center justify-between px-2 mb-1">
+          <span class="text-xs font-medium text-n-slate-11">产品分组</span>
+          <button
+            v-if="canManage"
+            class="text-xs text-n-iris-11 hover:underline"
+            @click="managerRef?.open()"
           >
-            <div class="flex items-center gap-2">
-              <span class="font-medium text-n-slate-12 truncate">
-                {{ p.name }}
-              </span>
-              <span
-                class="shrink-0 px-2 py-0.5 text-xs rounded-full"
-                :class="
-                  p.isActive
-                    ? 'bg-n-teal-3 text-n-teal-12'
-                    : 'bg-n-slate-4 text-n-slate-11'
-                "
-              >
-                {{ p.isActive ? '启用' : '已禁用' }}
-              </span>
-              <span class="flex-1" />
-              <div v-if="canManage" class="flex shrink-0 gap-1">
-                <Button
-                  :label="p.isActive ? '禁用' : '启用'"
-                  variant="ghost"
-                  color="slate"
-                  size="sm"
-                  @click.stop="toggleActive(p)"
-                />
-                <Button
-                  label="删除"
-                  variant="ghost"
-                  color="ruby"
-                  size="sm"
-                  @click.stop="askDelete(p)"
-                />
-              </div>
-            </div>
-            <div class="mt-1 font-mono text-xs text-n-slate-11">
-              {{ p.sku }}
-            </div>
-            <div
-              class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
-            >
-              <span>规格：{{ p.specification || '—' }}</span>
-              <span>产品线：{{ productLineLabel(p.productLine) || '—' }}</span>
-            </div>
-            <div
-              class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
-            >
-              <span>商品类别：{{ p.sourceCategory || '—' }}</span>
-              <span>仓别分类：{{ categoryLabel(p.category) }}</span>
-              <span>单位：{{ p.unit || '—' }}</span>
-            </div>
-          </div>
-          <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
-            还没有产品。
-          </div>
+            管理
+          </button>
         </div>
+        <button
+          type="button"
+          class="flex items-center w-full gap-1 px-2 py-1.5 text-sm text-left rounded-lg hover:bg-n-alpha-1"
+          :class="
+            selectedGroup === ''
+              ? 'bg-n-iris-3 text-n-iris-11 font-medium'
+              : 'text-n-slate-12'
+          "
+          @click="selectGroup('')"
+        >
+          全部
+        </button>
+        <MesProductGroupNode
+          v-for="node in groupTree"
+          :key="node.id"
+          :node="node"
+          :selected="selectedGroup"
+          @select="selectGroup"
+        />
+        <p
+          v-if="!groupTree.length && canManage"
+          class="px-2 mt-2 text-xs text-n-slate-10"
+        >
+          还没有分组，点「管理」新建。
+        </p>
+      </aside>
 
-        <table class="hidden md:table w-full text-sm">
-          <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium">商品编码</th>
-              <th class="px-3 py-3 font-medium">商品名称</th>
-              <th class="px-3 py-3 font-medium">规格</th>
-              <th class="px-3 py-3 font-medium">产品线</th>
-              <th class="px-3 py-3 font-medium">商品类别</th>
-              <th class="px-3 py-3 font-medium">仓别分类</th>
-              <th class="px-3 py-3 font-medium">单位</th>
-              <th class="px-3 py-3 font-medium">状态</th>
-              <th class="px-3 py-3 font-medium text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="p in records" :key="p.id" class="border-b border-n-weak">
-              <td class="px-3 py-3 font-mono text-n-slate-11">{{ p.sku }}</td>
-              <td class="px-3 py-3 font-medium text-n-slate-12">
-                {{ p.name }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ p.specification || '—' }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ productLineLabel(p.productLine) || '—' }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ p.sourceCategory || '—' }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ categoryLabel(p.category) }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">{{ p.unit || '—' }}</td>
-              <td class="px-3 py-3">
+      <div class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6">
+        <p v-if="!canManage" class="mb-3 text-xs text-n-slate-11">
+          产品编码由工程 / PMC 维护，你当前为只读。
+        </p>
+        <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
+          加载中…
+        </div>
+        <template v-else>
+          <!-- 手机卡片列表 -->
+          <div class="flex flex-col gap-2 md:hidden">
+            <div
+              v-for="p in records"
+              :key="p.id"
+              class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
+              @click="canManage && openEdit(p)"
+            >
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-n-slate-12 truncate">
+                  {{ p.name }}
+                </span>
                 <span
-                  class="px-2 py-0.5 text-xs rounded-full"
+                  class="shrink-0 px-2 py-0.5 text-xs rounded-full"
                   :class="
                     p.isActive
                       ? 'bg-n-teal-3 text-n-teal-12'
@@ -325,53 +348,153 @@ onMounted(load);
                 >
                   {{ p.isActive ? '启用' : '已禁用' }}
                 </span>
-              </td>
-              <td class="px-3 py-3">
-                <div v-if="canManage" class="flex justify-end gap-1">
-                  <Button
-                    label="编辑"
-                    variant="ghost"
-                    size="sm"
-                    @click="openEdit(p)"
-                  />
+                <span class="flex-1" />
+                <div v-if="canManage" class="flex shrink-0 gap-1">
                   <Button
                     :label="p.isActive ? '禁用' : '启用'"
                     variant="ghost"
                     color="slate"
                     size="sm"
-                    @click="toggleActive(p)"
+                    @click.stop="toggleActive(p)"
                   />
                   <Button
                     label="删除"
                     variant="ghost"
                     color="ruby"
                     size="sm"
-                    @click="askDelete(p)"
+                    @click.stop="askDelete(p)"
                   />
                 </div>
-                <span v-else class="block text-right text-n-slate-10">—</span>
-              </td>
-            </tr>
-            <tr v-if="!records.length">
-              <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
-                还没有产品。
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </template>
+              </div>
+              <div class="mt-1 font-mono text-xs text-n-slate-11">
+                {{ p.sku }}
+              </div>
+              <div
+                class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
+              >
+                <span>规格：{{ p.specification || '—' }}</span>
+                <span
+                  >产品线：{{ productLineLabel(p.productLine) || '—' }}</span
+                >
+              </div>
+              <div
+                class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
+              >
+                <span>分组：{{ groupLabelByCode[p.groupCode] || '—' }}</span>
+                <span>商品类别：{{ p.sourceCategory || '—' }}</span>
+                <span>仓别分类：{{ categoryLabel(p.category) }}</span>
+                <span>单位：{{ p.unit || '—' }}</span>
+              </div>
+            </div>
+            <div
+              v-if="!records.length"
+              class="py-10 text-center text-n-slate-11"
+            >
+              还没有产品。
+            </div>
+          </div>
 
-      <PaginationFooter
-        v-if="totalCount > ITEMS_PER_PAGE"
-        :current-page="currentPage"
-        :total-items="totalCount"
-        :items-per-page="ITEMS_PER_PAGE"
-        class="mt-3 !bg-transparent before:!hidden"
-        @update:current-page="currentPage = $event"
-      />
+          <table class="hidden md:table w-full text-sm">
+            <thead>
+              <tr class="text-left text-n-slate-11 border-b border-n-weak">
+                <th class="px-3 py-3 font-medium">商品编码</th>
+                <th class="px-3 py-3 font-medium">商品名称</th>
+                <th class="px-3 py-3 font-medium">分组</th>
+                <th class="px-3 py-3 font-medium">规格</th>
+                <th class="px-3 py-3 font-medium">产品线</th>
+                <th class="px-3 py-3 font-medium">商品类别</th>
+                <th class="px-3 py-3 font-medium">仓别分类</th>
+                <th class="px-3 py-3 font-medium">单位</th>
+                <th class="px-3 py-3 font-medium">状态</th>
+                <th class="px-3 py-3 font-medium text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="p in records"
+                :key="p.id"
+                class="border-b border-n-weak"
+              >
+                <td class="px-3 py-3 font-mono text-n-slate-11">{{ p.sku }}</td>
+                <td class="px-3 py-3 font-medium text-n-slate-12">
+                  {{ p.name }}
+                </td>
+                <td class="px-3 py-3 text-n-slate-11">
+                  {{ groupLabelByCode[p.groupCode] || '—' }}
+                </td>
+                <td class="px-3 py-3 text-n-slate-11">
+                  {{ p.specification || '—' }}
+                </td>
+                <td class="px-3 py-3 text-n-slate-11">
+                  {{ productLineLabel(p.productLine) || '—' }}
+                </td>
+                <td class="px-3 py-3 text-n-slate-11">
+                  {{ p.sourceCategory || '—' }}
+                </td>
+                <td class="px-3 py-3 text-n-slate-11">
+                  {{ categoryLabel(p.category) }}
+                </td>
+                <td class="px-3 py-3 text-n-slate-11">{{ p.unit || '—' }}</td>
+                <td class="px-3 py-3">
+                  <span
+                    class="px-2 py-0.5 text-xs rounded-full"
+                    :class="
+                      p.isActive
+                        ? 'bg-n-teal-3 text-n-teal-12'
+                        : 'bg-n-slate-4 text-n-slate-11'
+                    "
+                  >
+                    {{ p.isActive ? '启用' : '已禁用' }}
+                  </span>
+                </td>
+                <td class="px-3 py-3">
+                  <div v-if="canManage" class="flex justify-end gap-1">
+                    <Button
+                      label="编辑"
+                      variant="ghost"
+                      size="sm"
+                      @click="openEdit(p)"
+                    />
+                    <Button
+                      :label="p.isActive ? '禁用' : '启用'"
+                      variant="ghost"
+                      color="slate"
+                      size="sm"
+                      @click="toggleActive(p)"
+                    />
+                    <Button
+                      label="删除"
+                      variant="ghost"
+                      color="ruby"
+                      size="sm"
+                      @click="askDelete(p)"
+                    />
+                  </div>
+                  <span v-else class="block text-right text-n-slate-10">—</span>
+                </td>
+              </tr>
+              <tr v-if="!records.length">
+                <td colspan="10" class="px-3 py-10 text-center text-n-slate-11">
+                  还没有产品。
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
+
+        <PaginationFooter
+          v-if="totalCount > ITEMS_PER_PAGE"
+          :current-page="currentPage"
+          :total-items="totalCount"
+          :items-per-page="ITEMS_PER_PAGE"
+          class="mt-3 !bg-transparent before:!hidden"
+          @update:current-page="currentPage = $event"
+        />
+      </div>
     </div>
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
       width="lg"
       confirm-button-color="iris"
@@ -429,6 +552,15 @@ onMounted(load);
           </div>
         </div>
         <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">产品分组</label>
+          <SelectCard
+            block
+            :model-value="form.groupCode"
+            :options="groupSelectOptions"
+            @update:model-value="v => (form.groupCode = v)"
+          />
+        </div>
+        <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">规格型号</label>
           <Input v-model="form.specification" />
         </div>
@@ -444,6 +576,7 @@ onMounted(load);
     </Dialog>
 
     <Dialog
+      :dismissible="false"
       ref="confirmRef"
       type="alert"
       width="sm"
@@ -453,5 +586,7 @@ onMounted(load);
       confirm-label="删除"
       @confirm="doDelete"
     />
+
+    <MesProductGroupManager ref="managerRef" @updated="loadGroups" />
   </div>
 </template>

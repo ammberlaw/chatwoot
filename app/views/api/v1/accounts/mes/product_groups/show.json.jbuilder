@@ -1,0 +1,1 @@
+json.partial! 'api/v1/models/crm_option_item', formats: [:json], resource: @item

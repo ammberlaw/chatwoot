@@ -24,6 +24,7 @@ import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
@@ -180,6 +181,12 @@ const blankHeader = () => ({
   bareColor: '',
   caseColor: '',
 });
+const { activeProductLine } = useMesProductLine();
+// 商显工控 BOM 不需要客户/项目名称、裸机颜色、皮套颜色（平板电脑保留）。
+const showTabletHeaderFields = computed(
+  () => activeProductLine.value !== 'COMMERCIAL_DISPLAY'
+);
+
 const form = reactive({
   crmProductId: '',
   salesOwnerId: '', // 订单归属业务员
@@ -735,6 +742,7 @@ onMounted(async () => {
     </div>
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
       width="5xl"
       overflow-y-auto
@@ -775,7 +783,10 @@ onMounted(async () => {
             <label class="text-xs text-n-slate-11">数量</label>
             <Input v-model="form.orderQty" type="number" placeholder="800" />
           </div>
-          <div class="flex flex-col col-span-3 gap-1">
+          <div
+            v-if="showTabletHeaderFields"
+            class="flex flex-col col-span-3 gap-1"
+          >
             <label class="text-xs text-n-slate-11">客户 / 项目名称</label>
             <Input
               v-model="form.customerName"
@@ -795,11 +806,11 @@ onMounted(async () => {
             >
             <Input v-model="form.productCode" placeholder="如 P.01.842" />
           </div>
-          <div class="flex flex-col gap-1">
+          <div v-if="showTabletHeaderFields" class="flex flex-col gap-1">
             <label class="text-xs text-n-slate-11">裸机颜色</label>
             <Input v-model="form.bareColor" placeholder="如 橙色800" />
           </div>
-          <div class="flex flex-col gap-1">
+          <div v-if="showTabletHeaderFields" class="flex flex-col gap-1">
             <label class="text-xs text-n-slate-11">皮套颜色</label>
             <Input v-model="form.caseColor" placeholder="如 粉色400、蓝色400" />
           </div>
@@ -1115,6 +1126,7 @@ onMounted(async () => {
 
     <!-- 只读查看：完整明细，无需进编辑态 -->
     <Dialog
+      :dismissible="false"
       ref="viewDialogRef"
       width="5xl"
       overflow-y-auto
@@ -1330,6 +1342,7 @@ onMounted(async () => {
 
     <!-- BOM 模版管理：套用 / 删除 -->
     <Dialog
+      :dismissible="false"
       ref="templateDialogRef"
       width="2xl"
       overflow-y-auto
@@ -1407,6 +1420,7 @@ onMounted(async () => {
 
     <!-- 存为模版：命名 -->
     <Dialog
+      :dismissible="false"
       ref="saveTplDialogRef"
       width="sm"
       title="存为模版"

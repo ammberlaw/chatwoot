@@ -66,6 +66,11 @@ const props = defineProps({
     default: 'center',
     validator: value => ['center', 'top'].includes(value),
   },
+  // false=点弹窗外部 / 按 Esc 不关闭（防误点丢失未保存内容，表单类弹窗用）。
+  dismissible: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const emit = defineEmits(['confirm', 'close']);
@@ -113,9 +118,16 @@ const handleDialogClose = e => e.target === dialogRef.value && close();
 
 // Only close on click-outside if this dialog is the topmost one.
 // If another dialog (e.g. ProseMirror prompt) is open on top, ignore.
+// dismissible=false（表单类）时点外部不关，防误点丢失未保存内容。
 const handleClickOutside = () => {
+  if (!props.dismissible) return;
   const dialogs = document.querySelectorAll('dialog[open]');
   if (dialogs[dialogs.length - 1] === dialogRef.value) close();
+};
+
+// 原生 <dialog> 的 Esc 触发 cancel→close；dismissible=false 时拦截 Esc，同样不关。
+const handleCancel = e => {
+  if (!props.dismissible) e.preventDefault();
 };
 
 const confirm = () => {
@@ -136,6 +148,7 @@ defineExpose({ open, close });
         overflowYAuto ? 'overflow-y-auto' : 'overflow-visible',
       ]"
       @close.prevent="handleDialogClose"
+      @cancel="handleCancel"
     >
       <!-- 忽略 Teleport 出去的玻璃弹层（DatePicker/SelectCard/MonthPicker 等，标 data-glass-popover）：
            它们是对话框内容的兄弟节点，点选项不该被当「点外部」关掉整个对话框。@vueuse 走 capture 阶段，

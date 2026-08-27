@@ -613,6 +613,7 @@ onMounted(() => {
 
     <!-- 生产出库（仓库从生产订单开单，原样）-->
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
       width="lg"
       confirm-button-color="iris"
@@ -655,6 +656,7 @@ onMounted(() => {
 
     <!-- 现货出库（业务员开单 → 主管审核 → 仓库出库）-->
     <Dialog
+      :dismissible="false"
       ref="stockDialogRef"
       width="3xl"
       overflow-y-auto
@@ -763,6 +765,7 @@ onMounted(() => {
 
     <!-- 驳回原因 -->
     <Dialog
+      :dismissible="false"
       ref="rejectDialogRef"
       width="md"
       confirm-button-color="ruby"

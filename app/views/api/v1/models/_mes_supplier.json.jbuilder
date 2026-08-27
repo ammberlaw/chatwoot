@@ -15,6 +15,7 @@ json.category resource.category
 json.tax_rate resource.tax_rate
 json.invoice_title resource.invoice_title
 json.tax_no resource.tax_no
+json.bill_entity resource.bill_entity
 json.bank_name resource.bank_name
 json.bank_account resource.bank_account
 json.bank_address resource.bank_address

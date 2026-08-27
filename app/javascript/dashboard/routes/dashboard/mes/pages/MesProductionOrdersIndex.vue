@@ -1880,6 +1880,7 @@ watch(currentPage, fetchRecords);
 
     <!-- 新建 / 编辑定制生产订单 -->
     <Dialog
+      :dismissible="false"
       ref="orderDialogRef"
       width="2xl"
       overflow-y-auto
@@ -1960,6 +1961,7 @@ watch(currentPage, fetchRecords);
 
     <!-- 转单弹窗 -->
     <Dialog
+      :dismissible="false"
       ref="convertDialogRef"
       width="lg"
       confirm-button-color="iris"
@@ -2016,6 +2018,7 @@ watch(currentPage, fetchRecords);
 
     <!-- 查看 BOM 完整用料明细弹窗（业务二次确认前核对） -->
     <Dialog
+      :dismissible="false"
       ref="bomViewDialogRef"
       width="xl"
       :title="`工程/PMC BOM 明细${bomDetail?.bomNo ? ` · ${bomDetail.bomNo}` : ''}`"
@@ -2085,6 +2088,7 @@ watch(currentPage, fetchRecords);
 
     <!-- 标记外购弹窗（工程判定外购成品：选产品+供应商，跳过 BOM 直接进采购） -->
     <Dialog
+      :dismissible="false"
       ref="outsourceDialogRef"
       width="3xl"
       confirm-button-color="iris"
@@ -2124,6 +2128,7 @@ watch(currentPage, fetchRecords);
     </Dialog>
 
     <Dialog
+      :dismissible="false"
       ref="rejectDialogRef"
       confirm-button-color="ruby"
       title="拒收打回上一阶段"
@@ -2145,6 +2150,7 @@ watch(currentPage, fetchRecords);
 
     <!-- 审批驳回：退回业务员，可改后重提 -->
     <Dialog
+      :dismissible="false"
       ref="denyDialogRef"
       confirm-button-color="ruby"
       title="驳回生产订单"
@@ -2166,6 +2172,7 @@ watch(currentPage, fetchRecords);
 
     <!-- 订单明细：建单时填的规格表（只读）+ 导出 -->
     <Dialog
+      :dismissible="false"
       ref="detailDialogRef"
       width="3xl"
       overflow-y-auto

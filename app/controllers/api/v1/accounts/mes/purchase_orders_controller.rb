@@ -2,7 +2,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   include Api::V1::Accounts::Mes::DocumentReturnable
 
   before_action :check_authorization
-  before_action :fetch_purchase_order, only: [:show, :update, :destroy]
+  before_action :fetch_purchase_order, only: [:show, :update, :destroy, :export, :export_data]
 
   COLUMN_FILTERS = { status: :status, production_order_id: :production_order_id }.freeze
 
@@ -45,6 +45,20 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     render json: { payload: production_order.material_requirements(category: params[:category].presence) }
   end
 
+  # 按供应商拆单导出：一张采购单里各供应商的料各成一份，打包 zip 下载、直接转发给对应供应商。
+  # 抬头/税口径按每个供应商档案的 bill_entity 自动选（同单可含税、未税混排）。
+  def export
+    zip = Mes::PoSupplierExport.new(@purchase_order).to_zip_stream
+    send_data zip.read,
+              filename: "采购单-#{@purchase_order.po_no}-按供应商.zip",
+              type: 'application/zip'
+  end
+
+  # 按供应商分组的结构化数据，供前端渲染各供应商的 PO 版式并导出 PDF（每供应商一份、打包 zip）。
+  def export_data
+    render json: { payload: Mes::PoSupplierExport.new(@purchase_order).payload }
+  end
+
   private
 
   def fetch_purchase_order
@@ -65,7 +79,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   def purchase_order_params
     params.require(:purchase_order).permit(
-      :production_order_id, :status, :expected_date, :follow_up_date,
+      :production_order_id, :status, :expected_date, :follow_up_date, :delivery_date,
       :has_exception, :exception_note, :owner_id, :remark,
       purchase_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :mes_supplier_id, :arrival_date,

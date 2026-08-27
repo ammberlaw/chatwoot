@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_27_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_27_000006) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1599,6 +1599,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_27_000003) do
     t.datetime "updated_at", null: false
     t.string "product_line"
     t.string "source_category"
+    t.string "group_code"
+    t.index ["account_id", "group_code"], name: "index_crm_products_on_account_id_and_group_code"
     t.index ["account_id", "product_line"], name: "index_crm_products_on_account_and_product_line"
     t.index ["account_id", "sku"], name: "index_crm_products_on_account_id_and_sku", unique: true
     t.index ["account_id", "source_category"], name: "index_crm_products_on_account_and_source_category"
@@ -2379,6 +2381,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_27_000003) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "product_line"
+    t.date "delivery_date"
     t.index ["account_id", "po_no"], name: "index_mes_purchase_orders_on_account_id_and_po_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_purchase_orders_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_purchase_orders_on_account_id_and_status"
@@ -2582,6 +2585,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_27_000003) do
     t.string "bank_account"
     t.string "bank_address"
     t.string "department"
+    t.string "bill_entity", default: "wintouch", null: false
     t.index ["account_id", "supplier_no"], name: "index_mes_suppliers_on_account_id_and_supplier_no", unique: true
     t.index ["account_id"], name: "index_mes_suppliers_on_account_id"
     t.index ["owner_id"], name: "index_mes_suppliers_on_owner_id"

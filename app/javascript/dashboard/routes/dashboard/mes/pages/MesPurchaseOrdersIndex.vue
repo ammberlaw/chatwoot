@@ -1,7 +1,10 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, onMounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
+import html2canvas from 'html2canvas';
+import { jsPDF as JsPDF } from 'jspdf';
+import JSZip from 'jszip';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesPurchaseOrdersStore } from 'dashboard/stores/mes/purchaseOrders';
@@ -14,11 +17,13 @@ import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
+import MesPoSupplierDoc from 'dashboard/components-next/mes/MesPoSupplierDoc.vue';
 
 const { accountId } = useAccount();
 const route = useRoute();
@@ -47,6 +52,112 @@ const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({
   label,
 }));
 
+// 按供应商拆单导出为 PDF：每供应商一份（抬头/税口径按各自 bill_entity），打包 zip 下载。
+// 后端给分组数据 → 前端离屏渲染各供应商 PO 版式 → html2canvas 截图 → jsPDF 出 PDF → jszip 打包。
+const exportDocs = ref([]); // 当前离屏渲染的供应商列表
+const exportMeta = reactive({ poNo: '', date: '', deliveryDate: '' });
+const docEls = ref([]); // 各供应商 PO DOM 元素
+const exporting = ref(false);
+const setDocEl = (el, i) => {
+  docEls.value[i] = el;
+};
+
+const triggerDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// 等元素内所有图片（logo/公章 base64）解码完成，避免 html2canvas 截到空白。
+const waitForImages = async el => {
+  const imgs = Array.from(el.querySelectorAll('img'));
+  await Promise.all(
+    imgs.map(img =>
+      img.complete && img.naturalWidth
+        ? Promise.resolve()
+        : img.decode().catch(() => {})
+    )
+  );
+};
+
+// 单个供应商 DOM → 单份 PDF（按 A4 宽等比，超一页自动分页）。
+const elementToPdfBlob = async el => {
+  await waitForImages(el);
+  const canvas = await html2canvas(el, {
+    scale: 2,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+  });
+  const img = canvas.toDataURL('image/jpeg', 0.92);
+  const pdf = new JsPDF({ unit: 'pt', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const imgH = (canvas.height * pageW) / canvas.width;
+  let heightLeft = imgH;
+  let position = 0;
+  pdf.addImage(img, 'JPEG', 0, position, pageW, imgH);
+  heightLeft -= pageH;
+  while (heightLeft > 0) {
+    position -= pageH;
+    pdf.addPage();
+    pdf.addImage(img, 'JPEG', 0, position, pageW, imgH);
+    heightLeft -= pageH;
+  }
+  return pdf.output('blob');
+};
+
+const exportBySupplier = async po => {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/purchase_orders/${po.id}/export_data`
+    );
+    const payload = data.payload || {};
+    const suppliers = payload.suppliers || [];
+    if (!suppliers.length) {
+      useAlert('该采购单没有可导出的明细');
+      return;
+    }
+    exportMeta.poNo = payload.po_no || po.poNo;
+    exportMeta.date = payload.date || '';
+    exportMeta.deliveryDate = payload.delivery_date || '';
+    docEls.value = [];
+    exportDocs.value = suppliers;
+    await nextTick();
+    await new Promise(resolve => {
+      setTimeout(resolve, 60);
+    });
+    const zip = new JSZip();
+    const used = {};
+    for (let i = 0; i < suppliers.length; i += 1) {
+      const el = docEls.value[i];
+      if (el) {
+        // 顺序生成：html2canvas/jsPDF 逐份处理，避免并发抢渲染。
+        // eslint-disable-next-line no-await-in-loop
+        const blob = await elementToPdfBlob(el);
+        let base = (suppliers[i].name || '供应商').replace(
+          /[/\\:*?"<>|]/g,
+          '_'
+        );
+        used[base] = (used[base] || 0) + 1;
+        if (used[base] > 1) base = `${base}-${used[base]}`;
+        zip.file(`${base}.pdf`, blob);
+      }
+    }
+    const content = await zip.generateAsync({ type: 'blob' });
+    triggerDownload(content, `采购单-${exportMeta.poNo}-按供应商.zip`);
+  } catch {
+    useAlert('导出失败，请重试');
+  } finally {
+    exportDocs.value = [];
+    exporting.value = false;
+  }
+};
+
 // 只读查看
 const viewDialogRef = ref(null);
 const viewing = ref(null);
@@ -63,7 +174,7 @@ const viewFields = computed(() => {
     { label: '归属人', value: p.productionOrderOwnerName },
     { label: '状态', value: STATUS_LABELS[p.status] || p.status },
     { label: '回复交期', value: day(p.expectedDate) },
-    { label: '跟进日期', value: day(p.followUpDate) },
+    { label: '交货时间', value: day(p.deliveryDate) },
     {
       label: '异常',
       value: p.hasException ? p.exceptionNote || '有异常' : '无',
@@ -175,7 +286,7 @@ const form = reactive({
   productionOrderId: '',
   status: 'DRAFT',
   expectedDate: '',
-  followUpDate: '',
+  deliveryDate: '',
   hasException: false,
   exceptionNote: '',
   rows: [],
@@ -242,7 +353,7 @@ const resetForm = () => {
     productionOrderId: '',
     status: 'DRAFT',
     expectedDate: '',
-    followUpDate: '',
+    deliveryDate: '',
     hasException: false,
     exceptionNote: '',
     rows: [blankRow()],
@@ -266,7 +377,7 @@ const openEdit = po => {
     productionOrderId: po.productionOrderId ? String(po.productionOrderId) : '',
     status: po.status,
     expectedDate: po.expectedDate ? po.expectedDate.slice(0, 10) : '',
-    followUpDate: po.followUpDate ? po.followUpDate.slice(0, 10) : '',
+    deliveryDate: po.deliveryDate ? po.deliveryDate.slice(0, 10) : '',
     hasException: !!po.hasException,
     exceptionNote: po.exceptionNote || '',
     rows: (po.purchaseItems || []).map(it => ({
@@ -315,7 +426,7 @@ const submit = async () => {
     productionOrderId: form.productionOrderId || null,
     status: form.status,
     expectedDate: form.expectedDate || null,
-    followUpDate: form.followUpDate || null,
+    deliveryDate: form.deliveryDate || null,
     hasException: form.hasException,
     exceptionNote: form.exceptionNote,
     purchaseItemsAttributes: itemsAttributes,
@@ -412,7 +523,7 @@ onMounted(async () => {
             </div>
             <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
               <span>回复交期：{{ day(p.expectedDate) }}</span>
-              <span>跟进：{{ day(p.followUpDate) }}</span>
+              <span>交货：{{ day(p.deliveryDate) }}</span>
             </div>
           </div>
           <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
@@ -428,7 +539,7 @@ onMounted(async () => {
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">回复交期</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">跟进</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">交货时间</th>
               <th class="px-3 py-3" />
             </tr>
           </thead>
@@ -460,7 +571,7 @@ onMounted(async () => {
                 {{ day(p.expectedDate) }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
-                {{ day(p.followUpDate) }}
+                {{ day(p.deliveryDate) }}
               </td>
               <td class="px-3 py-3 text-right whitespace-nowrap">
                 <div class="flex justify-end gap-1">
@@ -476,6 +587,13 @@ onMounted(async () => {
                     variant="ghost"
                     size="sm"
                     @click="openEdit(p)"
+                  />
+                  <Button
+                    :label="exporting ? '导出中…' : '按供应商导出'"
+                    variant="ghost"
+                    size="sm"
+                    :disabled="exporting"
+                    @click="exportBySupplier(p)"
                   />
                   <MesReturnControls
                     :record="p"
@@ -496,6 +614,7 @@ onMounted(async () => {
     </div>
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
       width="3xl"
       overflow-y-auto
@@ -558,11 +677,14 @@ onMounted(async () => {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">回复采购时间</label>
-            <Input v-model="form.expectedDate" type="date" />
+            <DatePicker v-model="form.expectedDate" block />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">跟进采购时间</label>
-            <Input v-model="form.followUpDate" type="date" />
+            <label class="text-heading-3 text-n-slate-12">
+              交货时间
+              <span class="text-n-slate-10">（导出合同"三、交货时间"用）</span>
+            </label>
+            <DatePicker v-model="form.deliveryDate" block />
           </div>
         </div>
 
@@ -659,7 +781,9 @@ onMounted(async () => {
             </div>
             <div class="flex items-center gap-2 md:col-span-4">
               <label class="text-xs shrink-0 text-n-slate-11">实际到料</label>
-              <Input v-model="row.arrivalDate" type="date" class="flex-1" />
+              <div class="flex-1">
+                <DatePicker v-model="row.arrivalDate" block />
+              </div>
             </div>
             <Input
               v-model="row.remark"
@@ -684,11 +808,24 @@ onMounted(async () => {
 
     <MesViewDialog
       ref="viewDialogRef"
+      width="5xl"
       :title="viewing ? `采购单 ${viewing.poNo}` : '采购单明细'"
       :fields="viewFields"
       items-title="采购明细"
       :item-columns="VIEW_ITEM_COLS"
       :items="viewItems"
     />
+
+    <!-- 离屏渲染各供应商 PO 版式，供 html2canvas 截图导出 PDF（不可见、不占布局）-->
+    <div class="fixed top-0 -left-[99999px] pointer-events-none">
+      <div v-for="(s, i) in exportDocs" :key="i" :ref="el => setDocEl(el, i)">
+        <MesPoSupplierDoc
+          :data="s"
+          :po-no="exportMeta.poNo"
+          :date="exportMeta.date"
+          :delivery-date="exportMeta.deliveryDate"
+        />
+      </div>
+    </div>
   </div>
 </template>

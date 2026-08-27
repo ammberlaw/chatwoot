@@ -155,6 +155,7 @@ const blankForm = () => ({
   taxRate: '',
   invoiceTitle: '',
   taxNo: '',
+  billEntity: 'wintouch',
   bankName: '',
   bankAccount: '',
   bankAddress: '',
@@ -169,6 +170,11 @@ const removedItemIds = ref([]);
 // 存量供应商可能还没录物料（历史数据），编辑时不强制补齐；新建一律必填。
 const hadItems = ref(false);
 const form = reactive(blankForm());
+// 开票主体：决定按供应商拆单导出时套哪个采购单模板。
+const BILL_ENTITY_OPTIONS = [
+  { value: 'wintouch', label: '联合触控（未税·采购订单）' },
+  { value: 'liontek', label: '联迪（含税·采购合同）' },
+];
 
 // 含税单价 = 未税单价 × (1 + 税率%)，随表单税率实时算。
 const taxedPrice = row => {
@@ -236,6 +242,7 @@ const openEdit = s => {
     taxRate: s.taxRate ?? '',
     invoiceTitle: s.invoiceTitle || '',
     taxNo: s.taxNo || '',
+    billEntity: s.billEntity || 'wintouch',
     bankName: s.bankName || '',
     bankAccount: s.bankAccount || '',
     bankAddress: s.bankAddress || '',
@@ -285,6 +292,7 @@ const submit = async () => {
     email: trimmed(form.email) || null,
     address: trimmed(form.address) || null,
     taxRate: form.taxRate === '' ? null : form.taxRate,
+    billEntity: form.billEntity,
     invoiceTitle: trimmed(form.invoiceTitle) || null,
     taxNo: trimmed(form.taxNo) || null,
     bankName: trimmed(form.bankName) || null,
@@ -525,6 +533,7 @@ onMounted(() => {
     </div>
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
       width="6xl"
       overflow-y-auto
@@ -717,9 +726,22 @@ onMounted(() => {
               <Input v-model="form.invoiceTitle" />
             </div>
           </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">开票税号</label>
-            <Input v-model="form.taxNo" />
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1">
+              <label class="text-heading-3 text-n-slate-12">开票税号</label>
+              <Input v-model="form.taxNo" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-heading-3 text-n-slate-12">
+                开票主体（按供应商拆单导出用）
+              </label>
+              <SelectCard
+                size="form"
+                :model-value="form.billEntity"
+                :options="BILL_ENTITY_OPTIONS"
+                @update:model-value="v => (form.billEntity = v)"
+              />
+            </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
@@ -749,6 +771,7 @@ onMounted(() => {
     </Dialog>
 
     <Dialog
+      :dismissible="false"
       ref="confirmRef"
       type="alert"
       width="sm"

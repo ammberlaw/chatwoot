@@ -26,7 +26,9 @@
 #  fk_rails_...  (parent_id => crm_option_items.id) ON DELETE => cascade
 #
 class Crm::OptionItem < ApplicationRecord
-  CATEGORIES = %w[customer_group customer_source].freeze
+  CATEGORIES = %w[customer_group customer_source product_group].freeze
+  # 限二级的类别（客户分组/来源）；product_group 为不限层级的产品分组树，只防环。
+  TWO_LEVEL_CATEGORIES = %w[customer_group customer_source].freeze
 
   # 首次访问按现有枚举播种为一级项（含中文显示名）。
   DEFAULTS = {
@@ -51,10 +53,24 @@ class Crm::OptionItem < ApplicationRecord
   validates :code, presence: true, uniqueness: { scope: %i[account_id category] }
   validate :parent_same_account_and_category
   validate :single_level_depth
+  validate :parent_not_descendant
 
   scope :for_category, ->(category) { where(category: category) }
   scope :roots, -> { where(parent_id: nil) }
   scope :ordered, -> { order(:position, :id) }
+
+  # 本节点 + 全部后代的 id（用于按分组筛选：点父节点连带其整棵子树的产品）。
+  def self_and_descendant_ids
+    ids = [id]
+    frontier = [id]
+    until frontier.empty?
+      child_ids = self.class.where(account_id: account_id, parent_id: frontier).pluck(:id)
+      child_ids -= ids
+      ids.concat(child_ids)
+      frontier = child_ids
+    end
+    ids
+  end
 
   # 该账号该类别若为空，按现有枚举播种一级项。并发下靠唯一索引兜底。
   def self.ensure_defaults!(account, category)
@@ -80,10 +96,19 @@ class Crm::OptionItem < ApplicationRecord
     errors.add(:parent_id, '父项须同账号同类别')
   end
 
-  # 只允许二级：子项的父项必须是一级（父项自身不能再有父）。
+  # 只允许二级（客户分组/来源）：子项的父项必须是一级。product_group 不限层级，跳过。
   def single_level_depth
     return if parent_id.blank? || parent.blank?
+    return unless TWO_LEVEL_CATEGORIES.include?(category)
 
     errors.add(:parent_id, '只支持二级层级') if parent.parent_id.present?
+  end
+
+  # 不限层级类别防环：父项不能是自己或自己的后代。
+  def parent_not_descendant
+    return if parent_id.blank? || new_record?
+    return unless parent_id == id || self_and_descendant_ids.include?(parent_id)
+
+    errors.add(:parent_id, '不能选择自身或子孙作为上级')
   end
 end

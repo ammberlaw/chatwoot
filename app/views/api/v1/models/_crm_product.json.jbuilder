@@ -14,4 +14,5 @@ json.sale_price_micros resource.sale_price_micros
 json.pricing_currency resource.pricing_currency
 json.is_active resource.is_active
 json.remark resource.remark
+json.group_code resource.group_code
 json.updated_at resource.updated_at

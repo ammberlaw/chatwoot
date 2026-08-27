@@ -69,6 +69,7 @@ const reactivate = async () => {
     />
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
       confirm-button-color="amber"
       title="退回上一环节"

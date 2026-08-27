@@ -284,6 +284,9 @@ Rails.application.routes.draw do
             resources :warehouses, except: [:show]
             resources :materials
             resources :products, only: [:index, :create, :update, :destroy]
+            resources :product_groups, only: [:index, :create, :update, :destroy] do
+              collection { post :reorder }
+            end
             resources :boms do
               collection { post :stage_blob }
               member do
@@ -298,6 +301,8 @@ Rails.application.routes.draw do
               member do
                 post :return_document
                 post :reactivate
+                get :export
+                get :export_data
               end
             end
             resources :stock_entries do

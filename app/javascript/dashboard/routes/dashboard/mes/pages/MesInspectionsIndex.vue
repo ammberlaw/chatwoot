@@ -70,6 +70,18 @@ const viewFields = computed(() => {
     { label: '备注', value: r.remark },
   ];
 });
+// 查看时展示留证附件（照片缩略图 / 视频内联 / 附件下载）。
+const viewAttachments = computed(() => {
+  const r = viewing.value || {};
+  const groups = [];
+  if (r.photos?.length)
+    groups.push({ label: '检验照片', kind: 'image', files: r.photos });
+  if (r.videos?.length)
+    groups.push({ label: '检测视频', kind: 'video', files: r.videos });
+  if (r.files?.length)
+    groups.push({ label: '附件（报告等）', kind: 'file', files: r.files });
+  return groups;
+});
 
 const productionOrders = ref([]);
 const productionOrderOptions = computed(() => [
@@ -344,8 +356,9 @@ onMounted(() => {
     </div>
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
-      width="lg"
+      width="3xl"
       confirm-button-color="iris"
       title="新增质量检验"
       description="按数量记录合格/不良；结果留空则按不良数自动判定。"
@@ -460,6 +473,12 @@ onMounted(() => {
       </div>
     </Dialog>
 
-    <MesViewDialog ref="viewDialogRef" title="质检明细" :fields="viewFields" />
+    <MesViewDialog
+      ref="viewDialogRef"
+      title="质检明细"
+      width="3xl"
+      :fields="viewFields"
+      :attachments="viewAttachments"
+    />
   </div>
 </template>

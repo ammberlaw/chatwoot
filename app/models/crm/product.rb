@@ -6,6 +6,7 @@
 #  id                :bigint           not null, primary key
 #  category          :string
 #  cost_price_micros :bigint
+#  group_code        :string
 #  is_active         :boolean          default(TRUE), not null
 #  name              :string           not null
 #  pricing_currency  :string           default("USD")
@@ -25,10 +26,12 @@
 #  index_crm_products_on_account_and_product_line     (account_id,product_line)
 #  index_crm_products_on_account_and_source_category  (account_id,source_category)
 #  index_crm_products_on_account_id                   (account_id)
+#  index_crm_products_on_account_id_and_group_code    (account_id,group_code)
 #  index_crm_products_on_account_id_and_sku           (account_id,sku) UNIQUE
 #
 class Crm::Product < ApplicationRecord
-  CATEGORIES = %w[STANDARD CUSTOMIZED ACCESSORY OTHER].freeze
+  # 仓别分类（现行，与物料/供应商供应物料同一套值）+ 旧品类值（存量数据兼容）。
+  CATEGORIES = %w[FINISHED SEMI RAW_MAIN RAW_AUX DEFECTIVE STANDARD CUSTOMIZED ACCESSORY OTHER].freeze
 
   belongs_to :account
 

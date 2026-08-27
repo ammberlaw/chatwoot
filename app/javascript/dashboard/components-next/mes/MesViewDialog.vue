@@ -17,6 +17,10 @@ const props = defineProps({
   // [{ label, key, align }]
   itemColumns: { type: Array, default: () => [] },
   items: { type: Array, default: () => [] },
+  // 附件分组：[{ label, kind: 'image'|'video'|'file', files: [{ filename, url }] }]。
+  attachments: { type: Array, default: () => [] },
+  // 弹窗宽度档（列多的详情如采购单可传更大，如 '5xl'）。
+  width: { type: String, default: '2xl' },
 });
 
 const dialogRef = ref(null);
@@ -45,7 +49,7 @@ const printDoc = () => printNode(contentRef.value, props.title);
 <template>
   <Dialog
     ref="dialogRef"
-    width="2xl"
+    :width="width"
     overflow-y-auto
     :show-confirm-button="false"
     cancel-button-label="关闭"
@@ -83,7 +87,61 @@ const printDoc = () => printNode(contentRef.value, props.title);
           </div>
         </div>
 
-        <div v-if="itemColumns.length" class="pt-2 border-t border-n-weak">
+        <!-- 附件区：照片缩略图 / 视频内联 / 文件下载链接 -->
+        <div
+          v-for="grp in attachments"
+          :key="grp.label"
+          class="pt-2 border-t border-n-weak"
+        >
+          <div
+            class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
+            {{ grp.label }}（{{ grp.files.length }}）
+          </div>
+          <div v-if="grp.kind === 'image'" class="flex flex-wrap gap-2">
+            <a
+              v-for="f in grp.files"
+              :key="f.url"
+              :href="f.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              :title="f.filename"
+            >
+              <img
+                :src="f.url"
+                :alt="f.filename"
+                class="object-cover border rounded-lg h-28 w-28 border-n-weak hover:opacity-90"
+              />
+            </a>
+          </div>
+          <div v-else-if="grp.kind === 'video'" class="flex flex-wrap gap-3">
+            <video
+              v-for="f in grp.files"
+              :key="f.url"
+              :src="f.url"
+              controls
+              class="border rounded-lg h-44 border-n-weak"
+            />
+          </div>
+          <div v-else class="flex flex-col gap-1">
+            <a
+              v-for="f in grp.files"
+              :key="f.url"
+              :href="f.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 text-n-iris-11 hover:underline w-fit"
+            >
+              <span class="i-lucide-paperclip size-4 shrink-0" />
+              {{ f.filename }}
+            </a>
+          </div>
+        </div>
+
+        <div
+          v-if="itemColumns.length"
+          class="pt-2 overflow-x-auto border-t border-n-weak"
+        >
           <div
             v-if="itemsTitle"
             class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
@@ -96,7 +154,7 @@ const printDoc = () => printNode(contentRef.value, props.title);
                 <th
                   v-for="c in itemColumns"
                   :key="c.key"
-                  class="px-2 py-2 font-medium"
+                  class="px-2 py-2 font-medium whitespace-nowrap"
                   :class="c.align === 'right' ? 'text-right' : ''"
                 >
                   {{ c.label }}

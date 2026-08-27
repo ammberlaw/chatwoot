@@ -7,6 +7,7 @@
 #  bank_account  :string
 #  bank_address  :string
 #  bank_name     :string
+#  bill_entity   :string           default("wintouch"), not null
 #  category      :string
 #  contact_name  :string
 #  department    :string
@@ -45,8 +46,12 @@ class Mes::Supplier < ApplicationRecord
 
   before_validation :assign_supplier_no, on: :create
 
+  # 开票主体/税模式：决定按供应商拆单导出套哪个采购单模板（wintouch=未税 / liontek=含税×1.13）。
+  BILL_ENTITIES = %w[wintouch liontek].freeze
+
   validates :name, presence: true
   validates :supplier_no, presence: true, uniqueness: { scope: :account_id }
+  validates :bill_entity, inclusion: { in: BILL_ENTITIES }
 
   scope :active, -> { where(is_active: true) }
 

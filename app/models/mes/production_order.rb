@@ -300,7 +300,16 @@ class Mes::ProductionOrder < ApplicationRecord
     factor = qty.to_d / bom.base_qty.to_d
     items = bom.bom_items
     items = items.select { |i| i.category == category } if category.present?
-    items.map { |item| requirement_row(item, factor) }
+    product_map = crm_product_map_for(items)
+    items.map { |item| requirement_row(item, factor, product_map) }
+  end
+
+  # BOM 料号 → 产品档案 id 映射：料号对上产品 sku 时带回，供生产领料按产品档案自动选料。
+  def crm_product_map_for(items)
+    codes = items.filter_map(&:material_no).uniq
+    return {} if codes.empty?
+
+    Crm::Product.where(account_id: account_id, sku: codes).pluck(:sku, :id).to_h
   end
 
   # ── 接单确认（P1）：接单只是「表态」，不阻塞流程；计时始终以进入阶段时间为准 ──
@@ -492,9 +501,10 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   # 单行用料需求（用量按本单产量/基准产量放大）。
-  def requirement_row(item, factor)
+  def requirement_row(item, factor, product_map = {})
     {
       mes_material_id: item.mes_material_id,
+      crm_product_id: product_map[item.material_no],
       mes_supplier_id: item.mes_material&.default_supplier_id,
       material_no: item.material_no,
       material_name: item.material_name,

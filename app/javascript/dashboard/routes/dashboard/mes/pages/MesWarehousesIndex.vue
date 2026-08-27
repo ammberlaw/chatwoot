@@ -101,6 +101,7 @@ onMounted(() => store.get());
     </div>
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
       width="lg"
       confirm-button-color="iris"

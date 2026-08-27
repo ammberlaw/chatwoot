@@ -469,6 +469,7 @@ onMounted(async () => {
     </div>
 
     <Dialog
+      :dismissible="false"
       ref="dialogRef"
       width="3xl"
       overflow-y-auto
@@ -502,9 +503,10 @@ onMounted(async () => {
               v-if="form.purchaseOrderId"
               label="按此采购单预填收货明细"
               type="button"
-              variant="ghost"
+              color="iris"
               size="sm"
-              class="self-start"
+              icon="i-lucide-list-plus"
+              class="self-start mt-1 po-prefill-btn"
               @click="prefillFromPO"
             />
           </div>

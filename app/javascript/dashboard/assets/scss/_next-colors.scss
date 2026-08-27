@@ -534,6 +534,15 @@ body.theme-classic:not(.dark) main .bg-n-solid-1\/50 {
   border-color: #e6e6ec;
 }
 
+// 「按采购单预填收货明细」按钮：玻璃/蓝/beebot 用品牌紫(iris solid)，经典灰改主题黄(amber)。
+// 紫玻璃不动（默认 iris 即紫）；仅经典灰作用域把该按钮底色/悬停覆盖成 amber。
+body.theme-classic .po-prefill-btn {
+  @apply bg-n-amber-9 text-white;
+}
+body.theme-classic .po-prefill-btn:hover:enabled {
+  @apply bg-n-amber-10;
+}
+
 // MES 裸页圆弧「玻璃」外框：玻璃(默认)/蓝/beebot 通用，与看板/流水图已有玻璃外框统一观感。
 // 经典灰下方另有更具体规则(body.theme-classic…)覆盖成白卡；已自带卡的页(bg-n-solid-1)由 :not 排除不叠加。
 .mes-canvas > *:not([class*='bg-n-solid-1']) {
