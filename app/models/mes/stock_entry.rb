@@ -210,10 +210,15 @@ class Mes::StockEntry < ApplicationRecord
     production_order.enter_stage!(to_stage, at: timestamp)
   end
 
-  # 原料入库过账：按物料把本次收货量累加回采购单明细 received_qty，并重算采购单收货状态。
+  # 原料入库过账：按物料把本次收货量累加回采购单明细 received_qty、回填实际到料日期，并重算收货状态。
   # 修复历史遗留（received_qty 从不回写，导致「按采购单收货」剩余量预填失效）+ 支撑齐套判定。
+  # 实际到料 = 本次入库日期（首次到料自动填，分批到料覆盖为最近一次；采购员仍可在采购单上手动改）。
+  # 本次到料日期：入库单填了实际入库日就用它，否则用过账当下。
+  def receipt_arrival_at = actual_inbound_date || Time.current
+
   def sync_purchase_receipt!
     po = purchase_order
+    arrival = receipt_arrival_at
     stock_entry_items.each do |item|
       po_item = po.purchase_items.find do |pi|
         (item.mes_material_id && pi.mes_material_id == item.mes_material_id) ||
@@ -221,7 +226,10 @@ class Mes::StockEntry < ApplicationRecord
       end
       next if po_item.nil?
 
-      po_item.update_column(:received_qty, po_item.received_qty.to_d + item.effective_qty)
+      po_item.update_columns(
+        received_qty: po_item.received_qty.to_d + item.effective_qty,
+        arrival_date: arrival
+      )
     end
     po.reload.recompute_receipt_status!
   end

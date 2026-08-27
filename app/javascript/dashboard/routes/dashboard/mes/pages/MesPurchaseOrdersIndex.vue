@@ -168,6 +168,7 @@ const blankRow = () => ({
   mesSupplierId: '',
   arrivalDate: '',
   qty: '1',
+  rate: '',
   remark: '',
 });
 const form = reactive({
@@ -185,6 +186,10 @@ const rowIncomplete = r =>
   (r.itemType === 'PRODUCT' ? !r.crmProductId : !r.mesMaterialId);
 const invalid = computed(
   () => !form.rows.length || form.rows.some(rowIncomplete)
+);
+// 采购单合计（元）= Σ 数量 × 单价，实时预览（保存后后端按 amount_micros 汇总总额）。
+const orderTotal = computed(() =>
+  form.rows.reduce((s, r) => s + Number(r.qty || 0) * Number(r.rate || 0), 0)
 );
 
 const addRow = () => form.rows.push(blankRow());
@@ -272,6 +277,7 @@ const openEdit = po => {
       mesSupplierId: it.mesSupplierId ? String(it.mesSupplierId) : '',
       arrivalDate: it.arrivalDate ? it.arrivalDate.slice(0, 10) : '',
       qty: String(it.qty),
+      rate: it.rateMicros ? String(it.rateMicros / 1e6) : '',
       remark: it.remark || '',
     })),
   });
@@ -300,6 +306,7 @@ const submit = async () => {
       arrivalDate: r.arrivalDate || null,
       unit: r.itemType === 'PRODUCT' ? productUnit(r.crmProductId) : undefined,
       qty: Number(r.qty),
+      rateMicros: r.rate ? Math.round(Number(r.rate) * 1e6) : null,
       remark: r.remark || '',
     })),
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
@@ -597,7 +604,7 @@ onMounted(async () => {
                 @update:model-value="v => (row.itemType = v)"
               />
             </div>
-            <div class="md:col-span-4">
+            <div class="md:col-span-3">
               <MesProductPicker
                 v-if="row.itemType === 'PRODUCT'"
                 :account-id="accountId"
@@ -614,7 +621,7 @@ onMounted(async () => {
                 placeholder="选择物料"
               />
             </div>
-            <div class="md:col-span-3">
+            <div class="md:col-span-2">
               <ComboBox
                 v-model="row.mesSupplierId"
                 :options="supplierOptions"
@@ -625,6 +632,12 @@ onMounted(async () => {
               v-model="row.qty"
               type="number"
               placeholder="数量"
+              class="md:col-span-2"
+            />
+            <Input
+              v-model="row.rate"
+              type="number"
+              placeholder="单价"
               class="md:col-span-2"
             />
             <button
@@ -654,6 +667,17 @@ onMounted(async () => {
               class="md:col-span-4"
             />
           </div>
+        </div>
+        <div
+          v-if="orderTotal > 0"
+          class="flex justify-end text-heading-3 text-n-slate-12"
+        >
+          合计：¥{{
+            orderTotal.toLocaleString('zh-CN', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          }}
         </div>
       </div>
     </Dialog>

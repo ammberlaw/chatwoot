@@ -12,5 +12,7 @@ json.supplier_name resource.mes_supplier&.name
 json.arrival_date resource.arrival_date
 json.qty resource.qty
 json.unit resource.unit
+json.rate_micros resource.rate_micros
+json.amount_micros resource.amount_micros
 json.received_qty resource.received_qty
 json.remark resource.remark

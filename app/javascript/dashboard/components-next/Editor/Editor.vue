@@ -28,6 +28,8 @@ const props = defineProps({
   medium: { type: String, default: '' },
   enableTextColor: { type: Boolean, default: false },
   enableInlineImagePaste: { type: Boolean, default: false },
+  // 开启后：正文区内部滚动（限高），菜单栏/工具栏固定在上方不随内容滚走（长邮件场景）。
+  stickyToolbar: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'executeCopilotAction']);
@@ -99,6 +101,7 @@ watch(
       class="flex flex-col w-full gap-2 px-3 py-3 transition-all duration-500 ease-in-out border rounded-lg editor-wrapper bg-n-alpha-black2"
       :class="[
         {
+          'sticky-toolbar-on': stickyToolbar,
           'cursor-not-allowed opacity-50 pointer-events-none !bg-n-alpha-black2 disabled:border-n-weak dark:disabled:border-n-weak':
             disabled,
           'border-n-brand dark:border-n-brand': isFocused,
@@ -179,6 +182,14 @@ watch(
       top: unset !important;
       @apply ltr:left-[-0.188rem] rtl:right-[-0.188rem] !important;
     }
+  }
+}
+
+// 开启 stickyToolbar：正文区限高内部滚动，菜单栏/工具栏在其上方固定不动（长邮件不被顶走）。
+.editor-wrapper.sticky-toolbar-on {
+  :deep(.ProseMirror-menubar-wrapper .ProseMirror) {
+    max-height: 22rem;
+    overflow-y: auto;
   }
 }
 </style>

@@ -75,7 +75,8 @@ const viewFields = computed(() => {
 const VIEW_ITEM_COLS = [
   { label: '物料/产品', key: 'name' },
   { label: '编码', key: 'materialNo' },
-  { label: '数量', key: 'qty', align: 'right' },
+  { label: '应收', key: 'qty', align: 'right' },
+  { label: '实收', key: 'receivedQty', align: 'right' },
   { label: '单位', key: 'unit' },
   { label: '备注', key: 'remark' },
 ];
@@ -84,10 +85,22 @@ const viewItems = computed(() =>
     name: it.materialName || it.productName,
     materialNo: it.materialNo,
     qty: it.qty,
+    receivedQty: it.receivedQty ?? it.qty,
     unit: it.unit,
     remark: it.remark,
   }))
 );
+
+// 列表「入库量」摘要：项数 · 实收合计（一单多料时汇总）。
+const entryQtySummary = e => {
+  const items = e.stockEntryItems || [];
+  if (!items.length) return '—';
+  const total = items.reduce(
+    (s, it) => s + Number(it.receivedQty ?? it.qty ?? 0),
+    0
+  );
+  return `${items.length}项·${total}`;
+};
 
 const warehouseOptions = computed(() =>
   (warehousesStore.getRecords || []).map(w => ({
@@ -362,6 +375,7 @@ onMounted(async () => {
             <div class="flex flex-wrap gap-3 mt-2 text-xs text-n-slate-11">
               <span>类型：{{ purposeLabel(e.purpose) }}</span>
               <span>采购单：{{ e.purchaseOrderNo || '—' }}</span>
+              <span>入库量：{{ entryQtySummary(e) }}</span>
             </div>
             <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
               <span>归属人：{{ e.productionOrderOwnerName || '—' }}</span>
@@ -388,6 +402,7 @@ onMounted(async () => {
               <th class="px-3 py-3 font-medium">单号</th>
               <th class="px-3 py-3 font-medium">类型</th>
               <th class="px-3 py-3 font-medium">采购单</th>
+              <th class="px-3 py-3 font-medium">入库量</th>
               <th class="px-3 py-3 font-medium">归属人</th>
               <th class="px-3 py-3 font-medium">核对</th>
               <th class="px-3 py-3 font-medium">状态</th>
@@ -405,6 +420,9 @@ onMounted(async () => {
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ e.purchaseOrderNo || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11 tabular-nums">
+                {{ entryQtySummary(e) }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ e.productionOrderOwnerName || '—' }}
@@ -473,10 +491,22 @@ onMounted(async () => {
             />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">
-              <input v-model="form.isChecked" type="checkbox" class="mr-1" />
-              已核对物料齐整度
-            </label>
+            <label class="text-heading-3 text-n-slate-12">关联采购单</label>
+            <SelectCard
+              size="form"
+              :model-value="form.purchaseOrderId"
+              :options="purchaseOrderOptions"
+              @update:model-value="v => (form.purchaseOrderId = v)"
+            />
+            <Button
+              v-if="form.purchaseOrderId"
+              label="按此采购单预填收货明细"
+              type="button"
+              variant="ghost"
+              size="sm"
+              class="self-start"
+              @click="prefillFromPO"
+            />
           </div>
         </div>
 
@@ -526,24 +556,12 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="flex items-end gap-2">
-          <div class="flex flex-col flex-1 gap-1">
-            <label class="text-heading-3 text-n-slate-12">关联采购单</label>
-            <SelectCard
-              size="form"
-              :model-value="form.purchaseOrderId"
-              :options="purchaseOrderOptions"
-              @update:model-value="v => (form.purchaseOrderId = v)"
-            />
-          </div>
-          <Button
-            label="按采购单收货"
-            type="button"
-            color="slate"
-            size="sm"
-            @click="prefillFromPO"
-          />
-        </div>
+        <label
+          class="inline-flex items-center gap-2 cursor-pointer text-heading-3 text-n-slate-12"
+        >
+          <input v-model="form.isChecked" type="checkbox" class="size-4" />
+          已核对物料齐整度
+        </label>
 
         <div class="flex items-center justify-between">
           <span class="text-heading-3 text-n-slate-12">

@@ -899,8 +899,7 @@ const canPreviewExisting = f =>
 const attPreview = ref(null); // { url, name, isImage, revoke }
 const openFilePreview = f => {
   if (!canPreviewFile(f)) return;
-  const isImage =
-    (f.type || '').startsWith('image/') || isImgName(f.name);
+  const isImage = (f.type || '').startsWith('image/') || isImgName(f.name);
   attPreview.value = {
     url: URL.createObjectURL(f),
     name: f.name,
@@ -1761,6 +1760,7 @@ defineExpose({ open, close });
                 channel-type="Channel::Email"
                 enable-text-color
                 enable-inline-image-paste
+                sticky-toolbar
                 :enable-canned-responses="false"
                 :show-character-count="false"
                 :placeholder="L.bodyPlaceholder"
@@ -2602,7 +2602,9 @@ defineExpose({ open, close });
       <div
         class="flex items-center justify-between h-14 gap-3 px-4 border-b bg-n-slate-12 border-white/15 shrink-0"
       >
-        <span class="text-sm truncate text-white/90">{{ attPreview.name }}</span>
+        <span class="text-sm truncate text-white/90">{{
+          attPreview.name
+        }}</span>
         <div class="flex items-center flex-shrink-0 gap-2">
           <a
             :href="attPreview.url"
