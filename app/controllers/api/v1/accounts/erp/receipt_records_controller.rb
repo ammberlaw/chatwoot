@@ -6,7 +6,7 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
   def index
     scope = filtered_scope
     @receipts_count = scope.count
-    @summary = { amount_micros: scope.normal.sum(:amount_micros) }
+    @summary = { amount_micros: scope.normal.sum(Arel.sql(Erp::ReceiptRecord::BASE_AMOUNT_MICROS_SQL)) }
     @receipts = scope.includes(:crm_customer, :recorded_by, allocations: :receivable)
                      .order(received_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end

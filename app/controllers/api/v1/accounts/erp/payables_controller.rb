@@ -6,7 +6,8 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
   def index
     scope = filtered_scope
     @payables_count = scope.count
-    @summary = { total_micros: scope.sum(:total_amount_micros), paid_micros: scope.sum(:paid_amount_micros) }
+    @summary = { total_micros: scope.sum(Arel.sql(Erp::Payable::BASE_TOTAL_MICROS_SQL)),
+                 paid_micros: scope.sum(Arel.sql(Erp::Payable::BASE_PAID_MICROS_SQL)) }
     @payables = scope.includes(:mes_supplier, :mes_purchase_order)
                      .order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
@@ -44,14 +45,19 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
   def open_list
     scope = Current.account.erp_payables.open
     scope = scope.where(mes_supplier_id: params[:mes_supplier_id]) if params[:mes_supplier_id].present?
+    # 只出同币种的候选（同上）。
+    scope = scope.where(currency: params[:currency]) if params[:currency].present?
     @payables = scope.includes(:mes_supplier, :mes_purchase_order).order(:payable_no)
     render 'api/v1/accounts/erp/payables/index_plain'
   end
 
   # 供应商对账：按供应商汇总应付、已付、未付。
   def supplier_statement
+    # 同一个供应商可能既有美元应付又有人民币应付，必须各自折本位币再加。
     rows = Current.account.erp_payables.group(:mes_supplier_id)
-                  .pluck(:mes_supplier_id, Arel.sql('SUM(total_amount_micros)'), Arel.sql('SUM(paid_amount_micros)'))
+                  .pluck(:mes_supplier_id,
+                         Arel.sql("SUM(#{Erp::Payable::BASE_TOTAL_MICROS_SQL})"),
+                         Arel.sql("SUM(#{Erp::Payable::BASE_PAID_MICROS_SQL})"))
     names = Current.account.mes_suppliers.where(id: rows.map(&:first)).pluck(:id, :name).to_h
     mapped = rows.map do |supplier_id, total, paid|
       { id: supplier_id, name: names[supplier_id], total_micros: total.to_i, paid_micros: paid.to_i,
@@ -69,11 +75,16 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
 
   private
 
+  FILTER_COLUMNS = { status: :status, mes_supplier_id: :mes_supplier_id, currency: :currency }.freeze
+
   def filtered_scope
     scope = Current.account.erp_payables
-    scope = scope.where(status: params[:status]) if params[:status].present?
-    scope = scope.where(mes_supplier_id: params[:mes_supplier_id]) if params[:mes_supplier_id].present?
+    FILTER_COLUMNS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
     scope = scope.open if params[:open] == 'true'
+    keyword_scope(scope)
+  end
+
+  def keyword_scope(scope)
     return scope if params[:q].blank?
 
     term = "%#{params[:q].strip}%"

@@ -74,6 +74,13 @@ class Erp::AllocationService
     ledger = ledger_scope.find_by(id: row[:ledger_id])
     raise Error, '要核销的台账不存在' if ledger.blank?
 
+    # 核销金额是**原币**直接记进台账的已收/已付，所以两边币种必须一致。
+    # 不卡的话，1000 美元的收款单核到人民币台账，就当成 1000 人民币记进去了。
+    if ledger.currency != @record.currency
+      raise Error, "单据是 #{@record.currency}、台账「#{ledger_no(ledger)}」是 #{ledger.currency}，" \
+                   '币种不一致不能核销；请先按同币种建账'
+    end
+
     available = outstanding_excluding_self(ledger)
     raise Error, "核销金额超出「#{ledger_no(ledger)}」的未结余额（可核销 #{fmt(available)}）" if row[:amount_micros] > available
 

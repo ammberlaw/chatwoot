@@ -21,23 +21,37 @@ class Api::V1::Accounts::Erp::DashboardController < Api::V1::Accounts::Erp::Base
 
   def kpis
     {
-      month_receipt: account.erp_receipt_records.normal.where(received_at: month_range).sum(:amount_micros),
-      month_payment: account.erp_payment_records.normal.where(paid_at: month_range).sum(:amount_micros),
-      receivable_balance: outstanding(account.erp_receivables, :received_amount_micros),
+      month_receipt: month_sum(account.erp_receipt_records.normal.where(received_at: month_range),
+                               Erp::ReceiptRecord::BASE_AMOUNT_MICROS_SQL),
+      month_payment: month_sum(account.erp_payment_records.normal.where(paid_at: month_range),
+                               Erp::PaymentRecord::BASE_AMOUNT_MICROS_SQL),
       overdue_receivable: overdue_amount,
-      payable_balance: outstanding(account.erp_payables, :paid_amount_micros),
       cash_balance: cash_balance,
       month_profit: month_profit,
       draft_voucher_count: account.erp_vouchers.where(status: Erp::Voucher::DRAFT).count
+    }.merge(ledger_balances)
+  end
+
+  def ledger_balances
+    {
+      receivable_balance: outstanding(account.erp_receivables, Erp::Receivable::BASE_TOTAL_MICROS_SQL,
+                                      Erp::Receivable::BASE_RECEIVED_MICROS_SQL),
+      payable_balance: outstanding(account.erp_payables, Erp::Payable::BASE_TOTAL_MICROS_SQL,
+                                   Erp::Payable::BASE_PAID_MICROS_SQL)
     }
+  end
+
+  def month_sum(scope, sql)
+    scope.sum(Arel.sql(sql))
   end
 
   def month_range
     Time.zone.today.all_month
   end
 
-  def outstanding(scope, paid_column)
-    scope.sum(:total_amount_micros) - scope.sum(paid_column)
+  # 看板是全公司口径，外币必须折本位币再加——直接 sum 原币等于把美元当人民币 1:1 算。
+  def outstanding(scope, total_sql, paid_sql)
+    scope.sum(Arel.sql(total_sql)) - scope.sum(Arel.sql(paid_sql))
   end
 
   # 逾期应收：到期日已过、且所属台账还没收清的分期金额。
@@ -48,8 +62,9 @@ class Api::V1::Accounts::Erp::DashboardController < Api::V1::Accounts::Erp::Base
            .where(due_date: ...Time.zone.today)
   end
 
+  # 分期表本身没有币种列，币种跟着所属台账走，所以按台账的汇率折。
   def overdue_amount
-    overdue_scope.sum(:amount_micros)
+    overdue_scope.sum(Arel.sql('ROUND(erp_receivable_installments.amount_micros * COALESCE(erp_receivables.exchange_rate, 1))'))
   end
 
   def overdue_installments

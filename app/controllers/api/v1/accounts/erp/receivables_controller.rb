@@ -8,8 +8,8 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     scope = filtered_scope
     @receivables_count = scope.count
     @summary = {
-      total_micros: scope.sum(:total_amount_micros),
-      received_micros: scope.sum(:received_amount_micros)
+      total_micros: scope.sum(Arel.sql(Erp::Receivable::BASE_TOTAL_MICROS_SQL)),
+      received_micros: scope.sum(Arel.sql(Erp::Receivable::BASE_RECEIVED_MICROS_SQL))
     }
     @receivables = scope.includes(:crm_customer, :crm_sales_order, :owner, :installments)
                         .order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
@@ -46,6 +46,8 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   def open_list
     scope = Current.account.erp_receivables.open
     scope = scope.where(crm_customer_id: params[:crm_customer_id]) if params[:crm_customer_id].present?
+    # 只出同币种的候选：核销按原币记账，币种不一致后端会拒，别摆出来让人白选。
+    scope = scope.where(currency: params[:currency]) if params[:currency].present?
     @receivables = scope.includes(:crm_customer, :crm_sales_order, :owner).order(:receivable_no)
     render 'api/v1/accounts/erp/receivables/open_list'
   end

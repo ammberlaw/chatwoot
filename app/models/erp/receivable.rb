@@ -35,6 +35,11 @@ class Erp::Receivable < ApplicationRecord
   STATUSES = [UNPAID, PARTIAL, PAID].freeze
   STATUS_LABELS = { UNPAID => '未收款', PARTIAL => '部分收款', PAID => '已收清' }.freeze
 
+  # 折本位币的规范口径（与 Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL 同约定）。
+  # 本表金额存的是**原币**，跨币种求和必须过这个 SQL；直接 sum 原币列＝把美元当人民币 1:1 加。
+  BASE_TOTAL_MICROS_SQL = 'ROUND(erp_receivables.total_amount_micros * COALESCE(erp_receivables.exchange_rate, 1))'.freeze
+  BASE_RECEIVED_MICROS_SQL = 'ROUND(erp_receivables.received_amount_micros * COALESCE(erp_receivables.exchange_rate, 1))'.freeze
+
   belongs_to :account
   belongs_to :crm_sales_order, class_name: 'Crm::SalesOrder', optional: true
   belongs_to :crm_customer, class_name: 'Crm::Customer'

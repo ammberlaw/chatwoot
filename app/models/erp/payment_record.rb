@@ -35,6 +35,10 @@ class Erp::PaymentRecord < ApplicationRecord
   METHODS = Erp::ReceiptRecord::METHODS
   METHOD_LABELS = Erp::ReceiptRecord::METHOD_LABELS
 
+  # 折本位币的规范口径（与 Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL 同约定）。
+  # 本表金额存的是**原币**，跨币种求和必须过这个 SQL；直接 sum 原币列＝把美元当人民币 1:1 加。
+  BASE_AMOUNT_MICROS_SQL = 'ROUND(erp_payment_records.amount_micros * COALESCE(erp_payment_records.exchange_rate, 1))'.freeze
+
   belongs_to :account
   belongs_to :mes_supplier, class_name: 'Mes::Supplier'
   belongs_to :cash_account, class_name: 'Erp::CashAccount', optional: true

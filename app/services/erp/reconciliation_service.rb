@@ -50,9 +50,12 @@ class Erp::ReconciliationService
   def business_balance(key)
     case key
     when 'receivable'
-      @account.erp_receivables.sum(:total_amount_micros) - @account.erp_receivables.sum(:received_amount_micros)
+      # 只取本位币台账：总账侧取的也是本位币科目（currency 为空的），外币台账原币与之不可比。
+      cny = @account.erp_receivables.where(currency: 'CNY')
+      cny.sum(:total_amount_micros) - cny.sum(:received_amount_micros)
     when 'payable'
-      @account.erp_payables.sum(:total_amount_micros) - @account.erp_payables.sum(:paid_amount_micros)
+      cny = @account.erp_payables.where(currency: 'CNY')
+      cny.sum(:total_amount_micros) - cny.sum(:paid_amount_micros)
     else
       @account.erp_cash_accounts.active.where(currency: 'CNY').sum(&:balance_micros)
     end

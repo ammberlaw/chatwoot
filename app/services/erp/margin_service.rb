@@ -35,7 +35,7 @@ class Erp::MarginService
   def cost_totals(order_ids)
     @account.erp_order_costs.where(crm_sales_order_id: order_ids)
             .group(:crm_sales_order_id)
-            .sum(Arel.sql('ROUND(amount_micros * exchange_rate)'))
+            .sum(Arel.sql('ROUND(amount_micros * COALESCE(exchange_rate, 1))'))
   end
 
   def row_for(order, receivable, cost_micros)

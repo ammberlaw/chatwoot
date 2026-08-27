@@ -39,6 +39,10 @@ class Erp::ReceiptRecord < ApplicationRecord
     'RMB' => '人民币转账', 'OTHER' => '其他'
   }.freeze
 
+  # 折本位币的规范口径（与 Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL 同约定）。
+  # 本表金额存的是**原币**，跨币种求和必须过这个 SQL；直接 sum 原币列＝把美元当人民币 1:1 加。
+  BASE_AMOUNT_MICROS_SQL = 'ROUND(erp_receipt_records.amount_micros * COALESCE(erp_receipt_records.exchange_rate, 1))'.freeze
+
   belongs_to :account
   belongs_to :crm_customer, class_name: 'Crm::Customer'
   belongs_to :cash_account, class_name: 'Erp::CashAccount', optional: true

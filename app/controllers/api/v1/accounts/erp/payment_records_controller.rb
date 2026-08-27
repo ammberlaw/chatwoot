@@ -6,7 +6,7 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
   def index
     scope = filtered_scope
     @payments_count = scope.count
-    @summary = { amount_micros: scope.normal.sum(:amount_micros) }
+    @summary = { amount_micros: scope.normal.sum(Arel.sql(Erp::PaymentRecord::BASE_AMOUNT_MICROS_SQL)) }
     @payments = scope.includes(:mes_supplier, :recorded_by, allocations: :payable)
                      .order(paid_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end

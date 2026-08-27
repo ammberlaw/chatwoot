@@ -34,6 +34,11 @@ class Erp::Payable < ApplicationRecord
   STATUSES = [UNPAID, PARTIAL, PAID].freeze
   STATUS_LABELS = { UNPAID => '未付款', PARTIAL => '部分付款', PAID => '已付清' }.freeze
 
+  # 折本位币的规范口径（与 Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL 同约定）。
+  # 本表金额存的是**原币**，跨币种求和必须过这个 SQL；直接 sum 原币列＝把美元当人民币 1:1 加。
+  BASE_TOTAL_MICROS_SQL = 'ROUND(erp_payables.total_amount_micros * COALESCE(erp_payables.exchange_rate, 1))'.freeze
+  BASE_PAID_MICROS_SQL = 'ROUND(erp_payables.paid_amount_micros * COALESCE(erp_payables.exchange_rate, 1))'.freeze
+
   belongs_to :account
   belongs_to :mes_purchase_order, class_name: 'Mes::PurchaseOrder', optional: true
   belongs_to :mes_supplier, class_name: 'Mes::Supplier'
