@@ -980,7 +980,7 @@ watch(currentPage, fetchRecords);
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="搜索 工单号 / 成品名…"
+        placeholder="搜索 工单号 / 成品名 / 产品料号…"
         class="h-9 px-3 text-sm rounded-lg outline-none w-full sm:w-44 border border-n-weak bg-n-solid-1 text-n-slate-12"
         @input="onSearchInput"
       />
@@ -1081,6 +1081,8 @@ watch(currentPage, fetchRecords);
                 >
                   交期：{{ deliveryStatus(po).label }}
                 </span>
+                <span v-if="po.productCode">料号：{{ po.productCode }}</span>
+                <span v-if="po.remark">备注：{{ po.remark }}</span>
                 <span v-if="po.salesOrderNo">来源：{{ po.salesOrderNo }}</span>
                 <span>负责人：{{ po.ownerName || '—' }}</span>
               </div>
@@ -1114,6 +1116,8 @@ watch(currentPage, fetchRecords);
                 <th class="px-3 py-3 font-medium">数量</th>
                 <th class="px-3 py-3 font-medium">阶段</th>
                 <th class="px-3 py-3 font-medium">交期</th>
+                <th class="px-3 py-3 font-medium">产品料号</th>
+                <th class="px-3 py-3 font-medium">备注</th>
                 <th class="px-3 py-3 font-medium">来源销售单</th>
                 <th class="px-3 py-3 font-medium">负责人</th>
                 <th class="px-3 py-3" />
@@ -1205,6 +1209,15 @@ watch(currentPage, fetchRecords);
                   </span>
                   <span v-else class="text-n-slate-10">—</span>
                 </td>
+                <td class="px-3 py-3 text-n-slate-11 tabular-nums">
+                  {{ po.productCode || '—' }}
+                </td>
+                <td
+                  class="px-3 py-3 text-n-slate-11 max-w-[12rem] truncate"
+                  :title="po.remark || ''"
+                >
+                  {{ po.remark || '—' }}
+                </td>
                 <td class="px-3 py-3 text-n-slate-11">
                   {{ po.salesOrderNo || '—' }}
                 </td>
@@ -1231,7 +1244,7 @@ watch(currentPage, fetchRecords);
                 </td>
               </tr>
               <tr v-if="!records.length">
-                <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+                <td colspan="10" class="px-3 py-10 text-center text-n-slate-11">
                   还没有生产订单。点右上角「从销售订单转入」开始。
                 </td>
               </tr>

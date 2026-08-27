@@ -104,7 +104,7 @@ const STATUSES = computed(() => {
     },
     SHIPPED: {
       label: '已出货',
-      class: c ? 'bg-n-teal-3 text-n-teal-11' : 'bg-n-iris-3 text-n-iris-11',
+      class: c ? 'bg-n-teal-3 text-n-teal-11' : 'bg-n-grass-3 text-n-grass-11',
     },
     COMPLETED: {
       label: '已完成',

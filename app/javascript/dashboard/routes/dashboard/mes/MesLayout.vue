@@ -8,8 +8,8 @@ const { activeProductLine } = useMesProductLine();
 </script>
 
 <template>
-  <!-- mes-canvas：仅经典灰主题下作为「整页白卡」的挂钩层（见 _next-colors.scss）。
-       紫玻璃默认主题下无任何样式 = 纯透传，不影响原布局。 -->
+  <!-- mes-canvas：给 MES 裸页(无自带卡类)套整页圆弧外框的挂钩层（见 _next-colors.scss）。
+       玻璃(默认)/蓝/beebot = 玻璃外框；经典灰 = 白卡外框；已自带卡的页由 :not 排除不叠加。 -->
   <div class="mes-canvas w-full h-full">
     <router-view :key="`mes-${activeProductLine || 'all'}`" />
   </div>

@@ -13,7 +13,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
-    scope = scope.where('order_no ILIKE :t OR product_name ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
+    scope = apply_search(scope)
     @production_orders_count = scope.count
     @production_orders = scope.order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
@@ -265,6 +265,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     when 'stock' then scope.stock
     else scope
     end
+  end
+
+  # 关键词搜索：工单号 / 成品名 / 产品料号。
+  def apply_search(scope)
+    return scope if params[:q].blank?
+
+    scope.where(
+      'order_no ILIKE :t OR product_name ILIKE :t OR product_code ILIKE :t',
+      t: "%#{params[:q].strip}%"
+    )
   end
 
   def fetch_production_order
