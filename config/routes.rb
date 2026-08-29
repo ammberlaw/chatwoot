@@ -10,6 +10,10 @@ Rails.application.routes.draw do
 
   post 'resend_confirmation', to: 'auth/resend_confirmations#create'
 
+  # 企业微信工作台免密登录（无需登录态）
+  get 'wecom/enter', to: 'wecom_oauth#enter'
+  get 'wecom/callback', to: 'wecom_oauth#callback'
+
   ## renders the frontend paths only if its not an api only server
   if ActiveModel::Type::Boolean.new.cast(ENV.fetch('CW_API_ONLY_SERVER', false))
     root to: 'api#index'
@@ -217,7 +221,7 @@ Rails.application.routes.draw do
               member { post :test }
             end
             resources :email_templates
-            resources :members, only: [:index, :create, :update] do
+            resources :members, only: [:index, :create, :update, :destroy] do
               member do
                 post :deactivate
                 post :reactivate

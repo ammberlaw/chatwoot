@@ -6,7 +6,7 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
   # 人事角色不走 CRM 门禁（无 CRM 数据权限），本控制器由 ensure_admin 把关。
   skip_before_action :ensure_crm_access
   before_action :ensure_admin
-  before_action :fetch_member, only: [:update, :deactivate, :reactivate]
+  before_action :fetch_member, only: [:update, :deactivate, :reactivate, :destroy]
 
   SYSTEM_ROLE_MAP = {
     'administrator' => [:administrator, nil],
@@ -81,7 +81,29 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     render :show
   end
 
+  # 彻底删除：从库里删掉账号，不可恢复。仅用于建错/测试/重复号，且必须已离职（数据已交接）。仅超管/管理员。
+  def destroy
+    error = destroy_error
+    return render json: { error: error[:message] }, status: error[:status] if error
+
+    Crm::MemberDeletionService.new(account: Current.account, account_user: @member).perform
+    head :ok
+  rescue Crm::MemberDeletionService::NotDeletable => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
+
+  def destroy_error
+    return { message: '仅超级管理员或管理员可删除成员', status: :forbidden } unless admin_like?
+    return { message: '不能删除自己', status: :unprocessable_entity } if @member.id == Current.account_user.id
+    if @member.administrator? || @member.crm_role == 'deputy_admin'
+      return { message: '不能删除超级管理员/管理员账号', status: :forbidden }
+    end
+    return { message: '请先在成员管理里办理「离职」交接，再彻底删除', status: :unprocessable_entity } if @member.deactivated_at.blank?
+
+    nil
+  end
 
   def deactivate_error
     return { message: '仅超级管理员或管理员可停用成员', status: :forbidden } unless admin_like?

@@ -363,6 +363,40 @@ const doReactivate = async m => {
   }
 };
 
+// ── 彻底删除（不可恢复，仅限已离职账号，用于建错/测试/重复号）──
+const deleteDialog = ref(null);
+const deleteTarget = ref(null);
+const deleting = ref(false);
+
+// 可否彻底删除：管理层操作、已离职、非自己、且目标不是超管/管理员。
+const canHardDelete = m =>
+  isAdminLike.value &&
+  isDeactivated(m) &&
+  m.user_id !== currentUserId.value &&
+  !m.is_admin &&
+  m.crm_role !== 'deputy_admin';
+
+const openDelete = m => {
+  deleteTarget.value = m;
+  deleteDialog.value?.open();
+};
+
+const doDelete = async () => {
+  if (deleting.value || !deleteTarget.value) return;
+  deleting.value = true;
+  try {
+    await MembersAPI.delete(deleteTarget.value.id);
+    deleteDialog.value?.close();
+    useAlert('账号已彻底删除');
+    selectedId.value = null;
+    fetchMembers();
+  } catch (e) {
+    useAlert(e.response?.data?.error || L.error);
+  } finally {
+    deleting.value = false;
+  }
+};
+
 const onRoleChange = async (member, value) => {
   savingId.value = member.id;
   try {
@@ -752,6 +786,13 @@ onMounted(() => {
             >
               停用 / 离职
             </button>
+            <button
+              v-if="canHardDelete(selectedMember)"
+              class="h-9 px-4 text-sm font-medium border rounded-lg border-n-ruby-7 text-n-ruby-11 hover:bg-n-ruby-3"
+              @click="openDelete(selectedMember)"
+            >
+              彻底删除
+            </button>
           </div>
         </div>
       </div>
@@ -924,6 +965,30 @@ onMounted(() => {
             {{ deactivating ? '处理中…' : '确认停用' }}
           </button>
         </div>
+      </div>
+    </Dialog>
+
+    <!-- 彻底删除弹窗：不可恢复，仅已离职账号 -->
+    <Dialog
+      ref="deleteDialog"
+      :title="`彻底删除账号${deleteTarget ? ` · ${deleteTarget.name}` : ''}`"
+      cancel-button-label="取消"
+      :confirm-button-label="deleting ? '删除中…' : '确认彻底删除'"
+      confirm-button-color="ruby"
+      :disable-confirm-button="deleting"
+      @confirm="doDelete"
+    >
+      <div class="flex flex-col gap-4">
+        <p class="text-xs leading-relaxed text-n-slate-11">
+          将把该账号<span class="font-medium text-n-ruby-11"
+            >从系统中永久删除、不可恢复</span
+          >：登录邮箱释放（可再次注册），其个人日程 / 邮件文件夹 / 快捷文本 /
+          收藏 / 考勤等记录一并清除。
+        </p>
+        <p class="text-xs leading-relaxed text-n-slate-10">
+          名下客户 / 商机 /
+          文档已在「离职」时交接完毕，不受影响。仅建议用于建错、测试或重复的账号。
+        </p>
       </div>
     </Dialog>
   </div>
