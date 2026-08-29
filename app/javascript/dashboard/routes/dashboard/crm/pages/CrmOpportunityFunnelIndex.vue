@@ -219,6 +219,7 @@ const STAGES = computed(() => [
     label: '样品中',
     color: isClassic.value ? 'bg-n-amber-9' : 'bg-n-iris-9',
   },
+  { key: 'PENDING_PAYMENT', label: '待付款', color: 'bg-n-amber-9' },
   { key: 'WON', label: '已成交', color: 'bg-n-teal-9' },
   { key: 'LOST', label: '输单', color: 'bg-n-ruby-9' },
 ]);

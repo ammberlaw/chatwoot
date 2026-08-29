@@ -38,6 +38,7 @@ const STAGES = {
     class: 'bg-n-blue-3 text-n-blue-11',
   },
   SAMPLING: { label: '样品中', class: 'bg-n-iris-3 text-n-iris-11' },
+  PENDING_PAYMENT: { label: '待付款', class: 'bg-n-amber-3 text-n-amber-11' },
   WON: { label: '已成交', class: 'bg-n-teal-3 text-n-teal-11' },
   LOST: { label: '输单', class: 'bg-n-ruby-3 text-n-ruby-11' },
 };

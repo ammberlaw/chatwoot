@@ -1094,6 +1094,19 @@ const replyPanelEmail = e => {
   });
 };
 
+// 点客户抽屉里的往来邮件 → 跳到邮件中心「往来邮件」视图并自动打开这封邮件。
+const openPanelEmail = e => {
+  router.push({
+    name: 'crm_emails_index',
+    params: { accountId: accountId.value },
+    query: {
+      customer_id: selectedCustomer.value?.id,
+      customer_name: selectedCustomer.value?.name,
+      email_id: e.id,
+    },
+  });
+};
+
 // 群发单显：勾选多个客户 → 打开写信窗群发（每人各收一封独立邮件，互不可见）。
 const bulkSendSelected = () => {
   const recipients = customers.value
@@ -2485,7 +2498,9 @@ watch(
             <div
               v-for="e in panelEmails"
               :key="e.id"
-              class="p-3 border rounded-lg border-n-weak"
+              class="p-3 border rounded-lg cursor-pointer border-n-weak hover:border-n-iris-8 hover:bg-n-alpha-1 transition-colors"
+              title="打开这封邮件"
+              @click="openPanelEmail(e)"
             >
               <div class="flex items-center gap-2">
                 <span

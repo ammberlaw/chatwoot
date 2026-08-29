@@ -67,19 +67,22 @@ const scope = computed(() =>
 const STAGE_LABELS = {
   NEEDS_CONFIRMED: '需求确认',
   SAMPLING: '样品中',
+  PENDING_PAYMENT: '待付款',
   WON: '已成交',
   LOST: '输单',
 };
 const STAGE_COLORS = {
   NEEDS_CONFIRMED: 'iris-6',
   SAMPLING: 'iris-8',
+  PENDING_PAYMENT: 'amber-9',
   WON: 'iris-10',
   LOST: 'ruby-9',
 };
-// 经典灰专属：商机阶段用黄黑灰（炭黑/金黄/灰/浅灰）。
+// 经典灰专属：商机阶段用黄黑灰（炭黑/金黄/待付款金/灰/浅灰）。
 const CLASSIC_STAGE_COLORS = {
   NEEDS_CONFIRMED: '#2a2e37',
   SAMPLING: '#f5c451',
+  PENDING_PAYMENT: '#e0a72a',
   WON: '#6b6f78',
   LOST: '#b9bcc4',
 };

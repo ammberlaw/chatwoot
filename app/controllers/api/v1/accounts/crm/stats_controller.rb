@@ -6,7 +6,7 @@
 class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
 
-  STAGE_ORDER = %w[NEEDS_CONFIRMED SAMPLING WON LOST].freeze
+  STAGE_ORDER = %w[NEEDS_CONFIRMED SAMPLING PENDING_PAYMENT WON LOST].freeze
 
   def show
     @year = (params[:year] || Time.zone.today.year).to_i

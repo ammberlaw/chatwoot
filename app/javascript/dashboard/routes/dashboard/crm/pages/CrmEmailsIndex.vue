@@ -425,7 +425,7 @@ const fetchRecords = () => {
     ? {
         page: 1,
         customer_id: customerFilter.value.id,
-        ...scopeParams(),
+        ...(forceAllScope.value ? {} : scopeParams()),
         per_page: 200,
       }
     : { ...baseParams(), ...scopeParams(), per_page: 200 };
@@ -437,6 +437,8 @@ const fetchRecords = () => {
 // ── 头像快捷卡（写跟进 / 往来邮件）+ 按客户过滤往来邮件 ──
 const avatarCard = ref(null); // { record, top, left }
 const customerFilter = ref(null); // { id, name }
+// 从客户抽屉深链打开某封往来邮件时：往来邮件不按 owner 收口，确保目标邮件一定在列表里（否则管理员看他人邮件会被过滤掉）。
+const forceAllScope = ref(false);
 const openAvatarCard = (record, ev) => {
   const rect = ev.currentTarget.getBoundingClientRect();
   avatarCard.value = { record, top: rect.bottom + 6, left: rect.left };
@@ -493,6 +495,7 @@ const cardShowCorrespondence = () => {
 };
 const clearCustomerFilter = () => {
   customerFilter.value = null;
+  forceAllScope.value = false;
   fetchRecords();
 };
 
@@ -573,6 +576,8 @@ const setFolder = key => {
   activeCustomFolderId.value = null;
   activeLabelId.value = null;
   activeMailbox.value = '';
+  customerFilter.value = null;
+  forceAllScope.value = false;
   selectedEmail.value = null;
   fetchMailboxes();
   fetchCounts();
@@ -1288,8 +1293,35 @@ watch(searchTerm, () => {
   searchTimer = setTimeout(fetchRecords, 300);
 });
 
-onMounted(() => {
+// 深链打开某封往来邮件：进入该客户「往来邮件」视图（不按 owner 收口），列表就绪后自动选中并打开目标邮件。
+const openDeepLinkEmail = () => {
+  const { customer_id: cid, customer_name: cname, email_id: eid } = route.query;
+  customerFilter.value = { id: Number(cid), name: cname || '客户往来' };
+  forceAllScope.value = true;
+  selectedEmail.value = null;
   fetchRecords();
+  const targetId = Number(eid);
+  const stop = watch(
+    records,
+    list => {
+      const target = list.find(r => r.id === targetId);
+      if (target) {
+        selectEmail(target);
+        stop();
+      }
+    },
+    { immediate: true }
+  );
+  // 兜底：8 秒后无论是否命中都停掉监听，避免常驻。
+  setTimeout(stop, 8000);
+};
+
+onMounted(() => {
+  if (route.query.email_id && route.query.customer_id) {
+    openDeepLinkEmail();
+  } else {
+    fetchRecords();
+  }
   fetchCounts();
   fetchMembers();
   fetchMailboxes();
@@ -1299,11 +1331,22 @@ onMounted(() => {
 });
 
 watch(
-  () => [route.query.folder, route.query.filter, route.query.compose],
+  () => [
+    route.query.folder,
+    route.query.filter,
+    route.query.compose,
+    route.query.email_id,
+  ],
   () => {
+    // 已在邮件页时再次深链打开某封邮件（如从客户抽屉二次跳转）：走深链逻辑。
+    if (route.query.email_id && route.query.customer_id) {
+      openDeepLinkEmail();
+      return;
+    }
     activeFolder.value = folderFromRoute();
     selectedEmail.value = null;
     customerFilter.value = null; // 切换文件夹退出「往来邮件」客户过滤
+    forceAllScope.value = false;
     fetchRecords();
     if (route.query.compose) openCompose();
   }

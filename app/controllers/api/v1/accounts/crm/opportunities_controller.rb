@@ -17,10 +17,12 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
 
   def create
     @opportunity = Current.account.crm_opportunities.create!(opportunity_params.merge(owner_id: opportunity_params[:owner_id] || current_user.id))
+    sync_follow_up_schedule
   end
 
   def update
     @opportunity.update!(opportunity_params)
+    sync_follow_up_schedule
   end
 
   def destroy
@@ -110,12 +112,21 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
     Current.account.crm_teams.find_by(id: team_id)&.members&.pluck(:id) || []
   end
 
+  # 商机「下次跟进时间」→ 同步一条个人日程提醒（幂等）：有时间即 upsert、清空即删除。
+  # 看板拖拽等只改阶段的更新也会走到这里，但由于按当前已存的 next_follow_up_at 决策，
+  # 不会误删提醒（仍有时间就保留、无时间就无操作）。
+  def sync_follow_up_schedule
+    Crm::ScheduleEvent.sync_opportunity_follow_up(
+      Current.account, @opportunity, @opportunity.next_follow_up_at, true, current_user.id
+    )
+  end
+
   def opportunity_params
     params.require(:opportunity).permit(
       :name, :crm_customer_id, :owner_id, :amount_micros, :currency,
       :sales_stage, :probability, :expected_close_date, :current_need,
       :competitor, :loss_reason, :next_action, :last_activity_at, :opportunity_remark,
-      :important
+      :important, :next_follow_up_at
     )
   end
 

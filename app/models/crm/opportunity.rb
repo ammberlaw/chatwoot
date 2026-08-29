@@ -16,6 +16,7 @@
 #  loss_reason         :string
 #  name                :string           not null
 #  next_action         :string
+#  next_follow_up_at   :datetime
 #  opportunity_remark  :text
 #  probability         :integer
 #  public_pool_at      :datetime
@@ -40,8 +41,8 @@
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::Opportunity < ApplicationRecord
-  # 4 阶段：需求确认(已报价) / 样品中 / 已成交 / 输单
-  SALES_STAGES = %w[NEEDS_CONFIRMED SAMPLING WON LOST].freeze
+  # 5 阶段：需求确认(已报价) / 样品中 / 待付款 / 已成交 / 输单。待付款为推进态(非终态)。
+  SALES_STAGES = %w[NEEDS_CONFIRMED SAMPLING PENDING_PAYMENT WON LOST].freeze
   LOSS_REASONS = %w[PRICE DELIVERY QUALITY COMPETITOR CANCELLED NEED_CHANGED].freeze
 
   belongs_to :account

@@ -58,6 +58,8 @@ const form = reactive({
   currency: 'USD',
   probability: '',
   expectedCloseDate: '',
+  nextFollowUpDate: '',
+  nextFollowUpTime: '09:00',
   opportunityRemark: '',
   lossReason: '',
   important: false,
@@ -66,9 +68,20 @@ const form = reactive({
 const stageOptions = [
   { value: 'NEEDS_CONFIRMED', label: '需求确认（已报价）' },
   { value: 'SAMPLING', label: '样品中' },
+  { value: 'PENDING_PAYMENT', label: '待付款' },
   { value: 'WON', label: '已成交' },
   { value: 'LOST', label: '输单' },
 ];
+
+// 下次跟进时间选项（每半小时）。设了日期即自动加入「我的日程」提醒。
+const pad2 = n => String(n).padStart(2, '0');
+const timeOptions = (() => {
+  const out = [];
+  for (let h = 0; h < 24; h += 1) {
+    ['00', '30'].forEach(mm => out.push({ value: `${pad2(h)}:${mm}`, label: `${pad2(h)}:${mm}` }));
+  }
+  return out;
+})();
 
 const currencyOptions = ['USD', 'CNY', 'EUR'].map(v => ({
   value: v,
@@ -98,6 +111,8 @@ const resetForm = () => {
   form.currency = 'USD';
   form.probability = '';
   form.expectedCloseDate = '';
+  form.nextFollowUpDate = '';
+  form.nextFollowUpTime = '09:00';
   form.opportunityRemark = '';
   form.important = false;
 };
@@ -120,6 +135,10 @@ const open = record => {
     form.expectedCloseDate = record.expectedCloseDate
       ? record.expectedCloseDate.slice(0, 10)
       : '';
+    if (record.nextFollowUpAt) {
+      form.nextFollowUpDate = record.nextFollowUpAt.slice(0, 10);
+      form.nextFollowUpTime = record.nextFollowUpAt.slice(11, 16) || '09:00';
+    }
     form.opportunityRemark = record.opportunityRemark || '';
     form.lossReason = record.lossReason || '';
     form.important = record.important === true;
@@ -147,6 +166,9 @@ const handleConfirm = () => {
     currency: form.currency,
     probability: form.probability ? Number(form.probability) : null,
     expectedCloseDate: form.expectedCloseDate || null,
+    nextFollowUpAt: form.nextFollowUpDate
+      ? `${form.nextFollowUpDate}T${form.nextFollowUpTime}:00`
+      : null,
     opportunityRemark: form.opportunityRemark.trim() || null,
     lossReason: form.lossReason || null,
     important: form.important,
@@ -224,11 +246,31 @@ defineExpose({ dialogRef, onSuccess, open });
           :label="t('CRM.OPPORTUNITIES.FORM.PROBABILITY')"
         />
       </div>
-      <div class="flex flex-col gap-1">
-        <label class="mb-0.5 text-heading-3 text-n-slate-12">
-          {{ t('CRM.OPPORTUNITIES.FORM.EXPECTED_CLOSE') }}
-        </label>
-        <DatePicker v-model="form.expectedCloseDate" />
+      <div class="grid grid-cols-2 gap-4">
+        <div class="flex flex-col gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            {{ t('CRM.OPPORTUNITIES.FORM.EXPECTED_CLOSE') }}
+          </label>
+          <DatePicker v-model="form.expectedCloseDate" block />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            下次跟进
+          </label>
+          <div class="flex items-center gap-2">
+            <div class="flex-1">
+              <DatePicker v-model="form.nextFollowUpDate" block :clearable="true" />
+            </div>
+            <div class="w-24">
+              <SelectCard
+                v-model="form.nextFollowUpTime"
+                :options="timeOptions"
+                block
+              />
+            </div>
+          </div>
+          <span class="text-xs text-n-slate-10">设置后自动加入「我的日程」提醒</span>
+        </div>
       </div>
       <label class="flex items-center gap-2 text-sm text-n-slate-12">
         <input v-model="form.important" type="checkbox" />

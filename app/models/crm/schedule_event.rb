@@ -87,6 +87,31 @@ class Crm::ScheduleEvent < ApplicationRecord
     event.save!
   end
 
+  # 同步「商机跟进提醒」日程：每个商机至多一条 kind=opp_follow_up 事件（幂等）。
+  # kind 独立于客户跟进(follow_up)，避免与商机所属客户的跟进提醒相互覆盖。
+  # 挂 ref_type=opportunity 可从日程点回商机；at 清空即删除该提醒。
+  # 提醒落在「设置人」自己的日程（对应弹窗「加入我的日程」语义），而非商机负责人——
+  # 管理员为他人商机设跟进时，提醒进管理员自己的日历。
+  def self.sync_opportunity_follow_up(account, opportunity, at, add, actor_id)
+    event = account.crm_schedule_events.find_or_initialize_by(
+      ref_type: 'opportunity', ref_id: opportunity.id, kind: 'opp_follow_up'
+    )
+    if at.blank? || !ActiveModel::Type::Boolean.new.cast(add)
+      event.destroy if event.persisted?
+      return
+    end
+    starts = Time.zone.parse(at.to_s)
+    event.assign_attributes(
+      owner_id: actor_id,
+      customer_id: opportunity.crm_customer_id,
+      title: "跟进商机：#{opportunity.name}",
+      starts_at: starts, ends_at: starts + 30.minutes,
+      color: 'rose', recurrence: 'none', all_day: false,
+      note: "商机跟进提醒 · #{opportunity.name}"
+    )
+    event.save!
+  end
+
   # 在 [win_start, win_end] 窗口内展开重复，返回具体发生的 [{starts_at:, ends_at:}]。
   def occurrences_in(win_start, win_end)
     duration = ends_at - starts_at
