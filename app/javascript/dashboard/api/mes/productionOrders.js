@@ -24,6 +24,12 @@ client.markOutsourced = (id, payload) =>
 // 按 BOM 推料需求（生产领料预填）。
 client.requirement = id => axios.get(`${client.url}/${id}/requirement`);
 
+// 生产领料计划：BOM 推料 + 每行已领量/实时库存/待领量（warehouseId 传入算该仓库存）。
+client.issuePlan = (id, warehouseId) =>
+  axios.get(`${client.url}/${id}/issue_plan`, {
+    params: { warehouse_id: warehouseId || undefined },
+  });
+
 // 接单 / 拒收打回（P1 接单确认）。
 client.acknowledge = id => axios.post(`${client.url}/${id}/acknowledge`);
 client.reject = (id, reason) =>

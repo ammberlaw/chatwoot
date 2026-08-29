@@ -23,8 +23,12 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   end
 
   def update
+    # 下发态 BOM 改用料 → 记一条变更单并通知已参与的下游部门（草稿编辑不留痕）。
+    was_released = @bom.released?
+    before = was_released ? @bom.items_snapshot : nil
     @bom.update!(bom_params)
     attach_staged_blobs
+    record_bom_revision(before) if was_released
     render 'api/v1/accounts/mes/boms/show'
   end
 
@@ -87,6 +91,23 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
 
   # 建单时选了「关联生产订单」：下发的 BOM 保存后直接挂到该订单（订单进 BOM_READY、
   # 通知业务员二次确认）；存草稿不挂（下发后再从订单页挂）。BOM 归属业务员为空时随订单补齐。
+  # 下发态 BOM 编辑后：对比用料快照，有实质变更则落一条变更单，并通知本 BOM 所挂
+  # 各在产订单「已参与过的下游部门」+ 业务员（§ BOM 变更同步）。无变更不记、不扰。
+  def record_bom_revision(before)
+    changes = Mes::Bom.diff_items(before, @bom.reload.items_snapshot)
+    return if changes.blank?
+
+    rev_no = (@bom.bom_revisions.maximum(:rev_no) || 0) + 1
+    @bom.bom_revisions.create!(
+      account_id: @bom.account_id, rev_no: rev_no, changed_by_id: current_user.id,
+      reason: params.dig(:bom, :change_reason).presence, diff: changes
+    )
+    summary = Mes::Bom.diff_summary(changes)
+    @bom.production_orders.where.not(stage: 'SHIPPED').where.not(status: 'CANCELLED').each do |order|
+      order.notify_bom_revised(summary, rev_no, actor: current_user)
+    end
+  end
+
   def attach_to_order_if_requested
     order_id = params.require(:bom)[:production_order_id]
     return if order_id.blank? || @bom.status != 'RELEASED'
@@ -101,7 +122,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
       :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :sales_owner_id, :remark, :product_line, :status,
       :submit_date, :doc_no, :customer_name, :model, :product_code, :order_qty, :bare_color, :case_color,
       :purchasing_days, :material_inbound_days, :picking_days, :production_days, :fg_inbound_days,
-      bom_items_attributes: [:id, :mes_material_id, :material_no, :material_name, :specification, :qty, :unit, :remark, :category, :_destroy]
+      bom_items_attributes: [:id, :mes_material_id, :material_no, :material_name, :specification, :qty, :unit, :suggested_purchase_qty, :remark, :category, :_destroy]
     )
   end
 end

@@ -27,13 +27,15 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     scope.where('kind = :stock OR product_line = :pl', stock: 'STOCK', pl: current_product_line)
   end
 
-  # 业务可见范围：CRM 业务角色按 Crm::AccessScope 收敛（业务员仅本人、主管本团队、
-  # 管理员/副管理员全部）；非 CRM 成员（车间/仓管/采购等 MES 操作岗）不受限、看全部，
-  # 否则他们看不到订单就没法干活。返回 :all 或可见 owner_id 数组。
+  # 业务可见范围：只有「纯业务（销售端）」按 Crm::AccessScope 收敛（业务员仅本人、主管本团队、
+  # 管理员/副管理员全部）；其余人——非 CRM 成员、或持有任一 MES 流程角色（PMC/工程/采购/仓库/生产）
+  # 的流程负责人——一律看全部订单：生产订单之后的整个流程都要能接手，看不到订单就没法干活。
+  # 返回 :all 或可见 owner_id 数组。
   def mes_visible_owner_ids
-    return :all unless Current.account_user&.can_access_crm?
+    au = Current.account_user
+    return :all if au.nil? || !au.can_access_crm? || au.effective_mes_roles.any?
 
-    Crm::AccessScope.new(Current.account, Current.account_user).visible_owner_ids
+    Crm::AccessScope.new(Current.account, au).visible_owner_ids
   end
 
   # 生产订单按可见范围过滤（owner_id = 归属业务员）。

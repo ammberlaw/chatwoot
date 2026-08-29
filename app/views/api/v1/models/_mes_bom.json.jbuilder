@@ -30,9 +30,20 @@ json.sales_owner_name resource.sales_owner&.name
 json.remark resource.remark
 json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
+onhand_map = resource.onhand_by_material_no
 json.bom_items do
   json.array! resource.bom_items.order(:id) do |item|
-    json.partial! 'api/v1/models/mes_bom_item', formats: [:json], resource: item
+    json.partial! 'api/v1/models/mes_bom_item', formats: [:json], resource: item, onhand_map: onhand_map
+  end
+end
+json.revisions do
+  json.array! resource.bom_revisions do |rev|
+    json.id rev.id
+    json.rev_no rev.rev_no
+    json.reason rev.reason
+    json.diff rev.diff
+    json.changed_by_name rev.changed_by&.name
+    json.created_at rev.created_at
   end
 end
 json.created_at resource.created_at

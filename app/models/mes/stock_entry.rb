@@ -230,6 +230,13 @@ class Mes::StockEntry < ApplicationRecord
         received_qty: po_item.received_qty.to_d + item.effective_qty,
         arrival_date: arrival
       )
+      # 到货冲减采购单在途（已订购未到货）量——收多少冲多少（仅审批通过、累加过在途的单）。
+      if po.approved?
+        po.reduce_on_order_for(
+          item_type: item.item_type, mes_material_id: item.mes_material_id,
+          crm_product_id: item.crm_product_id, qty: item.effective_qty
+        )
+      end
     end
     po.reload.recompute_receipt_status!
   end

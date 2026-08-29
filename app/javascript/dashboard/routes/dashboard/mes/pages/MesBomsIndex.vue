@@ -72,6 +72,8 @@ const pickMaterial = (row, p) => {
   row.materialName = p.name || '';
   if (p.specification) row.specification = p.specification;
   if (p.unit) row.unit = p.unit;
+  // 选中即带出该物料的实时库存（产品搜索接口已附 on_hand，跨仓合计）。
+  row.onHand = p.on_hand != null ? Number(p.on_hand) : null;
 };
 
 // 订单归属业务员：只列真正的业务角色（可归属 CRM 订单）——业务员/部门负责人/
@@ -88,6 +90,7 @@ const salesOwnerOptions = computed(() => [
 const dialogRef = ref(null);
 const editingId = ref(null);
 const editingStatus = ref(null); // 编辑时的原状态：已下发则只显示「保存」
+const changeReason = ref(''); // 已下发 BOM 改用料时填的变更原因（可选，进变更史+通知）
 const removedItemIds = ref([]);
 const releasingId = ref(null);
 
@@ -97,6 +100,25 @@ const viewing = ref(null);
 const openView = bom => {
   viewing.value = bom;
   viewDialogRef.value?.open();
+};
+
+// 变更记录展示助手：一行 diff 文案 / 徽标配色 / 时间格式化。
+const diffLabel = c => {
+  const name = c.materialName || c.materialNo || '物料';
+  if (c.kind === 'added') return `+${name} ${c.toQty}${c.unit || ''}`;
+  if (c.kind === 'removed') return `-${name}`;
+  return `${name} ${c.fromQty}→${c.toQty}${c.unit || ''}`;
+};
+const diffChipClass = kind => {
+  if (kind === 'added') return 'bg-n-teal-3 text-n-teal-11';
+  if (kind === 'removed') return 'bg-n-ruby-3 text-n-ruby-11';
+  return 'bg-n-amber-3 text-n-amber-11';
+};
+const fmtRevTime = iso => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 const viewHeaderFields = computed(() => {
   const v = viewing.value || {};
@@ -143,11 +165,15 @@ const bomExportData = () => {
       { label: '规格型号', key: 'specification' },
       { label: '单位', key: 'unit' },
       { label: '用量', key: 'qty', align: 'right' },
+      { label: '建议采购', key: 'suggestedPurchaseQty', align: 'right' },
+      { label: '实时库存', key: 'onHand', align: 'right' },
       { label: '备注', key: 'remark' },
     ],
     items: (v.bomItems || []).map(it => ({
       ...it,
       category: categoryLabel(it.category),
+      suggestedPurchaseQty: it.suggestedPurchaseQty ?? '—',
+      onHand: it.onHand ?? '—',
     })),
   };
 };
@@ -167,6 +193,8 @@ const blankRow = () => ({
   specification: '',
   unit: '',
   qty: '',
+  suggestedPurchaseQty: '', // 工程建议采购数量
+  onHand: null, // 对应物料实时库存（只读展示，不入库）
   remark: '',
   category: 'MACHINE',
 });
@@ -202,13 +230,22 @@ const totalLeadDays = computed(() =>
   LEAD_STAGES.reduce((sum, s) => sum + (Number(form[s.key]) || 0), 0)
 );
 
+// 完全空行（默认铺的 10 行里没填的）：保存时忽略、不参与校验。
+const isRowEmpty = r =>
+  !r.materialNo.trim() &&
+  !r.materialName.trim() &&
+  !r.specification.trim() &&
+  !r.unit.trim() &&
+  !r.remark.trim() &&
+  !Number(r.qty);
+const isRowComplete = r =>
+  !!r.materialNo.trim() && !!r.materialName.trim() && !!Number(r.qty);
+const filledRows = computed(() => form.rows.filter(r => !isRowEmpty(r)));
 const invalid = computed(
   () =>
     !form.productCode.trim() ||
-    !form.rows.length ||
-    form.rows.some(
-      r => !r.materialNo.trim() || !r.materialName.trim() || !Number(r.qty)
-    )
+    filledRows.value.length === 0 || // 至少一条实质用料
+    filledRows.value.some(r => !isRowComplete(r)) // 已填的行必须完整
 );
 
 const addRow = () => form.rows.push(blankRow());
@@ -298,6 +335,7 @@ const resetAttachments = () => {
 const openCreate = async (preOrderId = '') => {
   editingId.value = null;
   editingStatus.value = null;
+  changeReason.value = '';
   removedItemIds.value = [];
   attachOrderId.value = '';
   resetAttachments();
@@ -309,7 +347,8 @@ const openCreate = async (preOrderId = '') => {
     remark: '',
     ...blankHeader(),
     ...blankLeadDays(),
-    rows: [blankRow()],
+    // 新建默认铺 10 个空行，方便批量录入用料（不够可继续「加一行」）。
+    rows: Array.from({ length: 10 }, () => blankRow()),
   });
   await loadAttachableOrders();
   // 预关联订单须在可挂列表里（SALES_CONFIRMED 待挂 BOM）才回填。
@@ -324,6 +363,7 @@ const openCreate = async (preOrderId = '') => {
 const openEdit = bom => {
   editingId.value = bom.id;
   editingStatus.value = bom.status;
+  changeReason.value = '';
   removedItemIds.value = [];
   resetAttachments();
   existingImages.value = [...(bom.images || [])];
@@ -351,6 +391,9 @@ const openEdit = bom => {
       specification: it.specification || '',
       unit: it.unit || '',
       qty: String(it.qty ?? ''),
+      suggestedPurchaseQty:
+        it.suggestedPurchaseQty != null ? String(it.suggestedPurchaseQty) : '',
+      onHand: it.onHand != null ? Number(it.onHand) : null,
       remark: it.remark || '',
       category: it.category || 'MACHINE',
     })),
@@ -362,13 +405,15 @@ const openEdit = bom => {
 const submit = async targetStatus => {
   if (invalid.value) return;
   const itemsAttributes = [
-    ...form.rows.map(r => ({
+    ...filledRows.value.map(r => ({
       id: r.id || undefined,
       materialNo: r.materialNo.trim(),
       materialName: r.materialName.trim(),
       specification: r.specification.trim(),
       unit: r.unit.trim(),
       qty: Number(r.qty),
+      suggestedPurchaseQty:
+        r.suggestedPurchaseQty !== '' ? Number(r.suggestedPurchaseQty) : null,
       remark: r.remark.trim(),
       category: r.category || 'MACHINE',
     })),
@@ -389,6 +434,11 @@ const submit = async targetStatus => {
     bareColor: form.bareColor.trim() || null,
     caseColor: form.caseColor.trim() || null,
     status: targetStatus,
+    // 已下发 BOM 改用料时带上变更原因（后端据此记变更史 + 通知已参与部门）。
+    changeReason:
+      editingId.value && editingStatus.value === 'RELEASED'
+        ? changeReason.value.trim() || null
+        : undefined,
     productionOrderId: editingId.value
       ? undefined
       : attachOrderId.value || null,
@@ -408,6 +458,8 @@ const submit = async targetStatus => {
     const verb = targetStatus === 'RELEASED' ? '已下发' : '已存草稿';
     let msg;
     if (attached) msg = `已下发 ${ok.bomNo} 并挂接到订单，待业务员确认`;
+    else if (editingId.value && editingStatus.value === 'RELEASED')
+      msg = 'BOM 已保存，用料变更已通知相关采购/领料/库存';
     else if (editingId.value) msg = `BOM ${verb}`;
     else msg = `${verb} ${ok.bomNo}`;
     useAlert(msg);
@@ -902,53 +954,81 @@ onMounted(async () => {
           <div
             v-for="(row, i) in form.rows"
             :key="i"
-            class="grid items-center grid-cols-12 gap-2"
+            class="flex flex-col gap-1 pb-2 border-b border-dashed border-n-weak last:border-0"
           >
-            <div class="col-span-2">
-              <SelectCard
-                v-model="row.category"
-                :options="CATEGORY_OPTIONS"
-                block
+            <div class="grid items-center grid-cols-12 gap-2">
+              <div class="col-span-2">
+                <SelectCard
+                  v-model="row.category"
+                  :options="CATEGORY_OPTIONS"
+                  block
+                />
+              </div>
+              <MesProductPicker
+                :model-value="row.productId"
+                :account-id="accountId"
+                :display-text="
+                  row.materialNo
+                    ? `${row.materialNo}${row.materialName ? ` · ${row.materialName}` : ''}`
+                    : ''
+                "
+                placeholder="选物料"
+                trigger-class="col-span-2"
+                @select="p => pickMaterial(row, p)"
               />
+              <Input
+                :model-value="row.materialName"
+                placeholder="选编码自动带出"
+                disabled
+                class="col-span-2"
+              />
+              <Input
+                v-model="row.specification"
+                placeholder="规格型号"
+                class="col-span-2"
+              />
+              <Input v-model="row.unit" placeholder="台" class="col-span-1" />
+              <Input
+                v-model="row.qty"
+                type="number"
+                placeholder="用量"
+                class="col-span-1"
+              />
+              <Input
+                v-model="row.remark"
+                placeholder="备注"
+                class="col-span-1"
+              />
+              <button
+                type="button"
+                class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeRow(i)"
+              >
+                ✕
+              </button>
             </div>
-            <MesProductPicker
-              :model-value="row.productId"
-              :account-id="accountId"
-              :display-text="
-                row.materialNo
-                  ? `${row.materialNo}${row.materialName ? ` · ${row.materialName}` : ''}`
-                  : ''
-              "
-              placeholder="选物料"
-              trigger-class="col-span-2"
-              @select="p => pickMaterial(row, p)"
-            />
-            <Input
-              :model-value="row.materialName"
-              placeholder="选编码自动带出"
-              disabled
-              class="col-span-2"
-            />
-            <Input
-              v-model="row.specification"
-              placeholder="规格型号"
-              class="col-span-2"
-            />
-            <Input v-model="row.unit" placeholder="台" class="col-span-1" />
-            <Input
-              v-model="row.qty"
-              type="number"
-              placeholder="用量"
-              class="col-span-1"
-            />
-            <Input v-model="row.remark" placeholder="备注" class="col-span-1" />
-            <button
-              type="button"
-              class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
-              @click="removeRow(i)"
-            >
-              ✕
-            </button>
+            <div class="flex items-center gap-4 pl-1 text-xs text-n-slate-11">
+              <label class="flex items-center gap-2">
+                <span class="shrink-0">工程建议采购</span>
+                <Input
+                  v-model="row.suggestedPurchaseQty"
+                  type="number"
+                  placeholder="选填"
+                  class="w-24"
+                />
+              </label>
+              <span class="flex items-center gap-1">
+                实时库存：
+                <span
+                  class="font-medium"
+                  :class="
+                    row.onHand == null ? 'text-n-slate-10' : 'text-n-slate-12'
+                  "
+                >
+                  {{ row.onHand == null ? '选料后显示' : row.onHand }}
+                </span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -1075,6 +1155,22 @@ onMounted(async () => {
             </label>
           </div>
         </div>
+      </div>
+
+      <!-- 已下发 BOM 改用料：填变更原因，保存后自动记变更史并通知相关部门 -->
+      <div
+        v-if="editingId && editingStatus === 'RELEASED'"
+        class="flex flex-col gap-1 p-3 mt-1 border rounded-xl border-n-amber-6 bg-n-amber-2"
+      >
+        <label class="text-sm font-medium text-n-slate-12">
+          变更原因（选填）
+        </label>
+        <textarea
+          v-model="changeReason"
+          rows="2"
+          class="px-3 py-2 text-sm border rounded-lg resize-none reset-base border-white/70 bg-n-solid-1/70 text-n-slate-12"
+          placeholder="如：客户改需求换电池 / 工程调整用量…保存后系统会把改动明细通知已参与的采购、领料、库存部门"
+        />
       </div>
 
       <template #footer>
@@ -1336,6 +1432,46 @@ onMounted(async () => {
               </li>
             </ul>
           </div>
+
+          <!-- BOM 变更记录：已下发后每次改用料的留痕（谁/何时/改了什么/为什么）-->
+          <div
+            v-if="(viewing.revisions || []).length"
+            class="pt-2 border-t border-n-weak"
+          >
+            <div
+              class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              变更记录（{{ viewing.revisions.length }} 次）
+            </div>
+            <ul class="flex flex-col gap-2">
+              <li
+                v-for="rev in viewing.revisions"
+                :key="rev.id"
+                class="p-2 text-xs border rounded-lg border-n-weak bg-n-alpha-1"
+              >
+                <div class="flex items-center gap-2 mb-1 text-n-slate-11">
+                  <span class="font-semibold text-n-slate-12">
+                    v{{ rev.revNo }}
+                  </span>
+                  <span>{{ rev.changedByName || '—' }}</span>
+                  <span>{{ fmtRevTime(rev.createdAt) }}</span>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  <span
+                    v-for="(c, ci) in rev.diff"
+                    :key="ci"
+                    class="px-1.5 py-0.5 rounded"
+                    :class="diffChipClass(c.kind)"
+                  >
+                    {{ diffLabel(c) }}
+                  </span>
+                </div>
+                <div v-if="rev.reason" class="mt-1 text-n-slate-11">
+                  原因：{{ rev.reason }}
+                </div>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </Dialog>
@@ -1347,7 +1483,8 @@ onMounted(async () => {
       width="2xl"
       overflow-y-auto
       :show-confirm-button="false"
-      :show-cancel-button="false"
+      show-cancel-button
+      cancel-button-label="关闭"
       title="BOM 模版"
     >
       <div class="flex flex-col gap-2">

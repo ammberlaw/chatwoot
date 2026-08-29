@@ -102,10 +102,18 @@ const FONTS = [
   { key: 'default', label: '跟随模板' },
   { key: 'sans', label: '无衬线（Arial）', stack: SANS },
   { key: 'serif', label: '衬线（Georgia）', stack: SERIF },
-  { key: 'times', label: 'Times New Roman', stack: "'Times New Roman',Times,serif" },
+  {
+    key: 'times',
+    label: 'Times New Roman',
+    stack: "'Times New Roman',Times,serif",
+  },
   { key: 'verdana', label: 'Verdana', stack: 'Verdana,Geneva,sans-serif' },
   { key: 'tahoma', label: 'Tahoma', stack: 'Tahoma,Geneva,sans-serif' },
-  { key: 'trebuchet', label: 'Trebuchet MS', stack: "'Trebuchet MS',Helvetica,sans-serif" },
+  {
+    key: 'trebuchet',
+    label: 'Trebuchet MS',
+    stack: "'Trebuchet MS',Helvetica,sans-serif",
+  },
 ];
 const fontChoice = ref('default');
 const fontOptions = computed(() =>
@@ -115,10 +123,12 @@ const chosenStack = computed(
   () => FONTS.find(f => f.key === fontChoice.value)?.stack || SANS
 );
 const bodyFont = computed(
-  () => `font-family:${fontChoice.value === 'default' ? SANS : chosenStack.value}`
+  () =>
+    `font-family:${fontChoice.value === 'default' ? SANS : chosenStack.value}`
 );
 const serifStack = computed(
-  () => `font-family:${fontChoice.value === 'default' ? SERIF : chosenStack.value}`
+  () =>
+    `font-family:${fontChoice.value === 'default' ? SERIF : chosenStack.value}`
 );
 
 // 一行联系方式：小标签(主题色) + 值(深色)，链接可点。
@@ -174,7 +184,12 @@ const buildSerif = () => {
       : `https://${form.website}`
     : '';
   const rows = [
-    iconRow('mail', form.email, form.email ? `mailto:${form.email}` : '', false),
+    iconRow(
+      'mail',
+      form.email,
+      form.email ? `mailto:${form.email}` : '',
+      false
+    ),
     iconRow('phone', form.mobile, '', false),
     iconRow('phone', form.tel, '', false),
     iconRow('globe', form.website, site, true),
@@ -218,7 +233,9 @@ const socialIcons = () => {
   add('linkedin', form.linkedin);
   add('facebook', form.facebook);
   add('instagram', form.instagram);
-  return items.length ? `<div style="padding-top:14px;">${items.join('')}</div>` : '';
+  return items.length
+    ? `<div style="padding-top:14px;">${items.join('')}</div>`
+    : '';
 };
 
 // 标签式联系方式（品牌社交模板用）：左列主题色小标签 + 右列值。
@@ -253,7 +270,10 @@ const labeledContacts = () => {
 
 const buildBrand = () => {
   const a = accent.value;
-  const nameTitle = [form.name, form.title].filter(Boolean).map(esc).join(' · ');
+  const nameTitle = [form.name, form.title]
+    .filter(Boolean)
+    .map(esc)
+    .join(' · ');
   // 顶部：logo + 公司名 一行（公司名只出现一次），下面标语。
   const header = `<table cellpadding="0" cellspacing="0" border="0"><tr>
 ${
@@ -298,7 +318,12 @@ const buildTwoCol = () => {
       )}</div>`;
   const rows = [
     iconRow('phone', form.mobile || form.tel, '', false),
-    iconRow('mail', form.email, form.email ? `mailto:${form.email}` : '', false),
+    iconRow(
+      'mail',
+      form.email,
+      form.email ? `mailto:${form.email}` : '',
+      false
+    ),
     iconRow('location', form.address, '', false),
     iconRow('globe', form.website, siteUrl(), true),
   ].join('');
@@ -443,7 +468,9 @@ const onBackdropUp = e => {
         <div
           class="flex items-center justify-between px-5 py-3.5 border-b border-n-weak shrink-0"
         >
-          <h2 class="text-base font-semibold text-n-slate-12">用模板生成签名</h2>
+          <h2 class="text-base font-semibold text-n-slate-12">
+            用模板生成签名
+          </h2>
           <button
             class="text-n-slate-11 hover:text-n-slate-12"
             @click="emit('close')"
@@ -514,18 +541,46 @@ const onBackdropUp = e => {
               <span class="text-xs text-n-slate-10">邮件安全字体</span>
             </div>
 
-            <Input v-model="form.name" label="姓名（英文）" placeholder="Amber Law" />
+            <Input
+              v-model="form.name"
+              label="姓名（英文）"
+              placeholder="Amber Law"
+            />
             <div class="grid grid-cols-2 gap-2">
-              <Input v-model="form.title" label="职位" placeholder="Sales Manager" />
+              <Input
+                v-model="form.title"
+                label="职位"
+                placeholder="Sales Manager"
+              />
               <Input v-model="form.dept" label="部门" placeholder="外贸一部" />
             </div>
-            <Input v-model="form.company" label="公司" placeholder="United Touch Technology Co., Ltd." />
+            <Input
+              v-model="form.company"
+              label="公司"
+              placeholder="United Touch Technology Co., Ltd."
+            />
             <div class="grid grid-cols-2 gap-2">
-              <Input v-model="form.mobile" label="手机" placeholder="138-0000-0000" />
-              <Input v-model="form.tel" label="座机" placeholder="020-0000000" />
+              <Input
+                v-model="form.mobile"
+                label="手机"
+                placeholder="138-0000-0000"
+              />
+              <Input
+                v-model="form.tel"
+                label="座机"
+                placeholder="020-0000000"
+              />
             </div>
-            <Input v-model="form.email" label="邮箱" placeholder="sam@wintouch.com" />
-            <Input v-model="form.website" label="网站" placeholder="www.wintouch.com" />
+            <Input
+              v-model="form.email"
+              label="邮箱"
+              placeholder="sam@wintouch.com"
+            />
+            <Input
+              v-model="form.website"
+              label="网站"
+              placeholder="www.wintouch.com"
+            />
             <Input
               v-model="form.address"
               label="地址"
@@ -533,7 +588,11 @@ const onBackdropUp = e => {
             />
             <div class="grid grid-cols-2 gap-2">
               <Input v-model="form.wechat" label="微信" placeholder="wxid…" />
-              <Input v-model="form.whatsapp" label="WhatsApp" placeholder="+86…" />
+              <Input
+                v-model="form.whatsapp"
+                label="WhatsApp"
+                placeholder="+86…"
+              />
             </div>
             <Input
               v-model="form.logoUrl"
@@ -543,10 +602,15 @@ const onBackdropUp = e => {
 
             <div class="pt-1 mt-1 border-t border-n-weak">
               <p class="mb-2 text-xs text-n-slate-10">
-                选填 · 社交图标（领英等）填了会显示在所有模板；标语 / 城市用于「品牌社交」模板
+                选填 · 社交图标（领英等）填了会显示在所有模板；标语 /
+                城市用于「品牌社交」模板
               </p>
               <div class="flex flex-col gap-2">
-                <Input v-model="form.tagline" label="标语（选填）" placeholder="如：design studio" />
+                <Input
+                  v-model="form.tagline"
+                  label="标语（选填）"
+                  placeholder="如：design studio"
+                />
                 <Input
                   v-model="form.cities"
                   label="城市 / 据点（选填）"
@@ -558,8 +622,16 @@ const onBackdropUp = e => {
                   placeholder="https://www.linkedin.com/in/…"
                 />
                 <div class="grid grid-cols-2 gap-2">
-                  <Input v-model="form.facebook" label="Facebook" placeholder="https://facebook.com/…" />
-                  <Input v-model="form.instagram" label="Instagram" placeholder="https://instagram.com/…" />
+                  <Input
+                    v-model="form.facebook"
+                    label="Facebook"
+                    placeholder="https://facebook.com/…"
+                  />
+                  <Input
+                    v-model="form.instagram"
+                    label="Instagram"
+                    placeholder="https://instagram.com/…"
+                  />
                 </div>
               </div>
             </div>
@@ -575,7 +647,11 @@ const onBackdropUp = e => {
               <div v-html="generatedHtml" />
             </div>
 
-            <Input v-model="sigName" label="签名名称" placeholder="如：中文签名" />
+            <Input
+              v-model="sigName"
+              label="签名名称"
+              placeholder="如：中文签名"
+            />
             <label
               class="inline-flex items-center gap-2 text-sm cursor-pointer text-n-slate-12"
             >
@@ -593,7 +669,12 @@ const onBackdropUp = e => {
         <div
           class="flex items-center justify-end gap-2 px-5 py-3 border-t border-n-weak shrink-0"
         >
-          <Button label="取消" variant="outline" color="slate" @click="emit('close')" />
+          <Button
+            label="取消"
+            variant="outline"
+            color="slate"
+            @click="emit('close')"
+          />
           <Button
             label="生成并保存"
             color="iris"

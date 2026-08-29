@@ -2,8 +2,9 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   before_action :check_authorization
   before_action :fetch_production_order,
                 only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :confirm_bom, :release_purchasing, :requirement,
-                       :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced]
-  before_action :ensure_own_draft!, only: [:update, :attach, :detach]
+                       :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced]
+  before_action :ensure_editable!, only: [:update, :attach, :detach]
+  before_action :ensure_deletable!, only: [:destroy]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
@@ -76,6 +77,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     category = params[:category].presence || 'MACHINE'
     rows = @production_order.material_requirements(category: category)
     # 供应商信息只对 MES 人员可见；销售等非 MES 角色隐去 mes_supplier_id（与 jbuilder 同门禁）。
+    rows.each { |r| r.delete(:mes_supplier_id) } unless Current.account_user&.mes_staff?
+    render json: { payload: rows }
+  end
+
+  # 生产领料计划：BOM 推料 + 每行「已领量/实时库存/待领量」。warehouse_id 传入算该仓库存。
+  def issue_plan
+    rows = @production_order.issue_plan(
+      warehouse_id: params[:warehouse_id].presence,
+      category: params[:category].presence || 'MACHINE'
+    )
     rows.each { |r| r.delete(:mes_supplier_id) } unless Current.account_user&.mes_staff?
     render json: { payload: rows }
   end
@@ -221,7 +232,10 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   def update
+    # 已下发（非草稿）订单被改 → 改完通知当前阶段的下一个流程负责人（需求：改单同步下游）。
+    was_published = !@production_order.is_draft
     @production_order.update!(production_order_params)
+    @production_order.notify_order_revised(actor: current_user) if was_published
     render 'api/v1/accounts/mes/production_orders/show'
   end
 
@@ -323,12 +337,21 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     authorize(Mes::ProductionOrder)
   end
 
-  # 无 :order 能力的业务角色只能改**本人的草稿**（建单后调整/驳回重提）；PMC/管理员不受限。
-  def ensure_own_draft!
+  # 编辑权：PMC/管理员不受限；归属业务可改**本人订单（含已下发）**——已下发的改动
+  # 由 update 通知下游负责人。无 order 能力且非本人订单则拒。
+  def ensure_editable!
     return if Current.account_user.mes_can?(:order)
+    return if @production_order.owner_id == current_user.id
+
+    render json: { error: '仅本人订单可修改' }, status: :forbidden
+  end
+
+  # 删除权：管理员删任意；其余仅能删**本人的草稿**（已下发进入生产流程不可删）。
+  def ensure_deletable!
+    return if admin_like?
     return if @production_order.is_draft && @production_order.owner_id == current_user.id
 
-    render json: { error: '仅本人草稿可修改' }, status: :forbidden
+    render json: { error: '仅本人草稿可删除；已下发订单不可删除' }, status: :forbidden
   end
 
   def production_order_params

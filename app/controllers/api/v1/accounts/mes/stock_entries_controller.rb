@@ -27,15 +27,9 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     # 成品入库(MANUFACTURE)由车间(report)开单；其余库存单仍限仓管(stock)。
     raise Pundit::NotAuthorizedError if @stock_entry.purpose != 'MANUFACTURE' && !Current.account_user.mes_can?(:stock)
 
-    # 原料入库必须上传收货单（留证）。
-    receipts = params.dig(:stock_entry, :receipts)
-    if @stock_entry.purpose == 'MATERIAL_RECEIPT' && receipts.blank?
-      return render json: { error: '原料入库必须上传收货单' }, status: :unprocessable_entity
-    end
-
+    # 收货单据号改到收货明细每项备注上填写，不再强制上传收货单文件。
     @stock_entry.fallback_product_line = current_product_line
     @stock_entry.save!
-    @stock_entry.receipts.attach(receipts) if receipts.present?
     render 'api/v1/accounts/mes/stock_entries/show'
   end
 

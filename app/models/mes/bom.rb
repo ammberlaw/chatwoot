@@ -58,6 +58,8 @@ class Mes::Bom < ApplicationRecord
   belongs_to :owner, class_name: 'User', optional: true # 负责人：起草本 BOM 的工程/PMC 账号
   belongs_to :sales_owner, class_name: 'User', optional: true # 订单归属业务员
   has_many :bom_items, class_name: 'Mes::BomItem', dependent: :destroy, inverse_of: :bom
+  has_many :bom_revisions, class_name: 'Mes::BomRevision', dependent: :destroy, inverse_of: :bom
+  has_many :production_orders, class_name: 'Mes::ProductionOrder', dependent: :nullify
   accepts_nested_attributes_for :bom_items, allow_destroy: true
   has_many_attached :images # 结构图/样品图（缩略展示）
   has_many_attached :files  # 附件（工艺文档/图纸等）
@@ -85,6 +87,64 @@ class Mes::Bom < ApplicationRecord
   def total_lead_days
     sum = LEAD_DAY_COLUMNS.sum { |col| public_send(col).to_i }
     sum.positive? ? sum : estimated_lead_days.to_i
+  end
+
+  # 用料明细的实时库存映射：料号(material_no) → 该物料各仓实时结存合计。
+  # 物料档案统一走产品档案（料号=产品 SKU），故按 SKU 对上产品再汇总 StockBalance。
+  # 对不上产品档案的料号取 0（无库存记录）。供 BOM 明细/采购算料展示「对应物料实时库存」。
+  def onhand_by_material_no
+    codes = bom_items.filter_map(&:material_no).uniq
+    return {} if codes.empty?
+
+    sku_to_pid = Crm::Product.where(account_id: account_id, sku: codes).pluck(:sku, :id).to_h
+    onhand = Mes::StockBalance.where(account_id: account_id, crm_product_id: sku_to_pid.values)
+                              .group(:crm_product_id).sum(:qty)
+    sku_to_pid.transform_values { |pid| onhand[pid] || 0 }
+  end
+
+  # 用料快照（供变更前后对比）：按料号（无料号退料名）归一。
+  def items_snapshot
+    bom_items.map do |i|
+      { key: (i.material_no.presence || "名:#{i.material_name}"),
+        material_no: i.material_no, material_name: i.material_name,
+        qty: i.qty.to_d, unit: i.unit }
+    end
+  end
+
+  # 对比两份快照，返回变更明细数组（新增/删除/改量）。无实质变更则空数组。
+  def self.diff_items(before, after)
+    before_by = before.index_by { |r| r[:key] }
+    after_by = after.index_by { |r| r[:key] }
+    changes = []
+    (after_by.keys - before_by.keys).each do |k|
+      r = after_by[k]
+      changes << { kind: 'added', material_no: r[:material_no], material_name: r[:material_name], to_qty: r[:qty].to_s, unit: r[:unit] }
+    end
+    (before_by.keys - after_by.keys).each do |k|
+      r = before_by[k]
+      changes << { kind: 'removed', material_no: r[:material_no], material_name: r[:material_name], from_qty: r[:qty].to_s, unit: r[:unit] }
+    end
+    (before_by.keys & after_by.keys).each do |k|
+      b = before_by[k]
+      a = after_by[k]
+      next if b[:qty] == a[:qty]
+
+      changes << { kind: 'changed', material_no: a[:material_no], material_name: a[:material_name],
+                   from_qty: b[:qty].to_s, to_qty: a[:qty].to_s, unit: a[:unit] }
+    end
+    changes
+  end
+
+  # 变更摘要（通知正文/时间线用）：+新增料 / -删除料 / 用量 A→B。
+  def self.diff_summary(changes)
+    changes.map do |c|
+      label = c[:material_name].presence || c[:material_no]
+      case c[:kind]
+      when 'added' then "+#{label} #{c[:to_qty]}#{c[:unit]}"
+      when 'removed' then "-#{label}"
+      else "#{label} #{c[:from_qty]}→#{c[:to_qty]}#{c[:unit]}"
+      end
+    end.join('；')
   end
 
   private

@@ -14,4 +14,12 @@ client.requirement = (productionOrderId, category = '') =>
     },
   });
 
+// 审批链（总经理一级）：提交/通过/驳回 + 待我审批箱。
+client.submit = id => axios.post(`${client.url}/${id}/submit`);
+client.approve = (id, comment = '') =>
+  axios.post(`${client.url}/${id}/approve`, { comment });
+client.reject = (id, reason = '') =>
+  axios.post(`${client.url}/${id}/reject`, { reason });
+client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
+
 export default client;

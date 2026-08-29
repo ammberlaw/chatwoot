@@ -2,6 +2,7 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def index? = true
   def show? = true
   def requirement? = true
+  def issue_plan? = true
   def inbox? = true
   def audits? = true
   # 接单/拒收的细粒度权限（本阶段负责人 or 管理员）在控制器 can_handle_stage? 内校验。
@@ -34,7 +35,8 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   # 产品编码：由工程/PMC 编写（bom 能力）。
   def set_product_code? = @account_user.mes_can?(:bom)
 
-  def destroy? = @account_user.administrator?
+  # 归属业务可删本人草稿（控制器 ensure_deletable! 收紧到「本人 + 草稿」）；管理员删任意。
+  def destroy? = @account_user.administrator? || @account_user.mes_can?(:order) || @account_user.can_access_crm?
 end
 
 Mes::ProductionOrderPolicy.prepend_mod_with('Mes::ProductionOrderPolicy')

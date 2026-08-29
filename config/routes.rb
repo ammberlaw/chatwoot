@@ -297,12 +297,25 @@ Rails.application.routes.draw do
             end
             resources :bom_templates, except: [:new, :edit]
             resources :purchase_orders do
-              collection { get :requirement }
+              collection do
+                get :requirement
+                get :approval_inbox
+              end
               member do
+                post :submit
+                post :approve
+                post :reject
                 post :return_document
                 post :reactivate
                 get :export
                 get :export_data
+              end
+            end
+            resources :purchase_requisitions do
+              member do
+                post :submit
+                post :cancel
+                post :convert
               end
             end
             resources :stock_entries do
@@ -353,6 +366,7 @@ Rails.application.routes.draw do
                 post :release_purchasing
                 post :mark_outsourced
                 get :requirement
+                get :issue_plan
                 post :acknowledge
                 post :reject
                 post :submit_approval

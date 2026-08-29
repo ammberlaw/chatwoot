@@ -123,6 +123,9 @@ class Account < ApplicationRecord
   has_many :mes_bom_items, class_name: 'Mes::BomItem', dependent: :destroy_async
   has_many :mes_purchase_orders, class_name: 'Mes::PurchaseOrder', dependent: :destroy_async
   has_many :mes_purchase_items, class_name: 'Mes::PurchaseItem', dependent: :destroy_async
+  has_many :mes_purchase_requisitions, class_name: 'Mes::PurchaseRequisition', dependent: :destroy_async
+  has_many :mes_purchase_requisition_items, class_name: 'Mes::PurchaseRequisitionItem', dependent: :destroy_async
+  has_many :mes_bom_revisions, class_name: 'Mes::BomRevision', dependent: :destroy_async
   has_many :mes_stock_entries, class_name: 'Mes::StockEntry', dependent: :destroy_async
   has_many :mes_stock_entry_items, class_name: 'Mes::StockEntryItem', dependent: :destroy_async
   has_many :mes_stock_ledgers, class_name: 'Mes::StockLedger', dependent: :destroy_async

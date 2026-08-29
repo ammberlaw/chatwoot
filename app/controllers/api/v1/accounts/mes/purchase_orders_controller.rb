@@ -2,7 +2,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   include Api::V1::Accounts::Mes::DocumentReturnable
 
   before_action :check_authorization
-  before_action :fetch_purchase_order, only: [:show, :update, :destroy, :export, :export_data]
+  before_action :fetch_purchase_order, only: [:show, :update, :destroy, :export, :export_data, :submit, :approve, :reject]
 
   COLUMN_FILTERS = { status: :status, production_order_id: :production_order_id }.freeze
 
@@ -12,7 +12,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
       scope = scope.where(column => params[param]) if params[param].present?
     end
     scope = scope.where(has_exception: true) if params[:exception] == 'true'
-    scope = scope.where('po_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
+    scope = apply_search(scope, params[:q]) if params[:q].present?
     @purchase_orders_count = scope.count
     @purchase_orders = scope.order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
@@ -38,6 +38,32 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     head :ok
   end
 
+  # 提交总经理审批（草稿/被驳回可提交）。
+  def submit
+    @purchase_order.submit_for_approval!(current_user)
+    render 'api/v1/accounts/mes/purchase_orders/show'
+  end
+
+  # 总经理通过 → 生效，累加在途库存。
+  def approve
+    @purchase_order.gm_approve!(current_user, comment: params[:comment])
+    render 'api/v1/accounts/mes/purchase_orders/show'
+  end
+
+  # 总经理驳回 → 退回制单人。
+  def reject
+    @purchase_order.reject_approval!(current_user, reason: params[:reason])
+    render 'api/v1/accounts/mes/purchase_orders/show'
+  end
+
+  # 待我审批的采购单（总经理待办箱）。
+  def approval_inbox
+    scope = Current.account.mes_purchase_orders.awaiting_gm_for(current_user.id)
+    @purchase_orders_count = scope.count
+    @purchase_orders = scope.order(submitted_at: :asc).page(page_param).per(RESULTS_PER_PAGE)
+    render 'api/v1/accounts/mes/purchase_orders/index'
+  end
+
   # BOM 算料：按生产订单的 BOM 展开采购需求，供采购单预填。
   def requirement
     production_order = Current.account.mes_production_orders.find(params[:production_order_id])
@@ -61,6 +87,29 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   private
 
+  # 采购单搜索：单号 / 归属人(采购制单人 + 生产订单归属业务员) / 生产订单(单号+品名) /
+  # 供应商 / 物料编码(产品SKU/物料料号)。明细维度用 EXISTS 子查询（避免 join 造成行重复、count 失真）。
+  # 「归属人」列显示的是生产订单归属业务员(po.owner)，故必须一并匹配 pou.name。
+  def apply_search(scope, raw)
+    q = "%#{raw.strip}%"
+    scope.where(
+      'mes_purchase_orders.po_no ILIKE :q
+       OR EXISTS (SELECT 1 FROM users u
+                  WHERE u.id = mes_purchase_orders.owner_id AND u.name ILIKE :q)
+       OR EXISTS (SELECT 1 FROM mes_production_orders po
+                  LEFT JOIN users pou ON pou.id = po.owner_id
+                  WHERE po.id = mes_purchase_orders.production_order_id
+                    AND (po.order_no ILIKE :q OR po.product_name ILIKE :q OR pou.name ILIKE :q))
+       OR EXISTS (SELECT 1 FROM mes_purchase_items pi
+                  LEFT JOIN mes_suppliers s ON s.id = pi.mes_supplier_id
+                  LEFT JOIN crm_products p ON p.id = pi.crm_product_id
+                  LEFT JOIN mes_materials m ON m.id = pi.mes_material_id
+                  WHERE pi.purchase_order_id = mes_purchase_orders.id
+                    AND (s.name ILIKE :q OR p.sku ILIKE :q OR p.name ILIKE :q OR m.material_no ILIKE :q))',
+      q: q
+    )
+  end
+
   def fetch_purchase_order
     @purchase_order = Current.account.mes_purchase_orders.find(params[:id])
   end
@@ -83,7 +132,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
       :has_exception, :exception_note, :owner_id, :remark,
       purchase_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :mes_supplier_id, :arrival_date,
-        :qty, :unit, :rate_micros, :received_qty, :remark, :_destroy
+        :qty, :unit, :rate_micros, :price_tax_included, :received_qty, :remark, :_destroy
       ]
     )
   end

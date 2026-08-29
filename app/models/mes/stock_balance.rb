@@ -4,6 +4,7 @@
 #
 #  id              :bigint           not null, primary key
 #  item_type       :string           not null
+#  on_order_qty    :decimal(16, 3)   default(0.0), not null
 #  product_line    :string
 #  qty             :decimal(16, 3)   default(0.0), not null
 #  created_at      :datetime         not null
@@ -45,6 +46,19 @@ class Mes::StockBalance < ApplicationRecord
       row.update!(qty: row.qty + delta)
     end
     row.qty
+  end
+
+  # 对某物料/成品 × 仓库的在途量（已订购未到货）施加增量，floor 0（原子递增）。
+  # 采购审批通过 +delta、到货冲减 -delta。
+  def self.apply_on_order!(account_id:, item_type:, warehouse_id:, delta:, mes_material_id: nil, crm_product_id: nil)
+    row = find_or_create_by!(
+      account_id: account_id, item_type: item_type, warehouse_id: warehouse_id,
+      mes_material_id: mes_material_id, crm_product_id: crm_product_id
+    )
+    row.with_lock do
+      row.update!(on_order_qty: [row.on_order_qty + delta, 0].max)
+    end
+    row.on_order_qty
   end
 
   private

@@ -1,4 +1,4 @@
-# 考勤组管理（仅超级管理员与管理员）：增删改组与成员分配；一人只能属于一个组（分配时自动从其他组移除）。
+# 考勤组管理（超级管理员/管理员/人事）：增删改组与成员分配；一人只能属于一个组（分配时自动从其他组移除）。
 class Api::V1::Accounts::Crm::AttendanceGroupsController < Api::V1::Accounts::Crm::BaseController
   skip_before_action :ensure_crm_access
   before_action :ensure_admin_like
@@ -35,9 +35,10 @@ class Api::V1::Accounts::Crm::AttendanceGroupsController < Api::V1::Accounts::Cr
   end
 
   def ensure_admin_like
-    return if Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+    au = Current.account_user
+    return if au.administrator? || au.crm_deputy_admin? || au.crm_hr?
 
-    render json: { error: '仅超级管理员或管理员可管理考勤组' }, status: :forbidden
+    render json: { error: '仅超级管理员/管理员/人事可管理考勤组' }, status: :forbidden
   end
 
   def group_attrs

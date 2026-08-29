@@ -199,8 +199,10 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     "打卡失败：需#{ways.join(' 或 ')}。请确认后重试"
   end
 
+  # 人事按考勤管理职能纳入 admin_like：可查全员考勤、改考勤、设打卡网络/地点。
   def admin_like?
-    Current.account_user.administrator? || Current.account_user.crm_deputy_admin?
+    au = Current.account_user
+    au.administrator? || au.crm_deputy_admin? || au.crm_hr?
   end
 
   def render_forbidden

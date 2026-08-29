@@ -18,6 +18,9 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
     end
     @products_count = scope.count
     @products = scope.order(updated_at: :desc).page(page_param).per(per_page_param)
+    # 本页各产品的实时库存（跨仓合计），供 BOM/采购选料即时显示「对应物料实时库存」。
+    @onhand_map = Mes::StockBalance.where(account_id: Current.account.id, crm_product_id: @products.map(&:id))
+                                   .group(:crm_product_id).sum(:qty)
   end
 
   def create

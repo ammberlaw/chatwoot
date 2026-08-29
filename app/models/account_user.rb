@@ -73,7 +73,7 @@ class AccountUser < ApplicationRecord
   # product = 产品档案/编码（仅工程与 PMC 可增删改；采购管供应商/物料走 master，不含产品）。
   MES_CAPABILITIES = {
     'pmc' => %w[order bom master product],
-    'engineer' => %w[bom master product],
+    'engineer' => %w[order bom master product],
     'buyer' => %w[purchase master],
     'warehouse' => %w[stock shipment quality],
     'production' => %w[report quality]

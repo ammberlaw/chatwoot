@@ -1,15 +1,15 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted, nextTick } from 'vue';
+import { ref, computed, reactive, onMounted, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import html2canvas from 'html2canvas';
 import { jsPDF as JsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import { useAlert } from 'dashboard/composables';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesPurchaseOrdersStore } from 'dashboard/stores/mes/purchaseOrders';
 import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
-import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -30,13 +30,23 @@ const route = useRoute();
 const store = useMesPurchaseOrdersStore();
 const { mesCan } = useMesRole();
 const suppliersStore = useMesSuppliersStore();
-const materialsStore = useMesMaterialsStore();
+const currentUserId = useMapGetter('getCurrentUserID');
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
 const saving = computed(
   () => store.getUIFlags.creatingItem || store.getUIFlags.updatingItem
 );
+
+// 搜索：单号 / 供应商 / 归属人 / 生产订单 / 物料编码（后端跨字段 ILIKE）。
+const search = ref('');
+const totalCount = computed(() => store.getMeta?.count || 0);
+const fetchList = () => store.get({ q: search.value.trim() || undefined });
+let searchTimer = null;
+watch(search, () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(fetchList, 300);
+});
 
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 
@@ -51,6 +61,63 @@ const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({
   value,
   label,
 }));
+
+// 审批状态（总经理一级）：与收货状态正交。
+const APPROVAL_LABELS = {
+  DRAFT: '草稿',
+  PENDING_GM: '待总经理审批',
+  APPROVED: '已通过',
+  REJECTED: '已驳回',
+};
+const APPROVAL_COLORS = {
+  DRAFT: 'text-n-slate-11',
+  PENDING_GM: 'text-n-amber-11',
+  APPROVED: 'text-n-teal-11',
+  REJECTED: 'text-n-ruby-11',
+};
+
+// 提交审批：草稿/被驳回可提交（制单人操作）。
+const submitForApproval = async po => {
+  try {
+    await MesPurchaseOrderAPI.submit(po.id);
+    useAlert('已提交总经理审批');
+    fetchList();
+  } catch {
+    useAlert('提交失败，请重试');
+  }
+};
+// 总经理通过。
+const approvePo = async po => {
+  try {
+    await MesPurchaseOrderAPI.approve(po.id);
+    useAlert('已通过，库存已记在途');
+    fetchList();
+  } catch {
+    useAlert('审批失败，请重试');
+  }
+};
+// 总经理驳回（填原因）。
+const rejectPo = async po => {
+  // eslint-disable-next-line no-alert
+  const reason = window.prompt('请填写驳回原因');
+  if (reason === null) return;
+  try {
+    await MesPurchaseOrderAPI.reject(po.id, reason);
+    useAlert('已驳回');
+    fetchList();
+  } catch {
+    useAlert('驳回失败，请重试');
+  }
+};
+// 我是本单当前审批人（总经理）吗？→ 显示通过/驳回。
+const canApprove = po =>
+  po.approvalStatus === 'PENDING_GM' &&
+  po.currentApproverId === currentUserId.value;
+// 我能提交本单审批吗？→ 制单人本人、草稿或被驳回。
+const canSubmit = po =>
+  mesCan('purchase') &&
+  ['DRAFT', 'REJECTED'].includes(po.approvalStatus) &&
+  po.ownerId === currentUserId.value;
 
 // 按供应商拆单导出为 PDF：每供应商一份（抬头/税口径按各自 bill_entity），打包 zip 下载。
 // 后端给分组数据 → 前端离屏渲染各供应商 PO 版式 → html2canvas 截图 → jsPDF 出 PDF → jszip 打包。
@@ -172,7 +239,13 @@ const viewFields = computed(() => {
     { label: '供应商', value: (p.supplierNames || []).join('、') || '—' },
     { label: '生产订单', value: p.productionOrderNo },
     { label: '归属人', value: p.productionOrderOwnerName },
-    { label: '状态', value: STATUS_LABELS[p.status] || p.status },
+    { label: '收货状态', value: STATUS_LABELS[p.status] || p.status },
+    {
+      label: '审批状态',
+      value: APPROVAL_LABELS[p.approvalStatus] || '—',
+    },
+    { label: '审批总经理', value: p.gmName || '—' },
+    { label: '审批意见', value: p.gmComment || '—' },
     { label: '回复交期', value: day(p.expectedDate) },
     { label: '交货时间', value: day(p.deliveryDate) },
     {
@@ -198,9 +271,9 @@ const VIEW_ITEM_COLS = [
 const viewItems = computed(() =>
   (viewing.value?.purchaseItems || []).map(it => ({
     typeLabel: it.itemType === 'PRODUCT' ? '成品(外购)' : '物料',
-    code: it.itemType === 'PRODUCT' ? it.productSku : it.materialNo,
-    name: it.itemType === 'PRODUCT' ? it.productName : it.materialName,
-    spec: it.itemType === 'PRODUCT' ? '—' : it.specification || '—',
+    code: it.productSku || it.materialNo || '—',
+    name: it.productName || it.materialName || '—',
+    spec: it.specification || '—',
     supplierName: it.supplierName || '—',
     qty: it.qty,
     receivedQty: it.receivedQty,
@@ -224,17 +297,6 @@ const supplierOptions = computed(() =>
     label: s.name,
   }))
 );
-const materialOptions = computed(() =>
-  (materialsStore.getRecords || []).map(m => ({
-    value: String(m.id),
-    label: `${m.name}（${m.unit}）`,
-  }))
-);
-// 规格型号取自所选物料档案（物料行必选物料，故始终可得）。
-const materialSpec = id =>
-  (materialsStore.getRecords || []).find(m => String(m.id) === String(id))
-    ?.specification || '';
-
 // 采购行类型：物料（生产用料）/ 成品（外购贸易品，不经过生产部）。
 const ITEM_TYPE_OPTIONS = [
   { value: 'MATERIAL', label: '物料' },
@@ -256,7 +318,15 @@ const productUnit = id =>
   productOptions.value.find(o => o.value === String(id))?.unit || '';
 const productLabel = id =>
   productOptions.value.find(o => o.value === String(id))?.label || '';
-// MesProductPicker 选中：把该成品并入 productOptions，保证行内显示文本与提交单位都可查。
+// 规格型号取自所选产品档案（统一物料档案 = 产品档案）。
+const productSpec = id =>
+  productOptions.value.find(o => o.value === String(id))?.specification || '';
+// 对应物料实时库存（产品搜索/算料时带回的跨仓合计），选料即显示。
+const productOnHand = id => {
+  const o = productOptions.value.find(x => x.value === String(id));
+  return o && o.onHand != null ? o.onHand : null;
+};
+// MesProductPicker 选中：把该产品并入 productOptions，保证行内显示文本、规格、单位、实时库存都可查。
 const onProductPicked = p =>
   mergeProductOptions([
     {
@@ -265,21 +335,24 @@ const onProductPicked = p =>
         p.specification ? ` · ${p.specification}` : ''
       }`,
       unit: p.unit || '',
+      specification: p.specification || '',
+      onHand: p.on_hand != null ? Number(p.on_hand) : null,
     },
   ]);
 
 const dialogRef = ref(null);
 const editingId = ref(null);
 const removedItemIds = ref([]);
-// 明细行：供应商、实际到料时间都在行上（一单多料、多供应商、到货时间各异）。
+// 明细行：物料/成品统一从产品档案选（crmProductId）；供应商、含税/未税、实际到料时间都在行上。
 const blankRow = () => ({
   itemType: 'MATERIAL',
-  mesMaterialId: '',
   crmProductId: '',
   mesSupplierId: '',
   arrivalDate: '',
   qty: '1',
   rate: '',
+  priceTaxIncluded: false,
+  suggestedQty: null, // 工程建议采购量（BOM 算料带出，只读参考）
   remark: '',
 });
 const form = reactive({
@@ -292,9 +365,11 @@ const form = reactive({
   rows: [],
 });
 
-const rowIncomplete = r =>
-  !Number(r.qty) ||
-  (r.itemType === 'PRODUCT' ? !r.crmProductId : !r.mesMaterialId);
+const rowIncomplete = r => !Number(r.qty) || !r.crmProductId;
+// 供应商税率（%）：用于含税/未税提示。
+const supplierTaxRate = id =>
+  (suppliersStore.getRecords || []).find(s => String(s.id) === String(id))
+    ?.taxRate || 0;
 const invalid = computed(
   () => !form.rows.length || form.rows.some(rowIncomplete)
 );
@@ -329,13 +404,31 @@ const explode = async (category = '') => {
       return;
     }
     form.rows.forEach(r => r.id && removedItemIds.value.push(r.id));
+    // 料号能对上产品档案 SKU 的自动带出产品；对不上的留空让采购手动选（并把料号信息放备注提示）。
+    mergeProductOptions(
+      reqs
+        .filter(r => r.crm_product_id)
+        .map(r => ({
+          value: String(r.crm_product_id),
+          label: `${r.material_name || ''}${r.material_no ? `（${r.material_no}）` : ''}${
+            r.specification ? ` · ${r.specification}` : ''
+          }`,
+          unit: r.unit || '',
+          specification: r.specification || '',
+          onHand: r.on_hand != null ? Number(r.on_hand) : null,
+        }))
+    );
     form.rows = reqs.map(r => ({
       ...blankRow(),
-      mesMaterialId: r.mes_material_id ? String(r.mes_material_id) : '',
+      crmProductId: r.crm_product_id ? String(r.crm_product_id) : '',
       mesSupplierId: r.mes_supplier_id ? String(r.mes_supplier_id) : '',
       qty: String(r.qty),
-      // 物料已关联则名称/规格自带；仅未关联的自由文本物料把信息留在备注作提示。
-      remark: r.mes_material_id
+      suggestedQty:
+        r.suggested_purchase_qty != null
+          ? Number(r.suggested_purchase_qty)
+          : null,
+      // 料号对不上产品档案时把料号/名称/规格留备注，方便采购手动补选。
+      remark: r.crm_product_id
         ? ''
         : [r.material_no, r.material_name, r.specification]
             .filter(Boolean)
@@ -383,16 +476,16 @@ const openEdit = po => {
     rows: (po.purchaseItems || []).map(it => ({
       id: it.id,
       itemType: it.itemType || 'MATERIAL',
-      mesMaterialId: it.mesMaterialId ? String(it.mesMaterialId) : '',
       crmProductId: it.crmProductId ? String(it.crmProductId) : '',
       mesSupplierId: it.mesSupplierId ? String(it.mesSupplierId) : '',
       arrivalDate: it.arrivalDate ? it.arrivalDate.slice(0, 10) : '',
       qty: String(it.qty),
       rate: it.rateMicros ? String(it.rateMicros / 1e6) : '',
+      priceTaxIncluded: !!it.priceTaxIncluded,
       remark: it.remark || '',
     })),
   });
-  // 回填已选成品的标签，保证下拉能显示名称
+  // 回填已选产品的标签/规格，保证下拉能显示名称
   mergeProductOptions(
     (po.purchaseItems || [])
       .filter(it => it.crmProductId)
@@ -400,6 +493,7 @@ const openEdit = po => {
         value: String(it.crmProductId),
         label: `${it.productName || ''}${it.productSku ? `（${it.productSku}）` : ''}`,
         unit: it.unit || '',
+        specification: it.specification || '',
       }))
   );
   dialogRef.value?.open();
@@ -411,13 +505,14 @@ const submit = async () => {
     ...form.rows.map(r => ({
       id: r.id || undefined,
       itemType: r.itemType,
-      mesMaterialId: r.itemType === 'PRODUCT' ? null : Number(r.mesMaterialId),
-      crmProductId: r.itemType === 'PRODUCT' ? Number(r.crmProductId) : null,
+      mesMaterialId: null,
+      crmProductId: Number(r.crmProductId),
       mesSupplierId: r.mesSupplierId ? Number(r.mesSupplierId) : null,
       arrivalDate: r.arrivalDate || null,
-      unit: r.itemType === 'PRODUCT' ? productUnit(r.crmProductId) : undefined,
+      unit: productUnit(r.crmProductId) || undefined,
       qty: Number(r.qty),
       rateMicros: r.rate ? Math.round(Number(r.rate) * 1e6) : null,
+      priceTaxIncluded: r.priceTaxIncluded,
       remark: r.remark || '',
     })),
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
@@ -441,10 +536,9 @@ const submit = async () => {
 };
 
 onMounted(async () => {
-  store.get();
+  fetchList();
   // 供应商下拉需全量，默认分页只出第一页会漏选。
   suppliersStore.get({ per_page: 500 });
-  materialsStore.get();
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/production_orders`
@@ -472,6 +566,17 @@ onMounted(async () => {
 
     <MesBoardOwnerBar board-key="mes_purchase_orders_index" />
 
+    <!-- 搜索：单号/供应商/归属人/生产订单/物料编码 -->
+    <div class="flex items-center gap-2 px-4 pt-1 pb-2 sm:px-6">
+      <input
+        v-model="search"
+        type="text"
+        placeholder="搜索单号 / 供应商 / 归属人 / 生产订单 / 物料编码"
+        class="w-80 h-9 px-3 mb-0 text-sm rounded-lg reset-base outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 hover:outline-n-brand focus:outline-n-brand"
+      />
+      <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
+    </div>
+
     <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -498,8 +603,36 @@ onMounted(async () => {
               <span class="text-xs shrink-0 text-n-slate-11">
                 {{ STATUS_LABELS[p.status] }}
               </span>
+              <span
+                class="text-xs shrink-0"
+                :class="APPROVAL_COLORS[p.approvalStatus]"
+              >
+                {{ APPROVAL_LABELS[p.approvalStatus] || '' }}
+              </span>
               <span class="flex-1" />
               <div class="flex gap-1 shrink-0" @click.stop>
+                <Button
+                  v-if="canSubmit(p)"
+                  label="提交审批"
+                  color="iris"
+                  size="sm"
+                  @click="submitForApproval(p)"
+                />
+                <Button
+                  v-if="canApprove(p)"
+                  label="通过"
+                  color="teal"
+                  size="sm"
+                  @click="approvePo(p)"
+                />
+                <Button
+                  v-if="canApprove(p)"
+                  label="驳回"
+                  color="ruby"
+                  variant="outline"
+                  size="sm"
+                  @click="rejectPo(p)"
+                />
                 <Button
                   v-if="mesCan('purchase')"
                   label="编辑"
@@ -537,7 +670,8 @@ onMounted(async () => {
               <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">收货状态</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">审批</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">回复交期</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">交货时间</th>
               <th class="px-3 py-3" />
@@ -567,6 +701,11 @@ onMounted(async () => {
               <td class="px-3 py-3 text-n-slate-11">
                 {{ STATUS_LABELS[p.status] }}
               </td>
+              <td class="px-3 py-3 whitespace-nowrap">
+                <span :class="APPROVAL_COLORS[p.approvalStatus]">
+                  {{ APPROVAL_LABELS[p.approvalStatus] || '—' }}
+                </span>
+              </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ day(p.expectedDate) }}
               </td>
@@ -580,6 +719,28 @@ onMounted(async () => {
                     variant="ghost"
                     size="sm"
                     @click="openView(p)"
+                  />
+                  <Button
+                    v-if="canSubmit(p)"
+                    label="提交审批"
+                    color="iris"
+                    size="sm"
+                    @click="submitForApproval(p)"
+                  />
+                  <Button
+                    v-if="canApprove(p)"
+                    label="通过"
+                    color="teal"
+                    size="sm"
+                    @click="approvePo(p)"
+                  />
+                  <Button
+                    v-if="canApprove(p)"
+                    label="驳回"
+                    color="ruby"
+                    variant="outline"
+                    size="sm"
+                    @click="rejectPo(p)"
                   />
                   <Button
                     v-if="mesCan('purchase')"
@@ -604,7 +765,7 @@ onMounted(async () => {
               </td>
             </tr>
             <tr v-if="!records.length">
-              <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+              <td colspan="10" class="px-3 py-10 text-center text-n-slate-11">
                 还没有采购单。
               </td>
             </tr>
@@ -680,11 +841,11 @@ onMounted(async () => {
             <DatePicker v-model="form.expectedDate" block />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">
-              交货时间
-              <span class="text-n-slate-10">（导出合同"三、交货时间"用）</span>
-            </label>
+            <label class="text-heading-3 text-n-slate-12">交货时间</label>
             <DatePicker v-model="form.deliveryDate" block />
+            <span class="text-xs text-n-slate-10">
+              导出合同"三、交货时间"用
+            </span>
           </div>
         </div>
 
@@ -728,19 +889,12 @@ onMounted(async () => {
             </div>
             <div class="md:col-span-3">
               <MesProductPicker
-                v-if="row.itemType === 'PRODUCT'"
                 :account-id="accountId"
                 :model-value="row.crmProductId"
                 :display-text="productLabel(row.crmProductId)"
-                placeholder="选择外购成品（编码/名称/规格）"
+                placeholder="选择物料（产品档案·编码/名称/规格）"
                 @update:model-value="v => (row.crmProductId = v)"
                 @select="onProductPicked"
-              />
-              <ComboBox
-                v-else
-                v-model="row.mesMaterialId"
-                :options="materialOptions"
-                placeholder="选择物料"
               />
             </div>
             <div class="md:col-span-2">
@@ -759,7 +913,7 @@ onMounted(async () => {
             <Input
               v-model="row.rate"
               type="number"
-              placeholder="单价"
+              :placeholder="row.priceTaxIncluded ? '含税单价' : '未税单价'"
               class="md:col-span-2"
             />
             <button
@@ -769,17 +923,25 @@ onMounted(async () => {
             >
               ✕
             </button>
-            <div class="flex items-center gap-2 md:col-span-4">
+            <label
+              class="flex items-center gap-1.5 text-xs md:col-span-3 text-n-slate-11"
+            >
+              <input v-model="row.priceTaxIncluded" type="checkbox" />
+              <span>单价含税</span>
+              <span
+                v-if="row.mesSupplierId && supplierTaxRate(row.mesSupplierId)"
+                class="text-n-slate-10"
+              >
+                （税率{{ supplierTaxRate(row.mesSupplierId) }}%）
+              </span>
+            </label>
+            <div class="flex items-center gap-2 md:col-span-3">
               <label class="text-xs shrink-0 text-n-slate-11">规格</label>
               <span class="flex-1 text-xs truncate text-n-slate-11">
-                {{
-                  row.itemType === 'PRODUCT'
-                    ? '—'
-                    : materialSpec(row.mesMaterialId) || '—'
-                }}
+                {{ productSpec(row.crmProductId) || '—' }}
               </span>
             </div>
-            <div class="flex items-center gap-2 md:col-span-4">
+            <div class="flex items-center gap-2 md:col-span-3">
               <label class="text-xs shrink-0 text-n-slate-11">实际到料</label>
               <div class="flex-1">
                 <DatePicker v-model="row.arrivalDate" block />
@@ -788,8 +950,26 @@ onMounted(async () => {
             <Input
               v-model="row.remark"
               placeholder="备注"
-              class="md:col-span-4"
+              class="md:col-span-3"
             />
+            <div class="flex items-center gap-2 md:col-span-3">
+              <label class="text-xs shrink-0 text-n-slate-11">实时库存</label>
+              <span class="flex-1 text-xs text-n-slate-11">
+                {{
+                  productOnHand(row.crmProductId) == null
+                    ? '选料后显示'
+                    : productOnHand(row.crmProductId)
+                }}
+              </span>
+            </div>
+            <div class="flex items-center gap-2 md:col-span-3">
+              <label class="text-xs shrink-0 text-n-slate-11">
+                工程建议采购
+              </label>
+              <span class="flex-1 text-xs text-n-slate-11">
+                {{ row.suggestedQty == null ? '—' : row.suggestedQty }}
+              </span>
+            </div>
           </div>
         </div>
         <div

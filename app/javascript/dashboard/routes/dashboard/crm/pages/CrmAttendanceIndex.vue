@@ -25,10 +25,12 @@ const goApproval = kind => {
   });
 };
 
+// 人事按考勤管理职能与管理员同权：看全员考勤、管理考勤组、改考勤、设打卡网络/地点。
 const isAdminLike = computed(
   () =>
     currentUser.value?.role === 'administrator' ||
-    currentUser.value?.crm_role === 'deputy_admin'
+    currentUser.value?.crm_role === 'deputy_admin' ||
+    currentUser.value?.crm_role === 'hr'
 );
 const isManager = computed(
   () =>

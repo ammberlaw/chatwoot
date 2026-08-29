@@ -2,36 +2,47 @@
 #
 # Table name: mes_purchase_orders
 #
-#  id                  :bigint           not null, primary key
-#  delivery_date       :date
-#  exception_note      :text
-#  expected_date       :datetime
-#  follow_up_date      :datetime
-#  has_exception       :boolean          default(FALSE), not null
-#  po_no               :string           not null
-#  product_line        :string
-#  remark              :text
-#  status              :string           default("DRAFT"), not null
-#  total_amount_micros :bigint
-#  created_at          :datetime         not null
-#  updated_at          :datetime         not null
-#  account_id          :bigint           not null
-#  owner_id            :bigint
-#  production_order_id :bigint
+#  id                      :bigint           not null, primary key
+#  approval_status         :string           default("DRAFT"), not null
+#  delivery_date           :date
+#  exception_note          :text
+#  expected_date           :datetime
+#  follow_up_date          :datetime
+#  gm_acted_at             :datetime
+#  gm_comment              :text
+#  has_exception           :boolean          default(FALSE), not null
+#  po_no                   :string           not null
+#  product_line            :string
+#  remark                  :text
+#  status                  :string           default("DRAFT"), not null
+#  submitted_at            :datetime
+#  total_amount_micros     :bigint
+#  created_at              :datetime         not null
+#  updated_at              :datetime         not null
+#  account_id              :bigint           not null
+#  gm_id                   :bigint
+#  owner_id                :bigint
+#  production_order_id     :bigint
+#  purchase_requisition_id :bigint
 #
 # Indexes
 #
-#  index_mes_purchase_orders_on_account_and_product_line  (account_id,product_line)
-#  index_mes_purchase_orders_on_account_id                (account_id)
-#  index_mes_purchase_orders_on_account_id_and_po_no      (account_id,po_no) UNIQUE
-#  index_mes_purchase_orders_on_account_id_and_status     (account_id,status)
-#  index_mes_purchase_orders_on_owner_id                  (owner_id)
-#  index_mes_purchase_orders_on_production_order_id       (production_order_id)
+#  index_mes_purchase_orders_on_account_and_product_line        (account_id,product_line)
+#  index_mes_purchase_orders_on_account_id                      (account_id)
+#  index_mes_purchase_orders_on_account_id_and_approval_status  (account_id,approval_status)
+#  index_mes_purchase_orders_on_account_id_and_po_no            (account_id,po_no) UNIQUE
+#  index_mes_purchase_orders_on_account_id_and_status           (account_id,status)
+#  index_mes_purchase_orders_on_gm_id                           (gm_id)
+#  index_mes_purchase_orders_on_owner_id                        (owner_id)
+#  index_mes_purchase_orders_on_production_order_id             (production_order_id)
+#  index_mes_purchase_orders_on_purchase_requisition_id         (purchase_requisition_id)
 #
 # Foreign Keys
 #
+#  fk_rails_...  (gm_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #  fk_rails_...  (production_order_id => mes_production_orders.id) ON DELETE => nullify
+#  fk_rails_...  (purchase_requisition_id => mes_purchase_requisitions.id) ON DELETE => nullify
 #
 class Mes::PurchaseOrder < ApplicationRecord
   include Mes::DocumentNumber
@@ -39,10 +50,14 @@ class Mes::PurchaseOrder < ApplicationRecord
   include Mes::Returnable
 
   STATUSES = %w[DRAFT SUBMITTED PARTIAL_RECEIVED RECEIVED CANCELLED].freeze
+  # 审批（总经理一级）：与收货状态 status 正交。DRAFT→提交→PENDING_GM（待总经理）→APPROVED/REJECTED。
+  APPROVAL_STATUSES = %w[DRAFT PENDING_GM APPROVED REJECTED].freeze
 
   belongs_to :account
   belongs_to :production_order, class_name: 'Mes::ProductionOrder', optional: true
+  belongs_to :purchase_requisition, class_name: 'Mes::PurchaseRequisition', optional: true # 由采购申请单转入（可空）
   belongs_to :owner, class_name: 'User', optional: true
+  belongs_to :gm, class_name: 'User', optional: true # 审批总经理
   has_many :purchase_items, class_name: 'Mes::PurchaseItem', dependent: :destroy, inverse_of: :purchase_order
   accepts_nested_attributes_for :purchase_items, allow_destroy: true
 
@@ -50,6 +65,9 @@ class Mes::PurchaseOrder < ApplicationRecord
 
   validates :po_no, presence: true, uniqueness: { scope: :account_id }
   validates :status, inclusion: { in: STATUSES }
+  validates :approval_status, inclusion: { in: APPROVAL_STATUSES }
+
+  scope :awaiting_gm_for, ->(uid) { where(approval_status: 'PENDING_GM', gm_id: uid) }
 
   def self.document_number_prefix = 'PU'
   def self.document_number_column = :po_no
@@ -80,6 +98,79 @@ class Mes::PurchaseOrder < ApplicationRecord
 
   def received? = status == 'RECEIVED'
 
+  # ── 审批链（总经理一级）──
+  def pending_approval? = approval_status == 'PENDING_GM'
+  def approved? = approval_status == 'APPROVED'
+  def current_approver_id = pending_approval? ? gm_id : nil
+
+  # 提交审批（草稿/被驳回可提交）：解析总经理、进「待总经理」，通知总经理。
+  def submit_for_approval!(_actor = nil)
+    raise StandardError, '当前状态无法提交审批' unless %w[DRAFT REJECTED].include?(approval_status)
+
+    self.gm_id = resolve_gm_id
+    self.submitted_at = Time.current
+    self.gm_acted_at = self.gm_comment = nil
+    self.approval_status = 'PENDING_GM'
+    save!
+    notify_gm_pending
+    self
+  end
+
+  # 总经理通过 → 生效，累加在途库存（已订购未到货）。
+  def gm_approve!(actor, comment: nil)
+    raise StandardError, '非「待总经理」环节' unless approval_status == 'PENDING_GM'
+
+    transaction do
+      update!(approval_status: 'APPROVED', gm_id: actor.id, gm_acted_at: Time.current, gm_comment: comment)
+      apply_on_order!(1)
+    end
+    Mes::Notifier.resolve(account: account, kinds: 'po_approval_pending', title_like: po_no)
+    Mes::Notifier.notify(
+      account: account, recipients: owner_id, kind: 'po_approval_approved',
+      title: "采购单已通过：#{po_no}", body: '总经理已通过，采购单生效，库存已记在途。', order: production_order
+    )
+    self
+  end
+
+  # 总经理驳回 → 退回制单人。
+  def reject_approval!(actor, reason:)
+    raise StandardError, '当前状态无法驳回' unless pending_approval?
+
+    update!(approval_status: 'REJECTED', gm_id: actor.id, gm_acted_at: Time.current, gm_comment: reason)
+    Mes::Notifier.resolve(account: account, kinds: 'po_approval_pending', title_like: po_no)
+    Mes::Notifier.notify(
+      account: account, recipients: owner_id, kind: 'po_approval_rejected',
+      title: "采购单被驳回：#{po_no}", body: "驳回原因：#{reason}", order: production_order
+    )
+    self
+  end
+
+  # 在途库存增减（sign=+1 审批通过累加 / -1 到货冲减）：按明细的物料/成品累加到默认仓的 on_order。
+  # 物料入原料仓、成品入成品仓；无对应仓则跳过（不阻塞审批）。
+  def apply_on_order!(sign)
+    purchase_items.each do |it|
+      wh_id = default_warehouse_id_for(it)
+      next if wh_id.nil?
+
+      Mes::StockBalance.apply_on_order!(
+        account_id: account_id, item_type: it.item_type, warehouse_id: wh_id,
+        mes_material_id: it.mes_material_id, crm_product_id: it.crm_product_id,
+        delta: sign * it.qty.to_d
+      )
+    end
+  end
+
+  # 到货冲减在途：按本次收货明细扣减 on_order（收多少冲多少，不为负）。
+  def reduce_on_order_for(item_type:, mes_material_id:, crm_product_id:, qty:, warehouse_id: nil)
+    wh_id = warehouse_id || default_warehouse_id_for_type(item_type)
+    return if wh_id.nil?
+
+    Mes::StockBalance.apply_on_order!(
+      account_id: account_id, item_type: item_type, warehouse_id: wh_id,
+      mes_material_id: mes_material_id, crm_product_id: crm_product_id, delta: -qty.to_d
+    )
+  end
+
   # ── 单据退回（Mes::Returnable）──：退回目标 = 工程/PMC BOM 板块。
   def document_board_key = 'mes_purchase_orders_index'
   def return_document_label = '采购单'
@@ -90,6 +181,33 @@ class Mes::PurchaseOrder < ApplicationRecord
   private
 
   def product_line_source = production_order
+
+  # 总经理 = 绩效设置里的 gm_owner_id（与生产订单审批同一人）。
+  def resolve_gm_id
+    Crm::PerformanceSetting.for_account(account)&.gm_owner_id
+  end
+
+  # 提交后通知总经理审批（待办）。无总经理配置则不发（审批仍进 PENDING_GM，管理员可代批）。
+  def notify_gm_pending
+    return if gm_id.blank?
+
+    Mes::Notifier.notify(
+      account: account, recipients: gm_id, kind: 'po_approval_pending',
+      title: "待审批采购单：#{po_no}",
+      body: "#{owner&.name || '采购'} 提交了采购单 #{po_no}，请审批。", order: production_order
+    )
+  end
+
+  # 明细默认仓：物料→原料仓(RAW)、成品→成品仓(FINISHED)。用于在途库存归仓。
+  def default_warehouse_id_for(item)
+    default_warehouse_id_for_type(item.item_type)
+  end
+
+  def default_warehouse_id_for_type(item_type)
+    kind = item_type == 'PRODUCT' ? 'FINISHED' : 'RAW'
+    account.mes_warehouses.find_by(kind: kind)&.id ||
+      account.mes_warehouses.first&.id
+  end
 
   # 建采购单即把关联生产订单从「工程BOM」推进到「采购原料」。
   def advance_production_order

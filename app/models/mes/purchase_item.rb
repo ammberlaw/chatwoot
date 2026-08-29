@@ -2,22 +2,23 @@
 #
 # Table name: mes_purchase_items
 #
-#  id                :bigint           not null, primary key
-#  amount_micros     :bigint
-#  arrival_date      :datetime
-#  item_type         :string           default("MATERIAL"), not null
-#  qty               :decimal(14, 3)   not null
-#  rate_micros       :bigint
-#  received_qty      :decimal(14, 3)   default(0.0), not null
-#  remark            :text
-#  unit              :string
-#  created_at        :datetime         not null
-#  updated_at        :datetime         not null
-#  account_id        :bigint           not null
-#  crm_product_id    :bigint
-#  mes_material_id   :bigint
-#  mes_supplier_id   :bigint
-#  purchase_order_id :bigint           not null
+#  id                 :bigint           not null, primary key
+#  amount_micros      :bigint
+#  arrival_date       :datetime
+#  item_type          :string           default("MATERIAL"), not null
+#  price_tax_included :boolean          default(FALSE), not null
+#  qty                :decimal(14, 3)   not null
+#  rate_micros        :bigint
+#  received_qty       :decimal(14, 3)   default(0.0), not null
+#  remark             :text
+#  unit               :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  account_id         :bigint           not null
+#  crm_product_id     :bigint
+#  mes_material_id    :bigint
+#  mes_supplier_id    :bigint
+#  purchase_order_id  :bigint           not null
 #
 # Indexes
 #
@@ -50,6 +51,25 @@ class Mes::PurchaseItem < ApplicationRecord
 
   validates :item_type, inclusion: { in: ITEM_TYPES }
   validates :qty, presence: true, numericality: { greater_than: 0 }
+
+  # 供应商税率（百分数，如 13 表示 13%）。用于含税/未税单价换算与导出抬头口径。
+  def supplier_tax_rate = mes_supplier&.tax_rate.to_d
+
+  # 未税单价（micros）：录入价按未税存则直接返回，按含税存则反算 rate ÷ (1 + 税率%)。
+  def untaxed_rate_micros
+    r = rate_micros.to_d
+    return r unless price_tax_included && supplier_tax_rate.positive?
+
+    (r / (1 + supplier_tax_rate / 100)).round
+  end
+
+  # 含税单价（micros）：录入价按含税存则直接返回，按未税存则加税 rate × (1 + 税率%)。
+  def taxed_rate_micros
+    r = rate_micros.to_d
+    return r if price_tax_included || !supplier_tax_rate.positive?
+
+    (r * (1 + supplier_tax_rate / 100)).round
+  end
 
   private
 

@@ -23,6 +23,16 @@ json.bom_no resource.bom&.bom_no
 # 业务二次确认 BOM（空 = 尚未确认，未确认前不得下发采购）。
 json.bom_confirmed_at resource.bom_confirmed_at
 json.bom_confirmed_by_name resource.bom_confirmed_by&.name
+# BOM 变更史（工程改动已下发 BOM 的用料留痕；订单时间线可回看）。
+json.bom_revisions do
+  json.array! (resource.bom&.bom_revisions || []) do |rev|
+    json.rev_no rev.rev_no
+    json.reason rev.reason
+    json.diff rev.diff
+    json.changed_by_name rev.changed_by&.name
+    json.created_at rev.created_at
+  end
+end
 json.stage resource.stage
 json.stage_events do
   json.array! resource.stage_events.order(:entered_at) do |ev|

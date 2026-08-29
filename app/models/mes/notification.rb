@@ -30,7 +30,9 @@ class Mes::Notification < ApplicationRecord
   # 通知类型。前端据此上色/跳转。
   KINDS = %w[
     approval_pending approval_approved approval_rejected
-    bom_reconfirm bom_confirmed purchase_release_pending stage_assigned stage_returned
+    bom_reconfirm bom_confirmed bom_revised purchase_release_pending stage_assigned stage_returned
+    po_approval_pending po_approval_approved po_approval_rejected
+    order_revised
     production_reported fg_count_pending
     shipment_approval_pending shipment_approved shipment_rejected
     document_returned

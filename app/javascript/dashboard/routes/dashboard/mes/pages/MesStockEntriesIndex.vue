@@ -1,10 +1,10 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
-import MesStockEntryAPI from 'dashboard/api/mes/stockEntries';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 
@@ -19,8 +19,26 @@ import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
 const { accountId } = useAccount();
+const route = useRoute();
 const store = useMesStockEntriesStore();
 const { mesCan } = useMesRole();
+
+// 从生产订单「查看入库单」跳转带来的按订单筛选（只看该订单的原料入库单）。
+const filterOrderId = ref(route.query.production_order_id || '');
+const filterOrderNo = ref(route.query.order_no || '');
+// 库存单一表多用：本板块=原料入库，只取 MATERIAL_RECEIPT（生产领料/成品入库各有独立板块）。
+const fetchList = () =>
+  store.get({
+    purpose: 'MATERIAL_RECEIPT',
+    ...(filterOrderId.value
+      ? { production_order_id: filterOrderId.value }
+      : {}),
+  });
+const clearOrderFilter = () => {
+  filterOrderId.value = '';
+  filterOrderNo.value = '';
+  fetchList();
+};
 const warehousesStore = useMesWarehousesStore();
 const materialsStore = useMesMaterialsStore();
 
@@ -174,41 +192,8 @@ const rowIncomplete = r =>
   !Number(r.qty) ||
   (r.itemType === 'PRODUCT' ? !r.crmProductId : !r.mesMaterialId);
 
-// 收货单：原料入库必传（留证）。选文件即暂存为 blob，提交带 signed_id。
-const needReceipt = computed(() => form.purpose === 'MATERIAL_RECEIPT');
-const pendingReceipts = ref([]);
-const uploadingReceipt = ref(false);
-const pickReceipt = async e => {
-  const list = Array.from(e.target?.files || []);
-  e.target.value = '';
-  if (!list.length) return;
-  uploadingReceipt.value = true;
-  try {
-    await Promise.all(
-      list.map(async file => {
-        const fd = new FormData();
-        fd.append('file', file);
-        const { data } = await MesStockEntryAPI.stageBlob(fd);
-        pendingReceipts.value.push({
-          name: data.filename,
-          signedId: data.signed_id,
-        });
-      })
-    );
-  } catch {
-    useAlert('收货单上传失败，请重试');
-  } finally {
-    uploadingReceipt.value = false;
-  }
-};
-const removeReceipt = i => pendingReceipts.value.splice(i, 1);
-
 const invalid = computed(
-  () =>
-    !form.warehouseId ||
-    !form.rows.length ||
-    form.rows.some(rowIncomplete) ||
-    (needReceipt.value && !pendingReceipts.value.length)
+  () => !form.warehouseId || !form.rows.length || form.rows.some(rowIncomplete)
 );
 
 const addRow = () =>
@@ -218,6 +203,7 @@ const addRow = () =>
     crmProductId: '',
     qty: '1',
     receivedQty: '',
+    remark: '',
   });
 const removeRow = i => form.rows.splice(i, 1);
 
@@ -238,6 +224,7 @@ const prefillFromPO = async () => {
       crmProductId: it.crm_product_id ? String(it.crm_product_id) : '',
       qty: String(it.qty),
       receivedQty: String(it.received_qty ? it.qty - it.received_qty : it.qty),
+      remark: '',
     }));
     // 外购成品到货默认入成品库；把成品标签并入下拉便于查看/改。
     const products = items.filter(it => it.item_type === 'PRODUCT');
@@ -270,10 +257,10 @@ const openCreate = () => {
         crmProductId: '',
         qty: '1',
         receivedQty: '',
+        remark: '',
       },
     ],
   });
-  pendingReceipts.value = [];
   dialogRef.value?.open();
 };
 
@@ -295,8 +282,8 @@ const submit = async () => {
       qty: Number(r.qty),
       receivedQty: Number(r.receivedQty) || Number(r.qty),
       warehouseId: Number(form.warehouseId),
+      remark: r.remark || '',
     })),
-    receipts: pendingReceipts.value.map(r => r.signedId),
   };
   const ok = await store.create(payload);
   if (ok) {
@@ -311,7 +298,7 @@ const postEntry = async entry => {
 };
 
 onMounted(async () => {
-  store.get();
+  fetchList();
   warehousesStore.get();
   materialsStore.get();
   loadProducts('');
@@ -340,6 +327,20 @@ onMounted(async () => {
     </div>
 
     <MesBoardOwnerBar board-key="mes_stock_entries_index" />
+
+    <!-- 从生产订单跳来的按订单筛选提示 -->
+    <div v-if="filterOrderId" class="flex items-center gap-2 px-4 mb-1 sm:px-6">
+      <span
+        class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+      >
+        仅显示生产订单 {{ filterOrderNo || filterOrderId }} 的入库单
+        <button
+          type="button"
+          class="i-lucide-x size-3.5 hover:text-n-iris-12"
+          @click="clearOrderFilter"
+        />
+      </span>
+    </div>
 
     <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
@@ -512,52 +513,6 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- 收货单：原料入库必传（留证） -->
-        <div v-if="needReceipt" class="flex flex-col gap-1.5">
-          <div class="flex flex-wrap items-center gap-2">
-            <label class="text-heading-3 text-n-slate-12">
-              收货单 <span class="text-n-ruby-11">*</span>
-            </label>
-            <label
-              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md cursor-pointer border border-n-weak text-n-slate-11 hover:border-n-brand hover:text-n-slate-12"
-            >
-              <span class="i-lucide-upload size-3" />
-              上传
-              <input
-                type="file"
-                multiple
-                class="hidden"
-                @change="pickReceipt"
-              />
-            </label>
-            <span v-if="uploadingReceipt" class="text-xs text-n-slate-10">
-              上传中…
-            </span>
-            <span
-              v-else-if="!pendingReceipts.length"
-              class="text-xs text-n-amber-11"
-            >
-              必须上传收货单才能建单
-            </span>
-          </div>
-          <div v-if="pendingReceipts.length" class="flex flex-wrap gap-1.5">
-            <span
-              v-for="(f, i) in pendingReceipts"
-              :key="i"
-              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-n-alpha-2 text-n-slate-12 max-w-[16rem]"
-            >
-              <span class="truncate">{{ f.name }}</span>
-              <button
-                type="button"
-                class="shrink-0 text-n-slate-10 hover:text-n-ruby-11"
-                @click="removeReceipt(i)"
-              >
-                <span class="i-lucide-x size-3" />
-              </button>
-            </span>
-          </div>
-        </div>
-
         <label
           class="inline-flex items-center gap-2 cursor-pointer text-heading-3 text-n-slate-12"
         >
@@ -579,9 +534,10 @@ onMounted(async () => {
         </div>
         <div class="grid grid-cols-12 gap-2 text-xs text-n-slate-10">
           <span class="col-span-2">类型</span>
-          <span class="col-span-4">物料/成品</span>
-          <span class="col-span-2">应收</span>
-          <span class="col-span-3">实收(核对)</span>
+          <span class="col-span-3">物料/成品</span>
+          <span class="col-span-1">应收</span>
+          <span class="col-span-2">实收(核对)</span>
+          <span class="col-span-3">备注（收货单据号）</span>
         </div>
         <div class="flex flex-col gap-2">
           <div
@@ -597,7 +553,7 @@ onMounted(async () => {
                 @update:model-value="v => (row.itemType = v)"
               />
             </div>
-            <div class="col-span-4">
+            <div class="col-span-3">
               <ComboBox
                 v-if="row.itemType === 'PRODUCT'"
                 v-model="row.crmProductId"
@@ -613,11 +569,16 @@ onMounted(async () => {
                 placeholder="选择物料"
               />
             </div>
-            <Input v-model="row.qty" type="number" class="col-span-2" />
+            <Input v-model="row.qty" type="number" class="col-span-1" />
             <Input
               v-model="row.receivedQty"
               type="number"
               placeholder="默认=应收"
+              class="col-span-2"
+            />
+            <Input
+              v-model="row.remark"
+              placeholder="收货单据号/备注"
               class="col-span-3"
             />
             <button

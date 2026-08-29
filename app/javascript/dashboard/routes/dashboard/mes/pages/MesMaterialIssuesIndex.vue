@@ -117,18 +117,27 @@ const invalid = computed(
     form.rows.some(r => !r.crmProductId || !Number(r.qty))
 );
 
-const addRow = () => form.rows.push({ crmProductId: '', qty: '1' });
+const blankIssueRow = () => ({
+  crmProductId: '',
+  materialNo: '',
+  onHand: null,
+  issuedQty: null,
+  pendingQty: null,
+  qty: '1',
+});
+const addRow = () => form.rows.push(blankIssueRow());
 const removeRow = i => form.rows.splice(i, 1);
 
-// 按选中生产订单的 BOM 推料。
+// 按选中生产订单的 BOM 推料 + 带出每行「物料编码 / 实时库存 / 已领 / 待领」。
 const pushFromBom = async () => {
   if (!form.productionOrderId) {
     useAlert('请先选生产订单');
     return;
   }
   try {
-    const { data } = await MesProductionOrderAPI.requirement(
-      form.productionOrderId
+    const { data } = await MesProductionOrderAPI.issuePlan(
+      form.productionOrderId,
+      form.warehouseId || undefined
     );
     const reqs = data?.payload || [];
     if (!reqs.length) {
@@ -145,9 +154,14 @@ const pushFromBom = async () => {
           unit: r.unit || '',
         }))
     );
+    // 待领量预填领料量（不足库存时人工调整）；同时记编码/实时库存/已领供行内展示。
     form.rows = reqs.map(r => ({
       crmProductId: r.crm_product_id ? String(r.crm_product_id) : '',
-      qty: String(r.qty),
+      materialNo: r.material_no || '',
+      onHand: Number(r.on_hand || 0),
+      issuedQty: Number(r.issued_qty || 0),
+      pendingQty: Number(r.pending_qty || 0),
+      qty: String(r.pending_qty ?? r.qty),
     }));
     const unmatched = reqs.filter(r => !r.crm_product_id).length;
     if (unmatched) {
@@ -163,7 +177,7 @@ const openCreate = () => {
   Object.assign(form, {
     productionOrderId: '',
     warehouseId: raw ? String(raw.id) : '',
-    rows: [{ crmProductId: '', qty: '1' }],
+    rows: [blankIssueRow()],
   });
   dialogRef.value?.open();
 };
@@ -392,31 +406,62 @@ onMounted(async () => {
           <div
             v-for="(row, i) in form.rows"
             :key="i"
-            class="grid items-center grid-cols-12 gap-2"
+            class="flex flex-col gap-1 p-2 border rounded-lg border-n-weak"
           >
-            <div class="col-span-8">
-              <MesProductPicker
-                :account-id="accountId"
-                :model-value="row.crmProductId"
-                :display-text="productLabel(row.crmProductId)"
-                placeholder="从产品档案搜索选料（编码/名称/规格）"
-                @update:model-value="v => (row.crmProductId = v)"
-                @select="onProductPicked"
+            <div class="grid items-center grid-cols-12 gap-2">
+              <div class="col-span-8">
+                <MesProductPicker
+                  :account-id="accountId"
+                  :model-value="row.crmProductId"
+                  :display-text="productLabel(row.crmProductId)"
+                  placeholder="从产品档案搜索选料（编码/名称/规格）"
+                  @update:model-value="v => (row.crmProductId = v)"
+                  @select="onProductPicked"
+                />
+              </div>
+              <Input
+                v-model="row.qty"
+                type="number"
+                placeholder="领用量"
+                class="col-span-3"
               />
+              <button
+                type="button"
+                class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeRow(i)"
+              >
+                ✕
+              </button>
             </div>
-            <Input
-              v-model="row.qty"
-              type="number"
-              placeholder="领用量"
-              class="col-span-3"
-            />
-            <button
-              type="button"
-              class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
-              @click="removeRow(i)"
+            <!-- 按 BOM 推料后每行带出：物料编码 / 实时库存 / 已领 / 待领 -->
+            <div
+              v-if="row.materialNo || row.onHand !== null"
+              class="flex flex-wrap gap-x-4 gap-y-0.5 pl-1 text-xs text-n-slate-10"
             >
-              ✕
-            </button>
+              <span v-if="row.materialNo">编码：{{ row.materialNo }}</span>
+              <span>
+                实时库存：
+                <span
+                  :class="
+                    Number(row.qty) > Number(row.onHand || 0)
+                      ? 'text-n-ruby-11 font-medium'
+                      : 'text-n-slate-11'
+                  "
+                >
+                  {{ row.onHand ?? '—' }}
+                </span>
+              </span>
+              <span>已领：{{ row.issuedQty ?? '—' }}</span>
+              <span>待领：{{ row.pendingQty ?? '—' }}</span>
+              <span
+                v-if="
+                  row.onHand !== null && Number(row.qty) > Number(row.onHand)
+                "
+                class="text-n-ruby-11"
+              >
+                ⚠ 领用量超过库存
+              </span>
+            </div>
           </div>
         </div>
       </div>

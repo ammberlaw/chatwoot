@@ -1018,6 +1018,7 @@ const menuItems = computed(() => {
           'mes_boms_index',
           'mes_products_index',
           'mes_purchase_orders_index',
+          'mes_purchase_requisitions_index',
           'mes_suppliers_index',
           'mes_stock_entries_index',
           'mes_material_issues_index',
@@ -1075,6 +1076,12 @@ const menuItems = computed(() => {
           // 采购单/供应商含采购价与供应商资料，销售端不可见（生态硬约束）。
           ...(isMesStaff.value
             ? [
+                {
+                  name: 'MES Purchase Requisitions',
+                  label: t('SIDEBAR.MES_PURCHASE_REQUISITIONS'),
+                  to: accountScopedRoute('mes_purchase_requisitions_index'),
+                  activeOn: ['mes_purchase_requisitions_index'],
+                },
                 {
                   name: 'MES Purchase Orders',
                   label: t('SIDEBAR.MES_PURCHASE_ORDERS'),
@@ -1769,6 +1776,7 @@ const ROUTE_MODULE = {
   mes_boms_index: 'mes',
   mes_products_index: 'mes',
   mes_purchase_orders_index: 'mes',
+  mes_purchase_requisitions_index: 'mes',
   mes_suppliers_index: 'mes',
   mes_stock_entries_index: 'mes',
   mes_material_issues_index: 'mes',

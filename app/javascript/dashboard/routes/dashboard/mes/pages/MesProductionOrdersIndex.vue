@@ -586,6 +586,23 @@ const loadBomDetail = async id => {
 watch(() => selected.value?.bomId, loadBomDetail, { immediate: true });
 const openBomView = () => bomViewDialogRef.value?.open();
 
+// BOM 变更史展示：把 diff 数组拼成一行文案 + 时间格式化。
+const revDiffText = (diff = []) =>
+  diff
+    .map(c => {
+      const name = c.materialName || c.materialNo || '物料';
+      if (c.kind === 'added') return `+${name} ${c.toQty}${c.unit || ''}`;
+      if (c.kind === 'removed') return `-${name}`;
+      return `${name} ${c.fromQty}→${c.toQty}${c.unit || ''}`;
+    })
+    .join('；');
+const fmtRevTime = iso => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 // 自产：不在订单页手动挂 BOM，而是跳到「工程 BOM」板块新建 BOM 并预关联本订单，
 // 「保存并下发」即自动挂到本单（进 BOM_READY、通知业务员确认），无需回订单页操作。
 const goCreateBomForOrder = () => {
@@ -686,19 +703,43 @@ const APPROVAL_LABELS = {
 const approvalComment = ref('');
 
 const isOwner = computed(() => selected.value?.ownerId === currentUserId.value);
-// 编辑规格/图片/附件：order 能力全量；业务角色仅本人草稿（后端 ensure_own_draft! 同口径）。
+// 编辑规格/图片/附件：order 能力全量；业务角色可改**本人订单（含已下发）**——
+// 已下发改动由后端通知下一个流程负责人（后端 ensure_editable! 同口径）。
 const canEditSelected = computed(
-  () =>
-    mesCan('order') ||
-    (canCreateOrder.value && isOwner.value && selected.value?.isDraft)
+  () => mesCan('order') || (canCreateOrder.value && isOwner.value)
 );
-// 列表行级「编辑」：与 canEditSelected 同口径（order 能力 / 本人草稿），
+// 列表行级「编辑」：与 canEditSelected 同口径（order 能力 / 本人订单），
 // 且订单须有定制规格表（编辑弹窗基于规格模板，外购单无规格不走此入口）。
 const canEditRow = po =>
   !!po.spec?.template &&
   (mesCan('order') ||
-    (canCreateOrder.value && po.ownerId === currentUserId.value && po.isDraft));
+    (canCreateOrder.value && po.ownerId === currentUserId.value));
+// 删除：管理员删任意；归属业务仅删**本人草稿**（已下发进入生产流程不可删，后端 ensure_deletable! 同口径）。
+const canDeleteRow = po =>
+  isAdmin.value ||
+  isCrmDeputyAdmin.value ||
+  (canCreateOrder.value && po.ownerId === currentUserId.value && po.isDraft);
 // 业务二次确认 BOM：BOM_READY 段、已挂 BOM 且未确认，创建人（业务员）或管理员可确认。
+// 跳转到原料入库页并按本订单筛选（相应负责人查看到料情况）。
+const goStockEntries = po => {
+  if (!po) return;
+  router.push({
+    name: 'mes_stock_entries_index',
+    query: { production_order_id: po.id, order_no: po.orderNo },
+  });
+};
+
+// 删除草稿订单（归属业务删本人草稿 / 管理员删任意）。
+const deleteOrder = async po => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(`确定删除草稿订单「${po.orderNo}」？`)) return;
+  const ok = await store.delete(po.id);
+  if (ok) {
+    useAlert('草稿订单已删除');
+    if (selected.value?.id === po.id) selected.value = null;
+    fetchRecords();
+  }
+};
 const canConfirmBom = computed(() => {
   const po = selected.value;
   if (!po) return false;
@@ -1034,6 +1075,14 @@ watch(currentPage, fetchRecords);
                     variant="ghost"
                     size="sm"
                     @click="openDetail(po)"
+                  />
+                  <Button
+                    v-if="canDeleteRow(po)"
+                    label="删除"
+                    variant="ghost"
+                    color="ruby"
+                    size="sm"
+                    @click="deleteOrder(po)"
                   />
                 </div>
               </div>
@@ -1512,6 +1561,14 @@ watch(currentPage, fetchRecords);
               >
                 {{ s.label }}
               </span>
+              <button
+                v-if="s.value === 'MATERIAL_INBOUND'"
+                type="button"
+                class="ml-2 text-xs text-n-iris-11 hover:underline"
+                @click="goStockEntries(selected)"
+              >
+                查看入库单
+              </button>
               <div v-if="stageTime(s.value)" class="text-xs text-n-slate-10">
                 {{ stageTime(s.value) }} 到达
                 <span
@@ -1640,6 +1697,34 @@ watch(currentPage, fetchRecords);
               :disabled="!selected.bomConfirmedAt"
               @click="releasePurchasing"
             />
+            <!-- BOM 变更史：工程改动已下发 BOM 的用料留痕（谁/何时/改了什么）-->
+            <div
+              v-if="(selected.bomRevisions || []).length"
+              class="p-2 mt-2 border rounded-lg border-n-amber-6 bg-n-amber-2"
+            >
+              <div class="mb-1 text-xs font-semibold text-n-amber-11">
+                BOM 变更记录（{{ selected.bomRevisions.length }} 次）
+              </div>
+              <ul class="flex flex-col gap-1.5">
+                <li
+                  v-for="rev in selected.bomRevisions"
+                  :key="rev.revNo"
+                  class="text-xs"
+                >
+                  <div class="flex items-center gap-1.5 text-n-slate-11">
+                    <span class="font-semibold text-n-slate-12">
+                      v{{ rev.revNo }}
+                    </span>
+                    <span>{{ rev.changedByName || '—' }}</span>
+                    <span>{{ fmtRevTime(rev.createdAt) }}</span>
+                  </div>
+                  <div class="text-n-slate-12">{{ revDiffText(rev.diff) }}</div>
+                  <div v-if="rev.reason" class="text-n-slate-10">
+                    原因：{{ rev.reason }}
+                  </div>
+                </li>
+              </ul>
+            </div>
           </template>
           <!-- 工程判定：自产去「工程BOM」建BOM并关联本单（自动挂），外购走标记外购 -->
           <div

@@ -301,7 +301,53 @@ class Mes::ProductionOrder < ApplicationRecord
     items = bom.bom_items
     items = items.select { |i| i.category == category } if category.present?
     product_map = crm_product_map_for(items)
-    items.map { |item| requirement_row(item, factor, product_map) }
+    stock_map = onhand_total_map(product_map.values)
+    items.map { |item| requirement_row(item, factor, product_map, stock_map) }
+  end
+
+  # 指定产品档案的各仓实时结存合计（跨仓总库存）。供采购算料展示「对应物料实时库存」。
+  def onhand_total_map(product_ids)
+    ids = product_ids.compact.uniq
+    return {} if ids.empty?
+
+    Mes::StockBalance.where(account_id: account_id, crm_product_id: ids)
+                     .group(:crm_product_id).sum(:qty)
+  end
+
+  # 生产领料计划：在 BOM 推料基础上，补每行「已领量 / 实时库存 / 待领量」（供领料页展示）。
+  # warehouse_id 传入则算该仓实时库存；已领量按本订单已过账的领料单累计（按产品档案 crm_product_id）。
+  def issue_plan(warehouse_id: nil, category: 'MACHINE')
+    reqs = material_requirements(category: category)
+    issued = issued_qty_map
+    onhand = warehouse_id.present? ? onhand_qty_map(warehouse_id) : {}
+    reqs.map do |r|
+      pid = r[:crm_product_id]
+      iss = pid ? (issued[pid] || 0).to_d : 0.to_d
+      req = r[:qty].to_d
+      r.merge(
+        required_qty: req,
+        issued_qty: iss,
+        on_hand: pid ? (onhand[pid] || 0).to_d : 0.to_d,
+        pending_qty: [req - iss, 0].max
+      )
+    end
+  end
+
+  # 本订单已领量（按产品档案）：已过账的领料单明细累计。
+  def issued_qty_map
+    Mes::StockEntryItem
+      .joins(:stock_entry)
+      .where(mes_stock_entries: { production_order_id: id, purpose: 'MATERIAL_ISSUE', status: 'POSTED' })
+      .where.not(crm_product_id: nil)
+      .group(:crm_product_id).sum(:qty)
+  end
+
+  # 指定仓库的成品/物料实时结存（按产品档案）。
+  def onhand_qty_map(warehouse_id)
+    Mes::StockBalance
+      .where(account_id: account_id, warehouse_id: warehouse_id)
+      .where.not(crm_product_id: nil)
+      .group(:crm_product_id).sum(:qty)
   end
 
   # BOM 料号 → 产品档案 id 映射：料号对上产品 sku 时带回，供生产领料按产品档案自动选料。
@@ -375,6 +421,36 @@ class Mes::ProductionOrder < ApplicationRecord
   def current_stage_owner_names
     ids = current_stage_owner_ids
     ids.blank? ? [] : account.users.where(id: ids).pluck(:name)
+  end
+
+  # BOM 变更（工程改动已下发 BOM 的用料）后，通知本单「已参与过的所有下游部门」+ 业务员。
+  # 收件人 = 订单已到达过的各阶段板块负责人（采购/仓库/领料/车间…）∪ 业务员，排除改动者本人。
+  def notify_bom_revised(summary, rev_no, actor: nil)
+    reached_keys = stage_events.map(&:stage).uniq.filter_map { |s| STAGE_BOARD_KEYS[s] }.uniq
+    owner_ids = reached_keys.flat_map { |k| board_owner_ids(k) }
+    recipients = (owner_ids + [owner_id]).compact.uniq - [actor&.id].compact
+    Mes::Notifier.notify(
+      account: account, recipients: recipients, kind: 'bom_revised',
+      title: "BOM 已变更（v#{rev_no}）：生产订单 #{order_no}",
+      body: "工程调整了 BOM #{bom&.bom_no} 用料：#{summary}。请复核相关采购/领料/库存。",
+      order: self
+    )
+  end
+
+  # 已下发订单被归属业务改单后，通知当前阶段（下一个流程）板块负责人，让其知悉单子有变动。
+  # 终点（SHIPPED）无下游、草稿不通知（草稿下游不可见）。
+  def notify_order_revised(actor: nil)
+    return if is_draft || stage == 'SHIPPED'
+
+    recipients = current_stage_owner_ids - [actor&.id].compact
+    return if recipients.blank?
+
+    Mes::Notifier.notify(
+      account: account, recipients: recipients, kind: 'order_revised',
+      title: "订单已修改：#{order_no}",
+      body: "#{actor&.name || '业务'} 修改了生产订单 #{order_no}（#{product_name}），请复核当前#{STAGE_LABELS[stage]}环节。",
+      order: self
+    )
   end
 
   # 接单：标记谁在何时接手（update! 触发审计留痕）。
@@ -501,17 +577,21 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   # 单行用料需求（用量按本单产量/基准产量放大）。
-  def requirement_row(item, factor, product_map = {})
+  def requirement_row(item, factor, product_map = {}, stock_map = {})
+    pid = product_map[item.material_no]
     {
       mes_material_id: item.mes_material_id,
-      crm_product_id: product_map[item.material_no],
+      crm_product_id: pid,
       mes_supplier_id: item.mes_material&.default_supplier_id,
       material_no: item.material_no,
       material_name: item.material_name,
       specification: item.specification,
       unit: item.unit,
       category: item.category,
-      qty: (item.qty.to_d * factor)
+      qty: (item.qty.to_d * factor),
+      # 对应物料实时库存（跨仓合计）+ 工程在 BOM 上给的建议采购量，供采购参考。
+      on_hand: pid ? (stock_map[pid] || 0).to_d : 0.to_d,
+      suggested_purchase_qty: item.suggested_purchase_qty
     }
   end
 
