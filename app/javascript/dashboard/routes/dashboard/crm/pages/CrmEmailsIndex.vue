@@ -346,11 +346,35 @@ const isPdfFile = f =>
   /\.pdf$/i.test(f.filename || '');
 const canPreview = f => isImageFile(f) || isPdfFile(f);
 const previewFile = ref(null);
-const openPreview = f => {
-  if (canPreview(f)) previewFile.value = f;
-  else window.open(f.url, '_blank', 'noopener');
+// 附件 URL 带 Content-Disposition: attachment 会被浏览器强制下载、iframe 空白；
+// 预览时先拉成 blob 再生成 blob: 内联地址，保证站内直接渲染、不触发下载。
+const previewUrl = ref('');
+const previewLoading = ref(false);
+const openPreview = async f => {
+  if (!canPreview(f)) {
+    window.open(f.url, '_blank', 'noopener');
+    return;
+  }
+  previewFile.value = f;
+  previewUrl.value = '';
+  previewLoading.value = true;
+  try {
+    const raw = await (await fetch(f.url)).blob();
+    const type = isPdfFile(f)
+      ? 'application/pdf'
+      : raw.type || 'application/octet-stream';
+    const blob = raw.type === type ? raw : new Blob([raw], { type });
+    previewUrl.value = URL.createObjectURL(blob);
+  } catch {
+    useAlert('预览加载失败，请点右上角下载查看');
+  } finally {
+    previewLoading.value = false;
+  }
 };
 const closePreview = () => {
+  if (previewUrl.value.startsWith('blob:'))
+    URL.revokeObjectURL(previewUrl.value);
+  previewUrl.value = '';
   previewFile.value = null;
 };
 
@@ -2874,15 +2898,16 @@ class="text-n-slate-9"
           class="flex items-center justify-center flex-1 min-h-0 p-4"
           @click.self="closePreview"
         >
+          <div v-if="previewLoading" class="text-sm text-white/80">加载中…</div>
           <img
-            v-if="isImageFile(previewFile)"
-            :src="previewFile.url"
+            v-else-if="isImageFile(previewFile) && previewUrl"
+            :src="previewUrl"
             :alt="previewFile.filename"
             class="object-contain max-w-full max-h-full rounded shadow-2xl"
           />
           <iframe
-            v-else
-            :src="previewFile.url"
+            v-else-if="previewUrl"
+            :src="previewUrl"
             :title="previewFile.filename"
             class="w-full h-full bg-white rounded"
           />
