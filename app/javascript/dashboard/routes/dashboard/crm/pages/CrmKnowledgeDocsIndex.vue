@@ -202,25 +202,41 @@ const openDocFile = doc => {
   if (file?.url) window.open(file.url, '_blank', 'noopener');
 };
 
-// ── 在线预览：视频/图片/PDF/音频直接看；Excel 前端解析成表格；其余提示下载 ──
+// ── 在线预览：视频/图片/PDF/音频直接看；Excel/Word 前端解析；其余提示下载 ──
 const PREVIEW_KINDS = {
   video: ['mp4', 'webm', 'ogv', 'mov', 'm4v'],
   image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif'],
   pdf: ['pdf'],
   audio: ['mp3', 'wav', 'm4a', 'aac', 'oga', 'ogg'],
   excel: ['xlsx', 'xls', 'csv'],
+  word: ['docx'], // 仅 docx（旧 .doc 二进制前端转不了）
 };
+// 超过此大小不在线转换（大文件前端解析会卡死/撑爆浏览器），直接提示下载。
+const PREVIEW_SIZE_LIMIT = 20 * 1024 * 1024;
 const previewDoc = ref(null);
 const excelHtml = ref('');
 const excelLoading = ref(false);
+const wordHtml = ref('');
+const wordLoading = ref(false);
+// 预览类型按【实际文件扩展名】判定（文档标题可能没带扩展名，之前用标题会误判成「不支持」）。
+const extOf = s => {
+  const parts = (s || '').toLowerCase().split('.');
+  return parts.length > 1 ? parts.pop() : '';
+};
+const previewExt = () =>
+  extOf(previewDoc.value?.files?.[0]?.filename) ||
+  extOf(previewDoc.value?.name);
 const previewKind = computed(() => {
-  const ext = (previewDoc.value?.name || '').split('.').pop().toLowerCase();
+  const ext = previewExt();
   return (
     Object.keys(PREVIEW_KINDS).find(k => PREVIEW_KINDS[k].includes(ext)) ||
     'other'
   );
 });
 const previewUrl = computed(() => previewDoc.value?.files?.[0]?.url || '');
+const previewTooLarge = computed(
+  () => (previewDoc.value?.files?.[0]?.byteSize || 0) > PREVIEW_SIZE_LIMIT
+);
 // Excel 前端解析成 HTML 表格预览（不用后端、不用公开文件）
 const loadExcel = async () => {
   excelLoading.value = true;
@@ -236,10 +252,32 @@ const loadExcel = async () => {
     excelLoading.value = false;
   }
 };
+// Word(docx) 前端用 mammoth 转 HTML，DOMPurify 消毒后展示。
+const loadWord = async () => {
+  wordLoading.value = true;
+  wordHtml.value = '';
+  try {
+    const [{ default: mammoth }, { default: DOMPurify }] = await Promise.all([
+      import('mammoth'),
+      import('dompurify'),
+    ]);
+    const buf = await (await fetch(previewUrl.value)).arrayBuffer();
+    const { value } = await mammoth.convertToHtml({ arrayBuffer: buf });
+    wordHtml.value = DOMPurify.sanitize(value || '');
+  } catch {
+    wordHtml.value = '';
+  } finally {
+    wordLoading.value = false;
+  }
+};
 const openPreview = doc => {
   previewDoc.value = doc;
-  const ext = (doc?.name || '').split('.').pop().toLowerCase();
+  excelHtml.value = '';
+  wordHtml.value = '';
+  if (previewTooLarge.value) return; // 大文件不在线转换，模板提示下载
+  const ext = previewExt();
   if (['xlsx', 'xls', 'csv'].includes(ext)) loadExcel();
+  else if (ext === 'docx') loadWord();
 };
 const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 const scopeLabel = scope => (scope === 'PERSONAL' ? '个人' : '公司');
@@ -1995,7 +2033,24 @@ watch(
               class="w-full h-[82vh] overflow-auto bg-n-solid-1 p-3"
             >
               <div
-                v-if="excelLoading"
+                v-if="previewTooLarge"
+                class="flex flex-col items-center gap-3 py-16 text-center"
+              >
+                <span class="i-lucide-file-question size-10 text-n-slate-9" />
+                <p class="text-sm text-n-slate-11">
+                  {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.TOO_LARGE') }}
+                </p>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                  @click="openDocFile(previewDoc)"
+                >
+                  <span class="i-lucide-download size-3.5" />
+                  {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.DOWNLOAD') }}
+                </button>
+              </div>
+              <div
+                v-else-if="excelLoading"
                 class="flex items-center justify-center h-full text-sm text-n-slate-11"
               >
                 <span class="mr-2 i-lucide-loader-2 size-4 animate-spin" />
@@ -2005,6 +2060,57 @@ watch(
                 v-else-if="excelHtml"
                 class="text-xs text-n-slate-12 [&_table]:border-collapse [&_td]:border [&_td]:border-n-weak [&_td]:px-2 [&_td]:py-1 [&_td]:whitespace-nowrap [&_th]:border [&_th]:border-n-weak [&_th]:px-2 [&_th]:py-1"
                 v-html="excelHtml"
+              />
+              <div
+                v-else
+                class="flex flex-col items-center gap-3 py-16 text-center"
+              >
+                <span class="i-lucide-file-question size-10 text-n-slate-9" />
+                <p class="text-sm text-n-slate-11">
+                  {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.UNSUPPORTED') }}
+                </p>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                  @click="openDocFile(previewDoc)"
+                >
+                  <span class="i-lucide-download size-3.5" />
+                  {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.DOWNLOAD') }}
+                </button>
+              </div>
+            </div>
+            <div
+              v-else-if="previewKind === 'word'"
+              class="w-full h-[82vh] overflow-auto bg-n-solid-1 p-6"
+            >
+              <div
+                v-if="previewTooLarge"
+                class="flex flex-col items-center gap-3 py-16 text-center"
+              >
+                <span class="i-lucide-file-question size-10 text-n-slate-9" />
+                <p class="text-sm text-n-slate-11">
+                  {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.TOO_LARGE') }}
+                </p>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                  @click="openDocFile(previewDoc)"
+                >
+                  <span class="i-lucide-download size-3.5" />
+                  {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.DOWNLOAD') }}
+                </button>
+              </div>
+              <div
+                v-else-if="wordLoading"
+                class="flex items-center justify-center h-full text-sm text-n-slate-11"
+              >
+                <span class="mr-2 i-lucide-loader-2 size-4 animate-spin" />
+                {{ t('CRM.KNOWLEDGE_DOCS.PREVIEW.LOADING') }}
+              </div>
+              <div
+                v-else-if="wordHtml"
+                class="mx-auto prose-sm prose max-w-3xl text-n-slate-12 prose-td:border prose-td:border-n-weak prose-td:px-2 prose-th:border prose-th:border-n-weak prose-th:px-2"
+                v-html="wordHtml"
               />
               <div
                 v-else

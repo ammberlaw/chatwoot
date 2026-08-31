@@ -682,7 +682,8 @@
       "PREVIEW": {
         "DOWNLOAD": "下载",
         "UNSUPPORTED": "该类型暂不支持在线预览，请下载后查看",
-        "LOADING": "正在加载预览…"
+        "LOADING": "正在加载预览…",
+        "TOO_LARGE": "文件较大，在线预览可能卡顿，建议下载后查看"
       }
     },
     "SALES_TARGETS": {
