@@ -2,7 +2,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   include Api::V1::Accounts::Mes::DocumentReturnable
 
   before_action :check_authorization
-  before_action :fetch_stock_entry, only: [:show, :update, :destroy, :post, :confirm_warehouse]
+  before_action :fetch_stock_entry, only: [:show, :update, :destroy, :post, :confirm_warehouse, :cancel]
 
   COLUMN_FILTERS = {
     purpose: :purpose, status: :status,
@@ -52,8 +52,20 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   end
 
   def destroy
+    raise StandardError, '已过账单据不能直接删除，请用「作废」冲销库存' if @stock_entry.status == 'POSTED'
+
     @stock_entry.destroy!
     head :ok
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 作废（冲销）：反向冲回已过账扣的库存、按需回退生产订单阶段，置「已作废」保留可追溯。
+  def cancel
+    @stock_entry.cancel!
+    render 'api/v1/accounts/mes/stock_entries/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # 过账：刷结存 + 记流水 + 阶段推进。

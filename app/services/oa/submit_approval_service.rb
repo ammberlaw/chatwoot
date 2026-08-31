@@ -1,5 +1,11 @@
 # 提交审批：按模板 flow 物化成有序审批步骤并解析审批人，定位到首个可办步骤。
 # 解析不到审批人的步骤标记 skipped；若开头即无可办步骤（全跳过/空流程），直接通过。
+#
+# flow 支持两类节点（有序）：
+#   固定步骤：{ type: 'user'|'dept_leader', user_id? }
+#   条件分支：{ type: 'condition', branches: [{ conditions: [{var, op, value}], flow: [固定步骤…] }, …] }
+#     branches 自上而下取首个「全部条件命中」的分支（conditions 为空=默认兜底），展开其 flow 为步骤。
+#   条件变量 var：leave_days（按日期区间算的请假天数）/ department（申请人部门id）/ field:<字段key>（表单值）。
 class Oa::SubmitApprovalService
   def initialize(account:, applicant:, template:, attributes:)
     @account = account
@@ -24,13 +30,80 @@ class Oa::SubmitApprovalService
   private
 
   def build_steps(request)
-    Array(@template.flow).each_with_index do |step, index|
-      approver_id = resolve_approver(step.with_indifferent_access)
+    expand_flow(Array(@template.flow)).each_with_index do |step, index|
+      approver_id = resolve_approver(step)
       request.steps.create!(
         account_id: @account.id, position: index, approver_id: approver_id,
         status: approver_id ? 'pending' : 'skipped'
       )
     end
+  end
+
+  # 把含条件分支的 flow 展开成一串固定步骤（条件按 form_data 求值、取首个命中分支）。
+  def expand_flow(flow)
+    Array(flow).flat_map do |entry|
+      e = entry.with_indifferent_access
+      next [e] unless e[:type] == 'condition'
+
+      branch = pick_branch(e[:branches])
+      branch ? Array(branch.with_indifferent_access[:flow]).map(&:with_indifferent_access) : []
+    end
+  end
+
+  # 分支自上而下取首个「全部条件命中」的；conditions 为空即默认兜底分支。
+  def pick_branch(branches)
+    Array(branches).find do |b|
+      conds = Array(b.with_indifferent_access[:conditions])
+      conds.empty? || conds.all? { |c| match_condition?(c.with_indifferent_access) }
+    end
+  end
+
+  def match_condition?(cond)
+    actual = condition_value(cond[:var])
+    expected = cond[:value]
+    case cond[:op]
+    when 'eq' then actual.to_s == expected.to_s
+    when 'neq' then actual.to_s != expected.to_s
+    when 'in' then Array(expected).map(&:to_s).include?(actual.to_s)
+    when 'lt' then to_num(actual) < to_num(expected)
+    when 'lte' then to_num(actual) <= to_num(expected)
+    when 'gt' then to_num(actual) > to_num(expected)
+    when 'gte' then to_num(actual) >= to_num(expected)
+    else false
+    end
+  end
+
+  def condition_value(var)
+    case var.to_s
+    when 'leave_days' then leave_days
+    when 'department' then (@department_id || applicant_primary_department_id)
+    else @form_data&.dig(var.to_s.sub(/\Afield:/, ''))
+    end
+  end
+
+  # 数值比较用（非数字→0，不抛错）。金额/天数按 Float 比较足够。
+  def to_num(value) = value.to_s.to_f
+
+  # 请假天数：日期字段最早/最晚为区间的自然日跨度（含首尾）；单日+半天时段=0.5。
+  def leave_days
+    dates = Crm::AttendanceApprovalService.form_dates(@template, @form_data || {})
+    return 0 if dates.empty?
+
+    span = (dates.max - dates.min).to_i + 1
+    span == 1 && half_day_selected? ? 0.5 : span
+  end
+
+  def half_day_selected?
+    Array(@template.form_fields)
+      .select { |f| Crm::AttendanceApprovalService::HALF_DAY_FIELD_TYPES.include?(f['type']) }
+      .filter_map { |f| @form_data&.dig(f['key']) }
+      .any? { |v| Crm::AttendanceApprovalService::HALF_DAY_VALUES.include?(v.to_s.strip) }
+  end
+
+  def applicant_primary_department_id
+    membership = @account.org_memberships.find_by(user_id: @applicant.id, is_primary: true) ||
+                 @account.org_memberships.find_by(user_id: @applicant.id)
+    membership&.department_id
   end
 
   def resolve_approver(step)

@@ -84,6 +84,22 @@ export const useMesStockEntriesStore = createStore({
       }
     },
 
+    // 作废（冲销）后就地替换（状态转 CANCELLED，保留在列表可追溯）。
+    async cancel(id) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await MesStockEntryAPI.cancel(id);
+        const record = camelize(data);
+        const index = this.records.findIndex(r => r.id === record.id);
+        if (index !== -1) this.records[index] = record;
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
+      }
+    },
+
     async delete(id) {
       this.setUIFlag({ deletingItem: true });
       try {

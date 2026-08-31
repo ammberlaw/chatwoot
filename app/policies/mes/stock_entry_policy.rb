@@ -16,7 +16,9 @@ class Mes::StockEntryPolicy < ApplicationPolicy
   def return_document? = @account_user.mes_can?(:stock)
   def reactivate? = @account_user.mes_can?(:stock)
 
-  def destroy? = @account_user.administrator?
+  # 删单/作废：仓管（stock 能力，管理员含）。草稿走 destroy 硬删，已过账走 cancel 冲销退库存。
+  def destroy? = @account_user.mes_can?(:stock)
+  def cancel? = @account_user.mes_can?(:stock)
 end
 
 Mes::StockEntryPolicy.prepend_mod_with('Mes::StockEntryPolicy')

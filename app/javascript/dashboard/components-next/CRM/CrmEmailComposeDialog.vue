@@ -588,6 +588,19 @@ const composedText = computed(() => {
   if (plain) return `${trimTrailing(body)}${plain}`;
   return body;
 });
+// 存草稿专用的纯文本正文——【不含签名】。签名以富文本块另存于 body_html，
+// 重开草稿时再作为富文本块拼接，避免签名被降级成纯文本（存草稿后 logo/配色丢失）。
+const composedTextNoSig = computed(() => {
+  const body = form.body || '';
+  if (quoteBlockText.value) {
+    return `${trimTrailing(body)}${quoteBlockText.value}`;
+  }
+  const idx = body.indexOf(QUOTE_MARKER);
+  if (idx !== -1) {
+    return `${trimTrailing(body.slice(0, idx))}\n\n${body.slice(idx)}`;
+  }
+  return body;
+});
 
 // 字体/颜色/下划线控件贴在编辑器菜单栏（B I <> …）右侧、同一行。
 // 关键：用菜单栏「真实中线」对齐（bar.top + bar.height/2），不猜像素；
@@ -947,7 +960,7 @@ const kbPicksForDoc = docId =>
   kbPicked.value.filter(p => p.docId === docId).length;
 
 // ---- 发送 / 存草稿 ----
-const buildFields = () => {
+const buildFields = (forSend = false) => {
   const fields = {
     subject: form.subject.trim() || '(无主题)',
     toAddress: joinRecipients(form.to),
@@ -955,7 +968,9 @@ const buildFields = () => {
     bccAddress:
       showBcc.value && form.bcc.length ? joinRecipients(form.bcc) : null,
     fromAddress: fromAccount.value?.emailAddress || null,
-    body: composedText.value,
+    // 发送：纯文本兜底带签名；存草稿：纯文本不带签名（签名以富文本块存 body_html，
+    // 重开时再拼，避免存草稿把富文本签名压成纯文本丢 logo/配色）。
+    body: forSend ? composedText.value : composedTextNoSig.value,
     bodyHtml: composedHtml.value,
     folder: 'DRAFT',
     sendStatus: 'DRAFT',
@@ -968,7 +983,7 @@ const buildFields = () => {
 };
 
 // 建草稿 / 就地更新草稿 → 挂知识库附件（快照）→ 返回 id；发送时再翻 sendNow。
-const persist = async () => {
+const persist = async (forSend = false) => {
   // 正文里粘贴进来的 base64 内联图先上传换成短链接，否则会撑爆 body/body_html
   // （文本列上限 2 万字），发送/存草稿直接失败。
   form.body = await uploadInlineDataUriImages(form.body || '');
@@ -977,7 +992,7 @@ const persist = async () => {
   cleanedSignatureHtml.value = await uploadInlineHtmlImages(
     signatureHtml.value
   );
-  const { __files: files, ...fields } = buildFields();
+  const { __files: files, ...fields } = buildFields(forSend);
   let id;
   if (editId.value) {
     // 编辑草稿：就地更新同一条；有新附件走 multipart（后端 attach 追加，不动已有附件）。
@@ -995,7 +1010,7 @@ const persist = async () => {
     }
     id = editId.value;
   } else {
-    const record = await store.create(buildFields());
+    const record = await store.create(buildFields(forSend));
     id = record.id;
   }
   if (kbPicked.value.length) {
@@ -1035,7 +1050,7 @@ const bulkSend = async (scheduledIso = null) => {
     cleanedSignatureHtml.value = await uploadInlineHtmlImages(
       signatureHtml.value
     );
-    const { __files: files, ...fields } = buildFields();
+    const { __files: files, ...fields } = buildFields(true);
     const snake = snakecaseKeys(fields, { deep: true });
     const fd = new FormData();
     Object.entries(snake).forEach(([key, value]) => {
@@ -1087,7 +1102,7 @@ const send = async () => {
   }
   status.value = { state: 'sending', msg: '' };
   try {
-    const id = await persist();
+    const id = await persist(true);
     await store.update({ id, sendNow: true });
     emit('refresh');
     // 发送是异步的（进队列走 SMTP），轮询真实结果：成功才提示「成功发送」。
@@ -1324,11 +1339,10 @@ const open = async prefill => {
       if (acc) fromId.value = acc.id;
     }
   }
-  // 新写才自动带默认签名；编辑草稿不再叠加（草稿正文已含原签名，避免重复）。
-  if (!editId.value) {
-    const defaultSig = signatures.value.find(s => s.isDefault);
-    if (defaultSig) activeSignatureId.value = defaultSig.id;
-  }
+  // 新写 & 编辑草稿都自动带默认签名：草稿正文不再内联签名（签名以富文本块另拼），
+  // 重开时重新挂上富文本签名块，避免存草稿后签名被降级成纯文本（丢 logo/配色）。
+  const defaultSig = signatures.value.find(s => s.isDefault);
+  if (defaultSig) activeSignatureId.value = defaultSig.id;
   visible.value = true;
   toolbarPos.value = null; // 重开先隐藏，量到合理位置再显示，避免错位闪一下
   await nextTick();

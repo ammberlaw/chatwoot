@@ -459,15 +459,19 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   def build_counterparty_types(emails)
     addresses = emails.to_h { |e| [e.id, counterparty_address(e)] }
     lookup = addresses.values.compact.map(&:downcase).uniq
-    return {} if lookup.empty?
 
-    colleagues = Current.account.users.where('LOWER(users.email) IN (?)', lookup)
-                        .pluck(Arel.sql('LOWER(users.email)')).to_set
-    customers = Current.account.crm_customers.where('LOWER(contact_email) IN (?)', lookup)
-                       .pluck(Arel.sql('LOWER(contact_email)'), :is_in_public_pool, :account_owner_id)
-                       .index_by(&:first)
+    colleagues = lookup.empty? ? Set.new : Current.account.users.where('LOWER(users.email) IN (?)', lookup)
+                                                  .pluck(Arel.sql('LOWER(users.email)')).to_set
+    customers = lookup.empty? ? {} : Current.account.crm_customers.where('LOWER(contact_email) IN (?)', lookup)
+                                            .pluck(Arel.sql('LOWER(contact_email)'), :is_in_public_pool, :account_owner_id)
+                                            .index_by(&:first)
 
-    addresses.transform_values { |addr| classify_counterparty(addr&.downcase, colleagues, customers) }
+    # 已建档（邮件已挂客户）的直接按所挂客户判定：避免「客户主联系邮箱≠本次收发地址」时被误判成陌生人（灰头像）。
+    linked_ids = emails.filter_map(&:crm_customer_id).uniq
+    linked = linked_ids.empty? ? {} : Current.account.crm_customers.where(id: linked_ids)
+                                             .pluck(:id, :is_in_public_pool, :account_owner_id).index_by(&:first)
+
+    emails.to_h { |e| [e.id, classify_counterparty(e, addresses[e.id]&.downcase, colleagues, customers, linked)] }
   end
 
   # 单封邮件的对方身份（show/update/create 用），复用批量口径。
@@ -495,12 +499,14 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     raw.to_s.split(/[;,]/).map(&:strip).find(&:present?)
   end
 
-  def classify_counterparty(addr, colleagues, customers)
-    return 'stranger' if addr.blank?
-    return 'colleague' if colleagues.include?(addr)
+  def classify_counterparty(email, addr, colleagues, customers, linked)
+    return 'colleague' if addr.present? && colleagues.include?(addr)
 
-    _email, in_pool, owner_id = customers[addr]
-    return 'stranger' if _email.nil?
+    # 邮件已挂客户 → 按该客户着色（这是「建档」的最强信号，优先于地址匹配）；未挂客户再按地址匹配客户联系邮箱。
+    row = (email.crm_customer_id && linked[email.crm_customer_id]) || (addr.present? && customers[addr])
+    return 'stranger' if row.blank?
+
+    _key, in_pool, owner_id = row
     return 'public' if in_pool
     return 'mine' if owner_id == current_user.id
 

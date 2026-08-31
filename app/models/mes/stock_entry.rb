@@ -135,6 +135,20 @@ class Mes::StockEntry < ApplicationRecord
     self
   end
 
+  # 作废（冲销）：把过账时扣/加的库存按反方向冲回、记反向流水，已过账才可作废；
+  # 若关联生产订单仍停在本单推进到的阶段且无其它已过账领料单，则回退一阶段。保留单据（置 CANCELLED）可追溯。
+  def cancel!
+    raise StandardError, '单据尚未过账，草稿可直接删除、无需作废' unless status == 'POSTED'
+
+    transaction do
+      ts = Time.current
+      stock_entry_items.each { |item| move_stock!(item, ts, -direction_sign) }
+      revert_production_order_stage_on_void(ts)
+      update_columns(status: 'CANCELLED', updated_at: ts)
+    end
+    self
+  end
+
   private
 
   def product_line_source = production_order || purchase_order
@@ -160,11 +174,14 @@ class Mes::StockEntry < ApplicationRecord
     )
   end
 
-  def post_item(item, timestamp)
+  def post_item(item, timestamp) = move_stock!(item, timestamp, direction_sign)
+
+  # 单条明细刷结存 + 记流水。sign=direction_sign 为过账，-direction_sign 为作废冲销。
+  def move_stock!(item, timestamp, sign)
     warehouse_id = item.warehouse_id || default_warehouse_id
     raise StandardError, "明细缺仓库（#{item.item_type}）" if warehouse_id.nil?
 
-    delta = direction_sign * item.effective_qty
+    delta = sign * item.effective_qty
     balance_after = Mes::StockBalance.apply!(
       account_id: account_id, item_type: item.item_type, warehouse_id: warehouse_id,
       mes_material_id: item.mes_material_id, crm_product_id: item.crm_product_id, delta: delta
@@ -173,6 +190,21 @@ class Mes::StockEntry < ApplicationRecord
       item_type: item.item_type, mes_material_id: item.mes_material_id, crm_product_id: item.crm_product_id,
       warehouse_id: warehouse_id, stock_entry_id: id, qty_change: delta, balance_after: balance_after, posted_at: timestamp
     )
+  end
+
+  # 作废回退阶段：仅当生产订单仍停在本单过账时推进到的阶段（to_stage）、
+  # 且该订单已无其它已过账同类单据时，回退一阶段；否则不动（避免误退已推进的订单）。
+  def revert_production_order_stage_on_void(timestamp)
+    from_stage, to_stage = STAGE_ADVANCE[purpose]
+    return if from_stage.nil? || production_order.nil?
+    return if production_order.stage != to_stage
+
+    others_posted = account.mes_stock_entries
+                           .where(production_order_id: production_order_id, purpose: purpose, status: 'POSTED')
+                           .where.not(id: id).exists?
+    return if others_posted
+
+    production_order.enter_stage!(from_stage, at: timestamp)
   end
 
   def direction_sign

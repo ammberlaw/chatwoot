@@ -326,6 +326,7 @@ Rails.application.routes.draw do
               member do
                 post :post
                 post :confirm_warehouse
+                post :cancel
                 post :return_document
                 post :reactivate
               end

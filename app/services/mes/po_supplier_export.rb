@@ -124,9 +124,10 @@ class Mes::PoSupplierExport
     head[:taxed] ? net * TAX_RATE : net
   end
 
-  def code(item) = item.item_type == 'PRODUCT' ? item.crm_product&.sku : item.mes_material&.material_no
-  def name(item) = item.item_type == 'PRODUCT' ? item.crm_product&.name : item.mes_material&.name
-  def spec(item) = item.item_type == 'PRODUCT' ? nil : item.mes_material&.specification
+  # 料号/名称/规格：统一取产品档案(crm_product，物料与外购成品都走它)，旧数据回落 mes_material。
+  def code(item) = item.crm_product&.sku || item.mes_material&.material_no
+  def name(item) = item.crm_product&.name || item.mes_material&.name
+  def spec(item) = item.crm_product&.specification || item.mes_material&.specification
   def fmt(num) = format('%g', num.to_f)
   def sanitize(str) = str.to_s.gsub(%r{[/\\:*?"<>|]}, '_')
 end

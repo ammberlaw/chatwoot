@@ -49,6 +49,14 @@ watch(search, () => {
 });
 
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
+// micros → ¥金额（两位小数），空值给「—」。采购模块内部可见价格，销售端不涉及。
+const yuan = micros =>
+  micros == null || micros === ''
+    ? '—'
+    : `¥${(micros / 1e6).toLocaleString('zh-CN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
 
 const STATUS_LABELS = {
   DRAFT: '草稿',
@@ -240,6 +248,7 @@ const viewFields = computed(() => {
     { label: '生产订单', value: p.productionOrderNo },
     { label: '归属人', value: p.productionOrderOwnerName },
     { label: '收货状态', value: STATUS_LABELS[p.status] || p.status },
+    { label: '采购总额', value: yuan(p.totalAmountMicros) },
     {
       label: '审批状态',
       value: APPROVAL_LABELS[p.approvalStatus] || '—',
@@ -265,6 +274,9 @@ const VIEW_ITEM_COLS = [
   { label: '采购量', key: 'qty', align: 'right' },
   { label: '已到料', key: 'receivedQty', align: 'right' },
   { label: '单位', key: 'unit' },
+  { label: '单价', key: 'rate', align: 'right' },
+  { label: '税率', key: 'taxRate', align: 'right' },
+  { label: '金额', key: 'amount', align: 'right' },
   { label: '实际到料时间', key: 'arrival' },
   { label: '备注', key: 'remark' },
 ];
@@ -278,6 +290,11 @@ const viewItems = computed(() =>
     qty: it.qty,
     receivedQty: it.receivedQty,
     unit: it.unit,
+    rate: it.rateMicros
+      ? `${yuan(it.rateMicros)}${it.priceTaxIncluded ? '(含税)' : ''}`
+      : '—',
+    taxRate: it.supplierTaxRate ? `${it.supplierTaxRate}%` : '—',
+    amount: yuan(it.amountMicros),
     arrival: day(it.arrivalDate),
     remark: it.remark,
   }))
@@ -657,6 +674,7 @@ onMounted(async () => {
             <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
               <span>回复交期：{{ day(p.expectedDate) }}</span>
               <span>交货：{{ day(p.deliveryDate) }}</span>
+              <span>总额：{{ yuan(p.totalAmountMicros) }}</span>
             </div>
           </div>
           <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
@@ -671,6 +689,9 @@ onMounted(async () => {
               <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">收货状态</th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                总额
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">审批</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">回复交期</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">交货时间</th>
@@ -700,6 +721,11 @@ onMounted(async () => {
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ STATUS_LABELS[p.status] }}
+              </td>
+              <td
+                class="px-3 py-3 text-right whitespace-nowrap text-n-slate-12"
+              >
+                {{ yuan(p.totalAmountMicros) }}
               </td>
               <td class="px-3 py-3 whitespace-nowrap">
                 <span :class="APPROVAL_COLORS[p.approvalStatus]">
@@ -765,7 +791,7 @@ onMounted(async () => {
               </td>
             </tr>
             <tr v-if="!records.length">
-              <td colspan="10" class="px-3 py-10 text-center text-n-slate-11">
+              <td colspan="11" class="px-3 py-10 text-center text-n-slate-11">
                 还没有采购单。
               </td>
             </tr>
@@ -775,8 +801,8 @@ onMounted(async () => {
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="3xl"
       overflow-y-auto
       confirm-button-color="iris"

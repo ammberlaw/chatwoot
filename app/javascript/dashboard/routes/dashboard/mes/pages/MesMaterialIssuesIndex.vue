@@ -27,7 +27,7 @@ const isFetching = computed(() => store.getUIFlags.fetchingList);
 const saving = computed(() => store.getUIFlags.creatingItem);
 const posting = computed(() => store.getUIFlags.updatingItem);
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
-const STATUS_LABELS = { DRAFT: '草稿', POSTED: '已过账', CANCELLED: '已取消' };
+const STATUS_LABELS = { DRAFT: '草稿', POSTED: '已过账', CANCELLED: '已作废' };
 
 // 只读查看
 const whName = id =>
@@ -207,6 +207,28 @@ const postEntry = async entry => {
   if (ok) useAlert(`${ok.entryNo} 已过账，库存已扣减`);
 };
 
+// 删单：草稿直接删除；已过账走「作废」冲销（退回已扣库存、按需回退生产订单阶段，保留单据可追溯）。
+const removeEntry = async e => {
+  if (e.status === 'POSTED') {
+    // eslint-disable-next-line no-alert
+    if (
+      !window.confirm(
+        `确定作废领料单 ${e.entryNo}？已领出的物料会退回库存，生产订单阶段按需回退。`
+      )
+    ) {
+      return;
+    }
+    const ok = await store.cancel(e.id);
+    if (ok) useAlert(`${e.entryNo} 已作废，库存已退回`);
+  } else {
+    // eslint-disable-next-line no-alert
+    if (!window.confirm(`确定删除领料单 ${e.entryNo}？删除后不可恢复。`))
+      return;
+    const ok = await store.delete(e.id);
+    if (ok) useAlert('已删除');
+  }
+};
+
 onMounted(async () => {
   fetchList();
   warehousesStore.get();
@@ -271,6 +293,15 @@ onMounted(async () => {
                   :can-manage="mesCan('stock')"
                   @click.stop
                 />
+                <Button
+                  v-if="mesCan('stock') && e.status !== 'CANCELLED'"
+                  :label="e.status === 'POSTED' ? '作废' : '删单'"
+                  color="ruby"
+                  variant="ghost"
+                  size="sm"
+                  :is-loading="posting"
+                  @click.stop="removeEntry(e)"
+                />
               </div>
             </div>
             <div class="mt-1 text-xs text-n-slate-11">
@@ -332,6 +363,15 @@ onMounted(async () => {
                     :store="store"
                     :can-manage="mesCan('stock')"
                   />
+                  <Button
+                    v-if="mesCan('stock') && e.status !== 'CANCELLED'"
+                    :label="e.status === 'POSTED' ? '作废' : '删单'"
+                    color="ruby"
+                    variant="ghost"
+                    size="sm"
+                    :is-loading="posting"
+                    @click="removeEntry(e)"
+                  />
                 </div>
               </td>
             </tr>
@@ -346,8 +386,8 @@ onMounted(async () => {
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="5xl"
       overflow-y-auto
       confirm-button-color="iris"
