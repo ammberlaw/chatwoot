@@ -11,6 +11,7 @@ import ChatAPI from 'dashboard/api/chat/conversations';
 import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import CrmQuickClock from 'dashboard/components-next/CRM/CrmQuickClock.vue';
 import wintouchLockup from 'dashboard/assets/images/wintouch/lockup.png';
 
 const router = useRouter();
@@ -214,6 +215,8 @@ onMounted(async () => {
             </h1>
             <div class="wsh-sub">选择一个系统开始工作</div>
           </div>
+          <!-- 手机端右上角快捷打卡（仅紫色圆按钮，一键上/下班打卡）；桌面隐藏 -->
+          <CrmQuickClock compact class="self-center shrink-0 md:hidden" />
         </div>
 
         <div class="wsh-layout">
