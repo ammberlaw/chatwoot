@@ -344,11 +344,21 @@ const isImageFile = f =>
 const isPdfFile = f =>
   (f.contentType || '') === 'application/pdf' ||
   /\.pdf$/i.test(f.filename || '');
-const canPreview = f => isImageFile(f) || isPdfFile(f);
+// Office 文档浏览器不能内联渲染，改为浏览器内转换：docx→HTML(mammoth)、xlsx→表格(SheetJS)。
+// 全程前端完成、文档不出服务器；老 .doc/.xls 与 .pptx 无法转换，仍走下载。
+const isDocxFile = f =>
+  /\.docx$/i.test(f.filename || '') ||
+  (f.contentType || '').includes('wordprocessingml');
+const isXlsxFile = f =>
+  /\.xlsx$/i.test(f.filename || '') ||
+  (f.contentType || '').includes('spreadsheetml');
+const isOfficeFile = f => isDocxFile(f) || isXlsxFile(f);
+const canPreview = f => isImageFile(f) || isPdfFile(f) || isOfficeFile(f);
 const previewFile = ref(null);
 // 附件 URL 带 Content-Disposition: attachment 会被浏览器强制下载、iframe 空白；
 // 预览时先拉成 blob 再生成 blob: 内联地址，保证站内直接渲染、不触发下载。
 const previewUrl = ref('');
+const previewHtml = ref(''); // Office 文档转换后的 HTML（docx/xlsx）
 const previewLoading = ref(false);
 const openPreview = async f => {
   if (!canPreview(f)) {
@@ -357,14 +367,33 @@ const openPreview = async f => {
   }
   previewFile.value = f;
   previewUrl.value = '';
+  previewHtml.value = '';
   previewLoading.value = true;
   try {
-    const raw = await (await fetch(f.url)).blob();
-    const type = isPdfFile(f)
-      ? 'application/pdf'
-      : raw.type || 'application/octet-stream';
-    const blob = raw.type === type ? raw : new Blob([raw], { type });
-    previewUrl.value = URL.createObjectURL(blob);
+    if (isOfficeFile(f)) {
+      const buf = await (await fetch(f.url)).arrayBuffer();
+      if (isDocxFile(f)) {
+        const mammoth = await import('mammoth');
+        const { value } = await mammoth.convertToHtml({ arrayBuffer: buf });
+        previewHtml.value = DOMPurify.sanitize(value || '（空文档）');
+      } else {
+        const XLSX = await import('xlsx');
+        const wb = XLSX.read(buf, { type: 'array' });
+        previewHtml.value = DOMPurify.sanitize(
+          wb.SheetNames.map(
+            name =>
+              `<h3>${name}</h3>${XLSX.utils.sheet_to_html(wb.Sheets[name])}`
+          ).join('')
+        );
+      }
+    } else {
+      const raw = await (await fetch(f.url)).blob();
+      const type = isPdfFile(f)
+        ? 'application/pdf'
+        : raw.type || 'application/octet-stream';
+      const blob = raw.type === type ? raw : new Blob([raw], { type });
+      previewUrl.value = URL.createObjectURL(blob);
+    }
   } catch {
     useAlert('预览加载失败，请点右上角下载查看');
   } finally {
@@ -375,6 +404,7 @@ const closePreview = () => {
   if (previewUrl.value.startsWith('blob:'))
     URL.revokeObjectURL(previewUrl.value);
   previewUrl.value = '';
+  previewHtml.value = '';
   previewFile.value = null;
 };
 
@@ -2910,6 +2940,13 @@ class="text-n-slate-9"
             :src="previewUrl"
             :title="previewFile.filename"
             class="w-full h-full bg-white rounded"
+          />
+          <!-- Office 文档转换结果（docx/xlsx）：prose 排版 + 可滚动 -->
+          <!-- eslint-disable-next-line vue/no-v-html -->
+          <div
+            v-else-if="previewHtml"
+            class="w-full h-full p-6 overflow-auto prose bg-white rounded prose-sm max-w-none prose-table:text-xs prose-td:border prose-td:border-n-weak prose-td:px-2 prose-td:py-1 prose-th:border prose-th:border-n-weak prose-th:px-2 prose-th:py-1"
+            v-html="previewHtml"
           />
         </div>
       </div>
