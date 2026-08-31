@@ -378,14 +378,14 @@ onMounted(() => {
 
     <!-- 顶部 KPI 环形卡 -->
     <div
-      class="grid flex-shrink-0 grid-cols-2 gap-3 px-4 sm:px-[26px] pt-3.5 pb-1 xl:grid-cols-4"
+      class="flex md:grid overflow-x-auto flex-shrink-0 grid-cols-2 gap-3 px-4 sm:px-[26px] pt-3.5 pb-1 xl:grid-cols-4"
     >
       <div
         v-for="card in kpiCards"
         :key="card.key"
         role="button"
         tabindex="0"
-        class="flex items-center gap-3.5 p-[15px] border rounded-2xl bg-n-solid-1/60 cursor-pointer transition-all hover:shadow-md"
+        class="flex items-center gap-3.5 p-[15px] shrink-0 w-[44%] md:w-auto border rounded-2xl bg-n-solid-1/60 cursor-pointer transition-all hover:shadow-md"
         :class="
           activeStatus === card.value
             ? 'border-n-slate-12/40 ring-2 ring-n-slate-12/10 shadow-md'

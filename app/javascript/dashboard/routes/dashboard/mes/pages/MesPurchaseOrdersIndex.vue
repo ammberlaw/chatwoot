@@ -873,101 +873,110 @@ onMounted(async () => {
             @click="addRow"
           />
         </div>
-        <div class="flex flex-col gap-2">
+        <div class="flex flex-col gap-2.5">
           <div
             v-for="(row, i) in form.rows"
             :key="i"
-            class="grid items-center grid-cols-1 gap-2 p-2 border rounded-lg md:grid-cols-12 border-n-weak"
+            class="flex flex-col gap-2.5 p-3 border rounded-lg border-n-weak"
           >
-            <div class="md:col-span-2">
-              <SelectCard
-                size="form"
-                :model-value="row.itemType"
-                :options="ITEM_TYPE_OPTIONS"
-                @update:model-value="v => (row.itemType = v)"
-              />
-            </div>
-            <div class="md:col-span-3">
-              <MesProductPicker
-                :account-id="accountId"
-                :model-value="row.crmProductId"
-                :display-text="productLabel(row.crmProductId)"
-                placeholder="选择物料（产品档案·编码/名称/规格）"
-                @update:model-value="v => (row.crmProductId = v)"
-                @select="onProductPicked"
-              />
-            </div>
-            <div class="md:col-span-2">
-              <ComboBox
-                v-model="row.mesSupplierId"
-                :options="supplierOptions"
-                placeholder="选择供应商"
-              />
-            </div>
-            <Input
-              v-model="row.qty"
-              type="number"
-              placeholder="数量"
-              class="md:col-span-2"
-            />
-            <Input
-              v-model="row.rate"
-              type="number"
-              :placeholder="row.priceTaxIncluded ? '含税单价' : '未税单价'"
-              class="md:col-span-2"
-            />
-            <button
-              type="button"
-              class="text-left md:col-span-1 md:text-center text-n-slate-10 hover:text-n-ruby-11"
-              @click="removeRow(i)"
-            >
-              ✕
-            </button>
-            <label
-              class="flex items-center gap-1.5 text-xs md:col-span-3 text-n-slate-11"
-            >
-              <input v-model="row.priceTaxIncluded" type="checkbox" />
-              <span>单价含税</span>
-              <span
-                v-if="row.mesSupplierId && supplierTaxRate(row.mesSupplierId)"
-                class="text-n-slate-10"
-              >
-                （税率{{ supplierTaxRate(row.mesSupplierId) }}%）
-              </span>
-            </label>
-            <div class="flex items-center gap-2 md:col-span-3">
-              <label class="text-xs shrink-0 text-n-slate-11">规格</label>
-              <span class="flex-1 text-xs truncate text-n-slate-11">
-                {{ productSpec(row.crmProductId) || '—' }}
-              </span>
-            </div>
-            <div class="flex items-center gap-2 md:col-span-3">
-              <label class="text-xs shrink-0 text-n-slate-11">实际到料</label>
-              <div class="flex-1">
-                <DatePicker v-model="row.arrivalDate" block />
+            <!-- 主控件行：类型 / 物料 / 供应商 / 数量 / 单价 / 删除 -->
+            <div class="grid items-center grid-cols-1 gap-2 md:grid-cols-12">
+              <div class="md:col-span-2">
+                <SelectCard
+                  size="form"
+                  :model-value="row.itemType"
+                  :options="ITEM_TYPE_OPTIONS"
+                  @update:model-value="v => (row.itemType = v)"
+                />
               </div>
+              <div class="md:col-span-3">
+                <MesProductPicker
+                  :account-id="accountId"
+                  :model-value="row.crmProductId"
+                  :display-text="productLabel(row.crmProductId)"
+                  placeholder="选择物料（产品档案·编码/名称/规格）"
+                  @update:model-value="v => (row.crmProductId = v)"
+                  @select="onProductPicked"
+                />
+              </div>
+              <div class="md:col-span-2">
+                <ComboBox
+                  v-model="row.mesSupplierId"
+                  :options="supplierOptions"
+                  placeholder="选择供应商"
+                />
+              </div>
+              <Input
+                v-model="row.qty"
+                type="number"
+                placeholder="数量"
+                class="md:col-span-2"
+              />
+              <Input
+                v-model="row.rate"
+                type="number"
+                :placeholder="row.priceTaxIncluded ? '含税单价' : '未税单价'"
+                class="md:col-span-2"
+              />
+              <button
+                type="button"
+                class="justify-self-end md:col-span-1 text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeRow(i)"
+              >
+                ✕
+              </button>
             </div>
-            <Input
-              v-model="row.remark"
-              placeholder="备注"
-              class="md:col-span-3"
-            />
-            <div class="flex items-center gap-2 md:col-span-3">
-              <label class="text-xs shrink-0 text-n-slate-11">实时库存</label>
-              <span class="flex-1 text-xs text-n-slate-11">
-                {{
-                  productOnHand(row.crmProductId) == null
-                    ? '选料后显示'
-                    : productOnHand(row.crmProductId)
-                }}
-              </span>
-            </div>
-            <div class="flex items-center gap-2 md:col-span-3">
-              <label class="text-xs shrink-0 text-n-slate-11">
-                工程建议采购
+            <!-- 次要控件行：含税 / 实际到料 / 备注 -->
+            <div class="grid items-center grid-cols-1 gap-2 md:grid-cols-12">
+              <label
+                class="flex items-center gap-1.5 text-xs md:col-span-3 text-n-slate-11"
+              >
+                <input v-model="row.priceTaxIncluded" type="checkbox" />
+                <span class="shrink-0">单价含税</span>
+                <span
+                  v-if="row.mesSupplierId && supplierTaxRate(row.mesSupplierId)"
+                  class="text-n-slate-10"
+                >
+                  （税率{{ supplierTaxRate(row.mesSupplierId) }}%）
+                </span>
               </label>
-              <span class="flex-1 text-xs text-n-slate-11">
-                {{ row.suggestedQty == null ? '—' : row.suggestedQty }}
+              <div class="flex items-center gap-2 md:col-span-4">
+                <label class="text-xs shrink-0 text-n-slate-11">实际到料</label>
+                <div class="flex-1">
+                  <DatePicker v-model="row.arrivalDate" block />
+                </div>
+              </div>
+              <Input
+                v-model="row.remark"
+                placeholder="备注"
+                class="md:col-span-5"
+              />
+            </div>
+            <!-- 只读信息：规格 · 实时库存 · 工程建议采购 -->
+            <div
+              class="flex flex-wrap gap-x-5 gap-y-1 pt-0.5 text-xs border-t border-n-weak/60"
+            >
+              <span class="inline-flex gap-1.5">
+                <span class="text-n-slate-9">规格</span>
+                <span class="text-n-slate-11">
+                  {{ productSpec(row.crmProductId) || '—' }}
+                </span>
+              </span>
+              <span class="inline-flex gap-1.5">
+                <span class="text-n-slate-9">实时库存</span>
+                <span class="text-n-slate-11">
+                  {{
+                    productOnHand(row.crmProductId) == null
+                      ? '选料后显示'
+                      : productOnHand(row.crmProductId)
+                  }}
+                </span>
+              </span>
+              <span class="inline-flex gap-1.5">
+                <span class="text-n-slate-9">工程建议采购</span>
+                <span class="text-n-slate-11">
+                  {{ row.suggestedQty == null ? '—' : row.suggestedQty }}
+                </span>
               </span>
             </div>
           </div>

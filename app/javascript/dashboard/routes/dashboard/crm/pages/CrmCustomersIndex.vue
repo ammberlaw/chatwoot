@@ -80,6 +80,8 @@ const activeProductGroup = ref('');
 const activeSourceChannel = ref('');
 // 只看特别关注（每人各标）。
 const favoritesOnly = ref(false);
+// 手机端筛选下拉默认收起，把竖向空间让给客户列表（桌面端始终展开）。
+const showMobileFilters = ref(false);
 const toggleFavoritesOnly = () => {
   favoritesOnly.value = !favoritesOnly.value;
   currentPage.value = 1;
@@ -1520,22 +1522,22 @@ watch(
       <!-- 概览卡区（第 1 框）：随筛选联动 -->
       <div
         v-if="activeFilter !== 'churn_risk'"
-        class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 flex-shrink-0"
+        class="flex md:grid overflow-x-auto grid-cols-2 lg:grid-cols-4 gap-3 md:gap-3.5 flex-shrink-0"
       >
         <div
           v-for="card in statCards"
           :key="card.key"
-          class="flex items-center gap-3.5 p-4 rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/40"
+          class="flex items-center gap-2.5 p-3 shrink-0 w-[46%] md:w-auto md:gap-3.5 md:p-4 rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/40"
         >
           <div
-            class="grid place-items-center flex-none rounded-xl size-11"
+            class="grid place-items-center flex-none rounded-xl size-9 md:size-11"
             :class="card.tile"
           >
-            <span class="size-5" :class="[card.icon]" />
+            <span class="size-4 md:size-5" :class="[card.icon]" />
           </div>
           <div class="min-w-0">
             <div
-              class="text-2xl font-bold tracking-[-0.02em] text-n-slate-12 tabular-nums"
+              class="text-xl md:text-2xl font-bold tracking-[-0.02em] text-n-slate-12 tabular-nums"
             >
               {{ card.value }}
             </div>
@@ -1546,7 +1548,7 @@ watch(
 
       <!-- 筛选区（第 2 框） -->
       <div
-        class="flex flex-col gap-2.5 flex-shrink-0 px-4 py-3.5 rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/30"
+        class="flex flex-col gap-2 md:gap-2.5 flex-shrink-0 px-4 py-2.5 md:py-3.5 rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/30"
       >
         <!-- 第 1 行：视图切换 + 搜索 + 只看关注 + 批量操作 -->
         <div class="flex flex-wrap items-center gap-2">
@@ -1599,6 +1601,18 @@ watch(
             />
             只看关注
           </button>
+          <!-- 手机端：筛选下拉收起/展开开关（桌面端始终展开，无此按钮） -->
+          <button
+            type="button"
+            class="flex md:hidden items-center gap-1.5 px-3 h-[38px] text-[13px] font-medium border rounded-[10px] shrink-0 border-n-weak text-n-slate-11"
+            @click="showMobileFilters = !showMobileFilters"
+          >
+            <span class="i-lucide-sliders-horizontal size-4" />
+            筛选
+            <span class="text-n-slate-9">{{
+              showMobileFilters ? '▴' : '▾'
+            }}</span>
+          </button>
           <!-- 勾选分配：选中客户连同商机/订单/报价/邮件分配给新业务员 -->
           <template v-if="canSelectRows && selectedIds.length">
             <span class="text-sm text-n-slate-11">
@@ -1645,12 +1659,13 @@ watch(
           </template>
         </div>
 
-        <!-- 第 2 行：筛选下拉 -->
+        <!-- 第 2 行：筛选下拉（手机端可收起，桌面端始终展开） -->
         <div
-          class="flex flex-wrap items-center gap-2 pt-2.5 border-t border-n-weak"
+          class="flex-wrap items-center gap-2 pt-2.5 border-t border-n-weak md:flex"
+          :class="showMobileFilters ? 'flex' : 'hidden'"
         >
           <span
-            class="text-[11.5px] font-semibold tracking-wide text-n-slate-10"
+            class="hidden md:inline text-[11.5px] font-semibold tracking-wide text-n-slate-10"
           >
             筛选
           </span>
@@ -1734,8 +1749,104 @@ watch(
           >
             {{ t('CRM.CUSTOMERS.EMPTY') }}
           </div>
-          <div v-else class="overflow-x-auto">
-            <div class="overflow-x-auto">
+          <div v-else>
+            <!-- 手机卡片列表（桌面隐藏，见下方表格） -->
+            <div class="flex flex-col gap-2 py-2 md:hidden">
+              <div
+                v-for="customer in customers"
+                :key="customer.id"
+                class="p-3 border cursor-pointer rounded-xl border-n-weak bg-n-solid-1/70 active:bg-n-alpha-1"
+                :class="{
+                  'ring-2 ring-n-iris-8': selectedCustomer?.id === customer.id,
+                }"
+                @click="selectCustomer(customer)"
+              >
+                <div class="flex items-start gap-2.5">
+                  <span
+                    class="grid text-xs font-bold rounded-lg flex-none size-8 place-items-center bg-n-slate-4 text-n-slate-11"
+                  >
+                    {{ initial(customer.name) }}
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-semibold truncate text-n-slate-12">
+                        {{ customer.name }}
+                      </span>
+                      <button
+                        type="button"
+                        class="shrink-0"
+                        :class="
+                          customer.favorited
+                            ? 'text-[#ff5a5f]'
+                            : 'text-n-slate-8'
+                        "
+                        @click.stop="toggleFavorite(customer)"
+                      >
+                        <span
+                          class="size-3.5"
+                          :class="
+                            customer.favorited
+                              ? 'i-ri-heart-fill'
+                              : 'i-ri-heart-line'
+                          "
+                        />
+                      </button>
+                    </div>
+                    <div
+                      class="flex items-center gap-2 mt-1 text-xs text-n-slate-11"
+                    >
+                      <CrmStarRating :micros="customer.dealTotalAmountMicros" />
+                      <span class="truncate">
+                        {{
+                          ownerDisplayName(customer) ||
+                          (customer.isInPublicPool ? '公海' : '未分配')
+                        }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="flex flex-col items-end gap-1.5 shrink-0">
+                    <span
+                      v-if="statusMeta(customer)"
+                      class="inline-flex items-center px-2 py-[2px] rounded-full text-[11px] font-bold whitespace-nowrap"
+                      :class="pillCls(statusMeta(customer).color)"
+                    >
+                      {{ statusMeta(customer).label }}
+                    </span>
+                    <Button
+                      v-if="customer.isInPublicPool"
+                      :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
+                      size="sm"
+                      color="iris"
+                      :is-loading="actingId === customer.id"
+                      @click.stop="claimCustomer(customer)"
+                    />
+                  </div>
+                </div>
+                <div
+                  class="flex flex-wrap items-center mt-2 gap-x-3 gap-y-1 text-xs text-n-slate-10"
+                >
+                  <span>
+                    成交
+                    <span class="font-semibold text-n-slate-12">
+                      {{ money(customer.dealTotalAmountMicros) }}
+                    </span>
+                  </span>
+                  <span>{{ customer.dealOrderCount || 0 }} 单</span>
+                  <span
+                    v-if="sourceMeta(customer)"
+                    class="inline-flex px-2 py-[2px] rounded-full text-[10.5px] font-bold"
+                    :class="pillCls(sourceMeta(customer).color)"
+                  >
+                    {{ sourceMeta(customer).label }}
+                  </span>
+                  <span v-if="customer.tradeCountry">
+                    {{ countryLabel(customer.tradeCountry) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <!-- 桌面表格 -->
+            <div class="hidden overflow-x-auto md:block">
               <table
                 class="w-full text-[13px] text-left border-separate border-spacing-0"
               >
