@@ -44,6 +44,8 @@ class Mes::ProductionRecord < ApplicationRecord
 
   validates :qty_completed, numericality: { greater_than_or_equal_to: 0 }
   validates :qty_returned, :qty_scrap, numericality: { greater_than_or_equal_to: 0 }
+  # 禁止重复/超量报工：本次完成数不得让累计已产超过订单数量（报满即不能再报）。
+  validate :within_order_remaining, on: :create
 
   # ── 单据退回（Mes::Returnable）──：退回目标 = 生产领料板块（料不对退回仓库/领料）。
   # 报工无过账态、无单号，恒可退，单号用 报工#id。
@@ -74,5 +76,25 @@ class Mes::ProductionRecord < ApplicationRecord
   # 删除报工（如清理重复报工）时把已产数量回退，避免 produced_qty 被灌大。
   def revert_from_production_order
     production_order&.remove_produced!(qty_completed)
+  end
+
+  # 累计已产 + 本次完成数 不得超过订单数量：挡住同一订单重复报工/超量报工。
+  def within_order_remaining
+    return if production_order.nil? || qty_completed.to_d <= 0
+
+    remaining = [production_order.qty.to_d - production_order.produced_qty.to_d, 0].max
+    return if qty_completed.to_d <= remaining
+
+    errors.add(:qty_completed, over_report_message(remaining))
+  end
+
+  def over_report_message(remaining)
+    "本次报工 #{fmt(qty_completed)} 超过订单剩余可报数量 #{fmt(remaining)}" \
+      "（已产 #{fmt(production_order.produced_qty)}/#{fmt(production_order.qty)}），不能重复或超量报工"
+  end
+
+  def fmt(num)
+    n = num.to_d
+    (n == n.to_i ? n.to_i : n).to_s
   end
 end

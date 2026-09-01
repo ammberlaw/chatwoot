@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, watch, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesProductionRecordsStore } from 'dashboard/stores/mes/productionRecords';
@@ -67,8 +67,26 @@ const selectedOrder = computed(() =>
     p => String(p.id) === String(form.productionOrderId)
   )
 );
+// 订单剩余可报数量 = 订单数量 − 已产（下限 0）；报满则不能再报，挡重复/超量报工。
+const remainingQty = computed(() => {
+  const o = selectedOrder.value;
+  if (!o || o.qty == null) return null;
+  return Math.max(Number(o.qty) - Number(o.produced_qty || 0), 0);
+});
+const overReport = computed(
+  () =>
+    remainingQty.value != null &&
+    Number(form.qtyCompleted || 0) > remainingQty.value
+);
 const invalid = computed(
-  () => !form.productionOrderId || form.qtyCompleted === ''
+  () => !form.productionOrderId || form.qtyCompleted === '' || overReport.value
+);
+// 选订单后把完成数默认成剩余可报数量，避免手滑重复报满。
+watch(
+  () => form.productionOrderId,
+  () => {
+    if (remainingQty.value != null) form.qtyCompleted = String(remainingQty.value);
+  }
 );
 
 const fetchOrders = async () => {
@@ -96,19 +114,21 @@ const openCreate = () => {
 
 const submit = async () => {
   if (invalid.value) return;
-  const ok = await store.create({
-    productionOrderId: Number(form.productionOrderId),
-    operationName: form.operationName || null,
-    qtyCompleted: Number(form.qtyCompleted) || 0,
-    qtyReturned: Number(form.qtyReturned) || 0,
-    qtyScrap: Number(form.qtyScrap) || 0,
-    remark: form.remark,
-  });
-  if (ok) {
+  try {
+    await store.create({
+      productionOrderId: Number(form.productionOrderId),
+      operationName: form.operationName || null,
+      qtyCompleted: Number(form.qtyCompleted) || 0,
+      qtyReturned: Number(form.qtyReturned) || 0,
+      qtyScrap: Number(form.qtyScrap) || 0,
+      remark: form.remark,
+    });
     useAlert('报工已录入');
     dialogRef.value?.close();
     store.get();
     fetchOrders();
+  } catch (e) {
+    useAlert(e?.message || '报工失败，请重试');
   }
 };
 
@@ -319,6 +339,21 @@ onMounted(() => {
               完成数量 <span class="text-n-ruby-11">*</span>
             </label>
             <Input v-model="form.qtyCompleted" type="number" />
+            <span
+              v-if="remainingQty != null"
+              class="text-xs"
+              :class="overReport ? 'text-n-ruby-11' : 'text-n-slate-10'"
+            >
+              <template v-if="remainingQty === 0">
+                该订单已报满（已产 {{ selectedOrder.produced_qty }}/{{
+                  selectedOrder.qty
+                }}），不能再报
+              </template>
+              <template v-else-if="overReport">
+                超过剩余可报 {{ remainingQty }}，请勿重复/超量报工
+              </template>
+              <template v-else>剩余可报 {{ remainingQty }}</template>
+            </span>
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">退料</label>
