@@ -35,6 +35,9 @@ json.files(visible_files) do |f|
   json.filename f.filename.to_s
   json.byte_size f.byte_size
   json.content_type f.content_type
-  json.url url_for(f)
+  # 强制 attachment disposition：否则 PDF 被 ActiveStorage 当可内联类型发 inline，
+  # 浏览器下载时用 URL 里的 blob key 当文件名（乱码），而 docx/xlsx 默认 attachment 正常。
+  # 前端预览另走 fetch→blob，不受此影响。
+  json.url rails_blob_url(f, disposition: 'attachment')
 end
 json.created_at resource.created_at
