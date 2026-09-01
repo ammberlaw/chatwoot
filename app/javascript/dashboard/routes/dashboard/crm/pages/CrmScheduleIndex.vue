@@ -12,6 +12,7 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { onClickOutside } from '@vueuse/core';
+import { holidaysFor } from 'dashboard/routes/dashboard/crm/constants/holidays';
 
 const { accountId } = useAccount();
 const router = useRouter();
@@ -125,6 +126,7 @@ const calendar = computed(() => {
       inMonth: d.getMonth() === view.value.m,
       isToday: key === todayStr,
       events: byDate.value[key] || [],
+      holidays: holidaysFor(key),
     });
     if (i >= 34 && d.getMonth() !== view.value.m) break;
   }
@@ -234,6 +236,8 @@ const selectDate = key => {
 const backToOverview = () => {
   dayView.value = false;
 };
+// 选中日的节日（只读，供业务给该市场客户发问候参考）。
+const selectedHolidays = computed(() => holidaysFor(selectedDate.value));
 const dayEvents = computed(() =>
   (byDate.value[selectedDate.value] || [])
     .slice()
@@ -676,6 +680,11 @@ onMounted(() => {
                   selectedDate === c.key ? 'bg-n-iris-4' : 'hover:bg-n-alpha-2',
                   draggedOcc ? 'ring-1 ring-inset ring-n-iris-6/40' : '',
                 ]"
+                :title="
+                  c.holidays.length
+                    ? c.holidays.map(h => `${h.region} · ${h.name}`).join('、')
+                    : null
+                "
                 @click="selectDate(c.key)"
                 @dblclick="openCreate(c.key)"
                 @dragover.prevent
@@ -687,6 +696,10 @@ onMounted(() => {
                     c.isToday ? 'bg-n-iris-9 text-white font-semibold' : ''
                   "
                   >{{ c.day }}</span>
+                <span
+                  v-if="c.holidays.length"
+                  class="absolute top-0.5 right-1 text-[10px] leading-none"
+                  >{{ c.holidays[0].emoji }}</span>
                 <div class="flex gap-0.5 mt-1">
                   <span
                     v-for="(e, i) in c.events.slice(0, 4)"
@@ -723,6 +736,15 @@ onMounted(() => {
               >
                 <Icon icon="i-lucide-arrow-left" class="size-3.5" /> 总览
               </button>
+            </div>
+            <div v-if="selectedHolidays.length" class="flex flex-wrap gap-1.5">
+              <span
+                v-for="(h, i) in selectedHolidays"
+                :key="i"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-lg bg-n-amber-3 text-n-amber-11"
+              >
+                {{ h.emoji }} {{ h.name }} · {{ h.region }}
+              </span>
             </div>
             <div v-if="dayEvents.length" class="flex flex-col gap-2">
               <button
