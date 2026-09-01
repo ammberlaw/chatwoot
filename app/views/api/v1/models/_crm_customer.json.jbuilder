@@ -23,6 +23,9 @@ json.risk_level resource.risk_level
 
 json.last_follow_up_at resource.last_follow_up_at
 json.next_follow_up_at resource.next_follow_up_at
+# AI「下一步建议」缓存（收信时顺手生成，详情页直接读，不实时调 AI）。
+json.ai_next_step resource.ai_next_step
+json.ai_next_step_at resource.ai_next_step_at
 # 最近联系时间（跟进/往来邮件/订单三者取最新）：仅客户列表查询 select 了该别名，其余渲染处为 nil。
 json.last_touch_at resource.attributes['last_touch_at']
 json.is_in_public_pool resource.is_in_public_pool

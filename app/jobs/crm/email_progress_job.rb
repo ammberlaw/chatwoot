@@ -18,6 +18,8 @@ class Crm::EmailProgressJob < ApplicationJob
 
     result = Crm::EmailAiService.new(account: email.account)
                                 .extract_progress(transcript: build_transcript(email, customer))
+    # 顺手缓存「下一步建议」（同一次 AI 调用返回，不额外花 token）：客户详情页直接读缓存。
+    cache_next_step(customer, result['next_step'])
     return unless result['update']
 
     title = result['title'].to_s.strip
@@ -42,6 +44,14 @@ class Crm::EmailProgressJob < ApplicationJob
   end
 
   private
+
+  # 缓存 AI 下一步建议到客户（跳过校验/回调，避免审计噪音）；建议为空则不动旧值。
+  def cache_next_step(customer, next_step)
+    text = next_step.to_s.strip
+    return if text.blank?
+
+    customer.update_columns(ai_next_step: text, ai_next_step_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+  end
 
   # 优先挂到进行中的商机，否则最近更新的商机；都没有则留空（记录仍挂在客户上）。
   def primary_opportunity_id(customer)

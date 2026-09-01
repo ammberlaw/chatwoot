@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_01_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_01_000002) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1021,6 +1021,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_000001) do
     t.string "linkedin"
     t.bigint "previous_owner_id"
     t.bigint "shared_user_ids", default: [], null: false, array: true
+    t.text "ai_next_step"
+    t.datetime "ai_next_step_at"
     t.index ["account_id", "customer_code"], name: "index_crm_customers_on_account_id_and_customer_code", unique: true, where: "(customer_code IS NOT NULL)"
     t.index ["account_id", "customer_status"], name: "index_crm_customers_on_account_id_and_customer_status"
     t.index ["account_id", "is_in_public_pool"], name: "index_crm_customers_on_account_id_and_is_in_public_pool"

@@ -1,5 +1,7 @@
 json.customer do
   json.partial! 'api/v1/models/crm_customer', formats: [:json], resource: @customer
+  # 详情页专用：最近联系时间（跟进/邮件/订单三者最新），覆盖 partial 里为 nil 的默认值。
+  json.last_touch_at @last_touch_at
 end
 
 json.opportunities @opportunities do |opportunity|

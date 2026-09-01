@@ -7,6 +7,8 @@
 #
 #  id                       :bigint           not null, primary key
 #  address                  :string
+#  ai_next_step             :text
+#  ai_next_step_at          :datetime
 #  completeness_grade       :string
 #  contact_email            :string
 #  contact_job_title        :string

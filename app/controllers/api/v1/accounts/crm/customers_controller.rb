@@ -306,6 +306,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   # 客户详情大页：一次聚合客户 + 商机 / 跟进时间线 / 待办 / 订单 / 报价（文件已在客户里）。
   def detail
+    # 最近联系：跟进/往来邮件/订单三者取最新（与客户列表同口径），详情页据此展示，避免只按手动跟进算成「—」。
+    @last_touch_at = Current.account.crm_customers.where(id: @customer.id).pick(Arel.sql(LAST_TOUCH_SQL))
     @opportunities = @customer.opportunities.order(updated_at: :desc).limit(20)
     @orders = @customer.sales_orders.order(order_date: :desc).limit(20).with_attached_files
     @pis = @customer.crm_pis.order(pi_date: :desc).limit(20)

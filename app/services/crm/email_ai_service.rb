@@ -190,9 +190,10 @@ class Crm::EmailAiService
       "update": true 或 false,
       "title": "不超过20字的进度短标题，如 客户已付30%定金",
       "body": "一句话补充关键信息（金额/单号/日期等），不超过60字",
-      "stage_hint": "PENDING_PAYMENT/SAMPLING/WON/LOST 之一或 null（该进度暗示的商机阶段）"
+      "stage_hint": "PENDING_PAYMENT/SAMPLING/WON/LOST 之一或 null（该进度暗示的商机阶段）",
+      "next_step": "给业务员的下一步跟进建议，一句话、不超过30字、具体可执行（如 回复确认交期并催付定金）。无论 update 真假都要给出；信息太少就填 补充沟通了解需求"
     }
-    update 为 false 时其它字段可留空。不要编造往来里没有的信息。
+    title/body/stage_hint 在 update 为 false 时可留空，但 next_step 必须给。不要编造往来里没有的信息。
   PROMPT
 
   SUGGEST_SYSTEM = <<~PROMPT.freeze

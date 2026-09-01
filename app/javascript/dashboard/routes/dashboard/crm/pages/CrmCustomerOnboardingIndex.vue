@@ -170,6 +170,7 @@ watch(
 const bgLoading = ref(false);
 const bgResult = ref(null); // { status, domain, url, profile, enrichment, db_match }
 const bgCandidates = ref([]); // 按公司名搜到的候选，供挑一个再背调
+const bgImported = ref(false); // 本次背调结果是否已一键导入表单（避免重复追加备注）
 const bgProfile = computed(() => bgResult.value?.profile || {});
 const BG_LEGIT = {
   real: { label: '像真实运营公司', cls: 'bg-n-teal-3 text-n-teal-11' },
@@ -204,6 +205,7 @@ const bgLookup = async query => {
   try {
     const { data } = await CrmAiAPI.companyLookup(query);
     bgResult.value = data;
+    bgImported.value = false; // 新结果可再次导入
   } catch (e) {
     useAlert(e?.response?.data?.message || 'AI 背调失败，请稍后再试');
   } finally {
@@ -238,6 +240,119 @@ const runBackgroundCheck = async () => {
 };
 const pickBgCandidate = candidate => bgLookup(candidate.domain);
 
+// ── 一键导入：把背调结果填进建档表单 ──
+// 结构化字段（公司名/网址/国家/地址/领英）取 Apollo 企业库(enrichment)干净值，只填【空字段】不覆盖已填；
+// 主营/行业/规模/AI 判断等概念性信息拼成一段写进「备注」。
+// 国家：Apollo 给英文国名，映射到我们的国家代码（代码基本＝英文名大写下划线），少数缩写走别名表。
+const COUNTRY_ALIAS = {
+  UNITED_STATES: 'USA',
+  UNITED_STATES_OF_AMERICA: 'USA',
+  US: 'USA',
+  AMERICA: 'USA',
+  UNITED_KINGDOM: 'UK',
+  GREAT_BRITAIN: 'UK',
+  ENGLAND: 'UK',
+  KOREA: 'SOUTH_KOREA',
+  REPUBLIC_OF_KOREA: 'SOUTH_KOREA',
+  RUSSIAN_FEDERATION: 'RUSSIA',
+  UNITED_ARAB_EMIRATES: 'UAE',
+  CZECH_REPUBLIC: 'CZECH',
+  CZECHIA: 'CZECH',
+  VIET_NAM: 'VIETNAM',
+  HONGKONG: 'HONG_KONG',
+};
+// 「纯中文国名 → 代码」：从 COUNTRY_LABELS 去掉 emoji/空格只留中文，按名字长度倒序
+// （先长后短，避免"苏丹"命中"南苏丹"、"几内亚"命中"赤道几内亚"）。
+const CN_NAME_TO_CODE = Object.entries(COUNTRY_LABELS)
+  .map(([code, label]) => [code, String(label).replace(/[^一-龥]/g, '')])
+  .filter(([, cn]) => cn)
+  .sort((a, b) => b[1].length - a[1].length);
+const countryCodeFromName = raw => {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  // 1) 干净英文名（Apollo enrichment）：代码基本＝英文名大写下划线，少数缩写走别名。
+  const norm = text
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  if (countryOptions.some(o => o.value === norm)) return norm;
+  if (COUNTRY_ALIAS[norm]) return COUNTRY_ALIAS[norm];
+  // 2) AI 中文一句话（如"可能来自北马其顿"）：扫描是否含某个中文国名。
+  const hit = CN_NAME_TO_CODE.find(([, cn]) => text.includes(cn));
+  return hit ? hit[0] : '';
+};
+
+// 概况写进备注的文本块（结构化字段之外的信息，避免丢失）。
+const buildBgRemark = () => {
+  const p = bgProfile.value;
+  const e = bgEnrich.value || {};
+  const domain = bgResult.value?.domain;
+  const name = p.company_name || e.name || domain;
+  const lines = [`【AI 背调】${name}${domain ? `（${domain}）` : ''}`];
+  const business = p.business || e.description;
+  if (business) lines.push(`主营：${business}`);
+  const industry = p.industry || e.industry;
+  if (industry) lines.push(`行业：${industry}`);
+  const size = [];
+  if (e.employees) size.push(`约 ${e.employees} 人`);
+  else if (p.size_hint) size.push(p.size_hint);
+  if (e.founded_year) size.push(`成立 ${e.founded_year}`);
+  if (e.revenue) size.push(`营收 ${e.revenue}`);
+  if (size.length) lines.push(`规模：${size.join(' · ')}`);
+  const geo = [e.country || p.country, e.city].filter(Boolean).join(' · ');
+  if (geo) lines.push(`地区：${geo}`);
+  if (p.note) lines.push(`AI 判断：${p.note}`);
+  return lines.join('\n');
+};
+
+const importBackground = () => {
+  const p = bgProfile.value;
+  const e = bgEnrich.value || {};
+  const filled = [];
+  // 只填空框、不覆盖已填（国家/地址/领英这类你不会先手填的）。
+  const setIfBlank = (key, val, label) => {
+    const v = String(val || '').trim();
+    if (v && !String(form[key]).trim()) {
+      form[key] = v;
+      filled.push(label);
+    }
+  };
+  // 覆盖刷新（公司名/网址：用背调的正式名/官网替换你输入的原始值，更整齐）。
+  const setAlways = (key, val, label) => {
+    const v = String(val || '').trim();
+    if (v && form[key] !== v) {
+      form[key] = v;
+      filled.push(label);
+    }
+  };
+  setAlways('name', p.company_name || e.name, '公司名');
+  setAlways(
+    'website',
+    bgResult.value?.url ||
+      e.website ||
+      (bgResult.value?.domain ? `https://${bgResult.value.domain}` : ''),
+    '网址'
+  );
+  setIfBlank('address', e.address, '地址');
+  setIfBlank('linkedin', e.linkedin, 'Linkedin');
+  const code = countryCodeFromName(e.country) || countryCodeFromName(p.country);
+  if (code && !form.tradeCountry) {
+    form.tradeCountry = code;
+    filled.push('国家');
+  }
+
+  // 概况写进备注：已含上一次的背调块则替换，避免重复堆叠。
+  const block = buildBgRemark();
+  const stripped = form.customerRemark
+    .replace(/【AI 背调】[\s\S]*$/, '')
+    .trim();
+  form.customerRemark = stripped ? `${stripped}\n\n${block}` : block;
+  filled.push('概况→备注');
+
+  bgImported.value = true;
+  useAlert(filled.length ? `已导入：${filled.join('、')}` : '没有可导入的新信息');
+};
+
 const missing = computed(() => {
   const m = [];
   if (!form.tradeCountry) m.push('国家');
@@ -267,6 +382,7 @@ const resetForm = () => {
   nameHits.value = [];
   bgResult.value = null;
   bgCandidates.value = [];
+  bgImported.value = false;
   draftRestored.value = false;
   clearDraft();
 };
@@ -528,6 +644,22 @@ const submit = async () => {
                 class="text-xs text-n-amber-11"
               >
                 ⚠️ 库里已有 {{ bgResult.db_match.total }} 家相似公司，注意查重
+              </div>
+
+              <!-- 一键导入：把背调结果填进上面的建档表单（只填空字段，概况写进备注） -->
+              <div class="flex flex-wrap items-center gap-2 pt-1 mt-1 border-t border-n-weak">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1.5 h-8 px-3 mt-1 text-xs font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+                  :disabled="bgImported"
+                  @click="importBackground"
+                >
+                  <span class="i-lucide-download size-3.5" />
+                  {{ bgImported ? '已导入' : '一键导入客户信息' }}
+                </button>
+                <span class="mt-1 text-xs text-n-slate-10">
+                  公司名/网址用正式值刷新，国家/地址等填入空框，概况写进备注
+                </span>
               </div>
             </template>
           </div>

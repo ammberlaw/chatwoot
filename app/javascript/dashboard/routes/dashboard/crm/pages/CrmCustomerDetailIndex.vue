@@ -137,7 +137,6 @@ const MES_ORDER_STATUS = {
 };
 const files = computed(() => customer.value.files || []);
 const primaryOpp = computed(() => opportunities.value[0] || null);
-const latestQuote = computed(() => quotes.value[0] || null);
 const openTasks = computed(() =>
   tasks.value.filter(t => t.status !== 'DONE' && t.status !== 'CANCELLED')
 );
@@ -288,13 +287,21 @@ const fields = computed(() => {
   ];
 });
 
-// 下一步建议：优先取最新跟进的下一步（结果标签/正文），否则最近待办标题。
+// 下一步建议（规则版兜底）：优先取最新跟进的下一步（结果标签/正文），否则最近待办标题。
 const nextSuggestion = computed(() => {
   const t = openTasks.value[0];
   if (t) return t.title;
   const n = notes.value[0];
   return n?.result_tag || n?.title || '—';
 });
+// AI 下一步建议缓存：收信时由 AI 顺手生成写库，打开页面直接读，不实时调 AI（省 token）。
+const aiNextStep = computed(() => (customer.value.ai_next_step || '').trim());
+// 卡片文案：有 AI 缓存优先用，否则回退规则版。
+const nextStepText = computed(() => aiNextStep.value || nextSuggestion.value);
+// 最近联系：跟进/邮件/订单三者取最新（后端 last_touch_at），退回手动跟进时间。
+const lastTouchAt = computed(
+  () => customer.value.last_touch_at || customer.value.last_follow_up_at
+);
 
 const goBack = () => router.push({ name: 'crm_customers_index' });
 
@@ -481,8 +488,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- KPI 卡 -->
-      <div class="grid grid-cols-2 gap-4 mb-4 lg:grid-cols-4">
+      <!-- KPI 速览：只留别处没有的两项（当前状态在上方徽标里、最近报价在下方报价记录里，故不重复） -->
+      <div class="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2">
         <div
           class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
         >
@@ -490,44 +497,29 @@ onMounted(() => {
             <span class="i-lucide-phone-call size-4" /> 最近联系
           </div>
           <div class="mt-2 text-lg font-semibold text-n-slate-12">
-            {{ fmtDate(customer.last_follow_up_at) }}
+            {{ fmtDate(lastTouchAt) }}
           </div>
         </div>
         <div
           class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
         >
-          <div class="flex items-center gap-2 text-xs text-n-slate-10">
-            <span class="i-lucide-file-text size-4" /> 当前状态
+          <div class="flex items-center justify-between gap-2 text-xs text-n-slate-10">
+            <span class="flex items-center gap-2">
+              <span class="i-lucide-lightbulb size-4" /> 下一步建议
+            </span>
+            <span
+              v-if="aiNextStep"
+              class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-n-iris-11 bg-n-iris-3"
+              title="AI 从邮件往来自动生成"
+            >
+              <span class="i-ph-sparkle-fill size-3" />AI
+            </span>
           </div>
-          <div class="mt-2 text-lg font-semibold text-n-slate-12">
-            {{ statusLabel(customer.customer_status) }}
-          </div>
-        </div>
-        <div
-          class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
-        >
-          <div class="flex items-center gap-2 text-xs text-n-slate-10">
-            <span class="i-lucide-lightbulb size-4" /> 下一步建议
-          </div>
-          <div class="mt-2 text-sm font-medium truncate text-n-slate-12">
-            {{ nextSuggestion }}
-          </div>
-        </div>
-        <div
-          class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
-        >
-          <div class="flex items-center gap-2 text-xs text-n-slate-10">
-            <span class="i-lucide-receipt size-4" /> 最近报价
-          </div>
-          <div class="mt-2 text-lg font-semibold text-n-slate-12">
-            {{
-              latestQuote
-                ? money(
-                    latestQuote.total_amount_micros,
-                    latestQuote.quote_currency
-                  )
-                : '—'
-            }}
+          <div
+            class="mt-2 text-sm font-medium line-clamp-2 text-n-slate-12"
+            :title="nextStepText"
+          >
+            {{ nextStepText }}
           </div>
         </div>
       </div>
