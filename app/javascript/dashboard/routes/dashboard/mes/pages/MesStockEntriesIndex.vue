@@ -6,7 +6,6 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
-import { useMesMaterialsStore } from 'dashboard/stores/mes/materials';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
@@ -40,7 +39,6 @@ const clearOrderFilter = () => {
   fetchList();
 };
 const warehousesStore = useMesWarehousesStore();
-const materialsStore = useMesMaterialsStore();
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -126,13 +124,6 @@ const warehouseOptions = computed(() =>
     label: w.name,
   }))
 );
-const materialOptions = computed(() =>
-  (materialsStore.getRecords || []).map(m => ({
-    value: String(m.id),
-    label: `${m.name}（${m.unit}）`,
-  }))
-);
-
 // 收货行类型：物料（生产用料）/ 成品（外购贸易品到货，入成品库）。
 const ITEM_TYPE_OPTIONS = [
   { value: 'MATERIAL', label: '物料' },
@@ -188,9 +179,8 @@ const form = reactive({
   isChecked: false,
   rows: [], // { itemType, mesMaterialId, qty, receivedQty }
 });
-const rowIncomplete = r =>
-  !Number(r.qty) ||
-  (r.itemType === 'PRODUCT' ? !r.crmProductId : !r.mesMaterialId);
+// 物料/成品统一从产品档案(crm_products)选（mes_materials 已弃用），故都校验 crmProductId。
+const rowIncomplete = r => !Number(r.qty) || !r.crmProductId;
 
 const invalid = computed(
   () => !form.warehouseId || !form.rows.length || form.rows.some(rowIncomplete)
@@ -199,7 +189,6 @@ const invalid = computed(
 const addRow = () =>
   form.rows.push({
     itemType: 'MATERIAL',
-    mesMaterialId: '',
     crmProductId: '',
     qty: '1',
     receivedQty: '',
@@ -220,24 +209,25 @@ const prefillFromPO = async () => {
       : '';
     form.rows = items.map(it => ({
       itemType: it.item_type || 'MATERIAL',
-      mesMaterialId: it.mes_material_id ? String(it.mes_material_id) : '',
       crmProductId: it.crm_product_id ? String(it.crm_product_id) : '',
       qty: String(it.qty),
       receivedQty: String(it.received_qty ? it.qty - it.received_qty : it.qty),
       remark: '',
     }));
-    // 外购成品到货默认入成品库；把成品标签并入下拉便于查看/改。
-    const products = items.filter(it => it.item_type === 'PRODUCT');
-    if (products.length) {
-      const fin = finishedWarehouseId();
-      if (fin) form.warehouseId = String(fin);
-      mergeProductOptions(
-        products.map(it => ({
+    // 物料/成品都从产品档案选，把所有行的产品并入下拉，保证行内直接显示、可改。
+    mergeProductOptions(
+      items
+        .filter(it => it.crm_product_id)
+        .map(it => ({
           value: String(it.crm_product_id),
           label: `${it.product_name || ''}${it.product_sku ? `（${it.product_sku}）` : ''}`,
           unit: it.unit || '',
         }))
-      );
+    );
+    // 有外购成品则默认入成品库。
+    if (items.some(it => it.item_type === 'PRODUCT')) {
+      const fin = finishedWarehouseId();
+      if (fin) form.warehouseId = String(fin);
     }
   }
 };
@@ -253,7 +243,6 @@ const openCreate = () => {
     rows: [
       {
         itemType: 'MATERIAL',
-        mesMaterialId: '',
         crmProductId: '',
         qty: '1',
         receivedQty: '',
@@ -276,9 +265,9 @@ const submit = async () => {
     isChecked: form.isChecked,
     stockEntryItemsAttributes: form.rows.map(r => ({
       itemType: r.itemType,
-      mesMaterialId: r.itemType === 'PRODUCT' ? null : Number(r.mesMaterialId),
-      crmProductId: r.itemType === 'PRODUCT' ? Number(r.crmProductId) : null,
-      unit: r.itemType === 'PRODUCT' ? productUnit(r.crmProductId) : undefined,
+      mesMaterialId: null,
+      crmProductId: Number(r.crmProductId),
+      unit: productUnit(r.crmProductId) || undefined,
       qty: Number(r.qty),
       receivedQty: Number(r.receivedQty) || Number(r.qty),
       warehouseId: Number(form.warehouseId),
@@ -300,7 +289,6 @@ const postEntry = async entry => {
 onMounted(async () => {
   fetchList();
   warehousesStore.get();
-  materialsStore.get();
   loadProducts('');
   try {
     const { data } = await axios.get(
@@ -555,18 +543,13 @@ onMounted(async () => {
             </div>
             <div class="col-span-3">
               <ComboBox
-                v-if="row.itemType === 'PRODUCT'"
                 v-model="row.crmProductId"
                 :options="productOptions"
                 use-api-results
-                placeholder="选择外购成品"
+                :placeholder="
+                  row.itemType === 'PRODUCT' ? '选择外购成品' : '选择物料'
+                "
                 @search="loadProducts"
-              />
-              <ComboBox
-                v-else
-                v-model="row.mesMaterialId"
-                :options="materialOptions"
-                placeholder="选择物料"
               />
             </div>
             <Input v-model="row.qty" type="number" class="col-span-1" />
