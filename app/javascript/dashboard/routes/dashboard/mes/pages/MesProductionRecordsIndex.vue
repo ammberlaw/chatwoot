@@ -112,6 +112,24 @@ const submit = async () => {
   }
 };
 
+// 删除报工（清理重复/错误报工）：删除后端会回退生产订单已产数量。
+const deleteDialogRef = ref(null);
+const pendingDelete = ref(null);
+const askDelete = r => {
+  pendingDelete.value = r;
+  deleteDialogRef.value?.open();
+};
+const confirmDelete = async () => {
+  try {
+    await store.delete(pendingDelete.value.id);
+    useAlert('报工已删除，已回退该订单的已产数量');
+    deleteDialogRef.value?.close();
+    fetchOrders();
+  } catch (e) {
+    useAlert(e?.message || '删除失败，请重试');
+  }
+};
+
 onMounted(() => {
   store.get();
   fetchOrders();
@@ -162,6 +180,14 @@ onMounted(() => {
                   :record="r"
                   :store="store"
                   :can-manage="mesCan('report')"
+                />
+                <Button
+                  v-if="mesCan('report')"
+                  label="删除"
+                  variant="ghost"
+                  color="ruby"
+                  size="sm"
+                  @click="askDelete(r)"
                 />
               </div>
             </div>
@@ -231,6 +257,14 @@ onMounted(() => {
                     :record="r"
                     :store="store"
                     :can-manage="mesCan('report')"
+                  />
+                  <Button
+                    v-if="mesCan('report')"
+                    label="删除"
+                    variant="ghost"
+                    color="ruby"
+                    size="sm"
+                    @click="askDelete(r)"
                   />
                 </div>
               </td>
@@ -303,5 +337,16 @@ onMounted(() => {
     </Dialog>
 
     <MesViewDialog ref="viewDialogRef" title="报工明细" :fields="viewFields" />
+
+    <!-- 删除报工确认：删除会回退该订单的已产数量 -->
+    <Dialog
+      ref="deleteDialogRef"
+      type="alert"
+      title="删除报工"
+      description="删除后会从该生产订单的已产数量中扣回本次报工数量，且不可恢复。确认删除？"
+      confirm-button-label="删除"
+      confirm-button-color="ruby"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>

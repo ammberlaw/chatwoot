@@ -40,6 +40,7 @@ class Mes::ProductionRecord < ApplicationRecord
   before_validation :inherit_account
   before_validation :stamp_recorded_at, on: :create
   after_create :apply_to_production_order
+  after_destroy :revert_from_production_order
 
   validates :qty_completed, numericality: { greater_than_or_equal_to: 0 }
   validates :qty_returned, :qty_scrap, numericality: { greater_than_or_equal_to: 0 }
@@ -68,5 +69,10 @@ class Mes::ProductionRecord < ApplicationRecord
   def apply_to_production_order
     production_order.add_produced!(qty_completed)
     production_order.notify_fg_inbound_ready(qty_completed, actor: operator) if qty_completed.to_d.positive?
+  end
+
+  # 删除报工（如清理重复报工）时把已产数量回退，避免 produced_qty 被灌大。
+  def revert_from_production_order
+    production_order&.remove_produced!(qty_completed)
   end
 end

@@ -218,7 +218,12 @@ const onPickOrder = v => {
     : '';
   form.crmProductId = po.crm_product_id ? String(po.crm_product_id) : '';
   form.productName = po.product_name || '';
-  form.qty = String(po.produced_qty || po.qty || '');
+  // 默认出库数量 = 该成品可用现货（物理结存，真实可发货量），无现货数据时退回订单数量。
+  // 不用 produced_qty——报工可能重复/超报被灌大（曾出现订单 104、produced_qty 却 304）。
+  const avail = form.crmProductId
+    ? stockFor(form.crmProductId, finishedWarehouseId())
+    : 0;
+  form.qty = String(avail > 0 ? avail : po.qty || '');
   form.unit = po.unit || '';
   const so = salesOrders.value.find(
     s => String(s.id) === String(po.crm_sales_order_id)

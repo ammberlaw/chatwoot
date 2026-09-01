@@ -290,6 +290,11 @@ class Mes::ProductionOrder < ApplicationRecord
     enter_stage!('PRODUCTION') if stage == 'PICKING'
   end
 
+  # 删除报工时回退已产数量（如清理重复报工）；下限 0，不回退阶段。
+  def remove_produced!(delta)
+    update_columns(produced_qty: [produced_qty.to_d - delta.to_d, 0].max, updated_at: Time.current)
+  end
+
   # BOM 算料（XMind 节点3）：按 BOM 用量 × 本单产量/基准产量，展开采购需求。
   # 返回 [{ mes_material_id, material_no, material_name, specification, unit, qty }]，供采购单预填。
   # category 传入则只展开该类用料（MACHINE 整机 / PACKAGING 包装）；

@@ -31,8 +31,10 @@ class Crm::QuotePolicy < ApplicationPolicy
     true
   end
 
+  # 删除报价单：与销售订单/PI/商机同口径放开（控制器已按可见范围 scope_docs_visible 限定）。
+  # 原先仅 administrator 导致业务员删自己的报价也 401。
   def destroy?
-    @account_user.administrator?
+    true
   end
 end
 

@@ -416,11 +416,9 @@ const orderBase = reactive({
   deliveryDate: '',
 });
 const orderSpec = ref(blankSpec('TABLET'));
+// 商品编码选填：业务建单可不填，工程做 BOM 时再补（在编辑订单里补录）。
 const orderInvalid = computed(
-  () =>
-    !orderBase.crmProductId ||
-    !orderBase.productName.trim() ||
-    !Number(orderBase.qty)
+  () => !orderBase.productName.trim() || !Number(orderBase.qty)
 );
 
 // 编辑订单：商品编码选择器（关联产品档案，API 搜索）。用独立 state，与转单/外协的
@@ -2075,14 +2073,15 @@ watch(currentPage, fetchRecords);
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
-              商品编码 <span class="text-n-ruby-11">*</span>
+              商品编码
+              <span class="text-n-slate-10">（选填，工程做 BOM 时补）</span>
             </label>
             <ComboBox
               v-model="orderBase.crmProductId"
               :options="orderProductOptions"
               use-api-results
               :display-label="selectedOrderProductLabel"
-              placeholder="选择商品编码（关联产品档案）"
+              placeholder="选择商品编码（选填，可留空）"
               search-placeholder="搜编码 / 名称"
               empty-state="无匹配商品"
               @open="onOrderProductOpen"
