@@ -25,19 +25,22 @@ const openReturn = () => {
 
 const submitReturn = async () => {
   if (!reason.value.trim()) return;
-  const ok = await props.store.returnDocument(
-    props.record.id,
-    reason.value.trim()
-  );
-  if (ok) {
+  try {
+    await props.store.returnDocument(props.record.id, reason.value.trim());
     useAlert('已退回上一环节，已通知上游负责人');
     dialogRef.value?.close();
+  } catch (e) {
+    useAlert(e?.message || '退回失败，请重试');
   }
 };
 
 const reactivate = async () => {
-  const ok = await props.store.reactivate(props.record.id);
-  if (ok) useAlert('已重新激活，可继续处理');
+  try {
+    await props.store.reactivate(props.record.id);
+    useAlert('已重新激活，可继续处理');
+  } catch (e) {
+    useAlert(e?.message || '操作失败，请重试');
+  }
 };
 </script>
 
