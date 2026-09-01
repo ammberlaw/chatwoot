@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, reactive, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
@@ -190,6 +190,16 @@ const fillRmb = () => {
     r.salesRmb = Math.round((recv - ship) * rate * 100) / 100;
   });
 };
+
+// 收款额/运费/汇率任一变化即实时折算 RMB，提成基数/工资/合计随之实时更新，
+// 无需点「折算」或提交。只监听输入字段（不含 RMB/salary 结果，避免回环）。
+watch(
+  () =>
+    items.value
+      .map(r => `${r.receivedAmount ?? ''}|${r.shipping ?? ''}|${r.exchangeRate ?? ''}`)
+      .join(','),
+  fillRmb
+);
 
 const buildPayload = () => {
   const attrs = items.value.map((r, i) => ({
