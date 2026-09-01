@@ -8,6 +8,25 @@ class Crm::EmailAiService
   DEFAULT_API_BASE = 'https://api.deepseek.com/v1'.freeze
   DEFAULT_MODEL = 'deepseek-chat'.freeze
 
+  # 附件单证类型（自动归档标签）：代码 => 中文标签。OTHER 兜底。前端按此显示徽标。
+  DOC_TYPES = {
+    'PI' => '形式发票', 'CONTRACT' => '合同/PO', 'QUOTE' => '报价单',
+    'SPEC' => '规格书', 'PACKING' => '装箱单', 'BL' => '提单/物流',
+    'INVOICE' => '商业发票', 'OTHER' => '其他'
+  }.freeze
+
+  # 文件名启发式（AI 未配置/失败时兜底）：按顺序匹配，先命中先返回。
+  # PI 规则放在 INVOICE 之前，"proforma invoice" 才不会被当成商业发票。
+  DOC_TYPE_HINTS = [
+    ['PI', /\b(pi|proforma)\b|形式发票|pro[\s_-]?forma/i],
+    ['PACKING', %r{packing|装箱|\bp[\s_/-]*l\b|pkl}i],
+    ['BL', %r{bill of lading|提单|运单|waybill|\bawb\b|(?:^|[\s_/-])b[\s_/-]?l(?:$|[\s_/.-])}i],
+    ['INVOICE', /commercial invoice|\bci\b|商业发票|invoice|发票/i],
+    ['QUOTE', /quot|报价|offer sheet/i],
+    ['CONTRACT', /contract|合同|\bpo\b|purchase order|订单/i],
+    ['SPEC', /spec|规格|datasheet|drawing|图纸|技术|参数|manual/i]
+  ].freeze
+
   def initialize(account:, api_key: nil, api_base: nil, model: nil)
     @account = account
     @override_key = api_key
@@ -91,9 +110,32 @@ class Crm::EmailAiService
     }
   PROMPT
 
+  DOC_CLASSIFY_SYSTEM = <<~PROMPT.freeze
+    你是一家中国外贸公司的单证归档助手。根据邮件主题和附件文件名，判断每个附件属于哪一类外贸单证。
+    类别代码（只能从这些里选，别的一律 OTHER）：
+    PI=形式发票(Proforma Invoice)；CONTRACT=合同/采购订单(Contract/PO)；QUOTE=报价单(Quotation)；
+    SPEC=规格书/技术资料/图纸(Spec/Datasheet/Drawing)；PACKING=装箱单(Packing List)；
+    BL=提单/物流单证(B/L/AWB/运单)；INVOICE=商业发票(Commercial Invoice)；OTHER=其他。
+    只依据文件名和主题的字面线索判断，拿不准就给 OTHER，不要编造。
+    只返回一个 JSON 对象，不要输出任何多余文字、不要用代码块包裹。格式：
+    { "files": [ { "name": "原文件名", "type": "类别代码" } ] }
+  PROMPT
+
   # PI 识别：把 PI 文本（PDF/Excel 抽出的纯文本）抽成字段化 Hash，供销售订单自动填单。
   def pi_extract(text:)
     parse_json(ask(PI_SYSTEM, truncate(text, 12_000)))
+  end
+
+  # 附件单证分类：传主题 + 文件名数组，返回 { 文件名 => 类型代码 }。
+  # AI 优先；未配置/异常时逐个走文件名启发式兜底，保证一定有结果。
+  def classify_attachments(subject:, filenames:)
+    listing = filenames.each_with_index.map { |n, i| "#{i + 1}. #{n}" }.join("\n")
+    raw = ask(DOC_CLASSIFY_SYSTEM, "邮件主题：#{subject}\n\n附件列表：\n#{listing}")
+    ai = Array(parse_json(raw)['files']).to_h { |h| [h['name'].to_s, normalize_doc_type(h['type'])] }
+    filenames.index_with { |n| ai[n].presence || heuristic_doc_type(n) }
+  rescue StandardError => e
+    Rails.logger.warn("[Crm::EmailAiService] classify_attachments fallback: #{e.message}")
+    filenames.index_with { |n| heuristic_doc_type(n) }
   end
 
   # 绩效打分建议：为一张考核表的各指标算「建议分」。items 由控制器拼好，
@@ -123,9 +165,75 @@ class Crm::EmailAiService
     split_subject(ask(TRANSLATE_SYSTEM, "SUBJECT: #{subject}\n\n#{truncate(body)}"))
   end
 
+  # 通用翻译：把文本翻成指定语言（language 为语言名，如「简体中文」/「English」），
+  # 只返回译文；保留原换行/HTML 结构。会话消息「翻译」用它替代 Google 翻译。
+  def translate_text(text:, language:)
+    system = <<~PROMPT
+      你是专业翻译。把用户给的内容翻译成#{language}，只输出译文本身，不要加任何解释、前后缀或引号。
+      保留原文的换行、段落与 HTML 标签结构；人名、公司名、产品型号、单证缩写（PI/CI/BL 等）可保留原文。
+    PROMPT
+    ask(system, truncate(text, 8000))
+  end
+
   # 往来摘要：transcript 由控制器拼好（时间/方向/主题/正文节选）。
   def summarize(transcript:)
     ask(SUMMARIZE_SYSTEM, transcript)
+  end
+
+  PROGRESS_SYSTEM = <<~PROMPT.freeze
+    你是外贸 CRM 的商机进度助手。下面是我方与某客户的邮件往来（按时间先后，最后一封是最新来信）。
+    判断【最新这封来信】是否报告了一个"具体的业务进度事件"，例如：确认下单/签合同、付定金或尾款、
+    确认样品、安排生产、通知发货、提供提单/物流单号、验收货物、提出重要投诉或索赔。
+    只有出现这类可落地的进度才算；普通询价、寒暄、催促、报价往来不算。
+    只返回一个 JSON 对象，不要多余文字、不要代码块。字段：
+    {
+      "update": true 或 false,
+      "title": "不超过20字的进度短标题，如 客户已付30%定金",
+      "body": "一句话补充关键信息（金额/单号/日期等），不超过60字",
+      "stage_hint": "PENDING_PAYMENT/SAMPLING/WON/LOST 之一或 null（该进度暗示的商机阶段）"
+    }
+    update 为 false 时其它字段可留空。不要编造往来里没有的信息。
+  PROMPT
+
+  SUGGEST_SYSTEM = <<~PROMPT.freeze
+    你是外贸 CRM 的销售助理。根据我方与客户的邮件往来和商机信息，给业务员一条"下一步该做什么"的具体建议。
+    要求：简体中文，2~4 句，直接可执行（例如该回复什么、该催什么、该准备什么单证或样品）；
+    只依据提供的信息，不编造；信息太少就说明还需要补充哪些沟通。不要寒暄、不要复述原文。
+  PROMPT
+
+  # 从往来里识别【最新来信】是否含具体业务进度事件，返回 { update, title, body, stage_hint }。
+  def extract_progress(transcript:)
+    parse_json(ask(PROGRESS_SYSTEM, truncate(transcript, 8000)))
+  end
+
+  # 下一步销售建议：返回一段可执行的中文建议文本。
+  def suggest_next_step(transcript:)
+    ask(SUGGEST_SYSTEM, truncate(transcript, 8000))
+  end
+
+  ASSISTANT_ROUTER_SYSTEM = <<~PROMPT.freeze
+    你是外贸 CRM 智能助手的路由器。把用户的一句话请求归类并抽取参数。只返回一个 JSON 对象，不要多余文字、不要代码块：
+    {
+      "intent": "query" | "background_check" | "compose" | "chat",
+      "metric": "new_customers" | "pending_followups" | "open_opportunities" | "orders_amount" | "my_tasks" | null,
+      "days": 数字或null,
+      "month": "YYYY-MM"或null,
+      "target": 字符串或null,
+      "compose_intent": 字符串或null,
+      "answer": 字符串或null
+    }
+    规则：
+    - 想查数量/金额/统计 → intent=query，选最贴切的 metric：新增客户=new_customers（"近N天"填 days）；
+      待跟进客户=pending_followups；进行中/在谈商机=open_opportunities；成交订单额=orders_amount（指定月份填 month）；我的待办=my_tasks。
+    - 想了解某公司/客户背景、背调、查这家公司靠不靠谱 → intent=background_check，target 填邮箱/公司域名/公司名。
+    - 想写邮件/回信/拟稿 → intent=compose，compose_intent 填中文写信意图。
+    - 其它一般问题或外贸知识 → intent=chat，answer 用简体中文直接回答（2~4 句）。
+    不确定时优先 chat。不要编造。
+  PROMPT
+
+  # 智能助手意图路由：把用户一句话解析成 { intent, metric, days, month, target, compose_intent, answer }。
+  def route_assistant(message:)
+    parse_json(ask(ASSISTANT_ROUTER_SYSTEM, truncate(message, 2000)))
   end
 
   # 公司背调：site_text 为官网抓取的文本（由 Crm::CompanyLookupService 提供），返回字段化 Hash。
@@ -181,6 +289,18 @@ class Crm::EmailAiService
   # 控制送入模型的文本长度，防超长邮件撑爆上下文。
   def truncate(text, max = 6000)
     text.to_s.length > max ? "#{text.to_s[0, max]}\n…（内容过长已截断）" : text.to_s
+  end
+
+  # AI 返回的类型代码规整到 DOC_TYPES；不认识的一律 OTHER。
+  def normalize_doc_type(type)
+    code = type.to_s.upcase.strip
+    DOC_TYPES.key?(code) ? code : 'OTHER'
+  end
+
+  # 纯文件名启发式分类（兜底）：按 DOC_TYPE_HINTS 顺序命中，全不中给 OTHER。
+  def heuristic_doc_type(filename)
+    DOC_TYPE_HINTS.each { |code, rx| return code if filename.to_s.match?(rx) }
+    'OTHER'
   end
 
   # 从模型回复里抽出 JSON 对象；模型偶尔会加解释或代码块，取第一个 {...} 块解析。

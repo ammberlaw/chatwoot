@@ -155,6 +155,11 @@ Rails.application.routes.draw do
             post 'ai/compose', to: 'ai#compose'
             post 'ai/translate', to: 'ai#translate'
             post 'ai/summarize', to: 'ai#summarize'
+            post 'ai/suggest', to: 'ai#suggest'
+            post 'ai/ask', to: 'ai#ask'
+            # 客服分配设置：管理收件箱协作者（会话「分配客服代表」可选的人）。
+            get 'inbox_collaborators', to: 'inbox_collaborators#index'
+            patch 'inbox_collaborators', to: 'inbox_collaborators#update'
             # 客户 AI 背调：输入邮箱/域名/网址→抓官网 + Apollo 概况；公司名先搜候选。
             post 'ai/company_lookup', to: 'ai#company_lookup'
             post 'ai/company_search', to: 'ai#company_search'

@@ -22,8 +22,14 @@ const { isCrmSales, isCrmManager } = useCrmRole();
 const currentUser = useMapGetter('getCurrentUser');
 const store = useCrmOpportunitiesStore();
 
-// 视图：常规看板 / 商机公海（公海全员可见全公司，认领后归入自己名下）
+// 视图：常规看板 / 我的商机（仅看自己名下，管理员/主管专用）/ 商机公海（全员可见全公司）
 const view = ref('board');
+// 看板类视图（常规看板 + 我的商机）：都渲染 kanban、可拖拽换阶段、可点卡编辑。
+const isBoardView = computed(
+  () => view.value === 'board' || view.value === 'mine'
+);
+// 视图 → 后端 filter 参数（board/list 无 filter）。
+const VIEW_FILTER = { pool: 'public_pool', mine: 'mine' };
 // 排序：默认最近更新；可按创建时间/金额，正序倒序
 const sortKey = ref('');
 const sortDir = ref('desc');
@@ -78,9 +84,12 @@ const refreshBoard = () =>
     page: 1,
     // 后端读 per_page（下划线）；驼峰 perPage 不生效，会回落到每页 15 条导致看板漏单。
     per_page: 100,
-    filter: view.value === 'pool' ? 'public_pool' : undefined,
-    team_id: selectedTeamId.value || undefined,
-    owner_id: selectedOwnerId.value || undefined,
+    filter: VIEW_FILTER[view.value] || undefined,
+    // 团队/业务员筛选只在常规看板生效；「我的商机」按当前用户收口，不叠加这些。
+    team_id:
+      view.value === 'board' ? selectedTeamId.value || undefined : undefined,
+    owner_id:
+      view.value === 'board' ? selectedOwnerId.value || undefined : undefined,
     sort: sortKey.value || undefined,
     direction: sortKey.value ? sortDir.value : undefined,
     q: searchQuery.value.trim() || undefined,
@@ -229,9 +238,18 @@ const CURRENCY_SYMBOL = { USD: '$', CNY: '¥', EUR: '€' };
 const columns = computed(() =>
   STAGES.value.map(stage => {
     const items = records.value.filter(r => r.salesStage === stage.key);
-    const total = items.reduce((s, r) => s + (r.amountMicros || 0), 0);
-    const currency = items[0]?.currency || 'USD';
-    return { ...stage, items, total, currency };
+    const priced = items.filter(r => r.amountMicros);
+    const currencies = new Set(priced.map(r => r.currency || 'CNY'));
+    // 单一币种：按原币种精确合计；多币种：按今日牌价统一折算人民币再合计（不能跨币种直加）。
+    const mixed = currencies.size > 1;
+    const total = mixed
+      ? priced.reduce(
+          (s, r) => s + (r.amountCnyMicros ?? r.amountMicros ?? 0),
+          0
+        )
+      : priced.reduce((s, r) => s + (r.amountMicros || 0), 0);
+    const currency = mixed ? 'CNY' : priced[0]?.currency || 'CNY';
+    return { ...stage, items, total, currency, mixed };
   })
 );
 
@@ -284,6 +302,15 @@ onMounted(() => {
             :variant="view === 'board' ? 'solid' : 'ghost'"
             :color="view === 'board' ? 'iris' : 'slate'"
             @click="setView('board')"
+          />
+          <!-- 我的商机：管理员/副管/主管平时看全公司或团队，这里一键只看自己名下 -->
+          <Button
+            v-if="!isCrmSales"
+            label="我的商机"
+            sm
+            :variant="view === 'mine' ? 'solid' : 'ghost'"
+            :color="view === 'mine' ? 'iris' : 'slate'"
+            @click="setView('mine')"
           />
           <Button
             :label="t('CRM.FUNNEL.VIEW_LIST')"
@@ -397,8 +424,9 @@ onMounted(() => {
           <div
             v-if="col.total > 0"
             class="mt-2 text-lg font-bold text-n-slate-12"
+            :title="col.mixed ? '本列含多种币种，已按今日牌价折算为人民币' : ''"
           >
-            {{ CURRENCY_SYMBOL[col.currency] || ''
+            {{ col.mixed ? '≈' : '' }}{{ CURRENCY_SYMBOL[col.currency] || ''
             }}{{ totalAmount(col.total) }}
           </div>
         </div>
@@ -410,20 +438,18 @@ onMounted(() => {
             :key="item.id"
             class="relative p-4 transition-all border shadow-sm rounded-xl group"
             :class="[
-              view === 'board'
-                ? 'cursor-pointer hover:shadow-md'
-                : 'cursor-default',
+              isBoardView ? 'cursor-pointer hover:shadow-md' : 'cursor-default',
               item.important
                 ? 'bg-[#fdf3cf]/85 backdrop-blur-xl backdrop-saturate-150 border-[#ecd88f] hover:border-[#e0c25e] shadow-lg shadow-[#e0a72a]/20'
                 : 'bg-n-solid-1 border-n-weak hover:border-n-iris-8',
             ]"
-            :draggable="view === 'board'"
+            :draggable="isBoardView"
             @dragstart="dragId = item.id"
             @click="openEditDialog(item)"
           >
-            <!-- 释放到公海（仅常规看板，悬停显示） -->
+            <!-- 释放到公海（看板/我的商机，悬停显示） -->
             <Button
-              v-if="view === 'board'"
+              v-if="isBoardView"
               sm
               ghost
               slate

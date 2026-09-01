@@ -445,7 +445,7 @@ const inCls =
         <Button
           v-if="canScore"
           :label="t('CRM.KPI_SHEETS.AI_SUGGEST')"
-          icon="i-lucide-sparkles"
+          icon="i-ph-sparkle-fill"
           size="sm"
           variant="faded"
           color="iris"
@@ -791,7 +791,7 @@ v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
                       class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-n-iris-11 hover:underline"
                       @click="adopt(item)"
                     >
-                      <span class="i-lucide-sparkles size-3 shrink-0" />{{
+                      <span class="i-ph-sparkle-fill size-3 shrink-0" />{{
                         t('CRM.KPI_SHEETS.AI_HINT', {
                           score: item.suggestedScore,
                         })

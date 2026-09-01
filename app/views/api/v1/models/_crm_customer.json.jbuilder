@@ -46,7 +46,14 @@ json.last_deal_at resource.last_deal_at
 json.info_completeness_score resource.info_completeness_score
 json.completeness_grade resource.completeness_grade
 
-json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f) } }
+json.files resource.files.map { |f|
+  meta = f.blob.metadata || {}
+  {
+    id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f),
+    doc_type: meta['crm_doc_type'], doc_type_label: Crm::EmailAiService::DOC_TYPES[meta['crm_doc_type']],
+    source: meta['crm_source'], email_subject: meta['crm_email_subject']
+  }
+}
 
 json.created_at resource.created_at
 json.updated_at resource.updated_at

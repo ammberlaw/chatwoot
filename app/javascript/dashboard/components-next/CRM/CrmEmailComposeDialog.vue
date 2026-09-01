@@ -1865,7 +1865,7 @@ defineExpose({ open, close });
               :title="L.aiTitle"
               @click="aiOpen = !aiOpen"
             >
-              <Icon icon="i-lucide-sparkle" class="size-4" />
+              <Icon icon="i-ph-sparkle-fill" class="size-4" />
               {{ L.aiButton }}
             </button>
             <div
@@ -1892,7 +1892,7 @@ defineExpose({ open, close });
               >
                 <Icon
                   :icon="
-                    aiLoading ? 'i-lucide-loader-circle' : 'i-lucide-sparkles'
+                    aiLoading ? 'i-lucide-loader-circle' : 'i-ph-sparkle-fill'
                   "
                   class="size-4"
                   :class="aiLoading ? 'animate-spin' : ''"

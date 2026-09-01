@@ -404,7 +404,7 @@ onMounted(() => {
 
     <!-- 创建人筛选 + 搜索 -->
     <div
-      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-4 pt-1 pb-2 border-b sm:px-[26px] sm:pb-0 border-n-weak"
+      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-4 pt-1 pb-2 border-b sm:px-[26px] sm:pb-2 border-n-weak"
     >
       <div
         class="flex flex-wrap items-center w-full gap-2 sm:w-auto sm:ml-auto"

@@ -64,6 +64,17 @@ class Crm::Opportunity < ApplicationRecord
     amount_micros.to_f / 1_000_000 if amount_micros
   end
 
+  # 按「今日最新中行牌价」折算成人民币的金额（micros）。看板混币列汇总用：
+  # 不同币种的商机不能直接相加，需先统一折算为 CNY。CNY 原样返回；查不到牌价返回 nil。
+  # 同一请求内相同币种的牌价查询会命中 ActiveRecord query cache，不产生 N+1。
+  def amount_cny_micros
+    return nil if amount_micros.nil?
+    return amount_micros if currency.blank? || currency == 'CNY'
+
+    rate = Crm::FxRate.rate_for(currency, Date.current)
+    rate && (amount_micros * rate).round
+  end
+
   # 释放到商机公海：脱离原负责人，全员可见可认领（与客户公海同构）。
   def move_to_public_pool!(at: Time.current)
     update!(is_in_public_pool: true, public_pool_at: at, owner_id: nil)

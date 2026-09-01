@@ -168,22 +168,22 @@
         "STRAIGHTFORWARD": "Use straightforward tone"
       },
       "REPLY_OPTIONS": {
-        "IMPROVE_REPLY": "Improve reply",
-        "IMPROVE_REPLY_SELECTION": "Improve the selection",
+        "IMPROVE_REPLY": "优化回复",
+        "IMPROVE_REPLY_SELECTION": "优化选中内容",
         "CHANGE_TONE": {
-          "TITLE": "Change tone",
+          "TITLE": "调整语气",
           "OPTIONS": {
             "PROFESSIONAL": "专业",
-            "CASUAL": "Casual",
-            "STRAIGHTFORWARD": "Straightforward",
-            "CONFIDENT": "Confident",
+            "CASUAL": "口语化",
+            "STRAIGHTFORWARD": "简洁直接",
+            "CONFIDENT": "自信",
             "FRIENDLY": "友好"
           }
         },
-        "GRAMMAR": "Fix grammar & spelling",
-        "SUGGESTION": "Suggest a reply",
-        "SUMMARIZE": "Summarize the conversation",
-        "ASK_COPILOT": "Ask Copilot"
+        "GRAMMAR": "修正拼写与语法",
+        "SUGGESTION": "建议回复",
+        "SUMMARIZE": "总结对话",
+        "ASK_COPILOT": "问 AI 助手"
       },
       "ASSISTANCE_MODAL": {
         "DRAFT_TITLE": "草稿内容",
@@ -390,7 +390,7 @@
     }
   },
   "CAPTAIN": {
-    "NAME": "Captain",
+    "NAME": "AI 助手",
     "HEADER_KNOW_MORE": "了解更多",
     "ASSISTANT_SWITCHER": {
       "ASSISTANTS": "助手",
@@ -399,10 +399,10 @@
       "EMPTY_LIST": "未找到助手，请创建一个以开始使用"
     },
     "COPILOT": {
-      "TITLE": "Copilot",
+      "TITLE": "AI 助手",
       "TRY_THESE_PROMPTS": "尝试这些提示信息",
-      "PANEL_TITLE": "开始使用 Copilot",
-      "KICK_OFF_MESSAGE": "需要快速摘要、回顾过往对话，或是优化回复内容？Copilot 可助您一臂之力，全面提升工作效率。",
+      "PANEL_TITLE": "开始使用 AI 助手",
+      "KICK_OFF_MESSAGE": "需要快速摘要、回顾过往对话，或是优化回复内容？AI 助手可助您一臂之力，全面提升工作效率。",
       "SEND_MESSAGE": "发送消息...",
       "EMPTY_MESSAGE": "生成响应时出错。请重试。",
       "LOADER": "Captain 正在思考",

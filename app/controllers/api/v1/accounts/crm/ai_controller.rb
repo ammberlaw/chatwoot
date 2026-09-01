@@ -42,6 +42,26 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
     render json: { summary: service.summarize(transcript: build_transcript(address, emails)) }
   end
 
+  # 对话式 AI 助手：一句话 → 意图路由（问数 / 背调 / 写邮件 / 闲聊），执行后返回自然语言答复。
+  # 问数一律走当前用户的数据可见范围，不越权。
+  def ask
+    message = params[:message].to_s.strip
+    return render json: { message: '请输入你的问题' }, status: :unprocessable_entity if message.blank?
+
+    route = service.route_assistant(message: message)
+    render json: execute_assistant(route, message)
+  end
+
+  # 客户「AI 下一步建议」：按客户最近往来 + 商机信息给一条可执行销售建议（同步，不落库）。
+  def suggest
+    customer = Current.account.crm_customers.find(params[:customer_id])
+    emails = scope_by_mail_owner(customer.emails).where.not(folder: 'DRAFT')
+                                                 .order(email_date: :desc).limit(12).to_a.reverse
+    return render json: { message: '这个客户还没有邮件往来，无法生成建议' }, status: :unprocessable_entity if emails.empty?
+
+    render json: { suggestion: service.suggest_next_step(transcript: suggest_transcript(customer, emails)) }
+  end
+
   # 客户 AI 背调：输入邮箱/域名/网址→取企业域名→抓官网 + Apollo 概况，并顺带查库是否已建档。
   def company_lookup
     query = params[:query].to_s.strip
@@ -90,13 +110,141 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
     }
   end
 
+  # ---- 对话式助手：按意图执行，返回 { kind:, reply:, data? } ----
+  def execute_assistant(route, message)
+    case route['intent']
+    when 'query' then assistant_query(route)
+    when 'background_check' then assistant_background(route)
+    when 'compose' then assistant_compose(route, message)
+    else
+      { kind: 'chat', reply: route['answer'].presence || assistant_help }
+    end
+  rescue Crm::EmailAiService::NotConfigured => e
+    { kind: 'chat', reply: e.message }
+  end
+
+  def assistant_help
+    '我可以帮你：查数据（近30天新增客户 / 待跟进客户 / 在谈商机 / 本月订单额 / 我的待办）、写邮件、做客户背调。直接问我就行。'
+  end
+
+  # 问数：一律按当前用户的数据可见范围（管理员全部 / 主管团队 / 业务员本人）。
+  def assistant_query(route)
+    ids = crm_visible_owner_ids
+    case route['metric']
+    when 'new_customers'
+      days = (route['days'] || 30).to_i.clamp(1, 365)
+      n = owner_scoped(Current.account.crm_customers, :account_owner_id, ids).where('created_at >= ?', days.days.ago).count
+      { kind: 'query', reply: "近 #{days} 天新增客户 #{n} 家。" }
+    when 'pending_followups'
+      n = owner_scoped(Current.account.crm_customers, :account_owner_id, ids)
+          .where('next_follow_up_at <= ?', Time.current).count
+      { kind: 'query', reply: "当前有 #{n} 个客户到了该跟进的时间。" }
+    when 'open_opportunities'
+      opps = owner_scoped(Current.account.crm_opportunities, :owner_id, ids).open_stages
+      total = opps.sum { |o| o.amount_cny_micros || 0 }
+      { kind: 'query', reply: "在谈商机 #{opps.count} 个，预估金额约 ¥#{delimited(total / 1_000_000)}（按今日牌价折算）。" }
+    when 'orders_amount'
+      scope = owner_scoped(Current.account.crm_sales_orders, :owner_id, ids).dealt.where(order_date: month_range(route['month']))
+      total = scope.sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL)).to_i
+      { kind: 'query', reply: "#{month_label(route['month'])}成交订单 #{scope.count} 笔，金额约 ¥#{delimited(total / 1_000_000)}（折人民币）。" }
+    when 'my_tasks'
+      n = Current.account.crm_follow_up_tasks.where(assignee_id: current_user.id).where.not(status: 'DONE').count
+      { kind: 'query', reply: "你有 #{n} 条待办跟进任务。" }
+    else
+      { kind: 'chat', reply: assistant_help }
+    end
+  end
+
+  def assistant_background(route)
+    q = route['target'].to_s.strip
+    return { kind: 'chat', reply: '想背调哪家公司？告诉我对方邮箱、公司域名或公司名。' } if q.blank?
+
+    result = Crm::CompanyLookupService.new(account: Current.account).call(query: q)
+    result[:db_match] = company_db_match(result[:domain]) if result[:domain].present?
+    { kind: 'background_check', reply: background_reply(q, result), data: result }
+  end
+
+  def assistant_compose(route, message)
+    subject, body = service.compose(intent: route['compose_intent'].presence || message)
+    { kind: 'compose', reply: '帮你拟了一封邮件草稿，可点「用此稿写信」直接发送或修改：', data: { subject: subject, body: body } }
+  end
+
+  def background_reply(query, result)
+    case result[:status]
+    when 'invalid' then "「#{query}」看起来不是有效的邮箱/域名/公司名，换个再试试。"
+    when 'public_domain' then "#{result[:domain]} 是公共邮箱域名（如 gmail/qq），无法据此判断公司背景。"
+    when 'no_site' then "找到域名 #{result[:domain]}，但没抓到可用的公司信息。"
+    else background_ok_reply(result)
+    end
+  end
+
+  LEGIT_LABEL = {
+    'real' => '看起来是正常运营的真实公司', 'suspicious' => '信息可疑，建议谨慎核实', 'unknown' => '信息不足，难以判断'
+  }.freeze
+
+  def background_ok_reply(result)
+    p = result[:profile] || {}
+    parts = ["【#{p['company_name'].presence || result[:domain]}】"]
+    parts << "主营：#{p['business']}" if p['business'].present?
+    parts << (LEGIT_LABEL[p['legit']] || '—')
+    parts << p['note'] if p['note'].present?
+    hit = result[:db_match]&.dig(:total).to_i
+    parts << "系统里已有 #{hit} 条同域名客户记录，注意查重" if hit.positive?
+    parts.join('；')
+  end
+
+  # owner_field 按可见范围过滤；ids 为 :all 时不加过滤。
+  def owner_scoped(relation, owner_field, ids)
+    ids == :all ? relation : relation.where(owner_field => ids)
+  end
+
+  def month_range(month)
+    parse_month(month).all_month
+  end
+
+  def month_label(month)
+    base = parse_month(month)
+    base.year == Time.zone.today.year && base.month == Time.zone.today.month ? '本月' : base.strftime('%Y年%-m月')
+  end
+
+  def parse_month(month)
+    Date.strptime(month.to_s, '%Y-%m')
+  rescue ArgumentError
+    Time.zone.today
+  end
+
+  def delimited(number)
+    ActiveSupport::NumberHelper.number_to_delimited(number.round)
+  end
+
+  # 客户建议用的 transcript：商机信息 + 最近往来。
+  def suggest_transcript(customer, emails)
+    "#{customer_opp_header(customer)}\n\n#{email_lines(emails)}"
+  end
+
+  def customer_opp_header(customer)
+    opp = customer.opportunities.open_stages.order(updated_at: :desc).first ||
+          customer.opportunities.order(updated_at: :desc).first
+    header = "客户：#{customer.name}"
+    return header unless opp
+
+    amount = opp.amount_micros ? "#{opp.currency} #{(opp.amount_micros / 1_000_000.0).round}" : '未填'
+    header += "\n当前商机：#{opp.name}｜阶段：#{opp.sales_stage}｜报价：#{amount}｜成交概率：#{opp.probability || '—'}%"
+    header += "\n下一步（已记录）：#{opp.next_action}" if opp.next_action.present?
+    header
+  end
+
   def build_transcript(address, emails)
-    lines = emails.map do |e|
+    "对方地址：#{address}\n\n#{email_lines(emails)}"
+  end
+
+  # 邮件往来拼成「时间/方向/主题/正文节选」多行文本，供 AI 摘要/建议。
+  def email_lines(emails)
+    emails.map do |e|
       dir = %w[SENT BULK].include?(e.folder) ? '我方→对方' : '对方→我方'
       date = e.email_date&.strftime('%Y-%m-%d') || '未知日期'
       body = e.body.to_s.gsub(/\s+/, ' ').strip[0, 500]
       "[#{date}] #{dir} 主题：#{e.subject}\n#{body}"
-    end
-    "对方地址：#{address}\n\n#{lines.join("\n\n")}"
+    end.join("\n\n")
   end
 end

@@ -1482,11 +1482,11 @@ export default {
 }
 
 .emoji-dialog {
-  @apply top-[unset] -bottom-10 ltr:-left-80 ltr:right-[unset] rtl:left-[unset] rtl:-right-80;
+  /* 贴回复框左侧、向上弹出、置顶——避免原 -left-80 被会话列表面板盖住/裁切 */
+  @apply top-[unset] bottom-12 ltr:left-2 ltr:right-[unset] rtl:right-2 rtl:left-[unset] z-[100];
 
   &::before {
-    filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.08));
-    @apply ltr:-right-4 bottom-2 rtl:-left-4 ltr:rotate-[270deg] rtl:rotate-[90deg];
+    @apply hidden;
   }
 }
 

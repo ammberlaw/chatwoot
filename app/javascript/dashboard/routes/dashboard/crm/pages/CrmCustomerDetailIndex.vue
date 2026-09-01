@@ -45,6 +45,24 @@ const load = async () => {
 const customer = computed(() => data.value?.customer || {});
 const notes = computed(() => data.value?.notes || []);
 
+// ---- AI 销售建议：按需分析与该客户的往来 + 商机，给一条下一步建议（不落库）----
+const suggestion = ref('');
+const suggestLoading = ref(false);
+const loadSuggestion = async () => {
+  if (suggestLoading.value) return;
+  suggestLoading.value = true;
+  try {
+    const { data: res } = await axios.post(`${crmBase()}/ai/suggest`, {
+      customer_id: customerId.value,
+    });
+    suggestion.value = res.suggestion || '';
+  } catch (e) {
+    useAlert(e.response?.data?.message || 'AI 分析失败，请稍后再试');
+  } finally {
+    suggestLoading.value = false;
+  }
+};
+
 // ---- 下次跟进 + 一键加入日程 ----
 const nextDate = ref('');
 const nextTime = ref('09:00');
@@ -191,6 +209,19 @@ const RESULT_TAG = {
   INVALID: '无效',
 };
 const PRODUCT_GROUP = { TABLET: '平板电脑', COMMERCIAL_DISPLAY: '商显工控' };
+
+// 附件单证类型徽标配色（与后端 Crm::EmailAiService::DOC_TYPES 对应）。
+const DOC_TYPE_CLS = {
+  PI: 'bg-n-teal-3 text-n-teal-11',
+  CONTRACT: 'bg-n-iris-3 text-n-iris-11',
+  QUOTE: 'bg-n-amber-3 text-n-amber-11',
+  SPEC: 'bg-n-blue-3 text-n-blue-11',
+  PACKING: 'bg-n-slate-3 text-n-slate-11',
+  BL: 'bg-n-ruby-3 text-n-ruby-11',
+  INVOICE: 'bg-n-teal-3 text-n-teal-11',
+  OTHER: 'bg-n-alpha-2 text-n-slate-10',
+};
+const docTypeCls = code => DOC_TYPE_CLS[code] || DOC_TYPE_CLS.OTHER;
 
 const countryLabel = code => COUNTRY_LABELS[code] || code || '—';
 const stageLabel = code => STAGE[code] || code || '—';
@@ -562,12 +593,20 @@ onMounted(() => {
                 class="relative pl-5 border-l-2 border-n-weak"
               >
                 <span
-                  class="absolute -left-[5px] top-1.5 rounded-full size-2 bg-n-teal-9"
+                  class="absolute -left-[5px] top-1.5 rounded-full size-2"
+                  :class="n.source === 'AI' ? 'bg-n-iris-9' : 'bg-n-teal-9'"
                 />
                 <div
                   class="flex items-center gap-2 text-xs font-medium text-n-slate-11"
                 >
                   {{ fmtDate(n.created_at) }}
+                  <span
+                    v-if="n.source === 'AI'"
+                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-n-iris-3 text-n-iris-11"
+                    title="AI 从邮件往来自动识别的进度"
+                  >
+                    <span class="i-ph-sparkle-fill size-3" />AI
+                  </span>
                   <span
                     v-if="n.follow_up_method"
                     class="px-1.5 py-0.5 rounded bg-n-alpha-2 text-n-slate-10"
@@ -645,7 +684,12 @@ onMounted(() => {
           <section
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">文件附件</h3>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold text-n-slate-12">文件附件</h3>
+              <span class="text-xs text-n-slate-9">
+                客户来信的 PI/合同/规格书等附件会自动归档到这里
+              </span>
+            </div>
             <div v-if="!files.length" class="text-sm text-n-slate-10">
               暂无文件
             </div>
@@ -655,28 +699,72 @@ onMounted(() => {
               :href="f.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="flex items-center gap-3 py-2 text-sm border-b last:border-b-0 border-n-weak hover:bg-n-alpha-1"
+              :title="f.email_subject ? `来自邮件：${f.email_subject}` : ''"
+              class="flex items-center gap-2 py-2 text-sm border-b last:border-b-0 border-n-weak hover:bg-n-alpha-1"
             >
-              <span class="i-lucide-file size-4 text-n-slate-9" />
-              <span class="flex-1 truncate text-n-slate-12">{{
+              <span class="shrink-0 i-lucide-file size-4 text-n-slate-9" />
+              <span class="truncate min-w-0 text-n-slate-12">{{
                 f.filename
               }}</span>
-              <span class="text-xs text-n-slate-10">{{ Math.round((f.byte_size || 0) / 1024) }} KB</span>
-              <span class="i-lucide-download size-4 text-n-slate-9" />
+              <span
+                v-if="f.doc_type_label"
+                class="shrink-0 px-1.5 py-0.5 text-xs rounded-md"
+                :class="docTypeCls(f.doc_type)"
+              >
+                {{ f.doc_type_label }}
+              </span>
+              <span
+                v-if="f.source === 'email'"
+                class="inline-flex items-center gap-0.5 text-xs shrink-0 text-n-slate-9"
+                title="邮件自动归档"
+              >
+                <span class="i-lucide-mail size-3" />自动
+              </span>
+              <span class="ml-auto text-xs shrink-0 text-n-slate-10">{{ Math.round((f.byte_size || 0) / 1024) }} KB</span>
+              <span class="shrink-0 i-lucide-download size-4 text-n-slate-9" />
             </a>
           </section>
 
-          <!-- AI 销售建议（占位，后续接 DeepSeek） -->
+          <!-- AI 销售建议：按需分析往来 + 商机，给下一步跟进建议 -->
           <section
-            class="p-5 border border-dashed rounded-2xl border-white/60 bg-n-solid-1/30"
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3
-              class="flex items-center gap-2 text-sm font-semibold text-n-slate-11"
+            <div class="flex items-center justify-between mb-2">
+              <h3
+                class="flex items-center gap-2 text-sm font-semibold text-n-slate-12"
+              >
+                <span class="i-ph-sparkle-fill size-4 text-n-iris-11" /> AI 销售建议
+              </h3>
+              <button
+                class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-n-iris-11 bg-n-iris-3 hover:bg-n-iris-4 disabled:opacity-60"
+                :disabled="suggestLoading"
+                @click="loadSuggestion"
+              >
+                <span class="i-ph-sparkle-fill size-3.5" />
+                {{
+                  suggestLoading
+                    ? '分析中…'
+                    : suggestion
+                      ? '重新分析'
+                      : 'AI 分析往来'
+                }}
+              </button>
+            </div>
+            <p
+              v-if="suggestLoading"
+              class="text-sm text-n-slate-10 animate-pulse"
             >
-              <span class="i-lucide-bot size-4" /> AI 销售建议
-            </h3>
-            <p class="mt-2 text-sm text-n-slate-10">
-              即将上线：基于往来与商机自动生成跟进建议。
+              正在读取与该客户的邮件往来，生成下一步建议…
+            </p>
+            <p
+              v-else-if="suggestion"
+              class="text-sm leading-relaxed whitespace-pre-wrap text-n-slate-12"
+            >
+              {{ suggestion }}
+            </p>
+            <p v-else class="text-sm text-n-slate-10">
+              点击「AI
+              分析往来」，根据与该客户的邮件往来和商机情况，生成一条可执行的下一步跟进建议。
             </p>
           </section>
         </div>

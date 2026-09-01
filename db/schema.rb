@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_29_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_01_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1242,11 +1242,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_29_000001) do
     t.string "result_tag"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source", default: "MANUAL", null: false
+    t.bigint "source_email_id"
     t.index ["account_id"], name: "index_crm_follow_up_notes_on_account_id"
     t.index ["contact_id"], name: "index_crm_follow_up_notes_on_contact_id"
     t.index ["crm_customer_id"], name: "index_crm_follow_up_notes_on_crm_customer_id"
     t.index ["crm_opportunity_id"], name: "index_crm_follow_up_notes_on_crm_opportunity_id"
     t.index ["owner_id"], name: "index_crm_follow_up_notes_on_owner_id"
+    t.index ["source_email_id"], name: "index_crm_follow_up_notes_on_source_email_id"
   end
 
   create_table "crm_follow_up_tasks", force: :cascade do |t|

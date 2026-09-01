@@ -8,6 +8,7 @@
 #  body               :text
 #  follow_up_method   :string
 #  result_tag         :string
+#  source             :string           default("MANUAL"), not null
 #  title              :string           not null
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
@@ -16,6 +17,7 @@
 #  crm_customer_id    :bigint
 #  crm_opportunity_id :bigint
 #  owner_id           :bigint
+#  source_email_id    :bigint
 #
 # Indexes
 #
@@ -24,6 +26,7 @@
 #  index_crm_follow_up_notes_on_crm_customer_id     (crm_customer_id)
 #  index_crm_follow_up_notes_on_crm_opportunity_id  (crm_opportunity_id)
 #  index_crm_follow_up_notes_on_owner_id            (owner_id)
+#  index_crm_follow_up_notes_on_source_email_id     (source_email_id)
 #
 # Foreign Keys
 #
@@ -35,6 +38,8 @@
 class Crm::FollowUpNote < ApplicationRecord
   FOLLOW_UP_METHODS = %w[EMAIL PHONE MEETING WHATSAPP WECHAT].freeze
   RESULT_TAGS = %w[INTERESTED WAITING_CUSTOMER WAITING_INTERNAL INVALID].freeze
+  # MANUAL=人工录入；AI=AI 从邮件往来自动识别的进度（时间线带 AI 徽标）。
+  SOURCES = %w[MANUAL AI].freeze
 
   belongs_to :account
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true
@@ -45,10 +50,12 @@ class Crm::FollowUpNote < ApplicationRecord
   validates :title, presence: true
   validates :follow_up_method, inclusion: { in: FOLLOW_UP_METHODS }, allow_blank: true
   validates :result_tag, inclusion: { in: RESULT_TAGS }, allow_blank: true
+  validates :source, inclusion: { in: SOURCES }
 
   after_create :touch_customer_follow_up_at
 
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
+  scope :by_ai, -> { where(source: 'AI') }
 
   private
 

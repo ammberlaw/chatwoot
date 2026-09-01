@@ -607,11 +607,19 @@ const fmtRevTime = iso => {
 // 「保存并下发」即自动挂到本单（进 BOM_READY、通知业务员确认），无需回订单页操作。
 const goCreateBomForOrder = () => {
   if (!selected.value) return;
+  const o = selected.value;
+  // 带上订单展示字段，BOM 弹窗即使可挂列表没有本单（状态/分页）也能注入并预选。
   router.push(
     accountScopedRoute(
       'mes_boms_index',
       {},
-      { new_for_order: selected.value.id }
+      {
+        new_for_order: o.id,
+        nfo_no: o.orderNo,
+        nfo_product: o.productName,
+        nfo_qty: o.qty,
+        nfo_owner: o.ownerName || '',
+      }
     )
   );
 };
@@ -678,6 +686,60 @@ const submitMarkOutsourced = async () => {
     selected.value = ok;
     outsourceDialogRef.value?.close();
     fetchRecords();
+  }
+};
+
+// —— 关联已有 BOM（复用现成 BOM 直接挂到本单，不用重建；保存后进 BOM 复核）——
+const linkBomDialogRef = ref(null);
+const linkBomList = ref([]); // 直连 MesBomAPI，snake_case
+const linkBomId = ref('');
+const linkBomAllProducts = ref(false); // 默认只列本单产品的 BOM，可切全部
+const linkBomBusy = ref(false);
+const linkBomOptions = computed(() =>
+  linkBomList.value.map(b => ({
+    value: String(b.id),
+    label: `${b.bom_no} · ${b.product_name || '—'} × ${b.base_qty || 1}${b.unit || ''}${b.status === 'DRAFT' ? '（草稿）' : ''}`,
+  }))
+);
+const loadLinkBoms = async () => {
+  try {
+    const params = { per_page: 200 };
+    if (!linkBomAllProducts.value && selected.value?.crmProductId) {
+      params.crm_product_id = selected.value.crmProductId;
+    }
+    const { data } = await MesBomAPI.get(params);
+    linkBomList.value = data?.payload || data || [];
+  } catch {
+    linkBomList.value = [];
+  }
+};
+const openLinkBom = async () => {
+  linkBomId.value = '';
+  linkBomAllProducts.value = false;
+  await loadLinkBoms();
+  linkBomDialogRef.value?.open();
+};
+const toggleLinkBomScope = async () => {
+  linkBomAllProducts.value = !linkBomAllProducts.value;
+  linkBomId.value = '';
+  await loadLinkBoms();
+};
+const submitLinkBom = async () => {
+  if (!linkBomId.value || !selected.value || linkBomBusy.value) return;
+  linkBomBusy.value = true;
+  try {
+    const ok = await store.attachBom({
+      id: selected.value.id,
+      bomId: Number(linkBomId.value),
+    });
+    if (ok) {
+      useAlert('已关联 BOM，进入 BOM 复核');
+      selected.value = ok;
+      linkBomDialogRef.value?.close();
+      fetchRecords();
+    }
+  } finally {
+    linkBomBusy.value = false;
   }
 };
 
@@ -1735,8 +1797,8 @@ watch(currentPage, fetchRecords);
             class="flex flex-col gap-2"
           >
             <p class="text-xs text-n-slate-10">
-              自产：去「工程 BOM」建 BOM
-              并关联本订单，保存并下发即自动挂到本单。
+              自产：去「工程 BOM」新建 BOM
+              并关联本订单，或直接关联一张已有 BOM；保存后进入 BOM 复核。
             </p>
             <Button
               label="去建 BOM（自产）"
@@ -1744,6 +1806,14 @@ watch(currentPage, fetchRecords);
               size="sm"
               class="w-full"
               @click="goCreateBomForOrder"
+            />
+            <Button
+              label="关联已有 BOM"
+              variant="faded"
+              color="iris"
+              size="sm"
+              class="w-full"
+              @click="openLinkBom"
             />
             <Button
               label="标记外购（跳过生产）"
@@ -2209,6 +2279,50 @@ watch(currentPage, fetchRecords);
             @update:model-value="v => (outsourceForm.supplierId = v)"
           />
         </div>
+      </div>
+    </Dialog>
+
+    <!-- 关联已有 BOM 弹窗（复用现成 BOM 直接挂到本单，保存后进 BOM 复核） -->
+    <Dialog
+      :dismissible="false"
+      ref="linkBomDialogRef"
+      width="3xl"
+      confirm-button-color="iris"
+      title="关联已有 BOM"
+      description="把一张已存在的 BOM 直接关联到本订单，保存后进入 BOM 复核，无需重新建 BOM。"
+      :is-loading="uiFlags.updatingItem"
+      :disable-confirm-button="!linkBomId"
+      @confirm="submitLinkBom"
+    >
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center justify-between">
+          <label class="text-heading-3 text-n-slate-12">
+            选择 BOM <span class="text-n-ruby-11">*</span>
+          </label>
+          <label class="flex items-center gap-1.5 text-xs text-n-slate-11">
+            <input
+              type="checkbox"
+              class="accent-n-iris-9"
+              :checked="linkBomAllProducts"
+              @change="toggleLinkBomScope"
+            />
+            显示全部产品的 BOM
+          </label>
+        </div>
+        <ComboBox
+          :model-value="linkBomId"
+          :options="linkBomOptions"
+          placeholder="选择要关联的 BOM"
+          search-placeholder="搜索 BOM 号 / 产品"
+          @update:model-value="v => (linkBomId = v)"
+        />
+        <p v-if="!linkBomOptions.length" class="text-xs text-n-slate-10">
+          {{
+            linkBomAllProducts
+              ? '还没有任何 BOM，请先去「工程 BOM」新建。'
+              : '本产品还没有 BOM，可勾选上方「显示全部产品的 BOM」，或去新建。'
+          }}
+        </p>
       </div>
     </Dialog>
 

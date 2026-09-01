@@ -3,6 +3,7 @@
 import { ref, watch } from 'vue';
 import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
 import CrmEmailComposeDialog from 'dashboard/components-next/CRM/CrmEmailComposeDialog.vue';
+import CrmAiAssistant from 'dashboard/components-next/CRM/CrmAiAssistant.vue';
 
 const composeStore = useCrmComposeStore();
 const composeRef = ref(null);
@@ -25,5 +26,6 @@ watch(
       ref="composeRef"
       @refresh="composeStore.notifyRefresh()"
     />
+    <CrmAiAssistant />
   </div>
 </template>

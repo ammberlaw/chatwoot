@@ -3,11 +3,24 @@ require 'google/cloud/translate/v3'
 class Integrations::GoogleTranslate::ProcessorService
   pattr_initialize [:message!, :target_language!]
 
-  def perform
-    return if hook.blank?
+  # 语言代码 → 语言名（喂给 DeepSeek）。
+  LANG_NAMES = {
+    'zh_CN' => '简体中文', 'zh_TW' => '繁体中文', 'zh' => '简体中文', 'en' => 'English',
+    'ja' => '日本語', 'ko' => '한국어', 'es' => 'Español', 'fr' => 'Français',
+    'de' => 'Deutsch', 'ru' => 'Русский', 'pt' => 'Português', 'it' => 'Italiano',
+    'ar' => 'العربية', 'vi' => 'Tiếng Việt', 'th' => 'ภาษาไทย', 'id' => 'Bahasa Indonesia',
+    'tr' => 'Türkçe', 'nl' => 'Nederlands'
+  }.freeze
 
+  def perform
     content = translation_content
     return if content.blank?
+
+    # 优先走我方 DeepSeek（管理员在「AI 设置」配了 key 即生效），免配 Google 翻译；未配则回退 Google。
+    deepseek = deepseek_translate(content)
+    return deepseek if deepseek.present?
+
+    return if hook.blank?
 
     response = client.translate_text(
       contents: [content],
@@ -22,6 +35,23 @@ class Integrations::GoogleTranslate::ProcessorService
   end
 
   private
+
+  # 用我方 DeepSeek 翻译；未配 key 或出错则返回 nil（回退 Google）。
+  def deepseek_translate(content)
+    setting = Crm::AiSetting.for_account(message.account)
+    return nil if setting.api_key.blank?
+
+    Crm::EmailAiService.new(account: message.account)
+                       .translate_text(text: content, language: language_name)
+  rescue StandardError => e
+    Rails.logger.warn("[GoogleTranslate->DeepSeek] #{e.class}: #{e.message}")
+    nil
+  end
+
+  def language_name
+    code = target_language.to_s
+    LANG_NAMES[code] || LANG_NAMES[code.split(/[_-]/).first] || code
+  end
 
   def bcp47_language_code
     target_language.tr('_', '-')

@@ -45,7 +45,19 @@ module Crm::EmailIngestion
     rewritten = attach_files(email, mail, html)
     email.update!(body_html: truncate_text(rewritten)) if rewritten != html
     maybe_create_reply_reminder(email)
+    enqueue_ai_followups(email)
     email
+  end
+
+  # 收信后的 AI 自动化（仅已关联客户的来信；异步、失败不影响收信）：
+  # ① 附件自动归档到客户档案；② 从往来识别商机进度写跟进记录。
+  def enqueue_ai_followups(email)
+    return if email.crm_customer_id.blank?
+
+    Crm::ArchiveEmailAttachmentsJob.perform_later(email.id) if email.files.attached?
+    Crm::EmailProgressJob.perform_later(email.id)
+  rescue StandardError => e
+    Rails.logger.warn("[Crm::MailFetch] enqueue ai followups failed email=#{email.id}: #{e.message}")
   end
 
   # 客户来信自动提醒：为已建档客户的来信在「日程」里放一条当天全天提醒（归客户负责人），

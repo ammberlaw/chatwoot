@@ -70,6 +70,15 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  # 客户「AI 下一步建议」与对话式 AI 助手：全员可用，问数的数据范围由控制器按可见范围收口。
+  def suggest?
+    true
+  end
+
+  def ask?
+    true
+  end
+
   # 客户 AI 背调（输入邮箱/域名/网址→查官网+Apollo）：全员可用，查库匹配由控制器按可见范围收口。
   def company_lookup?
     true

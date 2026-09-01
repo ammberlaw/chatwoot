@@ -440,7 +440,7 @@ onMounted(() => {
 
     <!-- 状态下划线 tab + 搜索 -->
     <div
-      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-4 sm:px-[26px] pt-1 pb-3 sm:pb-0 border-b border-n-weak"
+      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-4 sm:px-[26px] pt-1 pb-3 sm:pb-2 border-b border-n-weak"
     >
       <div class="flex flex-wrap items-center gap-2 ml-auto w-full sm:w-auto">
         <MonthPicker

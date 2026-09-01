@@ -270,6 +270,7 @@ const loadAttachableOrders = async () => {
     const { data } = await MesProductionOrderAPI.get({
       stage: 'SALES_CONFIRMED',
       status: 'IN_PROGRESS',
+      per_page: 200,
     });
     attachableOrders.value = data.payload || [];
   } catch {
@@ -331,8 +332,8 @@ const resetAttachments = () => {
   existingFiles.value = [];
 };
 
-// preOrderId：从生产订单页「去建 BOM」带来的预关联订单（自动选中「关联生产订单」）。
-const openCreate = async (preOrderId = '') => {
+// preOrder：从生产订单页「去建 BOM」带来的预关联订单对象（自动选中「关联生产订单」）。
+const openCreate = async (preOrder = null) => {
   editingId.value = null;
   editingStatus.value = null;
   changeReason.value = '';
@@ -351,12 +352,28 @@ const openCreate = async (preOrderId = '') => {
     rows: Array.from({ length: 10 }, () => blankRow()),
   });
   await loadAttachableOrders();
-  // 预关联订单须在可挂列表里（SALES_CONFIRMED 待挂 BOM）才回填。
-  if (
-    preOrderId &&
-    attachableOrders.value.some(o => String(o.id) === String(preOrderId))
-  ) {
-    attachOrderId.value = String(preOrderId);
+  // 从生产订单页「去建 BOM」带来的预关联订单：若可挂列表里没有（状态/分页原因），
+  // 用带来的订单信息补一条，确保「关联生产订单」一定能预选到本单。
+  const pid = preOrder?.id ? String(preOrder.id) : '';
+  if (pid) {
+    if (
+      !attachableOrders.value.some(o => String(o.id) === pid) &&
+      preOrder.order_no
+    ) {
+      attachableOrders.value = [
+        {
+          id: preOrder.id,
+          order_no: preOrder.order_no,
+          product_name: preOrder.product_name,
+          qty: preOrder.qty,
+          owner_name: preOrder.owner_name,
+        },
+        ...attachableOrders.value,
+      ];
+    }
+    if (attachableOrders.value.some(o => String(o.id) === pid)) {
+      attachOrderId.value = pid;
+    }
   }
   dialogRef.value?.open();
 };
@@ -587,7 +604,13 @@ onMounted(async () => {
   }
   // 从生产订单页「去建 BOM」跳来：自动打开新建 BOM 并预关联该订单。
   if (route.query.new_for_order) {
-    openCreate(route.query.new_for_order);
+    openCreate({
+      id: route.query.new_for_order,
+      order_no: route.query.nfo_no,
+      product_name: route.query.nfo_product,
+      qty: route.query.nfo_qty,
+      owner_name: route.query.nfo_owner,
+    });
     router.replace({ query: {} });
   }
 });

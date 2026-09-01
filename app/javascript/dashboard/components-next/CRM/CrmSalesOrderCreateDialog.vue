@@ -421,7 +421,7 @@ defineExpose({ dialogRef, onSuccess, open });
         class="crm-ai-box flex items-center justify-between gap-3 p-3 border border-dashed rounded-lg border-n-iris-6 bg-n-iris-2"
       >
         <div class="flex items-center gap-2 text-sm text-n-slate-11">
-          <span class="i-lucide-sparkles size-4 text-n-iris-9" />
+          <span class="i-ph-sparkle-fill size-4 text-n-iris-9" />
           {{ t('CRM.SALES_ORDERS.PI.HINT') }}
         </div>
         <button
@@ -435,7 +435,7 @@ defineExpose({ dialogRef, onSuccess, open });
             :class="
               parsingPi
                 ? 'i-lucide-loader-circle animate-spin'
-                : 'i-lucide-sparkles'
+                : 'i-ph-sparkle-fill'
             "
           />
           {{

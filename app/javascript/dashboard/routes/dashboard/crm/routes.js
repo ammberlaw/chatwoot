@@ -16,6 +16,7 @@ import CrmSalesTargetsIndex from './pages/CrmSalesTargetsIndex.vue';
 import CrmMailAccountsIndex from './pages/CrmMailAccountsIndex.vue';
 import CrmEmailTemplatesIndex from './pages/CrmEmailTemplatesIndex.vue';
 import CrmAiSettingsIndex from './pages/CrmAiSettingsIndex.vue';
+import CrmInboxCollaboratorsIndex from './pages/CrmInboxCollaboratorsIndex.vue';
 import CrmOrgStructureIndex from './pages/CrmOrgStructureIndex.vue';
 import CrmOrgChartIndex from './pages/CrmOrgChartIndex.vue';
 import CrmTeamsIndex from './pages/CrmTeamsIndex.vue';
@@ -128,6 +129,11 @@ const crmPages = [
     CrmEmailTemplatesIndex
   ),
   crmPage('ai-settings', 'crm_ai_settings_index', CrmAiSettingsIndex),
+  crmPage(
+    'inbox-collaborators',
+    'crm_inbox_collaborators_index',
+    CrmInboxCollaboratorsIndex
+  ),
   crmPage(
     'org-structure',
     'crm_org_structure_index',

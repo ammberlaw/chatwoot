@@ -68,6 +68,7 @@ json.notes @notes do |note|
   json.body note.body
   json.follow_up_method note.follow_up_method
   json.result_tag note.result_tag
+  json.source note.source
   json.owner_name note.owner&.crm_display_name
   json.created_at note.created_at
 end

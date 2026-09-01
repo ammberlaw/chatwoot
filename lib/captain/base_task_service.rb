@@ -32,9 +32,21 @@ class Captain::BaseTaskService
   end
 
   def api_base
+    # 已在 CRM「AI 设置」配了我方 DeepSeek 时，会话助手统一走它的端点（已含 /v1）。
+    return crm_ai_setting.api_base.presence&.chomp('/') || Crm::EmailAiService::DEFAULT_API_BASE if crm_ai_setting
+
     endpoint = InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_ENDPOINT')&.value.presence || 'https://api.openai.com/'
     endpoint = endpoint.chomp('/')
     "#{endpoint}/v1"
+  end
+
+  # 我方 CRM 的 AI 配置（DeepSeek，管理员在「AI 设置」页那把 key）。已配置则返回该记录、否则 nil。
+  # 一旦返回非 nil，Captain 会话助手（Suggest reply / Summarize / Ask Copilot）全部改走我方 DeepSeek。
+  def crm_ai_setting
+    return @crm_ai_setting if defined?(@crm_ai_setting)
+
+    setting = Crm::AiSetting.for_account(account)
+    @crm_ai_setting = setting.api_key.present? ? setting : nil
   end
 
   def make_api_call(messages:, model: nil, feature: nil, schema: nil, tools: [])
@@ -57,6 +69,8 @@ class Captain::BaseTaskService
   end
 
   def resolved_model(model:, feature:)
+    # 走我方 DeepSeek 时用「AI 设置」里的模型（如 deepseek-chat），不走 OpenAI 的 gpt 系列默认。
+    return crm_ai_setting.model.presence || Crm::EmailAiService::DEFAULT_MODEL if crm_ai_setting
     return model if feature.blank?
 
     route = Llm::FeatureRouter.resolve(feature: feature, account: account)
@@ -68,7 +82,7 @@ class Captain::BaseTaskService
   def execute_ruby_llm_request(model:, messages:, schema: nil, tools: [])
     credential = llm_credential
 
-    Llm::Config.with_api_key(credential[:api_key], api_base: api_base) do |context|
+    Llm::Config.with_api_key(credential[:api_key], api_base: api_base, use_system_role: crm_ai_setting.present?) do |context|
       chat = build_chat(context, model: model, messages: messages, schema: schema, tools: tools)
 
       conversation_messages = messages.reject { |m| m[:role] == 'system' }
@@ -83,7 +97,8 @@ class Captain::BaseTaskService
   end
 
   def build_chat(context, model:, messages:, schema: nil, tools: [])
-    chat = context.chat(model: model)
+    # DeepSeek 的模型名不在 RubyLLM 注册表，需 assume_model_exists 跳过校验（与 Crm::EmailAiService 一致）。
+    chat = crm_ai_setting ? context.chat(model: model, provider: :openai, assume_model_exists: true) : context.chat(model: model)
     system_msg = messages.find { |m| m[:role] == 'system' }
     chat.with_instructions(system_msg[:content]) if system_msg
     chat.with_schema(schema) if schema
@@ -177,11 +192,17 @@ class Captain::BaseTaskService
   end
 
   def llm_credential
-    @llm_credential ||= if use_account_openai_hook?
+    @llm_credential ||= crm_ai_credential ||
+                        if use_account_openai_hook?
                           hook_llm_credential || system_llm_credential
                         else
                           system_llm_credential
                         end
+  end
+
+  # 我方 DeepSeek 凭证（优先于 Captain 原生的 OpenAI hook / InstallationConfig）。
+  def crm_ai_credential
+    { api_key: crm_ai_setting.api_key, source: :crm_ai_setting } if crm_ai_setting
   end
 
   def use_account_openai_hook?

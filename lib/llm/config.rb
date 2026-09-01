@@ -19,11 +19,14 @@ module Llm::Config
       @initialized = false
     end
 
-    def with_api_key(api_key, api_base: nil)
+    # use_system_role: DeepSeek 等只认 system 角色（不认 OpenAI 新的 developer 角色），
+    # 走我方 DeepSeek 时置 true，否则保持 RubyLLM 默认。
+    def with_api_key(api_key, api_base: nil, use_system_role: false)
       initialize!
       context = RubyLLM.context do |config|
         config.openai_api_key = api_key
         config.openai_api_base = api_base
+        config.openai_use_system_role = true if use_system_role
       end
 
       yield context

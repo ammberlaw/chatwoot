@@ -154,13 +154,6 @@ const hasConversationUnreadCounts = computed(() => {
   );
 });
 
-const hasCaptainEnabled = computed(() => {
-  return isFeatureEnabledonAccount.value(
-    accountId.value,
-    FEATURE_FLAGS.CAPTAIN
-  );
-});
-
 const fetchConversationUnreadCounts = ([currentAccountId, isEnabled]) => {
   if (!currentAccountId) return;
 
@@ -1186,6 +1179,7 @@ const menuItems = computed(() => {
                 'crm_customer_settings_index',
                 'crm_public_pool_settings_index',
                 'crm_ai_settings_index',
+                'crm_inbox_collaborators_index',
               ],
               children: [
                 {
@@ -1205,6 +1199,12 @@ const menuItems = computed(() => {
                   label: t('SIDEBAR.CRM_AI_SETTINGS'),
                   to: accountScopedRoute('crm_ai_settings_index'),
                   activeOn: ['crm_ai_settings_index'],
+                },
+                {
+                  name: 'CRM Inbox Collaborators',
+                  label: '客服分配',
+                  to: accountScopedRoute('crm_inbox_collaborators_index'),
+                  activeOn: ['crm_inbox_collaborators_index'],
                 },
               ],
             },
@@ -1703,9 +1703,10 @@ const menuItems = computed(() => {
           },
         ],
       },
-      // CRM 定位下默认隐藏 Captain（AI 坐席）——开启 captain_integration flag 即恢复。
+      // CRM 定位下始终隐藏 Captain 管理入口（AI 用「AI 设置」页统一管）。
+      // 注意：会话「问 AI 助手」Copilot 面板走 showCopilotTab（同一 captain_integration flag），不受此影响。
     ]
-      .filter(item => item.name !== 'Captain' || hasCaptainEnabled.value)
+      .filter(item => item.name !== 'Captain')
       // 外贸 CRM 定位下隐藏原生客服模块：联系人 / 报告 / 活动 / 帮助中心。
       .filter(item => !HIDDEN_NATIVE_MODULES.includes(item.name))
       // 非 CRM 人员隐藏 CRM 销售数据分组。
