@@ -282,11 +282,12 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   # 关键词搜索：工单号 / 成品名 / 产品料号。
+  # 搜工单号 / 成品名 / 商品编码（= 关联产品档案 sku）。
   def apply_search(scope)
     return scope if params[:q].blank?
 
-    scope.where(
-      'order_no ILIKE :t OR product_name ILIKE :t OR product_code ILIKE :t',
+    scope.left_joins(:crm_product).where(
+      'mes_production_orders.order_no ILIKE :t OR mes_production_orders.product_name ILIKE :t OR crm_products.sku ILIKE :t',
       t: "%#{params[:q].strip}%"
     )
   end

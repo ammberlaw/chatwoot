@@ -222,7 +222,7 @@ const viewBaseFields = computed(() => {
     { label: '成品', value: o.productName },
     { label: '数量', value: `${o.qty ?? ''} ${o.unit ?? ''}` },
     { label: 'PI 编号', value: o.piNo || '—' },
-    { label: '产品编码', value: o.productCode || '—' },
+    { label: '商品编码', value: o.productSku || '—' },
     { label: '归属业务员', value: o.ownerName || '—' },
     {
       label: '交期',
@@ -925,35 +925,8 @@ const confirmReject = async () => {
   }
 };
 
-// —— 产品编码（工程/PMC 编写，唯一，供 ERP 共享）——
-const canEditProductCode = computed(() => mesCan('bom'));
-const productCodeInput = ref('');
-const productCodeError = ref('');
-watch(
-  selected,
-  po => {
-    productCodeInput.value = po?.productCode || '';
-    productCodeError.value = '';
-  },
-  { immediate: true }
-);
-const saveProductCode = async () => {
-  if (!selected.value) return;
-  productCodeError.value = '';
-  try {
-    const ok = await store.setProductCode({
-      id: selected.value.id,
-      productCode: productCodeInput.value.trim(),
-    });
-    if (ok) {
-      useAlert('产品编码已保存');
-      selected.value = ok;
-      fetchRecords();
-    }
-  } catch (e) {
-    productCodeError.value = e?.response?.data?.error || '保存失败';
-  }
-};
+// 商品编码统一取自关联产品档案(crm_product 的 sku)，在「编辑订单」里选商品编码设置；
+// 原「产品编码」自由文本(product_code，无人使用)已下线，不再单独维护。
 
 const rootStore = useStore();
 onMounted(async () => {
@@ -1081,7 +1054,7 @@ watch(currentPage, fetchRecords);
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="搜索 工单号 / 成品名 / 产品料号…"
+        placeholder="搜索 工单号 / 成品名 / 商品编码…"
         class="h-9 px-3 text-sm rounded-lg outline-none w-full sm:w-44 border border-n-weak bg-n-solid-1 text-n-slate-12"
         @input="onSearchInput"
       />
@@ -1177,8 +1150,8 @@ watch(currentPage, fetchRecords);
               >
                 <span>数量：{{ po.producedQty }} / {{ po.qty }} {{ po.unit }}</span>
                 <span v-if="po.piNo">PI {{ po.piNo }}</span>
-                <span v-if="po.productCode" class="text-n-iris-11">
-                  编码 {{ po.productCode }}
+                <span v-if="po.productSku" class="text-n-iris-11">
+                  商品编码 {{ po.productSku }}
                 </span>
               </div>
               <div
@@ -1190,7 +1163,6 @@ watch(currentPage, fetchRecords);
                 >
                   交期：{{ deliveryStatus(po).label }}
                 </span>
-                <span v-if="po.productCode">料号：{{ po.productCode }}</span>
                 <span v-if="po.remark">备注：{{ po.remark }}</span>
                 <span v-if="po.salesOrderNo">来源：{{ po.salesOrderNo }}</span>
                 <span>负责人：{{ po.ownerName || '—' }}</span>
@@ -1225,7 +1197,7 @@ watch(currentPage, fetchRecords);
                 <th class="px-3 py-3 font-medium">数量</th>
                 <th class="px-3 py-3 font-medium">阶段</th>
                 <th class="px-3 py-3 font-medium">交期</th>
-                <th class="px-3 py-3 font-medium">产品料号</th>
+                <th class="px-3 py-3 font-medium">商品编码</th>
                 <th class="px-3 py-3 font-medium">备注</th>
                 <th class="px-3 py-3 font-medium">来源销售单</th>
                 <th class="px-3 py-3 font-medium">负责人</th>
@@ -1270,10 +1242,10 @@ watch(currentPage, fetchRecords);
                     PI {{ po.piNo }}
                   </span>
                   <span
-                    v-if="po.productCode"
+                    v-if="po.productSku"
                     class="block text-xs font-normal text-n-iris-11"
                   >
-                    编码 {{ po.productCode }}
+                    商品编码 {{ po.productSku }}
                   </span>
                 </td>
                 <td class="px-3 py-3 text-n-slate-11">{{ po.productName }}</td>
@@ -1319,7 +1291,7 @@ watch(currentPage, fetchRecords);
                   <span v-else class="text-n-slate-10">—</span>
                 </td>
                 <td class="px-3 py-3 text-n-slate-11 tabular-nums">
-                  {{ po.productCode || '—' }}
+                  {{ po.productSku || '—' }}
                 </td>
                 <td
                   class="px-3 py-3 text-n-slate-11 max-w-[12rem] truncate"
@@ -1394,37 +1366,9 @@ watch(currentPage, fetchRecords);
           PI：{{ selected.piNo }}
         </div>
 
-        <!-- 产品编码：工程/PMC 编写（唯一，供 ERP 共享） -->
-        <div class="mb-4">
-          <div v-if="canEditProductCode" class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-11">
-              产品编码
-              <span class="text-n-slate-10">（工程/PMC 编，唯一）</span>
-            </label>
-            <div class="flex items-center gap-2">
-              <Input
-                v-model="productCodeInput"
-                placeholder="如：C.BB.215.003"
-                class="flex-1"
-              />
-              <Button
-                label="保存"
-                size="xs"
-                color="iris"
-                :is-loading="uiFlags.updatingItem"
-                :disabled="
-                  productCodeInput.trim() === (selected.productCode || '')
-                "
-                @click="saveProductCode"
-              />
-            </div>
-            <span v-if="productCodeError" class="text-xs text-n-ruby-11">
-              {{ productCodeError }}
-            </span>
-          </div>
-          <div v-else class="text-xs text-n-slate-11">
-            产品编码：{{ selected.productCode || '未编码' }}
-          </div>
+        <!-- 商品编码：取自关联产品档案(sku)，在「编辑」里选商品编码设置 -->
+        <div class="mb-4 text-xs text-n-slate-11">
+          商品编码：{{ selected.productSku || '未编码（在「编辑」里选商品编码）' }}
         </div>
 
         <!-- 审批链（取代发布）：草稿→部门主管→总经理，全部通过才生效 -->

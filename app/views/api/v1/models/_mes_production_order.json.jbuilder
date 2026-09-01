@@ -8,6 +8,8 @@ json.customer_name resource.crm_customer&.name
 json.customer_country resource.crm_customer&.trade_country
 json.crm_product_id resource.crm_product_id
 json.product_name resource.product_name
+# 商品编码 = 关联产品档案(crm_product)的 sku，全站统一用这个作为「商品编码」。
+json.product_sku resource.crm_product&.sku
 json.qty resource.qty
 json.unit resource.unit
 json.produced_qty resource.produced_qty
