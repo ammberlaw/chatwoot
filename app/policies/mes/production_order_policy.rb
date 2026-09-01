@@ -5,6 +5,8 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def issue_plan? = true
   def inbox? = true
   def audits? = true
+  # 业务知会/转发给阶段负责人：任何可见订单的人都能发（只是内部知会，不改订单状态）。
+  def forward? = true
   # 接单/拒收的细粒度权限（本阶段负责人 or 管理员）在控制器 can_handle_stage? 内校验。
   def acknowledge? = true
   def reject? = true

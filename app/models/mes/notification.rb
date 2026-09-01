@@ -36,6 +36,7 @@ class Mes::Notification < ApplicationRecord
     production_reported fg_count_pending
     shipment_approval_pending shipment_approved shipment_rejected
     document_returned
+    forwarded
   ].freeze
 
   belongs_to :account

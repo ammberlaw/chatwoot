@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_01_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_01_000003) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2265,6 +2265,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_000002) do
     t.index ["production_order_id"], name: "index_mes_notifications_on_production_order_id"
   end
 
+  create_table "mes_order_forwards", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "production_order_id", null: false
+    t.bigint "sender_id", null: false
+    t.string "board_key", null: false
+    t.string "stage_label"
+    t.string "recipient_names"
+    t.text "note"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "production_order_id"], name: "index_mes_order_forwards_on_account_id_and_production_order_id"
+  end
+
   create_table "mes_production_order_stage_events", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "production_order_id", null: false
@@ -3273,6 +3286,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_000002) do
   add_foreign_key "mes_materials", "mes_suppliers", column: "default_supplier_id", on_delete: :nullify
   add_foreign_key "mes_notifications", "mes_production_orders", column: "production_order_id", on_delete: :cascade
   add_foreign_key "mes_notifications", "users", column: "recipient_id", on_delete: :cascade
+  add_foreign_key "mes_order_forwards", "mes_production_orders", column: "production_order_id", on_delete: :cascade
   add_foreign_key "mes_production_order_stage_events", "mes_production_orders", column: "production_order_id", on_delete: :cascade
   add_foreign_key "mes_production_order_stage_events", "users", column: "acked_by_id", on_delete: :nullify
   add_foreign_key "mes_production_order_stage_events", "users", column: "actor_id", on_delete: :nullify

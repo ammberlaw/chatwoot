@@ -57,8 +57,6 @@ export const TABLET_FIELDS = [
 export const DISPLAY_FIELDS = [
   { section: '订单信息' },
   { key: 'customer', label: '客户', type: 'customer' },
-  { key: 'model', label: '型号', type: 'text' },
-  { key: 'replyDate', label: '生产回复交期', type: 'text' },
   { key: 'requirements', label: '产品要求', type: 'textarea' },
   { section: '配置' },
   { key: 'mainboard', label: '主板配置', type: 'text', defaultVal: '默认' },

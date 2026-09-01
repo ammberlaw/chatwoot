@@ -12,6 +12,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
+import CrmBackgroundCheck from 'dashboard/components-next/CRM/CrmBackgroundCheck.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 
@@ -177,6 +178,45 @@ const handleConfirm = () => {
   }
 };
 
+// 一键背调导入：公司名/网址用背调正式值刷新，国家/地址/领英只填空框，概况写进备注。
+const applyBackground = payload => {
+  const filled = [];
+  const setAlways = (key, val, label) => {
+    const v = String(val || '').trim();
+    if (v && form[key] !== v) {
+      form[key] = v;
+      filled.push(label);
+    }
+  };
+  const setIfBlank = (key, val, label) => {
+    const v = String(val || '').trim();
+    if (v && !String(form[key]).trim()) {
+      form[key] = v;
+      filled.push(label);
+    }
+  };
+  setAlways('name', payload.name, '公司名');
+  setAlways('website', payload.website, '网址');
+  setIfBlank('address', payload.address, '地址');
+  setIfBlank('linkedin', payload.linkedin, 'Linkedin');
+  if (payload.countryCode && !form.tradeCountry) {
+    form.tradeCountry = payload.countryCode;
+    filled.push('国家');
+  }
+  if (payload.remarkBlock) {
+    const stripped = String(form.customerRemark || '')
+      .replace(/【AI 背调】[\s\S]*$/, '')
+      .trim();
+    form.customerRemark = stripped
+      ? `${stripped}\n\n${payload.remarkBlock}`
+      : payload.remarkBlock;
+    filled.push('概况→备注');
+  }
+  useAlert(
+    filled.length ? `已导入：${filled.join('、')}` : '没有可导入的新信息'
+  );
+};
+
 // ── 附件上传 / 删除（独立于字段保存，即时生效）──
 const attachApi = () =>
   `/api/v1/accounts/${accountId.value}/crm/customers/${editingId.value}/attach`;
@@ -261,7 +301,9 @@ defineExpose({ dialogRef, onSuccess, open });
         />
         <!-- 套 Input 同款标签壳（flex-col gap-1 + label），与同行「公司网址」等高对齐，避免无标签下拉浮高 -->
         <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">国家 / 地区</label>
+          <label class="mb-0.5 text-heading-3 text-n-slate-12"
+            >国家 / 地区</label
+          >
           <ComboBox
             v-model="form.tradeCountry"
             :options="countryOptions"
@@ -270,6 +312,16 @@ defineExpose({ dialogRef, onSuccess, open });
           />
         </div>
       </div>
+
+      <!-- 一键背调（已建档客户也能补全）：抓官网 + Apollo 概况，一键导入公司名/网址/国家/概况 -->
+      <CrmBackgroundCheck
+        v-if="isEditing"
+        :key="editingId"
+        :name="form.name"
+        :website="form.website"
+        :email="form.contactEmail"
+        @apply="applyBackground"
+      />
 
       <!-- 业务 -->
       <div
@@ -287,7 +339,9 @@ defineExpose({ dialogRef, onSuccess, open });
           <label class="mb-0.5 text-heading-3 text-n-slate-12">客户星级</label>
           <div class="flex items-center h-9 gap-2">
             <CrmStarRating :micros="editingStarMicros" size="md" />
-            <span class="text-xs text-n-slate-10">系统按累计成交额自动评定</span>
+            <span class="text-xs text-n-slate-10"
+              >系统按累计成交额自动评定</span
+            >
           </div>
         </div>
         <SelectCard

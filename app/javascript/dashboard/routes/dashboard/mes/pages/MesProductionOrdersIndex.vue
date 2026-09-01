@@ -8,6 +8,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import camelcaseKeys from 'camelcase-keys';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
+import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import MesBomAPI from 'dashboard/api/mes/boms';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
@@ -233,6 +234,57 @@ const viewBaseFields = computed(() => {
 const openDetail = row => {
   viewingOrder.value = row;
   detailDialogRef.value?.open();
+  // 拉最新详情，补全转发目标(阶段负责人)与已知会留痕（列表行不带这些，避免 N+1）。
+  MesProductionOrderAPI.show(row.id)
+    .then(({ data }) => {
+      if (viewingOrder.value?.id === row.id) {
+        viewingOrder.value = camelcaseKeys(data, { deep: true });
+      }
+    })
+    .catch(() => {});
+};
+
+// —— 业务转发/知会：把订单知会给某阶段负责人 + 附言，推站内通知并留痕 ——
+const forwardDialogRef = ref(null);
+const forwardBoardKey = ref('');
+const forwardNote = ref('');
+const forwardBusy = ref(false);
+const forwardOptions = computed(() =>
+  (viewingOrder.value?.forwardTargets || []).map(t => ({
+    value: t.boardKey,
+    label: t.recipientNames?.length
+      ? `${t.label}（${t.recipientNames.join('、')}）`
+      : `${t.label}（未配置负责人）`,
+    disabled: !t.recipientNames?.length,
+  }))
+);
+const openForward = () => {
+  forwardBoardKey.value = '';
+  forwardNote.value = '';
+  forwardDialogRef.value?.open();
+};
+const submitForward = async () => {
+  if (!forwardBoardKey.value) {
+    useAlert('请选择要知会的阶段负责人');
+    return;
+  }
+  forwardBusy.value = true;
+  try {
+    const { data } = await MesProductionOrderAPI.forward(
+      viewingOrder.value.id,
+      {
+        board_key: forwardBoardKey.value,
+        note: forwardNote.value,
+      }
+    );
+    viewingOrder.value = camelcaseKeys(data, { deep: true });
+    forwardDialogRef.value?.close();
+    useAlert('已知会该阶段负责人');
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '知会失败');
+  } finally {
+    forwardBusy.value = false;
+  }
 };
 // 导出订单明细（Excel = 基本信息 + 规格键值；图片 = 明细区截图）。
 const detailExportData = () => {
@@ -1189,9 +1241,12 @@ watch(currentPage, fetchRecords);
             </div>
           </div>
 
-          <table class="hidden md:table w-full text-sm">
+          <!-- 列多：给表格设最小宽度，窄屏时外层 overflow-auto 自动横向滑动，列各自保持自然宽不再挤压换行 -->
+          <table class="hidden md:table w-full md:min-w-[1240px] text-sm">
             <thead>
-              <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <tr
+                class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
+              >
                 <th class="px-3 py-3 font-medium">工单号</th>
                 <th class="px-3 py-3 font-medium">成品</th>
                 <th class="px-3 py-3 font-medium">数量</th>
@@ -1249,7 +1304,7 @@ watch(currentPage, fetchRecords);
                   </span>
                 </td>
                 <td class="px-3 py-3 text-n-slate-11">{{ po.productName }}</td>
-                <td class="px-3 py-3 text-n-slate-11">
+                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
                   {{ po.producedQty }} / {{ po.qty }} {{ po.unit }}
                 </td>
                 <td class="px-3 py-3 align-top">
@@ -1290,7 +1345,9 @@ watch(currentPage, fetchRecords);
                   </span>
                   <span v-else class="text-n-slate-10">—</span>
                 </td>
-                <td class="px-3 py-3 text-n-slate-11 tabular-nums">
+                <td
+                  class="px-3 py-3 text-n-slate-11 tabular-nums whitespace-nowrap"
+                >
                   {{ po.productSku || '—' }}
                 </td>
                 <td
@@ -1299,10 +1356,10 @@ watch(currentPage, fetchRecords);
                 >
                   {{ po.remark || '—' }}
                 </td>
-                <td class="px-3 py-3 text-n-slate-11">
+                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
                   {{ po.salesOrderNo || '—' }}
                 </td>
-                <td class="px-3 py-3 text-n-slate-11">
+                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
                   {{ po.ownerName || '—' }}
                 </td>
                 <td class="px-3 py-3 text-right" @click.stop>
@@ -1368,7 +1425,9 @@ watch(currentPage, fetchRecords);
 
         <!-- 商品编码：取自关联产品档案(sku)，在「编辑」里选商品编码设置 -->
         <div class="mb-4 text-xs text-n-slate-11">
-          商品编码：{{ selected.productSku || '未编码（在「编辑」里选商品编码）' }}
+          商品编码：{{
+            selected.productSku || '未编码（在「编辑」里选商品编码）'
+          }}
         </div>
 
         <!-- 审批链（取代发布）：草稿→部门主管→总经理，全部通过才生效 -->
@@ -1739,8 +1798,8 @@ watch(currentPage, fetchRecords);
             class="flex flex-col gap-2"
           >
             <p class="text-xs text-n-slate-10">
-              自产：去「工程 BOM」新建 BOM
-              并关联本订单，或直接关联一张已有 BOM；保存后进入 BOM 复核。
+              自产：去「工程 BOM」新建 BOM 并关联本订单，或直接关联一张已有
+              BOM；保存后进入 BOM 复核。
             </p>
             <Button
               label="去建 BOM（自产）"
@@ -1977,8 +2036,8 @@ watch(currentPage, fetchRecords);
 
     <!-- 新建 / 编辑定制生产订单 -->
     <Dialog
-      :dismissible="false"
       ref="orderDialogRef"
+      :dismissible="false"
       width="2xl"
       overflow-y-auto
       confirm-button-color="iris"
@@ -2059,8 +2118,8 @@ watch(currentPage, fetchRecords);
 
     <!-- 转单弹窗 -->
     <Dialog
-      :dismissible="false"
       ref="convertDialogRef"
+      :dismissible="false"
       width="lg"
       confirm-button-color="iris"
       title="从销售订单转生产订单"
@@ -2116,8 +2175,8 @@ watch(currentPage, fetchRecords);
 
     <!-- 查看 BOM 完整用料明细弹窗（业务二次确认前核对） -->
     <Dialog
-      :dismissible="false"
       ref="bomViewDialogRef"
+      :dismissible="false"
       width="xl"
       :title="`工程/PMC BOM 明细${bomDetail?.bomNo ? ` · ${bomDetail.bomNo}` : ''}`"
       :show-confirm-button="false"
@@ -2186,8 +2245,8 @@ watch(currentPage, fetchRecords);
 
     <!-- 标记外购弹窗（工程判定外购成品：选产品+供应商，跳过 BOM 直接进采购） -->
     <Dialog
-      :dismissible="false"
       ref="outsourceDialogRef"
+      :dismissible="false"
       width="3xl"
       confirm-button-color="iris"
       title="标记外购成品"
@@ -2227,8 +2286,8 @@ watch(currentPage, fetchRecords);
 
     <!-- 关联已有 BOM 弹窗（复用现成 BOM 直接挂到本单，保存后进 BOM 复核） -->
     <Dialog
-      :dismissible="false"
       ref="linkBomDialogRef"
+      :dismissible="false"
       width="3xl"
       confirm-button-color="iris"
       title="关联已有 BOM"
@@ -2270,8 +2329,8 @@ watch(currentPage, fetchRecords);
     </Dialog>
 
     <Dialog
-      :dismissible="false"
       ref="rejectDialogRef"
+      :dismissible="false"
       confirm-button-color="ruby"
       title="拒收打回上一阶段"
       description="退回后责任明确回上游，上一阶段重新计时、需重新接单。"
@@ -2292,8 +2351,8 @@ watch(currentPage, fetchRecords);
 
     <!-- 审批驳回：退回业务员，可改后重提 -->
     <Dialog
-      :dismissible="false"
       ref="denyDialogRef"
+      :dismissible="false"
       confirm-button-color="ruby"
       title="驳回生产订单"
       description="驳回后退回创建人，可修改后重新提交，重走审批流程。"
@@ -2314,8 +2373,8 @@ watch(currentPage, fetchRecords);
 
     <!-- 订单明细：建单时填的规格表（只读）+ 导出 -->
     <Dialog
-      :dismissible="false"
       ref="detailDialogRef"
+      :dismissible="false"
       width="3xl"
       overflow-y-auto
       :show-confirm-button="false"
@@ -2324,6 +2383,14 @@ watch(currentPage, fetchRecords);
     >
       <div v-if="viewingOrder" class="flex flex-col gap-4 text-sm">
         <div class="flex justify-end gap-2">
+          <Button
+            label="转发/知会"
+            icon="i-lucide-send"
+            variant="outline"
+            color="iris"
+            size="sm"
+            @click="openForward"
+          />
           <Button
             label="导出 Excel"
             variant="outline"
@@ -2416,6 +2483,75 @@ watch(currentPage, fetchRecords);
             </ul>
           </div>
         </div>
+
+        <!-- 知会记录（留痕）：谁在何时把订单知会给了哪个阶段负责人 + 附言 -->
+        <div
+          v-if="viewingOrder.orderForwards && viewingOrder.orderForwards.length"
+          class="pt-2 border-t border-n-weak"
+        >
+          <div
+            class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+          >
+            知会记录
+          </div>
+          <ul class="flex flex-col gap-2">
+            <li
+              v-for="fwd in viewingOrder.orderForwards"
+              :key="fwd.id"
+              class="px-3 py-2 rounded-lg bg-n-alpha-1"
+            >
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span class="font-medium text-n-slate-12">{{
+                  fwd.senderName || '业务'
+                }}</span>
+                <span class="text-xs text-n-slate-10">知会</span>
+                <span class="text-xs text-n-iris-11">{{ fwd.stageLabel }}</span>
+                <span class="text-xs text-n-slate-11">{{
+                  fwd.recipientNames ? `· ${fwd.recipientNames}` : ''
+                }}</span>
+                <span class="ml-auto text-xs text-n-slate-10">{{
+                  new Date(fwd.createdAt).toLocaleString()
+                }}</span>
+              </div>
+              <p v-if="fwd.note" class="mt-1 text-n-slate-12">{{ fwd.note }}</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 转发/知会：选阶段负责人 + 附言，推站内通知并在订单上留痕 -->
+    <Dialog
+      ref="forwardDialogRef"
+      title="转发 / 知会阶段负责人"
+      confirm-button-label="发送知会"
+      confirm-button-color="iris"
+      :is-loading="forwardBusy"
+      :disable-confirm-button="!forwardBoardKey"
+      @confirm="submitForward"
+    >
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-heading-3 text-n-slate-12">知会给</label>
+          <SelectCard
+            v-model="forwardBoardKey"
+            :options="forwardOptions"
+            placeholder="选择阶段负责人"
+            block
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-heading-3 text-n-slate-12">附言（选填）</label>
+          <textarea
+            v-model="forwardNote"
+            rows="3"
+            class="px-3 py-2 text-sm border rounded-lg outline-none resize-y border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="想让对方注意的事项，如加急、特殊工艺要求等"
+          />
+        </div>
+        <p class="text-xs text-n-slate-10">
+          对方会收到站内通知并可跳到本订单；本次知会会记录在订单「知会记录」里。
+        </p>
       </div>
     </Dialog>
   </div>

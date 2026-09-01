@@ -394,9 +394,12 @@ onMounted(() => {
             </div>
           </div>
 
-          <table class="hidden md:table w-full text-sm">
+          <!-- 列多：设最小宽度，窄屏外层 overflow-auto 自动横向滑动；仅「规格」长文本允许换行，其余列不换行 -->
+          <table class="hidden md:table w-full md:min-w-[1140px] text-sm">
             <thead>
-              <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <tr
+                class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
+              >
                 <th class="px-3 py-3 font-medium">商品编码</th>
                 <th class="px-3 py-3 font-medium">商品名称</th>
                 <th class="px-3 py-3 font-medium">分组</th>
@@ -416,28 +419,32 @@ onMounted(() => {
                 class="border-b border-n-weak"
               >
                 <td class="px-3 py-3 font-mono text-n-slate-11">{{ p.sku }}</td>
-                <td class="px-3 py-3 font-medium text-n-slate-12">
+                <td
+                  class="px-3 py-3 font-medium text-n-slate-12 whitespace-nowrap"
+                >
                   {{ p.name }}
                 </td>
-                <td class="px-3 py-3 text-n-slate-11">
+                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
                   {{ groupLabelByCode[p.groupCode] || '—' }}
                 </td>
-                <td class="px-3 py-3 text-n-slate-11">
+                <td class="px-3 py-3 text-n-slate-11 min-w-[16rem]">
                   {{ p.specification || '—' }}
                 </td>
-                <td class="px-3 py-3 text-n-slate-11">
+                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
                   {{ productLineLabel(p.productLine) || '—' }}
                 </td>
-                <td class="px-3 py-3 text-n-slate-11">
+                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
                   {{ p.sourceCategory || '—' }}
                 </td>
-                <td class="px-3 py-3 text-n-slate-11">
+                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
                   {{ categoryLabel(p.category) }}
                 </td>
-                <td class="px-3 py-3 text-n-slate-11">{{ p.unit || '—' }}</td>
-                <td class="px-3 py-3">
+                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
+                  {{ p.unit || '—' }}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap">
                   <span
-                    class="px-2 py-0.5 text-xs rounded-full"
+                    class="inline-block px-2 py-0.5 text-xs rounded-full whitespace-nowrap"
                     :class="
                       p.isActive
                         ? 'bg-n-teal-3 text-n-teal-12'
@@ -494,8 +501,8 @@ onMounted(() => {
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="lg"
       confirm-button-color="iris"
       :title="editingId ? '编辑产品' : '新增产品'"
@@ -576,8 +583,8 @@ onMounted(() => {
     </Dialog>
 
     <Dialog
-      :dismissible="false"
       ref="confirmRef"
+      :dismissible="false"
       type="alert"
       width="sm"
       confirm-button-color="ruby"

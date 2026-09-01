@@ -296,7 +296,7 @@ const removePick = (kind, i) => pendingFor(kind).value.splice(i, 1);
 const submitting = ref(false);
 const result = ref(null);
 
-// 存草稿的最低要求：商品编码可留空（常见于等工程建商品编码），其余仍需齐全。
+// 建单必填项（存草稿/提交审批同一套）：商品编码全程选填（等工程建码），其余须齐全。
 const missingForDraft = computed(() => {
   const m = [];
   if (needSalesLink.value && !link.salesOrderId) m.push('关联销售订单');
@@ -306,12 +306,8 @@ const missingForDraft = computed(() => {
   if (isStock.value && !stewardId.value) m.push('责任人');
   return m;
 });
-// 提交审批：在草稿要求之上，额外必须有商品编码（下游 BOM/采购/出库要挂产品档案）。
-const missing = computed(() =>
-  base.crmProductId
-    ? missingForDraft.value
-    : [...missingForDraft.value, '商品编码']
-);
+// 商品编码全程选填（业务提交审批也可留空，工程做 BOM 时补录，与订单列表口径一致）。
+const missing = computed(() => missingForDraft.value);
 const canSaveDraft = computed(
   () =>
     missingForDraft.value.length === 0 && !submitting.value && !staging.value
@@ -434,12 +430,15 @@ const backToList = () =>
       <!-- 从历史订单导入（回填产品线/成品/数量/规格） -->
       <div v-if="history.length" class="flex flex-wrap items-center gap-2">
         <span class="text-xs text-n-slate-11">从历史订单导入：</span>
-        <SelectCard
-          v-model="importId"
-          :options="historyOptions"
-          placeholder="选择我的历史订单…"
-          trigger-class="w-full sm:w-60"
-        />
+        <div class="w-full sm:w-60">
+          <ComboBox
+            v-model="importId"
+            :options="historyOptions"
+            placeholder="选择我的历史订单…"
+            search-placeholder="搜索订单号 / 成品…"
+            empty-state="无匹配的历史订单"
+          />
+        </div>
         <button
           type="button"
           class="h-8 px-3 text-xs border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1 disabled:opacity-40"
@@ -634,7 +633,7 @@ const backToList = () =>
           <span class="text-xs text-n-slate-11">
             商品编码
             <span class="text-n-slate-10">
-              （存草稿可留空，提交审批前必填）
+              （选填，可留空，由工程做 BOM 时补录）
             </span>
           </span>
           <ComboBox
@@ -657,7 +656,6 @@ const backToList = () =>
             v-model="base.qty"
             type="number"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="400"
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -781,7 +779,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
           请填写：{{ missingForDraft.join('、') }}
         </span>
         <span v-else-if="!base.crmProductId" class="text-xs text-n-slate-11">
-          商品编码待工程建码，可先「存草稿」；提交审批前需补填
+          商品编码可留空，由工程做 BOM 时补录
         </span>
       </div>
 

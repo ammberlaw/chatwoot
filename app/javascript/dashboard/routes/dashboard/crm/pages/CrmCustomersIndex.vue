@@ -9,6 +9,7 @@ import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
+import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -18,6 +19,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmCustomerImportDialog from 'dashboard/components-next/CRM/CrmCustomerImportDialog.vue';
+import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { COUNTRY_TZ } from 'dashboard/routes/dashboard/crm/helper/scheduleTimezone';
@@ -60,6 +62,11 @@ const customersStore = useCrmCustomersStore();
 const actingId = ref(null);
 
 const createDialogRef = ref(null);
+
+// 从客户列表直接建商机：复用商机新建弹窗，预填该客户，省去先进商机板块再选客户。
+const oppCreateDialogRef = ref(null);
+const opportunitiesStore = useCrmOpportunitiesStore();
+const oppCreating = computed(() => opportunitiesStore.getUIFlags.creatingItem);
 
 // 批量导入：仅管理员/副管理员/主管可见；导入完成后刷新列表。
 const importDialogRef = ref(null);
@@ -1061,6 +1068,24 @@ const toggleRowMenu = (id, event) => {
   const r = event.currentTarget.getBoundingClientRect();
   menuAnchor.value = { top: r.bottom + 4, left: r.right - 148 };
   openMenuId.value = id;
+};
+
+// 建立商机：从行菜单直接开商机新建弹窗，预填该客户（无 id → 创建模式）。
+const createOpportunity = customer => {
+  openMenuId.value = null;
+  oppCreateDialogRef.value?.open({
+    crmCustomerId: customer.id,
+    customerName: customer.name,
+  });
+};
+const saveOpportunity = async payload => {
+  try {
+    await opportunitiesStore.create(payload);
+    oppCreateDialogRef.value?.onSuccess();
+    useAlert('商机已创建');
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '商机创建失败');
+  }
 };
 
 // 写邮件：常驻写信窗，带客户预填（自动带出联系人/收件人）。
@@ -2715,6 +2740,12 @@ watch(
       @refresh="fetchCustomers"
     />
 
+    <CrmOpportunityCreateDialog
+      ref="oppCreateDialogRef"
+      :is-loading="oppCreating"
+      @create="saveOpportunity"
+    />
+
     <CrmCustomerImportDialog
       v-if="canImport"
       ref="importDialogRef"
@@ -2735,6 +2766,12 @@ watch(
             @click="writeEmail(menuCustomer)"
           >
             写邮件
+          </button>
+          <button
+            class="w-full px-3 py-2.5 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            @click="createOpportunity(menuCustomer)"
+          >
+            建立商机
           </button>
           <button
             class="w-full px-3 py-2.5 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"

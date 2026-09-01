@@ -35,6 +35,10 @@ client.acknowledge = id => axios.post(`${client.url}/${id}/acknowledge`);
 client.reject = (id, reason) =>
   axios.post(`${client.url}/${id}/reject`, { reason });
 
+// 业务转发/知会：把订单知会给某阶段负责人（board_key）+ 附言，推站内通知并在订单上留痕。
+client.forward = (id, payload) =>
+  axios.post(`${client.url}/${id}/forward`, payload);
+
 // 我的待办：停在我负责阶段的在产订单。
 client.inbox = () => axios.get(`${client.url}/inbox`);
 

@@ -1,7 +1,7 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_production_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :attach_bom, :confirm_bom, :release_purchasing, :requirement,
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :confirm_bom, :release_purchasing, :requirement,
                        :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced]
   before_action :ensure_editable!, only: [:update, :attach, :detach]
   before_action :ensure_deletable!, only: [:destroy]
@@ -255,6 +255,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   def detach
     @production_order.public_send(attach_collection).find(params[:attachment_id]).purge
     render 'api/v1/accounts/mes/production_orders/show'
+  end
+
+  # 业务转发：把订单知会给某阶段负责人（选板块）+ 附言，推站内通知并在订单上留痕。
+  def forward
+    @production_order.forward_to_board!(
+      sender: current_user, board_key: params[:board_key], note: params[:note]
+    )
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue ArgumentError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def audits

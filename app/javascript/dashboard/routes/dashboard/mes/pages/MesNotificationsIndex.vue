@@ -55,10 +55,21 @@ const KIND_META = {
     dot: 'bg-n-amber-9',
     group: 'rejected',
   },
+  forwarded: { label: '被知会', dot: 'bg-n-iris-9', group: 'progress' },
 };
 const kindMeta = kind =>
   KIND_META[kind] || { label: '通知', dot: 'bg-n-slate-9', group: 'progress' };
 const groupOf = kind => kindMeta(kind).group;
+
+// 待办类通知一旦已读＝对应动作已办结（审批通过/确认BOM/接单等由后端 resolve 置已读）。
+// 「全部」页签会连历史一起列出，此时把「待审批/待接单…」这类待办标签换成「已处理」，
+// 避免已审批的单在历史里仍显示「待审批」让人误以为没处理。
+const chipLabel = n =>
+  n.readAt && groupOf(n.kind) === 'todo' ? '已处理' : kindMeta(n.kind).label;
+const chipClass = n =>
+  n.readAt && groupOf(n.kind) === 'todo'
+    ? 'bg-n-teal-3 text-n-teal-11'
+    : 'bg-n-alpha-2 text-n-slate-11';
 
 const activeGroup = ref('all');
 const allRecords = computed(() => store.getRecords);
@@ -196,9 +207,10 @@ onMounted(load);
           <div class="flex flex-col flex-1 min-w-0 gap-0.5">
             <div class="flex items-center gap-2">
               <span
-                class="px-1.5 py-0.5 text-2xs font-medium rounded bg-n-alpha-2 text-n-slate-11"
+                class="px-1.5 py-0.5 text-2xs font-medium rounded"
+                :class="chipClass(n)"
               >
-                {{ kindMeta(n.kind).label }}
+                {{ chipLabel(n) }}
               </span>
               <span class="text-sm font-medium truncate text-n-slate-12">
                 {{ n.title }}

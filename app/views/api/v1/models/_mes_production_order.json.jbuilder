@@ -93,5 +93,21 @@ if Current.account_user&.mes_staff?
 else
   json.purchase_orders []
 end
+# 业务转发/知会：可转发的阶段板块（含当前负责人姓名）+ 已知会留痕。仅详情(show)输出，
+# 避免列表逐行跑 board_owner 查询（N+1）。
+if local_assigns[:detail]
+  json.forward_targets resource.forward_targets
+  json.order_forwards do
+    json.array! resource.order_forwards do |fwd|
+      json.id fwd.id
+      json.board_key fwd.board_key
+      json.stage_label fwd.stage_label
+      json.recipient_names fwd.recipient_names
+      json.note fwd.note
+      json.sender_name fwd.sender&.name
+      json.created_at fwd.created_at
+    end
+  end
+end
 json.created_at resource.created_at
 json.updated_at resource.updated_at

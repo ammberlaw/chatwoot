@@ -146,6 +146,7 @@ class Mes::ProductionOrder < ApplicationRecord
   belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 业务二次确认 BOM 的人
   belongs_to :outsource_supplier, class_name: 'Mes::Supplier', optional: true # 外购成品供应商（工程指定）
   has_many :stage_events, class_name: 'Mes::ProductionOrderStageEvent', dependent: :destroy, inverse_of: :production_order
+  has_many :order_forwards, -> { order(created_at: :desc) }, class_name: 'Mes::OrderForward', dependent: :destroy, inverse_of: :production_order
   # 一张生产订单可挂多张采购单（如主料/辅料各一张，不同采购员）。
   has_many :purchase_orders, class_name: 'Mes::PurchaseOrder', dependent: :nullify, inverse_of: :production_order
 
@@ -426,6 +427,48 @@ class Mes::ProductionOrder < ApplicationRecord
   def current_stage_owner_names
     ids = current_stage_owner_ids
     ids.blank? ? [] : account.users.where(id: ids).pluck(:name)
+  end
+
+  # ── 业务知会/转发：把订单转发给某阶段负责人（选板块）+ 附言，推站内通知并在订单上留痕 ──
+  # 转发可选的目标板块（去重后的阶段板块）+ 中文名，供前端下拉选人。
+  FORWARD_BOARD_LABELS = {
+    'mes_boms_index' => '工程/PMC（BOM）',
+    'mes_purchase_orders_index' => '采购',
+    'mes_stock_entries_index' => '原料入库（仓库）',
+    'mes_material_issues_index' => '生产领料（仓库）',
+    'mes_production_records_index' => '生产/车间',
+    'mes_fg_inbound_index' => '成品入库（仓库）'
+  }.freeze
+
+  # 各可转发板块当前负责人姓名（无负责人的板块也返回，前端置灰/提示未配置）。
+  def forward_targets
+    FORWARD_BOARD_LABELS.map do |board_key, label|
+      ids = board_owner_ids(board_key)
+      { board_key: board_key, label: label,
+        recipient_names: ids.blank? ? [] : account.users.where(id: ids).pluck(:name) }
+    end
+  end
+
+  # 转发给某板块负责人：落一条通知（每人一条）+ 一条订单留痕。返回留痕记录。
+  def forward_to_board!(sender:, board_key:, note:)
+    label = FORWARD_BOARD_LABELS[board_key]
+    raise ArgumentError, '无效的转发目标' if label.blank?
+
+    recipient_ids = board_owner_ids(board_key)
+    raise ArgumentError, "「#{label}」还没有配置负责人" if recipient_ids.blank?
+
+    names = account.users.where(id: recipient_ids).pluck(:name)
+    text = note.to_s.strip
+    Mes::Notifier.notify(
+      account: account, recipients: recipient_ids, kind: 'forwarded',
+      title: "订单知会：#{order_no}（#{label}）",
+      body: "#{sender&.name || '业务'} 把生产订单 #{order_no}（#{product_name}）知会给你#{text.present? ? "：#{text}" : '。'}",
+      order: self
+    )
+    order_forwards.create!(
+      account: account, sender: sender, board_key: board_key,
+      stage_label: label, recipient_names: names.join('、'), note: text.presence
+    )
   end
 
   # BOM 变更（工程改动已下发 BOM 的用料）后，通知本单「已参与过的所有下游部门」+ 业务员。
