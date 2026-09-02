@@ -88,7 +88,9 @@ module Crm::EmailIngestion
     contact = @account.account.contacts.find_by(email: from.downcase)
     {
       account_id: @account.account_id,
-      owner_id: @account.owner_id,
+      # 归属按「这封实际发给谁」定：To/Cc 命中某个收件邮箱 → 归该邮箱主人；匹配不到才回落抓取账户 owner。
+      # 避免老板「全收箱」把全公司邮件挂到自己名下、真正收件人因判重看不到自己的信。
+      owner_id: recipient_owner_id(mail) || @account.owner_id,
       message_id: message_id,
       folder: 'INBOX',
       is_read: false,
@@ -103,6 +105,27 @@ module Crm::EmailIngestion
       contact_id: contact&.id,
       crm_customer_id: contact&.crm_customer_id
     }
+  end
+
+  # 收件人邮箱主人：按 To（优先）、Cc 顺序，命中某个启用收件邮箱的地址即归其 owner。匹配不到返回 nil。
+  def recipient_owner_id(mail)
+    map = mailbox_owner_map
+    return nil if map.empty?
+
+    [*Array(mail.to), *Array(mail.cc)].each do |addr|
+      a = addr.to_s.downcase
+      hit = map.find { |email, _owner| a.include?(email) }
+      return hit.last if hit
+    end
+    nil
+  end
+
+  # {收件邮箱地址(小写) => owner_id}，本次抓取运行内缓存（同一 service 实例处理多封信）。
+  def mailbox_owner_map
+    @mailbox_owner_map ||= @account.account.crm_mail_accounts
+                                   .where(is_active: true).where.not(owner_id: nil)
+                                   .pluck(:email_address, :owner_id)
+                                   .filter_map { |e, o| [e.to_s.downcase, o] if e.present? }
   end
 
   def html_body(mail)
