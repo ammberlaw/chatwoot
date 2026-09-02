@@ -367,20 +367,36 @@ const submitStock = async () => {
 
 // ── 动作 ──
 const notify = async s => {
-  const ok = await store.notify(s.id);
-  if (ok) useAlert('已通知出库');
+  try {
+    await store.notify(s.id);
+    useAlert('已通知出库，已提醒对应业务员');
+  } catch (e) {
+    useAlert(e.message || '通知失败');
+  }
 };
 const ship = async s => {
-  const ok = await store.ship(s.id);
-  if (ok) useAlert(`${ok.shipmentNo} 已出库，销售订单已回写「已出货」`);
+  try {
+    const ok = await store.ship(s.id);
+    useAlert(`${ok.shipmentNo} 已出库，销售订单已回写「已出货」`);
+  } catch (e) {
+    useAlert(e.message || '出库失败');
+  }
 };
 const approve = async s => {
-  const ok = await store.approve(s.id);
-  if (ok) useAlert(`${ok.shipmentNo} 已审核通过，已推仓库`);
+  try {
+    const ok = await store.approve(s.id);
+    useAlert(`${ok.shipmentNo} 已审核通过，已推仓库`);
+  } catch (e) {
+    useAlert(e.message || '审核失败');
+  }
 };
 const resubmit = async s => {
-  const ok = await store.submitApproval(s.id);
-  if (ok) useAlert(`${ok.shipmentNo} 已重新提交审核`);
+  try {
+    const ok = await store.submitApproval(s.id);
+    useAlert(`${ok.shipmentNo} 已重新提交审核`);
+  } catch (e) {
+    useAlert(e.message || '提交失败');
+  }
 };
 
 // 驳回

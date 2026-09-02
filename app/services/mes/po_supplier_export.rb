@@ -29,6 +29,25 @@ class Mes::PoSupplierExport
     }
   end
 
+  # 按供应商导出 PDF：每家填公司原始 .xlsx 模板（含公章）→ Gotenberg 转 1:1 PDF。
+  # 单个供应商直接返回 PDF；多个供应商打包成 zip（每家一份 PDF）。
+  # 返回 { filename:, content_type:, io: }（供 controller send_data）。
+  def to_pdf_download
+    docs = grouped.values.map do |items|
+      supplier = items.first.mes_supplier
+      name = supplier&.name.presence || '未指定供应商'
+      xlsx = Mes::PoTemplateFiller.new(supplier: supplier, items: items, purchase_order: @po).to_stream.read
+      [name, Mes::GotenbergClient.xlsx_to_pdf(xlsx, filename: "#{sanitize(name)}.xlsx")]
+    end
+
+    if docs.size == 1
+      name, pdf = docs.first
+      { filename: "采购单-#{@po.po_no}-#{sanitize(name)}.pdf", content_type: 'application/pdf', io: StringIO.new(pdf) }
+    else
+      { filename: "采购单-#{@po.po_no}-按供应商PDF.zip", content_type: 'application/zip', io: zip_pdfs(docs) }
+    end
+  end
+
   # 返回打包好的 zip（每供应商一个 .xlsx，填公司原始模板）IO 流。
   def to_zip_stream
     buffer = Zip::OutputStream.write_buffer do |zip|
@@ -48,6 +67,21 @@ class Mes::PoSupplierExport
   end
 
   private
+
+  # 把每家 PDF 打包成 zip（同名供应商加序号后缀避免文件名冲突）。
+  def zip_pdfs(docs)
+    buffer = Zip::OutputStream.write_buffer do |zip|
+      used = Hash.new(0)
+      docs.each do |name, pdf|
+        used[name] += 1
+        suffix = used[name] > 1 ? "-#{used[name]}" : ''
+        zip.put_next_entry("#{sanitize(name)}#{suffix}.pdf")
+        zip.write(pdf)
+      end
+    end
+    buffer.rewind
+    buffer
+  end
 
   # 按供应商分组（保序）；无供应商的料归到 nil 组由抬头回落 wintouch。
   def grouped

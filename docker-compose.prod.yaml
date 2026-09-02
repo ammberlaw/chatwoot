@@ -54,6 +54,15 @@ services:
     volumes:
       - redis_data:/data
 
+  # 文档转 PDF sidecar（LibreOffice）：按供应商导出采购单 PDF 用（Mes::GotenbergClient）。
+  # 仅内网可达（不暴露端口），rails/sidekiq 通过服务名 http://gotenberg:3000 调用。
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: always
+    command:
+      - gotenberg
+      - --api-timeout=60s
+
 volumes:
   storage_data:
   postgres_data:

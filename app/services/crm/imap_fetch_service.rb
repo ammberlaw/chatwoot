@@ -31,8 +31,7 @@ class Crm::ImapFetchService
       uids.each do |uid|
         created += 1 if ingest_uid(imap, uid)
       rescue Net::IMAP::Error, IOError, Errno::ECONNRESET, Errno::ETIMEDOUT => e
-        Rails.logger.warn("[Crm::ImapFetch] account=#{@account.id} skip uid=#{uid}: #{e.class}: #{e.message}")
-        imap = reopen(imap)
+        imap = handle_fetch_error(imap, uid, e)
       end
       @account.update_column(:imap_synced_at, Time.current) # rubocop:disable Rails/SkipsModelValidations
     end
@@ -63,13 +62,35 @@ class Crm::ImapFetchService
   # IMAP 账户每轮重下已收邮件的浪费。无 Message-ID 时兜底走整封（ingest_raw 内部再判重）。
   # 网易对坏邮件可能返回空 RFC822（非崩溃），空内容直接跳过不入库。
   def ingest_uid(imap, uid)
-    mid = message_id_of(imap, uid)
+    mid = safe_message_id(imap, uid)
     return false if mid && duplicate?(mid)
 
+    # 整封取信仍失败才抛→外层 reopen（网易坏邮件会污染连接，须换连接续收后面的）。
     raw = imap.uid_fetch(uid, 'RFC822')&.first&.attr&.dig('RFC822')
     return false if raw.blank?
 
     ingest_raw(raw, fallback_uid: uid)
+  end
+
+  # 判重用的 Message-ID 头取信容错：网易对「部分头取信」偶发 FETCH 报错，
+  # 别因此丢整封——取头失败就当拿不到 Message-ID（返回 nil），回落走整封 RFC822 取信，
+  # 由 ingest_raw 内部再按 Message-ID 判重。整封若也取不到才真跳过。
+  def safe_message_id(imap, uid)
+    message_id_of(imap, uid)
+  rescue Net::IMAP::Error, IOError, Errno::ECONNRESET, Errno::ETIMEDOUT => e
+    Rails.logger.debug { "[Crm::ImapFetch] account=#{@account.id} uid=#{uid} header-peek failed, fallback to full fetch: #{e.message}" }
+    nil
+  end
+
+  # 取信失败分流：「no valid message」= 该 UID 邮件已从服务器删除(网易搜索索引残留)，
+  # 连接未损坏——静默跳过、不重连(省掉无谓重连开销与刷屏)。其它错误可能污染连接，须重开。
+  def handle_fetch_error(imap, uid, err)
+    if err.is_a?(Net::IMAP::NoResponseError) && err.message.to_s.include?('no valid message')
+      Rails.logger.debug { "[Crm::ImapFetch] account=#{@account.id} skip uid=#{uid}: removed on server" }
+      return imap
+    end
+    Rails.logger.warn("[Crm::ImapFetch] account=#{@account.id} skip uid=#{uid}: #{err.class}: #{err.message}")
+    reopen(imap)
   end
 
   # 只取 Message-ID 头（不拉正文），清洗后与入库去重键（Crm::EmailIngestion#ingest_raw）口径一致。

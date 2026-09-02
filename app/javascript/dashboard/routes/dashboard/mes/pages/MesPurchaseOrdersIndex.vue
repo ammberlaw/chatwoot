@@ -129,8 +129,8 @@ const canSubmit = po =>
   ['DRAFT', 'REJECTED'].includes(po.approvalStatus) &&
   po.ownerId === currentUserId.value;
 
-// 按供应商拆单导出：后端用公司原始 .xlsx 模板 1:1 填充（抬头/税口径按各自 bill_entity），
-// 每供应商一个 .xlsx，打包成 zip 直接下载、转发给对应供应商。
+// 按供应商拆单导出 PDF：后端用公司原始 .xlsx 模板 1:1 填充（含公章，抬头/税口径按各自 bill_entity）
+// → Gotenberg 转 PDF。单个供应商直接下 PDF；多个供应商打包 zip（每家一份 PDF）。
 const exporting = ref(false);
 
 const exportBySupplier = async po => {
@@ -141,10 +141,12 @@ const exportBySupplier = async po => {
       `/api/v1/accounts/${accountId.value}/mes/purchase_orders/${po.id}/export`,
       { responseType: 'blob' }
     );
+    // 单家=application/pdf，多家=application/zip，按返回类型定扩展名。
+    const ext = data.type === 'application/pdf' ? 'pdf' : 'zip';
     const url = URL.createObjectURL(data);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `采购单-${po.poNo}-按供应商.zip`;
+    a.download = `采购单-${po.poNo}-按供应商.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
   } catch {
@@ -698,7 +700,7 @@ onMounted(async () => {
                   />
                   <Button
                     v-if="canViewAmount"
-                    :label="exporting ? '导出中…' : '按供应商导出'"
+                    :label="exporting ? '导出中…' : '按供应商导出 PDF'"
                     variant="ghost"
                     size="sm"
                     :disabled="exporting"
@@ -725,7 +727,7 @@ onMounted(async () => {
     <Dialog
       ref="dialogRef"
       :dismissible="false"
-      width="3xl"
+      width="5xl"
       overflow-y-auto
       confirm-button-color="iris"
       :title="editingId ? '编辑采购单' : '新建采购单'"

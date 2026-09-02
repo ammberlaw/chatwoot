@@ -71,13 +71,13 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     render json: { payload: production_order.material_requirements(category: params[:category].presence) }
   end
 
-  # 按供应商拆单导出：一张采购单里各供应商的料各成一份，打包 zip 下载、直接转发给对应供应商。
-  # 抬头/税口径按每个供应商档案的 bill_entity 自动选（同单可含税、未税混排）。
+  # 按供应商拆单导出 PDF：各供应商的料各成一份、填公司原始模板（含公章）→ Gotenberg 转 1:1 PDF。
+  # 单个供应商直接下 PDF；多个供应商打包 zip（每家一份 PDF）。抬头/税口径按各供应商 bill_entity 自动选。
   def export
-    zip = Mes::PoSupplierExport.new(@purchase_order).to_zip_stream
-    send_data zip.read,
-              filename: "采购单-#{@purchase_order.po_no}-按供应商.zip",
-              type: 'application/zip'
+    doc = Mes::PoSupplierExport.new(@purchase_order).to_pdf_download
+    send_data doc[:io].read, filename: doc[:filename], type: doc[:content_type]
+  rescue Mes::GotenbergClient::ConversionError => e
+    render json: { error: e.message }, status: :service_unavailable
   end
 
   # 按供应商分组的结构化数据，供前端渲染各供应商的 PO 版式并导出 PDF（每供应商一份、打包 zip）。

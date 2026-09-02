@@ -102,6 +102,10 @@ const fmt = ts =>
 
 const load = () => store.get();
 
+// 落到「待我审批」inbox 的通知（审批/待确认BOM）——该 inbox 跨产品线取「待我处理」的单，
+// 不受全局产品线选择器过滤；其余订单通知走普通列表按单号定位。
+const APPROVAL_INBOX_KINDS = ['approval_pending', 'bom_reconfirm'];
+
 const openNotification = async n => {
   // 待办类不因「点开查看」置已读——只有真正办结（审批/确认等动作）才由后端销掉，避免误清。
   // 进展/退回类是知会信息，点开即已读。
@@ -111,8 +115,13 @@ const openNotification = async n => {
       accountScopedRoute('mes_shipments_index', {}, { kind: 'STOCK' })
     );
   } else if (n.orderNo) {
+    // 待审批/待确认BOM：进「待我审批」inbox（含该单，跨产品线）并按单号自动打开审批详情；
+    // 否则进普通列表按单号搜索定位。
+    const query = APPROVAL_INBOX_KINDS.includes(n.kind)
+      ? { view: 'approval', q: n.orderNo }
+      : { q: n.orderNo };
     router.push(
-      accountScopedRoute('mes_production_orders_index', {}, { q: n.orderNo })
+      accountScopedRoute('mes_production_orders_index', {}, query)
     );
   }
 };

@@ -125,6 +125,8 @@ class Mes::StockEntry < ApplicationRecord
     raise StandardError, '单据已过账或已作废' unless status == 'DRAFT'
     raise StandardError, '成品入库需车间负责人与仓管共同确认后方可过账' if dual_confirm_required? && !dual_confirmed?
 
+    ensure_no_fg_over_inbound!
+
     transaction do
       ts = Time.current
       stock_entry_items.each { |item| post_item(item, ts) }
@@ -151,6 +153,30 @@ class Mes::StockEntry < ApplicationRecord
   end
 
   private
+
+  # 成品入库防重复/防超量：同一生产订单已过账入库累计 + 本单成品量不得超过订单数量。
+  # 收齐后再开 → 「已收齐不能重复入库」；未收齐但本次超出剩余 → 「不能超量入库」。
+  # 仅约束成品入库(MANUFACTURE)且挂了生产订单的单据；其余库存单不受影响。
+  def ensure_no_fg_over_inbound!
+    return unless purpose == 'MANUFACTURE'
+
+    po = production_order
+    return if po.nil? || po.qty.to_d <= 0
+
+    already = po.fg_inbound_qty # 已过账累计（不含本张草稿）
+    remaining = po.qty.to_d - already
+    incoming = stock_entry_items.select { |i| i.item_type == 'PRODUCT' }.sum { |i| i.qty.to_d }
+
+    if remaining <= 0
+      raise StandardError, "该订单成品已入库收齐（#{fnum(already)}/#{fnum(po.qty)}），不能重复入库"
+    elsif incoming > remaining
+      raise StandardError, "入库数量超出订单剩余（订单 #{fnum(po.qty)}，已入 #{fnum(already)}，剩 #{fnum(remaining)}，本次 #{fnum(incoming)}），不能超量入库"
+    end
+  end
+
+  def fnum(value)
+    format('%g', value.to_f)
+  end
 
   def product_line_source = production_order || purchase_order
 

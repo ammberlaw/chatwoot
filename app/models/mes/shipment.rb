@@ -131,9 +131,16 @@ class Mes::Shipment < ApplicationRecord
     self
   end
 
-  # 通知出库（XMind 节点8）：仅打时间戳，供仓管/业务员据此备货。
+  # 通知出库（XMind 节点8）：打时间戳 + 站内通知对应业务员（订单归属人）货已安排出库。
   def notify!
     update!(notified_at: Time.current)
+    recipient = production_order&.owner_id || crm_sales_order&.owner_id || owner_id
+    Mes::Notifier.notify(
+      account: account, recipients: recipient, kind: 'shipment_notified',
+      title: "出库通知：#{shipment_no}",
+      body: "#{customer_label}订单已安排出库，请留意后续物流跟进。", order: production_order
+    )
+    self
   end
 
   # 出库：开成品出库 StockEntry 扣成品库存（并把生产订单推进 SHIPPED），
