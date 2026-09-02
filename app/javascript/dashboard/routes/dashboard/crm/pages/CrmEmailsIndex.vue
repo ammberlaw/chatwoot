@@ -2594,25 +2594,8 @@ watch(
             </div>
           </div>
 
-          <!-- 正文 -->
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div
-            v-if="safeBodyHtml"
-            class="mt-5 text-sm leading-relaxed prose-email text-n-slate-12"
-            v-html="safeBodyHtml"
-          />
-          <div
-            v-else
-            class="mt-5 text-sm leading-relaxed whitespace-pre-wrap text-n-slate-12"
-          >
-            {{
-              stripTextColorMarkers(selectedEmail.body) ||
-              t('CRM.EMAILS.READING.NO_BODY')
-            }}
-          </div>
-
-          <!-- 附件 -->
-          <div v-if="selectedEmail.files?.length" class="mt-6">
+          <!-- 附件（置于正文上方，收发邮件都无需拉到底即可看到并预览/下载） -->
+          <div v-if="selectedEmail.files?.length" class="mt-5">
             <p class="mb-2 text-xs font-medium text-n-slate-10">
               {{
                 t('CRM.EMAILS.READING.ATTACHMENTS', {
@@ -2675,6 +2658,23 @@ watch(
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- 正文（置于附件下方） -->
+          <!-- eslint-disable-next-line vue/no-v-html -->
+          <div
+            v-if="safeBodyHtml"
+            class="mt-5 text-sm leading-relaxed prose-email text-n-slate-12"
+            v-html="safeBodyHtml"
+          />
+          <div
+            v-else
+            class="mt-5 text-sm leading-relaxed whitespace-pre-wrap text-n-slate-12"
+          >
+            {{
+              stripTextColorMarkers(selectedEmail.body) ||
+              t('CRM.EMAILS.READING.NO_BODY')
+            }}
           </div>
         </div>
       </template>

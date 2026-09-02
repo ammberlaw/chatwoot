@@ -136,10 +136,11 @@ const pageList = computed(() => {
 const { ensureLoaded, groupOptions, sourceOptions, groupLabel, sourceLabel } =
   useCrmOptions();
 
-// 客户分组下拉（空值 = 全部）
+// 客户分组下拉（空值 = 全部；__none__ = 未分组，即分组字段为空的客户，放最末）
 const customerGroupOptions = computed(() => [
   { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_CUSTOMER_GROUP') },
   ...groupOptions.value,
+  { value: '__none__', label: '未分组' },
 ]);
 const productGroupOptions = [
   { value: '', label: t('CRM.CUSTOMERS.FILTERS.ALL_PRODUCT_GROUP') },

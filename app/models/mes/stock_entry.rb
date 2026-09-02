@@ -131,6 +131,7 @@ class Mes::StockEntry < ApplicationRecord
       update_columns(status: 'POSTED', posted_at: ts, updated_at: ts)
       sync_purchase_receipt! if purpose == 'MATERIAL_RECEIPT' && purchase_order_id.present?
       advance_production_order_on_receipt(ts)
+      complete_production_order_if_fg_full(ts)
     end
     self
   end
@@ -204,6 +205,11 @@ class Mes::StockEntry < ApplicationRecord
                            .where.not(id: id).exists?
     return if others_posted
 
+    # 完工入库作废回退：把「生产完成」退回「进行中」，与 fg_inbound 收齐标记对称。
+    if purpose == 'MANUFACTURE' && production_order.status == 'COMPLETED'
+      production_order.update_columns(status: 'IN_PROGRESS',
+                                      updated_at: timestamp)
+    end
     production_order.enter_stage!(from_stage, at: timestamp)
   end
 
@@ -242,6 +248,18 @@ class Mes::StockEntry < ApplicationRecord
     production_order.enter_stage!(to_stage, at: timestamp)
   end
 
+  # 完工入库收齐 → 标记「生产完成·待出库」，成品入库阶段即显示完成（不必等出库）。
+  # 独立于阶段推进：分批入库时订单已在成品入库阶段，仍要在最后一批收齐时标记完成。
+  def complete_production_order_if_fg_full(timestamp)
+    return unless purpose == 'MANUFACTURE'
+
+    po = production_order
+    return if po.nil? || po.status != 'IN_PROGRESS'
+    return unless po.stage == 'FG_INBOUND' && po.fg_inbound_complete?
+
+    po.update_columns(status: 'COMPLETED', updated_at: timestamp)
+  end
+
   # 原料入库过账：按物料把本次收货量累加回采购单明细 received_qty、回填实际到料日期，并重算收货状态。
   # 修复历史遗留（received_qty 从不回写，导致「按采购单收货」剩余量预填失效）+ 支撑齐套判定。
   # 实际到料 = 本次入库日期（首次到料自动填，分批到料覆盖为最近一次；采购员仍可在采购单上手动改）。
@@ -263,12 +281,12 @@ class Mes::StockEntry < ApplicationRecord
         arrival_date: arrival
       )
       # 到货冲减采购单在途（已订购未到货）量——收多少冲多少（仅审批通过、累加过在途的单）。
-      if po.approved?
-        po.reduce_on_order_for(
-          item_type: item.item_type, mes_material_id: item.mes_material_id,
-          crm_product_id: item.crm_product_id, qty: item.effective_qty
-        )
-      end
+      next unless po.approved?
+
+      po.reduce_on_order_for(
+        item_type: item.item_type, mes_material_id: item.mes_material_id,
+        crm_product_id: item.crm_product_id, qty: item.effective_qty
+      )
     end
     po.reload.recompute_receipt_status!
   end

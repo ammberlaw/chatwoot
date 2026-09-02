@@ -12,9 +12,10 @@ json.supplier_name resource.mes_supplier&.name
 json.arrival_date resource.arrival_date
 json.qty resource.qty
 json.unit resource.unit
-json.rate_micros resource.rate_micros
+can_view_amount = local_assigns.fetch(:can_view_amount, true)
+json.rate_micros can_view_amount ? resource.rate_micros : nil
 json.price_tax_included resource.price_tax_included
 json.supplier_tax_rate resource.supplier_tax_rate
-json.amount_micros resource.amount_micros
+json.amount_micros can_view_amount ? resource.amount_micros : nil
 json.received_qty resource.received_qty
 json.remark resource.remark

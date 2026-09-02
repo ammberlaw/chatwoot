@@ -70,6 +70,11 @@ const canShipRow = s =>
   canShip.value &&
   ((s.kind === 'STOCK' && s.status === 'APPROVED') ||
     (s.kind === 'PRODUCTION' && s.status === 'DRAFT'));
+// 编辑：仅生产出库草稿；开单人 / 管理层 / 有出库能力者可改。
+const canEditRow = s =>
+  s.kind === 'PRODUCTION' &&
+  s.status === 'DRAFT' &&
+  (isAdminLike.value || s.ownerId === currentUserId.value || canShip.value);
 
 // 只读查看
 const viewDialogRef = ref(null);
@@ -195,8 +200,10 @@ const stockFor = (productId, warehouseId) => {
   );
 };
 
-// ── 生产出库（原样，仓库从生产订单开单）──
+// ── 生产出库（仓库从生产订单开单；草稿可编辑）──
 const dialogRef = ref(null);
+const editingId = ref(null); // 非空=编辑现有草稿出库单
+const editingItemId = ref(null); // 编辑时保留原明细行 id，避免重复建行
 const form = reactive({
   productionOrderId: '',
   crmSalesOrderId: '',
@@ -207,7 +214,9 @@ const form = reactive({
   qty: '',
   unit: '',
 });
-const invalid = computed(() => !form.crmProductId || !Number(form.qty));
+// 商品编码可空（建单时选填）：只要选了生产订单 + 有数量即可提交，
+// 缺编码时后端按成品名兜底建/关联商品编码再扣库存。
+const invalid = computed(() => !form.productionOrderId || !Number(form.qty));
 
 const onPickOrder = v => {
   form.productionOrderId = v;
@@ -236,6 +245,8 @@ const finishedWarehouseId = () =>
 
 const openCreate = () => {
   const fin = finishedWarehouseId();
+  editingId.value = null;
+  editingItemId.value = null;
   Object.assign(form, {
     productionOrderId: '',
     crmSalesOrderId: '',
@@ -249,9 +260,27 @@ const openCreate = () => {
   dialogRef.value?.open();
 };
 
+// 编辑草稿出库单：回填生产订单/仓库/成品/数量，提交走 update。
+const openEdit = s => {
+  editingId.value = s.id;
+  const item = (s.shipmentItems || [])[0] || {};
+  editingItemId.value = item.id || null;
+  Object.assign(form, {
+    productionOrderId: s.productionOrderId ? String(s.productionOrderId) : '',
+    crmSalesOrderId: s.crmSalesOrderId ? String(s.crmSalesOrderId) : '',
+    crmCustomerId: s.crmCustomerId ? String(s.crmCustomerId) : '',
+    warehouseId: s.warehouseId ? String(s.warehouseId) : '',
+    crmProductId: item.crmProductId ? String(item.crmProductId) : '',
+    productName: item.productName || '',
+    qty: item.qty != null ? String(item.qty) : '',
+    unit: item.unit || '',
+  });
+  dialogRef.value?.open();
+};
+
 const submit = async () => {
   if (invalid.value) return;
-  const ok = await store.create({
+  const payload = {
     kind: 'PRODUCTION',
     productionOrderId: form.productionOrderId || null,
     crmSalesOrderId: form.crmSalesOrderId || null,
@@ -259,14 +288,18 @@ const submit = async () => {
     warehouseId: form.warehouseId ? Number(form.warehouseId) : null,
     shipmentItemsAttributes: [
       {
-        crmProductId: Number(form.crmProductId),
+        id: editingItemId.value || undefined,
+        crmProductId: form.crmProductId ? Number(form.crmProductId) : null,
         qty: Number(form.qty),
         unit: form.unit,
       },
     ],
-  });
+  };
+  const ok = editingId.value
+    ? await store.update({ id: editingId.value, ...payload })
+    : await store.create(payload);
   if (ok) {
-    useAlert(`已建出库单 ${ok.shipmentNo}`);
+    useAlert(editingId.value ? '出库单已更新' : `已建出库单 ${ok.shipmentNo}`);
     dialogRef.value?.close();
   }
 };
@@ -459,6 +492,13 @@ onMounted(() => {
                 size="sm"
                 @click.stop="openView(s)"
               />
+              <Button
+                v-if="canEditRow(s)"
+                label="编辑"
+                variant="ghost"
+                size="sm"
+                @click.stop="openEdit(s)"
+              />
               <template v-if="canApproveRow(s)">
                 <Button
                   label="审核通过"
@@ -559,6 +599,13 @@ onMounted(() => {
                     size="sm"
                     @click="openView(s)"
                   />
+                  <Button
+                    v-if="canEditRow(s)"
+                    label="编辑"
+                    variant="ghost"
+                    size="sm"
+                    @click="openEdit(s)"
+                  />
                   <template v-if="canApproveRow(s)">
                     <Button
                       label="审核通过"
@@ -618,11 +665,11 @@ onMounted(() => {
 
     <!-- 生产出库（仓库从生产订单开单，原样）-->
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="lg"
       confirm-button-color="iris"
-      title="新建生产出库单"
+      :title="editingId ? '编辑生产出库单' : '新建生产出库单'"
       description="选生产订单带出客户与成品，生成出库清单；出库后自动扣成品库存并回写销售订单「已出货」。"
       :is-loading="saving"
       :disable-confirm-button="invalid"
@@ -661,8 +708,8 @@ onMounted(() => {
 
     <!-- 现货出库（业务员开单 → 主管审核 → 仓库出库）-->
     <Dialog
-      :dismissible="false"
       ref="stockDialogRef"
+      :dismissible="false"
       width="3xl"
       overflow-y-auto
       confirm-button-color="teal"
@@ -770,8 +817,8 @@ onMounted(() => {
 
     <!-- 驳回原因 -->
     <Dialog
-      :dismissible="false"
       ref="rejectDialogRef"
+      :dismissible="false"
       width="md"
       confirm-button-color="ruby"
       title="驳回现货出库单"

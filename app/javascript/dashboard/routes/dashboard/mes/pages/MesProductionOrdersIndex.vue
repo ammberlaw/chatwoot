@@ -334,12 +334,15 @@ const stageDurationLabel = stageValue => {
   const end = isCurrent ? Date.now() : new Date(evs[idx + 1].enteredAt);
   const days = Math.max(0, Math.round((end - start) / DAY));
   if (!isCurrent) return `耗时 ${days} 天`;
-  return selected.value?.stage === 'SHIPPED' ? '' : `进行中 · 已 ${days} 天`;
+  if (selected.value?.stage === 'SHIPPED') return '';
+  // 完工入库收齐后订单转「生产完成」：当前(成品入库)阶段显示已完成·待出库，不再「进行中」。
+  if (selected.value?.status === 'COMPLETED') return '已完成 · 待出库';
+  return `进行中 · 已 ${days} 天`;
 };
 
 // 当前阶段滞留天数（未出货才算）。
 const stallDays = po => {
-  if (!po || po.stage === 'SHIPPED') return 0;
+  if (!po || po.stage === 'SHIPPED' || po.status === 'COMPLETED') return 0;
   const ev = (po.stageEvents || []).find(e => e.stage === po.stage);
   if (!ev?.enteredAt) return 0;
   return Math.round((Date.now() - new Date(ev.enteredAt)) / DAY);
@@ -2439,6 +2442,56 @@ watch(currentPage, fetchRecords);
               :spec="viewSpec"
               readonly
             />
+          </div>
+
+          <!-- 材料明细（该单 BOM 用料，对标金蝶「材料明细」）-->
+          <div
+            v-if="viewingOrder.bomItems && viewingOrder.bomItems.length"
+            class="pt-2 border-t border-n-weak"
+          >
+            <div
+              class="mb-2 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              材料明细（{{ viewingOrder.bomItems.length }} 项）
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm md:min-w-[560px]">
+                <thead>
+                  <tr class="text-left text-n-slate-10 whitespace-nowrap">
+                    <th class="py-1.5 pr-3 font-medium">物料编码</th>
+                    <th class="py-1.5 pr-3 font-medium">物料名称</th>
+                    <th class="py-1.5 pr-3 font-medium">规格型号</th>
+                    <th class="py-1.5 pr-3 font-medium">单位</th>
+                    <th class="py-1.5 pr-3 font-medium text-right">用量</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(bi, idx) in viewingOrder.bomItems"
+                    :key="idx"
+                    class="border-t border-n-weak/60"
+                  >
+                    <td class="py-1.5 pr-3 whitespace-nowrap text-n-slate-11">
+                      {{ bi.materialNo || '—' }}
+                    </td>
+                    <td class="py-1.5 pr-3 text-n-slate-12">
+                      {{ bi.materialName }}
+                    </td>
+                    <td class="py-1.5 pr-3 text-n-slate-11">
+                      {{ bi.specification || '—' }}
+                    </td>
+                    <td class="py-1.5 pr-3 whitespace-nowrap text-n-slate-11">
+                      {{ bi.unit || '—' }}
+                    </td>
+                    <td
+                      class="py-1.5 pr-3 text-right whitespace-nowrap text-n-slate-12"
+                    >
+                      {{ bi.qty }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div

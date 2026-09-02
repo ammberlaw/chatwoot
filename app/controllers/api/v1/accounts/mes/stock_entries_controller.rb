@@ -29,6 +29,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
 
     # 收货单据号改到收货明细每项备注上填写，不再强制上传收货单文件。
     @stock_entry.fallback_product_line = current_product_line
+    resolve_manufacture_product_ids(@stock_entry)
     @stock_entry.save!
     render 'api/v1/accounts/mes/stock_entries/show'
   end
@@ -100,6 +101,22 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
 
   def check_authorization
     authorize(Mes::StockEntry)
+  end
+
+  # 完工入库(MANUFACTURE)若成品明细缺商品编码（建单时成品名选填导致），按订单成品名兜底建/关联，
+  # 保证成品库存按 SKU 记、不同型号不串到同一个 NULL 桶。
+  def resolve_manufacture_product_ids(entry)
+    return unless entry.purpose == 'MANUFACTURE'
+
+    order = entry.production_order
+    return if order.nil?
+
+    # 完工入库明细均为成品，缺编码的按订单成品名兜底建/关联。
+    items = entry.stock_entry_items.select { |i| i.crm_product_id.blank? }
+    return if items.empty?
+
+    pid = order.ensure_crm_product!
+    items.each { |i| i.crm_product_id = pid } if pid.present?
   end
 
   def stock_entry_params

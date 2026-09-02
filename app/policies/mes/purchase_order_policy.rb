@@ -4,9 +4,9 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
   def index? = @account_user.mes_staff?
   def show? = @account_user.mes_staff?
   def requirement? = @account_user.mes_staff?
-  # 按供应商拆单导出（发供应商用），与查看同权。
-  def export? = @account_user.mes_staff?
-  def export_data? = @account_user.mes_staff?
+  # 按供应商拆单导出（发供应商用，含采购价）：金额敏感，仅采购岗/财务/管理员可导。
+  def export? = can_view_amount?
+  def export_data? = can_view_amount?
 
   def create? = @account_user.mes_can?(:purchase)
   def update? = @account_user.mes_can?(:purchase)
@@ -21,6 +21,11 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
   def reactivate? = @account_user.mes_can?(:purchase)
 
   def destroy? = @account_user.administrator?
+
+  # 采购金额（含税单价/总额/导出）可见：采购岗 / 财务 / 管理员。仓管等其它岗位不可见。
+  def can_view_amount?
+    @account_user.mes_can?(:purchase) || @account_user.crm_finance?
+  end
 
   private
 

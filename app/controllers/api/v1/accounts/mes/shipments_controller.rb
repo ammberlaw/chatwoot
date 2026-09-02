@@ -21,13 +21,16 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
       shipment_params.merge(owner_id: shipment_params[:owner_id] || current_user.id, kind: stock ? 'STOCK' : 'PRODUCTION')
     )
     @shipment.fallback_product_line = current_product_line
+    resolve_missing_product_ids(@shipment)
     @shipment.save!
     @shipment.submit_for_approval!(current_user) if @shipment.stock?
     render 'api/v1/accounts/mes/shipments/show'
   end
 
   def update
-    @shipment.update!(shipment_params)
+    @shipment.assign_attributes(shipment_params)
+    resolve_missing_product_ids(@shipment)
+    @shipment.save!
     render 'api/v1/accounts/mes/shipments/show'
   end
 
@@ -93,6 +96,21 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   end
 
   private
+
+  # 生产出库单若明细缺商品编码（建单时成品名选填导致），按订单成品名兜底建/关联编码，
+  # 保证成品库存按 SKU 扣减、不串库。现货出库(STOCK)明细来自产品档案本就带编码，不受影响。
+  def resolve_missing_product_ids(shipment)
+    order = shipment.production_order
+    return if order.nil?
+
+    items = shipment.shipment_items.select { |i| i.crm_product_id.blank? }
+    return if items.empty?
+
+    pid = order.ensure_crm_product!
+    return if pid.blank?
+
+    items.each { |i| i.crm_product_id = pid }
+  end
 
   def fetch_shipment
     @shipment = Current.account.mes_shipments.find(params[:id])

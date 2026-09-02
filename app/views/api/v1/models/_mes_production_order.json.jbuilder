@@ -22,6 +22,18 @@ if Current.account_user&.mes_staff?
   json.outsource_supplier_name resource.outsource_supplier&.name
 end
 json.bom_no resource.bom&.bom_no
+# BOM 材料明细（该单用料，对标金蝶「材料明细」）：仅详情下发，列表不带以免 N+1。
+if local_assigns[:detail]
+  json.bom_items do
+    json.array!((resource.bom&.bom_items&.order(:id)) || []) do |bi|
+      json.material_no bi.material_no
+      json.material_name bi.material_name
+      json.specification bi.specification
+      json.unit bi.unit
+      json.qty bi.qty
+    end
+  end
+end
 # 业务二次确认 BOM（空 = 尚未确认，未确认前不得下发采购）。
 json.bom_confirmed_at resource.bom_confirmed_at
 json.bom_confirmed_by_name resource.bom_confirmed_by&.name

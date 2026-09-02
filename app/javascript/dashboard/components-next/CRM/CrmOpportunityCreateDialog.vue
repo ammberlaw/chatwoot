@@ -120,7 +120,9 @@ const resetForm = () => {
 const open = record => {
   resetForm();
   if (record) {
-    editingId.value = record.id;
+    // 无 id（从客户列表「建立商机」带客户预填）时保持 null＝新建模式，
+    // 否则 undefined 会被 isEditing 当成编辑、误发 update 导致建不了。
+    editingId.value = record.id ?? null;
     form.name = record.name || '';
     form.crmCustomerId = record.crmCustomerId
       ? String(record.crmCustomerId)

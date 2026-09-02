@@ -154,10 +154,10 @@ class Mes::ProductionOrder < ApplicationRecord
   has_many_attached :images # 产品图片（缩略展示）
   has_many_attached :files  # 附件（合同/文档等）
 
-  after_create :mark_sales_order_in_production
-  after_create :record_initial_stage
   # is_draft 由审批状态派生：仅 APPROVED 才是正式（非草稿），下游可见。
   before_save :sync_draft_from_approval
+  after_create :mark_sales_order_in_production
+  after_create :record_initial_stage
 
   validates :product_name, presence: true
   validates :order_no, presence: true, uniqueness: { scope: :account_id }
@@ -346,6 +346,20 @@ class Mes::ProductionOrder < ApplicationRecord
       .where(mes_stock_entries: { production_order_id: id, purpose: 'MATERIAL_ISSUE', status: 'POSTED' })
       .where.not(crm_product_id: nil)
       .group(:crm_product_id).sum(:qty)
+  end
+
+  # 本订单已完工入库累计量（已过账的成品入库单明细）。用于判定「入库收齐」→ 标记生产完成。
+  def fg_inbound_qty
+    Mes::StockEntryItem
+      .joins(:stock_entry)
+      .where(mes_stock_entries: { production_order_id: id, purpose: 'MANUFACTURE', status: 'POSTED' })
+      .where(item_type: 'PRODUCT')
+      .sum(:qty)
+  end
+
+  # 入库是否收齐（已完工入库量 ≥ 订单数量）。
+  def fg_inbound_complete?
+    qty.to_d.positive? && fg_inbound_qty >= qty.to_d
   end
 
   # 指定仓库的成品/物料实时结存（按产品档案）。
@@ -617,7 +631,34 @@ class Mes::ProductionOrder < ApplicationRecord
     self
   end
 
+  # 确保本订单关联了商品编码（成品 SKU）：建单时「商品编码」选填，成品出入库(完工入库/出库)
+  # 又必须按 crm_product_id 记库存，否则无编码成品会串到同一个 NULL 桶。此处兜底：
+  # 已有则直接返回；否则按成品名在产品档案里找同名成品，找不到就按成品名建一条 FINISHED 成品并回写。
+  # 返回 crm_product_id（成品名为空时返回 nil）。
+  def ensure_crm_product!
+    return crm_product_id if crm_product_id.present?
+
+    pname = product_name.to_s.strip
+    return nil if pname.blank?
+
+    product = account.crm_products.where('LOWER(name) = ?', pname.downcase).order(:id).first
+    product ||= account.crm_products.create!(
+      name: pname, sku: unique_finished_sku(pname), category: 'FINISHED',
+      source_category: 'FINISHED', unit: unit.presence || '台'
+    )
+    update_columns(crm_product_id: product.id, updated_at: Time.current)
+    product.id
+  end
+
   private
+
+  # 自动建成品时的 SKU：优先用成品名本身；已被占用则挂订单号后缀保证账户内唯一。
+  def unique_finished_sku(pname)
+    base = pname.gsub(/\s+/, ' ').strip
+    return base unless account.crm_products.exists?(sku: base)
+
+    "#{base}-#{order_no}"
+  end
 
   # 数量文案：去掉多余小数（50.0 → 50）。
   def fnum(value)

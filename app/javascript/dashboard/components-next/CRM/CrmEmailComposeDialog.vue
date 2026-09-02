@@ -893,25 +893,88 @@ const onPickFiles = event => {
 };
 const removeAttachment = index => attachments.value.splice(index, 1);
 
-// ---- 附件预览：图片灯箱 / PDF 站内 iframe（写信时确认加对了文件）----
+// 附件改名：保留原扩展名，用新名重建 File（File.name 只读，只能重建）。
+const renameAttachment = index => {
+  const f = attachments.value[index];
+  if (!f) return;
+  const dot = f.name.lastIndexOf('.');
+  const ext = dot > 0 ? f.name.slice(dot) : '';
+  const base = dot > 0 ? f.name.slice(0, dot) : f.name;
+  // eslint-disable-next-line no-alert
+  const input = window.prompt('修改附件名称（不含扩展名）', base);
+  if (input == null) return;
+  const name = input.trim();
+  if (!name) return;
+  attachments.value[index] = new File([f], `${name}${ext}`, { type: f.type });
+};
+
+// 拖放文件到附件区：把拖进来的文件加进附件列表（支持从桌面/其它窗口拖图片）。
+const isDragOver = ref(false);
+const onDropFiles = event => {
+  isDragOver.value = false;
+  const files = Array.from(event.dataTransfer?.files || []);
+  if (files.length) attachments.value.push(...files);
+};
+
+// ---- 附件预览：图片灯箱 / PDF 站内 iframe / Word·Excel 前端转 HTML（写信时确认加对了文件）----
 const isImgName = n => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(n || '');
 const isPdfName = n => /\.pdf$/i.test(n || '');
+// Office 文档浏览器不能内联渲染，改为前端转换：docx→HTML(mammoth)、xlsx→表格(SheetJS)，文档不出浏览器。
+// 老 .doc/.xls 与 .pptx 无法转换，仍走下载。
+const isDocxName = n => /\.docx$/i.test(n || '');
+const isXlsxName = n => /\.xlsx$/i.test(n || '');
+const isOfficeName = (n, type = '') =>
+  isDocxName(n) ||
+  isXlsxName(n) ||
+  type.includes('wordprocessingml') ||
+  type.includes('spreadsheetml');
 // 新加的本地文件（File 对象）
 const canPreviewFile = f =>
   (f.type || '').startsWith('image/') ||
   f.type === 'application/pdf' ||
   isImgName(f.name) ||
-  isPdfName(f.name);
+  isPdfName(f.name) ||
+  isOfficeName(f.name, f.type || '');
 // 草稿已有附件（带 url）
 const canPreviewExisting = f =>
   (f.contentType || '').startsWith('image/') ||
   f.contentType === 'application/pdf' ||
   isImgName(f.filename) ||
-  isPdfName(f.filename);
+  isPdfName(f.filename) ||
+  isOfficeName(f.filename, f.contentType || '');
 
-const attPreview = ref(null); // { url, name, isImage, revoke }
-const openFilePreview = f => {
+const attPreview = ref(null); // { url|html, name, isImage, revoke }
+
+// arrayBuffer → docx/xlsx 转 HTML；返回 sanitize 后的 HTML 字符串。
+const officeBufferToHtml = async (buf, name) => {
+  if (isDocxName(name)) {
+    const mammoth = await import('mammoth');
+    const { value } = await mammoth.convertToHtml({ arrayBuffer: buf });
+    return DOMPurify.sanitize(value || '（空文档）');
+  }
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(buf, { type: 'array' });
+  return DOMPurify.sanitize(
+    wb.SheetNames.map(
+      n => `<h3>${n}</h3>${XLSX.utils.sheet_to_html(wb.Sheets[n])}`
+    ).join('')
+  );
+};
+
+const openFilePreview = async f => {
   if (!canPreviewFile(f)) return;
+  if (isOfficeName(f.name, f.type || '')) {
+    try {
+      attPreview.value = {
+        html: await officeBufferToHtml(await f.arrayBuffer(), f.name),
+        name: f.name,
+        revoke: false,
+      };
+    } catch {
+      useAlert('该文档无法预览，请下载查看');
+    }
+    return;
+  }
   const isImage = (f.type || '').startsWith('image/') || isImgName(f.name);
   attPreview.value = {
     url: URL.createObjectURL(f),
@@ -920,8 +983,21 @@ const openFilePreview = f => {
     revoke: true,
   };
 };
-const openExistingPreview = f => {
+const openExistingPreview = async f => {
   if (!canPreviewExisting(f)) return;
+  if (isOfficeName(f.filename, f.contentType || '')) {
+    try {
+      const buf = await (await fetch(f.url)).arrayBuffer();
+      attPreview.value = {
+        html: await officeBufferToHtml(buf, f.filename),
+        name: f.filename,
+        revoke: false,
+      };
+    } catch {
+      useAlert('该文档无法预览，请下载查看');
+    }
+    return;
+  }
   const isImage =
     (f.contentType || '').startsWith('image/') || isImgName(f.filename);
   attPreview.value = { url: f.url, name: f.filename, isImage, revoke: false };
@@ -1843,9 +1919,17 @@ defineExpose({ open, close });
         </div>
         <!-- /可滚动区 -->
 
-        <!-- 底部工具栏：一行左右排版（左 附件/知识库 · 中 已选chip 横滚 · 右 签名/模板） -->
+        <!-- 底部工具栏：一行左右排版（左 附件/知识库 · 中 已选chip 横滚 · 右 签名/模板）；
+             同时是拖放区：把文件/图片拖到这里即加为附件。 -->
         <div
-          class="flex items-center flex-shrink-0 gap-2 px-4 py-2 border-t bg-n-alpha-1 border-n-weak"
+          class="flex items-center flex-shrink-0 gap-2 px-4 py-2 border-t bg-n-alpha-1 border-n-weak transition-colors"
+          :class="
+            isDragOver ? 'ring-2 ring-inset ring-n-iris-9 bg-n-iris-2' : ''
+          "
+          @dragover.prevent="isDragOver = true"
+          @dragenter.prevent="isDragOver = true"
+          @dragleave.prevent="isDragOver = false"
+          @drop.prevent="onDropFiles"
         >
           <input
             ref="fileInputRef"
@@ -1965,6 +2049,13 @@ defineExpose({ open, close });
                   class="size-3 text-n-iris-11"
                 />
                 {{ file.name }}
+              </button>
+              <button
+                class="text-n-slate-10 hover:text-n-iris-11"
+                title="重命名"
+                @click="renameAttachment(index)"
+              >
+                <Icon icon="i-lucide-pencil" class="size-3" />
               </button>
               <button
                 class="text-n-slate-10 hover:text-n-ruby-11"
@@ -2116,6 +2207,67 @@ defineExpose({ open, close });
             {{ L.previewCc }}{{ joinRecipients(form.cc) }}
           </div>
           <div>{{ L.previewSubject }}{{ form.subject || '(无主题)' }}</div>
+        </div>
+        <!-- 附件清单：预览时也能看到随信发出的附件 -->
+        <div
+          v-if="existingFiles.length || attachments.length || kbPicked.length"
+          class="px-4 py-3 text-sm border-b text-n-slate-11 border-n-weak"
+        >
+          <div class="mb-1.5 text-xs text-n-slate-10">
+            附件（{{
+              existingFiles.length + attachments.length + kbPicked.length
+            }}）
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="file in existingFiles"
+              :key="`pe${file.id}`"
+              type="button"
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full border-n-weak bg-n-alpha-1"
+              :class="
+                canPreviewExisting(file)
+                  ? 'cursor-pointer hover:bg-n-alpha-2'
+                  : 'cursor-default'
+              "
+              @click="openExistingPreview(file)"
+            >
+              <Icon
+                :icon="
+                  canPreviewExisting(file)
+                    ? 'i-lucide-eye'
+                    : 'i-lucide-paperclip'
+                "
+                class="size-3 text-n-slate-9"
+              />
+              {{ file.filename }}
+            </button>
+            <button
+              v-for="(file, i) in attachments"
+              :key="`pf${i}`"
+              type="button"
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full border-n-weak bg-n-solid-1"
+              :class="
+                canPreviewFile(file)
+                  ? 'cursor-pointer hover:bg-n-alpha-2'
+                  : 'cursor-default'
+              "
+              @click="openFilePreview(file)"
+            >
+              <Icon
+                :icon="canPreviewFile(file) ? 'i-lucide-eye' : 'i-lucide-file'"
+                class="size-3 text-n-iris-11"
+              />
+              {{ file.name }}
+            </button>
+            <span
+              v-for="pick in kbPicked"
+              :key="`pk${kbKey(pick)}`"
+              class="inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-full border-n-weak bg-n-solid-1"
+            >
+              <Icon icon="i-lucide-file-text" class="size-3 text-n-iris-11" />
+              {{ pick.label }}
+            </span>
+          </div>
         </div>
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div
@@ -2621,6 +2773,7 @@ defineExpose({ open, close });
         }}</span>
         <div class="flex items-center flex-shrink-0 gap-2">
           <a
+            v-if="attPreview.url"
             :href="attPreview.url"
             download
             target="_blank"
@@ -2644,8 +2797,15 @@ defineExpose({ open, close });
         class="flex items-center justify-center flex-1 min-h-0 p-4"
         @click.self="closeAttPreview"
       >
+        <!-- Word/Excel 转出的 HTML -->
+        <!-- eslint-disable-next-line vue/no-v-html -->
+        <div
+          v-if="attPreview.html"
+          class="w-full h-full max-w-4xl p-6 overflow-auto text-sm bg-white rounded shadow-2xl prose-email text-n-slate-12"
+          v-html="attPreview.html"
+        />
         <img
-          v-if="attPreview.isImage"
+          v-else-if="attPreview.isImage"
           :src="attPreview.url"
           :alt="attPreview.name"
           class="object-contain max-w-full max-h-full rounded shadow-2xl"
@@ -2678,8 +2838,9 @@ defineExpose({ open, close });
    编辑器 .ProseMirror 用 inherit 跟随——选了字体/字号时由容器的 :style(bodyStyle)
    覆盖并向下继承生效，否则 ProseMirror 自带的 font 会把用户选择盖掉。 */
 .crm-email-body {
-  font-family: Arial, 'Helvetica Neue', Helvetica, 'PingFang SC',
-    'Microsoft YaHei', sans-serif;
+  font-family:
+    Arial, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
   font-size: 14px;
   line-height: 1.6;
 }

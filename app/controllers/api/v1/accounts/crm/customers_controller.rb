@@ -465,7 +465,14 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   def apply_customer_filters(scope)
     COLUMN_FILTERS.each do |param, column|
-      scope = scope.where(column => params[param]) if params[param].present?
+      next if params[param].blank?
+
+      # 「未分组」等空值筛选：哨兵 __none__ → 该列为空（NULL 或 ''）。
+      scope = if params[param] == '__none__'
+                scope.where("crm_customers.#{column} IS NULL OR crm_customers.#{column} = ''")
+              else
+                scope.where(column => params[param])
+              end
     end
     # 客户星级筛选（star=0..5，按累计成交额区间）。
     scope = scope.by_star(params[:star]) if params[:star].present?
