@@ -4,6 +4,7 @@ class Erp::OrderCostPolicy < ApplicationPolicy
   def margin? = @account_user.can_access_erp?
 
   def create? = @account_user.erp_can?(:cost)
+  def rollup? = @account_user.erp_can?(:cost)
   def update? = @account_user.erp_can?(:cost)
   def destroy? = @account_user.erp_can?(:cost)
 end

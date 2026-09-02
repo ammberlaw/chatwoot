@@ -27,8 +27,11 @@ RSpec.describe 'ERP 金额口径守卫' do
   # - 资金账户余额：一个账户只有一种币，余额本来就是原币
   # - 调汇：期末应有本位币 = **原币余额** × 期末汇率，取原币是算法要求
   # - 两账对平：已按 currency: 'CNY' 收口后再 sum
+  # - 成本归集：加的是 mes_purchase_items.amount_micros，MES 采购是人民币单币种
+  #   （mes_purchase_orders 上根本没有 currency 列），不是这里管的那四张多币种表
   allowed = [
     'app/services/erp/allocation_service.rb',
+    'app/services/erp/cost_rollup_service.rb',
     'app/services/erp/revaluation_service.rb',
     'app/services/erp/reconciliation_service.rb',
     'app/services/erp/period_checklist.rb',

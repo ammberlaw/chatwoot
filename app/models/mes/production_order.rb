@@ -205,7 +205,18 @@ class Mes::ProductionOrder < ApplicationRecord
       e.actor_id = actor&.id
     end
     notify_stage_assigned(actor) if changed
+    rollup_erp_cost if changed && new_stage == 'SHIPPED'
     self
+  end
+
+  # 出货即把本单的实际耗用/外协采购归集成 ERP 订单成本，毛利表不再靠人工录。
+  # ERP 是下游，不能反过来挡住 MES 出货，所以异常只记日志——财务在成本页还有「一键归集」可补。
+  def rollup_erp_cost
+    return if crm_sales_order_id.blank?
+
+    Erp::CostRollupService.new(account).sync_production_order(self)
+  rescue StandardError => e
+    Rails.logger.error("[Erp::CostRollup] 生产订单 #{order_no} 成本归集失败: #{e.message}")
   end
 
   # 挂工程 BOM（阶段 2）：绑 BOM、按预估交期天数算预估完工、进 BOM_READY。

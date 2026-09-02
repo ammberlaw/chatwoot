@@ -52,6 +52,30 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     render 'api/v1/accounts/erp/receivables/open_list'
   end
 
+  # 待建账订单：已确认但还没建应收的销售订单。
+  # 建账是财务确认动作，不做自动建账（金额/币种/分期错了没人知道），改成把漏的摆出来让财务点。
+  # 漏建账 = 应收报表少一笔且毫无提示，这个清单就是那个提示。
+  def pending_orders
+    @orders = pending_order_scope.includes(:crm_customer, :owner).order(order_date: :desc).limit(200)
+    @pending_count = pending_order_scope.count
+    render 'api/v1/accounts/erp/receivables/pending_orders'
+  end
+
+  # 批量建账：只按订单默认口径建（整单一期尾款），要分期的走单张建账。
+  # 逐单 rescue——一张失败不该拖垮整批，失败原因原样带回给财务。
+  def bulk_build
+    orders = pending_order_scope.where(id: Array(params[:crm_sales_order_ids]))
+    builder = Erp::LedgerBuilderService.new(Current.account)
+    built = []
+    failed = []
+    orders.each do |order|
+      built << builder.from_sales_order(order)
+    rescue Erp::LedgerBuilderService::Error, ActiveRecord::RecordInvalid => e
+      failed << { order_no: order.order_no, error: e.message }
+    end
+    render json: { payload: { built_count: built.size, failed: failed } }
+  end
+
   # 账龄分析：basis=due 逾期账龄 / basis=invoice 账龄（按建账日）。
   def aging
     @aging = Erp::AgingService.new(Current.account).receivables(as_of: aging_as_of, basis: aging_basis)
@@ -69,6 +93,17 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
 
     term = "%#{params[:q].strip}%"
     scope.joins(:crm_customer).where('erp_receivables.receivable_no ILIKE :t OR crm_customers.name ILIKE :t', t: term)
+  end
+
+  # 待建账口径：已确认（PENDING_CONFIRMATION 还没确认、CANCELLED 已取消，都不该进应收）
+  # 且尚无应收台账的订单。
+  UNCONFIRMED_STATUSES = %w[PENDING_CONFIRMATION CANCELLED].freeze
+
+  def pending_order_scope
+    built_ids = Current.account.erp_receivables.where.not(crm_sales_order_id: nil).select(:crm_sales_order_id)
+    Current.account.crm_sales_orders
+           .where.not(status: UNCONFIRMED_STATUSES)
+           .where.not(id: built_ids)
   end
 
   def build_from_order

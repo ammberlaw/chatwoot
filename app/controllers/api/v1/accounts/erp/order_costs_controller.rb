@@ -27,6 +27,13 @@ class Api::V1::Accounts::Erp::OrderCostsController < Api::V1::Accounts::Erp::Bas
     head :ok
   end
 
+  # 一键归集：把 MES 的领料/外协采购算成成本行（补历史用；日常由生产订单出货时自动触发）。
+  # 幂等——重复点只更新金额，不会翻倍；手工录入的行不受影响。
+  def rollup
+    @result = Erp::CostRollupService.new(Current.account).rollup_all(from: params[:from], to: params[:to])
+    render json: { payload: @result }
+  end
+
   # 毛利报表：订单维度 + 业务员/客户汇总。
   def margin
     service = Erp::MarginService.new(Current.account)

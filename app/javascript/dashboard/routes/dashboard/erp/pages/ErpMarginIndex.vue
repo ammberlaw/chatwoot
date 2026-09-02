@@ -67,6 +67,23 @@ const loadCosts = async () => {
     loading.value = false;
   }
 };
+// 一键把 MES 的领料/外协采购算成成本行。日常出货时已自动触发，这里是补历史/兜底。
+// 幂等，重复点不会翻倍；手工补录的行不受影响。
+const rollingUp = ref(false);
+const rollupFromMes = async () => {
+  rollingUp.value = true;
+  try {
+    const { data } = await ErpOrderCostAPI.rollup({});
+    const { synced = 0, scanned = 0 } = data.payload || {};
+    useAlert(`已归集 ${synced} 条成本（扫描生产订单 ${scanned} 张）`);
+    await loadCosts();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '归集失败');
+  } finally {
+    rollingUp.value = false;
+  }
+};
+
 const switchTab = key => {
   activeTab.value = key;
   return key === 'margin' ? loadMargin() : loadCosts();
@@ -142,13 +159,17 @@ onMounted(loadMargin);
           }}</span>
         </span>
       </div>
-      <Button
-        v-if="canWrite && activeTab === 'costs'"
-        label="归集成本"
-        color="iris"
-        size="sm"
-        @click="openCost"
-      />
+      <div v-if="canWrite && activeTab === 'costs'" class="flex items-center gap-2">
+        <Button
+          label="从 MES 归集"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="rollingUp"
+          @click="rollupFromMes"
+        />
+        <Button label="手工补录" color="iris" size="sm" @click="openCost" />
+      </div>
     </div>
 
     <div class="flex items-center gap-2 px-6 pb-3">

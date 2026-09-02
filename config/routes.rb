@@ -293,6 +293,8 @@ Rails.application.routes.draw do
               collection do
                 get :open_list
                 get :aging
+                get :pending_orders
+                post :bulk_build
               end
             end
             resources :receipt_records, only: [:index, :show, :create, :update, :destroy] do
@@ -316,7 +318,10 @@ Rails.application.routes.draw do
             end
             resources :auto_voucher_rules, only: [:index, :update]
             resources :order_costs, only: [:index, :create, :update, :destroy] do
-              collection { get :margin }
+              collection do
+                get :margin
+                post :rollup
+              end
             end
             resources :fixed_assets, only: [:index, :show, :create, :update, :destroy] do
               collection { post :depreciate }

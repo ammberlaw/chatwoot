@@ -26,6 +26,7 @@
 #  index_erp_order_costs_on_account_id                (account_id)
 #  index_erp_order_costs_on_account_id_and_cost_type  (account_id,cost_type)
 #  index_erp_order_costs_on_crm_sales_order_id        (crm_sales_order_id)
+#  index_erp_order_costs_on_source                    (account_id,source_type,source_id) UNIQUE WHERE (source_type IS NOT NULL)
 #
 class Erp::OrderCost < ApplicationRecord
   COST_TYPES = %w[MATERIAL PROCESS FREIGHT COMMISSION OTHER].freeze

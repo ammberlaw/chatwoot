@@ -27,6 +27,7 @@ const canSettle = computed(() => erpCan('payment'));
 
 const TABS = [
   { key: 'ledger', label: '应收台账' },
+  { key: 'pending', label: '待建账' },
   { key: 'receipts', label: '收款记录' },
   { key: 'aging', label: '账龄分析' },
 ];
@@ -36,6 +37,13 @@ const STATUS_OPTIONS = [
   { value: 'PARTIAL', label: '部分收款' },
   { value: 'PAID', label: '已收清' },
 ];
+// 待建账清单里展示的销售订单状态（CRM 口径）。
+const SO_STATUS_LABELS = {
+  IN_PRODUCTION: '生产中',
+  PENDING_SHIPMENT: '待出货',
+  SHIPPED: '已出货',
+  COMPLETED: '已完结',
+};
 const METHODS = [
   { value: 'TT', label: '电汇 TT' },
   { value: 'LC', label: '信用证 LC' },
@@ -111,11 +119,69 @@ const loadReceipts = async () => {
   }
 };
 
+/* ---------------- 待建账：已确认但还没建应收的订单 ---------------- */
+// 漏建账 = 应收报表少一笔且没有任何提示，这个页签就是那个提示。
+// 不做自动建账：金额/币种/分期是财务确认动作，系统替财务建错了没人发现。
+const pendingOrders = ref([]);
+const pendingCount = ref(0);
+const selectedOrderIds = ref([]);
+const buildingBatch = ref(false);
+
+// silent：进页面时只为点亮角标而拉，不能抢台账表格的 loading 态（两个请求会互相踩）。
+const loadPendingOrders = async ({ silent = false } = {}) => {
+  if (!silent) loading.value = true;
+  try {
+    const { data } = await ErpReceivableAPI.pendingOrders();
+    pendingOrders.value = data.payload;
+    pendingCount.value = data.meta?.pending_count || 0;
+    selectedOrderIds.value = [];
+  } finally {
+    if (!silent) loading.value = false;
+  }
+};
+
+const allPendingSelected = computed(
+  () =>
+    pendingOrders.value.length > 0 &&
+    selectedOrderIds.value.length === pendingOrders.value.length
+);
+const toggleSelectAll = () => {
+  selectedOrderIds.value = allPendingSelected.value
+    ? []
+    : pendingOrders.value.map(order => order.id);
+};
+const toggleOrder = id => {
+  const index = selectedOrderIds.value.indexOf(id);
+  if (index === -1) selectedOrderIds.value.push(id);
+  else selectedOrderIds.value.splice(index, 1);
+};
+
+// 批量只按默认口径建（整单一期尾款）；要分期的走「从销售订单建账」单张建。
+const bulkBuild = async () => {
+  buildingBatch.value = true;
+  try {
+    const { data } = await ErpReceivableAPI.bulkBuild(selectedOrderIds.value);
+    const { built_count: built = 0, failed = [] } = data.payload || {};
+    const failedNote = failed.length
+      ? `，${failed.length} 张失败（${failed[0].order_no}：${failed[0].error}）`
+      : '';
+    useAlert(`已建账 ${built} 张${failedNote}`);
+    await loadPendingOrders();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '批量建账失败');
+  } finally {
+    buildingBatch.value = false;
+  }
+};
+
 const agingRef = ref(null);
-// 账龄分析有自己的查询条（口径 + 截至日），隐掉顶部关键字搜索。
-const isDocTab = computed(() => activeTab.value !== 'aging');
+// 账龄分析有自己的查询条（口径 + 截至日），待建账是订单清单，两者都隐掉顶部关键字搜索。
+const isDocTab = computed(() =>
+  ['ledger', 'receipts'].includes(activeTab.value)
+);
 const reload = () => {
   if (activeTab.value === 'ledger') return loadLedgers();
+  if (activeTab.value === 'pending') return loadPendingOrders();
   if (activeTab.value === 'receipts') return loadReceipts();
   return agingRef.value?.load();
 };
@@ -171,6 +237,7 @@ const submitBuild = async () => {
     useAlert(`已建账 ${data.receivable_no}`);
     ledgerDialogRef.value?.close();
     loadLedgers();
+    loadPendingOrders({ silent: true }); // 建完这单待建账角标要跟着掉
   } catch (error) {
     useAlert(error?.response?.data?.error || '建账失败');
   }
@@ -314,7 +381,11 @@ const printReceipt = async record => {
   printElement(printAreaRef.value, `收款单 ${record.receipt_no}`);
 };
 
-onMounted(loadLedgers);
+// 台账先出，待建账数量同时拉一次——角标要在进页面就亮，不能等点进去才发现漏账。
+onMounted(() => {
+  loadLedgers();
+  loadPendingOrders({ silent: true });
+});
 </script>
 
 <template>
@@ -361,6 +432,15 @@ onMounted(loadLedgers);
           @click="openBuild"
         />
         <Button
+          v-if="canLedger && activeTab === 'pending'"
+          :label="`批量建账${selectedOrderIds.length ? ` (${selectedOrderIds.length})` : ''}`"
+          color="iris"
+          size="sm"
+          :disabled="!selectedOrderIds.length"
+          :is-loading="buildingBatch"
+          @click="bulkBuild"
+        />
+        <Button
           v-if="canSettle && activeTab === 'receipts'"
           label="登记收款"
           color="iris"
@@ -383,6 +463,17 @@ onMounted(loadLedgers);
         @click="switchTab(tab.key)"
       >
         {{ tab.label }}
+        <span
+          v-if="tab.key === 'pending' && pendingCount"
+          class="ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs rounded-full"
+          :class="
+            activeTab === tab.key
+              ? 'bg-white/25 text-white'
+              : 'bg-n-ruby-9 text-white'
+          "
+        >
+          {{ pendingCount }}
+        </span>
       </button>
       <SelectCard
         v-if="activeTab === 'ledger'"
@@ -461,6 +552,61 @@ onMounted(loadLedgers);
           <tr v-if="!ledgers.length">
             <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
               还没有应收台账。点右上角「从销售订单建账」把订单转成应收。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 待建账：已确认但还没建应收的销售订单 -->
+      <table v-else-if="activeTab === 'pending'" class="w-full text-sm">
+        <thead>
+          <tr class="text-left border-b text-n-slate-11 border-n-weak">
+            <th class="w-10 px-3 py-3">
+              <input
+                type="checkbox"
+                class="align-middle reset-base"
+                :checked="allPendingSelected"
+                :disabled="!pendingOrders.length"
+                @change="toggleSelectAll"
+              />
+            </th>
+            <th class="px-3 py-3 font-medium">订单号</th>
+            <th class="px-3 py-3 font-medium">客户</th>
+            <th class="px-3 py-3 font-medium">业务员</th>
+            <th class="px-3 py-3 font-medium">下单日期</th>
+            <th class="px-3 py-3 font-medium text-right">订单金额</th>
+            <th class="px-3 py-3 font-medium">状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="order in pendingOrders"
+            :key="order.id"
+            class="border-b border-n-weak hover:bg-n-alpha-1"
+          >
+            <td class="px-3 py-3">
+              <input
+                type="checkbox"
+                class="align-middle reset-base"
+                :checked="selectedOrderIds.includes(order.id)"
+                @change="toggleOrder(order.id)"
+              />
+            </td>
+            <td class="px-3 py-3 text-n-slate-12">{{ order.order_no }}</td>
+            <td class="px-3 py-3">{{ order.customer_name || '—' }}</td>
+            <td class="px-3 py-3">{{ order.owner_name || '—' }}</td>
+            <td class="px-3 py-3">{{ order.order_date || '—' }}</td>
+            <td class="px-3 py-3 text-right text-n-slate-12">
+              {{ order.currency || 'CNY' }}
+              {{ money(order.amount_micros) }}
+            </td>
+            <td class="px-3 py-3 text-n-slate-11">
+              {{ SO_STATUS_LABELS[order.status] || order.status }}
+            </td>
+          </tr>
+          <tr v-if="!pendingOrders.length">
+            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+              没有待建账的订单，已确认的销售订单都建过应收了。
             </td>
           </tr>
         </tbody>

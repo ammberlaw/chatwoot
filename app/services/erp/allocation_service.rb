@@ -113,6 +113,15 @@ class Erp::AllocationService
     ledger.assign_attributes(column => total)
     ledger.status = ledger.derived_status
     ledger.save!
+    sync_order_completion(ledger)
+  end
+
+  # 收清了就把销售订单推到完结；收款单作废/改小又退回已出货（对称，否则作废后订单还挂着"已完结"）。
+  # 应付侧没有这个联动——采购付款不决定销售订单的状态。
+  def sync_order_completion(ledger)
+    return unless receipt?
+
+    Erp::OrderCompletionService.new(@record.account).sync_for_receivable(ledger)
   end
 
   # 只算正常单据的核销：作废单据的核销行已删除，这里再按状态挡一层。
