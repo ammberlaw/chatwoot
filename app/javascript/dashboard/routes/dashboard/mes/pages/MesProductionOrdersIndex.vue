@@ -844,6 +844,12 @@ const goStockEntries = po => {
   });
 };
 
+// 点阶段负责人名字 → 跳团队协同并直接打开与该负责人的私聊。
+const goStageOwnerChat = ownerId => {
+  if (!ownerId) return;
+  router.push(accountScopedRoute('crm_team_chat_index', {}, { peer: ownerId }));
+};
+
 // 删除草稿订单（归属业务删本人草稿 / 管理员删任意）。
 const deleteOrder = async po => {
   // eslint-disable-next-line no-alert
@@ -1547,14 +1553,18 @@ watch(currentPage, fetchRecords);
         >
           <div class="flex flex-wrap items-center gap-1.5 text-xs">
             <span class="text-n-slate-11">本阶段负责人</span>
-            <template v-if="(selected.stageOwnerNames || []).length">
-              <span
-                v-for="n in selected.stageOwnerNames"
-                :key="n"
-                class="px-1.5 py-0.5 rounded-full bg-n-iris-3 text-n-iris-12"
+            <template v-if="(selected.stageOwners || []).length">
+              <button
+                v-for="o in selected.stageOwners"
+                :key="o.id"
+                type="button"
+                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-n-iris-3 text-n-iris-12 hover:bg-n-iris-4"
+                title="点击私聊该负责人"
+                @click="goStageOwnerChat(o.id)"
               >
-                {{ n }}
-              </span>
+                {{ o.name }}
+                <span class="i-lucide-message-circle size-3" />
+              </button>
             </template>
             <span v-else class="text-n-amber-11">未设置负责人</span>
           </div>

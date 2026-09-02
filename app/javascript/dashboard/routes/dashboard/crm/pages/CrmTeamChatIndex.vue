@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAlert } from 'dashboard/composables';
 import { emitter } from 'shared/helpers/mitt';
@@ -21,6 +21,7 @@ import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 const currentUserId = useMapGetter('getCurrentUserID');
 const accountId = useMapGetter('getCurrentAccountId');
 const router = useRouter();
+const route = useRoute();
 
 const L = {
   messages: '消息',
@@ -727,6 +728,8 @@ onMounted(async () => {
   fetchConversations();
   loadAgents();
   loadOrgData();
+  // 从别处（如 MES 订单点阶段负责人）带 ?peer= 进来：直接打开与该同事的私聊。
+  if (route.query.peer) startDirect(Number(route.query.peer));
   emitter.on('CHAT_MESSAGE_CREATED', onRealtimeMessage);
   // 实时优先；轮询降级为兜底（刷新在线状态 + 断线自愈）。
   listTimer = setInterval(() => {

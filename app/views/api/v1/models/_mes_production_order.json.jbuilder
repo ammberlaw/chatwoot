@@ -58,6 +58,9 @@ end
 # 接单确认（P1）：当前阶段负责人 + 接单状态，供详情面板展示与接单/拒收按钮判定。
 json.stage_owner_ids resource.current_stage_owner_ids
 json.stage_owner_names User.where(id: resource.current_stage_owner_ids).pluck(:name)
+# 阶段负责人 {id,name} 配对（按 id 顺序，供详情面板点名字跳团队协同私聊；pluck 不保证同序，故单独配对）。
+stage_owner_lookup = User.where(id: resource.current_stage_owner_ids).index_by(&:id)
+json.stage_owners resource.current_stage_owner_ids.map { |uid| { id: uid, name: stage_owner_lookup[uid]&.name } }
 json.awaiting_ack resource.awaiting_ack?
 json.ack_overdue resource.ack_overdue?
 json.ack_deadline resource.ack_deadline
