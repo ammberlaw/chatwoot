@@ -98,6 +98,22 @@ Rails.application.routes.draw do
                 post :release
               end
             end
+            # 展会邀约获客：展会 + 匹配潜客 + 加入名单；邀约记录的邀请函生成/阶段流转。
+            resources :exhibitions do
+              member do
+                get :candidates
+                post :add_invites
+                get :apollo_search
+                post :add_apollo_invites
+                post :generate_sop_drafts
+              end
+            end
+            resources :exhibition_invites, only: [:destroy] do
+              member do
+                post :compose
+                post :advance
+              end
+            end
             resources :products
             resources :pis do
               collection do
@@ -395,7 +411,7 @@ Rails.application.routes.draw do
           end
           namespace :oa do
             resources :approval_templates, only: [:index, :create, :update, :destroy]
-            resources :approval_requests, only: [:index, :show, :create] do
+            resources :approval_requests, only: [:index, :show, :create, :update] do
               collection { get :counts }
               member do
                 post :approve
@@ -415,7 +431,9 @@ Rails.application.routes.draw do
                 post :transfer_owner
                 post :leave
               end
-              resources :messages, only: [:index, :create]
+              resources :messages, only: [:index, :create] do
+                post :forward, on: :collection
+              end
             end
           end
           resource :bulk_actions, only: [:create]
@@ -991,6 +1009,10 @@ Rails.application.routes.draw do
   # CRM 邮件追踪像素（公开、免登录）：收件人打开邮件加载像素即回调记录。
   get 'crm_email_open/:token', to: 'crm/email_tracking#show', constraints: { token: /[a-f0-9]+/ }
   get 'crm_email_click/:token', to: 'crm/email_tracking#click', constraints: { token: /[a-f0-9]+/ }
+
+  # 展会邀请函落地页（公开、免登录）：客户点邀请邮件里的链接进来确认到访。
+  get 'crm_exhibition_invite/:token', to: 'crm/exhibition_invites#landing', as: :crm_exhibition_invite, constraints: { token: /[a-f0-9]+/ }
+  post 'crm_exhibition_invite/:token/confirm', to: 'crm/exhibition_invites#confirm', as: :confirm_crm_exhibition_invite, constraints: { token: /[a-f0-9]+/ }
 
   # ----------------------------------------------------------------------
   # Routes for channel integrations

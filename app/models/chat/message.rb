@@ -13,6 +13,7 @@
 #  account_id      :bigint           not null
 #  conversation_id :bigint           not null
 #  ref_id          :bigint
+#  reply_to_id     :bigint
 #  sender_id       :bigint           not null
 #
 # Indexes
@@ -20,16 +21,20 @@
 #  index_chat_messages_on_account_id       (account_id)
 #  index_chat_messages_on_conversation_id  (conversation_id)
 #  index_chat_messages_on_mentioned_ids    (mentioned_ids) USING gin
+#  index_chat_messages_on_reply_to_id      (reply_to_id)
 #  index_chat_messages_on_sender_id        (sender_id)
 #
 # Foreign Keys
 #
 #  fk_rails_...  (conversation_id => chat_conversations.id) ON DELETE => cascade
+#  fk_rails_...  (reply_to_id => chat_messages.id) ON DELETE => nullify
 #
 class Chat::Message < ApplicationRecord
   belongs_to :account
   belongs_to :conversation, class_name: 'Chat::Conversation', inverse_of: :messages
   belongs_to :sender, class_name: 'User'
+  # 引用回复：指向被回复的同会话消息（可空）。原消息删除则置空。
+  belongs_to :reply_to, class_name: 'Chat::Message', optional: true
 
   has_many_attached :files
 

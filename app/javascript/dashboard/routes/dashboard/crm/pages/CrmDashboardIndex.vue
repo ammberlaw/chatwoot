@@ -429,7 +429,7 @@ const PERIODS = [
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full max-md:min-h-[100dvh] max-md:-mb-24 gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <!-- 顶栏 -->
     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -508,27 +508,34 @@ const PERIODS = [
 
     <template v-else>
       <!-- ═══ 第 1 行：KPI ═══ -->
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <!-- 手机上排 2 列（原来单列一屏只看得到 2 张卡），并收紧内边距/字号 -->
+      <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <!-- MedFlow 式暖色浅渐变卡（深字 + 真实涨跌角标） -->
         <div
           v-for="(kpi, i) in salesKpis"
           :key="kpi.label"
-          class="flex flex-col justify-between p-5 shadow-sm rounded-2xl bg-gradient-to-br min-h-[8.5rem]"
+          class="flex flex-col justify-between p-4 sm:p-5 shadow-sm rounded-2xl bg-gradient-to-br min-h-[7rem] sm:min-h-[8.5rem]"
           :class="CARD_GRADIENTS[i]"
         >
           <div
-            class="flex items-center justify-center rounded-lg size-9 bg-n-solid-1/70 text-n-iris-11"
+            class="flex items-center justify-center rounded-lg size-8 sm:size-9 bg-n-solid-1/70 text-n-iris-11"
           >
-            <span class="size-5" :class="[kpi.icon]" />
+            <span class="size-4 sm:size-5" :class="[kpi.icon]" />
           </div>
-          <div>
-            <div class="mt-4 text-sm font-medium text-n-slate-11">
+          <div class="min-w-0">
+            <div
+              class="mt-3 sm:mt-4 text-sm font-medium truncate text-n-slate-11"
+            >
               {{ kpi.label }}
             </div>
-            <div class="mt-1 text-2xl font-bold text-n-slate-12">
+            <div
+              class="mt-1 text-xl sm:text-2xl font-bold truncate text-n-slate-12"
+            >
               {{ kpi.value }}
             </div>
-            <div class="mt-1 text-xs text-n-slate-10">{{ kpi.sub }}</div>
+            <div class="mt-1 text-xs truncate text-n-slate-10">
+              {{ kpi.sub }}
+            </div>
           </div>
         </div>
       </div>

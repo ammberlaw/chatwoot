@@ -1,6 +1,7 @@
 json.partial! 'api/v1/models/oa_approval_request', formats: [:json], resource: @request
 json.form_data @request.form_data
 json.form_fields @request.template&.form_fields
+json.flow @request.template&.flow
 json.department_id @request.department_id
 json.department_name @request.department&.name
 json.files @request.files.map { |f| { id: f.id, filename: f.filename.to_s, byte_size: f.byte_size, url: url_for(f) } }

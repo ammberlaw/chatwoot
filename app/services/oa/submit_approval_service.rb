@@ -16,12 +16,26 @@ class Oa::SubmitApprovalService
     @department_id = attributes[:department_id]
   end
 
+  # 申请人修改审批单后按最新 form_data/部门重新物化审批链（审批中且尚无人处理时用）。
+  def self.rebuild_steps(request:)
+    new(account: request.account, applicant: request.applicant, template: request.template,
+        attributes: { form_data: request.form_data, department_id: request.department_id }).rebuild(request)
+  end
+
   def perform
     request = @account.oa_approval_requests.create!(
       template: @template, applicant_id: @applicant.id, title: @title, department_id: @department_id,
       form_data: @form_data || {}, status: 'pending', current_position: 0, submitted_at: Time.current,
       cc_user_ids: Array(@template.cc_user_ids).map(&:to_i).uniq
     )
+    build_steps(request)
+    settle_start(request)
+    request
+  end
+
+  # 重建审批链：清掉旧步骤，按当前 flow/部门/条件重新展开并定位首个可办步骤。
+  def rebuild(request)
+    request.steps.destroy_all
     build_steps(request)
     settle_start(request)
     request

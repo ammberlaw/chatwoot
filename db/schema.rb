@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_01_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_03_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -661,9 +661,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_000003) do
     t.string "ref_type"
     t.bigint "ref_id"
     t.jsonb "ref_snapshot"
+    t.bigint "reply_to_id"
     t.index ["account_id"], name: "index_chat_messages_on_account_id"
     t.index ["conversation_id"], name: "index_chat_messages_on_conversation_id"
     t.index ["mentioned_ids"], name: "index_chat_messages_on_mentioned_ids", using: :gin
+    t.index ["reply_to_id"], name: "index_chat_messages_on_reply_to_id"
     t.index ["sender_id"], name: "index_chat_messages_on_sender_id"
   end
 
@@ -3207,6 +3209,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_000003) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "chat_messages", "chat_conversations", column: "conversation_id", on_delete: :cascade
+  add_foreign_key "chat_messages", "chat_messages", column: "reply_to_id", on_delete: :nullify
   add_foreign_key "chat_participants", "chat_conversations", column: "conversation_id", on_delete: :cascade
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_ai_settings", "accounts"

@@ -46,13 +46,14 @@ class ChatConversationAPI extends ApiClient {
     return axios.get(`${this.url}/${id}/messages?after=${after}`);
   }
 
-  // extra: { mentioned_ids: [], ref_type, ref_id, ref_snapshot: {title, subtitle, code} }
+  // extra: { mentioned_ids: [], ref_type, ref_id, ref_snapshot: {title, subtitle, code}, reply_to_id }
   send(id, content, files = [], extra = {}) {
     const {
       mentioned_ids: mentionedIds = [],
       ref_type: refType,
       ref_id: refId,
       ref_snapshot: refSnapshot,
+      reply_to_id: replyToId,
     } = extra;
     if (!files.length) {
       return axios.post(`${this.url}/${id}/messages`, {
@@ -61,12 +62,14 @@ class ChatConversationAPI extends ApiClient {
         ref_type: refType,
         ref_id: refId,
         ref_snapshot: refSnapshot,
+        reply_to_id: replyToId,
       });
     }
     const fd = new FormData();
     fd.append('content', content || '');
     files.forEach(f => fd.append('files[]', f));
     mentionedIds.forEach(uid => fd.append('mentioned_ids[]', uid));
+    if (replyToId) fd.append('reply_to_id', replyToId);
     if (refType) {
       fd.append('ref_type', refType);
       fd.append('ref_id', refId);
@@ -76,6 +79,14 @@ class ChatConversationAPI extends ApiClient {
     }
     return axios.post(`${this.url}/${id}/messages`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
+  // 转发多条消息到目标会话。
+  forward(id, messageIds, targetConversationId) {
+    return axios.post(`${this.url}/${id}/messages/forward`, {
+      message_ids: messageIds,
+      target_conversation_id: targetConversationId,
     });
   }
 }

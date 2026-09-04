@@ -73,6 +73,7 @@ const FIELD_TYPES = [
   { value: 'number', label: '数字' },
   { value: 'amount', label: '金额' },
   { value: 'date', label: '日期' },
+  { value: 'datetime', label: '日期时间' },
   { value: 'select', label: '下拉选择' },
 ];
 const ICONS = [

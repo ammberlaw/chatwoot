@@ -219,6 +219,172 @@ onMounted(async () => {
           <CrmQuickClock compact class="self-center shrink-0 md:hidden" />
         </div>
 
+        <!-- ─── 手机端一级界面：紧凑网格排版（≤767px 独占，桌面隐藏；配色沿用）─── -->
+        <div class="wsh-m">
+          <!-- 两大主入口：CRM / MES -->
+          <div class="m-duo">
+            <button
+              type="button"
+              class="m-big c-crm"
+              :class="{ locked: !canAccessCrm }"
+              :disabled="!canAccessCrm"
+              @click="go('crm_dashboard_index')"
+            >
+              <span
+                class="blob"
+                style="width: 120px; height: 120px; right: -30px; top: -40px"
+              />
+              <div class="m-big-l"><Icon icon="i-lucide-users" /> CRM</div>
+              <div class="m-big-n">
+                客户管理 · {{ crmStats.follow_up_due ?? 0 }} 待跟进
+              </div>
+              <div v-if="canAccessCrm" class="m-big-go">
+                进入 <Icon icon="i-lucide-arrow-right" />
+              </div>
+              <div v-else class="m-big-go">
+                <Icon icon="i-lucide-lock" /> 未开通
+              </div>
+            </button>
+            <button
+              type="button"
+              class="m-big c-mes"
+              @click="go('mes_dashboard_index')"
+            >
+              <span
+                class="blob"
+                style="width: 120px; height: 120px; right: -30px; bottom: -40px"
+              />
+              <div class="m-big-l"><Icon icon="i-lucide-factory" /> MES</div>
+              <div class="m-big-n">生产制造 · 工单排产</div>
+              <div class="m-big-go">
+                进入 <Icon icon="i-lucide-arrow-right" />
+              </div>
+            </button>
+          </div>
+
+          <!-- 图标快启 -->
+          <div class="m-launch">
+            <button
+              type="button"
+              class="m-lz"
+              @click="go('crm_approvals_index')"
+            >
+              <span class="m-lc g-lime">
+                <Icon icon="i-lucide-clipboard-check" />
+                <span v-if="oaMetric" class="m-badge">{{ oaMetric }}</span>
+              </span>
+              <span class="m-ll">OA 审批</span>
+            </button>
+            <button
+              type="button"
+              class="m-lz"
+              @click="go('crm_team_chat_index')"
+            >
+              <span class="m-lc g-teal">
+                <Icon icon="i-lucide-messages-square" />
+                <span v-if="stats.unread" class="m-badge">
+                  {{ stats.unread }}
+                </span>
+              </span>
+              <span class="m-ll">团队协同</span>
+            </button>
+            <button
+              type="button"
+              class="m-lz"
+              @click="go('crm_org_structure_index')"
+            >
+              <span class="m-lc g-sky"><Icon icon="i-lucide-network" /></span>
+              <span class="m-ll">HR 人事</span>
+            </button>
+            <button
+              type="button"
+              class="m-lz"
+              @click="go('crm_doc_center_index')"
+            >
+              <span class="m-lc g-violet">
+                <Icon icon="i-lucide-book-open" />
+              </span>
+              <span class="m-ll">文档中心</span>
+            </button>
+            <button
+              v-if="canAccessTiktok"
+              type="button"
+              class="m-lz"
+              @click="go('tiktok_dashboard_index')"
+            >
+              <span class="m-lc g-cyan">
+                <Icon icon="i-lucide-shopping-bag" />
+              </span>
+              <span class="m-ll">TikTok</span>
+            </button>
+            <button type="button" class="m-lz" @click="soon('ERP 进销存')">
+              <span class="m-lc g-gray"><Icon icon="i-lucide-package" /></span>
+              <span class="m-ll">ERP</span>
+            </button>
+          </div>
+
+          <div class="m-section-t">今日概览</div>
+          <div class="m-drow">
+            <button
+              type="button"
+              class="m-dcard"
+              @click="go('crm_schedule_index')"
+            >
+              <span class="m-dc g-blue">
+                <Icon icon="i-lucide-calendar-days" />
+              </span>
+              <div>
+                <div class="m-dn">{{ todayEvents.length }}</div>
+                <div class="m-du">今日日程</div>
+              </div>
+            </button>
+            <button
+              type="button"
+              class="m-dcard"
+              @click="go('crm_org_structure_index')"
+            >
+              <span class="m-dc g-sky"><Icon icon="i-lucide-network" /></span>
+              <div>
+                <div class="m-dn">{{ hrLabel }}</div>
+                <div class="m-du">本周出勤</div>
+              </div>
+            </button>
+          </div>
+
+          <!-- 今日安排 -->
+          <div class="m-section-t">
+            今日安排 <span class="m-count">{{ todayEvents.length }} 项</span>
+          </div>
+          <div class="m-agenda">
+            <template v-if="todayEvents.length">
+              <button
+                v-for="e in todayEvents"
+                :key="e.id + e.starts_at"
+                type="button"
+                class="m-ev"
+                :class="e.color"
+                @click="go('crm_schedule_index')"
+              >
+                <div class="m-ev-tm">
+                  {{ e.all_day ? '全天' : hhmm(e.starts_at) }}
+                </div>
+                <div class="m-ev-b">
+                  <b>{{ e.title }}</b>
+                  <small>{{ e.owner_name }}</small>
+                </div>
+              </button>
+            </template>
+            <button
+              v-else
+              type="button"
+              class="m-ev-empty"
+              @click="go('crm_schedule_index')"
+            >
+              今天暂无安排 · 点此新建
+            </button>
+          </div>
+        </div>
+
         <div class="wsh-layout">
           <!-- 左侧三列 bento -->
           <div class="wsh-main">
@@ -528,7 +694,8 @@ onMounted(async () => {
   z-index: 50;
   overflow: auto;
   color: #232833;
-  background: radial-gradient(
+  background:
+    radial-gradient(
       58vw 52vh at 8% 2%,
       rgba(122, 170, 250, 0.34),
       transparent 56%
@@ -705,6 +872,297 @@ onMounted(async () => {
   .wsh-rail {
     min-width: 0;
   }
+  /* 手机端：隐藏桌面 bento，改用紧凑网格（用 .wsh-wrap 提高优先级，压过后面的默认 .wsh-m{display:none}）*/
+  .wsh-layout {
+    display: none;
+  }
+  .wsh-wrap .wsh-m {
+    display: block;
+  }
+}
+
+/* ─── 手机端一级界面（默认隐藏，仅 ≤767px 显示）─── */
+.wsh-m {
+  display: none;
+}
+.m-section-t {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 2px 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #4b535f;
+}
+.m-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9aa0ac;
+}
+.g-violet {
+  background: linear-gradient(150deg, #b3a4f5, #8b78ee);
+}
+.g-lime {
+  background: linear-gradient(150deg, #bfe388, #9fd162);
+}
+.g-teal {
+  background: linear-gradient(150deg, #86ddc6, #3ec3a2);
+}
+.g-sky {
+  background: linear-gradient(150deg, #9cc9f8, #5b9bef);
+}
+.g-blue {
+  background: linear-gradient(150deg, #7db8f7, #5691ec);
+}
+.g-cyan {
+  background: linear-gradient(150deg, #4fd1e6, #22b8d4);
+}
+.g-gray {
+  background: linear-gradient(150deg, #c3ccd8, #9aa7b8);
+}
+/* 方案 D：双主入口 */
+.m-duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+.m-big {
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  color: #fff;
+  border-radius: 18px;
+  padding: 14px;
+  min-height: 120px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  box-shadow: 0 16px 38px -20px rgba(60, 90, 150, 0.5);
+  transition: transform 0.16s ease;
+}
+.m-big:active {
+  transform: scale(0.98);
+}
+.m-big.locked {
+  opacity: 0.55;
+  filter: saturate(0.5);
+  cursor: not-allowed;
+}
+.m-big-l {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 800;
+  position: relative;
+  z-index: 2;
+}
+.m-big-l :deep([class*='i-lucide-']) {
+  width: 17px;
+  height: 17px;
+}
+.m-big-n {
+  margin-top: auto;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  position: relative;
+  z-index: 2;
+}
+.m-big-go {
+  align-self: flex-start;
+  margin-top: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 6px 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.24);
+  position: relative;
+  z-index: 2;
+}
+.m-big-go :deep([class*='i-lucide-']) {
+  width: 14px;
+  height: 14px;
+}
+/* 图标快启 */
+.m-launch {
+  display: flex;
+  gap: 6px;
+  margin-top: 16px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.m-launch::-webkit-scrollbar {
+  display: none;
+}
+.m-lz {
+  flex: 1 0 auto;
+  min-width: 60px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+.m-lc {
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  position: relative;
+  box-shadow: 0 10px 20px -12px rgba(60, 90, 150, 0.55);
+}
+.m-lc :deep([class*='i-lucide-']) {
+  width: 22px;
+  height: 22px;
+}
+.m-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ff5a7a;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  border: 2px solid #eef2f9;
+}
+.m-ll {
+  font-size: 11px;
+  color: #5a6472;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* 数据条 */
+.m-drow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.m-dcard {
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12px 30px -22px rgba(60, 90, 150, 0.36);
+  transition: transform 0.16s ease;
+}
+.m-dcard:active {
+  transform: scale(0.98);
+}
+.m-dc {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  flex: none;
+}
+.m-dc :deep([class*='i-lucide-']) {
+  width: 19px;
+  height: 19px;
+}
+.m-dn {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #232833;
+  line-height: 1.1;
+}
+.m-du {
+  font-size: 11px;
+  color: #9aa0ac;
+  font-weight: 600;
+}
+.m-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.m-ev {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 11px 13px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+.m-ev-tm {
+  width: 42px;
+  flex: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: #4b535f;
+}
+.m-ev-b {
+  flex: 1;
+  min-width: 0;
+  border-left: 3px solid #5b9bef;
+  padding-left: 11px;
+}
+.m-ev-b b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #232833;
+}
+.m-ev-b small {
+  font-size: 11px;
+  color: #9aa0ac;
+}
+.m-ev.teal .m-ev-b {
+  border-color: #3ec3a2;
+}
+.m-ev.violet .m-ev-b {
+  border-color: #8b78ee;
+}
+.m-ev.rose .m-ev-b {
+  border-color: #ef7f9c;
+}
+.m-ev.lime .m-ev-b {
+  border-color: #9fd162;
+}
+.m-ev.sky .m-ev-b {
+  border-color: #38bdf8;
+}
+.m-ev-empty {
+  width: 100%;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 18px 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: #9aa0ac;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px dashed rgba(150, 160, 175, 0.4);
+  border-radius: 14px;
 }
 
 .wsh-card {

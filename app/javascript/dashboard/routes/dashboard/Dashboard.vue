@@ -78,6 +78,10 @@ export default {
         'agent_list',
       ].includes(this.$route.name);
     },
+    // 团队沟通页有自己的底部输入栏，右下 Copilot 悬浮球会挡住发送键——该页隐藏它。
+    hideCopilotLauncher() {
+      return this.$route.name === 'crm_team_chat_index';
+    },
     previouslyUsedDisplayType() {
       const {
         previously_used_conversation_display_type: conversationDisplayType,
@@ -168,7 +172,7 @@ export default {
       <template v-if="!showUpgradePage">
         <router-view />
         <CommandBar />
-        <CopilotLauncher />
+        <CopilotLauncher v-if="!hideCopilotLauncher" />
         <MobileSidebarLauncher
           :is-mobile-sidebar-open="isMobileSidebarOpen"
           @toggle="toggleMobileSidebar"

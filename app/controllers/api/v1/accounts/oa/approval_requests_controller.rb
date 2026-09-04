@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_request, only: [:show, :approve, :reject, :cancel]
+  before_action :fetch_request, only: [:show, :update, :approve, :reject, :cancel]
 
   RESULTS_PER_PAGE = 20
 
@@ -31,6 +31,25 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
 
     @request = build_request
     @request.files.attach(params[:files]) if params[:files].present?
+    render :show
+  end
+
+  # 申请人修改自己的审批单：仅「审批中且尚无人处理」时可改（改字段/所在部门 + 增删附件）。
+  # 改后按最新表单/部门重新物化审批链（部门主管/条件分支可能随之变化）。
+  def update
+    return render json: { error: '只能修改自己发起的审批单' }, status: :forbidden unless @request.applicant_id == current_user.id
+    unless editable_by_applicant?(@request)
+      return render json: { error: '该审批单已被处理或已结束，无法修改，请撤回后重新发起' }, status: :unprocessable_entity
+    end
+
+    @request.update!(
+      title: params[:title].presence || @request.title,
+      department_id: params[:department_id].presence,
+      form_data: form_data_param
+    )
+    purge_removed_files
+    @request.files.attach(params[:files]) if params[:files].present?
+    Oa::SubmitApprovalService.rebuild_steps(request: @request.reload)
     render :show
   end
 
@@ -85,6 +104,19 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     return {} if raw.blank?
 
     raw.respond_to?(:permit) ? raw.permit!.to_h : raw
+  end
+
+  # 可编辑：审批中，且还没有任何审批人处理过（同意/驳回）——首个审批人一动，申请人就不能改了。
+  def editable_by_applicant?(request)
+    request.pending? && request.steps.where(status: %w[approved rejected]).none?
+  end
+
+  # 删除申请人在编辑时勾掉的既有附件（remove_file_ids 为附件 id 数组）。
+  def purge_removed_files
+    ids = Array(params[:remove_file_ids]).map(&:to_i).reject(&:zero?)
+    return if ids.empty?
+
+    @request.files.where(id: ids).find_each(&:purge)
   end
 
   def fetch_request

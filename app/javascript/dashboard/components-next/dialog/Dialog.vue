@@ -217,4 +217,24 @@ dialog::backdrop {
   margin-top: clamp(2rem, 5vh, 5rem);
   margin-bottom: auto;
 }
+
+/* 手机端：弹窗改「底部抽屉」——全宽贴底、顶部圆角、内容自适应(超高可滚)，
+   避免短内容居中/顶对齐时下方留一大片空白背景。 */
+@media (max-width: 767px) {
+  dialog {
+    width: 100%;
+    max-width: 100%;
+    margin: auto 0 0 0;
+    max-height: 92vh;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .dialog-position-top {
+    margin-top: auto;
+  }
+  dialog form {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}
 </style>

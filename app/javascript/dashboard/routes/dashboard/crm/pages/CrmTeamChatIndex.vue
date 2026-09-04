@@ -17,6 +17,7 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
+import EmojiPicker from 'shared/components/emoji/EmojiPicker.vue';
 
 const currentUserId = useMapGetter('getCurrentUserID');
 const accountId = useMapGetter('getCurrentAccountId');
@@ -82,6 +83,23 @@ const L = {
   searchOrder: '搜索订单号',
   loadingText: '加载中…',
   noResult: '无匹配结果',
+  reply: '引用回复',
+  forward: '转发',
+  multiSelect: '多选',
+  cancelSelect: '取消',
+  selectedN: n => `已选 ${n} 条`,
+  forwardTitle: '转发到',
+  forwardEmpty: '没有可转发的会话',
+  forwarded: '已转发',
+  pickToForward: '请选择要转发的消息',
+  emoji: '表情',
+  zoomOut: '缩小',
+  zoomIn: '放大',
+  resetZoom: '还原',
+  closeImage: '关闭',
+  replyingPrefix: '回复',
+  imageLabel: '[图片]',
+  fileLabel: '[文件]',
 };
 
 const conversations = ref([]);
@@ -244,9 +262,26 @@ const activePeerOnline = computed(
 const mineLastMessage = conv =>
   conv.last_message && conv.last_message.sender_id === currentUserId.value;
 
+// 用最大 id 作为增量拉取游标（防乱序）。
 const lastMessageId = computed(() =>
-  messages.value.length ? messages.value[messages.value.length - 1].id : 0
+  messages.value.reduce((max, m) => Math.max(max, m.id), 0)
 );
+
+// 追加消息并按 id 去重：本地发送 push 与实时/轮询拉取可能带来同一条，
+// 数组出现重复 id 会让 :key 冲突、界面「一条变两条又变回一条」。
+const appendMessages = list => {
+  if (!list?.length) return false;
+  const seen = new Set(messages.value.map(m => m.id));
+  let added = false;
+  list.forEach(m => {
+    if (!seen.has(m.id)) {
+      messages.value.push(m);
+      seen.add(m.id);
+      added = true;
+    }
+  });
+  return added;
+};
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -272,8 +307,7 @@ const pollActive = async () => {
       ChatAPI.messages(activeConv.value.id, lastMessageId.value),
       ChatAPI.show(activeConv.value.id),
     ]);
-    if (msgs.payload?.length) {
-      messages.value.push(...msgs.payload);
+    if (appendMessages(msgs.payload)) {
       scrollToBottom();
       ChatAPI.markRead(activeConv.value.id);
       emitter.emit('CHAT_UNREAD_CHANGED');
@@ -491,6 +525,112 @@ const buildSendExtra = content => {
   };
 };
 
+// ── 引用回复 ───────────────────────────────────────────────
+const replyingTo = ref(null); // 正在引用回复的消息
+const startReply = msg => {
+  replyingTo.value = msg;
+  nextTick(() => composerRef.value?.focus?.());
+};
+const clearReply = () => {
+  replyingTo.value = null;
+};
+// 消息摘要（引用预览/转发标签用）：优先正文，否则图片/文件占位。
+const msgSummary = msg => {
+  if (msg.content) return msg.content;
+  if ((msg.files || []).some(f => f.is_image)) return L.imageLabel;
+  if ((msg.files || []).length) return L.fileLabel;
+  return '';
+};
+
+// ── 表情 ───────────────────────────────────────────────────
+const emojiOpen = ref(false);
+const onEmojiSelect = payload => {
+  newText.value += payload.value || payload.emoji || '';
+  emojiOpen.value = false;
+  nextTick(() => composerRef.value?.focus?.());
+};
+
+// ── 图片 lightbox（本层浮层预览 + 缩放，不再新开网页）─────────
+const lightbox = ref({ open: false, images: [], index: 0, scale: 1 });
+// 收集当前会话里所有图片 url（供左右翻页）。
+const openLightbox = clickedUrl => {
+  const imgs = [];
+  messages.value.forEach(m =>
+    (m.files || []).forEach(f => {
+      if (f.is_image) imgs.push(f.url);
+    })
+  );
+  const index = Math.max(0, imgs.indexOf(clickedUrl));
+  lightbox.value = { open: true, images: imgs, index, scale: 1 };
+};
+const closeLightbox = () => {
+  lightbox.value.open = false;
+};
+const zoomLightbox = delta => {
+  const next = Math.round((lightbox.value.scale + delta) * 10) / 10;
+  lightbox.value.scale = Math.min(4, Math.max(0.3, next));
+};
+const resetZoom = () => {
+  lightbox.value.scale = 1;
+};
+const stepLightbox = delta => {
+  const n = lightbox.value.images.length;
+  if (!n) return;
+  lightbox.value.index = (lightbox.value.index + delta + n) % n;
+  lightbox.value.scale = 1;
+};
+const currentLightboxImage = computed(
+  () => lightbox.value.images[lightbox.value.index] || ''
+);
+
+// ── 多选 + 转发 ─────────────────────────────────────────────
+const selectMode = ref(false);
+const selectedIds = ref([]);
+const forwardDialog = ref(null);
+const forwardSourceIds = ref([]); // 待转发的消息 id（多选批量或单条）
+const enterSelect = msg => {
+  selectMode.value = true;
+  selectedIds.value = msg ? [msg.id] : [];
+};
+const exitSelect = () => {
+  selectMode.value = false;
+  selectedIds.value = [];
+};
+const toggleSelect = msg => {
+  const i = selectedIds.value.indexOf(msg.id);
+  if (i >= 0) selectedIds.value.splice(i, 1);
+  else selectedIds.value.push(msg.id);
+};
+// 打开转发目标选择：ids 为空时用多选结果。
+const openForward = ids => {
+  const list = ids && ids.length ? ids : selectedIds.value;
+  if (!list.length) {
+    useAlert(L.pickToForward);
+    return;
+  }
+  forwardSourceIds.value = [...list];
+  forwardDialog.value?.open();
+};
+const doForward = async targetConvId => {
+  try {
+    await ChatAPI.forward(
+      activeConv.value.id,
+      forwardSourceIds.value,
+      targetConvId
+    );
+    forwardDialog.value?.close();
+    exitSelect();
+    useAlert(L.forwarded);
+    fetchConversations();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || L.error);
+  }
+};
+// 转发目标：除当前会话外的全部会话。
+const forwardTargets = computed(() =>
+  conversations.value.filter(c => c.id !== activeConv.value?.id)
+);
+
 const sendMessage = async () => {
   if (mentionOpen.value) return; // @ 面板打开时回车用于选人，不发送
   let content = newText.value.trim();
@@ -502,10 +642,14 @@ const sendMessage = async () => {
     content = `[${REF_TYPE_LABEL[heldRef.ref_type]}] ${heldRef.snapshot?.title || ''}`;
   }
   const extra = buildSendExtra(content);
+  if (replyingTo.value) extra.reply_to_id = replyingTo.value.id;
+  const heldReply = replyingTo.value;
   newText.value = '';
   pendingFiles.value = [];
   pendingRef.value = null;
   mentionedList.value = [];
+  replyingTo.value = null;
+  emojiOpen.value = false;
   try {
     const { data } = await ChatAPI.send(
       activeConv.value.id,
@@ -513,13 +657,14 @@ const sendMessage = async () => {
       files,
       extra
     );
-    messages.value.push(data);
+    appendMessages([data]);
     scrollToBottom();
     fetchConversations();
     files.forEach(revokePreview);
   } catch {
     useAlert(L.error);
     pendingRef.value = heldRef;
+    replyingTo.value = heldReply;
   }
 };
 
@@ -724,10 +869,16 @@ const onRealtimeMessage = async data => {
   }
 };
 
+// 图片浮层：Esc 关闭。
+const onKeydown = e => {
+  if (e.key === 'Escape' && lightbox.value.open) closeLightbox();
+};
+
 onMounted(async () => {
   fetchConversations();
   loadAgents();
   loadOrgData();
+  window.addEventListener('keydown', onKeydown);
   // 从别处（如 MES 订单点阶段负责人）带 ?peer= 进来：直接打开与该同事的私聊。
   if (route.query.peer) startDirect(Number(route.query.peer));
   emitter.on('CHAT_MESSAGE_CREATED', onRealtimeMessage);
@@ -742,11 +893,14 @@ onBeforeUnmount(() => {
   clearInterval(listTimer);
   clearInterval(msgTimer);
   emitter.off('CHAT_MESSAGE_CREATED', onRealtimeMessage);
+  window.removeEventListener('keydown', onKeydown);
 });
 </script>
 
 <template>
-  <div class="w-full h-full overflow-hidden bg-transparent">
+  <div
+    class="w-full h-full overflow-hidden bg-transparent max-md:min-h-[100dvh] max-md:-mb-24"
+  >
     <div
       class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 border-white/50 rounded-3xl shadow-n-iris-9/5"
     >
@@ -973,13 +1127,27 @@ onBeforeUnmount(() => {
             <div
               v-for="msg in messages"
               :key="msg.id"
-              class="flex gap-2.5 mb-4"
-              :class="
+              class="flex gap-2.5 mb-4 group"
+              :class="[
                 msg.sender_id === currentUserId
                   ? 'flex-row-reverse'
-                  : 'flex-row'
-              "
+                  : 'flex-row',
+                selectMode ? 'cursor-pointer' : '',
+              ]"
+              @click="selectMode ? toggleSelect(msg) : null"
             >
+              <label
+                v-if="selectMode"
+                class="flex items-center self-center shrink-0"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  class="size-4 accent-n-iris-9"
+                  :checked="selectedIds.includes(msg.id)"
+                  @change="toggleSelect(msg)"
+                />
+              </label>
               <Avatar
                 v-if="msg.sender_id !== currentUserId"
                 :name="msg.sender_name"
@@ -1003,6 +1171,22 @@ onBeforeUnmount(() => {
                 >
                   {{ msg.sender_name }}
                 </span>
+                <!-- 引用的原消息（点击可看，简版只展示摘要）-->
+                <div
+                  v-if="msg.reply_to"
+                  class="mb-1 max-w-full px-2.5 py-1.5 rounded-xl bg-n-alpha-2 ring-1 ring-inset ring-n-weak border-l-2 border-n-iris-8"
+                >
+                  <span class="block text-[11px] font-medium text-n-iris-11">
+                    {{ msg.reply_to.sender_name }}
+                  </span>
+                  <span class="block text-[11px] text-n-slate-10 line-clamp-2">
+                    {{
+                      msg.reply_to.is_image
+                        ? L.imageLabel
+                        : msg.reply_to.content
+                    }}
+                  </span>
+                </div>
                 <div
                   v-if="msg.content"
                   class="px-4 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap shadow-sm rounded-[20px]"
@@ -1074,18 +1258,19 @@ onBeforeUnmount(() => {
                   ]"
                 >
                   <template v-for="f in msg.files" :key="f.id">
-                    <a
+                    <button
                       v-if="f.is_image"
-                      :href="f.url"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      type="button"
+                      @click.stop="
+                        selectMode ? toggleSelect(msg) : openLightbox(f.url)
+                      "
                     >
                       <img
                         :src="f.url"
                         :alt="f.filename"
-                        class="max-w-[220px] max-h-[220px] rounded-2xl shadow-sm object-cover"
+                        class="max-w-[220px] max-h-[220px] rounded-2xl shadow-sm object-cover cursor-zoom-in"
                       />
-                    </a>
+                    </button>
                     <a
                       v-else
                       :href="f.url"
@@ -1160,11 +1345,42 @@ onBeforeUnmount(() => {
                   </template>
                 </div>
               </div>
+              <!-- 悬浮操作：引用回复 / 转发 / 多选 -->
+              <div
+                v-if="!selectMode"
+                class="flex items-center self-center gap-0.5 transition-opacity opacity-0 group-hover:opacity-100"
+              >
+                <button
+                  type="button"
+                  :title="L.reply"
+                  class="grid rounded-full size-7 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                  @click.stop="startReply(msg)"
+                >
+                  <Icon icon="i-lucide-reply" class="size-4" />
+                </button>
+                <button
+                  type="button"
+                  :title="L.forward"
+                  class="grid rounded-full size-7 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                  @click.stop="openForward([msg.id])"
+                >
+                  <Icon icon="i-lucide-forward" class="size-4" />
+                </button>
+                <button
+                  type="button"
+                  :title="L.multiSelect"
+                  class="grid rounded-full size-7 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                  @click.stop="enterSelect(msg)"
+                >
+                  <Icon icon="i-lucide-list-checks" class="size-4" />
+                </button>
+              </div>
             </div>
           </div>
 
           <!-- 输入区 -->
           <div
+            v-if="!selectMode"
             class="flex flex-col gap-2 px-4 py-3.5 shrink-0 border-t border-n-weak bg-n-solid-1"
           >
             <!-- 待发附件（图片显示缩略图，可粘贴截图直接进来）-->
@@ -1233,6 +1449,28 @@ onBeforeUnmount(() => {
                 <Icon icon="i-lucide-x" class="size-3" />
               </button>
             </div>
+            <!-- 正在引用回复的原消息 -->
+            <div
+              v-if="replyingTo"
+              class="flex items-center gap-2 py-1.5 pl-2.5 pr-1.5 max-w-full text-xs rounded-lg bg-n-alpha-1 ring-1 ring-inset ring-n-weak"
+            >
+              <Icon
+                icon="i-lucide-reply"
+                class="size-3.5 shrink-0 text-n-iris-10"
+              />
+              <span class="min-w-0 truncate text-n-slate-11">
+                {{ L.replyingPrefix }} {{ replyingTo.sender_name }}：{{
+                  msgSummary(replyingTo)
+                }}
+              </span>
+              <button
+                type="button"
+                class="grid ml-auto rounded size-4 place-items-center shrink-0 hover:bg-n-alpha-2"
+                @click="clearReply"
+              >
+                <Icon icon="i-lucide-x" class="size-3" />
+              </button>
+            </div>
             <!-- 一体化输入条：图标 + 文本 + 发送同处一栏，紧凑对齐 -->
             <div
               class="relative flex items-center gap-1 pl-2 pr-1.5 py-1.5 transition-shadow rounded-2xl bg-n-alpha-1 ring-1 ring-inset ring-n-weak focus-within:ring-2 focus-within:ring-n-iris-7"
@@ -1281,6 +1519,21 @@ onBeforeUnmount(() => {
               >
                 <Icon icon="i-lucide-link" class="size-[18px]" />
               </button>
+              <!-- 表情 -->
+              <button
+                type="button"
+                :title="L.emoji"
+                class="grid transition-colors rounded-lg shrink-0 size-8 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-iris-11"
+                @click="emojiOpen = !emojiOpen"
+              >
+                <Icon icon="i-lucide-smile" class="size-[18px]" />
+              </button>
+              <div
+                v-if="emojiOpen"
+                class="absolute z-30 left-2 bottom-full mb-2"
+              >
+                <EmojiPicker class="!static" @select="onEmojiSelect" />
+              </div>
               <textarea
                 ref="composerRef"
                 v-model="newText"
@@ -1301,6 +1554,34 @@ onBeforeUnmount(() => {
                 @click="sendMessage"
               >
                 <Icon icon="i-lucide-send-horizontal" class="size-[18px]" />
+              </button>
+            </div>
+          </div>
+
+          <!-- 多选转发底栏 -->
+          <div
+            v-else
+            class="flex items-center gap-3 px-4 py-3.5 shrink-0 border-t border-n-weak bg-n-solid-1"
+          >
+            <span class="text-sm text-n-slate-11">
+              {{ L.selectedN(selectedIds.length) }}
+            </span>
+            <div class="flex items-center gap-2 ml-auto">
+              <button
+                type="button"
+                class="h-9 px-4 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
+                @click="exitSelect"
+              >
+                {{ L.cancelSelect }}
+              </button>
+              <button
+                type="button"
+                :disabled="!selectedIds.length"
+                class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-40 disabled:cursor-not-allowed"
+                @click="openForward()"
+              >
+                <Icon icon="i-lucide-forward" class="size-4" />
+                {{ L.forward }}
               </button>
             </div>
           </div>
@@ -1686,5 +1967,114 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </Dialog>
+
+    <!-- 转发目标：选择要转发到的会话 -->
+    <Dialog
+      ref="forwardDialog"
+      :title="L.forwardTitle"
+      :show-confirm-button="false"
+    >
+      <div class="flex flex-col gap-1 max-h-[50vh] overflow-y-auto">
+        <p
+          v-if="!forwardTargets.length"
+          class="p-6 text-sm text-center text-n-slate-10"
+        >
+          {{ L.forwardEmpty }}
+        </p>
+        <button
+          v-for="conv in forwardTargets"
+          :key="conv.id"
+          type="button"
+          class="flex items-center gap-3 p-2 text-left rounded-lg hover:bg-n-alpha-1"
+          @click="doForward(conv.id)"
+        >
+          <Avatar
+            :name="conv.name"
+            :src="convSrc(conv)"
+            :size="36"
+            rounded-full
+            hide-offline-status
+          />
+          <span class="min-w-0 text-sm font-medium truncate text-n-slate-12">
+            {{ conv.name }}
+          </span>
+        </button>
+      </div>
+    </Dialog>
+
+    <!-- 图片浏览浮层：本层预览 + 缩放（不再新开网页）-->
+    <Teleport to="body">
+      <div
+        v-if="lightbox.open"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+        @click.self="closeLightbox"
+      >
+        <img
+          :src="currentLightboxImage"
+          class="max-w-[92vw] max-h-[86vh] object-contain transition-transform select-none"
+          :style="{ transform: `scale(${lightbox.scale})` }"
+          @click.stop
+        />
+
+        <!-- 左右翻页（多张图时）-->
+        <button
+          v-if="lightbox.images.length > 1"
+          type="button"
+          class="absolute grid -translate-y-1/2 rounded-full left-4 top-1/2 size-11 place-items-center bg-white/10 text-white hover:bg-white/20"
+          @click.stop="stepLightbox(-1)"
+        >
+          <Icon icon="i-lucide-chevron-left" class="size-6" />
+        </button>
+        <button
+          v-if="lightbox.images.length > 1"
+          type="button"
+          class="absolute grid -translate-y-1/2 rounded-full right-4 top-1/2 size-11 place-items-center bg-white/10 text-white hover:bg-white/20"
+          @click.stop="stepLightbox(1)"
+        >
+          <Icon icon="i-lucide-chevron-right" class="size-6" />
+        </button>
+
+        <!-- 工具条：缩小 / 还原 / 放大 / 关闭 -->
+        <div
+          class="absolute flex items-center gap-1 px-2 py-1.5 -translate-x-1/2 rounded-full bottom-6 left-1/2 bg-white/10 backdrop-blur"
+          @click.stop
+        >
+          <button
+            type="button"
+            :title="L.zoomOut"
+            class="grid rounded-full size-9 place-items-center text-white hover:bg-white/20"
+            @click="zoomLightbox(-0.3)"
+          >
+            <Icon icon="i-lucide-zoom-out" class="size-5" />
+          </button>
+          <button
+            type="button"
+            :title="L.resetZoom"
+            class="px-2 text-xs text-white/90 tabular-nums hover:text-white"
+            @click="resetZoom"
+          >
+            {{ Math.round(lightbox.scale * 100) }}%
+          </button>
+          <button
+            type="button"
+            :title="L.zoomIn"
+            class="grid rounded-full size-9 place-items-center text-white hover:bg-white/20"
+            @click="zoomLightbox(0.3)"
+          >
+            <Icon icon="i-lucide-zoom-in" class="size-5" />
+          </button>
+        </div>
+
+        <!-- 关闭 -->
+        <button
+          type="button"
+          :title="L.closeImage"
+          class="absolute grid rounded-full top-4 right-4 size-10 place-items-center bg-white/10 text-white hover:bg-white/20"
+          @click="closeLightbox"
+        >
+          <Icon icon="i-lucide-x" class="size-6" />
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>

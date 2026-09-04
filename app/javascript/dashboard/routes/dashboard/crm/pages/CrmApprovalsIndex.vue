@@ -23,6 +23,8 @@ const L = {
   selectHint: '选择左侧审批单查看详情',
   pickTemplate: '选择审批类型',
   submit: '提交',
+  editAction: '修改',
+  saved: '已保存',
   approve: '同意',
   reject: '驳回',
   cancel: '撤回',
@@ -140,6 +142,10 @@ const agents = ref([]);
 const selectedDeptId = ref('');
 const attachments = ref([]);
 const fileInputRef = ref(null);
+// 编辑态：editingId 非空表示改单(而非新发起)；existingFiles 为该单既有附件、removeFileIds 为勾删的附件 id。
+const editingId = ref(null);
+const existingFiles = ref([]);
+const removeFileIds = ref([]);
 
 const templateFlow = computed(
   () => activeTemplate.value?.flow || activeTemplate.value?.flow || []
@@ -167,6 +173,26 @@ const flowPreview = computed(() =>
 const fmtDateTime = v =>
   v ? new Date(v).toLocaleString('zh-CN', { hour12: false }) : '';
 const initial = n => (n || '?').trim().charAt(0).toUpperCase();
+
+// 详情表单值展示：datetime 字段把 "2026-09-01T14:30" 显示成 "2026-09-01 14:30"
+const displayFieldValue = (f, data) => {
+  const v = data?.[f.key];
+  if (v == null || v === '') return '—';
+  return f.type === 'datetime' ? String(v).replace('T', ' ') : v;
+};
+
+// 发起表单里各字段对应的原生 input type。
+const FIELD_INPUT_TYPES = {
+  number: 'number',
+  amount: 'number',
+  date: 'date',
+  datetime: 'datetime-local',
+};
+const fieldInputType = f => FIELD_INPUT_TYPES[f.type] || 'text';
+
+// 默认部门：申请人的首个部门（没有则空）。
+const firstDeptId = () =>
+  myDepartments.value[0] ? String(myDepartments.value[0].department_id) : '';
 
 const fetchRequests = async () => {
   const { data } = await RequestsAPI.list({ filter: activeTab.value, page: 1 });
@@ -244,17 +270,49 @@ const openPicker = async () => {
 };
 
 const pickTemplate = tpl => {
+  editingId.value = null;
   activeTemplate.value = tpl;
   formValues.value = {};
   (tpl.formFields || tpl.form_fields || []).forEach(f => {
     formValues.value[f.key] = '';
   });
   attachments.value = [];
+  existingFiles.value = [];
+  removeFileIds.value = [];
   selectedDeptId.value = myDepartments.value[0]
     ? String(myDepartments.value[0].department_id)
     : '';
   pickerRef.value?.close();
   formRef.value?.open();
+};
+
+// 修改已发起的审批单（审批中且尚无人处理时可用）：用当前单的表单值/部门/附件回填同一个发起表单。
+const openEditRequest = () => {
+  const r = selected.value;
+  if (!r) return;
+  editingId.value = r.id;
+  activeTemplate.value = {
+    id: r.template_id,
+    name: r.template_name,
+    formFields: r.form_fields || [],
+    flow: r.flow || [],
+  };
+  formValues.value = {};
+  (r.form_fields || []).forEach(f => {
+    formValues.value[f.key] = r.form_data?.[f.key] ?? '';
+  });
+  attachments.value = [];
+  existingFiles.value = [...(r.files || [])];
+  removeFileIds.value = [];
+  selectedDeptId.value = r.department_id
+    ? String(r.department_id)
+    : firstDeptId();
+  formRef.value?.open();
+};
+
+const removeExistingFile = file => {
+  removeFileIds.value.push(file.id);
+  existingFiles.value = existingFiles.value.filter(f => f.id !== file.id);
 };
 
 const templateFields = computed(
@@ -281,6 +339,17 @@ const onPickFiles = event => {
 };
 const removeAttachment = i => attachments.value.splice(i, 1);
 
+// 表单值 + 附件打包成 multipart（新发起 / 修改共用）。
+const buildFormData = () => {
+  const fd = new FormData();
+  if (selectedDeptId.value) fd.append('department_id', selectedDeptId.value);
+  Object.entries(formValues.value).forEach(([k, v]) =>
+    fd.append(`form_data[${k}]`, v ?? '')
+  );
+  attachments.value.forEach(f => fd.append('files[]', f));
+  return fd;
+};
+
 const submitRequest = async () => {
   const missing = templateFields.value.some(
     f => f.required && !String(formValues.value[f.key] ?? '').trim()
@@ -290,30 +359,44 @@ const submitRequest = async () => {
     return;
   }
   try {
-    if (attachments.value.length) {
-      const fd = new FormData();
-      fd.append('template_id', activeTemplate.value.id);
-      if (selectedDeptId.value)
-        fd.append('department_id', selectedDeptId.value);
-      Object.entries(formValues.value).forEach(([k, v]) =>
-        fd.append(`form_data[${k}]`, v ?? '')
-      );
-      attachments.value.forEach(f => fd.append('files[]', f));
-      await RequestsAPI.submitForm(fd);
+    if (editingId.value) {
+      const id = editingId.value;
+      // 有新增/删除附件走 multipart，否则纯 JSON。
+      if (attachments.value.length || removeFileIds.value.length) {
+        const fd = buildFormData();
+        removeFileIds.value.forEach(fid => fd.append('remove_file_ids[]', fid));
+        await RequestsAPI.updateForm(id, fd);
+      } else {
+        await RequestsAPI.update(id, {
+          department_id: selectedDeptId.value || null,
+          form_data: formValues.value,
+        });
+      }
+      formRef.value?.close();
+      editingId.value = null;
+      useAlert(L.saved);
+      await openRequest({ id }); // 重新拉详情，展示修改后的单
+      refreshAll();
     } else {
-      await RequestsAPI.submit({
-        template_id: activeTemplate.value.id,
-        department_id: selectedDeptId.value || null,
-        form_data: formValues.value,
-      });
+      if (attachments.value.length) {
+        const fd = buildFormData();
+        fd.append('template_id', activeTemplate.value.id);
+        await RequestsAPI.submitForm(fd);
+      } else {
+        await RequestsAPI.submit({
+          template_id: activeTemplate.value.id,
+          department_id: selectedDeptId.value || null,
+          form_data: formValues.value,
+        });
+      }
+      formRef.value?.close();
+      useAlert(L.submitted);
+      activeTab.value = 'mine';
+      selected.value = null;
+      refreshAll();
     }
-    formRef.value?.close();
-    useAlert(L.submitted);
-    activeTab.value = 'mine';
-    selected.value = null;
-    refreshAll();
-  } catch {
-    useAlert(L.error);
+  } catch (e) {
+    useAlert(e?.response?.data?.error || L.error);
   }
 };
 
@@ -511,7 +594,7 @@ onMounted(async () => {
               <div v-for="f in detailFields" :key="f.key" class="min-w-0">
                 <div class="text-[11px] text-n-slate-10">{{ f.label }}</div>
                 <div class="text-sm break-words text-n-slate-12">
-                  {{ selected.form_data?.[f.key] || '—' }}
+                  {{ displayFieldValue(f, selected.form_data) }}
                 </div>
               </div>
             </div>
@@ -620,6 +703,14 @@ onMounted(async () => {
               </template>
               <Button
                 v-if="selected.is_applicant && selected.status === 'pending'"
+                :label="L.editAction"
+                icon="i-lucide-pencil"
+                color="iris"
+                variant="faded"
+                @click="openEditRequest"
+              />
+              <Button
+                v-if="selected.is_applicant && selected.status === 'pending'"
                 :label="L.cancel"
                 icon="i-lucide-undo-2"
                 color="slate"
@@ -693,13 +784,7 @@ onMounted(async () => {
           <input
             v-else
             v-model="formValues[f.key]"
-            :type="
-              f.type === 'number' || f.type === 'amount'
-                ? 'number'
-                : f.type === 'date'
-                  ? 'date'
-                  : 'text'
-            "
+            :type="fieldInputType(f)"
             class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
           <p
@@ -737,6 +822,27 @@ onMounted(async () => {
             <Icon icon="i-lucide-plus" class="size-4" />
             {{ L.addAttachment }}
           </button>
+          <!-- 编辑态：已有附件（可勾删） -->
+          <div v-if="existingFiles.length" class="flex flex-col gap-1.5 mt-2">
+            <div
+              v-for="file in existingFiles"
+              :key="file.id"
+              class="flex items-center justify-between gap-2 px-3 py-1.5 text-sm border rounded-lg border-n-weak"
+            >
+              <span class="flex items-center min-w-0 gap-2">
+                <Icon icon="i-lucide-file" class="size-4 text-n-iris-11" />
+                <span class="truncate text-n-slate-12">{{
+                  file.filename
+                }}</span>
+              </span>
+              <button
+                class="text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeExistingFile(file)"
+              >
+                <Icon icon="i-lucide-x" class="size-4" />
+              </button>
+            </div>
+          </div>
           <div v-if="attachments.length" class="flex flex-col gap-1.5 mt-2">
             <div
               v-for="(file, i) in attachments"

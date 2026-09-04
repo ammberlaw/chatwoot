@@ -4,6 +4,14 @@ json.sender_id resource.sender_id
 json.sender_name resource.sender&.name
 json.read_by resource.read_by_count
 json.mentioned_ids resource.mentioned_ids
+if resource.reply_to_id.present? && resource.reply_to
+  json.reply_to do
+    json.id resource.reply_to.id
+    json.sender_name resource.reply_to.sender&.name
+    json.content resource.reply_to.content.to_s.truncate(60)
+    json.is_image resource.reply_to.files.any? { |f| f.content_type.to_s.start_with?('image/') }
+  end
+end
 if resource.ref_type.present?
   json.ref do
     json.type resource.ref_type
