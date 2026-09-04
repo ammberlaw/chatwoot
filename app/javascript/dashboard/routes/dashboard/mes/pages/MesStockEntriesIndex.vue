@@ -316,6 +316,22 @@ onMounted(async () => {
 
     <MesBoardOwnerBar board-key="mes_stock_entries_index" />
 
+    <!-- 外购成品收货说明：外购成品到货也在本板块收货入库（选对应采购单会自动入「成品仓」）。 -->
+    <div class="px-4 mb-1 sm:px-6">
+      <div
+        class="flex items-start gap-2 px-3 py-2 text-xs rounded-lg text-n-iris-12 bg-n-iris-3/70"
+      >
+        <span class="mt-0.5 shrink-0 i-lucide-info size-3.5 text-n-iris-11" />
+        <span class="leading-relaxed">
+          <b>外购成品</b>到货也在这里收货：新建入库单 →
+          选对应<b>采购单</b>（含「成品(外购)」行）→ 系统自动把入库仓切为<b
+            >成品仓</b
+          >
+          → 过账后即成成品库存，可直接销售出库，无需再开成品入库单。
+        </span>
+      </div>
+    </div>
+
     <!-- 从生产订单跳来的按订单筛选提示 -->
     <div v-if="filterOrderId" class="flex items-center gap-2 px-4 mb-1 sm:px-6">
       <span
@@ -464,7 +480,7 @@ onMounted(async () => {
       overflow-y-auto
       confirm-button-color="iris"
       title="新建原料入库单"
-      description="可从采购单预填收货明细，核对实收数量后保存，再「过账」刷新库存。"
+      description="原料/外购成品到货收货：可从采购单预填明细（含外购成品，自动入成品仓），核对实收数量后保存，再「过账」刷新库存。"
       :is-loading="saving"
       :disable-confirm-button="invalid"
       @confirm="submit"
