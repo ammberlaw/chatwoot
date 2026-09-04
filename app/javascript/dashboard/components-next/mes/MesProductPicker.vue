@@ -1,7 +1,8 @@
 <script setup>
 /* global axios */
-import { ref, computed, nextTick } from 'vue';
+import { ref, reactive, computed, nextTick } from 'vue';
 import { onClickOutside, useEventListener } from '@vueuse/core';
+import { useMesRole } from 'dashboard/composables/useMesRole';
 
 // 金蝶式产品档案选择器：多列表格下拉（商品编码 / 商品名称 / 规格型号）+ 顶部搜索。
 // 弹层 Teleport 到 body + fixed 定位，在对话框/滚动容器里不被裁切。
@@ -114,6 +115,60 @@ const pick = p => {
   emit('select', p);
   open.value = false;
 };
+
+// —— 就地新建产品：搜不到时不用跳去产品档案，直接在下拉里建（仅工程/PMC 有产品档案权限者可见）——
+const { mesCan } = useMesRole();
+const canCreate = computed(() => mesCan('product'));
+const creating = ref(false);
+const saving = ref(false);
+const createError = ref('');
+const draft = reactive({ sku: '', name: '', specification: '', unit: '' });
+
+const startCreate = async () => {
+  createError.value = '';
+  // 把搜索词带进名称，省得重打
+  Object.assign(draft, {
+    sku: '',
+    name: q.value.trim(),
+    specification: '',
+    unit: '',
+  });
+  creating.value = true;
+  await nextTick();
+  positionPopover();
+};
+const cancelCreate = async () => {
+  creating.value = false;
+  createError.value = '';
+  await nextTick();
+  positionPopover();
+};
+const submitCreate = async () => {
+  if (!draft.sku.trim() || !draft.name.trim() || saving.value) return;
+  saving.value = true;
+  createError.value = '';
+  try {
+    const { data } = await axios.post(
+      `/api/v1/accounts/${props.accountId}/mes/products`,
+      {
+        product: {
+          sku: draft.sku.trim(),
+          name: draft.name.trim(),
+          specification: draft.specification.trim() || undefined,
+          unit: draft.unit.trim() || undefined,
+          is_active: true,
+        },
+      }
+    );
+    creating.value = false;
+    pick({ ...data, on_hand: 0 }); // 新建即选用并回填料号/名称/规格/单位
+  } catch (e) {
+    createError.value =
+      e?.response?.data?.error || '创建失败（商品编码可能已存在）';
+  } finally {
+    saving.value = false;
+  }
+};
 </script>
 
 <template>
@@ -165,6 +220,63 @@ const pick = p => {
             </div>
           </div>
 
+          <!-- 就地新建产品（仅有产品档案权限者可见）：搜不到就直接建，不用跳出去 -->
+          <div v-if="canCreate" class="border-b border-n-weak">
+            <button
+              v-if="!creating"
+              type="button"
+              class="flex items-center w-full gap-1.5 px-3 py-2 text-sm text-left text-n-iris-11 hover:bg-n-iris-3/50"
+              @click="startCreate"
+            >
+              <span class="i-lucide-plus size-4" />
+              找不到？新建产品
+            </button>
+            <div v-else class="flex flex-col gap-2 p-2">
+              <div class="grid grid-cols-4 gap-2">
+                <input
+                  v-model="draft.sku"
+                  class="h-9 px-2 text-sm border rounded-lg reset-base mb-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-n-brand"
+                  placeholder="商品编码 *"
+                />
+                <input
+                  v-model="draft.name"
+                  class="h-9 px-2 text-sm border rounded-lg reset-base mb-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-n-brand"
+                  placeholder="商品名称 *"
+                />
+                <input
+                  v-model="draft.specification"
+                  class="h-9 px-2 text-sm border rounded-lg reset-base mb-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-n-brand"
+                  placeholder="规格型号"
+                />
+                <input
+                  v-model="draft.unit"
+                  class="h-9 px-2 text-sm border rounded-lg reset-base mb-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-n-brand"
+                  placeholder="单位"
+                />
+              </div>
+              <p v-if="createError" class="text-xs text-n-ruby-11">
+                {{ createError }}
+              </p>
+              <div class="flex justify-end gap-2">
+                <button
+                  type="button"
+                  class="h-8 px-3 text-sm rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
+                  @click="cancelCreate"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  class="h-8 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+                  :disabled="saving || !draft.sku.trim() || !draft.name.trim()"
+                  @click="submitCreate"
+                >
+                  {{ saving ? '创建中…' : '创建并选用' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- 表头 -->
           <div
             class="grid grid-cols-[8.5rem_7.5rem_1fr] gap-2 px-3 py-1.5 text-xs font-medium border-b text-n-slate-11 border-n-weak bg-n-alpha-1"
@@ -188,23 +300,26 @@ const pick = p => {
             >
               无匹配物料，换个关键词试试
             </div>
-            <button
-              v-for="p in rows"
-              v-else
-              :key="p.id"
-              type="button"
-              class="grid w-full grid-cols-[8.5rem_7.5rem_1fr] gap-2 px-3 py-2 text-sm text-left border-b border-n-weak/60 hover:bg-n-alpha-2"
-              :class="
-                String(p.id) === String(modelValue)
-                  ? 'bg-n-iris-3/60 text-n-iris-12'
-                  : 'text-n-slate-12'
-              "
-              @click="pick(p)"
-            >
-              <span class="font-medium truncate">{{ p.sku || '—' }}</span>
-              <span class="truncate">{{ p.name || '—' }}</span>
-              <span class="text-n-slate-11">{{ p.specification || '—' }}</span>
-            </button>
+            <template v-else>
+              <button
+                v-for="p in rows"
+                :key="p.id"
+                type="button"
+                class="grid w-full grid-cols-[8.5rem_7.5rem_1fr] gap-2 px-3 py-2 text-sm text-left border-b border-n-weak/60 hover:bg-n-alpha-2"
+                :class="
+                  String(p.id) === String(modelValue)
+                    ? 'bg-n-iris-3/60 text-n-iris-12'
+                    : 'text-n-slate-12'
+                "
+                @click="pick(p)"
+              >
+                <span class="font-medium truncate">{{ p.sku || '—' }}</span>
+                <span class="truncate">{{ p.name || '—' }}</span>
+                <span class="text-n-slate-11">{{
+                  p.specification || '—'
+                }}</span>
+              </button>
+            </template>
           </div>
         </div>
       </transition>

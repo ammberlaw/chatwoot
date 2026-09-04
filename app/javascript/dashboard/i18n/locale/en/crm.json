@@ -874,6 +874,7 @@
       "TITLE": "{name} 的绩效考核表",
       "DETAIL": "考核明细（完成值由员工填，得分由主管定）",
       "ACTUAL": "完成值",
+      "CHECKED": "核对完成值",
       "SCORE_COL": "得分",
       "TOTAL": "总分",
       "SECTION_RULES": "💰 评分与绩效发放规则",

@@ -30,7 +30,8 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
       item = @sheet.sheet_items.find_by(id: raw[:id])
       next unless item
 
-      attrs = raw.permit(:actual_value, :score).to_h
+      # 核对完成值只有主管/管理员(审批人)能改；员工只能填 actual_value。
+      attrs = raw.permit(:actual_value, :score, *(can_manage? ? [:checked_value] : [])).to_h
       item.update!(attrs) if attrs.present?
     end
     @sheet.update!(remark: params.dig(:sheet, :remark)) if can_manage? && params[:sheet]&.key?(:remark)
@@ -168,7 +169,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
       cap_pct: @sheet.item_score_cap_pct,
       items: ai_rows.map do |item, _|
         { name: item.name, dimension: item.dimension, weight: item.weight, standard: item.standard,
-          target: item.target_value, baseline: item.baseline_value, actual: item.actual_value }
+          target: item.target_value, baseline: item.baseline_value, actual: item.effective_value }
       end
     )
     hints.filter_map do |h|
@@ -182,7 +183,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     baseline_yuan = perf_baseline_micros.to_f / 1_000_000
     weight = item.weight.to_f
     cap = @sheet.item_score_cap_pct ? (@sheet.item_score_cap_pct.to_f / 100) : Float::INFINITY
-    actual_yuan = parse_amount_yuan(item.actual_value)
+    actual_yuan = parse_amount_yuan(item.effective_value)
 
     if actual_yuan.nil?
       return { 'i' => idx, 'score' => 0, 'reason' => "完成值未填，暂给 0 分（保底 #{fmt_wan(baseline_yuan)}）" }

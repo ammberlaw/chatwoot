@@ -161,7 +161,12 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
   end
 
   def apply_punch(rec, ctx)
-    if rec.clock_in_at.nil?
+    if rec.clock_in_at.nil? && !ctx[:field] && past_workday_midpoint?(ctx)
+      # 忘打上班卡、当天较晚(已过工作时段中点)才来打 → 记为下班；上班留空(显示缺上班卡，走补卡)，
+      # 不再把这一下误记成「上班」导致下不了班。
+      rec.assign_attributes(clock_out_at: ctx[:now], clock_out_ip: ctx[:ip],
+                            clock_out_lat: ctx[:lat].presence, clock_out_lng: ctx[:lng].presence)
+    elsif rec.clock_in_at.nil?
       rec.assign_attributes(clock_in_at: ctx[:now], clock_in_ip: ctx[:ip],
                             clock_in_lat: ctx[:lat].presence, clock_in_lng: ctx[:lng].presence)
     else
@@ -174,6 +179,30 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     else
       rec.recompute_status!(ctx[:group])
     end
+  end
+
+  # 当天首次打卡但已过「上班~下班时段中点」→ 视为忘打上班卡后补打下班（上班留空走补卡）。
+  # 无法解析考勤组时间时保守回退：不判为下班（维持原「首打即上班」）。
+  def past_workday_midpoint?(ctx)
+    mid = workday_midpoint_minutes(ctx[:group])
+    return false if mid.nil?
+
+    now = ctx[:now]
+    (now.hour * 60 + now.min) >= mid
+  end
+
+  def workday_midpoint_minutes(group)
+    i = parse_hm(group&.clock_in_time)
+    o = parse_hm(group&.clock_out_time)
+    return nil if i.nil? || o.nil? || o <= i
+
+    (i + o) / 2
+  end
+
+  def parse_hm(str)
+    return nil unless str.to_s =~ /\A(\d{1,2}):(\d{2})\z/
+
+    (Regexp.last_match(1).to_i * 60) + Regexp.last_match(2).to_i
   end
 
   # 账号全部考勤组一次性载入，避免汇总时按成员逐个查库（N+1）。

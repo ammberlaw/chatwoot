@@ -6,6 +6,7 @@
 #  id               :bigint           not null, primary key
 #  actual_value     :string
 #  baseline_value   :string
+#  checked_value    :string
 #  data_source      :string           default("MANUAL"), not null
 #  dimension        :string
 #  name             :string           not null
@@ -38,4 +39,7 @@ class Crm::KpiSheetItem < ApplicationRecord
   before_validation { self.account_id ||= sheet&.account_id }
 
   scope :ordered, -> { order(:sort_order, :id) }
+
+  # 算分/统计用的完成值：主管核对值优先，未核对则回退员工填报值。
+  def effective_value = checked_value.presence || actual_value
 end

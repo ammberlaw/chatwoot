@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_03_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1361,6 +1361,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_03_000001) do
     t.string "target_value"
     t.string "data_source", default: "MANUAL", null: false
     t.string "actual_value"
+    t.string "checked_value"
     t.decimal "score", precision: 7, scale: 2
     t.decimal "suggested_score", precision: 7, scale: 2
     t.integer "sort_order", default: 0

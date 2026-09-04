@@ -118,10 +118,16 @@ const counts = ref({ todo: 0, mine: 0, cc: 0, approver_view: true });
 
 // 非审批人（业务员/普通成员且未被指定为审批人）隐藏「待我审批」
 const showTodo = computed(() => counts.value.approver_view !== false);
-// 「抄送我的」仅管理层（管理员/副管理员/部门主管）：业务员/普通账号不抄送、不显示。
-const { isAdmin, isCrmDeputyAdmin, isCrmManager } = useCrmRole();
+// 「抄送我的」：管理层（管理员/副管理员/部门主管）+ 财务（报销/付款等审批常抄送财务）；
+// 或任何实际被抄送过的人（cc>0），确保被点名抄送者一定看得到。
+const { isAdmin, isCrmDeputyAdmin, isCrmManager, isCrmFinance } = useCrmRole();
 const showCc = computed(
-  () => isAdmin.value || isCrmDeputyAdmin.value || isCrmManager.value
+  () =>
+    isAdmin.value ||
+    isCrmDeputyAdmin.value ||
+    isCrmManager.value ||
+    isCrmFinance.value ||
+    counts.value.cc > 0
 );
 const TABS = computed(() =>
   [

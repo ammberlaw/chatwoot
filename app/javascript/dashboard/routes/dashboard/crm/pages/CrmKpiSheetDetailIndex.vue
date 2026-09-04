@@ -216,7 +216,12 @@ const save = async () => {
     const rows = items.value.map(i => ({
       id: i.id,
       ...(canFillActual.value ? { actual_value: i.actualValue } : {}),
-      ...(canScore.value ? { score: i.score === '' ? null : i.score } : {}),
+      ...(canScore.value
+        ? {
+            score: i.score === '' ? null : i.score,
+            checked_value: i.checkedValue,
+          }
+        : {}),
     }));
     const { data } = await CrmKpiSheetAPI.update(sheetId, {
       sheet: { sheet_items: rows },
@@ -631,8 +636,7 @@ const inCls =
           <span class="font-medium text-n-ruby-11">{{
             t('CRM.KPI_SHEETS.RETURNED_BANNER')
           }}</span>
-          <span
-v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
+          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
             >（{{ sheet.returnedByName }} ·
             {{ fmtDate(sheet.returnedAt) }}）</span
           >
@@ -652,8 +656,7 @@ v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
           <span class="font-medium text-n-amber-11">{{
             t('CRM.KPI_SHEETS.REOPEN_BANNER')
           }}</span>
-          <span
-v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
+          <span v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
             >（{{ sheet.returnedByName }} ·
             {{ fmtDate(sheet.returnedAt) }}）</span
           >
@@ -736,6 +739,9 @@ v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
                 <th class="px-2 py-1.5 font-medium text-left w-32">
                   {{ t('CRM.KPI_SHEETS.ACTUAL') }}
                 </th>
+                <th class="px-2 py-1.5 font-medium text-left w-32">
+                  {{ t('CRM.KPI_SHEETS.CHECKED') }}
+                </th>
                 <th class="px-2 py-1.5 font-medium text-left w-44">
                   {{ t('CRM.KPI_SHEETS.SCORE_COL') }}
                 </th>
@@ -778,6 +784,18 @@ v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
                   }}</span>
                 </td>
                 <td class="px-1 py-1">
+                  <input
+                    v-if="canScore"
+                    v-model="item.checkedValue"
+                    :class="inCls"
+                    class="!border-n-teal-8"
+                    :placeholder="item.actualValue || ''"
+                  />
+                  <span v-else class="text-n-slate-12">{{
+                    item.checkedValue || item.actualValue || '—'
+                  }}</span>
+                </td>
+                <td class="px-1 py-1">
                   <template v-if="canScore">
                     <input
                       v-model="item.score"
@@ -810,7 +828,7 @@ v-if="sheet.returnedByName" class="text-xs text-n-slate-10"
                 </td>
               </tr>
               <tr class="bg-n-iris-3/40">
-                <td colspan="7" class="px-2 py-2 font-medium text-right">
+                <td colspan="8" class="px-2 py-2 font-medium text-right">
                   {{ t('CRM.KPI_SHEETS.TOTAL') }}
                 </td>
                 <td class="px-2 py-2 font-bold text-center text-n-iris-11">

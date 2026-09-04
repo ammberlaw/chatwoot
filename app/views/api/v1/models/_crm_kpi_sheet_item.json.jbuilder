@@ -7,6 +7,7 @@ json.baseline_value resource.baseline_value
 json.target_value resource.target_value
 json.data_source resource.data_source
 json.actual_value resource.actual_value
+json.checked_value resource.checked_value
 json.score resource.score
 json.suggested_score resource.suggested_score
 json.sort_order resource.sort_order

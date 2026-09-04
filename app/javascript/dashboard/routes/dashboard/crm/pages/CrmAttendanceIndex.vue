@@ -172,11 +172,11 @@ const clock = async (field = false) => {
     // 组开启 GPS 校验时先取定位；仅网络(IP)校验则无需定位。外勤仍带定位做留痕。
     const body = setting.value?.geo_enabled || field ? await getGeo() : {};
     if (field) body.field = true;
-    // 打卡前先判断这是上班还是下班（成功后 todayRec 会刷新）。
-    const wasClockedIn = !!todayRec.value?.clock_in_at;
-    await axios.post(`${api()}/clock`, body);
+    // 提示按后端实际记录判断：返回记录有下班时间即「下班」，否则「上班」
+    // （忘打上班卡、下午来打时后端会智能记为下班，前端据实提示，不再误报「上班」）。
+    const { data } = await axios.post(`${api()}/clock`, body);
     if (field) useAlert('外勤打卡成功');
-    else useAlert(wasClockedIn ? '下班打卡成功' : '上班打卡成功');
+    else useAlert(data?.clock_out_at ? '下班打卡成功' : '上班打卡成功');
     fetchMine();
   } catch (e) {
     useAlert(e.response?.data?.error || '打卡失败，请重试');
