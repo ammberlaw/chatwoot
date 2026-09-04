@@ -69,9 +69,17 @@ const viewItems = computed(() =>
 const fetchList = () => store.get({ purpose: 'MANUFACTURE' });
 
 const productionOrders = ref([]);
+// 流程锁：成品入库只对「自制且已进入生产/成品入库阶段」的订单开单。
+// 外购订单走采购收货入成品仓、未报工的订单不可越级入库——都不出现在可选项里。
+const FG_ELIGIBLE_STAGES = ['PRODUCTION', 'FG_INBOUND'];
+const eligibleOrders = computed(() =>
+  productionOrders.value.filter(
+    p => !p.isOutsourced && FG_ELIGIBLE_STAGES.includes(p.stage)
+  )
+);
 const productionOrderOptions = computed(() => [
   { value: '', label: '选择生产订单…' },
-  ...productionOrders.value.map(p => ({
+  ...eligibleOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
   })),
@@ -221,6 +229,8 @@ onMounted(() => {
               class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
             >
               <span>生产订单：{{ e.productionOrderNo || '—' }}</span>
+              <span v-if="e.productName">{{ e.productName }}</span>
+              <span v-if="e.productSku">编码 {{ e.productSku }}</span>
               <span>颜色：{{ e.color || '—' }}</span>
               <span>归属人：{{ e.productionOrderOwnerName || '—' }}</span>
             </div>
@@ -270,7 +280,13 @@ onMounted(() => {
                 {{ e.entryNo }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
-                {{ e.productionOrderNo || '—' }}
+                <div>{{ e.productionOrderNo || '—' }}</div>
+                <div v-if="e.productName" class="text-xs text-n-slate-12">
+                  {{ e.productName }}
+                </div>
+                <div v-if="e.productSku" class="text-xs text-n-slate-10">
+                  商品编码 {{ e.productSku }}
+                </div>
               </td>
               <td class="px-3 py-3 text-n-slate-11">{{ e.color || '—' }}</td>
               <td class="px-3 py-3 text-n-slate-11">

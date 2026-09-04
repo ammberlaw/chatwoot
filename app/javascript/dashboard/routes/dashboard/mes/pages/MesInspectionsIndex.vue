@@ -253,6 +253,15 @@ onMounted(() => {
                 @click.stop="openView(r)"
               />
             </div>
+            <div
+              v-if="r.productionOrderNo && r.productName"
+              class="mt-1 text-xs text-n-slate-11"
+            >
+              {{ r.productName }}
+            </div>
+            <div v-if="r.productSku" class="text-xs text-n-slate-10">
+              商品编码 {{ r.productSku }}
+            </div>
             <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2">
               <span class="text-xs text-n-slate-11">
                 类型：{{ kindLabel(r.kind) }}
@@ -305,9 +314,23 @@ onMounted(() => {
             <tr v-for="r in records" :key="r.id" class="border-b border-n-weak">
               <td class="px-3 py-3 text-n-slate-12">{{ kindLabel(r.kind) }}</td>
               <td class="px-3 py-3 text-n-slate-11">
-                {{
-                  r.productionOrderNo || r.materialName || r.productName || '—'
-                }}
+                <div>
+                  {{
+                    r.productionOrderNo ||
+                    r.materialName ||
+                    r.productName ||
+                    '—'
+                  }}
+                </div>
+                <div
+                  v-if="r.productionOrderNo && r.productName"
+                  class="text-xs text-n-slate-12"
+                >
+                  {{ r.productName }}
+                </div>
+                <div v-if="r.productSku" class="text-xs text-n-slate-10">
+                  商品编码 {{ r.productSku }}
+                </div>
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ r.productionOrderOwnerName || '—' }}
@@ -356,8 +379,8 @@ onMounted(() => {
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="3xl"
       confirm-button-color="iris"
       title="新增质量检验"

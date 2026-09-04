@@ -18,7 +18,16 @@ class Api::V1::Accounts::Mes::ProductionRecordsController < Api::V1::Accounts::M
   end
 
   def destroy
-    Current.account.mes_production_records.find(params[:id]).destroy!
+    record = Current.account.mes_production_records.find(params[:id])
+    po = record.production_order
+    # 删报工会回退已产量；若已产量会因此低于「已成品入库量」，先拒绝，须先冲销成品入库单，
+    # 否则会出现「入库量 > 产量」的负差错账。
+    if po && po.fg_inbound_qty.to_d.positive? &&
+       (po.produced_qty.to_d - record.qty_completed.to_d) < po.fg_inbound_qty.to_d
+      return render json: { error: "该订单已有成品入库 #{po.fg_inbound_qty.to_i} 件，删除本报工会使已产量低于已入库量，请先冲销对应成品入库单" },
+                    status: :unprocessable_entity
+    end
+    record.destroy!
     head :ok
   end
 

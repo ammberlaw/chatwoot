@@ -50,6 +50,21 @@ export const buildCrmStore = ({ name, API, paramKey, extraActions }) =>
         }
       },
 
+      // 「我分发的」列表：走 API.distributedByMe（主管/管理员，仅邮件 store 用）。
+      async getDistributedByMe(params = {}) {
+        this.setUIFlag({ fetchingList: true });
+        try {
+          const { data } = await API.distributedByMe(params);
+          this.records = camelize(data.payload);
+          this.meta = normalizeMeta(data.meta);
+          return this.records;
+        } catch (error) {
+          return throwErrorMessage(error);
+        } finally {
+          this.setUIFlag({ fetchingList: false });
+        }
+      },
+
       async create(obj) {
         this.setUIFlag({ creatingItem: true });
         try {

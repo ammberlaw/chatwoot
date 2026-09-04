@@ -74,6 +74,22 @@ class Mes::StockEntry < ApplicationRecord
   validates :entry_no, presence: true, uniqueness: { scope: :account_id }
   validates :purpose, inclusion: { in: PURPOSES }
   validates :status, inclusion: { in: STATUSES }
+  validate :enforce_flow_prerequisite, on: :create
+
+  # ── 流程硬锁 ──：下游库存单必须等生产订单走到对应阶段才能开单，前面工序没做完后端直接拒绝。
+  #   原料入库→须已采购；生产领料→须原料已入库；成品入库→须已领料+进入生产(报工)。
+  #   外购订单只走 采购→收货入成品仓→出库，禁止生产领料/成品入库。
+  FLOW_MIN_STAGE = {
+    'MATERIAL_RECEIPT' => 'PURCHASING',
+    'MATERIAL_ISSUE' => 'MATERIAL_INBOUND',
+    'MANUFACTURE' => 'PRODUCTION'
+  }.freeze
+  FLOW_PREREQ_LABEL = {
+    'MATERIAL_RECEIPT' => '采购下单',
+    'MATERIAL_ISSUE' => '原料入库',
+    'MANUFACTURE' => '生产领料、生产报工'
+  }.freeze
+  OUTSOURCE_FORBIDDEN_PURPOSES = %w[MATERIAL_ISSUE MANUFACTURE].freeze
 
   before_create :stamp_workshop_confirm
   after_create :notify_warehouse_count_pending
@@ -122,18 +138,26 @@ class Mes::StockEntry < ApplicationRecord
   # 过账：按 purpose 方向对每个明细刷结存、记流水，然后置 POSTED。
   # 原料入库过账把关联生产订单推进到「原料入库」阶段。
   def post!
-    raise StandardError, '单据已过账或已作废' unless status == 'DRAFT'
-    raise StandardError, '成品入库需车间负责人与仓管共同确认后方可过账' if dual_confirm_required? && !dual_confirmed?
+    # with_lock 加行锁并开事务：持锁后重新校验状态，杜绝并发/双击重复过账（结存、收货量翻倍）。
+    with_lock do
+      raise StandardError, '单据已过账或已作废' unless status == 'DRAFT'
+      raise StandardError, '成品入库需车间负责人与仓管共同确认后方可过账' if dual_confirm_required? && !dual_confirmed?
+      # 关联采购单必须审批通过才能收货，杜绝未审批/被驳回的采购单被越权收货推进流程。
+      if purpose == 'MATERIAL_RECEIPT' && purchase_order.present? && !purchase_order.approved?
+        raise StandardError, '关联采购单未审批通过，不能收货'
+      end
 
-    ensure_no_fg_over_inbound!
+      # 成品入库防超量在并发下失效——锁住生产订单，让「读累计→校验→写入」在同一临界区。
+      production_order&.lock! if purpose == 'MANUFACTURE'
+      ensure_no_fg_over_inbound!
 
-    transaction do
       ts = Time.current
       stock_entry_items.each { |item| post_item(item, ts) }
       update_columns(status: 'POSTED', posted_at: ts, updated_at: ts)
       sync_purchase_receipt! if purpose == 'MATERIAL_RECEIPT' && purchase_order_id.present?
       advance_production_order_on_receipt(ts)
       complete_production_order_if_fg_full(ts)
+      complete_production_order_if_shipped(ts)
     end
     self
   end
@@ -141,11 +165,13 @@ class Mes::StockEntry < ApplicationRecord
   # 作废（冲销）：把过账时扣/加的库存按反方向冲回、记反向流水，已过账才可作废；
   # 若关联生产订单仍停在本单推进到的阶段且无其它已过账领料单，则回退一阶段。保留单据（置 CANCELLED）可追溯。
   def cancel!
-    raise StandardError, '单据尚未过账，草稿可直接删除、无需作废' unless status == 'POSTED'
+    with_lock do
+      raise StandardError, '单据尚未过账，草稿可直接删除、无需作废' unless status == 'POSTED'
 
-    transaction do
       ts = Time.current
       stock_entry_items.each { |item| move_stock!(item, ts, -direction_sign) }
+      # 作废原料入库：对称回退采购单收货量与在途（正向 sync_purchase_receipt! 累加过，作废须冲回）。
+      reverse_purchase_receipt! if purpose == 'MATERIAL_RECEIPT' && purchase_order_id.present?
       revert_production_order_stage_on_void(ts)
       update_columns(status: 'CANCELLED', updated_at: ts)
     end
@@ -153,6 +179,23 @@ class Mes::StockEntry < ApplicationRecord
   end
 
   private
+
+  # 流程硬锁校验：越级开下游单直接拦下（前端也会隐藏不可选订单，此处为后端兜底）。
+  def enforce_flow_prerequisite
+    return unless FLOW_MIN_STAGE.key?(purpose)
+
+    po = production_order
+    return if po.nil? # 无生产订单的临时库存单（如外购成品备货收货、盘盈）不受脊柱闸约束
+
+    doc = RETURN_LABEL_BY_PURPOSE[purpose] || '库存单'
+    if po.outsourced? && OUTSOURCE_FORBIDDEN_PURPOSES.include?(purpose)
+      return errors.add(:base, "外购订单不做#{doc}：外购成品经「采购 → 收货」直接入成品仓")
+    end
+    return if po.stage_reached?(FLOW_MIN_STAGE[purpose])
+
+    stage_cn = Mes::ProductionOrder::STAGE_LABELS[po.stage] || po.stage
+    errors.add(:base, "生产订单当前在「#{stage_cn}」阶段，需先完成#{FLOW_PREREQ_LABEL[purpose]}才能开#{doc}")
+  end
 
   # 成品入库防重复/防超量：同一生产订单已过账入库累计 + 本单成品量不得超过订单数量。
   # 收齐后再开 → 「已收齐不能重复入库」；未收齐但本次超出剩余 → 「不能超量入库」。
@@ -222,8 +265,21 @@ class Mes::StockEntry < ApplicationRecord
   # 作废回退阶段：仅当生产订单仍停在本单过账时推进到的阶段（to_stage）、
   # 且该订单已无其它已过账同类单据时，回退一阶段；否则不动（避免误退已推进的订单）。
   def revert_production_order_stage_on_void(timestamp)
+    return if production_order.nil?
+
+    # 外购按单：收货过账时从「采购」直推「成品入库」（短脊柱），作废须对称退回「采购」。
+    if production_order.is_outsourced && purpose == 'MATERIAL_RECEIPT' && production_order.stage == 'FG_INBOUND'
+      others = account.mes_stock_entries
+                      .where(production_order_id: production_order_id, purpose: 'MATERIAL_RECEIPT', status: 'POSTED')
+                      .where.not(id: id).exists?
+      return if others
+
+      production_order.update_columns(status: 'IN_PROGRESS', updated_at: timestamp) if production_order.status == 'COMPLETED'
+      return production_order.enter_stage!('PURCHASING', at: timestamp)
+    end
+
     from_stage, to_stage = STAGE_ADVANCE[purpose]
-    return if from_stage.nil? || production_order.nil?
+    return if from_stage.nil?
     return if production_order.stage != to_stage
 
     others_posted = account.mes_stock_entries
@@ -286,6 +342,18 @@ class Mes::StockEntry < ApplicationRecord
     po.update_columns(status: 'COMPLETED', updated_at: timestamp)
   end
 
+  # 成品出库过账 → 订单已发货交付，置「已完成」（SHIPPED 为终态，退出「进行中」）。
+  # 兜底直接出库（未经成品入库收齐标记）的订单：出库后仍卡在 IN_PROGRESS 的问题。
+  def complete_production_order_if_shipped(timestamp)
+    return unless purpose == 'SHIPMENT'
+
+    po = production_order
+    return if po.nil? || po.status != 'IN_PROGRESS'
+    return unless po.stage == 'SHIPPED'
+
+    po.update_columns(status: 'COMPLETED', updated_at: timestamp)
+  end
+
   # 原料入库过账：按物料把本次收货量累加回采购单明细 received_qty、回填实际到料日期，并重算收货状态。
   # 修复历史遗留（received_qty 从不回写，导致「按采购单收货」剩余量预填失效）+ 支撑齐套判定。
   # 实际到料 = 本次入库日期（首次到料自动填，分批到料覆盖为最近一次；采购员仍可在采购单上手动改）。
@@ -312,6 +380,28 @@ class Mes::StockEntry < ApplicationRecord
       po.reduce_on_order_for(
         item_type: item.item_type, mes_material_id: item.mes_material_id,
         crm_product_id: item.crm_product_id, qty: item.effective_qty
+      )
+    end
+    po.reload.recompute_receipt_status!
+  end
+
+  # 作废原料入库的对称冲销：把本单收货量从采购明细 received_qty 扣回（下限 0），
+  # 并把在途量补回（reduce_on_order_for 传负数 = 回加在途），最后重算采购收货状态。
+  def reverse_purchase_receipt!
+    po = purchase_order
+    stock_entry_items.each do |item|
+      po_item = po.purchase_items.find do |pi|
+        (item.mes_material_id && pi.mes_material_id == item.mes_material_id) ||
+          (item.crm_product_id && pi.crm_product_id == item.crm_product_id)
+      end
+      next if po_item.nil?
+
+      po_item.update_columns(received_qty: [po_item.received_qty.to_d - item.effective_qty, 0].max)
+      next unless po.approved?
+
+      po.reduce_on_order_for(
+        item_type: item.item_type, mes_material_id: item.mes_material_id,
+        crm_product_id: item.crm_product_id, qty: -item.effective_qty
       )
     end
     po.reload.recompute_receipt_status!

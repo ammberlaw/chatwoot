@@ -62,6 +62,9 @@ class Mes::PurchaseOrder < ApplicationRecord
   accepts_nested_attributes_for :purchase_items, allow_destroy: true
 
   after_create :advance_production_order
+  # 作废/删除已审批采购单时，把未收货部分的在途库存冲回，避免在途永久虚增。
+  before_update :release_on_order_on_cancel
+  before_destroy :release_on_order_if_open
 
   validates :po_no, presence: true, uniqueness: { scope: :account_id }
   validates :status, inclusion: { in: STATUSES }
@@ -108,6 +111,9 @@ class Mes::PurchaseOrder < ApplicationRecord
     raise StandardError, '当前状态无法提交审批' unless %w[DRAFT REJECTED].include?(approval_status)
 
     self.gm_id = resolve_gm_id
+    # 未配置审批总经理时直接拒绝提交（否则单据进「待总经理」黑洞：无人可批、待办查不到、卡死）。
+    raise StandardError, '未配置审批总经理（在绩效设置里指定），无法提交采购审批' if gm_id.blank?
+
     self.submitted_at = Time.current
     self.gm_acted_at = self.gm_comment = nil
     self.approval_status = 'PENDING_GM'
@@ -145,6 +151,19 @@ class Mes::PurchaseOrder < ApplicationRecord
     self
   end
 
+  # 作废/删除采购单时回冲在途：按每明细「未收货量(qty − received_qty)」冲减在途，避免在途永久虚增。
+  def release_on_order!
+    purchase_items.each do |it|
+      outstanding = it.qty.to_d - it.received_qty.to_d
+      next if outstanding <= 0
+
+      reduce_on_order_for(
+        item_type: it.item_type, mes_material_id: it.mes_material_id,
+        crm_product_id: it.crm_product_id, qty: outstanding
+      )
+    end
+  end
+
   # 在途库存增减（sign=+1 审批通过累加 / -1 到货冲减）：按明细的物料/成品累加到默认仓的 on_order。
   # 物料入原料仓、成品入成品仓；无对应仓则跳过（不阻塞审批）。
   def apply_on_order!(sign)
@@ -179,6 +198,16 @@ class Mes::PurchaseOrder < ApplicationRecord
   def returnable? = %w[DRAFT SUBMITTED PARTIAL_RECEIVED].include?(status)
 
   private
+
+  # 状态改为 CANCELLED（且原为已审批）→ 回冲未收货在途。
+  def release_on_order_on_cancel
+    release_on_order! if approved? && status_changed? && status == 'CANCELLED'
+  end
+
+  # 删除已审批且未作废的采购单 → 回冲未收货在途（防在途因硬删而虚增）。
+  def release_on_order_if_open
+    release_on_order! if approved? && status != 'CANCELLED'
+  end
 
   def product_line_source = production_order
 

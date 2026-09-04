@@ -35,6 +35,11 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   end
 
   def destroy
+    # 已出库单据不能删（要撤须走库存冲销）；已审核/待审核单占着成品预占——只允许删草稿/被驳回单。
+    unless %w[DRAFT REJECTED].include?(@shipment.status)
+      return render json: { error: '仅草稿或被驳回的出库单可删除；已审核/已出库单请走驳回或冲销' },
+                    status: :unprocessable_entity
+    end
     @shipment.destroy!
     head :ok
   end

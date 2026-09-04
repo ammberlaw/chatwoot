@@ -95,16 +95,25 @@ class Mes::Shipment < ApplicationRecord
     raise StandardError, '仅现货出库单需要审核' unless stock?
     raise StandardError, '当前状态无法提交审核' unless %w[DRAFT REJECTED].include?(status)
 
-    ensure_available_for_reservation!
-    self.manager_id = resolve_manager_id
-    self.submitted_at = Time.current
-    self.reject_reason = nil
-    if manager_id.present?
-      update!(status: 'PENDING_APPROVAL')
-      notify_approval_pending
-    else
-      approve_without_manager!
+    # with_lock 锁本单 + 锁成品结存行：让「读他人预占→校验可用→落自己预占」串行化，
+    # 杜绝并发提交双双通过导致的超卖。
+    with_lock do
+      raise StandardError, '当前状态无法提交审核' unless %w[DRAFT REJECTED].include?(status)
+
+      lock_stock_balances!
+      ensure_available_for_reservation!
+      self.submitted_at = Time.current
+      self.reject_reason = nil
+      # 审批人=部门主管；无主管则回退到总经理；两者都无（本人即最高权限）才免审直发。
+      self.manager_id = resolve_manager_id
+      self.manager_id ||= fallback_gm_approver_id
+      if manager_id.present?
+        update!(status: 'PENDING_APPROVAL')
+      else
+        approve_without_manager!
+      end
     end
+    notify_approval_pending if status == 'PENDING_APPROVAL'
     self
   end
 
@@ -146,12 +155,15 @@ class Mes::Shipment < ApplicationRecord
   # 出库：开成品出库 StockEntry 扣成品库存（并把生产订单推进 SHIPPED），
   # 回写来源销售订单为「已出货」。现货出库须主管审核通过（APPROVED）后仓库方可出库。
   def ship!
-    raise StandardError, '现货出库单需主管审核通过后才能出库' if stock? && status != 'APPROVED'
-    raise StandardError, '单据已出库或已作废' unless stock? || status == 'DRAFT'
+    # with_lock 加行锁+事务：持锁后复检状态防重复出库；再锁成品结存行后校验充足性→扣减，
+    # 让「查库存→扣库存」在同一临界区，杜绝并发超卖/负库存。
+    with_lock do
+      raise StandardError, '现货出库单需主管审核通过后才能出库' if stock? && status != 'APPROVED'
+      raise StandardError, '单据已出库或已作废' unless stock? || status == 'DRAFT'
 
-    ensure_stock_sufficient!
+      lock_stock_balances!
+      ensure_stock_sufficient!
 
-    transaction do
       ts = Time.current
       entry = account.mes_stock_entries.create!(
         purpose: 'SHIPMENT', production_order: production_order, from_warehouse_id: warehouse_id, owner_id: owner_id,
@@ -176,6 +188,22 @@ class Mes::Shipment < ApplicationRecord
     return unless SALES_ORDER_ADVANCEABLE.include?(crm_sales_order.status)
 
     crm_sales_order.update_columns(status: 'SHIPPED', updated_at: timestamp)
+  end
+
+  # 锁定本单涉及的成品结存行（SELECT ... FOR UPDATE），使预占/出库的「查—扣」在同一临界区串行。
+  def lock_stock_balances!
+    ids = shipment_items.filter_map do |item|
+      account.mes_stock_balances
+             .where(item_type: 'PRODUCT', crm_product_id: item.crm_product_id, warehouse_id: warehouse_id)
+             .pick(:id)
+    end
+    account.mes_stock_balances.where(id: ids).lock(true).load if ids.any?
+  end
+
+  # 无部门主管时的兜底审批人=绩效设置里的总经理（须非本人），避免「零审批直发」的控制失效。
+  def fallback_gm_approver_id
+    gm = Crm::PerformanceSetting.for_account(account)&.gm_owner_id
+    gm if gm.present? && gm != owner_id
   end
 
   # 库存不足拦截：逐行校验成品仓结存 ≥ 出库量，不足报错列出缺口（正/现货出库均适用，杜绝负库存）。

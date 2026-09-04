@@ -4,6 +4,8 @@ json.purpose resource.purpose
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
 json.production_order_owner_name resource.production_order&.owner&.name
+json.product_name resource.production_order&.product_name
+json.product_sku resource.production_order&.crm_product&.sku
 # 关联采购单（采购来源）属采购口径，销售端不可见（生态硬约束）——仅 MES 员工下发。
 if Current.account_user&.mes_staff?
   json.purchase_order_id resource.purchase_order_id

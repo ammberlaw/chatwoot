@@ -7,8 +7,11 @@ json.specification resource.mes_material&.specification || resource.crm_product&
 json.crm_product_id resource.crm_product_id
 json.product_name resource.crm_product&.name
 json.product_sku resource.crm_product&.sku
-json.mes_supplier_id resource.mes_supplier_id
-json.supplier_name resource.mes_supplier&.name
+# 供应商属采购口径，销售端不可见（生态硬约束）——仅 MES 员工。
+if Current.account_user&.mes_staff?
+  json.mes_supplier_id resource.mes_supplier_id
+  json.supplier_name resource.mes_supplier&.name
+end
 json.arrival_date resource.arrival_date
 json.qty resource.qty
 json.unit resource.unit

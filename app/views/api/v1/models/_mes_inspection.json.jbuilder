@@ -5,6 +5,7 @@ json.mes_material_id resource.mes_material_id
 json.material_name resource.mes_material&.name
 json.crm_product_id resource.crm_product_id
 json.product_name resource.crm_product&.name
+json.product_sku resource.crm_product&.sku
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
 json.production_order_owner_name resource.production_order&.owner&.name

@@ -46,9 +46,17 @@ const viewFields = computed(() => {
 });
 
 const productionOrders = ref([]);
+// 流程锁：报工只对「自制且已完成领料（进入生产领料/生产及以后）」的订单开单。
+// 外购订单不报工、未领料的订单不可越级报工——都不出现在可选项里。
+const RECORD_ELIGIBLE_STAGES = ['PICKING', 'PRODUCTION', 'FG_INBOUND'];
+const eligibleOrders = computed(() =>
+  productionOrders.value.filter(
+    p => !p.isOutsourced && RECORD_ELIGIBLE_STAGES.includes(p.stage)
+  )
+);
 const productionOrderOptions = computed(() => [
   { value: '', label: '选择生产订单…' },
-  ...productionOrders.value.map(p => ({
+  ...eligibleOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
   })),
@@ -85,7 +93,8 @@ const invalid = computed(
 watch(
   () => form.productionOrderId,
   () => {
-    if (remainingQty.value != null) form.qtyCompleted = String(remainingQty.value);
+    if (remainingQty.value != null)
+      form.qtyCompleted = String(remainingQty.value);
   }
 );
 
@@ -211,6 +220,12 @@ onMounted(() => {
                 />
               </div>
             </div>
+            <div v-if="r.productName" class="mt-1 text-xs text-n-slate-11">
+              {{ r.productName }}
+            </div>
+            <div v-if="r.productSku" class="text-xs text-n-slate-10">
+              商品编码 {{ r.productSku }}
+            </div>
             <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
               <span>归属人：{{ r.productionOrderOwnerName || '—' }}</span>
               <span>工序：{{ r.operationName || '—' }}</span>
@@ -248,7 +263,19 @@ onMounted(() => {
           <tbody>
             <tr v-for="r in records" :key="r.id" class="border-b border-n-weak">
               <td class="px-3 py-3 font-medium text-n-slate-12">
-                {{ r.productionOrderNo || '—' }}
+                <div>{{ r.productionOrderNo || '—' }}</div>
+                <div
+                  v-if="r.productName"
+                  class="text-xs font-normal text-n-slate-11"
+                >
+                  {{ r.productName }}
+                </div>
+                <div
+                  v-if="r.productSku"
+                  class="text-xs font-normal text-n-slate-10"
+                >
+                  商品编码 {{ r.productSku }}
+                </div>
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ r.productionOrderOwnerName || '—' }}
@@ -300,8 +327,8 @@ onMounted(() => {
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="lg"
       confirm-button-color="iris"
       title="生产报工"

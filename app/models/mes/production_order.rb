@@ -272,10 +272,19 @@ class Mes::ProductionOrder < ApplicationRecord
 
   def outsourced? = is_outsourced
 
+  # 流程闸用：订单是否已走到（或越过）某阶段。用于「下游单必须等上游做完才能开」的硬锁，
+  # 杜绝越级开单（如没领料/没报工就开成品入库）。按 STAGES 顺序比较（外购阶段是其子集，同样适用）。
+  def stage_reached?(target)
+    cur = STAGES.index(stage)
+    ref = STAGES.index(target)
+    !cur.nil? && !ref.nil? && cur >= ref
+  end
+
   # 工程判定为「外购成品」：选定产品+供应商，跳过 BOM 直接进采购阶段（短版脊柱）。
   # 外购不走业务二次确认；只在建单阶段（SALES_CONFIRMED）可标记。
   def mark_outsourced!(crm_product_id:, supplier_id:, product_name: nil, actor: nil)
     raise StandardError, '仅「销售订单确定」阶段可标记外购' unless stage == 'SALES_CONFIRMED'
+    raise StandardError, '该订单已挂 BOM，不能标记为外购；请先撤销 BOM 再改外购' if bom_id.present?
 
     updates = { is_outsourced: true, crm_product_id: crm_product_id, outsource_supplier_id: supplier_id }
     updates[:product_name] = product_name if product_name.present?
@@ -285,15 +294,24 @@ class Mes::ProductionOrder < ApplicationRecord
     self
   end
 
-  # 报工累加已产数量；首次报工把阶段从「生产领料」推进到「生产」。
+  # 报工累加已产数量；首次「有实际产出」的报工才把阶段从「生产领料」推进到「生产」。
+  # 用原子 SQL 自增，避免并发报工读-改-写丢更新；零产出的空报工不推进阶段（否则无产出即解锁成品入库）。
   def add_produced!(delta)
-    update_columns(produced_qty: produced_qty.to_d + delta.to_d, updated_at: Time.current)
-    enter_stage!('PRODUCTION') if stage == 'PICKING'
+    self.class.where(id: id).update_all(['produced_qty = produced_qty + ?, updated_at = ?', delta.to_d, Time.current])
+    reload
+    enter_stage!('PRODUCTION') if stage == 'PICKING' && produced_qty.to_d.positive?
   end
 
-  # 删除报工时回退已产数量（如清理重复报工）；下限 0，不回退阶段。
+  # 删除报工时回退已产数量（如清理重复报工）；下限 0，原子扣减。
+  # 回退后若已产已低于订单量而订单曾标「已完成」，退回「进行中」；
+  # 若已产归零且尚无成品入库，阶段从「生产」退回「生产领料」，避免「产量 0 却在生产阶段」的脏态。
   def remove_produced!(delta)
-    update_columns(produced_qty: [produced_qty.to_d - delta.to_d, 0].max, updated_at: Time.current)
+    self.class.where(id: id).update_all(['produced_qty = GREATEST(produced_qty - ?, 0), updated_at = ?', delta.to_d, Time.current])
+    reload
+    update_columns(status: 'IN_PROGRESS', updated_at: Time.current) if status == 'COMPLETED' && produced_qty.to_d < qty.to_d
+    return unless stage == 'PRODUCTION' && produced_qty.to_d.zero? && fg_inbound_qty.to_d.zero?
+
+    enter_stage!('PICKING', at: Time.current)
   end
 
   # BOM 算料（XMind 节点3）：按 BOM 用量 × 本单产量/基准产量，展开采购需求。
@@ -530,10 +548,12 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 拒收打回：退回上一阶段并记原因；上一阶段重新计时、需重新接单，责任明确回上游。
   def reject_to_previous!(actor:, reason:)
-    idx = STAGES.index(stage)
+    # 外购订单按短版脊柱(OUTSOURCE_STAGES)算上一阶段，避免退回到它根本不存在的自制阶段(如 PRODUCTION)而卡死。
+    spine = is_outsourced ? OUTSOURCE_STAGES : STAGES
+    idx = spine.index(stage)
     raise StandardError, '已是初始阶段，无法退回' if idx.nil? || idx.zero?
 
-    prev = STAGES[idx - 1]
+    prev = spine[idx - 1]
     now = Time.current
     transaction do
       update_columns(stage: prev, stage_ack_at: nil, stage_ack_by_id: nil, updated_at: now)
@@ -584,7 +604,9 @@ class Mes::ProductionOrder < ApplicationRecord
   def manager_approve!(actor, comment: nil)
     raise StandardError, '非「待部门主管」环节' unless approval_status == 'SUBMITTED'
 
-    update!(approval_status: 'MANAGER_APPROVED', manager_id: actor.id,
+    # 不覆盖 manager_id（提交时已解析为应审批的部门主管），仅记审批时间/意见，保留留痕；
+    # 管理员代批经控制器 admin 判定放行，无需借 manager_id 授权。
+    update!(approval_status: 'MANAGER_APPROVED',
             manager_acted_at: Time.current, manager_comment: comment)
     Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
     notify_approval_pending

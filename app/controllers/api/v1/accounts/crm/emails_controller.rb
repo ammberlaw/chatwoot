@@ -37,6 +37,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
       unread: scope.unread.count,
       starred: scope.starred.count,
       distributed: Current.account.crm_email_distributions.to_user(current_user.id).count,
+      distributed_by_me: Current.account.crm_email_distributions.where(from_user_id: current_user.id).distinct.count(:crm_email_id),
       can_view_team: ids == :all || ids.size > 1
     }
   end
@@ -241,6 +242,23 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   def distributed
     ids_recent = Current.account.crm_email_distributions
                         .to_user(current_user.id).order(created_at: :desc).pluck(:crm_email_id)
+    @emails_count = ids_recent.size
+    page = (permitted_params[:page] || 1).to_i
+    ids_page = ids_recent.slice((page - 1) * page_size, page_size) || []
+    @emails = Current.account.crm_emails.where(id: ids_page)
+                     .includes(:crm_customer, :owner)
+                     .sort_by { |e| ids_page.index(e.id) }
+    @counterparty_types = build_counterparty_types(@emails)
+    @last_opens = last_opens_for(@emails)
+    render :index
+  end
+
+  # 我分发的邮件（我作为分发人分给同事的那些邮件，去重按邮件），按分发时间倒序。
+  # 供主管/管理员对照「分发给我的」查看自己下发过哪些。复用邮件列表渲染。
+  def distributed_by_me
+    ids_recent = Current.account.crm_email_distributions
+                        .where(from_user_id: current_user.id)
+                        .order(created_at: :desc).pluck(:crm_email_id).uniq
     @emails_count = ids_recent.size
     page = (permitted_params[:page] || 1).to_i
     ids_page = ids_recent.slice((page - 1) * page_size, page_size) || []

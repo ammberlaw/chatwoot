@@ -5,7 +5,7 @@ json.category resource.category
 json.product_line resource.product_line
 json.specification resource.specification
 json.unit resource.unit
-json.cost_price_micros resource.cost_price_micros
+json.cost_price_micros resource.cost_price_micros if Current.account_user&.mes_staff?
 json.currency resource.currency
 json.safety_stock resource.safety_stock
 json.default_supplier_id resource.default_supplier_id

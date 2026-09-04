@@ -13,7 +13,7 @@ import CrmEmailAPI from 'dashboard/api/crm/emails';
 import EmailFoldersAPI from 'dashboard/api/crm/emailFolders';
 import EmailLabelsAPI from 'dashboard/api/crm/emailLabels';
 import CrmAiAPI from 'dashboard/api/crm/ai';
-import AgentAPI from 'dashboard/api/agents';
+import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 import { stripTextColorMarkers } from 'dashboard/helper/editorTextColor';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -282,7 +282,19 @@ const FOLDERS = [
     icon: 'i-lucide-share-2',
     countKey: 'distributed',
   },
+  {
+    key: 'DISTRIBUTED_BY_ME',
+    label: '我分发的',
+    icon: 'i-lucide-forward',
+    countKey: 'distributed_by_me',
+    managerOnly: true, // 仅主管/管理员可见，与「分发给我的」对应
+  },
 ];
+
+// 系统文件夹：主管专属项（如「我分发的」）仅对管理员/CRM 团队负责人展示。
+const systemFolders = computed(() =>
+  FOLDERS.filter(f => !f.managerOnly || isAdmin.value || canViewTeam.value)
+);
 
 const activeFolderLabel = computed(
   () => FOLDERS.find(f => f.key === activeFolder.value)?.label || '收件箱'
@@ -473,6 +485,11 @@ const fetchRecords = () => {
     store.getDistributed({ page: 1, per_page: 200 });
     return;
   }
+  // 我分发的（主管/管理员）：走专用端点，列我下发过的邮件。
+  if (activeFolder.value === 'DISTRIBUTED_BY_ME') {
+    store.getDistributedByMe({ page: 1, per_page: 200 });
+    return;
+  }
   // 「往来邮件」视图：只按客户过滤、跨系统文件夹（收+发都进），不带 folder。
   // 否则按当前文件夹/范围取（列表按日期分组需一次多取，上限 200，分组封数才准）。
   const params = customerFilter.value
@@ -617,8 +634,9 @@ const setMailbox = address => {
 const fetchMembers = async () => {
   if (!isAdmin.value) return;
   try {
-    const { data } = await AgentAPI.get();
-    members.value = data || [];
+    // 只列 CRM 成员（排除人事/财务/非CRM/测试号），与其它 CRM 分配下拉统一口径。
+    const { data } = await CrmAgentAPI.get(route.params.accountId, 'all');
+    members.value = data.payload || [];
   } catch {
     members.value = [];
   }
@@ -1195,13 +1213,13 @@ const toggleSpam = async email => {
 };
 
 // —— 邮件内部分发（站内流转，不外发；含正文+附件+记录）——
-// 独立成员列表（全员可分发，不复用管理员专用的 members/fetchMembers）。
+// 分发目标成员列表：只列 CRM 成员（排除人事/财务/非CRM/测试号），与其它 CRM 分配下拉统一口径。
 const distMembers = ref([]);
 const loadDistMembers = async () => {
   if (distMembers.value.length) return;
   try {
-    const { data } = await AgentAPI.get();
-    distMembers.value = data || [];
+    const { data } = await CrmAgentAPI.get(route.params.accountId, 'all');
+    distMembers.value = data.payload || [];
   } catch {
     distMembers.value = [];
   }
@@ -1425,7 +1443,7 @@ watch(
         />
       </div>
       <nav class="flex flex-col gap-0.5 px-2">
-        <template v-for="folder in FOLDERS" :key="folder.key">
+        <template v-for="folder in systemFolders" :key="folder.key">
           <button
             class="flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors"
             :class="
@@ -1653,7 +1671,7 @@ watch(
               }}
             </span>
             <button
-              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11 disabled:opacity-60"
+              class="inline-flex items-center gap-1 px-2.5 min-h-9 md:min-h-0 md:py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11 disabled:opacity-60"
               :disabled="fetchingNow"
               :title="fetchTitle"
               @click="fetchNewMail"
@@ -1666,7 +1684,7 @@ watch(
               {{ fetchingNow ? '收取中…' : '收取' }}
             </button>
             <button
-              class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md hover:bg-n-alpha-2"
+              class="inline-flex items-center gap-1 px-2.5 min-h-9 md:min-h-0 md:py-1 text-xs rounded-md hover:bg-n-alpha-2"
               :class="
                 threadListMode
                   ? 'text-n-iris-11 bg-n-iris-3'
@@ -2717,9 +2735,9 @@ watch(
             >
               <span class="truncate">
                 {{ d.from_user_name }} → {{ d.to_user_name }}
-                <span v-if="d.note"
-class="text-n-slate-9"
-                  >（{{ d.note }}）</span>
+                <span v-if="d.note" class="text-n-slate-9"
+                  >（{{ d.note }}）</span
+                >
               </span>
               <span class="text-n-slate-9 shrink-0">{{
                 (d.created_at || '').slice(0, 10)

@@ -52,7 +52,8 @@ class Mes::PurchaseItem < ApplicationRecord
   validates :item_type, inclusion: { in: ITEM_TYPES }
   validates :qty, presence: true, numericality: { greater_than: 0 }
 
-  # 供应商税率（百分数，如 13 表示 13%）。用于含税/未税单价换算与导出抬头口径。
+  # 供应商税率（百分数，如 13 表示 13%），在供应商档案设置、采购单自动带出。
+  # 用于含税/未税单价换算与对供应商导出抬头口径。
   def supplier_tax_rate = mes_supplier&.tax_rate.to_d
 
   # 未税单价（micros）：录入价按未税存则直接返回，按含税存则反算 rate ÷ (1 + 税率%)。
@@ -83,5 +84,7 @@ class Mes::PurchaseItem < ApplicationRecord
 
   def sync_total
     purchase_order.recompute_total!
+    # 追加/删除/改量后重算收货齐套状态，避免收齐后追加明细仍误判 RECEIVED → 越级开料。
+    purchase_order.recompute_receipt_status!
   end
 end

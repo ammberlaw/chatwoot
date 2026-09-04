@@ -41,7 +41,8 @@ const saving = computed(
 );
 
 // 搜索：单号 / 供应商 / 归属人 / 生产订单 / 物料编码（后端跨字段 ILIKE）。
-const search = ref('');
+// 从站内通知「待审批采购」跳来时按生产订单号定位（route.query.q）。
+const search = ref(route.query.q ? String(route.query.q) : '');
 const totalCount = computed(() => store.getMeta?.count || 0);
 const fetchList = () => store.get({ q: search.value.trim() || undefined });
 let searchTimer = null;

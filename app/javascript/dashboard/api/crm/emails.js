@@ -52,5 +52,8 @@ client.distributions = id => axios.get(`${client.url}/${id}/distributions`);
 // 分发给我的邮件（含正文+附件）。
 client.distributed = (params = {}) =>
   axios.get(`${client.url}/distributed${qs(params)}`);
+// 我分发的邮件（我下发给同事的，主管/管理员用，与「分发给我的」对应）。
+client.distributedByMe = (params = {}) =>
+  axios.get(`${client.url}/distributed_by_me${qs(params)}`);
 
 export default client;

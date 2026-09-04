@@ -66,10 +66,27 @@ class Mes::Inspection < ApplicationRecord
   validates :kind, inclusion: { in: KINDS }
   validates :result, inclusion: { in: RESULTS }, allow_blank: true
   validates :inspected_qty, :passed_qty, :failed_qty, numericality: { greater_than_or_equal_to: 0 }
+  # 合格数+不良数不得超过检验数，杜绝矛盾数据污染合格率看板。
+  validate :qty_consistency
 
   scope :this_month, -> { where(inspected_at: Time.current.beginning_of_month..Time.current.end_of_month) }
 
   private
+
+  # 合格数+不良数 ≤ 检验数；且结果与不良数不得矛盾（判 PASS 却有不良）。
+  def qty_consistency
+    return if inspected_qty.to_d <= 0
+
+    if passed_qty.to_d + failed_qty.to_d > inspected_qty.to_d
+      errors.add(:base, "合格数(#{fmt(passed_qty)})+不良数(#{fmt(failed_qty)})不能超过检验数(#{fmt(inspected_qty)})")
+    end
+    errors.add(:base, '有不良数时结果不能为「合格」') if result == 'PASS' && failed_qty.to_d.positive?
+  end
+
+  def fmt(num)
+    n = num.to_d
+    (n == n.to_i ? n.to_i : n).to_s
+  end
 
   def product_line_source = production_order || purchase_order || crm_product || mes_material
 

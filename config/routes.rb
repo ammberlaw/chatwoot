@@ -187,6 +187,7 @@ Rails.application.routes.draw do
                 post :move_to_folder
                 post :bulk_create
                 get :distributed
+                get :distributed_by_me
               end
               member do
                 post :attach_kb

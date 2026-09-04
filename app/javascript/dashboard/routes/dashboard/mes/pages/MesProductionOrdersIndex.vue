@@ -1185,13 +1185,13 @@ watch(currentPage, fetchRecords);
               >
                 <span
                   v-if="po.orderKind === 'STOCK'"
-                  class="px-1.5 py-0.5 rounded-full bg-n-teal-3 text-n-teal-11"
+                  class="px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 bg-n-teal-3 text-n-teal-11"
                 >
                   外贸库存备货
                 </span>
                 <span
                   v-if="po.isOutsourced"
-                  class="px-1.5 py-0.5 rounded-full bg-n-amber-3 text-n-amber-11"
+                  class="px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 bg-n-amber-3 text-n-amber-11"
                 >
                   外购
                 </span>
@@ -1209,7 +1209,9 @@ watch(currentPage, fetchRecords);
               <div
                 class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-n-slate-11"
               >
-                <span>数量：{{ po.producedQty }} / {{ po.qty }} {{ po.unit }}</span>
+                <span
+                  >数量：{{ po.producedQty }} / {{ po.qty }} {{ po.unit }}</span
+                >
                 <span v-if="po.piNo">PI {{ po.piNo }}</span>
                 <span v-if="po.productSku" class="text-n-iris-11">
                   商品编码 {{ po.productSku }}
@@ -1238,7 +1240,8 @@ watch(currentPage, fetchRecords);
                 <span v-if="ackChip(po)">
                   <span :class="ackChip(po).cls">{{ ackChip(po).text }}</span>
                   <span v-if="stallDays(po) > 0">
-                    · 停留 {{ stallDays(po) }} 天</span>
+                    · 停留 {{ stallDays(po) }} 天</span
+                  >
                 </span>
               </div>
             </div>
@@ -1280,21 +1283,21 @@ watch(currentPage, fetchRecords);
                   {{ po.orderNo }}
                   <span
                     v-if="po.orderKind === 'STOCK'"
-                    class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"
+                    class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-teal-3 text-n-teal-11"
                     title="外贸库存备货订单：全业务共享库存"
                   >
                     外贸库存备货
                   </span>
                   <span
                     v-if="po.isOutsourced"
-                    class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-n-amber-3 text-n-amber-11"
+                    class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-amber-3 text-n-amber-11"
                     title="外购成品：工程判定外购，跳过生产，采购按单买"
                   >
                     外购
                   </span>
                   <span
                     v-if="po.approvalStatus && po.approvalStatus !== 'APPROVED'"
-                    class="ml-1 px-1.5 py-0.5 text-xs rounded-full"
+                    class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap"
                     :class="rowApprovalClass(po.approvalStatus)"
                   >
                     {{ APPROVAL_LABELS[po.approvalStatus] }}
@@ -1341,7 +1344,8 @@ watch(currentPage, fetchRecords);
                         ackChip(po).text
                       }}</span>
                       <span v-if="stallDays(po) > 0">
-                        · 停留 {{ stallDays(po) }} 天</span>
+                        · 停留 {{ stallDays(po) }} 天</span
+                      >
                     </span>
                   </div>
                 </td>

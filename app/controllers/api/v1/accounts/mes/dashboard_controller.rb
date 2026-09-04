@@ -1,5 +1,7 @@
 # 生产看板：聚合现有数据的只读总览。
 class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::BaseController
+  before_action :check_authorization
+
   def show
     # 业务员只统计/预警自己的订单（管理员/主管按范围，操作岗看全部）。
     owner_ids = mes_visible_owner_ids
@@ -41,6 +43,11 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
   end
 
   private
+
+  # 与其它 MES 控制器一致地过一次 Pundit 授权（index? 对本账号成员放行；数据本身按归属收敛）。
+  def check_authorization
+    authorize(Mes::ProductionOrder, :index?)
+  end
 
   def pipeline_card(po, board_map, names, now)
     ev = po.stage_events.select { |e| e.stage == po.stage }.max_by(&:entered_at)

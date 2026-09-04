@@ -367,11 +367,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   def production_order_params
     permitted = params.require(:production_order).permit(
-      :crm_sales_order_id, :crm_customer_id, :crm_product_id, :product_name, :qty, :unit, :produced_qty, :pi_no,
-      :bom_id, :stage, :status, :order_kind, :delivery_date, :planned_start_date, :planned_end_date,
+      :crm_sales_order_id, :crm_customer_id, :crm_product_id, :product_name, :qty, :unit, :pi_no,
+      :bom_id, :order_kind, :delivery_date, :planned_start_date, :planned_end_date,
       :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line,
       images: [], files: [] # 建单时挂载已暂存的 blob signed_id
     )
+    # stage/status/produced_qty 由状态机（接单/领料/报工/出库过账）驱动，销售端不得直接改单越过流程；
+    # 仅持生产订单管理能力(:order)者可手工干预。
+    if Current.account_user&.mes_can?(:order)
+      permitted.merge!(params.require(:production_order).permit(:stage, :status, :produced_qty).to_h)
+    end
     # spec 为按产品线的定制规格 jsonb（字段动态），整体透传。
     raw_spec = params.require(:production_order)[:spec]
     permitted[:spec] = raw_spec.respond_to?(:permit!) ? raw_spec.permit!.to_h : raw_spec if raw_spec.present?

@@ -69,9 +69,22 @@ const viewItems = computed(() =>
 const fetchList = () => store.get({ purpose: 'MATERIAL_ISSUE' });
 
 const productionOrders = ref([]);
+// 流程锁：生产领料只对「自制且原料已入库（进入原料入库/领料/生产及以后）」的订单开单。
+// 外购订单不领料、原料未入库的订单不可越级领料——都不出现在可选项里。
+const ISSUE_ELIGIBLE_STAGES = [
+  'MATERIAL_INBOUND',
+  'PICKING',
+  'PRODUCTION',
+  'FG_INBOUND',
+];
+const eligibleOrders = computed(() =>
+  productionOrders.value.filter(
+    p => !p.isOutsourced && ISSUE_ELIGIBLE_STAGES.includes(p.stage)
+  )
+);
 const productionOrderOptions = computed(() => [
   { value: '', label: '选择生产订单…' },
-  ...productionOrders.value.map(p => ({
+  ...eligibleOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
   })),

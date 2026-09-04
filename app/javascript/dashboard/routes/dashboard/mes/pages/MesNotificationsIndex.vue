@@ -32,6 +32,21 @@ const KIND_META = {
     dot: 'bg-n-amber-9',
     group: 'todo',
   },
+  po_approval_pending: {
+    label: '待审批采购',
+    dot: 'bg-n-amber-9',
+    group: 'todo',
+  },
+  po_approval_approved: {
+    label: '采购已通过',
+    dot: 'bg-n-teal-9',
+    group: 'progress',
+  },
+  po_approval_rejected: {
+    label: '采购被驳回',
+    dot: 'bg-n-ruby-9',
+    group: 'rejected',
+  },
   stage_assigned: { label: '待接单', dot: 'bg-n-iris-9', group: 'todo' },
   stage_returned: { label: '被退回', dot: 'bg-n-ruby-9', group: 'rejected' },
   production_reported: {
@@ -114,15 +129,22 @@ const openNotification = async n => {
     router.push(
       accountScopedRoute('mes_shipments_index', {}, { kind: 'STOCK' })
     );
+  } else if (n.kind && n.kind.startsWith('po_approval')) {
+    // 采购审批：进「采购单」板块（总经理在此通过/驳回），有单号则按生产订单号定位。
+    router.push(
+      accountScopedRoute(
+        'mes_purchase_orders_index',
+        {},
+        n.orderNo ? { q: n.orderNo } : {}
+      )
+    );
   } else if (n.orderNo) {
     // 待审批/待确认BOM：进「待我审批」inbox（含该单，跨产品线）并按单号自动打开审批详情；
     // 否则进普通列表按单号搜索定位。
     const query = APPROVAL_INBOX_KINDS.includes(n.kind)
       ? { view: 'approval', q: n.orderNo }
       : { q: n.orderNo };
-    router.push(
-      accountScopedRoute('mes_production_orders_index', {}, query)
-    );
+    router.push(accountScopedRoute('mes_production_orders_index', {}, query));
   }
 };
 
