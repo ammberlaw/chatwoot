@@ -64,11 +64,18 @@ const team = computed(
 
 const totals = computed(() => {
   const m = team.value?.members || [];
+  // 金额字段后端由 SUM(numeric) 返回，JSON 里是字符串，直接 + 会字符串拼接导致 ¥NaN；统一 Number() 相加。
   return {
-    actualAmount: m.reduce((s, r) => s + r.actual_amount_micros, 0),
-    actualCount: m.reduce((s, r) => s + r.actual_count, 0),
-    targetAmount: m.reduce((s, r) => s + r.target_amount_micros, 0),
-    targetCount: m.reduce((s, r) => s + r.target_count, 0),
+    actualAmount: m.reduce(
+      (s, r) => s + Number(r.actual_amount_micros || 0),
+      0
+    ),
+    actualCount: m.reduce((s, r) => s + Number(r.actual_count || 0), 0),
+    targetAmount: m.reduce(
+      (s, r) => s + Number(r.target_amount_micros || 0),
+      0
+    ),
+    targetCount: m.reduce((s, r) => s + Number(r.target_count || 0), 0),
     memberCount: m.length,
   };
 });

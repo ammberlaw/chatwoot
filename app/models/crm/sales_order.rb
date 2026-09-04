@@ -63,7 +63,9 @@ class Crm::SalesOrder < ApplicationRecord
 
   # 折算人民币的金额表达式（现汇买入价锁定在 exchange_rate；CNY/无汇率按 1）。
   # 看板/统计一律用它做 SUM，避免多币种直接混加。列名带表前缀以兼容 join 查询。
-  RMB_AMOUNT_MICROS_SQL = 'ROUND(crm_sales_orders.order_amount_micros * COALESCE(crm_sales_orders.exchange_rate, 1))'.freeze
+  # ⚠️CNY 单必须按 1 折算：历史上人民币单可能残留非 1 汇率（改币种时未清），
+  # 若不判币种直接 ×汇率会把 CNY 金额虚增数倍（曾致看板成交额虚高），故按币种守卫。
+  RMB_AMOUNT_MICROS_SQL = "ROUND(crm_sales_orders.order_amount_micros * CASE WHEN crm_sales_orders.order_currency = 'CNY' THEN 1 ELSE COALESCE(crm_sales_orders.exchange_rate, 1) END)".freeze
 
   belongs_to :account
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true

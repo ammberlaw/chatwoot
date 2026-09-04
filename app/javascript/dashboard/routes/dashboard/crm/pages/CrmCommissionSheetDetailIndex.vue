@@ -196,7 +196,10 @@ const fillRmb = () => {
 watch(
   () =>
     items.value
-      .map(r => `${r.receivedAmount ?? ''}|${r.shipping ?? ''}|${r.exchangeRate ?? ''}`)
+      .map(
+        r =>
+          `${r.receivedAmount ?? ''}|${r.shipping ?? ''}|${r.exchangeRate ?? ''}`
+      )
       .join(','),
   fillRmb
 );
@@ -794,8 +797,7 @@ const openForward = () => {
         <span class="text-xs text-n-slate-10"
           >（{{ sheet.paidByName || '' }} · {{ fmtDate(sheet.paidAt) }}）</span
         >
-        <span
-v-if="sheet.paidNote" class="text-xs text-n-slate-11"
+        <span v-if="sheet.paidNote" class="text-xs text-n-slate-11"
           >· {{ sheet.paidNote }}</span
         >
         <button
@@ -1090,7 +1092,7 @@ v-if="sheet.paidNote" class="text-xs text-n-slate-11"
       >
         <div
           ref="captureRef"
-          class="inline-block min-w-full p-4 bg-n-background"
+          class="inline-block min-w-full p-4 bg-n-background rounded-2xl border border-n-weak"
         >
           <div class="mb-2 text-sm font-semibold text-n-slate-12">
             {{ title }}

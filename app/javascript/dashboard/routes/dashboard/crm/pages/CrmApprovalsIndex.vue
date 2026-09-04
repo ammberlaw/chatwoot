@@ -12,6 +12,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 
 const L = {
   header: '审批中心',
@@ -189,6 +190,30 @@ const FIELD_INPUT_TYPES = {
   datetime: 'datetime-local',
 };
 const fieldInputType = f => FIELD_INPUT_TYPES[f.type] || 'text';
+
+// 日期/时间字段用紫玻璃 DatePicker（日级）+ 时间下拉（半小时步长）替换原生 input。
+// datetime 字段值存 "YYYY-MM-DDTHH:MM"，拆成日期段/时间段分别编辑再拼回。
+const TIME_OPTIONS = [
+  { value: '', label: '时间' },
+  ...Array.from({ length: 48 }, (_, i) => {
+    const hh = String(Math.floor(i / 2)).padStart(2, '0');
+    const mm = i % 2 === 0 ? '00' : '30';
+    return { value: `${hh}:${mm}`, label: `${hh}:${mm}` };
+  }),
+];
+const dtDate = key => (formValues[key] || '').split('T')[0] || '';
+const dtTime = key => (formValues[key] || '').split('T')[1] || '';
+const setDtDate = (key, v) => {
+  formValues[key] = v ? `${v}T${dtTime(key) || '09:00'}` : '';
+};
+const setDtTime = (key, v) => {
+  const d = dtDate(key);
+  if (!d) {
+    formValues[key] = '';
+    return;
+  }
+  formValues[key] = `${d}T${v || '00:00'}`;
+};
 
 // 默认部门：申请人的首个部门（没有则空）。
 const firstDeptId = () =>
@@ -781,6 +806,25 @@ onMounted(async () => {
             :options="fieldSelectOptions(f)"
             block
           />
+          <DatePicker
+            v-else-if="f.type === 'date'"
+            :model-value="formValues[f.key]"
+            block
+            @update:model-value="v => (formValues[f.key] = v)"
+          />
+          <div v-else-if="f.type === 'datetime'" class="flex gap-2">
+            <DatePicker
+              :model-value="dtDate(f.key)"
+              block
+              @update:model-value="v => setDtDate(f.key, v)"
+            />
+            <SelectCard
+              :model-value="dtTime(f.key)"
+              :options="TIME_OPTIONS"
+              trigger-class="w-28"
+              @update:model-value="v => setDtTime(f.key, v)"
+            />
+          </div>
           <input
             v-else
             v-model="formValues[f.key]"
