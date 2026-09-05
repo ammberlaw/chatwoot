@@ -155,6 +155,21 @@ class Crm::SalesOrder < ApplicationRecord
     self.order_no = format('%<prefix>s-%<seq>02d', prefix: prefix, seq: last_seq + 1)
   end
 
+  # 撞号自愈：MAX+1 在并发下会让两单拿到同号，唯一索引拦下后一个抛 RecordNotUnique。
+  # 用 savepoint(requires_new) 包住写入，冲突时只回滚本次 INSERT（不牵连外层事务），清号重算重试。
+  def create_or_update(*, **)
+    attempts = 0
+    begin
+      self.class.transaction(requires_new: true) { super }
+    rescue ActiveRecord::RecordNotUnique => e
+      raise unless new_record? && e.message.include?('order_no') && (attempts += 1) <= 5
+
+      self.order_no = nil
+      generate_order_no
+      retry
+    end
+  end
+
   # 回写客户成交汇总；订单换了客户时，新旧两个客户都要重算。
   def rollup_customer_deals
     customer_ids = [crm_customer_id, crm_customer_id_previously_was].compact.uniq

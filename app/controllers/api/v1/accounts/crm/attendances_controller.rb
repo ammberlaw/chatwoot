@@ -123,12 +123,21 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     row.merge(rate: rate)
   end
 
+  # HR 修正与员工当天打卡可能并发命中同一 (user_id, work_date) 唯一键；
+  # 与 punch! 同法：撞键后重取（此时记录已由打卡建好）再覆盖为 HR 修正值。
   def upsert_adjustment(user_id, work_date)
-    rec = Current.account.crm_attendance_records.find_or_initialize_by(user_id: user_id, work_date: work_date)
-    rec.assign_attributes(status: params[:status], note: params[:note].presence,
-                          adjusted_by_id: current_user.id, source: 'hr')
-    rec.save!
-    rec
+    attempts = 0
+    begin
+      rec = Current.account.crm_attendance_records.find_or_initialize_by(user_id: user_id, work_date: work_date)
+      rec.assign_attributes(status: params[:status], note: params[:note].presence,
+                            adjusted_by_id: current_user.id, source: 'hr')
+      rec.save!
+      rec
+    rescue ActiveRecord::RecordNotUnique
+      raise if (attempts += 1) > 1
+
+      retry
+    end
   end
 
   # 今日应到却未打上班卡的成员（只看今天，与所选粒度无关；供负责人早会点名）。
@@ -335,7 +344,7 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     { id: rec.id, user_id: rec.user_id, work_date: rec.work_date,
       clock_in_at: rec.clock_in_at&.in_time_zone(tz)&.strftime('%H:%M'),
       clock_out_at: rec.clock_out_at&.in_time_zone(tz)&.strftime('%H:%M'),
-      status: rec.status, note: rec.note, adjusted_by_name: rec.adjusted_by&.name }
+      status: rec.status, note: rec.note, source: rec.source, adjusted_by_name: rec.adjusted_by&.name }
   end
 
   def group_json(group)

@@ -40,7 +40,8 @@ class Mes::SupplierItem < ApplicationRecord
   before_validation :inherit_account, :normalize_code
   before_save :link_or_create_material
 
-  validates :material_code, :name, :color, :specification, :unit, presence: true
+  # 颜色选填：物料档案不含颜色、很多物料也无颜色（DB 列 not null 由前端传空串 '' 兜底）。
+  validates :material_code, :name, :specification, :unit, presence: true
   validates :category, presence: true, inclusion: { in: CATEGORIES }
   validates :material_code, uniqueness: { scope: :supplier_id }
   validates :unit_price, presence: true, numericality: { greater_than_or_equal_to: 0 }

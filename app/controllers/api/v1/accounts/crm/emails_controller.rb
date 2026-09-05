@@ -216,20 +216,27 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   # 内部分发：把本邮件（正文+附件）分发给公司内部同事查看（站内流转，不外发）。
   # 每个被分发人一条记录（去重、排除自己）+ 站内通知。附件不复制，被分发人查看的是同一封邮件。
   def distribute
-    user_ids = Array(params[:user_ids]).map(&:to_i).uniq - [current_user.id]
+    requested = Array(params[:user_ids]).map(&:to_i).uniq - [current_user.id]
+    # 只分发给 CRM 成员(管理员或有 crm_role)——过滤掉无 CRM 权限的账号成员，
+    # 避免把邮件分发给进不了 CRM、拿到通知也打不开的人（前端已限，后端兜底防越权/脏客户端）。
+    user_ids = requested & crm_member_user_ids
     note = params[:note].to_s
-    users = Current.account.users.where(id: user_ids)
     created = 0
-    users.each do |u|
-      dist = @email.distributions.find_or_initialize_by(to_user_id: u.id)
-      next if dist.persisted?
+    ActiveRecord::Base.transaction do
+      Current.account.users.where(id: user_ids).each do |u|
+        dist = @email.distributions.find_or_initialize_by(to_user_id: u.id)
+        next if dist.persisted?
 
-      dist.assign_attributes(account: Current.account, from_user_id: current_user.id, note: note.presence)
-      dist.save!
-      created += 1
-      subj = @email.subject.presence || '(无主题)'
-      crm_notify(u.id, "#{current_user.crm_display_name} 给你分发了一封邮件：#{subj}#{note.present? ? "（#{note}）" : ''}")
+        dist.assign_attributes(account: Current.account, from_user_id: current_user.id, note: note.presence)
+        dist.save!
+        created += 1
+        subj = @email.subject.presence || '(无主题)'
+        crm_notify(u.id, "#{current_user.crm_display_name} 给你分发了一封邮件：#{subj}#{note.present? ? "（#{note}）" : ''}")
+      end
     end
+    render json: { distributed: created }
+  rescue ActiveRecord::RecordNotUnique
+    # 并发/重复点击同一分发：忽略重复，返回本次实际新建数。
     render json: { distributed: created }
   end
 
@@ -272,6 +279,13 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
 
   private
 
+  # 可分发对象=本账号 CRM 成员的 user_id：管理员或已配 crm_role 的成员。
+  def crm_member_user_ids
+    Current.account.account_users
+           .where('crm_role IS NOT NULL OR role = ?', AccountUser.roles[:administrator])
+           .pluck(:user_id)
+  end
+
   # 防撞单：收件邮箱若属于「别人建档且你够不到」的客户，则拦截发送（单发/群发/回复通用）。
   # 豁免：管理员·超管·副管（early return）/ 负责人本人 / 被共享 / 该客户负责人在你邮件可见范围（主管看本团队）。
   # 匹配按客户「主要联系邮箱」，无主/公海客户不拦（谁都能捡）。
@@ -289,7 +303,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     addrs.filter_map do |addr|
       cust = Current.account.crm_customers
                     .where.not(account_owner_id: nil)
-                    .where('lower(contact_email) = ?', addr)
+                    .where('lower(trim(contact_email)) = ?', addr)
                     .first
       next if cust.nil?
       next if cust.account_owner_id == uid
@@ -324,8 +338,10 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     return nil if email.nil?
 
     inbox = email.folder == 'INBOX'
-    counterparty = (inbox ? email.from_address : email.to_address).to_s.downcase
-    return nil unless addrs.any? { |a| counterparty.include?(a) }
+    # 对方地址按完整邮箱 token 精确比对（避免 include? 子串误命中：如 amber@x.com 命中 xamber@x.com，
+    # 或对方是多地址串时错配），命中才回抄。
+    counterparty = (inbox ? email.from_address : email.to_address).to_s.downcase.scan(EMAIL_RE)
+    return nil if (addrs & counterparty).empty?
 
     (inbox ? email.to_address : email.from_address).to_s[EMAIL_RE]
   end

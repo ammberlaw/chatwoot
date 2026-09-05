@@ -17,6 +17,7 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
       todo: todo_scope.count,
       mine: Current.account.oa_approval_requests.applied_by(current_user.id).count,
       cc: cc_scope.count,
+      done: done_scope.count,
       approver_view: approver_view?
     }
   end
@@ -32,25 +33,34 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     @request = build_request
     @request.files.attach(params[:files]) if params[:files].present?
     render :show
+  rescue Oa::SubmitApprovalService::ApproverResolutionError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # 申请人修改自己的审批单：仅「审批中且尚无人处理」时可改（改字段/所在部门 + 增删附件）。
   # 改后按最新表单/部门重新物化审批链（部门主管/条件分支可能随之变化）。
   def update
     return render json: { error: '只能修改自己发起的审批单' }, status: :forbidden unless @request.applicant_id == current_user.id
-    unless editable_by_applicant?(@request)
-      return render json: { error: '该审批单已被处理或已结束，无法修改，请撤回后重新发起' }, status: :unprocessable_entity
-    end
 
-    @request.update!(
-      title: params[:title].presence || @request.title,
-      department_id: params[:department_id].presence,
-      form_data: form_data_param
-    )
-    purge_removed_files
-    @request.files.attach(params[:files]) if params[:files].present?
-    Oa::SubmitApprovalService.rebuild_steps(request: @request.reload)
+    # 锁本单 + 锁内复检可编辑：序列化「申请人改单重建审批链」与「审批人正在审批」的并发，
+    # 杜绝审批人刚同意的瞬间被改单把审批链重置。
+    @request.with_lock do
+      unless editable_by_applicant?(@request)
+        return render json: { error: '该审批单已被处理或已结束，无法修改，请撤回后重新发起' }, status: :unprocessable_entity
+      end
+
+      @request.update!(
+        title: params[:title].presence || @request.title,
+        department_id: params[:department_id].presence,
+        form_data: form_data_param
+      )
+      purge_removed_files
+      @request.files.attach(params[:files]) if params[:files].present?
+      Oa::SubmitApprovalService.rebuild_steps(request: @request.reload)
+    end
     render :show
+  rescue Oa::SubmitApprovalService::ApproverResolutionError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def approve
@@ -62,9 +72,18 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
   end
 
   def cancel
-    return head :unprocessable_entity unless @request.applicant_id == current_user.id && @request.pending?
+    return head :unprocessable_entity unless @request.applicant_id == current_user.id
 
-    @request.update!(status: 'canceled')
+    # 锁内复检 pending：避免与审批人同意/驳回并发时，撤回把已流转的单据覆盖回撤销态。
+    canceled = false
+    @request.with_lock do
+      next unless @request.pending?
+
+      @request.update!(status: 'canceled')
+      canceled = true
+    end
+    return head :unprocessable_entity unless canceled
+
     render :show
   end
 

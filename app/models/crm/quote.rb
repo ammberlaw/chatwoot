@@ -85,4 +85,19 @@ class Crm::Quote < ApplicationRecord
                       .pick(Arel.sql("MAX(SPLIT_PART(quote_no, '-', 3)::int)")) || 0
     self.quote_no = format('%<prefix>s-%<seq>02d', prefix: prefix, seq: last_seq + 1)
   end
+
+  # 撞号自愈：并发下两单可能拿到同一 quote_no，唯一索引拦下后一个抛 RecordNotUnique。
+  # savepoint 包住写入，冲突时只回滚本次 INSERT，清号重算重试。
+  def create_or_update(*, **)
+    attempts = 0
+    begin
+      self.class.transaction(requires_new: true) { super }
+    rescue ActiveRecord::RecordNotUnique => e
+      raise unless new_record? && e.message.include?('quote_no') && (attempts += 1) <= 5
+
+      self.quote_no = nil
+      generate_quote_no
+      retry
+    end
+  end
 end

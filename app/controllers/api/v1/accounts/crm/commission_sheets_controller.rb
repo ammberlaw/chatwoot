@@ -41,6 +41,10 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
 
     @sheet = Current.account.crm_commission_sheets.create!(owner_id: owner_id, period_month: month, status: 'DRAFT')
     render :show
+  rescue ActiveRecord::RecordNotUnique
+    # 并发/双击：另一个请求已建同月表，幂等返回既有表，不再 500。
+    @sheet = Current.account.crm_commission_sheets.find_by!(owner_id: owner_id, period_month: month)
+    render :show
   end
 
   # 保存明细行 + 备注。业务员本人/管理员/副管：仅草稿/退回态可改。
@@ -49,8 +53,14 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     finance = Current.account_user&.crm_finance?
     return render_error('该提成表当前状态不可编辑', :unprocessable_entity) unless @sheet.editable? || finance
     return render_error('无权编辑该提成表', :forbidden) unless can_edit?(@sheet) || finance
+    # 已发放的提成表任何人不可再改（含财务），防已发放金额被静默篡改。
+    return render_error('该提成表已发放，不能再编辑', :unprocessable_entity) if @sheet.paid?
 
-    @sheet.update!(sheet_params)
+    @sheet.with_lock do
+      raise ActiveRecord::Rollback if @sheet.paid? # 锁内复检，防与发放并发
+
+      @sheet.update!(sheet_params)
+    end
     @sheet.reload
     render :show
   end
@@ -115,9 +125,9 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
   # 提交审批（业务员本人 / 管理员）。
   def submit
     return render_error('无权提交该提成表', :forbidden) unless @sheet.owner_id == current_user.id || admin_like?
-    return render_error('仅草稿/退回状态可提交', :unprocessable_entity) unless @sheet.editable?
 
-    @sheet.submit!
+    ok = @sheet.with_lock { @sheet.editable? && @sheet.submit! }
+    return render_error('仅草稿/退回状态可提交', :unprocessable_entity) unless ok
     crm_notify_managers_of(@sheet.owner_id,
                            "【提成表】#{@sheet.owner&.name} 提交了 #{month_label(@sheet.period_month)} 提成表，请及时审批。")
     render :show
@@ -126,24 +136,32 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
   # 主管通过。
   def approve
     return render_error('无权审批该提成表', :forbidden) unless can_approve?(@sheet)
-    return render_error('仅「已提交」的表可通过', :unprocessable_entity) unless @sheet.status == 'SUBMITTED'
 
-    @sheet.approve!(by: current_user)
+    ok = @sheet.with_lock { @sheet.status == 'SUBMITTED' && @sheet.approve!(by: current_user) }
+    return render_error('仅「已提交」的表可通过', :unprocessable_entity) unless ok
     crm_notify(@sheet.owner_id, "【提成表】你的 #{month_label(@sheet.period_month)} 提成表已通过审批。")
     render :show
   end
 
-  # 主管退回（须填原因）。
+  # 退回（须填原因）：主管退回「已提交」待审的；财务退回「已通过但未发放」的
+  # （核算发现有误，打回业务员重填，之后重走 提交→审批→发放）。已发放的须先撤销发放再退回。
   def return_sheet
-    return render_error('无权退回该提成表', :forbidden) unless can_approve?(@sheet)
-    return render_error('仅「已提交」的表可退回', :unprocessable_entity) unless @sheet.status == 'SUBMITTED'
-
     reason = params[:reason].to_s.strip
     return render_error('请填写退回原因', :unprocessable_entity) if reason.blank?
+    return render_error('无权退回该提成表', :forbidden) unless can_return?(@sheet)
+    return render_error('该表已发放，请先撤销发放再退回', :unprocessable_entity) if @sheet.paid?
 
-    @sheet.return!(reason: reason, by: current_user)
+    from = @sheet.status
+    ok = @sheet.with_lock do
+      next false if @sheet.paid?
+      next false unless can_return?(@sheet)
+
+      @sheet.return!(reason: reason, by: current_user)
+    end
+    return render_error('该表当前状态不可退回', :unprocessable_entity) unless ok
+    by_label = from == 'APPROVED' ? '财务' : '主管'
     crm_notify(@sheet.owner_id,
-               "【提成表】你的 #{month_label(@sheet.period_month)} 提成表被退回，原因：#{reason}，请修改后重新提交。")
+               "【提成表】你的 #{month_label(@sheet.period_month)} 提成表被#{by_label}退回，原因：#{reason}，请修改后重新提交。")
     render :show
   end
 
@@ -153,21 +171,29 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     return unless ensure_finance!
 
     rows = Array(params[:items]).index_by { |r| r[:id].to_i }
-    sheets = Current.account.crm_commission_sheets.where(id: rows.keys, status: 'APPROVED').to_a
-    sheets.each do |s|
-      r = rows[s.id]
-      s.mark_paid!(by: current_user,
-                   amount_micros: r[:paid_amount_micros].presence&.to_i,
-                   note: r[:paid_note].to_s.strip)
+    # 只发「已通过且未发放」的表；每张锁内复检,杜绝并发/重试重复发放覆盖。
+    paid = 0
+    Current.account.crm_commission_sheets
+           .where(id: rows.keys, status: 'APPROVED', paid_at: nil).find_each do |s|
+      s.with_lock do
+        next if s.paid?
+
+        r = rows[s.id]
+        s.mark_paid!(by: current_user,
+                     amount_micros: r[:paid_amount_micros].presence&.to_i,
+                     note: r[:paid_note].to_s.strip)
+        paid += 1
+      end
     end
-    render json: { count: sheets.size }
+    render json: { count: paid }
   end
 
-  # 财务撤销发放（点错兜底）。
+  # 财务撤销发放（点错兜底）：仅撤销确实已发放的表。
   def unmark_paid
     return unless ensure_finance!
 
-    Current.account.crm_commission_sheets.where(id: Array(params[:ids])).find_each(&:unmark_paid!)
+    Current.account.crm_commission_sheets
+           .where(id: Array(params[:ids])).where.not(paid_at: nil).find_each(&:unmark_paid!)
     head :ok
   end
 
@@ -191,7 +217,8 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
     return render_error('无权配置提成点', :forbidden) unless can_manage_rates?
 
     # delete_all 后再用关联 create! 会丢 account_id（Rails 关联代理坑），改显式传 account_id。
-    aid = params[:account_id]
+    # 强制用当前账号 id（忽略请求参数），防越权清空/覆盖他账号的提成点配置。
+    aid = Current.account.id
     Crm::CommissionRate.transaction do
       Crm::CommissionRate.where(account_id: aid).delete_all
       Array(params[:rates]).each_with_object({}) do |r, seen|
@@ -214,7 +241,7 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
   end
 
   def rate_rows
-    Crm::CommissionRate.where(account_id: params[:account_id]).order(:product_category)
+    Crm::CommissionRate.where(account_id: Current.account.id).order(:product_category)
                        .map { |r| { product_category: r.product_category, rate: r.rate.to_f } }
   end
 
@@ -254,7 +281,11 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
       pos += 1
       attrs = item_attrs_from_order(o, sheet.period_month).merge(position: pos)
       attrs[:product_category] = category if category.present?
-      sheet.items.create!(attrs)
+      begin
+        sheet.items.create!(attrs)
+      rescue ActiveRecord::RecordNotUnique
+        pos -= 1 # 该订单已被导入(并发/已在别的表)，唯一约束拦下，跳过防重复计提成
+      end
     end
   end
 
@@ -317,6 +348,15 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
   # 编辑权：本人或管理员/副管。
   def can_edit?(sheet)
     admin_like? || sheet.owner_id == current_user.id
+  end
+
+  # 退回权：主管/管理员可退「已提交」待审的；财务/管理员可退「已通过」的（核算发现有误打回重填）。
+  def can_return?(sheet)
+    case sheet.status
+    when 'SUBMITTED' then can_approve?(sheet)
+    when 'APPROVED' then admin_like? || Current.account_user&.crm_finance?
+    else false
+    end
   end
 
   # 审批权：管理员/副管；或主管对本团队成员（不含自己——自己的表由更高层批）。

@@ -59,6 +59,8 @@ class Crm::CommissionSheet < ApplicationRecord
     EDITABLE_STATUSES.include?(status)
   end
 
+  def paid? = paid_at.present?
+
   # 提交审批：仅草稿/退回态可提交。
   def submit!
     update!(status: 'SUBMITTED', submitted_at: Time.current,
@@ -77,14 +79,20 @@ class Crm::CommissionSheet < ApplicationRecord
             manager_id: nil, approved_at: nil)
   end
 
-  # 财务发放：仅已通过(APPROVED)表可标记「已发放」，须填实发提成金额(系统不算)+可选备注。
+  # 财务发放：仅已通过(APPROVED)且未发放过的表可标记「已发放」，须填实发提成金额(系统不算)+可选备注。
+  # 防重复发放：已发放(paid_at 有值)直接拒绝，杜绝并发/重试覆盖已发放记录。
   def mark_paid!(by:, amount_micros: nil, note: nil)
+    raise StandardError, '仅已通过的提成表可发放' unless status == 'APPROVED'
+    raise StandardError, '该表已发放，不能重复发放' if paid_at.present?
+
     update!(paid_at: Time.current, paid_by_id: by.id,
             paid_amount_micros: amount_micros, paid_note: note.presence)
   end
 
-  # 撤销发放（财务/管理员点错兜底）。
+  # 撤销发放（财务/管理员点错兜底）：仅已发放的可撤销。
   def unmark_paid!
+    return false unless paid_at.present?
+
     update!(paid_at: nil, paid_by_id: nil, paid_amount_micros: nil, paid_note: nil)
   end
 
@@ -96,7 +104,7 @@ class Crm::CommissionSheet < ApplicationRecord
       shipping_micros: rows.sum { |i| i.shipping_micros.to_i },
       received_rmb_micros: rows.sum { |i| i.received_rmb_micros.to_i },
       sales_rmb_micros: rows.sum { |i| i.sales_rmb_micros.to_i },
-      sales_usd_micros: rows.reject { |i| i.currency == 'CNY' }.sum { |i| i.order_amount_micros.to_i },
+      sales_usd_micros: rows.select { |i| %w[USD EUR].include?(i.currency) }.sum { |i| i.order_amount_micros.to_i },
       count: rows.size
     }
   end

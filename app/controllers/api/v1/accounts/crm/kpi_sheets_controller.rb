@@ -26,15 +26,25 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   # 保存完成值(员工)/得分(主管)。按行 id 更新。备注/补充条款仅主管·管理员可改。
   def update
-    Array(params.dig(:sheet, :sheet_items)).each do |raw|
-      item = @sheet.sheet_items.find_by(id: raw[:id])
-      next unless item
+    # 严格分权按状态：员工仅在「待填报」改自己的完成值；主管仅在「已提交(待打分)」改核对值/得分。
+    # 已归档/已确认等其它状态一律拒写，杜绝越权改分与篡改归档表。
+    can_fill = @sheet.owner_id == current_user.id && @sheet.status == 'PENDING'
+    can_score = can_manage? && @sheet.status == 'SUBMITTED'
+    return render_error('当前状态或权限不可编辑该考核表', :unprocessable_entity) unless can_fill || can_score
 
-      # 核对完成值只有主管/管理员(审批人)能改；员工只能填 actual_value。
-      attrs = raw.permit(:actual_value, :score, *(can_manage? ? [:checked_value] : [])).to_h
-      item.update!(attrs) if attrs.present?
+    @sheet.with_lock do
+      Array(params.dig(:sheet, :sheet_items)).each do |raw|
+        item = @sheet.sheet_items.find_by(id: raw[:id])
+        next unless item
+
+        keys = []
+        keys << :actual_value if can_fill
+        keys += %i[score checked_value] if can_score
+        attrs = raw.permit(*keys).to_h
+        item.update!(attrs) if attrs.present?
+      end
+      @sheet.update!(remark: params.dig(:sheet, :remark)) if can_score && params[:sheet]&.key?(:remark)
     end
-    @sheet.update!(remark: params.dig(:sheet, :remark)) if can_manage? && params[:sheet]&.key?(:remark)
     @sheet.reload
     render 'show'
   end
@@ -67,6 +77,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   # 退回重填：审批人在自己那一步发现问题，退回到「待填报」，须填原因；员工改完重走流程。
   def return_sheet
     return unless ensure_can_return!
+    return render_error('已发放的考核表不能退回，请先让财务撤销发放', :unprocessable_entity) if @sheet.paid_at.present?
 
     reason = params[:reason].to_s.strip
     return render_error('请填写退回原因', :unprocessable_entity) if reason.blank?
@@ -81,6 +92,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   # 员工填报/签名不动，主管改完分重新提交。原因选填。
   def reopen_scoring
     return unless ensure_can_reopen_scoring!
+    return render_error('已发放的考核表不能重开打分，请先让财务撤销发放', :unprocessable_entity) if @sheet.paid_at.present?
 
     @sheet.reopen_scoring!(reason: params[:reason].to_s.strip, by: current_user)
     render 'show'
@@ -276,15 +288,17 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
 
   # 状态匹配则执行 yield+流转并返回 true；否则渲染错误并返回 false。
   def transition!(from, to)
-    unless @sheet.status == from
-      render_error('状态不符', :unprocessable_entity)
-      return false
-    end
+    # 行锁 + 锁内复检状态：多级审批(提交/打分/人事/总经理)并发时防越级、重复流转、后写覆盖。
+    ok = false
+    @sheet.with_lock do
+      next unless @sheet.status == from
 
-    yield
-    @sheet.status = to
-    @sheet.save!
-    true
+      yield
+      @sheet.update!(status: to)
+      ok = true
+    end
+    render_error('状态不符（可能已被处理）', :unprocessable_entity) unless ok
+    ok
   end
 
   # 盖章：本次显式上传的签名优先；否则取签字人存的个人签名一键盖上。

@@ -19,6 +19,7 @@ const L = {
   start: '发起审批',
   tabTodo: '待我审批',
   tabMine: '我发起的',
+  tabDone: '我已审批',
   tabCc: '抄送我的',
   empty: '暂无审批单',
   selectHint: '选择左侧审批单查看详情',
@@ -132,6 +133,10 @@ const showCc = computed(
 const TABS = computed(() =>
   [
     showTodo.value ? { key: 'todo', label: L.tabTodo } : null,
+    // 我已审批：审批人(或曾处理过审批者)可见，紧挨「待我审批」成对。
+    showTodo.value || counts.value.done > 0
+      ? { key: 'done', label: L.tabDone }
+      : null,
     { key: 'mine', label: L.tabMine },
     showCc.value ? { key: 'cc', label: L.tabCc } : null,
   ].filter(Boolean)

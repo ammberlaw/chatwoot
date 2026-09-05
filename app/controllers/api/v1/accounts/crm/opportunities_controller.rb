@@ -32,8 +32,17 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
 
   # 认领公海商机：归入自己名下（公海商机对全员开放，不走 owner 范围）。
   def claim
-    @opportunity = Current.account.crm_opportunities.in_public_pool.find(params[:id])
-    @opportunity.update!(owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil)
+    @opportunity = Current.account.crm_opportunities.find(params[:id])
+    # 锁内复检仍在公海：两人同时认领同一公海商机时只有先拿锁的成功，杜绝静默抢单覆盖。
+    claimed = false
+    @opportunity.with_lock do
+      next unless @opportunity.is_in_public_pool?
+
+      @opportunity.update!(owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil)
+      claimed = true
+    end
+    return render json: { message: '该商机已被他人认领' }, status: :forbidden unless claimed
+
     render :show
   end
 

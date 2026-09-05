@@ -11,11 +11,13 @@ class Oa::ActOnApprovalService
   end
 
   def perform
-    step = @request.current_step
-    raise InvalidAction, '当前无你可审批的步骤' unless actionable?(step)
-
-    # 步骤落定 + 整单状态 + 考勤写回同一事务：写回失败则整单不通过，绝不出现「已通过但考勤没写/只写一半」。
+    # 步骤落定 + 整单状态 + 考勤写回同一事务；事务开头锁本单、锁内复检，
+    # 序列化同一单并发的同意/驳回/撤回，杜绝重复推进、越级、双写考勤。
     ApplicationRecord.transaction do
+      @request.lock!
+      step = @request.current_step
+      raise InvalidAction, '当前无你可审批的步骤' unless actionable?(step)
+
       step.update!(status: @decision, comment: @comment, acted_at: Time.current)
       @decision == 'rejected' ? @request.update!(status: 'rejected') : advance
     end

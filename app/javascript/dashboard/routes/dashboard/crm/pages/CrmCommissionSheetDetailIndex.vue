@@ -139,6 +139,11 @@ const canExport = computed(
 const canMarkPaid = computed(
   () => isCrmFinance.value && status.value === 'APPROVED'
 );
+// 财务退回：已通过但未发放时，核算发现有误可打回业务员重填（重走 提交→审批→发放）。
+const canFinanceReturn = computed(
+  () =>
+    isCrmFinance.value && status.value === 'APPROVED' && !sheet.value?.paidAt
+);
 
 const title = computed(() => {
   if (!sheet.value) return t('CRM.COMMISSION.HEADER');
@@ -572,6 +577,18 @@ const grand = computed(() => ({
   salary: sumSalary(items.value),
 }));
 
+// 品类不匹配告警：明细里填了品类、但提成点配置里查无此品类名 → 提成点按 0 算(悄悄归零)。
+// 列出这些「配置里没有」的品类，提示核对品类名/补配提成点，避免提成被静默算成 0。
+const unmatchedCategories = computed(() => {
+  const configured = rateMap.value || {};
+  const bad = new Set();
+  items.value.forEach(r => {
+    const cat = (r.productCategory || '').trim();
+    if (cat && !(cat in configured)) bad.add(cat);
+  });
+  return [...bad];
+});
+
 // ── 转发到团队沟通：把本提成表的摘要 + 回跳链接（可选表图）发到某个团队沟通会话 ──
 const forwardRef = ref(null);
 // 现场把只读分组表截成 PNG File 当附件（复用导出图片的 captureRef/toPng）。
@@ -718,6 +735,14 @@ const openForward = () => {
           {{ t('CRM.COMMISSION.DETAIL.FINANCE_EDIT') }}
         </button>
         <button
+          v-if="canFinanceReturn"
+          class="h-8 px-3 text-sm rounded-lg text-n-ruby-11 border border-n-ruby-6 hover:bg-n-ruby-3 disabled:opacity-50"
+          :disabled="isBusy"
+          @click="returnSheet"
+        >
+          {{ t('CRM.COMMISSION.DETAIL.RETURN_TO_OWNER') }}
+        </button>
+        <button
           v-if="!editable"
           class="h-8 px-4 text-sm font-medium rounded-lg border border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
           @click="printSheet"
@@ -808,6 +833,19 @@ const openForward = () => {
         >
           {{ t('CRM.COMMISSION.PAYOUT.UNMARK') }}
         </button>
+      </div>
+
+      <!-- 品类不匹配告警：明细品类名与提成点配置对不上，提成点会被静默算成 0 -->
+      <div
+        v-if="unmatchedCategories.length"
+        class="flex items-start gap-2 px-3 py-2 mb-2 text-xs rounded-xl bg-n-amber-3/60 text-n-amber-11 border border-n-amber-6"
+      >
+        <Icon icon="i-lucide-triangle-alert" class="size-3.5 mt-px shrink-0" />
+        <span>{{
+          t('CRM.COMMISSION.DETAIL.CATEGORY_MISMATCH', {
+            list: unmatchedCategories.join('、'),
+          })
+        }}</span>
       </div>
 
       <!-- 编辑态：可编辑网格 -->

@@ -185,11 +185,12 @@ const taxedPrice = row => {
   return (price * (1 + rate / 100)).toFixed(2);
 };
 
+// 颜色为选填：物料档案本身不含颜色，选已有编码不会自动带出，很多物料也没有颜色，
+// 故不作必填（否则选了编码、名称/规格/单位都带出来了，却因颜色空着而 Confirm 一直灰）。
 const itemRowInvalid = row =>
   !row.materialCode.trim() ||
   !row.category ||
   !row.name.trim() ||
-  !row.color.trim() ||
   !row.specification.trim() ||
   !row.unit.trim() ||
   row.unitPrice === '' ||
@@ -634,7 +635,7 @@ onMounted(() => {
                 <span class="col-span-3">物料编码 *</span>
                 <span class="col-span-2">分类 *</span>
                 <span class="col-span-2">产品名称 *</span>
-                <span class="col-span-1">颜色 *</span>
+                <span class="col-span-1">颜色</span>
                 <span class="col-span-2">规格型号 *</span>
                 <span class="col-span-1">单位 *</span>
                 <span class="col-span-2">未税单价 *</span>

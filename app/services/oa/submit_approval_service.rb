@@ -7,6 +7,10 @@
 #     branches 自上而下取首个「全部条件命中」的分支（conditions 为空=默认兜底），展开其 flow 为步骤。
 #   条件变量 var：leave_days（按日期区间算的请假天数）/ department（申请人部门id）/ field:<字段key>（表单值）。
 class Oa::SubmitApprovalService
+  # 审批流物化后一个有效审批人都没有（部门没配负责人 / 指定审批人已离职失效）→ 抛此错，
+  # 由控制器提示，绝不静默「自动通过」（尤其请假/补卡会误写考勤）。
+  class ApproverResolutionError < StandardError; end
+
   def initialize(account:, applicant:, template:, attributes:)
     @account = account
     @applicant = applicant
@@ -23,22 +27,27 @@ class Oa::SubmitApprovalService
   end
 
   def perform
-    request = @account.oa_approval_requests.create!(
-      template: @template, applicant_id: @applicant.id, title: @title, department_id: @department_id,
-      form_data: @form_data || {}, status: 'pending', current_position: 0, submitted_at: Time.current,
-      cc_user_ids: Array(@template.cc_user_ids).map(&:to_i).uniq
-    )
-    build_steps(request)
-    settle_start(request)
-    request
+    # 物化+定位同一事务：settle_start 判定「无有效审批人」时抛错回滚，绝不留下半物化的孤儿单。
+    ApplicationRecord.transaction do
+      request = @account.oa_approval_requests.create!(
+        template: @template, applicant_id: @applicant.id, title: @title, department_id: @department_id,
+        form_data: @form_data || {}, status: 'pending', current_position: 0, submitted_at: Time.current,
+        cc_user_ids: Array(@template.cc_user_ids).map(&:to_i).uniq
+      )
+      build_steps(request)
+      settle_start(request)
+      request
+    end
   end
 
   # 重建审批链：清掉旧步骤，按当前 flow/部门/条件重新展开并定位首个可办步骤。
   def rebuild(request)
-    request.steps.destroy_all
-    build_steps(request)
-    settle_start(request)
-    request
+    ApplicationRecord.transaction do
+      request.steps.destroy_all
+      build_steps(request)
+      settle_start(request)
+      request
+    end
   end
 
   private
@@ -121,10 +130,15 @@ class Oa::SubmitApprovalService
   end
 
   def resolve_approver(step)
-    case step[:type]
-    when 'user' then step[:user_id]
-    when 'dept_leader' then applicant_dept_leader_id
-    end
+    id = case step[:type]
+         when 'user' then step[:user_id]
+         when 'dept_leader' then applicant_dept_leader_id
+         end
+    # 审批人必须是本账号在职成员：指定审批人已离职/部门负责人已移除 → 视为无效(nil→该步 skipped)，
+    # 由 settle_start 兜底判定，绝不把审批推给一个不存在的人。
+    return nil if id.blank?
+
+    @account.account_users.exists?(user_id: id) ? id.to_i : nil
   end
 
   # 优先按提交时所选部门取负责人；否则回落到主负部门/任一部门。
@@ -140,7 +154,12 @@ class Oa::SubmitApprovalService
     first = request.steps.where(status: 'pending').order(:position).first
     if first
       request.update!(current_position: first.position)
+    elsif request.steps.exists?
+      # 有步骤却一个 pending 都没有 = 全 skipped(审批人全部解析失败)。绝不能静默「自动通过」——
+      # 尤其请假/补卡通过后会写考勤。抛错让提交失败并提示配置问题。
+      raise ApproverResolutionError, '审批流未找到有效审批人，请联系管理员检查该模板的审批人或部门负责人配置'
     else
+      # 空流程(模板本就无审批节点)=无需审批，直接通过。
       request.update!(status: 'approved')
     end
   end

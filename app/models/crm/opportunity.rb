@@ -71,7 +71,9 @@ class Crm::Opportunity < ApplicationRecord
     return nil if amount_micros.nil?
     return amount_micros if currency.blank? || currency == 'CNY'
 
-    rate = Crm::FxRate.rate_for(currency, Date.current)
+    # 优先取今日(含之前)最近牌价；该币种只有更晚的牌价时(如刚启用)回退到最近的一条，
+    # 避免外币商机因暂无历史牌价被静默排除出人民币汇总，导致看板金额偏低。
+    rate = Crm::FxRate.rate_for(currency, Date.current) || Crm::FxRate.rate_on_or_after(currency, Date.current)
     rate && (amount_micros * rate).round
   end
 

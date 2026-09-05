@@ -268,7 +268,17 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
       return render json: { message: message }, status: :forbidden
     end
 
-    @customer.update!(account_owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil)
+    # 锁本单 + 锁内复检仍在公海：两名业务员同时认领同一公海客户时，只有先拿到行锁的成功，
+    # 后者看到已不在公海直接拒绝，杜绝「后领回覆盖前领人」的静默抢单。
+    claimed = false
+    @customer.with_lock do
+      next unless @customer.is_in_public_pool?
+
+      @customer.update!(account_owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil)
+      claimed = true
+    end
+    return render json: { message: '该客户已被他人认领' }, status: :forbidden unless claimed
+
     render 'api/v1/accounts/crm/customers/show'
   end
 
