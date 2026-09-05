@@ -139,10 +139,13 @@ const canExport = computed(
 const canMarkPaid = computed(
   () => isCrmFinance.value && status.value === 'APPROVED'
 );
-// 财务退回：已通过但未发放时，核算发现有误可打回业务员重填（重走 提交→审批→发放）。
+// 财务/管理层退回：已通过但未发放时，核算发现有误可打回业务员重填（重走 提交→审批→发放）。
+// 口径与后端 can_return? 对齐：管理员 / 副管理员 / 财务均可（isCrmFinance 已含管理员+财务，另补副管理员）。
 const canFinanceReturn = computed(
   () =>
-    isCrmFinance.value && status.value === 'APPROVED' && !sheet.value?.paidAt
+    (isCrmFinance.value || isCrmDeputyAdmin.value) &&
+    status.value === 'APPROVED' &&
+    !sheet.value?.paidAt
 );
 
 const title = computed(() => {
