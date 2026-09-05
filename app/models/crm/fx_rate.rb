@@ -1,5 +1,5 @@
-# 中国银行现汇买入价快照（折算汇率）。每日由 Crm::FxRateSyncJob 抓取入库，
-# 外币销售订单建单时锁定「做单当日」汇率，看板据此折算人民币。
+# 中国银行「中行折算价」快照（折算汇率，财务口径）。每日由 Crm::FxRateSyncJob 抓取入库，
+# 外币销售订单建单时锁定「做单当日」汇率，看板/提成据此折算人民币。
 # == Schema Information
 #
 # Table name: crm_fx_rates
