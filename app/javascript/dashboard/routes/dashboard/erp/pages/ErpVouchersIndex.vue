@@ -592,144 +592,154 @@ onMounted(() => {
         加载中…
       </div>
       <template v-else>
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium w-9">
-                <input
-                  type="checkbox"
-                  class="w-4 h-4"
-                  :checked="allSelected"
-                  @change="toggleSelectAll"
-                />
-              </th>
-              <th class="px-3 py-3 font-medium">凭证字号</th>
-              <th class="px-3 py-3 font-medium">日期</th>
-              <th class="px-3 py-3 font-medium">摘要</th>
-              <th class="px-3 py-3 font-medium text-right">借方合计</th>
-              <th class="px-3 py-3 font-medium text-right">贷方合计</th>
-              <th class="px-3 py-3 font-medium">状态</th>
-              <th class="px-3 py-3 font-medium">制单 / 记账</th>
-              <th class="px-3 py-3 font-medium text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="v in records"
-              :key="v.id"
-              class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
-              @click="openView(v)"
-            >
-              <td class="px-3 py-2" @click.stop>
-                <input
-                  type="checkbox"
-                  class="w-4 h-4"
-                  :checked="selectedIds.includes(v.id)"
-                  @change="toggleSelect(v.id)"
-                />
-              </td>
-              <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
-                {{ v.voucherNo }}
-                <span v-if="v.reversalOfNo" class="text-xs text-n-ruby-11">
-                  红冲 {{ v.reversalOfNo }}
-                </span>
-                <span
-                  v-else-if="v.reversedByNo"
-                  class="text-xs text-n-slate-10"
-                >
-                  已被 {{ v.reversedByNo }} 红冲
-                </span>
-              </td>
-              <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
-                {{ v.voucherDate }}
-              </td>
-              <td class="px-3 py-2 text-n-slate-12">
-                {{ v.summary || '—' }}
-                <span
-                  v-if="v.documentCount"
-                  class="inline-flex items-center gap-0.5 ml-1 text-xs text-n-slate-10"
-                  title="已附原始单据影像"
-                >
-                  <span class="i-lucide-paperclip size-3" />
-                  {{ v.documentCount }}
-                </span>
-              </td>
-              <td class="px-3 py-2 font-mono text-right text-n-slate-12">
-                {{ money(v.totalDebitMicros) }}
-              </td>
-              <td class="px-3 py-2 font-mono text-right text-n-slate-12">
-                {{ money(v.totalCreditMicros) }}
-              </td>
-              <td class="px-3 py-2">
-                <span
-                  class="inline-block px-2 py-0.5 text-xs rounded whitespace-nowrap"
-                  :class="STATUS_CLASS[v.status]"
-                >
-                  {{ v.statusLabel }}
-                </span>
-              </td>
-              <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
-                {{ v.preparedByName || '—' }} / {{ v.postedByName || '—' }}
-              </td>
-              <td class="px-3 py-2" @click.stop>
-                <div class="flex items-center justify-end gap-1">
-                  <Button
-                    label="打印"
-                    color="slate"
-                    variant="ghost"
-                    size="xs"
-                    @click="printOne(v)"
+        <!-- 除摘要外各列都是 nowrap，窗口一窄就只能挤摘要（挤成几行窄条）。
+             给表格设最小宽度并单独包一层横向滚动：宽度不够就往右拉，摘要不再被压。
+             滚动只包表格、不包分页条，否则往右拉时分页也跟着跑出去。 -->
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[1200px] text-sm">
+            <thead>
+              <tr class="text-left text-n-slate-11 border-b border-n-weak">
+                <th class="px-3 py-3 font-medium w-9">
+                  <input
+                    type="checkbox"
+                    class="w-4 h-4"
+                    :checked="allSelected"
+                    @change="toggleSelectAll"
                   />
-                  <template v-if="canWrite && v.status === 'DRAFT'">
+                </th>
+                <th class="px-3 py-3 font-medium">凭证字号</th>
+                <th class="px-3 py-3 font-medium">日期</th>
+                <th class="px-3 py-3 font-medium">摘要</th>
+                <th class="px-3 py-3 font-medium text-right">借方合计</th>
+                <th class="px-3 py-3 font-medium text-right">贷方合计</th>
+                <th class="px-3 py-3 font-medium">状态</th>
+                <th class="px-3 py-3 font-medium">制单 / 记账</th>
+                <th class="px-3 py-3 font-medium text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="v in records"
+                :key="v.id"
+                class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
+                @click="openView(v)"
+              >
+                <td class="px-3 py-2" @click.stop>
+                  <input
+                    type="checkbox"
+                    class="w-4 h-4"
+                    :checked="selectedIds.includes(v.id)"
+                    @change="toggleSelect(v.id)"
+                  />
+                </td>
+                <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
+                  {{ v.voucherNo }}
+                  <span v-if="v.reversalOfNo" class="text-xs text-n-ruby-11">
+                    红冲 {{ v.reversalOfNo }}
+                  </span>
+                  <span
+                    v-else-if="v.reversedByNo"
+                    class="text-xs text-n-slate-10"
+                  >
+                    已被 {{ v.reversedByNo }} 红冲
+                  </span>
+                </td>
+                <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
+                  {{ v.voucherDate }}
+                </td>
+                <td class="px-3 py-2 text-n-slate-12">
+                  <!-- 下限撑住不被挤扁，上限截断防超长摘要把表拉到几屏宽；全文走 title 悬浮看。 -->
+                  <div class="flex items-center gap-1 min-w-56 max-w-96">
+                    <span class="truncate" :title="v.summary || ''">
+                      {{ v.summary || '—' }}
+                    </span>
+                    <span
+                      v-if="v.documentCount"
+                      class="inline-flex items-center gap-0.5 text-xs shrink-0 text-n-slate-10"
+                      title="已附原始单据影像"
+                    >
+                      <span class="i-lucide-paperclip size-3" />
+                      {{ v.documentCount }}
+                    </span>
+                  </div>
+                </td>
+                <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+                  {{ money(v.totalDebitMicros) }}
+                </td>
+                <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+                  {{ money(v.totalCreditMicros) }}
+                </td>
+                <td class="px-3 py-2">
+                  <span
+                    class="inline-block px-2 py-0.5 text-xs rounded whitespace-nowrap"
+                    :class="STATUS_CLASS[v.status]"
+                  >
+                    {{ v.statusLabel }}
+                  </span>
+                </td>
+                <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
+                  {{ v.preparedByName || '—' }} / {{ v.postedByName || '—' }}
+                </td>
+                <td class="px-3 py-2" @click.stop>
+                  <div class="flex items-center justify-end gap-1">
                     <Button
-                      label="过账"
-                      color="teal"
-                      variant="ghost"
-                      size="xs"
-                      @click="postVoucher(v)"
-                    />
-                    <Button
-                      label="编辑"
+                      label="打印"
                       color="slate"
                       variant="ghost"
                       size="xs"
-                      @click="openEdit(v)"
+                      @click="printOne(v)"
                     />
+                    <template v-if="canWrite && v.status === 'DRAFT'">
+                      <Button
+                        label="过账"
+                        color="teal"
+                        variant="ghost"
+                        size="xs"
+                        @click="postVoucher(v)"
+                      />
+                      <Button
+                        label="编辑"
+                        color="slate"
+                        variant="ghost"
+                        size="xs"
+                        @click="openEdit(v)"
+                      />
+                      <Button
+                        label="作废"
+                        color="slate"
+                        variant="ghost"
+                        size="xs"
+                        @click="voidVoucher(v)"
+                      />
+                      <Button
+                        label="删除"
+                        color="ruby"
+                        variant="ghost"
+                        size="xs"
+                        @click="askDelete(v)"
+                      />
+                    </template>
                     <Button
-                      label="作废"
-                      color="slate"
-                      variant="ghost"
-                      size="xs"
-                      @click="voidVoucher(v)"
-                    />
-                    <Button
-                      label="删除"
+                      v-else-if="
+                        canWrite && v.status === 'POSTED' && !v.reversedByNo
+                      "
+                      label="红冲"
                       color="ruby"
                       variant="ghost"
                       size="xs"
-                      @click="askDelete(v)"
+                      @click="reverseVoucher(v)"
                     />
-                  </template>
-                  <Button
-                    v-else-if="
-                      canWrite && v.status === 'POSTED' && !v.reversedByNo
-                    "
-                    label="红冲"
-                    color="ruby"
-                    variant="ghost"
-                    size="xs"
-                    @click="reverseVoucher(v)"
-                  />
-                </div>
-              </td>
-            </tr>
-            <tr v-if="!records.length">
-              <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
-                该期间还没有凭证。点右上角「新建凭证」开始记账。
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="!records.length">
+                <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
+                  该期间还没有凭证。点右上角「新建凭证」开始记账。
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
         <PaginationFooter
           v-if="totalCount > ITEMS_PER_PAGE"
