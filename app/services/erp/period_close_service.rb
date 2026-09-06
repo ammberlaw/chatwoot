@@ -18,22 +18,24 @@ class Erp::PeriodCloseService
 
   def close!(period)
     validate_period_format!(period)
-    record = @account.erp_fiscal_periods.find_or_initialize_by(period: period)
-    raise Error, "会计期间 #{period} 已经结过账了" if record.status == Erp::FiscalPeriod::CLOSED
+    # 期间级 advisory 锁：与过账(VoucherPostingService 用同一 period key)互斥。前置检查(无草稿/平衡)与
+    # 结账落库放同一锁+事务内，杜绝「检查通过→并发过账→关账后混入未过账/不平凭证」的竞态。
+    Erp::AccountLock.with_account_lock(@account.id, "period:#{period}") do
+      record = @account.erp_fiscal_periods.find_or_initialize_by(period: period)
+      raise Error, "会计期间 #{period} 已经结过账了" if record.status == Erp::FiscalPeriod::CLOSED
 
-    ensure_earlier_periods_closed!(period)
-    ensure_no_drafts!(period)
-    ensure_balanced!(period)
+      ensure_earlier_periods_closed!(period)
+      ensure_no_drafts!(period)
+      ensure_balanced!(period)
 
-    ActiveRecord::Base.transaction do
       voucher = build_closing_voucher(period)
       record.assign_attributes(
         status: Erp::FiscalPeriod::CLOSED, closed_at: Time.current, closed_by_id: @user&.id,
         closing_voucher_id: voucher&.id
       )
       record.save!
+      record
     end
-    record
   end
 
   # 反结账：期间重新打开，结转凭证撤销（该凭证是系统生成的，直接删不留垃圾）。

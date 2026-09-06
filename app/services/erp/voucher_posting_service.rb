@@ -11,25 +11,31 @@ class Erp::VoucherPostingService
   end
 
   def post!
-    raise Error, "凭证「#{@voucher.voucher_no}」不是待过账状态，不能过账" unless @voucher.status == Erp::Voucher::DRAFT
+    # 期间级 advisory 锁：与结账(PeriodCloseService 用同一 period key)互斥，杜绝「结账检查通过→并发过账→
+    # 关账后混入未过账/不平凭证」；同时锁内复检状态,防同一凭证被重复过账。
+    Erp::AccountLock.with_account_lock(@voucher.account_id, "period:#{@voucher.period}") do
+      @voucher.reload
+      raise Error, "凭证「#{@voucher.voucher_no}」不是待过账状态，不能过账" unless @voucher.status == Erp::Voucher::DRAFT
 
-    @voucher.refresh_totals!
-    @voucher.reload
-    raise Error, '凭证至少要有一借一贷两行分录' if @voucher.lines.count < 2
-    raise Error, "借贷不平：借方 #{fmt(@voucher.total_debit_micros)} / 贷方 #{fmt(@voucher.total_credit_micros)}" unless @voucher.balanced?
+      @voucher.refresh_totals!
+      @voucher.reload
+      raise Error, '凭证至少要有一借一贷两行分录' if @voucher.lines.count < 2
+      raise Error, "借贷不平：借方 #{fmt(@voucher.total_debit_micros)} / 贷方 #{fmt(@voucher.total_credit_micros)}" unless @voucher.balanced?
 
-    @voucher.update!(status: Erp::Voucher::POSTED, posted_by_id: @user.id, posted_at: Time.current)
+      @voucher.update!(status: Erp::Voucher::POSTED, posted_by_id: @user.id, posted_at: Time.current)
+    end
     @voucher
   end
 
   def reverse!
-    raise Error, '只有已记账的凭证才需要红冲' unless @voucher.status == Erp::Voucher::POSTED
-    raise Error, "该凭证已被 #{@voucher.reversed_by.voucher_no} 红冲过" if @voucher.reversed_by.present?
-
     reversal = nil
-    ActiveRecord::Base.transaction do
+    # 行锁 + 锁内复检：并发红冲时只有先拿锁的成功，后者见已红冲即报错，杜绝同一凭证被红冲两次(多冲一笔)。
+    @voucher.with_lock do
+      raise Error, '只有已记账的凭证才需要红冲' unless @voucher.status == Erp::Voucher::POSTED
+      raise Error, "该凭证已被 #{@voucher.reversed_by.voucher_no} 红冲过" if @voucher.reversed_by.present?
+
       reversal = @voucher.account.erp_vouchers.create!(
-        voucher_date: Time.zone.today,
+        voucher_date: reversal_date,
         summary: "红冲 #{@voucher.voucher_no}#{@voucher.summary.present? ? "：#{@voucher.summary}" : ''}",
         status: Erp::Voucher::POSTED,
         prepared_by_id: @user.id,
@@ -46,6 +52,14 @@ class Erp::VoucherPostingService
   end
 
   private
+
+  # 红冲落原凭证日期(保证同期抵消,不扭曲当期损益)；原期已结账则落当天(冻结期不能再动)。
+  def reversal_date
+    period = @voucher.period
+    return @voucher.voucher_date if period.present? && !Erp::FiscalPeriod.closed?(@voucher.account, period)
+
+    Time.zone.today
+  end
 
   def reversed_lines_attributes
     @voucher.lines.map do |line|

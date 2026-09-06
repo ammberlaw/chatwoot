@@ -55,6 +55,8 @@ class Erp::CashLedgerService
     raise Error, '转出/转入账户不存在' if from.blank? || to.blank?
     raise Error, '转出与转入不能是同一个账户' if from.id == to.id
     raise Error, '划转金额必须大于 0' if amount_micros.to_i <= 0
+    # 暂不支持跨币种划转：两边币种不同需按汇率折算并记汇兑差额，否则按原金额记账会错账/凭证不平。
+    raise Error, '暂不支持跨币种划转，请通过同币种账户或先做购汇/结汇' if from.currency != to.currency
 
     write_transfer_pair(from, to, amount_micros, happened_at, summary)
   end
@@ -63,7 +65,8 @@ class Erp::CashLedgerService
 
   # 一次划转 = 转出一笔 OUT + 转入一笔 IN + 一张自动凭证，同一个 source_id 串起来。
   def write_transfer_pair(from, to, amount_micros, happened_at, summary)
-    key = Time.zone.now.to_i
+    # 唯一 source_id：原来用秒级时间戳，同一秒两笔划转会撞 key，reverse_for/对账按 source_id 聚合时互相串扰。
+    key = SecureRandom.random_number(1 << 62)
     ActiveRecord::Base.transaction do
       write_transfer_leg(cash_account: from, direction: Erp::CashTransaction::OUT, key: key,
                          summary: summary.presence || "划转至 #{to.name}", counterparty: to.name,

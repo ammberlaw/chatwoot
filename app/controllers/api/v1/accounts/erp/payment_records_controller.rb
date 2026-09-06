@@ -42,9 +42,18 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
   end
 
   def void
-    Erp::AllocationService.new(@payment, :payment).void!
-    Erp::CashLedgerService.new(Current.account, current_user).reverse_for(@payment)
-    @posted_voucher_no = Erp::AutoVoucherService.new(Current.account).void_for(@payment)
+    # 已结账期间的单据不许作废(见 receipt void)：防冻结期总账↔台账永久失衡。
+    period = @payment.paid_at&.to_date&.strftime('%Y-%m')
+    if period && Erp::FiscalPeriod.closed?(Current.account, period)
+      return render json: { error: "该单据所属期间 #{period} 已结账，不能作废" }, status: :unprocessable_entity
+    end
+
+    # 三副作用包同一事务+账套锁(见 receipt void)：整体回滚防账实分离,并发/重复作废串行化。
+    Erp::AccountLock.with_account_lock(Current.account.id, "payment:#{@payment.id}") do
+      Erp::AllocationService.new(@payment, :payment).void!
+      Erp::CashLedgerService.new(Current.account, current_user).reverse_for(@payment)
+      @posted_voucher_no = Erp::AutoVoucherService.new(Current.account).void_for(@payment)
+    end
     render 'api/v1/accounts/erp/payment_records/show'
   rescue Erp::AllocationService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity

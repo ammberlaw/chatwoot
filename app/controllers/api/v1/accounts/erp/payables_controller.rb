@@ -30,6 +30,12 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
   end
 
   def update
+    # 总额不得改到低于已付：否则未结额变负、状态误判、与已核销/凭证脱节。
+    new_total = payable_params[:total_amount_micros]
+    if new_total.present? && new_total.to_i < @payable.paid_amount_micros.to_i
+      return render json: { error: '应付总额不能小于已付金额，请先撤销相关核销' }, status: :unprocessable_entity
+    end
+
     @payable.update!(payable_params)
     @payable.update!(status: @payable.derived_status)
     render 'api/v1/accounts/erp/payables/show'

@@ -30,6 +30,12 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   end
 
   def update
+    # 总额不得改到低于已收：否则未结额变负、状态误判 PAID，与已核销/凭证脱节。
+    new_total = receivable_params[:total_amount_micros]
+    if new_total.present? && new_total.to_i < @receivable.received_amount_micros.to_i
+      return render json: { error: '应收总额不能小于已收金额，请先撤销相关核销' }, status: :unprocessable_entity
+    end
+
     @receivable.update!(receivable_params)
     @receivable.update!(status: @receivable.derived_status)
     render 'api/v1/accounts/erp/receivables/show'

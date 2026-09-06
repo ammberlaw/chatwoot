@@ -24,7 +24,8 @@ class Erp::OpeningBalanceService
     raise Error, '期初余额一条都没填' if lines.empty?
 
     validate_balanced!(lines)
-    ActiveRecord::Base.transaction do
+    # advisory 锁：期初凭证是账套单例，串行化「删旧→建新」，防并发/重试留两张期初凭证。
+    Erp::AccountLock.with_account_lock(@account.id, 'opening_balance') do
       current&.destroy
       build_voucher(lines, as_of)
     end

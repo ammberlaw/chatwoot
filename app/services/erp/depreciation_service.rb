@@ -27,9 +27,13 @@ class Erp::DepreciationService
 
   # 处置/报废：结转累计折旧与净值，处置收入与净值差额进资产处置损益。
   def dispose!(asset, disposed_at:, income_micros: 0, scrapped: false)
-    raise Error, '该资产已处置或报废' unless asset.status == Erp::FixedAsset::IN_USE
-
     ActiveRecord::Base.transaction do
+      asset.lock! # 行锁+锁内复检：防并发/双击重复处置(生成两张处置凭证)，并与并发折旧串行
+      raise Error, '该资产已处置或报废' unless asset.status == Erp::FixedAsset::IN_USE
+
+      period = disposed_at.to_date.strftime('%Y-%m')
+      raise Error, "会计期间 #{period} 已结账，不能处置" if Erp::FiscalPeriod.closed?(@account, period)
+
       voucher = build_disposal_voucher(asset, disposed_at, income_micros)
       asset.update!(
         status: scrapped ? Erp::FixedAsset::SCRAPPED : Erp::FixedAsset::DISPOSED,
@@ -72,6 +76,7 @@ class Erp::DepreciationService
 
   def commit_row(row, period, voucher)
     asset = row[:asset]
+    asset.lock! # 行锁+重读：累计折旧读-加-写在锁内完成，与并发处置/其它计提串行，防覆盖
     @account.erp_depreciation_entries.create!(
       fixed_asset_id: asset.id, period: period, amount_micros: row[:amount], voucher_id: voucher&.id
     )

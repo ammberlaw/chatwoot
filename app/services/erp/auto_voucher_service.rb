@@ -23,6 +23,11 @@ class Erp::AutoVoucherService
     return if cash.blank? || receivable.blank?
 
     gross = receipt.amount_micros + receipt.bank_charge_micros
+    # 外币下各借方行分别 round(原币×汇率)，贷方应收 base 必须用两借方 base 之和倒挤，
+    # 否则 round(a)+round(b)≠round(a+b) 差 1 分致凭证不平过不了账。
+    rate = receipt.exchange_rate.to_d
+    cash_base = Erp::VoucherLine.round_to_cent(receipt.amount_micros * rate)
+    fee_base = receipt.bank_charge_micros.positive? ? Erp::VoucherLine.round_to_cent(receipt.bank_charge_micros * rate) : 0
     lines = [line(account: cash, direction: 'DEBIT', amount_micros: receipt.amount_micros, record: receipt,
                   summary: '收到货款')]
     if receipt.bank_charge_micros.positive?
@@ -31,6 +36,7 @@ class Erp::AutoVoucherService
     end
     lines << line(account: receivable, direction: 'CREDIT', amount_micros: gross, record: receipt,
                   summary: '冲减应收', dimension: { crm_customer_id: receipt.crm_customer_id })
+                 .merge(base_amount_micros: cash_base + fee_base, explicit_base: true)
 
     build_voucher(receipt, "收款 #{receipt.receipt_no} · #{receipt.crm_customer&.name}", receipt.received_at, lines)
   end
@@ -43,6 +49,9 @@ class Erp::AutoVoucherService
     payable = party_account(payment, :payable)
     return if cash.blank? || payable.blank?
 
+    rate = payment.exchange_rate.to_d
+    payable_base = Erp::VoucherLine.round_to_cent(payment.amount_micros * rate)
+    fee_base = payment.bank_charge_micros.positive? ? Erp::VoucherLine.round_to_cent(payment.bank_charge_micros * rate) : 0
     lines = [line(account: payable, direction: 'DEBIT', amount_micros: payment.amount_micros, record: payment,
                   summary: '冲减应付', dimension: { mes_supplier_id: payment.mes_supplier_id })]
     if payment.bank_charge_micros.positive?
@@ -50,7 +59,9 @@ class Erp::AutoVoucherService
                     record: payment, summary: '银行手续费')
     end
     total_out = payment.amount_micros + payment.bank_charge_micros
+    # 贷方货币资金 base 用两借方 base 之和倒挤，保证外币下借贷严格相等(见 for_receipt)。
     lines << line(account: cash, direction: 'CREDIT', amount_micros: total_out, record: payment, summary: '付出款项')
+              .merge(base_amount_micros: payable_base + fee_base, explicit_base: true)
 
     build_voucher(payment, "付款 #{payment.payment_no} · #{payment.mes_supplier&.name}", payment.paid_at, lines)
   end
@@ -156,19 +167,23 @@ class Erp::AutoVoucherService
 
   # 重生成：旧的 DRAFT 换掉；已过账的保留（财务得走红冲），此时不再生成新的，避免重复入账。
   def create_voucher!(source_type:, source_id:, date:, summary:, lines:)
-    previous = @account.erp_vouchers.where(source_type: source_type, source_id: source_id)
-                       .where.not(status: Erp::Voucher::VOID).order(:id).last
-    return guard_posted!(previous, lines) if previous&.status == Erp::Voucher::POSTED
-
-    ActiveRecord::Base.transaction do
-      previous&.destroy
-      voucher = @account.erp_vouchers.create!(
-        voucher_date: date, summary: summary, status: Erp::Voucher::DRAFT,
-        source_type: source_type, source_id: source_id,
-        lines_attributes: lines.each_with_index.map { |row, index| row.merge(position: index) }
-      )
-      voucher.refresh_totals!
-      voucher
+    # 按来源单据 advisory 锁：串行化「查旧草稿→删→建新」，杜绝并发/重试给同一单据生成两张草稿自动凭证
+    # （+ DB 部分唯一索引 uniq_erp_voucher_draft_source 兜底）。
+    Erp::AccountLock.with_account_lock(@account.id, "autovoucher:#{source_type}:#{source_id}") do
+      previous = @account.erp_vouchers.where(source_type: source_type, source_id: source_id)
+                         .where.not(status: Erp::Voucher::VOID).order(:id).last
+      if previous&.status == Erp::Voucher::POSTED
+        guard_posted!(previous, lines)
+      else
+        previous&.destroy
+        voucher = @account.erp_vouchers.create!(
+          voucher_date: date, summary: summary, status: Erp::Voucher::DRAFT,
+          source_type: source_type, source_id: source_id,
+          lines_attributes: lines.each_with_index.map { |row, index| row.merge(position: index) }
+        )
+        voucher.refresh_totals!
+        voucher
+      end
     end
   end
 end

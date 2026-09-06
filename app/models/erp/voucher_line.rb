@@ -63,6 +63,9 @@ class Erp::VoucherLine < ApplicationRecord
   belongs_to :department, class_name: 'Org::Department', optional: true
   belongs_to :member, class_name: 'User', optional: true
 
+  # 平衡行倒挤标记（非持久化）：置真时用调用方给的 base_amount_micros，不按 原币×汇率 重算。
+  attr_accessor :explicit_base
+
   validates :direction, inclusion: { in: DIRECTIONS }
   validates :cash_flow_item, inclusion: { in: Erp::CashFlowItem::CODES }, allow_blank: true
   # 期末调汇分录是原币 0、只动本位币的（见 Erp::RevaluationService），所以原币放行 0；
@@ -99,8 +102,10 @@ class Erp::VoucherLine < ApplicationRecord
   end
 
   # 调汇分录原币是 0、本位币由调用方直接给，乘出来只会是 0，不能覆盖。
+  # explicit_base：外币多行凭证里「平衡行」由调用方按各行 base 之和倒挤本位币，保证借贷严格相等
+  #   （否则各行分别 round(原币×汇率) 相加≠合并 round，差 1 分致凭证不平过不了账）。
   def base_given_directly?
-    amount_micros.blank? || (amount_micros.zero? && base_amount_micros.to_i.positive?)
+    explicit_base || amount_micros.blank? || (amount_micros.zero? && base_amount_micros.to_i.positive?)
   end
 
   def validate_postable_account

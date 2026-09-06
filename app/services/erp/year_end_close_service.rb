@@ -42,13 +42,16 @@ class Erp::YearEndCloseService
   end
 
   def run!(year:, surplus_rate: 0)
-    result = preview(year: year, surplus_rate: surplus_rate)
-    raise Error, "#{year} 年度已经年结过了（凭证 #{result[:voucher_no]}），要重做请先反年结" if result[:voucher_no].present?
-    raise Error, "#{result[:unclosed_periods].join('、')} 还没结账，全年 12 个月都结完才能年结" if result[:unclosed_periods].any?
-    raise Error, "#{year} 年度本年利润为 0，没有可结转的数" if result[:profit_micros].zero?
+    # 年结级 advisory 锁：并发/重试串行化，配合「已年结即报错」复检，杜绝生成两张年结凭证致本年利润翻倍。
+    Erp::AccountLock.with_account_lock(@account.id, "yearend:#{year}") do
+      result = preview(year: year, surplus_rate: surplus_rate)
+      raise Error, "#{year} 年度已经年结过了（凭证 #{result[:voucher_no]}），要重做请先反年结" if result[:voucher_no].present?
+      raise Error, "#{result[:unclosed_periods].join('、')} 还没结账，全年 12 个月都结完才能年结" if result[:unclosed_periods].any?
+      raise Error, "#{year} 年度本年利润为 0，没有可结转的数" if result[:profit_micros].zero?
 
-    voucher = build_voucher(result)
-    result.merge(voucher_no: voucher.voucher_no)
+      voucher = build_voucher(result)
+      result.merge(voucher_no: voucher.voucher_no)
+    end
   end
 
   # 反年结：撤销年结凭证。年结凭证是系统生成的，直接删不留垃圾（与反结账同做法）。

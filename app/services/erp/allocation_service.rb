@@ -18,6 +18,8 @@ class Erp::AllocationService
     rows = normalize(allocations)
     ActiveRecord::Base.transaction do
       touched = @record.allocations.map(&ledger_key).uniq
+      # 先对涉及的台账行加 FOR UPDATE 行锁：串行化并发核销同一台账，杜绝两单各读旧余额都通过校验→超额核销。
+      ledger_scope.lock.where(id: (touched + rows.map { |r| r[:ledger_id] }).uniq).to_a
       @record.allocations.destroy_all
       # 删核销行只是删了明细，台账的已收/已付是**缓存字段**，得先刷一遍把本单占用的额度还回去，
       # 再去校验新的核销额。不刷的话 outstanding_excluding_self 读到的还是含本单的旧值，
@@ -36,6 +38,7 @@ class Erp::AllocationService
 
     ActiveRecord::Base.transaction do
       touched = @record.allocations.map(&ledger_key).uniq
+      ledger_scope.lock.where(id: touched).to_a # 行锁台账,与并发核销/作废串行
       @record.allocations.destroy_all
       @record.update!(status: void_status)
       touched.each { |id| refresh_ledger!(id) }
@@ -80,6 +83,10 @@ class Erp::AllocationService
       raise Error, "单据是 #{@record.currency}、台账「#{ledger_no(ledger)}」是 #{ledger.currency}，" \
                    '币种不一致不能核销；请先按同币种建账'
     end
+
+    # 往来对象必须一致：收款单客户==应收台账客户 / 付款单供应商==应付台账供应商，防把 A 的钱核到 B 的账。
+    party_ok = receipt? ? ledger.crm_customer_id == @record.crm_customer_id : ledger.mes_supplier_id == @record.mes_supplier_id
+    raise Error, "单据与台账「#{ledger_no(ledger)}」的#{receipt? ? '客户' : '供应商'}不一致，不能核销" unless party_ok
 
     available = outstanding_excluding_self(ledger)
     raise Error, "核销金额超出「#{ledger_no(ledger)}」的未结余额（可核销 #{fmt(available)}）" if row[:amount_micros] > available
