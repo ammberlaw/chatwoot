@@ -25,6 +25,9 @@ json.crm_finance resource.active_account_user&.crm_finance? || false
 json.mes_role resource.active_account_user&.mes_role
 json.mes_roles resource.active_account_user&.effective_mes_roles || []
 json.mes_capabilities resource.active_account_user&.mes_capability_list || []
+json.erp_role resource.active_account_user&.erp_role
+json.erp_capabilities resource.active_account_user&.erp_capability_list || []
+json.can_access_erp resource.active_account_user&.can_access_erp? || false
 json.can_access_crm resource.active_account_user&.can_access_crm? || false
 json.can_access_tiktok resource.active_account_user&.can_access_tiktok? || false
 json.tiktok_can_manage(resource.active_account_user&.administrator? || resource.active_account_user&.crm_deputy_admin? || false)

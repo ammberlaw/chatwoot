@@ -188,6 +188,15 @@ class Mes::Shipment < ApplicationRecord
     return unless SALES_ORDER_ADVANCEABLE.include?(crm_sales_order.status)
 
     crm_sales_order.update_columns(status: 'SHIPPED', updated_at: timestamp)
+    sync_order_completion
+  end
+
+  # 先款后货（PI 付款转订单）的单子出货时钱早收清了，这里补判一次直接推到完结。
+  # ERP 是下游，出不了货比记不上账严重，所以异常只记日志不往上抛。
+  def sync_order_completion
+    Erp::OrderCompletionService.new(account).sync!(crm_sales_order.reload)
+  rescue StandardError => e
+    Rails.logger.error("[Erp::OrderCompletion] 出库单 #{shipment_no} 回写订单完结失败: #{e.message}")
   end
 
   # 锁定本单涉及的成品结存行（SELECT ... FOR UPDATE），使预占/出库的「查—扣」在同一临界区串行。

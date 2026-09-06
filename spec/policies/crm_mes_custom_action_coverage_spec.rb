@@ -24,6 +24,7 @@ RSpec.describe 'CRM/MES custom action Pundit policy coverage' do
     api/v1/accounts/mes
     api/v1/accounts/oa
     api/v1/accounts/org
+    api/v1/accounts/erp
   ].freeze
 
   # (controller_path, action) pairs to skip — e.g. actions excluded from

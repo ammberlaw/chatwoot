@@ -291,6 +291,90 @@ Rails.application.routes.draw do
           end
           namespace :erp do
             resource :dashboard, only: [:show], controller: 'dashboard'
+            resources :ledger_accounts, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                post :initialize_standard
+              end
+            end
+            resources :voucher_templates, only: [:index, :create, :destroy]
+            resources :vouchers, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                get :summaries
+                get :import_template
+                post :import
+              end
+              member do
+                post :post_voucher
+                post :reverse
+                post :void
+                post :attach
+                delete :detach
+              end
+            end
+            # 账簿：余额表 / 明细账 / 维度明细账（只读实时查询）
+            get 'ledgers/balances', to: 'ledgers#balances'
+            get 'ledgers/entries', to: 'ledgers#entries'
+            get 'ledgers/dimensions', to: 'ledgers#dimensions'
+            resources :receivables, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                get :open_list
+                get :aging
+                get :pending_orders
+                post :bulk_build
+              end
+            end
+            resources :receipt_records, only: [:index, :show, :create, :update, :destroy] do
+              member { post :void }
+            end
+            resources :payables, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                get :open_list
+                get :supplier_statement
+                get :aging
+              end
+            end
+            resources :payment_records, only: [:index, :show, :create, :update, :destroy] do
+              member { post :void }
+            end
+            resources :cash_accounts, only: [:index, :show, :create, :update, :destroy] do
+              collection do
+                get :transactions
+                post :transfer
+              end
+            end
+            resources :auto_voucher_rules, only: [:index, :update]
+            resources :order_costs, only: [:index, :create, :update, :destroy] do
+              collection do
+                get :margin
+                post :rollup
+              end
+            end
+            resources :fixed_assets, only: [:index, :show, :create, :update, :destroy] do
+              collection { post :depreciate }
+              member { post :dispose }
+            end
+            resources :fiscal_periods, only: [:index] do
+              collection do
+                post :close
+                post :reopen
+                get :opening_balance
+                post :save_opening_balance
+                get :reconciliation
+                get :revaluation
+                post :revalue
+                get :bad_debt
+                post :provision_bad_debt
+                get :year_end
+                post :close_year
+                post :reopen_year
+              end
+            end
+            # 财务报表：资产负债表（时点）/ 利润表（期间）/ 现金流量表（期间）
+            get 'reports/balance_sheet', to: 'reports#balance_sheet'
+            get 'reports/income_statement', to: 'reports#income_statement'
+            get 'reports/cash_flow', to: 'reports#cash_flow'
+            get 'reports/cash_flow_items', to: 'reports#cash_flow_items'
+            get 'reports/audit_export', to: 'reports#audit_export'
           end
           namespace :mes do
             resource :dashboard, only: [:show], controller: 'dashboard' do

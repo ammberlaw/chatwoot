@@ -1,0 +1,22 @@
+json.id resource.id
+json.asset_no resource.asset_no
+json.name resource.name
+json.category resource.category
+json.category_label Erp::FixedAsset::CATEGORY_LABELS[resource.category]
+json.purchased_at resource.purchased_at
+json.original_value_micros resource.original_value_micros
+json.residual_rate resource.residual_rate
+json.useful_months resource.useful_months
+json.monthly_depreciation_micros resource.monthly_depreciation_micros
+json.accumulated_depreciation_micros resource.accumulated_depreciation_micros
+json.net_value_micros resource.net_value_micros
+json.remaining_depreciable_micros resource.remaining_depreciable_micros
+json.status resource.status
+json.status_label Erp::FixedAsset::STATUS_LABELS[resource.status]
+json.disposed_at resource.disposed_at
+json.disposal_income_micros resource.disposal_income_micros
+json.department_id resource.department_id
+json.department_name resource.department&.name
+json.keeper_id resource.keeper_id
+json.keeper_name resource.keeper&.crm_name.presence || resource.keeper&.name
+json.remark resource.remark

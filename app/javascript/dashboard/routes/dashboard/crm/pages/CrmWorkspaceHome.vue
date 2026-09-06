@@ -47,6 +47,9 @@ const canAccessCrm = computed(
 const canAccessTiktok = computed(
   () => currentUser.value?.can_access_tiktok === true
 );
+// 财务 ERP：仅管理员/副管理员/财务岗可见（后端派生 can_access_erp）。
+// 承载成本/供应商/毛利，销售端连入口都不显示——不是置灰而是整卡不渲染。
+const canAccessErp = computed(() => currentUser.value?.can_access_erp === true);
 
 // OA 真实待办数（审批人看待我审批，其余看我的申请）。
 const oaMetric = computed(() =>
@@ -426,21 +429,24 @@ onMounted(async () => {
                 </div>
               </button>
 
-              <!-- ERP（即将上线） -->
+              <!-- ERP：财务岗/管理员进得去，其余人看到的还是「即将上线」占位 -->
               <button
                 type="button"
                 class="wsh-card wsh-glass"
-                @click="soon('ERP 进销存')"
+                @click="canAccessErp ? go('erp_dashboard_index') : soon('ERP 进销存')"
               >
                 <div class="lbl a-teal">
                   <Icon icon="i-lucide-package" /> ERP 进销存·财务
-                  <span class="tag">即将上线</span>
+                  <span v-if="!canAccessErp" class="tag">即将上线</span>
                 </div>
-                <div class="sub2">采购 · 库存 · 凭证一体化</div>
+                <div class="sub2">科目 · 凭证 · 账簿 · 报表</div>
                 <div class="chips">
-                  <span>采购</span><span>库存</span><span>凭证</span><span>报表</span>
+                  <span>科目</span><span>凭证</span><span>账簿</span><span>报表</span>
                 </div>
-                <div class="cta2 muted">敬请期待</div>
+                <div v-if="canAccessErp" class="cta2">
+                  进入财务 ERP <Icon icon="i-lucide-arrow-right" />
+                </div>
+                <div v-else class="cta2 muted">敬请期待</div>
               </button>
 
               <!-- HR -->

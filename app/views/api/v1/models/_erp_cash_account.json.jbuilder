@@ -1,0 +1,14 @@
+json.id resource.id
+json.name resource.name
+json.kind resource.kind
+json.kind_label Erp::CashAccount::KIND_LABELS[resource.kind]
+json.currency resource.currency
+json.account_no resource.account_no
+json.bank_name resource.bank_name
+json.ledger_account_id resource.ledger_account_id
+json.ledger_account_label resource.ledger_account&.label
+json.opening_balance_micros resource.opening_balance_micros
+json.balance_micros resource.balance_micros
+json.is_active resource.is_active
+json.position resource.position
+json.remark resource.remark

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_05_000001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -27,7 +27,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["owner_type", "owner_id"], name: "index_access_tokens_on_owner_type_and_owner_id"
     t.index ["token"], name: "index_access_tokens_on_token", unique: true
   end
-
   create_table "account_saml_settings", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "sso_url"
@@ -39,7 +38,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_account_saml_settings_on_account_id"
   end
-
   create_table "account_users", force: :cascade do |t|
     t.bigint "account_id"
     t.bigint "user_id"
@@ -72,7 +70,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["tiktok_department_id"], name: "index_account_users_on_tiktok_department_id"
     t.index ["user_id"], name: "index_account_users_on_user_id"
   end
-
   create_table "accounts", id: :serial, force: :cascade do |t|
     t.string "name", null: false
     t.datetime "created_at", precision: nil, null: false
@@ -89,7 +86,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.jsonb "settings", default: {}
     t.index ["status"], name: "index_accounts_on_status"
   end
-
   create_table "action_mailbox_inbound_emails", force: :cascade do |t|
     t.integer "status", default: 0, null: false
     t.string "message_id", null: false
@@ -98,7 +94,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["message_id", "message_checksum"], name: "index_action_mailbox_inbound_emails_uniqueness", unique: true
   end
-
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -108,7 +103,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
     t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
   end
-
   create_table "active_storage_blobs", force: :cascade do |t|
     t.string "key", null: false
     t.string "filename", null: false
@@ -120,13 +114,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.string "service_name", null: false
     t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
   end
-
   create_table "active_storage_variant_records", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
-
   create_table "agent_bot_inboxes", force: :cascade do |t|
     t.integer "inbox_id"
     t.integer "agent_bot_id"
@@ -135,7 +127,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.integer "account_id"
   end
-
   create_table "agent_bots", force: :cascade do |t|
     t.string "name"
     t.string "description"
@@ -148,7 +139,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.string "secret"
     t.index ["account_id"], name: "index_agent_bots_on_account_id"
   end
-
   create_table "agent_capacity_policies", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", limit: 255, null: false
@@ -158,7 +148,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_agent_capacity_policies_on_account_id"
   end
-
   create_table "applied_slas", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "sla_policy_id", null: false
@@ -171,7 +160,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["conversation_id"], name: "index_applied_slas_on_conversation_id"
     t.index ["sla_policy_id"], name: "index_applied_slas_on_sla_policy_id"
   end
-
   create_table "article_embeddings", force: :cascade do |t|
     t.bigint "article_id", null: false
     t.text "term", null: false
@@ -180,7 +168,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["embedding"], name: "index_article_embeddings_on_embedding", using: :ivfflat
   end
-
   create_table "articles", force: :cascade do |t|
     t.integer "account_id", null: false
     t.integer "portal_id", null: false
@@ -207,7 +194,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["status"], name: "index_articles_on_status"
     t.index ["views"], name: "index_articles_on_views"
   end
-
   create_table "assignment_policies", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", limit: 255, null: false
@@ -224,7 +210,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_assignment_policies_on_account_id"
     t.index ["enabled"], name: "index_assignment_policies_on_enabled"
   end
-
   create_table "attachments", id: :serial, force: :cascade do |t|
     t.integer "file_type", default: 0
     t.string "external_url"
@@ -240,7 +225,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_attachments_on_account_id"
     t.index ["message_id"], name: "index_attachments_on_message_id"
   end
-
   create_table "audits", force: :cascade do |t|
     t.bigint "auditable_id"
     t.string "auditable_type"
@@ -262,7 +246,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["request_uuid"], name: "index_audits_on_request_uuid"
     t.index ["user_id", "user_type"], name: "user_index"
   end
-
   create_table "automation_rules", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -275,7 +258,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.boolean "active", default: true, null: false
     t.index ["account_id"], name: "index_automation_rules_on_account_id"
   end
-
   create_table "calls", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "inbox_id", null: false
@@ -299,7 +281,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["message_id"], name: "index_calls_on_message_id"
     t.index ["provider", "provider_call_id"], name: "index_calls_on_provider_and_provider_call_id", unique: true
   end
-
   create_table "campaigns", force: :cascade do |t|
     t.integer "display_id", null: false
     t.string "title", null: false
@@ -324,7 +305,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["inbox_id"], name: "index_campaigns_on_inbox_id"
     t.index ["scheduled_at"], name: "index_campaigns_on_scheduled_at"
   end
-
   create_table "canned_responses", id: :serial, force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "short_code"
@@ -332,7 +312,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "created_at", precision: nil, null: false
     t.datetime "updated_at", precision: nil, null: false
   end
-
   create_table "captain_assistant_responses", force: :cascade do |t|
     t.string "question", null: false
     t.text "answer", null: false
@@ -351,7 +330,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["embedding"], name: "vector_idx_knowledge_entries_embedding", using: :ivfflat
     t.index ["status"], name: "index_captain_assistant_responses_on_status"
   end
-
   create_table "captain_assistants", force: :cascade do |t|
     t.string "name", null: false
     t.bigint "account_id", null: false
@@ -363,7 +341,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.jsonb "guardrails", default: []
     t.index ["account_id"], name: "index_captain_assistants_on_account_id"
   end
-
   create_table "captain_custom_tools", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "slug", null: false
@@ -382,7 +359,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "slug"], name: "index_captain_custom_tools_on_account_id_and_slug", unique: true
     t.index ["account_id"], name: "index_captain_custom_tools_on_account_id"
   end
-
   create_table "captain_documents", force: :cascade do |t|
     t.string "name"
     t.text "external_link", null: false
@@ -403,7 +379,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["assistant_id"], name: "index_captain_documents_on_assistant_id"
     t.index ["status"], name: "index_captain_documents_on_status"
   end
-
   create_table "captain_inboxes", force: :cascade do |t|
     t.bigint "captain_assistant_id", null: false
     t.bigint "inbox_id", null: false
@@ -413,7 +388,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["captain_assistant_id"], name: "index_captain_inboxes_on_captain_assistant_id"
     t.index ["inbox_id"], name: "index_captain_inboxes_on_inbox_id"
   end
-
   create_table "captain_message_reports", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "conversation_id", null: false
@@ -428,7 +402,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["message_id"], name: "index_captain_message_reports_on_message_id"
     t.index ["user_id"], name: "index_captain_message_reports_on_user_id"
   end
-
   create_table "captain_scenarios", force: :cascade do |t|
     t.string "title"
     t.text "description"
@@ -444,7 +417,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["assistant_id"], name: "index_captain_scenarios_on_assistant_id"
     t.index ["enabled"], name: "index_captain_scenarios_on_enabled"
   end
-
   create_table "categories", force: :cascade do |t|
     t.integer "account_id", null: false
     t.integer "portal_id", null: false
@@ -465,7 +437,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["parent_category_id"], name: "index_categories_on_parent_category_id"
     t.index ["slug", "locale", "portal_id"], name: "index_categories_on_slug_and_locale_and_portal_id", unique: true
   end
-
   create_table "channel_api", force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "webhook_url"
@@ -479,7 +450,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["hmac_token"], name: "index_channel_api_on_hmac_token", unique: true
     t.index ["identifier"], name: "index_channel_api_on_identifier", unique: true
   end
-
   create_table "channel_email", force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "email", null: false
@@ -509,7 +479,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["email"], name: "index_channel_email_on_email", unique: true
     t.index ["forward_to_email"], name: "index_channel_email_on_forward_to_email", unique: true
   end
-
   create_table "channel_facebook_pages", id: :serial, force: :cascade do |t|
     t.string "page_id", null: false
     t.string "user_access_token", null: false
@@ -521,7 +490,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["page_id", "account_id"], name: "index_channel_facebook_pages_on_page_id_and_account_id", unique: true
     t.index ["page_id"], name: "index_channel_facebook_pages_on_page_id"
   end
-
   create_table "channel_instagram", force: :cascade do |t|
     t.string "access_token", null: false
     t.datetime "expires_at", null: false
@@ -531,7 +499,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["instagram_id"], name: "index_channel_instagram_on_instagram_id", unique: true
   end
-
   create_table "channel_line", force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "line_channel_id", null: false
@@ -541,7 +508,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["line_channel_id"], name: "index_channel_line_on_line_channel_id", unique: true
   end
-
   create_table "channel_sms", force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "phone_number", null: false
@@ -551,7 +517,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["phone_number"], name: "index_channel_sms_on_phone_number", unique: true
   end
-
   create_table "channel_telegram", force: :cascade do |t|
     t.string "bot_name"
     t.integer "account_id", null: false
@@ -560,7 +525,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["bot_token"], name: "index_channel_telegram_on_bot_token", unique: true
   end
-
   create_table "channel_tiktok", force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "business_id", null: false
@@ -572,7 +536,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["business_id"], name: "index_channel_tiktok_on_business_id", unique: true
   end
-
   create_table "channel_twilio_sms", force: :cascade do |t|
     t.string "phone_number"
     t.string "auth_token", null: false
@@ -593,7 +556,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["messaging_service_sid"], name: "index_channel_twilio_sms_on_messaging_service_sid", unique: true
     t.index ["phone_number"], name: "index_channel_twilio_sms_on_phone_number", unique: true
   end
-
   create_table "channel_twitter_profiles", force: :cascade do |t|
     t.string "profile_id", null: false
     t.string "twitter_access_token", null: false
@@ -604,7 +566,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.boolean "tweets_enabled", default: true
     t.index ["account_id", "profile_id"], name: "index_channel_twitter_profiles_on_account_id_and_profile_id", unique: true
   end
-
   create_table "channel_web_widgets", id: :serial, force: :cascade do |t|
     t.string "website_url"
     t.integer "account_id"
@@ -625,7 +586,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["hmac_token"], name: "index_channel_web_widgets_on_hmac_token", unique: true
     t.index ["website_token"], name: "index_channel_web_widgets_on_website_token", unique: true
   end
-
   create_table "channel_whatsapp", force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "phone_number", null: false
@@ -637,7 +597,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "message_templates_last_updated", precision: nil
     t.index ["phone_number"], name: "index_channel_whatsapp_on_phone_number", unique: true
   end
-
   create_table "chat_conversations", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "kind", default: "direct", null: false
@@ -649,7 +608,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.text "announcement"
     t.index ["account_id"], name: "index_chat_conversations_on_account_id"
   end
-
   create_table "chat_messages", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "conversation_id", null: false
@@ -665,10 +623,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_chat_messages_on_account_id"
     t.index ["conversation_id"], name: "index_chat_messages_on_conversation_id"
     t.index ["mentioned_ids"], name: "index_chat_messages_on_mentioned_ids", using: :gin
-    t.index ["reply_to_id"], name: "index_chat_messages_on_reply_to_id"
     t.index ["sender_id"], name: "index_chat_messages_on_sender_id"
+    t.index ["reply_to_id"], name: "index_chat_messages_on_reply_to_id"
   end
-
   create_table "chat_participants", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "conversation_id", null: false
@@ -682,7 +639,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["conversation_id"], name: "index_chat_participants_on_conversation_id"
     t.index ["user_id"], name: "index_chat_participants_on_user_id"
   end
-
   create_table "companies", force: :cascade do |t|
     t.string "name", null: false
     t.string "domain"
@@ -698,7 +654,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_companies_on_account_id"
     t.index ["name", "account_id"], name: "index_companies_on_name_and_account_id"
   end
-
   create_table "contact_inboxes", force: :cascade do |t|
     t.bigint "contact_id"
     t.bigint "inbox_id"
@@ -713,7 +668,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["pubsub_token"], name: "index_contact_inboxes_on_pubsub_token", unique: true
     t.index ["source_id"], name: "index_contact_inboxes_on_source_id"
   end
-
   create_table "contacts", id: :serial, force: :cascade do |t|
     t.string "name", default: ""
     t.string "email"
@@ -756,7 +710,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["name", "email", "phone_number", "identifier"], name: "index_contacts_on_name_email_phone_number_identifier", opclass: :gin_trgm_ops, using: :gin
     t.index ["phone_number", "account_id"], name: "index_contacts_on_phone_number_and_account_id"
   end
-
   create_table "conversation_participants", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -768,7 +721,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["user_id", "conversation_id"], name: "index_conversation_participants_on_user_id_and_conversation_id", unique: true
     t.index ["user_id"], name: "index_conversation_participants_on_user_id"
   end
-
   create_table "conversations", id: :serial, force: :cascade do |t|
     t.integer "account_id", null: false
     t.integer "inbox_id", null: false
@@ -814,7 +766,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["uuid"], name: "index_conversations_on_uuid", unique: true
     t.index ["waiting_since"], name: "index_conversations_on_waiting_since"
   end
-
   create_table "copilot_messages", force: :cascade do |t|
     t.bigint "copilot_thread_id", null: false
     t.bigint "account_id", null: false
@@ -825,7 +776,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_copilot_messages_on_account_id"
     t.index ["copilot_thread_id"], name: "index_copilot_messages_on_copilot_thread_id"
   end
-
   create_table "copilot_threads", force: :cascade do |t|
     t.string "title", null: false
     t.bigint "user_id", null: false
@@ -837,7 +787,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["assistant_id"], name: "index_copilot_threads_on_assistant_id"
     t.index ["user_id"], name: "index_copilot_threads_on_user_id"
   end
-
   create_table "crm_access_logs", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -848,7 +797,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "resource_type", "resource_id", "created_at"], name: "idx_crm_access_logs_on_resource"
   end
-
   create_table "crm_ai_settings", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.text "api_key"
@@ -859,7 +807,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.text "apollo_api_key"
     t.index ["account_id"], name: "index_crm_ai_settings_on_account_id", unique: true
   end
-
   create_table "crm_attendance_groups", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -885,7 +832,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "idx_crm_attendance_groups_single_default", unique: true, where: "is_default"
     t.index ["account_id"], name: "index_crm_attendance_groups_on_account_id"
   end
-
   create_table "crm_attendance_records", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -908,7 +854,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "user_id", "work_date"], name: "idx_crm_attendance_on_user_date", unique: true
     t.index ["account_id", "work_date"], name: "index_crm_attendance_records_on_account_id_and_work_date"
   end
-
   create_table "crm_commission_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_commission_sheet_id", null: false
@@ -936,8 +881,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_commission_items_on_account_id"
     t.index ["crm_commission_sheet_id"], name: "index_crm_commission_items_on_crm_commission_sheet_id"
     t.index ["crm_sales_order_id"], name: "index_crm_commission_items_on_crm_sales_order_id"
+    t.index ["account_id", "crm_sales_order_id"], name: "uniq_commission_item_order", unique: true, where: "(crm_sales_order_id IS NOT NULL)"
   end
-
   create_table "crm_commission_rates", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "product_category", null: false
@@ -946,7 +891,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "product_category"], name: "idx_crm_commission_rates_category", unique: true
   end
-
   create_table "crm_commission_sheets", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -970,7 +914,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_commission_sheets_on_account_id"
     t.index ["owner_id"], name: "index_crm_commission_sheets_on_owner_id"
   end
-
   create_table "crm_customer_favorites", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -981,7 +924,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["crm_customer_id"], name: "index_crm_customer_favorites_on_crm_customer_id"
     t.index ["user_id", "crm_customer_id"], name: "idx_crm_cust_fav_user_customer", unique: true
   end
-
   create_table "crm_customers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "account_owner_id"
@@ -1033,7 +975,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_owner_id"], name: "index_crm_customers_on_account_owner_id"
     t.index ["shared_user_ids"], name: "index_crm_customers_on_shared_user_ids", using: :gin
   end
-
   create_table "crm_doc_sections", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1045,7 +986,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "name"], name: "index_crm_doc_sections_on_account_id_and_name", unique: true
     t.index ["account_id"], name: "index_crm_doc_sections_on_account_id"
   end
-
   create_table "crm_email_clicks", force: :cascade do |t|
     t.bigint "crm_email_id", null: false
     t.string "url"
@@ -1055,7 +995,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["crm_email_id"], name: "index_crm_email_clicks_on_crm_email_id"
   end
-
   create_table "crm_email_distributions", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_email_id", null: false
@@ -1069,7 +1008,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["crm_email_id", "to_user_id"], name: "idx_crm_email_dist_email_user", unique: true
     t.index ["crm_email_id"], name: "index_crm_email_distributions_on_crm_email_id"
   end
-
   create_table "crm_email_folders", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id", null: false
@@ -1080,7 +1018,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "owner_id"], name: "index_crm_email_folders_on_account_id_and_owner_id"
     t.index ["parent_id"], name: "index_crm_email_folders_on_parent_id"
   end
-
   create_table "crm_email_labels", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1091,7 +1028,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "name"], name: "index_crm_email_labels_on_account_id_and_name", unique: true
     t.index ["account_id"], name: "index_crm_email_labels_on_account_id"
   end
-
   create_table "crm_email_opens", force: :cascade do |t|
     t.bigint "crm_email_id", null: false
     t.string "ip_address"
@@ -1102,7 +1038,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.string "city"
     t.index ["crm_email_id"], name: "index_crm_email_opens_on_crm_email_id"
   end
-
   create_table "crm_email_signatures", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1115,7 +1050,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_email_signatures_on_account_id"
     t.index ["owner_id"], name: "index_crm_email_signatures_on_owner_id"
   end
-
   create_table "crm_email_templates", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1131,7 +1065,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_email_templates_on_account_id"
     t.index ["owner_id"], name: "index_crm_email_templates_on_owner_id"
   end
-
   create_table "crm_emails", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1181,7 +1114,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["send_status", "scheduled_at"], name: "index_crm_emails_on_send_status_and_scheduled_at"
     t.index ["tracking_token"], name: "index_crm_emails_on_tracking_token", unique: true, where: "(tracking_token IS NOT NULL)"
   end
-
   create_table "crm_employee_comps", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1195,7 +1127,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_employee_comps_on_account_id"
     t.index ["owner_id"], name: "index_crm_employee_comps_on_owner_id"
   end
-
   create_table "crm_employees", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "employee_no", null: false
@@ -1233,7 +1164,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "user_id"], name: "index_crm_employees_on_account_id_and_user_id", unique: true, where: "(user_id IS NOT NULL)"
     t.index ["account_id"], name: "index_crm_employees_on_account_id"
   end
-
   create_table "crm_follow_up_notes", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1255,7 +1185,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["owner_id"], name: "index_crm_follow_up_notes_on_owner_id"
     t.index ["source_email_id"], name: "index_crm_follow_up_notes_on_source_email_id"
   end
-
   create_table "crm_follow_up_tasks", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1278,7 +1207,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["crm_customer_id"], name: "index_crm_follow_up_tasks_on_crm_customer_id"
     t.index ["crm_opportunity_id"], name: "index_crm_follow_up_tasks_on_crm_opportunity_id"
   end
-
   create_table "crm_fx_rates", force: :cascade do |t|
     t.string "currency", null: false
     t.date "quote_date", null: false
@@ -1289,7 +1217,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["currency", "quote_date"], name: "index_crm_fx_rates_on_currency_and_quote_date", unique: true
   end
-
   create_table "crm_knowledge_categories", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1306,7 +1233,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["section_id"], name: "index_crm_knowledge_categories_on_section_id"
     t.index ["user_id"], name: "index_crm_knowledge_categories_on_user_id"
   end
-
   create_table "crm_knowledge_docs", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1331,7 +1257,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["category_id"], name: "index_crm_knowledge_docs_on_category_id"
     t.index ["owner_id"], name: "index_crm_knowledge_docs_on_owner_id"
   end
-
   create_table "crm_kpi_schemes", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1349,7 +1274,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_kpi_schemes_on_account_id"
     t.index ["created_by_id"], name: "index_crm_kpi_schemes_on_created_by_id"
   end
-
   create_table "crm_kpi_sheet_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_kpi_sheet_id", null: false
@@ -1361,16 +1285,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.string "target_value"
     t.string "data_source", default: "MANUAL", null: false
     t.string "actual_value"
-    t.string "checked_value"
     t.decimal "score", precision: 7, scale: 2
     t.decimal "suggested_score", precision: 7, scale: 2
     t.integer "sort_order", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "checked_value"
     t.index ["account_id"], name: "index_crm_kpi_sheet_items_on_account_id"
     t.index ["crm_kpi_sheet_id"], name: "index_crm_kpi_sheet_items_on_crm_kpi_sheet_id"
   end
-
   create_table "crm_kpi_sheets", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_kpi_scheme_id"
@@ -1411,7 +1334,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["owner_id"], name: "index_crm_kpi_sheets_on_owner_id"
     t.index ["returned_by_id"], name: "index_crm_kpi_sheets_on_returned_by_id"
   end
-
   create_table "crm_mail_accounts", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1437,7 +1359,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_mail_accounts_on_account_id"
     t.index ["owner_id"], name: "index_crm_mail_accounts_on_owner_id"
   end
-
   create_table "crm_member_invites", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "token", null: false
@@ -1454,7 +1375,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_member_invites_on_account_id"
     t.index ["token"], name: "index_crm_member_invites_on_token", unique: true
   end
-
   create_table "crm_opportunities", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1483,7 +1403,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["crm_customer_id"], name: "index_crm_opportunities_on_crm_customer_id"
     t.index ["owner_id"], name: "index_crm_opportunities_on_owner_id"
   end
-
   create_table "crm_option_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "category", null: false
@@ -1497,7 +1416,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "category", "code"], name: "idx_crm_option_items_code", unique: true
     t.index ["account_id", "category", "parent_id", "position"], name: "idx_crm_option_items_tree"
   end
-
   create_table "crm_payout_tiers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_kpi_scheme_id", null: false
@@ -1512,7 +1430,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_payout_tiers_on_account_id"
     t.index ["crm_kpi_scheme_id"], name: "index_crm_payout_tiers_on_crm_kpi_scheme_id"
   end
-
   create_table "crm_performance_settings", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "hr_owner_id"
@@ -1526,7 +1443,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.integer "submit_deadline_day"
     t.index ["account_id"], name: "index_crm_performance_settings_on_account_id", unique: true
   end
-
   create_table "crm_pi_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_pi_id", null: false
@@ -1541,7 +1457,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_pi_items_on_account_id"
     t.index ["crm_pi_id"], name: "index_crm_pi_items_on_crm_pi_id"
   end
-
   create_table "crm_pi_seller_profiles", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1552,7 +1467,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "owner_id"], name: "idx_crm_pi_seller_profiles_account_owner", unique: true
   end
-
   create_table "crm_pis", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1591,7 +1505,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["handled_by_id"], name: "index_crm_pis_on_handled_by_id"
     t.index ["owner_id"], name: "index_crm_pis_on_owner_id"
   end
-
   create_table "crm_products", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1609,13 +1522,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.string "product_line"
     t.string "source_category"
     t.string "group_code"
-    t.index ["account_id", "group_code"], name: "index_crm_products_on_account_id_and_group_code"
     t.index ["account_id", "product_line"], name: "index_crm_products_on_account_and_product_line"
     t.index ["account_id", "sku"], name: "index_crm_products_on_account_id_and_sku", unique: true
     t.index ["account_id", "source_category"], name: "index_crm_products_on_account_and_source_category"
     t.index ["account_id"], name: "index_crm_products_on_account_id"
+    t.index ["account_id", "group_code"], name: "index_crm_products_on_account_id_and_group_code"
   end
-
   create_table "crm_public_pool_settings", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", default: "客户池规则"
@@ -1641,7 +1553,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.boolean "monthly_report_enabled", default: true, null: false
     t.index ["account_id"], name: "index_crm_public_pool_settings_on_account_id", unique: true
   end
-
   create_table "crm_quick_texts", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id", null: false
@@ -1651,7 +1562,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "owner_id"], name: "index_crm_quick_texts_on_account_id_and_owner_id"
   end
-
   create_table "crm_quote_line_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_quote_id", null: false
@@ -1669,7 +1579,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["crm_product_id"], name: "index_crm_quote_line_items_on_crm_product_id"
     t.index ["crm_quote_id"], name: "index_crm_quote_line_items_on_crm_quote_id"
   end
-
   create_table "crm_quotes", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1701,7 +1610,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["handled_by_id"], name: "index_crm_quotes_on_handled_by_id"
     t.index ["owner_id"], name: "index_crm_quotes_on_owner_id"
   end
-
   create_table "crm_sales_orders", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_customer_id"
@@ -1743,7 +1651,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["handled_by_id"], name: "index_crm_sales_orders_on_handled_by_id"
     t.index ["owner_id"], name: "index_crm_sales_orders_on_owner_id"
   end
-
   create_table "crm_sales_targets", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id"
@@ -1757,7 +1664,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_sales_targets_on_account_id"
     t.index ["owner_id"], name: "index_crm_sales_targets_on_owner_id"
   end
-
   create_table "crm_schedule_events", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "owner_id", null: false
@@ -1782,7 +1688,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "ref_type", "ref_id"], name: "idx_on_account_id_ref_type_ref_id_0ed352b1aa"
     t.index ["account_id", "starts_at"], name: "index_crm_schedule_events_on_account_id_and_starts_at"
   end
-
   create_table "crm_schedule_participants", force: :cascade do |t|
     t.bigint "crm_schedule_event_id", null: false
     t.bigint "user_id", null: false
@@ -1791,7 +1696,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["crm_schedule_event_id", "user_id"], name: "idx_crm_sched_participant", unique: true
     t.index ["user_id"], name: "index_crm_schedule_participants_on_user_id"
   end
-
   create_table "crm_scheme_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "crm_kpi_scheme_id", null: false
@@ -1808,7 +1712,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_scheme_items_on_account_id"
     t.index ["crm_kpi_scheme_id"], name: "index_crm_scheme_items_on_crm_kpi_scheme_id"
   end
-
   create_table "crm_signatures", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -1816,7 +1719,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "user_id"], name: "index_crm_signatures_on_account_id_and_user_id", unique: true
   end
-
   create_table "crm_teams", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1827,7 +1729,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_crm_teams_on_account_id"
     t.index ["team_lead_id"], name: "index_crm_teams_on_team_lead_id"
   end
-
   create_table "csat_survey_responses", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "conversation_id", null: false
@@ -1848,7 +1749,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["message_id"], name: "index_csat_survey_responses_on_message_id", unique: true
     t.index ["review_notes_updated_by_id"], name: "index_csat_survey_responses_on_review_notes_updated_by_id"
   end
-
   create_table "custom_attribute_definitions", force: :cascade do |t|
     t.string "attribute_display_name"
     t.string "attribute_key"
@@ -1865,7 +1765,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_custom_attribute_definitions_on_account_id"
     t.index ["attribute_key", "attribute_model", "account_id"], name: "attribute_key_model_index", unique: true
   end
-
   create_table "custom_filters", force: :cascade do |t|
     t.string "name", null: false
     t.integer "filter_type", default: 0, null: false
@@ -1877,7 +1776,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_custom_filters_on_account_id"
     t.index ["user_id"], name: "index_custom_filters_on_user_id"
   end
-
   create_table "custom_roles", force: :cascade do |t|
     t.string "name"
     t.string "description"
@@ -1887,7 +1785,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_custom_roles_on_account_id"
   end
-
   create_table "dashboard_apps", force: :cascade do |t|
     t.string "title", null: false
     t.jsonb "content", default: []
@@ -1898,7 +1795,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_dashboard_apps_on_account_id"
     t.index ["user_id"], name: "index_dashboard_apps_on_user_id"
   end
-
   create_table "data_imports", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "data_type", null: false
@@ -1910,7 +1806,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_data_imports_on_account_id"
   end
-
   create_table "email_templates", force: :cascade do |t|
     t.string "name", null: false
     t.text "body", null: false
@@ -1921,7 +1816,350 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["name", "account_id"], name: "index_email_templates_on_name_and_account_id", unique: true
   end
-
+  create_table "erp_auto_voucher_rules", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "event_key", null: false
+    t.string "name", null: false
+    t.boolean "is_active", default: true, null: false
+    t.jsonb "config", default: {}, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "event_key"], name: "index_erp_auto_voucher_rules_on_account_id_and_event_key", unique: true
+    t.index ["account_id"], name: "index_erp_auto_voucher_rules_on_account_id"
+  end
+  create_table "erp_cash_accounts", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "kind", default: "BANK", null: false
+    t.string "currency", default: "CNY", null: false
+    t.string "account_no"
+    t.string "bank_name"
+    t.bigint "ledger_account_id"
+    t.bigint "opening_balance_micros", default: 0, null: false
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "name"], name: "index_erp_cash_accounts_on_account_id_and_name", unique: true
+    t.index ["account_id"], name: "index_erp_cash_accounts_on_account_id"
+    t.index ["ledger_account_id"], name: "index_erp_cash_accounts_on_ledger_account_id"
+  end
+  create_table "erp_cash_transactions", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "cash_account_id", null: false
+    t.string "direction", null: false
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.date "happened_at", null: false
+    t.string "source_type"
+    t.bigint "source_id"
+    t.string "summary"
+    t.string "counterparty"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "happened_at"], name: "index_erp_cash_transactions_on_account_id_and_happened_at"
+    t.index ["account_id"], name: "index_erp_cash_transactions_on_account_id"
+    t.index ["cash_account_id"], name: "index_erp_cash_transactions_on_cash_account_id"
+    t.index ["source_type", "source_id"], name: "index_erp_cash_transactions_on_source_type_and_source_id"
+  end
+  create_table "erp_depreciation_entries", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "fixed_asset_id", null: false
+    t.string "period", null: false
+    t.bigint "amount_micros", null: false
+    t.bigint "voucher_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "period"], name: "index_erp_depreciation_entries_on_account_id_and_period"
+    t.index ["account_id"], name: "index_erp_depreciation_entries_on_account_id"
+    t.index ["fixed_asset_id", "period"], name: "index_erp_depreciation_entries_on_fixed_asset_id_and_period", unique: true
+    t.index ["fixed_asset_id"], name: "index_erp_depreciation_entries_on_fixed_asset_id"
+  end
+  create_table "erp_fiscal_periods", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "period", null: false
+    t.string "status", default: "OPEN", null: false
+    t.datetime "closed_at"
+    t.bigint "closed_by_id"
+    t.bigint "closing_voucher_id"
+    t.datetime "reopened_at"
+    t.bigint "reopened_by_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "period"], name: "index_erp_fiscal_periods_on_account_id_and_period", unique: true
+    t.index ["account_id"], name: "index_erp_fiscal_periods_on_account_id"
+  end
+  create_table "erp_fixed_assets", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "asset_no", null: false
+    t.string "name", null: false
+    t.string "category", default: "EQUIPMENT", null: false
+    t.date "purchased_at", null: false
+    t.bigint "original_value_micros", null: false
+    t.decimal "residual_rate", precision: 5, scale: 2, default: "5.0", null: false
+    t.integer "useful_months", default: 60, null: false
+    t.bigint "accumulated_depreciation_micros", default: 0, null: false
+    t.string "status", default: "IN_USE", null: false
+    t.date "disposed_at"
+    t.bigint "disposal_income_micros", default: 0, null: false
+    t.bigint "department_id"
+    t.bigint "keeper_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "asset_no"], name: "index_erp_fixed_assets_on_account_id_and_asset_no", unique: true
+    t.index ["account_id", "status"], name: "index_erp_fixed_assets_on_account_id_and_status"
+    t.index ["account_id"], name: "index_erp_fixed_assets_on_account_id"
+  end
+  create_table "erp_ledger_accounts", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "category", null: false
+    t.string "direction", null: false
+    t.bigint "parent_id"
+    t.boolean "is_group", default: false, null: false
+    t.string "account_type"
+    t.string "currency"
+    t.string "bs_section"
+    t.jsonb "dimensions", default: [], null: false
+    t.boolean "is_active", default: true, null: false
+    t.boolean "is_system", default: false, null: false
+    t.integer "position", default: 0, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "category"], name: "index_erp_ledger_accounts_on_account_id_and_category"
+    t.index ["account_id", "code"], name: "index_erp_ledger_accounts_on_account_id_and_code", unique: true
+    t.index ["account_id"], name: "index_erp_ledger_accounts_on_account_id"
+    t.index ["parent_id"], name: "index_erp_ledger_accounts_on_parent_id"
+  end
+  create_table "erp_order_costs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_sales_order_id", null: false
+    t.string "cost_type", default: "MATERIAL", null: false
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.date "happened_at"
+    t.string "source_type"
+    t.bigint "source_id"
+    t.bigint "mes_supplier_id"
+    t.text "remark"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "cost_type"], name: "index_erp_order_costs_on_account_id_and_cost_type"
+    t.index ["account_id", "source_type", "source_id"], name: "index_erp_order_costs_on_source", unique: true, where: "(source_type IS NOT NULL)"
+    t.index ["account_id"], name: "index_erp_order_costs_on_account_id"
+    t.index ["crm_sales_order_id"], name: "index_erp_order_costs_on_crm_sales_order_id"
+  end
+  create_table "erp_payables", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "payable_no", null: false
+    t.bigint "mes_purchase_order_id"
+    t.bigint "mes_supplier_id", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "total_amount_micros", default: 0, null: false
+    t.bigint "paid_amount_micros", default: 0, null: false
+    t.string "status", default: "UNPAID", null: false
+    t.date "due_date"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "payable_no"], name: "index_erp_payables_on_account_id_and_payable_no", unique: true
+    t.index ["account_id", "status"], name: "index_erp_payables_on_account_id_and_status"
+    t.index ["account_id"], name: "index_erp_payables_on_account_id"
+    t.index ["mes_purchase_order_id"], name: "index_erp_payables_on_mes_purchase_order_id"
+    t.index ["mes_supplier_id"], name: "index_erp_payables_on_mes_supplier_id"
+  end
+  create_table "erp_payment_allocations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "payment_record_id", null: false
+    t.bigint "payable_id", null: false
+    t.bigint "amount_micros", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_erp_payment_allocations_on_account_id"
+    t.index ["payable_id"], name: "index_erp_payment_allocations_on_payable_id"
+    t.index ["payment_record_id"], name: "index_erp_payment_allocations_on_payment_record_id"
+  end
+  create_table "erp_payment_records", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "payment_no", null: false
+    t.bigint "mes_supplier_id", null: false
+    t.bigint "cash_account_id"
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "bank_charge_micros", default: 0, null: false
+    t.string "method", default: "TT", null: false
+    t.date "paid_at", null: false
+    t.string "reference_no"
+    t.string "status", default: "NORMAL", null: false
+    t.bigint "recorded_by_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "paid_at"], name: "index_erp_payment_records_on_account_id_and_paid_at"
+    t.index ["account_id", "payment_no"], name: "index_erp_payment_records_on_account_id_and_payment_no", unique: true
+    t.index ["account_id"], name: "index_erp_payment_records_on_account_id"
+    t.index ["cash_account_id"], name: "index_erp_payment_records_on_cash_account_id"
+    t.index ["mes_supplier_id"], name: "index_erp_payment_records_on_mes_supplier_id"
+  end
+  create_table "erp_receipt_allocations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "receipt_record_id", null: false
+    t.bigint "receivable_id", null: false
+    t.bigint "amount_micros", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_erp_receipt_allocations_on_account_id"
+    t.index ["receipt_record_id"], name: "index_erp_receipt_allocations_on_receipt_record_id"
+    t.index ["receivable_id"], name: "index_erp_receipt_allocations_on_receivable_id"
+  end
+  create_table "erp_receipt_records", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "receipt_no", null: false
+    t.bigint "crm_customer_id", null: false
+    t.bigint "cash_account_id"
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "bank_charge_micros", default: 0, null: false
+    t.string "method", default: "TT", null: false
+    t.date "received_at", null: false
+    t.string "reference_no"
+    t.string "status", default: "NORMAL", null: false
+    t.bigint "recorded_by_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "receipt_no"], name: "index_erp_receipt_records_on_account_id_and_receipt_no", unique: true
+    t.index ["account_id", "received_at"], name: "index_erp_receipt_records_on_account_id_and_received_at"
+    t.index ["account_id"], name: "index_erp_receipt_records_on_account_id"
+    t.index ["cash_account_id"], name: "index_erp_receipt_records_on_cash_account_id"
+    t.index ["crm_customer_id"], name: "index_erp_receipt_records_on_crm_customer_id"
+  end
+  create_table "erp_receivable_installments", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "receivable_id", null: false
+    t.integer "seq", default: 1, null: false
+    t.string "kind", default: "BALANCE", null: false
+    t.bigint "amount_micros", default: 0, null: false
+    t.string "due_basis", default: "FIXED", null: false
+    t.integer "due_days"
+    t.date "due_date"
+    t.string "status", default: "PENDING", null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "due_date"], name: "index_erp_receivable_installments_on_account_id_and_due_date"
+    t.index ["account_id"], name: "index_erp_receivable_installments_on_account_id"
+    t.index ["receivable_id"], name: "index_erp_receivable_installments_on_receivable_id"
+  end
+  create_table "erp_receivables", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "receivable_no", null: false
+    t.bigint "crm_sales_order_id"
+    t.bigint "crm_customer_id", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "total_amount_micros", default: 0, null: false
+    t.bigint "received_amount_micros", default: 0, null: false
+    t.string "status", default: "UNPAID", null: false
+    t.bigint "owner_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "crm_sales_order_id"], name: "index_erp_receivables_on_account_and_order", unique: true, where: "(crm_sales_order_id IS NOT NULL)"
+    t.index ["account_id", "receivable_no"], name: "index_erp_receivables_on_account_id_and_receivable_no", unique: true
+    t.index ["account_id", "status"], name: "index_erp_receivables_on_account_id_and_status"
+    t.index ["account_id"], name: "index_erp_receivables_on_account_id"
+    t.index ["crm_customer_id"], name: "index_erp_receivables_on_crm_customer_id"
+    t.index ["crm_sales_order_id"], name: "index_erp_receivables_on_crm_sales_order_id"
+  end
+  create_table "erp_settings", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.jsonb "bad_debt_rates", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_erp_settings_on_account_id", unique: true
+  end
+  create_table "erp_voucher_lines", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "voucher_id", null: false
+    t.bigint "ledger_account_id", null: false
+    t.string "direction", null: false
+    t.string "summary"
+    t.bigint "amount_micros", null: false
+    t.string "currency", default: "CNY", null: false
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0", null: false
+    t.bigint "base_amount_micros", null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "crm_customer_id"
+    t.bigint "mes_supplier_id"
+    t.bigint "crm_sales_order_id"
+    t.bigint "department_id"
+    t.bigint "member_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "cash_flow_item"
+    t.index ["account_id", "cash_flow_item"], name: "index_erp_voucher_lines_on_account_id_and_cash_flow_item"
+    t.index ["account_id", "ledger_account_id"], name: "index_erp_voucher_lines_on_account_id_and_ledger_account_id"
+    t.index ["account_id"], name: "index_erp_voucher_lines_on_account_id"
+    t.index ["crm_customer_id"], name: "index_erp_voucher_lines_on_crm_customer_id"
+    t.index ["crm_sales_order_id"], name: "index_erp_voucher_lines_on_crm_sales_order_id"
+    t.index ["department_id"], name: "index_erp_voucher_lines_on_department_id"
+    t.index ["ledger_account_id"], name: "index_erp_voucher_lines_on_ledger_account_id"
+    t.index ["member_id"], name: "index_erp_voucher_lines_on_member_id"
+    t.index ["mes_supplier_id"], name: "index_erp_voucher_lines_on_mes_supplier_id"
+    t.index ["voucher_id"], name: "index_erp_voucher_lines_on_voucher_id"
+  end
+  create_table "erp_voucher_templates", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "summary"
+    t.jsonb "lines", default: [], null: false
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "name"], name: "index_erp_voucher_templates_on_account_id_and_name", unique: true
+    t.index ["account_id"], name: "index_erp_voucher_templates_on_account_id"
+  end
+  create_table "erp_vouchers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "voucher_no", null: false
+    t.string "period", null: false
+    t.date "voucher_date", null: false
+    t.string "status", default: "DRAFT", null: false
+    t.string "summary"
+    t.string "source_type"
+    t.bigint "source_id"
+    t.bigint "prepared_by_id"
+    t.bigint "posted_by_id"
+    t.datetime "posted_at"
+    t.bigint "reversal_of_id"
+    t.bigint "total_debit_micros", default: 0, null: false
+    t.bigint "total_credit_micros", default: 0, null: false
+    t.integer "attachment_count", default: 0, null: false
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "period"], name: "index_erp_vouchers_on_account_id_and_period"
+    t.index ["account_id", "status"], name: "index_erp_vouchers_on_account_id_and_status"
+    t.index ["account_id", "voucher_date"], name: "index_erp_vouchers_on_account_id_and_voucher_date"
+    t.index ["account_id", "voucher_no"], name: "index_erp_vouchers_on_account_id_and_voucher_no", unique: true
+    t.index ["account_id"], name: "index_erp_vouchers_on_account_id"
+    t.index ["reversal_of_id"], name: "index_erp_vouchers_on_reversal_of_id"
+    t.index ["source_type", "source_id"], name: "index_erp_vouchers_on_source_type_and_source_id"
+  end
   create_table "folders", force: :cascade do |t|
     t.integer "account_id", null: false
     t.integer "category_id", null: false
@@ -1929,7 +2167,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
-
   create_table "inbox_assignment_policies", force: :cascade do |t|
     t.bigint "inbox_id", null: false
     t.bigint "assignment_policy_id", null: false
@@ -1938,7 +2175,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["assignment_policy_id"], name: "index_inbox_assignment_policies_on_assignment_policy_id"
     t.index ["inbox_id"], name: "index_inbox_assignment_policies_on_inbox_id", unique: true
   end
-
   create_table "inbox_capacity_limits", force: :cascade do |t|
     t.bigint "agent_capacity_policy_id", null: false
     t.bigint "inbox_id", null: false
@@ -1949,7 +2185,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["agent_capacity_policy_id"], name: "index_inbox_capacity_limits_on_agent_capacity_policy_id"
     t.index ["inbox_id"], name: "index_inbox_capacity_limits_on_inbox_id"
   end
-
   create_table "inbox_members", id: :serial, force: :cascade do |t|
     t.integer "user_id", null: false
     t.integer "inbox_id", null: false
@@ -1958,7 +2193,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["inbox_id", "user_id"], name: "index_inbox_members_on_inbox_id_and_user_id", unique: true
     t.index ["inbox_id"], name: "index_inbox_members_on_inbox_id"
   end
-
   create_table "inboxes", id: :serial, force: :cascade do |t|
     t.integer "channel_id", null: false
     t.integer "account_id", null: false
@@ -1986,7 +2220,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["channel_id", "channel_type"], name: "index_inboxes_on_channel_id_and_channel_type"
     t.index ["portal_id"], name: "index_inboxes_on_portal_id"
   end
-
   create_table "installation_configs", force: :cascade do |t|
     t.string "name", null: false
     t.jsonb "serialized_value", default: {}, null: false
@@ -1996,7 +2229,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["name", "created_at"], name: "index_installation_configs_on_name_and_created_at", unique: true
     t.index ["name"], name: "index_installation_configs_on_name", unique: true
   end
-
   create_table "integrations_hooks", force: :cascade do |t|
     t.integer "status", default: 1
     t.integer "inbox_id"
@@ -2009,7 +2241,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.jsonb "settings", default: {}
   end
-
   create_table "labels", force: :cascade do |t|
     t.string "title"
     t.text "description"
@@ -2021,7 +2252,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_labels_on_account_id"
     t.index ["title", "account_id"], name: "index_labels_on_title_and_account_id", unique: true
   end
-
   create_table "leaves", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -2039,7 +2269,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["approved_by_id"], name: "index_leaves_on_approved_by_id"
     t.index ["user_id"], name: "index_leaves_on_user_id"
   end
-
   create_table "macros", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -2051,7 +2280,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_macros_on_account_id"
   end
-
   create_table "mentions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "conversation_id", null: false
@@ -2064,7 +2292,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["user_id", "conversation_id"], name: "index_mentions_on_user_id_and_conversation_id", unique: true
     t.index ["user_id"], name: "index_mentions_on_user_id"
   end
-
   create_table "mes_board_owners", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "board_key", null: false
@@ -2075,7 +2302,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "board_key", "product_line"], name: "index_mes_board_owners_on_account_board_line", unique: true
     t.index ["account_id"], name: "index_mes_board_owners_on_account_id"
   end
-
   create_table "mes_bom_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "bom_id", null: false
@@ -2096,7 +2322,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["bom_id"], name: "index_mes_bom_items_on_bom_id"
     t.index ["mes_material_id"], name: "index_mes_bom_items_on_mes_material_id"
   end
-
   create_table "mes_bom_revisions", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "bom_id", null: false
@@ -2110,7 +2335,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_mes_bom_revisions_on_account_id"
     t.index ["bom_id"], name: "index_mes_bom_revisions_on_bom_id"
   end
-
   create_table "mes_bom_template_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "bom_template_id", null: false
@@ -2125,7 +2349,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_mes_bom_template_items_on_account_id"
     t.index ["bom_template_id"], name: "index_mes_bom_template_items_on_bom_template_id"
   end
-
   create_table "mes_bom_templates", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -2145,7 +2368,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["owner_id"], name: "index_mes_bom_templates_on_owner_id"
     t.index ["product_line"], name: "index_mes_bom_templates_on_product_line"
   end
-
   create_table "mes_boms", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "bom_no", null: false
@@ -2184,7 +2406,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["owner_id"], name: "index_mes_boms_on_owner_id"
     t.index ["sales_owner_id"], name: "index_mes_boms_on_sales_owner_id"
   end
-
   create_table "mes_document_returns", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "returnable_type", null: false
@@ -2201,7 +2422,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["returnable_type", "returnable_id", "resolved_at"], name: "index_mes_document_returns_on_returnable_and_resolved"
     t.index ["returnable_type", "returnable_id"], name: "index_mes_document_returns_on_returnable"
   end
-
   create_table "mes_inspections", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "kind", null: false
@@ -2230,7 +2450,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["production_order_id"], name: "index_mes_inspections_on_production_order_id"
     t.index ["purchase_order_id"], name: "index_mes_inspections_on_purchase_order_id"
   end
-
   create_table "mes_materials", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "material_no", null: false
@@ -2252,7 +2471,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_mes_materials_on_account_id"
     t.index ["default_supplier_id"], name: "index_mes_materials_on_default_supplier_id"
   end
-
   create_table "mes_notifications", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "recipient_id", null: false
@@ -2267,7 +2485,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_mes_notifications_on_account_id"
     t.index ["production_order_id"], name: "index_mes_notifications_on_production_order_id"
   end
-
   create_table "mes_order_forwards", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "production_order_id", null: false
@@ -2280,7 +2497,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "production_order_id"], name: "index_mes_order_forwards_on_account_id_and_production_order_id"
   end
-
   create_table "mes_production_order_stage_events", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "production_order_id", null: false
@@ -2297,7 +2513,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["production_order_id", "stage"], name: "index_mes_po_stage_events_unique", unique: true
     t.index ["production_order_id"], name: "index_mes_production_order_stage_events_on_production_order_id"
   end
-
   create_table "mes_production_orders", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "order_no", null: false
@@ -2360,7 +2575,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["owner_id"], name: "index_mes_production_orders_on_owner_id"
     t.index ["stage_ack_by_id"], name: "index_mes_production_orders_on_stage_ack_by_id"
   end
-
   create_table "mes_production_records", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "production_order_id", null: false
@@ -2379,7 +2593,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["operator_id"], name: "index_mes_production_records_on_operator_id"
     t.index ["production_order_id"], name: "index_mes_production_records_on_production_order_id"
   end
-
   create_table "mes_purchase_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "purchase_order_id", null: false
@@ -2403,7 +2616,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["mes_supplier_id"], name: "index_mes_purchase_items_on_mes_supplier_id"
     t.index ["purchase_order_id"], name: "index_mes_purchase_items_on_purchase_order_id"
   end
-
   create_table "mes_purchase_orders", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "po_no", null: false
@@ -2426,17 +2638,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.bigint "gm_id"
     t.datetime "gm_acted_at"
     t.text "gm_comment"
-    t.index ["account_id", "approval_status"], name: "index_mes_purchase_orders_on_account_id_and_approval_status"
     t.index ["account_id", "po_no"], name: "index_mes_purchase_orders_on_account_id_and_po_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_purchase_orders_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_purchase_orders_on_account_id_and_status"
     t.index ["account_id"], name: "index_mes_purchase_orders_on_account_id"
-    t.index ["gm_id"], name: "index_mes_purchase_orders_on_gm_id"
     t.index ["owner_id"], name: "index_mes_purchase_orders_on_owner_id"
     t.index ["production_order_id"], name: "index_mes_purchase_orders_on_production_order_id"
+    t.index ["account_id", "approval_status"], name: "index_mes_purchase_orders_on_account_id_and_approval_status"
+    t.index ["gm_id"], name: "index_mes_purchase_orders_on_gm_id"
     t.index ["purchase_requisition_id"], name: "index_mes_purchase_orders_on_purchase_requisition_id"
   end
-
   create_table "mes_purchase_requisition_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "purchase_requisition_id", null: false
@@ -2457,7 +2668,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_mes_purchase_requisition_items_on_account_id"
     t.index ["purchase_requisition_id"], name: "idx_mes_pr_items_on_pr_id"
   end
-
   create_table "mes_purchase_requisitions", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "req_no", null: false
@@ -2474,7 +2684,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_mes_purchase_requisitions_on_account_id"
     t.index ["production_order_id"], name: "index_mes_purchase_requisitions_on_production_order_id"
   end
-
   create_table "mes_serial_numbers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "sn", null: false
@@ -2493,7 +2702,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["production_order_id"], name: "index_mes_serial_numbers_on_production_order_id"
     t.index ["shipment_id"], name: "index_mes_serial_numbers_on_shipment_id"
   end
-
   create_table "mes_shipment_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "shipment_id", null: false
@@ -2507,7 +2715,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["crm_product_id"], name: "index_mes_shipment_items_on_crm_product_id"
     t.index ["shipment_id"], name: "index_mes_shipment_items_on_shipment_id"
   end
-
   create_table "mes_shipments", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "shipment_no", null: false
@@ -2537,7 +2744,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["owner_id"], name: "index_mes_shipments_on_owner_id"
     t.index ["production_order_id"], name: "index_mes_shipments_on_production_order_id"
   end
-
   create_table "mes_stock_balances", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "item_type", null: false
@@ -2555,7 +2761,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["crm_product_id"], name: "index_mes_stock_balances_on_crm_product_id"
     t.index ["mes_material_id"], name: "index_mes_stock_balances_on_mes_material_id"
   end
-
   create_table "mes_stock_entries", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "entry_no", null: false
@@ -2590,7 +2795,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["warehouse_confirmed_by_id"], name: "index_mes_stock_entries_on_warehouse_confirmed_by_id"
     t.index ["workshop_confirmed_by_id"], name: "index_mes_stock_entries_on_workshop_confirmed_by_id"
   end
-
   create_table "mes_stock_entry_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "stock_entry_id", null: false
@@ -2609,7 +2813,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["mes_material_id"], name: "index_mes_stock_entry_items_on_mes_material_id"
     t.index ["stock_entry_id"], name: "index_mes_stock_entry_items_on_stock_entry_id"
   end
-
   create_table "mes_stock_ledgers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "item_type", null: false
@@ -2628,7 +2831,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["mes_material_id"], name: "index_mes_stock_ledgers_on_mes_material_id"
     t.index ["stock_entry_id"], name: "index_mes_stock_ledgers_on_stock_entry_id"
   end
-
   create_table "mes_supplier_items", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "supplier_id", null: false
@@ -2648,7 +2850,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["supplier_id", "material_code"], name: "index_mes_supplier_items_on_supplier_id_and_material_code", unique: true
     t.index ["supplier_id"], name: "index_mes_supplier_items_on_supplier_id"
   end
-
   create_table "mes_suppliers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "supplier_no", null: false
@@ -2676,7 +2877,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_mes_suppliers_on_account_id"
     t.index ["owner_id"], name: "index_mes_suppliers_on_owner_id"
   end
-
   create_table "mes_warehouses", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "code", null: false
@@ -2693,7 +2893,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_mes_warehouses_on_account_id"
     t.index ["parent_id"], name: "index_mes_warehouses_on_parent_id"
   end
-
   create_table "messages", id: :serial, force: :cascade do |t|
     t.text "content"
     t.integer "account_id", null: false
@@ -2726,7 +2925,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["sender_type", "sender_id"], name: "index_messages_on_sender_type_and_sender_id"
     t.index ["source_id"], name: "index_messages_on_source_id"
   end
-
   create_table "notes", force: :cascade do |t|
     t.text "content", null: false
     t.bigint "account_id", null: false
@@ -2738,7 +2936,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["contact_id"], name: "index_notes_on_contact_id"
     t.index ["user_id"], name: "index_notes_on_user_id"
   end
-
   create_table "notification_settings", force: :cascade do |t|
     t.integer "account_id"
     t.integer "user_id"
@@ -2748,7 +2945,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.integer "push_flags", default: 0, null: false
     t.index ["account_id", "user_id"], name: "by_account_user", unique: true
   end
-
   create_table "notification_subscriptions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.integer "subscription_type", null: false
@@ -2759,7 +2955,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["identifier"], name: "index_notification_subscriptions_on_identifier", unique: true
     t.index ["user_id"], name: "index_notification_subscriptions_on_user_id"
   end
-
   create_table "notifications", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -2781,7 +2976,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["user_id", "account_id", "snoozed_until", "read_at"], name: "idx_notifications_performance"
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
-
   create_table "oa_approval_requests", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "template_id", null: false
@@ -2802,7 +2996,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["department_id"], name: "index_oa_approval_requests_on_department_id"
     t.index ["template_id"], name: "index_oa_approval_requests_on_template_id"
   end
-
   create_table "oa_approval_steps", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "request_id", null: false
@@ -2817,7 +3010,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["approver_id"], name: "index_oa_approval_steps_on_approver_id"
     t.index ["request_id"], name: "index_oa_approval_steps_on_request_id"
   end
-
   create_table "oa_approval_templates", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -2833,7 +3025,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.bigint "cc_user_ids", default: [], null: false, array: true
     t.index ["account_id"], name: "index_oa_approval_templates_on_account_id"
   end
-
   create_table "org_departments", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "parent_id"
@@ -2846,7 +3037,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_org_departments_on_account_id"
     t.index ["leader_id"], name: "index_org_departments_on_leader_id"
   end
-
   create_table "org_memberships", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "department_id", null: false
@@ -2860,7 +3050,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["department_id"], name: "index_org_memberships_on_department_id"
     t.index ["user_id"], name: "index_org_memberships_on_user_id"
   end
-
   create_table "platform_app_permissibles", force: :cascade do |t|
     t.bigint "platform_app_id", null: false
     t.string "permissible_type", null: false
@@ -2871,13 +3060,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["platform_app_id", "permissible_id", "permissible_type"], name: "unique_permissibles_index", unique: true
     t.index ["platform_app_id"], name: "index_platform_app_permissibles_on_platform_app_id"
   end
-
   create_table "platform_apps", force: :cascade do |t|
     t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
-
   create_table "platform_banners", force: :cascade do |t|
     t.text "banner_message", null: false
     t.integer "banner_type", default: 0, null: false
@@ -2885,7 +3072,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
-
   create_table "portals", force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "name", null: false
@@ -2905,7 +3091,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["custom_domain"], name: "index_portals_on_custom_domain", unique: true
     t.index ["slug"], name: "index_portals_on_slug", unique: true
   end
-
   create_table "portals_members", id: false, force: :cascade do |t|
     t.bigint "portal_id", null: false
     t.bigint "user_id", null: false
@@ -2913,7 +3098,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["portal_id"], name: "index_portals_members_on_portal_id"
     t.index ["user_id"], name: "index_portals_members_on_user_id"
   end
-
   create_table "related_categories", force: :cascade do |t|
     t.bigint "category_id"
     t.bigint "related_category_id"
@@ -2922,7 +3106,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["category_id", "related_category_id"], name: "index_related_categories_on_category_id_and_related_category_id", unique: true
     t.index ["related_category_id", "category_id"], name: "index_related_categories_on_related_category_id_and_category_id", unique: true
   end
-
   create_table "reporting_events", force: :cascade do |t|
     t.string "name"
     t.float "value"
@@ -2944,7 +3127,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["name"], name: "index_reporting_events_on_name"
     t.index ["user_id"], name: "index_reporting_events_on_user_id"
   end
-
   create_table "reporting_events_rollups", force: :cascade do |t|
     t.integer "account_id", null: false
     t.date "date", null: false
@@ -2960,7 +3142,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "dimension_type", "date"], name: "index_rollup_summary"
     t.index ["account_id", "metric", "date"], name: "index_rollup_timeseries"
   end
-
   create_table "sla_events", force: :cascade do |t|
     t.bigint "applied_sla_id", null: false
     t.bigint "conversation_id", null: false
@@ -2977,7 +3158,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["inbox_id"], name: "index_sla_events_on_inbox_id"
     t.index ["sla_policy_id"], name: "index_sla_events_on_sla_policy_id"
   end
-
   create_table "sla_policies", force: :cascade do |t|
     t.string "name", null: false
     t.float "first_response_time_threshold"
@@ -2990,7 +3170,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.float "resolution_time_threshold"
     t.index ["account_id"], name: "index_sla_policies_on_account_id"
   end
-
   create_table "taggings", id: :serial, force: :cascade do |t|
     t.integer "tag_id"
     t.string "taggable_type"
@@ -3009,14 +3188,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["tagger_id", "tagger_type"], name: "index_taggings_on_tagger_id_and_tagger_type"
     t.index ["tagger_id"], name: "index_taggings_on_tagger_id"
   end
-
   create_table "tags", id: :serial, force: :cascade do |t|
     t.string "name"
     t.integer "taggings_count", default: 0
     t.index "lower((name)::text) gin_trgm_ops", name: "tags_name_trgm_idx", using: :gin
     t.index ["name"], name: "index_tags_on_name", unique: true
   end
-
   create_table "team_members", force: :cascade do |t|
     t.bigint "team_id", null: false
     t.bigint "user_id", null: false
@@ -3026,7 +3203,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["team_id"], name: "index_team_members_on_team_id"
     t.index ["user_id"], name: "index_team_members_on_user_id"
   end
-
   create_table "teams", force: :cascade do |t|
     t.string "name", null: false
     t.text "description"
@@ -3039,7 +3215,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id"], name: "index_teams_on_account_id"
     t.index ["name", "account_id"], name: "index_teams_on_name_and_account_id", unique: true
   end
-
   create_table "tiktok_daily_sales_records", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "shop_id", null: false
@@ -3064,7 +3239,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "sale_date"], name: "index_tiktok_daily_sales_records_on_account_id_and_sale_date"
     t.index ["account_id", "shop_id", "sale_date"], name: "idx_tiktok_daily_shop_date", unique: true
   end
-
   create_table "tiktok_departments", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -3074,7 +3248,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "name"], name: "idx_tiktok_departments_name", unique: true
     t.index ["leader_id"], name: "index_tiktok_departments_on_leader_id"
   end
-
   create_table "tiktok_profit_records", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "shop_id", null: false
@@ -3100,7 +3273,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "shop_id", "stat_month", "product_model"], name: "idx_tiktok_profit_uniq", unique: true
     t.index ["account_id", "stat_month"], name: "index_tiktok_profit_records_on_account_id_and_stat_month"
   end
-
   create_table "tiktok_shops", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -3114,7 +3286,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["account_id", "position"], name: "index_tiktok_shops_on_account_id_and_position"
     t.index ["department_id"], name: "index_tiktok_shops_on_department_id"
   end
-
   create_table "user_sessions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "client_id", null: false
@@ -3134,7 +3305,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["user_id", "client_id"], name: "index_user_sessions_on_user_id_and_client_id", unique: true
     t.index ["user_id"], name: "index_user_sessions_on_user_id"
   end
-
   create_table "users", id: :serial, force: :cascade do |t|
     t.string "provider", default: "email", null: false
     t.string "uid", default: "", null: false
@@ -3175,7 +3345,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["uid", "provider"], name: "index_users_on_uid_and_provider", unique: true
   end
-
   create_table "webhooks", force: :cascade do |t|
     t.integer "account_id"
     t.integer "inbox_id"
@@ -3188,7 +3357,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
     t.string "secret"
     t.index ["account_id", "url"], name: "index_webhooks_on_account_id_and_url", unique: true
   end
-
   create_table "working_hours", force: :cascade do |t|
     t.bigint "inbox_id"
     t.bigint "account_id"
@@ -3270,6 +3438,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
   add_foreign_key "crm_signatures", "accounts", on_delete: :cascade
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
+  add_foreign_key "erp_cash_transactions", "erp_cash_accounts", column: "cash_account_id", on_delete: :restrict
+  add_foreign_key "erp_depreciation_entries", "erp_fixed_assets", column: "fixed_asset_id", on_delete: :cascade
+  add_foreign_key "erp_ledger_accounts", "erp_ledger_accounts", column: "parent_id", on_delete: :restrict
+  add_foreign_key "erp_payment_allocations", "erp_payables", column: "payable_id", on_delete: :restrict
+  add_foreign_key "erp_payment_allocations", "erp_payment_records", column: "payment_record_id", on_delete: :cascade
+  add_foreign_key "erp_receipt_allocations", "erp_receipt_records", column: "receipt_record_id", on_delete: :cascade
+  add_foreign_key "erp_receipt_allocations", "erp_receivables", column: "receivable_id", on_delete: :restrict
+  add_foreign_key "erp_receivable_installments", "erp_receivables", column: "receivable_id", on_delete: :cascade
+  add_foreign_key "erp_voucher_lines", "erp_ledger_accounts", column: "ledger_account_id", on_delete: :restrict
+  add_foreign_key "erp_voucher_lines", "erp_vouchers", column: "voucher_id", on_delete: :cascade
+  add_foreign_key "erp_vouchers", "erp_vouchers", column: "reversal_of_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "mes_board_owners", "accounts"
   add_foreign_key "mes_bom_items", "mes_boms", column: "bom_id", on_delete: :cascade
@@ -3351,33 +3530,4 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_000001) do
   add_foreign_key "tiktok_shops", "accounts", on_delete: :cascade
   add_foreign_key "tiktok_shops", "tiktok_departments", column: "department_id", on_delete: :nullify
   add_foreign_key "user_sessions", "users"
-  create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
-      on("accounts").
-      after(:insert).
-      for_each(:row) do
-    "execute format('create sequence IF NOT EXISTS conv_dpid_seq_%s', NEW.id);"
-  end
-
-  create_trigger("conversations_before_insert_row_tr", :generated => true, :compatibility => 1).
-      on("conversations").
-      before(:insert).
-      for_each(:row) do
-    "NEW.display_id := nextval('conv_dpid_seq_' || NEW.account_id);"
-  end
-
-  create_trigger("camp_dpid_before_insert", :generated => true, :compatibility => 1).
-      on("accounts").
-      name("camp_dpid_before_insert").
-      after(:insert).
-      for_each(:row) do
-    "execute format('create sequence IF NOT EXISTS camp_dpid_seq_%s', NEW.id);"
-  end
-
-  create_trigger("campaigns_before_insert_row_tr", :generated => true, :compatibility => 1).
-      on("campaigns").
-      before(:insert).
-      for_each(:row) do
-    "NEW.display_id := nextval('camp_dpid_seq_' || NEW.account_id);"
-  end
-
 end

@@ -554,7 +554,8 @@ body.theme-classic .po-prefill-btn:hover:enabled {
 // （main 自带 p-3=12px），四周均匀 12px 灰边距，与侧栏离窗口 12px 一致、左右等宽。
 // 已自带卡的页（根带 bg-n-solid-1/xx，如生产看板/站内通知/数据看板/接单）用 :not 排除，
 // 保持原状不叠加。仅浅色经典灰生效；紫玻璃下 .mes-canvas 无样式 = 纯透传。
-body.theme-classic:not(.dark) .mes-canvas > *:not([class*='bg-n-solid-1']) {
+body.theme-classic:not(.dark) .mes-canvas > *:not([class*='bg-n-solid-1']),
+body.theme-classic:not(.dark) .erp-canvas > *:not([class*='bg-n-solid-1']) {
   background-color: #ffffff;
   border: 1px solid #ecedf1;
   border-radius: 16px;

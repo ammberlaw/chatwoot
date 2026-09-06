@@ -116,6 +116,25 @@ class Account < ApplicationRecord
   has_many :tiktok_shops, class_name: 'Tiktok::Shop', dependent: :destroy_async
   has_many :tiktok_daily_sales_records, class_name: 'Tiktok::DailySalesRecord', dependent: :destroy_async
   has_many :tiktok_profit_records, class_name: 'Tiktok::ProfitRecord', dependent: :destroy_async
+  # ERP（财务管理）：会计科目表是记账地基，凭证/账簿/报表都挂它。
+  has_many :erp_ledger_accounts, class_name: 'Erp::LedgerAccount', dependent: :destroy_async
+  has_many :erp_vouchers, class_name: 'Erp::Voucher', dependent: :destroy_async
+  has_many :erp_voucher_lines, class_name: 'Erp::VoucherLine', dependent: :destroy_async
+  has_many :erp_receivables, class_name: 'Erp::Receivable', dependent: :destroy_async
+  has_many :erp_receivable_installments, class_name: 'Erp::ReceivableInstallment', dependent: :destroy_async
+  has_many :erp_receipt_records, class_name: 'Erp::ReceiptRecord', dependent: :destroy_async
+  has_many :erp_receipt_allocations, class_name: 'Erp::ReceiptAllocation', dependent: :destroy_async
+  has_many :erp_payables, class_name: 'Erp::Payable', dependent: :destroy_async
+  has_many :erp_payment_records, class_name: 'Erp::PaymentRecord', dependent: :destroy_async
+  has_many :erp_payment_allocations, class_name: 'Erp::PaymentAllocation', dependent: :destroy_async
+  has_many :erp_cash_accounts, class_name: 'Erp::CashAccount', dependent: :destroy_async
+  has_many :erp_cash_transactions, class_name: 'Erp::CashTransaction', dependent: :destroy_async
+  has_many :erp_auto_voucher_rules, class_name: 'Erp::AutoVoucherRule', dependent: :destroy_async
+  has_many :erp_fiscal_periods, class_name: 'Erp::FiscalPeriod', dependent: :destroy_async
+  has_many :erp_fixed_assets, class_name: 'Erp::FixedAsset', dependent: :destroy_async
+  has_many :erp_depreciation_entries, class_name: 'Erp::DepreciationEntry', dependent: :destroy_async
+  has_many :erp_order_costs, class_name: 'Erp::OrderCost', dependent: :destroy_async
+  has_many :erp_voucher_templates, class_name: 'Erp::VoucherTemplate', dependent: :destroy_async
   has_many :mes_suppliers, class_name: 'Mes::Supplier', dependent: :destroy_async
   has_many :mes_warehouses, class_name: 'Mes::Warehouse', dependent: :destroy_async
   has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async
