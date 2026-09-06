@@ -140,6 +140,10 @@ class AccountUser < ApplicationRecord
   # 能否进入 ERP：管理员/副管理员自动可入；否则需被赋予 erp_role 且 ERP 模块开关打开。
   # 销售端（仅 crm_role、无 erp_role）一律不可入——成本/供应商/毛利硬隔离。
   def can_access_erp?
+    # 生产总开关：ERP 未上线/未平行对账期间用 ERP_ENABLED 全局关（默认关）。关时对所有人（含管理员）
+    # 隐藏 ERP 侧栏/首页入口并 403 拦 API；本地开发设 ERP_ENABLED=true 开放继续开发。
+    return false unless ActiveModel::Type::Boolean.new.cast(ENV.fetch('ERP_ENABLED', false))
+
     administrator? || crm_deputy_admin? || (erp_role.present? && module_enabled?('erp'))
   end
 
