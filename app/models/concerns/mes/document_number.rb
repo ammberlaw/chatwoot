@@ -8,6 +8,22 @@ module Mes::DocumentNumber
     before_validation :generate_document_number, on: :create
   end
 
+  # 撞号自愈：MAX+1 取号在并发建单下会撞号，唯一索引拦下后一个抛 RecordNotUnique。
+  # savepoint 包住写入(冲突只回滚本次 INSERT、不牵连外层事务)，清号重算重试，杜绝偶发建单失败。
+  def create_or_update(*, **)
+    attempts = 0
+    begin
+      self.class.transaction(requires_new: true) { super }
+    rescue ActiveRecord::RecordNotUnique => e
+      col = self.class.document_number_column
+      raise unless new_record? && e.message.include?(col.to_s) && (attempts += 1) <= 5
+
+      self[col] = nil
+      generate_document_number
+      retry
+    end
+  end
+
   private
 
   def generate_document_number

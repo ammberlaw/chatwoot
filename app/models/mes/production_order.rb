@@ -383,7 +383,7 @@ class Mes::ProductionOrder < ApplicationRecord
       .joins(:stock_entry)
       .where(mes_stock_entries: { production_order_id: id, purpose: 'MANUFACTURE', status: 'POSTED' })
       .where(item_type: 'PRODUCT')
-      .sum(:qty)
+      .sum(Arel.sql('COALESCE(received_qty, qty)'))
   end
 
   # 入库是否收齐（已完工入库量 ≥ 订单数量）。

@@ -27,26 +27,28 @@ class Crm::AttendanceApprovalService
 
   # 补卡规则校验（按申请人所属考勤组）：返回错误文案或 nil。
   # 时限：只能补 window 天内的卡（0=不限）；上限：当月（按补卡日期归月）已提交/已通过的补卡单数（0=不允许补卡）。
-  def self.reclock_violation(account, applicant_id, date)
+  def self.reclock_violation(account, applicant_id, date, exclude_request_id: nil)
     group = Crm::AttendanceGroup.for_user(account, applicant_id)
     today = Time.current.in_time_zone(Crm::AttendanceRecord::TZ).to_date
     return '补卡日期不能是未来日期' if date > today
     return '该考勤组不允许补卡' if group.reclock_limit.zero?
     return "只能申请 #{group.reclock_window_days} 天内的补卡" if group.reclock_window_days.positive? && date < today - group.reclock_window_days
 
-    used = reclock_used_in_month(account, applicant_id, date)
+    used = reclock_used_in_month(account, applicant_id, date, exclude_request_id: exclude_request_id)
     return "当月补卡次数已达上限（#{group.reclock_limit} 次）" if used >= group.reclock_limit
 
     nil
   end
 
   # 当月已用补卡次数：审批中/已通过的补卡单，按其补卡日期归月统计。
-  def self.reclock_used_in_month(account, applicant_id, date)
-    account.oa_approval_requests
-           .joins(:template)
-           .where(oa_approval_templates: { attendance_kind: 'reclock' },
-                  applicant_id: applicant_id, status: %w[pending approved])
-           .count do |r|
+  # exclude_request_id：改单复查时排除本单自身，避免把正在改的这单重复计入(off-by-one)。
+  def self.reclock_used_in_month(account, applicant_id, date, exclude_request_id: nil)
+    scope = account.oa_approval_requests
+                   .joins(:template)
+                   .where(oa_approval_templates: { attendance_kind: 'reclock' },
+                          applicant_id: applicant_id, status: %w[pending approved])
+    scope = scope.where.not(id: exclude_request_id) if exclude_request_id
+    scope.count do |r|
       d = form_dates(r.template, r.form_data).first
       d && d.beginning_of_month == date.beginning_of_month
     end

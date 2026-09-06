@@ -135,7 +135,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
 
     @email = Current.account.crm_emails.create!(
       email_params.merge(
-        owner_id: email_params[:owner_id] || current_user.id,
+        owner_id: current_user.id, # 归属强制本人：owner_id 不再由客户端传，杜绝伪造他人归属绕过可见性/撞单
         cc_address: merge_forced_cc(email_params[:cc_address], forced_cc_for(email_params[:to_address]))
       )
     )
@@ -194,7 +194,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
       contact = r[:contact_id].present? ? Current.account.contacts.find_by(id: r[:contact_id]) : nil
       email = Current.account.crm_emails.new(
         base.merge(
-          owner_id: email_params[:owner_id] || current_user.id,
+          owner_id: current_user.id, # 归属强制本人(见 create)
           folder: 'BULK',
           to_address: r[:email],
           cc_address: merge_forced_cc(base[:cc_address], forced_cc_for(r[:email])),
@@ -328,22 +328,23 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
 
     Current.account.crm_email_distributions
            .to_user(current_user.id).includes(:crm_email)
-           .filter_map { |dist| cc_from_distribution(dist.crm_email, addrs) }
+           .flat_map { |dist| cc_from_distribution(dist.crm_email, addrs) }
            .uniq
   end
 
   # 单条分发记录：若被分发邮件的对方(客户)命中本次收件人，返回分发人自有邮箱(应抄送地址)。
   # 对方侧：收件箱看发件人，其余看收件人；分发人侧则取相反的一侧。
   def cc_from_distribution(email, addrs)
-    return nil if email.nil?
+    return [] if email.nil?
 
     inbox = email.folder == 'INBOX'
     # 对方地址按完整邮箱 token 精确比对（避免 include? 子串误命中：如 amber@x.com 命中 xamber@x.com，
     # 或对方是多地址串时错配），命中才回抄。
     counterparty = (inbox ? email.from_address : email.to_address).to_s.downcase.scan(EMAIL_RE)
-    return nil if (addrs & counterparty).empty?
+    return [] if (addrs & counterparty).empty?
 
-    (inbox ? email.to_address : email.from_address).to_s[EMAIL_RE]
+    # 回抄分发人自有侧的全部邮箱(多地址时不能只取第一个,否则老板留档漏抄)。
+    (inbox ? email.to_address : email.from_address).to_s.scan(EMAIL_RE)
   end
 
   # 把强制抄送地址并入现有 cc 串（大小写去重、保留用户原填的抄送）。
@@ -474,7 +475,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     params.require(:email).permit(
       :subject, :folder, :is_read, :is_starred, :from_address, :to_address, :cc_address, :bcc_address,
       :email_date, :body, :body_html, :send_now, :send_status, :send_error, :scheduled_at,
-      :crm_customer_id, :contact_id, :owner_id, files: [], label_ids: []
+      :crm_customer_id, :contact_id, files: [], label_ids: []
     )
   end
 

@@ -114,7 +114,10 @@ module Crm::EmailIngestion
 
     [*Array(mail.to), *Array(mail.cc)].each do |addr|
       a = addr.to_s.downcase
-      hit = map.find { |email, _owner| a.include?(email) }
+      # 精确匹配收件邮箱 token，避免 amber@x.com 子串命中 xamber@x.com / amber@x.com.cn 把来信错归他人。
+      tokens = a.scan(/[^\s,;<>"']+@[^\s,;<>"']+/)
+      tokens = [a] if tokens.empty?
+      hit = map.find { |email, _owner| tokens.include?(email) }
       return hit.last if hit
     end
     nil

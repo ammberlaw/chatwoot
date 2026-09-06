@@ -42,6 +42,11 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
   def update
     return render json: { error: '只能修改自己发起的审批单' }, status: :forbidden unless @request.applicant_id == current_user.id
 
+    # 补卡单改单同样复查补卡规则（时限/当月上限），排除本单自身计数，防改日期绕过上限。
+    if (error = reclock_rule_error(template: @request.template, exclude_request_id: @request.id))
+      return render json: { error: error }, status: :unprocessable_entity
+    end
+
     # 锁本单 + 锁内复检可编辑：序列化「申请人改单重建审批链」与「审批人正在审批」的并发，
     # 杜绝审批人刚同意的瞬间被改单把审批链重置。
     @request.with_lock do
@@ -98,14 +103,14 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
-  def reclock_rule_error
-    template = Current.account.oa_approval_templates.find(params[:template_id])
+  def reclock_rule_error(template: nil, exclude_request_id: nil)
+    template ||= Current.account.oa_approval_templates.find(params[:template_id])
     return nil unless template.attendance_kind == 'reclock'
 
     date = Crm::AttendanceApprovalService.form_dates(template, form_data_param).first
     return '请填写补卡日期' if date.nil?
 
-    Crm::AttendanceApprovalService.reclock_violation(Current.account, current_user.id, date)
+    Crm::AttendanceApprovalService.reclock_violation(Current.account, current_user.id, date, exclude_request_id: exclude_request_id)
   end
 
   def build_request

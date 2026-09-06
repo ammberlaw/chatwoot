@@ -150,6 +150,8 @@ class Mes::StockEntry < ApplicationRecord
       # 成品入库防超量在并发下失效——锁住生产订单，让「读累计→校验→写入」在同一临界区。
       production_order&.lock! if purpose == 'MANUFACTURE'
       ensure_no_fg_over_inbound!
+      # 出库方向(领料/报废/出库)过账前校验结存充足，杜绝超领→负库存。
+      ensure_stock_available_for_out!
 
       ts = Time.current
       stock_entry_items.each { |item| post_item(item, ts) }
@@ -208,7 +210,8 @@ class Mes::StockEntry < ApplicationRecord
 
     already = po.fg_inbound_qty # 已过账累计（不含本张草稿）
     remaining = po.qty.to_d - already
-    incoming = stock_entry_items.select { |i| i.item_type == 'PRODUCT' }.sum { |i| i.qty.to_d }
+    # 用 effective_qty(实收优先)与真实刷库口径一致，防「实收>计划」时按 qty 判定通过却超量入库。
+    incoming = stock_entry_items.select { |i| i.item_type == 'PRODUCT' }.sum { |i| i.effective_qty.to_d }
 
     if remaining <= 0
       raise StandardError, "该订单成品已入库收齐（#{fnum(already)}/#{fnum(po.qty)}），不能重复入库"
@@ -244,9 +247,15 @@ class Mes::StockEntry < ApplicationRecord
     )
   end
 
-  def post_item(item, timestamp) = move_stock!(item, timestamp, direction_sign)
+  def post_item(item, timestamp)
+    balance_after = move_stock!(item, timestamp, direction_sign)
+    # 出库兜底：持锁扣减后结存为负=超领/超发，抛错回滚整单(领料/报废/出库),杜绝负库存。
+    return unless direction_sign == -1 && balance_after.negative?
 
-  # 单条明细刷结存 + 记流水。sign=direction_sign 为过账，-direction_sign 为作废冲销。
+    raise StandardError, "#{item_display_name(item)} 库存不足（扣减后结存 #{fnum(balance_after)}），无法过账"
+  end
+
+  # 单条明细刷结存 + 记流水，返回扣减后结存。sign=direction_sign 为过账，-direction_sign 为作废冲销。
   def move_stock!(item, timestamp, sign)
     warehouse_id = item.warehouse_id || default_warehouse_id
     raise StandardError, "明细缺仓库（#{item.item_type}）" if warehouse_id.nil?
@@ -260,6 +269,29 @@ class Mes::StockEntry < ApplicationRecord
       item_type: item.item_type, mes_material_id: item.mes_material_id, crm_product_id: item.crm_product_id,
       warehouse_id: warehouse_id, stock_entry_id: id, qty_change: delta, balance_after: balance_after, posted_at: timestamp
     )
+    balance_after
+  end
+
+  def item_display_name(item)
+    item.mes_material&.name || item.crm_product&.name || "物料##{item.mes_material_id || item.crm_product_id}"
+  end
+
+  # 出库(领料/报废/出库)过账前预检结存充足，一次性列出所有缺料，避免超领把库存刷成负数。
+  def ensure_stock_available_for_out!
+    return unless direction_sign == -1
+
+    shortages = stock_entry_items.filter_map do |item|
+      wh = item.warehouse_id || default_warehouse_id
+      bal = account.mes_stock_balances.find_by(
+        item_type: item.item_type, mes_material_id: item.mes_material_id,
+        crm_product_id: item.crm_product_id, warehouse_id: wh
+      )
+      on_hand = bal&.qty.to_d
+      next if on_hand >= item.effective_qty.to_d
+
+      "#{item_display_name(item)}（结存 #{fnum(on_hand)}，需 #{fnum(item.effective_qty)}）"
+    end
+    raise StandardError, "库存不足，无法出库：#{shortages.join('；')}" if shortages.any?
   end
 
   # 作废回退阶段：仅当生产订单仍停在本单过账时推进到的阶段（to_stage）、

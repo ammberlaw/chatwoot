@@ -29,7 +29,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     # 严格分权按状态：员工仅在「待填报」改自己的完成值；主管仅在「已提交(待打分)」改核对值/得分。
     # 已归档/已确认等其它状态一律拒写，杜绝越权改分与篡改归档表。
     can_fill = @sheet.owner_id == current_user.id && @sheet.status == 'PENDING'
-    can_score = can_manage? && @sheet.status == 'SUBMITTED'
+    can_score = can_score_sheet?(@sheet) && @sheet.status == 'SUBMITTED'
     return render_error('当前状态或权限不可编辑该考核表', :unprocessable_entity) unless can_fill || can_score
 
     @sheet.with_lock do
@@ -262,6 +262,18 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
     au.administrator? || au.crm_deputy_admin? || au.crm_hr? || au.crm_manager?
   end
 
+  # 打分/改分/退回「具体某张表」的权限：管理员/副管/HR 为绩效全域管理，可动任意表；
+  # 部门负责人只能动本团队(含下级)成员、且不能动自己的表(自评自批交更高层)。
+  # 修复:此前打分/改分只判 can_manage?，任一部门负责人即可越权改全公司任何人的考核分。
+  def can_score_sheet?(sheet)
+    au = Current.account_user
+    return false unless au
+    return true if au.administrator? || au.crm_deputy_admin? || au.crm_hr?
+    return false unless au.crm_manager?
+
+    sheet.owner_id != current_user.id && visible_sheet_owner_ids.include?(sheet.owner_id)
+  end
+
   # 全量可见：超管/管理员，以及被指定的人事/总经理（审批链需要）。
   def all_sheets_visible?
     au = Current.account_user
@@ -361,7 +373,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   def ensure_can_return!
     admin = Current.account_user&.administrator?
     gm = current_user.id == perf_setting.gm_owner_id
-    allowed = { 'SUBMITTED' => can_manage? || gm,
+    allowed = { 'SUBMITTED' => can_score_sheet?(@sheet) || gm,
                 'SCORED' => admin || gm || current_user.id == perf_setting.hr_owner_id,
                 'HR_CONFIRMED' => admin || gm,
                 # 已归档：仅总经理/管理员可退回重填（越级打回，回到待填报重走流程）。
@@ -383,7 +395,7 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
       if @sheet.status == 'ARCHIVED'
         Current.account_user&.administrator? || current_user.id == perf_setting.gm_owner_id
       else
-        can_manage? ||
+        can_score_sheet?(@sheet) ||
           [perf_setting.hr_owner_id, perf_setting.gm_owner_id].include?(current_user.id)
       end
     return true if allowed
@@ -393,9 +405,9 @@ class Api::V1::Accounts::Crm::KpiSheetsController < Api::V1::Accounts::Crm::Base
   end
 
   def ensure_manager!
-    return true if can_manage?
+    return true if can_score_sheet?(@sheet)
 
-    render_error('仅主管/管理员可打分', :forbidden)
+    render_error('仅本团队主管/管理员可打分（不能给自己打分）', :forbidden)
     false
   end
 
