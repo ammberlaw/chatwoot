@@ -146,14 +146,13 @@ class Crm::KpiSheet < ApplicationRecord
     save!
   end
 
-  # 按总分匹配发放档（含起不含止靠 min/max；max 为空表示开区间）。
+  # 按总分匹配发放档：取「起始分 ≤ 总分」里起始分最高的那档（含起，止分仅作展示）。
+  # 不用区间双闭比较——双闭遇小数总分会掉进整数档之间的空档（如 89.02 落 89–90 的洞），
+  # 且相邻档边界会重叠、结果依赖遍历顺序。按起始分取最高档则无空档、无重叠、与档序无关。
   def matched_tier
     return nil unless scheme
 
-    scheme.payout_tiers.detect do |t|
-      lo = t.min_score || 0
-      hi = t.max_score
-      total_score >= lo && (hi.nil? || total_score <= hi)
-    end
+    scheme.payout_tiers.select { |t| total_score >= (t.min_score || 0) }
+          .max_by { |t| t.min_score || 0 }
   end
 end
