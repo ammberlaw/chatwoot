@@ -4,36 +4,38 @@
 #
 # Table name: crm_commission_items
 #
-#  id                      :bigint           not null, primary key
-#  country                 :string
-#  currency                :string           default("USD")
-#  customer_name           :string
-#  exchange_rate           :decimal(12, 6)
-#  is_public_receipt       :boolean          default(FALSE), not null
-#  order_amount_micros     :bigint
-#  order_no                :string
-#  payment_channel         :string
-#  payment_date            :datetime
-#  position                :integer          default(0)
-#  product                 :string
-#  product_category        :string
-#  received_amount_micros  :bigint
-#  received_rmb_micros     :bigint
-#  remark                  :text
-#  sales_rmb_micros        :bigint
-#  shipping_micros         :bigint
-#  tax_rate                :integer          default(13), not null
-#  created_at              :datetime         not null
-#  updated_at              :datetime         not null
-#  account_id              :bigint           not null
-#  crm_commission_sheet_id :bigint           not null
-#  crm_sales_order_id      :bigint
+#  id                        :bigint           not null, primary key
+#  country                   :string
+#  currency                  :string           default("USD")
+#  customer_name             :string
+#  exchange_rate             :decimal(12, 6)
+#  forwarder_shipping_micros :bigint
+#  is_public_receipt         :boolean          default(FALSE), not null
+#  order_amount_micros       :bigint
+#  order_no                  :string
+#  payment_channel           :string
+#  payment_date              :datetime
+#  position                  :integer          default(0)
+#  product                   :string
+#  product_category          :string
+#  received_amount_micros    :bigint
+#  received_rmb_micros       :bigint
+#  remark                    :text
+#  sales_rmb_micros          :bigint
+#  shipping_micros           :bigint
+#  tax_rate                  :integer          default(13), not null
+#  created_at                :datetime         not null
+#  updated_at                :datetime         not null
+#  account_id                :bigint           not null
+#  crm_commission_sheet_id   :bigint           not null
+#  crm_sales_order_id        :bigint
 #
 # Indexes
 #
 #  index_crm_commission_items_on_account_id               (account_id)
 #  index_crm_commission_items_on_crm_commission_sheet_id  (crm_commission_sheet_id)
 #  index_crm_commission_items_on_crm_sales_order_id       (crm_sales_order_id)
+#  uniq_commission_item_order                             (account_id,crm_sales_order_id) UNIQUE WHERE (crm_sales_order_id IS NOT NULL)
 #
 class Crm::CommissionItem < ApplicationRecord
   belongs_to :account

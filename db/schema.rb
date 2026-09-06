@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_05_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_06_000030) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -866,6 +866,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_05_000001) do
     t.bigint "order_amount_micros"
     t.string "currency", default: "USD"
     t.bigint "shipping_micros"
+    t.bigint "forwarder_shipping_micros"
     t.bigint "received_amount_micros"
     t.decimal "exchange_rate", precision: 12, scale: 6
     t.bigint "received_rmb_micros"

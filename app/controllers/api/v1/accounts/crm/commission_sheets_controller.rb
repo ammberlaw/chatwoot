@@ -386,7 +386,7 @@ class Api::V1::Accounts::Crm::CommissionSheetsController < Api::V1::Accounts::Cr
       :remark,
       items_attributes: [
         :id, :position, :product_category, :country, :customer_name, :order_no, :crm_sales_order_id,
-        :order_amount_micros, :currency, :shipping_micros, :received_amount_micros, :exchange_rate,
+        :order_amount_micros, :currency, :shipping_micros, :forwarder_shipping_micros, :received_amount_micros, :exchange_rate,
         :received_rmb_micros, :sales_rmb_micros, :payment_channel, :payment_date, :product, :remark,
         :is_public_receipt, :tax_rate, :_destroy
       ]

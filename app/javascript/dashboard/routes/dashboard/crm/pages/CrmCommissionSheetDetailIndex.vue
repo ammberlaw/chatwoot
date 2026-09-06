@@ -61,6 +61,7 @@ const toLocal = it => ({
   orderAmount: yuanFromMicros(it.orderAmountMicros),
   currency: it.currency || 'USD',
   shipping: yuanFromMicros(it.shippingMicros),
+  forwarderShipping: yuanFromMicros(it.forwarderShippingMicros),
   receivedAmount: yuanFromMicros(it.receivedAmountMicros),
   exchangeRate: it.exchangeRate != null ? Number(it.exchangeRate) : null,
   receivedRmb: yuanFromMicros(it.receivedRmbMicros),
@@ -167,6 +168,7 @@ const addRow = () =>
       orderAmount: null,
       currency: 'USD',
       shipping: null,
+      forwarderShipping: null,
       receivedAmount: null,
       exchangeRate: null,
       receivedRmb: null,
@@ -224,6 +226,7 @@ const buildPayload = () => {
     order_amount_micros: microsFromYuan(r.orderAmount),
     currency: r.currency || null,
     shipping_micros: microsFromYuan(r.shipping),
+    forwarder_shipping_micros: microsFromYuan(r.forwarderShipping),
     received_amount_micros: microsFromYuan(r.receivedAmount),
     exchange_rate: r.exchangeRate === '' ? null : r.exchangeRate,
     received_rmb_micros: microsFromYuan(r.receivedRmb),
@@ -575,6 +578,7 @@ const groups = computed(() => {
 });
 const grand = computed(() => ({
   shipping: sum(items.value, 'shipping'),
+  forwarderShipping: sum(items.value, 'forwarderShipping'),
   receivedRmb: sum(items.value, 'receivedRmb'),
   salesRmb: sum(items.value, 'salesRmb'),
   salary: sumSalary(items.value),
@@ -864,6 +868,7 @@ const openForward = () => {
             <col class="w-24" />
             <col class="w-16" />
             <col class="w-16" />
+            <col class="w-20" />
             <col class="w-24" />
             <col class="w-20" />
             <col class="w-28" />
@@ -905,6 +910,9 @@ const openForward = () => {
               </th>
               <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.SHIPPING') }}
+              </th>
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
+                {{ t('CRM.COMMISSION.COLS.FORWARDER_SHIPPING') }}
               </th>
               <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.RECEIVED') }}
@@ -1011,6 +1019,14 @@ const openForward = () => {
               </td>
               <td class="px-1 py-1">
                 <input
+                  v-model.number="r.forwarderShipping"
+                  type="number"
+                  step="0.01"
+                  class="w-full h-8 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
+                />
+              </td>
+              <td class="px-1 py-1">
+                <input
                   v-model.number="r.receivedAmount"
                   type="number"
                   step="0.01"
@@ -1109,7 +1125,7 @@ const openForward = () => {
               </td>
             </tr>
             <tr v-if="!items.length">
-              <td colspan="23" class="px-3 py-6 text-center text-n-slate-10">
+              <td colspan="24" class="px-3 py-6 text-center text-n-slate-10">
                 {{ t('CRM.COMMISSION.DETAIL.NO_ITEMS_EDIT') }}
               </td>
             </tr>
@@ -1169,6 +1185,9 @@ const openForward = () => {
                 </th>
                 <th class="px-2 py-2 font-medium text-right">
                   {{ t('CRM.COMMISSION.COLS.SHIPPING') }}
+                </th>
+                <th class="px-2 py-2 font-medium text-right">
+                  {{ t('CRM.COMMISSION.COLS.FORWARDER_SHIPPING') }}
                 </th>
                 <th class="px-2 py-2 font-medium text-right">
                   {{ t('CRM.COMMISSION.COLS.RECEIVED') }}
@@ -1241,6 +1260,9 @@ const openForward = () => {
                     {{ fmtYuan2(r.shipping) }}
                   </td>
                   <td class="px-2 py-1.5 text-right tabular-nums">
+                    {{ fmtYuan2(r.forwarderShipping) }}
+                  </td>
+                  <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(r.receivedAmount) }}
                   </td>
                   <td class="px-2 py-1.5 text-right tabular-nums">
@@ -1283,6 +1305,9 @@ const openForward = () => {
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(sum(g.rows, 'shipping')) }}
                   </td>
+                  <td class="px-2 py-1.5 text-right tabular-nums">
+                    {{ fmtYuan2(sum(g.rows, 'forwarderShipping')) }}
+                  </td>
                   <td colspan="2" />
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(sum(g.rows, 'receivedRmb')) }}
@@ -1297,7 +1322,7 @@ const openForward = () => {
                 </tr>
               </template>
               <tr v-if="!items.length">
-                <td colspan="22" class="px-3 py-6 text-center text-n-slate-10">
+                <td colspan="23" class="px-3 py-6 text-center text-n-slate-10">
                   {{ t('CRM.COMMISSION.DETAIL.NO_ITEMS') }}
                 </td>
               </tr>
@@ -1311,6 +1336,9 @@ const openForward = () => {
                 <td colspan="6" />
                 <td class="px-2 py-2 text-right tabular-nums">
                   {{ fmtYuan2(grand.shipping) }}
+                </td>
+                <td class="px-2 py-2 text-right tabular-nums">
+                  {{ fmtYuan2(grand.forwarderShipping) }}
                 </td>
                 <td colspan="2" />
                 <td class="px-2 py-2 text-right tabular-nums">

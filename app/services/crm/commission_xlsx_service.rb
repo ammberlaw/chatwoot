@@ -6,13 +6,13 @@ require 'zip'
 class Crm::CommissionXlsxService
   # 表头（与前端明细表一致）；nil 品类归到「未分类」。
   HEADERS = ['序号', '产品品类', '国家', '客户名称', 'PI号', '订单状态', '订单金额', '币种', '运费',
-             '收款金额', '汇率', '收款额RMB', '销售额RMB', '汇款途径', '到款日期', '产品', '备注',
+             '货代实收运费', '收款金额', '汇率', '收款额RMB', '销售额RMB', '汇款途径', '到款日期', '产品', '备注',
              '对公', '税点', '提成基数RMB', '提成点(%)', '提成工资'].freeze
-  COL_WIDTHS = [5, 12, 10, 22, 20, 10, 12, 7, 10, 12, 8, 12, 12, 16, 12, 24, 16, 6, 6, 14, 10, 14].freeze
-  MONEY_COLS = [6, 8, 9, 11, 12].freeze # 0-based：订单金额/运费/收款金额/收款额RMB/销售额RMB
-  RATE_COL = 10
-  BASE_COL = 19 # 提成基数RMB
-  SALARY_COL = 21 # 提成工资
+  COL_WIDTHS = [5, 12, 10, 22, 20, 10, 12, 7, 10, 14, 12, 8, 12, 12, 16, 12, 24, 16, 6, 6, 14, 10, 14].freeze
+  MONEY_COLS = [6, 8, 9, 10, 12, 13].freeze # 0-based：订单金额/运费/货代实收运费/收款金额/收款额RMB/销售额RMB
+  RATE_COL = 11
+  BASE_COL = 20 # 提成基数RMB
+  SALARY_COL = 22 # 提成工资
 
   # 关联销售订单状态 → 中文（与前端一致，只读展示）。
   ORDER_STATUS_LABEL = { 'PENDING_CONFIRMATION' => '待确认', 'IN_PRODUCTION' => '生产中',
@@ -70,6 +70,7 @@ class Crm::CommissionXlsxService
       [item.country, :s, :center], [item.customer_name, :s, :text], [item.order_no, :s, :text],
       [ORDER_STATUS_LABEL[item.sales_order&.status], :s, :center],
       money(item.order_amount_micros), [item.currency, :s, :center], money(item.shipping_micros),
+      money(item.forwarder_shipping_micros),
       money(item.received_amount_micros), rate(item.exchange_rate), money(item.received_rmb_micros),
       money(item.sales_rmb_micros), [item.payment_channel, :s, :text], [fmt_date(item.payment_date), :s, :center],
       [item.product, :s, :text], [item.remark, :s, :text],
@@ -83,8 +84,9 @@ class Crm::CommissionXlsxService
     row = Array.new(HEADERS.size) { ['', :s, :subtotal_text] }
     row[1] = ["#{category.presence || '未分类'} 小计", :s, :subtotal_text]
     row[8] = subtotal_money(items, :shipping_micros)
-    row[11] = subtotal_money(items, :received_rmb_micros)
-    row[12] = subtotal_money(items, :sales_rmb_micros)
+    row[9] = subtotal_money(items, :forwarder_shipping_micros)
+    row[12] = subtotal_money(items, :received_rmb_micros)
+    row[13] = subtotal_money(items, :sales_rmb_micros)
     row[SALARY_COL] = subtotal_salary(items)
     row
   end
@@ -94,8 +96,9 @@ class Crm::CommissionXlsxService
     row = Array.new(HEADERS.size) { ['', :s, :subtotal_text] }
     row[1] = ['总计', :s, :subtotal_text]
     row[8] = subtotal_money(all, :shipping_micros)
-    row[11] = subtotal_money(all, :received_rmb_micros)
-    row[12] = subtotal_money(all, :sales_rmb_micros)
+    row[9] = subtotal_money(all, :forwarder_shipping_micros)
+    row[12] = subtotal_money(all, :received_rmb_micros)
+    row[13] = subtotal_money(all, :sales_rmb_micros)
     row[SALARY_COL] = subtotal_salary(all)
     row
   end

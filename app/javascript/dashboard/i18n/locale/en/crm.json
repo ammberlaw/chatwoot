@@ -109,6 +109,7 @@
         "ORDER_AMOUNT": "订单额",
         "CURRENCY": "币种",
         "SHIPPING": "运费",
+        "FORWARDER_SHIPPING": "货代实收运费",
         "RECEIVED": "收款额",
         "RATE": "汇率",
         "RECEIVED_RMB": "收款¥",
