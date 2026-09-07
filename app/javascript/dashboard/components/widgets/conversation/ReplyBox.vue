@@ -115,6 +115,9 @@ export default {
       inReplyTo: {},
       isFocused: false,
       isTranslatingOutgoing: false,
+      translationPreview: '',
+      translationPreviewFor: '',
+      isPreviewTranslating: false,
       showEmojiPicker: false,
       attachedFiles: [],
       isRecordingAudio: false,
@@ -458,6 +461,10 @@ export default {
     currentChat(conversation, oldConversation) {
       const { can_reply: canReply } = conversation;
       if (oldConversation && oldConversation.id !== conversation.id) {
+        this.translationPreview = '';
+        this.translationPreviewFor = '';
+      }
+      if (oldConversation && oldConversation.id !== conversation.id) {
         // Only update email fields when switching to a completely different conversation (by ID)
         // This prevents overwriting user input (e.g., CC/BCC fields) when performing actions
         // like self-assign or other updates that do not actually change the conversation context
@@ -500,6 +507,13 @@ export default {
     message() {
       // Autosave the current message draft.
       this.doAutoSaveDraft();
+      // 草稿变化 → 防抖刷新实时翻译预览(未开翻译则清空)。
+      if (this.shouldAutoTranslateOutgoing) {
+        this.debouncedTranslatePreview?.();
+      } else if (this.translationPreview) {
+        this.translationPreview = '';
+        this.translationPreviewFor = '';
+      }
     },
     replyType(updatedReplyType, oldReplyType) {
       this.setToDraft(this.conversationIdByRoute, oldReplyType);
@@ -520,6 +534,13 @@ export default {
       },
       500,
       true
+    );
+
+    // 实时翻译预览:停顿约 0.9 秒后把当前中文草稿译成对方语言,显示在回复框下方。
+    this.debouncedTranslatePreview = debounce(
+      () => this.refreshTranslationPreview(),
+      900,
+      false
     );
 
     this.fetchAndSetReplyTo();
@@ -803,9 +824,21 @@ export default {
           this.message &&
           this.message.trim()
         ) {
-          const translated = await this.translateOutgoingMessage(this.message);
-          if (translated === null) return; // 翻译失败：中止，用户可重试或 Shift+Enter 发原文
-          this.message = translated;
+          // 已有实时预览且对应当前文本：直接用预览译文,免再调一次 AI。
+          if (
+            this.translationPreview &&
+            this.translationPreviewFor === this.message
+          ) {
+            this.message = this.translationPreview;
+          } else {
+            const translated = await this.translateOutgoingMessage(
+              this.message
+            );
+            if (translated === null) return; // 翻译失败：中止，用户可重试或 Shift+Enter 发原文
+            this.message = translated;
+          }
+          this.translationPreview = '';
+          this.translationPreviewFor = '';
         }
         const copilotAcceptedMessage = this.getCopilotAcceptedMessage();
         const isOnWhatsApp =
@@ -921,6 +954,32 @@ export default {
       }
     },
     // 外发翻译：把中文草稿译成对方语言。失败返回 null（中止发送），空结果回退原文。
+    // 实时预览:把当前中文草稿译成对方语言,显示在回复框下方(不发送)。
+    async refreshTranslationPreview() {
+      const src = this.message;
+      if (!this.shouldAutoTranslateOutgoing || !src || !src.trim()) {
+        this.translationPreview = '';
+        this.translationPreviewFor = '';
+        return;
+      }
+      if (this.translationPreviewFor === src && this.translationPreview) return;
+      try {
+        this.isPreviewTranslating = true;
+        const { data } = await ConversationTranslationAPI.translate(
+          this.currentChat.id,
+          src
+        );
+        if (this.message !== src) return; // 期间又改了,丢弃这次结果
+        if (data.content && data.content.trim()) {
+          this.translationPreview = data.content;
+          this.translationPreviewFor = src;
+        }
+      } catch (error) {
+        // 预览失败静默处理(发送时会再试并提示)
+      } finally {
+        this.isPreviewTranslating = false;
+      }
+    },
     async translateOutgoingMessage(text) {
       if (this.isTranslatingOutgoing) return null;
       try {
@@ -1409,6 +1468,29 @@ export default {
           @clear-selection="clearEditorSelection"
           @execute-copilot-action="executeCopilotAction"
         />
+
+        <div
+          v-if="
+            shouldAutoTranslateOutgoing &&
+            isDefaultEditorMode &&
+            message &&
+            message.trim() &&
+            (translationPreview || isPreviewTranslating)
+          "
+          class="px-3 py-2 mt-1 mb-2 text-sm border rounded-lg bg-n-teal-2 border-n-teal-5 text-n-slate-12"
+        >
+          <div class="flex items-center gap-1 mb-1 text-xs text-n-teal-11">
+            <span class="i-lucide-languages size-3.5" />
+            {{ $t('CONVERSATION.REPLYBOX.TRANSLATE_PREVIEW') }}
+            <span
+              v-if="isPreviewTranslating"
+              class="i-lucide-loader-circle size-3 animate-spin"
+            />
+          </div>
+          <p class="m-0 whitespace-pre-wrap">
+            {{ translationPreview || $t('CONVERSATION.REPLYBOX.TRANSLATING') }}
+          </p>
+        </div>
 
         <QuotedEmailPreview
           v-if="shouldShowQuotedPreview && isDefaultEditorMode"

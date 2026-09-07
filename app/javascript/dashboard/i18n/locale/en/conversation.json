@@ -226,6 +226,8 @@
     },
     "REPLYBOX": {
       "TRANSLATE_FAILED": "翻译失败，可重试或按 Shift+Enter 发原文",
+      "TRANSLATE_PREVIEW": "译文预览(对方语言)",
+      "TRANSLATING": "翻译中…",
       "REPLY": "Reply",
       "PRIVATE_NOTE": "Private Note",
       "SEND": "Send",
