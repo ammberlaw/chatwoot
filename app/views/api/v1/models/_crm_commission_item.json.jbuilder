@@ -8,6 +8,7 @@ json.crm_sales_order_id resource.crm_sales_order_id
 json.order_amount_micros resource.order_amount_micros
 json.currency resource.currency
 json.shipping_micros resource.shipping_micros
+json.forwarder_shipping_micros resource.forwarder_shipping_micros
 json.received_amount_micros resource.received_amount_micros
 json.exchange_rate resource.exchange_rate
 json.received_rmb_micros resource.received_rmb_micros
