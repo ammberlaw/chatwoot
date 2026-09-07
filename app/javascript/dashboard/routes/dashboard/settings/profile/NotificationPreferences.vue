@@ -272,6 +272,7 @@ export default {
     </div>
 
     <div
+      v-if="hasPushAPISupport"
       class="flex items-center justify-between w-full gap-2 p-4 border border-solid border-n-weak rounded-xl"
     >
       <div class="flex flex-row items-center gap-2">
@@ -288,6 +289,23 @@ export default {
         v-model="hasEnabledPushPermissions"
         @change="onRequestPermissions"
       />
+    </div>
+    <div
+      v-else
+      class="flex items-center w-full gap-2 p-4 border border-solid border-n-weak rounded-xl"
+    >
+      <fluent-icon
+        icon="alert"
+        class="flex-shrink-0 text-n-slate-12"
+        size="18"
+      />
+      <span class="text-body-main text-n-slate-12">
+        {{
+          $t(
+            'PROFILE_SETTINGS.FORM.PUSH_NOTIFICATIONS_SECTION.ADD_TO_HOME_SCREEN'
+          )
+        }}
+      </span>
     </div>
   </div>
 </template>

@@ -83,7 +83,8 @@ export const requestPushPermissions = ({ onSuccess }) => {
   } else if (Notification.permission === 'granted') {
     registerSubscription(onSuccess);
   } else if (Notification.permission !== 'denied') {
-    Notification.requestPermission(permission => {
+    // Safari/iOS 只实现了 Promise 形式，回调形式永远不会被调用
+    Notification.requestPermission().then(permission => {
       if (permission === 'granted') {
         registerSubscription(onSuccess);
       }

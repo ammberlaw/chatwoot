@@ -1821,25 +1821,27 @@ watch(
                     <div
                       class="flex items-center gap-2 mt-1 text-xs text-n-slate-11"
                     >
-                      <CrmStarRating :micros="customer.dealTotalAmountMicros" />
                       <span class="truncate">
                         {{
                           ownerDisplayName(customer) ||
                           (customer.isInPublicPool ? '公海' : '未分配')
                         }}
                       </span>
+                      <!-- 状态标签放这行（原本在右侧独立列），把整行宽度让给客户名 -->
+                      <span
+                        v-if="statusMeta(customer)"
+                        class="inline-flex items-center px-2 py-[2px] rounded-full text-[11px] font-bold whitespace-nowrap shrink-0"
+                        :class="pillCls(statusMeta(customer).color)"
+                      >
+                        {{ statusMeta(customer).label }}
+                      </span>
                     </div>
                   </div>
-                  <div class="flex flex-col items-end gap-1.5 shrink-0">
-                    <span
-                      v-if="statusMeta(customer)"
-                      class="inline-flex items-center px-2 py-[2px] rounded-full text-[11px] font-bold whitespace-nowrap"
-                      :class="pillCls(statusMeta(customer).color)"
-                    >
-                      {{ statusMeta(customer).label }}
-                    </span>
+                  <div
+                    v-if="customer.isInPublicPool"
+                    class="flex flex-col items-end gap-1.5 shrink-0"
+                  >
                     <Button
-                      v-if="customer.isInPublicPool"
                       :label="t('CRM.CUSTOMERS.POOL.CLAIM')"
                       size="sm"
                       color="iris"

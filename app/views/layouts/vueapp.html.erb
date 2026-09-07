@@ -4,7 +4,8 @@
     <title>
       <%= @global_config['INSTALLATION_NAME'] %>
     </title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=0"/>
+    <%# viewport-fit=cover：全面屏机型下页面铺满，配合 env(safe-area-inset-*) 避开刘海/灵动岛/home 指示条 %>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=0, viewport-fit=cover"/>
     <% if @global_config['DISPLAY_MANIFEST'] %>
       <meta name="msapplication-TileColor" content="#5B5BD6">
       <meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
@@ -27,6 +28,10 @@
       <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png">
       <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png">
       <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png">
+      <%# 加到主屏后的启动图，避免 SPA 加载期间白屏 %>
+      <% ios_splash_links.each do |splash| %>
+        <link rel="apple-touch-startup-image" media="<%= splash[:media] %>" href="<%= splash[:href] %>">
+      <% end %>
       <link rel="icon" type="image/png" sizes="192x192"  href="/android-icon-192x192.png">
       <link class="favicon" rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
       <link class="favicon" rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">

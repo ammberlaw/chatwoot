@@ -180,7 +180,8 @@
         "REQUEST_PUSH": "启用推送通知",
         "SLA_MISSED_FIRST_RESPONSE": "当会话错过首次响应 SLA 时发送推送通知",
         "SLA_MISSED_NEXT_RESPONSE": "当会话错过下次响应 SLA 时发送推送通知",
-        "SLA_MISSED_RESOLUTION": "当会话错过解决 SLA 时发送推送通知"
+        "SLA_MISSED_RESOLUTION": "当会话错过解决 SLA 时发送推送通知",
+        "ADD_TO_HOME_SCREEN": "iOS 需先将本应用「添加到主屏幕」，并从主屏图标打开，才能开启推送通知。"
       },
       "PROFILE_IMAGE": {
         "LABEL": "头像"

@@ -201,3 +201,18 @@ code {
 table {
   @apply border-spacing-0 text-sm w-full;
 }
+
+// PWA 安全区
+// layout 里的 viewport-fit=cover 让页面铺满全面屏，这里把 home 指示条/刘海占用的
+// 高度还给页面，避免「添加到主屏」独立窗口下方内容被系统指示条压住。
+// 加在 #app 而非 body 上：#app 是 h-screen(100vh) + border-box，padding 会向内收，
+// 总高仍是一屏；加在 body 上会变成 100vh + padding 而撑出滚动条。
+// 仅在 standalone 显示模式生效，浏览器标签页内不受影响。
+@media all and (display-mode: standalone) {
+  #app {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
