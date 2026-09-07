@@ -428,6 +428,44 @@ const sortedLabels = computed(() =>
   })
 );
 
+// 频道叶子节点(单个收件箱)。
+const buildInboxLeaf = inbox => ({
+  name: `${inbox.name}-${inbox.id}`,
+  label: inbox.name,
+  badgeCount: getInboxUnreadCount.value(inbox.id),
+  icon: h(ChannelIcon, { inbox, class: 'size-[16px]' }),
+  to: accountScopedRoute('inbox_dashboard', { inbox_id: inbox.id }),
+  component: leafProps =>
+    h(ChannelLeaf, {
+      label: leafProps.label,
+      active: leafProps.active,
+      inbox,
+      badgeCount: leafProps.badgeCount,
+    }),
+});
+
+// 「频道」子节点:普通渠道平铺,业务员个人 WhatsApp 号多且杂,收进一个可折叠子分组避免刷屏。
+const channelChildren = computed(() => {
+  const waInboxes = sortedInboxes.value.filter(
+    inbox => inbox.channel_type === 'Channel::WhatsappWeb'
+  );
+  const otherInboxes = sortedInboxes.value.filter(
+    inbox => inbox.channel_type !== 'Channel::WhatsappWeb'
+  );
+  const children = otherInboxes.map(buildInboxLeaf);
+  if (waInboxes.length) {
+    children.push({
+      name: 'whatsapp-web-group',
+      label: `WhatsApp (${waInboxes.length})`,
+      icon: 'i-ri-whatsapp-fill',
+      collapsible: true,
+      showTreeLine: true,
+      children: waInboxes.map(buildInboxLeaf),
+    });
+  }
+  return children;
+});
+
 const closeMobileSidebar = () => {
   if (!props.isMobileSidebarOpen) return;
   emit('closeMobileSidebar');
@@ -563,20 +601,7 @@ const menuItems = computed(() => {
             ...buildSortConfig(SIDEBAR_SORT_SECTIONS.CHANNELS),
             collapsible: true,
             showTreeLine: true,
-            children: sortedInboxes.value.map(inbox => ({
-              name: `${inbox.name}-${inbox.id}`,
-              label: inbox.name,
-              badgeCount: getInboxUnreadCount.value(inbox.id),
-              icon: h(ChannelIcon, { inbox, class: 'size-[16px]' }),
-              to: accountScopedRoute('inbox_dashboard', { inbox_id: inbox.id }),
-              component: leafProps =>
-                h(ChannelLeaf, {
-                  label: leafProps.label,
-                  active: leafProps.active,
-                  inbox,
-                  badgeCount: leafProps.badgeCount,
-                }),
-            })),
+            children: channelChildren.value,
           },
           {
             name: 'Labels',

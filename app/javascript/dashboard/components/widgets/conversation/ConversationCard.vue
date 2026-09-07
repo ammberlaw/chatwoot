@@ -11,6 +11,8 @@ import UnreadBadge from 'dashboard/components-next/Conversation/ConversationCard
 import SLACardLabel from './components/SLACardLabel.vue';
 import VoiceCallStatus from './VoiceCallStatus.vue';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
+import { sourcePillClass } from 'dashboard/helper/crmSourcePill';
 
 const props = defineProps({
   chat: { type: Object, required: true },
@@ -33,6 +35,20 @@ const emit = defineEmits([
 ]);
 
 const hovered = ref(false);
+
+// 客户来源标签(复用「客户来源」选项),存在会话 additional_attributes.crm_source_tags,显示彩色胶囊。
+const { ensureLoaded, sourceLabel } = useCrmOptions();
+ensureLoaded();
+const sourceTags = computed(() => {
+  const attrs =
+    props.chat?.additional_attributes || props.chat?.additionalAttributes || {};
+  const codes = attrs.crm_source_tags || attrs.crmSourceTags || [];
+  return (Array.isArray(codes) ? codes : []).map(code => ({
+    code,
+    label: sourceLabel(code),
+    cls: sourcePillClass(code),
+  }));
+});
 
 const unreadCount = computed(() => props.chat.unread_count);
 const hasUnread = computed(() => unreadCount.value > 0);
@@ -229,6 +245,16 @@ watch(
           <SLACardLabel :chat="chat" class="ltr:mr-1 rtl:ml-1" />
         </template>
       </CardLabels>
+      <div v-if="sourceTags.length" class="flex flex-wrap gap-1 mt-1 mx-2">
+        <span
+          v-for="tag in sourceTags"
+          :key="tag.code"
+          class="px-2.5 py-0.5 text-xs font-medium rounded-full"
+          :class="tag.cls"
+        >
+          {{ tag.label }}
+        </span>
+      </div>
     </div>
   </div>
 </template>

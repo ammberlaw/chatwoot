@@ -179,11 +179,14 @@ Rails.application.routes.draw do
             # 客户 AI 背调：输入邮箱/域名/网址→抓官网 + Apollo 概况；公司名先搜候选。
             post 'ai/company_lookup', to: 'ai#company_lookup'
             post 'ai/company_search', to: 'ai#company_search'
-            # 业务员个人 WhatsApp 号(WhatsApp Web/Baileys)绑定：扫码/状态/解绑。
-            get 'whatsapp_web', to: 'whatsapp_web#show'
-            post 'whatsapp_web/connect', to: 'whatsapp_web#connect'
-            get 'whatsapp_web/status', to: 'whatsapp_web#status'
-            delete 'whatsapp_web', to: 'whatsapp_web#logout'
+            # 会话「来源」标签(复用客户来源选项),打在会话上,会话卡显示彩色胶囊。
+            patch 'conversation_source_tags/:conversation_id', to: 'conversation_source_tags#update'
+            # 业务员个人 WhatsApp 号(WhatsApp Web/Baileys)绑定：支持一人多号,按 inbox 扫码/状态/解绑。
+            get 'whatsapp_web', to: 'whatsapp_web#index'
+            post 'whatsapp_web', to: 'whatsapp_web#create'
+            post 'whatsapp_web/:inbox_id/connect', to: 'whatsapp_web#connect'
+            get 'whatsapp_web/:inbox_id/status', to: 'whatsapp_web#status'
+            delete 'whatsapp_web/:inbox_id', to: 'whatsapp_web#logout'
             resources :emails do
               collection do
                 get :counts

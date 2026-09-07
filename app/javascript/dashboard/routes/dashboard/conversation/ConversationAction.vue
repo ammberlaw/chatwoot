@@ -10,6 +10,9 @@ import { CONVERSATION_PRIORITY } from '../../../../shared/constants/messages';
 import { CONVERSATION_EVENTS } from '../../../helper/AnalyticsHelper/events';
 import { useTrack } from 'dashboard/composables';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
+import { sourcePillClass } from 'dashboard/helper/crmSourcePill';
+import ConversationSourceTagsAPI from 'dashboard/api/crm/conversationSourceTags';
 
 export default {
   components: {
@@ -26,8 +29,13 @@ export default {
   },
   setup() {
     const { agentsList } = useAgentsList();
+    const { ensureLoaded, sourceOptions, sourceLabel } = useCrmOptions();
+    ensureLoaded();
     return {
       agentsList,
+      sourceOptions,
+      sourceLabel,
+      sourcePillClass,
     };
   },
   data() {
@@ -157,8 +165,35 @@ export default {
       }
       return false;
     },
+    sourceTagCodes() {
+      return this.currentChat?.additional_attributes?.crm_source_tags || [];
+    },
+    sourceSectionTitle() {
+      return '客户来源';
+    },
   },
   methods: {
+    isSourceSelected(code) {
+      return this.sourceTagCodes.includes(code);
+    },
+    async toggleSource(code) {
+      const current = this.sourceTagCodes;
+      const next = current.includes(code)
+        ? current.filter(c => c !== code)
+        : [...current, code];
+      try {
+        await ConversationSourceTagsAPI.update(this.currentChat.id, next);
+        this.$store.dispatch('updateConversation', {
+          ...this.currentChat,
+          additional_attributes: {
+            ...(this.currentChat.additional_attributes || {}),
+            crm_source_tags: next,
+          },
+        });
+      } catch (e) {
+        useAlert(this.$t('CONVERSATION.CHANGE_STATUS_FAILED') || '保存失败');
+      }
+    },
     onSelfAssign() {
       const {
         account_id,
@@ -287,5 +322,23 @@ export default {
       :title="$t('CONVERSATION_SIDEBAR.ACCORDION.CONVERSATION_LABELS')"
     />
     <ConversationLabels :conversation-id="conversationId" />
+    <div v-if="sourceOptions.length" class="mt-3">
+      <ContactDetailsItem compact :title="sourceSectionTitle" />
+      <div class="flex flex-wrap gap-1.5 mt-1">
+        <button
+          v-for="opt in sourceOptions"
+          :key="opt.value"
+          class="px-2.5 py-0.5 text-xs font-medium rounded-full transition-opacity"
+          :class="
+            isSourceSelected(opt.value)
+              ? sourcePillClass(opt.value)
+              : 'bg-n-alpha-2 text-n-slate-11 opacity-70 hover:opacity-100'
+          "
+          @click="toggleSource(opt.value)"
+        >
+          {{ opt.label.trim() }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>

@@ -1,26 +1,32 @@
 /* global axios */
 import ApiClient from '../ApiClient';
 
-// 业务员个人 WhatsApp 号(WhatsApp Web/Baileys)绑定：扫码/状态/解绑。
+// 业务员个人 WhatsApp 号(WhatsApp Web/Baileys)绑定:支持一人多号。
 class WhatsappWebAPI extends ApiClient {
   constructor() {
     super('crm/whatsapp_web', { accountScoped: true });
   }
 
-  show() {
+  // 我名下所有号
+  list() {
     return axios.get(this.url);
   }
 
-  connect() {
-    return axios.post(`${this.url}/connect`);
+  // 新增一个号(建收件箱并起会话,返回该号 QR)
+  create() {
+    return axios.post(this.url);
   }
 
-  status() {
-    return axios.get(`${this.url}/status`);
+  connect(inboxId) {
+    return axios.post(`${this.url}/${inboxId}/connect`);
   }
 
-  disconnect() {
-    return axios.delete(this.url);
+  status(inboxId) {
+    return axios.get(`${this.url}/${inboxId}/status`);
+  }
+
+  disconnect(inboxId) {
+    return axios.delete(`${this.url}/${inboxId}`);
   }
 }
 

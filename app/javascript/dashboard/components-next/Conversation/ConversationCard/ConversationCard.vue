@@ -5,6 +5,8 @@ import { useRouter, useRoute } from 'vue-router';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper.js';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
 
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
+import { sourcePillClass } from 'dashboard/helper/crmSourcePill';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import CardMessagePreview from './CardMessagePreview.vue';
@@ -34,6 +36,31 @@ const router = useRouter();
 const route = useRoute();
 
 const cardMessagePreviewWithMetaRef = ref(null);
+
+// 客户来源标签(复用「客户来源」选项),存在联系人 additional_attributes.crm_source_tags。
+const { ensureLoaded, sourceLabel } = useCrmOptions();
+ensureLoaded();
+const sourceTags = computed(() => {
+  const cAttrs =
+    props.conversation?.additionalAttributes ||
+    props.conversation?.additional_attributes ||
+    {};
+  const ctAttrs =
+    props.contact?.additionalAttributes ||
+    props.contact?.additional_attributes ||
+    {};
+  const codes =
+    cAttrs.crmSourceTags ||
+    cAttrs.crm_source_tags ||
+    ctAttrs.crmSourceTags ||
+    ctAttrs.crm_source_tags ||
+    [];
+  return (Array.isArray(codes) ? codes : []).map(code => ({
+    code,
+    label: sourceLabel(code),
+    cls: sourcePillClass(code),
+  }));
+});
 
 const currentContact = computed(() => props.contact);
 
@@ -128,6 +155,16 @@ const onCardClick = e => {
         :conversation="conversation"
         :account-labels="accountLabels"
       />
+      <div v-if="sourceTags.length" class="flex flex-wrap gap-1.5 mt-0.5">
+        <span
+          v-for="tag in sourceTags"
+          :key="tag.code"
+          class="px-2.5 py-0.5 text-xs font-medium rounded-full"
+          :class="tag.cls"
+        >
+          {{ tag.label }}
+        </span>
+      </div>
     </div>
   </div>
 </template>
