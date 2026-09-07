@@ -550,15 +550,25 @@ const fmtYuan2 = v =>
       });
 const sum = (rows, key) =>
   rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+const sumBy = (rows, fn) => rows.reduce((acc, r) => acc + (fn(r) || 0), 0);
 
-// 提成点(%)：按品类查表；提成基数：对公则销售额RMB÷(1+税点%)；提成工资=基数×点位/100。
+// 运费额RMB（不单独展示）= 向客户收的运费 × 汇率；运费差额 = 运费额RMB − 货代实收运费(付货代成本)。
+const freightRmbOf = r =>
+  Math.round((Number(r.shipping) || 0) * (Number(r.exchangeRate) || 0) * 100) /
+  100;
+const freightDiffOf = r =>
+  Math.round((freightRmbOf(r) - (Number(r.forwarderShipping) || 0)) * 100) / 100;
+
+// 提成点(%)：按品类查表；提成基数：销售额RMB+运费差额，对公再整体÷(1+税点%)；提成工资=基数×点位/100。
 const rateOf = r => Number(rateMap.value[r.productCategory]) || 0;
 const baseOf = r => {
   if (r.salesRmb == null || r.salesRmb === '') return null;
-  const s = Number(r.salesRmb);
-  if (!r.isPublicReceipt) return s;
-  const tax = Number(r.taxRate) || 13;
-  return Math.round((s / (1 + tax / 100)) * 100) / 100;
+  let s = Number(r.salesRmb) + freightDiffOf(r);
+  if (r.isPublicReceipt) {
+    const tax = Number(r.taxRate) || 13;
+    s /= 1 + tax / 100;
+  }
+  return Math.round(s * 100) / 100;
 };
 const salaryOf = r => {
   const base = baseOf(r);
@@ -581,6 +591,7 @@ const grand = computed(() => ({
   forwarderShipping: sum(items.value, 'forwarderShipping'),
   receivedRmb: sum(items.value, 'receivedRmb'),
   salesRmb: sum(items.value, 'salesRmb'),
+  freightDiff: sumBy(items.value, freightDiffOf),
   salary: sumSalary(items.value),
 }));
 
@@ -874,6 +885,7 @@ const openForward = () => {
             <col class="w-28" />
             <col class="w-28" />
             <col class="w-28" />
+            <col class="w-28" />
             <col class="w-36" />
             <col class="w-40" />
             <col class="w-28" />
@@ -925,6 +937,9 @@ const openForward = () => {
               </th>
               <th class="py-2 pl-1 pr-2 font-medium text-right">
                 {{ t('CRM.COMMISSION.COLS.SALES_RMB') }}
+              </th>
+              <th class="py-2 pl-1 pr-2 font-medium text-right">
+                {{ t('CRM.COMMISSION.COLS.FREIGHT_DIFF') }}
               </th>
               <th class="px-1 py-2 font-medium text-left">
                 {{ t('CRM.COMMISSION.COLS.CHANNEL') }}
@@ -1057,6 +1072,9 @@ const openForward = () => {
                   class="w-full h-8 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
+              <td class="pl-1 pr-2 py-1 text-right tabular-nums text-n-slate-11">
+                {{ fmtYuan2(freightDiffOf(r)) }}
+              </td>
               <td class="px-1 py-1">
                 <input
                   v-model="r.paymentChannel"
@@ -1125,7 +1143,7 @@ const openForward = () => {
               </td>
             </tr>
             <tr v-if="!items.length">
-              <td colspan="24" class="px-3 py-6 text-center text-n-slate-10">
+              <td colspan="25" class="px-3 py-6 text-center text-n-slate-10">
                 {{ t('CRM.COMMISSION.DETAIL.NO_ITEMS_EDIT') }}
               </td>
             </tr>
@@ -1201,6 +1219,9 @@ const openForward = () => {
                 <th class="px-2 py-2 font-medium text-right">
                   {{ t('CRM.COMMISSION.COLS.SALES_RMB') }}
                 </th>
+                <th class="px-2 py-2 font-medium text-right">
+                  {{ t('CRM.COMMISSION.COLS.FREIGHT_DIFF') }}
+                </th>
                 <th class="px-2 py-2 font-medium text-left">
                   {{ t('CRM.COMMISSION.COLS.CHANNEL') }}
                 </th>
@@ -1274,6 +1295,9 @@ const openForward = () => {
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(r.salesRmb) }}
                   </td>
+                  <td class="px-2 py-1.5 text-right tabular-nums">
+                    {{ fmtYuan2(freightDiffOf(r)) }}
+                  </td>
                   <td class="px-2 py-1.5">{{ r.paymentChannel || '—' }}</td>
                   <td class="px-2 py-1.5">{{ r.paymentDate || '—' }}</td>
                   <td class="px-2 py-1.5">{{ r.product || '—' }}</td>
@@ -1315,6 +1339,9 @@ const openForward = () => {
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(sum(g.rows, 'salesRmb')) }}
                   </td>
+                  <td class="px-2 py-1.5 text-right tabular-nums">
+                    {{ fmtYuan2(sumBy(g.rows, freightDiffOf)) }}
+                  </td>
                   <td colspan="8" />
                   <td class="px-2 py-1.5 text-right tabular-nums">
                     {{ fmtYuan2(sumSalary(g.rows)) }}
@@ -1322,7 +1349,7 @@ const openForward = () => {
                 </tr>
               </template>
               <tr v-if="!items.length">
-                <td colspan="23" class="px-3 py-6 text-center text-n-slate-10">
+                <td colspan="24" class="px-3 py-6 text-center text-n-slate-10">
                   {{ t('CRM.COMMISSION.DETAIL.NO_ITEMS') }}
                 </td>
               </tr>
@@ -1346,6 +1373,9 @@ const openForward = () => {
                 </td>
                 <td class="px-2 py-2 text-right tabular-nums">
                   {{ fmtYuan2(grand.salesRmb) }}
+                </td>
+                <td class="px-2 py-2 text-right tabular-nums">
+                  {{ fmtYuan2(grand.freightDiff) }}
                 </td>
                 <td colspan="8" />
                 <td class="px-2 py-2 text-right tabular-nums">

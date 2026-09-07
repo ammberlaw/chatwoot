@@ -114,6 +114,7 @@
         "RATE": "汇率",
         "RECEIVED_RMB": "收款¥",
         "SALES_RMB": "销售¥",
+        "FREIGHT_DIFF": "运费差额",
         "CHANNEL": "汇款途径",
         "PAY_DATE": "到款日",
         "PRODUCT": "产品",

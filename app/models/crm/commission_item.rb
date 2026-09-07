@@ -49,14 +49,26 @@ class Crm::CommissionItem < ApplicationRecord
   # 对公时可选的增值税点（每行手选）；默认 13。
   TAX_RATES = [13, 11].freeze
 
-  # 提成基数（微分）：对公则销售额RMB ÷(1+税点%)，否则即销售额RMB。销售额RMB 未填则为 nil。
+  # 运费额RMB（微分，不单独展示）：向客户收的运费 × 汇率。运费或汇率缺失记 0。
+  def freight_rmb_micros
+    return 0 if shipping_micros.nil? || exchange_rate.nil?
+
+    (shipping_micros.to_i * exchange_rate).round
+  end
+
+  # 运费差额（微分）：运费额RMB − 货代实收运费(付货代成本) = 运费利润。计入提成基数（全额，不除税）。
+  def freight_diff_micros
+    freight_rmb_micros - forwarder_shipping_micros.to_i
+  end
+
+  # 提成基数（微分）：销售额RMB + 运费差额，对公再整体 ÷(1+税点%)（运费差额与销售额同税口径）。
+  # 销售额RMB 未填则为 nil。
   def commission_base_micros
     return nil if sales_rmb_micros.nil?
 
-    base = sales_rmb_micros.to_i
-    return base unless is_public_receipt
-
-    (base / (1 + tax_rate.to_f / 100)).round
+    base = sales_rmb_micros.to_i + freight_diff_micros
+    base = (base / (1 + tax_rate.to_f / 100)).round if is_public_receipt
+    base
   end
 
   # 提成工资（微分）= 提成基数 × 提成点% / 100。基数空或点位为 0 则为 nil。
