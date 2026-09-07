@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { useElementSize } from '@vueuse/core';
@@ -9,6 +9,9 @@ import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
 import ConversationCallButton from './ConversationCallButton.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import ConversationTranslationAPI from 'dashboard/api/crm/conversationTranslation';
+import { TRANSLATE_LANGUAGES } from 'dashboard/helper/translationLanguages';
 import wootConstants from 'dashboard/constants/globals';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { snoozedReopenTime } from 'dashboard/helper/snoozeHelpers';
@@ -103,6 +106,41 @@ const copyConversationId = async () => {
     // error
   }
 };
+
+// ── 会话自动翻译：开关 + 对方语言（存 conversation.additional_attributes）──
+const translateLanguages = TRANSLATE_LANGUAGES;
+const autoTranslate = ref(true);
+const targetLanguage = ref('英语');
+
+const syncTranslateState = () => {
+  const attrs = currentChat.value?.additional_attributes || {};
+  autoTranslate.value = attrs.auto_translate !== false; // 未设置视为开
+  targetLanguage.value = attrs.target_language || '英语';
+};
+watch(() => currentChat.value?.id, syncTranslateState, { immediate: true });
+
+const persistTranslateSettings = async () => {
+  try {
+    await ConversationTranslationAPI.saveSettings(currentChat.value.id, {
+      autoTranslate: autoTranslate.value,
+      targetLanguage: targetLanguage.value,
+    });
+  } catch (error) {
+    useAlert(
+      error?.response?.data?.message ||
+        t('CONVERSATION.HEADER.TRANSLATE.SAVE_ERROR')
+    );
+  }
+};
+
+const toggleAutoTranslate = () => {
+  autoTranslate.value = !autoTranslate.value;
+  persistTranslateSettings();
+};
+
+const onTargetLanguageChange = () => {
+  persistTranslateSettings();
+};
 </script>
 
 <template>
@@ -172,6 +210,31 @@ const copyConversationId = async () => {
         :parent-width="width"
         class="hidden md:flex"
       />
+      <div class="flex items-center gap-1.5">
+        <button
+          v-tooltip.bottom="$t('CONVERSATION.HEADER.TRANSLATE.TOGGLE')"
+          type="button"
+          class="flex items-center justify-center h-8 gap-1 px-2 text-xs font-medium rounded-lg"
+          :class="
+            autoTranslate
+              ? 'bg-n-iris-3 text-n-iris-11'
+              : 'text-n-slate-11 hover:bg-n-alpha-2'
+          "
+          @click="toggleAutoTranslate"
+        >
+          <span class="i-lucide-languages size-4" />
+          {{ $t('CONVERSATION.HEADER.TRANSLATE.LABEL') }}
+        </button>
+        <SelectCard
+          v-if="autoTranslate"
+          v-model="targetLanguage"
+          align="right"
+          trigger-class="!h-8 w-32 text-xs"
+          :options="translateLanguages"
+          :placeholder="$t('CONVERSATION.HEADER.TRANSLATE.LANG_PLACEHOLDER')"
+          @update:model-value="onTargetLanguageChange"
+        />
+      </div>
       <ConversationCallButton :inbox="inbox" :chat="currentChat" />
       <MoreActions :conversation-id="currentChat.id" />
     </div>

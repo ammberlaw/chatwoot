@@ -171,6 +171,9 @@ Rails.application.routes.draw do
             post 'ai/compose', to: 'ai#compose'
             post 'ai/translate', to: 'ai#translate'
             post 'ai/summarize', to: 'ai#summarize'
+            # 会话自动翻译：保存会话级开关/对方语言 + 外发中文译成对方语言。
+            patch 'conversation_translation/:conversation_id/settings', to: 'conversation_translation#settings'
+            post 'conversation_translation/:conversation_id/translate', to: 'conversation_translation#translate'
             post 'ai/suggest', to: 'ai#suggest'
             post 'ai/ask', to: 'ai#ask'
             # 客服分配设置：管理收件箱协作者（会话「分配客服代表」可选的人）。

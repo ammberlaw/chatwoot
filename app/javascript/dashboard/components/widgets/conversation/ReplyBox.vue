@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useTrack } from 'dashboard/composables';
 import keyboardEventListenerMixins from 'shared/mixins/keyboardEventListenerMixins';
+import ConversationTranslationAPI from 'dashboard/api/crm/conversationTranslation';
 
 import ReplyToMessage from './ReplyToMessage.vue';
 import AttachmentPreview from 'dashboard/components/widgets/AttachmentsPreview.vue';
@@ -113,6 +114,7 @@ export default {
       message: '',
       inReplyTo: {},
       isFocused: false,
+      isTranslatingOutgoing: false,
       showEmojiPicker: false,
       attachedFiles: [],
       isRecordingAudio: false,
@@ -330,6 +332,12 @@ export default {
     },
     isOnPrivateNote() {
       return this.replyType === REPLY_EDITOR_MODES.NOTE;
+    },
+    // 外发自动翻译：会话开了翻译、非私密备注、非邮件渠道时，发送前把中文译成对方语言。
+    shouldAutoTranslateOutgoing() {
+      if (this.isPrivate || this.isAnEmailChannel) return false;
+      const attrs = this.currentChat?.additional_attributes || {};
+      return attrs.auto_translate !== false;
     },
     isOnExpandedLayout() {
       const {
@@ -697,6 +705,24 @@ export default {
           },
           allowOnFocusedInput: true,
         },
+        // Shift+Enter：发原文不翻译（会话开了自动翻译时用）。
+        'Shift+Enter': {
+          action: e => {
+            if (
+              this.showUserMentions ||
+              this.showMentions ||
+              this.showCannedMenu ||
+              this.showVariablesMenu ||
+              !this.isFocused ||
+              !this.shouldAutoTranslateOutgoing
+            ) {
+              return;
+            }
+            e.preventDefault();
+            this.onSendReply({ raw: true });
+          },
+          allowOnFocusedInput: true,
+        },
       };
     },
     isAValidEvent(selectedKey) {
@@ -765,11 +791,22 @@ export default {
     hideContentTemplatesModal() {
       this.showContentTemplatesModal = false;
     },
-    confirmOnSendReply() {
+    async confirmOnSendReply(options = {}) {
       if (this.isReplyButtonDisabled) {
         return;
       }
       if (!this.showMentions) {
+        // 自动翻译：把中文草稿译成对方语言后发送；Shift+Enter(raw) 发原文不译。
+        if (
+          !options.raw &&
+          this.shouldAutoTranslateOutgoing &&
+          this.message &&
+          this.message.trim()
+        ) {
+          const translated = await this.translateOutgoingMessage(this.message);
+          if (translated === null) return; // 翻译失败：中止，用户可重试或 Shift+Enter 发原文
+          this.message = translated;
+        }
         const copilotAcceptedMessage = this.getCopilotAcceptedMessage();
         const isOnWhatsApp =
           this.isATwilioWhatsAppChannel ||
@@ -859,7 +896,7 @@ export default {
             hasReplyTo: !!this.inReplyTo?.id,
           });
     },
-    async onSendReply() {
+    async onSendReply(options = {}) {
       const undefinedVariables = getUndefinedVariablesInMessage({
         message: this.message,
         variables: this.messageVariables,
@@ -877,10 +914,30 @@ export default {
 
         const ok = await this.$refs.confirmDialog.showConfirmation();
         if (ok) {
-          this.confirmOnSendReply();
+          this.confirmOnSendReply(options);
         }
       } else {
-        this.confirmOnSendReply();
+        this.confirmOnSendReply(options);
+      }
+    },
+    // 外发翻译：把中文草稿译成对方语言。失败返回 null（中止发送），空结果回退原文。
+    async translateOutgoingMessage(text) {
+      if (this.isTranslatingOutgoing) return null;
+      try {
+        this.isTranslatingOutgoing = true;
+        const { data } = await ConversationTranslationAPI.translate(
+          this.currentChat.id,
+          text
+        );
+        return data.content && data.content.trim() ? data.content : text;
+      } catch (error) {
+        useAlert(
+          error?.response?.data?.message ||
+            this.$t('CONVERSATION.REPLYBOX.TRANSLATE_FAILED')
+        );
+        return null;
+      } finally {
+        this.isTranslatingOutgoing = false;
       }
     },
     async sendMessage(

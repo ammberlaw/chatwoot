@@ -98,6 +98,12 @@
       "TRANSCRIPT_SHOW_LESS": "Show less"
     },
     "HEADER": {
+      "TRANSLATE": {
+        "LABEL": "翻译",
+        "TOGGLE": "自动翻译：收到的消息自动译成中文；回车把中文译成对方语言后发送",
+        "LANG_PLACEHOLDER": "对方语言",
+        "SAVE_ERROR": "翻译设置保存失败"
+      },
       "RESOLVE_ACTION": "Resolve",
       "REOPEN_ACTION": "Reopen",
       "OPEN_ACTION": "Open",
@@ -219,6 +225,7 @@
       "WHATSAPP_TEMPLATES": "Whatsapp Templates"
     },
     "REPLYBOX": {
+      "TRANSLATE_FAILED": "翻译失败，可重试或按 Shift+Enter 发原文",
       "REPLY": "Reply",
       "PRIVATE_NOTE": "Private Note",
       "SEND": "Send",
