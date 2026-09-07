@@ -1,0 +1,29 @@
+// 直接复用主仓的 next-colors 变量定义（--iris-3 等），
+// 这样 n-iris-* / n-slate-* 这些 Tailwind 色名在 App 里与网页端完全一致。
+@import '../../app/javascript/dashboard/assets/scss/next-colors';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #app {
+    @apply h-full;
+  }
+  body {
+    @apply font-sans antialiased bg-n-background text-n-slate-12;
+    // 原生 App 观感：禁长按系统菜单、禁选中、禁橡皮筋过度滚动
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    overscroll-behavior: none;
+  }
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
