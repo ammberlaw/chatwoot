@@ -1194,6 +1194,7 @@
       "TWITTER_PROFILE": "Twitter",
       "TWILIO_SMS": "Twilio SMS",
       "WHATSAPP": "WhatsApp",
+      "WHATSAPP_WEB": "WhatsApp（个人号）",
       "SMS": "SMS",
       "EMAIL": "Email",
       "TELEGRAM": "Telegram",

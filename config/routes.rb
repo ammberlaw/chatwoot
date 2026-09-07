@@ -179,6 +179,11 @@ Rails.application.routes.draw do
             # 客户 AI 背调：输入邮箱/域名/网址→抓官网 + Apollo 概况；公司名先搜候选。
             post 'ai/company_lookup', to: 'ai#company_lookup'
             post 'ai/company_search', to: 'ai#company_search'
+            # 业务员个人 WhatsApp 号(WhatsApp Web/Baileys)绑定：扫码/状态/解绑。
+            get 'whatsapp_web', to: 'whatsapp_web#show'
+            post 'whatsapp_web/connect', to: 'whatsapp_web#connect'
+            get 'whatsapp_web/status', to: 'whatsapp_web#status'
+            delete 'whatsapp_web', to: 'whatsapp_web#logout'
             resources :emails do
               collection do
                 get :counts
@@ -1109,6 +1114,9 @@ Rails.application.routes.draw do
   post 'webhooks/sms/:phone_number', to: 'webhooks/sms#process_payload'
   get 'webhooks/whatsapp/:phone_number', to: 'webhooks/whatsapp#verify'
   post 'webhooks/whatsapp/:phone_number', to: 'webhooks/whatsapp#process_payload'
+  post 'webhooks/whatsapp_web', to: 'webhooks/whatsapp_web#process_payload'
+  post 'webhooks/whatsapp_web/status', to: 'webhooks/whatsapp_web#status'
+  post 'webhooks/whatsapp_web/receipt', to: 'webhooks/whatsapp_web#receipt'
   get 'webhooks/instagram', to: 'webhooks/instagram#verify'
   post 'webhooks/instagram', to: 'webhooks/instagram#events'
   post 'webhooks/tiktok', to: 'webhooks/tiktok#events'

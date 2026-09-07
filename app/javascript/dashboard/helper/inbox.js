@@ -4,6 +4,7 @@ export const INBOX_TYPES = {
   TWITTER: 'Channel::TwitterProfile',
   TWILIO: 'Channel::TwilioSms',
   WHATSAPP: 'Channel::Whatsapp',
+  WHATSAPP_WEB: 'Channel::WhatsappWeb',
   API: 'Channel::Api',
   EMAIL: 'Channel::Email',
   TELEGRAM: 'Channel::Telegram',
@@ -65,6 +66,7 @@ const INBOX_ICON_MAP_FILL = {
   [INBOX_TYPES.FB]: 'i-ri-messenger-fill',
   [INBOX_TYPES.TWITTER]: 'i-ri-twitter-x-fill',
   [INBOX_TYPES.WHATSAPP]: 'i-ri-whatsapp-fill',
+  [INBOX_TYPES.WHATSAPP_WEB]: 'i-ri-whatsapp-fill',
   [INBOX_TYPES.API]: 'i-ri-cloudy-fill',
   [INBOX_TYPES.EMAIL]: 'i-ri-mail-fill',
   [INBOX_TYPES.TELEGRAM]: 'i-ri-telegram-fill',
@@ -80,6 +82,7 @@ const INBOX_ICON_MAP_LINE = {
   [INBOX_TYPES.FB]: 'i-woot-messenger',
   [INBOX_TYPES.TWITTER]: 'i-woot-x',
   [INBOX_TYPES.WHATSAPP]: 'i-woot-whatsapp',
+  [INBOX_TYPES.WHATSAPP_WEB]: 'i-woot-whatsapp',
   [INBOX_TYPES.API]: 'i-woot-api',
   [INBOX_TYPES.EMAIL]: 'i-woot-mail',
   [INBOX_TYPES.TELEGRAM]: 'i-woot-telegram',
@@ -121,6 +124,7 @@ export const getReadableInboxByType = (type, phoneNumber) => {
       return phoneNumber?.startsWith('whatsapp') ? 'whatsapp' : 'sms';
 
     case INBOX_TYPES.WHATSAPP:
+    case INBOX_TYPES.WHATSAPP_WEB:
       return 'whatsapp';
 
     case INBOX_TYPES.API:
@@ -157,6 +161,7 @@ export const getInboxClassByType = (type, phoneNumber) => {
         : 'brand-sms';
 
     case INBOX_TYPES.WHATSAPP:
+    case INBOX_TYPES.WHATSAPP_WEB:
       return 'brand-whatsapp';
 
     case INBOX_TYPES.API:

@@ -14,6 +14,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import CrmSignatureEditor from 'dashboard/components-next/CRM/CrmSignatureEditor.vue';
 import CrmSignatureGenerator from 'dashboard/components-next/CRM/CrmSignatureGenerator.vue';
+import CrmWhatsappWebBinding from 'dashboard/components-next/CRM/CrmWhatsappWebBinding.vue';
 
 const { t } = useI18n();
 const store = useCrmMailAccountsStore();
@@ -86,6 +87,9 @@ const L = {
   sigEditTitle: '编辑签名',
   sigCreateTitle: '新建签名',
   sigDeleteConfirm: '确定删除该签名？',
+  // 我的 WhatsApp
+  waTitle: '我的 WhatsApp',
+  waHint: '绑定你的个人 WhatsApp 号，客户消息会直接进入 CRM 会话。',
 };
 
 const receiveOptions = [
@@ -553,6 +557,15 @@ onMounted(() => {
             </p>
           </div>
         </div>
+      </div>
+
+      <!-- 我的 WhatsApp -->
+      <div class="pt-6 mt-6 border-t border-n-weak">
+        <div class="mb-3 min-w-0">
+          <h2 class="text-base font-medium text-n-slate-12">{{ L.waTitle }}</h2>
+          <p class="mt-0.5 text-xs text-n-slate-10">{{ L.waHint }}</p>
+        </div>
+        <CrmWhatsappWebBinding />
       </div>
     </div>
 
