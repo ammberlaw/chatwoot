@@ -6,6 +6,7 @@ import {
   ExceptionWithMessage,
 } from 'shared/helpers/CustomErrors';
 import { dynamicTime } from 'shared/helpers/timeHelper';
+import { countryFromPhone } from 'dashboard/helper/phoneCountry';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 import ContactInfoRow from './ContactInfoRow.vue';
 import Avatar from 'next/avatar/Avatar.vue';
@@ -75,6 +76,11 @@ export default {
       const cityAndCountry = [city, country].filter(item => !!item).join(', ');
 
       if (!cityAndCountry) {
+        // 无 IP 定位(如 WhatsApp 客户)时,用手机号推断国家。
+        const fromPhone = countryFromPhone(this.contact.phone_number);
+        if (fromPhone) {
+          return this.findCountryFlag(fromPhone.code, fromPhone.name);
+        }
         return '';
       }
       return this.findCountryFlag(countryCode, cityAndCountry);

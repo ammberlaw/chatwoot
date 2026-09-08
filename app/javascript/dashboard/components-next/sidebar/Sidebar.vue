@@ -444,27 +444,21 @@ const buildInboxLeaf = inbox => ({
     }),
 });
 
-// 「频道」子节点:普通渠道平铺,业务员个人 WhatsApp 号多且杂,收进一个可折叠子分组避免刷屏。
-const channelChildren = computed(() => {
-  const waInboxes = sortedInboxes.value.filter(
-    inbox => inbox.channel_type === 'Channel::WhatsappWeb'
-  );
-  const otherInboxes = sortedInboxes.value.filter(
-    inbox => inbox.channel_type !== 'Channel::WhatsappWeb'
-  );
-  const children = otherInboxes.map(buildInboxLeaf);
-  if (waInboxes.length) {
-    children.push({
-      name: 'whatsapp-web-group',
-      label: `WhatsApp (${waInboxes.length})`,
-      icon: 'i-ri-whatsapp-fill',
-      collapsible: true,
-      showTreeLine: true,
-      children: waInboxes.map(buildInboxLeaf),
-    });
-  }
-  return children;
-});
+// 「频道」子节点:普通渠道平铺。业务员个人 WhatsApp 号多且杂,单独拆成与「频道」平级的
+// 可折叠分组(见下 whatsappChildren)避免刷屏——不能作为「频道」的子分组嵌套,
+// 因为侧栏 SidebarSubGroup 不支持三层嵌套(会把子分组当无路由叶子,点了没反应)。
+const channelChildren = computed(() =>
+  sortedInboxes.value
+    .filter(inbox => inbox.channel_type !== 'Channel::WhatsappWeb')
+    .map(buildInboxLeaf)
+);
+
+// 个人 WhatsApp 号:每个号一个收件箱叶子,收进独立可折叠分组。
+const whatsappChildren = computed(() =>
+  sortedInboxes.value
+    .filter(inbox => inbox.channel_type === 'Channel::WhatsappWeb')
+    .map(buildInboxLeaf)
+);
 
 const closeMobileSidebar = () => {
   if (!props.isMobileSidebarOpen) return;
@@ -603,6 +597,20 @@ const menuItems = computed(() => {
             showTreeLine: true,
             children: channelChildren.value,
           },
+          // 与「频道」平级的独立 WhatsApp 分组(号多时可折叠,避免刷屏)。
+          ...(whatsappChildren.value.length
+            ? [
+                {
+                  name: 'WhatsAppChannels',
+                  label: `WhatsApp (${whatsappChildren.value.length})`,
+                  icon: 'i-ri-whatsapp-fill',
+                  activeOn: ['conversation_through_inbox'],
+                  collapsible: true,
+                  showTreeLine: true,
+                  children: whatsappChildren.value,
+                },
+              ]
+            : []),
           {
             name: 'Labels',
             label: t('SIDEBAR.LABELS'),

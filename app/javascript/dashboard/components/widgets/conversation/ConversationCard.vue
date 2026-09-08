@@ -13,6 +13,8 @@ import VoiceCallStatus from './VoiceCallStatus.vue';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import { sourcePillClass } from 'dashboard/helper/crmSourcePill';
+import { countryFromPhone } from 'dashboard/helper/phoneCountry';
+import Flag from 'dashboard/components-next/flag/Flag.vue';
 
 const props = defineProps({
   chat: { type: Object, required: true },
@@ -49,6 +51,11 @@ const sourceTags = computed(() => {
     cls: sourcePillClass(code),
   }));
 });
+
+// 客户手机号 → 国家(WhatsApp 等带号码的会话):名字前显示国旗。
+const phoneCountry = computed(() =>
+  countryFromPhone(props.currentContact?.phone_number)
+);
 
 const unreadCount = computed(() => props.chat.unread_count);
 const hasUnread = computed(() => unreadCount.value > 0);
@@ -188,6 +195,12 @@ watch(
         class="conversation--user text-sm my-0 mx-2 capitalize pt-0.5 text-ellipsis overflow-hidden whitespace-nowrap flex-1 min-w-0 ltr:pr-16 rtl:pl-16 text-n-slate-12"
         :class="hasUnread ? 'font-semibold' : 'font-medium'"
       >
+        <Flag
+          v-if="phoneCountry"
+          :country="phoneCountry.iso"
+          :title="phoneCountry.name"
+          class="!w-4 !h-3 rounded-[2px] align-middle inline-block ltr:mr-1 rtl:ml-1 shadow-sm"
+        />
         {{ currentContact.name }}
       </h4>
       <VoiceCallStatus

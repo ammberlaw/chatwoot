@@ -421,11 +421,19 @@ const MES_ROLE_OPTIONS = [
   { value: 'warehouse', label: '仓管' },
   { value: 'production', label: '生产' },
 ];
-const onMesRoleChange = async (member, value) => {
+// MES 多岗:一人可兼多个角色(如仓管+生产)。胶囊可多选,不选=只读。
+const MES_ROLE_CHIPS = MES_ROLE_OPTIONS.filter(o => o.value);
+const memberMesRoles = member =>
+  Array.isArray(member.mes_roles) ? member.mes_roles : [];
+
+const toggleMesRole = async (member, roleValue) => {
+  const current = new Set(memberMesRoles(member));
+  if (current.has(roleValue)) current.delete(roleValue);
+  else current.add(roleValue);
   savingId.value = member.id;
   try {
     const { data } = await MembersAPI.update(member.id, {
-      member: { mes_role: value || '' },
+      member: { mes_roles: [...current] },
     });
     Object.assign(member, data);
     useAlert(L.saved);
@@ -655,27 +663,35 @@ onMounted(() => {
             />
           </div>
 
-          <!-- MES 角色 -->
-          <div class="flex items-center gap-4">
-            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
+          <!-- MES 角色（可多选，一人兼多岗） -->
+          <div class="flex items-start gap-4">
+            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11 pt-1.5">
               MES 角色
             </span>
             <span
               v-if="selectedMember.is_admin"
-              class="text-sm text-n-slate-10"
+              class="text-sm text-n-slate-10 pt-1.5"
             >
               全部
             </span>
-            <Select
-              v-else
-              class="flex-1"
-              :model-value="selectedMember.mes_role || ''"
-              :options="MES_ROLE_OPTIONS"
-              :disabled="savingId === selectedMember.id"
-              @update:model-value="
-                value => onMesRoleChange(selectedMember, value)
-              "
-            />
+            <div v-else class="flex-1 flex flex-wrap items-center gap-1.5">
+              <button
+                v-for="opt in MES_ROLE_CHIPS"
+                :key="opt.value"
+                type="button"
+                :disabled="savingId === selectedMember.id"
+                class="h-7 px-2.5 rounded-full text-xs font-medium border transition-colors disabled:opacity-50"
+                :class="
+                  memberMesRoles(selectedMember).includes(opt.value)
+                    ? 'bg-n-iris-9 text-white border-n-iris-9'
+                    : 'bg-n-alpha-1 text-n-slate-11 border-n-weak hover:bg-n-alpha-2'
+                "
+                @click="toggleMesRole(selectedMember, opt.value)"
+              >
+                {{ opt.label }}
+              </button>
+              <span class="ml-1 text-xs text-n-slate-10">不选=只读</span>
+            </div>
           </div>
 
           <!-- 财务身份：可查看全员已通过提成表 + 导出，与业务员身份叠加。管理员天然具备。 -->

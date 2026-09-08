@@ -22,6 +22,7 @@ import {
 } from './helper/pushHelper';
 import ReconnectService from 'dashboard/helper/ReconnectService';
 import { useUISettings } from 'dashboard/composables/useUISettings';
+import { useIdleLogout } from 'dashboard/composables/useIdleLogout';
 
 export default {
   name: 'App',
@@ -42,6 +43,8 @@ export default {
     // Use the font size composable (it automatically sets up the watcher)
     const { currentFontSize } = useFontSize();
     const { uiSettings } = useUISettings();
+    // 空闲 8 小时自动登出(安全:避免会话长期不退出)
+    useIdleLogout();
 
     return {
       router,

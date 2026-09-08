@@ -51,7 +51,7 @@ const productionOrders = ref([]);
 const RECORD_ELIGIBLE_STAGES = ['PICKING', 'PRODUCTION', 'FG_INBOUND'];
 const eligibleOrders = computed(() =>
   productionOrders.value.filter(
-    p => !p.isOutsourced && RECORD_ELIGIBLE_STAGES.includes(p.stage)
+    p => !p.is_outsourced && RECORD_ELIGIBLE_STAGES.includes(p.stage)
   )
 );
 const productionOrderOptions = computed(() => [
@@ -101,7 +101,8 @@ watch(
 const fetchOrders = async () => {
   try {
     const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/production_orders`
+      `/api/v1/accounts/${accountId.value}/mes/production_orders`,
+      { params: { per_page: 500 } }
     );
     productionOrders.value = data?.payload || [];
   } catch {
@@ -348,6 +349,13 @@ onMounted(() => {
             :options="productionOrderOptions"
             @update:model-value="v => (form.productionOrderId = v)"
           />
+          <span
+            v-if="!eligibleOrders.length"
+            class="text-xs text-n-amber-11 leading-snug"
+          >
+            暂无可报工订单：报工需订单已进入「生产领料」阶段，请先在「生产
+            → 生产领料」把对应领料单点「过账」。
+          </span>
           <span v-if="selectedOrder" class="text-xs text-n-slate-11">
             当前进度：{{ selectedOrder.produced_qty }} / {{ selectedOrder.qty }}
             {{ selectedOrder.unit }}
