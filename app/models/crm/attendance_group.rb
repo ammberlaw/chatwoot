@@ -78,7 +78,7 @@ class Crm::AttendanceGroup < ApplicationRecord
   # 打卡地点校验：命中「办公网络 IP」或「GPS 在围栏内」任一即通过。
   def location_ok?(lat:, lng:, ip:)
     return true unless location_required?
-    return true if ip_enabled? && ip.present? && allowed_ips.include?(ip.to_s)
+    return true if ip_enabled? && ip.present? && ip_allowed?(ip.to_s)
     if geo_enabled? && office_lat && office_lng && lat.present? && lng.present?
       return true if distance_meters(lat.to_f, lng.to_f, office_lat.to_f, office_lng.to_f) <= geo_radius_m
     end
@@ -97,6 +97,19 @@ class Crm::AttendanceGroup < ApplicationRecord
   end
 
   private
+
+  # 办公网络 IP 校验：白名单条目支持精确 IP,也支持 CIDR 网段(如 113.110.146.0/23),
+  # 应对 ISP 动态出口 IP 在同一段内轮换。非法条目自动跳过。
+  def ip_allowed?(ip)
+    client = IPAddr.new(ip)
+    allowed_ips.reject(&:blank?).any? do |entry|
+      IPAddr.new(entry.to_s.strip).include?(client)
+    rescue IPAddr::InvalidAddressError, IPAddr::AddressFamilyError
+      false
+    end
+  rescue IPAddr::InvalidAddressError, IPAddr::AddressFamilyError
+    false
+  end
 
   def geo_needs_office_coords
     return unless geo_enabled? && (office_lat.blank? || office_lng.blank?)
