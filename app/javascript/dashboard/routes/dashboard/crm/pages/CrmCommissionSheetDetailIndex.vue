@@ -197,7 +197,8 @@ const fillRmb = () => {
     const recv = Number(r.receivedAmount) || 0;
     const ship = Number(r.shipping) || 0;
     r.receivedRmb = Math.round(recv * rate * 100) / 100;
-    r.salesRmb = Math.round((recv - ship) * rate * 100) / 100;
+    // 未到款（收款额为空/0）时销售额记 0，不从零收款里倒扣运费变负数拉低合计。
+    r.salesRmb = recv ? Math.round((recv - ship) * rate * 100) / 100 : 0;
   });
 };
 

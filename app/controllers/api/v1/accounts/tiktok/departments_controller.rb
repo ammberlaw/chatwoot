@@ -1,10 +1,15 @@
-# TikTok 部门管理（团队式：负责人+成员）。仅管理员/副管理员。
+# TikTok 部门管理（团队式：负责人+成员）。建/改/删仅管理员/副管理员；
+# 列表任何 TK 成员可读（供利润表/看板的部门筛选下拉用），按可见部门收口。
 class Api::V1::Accounts::Tiktok::DepartmentsController < Api::V1::Accounts::Tiktok::BaseController
-  before_action :ensure_manage
+  before_action :ensure_manage, except: %i[index]
   before_action :fetch_department, only: %i[update destroy]
 
+  # 部门负责人/成员只看到自己负责或所属的部门；管理层/财务看全部。
   def index
-    @departments = Current.account.tiktok_departments.includes(:leader, :members, :shops).order(:name)
+    scope = Current.account.tiktok_departments.includes(:leader, :members, :shops)
+    ids = tiktok_scope.visible_department_ids
+    scope = scope.where(id: ids) unless ids == :all
+    @departments = scope.order(:name)
   end
 
   def create
