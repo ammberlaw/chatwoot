@@ -223,6 +223,9 @@ const submit = async () => {
   if (!form.value.shopId) return useAlert('请选择店铺');
   if (!form.value.productModel.trim()) return useAlert('请填写产品型号');
   const payload = { ...form.value };
+  // 达人/平台佣金选填：留空按 0 计，避免空串写入 decimal 列。
+  payload.influencerCommission = num(form.value.influencerCommission);
+  payload.platformCommission = num(form.value.platformCommission);
   // 丢掉没填名称的空费用行。
   payload.extraExpenses = (form.value.extraExpenses || [])
     .filter(e => e.name && e.name.trim())
@@ -622,7 +625,7 @@ onMounted(async () => {
             />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">达人佣金 (CNY)</span>
+            <span class="text-xs text-n-slate-11">达人佣金 (CNY，选填)</span>
             <input
               v-model.number="form.influencerCommission"
               type="number"
@@ -632,7 +635,7 @@ onMounted(async () => {
             />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">平台佣金 (CNY)</span>
+            <span class="text-xs text-n-slate-11">平台佣金 (CNY，选填)</span>
             <input
               v-model.number="form.platformCommission"
               type="number"

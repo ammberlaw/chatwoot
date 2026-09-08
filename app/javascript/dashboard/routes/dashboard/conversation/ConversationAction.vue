@@ -75,6 +75,13 @@ export default {
       currentUser: 'getCurrentUser',
       teams: 'teams/getTeams',
     }),
+    // 分配（客服代表/团队）仅管理员可用：超级管理员或副管理员(crm_role=deputy_admin)。
+    isAdminLike() {
+      return (
+        this.currentUser?.role === 'administrator' ||
+        this.currentUser?.crm_role === 'deputy_admin'
+      );
+    },
     hasAnAssignedTeam() {
       return !!this.currentChat?.meta?.team;
     },
@@ -248,7 +255,8 @@ export default {
 
 <template>
   <div>
-    <div>
+    <!-- 分配（客服代表/团队）仅管理员可用；业务员的个人号无需分配功能 -->
+    <div v-if="isAdminLike">
       <ContactDetailsItem
         compact
         :title="$t('CONVERSATION_SIDEBAR.ASSIGNEE_LABEL')"
@@ -279,7 +287,7 @@ export default {
         @select="onClickAssignAgent"
       />
     </div>
-    <div>
+    <div v-if="isAdminLike">
       <ContactDetailsItem
         compact
         :title="$t('CONVERSATION_SIDEBAR.TEAM_LABEL')"

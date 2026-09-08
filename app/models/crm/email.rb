@@ -67,6 +67,9 @@ class Crm::Email < ApplicationRecord
   FOLDERS = %w[INBOX SENT DRAFT BULK SPAM].freeze
   # SCHEDULED：定时发送，待 scheduled_at 到点由 DispatchScheduledEmailsJob 转 PENDING。
   SEND_STATUSES = %w[DRAFT SCHEDULED PENDING SENT FAILED].freeze
+  # 邮件正文上限（含内联样式/富文本，体积远超普通字段）。收信入库截断与模型校验共用此值，
+  # 别再各自写死不同数字（曾出现入库按 2 万截、校验放到 20 万、长邮件被腰斩）。
+  BODY_MAX_LENGTH = 200_000
 
   belongs_to :account
   belongs_to :crm_customer, class_name: 'Crm::Customer', optional: true
@@ -82,8 +85,8 @@ class Crm::Email < ApplicationRecord
   validates :folder, inclusion: { in: FOLDERS }
   validates :send_status, inclusion: { in: SEND_STATUSES }
   # 邮件正文（含内联样式签名/富文本）体积远超普通字段，显式放宽以跳过全局 20000 text 上限。
-  validates :body, length: { maximum: 200_000 }
-  validates :body_html, length: { maximum: 200_000 }
+  validates :body, length: { maximum: BODY_MAX_LENGTH }
+  validates :body_html, length: { maximum: BODY_MAX_LENGTH }
 
   # 发送触发（对应 Twenty send-email 的 DB 事件）：send_now 归一为 PENDING，
   # 状态刚变成 PENDING 时入队 SMTP 发送；成功/失败由 EmailSendService 回写。

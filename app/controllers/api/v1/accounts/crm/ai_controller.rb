@@ -21,8 +21,11 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
   end
 
   # 整封翻译成中文：按邮件 id 取正文（优先纯文本，缺了剥 HTML）。
+  # 可翻译范围＝本人/团队可见 ∪ 分发给我的（被分发人虽非 owner 也能看，自然也能翻译）。
   def translate
-    email = visible_emails.find(params[:email_id])
+    email = readable_email(params[:email_id])
+    return render json: { message: '邮件不存在或无权查看' }, status: :not_found unless email
+
     text = email.body.presence || ActionController::Base.helpers.strip_tags(email.body_html.to_s)
     subject, body = service.translate(subject: email.subject, body: text)
     render json: { subject: subject, body: body }
@@ -94,6 +97,17 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
   # 可见范围与邮件列表同口径（邮件私密）：系统管理员看全员；CRM 团队负责人看本团队；其余只看自己。
   def visible_emails
     scope_by_mail_owner(Current.account.crm_emails)
+  end
+
+  # 单封邮件的可读判定：本人/团队可见 ∪ 被分发给我的（分发接收人非 owner 也能看该邮件）。
+  def readable_email(id)
+    visible_emails.find_by(id: id) || distributed_to_me_email(id)
+  end
+
+  def distributed_to_me_email(id)
+    return nil unless Current.account.crm_email_distributions.to_user(current_user.id).exists?(crm_email_id: id)
+
+    Current.account.crm_emails.find_by(id: id)
   end
 
   # 该域名在系统里是否已建档：total 为全账户命中数（供去重预警），visible 仅返回当前用户可见范围的详情

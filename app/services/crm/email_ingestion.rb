@@ -150,12 +150,12 @@ module Crm::EmailIngestion
     Crm::MailCharset.decoded(part)
   end
 
-  # 正文超出 text 列上限（ApplicationRecord::MAX_TEXT_COLUMN_LENGTH）时截断入库，
-  # 而非整封丢弃 —— 长 HTML 客户邮件仍要能收进来。
+  # 正文超出邮件正文上限（Crm::Email::BODY_MAX_LENGTH，与模型校验同值）时截断入库，
+  # 而非整封丢弃 —— 长 HTML 客户邮件仍要能收进来。别用全局 20000 text 上限（会腰斩长邮件）。
   def truncate_text(str)
     return str if str.nil?
 
-    limit = ApplicationRecord::MAX_TEXT_COLUMN_LENGTH
+    limit = Crm::Email::BODY_MAX_LENGTH
     return str if str.length <= limit
 
     "#{str[0, limit - 20]}\n…（内容过长，已截断）"

@@ -185,6 +185,13 @@ export default {
       currentUser: 'getCurrentUser',
       currentAccountId: 'getCurrentAccountId',
     }),
+    // 分配（客服代表/团队）仅管理员可用：超级管理员或副管理员(crm_role=deputy_admin)。
+    isAdminLike() {
+      return (
+        this.currentUser?.role === 'administrator' ||
+        this.currentUser?.crm_role === 'deputy_admin'
+      );
+    },
     filteredAgentOnAvailability() {
       const agents = this.$store.getters[
         'inboxAssignableAgents/getAssignableAgents'
@@ -352,7 +359,7 @@ export default {
         />
       </MenuItemWithSubmenu>
       <MenuItemWithSubmenu
-        v-if="isAllowed([MENU.AGENT])"
+        v-if="isAdminLike && isAllowed([MENU.AGENT])"
         :option="agentMenuConfig"
         :sub-menu-available="!!assignableAgents.length"
       >
@@ -368,7 +375,7 @@ export default {
         </template>
       </MenuItemWithSubmenu>
       <MenuItemWithSubmenu
-        v-if="isAllowed([MENU.TEAM])"
+        v-if="isAdminLike && isAllowed([MENU.TEAM])"
         :option="teamMenuConfig"
         :sub-menu-available="!!teams.length"
       >
