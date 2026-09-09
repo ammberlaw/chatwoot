@@ -59,8 +59,7 @@ const L = {
   scheduleTzLabel: '对应时区',
   scheduleTimeLabel: '对应时间',
   scheduleConfirm: '确定',
-  scheduledBanner:
-    '已加入定时发送队列，到点自动发送。可在「草稿箱」查看或删除。',
+  scheduleDiscard: '定时还没点「确定」，关闭将放弃本次定时设置。确定关闭吗？',
   needSchedule: '请选择定时时间',
   scheduleFuture: '定时时间需晚于当前时刻',
   preview: '预览',
@@ -1088,6 +1087,9 @@ const persist = async (forSend = false) => {
   } else {
     const record = await store.create(buildFields(forSend));
     id = record.id;
+    // 新建后立刻认领这条记录：否则同一个撰写窗里的后续操作（定时后又点发送、
+    // 连点两次存草稿）会被当成新邮件再建一条 —— 定时那封仍会到点自动发，收件人收到两封。
+    editId.value = id;
   }
   if (kbPicked.value.length) {
     await CrmEmailAPI.attachKb(
@@ -1255,12 +1257,8 @@ const minScheduleAt = computed(() => {
   const hour = parts.hour === '24' ? '00' : parts.hour;
   return `${parts.year}-${parts.month}-${parts.day}T${hour}:${parts.minute}`;
 });
-// 换算后对应用户本地时间的提示，方便判断“对方这个点你这边几点”。
-const scheduleLocalHint = computed(() => {
-  if (!scheduleAt.value) return '';
-  const when = zonedWallClockToUtc(scheduleAt.value, scheduleTz.value);
-  if (Number.isNaN(when.getTime())) return '';
-  const local = when.toLocaleString('zh-CN', {
+const localTimeText = when =>
+  when.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -1268,7 +1266,13 @@ const scheduleLocalHint = computed(() => {
     minute: '2-digit',
     hour12: false,
   });
-  return `= 你本地 ${local}`;
+
+// 换算后对应用户本地时间的提示，方便判断“对方这个点你这边几点”。
+const scheduleLocalHint = computed(() => {
+  if (!scheduleAt.value) return '';
+  const when = zonedWallClockToUtc(scheduleAt.value, scheduleTz.value);
+  if (Number.isNaN(when.getTime())) return '';
+  return `= 你本地 ${localTimeText(when)}`;
 });
 
 const scheduleSend = async () => {
@@ -1304,11 +1308,25 @@ const scheduleSend = async () => {
       scheduledAt: when.toISOString(),
     });
     showSchedule.value = false;
-    status.value = { state: 'scheduled', msg: '' };
     emit('refresh');
+    // 排期已落库，发送由服务器负责，撰写窗留着没意义还会诱导再点发送——直接关掉，
+    // 用 toast 回报换算成本地时间的发送时刻，便于当场核对时区选对没有。
+    useAlert(
+      `已定时：将于你本地 ${localTimeText(when)} 自动发送，可在「草稿箱」查看或删除`
+    );
+    visible.value = false;
+    reset();
   } catch (e) {
     status.value = { state: 'failed', msg: String(e?.message || e) };
   }
+};
+
+// 关闭定时弹窗：已选好时间还点遮罩/×，静默丢弃会让人以为已经排期（到点却没发），先确认。
+const closeSchedule = ({ confirm = false } = {}) => {
+  // eslint-disable-next-line no-alert
+  if (confirm && scheduleAt.value && !window.confirm(L.scheduleDiscard)) return;
+  showSchedule.value = false;
+  scheduleAt.value = '';
 };
 
 // ---- 开关 / 复位 ----
@@ -2108,12 +2126,6 @@ defineExpose({ open, close });
         {{ L.draftBanner }}
       </div>
       <div
-        v-else-if="status.state === 'scheduled'"
-        class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-iris-11 border-n-iris-7 bg-n-iris-2"
-      >
-        {{ L.scheduledBanner }}
-      </div>
-      <div
         v-else-if="status.state === 'failed'"
         class="px-3 py-2.5 mt-3 text-sm border rounded-lg text-n-ruby-11 border-n-ruby-7 bg-n-ruby-2"
       >
@@ -2125,7 +2137,7 @@ defineExpose({ open, close });
     <div
       v-if="showSchedule"
       class="fixed inset-0 z-10 flex items-center justify-center p-4 bg-black/40"
-      @click.self="showSchedule = false"
+      @click.self="closeSchedule({ confirm: true })"
     >
       <div
         class="w-[440px] max-w-[92vw] border shadow-xl rounded-xl border-n-weak bg-n-solid-1"
@@ -2136,7 +2148,7 @@ defineExpose({ open, close });
           <strong class="text-base text-n-slate-12">{{ L.schedule }}</strong>
           <button
             class="text-n-slate-11 hover:text-n-slate-12"
-            @click="showSchedule = false"
+            @click="closeSchedule({ confirm: true })"
           >
             <span class="i-lucide-x text-lg" />
           </button>
@@ -2166,7 +2178,7 @@ defineExpose({ open, close });
         >
           <button
             class="px-4 py-1.5 text-sm rounded-full border border-n-weak text-n-slate-11 hover:bg-n-alpha-1"
-            @click="showSchedule = false"
+            @click="closeSchedule()"
           >
             {{ L.cancel }}
           </button>

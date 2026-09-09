@@ -202,22 +202,32 @@ const submit = async () => {
     productionOrderId: form.productionOrderId || null,
     fromWarehouseId: Number(form.warehouseId),
     stockEntryItemsAttributes: form.rows.map(r => ({
-      itemType: 'PRODUCT',
+      // 领料领的是原料仓的采购件，与「采购收货入库」记的是同一批结存，
+      // item_type 必须同为 MATERIAL；记成 PRODUCT 会另起一个结存桶导致过账查不到库存。
+      itemType: 'MATERIAL',
       crmProductId: Number(r.crmProductId),
       qty: Number(r.qty),
       warehouseId: Number(form.warehouseId),
     })),
   };
-  const ok = await store.create(payload);
-  if (ok) {
-    useAlert(`已建领料单 ${ok.entryNo}，待过账`);
-    dialogRef.value?.close();
+  try {
+    const ok = await store.create(payload);
+    if (ok) {
+      useAlert(`已建领料单 ${ok.entryNo}，待过账`);
+      dialogRef.value?.close();
+    }
+  } catch (error) {
+    useAlert(error.message || '建单失败');
   }
 };
 
 const postEntry = async entry => {
-  const ok = await store.post(entry.id);
-  if (ok) useAlert(`${ok.entryNo} 已过账，库存已扣减`);
+  try {
+    const ok = await store.post(entry.id);
+    if (ok) useAlert(`${ok.entryNo} 已过账，库存已扣减`);
+  } catch (error) {
+    useAlert(error.message || '过账失败');
+  }
 };
 
 // 删单：草稿直接删除；已过账走「作废」冲销（退回已扣库存、按需回退生产订单阶段，保留单据可追溯）。
@@ -231,14 +241,22 @@ const removeEntry = async e => {
     ) {
       return;
     }
-    const ok = await store.cancel(e.id);
-    if (ok) useAlert(`${e.entryNo} 已作废，库存已退回`);
+    try {
+      const ok = await store.cancel(e.id);
+      if (ok) useAlert(`${e.entryNo} 已作废，库存已退回`);
+    } catch (error) {
+      useAlert(error.message || '作废失败');
+    }
   } else {
     // eslint-disable-next-line no-alert
     if (!window.confirm(`确定删除领料单 ${e.entryNo}？删除后不可恢复。`))
       return;
-    const ok = await store.delete(e.id);
-    if (ok) useAlert('已删除');
+    try {
+      const ok = await store.delete(e.id);
+      if (ok) useAlert('已删除');
+    } catch (error) {
+      useAlert(error.message || '删除失败');
+    }
   }
 };
 

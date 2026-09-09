@@ -212,18 +212,18 @@ const TIME_OPTIONS = [
     return { value: `${hh}:${mm}`, label: `${hh}:${mm}` };
   }),
 ];
-const dtDate = key => (formValues[key] || '').split('T')[0] || '';
-const dtTime = key => (formValues[key] || '').split('T')[1] || '';
+const dtDate = key => (formValues.value[key] || '').split('T')[0] || '';
+const dtTime = key => (formValues.value[key] || '').split('T')[1] || '';
 const setDtDate = (key, v) => {
-  formValues[key] = v ? `${v}T${dtTime(key) || '09:00'}` : '';
+  formValues.value[key] = v ? `${v}T${dtTime(key) || '09:00'}` : '';
 };
 const setDtTime = (key, v) => {
   const d = dtDate(key);
   if (!d) {
-    formValues[key] = '';
+    formValues.value[key] = '';
     return;
   }
-  formValues[key] = `${d}T${v || '00:00'}`;
+  formValues.value[key] = `${d}T${v || '00:00'}`;
 };
 
 // 默认部门：申请人的首个部门（没有则空）。
