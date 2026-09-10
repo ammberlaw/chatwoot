@@ -16,7 +16,7 @@ class Api::V1::Accounts::Crm::PriceListsController < Api::V1::Accounts::Crm::Bas
     scope = scope.for_line(params[:product_line]) if params[:product_line].present?
     @price_lists = scope.newest_first
     # 产品线清单给前端做切换（一条产品线一张表，各自独立走版本）。
-    @product_lines = visible_lists.distinct.order(:product_line).pluck(:product_line)
+    @product_lines = ordered_product_lines(visible_lists.distinct.order(:product_line).pluck(:product_line))
     @can_manage = can_write?
   end
 
@@ -138,6 +138,14 @@ class Api::V1::Accounts::Crm::PriceListsController < Api::V1::Accounts::Crm::Bas
 
   def image_url_for(item)
     Rails.application.routes.url_helpers.rails_blob_path(item.image, only_path: true)
+  end
+
+  # 平板是主力产品线，置顶；其余按名称排。也是进页面时的默认产品线。
+  PINNED_LINE = '平板电脑'.freeze
+
+  def ordered_product_lines(lines)
+    pinned, rest = lines.partition { |l| l == PINNED_LINE }
+    pinned + rest
   end
 
   # 维护权：管理员 / 副管理员 / 财务 / 业务部门负责人。
