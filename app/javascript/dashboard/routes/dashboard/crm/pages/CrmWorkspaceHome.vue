@@ -693,7 +693,7 @@ onMounted(async () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            粤ICP备XXXXXXXX号
+            粤ICP备2026106012号-1
           </a>
         </div>
       </div>

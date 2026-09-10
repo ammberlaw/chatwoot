@@ -492,7 +492,7 @@ export default {
         rel="noopener noreferrer"
         class="block mt-1 text-[12px] text-[#9a9ab0] no-underline hover:text-[#6a5ae0]"
       >
-        粤ICP备XXXXXXXX号
+        粤ICP备2026106012号-1
       </a>
     </footer>
     <!-- eslint-enable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
