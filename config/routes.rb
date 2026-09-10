@@ -175,6 +175,25 @@ Rails.application.routes.draw do
             resources :petty_cash_books, only: [:index, :create, :update, :destroy] do
               resources :petty_cash_entries, only: [:index, :create, :update, :destroy]
             end
+            # 核价表（内部报价单）：按版本维护，业务员只读已发布版并可导出 PDF。
+            resources :price_lists do
+              collection do
+                post :import
+                # 公司文档里的图片清单，供核价表挑产品图
+                get :doc_images
+                # 跨产品线搜型号
+                get :search
+              end
+              member do
+                post :publish
+                post :duplicate
+                get :export_pdf
+                get :diff
+                post 'items/:item_id/image', action: :upload_image
+                post 'items/:item_id/image_from_doc', action: :image_from_doc
+                delete 'items/:item_id/image', action: :remove_image
+              end
+            end
             # 邮件 AI 助手：写信 / 翻译 / 往来摘要（同步生成，前端等待）。
             post 'ai/compose', to: 'ai#compose'
             post 'ai/translate', to: 'ai#translate'

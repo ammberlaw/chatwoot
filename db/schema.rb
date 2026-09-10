@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_09_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_10_000003) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1686,6 +1686,37 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_09_000003) do
     t.index ["crm_customer_id"], name: "index_crm_pis_on_crm_customer_id"
     t.index ["handled_by_id"], name: "index_crm_pis_on_handled_by_id"
     t.index ["owner_id"], name: "index_crm_pis_on_owner_id"
+  end
+
+  create_table "crm_price_list_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_price_list_id", null: false
+    t.integer "position", default: 0, null: false
+    t.string "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "values", default: [], null: false
+    t.index ["crm_price_list_id", "position"], name: "index_crm_price_list_items_on_list_position"
+  end
+
+  create_table "crm_price_lists", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "title", null: false
+    t.date "effective_on"
+    t.string "currency", default: "USD", null: false
+    t.string "status", default: "DRAFT", null: false
+    t.text "header_note"
+    t.text "rules_note"
+    t.string "footer_name"
+    t.bigint "creator_id"
+    t.bigint "published_by_id"
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "product_line", null: false
+    t.jsonb "columns", default: [], null: false
+    t.index ["account_id", "product_line", "status"], name: "index_crm_price_lists_on_account_line_status"
+    t.index ["account_id", "status", "effective_on"], name: "index_crm_price_lists_on_account_status_date"
   end
 
   create_table "crm_products", force: :cascade do |t|
@@ -3770,6 +3801,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_09_000003) do
   add_foreign_key "crm_pi_items", "crm_pis"
   add_foreign_key "crm_pis", "accounts"
   add_foreign_key "crm_pis", "users", column: "handled_by_id", on_delete: :nullify
+  add_foreign_key "crm_price_list_items", "crm_price_lists", on_delete: :cascade
   add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_quotes", on_delete: :cascade
   add_foreign_key "crm_quotes", "contacts", on_delete: :nullify

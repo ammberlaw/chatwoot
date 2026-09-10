@@ -110,6 +110,9 @@ class Account < ApplicationRecord
   has_many :crm_commission_rates, class_name: 'Crm::CommissionRate', dependent: :destroy_async
   has_many :crm_signatures, class_name: 'Crm::Signature', dependent: :destroy_async
   has_many :crm_option_items, class_name: 'Crm::OptionItem', dependent: :destroy_async
+  # 核价表（内部报价单）：按版本维护，业务员只读最新已发布版
+  has_many :crm_price_lists, class_name: 'Crm::PriceList', dependent: :destroy_async
+  has_many :crm_price_list_items, class_name: 'Crm::PriceListItem', dependent: :destroy_async
   has_many :crm_role_templates, class_name: 'Crm::RoleTemplate', dependent: :destroy_async
   # 备用金台账（按部门/项目分本，替代原 Excel）
   has_many :crm_petty_cash_books, class_name: 'Crm::PettyCashBook', dependent: :destroy_async

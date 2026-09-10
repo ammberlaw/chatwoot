@@ -1011,6 +1011,7 @@ const menuItems = computed(() => {
         icon: 'i-lucide-funnel',
         activeOn: [
           'crm_funnel_index',
+          'crm_price_lists_index',
           'crm_quotes_index',
           'crm_pis_index',
           'crm_sales_orders_index',
@@ -1023,6 +1024,12 @@ const menuItems = computed(() => {
             to: accountScopedRoute('crm_funnel_index'),
             // 商机列表已并入看板页（页内「列表」视图），直接访问列表 URL 也高亮此项。
             activeOn: ['crm_funnel_index', 'crm_opportunities_index'],
+          },
+          {
+            name: 'CRM Price Lists',
+            label: t('SIDEBAR.CRM_PRICE_LISTS'),
+            to: accountScopedRoute('crm_price_lists_index'),
+            activeOn: ['crm_price_lists_index'],
           },
           {
             name: 'CRM Quotes',

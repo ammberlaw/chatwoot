@@ -486,14 +486,9 @@ export default {
     >
       Designed &amp; Developed by
       <b class="font-semibold text-[#6a5ae0]">Amber Law</b>
-      <a
-        href="https://beian.miit.gov.cn/"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="block mt-1 text-[12px] text-[#9a9ab0] no-underline hover:text-[#6a5ae0]"
-      >
+      <span class="block mt-1 text-[12px] text-[#9a9ab0]">
         粤ICP备2026106012号-1
-      </a>
+      </span>
     </footer>
     <!-- eslint-enable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
   </main>

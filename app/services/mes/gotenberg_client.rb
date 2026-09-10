@@ -1,5 +1,7 @@
 require 'rest-client'
 require 'tempfile'
+require 'tmpdir'
+require 'fileutils'
 
 # 文档转 PDF：把公司原始 .xlsx（Mes::PoTemplateFiller 填好、含公章）交给 Gotenberg 的
 # LibreOffice 接口转成 1:1 PDF（保公章/排版/中文，模板已设「缩放到一页宽」）。
@@ -9,6 +11,35 @@ class Mes::GotenbergClient
   CONVERT_TIMEOUT = 60 # 单文件转换超时（秒）
 
   class ConversionError < StandardError; end
+
+  # HTML 字符串 → PDF 字节流（走 Chromium 路由）。用于系统内自己排版的单据，
+  # 如 CRM 核价表导出——版式在 HTML/CSS 里控，不依赖 Excel 模板。
+  # ⚠ Chromium 路由要求主文件名必须是 index.html（否则 400），所以建临时目录再按名写文件，
+  # 不能用 Tempfile（它会带随机后缀）。
+  def self.html_to_pdf(html, landscape: false, margin: '0.6')
+    dir = Dir.mktmpdir
+    path = File.join(dir, 'index.html')
+    File.write(path, html)
+    file = File.open(path, 'rb')
+    RestClient::Request.execute(
+      method: :post, url: "#{BASE_URL}/forms/chromium/convert/html",
+      payload: chromium_payload(file, landscape, margin),
+      timeout: CONVERT_TIMEOUT, open_timeout: 10
+    ).body
+  rescue RestClient::Exception => e
+    raise ConversionError, "PDF 生成失败（#{e.http_code}）：#{e.message}"
+  rescue Errno::ECONNREFUSED, SocketError => e
+    raise ConversionError, "PDF 生成服务不可用：#{e.message}"
+  ensure
+    file&.close
+    FileUtils.remove_entry(dir) if dir
+  end
+
+  def self.chromium_payload(file, landscape, margin)
+    { files: file, landscape: landscape.to_s, printBackground: 'true',
+      marginTop: margin, marginBottom: margin, marginLeft: margin, marginRight: margin }
+  end
+  private_class_method :chromium_payload
 
   # xlsx 字节流 → PDF 字节流。filename 仅用于 Gotenberg 识别扩展名（.xlsx）。
   def self.xlsx_to_pdf(xlsx_bytes, filename: 'document.xlsx')

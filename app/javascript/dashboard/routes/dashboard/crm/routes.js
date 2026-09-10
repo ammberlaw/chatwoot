@@ -9,6 +9,7 @@ import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
 import CrmSalesOrdersIndex from './pages/CrmSalesOrdersIndex.vue';
 import CrmPisIndex from './pages/CrmPisIndex.vue';
 import CrmQuotesIndex from './pages/CrmQuotesIndex.vue';
+import CrmPriceListsIndex from './pages/CrmPriceListsIndex.vue';
 import CrmCommissionSheetsIndex from './pages/CrmCommissionSheetsIndex.vue';
 import CrmCommissionSheetDetailIndex from './pages/CrmCommissionSheetDetailIndex.vue';
 import CrmEmailsIndex from './pages/CrmEmailsIndex.vue';
@@ -100,6 +101,7 @@ const crmPages = [
   crmPage('exhibitions', 'crm_exhibitions_index', CrmExhibitionsIndex),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
+  crmPage('price-lists', 'crm_price_lists_index', CrmPriceListsIndex),
   crmPage('quotes', 'crm_quotes_index', CrmQuotesIndex),
   crmPage('pis', 'crm_pis_index', CrmPisIndex),
   crmPage('sales-orders', 'crm_sales_orders_index', CrmSalesOrdersIndex),
