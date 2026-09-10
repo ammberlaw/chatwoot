@@ -4,6 +4,8 @@ import TiktokTodayIndex from './pages/TiktokTodayIndex.vue';
 import TiktokDashboardIndex from './pages/TiktokDashboardIndex.vue';
 import TiktokSalesRecordsIndex from './pages/TiktokSalesRecordsIndex.vue';
 import TiktokProfitIndex from './pages/TiktokProfitIndex.vue';
+import TiktokExpensesIndex from './pages/TiktokExpensesIndex.vue';
+import TiktokAssetsIndex from './pages/TiktokAssetsIndex.vue';
 import TiktokShopSettingsIndex from './pages/TiktokShopSettingsIndex.vue';
 import TiktokDepartmentsIndex from './pages/TiktokDepartmentsIndex.vue';
 
@@ -35,6 +37,9 @@ export const routes = [
     TiktokSalesRecordsIndex
   ),
   tiktokPage('profit', 'tiktok_profit_index', TiktokProfitIndex),
+  // 支出台账 / 固定资产登记：与利润表同门槛（部门负责人+财务/管理层），后端把关。
+  tiktokPage('expenses', 'tiktok_expenses_index', TiktokExpensesIndex),
+  tiktokPage('assets', 'tiktok_assets_index', TiktokAssetsIndex),
   tiktokPage(
     'shop-settings',
     'tiktok_shop_settings_index',

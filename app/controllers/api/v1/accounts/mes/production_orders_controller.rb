@@ -1,12 +1,19 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_production_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :confirm_bom, :release_purchasing, :requirement,
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :release_purchasing, :requirement,
                        :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced]
   before_action :ensure_editable!, only: [:update, :attach, :detach]
   before_action :ensure_deletable!, only: [:destroy]
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
+
+  # 列表分片 _mes_production_order 逐行解引用的关联，一次预加载掉。
+  LIST_EAGER_LOADS = [
+    :owner, :outsource_supplier, :bom, :bom_confirmed_by, :gm, :stage_ack_by,
+    :crm_customer, :crm_product, :crm_sales_order, :stage_events, :purchase_orders,
+    { images_attachments: :blob, files_attachments: :blob }
+  ].freeze
 
   def index
     scope = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders.visible_to(current_user)))
@@ -16,7 +23,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     end
     scope = apply_search(scope)
     @production_orders_count = scope.count
-    @production_orders = scope.order(created_at: :desc).page(page_param).per(per_page_param)
+    # 列表分片逐行取这些关联，不预加载就是每行一次查库（dev 的 Bullet 直接抛异常打断页面）。
+    @production_orders = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -97,16 +105,6 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @production_order.update!(delivery_date: params[:delivery_date]) if params[:delivery_date].present?
     @production_order.attach_bom!(bom)
     render 'api/v1/accounts/mes/production_orders/show'
-  end
-
-  # 业务二次确认 BOM（BOM_READY 段内的闸）：仅创建人（业务员）或管理员可确认。
-  def confirm_bom
-    return render json: { error: '只有业务员可二次确认 BOM' }, status: :forbidden unless @production_order.owner_id == current_user.id || admin_like?
-
-    @production_order.confirm_bom!(current_user)
-    render 'api/v1/accounts/mes/production_orders/show'
-  rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING）。
@@ -217,7 +215,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     base = Current.account.mes_production_orders
     scope = base.awaiting_manager_for(current_user.id)
                 .or(base.awaiting_gm_for(current_user.id))
-                .or(base.awaiting_bom_confirm_for(current_user.id))
+
     @production_orders = scope.includes(:owner).order(submitted_at: :desc)
     @production_orders_count = @production_orders.size
     render 'api/v1/accounts/mes/production_orders/index'

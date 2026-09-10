@@ -237,6 +237,14 @@ class AccountUser < ApplicationRecord
     member_of_department_named?('人事')
   end
 
+  # 该成员负责的部门 id（备用金台账按此匹配可见/可记的账本）。
+  # 「是不是部门负责人」用现成的 leads_business_department?，别再另起一套判定。
+  def led_department_ids
+    return @led_department_ids if defined?(@led_department_ids)
+
+    @led_department_ids = account.org_departments.where(leader_id: user_id).pluck(:id)
+  end
+
   # OA 审批模板维护权：超级管理员/管理员，或人事部门成员（部门名含「人事」，含其下级部门）。
   def oa_template_maintainer?
     return true if administrator? || crm_deputy_admin? || crm_hr?

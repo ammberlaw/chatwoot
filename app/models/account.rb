@@ -110,12 +110,19 @@ class Account < ApplicationRecord
   has_many :crm_commission_rates, class_name: 'Crm::CommissionRate', dependent: :destroy_async
   has_many :crm_signatures, class_name: 'Crm::Signature', dependent: :destroy_async
   has_many :crm_option_items, class_name: 'Crm::OptionItem', dependent: :destroy_async
+  has_many :crm_role_templates, class_name: 'Crm::RoleTemplate', dependent: :destroy_async
+  # 备用金台账（按部门/项目分本，替代原 Excel）
+  has_many :crm_petty_cash_books, class_name: 'Crm::PettyCashBook', dependent: :destroy_async
+  has_many :crm_petty_cash_entries, class_name: 'Crm::PettyCashEntry', dependent: :destroy_async
   has_one :crm_performance_setting, class_name: 'Crm::PerformanceSetting', dependent: :destroy_async
   # TikTok 板块（店铺经营日报 + 利润表 + 部门）
   has_many :tiktok_departments, class_name: 'Tiktok::Department', dependent: :destroy_async
   has_many :tiktok_shops, class_name: 'Tiktok::Shop', dependent: :destroy_async
   has_many :tiktok_daily_sales_records, class_name: 'Tiktok::DailySalesRecord', dependent: :destroy_async
   has_many :tiktok_profit_records, class_name: 'Tiktok::ProfitRecord', dependent: :destroy_async
+  # TK 支出台账与固定资产登记（TK 支出从 CRM 备用金台账里独立出来）
+  has_many :tiktok_expenses, class_name: 'Tiktok::Expense', dependent: :destroy_async
+  has_many :tiktok_assets, class_name: 'Tiktok::Asset', dependent: :destroy_async
   # ERP（财务管理）：会计科目表是记账地基，凭证/账簿/报表都挂它。
   has_many :erp_ledger_accounts, class_name: 'Erp::LedgerAccount', dependent: :destroy_async
   has_many :erp_vouchers, class_name: 'Erp::Voucher', dependent: :destroy_async

@@ -30,6 +30,8 @@ const opportunitiesStore = useCrmOpportunitiesStore();
 const privateCustomers = ref([]); // [{ id, name }]
 const loadingCustomers = ref(false);
 const editingCustomer = ref(null); // 编辑态原关联客户（可能已不在私海，需保留可选）
+// 历史 PI 补录：PI 已在客户附件里，建单时由后端复制过来，本地没有文件对象。
+const sourceAttachmentId = ref(null);
 
 // 附件：新建时选中的文件暂存内存（pendingFiles），随创建请求一起 multipart 提交；
 // 编辑时对已存在订单即时 attach/detach。
@@ -100,7 +102,8 @@ const applyParsedPi = (data, file) => {
       : '';
   }
 
-  pendingFiles.value = [...pendingFiles.value, file];
+  // 历史 PI 补录时没有本地文件对象（PI 已经在客户附件里），此时不往待上传列表塞 null。
+  if (file) pendingFiles.value = [...pendingFiles.value, file];
 };
 
 const onPiSelected = async event => {
@@ -191,11 +194,14 @@ const isFormInvalid = computed(
   () =>
     !form.name.trim() ||
     !form.orderDate ||
-    (!isEditing.value && pendingFiles.value.length === 0)
+    (!isEditing.value &&
+      pendingFiles.value.length === 0 &&
+      !sourceAttachmentId.value)
 );
 
 const resetForm = () => {
   editingId.value = null;
+  sourceAttachmentId.value = null;
   orderNo.value = '';
   editingCustomer.value = null;
   pendingFiles.value = [];
@@ -236,6 +242,26 @@ const loadPrivateCustomers = async () => {
   } finally {
     loadingCustomers.value = false;
   }
+};
+
+// 用「已识别的 PI」预填后打开（历史 PI 补录走这条）：客户直接取附件所属客户，
+// 不再走 PI 里客户名的模糊匹配——附件本来就挂在这个客户下，比猜准。
+const openWithParsedPi = ({ parsed, customer }) => {
+  resetForm();
+  applyParsedPi(parsed, null);
+  sourceAttachmentId.value = parsed?.attachment_id || null;
+  if (customer?.id) {
+    const idStr = String(customer.id);
+    if (!privateCustomers.value.some(pc => String(pc.id) === idStr)) {
+      privateCustomers.value = [
+        ...privateCustomers.value,
+        { id: customer.id, name: customer.name || '客户' },
+      ];
+    }
+    form.crmCustomerId = idStr;
+    piMatchHint.value = '';
+  }
+  dialogRef.value?.open();
 };
 
 const open = record => {
@@ -334,7 +360,11 @@ const handleConfirm = () => {
   if (isEditing.value) {
     emit('update', { id: editingId.value, ...payload });
   } else {
-    emit('create', { ...payload, __files: pendingFiles.value });
+    emit('create', {
+      ...payload,
+      sourceAttachmentId: sourceAttachmentId.value || undefined,
+      __files: pendingFiles.value,
+    });
   }
 };
 
@@ -394,7 +424,7 @@ const prettySize = bytes => {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
-defineExpose({ dialogRef, onSuccess, open });
+defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
 </script>
 
 <template>
@@ -658,7 +688,7 @@ defineExpose({ dialogRef, onSuccess, open });
         </div>
 
         <div
-          v-if="!isEditing && pendingFiles.length === 0"
+          v-if="!isEditing && pendingFiles.length === 0 && !sourceAttachmentId"
           class="text-xs text-n-ruby-11"
         >
           {{ t('CRM.SALES_ORDERS.ATTACH.REQUIRED_HINT') }}

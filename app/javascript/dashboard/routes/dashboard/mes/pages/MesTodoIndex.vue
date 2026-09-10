@@ -38,13 +38,12 @@ const deadlineText = at =>
 
 const loading = ref(true);
 
-// 待我确认：停在我这一级的审批单（部门主管/总经理）+ 待我二次确认 BOM 的单（业务员）。
+// 待我确认：停在我这一级的审批单（部门主管/总经理）。
 const APPROVAL_STEP = {
   SUBMITTED: '待你（部门主管）审',
   MANAGER_APPROVED: '待你（总经理）审',
 };
-// 非审批态的行即「待确认 BOM」（approval_inbox 的业务员分支）。
-const pendingTag = o => APPROVAL_STEP[o.approval_status] || '待你确认BOM';
+const pendingTag = o => APPROVAL_STEP[o.approval_status] || '待你处理';
 const approvalInbox = ref([]);
 // 待我接单：停在我负责阶段的在产订单（到岗通知拉取面）。
 const inbox = ref([]);
@@ -146,14 +145,14 @@ onMounted(load);
     <div v-if="loading" class="py-10 text-center text-n-slate-11">加载中…</div>
 
     <div v-else class="flex flex-col gap-4 px-4 pb-4 sm:px-6 sm:pb-6">
-      <!-- 待我确认：停在我这一级的审批单 + 待我二次确认 BOM 的单 -->
+      <!-- 待我确认：停在我这一级的审批单 -->
       <div class="p-4 sm:p-5 rounded-xl bg-n-amber-2 border border-n-amber-6">
         <div class="mb-3 font-medium text-n-slate-12">
           待我确认
           <span class="text-n-amber-11">({{ approvalInbox.length }})</span>
         </div>
         <div v-if="!approvalInbox.length" class="text-sm text-n-slate-11">
-          暂无待你处理的生产订单（审批 / BOM 确认）。
+          暂无待你审批的生产订单。
         </div>
         <ul v-else class="flex flex-col gap-2">
           <li

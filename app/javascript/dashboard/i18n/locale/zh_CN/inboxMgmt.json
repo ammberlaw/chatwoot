@@ -23,8 +23,8 @@
         "BODY": "验证您的帐户并创建收件箱。"
       },
       "AGENT": {
-        "TITLE": "添加客服代理",
-        "BODY": "将客服添加到创建的收件箱。"
+        "TITLE": "添加业务",
+        "BODY": "将业务添加到创建的收件箱。"
       },
       "FINISH": {
         "TITLE": "搞定！",
@@ -506,10 +506,10 @@
         }
       },
       "AGENTS": {
-        "TITLE": "客服代理们",
-        "DESC": "在这里您可以添加代理来管理您新创建的收件箱。只有这些选定的代理才能访问您的收件箱。不属于此收件箱的代理人在登录时将无法看到或回复此收件箱中的消息。<br><b>PS：</b>作为管理员，如果您需要访问所有收件箱，您应该将自己添加到您创建的所有收件箱中。",
-        "VALIDATION_ERROR": "请至少为您的收件箱添加一个代理",
-        "PICK_AGENTS": "为收件箱选择代理"
+        "TITLE": "业务",
+        "DESC": "在这里您可以添加业务来管理您新创建的收件箱。只有这些选定的业务才能访问您的收件箱。不属于此收件箱的业务在登录时将无法看到或回复此收件箱中的消息。<br><b>PS：</b>作为管理员，如果您需要访问所有收件箱，您应该将自己添加到您创建的所有收件箱中。",
+        "VALIDATION_ERROR": "请至少为您的收件箱添加一个业务",
+        "PICK_AGENTS": "为收件箱选择业务"
       },
       "DETAILS": {
         "TITLE": "收件箱详细信息",
@@ -549,8 +549,8 @@
       "DESC": ""
     },
     "AGENTS": {
-      "BUTTON_TEXT": "添加客服代理",
-      "ADD_AGENTS": "正在向收件箱添加代理..."
+      "BUTTON_TEXT": "添加业务",
+      "ADD_AGENTS": "正在向收件箱添加业务..."
     },
     "FINISH": {
       "TITLE": "您的收件箱已准备就绪！",
@@ -580,12 +580,12 @@
       },
       "SENDER_NAME_SECTION": {
         "TITLE": "发件人姓名",
-        "SUB_TEXT": "选择您的客户在收到您的代理的电子邮件时显示的名称。",
+        "SUB_TEXT": "选择您的客户在收到您的业务的电子邮件时显示的名称。",
         "FOR_EG": "例如：",
         "FRIENDLY": {
           "TITLE": "友好的",
           "FROM": "发自",
-          "SUBTITLE": "在发件人姓名中添加回复的代理名称，使其更加友好。"
+          "SUBTITLE": "在发件人姓名中添加回复的业务名称，使其更加友好。"
         },
         "PROFESSIONAL": {
           "TITLE": "专业的",
@@ -770,16 +770,16 @@
         "REQUIRE_LABEL": "Require identity validation for all conversations",
         "REQUIRE_DESCRIPTION": "When enabled, users must provide a valid identity token to start conversations. Requests without valid tokens will be rejected."
       },
-      "INBOX_AGENTS": "客服代理们",
-      "INBOX_AGENTS_SUB_TEXT": "添加或删除此收件箱中的客服",
+      "INBOX_AGENTS": "业务",
+      "INBOX_AGENTS_SUB_TEXT": "添加或删除此收件箱中的业务",
       "AGENT_ASSIGNMENT": "对话分配",
       "AGENT_ASSIGNMENT_SUB_TEXT": "更新对话分配设置",
       "UPDATE": "更新",
       "ENABLE_EMAIL_COLLECT_BOX": "启用电子邮件收集框",
       "ENABLE_EMAIL_COLLECT_BOX_SUB_TEXT": "在新对话中启用或禁用电子邮件收集框",
       "AUTO_ASSIGNMENT": "启用自动分配",
-      "SENDER_NAME_SECTION": "在电子邮件中启用代理名称",
-      "SENDER_NAME_SECTION_TEXT": "启用/禁用在电子邮件中显示代理名称，如果禁用，将显示业务名称",
+      "SENDER_NAME_SECTION": "在电子邮件中启用业务名称",
+      "SENDER_NAME_SECTION_TEXT": "启用/禁用在电子邮件中显示业务员姓名，如果禁用，将显示公司名称",
       "ENABLE_CONTINUITY_VIA_EMAIL": "通过电子邮件启用对话连续性",
       "ENABLE_CONTINUITY_VIA_EMAIL_SUB_TEXT": "如果有联系人的电子邮件地址，对话将会继续在电子邮件中进行。",
       "ENABLE_CONTINUITY_VIA_EMAIL_DISABLED_TEXT": "This feature is available on a paid plan. Upgrade to enable conversation continuity via email.",
@@ -787,7 +787,7 @@
       "LOCK_TO_SINGLE_CONVERSATION_SUB_TEXT": "Configure conversation creation for existing contacts",
       "INBOX_UPDATE_TITLE": "收件箱设置",
       "INBOX_UPDATE_SUB_TEXT": "更新收件箱设置",
-      "AUTO_ASSIGNMENT_SUB_TEXT": "启用或禁用添加到此收件箱的代理人自动分配新的会话。",
+      "AUTO_ASSIGNMENT_SUB_TEXT": "启用或禁用添加到此收件箱的业务自动分配新的会话。",
       "HMAC_VERIFICATION": "用户身份验证",
       "HMAC_DESCRIPTION": "使用这个密钥，您可以生成一个秘密令牌，用于验证您用户的身份",
       "HMAC_LINK_TO_DOCS": "您可以在这里阅读更多信息。",
@@ -844,7 +844,7 @@
     "AUTO_ASSIGNMENT": {
       "MAX_ASSIGNMENT_LIMIT": "自动分配限制",
       "MAX_ASSIGNMENT_LIMIT_RANGE_ERROR": "请输入一个大于0的值",
-      "MAX_ASSIGNMENT_LIMIT_SUB_TEXT": "限制从此收件箱自动分配给代理的对话的最大数量"
+      "MAX_ASSIGNMENT_LIMIT_SUB_TEXT": "限制从此收件箱自动分配给业务的对话的最大数量"
     },
     "ASSIGNMENT": {
       "TITLE": "对话分配",
@@ -1003,7 +1003,7 @@
       "UPDATE": "更新工作时间设置",
       "TOGGLE_AVAILABILITY": "为此收件箱启用业务可用性",
       "UNAVAILABLE_MESSAGE_LABEL": "对访客的不可用消息",
-      "TOGGLE_HELP": "启用业务可用性将在实时聊天小部件上显示可用时间，即使所有代理都离线。在可用时间之外，访客将收到一条消息和预聊天表单的警告。",
+      "TOGGLE_HELP": "启用营业时间将在实时聊天小部件上显示可用时间，即使所有业务都离线。在可用时间之外，访客将收到一条消息和预聊天表单的警告。",
       "DAY": {
         "DAY": "日",
         "AVAILABILITY": "有效的",

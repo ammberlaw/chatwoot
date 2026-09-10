@@ -35,6 +35,8 @@
 #  index_erp_vouchers_on_account_id_and_voucher_no    (account_id,voucher_no) UNIQUE
 #  index_erp_vouchers_on_reversal_of_id               (reversal_of_id)
 #  index_erp_vouchers_on_source_type_and_source_id    (source_type,source_id)
+#  uniq_erp_voucher_draft_source                      (account_id,source_type,source_id) UNIQUE WHERE ((source_id IS NOT NULL) AND ((status)::text = 'DRAFT'::text))
+#  uniq_erp_voucher_reversal                          (account_id,reversal_of_id) UNIQUE WHERE (reversal_of_id IS NOT NULL)
 #
 # Foreign Keys
 #

@@ -10,6 +10,26 @@ class Crm::PiParseService
     @file = file
   end
 
+  # 从「已上传的附件」识别（客户文件页传的 PI、历史附件批量补录都走这里）。
+  # 识别逻辑只认 tempfile/original_filename/content_type，这里把 blob 落成临时文件套上同款外壳。
+  UploadedBlob = Struct.new(:tempfile, :original_filename, :content_type)
+
+  def self.from_attachment(account:, user:, attachment:)
+    blob = attachment.blob
+    tmp = Tempfile.new(['pi-attachment', File.extname(blob.filename.to_s)], binmode: true)
+    tmp.write(blob.download)
+    tmp.rewind
+    file = UploadedBlob.new(tmp, blob.filename.to_s, blob.content_type.to_s)
+    new(account: account, user: user, file: file)
+  end
+
+  # 文件名像不像 PI：`pi` 作为独立词出现（避免 shipping 这种词内命中），或含 proforma。
+  PI_NAME_RE = /(^|[^a-z])pi([^a-z]|$)|proforma/i
+
+  def self.pi_like_filename?(name)
+    PI_NAME_RE.match?(name.to_s.downcase)
+  end
+
   def call
     text = extract_text
     raise UnsupportedType, 'PI 内容为空或无法识别，请确认文件' if text.blank?

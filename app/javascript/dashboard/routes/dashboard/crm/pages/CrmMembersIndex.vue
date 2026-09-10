@@ -3,6 +3,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import MembersAPI from 'dashboard/api/crm/members';
+import RoleTemplatesAPI from 'dashboard/api/crm/roleTemplates';
 import OrgDepartmentAPI from 'dashboard/api/org/departments';
 import OrgMembershipAPI from 'dashboard/api/org/memberships';
 
@@ -45,11 +46,11 @@ const LEGEND_NOTE =
   '人事部门成员额外可维护组织架构、审批模板并自改密码。财务身份可与业务员身份叠加，用于查看全员已通过提成表并导出。模块开关控制能否使用对应业务系统（关闭 CRM 后即使有角色也无法进入）。';
 
 // 业务系统模块开关（与后端 AccountUser::MODULES 对应）
-// ERP/MES 未上线：开关置灰，功能上线后去掉 disabled 即开放设置。
+// CRM/MES 已上线可设置；ERP 未上线，开关置灰，上线后去掉 disabled 即开放。
 const MODULE_OPTIONS = [
   { key: 'crm', label: 'CRM' },
+  { key: 'mes', label: 'MES' },
   { key: 'erp', label: 'ERP', disabled: true },
-  { key: 'mes', label: 'MES', disabled: true },
 ];
 
 // 一个下拉管到底：管理员/副管理员/部门负责人/业务员/无。自己那行不可改（防自锁）。
@@ -426,10 +427,10 @@ const MES_ROLE_CHIPS = MES_ROLE_OPTIONS.filter(o => o.value);
 const memberMesRoles = member =>
   Array.isArray(member.mes_roles) ? member.mes_roles : [];
 
-const toggleMesRole = async (member, roleValue) => {
+const toggleMesRole = async (member, roleVal) => {
   const current = new Set(memberMesRoles(member));
-  if (current.has(roleValue)) current.delete(roleValue);
-  else current.add(roleValue);
+  if (current.has(roleVal)) current.delete(roleVal);
+  else current.add(roleVal);
   savingId.value = member.id;
   try {
     const { data } = await MembersAPI.update(member.id, {
@@ -481,9 +482,182 @@ const onModuleToggle = async (member, key, checked) => {
   }
 };
 
+// ── 岗位权限模板：管理员自定义「岗位 = 系统角色 + 模块 + MES 岗位 + 财务」，成员一键套用 ──
+const templates = ref([]);
+const canManageTemplates = computed(() => isAdminLike.value);
+
+// 顶部「快速套用岗位」只在可改角色的成员上出现（自己/超管行/负责人视图不显示）
+const canApplyTemplates = computed(
+  () =>
+    canManageTemplates.value &&
+    templates.value.length > 0 &&
+    selectedMember.value &&
+    !isRoleReadonly(selectedMember.value) &&
+    !isDeactivated(selectedMember.value)
+);
+
+// MES 岗位是否显示：管理员天然全部；勾了 MES 模块或已有岗位才出现
+const showMesRoles = member =>
+  !!member &&
+  (member.is_admin ||
+    (member.module_access || []).includes('mes') ||
+    memberMesRoles(member).length > 0);
+
+const fetchTemplates = async () => {
+  if (!canManageTemplates.value) return;
+  try {
+    const { data } = await RoleTemplatesAPI.get();
+    templates.value = data;
+  } catch {
+    templates.value = [];
+  }
+};
+
+// 系统角色值 → 中文名（模板摘要/管理弹窗用）
+const systemRoleLabel = value =>
+  ROLE_OPTIONS.find(o => o.value === (value || ''))?.label || '无';
+
+// 模板一句话摘要：进哪些系统 + MES 岗位 + 财务
+const templateSummary = tpl => {
+  const parts = [systemRoleLabel(tpl.system_role)];
+  const mods = (tpl.module_access || [])
+    .map(k => MODULE_OPTIONS.find(o => o.key === k)?.label || k)
+    .join('/');
+  if (mods) parts.push(mods);
+  const mes = (tpl.mes_roles || [])
+    .map(v => MES_ROLE_OPTIONS.find(o => o.value === v)?.label || v)
+    .join('、');
+  if (mes) parts.push(`MES:${mes}`);
+  if (tpl.crm_finance) parts.push('财务');
+  return parts.join(' · ');
+};
+
+// 一键套用：把模板的角色/模块/MES岗位/财务一次性写到成员
+const applyTemplate = async (member, tpl) => {
+  savingId.value = member.id;
+  try {
+    const { data } = await MembersAPI.update(member.id, {
+      member: {
+        system_role: tpl.system_role || '',
+        module_access: tpl.module_access || [],
+        mes_roles: tpl.mes_roles || [],
+        crm_finance: !!tpl.crm_finance,
+      },
+    });
+    Object.assign(member, data);
+    useAlert(`已套用「${tpl.name}」`);
+  } catch (e) {
+    useAlert(e.response?.data?.error || L.error);
+    fetchMembers();
+  } finally {
+    savingId.value = null;
+  }
+};
+
+// ── 模板管理弹窗（列表 ↔ 新增/编辑）──
+const templateDialog = ref(null);
+const templateMode = ref('list'); // 'list' | 'edit'
+const editingTemplateId = ref(null);
+const savingTemplate = ref(false);
+const templateForm = reactive({
+  name: '',
+  system_role: '',
+  module_access: [],
+  mes_roles: [],
+  crm_finance: false,
+});
+
+// 模板不用于创建超级管理员
+const templateRoleOptions = ROLE_OPTIONS.filter(
+  o => o.value !== 'administrator'
+);
+
+const openTemplateManager = () => {
+  templateMode.value = 'list';
+  templateDialog.value?.open();
+};
+
+const startNewTemplate = () => {
+  editingTemplateId.value = null;
+  Object.assign(templateForm, {
+    name: '',
+    system_role: 'sales',
+    module_access: ['crm'],
+    mes_roles: [],
+    crm_finance: false,
+  });
+  templateMode.value = 'edit';
+};
+
+const startEditTemplate = tpl => {
+  editingTemplateId.value = tpl.id;
+  Object.assign(templateForm, {
+    name: tpl.name,
+    system_role: tpl.system_role || '',
+    module_access: [...(tpl.module_access || [])],
+    mes_roles: [...(tpl.mes_roles || [])],
+    crm_finance: !!tpl.crm_finance,
+  });
+  templateMode.value = 'edit';
+};
+
+const toggleFormModule = key => {
+  const set = new Set(templateForm.module_access);
+  if (set.has(key)) set.delete(key);
+  else set.add(key);
+  templateForm.module_access = [...set];
+};
+
+const toggleFormMes = value => {
+  const set = new Set(templateForm.mes_roles);
+  if (set.has(value)) set.delete(value);
+  else set.add(value);
+  templateForm.mes_roles = [...set];
+};
+
+const saveTemplate = async () => {
+  if (savingTemplate.value || !templateForm.name.trim()) return;
+  savingTemplate.value = true;
+  const payload = {
+    name: templateForm.name.trim(),
+    system_role: templateForm.system_role || '',
+    module_access: templateForm.module_access,
+    mes_roles: templateForm.mes_roles,
+    crm_finance: templateForm.crm_finance,
+  };
+  try {
+    if (editingTemplateId.value) {
+      await RoleTemplatesAPI.updateTemplate(editingTemplateId.value, payload);
+    } else {
+      await RoleTemplatesAPI.createTemplate(payload);
+    }
+    await fetchTemplates();
+    templateMode.value = 'list';
+    useAlert(L.saved);
+  } catch (e) {
+    useAlert(e.response?.data?.error || L.error);
+  } finally {
+    savingTemplate.value = false;
+  }
+};
+
+const deleteTemplate = async tpl => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(`删除模板「${tpl.name}」？已套用过的成员权限不受影响。`))
+    return;
+  try {
+    await RoleTemplatesAPI.deleteTemplate(tpl.id);
+    await fetchTemplates();
+    useAlert('已删除');
+  } catch (e) {
+    useAlert(e.response?.data?.error || L.error);
+  }
+};
+
 onMounted(() => {
   fetchMembers();
   fetchOrg();
+  fetchTemplates();
 });
 </script>
 
@@ -491,11 +665,23 @@ onMounted(() => {
   <div
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="flex-shrink-0 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak">
-      <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
-      <p class="mt-0.5 text-xs text-n-slate-10">
-        {{ isManagerOnly ? L.managerSubtitle : L.subtitle }}
-      </p>
+    <div
+      class="flex items-start justify-between gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+    >
+      <div class="min-w-0">
+        <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
+        <p class="mt-0.5 text-xs text-n-slate-10">
+          {{ isManagerOnly ? L.managerSubtitle : L.subtitle }}
+        </p>
+      </div>
+      <button
+        v-if="canManageTemplates"
+        class="flex items-center flex-shrink-0 h-9 gap-1.5 px-3 text-sm font-medium border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+        @click="openTemplateManager"
+      >
+        <span class="size-4 i-lucide-layout-grid text-n-slate-11" />
+        管理岗位模板
+      </button>
     </div>
 
     <p v-if="loading" class="p-6 text-sm text-n-slate-10">{{ L.loading }}</p>
@@ -628,151 +814,202 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-5 px-4 py-4 sm:px-6 sm:py-5 max-w-xl">
-          <!-- 系统角色 -->
-          <div class="flex items-center gap-4">
-            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
-              {{ L.colSystemRole }}
+        <div class="flex flex-col gap-6 px-4 py-4 sm:px-6 sm:py-5 max-w-xl">
+          <!-- 快速套用岗位：点一下自动配好下面所有开关 -->
+          <div
+            v-if="canApplyTemplates"
+            class="flex flex-col gap-2 p-3 rounded-xl bg-n-iris-2/60 border border-n-iris-5"
+          >
+            <span class="text-xs font-medium text-n-iris-11">
+              快速套用岗位
             </span>
-            <!-- 自己那行不可改（防自锁）；管理员对超管行只读；部门负责人全只读 -->
-            <div
-              v-if="isRoleReadonly(selectedMember)"
-              class="flex items-center gap-2"
-            >
-              <span
-                class="px-2 py-0.5 rounded-full text-xs bg-n-iris-3 text-n-iris-11"
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="tpl in templates"
+                :key="tpl.id"
+                type="button"
+                :title="templateSummary(tpl)"
+                :disabled="savingId === selectedMember.id"
+                class="h-7 px-3 text-xs font-medium border rounded-full transition-colors border-n-iris-7 text-n-iris-11 bg-n-solid-1 hover:bg-n-iris-3 disabled:opacity-50"
+                @click="applyTemplate(selectedMember, tpl)"
               >
-                {{
-                  ROLE_OPTIONS.find(o => o.value === roleValue(selectedMember))
-                    ?.label
-                }}
+                {{ tpl.name }}
+              </button>
+            </div>
+            <span class="text-xs text-n-slate-10">
+              套用后仍可在下面手动微调；模板可点右上「管理岗位模板」增删改。
+            </span>
+          </div>
+
+          <!-- 组：基本 -->
+          <div class="flex flex-col gap-4">
+            <span class="text-xs font-semibold text-n-slate-10">基本</span>
+
+            <!-- 系统角色 -->
+            <div class="flex items-center gap-4">
+              <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
+                {{ L.colSystemRole }}
+              </span>
+              <!-- 自己那行不可改（防自锁）；管理员对超管行只读；部门负责人全只读 -->
+              <div
+                v-if="isRoleReadonly(selectedMember)"
+                class="flex items-center gap-2"
+              >
+                <span
+                  class="px-2 py-0.5 rounded-full text-xs bg-n-iris-3 text-n-iris-11"
+                >
+                  {{
+                    ROLE_OPTIONS.find(o => o.value === roleValue(selectedMember))
+                      ?.label
+                  }}
+                </span>
+                <span
+                  v-if="selectedMember.user_id === currentUserId"
+                  class="text-xs text-n-slate-9"
+                  >{{ L.self }}</span
+                >
+              </div>
+              <Select
+                v-else
+                class="flex-1"
+                :model-value="roleValue(selectedMember)"
+                :options="roleOptions"
+                :disabled="savingId === selectedMember.id"
+                @update:model-value="
+                  value => onRoleChange(selectedMember, value)
+                "
+              />
+            </div>
+
+            <!-- 财务权限：可查看全员已通过提成表 + 导出。管理员天然具备。 -->
+            <div class="flex items-center gap-4">
+              <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
+                财务权限
               </span>
               <span
-                v-if="selectedMember.user_id === currentUserId"
-                class="text-xs text-n-slate-9"
-                >{{ L.self }}</span
+                v-if="selectedMember.is_admin"
+                class="text-sm text-n-slate-10"
               >
-            </div>
-            <Select
-              v-else
-              class="flex-1"
-              :model-value="roleValue(selectedMember)"
-              :options="roleOptions"
-              :disabled="savingId === selectedMember.id"
-              @update:model-value="value => onRoleChange(selectedMember, value)"
-            />
-          </div>
-
-          <!-- MES 角色（可多选，一人兼多岗） -->
-          <div class="flex items-start gap-4">
-            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11 pt-1.5">
-              MES 角色
-            </span>
-            <span
-              v-if="selectedMember.is_admin"
-              class="text-sm text-n-slate-10 pt-1.5"
-            >
-              全部
-            </span>
-            <div v-else class="flex-1 flex flex-wrap items-center gap-1.5">
-              <button
-                v-for="opt in MES_ROLE_CHIPS"
-                :key="opt.value"
-                type="button"
-                :disabled="savingId === selectedMember.id"
-                class="h-7 px-2.5 rounded-full text-xs font-medium border transition-colors disabled:opacity-50"
-                :class="
-                  memberMesRoles(selectedMember).includes(opt.value)
-                    ? 'bg-n-iris-9 text-white border-n-iris-9'
-                    : 'bg-n-alpha-1 text-n-slate-11 border-n-weak hover:bg-n-alpha-2'
-                "
-                @click="toggleMesRole(selectedMember, opt.value)"
-              >
-                {{ opt.label }}
-              </button>
-              <span class="ml-1 text-xs text-n-slate-10">不选=只读</span>
-            </div>
-          </div>
-
-          <!-- 财务身份：可查看全员已通过提成表 + 导出，与业务员身份叠加。管理员天然具备。 -->
-          <div class="flex items-center gap-4">
-            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
-              财务身份
-            </span>
-            <span
-              v-if="selectedMember.is_admin"
-              class="text-sm text-n-slate-10"
-            >
-              默认具备
-            </span>
-            <label
-              v-else
-              class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
-            >
-              <input
-                type="checkbox"
-                class="accent-n-iris-9"
-                :checked="selectedMember.crm_finance"
-                :disabled="savingId === selectedMember.id || isManagerOnly"
-                @change="e => onFinanceToggle(selectedMember, e.target.checked)"
-              />
-              可查看全员已通过提成表并导出
-            </label>
-          </div>
-
-          <!-- 模块使用权限 -->
-          <div class="flex items-start gap-4">
-            <span class="flex-shrink-0 pt-0.5 text-sm w-24 text-n-slate-11">
-              {{ L.colModules }}
-            </span>
-            <!-- 管理员始终全模块；其他人按开关 -->
-            <span
-              v-if="selectedMember.is_admin"
-              class="text-sm text-n-slate-10"
-            >
-              {{ L.allModules }}
-            </span>
-            <div v-else class="flex flex-wrap items-center gap-4">
+                默认具备
+              </span>
               <label
-                v-for="mod in MODULE_OPTIONS"
-                :key="mod.key"
-                class="flex items-center gap-1.5 text-sm text-n-slate-11"
-                :class="
-                  mod.disabled
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'cursor-pointer'
-                "
-                :title="mod.disabled ? '该模块未上线，上线后开放设置' : ''"
+                v-else
+                class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
               >
                 <input
                   type="checkbox"
                   class="accent-n-iris-9"
-                  :checked="
-                    (selectedMember.module_access || []).includes(mod.key)
-                  "
-                  :disabled="
-                    savingId === selectedMember.id ||
-                    mod.disabled ||
-                    isManagerOnly
-                  "
+                  :checked="selectedMember.crm_finance"
+                  :disabled="savingId === selectedMember.id || isManagerOnly"
                   @change="
-                    e =>
-                      onModuleToggle(selectedMember, mod.key, e.target.checked)
+                    e => onFinanceToggle(selectedMember, e.target.checked)
                   "
                 />
-                {{ mod.label }}
+                可查看全员已通过提成表并导出
               </label>
             </div>
           </div>
 
-          <!-- 数据范围 -->
-          <div class="flex items-center gap-4">
-            <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
-              {{ L.colScope }}
+          <!-- 组：可进入的系统 -->
+          <div class="flex flex-col gap-4">
+            <span class="text-xs font-semibold text-n-slate-10">
+              可进入的系统
             </span>
-            <span class="text-sm text-n-slate-11">
-              {{ scopeLabel(selectedMember) }}
-            </span>
+
+            <!-- 模块开关 -->
+            <div class="flex items-start gap-4">
+              <span class="flex-shrink-0 pt-0.5 text-sm w-24 text-n-slate-11">
+                系统模块
+              </span>
+              <!-- 管理员始终全模块；其他人按开关 -->
+              <span
+                v-if="selectedMember.is_admin"
+                class="text-sm text-n-slate-10"
+              >
+                {{ L.allModules }}
+              </span>
+              <div v-else class="flex flex-wrap items-center gap-4">
+                <label
+                  v-for="mod in MODULE_OPTIONS"
+                  :key="mod.key"
+                  class="flex items-center gap-1.5 text-sm text-n-slate-11"
+                  :class="
+                    mod.disabled
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'cursor-pointer'
+                  "
+                  :title="mod.disabled ? '该模块未上线，上线后开放设置' : ''"
+                >
+                  <input
+                    type="checkbox"
+                    class="accent-n-iris-9"
+                    :checked="
+                      (selectedMember.module_access || []).includes(mod.key)
+                    "
+                    :disabled="
+                      savingId === selectedMember.id ||
+                      mod.disabled ||
+                      isManagerOnly
+                    "
+                    @change="
+                      e =>
+                        onModuleToggle(selectedMember, mod.key, e.target.checked)
+                    "
+                  />
+                  {{ mod.label }}{{ mod.disabled ? '（未上线）' : '' }}
+                </label>
+              </div>
+            </div>
+
+            <!-- MES 岗位（勾了 MES 才出现，可多选一人兼多岗） -->
+            <div
+              v-if="showMesRoles(selectedMember)"
+              class="flex items-start gap-4"
+            >
+              <span class="flex-shrink-0 text-sm w-24 text-n-slate-11 pt-1.5">
+                MES 岗位
+              </span>
+              <span
+                v-if="selectedMember.is_admin"
+                class="text-sm text-n-slate-10 pt-1.5"
+              >
+                全部
+              </span>
+              <div v-else class="flex-1 flex flex-wrap items-center gap-1.5">
+                <button
+                  v-for="opt in MES_ROLE_CHIPS"
+                  :key="opt.value"
+                  type="button"
+                  :disabled="savingId === selectedMember.id"
+                  class="h-7 px-2.5 rounded-full text-xs font-medium border transition-colors disabled:opacity-50"
+                  :class="
+                    memberMesRoles(selectedMember).includes(opt.value)
+                      ? 'bg-n-iris-9 text-white border-n-iris-9'
+                      : 'bg-n-alpha-1 text-n-slate-11 border-n-weak hover:bg-n-alpha-2'
+                  "
+                  @click="toggleMesRole(selectedMember, opt.value)"
+                >
+                  {{ opt.label }}
+                </button>
+                <span class="ml-1 text-xs text-n-slate-10">不选=只读</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 组：其它 -->
+          <div class="flex flex-col gap-4">
+            <span class="text-xs font-semibold text-n-slate-10">其它</span>
+
+            <!-- 数据范围（自动，只读） -->
+            <div class="flex items-center gap-4">
+              <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
+                {{ L.colScope }}
+              </span>
+              <span class="text-sm text-n-slate-11">
+                {{ scopeLabel(selectedMember) }}
+                <span class="text-xs text-n-slate-9">（按角色 / 部门自动）</span>
+              </span>
+            </div>
           </div>
 
           <!-- 操作：自己也可改中文名/CRM英文名；管理员不可动超管账号 -->
@@ -1005,6 +1242,162 @@ onMounted(() => {
           名下客户 / 商机 /
           文档已在「离职」时交接完毕，不受影响。仅建议用于建错、测试或重复的账号。
         </p>
+      </div>
+    </Dialog>
+
+    <!-- 岗位模板管理：列表 ↔ 新增/编辑 -->
+    <Dialog
+      ref="templateDialog"
+      :title="
+        templateMode === 'list'
+          ? '岗位模板'
+          : editingTemplateId
+            ? '编辑岗位模板'
+            : '新增岗位模板'
+      "
+      :show-confirm-button="false"
+    >
+      <!-- 列表 -->
+      <div v-if="templateMode === 'list'" class="flex flex-col gap-3">
+        <p class="text-xs text-n-slate-10">
+          每个模板打包好一个岗位的「系统角色 + 可进系统 + MES 岗位 + 财务」，在成员上一键套用。
+        </p>
+        <div class="flex flex-col gap-2 max-h-80 overflow-y-auto">
+          <div
+            v-for="tpl in templates"
+            :key="tpl.id"
+            class="flex items-center gap-3 p-3 border rounded-lg border-n-weak"
+          >
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium truncate text-n-slate-12">
+                {{ tpl.name }}
+              </div>
+              <div class="text-xs truncate text-n-slate-10">
+                {{ templateSummary(tpl) }}
+              </div>
+            </div>
+            <button
+              class="flex-shrink-0 px-2 py-1 text-xs font-medium rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+              @click="startEditTemplate(tpl)"
+            >
+              编辑
+            </button>
+            <button
+              class="flex-shrink-0 px-2 py-1 text-xs font-medium rounded-md text-n-ruby-11 hover:bg-n-ruby-3"
+              @click="deleteTemplate(tpl)"
+            >
+              删除
+            </button>
+          </div>
+          <p
+            v-if="!templates.length"
+            class="py-6 text-xs text-center text-n-slate-9"
+          >
+            还没有模板
+          </p>
+        </div>
+        <div class="flex justify-end">
+          <button
+            class="flex items-center h-9 gap-1.5 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10"
+            @click="startNewTemplate"
+          >
+            <span class="size-4 i-lucide-plus" />
+            新增模板
+          </button>
+        </div>
+      </div>
+
+      <!-- 新增 / 编辑表单 -->
+      <div v-else class="flex flex-col gap-4">
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">模板名称（岗位名）</span>
+          <input
+            v-model="templateForm.name"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="如 外贸业务员 / 仓库管理"
+          />
+        </label>
+
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">系统角色</span>
+          <Select
+            :model-value="templateForm.system_role"
+            :options="templateRoleOptions"
+            @update:model-value="v => (templateForm.system_role = v)"
+          />
+        </label>
+
+        <div class="flex flex-col gap-1.5">
+          <span class="text-xs text-n-slate-11">可进入的系统</span>
+          <div class="flex flex-wrap items-center gap-4">
+            <label
+              v-for="mod in MODULE_OPTIONS"
+              :key="mod.key"
+              class="flex items-center gap-1.5 text-sm text-n-slate-11"
+              :class="
+                mod.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+              "
+            >
+              <input
+                type="checkbox"
+                class="accent-n-iris-9"
+                :checked="templateForm.module_access.includes(mod.key)"
+                :disabled="mod.disabled"
+                @change="toggleFormModule(mod.key)"
+              />
+              {{ mod.label }}{{ mod.disabled ? '（未上线）' : '' }}
+            </label>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <span class="text-xs text-n-slate-11">MES 岗位（可多选，不选=无）</span>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button
+              v-for="opt in MES_ROLE_CHIPS"
+              :key="opt.value"
+              type="button"
+              class="h-7 px-2.5 rounded-full text-xs font-medium border transition-colors"
+              :class="
+                templateForm.mes_roles.includes(opt.value)
+                  ? 'bg-n-iris-9 text-white border-n-iris-9'
+                  : 'bg-n-alpha-1 text-n-slate-11 border-n-weak hover:bg-n-alpha-2'
+              "
+              @click="toggleFormMes(opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+
+        <label
+          class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+        >
+          <input
+            v-model="templateForm.crm_finance"
+            type="checkbox"
+            class="accent-n-iris-9"
+          />
+          财务权限（可查看全员已通过提成表并导出）
+        </label>
+
+        <div class="flex justify-between gap-2 pt-1">
+          <button
+            type="button"
+            class="h-9 px-4 text-sm font-medium border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+            @click="templateMode = 'list'"
+          >
+            返回
+          </button>
+          <button
+            type="button"
+            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+            :disabled="savingTemplate || !templateForm.name.trim()"
+            @click="saveTemplate"
+          >
+            {{ savingTemplate ? '保存中…' : '保存' }}
+          </button>
+        </div>
       </div>
     </Dialog>
   </div>

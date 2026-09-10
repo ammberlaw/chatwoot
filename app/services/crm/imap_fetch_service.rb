@@ -16,6 +16,12 @@ class Crm::ImapFetchService
     @account = mail_account
   end
 
+  # 按 Message-ID 把某封邮件的原文重新取回来（附件补收用，见 Crm::MailAttachmentRepair）。
+  # 服务器上已删除或超出保留期时返回 nil。
+  def self.fetch_raw_by_message_id(mail_account, message_id)
+    new(mail_account: mail_account).send(:raw_by_message_id, message_id)
+  end
+
   def perform
     return 0 if @account.resolved_imap_host.blank? || @account.smtp_password.blank?
 
@@ -91,6 +97,34 @@ class Crm::ImapFetchService
     end
     Rails.logger.warn("[Crm::ImapFetch] account=#{@account.id} skip uid=#{uid}: #{err.class}: #{err.message}")
     reopen(imap)
+  end
+
+  # 补收附件时回查的扫描上限：HEADER 检索不可用的服务器上，最多往回比对这么多封。
+  REPAIR_SCAN_LIMIT = 300
+
+  # 按 Message-ID 在 INBOX 里搜出这封邮件并取回原文。
+  def raw_by_message_id(message_id)
+    imap = nil
+    Timeout.timeout(RUN_TIMEOUT) do
+      imap = connect
+      imap.select('INBOX')
+      uid = imap.uid_search(['HEADER', 'MESSAGE-ID', message_id]).last
+      # 网易企业邮不支持按 HEADER 检索（恒返回空，不报错），回落成扫最近若干封逐条比对头。
+      uid ||= scan_for_message_id(imap, message_id)
+      return nil if uid.nil?
+
+      imap.uid_fetch(uid, 'RFC822')&.first&.attr&.dig('RFC822')
+    end
+  ensure
+    safe_close(imap)
+  end
+
+  def scan_for_message_id(imap, message_id)
+    imap.uid_search(['ALL']).last(REPAIR_SCAN_LIMIT).reverse.find do |uid|
+      message_id_of(imap, uid) == message_id
+    rescue Net::IMAP::Error, IOError
+      false
+    end
   end
 
   # 只取 Message-ID 头（不拉正文），清洗后与入库去重键（Crm::EmailIngestion#ingest_raw）口径一致。

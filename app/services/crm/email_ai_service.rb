@@ -2,7 +2,7 @@
 # 密钥优先读账户的 Crm::AiSetting（管理员在 CRM 后台「AI 设置」页配置，全公司共用一把）；
 # 未配置时降级读环境变量 DEEPSEEK_API_KEY/_MODEL/_API_BASE，默认 deepseek-chat 官方端点。
 # test/测试连接场景可传 api_key/api_base/model 覆盖，用后台表单里未保存的值先验一把。
-class Crm::EmailAiService
+class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
   class NotConfigured < StandardError; end
 
   DEFAULT_API_BASE = 'https://api.deepseek.com/v1'.freeze
@@ -241,6 +241,75 @@ class Crm::EmailAiService
   def company_profile(domain:, site_text:)
     raw = ask(COMPANY_SYSTEM, "公司域名：#{domain}\n\n官网内容：\n#{truncate(site_text)}")
     parse_json(raw)
+  end
+
+  INVITE_SYSTEM = <<~PROMPT.freeze
+    你是一家中国外贸公司的资深业务员，给海外客户写一封「展会邀约」邮件，邀请对方到我方展位参观洽谈。
+    要求：
+    - 默认用英文写；若客户所在国家主流商务语言另有其一（如西语国家可用英文即可），仍以英文为主，简洁得体。
+    - 语气专业、热情但不啰嗦，突出「见面洽谈」的价值；结合展会名称、时间、地点、展位号、我方本次主打产品。
+    - 若给了确认链接，请在正文自然位置放入该链接，并引导对方点击在线确认到访（One click to confirm your visit）。
+    - 正文用纯文本分段，不要 Markdown 标记，不要写署名落款（系统会自动附加签名）。
+    - 只输出邮件本身：第一行以「SUBJECT: 」开头给出主题，空一行后输出正文，不要任何解释。
+  PROMPT
+
+  # 展会邀约 4 步 SOP 各步的「模板」system 提示：只生成一份带占位符的模板（供邮件合并批量建草稿，
+  # 一次 AI 调用即可，避免逐客户调用超时）。收件公司用 {{COMPANY}}、确认链接用 {{LINK}} 占位。
+  STAGE_TEMPLATE_HINT = "\n收件人公司名请用占位符 {{COMPANY}} 表示；如需放确认到访链接，用占位符 {{LINK}} 表示。这两个标记原样保留、不要替换或翻译。".freeze
+  STAGE_TEMPLATE_SYSTEMS = {
+    'teaser' => (<<~PROMPT.freeze),
+      你是一家中国外贸公司的资深业务员，写一封展会「预告」邮件模板（正式邀请函之前的预热）。
+      要求：简短热情，告知我方将参加该展会、时间地点，请对方留意后续正式邀请；不要长篇。默认英文。
+      正文纯文本分段、不要 Markdown、不写署名。只输出：第一行「SUBJECT: 」给主题，空一行后正文。#{STAGE_TEMPLATE_HINT}
+    PROMPT
+    'invite' => (<<~PROMPT.freeze),
+      你是一家中国外贸公司的资深业务员，写一封展会「邀请函」邮件模板，邀请对方到我方展位参观洽谈。
+      要求：专业热情不啰嗦，突出见面洽谈价值，结合展会名称/时间/地点/展位号/主打产品；自然位置放入确认链接引导在线确认。默认英文。
+      正文纯文本分段、不要 Markdown、不写署名。只输出：第一行「SUBJECT: 」给主题，空一行后正文。#{STAGE_TEMPLATE_HINT}
+    PROMPT
+    'confirm' => (<<~PROMPT.freeze),
+      你是一家中国外贸公司的资深业务员，写一封展会「确认到访」跟进邮件模板（已发过邀请函之后）。
+      要求：礼貌跟进，请对方确认是否到访、引导点击确认链接，表达期待见面。默认英文。
+      正文纯文本分段、不要 Markdown、不写署名。只输出：第一行「SUBJECT: 」给主题，空一行后正文。#{STAGE_TEMPLATE_HINT}
+    PROMPT
+    'reminder' => (<<~PROMPT.freeze)
+      你是一家中国外贸公司的资深业务员，写一封展会「行前提醒」邮件模板（展会临近时发）。
+      要求：提醒展会日期临近，重申展位号/地点、主打产品，欢迎莅临；简洁友好。默认英文。
+      正文纯文本分段、不要 Markdown、不写署名。只输出：第一行「SUBJECT: 」给主题，空一行后正文。#{STAGE_TEMPLATE_HINT}
+    PROMPT
+  }.freeze
+
+  # 4 步 SOP 某一步的邮件模板（带 {{COMPANY}}/{{LINK}} 占位，供批量合并建草稿）：返回 [主题模板, 正文模板]。
+  def compose_stage_template(exhibition:, stage:)
+    system = STAGE_TEMPLATE_SYSTEMS[stage.to_s] || STAGE_TEMPLATE_SYSTEMS['invite']
+    ctx = [
+      "展会名称：#{exhibition.name}",
+      ("展会时间：#{exhibition.starts_on} ~ #{exhibition.ends_on}" if exhibition.starts_on),
+      ("展会地点：#{[exhibition.city, exhibition.country, exhibition.venue].compact_blank.join('，')}" if exhibition.city || exhibition.venue),
+      ("展位号：#{exhibition.booth_no}" if exhibition.booth_no.present?),
+      ("我方本次主打产品：#{exhibition.featured_products}" if exhibition.featured_products.present?)
+    ].compact_blank.join("\n")
+    split_subject(ask(system, ctx))
+  end
+
+  # 展会邀约上下文（展会 + 客户 + 确认链接），供 4 步 SOP 各步复用。空字段自动略去。
+  def invite_context(exhibition, customer, confirm_url)
+    {
+      '展会名称' => exhibition.name,
+      '展会时间' => (exhibition.starts_on && "#{exhibition.starts_on} ~ #{exhibition.ends_on}"),
+      '展会地点' => [exhibition.city, exhibition.country, exhibition.venue].compact_blank.join('，'),
+      '展位号' => exhibition.booth_no,
+      '我方本次主打产品' => exhibition.featured_products,
+      '收件客户公司' => customer.name,
+      '客户所在国家/地区' => [customer.trade_country, customer.trade_region].compact_blank.join('，'),
+      '客户联系人' => customer.primary_contact_name,
+      '在线确认到访链接' => confirm_url
+    }.filter_map { |k, v| "#{k}：#{v}" if v.present? }.join("\n")
+  end
+
+  # 展会邀请函：按展会 + 客户信息生成邀约邮件，返回 [主题, 正文]。confirm_url 为客户在线确认到访的落地页链接。
+  def compose_invite(exhibition:, customer:, confirm_url: nil)
+    split_subject(ask(INVITE_SYSTEM, invite_context(exhibition, customer, confirm_url)))
   end
 
   # 连接测试：用当前（含覆盖）配置发一个极短请求，能拿到任何回复即视为连通。

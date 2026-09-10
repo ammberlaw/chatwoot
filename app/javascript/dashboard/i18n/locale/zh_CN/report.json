@@ -127,15 +127,15 @@
     }
   },
   "AGENT_REPORTS": {
-    "HEADER": "客服概览",
+    "HEADER": "业务概览",
     "DESCRIPTION": "Easily track agent performance with key metrics such as conversations, response times, resolution times, and resolved cases. Click an agent's name to learn more.",
     "LOADING_CHART": "正在载入图表数据...",
     "NO_ENOUGH_DATA": "我们没有收到足够的数据点来生成报告，请稍后再试。",
-    "DOWNLOAD_AGENT_REPORTS": "下载客服报表",
-    "FILTER_DROPDOWN_LABEL": "选择客服",
+    "DOWNLOAD_AGENT_REPORTS": "下载业务报表",
+    "FILTER_DROPDOWN_LABEL": "选择业务",
     "FILTERS": {
       "INPUT_PLACEHOLDER": {
-        "AGENTS": "搜索客服代表"
+        "AGENTS": "搜索业务"
       }
     },
     "METRICS": {
@@ -434,13 +434,13 @@
       "CLEAR_ALL": "清除全部",
       "NO_FILTER": "没有可用的过滤器",
       "INPUT_PLACEHOLDER": {
-        "AGENTS": "搜索客服代表",
+        "AGENTS": "搜索业务",
         "INBOXES": "Search inboxes",
         "TEAMS": "查找团队",
         "RATINGS": "Search ratings"
       },
       "AGENTS": {
-        "LABEL": "客服"
+        "LABEL": "业务"
       },
       "INBOXES": {
         "LABEL": "收件箱"
@@ -455,7 +455,7 @@
     "TABLE": {
       "HEADER": {
         "CONTACT_NAME": "联系人",
-        "AGENT_NAME": "客服",
+        "AGENT_NAME": "业务",
         "RATING": "评分",
         "FEEDBACK_TEXT": "反馈评论",
         "CONVERSATION": "会话",
@@ -518,7 +518,7 @@
       },
       "HANDOFF_RATE": {
         "LABEL": "转交率",
-        "TOOLTIP": "转交给客服的会话数 / 机器人处理的会话总数 * 100"
+        "TOOLTIP": "转交给业务的会话数 / 机器人处理的会话总数 * 100"
       }
     }
   },
@@ -548,11 +548,11 @@
       "DOWNLOAD_REPORT": "下载报告"
     },
     "AGENT_CONVERSATIONS": {
-      "HEADER": "按客服划分的会话",
-      "LOADING_MESSAGE": "正在加载客服指标...",
-      "NO_AGENTS": "没有客服的会话",
+      "HEADER": "按业务划分的会话",
+      "LOADING_MESSAGE": "正在加载业务指标...",
+      "NO_AGENTS": "没有业务的会话",
       "TABLE_HEADER": {
-        "AGENT": "客服",
+        "AGENT": "业务",
         "OPEN": "打开",
         "UNATTENDED": "未处理",
         "STATUS": "状态"
@@ -571,7 +571,7 @@
       }
     },
     "AGENT_STATUS": {
-      "HEADER": "客服状态",
+      "HEADER": "业务状态",
       "ONLINE": "在线",
       "BUSY": "忙碌",
       "OFFLINE": "离线"
@@ -601,14 +601,14 @@
       "SEARCH": "搜索过滤器",
       "INPUT_PLACEHOLDER": {
         "SLA": "SLA 名称",
-        "AGENTS": "客服名称",
+        "AGENTS": "业务名称",
         "INBOXES": "收件箱名称",
         "LABELS": "标签名称",
         "TEAMS": "团队名称"
       },
       "SLA": "SLA 策略",
       "INBOXES": "收件箱",
-      "AGENTS": "客服",
+      "AGENTS": "业务",
       "LABELS": "标签",
       "TEAMS": "团队"
     },
@@ -631,14 +631,14 @@
       "HEADER": {
         "POLICY": "策略",
         "CONVERSATION": "会话",
-        "AGENT": "客服"
+        "AGENT": "业务"
       },
       "VIEW_DETAILS": "查看详情"
     }
   },
   "SUMMARY_REPORTS": {
     "INBOX": "收件箱",
-    "AGENT": "客服",
+    "AGENT": "业务",
     "TEAM": "团队",
     "LABEL": "标签",
     "AVG_RESOLUTION_TIME": "平均解决时间",

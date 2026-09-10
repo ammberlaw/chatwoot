@@ -8,7 +8,7 @@
     "YES": "是",
     "CANCEL": "取消",
     "SEARCH_INPUT_PLACEHOLDER": "搜索",
-    "ASSIGN_AGENT_TOOLTIP": "分配客服代表",
+    "ASSIGN_AGENT_TOOLTIP": "分配业务",
     "ASSIGN_TEAM_TOOLTIP": "分配一个团队",
     "ASSIGN_SUCCESFUL": "对话分配成功.",
     "ASSIGN_FAILED": "分配对话失败。请再试一次。",

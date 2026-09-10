@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :audits, :detail, :favorite, :unfavorite, :attach_contact, :schedule_follow_up, :merge]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :parse_attachment, :audits, :detail, :favorite, :unfavorite, :attach_contact, :schedule_follow_up, :merge]
 
   RESULTS_PER_PAGE = 15
   MAX_IMPORT_ROWS = 2000
@@ -86,6 +86,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   def create
     @customer = Current.account.crm_customers.create!(customer_params)
     @customer.sync_contacts(contact_entries)
+    link_source_contact
   end
 
   # 电话归一化：只留数字，再剥中国手机号的 86/0086 前缀（86+1 开头 11 位），
@@ -183,12 +184,14 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     render json: { payload: rows.map { |c| dedupe_search_row(c) } }
   end
 
-  # 客户建档实时查重：邮箱精确命中(阻止) + 公司名相似(提醒)。
+  # 客户建档实时查重：邮箱精确命中(阻止) + 手机/WhatsApp 命中 + 公司名相似(提醒)。
+  # 手机维度是给没有邮箱的客户（WhatsApp 进来的）兜底的身份依据，复用主动查重那套归一规则。
   def check_duplicate
     email = params[:email].to_s.strip
     name = params[:name].to_s.strip
     render json: {
       email_hit: email.present? ? dedupe_row(Current.account.crm_customers.where('LOWER(contact_email) = ?', email.downcase).first) : nil,
+      phone_hit: dedupe_row(phone_duplicate(params[:phone])),
       name_hits: name.length >= 2 ? name_matches(name) : []
     }
   end
@@ -301,6 +304,43 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   def attach
     @customer.files.attach(params[:files])
     render 'api/v1/accounts/crm/customers/show'
+  end
+
+  # 识别客户文件里的 PI：业务常直接把 PI 传到客户「文件」页（不走销售订单），
+  # 那样金额不进成交口径、客户星级也评不出来。这里就地识别，前端拿结果去开建单弹窗。
+  def parse_attachment
+    attachment = @customer.files.find(params[:attachment_id])
+    unless Crm::PiParseService.pi_like_filename?(attachment.filename.to_s)
+      return render json: { recognized: false, reason: '文件名看着不像 PI，已跳过识别' }
+    end
+
+    result = Crm::PiParseService.from_attachment(account: Current.account, user: current_user, attachment: attachment).call
+    render json: result.merge(recognized: true, attachment_id: attachment.id, filename: attachment.filename.to_s)
+  rescue Crm::PiParseService::UnsupportedType, Crm::EmailAiService::NotConfigured => e
+    render json: { recognized: false, reason: e.message }, status: :unprocessable_entity
+  rescue StandardError => e
+    Rails.logger.error("[PI attachment parse] #{e.class}: #{e.message}")
+    render json: { recognized: false, reason: 'PI 识别失败，请检查文件或稍后重试' }, status: :unprocessable_entity
+  end
+
+  # 历史 PI 附件盘点：列出「文件名像 PI」的客户附件，标出该客户已成交订单数，
+  # 供批量补录（识别只在用户逐条点「识别」时才跑，避免一次几十个 AI 调用）。
+  def pi_attachment_candidates
+    rows = restrict_by_org(Current.account.crm_customers)
+           .joins(files_attachments: :blob)
+           .select('crm_customers.id AS customer_id, crm_customers.name AS customer_name,
+                    crm_customers.deal_order_count AS deal_order_count,
+                    active_storage_attachments.id AS attachment_id,
+                    active_storage_blobs.filename AS filename,
+                    active_storage_blobs.byte_size AS byte_size')
+    candidates = rows.filter_map do |r|
+      next unless Crm::PiParseService.pi_like_filename?(r.filename)
+
+      { customer_id: r.customer_id, customer_name: r.customer_name,
+        deal_order_count: r.deal_order_count.to_i, attachment_id: r.attachment_id,
+        filename: r.filename, byte_size: r.byte_size.to_i }
+    end
+    render json: { payload: candidates }
   end
 
   # 删除单个附件
@@ -598,6 +638,30 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     when DUP_DIMENSIONS['whats_app'][:expr] then normalized_phone(customer.whats_app)
     else customer.name.to_s.strip.downcase
     end
+  end
+
+  # 从会话「建档为客户」跳来时带 contact_id：把这条联系人挂到刚建的客户名下，
+  # 之后这个联系人的往来邮件/会话就能自动归属。只认还没归属的联系人，
+  # 已经属于别的客户的不动（不能借建档把别人的联系人抢过来）。
+  def link_source_contact
+    contact_id = params.dig(:customer, :contact_id)
+    return if contact_id.blank?
+
+    Current.account.contacts.where(id: contact_id, crm_customer_id: nil)
+           .update_all(crm_customer_id: @customer.id, updated_at: Time.current)
+  end
+
+  # 建档查重用：比后 9 位，让 +971501234567 / 0501234567 / 971 50 123 4567 判为同号。
+  # 短于 8 位不查（分机号/座机段太容易误撞）。
+  def phone_duplicate(raw)
+    digits = raw.to_s.gsub(/\D/, '')
+    return nil if digits.length < 8
+
+    tail = digits.last(9)
+    Current.account.crm_customers.where(
+      "#{format(PHONE_NORM_SQL, 'contact_phone')} LIKE :tail OR #{format(PHONE_NORM_SQL, 'whats_app')} LIKE :tail",
+      tail: "%#{tail}"
+    ).first
   end
 
   # 与 PHONE_NORM_SQL 同规则的 Ruby 版。

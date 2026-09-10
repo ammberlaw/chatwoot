@@ -150,7 +150,7 @@ const timelineStages = computed(() =>
 const timelineStageIndex = value =>
   timelineStages.value.findIndex(s => s.value === value);
 
-// 视图：all 列表（再按 listScope 分档）/ inbox 待我确认（停在我这一级的审批单 + 待我二次确认 BOM 的单）。
+// 视图：all 列表（再按 listScope 分档）/ inbox 待我确认（停在我这一级的审批单）。
 const viewMode = ref('all');
 // 列表分档：mine 我的订单 / stock 库存备货 / all 全部（可见范围内）。
 const listScope = ref('all');
@@ -457,6 +457,7 @@ const submitConvert = async () => {
 // —— 定制生产订单：按产品线模板填规格（新建 / 编辑规格）——
 const orderDialogRef = ref(null);
 const editingOrderId = ref(null);
+const viewOnlyOrder = ref(false);
 const orderTemplate = ref('TABLET');
 const templateOptions = Object.entries(SPEC_TEMPLATES).map(([value, t]) => ({
   value,
@@ -524,10 +525,16 @@ const setTemplate = t => {
   orderTemplate.value = t;
   orderSpec.value = blankSpec(t); // 换模板重置规格
 };
+const orderDialogTitle = computed(() => {
+  if (viewOnlyOrder.value) return '查看生产订单';
+  return editingOrderId.value ? '编辑生产订单' : '新建生产订单';
+});
 // 新建走整页建档页；本弹框仅用于编辑规格。
 const openNewOrder = () =>
   router.push(accountScopedRoute('mes_production_order_intake_index'));
-const openEditSpec = order => {
+// viewOnly：非制单人且无 order 能力的人走「查看订单」，同一弹窗只读呈现（禁用录入、藏确认键）。
+const openEditSpec = (order, { viewOnly = false } = {}) => {
+  viewOnlyOrder.value = viewOnly;
   editingOrderId.value = order.id;
   orderTemplate.value =
     order.spec?.template ||
@@ -558,9 +565,11 @@ const submitOrder = async () => {
   if (orderInvalid.value) return;
   const payload = {
     piNo: orderBase.piNo.trim() || undefined,
+    // 清空要显式送 null：undefined 会被 JSON 序列化丢掉，后端收不到这个键就保留原值，
+    // 表现为「清掉了、退出再进又回来」。crm_product_id 是选填(belongs_to optional)。
     crmProductId: orderBase.crmProductId
       ? Number(orderBase.crmProductId)
-      : undefined,
+      : null,
     productName: orderBase.productName.trim(),
     qty: Number(orderBase.qty),
     unit: orderBase.unit,
@@ -621,7 +630,7 @@ const removeAttachment = async (attachmentId, kind) => {
   if (ok) selected.value = ok;
 };
 
-// 业务二次确认前要能看到工程做的用料清单：订单详情选中且已挂 BOM 时，按 bomId 拉 BOM 明细。
+// 详情里要能看到工程做的用料清单：订单详情选中且已挂 BOM 时，按 bomId 拉 BOM 明细。
 const CATEGORY_LABELS = { MACHINE: '整机生产物料', PACKAGING: '包装物料' };
 const categoryLabel = c => CATEGORY_LABELS[c] || '整机生产物料';
 const bomDetail = ref(null);
@@ -675,17 +684,6 @@ const goCreateBomForOrder = () => {
       }
     )
   );
-};
-
-// 业务二次确认 BOM（BOM_READY 段内的闸，确认后方可下发采购）。
-const confirmBom = async () => {
-  if (!selected.value) return;
-  const ok = await store.confirmBom(selected.value.id);
-  if (ok) {
-    useAlert('BOM 已二次确认，可下发采购');
-    selected.value = ok;
-    fetchRecords();
-  }
 };
 
 // —— 标记外购（工程判定为外购成品，跳过 BOM 直接进采购）——
@@ -742,7 +740,7 @@ const submitMarkOutsourced = async () => {
   }
 };
 
-// —— 关联已有 BOM（复用现成 BOM 直接挂到本单，不用重建；保存后进 BOM 复核）——
+// —— 关联已有 BOM（复用现成 BOM 直接挂到本单，不用重建；挂好即可下发采购）——
 const linkBomDialogRef = ref(null);
 const linkBomList = ref([]); // 直连 MesBomAPI，snake_case
 const linkBomId = ref('');
@@ -786,7 +784,7 @@ const submitLinkBom = async () => {
       bomId: Number(linkBomId.value),
     });
     if (ok) {
-      useAlert('已关联 BOM，进入 BOM 复核');
+      useAlert('已关联 BOM，可下发采购');
       selected.value = ok;
       linkBomDialogRef.value?.close();
       fetchRecords();
@@ -834,7 +832,6 @@ const canDeleteRow = po =>
   isAdmin.value ||
   isCrmDeputyAdmin.value ||
   (canCreateOrder.value && po.ownerId === currentUserId.value && po.isDraft);
-// 业务二次确认 BOM：BOM_READY 段、已挂 BOM 且未确认，创建人（业务员）或管理员可确认。
 // 跳转到原料入库页并按本订单筛选（相应负责人查看到料情况）。
 const goStockEntries = po => {
   if (!po) return;
@@ -861,16 +858,6 @@ const deleteOrder = async po => {
     fetchRecords();
   }
 };
-const canConfirmBom = computed(() => {
-  const po = selected.value;
-  if (!po) return false;
-  return (
-    po.stage === 'BOM_READY' &&
-    po.bomNo &&
-    !po.bomConfirmedAt &&
-    (isOwner.value || isAdmin.value || isCrmDeputyAdmin.value)
-  );
-});
 const canApprove = computed(() => {
   const po = selected.value;
   if (!po) return false;
@@ -1672,74 +1659,13 @@ watch(currentPage, fetchRecords);
             <div class="text-xs text-n-slate-11">
               工程/PMC BOM：{{ selected.bomNo }}
             </div>
-            <!-- 两步流程指引：谁做、到哪步了，避免「业务确认后到底谁下发采购」的误解 -->
+            <!-- 挂好 BOM 后下一步就是工程/PMC「下发到采购」
+                 （原先中间有一道「业务二次确认 BOM」的闸，已取消）。 -->
             <div
               v-if="selected.stage === 'BOM_READY'"
-              class="flex flex-col gap-2 p-3 mt-2 text-xs rounded-lg bg-n-alpha-1"
+              class="p-3 mt-2 text-xs rounded-lg text-n-slate-11 bg-n-alpha-1"
             >
-              <div class="flex items-start gap-2">
-                <span
-                  class="flex items-center justify-center w-4 h-4 text-white rounded-full shrink-0 text-[10px]"
-                  :class="
-                    selected.bomConfirmedAt ? 'bg-n-teal-9' : 'bg-n-amber-9'
-                  "
-                >
-                  {{ selected.bomConfirmedAt ? '✓' : '1' }}
-                </span>
-                <div class="flex flex-col">
-                  <span class="font-medium text-n-slate-12">
-                    业务核对确认用料
-                  </span>
-                  <span
-                    :class="
-                      selected.bomConfirmedAt
-                        ? 'text-n-teal-11'
-                        : 'text-n-amber-11'
-                    "
-                  >
-                    {{
-                      selected.bomConfirmedAt
-                        ? `已确认${
-                            selected.bomConfirmedByName
-                              ? `（${selected.bomConfirmedByName}）`
-                              : ''
-                          }`
-                        : '待业务确认（点下方「业务确认BOM」）'
-                    }}
-                  </span>
-                </div>
-              </div>
-              <div class="flex items-start gap-2">
-                <span
-                  class="flex items-center justify-center w-4 h-4 rounded-full shrink-0 text-[10px]"
-                  :class="
-                    selected.bomConfirmedAt
-                      ? 'bg-n-iris-9 text-white'
-                      : 'bg-n-slate-4 text-n-slate-10'
-                  "
-                >
-                  2
-                </span>
-                <div class="flex flex-col">
-                  <span
-                    class="font-medium"
-                    :class="
-                      selected.bomConfirmedAt
-                        ? 'text-n-slate-12'
-                        : 'text-n-slate-10'
-                    "
-                  >
-                    工程/PMC 下发采购
-                  </span>
-                  <span class="text-n-slate-10">
-                    {{
-                      selected.bomConfirmedAt
-                        ? '业务已确认，由工程/PMC 下发采购'
-                        : '待业务确认后，由工程/PMC 下发（非业务操作）'
-                    }}
-                  </span>
-                </div>
-              </div>
+              BOM 已挂好，等工程/PMC 核对后点「下发到采购」。
             </div>
             <!-- 查看工程做的用料清单（弹窗看完整明细） -->
             <Button
@@ -1753,17 +1679,7 @@ watch(currentPage, fetchRecords);
               class="w-full mt-2"
               @click="openBomView"
             />
-            <!-- 业务确认 BOM 按钮 -->
-            <Button
-              v-if="canConfirmBom"
-              label="业务确认BOM"
-              color="amber"
-              size="sm"
-              class="w-full mt-2"
-              :is-loading="uiFlags.updatingItem"
-              @click="confirmBom"
-            />
-            <!-- 下发采购：需业务确认后才可点 -->
+            <!-- 下发采购（原先此处有一道「业务二次确认 BOM」的闸，已取消）-->
             <Button
               v-if="
                 selected.stage === 'BOM_READY' &&
@@ -1774,7 +1690,6 @@ watch(currentPage, fetchRecords);
               size="sm"
               class="w-full mt-2"
               :is-loading="uiFlags.updatingItem"
-              :disabled="!selected.bomConfirmedAt"
               @click="releasePurchasing"
             />
             <!-- BOM 变更史：工程改动已下发 BOM 的用料留痕（谁/何时/改了什么）-->
@@ -1816,7 +1731,7 @@ watch(currentPage, fetchRecords);
           >
             <p class="text-xs text-n-slate-10">
               自产：去「工程 BOM」新建 BOM 并关联本订单，或直接关联一张已有
-              BOM；保存后进入 BOM 复核。
+              BOM；挂好后由工程/PMC 下发采购。
             </p>
             <Button
               label="去建 BOM（自产）"
@@ -1923,13 +1838,22 @@ watch(currentPage, fetchRecords);
               定制规格 ·
               {{ (SPEC_TEMPLATES[selected.spec.template] || {}).label }}
             </span>
-            <Button
-              v-if="canEditSelected"
-              label="编辑订单"
-              variant="ghost"
-              size="xs"
-              @click="openEditSpec(selected)"
-            />
+            <!-- 「查看订单」人人可见（只读整单）；「编辑订单」只给能改的人（制单人 / order 能力）。 -->
+            <div class="flex items-center gap-1">
+              <Button
+                label="查看订单"
+                variant="ghost"
+                size="xs"
+                @click="openEditSpec(selected, { viewOnly: true })"
+              />
+              <Button
+                v-if="canEditSelected"
+                label="编辑订单"
+                variant="ghost"
+                size="xs"
+                @click="openEditSpec(selected)"
+              />
+            </div>
           </div>
           <MesOrderSpecForm
             :template="selected.spec.template"
@@ -2058,8 +1982,10 @@ watch(currentPage, fetchRecords);
       width="2xl"
       overflow-y-auto
       confirm-button-color="iris"
-      :title="editingOrderId ? '编辑生产订单' : '新建生产订单'"
+      :title="orderDialogTitle"
       :is-loading="converting"
+      :show-confirm-button="!viewOnlyOrder"
+      :cancel-button-label="viewOnlyOrder ? '关闭' : undefined"
       :disable-confirm-button="orderInvalid"
       @confirm="submitOrder"
     >
@@ -2079,6 +2005,7 @@ watch(currentPage, fetchRecords);
             <label class="text-heading-3 text-n-slate-12">PI 编号</label>
             <Input
               v-model="orderBase.piNo"
+              :disabled="viewOnlyOrder"
               placeholder="形式发票号，如 PI-2026-0788"
             />
           </div>
@@ -2088,6 +2015,7 @@ watch(currentPage, fetchRecords);
             </label>
             <Input
               v-model="orderBase.productName"
+              :disabled="viewOnlyOrder"
               placeholder="如：商显一体机 43寸"
             />
           </div>
@@ -2100,6 +2028,8 @@ watch(currentPage, fetchRecords);
               v-model="orderBase.crmProductId"
               :options="orderProductOptions"
               use-api-results
+              clearable
+              :disabled="viewOnlyOrder"
               :display-label="selectedOrderProductLabel"
               placeholder="选择商品编码（选填，可留空）"
               search-placeholder="搜编码 / 名称"
@@ -2112,15 +2042,26 @@ watch(currentPage, fetchRecords);
             <label class="text-heading-3 text-n-slate-12">
               数量 <span class="text-n-ruby-11">*</span>
             </label>
-            <Input v-model="orderBase.qty" type="number" />
+            <Input
+              v-model="orderBase.qty"
+              type="number"
+              :disabled="viewOnlyOrder"
+            />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">单位</label>
-            <Input v-model="orderBase.unit" placeholder="台 / 片 / pcs" />
+            <Input
+              v-model="orderBase.unit"
+              :disabled="viewOnlyOrder"
+              placeholder="台 / 片 / pcs"
+            />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">期望交期</label>
-            <DatePicker v-model="orderBase.deliveryDate" block />
+            <!-- DatePicker 没有 disabled，只读时用容器锁交互（其余控件走各自的 disabled）。 -->
+            <div :class="viewOnlyOrder ? 'pointer-events-none opacity-60' : ''">
+              <DatePicker v-model="orderBase.deliveryDate" block />
+            </div>
           </div>
         </div>
 
@@ -2128,6 +2069,7 @@ watch(currentPage, fetchRecords);
           <MesOrderSpecForm
             v-model:spec="orderSpec"
             :template="orderTemplate"
+            :readonly="viewOnlyOrder"
           />
         </div>
       </div>
@@ -2190,7 +2132,7 @@ watch(currentPage, fetchRecords);
       </div>
     </Dialog>
 
-    <!-- 查看 BOM 完整用料明细弹窗（业务二次确认前核对） -->
+    <!-- 查看 BOM 完整用料明细弹窗 -->
     <Dialog
       ref="bomViewDialogRef"
       :dismissible="false"
@@ -2301,14 +2243,14 @@ watch(currentPage, fetchRecords);
       </div>
     </Dialog>
 
-    <!-- 关联已有 BOM 弹窗（复用现成 BOM 直接挂到本单，保存后进 BOM 复核） -->
+    <!-- 关联已有 BOM 弹窗（复用现成 BOM 直接挂到本单，挂好即可下发采购） -->
     <Dialog
       ref="linkBomDialogRef"
       :dismissible="false"
       width="3xl"
       confirm-button-color="iris"
       title="关联已有 BOM"
-      description="把一张已存在的 BOM 直接关联到本订单，保存后进入 BOM 复核，无需重新建 BOM。"
+      description="把一张已存在的 BOM 直接关联到本订单，挂好后由工程/PMC 下发采购，无需重新建 BOM。"
       :is-loading="uiFlags.updatingItem"
       :disable-confirm-button="!linkBomId"
       @confirm="submitLinkBom"

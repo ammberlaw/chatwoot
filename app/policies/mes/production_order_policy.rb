@@ -11,7 +11,6 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def acknowledge? = true
   def reject? = true
   # 业务二次确认 BOM（控制器校验创建人/管理员）。
-  def confirm_bom? = true
   # 审批链：提交（控制器校验创建人）、通过/驳回（控制器 can_approve? 校验当前环节人/管理员）、待我审批收件箱。
   def submit_approval? = true
   def approve? = true

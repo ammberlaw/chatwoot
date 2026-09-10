@@ -32,17 +32,41 @@ class Crm::ApolloClient
   def search_organizations(name:, limit: 6)
     return [] if name.blank? || !configured?
 
-    resp = HTTParty.post("#{BASE_URL}/mixed_companies/search",
-                         body: { q_organization_name: name, page: 1, per_page: limit }.to_json,
-                         headers: headers, timeout: TIMEOUT)
-    orgs = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['organizations'] : nil
-    Array(orgs).map { |o| normalize_candidate(o) }.select { |c| c[:domain].present? }
-  rescue StandardError => e
-    Rails.logger.info("[Crm::Apollo] search #{name} failed: #{e.class} #{e.message}")
-    []
+    post_search({ q_organization_name: name, page: 1, per_page: limit }).select { |c| c[:domain].present? }
+  end
+
+  # 按国家 + 行业/产品关键词搜公司（展会找新买家用）：POST mixed_companies/search。
+  # country 用英文国名（如 Germany）；keywords 逗号/空格分隔。返回轻量候选列表。
+  def search_companies(country: nil, keywords: nil, limit: 25)
+    return [] unless configured?
+
+    body = company_search_body(country, keywords, limit)
+    body ? post_search(body).select { |c| c[:name].present? } : []
   end
 
   private
+
+  # 拼公司搜索请求体（国家 + 关键词标签）；国家与关键词都空则返回 nil（不搜）。
+  def company_search_body(country, keywords, limit)
+    tags = keywords.to_s.split(/[，,\s]+/).map(&:strip).reject(&:blank?)
+    return if country.blank? && tags.empty?
+
+    body = { page: 1, per_page: limit }
+    body[:organization_locations] = [country] if country.present?
+    body[:q_organization_keyword_tags] = tags if tags.any?
+    body
+  end
+
+  # POST mixed_companies/search，解析并规范化候选公司列表；异常静默返回 []。
+  def post_search(body)
+    resp = HTTParty.post("#{BASE_URL}/mixed_companies/search",
+                         body: body.to_json, headers: headers, timeout: TIMEOUT)
+    orgs = resp.parsed_response.is_a?(Hash) ? resp.parsed_response['organizations'] : nil
+    Array(orgs).map { |o| normalize_candidate(o) }
+  rescue StandardError => e
+    Rails.logger.info("[Crm::Apollo] search failed: #{e.class} #{e.message}")
+    []
+  end
 
   def headers
     { 'Content-Type' => 'application/json', 'Cache-Control' => 'no-cache', 'X-Api-Key' => api_key }

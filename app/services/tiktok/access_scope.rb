@@ -58,6 +58,21 @@ class Tiktok::AccessScope
     shop_ids_for(led_department_ids)
   end
 
+  # 支出台账/固定资产按「部门」收口（有些支出不挂店铺），故给出部门级的读写范围，
+  # 口径与利润表一致：管理层/财务可读全部，部门负责人限本部门；财务只读。
+  def profit_visible_department_ids
+    return :all if all_access?
+
+    led_department_ids
+  end
+
+  def editable_department_ids
+    return :all if @au&.administrator? || @au&.crm_deputy_admin?
+    return [] if @au&.crm_finance?
+
+    led_department_ids
+  end
+
   private
 
   # 该成员负责（leader）的 TK 部门 id。

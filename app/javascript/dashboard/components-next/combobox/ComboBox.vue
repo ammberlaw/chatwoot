@@ -24,6 +24,9 @@ const props = defineProps({
   message: { type: String, default: '' },
   hasError: { type: Boolean, default: false },
   useApiResults: { type: Boolean, default: false }, // useApiResults prop to determine if search is handled by API
+  // 选填字段用：选中后在触发器上显示「×」把值清回空。API 搜索型列表选中项常不在当前
+  // options 里（懒加载/换关键词后列表已变），靠再点一次同一项取消清不掉，必须给显式出口。
+  clearable: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'search', 'open']);
@@ -72,6 +75,22 @@ const selectOption = option => {
   search.value = '';
 };
 
+const showClear = computed(
+  () =>
+    props.clearable &&
+    !props.disabled &&
+    selectedValue.value !== '' &&
+    selectedValue.value !== null &&
+    selectedValue.value !== undefined
+);
+
+const clearSelection = () => {
+  selectedValue.value = '';
+  emit('update:modelValue', '');
+  open.value = false;
+  search.value = '';
+};
+
 const toggleDropdown = () => {
   if (props.disabled) return;
   open.value = !open.value;
@@ -116,7 +135,26 @@ watch(
         }"
         :icon="open ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
         @click="toggleDropdown"
-      />
+      >
+        <!-- clearable 时接管默认插槽，在标签与箭头之间插「×」；非 clearable 不传插槽，
+             其余调用方渲染路径与外观保持原样。span 而非 button：button 不能嵌套。 -->
+        <template v-if="clearable" #default>
+          <span class="flex items-center flex-1 min-w-0 gap-2">
+            <span class="flex-1 min-w-0 text-left truncate">
+              {{ selectedLabel }}
+            </span>
+            <span
+              v-if="showClear"
+              role="button"
+              tabindex="0"
+              :aria-label="t('COMBOBOX.CLEAR')"
+              class="shrink-0 i-lucide-x size-3.5 text-n-slate-10 hover:text-n-slate-12"
+              @click.stop="clearSelection"
+              @keydown.enter.stop.prevent="clearSelection"
+            />
+          </span>
+        </template>
+      </Button>
 
       <ComboBoxDropdown
         ref="dropdownRef"

@@ -24,7 +24,8 @@ module Crm::CustomerScoring
     self.customer_code = format('WT%07d', last + 1)
   end
 
-  # 权重与 Twenty 触发器逐项一致，总分 100。
+  # 15 项加权，总分 100。原有「风险等级 4 分」按业务要求取消计分（字段本身保留、仍可填），
+  # 那 4 分并入「最近跟进」——跟进是外贸最该被激励的动作，且由系统自动写入、不增加录入负担。
   def compute_completeness
     s = 0
     s += 5 if trade_country.present?
@@ -40,9 +41,8 @@ module Crm::CustomerScoring
     s += 4 if source_channel.present?
     s += 4 if customer_group.present?
     s += 6 if customer_status.present?
-    s += 7 if last_follow_up_at.present?
+    s += 11 if last_follow_up_at.present?
     s += 5 if customer_remark.present?
-    s += 4 if risk_level.present?
     self.info_completeness_score = s
     self.completeness_grade = GRADE_FLOORS.find { |_g, floor| s >= floor }&.first || 'POOR'
   end

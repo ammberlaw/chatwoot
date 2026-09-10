@@ -1,7 +1,7 @@
 {
   "AUTOMATION": {
     "HEADER": "自动化",
-    "DESCRIPTION": "自动化可以取代和简化人工的现有程序，例如添加标签和将对话分配给最合适的代理人。 这使小组能够集中精力完成其实力，同时减少用于日常任务的时间。",
+    "DESCRIPTION": "自动化可以取代和简化人工的现有程序，例如添加标签和将对话分配给最合适的业务。 这使小组能够集中精力完成其实力，同时减少用于日常任务的时间。",
     "LEARN_MORE": "了解更多关于审计日志的信息",
     "COUNT": "{n} automation | {n} automations",
     "HEADER_BTN_TXT": "Create Automation",
@@ -139,7 +139,7 @@
       "CONVERSATION_OPENED": "对话已打开"
     },
     "ACTIONS": {
-      "ASSIGN_AGENT": "分配客服",
+      "ASSIGN_AGENT": "分配业务",
       "ASSIGN_TEAM": "分配团队",
       "REMOVE_ASSIGNED_AGENT": "Remove Assigned Agent",
       "REMOVE_ASSIGNED_TEAM": "移除已分配的团队",

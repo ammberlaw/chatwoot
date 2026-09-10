@@ -68,7 +68,7 @@
           "PLACEHOLDER": "选择一个标签"
         },
         "IGNORE_WAITING": {
-          "LABEL": "跳过等待客服回复的会话"
+          "LABEL": "跳过等待业务回复的会话"
         },
         "UPDATE_BUTTON": "保存修改"
       },
@@ -94,7 +94,7 @@
       },
       "AUTO_RESOLVE_IGNORE_WAITING": {
         "LABEL": "排除未参加的对话",
-        "HELP": "启用后，系统将跳过解决仍在等待客服回复的对话。"
+        "HELP": "启用后，系统将跳过解决仍在等待业务回复的对话。"
       },
       "AUDIO_TRANSCRIPTION": {
         "TITLE": "转录语音消息",
@@ -204,11 +204,11 @@
       "GO_TO_CONTACTS_DASHBOARD": "转到联系人面板",
       "GO_TO_REPORTS_OVERVIEW": "前往报告概览",
       "GO_TO_CONVERSATION_REPORTS": "前往对话报告",
-      "GO_TO_AGENT_REPORTS": "前往客服代理报告",
+      "GO_TO_AGENT_REPORTS": "前往业务报告",
       "GO_TO_LABEL_REPORTS": "前往标签报告",
       "GO_TO_INBOX_REPORTS": "前往收件箱报告",
       "GO_TO_TEAM_REPORTS": "前往团队报告",
-      "GO_TO_SETTINGS_AGENTS": "前往客服代理设置",
+      "GO_TO_SETTINGS_AGENTS": "前往业务设置",
       "GO_TO_SETTINGS_TEAMS": "前往团队设置",
       "GO_TO_SETTINGS_INBOXES": "前往收件箱设置",
       "GO_TO_SETTINGS_LABELS": "前往标签设置",
@@ -218,7 +218,7 @@
       "GO_TO_SETTINGS_PROFILE": "前往个人资料设置",
       "GO_TO_NOTIFICATIONS": "转到通知",
       "ADD_LABELS_TO_CONVERSATION": "为对话添加标签",
-      "ASSIGN_AN_AGENT": "分配一位客服代表",
+      "ASSIGN_AN_AGENT": "分配一位业务",
       "AI_ASSIST": "AI 助手",
       "ASSIGN_PRIORITY": "分配优先级",
       "ASSIGN_A_TEAM": "分配一个团队",

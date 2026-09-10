@@ -87,11 +87,6 @@ export const useMesProductionOrdersStore = createStore({
       }
     },
 
-    // 业务二次确认 BOM（BOM_READY 段内的闸），成功后就地替换记录。
-    async confirmBom(id) {
-      return this.runApprovalAction(() => MesProductionOrderAPI.confirmBom(id));
-    },
-
     // 工程标记外购：选定产品+供应商，跳过 BOM 直接进采购。
     async markOutsourced({ id, ...payload }) {
       this.setUIFlag({ updatingItem: true });

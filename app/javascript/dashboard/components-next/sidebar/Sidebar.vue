@@ -112,6 +112,15 @@ const isCrmSales = computed(
     !isCrmFinance.value &&
     currentUser.value?.crm_role !== 'deputy_admin'
 );
+// 备用金台账：财务/管理员管全部，部门负责人管本部门那本。
+// 口径必须与后端一致——用组织架构的部门负责人（org_dept_leader），不能用 CRM 条线的
+// crm_manager，否则会出现「侧栏看得到入口、点进去 403」。
+const canSeePettyCash = computed(
+  () =>
+    isAdminLike.value ||
+    currentUser.value?.crm_finance === true ||
+    currentUser.value?.org_dept_leader === true
+);
 // 绩效板块按角色可见性（服务端按当前用户角色算好；管理员始终 true）。
 const kpiSchemeVisible = computed(
   () => currentUser.value?.kpi_scheme_visible !== false
@@ -830,6 +839,18 @@ const menuItems = computed(() => {
                   to: accountScopedRoute('tiktok_profit_index'),
                   activeOn: ['tiktok_profit_index'],
                 },
+                {
+                  name: 'TikTok Expenses',
+                  label: t('SIDEBAR.TIKTOK_EXPENSES'),
+                  to: accountScopedRoute('tiktok_expenses_index'),
+                  activeOn: ['tiktok_expenses_index'],
+                },
+                {
+                  name: 'TikTok Assets',
+                  label: t('SIDEBAR.TIKTOK_ASSETS'),
+                  to: accountScopedRoute('tiktok_assets_index'),
+                  activeOn: ['tiktok_assets_index'],
+                },
               ]
             : []),
           ...(tiktokCanManage.value
@@ -1021,6 +1042,17 @@ const menuItems = computed(() => {
             to: accountScopedRoute('crm_sales_orders_index'),
             activeOn: ['crm_sales_orders_index'],
           },
+          // 历史 PI 补录：一次性补账工具，仅管理员/副管理员可见。
+          ...(isAdminLike.value
+            ? [
+                {
+                  name: 'CRM PI Backfill',
+                  label: t('SIDEBAR.CRM_PI_BACKFILL'),
+                  to: accountScopedRoute('crm_pi_backfill_index'),
+                  activeOn: ['crm_pi_backfill_index'],
+                },
+              ]
+            : []),
           {
             name: 'CRM Orders No Customer',
             label: t('SIDEBAR.CRM_ORDERS_NO_CUSTOMER'),
@@ -1321,7 +1353,7 @@ const menuItems = computed(() => {
                 },
                 {
                   name: 'CRM Inbox Collaborators',
-                  label: '客服分配',
+                  label: '业务分配',
                   to: accountScopedRoute('crm_inbox_collaborators_index'),
                   activeOn: ['crm_inbox_collaborators_index'],
                 },
@@ -1517,7 +1549,7 @@ const menuItems = computed(() => {
         name: 'CRM Approvals',
         label: t('SIDEBAR.CRM_G_OA'),
         icon: 'i-lucide-file-check',
-        activeOn: ['crm_approvals_index'],
+        activeOn: ['crm_approvals_index', 'crm_petty_cash_index'],
         children: [
           {
             name: 'CRM My Approvals',
@@ -1525,6 +1557,16 @@ const menuItems = computed(() => {
             to: accountScopedRoute('crm_approvals_index'),
             activeOn: ['crm_approvals_index'],
           },
+          ...(canSeePettyCash.value
+            ? [
+                {
+                  name: 'CRM Petty Cash',
+                  label: t('SIDEBAR.CRM_PETTY_CASH'),
+                  to: accountScopedRoute('crm_petty_cash_index'),
+                  activeOn: ['crm_petty_cash_index'],
+                },
+              ]
+            : []),
           // 审批模板：仅管理员与人事部门成员可见可维护
           ...(currentUser.value?.oa_template_maintainer
             ? [
@@ -1878,12 +1920,15 @@ const ROUTE_MODULE = {
   tiktok_dashboard_index: 'tiktok',
   tiktok_sales_records_index: 'tiktok',
   tiktok_profit_index: 'tiktok',
+  tiktok_expenses_index: 'tiktok',
+  tiktok_assets_index: 'tiktok',
   tiktok_shop_settings_index: 'tiktok',
   tiktok_departments_index: 'tiktok',
   crm_team_chat_index: 'chat',
   crm_schedule_index: 'schedule',
   crm_approvals_index: 'oa',
   crm_approval_templates_index: 'oa',
+  crm_petty_cash_index: 'oa',
   crm_org_structure_index: 'hr',
   crm_org_chart_index: 'hr',
   crm_teams_index: 'hr',

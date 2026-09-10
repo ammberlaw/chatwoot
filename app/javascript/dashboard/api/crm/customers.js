@@ -68,6 +68,18 @@ class CrmCustomerAPI extends ApiClient {
     return axios.delete(`${this.url}/${id}/favorite`);
   }
 
+  // 历史 PI 盘点：列出传在客户「文件」页、没走销售订单的 PI 附件。
+  piAttachmentCandidates() {
+    return axios.get(`${this.url}/pi_attachment_candidates`);
+  }
+
+  // 就地识别某个客户附件里的 PI（返回与建单弹窗同款的解析结果）。
+  parseAttachment(customerId, attachmentId) {
+    return axios.post(`${this.url}/${customerId}/parse_attachment`, {
+      attachment_id: attachmentId,
+    });
+  }
+
   // 批量导入：rows 为前端映射好的行（键=CRM字段），defaultOwnerId 为统一负责人（可空）。
   import({ rows, defaultOwnerId }) {
     return axios.post(`${this.url}/import`, {

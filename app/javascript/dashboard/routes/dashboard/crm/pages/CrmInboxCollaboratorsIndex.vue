@@ -1,5 +1,5 @@
 <script setup>
-// 客服分配设置：管理各收件箱（如 WhatsApp）的协作者——即会话「分配客服代表」下拉可选的人。
+// 业务分配设置：管理各收件箱（如 WhatsApp）的协作者——即会话「分配业务」下拉可选的人。
 // 原生「设置→收件箱→协作者」页要 administrator 权限（副管进不去），这里放 CRM 设置组，超管+副管可用。
 import { ref, reactive, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
@@ -67,7 +67,7 @@ const save = async inboxId => {
       selected[inboxId]
     );
     selected[inboxId] = [...(data.member_ids || [])];
-    useAlert('已保存，会话「分配客服代表」将显示这些人');
+    useAlert('已保存，会话「分配业务」将显示这些人');
   } catch (e) {
     useAlert(e.response?.data?.error || '保存失败，请重试');
   } finally {
@@ -83,9 +83,9 @@ onMounted(load);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4">
-      <h1 class="text-xl font-medium text-n-slate-12">客服分配设置</h1>
+      <h1 class="text-xl font-medium text-n-slate-12">业务分配设置</h1>
       <p class="mt-0.5 text-xs text-n-slate-11">
-        选中的成员才会出现在会话右键「分配客服代表」下拉里，可被分配处理该收件箱的对话。
+        选中的成员才会出现在会话右键「分配业务」下拉里，可被分配处理该收件箱的对话。
       </p>
     </div>
 

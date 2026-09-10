@@ -18,14 +18,20 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   def create
     attrs = order_attributes
+    # 历史 PI 补录：PI 本来就在客户「文件」页里，不是本地文件。带上它的 attachment_id，
+    # 建单时把同一份 blob 复制到订单上——既满足「新建订单必须有附件」，PI 也跟着订单走。
+    source_attachment = find_source_attachment(attrs.delete(:source_attachment_id), attrs[:crm_customer_id])
     # 业绩归属人 = 客户归属人（共享客户助理建单，业绩归老板）；显式传 owner_id 优先。
     # handled_by = 实际建单人（留痕）。
-    @sales_order = Current.account.crm_sales_orders.create!(
+    @sales_order = Current.account.crm_sales_orders.new(
       attrs.merge(
         owner_id: attrs[:owner_id].presence || performance_owner_id(attrs[:crm_customer_id]),
         handled_by_id: current_user.id
       )
     )
+    # 先挂附件再存：附件必填的校验在 create 时跑，挂在保存之后会被判「没有附件」。
+    copy_source_attachment(source_attachment)
+    @sales_order.save!
   end
 
   def update
@@ -187,11 +193,31 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
       :status, :order_date, :delivery_date, :order_currency, :exchange_rate,
       :order_amount_micros, :shipping_micros, :cost_amount_micros, :profit_amount_micros, :profit_rate, :remark,
       :line_items_json,
+      :source_attachment_id,
       files: []
     )
   end
 
   # 明细以 JSON 字符串传入（multipart 建单无法带嵌套数组），这里解析成 line_items 数组存 jsonb。
+  # 取客户名下的那份 PI 附件（限本客户，避免越权把别人的附件挂过来）。
+  def find_source_attachment(attachment_id, customer_id)
+    return if attachment_id.blank? || customer_id.blank?
+
+    customer = Current.account.crm_customers.find_by(id: customer_id)
+    customer&.files&.find_by(id: attachment_id)
+  end
+
+  # 复制 blob 到订单（不搬走客户那份，客户文件页照旧看得到）。
+  def copy_source_attachment(attachment)
+    return if attachment.blank?
+
+    @sales_order.files.attach(
+      io: StringIO.new(attachment.blob.download),
+      filename: attachment.blob.filename.to_s,
+      content_type: attachment.blob.content_type
+    )
+  end
+
   def order_attributes
     attrs = sales_order_params.to_h.symbolize_keys
     json = attrs.delete(:line_items_json)

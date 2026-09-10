@@ -12,6 +12,7 @@ import WootUiKit from 'dashboard/components';
 import App from 'dashboard/App.vue';
 import i18nMessages from 'dashboard/i18n';
 import createAxios from 'dashboard/helper/APIHelper';
+import { installGlobalErrorToast } from 'dashboard/helper/globalErrorToast';
 
 import commonHelpers, { isJSONValid } from 'dashboard/helper/commons';
 import { sync } from 'vuex-router-sync';
@@ -96,6 +97,9 @@ app.component('fluent-icon', FluentIcon);
 
 app.directive('resize', vResizeObserver);
 app.directive('on-clickaway', onClickaway);
+
+// 兜底错误提示：页面没 catch 的失败统一弹提示，杜绝「点了没反应」。
+installGlobalErrorToast(app);
 
 // load common helpers into js
 commonHelpers();

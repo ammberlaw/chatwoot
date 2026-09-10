@@ -75,6 +75,8 @@ const emptyForm = () => ({
 });
 const form = ref(emptyForm());
 const showForm = ref(false);
+// 只读查看：明细共 17 项，列表塞不下；「查看」用同一个弹窗关掉录入即可，不再单独维护一套只读布局。
+const viewOnly = ref(false);
 const isEdit = computed(() => form.value.id != null);
 
 // 常用其它费用快捷项。
@@ -191,6 +193,7 @@ const openNew = () => {
     return;
   }
   form.value = emptyForm();
+  viewOnly.value = false;
   showForm.value = true;
 };
 
@@ -216,7 +219,14 @@ const openEdit = r => {
       amount: num(e.amount),
     })),
   };
+  viewOnly.value = false;
   showForm.value = true;
+};
+
+// 查看：复用同一个弹窗，进去后翻成只读（明细 17 项，列表放不下）。
+const openView = r => {
+  openEdit(r);
+  viewOnly.value = true;
 };
 
 const submit = async () => {
@@ -286,7 +296,7 @@ onMounted(async () => {
         <div>
           <h1 class="text-xl font-semibold text-n-slate-12">出库利润表</h1>
           <p class="mt-0.5 text-sm text-n-slate-11">
-            本月经营摘要，明细可点行内「编辑」查看全部 17 项。
+            本月经营摘要，明细可点行内「查看」看全部 17 项。
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -348,7 +358,7 @@ onMounted(async () => {
             v-for="r in filteredRecords"
             :key="r.id"
             class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
-            @click="openEdit(r)"
+            @click="openView(r)"
           >
             <div class="flex items-center gap-2">
               <span class="font-medium text-n-slate-12 truncate">
@@ -489,6 +499,13 @@ onMounted(async () => {
                       variant="ghost"
                       color="slate"
                       size="xs"
+                      icon="i-lucide-eye"
+                      @click="openView(r)"
+                    />
+                    <Button
+                      variant="ghost"
+                      color="slate"
+                      size="xs"
                       icon="i-lucide-pencil"
                       @click="openEdit(r)"
                     />
@@ -552,182 +569,187 @@ onMounted(async () => {
         class="w-full max-w-[95vw] sm:max-w-2xl p-4 sm:p-6 overflow-y-auto max-h-[90vh] rounded-2xl bg-n-solid-1 shadow-xl"
       >
         <h2 class="mb-4 text-lg font-semibold text-n-slate-12">
-          {{ isEdit ? '编辑利润记录' : '新增利润记录' }}
+          {{
+            viewOnly ? '查看利润记录' : isEdit ? '编辑利润记录' : '新增利润记录'
+          }}
         </h2>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">店铺</span>
-            <select
-              v-model="form.shopId"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            >
-              <option v-for="s in shops" :key="s.id" :value="s.id">
-                {{ s.name }}
-              </option>
-            </select>
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">产品型号</span>
-            <input
-              v-model="form.productModel"
-              type="text"
-              placeholder="如 K717"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">统计月份</span>
-            <input
-              v-model="form.statMonth"
-              type="month"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">已入账数量（台）</span>
-            <input
-              v-model.number="form.recordedQuantity"
-              type="number"
-              min="0"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">已入账金额</span>
-            <input
-              v-model.number="form.recordedAmount"
-              type="number"
-              min="0"
-              step="0.01"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">币种</span>
-            <select
-              v-model="form.currency"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            >
-              <option v-for="c in CURRENCIES" :key="c" :value="c">
-                {{ c }}
-              </option>
-            </select>
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">出厂成本单价 (CNY)</span>
-            <input
-              v-model.number="form.costUnitPrice"
-              type="number"
-              min="0"
-              step="0.01"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">达人佣金 (CNY，选填)</span>
-            <input
-              v-model.number="form.influencerCommission"
-              type="number"
-              min="0"
-              step="0.01"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">平台佣金 (CNY，选填)</span>
-            <input
-              v-model.number="form.platformCommission"
-              type="number"
-              min="0"
-              step="0.01"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">税费 (CNY)</span>
-            <input
-              v-model.number="form.tax"
-              type="number"
-              min="0"
-              step="0.01"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <label class="flex flex-col gap-1">
-            <span class="text-xs text-n-slate-11">平台统计负数</span>
-            <input
-              v-model.number="form.platformNegative"
-              type="number"
-              min="0"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-          <label class="flex flex-col col-span-2 gap-1">
-            <span class="text-xs text-n-slate-11">统计时间备注（选填）</span>
-            <input
-              v-model="form.periodNote"
-              type="text"
-              placeholder="如 2月1日-7月20日"
-              class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
-            />
-          </label>
-        </div>
-
-        <!-- 其它费用（广告花费 / 海外仓费用 等，自由增减，计入净利润） -->
-        <div class="mt-4">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-xs font-medium text-n-slate-11">
-              其它费用（CNY）
-            </span>
-            <div class="flex items-center gap-1">
-              <button
-                v-for="p in EXPENSE_PRESETS"
-                :key="p"
-                class="px-2 py-0.5 text-xs rounded text-n-iris-11 bg-n-iris-3 hover:bg-n-iris-4"
-                @click="addExpense(p)"
+        <!-- fieldset[disabled] 原生级联禁用内部所有 input/select/button，只读态一处搞定 -->
+        <fieldset :disabled="viewOnly" class="contents">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">店铺</span>
+              <select
+                v-model="form.shopId"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
               >
-                + {{ p }}
-              </button>
-            </div>
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <div
-              v-for="(exp, i) in form.extraExpenses"
-              :key="i"
-              class="flex items-center gap-2"
-            >
+                <option v-for="s in shops" :key="s.id" :value="s.id">
+                  {{ s.name }}
+                </option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">产品型号</span>
               <input
-                v-model="exp.name"
+                v-model="form.productModel"
                 type="text"
-                placeholder="费用名称（如 广告花费）"
-                class="flex-1 h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+                placeholder="如 K717"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
               />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">统计月份</span>
               <input
-                v-model.number="exp.amount"
+                v-model="form.statMonth"
+                type="month"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">已入账数量（台）</span>
+              <input
+                v-model.number="form.recordedQuantity"
+                type="number"
+                min="0"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">已入账金额</span>
+              <input
+                v-model.number="form.recordedAmount"
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder="金额"
-                class="w-32 h-9 pl-2 !pr-8 text-sm rounded-lg shrink-0 reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
               />
-              <Button
-                variant="ghost"
-                color="ruby"
-                size="xs"
-                icon="i-lucide-trash-2"
-                class="shrink-0"
-                @click="removeExpense(i)"
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">币种</span>
+              <select
+                v-model="form.currency"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+              >
+                <option v-for="c in CURRENCIES" :key="c" :value="c">
+                  {{ c }}
+                </option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">出厂成本单价 (CNY)</span>
+              <input
+                v-model.number="form.costUnitPrice"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
               />
-            </div>
-            <button
-              class="self-start px-2 py-1 text-xs rounded text-n-slate-11 hover:bg-n-alpha-2"
-              @click="addExpense()"
-            >
-              + 添加其它费用
-            </button>
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">达人佣金 (CNY，选填)</span>
+              <input
+                v-model.number="form.influencerCommission"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">平台佣金 (CNY，选填)</span>
+              <input
+                v-model.number="form.platformCommission"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">税费 (CNY)</span>
+              <input
+                v-model.number="form.tax"
+                type="number"
+                min="0"
+                step="0.01"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+              />
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-n-slate-11">平台统计负数</span>
+              <input
+                v-model.number="form.platformNegative"
+                type="number"
+                min="0"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+              />
+            </label>
+            <label class="flex flex-col col-span-2 gap-1">
+              <span class="text-xs text-n-slate-11">统计时间备注（选填）</span>
+              <input
+                v-model="form.periodNote"
+                type="text"
+                placeholder="如 2月1日-7月20日"
+                class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+              />
+            </label>
           </div>
-        </div>
+
+          <!-- 其它费用（广告花费 / 海外仓费用 等，自由增减，计入净利润） -->
+          <div class="mt-4">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-medium text-n-slate-11">
+                其它费用（CNY）
+              </span>
+              <div class="flex items-center gap-1">
+                <button
+                  v-for="p in EXPENSE_PRESETS"
+                  :key="p"
+                  class="px-2 py-0.5 text-xs rounded text-n-iris-11 bg-n-iris-3 hover:bg-n-iris-4"
+                  @click="addExpense(p)"
+                >
+                  + {{ p }}
+                </button>
+              </div>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <div
+                v-for="(exp, i) in form.extraExpenses"
+                :key="i"
+                class="flex items-center gap-2"
+              >
+                <input
+                  v-model="exp.name"
+                  type="text"
+                  placeholder="费用名称（如 广告花费）"
+                  class="flex-1 h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+                <input
+                  v-model.number="exp.amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="金额"
+                  class="w-32 h-9 pl-2 !pr-8 text-sm rounded-lg shrink-0 reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+                <Button
+                  variant="ghost"
+                  color="ruby"
+                  size="xs"
+                  icon="i-lucide-trash-2"
+                  class="shrink-0"
+                  @click="removeExpense(i)"
+                />
+              </div>
+              <button
+                class="self-start px-2 py-1 text-xs rounded text-n-slate-11 hover:bg-n-alpha-2"
+                @click="addExpense()"
+              >
+                + 添加其它费用
+              </button>
+            </div>
+          </div>
+        </fieldset>
 
         <!-- 预览 -->
         <div
@@ -758,10 +780,10 @@ onMounted(async () => {
           <Button
             variant="ghost"
             color="slate"
-            label="取消"
+            :label="viewOnly ? '关闭' : '取消'"
             @click="showForm = false"
           />
-          <Button color="iris" label="保存" @click="submit" />
+          <Button v-if="!viewOnly" color="iris" label="保存" @click="submit" />
         </div>
       </div>
     </div>

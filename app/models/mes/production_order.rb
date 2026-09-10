@@ -143,7 +143,7 @@ class Mes::ProductionOrder < ApplicationRecord
   belongs_to :stage_ack_by, class_name: 'User', optional: true
   belongs_to :manager, class_name: 'User', optional: true # 部门主管（审批一级）
   belongs_to :gm, class_name: 'User', optional: true      # 总经理（审批二级）
-  belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 业务二次确认 BOM 的人
+  belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 历史字段：原「业务二次确认 BOM」的人，流程已取消
   belongs_to :outsource_supplier, class_name: 'Mes::Supplier', optional: true # 外购成品供应商（工程指定）
   has_many :stage_events, class_name: 'Mes::ProductionOrderStageEvent', dependent: :destroy, inverse_of: :production_order
   has_many :order_forwards, -> { order(created_at: :desc) }, class_name: 'Mes::OrderForward', dependent: :destroy, inverse_of: :production_order
@@ -177,11 +177,6 @@ class Mes::ProductionOrder < ApplicationRecord
   # 审批收件箱：停在我这一级待办的单。
   scope :awaiting_manager_for, ->(uid) { where(approval_status: 'SUBMITTED', manager_id: uid) }
   scope :awaiting_gm_for, ->(uid) { where(approval_status: 'MANAGER_APPROVED', gm_id: uid) }
-  # 待业务二次确认 BOM：我名下、已挂 BOM 未确认的单（「待我确认」收件箱的业务员分支）。
-  scope :awaiting_bom_confirm_for, lambda { |uid|
-    published.where(stage: 'BOM_READY', owner_id: uid, bom_confirmed_at: nil).where.not(bom_id: nil)
-  }
-
   def self.document_number_prefix = 'MO'
 
   # 备货生产订单（全业务共享库存）。
@@ -222,49 +217,38 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 挂工程 BOM（阶段 2）：绑 BOM、按预估交期天数算预估完工、进 BOM_READY。
   # planned_end 显式传入则优先；否则用 BOM 的 estimated_lead_days 从今天推算。
-  # 挂 BOM 会重置「业务二次确认」（含改挂/换 BOM）：新 BOM 须业务重新核对确认。
-  # 进 BOM_READY 后通知业务员二次确认；确认前不得下发采购。
+  # 挂 BOM 后直接进 BOM_READY，下一步就是工程/PMC「下发到采购」。
+  # （原先中间有一道「业务二次确认 BOM」的闸，已按业务要求取消。）
   def attach_bom!(bom, planned_end: nil, actor: nil)
+    # 与 mark_outsourced! 对称：外购单走短脊柱（采购→成品入库→发货），不该再挂 BOM。
+    raise StandardError, '外购订单不挂 BOM；如需自产请先撤销外购标记' if is_outsourced
+
     planned = planned_end.presence
     lead = bom.total_lead_days
     planned ||= lead.positive? ? lead.days.from_now : nil
-    updates = { bom_id: bom.id, bom_confirmed_at: nil, bom_confirmed_by_id: nil }
+    updates = { bom_id: bom.id }
     updates[:planned_end_date] = planned if planned
     update!(updates)
     # 工程建 BOM 常留空产品线；继承订单产品线，否则业务员按产品线筛会漏看这张 BOM。
     bom.update!(product_line: product_line) if bom.product_line.blank? && product_line.present?
     enter_stage!('BOM_READY', actor: actor) if stage == 'SALES_CONFIRMED'
-    notify_bom_reconfirm(bom)
+    notify_purchase_release_pending(bom, actor)
     self
   end
 
-  def bom_confirmed? = bom_confirmed_at.present?
-
-  # 业务二次确认 BOM（BOM_READY 段内的一道闸）：核对工程做的用料清单后确认，
-  # 确认后 PMC 方可下发采购。确认时回通知 BOM 板块负责人。
-  def confirm_bom!(actor)
-    raise StandardError, '需先挂工程/PMC BOM' if bom_id.nil?
-    raise StandardError, '非「工程/PMC BOM」环节，无法确认' unless stage == 'BOM_READY'
-    raise StandardError, 'BOM 已确认，无需重复' if bom_confirmed_at.present?
-
-    update!(bom_confirmed_at: Time.current, bom_confirmed_by_id: actor&.id)
-    Mes::Notifier.resolve(account: account, order: self, kinds: 'bom_reconfirm')
-    # 业务确认后，「下发采购」是工程/PMC 的待办——发 todo 类通知进其「待处理」，
-    # 而非仅知会（否则易漏）；下发采购时（release_to_purchasing!）自动销掉。
+  # 挂好 BOM 即是工程/PMC 的待办：发 todo 类通知进其「待处理」，下发采购时自动销掉。
+  def notify_purchase_release_pending(bom, actor)
     notify_stage_owners(
       kind: 'purchase_release_pending',
       title: "待下发采购：生产订单 #{order_no}",
-      body: "#{actor&.name || '业务'} 已二次确认 BOM #{bom&.bom_no}，请核对后点「下发到采购」。"
+      body: "#{actor&.name || '工程'} 已挂 BOM #{bom.bom_no}，请核对后点「下发到采购」。"
     )
-    self
   end
 
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING），通知采购备料。
-  # 需业务二次确认 BOM 后才放行。
   def release_to_purchasing!(actor: nil)
     raise StandardError, '需先挂工程/PMC BOM' if bom_id.nil?
     raise StandardError, '当前阶段无法下发采购' unless stage == 'BOM_READY'
-    raise StandardError, '需业务二次确认 BOM 后方可下发采购' if bom_confirmed_at.nil?
 
     Mes::Notifier.resolve(account: account, order: self, kinds: 'purchase_release_pending')
     enter_stage!('PURCHASING', actor: actor)
@@ -292,7 +276,7 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   # 工程判定为「外购成品」：选定产品+供应商，跳过 BOM 直接进采购阶段（短版脊柱）。
-  # 外购不走业务二次确认；只在建单阶段（SALES_CONFIRMED）可标记。
+  # 只在建单阶段（SALES_CONFIRMED）可标记。
   def mark_outsourced!(crm_product_id:, supplier_id:, product_name: nil, actor: nil)
     raise StandardError, '仅「销售订单确定」阶段可标记外购' unless stage == 'SALES_CONFIRMED'
     raise StandardError, '该订单已挂 BOM，不能标记为外购；请先撤销 BOM 再改外购' if bom_id.present?
@@ -719,7 +703,7 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # ── 站内通知埋点 ──
 
-  # 进入需接单的下游阶段时通知该阶段负责人（BOM_READY 例外：其待办是业务二次确认）。
+  # 进入需接单的下游阶段时通知该阶段负责人（BOM_READY 例外：其待办由挂 BOM 时另发）。
   def notify_stage_assigned(actor)
     return unless STAGE_BOARD_KEYS.key?(stage)
     return if stage == 'BOM_READY'
@@ -749,16 +733,6 @@ class Mes::ProductionOrder < ApplicationRecord
                 .update_all(entered_at: now, acked_at: nil, acked_by_id: nil, updated_at: now)
     update_columns(stage_ack_at: nil, stage_ack_by_id: nil)
     notify_stage_assigned(nil)
-  end
-
-  # 挂 BOM 后通知业务员二次确认。
-  def notify_bom_reconfirm(bom)
-    Mes::Notifier.notify(
-      account: account, recipients: owner_id, kind: 'bom_reconfirm',
-      title: "待二次确认BOM：生产订单 #{order_no}",
-      body: "工程/PMC 已挂 BOM #{bom.bom_no}，请核对用料后点「确认BOM」，确认后方可下发采购。",
-      order: self
-    )
   end
 
   # 提交/主管通过后通知下一级审批人。

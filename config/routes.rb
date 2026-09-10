@@ -67,6 +67,8 @@ Rails.application.routes.draw do
                 get :identify
                 get :churn_risk_count
                 get :stats
+                # 历史 PI 附件盘点：找出传在客户「文件」页、没走销售订单的 PI
+                get :pi_attachment_candidates
                 post :reassign
                 post :bulk_update
                 post :import
@@ -78,6 +80,8 @@ Rails.application.routes.draw do
                 post :release
                 post :share
                 post :attach
+                # 就地识别客户附件里的 PI（前端据此开建单弹窗）
+                post :parse_attachment
                 post :attach_contact
                 post :merge
                 delete 'attach/:attachment_id', action: :detach
@@ -166,6 +170,10 @@ Rails.application.routes.draw do
                 get :selectable_orders
                 post :import_orders
               end
+            end
+            # 备用金台账：一个部门/项目一本账，本下挂收支流水。
+            resources :petty_cash_books, only: [:index, :create, :update, :destroy] do
+              resources :petty_cash_entries, only: [:index, :create, :update, :destroy]
             end
             # 邮件 AI 助手：写信 / 翻译 / 往来摘要（同步生成，前端等待）。
             post 'ai/compose', to: 'ai#compose'
@@ -261,6 +269,7 @@ Rails.application.routes.draw do
               end
             end
             resources :member_invites, only: [:index, :create, :destroy]
+            resources :role_templates, only: [:index, :create, :update, :destroy]
             resources :kpi_schemes do
               member do
                 post :distribute
@@ -485,7 +494,6 @@ Rails.application.routes.draw do
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :attach_bom
-                post :confirm_bom
                 post :release_purchasing
                 post :mark_outsourced
                 get :requirement
@@ -818,6 +826,9 @@ Rails.application.routes.draw do
             resources :shops, only: [:index, :create, :update, :destroy]
             resources :sales_records, only: [:index, :create, :update, :destroy]
             resources :profit_records, only: [:index, :create, :update, :destroy]
+            # 支出台账（按部门收口，店铺选填）+ 固定资产登记（只登记不折旧）
+            resources :expenses, only: [:index, :create, :update, :destroy]
+            resources :assets, only: [:index, :create, :update, :destroy]
           end
 
           namespace :notion do

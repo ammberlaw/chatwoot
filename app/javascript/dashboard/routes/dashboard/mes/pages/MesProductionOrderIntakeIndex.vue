@@ -640,6 +640,7 @@ const backToList = () =>
             v-model="base.crmProductId"
             :options="productOptions"
             use-api-results
+            clearable
             :display-label="selectedProductLabel"
             placeholder="选择商品编码（关联产品档案）"
             search-placeholder="搜编码 / 名称"

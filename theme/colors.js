@@ -67,6 +67,9 @@ export const colors = {
     900: slateDark.slate1,
   },
   black: {
+    // 没有 DEFAULT 时 `bg-black` / `bg-black/40` 这类写法编译不出规则——全站十几处弹窗遮罩
+    // 因此一直是全透明（点开弹窗背景不变暗）。补上默认值，各处原本想要的深浅即刻生效。
+    DEFAULT: '#000000',
     50: slate.slate2,
     100: slateDark.slate12,
     200: slate.slate7,

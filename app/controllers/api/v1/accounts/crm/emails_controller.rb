@@ -25,9 +25,10 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
     scope = scope.where.not(owner_id: params[:exclude_owner_id]) if params[:exclude_owner_id].present?
     scope = filter_by_mailbox(scope) if params[:mailbox].present?
-    # 系统文件夹角标排除已移入自定义文件夹的邮件（与列表移动语义一致）。
-    scope = scope.where(crm_email_folder_id: nil)
-    by_folder = scope.group(:folder).count
+    # 系统文件夹角标排除已移入自定义文件夹的邮件（与列表移动语义一致）；
+    # 未读/星标是跨文件夹的待办视图，仍要算上文件夹里的（见 CROSS_FOLDER_FILTERS）。
+    in_system_folders = scope.where(crm_email_folder_id: nil)
+    by_folder = in_system_folders.group(:folder).count
     render json: {
       INBOX: by_folder['INBOX'].to_i,
       SENT: by_folder['SENT'].to_i,
@@ -385,13 +386,17 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     scope_by_mail_owner(Current.account.crm_emails)
   end
 
+  # 未读/星标是跨文件夹的待办视图：归到自定义文件夹里的邮件也要出现在这两个视图里，
+  # 否则把某个客户的邮件整理进文件夹后，他的新邮件就再也不在「未读」里提醒了。
+  CROSS_FOLDER_FILTERS = %w[unread starred].freeze
+
   # 阅读邮件视图筛选：文件夹/未读/星标/我的、按业务员（管理员）、按客户、搜主题/邮箱。
   def filtered_emails
     scope = apply_scope_filters(visible_emails)
     if params[:email_folder_id].present?
       # 自定义文件夹视图：只看该文件夹内的邮件。
       scope = scope.where(crm_email_folder_id: params[:email_folder_id])
-    else
+    elsif !CROSS_FOLDER_FILTERS.include?(params[:filter])
       # 系统视图（收件箱/发件箱等）排除已移入自定义文件夹的邮件（移动语义）。
       scope = scope.where(crm_email_folder_id: nil)
       scope = scope.in_folder(params[:folder]) if params[:folder].present?

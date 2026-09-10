@@ -66,7 +66,7 @@ const {
 
 const getConversationById = useMapGetter('getConversationById');
 
-// 批量分配（客服代表/团队）仅管理员可用：超级管理员或副管理员(crm_role=deputy_admin)。
+// 批量分配（业务/团队）仅管理员可用：超级管理员或副管理员(crm_role=deputy_admin)。
 const currentUser = useMapGetter('getCurrentUser');
 const isAdminLike = computed(
   () =>

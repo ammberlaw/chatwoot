@@ -75,7 +75,7 @@ export default {
       currentUser: 'getCurrentUser',
       teams: 'teams/getTeams',
     }),
-    // 分配（客服代表/团队）仅管理员可用：超级管理员或副管理员(crm_role=deputy_admin)。
+    // 分配（业务/团队）仅管理员可用：超级管理员或副管理员(crm_role=deputy_admin)。
     isAdminLike() {
       return (
         this.currentUser?.role === 'administrator' ||
@@ -255,7 +255,7 @@ export default {
 
 <template>
   <div>
-    <!-- 分配（客服代表/团队）仅管理员可用；业务员的个人号无需分配功能 -->
+    <!-- 分配（业务/团队）仅管理员可用；业务员的个人号无需分配功能 -->
     <div v-if="isAdminLike">
       <ContactDetailsItem
         compact

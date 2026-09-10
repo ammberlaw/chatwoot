@@ -18,6 +18,7 @@ import ComposeConversation from 'dashboard/components-next/NewConversation/Compo
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import VoiceCallButton from 'dashboard/components-next/Contacts/VoiceCallButton.vue';
 import InlineInput from 'dashboard/components-next/inline-input/InlineInput.vue';
+import CrmCustomerAPI from 'dashboard/api/crm/customers';
 
 export default {
   components: {
@@ -54,6 +55,7 @@ export default {
       showEditModal: false,
       isEditingName: false,
       editName: '',
+      crmCustomerName: '',
     };
   },
   computed: {
@@ -63,6 +65,12 @@ export default {
     }),
     contactProfileLink() {
       return `/app/accounts/${this.$route.params.accountId}/contacts/${this.contact.id}`;
+    },
+    crmCustomerId() {
+      return this.contact.crm_customer_id || null;
+    },
+    crmCustomerLink() {
+      return `/app/accounts/${this.$route.params.accountId}/crm/customers/${this.crmCustomerId}`;
     },
     additionalAttributes() {
       return this.contact.additional_attributes || {};
@@ -109,9 +117,48 @@ export default {
       },
       immediate: true,
     },
+    crmCustomerId: {
+      handler(id) {
+        this.fetchCrmCustomerName(id);
+      },
+      immediate: true,
+    },
   },
   methods: {
     dynamicTime,
+    // 已建档时把客户名取回来显示。客户属于别的业务员会 403/404，
+    // 那时只留一个「查看客户档案」的入口，不显示名字。
+    async fetchCrmCustomerName(id) {
+      this.crmCustomerName = '';
+      if (!id) return;
+      try {
+        const { data } = await CrmCustomerAPI.show(id);
+        this.crmCustomerName = data.name || '';
+      } catch (error) {
+        this.crmCustomerName = '';
+      }
+    },
+    // 建档为客户：带着联系人已有信息跳客户建档页，剩下的必填项（国家/分组等）在那边补。
+    // 建档成功后那边会把本联系人挂到新客户名下，之后来往邮件/会话自动归属。
+    goCustomerOnboarding() {
+      this.$router.push({
+        name: 'crm_customer_intake_index',
+        params: { accountId: this.$route.params.accountId },
+        query: {
+          contactId: String(this.contact.id),
+          name: this.contact.name || '',
+          email: this.contact.email || '',
+          phone: this.contact.phone_number || '',
+          // WhatsApp 会话里的手机号就是 WhatsApp 号，建档时两栏都填上。
+          whatsapp: String(this.currentChat?.meta?.channel || '')
+            .toLowerCase()
+            .includes('whatsapp')
+            ? this.contact.phone_number || ''
+            : '',
+          company: this.additionalAttributes.company_name || '',
+        },
+      });
+    },
     toggleEditModal() {
       this.showEditModal = !this.showEditModal;
     },
@@ -295,6 +342,29 @@ export default {
             emoji="🌍"
             :title="$t('CONTACT_PANEL.LOCATION')"
           />
+          <div
+            class="flex items-center w-full h-5 gap-2 ltr:-ml-1 rtl:-mr-1 text-n-slate-11"
+          >
+            <span
+              class="flex-shrink-0 text-sm i-lucide-folder-open ltr:ml-1 rtl:mr-1"
+            />
+            <a
+              v-if="crmCustomerId"
+              :href="crmCustomerLink"
+              class="overflow-hidden text-sm whitespace-nowrap text-ellipsis hover:underline"
+              :title="$t('CONTACT_PANEL.CRM_CUSTOMER')"
+            >
+              {{ crmCustomerName || $t('CONTACT_PANEL.CRM_CUSTOMER_FALLBACK') }}
+            </a>
+            <button
+              v-else
+              type="button"
+              class="text-sm text-n-iris-11 hover:underline"
+              @click="goCustomerOnboarding"
+            >
+              {{ $t('CONTACT_PANEL.CRM_CUSTOMER_CREATE') }}
+            </button>
+          </div>
           <SocialIcons :social-profiles="socialProfiles" />
         </div>
       </div>

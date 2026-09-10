@@ -3,6 +3,7 @@ import CrmLayout from './CrmLayout.vue';
 import CrmCustomersIndex from './pages/CrmCustomersIndex.vue';
 import CrmCustomerDupesIndex from './pages/CrmCustomerDupesIndex.vue';
 import CrmAiBackgroundCheckIndex from './pages/CrmAiBackgroundCheckIndex.vue';
+import CrmExhibitionsIndex from './pages/CrmExhibitionsIndex.vue';
 import CrmOpportunitiesIndex from './pages/CrmOpportunitiesIndex.vue';
 import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
 import CrmSalesOrdersIndex from './pages/CrmSalesOrdersIndex.vue';
@@ -21,6 +22,8 @@ import CrmOrgStructureIndex from './pages/CrmOrgStructureIndex.vue';
 import CrmOrgChartIndex from './pages/CrmOrgChartIndex.vue';
 import CrmTeamsIndex from './pages/CrmTeamsIndex.vue';
 import CrmApprovalsIndex from './pages/CrmApprovalsIndex.vue';
+import CrmPettyCashIndex from './pages/CrmPettyCashIndex.vue';
+import CrmPiBackfillIndex from './pages/CrmPiBackfillIndex.vue';
 import CrmApprovalTemplatesIndex from './pages/CrmApprovalTemplatesIndex.vue';
 import CrmTeamChatIndex from './pages/CrmTeamChatIndex.vue';
 import CrmWorkspaceHome from './pages/CrmWorkspaceHome.vue';
@@ -94,6 +97,7 @@ const crmPages = [
     'crm_customer_settings_index',
     CrmCustomerSettingsIndex
   ),
+  crmPage('exhibitions', 'crm_exhibitions_index', CrmExhibitionsIndex),
   crmPage('opportunities', 'crm_opportunities_index', CrmOpportunitiesIndex),
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
   crmPage('quotes', 'crm_quotes_index', CrmQuotesIndex),
@@ -180,6 +184,10 @@ const crmPages = [
     CrmApprovalTemplatesIndex,
     SHARED
   ),
+  // 备用金台账：财务/管理员记账，部门负责人看本部门；走 SHARED 不受 CRM 数据门禁（财务常无 crm_role）。
+  crmPage('petty-cash', 'crm_petty_cash_index', CrmPettyCashIndex, SHARED),
+  // 历史 PI 补录：把早期传在客户「文件」页的 PI 补建成销售订单（一次性工具）。
+  crmPage('pi-backfill', 'crm_pi_backfill_index', CrmPiBackfillIndex),
   crmPage('team-chat', 'crm_team_chat_index', CrmTeamChatIndex, SHARED),
   // 成员权限管理：超管/管理员/人事/部门负责人（后端 ensure_admin 把关）；人事无 CRM 数据权限，故走 SHARED 不受 CRM 门禁。
   crmPage('members', 'crm_members_index', CrmMembersIndex, SHARED),

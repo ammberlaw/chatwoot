@@ -1,0 +1,9 @@
+json.id resource.id
+json.name resource.name
+json.org_department_id resource.org_department_id
+json.department_name resource.org_department&.name
+json.opening_balance resource.opening_balance
+json.balance resource.balance
+json.entries_count resource.entries.size
+json.active resource.active
+json.remark resource.remark

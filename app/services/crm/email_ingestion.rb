@@ -40,8 +40,11 @@ module Crm::EmailIngestion
   end
 
   def create_email(mail, message_id, from)
-    html = truncate_text(html_body(mail))
+    # 先把内联 base64 图换成附件链接再判断长度：否则一张签名 logo 就能把正文顶到上限被截断。
+    html, inline_blobs = Crm::MailInlineImages.extract(html_body(mail))
+    html = truncate_text(html)
     email = Crm::Email.create!(inbound_attrs(mail, message_id, from, html))
+    inline_blobs.each { |blob| email.files.attach(blob) }
     rewritten = attach_files(email, mail, html)
     email.update!(body_html: truncate_text(rewritten)) if rewritten != html
     maybe_create_reply_reminder(email)
@@ -168,7 +171,7 @@ module Crm::EmailIngestion
     html = html.to_s
     referenced = html_cid_refs(html)
     collect_parts(mail, referenced).each do |part, cid, inline|
-      blob = ActiveStorage::Blob.create_and_upload!(
+      blob = upload_blob(
         io: StringIO.new(part.decoded),
         filename: part.filename.presence || (inline ? "image_#{cid}" : 'attachment'),
         content_type: part.mime_type,
@@ -180,9 +183,31 @@ module Crm::EmailIngestion
         html = html.gsub(/cid:#{Regexp.escape(cid)}/i, path)
       end
     rescue StandardError => e
-      Rails.logger.warn("[Crm::MailFetch] attach failed email=#{email.id}: #{e.message}")
+      # 附件没落成功 = 用户看到一封「没有附件」的邮件且毫无提示，必须能事后查到并补收：
+      # 用 rake crm:repair_attachments[邮件id] 按 Message-ID 回服务器重取。
+      Rails.logger.error(
+        "[Crm::MailFetch] attach failed email=#{email.id} file=#{part.filename.inspect}: #{e.class}: #{e.message}"
+      )
     end
     html
+  end
+
+  # 对象存储偶发抖动（生产见过腾讯 COS 返回 The Signature you specified is invalid）
+  # 会让附件整个丢掉，重试两次再放弃。
+  UPLOAD_RETRIES = 2
+
+  def upload_blob(io:, filename:, content_type:, metadata:)
+    attempts = 0
+    begin
+      ActiveStorage::Blob.create_and_upload!(io: io, filename: filename, content_type: content_type, metadata: metadata)
+    rescue StandardError
+      attempts += 1
+      raise if attempts > UPLOAD_RETRIES
+
+      sleep(0.5 * attempts)
+      io.rewind
+      retry
+    end
   end
 
   # 汇总待落地的部件：先取被正文 cid: 引用的内联部件（不论是否被识别为附件），

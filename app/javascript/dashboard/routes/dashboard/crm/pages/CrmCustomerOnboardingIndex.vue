@@ -1,7 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, reactive, computed, watch, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -74,10 +74,12 @@ const form = reactive({
   customerRemark: '',
 });
 
-// 从邮件身份卡「新建为客户」跳来时预填联系邮箱（在草稿恢复后应用，见 onMounted）。
+// 从邮件身份卡 / 会话联系人面板「建档为客户」跳来时预填（在草稿恢复后应用，见 onMounted）。
 const route = useRoute();
+const router = useRouter();
 
 const emailHit = ref(null);
+const phoneHit = ref(null);
 const nameHits = ref([]);
 const submitting = ref(false);
 const result = ref(null);
@@ -132,34 +134,45 @@ onMounted(() => {
     }
     draftRestored.value = hasContent();
   }
-  // 从邮件身份卡跳来的邮箱优先于草稿。
-  if (route.query.email) form.email = String(route.query.email);
+  // 从邮件身份卡 / 会话联系人面板跳来的信息优先于草稿。
+  const q = route.query;
+  if (q.email) form.email = String(q.email);
+  if (q.name) form.primaryContactName = String(q.name);
+  if (q.company) form.name = String(q.company);
+  if (q.phone) form.contactPhone = String(q.phone);
+  // WhatsApp 会话过来的联系人，手机号就是 WhatsApp 号，一并填上。
+  if (q.whatsapp) form.whatsApp = String(q.whatsapp);
 });
 
 const api = () => `/api/v1/accounts/${accountId.value}/crm`;
 
-// 实时查重：输入停顿 450ms 后查邮箱(精确)+公司名(相似)
+// 实时查重：输入停顿 450ms 后查邮箱(精确)+手机/WhatsApp(后 9 位)+公司名(相似)
 let dedupeTimer = null;
 watch(
-  () => [form.email, form.name],
+  () => [form.email, form.name, form.contactPhone, form.whatsApp],
   () => {
     clearTimeout(dedupeTimer);
     dedupeTimer = setTimeout(async () => {
       const email = form.email.trim();
       const name = form.name.trim();
-      if ((email.length <= 3 || !email.includes('@')) && name.length < 2) {
+      const phone = (form.contactPhone || form.whatsApp).trim();
+      const noEmail = email.length <= 3 || !email.includes('@');
+      if (noEmail && name.length < 2 && phone.replace(/\D/g, '').length < 8) {
         emailHit.value = null;
+        phoneHit.value = null;
         nameHits.value = [];
         return;
       }
       try {
         const { data } = await axios.get(`${api()}/customers/check_duplicate`, {
-          params: { email, name },
+          params: { email, name, phone },
         });
         emailHit.value = data.email_hit;
+        phoneHit.value = data.phone_hit;
         nameHits.value = data.name_hits || [];
       } catch {
         emailHit.value = null;
+        phoneHit.value = null;
         nameHits.value = [];
       }
     }, 450);
@@ -353,18 +366,32 @@ const importBackground = () => {
   useAlert(filled.length ? `已导入：${filled.join('、')}` : '没有可导入的新信息');
 };
 
+// 联系邮箱和手机/WhatsApp 至少要有一个：WhatsApp 来的客户往往没邮箱，
+// 强制邮箱等于让这类客户建不了档；没邮箱时手机号就是查重依据（见 phoneBlocking）。
+const hasContactKey = computed(
+  () =>
+    !!(form.email.trim() || form.contactPhone.trim() || form.whatsApp.trim())
+);
+
 const missing = computed(() => {
   const m = [];
   if (!form.tradeCountry) m.push('国家');
   if (!form.customerGroup) m.push('客户分组');
   if (!form.productGroup) m.push('产品分组');
   if (!form.primaryContactName.trim()) m.push('主要联系人');
-  if (!form.email.trim()) m.push('联系邮箱');
+  if (!hasContactKey.value) m.push('联系邮箱或手机号');
   return m;
 });
 
+// 手机号撞库：填了邮箱时只提示（公司总机可能多人共用），没邮箱时手机号是唯一身份，撞了就不给建。
+const phoneBlocking = computed(() => !!phoneHit.value && !form.email.trim());
+
 const canSubmit = computed(
-  () => missing.value.length === 0 && !emailHit.value && !submitting.value
+  () =>
+    missing.value.length === 0 &&
+    !emailHit.value &&
+    !phoneBlocking.value &&
+    !submitting.value
 );
 
 const formHasContent = computed(
@@ -379,6 +406,7 @@ const resetForm = () => {
   });
   extraContacts.value = [];
   emailHit.value = null;
+  phoneHit.value = null;
   nameHits.value = [];
   bgResult.value = null;
   bgCandidates.value = [];
@@ -410,7 +438,9 @@ const submit = async () => {
     linkedin: trimmed(form.linkedin),
     primary_contact_name: form.primaryContactName.trim(),
     contact_job_title: trimmed(form.contactJobTitle),
-    contact_email: form.email.trim(),
+    contact_email: form.email.trim() || null,
+    // 从会话联系人面板跳来的：建档后把这条联系人挂到新客户名下，往来邮件/会话自动归属。
+    contact_id: route.query.contactId || null,
     contact_phone: trimmed(form.contactPhone),
     wechat: trimmed(form.wechat),
     whats_app: trimmed(form.whatsApp),
@@ -437,6 +467,10 @@ const submit = async () => {
       code: data.customerCode || data.customer_code || '',
     };
     resetForm();
+    // 预填参数只用一次：清掉，免得接着建下一个客户时又被填回来、或把同一联系人挂到第二个客户上。
+    if (Object.keys(route.query).length) {
+      router.replace({ name: route.name, params: route.params });
+    }
   } catch (e) {
     result.value = {
       ok: false,
@@ -461,7 +495,7 @@ const submit = async () => {
         新客户建档。<strong class="text-n-slate-12">建档后客户自动归你名下（私海）</strong
         >，客户编号自动生成。带
         <span class="text-n-ruby-11">*</span>
-        为必填；同一邮箱只能被一个客户建档。
+        为必填；同一邮箱只能被一个客户建档，没有邮箱的（如 WhatsApp 客户）填手机号也能建。
       </p>
 
       <div
@@ -488,6 +522,32 @@ const submit = async () => {
           · {{ emailHit.owner }}
         </span>
         <span class="text-xs text-n-slate-11">无法用相同邮箱重复建档，请换邮箱或联系负责人。</span>
+      </div>
+
+      <div
+        v-if="phoneHit"
+        class="flex flex-col gap-1 p-3 text-sm border rounded-lg"
+        :class="
+          phoneBlocking
+            ? 'border-n-ruby-8 text-n-ruby-11'
+            : 'border-n-amber-8 text-n-amber-11'
+        "
+      >
+        <span>
+          {{ phoneBlocking ? '⛔' : '⚠️' }} 该手机号/WhatsApp 已被建档：
+          <strong>{{ phoneHit.name }}</strong>
+          <template v-if="phoneHit.customer_code">
+            （{{ phoneHit.customer_code }}）
+          </template>
+          · {{ phoneHit.owner }}
+        </span>
+        <span class="text-xs text-n-slate-11">
+          {{
+            phoneBlocking
+              ? '没填邮箱时手机号就是客户身份，不能重复建档；请补一个邮箱，或联系负责人。'
+              : '公司总机可能多人共用，确认不是同一家即可继续建档。'
+          }}
+        </span>
       </div>
 
       <div
@@ -750,7 +810,10 @@ const submit = async () => {
           />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">联系邮箱 <span class="text-n-ruby-11">*</span></span>
+          <span class="text-xs text-n-slate-11">
+            联系邮箱
+            <span v-if="!form.contactPhone.trim() && !form.whatsApp.trim()" class="text-n-ruby-11">*</span>
+          </span>
           <input
             v-model="form.email"
             class="h-9 px-3 text-sm border rounded-lg bg-n-solid-1 text-n-slate-12"
@@ -759,10 +822,14 @@ const submit = async () => {
           />
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">联系电话</span>
+          <span class="text-xs text-n-slate-11">
+            联系电话
+            <span v-if="!form.email.trim()" class="text-n-ruby-11">*</span>
+          </span>
           <input
             v-model="form.contactPhone"
-            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            class="h-9 px-3 text-sm border rounded-lg bg-n-solid-1 text-n-slate-12"
+            :class="phoneHit ? 'border-n-ruby-8' : 'border-n-weak'"
             placeholder="+1 555 000 0000"
           />
         </label>

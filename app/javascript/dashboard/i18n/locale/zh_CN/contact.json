@@ -6,6 +6,9 @@
     "IDENTIFIER": "标识符",
     "COPY_SUCCESSFUL": "已成功复制到剪贴板",
     "COMPANY": "公司",
+    "CRM_CUSTOMER": "客户档案",
+    "CRM_CUSTOMER_FALLBACK": "查看客户档案",
+    "CRM_CUSTOMER_CREATE": "建档为客户",
     "LOCATION": "位置",
     "BROWSER_LANGUAGE": "浏览器语言",
     "CONVERSATION_TITLE": "对话详情",
@@ -52,7 +55,7 @@
     "UNMUTE_CONTACT": "解除屏蔽联系人",
     "MUTED_SUCCESS": "已成功屏蔽此联系人。您将不会收到任何未来对话的通知。",
     "UNMUTED_SUCCESS": "此联系人已成功解除屏蔽。",
-    "SEND_TRANSCRIPT": "发送客服记录",
+    "SEND_TRANSCRIPT": "发送沟通记录",
     "EDIT_LABEL": "编辑",
     "SIDEBAR_SECTIONS": {
       "CUSTOM_ATTRIBUTES": "自定义属性",

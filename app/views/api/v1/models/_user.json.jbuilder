@@ -35,6 +35,8 @@ json.tiktok_can_view_profit resource.active_account_user&.can_view_tiktok_profit
 json.module_access resource.active_account_user&.module_access || []
 json.oa_template_maintainer resource.active_account_user&.oa_template_maintainer? || false
 json.org_maintainer resource.active_account_user&.org_maintainer? || false
+# 组织架构部门负责人：备用金台账按此放行（与 crm_manager 口径不同，勿混用）。
+json.org_dept_leader resource.active_account_user&.leads_business_department? || false
 json.password_self_service resource.account_users.any?(&:password_self_service?)
 if (crm_au = resource.active_account_user)
   crm_perf_setting = crm_au.account.crm_performance_setting

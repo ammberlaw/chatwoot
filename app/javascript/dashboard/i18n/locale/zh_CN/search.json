@@ -57,10 +57,10 @@
       "FILTER_MESSAGE": "筛选消息：",
       "FROM": "发件人",
       "IN": "收件箱",
-      "AGENTS": "客服",
+      "AGENTS": "业务",
       "CONTACTS": "联系人",
       "INBOXES": "收件箱",
-      "NO_AGENTS": "未找到客服代表",
+      "NO_AGENTS": "未找到业务",
       "NO_CONTACTS": "先搜索以查看结果",
       "NO_INBOXES": "未找到收件箱"
     }

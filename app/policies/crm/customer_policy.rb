@@ -81,6 +81,10 @@ class Crm::CustomerPolicy < ApplicationPolicy
     @account_user.administrator? || @account_user.crm_deputy_admin? || @account_user.crm_manager?
   end
 
+  # PI 识别与历史 PI 盘点：与查看客户同权限（数据范围已在控制器按 restrict_by_org 收口）。
+  def parse_attachment? = true
+  def pi_attachment_candidates? = true
+
   def attach?
     true
   end

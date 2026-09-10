@@ -687,6 +687,14 @@ onMounted(async () => {
 
         <div class="wsh-foot">
           WintouchSpace · Designed &amp; Developed by Amber Law
+          <a
+            class="wsh-beian"
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            粤ICP备XXXXXXXX号
+          </a>
         </div>
       </div>
     </div>
@@ -1805,5 +1813,18 @@ onMounted(async () => {
   font-size: 12px;
   margin-top: 12px;
   font-weight: 600;
+}
+.wsh-beian {
+  display: block;
+  margin-top: 4px;
+  color: #b9c0ca;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.wsh-beian:hover {
+  color: #6a5ae0;
 }
 </style>

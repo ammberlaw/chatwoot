@@ -41,6 +41,8 @@ class Oa::ActOnApprovalService
       @request.update!(status: 'approved')
       # 考勤联动：请假/补卡模板整单通过后自动写入考勤。
       Crm::AttendanceApprovalService.new(request: @request, actor: @actor).perform
+      # 备用金台账联动：备用金申请/费用报销模板整单通过后自动落一笔流水。
+      Crm::PettyCashApprovalService.new(request: @request, actor: @actor).perform
     end
   end
 end

@@ -8,6 +8,7 @@
 #  id              :bigint           not null, primary key
 #  active          :boolean          default(TRUE), not null
 #  attendance_kind :string
+#  cash_kind       :string
 #  cc_user_ids     :bigint           default([]), not null, is an Array
 #  description     :string
 #  flow            :jsonb            not null
@@ -31,6 +32,8 @@ class Oa::ApprovalTemplate < ApplicationRecord
   validates :name, presence: true
   # 考勤联动：leave 请假单 / reclock 补卡申请 / trip 出差单；空=不联动。
   validates :attendance_kind, inclusion: { in: %w[leave reclock trip] }, allow_blank: true
+  # 备用金台账联动：advance 备用金申请（通过记存入）/ reimburse 费用报销（通过记支出）；空=不联动。
+  validates :cash_kind, inclusion: { in: %w[advance reimburse] }, allow_blank: true
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(:position, :id) }

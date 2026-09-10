@@ -135,7 +135,7 @@
       }
     },
     "MENTION": {
-      "AGENTS": "客服",
+      "AGENTS": "业务",
       "TEAMS": "团队"
     },
     "CUSTOM_SNOOZE": {
@@ -177,9 +177,9 @@
         "TOMORROW": "直到明天",
         "NEXT_WEEK": "直到下周"
       },
-      "ASSIGN_AGENT": "分配客服代表",
+      "ASSIGN_AGENT": "分配业务",
       "ASSIGN_LABEL": "分配标签",
-      "AGENTS_LOADING": "正在加载客服代表...",
+      "AGENTS_LOADING": "正在加载业务...",
       "ASSIGN_TEAM": "分配一个团队",
       "DELETE": "删除对话",
       "OPEN_IN_NEW_TAB": "在新标签页中打开",
@@ -188,7 +188,7 @@
       "API": {
         "AGENT_ASSIGNMENT": {
           "SUCCESFUL": "对话 ID {conversationId} 已分配给 \"{agentName}\"",
-          "FAILED": "无法分配客服，请再试。"
+          "FAILED": "无法分配业务，请再试。"
         },
         "LABEL_ASSIGNMENT": {
           "SUCCESFUL": "已为对话 Id {conversationId} 分配标签 #{labelName}",
@@ -209,7 +209,7 @@
       "ENABLE_SIGN_TOOLTIP": "启用签名",
       "DISABLE_SIGN_TOOLTIP": "禁用签名",
       "MSG_INPUT": "输入“/”开始选择快捷回复",
-      "PRIVATE_MSG_INPUT": "Shift + 输入新行。这只对客服可见",
+      "PRIVATE_MSG_INPUT": "Shift + 输入新行。这只对业务可见",
       "MESSAGING_RESTRICTED": "You cannot reply to this conversation",
       "MESSAGING_RESTRICTED_WHATSAPP": "You can only reply using a template message due to 24-hour message window restriction",
       "MESSAGING_RESTRICTED_API": "You can only reply using a template message due to message window restriction",
@@ -286,7 +286,7 @@
     "SEND_FAILED": "无法发送消息，请重试！",
     "TRY_AGAIN": "重试",
     "ASSIGNMENT": {
-      "SELECT_AGENT": "选择代理",
+      "SELECT_AGENT": "选择业务",
       "REMOVE": "删除",
       "ASSIGN": "分配"
     },
@@ -335,7 +335,7 @@
     "SEND_EMAIL_PAYMENT_REQUIRED": "Email transcript is not available on your current plan. Please upgrade to use this feature.",
     "FORM": {
       "SEND_TO_CONTACT": "发送对话记录给客户",
-      "SEND_TO_AGENT": "发送对话记录给指定的代理",
+      "SEND_TO_AGENT": "发送对话记录给指定的业务",
       "SEND_TO_OTHER_EMAIL_ADDRESS": "将对话记录发送到另一个电子邮件地址",
       "EMAIL": {
         "PLACEHOLDER": "输入一个电子邮件地址",
@@ -357,7 +357,7 @@
     },
     "TEAM_MEMBERS": {
       "TITLE": "邀请您的团队成员",
-      "DESCRIPTION": "当您准备好与您的客户交谈时，带上您的队友来协助您。 您可以通过添加他们的电子邮件地址到客服代表列表来邀请您的队友。",
+      "DESCRIPTION": "当您准备好与您的客户交谈时，带上您的队友来协助您。 您可以通过添加他们的电子邮件地址到业务列表来邀请您的队友。",
       "NEW_LINK": "点击此处邀请一位请团队成员"
     },
     "LABELS": {
@@ -367,12 +367,12 @@
     },
     "CANNED_RESPONSES": {
       "TITLE": "创建预设回复",
-      "DESCRIPTION": "预定义的快捷回复模板可以帮助您快速响应对话。客服人员只需输入“/”符号，后跟快捷代码，即可插入回复。",
+      "DESCRIPTION": "预定义的快捷回复模板可以帮助您快速响应对话。业务只需输入“/”符号，后跟快捷代码，即可插入回复。",
       "NEW_LINK": "点击这里创建预设回复"
     }
   },
   "CONVERSATION_SIDEBAR": {
-    "ASSIGNEE_LABEL": "已分配的客服代表",
+    "ASSIGNEE_LABEL": "已分配的业务",
     "SELF_ASSIGN": "分配给我",
     "TEAM_LABEL": "已分配的团队",
     "SELECT": {

@@ -254,8 +254,8 @@ const removeRow = i => {
   if (removed?.id) removedItemIds.value.push(removed.id);
 };
 
-// 关联生产订单（选填，仅新建）：「保存并下发」时自动挂接到该订单（进 BOM_READY、
-// 通知业务员二次确认）。列表取停在「销售订单确定」的待挂 BOM 订单。
+// 关联生产订单（选填，仅新建）：「保存并下发」时自动挂接到该订单（进 BOM_READY）。
+// 列表取停在「销售订单确定」的待挂 BOM 订单。
 const attachOrderId = ref('');
 const attachableOrders = ref([]);
 const attachOrderOptions = computed(() => [
@@ -836,7 +836,7 @@ onMounted(async () => {
             block
           />
           <p class="text-xs text-n-slate-10">
-            选择后「保存并下发」将直接挂接到该订单并通知业务员二次确认；存草稿不挂接。
+            选择后「保存并下发」将直接挂接到该订单，并提醒工程/PMC 下发采购；存草稿不挂接。
           </p>
         </div>
         <!-- 投单信息（照 PMC 纸质 BOM 抬头） -->

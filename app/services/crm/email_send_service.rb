@@ -83,8 +83,17 @@ class Crm::EmailSendService
     token = @email.ensure_tracking_token!
     base = ENV.fetch('FRONTEND_URL', 'http://localhost:3000')
     html = rewrite_links_for_tracking(@email.body_html, token, base)
+    html = absolutize_attachment_urls(html, base)
     pixel = %(<img src="#{base}/crm_email_open/#{token}.png" width="1" height="1" alt="" style="display:none" />)
     "#{html}#{pixel}"
+  end
+
+  # 正文里的内联图（签名 logo、引用的原邮件配图）以站内相对路径存放，
+  # 相对路径在收件人的邮件客户端里解析不了，会显示成裂图。发出去的副本补上域名。
+  def absolutize_attachment_urls(html, base)
+    return html if html.blank?
+
+    html.gsub(%r{src="(/rails/active_storage/[^"]+)"}i) { %(src="#{base}#{Regexp.last_match(1)}") }
   end
 
   # 把正文里的 http(s) 链接改写成带 token 的跳转链接：收件人点开先命中回调记录点击，再 302 到原地址。
