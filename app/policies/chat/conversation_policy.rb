@@ -16,6 +16,12 @@ class Chat::ConversationPolicy < ApplicationPolicy
     true
   end
 
+  # 侧栏「团队协同」未读角标：只统计自己参与的会话，控制器已收口。
+  # 缺这个方法会让 Pundit 抛 NoMethodError，角标接口一直 500。
+  def unread_total?
+    true
+  end
+
   # 群主校验在控制器 ensure_group_owner 完成。
   def update?
     true
