@@ -13,8 +13,11 @@ class ConversationPolicy < ApplicationPolicy
 
   private
 
+  # 被指派人 / 对话参与者也要能打开会话——否则只在列表里看得见、点进去 401。
+  # 老板把自己 WhatsApp 上的询盘派给业务员、或把同事拉进来协办，都要靠这两条。
+  # 口径与 Conversations::PermissionFilterService 一致：只放开本人被指派或参与的那几条。
   def agent_can_view_conversation?
-    inbox_access? || team_access?
+    inbox_access? || team_access? || assigned_to_user? || participant?
   end
 
   def administrator?
