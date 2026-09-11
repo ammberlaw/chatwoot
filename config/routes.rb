@@ -80,6 +80,10 @@ Rails.application.routes.draw do
                 post :release
                 post :share
                 post :attach
+                # 会话右侧的客户卡片（轻量，不走 detail）
+                get :card
+                # 互动时间线：跟进/邮件/会话/订单合流
+                get :timeline
                 # 就地识别客户附件里的 PI（前端据此开建单弹窗）
                 post :parse_attachment
                 post :attach_contact

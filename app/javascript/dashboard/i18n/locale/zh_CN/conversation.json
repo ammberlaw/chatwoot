@@ -38,7 +38,7 @@
     "ASSIGN_TO_ME": "分配给我",
     "BOT_HANDOFF_MESSAGE": "您正在回复目前由助手或机器人处理的对话。",
     "BOT_HANDOFF_ACTION": "标记打开并分配给自己",
-    "BOT_HANDOFF_REOPEN_ACTION": "标记对话已打开",
+    "BOT_HANDOFF_REOPEN_ACTION": "标记为跟进中",
     "BOT_HANDOFF_SUCCESS": "对话已分配给您",
     "BOT_HANDOFF_ERROR": "接管对话失败，请再试一次。",
     "TWILIO_WHATSAPP_CAN_REPLY": "您只能使用模板信息回复此会话，原因是",
@@ -98,18 +98,18 @@
       "TRANSCRIPT_SHOW_LESS": "Show less"
     },
     "HEADER": {
-      "RESOLVE_ACTION": "已解决",
-      "REOPEN_ACTION": "重新打开",
-      "OPEN_ACTION": "打开",
+      "RESOLVE_ACTION": "标记已成交",
+      "REOPEN_ACTION": "重新跟进",
+      "OPEN_ACTION": "跟进中",
       "MORE_ACTIONS": "更多操作",
       "OPEN": "详细信息",
       "CLOSE": "关闭",
       "DETAILS": "详情",
       "COPY_ID_SUCCESS": "Conversation ID copied to clipboard",
-      "SNOOZED_UNTIL": "推迟到",
-      "SNOOZED_UNTIL_TOMORROW": "推迟到明天",
-      "SNOOZED_UNTIL_NEXT_WEEK": "推迟到下周",
-      "SNOOZED_UNTIL_NEXT_REPLY": "推迟至下一个回复",
+      "SNOOZED_UNTIL": "暂缓至",
+      "SNOOZED_UNTIL_TOMORROW": "暂缓到明天",
+      "SNOOZED_UNTIL_NEXT_WEEK": "暂缓到下周",
+      "SNOOZED_UNTIL_NEXT_REPLY": "暂缓至客户回复",
       "WHATSAPP_CALL": "Start WhatsApp call",
       "WHATSAPP_CALL_FAILED": "Could not start the WhatsApp call.",
       "VOICE_CALL": "Start call",
@@ -125,10 +125,10 @@
       }
     },
     "RESOLVE_DROPDOWN": {
-      "MARK_PENDING": "标记为待处理",
-      "SNOOZE_UNTIL": "推迟",
+      "MARK_PENDING": "标记待回复",
+      "SNOOZE_UNTIL": "暂缓",
       "SNOOZE": {
-        "TITLE": "推迟到",
+        "TITLE": "暂缓至",
         "NEXT_REPLY": "下一个回复",
         "TOMORROW": "明天",
         "NEXT_WEEK": "下周"
@@ -139,8 +139,8 @@
       "TEAMS": "团队"
     },
     "CUSTOM_SNOOZE": {
-      "TITLE": "推迟到",
-      "APPLY": "推迟",
+      "TITLE": "暂缓至",
+      "APPLY": "暂缓",
       "CANCEL": "取消"
     },
     "PRIORITY": {
@@ -166,13 +166,13 @@
       "CONFIRM": "删除"
     },
     "CARD_CONTEXT_MENU": {
-      "PENDING": "标记为待处理",
-      "RESOLVED": "标记为已解决",
+      "PENDING": "标记待回复",
+      "RESOLVED": "标记已成交",
       "MARK_AS_UNREAD": "标记为未读",
       "MARK_AS_READ": "标记为已读",
-      "REOPEN": "重新打开会话",
+      "REOPEN": "重新跟进",
       "SNOOZE": {
-        "TITLE": "推迟",
+        "TITLE": "暂缓",
         "NEXT_REPLY": "直到下次回复",
         "TOMORROW": "直到明天",
         "NEXT_WEEK": "直到下周"

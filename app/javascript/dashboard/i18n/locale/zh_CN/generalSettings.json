@@ -59,7 +59,7 @@
         },
         "MESSAGE": {
           "LABEL": "自定义自动解决消息",
-          "PLACEHOLDER": "由于闲置 15 天，对话被系统标记已解决",
+          "PLACEHOLDER": "由于闲置 15 天，会话被系统标记已成交",
           "HELP": "会话自动解决之后发送给客户的消息"
         },
         "PREFERENCES": "偏好设置",
@@ -115,7 +115,7 @@
         },
         "UPDATE_BUTTON": "更新",
         "MESSAGE_LABEL": "自定义解决消息",
-        "MESSAGE_PLACEHOLDER": "由于闲置 15 天，对话被系统标记已解决",
+        "MESSAGE_PLACEHOLDER": "由于闲置 15 天，会话被系统标记已成交",
         "MESSAGE_HELP": "当系统因为不活动而自动解决某个对话时，此消息将发送给客户。"
       },
       "FEATURES": {
@@ -191,13 +191,13 @@
       "CHANGE_ASSIGNEE": "更改分配",
       "CHANGE_PRIORITY": "更改优先级",
       "CHANGE_TEAM": "更改团队",
-      "SNOOZE_CONVERSATION": "推迟对话",
+      "SNOOZE_CONVERSATION": "暂缓会话",
       "ADD_LABEL": "为对话添加标签",
       "REMOVE_LABEL": "从对话移除标签",
       "SETTINGS": "设置",
       "AI_ASSIST": "AI 助手",
       "APPEARANCE": "外观",
-      "SNOOZE_NOTIFICATION": "推迟通知"
+      "SNOOZE_NOTIFICATION": "暂缓通知"
     },
     "COMMANDS": {
       "GO_TO_CONVERSATION_DASHBOARD": "转到对话面板",
@@ -225,7 +225,7 @@
       "MUTE_CONVERSATION": "静音对话",
       "UNMUTE_CONVERSATION": "取消静音对话",
       "REMOVE_LABEL_FROM_CONVERSATION": "从对话移除标签",
-      "REOPEN_CONVERSATION": "重新打开会话",
+      "REOPEN_CONVERSATION": "重新跟进会话",
       "RESOLVE_CONVERSATION": "解决会话",
       "SEND_TRANSCRIPT": "发送电子邮件副本",
       "SNOOZE_CONVERSATION": "暂停对话",
@@ -239,7 +239,7 @@
       "LIGHT_MODE": "浅色",
       "DARK_MODE": "深色",
       "SYSTEM_MODE": "系统",
-      "SNOOZE_NOTIFICATION": "推迟通知"
+      "SNOOZE_NOTIFICATION": "暂缓通知"
     }
   },
   "DASHBOARD_APPS": {

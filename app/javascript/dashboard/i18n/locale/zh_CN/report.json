@@ -32,11 +32,11 @@
         "TOOLTIP_TEXT": "解决时间为 {metricValue}（基于 {conversationCount} 个对话）"
       },
       "RESOLUTION_COUNT": {
-        "NAME": "已解决的数量",
+        "NAME": "已成交数",
         "DESC": "(总计)"
       },
       "BOT_RESOLUTION_COUNT": {
-        "NAME": "已解决的数量",
+        "NAME": "已成交数",
         "DESC": "(总计)"
       },
       "BOT_HANDOFF_COUNT": {
@@ -164,7 +164,7 @@
         "TOOLTIP_TEXT": "解决时间为 {metricValue}（基于 {conversationCount} 个对话）"
       },
       "RESOLUTION_COUNT": {
-        "NAME": "已解决的数量",
+        "NAME": "已成交数",
         "DESC": "(总计)"
       }
     },
@@ -237,7 +237,7 @@
         "TOOLTIP_TEXT": "解决时间为 {metricValue}（基于 {conversationCount} 个对话）"
       },
       "RESOLUTION_COUNT": {
-        "NAME": "已解决的数量",
+        "NAME": "已成交数",
         "DESC": "(总计)"
       }
     },
@@ -274,7 +274,7 @@
   },
   "INBOX_REPORTS": {
     "HEADER": "收件箱概览",
-    "DESCRIPTION": "在一个地方快速查看您的收件箱表现，包括会话、响应时间、解决时间和已解决案例等关键指标。点击收件箱名称以了解更多详细信息。",
+    "DESCRIPTION": "在一个地方快速查看您的收件箱表现，包括会话、响应时间、成交时长和已成交数等关键指标。点击收件箱名称以了解更多详细信息。",
     "LOADING_CHART": "正在载入图表数据...",
     "NO_ENOUGH_DATA": "我们没有收到足够的数据点来生成报告，请稍后再试。",
     "DOWNLOAD_INBOX_REPORTS": "下载收件箱报表",
@@ -312,7 +312,7 @@
         "TOOLTIP_TEXT": "解决时间为 {metricValue}（基于 {conversationCount} 个对话）"
       },
       "RESOLUTION_COUNT": {
-        "NAME": "已解决的数量",
+        "NAME": "已成交数",
         "DESC": "(总计)"
       }
     },
@@ -388,7 +388,7 @@
         "TOOLTIP_TEXT": "解决时间为 {metricValue}（基于 {conversationCount} 个对话）"
       },
       "RESOLUTION_COUNT": {
-        "NAME": "已解决的数量",
+        "NAME": "已成交数",
         "DESC": "(总计)"
       }
     },
@@ -644,7 +644,7 @@
     "AVG_RESOLUTION_TIME": "平均解决时间",
     "AVG_FIRST_RESPONSE_TIME": "平均首次响应时间",
     "AVG_REPLY_TIME": "平均客户等待时间",
-    "RESOLUTION_COUNT": "已解决的数量",
+    "RESOLUTION_COUNT": "已成交数",
     "CONVERSATIONS": "会话数量"
   }
 }

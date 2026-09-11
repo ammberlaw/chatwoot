@@ -567,6 +567,35 @@ const menuItems = computed(() => {
             icon: 'i-lucide-clock-alert',
             to: accountScopedRoute('conversation_unattended'),
           },
+          // CRM 维度分诊：业务员按「谁的客户/要不要跟/建没建档」筛会话，不用一条条翻。
+          {
+            name: 'CRM Mine',
+            label: '我的客户',
+            icon: 'i-lucide-user-round-cog',
+            activeOn: ['conversation_through_crm_mine'],
+            to: accountScopedRoute('conversation_crm_mine'),
+          },
+          {
+            name: 'CRM Overdue',
+            label: '待跟进',
+            icon: 'i-lucide-alarm-clock',
+            activeOn: ['conversation_through_crm_overdue'],
+            to: accountScopedRoute('conversation_crm_overdue'),
+          },
+          {
+            name: 'CRM Hot',
+            label: '高意向',
+            icon: 'i-lucide-flame',
+            activeOn: ['conversation_through_crm_hot'],
+            to: accountScopedRoute('conversation_crm_hot'),
+          },
+          {
+            name: 'CRM Unfiled',
+            label: '未建档',
+            icon: 'i-lucide-user-round-plus',
+            activeOn: ['conversation_through_crm_unfiled'],
+            to: accountScopedRoute('conversation_crm_unfiled'),
+          },
           {
             name: 'Folders',
             label: t('SIDEBAR.CUSTOM_VIEWS_FOLDER'),

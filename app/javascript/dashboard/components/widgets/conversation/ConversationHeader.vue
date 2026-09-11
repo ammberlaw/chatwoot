@@ -6,6 +6,8 @@ import { useElementSize } from '@vueuse/core';
 import BackButton from '../BackButton.vue';
 import InboxName from '../InboxName.vue';
 import MoreActions from './MoreActions.vue';
+// 会话状态（跟进中/待回复/已成交/暂缓）：原先 fork 里没挂出来，业务要用状态收口会话，重新放回头部。
+import ResolveAction from 'dashboard/components/buttons/ResolveAction.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
 import ConversationCallButton from './ConversationCallButton.vue';
@@ -236,6 +238,7 @@ const onTargetLanguageChange = () => {
         />
       </div>
       <ConversationCallButton :inbox="inbox" :chat="currentChat" />
+      <ResolveAction v-if="currentChat.id" />
       <MoreActions :conversation-id="currentChat.id" />
     </div>
   </div>

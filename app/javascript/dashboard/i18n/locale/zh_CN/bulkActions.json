@@ -12,12 +12,12 @@
     "ASSIGN_TEAM_TOOLTIP": "分配一个团队",
     "ASSIGN_SUCCESFUL": "对话分配成功.",
     "ASSIGN_FAILED": "分配对话失败。请再试一次。",
-    "RESOLVE_SUCCESFUL": "成功将对话标记为已解决.",
+    "RESOLVE_SUCCESFUL": "已标记为已成交。",
     "RESOLVE_FAILED": "解决对话失败。请再试一次。",
     "ALL_CONVERSATIONS_SELECTED_ALERT": "仅选择了此页面上可见的对话。",
     "UPDATE": {
       "CHANGE_STATUS": "更改状态",
-      "SNOOZE_UNTIL": "推迟",
+      "SNOOZE_UNTIL": "暂缓",
       "UPDATE_SUCCESFUL": "对话状态更新成功。",
       "UPDATE_FAILED": "更新对话失败。请再试一次。"
     },

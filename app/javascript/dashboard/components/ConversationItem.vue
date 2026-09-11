@@ -25,6 +25,7 @@ const selectConversation = inject('selectConversation');
 const deSelectConversation = inject('deSelectConversation');
 const assignAgent = inject('assignAgent');
 const assignTeam = inject('assignTeam');
+const updateConversationStatus = inject('updateConversationStatus');
 const toggleContextMenu = inject('toggleContextMenu');
 const isConversationSelected = inject('isConversationSelected');
 const deleteConversation = inject('deleteConversation');
@@ -128,6 +129,11 @@ const closeContextMenu = () => {
   contextMenu.value.y = null;
 };
 
+const onUpdateConversation = (status, snoozedUntil) => {
+  closeContextMenu();
+  updateConversationStatus(props.source.id, status, snoozedUntil);
+};
+
 const onAssignAgent = agent => {
   assignAgent(agent, [props.source.id]);
   closeContextMenu();
@@ -190,7 +196,9 @@ const onDeleteConversation = () => {
     <ConversationContextMenu
       :inbox-id="inbox.id"
       :chat-id="source.id"
+      :status="source.status"
       :conversation-url="conversationPath"
+      @update-conversation="onUpdateConversation"
       @assign-agent="onAssignAgent"
       @assign-team="onAssignTeam"
       @delete-conversation="onDeleteConversation"

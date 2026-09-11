@@ -8,12 +8,12 @@
       "NO_NOTIFICATIONS": "没有通知",
       "NOTE": "来自所有订阅收件箱的通知",
       "NO_MESSAGES_AVAILABLE": "哎呀！无法获取消息",
-      "SNOOZED_UNTIL": "推迟到",
-      "SNOOZED_UNTIL_TOMORROW": "推迟到明天",
-      "SNOOZED_UNTIL_NEXT_WEEK": "推迟到下周"
+      "SNOOZED_UNTIL": "暂缓至",
+      "SNOOZED_UNTIL_TOMORROW": "暂缓到明天",
+      "SNOOZED_UNTIL_NEXT_WEEK": "暂缓到下周"
     },
     "ACTION_HEADER": {
-      "SNOOZE": "推迟通知",
+      "SNOOZE": "暂缓通知",
       "DELETE": "删除通知",
       "BACK": "返回"
     },
@@ -36,14 +36,14 @@
       "SLA_MISSED_RESOLUTION": "SLA违约",
       "PARTICIPATING_CONVERSATION_NEW_MESSAGE": "新消息",
       "ASSIGNED_CONVERSATION_NEW_MESSAGE": "新消息",
-      "SNOOZED_UNTIL": "推迟至{time}",
-      "SNOOZED_ENDS": "推迟结束"
+      "SNOOZED_UNTIL": "暂缓至{time}",
+      "SNOOZED_ENDS": "暂缓结束"
     },
     "NO_CONTENT": "没有可用的内容",
     "MENU_ITEM": {
       "MARK_AS_READ": "标记为已读",
       "MARK_AS_UNREAD": "标记为未读",
-      "SNOOZE": "推迟",
+      "SNOOZE": "暂缓",
       "DELETE": "删除",
       "MARK_ALL_READ": "全部标记为已读",
       "DELETE_ALL": "删除全部",
@@ -67,7 +67,7 @@
     "ALERTS": {
       "MARK_AS_READ": "通知标记为已读",
       "MARK_AS_UNREAD": "通知标记为未读",
-      "SNOOZE": "通知已推迟",
+      "SNOOZE": "通知已暂缓",
       "DELETE": "通知已删除",
       "MARK_ALL_READ": "所有通知标记为已读",
       "DELETE_ALL": "所有通知已删除",

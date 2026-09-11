@@ -14,6 +14,8 @@ import ContactConversations from './ContactConversations.vue';
 import ConversationAction from './ConversationAction.vue';
 import ConversationParticipant from './ConversationParticipant.vue';
 import ContactInfo from './contact/ContactInfo.vue';
+// CRM 客户卡片：固定在联系人信息下方（不进可拖拽区，业务最该先看到它）。
+import CrmConversationCustomerCard from 'dashboard/components-next/CRM/CrmConversationCustomerCard.vue';
 import ContactNotes from './contact/ContactNotes.vue';
 import ConversationInfo from './ConversationInfo.vue';
 import CustomAttributes from './customAttributes/CustomAttributes.vue';
@@ -138,6 +140,7 @@ onMounted(() => {
       @close="closeContactPanel"
     />
     <ContactInfo :contact="contact" :channel-type="channelType" />
+    <CrmConversationCustomerCard :contact="contact" />
     <div class="px-2 pb-8 list-group">
       <Draggable
         :list="conversationSidebarItems"

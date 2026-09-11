@@ -187,6 +187,28 @@ export default {
         conversationType: 'mention',
       }),
     },
+    // CRM 维度的会话视图：我的客户 / 未建档 / 待跟进 / 高意向（见 Crm::ConversationViews）
+    ...['crm_mine', 'crm_unfiled', 'crm_overdue', 'crm_hot'].flatMap(type => [
+      {
+        path: frontendURL(`accounts/:accountId/${type}/conversations`),
+        name: `conversation_${type}`,
+        meta: { permissions: CONVERSATION_PERMISSIONS },
+        component: ConversationView,
+        props: () => ({ conversationType: type }),
+      },
+      {
+        path: frontendURL(
+          `accounts/:accountId/${type}/conversations/:conversationId`
+        ),
+        name: `conversation_through_${type}`,
+        meta: { permissions: CONVERSATION_PERMISSIONS },
+        component: ConversationView,
+        props: route => ({
+          conversationId: route.params.conversationId,
+          conversationType: type,
+        }),
+      },
+    ]),
     {
       path: frontendURL('accounts/:accountId/unattended/conversations'),
       name: 'conversation_unattended',

@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :parse_attachment, :audits, :detail, :favorite, :unfavorite, :attach_contact, :schedule_follow_up, :merge]
+  before_action :fetch_customer, only: [:show, :update, :destroy, :claim, :release, :share, :attach, :detach, :parse_attachment, :audits, :detail, :favorite, :unfavorite, :attach_contact, :schedule_follow_up, :merge, :card, :timeline]
 
   RESULTS_PER_PAGE = 15
   MAX_IMPORT_ROWS = 2000
@@ -370,6 +370,29 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     @tasks = Current.account.crm_follow_up_tasks
                     .where(crm_customer_id: @customer.id)
                     .order(Arel.sql('due_at IS NULL, due_at ASC')).limit(30)
+  end
+
+  # 会话右侧的客户卡片：业务员在聊天里就能看到这个客户的 CRM 全貌，不用切页面。
+  # 只取卡片要显示的那几项，不走 detail（那个连订单/商机/PI 一次全拉，太重）。
+  def card
+    render json: {
+      id: @customer.id, name: @customer.name, customer_code: @customer.customer_code,
+      customer_status: @customer.customer_status, customer_level: @customer.customer_level,
+      star: @customer.customer_star,
+      owner_name: @customer.account_owner&.crm_display_name,
+      in_public_pool: @customer.is_in_public_pool,
+      next_follow_up_at: @customer.next_follow_up_at,
+      last_follow_up_at: @customer.last_follow_up_at,
+      deal_total_rmb: ((@customer.deal_total_amount_micros || 0) / 1_000_000.0).round(2),
+      deal_order_count: @customer.deal_order_count,
+      open_opportunity_count: @customer.opportunities.open_stages.count,
+      can_edit: share_allowed?
+    }
+  end
+
+  # 客户互动时间线：跟进 + 往来邮件 + 会话 + 订单合成一条时间轴。
+  def timeline
+    render json: { payload: Crm::CustomerTimeline.new(account: Current.account, customer: @customer).call }
   end
 
   # 操作历史：该客户的审计记录（谁在何时改了哪些字段）。

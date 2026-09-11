@@ -45,6 +45,93 @@ const load = async () => {
 const customer = computed(() => data.value?.customer || {});
 const notes = computed(() => data.value?.notes || []);
 
+// ── 互动时间线：跟进 / 邮件 / 会话 / 订单 合到一条轴 ──
+const timeline = ref([]);
+const timelineFilter = ref('all');
+const TIMELINE_FILTERS = [
+  { value: 'all', label: '全部' },
+  { value: 'note', label: '跟进' },
+  { value: 'email', label: '邮件' },
+  { value: 'conversation', label: '会话' },
+  { value: 'order', label: '订单' },
+];
+const TIMELINE_META = {
+  note: {
+    label: '跟进',
+    dot: 'bg-n-teal-9',
+    chip: 'bg-n-teal-3 text-n-teal-11',
+    link: false,
+  },
+  email: {
+    label: '邮件',
+    dot: 'bg-n-blue-9',
+    chip: 'bg-n-blue-3 text-n-blue-11',
+    link: true,
+  },
+  conversation: {
+    label: '会话',
+    dot: 'bg-n-iris-9',
+    chip: 'bg-n-iris-3 text-n-iris-11',
+    link: true,
+  },
+  order: {
+    label: '订单',
+    dot: 'bg-n-amber-9',
+    chip: 'bg-n-amber-3 text-n-amber-11',
+    link: true,
+  },
+};
+const visibleTimeline = computed(() =>
+  timelineFilter.value === 'all'
+    ? timeline.value
+    : timeline.value.filter(e => e.type === timelineFilter.value)
+);
+const timelineCounts = computed(() => {
+  const counts = { all: timeline.value.length };
+  timeline.value.forEach(e => {
+    counts[e.type] = (counts[e.type] || 0) + 1;
+  });
+  return counts;
+});
+const loadTimeline = async id => {
+  try {
+    const { data: res } = await axios.get(
+      `${crmBase()}/customers/${id}/timeline`
+    );
+    timeline.value = res.payload || [];
+  } catch (error) {
+    timeline.value = [];
+  }
+};
+
+// 详情拉完再拉时间线（两个接口各自独立，时间线慢一点不挡主信息）。
+watch(data, () => {
+  if (customerId.value) loadTimeline(customerId.value);
+});
+// 点条目跳到源头：邮件去邮件中心、会话去聊天、订单去销售订单。
+const openTimelineItem = e => {
+  const acc = route.params.accountId;
+  if (e.type === 'email') {
+    router.push({
+      name: 'crm_emails_index',
+      params: { accountId: acc },
+      query: { email_id: String(e.link_id) },
+    });
+    return;
+  }
+  if (e.type === 'conversation') {
+    router.push(`/app/accounts/${acc}/conversations/${e.link_id}`);
+    return;
+  }
+  if (e.type === 'order') {
+    router.push({
+      name: 'crm_sales_orders_index',
+      params: { accountId: acc },
+      query: { focus: String(e.link_id) },
+    });
+  }
+};
+
 // ---- AI 销售建议：按需分析与该客户的往来 + 商机，给一条下一步建议（不落库）----
 const suggestion = ref('');
 const suggestLoading = ref(false);
@@ -292,7 +379,8 @@ const nextSuggestion = computed(() => {
   const t = openTasks.value[0];
   if (t) return t.title;
   const n = notes.value[0];
-  return n?.result_tag || n?.title || '—';
+  // 走 resultLabel，不然卡片上会直接甩出 INTERESTED 这种原始枚举。
+  return (n?.result_tag ? resultLabel(n.result_tag) : n?.title) || '—';
 });
 // AI 下一步建议缓存：收信时由 AI 顺手生成写库，打开页面直接读，不实时调 AI（省 token）。
 const aiNextStep = computed(() => (customer.value.ai_next_step || '').trim());
@@ -503,7 +591,9 @@ onMounted(() => {
         <div
           class="p-4 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
         >
-          <div class="flex items-center justify-between gap-2 text-xs text-n-slate-10">
+          <div
+            class="flex items-center justify-between gap-2 text-xs text-n-slate-10"
+          >
             <span class="flex items-center gap-2">
               <span class="i-lucide-lightbulb size-4" /> 下一步建议
             </span>
@@ -568,58 +658,87 @@ onMounted(() => {
             </div>
           </section>
 
-          <!-- 沟通时间线 -->
+          <!-- 互动时间线：跟进 + 往来邮件 + 会话 + 订单 -->
           <section
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <h3 class="mb-4 text-sm font-semibold text-n-slate-12">
-              沟通时间线
-            </h3>
-            <div v-if="!notes.length" class="text-sm text-n-slate-10">
-              暂无跟进记录
+            <div class="flex flex-wrap items-center gap-2 mb-4">
+              <h3 class="text-sm font-semibold text-n-slate-12">互动时间线</h3>
+              <div class="flex items-center gap-1 ml-auto">
+                <button
+                  v-for="f in TIMELINE_FILTERS"
+                  :key="f.value"
+                  class="px-2 py-1 text-xs rounded-full"
+                  :class="
+                    timelineFilter === f.value
+                      ? 'bg-n-iris-3 text-n-iris-11'
+                      : 'text-n-slate-11 hover:bg-n-alpha-1'
+                  "
+                  @click="timelineFilter = f.value"
+                >
+                  {{ f.label }}
+                  <template v-if="timelineCounts[f.value]">
+                    {{ timelineCounts[f.value] }}
+                  </template>
+                </button>
+              </div>
+            </div>
+            <div v-if="!visibleTimeline.length" class="text-sm text-n-slate-10">
+              暂无互动记录
             </div>
             <div v-else class="flex flex-col gap-4">
               <div
-                v-for="n in notes"
-                :key="n.id"
+                v-for="(e, i) in visibleTimeline"
+                :key="`tl-${i}`"
                 class="relative pl-5 border-l-2 border-n-weak"
               >
                 <span
                   class="absolute -left-[5px] top-1.5 rounded-full size-2"
-                  :class="n.source === 'AI' ? 'bg-n-iris-9' : 'bg-n-teal-9'"
+                  :class="TIMELINE_META[e.type].dot"
                 />
                 <div
-                  class="flex items-center gap-2 text-xs font-medium text-n-slate-11"
+                  class="flex flex-wrap items-center gap-2 text-xs font-medium text-n-slate-11"
                 >
-                  {{ fmtDate(n.created_at) }}
+                  {{ fmtDate(e.at) }}
                   <span
-                    v-if="n.source === 'AI'"
+                    class="px-1.5 py-0.5 rounded"
+                    :class="TIMELINE_META[e.type].chip"
+                  >
+                    {{ TIMELINE_META[e.type].label }}
+                  </span>
+                  <span
+                    v-if="e.source === 'AI'"
                     class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-n-iris-3 text-n-iris-11"
                     title="AI 从邮件往来自动识别的进度"
                   >
                     <span class="i-ph-sparkle-fill size-3" />AI
                   </span>
                   <span
-                    v-if="n.follow_up_method"
+                    v-if="e.tag"
                     class="px-1.5 py-0.5 rounded bg-n-alpha-2 text-n-slate-10"
                   >
-                    {{ methodLabel(n.follow_up_method) }}
+                    {{ e.type === 'note' ? methodLabel(e.tag) : e.tag }}
                   </span>
-                  <span v-if="n.owner_name" class="text-n-slate-9">
-                    · {{ n.owner_name }}
-                  </span>
+                  <span v-if="e.who" class="text-n-slate-9">· {{ e.who }}</span>
                 </div>
-                <div class="mt-1 text-sm font-medium text-n-slate-12">
-                  {{ n.title }}
-                </div>
-                <div
-                  v-if="n.body"
-                  class="mt-0.5 text-sm text-n-slate-11 whitespace-pre-wrap"
+                <button
+                  class="mt-1 text-sm font-medium text-left text-n-slate-12"
+                  :class="TIMELINE_META[e.type].link ? 'hover:underline' : ''"
+                  @click="openTimelineItem(e)"
                 >
-                  {{ n.body }}
+                  {{ e.title }}
+                  <template v-if="e.amount">
+                    · {{ e.currency }} {{ e.amount.toLocaleString() }}
+                  </template>
+                </button>
+                <div
+                  v-if="e.body"
+                  class="mt-0.5 text-sm text-n-slate-11 whitespace-pre-wrap line-clamp-3"
+                >
+                  {{ e.body }}
                 </div>
-                <div v-if="n.result_tag" class="mt-1 text-xs text-n-slate-10">
-                  跟进结果：{{ resultLabel(n.result_tag) }}
+                <div v-if="e.result_tag" class="mt-1 text-xs text-n-slate-10">
+                  跟进结果：{{ resultLabel(e.result_tag) }}
                 </div>
               </div>
             </div>
@@ -648,26 +767,32 @@ onMounted(() => {
               @click="goToOpportunity(primaryOpp.id)"
             >
               <div>
-                <span class="text-n-slate-10">商机：</span>{{ dash(primaryOpp.name) }}
+                <span class="text-n-slate-10">商机：</span
+                >{{ dash(primaryOpp.name) }}
               </div>
               <div>
-                <span class="text-n-slate-10">报价金额：</span>{{ money(primaryOpp.amount_micros, primaryOpp.currency) }}
+                <span class="text-n-slate-10">报价金额：</span
+                >{{ money(primaryOpp.amount_micros, primaryOpp.currency) }}
               </div>
               <div>
-                <span class="text-n-slate-10">成交概率：</span>{{
+                <span class="text-n-slate-10">成交概率：</span
+                >{{
                   primaryOpp.probability != null
                     ? primaryOpp.probability + '%'
                     : '—'
                 }}
               </div>
               <div>
-                <span class="text-n-slate-10">阶段：</span>{{ stageLabel(primaryOpp.sales_stage) }}
+                <span class="text-n-slate-10">阶段：</span
+                >{{ stageLabel(primaryOpp.sales_stage) }}
               </div>
               <div>
-                <span class="text-n-slate-10">预计成交：</span>{{ fmtDate(primaryOpp.expected_close_date) }}
+                <span class="text-n-slate-10">预计成交：</span
+                >{{ fmtDate(primaryOpp.expected_close_date) }}
               </div>
               <div>
-                <span class="text-n-slate-10">下一步：</span>{{ dash(primaryOpp.next_action) }}
+                <span class="text-n-slate-10">下一步：</span
+                >{{ dash(primaryOpp.next_action) }}
               </div>
             </div>
           </section>
@@ -712,7 +837,9 @@ onMounted(() => {
               >
                 <span class="i-lucide-mail size-3" />自动
               </span>
-              <span class="ml-auto text-xs shrink-0 text-n-slate-10">{{ Math.round((f.byte_size || 0) / 1024) }} KB</span>
+              <span class="ml-auto text-xs shrink-0 text-n-slate-10"
+                >{{ Math.round((f.byte_size || 0) / 1024) }} KB</span
+              >
               <span class="shrink-0 i-lucide-download size-4 text-n-slate-9" />
             </a>
           </section>
@@ -725,7 +852,8 @@ onMounted(() => {
               <h3
                 class="flex items-center gap-2 text-sm font-semibold text-n-slate-12"
               >
-                <span class="i-ph-sparkle-fill size-4 text-n-iris-11" /> AI 销售建议
+                <span class="i-ph-sparkle-fill size-4 text-n-iris-11" /> AI
+                销售建议
               </h3>
               <button
                 class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-n-iris-11 bg-n-iris-3 hover:bg-n-iris-4 disabled:opacity-60"
@@ -830,7 +958,9 @@ onMounted(() => {
               <div class="mt-1 text-xs text-n-slate-10">
                 {{ money(o.order_amount_micros, o.order_currency) }} · 下单
                 {{ fmtDate(o.order_date) }}
-                <span v-if="o.delivery_date">· 预计出货 {{ fmtDate(o.delivery_date) }}</span>
+                <span v-if="o.delivery_date"
+                  >· 预计出货 {{ fmtDate(o.delivery_date) }}</span
+                >
               </div>
               <div
                 v-if="o.files && o.files.length"

@@ -7,13 +7,16 @@ import {
   getSortedAgentsByAvailability,
   getAgentsByUpdatedPresence,
 } from 'dashboard/helper/agentHelper.js';
+import wootConstants from 'dashboard/constants/globals';
 import MenuItem from './menuItem.vue';
 import MenuItemWithSubmenu from './menuItemWithSubmenu.vue';
 import AgentLoadingPlaceholder from './agentLoadingPlaceholder.vue';
 
-// 只保留分配与链接类操作：标记已读/未读、会话状态（已解决/待处理/重开）、推迟、
-// 优先级、分配标签这几项在本系统里用不上，已整体去掉。
+// 菜单只留业务用得上的：会话状态（跟进中/待回复/已成交/暂缓）+ 分配 + 链接类。
+// 标记已读未读、优先级、分配标签这三项在本系统里用不上，不放出来。
 const MENU = {
+  STATUS: 'status',
+  SNOOZE: 'snooze',
   AGENT: 'agent',
   TEAM: 'team',
   DELETE: 'delete',
@@ -32,6 +35,10 @@ export default {
       type: Number,
       default: null,
     },
+    status: {
+      type: String,
+      default: '',
+    },
     inboxId: {
       type: Number,
       default: null,
@@ -45,7 +52,13 @@ export default {
       default: () => [],
     },
   },
-  emits: ['assignAgent', 'assignTeam', 'deleteConversation', 'close'],
+  emits: [
+    'updateConversation',
+    'assignAgent',
+    'assignTeam',
+    'deleteConversation',
+    'close',
+  ],
   setup() {
     const { isAdmin } = useAdmin();
     return {
@@ -55,6 +68,29 @@ export default {
   data() {
     return {
       MENU,
+      STATUS_TYPE: wootConstants.STATUS_TYPE,
+      statusMenuConfig: [
+        {
+          key: wootConstants.STATUS_TYPE.RESOLVED,
+          label: this.$t('CONVERSATION.CARD_CONTEXT_MENU.RESOLVED'),
+          icon: 'checkmark',
+        },
+        {
+          key: wootConstants.STATUS_TYPE.OPEN,
+          label: this.$t('CONVERSATION.CARD_CONTEXT_MENU.REOPEN'),
+          icon: 'arrow-redo',
+        },
+        {
+          key: wootConstants.STATUS_TYPE.PENDING,
+          label: this.$t('CONVERSATION.CARD_CONTEXT_MENU.PENDING'),
+          icon: 'book-clock',
+        },
+      ],
+      snoozeOption: {
+        key: wootConstants.STATUS_TYPE.SNOOZED,
+        label: this.$t('CONVERSATION.CARD_CONTEXT_MENU.SNOOZE.TITLE'),
+        icon: 'snooze',
+      },
       agentMenuConfig: {
         key: MENU.AGENT,
         icon: 'person-add',
@@ -83,6 +119,10 @@ export default {
     };
   },
   computed: {
+    // 已经在跟进中的才给「暂缓」，其余状态给了也没意义。
+    showSnooze() {
+      return this.status === wootConstants.STATUS_TYPE.OPEN;
+    },
     ...mapGetters({
       teams: 'teams/getTeams',
       assignableAgentsUiFlags: 'inboxAssignableAgents/getUIFlags',
@@ -128,6 +168,20 @@ export default {
     this.$store.dispatch('inboxAssignableAgents/fetch', [this.inboxId]);
   },
   methods: {
+    // 当前已是这个状态就不再列出来（已成交的不用再给「标记已成交」）。
+    show(key) {
+      return this.status !== key;
+    },
+    toggleStatus(status, snoozedUntil) {
+      this.$emit('updateConversation', status, snoozedUntil);
+    },
+    // 暂缓走命令面板选时间（明天/下周/自定义），与会话头部同一套。
+    async snoozeConversation() {
+      await this.$store.dispatch('setContextMenuChatId', this.chatId);
+      document
+        .querySelector('ninja-keys')
+        ?.open({ parent: 'snooze_conversation' });
+    },
     isAllowed(keys) {
       if (!this.allowedOptions.length) return true;
       return keys.some(key => this.allowedOptions.includes(key));
@@ -169,6 +223,24 @@ export default {
   <div
     class="p-1 rounded-md shadow-xl bg-n-alpha-3/50 backdrop-blur-[100px] outline-1 outline outline-n-weak/50"
   >
+    <template v-if="isAllowed([MENU.STATUS, MENU.SNOOZE])">
+      <template v-for="option in statusMenuConfig">
+        <MenuItem
+          v-if="show(option.key) && isAllowed([MENU.STATUS])"
+          :key="option.key"
+          :option="option"
+          variant="icon"
+          @click.stop="toggleStatus(option.key, null)"
+        />
+      </template>
+      <MenuItem
+        v-if="showSnooze && isAllowed([MENU.SNOOZE])"
+        :option="snoozeOption"
+        variant="icon"
+        @click.stop="snoozeConversation()"
+      />
+      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
+    </template>
     <template v-if="isAdminLike && isAllowed([MENU.AGENT, MENU.TEAM])">
       <MenuItemWithSubmenu
         v-if="isAllowed([MENU.AGENT])"

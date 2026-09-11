@@ -1,3 +1,5 @@
+# CRM 会话视图分支（见 Crm::ConversationViews）让本类略超行数限制，整体内聚故豁免。
+# rubocop:disable Metrics/ClassLength
 class ConversationFinder
   attr_reader :current_user, :current_account, :params
 
@@ -145,6 +147,9 @@ class ConversationFinder
       @conversations = current_user.participating_conversations.where(account_id: current_account.id)
     when 'unattended'
       @conversations = @conversations.unattended
+    when *Crm::ConversationViews::TYPES # 我的客户/未建档/待跟进/高意向
+      @conversations = Crm::ConversationViews.new(account: current_account, user: current_user,
+                                                  scope: @conversations).apply(@params[:conversation_type])
     end
     @conversations
   end
@@ -227,3 +232,4 @@ class ConversationFinder
   end
 end
 ConversationFinder.prepend_mod_with('ConversationFinder')
+# rubocop:enable Metrics/ClassLength

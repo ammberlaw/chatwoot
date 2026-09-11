@@ -21,16 +21,16 @@
     },
     "CHAT_STATUS_FILTER_ITEMS": {
       "open": {
-        "TEXT": "打开"
+        "TEXT": "跟进中"
       },
       "resolved": {
-        "TEXT": "已解决"
+        "TEXT": "已成交"
       },
       "pending": {
-        "TEXT": "等待中"
+        "TEXT": "待回复"
       },
       "snoozed": {
-        "TEXT": "已关闭"
+        "TEXT": "暂缓"
       },
       "all": {
         "TEXT": "所有的"

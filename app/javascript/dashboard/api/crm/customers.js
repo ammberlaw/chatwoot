@@ -31,6 +31,11 @@ class CrmCustomerAPI extends ApiClient {
     return axios.get(`${this.url}/dedupe_search?${query}`);
   }
 
+  // 会话右侧客户卡片用的轻量字段（阶段/星级/归属/在谈商机/累计成交/下次跟进）。
+  card(id) {
+    return axios.get(`${this.url}/${id}/card`);
+  }
+
   // 邮箱身份识别：colleague / mine / other(撞单) / stranger。
   identify(email) {
     return axios.get(`${this.url}/identify?${buildParams({ email })}`);
