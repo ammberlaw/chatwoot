@@ -16,6 +16,13 @@ class Oa::ApprovalRequestPolicy < ApplicationPolicy
     true
   end
 
+  # 申请人改单：真正的权限在控制器里（只能改自己发起的、且审批中尚无人处理），
+  # 这里放行即可。缺了这个方法会落到 ApplicationPolicy#update? = false，
+  # 网页端与 App 的「修改」都会 401。
+  def update?
+    true
+  end
+
   def approve?
     true
   end
