@@ -301,8 +301,13 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   # 附件上传（追加，不覆盖已有）
+  # 存量/小满迁入客户常带脏数据（如 trade_country 存成 ISO 码 'IT' 而非白名单里的 'ITALY'），
+  # 这类记录跑不过校验 → attach 内部的 save 静默失败 → 附件停在未保存状态，
+  # 接着序列化 url_for 拿不到 signed_id，整个请求 500、文件也丢了。
+  # 传附件跟客户字段合不合法没关系，存不下就跳过校验再存一次。
   def attach
     @customer.files.attach(params[:files])
+    @customer.save(validate: false) if @customer.attachment_changes.any?
     render 'api/v1/accounts/crm/customers/show'
   end
 
