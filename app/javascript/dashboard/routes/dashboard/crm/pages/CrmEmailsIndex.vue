@@ -318,6 +318,34 @@ const avatarClass = record =>
 const counterparty = email =>
   email.folder === 'INBOX' ? email.fromAddress : email.toAddress;
 
+// 列表显示「对方」：一串邮箱地址认不出是谁，优先用业务员自己备注的联系人名/客户名
+// （后端按地址查联系人得出，见 build_counterparty_names），认不出才退回地址。
+const counterpartyLabel = email =>
+  email.counterpartyName || counterparty(email) || '—';
+
+// 分发标记：像会话卡片标业务那样，在列表行上直接显示这封邮件的内部流转去向。
+// 分发给我的显示是谁分的（我自己的名字没信息量），其余显示分给了谁。
+// 名字单独拆出来放，只让名字截断——不然「外贸业务员小陈」这种长名会把后面的
+// 「分发」「+2」一起吃掉，标签就看不出是什么意思了。
+const distributionLabel = email => {
+  if (email.distributedToMe && email.distributedBy) {
+    return {
+      prefix: '',
+      name: email.distributedBy,
+      suffix: ' 分发',
+      title: `${email.distributedBy} 分发给我`,
+    };
+  }
+  const names = email.distributedTo || [];
+  if (!names.length) return null;
+  return {
+    prefix: '分发给 ',
+    name: names[0],
+    suffix: names.length > 1 ? ` +${names.length - 1}` : '',
+    title: `分发给 ${names.join('、')}`,
+  };
+};
+
 // 地址串拆成单个邮箱（身份识别 chip 用）。
 const splitAddresses = value =>
   (value || '')
@@ -1970,7 +1998,7 @@ watch(
                   title="快捷操作：写跟进 / 往来邮件"
                   @click.stop="openAvatarCard(record, $event)"
                 >
-                  {{ initial(counterparty(record)) }}
+                  {{ initial(counterpartyLabel(record)) }}
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between gap-2">
@@ -1982,7 +2010,7 @@ watch(
                           : 'font-medium text-n-slate-11'
                       "
                     >
-                      {{ counterparty(record) || '—' }}
+                      {{ counterpartyLabel(record) }}
                     </span>
                     <span class="flex-shrink-0 text-xs text-n-slate-10">
                       {{ relTime(record.emailDate) }}
@@ -2032,10 +2060,30 @@ watch(
                       {{ record.ownerName }}
                     </span>
                     <span
-                      v-if="record.customerName"
+                      v-if="record.customerName && record.counterpartyName"
                       class="px-1.5 py-0.5 rounded text-[11px] bg-n-alpha-2 text-n-slate-11 truncate max-w-[140px]"
+                      :title="counterparty(record)"
                     >
                       {{ record.customerName }}
+                    </span>
+                    <span
+                      v-if="distributionLabel(record)"
+                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] bg-n-teal-3 text-n-teal-11 max-w-[150px]"
+                      :title="distributionLabel(record).title"
+                    >
+                      <Icon
+                        icon="i-lucide-user-round"
+                        class="size-3 shrink-0"
+                      />
+                      <span class="shrink-0">
+                        {{ distributionLabel(record).prefix }}
+                      </span>
+                      <span class="truncate">
+                        {{ distributionLabel(record).name }}
+                      </span>
+                      <span class="shrink-0">
+                        {{ distributionLabel(record).suffix }}
+                      </span>
                     </span>
                     <Icon
                       v-if="record.files?.length"

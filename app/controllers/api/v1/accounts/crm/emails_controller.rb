@@ -13,8 +13,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
               .order(email_date: :desc)
               .page(permitted_params[:page] || 1)
               .per(page_size)
-    @counterparty_types = build_counterparty_types(@emails)
-    @last_opens = last_opens_for(@emails)
+    decorate_list!(@emails)
   end
 
   # 左栏文件夹计数（各文件夹总数 + 收件箱未读），一次查询喂列表页角标。
@@ -256,8 +255,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     @emails = Current.account.crm_emails.where(id: ids_page)
                      .includes(:crm_customer, :owner)
                      .sort_by { |e| ids_page.index(e.id) }
-    @counterparty_types = build_counterparty_types(@emails)
-    @last_opens = last_opens_for(@emails)
+    decorate_list!(@emails)
     render :index
   end
 
@@ -273,8 +271,7 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     @emails = Current.account.crm_emails.where(id: ids_page)
                      .includes(:crm_customer, :owner)
                      .sort_by { |e| ids_page.index(e.id) }
-    @counterparty_types = build_counterparty_types(@emails)
-    @last_opens = last_opens_for(@emails)
+    decorate_list!(@emails)
     render :index
   end
 
@@ -512,6 +509,41 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
                                              .pluck(:id, :is_in_public_pool, :account_owner_id).index_by(&:first)
 
     emails.to_h { |e| [e.id, classify_counterparty(e, addresses[e.id]&.downcase, colleagues, customers, linked)] }
+  end
+
+  # 列表显示「对方」时优先用业务员自己备注的联系人名（如「加拿大15寸触显-Michael」），
+  # 一串邮箱地址认不出是谁。按地址批量查一次联系人，没有就退回客户名，再没有就显示地址。
+  def build_counterparty_names(emails)
+    addresses = emails.to_h { |e| [e.id, counterparty_address(e)&.downcase] }
+    contacts = contact_names_by_address(addresses.values.compact.uniq)
+    emails.to_h { |e| [e.id, contacts[addresses[e.id]] || e.crm_customer&.name] }
+  end
+
+  # 列表渲染要的那几组批量数据（对方身份/对方名/最近打开/分发去向），
+  # index 与「分发给我的」「我分发的」都渲染同一个 index.json.jbuilder，必须一处备齐。
+  def decorate_list!(emails)
+    @counterparty_types = build_counterparty_types(emails)
+    @counterparty_names = build_counterparty_names(emails)
+    @last_opens = last_opens_for(emails)
+    @distributions = distributions_for(emails)
+  end
+
+  # 内部分发去向：列表上直接标出这封分给了谁（像会话卡片标业务），不用点进去看分发历史。
+  def distributions_for(emails)
+    ids = emails.map(&:id)
+    return {} if ids.empty?
+
+    Current.account.crm_email_distributions.where(crm_email_id: ids)
+           .includes(:to_user, :from_user).order(:created_at)
+           .group_by(&:crm_email_id)
+  end
+
+  def contact_names_by_address(lookup)
+    return {} if lookup.empty?
+
+    Current.account.contacts.where('LOWER(contacts.email) IN (?)', lookup)
+           .pluck(Arel.sql('LOWER(contacts.email)'), :name)
+           .to_h.compact_blank
   end
 
   # 单封邮件的对方身份（show/update/create 用），复用批量口径。

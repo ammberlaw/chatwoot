@@ -29,6 +29,13 @@ json.contact_id resource.contact_id
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.crm_display_name
 json.counterparty_type local_assigns[:counterparty_type]
+# 列表显示用：业务员备注的联系人名/客户名，认不出时前端退回显示邮箱地址。
+json.counterparty_name local_assigns[:counterparty_name]
+# 内部分发去向：列表上直接标出这封分给了谁 / 是谁分给我的（同会话卡片标业务的做法）。
+distributions = local_assigns[:distributions] || []
+json.distributed_to distributions.filter_map { |d| d.to_user&.crm_display_name }
+json.distributed_by distributions.first&.from_user&.crm_display_name
+json.distributed_to_me distributions.any? { |d| d.to_user_id == Current.user&.id }
 visible_files = resource.files.reject { |f| f.blob.metadata['inline'] }
 json.files(visible_files) do |f|
   json.id f.id
