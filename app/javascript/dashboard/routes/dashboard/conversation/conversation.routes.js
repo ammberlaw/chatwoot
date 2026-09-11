@@ -209,6 +209,31 @@ export default {
         }),
       },
     ]),
+    // 按客户来源筛会话：来源 code 跟在 conversationType 后面（crm_source:EXHIBITION），
+    // 复用现成的 conversation_type 通道，不用再往列表/接口里多传一个参数。
+    {
+      path: frontendURL(
+        'accounts/:accountId/crm_source/:sourceCode/conversations'
+      ),
+      name: 'conversation_crm_source',
+      meta: { permissions: CONVERSATION_PERMISSIONS },
+      component: ConversationView,
+      props: route => ({
+        conversationType: `crm_source:${route.params.sourceCode}`,
+      }),
+    },
+    {
+      path: frontendURL(
+        'accounts/:accountId/crm_source/:sourceCode/conversations/:conversationId'
+      ),
+      name: 'conversation_through_crm_source',
+      meta: { permissions: CONVERSATION_PERMISSIONS },
+      component: ConversationView,
+      props: route => ({
+        conversationId: route.params.conversationId,
+        conversationType: `crm_source:${route.params.sourceCode}`,
+      }),
+    },
     {
       path: frontendURL('accounts/:accountId/unattended/conversations'),
       name: 'conversation_unattended',

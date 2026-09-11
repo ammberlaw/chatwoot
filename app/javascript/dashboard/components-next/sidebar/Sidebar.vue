@@ -12,6 +12,8 @@ import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
+import ConversationSourceTagsAPI from 'dashboard/api/crm/conversationSourceTags';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 import ChatConversationAPI from 'dashboard/api/chat/conversations';
 import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
@@ -275,6 +277,18 @@ useEventListener(document, 'touchend', onResizeEnd);
 
 const inboxes = useMapGetter('inboxes/getInboxes');
 const labels = useMapGetter('labels/getLabelsOnSidebar');
+
+// 侧栏「客户来源」分组：来源选项来自「客户设置」，角标是各来源下的会话数。
+const { sourceOptions, load: loadCrmOptions } = useCrmOptions();
+const sourceTagCounts = ref({});
+const fetchSourceTagCounts = async () => {
+  try {
+    const { data } = await ConversationSourceTagsAPI.counts();
+    sourceTagCounts.value = data.payload || {};
+  } catch {
+    sourceTagCounts.value = {};
+  }
+};
 const allUnreadCount = useMapGetter(
   'conversationUnreadCounts/getAllUnreadCount'
 );
@@ -354,6 +368,8 @@ const onChatRealtime = data => {
 };
 
 onMounted(() => {
+  loadCrmOptions('customer_source');
+  fetchSourceTagCounts();
   store.dispatch('labels/get');
   store.dispatch('inboxes/get');
   store.dispatch('notifications/unReadCount');
@@ -649,6 +665,24 @@ const menuItems = computed(() => {
                 },
               ]
             : []),
+          {
+            name: 'CrmSource',
+            label: '客户来源',
+            icon: 'i-lucide-git-branch',
+            activeOn: ['conversation_through_crm_source'],
+            collapsible: true,
+            showTreeLine: true,
+            children: sourceOptions.value.map(opt => ({
+              name: `crm-source-${opt.value}`,
+              // 二级项在下拉里带「  └ 」缩进前缀，侧栏不需要。
+              label: opt.label.replace(/^\s*└\s*/, ''),
+              badgeCount: sourceTagCounts.value[opt.value] || 0,
+              icon: 'i-lucide-tag',
+              to: accountScopedRoute('conversation_crm_source', {
+                sourceCode: opt.value,
+              }),
+            })),
+          },
           {
             name: 'Labels',
             label: t('SIDEBAR.LABELS'),

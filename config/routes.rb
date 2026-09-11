@@ -215,6 +215,8 @@ Rails.application.routes.draw do
             post 'ai/company_search', to: 'ai#company_search'
             # 会话「来源」标签(复用客户来源选项),打在会话上,会话卡显示彩色胶囊。
             patch 'conversation_source_tags/:conversation_id', to: 'conversation_source_tags#update'
+            # 侧栏「客户来源」分组的会话数角标
+            get 'conversation_source_tags/counts', to: 'conversation_source_tags#counts'
             # 业务员个人 WhatsApp 号(WhatsApp Web/Baileys)绑定：支持一人多号,按 inbox 扫码/状态/解绑。
             get 'whatsapp_web', to: 'whatsapp_web#index'
             post 'whatsapp_web', to: 'whatsapp_web#create'

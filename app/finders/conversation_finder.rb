@@ -147,7 +147,8 @@ class ConversationFinder
       @conversations = current_user.participating_conversations.where(account_id: current_account.id)
     when 'unattended'
       @conversations = @conversations.unattended
-    when *Crm::ConversationViews::TYPES # 我的客户/未建档/待跟进/高意向
+    # 我的客户/未建档/待跟进/高意向，以及 crm_source:<来源code>
+    when *Crm::ConversationViews::TYPES, Crm::ConversationViews::SOURCE_TYPE
       @conversations = Crm::ConversationViews.new(account: current_account, user: current_user,
                                                   scope: @conversations).apply(@params[:conversation_type])
     end
