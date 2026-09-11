@@ -505,9 +505,11 @@ const openRef = target => {
       params: { accountId: accountId.value, id: target.id },
     });
   } else if (target.type === 'sales_order') {
+    // 带 ?focus=<id>：销售订单页据此直接展开这一单，不然只是跳到整个列表。
     router.push({
       name: 'crm_sales_orders_index',
       params: { accountId: accountId.value },
+      query: { focus: String(target.id) },
     });
   }
 };

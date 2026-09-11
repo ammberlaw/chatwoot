@@ -8,6 +8,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useMapGetter } from 'dashboard/composables/store';
+import camelcaseKeys from 'camelcase-keys';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 import SalesOrdersAPI from 'dashboard/api/crm/salesOrders';
@@ -450,20 +451,31 @@ watch(
   }
 );
 
-// 从客户详情跳来时带 ?focus=<id>，列表加载后自动打开该订单面板（仅一次）。
+// 从客户详情/团队协同卡片跳来时带 ?focus=<id>，加载后自动展开该订单面板（仅一次）。
+// 当前筛选或分页里没有这一单时，直接按 id 取回来打开——否则点卡片只会停在整个列表上。
 const focusOpened = ref(false);
-watch(
-  records,
-  list => {
-    if (focusOpened.value || !route.query.focus) return;
-    const rec = list.find(r => String(r.id) === String(route.query.focus));
-    if (rec) {
-      selectOrder(rec);
-      focusOpened.value = true;
-    }
-  },
-  { immediate: true }
-);
+const openFocusOrder = async list => {
+  const focus = route.query.focus;
+  if (focusOpened.value || !focus || isFetching.value) return;
+
+  const rec = list.find(r => String(r.id) === String(focus));
+  if (rec) {
+    selectOrder(rec);
+    focusOpened.value = true;
+    return;
+  }
+  // 当前筛选或分页里没有这一单，直接按 id 取回来打开。
+  focusOpened.value = true;
+  try {
+    const { data } = await SalesOrdersAPI.show(focus);
+    selectOrder(camelcaseKeys(data, { deep: true }));
+  } catch (error) {
+    useAlert('这一单可能已被删除或无权查看');
+  }
+};
+watch([records, isFetching], () => openFocusOrder(records.value), {
+  immediate: true,
+});
 </script>
 
 <template>
