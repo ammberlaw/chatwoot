@@ -133,7 +133,7 @@ onMounted(() => {
   <div
     v-if="shouldShowCopilotPanel"
     v-on-click-outside="() => closeCopilotPanel()"
-    class="bg-n-surface-2 h-full overflow-hidden flex-col fixed top-0 ltr:right-0 rtl:left-0 z-40 w-full max-w-sm transition-transform duration-300 ease-in-out md:static md:w-[320px] md:min-w-[320px] ltr:border-l rtl:border-r border-n-weak 2xl:min-w-[360px] 2xl:w-[360px] shadow-lg md:shadow-none"
+    class="bg-n-solid-1/50 backdrop-blur-2xl backdrop-saturate-150 h-full overflow-hidden flex-col fixed top-0 ltr:right-0 rtl:left-0 z-40 w-full max-w-sm transition-transform duration-300 ease-in-out md:static md:h-auto md:my-2 ltr:md:mr-2 rtl:md:ml-2 md:w-[320px] md:min-w-[320px] md:border md:border-white/50 md:rounded-2xl 2xl:min-w-[360px] 2xl:w-[360px] shadow-lg md:shadow-n-iris-9/5"
     :class="[
       {
         'md:flex': shouldShowCopilotPanel,

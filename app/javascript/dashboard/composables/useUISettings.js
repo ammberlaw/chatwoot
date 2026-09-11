@@ -2,10 +2,9 @@ import { computed } from 'vue';
 import { useStore, useStoreGetters } from 'dashboard/composables/store';
 
 export const DEFAULT_CONVERSATION_SIDEBAR_ITEMS_ORDER = Object.freeze([
+  // 宏 / 对话信息 / 联系人属性已从会话右栏移除（宏没人建、另两个只有网站聊天插件
+  // 才有值，我们全是 WhatsApp 与邮件渠道，永远是空壳）。
   { name: 'conversation_actions' },
-  { name: 'macros' },
-  { name: 'conversation_info' },
-  { name: 'contact_attributes' },
   { name: 'contact_notes' },
   { name: 'shared_files' },
   { name: 'previous_conversation' },

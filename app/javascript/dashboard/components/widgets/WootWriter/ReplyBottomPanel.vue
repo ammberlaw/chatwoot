@@ -236,9 +236,9 @@ export default {
           return 'i-ph-stop';
       }
     },
+    // 会话回复不用签名（外发邮件的签名在邮件中心单独管），按钮和提示一并收起。
     showMessageSignatureButton() {
-      if (this.isEditorDisabled) return false;
-      return !this.isOnPrivateNote;
+      return false;
     },
     sendWithSignature() {
       // channelType is sourced from inboxMixin
