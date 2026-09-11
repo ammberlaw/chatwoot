@@ -33,6 +33,8 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     end
 
     render json: record_json(punch!(group: group, field: field, lat: lat, lng: lng, ip: ip))
+  rescue TooSoon => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # 返回当前请求的公网 IP，供管理员「把当前网络设为打卡网络」一键抓取。
@@ -152,6 +154,9 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
 
   # 一次打卡落库：首次记上班、之后记下班；外勤(field)持久化并置 FIELD（当天保持外勤）。
   # find_or_initialize + save! 遇同天并发/连点会撞唯一键，rescue 后重取（此时已存在→按下班处理）。
+  # 上班后 MIN_WORK_MINUTES 分钟内再打卡会被当成下班，用异常挡掉并提示。
+  TooSoon = Class.new(StandardError)
+
   def punch!(group:, field:, lat:, lng:, ip:)
     now = Time.current.in_time_zone(Crm::AttendanceRecord::TZ)
     ctx = { now: now, field: field, lat: lat, lng: lng, ip: ip, group: group }
@@ -159,6 +164,11 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     begin
       rec = Current.account.crm_attendance_records
                    .find_or_initialize_by(user_id: current_user.id, work_date: now.to_date)
+      if too_soon_to_clock_out?(rec, now)
+        raise TooSoon, "刚打过上班卡（#{rec.clock_in_at.in_time_zone(Crm::AttendanceRecord::TZ).strftime('%H:%M')}），" \
+                       "#{MIN_WORK_MINUTES} 分钟内不记下班卡，避免误触"
+      end
+
       apply_punch(rec, ctx)
       rec.save!
       rec
@@ -167,6 +177,15 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
 
       retry
     end
+  end
+
+  # 上班卡刚打完手滑再点一下，第二下会被当成下班卡（实测两次相差 0.6 秒，当天直接记早退）。
+  # 上班后这段时间内不接受下班打卡——正常人不会上班一分钟就下班，误触却很常见。
+  MIN_WORK_MINUTES = 10
+
+  def too_soon_to_clock_out?(rec, now)
+    rec.clock_in_at.present? && rec.clock_out_at.nil? &&
+      now - rec.clock_in_at < MIN_WORK_MINUTES.minutes
   end
 
   def apply_punch(rec, ctx)

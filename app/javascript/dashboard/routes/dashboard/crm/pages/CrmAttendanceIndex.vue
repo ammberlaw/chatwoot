@@ -145,6 +145,14 @@ const mineCounts = computed(() => {
 
 // ── 打卡 ──
 const clocking = ref(false);
+// 现在是否还没到下班时间（用考勤组的下班时间判断，取不到就当已到，不拦）。
+const beforeClockOutTime = () => {
+  const raw = setting.value?.clock_out_time;
+  if (!raw) return false;
+  const [h, m] = raw.split(':').map(Number);
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes() < h * 60 + m;
+};
 // 浏览器取当前定位（考勤组开启 GPS 校验时打卡前调用）。失败/拒绝授权则返回空，交后端判定。
 const getGeo = () =>
   new Promise(resolve => {
@@ -167,6 +175,19 @@ const clock = async (field = false) => {
     !window.confirm('确认外勤打卡？将把今日标记为「外勤」（计出勤、不判迟到）')
   )
     return;
+  // 今天已打上班卡、又还没到下班时间时再点，打出来的是下班卡——多半是手滑，先问一句。
+  if (
+    !field &&
+    todayRec.value?.clock_in_at &&
+    !todayRec.value?.clock_out_at &&
+    beforeClockOutTime()
+  ) {
+    // eslint-disable-next-line no-alert
+    const ok = window.confirm(
+      '今天已经打过上班卡了，现在这一下会记成「下班卡」，确定吗？'
+    );
+    if (!ok) return;
+  }
   clocking.value = true;
   try {
     // 组开启 GPS 校验时先取定位；仅网络(IP)校验则无需定位。外勤仍带定位做留痕。
