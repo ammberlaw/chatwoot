@@ -7,6 +7,12 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
 
   DEFAULT_API_BASE = 'https://api.deepseek.com/v1'.freeze
   DEFAULT_MODEL = 'deepseek-chat'.freeze
+  # 整封翻译的切段参数：一次 6000 字的上限对动辄几万字的往来邮件根本不够（正文会被
+  # 「…（内容过长已截断）」切掉后半截）；直接把上限调大又会让单次请求拖过 Rack 的
+  # 15 秒超时。所以切成小段并发跑，总耗时≈最慢那一段，而不是各段相加。
+  TRANSLATE_CHUNK = 4000
+  TRANSLATE_MAX_CHUNKS = 10
+  TRANSLATE_SLICE_RE = /.{1,#{TRANSLATE_CHUNK}}/m
 
   # 附件单证类型（自动归档标签）：代码 => 中文标签。OTHER 兜底。前端按此显示徽标。
   DOC_TYPES = {
@@ -160,9 +166,35 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     split_subject(ask(COMPOSE_SYSTEM, prompt))
   end
 
-  # 来信翻译成中文：返回 [主题译文, 正文译文]。
+  # 来信翻译成中文：返回 [主题译文, 正文译文]。长邮件切段并发翻译，不再腰斩。
   def translate(subject:, body:)
-    split_subject(ask(TRANSLATE_SYSTEM, "SUBJECT: #{subject}\n\n#{truncate(body)}"))
+    chunks, dropped = split_for_translation(body)
+    warm_up_settings
+    parts = in_parallel(chunks.each_with_index.to_a) do |chunk, idx|
+      ask(TRANSLATE_SYSTEM, idx.zero? ? "SUBJECT: #{subject}\n\n#{chunk}" : chunk)
+    end
+    head_subject, head_body = split_subject(parts.first.to_s)
+    text = [head_body, *parts.drop(1)].compact_blank.join("\n\n")
+    text += "\n\n…（原文过长，后面 #{dropped} 段未翻译）" if dropped.positive?
+    [head_subject, text]
+  end
+
+  # 按行累积切段；单行本身超长（HTML 剥成纯文本后常整段挤成一行）就硬切。
+  def split_for_translation(body)
+    chunks = []
+    buf = +''
+    body.to_s.each_line do |line|
+      line.scan(TRANSLATE_SLICE_RE).each do |piece|
+        if !buf.empty? && buf.length + piece.length > TRANSLATE_CHUNK
+          chunks << buf
+          buf = +''
+        end
+        buf << piece
+      end
+    end
+    chunks << buf unless buf.empty?
+    chunks = [''] if chunks.empty?
+    [chunks.first(TRANSLATE_MAX_CHUNKS), [chunks.size - TRANSLATE_MAX_CHUNKS, 0].max]
   end
 
   # 通用翻译：把文本翻成指定语言（language 为语言名，如「简体中文」/「English」），
@@ -319,6 +351,18 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
   end
 
   private
+
+  # 并发前先把 AI 配置读出来：ask 里的 api_key/api_base/model 会查库，
+  # 放到子线程里就是每个线程各借一条数据库连接，没必要也不安全。
+  def warm_up_settings
+    [api_key, api_base, model]
+  end
+
+  def in_parallel(items)
+    return [yield(*items.first)] if items.size <= 1
+
+    items.map { |args| Thread.new { yield(*args) } }.map(&:value)
+  end
 
   def ask(system_prompt, user_prompt)
     context = RubyLLM.context do |config|
