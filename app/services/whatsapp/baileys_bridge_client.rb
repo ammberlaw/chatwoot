@@ -20,6 +20,13 @@ class Whatsapp::BaileysBridgeClient
     body['message_id']
   end
 
+  # 发附件：把附件的公开链接交给桥接，由它取回字节再经 Baileys 发出去
+  # （几 MB 的 PI/图纸走 base64 会把请求体撑得很难看）。
+  def send_media(inbox_id, phone, media)
+    body = post("/sessions/#{inbox_id}/send-media", media.slice(:url, :filename, :mimetype, :caption).merge(phone: phone))
+    body['message_id']
+  end
+
   private
 
   def base_url

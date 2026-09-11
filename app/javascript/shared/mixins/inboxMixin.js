@@ -122,6 +122,11 @@ export default {
       }
       return badgeKey || this.channelType;
     },
+    // 业务员绑的个人 WhatsApp（Baileys 桥接），与官方 Cloud API 的 Channel::Whatsapp 分开判：
+    // 两者能力不同（模板、24 小时窗口等只适用官方），别混进 isAWhatsAppChannel。
+    isAWhatsAppWebChannel() {
+      return this.channelType === INBOX_TYPES.WHATSAPP_WEB;
+    },
     isAWhatsAppChannel() {
       return (
         this.channelType === INBOX_TYPES.WHATSAPP ||

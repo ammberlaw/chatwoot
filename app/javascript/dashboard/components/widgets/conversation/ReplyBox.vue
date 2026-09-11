@@ -297,6 +297,7 @@ export default {
         this.isAWebWidgetInbox ||
         this.isAFacebookInbox ||
         this.isAWhatsAppChannel ||
+        this.isAWhatsAppWebChannel ||
         this.isAPIInbox ||
         this.isAnEmailChannel ||
         this.isASmsInbox ||
