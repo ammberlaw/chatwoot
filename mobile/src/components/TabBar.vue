@@ -9,9 +9,9 @@ const router = useRouter();
 const TABS = [
   { name: 'home', label: '工作台', icon: 'i-lucide-layout-dashboard' },
   { name: 'customers', label: '客户', icon: 'i-lucide-users' },
-  { name: 'scan', label: '扫码', icon: 'i-lucide-scan-line' },
   { name: 'mail', label: '邮件', icon: 'i-lucide-mail' },
   { name: 'approvals', label: '审批', icon: 'i-lucide-check-square' },
+  { name: 'more', label: '更多', icon: 'i-lucide-layout-grid' },
 ];
 
 const go = async tab => {

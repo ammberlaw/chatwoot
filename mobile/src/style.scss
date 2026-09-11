@@ -27,3 +27,47 @@
     user-select: text;
   }
 }
+
+// 表单控件与按钮统一高度/描边，保证同排控件对齐（不在各页面各写一套 class）。
+@layer components {
+  .wt-field {
+    @apply w-full h-11 px-3 text-base border rounded-xl border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-10;
+  }
+  select.wt-field {
+    @apply pr-8 appearance-none bg-no-repeat;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+  }
+  textarea.wt-field {
+    @apply h-auto py-2.5 leading-relaxed;
+  }
+  .wt-btn {
+    @apply inline-flex items-center justify-center h-11 px-4 text-sm font-medium rounded-xl;
+  }
+  .wt-btn-primary {
+    @apply wt-btn text-white bg-n-iris-9 active:bg-n-iris-10 disabled:opacity-50;
+  }
+  .wt-btn-ghost {
+    @apply wt-btn text-n-iris-11 bg-n-iris-3 active:bg-n-iris-4 disabled:opacity-50;
+  }
+  .wt-card {
+    @apply border rounded-2xl border-n-weak bg-n-solid-1;
+  }
+}
+
+// 外部邮件 HTML 里常见固定宽度的表格与大图，会把手机屏幕横向撑出去。
+// 统一夹回容器宽度，超宽表格自己横向滚动，页面本身不横滚。
+.wt-mail-body {
+  :where(img, video) {
+    max-width: 100%;
+    height: auto;
+  }
+  :where(table) {
+    max-width: 100%;
+    display: block;
+    overflow-x: auto;
+  }
+  :where(a) {
+    @apply text-n-iris-11 underline underline-offset-2;
+  }
+}

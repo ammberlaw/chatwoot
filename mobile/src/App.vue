@@ -34,8 +34,8 @@ onMounted(async () => {
     <!-- 断网横幅：飞行模式下仍有可读界面，不是白屏 -->
     <OfflineNotice v-if="!net.online" />
     <router-view v-slot="{ Component }">
-      <keep-alive :include="['CustomersPage', 'MailPage']">
-        <component :is="Component" class="flex-1 min-h-0 overflow-y-auto" />
+      <keep-alive :include="['HomePage', 'CustomersPage', 'MailPage', 'ApprovalsPage']">
+        <component :is="Component" class="flex-1 min-h-0" />
       </keep-alive>
     </router-view>
     <TabBar v-if="showTabs" />

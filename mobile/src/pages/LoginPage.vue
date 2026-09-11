@@ -2,7 +2,6 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { API_BASE } from '@/api/client';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -25,14 +24,11 @@ const submit = async (revoke = {}) => {
       sessions.value = e.response.data.sessions || [];
     } else if (status === 401) {
       error.value = '邮箱或密码不正确';
+    } else if (!e.response) {
+      // 请求压根没到服务器：多半是没网或公司网络不通
+      error.value = '连不上服务器，请检查网络后重试';
     } else {
-      // 调试期直接暴露底层错误，避免"请检查网络"掩盖真实原因
-      const parts = [
-        status ? `HTTP ${status}` : null,
-        e.code || null,
-        e.message || null,
-      ].filter(Boolean);
-      error.value = `登录失败：${parts.join(' · ')}\n目标：${API_BASE || '(同源)'}`;
+      error.value = e.response?.data?.errors?.[0] || '登录失败，请稍后重试';
     }
   } finally {
     loading.value = false;

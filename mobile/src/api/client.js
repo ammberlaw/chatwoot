@@ -90,7 +90,19 @@ export const signIn = async (email, password, revoke = {}) => {
   return next;
 };
 
-export const signOut = () => saveCreds(null);
+// 退出登录要连缓存一起清：cachedGet 把客户/邮件等业务数据落在 Preferences 里，
+// 只删 token 的话换人登录这台设备仍能看到上一个人的数据。
+export const clearCache = async () => {
+  const { keys } = await Preferences.keys();
+  await Promise.all(
+    keys.filter(k => k.startsWith('cache:')).map(key => Preferences.remove({ key }))
+  );
+};
+
+export const signOut = async () => {
+  await clearCache();
+  await saveCreds(null);
+};
 
 // 带本地缓存的 GET：成功则写缓存；失败(断网/超时)回落到上次缓存。
 // 让 App 在飞行模式下仍能显示有意义的内容，而不是一片"加载失败"。

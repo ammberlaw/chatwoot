@@ -11,9 +11,8 @@
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
-    "@capacitor/barcode-scanner": "^3.1.2",
-    "@capacitor/camera": "^8.2.4",
     "@capacitor/core": "^8.5.1",
+    "@capacitor/geolocation": "^8.2.2",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/keyboard": "^8.0.5",
     "@capacitor/network": "^8.0.1",
@@ -21,6 +20,7 @@
     "@capacitor/push-notifications": "^8.1.2",
     "@capacitor/status-bar": "^8.0.3",
     "axios": "^1.7.9",
+    "dompurify": "^3.4.15",
     "pinia": "^2.3.0",
     "vue": "^3.5.12",
     "vue-router": "^4.5.0"
