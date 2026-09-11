@@ -20,8 +20,10 @@ json.order_currency resource.order_currency
 json.exchange_rate resource.exchange_rate
 json.order_amount_micros resource.order_amount_micros
 json.shipping_micros resource.shipping_micros
-# 成本 / 毛利只发给管钱的角色。销售端绝不可见是公司硬规矩，只靠前端不渲染挡不住——
-# 业务员拿自己的 token curl 一下就全看见了，所以在序列化这层就不下发。
+# 成本 / 毛利只发给管钱的角色：管理员、副管理员、财务。
+# 销售端绝不可见是公司硬规矩，只靠前端不渲染挡不住——业务员拿自己的 token
+# curl 一下就全看见了，所以在序列化这层就不下发。
+# ⚠️ 部门主管(crm_manager)也在排除之列，是业务上明确要求的，别当成漏配加回来。
 if (au = Current.account_user) && (au.administrator? || au.crm_deputy_admin? || au.crm_finance?)
   json.cost_amount_micros resource.cost_amount_micros
   json.profit_amount_micros resource.profit_amount_micros
