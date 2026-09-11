@@ -36,7 +36,12 @@ distributions = local_assigns[:distributions] || []
 json.distributed_to distributions.filter_map { |d| d.to_user&.crm_display_name }
 json.distributed_by distributions.first&.from_user&.crm_display_name
 json.distributed_to_me distributions.any? { |d| d.to_user_id == Current.user&.id }
-visible_files = resource.files.reject { |f| f.blob.metadata['inline'] }
+# 内联图（签名 logo、客户嵌在正文里的图）本该只出现在正文中、不混进附件列表。
+# 但正文一旦被截断或 cid 改写失败，引用就没了——图片躺在库里却哪儿都看不见。
+# 所以只隐藏「正文确实引用到了的」那些，引用不到的一律当普通附件露出来。
+visible_files = resource.files.reject do |f|
+  f.blob.metadata['inline'] && resource.body_html.to_s.include?(f.blob.signed_id)
+end
 json.files(visible_files) do |f|
   json.id f.id
   json.filename f.filename.to_s
