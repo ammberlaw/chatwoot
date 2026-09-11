@@ -2,7 +2,7 @@
 import Spinner from 'shared/components/Spinner.vue';
 import { useAlert } from 'dashboard/composables';
 import { mapGetters } from 'vuex';
-import { useAgentsList } from 'dashboard/composables/useAgentsList';
+import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 
 import ThumbnailGroup from 'dashboard/components/widgets/ThumbnailGroup.vue';
 import MultiselectDropdownItems from 'shared/components/ui/MultiselectDropdownItems.vue';
@@ -21,22 +21,20 @@ export default {
       required: true,
     },
   },
-  setup() {
-    const { agentsList } = useAgentsList(false);
-    return {
-      agentsList,
-    };
-  },
   data() {
     return {
       selectedWatchers: [],
       showDropDown: false,
+      // 可选参与者不按收件箱成员算——业务员的个人 WhatsApp 收件箱只有他自己一个成员，
+      // 那样下拉里永远只有他本人。改走 CRM 口径：业务员只能拉主管/经理，主管及以上不限。
+      agentsList: [],
     };
   },
   computed: {
     ...mapGetters({
       watchersUiFlas: 'conversationWatchers/getUIFlags',
       currentUser: 'getCurrentUser',
+      accountId: 'getCurrentAccountId',
     }),
     watchersFromStore() {
       return this.$store.getters['conversationWatchers/getByConversationId'](
@@ -99,9 +97,17 @@ export default {
   },
   mounted() {
     this.fetchParticipants();
-    this.$store.dispatch('agents/get');
+    this.fetchCrmAgents();
   },
   methods: {
+    async fetchCrmAgents() {
+      try {
+        const { data } = await CrmAgentAPI.get(this.accountId, 'participants');
+        this.agentsList = data.payload || [];
+      } catch {
+        this.agentsList = [];
+      }
+    },
     fetchParticipants() {
       const conversationId = this.conversationId;
       this.$store.dispatch('conversationWatchers/show', { conversationId });

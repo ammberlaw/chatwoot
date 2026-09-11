@@ -35,7 +35,15 @@ class ConversationParticipant < ApplicationRecord
     self.account_id = conversation&.account_id
   end
 
+  # 原逻辑要求被加的人已经是该收件箱成员。业务员的个人 WhatsApp 收件箱只有他本人一个成员，
+  # 那样就永远拉不了同事进来。改成：收件箱成员，或本账号的 CRM 成员（管理员/主管/业务员）皆可。
+  # 参与者只能看到自己参与的那几条会话（见 Conversations::PermissionFilterService），
+  # 不会因此看到该收件箱里的其他客户。
   def ensure_inbox_access
-    errors.add(:user, 'must have inbox access') if conversation && conversation.inbox.assignable_agents.exclude?(user)
+    return if conversation.blank?
+    return if conversation.inbox.assignable_agents.include?(user)
+    return if AccountUser.find_by(account_id: conversation.account_id, user_id: user_id)&.can_access_crm?
+
+    errors.add(:user, 'must have inbox access')
   end
 end
