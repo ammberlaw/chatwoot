@@ -1112,17 +1112,15 @@ const menuItems = computed(() => {
             to: accountScopedRoute('crm_sales_orders_index'),
             activeOn: ['crm_sales_orders_index'],
           },
-          // 历史 PI 补录：一次性补账工具，仅管理员/副管理员可见。
-          ...(isAdminLike.value
-            ? [
-                {
-                  name: 'CRM PI Backfill',
-                  label: t('SIDEBAR.CRM_PI_BACKFILL'),
-                  to: accountScopedRoute('crm_pi_backfill_index'),
-                  activeOn: ['crm_pi_backfill_index'],
-                },
-              ]
-            : []),
+          // 历史 PI 补录：把早年只传在客户「文件」页、没建销售订单的 PI 盘出来补建。
+          // 全员可见——后端 pi_attachment_candidates 走 restrict_by_org，业务员只看得到
+          // 自己名下客户的附件；补出来的订单和他自己手工建单是一回事，没绕开任何管控。
+          {
+            name: 'CRM PI Backfill',
+            label: t('SIDEBAR.CRM_PI_BACKFILL'),
+            to: accountScopedRoute('crm_pi_backfill_index'),
+            activeOn: ['crm_pi_backfill_index'],
+          },
           {
             name: 'CRM Orders No Customer',
             label: t('SIDEBAR.CRM_ORDERS_NO_CUSTOMER'),
