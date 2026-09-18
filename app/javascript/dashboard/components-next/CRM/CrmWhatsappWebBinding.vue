@@ -4,6 +4,14 @@ import { useAlert } from 'dashboard/composables';
 import WhatsappWebAPI from 'dashboard/api/crm/whatsappWeb';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+// 经典灰下主行动用 amber(金黄)，与其它 CRM 页面一致。
+const isClassic = ref(isClassicTheme());
+const goColor = computed(() => (isClassic.value ? 'amber' : 'teal'));
 
 const L = {
   add: '添加号码',
@@ -12,6 +20,7 @@ const L = {
   scanHint: '用手机 WhatsApp → 设置 → 已关联的设备 → 关联新设备,扫描二维码',
   waiting: '正在生成二维码…',
   connecting: '连接中…',
+  awaitingScan: '等待扫码',
   connected: '已连接',
   disconnected: '未连接',
   reconnecting: '连接断开,正在自动重连…',
@@ -22,6 +31,14 @@ const L = {
   addError: '添加失败,请稍后重试',
   connectError: '连接失败,请稍后重试',
   logoutDone: '已解绑',
+  startChat: '发起会话',
+  startChatTitle: '输入手机号开聊',
+  startChatHint:
+    '和手机 WhatsApp 一样,对方不需要先加你好友。号码要带国家码,例如 8613800138000。',
+  startChatPhone: '手机号(含国家码)',
+  startChatName: '备注名(可留空)',
+  startChatGo: '开始聊天',
+  startChatFail: '发起失败,请稍后重试',
 };
 
 // 每个号一张卡:{ inbox_id, name, phone_number, status, qr, busy }
@@ -39,8 +56,11 @@ const statusLabel = s => {
     case 'close':
       return L.reconnecting;
     case 'connecting':
-    case 'qr':
       return L.connecting;
+    // 等待扫码和「正在连接」要分开：都写「连接中」的话，二维码明明在那儿摆着，
+    // 看的人会以为卡住了在等系统（实际发生过，排查绕了一大圈）。
+    case 'qr':
+      return L.awaitingScan;
     default:
       return L.disconnected;
   }
@@ -121,6 +141,47 @@ const logout = async card => {
   }
 };
 
+// ---- 输入手机号直接开聊 ----
+// 手机 WhatsApp 不需要「加好友」,知道号码就能聊。系统里以前只能等对方先发消息过来,
+// 业务主动联系新客户只能先去手机上发一条,聊天记录就断在系统外面了。
+const chatDialog = ref(null);
+const chatCard = ref(null);
+const chatPhone = ref('');
+const chatName = ref('');
+const chatBusy = ref(false);
+
+const openStartChat = card => {
+  chatCard.value = card;
+  chatPhone.value = '';
+  chatName.value = '';
+  chatDialog.value?.open();
+};
+
+const submitStartChat = async () => {
+  const phone = chatPhone.value.replace(/\D/g, '');
+  if (!phone) {
+    useAlert(L.startChatPhone);
+    return;
+  }
+  chatBusy.value = true;
+  try {
+    const { data } = await WhatsappWebAPI.startChat(
+      chatCard.value.inbox_id,
+      phone,
+      chatName.value.trim()
+    );
+    chatDialog.value?.close();
+    router.push({
+      name: 'inbox_conversation',
+      params: { conversation_id: data.conversation_id },
+    });
+  } catch (error) {
+    useAlert(error?.response?.data?.error || L.startChatFail);
+  } finally {
+    chatBusy.value = false;
+  }
+};
+
 onMounted(async () => {
   try {
     const { data } = await WhatsappWebAPI.list();
@@ -179,14 +240,24 @@ onBeforeUnmount(stopPolling);
               {{ card.phone_number ? `+${card.phone_number}` : card.name }}
             </p>
           </div>
-          <Button
-            :label="L.logout"
-            color="ruby"
-            variant="outline"
-            size="sm"
-            :is-loading="card.busy"
-            @click="logout(card)"
-          />
+          <div class="flex w-full gap-2">
+            <Button
+              :label="L.startChat"
+              icon="i-lucide-message-square-plus"
+              :color="goColor"
+              size="sm"
+              class="flex-1"
+              @click="openStartChat(card)"
+            />
+            <Button
+              :label="L.logout"
+              color="ruby"
+              variant="outline"
+              size="sm"
+              :is-loading="card.busy"
+              @click="logout(card)"
+            />
+          </div>
         </template>
 
         <!-- QR pending scan -->
@@ -227,5 +298,38 @@ onBeforeUnmount(stopPolling);
         </template>
       </div>
     </div>
+
+    <Dialog
+      ref="chatDialog"
+      :title="L.startChatTitle"
+      :description="L.startChatHint"
+      :confirm-button-label="L.startChatGo"
+      :confirm-button-color="goColor"
+      :is-loading="chatBusy"
+      @confirm="submitStartChat"
+    >
+      <div class="flex flex-col gap-3">
+        <label class="flex flex-col gap-1">
+          <span class="text-sm text-n-slate-11">{{ L.startChatPhone }}</span>
+          <input
+            v-model="chatPhone"
+            type="tel"
+            inputmode="numeric"
+            placeholder="8613800138000"
+            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
+            @keyup.enter="submitStartChat"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-sm text-n-slate-11">{{ L.startChatName }}</span>
+          <input
+            v-model="chatName"
+            type="text"
+            class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
+            @keyup.enter="submitStartChat"
+          />
+        </label>
+      </div>
+    </Dialog>
   </div>
 </template>

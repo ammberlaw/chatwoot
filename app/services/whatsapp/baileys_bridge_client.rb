@@ -27,6 +27,12 @@ class Whatsapp::BaileysBridgeClient
     body['message_id']
   end
 
+  # 号码是否注册了 WhatsApp。发起新会话前先问一句，免得对着没注册的号发消息。
+  # 返回的 jid 才是发送用的地址（个别号码回来的 JID 与输入号码不同）。
+  def check_number(inbox_id, phone)
+    post("/sessions/#{inbox_id}/check-number", { phone: phone })
+  end
+
   private
 
   def base_url

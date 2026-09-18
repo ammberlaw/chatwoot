@@ -31,6 +31,25 @@ class Api::V1::Accounts::Crm::WhatsappWebController < Api::V1::Accounts::Crm::Ba
     render json: serialize(inbox, state)
   end
 
+  # 输入手机号直接开聊(对齐手机 WhatsApp:不需要对方先加好友,也不需要先建联系人)。
+  # 先问桥这个号注册没注册——没注册的话发过去石沉大海,不如当场拦下。
+  # 已经聊过的号不重复建会话,直接把已有的那条返回去。
+  def start_chat
+    inbox = target_inbox
+    return head :not_found unless inbox
+
+    phone = params[:phone].to_s.gsub(/\D/, '')
+    return render json: { error: '请填写手机号(含国家码,如 8613800138000)' }, status: :unprocessable_entity if phone.blank?
+
+    checked = bridge.check_number(inbox.channel.session_key, phone)
+    return render json: { error: '这个号码没有注册 WhatsApp' }, status: :unprocessable_entity unless checked['exists']
+
+    conversation = open_or_create_chat(inbox, checked['jid'], phone, params[:name])
+    render json: { conversation_id: conversation.display_id, contact_name: conversation.contact.name }
+  rescue Whatsapp::BaileysBridgeClient::BridgeError => e
+    render json: { error: "查询号码失败:#{e.message}" }, status: :unprocessable_entity
+  end
+
   # 解绑某个号:桥登出并清凭证,收件箱保留(历史/客户留存)。
   def logout
     inbox = target_inbox
@@ -45,6 +64,21 @@ class Api::V1::Accounts::Crm::WhatsappWebController < Api::V1::Accounts::Crm::Ba
 
   def bridge
     @bridge ||= Whatsapp::BaileysBridgeClient.new
+  end
+
+  # 会话按 JID 定位(与收信同口径),已有的复用、没有的建。联系人名字没填就用号码占位,
+  # 等对方回消息带来 pushName 时会自动改成真名(见 IncomingMessageWhatsappWebService)。
+  def open_or_create_chat(inbox, jid, phone, name)
+    contact_inbox = ::ContactInboxWithContactBuilder.new(
+      source_id: jid,
+      inbox: inbox,
+      contact_attributes: { name: name.presence || phone, phone_number: "+#{phone}" }
+    ).perform
+    contact_inbox.conversations.where.not(status: :resolved).last ||
+      ::Conversation.create!(
+        account_id: inbox.account_id, inbox_id: inbox.id,
+        contact_id: contact_inbox.contact_id, contact_inbox_id: contact_inbox.id
+      )
   end
 
   def my_inboxes
