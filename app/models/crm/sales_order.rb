@@ -93,8 +93,10 @@ class Crm::SalesOrder < ApplicationRecord
   before_save :lock_exchange_rate
 
   validates :name, presence: true
-  validates :order_no, presence: true,
-                       uniqueness: { scope: :account_id, conditions: -> { where(deleted_at: nil) } }
+  # 唯一性口径必须和数据库索引一致：index_crm_sales_orders_on_account_id_and_order_no
+  # 不带 deleted_at 条件，所以已删单的号也仍被占用。之前这里排除了已删单，
+  # 校验放过、写库被索引拦下 → 500。
+  validates :order_no, presence: true, uniqueness: { scope: :account_id }
   validates :status, inclusion: { in: STATUSES }
   validates :order_date, presence: true
   validates :order_currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
@@ -149,9 +151,13 @@ class Crm::SalesOrder < ApplicationRecord
     return if order_no.present?
 
     prefix = "SO-#{Time.zone.today.strftime('%Y%m%d')}"
-    last_seq = account.crm_sales_orders
-                      .where('order_no LIKE ?', "#{prefix}-%")
-                      .pick(Arel.sql("MAX(SPLIT_PART(order_no, '-', 3)::int)")) || 0
+    # 必须绕过 default_scope 把已删单也算进来：唯一索引不认 deleted_at，已删的号还占着。
+    # 否则「当天建一单又删掉」之后，后面每一单都算回同一个号、撞索引 500，
+    # 连自愈重试都算出同号（当天全员建不了单，实际发生过）。
+    last_seq = Crm::SalesOrder.unscoped
+                              .where(account_id: account_id)
+                              .where('order_no LIKE ?', "#{prefix}-%")
+                              .pick(Arel.sql("MAX(SPLIT_PART(order_no, '-', 3)::int)")) || 0
     self.order_no = format('%<prefix>s-%<seq>02d', prefix: prefix, seq: last_seq + 1)
   end
 
