@@ -793,8 +793,10 @@ onMounted(async () => {
     </Dialog>
 
     <!-- 填表单 -->
+    <!-- overflow-y-auto：附件传多了表单会顶出屏幕、提交按钮够不着也滚不动（报销常传十几张发票）。 -->
     <Dialog
       ref="formRef"
+      overflow-y-auto
       :title="activeTemplate?.name"
       :confirm-button-label="L.submit"
       confirm-button-color="iris"

@@ -7,4 +7,10 @@ const api = buildCrmClient('sales_orders');
 api.deleted = () => axios.get(`${api.url}/deleted`);
 api.restore = id => axios.post(`${api.url}/${id}/restore`);
 
+// PI 文件识别（上传 multipart，返回字段化结果）。历史 PI 批量补录逐个调它。
+api.parsePi = formData =>
+  axios.post(`${api.url}/parse_pi`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
 export default api;

@@ -1078,6 +1078,7 @@ const menuItems = computed(() => {
           'crm_funnel_index',
           'crm_price_lists_index',
           'crm_quotes_index',
+          'crm_quote_requests_index',
           'crm_pis_index',
           'crm_sales_orders_index',
           'crm_opportunities_index',
@@ -1101,6 +1102,14 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.CRM_QUOTES'),
             to: accountScopedRoute('crm_quotes_index'),
             activeOn: ['crm_quotes_index'],
+          },
+          {
+            // 定制报价：标准价目里没有的定制件，业务员填参数交给主管定价。
+            // 位置紧挨报价单——业务拿到价之后下一步通常就是开报价单。
+            name: 'CRM Quote Requests',
+            label: '定制报价',
+            to: accountScopedRoute('crm_quote_requests_index'),
+            activeOn: ['crm_quote_requests_index'],
           },
           {
             name: 'CRM PIs',
@@ -1399,6 +1408,7 @@ const menuItems = computed(() => {
               activeOn: [
                 'crm_customer_settings_index',
                 'crm_public_pool_settings_index',
+                'crm_quote_request_templates_index',
                 'crm_ai_settings_index',
                 'crm_inbox_collaborators_index',
               ],
@@ -1414,6 +1424,13 @@ const menuItems = computed(() => {
                   label: t('SIDEBAR.CRM_POOL_SETTINGS'),
                   to: accountScopedRoute('crm_public_pool_settings_index'),
                   activeOn: ['crm_public_pool_settings_index'],
+                },
+                {
+                  // 定制报价的参数模板：每条产品线配一套字段，属账号级配置，与其它设置同列。
+                  name: 'CRM Quote Request Templates',
+                  label: '定制报价模板',
+                  to: accountScopedRoute('crm_quote_request_templates_index'),
+                  activeOn: ['crm_quote_request_templates_index'],
                 },
                 {
                   name: 'CRM AI Settings',
