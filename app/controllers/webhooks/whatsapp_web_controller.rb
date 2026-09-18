@@ -3,8 +3,19 @@ class Webhooks::WhatsappWebController < ActionController::API
 
   # Inbound message forwarded by the Baileys bridge.
   def process_payload
-    payload = params.to_unsafe_hash.slice(:inbox_id, :source_id, :phone, :from, :name, :text, :message_id, :timestamp)
+    # from_me：业务员在手机上直接回的消息，落成「我方发出」（见 IncomingMessageWhatsappWebService）。
+    payload = params.to_unsafe_hash.slice(:inbox_id, :source_id, :phone, :from, :name, :text, :message_id, :timestamp, :from_me)
     Webhooks::WhatsappWebEventsJob.perform_later(payload)
+    head :ok
+  end
+
+  # 配对时 WhatsApp 推来的历史消息，桥按批转发（一批几百条）。
+  # 筛选与落库都在后台任务里做，这里只接下来立刻返回，别把桥卡住。
+  def history
+    Webhooks::WhatsappWebHistoryJob.perform_later(
+      'inbox_id' => params[:inbox_id],
+      'messages' => Array(params[:messages]).map { |m| m.permit!.to_h }
+    )
     head :ok
   end
 

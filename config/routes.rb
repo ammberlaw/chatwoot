@@ -1159,6 +1159,7 @@ Rails.application.routes.draw do
   post 'webhooks/whatsapp_web', to: 'webhooks/whatsapp_web#process_payload'
   post 'webhooks/whatsapp_web/status', to: 'webhooks/whatsapp_web#status'
   post 'webhooks/whatsapp_web/receipt', to: 'webhooks/whatsapp_web#receipt'
+  post 'webhooks/whatsapp_web/history', to: 'webhooks/whatsapp_web#history'
   get 'webhooks/instagram', to: 'webhooks/instagram#verify'
   post 'webhooks/instagram', to: 'webhooks/instagram#events'
   post 'webhooks/tiktok', to: 'webhooks/tiktok#events'

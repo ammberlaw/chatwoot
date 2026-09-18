@@ -19,14 +19,33 @@ class Whatsapp::IncomingMessageWhatsappWebService
         content: params[:text],
         account_id: inbox.account_id,
         inbox_id: inbox.id,
-        message_type: :incoming,
-        sender: @contact,
-        source_id: message_id
+        message_type: from_me? ? :outgoing : :incoming,
+        sender: from_me? ? agent : @contact,
+        source_id: message_id,
+        created_at: sent_at
       )
     end
   end
 
   private
+
+  # 业务员在手机 WhatsApp 里直接回的消息（桥带 from_me）也要进 CRM，记成「我方发出」，
+  # 否则会话里只剩客户单边说话。从 CRM 发出的那条按 source_id 判重，不会重复落。
+  def from_me?
+    ActiveModel::Type::Boolean.new.cast(params[:from_me]).present?
+  end
+
+  # 我方消息的发送人记成该收件箱的归属业务员（个人号收件箱只有他本人是成员）。
+  def agent
+    @agent ||= inbox.inbox_members.first&.user
+  end
+
+  # 按消息在 WhatsApp 上的真实时间落库：历史补收和手机端补投的消息不能堆在收件那一刻，
+  # 否则客户「最后互动时间」和流失预警都会算错。
+  def sent_at
+    ts = params[:timestamp].presence&.to_i
+    ts&.positive? ? Time.zone.at(ts) : Time.current
+  end
 
   def message_id
     params[:message_id].presence&.to_s
