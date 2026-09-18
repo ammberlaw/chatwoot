@@ -335,7 +335,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     consumed = consumed_pi_keys(rows.map(&:customer_id).uniq)
     candidates = rows.filter_map do |r|
       next unless Crm::PiParseService.pi_like_filename?(r.filename)
-      next if consumed.include?([r.customer_id, r.filename.to_s, r.byte_size.to_i])
+      next if consumed.include?(pi_key(r.customer_id, r.filename, r.byte_size))
 
       { customer_id: r.customer_id, customer_name: r.customer_name,
         deal_order_count: r.deal_order_count.to_i, attachment_id: r.attachment_id,
@@ -424,8 +424,15 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
            .pluck('crm_sales_orders.crm_customer_id',
                   'active_storage_blobs.filename',
                   'active_storage_blobs.byte_size')
-           .map { |cid, name, size| [cid, name.to_s, size.to_i] }
+           .map { |cid, name, size| pi_key(cid, name, size) }
            .to_set
+  end
+
+  # 比对键：文件名要压掉连续空格再比。上传时为绕腾讯 COS 签名会把连续空格压成一个，
+  # 所以复制到订单上的那份文件名可能和客户文件页的原名差一个空格，直接比就漏判。
+  # 字节数一起比，避免只靠名字误伤同名不同内容的文件。
+  def pi_key(customer_id, filename, byte_size)
+    [customer_id, filename.to_s.gsub(/\s+/, ' ').strip.downcase, byte_size.to_i]
   end
 
   # 合并权限：管理员/副管，或存活方与被并方都归当前用户。
