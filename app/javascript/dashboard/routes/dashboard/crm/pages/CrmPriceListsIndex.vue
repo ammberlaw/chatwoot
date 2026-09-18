@@ -11,7 +11,8 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import AttachmentPreview from 'dashboard/components-next/attachment/AttachmentPreview.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 
-// 核价表（内部报价单）：主管/财务按版本维护，业务员只读最新已发布版并可导出 PDF。
+// 标准价目表：主管/财务按版本维护，业务员只读最新已发布版并可导出 PDF。
+// 没有现成价的定制件走「定制报价」向上要价，两边是一对的。
 // 一次改价 = 发一版新的（原来那张 Excel 十个 sheet 就是十版），业务员永远只看到一张有效表。
 const CURRENCIES = [
   { value: 'USD', label: '美元 USD' },
@@ -199,7 +200,7 @@ const load = async (keepLine = true) => {
     hiddenCols.value = readHidden(activeLine.value);
     await loadDetail(pickVersion()?.id);
   } catch (error) {
-    useAlert(error?.response?.data?.error || '加载核价表失败');
+    useAlert(error?.response?.data?.error || '加载标准价目表失败');
   } finally {
     loading.value = false;
   }
@@ -536,7 +537,7 @@ onMounted(load);
     <div class="w-full px-4 py-4 mx-auto max-w-7xl sm:px-8 sm:py-6">
       <div class="flex items-center justify-between mb-4">
         <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
-          核价表
+          标准价目表
         </h1>
         <div class="flex items-center gap-2">
           <template v-if="!editing">
@@ -634,7 +635,7 @@ onMounted(load);
         v-else-if="!detail"
         class="py-12 text-sm text-center text-n-slate-10"
       >
-        还没有核价表。
+        还没有标准价目表。
         <template v-if="canManage">
           点右上角「新建报价单」建第一条产品线。
         </template>
