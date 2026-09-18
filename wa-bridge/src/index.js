@@ -58,6 +58,39 @@ app.post('/sessions/:inboxId/send', async (req, res) => {
   }
 });
 
+// Send an outgoing attachment. Called by Chatwoot's SendOnWhatsappWebService.
+app.post('/sessions/:inboxId/send-media', async (req, res) => {
+  const { phone, url, filename, mimetype, caption } = req.body || {};
+  if (!phone || !url) return res.status(422).json({ error: 'phone and url are required' });
+  try {
+    const messageId = await sessions.sendMedia(req.params.inboxId, String(phone), {
+      url: String(url), filename, mimetype, caption,
+    });
+    res.json({ message_id: messageId });
+  } catch (err) {
+    logger.error({ err: err.message }, 'send-media failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 按需拉历史（HISTORY PROBE 验证用）。返回 WhatsApp 的请求 id；
+// 实际数据异步经 messaging-history.set 推回，统计写 /tmp/wa-history-probe.jsonl。
+app.post('/sessions/:inboxId/fetch-history', async (req, res) => {
+  const { count, remoteJid, oldestMsgId, oldestMsgTimestamp, fromMe } = req.body || {};
+  if (!remoteJid || !oldestMsgId || !oldestMsgTimestamp) {
+    return res.status(422).json({ error: 'remoteJid, oldestMsgId and oldestMsgTimestamp are required' });
+  }
+  try {
+    const requestId = await sessions.fetchHistory(req.params.inboxId, {
+      count: count || 50, remoteJid, oldestMsgId, oldestMsgTimestamp, fromMe,
+    });
+    res.json({ request_id: requestId });
+  } catch (err) {
+    logger.error({ err: err.message }, 'fetch-history failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(config.port, () => {
   logger.info({ port: config.port }, 'wintouch-wa-bridge listening');
   sessions.restoreAll().catch(err => logger.error({ err: err.message }, 'restoreAll failed'));

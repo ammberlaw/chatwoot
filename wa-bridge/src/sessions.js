@@ -13,6 +13,12 @@ const pino = require('pino');
 const config = require('./config');
 const chatwoot = require('./chatwoot');
 
+// 配对时要拉全量历史的收件箱白名单（逗号分隔的 inbox id）。空 = 谁都不拉。
+const HISTORY_INBOXES = String(process.env.SYNC_HISTORY_INBOXES || '')
+  .split(',')
+  .map(x => x.trim())
+  .filter(Boolean);
+
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 // In-memory registry of live sessions, keyed by Chatwoot inbox id.
@@ -57,8 +63,10 @@ function extractText(message) {
 }
 
 async function handleIncoming(inboxId, msg) {
-  // Slice 1: individual text chats only. Skip our own echoes, status broadcasts, groups and channels.
-  if (msg.key.fromMe) return;
+  // 个人聊天的文字消息，双向都收。之前这里 `if (fromMe) return` 把业务员用手机回的话
+  // 全丢了，CRM 里的对话只剩客户单边说 —— 实测线上一个号 221 条来件只对 2 条去件。
+  // 从 CRM 发出的那条会由桥回写 source_id，入库时按 message_id 判重，不会重复。
+  const fromMe = Boolean(msg.key.fromMe);
   const remoteJid = msg.key.remoteJid || '';
   if (remoteJid === 'status@broadcast') return;
   if (remoteJid.endsWith(GROUP_SUFFIX) || remoteJid.endsWith('@newsletter')) return; // groups/channels handled later
@@ -83,10 +91,13 @@ async function handleIncoming(inboxId, msg) {
       inbox_id: Number(inboxId),
       source_id: remoteJid,
       phone: realPhone,
-      name: msg.pushName || realPhone || jidToPhone(remoteJid),
+      // 自己发出的消息里 pushName 是「我」的名字，拿它当客户名会把联系人建错，
+      // 所以只在收到客户消息时带 name；已有联系人不受影响。
+      name: fromMe ? null : msg.pushName || realPhone || jidToPhone(remoteJid),
       text,
       message_id: msg.key.id,
       timestamp: Number(msg.messageTimestamp) || null,
+      from_me: fromMe,
     });
   } catch (err) {
     logger.error({ inboxId, err: err.message }, 'failed to forward inbound message');
@@ -124,7 +135,11 @@ async function connect(inboxId) {
     auth: state,
     logger: pino({ level: 'silent' }),
     browser: [config.browserName, 'Chrome', '1.0.0'],
-    syncFullHistory: false,
+    // 历史同步只在「配对那一刻」由 WhatsApp 推送，事后 fetchMessageHistory 要不到
+    // （实测请求被接受但无响应）。所以要历史就必须在配对时开着这个开关。
+    // 按收件箱控制：SYNC_HISTORY_INBOXES 是逗号分隔的 inbox id 白名单，
+    // 没列进去的号照旧不拉历史，免得别人重连时白拖一大坨数据。
+    syncFullHistory: HISTORY_INBOXES.includes(String(inboxId)),
     markOnlineOnConnect: false,
   });
 
@@ -175,6 +190,44 @@ async function connect(inboxId) {
     }
   });
 
+
+  // === HISTORY PROBE（验证用，不入库）===
+  // WhatsApp 是端到端加密、消息只在手机上，历史其实是向已配对的手机请求的。
+  // 这里把推来的批次统计后落盘，供评估「能拉回多少、媒体丢多少、时间范围多大」。
+  sock.ev.on('messaging-history.set', async ev => {
+    try {
+      const msgs = ev.messages || [];
+      const stamps = msgs.map(m => Number(m.messageTimestamp) || 0).filter(Boolean);
+      const kinds = {};
+      let withMedia = 0;
+      for (const m of msgs) {
+        const k = Object.keys(m.message || {})[0] || 'empty';
+        kinds[k] = (kinds[k] || 0) + 1;
+        if (/image|video|document|audio|sticker/i.test(k)) withMedia += 1;
+      }
+      const summary = {
+        at: new Date().toISOString(),
+        inboxId,
+        syncType: ev.syncType,
+        isLatest: ev.isLatest,
+        progress: ev.progress,
+        chats: (ev.chats || []).length,
+        contacts: (ev.contacts || []).length,
+        messages: msgs.length,
+        fromMe: msgs.filter(m => m.key?.fromMe).length,
+        withMedia,
+        kinds,
+        oldest: stamps.length ? new Date(Math.min(...stamps) * 1000).toISOString() : null,
+        newest: stamps.length ? new Date(Math.max(...stamps) * 1000).toISOString() : null,
+      };
+      logger.info(summary, 'HISTORY batch');
+      fs.appendFileSync('/tmp/wa-history-probe.jsonl', JSON.stringify(summary) + '\n');
+      await shipHistory(inboxId, msgs);
+    } catch (err) {
+      logger.error({ inboxId, err: err.message }, 'HISTORY PROBE failed');
+    }
+  });
+
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
     for (const msg of messages) {
@@ -213,6 +266,83 @@ async function sendText(inboxId, to, text) {
   return sent?.key?.id || null;
 }
 
+// Send an outgoing file. Chatwoot passes the attachment's public URL; we fetch it here
+// (the blob URL redirects to object storage, so redirects must be followed) and push the
+// bytes through Baileys. Images go as `image` so they preview inline in WhatsApp; anything
+// else goes as `document` so the customer sees the real filename.
+const MEDIA_MAX_BYTES = 64 * 1024 * 1024;
+
+async function sendMedia(inboxId, to, { url, filename, mimetype, caption }) {
+  const session = sessions.get(inboxId);
+  if (!session || session.status !== 'open') {
+    throw new Error(`session for inbox ${inboxId} is not connected`);
+  }
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`fetch attachment failed: HTTP ${res.status}`);
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length > MEDIA_MAX_BYTES) throw new Error(`attachment too large: ${buffer.length} bytes`);
+
+  const type = String(mimetype || res.headers.get('content-type') || 'application/octet-stream');
+  const jid = String(to).includes('@') ? String(to) : `${to}${INDIVIDUAL_SUFFIX}`;
+  const payload = type.startsWith('image/')
+    ? { image: buffer, mimetype: type, caption: caption || undefined }
+    : { document: buffer, mimetype: type, fileName: filename || 'file', caption: caption || undefined };
+  const sent = await session.sock.sendMessage(jid, payload);
+  return sent?.key?.id || null;
+}
+
+// 按需向手机请求更早的历史（HISTORY PROBE 验证用）。
+// oldestMsgKey 必须是该会话里我们已知的「最早那条」，WhatsApp 从它往前给 count 条。
+async function fetchHistory(inboxId, { count, remoteJid, oldestMsgId, oldestMsgTimestamp, fromMe }) {
+  const session = sessions.get(inboxId);
+  if (!session || session.status !== 'open') {
+    throw new Error(`session for inbox ${inboxId} is not connected`);
+  }
+  const key = { remoteJid, id: oldestMsgId, fromMe: Boolean(fromMe) };
+  const reqId = await session.sock.fetchMessageHistory(Number(count), key, Number(oldestMsgTimestamp));
+  return reqId;
+}
+
+// 历史消息分批投给 Chatwoot。一个号能推一万条，一次性砸过去会把 Rails 打满，
+// 所以切成小批、批间让一让。只发文字消息——历史里的媒体在 WhatsApp 服务器上多已过期。
+const HISTORY_BATCH = 200;
+
+async function shipHistory(inboxId, msgs) {
+  const rows = [];
+  for (const m of msgs) {
+    const jid = m.key?.remoteJid || '';
+    if (jid === 'status@broadcast') continue;
+    if (jid.endsWith(GROUP_SUFFIX) || jid.endsWith('@newsletter')) continue;
+    if (!jid.endsWith(INDIVIDUAL_SUFFIX) && !jid.endsWith(LID_SUFFIX)) continue;
+    const text = extractText(m.message);
+    if (!text) continue;
+    const fromMe = Boolean(m.key.fromMe);
+    const phone = jid.endsWith(INDIVIDUAL_SUFFIX)
+      ? jidToPhone(jid)
+      : m.key.senderPn
+        ? jidToPhone(m.key.senderPn)
+        : null;
+    rows.push({
+      source_id: jid,
+      phone,
+      name: fromMe ? null : m.pushName || phone || jidToPhone(jid),
+      text,
+      message_id: m.key.id,
+      timestamp: Number(m.messageTimestamp) || null,
+      from_me: fromMe,
+    });
+  }
+  for (let i = 0; i < rows.length; i += HISTORY_BATCH) {
+    try {
+      await chatwoot.postHistory({ inbox_id: Number(inboxId), messages: rows.slice(i, i + HISTORY_BATCH) });
+    } catch (err) {
+      logger.error({ inboxId, err: err.message }, 'history batch failed');
+    }
+    await new Promise(r => setTimeout(r, 300));
+  }
+  logger.info({ inboxId, shipped: rows.length }, 'history shipped');
+}
+
 async function logout(inboxId) {
   const session = sessions.get(inboxId);
   if (session?.sock) {
@@ -238,4 +368,4 @@ async function restoreAll() {
   }
 }
 
-module.exports = { connect, sendText, logout, restoreAll, publicState, sessions };
+module.exports = { connect, sendText, sendMedia, fetchHistory, logout, restoreAll, publicState, sessions };

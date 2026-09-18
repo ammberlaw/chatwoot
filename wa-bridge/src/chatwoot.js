@@ -51,4 +51,22 @@ async function postReceipt(payload) {
   }
 }
 
-module.exports = { postInbound, postStatus, postReceipt };
+
+// 配对时 WhatsApp 推来的历史消息，按批转给 Chatwoot。筛选（只留已建档客户的会话）
+// 和落库都在 Chatwoot 侧做——桥不知道谁是客户。
+async function postHistory(payload) {
+  const res = await fetch(`${config.chatwootUrl}/webhooks/whatsapp_web/history`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Bridge-Token': config.bridgeToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`chatwoot history ${res.status}: ${body.slice(0, 300)}`);
+  }
+}
+
+module.exports = { postInbound, postStatus, postReceipt, postHistory };
