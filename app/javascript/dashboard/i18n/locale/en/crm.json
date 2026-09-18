@@ -273,7 +273,8 @@
         "AMOUNT": "总额",
         "STATUS": "状态",
         "DATE": "日期",
-        "CREATOR": "创建人"
+        "CREATOR": "创建人",
+        "ACTION": "操作"
       },
       "ACTION": {
         "XLSX": "下载 Excel（1:1 模板，可另存为 PDF）",
@@ -357,7 +358,8 @@
         "PARSE_SUCCESS": "已识别并填入，请核对后保存",
         "PARSE_ERROR": "PI 识别失败，请检查文件或稍后重试",
         "CUSTOMER_UNMATCHED": "识别到客户「{name}」，未在你的客户中找到，请手动选择"
-      }
+      },
+      "FOOTER_COUNT": "共 {total} 张"
     },
     "SALES_ORDERS": {
       "HEADER": "销售订单",

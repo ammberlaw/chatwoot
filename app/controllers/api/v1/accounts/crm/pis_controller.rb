@@ -13,6 +13,7 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
                 .order(pi_date: date_dir, id: :desc)
                 .page(permitted_params[:page] || 1)
                 .per(RESULTS_PER_PAGE)
+    @converted_pi_nos = converted_pi_nos(@pis)
   end
 
   # KPI 汇总：按状态给出全量张数 + 各币种金额合计（不受状态 tab / 搜索约束，
@@ -111,6 +112,15 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   # 按 id 直取也必须走可见范围收口（与 index 一致），否则任意成员可越权读改他人 PI。
   def fetch_pi
     @pi = scope_docs_visible(Current.account.crm_pis).find(params[:id])
+  end
+
+  # 本页 PI 里已经转出销售订单的那些单号。列表据此给「已付款却没订单」的 PI 打红标：
+  # 转单失败是静默的（只记日志），不标出来就只能等业务自己发现账面少了一单。
+  def converted_pi_nos(pis)
+    nos = pis.map(&:pi_no).compact_blank
+    return Set.new if nos.empty?
+
+    Current.account.crm_sales_orders.where(pi_no: nos).distinct.pluck(:pi_no).to_set
   end
 
   # 付款自动转销售订单；转单失败只记日志、不影响 PI 已保存的结果。

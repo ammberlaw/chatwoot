@@ -146,6 +146,11 @@ const fmtMoney = (micros, currency) =>
       )}`;
 const fmtDate = v => (v ? String(v).slice(0, 10) : '—');
 
+// 「缺订单」红标：已付款的 PI 本应自动转出销售订单，转单失败是静默的（只记日志），
+// 不标出来账面就少一单没人知道。改一次状态即可重试转单。
+const ORDER_MISSING_TIP =
+  '这张 PI 已付款，但没有对应的销售订单——自动转单失败了。把状态改回草稿再改回已付款即可重试；仍不行就找管理员查。';
+
 // KPI 卡金额：跨币种不折算，按币种分列，显示完整金额（千分位，不压缩 K/M）。
 const fullMoney = micros => fmtYuan(micros, 'en-US');
 const amountText = amounts => {
@@ -507,6 +512,14 @@ onMounted(() => {
               <span class="rounded-full size-1.5 bg-current opacity-90" />
               {{ STATUSES[record.status]?.label || record.status }}
             </span>
+            <span
+              v-if="record.orderMissing"
+              v-tooltip.top="ORDER_MISSING_TIP"
+              class="inline-flex items-center gap-1 px-2 py-[3px] text-[12px] font-medium rounded-full shrink-0 cursor-help bg-n-ruby-3 text-n-ruby-11"
+            >
+              <span class="i-lucide-triangle-alert size-3" />
+              缺订单
+            </span>
             <span class="flex-1" />
             <button
               type="button"
@@ -656,6 +669,14 @@ onMounted(() => {
               >
                 <span class="rounded-full size-1.5 bg-current opacity-90" />
                 {{ STATUSES[record.status]?.label || record.status }}
+              </span>
+              <span
+                v-if="record.orderMissing"
+                v-tooltip.top="ORDER_MISSING_TIP"
+                class="inline-flex items-center gap-1 px-2 py-[3px] ml-1.5 text-[12px] font-medium rounded-full cursor-help bg-n-ruby-3 text-n-ruby-11"
+              >
+                <span class="i-lucide-triangle-alert size-3" />
+                缺订单
               </span>
             </td>
             <td
