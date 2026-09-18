@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_10_000003) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1795,6 +1795,63 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_10_000003) do
     t.index ["account_id"], name: "index_crm_quote_line_items_on_account_id"
     t.index ["crm_product_id"], name: "index_crm_quote_line_items_on_crm_product_id"
     t.index ["crm_quote_id"], name: "index_crm_quote_line_items_on_crm_quote_id"
+  end
+
+  create_table "crm_quote_request_templates", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "product_line", null: false
+    t.string "name", null: false
+    t.string "description"
+    t.jsonb "form_fields", default: [], null: false
+    t.boolean "active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "creator_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "product_line", "active"], name: "idx_crm_qr_templates_line"
+    t.index ["account_id"], name: "index_crm_quote_request_templates_on_account_id"
+  end
+
+  create_table "crm_quote_request_transfers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "request_id", null: false
+    t.bigint "from_user_id"
+    t.bigint "to_user_id", null: false
+    t.text "reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_crm_quote_request_transfers_on_account_id"
+    t.index ["request_id"], name: "index_crm_quote_request_transfers_on_request_id"
+  end
+
+  create_table "crm_quote_requests", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "template_id"
+    t.bigint "applicant_id", null: false
+    t.bigint "pricer_id"
+    t.bigint "crm_customer_id"
+    t.string "request_no", null: false
+    t.string "title", null: false
+    t.string "product_line", null: false
+    t.jsonb "form_data", default: {}, null: false
+    t.string "status", default: "PENDING", null: false
+    t.integer "quantity"
+    t.datetime "needed_by"
+    t.text "remark"
+    t.bigint "quoted_price_micros"
+    t.string "quote_currency", default: "USD"
+    t.datetime "valid_until"
+    t.text "pricer_note"
+    t.datetime "quoted_at"
+    t.bigint "quoted_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "spec_template"
+    t.index ["account_id", "request_no"], name: "idx_crm_quote_requests_no", unique: true
+    t.index ["account_id", "status"], name: "idx_crm_quote_requests_status"
+    t.index ["account_id"], name: "index_crm_quote_requests_on_account_id"
+    t.index ["applicant_id"], name: "index_crm_quote_requests_on_applicant_id"
+    t.index ["pricer_id"], name: "index_crm_quote_requests_on_pricer_id"
   end
 
   create_table "crm_quotes", force: :cascade do |t|

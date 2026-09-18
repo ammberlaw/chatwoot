@@ -9,6 +9,8 @@ import CrmOpportunityFunnelIndex from './pages/CrmOpportunityFunnelIndex.vue';
 import CrmSalesOrdersIndex from './pages/CrmSalesOrdersIndex.vue';
 import CrmPisIndex from './pages/CrmPisIndex.vue';
 import CrmQuotesIndex from './pages/CrmQuotesIndex.vue';
+import CrmQuoteRequestsIndex from './pages/CrmQuoteRequestsIndex.vue';
+import CrmQuoteRequestTemplatesIndex from './pages/CrmQuoteRequestTemplatesIndex.vue';
 import CrmPriceListsIndex from './pages/CrmPriceListsIndex.vue';
 import CrmCommissionSheetsIndex from './pages/CrmCommissionSheetsIndex.vue';
 import CrmCommissionSheetDetailIndex from './pages/CrmCommissionSheetDetailIndex.vue';
@@ -103,6 +105,12 @@ const crmPages = [
   crmPage('funnel', 'crm_funnel_index', CrmOpportunityFunnelIndex),
   crmPage('price-lists', 'crm_price_lists_index', CrmPriceListsIndex),
   crmPage('quotes', 'crm_quotes_index', CrmQuotesIndex),
+  crmPage('quote-requests', 'crm_quote_requests_index', CrmQuoteRequestsIndex),
+  crmPage(
+    'quote-request-templates',
+    'crm_quote_request_templates_index',
+    CrmQuoteRequestTemplatesIndex
+  ),
   crmPage('pis', 'crm_pis_index', CrmPisIndex),
   crmPage('sales-orders', 'crm_sales_orders_index', CrmSalesOrdersIndex),
   // 提成表在「人事绩效」组，与 KPI 考核表一样走 SHARED（不加 requiresCrmAccess 守卫，

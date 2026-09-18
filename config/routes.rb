@@ -221,6 +221,7 @@ Rails.application.routes.draw do
             get 'whatsapp_web', to: 'whatsapp_web#index'
             post 'whatsapp_web', to: 'whatsapp_web#create'
             post 'whatsapp_web/:inbox_id/connect', to: 'whatsapp_web#connect'
+            post 'whatsapp_web/:inbox_id/start_chat', to: 'whatsapp_web#start_chat'
             get 'whatsapp_web/:inbox_id/status', to: 'whatsapp_web#status'
             delete 'whatsapp_web/:inbox_id', to: 'whatsapp_web#logout'
             resources :emails do
@@ -330,6 +331,16 @@ Rails.application.routes.draw do
                 get :user_summary
                 post :adjust
                 get :my_network
+              end
+            end
+            # 定制报价：业务员按产品线模板填参数,主管(或被转交的人)填价格回来。
+            resources :quote_request_templates, only: [:index, :create, :update, :destroy]
+            resources :quote_requests, only: [:index, :show, :create] do
+              collection { get :templates }
+              member do
+                post :quote
+                post :transfer
+                post :cancel
               end
             end
             resource :performance_settings, only: [:show, :update], controller: 'performance_settings'

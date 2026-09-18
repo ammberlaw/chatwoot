@@ -74,6 +74,8 @@ class Account < ApplicationRecord
   has_many :crm_opportunities, class_name: 'Crm::Opportunity', dependent: :destroy_async
   has_many :crm_products, class_name: 'Crm::Product', dependent: :destroy_async
   has_many :crm_sales_orders, class_name: 'Crm::SalesOrder', dependent: :destroy_async
+  has_many :crm_quote_request_templates, class_name: 'Crm::QuoteRequestTemplate', dependent: :destroy_async
+  has_many :crm_quote_requests, class_name: 'Crm::QuoteRequest', dependent: :destroy_async
   has_many :crm_pis, class_name: 'Crm::Pi', dependent: :destroy_async
   has_many :crm_pi_seller_profiles, class_name: 'Crm::PiSellerProfile', dependent: :destroy_async
   has_many :crm_quotes, class_name: 'Crm::Quote', dependent: :destroy_async
