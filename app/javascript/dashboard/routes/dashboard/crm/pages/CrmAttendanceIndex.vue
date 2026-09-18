@@ -145,6 +145,35 @@ const mineCounts = computed(() => {
 
 // ── 打卡 ──
 const clocking = ref(false);
+// 忘打上班卡、过了「上班~下班时段中点」再来打，后端会记成下班卡（见 attendances_controller
+// 的 past_workday_midpoint?）。前端按钮必须显示同一口径，否则晚上来补打的人看到的是
+// 「上班打卡」，以为下班卡打不了、干脆不点——实际点下去后端记的就是下班。
+// 与后端 clock_out_window_start 同一公式：下班前 60 分钟起算「这一下是下班卡」。
+// 上下班间隔不足两小时的班次退回中点，避免阈值落到上班时间之前。
+const CLOCK_OUT_WINDOW_MINUTES = 60;
+const clockOutWindowStart = (i, o) =>
+  o - i < CLOCK_OUT_WINDOW_MINUTES * 2
+    ? (i + o) / 2
+    : o - CLOCK_OUT_WINDOW_MINUTES;
+
+const hm = raw => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(raw || ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+const nowMinutes = () => {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+};
+// 这一下会被记成下班卡吗？已有上班卡 → 是；没上班卡但已过中点 → 也是。
+const willClockOut = computed(() => {
+  if (todayRec.value?.clock_out_at) return false;
+  if (todayRec.value?.clock_in_at) return true;
+  const i = hm(setting.value?.clock_in_time);
+  const o = hm(setting.value?.clock_out_time);
+  if (i === null || o === null || o <= i) return false;
+  return nowMinutes() >= clockOutWindowStart(i, o);
+});
+
 // 现在是否还没到下班时间（用考勤组的下班时间判断，取不到就当已到，不拦）。
 const beforeClockOutTime = () => {
   const raw = setting.value?.clock_out_time;
@@ -209,6 +238,8 @@ const clock = async (field = false) => {
 // 上班迟到提醒：当前已过「上班时间+宽限」且今天还没打上班卡时，给个预警。
 const lateHint = computed(() => {
   if (!setting.value || todayRec.value?.clock_in_at) return null;
+  // 已过中点、这一下要记下班卡了，就不是「迟到」的事了，别误导。
+  if (willClockOut.value) return null;
   const [h, m] = (setting.value.clock_in_time || '09:00')
     .split(':')
     .map(Number);
@@ -784,7 +815,7 @@ onMounted(fetchMine);
             :disabled="clocking"
             @click="clock()"
           >
-            {{ todayRec?.clock_in_at ? '下班打卡' : '上班打卡' }}
+            {{ willClockOut ? '下班打卡' : '上班打卡' }}
           </button>
           <button
             class="h-10 px-4 text-sm font-medium rounded-xl shrink-0 whitespace-nowrap border border-n-blue-7 text-n-blue-11 hover:bg-n-blue-3 disabled:opacity-50"

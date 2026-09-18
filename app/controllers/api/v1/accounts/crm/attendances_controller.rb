@@ -209,22 +209,29 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     end
   end
 
-  # 当天首次打卡但已过「上班~下班时段中点」→ 视为忘打上班卡后补打下班（上班留空走补卡）。
+  # 快下班了才来打当天第一次卡 → 视为忘打上班卡后补打下班（上班留空走补卡）。
+  #
+  # 原先用「上下班时段中点」当分界，但上午请假、下午才来上班的人（14:00 到岗）会被
+  # 误判成下班卡。改成「下班时间前 CLOCK_OUT_WINDOW_MINUTES 分钟起」：下午来上班的
+  # 照样记上班，临下班才来打的才记下班。
   # 无法解析考勤组时间时保守回退：不判为下班（维持原「首打即上班」）。
+  CLOCK_OUT_WINDOW_MINUTES = 60
+
   def past_workday_midpoint?(ctx)
-    mid = workday_midpoint_minutes(ctx[:group])
-    return false if mid.nil?
+    threshold = clock_out_window_start(ctx[:group])
+    return false if threshold.nil?
 
     now = ctx[:now]
-    (now.hour * 60 + now.min) >= mid
+    (now.hour * 60 + now.min) >= threshold
   end
 
-  def workday_midpoint_minutes(group)
+  def clock_out_window_start(group)
     i = parse_hm(group&.clock_in_time)
     o = parse_hm(group&.clock_out_time)
     return nil if i.nil? || o.nil? || o <= i
 
-    (i + o) / 2
+    # 上下班间隔太短（不足两倍窗口）时退回中点，避免阈值落到上班时间之前。
+    o - i < CLOCK_OUT_WINDOW_MINUTES * 2 ? (i + o) / 2 : o - CLOCK_OUT_WINDOW_MINUTES
   end
 
   def parse_hm(str)

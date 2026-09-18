@@ -38,6 +38,30 @@ const todayRec = computed(
   () => records.value.find(r => r.work_date === todayStr()) || null
 );
 const isClockedIn = computed(() => !!todayRec.value?.clock_in_at);
+// 忘打上班卡、过了「上班~下班时段中点」再来打，后端记的是下班卡
+// （见 attendances_controller 的 past_workday_midpoint?）。按钮必须显示同一口径，
+// 否则晚上补打的人看到「上班」，以为下班卡打不了。
+// 与后端 clock_out_window_start 同一公式：下班前 60 分钟起算「这一下是下班卡」。
+// 上下班间隔不足两小时的班次退回中点，避免阈值落到上班时间之前。
+const CLOCK_OUT_WINDOW_MINUTES = 60;
+const clockOutWindowStart = (i, o) =>
+  o - i < CLOCK_OUT_WINDOW_MINUTES * 2
+    ? (i + o) / 2
+    : o - CLOCK_OUT_WINDOW_MINUTES;
+
+const hm = raw => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(raw || ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+const willClockOut = computed(() => {
+  if (todayRec.value?.clock_out_at) return false;
+  if (isClockedIn.value) return true;
+  const i = hm(setting.value?.clock_in_time);
+  const o = hm(setting.value?.clock_out_time);
+  if (i === null || o === null || o <= i) return false;
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes() >= clockOutWindowStart(i, o);
+});
 
 // 实时时钟（每秒刷新）。
 const now = ref(new Date());
@@ -55,6 +79,8 @@ const dateText = computed(
 // 迟到预警：已过「上班时间+宽限」且今天还没打上班卡（且是工作日、非节假日）。
 const lateHint = computed(() => {
   if (!setting.value || isClockedIn.value) return null;
+  // 已过中点、这一下记的是下班卡，就不该再提示迟到。
+  if (willClockOut.value) return null;
   const [h, m] = (setting.value.clock_in_time || '09:00')
     .split(':')
     .map(Number);
@@ -145,7 +171,7 @@ onBeforeUnmount(() => timer && window.clearInterval(timer));
     @click="clock()"
   >
     <span class="text-sm font-semibold leading-tight">
-      {{ isClockedIn ? '下班' : '上班' }}
+      {{ willClockOut ? '下班' : '上班' }}
     </span>
     <span class="text-[10px] opacity-90">打卡</span>
   </button>
@@ -192,7 +218,7 @@ onBeforeUnmount(() => timer && window.clearInterval(timer));
         @click="clock()"
       >
         <span class="text-sm font-semibold leading-tight">
-          {{ isClockedIn ? '下班' : '上班' }}
+          {{ willClockOut ? '下班' : '上班' }}
         </span>
         <span class="text-[10px] opacity-90">打卡</span>
       </button>
