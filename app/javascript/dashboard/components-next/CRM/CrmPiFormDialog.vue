@@ -445,7 +445,7 @@ defineExpose({ open });
           <input
             ref="piInputRef"
             type="file"
-            accept=".pdf,.xlsx,.csv"
+            accept=".pdf,.xlsx,.xls,.csv"
             class="hidden"
             @change="onPiSelected"
           />

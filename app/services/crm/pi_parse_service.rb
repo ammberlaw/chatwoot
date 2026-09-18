@@ -42,10 +42,11 @@ class Crm::PiParseService
 
   def extract_text
     case file_kind
-    when :pdf then extract_pdf
+    when :pdf then extract_pdf(@file.tempfile.path)
     when :excel then extract_excel
+    when :legacy_excel then extract_legacy_excel
     else
-      raise UnsupportedType, '只支持 PDF 或 Excel（.xlsx/.csv）；老版 .xls 请另存为 .xlsx'
+      raise UnsupportedType, '只支持 PDF 或 Excel（.xls/.xlsx/.csv）'
     end
   end
 
@@ -54,17 +55,18 @@ class Crm::PiParseService
     name = @file.original_filename.to_s.downcase
     return :pdf if name.end_with?('.pdf')
     return :excel if name.end_with?('.xlsx', '.csv')
-    raise UnsupportedType, '老版 .xls 请先另存为 .xlsx 再上传' if name.end_with?('.xls')
+    return :legacy_excel if name.end_with?('.xls')
 
     ct = @file.content_type.to_s
     return :pdf if ct.include?('pdf')
+    return :legacy_excel if ct.include?('ms-excel')
     return :excel if ct.include?('sheet') || ct.include?('csv')
 
     :unknown
   end
 
-  def extract_pdf
-    reader = PDF::Reader.new(@file.tempfile.path)
+  def extract_pdf(path)
+    reader = PDF::Reader.new(path)
     reader.pages.map(&:text).join("\n").strip
   end
 
@@ -73,6 +75,22 @@ class Crm::PiParseService
     ext = @file.original_filename.to_s.downcase.end_with?('.csv') ? :csv : :xlsx
     ss = Roo::Spreadsheet.open(@file.tempfile.path, extension: ext)
     ss.sheets.flat_map { |name| sheet_rows(ss.sheet(name)) }.reject(&:blank?).join("\n")
+  end
+
+  # 老版 .xls（BIFF）：roo 读不了，纯 Ruby 的解析器都要额外 gem。这里借已在跑的
+  # Gotenberg（LibreOffice sidecar）转成 PDF 再抽文字——早年的 PI 大多是这个格式，
+  # 排版转换后文字顺序仍是「按行左到右」，模型照样能把字段认出来。
+  def extract_legacy_excel
+    @file.tempfile.rewind
+    pdf = Mes::GotenbergClient.office_to_pdf(@file.tempfile.read, filename: @file.original_filename.to_s)
+    tmp = Tempfile.new(['pi-legacy', '.pdf'], binmode: true)
+    tmp.write(pdf)
+    tmp.close
+    extract_pdf(tmp.path)
+  rescue Mes::GotenbergClient::ConversionError => e
+    raise UnsupportedType, "老版 .xls 转换失败：#{e.message}"
+  ensure
+    tmp&.unlink
   end
 
   def sheet_rows(sheet)

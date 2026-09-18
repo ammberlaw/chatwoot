@@ -9,7 +9,8 @@ import Button from 'dashboard/components-next/button/Button.vue';
 
 // 历史 PI 补录：早期业务把 PI 直接传在客户「文件」页、没建销售订单，
 // 那些金额不进成交口径（客户星级/成交额/成交订单数全都缺）。这里把它们盘出来逐条补建。
-// 只识别 PDF / xlsx / csv；老版 .xls 识别不了，页面直接标出来让人另存后重传。
+// 识别 PDF / xls / xlsx / csv。早年的 PI 大多是老版 .xls，后端走 Gotenberg
+// 转 PDF 再抽文字，和新格式一样能识别，这里不再拦。
 const store = useCrmSalesOrdersStore();
 const rows = ref([]);
 const loading = ref(true);
@@ -17,7 +18,7 @@ const parsingId = ref(null);
 const orderDialogRef = ref(null);
 
 const extOf = name => (name || '').toLowerCase().split('.').pop();
-const isParsable = name => ['pdf', 'xlsx', 'csv'].includes(extOf(name));
+const isParsable = name => ['pdf', 'xls', 'xlsx', 'csv'].includes(extOf(name));
 
 const kb = size => `${Math.max(1, Math.round((size || 0) / 1024))} KB`;
 
@@ -50,7 +51,7 @@ const load = async () => {
 // 识别成功后直接打开「新建销售订单」弹窗，字段填好、客户锁定为附件所属客户。
 const parseAndOpen = async row => {
   if (!isParsable(row.filename)) {
-    useAlert('老版 .xls 识别不了，请在 Excel 里另存为 .xlsx 后重新上传');
+    useAlert('这个格式识别不了，支持 PDF / Excel（.xls/.xlsx/.csv）');
     return;
   }
   parsingId.value = row.attachment_id;
@@ -151,7 +152,7 @@ onMounted(load);
                   v-if="!isParsable(row.filename)"
                   class="ml-1 text-xs text-n-amber-11"
                 >
-                  老版 .xls
+                  不支持的格式
                 </span>
               </td>
               <td class="px-4 py-3 text-right text-n-slate-11">

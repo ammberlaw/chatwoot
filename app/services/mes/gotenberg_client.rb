@@ -43,10 +43,18 @@ class Mes::GotenbergClient
 
   # xlsx 字节流 → PDF 字节流。filename 仅用于 Gotenberg 识别扩展名（.xlsx）。
   def self.xlsx_to_pdf(xlsx_bytes, filename: 'document.xlsx')
-    base = File.basename(filename, '.*')
-    file = Tempfile.new([base, '.xlsx'])
+    office_to_pdf(xlsx_bytes, filename: filename)
+  end
+
+  # 任意 Office 文档字节流 → PDF 字节流（LibreOffice 路由，按扩展名识别格式）。
+  # 除了导出单据，也用于「读不了的老格式」降级取文字：老版 .xls 没有纯 Ruby 解析器，
+  # 转成 PDF 再抽文字比往镜像里塞一套 BIFF 解析依赖划算（见 Crm::PiParseService）。
+  def self.office_to_pdf(bytes, filename: 'document.xlsx')
+    ext = File.extname(filename.to_s).presence || '.xlsx'
+    base = File.basename(filename.to_s, '.*').presence || 'document'
+    file = Tempfile.new([base, ext])
     file.binmode
-    file.write(xlsx_bytes)
+    file.write(bytes)
     file.rewind
     response = RestClient::Request.execute(
       method: :post,
