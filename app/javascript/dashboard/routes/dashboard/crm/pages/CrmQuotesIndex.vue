@@ -10,6 +10,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmQuoteFormDialog from 'dashboard/components-next/CRM/CrmQuoteFormDialog.vue';
 import CrmPiSellerProfileDialog from 'dashboard/components-next/CRM/CrmPiSellerProfileDialog.vue';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -93,8 +94,7 @@ const expiringDays = record => {
 };
 
 // KPI 卡金额：跨币种不折算，按币种分列，显示完整金额（千分位）。
-const fullMoney = micros =>
-  Math.round(micros / 1_000_000).toLocaleString('en-US');
+const fullMoney = micros => fmtYuan(micros, 'en-US');
 const amountText = amounts => {
   const entries = Object.entries(amounts || {}).filter(([, m]) => m > 0);
   if (!entries.length) return '—';

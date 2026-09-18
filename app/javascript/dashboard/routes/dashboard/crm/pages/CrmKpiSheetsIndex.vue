@@ -8,6 +8,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useCrmKpiSheetsStore } from 'dashboard/stores/crm/kpiSheets';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -63,8 +64,7 @@ const recall = async sheet => {
   }
 };
 
-const yuan = m =>
-  m == null ? '—' : `¥${Math.round(m / 1_000_000).toLocaleString()}`;
+const yuan = m => (m == null ? '—' : `¥${fmtYuan(m)}`);
 const fmtMonth = v => {
   if (!v) return '—';
   const d = new Date(v);

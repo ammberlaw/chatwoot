@@ -10,6 +10,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 // 嵌入「商机看板」作为列表视图时：隐藏自身标题头、去掉卡片外框、不受外层路由 query 影响。
 const props = defineProps({
@@ -127,9 +128,7 @@ watch(
 
 const CURRENCY_SYMBOL = { CNY: '¥', USD: '$', EUR: '€' };
 const fmtMoney = (micros, currency) =>
-  micros == null
-    ? '—'
-    : `${CURRENCY_SYMBOL[currency] || ''}${Math.round(micros / 1_000_000).toLocaleString()}`;
+  micros == null ? '—' : `${CURRENCY_SYMBOL[currency] || ''}${fmtYuan(micros)}`;
 const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
 </script>
 

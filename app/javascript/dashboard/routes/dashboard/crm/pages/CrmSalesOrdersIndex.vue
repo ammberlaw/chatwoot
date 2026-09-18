@@ -20,6 +20,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmSalesOrderCreateDialog from 'dashboard/components-next/CRM/CrmSalesOrderCreateDialog.vue';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 // 与后端 SalesOrdersController::RESULTS_PER_PAGE 保持一致。
 const ITEMS_PER_PAGE = 15;
@@ -240,9 +241,7 @@ const updateRecord = async payload => {
 
 const CURRENCY_SYMBOL = { CNY: '¥', USD: '$', EUR: '€' };
 const fmtMoney = (micros, currency) =>
-  micros == null
-    ? '—'
-    : `${CURRENCY_SYMBOL[currency] || ''}${Math.round(micros / 1_000_000).toLocaleString()}`;
+  micros == null ? '—' : `${CURRENCY_SYMBOL[currency] || ''}${fmtYuan(micros)}`;
 const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
 const fmtDateTime = v => (v ? new Date(v).toLocaleString() : '');
 
@@ -433,8 +432,7 @@ const restoreOrder = async id => {
 };
 const fmtBinAmount = o => {
   if (o.amount_micros == null) return '—';
-  const v = Math.round(o.amount_micros / 1_000_000).toLocaleString();
-  return `${o.currency || ''} ${v}`;
+  return `${o.currency || ''} ${fmtYuan(o.amount_micros)}`;
 };
 
 onMounted(() => {
@@ -966,8 +964,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                   >
                     <span class="i-lucide-copy size-3.5" />
                   </button>
-                  <span
-v-if="!row.tag && !row.value" class="text-n-slate-10"
+                  <span v-if="!row.tag && !row.value" class="text-n-slate-10"
                     >—</span
                   >
                 </div>

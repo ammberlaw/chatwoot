@@ -11,6 +11,7 @@ import { printElement } from 'dashboard/helper/printHelper';
 import CommissionSheetsAPI from 'dashboard/api/crm/commissionSheets';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import CrmForwardToTeamChatDialog from 'dashboard/components-next/CRM/CrmForwardToTeamChatDialog.vue';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -311,8 +312,7 @@ const filteredPickerOrders = computed(() => {
       .includes(kw)
   );
 });
-const pickerYuan = m =>
-  m == null ? '—' : Math.round(m / 1_000_000).toLocaleString();
+const pickerYuan = m => (m == null ? '—' : fmtYuan(m));
 
 const openOrderPicker = async () => {
   pickerBusy.value = true;
@@ -484,8 +484,7 @@ const unmarkPaid = async () => {
     isBusy.value = false;
   }
 };
-const yuanText = m =>
-  m == null ? '—' : `¥${Math.round(m / 1_000_000).toLocaleString()}`;
+const yuanText = m => (m == null ? '—' : `¥${fmtYuan(m)}`);
 const fmtDate = v => (v ? new Date(v).toLocaleDateString() : '');
 
 const exportXlsx = async () => {
@@ -558,7 +557,8 @@ const freightRmbOf = r =>
   Math.round((Number(r.shipping) || 0) * (Number(r.exchangeRate) || 0) * 100) /
   100;
 const freightDiffOf = r =>
-  Math.round((freightRmbOf(r) - (Number(r.forwarderShipping) || 0)) * 100) / 100;
+  Math.round((freightRmbOf(r) - (Number(r.forwarderShipping) || 0)) * 100) /
+  100;
 
 // 提成点(%)：按品类查表；提成基数：销售额RMB+运费差额，对公再整体÷(1+税点%)；提成工资=基数×点位/100。
 const rateOf = r => Number(rateMap.value[r.productCategory]) || 0;
@@ -1073,7 +1073,9 @@ const openForward = () => {
                   class="w-full h-8 px-1 text-xs text-right border rounded reset-base border-n-weak bg-n-solid-1"
                 />
               </td>
-              <td class="pl-1 pr-2 py-1 text-right tabular-nums text-n-slate-11">
+              <td
+                class="pl-1 pr-2 py-1 text-right tabular-nums text-n-slate-11"
+              >
                 {{ fmtYuan2(freightDiffOf(r)) }}
               </td>
               <td class="px-1 py-1">

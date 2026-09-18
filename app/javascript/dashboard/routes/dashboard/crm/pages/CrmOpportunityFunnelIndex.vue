@@ -15,6 +15,7 @@ import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportu
 import CrmOpportunitiesIndex from 'dashboard/routes/dashboard/crm/pages/CrmOpportunitiesIndex.vue';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
 import { useThemeSignal } from 'dashboard/components-next/CRM/charts/useThemeSignal';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 const { t } = useI18n();
 const { accountId } = useAccount();
@@ -254,12 +255,11 @@ const columns = computed(() =>
 );
 
 // 阶段汇总金额：完整数字（带千分位）
-const totalAmount = micros =>
-  Math.round((micros || 0) / 1_000_000).toLocaleString();
+const totalAmount = micros => fmtYuan(micros);
 
 // 卡片金额：货币符号 + 完整数字
 const cardAmount = (micros, currency) =>
-  `${CURRENCY_SYMBOL[currency] || ''}${Math.round((micros || 0) / 1_000_000).toLocaleString()}`;
+  `${CURRENCY_SYMBOL[currency] || ''}${fmtYuan(micros)}`;
 
 // 拖拽换阶段
 const dragId = ref(null);

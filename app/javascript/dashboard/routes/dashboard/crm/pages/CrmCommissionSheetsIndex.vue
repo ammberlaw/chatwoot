@@ -10,6 +10,7 @@ import CommissionSheetsAPI from 'dashboard/api/crm/commissionSheets';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -116,10 +117,8 @@ const fmtMonth = v => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 };
 const fmtDateTime = v => (v ? new Date(v).toLocaleString() : '—');
-const yuan = m =>
-  m == null ? '—' : `¥${Math.round(m / 1_000_000).toLocaleString()}`;
-const usd = m =>
-  !m ? '—' : `US$${Math.round(m / 1_000_000).toLocaleString()}`;
+const yuan = m => (m == null ? '—' : `¥${fmtYuan(m)}`);
+const usd = m => (!m ? '—' : `US$${fmtYuan(m)}`);
 
 const filteredRecords = computed(() => {
   const kw = q.value.trim().toLowerCase();
@@ -220,9 +219,7 @@ const openPayout = ids => {
   ids.forEach(id => {
     const s = records.value.find(r => r.id === id);
     payoutAmounts.value[id] =
-      s?.paidAmountMicros != null
-        ? String(Math.round(s.paidAmountMicros / 1_000_000))
-        : '';
+      s?.paidAmountMicros != null ? String(s.paidAmountMicros / 1_000_000) : '';
   });
 };
 const confirmPayout = async () => {

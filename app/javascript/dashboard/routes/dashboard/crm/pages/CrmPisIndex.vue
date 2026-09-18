@@ -12,6 +12,7 @@ import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmPiFormDialog from 'dashboard/components-next/CRM/CrmPiFormDialog.vue';
 import CrmPiSellerProfileDialog from 'dashboard/components-next/CRM/CrmPiSellerProfileDialog.vue';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 // 经典灰专属：状态/KPI 环形/tab 改黄黑绿灰；其它主题保持原样。切主题需刷新。
 const isClassic = ref(isClassicTheme());
@@ -146,8 +147,7 @@ const fmtMoney = (micros, currency) =>
 const fmtDate = v => (v ? String(v).slice(0, 10) : '—');
 
 // KPI 卡金额：跨币种不折算，按币种分列，显示完整金额（千分位，不压缩 K/M）。
-const fullMoney = micros =>
-  Math.round(micros / 1_000_000).toLocaleString('en-US');
+const fullMoney = micros => fmtYuan(micros, 'en-US');
 const amountText = amounts => {
   const entries = Object.entries(amounts || {}).filter(([, m]) => m > 0);
   if (!entries.length) return '—';

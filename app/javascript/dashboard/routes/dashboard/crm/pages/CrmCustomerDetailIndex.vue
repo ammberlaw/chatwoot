@@ -16,6 +16,7 @@ import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCr
 import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 const route = useRoute();
 const router = useRouter();
@@ -319,7 +320,7 @@ const fmtDate = v => (v ? new Date(v).toLocaleDateString() : '—');
 const money = (micros, currency) => {
   if (micros === null || micros === undefined) return '—';
   const symbol = { CNY: '¥', USD: '$', EUR: '€' }[currency] || '';
-  return `${symbol}${Math.round(micros / 1_000_000).toLocaleString()}`;
+  return `${symbol}${fmtYuan(micros)}`;
 };
 const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 

@@ -14,6 +14,7 @@ import CrmPerfSettingsAPI from 'dashboard/api/crm/performanceSettings';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MySignatureDialog from 'dashboard/components-next/CRM/MySignatureDialog.vue';
 import CrmForwardToTeamChatDialog from 'dashboard/components-next/CRM/CrmForwardToTeamChatDialog.vue';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -200,8 +201,7 @@ const openForward = () => {
   forwardRef.value?.open(text, { makeImage: makeSheetImage });
 };
 
-const yuan = m =>
-  m == null ? '—' : `¥${Math.round(m / 1_000_000).toLocaleString()}`;
+const yuan = m => (m == null ? '—' : `¥${fmtYuan(m)}`);
 const fmtMonth = v => {
   if (!v) return '—';
   const d = new Date(v);
