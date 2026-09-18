@@ -33,6 +33,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   def index
     @customers_scope = filtered_customers
     @customers_count = @customers_scope.count
+    @churn_rule = churn_rule if params[:filter] == 'churn_risk'
     @customers = @customers_scope
                  .select("crm_customers.*, (#{LAST_TOUCH_SQL}) AS last_touch_at")
                  .order(sort_clause)
@@ -109,17 +110,9 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     render json: { payload: payload }
   end
 
-  # 流失预警口径：私海成交客户，最后互动超过 CHURN_RISK_DAYS 天。
-  # 最后互动 = 跟进记录 / 往来邮件 / 订单日期 三者最新，建档时间兜底（新建档不误报）。
-  CHURN_RISK_DAYS = 30
-  LAST_TOUCH_SQL = <<~SQL.squish
-    GREATEST(
-      crm_customers.created_at,
-      COALESCE(crm_customers.last_follow_up_at, crm_customers.created_at),
-      COALESCE((SELECT MAX(e.email_date) FROM crm_emails e WHERE e.crm_customer_id = crm_customers.id), crm_customers.created_at),
-      COALESCE((SELECT MAX(o.order_date::timestamp) FROM crm_sales_orders o WHERE o.crm_customer_id = crm_customers.id), crm_customers.created_at)
-    )
-  SQL
+  # 流失预警口径：私海成交客户，最后互动超过该客户分组的公海回收天数（见 churn_risk_scope）。
+  # 「最后互动」的定义在 Crm::Customer::LAST_TOUCH_SQL，与公海回收共用同一份。
+  LAST_TOUCH_SQL = Crm::Customer::LAST_TOUCH_SQL
 
   # 流失预警角标：当前用户可见范围（业务员本人/主管团队/管理员全部）内的预警客户数。
   def churn_risk_count
@@ -338,8 +331,11 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
                     active_storage_attachments.id AS attachment_id,
                     active_storage_blobs.filename AS filename,
                     active_storage_blobs.byte_size AS byte_size')
+    rows = rows.to_a
+    consumed = consumed_pi_keys(rows.map(&:customer_id).uniq)
     candidates = rows.filter_map do |r|
       next unless Crm::PiParseService.pi_like_filename?(r.filename)
+      next if consumed.include?([r.customer_id, r.filename.to_s, r.byte_size.to_i])
 
       { customer_id: r.customer_id, customer_name: r.customer_name,
         deal_order_count: r.deal_order_count.to_i, attachment_id: r.attachment_id,
@@ -415,6 +411,22 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   private
+
+  # 已补录过的 PI：补建订单时会把这份附件原样复制到订单上（同名同大小、内容一致），
+  # 据此认定「这份 PI 已经有单了」并从待补列表里去掉——否则补完行还在，
+  # 再点一次就又建一张重复订单。对历史上已补过的也生效，不用额外记账字段。
+  def consumed_pi_keys(customer_ids)
+    return Set.new if customer_ids.empty?
+
+    Current.account.crm_sales_orders
+           .where(crm_customer_id: customer_ids)
+           .joins(files_attachments: :blob)
+           .pluck('crm_sales_orders.crm_customer_id',
+                  'active_storage_blobs.filename',
+                  'active_storage_blobs.byte_size')
+           .map { |cid, name, size| [cid, name.to_s, size.to_i] }
+           .to_set
+  end
 
   # 合并权限：管理员/副管，或存活方与被并方都归当前用户。
   def merge_allowed?(source)
@@ -610,9 +622,36 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     end
   end
 
+  # 预警天数跟着公海回收规则走：设了专属天数的客户分组按各自天数，其余按全局 stale_days。
+  # 这样「预警」和「会被收进公海」是同一套时钟，业务在公海设置里改完两边一起变。
+  # 门槛仍限已成交的私海客户——未成交的存量客户没有跟进记录是常态，放进来角标会淹掉。
   def churn_risk_scope(scope)
     scope.where(is_in_public_pool: false).where.not(first_deal_at: nil)
-         .where("#{LAST_TOUCH_SQL} < ?", CHURN_RISK_DAYS.days.ago)
+         .where("#{LAST_TOUCH_SQL} < NOW() - (#{churn_days_sql} * INTERVAL '1 day')")
+  end
+
+  # 流失预警的判定规则原文，直接显示在页面副标题上——业务最常问的就是「凭什么判我流失」。
+  # 天数取自公海回收设置、分组名取自客户设置，两边改了这段话跟着变，不会写死过期。
+  def churn_rule
+    settings = Crm::PublicPoolSetting.for_account(Current.account)
+    names = Current.account.crm_option_items.where(category: 'customer_group').pluck(:code, :name).to_h
+    days = settings.group_recycle_days.map { |code, d| "#{names[code] || code} #{d} 天" }
+    days << "其余 #{settings.stale_days} 天"
+    {
+      days_text: days.join(' · '),
+      touch_text: '跟进记录、往来邮件、下单、客户会话、商机动态',
+      recycle_enabled: settings.recycle_enabled?
+    }
+  end
+
+  def churn_days_sql
+    settings = Crm::PublicPoolSetting.for_account(Current.account)
+    per_group = settings.group_recycle_days
+    # 一个分组专属天数都没设时全账户一个数，不能拼出没有 WHEN 分支的空 CASE（PG 语法错）。
+    return settings.stale_days.to_i.to_s if per_group.empty?
+
+    whens = per_group.map { |group, days| "WHEN #{ActiveRecord::Base.connection.quote(group)} THEN #{days.to_i}" }
+    "CASE crm_customers.customer_group #{whens.join(' ')} ELSE #{settings.stale_days.to_i} END"
   end
 
   # 建档联系人：主联系人（快照字段）+ 建档页录入的其他联系人，逐个建/复用 Contact 挂到客户。

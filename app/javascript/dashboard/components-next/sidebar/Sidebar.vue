@@ -1048,6 +1048,8 @@ const menuItems = computed(() => {
             name: 'CRM Churn Risk',
             label: t('SIDEBAR.CRM_CHURN_RISK'),
             badgeCount: churnRiskCount.value,
+            // 判定口径不直观（业务常以为微信聊过就算互动），直接写在悬浮里。
+            hint: '已成交的私海客户，超过「公海设置」里该客户分组的回收天数没有任何互动时在此提醒。互动算五样：跟进记录、往来邮件、下单、客户会话、商机动态。微信等系统外的沟通系统看不到，这类客户顺手记一条跟进即可消除提醒。这套天数同时也是公海自动回收的判据。',
             to: accountScopedRoute(
               'crm_customers_index',
               {},

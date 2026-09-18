@@ -36,9 +36,12 @@ class Crm::RecycleStaleCustomersJob < ApplicationJob
     scope.where.not(account_owner_id: settings.exempt_user_ids)
   end
 
+  # 超期判定按「最后互动」：跟进 / 邮件 / 下单 / 会话 / 商机任一有动静都算没沉默。
+  # 只认手动跟进的话，天天发邮件、刚下过单的客户也会被收进公海——业务不可能接受。
   def recycle(scope, cutoff, settings)
-    stale = scope.where('last_follow_up_at <= ?', cutoff)
-    stale = stale.or(scope.where('last_follow_up_at IS NULL AND created_at <= ?', cutoff)) if settings.recycle_never_followed?
+    touch = Crm::Customer::LAST_TOUCH_SQL
+    stale = scope.where("#{touch} <= ?", cutoff)
+    stale = stale.where.not(last_follow_up_at: nil) unless settings.recycle_never_followed?
     # 批量置入公海（记录原归属人供领回冷却校验），单条 UPDATE 无需逐条校验
     stale.update_all( # rubocop:disable Rails/SkipsModelValidations
       'is_in_public_pool = TRUE, public_pool_at = NOW(), previous_owner_id = account_owner_id, account_owner_id = NULL'

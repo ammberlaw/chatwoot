@@ -76,6 +76,22 @@ class Crm::Customer < ApplicationRecord
   CURRENCIES = %w[USD CNY EUR].freeze
   CUSTOMER_STATUSES = %w[PROSPECT FOLLOWING WON DORMANT LOST].freeze
   CUSTOMER_GROUPS = %w[KEY_ACCOUNT_WON WON SAMPLE_WON NOT_WON SOCIAL_MEDIA].freeze
+
+  # 「最后互动时间」：跟进记录 / 往来邮件 / 下单 / 会话(WhatsApp 等) / 商机动态 五者取最新，
+  # 建档时间兜底（新建档不会一上来就判成沉默）。客户列表的「最近联系」、流失预警、
+  # 公海自动回收都读这一份，避免各处口径打架——只在一个地方沉默就被收走是最伤业务的。
+  LAST_TOUCH_SQL = <<~SQL.squish
+    GREATEST(
+      crm_customers.created_at,
+      COALESCE(crm_customers.last_follow_up_at, crm_customers.created_at),
+      COALESCE((SELECT MAX(e.email_date) FROM crm_emails e WHERE e.crm_customer_id = crm_customers.id), crm_customers.created_at),
+      COALESCE((SELECT MAX(o.order_date::timestamp) FROM crm_sales_orders o WHERE o.crm_customer_id = crm_customers.id), crm_customers.created_at),
+      COALESCE((SELECT MAX(cv.last_activity_at) FROM conversations cv
+                  JOIN contacts ct ON ct.id = cv.contact_id
+                 WHERE ct.crm_customer_id = crm_customers.id), crm_customers.created_at),
+      COALESCE((SELECT MAX(op.last_activity_at) FROM crm_opportunities op WHERE op.crm_customer_id = crm_customers.id), crm_customers.created_at)
+    )
+  SQL
   # 产品分组两类：平板电脑(TABLET) / 商显工控(COMMERCIAL_DISPLAY，含原商显+工控)。
   PRODUCT_GROUPS = %w[TABLET COMMERCIAL_DISPLAY].freeze
   RISK_LEVELS = %w[LOW MEDIUM HIGH].freeze

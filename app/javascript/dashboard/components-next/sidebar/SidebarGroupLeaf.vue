@@ -12,6 +12,8 @@ const props = defineProps({
   active: { type: Boolean, default: false },
   component: { type: Function, default: null },
   badgeCount: { type: [Number, String], default: 0 },
+  // 悬浮说明：判定规则不直观的入口（如流失预警）挂一段解释，省得业务猜。
+  hint: { type: String, default: '' },
   hideTreeLine: { type: Boolean, default: false },
   thinTreeLine: { type: Boolean, default: false },
 });
@@ -21,6 +23,17 @@ const { resolvePermissions, resolveFeatureFlag } = useSidebarContext();
 const shouldRenderComponent = computed(() => {
   return typeof props.component === 'function' || isVNode(props.component);
 });
+
+// 悬浮说明：默认的单行 tooltip 会拉成横穿页面的一条，这里限宽换行。
+// html 由 floating-vue 渲染，用 Tailwind class（与客户星级悬浮同款做法）。
+const hintTooltip = computed(() =>
+  props.hint
+    ? {
+        content: `<div class="w-72 text-left leading-relaxed"><div class="font-semibold mb-1">${props.label}</div>${props.hint}</div>`,
+        html: true,
+      }
+    : undefined
+);
 
 // Tree-line connector per leaf: vertical line (::before) + rounded elbow on the
 // last child (::after). Logical props (start / border-s / rounded-es)
@@ -43,7 +56,8 @@ const TREE_CONNECTOR =
     <component
       :is="to ? 'router-link' : 'div'"
       :to="to"
-      :title="label"
+      v-tooltip.right="hintTooltip"
+      :title="hint ? undefined : label"
       class="flex h-9 items-center gap-3 px-3 py-1.5 rounded-xl ltr:hover:bg-gradient-to-r rtl:hover:bg-gradient-to-l from-transparent via-n-slate-3/70 to-n-slate-3/70 group min-w-0"
       :class="{
         'text-white bg-n-iris-9 shadow-sm shadow-n-iris-9/30 hover:bg-none active':

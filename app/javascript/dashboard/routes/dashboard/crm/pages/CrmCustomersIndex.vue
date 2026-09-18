@@ -26,6 +26,7 @@ import { COUNTRY_TZ } from 'dashboard/routes/dashboard/crm/helper/scheduleTimezo
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
 import CustomerAPI from 'dashboard/api/crm/customers';
+import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 // 经典灰专属：资料完善度进度条改金黄；其它主题保持原样。切主题需刷新。
 const isClassic = ref(isClassicTheme());
@@ -110,6 +111,17 @@ const uiFlags = computed(() => customersStore.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 const isCreating = computed(() => uiFlags.value.creatingItem);
 const totalCount = computed(() => customersStore.getMeta.count || 0);
+// 流失预警的判定规则：天数/分组名随公海设置与客户设置变，由后端拼好随 meta 下发。
+// 标题下只放一行要点，各分组的具体天数收进悬浮——摊开占三行太吵。
+const churnRule = computed(() => customersStore.getMeta.churnRule || null);
+const churnRuleText = computed(
+  () =>
+    `已成交客户超过所属分组的天数没有互动。${churnRule.value?.touch_text}都算互动，微信等系统外沟通不算`
+);
+const churnRuleTip = computed(() => ({
+  content: `<div class="w-72 text-left leading-relaxed"><div class="font-semibold mb-1">各分组天数（在「公海设置」里改）</div>${churnRule.value?.days_text || ''}</div>`,
+  html: true,
+}));
 // 自绘页脚分页（还原效果图）：页多时窗口化（首页 … 当前±1 … 末页）。
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(totalCount.value / pageSize.value))
@@ -1367,8 +1379,7 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 const ownerDisplayName = c =>
   c.isInPublicPool ? c.previousOwnerName : c.accountOwnerName;
 
-const money = micros =>
-  micros ? `¥${Math.round(micros / 1_000_000).toLocaleString()}` : '¥0';
+const money = micros => (micros ? `¥${fmtYuan(micros)}` : '¥0.00');
 
 const formatDate = value => (value ? new Date(value).toLocaleDateString() : '');
 
@@ -1518,11 +1529,11 @@ watch(
           </h1>
           <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
           <p
-            v-if="activeFilter === 'churn_risk'"
-            class="mt-0.5 text-xs text-n-slate-10"
+            v-if="activeFilter === 'churn_risk' && churnRule"
+            v-tooltip.bottom-start="churnRuleTip"
+            class="mt-0.5 text-xs cursor-help text-n-slate-10 decoration-dotted underline-offset-4 hover:underline"
           >
-            成交客户超过 30
-            天没有跟进、邮件或订单，按最久未互动排序——跟进后自动移出
+            {{ churnRuleText }}
           </p>
         </div>
         <div class="flex items-center gap-2">
