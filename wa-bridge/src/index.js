@@ -91,6 +91,18 @@ app.post('/sessions/:inboxId/fetch-history', async (req, res) => {
   }
 });
 
+// 查号码是否注册了 WhatsApp（发起新会话前用）。
+app.post('/sessions/:inboxId/check-number', async (req, res) => {
+  const { phone } = req.body || {};
+  if (!phone) return res.status(422).json({ error: 'phone is required' });
+  try {
+    res.json(await sessions.checkNumber(req.params.inboxId, phone));
+  } catch (err) {
+    logger.error({ err: err.message }, 'check-number failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(config.port, () => {
   logger.info({ port: config.port }, 'wintouch-wa-bridge listening');
   sessions.restoreAll().catch(err => logger.error({ err: err.message }, 'restoreAll failed'));

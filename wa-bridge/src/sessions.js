@@ -214,6 +214,7 @@ async function connect(inboxId) {
         chats: (ev.chats || []).length,
         contacts: (ev.contacts || []).length,
         messages: msgs.length,
+        namesFound: (ev.contacts || []).filter(c => c.name || c.notify).length,
         fromMe: msgs.filter(m => m.key?.fromMe).length,
         withMedia,
         kinds,
@@ -222,7 +223,7 @@ async function connect(inboxId) {
       };
       logger.info(summary, 'HISTORY batch');
       fs.appendFileSync('/tmp/wa-history-probe.jsonl', JSON.stringify(summary) + '\n');
-      await shipHistory(inboxId, msgs);
+      await shipHistory(inboxId, msgs, nameByJid(ev));
     } catch (err) {
       logger.error({ inboxId, err: err.message }, 'HISTORY PROBE failed');
     }
@@ -303,11 +304,25 @@ async function fetchHistory(inboxId, { count, remoteJid, oldestMsgId, oldestMsgT
   return reqId;
 }
 
+// 历史批次里 WhatsApp 会连联系人名单一起推（contacts / chats 两个数组）。
+// 不用它的话，凡是「自己先发话」的会话，落库时拿不到对方名字，联系人就只剩一串 JID 数字。
+function nameByJid(ev) {
+  const map = new Map();
+  for (const c of ev.contacts || []) {
+    const n = c.name || c.notify || c.verifiedName;
+    if (c.id && n) map.set(c.id, n);
+  }
+  for (const c of ev.chats || []) {
+    if (c.id && c.name && !map.has(c.id)) map.set(c.id, c.name);
+  }
+  return map;
+}
+
 // 历史消息分批投给 Chatwoot。一个号能推一万条，一次性砸过去会把 Rails 打满，
 // 所以切成小批、批间让一让。只发文字消息——历史里的媒体在 WhatsApp 服务器上多已过期。
 const HISTORY_BATCH = 200;
 
-async function shipHistory(inboxId, msgs) {
+async function shipHistory(inboxId, msgs, names = new Map()) {
   const rows = [];
   for (const m of msgs) {
     const jid = m.key?.remoteJid || '';
@@ -325,7 +340,15 @@ async function shipHistory(inboxId, msgs) {
     rows.push({
       source_id: jid,
       phone,
-      name: fromMe ? null : m.pushName || phone || jidToPhone(jid),
+      // 名字来源按可靠性排：历史名单（按 LID 查，查不到再按 senderPn 手机号 JID 查，
+      // LID 会话在名单里常按手机号登记）→ 这条消息的 pushName（自己发的那条里是「我」，不能用）
+      // → 手机号。全都没有就留空，让 Chatwoot 用 JID 兜底，至少不会把「我」写成客户名。
+      name:
+        names.get(jid) ||
+        (m.key.senderPn ? names.get(m.key.senderPn) : null) ||
+        (fromMe ? null : m.pushName) ||
+        phone ||
+        null,
       text,
       message_id: m.key.id,
       timestamp: Number(m.messageTimestamp) || null,
@@ -341,6 +364,20 @@ async function shipHistory(inboxId, msgs) {
     await new Promise(r => setTimeout(r, 300));
   }
   logger.info({ inboxId, shipped: rows.length }, 'history shipped');
+}
+
+// 号码是否注册了 WhatsApp。手机上「直接输号码就能聊」靠的就是这个查询：
+// 号没注册的话发过去是石沉大海，先问清楚再建会话，别让业务对着空气发消息。
+// 返回注册用的 JID——有些号回来的 JID 和输入的号码不同（携号转网/LID），要用它发消息。
+async function checkNumber(inboxId, phone) {
+  const session = sessions.get(inboxId);
+  if (!session || session.status !== 'open') {
+    throw new Error(`session for inbox ${inboxId} is not connected`);
+  }
+  const digits = String(phone).replace(/\D/g, '');
+  if (!digits) throw new Error('phone is required');
+  const [hit] = await session.sock.onWhatsApp(`${digits}${INDIVIDUAL_SUFFIX}`);
+  return { exists: Boolean(hit?.exists), jid: hit?.jid || null, phone: digits };
 }
 
 async function logout(inboxId) {
@@ -368,4 +405,4 @@ async function restoreAll() {
   }
 }
 
-module.exports = { connect, sendText, sendMedia, fetchHistory, logout, restoreAll, publicState, sessions };
+module.exports = { connect, sendText, sendMedia, fetchHistory, checkNumber, logout, restoreAll, publicState, sessions };
