@@ -23,9 +23,10 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
     if personal_request?
       @category = Current.account.crm_knowledge_categories.create!(category_params.merge(user_id: current_user.id))
     else
-      return render_forbidden unless company_manageable? || manages_section?(scoped_section_id)
+      section_id = create_section_id
+      return render_forbidden unless company_manageable? || manages_section?(section_id)
 
-      @category = Current.account.crm_knowledge_categories.create!(category_params.merge(section_id: scoped_section_id))
+      @category = Current.account.crm_knowledge_categories.create!(category_params.merge(section_id: section_id))
     end
   end
 
@@ -82,6 +83,15 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
     @scoped_section_id = library == 'SALES' ? sales_section_id : section.presence
   end
 
+  # 子文件夹跟父级走板块：在「全公司文档」聚合视图里下钻新建时前端传不出 section_id，
+  # 若直接落空会造出「哪个板块都看不到」的孤儿文件夹。
+  def create_section_id
+    parent_id = params.dig(:category, :parent_id).presence
+    return scoped_section_id if parent_id.blank?
+
+    Current.account.crm_knowledge_categories.where(id: parent_id).pick(:section_id) || scoped_section_id
+  end
+
   def sales_section_id
     @sales_section_id ||= Current.account.crm_doc_sections.find_by(name: '销售资料')&.id
   end
@@ -108,13 +118,15 @@ class Api::V1::Accounts::Crm::KnowledgeCategoriesController < Api::V1::Accounts:
   end
 
   # 目标分类是否属文档中心（GENERAL）：个人分类交由归属人判断；公司分类只要不在「销售资料」板块即 GENERAL。
+  # 未归板块（section_id 为空）的公司分类也算 GENERAL——SALES 库的分类一律落在「销售资料」板块，
+  # 不可能为空；此前按「必须有板块」判，会把这类分类误判成 SALES，人事改名/删除被 CRM 门禁挡成 403。
   def target_general_category?
     return false if params[:id].blank?
 
     cat = Current.account.crm_knowledge_categories.select(:user_id, :section_id).find_by(id: params[:id])
     return false unless cat
 
-    cat.user_id.present? || (cat.section_id.present? && cat.section_id != sales_section_id)
+    cat.user_id.present? || cat.section_id != sales_section_id
   end
 
   def check_authorization
