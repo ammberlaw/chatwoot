@@ -1,5 +1,10 @@
 require 'rails_helper'
 
+# ⚠️ 下面的会话多数挂在 **个人号收件箱**（:personal_whatsapp）下：
+# 2026-09-19 起「是收件箱成员」不再等于看得见整箱，公共收件箱只看分到自己头上的
+# （口径见 Conversations::Visibility）。这些用例本意是测接口行为而不是权限，
+# 放进个人号收件箱＝这位 agent 就是号主，整箱可见，原有语义原样保留。
+# 权限口径本身在 spec/services/conversations/visibility_spec.rb 里单独测。
 RSpec.describe 'Conversations API', type: :request do
   let(:account) { create(:account) }
 
@@ -14,7 +19,7 @@ RSpec.describe 'Conversations API', type: :request do
 
     context 'when it is an authenticated user' do
       let(:agent) { create(:user, account: account, role: :agent) }
-      let(:conversation) { create(:conversation, account: account) }
+      let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
       before do
         create(:inbox_member, user: agent, inbox: conversation.inbox)
@@ -47,16 +52,17 @@ RSpec.describe 'Conversations API', type: :request do
       end
 
       it 'returns unattended conversations' do
-        attended_conversation = create(:conversation, account: account, first_reply_created_at: Time.now.utc)
+        personal_inbox = create(:inbox, :personal_whatsapp, account: account)
+        attended_conversation = create(:conversation, account: account, inbox: personal_inbox, first_reply_created_at: Time.now.utc)
         # to ensure that waiting since value is populated
         create(:message, message_type: :outgoing, conversation: attended_conversation, account: account)
-        unattended_conversation_no_first_reply = create(:conversation, account: account, first_reply_created_at: nil)
-        unattended_conversation_waiting_since = create(:conversation, account: account, first_reply_created_at: Time.now.utc)
+        unattended_conversation_no_first_reply = create(:conversation, account: account, inbox: personal_inbox,
+                                                                      first_reply_created_at: nil)
+        unattended_conversation_waiting_since = create(:conversation, account: account, inbox: personal_inbox,
+                                                                     first_reply_created_at: Time.now.utc)
 
         agent_1 = create(:user, account: account, role: :agent)
-        create(:inbox_member, user: agent_1, inbox: attended_conversation.inbox)
-        create(:inbox_member, user: agent_1, inbox: unattended_conversation_no_first_reply.inbox)
-        create(:inbox_member, user: agent_1, inbox: unattended_conversation_waiting_since.inbox)
+        create(:inbox_member, user: agent_1, inbox: personal_inbox) # 三条会话同一个收件箱，成员加一次即可
 
         get "/api/v1/accounts/#{account.id}/conversations",
             headers: agent_1.create_new_auth_token,
@@ -84,7 +90,7 @@ RSpec.describe 'Conversations API', type: :request do
       let(:agent) { create(:user, account: account, role: :agent) }
 
       before do
-        conversation = create(:conversation, account: account)
+        conversation = create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account))
         create(:inbox_member, user: agent, inbox: conversation.inbox)
       end
 
@@ -185,7 +191,7 @@ RSpec.describe 'Conversations API', type: :request do
       let(:agent) { create(:user, account: account, role: :agent) }
 
       before do
-        conversation = create(:conversation, account: account)
+        conversation = create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account))
         create(:message, conversation: conversation, account: account, content: 'test1')
         create(:message, conversation: conversation, account: account, content: 'test2')
         create(:inbox_member, user: agent, inbox: conversation.inbox)
@@ -218,7 +224,7 @@ RSpec.describe 'Conversations API', type: :request do
       let(:agent) { create(:user, account: account, role: :agent) }
 
       before do
-        conversation = create(:conversation, account: account)
+        conversation = create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account))
         create(:message, conversation: conversation, account: account, content: 'test1')
         create(:message, conversation: conversation, account: account, content: 'test2')
         create(:inbox_member, user: agent, inbox: conversation.inbox)
@@ -279,7 +285,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'GET /api/v1/accounts/{account.id}/conversations/:id' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -324,7 +330,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'PATCH /api/v1/accounts/{account.id}/conversations/:id' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
     let(:params) { { priority: 'high' } }
 
     context 'when it is an unauthenticated user' do
@@ -487,7 +493,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/toggle_status' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
     let(:inbox) { create(:inbox, account: account) }
     let(:pending_conversation) { create(:conversation, inbox: inbox, account: account, status: 'pending') }
     let(:agent_bot) { create(:agent_bot, account: account) }
@@ -619,7 +625,7 @@ RSpec.describe 'Conversations API', type: :request do
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/toggle_priority' do
     let(:inbox) { create(:inbox, account: account) }
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
     let(:pending_conversation) { create(:conversation, inbox: inbox, account: account, status: 'pending') }
     let(:agent) { create(:user, account: account, role: :agent) }
     let(:agent_bot) { create(:agent_bot, account: account) }
@@ -684,7 +690,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/toggle_typing_status' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -759,7 +765,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/update_last_seen' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -907,7 +913,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/unread' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -955,7 +961,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/mute' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -985,7 +991,9 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/unmute' do
-    let(:conversation) { create(:conversation, account: account).tap(&:mute!) }
+    let(:conversation) do
+      create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)).tap(&:mute!)
+    end
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -1014,7 +1022,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/transcript' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -1056,7 +1064,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/custom_attributes' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -1110,7 +1118,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'GET /api/v1/accounts/{account.id}/conversations/:id/attachments' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -1162,7 +1170,7 @@ RSpec.describe 'Conversations API', type: :request do
   end
 
   describe 'DELETE /api/v1/accounts/{account.id}/conversations/:id' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
     let(:agent) { create(:user, account: account, role: :agent) }
     let(:administrator) { create(:user, account: account, role: :administrator) }
 

@@ -6,7 +6,10 @@ class Conversations::UnreadCounts::BroadcastScope
   end
 
   def perform
-    return [conversation.account, conversation.inbox.members] if conversation.present?
+    # 未读数变化只推给看得见这条会话的人（口径同 Conversations::Visibility）。
+    # 会话已被删的那条分支拿不到指派人，只能按收件箱成员推——但那时 payload 是空的 {}，
+    # 推多了也不泄露内容。
+    return [conversation.account, Conversations::Visibility.audience(conversation)] if conversation.present?
 
     deleted_conversation_scope
   end

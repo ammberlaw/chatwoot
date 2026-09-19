@@ -8,7 +8,9 @@ describe Conversations::FilterService do
   let!(:user_2) { create(:user, account: account) }
   let!(:campaign_1) { create(:campaign, title: 'Test Campaign', account: account) }
   let!(:campaign_2) { create(:campaign, title: 'Campaign', account: account) }
-  let!(:inbox) { create(:inbox, account: account, enable_auto_assignment: false) }
+  # 个人号收件箱：号主 user_1 看得见整箱，下面的用例照旧能筛到分给同事 user_2 的会话。
+  # 公共收件箱「只看分给自己的」那套口径在 spec/services/conversations/visibility_spec.rb 单独测。
+  let!(:inbox) { create(:inbox, :personal_whatsapp, account: account, enable_auto_assignment: false) }
 
   let!(:user_2_assigned_conversation) { create(:conversation, account: account, inbox: inbox, assignee: user_2) }
   let!(:en_conversation_1) do
@@ -639,7 +641,7 @@ describe Conversations::FilterService do
     before do
       account.conversations.destroy_all
 
-      # Make user_1 a regular agent with access to inbox_1 only
+      # user_1 是 inbox_1 的成员，但成员身份本身已不再等于看得见整箱（2026-09-19 收紧）
       create(:inbox_member, user: user_1, inbox: inbox_1)
 
       # Create conversations in both inboxes
@@ -653,7 +655,17 @@ describe Conversations::FilterService do
       expect(result[:conversations].count).to eq 2
     end
 
-    it 'filters conversations by inbox membership for non-administrators' do
+    # ⚠️ 高级筛选跟列表走同一个 PermissionFilterService，所以这里也必须是收紧后的口径——
+    # 否则业务员换个「筛选」入口就绕过去了。
+    it 'returns nothing for an agent who is merely a member of the inbox' do
+      service = filter_service.new(params, user_1, account)
+      result = service.perform
+      expect(result[:conversations].count).to eq 0
+    end
+
+    it 'returns only the conversations assigned to that agent' do
+      inbox_1.conversations.first.update!(assignee: user_1)
+
       service = filter_service.new(params, user_1, account)
       result = service.perform
       expect(result[:conversations].count).to eq 1

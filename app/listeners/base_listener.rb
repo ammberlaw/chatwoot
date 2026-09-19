@@ -29,6 +29,13 @@ class BaseListener
     [inbox, inbox.account]
   end
 
+  # 会话事件该推给谁：**看得见这条会话的人**，不是整个收件箱的成员。
+  # 公司公共号十几个成员全是业务员，按收件箱成员推等于把别人客户的消息内容推进每个人的浏览器——
+  # 前端不显示不等于没送到。口径与列表过滤、单条鉴权同源（Conversations::Visibility）。
+  def conversation_audience(conversation)
+    Conversations::Visibility.audience(conversation)
+  end
+
   def extract_changed_attributes(event)
     changed_attributes = event.data[:changed_attributes]
 

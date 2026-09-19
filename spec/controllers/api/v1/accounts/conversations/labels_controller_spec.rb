@@ -1,10 +1,13 @@
+# ⚠️ 会话默认挂在**个人号收件箱**：2026-09-19 起「是收件箱成员」不再等于看得见会话
+# （见 Conversations::Visibility），而这些用例测的是接口行为不是权限，
+# 放进个人号收件箱＝这位 agent 就是号主，整箱可见，原有语义原样保留。
 require 'rails_helper'
 
 RSpec.describe 'Conversation Label API', type: :request do
   let(:account) { create(:account) }
 
   describe 'GET /api/v1/accounts/{account.id}/conversations/<id>/labels' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     before do
       conversation.update_labels('label1, label2')
@@ -37,7 +40,7 @@ RSpec.describe 'Conversation Label API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/<id>/labels' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     before do
       conversation.update_labels('label1, label2')

@@ -1,10 +1,13 @@
+# ⚠️ 会话默认挂在**个人号收件箱**：2026-09-19 起「是收件箱成员」不再等于看得见会话
+# （见 Conversations::Visibility），而这些用例测的是接口行为不是权限，
+# 放进个人号收件箱＝这位 agent 就是号主，整箱可见，原有语义原样保留。
 require 'rails_helper'
 
 RSpec.describe 'Conversation Messages API', type: :request do
   let!(:account) { create(:account) }
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/<id>/messages' do
-    let!(:inbox) { create(:inbox, account: account) }
+    let!(:inbox) { create(:inbox, :personal_whatsapp, account: account) }
     let!(:conversation) { create(:conversation, inbox: inbox, account: account) }
 
     context 'when it is an unauthenticated user' do
@@ -85,7 +88,7 @@ RSpec.describe 'Conversation Messages API', type: :request do
       context 'when api inbox' do
         let(:api_channel) { create(:channel_api, account: account) }
         let(:api_inbox) { create(:inbox, channel: api_channel, account: account) }
-        let(:conversation) { create(:conversation, inbox: api_inbox, account: account) }
+        let(:conversation) { create(:conversation, inbox: api_inbox, account: account, assignee: agent) }
 
         it 'reopens the conversation with new incoming message' do
           create(:message, conversation: conversation, account: account)
@@ -160,7 +163,7 @@ RSpec.describe 'Conversation Messages API', type: :request do
   end
 
   describe 'GET /api/v1/accounts/{account.id}/conversations/:id/messages' do
-    let(:conversation) { create(:conversation, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: create(:inbox, :personal_whatsapp, account: account)) }
 
     context 'when it is an unauthenticated user' do
       it 'returns unauthorized' do
@@ -205,6 +208,7 @@ RSpec.describe 'Conversation Messages API', type: :request do
 
       before do
         create(:inbox_member, inbox: conversation.inbox, user: agent)
+        conversation.update!(assignee: agent) # 会话得归他才看得见（见 Conversations::Visibility）
       end
 
       it 'deletes the message' do
@@ -239,6 +243,7 @@ RSpec.describe 'Conversation Messages API', type: :request do
 
       before do
         create(:inbox_member, inbox: conversation.inbox, user: agent)
+        conversation.update!(assignee: agent) # 会话得归他才看得见
       end
 
       it 'returns not found error' do
@@ -266,6 +271,7 @@ RSpec.describe 'Conversation Messages API', type: :request do
 
       before do
         create(:inbox_member, inbox: message.conversation.inbox, user: agent)
+        message.conversation.update!(assignee: agent) # 会话得归他才看得见
       end
 
       it 'retries the message' do
@@ -284,6 +290,7 @@ RSpec.describe 'Conversation Messages API', type: :request do
 
       before do
         create(:inbox_member, inbox: message.conversation.inbox, user: agent)
+        message.conversation.update!(assignee: agent) # 会话得归他才看得见
       end
 
       it 'returns not found error' do
@@ -300,7 +307,7 @@ RSpec.describe 'Conversation Messages API', type: :request do
     let(:api_channel) { create(:channel_api, account: account) }
     let(:api_inbox) { create(:inbox, channel: api_channel, account: account) }
     let(:agent) { create(:user, account: account, role: :agent) }
-    let!(:conversation) { create(:conversation, inbox: api_inbox, account: account) }
+    let!(:conversation) { create(:conversation, inbox: api_inbox, account: account, assignee: agent) }
     let!(:message) { create(:message, conversation: conversation, account: account, status: :sent) }
 
     context 'when unauthenticated' do
@@ -312,7 +319,7 @@ RSpec.describe 'Conversation Messages API', type: :request do
 
     context 'when authenticated agent' do
       context 'when agent has non-API inbox' do
-        let(:inbox) { create(:inbox, account: account) }
+        let(:inbox) { create(:inbox, :personal_whatsapp, account: account) }
         let(:agent) { create(:user, account: account, role: :agent) }
         let!(:conversation) { create(:conversation, inbox: inbox, account: account) }
 

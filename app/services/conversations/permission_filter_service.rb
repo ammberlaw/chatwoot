@@ -15,13 +15,10 @@ class Conversations::PermissionFilterService
 
   private
 
-  # 收件箱成员能看本收件箱的会话；另外，被同事拉进某条会话当「对话参与者」的人也要能看到
-  # 那一条——业务员的个人 WhatsApp 收件箱只有他自己是成员，不放开的话拉人进来等于没拉。
-  # 只放开参与的那几条，不是整个收件箱，避免看到别人 WhatsApp 里的其他客户。
+  # 口径收敛在 Conversations::Visibility（列表 / 单条鉴权 / 实时推送三处共用）：
+  # 公司公共号只看分到自己头上的，个人号整箱可见，另加被拉进去参与的那几条。
   def accessible_conversations
-    conversations.where(inbox: user.inboxes.where(account_id: account.id))
-                 .or(conversations.where(id: user.participating_conversations.select(:id)))
-                 .or(conversations.where(assignee_id: user.id))
+    Conversations::Visibility.scope_for(conversations, user, account)
   end
 
   def account_user
