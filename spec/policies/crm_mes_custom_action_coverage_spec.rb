@@ -31,6 +31,16 @@ RSpec.describe 'CRM/MES custom action Pundit policy coverage' do
   # check_authorization via only:/except:. Empty today.
   SKIP_ACTIONS = [].freeze
 
+  # A controller can pin the permission it checks — `authorize(X, :index?)` — in which
+  # case every action of that controller runs the pinned query, never `<action>?`.
+  # Returns the pinned query symbol, or nil when the query follows the action name.
+  def self.pinned_query_for(controller_class)
+    src = check_authorization_source(controller_class)
+    return nil if src.nil?
+
+    src.match(/authorize\(\s*[A-Za-z0-9_:]+\s*,\s*:(\w+\?)/)&.captures&.first&.to_sym
+  end
+
   # Read a controller's check_authorization source and return the policy class it
   # authorizes against (honouring an explicit `policy_class:`), or nil for
   # manual-guard controllers that never call `authorize(...)`.
@@ -38,15 +48,23 @@ RSpec.describe 'CRM/MES custom action Pundit policy coverage' do
     return nil unless controller_class.method_defined?(:check_authorization) ||
                       controller_class.private_method_defined?(:check_authorization)
 
-    file, line = controller_class.instance_method(:check_authorization).source_location
-    return nil unless file
+    src = check_authorization_source(controller_class)
+    return nil if src.nil?
 
-    src = File.readlines(file)[(line - 1)..(line + 8)].to_a.join
     if (m = src.match(/policy_class:\s*([A-Za-z0-9_:]+)/))
       m[1].constantize
     elsif (m = src.match(/authorize\(\s*([A-Za-z0-9_:]+)/))
       "#{m[1]}Policy".constantize
     end
+  rescue StandardError
+    nil
+  end
+
+  def self.check_authorization_source(controller_class)
+    file, line = controller_class.instance_method(:check_authorization).source_location
+    return nil unless file
+
+    File.readlines(file)[(line - 1)..(line + 8)].to_a.join
   rescue StandardError
     nil
   end
@@ -69,9 +87,12 @@ RSpec.describe 'CRM/MES custom action Pundit policy coverage' do
 
       skip 'manual-guard controller (no Pundit authorize)' if policy.nil?
 
-      expect(policy.method_defined?(:"#{action}?")).to be(true),
-                                                        "#{policy}##{action}? is missing → " \
-                                                        'Pundit::NotDefinedError → HTTP 500 at runtime'
+      # A pinned query (`authorize(X, :index?)`) is what actually runs for every action here.
+      query = self.class.pinned_query_for(controller_class) || :"#{action}?"
+
+      expect(policy.method_defined?(query)).to be(true),
+                                               "#{policy}##{query} is missing → " \
+                                               'Pundit::NotDefinedError → HTTP 500 at runtime'
     end
   end
 end
