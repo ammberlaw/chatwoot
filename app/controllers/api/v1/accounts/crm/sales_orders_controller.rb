@@ -1,6 +1,7 @@
 class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_sales_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :convert_preview]
+  before_action :fetch_sales_order,
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :convert_preview, :receivable_progress]
 
   RESULTS_PER_PAGE = 15
 
@@ -108,6 +109,14 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   # 口径：去空格后全等优先，其次 ILIKE 包含；命中多条时不猜，留空让业务员选。
   def convert_preview
     render json: { payload: Array(@sales_order.line_items).map { |li| preview_row(li) } }
+  end
+
+  # 回款进度（ERP_SPEC §2.5）：业务员在订单页只读看「应收 / 已收 / 未收 + 下一期到期日」，
+  # 催款用。**只透出回款，成本/应付/毛利/账簿一概不给**——销售端与成本硬隔离。
+  # 走 CRM 门禁而非 ERP 门禁：业务员本来就没有 ERP 岗位，订单可见性（fetch_sales_order）即是边界。
+  # ERP 没上线（总开关关）或这张订单财务还没建账时返回空，前端整块不渲染。
+  def receivable_progress
+    render json: { payload: Erp::OrderReceivableProgress.new(@sales_order).call }
   end
 
   private

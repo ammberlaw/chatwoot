@@ -32,34 +32,26 @@ class Erp::AlertScannerService
     scope.flat_map { |receivable| rows_for(receivable) }
   end
 
-  # 把已收额按到期日先后冲掉分期，剩下的才是真欠款；只留临期与逾期的。
+  # 把已收额按到期日先后冲掉分期（FIFO 与账龄分析、订单进度条同一套），剩下的才是真欠款；
+  # 只留临期与逾期的。没排到期日的槽（含「未排期」差额）无从判逾期，跳过。
   def rows_for(receivable)
-    left = receivable.received_amount_micros.to_i
-    ordered_installments(receivable).filter_map do |installment|
-      covered = [left, installment.amount_micros.to_i].min
-      left -= covered
-      open_micros = installment.amount_micros.to_i - covered
-      next if open_micros <= 0 || installment.due_date.blank?
+    Erp::InstallmentFifo.settle(receivable).filter_map do |slot|
+      next if slot[:open_micros] <= 0 || slot[:due_date].blank?
 
-      days = (@today - installment.due_date).to_i
+      days = (@today - slot[:due_date]).to_i
       next if days < -DUE_SOON_DAYS # 还早，不打扰
 
-      receivable_row(receivable, installment, open_micros, days)
+      receivable_row(receivable, slot, days)
     end
   end
 
-  # FIFO 顺序与 AgingService 一致：先到期的先冲，没排到期日的排最后。
-  def ordered_installments(receivable)
-    receivable.installments.sort_by do |item|
-      [item.due_date ? 0 : 1, item.due_date || Date.new(9999), item.seq.to_i]
-    end
-  end
-
-  def receivable_row(receivable, installment, open_micros, days)
+  def receivable_row(receivable, slot, days)
+    installment = slot[:installment]
+    open_micros = slot[:open_micros]
     {
       receivable_id: receivable.id, receivable_no: receivable.receivable_no,
       installment_id: installment.id,
-      kind_label: Erp::ReceivableInstallment::KIND_LABELS[installment.kind],
+      kind_label: slot[:note],
       customer_name: receivable.crm_customer&.name,
       order_no: receivable.crm_sales_order&.order_no,
       owner_id: receivable.owner_id,
@@ -67,7 +59,7 @@ class Erp::AlertScannerService
       currency: receivable.currency,
       open_micros: open_micros,
       base_open_micros: (open_micros * (receivable.exchange_rate.presence || 1).to_d).round,
-      due_date: installment.due_date,
+      due_date: slot[:due_date],
       days: days # 正=逾期天数，负=距到期天数
     }
   end

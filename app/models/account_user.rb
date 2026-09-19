@@ -142,7 +142,7 @@ class AccountUser < ApplicationRecord
   def can_access_erp?
     # 生产总开关：ERP 未上线/未平行对账期间用 ERP_ENABLED 全局关（默认关）。关时对所有人（含管理员）
     # 隐藏 ERP 侧栏/首页入口并 403 拦 API；本地开发设 ERP_ENABLED=true 开放继续开发。
-    return false unless ActiveModel::Type::Boolean.new.cast(ENV.fetch('ERP_ENABLED', false))
+    return false unless Erp.enabled?
 
     administrator? || crm_deputy_admin? || (erp_role.present? && module_enabled?('erp'))
   end

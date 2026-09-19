@@ -36,6 +36,11 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
     true
   end
 
+  # 回款进度（只读）：与看订单同权——订单可见性本身就是边界，且只透出回款，不含成本/毛利。
+  def receivable_progress?
+    true
+  end
+
   # 删除（软删进回收箱）：负责人本人 或 管理员/副管。具体归属在控制器 can_delete_order? 把关。
   def destroy?
     true

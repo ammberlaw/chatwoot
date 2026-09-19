@@ -318,6 +318,51 @@ const detailSections = computed(() => {
   ];
 });
 
+// ── 回款进度（ERP_SPEC §2.5）──
+// 业务员在订单页只读看「应收 / 已收 / 未收 + 下一期到期日」，催款用。
+// ERP 没上线（总开关关）或财务还没给这张订单建账时后端返回 null，整块不渲染。
+const receivableProgress = ref(null);
+const fetchReceivableProgress = async orderId => {
+  receivableProgress.value = null;
+  try {
+    const { data } = await axios.get(
+      `${crmBase()}/sales_orders/${orderId}/receivable_progress`
+    );
+    receivableProgress.value = data.payload
+      ? camelcaseKeys(data.payload, { deep: true })
+      : null;
+  } catch {
+    // 拿不到回款就当没有这块，订单页本身不受影响。
+    receivableProgress.value = null;
+  }
+};
+
+const INSTALLMENT_STATUS = {
+  SETTLED: { label: '已收', cls: 'text-n-teal-11' },
+  OVERDUE: { label: '已逾期', cls: 'text-n-ruby-11' },
+  DUE_SOON: { label: '即将到期', cls: 'text-n-amber-11' },
+  PENDING: { label: '未到期', cls: 'text-n-slate-10' },
+};
+const installmentStatus = row =>
+  INSTALLMENT_STATUS[row.status] || INSTALLMENT_STATUS.PENDING;
+
+// 下一期的提示语：逾期说逾期几天，没到期说还剩几天（days 正=逾期、负=距到期）。
+const dueHint = days => {
+  if (days == null) return '';
+  if (days > 0) return `已逾期 ${days} 天`;
+  if (days === 0) return '今天到期';
+  return `还剩 ${-days} 天`;
+};
+
+const progressBarClass = computed(() => {
+  const p = receivableProgress.value;
+  if (!p) return 'bg-n-iris-9';
+  if (p.status === 'PAID') return 'bg-n-teal-9';
+  return p.installments?.some(row => row.status === 'OVERDUE')
+    ? 'bg-n-ruby-9'
+    : 'bg-n-iris-9';
+});
+
 const AUDIT_LABELS = {
   name: '订单名称',
   pi_no: 'PI号',
@@ -375,9 +420,11 @@ const selectOrder = record => {
   selectedOrder.value = record;
   activeTab.value = 'fields';
   panelAudits.value = [];
+  fetchReceivableProgress(record.id);
 };
 const closePanel = () => {
   selectedOrder.value = null;
+  receivableProgress.value = null;
 };
 
 // 一键复制 PI号 / 订单号（详情面板字段行的复制按钮）。
@@ -980,6 +1027,145 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                     >—</span
                   >
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 回款进度（ERP §2.5）：只读，成本/毛利不透出 -->
+          <div
+            v-if="receivableProgress"
+            class="px-5 py-4 border-b border-n-weak"
+          >
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <span
+                class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+              >
+                回款进度
+              </span>
+              <span class="text-xs text-n-slate-10">
+                {{ receivableProgress.receivableNo }}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-2 mb-2.5">
+              <div
+                class="flex-1 h-2.5 overflow-hidden rounded-full bg-n-alpha-2"
+              >
+                <div
+                  class="h-full rounded-full transition-all"
+                  :class="progressBarClass"
+                  :style="{ width: `${receivableProgress.receivedPercent}%` }"
+                />
+              </div>
+              <span class="text-xs shrink-0 tabular-nums text-n-slate-11">
+                {{ receivableProgress.receivedPercent }}%
+              </span>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+              <div class="flex flex-col gap-0.5 min-w-0">
+                <span class="text-xs text-n-slate-10">应收</span>
+                <span class="text-sm truncate tabular-nums text-n-slate-12">
+                  {{
+                    fmtMoney(
+                      receivableProgress.totalMicros,
+                      receivableProgress.currency
+                    )
+                  }}
+                </span>
+              </div>
+              <div class="flex flex-col gap-0.5 min-w-0">
+                <span class="text-xs text-n-slate-10">已收</span>
+                <span class="text-sm truncate tabular-nums text-n-teal-11">
+                  {{
+                    fmtMoney(
+                      receivableProgress.receivedMicros,
+                      receivableProgress.currency
+                    )
+                  }}
+                </span>
+              </div>
+              <div class="flex flex-col gap-0.5 min-w-0">
+                <span class="text-xs text-n-slate-10">未收</span>
+                <span class="text-sm truncate tabular-nums text-n-slate-12">
+                  {{
+                    fmtMoney(
+                      receivableProgress.outstandingMicros,
+                      receivableProgress.currency
+                    )
+                  }}
+                </span>
+              </div>
+            </div>
+
+            <div
+              v-if="receivableProgress.nextDue"
+              class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 text-sm"
+            >
+              <span class="text-n-slate-10">下一期</span>
+              <span class="text-n-slate-12">
+                {{ receivableProgress.nextDue.kindLabel }}
+              </span>
+              <span class="text-n-slate-11">
+                {{ fmtDate(receivableProgress.nextDue.dueDate) }}
+              </span>
+              <span
+                class="text-xs"
+                :class="
+                  receivableProgress.nextDue.days > 0
+                    ? 'text-n-ruby-11'
+                    : 'text-n-slate-10'
+                "
+              >
+                {{ dueHint(receivableProgress.nextDue.days) }}
+              </span>
+              <span class="ml-auto tabular-nums text-n-slate-12">
+                {{
+                  fmtMoney(
+                    receivableProgress.nextDue.outstandingMicros,
+                    receivableProgress.currency
+                  )
+                }}
+              </span>
+            </div>
+
+            <div
+              v-if="receivableProgress.installments.length > 1"
+              class="flex flex-col gap-1.5 pt-3 mt-3 border-t border-n-weak"
+            >
+              <div
+                v-for="(row, i) in receivableProgress.installments"
+                :key="row.id || `unscheduled-${i}`"
+                class="flex items-start gap-2 text-xs"
+              >
+                <span class="w-10 shrink-0 text-n-slate-11 whitespace-nowrap">
+                  {{ row.kindLabel }}
+                </span>
+                <span class="w-[72px] shrink-0 text-n-slate-10">
+                  {{ row.dueDate ? fmtDate(row.dueDate) : '—' }}
+                </span>
+                <span
+                  class="w-12 shrink-0 whitespace-nowrap"
+                  :class="installmentStatus(row).cls"
+                >
+                  {{ installmentStatus(row).label }}
+                </span>
+                <span class="flex flex-col flex-1 min-w-0 items-end gap-0.5">
+                  <span class="tabular-nums text-n-slate-12">
+                    {{
+                      fmtMoney(row.amountMicros, receivableProgress.currency)
+                    }}
+                  </span>
+                  <span
+                    v-if="row.receivedMicros > 0 && row.outstandingMicros > 0"
+                    class="tabular-nums text-n-slate-10"
+                  >
+                    已收
+                    {{
+                      fmtMoney(row.receivedMicros, receivableProgress.currency)
+                    }}
+                  </span>
+                </span>
               </div>
             </div>
           </div>

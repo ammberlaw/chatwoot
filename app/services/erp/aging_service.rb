@@ -70,36 +70,19 @@ class Erp::AgingService
 
   # 应收：按到期日 FIFO 把已收款冲掉分期，剩余的才计入账龄。
   def receivable_docs(receivable)
-    remaining = receivable.received_amount_micros
     schedule(receivable).filter_map do |slot|
-      settled = [remaining, slot[:amount_micros]].min
-      remaining -= settled
-      open_amount = slot[:amount_micros] - settled
-      next if open_amount <= 0
+      next if slot[:open_micros] <= 0
 
       doc(receivable, party: receivable.crm_customer, doc_no: receivable.receivable_no,
-                      slot: slot.merge(open_micros: open_amount))
+                      slot: { date: slot[:due_date], open_micros: slot[:open_micros], note: slot[:note] })
     end
   end
 
-  # 账龄口径只看建账日，整张台账算一段；逾期口径按分期铺开（没排分期就整张按空到期日走）。
+  # 账龄口径只看建账日，整张台账算一段；逾期口径按分期铺开（FIFO 冲抵与催收预警、订单进度条同一套）。
   def schedule(receivable)
-    return [{ date: receivable.created_at.to_date, amount_micros: receivable.total_amount_micros, note: nil }] if invoice_basis?
+    return Erp::InstallmentFifo.settle(receivable) unless invoice_basis?
 
-    slots = receivable.installments.sort_by { |item| due_order(item) }.map { |item| installment_slot(item) }
-    rest = receivable.total_amount_micros - slots.sum { |slot| slot[:amount_micros] }
-    slots << { date: nil, amount_micros: rest, note: '未排期' } if rest.positive?
-    slots
-  end
-
-  # FIFO 冲抵顺序：先到期的先冲，没排到期日的排最后。
-  def due_order(installment)
-    [installment.due_date ? 0 : 1, installment.due_date || Date.new(9999), installment.seq]
-  end
-
-  def installment_slot(installment)
-    { date: installment.due_date, amount_micros: installment.amount_micros,
-      note: Erp::ReceivableInstallment::KIND_LABELS[installment.kind] }
+    [{ due_date: receivable.created_at.to_date, open_micros: receivable.outstanding_micros, note: nil }]
   end
 
   def payable_doc(payable)
