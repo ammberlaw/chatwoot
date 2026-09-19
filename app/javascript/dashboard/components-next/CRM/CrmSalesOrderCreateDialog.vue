@@ -48,6 +48,7 @@ const form = reactive({
   crmCustomerId: '',
   crmOpportunityId: '',
   status: 'IN_PRODUCTION',
+  orderKind: '',
   orderDate: today(),
   deliveryDate: '',
   amount: '',
@@ -142,6 +143,13 @@ const addLineItem = () =>
 const removeLineItem = index => form.lineItems.splice(index, 1);
 
 // 上传的订单均为已付款订单，无「待确认」环节，默认从「生产中」起。
+// 订单双轨：决定这单一键转下游走哪条线（定制→生产订单 / 库存→现货出库单）。
+const orderKindOptions = [
+  { value: '', label: '未分类' },
+  { value: 'CUSTOM', label: '定制单' },
+  { value: 'STOCK', label: '库存单' },
+];
+
 const statusOptions = [
   { value: 'IN_PRODUCTION', label: '生产中' },
   { value: 'PENDING_SHIPMENT', label: '待出货' },
@@ -212,6 +220,7 @@ const resetForm = () => {
   form.crmCustomerId = '';
   form.crmOpportunityId = '';
   form.status = 'IN_PRODUCTION';
+  form.orderKind = '';
   form.orderDate = today();
   form.deliveryDate = '';
   form.amount = '';
@@ -291,6 +300,7 @@ const open = record => {
       ? String(record.crmOpportunityId)
       : '';
     form.status = record.status || 'IN_PRODUCTION';
+    form.orderKind = record.orderKind || '';
     form.orderDate = record.orderDate ? record.orderDate.slice(0, 10) : today();
     form.deliveryDate = record.deliveryDate
       ? record.deliveryDate.slice(0, 10)
@@ -344,6 +354,7 @@ const handleConfirm = () => {
     crmCustomerId: form.crmCustomerId || null,
     crmOpportunityId: form.crmOpportunityId || null,
     status: form.status,
+    orderKind: form.orderKind || null,
     orderDate: form.orderDate,
     deliveryDate: form.deliveryDate || null,
     orderAmountMicros: form.amount
@@ -547,12 +558,16 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
         </div>
       </div>
 
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-4 gap-4">
         <div class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.SALES_ORDERS.FORM.STATUS') }}
           </label>
           <SelectCard v-model="form.status" :options="statusOptions" />
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">订单类型</label>
+          <SelectCard v-model="form.orderKind" :options="orderKindOptions" />
         </div>
         <div class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">

@@ -14,4 +14,7 @@ client.reject = (id, reason) =>
   axios.post(`${client.url}/${id}/reject`, { reason });
 client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
 
+// 销售订单一键转现货出库单（库存单轨道）。
+client.convert = payload => axios.post(`${client.url}/convert`, payload);
+
 export default client;

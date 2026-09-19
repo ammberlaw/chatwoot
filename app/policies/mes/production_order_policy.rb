@@ -18,10 +18,11 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def approval_inbox? = true
 
   # 建单/编辑放开给 CRM 业务角色——业务员建定制单走「草稿→三级审批」流转；
-  # 无 :order 能力者仅限本人草稿+按单生产（控制器 ensure_own_draft! 收紧）；
-  # 「从销售订单转入」直接 APPROVED 绕审批链，仍仅 :order。
+  # 无 :order 能力者仅限本人草稿+按单生产（控制器 ensure_own_draft! 收紧）。
   def create? = @account_user.mes_can?(:order) || @account_user.can_access_crm?
-  def convert? = @account_user.mes_can?(:order)
+  # 「从销售订单转入」与建单同权。绕不绕审批链由控制器按能力分：
+  # :order 能力者转入直接 APPROVED（原样）；业务员转入＝提交审批，审批链一步不少。
+  def convert? = create?
   # 暂存 blob（建单前上传）：与建单同权限。
   def stage_blob? = create?
   # 挂 BOM / 下发采购：工程 + PMC（order 或 bom 能力）。

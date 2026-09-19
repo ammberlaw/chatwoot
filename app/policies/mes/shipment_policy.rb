@@ -5,6 +5,8 @@ class Mes::ShipmentPolicy < ApplicationPolicy
   # 开单：仓库（生产出库）或 CRM 业务条线（现货出库，业务员/主管/副管理员）。
   def create? = @account_user.mes_can?(:shipment) || @account_user.can_access_crm?
   def update? = create?
+  # 从销售订单一键转出库单：与手工开单同一道门（业务员转自己的订单是本功能的主用法）。
+  def convert? = create?
   def notify? = @account_user.mes_can?(:shipment)
   def ship? = @account_user.mes_can?(:shipment)
 

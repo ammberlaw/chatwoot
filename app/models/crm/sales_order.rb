@@ -14,6 +14,7 @@
 #  order_amount_micros  :bigint
 #  order_currency       :string           default("CNY")
 #  order_date           :datetime         not null
+#  order_kind           :string
 #  order_no             :string           not null
 #  pi_no                :string
 #  profit_amount_micros :bigint
@@ -37,6 +38,7 @@
 #
 #  index_crm_sales_orders_on_account_id                 (account_id)
 #  index_crm_sales_orders_on_account_id_and_order_date  (account_id,order_date)
+#  index_crm_sales_orders_on_account_id_and_order_kind  (account_id,order_kind)
 #  index_crm_sales_orders_on_account_id_and_order_no    (account_id,order_no) UNIQUE
 #  index_crm_sales_orders_on_account_id_and_status      (account_id,status)
 #  index_crm_sales_orders_on_contact_id                 (contact_id)
@@ -60,6 +62,13 @@
 #
 class Crm::SalesOrder < ApplicationRecord
   STATUSES = %w[PENDING_CONFIRMATION IN_PRODUCTION PENDING_SHIPMENT SHIPPED COMPLETED CANCELLED].freeze
+
+  # 订单双轨（决定一键转单往哪条线走）：
+  #   CUSTOM 定制 → 生产订单（走生产脊柱，成本按领料/外协归集）
+  #   STOCK  库存 → 现货出库单（直接扣成品库存）
+  # 存量订单为空＝未分类，转单时补选。
+  ORDER_KINDS = %w[CUSTOM STOCK].freeze
+  ORDER_KIND_LABELS = { 'CUSTOM' => '定制单', 'STOCK' => '库存单' }.freeze
 
   # 折算人民币的金额表达式（现汇买入价锁定在 exchange_rate；CNY/无汇率按 1）。
   # 看板/统计一律用它做 SUM，避免多币种直接混加。列名带表前缀以兼容 join 查询。
@@ -100,6 +109,7 @@ class Crm::SalesOrder < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :order_date, presence: true
   validates :order_currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
+  validates :order_kind, inclusion: { in: ORDER_KINDS }, allow_blank: true
   validate :require_attachment_on_create, on: :create, unless: :skip_attachment_check
 
   after_destroy :rollup_customer_deals

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_19_000011) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_19_000012) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1927,7 +1927,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_19_000011) do
     t.datetime "deleted_at"
     t.bigint "deleted_by_id"
     t.bigint "handled_by_id"
+    t.string "order_kind"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
+    t.index ["account_id", "order_kind"], name: "index_crm_sales_orders_on_account_id_and_order_kind"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
     t.index ["account_id", "status"], name: "index_crm_sales_orders_on_account_id_and_status"
     t.index ["account_id"], name: "index_crm_sales_orders_on_account_id"

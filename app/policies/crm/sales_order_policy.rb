@@ -31,6 +31,11 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
     true
   end
 
+  # 转单预览（明细匹配产品档案）：与看订单同权，不下发成本价等敏感字段。
+  def convert_preview?
+    true
+  end
+
   # 删除（软删进回收箱）：负责人本人 或 管理员/副管。具体归属在控制器 can_delete_order? 把关。
   def destroy?
     true

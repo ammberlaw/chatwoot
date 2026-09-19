@@ -13,4 +13,7 @@ api.parsePi = formData =>
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
+// 转单预览：订单明细逐行匹配产品档案（匹配在后端做，明细是自由文本、产品档案上千条）。
+api.convertPreview = id => axios.get(`${api.url}/${id}/convert_preview`);
+
 export default api;

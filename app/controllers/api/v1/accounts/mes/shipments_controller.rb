@@ -14,6 +14,26 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
 
   def show; end
 
+  # 从销售订单一键转现货出库单（库存单轨道的起点）。
+  # 明细由前端带来（销售订单明细是自由文本，产品档案在转单弹窗里逐行确认过），
+  # 这里只认 crm_product_id + 数量，认不出产品的行前端不会放过来。
+  # 幂等：同一销售订单已有未取消的出库单就拦下，不重复生成（业务员连点两下很常见）。
+  def convert
+    sales_order = Current.account.crm_sales_orders.find(params[:crm_sales_order_id])
+    if (existing = converted_shipment_for(sales_order))
+      return render json: { error: "该订单已生成出库单 #{existing.shipment_no}，不能重复转单" }, status: :unprocessable_entity
+    end
+
+    @shipment = Current.account.mes_shipments.new(converted_shipment_attrs(sales_order))
+    @shipment.fallback_product_line = current_product_line
+    @shipment.save!
+    # 与手工开单同路径：提交即预占成品库存并进主管审核。
+    @shipment.submit_for_approval!(current_user)
+    render 'api/v1/accounts/mes/shipments/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   # 现货出库单由 CRM 业务条线开单（无出库能力者一律记为 STOCK，开单即进入审核）。
   def create
     stock = shipment_params[:kind] == 'STOCK' || !Current.account_user.mes_can?(:shipment)
@@ -104,6 +124,34 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
 
   # 生产出库单若明细缺商品编码（建单时成品名选填导致），按订单成品名兜底建/关联编码，
   # 保证成品库存按 SKU 扣减、不串库。现货出库(STOCK)明细来自产品档案本就带编码，不受影响。
+  def converted_shipment_for(sales_order)
+    Current.account.mes_shipments.where(crm_sales_order_id: sales_order.id).where.not(status: 'CANCELLED').first
+  end
+
+  def converted_shipment_attrs(sales_order)
+    {
+      kind: 'STOCK',
+      crm_sales_order: sales_order,
+      crm_customer_id: sales_order.crm_customer_id,
+      warehouse_id: params[:warehouse_id],
+      owner_id: sales_order.owner_id || current_user.id,
+      remark: "由销售订单 #{sales_order.order_no} 转入",
+      shipment_items_attributes: convert_items
+    }
+  end
+
+  def convert_items
+    rows = Array(params[:items]).filter_map do |row|
+      permitted = row.permit(:crm_product_id, :qty, :unit, :remark)
+      next if permitted[:crm_product_id].blank? || permitted[:qty].to_d <= 0
+
+      permitted.to_h
+    end
+    raise StandardError, '没有可转的明细行（每行都要选中产品档案并填数量）' if rows.empty?
+
+    rows
+  end
+
   def resolve_missing_product_ids(shipment)
     order = shipment.production_order
     return if order.nil?

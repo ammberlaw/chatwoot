@@ -153,6 +153,7 @@ Rails.application.routes.draw do
               end
               member do
                 get :audits
+                get :convert_preview
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :restore
@@ -508,7 +509,10 @@ Rails.application.routes.draw do
               collection { get :trace }
             end
             resources :shipments do
-              collection { get :approval_inbox }
+              collection do
+                get :approval_inbox
+                post :convert
+              end
               member do
                 post :notify
                 post :submit

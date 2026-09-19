@@ -20,6 +20,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmSalesOrderCreateDialog from 'dashboard/components-next/CRM/CrmSalesOrderCreateDialog.vue';
+import CrmOrderConvertDialog from 'dashboard/components-next/CRM/CrmOrderConvertDialog.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
 
 // 与后端 SalesOrdersController::RESULTS_PER_PAGE 保持一致。
@@ -31,6 +32,9 @@ const { accountId } = useAccount();
 const store = useCrmSalesOrdersStore();
 
 const createDialogRef = ref(null);
+const convertDialogRef = ref(null);
+// 一键转单：明细/客户都从订单带过去，业务员不用去 MES 再敲一遍。
+const openConvert = order => convertDialogRef.value?.open(order);
 const { isCrmSales, isCrmTeamLead } = useCrmRole();
 // 删除：负责人本人可删自己的单；管理员/副管可删任意 + 用回收箱。
 const currentUser = useMapGetter('getCurrentUser');
@@ -875,6 +879,14 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
           </div>
         </div>
         <Button
+          label="转单"
+          icon="i-lucide-arrow-right-left"
+          size="sm"
+          color="iris"
+          variant="faded"
+          @click="openConvert(selectedOrder)"
+        />
+        <Button
           :label="t('CRM.SALES_ORDERS.EDIT.TITLE')"
           icon="i-lucide-pencil"
           size="sm"
@@ -1079,6 +1091,9 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
       @update="updateRecord"
       @refresh="fetchRecords"
     />
+
+    <!-- 一键转单：定制→生产订单 / 库存→现货出库单 -->
+    <CrmOrderConvertDialog ref="convertDialogRef" @converted="fetchRecords" />
 
     <!-- 回收箱（管理员/副管）：已删订单，可恢复 -->
     <Dialog

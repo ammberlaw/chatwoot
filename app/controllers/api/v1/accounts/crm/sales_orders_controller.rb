@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_sales_order, only: [:show, :update, :destroy, :attach, :detach, :audits]
+  before_action :fetch_sales_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :convert_preview]
 
   RESULTS_PER_PAGE = 15
 
@@ -103,6 +103,13 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     render json: { payload: rows }
   end
 
+  # 转单预览：把订单明细（自由文本）逐行匹配到产品档案，供转单弹窗带出默认值。
+  # 匹配放后端用 SQL 做——产品档案上千条，前端拉一页回来匹配既慢又命中不了。
+  # 口径：去空格后全等优先，其次 ILIKE 包含；命中多条时不猜，留空让业务员选。
+  def convert_preview
+    render json: { payload: Array(@sales_order.line_items).map { |li| preview_row(li) } }
+  end
+
   private
 
   # 单条订单也按可见范围收口：业务员只能取本人订单，主管取本团队，管理员取全部。
@@ -187,10 +194,34 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
          .where('crm_sales_orders.order_no ILIKE :t OR crm_sales_orders.name ILIKE :t OR crm_customers.name ILIKE :t', t: term)
   end
 
+  def preview_row(line)
+    name = line['name'].to_s
+    product = match_product(name)
+    {
+      name: name, quantity: line['quantity'], unit: line['unit'],
+      crm_product_id: product&.id, product_name: product&.name, product_sku: product&.sku
+    }
+  end
+
+  MATCH_LIMIT = 2
+
+  # 命中多条时不猜（同名产品真实存在），留空让业务员在弹窗里选一次。
+  def match_product(name)
+    key = name.gsub(/\s+/, '')
+    return nil if key.blank?
+
+    scope = Current.account.crm_products
+    exact = scope.where("REPLACE(name, ' ', '') ILIKE ?", key).limit(MATCH_LIMIT).to_a
+    return exact.first if exact.size == 1
+
+    like = scope.where('name ILIKE ?', "%#{key}%").limit(MATCH_LIMIT).to_a
+    like.size == 1 ? like.first : nil
+  end
+
   def sales_order_params
     params.require(:sales_order).permit(
       :name, :order_no, :pi_no, :crm_customer_id, :contact_id, :crm_opportunity_id, :owner_id,
-      :status, :order_date, :delivery_date, :order_currency, :exchange_rate,
+      :status, :order_kind, :order_date, :delivery_date, :order_currency, :exchange_rate,
       :order_amount_micros, :shipping_micros, :cost_amount_micros, :profit_amount_micros, :profit_rate, :remark,
       :line_items_json,
       :source_attachment_id,
