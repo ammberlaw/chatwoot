@@ -400,6 +400,12 @@ Rails.application.routes.draw do
               end
             end
             resources :auto_voucher_rules, only: [:index, :update]
+            resources :stock_layers, only: [:index] do
+              collection do
+                post :import
+                get :import_template
+              end
+            end
             resources :order_costs, only: [:index, :create, :update, :destroy] do
               collection do
                 get :margin

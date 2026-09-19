@@ -87,6 +87,8 @@ class Account < ApplicationRecord
   has_many :crm_email_distributions, class_name: 'Crm::EmailDistribution', dependent: :destroy_async
   has_many :crm_knowledge_docs, class_name: 'Crm::KnowledgeDoc', dependent: :destroy_async
   has_many :crm_doc_sections, class_name: 'Crm::DocSection', dependent: :destroy_async
+  has_many :erp_stock_layers, class_name: 'Erp::StockLayer', dependent: :destroy_async
+  has_many :erp_stock_consumptions, class_name: 'Erp::StockConsumption', dependent: :destroy_async
   has_many :crm_member_invites, class_name: 'Crm::MemberInvite', dependent: :destroy_async
   has_many :crm_knowledge_categories, class_name: 'Crm::KnowledgeCategory', dependent: :destroy_async
   has_many :crm_teams, class_name: 'Crm::Team', dependent: :destroy_async

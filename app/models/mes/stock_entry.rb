@@ -160,6 +160,7 @@ class Mes::StockEntry < ApplicationRecord
       advance_production_order_on_receipt(ts)
       complete_production_order_if_fg_full(ts)
       complete_production_order_if_shipped(ts)
+      sync_erp_stock_cost
     end
     self
   end
@@ -175,12 +176,24 @@ class Mes::StockEntry < ApplicationRecord
       # 作废原料入库：对称回退采购单收货量与在途（正向 sync_purchase_receipt! 累加过，作废须冲回）。
       reverse_purchase_receipt! if purpose == 'MATERIAL_RECEIPT' && purchase_order_id.present?
       revert_production_order_stage_on_void(ts)
+      # 存货层回滚：入库撤层、出库还层。这里**不吞异常**——「已出库的入库单不许作废」是
+      # 成本正确性的硬闸，吞掉就会让层被撤掉、后续出库拿错成本。
+      Erp::StockCostService.new(account).reverse_entry!(self)
       update_columns(status: 'CANCELLED', updated_at: ts)
     end
     self
   end
 
   private
+
+  # 成品存货 FIFO：入库建批次层、出库按先进先出逐层扣（金额只落 erp_* 表，MES 不持有金额）。
+  # ERP 是下游，不能反过来挡住仓库过账，所以过账路径上的异常只记日志——
+  # 层缺了财务在存货页看得见，可手工补层；作废路径则不吞（见 cancel!）。
+  def sync_erp_stock_cost
+    Erp::StockCostService.new(account).sync_entry!(self)
+  rescue StandardError => e
+    Rails.logger.error("[Erp::StockCost] 库存单 #{entry_no} 成本核算失败: #{e.message}")
+  end
 
   # 流程硬锁校验：越级开下游单直接拦下（前端也会隐藏不可选订单，此处为后端兜底）。
   def enforce_flow_prerequisite

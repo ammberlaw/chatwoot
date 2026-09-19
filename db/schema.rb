@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_19_000012) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_19_000013) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2414,6 +2414,38 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_19_000012) do
     t.index ["account_id"], name: "index_erp_settings_on_account_id", unique: true
   end
 
+  create_table "erp_stock_consumptions", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "stock_layer_id", null: false
+    t.bigint "mes_stock_entry_id", null: false
+    t.bigint "crm_product_id", null: false
+    t.decimal "qty", precision: 16, scale: 3, null: false
+    t.bigint "base_amount_micros", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "mes_stock_entry_id"], name: "idx_erp_stock_consumptions_entry"
+    t.index ["account_id"], name: "index_erp_stock_consumptions_on_account_id"
+    t.index ["stock_layer_id"], name: "index_erp_stock_consumptions_on_stock_layer_id"
+  end
+
+  create_table "erp_stock_layers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_product_id", null: false
+    t.bigint "warehouse_id", null: false
+    t.decimal "qty_in", precision: 16, scale: 3, null: false
+    t.decimal "qty_remaining", precision: 16, scale: 3, null: false
+    t.bigint "unit_cost_micros", default: 0, null: false
+    t.datetime "received_at", null: false
+    t.string "source_type", null: false
+    t.bigint "source_id"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "crm_product_id", "warehouse_id", "received_at"], name: "idx_erp_stock_layers_fifo"
+    t.index ["account_id"], name: "index_erp_stock_layers_on_account_id"
+    t.index ["source_type", "source_id"], name: "index_erp_stock_layers_on_source_type_and_source_id"
+  end
+
   create_table "erp_voucher_lines", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "voucher_id", null: false
@@ -3888,6 +3920,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_19_000012) do
   add_foreign_key "erp_receipt_allocations", "erp_receipt_records", column: "receipt_record_id", on_delete: :cascade
   add_foreign_key "erp_receipt_allocations", "erp_receivables", column: "receivable_id", on_delete: :restrict
   add_foreign_key "erp_receivable_installments", "erp_receivables", column: "receivable_id", on_delete: :cascade
+  add_foreign_key "erp_stock_consumptions", "erp_stock_layers", column: "stock_layer_id", on_delete: :restrict
+  add_foreign_key "erp_stock_consumptions", "mes_stock_entries", on_delete: :cascade
+  add_foreign_key "erp_stock_layers", "crm_products", on_delete: :restrict
+  add_foreign_key "erp_stock_layers", "mes_warehouses", column: "warehouse_id", on_delete: :restrict
   add_foreign_key "erp_voucher_lines", "erp_ledger_accounts", column: "ledger_account_id", on_delete: :restrict
   add_foreign_key "erp_voucher_lines", "erp_vouchers", column: "voucher_id", on_delete: :cascade
   add_foreign_key "erp_vouchers", "erp_vouchers", column: "reversal_of_id", on_delete: :nullify

@@ -174,12 +174,22 @@ class Mes::Shipment < ApplicationRecord
       entry.post!
       update_columns(status: 'SHIPPED', shipped_at: ts, updated_at: ts)
       writeback_sales_order(ts)
+      rollup_erp_stock_cost(entry)
     end
     Mes::Notifier.resolve(account: account, kinds: 'shipment_approved', title_like: shipment_no)
     self
   end
 
   private
+
+  # 现货出库的成本＝该出库单 FIFO 耗掉的批次层金额，挂到销售订单上（库存单轨道的成本来源）。
+  # 定制单不走这里——它的成本已由 CostRollupService 按领料/外协归集，再挂一次就翻倍。
+  # ERP 不能挡住仓库出库，异常只记日志。
+  def rollup_erp_stock_cost(entry)
+    Erp::StockCostService.new(account).attribute_shipment!(self, entry)
+  rescue StandardError => e
+    Rails.logger.error("[Erp::StockCost] 出库单 #{shipment_no} 成本归集失败: #{e.message}")
+  end
 
   def product_line_source = production_order
 

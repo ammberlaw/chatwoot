@@ -54,6 +54,12 @@ class Erp::CostRollupService
     write_row(existing, production_order, amount, cost_type)
   end
 
+  # 该生产订单的归集成本（本位币 micros）。FIFO 给自产成品定价时复用：
+  # 成品单位成本 = 本方法 ÷ 完工入库数量。不另写一套算法，避免两处口径分叉。
+  def production_cost_micros(production_order)
+    amount_for(production_order).first
+  end
+
   private
 
   def production_orders_of(sales_order_ids)

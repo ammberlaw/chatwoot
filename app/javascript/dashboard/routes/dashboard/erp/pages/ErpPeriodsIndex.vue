@@ -5,6 +5,8 @@ import { useErpRole } from 'dashboard/composables/useErpRole';
 import { useMapGetter } from 'dashboard/composables/store';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
 import ErpFiscalPeriodAPI from 'dashboard/api/erp/fiscalPeriods';
+import ErpStockLayerAPI from 'dashboard/api/erp/stockLayers';
+import { downloadBlob } from 'dashboard/helper/erpDownload';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -31,12 +33,58 @@ const loading = ref(false);
 const TABS = [
   { key: 'close', label: '期末结账' },
   { key: 'opening', label: '期初建账' },
+  { key: 'stock', label: '成品存货' },
   { key: 'reconcile', label: '两账对平' },
   { key: 'revalue', label: '期末调汇' },
   { key: 'baddebt', label: '坏账计提' },
   { key: 'yearend', label: '年度结转' },
 ];
 const activeTab = ref('close');
+
+/* ---------------- 成品存货（FIFO 批次层） ---------------- */
+// 金蝶用先进先出，我们照同一口径：每次入库一层，出库按进货先后逐层扣。
+// 这一页给财务看当前批次与账面价值，并把金蝶导出的期初批次导进来。
+const stockLayers = ref([]);
+const stockMeta = ref({});
+const stockIncludeEmpty = ref(false);
+const stockImporting = ref(false);
+const stockFileRef = ref(null);
+
+const loadStockLayers = async () => {
+  loading.value = true;
+  try {
+    const { data } = await ErpStockLayerAPI.get({
+      include_empty: stockIncludeEmpty.value ? 'true' : undefined,
+      per_page: 100,
+    });
+    stockLayers.value = data.payload;
+    stockMeta.value = data.meta;
+  } finally {
+    loading.value = false;
+  }
+};
+
+const downloadStockTemplate = async () => {
+  const { data } = await ErpStockLayerAPI.importTemplate();
+  downloadBlob(data, '成品期初存货模板.csv');
+};
+
+const onStockFile = async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  stockImporting.value = true;
+  try {
+    const { data } = await ErpStockLayerAPI.import(file);
+    const r = data.payload;
+    useAlert(`已导入 ${r.created} 条期初批次，合计 ${r.total_qty} 件`);
+    await loadStockLayers();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '导入失败');
+  } finally {
+    stockImporting.value = false;
+    event.target.value = '';
+  }
+};
 const accountStore = useErpLedgerAccountsStore();
 
 /* 期初建账：一张特殊凭证，借贷必平才让存 */
@@ -259,6 +307,7 @@ const switchTab = async key => {
   if (key === 'opening') await loadOpening();
   if (key === 'reconcile') await loadReconcile();
   if (key === 'revalue') await loadRevaluation();
+  if (key === 'stock') await loadStockLayers();
 };
 
 const closable = row =>
@@ -427,6 +476,118 @@ onMounted(load);
       </div>
       <p class="mt-4 text-xs text-n-slate-10">
         期初会生成一张已记账的「期初建账」凭证（日期＝启用日），账簿与报表的期初余额由它带出；重新保存＝整张替换。
+      </p>
+    </div>
+
+    <!-- 成品存货（FIFO 批次层） -->
+    <div
+      v-else-if="activeTab === 'stock'"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+    >
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <span class="text-sm text-n-slate-11">
+          结存
+          <span class="font-mono text-n-slate-12">
+            {{ stockMeta.qty || 0 }}
+          </span>
+          件 · 账面价值
+          <span class="font-mono text-n-slate-12">
+            {{ money(stockMeta.amount_micros) }}
+          </span>
+        </span>
+        <!-- 批次层是 ERP 的成本账，实物结存是仓库的账；差额＝有货没成本（期初漏导那种） -->
+        <span v-if="stockMeta.diff_qty" class="text-sm text-n-amber-11">
+          实物结存 {{ stockMeta.physical_qty }} 件，比有成本的批次多
+          {{ stockMeta.diff_qty }} 件——这部分出库会按 0 成本结转，请补导期初
+        </span>
+        <label
+          class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
+        >
+          <input
+            v-model="stockIncludeEmpty"
+            type="checkbox"
+            class="accent-n-iris-9"
+            @change="loadStockLayers"
+          />
+          含已耗尽批次
+        </label>
+        <div class="flex items-center gap-2 ml-auto">
+          <Button
+            label="下载模板"
+            color="slate"
+            variant="faded"
+            size="sm"
+            @click="downloadStockTemplate"
+          />
+          <Button
+            v-if="canClose"
+            label="导入期初"
+            color="iris"
+            size="sm"
+            :is-loading="stockImporting"
+            @click="stockFileRef?.click()"
+          />
+          <input
+            ref="stockFileRef"
+            type="file"
+            accept=".csv"
+            class="hidden"
+            @change="onStockFile"
+          />
+        </div>
+      </div>
+
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left border-b text-n-slate-11 border-n-weak">
+            <th class="px-3 py-3 font-medium">入库日期</th>
+            <th class="px-3 py-3 font-medium">成品</th>
+            <th class="px-3 py-3 font-medium">仓库</th>
+            <th class="px-3 py-3 font-medium text-right">入库数</th>
+            <th class="px-3 py-3 font-medium text-right">剩余</th>
+            <th class="px-3 py-3 font-medium text-right">单位成本</th>
+            <th class="px-3 py-3 font-medium text-right">结存金额</th>
+            <th class="px-3 py-3 font-medium">来源</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="row in stockLayers"
+            :key="row.id"
+            class="border-b border-n-weak"
+          >
+            <td class="px-3 py-2 text-n-slate-11">
+              {{ (row.received_at || '').slice(0, 10) }}
+            </td>
+            <td class="px-3 py-2 text-n-slate-12">
+              {{ row.product_name }}
+              <span class="text-xs text-n-slate-10">{{ row.product_sku }}</span>
+            </td>
+            <td class="px-3 py-2 text-n-slate-11">{{ row.warehouse_name }}</td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-11">
+              {{ row.qty_in }}
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+              {{ row.qty_remaining }}
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-11">
+              {{ money(row.unit_cost_micros) }}
+            </td>
+            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+              {{ money(row.amount_remaining_micros) }}
+            </td>
+            <td class="px-3 py-2 text-xs text-n-slate-10">{{ row.remark }}</td>
+          </tr>
+          <tr v-if="!stockLayers.length">
+            <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+              还没有成品批次。点「导入期初」把金蝶里现有的成品批次搬进来，之后采购收货与完工入库会自动建批次。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="mt-4 text-xs text-n-slate-10">
+        先进先出：出库按入库日期从早到晚逐层扣成本，与金蝶同口径。现货出库的成本自动挂到对应销售订单（毛利表可见）；
+        定制单的成本走领料归集，不在这里。
       </p>
     </div>
 
