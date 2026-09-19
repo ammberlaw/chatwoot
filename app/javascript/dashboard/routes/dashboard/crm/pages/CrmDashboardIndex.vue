@@ -309,6 +309,14 @@ const ownerRank = computed(() => {
   };
 });
 
+// 排行图高度随人数增长（每人 34px，不足一屏则铺满 h-72=288px），
+// 外层容器 overflow-y-auto 才能滚——图表分支不像经典灰那样自带列表滚动。
+const RANK_ROW_PX = 34;
+const RANK_MIN_PX = 288;
+const rankChartHeight = computed(
+  () => `${Math.max(RANK_MIN_PX, ownerRank.value.labels.length * RANK_ROW_PX)}px`
+);
+
 // ── 业务员资料完善度（越高越好，降序排） ──
 const ownerCompleteness = computed(() => {
   const by = stats.value?.team?.by_owner_completeness || {};
@@ -429,7 +437,7 @@ const PERIODS = [
 
 <template>
   <div
-    class="flex flex-col w-full h-full max-md:min-h-[100dvh] max-md:-mb-24 gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <!-- 顶栏 -->
     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -602,15 +610,18 @@ const PERIODS = [
                 </div>
               </div>
             </div>
-            <CrmBarChart
-              v-else
-              :key="themeSignal"
-              :labels="ownerRank.labels.slice(0, 8)"
-              :data="ownerRank.data.slice(0, 8)"
-              horizontal
-              show-values
-              :value-format="moneyYuan"
-            />
+            <div v-else class="h-full overflow-y-auto pr-1">
+              <div :style="{ height: rankChartHeight }">
+                <CrmBarChart
+                  :key="themeSignal"
+                  :labels="ownerRank.labels"
+                  :data="ownerRank.data"
+                  horizontal
+                  show-values
+                  :value-format="moneyYuan"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
