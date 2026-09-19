@@ -7,7 +7,10 @@ describe ConversationFinder do
   let!(:user_1) { create(:user, account: account) }
   let!(:user_2) { create(:user, account: account) }
   let!(:admin) { create(:user, account: account, role: :administrator) }
-  let!(:inbox) { create(:inbox, account: account, enable_auto_assignment: false) }
+  # 个人号收件箱：本人看得见整箱，所以下面测筛选/排序/计数的用例照旧覆盖未分配、
+  # 分给同事等各种会话。**公共收件箱只看分给自己的**，那套口径在
+  # spec/services/conversations/visibility_spec.rb 里单独测。
+  let!(:inbox) { create(:inbox, :personal_whatsapp, account: account, enable_auto_assignment: false) }
   let!(:contact_inbox) { create(:contact_inbox, inbox: inbox, source_id: 'testing_source_id') }
   let!(:restricted_inbox) { create(:inbox, account: account) }
 
@@ -43,9 +46,21 @@ describe ConversationFinder do
         expect(result[:conversations].map(&:id)).to include(restricted_conversation.id)
       end
 
-      it 'returns conversation from inbox if agent is its member' do
+      # 2026-09-19 收紧：公共收件箱里「是成员」不再等于「看得见整箱」——
+      # 公司 WhatsApp 号十几个成员全是业务员，按原口径每个人都看得见全公司的客户会话。
+      # 只有分到自己头上的那几条才可见（个人号收件箱另算，见 Conversations::Visibility）。
+      it 'does not return unassigned conversations from a shared inbox even if agent is its member' do
         params = { inbox_id: restricted_inbox.id }
         create(:inbox_member, user: user_1, inbox: restricted_inbox)
+        result = described_class.new(user_1, params).perform
+
+        expect(result[:conversations].map(&:id)).not_to include(restricted_conversation.id)
+      end
+
+      it 'returns a shared-inbox conversation once it is assigned to the agent' do
+        params = { inbox_id: restricted_inbox.id }
+        create(:inbox_member, user: user_1, inbox: restricted_inbox)
+        restricted_conversation.update!(assignee: user_1)
         result = described_class.new(user_1, params).perform
 
         expect(result[:conversations].map(&:id)).to include(restricted_conversation.id)
@@ -280,14 +295,20 @@ describe ConversationFinder do
     context 'with unattended' do
       let(:params) { { status: 'open', assignee_type: 'me', conversation_type: 'unattended' } }
 
+      # ⚠️ 断言的是「哪几条」而不是「几条」：unattended 的口径是
+      # first_reply_created_at IS NULL **或** waiting_since IS NOT NULL，而 waiting_since
+      # 在建会话时会被自动填上——只数数量的话，已回复的会话也混在里面却看不出来。
       it 'returns unattended conversations' do
-        create(:conversation, account: account, first_reply_created_at: Time.now.utc, assignee: user_1) # attended_conversation
-        create(:conversation, account: account, first_reply_created_at: nil, assignee: user_1) # unattended_conversation_no_first_reply
-        create(:conversation, account: account, first_reply_created_at: Time.now.utc,
-                              assignee: user_1, waiting_since: Time.now.utc) # unattended_conversation_waiting_since
+        attended = create(:conversation, account: account, assignee: user_1,
+                                         first_reply_created_at: Time.now.utc)
+        attended.update_columns(waiting_since: nil)
+        no_first_reply = create(:conversation, account: account, assignee: user_1, first_reply_created_at: nil)
+        waiting_since = create(:conversation, account: account, assignee: user_1,
+                                              first_reply_created_at: Time.now.utc, waiting_since: Time.now.utc)
 
-        result = conversation_finder.perform
-        expect(result[:conversations].length).to be 2
+        ids = conversation_finder.perform[:conversations].map(&:id)
+        expect(ids).to include(no_first_reply.id, waiting_since.id)
+        expect(ids).not_to include(attended.id)
       end
     end
   end

@@ -5,7 +5,11 @@ describe NotificationListener do
   let!(:user) { create(:user, account: account) }
   let!(:first_agent) { create(:user, account: account) }
   let!(:agent_with_out_notification) { create(:user, account: account) }
-  let!(:inbox) { create(:inbox, account: account) }
+  # 站内通知走 NotificationBuilder → ConversationPolicy#show?，2026-09-19 起
+  # 「是收件箱成员」不再等于看得见会话（见 Conversations::Visibility）——
+  # 否则业务员会收到同事客户会话的通知，通知标题里就带着客户名。
+  # 这里用个人号收件箱：成员＝号主，整箱可见，原有「成员收不收得到通知」的语义保留。
+  let!(:inbox) { create(:inbox, :personal_whatsapp, account: account) }
   let!(:conversation) { create(:conversation, account: account, inbox: inbox, assignee: user) }
 
   describe 'conversation_created' do

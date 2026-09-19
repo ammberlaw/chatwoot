@@ -6,7 +6,10 @@ describe NotificationBuilder do
   describe '#perform' do
     let!(:account) { create(:account) }
     let!(:user) { create(:user, account: account) }
-    let!(:inbox) { create(:inbox, account: account) }
+    # 通知要不要发走 ConversationPolicy#show?，而「是收件箱成员」已不再等于看得见会话
+    # （2026-09-19 收紧，见 Conversations::Visibility）。个人号收件箱＝号主整箱可见，
+    # 这里测的是通知构建逻辑本身，用它把可见性这个前提坐实。
+    let!(:inbox) { create(:inbox, :personal_whatsapp, account: account) }
     let!(:primary_actor) { create(:conversation, account: account, inbox: inbox) }
 
     before do
