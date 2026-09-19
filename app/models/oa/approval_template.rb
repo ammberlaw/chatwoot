@@ -11,6 +11,7 @@
 #  cash_kind       :string
 #  cc_user_ids     :bigint           default([]), not null, is an Array
 #  description     :string
+#  erp_expense     :boolean          default(FALSE), not null
 #  flow            :jsonb            not null
 #  form_fields     :jsonb            not null
 #  icon            :string           default("i-lucide-file-check")

@@ -149,6 +149,7 @@ class Account < ApplicationRecord
   has_many :erp_depreciation_entries, class_name: 'Erp::DepreciationEntry', dependent: :destroy_async
   has_many :erp_order_costs, class_name: 'Erp::OrderCost', dependent: :destroy_async
   has_many :erp_voucher_templates, class_name: 'Erp::VoucherTemplate', dependent: :destroy_async
+  has_many :erp_expense_payouts, class_name: 'Erp::ExpensePayout', dependent: :destroy_async
   has_many :mes_suppliers, class_name: 'Mes::Supplier', dependent: :destroy_async
   has_many :mes_warehouses, class_name: 'Mes::Warehouse', dependent: :destroy_async
   has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async

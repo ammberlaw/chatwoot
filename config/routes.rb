@@ -394,6 +394,11 @@ Rails.application.routes.draw do
             resources :payment_records, only: [:index, :show, :create, :update, :destroy] do
               member { post :void }
             end
+            # 费用报销打款（承接 OA 审批通过后的财务动作）
+            resources :expense_payouts, only: [:index, :show, :create, :update] do
+              collection { get :pending }
+              member { post :void }
+            end
             resources :cash_accounts, only: [:index, :show, :create, :update, :destroy] do
               collection do
                 get :transactions

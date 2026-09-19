@@ -29,10 +29,10 @@
 #  index_erp_order_costs_on_source                    (account_id,source_type,source_id) UNIQUE WHERE (source_type IS NOT NULL)
 #
 class Erp::OrderCost < ApplicationRecord
-  COST_TYPES = %w[MATERIAL PROCESS FREIGHT COMMISSION OTHER].freeze
+  COST_TYPES = %w[MATERIAL PROCESS FREIGHT COMMISSION EXPENSE OTHER].freeze
   COST_TYPE_LABELS = {
     'MATERIAL' => '材料成本', 'PROCESS' => '加工/外协', 'FREIGHT' => '运费',
-    'COMMISSION' => '佣金', 'OTHER' => '其他'
+    'COMMISSION' => '佣金', 'EXPENSE' => '报销费用', 'OTHER' => '其他'
   }.freeze
 
   belongs_to :account

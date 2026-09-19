@@ -114,6 +114,7 @@ const form = ref({
   icon: ICONS[2],
   active: true,
   attendanceKind: '',
+  erpExpense: false,
   fields: [],
   flow: [],
   ccUserIds: [],
@@ -155,6 +156,7 @@ const resetForm = () => {
     icon: ICONS[2],
     active: true,
     attendanceKind: '',
+    erpExpense: false,
     fields: [],
     flow: [],
     ccUserIds: [],
@@ -175,6 +177,7 @@ const openEdit = tpl => {
     icon: tpl.icon || ICONS[2],
     active: tpl.active !== false,
     attendanceKind: tpl.attendance_kind || '',
+    erpExpense: !!tpl.erp_expense,
     fields: (tpl.form_fields || []).map(f => ({
       seq: nextSeq(),
       key: f.key,
@@ -354,6 +357,7 @@ const save = async () => {
     icon: form.value.icon,
     active: form.value.active,
     attendance_kind: form.value.attendanceKind || null,
+    erp_expense: form.value.erpExpense,
     form_fields: form.value.fields.map(f => ({
       key: f.key,
       label: f.label.trim() || f.key,
@@ -519,6 +523,24 @@ onMounted(async () => {
           />
           <span v-if="form.attendanceKind" class="text-xs text-n-slate-10">
             表单需包含日期字段：请假取最早/最晚两个日期为区间，补卡取第一个日期；整单审批通过后自动写入考勤（留痕）。
+          </span>
+        </label>
+
+        <!-- 财务联动：标记后，审批通过的单会进 ERP「费用报销」待打款列表 -->
+        <label class="flex flex-col gap-1">
+          <span class="text-sm font-medium text-n-slate-12">财务联动</span>
+          <span
+            class="inline-flex items-center gap-2 text-sm cursor-pointer text-n-slate-11"
+          >
+            <input
+              v-model="form.erpExpense"
+              type="checkbox"
+              class="accent-n-iris-9"
+            />
+            这是费用报销单（审批通过后进财务「待打款」列表）
+          </span>
+          <span v-if="form.erpExpense" class="text-xs text-n-slate-10">
+            表单需包含金额字段（type=金额）；财务打款后自动记出纳日记账与待过账凭证，挂了订单的进订单成本。
           </span>
         </label>
 

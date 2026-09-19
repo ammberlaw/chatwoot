@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_19_000014) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_19_000016) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2189,6 +2189,29 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_19_000014) do
     t.index ["fixed_asset_id"], name: "index_erp_depreciation_entries_on_fixed_asset_id"
   end
 
+  create_table "erp_expense_payouts", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "oa_approval_request_id", null: false
+    t.string "payout_no", null: false
+    t.bigint "amount_micros", null: false
+    t.bigint "expense_ledger_account_id", null: false
+    t.bigint "cash_account_id", null: false
+    t.bigint "crm_sales_order_id"
+    t.string "cost_type"
+    t.date "paid_at", null: false
+    t.string "status", default: "NORMAL", null: false
+    t.text "remark"
+    t.bigint "recorded_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "oa_approval_request_id"], name: "uniq_erp_expense_payout_live_request", unique: true, where: "((status)::text <> 'VOID'::text)"
+    t.index ["account_id", "paid_at"], name: "index_erp_expense_payouts_on_account_id_and_paid_at"
+    t.index ["account_id", "payout_no"], name: "index_erp_expense_payouts_on_account_id_and_payout_no", unique: true
+    t.index ["account_id"], name: "index_erp_expense_payouts_on_account_id"
+    t.index ["crm_sales_order_id"], name: "index_erp_expense_payouts_on_crm_sales_order_id"
+    t.index ["oa_approval_request_id"], name: "index_erp_expense_payouts_on_oa_approval_request_id"
+  end
+
   create_table "erp_fiscal_periods", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "period", null: false
@@ -3430,6 +3453,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_19_000014) do
     t.string "attendance_kind"
     t.bigint "cc_user_ids", default: [], null: false, array: true
     t.string "cash_kind"
+    t.boolean "erp_expense", default: false, null: false
     t.index ["account_id"], name: "index_oa_approval_templates_on_account_id"
   end
 
@@ -3915,6 +3939,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_19_000014) do
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
   add_foreign_key "erp_cash_transactions", "erp_cash_accounts", column: "cash_account_id", on_delete: :restrict
   add_foreign_key "erp_depreciation_entries", "erp_fixed_assets", column: "fixed_asset_id", on_delete: :cascade
+  add_foreign_key "erp_expense_payouts", "crm_sales_orders", on_delete: :nullify
+  add_foreign_key "erp_expense_payouts", "erp_cash_accounts", column: "cash_account_id"
+  add_foreign_key "erp_expense_payouts", "erp_ledger_accounts", column: "expense_ledger_account_id"
+  add_foreign_key "erp_expense_payouts", "oa_approval_requests", on_delete: :cascade
   add_foreign_key "erp_ledger_accounts", "erp_ledger_accounts", column: "parent_id", on_delete: :restrict
   add_foreign_key "erp_payment_allocations", "erp_payables", column: "payable_id", on_delete: :restrict
   add_foreign_key "erp_payment_allocations", "erp_payment_records", column: "payment_record_id", on_delete: :cascade

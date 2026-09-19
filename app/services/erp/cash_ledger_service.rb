@@ -110,11 +110,19 @@ class Erp::CashLedgerService
     record.respond_to?(:received_at) ? record.received_at : record.paid_at
   end
 
+  # 单号字段各单据自己叫自己的名字（收款 receipt_no / 付款 payment_no / 报销打款 payout_no）。
   def document_no(record)
-    record.respond_to?(:receipt_no) ? record.receipt_no : record.payment_no
+    %i[receipt_no payment_no payout_no].each do |attr|
+      return record.public_send(attr) if record.respond_to?(attr)
+    end
+    nil
   end
 
+  # 流水的对方单位：客户 / 供应商 / 报销人。
   def counterparty(record)
-    record.respond_to?(:crm_customer) ? record.crm_customer&.name : record.mes_supplier&.name
+    return record.crm_customer&.name if record.respond_to?(:crm_customer)
+    return record.mes_supplier&.name if record.respond_to?(:mes_supplier)
+
+    record.applicant&.name if record.respond_to?(:applicant)
   end
 end

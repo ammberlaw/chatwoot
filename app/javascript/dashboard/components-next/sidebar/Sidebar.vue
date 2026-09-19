@@ -1159,6 +1159,7 @@ const menuItems = computed(() => {
           'erp_periods_index',
           'erp_fixed_assets_index',
           'erp_margin_index',
+          'erp_expenses_index',
         ],
         children: [
           {
@@ -1214,6 +1215,12 @@ const menuItems = computed(() => {
             label: '成本毛利',
             to: accountScopedRoute('erp_margin_index'),
             activeOn: ['erp_margin_index'],
+          },
+          {
+            name: 'ERP Expenses',
+            label: '费用报销',
+            to: accountScopedRoute('erp_expenses_index'),
+            activeOn: ['erp_expenses_index'],
           },
           {
             name: 'ERP Fixed Assets',
@@ -2003,6 +2010,7 @@ const ROUTE_MODULE = {
   erp_periods_index: 'erp',
   erp_fixed_assets_index: 'erp',
   erp_margin_index: 'erp',
+  erp_expenses_index: 'erp',
   tiktok_today_index: 'tiktok',
   tiktok_dashboard_index: 'tiktok',
   tiktok_sales_records_index: 'tiktok',

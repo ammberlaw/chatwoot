@@ -26,12 +26,14 @@ class Erp::AutoVoucherRule < ApplicationRecord
   RECEIPT = 'RECEIPT'.freeze
   PAYMENT = 'PAYMENT'.freeze
   CASH_TRANSFER = 'CASH_TRANSFER'.freeze
-  EVENT_KEYS = [RECEIPT, PAYMENT, CASH_TRANSFER].freeze
+  EXPENSE_PAYOUT = 'EXPENSE_PAYOUT'.freeze
+  EVENT_KEYS = [RECEIPT, PAYMENT, CASH_TRANSFER, EXPENSE_PAYOUT].freeze
 
   DEFAULTS = {
     RECEIPT => { name: '收款单 → 借 货币资金 / 贷 应收账款', keys: %w[fee_account_id receivable_account_id] },
     PAYMENT => { name: '付款单 → 借 应付账款 / 贷 货币资金', keys: %w[fee_account_id payable_account_id] },
-    CASH_TRANSFER => { name: '内部划转 → 借 转入账户 / 贷 转出账户', keys: [] }
+    CASH_TRANSFER => { name: '内部划转 → 借 转入账户 / 贷 转出账户', keys: [] },
+    EXPENSE_PAYOUT => { name: '报销打款 → 借 费用科目 / 贷 货币资金', keys: [] }
   }.freeze
 
   belongs_to :account
@@ -39,7 +41,7 @@ class Erp::AutoVoucherRule < ApplicationRecord
   validates :event_key, inclusion: { in: EVENT_KEYS }, uniqueness: { scope: :account_id }
   validates :name, presence: true
 
-  # 首访自动建三条预置规则（默认全部启用）。
+  # 首访自动建预置规则（默认全部启用）；新增规则的账号下次访问时自动补建。
   def self.ensure_defaults!(account)
     DEFAULTS.each do |event_key, spec|
       account.erp_auto_voucher_rules.find_or_create_by!(event_key: event_key) do |rule|

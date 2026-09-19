@@ -85,6 +85,23 @@ class Erp::AutoVoucherService
                     summary: "内部划转 #{from_account.name} → #{to_account.name}", lines: lines)
   end
 
+  # 报销打款：借 费用科目 / 贷 货币资金。报销恒为本位币，不涉及外币倒挤。
+  def for_expense_payout(payout)
+    return if skip?(Erp::AutoVoucherRule::EXPENSE_PAYOUT, payout)
+
+    cash = cash_account_for(payout)
+    expense = payout.expense_ledger_account
+    return if cash.blank? || expense.blank?
+
+    lines = [
+      line(account: expense, direction: 'DEBIT', amount_micros: payout.amount_micros, record: payout,
+           summary: '报销费用'),
+      line(account: cash, direction: 'CREDIT', amount_micros: payout.amount_micros, record: payout,
+           summary: '支付报销款')
+    ]
+    build_voucher(payout, "报销 #{payout.payout_no} · #{payout.applicant&.name}", payout.paid_at, lines)
+  end
+
   # 单据作废：DRAFT 凭证直接作废；已过账的留给财务红冲（返回该凭证号供页面提示）。
   def void_for(record)
     voucher = existing_voucher(record)
@@ -100,8 +117,15 @@ class Erp::AutoVoucherService
 
   private
 
+  # 找不到该事件的规则就补建一次默认规则再找。
+  # ⚠️ 原来只在规则表**整个为空**时才建：老账号已有前几条规则，后来新增的事件（如报销打款）
+  # 永远补不到规则，凭证静默不生成——业务照走、总账少一张，等对账时才发现。
+  # ensure_defaults! 是 find_or_create_by! 幂等，不会动财务已改过的启用状态与科目映射。
   def rule_for(event_key)
-    Erp::AutoVoucherRule.ensure_defaults!(@account) if @account.erp_auto_voucher_rules.empty?
+    rule = @account.erp_auto_voucher_rules.find_by(event_key: event_key)
+    return rule if rule
+
+    Erp::AutoVoucherRule.ensure_defaults!(@account)
     @account.erp_auto_voucher_rules.find_by(event_key: event_key)
   end
 
