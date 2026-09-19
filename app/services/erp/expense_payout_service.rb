@@ -80,6 +80,44 @@ class Erp::ExpensePayoutService
     )
   end
 
+  # 打款：落单 + 三个副作用（出纳流水 / 待过账凭证 / 挂订单的成本行），要么一起成要么全不动。
+  # 通知放在事务外——事务回滚了就不该有「已打款」的通知发出去。
+  def pay!(attrs, actor:)
+    payout = @account.erp_expense_payouts.new(attrs)
+    payout.recorded_by_id = actor&.id
+    ActiveRecord::Base.transaction do
+      payout.save!
+      apply_side_effects(payout, actor)
+    end
+    notify_paid(payout)
+    payout
+  end
+
+  # 改单：金额/科目/账户/挂单都可能变，三个副作用整体重算（流水按净额冲旧记新）。
+  def update_payout!(payout, attrs, actor:)
+    ActiveRecord::Base.transaction do
+      # 换审批单＝另一张单，不许在原记录上改（否则原单又变回「待打款」且流水对不上来源）。
+      payout.update!(attrs.except(:oa_approval_request_id, 'oa_approval_request_id'))
+      apply_side_effects(payout, actor)
+    end
+    payout
+  end
+
+  # 作废：状态 + 流水冲销 + 成本行删除同一事务；凭证另算——已过账的动不了，
+  # 返回它的凭证号让页面提示财务去红冲。账套锁串行化并发/重复作废。
+  def void!(payout, actor:)
+    posted_voucher_no = nil
+    Erp::AccountLock.with_account_lock(@account.id, "expense_payout:#{payout.id}") do
+      ActiveRecord::Base.transaction do
+        payout.update!(status: Erp::ExpensePayout::VOID)
+        Erp::CashLedgerService.new(@account, actor).reverse_for(payout)
+        sync_order_cost(payout)
+      end
+      posted_voucher_no = Erp::AutoVoucherService.new(@account).void_for(payout)
+    end
+    posted_voucher_no
+  end
+
   # 打款完成通知报销人：钱什么时候到账，员工最关心这个。
   def notify_paid(payout)
     applicant = payout.applicant
@@ -93,6 +131,12 @@ class Erp::ExpensePayoutService
   end
 
   private
+
+  def apply_side_effects(payout, actor)
+    Erp::CashLedgerService.new(@account, actor).sync_for(payout, direction: Erp::CashTransaction::OUT)
+    Erp::AutoVoucherService.new(@account).for_expense_payout(payout)
+    sync_order_cost(payout)
+  end
 
   def cost_attrs(payout)
     {

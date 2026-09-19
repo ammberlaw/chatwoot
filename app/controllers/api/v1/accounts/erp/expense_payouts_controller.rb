@@ -29,16 +29,10 @@ class Api::V1::Accounts::Erp::ExpensePayoutsController < Api::V1::Accounts::Erp:
   def show; end
 
   def create
-    @payout = Current.account.erp_expense_payouts.new(payout_params)
-    @payout.recorded_by_id = current_user.id
-    guard = closed_period_for(@payout.paid_at)
-    return render_closed(guard) if guard
+    closed = closed_period_for(payout_params[:paid_at])
+    return render_closed(closed, action: '打款') if closed
 
-    ActiveRecord::Base.transaction do
-      @payout.save!
-      sync_side_effects
-    end
-    service.notify_paid(@payout)
+    @payout = service.pay!(payout_params, actor: current_user)
     render 'api/v1/accounts/erp/expense_payouts/show'
   rescue ActiveRecord::RecordNotUnique
     render json: { error: '该报销单已打过款，请刷新列表' }, status: :unprocessable_entity
@@ -53,11 +47,7 @@ class Api::V1::Accounts::Erp::ExpensePayoutsController < Api::V1::Accounts::Erp:
     closed = closed_period_for(@payout.paid_at, payout_params[:paid_at])
     return render_closed(closed) if closed
 
-    ActiveRecord::Base.transaction do
-      # 换审批单＝另一张单，不许在原记录上改（否则原单又变回「待打款」且流水对不上来源）。
-      @payout.update!(payout_params.except(:oa_approval_request_id))
-      sync_side_effects
-    end
+    service.update_payout!(@payout, payout_params, actor: current_user)
     render 'api/v1/accounts/erp/expense_payouts/show'
   rescue Erp::AutoVoucherService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -69,26 +59,11 @@ class Api::V1::Accounts::Erp::ExpensePayoutsController < Api::V1::Accounts::Erp:
     closed = closed_period_for(@payout.paid_at)
     return render_closed(closed, action: '作废') if closed
 
-    # 三副作用与状态同一把账套锁：整体回滚防「钱冲了成本还在」，并发重复作废串行化。
-    Erp::AccountLock.with_account_lock(Current.account.id, "expense_payout:#{@payout.id}") do
-      ActiveRecord::Base.transaction do
-        @payout.update!(status: Erp::ExpensePayout::VOID)
-        Erp::CashLedgerService.new(Current.account, current_user).reverse_for(@payout)
-        service.sync_order_cost(@payout)
-      end
-      @posted_voucher_no = Erp::AutoVoucherService.new(Current.account).void_for(@payout)
-    end
+    @posted_voucher_no = service.void!(@payout, actor: current_user)
     render 'api/v1/accounts/erp/expense_payouts/show'
   end
 
   private
-
-  # 打款单落库后：记一笔资金流出 + 生成待过账凭证 + 挂订单的进成本台账。
-  def sync_side_effects
-    Erp::CashLedgerService.new(Current.account, current_user).sync_for(@payout, direction: Erp::CashTransaction::OUT)
-    Erp::AutoVoucherService.new(Current.account).for_expense_payout(@payout)
-    service.sync_order_cost(@payout)
-  end
 
   def filtered_scope
     scope = Current.account.erp_expense_payouts
