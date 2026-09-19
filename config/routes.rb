@@ -397,6 +397,7 @@ Rails.application.routes.draw do
             resources :cash_accounts, only: [:index, :show, :create, :update, :destroy] do
               collection do
                 get :transactions
+                get :report
                 post :transfer
               end
             end

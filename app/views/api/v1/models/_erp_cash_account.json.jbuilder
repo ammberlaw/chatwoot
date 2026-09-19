@@ -8,6 +8,7 @@ json.bank_name resource.bank_name
 json.ledger_account_id resource.ledger_account_id
 json.ledger_account_label resource.ledger_account&.label
 json.opening_balance_micros resource.opening_balance_micros
+json.opening_base_amount_micros resource.opening_base_amount_micros
 json.balance_micros resource.balance_micros
 json.is_active resource.is_active
 json.position resource.position

@@ -4,20 +4,21 @@
 #
 # Table name: erp_cash_accounts
 #
-#  id                     :bigint           not null, primary key
-#  account_no             :string
-#  bank_name              :string
-#  currency               :string           default("CNY"), not null
-#  is_active              :boolean          default(TRUE), not null
-#  kind                   :string           default("BANK"), not null
-#  name                   :string           not null
-#  opening_balance_micros :bigint           default(0), not null
-#  position               :integer          default(0), not null
-#  remark                 :text
-#  created_at             :datetime         not null
-#  updated_at             :datetime         not null
-#  account_id             :bigint           not null
-#  ledger_account_id      :bigint
+#  id                         :bigint           not null, primary key
+#  account_no                 :string
+#  bank_name                  :string
+#  currency                   :string           default("CNY"), not null
+#  is_active                  :boolean          default(TRUE), not null
+#  kind                       :string           default("BANK"), not null
+#  name                       :string           not null
+#  opening_balance_micros     :bigint           default(0), not null
+#  opening_base_amount_micros :bigint
+#  position                   :integer          default(0), not null
+#  remark                     :text
+#  created_at                 :datetime         not null
+#  updated_at                 :datetime         not null
+#  account_id                 :bigint           not null
+#  ledger_account_id          :bigint
 #
 # Indexes
 #

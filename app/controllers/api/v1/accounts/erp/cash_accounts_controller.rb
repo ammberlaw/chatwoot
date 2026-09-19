@@ -38,6 +38,13 @@ class Api::V1::Accounts::Erp::CashAccountsController < Api::V1::Accounts::Erp::B
     render 'api/v1/accounts/erp/cash_accounts/transactions'
   end
 
+  # 资金报表：一个期间里每个账户的期初/收/支/期末 + 折 CNY 合计（ERP_SPEC §9.3）。
+  def report
+    render json: { payload: Erp::CashReportService.new(Current.account).call(period: params[:period].to_s) }
+  rescue ArgumentError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   # 内部划转：转出一笔 + 转入一笔 + 自动凭证。
   def transfer
     Erp::CashLedgerService.new(Current.account, current_user).transfer!(
@@ -79,7 +86,7 @@ class Api::V1::Accounts::Erp::CashAccountsController < Api::V1::Accounts::Erp::B
   def cash_account_params
     params.require(:cash_account).permit(
       :name, :kind, :currency, :account_no, :bank_name, :ledger_account_id,
-      :opening_balance_micros, :is_active, :position, :remark
+      :opening_balance_micros, :opening_base_amount_micros, :is_active, :position, :remark
     )
   end
 end

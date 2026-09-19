@@ -2,6 +2,8 @@ class Erp::CashAccountPolicy < ApplicationPolicy
   def index? = @account_user.can_access_erp?
   def show? = @account_user.can_access_erp?
   def transactions? = @account_user.can_access_erp?
+  # 资金报表是只读的管理口径表，与看日记账同权。
+  def report? = @account_user.can_access_erp?
 
   # 资金账户与划转是出纳的活：cash 能力域（财务与出纳都有）。
   def create? = @account_user.erp_can?(:cash)
