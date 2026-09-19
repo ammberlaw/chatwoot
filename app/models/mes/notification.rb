@@ -37,6 +37,7 @@ class Mes::Notification < ApplicationRecord
     shipment_approval_pending shipment_approved shipment_rejected
     document_returned
     forwarded
+    erp_installment_due erp_payable_due
   ].freeze
 
   belongs_to :account

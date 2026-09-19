@@ -129,3 +129,9 @@ mes_daily_alert_job:
   cron: '30 0 * * *'
   class: 'Mes::DailyAlertJob'
   queue: scheduled_jobs
+
+# ERP：催收预警（应收分期临期/逾期推业务员+财务，应付到期推财务），北京时间 09:00 = UTC 01:00
+erp_daily_alert_job:
+  cron: '0 1 * * *'
+  class: 'Erp::DailyAlertJob'
+  queue: scheduled_jobs
