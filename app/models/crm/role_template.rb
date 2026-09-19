@@ -1,4 +1,4 @@
-# 岗位权限模板：一个岗位打包好「系统角色 + 可进系统模块 + MES 岗位 + 财务权限」，
+# 岗位权限模板：一个岗位打包好「系统角色 + 可进系统模块 + MES 岗位 + ERP 财务岗位 + 财务权限」，
 # 管理员在成员权限页一键套用给某个成员。模板本身可增删改（不写死在代码里）。
 # == Schema Information
 #
@@ -6,6 +6,7 @@
 #
 #  id            :bigint           not null, primary key
 #  crm_finance   :boolean          default(FALSE), not null
+#  erp_role      :string
 #  mes_roles     :string           default([]), not null, is an Array
 #  module_access :string           default([]), not null, is an Array
 #  name          :string           not null
@@ -28,6 +29,7 @@ class Crm::RoleTemplate < ApplicationRecord
 
   validates :name, presence: true, uniqueness: { scope: :account_id }
   validates :system_role, inclusion: { in: SYSTEM_ROLES }
+  validates :erp_role, inclusion: { in: AccountUser::ERP_ROLES }, allow_blank: true
   validate :modules_and_mes_valid
 
   before_save :normalize_arrays
@@ -62,6 +64,7 @@ class Crm::RoleTemplate < ApplicationRecord
   def normalize_arrays
     self.module_access = Array(module_access).map(&:to_s).uniq & AccountUser::MODULES
     self.mes_roles = Array(mes_roles).map(&:to_s).uniq & AccountUser::MES_ROLES
+    self.erp_role = erp_role.presence
   end
 
   def modules_and_mes_valid

@@ -44,6 +44,6 @@ class Api::V1::Accounts::Crm::RoleTemplatesController < Api::V1::Accounts::Crm::
 
   def template_params
     params.require(:role_template)
-          .permit(:name, :system_role, :crm_finance, module_access: [], mes_roles: [])
+          .permit(:name, :system_role, :crm_finance, :erp_role, module_access: [], mes_roles: [])
   end
 end

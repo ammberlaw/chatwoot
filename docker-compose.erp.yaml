@@ -46,6 +46,8 @@ services:
       - NODE_OPTIONS=--max-old-space-size=6144
       - NODE_ENV=development
       - RAILS_ENV=development
+      # 这就是 ERP 的开发栈，板块默认要看得见（生产另有 compose，开关仍默认关）
+      - ERP_ENABLED=true
     entrypoint: docker/entrypoints/rails.sh
     command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
 
@@ -65,6 +67,7 @@ services:
     environment:
       - NODE_ENV=development
       - RAILS_ENV=development
+      - ERP_ENABLED=true
     command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
 
   vite:
@@ -84,6 +87,9 @@ services:
       - "3038:3036" # Vite dev server（独立端口，避免与 CRM/MES 撞）
     environment:
       - VITE_RUBY_HOST=0.0.0.0
+      # HMR 的 ws 客户端连的是【宿主发布端口】＝3038（见 vite.config.ts 注释）。
+      # 不设这个，浏览器会去连 3036 连不上，ws 报错把 SPA 启动整个阻断＝登录后白屏。
+      - VITE_HMR_CLIENT_PORT=3038
       - NODE_ENV=development
       - RAILS_ENV=development
     entrypoint: docker/entrypoints/vite.sh

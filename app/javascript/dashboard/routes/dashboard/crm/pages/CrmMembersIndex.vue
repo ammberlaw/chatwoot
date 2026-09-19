@@ -43,14 +43,13 @@ const ROLE_LEGEND = [
   { role: '无角色', desc: '仅共享模块（文档 / 审批 / 沟通 / 考勤）' },
 ];
 const LEGEND_NOTE =
-  '人事部门成员额外可维护组织架构、审批模板并自改密码。财务身份可与业务员身份叠加，用于查看全员已通过提成表并导出。模块开关控制能否使用对应业务系统（关闭 CRM 后即使有角色也无法进入）。';
+  '人事部门成员额外可维护组织架构、审批模板并自改密码。财务身份可与业务员身份叠加，用于查看全员已通过提成表并导出。模块开关控制能否使用对应业务系统（关闭 CRM 后即使有角色也无法进入）。ERP 要同时勾上 ERP 模块并选一个 ERP 岗位才进得去，两者缺一不可。';
 
 // 业务系统模块开关（与后端 AccountUser::MODULES 对应）
-// CRM/MES 已上线可设置；ERP 未上线，开关置灰，上线后去掉 disabled 即开放。
 const MODULE_OPTIONS = [
   { key: 'crm', label: 'CRM' },
   { key: 'mes', label: 'MES' },
-  { key: 'erp', label: 'ERP', disabled: true },
+  { key: 'erp', label: 'ERP' },
 ];
 
 // 一个下拉管到底：管理员/副管理员/部门负责人/业务员/无。自己那行不可改（防自锁）。
@@ -446,6 +445,40 @@ const toggleMesRole = async (member, roleVal) => {
   }
 };
 
+// ERP 财务岗位（与后端 AccountUser::ERP_ROLES 对应）。与 MES 多岗不同，财务条线一人一档。
+// 要进 ERP 必须「勾了 ERP 模块 + 选了岗位」两个条件都满足（管理员/副管理员天然可进）。
+const ERP_ROLE_OPTIONS = [
+  { value: '', label: '无（不进入 ERP）' },
+  { value: 'finance', label: '财务（全部账务）' },
+  { value: 'cashier', label: '出纳（只录收付款与资金）' },
+];
+const erpRoleValue = member => member?.erp_role || '';
+const erpRoleLabel = value =>
+  ERP_ROLE_OPTIONS.find(o => o.value === (value || ''))?.label || '无';
+
+// 勾了 ERP 模块、或已经有岗位（防止取消勾选后岗位藏起来没法清）时才显示这一行。
+const showErpRole = member =>
+  !!member &&
+  (member.is_admin ||
+    (member.module_access || []).includes('erp') ||
+    !!member.erp_role);
+
+const onErpRoleChange = async (member, value) => {
+  savingId.value = member.id;
+  try {
+    const { data } = await MembersAPI.update(member.id, {
+      member: { erp_role: value || '' },
+    });
+    Object.assign(member, data);
+    useAlert(L.saved);
+  } catch (e) {
+    useAlert(e.response?.data?.error || L.error);
+    fetchMembers();
+  } finally {
+    savingId.value = null;
+  }
+};
+
 // 财务身份：可查看全员「已通过」提成表并导出（与业务员身份叠加）。
 const onFinanceToggle = async (member, checked) => {
   savingId.value = member.id;
@@ -528,11 +561,12 @@ const templateSummary = tpl => {
     .map(v => MES_ROLE_OPTIONS.find(o => o.value === v)?.label || v)
     .join('、');
   if (mes) parts.push(`MES:${mes}`);
+  if (tpl.erp_role) parts.push(`ERP:${erpRoleLabel(tpl.erp_role)}`);
   if (tpl.crm_finance) parts.push('财务');
   return parts.join(' · ');
 };
 
-// 一键套用：把模板的角色/模块/MES岗位/财务一次性写到成员
+// 一键套用：把模板的角色/模块/MES岗位/ERP岗位/财务一次性写到成员
 const applyTemplate = async (member, tpl) => {
   savingId.value = member.id;
   try {
@@ -541,6 +575,7 @@ const applyTemplate = async (member, tpl) => {
         system_role: tpl.system_role || '',
         module_access: tpl.module_access || [],
         mes_roles: tpl.mes_roles || [],
+        erp_role: tpl.erp_role || '',
         crm_finance: !!tpl.crm_finance,
       },
     });
@@ -564,6 +599,7 @@ const templateForm = reactive({
   system_role: '',
   module_access: [],
   mes_roles: [],
+  erp_role: '',
   crm_finance: false,
 });
 
@@ -584,6 +620,7 @@ const startNewTemplate = () => {
     system_role: 'sales',
     module_access: ['crm'],
     mes_roles: [],
+    erp_role: '',
     crm_finance: false,
   });
   templateMode.value = 'edit';
@@ -596,6 +633,7 @@ const startEditTemplate = tpl => {
     system_role: tpl.system_role || '',
     module_access: [...(tpl.module_access || [])],
     mes_roles: [...(tpl.mes_roles || [])],
+    erp_role: tpl.erp_role || '',
     crm_finance: !!tpl.crm_finance,
   });
   templateMode.value = 'edit';
@@ -623,6 +661,7 @@ const saveTemplate = async () => {
     system_role: templateForm.system_role || '',
     module_access: templateForm.module_access,
     mes_roles: templateForm.mes_roles,
+    erp_role: templateForm.erp_role,
     crm_finance: templateForm.crm_finance,
   };
   try {
@@ -932,13 +971,7 @@ onMounted(() => {
                 <label
                   v-for="mod in MODULE_OPTIONS"
                   :key="mod.key"
-                  class="flex items-center gap-1.5 text-sm text-n-slate-11"
-                  :class="
-                    mod.disabled
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'cursor-pointer'
-                  "
-                  :title="mod.disabled ? '该模块未上线，上线后开放设置' : ''"
+                  class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
                 >
                   <input
                     type="checkbox"
@@ -946,17 +979,13 @@ onMounted(() => {
                     :checked="
                       (selectedMember.module_access || []).includes(mod.key)
                     "
-                    :disabled="
-                      savingId === selectedMember.id ||
-                      mod.disabled ||
-                      isManagerOnly
-                    "
+                    :disabled="savingId === selectedMember.id || isManagerOnly"
                     @change="
                       e =>
                         onModuleToggle(selectedMember, mod.key, e.target.checked)
                     "
                   />
-                  {{ mod.label }}{{ mod.disabled ? '（未上线）' : '' }}
+                  {{ mod.label }}
                 </label>
               </div>
             </div>
@@ -993,6 +1022,32 @@ onMounted(() => {
                 </button>
                 <span class="ml-1 text-xs text-n-slate-10">不选=只读</span>
               </div>
+            </div>
+
+            <!-- ERP 岗位（勾了 ERP 才出现；财务条线一人一档，与 MES 多岗不同） -->
+            <div
+              v-if="showErpRole(selectedMember)"
+              class="flex items-center gap-4"
+            >
+              <span class="flex-shrink-0 text-sm w-24 text-n-slate-11">
+                ERP 岗位
+              </span>
+              <span
+                v-if="selectedMember.is_admin"
+                class="text-sm text-n-slate-10"
+              >
+                全部账务
+              </span>
+              <Select
+                v-else
+                class="flex-1"
+                :model-value="erpRoleValue(selectedMember)"
+                :options="ERP_ROLE_OPTIONS"
+                :disabled="savingId === selectedMember.id || isManagerOnly"
+                @update:model-value="
+                  value => onErpRoleChange(selectedMember, value)
+                "
+              />
             </div>
           </div>
 
@@ -1321,6 +1376,7 @@ onMounted(() => {
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">系统角色</span>
           <Select
+            class="w-full"
             :model-value="templateForm.system_role"
             :options="templateRoleOptions"
             @update:model-value="v => (templateForm.system_role = v)"
@@ -1333,19 +1389,15 @@ onMounted(() => {
             <label
               v-for="mod in MODULE_OPTIONS"
               :key="mod.key"
-              class="flex items-center gap-1.5 text-sm text-n-slate-11"
-              :class="
-                mod.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-              "
+              class="flex items-center gap-1.5 text-sm cursor-pointer text-n-slate-11"
             >
               <input
                 type="checkbox"
                 class="accent-n-iris-9"
                 :checked="templateForm.module_access.includes(mod.key)"
-                :disabled="mod.disabled"
                 @change="toggleFormModule(mod.key)"
               />
-              {{ mod.label }}{{ mod.disabled ? '（未上线）' : '' }}
+              {{ mod.label }}
             </label>
           </div>
         </div>
@@ -1368,6 +1420,17 @@ onMounted(() => {
               {{ opt.label }}
             </button>
           </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <span class="text-xs text-n-slate-11"
+            >ERP 岗位（财务条线一人一档）</span
+          >
+          <Select
+            v-model="templateForm.erp_role"
+            class="w-full"
+            :options="ERP_ROLE_OPTIONS"
+          />
         </div>
 
         <label
