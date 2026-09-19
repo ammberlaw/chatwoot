@@ -12,6 +12,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
 // 成本与毛利：订单成本归集（材料/加工/运费/佣金/其他）+ 毛利报表（订单 / 业务员 / 客户维度）。
 // ⚠️ 权限墙核心区：这些数只在 ERP 内可见，销售端接口一律不输出。
@@ -81,6 +82,62 @@ const rollupFromMes = async () => {
     useAlert(error?.response?.data?.error || '归集失败');
   } finally {
     rollingUp.value = false;
+  }
+};
+
+// 导出 Excel。
+// ⚠️ 明细在页面上只给 200 行，导出**必须重新向后端要全量**——导出一张只有 200 行、
+// 却不说自己缺了的毛利表，比不给导出更坏（拿去汇报就是错数）。
+// 后端封顶 5000 行，真超了也会带 truncated 标记，这里如实弹出来。
+const exporting = ref(false);
+const exportExcel = async () => {
+  exporting.value = true;
+  try {
+    const { data } = await ErpOrderCostAPI.margin({
+      group_by: groupBy.value,
+      limit: 5000,
+    });
+    const meta = data.meta || {};
+    exportRowsToExcel(
+      {
+        title: '毛利报表（订单维度）',
+        meta: [
+          { label: '导出时间', value: new Date().toLocaleString() },
+          { label: '订单数', value: meta.total_count ?? data.payload.length },
+          { label: '收入合计', value: (meta.revenue_micros || 0) / 1_000_000 },
+          { label: '成本合计', value: (meta.cost_micros || 0) / 1_000_000 },
+          { label: '毛利合计', value: (meta.margin_micros || 0) / 1_000_000 },
+          {
+            label: '口径',
+            value:
+              '收入优先取应收台账金额，没建台账的退回销售订单金额；成本＝归集行合计',
+          },
+        ],
+        columns: [
+          { label: '订单号', key: 'order_no' },
+          { label: '订单名称', key: 'order_name' },
+          { label: '下单日期', key: 'order_date' },
+          { label: '客户', key: 'customer_name' },
+          { label: '业务员', key: 'owner_name' },
+          { label: '收入', key: 'revenue_micros', money: true },
+          { label: '归集成本', key: 'cost_micros', money: true },
+          { label: '毛利', key: 'margin_micros', money: true },
+          { label: '毛利率(%)', key: 'margin_rate' },
+          { label: '应收单号', key: 'receivable_no' },
+        ],
+        rows: data.payload,
+      },
+      `毛利报表_${today()}`
+    );
+    if (meta.truncated) {
+      useAlert(
+        `共 ${meta.total_count} 单，本次只导出了前 ${data.payload.length} 单，请缩小日期范围再导一次`
+      );
+    }
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '导出失败');
+  } finally {
+    exporting.value = false;
   }
 };
 
@@ -164,19 +221,29 @@ onMounted(loadMargin);
           </span>
         </span>
       </div>
-      <div
-        v-if="canWrite && activeTab === 'costs'"
-        class="flex items-center gap-2"
-      >
+      <div class="flex items-center gap-2">
+        <!-- 导出是只读动作，毛利页签就给；归集与补录才要写权限 -->
         <Button
-          label="从 MES 归集"
+          v-if="activeTab === 'margin'"
+          label="导出 Excel"
           color="slate"
           variant="faded"
           size="sm"
-          :is-loading="rollingUp"
-          @click="rollupFromMes"
+          :is-loading="exporting"
+          :disabled="!marginRows.length"
+          @click="exportExcel"
         />
-        <Button label="手工补录" color="iris" size="sm" @click="openCost" />
+        <template v-if="canWrite && activeTab === 'costs'">
+          <Button
+            label="从 MES 归集"
+            color="slate"
+            variant="faded"
+            size="sm"
+            :is-loading="rollingUp"
+            @click="rollupFromMes"
+          />
+          <Button label="手工补录" color="iris" size="sm" @click="openCost" />
+        </template>
       </div>
     </div>
 

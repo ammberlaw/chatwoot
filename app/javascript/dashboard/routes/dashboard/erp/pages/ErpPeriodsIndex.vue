@@ -7,6 +7,7 @@ import { fmtMoney } from 'dashboard/helper/erpMoney';
 import ErpFiscalPeriodAPI from 'dashboard/api/erp/fiscalPeriods';
 import ErpStockLayerAPI from 'dashboard/api/erp/stockLayers';
 import { downloadBlob } from 'dashboard/helper/erpDownload';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -163,6 +164,111 @@ const loadReconcile = async () => {
   const { data } = await ErpFiscalPeriodAPI.reconciliation();
   reconcileRows.value = data.payload;
 };
+
+/* 导出：两账对平与成品存货都是要留档、要给审计看的表 */
+const exporting = ref(false);
+
+const exportReconcile = () =>
+  exportRowsToExcel(
+    {
+      title: '两账对平（业务台账 vs 会计总账）',
+      meta: [
+        { label: '导出时间', value: new Date().toLocaleString() },
+        {
+          label: '结论',
+          value: reconcileRows.value.every(row => row.matched)
+            ? '全部对平'
+            : `${reconcileRows.value.filter(row => !row.matched).length} 项有差异`,
+        },
+      ],
+      columns: [
+        { label: '对账项', key: 'label' },
+        { label: '业务台账', key: 'business_micros', money: true },
+        { label: '会计总账', key: 'ledger_micros', money: true },
+        { label: '差额', key: 'diff_micros', money: true },
+        { label: '结果', key: 'result' },
+        { label: '备注', key: 'note' },
+      ],
+      rows: reconcileRows.value.map(row => ({
+        ...row,
+        result: row.matched ? '对平' : '有差异',
+      })),
+    },
+    `两账对平_${new Date().toISOString().slice(0, 10)}`
+  );
+
+// 批次层后端每页封顶 100（刻意防一把拉全表），导出就翻页拉完——
+// 只导第一页的存货表拿去盘点，少的那些货就成了盘亏。
+const STOCK_EXPORT_MAX_PAGES = 50;
+const fetchAllStockLayers = async () => {
+  const layers = [];
+  for (let page = 1; page <= STOCK_EXPORT_MAX_PAGES; page += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const { data } = await ErpStockLayerAPI.get({
+      include_empty: stockIncludeEmpty.value ? 'true' : undefined,
+      per_page: 100,
+      page,
+    });
+    layers.push(...data.payload);
+    if (!data.payload.length || layers.length >= (data.meta?.count ?? 0)) break;
+  }
+  return layers;
+};
+
+const exportStock = async () => {
+  const layers = await fetchAllStockLayers();
+  exportRowsToExcel(
+    {
+      title: '成品存货批次（FIFO）',
+      meta: [
+        { label: '导出时间', value: new Date().toLocaleString() },
+        { label: '批次数', value: layers.length },
+        { label: '结存数量', value: stockMeta.value.qty ?? '' },
+        {
+          label: '账面价值',
+          value: (stockMeta.value.amount_micros || 0) / 1_000_000,
+        },
+        {
+          label: '范围',
+          value: stockIncludeEmpty.value ? '含已耗尽批次' : '仅有余量批次',
+        },
+      ],
+      columns: [
+        { label: '入库日期', key: 'received_at' },
+        { label: '成品', key: 'product_name' },
+        { label: '编码', key: 'product_sku' },
+        { label: '仓库', key: 'warehouse_name' },
+        { label: '入库数', key: 'qty_in' },
+        { label: '剩余', key: 'qty_remaining' },
+        { label: '单位成本', key: 'unit_cost_micros', money: true },
+        { label: '结存金额', key: 'amount_remaining_micros', money: true },
+        { label: '来源', key: 'remark' },
+      ],
+      rows: layers.map(layer => ({
+        ...layer,
+        received_at: (layer.received_at || '').slice(0, 10),
+      })),
+    },
+    `成品存货批次_${new Date().toISOString().slice(0, 10)}`
+  );
+};
+
+const exportExcel = async () => {
+  exporting.value = true;
+  try {
+    if (activeTab.value === 'reconcile') exportReconcile();
+    else await exportStock();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '导出失败');
+  } finally {
+    exporting.value = false;
+  }
+};
+
+const canExport = computed(() => {
+  if (activeTab.value === 'reconcile') return reconcileRows.value.length > 0;
+  return activeTab.value === 'stock' && stockLayers.value.length > 0;
+});
 
 /* 期末调汇：外币科目按期末汇率重算本位币，差额进汇兑损益 */
 const revalPeriod = ref(new Date().toISOString().slice(0, 7));
@@ -359,6 +465,15 @@ onMounted(load);
           结账＝结转损益到本年利润 + 冻结该期间凭证
         </span>
       </div>
+      <Button
+        v-if="canExport"
+        label="导出 Excel"
+        color="slate"
+        variant="faded"
+        size="sm"
+        :is-loading="exporting"
+        @click="exportExcel"
+      />
       <Button label="刷新" color="slate" size="sm" @click="load" />
     </div>
 

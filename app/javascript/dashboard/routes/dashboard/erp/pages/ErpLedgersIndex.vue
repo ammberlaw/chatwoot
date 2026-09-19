@@ -10,6 +10,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
 // 账簿：科目余额表 / 明细账 / 维度明细账。数字全部按 POSTED 凭证实时算（草稿与作废不进账），
 // 金额一律本位币。维度明细账是比金蝶强的地方：按客户/供应商/订单/部门/业务员切发生额。
@@ -169,6 +170,123 @@ const dimensionLabel = computed(
   () => DIMENSIONS.find(d => d.value === dimension.value)?.label || ''
 );
 
+// 导出 Excel：导当前页签那张表，金额走数值（财务要在 Excel 里接着算）。
+// 三张表口径不同，各自一套列——账簿是给事务所看的，列名要跟界面上一模一样。
+const EXPORT_META = () => [
+  { label: '期间', value: `${from.value} 至 ${to.value}` },
+  { label: '口径', value: '仅已过账凭证，金额为本位币' },
+  { label: '导出时间', value: new Date().toLocaleString() },
+];
+
+const BALANCE_COLUMNS = [
+  { label: '科目编码', key: 'code' },
+  { label: '科目名称', key: 'name' },
+  { label: '方向', key: 'direction' },
+  { label: '期初余额', key: 'opening_micros', money: true },
+  { label: '本期借方', key: 'debit_micros', money: true },
+  { label: '本期贷方', key: 'credit_micros', money: true },
+  { label: '期末余额', key: 'closing_micros', money: true },
+];
+const ENTRY_COLUMNS = [
+  { label: '日期', key: 'voucher_date' },
+  { label: '凭证字号', key: 'voucher_no' },
+  { label: '摘要', key: 'summary' },
+  { label: '科目', key: 'account' },
+  { label: '核算维度', key: 'dimension' },
+  { label: '借方', key: 'debit', money: true },
+  { label: '贷方', key: 'credit', money: true },
+  { label: '余额', key: 'balance_micros', money: true },
+];
+
+// 明细账一行的维度：挂了哪个客户/供应商/订单/部门/业务员就写哪个，没挂就空着。
+const entryDimension = row =>
+  [
+    row.crm_customer_name,
+    row.mes_supplier_name,
+    row.crm_sales_order_no,
+    row.department_name,
+    row.member_name,
+  ]
+    .filter(Boolean)
+    .join(' / ');
+
+const exportBalances = () =>
+  exportRowsToExcel(
+    {
+      title: '科目余额表',
+      meta: EXPORT_META(),
+      columns: BALANCE_COLUMNS,
+      rows: balanceRows.value.map(row => ({
+        ...row,
+        direction: balanceDirection(row),
+        // 界面上负余额是「方向翻过来 + 取绝对值」，导出跟界面一致，否则两边数字对不上。
+        opening_micros: Math.abs(row.opening_micros || 0),
+        closing_micros: Math.abs(row.closing_micros || 0),
+      })),
+    },
+    `科目余额表_${from.value}_${to.value}`
+  );
+
+const exportEntries = () =>
+  exportRowsToExcel(
+    {
+      title: `明细账 ${entryMeta.value.ledger_account?.code || ''} ${entryMeta.value.ledger_account?.name || ''}`,
+      meta: [
+        ...EXPORT_META(),
+        {
+          label: '期初余额',
+          value: (entryMeta.value.opening_micros || 0) / 1_000_000,
+        },
+        {
+          label: '期末余额',
+          value: (entryMeta.value.closing_micros || 0) / 1_000_000,
+        },
+      ],
+      columns: ENTRY_COLUMNS,
+      rows: entryRows.value.map(row => ({
+        ...row,
+        summary: row.summary || row.voucher_summary,
+        account: `${row.ledger_account_code} ${row.ledger_account_name}`,
+        dimension: entryDimension(row),
+        debit: row.direction === 'DEBIT' ? row.base_amount_micros : null,
+        credit: row.direction === 'CREDIT' ? row.base_amount_micros : null,
+      })),
+    },
+    `明细账_${entryMeta.value.ledger_account?.code || ''}_${from.value}_${to.value}`
+  );
+
+const exportDimensions = () =>
+  exportRowsToExcel(
+    {
+      title: `维度明细账（按${dimensionLabel.value}）`,
+      meta: EXPORT_META(),
+      columns: [
+        { label: dimensionLabel.value, key: 'name' },
+        { label: '借方发生', key: 'debit_micros', money: true },
+        { label: '贷方发生', key: 'credit_micros', money: true },
+        { label: '净额（借-贷）', key: 'net_micros', money: true },
+      ],
+      rows: dimensionRows.value.map(row => ({
+        ...row,
+        name: row.name || row.id,
+        net_micros: (row.debit_micros || 0) - (row.credit_micros || 0),
+      })),
+    },
+    `维度明细账_${dimensionLabel.value}_${from.value}_${to.value}`
+  );
+
+const currentRowCount = computed(() => {
+  if (activeTab.value === 'balances') return balanceRows.value.length;
+  if (activeTab.value === 'entries') return entryRows.value.length;
+  return dimensionRows.value.length;
+});
+
+const exportExcel = () => {
+  if (activeTab.value === 'balances') return exportBalances();
+  if (activeTab.value === 'entries') return exportEntries();
+  return exportDimensions();
+};
+
 onMounted(async () => {
   if (!accountStore.getRecords.length) await accountStore.get({});
   loadBalances();
@@ -200,6 +318,14 @@ onMounted(async () => {
         <span class="text-sm text-n-slate-11">至</span>
         <DatePicker v-model="to" :clearable="false" trigger-class="w-36" />
         <Button label="查询" color="iris" size="sm" @click="reload" />
+        <Button
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :disabled="!currentRowCount"
+          @click="exportExcel"
+        />
       </div>
     </div>
 

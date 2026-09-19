@@ -8,6 +8,7 @@ import ErpLedgerAccountAPI from 'dashboard/api/erp/ledgerAccounts';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 // 会计科目表：记账引擎的地基。编码走财政部国标（1 资产 / 2 负债 / 4 权益 / 5 成本 / 6 损益），
@@ -109,6 +110,50 @@ const rows = computed(() => {
   walk(null, 0);
   return result;
 });
+
+// 导出 Excel：导的是**筛选后的全部科目**，不是表格上展开着的那些——
+// 折叠只是看的人图清爽，导出漏掉收起来的子科目就成了一张残表。
+const exportExcel = () => {
+  const list = [...visibleRecords.value].sort((a, b) =>
+    a.code.localeCompare(b.code)
+  );
+  exportRowsToExcel(
+    {
+      title: '会计科目表',
+      meta: [
+        { label: '导出时间', value: new Date().toLocaleString() },
+        {
+          label: '筛选',
+          value: `${categoryFilter.value ? CATEGORIES.find(c => c.value === categoryFilter.value)?.label : '全部类别'}${showInactive.value ? '' : '，不含已停用'}`,
+        },
+        { label: '科目数', value: list.length },
+      ],
+      columns: [
+        { label: '科目编码', key: 'code' },
+        { label: '科目名称', key: 'name' },
+        { label: '类别', key: 'categoryLabel' },
+        { label: '方向', key: 'directionLabel' },
+        { label: '科目属性', key: 'typeLabel' },
+        { label: '币种', key: 'currency' },
+        { label: '核算维度', key: 'dimensions' },
+        { label: '状态', key: 'status' },
+      ],
+      rows: list.map(item => ({
+        code: item.code,
+        name: item.name,
+        categoryLabel: item.categoryLabel,
+        directionLabel: item.direction === 'DEBIT' ? '借' : '贷',
+        typeLabel: item.isGroup
+          ? '分类（不记账）'
+          : accountTypeLabel(item.accountType),
+        currency: item.currency || 'CNY',
+        dimensions: (item.dimensions || []).map(dimensionLabel).join('、'),
+        status: item.isActive ? '启用' : '已停用',
+      })),
+    },
+    `会计科目表_${new Date().toISOString().slice(0, 10)}`
+  );
+};
 
 const groupOptions = computed(() => [
   { value: '', label: '无（一级科目）' },
@@ -279,6 +324,14 @@ onMounted(fetchList);
           @keyup.enter="fetchList"
         />
         <Button label="查询" color="slate" size="sm" @click="fetchList" />
+        <Button
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :disabled="!records.length"
+          @click="exportExcel"
+        />
         <Button
           v-if="canWrite"
           label="初始化标准科目表"

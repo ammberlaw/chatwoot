@@ -35,10 +35,15 @@ class Api::V1::Accounts::Erp::OrderCostsController < Api::V1::Accounts::Erp::Bas
   end
 
   # 毛利报表：订单维度 + 业务员/客户汇总。合计/汇总按全量算，明细超 200 行截断并打标。
+  DETAIL_LIMIT = 200
+  # 导出要的是整张表，不是屏幕上那 200 行；上限仍留着，免得一次拉爆内存（超了照样打 truncated）。
+  EXPORT_DETAIL_LIMIT = 5_000
+
   def margin
     @summary_by = params[:group_by].presence
     report = Erp::MarginService.new(Current.account)
-                               .report(from: params[:from], to: params[:to], group_by: @summary_by)
+                               .report(from: params[:from], to: params[:to], group_by: @summary_by,
+                                       limit: detail_limit)
     @rows = report[:rows]
     @summary = report[:summary]
     @totals = report[:totals]
@@ -48,6 +53,14 @@ class Api::V1::Accounts::Erp::OrderCostsController < Api::V1::Accounts::Erp::Bas
   end
 
   private
+
+  # 默认 200 行够看；带 limit 的（导出）放宽到 5000 封顶。
+  def detail_limit
+    requested = params[:limit].to_i
+    return DETAIL_LIMIT unless requested.positive?
+
+    [requested, EXPORT_DETAIL_LIMIT].min
+  end
 
   def fetch_cost
     @cost = Current.account.erp_order_costs.find(params[:id])

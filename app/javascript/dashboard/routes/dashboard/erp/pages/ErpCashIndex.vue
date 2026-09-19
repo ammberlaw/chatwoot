@@ -13,6 +13,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
 // 资金账户与出纳日记账：账户余额 = 期初 + 流入 - 流出（流水只增不改，任何时点都能对银行对账单）。
 // 收付款单落库会自动记一笔流水；这里另外提供内部划转（成对流水 + 自动凭证）。
@@ -112,6 +113,108 @@ const switchTab = key => {
 
 // 折 CNY 列：外币账户没填期初本位币就显示「—」，不拿原币数字充数。
 const baseMoney = micros => (micros == null ? '—' : money(micros));
+
+/* ---------------- 导出 ---------------- */
+// 按当前页签导：日记账导流水，报表导四栏表。
+// ⚠️ 日记账页面只给 200 笔，导出重新向后端要全量——导一张自己缺了一截还不说的流水表，
+// 拿去跟银行对账就是白对。
+const exporting = ref(false);
+
+const exportLedger = async () => {
+  const { data } = await ErpCashAccountAPI.transactions({
+    cash_account_id: filterAccountId.value || undefined,
+    limit: 5000,
+  });
+  const rows = data.payload;
+  exportRowsToExcel(
+    {
+      title: '出纳日记账',
+      meta: [
+        { label: '导出时间', value: new Date().toLocaleString() },
+        {
+          label: '账户',
+          value:
+            accounts.value.find(a => a.id === filterAccountId.value)?.name ||
+            '全部账户',
+        },
+        { label: '流水笔数', value: rows.length },
+      ],
+      columns: [
+        { label: '日期', key: 'happened_at' },
+        { label: '账户', key: 'cash_account_name' },
+        { label: '摘要', key: 'summary' },
+        { label: '往来单位', key: 'counterparty' },
+        { label: '币种', key: 'currency' },
+        { label: '收入', key: 'in_micros', money: true },
+        { label: '支出', key: 'out_micros', money: true },
+        { label: '经办', key: 'created_by_name' },
+      ],
+      rows: rows.map(row => ({
+        ...row,
+        in_micros: row.direction === 'IN' ? row.amount_micros : null,
+        out_micros: row.direction === 'OUT' ? row.amount_micros : null,
+      })),
+    },
+    `出纳日记账_${new Date().toISOString().slice(0, 10)}`
+  );
+  if (data.meta?.truncated) {
+    useAlert(
+      `共 ${data.meta.count} 笔流水，本次只导出了前 ${rows.length} 笔，请按账户或日期缩小范围再导一次`
+    );
+  }
+};
+
+const exportReport = () =>
+  exportRowsToExcel(
+    {
+      title: '资金报表',
+      meta: [
+        { label: '期间', value: `${report.value.from} 至 ${report.value.to}` },
+        {
+          label: '口径',
+          value: '折 CNY 走账面本位币（各笔按发生日汇率），与总账一致',
+        },
+        ...(report.value.missing_base_accounts.length
+          ? [
+              {
+                label: '未计入合计',
+                value: `${report.value.missing_base_accounts.join('、')}（未填期初余额折 CNY）`,
+              },
+            ]
+          : []),
+      ],
+      columns: [
+        { label: '账户', key: 'name' },
+        { label: '类型', key: 'kind_label' },
+        { label: '币种', key: 'currency' },
+        { label: '期初', key: 'opening_micros', money: true },
+        { label: '本期收', key: 'in_micros', money: true },
+        { label: '本期支', key: 'out_micros', money: true },
+        { label: '期末', key: 'closing_micros', money: true },
+        { label: '期末折 CNY', key: 'closing_base_micros', money: true },
+      ],
+      rows: report.value.rows,
+    },
+    `资金报表_${report.value.period}`
+  );
+
+const exportExcel = async () => {
+  exporting.value = true;
+  try {
+    if (activeTab.value === 'ledger') await exportLedger();
+    else exportReport();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '导出失败');
+  } finally {
+    exporting.value = false;
+  }
+};
+
+const canExport = computed(() =>
+  activeTab.value === 'ledger'
+    ? transactions.value.length > 0
+    : Boolean(report.value?.rows?.length)
+);
 
 /* ---------------- 账户维护 ---------------- */
 const accountDialogRef = ref(null);
@@ -274,8 +377,19 @@ onMounted(async () => {
           <span class="font-mono text-n-slate-12">{{ money(amount) }}</span>
         </span>
       </div>
-      <div v-if="canWrite" class="flex items-center gap-2">
+      <div class="flex items-center gap-2">
+        <!-- 导出是只读动作，不挂在写权限上 -->
         <Button
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="exporting"
+          :disabled="!canExport"
+          @click="exportExcel"
+        />
+        <Button
+          v-if="canWrite"
           label="内部划转"
           color="slate"
           variant="faded"
@@ -284,6 +398,7 @@ onMounted(async () => {
           @click="openTransfer"
         />
         <Button
+          v-if="canWrite"
           label="新建账户"
           color="iris"
           size="sm"

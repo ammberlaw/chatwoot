@@ -28,13 +28,16 @@ class Api::V1::Accounts::Erp::CashAccountsController < Api::V1::Accounts::Erp::B
 
   # 出纳日记账：某账户（或全部）的流水，按日期倒序。
   TRANSACTIONS_LIMIT = 200
+  # 导出要的是整段流水，不是屏幕上那 200 笔；仍留上限免得一次拉爆内存（超了照样打 truncated）。
+  EXPORT_TRANSACTIONS_LIMIT = 5_000
 
   def transactions
     scope = transactions_scope
+    limit = transactions_limit
     # 日记账是要跟银行对账单核的表：截断必须显式打标，静默少一段流水=对不上还找不到原因。
     @transactions_count = scope.count
-    @truncated = @transactions_count > TRANSACTIONS_LIMIT
-    @transactions = scope.order(happened_at: :desc, id: :desc).limit(TRANSACTIONS_LIMIT)
+    @truncated = @transactions_count > limit
+    @transactions = scope.order(happened_at: :desc, id: :desc).limit(limit)
     render 'api/v1/accounts/erp/cash_accounts/transactions'
   end
 
@@ -61,6 +64,14 @@ class Api::V1::Accounts::Erp::CashAccountsController < Api::V1::Accounts::Erp::B
   end
 
   private
+
+  # 默认 200 笔够看；带 limit 的（导出）放宽到 5000 封顶。
+  def transactions_limit
+    requested = params[:limit].to_i
+    return TRANSACTIONS_LIMIT unless requested.positive?
+
+    [requested, EXPORT_TRANSACTIONS_LIMIT].min
+  end
 
   def transactions_scope
     scope = Current.account.erp_cash_transactions.includes(:cash_account, :created_by)

@@ -11,6 +11,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
 // 固定资产：直线法折旧（原值 ×(1-残值率) / 年限月数），按月一键计提，
 // 全部在用资产汇总成一张待过账折旧凭证；处置/报废单独生成结转凭证。
@@ -61,6 +62,45 @@ const load = async () => {
     loading.value = false;
   }
 };
+
+// 导出 Excel：导当前筛选出的全部资产（资产台账要盘点、要给审计，得能在 Excel 里接着算）。
+const exportExcel = () =>
+  exportRowsToExcel(
+    {
+      title: '固定资产台账',
+      meta: [
+        { label: '导出时间', value: new Date().toLocaleString() },
+        {
+          label: '筛选',
+          value: `${statusFilter.value ? STATUS_OPTIONS.find(x => x.value === statusFilter.value)?.label : '全部状态'}${keyword.value.trim() ? `，关键字「${keyword.value.trim()}」` : ''}`,
+        },
+        { label: '资产台数', value: assets.value.length },
+      ],
+      columns: [
+        { label: '资产编号', key: 'asset_no' },
+        { label: '名称', key: 'name' },
+        { label: '类别', key: 'category_label' },
+        { label: '购入日', key: 'purchased_at' },
+        { label: '原值', key: 'original_value_micros', money: true },
+        { label: '使用月数', key: 'useful_months' },
+        { label: '残值率', key: 'residual_rate' },
+        { label: '月折旧', key: 'monthly_depreciation_micros', money: true },
+        {
+          label: '累计折旧',
+          key: 'accumulated_depreciation_micros',
+          money: true,
+        },
+        { label: '净值', key: 'net_value_micros', money: true },
+        { label: '使用部门', key: 'department_name' },
+        { label: '保管人', key: 'keeper_name' },
+        { label: '状态', key: 'status_label' },
+        { label: '处置日', key: 'disposed_at' },
+        { label: '备注', key: 'remark' },
+      ],
+      rows: assets.value,
+    },
+    `固定资产台账_${today()}`
+  );
 
 const depreciate = async () => {
   try {
@@ -193,6 +233,14 @@ onMounted(load);
           @keyup.enter="load"
         />
         <Button label="查询" color="slate" size="sm" @click="load" />
+        <Button
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :disabled="!assets.length"
+          @click="exportExcel"
+        />
         <Button
           v-if="canWrite"
           label="新增资产"
