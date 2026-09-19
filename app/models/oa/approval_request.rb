@@ -39,6 +39,10 @@ class Oa::ApprovalRequest < ApplicationRecord
   belongs_to :applicant, class_name: 'User'
   belongs_to :department, class_name: 'Org::Department', optional: true
   has_many :steps, -> { order(:position) }, class_name: 'Oa::ApprovalStep', dependent: :destroy, inverse_of: :request
+  # ERP 报销打款引用本单。打过款就不许删——钱已付、出纳流水与凭证都产生了，
+  # 删了单据它们会变成查不到来源的无主记录（DB 外键 restrict 是最后一道，这里给中文提示）。
+  has_many :erp_expense_payouts, class_name: 'Erp::ExpensePayout', foreign_key: :oa_approval_request_id,
+                                 dependent: :restrict_with_error, inverse_of: :approval_request
   has_many_attached :files
 
   validates :title, presence: true

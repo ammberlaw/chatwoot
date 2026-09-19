@@ -29,12 +29,16 @@ RSpec.describe 'ERP 金额口径守卫' do
   # - 两账对平：已按 currency: 'CNY' 收口后再 sum
   # - 成本归集：加的是 mes_purchase_items.amount_micros，MES 采购是人民币单币种
   #   （mes_purchase_orders 上根本没有 currency 列），不是这里管的那四张多币种表
+  # - 资金报表：sum_of 收的是**单个** cash_account 的流水，一个账户只有一种币（同 cash_account.rb）
+  # - 报销打款：erp_expense_payouts 压根没有 currency 列，报销恒为本位币（模型里硬编 CNY）
   allowed = [
     'app/services/erp/allocation_service.rb',
     'app/services/erp/cost_rollup_service.rb',
     'app/services/erp/revaluation_service.rb',
     'app/services/erp/reconciliation_service.rb',
     'app/services/erp/period_checklist.rb',
+    'app/services/erp/cash_report_service.rb',
+    'app/controllers/api/v1/accounts/erp/expense_payouts_controller.rb',
     'app/models/erp/receipt_record.rb',
     'app/models/erp/payment_record.rb',
     'app/models/erp/cash_account.rb'

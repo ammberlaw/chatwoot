@@ -38,7 +38,11 @@ class CreateErpExpensePayouts < ActiveRecord::Migration[7.1]
   end
 
   def add_payout_foreign_keys
-    add_foreign_key :erp_expense_payouts, :oa_approval_requests, column: :oa_approval_request_id, on_delete: :cascade
+    # ⚠️ 不能用 cascade：审批模板一删就级联删审批单、再级联删打款单，
+    # 而资金流水/凭证/订单成本是按 source_type+source_id 弱引用的，会全留在原地——
+    # 钱付了、凭证在总账里、单据没了，既查不到来源也没法作废回滚。
+    # restrict＝有打款记录就不许删审批单（与「已结账不许改」同一类保护）。
+    add_foreign_key :erp_expense_payouts, :oa_approval_requests, column: :oa_approval_request_id, on_delete: :restrict
     add_foreign_key :erp_expense_payouts, :erp_ledger_accounts, column: :expense_ledger_account_id
     add_foreign_key :erp_expense_payouts, :erp_cash_accounts, column: :cash_account_id
     add_foreign_key :erp_expense_payouts, :crm_sales_orders, column: :crm_sales_order_id, on_delete: :nullify

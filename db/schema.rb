@@ -3942,7 +3942,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_19_000016) do
   add_foreign_key "erp_expense_payouts", "crm_sales_orders", on_delete: :nullify
   add_foreign_key "erp_expense_payouts", "erp_cash_accounts", column: "cash_account_id"
   add_foreign_key "erp_expense_payouts", "erp_ledger_accounts", column: "expense_ledger_account_id"
-  add_foreign_key "erp_expense_payouts", "oa_approval_requests", on_delete: :cascade
+  add_foreign_key "erp_expense_payouts", "oa_approval_requests", on_delete: :restrict
   add_foreign_key "erp_ledger_accounts", "erp_ledger_accounts", column: "parent_id", on_delete: :restrict
   add_foreign_key "erp_payment_allocations", "erp_payables", column: "payable_id", on_delete: :restrict
   add_foreign_key "erp_payment_allocations", "erp_payment_records", column: "payment_record_id", on_delete: :cascade

@@ -49,10 +49,18 @@ class Erp::ExpensePayoutService
   end
 
   # 费用类型对应的默认科目（找不到就落「其他销售费用」，再找不到返回 nil 让财务自己选）。
+  # 按 code 缓存：待打款列表会逐条问建议科目，不缓存就是一条单据两次 find_by。
   def default_expense_account(category)
     code = CATEGORY_ACCOUNT_CODES[category.to_s] || FALLBACK_ACCOUNT_CODE
-    scope = @account.erp_ledger_accounts.active
-    scope.find_by(code: code) || scope.find_by(code: FALLBACK_ACCOUNT_CODE)
+    account_cache[code] ||= account_cache[FALLBACK_ACCOUNT_CODE]
+  end
+
+  # 费用类型就那几种，一次把用得到的科目捞齐（含兜底科目）。
+  def account_cache
+    @account_cache ||= begin
+      codes = CATEGORY_ACCOUNT_CODES.values.uniq + [FALLBACK_ACCOUNT_CODE]
+      @account.erp_ledger_accounts.active.where(code: codes).index_by(&:code)
+    end
   end
 
   # 挂了订单的报销进订单成本台账；改单时按 source 覆盖，取消挂单时删掉。
