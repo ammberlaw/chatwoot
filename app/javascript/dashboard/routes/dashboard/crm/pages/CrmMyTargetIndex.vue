@@ -81,8 +81,10 @@ const rows = computed(() => {
       year.value > nowYear || (year.value === nowYear && m > nowMonth);
     const carryAmount = isFuture ? 0 : cumBase - cumActual;
     const carryCount = isFuture ? 0 : cumBaseC - cumActualC;
-    const baseAmount = row.base_amount_micros;
-    const baseCount = row.base_count;
+    const baseAmount = Number(row.base_amount_micros) || 0;
+    const baseCount = Number(row.base_count) || 0;
+    const actualAmount = Number(row.actual_amount_micros) || 0;
+    const actualCount = Number(row.actual_count) || 0;
     out.push({
       month: m,
       baseId: row.base_id,
@@ -92,15 +94,15 @@ const rows = computed(() => {
       carryCount,
       effAmount: baseAmount + carryAmount,
       effCount: baseCount + carryCount,
-      actualAmount: row.actual_amount_micros,
-      actualCount: row.actual_count,
-      hasActivity: baseAmount > 0 || baseCount > 0 || row.actual_count > 0,
+      actualAmount,
+      actualCount,
+      hasActivity: baseAmount > 0 || baseCount > 0 || actualCount > 0,
       isFuture,
     });
     cumBase += baseAmount;
-    cumActual += row.actual_amount_micros;
+    cumActual += actualAmount;
     cumBaseC += baseCount;
-    cumActualC += row.actual_count;
+    cumActualC += actualCount;
   }
   return out;
 });
@@ -109,6 +111,8 @@ const sel = computed(() => rows.value[selMonth.value]);
 
 // 达成率：有效目标 ≤ 0（结余已覆盖）视为 100%
 const pct = (actual, effTarget) => {
+  // 兜底：任一侧不是有限数就不显示百分比，别把 NaN% 甩给用户
+  if (!Number.isFinite(actual) || !Number.isFinite(effTarget)) return null;
   if (effTarget <= 0) return actual >= 0 ? 100 : null;
   return (actual / effTarget) * 100;
 };

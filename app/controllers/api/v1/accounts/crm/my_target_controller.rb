@@ -26,13 +26,16 @@ class Api::V1::Accounts::Crm::MyTargetController < Api::V1::Accounts::Crm::BaseC
 
     (1..12).map do |m|
       b = base[m] || { id: nil, amount: 0, count: 0 }
+      # ⚠️ 金额一律 to_i：SUM(ROUND(...)) 在 PG 是 numeric → Ruby BigDecimal
+      # → JSON 里是**字符串** "104500000000.0"，前端逐月 += 会变字符串拼接，
+      # 拼两次出现两个小数点就成 NaN（表现为每季度第三个月达成率 NaN%）。
       {
         month: m,
         base_id: b[:id],
-        base_amount_micros: b[:amount],
-        base_count: b[:count],
-        actual_amount_micros: amounts[m] || 0,
-        actual_count: counts[m] || 0
+        base_amount_micros: b[:amount].to_i,
+        base_count: b[:count].to_i,
+        actual_amount_micros: amounts[m].to_i,
+        actual_count: counts[m].to_i
       }
     end
   end
