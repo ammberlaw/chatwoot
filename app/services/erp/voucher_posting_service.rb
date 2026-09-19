@@ -34,24 +34,36 @@ class Erp::VoucherPostingService
       raise Error, '只有已记账的凭证才需要红冲' unless @voucher.status == Erp::Voucher::POSTED
       raise Error, "该凭证已被 #{@voucher.reversed_by.voucher_no} 红冲过" if @voucher.reversed_by.present?
 
-      reversal = @voucher.account.erp_vouchers.create!(
-        voucher_date: reversal_date,
-        summary: "红冲 #{@voucher.voucher_no}#{@voucher.summary.present? ? "：#{@voucher.summary}" : ''}",
-        status: Erp::Voucher::POSTED,
-        prepared_by_id: @user.id,
-        posted_by_id: @user.id,
-        posted_at: Time.current,
-        reversal_of_id: @voucher.id,
-        source_type: @voucher.source_type,
-        source_id: @voucher.source_id,
-        lines_attributes: reversed_lines_attributes
-      )
+      reversal = @voucher.account.erp_vouchers.create!(reversal_attributes)
       reversal.refresh_totals!
+      ensure_reversal_balanced!(reversal)
     end
     reversal
   end
 
   private
+
+  def reversal_attributes
+    {
+      voucher_date: reversal_date,
+      summary: "红冲 #{@voucher.voucher_no}#{@voucher.summary.present? ? "：#{@voucher.summary}" : ''}",
+      status: Erp::Voucher::POSTED,
+      prepared_by_id: @user.id,
+      posted_by_id: @user.id,
+      posted_at: Time.current,
+      reversal_of_id: @voucher.id,
+      source_type: @voucher.source_type,
+      source_id: @voucher.source_id,
+      lines_attributes: reversed_lines_attributes
+    }
+  end
+
+  # 红冲是唯一不经 post! 平衡闸直接 POSTED 的路径，兜一道：镜像凭证不平只可能是程序 bug。
+  def ensure_reversal_balanced!(reversal)
+    return if reversal.balanced?
+
+    raise Error, "红冲凭证借贷不平（借 #{fmt(reversal.total_debit_micros)} / 贷 #{fmt(reversal.total_credit_micros)}），请联系管理员"
+  end
 
   # 红冲落原凭证日期(保证同期抵消,不扭曲当期损益)；原期已结账则落当天(冻结期不能再动)。
   def reversal_date
@@ -70,6 +82,11 @@ class Erp::VoucherPostingService
         amount_micros: line.amount_micros,
         currency: line.currency,
         exchange_rate: line.exchange_rate,
+        # 本位币必须原样带走，不能让分录行按 原币×汇率 重算：
+        # ①倒挤平衡行的 base ≠ round(原币×汇率)，重算会差 1 分，红冲凭证直接以不平状态入账；
+        # ②调汇分录原币是 0，重算出 0 过不了 base>0 校验，调汇凭证永远红冲不了。
+        base_amount_micros: line.base_amount_micros,
+        explicit_base: true,
         position: line.position,
         crm_customer_id: line.crm_customer_id,
         mes_supplier_id: line.mes_supplier_id,

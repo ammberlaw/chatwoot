@@ -9,7 +9,7 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     @vouchers_count = scope.count
     @vouchers = scope.includes(:prepared_by, :posted_by, :reversal_of, :reversed_by, :documents_attachments)
                      .order(voucher_date: :desc, voucher_no: :desc)
-                     .page(page_param).per(RESULTS_PER_PAGE)
+                     .page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -33,7 +33,10 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
   def destroy
     return render json: { error: '已记账的凭证不能删除，错账请用红冲' }, status: :unprocessable_entity unless @voucher.editable?
 
-    @voucher.destroy!
+    ActiveRecord::Base.transaction do
+      rollback_depreciation_side_effects
+      @voucher.destroy!
+    end
     head :ok
   end
 
@@ -57,7 +60,10 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
   def void
     return render json: { error: '已记账的凭证不能作废，错账请用红冲' }, status: :unprocessable_entity unless @voucher.editable?
 
-    @voucher.update!(status: Erp::Voucher::VOID)
+    ActiveRecord::Base.transaction do
+      rollback_depreciation_side_effects
+      @voucher.update!(status: Erp::Voucher::VOID)
+    end
     render 'api/v1/accounts/erp/vouchers/show'
   end
 
@@ -98,6 +104,14 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
   end
 
   private
+
+  # 折旧/处置凭证是草稿时被删/作废，资产侧的计提记录与累计折旧（或处置状态）要一起退回，
+  # 否则「资产提了折旧、总账没入账」，而且该期间重新计提会返回 0 张——这个月折旧就丢了。
+  def rollback_depreciation_side_effects
+    return unless @voucher.source_type == 'Erp::Depreciation'
+
+    Erp::DepreciationService.new(Current.account, current_user).rollback_voucher!(@voucher)
+  end
 
   def filtered_scope
     scope = Current.account.erp_vouchers

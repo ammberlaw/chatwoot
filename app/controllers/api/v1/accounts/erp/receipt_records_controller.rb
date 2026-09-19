@@ -8,7 +8,7 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
     @receipts_count = scope.count
     @summary = { amount_micros: scope.normal.sum(Arel.sql(Erp::ReceiptRecord::BASE_AMOUNT_MICROS_SQL)) }
     @receipts = scope.includes(:crm_customer, :recorded_by, allocations: :receivable)
-                     .order(received_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+                     .order(received_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -28,6 +28,11 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
 
   def update
     return render json: { error: '已作废的收款单不能修改' }, status: :unprocessable_entity unless @receipt.voidable?
+
+    # 与 void 同一道冻结闸：改单会动核销/台账/流水，冻结期的总账动不了，改了就是总账↔台账永久失衡。
+    # 原期间与改后的新期间都要查（把单据挪进/挪出冻结期同样不行）。
+    closed = closed_period_for(@receipt.received_at, receipt_params[:received_at])
+    return render json: { error: "该单据所属期间 #{closed} 已结账，不能修改" }, status: :unprocessable_entity if closed
 
     # 单据 / 核销 / 流水 / 自动凭证要么一起成，要么一起不动——
     # 原来任何一步抛错都会把单据留在改了一半的状态。

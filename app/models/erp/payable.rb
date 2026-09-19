@@ -26,6 +26,7 @@
 #  index_erp_payables_on_account_id_and_status      (account_id,status)
 #  index_erp_payables_on_mes_purchase_order_id      (mes_purchase_order_id)
 #  index_erp_payables_on_mes_supplier_id            (mes_supplier_id)
+#  uniq_erp_payable_po_supplier                     (account_id,mes_purchase_order_id,mes_supplier_id) UNIQUE WHERE (mes_purchase_order_id IS NOT NULL)
 #
 class Erp::Payable < ApplicationRecord
   UNPAID = 'UNPAID'.freeze

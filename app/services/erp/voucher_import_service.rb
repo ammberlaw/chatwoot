@@ -117,10 +117,12 @@ class Erp::VoucherImportService
   def find_party!(scope, name, label, ledger_account)
     raise Error, "科目「#{ledger_account.label}」是往来科目，必须填#{label}" if name.blank?
 
-    record = scope.find_by(name: name)
-    raise Error, "#{label}「#{name}」在系统里找不到（要跟系统里的名称完全一致）" if record.blank?
+    matches = scope.where(name: name).limit(2).to_a
+    raise Error, "#{label}「#{name}」在系统里找不到（要跟系统里的名称完全一致）" if matches.empty?
+    # 迁移数据里同名客户真实存在：静默取第一条会把应收挂到别人头上，对账/催款全找错人。
+    raise Error, "#{label}「#{name}」在系统里有多条同名记录，无法确定挂哪一条；请先在查重板块合并或改名后再导入" if matches.size > 1
 
-    record.id
+    matches.first.id
   end
 
   def to_micros(value)

@@ -19,6 +19,17 @@ class Api::V1::Accounts::Erp::BaseController < Api::V1::Accounts::BaseController
     params[:page] || 1
   end
 
+  # 前端可传 per_page（snake_case）加大每页条数；不传按默认 15。上限 100 防一把拉全表。
+  def per_page_param
+    params[:per_page].present? ? params[:per_page].to_i.clamp(1, 100) : RESULTS_PER_PAGE
+  end
+
+  # 冻结期闸（收付款单 update/void 共用）：给定日期里任何一个落在已结账期间就返回该期间号。
+  def closed_period_for(*dates)
+    dates.compact.map { |d| d.to_date.strftime('%Y-%m') }.uniq
+         .find { |period| Erp::FiscalPeriod.closed?(Current.account, period) }
+  end
+
   # 账龄分析的两个入参（应收/应付两个控制器共用）。
   def aging_as_of
     params[:as_of].presence&.to_date || Time.zone.today

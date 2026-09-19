@@ -26,6 +26,10 @@ class Erp::OpeningBalanceService
     validate_balanced!(lines)
     # advisory 锁：期初凭证是账套单例，串行化「删旧→建新」，防并发/重试留两张期初凭证。
     Erp::AccountLock.with_account_lock(@account.id, 'opening_balance') do
+      # 已有结账期间就不许再动期初：重存＝整张替换，会把已冻结期间的期初/期末余额全部改写，
+      # 结过的试算平衡都可能被改坏。要改期初必须先反结账（留痕），改完重结。
+      raise Error, '已有结账期间，期初余额不可再修改；如确需调整，请先反结账' if @account.erp_fiscal_periods.exists?(status: Erp::FiscalPeriod::CLOSED)
+
       current&.destroy
       build_voucher(lines, as_of)
     end
@@ -68,9 +72,12 @@ class Erp::OpeningBalanceService
     raise Error, "期初借贷不平（本位币 借 #{fmt(debit)} / 贷 #{fmt(credit)}），差额 #{fmt((debit - credit).abs)}"
   end
 
+  # 与分录行落库口径完全一致：逐行 round_to_cent(原币×汇率) 再求和。
+  # 用 micros 直接 round 的话，校验和落库两边各差几毫——要么两边显示一样却报不平，
+  # 要么校验通过、落出一张差 1 分的已记账期初凭证，试算从第一天就不平。
   def base_total(lines, direction)
     lines.select { |row| row[:direction] == direction }
-         .sum { |row| (row[:amount_micros] * row[:exchange_rate].to_d).round }
+         .sum { |row| Erp::VoucherLine.round_to_cent(row[:amount_micros] * row[:exchange_rate].to_d) }
   end
 
   def build_voucher(lines, as_of)

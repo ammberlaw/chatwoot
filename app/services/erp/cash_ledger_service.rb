@@ -24,14 +24,18 @@ class Erp::CashLedgerService
   end
 
   # 作废/改单：把该单据已产生的流水按净额反向冲销掉。
+  # 必须**按资金账户分组**各自冲：改过账户的单据（A→B）流水横跨两个账户，
+  # 按全单净额记到第一笔的账户上，会把 A 冲成负数、B 永远虚高。
   def reverse_for(record, reason: '单据作废')
     existing = @account.erp_cash_transactions.where(source_type: record.class.name, source_id: record.id)
     return if existing.empty?
 
-    net = net_of(existing)
-    return if net.zero?
+    existing.group_by(&:cash_account_id).each_value do |rows|
+      net = net_of(rows)
+      next if net.zero?
 
-    write_reversal(existing.first, net, record, reason)
+      write_reversal(rows.last, net, record, reason)
+    end
   end
 
   def net_of(transactions)
@@ -49,41 +53,51 @@ class Erp::CashLedgerService
   end
 
   # 内部划转：转出账户一笔 OUT + 转入账户一笔 IN，一次生成，成对留痕。
-  def transfer!(from_id:, to_id:, amount_micros:, happened_at:, summary: nil)
-    from = @account.erp_cash_accounts.find_by(id: from_id)
-    to = @account.erp_cash_accounts.find_by(id: to_id)
+  # attrs: { from_id:, to_id:, amount_micros:, happened_at:, summary:, exchange_rate: }
+  # exchange_rate：本位币账户互转固定 1；外币账户互转（USD→USD）必须给当日汇率——
+  # 按 1 记账会让两个美元科目的本位币各按美元面值动（1 万美元记成 1 万人民币），
+  # 资产负债表当期就是错的，等期末调汇才被「纠」回来。
+  def transfer!(attrs)
+    from = @account.erp_cash_accounts.find_by(id: attrs[:from_id])
+    to = @account.erp_cash_accounts.find_by(id: attrs[:to_id])
+    validate_transfer!(from, to, attrs[:amount_micros])
+    rate = from.currency == 'CNY' ? 1.to_d : attrs[:exchange_rate].to_s.to_d
+    raise Error, "#{from.currency} 账户互转必须填写划转日汇率" if rate <= 0
+
+    write_transfer_pair(from, to, attrs.merge(rate: rate))
+  end
+
+  private
+
+  def validate_transfer!(from, to, amount_micros)
     raise Error, '转出/转入账户不存在' if from.blank? || to.blank?
     raise Error, '转出与转入不能是同一个账户' if from.id == to.id
     raise Error, '划转金额必须大于 0' if amount_micros.to_i <= 0
     # 暂不支持跨币种划转：两边币种不同需按汇率折算并记汇兑差额，否则按原金额记账会错账/凭证不平。
     raise Error, '暂不支持跨币种划转，请通过同币种账户或先做购汇/结汇' if from.currency != to.currency
-
-    write_transfer_pair(from, to, amount_micros, happened_at, summary)
   end
 
-  private
-
   # 一次划转 = 转出一笔 OUT + 转入一笔 IN + 一张自动凭证，同一个 source_id 串起来。
-  def write_transfer_pair(from, to, amount_micros, happened_at, summary)
+  # attrs: { amount_micros:, happened_at:, summary:, rate: }
+  def write_transfer_pair(from, to, attrs)
     # 唯一 source_id：原来用秒级时间戳，同一秒两笔划转会撞 key，reverse_for/对账按 source_id 聚合时互相串扰。
     key = SecureRandom.random_number(1 << 62)
+    base = attrs.slice(:amount_micros, :happened_at, :rate).merge(key: key)
     ActiveRecord::Base.transaction do
-      write_transfer_leg(cash_account: from, direction: Erp::CashTransaction::OUT, key: key,
-                         summary: summary.presence || "划转至 #{to.name}", counterparty: to.name,
-                         amount_micros: amount_micros, happened_at: happened_at)
-      write_transfer_leg(cash_account: to, direction: Erp::CashTransaction::IN, key: key,
-                         summary: summary.presence || "由 #{from.name} 划入", counterparty: from.name,
-                         amount_micros: amount_micros, happened_at: happened_at)
-      Erp::AutoVoucherService.new(@account).for_transfer(from, to, amount_micros, happened_at, key)
+      write_transfer_leg(base.merge(cash_account: from, direction: Erp::CashTransaction::OUT,
+                                    summary: attrs[:summary].presence || "划转至 #{to.name}", counterparty: to.name))
+      write_transfer_leg(base.merge(cash_account: to, direction: Erp::CashTransaction::IN,
+                                    summary: attrs[:summary].presence || "由 #{from.name} 划入", counterparty: from.name))
+      Erp::AutoVoucherService.new(@account).for_transfer(from, to, base.merge(source_key: key))
     end
     [from.reload, to.reload]
   end
 
-  # leg: { cash_account:, direction:, key:, summary:, counterparty:, amount_micros:, happened_at: }
+  # leg: { cash_account:, direction:, key:, summary:, counterparty:, amount_micros:, happened_at:, rate: }
   def write_transfer_leg(leg)
     create_transaction(cash_account_id: leg[:cash_account].id, direction: leg[:direction],
                        amount_micros: leg[:amount_micros], currency: leg[:cash_account].currency,
-                       exchange_rate: 1, happened_at: leg[:happened_at],
+                       exchange_rate: leg[:rate], happened_at: leg[:happened_at],
                        source_type: 'Erp::CashTransfer', source_id: leg[:key],
                        summary: leg[:summary], counterparty: leg[:counterparty])
   end

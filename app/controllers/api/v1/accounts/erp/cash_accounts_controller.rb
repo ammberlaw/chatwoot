@@ -27,12 +27,14 @@ class Api::V1::Accounts::Erp::CashAccountsController < Api::V1::Accounts::Erp::B
   end
 
   # 出纳日记账：某账户（或全部）的流水，按日期倒序。
+  TRANSACTIONS_LIMIT = 200
+
   def transactions
-    scope = Current.account.erp_cash_transactions.includes(:cash_account, :created_by)
-    scope = scope.where(cash_account_id: params[:cash_account_id]) if params[:cash_account_id].present?
-    scope = scope.where(happened_at: params[:from]..) if params[:from].present?
-    scope = scope.where(happened_at: ..params[:to]) if params[:to].present?
-    @transactions = scope.order(happened_at: :desc, id: :desc).limit(200)
+    scope = transactions_scope
+    # 日记账是要跟银行对账单核的表：截断必须显式打标，静默少一段流水=对不上还找不到原因。
+    @transactions_count = scope.count
+    @truncated = @transactions_count > TRANSACTIONS_LIMIT
+    @transactions = scope.order(happened_at: :desc, id: :desc).limit(TRANSACTIONS_LIMIT)
     render 'api/v1/accounts/erp/cash_accounts/transactions'
   end
 
@@ -42,7 +44,8 @@ class Api::V1::Accounts::Erp::CashAccountsController < Api::V1::Accounts::Erp::B
       from_id: params[:from_id], to_id: params[:to_id],
       amount_micros: params[:amount_micros].to_i,
       happened_at: params[:happened_at].presence || Time.zone.today,
-      summary: params[:summary]
+      summary: params[:summary],
+      exchange_rate: params[:exchange_rate]
     )
     @cash_accounts = cash_accounts_scope
     render 'api/v1/accounts/erp/cash_accounts/index'
@@ -51,6 +54,14 @@ class Api::V1::Accounts::Erp::CashAccountsController < Api::V1::Accounts::Erp::B
   end
 
   private
+
+  def transactions_scope
+    scope = Current.account.erp_cash_transactions.includes(:cash_account, :created_by)
+    scope = scope.where(cash_account_id: params[:cash_account_id]) if params[:cash_account_id].present?
+    scope = scope.where(happened_at: params[:from]..) if params[:from].present?
+    scope = scope.where(happened_at: ..params[:to]) if params[:to].present?
+    scope
+  end
 
   # 票面要显示映射科目名，列表统一预加载（dev 的 Bullet 会对 N+1 直接抛 500）。
   def cash_accounts_scope

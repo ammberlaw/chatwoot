@@ -138,7 +138,7 @@ class Erp::AuditExportService
   def csv_with_bom(headers)
     BOM + CSV.generate(encoding: 'UTF-8') do |csv|
       csv << headers
-      yield csv
+      yield Erp::SanitizingCsv.new(csv)
     end
   end
 

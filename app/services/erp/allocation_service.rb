@@ -103,11 +103,15 @@ class Erp::AllocationService
     ledger.total_amount_micros - paid
   end
 
+  # 上限是**毛额**（到账净额＋银行手续费）：客户还 1000、银行扣 3、到账 997，
+  # 自动凭证按 1000 贷应收，核销也必须能核到 1000——按净额 997 卡的话，
+  # 每张带手续费的收款单都会在台账上留一笔等于手续费的假「未收」，总账与台账永远差手续费累计额。
   def validate_record_total!
     total = @record.allocations.sum(:amount_micros)
-    return if total <= @record.amount_micros
+    gross = @record.amount_micros + @record.bank_charge_micros.to_i
+    return if total <= gross
 
-    raise Error, "核销合计 #{fmt(total)} 超出单据金额 #{fmt(@record.amount_micros)}"
+    raise Error, "核销合计 #{fmt(total)} 超出单据金额 #{fmt(gross)}（含手续费）"
   end
 
   # 台账余额 = 该台账上所有核销之和；状态由余额派生。

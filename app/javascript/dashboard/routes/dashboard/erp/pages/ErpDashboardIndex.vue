@@ -65,6 +65,7 @@ const go = path =>
   router.push(frontendURL(`accounts/${accountId.value}/${path}`));
 
 const draftCount = computed(() => data.value.kpis?.draft_voucher_count || 0);
+const foreignCash = computed(() => data.value.kpis?.cash_foreign || []);
 
 onMounted(async () => {
   try {
@@ -107,6 +108,15 @@ onMounted(async () => {
             "
           >
             {{ money(data.kpis[kpi.key]) }}
+          </div>
+          <!-- 外币账户不折进人民币数（没有可用汇率快照），按币种单列 -->
+          <div
+            v-if="kpi.key === 'cash_balance' && foreignCash.length"
+            class="text-xs text-n-slate-11"
+          >
+            <span v-for="row in foreignCash" :key="row.currency" class="mr-2">
+              {{ row.currency }} {{ money(row.amount_micros) }}
+            </span>
           </div>
         </button>
       </div>

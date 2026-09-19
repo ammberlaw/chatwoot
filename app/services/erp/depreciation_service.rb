@@ -43,7 +43,29 @@ class Erp::DepreciationService
     end
   end
 
+  # 折旧/处置凭证还是草稿就被作废或删除时，把资产侧账一起退回去——
+  # 计提记录和累计折旧是跟凭证同事务写入的，光去掉凭证会留下「资产已折旧、总账没入账」，
+  # 而且该期间的计提记录还在，重新计提会返回 0 张，这个月的折旧就永远丢了。
+  def rollback_voucher!(voucher)
+    entries = @account.erp_depreciation_entries.where(voucher_id: voucher.id).includes(:fixed_asset)
+    entries.find_each do |entry|
+      asset = entry.fixed_asset
+      asset.lock!
+      asset.update!(accumulated_depreciation_micros: asset.accumulated_depreciation_micros - entry.amount_micros)
+      entry.destroy!
+    end
+    rollback_disposal!(voucher) if entries.empty?
+  end
+
   private
+
+  # 处置凭证（source_id=资产 id、无计提记录）：把资产退回在用，允许改对了再处置。
+  def rollback_disposal!(voucher)
+    asset = @account.erp_fixed_assets.find_by(id: voucher.source_id)
+    return if asset.blank? || asset.status == Erp::FixedAsset::IN_USE
+
+    asset.update!(status: Erp::FixedAsset::IN_USE, disposed_at: nil, disposal_income_micros: 0)
+  end
 
   def validate_period!(period)
     raise Error, '会计期间格式应为 YYYY-MM' unless period.to_s.match?(/\A\d{4}-\d{2}\z/)
@@ -106,7 +128,8 @@ class Erp::DepreciationService
     raise Error, '找不到固定资产/累计折旧/资产处置损益科目' if fixed.blank? || accum.blank? || disposal.blank?
 
     lines = disposal_lines(asset, income_micros, fixed: fixed, accum: accum, disposal: disposal)
-    create_voucher(date: disposed_at, summary: "处置固定资产 #{asset.asset_no} #{asset.name}", lines: lines)
+    create_voucher(date: disposed_at, summary: "处置固定资产 #{asset.asset_no} #{asset.name}", lines: lines,
+                   source_id: asset.id)
   end
 
   def disposal_lines(asset, income_micros, fixed:, accum:, disposal:)
@@ -139,10 +162,11 @@ class Erp::DepreciationService
   end
 
   # 折旧与处置凭证都直接生成**待过账**，与自动凭证一个哲学：系统只做单据，记账由财务点。
-  def create_voucher(date:, summary:, lines:)
+  # 处置凭证带 source_id=资产 id（草稿被删时靠它回滚资产状态）；计提凭证靠计提记录反查，不用带。
+  def create_voucher(date:, summary:, lines:, source_id: nil)
     voucher = @account.erp_vouchers.create!(
       voucher_date: date, summary: summary, status: Erp::Voucher::DRAFT,
-      prepared_by_id: @user&.id, source_type: 'Erp::Depreciation',
+      prepared_by_id: @user&.id, source_type: 'Erp::Depreciation', source_id: source_id,
       lines_attributes: lines.each_with_index.map { |row, index| row.merge(position: index) }
     )
     voucher.refresh_totals!

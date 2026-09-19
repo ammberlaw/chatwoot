@@ -9,7 +9,7 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     @summary = { total_micros: scope.sum(Arel.sql(Erp::Payable::BASE_TOTAL_MICROS_SQL)),
                  paid_micros: scope.sum(Arel.sql(Erp::Payable::BASE_PAID_MICROS_SQL)) }
     @payables = scope.includes(:mes_supplier, :mes_purchase_order)
-                     .order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+                     .order(created_at: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -34,6 +34,11 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     new_total = payable_params[:total_amount_micros]
     if new_total.present? && new_total.to_i < @payable.paid_amount_micros.to_i
       return render json: { error: '应付总额不能小于已付金额，请先撤销相关核销' }, status: :unprocessable_entity
+    end
+
+    # 币种/供应商是核销时校验过的一致性锚点，核销后不许再改（同应收侧）。
+    if @payable.allocations.exists? && (guard = allocated_change_error)
+      return render json: { error: guard }, status: :unprocessable_entity
     end
 
     @payable.update!(payable_params)
@@ -103,6 +108,14 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
 
   def check_authorization
     authorize(Erp::Payable)
+  end
+
+  def allocated_change_error
+    incoming = payable_params
+    return '已有付款核销的台账不能改币种，请先撤销相关核销' if incoming[:currency].present? && incoming[:currency] != @payable.currency
+    return '已有付款核销的台账不能改供应商，请先撤销相关核销' if incoming[:mes_supplier_id].present? && incoming[:mes_supplier_id].to_i != @payable.mes_supplier_id
+
+    nil
   end
 
   def payable_params

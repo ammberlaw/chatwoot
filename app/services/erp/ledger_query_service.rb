@@ -26,10 +26,16 @@ class Erp::LedgerQueryService
   # 明细账：某科目（含下级）的逐笔分录，带累计余额，可再按维度切片。
   def entries(ledger_account:, from:, to:, dimension: nil, dimension_id: nil)
     ids = account_with_descendant_ids(ledger_account)
-    opening = signed_balance(grouped_sums(scope_before(from).where(ledger_account_id: ids)), ledger_account.direction, ids)
+    sliced = dimension.present? && dimension_id.present?
+
+    # 期初必须跟明细同一个切片口径：按维度切片时期初也只算该维度的分录，
+    # 否则「某客户的应收明细」开头挂着全科目的期初，逐行累计余额全是错的。
+    opening_scope = scope_before(from).where(ledger_account_id: ids)
+    opening_scope = opening_scope.where(dimension_column(dimension) => dimension_id) if sliced
+    opening = signed_balance(grouped_sums(opening_scope), ledger_account.direction, ids)
 
     scope = scope_between(from, to).where(ledger_account_id: ids)
-    scope = scope.where(dimension_column(dimension) => dimension_id) if dimension.present? && dimension_id.present?
+    scope = scope.where(dimension_column(dimension) => dimension_id) if sliced
     running = opening
     rows = scope.includes(:voucher, :ledger_account, :crm_customer, :mes_supplier, :crm_sales_order, :department, :member)
                 .order('erp_vouchers.voucher_date ASC, erp_vouchers.voucher_no ASC, erp_voucher_lines.position ASC')

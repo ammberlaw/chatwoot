@@ -30,20 +30,27 @@ class Erp::ReconciliationService
       diff_micros: business - ledger, matched: business == ledger, note: note_for(group[:key]) }
   end
 
-  # 外币账户的本位币余额只能由凭证（按录入时汇率折算）决定，账户上的原币余额不能直接和总账比，
-  # 所以资金对平只对本位币账户，外币账户单独提示、按外币另行核对。
+  # 外币的本位币余额只能由凭证（按录入时汇率折算）决定，与台账/账户原币余额不可比，
+  # 所以三组都只对本位币，外币的量单独提示、按外币另行核对——没有提示的排除项等于「假绿灯」。
   def note_for(key)
-    return nil unless key == 'cash'
+    count = case key
+            when 'cash' then @account.erp_cash_accounts.active.where.not(currency: 'CNY').count
+            when 'receivable' then @account.erp_receivables.where.not(currency: 'CNY').count
+            else @account.erp_payables.where.not(currency: 'CNY').count
+            end
+    return nil if count.zero?
 
-    foreign = @account.erp_cash_accounts.active.where.not(currency: 'CNY').count
-    foreign.zero? ? nil : "另有 #{foreign} 个外币账户未纳入本位币对平，请按外币单独核对"
+    unit = key == 'cash' ? '个外币账户' : '条外币台账'
+    "另有 #{count} #{unit}未纳入本位币对平，请按外币单独核对"
   end
 
-  # 总账侧同样只取本位币科目——外币科目余额是本位币折算数，与外币账户原币不可比。
+  # 总账侧取本位币科目：currency 为空＝本位币；财务把科目显式标成 CNY 也算——
+  # 自动凭证选科目时优先币种精确匹配，标了 CNY 的科目会实际入账，从对平里剔掉就是一笔解释不了的永久差额。
   def ledger_balance(types, balances)
     wanted = Array(types)
     balances.reject { |row| row[:account].is_group? }
-            .select { |row| wanted.include?(row[:account].account_type) && row[:account].currency.blank? }
+            .select { |row| wanted.include?(row[:account].account_type) }
+            .select { |row| row[:account].currency.blank? || row[:account].currency == 'CNY' }
             .sum { |row| row[:closing_micros] }
   end
 

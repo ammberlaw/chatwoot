@@ -27,6 +27,7 @@ class Api::V1::Accounts::Erp::DashboardController < Api::V1::Accounts::Erp::Base
                                Erp::PaymentRecord::BASE_AMOUNT_MICROS_SQL),
       overdue_receivable: overdue_amount,
       cash_balance: cash_balance,
+      cash_foreign: cash_foreign,
       month_profit: month_profit,
       draft_voucher_count: account.erp_vouchers.where(status: Erp::Voucher::DRAFT).count
     }.merge(ledger_balances)
@@ -62,20 +63,37 @@ class Api::V1::Accounts::Erp::DashboardController < Api::V1::Accounts::Erp::Base
            .where(due_date: ...Time.zone.today)
   end
 
+  # 已收款按到期日 FIFO 先冲最早的分期（与账龄分析同口径）：
+  # 订金早收了、尾款没到期，逾期不能把整期订金再算一遍——否则看板逾期与账龄页两个数对不上，且虚高。
+  # 返回 [[installment, 未收余额], ...]，已被收款盖住的分期直接不出现。
+  def overdue_rows
+    @overdue_rows ||= begin
+      received_left = {}
+      overdue_scope.includes(receivable: [:crm_customer, :owner]).order(:due_date).filter_map do |installment|
+        receivable = installment.receivable
+        left = received_left.fetch(receivable.id) { receivable.received_amount_micros.to_i }
+        covered = [left, installment.amount_micros].min
+        received_left[receivable.id] = left - covered
+        outstanding = installment.amount_micros - covered
+        [installment, outstanding] if outstanding.positive?
+      end
+    end
+  end
+
   # 分期表本身没有币种列，币种跟着所属台账走，所以按台账的汇率折。
   def overdue_amount
-    overdue_scope.sum(Arel.sql('ROUND(erp_receivable_installments.amount_micros * COALESCE(erp_receivables.exchange_rate, 1))'))
+    overdue_rows.sum { |installment, outstanding| (outstanding * (installment.receivable.exchange_rate.presence || 1).to_d).round }
   end
 
   def overdue_installments
-    overdue_scope.includes(receivable: [:crm_customer, :owner]).order(:due_date).limit(10).map do |installment|
+    overdue_rows.first(10).map do |installment, outstanding|
       receivable = installment.receivable
       {
         id: installment.id, receivable_no: receivable.receivable_no,
         customer_name: receivable.crm_customer&.name,
         owner_name: receivable.owner&.crm_name.presence || receivable.owner&.name,
         kind_label: Erp::ReceivableInstallment::KIND_LABELS[installment.kind],
-        amount_micros: installment.amount_micros, due_date: installment.due_date,
+        amount_micros: outstanding, due_date: installment.due_date,
         overdue_days: (Time.zone.today - installment.due_date).to_i
       }
     end
@@ -92,8 +110,17 @@ class Api::V1::Accounts::Erp::DashboardController < Api::V1::Accounts::Erp::Base
     end
   end
 
+  # 只加本位币账户——直接把 USD/EUR 余额 1:1 加进人民币 KPI 就是错数。
+  # 外币账户按币种单列（cash_foreign），前端在卡片下方标注，不折算（流水没有逐笔汇率快照可用）。
   def cash_balance
-    account.erp_cash_accounts.active.sum(&:balance_micros)
+    account.erp_cash_accounts.active.select { |row| row.currency == 'CNY' }.sum(&:balance_micros)
+  end
+
+  def cash_foreign
+    account.erp_cash_accounts.active.reject { |row| row.currency == 'CNY' }
+           .group_by(&:currency)
+           .map { |currency, rows| { currency: currency, amount_micros: rows.sum(&:balance_micros) } }
+           .sort_by { |row| row[:currency] }
   end
 
   def month_profit

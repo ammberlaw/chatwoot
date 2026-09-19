@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, nextTick, onMounted } from 'vue';
+import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
@@ -17,6 +17,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEditor.vue';
 import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
 
 // 应收：台账（从销售订单建账 + 分期计划）与收款记录（水单 + 核销）两页签。
@@ -90,13 +91,19 @@ const ledgerMeta = ref({});
 const receipts = ref([]);
 const receiptMeta = ref({});
 
+// 分页：meta.count 是全量数，超过一页必须给翻页入口——迁移进来的客户量早超一页，静默截断=「数据消失」。
+const PER_PAGE = 50;
+const ledgerPage = ref(1);
+const receiptPage = ref(1);
+
 const loadLedgers = async () => {
   loading.value = true;
   try {
     const { data } = await ErpReceivableAPI.get({
       q: keyword.value.trim(),
       status: statusFilter.value,
-      per_page: 50,
+      page: ledgerPage.value,
+      per_page: PER_PAGE,
     });
     ledgers.value = data.payload;
     ledgerMeta.value = data.meta;
@@ -110,7 +117,8 @@ const loadReceipts = async () => {
   try {
     const { data } = await ErpReceiptAPI.get({
       q: keyword.value.trim(),
-      per_page: 50,
+      page: receiptPage.value,
+      per_page: PER_PAGE,
     });
     receipts.value = data.payload;
     receiptMeta.value = data.meta;
@@ -118,6 +126,13 @@ const loadReceipts = async () => {
     loading.value = false;
   }
 };
+
+watch([keyword, statusFilter], () => {
+  ledgerPage.value = 1;
+  receiptPage.value = 1;
+});
+watch(ledgerPage, loadLedgers);
+watch(receiptPage, loadReceipts);
 
 /* ---------------- 待建账：已确认但还没建应收的订单 ---------------- */
 // 漏建账 = 应收报表少一笔且没有任何提示，这个页签就是那个提示。
@@ -275,7 +290,10 @@ const allocationLedgers = computed(() =>
     outstanding_micros: r.outstanding_micros,
   }))
 );
-const receiptAmountMicros = computed(() => toMicros(receiptForm.amount));
+// 可核销上限是毛额（到账净额＋手续费），与后端 AllocationService 口径一致
+const receiptAmountMicros = computed(
+  () => toMicros(receiptForm.amount) + toMicros(receiptForm.bankCharge)
+);
 
 const loadOpenReceivables = async customerId => {
   if (!customerId) {
@@ -715,6 +733,22 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
+      <PaginationFooter
+        v-if="activeTab === 'ledger' && (ledgerMeta.count || 0) > PER_PAGE"
+        :current-page="ledgerPage"
+        :total-items="ledgerMeta.count"
+        :items-per-page="PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="ledgerPage = $event"
+      />
+      <PaginationFooter
+        v-if="activeTab === 'receipts' && (receiptMeta.count || 0) > PER_PAGE"
+        :current-page="receiptPage"
+        :total-items="receiptMeta.count"
+        :items-per-page="PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="receiptPage = $event"
+      />
     </div>
 
     <!-- 建账弹窗 -->

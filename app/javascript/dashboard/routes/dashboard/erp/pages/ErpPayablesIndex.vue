@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, nextTick, onMounted } from 'vue';
+import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
@@ -19,6 +19,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEditor.vue';
 import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
 import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 
 // 应付：台账（按采购单建账，按明细行供应商分组）/ 付款记录（核销）/ 供应商对账 三页签。
 // 与应收同构；台账「已付」只由核销维护。
@@ -67,13 +68,19 @@ const payments = ref([]);
 const paymentMeta = ref({});
 const statementRows = ref([]);
 
+// 分页：meta.count 是全量数，超过一页给翻页入口——静默截断=「数据消失」。
+const PER_PAGE = 50;
+const ledgerPage = ref(1);
+const paymentPage = ref(1);
+
 const loadLedgers = async () => {
   loading.value = true;
   try {
     const { data } = await ErpPayableAPI.get({
       q: keyword.value.trim(),
       status: statusFilter.value,
-      per_page: 50,
+      page: ledgerPage.value,
+      per_page: PER_PAGE,
     });
     ledgers.value = data.payload;
     ledgerMeta.value = data.meta;
@@ -87,7 +94,8 @@ const loadPayments = async () => {
   try {
     const { data } = await ErpPaymentAPI.get({
       q: keyword.value.trim(),
-      per_page: 50,
+      page: paymentPage.value,
+      per_page: PER_PAGE,
     });
     payments.value = data.payload;
     paymentMeta.value = data.meta;
@@ -95,6 +103,13 @@ const loadPayments = async () => {
     loading.value = false;
   }
 };
+
+watch([keyword, statusFilter], () => {
+  ledgerPage.value = 1;
+  paymentPage.value = 1;
+});
+watch(ledgerPage, loadLedgers);
+watch(paymentPage, loadPayments);
 
 const loadStatement = async () => {
   loading.value = true;
@@ -177,7 +192,10 @@ const allocationLedgers = computed(() =>
     outstanding_micros: p.outstanding_micros,
   }))
 );
-const paymentAmountMicros = computed(() => toMicros(paymentForm.amount));
+// 可核销上限是毛额（付出净额＋手续费），与后端 AllocationService 口径一致
+const paymentAmountMicros = computed(
+  () => toMicros(paymentForm.amount) + toMicros(paymentForm.bankCharge)
+);
 
 const searchSuppliers = async q => {
   const { data } = await MesSupplierAPI.get({ q, active: 'true' });
@@ -568,6 +586,22 @@ onMounted(loadLedgers);
           </tr>
         </tbody>
       </table>
+      <PaginationFooter
+        v-if="activeTab === 'ledger' && (ledgerMeta.count || 0) > PER_PAGE"
+        :current-page="ledgerPage"
+        :total-items="ledgerMeta.count"
+        :items-per-page="PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="ledgerPage = $event"
+      />
+      <PaginationFooter
+        v-if="activeTab === 'payments' && (paymentMeta.count || 0) > PER_PAGE"
+        :current-page="paymentPage"
+        :total-items="paymentMeta.count"
+        :items-per-page="PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="paymentPage = $event"
+      />
     </div>
 
     <!-- 建账弹窗 -->

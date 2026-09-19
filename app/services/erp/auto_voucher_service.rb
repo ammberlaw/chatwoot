@@ -36,7 +36,7 @@ class Erp::AutoVoucherService
     end
     lines << line(account: receivable, direction: 'CREDIT', amount_micros: gross, record: receipt,
                   summary: '冲减应收', dimension: { crm_customer_id: receipt.crm_customer_id })
-                 .merge(base_amount_micros: cash_base + fee_base, explicit_base: true)
+             .merge(base_amount_micros: cash_base + fee_base, explicit_base: true)
 
     build_voucher(receipt, "收款 #{receipt.receipt_no} · #{receipt.crm_customer&.name}", receipt.received_at, lines)
   end
@@ -61,24 +61,27 @@ class Erp::AutoVoucherService
     total_out = payment.amount_micros + payment.bank_charge_micros
     # 贷方货币资金 base 用两借方 base 之和倒挤，保证外币下借贷严格相等(见 for_receipt)。
     lines << line(account: cash, direction: 'CREDIT', amount_micros: total_out, record: payment, summary: '付出款项')
-              .merge(base_amount_micros: payable_base + fee_base, explicit_base: true)
+             .merge(base_amount_micros: payable_base + fee_base, explicit_base: true)
 
     build_voucher(payment, "付款 #{payment.payment_no} · #{payment.mes_supplier&.name}", payment.paid_at, lines)
   end
 
-  # 内部划转：借 转入账户 / 贷 转出账户（跨币种的汇兑差额在 §7.2 落地后再补）
-  def for_transfer(from_account, to_account, amount_micros, happened_at, source_key)
+  # 内部划转：借 转入账户 / 贷 转出账户（跨币种的汇兑差额在 §7.2 落地后再补）。
+  # attrs: { amount_micros:, happened_at:, source_key:, rate: }
+  # rate：同币种外币互转按划转日汇率折本位币（两腿同率必平），CNY 恒为 1。
+  def for_transfer(from_account, to_account, attrs)
     rule = rule_for(Erp::AutoVoucherRule::CASH_TRANSFER)
     return if rule.blank? || !rule.is_active?
     return if from_account.ledger_account.blank? || to_account.ledger_account.blank?
 
+    rate = attrs.fetch(:rate, 1)
     lines = [
-      { ledger_account_id: to_account.ledger_account_id, direction: 'DEBIT', amount_micros: amount_micros,
-        summary: "转入 #{to_account.name}", currency: to_account.currency, exchange_rate: 1 },
-      { ledger_account_id: from_account.ledger_account_id, direction: 'CREDIT', amount_micros: amount_micros,
-        summary: "转出 #{from_account.name}", currency: from_account.currency, exchange_rate: 1 }
+      { ledger_account_id: to_account.ledger_account_id, direction: 'DEBIT', amount_micros: attrs[:amount_micros],
+        summary: "转入 #{to_account.name}", currency: to_account.currency, exchange_rate: rate },
+      { ledger_account_id: from_account.ledger_account_id, direction: 'CREDIT', amount_micros: attrs[:amount_micros],
+        summary: "转出 #{from_account.name}", currency: from_account.currency, exchange_rate: rate }
     ]
-    create_voucher!(source_type: 'Erp::CashTransfer', source_id: source_key, date: happened_at,
+    create_voucher!(source_type: 'Erp::CashTransfer', source_id: attrs[:source_key], date: attrs[:happened_at],
                     summary: "内部划转 #{from_account.name} → #{to_account.name}", lines: lines)
   end
 
@@ -147,17 +150,25 @@ class Erp::AutoVoucherService
   # 于是「改了单据金额 → 台账和资金流水都跟着变、凭证还停在旧金额」，
   # 总账与台账就此不平，而且没有任何人被告知。
   # 现在：分录没变就照旧返回（改备注之类不该报错），一旦金额/科目/维度变了就拦下来。
-  def guard_posted!(previous, lines)
-    return previous if signature(previous.lines) == signature(lines)
+  def guard_posted!(previous, lines, date)
+    return previous if signature(previous.lines) == signature(lines) && previous.voucher_date == date&.to_date
 
     raise Error, "本单已生成凭证 #{previous.voucher_no} 并已记账，改动不会自动同步到凭证。" \
                  '请先红冲该凭证，再修改单据。'
   end
 
-  SIGNATURE_KEYS = %i[ledger_account_id direction amount_micros crm_customer_id mes_supplier_id].freeze
+  # 汇率/币种必须进签名：只改汇率（或币种撞到同一兜底科目）时分录原币没变，
+  # 但本位币 base 全变了——不进签名就静默放行，总账停在旧汇率、台账/流水按新汇率走，又是一类静默不平。
+  # 日期同理（决定凭证期间），在 guard_posted! 里单独比。
+  SIGNATURE_KEYS = %i[ledger_account_id direction amount_micros currency exchange_rate crm_customer_id mes_supplier_id].freeze
 
   def signature(lines)
-    lines.map { |line| SIGNATURE_KEYS.map { |key| line.is_a?(Hash) ? line[key] : line.public_send(key) } }.sort_by(&:to_s)
+    lines.map do |line|
+      SIGNATURE_KEYS.map do |key|
+        value = line.is_a?(Hash) ? line[key] : line.public_send(key)
+        key == :exchange_rate ? value.to_d : value
+      end
+    end.sort_by(&:to_s)
   end
 
   def existing_voucher(record)
@@ -173,7 +184,7 @@ class Erp::AutoVoucherService
       previous = @account.erp_vouchers.where(source_type: source_type, source_id: source_id)
                          .where.not(status: Erp::Voucher::VOID).order(:id).last
       if previous&.status == Erp::Voucher::POSTED
-        guard_posted!(previous, lines)
+        guard_posted!(previous, lines, date)
       else
         previous&.destroy
         voucher = @account.erp_vouchers.create!(

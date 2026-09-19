@@ -157,9 +157,17 @@ onMounted(loadMargin);
           <span class="text-n-slate-12">{{
             money(marginMeta.margin_micros)
           }}</span>
+          <!-- 合计是全量口径；明细只展示前 200 行，截断时提示收窄日期范围 -->
+          <span v-if="marginMeta.truncated" class="text-n-amber-11">
+            · 共 {{ marginMeta.total_count }} 单，明细仅展示前 200
+            行（合计为全量），可缩小日期范围查看
+          </span>
         </span>
       </div>
-      <div v-if="canWrite && activeTab === 'costs'" class="flex items-center gap-2">
+      <div
+        v-if="canWrite && activeTab === 'costs'"
+        class="flex items-center gap-2"
+      >
         <Button
           label="从 MES 归集"
           color="slate"

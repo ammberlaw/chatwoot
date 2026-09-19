@@ -1,3 +1,7 @@
+json.meta do
+  json.count @transactions_count
+  json.truncated @truncated
+end
 json.payload do
   json.array! @transactions do |transaction|
     json.id transaction.id

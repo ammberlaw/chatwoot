@@ -34,12 +34,16 @@ class Api::V1::Accounts::Erp::OrderCostsController < Api::V1::Accounts::Erp::Bas
     render json: { payload: @result }
   end
 
-  # 毛利报表：订单维度 + 业务员/客户汇总。
+  # 毛利报表：订单维度 + 业务员/客户汇总。合计/汇总按全量算，明细超 200 行截断并打标。
   def margin
-    service = Erp::MarginService.new(Current.account)
-    @rows = service.by_order(from: params[:from], to: params[:to])
     @summary_by = params[:group_by].presence
-    @summary = @summary_by ? service.summary_by(@summary_by, from: params[:from], to: params[:to]) : []
+    report = Erp::MarginService.new(Current.account)
+                               .report(from: params[:from], to: params[:to], group_by: @summary_by)
+    @rows = report[:rows]
+    @summary = report[:summary]
+    @totals = report[:totals]
+    @truncated = report[:truncated]
+    @total_count = report[:total_count]
     render 'api/v1/accounts/erp/order_costs/margin'
   end
 

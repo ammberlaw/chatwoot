@@ -45,6 +45,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const accounts = ref([]);
 const transactions = ref([]);
+const transactionsMeta = ref({});
 const loading = ref(false);
 const filterAccountId = ref('');
 
@@ -67,6 +68,7 @@ const loadTransactions = async () => {
       cash_account_id: filterAccountId.value || undefined,
     });
     transactions.value = data.payload;
+    transactionsMeta.value = data.meta || {};
   } finally {
     loading.value = false;
   }
@@ -142,9 +144,17 @@ const transferForm = reactive({
   fromId: '',
   toId: '',
   amount: '',
+  exchangeRate: '',
   happenedAt: today(),
   summary: '',
 });
+// 外币账户互转（USD→USD）要填划转日汇率折本位币；CNY 恒为 1，不显示输入框。
+const transferCurrency = computed(
+  () => accounts.value.find(a => a.id === transferForm.fromId)?.currency || ''
+);
+const transferNeedsRate = computed(
+  () => transferCurrency.value && transferCurrency.value !== 'CNY'
+);
 const accountOptions = computed(() =>
   accounts.value.map(a => ({
     value: a.id,
@@ -156,6 +166,7 @@ const openTransfer = () => {
     fromId: '',
     toId: '',
     amount: '',
+    exchangeRate: '',
     happenedAt: today(),
     summary: '',
   });
@@ -166,7 +177,8 @@ const transferInvalid = computed(
     !transferForm.fromId ||
     !transferForm.toId ||
     transferForm.fromId === transferForm.toId ||
-    !transferForm.amount
+    !transferForm.amount ||
+    (transferNeedsRate.value && !(Number(transferForm.exchangeRate) > 0))
 );
 const submitTransfer = async () => {
   if (transferInvalid.value) return;
@@ -177,6 +189,7 @@ const submitTransfer = async () => {
       amount_micros: toMicros(transferForm.amount),
       happened_at: transferForm.happenedAt,
       summary: transferForm.summary,
+      exchange_rate: transferNeedsRate.value ? transferForm.exchangeRate : 1,
     });
     useAlert('划转完成，已生成成对流水与待过账凭证');
     transferDialogRef.value?.close();
@@ -324,6 +337,16 @@ onMounted(async () => {
               {{ transaction.created_by_name || '—' }}
             </td>
           </tr>
+          <!-- 日记账要跟银行对账单核对，截断必须显式说出来 -->
+          <tr v-if="transactionsMeta.truncated">
+            <td
+              colspan="7"
+              class="px-3 py-2 text-center text-xs text-n-amber-11"
+            >
+              共 {{ transactionsMeta.count }} 笔流水，仅展示最近
+              {{ transactions.length }} 笔；更早的请选账户或用日期范围缩小查询
+            </td>
+          </tr>
           <tr v-if="!transactions.length">
             <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
               还没有资金流水。登记收付款或做一次内部划转就会出现在这里。
@@ -442,6 +465,18 @@ onMounted(async () => {
               v-model="transferForm.amount"
               size="sm"
               type="number"
+              custom-input-class="!h-9"
+            />
+          </div>
+          <div v-if="transferNeedsRate" class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">
+              划转日汇率（{{ transferCurrency }} → CNY）
+            </label>
+            <Input
+              v-model="transferForm.exchangeRate"
+              size="sm"
+              type="number"
+              step="0.000001"
               custom-input-class="!h-9"
             />
           </div>

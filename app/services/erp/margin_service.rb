@@ -8,22 +8,49 @@ class Erp::MarginService
     @account = account
   end
 
-  # 订单维度毛利表。
+  # 报表入口：明细最多回传 limit 行（多出的打 truncated 标记），
+  # **表头合计与维度汇总永远按全量算**——按截断行数出的合计是错数还看不出来错。
+  def report(from: nil, to: nil, group_by: nil, limit: 200)
+    rows = by_order(from: from, to: to, limit: nil)
+    {
+      rows: rows.first(limit), truncated: rows.size > limit, total_count: rows.size,
+      totals: totals_of(rows),
+      summary: group_by ? summarize(rows, group_by) : []
+    }
+  end
+
+  # 订单维度毛利表。limit: nil＝全量（汇总口径用）。
   def by_order(from: nil, to: nil, limit: 200)
-    orders = order_scope(from, to).limit(limit).to_a
+    scope = order_scope(from, to)
+    scope = scope.limit(limit) if limit
+    orders = scope.to_a
     receivables = @account.erp_receivables.where(crm_sales_order_id: orders.map(&:id)).index_by(&:crm_sales_order_id)
     costs = cost_totals(orders.map(&:id))
     orders.map { |order| row_for(order, receivables[order.id], costs[order.id].to_i) }
   end
 
-  # 汇总维度（业务员 / 客户），拿订单行再聚合。
+  # 汇总维度（业务员 / 客户），拿全量订单行再聚合。
   def summary_by(dimension, from: nil, to: nil)
-    rows = by_order(from: from, to: to, limit: 1000)
-    grouped = rows.group_by { |row| dimension == 'customer' ? row[:customer_name] : row[:owner_name] }
-    grouped.map { |name, group| aggregate(name, group) }.sort_by { |row| -row[:revenue_micros] }
+    summarize(by_order(from: from, to: to, limit: nil), dimension)
   end
 
   private
+
+  # 按 id 分组、名字只做展示——按名字分组会把同名客户/同名业务员并成一行（迁移数据里同名客户真实存在）。
+  def summarize(rows, dimension)
+    grouped = rows.group_by do |row|
+      dimension == 'customer' ? [row[:customer_id], row[:customer_name]] : [row[:owner_id], row[:owner_name]]
+    end
+    grouped.map { |(_id, name), group| aggregate(name, group) }.sort_by { |row| -row[:revenue_micros] }
+  end
+
+  def totals_of(rows)
+    {
+      revenue_micros: rows.sum { |row| row[:revenue_micros] },
+      cost_micros: rows.sum { |row| row[:cost_micros] },
+      margin_micros: rows.sum { |row| row[:margin_micros] }
+    }
+  end
 
   def order_scope(from, to)
     scope = @account.crm_sales_orders.includes(:crm_customer, :owner).order(order_date: :desc)
@@ -51,7 +78,9 @@ class Erp::MarginService
     {
       order_id: order.id, order_no: order.order_no, order_name: order.name,
       order_date: order.order_date&.to_date,
+      customer_id: order.crm_customer_id,
       customer_name: order.crm_customer&.name,
+      owner_id: order.owner_id,
       owner_name: order.owner&.crm_name.presence || order.owner&.name
     }
   end

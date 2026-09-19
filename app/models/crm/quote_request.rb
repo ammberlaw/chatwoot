@@ -6,14 +6,12 @@
 #
 #  id                  :bigint           not null, primary key
 #  form_data           :jsonb            not null
-#  needed_by           :datetime
 #  pricer_note         :text
 #  product_line        :string           not null
 #  quantity            :integer
 #  quote_currency      :string           default("USD")
 #  quoted_at           :datetime
 #  quoted_price_micros :bigint
-#  remark              :text
 #  request_no          :string           not null
 #  spec_template       :string
 #  status              :string           default("PENDING"), not null

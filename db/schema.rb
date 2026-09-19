@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_19_000010) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1836,8 +1836,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
     t.jsonb "form_data", default: {}, null: false
     t.string "status", default: "PENDING", null: false
     t.integer "quantity"
-    t.datetime "needed_by"
-    t.text "remark"
     t.bigint "quoted_price_micros"
     t.string "quote_currency", default: "USD"
     t.datetime "valid_until"
@@ -2285,6 +2283,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["account_id", "mes_purchase_order_id", "mes_supplier_id"], name: "uniq_erp_payable_po_supplier", unique: true, where: "(mes_purchase_order_id IS NOT NULL)"
     t.index ["account_id", "payable_no"], name: "index_erp_payables_on_account_id_and_payable_no", unique: true
     t.index ["account_id", "status"], name: "index_erp_payables_on_account_id_and_status"
     t.index ["account_id"], name: "index_erp_payables_on_account_id"

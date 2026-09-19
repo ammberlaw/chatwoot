@@ -12,7 +12,7 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
       received_micros: scope.sum(Arel.sql(Erp::Receivable::BASE_RECEIVED_MICROS_SQL))
     }
     @receivables = scope.includes(:crm_customer, :crm_sales_order, :owner, :installments)
-                        .order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+                        .order(created_at: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -34,6 +34,12 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     new_total = receivable_params[:total_amount_micros]
     if new_total.present? && new_total.to_i < @receivable.received_amount_micros.to_i
       return render json: { error: '应收总额不能小于已收金额，请先撤销相关核销' }, status: :unprocessable_entity
+    end
+
+    # 币种/客户是核销时校验过的一致性锚点（同币种、同客户才许核）——核销后再改，
+    # 已核的钱就挂在错的币种/错的客户上。要改先撤核销。
+    if @receivable.allocations.exists? && (guard = allocated_change_error)
+      return render json: { error: guard }, status: :unprocessable_entity
     end
 
     @receivable.update!(receivable_params)
@@ -89,6 +95,14 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   end
 
   private
+
+  def allocated_change_error
+    incoming = receivable_params
+    return '已有收款核销的台账不能改币种，请先撤销相关核销' if incoming[:currency].present? && incoming[:currency] != @receivable.currency
+    return '已有收款核销的台账不能改客户，请先撤销相关核销' if incoming[:crm_customer_id].present? && incoming[:crm_customer_id].to_i != @receivable.crm_customer_id
+
+    nil
+  end
 
   def filtered_scope
     scope = Current.account.erp_receivables

@@ -8,7 +8,7 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
     @payments_count = scope.count
     @summary = { amount_micros: scope.normal.sum(Arel.sql(Erp::PaymentRecord::BASE_AMOUNT_MICROS_SQL)) }
     @payments = scope.includes(:mes_supplier, :recorded_by, allocations: :payable)
-                     .order(paid_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+                     .order(paid_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -28,6 +28,10 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
 
   def update
     return render json: { error: '已作废的付款单不能修改' }, status: :unprocessable_entity unless @payment.voidable?
+
+    # 与 void 同一道冻结闸：改单会动核销/台账/流水，冻结期的总账动不了（原期间与新期间都查）。
+    closed = closed_period_for(@payment.paid_at, payment_params[:paid_at])
+    return render json: { error: "该单据所属期间 #{closed} 已结账，不能修改" }, status: :unprocessable_entity if closed
 
     # 单据 / 核销 / 流水 / 自动凭证要么一起成，要么一起不动——
     # 原来任何一步抛错都会把单据留在改了一半的状态。
