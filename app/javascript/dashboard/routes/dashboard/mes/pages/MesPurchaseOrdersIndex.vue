@@ -14,6 +14,7 @@ import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -296,7 +297,13 @@ const blankRow = () => ({
   suggestedQty: null, // 工程建议采购量（BOM 算料带出，只读参考）
   remark: '',
 });
+// 产线：关联生产订单时从订单继承（Mes::PurchaseOrder#product_line_source），
+// 独立的成品采购单没有父级，必须在表单里选，否则建完切到任何产线都看不见。
+const { activeProductLine, formOptions: productLineOptions } =
+  useMesProductLine();
+
 const form = reactive({
+  productLine: '',
   productionOrderId: '',
   status: 'DRAFT',
   expectedDate: '',
@@ -312,7 +319,10 @@ const supplierTaxRate = id =>
   (suppliersStore.getRecords || []).find(s => String(s.id) === String(id))
     ?.taxRate || 0;
 const invalid = computed(
-  () => !form.rows.length || form.rows.some(rowIncomplete)
+  () =>
+    !form.productLine || // 产线必填：漏了这单切到任何产线都看不见
+    !form.rows.length ||
+    form.rows.some(rowIncomplete)
 );
 // 采购单合计（元）= Σ 数量 × 单价，实时预览（保存后后端按 amount_micros 汇总总额）。
 const orderTotal = computed(() =>
@@ -384,6 +394,7 @@ const resetForm = () => {
   editingId.value = null;
   removedItemIds.value = [];
   Object.assign(form, {
+    productLine: activeProductLine.value || '',
     productionOrderId: '',
     status: 'DRAFT',
     expectedDate: '',
@@ -408,6 +419,7 @@ const openEdit = po => {
   editingId.value = po.id;
   removedItemIds.value = [];
   Object.assign(form, {
+    productLine: po.productLine || '',
     productionOrderId: po.productionOrderId ? String(po.productionOrderId) : '',
     status: po.status,
     expectedDate: po.expectedDate ? po.expectedDate.slice(0, 10) : '',
@@ -459,6 +471,7 @@ const submit = async () => {
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
   ];
   const payload = {
+    productLine: form.productLine || null,
     productionOrderId: form.productionOrderId || null,
     status: form.status,
     expectedDate: form.expectedDate || null,
@@ -740,6 +753,17 @@ onMounted(async () => {
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
+          <div class="flex flex-col gap-1 sm:w-40">
+            <label class="text-heading-3 text-n-slate-12">
+              产品线<span class="text-n-ruby-11">*</span>
+            </label>
+            <SelectCard
+              size="form"
+              :model-value="form.productLine"
+              :options="productLineOptions"
+              @update:model-value="v => (form.productLine = v)"
+            />
+          </div>
           <div class="flex flex-col flex-1 gap-1">
             <label class="text-heading-3 text-n-slate-12">关联生产订单</label>
             <SelectCard

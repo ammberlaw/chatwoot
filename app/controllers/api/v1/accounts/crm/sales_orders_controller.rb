@@ -8,8 +8,11 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   def index
     @sales_orders_scope = filtered_sales_orders
     @sales_orders_count = @sales_orders_scope.count
+    # 同一天下单的订单一大把（order_date 存的是 00:00），只按 order_date 排没有稳定次序，
+    # 翻页是一页一条 SQL，两次执行的并列次序可能不同——结果就是某条订单在任何一页都不出现。
+    # 补 id 兜底，让排序全序唯一（与提成表 order(period_month:, id:) 同一写法）。
     @sales_orders = @sales_orders_scope
-                    .order(order_date: :desc)
+                    .order(order_date: :desc, id: :desc)
                     .page(permitted_params[:page] || 1)
                     .per(results_per_page)
     compute_tab_counts

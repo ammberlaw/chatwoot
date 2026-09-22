@@ -98,7 +98,9 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
     return { updated_at: :desc } unless column
 
     direction = params[:direction] == 'asc' ? 'ASC' : 'DESC'
-    Arel.sql("#{column} #{direction} NULLS LAST")
+    # 补 id 兜底：赢率是 10/20/50 这种档位、金额也常相同，并列行不唯一定序的话，
+    # 翻页（一页一条 SQL）会让某条商机在任何一页都不出现。同客户列表 sort_clause 的写法。
+    Arel.sql("#{column} #{direction} NULLS LAST, crm_opportunities.id DESC")
   end
 
   # 视图筛选：我的商机 / 商机推进（排除终态）。

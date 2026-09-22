@@ -143,7 +143,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   def purchase_order_params
     params.require(:purchase_order).permit(
-      :production_order_id, :status, :expected_date, :follow_up_date, :delivery_date,
+      :production_order_id, :product_line, :status, :expected_date, :follow_up_date, :delivery_date,
       :has_exception, :exception_note, :owner_id, :remark,
       purchase_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :mes_supplier_id, :arrival_date,

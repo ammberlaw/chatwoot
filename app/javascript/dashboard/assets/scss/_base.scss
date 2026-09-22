@@ -216,3 +216,64 @@ table {
     padding-right: env(safe-area-inset-right);
   }
 }
+
+// 邮件正文排版（.prose-email）
+// 邮件正文是外部/编辑器产出的裸 HTML，自己不带排版，而 Tailwind 的 preflight 把
+// p、ul 的 margin 全清成 0——结果就是写信时明明分了段，预览和收件视图里全挤成一坨
+// （业务反馈）。这里把邮件正文该有的基本排版补回来。
+// 只用元素选择器（特指度低），签名、引用块里的行内样式仍然盖得住。
+.prose-email {
+  p {
+    @apply my-3;
+  }
+
+  p:first-child {
+    @apply mt-0;
+  }
+
+  p:last-child {
+    @apply mb-0;
+  }
+
+  ul,
+  ol {
+    @apply my-3 pl-6 list-outside;
+  }
+
+  ol {
+    @apply list-decimal;
+  }
+
+  li {
+    @apply my-1;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply mt-4 mb-2 font-semibold;
+  }
+
+  h1 {
+    @apply text-lg;
+  }
+
+  h2,
+  h3,
+  h4 {
+    @apply text-base;
+  }
+
+  blockquote {
+    @apply pl-3 my-3 border-l-2 border-n-weak text-n-slate-11;
+  }
+
+  hr {
+    @apply my-4;
+  }
+
+  img {
+    @apply h-auto max-w-full;
+  }
+}

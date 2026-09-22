@@ -170,8 +170,33 @@ const cleanMarkdownForHtml = src =>
 // 纯文本版：只去反斜杠行，绝不能转义——否则收件人看到的是「1\.」。
 const cleanTextBody = src => (src || '').replace(/^\\[ \t]*\r?\n/gm, '');
 
+// 发出去的邮件不能靠外部 CSS 撑段距：Outlook 桌面版（Word 排版引擎）会把 <p> 的
+// 上下边距按自己的默认值清掉，收件人看到的就是所有段落贴在一起——我们这边界面正常，
+// 对方那边不正常。邮件开发的通行做法是把段距写成行内样式。
+//
+// 末段不加下边距：正文后面紧跟的是「<br> + 签名」，末段再留 12px 会和那个换行叠加，
+// 签名离正文老远（这个间距业务反馈过两次，别再撑回去）。
+const PARA_STYLE = 'margin:0 0 12px;';
+const inlineParagraphSpacing = html => {
+  if (!html) return html;
+  const opened = html
+    .replace(/<p>/gi, `<p style="${PARA_STYLE}">`)
+    // 带属性的 <p ...>（如插件加的 class）：已有 style 的不动，避免覆盖行内样式
+    .replace(/<p\s+([^>]*?)>/gi, (tag, attrs) =>
+      /style\s*=/i.test(attrs) ? tag : `<p ${attrs} style="${PARA_STYLE}">`
+    );
+  const marker = `<p style="${PARA_STYLE}">`;
+  const last = opened.lastIndexOf(marker);
+  if (last === -1) return opened;
+  return `${opened.slice(0, last)}<p style="margin:0;">${opened.slice(
+    last + marker.length
+  )}`;
+};
+
 const markdownToHtml = src =>
-  renderTextColorSpans(formatMessage(cleanMarkdownForHtml(src), false, false));
+  inlineParagraphSpacing(
+    renderTextColorSpans(formatMessage(cleanMarkdownForHtml(src), false, false))
+  );
 
 // ---- 状态 ----
 const visible = ref(false);
@@ -1944,7 +1969,7 @@ defineExpose({ open, close });
               </div>
               <!-- eslint-disable-next-line vue/no-v-html -->
               <div
-                class="text-sm crm-quote-preview text-n-slate-12 [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full"
+                class="text-sm prose-email crm-quote-preview text-n-slate-12 [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full"
                 v-html="quoteHtmlRaw"
               />
             </div>
@@ -2298,7 +2323,7 @@ defineExpose({ open, close });
         </div>
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div
-          class="px-4 py-4 text-sm leading-relaxed text-n-slate-12"
+          class="px-4 py-4 text-sm leading-relaxed prose-email text-n-slate-12"
           v-html="composedHtml"
         />
       </div>

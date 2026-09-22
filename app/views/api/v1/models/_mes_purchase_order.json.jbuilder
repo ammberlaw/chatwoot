@@ -5,6 +5,7 @@ json.id resource.id
 json.po_no resource.po_no
 json.supplier_names resource.purchase_items.filter_map { |i| i.mes_supplier&.name }.uniq
 json.production_order_id resource.production_order_id
+json.product_line resource.product_line
 json.production_order_no resource.production_order&.order_no
 json.production_order_owner_name resource.production_order&.owner&.name
 json.status resource.status

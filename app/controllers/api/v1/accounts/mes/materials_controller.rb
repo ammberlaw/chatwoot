@@ -2,11 +2,11 @@ class Api::V1::Accounts::Mes::MaterialsController < Api::V1::Accounts::Mes::Base
   before_action :check_authorization
   before_action :fetch_material, only: [:show, :update, :destroy]
 
+  # category=仓别（原料/半成品/成品…），item_category=采购品类（包材/主板/外壳…），两个维度各筛各的。
+  COLUMN_FILTERS = { category: :category, item_category: :item_category }.freeze
+
   def index
-    scope = scoped_by_product_line(Current.account.mes_materials)
-    scope = scope.where(category: params[:category]) if params[:category].present?
-    scope = scope.where(is_active: true) if params[:active] == 'true'
-    scope = scope.where('name ILIKE :t OR material_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
+    scope = filtered_materials
     @materials_count = scope.count
     @materials = scope.order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
@@ -40,10 +40,22 @@ class Api::V1::Accounts::Mes::MaterialsController < Api::V1::Accounts::Mes::Base
     authorize(Mes::Material)
   end
 
+  def filtered_materials
+    scope = scoped_by_product_line(Current.account.mes_materials)
+    COLUMN_FILTERS.each do |param, column|
+      scope = scope.where(column => params[param]) if params[param].present?
+    end
+    scope = scope.where(is_active: true) if params[:active] == 'true'
+    return scope if params[:q].blank?
+
+    scope.where('name ILIKE :t OR material_no ILIKE :t', t: "%#{params[:q].strip}%")
+  end
+
   def material_params
     params.require(:material).permit(
-      :material_no, :name, :category, :specification, :unit, :product_line,
-      :cost_price_micros, :currency, :safety_stock, :default_supplier_id, :is_active, :remark
+      :material_no, :name, :category, :item_category, :specification, :unit, :product_line,
+      :base_no, :cost_price_micros, :currency, :safety_stock, :default_supplier_id, :is_active, :remark,
+      attrs: {}
     )
   end
 end

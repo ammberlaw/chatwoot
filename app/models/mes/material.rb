@@ -3,10 +3,13 @@
 # Table name: mes_materials
 #
 #  id                  :bigint           not null, primary key
+#  attrs               :jsonb            not null
+#  base_no             :string
 #  category            :string
 #  cost_price_micros   :bigint
 #  currency            :string           default("CNY")
 #  is_active           :boolean          default(TRUE), not null
+#  item_category       :string
 #  material_no         :string           not null
 #  name                :string           not null
 #  product_line        :string
@@ -21,6 +24,8 @@
 #
 # Indexes
 #
+#  index_mes_materials_on_account_and_base_no         (account_id,base_no)
+#  index_mes_materials_on_account_and_item_category   (account_id,item_category)
 #  index_mes_materials_on_account_and_product_line    (account_id,product_line)
 #  index_mes_materials_on_account_id                  (account_id)
 #  index_mes_materials_on_account_id_and_material_no  (account_id,material_no) UNIQUE
@@ -32,6 +37,7 @@
 #
 class Mes::Material < ApplicationRecord
   include Mes::LineScoped
+  require_product_line!
 
   # 前三项为早期物料分类；后四项与供应商供应物料的 SKU 仓别分类共用（成品仓/主料/辅料/不良品仓）。
   CATEGORIES = %w[RAW SEMI CONSUMABLE FINISHED RAW_MAIN RAW_AUX DEFECTIVE].freeze

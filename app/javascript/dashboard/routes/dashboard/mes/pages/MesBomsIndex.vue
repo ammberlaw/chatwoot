@@ -1,11 +1,12 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { useMesBomTemplatesStore } from 'dashboard/stores/mes/bomTemplates';
 import MesBomAPI from 'dashboard/api/mes/boms';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
@@ -37,10 +38,16 @@ const goProductPurchase = () =>
     accountScopedRoute('mes_purchase_orders_index', {}, { new: 'product' })
   );
 const store = useMesBomsStore();
+// 后端 BomsController 固定每页 15 条且不认 per_page，这里必须对齐，否则页码算错。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
 const tplStore = useMesBomTemplatesStore();
 const { mesCan } = useMesRole();
 
 const records = computed(() => store.getRecords);
+const totalCount = computed(() => store.getMeta.count || 0);
+// 列表取数统一走这里：翻页只改 currentPage，由 watch 触发重拉。
+const load = () => store.get({ page: currentPage.value });
 const isFetching = computed(() => store.getUIFlags.fetchingList);
 const saving = computed(
   () => store.getUIFlags.creatingItem || store.getUIFlags.updatingItem
@@ -209,13 +216,17 @@ const blankHeader = () => ({
   bareColor: '',
   caseColor: '',
 });
-const { activeProductLine } = useMesProductLine();
+const { activeProductLine, formOptions: productLineOptions } =
+  useMesProductLine();
 // 商显工控 BOM 不需要客户/项目名称、裸机颜色、皮套颜色（平板电脑保留）。
 const showTabletHeaderFields = computed(
   () => activeProductLine.value !== 'COMMERCIAL_DISPLAY'
 );
 
 const form = reactive({
+  // 产品线随表单提交：新建 BOM 不一定选成品（选了才能从成品带出产线），
+  // 没有这个字段就只能靠「当前切到哪条线」兜底，在「全部」视图下会写空。
+  productLine: '',
   crmProductId: '',
   salesOwnerId: '', // 订单归属业务员
   baseQty: '1',
@@ -243,6 +254,7 @@ const isRowComplete = r =>
 const filledRows = computed(() => form.rows.filter(r => !isRowEmpty(r)));
 const invalid = computed(
   () =>
+    !form.productLine || // 产线必填：漏了这条单子切到任何产线都看不见
     !form.productCode.trim() ||
     filledRows.value.length === 0 || // 至少一条实质用料
     filledRows.value.some(r => !isRowComplete(r)) // 已填的行必须完整
@@ -341,6 +353,7 @@ const openCreate = async (preOrder = null) => {
   attachOrderId.value = '';
   resetAttachments();
   Object.assign(form, {
+    productLine: activeProductLine.value || '',
     crmProductId: '',
     salesOwnerId: '',
     baseQty: '1',
@@ -386,6 +399,7 @@ const openEdit = bom => {
   existingImages.value = [...(bom.images || [])];
   existingFiles.value = [...(bom.files || [])];
   Object.assign(form, {
+    productLine: bom.productLine || '',
     crmProductId: bom.crmProductId ? String(bom.crmProductId) : '',
     salesOwnerId: bom.salesOwnerId ? String(bom.salesOwnerId) : '',
     baseQty: String(bom.baseQty ?? '1'),
@@ -439,6 +453,7 @@ const submit = async targetStatus => {
   const payload = {
     crmProductId: form.crmProductId || null,
     salesOwnerId: form.salesOwnerId || null,
+    productLine: form.productLine || null,
     baseQty: Number(form.baseQty) || 1,
     unit: form.unit,
     remark: form.remark.trim() || null,
@@ -489,7 +504,7 @@ const release = async bom => {
   releasingId.value = bom.id;
   try {
     await MesBomAPI.release(bom.id);
-    await store.get();
+    await load();
     useAlert(`已下发 ${bom.bomNo}`);
   } catch {
     useAlert('下发失败');
@@ -591,8 +606,10 @@ const saveTemplate = async () => {
   }
 };
 
+watch(currentPage, load);
+
 onMounted(async () => {
-  store.get();
+  load();
   if (!agents.value?.length) rootStore.dispatch('agents/get');
   try {
     const { data } = await axios.get(
@@ -621,7 +638,10 @@ onMounted(async () => {
     <div
       class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4"
     >
-      <h1 class="text-xl font-semibold text-n-slate-12">工程/PMC BOM</h1>
+      <div class="flex items-baseline gap-2">
+        <h1 class="text-xl font-semibold text-n-slate-12">工程/PMC BOM</h1>
+        <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
+      </div>
       <div class="flex flex-wrap items-center gap-2">
         <Button
           v-if="mesCan('purchase')"
@@ -814,6 +834,15 @@ onMounted(async () => {
           </tbody>
         </table>
       </template>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="mt-3 !bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
 
     <Dialog
@@ -892,6 +921,17 @@ onMounted(async () => {
         </div>
 
         <div class="grid grid-cols-3 gap-4 pt-2 border-t border-n-weak">
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">
+              产品线<span class="text-n-ruby-11">*</span>
+            </label>
+            <SelectCard
+              size="form"
+              :model-value="form.productLine"
+              :options="productLineOptions"
+              @update:model-value="v => (form.productLine = v)"
+            />
+          </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12"
               >关联成品（选填，用于统计）</label
