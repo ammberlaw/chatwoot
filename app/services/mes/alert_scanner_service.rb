@@ -13,7 +13,7 @@ class Mes::AlertScannerService
   def call
     open_orders = @account.mes_production_orders.published
                           .where.not(status: 'CANCELLED').where.not(stage: 'SHIPPED')
-                          .includes(:stage_events)
+                          .includes(:stage_events, :purchase_orders)
     open_orders = open_orders.where(product_line: @product_line) if @product_line
     open_orders = open_orders.where(owner_id: @owner_ids) unless @owner_ids == :all
     overdue, due_soon, stalled, unacked = classify(open_orders)
@@ -58,7 +58,36 @@ class Mes::AlertScannerService
   end
 
   def order_row(po)
-    { id: po.id, order_no: po.order_no, product_name: po.product_name, stage: po.stage, delivery_date: po.delivery_date }
+    { id: po.id, order_no: po.order_no, product_name: po.product_name, stage: po.stage, delivery_date: po.delivery_date,
+      purchase_state: purchase_state(po), purchase_warn: purchase_warn?(po) }
+  end
+
+  # 采购推进到哪了。PMC 看到逾期单第一个问题就是「采购到底下了没」,
+  # 光写阶段看不出来,得挨个点进去查——所以直接写进预警行。
+  # 已取消的采购单不算数（等于没下）。
+  def live_purchase_orders(order)
+    order.purchase_orders.reject { |po| po.status == 'CANCELLED' }
+  end
+
+  # 判定顺序即优先级：先看到没到货,再看有没有停在草稿。
+  PURCHASE_STATES = [
+    ['采购单已到货', ->(pos) { pos.all? { |po| po.status == 'RECEIVED' } }],
+    ['采购单部分到货', ->(pos) { pos.any? { |po| po.status == 'PARTIAL_RECEIVED' } }],
+    ['采购单还是草稿', ->(pos) { pos.all? { |po| po.status == 'DRAFT' } }]
+  ].freeze
+
+  def purchase_state(order)
+    pos = live_purchase_orders(order)
+    return '未下采购单' if pos.empty?
+
+    hit = PURCHASE_STATES.find { |_label, cond| cond.call(pos) }
+    hit ? hit.first : '采购单已提交'
+  end
+
+  # 需要有人立刻去动的两种：压根没下单,或者下了但停在草稿没提交。
+  def purchase_warn?(order)
+    pos = live_purchase_orders(order)
+    pos.empty? || pos.all? { |po| po.status == 'DRAFT' }
   end
 
   def shortages

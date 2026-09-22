@@ -265,7 +265,9 @@ onMounted(async () => {
   warehousesStore.get();
   try {
     const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/production_orders`
+      `/api/v1/accounts/${accountId.value}/mes/production_orders`,
+      // 同上:不传 per_page 只给最新 15 条,早的单子选不到。
+      { params: { per_page: 500 } }
     );
     productionOrders.value = data?.payload || [];
   } catch {

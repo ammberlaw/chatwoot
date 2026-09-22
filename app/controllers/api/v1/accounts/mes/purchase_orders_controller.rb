@@ -7,14 +7,9 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   COLUMN_FILTERS = { status: :status, production_order_id: :production_order_id }.freeze
 
   def index
-    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_purchase_orders))
-    COLUMN_FILTERS.each do |param, column|
-      scope = scope.where(column => params[param]) if params[param].present?
-    end
-    scope = scope.where(has_exception: true) if params[:exception] == 'true'
-    scope = apply_search(scope, params[:q]) if params[:q].present?
+    scope = index_scope
     @purchase_orders_count = scope.count
-    @purchase_orders = scope.order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @purchase_orders = scope.order(created_at: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -86,6 +81,26 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   end
 
   private
+
+  # 列表筛选（列筛选 / 异常 / 搜索）收在一处，index 只管取数与分页。
+  def index_scope
+    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_purchase_orders))
+    COLUMN_FILTERS.each do |param, column|
+      scope = scope.where(column => params[param]) if params[param].present?
+    end
+    scope = scope.where(has_exception: true) if params[:exception] == 'true'
+    scope = apply_search(scope, params[:q]) if params[:q].present?
+    scope
+  end
+
+  # 每页条数：默认沿用 RESULTS_PER_PAGE(15) 供列表分页；调用方（如入库单的采购单下拉）
+  # 需要一次性拿到全部采购单时可传 per_page，封顶 500 防止拉全表。
+  MAX_PER_PAGE = 500
+  def per_page_param
+    n = params[:per_page].to_i
+    n = RESULTS_PER_PAGE if n <= 0
+    [n, MAX_PER_PAGE].min
+  end
 
   # 采购单搜索：单号 / 归属人(采购制单人 + 生产订单归属业务员) / 生产订单(单号+品名) /
   # 供应商 / 物料编码(产品SKU/物料料号)。明细维度用 EXISTS 子查询（避免 join 造成行重复、count 失真）。

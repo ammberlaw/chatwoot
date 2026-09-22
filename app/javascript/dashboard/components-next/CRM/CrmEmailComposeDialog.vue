@@ -156,8 +156,22 @@ const L = {
 
 // 富文本编辑器输出 Markdown；发送/预览时用 Chatwoot 的 MessageFormatter 转 HTML。
 // 文字颜色标记被 html:false 转义成文本，渲染后按严格格式还原成真 span。
+// 编辑器把「软换行」序列化成单独一行的反斜杠。这行反斜杠会被 markdown 原样渲染成
+// 可见的「\」，而紧跟其后的「1. xxx」又会被当成有序列表去打断段落——收件人看到的
+// 是多出来的反斜杠加一个变形的列表，跟编辑器里完全对不上（生产上真发生过）。
+//
+// HTML 版：去掉反斜杠行，并把紧跟其后的行首序号转义成普通文本，保住业务员手打的编号。
+// 用列表按钮做出来的真列表前面没有反斜杠行，匹配不到，不受影响。
+const cleanMarkdownForHtml = src =>
+  (src || '')
+    .replace(/^\\[ \t]*\r?\n(\s*)(\d+)\.(\s)/gm, '$1$2\\.$3')
+    .replace(/^\\[ \t]*$/gm, '');
+
+// 纯文本版：只去反斜杠行，绝不能转义——否则收件人看到的是「1\.」。
+const cleanTextBody = src => (src || '').replace(/^\\[ \t]*\r?\n/gm, '');
+
 const markdownToHtml = src =>
-  renderTextColorSpans(formatMessage(src || '', false, false));
+  renderTextColorSpans(formatMessage(cleanMarkdownForHtml(src), false, false));
 
 // ---- 状态 ----
 const visible = ref(false);
@@ -575,7 +589,8 @@ const composedHtml = computed(() => {
 const composedText = computed(() => {
   const sig = activeSignature.value;
   const plain = sig?.body ? `\n\n${sig.body}` : '';
-  const body = form.body || '';
+  // 纯文本 part 也要去掉反斜杠行，否则收件人在纯文本视图里看到一堆「\」。
+  const body = cleanTextBody(form.body);
   // 新版回复：纯文本兜底 = 回信 + 签名 + 原邮件纯文本引用。
   if (quoteBlockText.value) {
     return `${trimTrailing(body)}${plain}${quoteBlockText.value}`;
@@ -590,7 +605,7 @@ const composedText = computed(() => {
 // 存草稿专用的纯文本正文——【不含签名】。签名以富文本块另存于 body_html，
 // 重开草稿时再作为富文本块拼接，避免签名被降级成纯文本（存草稿后 logo/配色丢失）。
 const composedTextNoSig = computed(() => {
-  const body = form.body || '';
+  const body = cleanTextBody(form.body);
   if (quoteBlockText.value) {
     return `${trimTrailing(body)}${quoteBlockText.value}`;
   }

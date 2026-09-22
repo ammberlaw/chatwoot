@@ -869,20 +869,153 @@ const canApprove = computed(() => {
     po.currentApproverId === currentUserId.value
   );
 });
-const approvalBoxClass = computed(() => {
+
+// ── 审批卡 / 接单卡的状态计算 ──
+// 三种状态的分支写在模板里会糊成一团，统一在这里算好，模板只管画。
+
+// 右上角状态徽标
+const approvalBadge = computed(() => {
   const s = selected.value?.approvalStatus;
-  if (s === 'APPROVED') return 'bg-n-teal-2 border-n-teal-6';
-  if (s === 'REJECTED') return 'bg-n-ruby-2 border-n-ruby-6';
-  if (s === 'DRAFT') return 'bg-n-slate-3 border-n-weak';
-  return 'bg-n-amber-2 border-n-amber-6';
+  if (s === 'APPROVED')
+    return {
+      text: '已生效',
+      icon: 'i-lucide-check',
+      cls: 'bg-n-teal-3 text-n-teal-11',
+    };
+  if (s === 'REJECTED')
+    return {
+      text: '已驳回',
+      icon: 'i-lucide-x',
+      cls: 'bg-n-ruby-3 text-n-ruby-11',
+    };
+  if (s === 'SUBMITTED')
+    return {
+      text: '待部门主管审批',
+      icon: 'i-lucide-clock',
+      cls: 'bg-n-amber-3 text-n-amber-11',
+    };
+  if (s === 'MANAGER_APPROVED')
+    return {
+      text: '待总经理审批',
+      icon: 'i-lucide-clock',
+      cls: 'bg-n-amber-3 text-n-amber-11',
+    };
+  return {
+    text: '草稿',
+    icon: 'i-lucide-file-pen-line',
+    cls: 'bg-n-slate-4 text-n-slate-11',
+  };
 });
-const approvalTextClass = computed(() => {
-  const s = selected.value?.approvalStatus;
-  if (s === 'APPROVED') return 'text-n-teal-11';
-  if (s === 'REJECTED') return 'text-n-ruby-11';
-  if (s === 'DRAFT') return 'text-n-slate-11';
-  return 'text-n-amber-11';
+
+// 审批时间线。驳回发生在哪一级，就把那一级标红：主管驳回时 gmActedAt 为空，据此区分。
+const approvalSteps = computed(() => {
+  const po = selected.value;
+  if (!po || po.approvalStatus === 'DRAFT') return [];
+  const rejected = po.approvalStatus === 'REJECTED';
+  const out = [];
+  if (po.submittedAt) {
+    out.push({
+      key: 'submitted',
+      title: '提交',
+      who: po.ownerName,
+      at: po.submittedAt,
+      state: 'submit',
+    });
+  }
+  if (po.managerActedAt) {
+    const denied = rejected && !po.gmActedAt;
+    out.push({
+      key: 'manager',
+      title: denied ? '部门主管驳回' : '部门主管通过',
+      who: po.managerName,
+      at: po.managerActedAt,
+      state: denied ? 'reject' : 'done',
+      comment: po.managerComment,
+    });
+  } else if (po.approvalStatus === 'SUBMITTED') {
+    out.push({
+      key: 'manager',
+      title: '部门主管审批',
+      who: po.managerName || '未解析到主管，将转总经理',
+      state: 'wait',
+    });
+  }
+  if (po.gmActedAt) {
+    out.push({
+      key: 'gm',
+      title: rejected ? '总经理驳回' : '总经理通过',
+      who: po.gmName,
+      at: po.gmActedAt,
+      state: rejected ? 'reject' : 'done',
+      comment: po.gmComment,
+    });
+  } else if (po.approvalStatus === 'MANAGER_APPROVED') {
+    out.push({
+      key: 'gm',
+      title: '总经理审批',
+      who: po.gmName || '未指定总经理',
+      state: 'wait',
+    });
+  }
+  return out;
 });
+
+const STEP_DOT = {
+  submit: { cls: 'bg-n-iris-9 text-white', icon: 'i-lucide-arrow-up' },
+  done: { cls: 'bg-n-teal-9 text-white', icon: 'i-lucide-check' },
+  reject: { cls: 'bg-n-ruby-9 text-white', icon: 'i-lucide-x' },
+  wait: { cls: 'border border-dashed border-n-iris-7', icon: '' },
+};
+const stepDot = state => STEP_DOT[state] || STEP_DOT.wait;
+
+// 接单卡徽标
+const ackBadge = computed(() => {
+  const po = selected.value;
+  if (!po) return null;
+  if (po.stageAckAt)
+    return {
+      text: '已接单',
+      icon: 'i-lucide-check',
+      cls: 'bg-n-teal-3 text-n-teal-11',
+    };
+  if (po.ackOverdue)
+    return {
+      text: '超时未接单',
+      icon: 'i-lucide-alert-circle',
+      cls: 'bg-n-ruby-3 text-n-ruby-11',
+    };
+  if (po.awaitingAck)
+    return {
+      text: '待接单',
+      icon: 'i-lucide-clock',
+      cls: 'bg-n-amber-3 text-n-amber-11',
+    };
+  return null;
+});
+
+// 截止倒计时：没超时说「还剩」，超时说「已超时」。不足一小时按分钟显示。
+const ackCountdown = computed(() => {
+  const po = selected.value;
+  if (!po?.ackDeadline || po.stageAckAt) return null;
+  const diff = new Date(po.ackDeadline).getTime() - Date.now();
+  const mins = Math.round(Math.abs(diff) / 60000);
+  const txt = mins >= 60 ? `${Math.floor(mins / 60)} 小时` : `${mins} 分钟`;
+  return diff >= 0
+    ? { text: `还剩 ${txt}`, cls: 'text-n-amber-11' }
+    : { text: `已超时 ${txt}`, cls: 'text-n-ruby-11' };
+});
+
+// 卡片里的时间用短格式（9/21 09:55），完整时间在别处已有。
+const fmtShort = d =>
+  d
+    ? new Date(d).toLocaleString(undefined, {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    : '';
 
 const submitApproval = async () => {
   if (!selected.value) return;
@@ -941,8 +1074,6 @@ const canHandleStage = computed(() => {
     return false;
   return (po.stageOwnerIds || []).includes(currentUserId.value);
 });
-const fmtDateTime = d =>
-  d ? new Date(d).toLocaleString(undefined, { hour12: false }) : '';
 
 const acknowledge = async () => {
   if (!selected.value) return;
@@ -1432,36 +1563,43 @@ watch(currentPage, fetchRecords);
 
         <!-- 审批链（取代发布）：草稿→部门主管→总经理，全部通过才生效 -->
         <div
-          class="flex flex-col gap-2 p-3 mb-4 rounded-lg border"
-          :class="approvalBoxClass"
+          class="p-4 mb-4 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
         >
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-medium" :class="approvalTextClass">
-              审批 · {{ APPROVAL_LABELS[selected.approvalStatus] }}
-            </span>
-            <!-- 归属人：草稿/被驳回可提交 -->
-            <Button
-              v-if="
-                isOwner &&
-                ['DRAFT', 'REJECTED'].includes(selected.approvalStatus)
-              "
-              :label="
-                selected.approvalStatus === 'REJECTED' ? '重新提交' : '提交审批'
-              "
-              color="iris"
-              size="xs"
-              :is-loading="uiFlags.updatingItem"
-              @click="submitApproval"
-            />
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <span class="text-sm font-semibold text-n-slate-12">审批</span>
+            <div class="flex items-center gap-2">
+              <Button
+                v-if="
+                  isOwner &&
+                  ['DRAFT', 'REJECTED'].includes(selected.approvalStatus)
+                "
+                :label="
+                  selected.approvalStatus === 'REJECTED'
+                    ? '重新提交'
+                    : '提交审批'
+                "
+                color="iris"
+                size="xs"
+                :is-loading="uiFlags.updatingItem"
+                @click="submitApproval"
+              />
+              <span
+                class="inline-flex gap-1 items-center px-2 py-1 text-xs font-medium rounded-full shrink-0"
+                :class="approvalBadge.cls"
+              >
+                <span :class="approvalBadge.icon" class="size-3" />
+                {{ approvalBadge.text }}
+              </span>
+            </div>
           </div>
 
           <!-- 审批人可通过/驳回 -->
-          <div v-if="canApprove" class="flex flex-col gap-2">
+          <div v-if="canApprove" class="flex flex-col gap-2 mb-3">
             <textarea
               v-model="approvalComment"
               rows="2"
               placeholder="审批意见（选填）"
-              class="px-2 py-1.5 text-xs border rounded-lg outline-none resize-y border-n-weak bg-n-alpha-black1 text-n-slate-12"
+              class="px-2 py-1.5 text-xs rounded-lg border outline-none resize-y border-n-weak bg-n-alpha-black1 text-n-slate-12"
             />
             <div class="flex gap-2">
               <Button
@@ -1481,55 +1619,53 @@ watch(currentPage, fetchRecords);
             </div>
           </div>
 
-          <!-- 审批留痕：提交/主管/总经理 -->
-          <div class="flex flex-col gap-1 text-xs text-n-slate-11">
-            <div v-if="selected.submittedAt">
-              📤 提交 · {{ selected.ownerName }} ·
-              {{ fmtDateTime(selected.submittedAt) }}
-            </div>
-            <div v-if="selected.managerActedAt">
-              <span
-                :class="
-                  selected.approvalStatus === 'REJECTED'
-                    ? 'text-n-ruby-11'
-                    : 'text-n-teal-11'
-                "
-              >
-                {{
-                  selected.approvalStatus === 'REJECTED'
-                    ? '⛔ 主管驳回'
-                    : '✅ 主管通过'
-                }}
-              </span>
-              · {{ selected.managerName }} ·
-              {{ fmtDateTime(selected.managerActedAt) }}
-              <span v-if="selected.managerComment">
-                · {{ selected.managerComment }}</span
-              >
-            </div>
-            <div v-else-if="selected.approvalStatus === 'SUBMITTED'">
-              ⏳ 待部门主管审批 ·
-              {{ selected.managerName || '未解析到主管，将转总经理' }}
-            </div>
-            <div v-if="selected.gmActedAt">
-              <span
-                :class="
-                  selected.approvalStatus === 'REJECTED'
-                    ? 'text-n-ruby-11'
-                    : 'text-n-teal-11'
-                "
-              >
-                {{
-                  selected.approvalStatus === 'REJECTED'
-                    ? '⛔ 总经理驳回'
-                    : '✅ 总经理通过（生效）'
-                }}
-              </span>
-              · {{ selected.gmName }} · {{ fmtDateTime(selected.gmActedAt) }}
-              <span v-if="selected.gmComment"> · {{ selected.gmComment }}</span>
-            </div>
-            <div v-else-if="selected.approvalStatus === 'MANAGER_APPROVED'">
-              ⏳ 待总经理审批 · {{ selected.gmName || '未指定总经理' }}
+          <!-- 审批留痕时间线 -->
+          <div v-if="approvalSteps.length" class="flex flex-col">
+            <div
+              v-for="(step, i) in approvalSteps"
+              :key="step.key"
+              class="flex gap-3"
+            >
+              <div class="flex flex-col items-center shrink-0">
+                <span
+                  class="grid rounded-full place-items-center size-6 shrink-0"
+                  :class="stepDot(step.state).cls"
+                >
+                  <span
+                    v-if="stepDot(step.state).icon"
+                    :class="stepDot(step.state).icon"
+                    class="size-3.5"
+                  />
+                </span>
+                <span
+                  v-if="i < approvalSteps.length - 1"
+                  class="flex-1 w-px min-h-4 bg-n-iris-5"
+                />
+              </div>
+              <div class="flex-1 min-w-0 pb-3">
+                <div class="flex gap-2 justify-between items-start">
+                  <span
+                    class="text-sm font-medium"
+                    :class="
+                      step.state === 'wait'
+                        ? 'text-n-slate-10'
+                        : 'text-n-slate-12'
+                    "
+                  >
+                    {{ step.title }}
+                  </span>
+                  <span class="text-xs shrink-0 text-n-slate-10">
+                    {{ step.at ? fmtShort(step.at) : '等待中' }}
+                  </span>
+                </div>
+                <div class="text-xs text-n-slate-11">{{ step.who }}</div>
+                <div
+                  v-if="step.comment"
+                  class="px-3 py-2 mt-2 text-xs rounded-lg bg-n-alpha-black1 text-n-slate-11"
+                >
+                  {{ step.comment }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1540,37 +1676,63 @@ watch(currentPage, fetchRecords);
           v-if="
             selected.stage !== 'SHIPPED' && selected.status === 'IN_PROGRESS'
           "
-          class="flex flex-col gap-2 p-3 mb-4 rounded-lg bg-n-alpha-black1 border border-n-weak"
+          class="p-4 mb-4 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
         >
-          <div class="flex flex-wrap items-center gap-1.5 text-xs">
-            <span class="text-n-slate-11">本阶段负责人</span>
-            <template v-if="(selected.stageOwners || []).length">
-              <button
-                v-for="o in selected.stageOwners"
-                :key="o.id"
-                type="button"
-                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-n-iris-3 text-n-iris-12 hover:bg-n-iris-4"
-                title="点击私聊该负责人"
-                @click="goStageOwnerChat(o.id)"
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <span class="text-sm font-semibold text-n-slate-12">
+              本阶段负责人
+            </span>
+            <span
+              v-if="ackBadge"
+              class="inline-flex gap-1 items-center px-2 py-1 text-xs font-medium rounded-full shrink-0"
+              :class="ackBadge.cls"
+            >
+              <span :class="ackBadge.icon" class="size-3" />
+              {{ ackBadge.text }}
+            </span>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="o in selected.stageOwners || []"
+              :key="o.id"
+              type="button"
+              class="inline-flex gap-2 items-center py-1 pr-3 pl-1 rounded-full bg-n-iris-3 hover:bg-n-iris-4"
+              title="点击私聊该负责人"
+              @click="goStageOwnerChat(o.id)"
+            >
+              <span
+                class="grid text-xs text-white rounded-full place-items-center size-6 bg-n-iris-9"
               >
-                {{ o.name }}
-                <span class="i-lucide-message-circle size-3" />
-              </button>
+                {{ (o.name || '?').slice(0, 1) }}
+              </span>
+              <span class="text-sm text-n-iris-12">{{ o.name }}</span>
+              <span class="i-lucide-message-circle size-3.5 text-n-iris-11" />
+            </button>
+            <span
+              v-if="!(selected.stageOwners || []).length"
+              class="text-xs text-n-amber-11"
+            >
+              未设置负责人
+            </span>
+          </div>
+
+          <div class="mt-3 text-xs text-n-slate-11">
+            <template v-if="selected.stageAckAt">
+              接单于 {{ fmtShort(selected.stageAckAt) }}
+              <template v-if="selected.stageAckByName">
+                · {{ selected.stageAckByName }}
+              </template>
             </template>
-            <span v-else class="text-n-amber-11">未设置负责人</span>
+            <template v-else-if="selected.ackDeadline">
+              截止 {{ fmtShort(selected.ackDeadline) }}
+              <span v-if="ackCountdown" :class="ackCountdown.cls">
+                · {{ ackCountdown.text }}
+              </span>
+            </template>
           </div>
-          <div class="text-xs">
-            <span v-if="selected.stageAckAt" class="text-n-teal-11">
-              ✅ 已接单 · {{ selected.stageAckByName }}
-            </span>
-            <span v-else-if="selected.ackOverdue" class="text-n-ruby-11">
-              🔴 超时未接单（截止 {{ fmtDateTime(selected.ackDeadline) }}）
-            </span>
-            <span v-else-if="selected.awaitingAck" class="text-n-amber-11">
-              ⏳ 待接单 · 截止 {{ fmtDateTime(selected.ackDeadline) }}
-            </span>
-          </div>
-          <div v-if="canHandleStage" class="flex gap-2">
+
+          <div v-if="canHandleStage" class="flex gap-2 mt-3">
             <Button
               v-if="selected.awaitingAck"
               label="接单"

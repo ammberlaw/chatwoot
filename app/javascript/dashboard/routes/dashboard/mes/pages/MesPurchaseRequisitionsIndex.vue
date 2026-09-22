@@ -493,7 +493,11 @@ onMounted(() => {
   suppliersStore.get({ per_page: 500 });
   loadMaterials();
   axios
-    .get(`/api/v1/accounts/${accountId.value}/mes/production_orders`)
+    .get(`/api/v1/accounts/${accountId.value}/mes/production_orders`, {
+      // 下拉要能选到所有在产订单:不传 per_page 后端只给最新 15 条(RESULTS_PER_PAGE),
+      // 早一点的单子在下拉里根本找不到。封顶 500。
+      params: { per_page: 500 },
+    })
     .then(({ data }) => {
       productionOrders.value = data?.payload || [];
     })

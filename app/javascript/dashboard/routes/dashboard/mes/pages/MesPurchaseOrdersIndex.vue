@@ -482,7 +482,9 @@ onMounted(async () => {
   suppliersStore.get({ per_page: 500 });
   try {
     const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/production_orders`
+      `/api/v1/accounts/${accountId.value}/mes/production_orders`,
+      // 不传 per_page 后端只给最新 15 条,早的单子在下拉里选不到。
+      { params: { per_page: 500 } }
     );
     productionOrders.value = data?.payload || [];
   } catch {
