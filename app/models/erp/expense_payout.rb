@@ -37,7 +37,7 @@
 #  fk_rails_...  (cash_account_id => erp_cash_accounts.id)
 #  fk_rails_...  (crm_sales_order_id => crm_sales_orders.id) ON DELETE => nullify
 #  fk_rails_...  (expense_ledger_account_id => erp_ledger_accounts.id)
-#  fk_rails_...  (oa_approval_request_id => oa_approval_requests.id) ON DELETE => cascade
+#  fk_rails_...  (oa_approval_request_id => oa_approval_requests.id) ON DELETE => restrict
 #
 class Erp::ExpensePayout < ApplicationRecord
   NORMAL = 'NORMAL'.freeze
