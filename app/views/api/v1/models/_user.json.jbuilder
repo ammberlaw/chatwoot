@@ -59,6 +59,8 @@ json.accounts do
     json.role account_user.role
     json.crm_role account_user.crm_role
     json.can_access_crm account_user.can_access_crm?
+    # 纯财务（有 crm_finance、无 crm_role）要放行销售订单/PI 两页，前端路由守卫按它判。
+    json.crm_finance account_user.crm_finance?
     json.permissions account_user.permissions
     # the actual availability user has configured
     json.availability account_user.availability

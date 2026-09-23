@@ -56,7 +56,10 @@ const validateActiveAccountRoutes = (to, user) => {
   // 工作台/OA/HR/协同/文档中心等共享模块不设此 meta，正常放行。
   if (to.meta?.requiresCrmAccess) {
     const account = getCurrentAccount(user, Number(to.params.accountId));
-    if (!account?.can_access_crm) {
+    // 纯财务（有 crm_finance、无 crm_role）过不了 can_access_crm，但对账要看销售订单与 PI。
+    // 只有显式标了 allowCrmFinance 的页面放行，其余 CRM 数据页照旧弹回工作台。
+    const financeAllowed = to.meta?.allowCrmFinance && account?.crm_finance;
+    if (!account?.can_access_crm && !financeAllowed) {
       return `accounts/${to.params.accountId}/crm/workspace`;
     }
   }

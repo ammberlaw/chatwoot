@@ -43,6 +43,19 @@ const userName = computed(
 const canAccessCrm = computed(
   () => currentUser.value?.can_access_crm !== false
 );
+// 纯财务（有 crm_finance、无 crm_role）：CRM 主体不开，但销售订单/PI 只读放行。
+// 卡片要能点，且落到销售订单——CRM 看板他们进不去，点了会被路由弹回来。
+const isCrmFinanceOnly = computed(
+  () =>
+    currentUser.value?.can_access_crm === false &&
+    currentUser.value?.crm_finance === true
+);
+const canOpenCrmCard = computed(
+  () => canAccessCrm.value || isCrmFinanceOnly.value
+);
+const crmCardTarget = computed(() =>
+  canAccessCrm.value ? 'crm_dashboard_index' : 'crm_sales_orders_index'
+);
 // TikTok：管理层/财务/TK 部门成员可见（后端派生 can_access_tiktok）。
 const canAccessTiktok = computed(
   () => currentUser.value?.can_access_tiktok === true
@@ -229,9 +242,9 @@ onMounted(async () => {
             <button
               type="button"
               class="m-big c-crm"
-              :class="{ locked: !canAccessCrm }"
-              :disabled="!canAccessCrm"
-              @click="go('crm_dashboard_index')"
+              :class="{ locked: !canOpenCrmCard }"
+              :disabled="!canOpenCrmCard"
+              @click="go(crmCardTarget)"
             >
               <span
                 class="blob"
@@ -241,7 +254,7 @@ onMounted(async () => {
               <div class="m-big-n">
                 客户管理 · {{ crmStats.follow_up_due ?? 0 }} 待跟进
               </div>
-              <div v-if="canAccessCrm" class="m-big-go">
+              <div v-if="canOpenCrmCard" class="m-big-go">
                 进入 <Icon icon="i-lucide-arrow-right" />
               </div>
               <div v-else class="m-big-go">
@@ -397,9 +410,9 @@ onMounted(async () => {
               <button
                 type="button"
                 class="wsh-card wsh-solid c-crm"
-                :class="{ locked: !canAccessCrm }"
-                :disabled="!canAccessCrm"
-                @click="go('crm_dashboard_index')"
+                :class="{ locked: !canOpenCrmCard }"
+                :disabled="!canOpenCrmCard"
+                @click="go(crmCardTarget)"
               >
                 <span
                   class="blob"
@@ -412,17 +425,23 @@ onMounted(async () => {
                 <div class="unit">位客户 · 今日待跟进</div>
                 <div class="statrow">
                   <div>
-                    <b>{{ crmStats.new_today ?? 0 }}</b><span>今日新增</span>
+                    <b>{{ crmStats.new_today ?? 0 }}</b
+                    ><span>今日新增</span>
                   </div>
                   <div>
-                    <b>{{ crmStats.revisit_week ?? 0 }}</b><span>本周回访</span>
+                    <b>{{ crmStats.revisit_week ?? 0 }}</b
+                    ><span>本周回访</span>
                   </div>
                   <div>
-                    <b>{{ crmStats.overdue ?? 0 }}</b><span>待处理</span>
+                    <b>{{ crmStats.overdue ?? 0 }}</b
+                    ><span>待处理</span>
                   </div>
                 </div>
                 <div v-if="canAccessCrm" class="cta">
                   进入工作区 <Icon icon="i-lucide-arrow-right" />
+                </div>
+                <div v-else-if="isCrmFinanceOnly" class="cta">
+                  查看销售订单 / PI <Icon icon="i-lucide-arrow-right" />
                 </div>
                 <div v-else class="cta">
                   <Icon icon="i-lucide-lock" /> 未开通 · 联系管理员
@@ -433,7 +452,9 @@ onMounted(async () => {
               <button
                 type="button"
                 class="wsh-card wsh-glass"
-                @click="canAccessErp ? go('erp_dashboard_index') : soon('ERP 进销存')"
+                @click="
+                  canAccessErp ? go('erp_dashboard_index') : soon('ERP 进销存')
+                "
               >
                 <div class="lbl a-teal">
                   <Icon icon="i-lucide-package" /> ERP 进销存·财务
@@ -441,7 +462,8 @@ onMounted(async () => {
                 </div>
                 <div class="sub2">科目 · 凭证 · 账簿 · 报表</div>
                 <div class="chips">
-                  <span>科目</span><span>凭证</span><span>账簿</span><span>报表</span>
+                  <span>科目</span><span>凭证</span><span>账簿</span
+                  ><span>报表</span>
                 </div>
                 <div v-if="canAccessErp" class="cta2">
                   进入财务 ERP <Icon icon="i-lucide-arrow-right" />
@@ -601,7 +623,8 @@ onMounted(async () => {
                 </div>
                 <div class="sub2">制度 · 流程 · 培训 · 知识</div>
                 <div class="chips">
-                  <span>制度</span><span>流程</span><span>培训</span><span>知识</span>
+                  <span>制度</span><span>流程</span><span>培训</span
+                  ><span>知识</span>
                 </div>
                 <div class="cta2">
                   进入文档中心 <Icon icon="i-lucide-arrow-right" />
@@ -627,7 +650,8 @@ onMounted(async () => {
                 <h2>{{ monthLabel }}</h2>
               </div>
               <div class="today">
-                <b>{{ todayNum }}</b><span>{{ todayWeek }}</span>
+                <b>{{ todayNum }}</b
+                ><span>{{ todayWeek }}</span>
               </div>
             </div>
 
@@ -636,14 +660,16 @@ onMounted(async () => {
                 <span
                   v-for="d in ['一', '二', '三', '四', '五', '六', '日']"
                   :key="d"
-                  >{{ d }}</span>
+                  >{{ d }}</span
+                >
               </div>
               <div class="bd">
                 <span
                   v-for="(c, i) in calCells"
                   :key="i"
                   :class="{ mut: c.mut, now: c.now, has: c.has }"
-                  >{{ c.n }}</span>
+                  >{{ c.n }}</span
+                >
               </div>
             </div>
 
@@ -667,7 +693,8 @@ onMounted(async () => {
                       {{ e.owner_name
                       }}<template
                         v-if="e.participant_names && e.participant_names.length"
-                        >、{{ e.participant_names.join('、') }}</template>
+                        >、{{ e.participant_names.join('、') }}</template
+                      >
                     </small>
                   </div>
                 </div>

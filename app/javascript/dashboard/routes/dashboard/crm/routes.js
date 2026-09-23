@@ -60,6 +60,9 @@ const commonMeta = {
 // 全员可用的共享模块（非 CRM 销售数据），不受 CRM 门禁限制。
 const SHARED = { requiresCrmAccess: false };
 
+// 仍需 CRM 门禁，但对「纯财务」额外放行（对账要看单，写操作后端挡着）。
+const FINANCE_READABLE = { allowCrmFinance: true };
+
 const crmPage = (path, name, component, extraMeta = {}) => {
   const meta = { ...commonMeta, ...extraMeta };
   return {
@@ -111,8 +114,14 @@ const crmPages = [
     'crm_quote_request_templates_index',
     CrmQuoteRequestTemplatesIndex
   ),
-  crmPage('pis', 'crm_pis_index', CrmPisIndex),
-  crmPage('sales-orders', 'crm_sales_orders_index', CrmSalesOrdersIndex),
+  // 纯财务只读放行这两页（后端 ensure_crm_or_finance! + block_crm_finance_writes! 把关）。
+  crmPage('pis', 'crm_pis_index', CrmPisIndex, FINANCE_READABLE),
+  crmPage(
+    'sales-orders',
+    'crm_sales_orders_index',
+    CrmSalesOrdersIndex,
+    FINANCE_READABLE
+  ),
   // 提成表在「人事绩效」组，与 KPI 考核表一样走 SHARED（不加 requiresCrmAccess 守卫，
   // 避免 store 里 can_access_crm 缓存缺失时被弹到 crm/workspace）；数据权限由后端 ensure_crm_access 把关。
   crmPage(
