@@ -470,7 +470,10 @@ Rails.application.routes.draw do
             resources :warehouses, except: [:show]
             resources :materials
             resources :products, only: [:index, :create, :update, :destroy] do
-              collection { get :categories }
+              collection do
+                get :categories
+                post :reorder_categories
+              end
             end
             resources :product_groups, only: [:index, :create, :update, :destroy] do
               collection { post :reorder }

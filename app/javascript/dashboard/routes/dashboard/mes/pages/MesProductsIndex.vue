@@ -10,6 +10,7 @@ import {
 
 import ProductGroupsAPI from 'dashboard/api/mes/productGroups';
 import ProductCategoriesAPI from 'dashboard/api/mes/productCategories';
+import Draggable from 'vuedraggable';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -153,6 +154,21 @@ const selectGroup = code => {
   reload();
 };
 // 点类别即筛选；再点一次取消（回到全部）。
+// 搜索时不给拖：过滤后的顺序对不上完整列表，拖出来的次序没有意义。
+// 只读用户也不给拖（后端策略同样卡住 reorder_categories）。
+const canDragCategories = computed(
+  () => canManage.value && !categoryKeyword.value.trim()
+);
+// 拖完把该产品线下的类别顺序整体写回。失败就重拉一次，别让界面停在一个没存上的顺序。
+const persistCategoryOrder = async line => {
+  try {
+    await ProductCategoriesAPI.reorder(line.categories.map(c => c.category));
+  } catch {
+    useAlert('类别顺序没保存上，已恢复');
+    loadCategoryTree();
+  }
+};
+
 const selectSourceCategory = value => {
   selectedSourceCategory.value =
     selectedSourceCategory.value === value ? '' : value;
@@ -365,25 +381,44 @@ onMounted(() => {
             </span>
             <span class="ml-auto text-n-slate-10">{{ line.count }}</span>
           </button>
-          <template v-if="isLineOpen(line.product_line)">
-            <button
-              v-for="c in line.categories"
-              :key="`${line.product_line}-${c.category}`"
-              type="button"
-              class="flex items-center justify-between w-full gap-1 py-1 pl-6 pr-2 text-sm text-left rounded-lg hover:bg-n-alpha-1"
-              :class="
-                selectedSourceCategory === c.category
-                  ? 'bg-n-iris-3 text-n-iris-11 font-medium'
-                  : 'text-n-slate-12'
-              "
-              @click="selectSourceCategory(c.category)"
-            >
-              <span class="truncate">{{ c.category || '（未填类别）' }}</span>
-              <span class="text-xs shrink-0 text-n-slate-10">{{
-                c.count
-              }}</span>
-            </button>
-          </template>
+          <Draggable
+            v-if="isLineOpen(line.product_line)"
+            :list="line.categories"
+            item-key="category"
+            handle=".cat-drag"
+            :disabled="!canDragCategories"
+            @end="persistCategoryOrder(line)"
+          >
+            <template #item="{ element: c }">
+              <div class="flex items-center group">
+                <span
+                  class="cat-drag i-lucide-grip-vertical size-3 shrink-0 ml-1 mr-0.5 text-n-slate-9"
+                  :class="
+                    canDragCategories
+                      ? 'cursor-grab opacity-0 group-hover:opacity-100'
+                      : 'invisible'
+                  "
+                />
+                <button
+                  type="button"
+                  class="flex items-center justify-between flex-1 min-w-0 gap-1 py-1 pl-1 pr-2 text-sm text-left rounded-lg hover:bg-n-alpha-1"
+                  :class="
+                    selectedSourceCategory === c.category
+                      ? 'bg-n-iris-3 text-n-iris-11 font-medium'
+                      : 'text-n-slate-12'
+                  "
+                  @click="selectSourceCategory(c.category)"
+                >
+                  <span class="truncate">
+                    {{ c.category || '（未填类别）' }}
+                  </span>
+                  <span class="text-xs shrink-0 text-n-slate-10">
+                    {{ c.count }}
+                  </span>
+                </button>
+              </div>
+            </template>
+          </Draggable>
         </template>
         <p
           v-if="!filteredCategoryTree.length"

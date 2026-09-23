@@ -33,11 +33,30 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
   def categories
     rows = scoped_by_product_line(Current.account.crm_products)
            .group(:product_line, :source_category).count
-    @category_tree = rows.sort_by { |(line, cat), _| [line.to_s, cat.to_s] }
-                         .group_by { |(line, _), _| line.to_s }
+    ranks = category_ranks
+    @category_tree = rows.group_by { |(line, _), _| line.to_s }
                          .transform_values do |entries|
-      entries.map { |(_, cat), count| { category: cat.to_s, count: count } }
+      entries.map { |(line, cat), count| { category: cat.to_s, count: count, line: line.to_s } }
+             .sort_by { |c| [ranks[[c[:line], c[:category]]] || Float::INFINITY, c[:category]] }
+             .map { |c| c.slice(:category, :count) }
+    end.sort.to_h
+  end
+
+  # 拖拽排序：按传入顺序把「产品线 + 类别」写成 option_item 的 position。
+  # 类别本身不是实体（只是产品上的一个字符串），所以这里的记录纯粹用来记顺序，
+  # 类别改名/消失了留着也无害——下次 categories 里查不到它就自然不显示。
+  def reorder_categories
+    line = current_product_line.to_s
+    prefix = line.presence || 'ALL'
+    # 一次取回现有记录，避免逐条 SELECT；位置没变的行 update! 不产生 SQL。
+    existing = Current.account.crm_option_items.for_category(CATEGORY_SORT_KEY).index_by(&:code)
+    Array(params[:categories]).each_with_index do |raw, index|
+      name = raw.to_s.presence || BLANK_CATEGORY
+      code = "#{prefix}::#{name}"
+      item = existing[code] || Current.account.crm_option_items.new(category: CATEGORY_SORT_KEY, code: code)
+      item.update!(name: name, product_line: line.presence, position: index)
     end
+    head :ok
   end
 
   def create
@@ -54,6 +73,21 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
   end
 
   private
+
+  # 类别顺序存在 option_item 里（category 固定这个值），code 带产品线前缀，
+  # 这样平板的「主板」和商显的「主板」各自记各自的顺序，互不覆盖。
+  CATEGORY_SORT_KEY = 'product_source_category'.freeze
+  # 「未填类别」也要能拖。option_item 的 name 不允许为空，所以空类别用占位串存，
+  # 读回来再映射成空字符串——否则它排不进顺序、永远被挤到列表末尾。
+  BLANK_CATEGORY = '__BLANK__'.freeze
+
+  # (产品线, 类别) → 人工顺序。没拖过的类别查不到，排在拖过的后面、按名字兜底。
+  def category_ranks
+    Current.account.crm_option_items
+           .for_category(CATEGORY_SORT_KEY)
+           .pluck(:product_line, :name, :position)
+           .to_h { |line, name, position| [[line.to_s, name == BLANK_CATEGORY ? '' : name.to_s], position] }
+  end
 
   # 按分组筛选：点某分组连带其整棵子树的产品（收集该节点 + 全部后代的 code）。
   def filter_by_group(scope)

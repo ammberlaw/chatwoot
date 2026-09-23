@@ -12,6 +12,11 @@ class ProductCategoriesAPI extends ApiClient {
   tree() {
     return axios.get(`${this.url}/categories`);
   }
+
+  // 按传入顺序保存当前产品线下的类别次序（产品线由 axios 拦截器带上）。
+  reorder(categories) {
+    return axios.post(`${this.url}/reorder_categories`, { categories });
+  }
 }
 
 export default new ProductCategoriesAPI();
