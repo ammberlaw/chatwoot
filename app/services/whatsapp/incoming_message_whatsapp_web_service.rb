@@ -1,11 +1,14 @@
 # Turns an inbound message forwarded by the Baileys bridge into a Chatwoot
 # contact + conversation + message. Mirrors the Telegram incoming flow.
-# Slice 1: individual text chats only.
+# 单聊：文字 + 媒体（图片/视频/语音/文件）。群聊仍不收。
 class Whatsapp::IncomingMessageWhatsappWebService
+  include FileTypeHelper
+
   pattr_initialize [:inbox!, :params!]
 
   def perform
-    return if params[:text].blank?
+    # 纯媒体消息没有文字，只判 text 会把客户发来的图片/视频整条丢掉。
+    return if params[:text].blank? && media_blob.nil?
 
     # WhatsApp can redeliver the same message; the message id is stable per message.
     # Serialize the check-then-create so two concurrent identical webhooks can't both
@@ -15,19 +18,47 @@ class Whatsapp::IncomingMessageWhatsappWebService
 
       set_contact
       set_conversation
-      @conversation.messages.create!(
-        content: params[:text],
-        account_id: inbox.account_id,
-        inbox_id: inbox.id,
-        message_type: from_me? ? :outgoing : :incoming,
-        sender: from_me? ? agent : @contact,
-        source_id: message_id,
-        created_at: sent_at
-      )
+      attach_media(build_message)
     end
   end
 
   private
+
+  def build_message
+    @conversation.messages.create!(
+      content: params[:text],
+      account_id: inbox.account_id,
+      inbox_id: inbox.id,
+      message_type: from_me? ? :outgoing : :incoming,
+      sender: from_me? ? agent : @contact,
+      source_id: message_id,
+      created_at: sent_at
+    )
+  end
+
+  # 控制器已把上传的文件落成 blob，这里只按 signed_id 取回来挂到消息上。
+  # 取不到就当没有媒体（blob 过期/被清理），消息本身照常存在。
+  def media_blob
+    return @media_blob if defined?(@media_blob)
+
+    signed_id = params[:media_signed_id].presence
+    @media_blob = signed_id && ActiveStorage::Blob.find_signed(signed_id)
+  rescue StandardError => e
+    Rails.logger.error("[whatsapp_web] 取入站媒体 blob 失败：#{e.class} #{e.message}")
+    @media_blob = nil
+  end
+
+  # file_type 决定前端怎么渲染（图片/视频直接预览，其余按文件下载）。
+  def attach_media(message)
+    blob = media_blob
+    return if blob.nil?
+
+    attachment = message.attachments.create!(
+      account_id: inbox.account_id,
+      file_type: file_type(blob.content_type)
+    )
+    attachment.file.attach(blob)
+  end
 
   # 业务员在手机 WhatsApp 里直接回的消息（桥带 from_me）也要进 CRM，记成「我方发出」，
   # 否则会话里只剩客户单边说话。从 CRM 发出的那条按 source_id 判重，不会重复落。

@@ -17,6 +17,29 @@ async function postInbound(payload) {
   }
 }
 
+// 带媒体的入站消息。走 multipart 而不是把文件 base64 塞进 JSON：
+// base64 有 33% 膨胀，一个几十 MB 的视频会变成上百 MB 的字符串，Rails 那边解析就爆了。
+// 字段名与 postInbound 的 JSON 键一一对应，Rails 侧用同一套 params 读。
+async function postInboundMedia(payload, media) {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(payload)) {
+    if (value !== null && value !== undefined) form.append(key, String(value));
+  }
+  form.append('media', new Blob([media.buffer], { type: media.mimetype }), media.filename);
+
+  const res = await fetch(`${config.chatwootUrl}/webhooks/whatsapp_web`, {
+    method: 'POST',
+    // 不要手写 Content-Type：multipart 的 boundary 由 fetch 按 FormData 自动生成，
+    // 手写会覆盖掉 boundary，Rails 收到的就是一坨解析不了的 body。
+    headers: { 'X-Bridge-Token': config.bridgeToken },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`chatwoot inbound media ${res.status}: ${body.slice(0, 300)}`);
+  }
+}
+
 // Reports a session's connection state (open/close/qr + phone number) back to Chatwoot
 // so it can persist phone_number and surface status without polling the bridge for it.
 async function postStatus(payload) {
@@ -69,4 +92,4 @@ async function postHistory(payload) {
   }
 }
 
-module.exports = { postInbound, postStatus, postReceipt, postHistory };
+module.exports = { postInbound, postInboundMedia, postStatus, postReceipt, postHistory };

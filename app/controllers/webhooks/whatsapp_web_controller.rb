@@ -1,10 +1,16 @@
 class Webhooks::WhatsappWebController < ActionController::API
   before_action :authenticate_bridge
 
+  # 入站媒体上限。桥那边也卡了 64MB；这里再卡一道，别让畸形请求把内存撑爆。
+  MEDIA_MAX_BYTES = 64.megabytes
+
   # Inbound message forwarded by the Baileys bridge.
   def process_payload
     # from_me：业务员在手机上直接回的消息，落成「我方发出」（见 IncomingMessageWhatsappWebService）。
     payload = params.to_unsafe_hash.slice(:inbox_id, :source_id, :phone, :from, :name, :text, :message_id, :timestamp, :from_me)
+    # 图片/视频/语音/文件走 multipart 上来。文件对象进不了 ActiveJob（序列化不了），
+    # 所以在这里先落成 blob，只把 signed_id 带进后台任务。
+    payload[:media_signed_id] = stage_media&.signed_id
     Webhooks::WhatsappWebEventsJob.perform_later(payload)
     head :ok
   end
@@ -46,6 +52,28 @@ class Webhooks::WhatsappWebController < ActionController::API
   end
 
   private
+
+  # 把上传的媒体存成 ActiveStorage blob。超限或空文件直接丢弃媒体（消息本身照落，
+  # 至少留下「客户此刻发过东西」这条记录），不让整条 webhook 失败。
+  def stage_media
+    file = params[:media]
+    return nil unless file.respond_to?(:tempfile)
+
+    size = file.size.to_i
+    if size.zero? || size > MEDIA_MAX_BYTES
+      Rails.logger.warn("[whatsapp_web] 丢弃入站媒体：size=#{size} inbox=#{params[:inbox_id]}")
+      return nil
+    end
+
+    ActiveStorage::Blob.create_and_upload!(
+      io: file.tempfile,
+      filename: file.original_filename.presence || 'whatsapp-media',
+      content_type: file.content_type.presence || 'application/octet-stream'
+    )
+  rescue StandardError => e
+    Rails.logger.error("[whatsapp_web] 入站媒体落盘失败：#{e.class} #{e.message}")
+    nil
+  end
 
   def authenticate_bridge
     token = request.headers['X-Bridge-Token']

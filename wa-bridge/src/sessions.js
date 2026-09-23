@@ -5,6 +5,7 @@ const {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   DisconnectReason,
+  downloadMediaMessage,
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const QRCode = require('qrcode');
@@ -62,7 +63,58 @@ function extractText(message) {
   );
 }
 
-async function handleIncoming(inboxId, msg) {
+// 入站媒体：客户发来的图片/视频/语音/文件。WhatsApp 的媒体是加密的，
+// 必须由桥用消息里的密钥解密下载，Chatwoot 拿不到原始 URL 自己下。
+//
+// 贴纸(sticker)按图片收；产品/位置/名片这类结构化消息不在此列，仍按无媒体处理。
+const MEDIA_KINDS = [
+  ['imageMessage', 'image', 'jpg'],
+  ['videoMessage', 'video', 'mp4'],
+  ['audioMessage', 'audio', 'ogg'],
+  ['documentMessage', 'document', 'bin'],
+  ['stickerMessage', 'image', 'webp'],
+];
+
+// 取出这条消息里的媒体节点。documentWithCaptionMessage 是「文件+说明」的包装，
+// 真正的 documentMessage 藏在里面一层，不拆就会漏掉带说明的文件。
+function extractMedia(message) {
+  if (!message) return null;
+  const inner = message.documentWithCaptionMessage?.message || message;
+  for (const [key, kind, ext] of MEDIA_KINDS) {
+    const node = inner[key];
+    if (!node) continue;
+    const mimetype = node.mimetype || '';
+    const filename =
+      node.fileName ||
+      `whatsapp-${kind}-${Date.now()}.${(mimetype.split('/')[1] || ext).split(';')[0]}`;
+    return { kind, node, mimetype: mimetype || 'application/octet-stream', filename, key };
+  }
+  return null;
+}
+
+// 下载并解密。失败不让整条消息丢掉——宁可只落文字（或一条空消息占位），
+// 也好过客户发来的东西在 CRM 里彻底不存在。
+async function downloadMedia(sock, msg, media) {
+  const declared = Number(media.node.fileLength || 0);
+  if (declared > MEDIA_MAX_BYTES) {
+    logger.warn({ size: declared, kind: media.kind }, 'inbound media too large, skipped');
+    return null;
+  }
+  const buffer = await downloadMediaMessage(
+    msg,
+    'buffer',
+    {},
+    { logger, reuploadRequest: sock.updateMediaMessage },
+  );
+  if (!buffer || !buffer.length) return null;
+  if (buffer.length > MEDIA_MAX_BYTES) {
+    logger.warn({ size: buffer.length, kind: media.kind }, 'inbound media too large after download, skipped');
+    return null;
+  }
+  return buffer;
+}
+
+async function handleIncoming(inboxId, msg, sock) {
   // 个人聊天的文字消息，双向都收。之前这里 `if (fromMe) return` 把业务员用手机回的话
   // 全丢了，CRM 里的对话只剩客户单边说 —— 实测线上一个号 221 条来件只对 2 条去件。
   // 从 CRM 发出的那条会由桥回写 source_id，入库时按 message_id 判重，不会重复。
@@ -74,7 +126,10 @@ async function handleIncoming(inboxId, msg) {
   if (!remoteJid.endsWith(INDIVIDUAL_SUFFIX) && !remoteJid.endsWith(LID_SUFFIX)) return;
 
   const text = extractText(msg.message);
-  if (!text) return; // media-only handled later
+  const media = extractMedia(msg.message);
+  // 纯文字、纯媒体、图片带文字三种都要收。以前这里是 `if (!text) return`，
+  // 客户发来的图片/视频/语音/文件在 CRM 里直接不存在（业务员只能去手机上翻）。
+  if (!text && !media) return;
 
   // Route by the full JID: WhatsApp Web addresses chats by JID, which may be a classic
   // phone (…@s.whatsapp.net) or the newer opaque LID (…@lid). We reply to this same JID.
@@ -86,23 +141,44 @@ async function handleIncoming(inboxId, msg) {
       ? jidToPhone(msg.key.senderPn)
       : null;
 
+  const payload = {
+    inbox_id: Number(inboxId),
+    source_id: remoteJid,
+    phone: realPhone,
+    // 自己发出的消息里 pushName 是「我」的名字，拿它当客户名会把联系人建错，
+    // 所以只在收到客户消息时带 name；已有联系人不受影响。
+    name: fromMe ? null : msg.pushName || realPhone || jidToPhone(remoteJid),
+    text,
+    message_id: msg.key.id,
+    timestamp: Number(msg.messageTimestamp) || null,
+    from_me: fromMe,
+  };
+
   try {
-    await chatwoot.postInbound({
-      inbox_id: Number(inboxId),
-      source_id: remoteJid,
-      phone: realPhone,
-      // 自己发出的消息里 pushName 是「我」的名字，拿它当客户名会把联系人建错，
-      // 所以只在收到客户消息时带 name；已有联系人不受影响。
-      name: fromMe ? null : msg.pushName || realPhone || jidToPhone(remoteJid),
-      text,
-      message_id: msg.key.id,
-      timestamp: Number(msg.messageTimestamp) || null,
-      from_me: fromMe,
-    });
+    // 媒体下载失败（密钥过期/服务器已清理）不吞掉整条消息：退回纯文字投递，
+    // 至少 CRM 里能看到「客户这时候发过东西」和它的文字说明。
+    let buffer = null;
+    if (media) {
+      try {
+        buffer = await downloadMedia(sock, msg, media);
+      } catch (err) {
+        logger.error({ inboxId, kind: media.kind, err: err.message }, 'inbound media download failed');
+      }
+    }
+    if (buffer) {
+      await chatwoot.postInboundMedia(payload, {
+        buffer,
+        filename: media.filename,
+        mimetype: media.mimetype,
+      });
+    } else {
+      await chatwoot.postInbound(payload);
+    }
   } catch (err) {
     logger.error({ inboxId, err: err.message }, 'failed to forward inbound message');
   }
 }
+
 
 async function notifyStatus(inboxId) {
   const s = sessions.get(inboxId);
@@ -232,7 +308,7 @@ async function connect(inboxId) {
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
     for (const msg of messages) {
-      await handleIncoming(inboxId, msg);
+      await handleIncoming(inboxId, msg, sock);
     }
   });
 
