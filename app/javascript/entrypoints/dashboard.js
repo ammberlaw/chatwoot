@@ -34,6 +34,30 @@ import { directive as onClickaway } from 'vue3-click-away';
 
 import 'floating-vue/dist/style.css';
 
+// 部署后自愈：构建产物文件名带内容哈希，新版本一上线旧 chunk 就被删掉。
+// 用户页面开着没刷新时，点到懒加载的功能会去请求已经不存在的文件 → 404 →
+// 动态 import 失败 → 那块功能静默消失（2026-09-23 表情选择器就是这么"没了"的，
+// nginx 日志里是 EmojiIconPicker-<旧哈希>.js 404，而附件/语音在主包里所以不受影响）。
+// Vite 这种情况会抛 vite:preloadError，收到就自动刷一次页面换新资源。
+// 用时间戳兜底：刚刷过一分钟内又失败，说明不是版本问题（比如真的离线），不再刷，避免死循环。
+window.addEventListener('vite:preloadError', event => {
+  const KEY = 'vite-preload-reload-at';
+  let last = 0;
+  try {
+    last = Number(window.sessionStorage.getItem(KEY) || 0);
+  } catch {
+    /* 隐私模式下 sessionStorage 不可用，当作没刷过 */
+  }
+  if (Date.now() - last < 60000) return;
+  try {
+    window.sessionStorage.setItem(KEY, String(Date.now()));
+  } catch {
+    /* 存不下就算了，最多多刷一次 */
+  }
+  event.preventDefault();
+  window.location.reload();
+});
+
 const i18n = createI18n({
   legacy: false, // https://github.com/intlify/vue-i18n/issues/1902
   locale: 'en',
