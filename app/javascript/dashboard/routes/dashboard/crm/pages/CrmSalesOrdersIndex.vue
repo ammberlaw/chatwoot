@@ -23,6 +23,7 @@ import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmSalesOrderCreateDialog from 'dashboard/components-next/CRM/CrmSalesOrderCreateDialog.vue';
 import CrmOrderConvertDialog from 'dashboard/components-next/CRM/CrmOrderConvertDialog.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
+import OrderCostsAPI from 'dashboard/api/erp/orderCosts';
 
 // 与后端 SalesOrdersController::RESULTS_PER_PAGE 保持一致。
 const ITEMS_PER_PAGE = 15;
@@ -275,6 +276,7 @@ const selectedOrder = ref(null);
 const activeTab = ref('fields');
 const panelAudits = ref([]);
 const panelTrace = ref(null);
+const panelCosts = ref([]);
 const tabLoading = ref(false);
 
 const detailSections = computed(() => {
@@ -416,7 +418,31 @@ const fetchTrace = async () => {
     `${crmBase()}/sales_orders/${selectedOrder.value.id}/production_trace`
   );
   panelTrace.value = data.payload || { production_orders: [], shipments: [] };
+  await fetchTraceCosts();
 };
+
+// 成本结转行（材料 / 加工外协 / 运费 / 佣金 …）。
+// 成本与毛利是权限墙核心区，CRM 的任何接口都不输出——所以这块单独走 ERP 接口取，
+// 由 ERP 门禁把关：没有 ERP 权限的人既拿不到数据，这里也不渲染。
+const canAccessErp = computed(() => currentUser.value?.can_access_erp === true);
+const fetchTraceCosts = async () => {
+  if (!canAccessErp.value) {
+    panelCosts.value = [];
+    return;
+  }
+  try {
+    const { data } = await OrderCostsAPI.get({
+      crm_sales_order_id: selectedOrder.value.id,
+    });
+    panelCosts.value = data.payload || [];
+  } catch {
+    // ERP 未开通或接口不可用时，追溯其余部分照常显示，不因为成本拿不到就整块空白。
+    panelCosts.value = [];
+  }
+};
+const costTotal = computed(() =>
+  panelCosts.value.reduce((sum, c) => sum + (c.amount_micros || 0), 0)
+);
 const setTab = async key => {
   activeTab.value = key;
   if (!selectedOrder.value) return;
@@ -441,7 +467,8 @@ const traceIsEmpty = computed(
   () =>
     !panelTrace.value ||
     (!panelTrace.value.production_orders?.length &&
-      !panelTrace.value.shipments?.length)
+      !panelTrace.value.shipments?.length &&
+      !panelCosts.value.length)
 );
 
 const selectOrder = record => {
@@ -449,6 +476,7 @@ const selectOrder = record => {
   activeTab.value = 'fields';
   panelAudits.value = [];
   panelTrace.value = null;
+  panelCosts.value = [];
   fetchReceivableProgress(record.id);
 };
 const closePanel = () => {
@@ -1396,6 +1424,43 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                 }}
               </span>
             </div>
+
+            <!-- 成本结转：只对有 ERP 权限的人渲染，数据也只从 ERP 接口取。
+                 成本/毛利是权限墙核心区，业务员这里既看不到也拿不到。 -->
+            <template v-if="canAccessErp">
+              <div class="mt-3 text-xs font-medium text-n-slate-11">
+                成本结转
+              </div>
+              <div
+                v-if="!panelCosts.length"
+                class="mt-1 text-xs text-n-slate-10"
+              >
+                还没有归集成本（ERP「成本归集」里可一键补算）。
+              </div>
+              <template v-else>
+                <div
+                  v-for="c in panelCosts"
+                  :key="c.id"
+                  class="flex flex-wrap items-baseline gap-x-2 mt-1 text-xs"
+                >
+                  <span class="w-16 shrink-0 text-n-slate-12">
+                    {{ c.cost_type_label || c.cost_type }}
+                  </span>
+                  <span class="font-medium text-n-slate-12">
+                    {{ fmtYuan(c.amount_micros, c.currency) }}
+                  </span>
+                  <span v-if="c.supplier_name" class="text-n-slate-10">
+                    {{ c.supplier_name }}
+                  </span>
+                  <span class="text-n-slate-10">
+                    {{ c.happened_at ? traceTime(c.happened_at) : '—' }}
+                  </span>
+                </div>
+                <div class="mt-1 text-xs font-medium text-n-slate-12">
+                  成本合计 {{ fmtYuan(costTotal, 'CNY') }}
+                </div>
+              </template>
+            </template>
           </template>
         </div>
 
