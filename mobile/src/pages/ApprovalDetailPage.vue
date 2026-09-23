@@ -13,15 +13,15 @@ import { shortDateTime } from '@/utils/format';
 defineOptions({ name: 'ApprovalDetailPage' });
 
 const STATUS_CLASS = {
-  pending: 'bg-n-amber-3 text-n-amber-11',
-  approved: 'bg-n-teal-3 text-n-teal-11',
-  rejected: 'bg-n-ruby-3 text-n-ruby-11',
-  canceled: 'bg-n-alpha-1 text-n-slate-11',
+  pending: 'bg-[color:var(--pb-brand-soft)] text-[color:var(--pb-ink)]',
+  approved: 'bg-[color:var(--pb-ink)] text-[color:var(--pb-on-ink)]',
+  rejected: 'bg-[#C4383C]/10 text-[#C4383C]',
+  canceled: 'bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)]',
 };
 const STEP_ICON = {
-  approved: { icon: 'i-lucide-check', cls: 'bg-n-teal-3 text-n-teal-11' },
-  rejected: { icon: 'i-lucide-x', cls: 'bg-n-ruby-3 text-n-ruby-11' },
-  pending: { icon: 'i-lucide-clock', cls: 'bg-n-alpha-1 text-n-slate-10' },
+  approved: { icon: 'i-lucide-check', cls: 'bg-[color:var(--pb-ink)] text-[color:var(--pb-on-ink)]' },
+  rejected: { icon: 'i-lucide-x', cls: 'bg-[#C4383C]/10 text-[#C4383C]' },
+  pending: { icon: 'i-lucide-clock', cls: 'bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-3)]' },
 };
 
 const route = useRoute();
@@ -151,7 +151,7 @@ onMounted(load);
         <button
           type="button"
           aria-label="修改单据"
-          class="grid rounded-full size-9 place-items-center text-n-iris-11 active:bg-n-alpha-1"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-accent)] active:bg-[color:var(--pb-fill)]"
           @click="openEdit"
         >
           <span class="size-5 i-lucide-pencil" />
@@ -169,17 +169,17 @@ onMounted(load);
         @retry="load"
       >
         <div class="flex items-start gap-3">
-          <h1 class="flex-1 text-base font-semibold leading-snug text-n-slate-12">
+          <h1 class="flex-1 text-base font-semibold leading-snug text-[color:var(--pb-ink)]">
             {{ req.title }}
           </h1>
           <span
             class="flex-none px-2 py-1 text-xs rounded-lg"
-            :class="STATUS_CLASS[req.status] || 'bg-n-alpha-1 text-n-slate-11'"
+            :class="STATUS_CLASS[req.status] || 'bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)]'"
           >
             {{ APPROVAL_STATUS_LABELS[req.status] || req.status }}
           </span>
         </div>
-        <p class="mt-1 text-xs text-n-slate-10">
+        <p class="mt-1 text-xs text-[color:var(--pb-ink-3)]">
           {{ req.applicant_name }}
           <template v-if="req.department_name"> · {{ req.department_name }}</template>
           · {{ shortDateTime(req.submitted_at || req.created_at) }}
@@ -190,10 +190,10 @@ onMounted(load);
           <div
             v-for="row in formRows"
             :key="row.key"
-            class="flex items-start gap-3 px-3 py-2.5 border-b last:border-b-0 border-n-weak"
+            class="flex items-start gap-3 px-3 py-2.5 border-b last:border-b-0 border-[color:var(--pb-sep)]"
           >
-            <span class="flex-none w-20 text-xs text-n-slate-10">{{ row.label }}</span>
-            <span class="flex-1 text-sm break-words whitespace-pre-line text-n-slate-12">
+            <span class="flex-none w-20 text-xs text-[color:var(--pb-ink-3)]">{{ row.label }}</span>
+            <span class="flex-1 text-sm break-words whitespace-pre-line text-[color:var(--pb-ink)]">
               {{ row.value }}
             </span>
           </div>
@@ -206,22 +206,22 @@ onMounted(load);
               :href="f.url"
               target="_blank"
               rel="noopener"
-              class="flex items-center gap-3 p-3 wt-card active:bg-n-alpha-1"
+              class="flex items-center gap-3 p-3 wt-card active:bg-[color:var(--pb-fill)]"
             >
-              <span class="flex-none size-4 text-n-slate-10 i-lucide-paperclip" />
-              <span class="flex-1 text-sm truncate text-n-iris-11">{{ f.filename }}</span>
-              <span class="flex-none text-xs text-n-slate-10">{{ kb(f.byte_size) }}</span>
+              <span class="flex-none size-4 text-[color:var(--pb-ink-3)] i-lucide-paperclip" />
+              <span class="flex-1 text-sm truncate text-[color:var(--pb-accent)]">{{ f.filename }}</span>
+              <span class="flex-none text-xs text-[color:var(--pb-ink-3)]">{{ kb(f.byte_size) }}</span>
             </a>
           </li>
         </ul>
 
         <!-- 审批流 -->
-        <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-n-slate-10">审批流程</h2>
+        <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-[color:var(--pb-ink-3)]">审批流程</h2>
         <ul class="overflow-hidden wt-card">
           <li
             v-for="s in req.steps"
             :key="s.id"
-            class="flex items-start gap-3 px-3 py-3 border-b last:border-b-0 border-n-weak"
+            class="flex items-start gap-3 px-3 py-3 border-b last:border-b-0 border-[color:var(--pb-sep)]"
           >
             <span
               class="grid flex-none rounded-full size-6 place-items-center"
@@ -231,22 +231,22 @@ onMounted(load);
             </span>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
-                <span class="text-sm font-medium truncate text-n-slate-12">
+                <span class="text-sm font-medium truncate text-[color:var(--pb-ink)]">
                   {{ s.approver_name || '未指定' }}
                 </span>
-                <span v-if="s.is_current" class="text-xs text-n-amber-11">审批中</span>
+                <span v-if="s.is_current" class="text-xs text-[color:var(--pb-brand-ink)]">审批中</span>
               </div>
-              <p v-if="s.comment" class="mt-0.5 text-sm break-words text-n-slate-11">
+              <p v-if="s.comment" class="mt-0.5 text-sm break-words text-[color:var(--pb-ink-2)]">
                 {{ s.comment }}
               </p>
-              <p v-if="s.acted_at" class="mt-0.5 text-xs text-n-slate-10">
+              <p v-if="s.acted_at" class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">
                 {{ shortDateTime(s.acted_at) }}
               </p>
             </div>
           </li>
         </ul>
 
-        <p v-if="req.cc_names?.length" class="mt-3 text-xs text-n-slate-10">
+        <p v-if="req.cc_names?.length" class="mt-3 text-xs text-[color:var(--pb-ink-3)]">
           抄送 {{ req.cc_names.join('、') }}
         </p>
 
@@ -257,12 +257,12 @@ onMounted(load);
     <!-- 待我审批时露同意/驳回；自己发起且还在审批中时露撤回 -->
     <div
       v-if="req?.can_act || (req?.is_applicant && req?.status === 'pending')"
-      class="flex flex-none gap-2 px-4 pt-2 pb-2 border-t border-n-weak bg-n-background pb-safeBottom"
+      class="flex flex-none gap-2 px-4 pt-2 pb-2 border-t border-[color:var(--pb-sep)] bg-n-background pb-safeBottom"
     >
       <template v-if="req.can_act">
         <button
           type="button"
-          class="flex-1 wt-btn text-n-ruby-11 bg-n-ruby-3 active:bg-n-ruby-4"
+          class="flex-1 wt-btn text-[#C4383C] bg-[#C4383C]/10 active:bg-[#C4383C]/15"
           @click="openSheet('reject', '驳回审批')"
         >
           驳回
@@ -291,7 +291,7 @@ onMounted(load);
           <input v-model="editTitle" type="text" class="wt-field" />
         </FormField>
         <ApprovalFormFields :fields="req?.form_fields || []" :model-value="editValues" />
-        <p v-if="editError" class="text-sm text-n-ruby-11">{{ editError }}</p>
+        <p v-if="editError" class="text-sm text-[#C4383C]">{{ editError }}</p>
       </div>
       <template #footer>
         <button
@@ -314,7 +314,7 @@ onMounted(load);
           class="wt-field"
         />
       </FormField>
-      <p v-if="sheet.error" class="mt-3 text-sm text-n-ruby-11">{{ sheet.error }}</p>
+      <p v-if="sheet.error" class="mt-3 text-sm text-[#C4383C]">{{ sheet.error }}</p>
       <template #footer>
         <button
           type="button"

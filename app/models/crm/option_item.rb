@@ -4,20 +4,22 @@
 #
 # Table name: crm_option_items
 #
-#  id         :bigint           not null, primary key
-#  active     :boolean          default(TRUE), not null
-#  category   :string           not null
-#  code       :string           not null
-#  name       :string           not null
-#  position   :integer          default(0), not null
-#  created_at :datetime         not null
-#  updated_at :datetime         not null
-#  account_id :bigint           not null
-#  parent_id  :bigint
+#  id           :bigint           not null, primary key
+#  active       :boolean          default(TRUE), not null
+#  category     :string           not null
+#  code         :string           not null
+#  name         :string           not null
+#  position     :integer          default(0), not null
+#  product_line :string
+#  created_at   :datetime         not null
+#  updated_at   :datetime         not null
+#  account_id   :bigint           not null
+#  parent_id    :bigint
 #
 # Indexes
 #
 #  idx_crm_option_items_code  (account_id,category,code) UNIQUE
+#  idx_crm_option_items_line  (account_id,category,product_line)
 #  idx_crm_option_items_tree  (account_id,category,parent_id,position)
 #
 # Foreign Keys

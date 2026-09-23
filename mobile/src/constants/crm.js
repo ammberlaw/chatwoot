@@ -1,5 +1,28 @@
 // 客户字段的枚举中文名。国家表直接复用主仓单一事实源，不另抄一份。
-export { COUNTRY_LABELS } from '../../../app/javascript/dashboard/routes/dashboard/crm/constants/countries';
+import { COUNTRY_LABELS } from '../../../app/javascript/dashboard/routes/dashboard/crm/constants/countries';
+
+export { COUNTRY_LABELS };
+
+// 存量/小满迁入的客户，trade_country 有的是白名单值（UK、SPAIN），有的是 ISO-2 码（CN、DE、IT）。
+// 不归一的话列表里就是一半「🇬🇧 英国」一半裸「DE」，很难看。这里把常见 ISO 码映射回白名单键。
+const ISO2_TO_KEY = {
+  CN: 'CHINA', US: 'USA', GB: 'UK', DE: 'GERMANY', FR: 'FRANCE', IT: 'ITALY',
+  ES: 'SPAIN', CA: 'CANADA', AU: 'AUSTRALIA', JP: 'JAPAN', KR: 'SOUTH_KOREA',
+  IN: 'INDIA', RU: 'RUSSIA', BR: 'BRAZIL', MX: 'MEXICO', NL: 'NETHERLANDS',
+  BE: 'BELGIUM', CH: 'SWITZERLAND', SE: 'SWEDEN', NO: 'NORWAY', DK: 'DENMARK',
+  FI: 'FINLAND', AT: 'AUSTRIA', PL: 'POLAND', CZ: 'CZECH', TR: 'TURKEY',
+  AE: 'UAE', SA: 'SAUDI_ARABIA', SG: 'SINGAPORE', MY: 'MALAYSIA', TH: 'THAILAND',
+  VN: 'VIETNAM', ID: 'INDONESIA', PH: 'PHILIPPINES', ZA: 'SOUTH_AFRICA',
+  AR: 'ARGENTINA', CL: 'CHILE', CO: 'COLOMBIA', PE: 'PERU', IL: 'ISRAEL',
+  EG: 'EGYPT', PT: 'PORTUGAL', GR: 'GREECE', IE: 'IRELAND', NZ: 'NEW_ZEALAND',
+  TW: 'TAIWAN', HK: 'HONG_KONG', PK: 'PAKISTAN', UA: 'UKRAINE', RO: 'ROMANIA',
+};
+
+export const countryLabel = code => {
+  if (!code) return '';
+  const key = COUNTRY_LABELS[code] ? code : ISO2_TO_KEY[String(code).toUpperCase()];
+  return COUNTRY_LABELS[key] || code;
+};
 
 export const CUSTOMER_STATUS_LABELS = {
   PROSPECT: '潜在客户',

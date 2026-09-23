@@ -24,7 +24,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     scope = apply_search(scope)
     @production_orders_count = scope.count
     # 列表分片逐行取这些关联，不预加载就是每行一次查库（dev 的 Bullet 直接抛异常打断页面）。
-    @production_orders = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc).page(page_param).per(per_page_param)
+    @production_orders = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end

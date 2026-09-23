@@ -52,6 +52,7 @@
 class Mes::Bom < ApplicationRecord
   include Mes::DocumentNumber
   include Mes::LineScoped
+  require_product_line!
 
   belongs_to :account
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true

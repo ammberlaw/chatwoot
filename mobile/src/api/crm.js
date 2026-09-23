@@ -20,6 +20,10 @@ export const updateCustomer = (id, customer) =>
 export const checkCustomerDuplicate = params =>
   http.get(`${base()}/crm/customers/check_duplicate`, { params });
 
+// 列表顶部四个概览数。后端与列表共用同一份 scope，所以筛选参数要原样传进来。
+export const fetchCustomerStats = params =>
+  cachedGet(`${base()}/crm/customers/stats`, { params });
+
 export const fetchOptionItems = category =>
   cachedGet(`${base()}/crm/option_items`, { params: { category } });
 
@@ -151,6 +155,11 @@ const RECORD_PATHS = {
   quote: 'crm/quotes',
   pi: 'crm/pis',
 };
+
+// 成员/团队列表：后端要求管理员权限，业务员会 403。
+// 调用方要自己兜住失败（商机「筛选」弹层就靠它决定显示人名还是说明文案）。
+export const fetchCrmMembers = () => cachedGet(`${base()}/crm/members`);
+export const fetchCrmTeams = () => cachedGet(`${base()}/crm/teams`);
 
 export const fetchRecords = (kind, params) =>
   cachedGet(`${base()}/${RECORD_PATHS[kind]}`, { params });

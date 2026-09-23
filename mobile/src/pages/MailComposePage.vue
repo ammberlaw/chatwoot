@@ -177,7 +177,7 @@ onMounted(load);
         <button
           type="button"
           aria-label="用模板"
-          class="grid rounded-full size-9 place-items-center text-n-slate-11 active:bg-n-alpha-1"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-ink-2)] active:bg-[color:var(--pb-fill)]"
           @click="openTemplates"
         >
           <span class="size-5 i-lucide-file-text" />
@@ -185,7 +185,7 @@ onMounted(load);
         <button
           type="button"
           aria-label="AI 写信"
-          class="grid rounded-full size-9 place-items-center text-n-iris-11 active:bg-n-alpha-1"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-accent)] active:bg-[color:var(--pb-fill)]"
           @click="aiOpen = true"
         >
           <span class="size-5 i-lucide-sparkles" />
@@ -194,7 +194,7 @@ onMounted(load);
     </PageHeader>
 
     <div class="flex-1 min-h-0 px-4 pt-4 overflow-y-auto">
-      <p v-if="loading" class="py-10 text-sm text-center text-n-slate-11">加载中…</p>
+      <p v-if="loading" class="py-10 text-sm text-center text-[color:var(--pb-ink-2)]">加载中…</p>
 
       <div v-else class="flex flex-col gap-4">
         <FormField v-if="accounts.length > 1" label="发件邮箱">
@@ -222,7 +222,7 @@ onMounted(load);
         <button
           v-if="!showCc"
           type="button"
-          class="self-start text-xs text-n-iris-11"
+          class="self-start text-xs wt-link text-[color:var(--pb-accent)]"
           @click="showCc = true"
         >
           + 添加抄送
@@ -248,25 +248,25 @@ onMounted(load);
 
         <AttachmentField v-model="files" />
 
-        <p v-if="error" class="text-sm text-n-ruby-11">{{ error }}</p>
+        <p v-if="error" class="text-sm text-[#C4383C]">{{ error }}</p>
         <div class="h-2" />
       </div>
     </div>
 
     <AppSheet :open="tplOpen" title="选择模板" @close="tplOpen = false">
-      <p v-if="tplLoading" class="py-6 text-sm text-center text-n-slate-11">加载中…</p>
-      <p v-else-if="!templates.length" class="py-6 text-sm text-center text-n-slate-11">
+      <p v-if="tplLoading" class="py-6 text-sm text-center text-[color:var(--pb-ink-2)]">加载中…</p>
+      <p v-else-if="!templates.length" class="py-6 text-sm text-center text-[color:var(--pb-ink-2)]">
         还没有可用模板
       </p>
       <ul v-else class="overflow-hidden wt-card">
         <li v-for="t in templates" :key="t.id">
           <button
             type="button"
-            class="w-full px-3 py-3 text-left border-b last:border-b-0 border-n-weak active:bg-n-alpha-1"
+            class="w-full px-3 py-3 text-left border-b last:border-b-0 border-[color:var(--pb-sep)] active:bg-[color:var(--pb-fill)]"
             @click="applyTemplate(t)"
           >
-            <div class="text-sm font-medium truncate text-n-slate-12">{{ t.name }}</div>
-            <div v-if="t.subject_template" class="mt-0.5 text-xs truncate text-n-slate-10">
+            <div class="text-sm font-medium truncate text-[color:var(--pb-ink)]">{{ t.name }}</div>
+            <div v-if="t.subject_template" class="mt-0.5 text-xs truncate text-[color:var(--pb-ink-3)]">
               {{ t.subject_template }}
             </div>
           </button>
@@ -278,7 +278,7 @@ onMounted(load);
       <FormField label="这封邮件要写什么" required hint="例如：催客户确认 PI，语气客气但要给个期限">
         <textarea v-model="aiIntent" rows="4" class="wt-field" />
       </FormField>
-      <p v-if="aiError" class="mt-3 text-sm text-n-ruby-11">{{ aiError }}</p>
+      <p v-if="aiError" class="mt-3 text-sm text-[#C4383C]">{{ aiError }}</p>
       <template #footer>
         <button
           type="button"
@@ -291,7 +291,7 @@ onMounted(load);
       </template>
     </AppSheet>
 
-    <div class="flex-none px-4 pt-2 pb-2 border-t border-n-weak bg-n-background pb-safeBottom">
+    <div class="flex-none px-4 pt-2 pb-2 border-t border-[color:var(--pb-sep)] bg-n-background pb-safeBottom">
       <button
         type="button"
         class="w-full wt-btn-primary"

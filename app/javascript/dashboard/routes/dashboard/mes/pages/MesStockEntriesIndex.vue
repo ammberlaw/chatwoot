@@ -143,7 +143,9 @@ const loadProducts = async (q = '') => {
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/products`,
-      { params: { filter: 'active', q } }
+      // 产品档案近 5000 条,靠 q 搜索收窄;per_page 取后端上限 100,
+      // 否则命中多于 15 条时后面的直接看不到。
+      { params: { filter: 'active', q, per_page: 100 } }
     );
     mergeProductOptions(
       (data?.payload || []).map(p => ({
@@ -292,7 +294,9 @@ onMounted(async () => {
   loadProducts('');
   try {
     const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/purchase_orders`
+      `/api/v1/accounts/${accountId.value}/mes/purchase_orders`,
+      // 同上:采购单下拉要能选到全部,不能只给最新 15 张。
+      { params: { per_page: 500 } }
     );
     purchaseOrders.value = data?.payload || [];
   } catch {

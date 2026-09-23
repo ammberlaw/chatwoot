@@ -156,8 +156,47 @@ const L = {
 
 // 富文本编辑器输出 Markdown；发送/预览时用 Chatwoot 的 MessageFormatter 转 HTML。
 // 文字颜色标记被 html:false 转义成文本，渲染后按严格格式还原成真 span。
+// 编辑器把「软换行」序列化成单独一行的反斜杠。这行反斜杠会被 markdown 原样渲染成
+// 可见的「\」，而紧跟其后的「1. xxx」又会被当成有序列表去打断段落——收件人看到的
+// 是多出来的反斜杠加一个变形的列表，跟编辑器里完全对不上（生产上真发生过）。
+//
+// HTML 版：去掉反斜杠行，并把紧跟其后的行首序号转义成普通文本，保住业务员手打的编号。
+// 用列表按钮做出来的真列表前面没有反斜杠行，匹配不到，不受影响。
+const cleanMarkdownForHtml = src =>
+  (src || '')
+    .replace(/^\\[ \t]*\r?\n(\s*)(\d+)\.(\s)/gm, '$1$2\\.$3')
+    .replace(/^\\[ \t]*$/gm, '');
+
+// 纯文本版：只去反斜杠行，绝不能转义——否则收件人看到的是「1\.」。
+const cleanTextBody = src => (src || '').replace(/^\\[ \t]*\r?\n/gm, '');
+
+// 发出去的邮件不能靠外部 CSS 撑段距：Outlook 桌面版（Word 排版引擎）会把 <p> 的
+// 上下边距按自己的默认值清掉，收件人看到的就是所有段落贴在一起——我们这边界面正常，
+// 对方那边不正常。邮件开发的通行做法是把段距写成行内样式。
+//
+// 末段不加下边距：正文后面紧跟的是「<br> + 签名」，末段再留 12px 会和那个换行叠加，
+// 签名离正文老远（这个间距业务反馈过两次，别再撑回去）。
+const PARA_STYLE = 'margin:0 0 12px;';
+const inlineParagraphSpacing = html => {
+  if (!html) return html;
+  const opened = html
+    .replace(/<p>/gi, `<p style="${PARA_STYLE}">`)
+    // 带属性的 <p ...>（如插件加的 class）：已有 style 的不动，避免覆盖行内样式
+    .replace(/<p\s+([^>]*?)>/gi, (tag, attrs) =>
+      /style\s*=/i.test(attrs) ? tag : `<p ${attrs} style="${PARA_STYLE}">`
+    );
+  const marker = `<p style="${PARA_STYLE}">`;
+  const last = opened.lastIndexOf(marker);
+  if (last === -1) return opened;
+  return `${opened.slice(0, last)}<p style="margin:0;">${opened.slice(
+    last + marker.length
+  )}`;
+};
+
 const markdownToHtml = src =>
-  renderTextColorSpans(formatMessage(src || '', false, false));
+  inlineParagraphSpacing(
+    renderTextColorSpans(formatMessage(cleanMarkdownForHtml(src), false, false))
+  );
 
 // ---- 状态 ----
 const visible = ref(false);
@@ -575,7 +614,8 @@ const composedHtml = computed(() => {
 const composedText = computed(() => {
   const sig = activeSignature.value;
   const plain = sig?.body ? `\n\n${sig.body}` : '';
-  const body = form.body || '';
+  // 纯文本 part 也要去掉反斜杠行，否则收件人在纯文本视图里看到一堆「\」。
+  const body = cleanTextBody(form.body);
   // 新版回复：纯文本兜底 = 回信 + 签名 + 原邮件纯文本引用。
   if (quoteBlockText.value) {
     return `${trimTrailing(body)}${plain}${quoteBlockText.value}`;
@@ -590,7 +630,7 @@ const composedText = computed(() => {
 // 存草稿专用的纯文本正文——【不含签名】。签名以富文本块另存于 body_html，
 // 重开草稿时再作为富文本块拼接，避免签名被降级成纯文本（存草稿后 logo/配色丢失）。
 const composedTextNoSig = computed(() => {
-  const body = form.body || '';
+  const body = cleanTextBody(form.body);
   if (quoteBlockText.value) {
     return `${trimTrailing(body)}${quoteBlockText.value}`;
   }
@@ -1929,7 +1969,7 @@ defineExpose({ open, close });
               </div>
               <!-- eslint-disable-next-line vue/no-v-html -->
               <div
-                class="text-sm crm-quote-preview text-n-slate-12 [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full"
+                class="text-sm prose-email crm-quote-preview text-n-slate-12 [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full"
                 v-html="quoteHtmlRaw"
               />
             </div>
@@ -2283,7 +2323,7 @@ defineExpose({ open, close });
         </div>
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div
-          class="px-4 py-4 text-sm leading-relaxed text-n-slate-12"
+          class="px-4 py-4 text-sm leading-relaxed prose-email text-n-slate-12"
           v-html="composedHtml"
         />
       </div>

@@ -7,6 +7,10 @@ export const MES_PRODUCT_LINES = [
   { value: 'TABLET', label: '平板电脑', short: '平板' },
 ];
 
+// 建单表单专用：不含「全部产线」。新建的单子必须落在具体产线上，
+// 留着空值选项等于让人建出一条谁都看不见的单（BOM 上这么丢过 3 条）。
+export const MES_PRODUCT_LINE_CHOICES = MES_PRODUCT_LINES.filter(o => o.value);
+
 const LABELS = {
   COMMERCIAL_DISPLAY: '商显工控',
   TABLET: '平板电脑',
@@ -42,6 +46,7 @@ export function useMesProductLine() {
   return {
     activeProductLine,
     options: MES_PRODUCT_LINES,
+    formOptions: MES_PRODUCT_LINE_CHOICES,
     label,
     setActiveProductLine,
     productLineLabel,

@@ -7,7 +7,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     scope = scope.where(crm_product_id: params[:crm_product_id]) if params[:crm_product_id].present?
     scope = scope.where('bom_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
     @boms_count = scope.count
-    @boms = scope.order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @boms = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
 
   def show; end

@@ -46,6 +46,12 @@ class OaApprovalRequestAPI extends ApiClient {
   cancel(id) {
     return axios.post(`${this.url}/${id}/cancel`);
   }
+
+  // 销假：对已通过的请假/外出单发起撤销。form_data 里带销假区间（键取原模板的日期字段）。
+  // 返回的是一张新的审批单——销假本身要原审批人同意才生效。
+  revoke(id, formData) {
+    return axios.post(`${this.url}/${id}/revoke`, { form_data: formData });
+  }
 }
 
 export default new OaApprovalRequestAPI();

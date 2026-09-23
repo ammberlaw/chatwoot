@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_23_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -891,6 +891,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
     t.boolean "ip_enabled", default: false, null: false
     t.string "allowed_ips", default: [], null: false, array: true
     t.string "extra_workdays", default: [], null: false, array: true
+    t.string "break_start_time", default: "12:00", null: false
+    t.string "break_end_time", default: "13:30", null: false
     t.index ["account_id", "name"], name: "index_crm_attendance_groups_on_account_id_and_name", unique: true
     t.index ["account_id"], name: "idx_crm_attendance_groups_single_default", unique: true, where: "is_default"
     t.index ["account_id"], name: "index_crm_attendance_groups_on_account_id"
@@ -915,6 +917,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
     t.decimal "clock_out_lng", precision: 10, scale: 7
     t.boolean "field", default: false, null: false
     t.string "source", default: "clock", null: false
+    t.bigint "approval_request_id"
+    t.index ["account_id", "approval_request_id"], name: "idx_attendance_by_approval"
     t.index ["account_id", "user_id", "work_date"], name: "idx_crm_attendance_on_user_date", unique: true
     t.index ["account_id", "work_date"], name: "index_crm_attendance_records_on_account_id_and_work_date"
   end
@@ -981,6 +985,48 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
     t.index ["account_id", "period_month"], name: "index_crm_commission_sheets_on_account_id_and_period_month"
     t.index ["account_id"], name: "index_crm_commission_sheets_on_account_id"
     t.index ["owner_id"], name: "index_crm_commission_sheets_on_owner_id"
+  end
+
+  create_table "crm_credential_groups", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "viewer_ids", default: [], null: false, array: true
+    t.bigint "manager_ids", default: [], null: false, array: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "name"], name: "idx_crm_cred_groups_name", unique: true
+    t.index ["account_id"], name: "index_crm_credential_groups_on_account_id"
+  end
+
+  create_table "crm_credential_views", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_credential_id", null: false
+    t.bigint "user_id", null: false
+    t.string "action", default: "reveal", null: false
+    t.datetime "created_at", null: false
+    t.index ["account_id", "created_at"], name: "idx_crm_cred_views_recent"
+    t.index ["account_id"], name: "index_crm_credential_views_on_account_id"
+    t.index ["crm_credential_id"], name: "index_crm_credential_views_on_crm_credential_id"
+  end
+
+  create_table "crm_credentials", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_credential_group_id"
+    t.string "name", null: false
+    t.string "url"
+    t.string "username"
+    t.text "password"
+    t.text "note"
+    t.integer "position", default: 0, null: false
+    t.bigint "creator_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "owner_id"
+    t.index ["account_id", "owner_id"], name: "idx_crm_credentials_owner"
+    t.index ["account_id"], name: "index_crm_credentials_on_account_id"
+    t.index ["crm_credential_group_id", "position"], name: "idx_crm_credentials_group_pos"
   end
 
   create_table "crm_customer_favorites", force: :cascade do |t|
@@ -1558,8 +1604,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_line"
     t.index ["account_id", "category", "code"], name: "idx_crm_option_items_code", unique: true
     t.index ["account_id", "category", "parent_id", "position"], name: "idx_crm_option_items_tree"
+    t.index ["account_id", "category", "product_line"], name: "idx_crm_option_items_line"
   end
 
   create_table "crm_payout_tiers", force: :cascade do |t|
@@ -1836,8 +1884,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
     t.jsonb "form_data", default: {}, null: false
     t.string "status", default: "PENDING", null: false
     t.integer "quantity"
-    t.datetime "needed_by"
-    t.text "remark"
     t.bigint "quoted_price_micros"
     t.string "quote_currency", default: "USD"
     t.datetime "valid_until"
@@ -2810,6 +2856,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "product_line"
+    t.string "item_category"
+    t.string "base_no"
+    t.jsonb "attrs", default: {}, null: false
+    t.index ["account_id", "base_no"], name: "index_mes_materials_on_account_and_base_no"
+    t.index ["account_id", "item_category"], name: "index_mes_materials_on_account_and_item_category"
     t.index ["account_id", "material_no"], name: "index_mes_materials_on_account_id_and_material_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_materials_on_account_and_product_line"
     t.index ["account_id"], name: "index_mes_materials_on_account_id"
@@ -3358,6 +3409,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
     t.datetime "updated_at", null: false
     t.bigint "department_id"
     t.bigint "cc_user_ids", default: [], null: false, array: true
+    t.bigint "revokes_request_id"
+    t.index ["account_id", "revokes_request_id"], name: "idx_approval_revokes"
     t.index ["account_id", "status"], name: "index_oa_approval_requests_on_account_id_and_status"
     t.index ["account_id"], name: "index_oa_approval_requests_on_account_id"
     t.index ["applicant_id"], name: "index_oa_approval_requests_on_applicant_id"
@@ -3816,6 +3869,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_18_000002) do
   add_foreign_key "chat_participants", "chat_conversations", column: "conversation_id", on_delete: :cascade
   add_foreign_key "contacts", "crm_customers", on_delete: :nullify
   add_foreign_key "crm_ai_settings", "accounts"
+  add_foreign_key "crm_credential_views", "crm_credentials", on_delete: :cascade
+  add_foreign_key "crm_credentials", "crm_credential_groups", on_delete: :cascade
   add_foreign_key "crm_customers", "accounts"
   add_foreign_key "crm_email_clicks", "crm_emails", on_delete: :cascade
   add_foreign_key "crm_email_labels", "accounts"

@@ -92,11 +92,11 @@ onMounted(loadProducts);
             ]"
             :key="t.key"
             type="button"
-            class="h-8 px-3 text-sm leading-none rounded-full"
+            class="wt-pill"
             :class="
               tab === t.key
-                ? 'bg-n-iris-9 text-white font-medium'
-                : 'bg-n-alpha-1 text-n-slate-11'
+                ? 'wt-pill-on'
+                : 'wt-pill-off'
             "
             @click="switchTab(t.key)"
           >
@@ -107,7 +107,7 @@ onMounted(loadProducts);
         <div v-if="tab === 'products'" class="px-4 pb-3">
           <div class="relative">
             <span
-              class="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 size-4 text-n-slate-10 i-lucide-search"
+              class="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 size-4 text-[color:var(--pb-ink-3)] i-lucide-search"
             />
             <input
               v-model="keyword"
@@ -129,11 +129,11 @@ onMounted(loadProducts);
             v-for="l in ['', ...productLines]"
             :key="l || 'all'"
             type="button"
-            class="flex-none h-8 px-3 text-sm leading-none rounded-full"
+            class="flex-none wt-pill"
             :class="
               line === l
-                ? 'bg-n-iris-9 text-white font-medium'
-                : 'bg-n-alpha-1 text-n-slate-11'
+                ? 'wt-pill-on'
+                : 'wt-pill-off'
             "
             @click="switchLine(l)"
           >
@@ -158,14 +158,14 @@ onMounted(loadProducts);
           <li v-for="p in products" :key="p.id" class="p-3 wt-card">
             <div class="flex items-start gap-3">
               <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium truncate text-n-slate-12">{{ p.name }}</div>
-                <div class="mt-0.5 text-xs truncate text-n-slate-11">
+                <div class="text-sm font-medium truncate text-[color:var(--pb-ink)]">{{ p.name }}</div>
+                <div class="mt-0.5 text-xs truncate text-[color:var(--pb-ink-2)]">
                   {{ [p.sku, p.product_line, p.specification].filter(Boolean).join(' · ') || '—' }}
                 </div>
               </div>
-              <div v-if="p.sale_price_micros" class="flex-none text-sm font-semibold text-n-slate-12">
+              <div v-if="p.sale_price_micros" class="flex-none text-sm font-semibold text-[color:var(--pb-ink)]">
                 {{ money(p.sale_price_micros, p.pricing_currency) }}
-                <span v-if="p.unit" class="text-xs font-normal text-n-slate-10">/{{ p.unit }}</span>
+                <span v-if="p.unit" class="text-xs font-normal text-[color:var(--pb-ink-3)]">/{{ p.unit }}</span>
               </div>
             </div>
           </li>
@@ -196,19 +196,19 @@ onMounted(loadProducts);
           <li v-for="l in priceLists" :key="l.id">
             <button
               type="button"
-              class="w-full p-3 text-left wt-card active:bg-n-alpha-1"
+              class="w-full p-3 text-left wt-card active:bg-[color:var(--pb-fill)]"
               @click="router.push({ name: 'price-list-detail', params: { id: l.id } })"
             >
               <div class="flex items-start gap-3">
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium truncate text-n-slate-12">{{ l.title }}</div>
-                  <div class="mt-0.5 text-xs truncate text-n-slate-11">
+                  <div class="text-sm font-medium truncate text-[color:var(--pb-ink)]">{{ l.title }}</div>
+                  <div class="mt-0.5 text-xs truncate text-[color:var(--pb-ink-2)]">
                     {{ l.product_line }}
                     <template v-if="l.effective_on"> · {{ shortDate(l.effective_on) }} 生效</template>
                     · {{ l.item_count }} 行
                   </div>
                 </div>
-                <span class="flex-none px-2 py-1 text-xs rounded-lg bg-n-alpha-1 text-n-slate-11">
+                <span class="flex-none px-2 py-1 text-xs rounded-lg bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)]">
                   {{ l.status_label }}
                 </span>
               </div>

@@ -1,4 +1,4 @@
-# MES 生产预警日报：把逾期/临近交期/滞留/短缺推送给相关成员。
+# MES 生产预警周报：把逾期/临近交期/滞留/短缺推送给相关成员（每周一，见 config/schedule.yml）。
 class MesAlertMailer < ApplicationMailer
   def daily_digest
     return unless smtp_config_set_or_development?
@@ -9,7 +9,7 @@ class MesAlertMailer < ApplicationMailer
     return if empty?
 
     mail(to: @recipient,
-         subject: "【#{brand_name}】MES 生产预警日报 · #{Time.zone.today.strftime('%Y-%m-%d')}")
+         subject: "【#{brand_name}】MES 生产预警周报 · #{Time.zone.today.strftime('%Y-%m-%d')}")
   end
 
   private

@@ -261,9 +261,12 @@ class AccountUser < ApplicationRecord
     account.org_memberships.exists?(user_id: user_id, department_id: dept_ids)
   end
 
+  # 新成员默认不开分配邮件：会话被指派时列表里已经会亮红点
+  # （见 Conversations::AssignmentService#reset_seen_for_new_assignee），
+  # 再发一封邮件只是把收件箱塞满,反而没人看。要邮件的人自己去设置里开。
   def create_notification_setting
     setting = user.notification_settings.new(account_id: account.id)
-    setting.selected_email_flags = [:email_conversation_assignment]
+    setting.selected_email_flags = []
     setting.selected_push_flags = [:push_conversation_assignment]
     setting.save!
   end

@@ -322,6 +322,7 @@ watch(
             :icon="child.icon"
             :children="child.children"
             :collapsible="child.collapsible"
+            :default-collapsed="child.defaultCollapsed"
             :show-tree-line="child.showTreeLine"
             :end-tree-line="child.showTreeLine && isLastVisibleChild(child)"
             :is-expanded="isExpanded"

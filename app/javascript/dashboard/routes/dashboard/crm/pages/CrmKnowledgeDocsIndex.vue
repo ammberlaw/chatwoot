@@ -14,6 +14,8 @@ import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCa
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 
 import CrmDocSectionManager from 'dashboard/components-next/CRM/CrmDocSectionManager.vue';
+import CrmCredentialVault from 'dashboard/components-next/CRM/CrmCredentialVault.vue';
+import CrmFileIcon from 'dashboard/components-next/CRM/CrmFileIcon.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -161,41 +163,20 @@ const isFileDoc = doc => {
     (doc.body && doc.body.trim()) || (doc.summary && doc.summary.trim());
   return !hasText; // 单附件 + 没写正文/摘要 = 文件（改名后仍是文件）
 };
+// 文件列表用的是 CrmFileIcon（折角纸页）；这里只剩预览弹窗标题那处的小号线性图标。
 const FILE_ICONS = [
-  {
-    ext: ['pdf'],
-    icon: 'i-lucide-file-text',
-    color: 'bg-n-ruby-3 text-n-ruby-11',
-  },
-  {
-    ext: ['xls', 'xlsx', 'csv'],
-    icon: 'i-lucide-file-spreadsheet',
-    color: 'bg-n-teal-3 text-n-teal-11',
-  },
-  {
-    ext: ['doc', 'docx'],
-    icon: 'i-lucide-file-text',
-    color: 'bg-n-blue-3 text-n-blue-11',
-  },
+  { ext: ['pdf'], icon: 'i-lucide-file-text' },
+  { ext: ['xls', 'xlsx', 'csv'], icon: 'i-lucide-file-spreadsheet' },
+  { ext: ['doc', 'docx'], icon: 'i-lucide-file-text' },
   {
     ext: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'],
     icon: 'i-lucide-image',
-    color: 'bg-n-iris-3 text-n-iris-11',
   },
-  {
-    ext: ['zip', 'rar', '7z', 'tar', 'gz'],
-    icon: 'i-lucide-file-archive',
-    color: 'bg-n-slate-3 text-n-slate-11',
-  },
+  { ext: ['zip', 'rar', '7z', 'tar', 'gz'], icon: 'i-lucide-file-archive' },
 ];
 const fileMeta = filename => {
   const ext = (filename || '').split('.').pop().toLowerCase();
-  return (
-    FILE_ICONS.find(m => m.ext.includes(ext)) || {
-      icon: 'i-lucide-file',
-      color: 'bg-n-slate-3 text-n-slate-11',
-    }
-  );
+  return FILE_ICONS.find(m => m.ext.includes(ext)) || { icon: 'i-lucide-file' };
 };
 const openDocFile = doc => {
   const file = (doc.files || [])[0];
@@ -455,6 +436,7 @@ const sortedFolders = computed(() => {
 // 文档中心（GENERAL）没有「我的文档」——个人资料在 CRM 知识库维护；此处只有公司文档（+管理员回收站）。
 const filterTabs = computed(() => [
   { key: 'company', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.COMPANY') },
+  ...(isGeneral.value ? [{ key: 'vault', label: '账号密码' }] : []),
   ...(isGeneral.value
     ? []
     : [{ key: 'mine', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.MINE') }]),
@@ -462,6 +444,9 @@ const filterTabs = computed(() => [
     ? [{ key: 'recycle', label: t('CRM.KNOWLEDGE_DOCS.RECYCLE.TAB') }]
     : []),
 ]);
+
+// 账号密码：与文档是两套存储，只共用文档中心这个入口（谁能看由分组名单定，组件内自理）。
+const isVault = computed(() => activeFilter.value === 'vault');
 
 // ── 文档回收站（仅管理员）：删除的文档进这里，可恢复或彻底删除 ──
 const isRecycle = computed(() => activeFilter.value === 'recycle');
@@ -981,7 +966,7 @@ watch(
         </div>
         <div class="flex items-center gap-3 shrink-0">
           <Button
-            v-if="isGeneral && isAdminLike"
+            v-if="isGeneral && isAdminLike && !isVault"
             label="管理板块"
             icon="i-lucide-folder-cog"
             variant="outline"
@@ -1006,7 +991,7 @@ watch(
         />
         <!-- Filter：文件夹排序 -->
         <SelectCard
-          v-if="!isRecycle"
+          v-if="!isRecycle && !isVault"
           v-model="folderSort"
           :options="FOLDER_SORTS"
           align="right"
@@ -1014,6 +999,7 @@ watch(
           trigger-class="w-32 h-9"
         />
         <Input
+          v-if="!isVault"
           v-model="searchQuery"
           :placeholder="t('CRM.KNOWLEDGE_DOCS.SEARCH_PLACEHOLDER')"
           :class="isRecycle ? 'w-full sm:ml-auto sm:w-56' : 'w-full sm:w-56'"
@@ -1021,8 +1007,10 @@ watch(
         />
       </div>
 
+      <CrmCredentialVault v-if="isVault" />
+
       <div
-        v-if="isFetching || loadingRecycle"
+        v-else-if="isFetching || loadingRecycle"
         class="flex items-center justify-center flex-1 text-base text-n-slate-11"
       >
         {{ t('CRM.KNOWLEDGE_DOCS.LOADING') }}
@@ -1520,129 +1508,93 @@ watch(
                 : ''
             "
           >
-            <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-              <template v-for="doc in currentDocs" :key="doc.id">
-                <!-- 纯文件卡：图标 + 文件名 + 大小；点击下载，悬停可改名/删除 -->
+            <!-- 宫格：图标在上、名称与副行在下，文档与文件同一种形（同手机端文档页）。
+                 多附件条目用文件夹图标、副行显示「N 项」；单文件按扩展名出类型图标、副行显示日期。 -->
+            <div
+              class="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
+            >
+              <div
+                v-for="doc in currentDocs"
+                :key="doc.id"
+                class="relative"
+                @mouseenter="hoveredDocId = doc.id"
+                @mouseleave="hoveredDocId = null"
+              >
+                <button
+                  type="button"
+                  class="flex flex-col items-center w-full gap-1.5 px-1 py-2 text-center transition-colors rounded-xl hover:bg-n-alpha-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
+                  :class="
+                    selectedDoc && selectedDoc.id === doc.id
+                      ? 'bg-n-alpha-2 ring-1 ring-n-blue-8'
+                      : ''
+                  "
+                  @click="isFileDoc(doc) ? openPreview(doc) : openPanel(doc)"
+                >
+                  <!-- 多附件条目取第一个附件的类型出图标，右下角挂附件数角标 -->
+                  <span class="relative size-[72px] shrink-0">
+                    <CrmFileIcon
+                      class="size-full"
+                      :filename="(doc.files || [])[0]?.filename || doc.name"
+                    />
+                    <span
+                      v-if="(doc.files || []).length > 1"
+                      class="absolute -bottom-0.5 right-1 inline-flex items-center justify-center min-w-5 h-5 px-1 text-[11px] font-semibold rounded-full ring-2 tabular-nums bg-n-slate-12 text-n-solid-1 ring-n-background"
+                    >
+                      {{ doc.files.length }}
+                    </span>
+                  </span>
+                  <input
+                    v-if="editingDocId === doc.id"
+                    :ref="focusRename"
+                    v-model="editingDocName"
+                    class="w-full h-7 px-1.5 text-sm text-center border rounded border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-8"
+                    @keyup.enter="saveRenameDoc"
+                    @blur="saveRenameDoc"
+                    @click.stop
+                  />
+                  <span
+                    v-else
+                    class="w-full text-sm font-medium leading-5 line-clamp-2 text-n-slate-12"
+                  >
+                    {{ doc.name }}
+                  </span>
+                  <span class="w-full text-xs truncate text-n-slate-10">
+                    <template v-if="isSearching && doc.category">
+                      {{ doc.category }}
+                    </template>
+                    <template v-else-if="(doc.files || []).length > 1">
+                      {{ doc.files.length }} 项
+                    </template>
+                    <template v-else>{{ fmtDate(doc.updatedAt) }}</template>
+                  </span>
+                </button>
+                <!-- 悬停：改名 / 删除 -->
                 <div
-                  v-if="isFileDoc(doc)"
-                  class="relative"
-                  @mouseenter="hoveredDocId = doc.id"
-                  @mouseleave="hoveredDocId = null"
+                  v-show="
+                    canManageDoc(doc) &&
+                    editingDocId !== doc.id &&
+                    hoveredDocId === doc.id
+                  "
+                  class="absolute z-20 flex items-center gap-1 top-0 right-0"
                 >
                   <button
                     type="button"
-                    class="flex items-center w-full gap-3 p-3 text-left transition-all border rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                    @click="openPreview(doc)"
+                    class="flex items-center justify-center border rounded-full shadow-md size-7 border-n-weak bg-n-solid-1 text-n-slate-12 hover:text-n-iris-11 hover:border-n-iris-8"
+                    :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.RENAME')"
+                    @click.stop="startRenameDoc(doc)"
                   >
-                    <span
-                      class="flex items-center justify-center rounded-lg shrink-0 size-9"
-                      :class="fileMeta(doc.name).color"
-                    >
-                      <span :class="fileMeta(doc.name).icon" class="size-5" />
-                    </span>
-                    <span class="flex flex-col min-w-0">
-                      <input
-                        v-if="editingDocId === doc.id"
-                        :ref="focusRename"
-                        v-model="editingDocName"
-                        class="w-full h-7 px-1.5 text-sm border rounded border-n-iris-8 bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-8"
-                        @keyup.enter="saveRenameDoc"
-                        @blur="saveRenameDoc"
-                        @click.stop
-                      />
-                      <span
-                        v-else
-                        class="text-sm font-medium truncate text-n-slate-12"
-                      >
-                        {{ doc.name }}
-                      </span>
-                      <span class="text-xs text-n-slate-10">
-                        {{ fmtSize(doc.files[0].byteSize) }} ·
-                        {{ fmtDate(doc.updatedAt) }}
-                      </span>
-                    </span>
-                    <span
-                      class="ml-auto i-lucide-download size-4 shrink-0 text-n-slate-9"
-                    />
+                    <span class="i-lucide-pencil size-4" />
                   </button>
-                  <!-- 悬停：改名 / 删除 -->
-                  <div
-                    v-show="
-                      canManageDoc(doc) &&
-                      editingDocId !== doc.id &&
-                      hoveredDocId === doc.id
-                    "
-                    class="absolute z-20 flex items-center gap-1 top-1 right-1"
+                  <button
+                    type="button"
+                    class="flex items-center justify-center border rounded-full shadow-md size-7 border-n-weak bg-n-solid-1 text-n-slate-12 hover:text-n-ruby-11 hover:border-n-ruby-8"
+                    :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.DELETE')"
+                    @click.stop="removeDocDirect(doc)"
                   >
-                    <button
-                      type="button"
-                      class="flex items-center justify-center border rounded-full shadow-md size-7 border-n-weak bg-n-solid-1 text-n-slate-12 hover:text-n-iris-11 hover:border-n-iris-8"
-                      :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.RENAME')"
-                      @click.stop="startRenameDoc(doc)"
-                    >
-                      <span class="i-lucide-pencil size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      class="flex items-center justify-center border rounded-full shadow-md size-7 border-n-weak bg-n-solid-1 text-n-slate-12 hover:text-n-ruby-11 hover:border-n-ruby-8"
-                      :title="t('CRM.KNOWLEDGE_DOCS.CATEGORY.DELETE')"
-                      @click.stop="removeDocDirect(doc)"
-                    >
-                      <span class="i-lucide-trash-2 size-4" />
-                    </button>
-                  </div>
+                    <span class="i-lucide-trash-2 size-4" />
+                  </button>
                 </div>
-                <!-- 文档卡（写了正文/摘要或多附件）：照旧开详情 -->
-                <button
-                  v-else
-                  type="button"
-                  class="flex flex-col gap-2 p-3 text-left transition-all border rounded-xl bg-n-solid-1 border-n-weak hover:border-n-slate-6 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-8"
-                  :class="
-                    selectedDoc && selectedDoc.id === doc.id
-                      ? 'border-n-blue-8 ring-1 ring-n-blue-8'
-                      : ''
-                  "
-                  @click="openPanel(doc)"
-                >
-                  <div class="flex items-center gap-2 min-w-0">
-                    <span
-                      class="flex items-center justify-center text-xs font-semibold rounded shrink-0 size-6"
-                      :class="colorOf(doc.name)"
-                    >
-                      {{ initial(doc.name) }}
-                    </span>
-                    <span class="text-sm font-medium truncate text-n-slate-12">
-                      {{ doc.name }}
-                    </span>
-                    <span
-                      v-if="doc.files && doc.files.length"
-                      class="inline-flex items-center gap-0.5 ml-auto text-xs shrink-0 text-n-slate-10"
-                    >
-                      <span class="i-lucide-paperclip size-3" />
-                      {{ doc.files.length }}
-                    </span>
-                  </div>
-                  <div
-                    class="flex items-center gap-1.5 text-xs text-n-slate-10"
-                  >
-                    <span class="i-lucide-align-left size-3.5 shrink-0" />
-                    <span class="truncate">
-                      {{ doc.summary || t('CRM.KNOWLEDGE_DOCS.PANEL.SUMMARY') }}
-                    </span>
-                  </div>
-                  <div
-                    class="flex items-center gap-1 pt-1.5 text-xs border-t text-n-slate-10 border-n-weak"
-                  >
-                    <span v-if="isSearching && doc.category" class="truncate">
-                      {{ doc.category }}
-                    </span>
-                    <span v-else class="i-lucide-clock size-3 shrink-0" />
-                    <span :class="isSearching && doc.category ? 'ml-auto' : ''">
-                      {{ fmtDate(doc.updatedAt) }}
-                    </span>
-                  </div>
-                </button>
-              </template>
+              </div>
             </div>
           </div>
         </div>

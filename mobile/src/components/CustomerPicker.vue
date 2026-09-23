@@ -43,17 +43,17 @@ const pick = c => {
 
 <template>
   <div class="flex flex-col gap-1.5">
-    <span class="text-xs font-medium text-n-slate-11">{{ label }}</span>
+    <span class="text-xs font-medium text-[color:var(--pb-ink-2)]">{{ label }}</span>
 
     <div
       v-if="modelValue"
-      class="flex items-center gap-2 px-3 h-11 rounded-xl bg-n-alpha-1"
+      class="flex items-center gap-2 px-3 h-11 rounded-xl bg-[color:var(--pb-fill)]"
     >
-      <span class="flex-1 text-sm truncate text-n-slate-12">{{ modelValue.name }}</span>
+      <span class="flex-1 text-sm truncate text-[color:var(--pb-ink)]">{{ modelValue.name }}</span>
       <button
         type="button"
         aria-label="取消关联"
-        class="grid flex-none rounded-full size-7 place-items-center text-n-slate-10 active:bg-n-alpha-2"
+        class="grid flex-none rounded-full size-7 place-items-center text-[color:var(--pb-ink-3)] active:bg-n-alpha-2"
         @click="emit('update:modelValue', null)"
       >
         <span class="size-4 i-lucide-x" />
@@ -67,12 +67,12 @@ const pick = c => {
         placeholder="输入客户名搜索"
         class="wt-field"
       />
-      <p v-if="searching" class="text-xs text-n-slate-10">搜索中…</p>
+      <p v-if="searching" class="text-xs text-[color:var(--pb-ink-3)]">搜索中…</p>
       <ul v-else-if="results.length" class="overflow-hidden wt-card">
         <li v-for="c in results" :key="c.id">
           <button
             type="button"
-            class="w-full px-3 py-2.5 text-sm text-left border-b last:border-b-0 border-n-weak text-n-slate-12 active:bg-n-alpha-1"
+            class="w-full px-3 py-2.5 text-sm text-left border-b last:border-b-0 border-[color:var(--pb-sep)] text-[color:var(--pb-ink)] active:bg-[color:var(--pb-fill)]"
             @click="pick(c)"
           >
             {{ c.name }}

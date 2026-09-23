@@ -14,16 +14,21 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
 const store = useMesMaterialsStore();
 const { mesCan } = useMesRole();
-const { activeProductLine, options: productLineOptions } = useMesProductLine();
+// 建单表单里不给「全部产线」这个空值选项——选了它建出来的物料切到任何产线都看不见。
+const { activeProductLine, formOptions: productLineOptions } =
+  useMesProductLine();
 const suppliersStore = useMesSuppliersStore();
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
 const saving = computed(() => store.getUIFlags.creatingItem);
 
+// 仓别，与实际仓库对应（原料仓/在制品仓/成品仓）。金蝶导入的成品走 FINISHED，
+// 少了这一项 326 条成品在列表里会显示成「—」。
 const CATEGORIES = [
   { value: 'RAW', label: '原料' },
   { value: 'SEMI', label: '半成品' },
+  { value: 'FINISHED', label: '成品' },
   { value: 'CONSUMABLE', label: '耗材' },
 ];
 const categoryLabel = v => CATEGORIES.find(c => c.value === v)?.label || '—';
@@ -112,6 +117,7 @@ onMounted(() => {
             </div>
             <div class="flex flex-wrap gap-3 mt-2 text-xs text-n-slate-11">
               <span>类别：{{ categoryLabel(m.category) }}</span>
+              <span v-if="m.itemCategory">品类：{{ m.itemCategory }}</span>
               <span>单位：{{ m.unit }}</span>
             </div>
             <div class="flex flex-wrap gap-3 mt-1 text-xs text-n-slate-11">
@@ -130,6 +136,7 @@ onMounted(() => {
               <th class="px-3 py-3 font-medium">编号</th>
               <th class="px-3 py-3 font-medium">名称</th>
               <th class="px-3 py-3 font-medium">类别</th>
+              <th class="px-3 py-3 font-medium">品类</th>
               <th class="px-3 py-3 font-medium">单位</th>
               <th class="px-3 py-3 font-medium">规格</th>
               <th class="px-3 py-3 font-medium">安全库存</th>
@@ -144,6 +151,9 @@ onMounted(() => {
               <td class="px-3 py-3 text-n-slate-11">
                 {{ categoryLabel(m.category) }}
               </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ m.itemCategory || '—' }}
+              </td>
               <td class="px-3 py-3 text-n-slate-11">{{ m.unit }}</td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ m.specification || '—' }}
@@ -153,7 +163,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!records.length">
-              <td colspan="6" class="px-3 py-10 text-center text-n-slate-11">
+              <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
                 还没有物料。
               </td>
             </tr>

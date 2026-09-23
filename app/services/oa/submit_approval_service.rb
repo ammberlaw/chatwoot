@@ -18,6 +18,14 @@ class Oa::SubmitApprovalService
     @form_data = attributes[:form_data]
     @title = attributes[:title]
     @department_id = attributes[:department_id]
+    @revokes_request_id = attributes[:revokes_request_id]
+  end
+
+  # 发起销假：复用原单的模板与部门（同一套审批链与日期字段），form_data 只带销假区间。
+  def self.revoke(original:, applicant:, form_data:)
+    new(account: original.account, applicant: applicant, template: original.template,
+        attributes: { form_data: form_data, title: "销假：#{original.title}",
+                      department_id: original.department_id, revokes_request_id: original.id }).perform
   end
 
   # 申请人修改审批单后按最新 form_data/部门重新物化审批链（审批中且尚无人处理时用）。
@@ -31,6 +39,7 @@ class Oa::SubmitApprovalService
     ApplicationRecord.transaction do
       request = @account.oa_approval_requests.create!(
         template: @template, applicant_id: @applicant.id, title: @title, department_id: @department_id,
+        revokes_request_id: @revokes_request_id,
         form_data: @form_data || {}, status: 'pending', current_position: 0, submitted_at: Time.current,
         cc_user_ids: Array(@template.cc_user_ids).map(&:to_i).uniq
       )
@@ -107,7 +116,8 @@ class Oa::SubmitApprovalService
   # 数值比较用（非数字→0，不抛错）。金额/天数按 Float 比较足够。
   def to_num(value) = value.to_s.to_f
 
-  # 请假天数：日期字段最早/最晚为区间的自然日跨度（含首尾）；单日+半天时段=0.5。
+  # 请假天数：日期字段最早/最晚为区间的自然日跨度（含首尾）；单日且时长不超过半个工作日=0.5。
+  # 半天口径统一由 AttendanceApprovalService 判定，与通过时写考勤用的是同一套。
   def leave_days
     dates = Crm::AttendanceApprovalService.form_dates(@template, @form_data || {})
     return 0 if dates.empty?
@@ -117,10 +127,7 @@ class Oa::SubmitApprovalService
   end
 
   def half_day_selected?
-    Array(@template.form_fields)
-      .select { |f| Crm::AttendanceApprovalService::HALF_DAY_FIELD_TYPES.include?(f['type']) }
-      .filter_map { |f| @form_data&.dig(f['key']) }
-      .any? { |v| Crm::AttendanceApprovalService::HALF_DAY_VALUES.include?(v.to_s.strip) }
+    Crm::AttendanceApprovalService.half_day?(@account, @applicant.id, @template, @form_data || {})
   end
 
   def applicant_primary_department_id

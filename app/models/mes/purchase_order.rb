@@ -47,6 +47,7 @@
 class Mes::PurchaseOrder < ApplicationRecord
   include Mes::DocumentNumber
   include Mes::LineScoped
+  require_product_line!
   include Mes::Returnable
 
   STATUSES = %w[DRAFT SUBMITTED PARTIAL_RECEIVED RECEIVED CANCELLED].freeze

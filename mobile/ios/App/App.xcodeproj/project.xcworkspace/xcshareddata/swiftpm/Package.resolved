@@ -11,21 +11,12 @@
       }
     },
     {
-      "identity" : "ion-ios-camera",
+      "identity" : "ion-ios-geolocation",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ionic-team/ion-ios-camera.git",
+      "location" : "https://github.com/ionic-team/ion-ios-geolocation.git",
       "state" : {
-        "revision" : "00c3dfdd6267f80db299d9c5a0bad522156b6cbc",
-        "version" : "2.0.0"
-      }
-    },
-    {
-      "identity" : "osbarcodelib-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/OutSystems/OSBarcodeLib-iOS.git",
-      "state" : {
-        "revision" : "7f9d166289c10601bfbed95cd3ec56019870ce1b",
-        "version" : "2.2.1"
+        "revision" : "db363927d3a954e3ea24d2e72b6e9814769a84be",
+        "version" : "2.1.1"
       }
     }
   ],

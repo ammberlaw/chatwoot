@@ -22,6 +22,12 @@ const routes = [
     meta: { tab: true, title: '客户' },
   },
   {
+    path: '/private-customers',
+    name: 'private-customers',
+    component: () => import('@/pages/PrivateCustomersPage.vue'),
+    meta: { tab: true, title: '私海客户' },
+  },
+  {
     path: '/customers/new',
     name: 'customer-new',
     component: () => import('@/pages/CustomerFormPage.vue'),
@@ -35,6 +41,12 @@ const routes = [
     path: '/customers/:id/edit',
     name: 'customer-edit',
     component: () => import('@/pages/CustomerFormPage.vue'),
+  },
+  {
+    path: '/messages',
+    name: 'messages',
+    component: () => import('@/pages/MessagesPage.vue'),
+    meta: { tab: true, title: '消息' },
   },
   {
     path: '/mail',
@@ -56,11 +68,16 @@ const routes = [
     path: '/approvals',
     name: 'approvals',
     component: () => import('@/pages/ApprovalsPage.vue'),
-    meta: { tab: true, title: '审批' },
   },
-  // 商机/订单/报价/PI 四类单据共用列表与详情组件，靠 meta.kind 区分
+  // 商机单独一页：它比另外三类多出阶段漏斗、赢单概率、重点标记、公海，
+  // 塞进通用组件会把那个组件撑变形
+  {
+    path: '/opportunities',
+    name: 'opportunities',
+    component: () => import('@/pages/OpportunitiesPage.vue'),
+  },
+  // 订单/报价/PI 共用列表与详情组件，靠 meta.kind 区分
   ...[
-    { kind: 'opportunity', path: 'opportunities' },
     { kind: 'order', path: 'orders' },
     { kind: 'quote', path: 'quotes' },
     { kind: 'pi', path: 'pis' },
@@ -78,6 +95,12 @@ const routes = [
       meta: { kind },
     },
   ]),
+  {
+    path: '/opportunities/:id',
+    name: 'opportunity-detail',
+    component: () => import('@/pages/RecordDetailPage.vue'),
+    meta: { kind: 'opportunity' },
+  },
   {
     path: '/my-target',
     name: 'my-target',
@@ -112,11 +135,33 @@ const routes = [
     path: '/schedule',
     name: 'schedule',
     component: () => import('@/pages/SchedulePage.vue'),
+    meta: { tab: true, title: '日程' },
   },
   {
     path: '/attendance',
     name: 'attendance',
     component: () => import('@/pages/AttendancePage.vue'),
+  },
+  // MES / ERP：后端在本分支里是齐的，手机端页面还没做，先占位
+  {
+    path: '/mes',
+    name: 'mes',
+    component: () => import('@/pages/ModulePlaceholderPage.vue'),
+    meta: {
+      title: 'MES 生产',
+      icon: 'i-ri-building-4-fill',
+      planned: ['生产工单', '领料与出入库', '采购申请与采购单', 'BOM 与工艺', '质检', '发货'],
+    },
+  },
+  {
+    path: '/erp',
+    name: 'erp',
+    component: () => import('@/pages/ModulePlaceholderPage.vue'),
+    meta: {
+      title: 'ERP 财务',
+      icon: 'i-ri-scales-3-fill',
+      planned: ['凭证与总账', '应收应付', '资金日记账', '财务报表', '固定资产', '期末结账'],
+    },
   },
   {
     path: '/more',

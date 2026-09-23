@@ -4,7 +4,7 @@
 
 <template>
   <div
-    class="flex items-center justify-center flex-none gap-2 px-4 text-xs font-medium text-white bg-n-slate-11 pt-safeTop"
+    class="flex items-center justify-center flex-none gap-2 px-4 text-xs font-medium text-white bg-[color:var(--pb-ink)] pt-safeTop"
   >
     <span class="py-2">当前无网络连接，显示的是本地缓存内容</span>
   </div>

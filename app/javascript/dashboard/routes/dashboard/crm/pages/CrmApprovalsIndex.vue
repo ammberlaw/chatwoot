@@ -38,6 +38,11 @@ const L = {
   submitted: '已提交',
   done: '已处理',
   canceled: '已撤回',
+  revoke: '销假',
+  revokeTitle: '销假（撤销未开始的请假）',
+  revokeSubmit: '提交销假',
+  revokeDone: '销假单已提交，待审批通过后考勤自动撤回',
+  revokeRangeInvalid: '起始日期不能晚于结束日期',
   error: '操作失败',
   current: '审批中',
   dept: '所在部门',
@@ -436,6 +441,73 @@ const submitRequest = async () => {
   }
 };
 
+// ---- 销假 ----
+// 只能销「今天及以后」的假：过去的日子人确实没来上班，销掉等于把考勤改成正常。
+// 后端 AttendanceRevokeService 同样兜了这条，这里只是别让人填了才被拒。
+const revokeRef = ref(null);
+const revokeFrom = ref('');
+const revokeTo = ref('');
+const revoking = ref(false);
+const todayStr = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD（本地时区）
+
+// 原单的日期字段：date 与 datetime 都算（datetime 值形如 2026-09-23T09:00，
+// 取 T 前面的日期部分参与区间计算，销假仍以「天」为单位）。
+const DATE_FIELD_TYPES = ['date', 'datetime'];
+const originalDateKeys = computed(() =>
+  detailFields.value
+    .filter(f => DATE_FIELD_TYPES.includes(f.type))
+    .map(f => f.key)
+);
+const originalDates = computed(() =>
+  originalDateKeys.value
+    .map(k => String(selected.value?.form_data?.[k] || '').split('T')[0])
+    .filter(v => !!v)
+    .sort()
+);
+// 可销区间 = 原单区间与「今天起」的交集
+const revokeMin = computed(() => {
+  const start = originalDates.value[0] || todayStr();
+  return start > todayStr() ? start : todayStr();
+});
+const revokeMax = computed(
+  () => originalDates.value[originalDates.value.length - 1] || ''
+);
+
+const openRevoke = () => {
+  revokeFrom.value = revokeMin.value;
+  revokeTo.value = revokeMax.value || revokeMin.value;
+  revokeRef.value?.open();
+};
+
+const submitRevoke = async () => {
+  if (!revokeFrom.value || !revokeTo.value || revoking.value) return;
+  if (revokeFrom.value > revokeTo.value) {
+    useAlert(L.revokeRangeInvalid);
+    return;
+  }
+  revoking.value = true;
+  try {
+    // 销假单复用原模板，所以 form_data 的键也要用原模板的日期字段：
+    // 两个日期字段=起止各填一个；只有一个字段=按单日销。
+    const keys = originalDateKeys.value;
+    const formData = {};
+    if (keys.length >= 2) {
+      formData[keys[0]] = revokeFrom.value;
+      formData[keys[keys.length - 1]] = revokeTo.value;
+    } else if (keys.length === 1) {
+      formData[keys[0]] = revokeFrom.value;
+    }
+    await RequestsAPI.revoke(selected.value.id, formData);
+    revokeRef.value?.close();
+    useAlert(L.revokeDone);
+    refreshAll();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || L.error);
+  } finally {
+    revoking.value = false;
+  }
+};
+
 // 详情里按模板字段渲染表单值
 const detailFields = computed(
   () => selected.value?.formFields || selected.value?.form_fields || []
@@ -706,11 +778,12 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- 操作区 -->
+          <!-- 操作区：待我审批 / 申请人改撤（审批中）/ 申请人销假（已通过的考勤类单） -->
           <div
             v-if="
               selected.can_act ||
-              (selected.is_applicant && selected.status === 'pending')
+              (selected.is_applicant && selected.status === 'pending') ||
+              (selected.is_applicant && selected.revokable)
             "
             class="flex-shrink-0 p-4 border-t border-n-weak bg-n-solid-1"
           >
@@ -753,11 +826,57 @@ onMounted(async () => {
                 variant="faded"
                 @click="cancelRequest"
               />
+              <Button
+                v-if="selected.is_applicant && selected.revokable"
+                :label="L.revoke"
+                icon="i-lucide-calendar-x"
+                color="amber"
+                variant="faded"
+                @click="openRevoke"
+              />
             </div>
           </div>
         </template>
       </section>
     </div>
+
+    <!-- 销假：选实际要销的区间。起始日不早于今天（历史考勤只能走 HR 修正）-->
+    <Dialog
+      ref="revokeRef"
+      :title="L.revokeTitle"
+      :confirm-button-label="L.revokeSubmit"
+      confirm-button-color="amber"
+      :is-loading="revoking"
+      @confirm="submitRevoke"
+    >
+      <div class="flex flex-col gap-4">
+        <p class="text-sm text-n-slate-11">
+          销假单会走原来那条审批链，审批通过后自动撤回对应日期的考勤。已经过去的日期不能销。
+        </p>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-n-slate-12">从</span>
+            <input
+              v-model="revokeFrom"
+              type="date"
+              :min="revokeMin"
+              :max="revokeMax || undefined"
+              class="w-full h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-sm font-medium text-n-slate-12">到</span>
+            <input
+              v-model="revokeTo"
+              type="date"
+              :min="revokeFrom || revokeMin"
+              :max="revokeMax || undefined"
+              class="w-full h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            />
+          </label>
+        </div>
+      </div>
+    </Dialog>
 
     <!-- 选模板 -->
     <Dialog

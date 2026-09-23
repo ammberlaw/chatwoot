@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useNumberFormatter } from 'shared/composables/useNumberFormatter';
 
@@ -42,6 +42,27 @@ const changePage = newPage => {
   if (newPage >= 1 && newPage <= totalPages.value) {
     emit('update:currentPage', newPage);
   }
+};
+
+// 页码可直接输入跳转——几百页的列表靠 ←/→ 一页页点是走不到的。
+const pageInput = ref(String(props.currentPage));
+watch(
+  () => props.currentPage,
+  value => {
+    pageInput.value = String(value);
+  }
+);
+// 非法/越界输入不跳转，原样退回当前页码，避免把用户甩到空页。
+const jumpToPage = () => {
+  const parsed = Number.parseInt(
+    String(pageInput.value).replace(/\D/g, ''),
+    10
+  );
+  if (!parsed || parsed < 1 || parsed > totalPages.value) {
+    pageInput.value = String(props.currentPage);
+    return;
+  }
+  if (parsed !== props.currentPage) changePage(parsed);
 };
 
 const currentPageInformation = computed(() => {
@@ -98,11 +119,16 @@ const pageInfo = computed(() => {
         @click="changePage(currentPage - 1)"
       />
       <div class="inline-flex items-center gap-2 text-sm">
-        <span
-          class="px-3 tabular-nums py-0.5 font-420 bg-n-input-background text-body-main text-n-slate-12 rounded-md"
-        >
-          {{ formatFullNumber(currentPage) }}
-        </span>
+        <input
+          v-model="pageInput"
+          type="text"
+          inputmode="numeric"
+          :aria-label="pageInfo"
+          class="w-12 px-2 text-center tabular-nums py-0.5 font-420 bg-n-input-background text-body-main text-n-slate-12 rounded-md border border-transparent outline-none focus:border-n-brand"
+          @keyup.enter="jumpToPage"
+          @blur="jumpToPage"
+          @focus="$event.target.select()"
+        />
         <span class="truncate text-body-main text-n-slate-11">
           {{ pageInfo }}
         </span>

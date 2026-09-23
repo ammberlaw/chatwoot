@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::BaseController
   before_action :check_authorization
-  before_action :fetch_request, only: [:show, :update, :approve, :reject, :cancel]
+  before_action :fetch_request, only: [:show, :update, :approve, :reject, :cancel, :revoke]
 
   RESULTS_PER_PAGE = 20
 
@@ -25,8 +25,8 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
   def show; end
 
   def create
-    # 补卡单先过考勤组补卡规则（时限/每月上限）。
-    if (error = reclock_rule_error)
+    # 补卡单先过考勤组补卡规则（时限/每月上限）；请假/出差单查区间重叠。
+    if (error = reclock_rule_error || overlap_error)
       return render json: { error: error }, status: :unprocessable_entity
     end
 
@@ -43,7 +43,8 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     return render json: { error: '只能修改自己发起的审批单' }, status: :forbidden unless @request.applicant_id == current_user.id
 
     # 补卡单改单同样复查补卡规则（时限/当月上限），排除本单自身计数，防改日期绕过上限。
-    if (error = reclock_rule_error(template: @request.template, exclude_request_id: @request.id))
+    if (error = reclock_rule_error(template: @request.template, exclude_request_id: @request.id) ||
+                overlap_error(template: @request.template, exclude_request_id: @request.id))
       return render json: { error: error }, status: :unprocessable_entity
     end
 
@@ -92,6 +93,20 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     render :show
   end
 
+  # 销假：对已通过的考勤类单据发起撤销，本身是一张走审批的新单（原审批链），
+  # 通过后才回滚考勤。只有申请人本人能发起，且只能销今天及以后的假。
+  def revoke
+    return render json: { error: '只能撤销自己发起的审批单' }, status: :forbidden unless @request.applicant_id == current_user.id
+    return render json: { error: '该单据不可撤销（仅已通过的请假/外出单，且尚有未开始的日期）' }, status: :unprocessable_entity unless @request.revocable?
+
+    @request = Oa::SubmitApprovalService.revoke(
+      original: @request, applicant: current_user, form_data: form_data_param
+    )
+    render :show
+  rescue Oa::SubmitApprovalService::ApproverResolutionError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
 
   def act(decision)
@@ -101,6 +116,14 @@ class Api::V1::Accounts::Oa::ApprovalRequestsController < Api::V1::Accounts::Bas
     render :show
   rescue Oa::ActOnApprovalService::InvalidAction, Crm::AttendanceApprovalService::WriteError => e
     render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 请假/出差重叠校验（销假单豁免——它与原单重叠是设计使然）。
+  def overlap_error(template: nil, exclude_request_id: nil)
+    template ||= Current.account.oa_approval_templates.find(params[:template_id])
+    Crm::AttendanceApprovalService.overlap_violation(
+      Current.account, current_user.id, template, form_data_param, exclude_request_id: exclude_request_id
+    )
   end
 
   def reclock_rule_error(template: nil, exclude_request_id: nil)

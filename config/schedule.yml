@@ -124,8 +124,10 @@ crm_dispatch_scheduled_emails_job:
   class: 'Crm::DispatchScheduledEmailsJob'
   queue: medium
 
-# MES：生产预警日报（逾期/临近交期/滞留/短缺），北京时间 08:30 = UTC 00:30
+# MES：生产预警周报（逾期/临近交期/滞留/短缺），每周一北京时间 08:30 = UTC 00:30。
+# 原来是每天发，逾期单子跨天基本不变，天天一封同样的内容只会让人不再点开——
+# 改成一周一次。类名保留 DailyAlertJob，改名要动的地方太多，不值当。
 mes_daily_alert_job:
-  cron: '30 0 * * *'
+  cron: '30 0 * * 1'
   class: 'Mes::DailyAlertJob'
   queue: scheduled_jobs

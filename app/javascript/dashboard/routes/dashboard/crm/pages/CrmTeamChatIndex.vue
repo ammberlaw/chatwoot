@@ -900,9 +900,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    class="w-full h-full overflow-hidden bg-transparent max-md:min-h-[100dvh] max-md:-mb-24"
-  >
+  <div class="w-full h-full overflow-hidden bg-transparent">
     <div
       class="flex w-full h-full overflow-hidden border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 border-white/50 rounded-3xl shadow-n-iris-9/5"
     >

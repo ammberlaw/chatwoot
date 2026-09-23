@@ -257,11 +257,13 @@ const itemAmount = li => (li.amount != null ? String(li.amount) : '—');
 // ── 右侧订单详情面板（点行展开；编辑仍走弹窗）──
 const PANEL_TABS = [
   { key: 'fields', label: '详情', icon: 'i-lucide-house' },
+  { key: 'trace', label: '生产追溯', icon: 'i-lucide-route' },
   { key: 'timeline', label: '操作历史', icon: 'i-lucide-history' },
 ];
 const selectedOrder = ref(null);
 const activeTab = ref('fields');
 const panelAudits = ref([]);
+const panelTrace = ref(null);
 const tabLoading = ref(false);
 
 const detailSections = computed(() => {
@@ -352,25 +354,45 @@ const fetchAudits = async () => {
   );
   panelAudits.value = data.payload || [];
 };
+// 生产追溯：这张单在 MES 里走过的全程（生产订单 / 阶段时间 / 领料入库出库 / 出货单）。
+const fetchTrace = async () => {
+  const { data } = await axios.get(
+    `${crmBase()}/sales_orders/${selectedOrder.value.id}/production_trace`
+  );
+  panelTrace.value = data.payload || { production_orders: [], shipments: [] };
+};
 const setTab = async key => {
   activeTab.value = key;
   if (!selectedOrder.value) return;
-  if (key === 'timeline') {
-    tabLoading.value = true;
-    try {
-      await fetchAudits();
-    } catch {
-      panelAudits.value = [];
-    } finally {
-      tabLoading.value = false;
-    }
+  const loaders = { timeline: fetchAudits, trace: fetchTrace };
+  const loader = loaders[key];
+  if (!loader) return;
+  tabLoading.value = true;
+  try {
+    await loader();
+  } catch {
+    if (key === 'timeline') panelAudits.value = [];
+    else panelTrace.value = { production_orders: [], shipments: [] };
+  } finally {
+    tabLoading.value = false;
   }
 };
+
+// 追溯里的时间统一「月-日 时:分」，空值给个破折号——面板窄，年份没必要占位置。
+const traceTime = v => (v ? fmtDateTime(v) : '—');
+// 这张单在 MES 里有没有留下任何痕迹（没有=根本没走生产流程）。
+const traceIsEmpty = computed(
+  () =>
+    !panelTrace.value ||
+    (!panelTrace.value.production_orders?.length &&
+      !panelTrace.value.shipments?.length)
+);
 
 const selectOrder = record => {
   selectedOrder.value = record;
   activeTab.value = 'fields';
   panelAudits.value = [];
+  panelTrace.value = null;
 };
 const closePanel = () => {
   selectedOrder.value = null;
@@ -808,7 +830,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
       <!-- 页脚：共 N 条 · 每页 15 条 + 页码 -->
       <div
         v-if="totalCount"
-        class="flex items-center justify-between px-4 sm:px-[26px] py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
+        class="flex items-center justify-between px-4 max-md:!pl-16 sm:px-[26px] py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
       >
         <span>
           {{
@@ -1038,6 +1060,137 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
         </div>
 
         <!-- 操作历史 -->
+        <!-- 生产追溯：这张单在 MES 里的全程。没有生产订单也照样显示出货单
+             （现货出库不挂生产订单），并明确告诉业务「这单没走生产流程」。 -->
+        <div v-else-if="activeTab === 'trace'" class="p-5">
+          <div
+            v-if="tabLoading"
+            class="py-6 text-sm text-center text-n-slate-10"
+          >
+            加载中…
+          </div>
+          <div
+            v-else-if="traceIsEmpty"
+            class="py-6 text-sm text-center text-n-slate-10"
+          >
+            这张订单没有走生产流程——MES 里没有对应的生产订单和出货单。
+          </div>
+          <template v-else>
+            <div
+              v-for="po in panelTrace.production_orders"
+              :key="po.order_no"
+              class="p-3 mb-3 border rounded-xl border-n-weak"
+            >
+              <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span class="font-mono text-xs text-n-slate-11">
+                  {{ po.order_no }}
+                </span>
+                <span class="text-sm font-medium text-n-slate-12">
+                  {{ po.product_name }}
+                </span>
+                <span class="text-xs text-n-slate-11">
+                  {{ po.qty }}{{ po.unit || '' }}
+                </span>
+                <span
+                  class="px-2 py-0.5 ml-auto text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+                >
+                  {{ po.stage_label }}
+                </span>
+              </div>
+              <div
+                v-if="po.product_code || po.is_outsourced"
+                class="mt-1 text-xs text-n-slate-10"
+              >
+                <span v-if="po.product_code">编码 {{ po.product_code }}</span>
+                <span v-if="po.is_outsourced" class="ml-2">外购成品</span>
+              </div>
+
+              <div class="mt-3 text-xs font-medium text-n-slate-11">
+                阶段流转
+              </div>
+              <div
+                v-for="ev in po.stages"
+                :key="ev.stage"
+                class="flex gap-2 mt-1 text-xs"
+              >
+                <span class="w-20 shrink-0 text-n-slate-12">
+                  {{ ev.label }}
+                </span>
+                <span class="text-n-slate-10">
+                  进入 {{ traceTime(ev.entered_at) }}
+                  <template v-if="ev.acked_at">
+                    · 接单 {{ traceTime(ev.acked_at) }}
+                  </template>
+                </span>
+              </div>
+
+              <div class="mt-3 text-xs font-medium text-n-slate-11">
+                领料 / 入库 / 出库
+              </div>
+              <div
+                v-if="!po.stock_entries.length"
+                class="mt-1 text-xs text-n-slate-10"
+              >
+                还没有出入库单据。
+              </div>
+              <div
+                v-for="e in po.stock_entries"
+                :key="e.entry_no"
+                class="flex flex-wrap gap-x-2 mt-1 text-xs"
+              >
+                <span class="w-16 shrink-0 text-n-slate-12">
+                  {{ e.purpose_label }}
+                </span>
+                <span class="font-mono text-n-slate-11">{{ e.entry_no }}</span>
+                <span
+                  :class="
+                    e.status === 'POSTED' ? 'text-n-teal-11' : 'text-n-amber-11'
+                  "
+                >
+                  {{ e.status_label }}
+                </span>
+                <span class="text-n-slate-10">
+                  {{
+                    e.posted_at
+                      ? `过账 ${traceTime(e.posted_at)}`
+                      : `建单 ${traceTime(e.created_at)}`
+                  }}
+                </span>
+              </div>
+            </div>
+
+            <div class="text-xs font-medium text-n-slate-11">出货单</div>
+            <div
+              v-if="!panelTrace.shipments.length"
+              class="mt-1 text-xs text-n-slate-10"
+            >
+              还没有出货单。
+            </div>
+            <div
+              v-for="sh in panelTrace.shipments"
+              :key="sh.shipment_no"
+              class="flex flex-wrap items-baseline gap-x-2 mt-1 text-xs"
+            >
+              <span class="font-mono text-n-slate-11">
+                {{ sh.shipment_no }}
+              </span>
+              <span class="text-n-slate-12">{{ sh.kind_label }}</span>
+              <span
+                :class="
+                  sh.status === 'SHIPPED' ? 'text-n-teal-11' : 'text-n-amber-11'
+                "
+              >
+                {{ sh.status_label }}
+              </span>
+              <span class="text-n-slate-10">
+                {{
+                  sh.shipped_at ? `出货 ${traceTime(sh.shipped_at)}` : '未出货'
+                }}
+              </span>
+            </div>
+          </template>
+        </div>
+
         <div v-else-if="activeTab === 'timeline'" class="p-5">
           <div
             v-if="!panelAudits.length"

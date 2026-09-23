@@ -1,14 +1,17 @@
 class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_sales_order, only: [:show, :update, :destroy, :attach, :detach, :audits]
+  before_action :fetch_sales_order, only: [:show, :update, :destroy, :attach, :detach, :audits, :production_trace]
 
   RESULTS_PER_PAGE = 15
 
   def index
     @sales_orders_scope = filtered_sales_orders
     @sales_orders_count = @sales_orders_scope.count
+    # 同一天下单的订单一大把（order_date 存的是 00:00），只按 order_date 排没有稳定次序，
+    # 翻页是一页一条 SQL，两次执行的并列次序可能不同——结果就是某条订单在任何一页都不出现。
+    # 补 id 兜底，让排序全序唯一（与提成表 order(period_month:, id:) 同一写法）。
     @sales_orders = @sales_orders_scope
-                    .order(order_date: :desc)
+                    .order(order_date: :desc, id: :desc)
                     .page(permitted_params[:page] || 1)
                     .per(results_per_page)
     compute_tab_counts
@@ -101,6 +104,13 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
       }
     end
     render json: { payload: rows }
+  end
+
+  # 生产追溯：这张销售订单在 MES 里走过的全程（生产订单 / 阶段时间 / 领料入库出库 / 出货单）。
+  # 可见性沿用订单本身（fetch_sales_order 已按 CRM 范围收口）：看得见这张单的人
+  # 就看得见它的履约过程，不额外要求 MES 角色——否则业务员查自己的单还得找生产要。
+  def production_trace
+    render json: { payload: Crm::SalesOrderTraceService.new(account: Current.account, sales_order: @sales_order).call }
   end
 
   private

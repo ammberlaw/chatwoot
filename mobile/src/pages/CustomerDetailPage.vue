@@ -18,7 +18,7 @@ import {
 } from '@/api/crm';
 import { useCrmOptions } from '@/composables/useCrmOptions';
 import {
-  COUNTRY_LABELS,
+  countryLabel as countryLabelOf,
   CUSTOMER_STATUS_LABELS,
   CUSTOMER_LEVEL_LABELS,
   PRODUCT_GROUP_LABELS,
@@ -79,7 +79,7 @@ const load = async () => {
 };
 
 const countryLabel = computed(
-  () => COUNTRY_LABELS[customer.value?.trade_country] || customer.value?.trade_country || '—'
+  () => countryLabelOf(customer.value?.trade_country) || '—'
 );
 
 // 「资料项」统一结构，模板里一次循环渲染，避免二十行重复 div
@@ -244,7 +244,7 @@ onMounted(() => {
         <button
           type="button"
           aria-label="归属操作"
-          class="grid rounded-full size-9 place-items-center text-n-slate-11 active:bg-n-alpha-1"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-ink-2)] active:bg-[color:var(--pb-fill)]"
           @click="openOwnerSheet"
         >
           <span class="size-5 i-lucide-user-cog" />
@@ -252,7 +252,7 @@ onMounted(() => {
         <button
           type="button"
           aria-label="编辑客户"
-          class="grid rounded-full size-9 place-items-center text-n-iris-11 active:bg-n-alpha-1"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-accent)] active:bg-[color:var(--pb-fill)]"
           @click="router.push({ name: 'customer-edit', params: { id: route.params.id } })"
         >
           <span class="size-5 i-lucide-pencil" />
@@ -272,41 +272,41 @@ onMounted(() => {
         <!-- 概要 -->
         <div class="grid grid-cols-3 p-3 wt-card">
           <div class="text-center">
-            <div class="text-lg font-bold text-n-slate-12">
+            <div class="text-lg font-bold text-[color:var(--pb-ink)]">
               {{ money(customer.deal_total_amount_micros) }}
             </div>
-            <div class="mt-0.5 text-xs text-n-slate-10">累计成交</div>
+            <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">累计成交</div>
           </div>
-          <div class="text-center border-x border-n-weak">
-            <div class="text-lg font-bold text-n-slate-12">
+          <div class="text-center border-x border-[color:var(--pb-sep)]">
+            <div class="text-lg font-bold text-[color:var(--pb-ink)]">
               {{ customer.deal_order_count || 0 }}
             </div>
-            <div class="mt-0.5 text-xs text-n-slate-10">成交订单</div>
+            <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">成交订单</div>
           </div>
           <div class="text-center">
-            <div class="text-lg font-bold text-n-slate-12">
+            <div class="text-lg font-bold text-[color:var(--pb-ink)]">
               {{ fromNow(customer.last_touch_at) }}
             </div>
-            <div class="mt-0.5 text-xs text-n-slate-10">最近联系</div>
+            <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">最近联系</div>
           </div>
         </div>
 
         <div class="flex flex-wrap gap-2 mt-3">
           <span
             v-if="CUSTOMER_STATUS_LABELS[customer.customer_status]"
-            class="px-2 py-1 text-xs rounded-lg bg-n-iris-3 text-n-iris-11"
+            class="px-2 py-1 text-xs rounded-lg bg-[color:var(--pb-fill)] text-[color:var(--pb-accent)]"
           >
             {{ CUSTOMER_STATUS_LABELS[customer.customer_status] }}
           </span>
           <span
             v-if="customer.is_in_public_pool"
-            class="px-2 py-1 text-xs rounded-lg bg-n-amber-3 text-n-amber-11"
+            class="px-2 py-1 text-xs rounded-lg bg-[color:var(--pb-brand-soft)] text-[color:var(--pb-ink)]"
           >
             公海
           </span>
           <span
             v-if="customer.next_follow_up_at"
-            class="px-2 py-1 text-xs rounded-lg bg-n-alpha-1 text-n-slate-11"
+            class="px-2 py-1 text-xs rounded-lg bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)]"
           >
             下次跟进 {{ shortDate(customer.next_follow_up_at) }}
           </span>
@@ -314,42 +314,45 @@ onMounted(() => {
 
         <!-- AI 下一步建议：收信时已生成好缓存，这里直接读 -->
         <div v-if="customer.ai_next_step" class="p-3 mt-3 wt-card">
-          <div class="flex items-center gap-1.5 text-xs font-medium text-n-iris-11">
+          <div class="flex items-center gap-1.5 text-xs font-medium text-[color:var(--pb-accent)]">
             <span class="size-3.5 i-lucide-sparkles" />
             下一步建议
           </div>
-          <p class="mt-1.5 text-sm leading-relaxed whitespace-pre-line text-n-slate-11">
+          <p class="mt-1.5 text-sm leading-relaxed whitespace-pre-line text-[color:var(--pb-ink-2)]">
             {{ customer.ai_next_step }}
           </p>
         </div>
 
-        <!-- 联系方式 -->
-        <div v-if="contactRows.length" class="mt-3 overflow-hidden wt-card">
-          <div v-if="customer.primary_contact_name" class="px-3 py-2.5 border-b border-n-weak">
-            <span class="text-sm font-medium text-n-slate-12">
-              {{ customer.primary_contact_name }}
-            </span>
-            <span v-if="customer.contact_job_title" class="ml-2 text-xs text-n-slate-10">
-              {{ customer.contact_job_title }}
-            </span>
-          </div>
-          <component
-            :is="row.href ? 'a' : 'div'"
-            v-for="row in contactRows"
-            :key="row.icon"
-            :href="row.href || undefined"
-            class="flex items-center gap-3 px-3 py-2.5 border-b last:border-b-0 border-n-weak"
-            :class="row.href ? 'active:bg-n-alpha-1' : ''"
-          >
-            <span class="flex-none size-4 text-n-slate-10" :class="row.icon" />
+        <!-- 联系人：一张卡说完「是谁」+「怎么联系」，电话/邮件做成圆钮直接点。
+             原来是三行并排的文本行，要找电话得读一遍。 -->
+        <template v-if="customer.primary_contact_name || contactRows.length">
+          <h2 class="sec-title">联系人</h2>
+          <div class="flex items-center gap-3 px-3.5 py-3 wt-glass">
             <span
-              class="flex-1 text-sm truncate"
-              :class="row.href ? 'text-n-iris-11' : 'text-n-slate-12'"
+              class="grid flex-none rounded-full size-10 place-items-center text-[14px] font-semibold bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)]"
             >
-              {{ row.value }}
+              {{ (customer.primary_contact_name || '?').trim().slice(0, 2).toUpperCase() }}
             </span>
-          </component>
-        </div>
+            <div class="flex-1 min-w-0">
+              <div class="truncate text-[15px] font-semibold leading-5 text-[color:var(--pb-ink)]">
+                {{ customer.primary_contact_name || '未填写联系人' }}
+              </div>
+              <div
+                class="mt-0.5 truncate text-[12px] leading-4 text-[color:var(--pb-ink-3)]"
+              >
+                {{ customer.contact_job_title || customer.contact_email || '—' }}
+              </div>
+            </div>
+            <a
+              v-for="row in contactRows"
+              :key="row.icon"
+              :href="row.href || undefined"
+              class="grid flex-none rounded-full size-9 place-items-center bg-[color:var(--pb-fill)] text-[color:var(--pb-ink)] wt-press"
+            >
+              <span class="size-[18px]" :class="row.icon" />
+            </a>
+          </div>
+        </template>
 
         <!-- 分段 -->
         <div class="flex gap-2 mt-4 -mx-4 px-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
@@ -357,11 +360,11 @@ onMounted(() => {
             v-for="s in SECTIONS"
             :key="s.key"
             type="button"
-            class="flex-none h-8 px-3 text-sm leading-none rounded-full"
+            class="flex-none wt-pill"
             :class="
               section === s.key
-                ? 'bg-n-iris-9 text-white font-medium'
-                : 'bg-n-alpha-1 text-n-slate-11'
+                ? 'wt-pill-on'
+                : 'wt-pill-off'
             "
             @click="section = s.key; s.key === 'audits' && loadAudits()"
           >
@@ -372,17 +375,17 @@ onMounted(() => {
         <div class="mt-3">
           <!-- 跟进记录 -->
           <template v-if="section === 'notes'">
-            <button type="button" class="w-full mb-2 wt-btn-ghost" @click="openNote">
+            <button type="button" class="w-full mb-3 wt-btn-primary wt-press" @click="openNote">
               <span class="mr-1.5 size-4 i-lucide-plus" />
-              记一笔跟进
+              记录跟进
             </button>
-            <p v-if="!detail.notes?.length" class="py-8 text-sm text-center text-n-slate-11">
+            <p v-if="!detail.notes?.length" class="py-8 text-sm text-center text-[color:var(--pb-ink-2)]">
               还没有跟进记录
             </p>
             <ul v-else class="flex flex-col gap-2">
               <li v-for="n in detail.notes" :key="n.id" class="p-3 wt-card">
-                <div class="flex items-center gap-2 text-xs text-n-slate-10">
-                  <span v-if="n.follow_up_method" class="text-n-iris-11">
+                <div class="flex items-center gap-2 text-xs text-[color:var(--pb-ink-3)]">
+                  <span v-if="n.follow_up_method" class="text-[color:var(--pb-accent)]">
                     {{ FOLLOW_UP_METHOD_LABELS[n.follow_up_method] || n.follow_up_method }}
                   </span>
                   <span v-if="n.result_tag">
@@ -390,16 +393,16 @@ onMounted(() => {
                   </span>
                   <span class="ml-auto">{{ fromNow(n.created_at) }}</span>
                 </div>
-                <p class="mt-1.5 text-sm leading-relaxed whitespace-pre-line text-n-slate-12">
+                <p class="mt-1.5 text-sm leading-relaxed whitespace-pre-line text-[color:var(--pb-ink)]">
                   {{ n.title }}
                 </p>
                 <p
                   v-if="n.body"
-                  class="mt-1 text-sm leading-relaxed whitespace-pre-line text-n-slate-11"
+                  class="mt-1 text-sm leading-relaxed whitespace-pre-line text-[color:var(--pb-ink-2)]"
                 >
                   {{ n.body }}
                 </p>
-                <p v-if="n.owner_name" class="mt-1.5 text-xs text-n-slate-10">
+                <p v-if="n.owner_name" class="mt-1.5 text-xs text-[color:var(--pb-ink-3)]">
                   {{ n.owner_name }}
                 </p>
               </li>
@@ -410,7 +413,7 @@ onMounted(() => {
           <template v-else-if="section === 'opportunities'">
             <p
               v-if="!detail.opportunities?.length"
-              class="py-8 text-sm text-center text-n-slate-11"
+              class="py-8 text-sm text-center text-[color:var(--pb-ink-2)]"
             >
               暂无商机
             </p>
@@ -418,15 +421,15 @@ onMounted(() => {
               <li v-for="o in detail.opportunities" :key="o.id" class="p-3 wt-card">
                 <div class="flex items-start gap-3">
                   <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium truncate text-n-slate-12">{{ o.name }}</div>
-                    <div class="mt-0.5 text-xs text-n-slate-10">
+                    <div class="text-sm font-medium truncate text-[color:var(--pb-ink)]">{{ o.name }}</div>
+                    <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">
                       {{ OPPORTUNITY_STAGE_LABELS[o.sales_stage] || o.sales_stage }}
                       <template v-if="o.expected_close_date">
                         · 预计 {{ shortDate(o.expected_close_date) }}
                       </template>
                     </div>
                   </div>
-                  <div class="flex-none text-sm font-semibold text-n-slate-12">
+                  <div class="flex-none text-sm font-semibold text-[color:var(--pb-ink)]">
                     {{ money(o.amount_micros, o.currency) }}
                   </div>
                 </div>
@@ -436,22 +439,22 @@ onMounted(() => {
 
           <!-- 订单 -->
           <template v-else-if="section === 'orders'">
-            <p v-if="!detail.orders?.length" class="py-8 text-sm text-center text-n-slate-11">
+            <p v-if="!detail.orders?.length" class="py-8 text-sm text-center text-[color:var(--pb-ink-2)]">
               暂无订单
             </p>
             <ul v-else class="flex flex-col gap-2">
               <li v-for="o in detail.orders" :key="o.id" class="p-3 wt-card">
                 <div class="flex items-start gap-3">
                   <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium truncate text-n-slate-12">
+                    <div class="text-sm font-medium truncate text-[color:var(--pb-ink)]">
                       {{ o.order_no || o.name }}
                     </div>
-                    <div class="mt-0.5 text-xs text-n-slate-10">
+                    <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">
                       {{ ORDER_STATUS_LABELS[o.status] || o.status }}
                       <template v-if="o.order_date"> · {{ shortDate(o.order_date) }}</template>
                     </div>
                   </div>
-                  <div class="flex-none text-sm font-semibold text-n-slate-12">
+                  <div class="flex-none text-sm font-semibold text-[color:var(--pb-ink)]">
                     {{ money(o.order_amount_micros, o.order_currency) }}
                   </div>
                 </div>
@@ -461,20 +464,20 @@ onMounted(() => {
 
           <!-- PI -->
           <template v-else-if="section === 'pis'">
-            <p v-if="!detail.pis?.length" class="py-8 text-sm text-center text-n-slate-11">
+            <p v-if="!detail.pis?.length" class="py-8 text-sm text-center text-[color:var(--pb-ink-2)]">
               暂无 PI
             </p>
             <ul v-else class="flex flex-col gap-2">
               <li v-for="p in detail.pis" :key="p.id" class="p-3 wt-card">
                 <div class="flex items-start gap-3">
                   <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium truncate text-n-slate-12">{{ p.pi_no }}</div>
-                    <div class="mt-0.5 text-xs text-n-slate-10">
+                    <div class="text-sm font-medium truncate text-[color:var(--pb-ink)]">{{ p.pi_no }}</div>
+                    <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">
                       {{ p.status }}
                       <template v-if="p.pi_date"> · {{ shortDate(p.pi_date) }}</template>
                     </div>
                   </div>
-                  <div class="flex-none text-sm font-semibold text-n-slate-12">
+                  <div class="flex-none text-sm font-semibold text-[color:var(--pb-ink)]">
                     {{ money(p.total_amount_micros, p.currency) }}
                   </div>
                 </div>
@@ -486,7 +489,7 @@ onMounted(() => {
           <template v-else-if="section === 'production_orders'">
             <p
               v-if="!detail.production_orders?.length"
-              class="py-8 text-sm text-center text-n-slate-11"
+              class="py-8 text-sm text-center text-[color:var(--pb-ink-2)]"
             >
               暂无生产订单
             </p>
@@ -494,10 +497,10 @@ onMounted(() => {
               <li v-for="p in detail.production_orders" :key="p.id" class="p-3 wt-card">
                 <div class="flex items-start gap-3">
                   <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium truncate text-n-slate-12">
+                    <div class="text-sm font-medium truncate text-[color:var(--pb-ink)]">
                       {{ p.product_name }}
                     </div>
-                    <div class="mt-0.5 text-xs text-n-slate-10">
+                    <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">
                       {{ p.order_no }}
                       <template v-if="p.stage"> · {{ p.stage }}</template>
                       <template v-if="p.delivery_date">
@@ -505,7 +508,7 @@ onMounted(() => {
                       </template>
                     </div>
                   </div>
-                  <div class="flex-none text-sm font-semibold text-n-slate-12">
+                  <div class="flex-none text-sm font-semibold text-[color:var(--pb-ink)]">
                     {{ p.produced_qty || 0 }}/{{ p.qty }}{{ p.unit }}
                   </div>
                 </div>
@@ -525,25 +528,25 @@ onMounted(() => {
               <span class="mr-1.5 size-4 i-lucide-plus" />
               {{ uploading ? '处理中…' : '上传附件' }}
             </button>
-            <p v-if="!customer.files?.length" class="py-8 text-sm text-center text-n-slate-11">
+            <p v-if="!customer.files?.length" class="py-8 text-sm text-center text-[color:var(--pb-ink-2)]">
               还没有附件
             </p>
             <ul v-else class="flex flex-col gap-2">
               <li v-for="f in customer.files" :key="f.id" class="flex items-center gap-3 p-3 wt-card">
-                <span class="flex-none size-4 text-n-slate-10 i-lucide-paperclip" />
+                <span class="flex-none size-4 text-[color:var(--pb-ink-3)] i-lucide-paperclip" />
                 <a
                   :href="f.url"
                   target="_blank"
                   rel="noopener"
-                  class="flex-1 text-sm truncate text-n-iris-11"
+                  class="flex-1 text-sm truncate text-[color:var(--pb-accent)]"
                 >
                   {{ f.filename }}
                 </a>
-                <span class="flex-none text-xs text-n-slate-10">{{ kb(f.byte_size) }}</span>
+                <span class="flex-none text-xs text-[color:var(--pb-ink-3)]">{{ kb(f.byte_size) }}</span>
                 <button
                   type="button"
                   :aria-label="`删除 ${f.filename}`"
-                  class="grid flex-none rounded-full size-7 place-items-center text-n-slate-10 active:bg-n-alpha-1"
+                  class="grid flex-none rounded-full size-7 place-items-center text-[color:var(--pb-ink-3)] active:bg-[color:var(--pb-fill)]"
                   :disabled="uploading"
                   @click="removeFile(f.id)"
                 >
@@ -555,22 +558,22 @@ onMounted(() => {
 
           <!-- 操作历史 -->
           <template v-else-if="section === 'audits'">
-            <p v-if="!audits.length" class="py-8 text-sm text-center text-n-slate-11">
+            <p v-if="!audits.length" class="py-8 text-sm text-center text-[color:var(--pb-ink-2)]">
               暂无操作记录
             </p>
             <ul v-else class="overflow-hidden wt-card">
               <li
                 v-for="a in audits"
                 :key="a.id"
-                class="px-3 py-2.5 border-b last:border-b-0 border-n-weak"
+                class="px-3 py-2.5 border-b last:border-b-0 border-[color:var(--pb-sep)]"
               >
                 <div class="flex items-baseline gap-2">
-                  <span class="text-sm text-n-slate-12">{{ a.user_name }}</span>
-                  <span class="ml-auto text-xs text-n-slate-10">
+                  <span class="text-sm text-[color:var(--pb-ink)]">{{ a.user_name }}</span>
+                  <span class="ml-auto text-xs text-[color:var(--pb-ink-3)]">
                     {{ shortDateTime(a.created_at) }}
                   </span>
                 </div>
-                <p class="mt-0.5 text-xs text-n-slate-11">
+                <p class="mt-0.5 text-xs text-[color:var(--pb-ink-2)]">
                   {{ a.action === 'create' ? '建档' : '修改' }}
                   <template v-if="a.changed_fields?.length">
                     · {{ a.changed_fields.join('、') }}
@@ -581,17 +584,17 @@ onMounted(() => {
           </template>
         </div>
 
-        <p v-if="actionError" class="mt-3 text-sm text-n-ruby-11">{{ actionError }}</p>
+        <p v-if="actionError" class="mt-3 text-sm text-[#C4383C]">{{ actionError }}</p>
 
         <!-- 资料 -->
         <div v-if="profileRows.length" class="mt-4 overflow-hidden wt-card">
           <div
             v-for="row in profileRows"
             :key="row.label"
-            class="flex items-start gap-3 px-3 py-2.5 border-b last:border-b-0 border-n-weak"
+            class="flex items-start gap-3 px-3 py-2.5 border-b last:border-b-0 border-[color:var(--pb-sep)]"
           >
-            <span class="flex-none w-20 text-xs text-n-slate-10">{{ row.label }}</span>
-            <span class="flex-1 text-sm break-words text-n-slate-12">{{ row.value }}</span>
+            <span class="flex-none w-20 text-xs text-[color:var(--pb-ink-3)]">{{ row.label }}</span>
+            <span class="flex-1 text-sm break-words text-[color:var(--pb-ink)]">{{ row.value }}</span>
           </div>
         </div>
 
@@ -600,7 +603,7 @@ onMounted(() => {
     </div>
 
     <AppSheet :open="ownerSheet" title="客户归属" @close="ownerSheet = false">
-      <p class="text-sm text-n-slate-11">
+      <p class="text-sm text-[color:var(--pb-ink-2)]">
         当前负责人：{{ customer?.account_owner_name || '未分配' }}
         <template v-if="customer?.is_in_public_pool"> · 在公海</template>
       </p>
@@ -618,7 +621,7 @@ onMounted(() => {
         <button
           v-else
           type="button"
-          class="w-full wt-btn text-n-amber-11 bg-n-amber-3 active:bg-n-amber-4"
+          class="w-full wt-btn text-[color:var(--pb-ink)] bg-[color:var(--pb-brand-soft)] active:opacity-80"
           :disabled="acting"
           @click="release"
         >
@@ -627,20 +630,20 @@ onMounted(() => {
       </div>
 
       <template v-if="!customer?.is_in_public_pool">
-        <h3 class="mt-5 mb-2 text-xs font-semibold tracking-wide text-n-slate-10">
+        <h3 class="mt-5 mb-2 text-xs font-semibold tracking-wide text-[color:var(--pb-ink-3)]">
           分配给其他成员
         </h3>
-        <p v-if="!agents.length" class="text-sm text-n-slate-11">成员列表加载中…</p>
+        <p v-if="!agents.length" class="text-sm text-[color:var(--pb-ink-2)]">成员列表加载中…</p>
         <ul v-else class="overflow-hidden wt-card">
           <li v-for="a in agents" :key="a.id">
             <button
               type="button"
-              class="w-full px-3 py-2.5 text-sm text-left border-b last:border-b-0 border-n-weak text-n-slate-12 active:bg-n-alpha-1 disabled:opacity-40"
+              class="w-full px-3 py-2.5 text-sm text-left border-b last:border-b-0 border-[color:var(--pb-sep)] text-[color:var(--pb-ink)] active:bg-[color:var(--pb-fill)] disabled:opacity-40"
               :disabled="acting || a.id === customer?.account_owner_id"
               @click="assignTo(a.id)"
             >
               {{ a.name }}
-              <span v-if="a.id === customer?.account_owner_id" class="text-xs text-n-slate-10">
+              <span v-if="a.id === customer?.account_owner_id" class="text-xs text-[color:var(--pb-ink-3)]">
                 （当前）
               </span>
             </button>
@@ -648,7 +651,7 @@ onMounted(() => {
         </ul>
       </template>
 
-      <p v-if="actionError" class="mt-3 text-sm text-n-ruby-11">{{ actionError }}</p>
+      <p v-if="actionError" class="mt-3 text-sm text-[#C4383C]">{{ actionError }}</p>
     </AppSheet>
 
     <AppSheet :open="noteOpen" title="记一笔跟进" @close="noteOpen = false">
@@ -676,7 +679,7 @@ onMounted(() => {
             class="wt-field"
           />
         </FormField>
-        <p v-if="noteError" class="text-sm text-n-ruby-11">{{ noteError }}</p>
+        <p v-if="noteError" class="text-sm text-[#C4383C]">{{ noteError }}</p>
       </div>
       <template #footer>
         <button

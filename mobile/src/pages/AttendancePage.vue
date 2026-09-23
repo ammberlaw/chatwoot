@@ -21,14 +21,14 @@ const STATUS_LABELS = {
   FIELD: '外勤',
 };
 const STATUS_CLASS = {
-  NORMAL: 'text-n-teal-11',
-  FIELD: 'text-n-iris-11',
-  LATE: 'text-n-amber-11',
-  EARLY_LEAVE: 'text-n-amber-11',
-  LATE_EARLY: 'text-n-amber-11',
-  ABSENT: 'text-n-ruby-11',
-  LEAVE: 'text-n-iris-11',
-  HALF_LEAVE: 'text-n-iris-11',
+  NORMAL: 'text-[color:var(--pb-ink)]',
+  FIELD: 'text-[color:var(--pb-accent)]',
+  LATE: 'text-[color:var(--pb-brand-ink)]',
+  EARLY_LEAVE: 'text-[color:var(--pb-brand-ink)]',
+  LATE_EARLY: 'text-[color:var(--pb-brand-ink)]',
+  ABSENT: 'text-[#C4383C]',
+  LEAVE: 'text-[color:var(--pb-accent)]',
+  HALF_LEAVE: 'text-[color:var(--pb-accent)]',
 };
 
 const records = ref([]);
@@ -135,23 +135,23 @@ onMounted(load);
       >
         <!-- 打卡卡片 -->
         <div class="p-5 text-center wt-card">
-          <div class="text-3xl font-bold tabular-nums text-n-slate-12">{{ nowLabel }}</div>
-          <p class="mt-1 text-xs text-n-slate-10">
+          <div class="text-3xl font-bold tabular-nums text-[color:var(--pb-ink)]">{{ nowLabel }}</div>
+          <p class="mt-1 text-xs text-[color:var(--pb-ink-3)]">
             {{ setting.clock_in_time }} 上班 · {{ setting.clock_out_time }} 下班
           </p>
 
           <div class="flex justify-center gap-6 mt-4">
             <div>
-              <div class="text-sm font-semibold text-n-slate-12">
+              <div class="text-sm font-semibold text-[color:var(--pb-ink)]">
                 {{ todayRecord?.clock_in_at || '—' }}
               </div>
-              <div class="mt-0.5 text-xs text-n-slate-10">上班</div>
+              <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">上班</div>
             </div>
             <div>
-              <div class="text-sm font-semibold text-n-slate-12">
+              <div class="text-sm font-semibold text-[color:var(--pb-ink)]">
                 {{ todayRecord?.clock_out_at || '—' }}
               </div>
-              <div class="mt-0.5 text-xs text-n-slate-10">下班</div>
+              <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">下班</div>
             </div>
           </div>
 
@@ -165,50 +165,50 @@ onMounted(load);
           </button>
           <button
             type="button"
-            class="mt-3 text-xs text-n-iris-11"
+            class="mt-3 text-xs wt-link text-[color:var(--pb-accent)]"
             @click="fieldSheet = true"
           >
             在外面？用外勤打卡
           </button>
 
-          <p v-if="message" class="mt-3 text-sm text-n-teal-11">{{ message }}</p>
-          <p v-if="error" class="mt-3 text-sm text-n-ruby-11">{{ error }}</p>
+          <p v-if="message" class="mt-3 text-sm text-[color:var(--pb-ink)]">{{ message }}</p>
+          <p v-if="error" class="mt-3 text-sm text-[#C4383C]">{{ error }}</p>
         </div>
 
         <!-- 本月概览 -->
         <div class="grid grid-cols-2 mt-3 overflow-hidden wt-card">
-          <div class="py-3 text-center border-r border-n-weak">
-            <div class="text-xl font-bold text-n-slate-12">{{ summary.worked }}</div>
-            <div class="mt-0.5 text-xs text-n-slate-10">本月出勤</div>
+          <div class="py-3 text-center border-r border-[color:var(--pb-sep)]">
+            <div class="text-xl font-bold text-[color:var(--pb-ink)]">{{ summary.worked }}</div>
+            <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">本月出勤</div>
           </div>
           <div class="py-3 text-center">
             <div
               class="text-xl font-bold"
-              :class="summary.abnormal ? 'text-n-amber-11' : 'text-n-slate-12'"
+              :class="summary.abnormal ? 'text-[color:var(--pb-brand-ink)]' : 'text-[color:var(--pb-ink)]'"
             >
               {{ summary.abnormal }}
             </div>
-            <div class="mt-0.5 text-xs text-n-slate-10">异常天数</div>
+            <div class="mt-0.5 text-xs text-[color:var(--pb-ink-3)]">异常天数</div>
           </div>
         </div>
 
-        <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-n-slate-10">本月记录</h2>
-        <p v-if="!records.length" class="py-8 text-sm text-center text-n-slate-11">
+        <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-[color:var(--pb-ink-3)]">本月记录</h2>
+        <p v-if="!records.length" class="py-8 text-sm text-center text-[color:var(--pb-ink-2)]">
           本月还没有打卡记录
         </p>
         <ul v-else class="overflow-hidden wt-card">
           <li
             v-for="r in [...records].reverse()"
             :key="r.work_date"
-            class="flex items-center gap-3 px-3 py-2.5 border-b last:border-b-0 border-n-weak"
+            class="flex items-center gap-3 px-3 py-2.5 border-b last:border-b-0 border-[color:var(--pb-sep)]"
           >
-            <span class="flex-none w-16 text-sm text-n-slate-11">{{ dayLabel(r.work_date) }}</span>
-            <span class="flex-1 text-sm tabular-nums text-n-slate-12">
+            <span class="flex-none w-16 text-sm text-[color:var(--pb-ink-2)]">{{ dayLabel(r.work_date) }}</span>
+            <span class="flex-1 text-sm tabular-nums text-[color:var(--pb-ink)]">
               {{ r.clock_in_at || '—' }} － {{ r.clock_out_at || '—' }}
             </span>
             <span
               class="flex-none text-xs"
-              :class="STATUS_CLASS[r.status] || 'text-n-slate-10'"
+              :class="STATUS_CLASS[r.status] || 'text-[color:var(--pb-ink-3)]'"
             >
               {{ STATUS_LABELS[r.status] || r.status }}
             </span>
@@ -219,11 +219,11 @@ onMounted(load);
     </div>
 
     <AppSheet :open="fieldSheet" title="外勤打卡" @close="fieldSheet = false">
-      <p class="text-sm leading-relaxed text-n-slate-11">
+      <p class="text-sm leading-relaxed text-[color:var(--pb-ink-2)]">
         出差、展会或在客户现场时用这个。外勤打卡会跳过公司网络与地点校验，记为外勤出勤、不判迟到，
         考勤表上会标明是外勤。
       </p>
-      <p v-if="error" class="mt-3 text-sm text-n-ruby-11">{{ error }}</p>
+      <p v-if="error" class="mt-3 text-sm text-[#C4383C]">{{ error }}</p>
       <template #footer>
         <button
           type="button"

@@ -12,8 +12,11 @@ RSpec.describe AccountUser do
     it 'gets created with the right default settings' do
       expect(account_user.user.notification_settings).not_to be_nil
 
-      expect(account_user.user.notification_settings.first.email_conversation_creation?).to be(false)
-      expect(account_user.user.notification_settings.first.email_conversation_assignment?).to be(true)
+      setting = account_user.user.notification_settings.first
+      expect(setting.email_conversation_creation?).to be(false)
+      # 邮件默认全关：指派时会话列表已经会亮红点，再发邮件只会塞满收件箱。
+      expect(setting.email_conversation_assignment?).to be(false)
+      expect(setting.push_conversation_assignment?).to be(true)
     end
   end
 

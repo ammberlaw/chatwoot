@@ -2284,7 +2284,7 @@ watch(
 
         <div
           v-if="totalCount > 0"
-          class="flex items-center justify-between flex-shrink-0 px-4 py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
+          class="flex items-center justify-between flex-shrink-0 px-4 py-3 max-md:pl-16 border-t border-n-weak text-[12.5px] text-n-slate-10"
         >
           <div class="flex items-center gap-3 shrink-0 whitespace-nowrap">
             <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->

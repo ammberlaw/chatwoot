@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useMapGetter } from 'dashboard/composables/store';
 /* global axios */
 import CustomerAPI from 'dashboard/api/crm/customers';
 
@@ -16,6 +17,7 @@ const props = defineProps({
 });
 
 const { accountId } = useAccount();
+const currentUserId = useMapGetter('getCurrentUserID');
 const router = useRouter();
 
 const STATUS = {
@@ -32,7 +34,16 @@ const noteDialogRef = ref(null);
 const noteBody = ref('');
 const savingNote = ref(false);
 
-const customerId = computed(() => props.contact?.crm_customer_id || null);
+// 建档成功后 props.contact 还是旧的（父级不知道 crm_customer_id 变了），
+// 用本地 id 顶上，卡片立刻就能显示，不用刷页面。
+const createdCustomerId = ref(null);
+const createDialogRef = ref(null);
+const newName = ref('');
+const creating = ref(false);
+
+const customerId = computed(
+  () => createdCustomerId.value || props.contact?.crm_customer_id || null
+);
 const status = computed(() => STATUS[card.value?.customer_status] || null);
 const money = computed(() => {
   const v = card.value?.deal_total_rmb || 0;
@@ -69,6 +80,49 @@ const load = async () => {
 };
 
 watch(customerId, load, { immediate: true });
+// 换了联系人就把上一个的本地 id 丢掉,否则会把别人的档案显示到这个会话上。
+watch(() => props.contact?.id, () => { createdCustomerId.value = null; });
+
+const openCreate = () => {
+  // 预填联系人名，但 WhatsApp 进来的多半是「Mr.」这种占位名，让业务员改成真公司名。
+  newName.value = props.contact?.name || '';
+  createDialogRef.value?.open();
+};
+
+const createCustomer = async () => {
+  const name = newName.value.trim();
+  if (!name) {
+    useAlert('填一个客户名称');
+    return;
+  }
+  creating.value = true;
+  try {
+    const phone = props.contact?.phone_number || '';
+    const { data } = await axios.post(
+      `/api/v1/accounts/${accountId.value}/crm/customers`,
+      {
+        customer: {
+          name,
+          primary_contact_name: props.contact?.name || null,
+          contact_email: props.contact?.email || null,
+          contact_phone: phone || null,
+          whats_app: phone || null,
+          // 归给自己——这个按钮的意义就是「这客户我接了」。
+          account_owner_id: currentUserId.value,
+          // 后端 link_source_contact 认这个字段，把联系人挂到新档案上。
+          contact_id: props.contact?.id,
+        },
+      }
+    );
+    createdCustomerId.value = data?.id || data?.payload?.id || null;
+    createDialogRef.value?.close();
+    useAlert('已建档，客户归你');
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '建档失败');
+  } finally {
+    creating.value = false;
+  }
+};
 
 const goDetail = () =>
   router.push({
@@ -122,7 +176,52 @@ const saveNote = async () => {
 </script>
 
 <template>
-  <div v-if="customerId && card" class="w-full px-4 pb-3">
+  <!-- 未建档：以前这里什么都不渲染,业务员被派了活也看不到任何入口。 -->
+  <div v-if="!customerId && !loading" class="w-full px-4 pb-3">
+    <div
+      class="flex flex-col gap-2 p-3 border border-dashed rounded-xl border-n-weak"
+    >
+      <div class="flex items-center gap-2 text-sm text-n-slate-11">
+        <span class="i-lucide-user-round-plus text-sm shrink-0" />
+        <span>该客户未建档</span>
+      </div>
+      <p class="text-xs text-n-slate-10">
+        建档后才会出现在「我的客户」里,也才能记跟进、报价、下单。
+      </p>
+      <div class="flex pt-1">
+        <Button
+          label="建档并归我"
+          size="xs"
+          variant="outline"
+          @click="openCreate"
+        />
+      </div>
+    </div>
+
+    <Dialog
+      ref="createDialogRef"
+      :dismissible="false"
+      title="建档并归我"
+      :description="contact?.phone_number || contact?.name || ''"
+      confirm-button-label="建档"
+      confirm-button-color="iris"
+      :disable-confirm-button="creating"
+      @confirm="createCustomer"
+    >
+      <label class="block text-xs text-n-slate-11 mb-1">客户名称</label>
+      <input
+        v-model="newName"
+        type="text"
+        placeholder="填公司名,别留「Mr.」这种占位名"
+        class="w-full px-3 py-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12"
+      />
+      <p class="mt-2 text-xs text-n-slate-10">
+        联系人、电话和 WhatsApp 会自动带过去,负责人记在你名下。
+      </p>
+    </Dialog>
+  </div>
+
+  <div v-else-if="customerId && card" class="w-full px-4 pb-3">
     <div class="flex flex-col gap-2 p-3 border rounded-xl border-n-weak">
       <div class="flex items-center gap-2 min-w-0">
         <span class="i-lucide-building-2 text-sm text-n-slate-10 shrink-0" />

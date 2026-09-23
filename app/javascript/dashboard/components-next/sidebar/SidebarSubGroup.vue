@@ -20,6 +20,8 @@ const props = defineProps({
   sortOptions: { type: Array, default: () => [] },
   activeSort: { type: String, default: '' },
   collapsible: { type: Boolean, default: false },
+  // 初始折叠:只在用户从没手动开关过这个分组时生效,之后一律听 localStorage 里的记忆。
+  defaultCollapsed: { type: Boolean, default: false },
   showTreeLine: { type: Boolean, default: false },
   endTreeLine: { type: Boolean, default: false },
 });
@@ -45,9 +47,12 @@ const minimizedSections = ref(getMinimizedSections());
 const storageKey = computed(() =>
   accountId.value ? `${accountId.value}:${props.name}` : props.name
 );
-const isSubGroupExpanded = computed(
-  () => !props.collapsible || !minimizedSections.value[storageKey.value]
-);
+const isSubGroupExpanded = computed(() => {
+  if (!props.collapsible) return true;
+  const stored = minimizedSections.value[storageKey.value];
+  if (stored === undefined) return !props.defaultCollapsed;
+  return !stored;
+});
 const hasActiveChild = computed(() =>
   props.children.some(child => child.name === props.activeChild?.name)
 );
@@ -84,6 +89,9 @@ const toggleSubGroup = () => {
 
   if (isSubGroupExpanded.value) {
     LocalStorage.updateJsonStore(minimizedSectionsKey, storageKey.value, true);
+  } else if (props.defaultCollapsed) {
+    // 删键等于退回默认值,而这个组的默认值就是折叠,所以必须显式记 false。
+    LocalStorage.updateJsonStore(minimizedSectionsKey, storageKey.value, false);
   } else {
     LocalStorage.deleteFromJsonStore(minimizedSectionsKey, storageKey.value);
   }
@@ -96,7 +104,11 @@ const expandSubGroupOnActiveChild = () => {
     return;
   }
 
-  LocalStorage.deleteFromJsonStore(minimizedSectionsKey, storageKey.value);
+  if (props.defaultCollapsed) {
+    LocalStorage.updateJsonStore(minimizedSectionsKey, storageKey.value, false);
+  } else {
+    LocalStorage.deleteFromJsonStore(minimizedSectionsKey, storageKey.value);
+  }
   minimizedSections.value = getMinimizedSections();
 };
 

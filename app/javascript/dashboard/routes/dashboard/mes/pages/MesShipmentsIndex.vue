@@ -139,7 +139,9 @@ const loadProducts = async (q = '') => {
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/products`,
-      { params: { filter: 'active', q } }
+      // 产品档案近 5000 条,靠 q 搜索收窄;per_page 取后端上限 100,
+      // 否则命中多于 15 条时后面的直接看不到。
+      { params: { filter: 'active', q, per_page: 100 } }
     );
     mergeOptions(
       productOptions,

@@ -53,12 +53,12 @@ onMounted(load);
         empty-text="文档不存在或无权查看"
         @retry="load"
       >
-        <h1 class="text-base font-semibold leading-snug text-n-slate-12">{{ doc.name }}</h1>
-        <p class="mt-1 text-xs text-n-slate-10">
+        <h1 class="text-base font-semibold leading-snug text-[color:var(--pb-ink)]">{{ doc.name }}</h1>
+        <p class="mt-1 text-xs text-[color:var(--pb-ink-3)]">
           {{ doc.category || '未分类' }} · 更新于 {{ shortDate(doc.updated_at) }}
         </p>
 
-        <p v-if="doc.summary" class="p-3 mt-3 text-sm leading-relaxed wt-card text-n-slate-11">
+        <p v-if="doc.summary" class="p-3 mt-3 text-sm leading-relaxed wt-card text-[color:var(--pb-ink-2)]">
           {{ doc.summary }}
         </p>
 
@@ -68,11 +68,11 @@ onMounted(load);
               :href="f.url"
               target="_blank"
               rel="noopener"
-              class="flex items-center gap-3 p-3 wt-card active:bg-n-alpha-1"
+              class="flex items-center gap-3 p-3 wt-card active:bg-[color:var(--pb-fill)]"
             >
-              <span class="flex-none size-4 text-n-slate-10 i-lucide-paperclip" />
-              <span class="flex-1 text-sm truncate text-n-iris-11">{{ f.filename }}</span>
-              <span class="flex-none text-xs text-n-slate-10">{{ kb(f.byte_size) }}</span>
+              <span class="flex-none size-4 text-[color:var(--pb-ink-3)] i-lucide-paperclip" />
+              <span class="flex-1 text-sm truncate text-[color:var(--pb-accent)]">{{ f.filename }}</span>
+              <span class="flex-none text-xs text-[color:var(--pb-ink-3)]">{{ kb(f.byte_size) }}</span>
             </a>
           </li>
         </ul>
@@ -80,7 +80,7 @@ onMounted(load);
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div
           v-if="safeBody"
-          class="p-3 mt-3 text-sm leading-relaxed break-words wt-card wt-mail-body text-n-slate-12"
+          class="p-3 mt-3 text-sm leading-relaxed break-words wt-card wt-mail-body text-[color:var(--pb-ink)]"
           v-html="safeBody"
         />
 

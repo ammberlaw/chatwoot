@@ -3,6 +3,9 @@
  * 文档中心「管理板块」面板：增删板块 + 设负责人(manager_ids) / 可见成员(viewer_ids)。
  * 后端 crm_doc_sections 一直支持；此面板仅管理员/副管理员可用。
  * 保存后 emit updated，父组件广播 crmDocSectionsUpdated 让侧栏板块即时刷新。
+ *
+ * 「账号密码」的分组授权用的是同一套（同样的 manager_ids/viewer_ids 语义），
+ * 故此面板可用 api/文案 props 复用，默认值即资料板块的行为。
  */
 import { ref, computed, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
@@ -14,8 +17,34 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 
-const props = defineProps({ show: { type: Boolean, default: false } });
+const props = defineProps({
+  show: { type: Boolean, default: false },
+  // defineProps 会被提升到 setup() 外，默认值里引不到局部常量，故默认给 null、在下面兜底。
+  api: { type: Object, default: null },
+  title: { type: String, default: '管理板块' },
+  itemLabel: { type: String, default: '板块' },
+  addPlaceholder: { type: String, default: '新板块名称，如：售后资料' },
+  emptyText: { type: String, default: '还没有板块，上面添加一个。' },
+  deleteHint: {
+    type: String,
+    default: '板块内文件夹会变为未归属，不会删除文件。',
+  },
+  footerHint: {
+    type: String,
+    default: '负责人可管理板块内容；可见留空＝仅负责人与管理员可见',
+  },
+});
+
 const emit = defineEmits(['close', 'updated']);
+
+// 资料板块的增删改适配器（默认）。调用方传 api 即可换成别的分组表。
+const DOC_SECTION_API = {
+  list: () => DocSectionsAPI.get().then(r => r.data.payload || []),
+  create: name => DocSectionsAPI.createSection({ section: { name } }),
+  update: (id, fields) => DocSectionsAPI.updateSection(id, { section: fields }),
+  remove: id => DocSectionsAPI.deleteSection(id),
+};
+const api = computed(() => props.api || DOC_SECTION_API);
 
 const members = ref([]);
 const departments = ref([]);
@@ -35,14 +64,14 @@ const load = async () => {
   try {
     const [m, s, d, ms] = await Promise.all([
       CrmMemberAPI.get(),
-      DocSectionsAPI.get(),
+      api.value.list(),
       OrgDepartmentsAPI.get(),
       OrgMembershipsAPI.get(),
     ]);
     members.value = m.data.payload || [];
     departments.value = d.data.payload || [];
     memberships.value = ms.data.payload || [];
-    sections.value = (s.data.payload || []).map(x => ({
+    sections.value = (s || []).map(x => ({
       id: x.id,
       name: x.name,
       is_protected: !!x.is_protected,
@@ -118,9 +147,7 @@ const groupState = (sec, field, ids) => {
 
 const saveField = async (sec, field) => {
   try {
-    await DocSectionsAPI.updateSection(sec.id, {
-      section: { [field]: sec[field] },
-    });
+    await api.value.update(sec.id, { [field]: sec[field] });
     emit('updated');
   } catch {
     useAlert('保存失败');
@@ -133,12 +160,12 @@ const addSection = async () => {
   if (!name || busy.value) return;
   busy.value = true;
   try {
-    await DocSectionsAPI.createSection({ section: { name } });
+    await api.value.create(name);
     newName.value = '';
     await load();
     emit('updated');
   } catch {
-    useAlert('新增失败，可能板块名重复');
+    useAlert(`新增失败，可能${props.itemLabel}名重复`);
   } finally {
     busy.value = false;
   }
@@ -148,12 +175,12 @@ const removeSection = async sec => {
   // eslint-disable-next-line no-alert
   if (
     !window.confirm(
-      `删除板块「${sec.name}」？板块内文件夹会变为未归属，不会删除文件。`
+      `删除${props.itemLabel}「${sec.name}」？${props.deleteHint}`
     )
   )
     return;
   try {
-    await DocSectionsAPI.deleteSection(sec.id);
+    await api.value.remove(sec.id);
     await load();
     emit('updated');
   } catch (e) {
@@ -180,7 +207,7 @@ const saveRename = async sec => {
   }
   busy.value = true;
   try {
-    await DocSectionsAPI.updateSection(sec.id, { section: { name } });
+    await api.value.update(sec.id, { name });
     cancelRename();
     await load();
     emit('updated');
@@ -232,7 +259,7 @@ const togglePicker = key => {
         <div
           class="flex items-center justify-between px-5 py-3.5 border-b border-n-weak shrink-0"
         >
-          <h2 class="text-base font-semibold text-n-slate-12">管理板块</h2>
+          <h2 class="text-base font-semibold text-n-slate-12">{{ title }}</h2>
           <button
             class="text-n-slate-11 hover:text-n-slate-12"
             @click="emit('close')"
@@ -246,12 +273,12 @@ const togglePicker = key => {
           <div class="flex items-center gap-2">
             <Input
               v-model="newName"
-              placeholder="新板块名称，如：售后资料"
+              :placeholder="addPlaceholder"
               class="flex-1"
               @keyup.enter="addSection"
             />
             <Button
-              label="添加板块"
+              :label="`添加${itemLabel}`"
               icon="i-lucide-plus"
               color="iris"
               size="sm"
@@ -264,7 +291,7 @@ const togglePicker = key => {
             v-if="!sections.length"
             class="py-6 text-sm text-center text-n-slate-11"
           >
-            还没有板块，上面添加一个。
+            {{ emptyText }}
           </p>
 
           <!-- 板块列表 -->
@@ -307,19 +334,19 @@ const togglePicker = key => {
                   v-if="sec.is_protected"
                   class="px-1.5 py-0.5 text-xs rounded text-n-slate-10 bg-n-alpha-1 shrink-0"
                 >
-                  系统板块
+                  系统{{ itemLabel }}
                 </span>
                 <template v-else>
                   <button
                     class="p-1.5 rounded-lg text-n-slate-11 hover:bg-n-alpha-1"
-                    title="重命名板块"
+                    :title="`重命名${itemLabel}`"
                     @click="startRename(sec)"
                   >
                     <Icon icon="i-lucide-pencil" class="size-4" />
                   </button>
                   <button
                     class="p-1.5 rounded-lg text-n-ruby-11 hover:bg-n-alpha-1"
-                    title="删除板块"
+                    :title="`删除${itemLabel}`"
                     @click="removeSection(sec)"
                   >
                     <Icon icon="i-lucide-trash-2" class="size-4" />
@@ -532,7 +559,7 @@ const togglePicker = key => {
           class="flex items-center justify-between px-5 py-3 border-t border-n-weak shrink-0"
         >
           <span class="text-xs text-n-slate-10">
-            负责人可管理板块内容；可见留空＝仅负责人与管理员可见
+            {{ footerHint }}
           </span>
           <Button label="完成" color="iris" size="sm" @click="emit('close')" />
         </div>

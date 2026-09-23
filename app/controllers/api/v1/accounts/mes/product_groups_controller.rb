@@ -7,11 +7,13 @@ class Api::V1::Accounts::Mes::ProductGroupsController < Api::V1::Accounts::Mes::
   before_action :fetch_item, only: %i[update destroy]
 
   def index
-    @items = Current.account.crm_option_items.for_category(CATEGORY).ordered
+    @items = line_scoped(Current.account.crm_option_items.for_category(CATEGORY)).ordered
   end
 
   def create
-    @item = Current.account.crm_option_items.create!(create_params.merge(category: CATEGORY, position: next_position))
+    @item = Current.account.crm_option_items.create!(
+      create_params.merge(category: CATEGORY, position: next_position, product_line: current_product_line)
+    )
     render :show
   end
 
@@ -36,6 +38,14 @@ class Api::V1::Accounts::Mes::ProductGroupsController < Api::V1::Accounts::Mes::
   end
 
   private
+
+  # 产品分组按产线分流：切到某条产线时只看该产线的树 + 公共分组（product_line 为空，
+  # 即在「全部」下建的）。不这么收口的话，平板产线会看到商显那棵树。
+  def line_scoped(scope)
+    return scope if current_product_line.blank?
+
+    scope.where(product_line: [current_product_line, nil])
+  end
 
   def fetch_item
     @item = Current.account.crm_option_items.for_category(CATEGORY).find(params[:id])

@@ -153,6 +153,7 @@ Rails.application.routes.draw do
               end
               member do
                 get :audits
+                get :production_trace
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :restore
@@ -280,6 +281,11 @@ Rails.application.routes.draw do
             resource :ai_settings, only: [:show, :update], controller: 'ai_settings'
             post 'ai_settings/test', to: 'ai_settings#test'
             resources :doc_sections, only: [:index, :create, :update, :destroy]
+            resources :credentials, only: [:index, :create, :update, :destroy] do
+              member { post :reveal }
+              collection { get :views }
+            end
+            resources :credential_groups, only: [:create, :update, :destroy]
             resource :stats, only: [:show], controller: 'stats'
             resource :team_dashboard, only: [:show], controller: 'team_dashboard'
             resource :my_target, only: [:show], controller: 'my_target'
@@ -449,7 +455,9 @@ Rails.application.routes.draw do
             resources :suppliers
             resources :warehouses, except: [:show]
             resources :materials
-            resources :products, only: [:index, :create, :update, :destroy]
+            resources :products, only: [:index, :create, :update, :destroy] do
+              collection { get :categories }
+            end
             resources :product_groups, only: [:index, :create, :update, :destroy] do
               collection { post :reorder }
             end
@@ -557,6 +565,7 @@ Rails.application.routes.draw do
                 post :approve
                 post :reject
                 post :cancel
+                post :revoke
               end
             end
           end

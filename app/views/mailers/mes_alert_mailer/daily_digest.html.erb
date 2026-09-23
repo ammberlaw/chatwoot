@@ -3,14 +3,14 @@
   'MATERIAL_INBOUND' => '原料入库', 'PICKING' => '生产领料', 'PRODUCTION' => '生产',
   'FG_INBOUND' => '成品入库', 'SHIPPED' => '销售出库'
 } %>
-<h2 style="color:#1f2d3d;">MES 生产预警日报</h2>
+<h2 style="color:#1f2d3d;">MES 生产预警周报</h2>
 <p style="color:#5c6873;"><%= Time.zone.today.strftime('%Y年%m月%d日') %></p>
 
 <% if Array(@alerts[:overdue]).any? %>
   <h3 style="color:#c0392b;">⛔ 已逾期（<%= @alerts[:overdue].size %>）</h3>
   <ul>
     <% @alerts[:overdue].each do |o| %>
-      <li><%= o[:order_no] %> · <%= o[:product_name] %> — 已逾期 <%= o[:days] %> 天（当前：<%= stage_labels[o[:stage]] %>）</li>
+      <li><%= o[:order_no] %> · <%= o[:product_name] %> — 已逾期 <%= o[:days] %> 天（当前：<%= stage_labels[o[:stage]] %><%= " · #{o[:purchase_state]}" if o[:purchase_state].present? %><%= ' ⚠️' if o[:purchase_warn] %>）</li>
     <% end %>
   </ul>
 <% end %>
@@ -19,7 +19,7 @@
   <h3 style="color:#d35400;">⏰ 临近交期（<%= @alerts[:due_soon].size %>）</h3>
   <ul>
     <% @alerts[:due_soon].each do |o| %>
-      <li><%= o[:order_no] %> · <%= o[:product_name] %> — 距交期 <%= o[:days] %> 天（当前：<%= stage_labels[o[:stage]] %>）</li>
+      <li><%= o[:order_no] %> · <%= o[:product_name] %> — 距交期 <%= o[:days] %> 天（当前：<%= stage_labels[o[:stage]] %><%= " · #{o[:purchase_state]}" if o[:purchase_state].present? %><%= ' ⚠️' if o[:purchase_warn] %>）</li>
     <% end %>
   </ul>
 <% end %>

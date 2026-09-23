@@ -36,8 +36,10 @@ export const ASSIGNEE_TYPE_TAB_PERMISSIONS = {
   },
   unassigned: {
     count: 'unAssignedCount',
+    // 业务员看不到「未分配的」:会话按客户归属走,未分配是管理员分派前的中转态,
+    // 摆在业务员面前只会让人去捡不属于自己的客户。故这里不铺 ...ROLES,只留管理员。
     permissions: [
-      ...ROLES,
+      'administrator',
       MANAGE_ALL_CONVERSATION_PERMISSIONS,
       CONVERSATION_UNASSIGNED_PERMISSIONS,
     ],

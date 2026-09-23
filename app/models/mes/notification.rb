@@ -48,7 +48,8 @@ class Mes::Notification < ApplicationRecord
 
   scope :unread, -> { where(read_at: nil) }
   scope :for_recipient, ->(uid) { where(recipient_id: uid) }
-  scope :recent_first, -> { order(created_at: :desc) }
+  # id 兜底：批量写入的通知 created_at 常常同一毫秒，只按时间排翻页会漏条/重条。
+  scope :recent_first, -> { order(created_at: :desc, id: :desc) }
 
   def read? = read_at.present?
 end

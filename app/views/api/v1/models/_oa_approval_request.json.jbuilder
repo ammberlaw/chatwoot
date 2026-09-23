@@ -9,5 +9,7 @@ json.applicant_id resource.applicant_id
 json.applicant_name resource.applicant&.name
 json.cc_user_ids resource.cc_user_ids
 json.cc_names User.where(id: resource.cc_user_ids).pluck(:name)
+json.revokable resource.revocable?
+json.revokes_request_id resource.revokes_request_id
 json.submitted_at resource.submitted_at
 json.created_at resource.created_at

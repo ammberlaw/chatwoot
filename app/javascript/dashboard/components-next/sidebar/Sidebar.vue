@@ -485,6 +485,26 @@ const whatsappChildren = computed(() =>
     .map(buildInboxLeaf)
 );
 
+// 侧栏里的 WhatsApp 条目:一个号时直接平铺(套一层折叠只为露一个号,纯属多余),
+// 多个号才收进可折叠分组避免刷屏。
+const whatsappMenuItems = computed(() => {
+  const leaves = whatsappChildren.value;
+  if (leaves.length === 0) return [];
+  if (leaves.length === 1) return [leaves[0]];
+
+  return [
+    {
+      name: 'WhatsAppChannels',
+      label: `WhatsApp (${leaves.length})`,
+      icon: 'i-ri-whatsapp-fill',
+      activeOn: ['conversation_through_inbox'],
+      collapsible: true,
+      showTreeLine: true,
+      children: leaves,
+    },
+  ];
+});
+
 const closeMobileSidebar = () => {
   if (!props.isMobileSidebarOpen) return;
   emit('closeMobileSidebar');
@@ -562,28 +582,9 @@ const menuItems = computed(() => {
             activeOn: ['inbox_conversation'],
             to: accountScopedRoute('home'),
           },
-          {
-            name: 'Mentions',
-            label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
-            icon: 'i-lucide-at-sign',
-            activeOn: ['conversation_through_mentions'],
-            to: accountScopedRoute('conversation_mentions'),
-          },
-          {
-            name: 'Participating',
-            label: t('SIDEBAR.PARTICIPATING_CONVERSATIONS'),
-            icon: 'i-lucide-user-round-check',
-            activeOn: ['conversation_through_participating'],
-            to: accountScopedRoute('conversation_participating'),
-          },
-          {
-            name: 'Unattended',
-            activeOn: ['conversation_through_unattended'],
-            label: t('SIDEBAR.UNATTENDED_CONVERSATIONS'),
-            icon: 'i-lucide-clock-alert',
-            to: accountScopedRoute('conversation_unattended'),
-          },
-          // CRM 维度分诊：业务员按「谁的客户/要不要跟/建没建档」筛会话，不用一条条翻。
+          // 固定只留每天必点的三项。之前 8 个平铺入口里,「提及/参与者/我的客户」都在回答
+          // 「哪些跟我有关」,「未处理/待跟进」都在回答「该动手了吗」——重叠的入口比数量
+          // 更让人犹豫,所以各留一个代表,其余收进下面的「更多视图」。
           {
             name: 'CRM Mine',
             label: '我的客户',
@@ -592,25 +593,57 @@ const menuItems = computed(() => {
             to: accountScopedRoute('conversation_crm_mine'),
           },
           {
-            name: 'CRM Overdue',
-            label: '待跟进',
-            icon: 'i-lucide-alarm-clock',
-            activeOn: ['conversation_through_crm_overdue'],
-            to: accountScopedRoute('conversation_crm_overdue'),
+            name: 'Unattended',
+            activeOn: ['conversation_through_unattended'],
+            label: t('SIDEBAR.UNATTENDED_CONVERSATIONS'),
+            icon: 'i-lucide-clock-alert',
+            to: accountScopedRoute('conversation_unattended'),
           },
+          // 低频筛选视图。默认折叠:展开一次后 localStorage 会记住,不会每次都收起来。
           {
-            name: 'CRM Hot',
-            label: '高意向',
-            icon: 'i-lucide-flame',
-            activeOn: ['conversation_through_crm_hot'],
-            to: accountScopedRoute('conversation_crm_hot'),
-          },
-          {
-            name: 'CRM Unfiled',
-            label: '未建档',
-            icon: 'i-lucide-user-round-plus',
-            activeOn: ['conversation_through_crm_unfiled'],
-            to: accountScopedRoute('conversation_crm_unfiled'),
+            name: 'MoreViews',
+            label: '更多视图',
+            icon: 'i-lucide-list-filter',
+            collapsible: true,
+            defaultCollapsed: true,
+            showTreeLine: true,
+            children: [
+              {
+                name: 'Mentions',
+                label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
+                icon: 'i-lucide-at-sign',
+                activeOn: ['conversation_through_mentions'],
+                to: accountScopedRoute('conversation_mentions'),
+              },
+              {
+                name: 'Participating',
+                label: t('SIDEBAR.PARTICIPATING_CONVERSATIONS'),
+                icon: 'i-lucide-user-round-check',
+                activeOn: ['conversation_through_participating'],
+                to: accountScopedRoute('conversation_participating'),
+              },
+              {
+                name: 'CRM Overdue',
+                label: '待跟进',
+                icon: 'i-lucide-alarm-clock',
+                activeOn: ['conversation_through_crm_overdue'],
+                to: accountScopedRoute('conversation_crm_overdue'),
+              },
+              {
+                name: 'CRM Hot',
+                label: '高意向',
+                icon: 'i-lucide-flame',
+                activeOn: ['conversation_through_crm_hot'],
+                to: accountScopedRoute('conversation_crm_hot'),
+              },
+              {
+                name: 'CRM Unfiled',
+                label: '未建档',
+                icon: 'i-lucide-user-round-plus',
+                activeOn: ['conversation_through_crm_unfiled'],
+                to: accountScopedRoute('conversation_crm_unfiled'),
+              },
+            ],
           },
           {
             name: 'Folders',
@@ -651,20 +684,8 @@ const menuItems = computed(() => {
             showTreeLine: true,
             children: channelChildren.value,
           },
-          // 与「频道」平级的独立 WhatsApp 分组(号多时可折叠,避免刷屏)。
-          ...(whatsappChildren.value.length
-            ? [
-                {
-                  name: 'WhatsAppChannels',
-                  label: `WhatsApp (${whatsappChildren.value.length})`,
-                  icon: 'i-ri-whatsapp-fill',
-                  activeOn: ['conversation_through_inbox'],
-                  collapsible: true,
-                  showTreeLine: true,
-                  children: whatsappChildren.value,
-                },
-              ]
-            : []),
+          // 与「频道」平级的独立 WhatsApp 条目(见 whatsappMenuItems)。
+          ...whatsappMenuItems.value,
           {
             name: 'CrmSource',
             label: '客户来源',

@@ -26,10 +26,10 @@ watch(
   <!-- transform-gpu 建立 fixed 定位的包含块 = 内容区（侧边栏之外）：
        放大态写信窗在内容区居中（不跑偏、不遮罩侧边栏），小窗停靠内容区右下。 -->
   <div class="relative w-full h-full transform-gpu">
-    <!-- 手机端底部留出悬浮钮(AI 助手/侧栏入口)的高度，避免分页条/输入框等底部控件被压住点不到。
-         padding 加在这层而非外层：外层是 fixed 的包含块，改它会让悬浮钮跟着上移。
-         「白框铺满到底」的概览/看板页各自用 max-md:min-h + -mb-24 逐页处理（无底部控件才用）。 -->
-    <div class="w-full h-full max-md:pb-24">
+    <!-- 手机端不再整体留出 96px 悬浮钮高度：那样每个页面的白框都提前结束，底下一条死灰带
+         （41 个页面都短了一截）。改为页面占满，谁有底部控件谁自己让开左下角侧栏 ☰（max-md:pl-16）。
+         右下角 AI 球可拖动，不作为布局约束。 -->
+    <div class="w-full h-full">
       <router-view />
     </div>
     <CrmEmailComposeDialog

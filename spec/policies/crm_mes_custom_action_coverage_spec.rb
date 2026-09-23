@@ -31,24 +31,37 @@ RSpec.describe 'CRM/MES custom action Pundit policy coverage' do
   # check_authorization via only:/except:. Empty today.
   SKIP_ACTIONS = [].freeze
 
-  # Read a controller's check_authorization source and return the policy class it
-  # authorizes against (honouring an explicit `policy_class:`), or nil for
-  # manual-guard controllers that never call `authorize(...)`.
+  # Read a controller's check_authorization source and return
+  # `[policy_class, forced_query]`, or nil for manual-guard controllers that
+  # never call `authorize(...)`.
+  #
+  # forced_query is the second argument of `authorize` when the controller passes
+  # one (`authorize(Mes::ProductionOrder, :index?)`). Pundit then calls THAT query
+  # and never looks at the action name, so such a controller needs exactly one
+  # policy method no matter how many custom actions it routes.
   def self.policy_for(controller_class)
+    src = check_authorization_source(controller_class)
+    return nil if src.nil?
+
+    call = src.match(/authorize\(\s*([A-Za-z0-9_:]+)\s*(?:,\s*:([a-z0-9_]+)\??)?/)
+    explicit = src.match(/policy_class:\s*([A-Za-z0-9_:]+)/)
+    return nil if explicit.nil? && call.nil?
+
+    policy = (explicit ? explicit[1] : "#{call[1]}Policy").constantize
+    [policy, call && call[2]]
+  rescue StandardError
+    nil
+  end
+
+  # check_authorization 方法体的源码片段（定义行起 9 行）；控制器没定义它则 nil。
+  def self.check_authorization_source(controller_class)
     return nil unless controller_class.method_defined?(:check_authorization) ||
                       controller_class.private_method_defined?(:check_authorization)
 
     file, line = controller_class.instance_method(:check_authorization).source_location
     return nil unless file
 
-    src = File.readlines(file)[(line - 1)..(line + 8)].to_a.join
-    if (m = src.match(/policy_class:\s*([A-Za-z0-9_:]+)/))
-      m[1].constantize
-    elsif (m = src.match(/authorize\(\s*([A-Za-z0-9_:]+)/))
-      "#{m[1]}Policy".constantize
-    end
-  rescue StandardError
-    nil
+    File.readlines(file)[(line - 1)..(line + 8)].to_a.join
   end
 
   routes = Rails.application.routes.routes.filter_map do |route|
@@ -65,13 +78,16 @@ RSpec.describe 'CRM/MES custom action Pundit policy coverage' do
 
     it "#{controller_path}##{action} has a matching policy method" do
       controller_class = "#{controller_path.camelize}Controller".constantize
-      policy = self.class.policy_for(controller_class)
+      resolved = self.class.policy_for(controller_class)
 
-      skip 'manual-guard controller (no Pundit authorize)' if policy.nil?
+      skip 'manual-guard controller (no Pundit authorize)' if resolved.nil?
 
-      expect(policy.method_defined?(:"#{action}?")).to be(true),
-                                                        "#{policy}##{action}? is missing → " \
-                                                        'Pundit::NotDefinedError → HTTP 500 at runtime'
+      policy, forced_query = resolved
+      query = forced_query || action
+
+      expect(policy.method_defined?(:"#{query}?")).to be(true),
+                                                      "#{policy}##{query}? is missing → " \
+                                                      'Pundit::NotDefinedError → HTTP 500 at runtime'
     end
   end
 end

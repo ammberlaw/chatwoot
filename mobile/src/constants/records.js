@@ -3,7 +3,7 @@
 import {
   OPPORTUNITY_STAGE_LABELS,
   ORDER_STATUS_LABELS,
-  COUNTRY_LABELS,
+  countryLabel,
 } from './crm';
 import { money, shortDate } from '@/utils/format';
 
@@ -16,13 +16,15 @@ export const QUOTE_STATUS_LABELS = {
 
 export const PI_STATUS_LABELS = { DRAFT: '草稿', PAID: '已付款', VOID: '已作废' };
 
-// 状态底色统一在这里定，四个页面共用一套观感
+// 状态底色统一在这里定，四个页面共用一套观感。
+// 收进黑白灰黄：进行中＝灰、要处理＝淡黄、达成＝黑（终态用最强的色）。
+// 只留一个克制的红给「终态负面」（输单/作废）——那是真信息，不是装饰。
 const TONE = {
-  neutral: 'bg-n-alpha-1 text-n-slate-11',
-  info: 'bg-n-iris-3 text-n-iris-11',
-  good: 'bg-n-teal-3 text-n-teal-11',
-  warn: 'bg-n-amber-3 text-n-amber-11',
-  bad: 'bg-n-ruby-3 text-n-ruby-11',
+  neutral: 'bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)]',
+  info: 'bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)]',
+  good: 'bg-[color:var(--pb-ink)] text-[color:var(--pb-on-ink)]',
+  warn: 'bg-[color:var(--pb-brand-soft)] text-[color:var(--pb-ink)]',
+  bad: 'bg-[#C4383C]/10 text-[#C4383C]',
 };
 
 export const RECORDS = {
@@ -86,7 +88,7 @@ export const RECORDS = {
       { label: '订单名', value: r.name },
       { label: 'PI 号', value: r.pi_no },
       { label: '客户', value: r.customer_name },
-      { label: '国家', value: COUNTRY_LABELS[r.customer_country] || r.customer_country },
+      { label: '国家', value: countryLabel(r.customer_country) },
       { label: '金额', value: money(r.order_amount_micros, r.order_currency) },
       { label: '运费', value: r.shipping_micros ? money(r.shipping_micros, r.order_currency) : '' },
       { label: '下单日期', value: r.order_date && shortDate(r.order_date) },

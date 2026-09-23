@@ -56,6 +56,11 @@ module Reauthorizable
   end
 
   def send_channel_reauthorization_email(disconnect_type)
+    # 收件箱已被删除时 inbox 是 nil，而邮件模板要用 inbox_url(inbox)，
+    # 会直接抛 NoMethodError 并把任务打进死信（生产上真发生过一次）。
+    # 收件箱都没了也就没什么可通知的，不如根本别入队。
+    return if inbox.blank?
+
     AdministratorNotifications::ChannelNotificationsMailer.with(account: account).public_send(disconnect_type, inbox).deliver_later
   end
 

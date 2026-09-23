@@ -2,28 +2,30 @@
 #
 # Table name: crm_attendance_records
 #
-#  id             :bigint           not null, primary key
-#  clock_in_at    :datetime
-#  clock_in_ip    :string
-#  clock_in_lat   :decimal(10, 7)
-#  clock_in_lng   :decimal(10, 7)
-#  clock_out_at   :datetime
-#  clock_out_ip   :string
-#  clock_out_lat  :decimal(10, 7)
-#  clock_out_lng  :decimal(10, 7)
-#  field          :boolean          default(FALSE), not null
-#  note           :string
-#  source         :string           default("clock"), not null
-#  status         :string           default("NORMAL"), not null
-#  work_date      :date             not null
-#  created_at     :datetime         not null
-#  updated_at     :datetime         not null
-#  account_id     :bigint           not null
-#  adjusted_by_id :bigint
-#  user_id        :bigint           not null
+#  id                  :bigint           not null, primary key
+#  clock_in_at         :datetime
+#  clock_in_ip         :string
+#  clock_in_lat        :decimal(10, 7)
+#  clock_in_lng        :decimal(10, 7)
+#  clock_out_at        :datetime
+#  clock_out_ip        :string
+#  clock_out_lat       :decimal(10, 7)
+#  clock_out_lng       :decimal(10, 7)
+#  field               :boolean          default(FALSE), not null
+#  note                :string
+#  source              :string           default("clock"), not null
+#  status              :string           default("NORMAL"), not null
+#  work_date           :date             not null
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#  account_id          :bigint           not null
+#  adjusted_by_id      :bigint
+#  approval_request_id :bigint
+#  user_id             :bigint           not null
 #
 # Indexes
 #
+#  idx_attendance_by_approval                                (account_id,approval_request_id)
 #  idx_crm_attendance_on_user_date                           (account_id,user_id,work_date) UNIQUE
 #  index_crm_attendance_records_on_account_id_and_work_date  (account_id,work_date)
 #

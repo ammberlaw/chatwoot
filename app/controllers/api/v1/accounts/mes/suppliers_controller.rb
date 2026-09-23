@@ -5,7 +5,7 @@ class Api::V1::Accounts::Mes::SuppliersController < Api::V1::Accounts::Mes::Base
   def index
     scope = filtered_scope
     @suppliers_count = scope.count
-    @suppliers = scope.order(created_at: :desc).page(page_param).per(per_page_param)
+    @suppliers = scope.order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
