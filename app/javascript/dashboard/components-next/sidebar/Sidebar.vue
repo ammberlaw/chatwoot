@@ -71,6 +71,11 @@ const accountId = useMapGetter('getCurrentAccountId');
 const currentUserId = useMapGetter('getCurrentUserID');
 const currentUser = useMapGetter('getCurrentUser');
 // 非 CRM 人员隐藏 CRM 销售数据分组（工作台/文档中心/HR/OA/协同等共享模块保留）。
+const isCrmFinanceOnly = computed(
+  () =>
+    currentUser.value?.can_access_crm === false &&
+    currentUser.value?.crm_finance === true
+);
 const canAccessCrm = computed(
   () => currentUser.value?.can_access_crm !== false
 );
@@ -147,6 +152,9 @@ const CRM_DATA_MODULES = [
   'CRM Mail Center',
   'CRM Knowledge',
 ];
+// 「纯财务」（有 crm_finance、没有 crm_role）对账要看单，但客户资源/邮件/报价不该给。
+// 只放行销售流程分组下的这两项，且后端是只读的（block_crm_finance_writes!）。
+const FINANCE_ONLY_CRM_ITEMS = ['CRM Sales Orders', 'CRM PIs'];
 const isFeatureEnabledonAccount = useMapGetter(
   'accounts/isFeatureEnabledonAccount'
 );
@@ -1985,9 +1993,23 @@ const menuItems = computed(() => {
       .filter(item => item.name !== 'Captain')
       // 外贸 CRM 定位下隐藏原生客服模块：联系人 / 报告 / 活动 / 帮助中心。
       .filter(item => !HIDDEN_NATIVE_MODULES.includes(item.name))
-      // 非 CRM 人员隐藏 CRM 销售数据分组。
+      // 非 CRM 人员隐藏 CRM 销售数据分组；纯财务例外，只留销售流程分组。
       .filter(
-        item => canAccessCrm.value || !CRM_DATA_MODULES.includes(item.name)
+        item =>
+          canAccessCrm.value ||
+          !CRM_DATA_MODULES.includes(item.name) ||
+          (isCrmFinanceOnly.value && item.name === 'CRM Sales Flow')
+      )
+      // 纯财务的销售流程分组里只留销售订单 / PI，其余（商机、价目表、报价…）不给。
+      .map(item =>
+        isCrmFinanceOnly.value && item.name === 'CRM Sales Flow'
+          ? {
+              ...item,
+              children: (item.children || []).filter(child =>
+                FINANCE_ONLY_CRM_ITEMS.includes(child.name)
+              ),
+            }
+          : item
       )
       // ERP 财务板块仅财务角色/管理员可见。
       .filter(item => item.name !== 'Finance ERP' || canAccessErp.value)

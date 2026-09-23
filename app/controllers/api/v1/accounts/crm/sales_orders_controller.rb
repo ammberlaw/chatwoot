@@ -1,4 +1,10 @@
 class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::BaseController
+  # 财务（crm_finance）没有 crm_role，会被 CRM 总门禁拦掉，但对账必须看得到销售订单。
+  # 与提成表同款：跳过总门禁，本控制器自己把关——财务只读、看全员。
+  skip_before_action :ensure_crm_access
+  before_action :ensure_crm_or_finance!
+  before_action :block_crm_finance_writes!,
+                except: [:index, :show, :audits, :convert_preview, :receivable_progress, :production_trace]
   before_action :check_authorization
   before_action :fetch_sales_order,
                 only: [:show, :update, :destroy, :attach, :detach, :audits, :convert_preview, :receivable_progress,
@@ -196,7 +202,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   # 销售订单按 CRM 团队收口：业务员看本人，CRM 团队负责人看本团队，管理员/副管理员看全部。
   # 刻意用 CRM 团队（scope_by_team_owner）而非组织部门——与客户/商机的部门口径不同。
   def visible_sales_orders
-    scope_docs_visible(Current.account.crm_sales_orders, team: true)
+    scope_docs_for_finance_or(Current.account.crm_sales_orders, team: true)
   end
 
   # 按下单月份筛选（month 形如 2026-07）；格式非法则忽略。

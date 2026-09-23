@@ -1,4 +1,8 @@
 class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseController
+  # 同销售订单：财务对账要看 PI，跳过 CRM 总门禁，只读 + 看全员。
+  skip_before_action :ensure_crm_access
+  before_action :ensure_crm_or_finance!
+  before_action :block_crm_finance_writes!, except: [:index, :show, :summary, :xlsx]
   before_action :check_authorization
   before_action :fetch_pi, only: [:show, :update, :destroy, :xlsx]
 
@@ -19,7 +23,7 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   # KPI 汇总：按状态给出全量张数 + 各币种金额合计（不受状态 tab / 搜索约束，
   # 只受可见范围收口，供页顶 KPI 卡与状态 tab 计数使用）。
   def summary
-    scope = scope_docs_visible(Current.account.crm_pis)
+    scope = scope_docs_for_finance_or(Current.account.crm_pis)
     scope = scope_docs_mine(scope) if params[:filter] == 'mine'
 
     counts = scope.group(:status).count
@@ -111,7 +115,7 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
 
   # 按 id 直取也必须走可见范围收口（与 index 一致），否则任意成员可越权读改他人 PI。
   def fetch_pi
-    @pi = scope_docs_visible(Current.account.crm_pis).find(params[:id])
+    @pi = scope_docs_for_finance_or(Current.account.crm_pis).find(params[:id])
   end
 
   # 本页 PI 里已经转出销售订单的那些单号。列表据此给「已付款却没订单」的 PI 打红标：
@@ -165,7 +169,7 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   end
 
   def filtered_pis
-    scope = scope_docs_visible(Current.account.crm_pis)
+    scope = scope_docs_for_finance_or(Current.account.crm_pis)
     scope = scope_docs_mine(scope) if params[:filter] == 'mine'
     scope = scope.owned_by(params[:owner_id]) if params[:owner_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?

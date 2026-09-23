@@ -12,6 +12,35 @@ class Api::V1::Accounts::Crm::BaseController < Api::V1::Accounts::BaseController
     render json: { error: I18n.t('errors.crm.no_access', default: '无权访问 CRM') }, status: :forbidden
   end
 
+  # 「纯财务」：有 crm_finance 标记、但没有 crm_role，所以过不了 CRM 总门禁。
+  # 销售订单与 PI 是财务对账的刚需，单独放行给他们；客户资源/邮件/报价仍然挡着。
+  def crm_finance_only?
+    au = Current.account_user
+    au.present? && au.crm_finance? && !au.can_access_crm?
+  end
+
+  # 销售订单/PI 用：CRM 成员照旧，纯财务也放进来。
+  def ensure_crm_or_finance!
+    return if Current.account_user&.can_access_crm? || crm_finance_only?
+
+    render json: { error: I18n.t('errors.crm.no_access', default: '无权访问 CRM') }, status: :forbidden
+  end
+
+  # 财务是只读的。用 except: 列读操作而不是 only: 列写操作——将来新增 action
+  # 默认被挡住，而不是默认放行（漏一个就是越权）。
+  def block_crm_finance_writes!
+    return unless crm_finance_only?
+
+    render json: { error: '财务为只读权限，不能新增或修改' }, status: :forbidden
+  end
+
+  # 财务对账要看全公司，按业务员收敛没有意义；其余人照旧按归属收敛。
+  def scope_docs_for_finance_or(relation, team: false)
+    return relation if crm_finance_only?
+
+    scope_docs_visible(relation, team: team)
+  end
+
   # 团队沟通「系统通知」：CRM 各审批节点自动提醒成员/主管，以「系统通知」名义发单聊。
   # 失败在 NotifyService 内部兜住、只记日志，不阻断主业务流程。
   def crm_notify(target_id, content)
