@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useKbd } from 'dashboard/composables/utils/useKbd';
 import { useMapGetter } from 'dashboard/composables/store';
+import { useCrmFinanceOnly } from 'dashboard/composables/useCrmFinanceOnly';
 import { useStore } from 'vuex';
 import { useI18n } from 'vue-i18n';
 import { useSidebarKeyboardShortcuts } from './useSidebarKeyboardShortcuts';
@@ -71,11 +72,6 @@ const accountId = useMapGetter('getCurrentAccountId');
 const currentUserId = useMapGetter('getCurrentUserID');
 const currentUser = useMapGetter('getCurrentUser');
 // 非 CRM 人员隐藏 CRM 销售数据分组（工作台/文档中心/HR/OA/协同等共享模块保留）。
-const isCrmFinanceOnly = computed(
-  () =>
-    currentUser.value?.can_access_crm === false &&
-    currentUser.value?.crm_finance === true
-);
 const canAccessCrm = computed(
   () => currentUser.value?.can_access_crm !== false
 );
@@ -145,6 +141,8 @@ const fetchDocSections = async () => {
     docSections.value = [];
   }
 };
+const { isCrmFinanceOnly } = useCrmFinanceOnly();
+
 const CRM_DATA_MODULES = [
   'CRM Dashboards',
   'CRM Customers Group',

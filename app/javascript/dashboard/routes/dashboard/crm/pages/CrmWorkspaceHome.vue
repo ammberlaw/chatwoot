@@ -3,6 +3,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
+import { useCrmFinanceOnly } from 'dashboard/composables/useCrmFinanceOnly';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useAlert } from 'dashboard/composables';
 import Auth from 'dashboard/api/auth';
@@ -45,11 +46,7 @@ const canAccessCrm = computed(
 );
 // 纯财务（有 crm_finance、无 crm_role）：CRM 主体不开，但销售订单/PI 只读放行。
 // 卡片要能点，且落到销售订单——CRM 看板他们进不去，点了会被路由弹回来。
-const isCrmFinanceOnly = computed(
-  () =>
-    currentUser.value?.can_access_crm === false &&
-    currentUser.value?.crm_finance === true
-);
+const { isCrmFinanceOnly } = useCrmFinanceOnly();
 const canOpenCrmCard = computed(
   () => canAccessCrm.value || isCrmFinanceOnly.value
 );

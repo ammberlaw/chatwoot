@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
+import { useCrmFinanceOnly } from 'dashboard/composables/useCrmFinanceOnly';
 import { useAccount } from 'dashboard/composables/useAccount';
 import PisAPI from 'dashboard/api/crm/pis';
 
@@ -260,6 +261,8 @@ const onPageChange = page => {
 };
 
 const openCreate = () => formRef.value?.open();
+// 财务只读：写操作后端会 403，按钮直接不给。
+const { isCrmFinanceOnly } = useCrmFinanceOnly();
 const openEdit = record => formRef.value?.open(record);
 const openSellerProfile = () => sellerProfileRef.value?.open();
 const onSaved = () => {
@@ -371,6 +374,7 @@ onMounted(() => {
           {{ t('CRM.PI.SELLER_PROFILE.BUTTON') }}
         </button>
         <button
+          v-if="!isCrmFinanceOnly"
           type="button"
           class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium text-white rounded-[9px] bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-lg shadow-n-iris-9/30 hover:brightness-105"
           @click="openCreate"
@@ -499,7 +503,7 @@ onMounted(() => {
           v-for="record in records"
           :key="record.id"
           class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
-          @click="openEdit(record)"
+          @click="!isCrmFinanceOnly && openEdit(record)"
         >
           <div class="flex items-center gap-2">
             <span class="font-mono font-semibold text-n-slate-12 truncate">
@@ -726,6 +730,7 @@ onMounted(() => {
                   />
                 </button>
                 <button
+                  v-if="!isCrmFinanceOnly"
                   type="button"
                   class="hover:text-n-iris-11"
                   :title="t('CRM.PI.ACTION.EDIT')"
@@ -734,6 +739,7 @@ onMounted(() => {
                   <span class="i-lucide-pencil size-4" />
                 </button>
                 <button
+                  v-if="!isCrmFinanceOnly"
                   type="button"
                   class="hover:text-n-ruby-11"
                   :title="t('CRM.PI.ACTION.DELETE')"

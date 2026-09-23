@@ -4,6 +4,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import { useCrmFinanceOnly } from 'dashboard/composables/useCrmFinanceOnly';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
@@ -36,6 +37,8 @@ const convertDialogRef = ref(null);
 // 一键转单：明细/客户都从订单带过去，业务员不用去 MES 再敲一遍。
 const openConvert = order => convertDialogRef.value?.open(order);
 const { isCrmSales, isCrmTeamLead } = useCrmRole();
+// 财务只读：写操作后端会 403，按钮直接不给，免得点了才报错。
+const { isCrmFinanceOnly } = useCrmFinanceOnly();
 // 删除：负责人本人可删自己的单；管理员/副管可删任意 + 用回收箱。
 const currentUser = useMapGetter('getCurrentUser');
 const isAdmin = computed(
@@ -47,7 +50,11 @@ const canDeleteSelected = computed(
   () => isAdmin.value || selectedOrder.value?.ownerId === currentUser.value?.id
 );
 // 能看「本人以外」的订单：管理员/副管理员/部门主管，或 CRM 团队负责人（订单按 CRM 团队收口）。
-const canViewTeam = computed(() => !isCrmSales.value || isCrmTeamLead.value);
+// 财务要算进「能看全部」：isCrmSales 的口径是「非管理员/副管/主管」，财务也落在里面，
+// 不特判的话会被当成纯业务员锁在「我的」视图——而财务名下 0 张单，列表就是空的。
+const canViewTeam = computed(
+  () => !isCrmSales.value || isCrmTeamLead.value || isCrmFinanceOnly.value
+);
 // 纯业务员只看个人订单：无「全部」视图，默认落在「我的」（未关联客户视图保留）。
 const normalizeFilter = value =>
   !canViewTeam.value && (!value || value === 'all') ? 'mine' : value || 'all';
@@ -575,6 +582,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
             回收箱
           </button>
           <button
+            v-if="!isCrmFinanceOnly"
             type="button"
             class="inline-flex items-center gap-1.5 h-[34px] px-3.5 text-[13px] font-medium text-white rounded-[9px] bg-gradient-to-br from-n-iris-9 to-n-accent-grad shadow-lg shadow-n-iris-9/30 hover:brightness-105"
             @click="openCreateDialog"
@@ -948,6 +956,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
           </div>
         </div>
         <Button
+          v-if="!isCrmFinanceOnly"
           label="转单"
           icon="i-lucide-arrow-right-left"
           size="sm"
@@ -956,6 +965,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
           @click="openConvert(selectedOrder)"
         />
         <Button
+          v-if="!isCrmFinanceOnly"
           :label="t('CRM.SALES_ORDERS.EDIT.TITLE')"
           icon="i-lucide-pencil"
           size="sm"
@@ -964,7 +974,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
           @click="openEditDialog(selectedOrder)"
         />
         <Button
-          v-if="canDeleteSelected"
+          v-if="canDeleteSelected && !isCrmFinanceOnly"
           label="删除"
           icon="i-lucide-trash-2"
           size="sm"
