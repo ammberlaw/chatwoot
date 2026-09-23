@@ -13,7 +13,12 @@
 set -euo pipefail
 
 # ── 可用环境变量覆盖 ──
-REPO_DIR="${REPO_DIR:-/Users/amberlaw/acrm-migration/chatwoot}"
+# 默认部署「脚本自身所在的那棵树」，在哪个 worktree 里执行就推哪棵。
+#
+# 原来这里写死成某一棵固定的树，导致无论在哪个目录执行、脚本都 cd 回那一棵——
+# 2026-09-22 因此连续两次把一棵落后 237 个提交的旧树推上生产（rsync --delete
+# 会整体覆盖，ERP/MES 整条线差点从线上消失）。默认值必须跟执行位置一致。
+REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 SSH_KEY="${SSH_KEY:-$HOME/Desktop/CRM.pem}"
 SERVER="${SERVER:-ubuntu@43.136.84.15}"
 REMOTE_DIR="${REMOTE_DIR:-wintouch-crm}"      # 服务器 ~/wintouch-crm
