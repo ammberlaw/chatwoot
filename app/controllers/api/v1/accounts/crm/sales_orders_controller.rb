@@ -42,7 +42,10 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     )
     # 先挂附件再存：附件必填的校验在 create 时跑，挂在保存之后会被判「没有附件」。
     copy_source_attachment(source_attachment)
+    return unless ensure_line_items_have_products!
+
     @sales_order.save!
+    remember_product_choices(@sales_order.line_items)
   end
 
   def update
@@ -137,6 +140,35 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   end
 
   private
+
+  # 明细必须选产品——只卡这个手工建单接口。
+  #
+  # **不能做成模型校验**：PI 付款会自动生成销售订单（Crm::PiToSalesOrder），
+  # 而 pis_controller 那边外层是 `rescue StandardError` 只记日志。模型层一拦，
+  # 那条路会静默失败——订单直接不见，没人收到报错。
+  # 编辑也不卡（「只卡新建」），否则业务员改个交期都要被迫先补齐历史明细。
+  def ensure_line_items_have_products!
+    missing = Array(@sales_order.line_items).each_with_index.reject do |item, _|
+      item['crm_product_id'].present? || item[:crm_product_id].present?
+    end
+    return true if missing.empty?
+
+    rows = missing.map { |_, index| index + 1 }.join('、')
+    render json: { error: "第 #{rows} 行还没选产品，请在明细里关联产品档案（没有的话可在选择框里直接新建，不用离开这张单）。" },
+           status: :unprocessable_entity
+    false
+  end
+
+  # 记住「这段客户叫法 → 这个产品」，下次同样文字自动带出。
+  # 失败不影响建单：记忆是锦上添花，不该因为它让单建不成。
+  def remember_product_choices(items)
+    Array(items).each do |item|
+      Crm::ProductAlias.remember!(account: Current.account, text: item['name'],
+                                  product_id: item['crm_product_id'])
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[产品记忆] 写入失败：#{e.class} #{e.message}")
+  end
 
   # 单条订单也按可见范围收口：业务员只能取本人订单，主管取本团队，管理员取全部。
   # 否则列表虽已隐藏，仍可凭 id 直接 show/update/destroy/attach 越权访问他人订单。
@@ -250,6 +282,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
       :status, :order_kind, :order_date, :delivery_date, :order_currency, :exchange_rate,
       :order_amount_micros, :shipping_micros, :cost_amount_micros, :profit_amount_micros, :profit_rate, :remark,
       :line_items_json,
+      :payment_term,
       :source_attachment_id,
       files: []
     )
@@ -293,6 +326,9 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
       next if name.blank?
 
       {
+        # 产品档案关联：name 留着客户叫法（PI 上给客户看的还是那串英文），
+        # 真正的产品身份靠这个 id——转单/成本归集/毛利都认它。
+        'crm_product_id' => item['crm_product_id'].presence&.to_i,
         'name' => name,
         'spec' => item['spec'].to_s.strip,
         'quantity' => item['quantity'],
