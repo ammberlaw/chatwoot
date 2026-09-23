@@ -79,7 +79,7 @@ onMounted(load);
         <div class="px-4 pb-3">
           <div class="relative">
             <span
-              class="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 size-4 text-n-slate-10 i-lucide-search"
+              class="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 size-4 text-[color:var(--pb-ink-3)] i-lucide-search"
             />
             <input
               v-model="keyword"
@@ -101,11 +101,11 @@ onMounted(load);
         empty-text="核价表不存在或无权查看"
         @retry="load"
       >
-        <div v-if="list.header_note" class="p-3 text-xs leading-relaxed whitespace-pre-line wt-card text-n-slate-11">
+        <div v-if="list.header_note" class="p-3 text-xs leading-relaxed whitespace-pre-line wt-card text-[color:var(--pb-ink-2)]">
           {{ list.header_note }}
         </div>
 
-        <p v-if="!rows.length" class="py-10 text-sm text-center text-n-slate-11">
+        <p v-if="!rows.length" class="py-10 text-sm text-center text-[color:var(--pb-ink-2)]">
           没有匹配的行
         </p>
         <ul v-else class="flex flex-col gap-2 mt-3">
@@ -115,22 +115,22 @@ onMounted(load);
                 v-if="r.image"
                 :src="r.image"
                 alt=""
-                class="flex-none object-cover rounded-lg size-14 bg-n-alpha-1"
+                class="flex-none object-cover rounded-lg size-14 bg-[color:var(--pb-fill)]"
               />
               <div class="flex-1 min-w-0">
-                <div class="text-sm font-semibold break-words text-n-slate-12">{{ r.title }}</div>
+                <div class="text-sm font-semibold break-words text-[color:var(--pb-ink)]">{{ r.title }}</div>
                 <dl class="mt-1.5 flex flex-col gap-1">
                   <div v-for="v in r.rest" :key="v.label" class="flex items-start gap-2">
-                    <dt class="flex-none text-xs w-24 text-n-slate-10">{{ v.label }}</dt>
+                    <dt class="flex-none text-xs w-24 text-[color:var(--pb-ink-3)]">{{ v.label }}</dt>
                     <dd
                       class="flex-1 text-xs break-words"
-                      :class="v.isPrice ? 'font-medium text-n-slate-12' : 'text-n-slate-11'"
+                      :class="v.isPrice ? 'font-medium text-[color:var(--pb-ink)]' : 'text-[color:var(--pb-ink-2)]'"
                     >
                       {{ v.value }}
                     </dd>
                   </div>
                 </dl>
-                <p v-if="r.remark" class="mt-1.5 text-xs text-n-slate-10">{{ r.remark }}</p>
+                <p v-if="r.remark" class="mt-1.5 text-xs text-[color:var(--pb-ink-3)]">{{ r.remark }}</p>
               </div>
             </div>
           </li>
@@ -138,7 +138,7 @@ onMounted(load);
 
         <div
           v-if="list.rules_note"
-          class="p-3 mt-3 text-xs leading-relaxed whitespace-pre-line wt-card text-n-slate-11"
+          class="p-3 mt-3 text-xs leading-relaxed whitespace-pre-line wt-card text-[color:var(--pb-ink-2)]"
         >
           {{ list.rules_note }}
         </div>

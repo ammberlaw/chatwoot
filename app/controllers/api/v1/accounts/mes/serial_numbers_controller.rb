@@ -6,7 +6,7 @@ class Api::V1::Accounts::Mes::SerialNumbersController < Api::V1::Accounts::Mes::
     scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?
     scope = scope.where('sn ILIKE ?', "%#{params[:q].strip}%") if params[:q].present?
     @serial_numbers_count = scope.count
-    @serial_numbers = scope.order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @serial_numbers = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
 
   # 按工单登记 SN：给定 sns 明细则逐条建，否则按 count 生成「工单号-序号」。

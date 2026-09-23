@@ -25,16 +25,16 @@ const staleLabel = computed(() =>
 </script>
 
 <template>
-  <p v-if="loading" class="py-10 text-sm text-center text-n-slate-11">加载中…</p>
+  <p v-if="loading" class="py-10 text-sm text-center text-[color:var(--pb-ink-2)]">加载中…</p>
 
   <div
     v-else-if="failed"
-    class="p-5 text-center border rounded-2xl border-n-weak bg-n-solid-1"
+    class="p-5 text-center border rounded-2xl border-[color:var(--pb-sep)] bg-[color:var(--pb-card)]"
   >
-    <p class="text-sm text-n-slate-11">加载失败</p>
+    <p class="text-sm text-[color:var(--pb-ink-2)]">加载失败</p>
     <button
       type="button"
-      class="px-4 mt-3 text-sm font-medium rounded-lg h-11 text-n-iris-11 bg-n-iris-3"
+      class="px-4 mt-3 text-sm font-medium rounded-lg h-11 text-[color:var(--pb-accent)] bg-[color:var(--pb-fill)] active:bg-[color:var(--pb-fill)]"
       @click="$emit('retry')"
     >
       重试
@@ -42,12 +42,15 @@ const staleLabel = computed(() =>
   </div>
 
   <template v-else>
-    <p v-if="staleAt" class="mb-2 text-xs text-n-slate-10">
+    <p v-if="staleAt" class="mb-2 text-xs text-[color:var(--pb-ink-3)]">
       离线，显示 {{ staleLabel }} 的数据
     </p>
-    <p v-if="empty" class="py-10 text-sm text-center text-n-slate-11">
-      {{ emptyText }}
-    </p>
+    <template v-if="empty">
+      <!-- 想要插画空态的页面传 #empty；不传就退回一行灰字 -->
+      <slot name="empty">
+        <p class="py-10 text-sm text-center text-[color:var(--pb-ink-2)]">{{ emptyText }}</p>
+      </slot>
+    </template>
     <slot v-else />
   </template>
 </template>

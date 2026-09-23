@@ -35,11 +35,10 @@ const pct = (actual, target) => {
   return (a / t) * 100;
 };
 const barClass = p => {
-  if (p == null) return 'bg-n-slate-6';
-  if (p >= 100) return 'bg-n-teal-9';
-  if (p >= 60) return 'bg-n-blue-9';
-  if (p >= 30) return 'bg-n-iris-9';
-  return 'bg-n-ruby-9';
+  if (p == null) return 'bg-[color:var(--pb-fill)]';
+  // 只分两态：达标高亮成品牌黄，其余一律黑。
+  // 百分比数字已经把「差多少」说清楚了，条子的职责是长度不是色相。
+  return p >= 100 ? 'bg-[color:var(--pb-brand)]' : 'bg-[color:var(--pb-ink)]';
 };
 const barWidth = p => `${Math.min(100, Math.max(2, p ?? 0))}%`;
 const fmtPct = p => (p == null ? '—' : `${Math.round(p)}%`);
@@ -76,7 +75,7 @@ onMounted(load);
         <button
           type="button"
           aria-label="上个月"
-          class="grid rounded-full size-9 place-items-center text-n-slate-11 active:bg-n-alpha-1"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-ink-2)] active:bg-[color:var(--pb-fill)]"
           @click="shiftMonth(-1)"
         >
           <span class="size-5 i-lucide-chevron-left" />
@@ -84,7 +83,7 @@ onMounted(load);
         <button
           type="button"
           aria-label="下个月"
-          class="grid rounded-full size-9 place-items-center text-n-slate-11 active:bg-n-alpha-1"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-ink-2)] active:bg-[color:var(--pb-fill)]"
           @click="shiftMonth(1)"
         >
           <span class="size-5 i-lucide-chevron-right" />
@@ -104,19 +103,19 @@ onMounted(load);
         <template v-for="t in totals" :key="t.id">
           <div class="p-4 mt-3 first:mt-0 wt-card">
             <div class="flex items-baseline justify-between">
-              <span class="text-sm font-semibold text-n-slate-12">{{ t.name }}</span>
-              <span class="text-sm font-semibold text-n-slate-12">
+              <span class="text-sm font-semibold text-[color:var(--pb-ink)]">{{ t.name }}</span>
+              <span class="text-sm font-semibold text-[color:var(--pb-ink)]">
                 {{ fmtPct(pct(t.actual, t.target)) }}
               </span>
             </div>
-            <div class="h-2 mt-2 overflow-hidden rounded-full bg-n-alpha-1">
+            <div class="h-2 mt-2 overflow-hidden rounded-full bg-[color:var(--pb-fill)]">
               <div
                 class="h-full rounded-full"
                 :class="barClass(pct(t.actual, t.target))"
                 :style="{ width: barWidth(pct(t.actual, t.target)) }"
               />
             </div>
-            <p class="mt-2 text-xs text-n-slate-10">
+            <p class="mt-2 text-xs text-[color:var(--pb-ink-3)]">
               {{ money(t.actual) }} / {{ money(t.target) }} · 新成交 {{ t.newCustomers }} 家
             </p>
           </div>
@@ -125,15 +124,15 @@ onMounted(load);
             <li
               v-for="m in t.members"
               :key="m.id"
-              class="px-3 py-3 border-b last:border-b-0 border-n-weak"
+              class="px-3 py-3 border-b last:border-b-0 border-[color:var(--pb-sep)]"
             >
               <div class="flex items-baseline justify-between">
-                <span class="text-sm truncate text-n-slate-12">{{ m.name }}</span>
-                <span class="flex-none ml-2 text-xs text-n-slate-11">
+                <span class="text-sm truncate text-[color:var(--pb-ink)]">{{ m.name }}</span>
+                <span class="flex-none ml-2 text-xs text-[color:var(--pb-ink-2)]">
                   {{ fmtPct(pct(m.actual_amount_micros, m.target_amount_micros)) }}
                 </span>
               </div>
-              <div class="h-1.5 mt-1.5 overflow-hidden rounded-full bg-n-alpha-1">
+              <div class="h-1.5 mt-1.5 overflow-hidden rounded-full bg-[color:var(--pb-fill)]">
                 <div
                   class="h-full rounded-full"
                   :class="barClass(pct(m.actual_amount_micros, m.target_amount_micros))"
@@ -142,7 +141,7 @@ onMounted(load);
                   }"
                 />
               </div>
-              <p class="mt-1.5 text-xs text-n-slate-10">
+              <p class="mt-1.5 text-xs text-[color:var(--pb-ink-3)]">
                 {{ money(m.actual_amount_micros) }} / {{ money(m.target_amount_micros) }}
                 · 新成交 {{ m.actual_count }} 家
               </p>

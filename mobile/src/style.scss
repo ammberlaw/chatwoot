@@ -6,6 +6,64 @@
 @tailwind components;
 @tailwind utilities;
 
+// ── 设计 token（视觉规范给定的固定值，这里是唯一事实源）──
+// 下面 --pb-* 是页面里在用的语义名，全部指到这一组上：改色只改这一处。
+:root {
+  --page: #f5f5f7;
+  --surface: #ffffff;
+  --surface-soft: #f2f2f4;
+  --text: #111111;
+  --text-secondary: #8e8e93;
+  --text-tertiary: #aeaeb2;
+  --divider: rgb(60 60 67 / 0.12);
+  --black: #1c1c1e;
+  --yellow: #ffc63d;
+  --yellow-mark: #e0a200;
+  --tab-inactive: #6e6e73;
+
+  --pb-bg: var(--page);
+  --pb-card: var(--surface);
+  --pb-fill: var(--surface-soft);
+  --pb-ink: var(--text);
+  --pb-ink-2: var(--text-secondary);
+  --pb-ink-3: var(--text-tertiary);
+  --pb-sep: var(--divider);
+  --pb-accent: var(--black);
+  --pb-brand: var(--yellow);
+  --pb-brand-ink: var(--yellow-mark);
+  --pb-brand-soft: #fff8e6;
+  --pb-danger: #c4383c;
+  --pb-bar-rgb: 245 245 247;
+
+  --pb-on-ink: #ffffff;
+  --pb-on-ink-2: rgb(255 255 255 / 0.7);
+  --pb-on-ink-fill: rgb(255 255 255 / 0.15);
+  --pb-hero-ink: #ffffff;
+  --pb-hero-ink-2: rgb(255 255 255 / 0.62);
+  --pb-hero-line: rgb(255 255 255 / 0.14);
+  --pb-hero-well: rgb(255 255 255 / 0.16);
+  --pb-soft: var(--surface);
+  --pb-tab-off: var(--tab-inactive);
+}
+
+.dark {
+  --page: #000000;
+  --surface: #1c1c1e;
+  --surface-soft: #2c2c2e;
+  --text: #ffffff;
+  --text-secondary: #98989f;
+  --text-tertiary: #6e6e73;
+  --divider: rgb(235 235 245 / 0.16);
+  --black: #f2f2f4;
+  --tab-inactive: #8e8e93;
+  --pb-brand-soft: #3a2f10;
+  --pb-bar-rgb: 0 0 0;
+  --pb-on-ink: #111111;
+  --pb-on-ink-2: rgb(17 17 17 / 0.7);
+  --pb-on-ink-fill: rgb(17 17 17 / 0.15);
+}
+
+
 @layer base {
   html,
   body,
@@ -31,7 +89,13 @@
 // 表单控件与按钮统一高度/描边，保证同排控件对齐（不在各页面各写一套 class）。
 @layer components {
   .wt-field {
-    @apply w-full h-11 px-3 text-base border rounded-xl border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-10;
+    @apply w-full px-3 rounded-xl h-11 text-[17px];
+    background: var(--pb-card);
+    color: var(--pb-ink);
+    box-shadow: inset 0 0 0 0.5px var(--pb-sep);
+    &::placeholder {
+      color: var(--pb-ink-3);
+    }
   }
   select.wt-field {
     @apply pr-8 appearance-none bg-no-repeat;
@@ -41,33 +105,622 @@
   textarea.wt-field {
     @apply h-auto py-2.5 leading-relaxed;
   }
+  // 主按钮＝黑色实心（参考里的 Squash & Merge）。黑比任何彩色都更"决定性"，
+  // 而且这套配色里黄是用来填和标记的，不适合当大面积按钮底（黄底白字读不清）。
   .wt-btn {
-    @apply inline-flex items-center justify-center h-11 px-4 text-sm font-medium rounded-xl;
+    @apply inline-flex items-center justify-center h-12 px-5 text-[15px] font-semibold rounded-xl;
+    letter-spacing: -0.23px;
   }
   .wt-btn-primary {
-    @apply wt-btn text-white bg-n-iris-9 active:bg-n-iris-10 disabled:opacity-50;
+    @apply wt-btn text-white transition-opacity active:opacity-80 disabled:opacity-40;
+    background: var(--pb-ink);
+  }
+  .dark .wt-btn-primary {
+    color: #000;
   }
   .wt-btn-ghost {
-    @apply wt-btn text-n-iris-11 bg-n-iris-3 active:bg-n-iris-4 disabled:opacity-50;
+    @apply wt-btn transition-opacity active:opacity-70 disabled:opacity-40;
+    background: var(--pb-fill);
+    color: var(--pb-ink);
   }
   .wt-card {
-    @apply border rounded-2xl border-n-weak bg-n-solid-1;
+    @apply rounded-2xl;
+    background: var(--pb-card);
+    box-shadow: 0 8px 24px -18px rgb(24 24 40 / 0.35);
+  }
+  // 分段筛选 pill：七个页面共用同一套尺寸与按下反馈，别各写各的
+  .wt-pill {
+    @apply h-8 px-3 text-sm leading-none rounded-full transition-opacity active:opacity-60;
+  }
+  .wt-pill-off {
+    background: var(--pb-fill);
+    color: var(--pb-ink-2);
+  }
+  .wt-pill-on {
+    @apply font-semibold text-white;
+    background: var(--pb-ink);
+  }
+  .dark .wt-pill-on {
+    color: #000;
+  }
+  // 页头右上的圆形动作钮：纯白 + 一层明显投影，浮在浅灰底上。
+  // 参考稿里它是整屏最"立"的一个元素，灰底圆会糊进背景。
+  .wt-fab-round {
+    @apply grid flex-none rounded-full size-11 place-items-center;
+    background: var(--pb-card);
+    color: var(--pb-ink);
+    box-shadow: 0 8px 24px -18px rgb(24 24 40 / 0.35);
+  }
+
+  // 搜索条：全圆角 + 更淡的底（参考稿的形）
+  .wt-search {
+    @apply flex items-center w-full gap-2.5 px-4 rounded-full h-11;
+    background: rgb(var(--slate-3) / 0.85);
+  }
+
+  // 底栏：轻微半透明磨砂 + 顶部一道发丝线，不做成厚重浮卡
+  .wt-tabbar-blur {
+    background: rgb(var(--pb-bar-rgb) / 0.86);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 0.5px solid var(--divider);
+  }
+
+  // 纯文字型按钮：按下给个透明度反馈
+  .wt-link {
+    @apply transition-opacity active:opacity-50;
+  }
+  // 卡片/大块可点元素：按下立刻缩一点。反馈必须发生在「按下」那一刻，
+  // 等松手再响应就已经晚了，手感会塌。曲线用强 ease-out，不用默认的软曲线。
+  .wt-press {
+    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .wt-press:active {
+    transform: scale(0.97);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wt-press {
+      transition: none;
+    }
+    .wt-press:active {
+      transform: none;
+    }
+  }
+
+  // ── iOS 字阶（SF Pro）──
+  // 之前全篇 14/12px 是「像网页后台」最大的来源：iOS 正文是 17px，
+  // 而且字号越大字距越负。这里按 SF 的实际数值定，不自己拍。
+  .ios-large-title {
+    @apply text-[34px] font-bold leading-[41px];
+    letter-spacing: -0.4px;
+  }
+  .ios-title2 {
+    @apply text-[22px] font-bold leading-7;
+    letter-spacing: -0.26px;
+  }
+  .ios-headline {
+    @apply text-[17px] font-semibold leading-[22px];
+    letter-spacing: -0.43px;
+  }
+  .ios-body {
+    @apply text-[17px] leading-[22px];
+    letter-spacing: -0.43px;
+  }
+  .ios-subhead {
+    @apply text-[15px] leading-5;
+    letter-spacing: -0.23px;
+  }
+  .ios-footnote {
+    @apply text-[13px] leading-[18px];
+    letter-spacing: -0.08px;
+  }
+  .ios-caption {
+    @apply text-[12px] leading-4;
+  }
+
+  // ── inset grouped 列表 ──
+  // iOS 的列表是「连续一整块 + 内部细分隔线」，不是一堆带缝隙的独立卡片。
+  // 分隔线要缩进到标题文字的起点，所以画在行的内容区上而不是整行上。
+  // 默认实色；叠 .wt-glass 时由玻璃接管底色与描边
+  .ios-group {
+    @apply overflow-hidden bg-n-solid-1 rounded-2xl;
+  }
+  .ios-group.wt-glass {
+    @apply bg-n-solid-1;
+  }
+  .ios-group > :last-child .ios-sep {
+    @apply border-b-0;
+  }
+  .ios-sep {
+    @apply border-b border-n-weak;
+  }
+  // ── 板块色玻璃小片 ──
+  // 颜色对应板块（紫＝销售 / 琥珀＝数据 / 青＝办公 / 中性＝全部），不是给每个图标配色。
+  // 做成小玻璃而不是实色方块：跟卡片同一种材质，斜向反光 + 顶边内高光。
+  // 品牌黄的小面积用法：进度条、角标、选中记号
+  .brand-fill {
+    background-color: var(--pb-brand);
+  }
+  .brand-ink {
+    color: var(--pb-brand-ink);
+  }
+  // 淡黄底：黄最擅长的用法——托住一块区域，文字仍然用黑，可读性不打折
+  .brand-soft {
+    background-color: var(--pb-brand-soft);
+  }
+
+  .chip-base {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.55),
+      inset 0 1px 0 rgb(255 255 255 / 0.85),
+      0 1px 3px -1px rgb(40 34 80 / 0.12);
+  }
+  .chip-violet {
+    @apply chip-base text-[#57499E];
+    background-image: linear-gradient(148deg, #E9E3FB 0%, #DAD2F4 100%);
+  }
+  .chip-teal {
+    @apply chip-base text-[#2C6A59];
+    background-image: linear-gradient(148deg, #DDEFE6 0%, #CBE5D9 100%);
+  }
+  .chip-amber {
+    @apply chip-base text-[#8A6420];
+    background-image: linear-gradient(148deg, #F7EBD5 0%, #EFDFC2 100%);
+  }
+  .chip-neutral {
+    @apply chip-base text-[color:var(--pb-ink-2)];
+    background-image: linear-gradient(148deg, rgb(255 255 255 / 0.85) 0%, rgb(255 255 255 / 0.55) 100%);
+  }
+
+  // 进度条渐变（参考里 Weekly Goal 那种紫→粉→橙）
+  .bar-grad {
+    background-image: linear-gradient(90deg, #7fa8dd 0%, #b7a7e0 50%, #f0b892 100%);
+  }
+
+  // 区块标题：A 案是小号粗黑，B 案换成大号中粗（两套参考的层级语言不一样）
+  // 分区标题用小号浅灰，不用粗黑——粗黑标题会和内容抢，一屏四五个就吵。
+  // 它的作用是分段，不是宣告。
+  .sec-title {
+    @apply pt-6 pb-2 text-[13px] font-medium leading-[18px];
+    letter-spacing: -0.08px;
+    color: var(--pb-ink-3);
+  }
+
+  // 区块标题：小号半粗黑字（参考图的层级语言），不是灰色小标签
+  .ios-group-title {
+    @apply px-1 pt-6 pb-2 text-[15px] font-semibold leading-5 text-n-slate-12;
+  }
+
+  // ── 卡片 ──
+  // 苹果的内容卡是「白 + 圆角 12 + 没有阴影」，靠和 #F2F2F7 底色的反差分层。
+  // 投影和玻璃是导航层（底栏/弹层）才用的东西，铺在内容上就俗了。
+  // 卡片不是纸片，是一块有厚度的面：
+  //  ① 发丝描边（0.5px）——给边缘一个明确的收口，纯色块贴纯色底会糊
+  //  ② 近距投影——贴着卡底的一层暗，交代"它离底面有 1px"
+  //  ③ 远距扩散投影——大范围很淡的一团，交代"它是浮着的"
+  // 三条都极淡，单看几乎看不见，合起来就是"厚度"。
+  // 卡片：白底 + 圆角 16 + 规范给的那一条极弱阴影。
+  // 规范明确禁止玻璃、渐变、描边、额外阴影，所以这里只有这三样。
+  .wt-glass {
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 8px 24px -18px rgb(24 24 40 / 0.35);
+  }
+
+  // 主角卡：薰衣草 → 蓝紫 → 浅青的斜向渐变（参考图 Soft Focus 那张）
+  // 主角卡是整屏唯一的「重色块」：黑底 + 黄数字。
+  // 黄不写正文（白底上读不了），只在这种深底上当主角，或者当填充。
+  // 分段/筛选条的容器：浅灰底，不做凹陷效果
+  .pb-well {
+    border-radius: 999px;
+    background: var(--surface-soft);
+  }
+
+  // 主角卡：纯黑色块。定稿里它没有渐变、没有辉光、没有纹理。
+  .pb-hero {
+    border-radius: 20px;
+    background: var(--black);
+  }
+
+  // 搜索框：iOS 的 tertiarySystemFill + 圆角 10 + 高 36，不是全圆角大胶囊
+  .pb-search {
+    @apply flex items-center w-full gap-1.5 px-2.5 rounded-[10px] h-9;
+    background: var(--pb-fill);
+  }
+  // 底栏是整个界面唯一用材质的地方——苹果只在导航层用玻璃，内容层一律实色
+  .wt-tabglass {
+    background: rgb(var(--solid-1) / 0.82);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    box-shadow:
+      inset 0 0 0 0.5px rgb(0 0 0 / 0.08),
+      0 6px 20px -8px rgb(0 0 0 / 0.16);
+  }
+  .dark .wt-tabglass {
+    background: rgb(var(--solid-1) / 0.82);
+    box-shadow:
+      inset 0 0 0 0.5px rgb(255 255 255 / 0.12),
+      0 6px 20px -8px rgb(0 0 0 / 0.6);
+  }
+  // 导航栏/标签栏：面积大 → 模糊更重、投影更深（大面看起来才「厚」）
+  .wt-glass-bar {
+    @apply bg-white/90 backdrop-blur-xl;
+  }
+  // 玻璃里的输入框/轨道：只能比玻璃更淡，绝不能再叠一层模糊（叠了就糊得看不清字）
+  .wt-glass-well {
+    @apply border rounded-xl border-black/5 bg-black/[0.035];
   }
 }
 
-// 外部邮件 HTML 里常见固定宽度的表格与大图，会把手机屏幕横向撑出去。
-// 统一夹回容器宽度，超宽表格自己横向滚动，页面本身不横滚。
-.wt-mail-body {
-  :where(img, video) {
-    max-width: 100%;
-    height: auto;
+// 悬浮胶囊底栏：柔和扩散投影 + 顶部内高光（让胶囊看着是「浮」着而不是贴着）
+.wt-tabbar {
+  box-shadow: 0 6px 24px -10px rgb(17 20 24 / 0.18);
+}
+// 深色悬浮胶囊（参考里的底栏）：深底白图标，选中态是白色实心圆
+.wt-tabdark {
+  background-color: #1B2430;
+  box-shadow: 0 12px 30px -10px rgb(27 36 48 / 0.45);
+}
+.dark .wt-tabdark {
+  background-color: #10171F;
+}
+.dark .wt-tabbar {
+  box-shadow: 0 6px 24px -10px rgb(17 20 24 / 0.18);
+}
+// 深色悬浮胶囊（参考里的底栏）：深底白图标，选中态是白色实心圆
+.wt-tabdark {
+  background-color: #1B2430;
+  box-shadow: 0 12px 30px -10px rgb(27 36 48 / 0.45);
+}
+.dark .wt-tabdark {
+  background-color: #10171F;
+}
+
+// 中间主按钮：品牌紫渐变 + 外发光晕 + 白环，凸出于底栏
+.wt-fab {
+  // 与深色胶囊同族，保持形状语言统一；颜色留给内容卡
+  background-color: #1B2430;
+  box-shadow: 0 12px 30px -10px rgb(27 36 48 / 0.45);
+  transition: transform 0.12s ease-out;
+}
+.dark .wt-fab {
+  background-color: #10171F;
+}
+.dark .wt-fab {
+  border-color: rgb(255 255 255 / 0.12);
+  box-shadow: 0 6px 20px -8px rgb(0 0 0 / 0.6);
+}
+
+// ── 柔和渐变色块 ──
+// 颜色来自多层 radial 叠出来的雾面渐变，不是实色填充：既有颜色又不吵，
+// 而且低对比度，符合「通透」。用作内容卡（客户/主数据），不用作页面背景。
+.grad {
+  // Dreamy 卡：蓝 → 薰衣草 → 粉 → 蜜桃，珠光而不是彩虹
+  background-color: #dfe8f6;
+  background-image:
+    radial-gradient(at 4% 0%, #c3d8f2 0, transparent 55%),
+    radial-gradient(at 46% 6%, #ded3ef 0, transparent 52%),
+    radial-gradient(at 84% 30%, #f3cddd 0, transparent 55%),
+    radial-gradient(at 96% 96%, #f8dcc4 0, transparent 60%);
+}
+.grad-1 {
+  background-color: #e4e0f2;
+  background-image:
+    radial-gradient(at 8% 4%, #d3cbee 0, transparent 56%),
+    radial-gradient(at 88% 22%, #eecfe0 0, transparent 54%),
+    radial-gradient(at 52% 96%, #d6e4f6 0, transparent 58%);
+}
+.grad-2 {
+  background-color: #f6efdb;
+  background-image:
+    radial-gradient(at 10% 6%, #f2e3bd 0, transparent 56%),
+    radial-gradient(at 88% 22%, #f8dcc4 0, transparent 54%),
+    radial-gradient(at 54% 96%, #fbf5e2 0, transparent 58%);
+}
+.grad-3 {
+  background-color: #dfeee6;
+  background-image:
+    radial-gradient(at 8% 6%, #cbe6d8 0, transparent 56%),
+    radial-gradient(at 86% 20%, #d6e6f4 0, transparent 54%),
+    radial-gradient(at 56% 96%, #eef3dd 0, transparent 58%);
+}
+.grad-4 {
+  background-color: #f7e3e2;
+  background-image:
+    radial-gradient(at 8% 6%, #f3ccd8 0, transparent 56%),
+    radial-gradient(at 88% 20%, #e2d6f2 0, transparent 54%),
+    radial-gradient(at 56% 96%, #f9ddc8 0, transparent 58%);
+}
+.grad-5 {
+  background-color: #dde8f6;
+  background-image:
+    radial-gradient(at 8% 6%, #c8dcf3 0, transparent 56%),
+    radial-gradient(at 88% 20%, #d7ecf6 0, transparent 54%),
+    radial-gradient(at 56% 96%, #e3ddf2 0, transparent 58%);
+}
+.dark {
+  .chip-base {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.1),
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      0 1px 3px -1px rgb(0 0 0 / 0.5);
   }
-  :where(table) {
-    max-width: 100%;
-    display: block;
-    overflow-x: auto;
+  .chip-violet {
+    color: #B7A6FF;
+    background-image: linear-gradient(148deg, #302A56 0%, #29244A 100%);
   }
-  :where(a) {
-    @apply text-n-iris-11 underline underline-offset-2;
+  .chip-teal {
+    color: #7FD7C8;
+    background-image: linear-gradient(148deg, #17342F 0%, #142C28 100%);
+  }
+  .chip-amber {
+    color: #F0C070;
+    background-image: linear-gradient(148deg, #3B2F16 0%, #322712 100%);
+  }
+  .chip-neutral {
+    color: var(--pb-ink-2);
+    background-image: linear-gradient(148deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0.05) 100%);
+  }
+
+  // 新玻璃体系的深色配方（浅色下是半透白，深色不能直接把白压暗，要换成半透深底）
+  .pb-hero {
+    background-image: linear-gradient(142deg, #2E2A55 0%, #2A3052 46%, #21393E 100%);
+  }
+  .pb-search {
+    background: rgb(255 255 255 / 0.06);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      0 2px 10px -4px rgb(0 0 0 / 0.5);
+  }
+  .wt-tabglass {
+    background: rgb(28 26 44 / 0.78);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      0 10px 30px -10px rgb(0 0 0 / 0.6);
+  }
+
+  // 深色渐变单独配，不用 filter 压暗——那样连色相一起压没了
+  .grad {
+    background-color: #1d1a2e;
+    background-image:
+      radial-gradient(at 8% 6%, rgb(96 86 175 / 0.55), transparent 58%),
+      radial-gradient(at 88% 16%, rgb(126 88 170 / 0.45), transparent 55%),
+      radial-gradient(at 62% 94%, rgb(150 92 82 / 0.35), transparent 62%);
+  }
+  .grad-1 {
+    background-color: #211c33;
+    background-image:
+      radial-gradient(at 10% 8%, rgb(110 92 190 / 0.5), transparent 58%),
+      radial-gradient(at 86% 22%, rgb(170 88 130 / 0.4), transparent 55%);
+  }
+  .grad-2 {
+    background-color: #2a2118;
+    background-image:
+      radial-gradient(at 12% 10%, rgb(180 130 60 / 0.42), transparent 58%),
+      radial-gradient(at 88% 20%, rgb(170 96 78 / 0.36), transparent 55%);
+  }
+  .grad-3 {
+    background-color: #16261f;
+    background-image:
+      radial-gradient(at 10% 8%, rgb(66 150 122 / 0.42), transparent 58%),
+      radial-gradient(at 86% 18%, rgb(70 120 170 / 0.34), transparent 55%);
+  }
+  .grad-4 {
+    background-color: #2a1a24;
+    background-image:
+      radial-gradient(at 10% 8%, rgb(180 90 130 / 0.42), transparent 58%),
+      radial-gradient(at 88% 18%, rgb(120 90 180 / 0.36), transparent 55%);
+  }
+  .grad-5 {
+    background-color: #1a2033;
+    background-image:
+      radial-gradient(at 10% 8%, rgb(74 110 190 / 0.45), transparent 58%),
+      radial-gradient(at 88% 18%, rgb(80 140 190 / 0.35), transparent 55%);
+  }
+}
+
+// 壁纸：玻璃必须有东西可透，否则在纯色底上等于没做。
+// 三抹极淡的品牌色微光（紫/蓝/青），fixed 不随滚动，滚动时玻璃下的料才会动。
+.wt-aurora {
+  background-color: var(--pb-bg);
+}
+
+.wt-fade-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 62%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 62%);
+}
+
+.dark {
+  .wt-glass {
+    background: var(--pb-card);
+    box-shadow: none;
+  }
+  .pb-search {
+    background: var(--pb-fill);
+    box-shadow: none;
+  }
+  .wt-glass-well {
+    @apply border rounded-xl border-black/5 bg-black/[0.035];
+  }
+}
+
+// 悬浮胶囊底栏：柔和扩散投影 + 顶部内高光（让胶囊看着是「浮」着而不是贴着）
+.wt-tabbar {
+  box-shadow: 0 6px 24px -10px rgb(17 20 24 / 0.18);
+}
+// 深色悬浮胶囊（参考里的底栏）：深底白图标，选中态是白色实心圆
+.wt-tabdark {
+  background-color: #1B2430;
+  box-shadow: 0 12px 30px -10px rgb(27 36 48 / 0.45);
+}
+.dark .wt-tabdark {
+  background-color: #10171F;
+}
+.dark .wt-tabbar {
+  box-shadow: 0 6px 24px -10px rgb(17 20 24 / 0.18);
+}
+// 深色悬浮胶囊（参考里的底栏）：深底白图标，选中态是白色实心圆
+.wt-tabdark {
+  background-color: #1B2430;
+  box-shadow: 0 12px 30px -10px rgb(27 36 48 / 0.45);
+}
+.dark .wt-tabdark {
+  background-color: #10171F;
+}
+
+// 中间主按钮：品牌紫渐变 + 外发光晕 + 白环，凸出于底栏
+.wt-fab {
+  // 与深色胶囊同族，保持形状语言统一；颜色留给内容卡
+  background-color: #1B2430;
+  box-shadow: 0 12px 30px -10px rgb(27 36 48 / 0.45);
+  transition: transform 0.12s ease-out;
+}
+.dark .wt-fab {
+  background-color: #10171F;
+}
+.dark .wt-fab {
+  border-color: rgb(255 255 255 / 0.12);
+  box-shadow: 0 6px 20px -8px rgb(0 0 0 / 0.6);
+}
+
+// ── 柔和渐变色块 ──
+// 颜色来自多层 radial 叠出来的雾面渐变，不是实色填充：既有颜色又不吵，
+// 而且低对比度，符合「通透」。用作内容卡（客户/主数据），不用作页面背景。
+.grad {
+  // Dreamy 卡：蓝 → 薰衣草 → 粉 → 蜜桃，珠光而不是彩虹
+  background-color: #dfe8f6;
+  background-image:
+    radial-gradient(at 4% 0%, #c3d8f2 0, transparent 55%),
+    radial-gradient(at 46% 6%, #ded3ef 0, transparent 52%),
+    radial-gradient(at 84% 30%, #f3cddd 0, transparent 55%),
+    radial-gradient(at 96% 96%, #f8dcc4 0, transparent 60%);
+}
+.grad-1 {
+  background-color: #e4e0f2;
+  background-image:
+    radial-gradient(at 8% 4%, #d3cbee 0, transparent 56%),
+    radial-gradient(at 88% 22%, #eecfe0 0, transparent 54%),
+    radial-gradient(at 52% 96%, #d6e4f6 0, transparent 58%);
+}
+.grad-2 {
+  background-color: #f6efdb;
+  background-image:
+    radial-gradient(at 10% 6%, #f2e3bd 0, transparent 56%),
+    radial-gradient(at 88% 22%, #f8dcc4 0, transparent 54%),
+    radial-gradient(at 54% 96%, #fbf5e2 0, transparent 58%);
+}
+.grad-3 {
+  background-color: #dfeee6;
+  background-image:
+    radial-gradient(at 8% 6%, #cbe6d8 0, transparent 56%),
+    radial-gradient(at 86% 20%, #d6e6f4 0, transparent 54%),
+    radial-gradient(at 56% 96%, #eef3dd 0, transparent 58%);
+}
+.grad-4 {
+  background-color: #f7e3e2;
+  background-image:
+    radial-gradient(at 8% 6%, #f3ccd8 0, transparent 56%),
+    radial-gradient(at 88% 20%, #e2d6f2 0, transparent 54%),
+    radial-gradient(at 56% 96%, #f9ddc8 0, transparent 58%);
+}
+.grad-5 {
+  background-color: #dde8f6;
+  background-image:
+    radial-gradient(at 8% 6%, #c8dcf3 0, transparent 56%),
+    radial-gradient(at 88% 20%, #d7ecf6 0, transparent 54%),
+    radial-gradient(at 56% 96%, #e3ddf2 0, transparent 58%);
+}
+.dark {
+  .chip-base {
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.1),
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      0 1px 3px -1px rgb(0 0 0 / 0.5);
+  }
+  .chip-violet {
+    color: #B7A6FF;
+    background-image: linear-gradient(148deg, #302A56 0%, #29244A 100%);
+  }
+  .chip-teal {
+    color: #7FD7C8;
+    background-image: linear-gradient(148deg, #17342F 0%, #142C28 100%);
+  }
+  .chip-amber {
+    color: #F0C070;
+    background-image: linear-gradient(148deg, #3B2F16 0%, #322712 100%);
+  }
+  .chip-neutral {
+    color: var(--pb-ink-2);
+    background-image: linear-gradient(148deg, rgb(255 255 255 / 0.1) 0%, rgb(255 255 255 / 0.05) 100%);
+  }
+
+  // 新玻璃体系的深色配方（浅色下是半透白，深色不能直接把白压暗，要换成半透深底）
+  .pb-hero {
+    background-image: linear-gradient(142deg, #2E2A55 0%, #2A3052 46%, #21393E 100%);
+  }
+  .pb-search {
+    background: rgb(255 255 255 / 0.06);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      0 2px 10px -4px rgb(0 0 0 / 0.5);
+  }
+  .wt-tabglass {
+    background: rgb(28 26 44 / 0.78);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.08),
+      0 10px 30px -10px rgb(0 0 0 / 0.6);
+  }
+
+  // 深色渐变单独配，不用 filter 压暗——那样连色相一起压没了
+  .grad {
+    background-color: #1d1a2e;
+    background-image:
+      radial-gradient(at 8% 6%, rgb(96 86 175 / 0.55), transparent 58%),
+      radial-gradient(at 88% 16%, rgb(126 88 170 / 0.45), transparent 55%),
+      radial-gradient(at 62% 94%, rgb(150 92 82 / 0.35), transparent 62%);
+  }
+  .grad-1 {
+    background-color: #211c33;
+    background-image:
+      radial-gradient(at 10% 8%, rgb(110 92 190 / 0.5), transparent 58%),
+      radial-gradient(at 86% 22%, rgb(170 88 130 / 0.4), transparent 55%);
+  }
+  .grad-2 {
+    background-color: #2a2118;
+    background-image:
+      radial-gradient(at 12% 10%, rgb(180 130 60 / 0.42), transparent 58%),
+      radial-gradient(at 88% 20%, rgb(170 96 78 / 0.36), transparent 55%);
+  }
+  .grad-3 {
+    background-color: #16261f;
+    background-image:
+      radial-gradient(at 10% 8%, rgb(66 150 122 / 0.42), transparent 58%),
+      radial-gradient(at 86% 18%, rgb(70 120 170 / 0.34), transparent 55%);
+  }
+  .grad-4 {
+    background-color: #2a1a24;
+    background-image:
+      radial-gradient(at 10% 8%, rgb(180 90 130 / 0.42), transparent 58%),
+      radial-gradient(at 88% 18%, rgb(120 90 180 / 0.36), transparent 55%);
+  }
+  .grad-5 {
+    background-color: #1a2033;
+    background-image:
+      radial-gradient(at 10% 8%, rgb(74 110 190 / 0.45), transparent 58%),
+      radial-gradient(at 88% 18%, rgb(80 140 190 / 0.35), transparent 55%);
+  }
+}
+
+
+.dark {
+  .wt-glass-well {
+    @apply border-white/[0.07] bg-white/[0.05];
+  }
+  .wt-glass-bar {
+    @apply bg-black/75;
+  }
+  .wt-aurora {
+    // 深色下同样是平色，跟浅色一个结构。旧的紫色极光已废弃。
+    background-color: var(--pb-bg);
   }
 }

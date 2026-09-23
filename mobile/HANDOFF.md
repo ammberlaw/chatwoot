@@ -83,6 +83,13 @@ xcrun devicectl device install app --device <设备UDID> \
 **后端未执行的迁移会导致所有请求 500**
 排查登录问题时先看后端日志，不要先怀疑 App。
 
+**脏数据客户传附件会 500 且文件直接丢**（2026-09-11 已修）
+存量 / 小满迁入的客户常有不合法字段（典型：`trade_country` 存成 ISO 码 `IT`，而模型白名单要的是 `ITALY`）。
+这类记录跑不过校验 → `files.attach` 内部的 save **静默失败** → 附件停在未保存状态 → 序列化时 `url_for` 拿不到
+signed_id → 整个请求 500，文件也没了。修法是 `customers_controller#attach` 里存不下就 `save(validate: false)` 再存一次
+（传附件跟客户字段合不合法无关）。**网页端同样受影响，这个修复对两端都生效。**
+同类风险：任何「先 attach 再渲染」的接口，遇到校验不过的父记录都会这样。
+
 ## 6. 上架准备
 
 **代码侧已完成**（都在版本控制里，不用再改）：
@@ -135,7 +142,12 @@ xcrun devicectl device install app --device <设备UDID> \
 
 扫码 tab 已移除（原先扫到的码没接任何业务逻辑）。若要做 MES 报工/出入库，新加一个入口即可，别再放进底部 tab。
 
-**附件上传的一个待真机复验点**：Capacitor 8 的 XHR 拦截会把 FormData 里的 `File` 读成 base64、交原生重组 multipart（见 `Capacitor.framework/native-bridge.js` 的 `convertFormData`）。浏览器路径已验证（附件真的进了 ActiveStorage 并随 SMTP 发出），**真机路径还没验**。注意它只认真正的 `File` 对象——`Blob` 会被当成字符串丢掉，所以 `AttachmentField` 用的是原生 `<input type="file">`（iOS 点它的系统面板本身就含拍照/相册/浏览三项，不必再接 Camera 插件）。
+**附件上传已在 iOS 运行时验证通过**（2026-09-11，iPhone 17 Pro 模拟器）。Capacitor 8 的 XHR 拦截会把 FormData 里的 `File` 读成 base64、
+交原生重组 multipart（见 `Capacitor.framework/native-bridge.js` 的 `convertFormData`）。注意它**只认真正的 `File` 对象**——`Blob` 会被当成
+字符串丢掉，所以 `AttachmentField` 用的是原生 `<input type="file">`（iOS 点它的系统面板本身就含拍照/相册/浏览三项，不必再接 Camera 插件）。
+
+> 这一步是有价值的：浏览器里附件上传是通的，**到了原生壳里却 500**。根因不在桥而在后端——见下面「已知的坑」里的脏数据条目。
+> 教训：只在浏览器 viewport 里测移动端，测不出原生层的问题，关键路径要进模拟器跑。
 
 ## 8. 自动化验证脚本
 
@@ -161,6 +173,22 @@ xcrun devicectl device install app --device <设备UDID> \
 | `test_mobile_customer_ops.mjs` | 客户附件增删、操作历史、归属弹层 |
 | `test_mobile_mail_extras.mjs` | 草稿分段、模板套用、AI 写信/翻译、更多操作弹层 |
 | `test_mobile_smoke_all.mjs [邮箱]` | **全量冒烟**：18 条路由逐个打开，查加载失败/页面异常/横向溢出 |
+| `test_nan_sweep.mjs [邮箱]` | 全路由扫 `NaN / undefined / [object Object]` 这类渲染事故 |
+
+### 进模拟器跑（能测出浏览器测不出的原生层问题）
+
+```bash
+VITE_API_BASE=http://localhost:3001 pnpm build && npx cap sync ios
+cd ios/App && xcodebuild -project App.xcodeproj -scheme App \
+  -destination "platform=iOS Simulator,name=iPhone 17 Pro" -derivedDataPath /tmp/wtsim build
+xcrun simctl boot "iPhone 17 Pro"; xcrun simctl install booted /tmp/wtsim/Build/Products/Debug-iphonesimulator/App.app
+xcrun simctl launch booted com.wintouchspace.app
+xcrun simctl io booted screenshot /tmp/shot.png          # 截图（启动后等 10s 再截，否则抢在绘制前）
+xcrun simctl spawn booted log show --last 2m --predicate 'process == "App"' --style compact   # 看日志
+```
+
+模拟器点不了屏幕。要跑交互用例，就临时加一个自跑自报的页面、把 `/` 重定向过去，验完删掉——
+本轮的原生 multipart 问题就是这么抓出来的。**测完记得把 `VITE_API_BASE` 去掉重新构建**，否则产物里烘的是 dev 地址。
 | `test_offline.mjs` | 断网后离线横幅、缓存落款、不白屏（App Review 会查这个） |
 
 跑写入类脚本会在 dev 库留数据（客户/审批/邮件名字都带 `ZZ` 或「移动端…测试」前缀），测完记得删。

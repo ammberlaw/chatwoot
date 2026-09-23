@@ -9,7 +9,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     COLUMN_FILTERS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
     scope = scope_visible(scope)
     @shipments_count = scope.count
-    @shipments = scope.order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @shipments = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
 
   def show; end

@@ -92,7 +92,7 @@ RSpec.describe Erp::StockCostService do
     it '外购成品收货按采购行单价建层' do
       supplier = Mes::Supplier.create!(account: account, name: '供应商A', supplier_no: "S#{SecureRandom.hex(3)}")
       po = account.mes_purchase_orders.create!(po_no: "PU#{SecureRandom.hex(4)}", status: 'SUBMITTED',
-                                               approval_status: 'APPROVED')
+                                               approval_status: 'APPROVED', product_line: 'TABLET')
       # 金额由 单价×数量 自动算（compute_amount），所以给单价：850 × 20 = 17000
       po.purchase_items.create!(account: account, item_type: 'PRODUCT', crm_product_id: product.id,
                                 mes_supplier_id: supplier.id, qty: 20, rate_micros: 850 * 1_000_000)

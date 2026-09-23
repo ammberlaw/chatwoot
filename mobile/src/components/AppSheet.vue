@@ -16,15 +16,15 @@ defineEmits(['close']);
           class="relative flex flex-col bg-n-background rounded-t-3xl max-h-[88%] pb-safeBottom"
         >
           <div
-            class="flex items-center flex-none gap-2 px-4 border-b min-h-[52px] border-n-weak"
+            class="flex items-center flex-none gap-2 px-4 border-b min-h-[52px] border-[color:var(--pb-sep)]"
           >
-            <h2 class="flex-1 text-base font-bold truncate text-n-slate-12">
+            <h2 class="flex-1 text-base font-bold truncate text-[color:var(--pb-ink)]">
               {{ title }}
             </h2>
             <button
               type="button"
               aria-label="关闭"
-              class="grid flex-none rounded-full size-9 place-items-center text-n-slate-11 active:bg-n-alpha-1"
+              class="grid flex-none rounded-full size-9 place-items-center text-[color:var(--pb-ink-2)] active:bg-[color:var(--pb-fill)]"
               @click="$emit('close')"
             >
               <span class="size-5 i-lucide-x" />

@@ -1,7 +1,8 @@
 class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
   before_action :fetch_sales_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :convert_preview, :receivable_progress]
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :convert_preview, :receivable_progress,
+                       :production_trace]
 
   RESULTS_PER_PAGE = 15
 
@@ -120,6 +121,13 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   # ERP 没上线（总开关关）或这张订单财务还没建账时返回空，前端整块不渲染。
   def receivable_progress
     render json: { payload: Erp::OrderReceivableProgress.new(@sales_order).call }
+  end
+
+  # 生产追溯：这张销售订单在 MES 里走过的全程（生产订单 / 阶段时间 / 领料入库出库 / 出货单）。
+  # 可见性沿用订单本身（fetch_sales_order 已按 CRM 范围收口）：看得见这张单的人
+  # 就看得见它的履约过程，不额外要求 MES 角色——否则业务员查自己的单还得找生产要。
+  def production_trace
+    render json: { payload: Crm::SalesOrderTraceService.new(account: Current.account, sales_order: @sales_order).call }
   end
 
   private

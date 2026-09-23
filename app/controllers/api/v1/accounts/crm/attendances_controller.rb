@@ -375,7 +375,8 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
 
   def group_json(group)
     { name: group.name, work_days: group.work_days, clock_in_time: group.clock_in_time,
-      clock_out_time: group.clock_out_time, grace_minutes: group.grace_minutes,
+      clock_out_time: group.clock_out_time, break_start_time: group.break_start_time,
+      break_end_time: group.break_end_time, grace_minutes: group.grace_minutes,
       holidays: group.holidays, extra_workdays: group.extra_workdays,
       geo_enabled: group.geo_enabled, ip_enabled: group.ip_enabled,
       office_lat: group.office_lat&.to_f, office_lng: group.office_lng&.to_f,

@@ -14,6 +14,7 @@ import { useCrmKnowledgeCategoriesStore } from 'dashboard/stores/crm/knowledgeCa
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 
 import CrmDocSectionManager from 'dashboard/components-next/CRM/CrmDocSectionManager.vue';
+import CrmCredentialVault from 'dashboard/components-next/CRM/CrmCredentialVault.vue';
 import CrmFileIcon from 'dashboard/components-next/CRM/CrmFileIcon.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -435,6 +436,7 @@ const sortedFolders = computed(() => {
 // 文档中心（GENERAL）没有「我的文档」——个人资料在 CRM 知识库维护；此处只有公司文档（+管理员回收站）。
 const filterTabs = computed(() => [
   { key: 'company', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.COMPANY') },
+  ...(isGeneral.value ? [{ key: 'vault', label: '账号密码' }] : []),
   ...(isGeneral.value
     ? []
     : [{ key: 'mine', label: t('CRM.KNOWLEDGE_DOCS.FILTERS.MINE') }]),
@@ -442,6 +444,9 @@ const filterTabs = computed(() => [
     ? [{ key: 'recycle', label: t('CRM.KNOWLEDGE_DOCS.RECYCLE.TAB') }]
     : []),
 ]);
+
+// 账号密码：与文档是两套存储，只共用文档中心这个入口（谁能看由分组名单定，组件内自理）。
+const isVault = computed(() => activeFilter.value === 'vault');
 
 // ── 文档回收站（仅管理员）：删除的文档进这里，可恢复或彻底删除 ──
 const isRecycle = computed(() => activeFilter.value === 'recycle');
@@ -961,7 +966,7 @@ watch(
         </div>
         <div class="flex items-center gap-3 shrink-0">
           <Button
-            v-if="isGeneral && isAdminLike"
+            v-if="isGeneral && isAdminLike && !isVault"
             label="管理板块"
             icon="i-lucide-folder-cog"
             variant="outline"
@@ -986,7 +991,7 @@ watch(
         />
         <!-- Filter：文件夹排序 -->
         <SelectCard
-          v-if="!isRecycle"
+          v-if="!isRecycle && !isVault"
           v-model="folderSort"
           :options="FOLDER_SORTS"
           align="right"
@@ -994,6 +999,7 @@ watch(
           trigger-class="w-32 h-9"
         />
         <Input
+          v-if="!isVault"
           v-model="searchQuery"
           :placeholder="t('CRM.KNOWLEDGE_DOCS.SEARCH_PLACEHOLDER')"
           :class="isRecycle ? 'w-full sm:ml-auto sm:w-56' : 'w-full sm:w-56'"
@@ -1001,8 +1007,10 @@ watch(
         />
       </div>
 
+      <CrmCredentialVault v-if="isVault" />
+
       <div
-        v-if="isFetching || loadingRecycle"
+        v-else-if="isFetching || loadingRecycle"
         class="flex items-center justify-center flex-1 text-base text-n-slate-11"
       >
         {{ t('CRM.KNOWLEDGE_DOCS.LOADING') }}

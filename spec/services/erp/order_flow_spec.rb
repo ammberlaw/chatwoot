@@ -36,7 +36,8 @@ RSpec.describe 'CRM→MES→ERP 订单流转' do
 
   def material(cost_micros)
     account.mes_materials.create!(
-      material_no: "M#{SecureRandom.hex(4)}", name: '原料', unit: 'PCS', cost_price_micros: cost_micros
+      material_no: "M#{SecureRandom.hex(4)}", name: '原料', unit: 'PCS', cost_price_micros: cost_micros,
+      product_line: 'TABLET'
     )
   end
 
@@ -96,7 +97,8 @@ RSpec.describe 'CRM→MES→ERP 订单流转' do
       prod = production_order(order, outsourced: true)
       supplier = account.mes_suppliers.create!(name: '外协厂')
       po = account.mes_purchase_orders.create!(po_no: "PU#{SecureRandom.hex(4)}", status: 'SUBMITTED',
-                                               production_order_id: prod.id, owner_id: user.id)
+                                               production_order_id: prod.id, owner_id: user.id,
+                                               product_line: 'TABLET')
       po.purchase_items.create!(account_id: account.id, qty: 10, rate_micros: 5_000_000,
                                 mes_supplier_id: supplier.id)
       # 外协件收货入库：若归集口径没分流，这批料会被再算一次

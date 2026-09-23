@@ -99,7 +99,7 @@ onMounted(load);
       <template v-if="picked" #actions>
         <button
           type="button"
-          class="px-2 text-sm h-9 text-n-iris-11 active:bg-n-alpha-1 rounded-lg"
+          class="px-2 text-sm h-9 text-[color:var(--pb-accent)] active:bg-[color:var(--pb-fill)] rounded-lg"
           @click="picked = null"
         >
           换模板
@@ -121,12 +121,23 @@ onMounted(load);
           <li v-for="t in templates" :key="t.id">
             <button
               type="button"
-              class="flex flex-col items-start w-full h-full p-4 text-left wt-card active:bg-n-alpha-1"
+              class="flex flex-col items-start w-full h-full p-4 text-left wt-glass wt-press"
               @click="pick(t)"
             >
-              <span class="mb-2 size-6 text-n-iris-11" :class="t.icon || 'i-lucide-file-check'" />
-              <span class="text-sm font-medium text-n-slate-12">{{ t.name }}</span>
-              <span v-if="t.description" class="mt-0.5 text-xs text-n-slate-10">
+              <div class="flex items-start w-full">
+                <span
+                  class="flex-none size-7 text-[color:var(--pb-ink)]"
+                  :class="t.icon || 'i-lucide-file-check'"
+                />
+                <span class="flex-1" />
+                <span class="flex-none mt-1 size-4 text-[color:var(--pb-ink-3)] i-lucide-chevron-right" />
+              </div>
+              <span
+                class="mt-3 text-[15px] font-semibold leading-5 text-[color:var(--pb-ink)]"
+              >
+                {{ t.name }}
+              </span>
+              <span v-if="t.description" class="mt-0.5 text-[12px] leading-4 text-[color:var(--pb-ink-3)]">
                 {{ t.description }}
               </span>
             </button>
@@ -152,14 +163,14 @@ onMounted(load);
 
         <AttachmentField v-model="files" />
 
-        <p v-if="error" class="text-sm text-n-ruby-11">{{ error }}</p>
+        <p v-if="error" class="text-sm text-[#C4383C]">{{ error }}</p>
         <div class="h-2" />
       </div>
     </div>
 
     <div
       v-if="picked"
-      class="flex-none px-4 pt-2 pb-2 border-t border-n-weak bg-n-background pb-safeBottom"
+      class="flex-none px-4 pt-2 pb-2 border-t border-[color:var(--pb-sep)] bg-n-background pb-safeBottom"
     >
       <button type="button" class="w-full wt-btn-primary" :disabled="saving" @click="submit">
         {{ saving ? '提交中…' : '提交' }}

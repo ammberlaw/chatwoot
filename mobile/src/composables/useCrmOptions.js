@@ -3,8 +3,8 @@ import { fetchOptionItems } from '@/api/crm';
 
 // 客户分组 / 客户来源是后台可配置项（Crm::OptionItem，二级层级），不是硬编码枚举。
 // 与网页端 dashboard/composables/useCrmOptions.js 同口径：模块级缓存，全 App 共享。
-const items = { customer_group: ref([]), customer_source: ref([]) };
-const loaded = { customer_group: false, customer_source: false };
+const items = { customer_group: ref([]), customer_source: ref([]), product_group: ref([]) };
+const loaded = { customer_group: false, customer_source: false, product_group: false };
 
 // 扁平有序列表（含 parent_id）→ 一级项 + 缩进的二级项。一级二级均可选中
 // （存量客户存的是一级 code）。
@@ -39,9 +39,10 @@ export function useCrmOptions() {
 
   return {
     ensureLoaded: () =>
-      Promise.all([load('customer_group'), load('customer_source')]),
+      Promise.all([load('customer_group'), load('customer_source'), load('product_group')]),
     groupOptions: computed(() => toOptions(items.customer_group.value)),
     sourceOptions: computed(() => toOptions(items.customer_source.value)),
+    productGroupOptions: computed(() => toOptions(items.product_group.value)),
     groupLabel: code => labelFrom(items.customer_group.value, code),
     sourceLabel: code => labelFrom(items.customer_source.value, code),
   };

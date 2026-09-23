@@ -9,7 +9,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   def index
     scope = index_scope
     @purchase_orders_count = scope.count
-    @purchase_orders = scope.order(created_at: :desc).page(page_param).per(per_page_param)
+    @purchase_orders = scope.order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
   end
 
   def show; end
@@ -55,7 +55,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   def approval_inbox
     scope = Current.account.mes_purchase_orders.awaiting_gm_for(current_user.id)
     @purchase_orders_count = scope.count
-    @purchase_orders = scope.order(submitted_at: :asc).page(page_param).per(RESULTS_PER_PAGE)
+    @purchase_orders = scope.order(submitted_at: :asc, id: :asc).page(page_param).per(RESULTS_PER_PAGE)
     render 'api/v1/accounts/mes/purchase_orders/index'
   end
 

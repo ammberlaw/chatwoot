@@ -15,7 +15,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
       scope = scope.where(column => params[param]) if params[param].present?
     end
     @stock_entries_count = scope.count
-    @stock_entries = scope.order(created_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @stock_entries = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
 
   def show; end

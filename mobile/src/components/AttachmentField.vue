@@ -32,7 +32,7 @@ const size = bytes =>
 
 <template>
   <div class="flex flex-col gap-1.5">
-    <span class="text-xs font-medium text-n-slate-11">{{ label }}</span>
+    <span class="text-xs font-medium text-[color:var(--pb-ink-2)]">{{ label }}</span>
 
     <ul v-if="modelValue.length" class="flex flex-col gap-2">
       <li
@@ -40,13 +40,13 @@ const size = bytes =>
         :key="`${f.name}-${i}`"
         class="flex items-center gap-3 p-3 wt-card"
       >
-        <span class="flex-none size-4 text-n-slate-10 i-lucide-paperclip" />
-        <span class="flex-1 text-sm truncate text-n-slate-12">{{ f.name }}</span>
-        <span class="flex-none text-xs text-n-slate-10">{{ size(f.size) }}</span>
+        <span class="flex-none size-4 text-[color:var(--pb-ink-3)] i-lucide-paperclip" />
+        <span class="flex-1 text-sm truncate text-[color:var(--pb-ink)]">{{ f.name }}</span>
+        <span class="flex-none text-xs text-[color:var(--pb-ink-3)]">{{ size(f.size) }}</span>
         <button
           type="button"
           :aria-label="`移除 ${f.name}`"
-          class="grid flex-none rounded-full size-7 place-items-center text-n-slate-10 active:bg-n-alpha-1"
+          class="grid flex-none rounded-full size-7 place-items-center text-[color:var(--pb-ink-3)] active:bg-[color:var(--pb-fill)]"
           @click="remove(i)"
         >
           <span class="size-4 i-lucide-x" />

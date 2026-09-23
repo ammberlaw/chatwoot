@@ -89,6 +89,9 @@ class Account < ApplicationRecord
   has_many :crm_doc_sections, class_name: 'Crm::DocSection', dependent: :destroy_async
   has_many :erp_stock_layers, class_name: 'Erp::StockLayer', dependent: :destroy_async
   has_many :erp_stock_consumptions, class_name: 'Erp::StockConsumption', dependent: :destroy_async
+  has_many :crm_credential_groups, class_name: 'Crm::CredentialGroup', dependent: :destroy_async
+  has_many :crm_credentials, class_name: 'Crm::Credential', dependent: :destroy_async
+  has_many :crm_credential_views, class_name: 'Crm::CredentialView', dependent: :destroy_async
   has_many :crm_member_invites, class_name: 'Crm::MemberInvite', dependent: :destroy_async
   has_many :crm_knowledge_categories, class_name: 'Crm::KnowledgeCategory', dependent: :destroy_async
   has_many :crm_teams, class_name: 'Crm::Team', dependent: :destroy_async

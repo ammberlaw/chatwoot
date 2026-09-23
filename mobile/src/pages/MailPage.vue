@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import PageHeader from '@/components/PageHeader.vue';
 import DataState from '@/components/DataState.vue';
 import { fetchEmails, fetchEmailCounts, fetchEmailsFetchNow } from '@/api/crm';
-import { shortDateTime, counterpartyOf } from '@/utils/format';
+import { shortDateTime, counterpartyOf, snippet } from '@/utils/format';
 
 defineOptions({ name: 'MailPage' });
 
@@ -112,7 +112,7 @@ onActivated(() => {
         <button
           type="button"
           aria-label="收信"
-          class="grid rounded-full size-9 place-items-center text-n-slate-11 active:bg-n-alpha-1 disabled:opacity-40"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-ink-2)] active:bg-[color:var(--pb-fill)] disabled:opacity-40"
           :disabled="fetching"
           @click="fetchNow"
         >
@@ -124,7 +124,7 @@ onActivated(() => {
         <button
           type="button"
           aria-label="写邮件"
-          class="grid rounded-full size-9 place-items-center text-n-iris-11 active:bg-n-alpha-1"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-accent)] active:bg-[color:var(--pb-fill)]"
           @click="router.push({ name: 'mail-compose' })"
         >
           <span class="size-5 i-lucide-square-pen" />
@@ -135,7 +135,7 @@ onActivated(() => {
         <div class="px-4 pb-3">
           <div class="relative">
             <span
-              class="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 size-4 text-n-slate-10 i-lucide-search"
+              class="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 size-4 text-[color:var(--pb-ink-3)] i-lucide-search"
             />
             <input
               v-model="keyword"
@@ -156,8 +156,8 @@ onActivated(() => {
             class="flex items-center flex-none h-8 gap-1.5 px-3 text-sm leading-none rounded-full"
             :class="
               view === v.key
-                ? 'bg-n-iris-9 text-white font-medium'
-                : 'bg-n-alpha-1 text-n-slate-11'
+                ? 'wt-pill-on'
+                : 'wt-pill-off'
             "
             @click="switchView(v.key)"
           >
@@ -165,7 +165,7 @@ onActivated(() => {
             <span
               v-if="badgeOf(v)"
               class="px-1.5 text-[11px] rounded-full"
-              :class="view === v.key ? 'bg-white/25' : 'bg-n-slate-4 text-n-slate-11'"
+              :class="view === v.key ? 'bg-white/25' : 'bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)]'"
             >
               {{ badgeOf(v) }}
             </span>
@@ -187,35 +187,66 @@ onActivated(() => {
           <li v-for="m in list" :key="m.id">
             <button
               type="button"
-              class="w-full p-3 text-left wt-card active:bg-n-alpha-1"
+              class="flex w-full gap-2.5 px-3.5 py-3 text-left wt-glass wt-press"
               @click="open(m.id)"
             >
-              <div class="flex items-center gap-2">
-                <span
-                  v-if="!m.is_read && m.folder === 'INBOX'"
-                  class="flex-none rounded-full size-2 bg-n-iris-9"
-                />
-                <span class="flex-1 text-xs truncate text-n-slate-11">
-                  {{ m.customer_name || counterpartyOf(m) }}
-                </span>
-                <span v-if="m.is_starred" class="flex-none size-3.5 text-n-amber-11 i-lucide-star" />
-                <span v-if="m.files?.length" class="flex-none size-3.5 text-n-slate-10 i-lucide-paperclip" />
-                <span class="flex-none text-xs text-n-slate-10">
-                  {{ shortDateTime(m.email_date) }}
-                </span>
-              </div>
-              <div
-                class="mt-1 text-sm truncate"
+              <!-- 圆点常驻占位：只切换颜色不切换存在，否则同一列文字会在已读/未读间左右跳。
+                   未读用品牌黄，已读用中性灰点。 -->
+              <span
+                class="flex-none mt-1.5 rounded-full size-2"
                 :class="
                   !m.is_read && m.folder === 'INBOX'
-                    ? 'font-semibold text-n-slate-12'
-                    : 'text-n-slate-12'
+                    ? 'brand-fill'
+                    : 'bg-[color:var(--pb-ink-3)]/40'
                 "
-              >
-                {{ m.subject || '（无主题）' }}
-              </div>
-              <div v-if="m.send_status === 'FAILED'" class="mt-1 text-xs text-n-ruby-11">
-                发送失败
+              />
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="flex-1 min-w-0 truncate text-[13px]"
+                    :class="
+                      !m.is_read && m.folder === 'INBOX'
+                        ? 'font-semibold text-[color:var(--pb-ink)]'
+                        : 'text-[color:var(--pb-ink-2)]'
+                    "
+                  >
+                    {{ m.customer_name || counterpartyOf(m) }}
+                  </span>
+                  <span
+                    v-if="m.is_starred"
+                    class="flex-none size-3.5 text-[color:var(--pb-brand-ink)] i-ri-star-fill"
+                  />
+                  <span
+                    v-if="m.files?.length"
+                    class="flex-none size-3.5 text-[color:var(--pb-ink-3)] i-lucide-paperclip"
+                  />
+                  <span class="flex-none text-[12px] tabular-nums text-[color:var(--pb-ink-3)]">
+                    {{ shortDateTime(m.email_date) }}
+                  </span>
+                </div>
+
+                <div
+                  class="mt-0.5 truncate text-[15px] leading-5"
+                  :class="
+                    !m.is_read && m.folder === 'INBOX'
+                      ? 'font-semibold text-[color:var(--pb-ink)]'
+                      : 'text-[color:var(--pb-ink)]'
+                  "
+                >
+                  {{ m.subject || '（无主题）' }}
+                </div>
+
+                <!-- 摘要行：光看主题常常判断不出要不要点进去 -->
+                <div
+                  v-if="snippet(m.body)"
+                  class="mt-0.5 truncate text-[13px] leading-[18px] text-[color:var(--pb-ink-3)]"
+                >
+                  {{ snippet(m.body) }}
+                </div>
+
+                <div v-if="m.send_status === 'FAILED'" class="mt-1 text-[12px] text-[#C4383C]">
+                  发送失败
+                </div>
               </div>
             </button>
           </li>
@@ -230,7 +261,7 @@ onActivated(() => {
         >
           {{ loadingMore ? '加载中…' : '加载更多' }}
         </button>
-        <div class="h-4" />
+        <div class="h-36" />
       </DataState>
     </div>
   </div>

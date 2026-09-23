@@ -34,6 +34,12 @@ class Oa::ApprovalRequestPolicy < ApplicationPolicy
   def cancel?
     true
   end
+
+  # 销假：只能销自己已通过的考勤类单，真正的判定在控制器（revocable? + 申请人本人），
+  # 这里放行即可。漏了这个方法不是 403 而是 500（NoMethodError），更难查。
+  def revoke?
+    true
+  end
 end
 
 Oa::ApprovalRequestPolicy.prepend_mod_with('Oa::ApprovalRequestPolicy')

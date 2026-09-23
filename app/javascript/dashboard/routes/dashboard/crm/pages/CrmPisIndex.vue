@@ -751,7 +751,7 @@ onMounted(() => {
     <!-- 页脚：共 N 条 · 每页 15 条 + 页码 -->
     <div
       v-if="totalCount"
-      class="flex items-center justify-between flex-shrink-0 px-4 sm:px-[26px] py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
+      class="flex items-center justify-between flex-shrink-0 px-4 max-md:!pl-16 sm:px-[26px] py-3 border-t border-n-weak text-[12.5px] text-n-slate-10"
     >
       <span>
         {{

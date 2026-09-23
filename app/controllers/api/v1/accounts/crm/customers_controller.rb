@@ -11,7 +11,9 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     customer_group: :customer_group,
     product_group: :product_group,
     source_channel: :source_channel,
-    account_owner_id: :account_owner_id
+    account_owner_id: :account_owner_id,
+    # 移动端「筛选」弹层里有「国家/地区」这一组，列表接口要能按它收口
+    trade_country: :trade_country
   }.freeze
 
   # 可排序列白名单（防注入）：sort 参数 → SQL 排序表达式。文本列按 LOWER 排、数字列 COALESCE 兜 NULL。

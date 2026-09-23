@@ -39,10 +39,24 @@ class Oa::ActOnApprovalService
       @request.update!(current_position: next_step.position)
     else
       @request.update!(status: 'approved')
+      # 销假单通过：回滚原单写进去的考勤（只销今天及以后的，详见 AttendanceRevokeService）。
+      return revoke_original if @request.revoke_request?
+
       # 考勤联动：请假/补卡模板整单通过后自动写入考勤。
       Crm::AttendanceApprovalService.new(request: @request, actor: @actor).perform
       # 备用金台账联动：备用金申请/费用报销模板整单通过后自动落一笔流水。
       Crm::PettyCashApprovalService.new(request: @request, actor: @actor).perform
     end
+  end
+
+  # 销假：按销假单 form_data 里的区间回滚原单的考勤，并把原单标记为已销。
+  def revoke_original
+    original = @request.revokes_request
+    dates = Crm::AttendanceApprovalService.form_dates(@request.template, @request.form_data)
+    raise Crm::AttendanceRevokeService::RevokeError, '销假单缺少有效日期' if dates.empty?
+
+    Crm::AttendanceRevokeService.new(
+      request: original, from: dates.min, to: dates.max, actor: @actor
+    ).perform
   end
 end

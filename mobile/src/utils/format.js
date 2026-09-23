@@ -20,6 +20,17 @@ export const shortDate = value =>
       })
     : '—';
 
+// 日程的 starts_at/ends_at 存的是「墙上时间」（9 点的会就是 9 点），
+// 但接口把它序列化成了带 Z 的串，`new Date()` 解析会按 UTC 折算，
+// 在 +08 区就变成 17 点。网页端一律用切片读它，App 也照这个口径，两端才一致。
+export const wallTime = value => (value ? String(value).slice(11, 16) : '—');
+
+export const wallDateTime = value => {
+  if (!value) return '—';
+  const s = String(value);
+  return `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))} ${s.slice(11, 16)}`;
+};
+
 export const shortDateTime = value =>
   value
     ? new Date(value).toLocaleString('zh-CN', {
@@ -61,3 +72,26 @@ export const addressLabel = raw => {
 // 列表里显示「对方」：发件箱看收件人，其余看发件人
 export const counterpartyOf = email =>
   addressLabel(email.folder === 'SENT' ? email.to_address : email.from_address);
+
+// 邮件列表的摘要行。列表接口本来就带 body（详情要用），这里就地截一段，
+// 不额外请求也不改后端。
+// ⚠️ HTML 邮件的 body 存的是标签源码，直接截会得到「<!DOCTYPE html PUBLIC…」。
+// 用 DOMParser 取纯文本：只解析不挂载，不会执行里面的脚本。
+const htmlToText = html => {
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('style,script,head').forEach(n => n.remove());
+    return doc.body?.textContent || '';
+  } catch {
+    return String(html).replace(/<[^>]*>/g, ' ');
+  }
+};
+
+export const snippet = (body, max = 70) => {
+  if (!body) return '';
+  const raw = /<[a-z!][\s\S]*>/i.test(body) ? htmlToText(body) : String(body);
+  // 引用块和签名分隔线之后的内容丢掉，否则一列全是「> 原邮件」
+  const head = raw.split(/\n-{2,}|\n_{2,}|\n> /)[0];
+  const flat = head.replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+};

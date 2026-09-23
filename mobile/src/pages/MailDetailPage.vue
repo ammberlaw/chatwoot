@@ -141,7 +141,7 @@ onMounted(load);
           v-if="email"
           type="button"
           aria-label="更多操作"
-          class="grid rounded-full size-9 place-items-center text-n-slate-11 active:bg-n-alpha-1"
+          class="grid rounded-full size-9 place-items-center text-[color:var(--pb-ink-2)] active:bg-[color:var(--pb-fill)]"
           @click="moreOpen = true"
         >
           <span class="size-5 i-lucide-ellipsis" />
@@ -150,8 +150,8 @@ onMounted(load);
           v-if="email"
           type="button"
           aria-label="星标"
-          class="grid rounded-full size-9 place-items-center active:bg-n-alpha-1"
-          :class="email.is_starred ? 'text-n-amber-11' : 'text-n-slate-10'"
+          class="grid rounded-full size-9 place-items-center active:bg-[color:var(--pb-fill)]"
+          :class="email.is_starred ? 'text-[color:var(--pb-brand-ink)]' : 'text-[color:var(--pb-ink-3)]'"
           @click="toggleStar"
         >
           <span class="size-5 i-lucide-star" />
@@ -168,31 +168,31 @@ onMounted(load);
         empty-text="邮件不存在或无权查看"
         @retry="load"
       >
-        <h1 class="text-base font-semibold leading-snug text-n-slate-12">
+        <h1 class="text-base font-semibold leading-snug text-[color:var(--pb-ink)]">
           {{ email.subject || '（无主题）' }}
         </h1>
 
-        <div class="p-3 mt-3 text-xs wt-card text-n-slate-11">
+        <div class="p-3 mt-3 text-xs wt-card text-[color:var(--pb-ink-2)]">
           <div class="flex gap-2">
-            <span class="flex-none w-10 text-n-slate-10">发件</span>
+            <span class="flex-none w-10 text-[color:var(--pb-ink-3)]">发件</span>
             <span class="flex-1 break-all">{{ email.from_address }}</span>
           </div>
           <div class="flex gap-2 mt-1.5">
-            <span class="flex-none w-10 text-n-slate-10">收件</span>
+            <span class="flex-none w-10 text-[color:var(--pb-ink-3)]">收件</span>
             <span class="flex-1 break-all">{{ email.to_address }}</span>
           </div>
           <div v-if="email.cc_address" class="flex gap-2 mt-1.5">
-            <span class="flex-none w-10 text-n-slate-10">抄送</span>
+            <span class="flex-none w-10 text-[color:var(--pb-ink-3)]">抄送</span>
             <span class="flex-1 break-all">{{ email.cc_address }}</span>
           </div>
           <div class="flex gap-2 mt-1.5">
-            <span class="flex-none w-10 text-n-slate-10">时间</span>
+            <span class="flex-none w-10 text-[color:var(--pb-ink-3)]">时间</span>
             <span class="flex-1">{{ shortDateTime(email.email_date) }}</span>
           </div>
           <button
             v-if="email.crm_customer_id"
             type="button"
-            class="flex gap-2 mt-1.5 w-full text-left"
+            class="flex gap-2 mt-1.5 w-full text-left wt-link"
             @click="
               router.push({
                 name: 'customer-detail',
@@ -200,8 +200,8 @@ onMounted(load);
               })
             "
           >
-            <span class="flex-none w-10 text-n-slate-10">客户</span>
-            <span class="flex-1 underline text-n-iris-11 underline-offset-2">
+            <span class="flex-none w-10 text-[color:var(--pb-ink-3)]">客户</span>
+            <span class="flex-1 underline text-[color:var(--pb-accent)] underline-offset-2">
               {{ email.customer_name }}
             </span>
           </button>
@@ -214,11 +214,11 @@ onMounted(load);
               :href="f.url"
               target="_blank"
               rel="noopener"
-              class="flex items-center gap-3 p-3 wt-card active:bg-n-alpha-1"
+              class="flex items-center gap-3 p-3 wt-card active:bg-[color:var(--pb-fill)]"
             >
-              <span class="flex-none size-4 text-n-slate-10 i-lucide-paperclip" />
-              <span class="flex-1 text-sm truncate text-n-iris-11">{{ f.filename }}</span>
-              <span class="flex-none text-xs text-n-slate-10">{{ kb(f.byte_size) }}</span>
+              <span class="flex-none size-4 text-[color:var(--pb-ink-3)] i-lucide-paperclip" />
+              <span class="flex-1 text-sm truncate text-[color:var(--pb-accent)]">{{ f.filename }}</span>
+              <span class="flex-none text-xs text-[color:var(--pb-ink-3)]">{{ kb(f.byte_size) }}</span>
             </a>
           </li>
         </ul>
@@ -227,11 +227,11 @@ onMounted(load);
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div
           v-if="safeHtml && !showRaw"
-          class="mt-3 overflow-hidden text-sm leading-relaxed break-words rounded-2xl wt-mail-body text-n-slate-12"
+          class="mt-3 overflow-hidden text-sm leading-relaxed break-words rounded-2xl wt-mail-body text-[color:var(--pb-ink)]"
           v-html="safeHtml"
         />
         <div v-else class="p-3 mt-3 wt-card">
-          <p class="text-sm leading-relaxed break-words whitespace-pre-line text-n-slate-12">
+          <p class="text-sm leading-relaxed break-words whitespace-pre-line text-[color:var(--pb-ink)]">
             {{ email.body || '（空白邮件）' }}
           </p>
         </div>
@@ -239,7 +239,7 @@ onMounted(load);
         <button
           v-if="safeHtml"
           type="button"
-          class="mt-2 text-xs text-n-slate-10"
+          class="mt-2 text-xs wt-link text-[color:var(--pb-ink-3)]"
           @click="showRaw = !showRaw"
         >
           {{ showRaw ? '切回原排版' : '切纯文本' }}
@@ -271,26 +271,26 @@ onMounted(load);
         </button>
         <button
           type="button"
-          class="w-full wt-btn text-n-ruby-11 bg-n-ruby-3 active:bg-n-ruby-4"
+          class="w-full wt-btn text-[#C4383C] bg-[#C4383C]/10 active:bg-[#C4383C]/15"
           :disabled="busy"
           @click="remove"
         >
           删除邮件
         </button>
-        <p v-if="actionError" class="text-sm text-n-ruby-11">{{ actionError }}</p>
+        <p v-if="actionError" class="text-sm text-[#C4383C]">{{ actionError }}</p>
       </div>
     </AppSheet>
 
     <AppSheet :open="aiOpen" :title="aiTitle" @close="aiOpen = false">
-      <p v-if="aiLoading" class="py-6 text-sm text-center text-n-slate-11">AI 处理中…</p>
-      <p v-else class="text-sm leading-relaxed whitespace-pre-line text-n-slate-12">
+      <p v-if="aiLoading" class="py-6 text-sm text-center text-[color:var(--pb-ink-2)]">AI 处理中…</p>
+      <p v-else class="text-sm leading-relaxed whitespace-pre-line text-[color:var(--pb-ink)]">
         {{ aiText }}
       </p>
     </AppSheet>
 
     <div
       v-if="email"
-      class="flex-none px-4 pt-2 pb-2 border-t border-n-weak bg-n-background pb-safeBottom"
+      class="flex-none px-4 pt-2 pb-2 border-t border-[color:var(--pb-sep)] bg-n-background pb-safeBottom"
     >
       <button type="button" class="w-full wt-btn-primary" @click="reply">
         <span class="mr-1.5 size-4 i-lucide-reply" />

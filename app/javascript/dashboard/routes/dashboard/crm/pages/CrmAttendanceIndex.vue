@@ -408,6 +408,8 @@ const groupForm = reactive({
   workDays: [1, 2, 3, 4, 5],
   clockIn: '09:00',
   clockOut: '18:00',
+  breakStart: '12:00',
+  breakEnd: '13:30',
   grace: 0,
   reclockLimit: 3,
   reclockWindowDays: 30,
@@ -523,6 +525,8 @@ const loadGroupForm = g => {
   groupForm.workDays = [...(g?.work_days || [1, 2, 3, 4, 5])];
   groupForm.clockIn = g?.clock_in_time || '09:00';
   groupForm.clockOut = g?.clock_out_time || '18:00';
+  groupForm.breakStart = g?.break_start_time ?? '12:00';
+  groupForm.breakEnd = g?.break_end_time ?? '13:30';
   groupForm.grace = g?.grace_minutes ?? 0;
   groupForm.reclockLimit = g?.reclock_limit ?? 3;
   groupForm.reclockWindowDays = g?.reclock_window_days ?? 30;
@@ -649,6 +653,8 @@ const saveGroup = async () => {
       work_days: groupForm.workDays,
       clock_in_time: groupForm.clockIn,
       clock_out_time: groupForm.clockOut,
+      break_start_time: groupForm.breakStart,
+      break_end_time: groupForm.breakEnd,
       grace_minutes: groupForm.grace,
       reclock_limit: groupForm.reclockLimit,
       reclock_window_days: groupForm.reclockWindowDays,
@@ -1292,7 +1298,26 @@ onMounted(fetchMine);
                   class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
                 />
               </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-xs text-n-slate-11">午休开始</span>
+                <input
+                  v-model="groupForm.breakStart"
+                  type="time"
+                  class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-xs text-n-slate-11">午休结束</span>
+                <input
+                  v-model="groupForm.breakEnd"
+                  type="time"
+                  class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+                />
+              </label>
             </div>
+            <p class="text-xs text-n-slate-10">
+              午休会从工作时长里扣除，并把一天切成上午/下午两段——请假单按这个切分自动判半天假。两头都留空表示不设午休。
+            </p>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <label class="flex flex-col gap-1">
                 <span class="text-xs text-n-slate-11">宽限（分钟）</span>

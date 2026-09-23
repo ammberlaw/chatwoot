@@ -41,6 +41,11 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
     true
   end
 
+  # 生产追溯：与看订单同权限（数据本身已按订单可见范围收口）。
+  def production_trace?
+    true
+  end
+
   # 删除（软删进回收箱）：负责人本人 或 管理员/副管。具体归属在控制器 can_delete_order? 把关。
   def destroy?
     true

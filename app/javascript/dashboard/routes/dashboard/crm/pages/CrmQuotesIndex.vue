@@ -744,7 +744,7 @@ onMounted(() => {
     <!-- 页脚：共 N 条 + 页码 -->
     <div
       v-if="totalCount"
-      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-t sm:px-[26px] border-n-weak text-[12.5px] text-n-slate-10"
+      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-2 px-4 max-md:!pl-16 py-3 border-t sm:px-[26px] border-n-weak text-[12.5px] text-n-slate-10"
     >
       <span> 共 {{ totalCount }} 条 · 每页 {{ ITEMS_PER_PAGE }} 条 </span>
       <div v-if="totalPages > 1" class="flex items-center gap-1">

@@ -72,11 +72,10 @@ export function useTargetRows(months, year) {
   };
 
   const barClass = p => {
-    if (p == null) return 'bg-n-slate-6';
-    if (p >= 100) return 'bg-n-teal-9';
-    if (p >= 60) return 'bg-n-blue-9';
-    if (p >= 30) return 'bg-n-iris-9';
-    return 'bg-n-ruby-9';
+    if (p == null) return 'bg-[color:var(--pb-fill)]';
+    // 只分两态：达标高亮成品牌黄，其余一律黑。
+    // 百分比数字已经把「差多少」说清楚了，条子的职责是长度不是色相。
+    return p >= 100 ? 'bg-[color:var(--pb-brand)]' : 'bg-[color:var(--pb-ink)]';
   };
 
   return { rows, quarter, pct, barClass, nowYear, nowMonth };

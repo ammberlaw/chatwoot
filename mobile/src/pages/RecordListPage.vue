@@ -91,7 +91,7 @@ onMounted(load);
         <div v-if="cfg.searchable" class="px-4 pb-3">
           <div class="relative">
             <span
-              class="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 size-4 text-n-slate-10 i-lucide-search"
+              class="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 size-4 text-[color:var(--pb-ink-3)] i-lucide-search"
             />
             <input
               v-model="keyword"
@@ -109,11 +109,11 @@ onMounted(load);
             v-for="o in statusOptions"
             :key="o.value"
             type="button"
-            class="flex-none h-8 px-3 text-sm leading-none rounded-full"
+            class="flex-none wt-pill"
             :class="
               status === o.value
-                ? 'bg-n-iris-9 text-white font-medium'
-                : 'bg-n-alpha-1 text-n-slate-11'
+                ? 'wt-pill-on'
+                : 'wt-pill-off'
             "
             @click="switchStatus(o.value)"
           >
@@ -136,26 +136,26 @@ onMounted(load);
           <li v-for="r in list" :key="r.id">
             <button
               type="button"
-              class="w-full p-3 text-left wt-card active:bg-n-alpha-1"
+              class="w-full p-3 text-left wt-card active:bg-[color:var(--pb-fill)]"
               @click="router.push({ name: `${kind}-detail`, params: { id: r.id } })"
             >
               <div class="flex items-start gap-3">
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium truncate text-n-slate-12">
+                  <div class="text-sm font-medium truncate text-[color:var(--pb-ink)]">
                     {{ cfg.row(r).title }}
                   </div>
-                  <div class="mt-0.5 text-xs truncate text-n-slate-11">
+                  <div class="mt-0.5 text-xs truncate text-[color:var(--pb-ink-2)]">
                     {{ cfg.row(r).subtitle }}
                   </div>
                 </div>
                 <div class="flex-none text-right">
-                  <div class="text-sm font-semibold text-n-slate-12">
+                  <div class="text-sm font-semibold text-[color:var(--pb-ink)]">
                     {{ cfg.row(r).amount }}
                   </div>
                   <span
                     v-if="cfg.statusLabels[r[cfg.statusKey]]"
                     class="inline-block mt-1 px-1.5 py-0.5 text-[11px] rounded-md"
-                    :class="cfg.statusTone[r[cfg.statusKey]] || 'bg-n-alpha-1 text-n-slate-11'"
+                    :class="cfg.statusTone[r[cfg.statusKey]] || 'bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)]'"
                   >
                     {{ cfg.statusLabels[r[cfg.statusKey]] }}
                   </span>

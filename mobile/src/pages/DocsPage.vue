@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import PageHeader from '@/components/PageHeader.vue';
 import DataState from '@/components/DataState.vue';
+import FileTile from '@/components/FileTile.vue';
 import { fetchDocs } from '@/api/crm';
 import { shortDate } from '@/utils/format';
 
@@ -10,9 +11,11 @@ defineOptions({ name: 'DocsPage' });
 
 const router = useRouter();
 
+// filter 留空＝公司文档 + 自己的个人文档（后端 visible_docs 的默认范围）
 const VIEWS = [
   { key: 'company', label: '公司资料' },
   { key: 'mine', label: '我的文档' },
+  { key: '', label: '全部' },
 ];
 
 const list = ref([]);
@@ -63,42 +66,56 @@ onMounted(load);
 
 <template>
   <div class="flex flex-col h-full">
-    <PageHeader back title="知识库" :subtitle="total ? `共 ${total} 篇` : ''">
-      <template #below>
-        <div class="px-4 pb-3">
-          <div class="relative">
-            <span
-              class="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 size-4 text-n-slate-10 i-lucide-search"
-            />
-            <input
-              v-model="keyword"
-              type="search"
-              enterkeyhint="search"
-              placeholder="搜标题 / 摘要"
-              class="pl-9 wt-field"
-              @search="load()"
-              @keyup.enter="load()"
-            />
-          </div>
-        </div>
-        <div class="flex items-center gap-2 px-4 pb-3">
+    <PageHeader title="知识库">
+      <template #actions>
+        <button
+          type="button"
+          aria-label="上传文档"
+          class="wt-fab-round wt-press"
+          @click="router.push({ name: 'more' })"
+        >
+          <span class="size-5 i-lucide-plus" />
+        </button>
+      </template>
+    </PageHeader>
+
+    <div class="flex-none px-4 pb-2">
+      <div class="wt-search">
+        <span class="flex-none size-4 text-[color:var(--pb-ink-3)] i-lucide-search" />
+        <input
+          v-model="keyword"
+          type="search"
+          enterkeyhint="search"
+          placeholder="搜标题 / 摘要 / 文件名"
+          class="flex-1 min-w-0 text-[15px] bg-transparent outline-none text-[color:var(--pb-ink)] placeholder:text-[color:var(--pb-ink-3)]"
+          @search="load()"
+          @keyup.enter="load()"
+        />
+      </div>
+
+      <!-- 分段：三项，第 2/3 项之间一条细竖线（参考稿就是这样分的） -->
+      <div class="flex items-center gap-1 p-1 mt-2.5 rounded-full pb-well">
+        <template v-for="(v, k) in VIEWS" :key="v.key">
+          <span
+            v-if="k === 2"
+            class="self-stretch w-px my-2 bg-[color:var(--pb-sep)]"
+          />
           <button
-            v-for="v in VIEWS"
-            :key="v.key"
             type="button"
-            class="h-8 px-3 text-sm leading-none rounded-full"
+            class="flex-1 rounded-full h-10 text-[14px] transition-colors"
             :class="
               view === v.key
-                ? 'bg-n-iris-9 text-white font-medium'
-                : 'bg-n-alpha-1 text-n-slate-11'
+                ? 'bg-[color:var(--pb-ink)] text-[color:var(--pb-on-ink)] font-semibold'
+                : 'text-[color:var(--pb-ink-2)] font-medium'
             "
             @click="switchView(v.key)"
           >
             {{ v.label }}
           </button>
-        </div>
-      </template>
-    </PageHeader>
+        </template>
+      </div>
+
+          </div>
 
     <div class="flex-1 min-h-0 px-4 pt-3 overflow-y-auto">
       <DataState
@@ -109,27 +126,28 @@ onMounted(load);
         empty-text="这里还没有文档"
         @retry="load()"
       >
-        <ul class="flex flex-col gap-2">
+        <!-- 三列网格：一条文档挂多个附件时当「文件夹」，挂一个时按扩展名出类型图标。
+             副行对应显示「N 项」或文件日期（按定稿：不显示由谁添加）。 -->
+        <ul class="grid grid-cols-3 pt-3 gap-x-2 gap-y-8">
           <li v-for="d in list" :key="d.id">
             <button
               type="button"
-              class="w-full p-3 text-left wt-card active:bg-n-alpha-1"
+              class="flex flex-col items-center w-full gap-1.5 text-center wt-press"
               @click="router.push({ name: 'doc-detail', params: { id: d.id } })"
             >
-              <div class="flex items-start gap-3">
-                <span class="flex-none mt-0.5 size-4 text-n-slate-10 i-lucide-file-text" />
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium truncate text-n-slate-12">{{ d.name }}</div>
-                  <div v-if="d.summary" class="mt-0.5 text-xs truncate text-n-slate-11">
-                    {{ d.summary }}
-                  </div>
-                  <div class="mt-1 text-xs text-n-slate-10">
-                    {{ d.category || '未分类' }}
-                    <template v-if="d.files?.length"> · {{ d.files.length }} 个附件</template>
-                    · {{ shortDate(d.updated_at) }}
-                  </div>
-                </div>
-              </div>
+              <FileTile
+                class="size-[88px]"
+                :filename="(d.files?.length || 0) > 1 ? '' : d.files?.[0]?.filename || d.name"
+                :count="d.id"
+              />
+              <span
+                class="w-full text-[15px] font-semibold leading-[20px] line-clamp-2 text-[color:var(--pb-ink)]"
+              >
+                {{ d.name }}
+              </span>
+              <span class="text-[13px] leading-[18px] text-[color:var(--pb-ink-3)]">
+                {{ (d.files?.length || 0) > 1 ? `${d.files.length} 项` : shortDate(d.updated_at) }}
+              </span>
             </button>
           </li>
         </ul>

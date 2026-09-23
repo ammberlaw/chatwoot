@@ -9,6 +9,7 @@ import {
 } from 'dashboard/composables/useMesProductLine';
 
 import ProductGroupsAPI from 'dashboard/api/mes/productGroups';
+import ProductCategoriesAPI from 'dashboard/api/mes/productCategories';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -89,12 +90,52 @@ const loadGroups = async () => {
   groups.value = data.payload || [];
 };
 
+// —— 商品类别树（产品线 → 商品类别）——
+// 金蝶左侧那棵树的对应物。分类值来自导入时带进来的「商品类别」列，不用另行维护。
+const categoryTree = ref([]); // [{ product_line, count, categories: [{ category, count }] }]
+const selectedSourceCategory = ref(''); // ''=全部
+const categoryKeyword = ref('');
+const collapsedLines = reactive({});
+
+const loadCategoryTree = async () => {
+  try {
+    const { data } = await ProductCategoriesAPI.tree();
+    categoryTree.value = data.payload || [];
+  } catch {
+    categoryTree.value = [];
+  }
+};
+
+// 类别多达两百来个（商显尤其），所以树自带查找框，按关键字过滤子节点。
+// 过滤后父节点若一个子节点都不剩就整条隐藏。
+const filteredCategoryTree = computed(() => {
+  const kw = categoryKeyword.value.trim().toLowerCase();
+  return categoryTree.value
+    .map(line => ({
+      ...line,
+      categories: kw
+        ? line.categories.filter(c => c.category.toLowerCase().includes(kw))
+        : line.categories,
+    }))
+    .filter(line => line.categories.length);
+});
+const categoryTotal = computed(() =>
+  categoryTree.value.reduce((sum, line) => sum + line.count, 0)
+);
+// 有关键字时强制展开，否则找到了也看不见。
+const isLineOpen = line =>
+  !!categoryKeyword.value.trim() || !collapsedLines[line];
+const toggleLine = line => {
+  collapsedLines[line] = !collapsedLines[line];
+};
+
 const load = () =>
   store.get({
     page: currentPage.value,
     per_page: ITEMS_PER_PAGE,
     q: keyword.value.trim() || undefined,
     category: categoryFilter.value || undefined,
+    source_category: selectedSourceCategory.value || undefined,
     group_code: selectedGroup.value || undefined,
   });
 // 翻页触发重拉；搜索/筛选先回到第 1 页（页码变则由 watch 拉，未变则直接拉）。
@@ -109,6 +150,12 @@ const changeCategoryFilter = v => {
 };
 const selectGroup = code => {
   selectedGroup.value = selectedGroup.value === code ? '' : code;
+  reload();
+};
+// 点类别即筛选；再点一次取消（回到全部）。
+const selectSourceCategory = value => {
+  selectedSourceCategory.value =
+    selectedSourceCategory.value === value ? '' : value;
   reload();
 };
 
@@ -234,6 +281,7 @@ const doDelete = async () => {
 onMounted(() => {
   load();
   loadGroups();
+  loadCategoryTree();
 });
 </script>
 
@@ -277,11 +325,76 @@ onMounted(() => {
     </div>
 
     <div class="flex flex-1 min-h-0">
-      <!-- 左侧分组树（不限层级）：点节点连带子树筛选 -->
+      <!-- 左侧：商品类别树（产品线 → 类别，对齐金蝶）+ 产品分组树 -->
       <aside
-        class="flex-col hidden gap-1 px-2 py-3 overflow-y-auto border-r md:flex w-52 shrink-0 border-n-weak"
+        class="flex-col hidden gap-1 px-2 py-3 overflow-y-auto border-r md:flex w-56 shrink-0 border-n-weak"
       >
         <div class="flex items-center justify-between px-2 mb-1">
+          <span class="text-xs font-medium text-n-slate-11">商品类别</span>
+        </div>
+        <input
+          v-model="categoryKeyword"
+          placeholder="查找类别…"
+          class="w-full h-8 px-2 mb-1 text-xs border rounded-lg outline-none border-n-weak bg-n-solid-1 text-n-slate-12"
+        />
+        <button
+          type="button"
+          class="flex items-center justify-between w-full gap-1 px-2 py-1.5 text-sm text-left rounded-lg hover:bg-n-alpha-1"
+          :class="
+            selectedSourceCategory === ''
+              ? 'bg-n-iris-3 text-n-iris-11 font-medium'
+              : 'text-n-slate-12'
+          "
+          @click="selectSourceCategory('')"
+        >
+          <span>全部</span>
+          <span class="text-xs text-n-slate-10">{{ categoryTotal }}</span>
+        </button>
+        <template v-for="line in filteredCategoryTree" :key="line.product_line">
+          <button
+            type="button"
+            class="flex items-center gap-1 w-full px-2 py-1.5 text-xs font-medium text-left rounded-lg text-n-slate-11 hover:bg-n-alpha-1"
+            @click="toggleLine(line.product_line)"
+          >
+            <span
+              class="i-lucide-chevron-right size-3 shrink-0 transition-transform"
+              :class="isLineOpen(line.product_line) ? 'rotate-90' : ''"
+            />
+            <span class="truncate">
+              {{ productLineLabel(line.product_line) || '未指定产品线' }}
+            </span>
+            <span class="ml-auto text-n-slate-10">{{ line.count }}</span>
+          </button>
+          <template v-if="isLineOpen(line.product_line)">
+            <button
+              v-for="c in line.categories"
+              :key="`${line.product_line}-${c.category}`"
+              type="button"
+              class="flex items-center justify-between w-full gap-1 py-1 pl-6 pr-2 text-sm text-left rounded-lg hover:bg-n-alpha-1"
+              :class="
+                selectedSourceCategory === c.category
+                  ? 'bg-n-iris-3 text-n-iris-11 font-medium'
+                  : 'text-n-slate-12'
+              "
+              @click="selectSourceCategory(c.category)"
+            >
+              <span class="truncate">{{ c.category || '（未填类别）' }}</span>
+              <span class="text-xs shrink-0 text-n-slate-10">{{
+                c.count
+              }}</span>
+            </button>
+          </template>
+        </template>
+        <p
+          v-if="!filteredCategoryTree.length"
+          class="px-2 mt-1 text-xs text-n-slate-10"
+        >
+          {{ categoryKeyword.trim() ? '没有匹配的类别。' : '还没有商品类别。' }}
+        </p>
+
+        <div
+          class="flex items-center justify-between px-2 pt-3 mt-3 border-t border-n-weak"
+        >
           <span class="text-xs font-medium text-n-slate-11">产品分组</span>
           <button
             v-if="canManage"
@@ -373,6 +486,7 @@ onMounted(() => {
                 class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
               >
                 <span>规格：{{ p.specification || '—' }}</span>
+                <span v-if="p.remark">备注：{{ p.remark }}</span>
                 <span
                   >产品线：{{ productLineLabel(p.productLine) || '—' }}</span
                 >
@@ -395,7 +509,7 @@ onMounted(() => {
           </div>
 
           <!-- 列多：设最小宽度，窄屏外层 overflow-auto 自动横向滑动；仅「规格」长文本允许换行，其余列不换行 -->
-          <table class="hidden md:table w-full md:min-w-[1140px] text-sm">
+          <table class="hidden md:table w-full md:min-w-[1320px] text-sm">
             <thead>
               <tr
                 class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
@@ -404,6 +518,7 @@ onMounted(() => {
                 <th class="px-3 py-3 font-medium">商品名称</th>
                 <th class="px-3 py-3 font-medium">分组</th>
                 <th class="px-3 py-3 font-medium">规格</th>
+                <th class="px-3 py-3 font-medium">备注</th>
                 <th class="px-3 py-3 font-medium">产品线</th>
                 <th class="px-3 py-3 font-medium">商品类别</th>
                 <th class="px-3 py-3 font-medium">仓别分类</th>
@@ -429,6 +544,9 @@ onMounted(() => {
                 </td>
                 <td class="px-3 py-3 text-n-slate-11 min-w-[16rem]">
                   {{ p.specification || '—' }}
+                </td>
+                <td class="px-3 py-3 text-n-slate-11 min-w-[12rem]">
+                  {{ p.remark || '—' }}
                 </td>
                 <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
                   {{ productLineLabel(p.productLine) || '—' }}
@@ -481,7 +599,7 @@ onMounted(() => {
                 </td>
               </tr>
               <tr v-if="!records.length">
-                <td colspan="10" class="px-3 py-10 text-center text-n-slate-11">
+                <td colspan="11" class="px-3 py-10 text-center text-n-slate-11">
                   还没有产品。
                 </td>
               </tr>

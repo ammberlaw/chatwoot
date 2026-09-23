@@ -34,32 +34,37 @@ const logout = async () => {
       <!-- 账号 -->
       <div class="flex items-center gap-3 p-4 wt-card">
         <span
-          class="grid flex-none text-base font-semibold rounded-full size-11 place-items-center bg-n-iris-3 text-n-iris-11"
+          class="grid flex-none text-base font-semibold rounded-full size-11 place-items-center bg-[color:var(--pb-fill)] text-[color:var(--pb-accent)]"
         >
           {{ (auth.user?.name || auth.user?.email || '?').trim().charAt(0).toUpperCase() }}
         </span>
         <div class="flex-1 min-w-0">
-          <div class="font-semibold truncate text-n-slate-12">
+          <div class="font-semibold truncate text-[color:var(--pb-ink)]">
             {{ auth.user?.name || '未命名' }}
           </div>
-          <div class="mt-0.5 text-xs truncate text-n-slate-10">{{ auth.user?.email }}</div>
+          <div class="mt-0.5 text-xs truncate text-[color:var(--pb-ink-3)]">{{ auth.user?.email }}</div>
         </div>
       </div>
 
       <template v-for="g in groups" :key="g.title">
-        <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-n-slate-10">
+        <h2 class="mt-4 mb-2 text-xs font-semibold tracking-wide text-[color:var(--pb-ink-3)]">
           {{ g.title }}
         </h2>
         <ul class="overflow-hidden wt-card">
           <li v-for="item in g.items" :key="item.name">
             <button
               type="button"
-              class="flex items-center w-full gap-3 px-3 py-3 border-b last:border-b-0 border-n-weak active:bg-n-alpha-1"
+              class="flex items-center w-full gap-3 px-3 py-3 border-b last:border-b-0 border-[color:var(--pb-sep)] active:bg-[color:var(--pb-fill)]"
               @click="router.push({ name: item.name })"
             >
-              <span class="flex-none size-5 text-n-iris-11" :class="item.icon" />
-              <span class="flex-1 text-sm text-left text-n-slate-12">{{ item.label }}</span>
-              <span class="flex-none size-4 text-n-slate-9 i-lucide-chevron-right" />
+              <span
+                class="grid flex-none rounded-[10px] size-9 place-items-center"
+                :class="item.tile || 'tile-violet'"
+              >
+                <span class="size-5" :class="item.icon" />
+              </span>
+              <span class="flex-1 text-left ios-body text-[color:var(--pb-ink)]">{{ item.label }}</span>
+              <span class="flex-none size-[18px] text-[color:var(--pb-ink-3)] i-lucide-chevron-right" />
             </button>
           </li>
         </ul>
@@ -67,22 +72,22 @@ const logout = async () => {
 
       <button
         type="button"
-        class="w-full mt-6 wt-btn text-n-ruby-11 bg-n-ruby-3 active:bg-n-ruby-4"
+        class="w-full mt-6 wt-btn text-[#C4383C] bg-[#C4383C]/10 active:bg-[#C4383C]/15"
         @click="confirmLogout = true"
       >
         退出登录
       </button>
-      <div class="h-4" />
+      <div class="h-36" />
     </div>
 
     <AppSheet :open="confirmLogout" title="退出登录" @close="confirmLogout = false">
-      <p class="text-sm text-n-slate-11">
+      <p class="text-sm text-[color:var(--pb-ink-2)]">
         退出后需要重新输入账号密码。已缓存的离线数据也会一并清除。
       </p>
       <template #footer>
         <button
           type="button"
-          class="w-full wt-btn text-n-ruby-11 bg-n-ruby-3 active:bg-n-ruby-4"
+          class="w-full wt-btn text-[#C4383C] bg-[#C4383C]/10 active:bg-[#C4383C]/15"
           @click="logout"
         >
           确认退出

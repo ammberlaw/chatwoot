@@ -36,6 +36,47 @@ describe Conversations::AssignmentService do
       end
     end
 
+    # 分配会话时接管无主客户：业务员看的「我的客户」按 account_owner_id 筛，
+    # 派了活不改归属，他在那个视图里就是找不到人。
+    context 'when the contact has a CRM customer' do
+      let(:other_agent) { create(:user, account: account) }
+      let(:customer) { create(:crm_customer, account: account) }
+
+      before { conversation.contact.update!(crm_customer_id: customer.id) }
+
+      it 'claims the customer when it has no owner' do
+        described_class.new(conversation: conversation, assignee_id: agent.id).perform
+
+        expect(customer.reload.account_owner_id).to eq(agent.id)
+      end
+
+      it 'leaves a customer owned by someone else untouched' do
+        customer.update!(account_owner_id: other_agent.id)
+
+        described_class.new(conversation: conversation, assignee_id: agent.id).perform
+
+        expect(customer.reload.account_owner_id).to eq(other_agent.id)
+      end
+
+      it 'does not claim a customer sitting in the public pool' do
+        customer.update!(is_in_public_pool: true, public_pool_at: Time.current)
+
+        described_class.new(conversation: conversation, assignee_id: agent.id).perform
+
+        expect(customer.reload.account_owner_id).to be_nil
+      end
+    end
+
+    context 'when the contact has no CRM customer' do
+      it 'assigns the agent without raising' do
+        expect do
+          described_class.new(conversation: conversation, assignee_id: agent.id).perform
+        end.not_to raise_error
+
+        expect(conversation.reload.assignee_id).to eq(agent.id)
+      end
+    end
+
     context 'when assigning an agent bot' do
       let(:service) do
         described_class.new(

@@ -7,6 +7,15 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
     />
     <title>wintouchspace</title>
+    <script>
+      // 在任何渲染之前同步定色，否则深色模式下会先闪一帧白底
+      // 经典灰：与网页版同一套主题。常驻挂着，不做主题切换
+      document.documentElement.classList.add('theme-classic');
+      document.documentElement.classList.toggle(
+        'dark',
+        window.matchMedia('(prefers-color-scheme: dark)').matches
+      );
+    </script>
   </head>
   <body>
     <div id="app"></div>

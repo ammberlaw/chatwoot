@@ -60,6 +60,8 @@ class Api::V1::Accounts::Crm::AttendanceGroupsController < Api::V1::Accounts::Cr
     {
       clock_in_time: group_params[:clock_in_time],
       clock_out_time: group_params[:clock_out_time],
+      break_start_time: group_params[:break_start_time].to_s,
+      break_end_time: group_params[:break_end_time].to_s,
       grace_minutes: group_params[:grace_minutes].to_i,
       reclock_limit: group_params[:reclock_limit].to_i,
       reclock_window_days: group_params[:reclock_window_days].to_i
@@ -91,7 +93,8 @@ class Api::V1::Accounts::Crm::AttendanceGroupsController < Api::V1::Accounts::Cr
   def group_json(group)
     { id: group.id, name: group.name, is_default: group.is_default,
       work_days: group.work_days, clock_in_time: group.clock_in_time,
-      clock_out_time: group.clock_out_time, grace_minutes: group.grace_minutes,
+      clock_out_time: group.clock_out_time, break_start_time: group.break_start_time,
+      break_end_time: group.break_end_time, grace_minutes: group.grace_minutes,
       reclock_limit: group.reclock_limit, reclock_window_days: group.reclock_window_days,
       holidays: group.holidays, extra_workdays: group.extra_workdays, user_ids: group.user_ids,
       geo_enabled: group.geo_enabled, office_lat: group.office_lat&.to_f,

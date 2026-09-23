@@ -17,10 +17,27 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
       )
     end
     @products_count = scope.count
-    @products = scope.order(updated_at: :desc).page(page_param).per(per_page_param)
+    # 按商品编码排，id 兜底。原来按 updated_at 排是错的：4800+ 条产品是一次导入进来的、
+    # 共用同一个 updated_at，全序不唯一 → 同一条在每页都冒出来、另一批在任何一页都翻不到
+    # （和销售订单那次丢单是同一个毛病）。编码序也和金蝶的档案列表一致，便于对账。
+    @products = scope.order(Arel.sql('crm_products.sku ASC NULLS LAST, crm_products.id ASC'))
+                     .page(page_param).per(per_page_param)
     # 本页各产品的实时库存（跨仓合计），供 BOM/采购选料即时显示「对应物料实时库存」。
     @onhand_map = Mes::StockBalance.where(account_id: Current.account.id, crm_product_id: @products.map(&:id))
                                    .group(:crm_product_id).sum(:qty)
+  end
+
+  # 商品类别树：产品线 → 商品类别（source_category）+ 各自条数。
+  # 直接按金蝶那列「商品类别」来，不另起一套要人工维护、最终必然和金蝶对不上的分类字典。
+  # 不分页、不带产品明细，只回 (产品线, 类别, 条数)，左侧树一次拉完。
+  def categories
+    rows = scoped_by_product_line(Current.account.crm_products)
+           .group(:product_line, :source_category).count
+    @category_tree = rows.sort_by { |(line, cat), _| [line.to_s, cat.to_s] }
+                         .group_by { |(line, _), _| line.to_s }
+                         .transform_values do |entries|
+      entries.map { |(_, cat), count| { category: cat.to_s, count: count } }
+    end
   end
 
   def create

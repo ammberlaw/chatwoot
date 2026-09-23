@@ -7,7 +7,7 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
     scope = scope.where(result: params[:result]) if params[:result].present?
     scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?
     @inspections_count = scope.count
-    @inspections = scope.order(inspected_at: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @inspections = scope.order(inspected_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
 
   def create

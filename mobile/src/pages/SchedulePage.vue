@@ -2,6 +2,9 @@
 import { ref, computed, onMounted } from 'vue';
 import PageHeader from '@/components/PageHeader.vue';
 import DataState from '@/components/DataState.vue';
+import EmptyState from '@/components/EmptyState.vue';
+import { useAuthStore } from '@/stores/auth';
+import { wallTime } from '@/utils/format';
 import AppSheet from '@/components/AppSheet.vue';
 import FormField from '@/components/FormField.vue';
 import CustomerPicker from '@/components/CustomerPicker.vue';
@@ -15,7 +18,11 @@ import {
 
 defineOptions({ name: 'SchedulePage' });
 
+const auth = useAuthStore();
+
 const monthStart = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+// 选中的那一天（时间轴只画这一天）。月数据照旧整月拉，周条上的小圆点要靠它。
+const selected = ref(new Date());
 const events = ref([]);
 const loading = ref(true);
 const failed = ref(false);
@@ -37,16 +44,44 @@ const range = computed(() => {
   };
 });
 
-// 接口返回的是「展开后的每次发生」，按天分组更贴近日程的读法
-const grouped = computed(() => {
-  const map = new Map();
-  events.value.forEach(e => {
-    const key = e.occurrence_date || String(e.starts_at).slice(0, 10);
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(e);
+const dayKey = e => e.occurrence_date || String(e.starts_at).slice(0, 10);
+
+// 哪几天有安排——周条上的小圆点用
+const daysWithEvents = computed(() => new Set(events.value.map(dayKey)));
+
+// 周条：以选中日所在周的周一为起点
+const weekDays = computed(() => {
+  const d = new Date(selected.value);
+  const dow = (d.getDay() + 6) % 7; // 周一=0
+  const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow);
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i);
+    return { date: x, key: ymd(x), day: x.getDate(), w: '一二三四五六日'[i] };
   });
-  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 });
+
+// 选中那天的安排，按时间排。全天的排最前。
+const dayEvents = computed(() =>
+  events.value
+    .filter(e => dayKey(e) === ymd(selected.value))
+    .sort((a, b) => {
+      if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+      return String(a.starts_at).localeCompare(String(b.starts_at));
+    })
+);
+
+// 高亮「当前或下一个」——今天才有，其它日子不高亮，免得误导
+const activeId = computed(() => {
+  if (ymd(selected.value) !== ymd(new Date())) return null;
+  const now = new Date();
+  const hit = dayEvents.value.find(
+    e => !e.all_day && !e.done && new Date(e.ends_at || e.starts_at) >= now
+  );
+  return hit ? `${hit.id}-${dayKey(hit)}` : null;
+});
+
+const hhmm = wallTime;
+const rowKey = e => `${e.id}-${dayKey(e)}`;
 
 const load = async () => {
   loading.value = true;
@@ -62,11 +97,43 @@ const load = async () => {
   }
 };
 
-const shiftMonth = delta => {
-  const s = monthStart.value;
-  monthStart.value = new Date(s.getFullYear(), s.getMonth() + delta, 1);
-  load();
+const shiftWeek = delta => {
+  const d = selected.value;
+  const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + delta * 7);
+  selected.value = next;
+  // 跨月了就重新拉月数据
+  if (next.getMonth() !== monthStart.value.getMonth() || next.getFullYear() !== monthStart.value.getFullYear()) {
+    monthStart.value = new Date(next.getFullYear(), next.getMonth(), 1);
+    load();
+  }
 };
+
+const pickDay = d => {
+  selected.value = d;
+};
+
+const longDate = computed(() => {
+  const d = selected.value;
+  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+});
+const isToday = computed(() => ymd(selected.value) === ymd(new Date()));
+const weekdayTitle = computed(() => `周${'日一二三四五六'[selected.value.getDay()]}`);
+
+const goToday = () => {
+  const now = new Date();
+  selected.value = now;
+  if (now.getMonth() !== monthStart.value.getMonth() || now.getFullYear() !== monthStart.value.getFullYear()) {
+    monthStart.value = new Date(now.getFullYear(), now.getMonth(), 1);
+    load();
+  }
+};
+
+// 副标题：备注优先，其次关联对象/地点/所有者。黑卡和裸行共用一份口径。
+const subtitleOf = ev =>
+  ev.note ||
+  [ev.ref_name || ev.customer_name, ev.location, ev.is_owner ? '' : ev.owner_name]
+    .filter(Boolean)
+    .join(' · ');
 
 const toggle = async ev => {
   const date = ev.occurrence_date || String(ev.starts_at).slice(0, 10);
@@ -173,42 +240,23 @@ const remove = async () => {
   }
 };
 
-const dayHeading = date => {
-  const d = new Date(`${date}T00:00:00`);
-  const isToday = ymd(new Date()) === date;
+const selectedLabel = computed(() => {
+  const d = selected.value;
+  const isToday = ymd(d) === ymd(new Date());
   return `${d.getMonth() + 1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}${isToday ? ' · 今天' : ''}`;
-};
-
-const timeLabel = ev =>
-  ev.all_day ? '全天' : String(ev.starts_at).slice(11, 16);
+});
 
 onMounted(load);
 </script>
 
 <template>
   <div class="flex flex-col h-full">
-    <PageHeader back title="日程" :subtitle="monthLabel">
+    <PageHeader title="日程表">
       <template #actions>
         <button
           type="button"
-          aria-label="上个月"
-          class="grid rounded-full size-9 place-items-center text-n-slate-11 active:bg-n-alpha-1"
-          @click="shiftMonth(-1)"
-        >
-          <span class="size-5 i-lucide-chevron-left" />
-        </button>
-        <button
-          type="button"
-          aria-label="下个月"
-          class="grid rounded-full size-9 place-items-center text-n-slate-11 active:bg-n-alpha-1"
-          @click="shiftMonth(1)"
-        >
-          <span class="size-5 i-lucide-chevron-right" />
-        </button>
-        <button
-          type="button"
           aria-label="新建日程"
-          class="grid rounded-full size-9 place-items-center text-n-iris-11 active:bg-n-alpha-1"
+          class="wt-fab-round wt-press"
           @click="openNew"
         >
           <span class="size-5 i-lucide-plus" />
@@ -216,61 +264,193 @@ onMounted(load);
       </template>
     </PageHeader>
 
-    <div class="flex-1 min-h-0 px-4 pt-3 overflow-y-auto">
-      <DataState
-        :loading="loading"
-        :failed="failed"
-        :empty="!events.length"
-        :stale-at="staleAt"
-        empty-text="这个月没有安排"
-        @retry="load"
-      >
-        <template v-for="[date, list] in grouped" :key="date">
-          <h2 class="mt-3 mb-2 text-xs font-semibold tracking-wide first:mt-0 text-n-slate-10">
-            {{ dayHeading(date) }}
-          </h2>
-          <ul class="overflow-hidden wt-card">
-            <li
-              v-for="(ev, i) in list"
-              :key="`${ev.id}-${i}`"
-              class="flex items-start gap-3 px-3 py-3 border-b last:border-b-0 border-n-weak"
+    <div class="flex-1 min-h-0 overflow-y-auto">
+      <!-- 头部卡：日期行 + 大标题 + 头像 + 周条，全在一张白卡里（定稿的形） -->
+      <div class="mx-4 px-5 pt-5 pb-4 rounded-[26px] bg-[color:var(--pb-card)]">
+        <div class="flex items-start gap-3">
+          <div class="flex-1 min-w-0">
+            <p class="text-[15px] leading-5 text-[color:var(--pb-ink-3)]">{{ longDate }}</p>
+            <h2
+              class="mt-1 text-[30px] font-bold leading-9 tracking-[-0.6px] text-[color:var(--pb-ink)]"
             >
+              {{ isToday ? '今天' : weekdayTitle }}
+            </h2>
+          </div>
+          <button
+            type="button"
+            aria-label="回到今天"
+            class="grid flex-none rounded-full size-12 place-items-center text-[15px] font-semibold bg-[color:var(--pb-fill)] text-[color:var(--pb-ink-2)] wt-press"
+            @click="goToday"
+          >
+            {{ (auth.user?.name || '?').trim().slice(0, 1).toUpperCase() }}
+          </button>
+        </div>
+
+        <!-- 周条：日期在上、周几在下；选中是竖向黑胶囊 + 底部白点 -->
+        <div class="flex mt-4">
+          <button
+            v-for="d in weekDays"
+            :key="d.key"
+            type="button"
+            class="flex flex-col items-center flex-1 gap-1 py-2.5 rounded-full transition-colors"
+            :class="d.key === ymd(selected) ? 'bg-[color:var(--pb-ink)]' : ''"
+            @click="pickDay(d.date)"
+          >
+            <span
+              class="text-[17px] font-semibold leading-6 tabular-nums"
+              :class="
+                d.key === ymd(selected)
+                  ? 'text-[color:var(--pb-on-ink)]'
+                  : 'text-[color:var(--pb-ink-3)]'
+              "
+            >
+              {{ d.day }}
+            </span>
+            <span
+              class="text-[13px] leading-4"
+              :class="
+                d.key === ymd(selected)
+                  ? 'text-[color:var(--pb-on-ink)]'
+                  : 'text-[color:var(--pb-ink-3)]'
+              "
+            >
+              周{{ d.w }}
+            </span>
+            <span
+              class="rounded-full size-1"
+              :class="
+                daysWithEvents.has(d.key)
+                  ? d.key === ymd(selected)
+                    ? 'bg-[color:var(--pb-on-ink)]'
+                    : 'bg-[color:var(--pb-ink-3)]'
+                  : 'bg-transparent'
+              "
+            />
+          </button>
+        </div>
+      </div>
+
+      <div class="px-4 pt-5">
+        <DataState
+          :loading="loading"
+          :failed="failed"
+          :empty="!dayEvents.length"
+          :stale-at="staleAt"
+          @retry="load"
+        >
+          <template #empty>
+            <EmptyState
+              icon="i-ri-calendar-2-fill"
+              badge="i-ri-add-line"
+              title="这一天没有安排"
+              action="新建日程"
+              @action="openNew"
+            />
+          </template>
+
+          <!-- 时间轴：左侧只有圆点和竖线（定稿里没有时间刻度列，时间在每条右侧） -->
+          <ul>
+            <li v-for="(ev, i) in dayEvents" :key="rowKey(ev)" class="flex gap-4">
+              <div class="flex flex-col items-center flex-none w-3">
+                <span
+                  class="mt-2 rounded-full size-3"
+                  :class="
+                    rowKey(ev) === activeId
+                      ? 'bg-[color:var(--pb-ink)] ring-[3px] ring-[color:var(--pb-ink)]/20'
+                      : 'ring-[1.5px] ring-[color:var(--pb-ink-3)] bg-transparent'
+                  "
+                />
+                <span
+                  v-if="i < dayEvents.length - 1"
+                  class="flex-1 w-px mt-1.5 bg-[color:var(--pb-ink-3)]/45"
+                />
+              </div>
+
+              <!-- 当前项：黑卡 + 波纹 + 参与人 + 勾选 -->
               <button
+                v-if="rowKey(ev) === activeId"
                 type="button"
-                :aria-label="ev.done ? '标记未完成' : '标记完成'"
-                class="grid flex-none mt-0.5 border rounded-full size-5 place-items-center"
-                :class="
-                  ev.done
-                    ? 'bg-n-teal-9 border-n-teal-9 text-white'
-                    : 'border-n-slate-8 text-transparent'
-                "
-                @click="toggle(ev)"
-              >
-                <span class="size-3 i-lucide-check" />
-              </button>
-              <button
-                type="button"
-                class="flex-1 min-w-0 text-left"
+                class="flex-1 min-w-0 p-4 mb-6 overflow-hidden text-left rounded-[22px] pb-wave wt-press"
                 @click="openEdit(ev)"
               >
-                <div
-                  class="text-sm font-medium truncate"
-                  :class="ev.done ? 'line-through text-n-slate-10' : 'text-n-slate-12'"
+                <div class="flex items-start gap-3">
+                  <span
+                    class="flex-1 min-w-0 text-[20px] font-bold leading-7 truncate text-[color:var(--pb-on-ink)]"
+                  >
+                    {{ ev.title }}
+                  </span>
+                  <span class="flex-none mt-1 text-[13px] tabular-nums text-[color:var(--pb-on-ink-2)]">
+                    {{ ev.all_day ? '全天' : hhmm(ev.starts_at) }}
+                  </span>
+                </div>
+                <p
+                  v-if="subtitleOf(ev)"
+                  class="mt-1 text-[14px] leading-5 line-clamp-2 text-[color:var(--pb-on-ink-2)]"
                 >
-                  {{ ev.title }}
+                  {{ subtitleOf(ev) }}
+                </p>
+
+                <div class="flex items-center gap-3 mt-4">
+                  <div v-if="ev.participant_names?.length" class="flex items-center">
+                    <span
+                      v-for="(n, k) in ev.participant_names.slice(0, 3)"
+                      :key="n + k"
+                      class="grid rounded-full size-9 place-items-center text-[13px] font-semibold -ml-2.5 first:ml-0 ring-2 ring-[color:var(--pb-ink)] bg-[color:var(--pb-on-ink-fill)] text-[color:var(--pb-on-ink)]"
+                    >
+                      {{ String(n).trim().slice(0, 1) }}
+                    </span>
+                    <span
+                      v-if="ev.participant_names.length > 3"
+                      class="grid rounded-full size-9 place-items-center text-[12px] font-semibold -ml-2.5 ring-2 ring-[color:var(--pb-ink)] bg-[color:var(--pb-on-ink-fill)] text-[color:var(--pb-on-ink)]"
+                    >
+                      +{{ ev.participant_names.length - 3 }}
+                    </span>
+                  </div>
+                  <span class="flex-1" />
+                  <span
+                    :aria-label="ev.done ? '标记未完成' : '标记完成'"
+                    class="grid flex-none rounded-xl size-11 place-items-center bg-[color:var(--pb-on-ink)] text-[color:var(--pb-ink)]"
+                    @click.stop="toggle(ev)"
+                  >
+                    <span class="size-5 i-lucide-check" />
+                  </span>
                 </div>
-                <div class="mt-0.5 text-xs truncate text-n-slate-10">
-                  {{ timeLabel(ev) }}
-                  <template v-if="ev.ref_name"> · {{ ev.ref_name }}</template>
-                  <template v-if="ev.location"> · {{ ev.location }}</template>
-                  <template v-if="!ev.is_owner"> · {{ ev.owner_name }}</template>
+              </button>
+
+              <!-- 其余项：裸列 -->
+              <button
+                v-else
+                type="button"
+                class="flex-1 min-w-0 pb-6 text-left transition-opacity active:opacity-50"
+                @click="openEdit(ev)"
+              >
+                <div class="flex items-start gap-3">
+                  <span
+                    class="flex-1 min-w-0 text-[20px] font-bold leading-7 truncate"
+                    :class="
+                      ev.done
+                        ? 'line-through text-[color:var(--pb-ink-3)]'
+                        : 'text-[color:var(--pb-ink)]'
+                    "
+                  >
+                    {{ ev.title }}
+                  </span>
+                  <span class="flex-none mt-1 text-[13px] tabular-nums text-[color:var(--pb-ink-3)]">
+                    {{ ev.all_day ? '全天' : hhmm(ev.starts_at) }}
+                  </span>
                 </div>
+                <p
+                  v-if="subtitleOf(ev)"
+                  class="mt-1 text-[14px] leading-5 line-clamp-2 text-[color:var(--pb-ink-3)]"
+                >
+                  {{ subtitleOf(ev) }}
+                </p>
               </button>
             </li>
           </ul>
-        </template>
-        <div class="h-4" />
-      </DataState>
+          <div class="h-36" />
+        </DataState>
+      </div>
     </div>
 
     <AppSheet :open="sheet" :title="editId ? '编辑日程' : '新建日程'" @close="sheet = false">
@@ -280,8 +460,8 @@ onMounted(load);
         </FormField>
 
         <label class="flex items-center gap-2">
-          <input v-model="form.all_day" type="checkbox" class="size-4 accent-n-iris-9" />
-          <span class="text-sm text-n-slate-12">全天</span>
+          <input v-model="form.all_day" type="checkbox" class="size-4 accent-[color:var(--pb-ink)]" />
+          <span class="text-sm text-[color:var(--pb-ink)]">全天</span>
         </label>
 
         <div class="grid grid-cols-2 gap-3">
@@ -303,7 +483,7 @@ onMounted(load);
           <textarea v-model="form.note" rows="3" class="wt-field" />
         </FormField>
 
-        <p v-if="error" class="text-sm text-n-ruby-11">{{ error }}</p>
+        <p v-if="error" class="text-sm text-[#C4383C]">{{ error }}</p>
       </div>
 
       <template #footer>
@@ -311,7 +491,7 @@ onMounted(load);
           <button
             v-if="editId"
             type="button"
-            class="flex-none px-4 wt-btn text-n-ruby-11 bg-n-ruby-3 active:bg-n-ruby-4"
+            class="flex-none px-4 wt-btn text-[#C4383C] bg-[#C4383C]/10 active:bg-[#C4383C]/15"
             :disabled="saving"
             @click="remove"
           >
