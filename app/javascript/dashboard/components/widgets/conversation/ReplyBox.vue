@@ -211,13 +211,18 @@ export default {
       const stored = this.$store.getters['inboxes/getInbox'](this.inboxId);
       if (stored?.id) return stored;
 
-      // 跨收件箱被指派时(会话在同事的号里),inboxes store 里没有这个箱:
-      // 它只装「自己是成员」的箱(InboxPolicy::Scope → assigned_inboxes),
-      // 而会话可见性早已放开成「分给我的都看得见」(Conversations::Visibility)。
-      // 两边口径不一致时 channelType 落空,showFileUpload 判定全落 false,
-      // 附件/表情/语音按钮连同粘贴上传会一起消失——业务员只剩一个纯文本框。
-      // 会话数据自带 inbox.channel_type(见 _conversation.json.jbuilder),拿它兜底。
-      return this.currentChat?.inbox || stored;
+      // 跨收件箱被指派时（会话在同事的号里），inboxes store 里没有这个箱：
+      // 它只装「自己是成员」的箱（InboxPolicy::Scope → assigned_inboxes），
+      // 而会话可见性早已放开成「分给我的都看得见」（Conversations::Visibility）。
+      // 两边口径不一致时 channelType 落空，showFileUpload 判定全落 false，
+      // 附件/语音按钮连同粘贴上传会一起消失——业务员只剩一个纯文本框加表情。
+      //
+      // 注意会话接口**不下发 inbox 对象**（顶层只有 inbox_id），渠道类型在 meta.channel 里；
+      // 拿 currentChat.inbox 兜底是空的（getInbox 未命中返回 {}，判定照样全 false）。
+      const channelType = this.currentChat?.meta?.channel;
+      return channelType
+        ? { id: this.inboxId, channel_type: channelType }
+        : stored;
     },
     messagePlaceHolder() {
       if (this.isEditorDisabled) {
