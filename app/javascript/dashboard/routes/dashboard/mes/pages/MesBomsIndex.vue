@@ -865,6 +865,7 @@ onMounted(async () => {
         <table class="hidden w-full text-sm md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium w-12">#</th>
               <th class="px-3 py-3 font-medium">BOM 号</th>
               <th class="px-3 py-3 font-medium">型号 / 成品</th>
               <th class="px-3 py-3 font-medium">负责人</th>
@@ -877,7 +878,14 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="b in records" :key="b.id" class="border-b border-n-weak">
+            <tr
+              v-for="(b, i) in records"
+              :key="b.id"
+              class="border-b border-n-weak"
+            >
+              <td class="px-3 py-3 tabular-nums text-n-slate-10">
+                {{ (currentPage - 1) * ITEMS_PER_PAGE + i + 1 }}
+              </td>
               <td class="px-3 py-3 font-medium text-n-slate-12">
                 {{ b.bomNo }}
               </td>
@@ -967,8 +975,8 @@ onMounted(async () => {
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="5xl"
       overflow-y-auto
       :show-confirm-button="false"
@@ -986,7 +994,8 @@ onMounted(async () => {
             block
           />
           <p class="text-xs text-n-slate-10">
-            选择后「保存并下发」将直接挂接到该订单，并提醒工程/PMC 下发采购；存草稿不挂接。
+            选择后「保存并下发」将直接挂接到该订单，并提醒工程/PMC
+            下发采购；存草稿不挂接。
           </p>
         </div>
         <!-- 投单信息（照 PMC 纸质 BOM 抬头） -->
@@ -1133,24 +1142,19 @@ onMounted(async () => {
 
         <div class="flex flex-col gap-2">
           <div
-            class="grid grid-cols-[repeat(14,minmax(0,1fr))] gap-2 px-1 text-xs text-n-slate-11"
+            class="grid grid-cols-[1.75rem_2fr_2fr_2fr_3fr_1fr_1fr_1fr_1fr_1fr_1.5rem] gap-2 px-1 text-xs text-n-slate-11"
           >
-            <span class="col-span-2">类别</span>
-            <span class="col-span-2"
-              >物料编码 <span class="text-n-ruby-11">*</span></span
-            >
-            <span class="col-span-2"
-              >物料名称 <span class="text-n-ruby-11">*</span></span
-            >
-            <span class="col-span-2">规格型号</span>
-            <span class="col-span-1">单位</span>
-            <span class="col-span-1"
-              >用量 <span class="text-n-ruby-11">*</span></span
-            >
-            <span class="col-span-1">建议采购</span>
-            <span class="col-span-1">实时库存</span>
-            <span class="col-span-1">备注</span>
-            <span class="col-span-1" />
+            <span>#</span>
+            <span>类别</span>
+            <span>物料编码 <span class="text-n-ruby-11">*</span></span>
+            <span>物料名称 <span class="text-n-ruby-11">*</span></span>
+            <span>规格型号</span>
+            <span>单位</span>
+            <span>用量 <span class="text-n-ruby-11">*</span></span>
+            <span>建议采购</span>
+            <span>实时库存</span>
+            <span>备注</span>
+            <span />
           </div>
           <div
             v-for="(row, i) in form.rows"
@@ -1158,9 +1162,12 @@ onMounted(async () => {
             class="pb-2 border-b border-dashed border-n-weak last:border-0"
           >
             <div
-              class="grid items-center grid-cols-[repeat(14,minmax(0,1fr))] gap-2"
+              class="grid items-center grid-cols-[1.75rem_2fr_2fr_2fr_3fr_1fr_1fr_1fr_1fr_1fr_1.5rem] gap-2"
             >
-              <div class="col-span-2">
+              <span class="text-xs tabular-nums text-n-slate-10">
+                {{ i + 1 }}
+              </span>
+              <div>
                 <SelectCard
                   v-model="row.category"
                   :options="CATEGORY_OPTIONS"
@@ -1176,36 +1183,29 @@ onMounted(async () => {
                     : ''
                 "
                 placeholder="选物料"
-                trigger-class="col-span-2"
+                trigger-class=""
                 @select="p => pickMaterial(row, p)"
               />
               <Input
                 :model-value="row.materialName"
                 placeholder="选编码自动带出"
                 disabled
-                class="col-span-2"
               />
-              <Input
-                v-model="row.specification"
-                placeholder="规格型号"
-                class="col-span-2"
-              />
-              <Input v-model="row.unit" placeholder="台" class="col-span-1" />
+              <Input v-model="row.specification" placeholder="规格型号" />
+              <Input v-model="row.unit" placeholder="台" />
               <Input
                 :model-value="row.qty"
                 type="number"
                 placeholder="用量"
-                class="col-span-1"
                 @update:model-value="v => setRowQty(row, v)"
               />
               <Input
                 v-model="row.suggestedPurchaseQty"
                 type="number"
                 placeholder="选填"
-                class="col-span-1"
               />
               <span
-                class="col-span-1 px-1 text-xs truncate"
+                class="px-1 text-xs truncate"
                 :class="
                   row.onHand == null ? 'text-n-slate-10' : 'text-n-slate-12'
                 "
@@ -1213,14 +1213,10 @@ onMounted(async () => {
               >
                 {{ row.onHand == null ? '—' : row.onHand }}
               </span>
-              <Input
-                v-model="row.remark"
-                placeholder="备注"
-                class="col-span-1"
-              />
+              <Input v-model="row.remark" placeholder="备注" />
               <button
                 type="button"
-                class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
+                class="text-n-slate-10 hover:text-n-ruby-11"
                 @click="removeRow(i)"
               >
                 ✕
@@ -1456,8 +1452,8 @@ onMounted(async () => {
     </Dialog>
 
     <Dialog
-      :dismissible="false"
       ref="viewDialogRef"
+      :dismissible="false"
       width="5xl"
       overflow-y-auto
       :show-confirm-button="false"
@@ -1712,8 +1708,8 @@ onMounted(async () => {
 
     <!-- BOM 模版管理：套用 / 删除 -->
     <Dialog
-      :dismissible="false"
       ref="templateDialogRef"
+      :dismissible="false"
       width="2xl"
       overflow-y-auto
       :show-confirm-button="false"
@@ -1791,8 +1787,8 @@ onMounted(async () => {
 
     <!-- 存为模版：命名 -->
     <Dialog
-      :dismissible="false"
       ref="saveTplDialogRef"
+      :dismissible="false"
       width="sm"
       title="存为模版"
       confirm-button-label="保存模版"
