@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_23_200001) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_24_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -3228,6 +3228,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_23_200001) do
     t.index ["production_order_id"], name: "index_mes_shipments_on_production_order_id"
   end
 
+  create_table "mes_stage_ack_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "production_order_id", null: false
+    t.string "stage", null: false
+    t.string "kind", null: false
+    t.bigint "actor_id", null: false
+    t.bigint "to_user_id"
+    t.text "note"
+    t.datetime "happened_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "production_order_id", "happened_at"], name: "idx_mes_stage_ack_events_lookup"
+    t.index ["production_order_id"], name: "idx_mes_stage_ack_events_on_order"
+  end
+
   create_table "mes_stock_balances", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "item_type", null: false
@@ -4087,6 +4102,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_23_200001) do
   add_foreign_key "mes_shipments", "mes_production_orders", column: "production_order_id", on_delete: :nullify
   add_foreign_key "mes_shipments", "users", column: "manager_id", on_delete: :nullify
   add_foreign_key "mes_shipments", "users", column: "owner_id", on_delete: :nullify
+  add_foreign_key "mes_stage_ack_events", "accounts"
+  add_foreign_key "mes_stage_ack_events", "mes_production_orders", column: "production_order_id", on_delete: :cascade
+  add_foreign_key "mes_stage_ack_events", "users", column: "actor_id", on_delete: :cascade
+  add_foreign_key "mes_stage_ack_events", "users", column: "to_user_id", on_delete: :nullify
   add_foreign_key "mes_stock_entries", "mes_production_orders", column: "production_order_id", on_delete: :nullify
   add_foreign_key "mes_stock_entries", "mes_purchase_orders", column: "purchase_order_id", on_delete: :nullify
   add_foreign_key "mes_stock_entries", "users", column: "owner_id", on_delete: :nullify
