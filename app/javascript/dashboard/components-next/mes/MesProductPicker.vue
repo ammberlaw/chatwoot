@@ -31,21 +31,6 @@ const rows = ref([]);
 const loading = ref(false);
 
 onClickOutside(triggerEl, () => { open.value = false; }, { ignore: [popoverEl] }); // prettier-ignore
-// 页面滚动时关闭（fixed 弹层会与触发器错位）；但弹层内部列表滚动不关。
-useEventListener(
-  'scroll',
-  e => {
-    if (!open.value) return;
-    const t = e.target;
-    if (popoverEl.value && t instanceof Node && popoverEl.value.contains(t))
-      return;
-    open.value = false;
-  },
-  { capture: true, passive: true }
-);
-useEventListener('resize', () => {
-  if (open.value) open.value = false;
-});
 
 const hasValue = computed(() => !!props.displayText);
 
@@ -95,6 +80,34 @@ const positionPopover = () => {
     width: `${width}px`,
   };
 };
+
+// 页面滚动时跟着重新定位，而不是关掉。
+//
+// 原来是一滚就关：但聚焦搜索框本身就可能带动外层容器滚一下，于是下拉「开了就秒关」——
+// 想往搜索框里粘贴编码根本来不及。现在改成重算位置；只有触发器被滚出可视区才关
+//（那时下拉浮在半空没有意义）。弹层内部列表滚动照旧不处理。
+const syncPopover = () => {
+  if (!open.value) return;
+  const r = triggerEl.value?.getBoundingClientRect();
+  if (!r || r.bottom < 0 || r.top > window.innerHeight) {
+    open.value = false;
+    return;
+  }
+  positionPopover();
+};
+
+useEventListener(
+  'scroll',
+  e => {
+    if (!open.value) return;
+    const t = e.target;
+    if (popoverEl.value && t instanceof Node && popoverEl.value.contains(t))
+      return;
+    syncPopover();
+  },
+  { capture: true, passive: true }
+);
+useEventListener('resize', syncPopover);
 
 const toggle = async () => {
   if (open.value) {
