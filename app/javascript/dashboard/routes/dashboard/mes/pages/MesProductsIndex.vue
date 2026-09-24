@@ -16,6 +16,8 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import camelcaseKeys from 'camelcase-keys';
+import ProductAuxAttributesAPI from 'dashboard/api/mes/productAuxAttributes';
 import MesProductGroupNode from 'dashboard/components-next/mes/MesProductGroupNode.vue';
 import MesProductGroupManager from 'dashboard/components-next/mes/MesProductGroupManager.vue';
 
@@ -179,6 +181,64 @@ const selectSourceCategory = value => {
 
 const dialogRef = ref(null);
 const editingId = ref(null);
+
+// ── 辅助属性：同一物料编码下的变体（喷码6000 / 喷码3500…），开单时单选其一 ──
+// 只在「编辑已有产品」时维护：新建还没有 id，属性挂不上去，存完再回来加。
+const auxList = ref([]);
+const auxDraft = ref('');
+const auxBusy = ref(false);
+
+const loadAux = async productId => {
+  auxList.value = [];
+  if (!productId) return;
+  try {
+    const { data } = await ProductAuxAttributesAPI.list(productId);
+    auxList.value = camelcaseKeys(data?.payload || [], { deep: true });
+  } catch {
+    auxList.value = [];
+  }
+};
+
+const addAux = async () => {
+  const name = auxDraft.value.trim();
+  if (!name || !editingId.value) return;
+  auxBusy.value = true;
+  try {
+    const { data } = await ProductAuxAttributesAPI.add(editingId.value, {
+      name,
+    });
+    auxList.value.push(camelcaseKeys(data.payload, { deep: true }));
+    auxDraft.value = '';
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '新增辅助属性失败');
+  } finally {
+    auxBusy.value = false;
+  }
+};
+
+// 被单据选过的只会停用（后端返回 deactivated: true），没被选过的才真删。
+const removeAux = async attr => {
+  auxBusy.value = true;
+  try {
+    const { data } = await ProductAuxAttributesAPI.remove(
+      editingId.value,
+      attr.id
+    );
+    if (data?.payload?.deactivated) {
+      useAlert(
+        `「${attr.name}」已被单据引用，已停用（不再出现在下拉里），历史单据保持不变`
+      );
+      await loadAux(editingId.value);
+    } else {
+      auxList.value = auxList.value.filter(a => a.id !== attr.id);
+    }
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '操作失败');
+  } finally {
+    auxBusy.value = false;
+  }
+};
+
 const form = reactive({
   name: '',
   sku: '',
@@ -218,6 +278,8 @@ const groupSelectOptions = computed(() => {
 
 const openCreate = () => {
   editingId.value = null;
+  auxList.value = [];
+  auxDraft.value = '';
   Object.assign(form, {
     name: '',
     sku: '',
@@ -246,6 +308,7 @@ const openEdit = p => {
     groupCode: p.groupCode || '',
     isActive: p.isActive !== false,
   });
+  loadAux(p.id);
   dialogRef.value?.open();
 };
 
@@ -744,6 +807,62 @@ onMounted(() => {
           <input v-model="form.isActive" type="checkbox" class="w-4 h-4" />
           启用（取消勾选则禁用，不出现在建单成品下拉）
         </label>
+
+        <!-- 辅助属性：同一编码下的变体，开单时在明细里单选一个 -->
+        <div
+          v-if="editingId"
+          class="flex flex-col gap-2 pt-3 border-t border-n-weak"
+        >
+          <div class="flex items-baseline gap-2">
+            <span class="text-heading-3 text-n-slate-12">辅助属性</span>
+            <span class="text-xs text-n-slate-10">
+              同一编码下的变体（如 喷码6000 /
+              喷码3500）。编码自动生成，开单时在用料明细里单选一个。
+            </span>
+          </div>
+
+          <div
+            v-for="attr in auxList"
+            :key="attr.id"
+            class="flex items-center gap-2 text-sm"
+          >
+            <span class="font-mono w-36 shrink-0 text-n-slate-11">
+              {{ attr.code }}
+            </span>
+            <span class="flex-1 text-n-slate-12">{{ attr.name }}</span>
+            <span v-if="!attr.isActive" class="text-xs text-n-slate-10">
+              已停用
+            </span>
+            <button
+              type="button"
+              class="text-xs shrink-0 text-n-slate-10 hover:text-n-ruby-11"
+              :disabled="auxBusy"
+              @click="removeAux(attr)"
+            >
+              删除
+            </button>
+          </div>
+          <p v-if="!auxList.length" class="text-xs text-n-slate-10">
+            还没有辅助属性。没有变体的物料不用管这一栏。
+          </p>
+
+          <div class="flex gap-2">
+            <Input
+              v-model="auxDraft"
+              placeholder="属性名称，如 喷码6000"
+              class="flex-1"
+              @keydown.enter.prevent.stop="addAux"
+            />
+            <Button
+              label="添加"
+              variant="outline"
+              size="sm"
+              :is-loading="auxBusy"
+              :disabled="!auxDraft.trim()"
+              @click="addAux"
+            />
+          </div>
+        </div>
       </div>
     </Dialog>
 
