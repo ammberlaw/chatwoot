@@ -30,7 +30,7 @@
 class Crm::OptionItem < ApplicationRecord
   # product_source_category：产品档案左侧「商品类别」树的**排序**。类别值本身来自
   # 产品的 source_category（金蝶那列），这里只存人工拖出来的顺序，不是分类字典。
-  CATEGORIES = %w[customer_group customer_source product_group product_source_category].freeze
+  CATEGORIES = %w[customer_group customer_source product_group product_source_category payment_term].freeze
   # 限二级的类别（客户分组/来源）；product_group 为不限层级的产品分组树，只防环。
   TWO_LEVEL_CATEGORIES = %w[customer_group customer_source].freeze
 

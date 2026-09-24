@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_23_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_23_200001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1682,8 +1682,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_23_100000) do
     t.bigint "amount_micros"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "crm_product_id"
     t.index ["account_id"], name: "index_crm_pi_items_on_account_id"
     t.index ["crm_pi_id"], name: "index_crm_pi_items_on_crm_pi_id"
+    t.index ["crm_product_id"], name: "index_crm_pi_items_on_crm_product_id"
   end
 
   create_table "crm_pi_seller_profiles", force: :cascade do |t|
@@ -1765,6 +1767,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_23_100000) do
     t.jsonb "columns", default: [], null: false
     t.index ["account_id", "product_line", "status"], name: "index_crm_price_lists_on_account_line_status"
     t.index ["account_id", "status", "effective_on"], name: "index_crm_price_lists_on_account_status_date"
+  end
+
+  create_table "crm_product_aliases", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_product_id", null: false
+    t.string "normalized_text", null: false
+    t.string "sample_text"
+    t.integer "hits", default: 1, null: false
+    t.datetime "last_used_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "normalized_text"], name: "idx_crm_product_aliases_unique", unique: true
+    t.index ["crm_product_id"], name: "index_crm_product_aliases_on_crm_product_id"
   end
 
   create_table "crm_products", force: :cascade do |t|
@@ -1976,6 +1991,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_23_100000) do
     t.bigint "deleted_by_id"
     t.bigint "handled_by_id"
     t.string "order_kind"
+    t.string "payment_term"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_kind"], name: "index_crm_sales_orders_on_account_id_and_order_kind"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
@@ -3972,9 +3988,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_23_100000) do
   add_foreign_key "crm_petty_cash_entries", "crm_petty_cash_books", on_delete: :cascade
   add_foreign_key "crm_pi_items", "accounts"
   add_foreign_key "crm_pi_items", "crm_pis"
+  add_foreign_key "crm_pi_items", "crm_products", on_delete: :nullify
   add_foreign_key "crm_pis", "accounts"
   add_foreign_key "crm_pis", "users", column: "handled_by_id", on_delete: :nullify
   add_foreign_key "crm_price_list_items", "crm_price_lists", on_delete: :cascade
+  add_foreign_key "crm_product_aliases", "accounts"
+  add_foreign_key "crm_product_aliases", "crm_products", on_delete: :cascade
   add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_quotes", on_delete: :cascade
   add_foreign_key "crm_quotes", "contacts", on_delete: :nullify

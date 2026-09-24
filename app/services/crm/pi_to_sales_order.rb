@@ -53,6 +53,8 @@ class Crm::PiToSalesOrder
   def line_items
     @pi.pi_items.map do |item|
       {
+        # PI 明细选过产品就带下来——订单侧不用再匹配一次（这是 PI 加产品关联的全部意义）。
+        crm_product_id: item.crm_product_id,
         name: item.model.presence || item.description.to_s,
         spec: item.description,
         quantity: item.quantity,

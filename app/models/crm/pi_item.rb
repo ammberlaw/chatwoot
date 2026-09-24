@@ -28,6 +28,9 @@
 #
 class Crm::PiItem < ApplicationRecord
   belongs_to :account
+  # 产品档案关联：PI 是订单的源头（近 90 天 39% 的销售订单由 PI 付款自动生成），
+  # 在这里选一次，订单/转单/成本归集全链路继承，不用一路重新匹配。
+  belongs_to :crm_product, class_name: 'Crm::Product', optional: true
   belongs_to :pi, class_name: 'Crm::Pi', foreign_key: :crm_pi_id, inverse_of: :pi_items
 
   has_one_attached :picture
