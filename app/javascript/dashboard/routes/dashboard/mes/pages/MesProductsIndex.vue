@@ -551,6 +551,7 @@ onMounted(() => {
               <tr
                 class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap bg-n-solid-1 [&>th]:bg-n-solid-1"
               >
+                <th class="px-3 py-3 font-medium w-12">#</th>
                 <th class="px-3 py-3 font-medium">商品编码</th>
                 <th class="px-3 py-3 font-medium">商品名称</th>
                 <th class="px-3 py-3 font-medium">分组</th>
@@ -566,7 +567,7 @@ onMounted(() => {
             </thead>
             <tbody>
               <tr
-                v-for="p in records"
+                v-for="(p, i) in records"
                 :key="p.id"
                 class="border-b cursor-pointer border-n-weak transition-colors"
                 :class="
@@ -576,6 +577,9 @@ onMounted(() => {
                 "
                 @click="selectedId = selectedId === p.id ? null : p.id"
               >
+                <td class="px-3 py-3 tabular-nums text-n-slate-10">
+                  {{ (currentPage - 1) * ITEMS_PER_PAGE + i + 1 }}
+                </td>
                 <td class="px-3 py-3 font-mono text-n-slate-11">{{ p.sku }}</td>
                 <td
                   class="px-3 py-3 font-medium text-n-slate-12 whitespace-nowrap"

@@ -623,6 +623,7 @@ onMounted(async () => {
         <table class="hidden w-full text-sm md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th class="px-3 py-3 font-medium w-12">#</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">采购单号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
@@ -638,7 +639,14 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in records" :key="p.id" class="border-b border-n-weak">
+            <tr
+              v-for="(p, i) in records"
+              :key="p.id"
+              class="border-b border-n-weak"
+            >
+              <td class="px-3 py-3 tabular-nums text-n-slate-10">
+                {{ i + 1 }}
+              </td>
               <td class="px-3 py-3 font-medium text-n-slate-12">
                 {{ p.poNo }}
                 <span
