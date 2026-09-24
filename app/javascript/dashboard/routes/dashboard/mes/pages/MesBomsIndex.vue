@@ -326,6 +326,42 @@ const invalid = computed(
     filledRows.value.some(r => !isRowComplete(r)) // 已填的行必须完整
 );
 
+// ── 未保存提醒 ──────────────────────────────────────────────
+// BOM 经常要填几十行料，填到一半点了「取消」就全没了。关闭前先比对快照，
+// 有改动就弹三选一（继续编辑 / 不保存关闭 / 存草稿后关闭）。
+//
+// 快照只取会被提交的字段：onHand 是选料时从服务端带回来的实时库存，
+// 不算用户改动，算进去会让刚打开的单子就被判成「已修改」。
+const snapshotOf = () =>
+  JSON.stringify({
+    ...form,
+    rows: form.rows.map(({ onHand, qtyTouched, ...keep }) => keep),
+  });
+
+const pristine = ref('');
+const markPristine = () => {
+  pristine.value = snapshotOf();
+};
+const isDirty = computed(() => pristine.value !== snapshotOf());
+
+const dirtyDialogRef = ref(null);
+
+// 所有关闭入口都走这里：干净就直接关，脏了先问。
+const requestClose = () => {
+  if (!isDirty.value) {
+    dialogRef.value?.close();
+    return;
+  }
+  dirtyDialogRef.value?.open();
+};
+
+// 「不保存」：丢弃改动关掉。
+const discardAndClose = () => {
+  dirtyDialogRef.value?.close();
+  markPristine(); // 防止 close 过程中的 watch 再次判脏
+  dialogRef.value?.close();
+};
+
 const addRow = () => form.rows.push(blankRow());
 const removeRow = i => {
   const [removed] = form.rows.splice(i, 1);
@@ -454,6 +490,7 @@ const openCreate = async (preOrder = null) => {
       attachOrderId.value = pid;
     }
   }
+  markPristine();
   dialogRef.value?.open();
 };
 const openEdit = bom => {
@@ -496,6 +533,7 @@ const openEdit = bom => {
       qtyTouched: it.qty != null && it.qty !== '',
     })),
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -562,8 +600,16 @@ const submit = async targetStatus => {
     else if (editingId.value) msg = `BOM ${verb}`;
     else msg = `${verb} ${ok.bomNo}`;
     useAlert(msg);
+    markPristine();
     dialogRef.value?.close();
   }
+};
+
+// 「保存」：一律存草稿——半成品不该直接下发到采购/领料那边去。
+// 已下发的单编辑时保持下发状态（那是改已生效的 BOM，不是新起草）。
+const saveAndClose = async () => {
+  dirtyDialogRef.value?.close();
+  await submit(editingStatus.value === 'RELEASED' ? 'RELEASED' : 'DRAFT');
 };
 
 // 列表里把草稿一键下发。
@@ -621,6 +667,7 @@ const applyTemplate = t => {
     })),
   });
   if (!form.rows.length) form.rows.push(blankRow());
+  markPristine();
   templateDialogRef.value?.close();
   dialogRef.value?.open();
 };
@@ -1331,7 +1378,7 @@ onMounted(async () => {
               label="取消"
               variant="ghost"
               color="slate"
-              @click="dialogRef?.close()"
+              @click="requestClose"
             />
             <!-- 已下发的编辑：只保留「保存修改」，保持已下发状态（非重新下发/非草稿） -->
             <Button
@@ -1365,6 +1412,43 @@ onMounted(async () => {
     </Dialog>
 
     <!-- 只读查看：完整明细，无需进编辑态 -->
+    <!-- 未保存提醒：填到一半点取消不再直接丢掉 -->
+    <Dialog
+      ref="dirtyDialogRef"
+      :dismissible="false"
+      width="sm"
+      :show-confirm-button="false"
+      :show-cancel-button="false"
+      title="当前 BOM 已有修改"
+    >
+      <p class="text-sm text-n-slate-11">
+        关掉就没了。要把它存成草稿，还是丢弃这些改动？
+      </p>
+      <template #footer>
+        <div class="flex justify-end gap-2 w-full">
+          <Button
+            label="继续编辑"
+            variant="ghost"
+            color="slate"
+            @click="dirtyDialogRef?.close()"
+          />
+          <Button
+            label="不保存"
+            variant="outline"
+            color="ruby"
+            @click="discardAndClose"
+          />
+          <Button
+            :label="editingStatus === 'RELEASED' ? '保存修改' : '存草稿'"
+            color="iris"
+            :is-loading="saving"
+            :disabled="invalid"
+            @click="saveAndClose"
+          />
+        </div>
+      </template>
+    </Dialog>
+
     <Dialog
       :dismissible="false"
       ref="viewDialogRef"
