@@ -60,6 +60,8 @@ const keyword = ref('');
 const categoryFilter = ref('');
 const categoryFilterOptions = [{ value: '', label: '全部分类' }, ...CATEGORIES];
 const currentPage = ref(1);
+// 点中的那一行高亮，方便在几十列里对着看——再点一次取消。只是视觉焦点，不参与任何提交。
+const selectedId = ref(null);
 
 // —— 产品分组树（不限层级）——
 const groups = ref([]); // 扁平列表 [{id, code, name, parent_id, position, active}]
@@ -545,9 +547,9 @@ onMounted(() => {
 
           <!-- 列多：设最小宽度，窄屏外层 overflow-auto 自动横向滑动；仅「规格」长文本允许换行，其余列不换行 -->
           <table class="hidden md:table w-full md:min-w-[1320px] text-sm">
-            <thead>
+            <thead class="sticky top-0 z-10">
               <tr
-                class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
+                class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap bg-n-solid-1 [&>th]:bg-n-solid-1"
               >
                 <th class="px-3 py-3 font-medium">商品编码</th>
                 <th class="px-3 py-3 font-medium">商品名称</th>
@@ -566,7 +568,13 @@ onMounted(() => {
               <tr
                 v-for="p in records"
                 :key="p.id"
-                class="border-b border-n-weak"
+                class="border-b cursor-pointer border-n-weak transition-colors"
+                :class="
+                  selectedId === p.id
+                    ? 'bg-n-iris-3 hover:bg-n-iris-3'
+                    : 'hover:bg-n-alpha-1'
+                "
+                @click="selectedId = selectedId === p.id ? null : p.id"
               >
                 <td class="px-3 py-3 font-mono text-n-slate-11">{{ p.sku }}</td>
                 <td

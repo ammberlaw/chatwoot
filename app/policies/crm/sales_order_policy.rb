@@ -46,6 +46,11 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
     true
   end
 
+  # 转 ERP 预检（只读）：与看订单同权。只输出单据字段与缺失项，不含成本/毛利。
+  def erp_export?
+    true
+  end
+
   # 删除（软删进回收箱）：负责人本人 或 管理员/副管。具体归属在控制器 can_delete_order? 把关。
   def destroy?
     true

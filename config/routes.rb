@@ -156,6 +156,7 @@ Rails.application.routes.draw do
                 get :convert_preview
                 get :receivable_progress
                 get :production_trace
+                get :erp_export
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :restore
