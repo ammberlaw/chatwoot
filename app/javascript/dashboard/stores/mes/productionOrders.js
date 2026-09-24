@@ -138,6 +138,22 @@ export const useMesProductionOrdersStore = createStore({
       }
     },
 
+    // 转给同阶段另一位负责人：转出后本人不再是接单人，接收人那边变成待接单。
+    async handoff(id, payload) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await MesProductionOrderAPI.handoff(id, payload);
+        const record = camelize(data);
+        const index = this.records.findIndex(r => r.id === record.id);
+        if (index !== -1) this.records[index] = record;
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
+      }
+    },
+
     // 拒收打回：退回上一阶段，替换列表中的记录。
     async reject({ id, reason }) {
       this.setUIFlag({ updatingItem: true });

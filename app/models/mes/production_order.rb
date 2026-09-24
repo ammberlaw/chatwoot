@@ -146,6 +146,8 @@ class Mes::ProductionOrder < ApplicationRecord
   belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 历史字段：原「业务二次确认 BOM」的人，流程已取消
   belongs_to :outsource_supplier, class_name: 'Mes::Supplier', optional: true # 外购成品供应商（工程指定）
   has_many :stage_events, class_name: 'Mes::ProductionOrderStageEvent', dependent: :destroy, inverse_of: :production_order
+  # 接单/转交流水（一个阶段可两人接力，各自留痕；订单上的 stage_ack_* 只表示「当前状态」）
+  has_many :stage_ack_events, class_name: 'Mes::StageAckEvent', dependent: :destroy, inverse_of: :production_order
   has_many :order_forwards, -> { order(created_at: :desc) }, class_name: 'Mes::OrderForward', dependent: :destroy, inverse_of: :production_order
   # 一张生产订单可挂多张采购单（如主料/辅料各一张，不同采购员）。
   has_many :purchase_orders, class_name: 'Mes::PurchaseOrder', dependent: :nullify, inverse_of: :production_order
@@ -507,9 +509,23 @@ class Mes::ProductionOrder < ApplicationRecord
     Mes::Notifier.notify(
       account: account, recipients: recipients, kind: 'bom_revised',
       title: "BOM 已变更（v#{rev_no}）：生产订单 #{order_no}",
-      body: "工程调整了 BOM #{bom&.bom_no} 用料：#{summary}。请复核相关采购/领料/库存。",
+      body: "工程调整了 BOM #{bom&.bom_no} 用料：#{summary}。#{affected_documents_hint}",
       order: self
     )
+  end
+
+  # 改料时这张单已经开出去的单据。只发通知不够用——收通知的人还得自己去翻
+  # 有没有已下的采购、已领的料。这里直接把单号列出来，谁该动一目了然。
+  # 已取消的不算；采购单连草稿也列（草稿改起来最省事，正好赶在下发前改掉）。
+  def affected_documents_hint
+    docs = []
+    pos = purchase_orders.where.not(status: 'CANCELLED').pluck(:po_no)
+    docs << "采购单 #{pos.join('、')}" if pos.any?
+    entries = Mes::StockEntry.where(production_order_id: id).where.not(status: 'CANCELLED').pluck(:entry_no)
+    docs << "出入库单 #{entries.join('、')}" if entries.any?
+    return '这张单还没开出采购/领料单据，改动无下游影响。' if docs.empty?
+
+    "本单已开：#{docs.join('；')}——请复核是否需要同步调整。"
   end
 
   # 已下发订单被归属业务改单后，通知当前阶段（下一个流程）板块负责人，让其知悉单子有变动。
@@ -537,7 +553,39 @@ class Mes::ProductionOrder < ApplicationRecord
     now = Time.current
     update!(stage_ack_at: now, stage_ack_by_id: actor&.id)
     stage_events.where(stage: stage).update_all(acked_at: now, acked_by_id: actor&.id, updated_at: now)
+    stage_ack_events.create!(account: account, stage: stage, kind: Mes::StageAckEvent::ACK,
+                             actor: actor, happened_at: now) if actor
     Mes::Notifier.resolve(account: account, order: self, kinds: 'stage_assigned')
+    self
+  end
+
+  # 转给同阶段另一位负责人（工程出完/改完 BOM 转 PMC 投单；反向也允许——
+  # PMC 接了单才发现要改料，可以转回工程）。
+  #
+  # 清空接单状态 = 接收人那边重新出现「待我接单」，超时计时也以本阶段 entered_at 为准
+  # 不重置——否则来回转一次就能把超时重新洗白。
+  def handoff_stage!(actor:, to_user:, note: nil)
+    raise StandardError, '当前阶段无需接单，无法转交' unless STAGE_BOARD_KEYS.key?(stage)
+
+    owners = current_stage_owner_ids
+    raise StandardError, '只有本阶段负责人可以转交' unless owners.include?(actor.id)
+    raise StandardError, '只能转给本阶段的另一位负责人' unless owners.include?(to_user.id)
+    raise StandardError, '不能转给自己' if actor.id == to_user.id
+
+    now = Time.current
+    text = note.to_s.strip
+    transaction do
+      update!(stage_ack_at: nil, stage_ack_by_id: nil)
+      stage_events.where(stage: stage).update_all(acked_at: nil, acked_by_id: nil, updated_at: now)
+      stage_ack_events.create!(account: account, stage: stage, kind: Mes::StageAckEvent::HANDOFF,
+                               actor: actor, to_user: to_user, note: text.presence, happened_at: now)
+    end
+    Mes::Notifier.notify(
+      account: account, recipients: [to_user.id], kind: 'stage_assigned',
+      title: "待你接单：#{order_no}（#{STAGE_LABELS[stage]}）",
+      body: "#{actor.name} 把 #{order_no}（#{product_name}）转给你处理#{text.present? ? "：#{text}" : '。'}",
+      order: self
+    )
     self
   end
 

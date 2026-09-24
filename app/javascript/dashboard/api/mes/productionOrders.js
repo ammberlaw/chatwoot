@@ -10,7 +10,6 @@ client.convert = payload => axios.post(`${client.url}/convert`, payload);
 client.attachBom = (id, payload) =>
   axios.post(`${client.url}/${id}/attach_bom`, payload);
 
-
 // 下发到采购阶段（BOM_READY → PURCHASING）。
 client.releasePurchasing = id =>
   axios.post(`${client.url}/${id}/release_purchasing`);
@@ -30,6 +29,9 @@ client.issuePlan = (id, warehouseId) =>
 
 // 接单 / 拒收打回（P1 接单确认）。
 client.acknowledge = id => axios.post(`${client.url}/${id}/acknowledge`);
+// 转给同阶段另一位负责人（工程 ↔ PMC 接力）：转出后接单状态清空，接收人重新收到待接单。
+client.handoff = (id, payload) =>
+  axios.post(`${client.url}/${id}/handoff`, payload);
 client.reject = (id, reason) =>
   axios.post(`${client.url}/${id}/reject`, { reason });
 

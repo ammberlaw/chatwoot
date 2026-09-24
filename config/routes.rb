@@ -564,6 +564,7 @@ Rails.application.routes.draw do
                 get :requirement
                 get :issue_plan
                 post :acknowledge
+                post :handoff
                 post :reject
                 post :submit_approval
                 post :approve

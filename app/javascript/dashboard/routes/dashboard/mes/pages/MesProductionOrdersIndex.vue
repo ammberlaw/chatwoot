@@ -340,6 +340,17 @@ const stageDurationLabel = stageValue => {
   return `进行中 · 已 ${days} 天`;
 };
 
+// 某阶段的接单/转交流水。一个阶段两人接力时（工程先出 BOM 再转 PMC 投单），
+// 订单上的 stageAckBy 只剩最后一个人，这里把每一步都列出来。
+const stageAckLog = stageValue =>
+  (selected.value?.stageAckEvents || [])
+    .filter(e => e.stage === stageValue)
+    .map(e =>
+      e.kind === 'HANDOFF'
+        ? `${e.actorName} 转给 ${e.toUserName}${e.note ? `：${e.note}` : ''}`
+        : `${e.actorName} 接单`
+    );
+
 // 当前阶段滞留天数（未出货才算）。
 const stallDays = po => {
   if (!po || po.stage === 'SHIPPED' || po.status === 'COMPLETED') return 0;
@@ -358,7 +369,11 @@ const stageWaitingText = po =>
 // 列表阶段列的接单态徽标（与详情面板同口径）：已接单 / 超时未接单 / 待接单。
 const ackChip = po => {
   if (!po || po.stage === 'SHIPPED') return null;
-  if (po.stageAckAt) return { text: '✓ 已接单', cls: 'text-n-teal-11' };
+  if (po.stageAckAt)
+    return {
+      text: po.stageAckByName ? `✓ ${po.stageAckByName} 已接单` : '✓ 已接单',
+      cls: 'text-n-teal-11',
+    };
   if (po.ackOverdue) return { text: '🔴 超时未接单', cls: 'text-n-ruby-11' };
   if (po.awaitingAck) return { text: '⏳ 待接单', cls: 'text-n-amber-11' };
   return null;
@@ -1084,6 +1099,36 @@ const acknowledge = async () => {
   }
 };
 
+// 转给同阶段另一位负责人（工程出/改完 BOM 转 PMC 投单；PMC 接了才发现要改料也能转回）。
+// 转出后本人不再是接单人，接收人那边重新出现「待我接单」。
+const handoffDialogRef = ref(null);
+const handoffToId = ref('');
+const handoffNote = ref('');
+
+// 可转交对象 = 本阶段负责人里除自己以外的人。
+const handoffCandidates = computed(() =>
+  (selected.value?.stageOwners || []).filter(o => o.id !== currentUserId.value)
+);
+
+const openHandoff = () => {
+  handoffToId.value = String(handoffCandidates.value[0]?.id || '');
+  handoffNote.value = '';
+  handoffDialogRef.value?.open();
+};
+
+const confirmHandoff = async () => {
+  if (!selected.value || !handoffToId.value) return;
+  const ok = await store.handoff(selected.value.id, {
+    to_user_id: Number(handoffToId.value),
+    note: handoffNote.value,
+  });
+  if (ok) {
+    useAlert('已转交，对方会收到待接单提醒');
+    selected.value = ok;
+    handoffDialogRef.value?.close();
+  }
+};
+
 const rejectDialogRef = ref(null);
 const rejectReason = ref('');
 const openReject = () => {
@@ -1742,6 +1787,14 @@ watch(currentPage, fetchRecords);
               @click="acknowledge"
             />
             <Button
+              v-if="handoffCandidates.length"
+              label="转交"
+              variant="outline"
+              size="sm"
+              :is-loading="uiFlags.updatingItem"
+              @click="openHandoff"
+            />
+            <Button
               v-if="selected.stage !== 'SALES_CONFIRMED'"
               label="拒收打回"
               variant="outline"
@@ -1798,6 +1851,13 @@ watch(currentPage, fetchRecords);
               >
                 查看入库单
               </button>
+              <div
+                v-for="(line, li) in stageAckLog(s.value)"
+                :key="`ack-${s.value}-${li}`"
+                class="text-xs text-n-slate-11"
+              >
+                · {{ line }}
+              </div>
               <div v-if="stageTime(s.value)" class="text-xs text-n-slate-10">
                 {{ stageTime(s.value) }} 到达
                 <span
@@ -2446,6 +2506,41 @@ watch(currentPage, fetchRecords);
               : '本产品还没有 BOM，可勾选上方「显示全部产品的 BOM」，或去新建。'
           }}
         </p>
+      </div>
+    </Dialog>
+
+    <Dialog
+      ref="handoffDialogRef"
+      :dismissible="false"
+      title="转给本阶段另一位负责人"
+      description="转出后你不再是接单人，对方会收到「待你接单」提醒。阶段不变，超时计时也不重置。"
+      :is-loading="uiFlags.updatingItem"
+      :disable-confirm-button="!handoffToId"
+      @confirm="confirmHandoff"
+    >
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">
+            转给谁 <span class="text-n-ruby-11">*</span>
+          </label>
+          <SelectCard
+            v-model="handoffToId"
+            :options="
+              handoffCandidates.map(o => ({
+                value: String(o.id),
+                label: o.name,
+              }))
+            "
+            block
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-heading-3 text-n-slate-12">说明（选填）</label>
+          <Input
+            v-model="handoffNote"
+            placeholder="如：已按客户要求换电池，BOM 已更新，请投单"
+          />
+        </div>
       </div>
     </Dialog>
 

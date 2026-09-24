@@ -66,6 +66,17 @@ json.ack_overdue resource.ack_overdue?
 json.ack_deadline resource.ack_deadline
 json.stage_ack_at resource.stage_ack_at
 json.stage_ack_by_name resource.stage_ack_by&.name
+# 接单/转交流水：一个阶段两人接力时，各自的动作都要看得见（订单上的 stage_ack_* 只是当前状态）。
+json.stage_ack_events do
+  json.array! resource.stage_ack_events.chronological.includes(:actor, :to_user) do |ev|
+    json.stage ev.stage
+    json.kind ev.kind
+    json.actor_name ev.actor&.name
+    json.to_user_name ev.to_user&.name
+    json.note ev.note
+    json.happened_at ev.happened_at
+  end
+end
 json.status resource.status
 json.order_kind resource.order_kind
 json.delivery_date resource.delivery_date

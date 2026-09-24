@@ -9,6 +9,8 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def forward? = true
   # 接单/拒收的细粒度权限（本阶段负责人 or 管理员）在控制器 can_handle_stage? 内校验。
   def acknowledge? = true
+  # 转交给同阶段另一位负责人：与接单同权（控制器再校验「必须是本阶段负责人」）。
+  def handoff? = true
   def reject? = true
   # 业务二次确认 BOM（控制器校验创建人/管理员）。
   # 审批链：提交（控制器校验创建人）、通过/驳回（控制器 can_approve? 校验当前环节人/管理员）、待我审批收件箱。

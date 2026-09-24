@@ -1,7 +1,7 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_production_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :release_purchasing, :requirement,
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :release_purchasing, :requirement, :handoff,
                        :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced]
   before_action :ensure_editable!, only: [:update, :attach, :detach]
   before_action :ensure_deletable!, only: [:destroy]
@@ -137,6 +137,20 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     return render json: { error: '只有本阶段负责人可接单' }, status: :forbidden unless can_handle_stage?(@production_order)
 
     @production_order.acknowledge!(current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 转给同阶段另一位负责人（工程 ↔ PMC 接力）。转出后接单状态清空，
+  # 接收人那边重新出现「待我接单」。
+  def handoff
+    return render json: { error: '只有本阶段负责人可转交' }, status: :forbidden unless can_handle_stage?(@production_order)
+
+    to_user = Current.account.users.find_by(id: params[:to_user_id])
+    return render json: { error: '请选择要转交的负责人' }, status: :unprocessable_entity if to_user.blank?
+
+    @production_order.handoff_stage!(actor: current_user, to_user: to_user, note: params[:note])
     render 'api/v1/accounts/mes/production_orders/show'
   rescue StandardError => e
     render json: { error: e.message }, status: :unprocessable_entity
