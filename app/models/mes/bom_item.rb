@@ -37,8 +37,12 @@ class Mes::BomItem < ApplicationRecord
   belongs_to :account
   belongs_to :bom, class_name: 'Mes::Bom', inverse_of: :bom_items
   belongs_to :mes_material, class_name: 'Mes::Material', optional: true
+  # 本行选中的辅助属性（同一物料编码下的变体，单选）。
+  belongs_to :crm_product_aux_attribute, class_name: 'Crm::ProductAuxAttribute', optional: true
+
 
   before_validation :inherit_account
+  before_save :snapshot_aux_attribute_name
 
   # 照纸质生产任务单直接填：物料名称/用量必填，规格/编码/单位/备注选填。
   validates :material_name, presence: true
@@ -50,5 +54,12 @@ class Mes::BomItem < ApplicationRecord
   # 嵌套创建时从父 BOM 继承租户。
   def inherit_account
     self.account_id ||= bom&.account_id
+  end
+
+  # 存一份属性名：属性以后改名或停用，已下发的 BOM 还得显示当时选的是什么。
+  def snapshot_aux_attribute_name
+    return unless crm_product_aux_attribute_id_changed?
+
+    self.aux_attribute_name = crm_product_aux_attribute&.name
   end
 end

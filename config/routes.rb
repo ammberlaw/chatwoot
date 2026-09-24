@@ -475,6 +475,9 @@ Rails.application.routes.draw do
                 get :categories
                 post :reorder_categories
               end
+              # 辅助属性：同一物料编码下的可选变体，开单时单选其一
+              resources :aux_attributes, only: [:index, :create, :update, :destroy],
+                                         controller: 'product_aux_attributes'
             end
             resources :product_groups, only: [:index, :create, :update, :destroy] do
               collection { post :reorder }

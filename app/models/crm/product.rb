@@ -34,6 +34,9 @@ class Crm::Product < ApplicationRecord
   CATEGORIES = %w[FINISHED SEMI RAW_MAIN RAW_AUX DEFECTIVE STANDARD CUSTOMIZED ACCESSORY OTHER].freeze
 
   belongs_to :account
+  # 辅助属性（同一编码下的变体，如「喷码6000 / 喷码3500」）；开单时单选其一。
+  has_many :aux_attributes, class_name: 'Crm::ProductAuxAttribute', foreign_key: :crm_product_id,
+                            dependent: :destroy, inverse_of: :product
 
   validates :name, presence: true
   validates :sku, presence: true, uniqueness: { scope: :account_id }

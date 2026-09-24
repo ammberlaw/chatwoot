@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_24_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_24_200000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1782,6 +1782,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_24_100000) do
     t.index ["crm_product_id"], name: "index_crm_product_aliases_on_crm_product_id"
   end
 
+  create_table "crm_product_aux_attributes", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_product_id", null: false
+    t.string "code", null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "is_active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "code"], name: "idx_crm_aux_attrs_unique_code", unique: true
+    t.index ["crm_product_id"], name: "idx_crm_aux_attrs_on_product"
+  end
+
   create_table "crm_products", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -2777,8 +2790,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_24_100000) do
     t.string "specification"
     t.string "category", default: "MACHINE", null: false
     t.decimal "suggested_purchase_qty", precision: 14, scale: 3
+    t.bigint "crm_product_aux_attribute_id"
+    t.string "aux_attribute_name"
     t.index ["account_id"], name: "index_mes_bom_items_on_account_id"
     t.index ["bom_id"], name: "index_mes_bom_items_on_bom_id"
+    t.index ["crm_product_aux_attribute_id"], name: "idx_mes_bom_items_on_aux_attr"
     t.index ["mes_material_id"], name: "index_mes_bom_items_on_mes_material_id"
   end
 
@@ -4009,6 +4025,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_24_100000) do
   add_foreign_key "crm_price_list_items", "crm_price_lists", on_delete: :cascade
   add_foreign_key "crm_product_aliases", "accounts"
   add_foreign_key "crm_product_aliases", "crm_products", on_delete: :cascade
+  add_foreign_key "crm_product_aux_attributes", "accounts"
+  add_foreign_key "crm_product_aux_attributes", "crm_products", on_delete: :cascade
   add_foreign_key "crm_quote_line_items", "crm_products", on_delete: :nullify
   add_foreign_key "crm_quote_line_items", "crm_quotes", on_delete: :cascade
   add_foreign_key "crm_quotes", "contacts", on_delete: :nullify
@@ -4049,6 +4067,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_24_100000) do
   add_foreign_key "erp_vouchers", "erp_vouchers", column: "reversal_of_id", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "mes_board_owners", "accounts"
+  add_foreign_key "mes_bom_items", "crm_product_aux_attributes", on_delete: :nullify
   add_foreign_key "mes_bom_items", "mes_boms", column: "bom_id", on_delete: :cascade
   add_foreign_key "mes_bom_items", "mes_materials", on_delete: :nullify
   add_foreign_key "mes_bom_revisions", "mes_boms", column: "bom_id", on_delete: :cascade

@@ -16,3 +16,9 @@ json.is_active resource.is_active
 json.remark resource.remark
 json.group_code resource.group_code
 json.updated_at resource.updated_at
+# 辅助属性（启用中）：选完物料，明细行的「辅助属性」下拉直接有选项，不用再跑一趟接口。
+json.aux_attributes do
+  json.array! resource.aux_attributes.active.ordered do |attribute|
+    json.partial! 'api/v1/models/crm_product_aux_attribute', formats: [:json], resource: attribute
+  end
+end
