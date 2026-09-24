@@ -3,6 +3,7 @@
 import { ref, computed, reactive, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
+import { useUnsavedGuard } from 'dashboard/composables/useUnsavedGuard';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -338,11 +339,16 @@ const snapshotOf = () =>
     rows: form.rows.map(({ onHand, qtyTouched, ...keep }) => keep),
   });
 
-const pristine = ref('');
+// 基线必须用「当前表单」初始化：给空串的话，组件一挂载就 pristine !== 快照，
+// 什么都没动就被判成已修改，浏览器刷新拦截会一直挂着。
+const pristine = ref(snapshotOf());
 const markPristine = () => {
   pristine.value = snapshotOf();
 };
 const isDirty = computed(() => pristine.value !== snapshotOf());
+
+// 刷新 / 关标签页也拦一道（弹窗里的「取消」由 requestClose 拦）。
+useUnsavedGuard(isDirty);
 
 const dirtyDialogRef = ref(null);
 
