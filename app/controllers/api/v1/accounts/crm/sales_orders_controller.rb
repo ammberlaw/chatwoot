@@ -4,11 +4,12 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   skip_before_action :ensure_crm_access
   before_action :ensure_crm_or_finance!
   before_action :block_crm_finance_writes!,
-                except: [:index, :show, :audits, :convert_preview, :receivable_progress, :production_trace]
+                except: [:index, :show, :audits, :convert_preview, :receivable_progress, :production_trace,
+                         :erp_export]
   before_action :check_authorization
   before_action :fetch_sales_order,
                 only: [:show, :update, :destroy, :attach, :detach, :audits, :convert_preview, :receivable_progress,
-                       :production_trace]
+                       :production_trace, :erp_export]
 
   RESULTS_PER_PAGE = 15
 
@@ -42,8 +43,6 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     )
     # 先挂附件再存：附件必填的校验在 create 时跑，挂在保存之后会被判「没有附件」。
     copy_source_attachment(source_attachment)
-    return unless ensure_line_items_have_products!
-
     @sales_order.save!
     remember_product_choices(@sales_order.line_items)
   end
@@ -121,7 +120,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   # 匹配放后端用 SQL 做——产品档案上千条，前端拉一页回来匹配既慢又命中不了。
   # 口径：去空格后全等优先，其次 ILIKE 包含；命中多条时不猜，留空让业务员选。
   def convert_preview
-    render json: { payload: Array(@sales_order.line_items).map { |li| preview_row(li) } }
+    render json: { payload: Crm::ConvertPreview.new(@sales_order).rows }
   end
 
   # 回款进度（ERP_SPEC §2.5）：业务员在订单页只读看「应收 / 已收 / 未收 + 下一期到期日」，
@@ -139,25 +138,15 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     render json: { payload: Crm::SalesOrderTraceService.new(account: Current.account, sales_order: @sales_order).call }
   end
 
-  private
-
-  # 明细必须选产品——只卡这个手工建单接口。
+  # 转 ERP（金蝶）销售订单：归一化单据 + 还差什么。
   #
-  # **不能做成模型校验**：PI 付款会自动生成销售订单（Crm::PiToSalesOrder），
-  # 而 pis_controller 那边外层是 `rescue StandardError` 只记日志。模型层一拦，
-  # 那条路会静默失败——订单直接不见，没人收到报错。
-  # 编辑也不卡（「只卡新建」），否则业务员改个交期都要被迫先补齐历史明细。
-  def ensure_line_items_have_products!
-    missing = Array(@sales_order.line_items).each_with_index.reject do |item, _|
-      item['crm_product_id'].present? || item[:crm_product_id].present?
-    end
-    return true if missing.empty?
-
-    rows = missing.map { |_, index| index + 1 }.join('、')
-    render json: { error: "第 #{rows} 行还没选产品，请在明细里关联产品档案（没有的话可在选择框里直接新建，不用离开这张单）。" },
-           status: :unprocessable_entity
-    false
+  # 只读不落库——业务员先看「能不能推」，缺编码/缺收款方式就地补，补齐再导。
+  # 建单时不卡这些（定制编码是下单后工程/采购才给的），卡在这一步。
+  def erp_export
+    render json: { payload: Crm::ErpOrderExport.new(@sales_order).call }
   end
+
+  private
 
   # 记住「这段客户叫法 → 这个产品」，下次同样文字自动带出。
   # 失败不影响建单：记忆是锦上添花，不该因为它让单建不成。
@@ -252,29 +241,6 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
          .where('crm_sales_orders.order_no ILIKE :t OR crm_sales_orders.name ILIKE :t OR crm_customers.name ILIKE :t', t: term)
   end
 
-  def preview_row(line)
-    name = line['name'].to_s
-    product = match_product(name)
-    {
-      name: name, quantity: line['quantity'], unit: line['unit'],
-      crm_product_id: product&.id, product_name: product&.name, product_sku: product&.sku
-    }
-  end
-
-  MATCH_LIMIT = 2
-
-  # 命中多条时不猜（同名产品真实存在），留空让业务员在弹窗里选一次。
-  def match_product(name)
-    key = name.gsub(/\s+/, '')
-    return nil if key.blank?
-
-    scope = Current.account.crm_products
-    exact = scope.where("REPLACE(name, ' ', '') ILIKE ?", key).limit(MATCH_LIMIT).to_a
-    return exact.first if exact.size == 1
-
-    like = scope.where('name ILIKE ?', "%#{key}%").limit(MATCH_LIMIT).to_a
-    like.size == 1 ? like.first : nil
-  end
 
   def sales_order_params
     params.require(:sales_order).permit(

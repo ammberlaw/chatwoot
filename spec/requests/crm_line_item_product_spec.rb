@@ -1,10 +1,13 @@
 require 'rails_helper'
 
-# 明细必须关联产品档案 —— 只卡「手工建单」这一条路。
+# 明细关联产品档案 —— **建单不卡，转 ERP 时才卡**。
 #
-# 为什么不做成模型校验：PI 付款会自动生成销售订单，而那条调用外层是
-# `rescue StandardError` 只记日志。模型层一拦，订单会静默不生成、没人收到报错。
-# 近 90 天 211 张单里有 83 张（39%）就是这么来的，砸掉就是生产事故。
+# 一开始做成了建单硬校验，后来发现行不通：有一部分定制品的编码是下单之后
+# 工程/采购才给的，建单当场填不出来。而且 PI 付款自动生成订单那条路外层是
+# `rescue StandardError` 只记日志，一卡就静默失败、订单凭空消失
+#（近 90 天 211 张单里有 83 张、39% 走这条路）。
+#
+# 所以建单一律放行，把账算在 Crm::ErpOrderExport（转金蝶预检）那一步。
 RSpec.describe '销售订单明细关联产品', type: :request do
   let(:account) { create(:account) }
   let(:user) { create(:user, account: account) }
@@ -25,11 +28,10 @@ RSpec.describe '销售订单明细关联产品', type: :request do
          }, headers: auth
   end
 
-  it '明细没选产品时建不了单，并指出是第几行' do
+  it '明细没选产品也能建单（定制编码下单后才有）' do
     create_order([{ name: 'K717', quantity: 1, unit_price: 100 }])
 
-    expect(response).to have_http_status(:unprocessable_entity)
-    expect(response.parsed_body['error']).to include('第 1 行')
+    expect(response).to have_http_status(:success)
   end
 
   it '选了产品就能建，并记住「这段叫法 → 这个产品」' do
