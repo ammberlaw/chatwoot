@@ -84,6 +84,8 @@ class Account < ApplicationRecord
   has_many :crm_follow_up_notes, class_name: 'Crm::FollowUpNote', dependent: :destroy_async
   has_many :crm_follow_up_tasks, class_name: 'Crm::FollowUpTask', dependent: :destroy_async
   has_many :crm_schedule_events, class_name: 'Crm::ScheduleEvent', dependent: :destroy_async
+  has_many :crm_exhibitions, class_name: 'Crm::Exhibition', dependent: :destroy_async
+  has_many :crm_exhibition_invites, class_name: 'Crm::ExhibitionInvite', dependent: :destroy_async
   has_many :crm_email_distributions, class_name: 'Crm::EmailDistribution', dependent: :destroy_async
   has_many :crm_knowledge_docs, class_name: 'Crm::KnowledgeDoc', dependent: :destroy_async
   has_many :crm_doc_sections, class_name: 'Crm::DocSection', dependent: :destroy_async
