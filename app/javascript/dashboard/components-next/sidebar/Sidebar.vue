@@ -373,9 +373,32 @@ const onChatRealtime = data => {
   fetchTeamChatUnread();
 };
 
+// CRM 角标/筛选项只对有 CRM 权限的人拉。
+//
+// 侧栏是全局的，原来对所有人无条件调这三个 CRM 接口（客户来源选项 /
+// 来源会话计数 / 流失预警角标）。仓管、车间、采购这些没有 crm_role 的岗位
+// 每次进系统都被 403，全局拦截器弹出「无权访问 CRM」——仓管因此以为
+// 自己权限被收了（其实 MES 一直是好的）。
+//
+// 这里用严格判定而不是上面的 canAccessCrm：后者是「!== false」，
+// currentUser 还没加载完时算 true，会赶在用户信息到位前把请求发出去、照样 403。
+// 所以只认明确的 true，并用 watch 等它到位（immediate 覆盖「进来就已登录」）。
+const crmSidebarDataAllowed = computed(
+  () => currentUser.value?.can_access_crm === true
+);
+
+watch(
+  crmSidebarDataAllowed,
+  allowed => {
+    if (!allowed) return;
+    loadCrmOptions('customer_source');
+    fetchSourceTagCounts();
+    fetchChurnRiskCount();
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
-  loadCrmOptions('customer_source');
-  fetchSourceTagCounts();
   store.dispatch('labels/get');
   store.dispatch('inboxes/get');
   store.dispatch('notifications/unReadCount');
@@ -385,7 +408,6 @@ onMounted(() => {
   store.dispatch('customViews/get', 'contact');
   mesNotificationsStore.fetchUnreadCount();
   fetchMesTodoCount();
-  fetchChurnRiskCount();
   fetchScheduleTodoCount();
   fetchTeamChatUnread();
   emitter.on('CHAT_MESSAGE_CREATED', onChatRealtime);
