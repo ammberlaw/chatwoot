@@ -124,7 +124,7 @@ const pageInfo = computed(() => {
           type="text"
           inputmode="numeric"
           :aria-label="pageInfo"
-          class="w-10 shrink-0 px-1 text-center tabular-nums py-0.5 font-420 bg-n-input-background text-body-main text-n-slate-12 rounded-md border border-transparent outline-none focus:border-n-brand"
+          class="reset-base w-10 shrink-0 h-6 px-1 text-center tabular-nums py-0.5 font-420 bg-n-input-background text-body-main text-n-slate-12 rounded-md border border-transparent outline-none focus:border-n-brand"
           @keyup.enter="jumpToPage"
           @blur="jumpToPage"
           @focus="$event.target.select()"
