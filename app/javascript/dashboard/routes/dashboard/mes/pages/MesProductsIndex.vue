@@ -571,7 +571,7 @@ onMounted(() => {
                 class="border-b cursor-pointer border-n-weak transition-colors"
                 :class="
                   selectedId === p.id
-                    ? 'bg-n-iris-3 hover:bg-n-iris-3'
+                    ? 'bg-n-brand/10 hover:bg-n-brand/10'
                     : 'hover:bg-n-alpha-1'
                 "
                 @click="selectedId = selectedId === p.id ? null : p.id"
