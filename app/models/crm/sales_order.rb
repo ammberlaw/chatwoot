@@ -16,6 +16,7 @@
 #  order_date           :datetime         not null
 #  order_kind           :string
 #  order_no             :string           not null
+#  payment_term         :string
 #  pi_no                :string
 #  profit_amount_micros :bigint
 #  profit_rate          :decimal(6, 2)
