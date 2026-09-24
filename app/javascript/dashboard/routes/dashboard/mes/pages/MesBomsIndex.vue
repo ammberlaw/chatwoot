@@ -3,6 +3,7 @@
 import { ref, computed, reactive, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
+import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
@@ -72,16 +73,6 @@ const productOptions = computed(() => [
 
 // —— 用料明细：物料从产品档案「金蝶式表格下拉」选择（MesProductPicker），
 // 选中回填该行的编码/名称/规格/单位。 ——
-const pickMaterial = (row, p) => {
-  if (!p) return;
-  row.productId = String(p.id);
-  row.materialNo = p.sku || '';
-  row.materialName = p.name || '';
-  if (p.specification) row.specification = p.specification;
-  if (p.unit) row.unit = p.unit;
-  // 选中即带出该物料的实时库存（产品搜索接口已附 on_hand，跨仓合计）。
-  row.onHand = p.on_hand != null ? Number(p.on_hand) : null;
-};
 
 // 订单归属业务员：只列真正的业务角色（可归属 CRM 订单）——业务员/部门负责人/
 // 副管理员；排除 HR 与无 CRM 角色的普通成员。选填。
@@ -204,6 +195,9 @@ const blankRow = () => ({
   onHand: null, // 对应物料实时库存（只读展示，不入库）
   remark: '',
   category: 'MACHINE',
+  // 用量是否被人手动改过。没改过的行跟着投单总数走（见 autoQty），
+  // 改过的不再自动覆盖——工程会按单机实际用量调个别行（喇叭一台两只这种）。
+  qtyTouched: false,
 });
 // 投单信息（照 PMC 纸质 BOM 抬头）：日期/单号/客户/型号/产成品代码/数量/颜色。
 const blankHeader = () => ({
@@ -241,6 +235,45 @@ const totalLeadDays = computed(() =>
   LEAD_STAGES.reduce((sum, s) => sum + (Number(form[s.key]) || 0), 0)
 );
 
+// 投单总数：优先「数量」，没填就用「基准产量」。
+// 用料明细的用量绝大多数就等于这个数（一台机用一片屏、一个壳），
+// 以前要一行行手输几十遍；现在前面任一处填了总数，后面自动带出来。
+const autoQty = computed(() => {
+  const n = Number(form.orderQty) || Number(form.baseQty);
+  return Number.isFinite(n) && n > 0 ? String(n) : '';
+});
+
+// 只给「已经选了物料」的行带用量——默认铺的 10 个空行不碰，
+// 否则它们带上数字就不再被 isRowEmpty 判为空行，保存时会触发物料编码必填。
+const hasMaterial = r =>
+  Boolean(r.materialNo?.trim() || r.materialName?.trim());
+
+const pickMaterial = (row, p) => {
+  if (!p) return;
+  row.productId = String(p.id);
+  row.materialNo = p.sku || '';
+  row.materialName = p.name || '';
+  if (p.specification) row.specification = p.specification;
+  if (p.unit) row.unit = p.unit;
+  // 选中即带出该物料的实时库存（产品搜索接口已附 on_hand，跨仓合计）。
+  row.onHand = p.on_hand != null ? Number(p.on_hand) : null;
+  // 选完物料，用量直接按投单总数带出来，不用一行行手输。
+  if (!row.qtyTouched && autoQty.value) row.qty = autoQty.value;
+};
+
+watch(autoQty, v => {
+  if (!v) return;
+  form.rows.forEach(r => {
+    if (!r.qtyTouched && hasMaterial(r)) r.qty = v;
+  });
+});
+
+// 手动改过用量的行打标记，之后总数再变也不覆盖它。
+const setRowQty = (row, v) => {
+  row.qty = v;
+  row.qtyTouched = true;
+};
+
 // 完全空行（默认铺的 10 行里没填的）：保存时忽略、不参与校验。
 const isRowEmpty = r =>
   !r.materialNo.trim() &&
@@ -252,6 +285,39 @@ const isRowEmpty = r =>
 const isRowComplete = r =>
   !!r.materialNo.trim() && !!r.materialName.trim() && !!Number(r.qty);
 const filledRows = computed(() => form.rows.filter(r => !isRowEmpty(r)));
+
+// 复制成金蝶「生产任务单 → 材料信息 → 快速贴粘」能直接吃的格式。
+// 金蝶那个粘贴框按列顺序读制表符分隔的文本，所以这里严格按它材料明细的列序出：
+//   物料编码 → 物料名称 → 规格型号 → 用量
+// 只出填了物料编码的行（默认空行、没选料的行不带过去）。
+const kingdeeCell = v =>
+  String(v ?? '')
+    .replace(/[\t\r\n]+/g, ' ')
+    .trim();
+
+const copyForKingdee = async () => {
+  const rows = form.rows.filter(r => r.materialNo?.trim() && !isRowEmpty(r));
+  if (!rows.length) {
+    useAlert('还没有填了物料编码的明细行，没有可复制的内容。');
+    return;
+  }
+  const tsv = rows
+    .map(r =>
+      [r.materialNo, r.materialName, r.specification, r.qty]
+        .map(kingdeeCell)
+        .join('\t')
+    )
+    .join('\n');
+  try {
+    await copyTextToClipboard(tsv);
+    useAlert(
+      `已复制 ${rows.length} 行，到金蝶「生产任务单 → 材料信息 → 快速贴粘」里粘贴即可。`
+    );
+  } catch {
+    useAlert('复制失败，请检查浏览器剪贴板权限。');
+  }
+};
+
 const invalid = computed(
   () =>
     !form.productLine || // 产线必填：漏了这条单子切到任何产线都看不见
@@ -427,6 +493,7 @@ const openEdit = bom => {
       onHand: it.onHand != null ? Number(it.onHand) : null,
       remark: it.remark || '',
       category: it.category || 'MACHINE',
+      qtyTouched: it.qty != null && it.qty !== '',
     })),
   });
   dialogRef.value?.open();
@@ -550,6 +617,7 @@ const applyTemplate = t => {
       qty: String(it.qty ?? ''),
       remark: it.remark || '',
       category: it.category || 'MACHINE',
+      qtyTouched: it.qty != null && it.qty !== '',
     })),
   });
   if (!form.rows.length) form.rows.push(blankRow());
@@ -994,7 +1062,20 @@ onMounted(async () => {
               整机生产物料到齐即可开产；包装物料未到不挡生产（生产领料只领整机料）
             </span>
           </span>
-          <Button label="+ 加一行" variant="ghost" size="sm" @click="addRow" />
+          <span class="flex gap-2 items-center">
+            <Button
+              label="复制到金蝶"
+              variant="ghost"
+              size="sm"
+              @click="copyForKingdee"
+            />
+            <Button
+              label="+ 加一行"
+              variant="ghost"
+              size="sm"
+              @click="addRow"
+            />
+          </span>
         </div>
 
         <div class="flex flex-col gap-2">
@@ -1052,10 +1133,11 @@ onMounted(async () => {
               />
               <Input v-model="row.unit" placeholder="台" class="col-span-1" />
               <Input
-                v-model="row.qty"
+                :model-value="row.qty"
                 type="number"
                 placeholder="用量"
                 class="col-span-1"
+                @update:model-value="v => setRowQty(row, v)"
               />
               <Input
                 v-model="row.remark"
