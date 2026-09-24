@@ -1079,7 +1079,9 @@ onMounted(async () => {
         </div>
 
         <div class="flex flex-col gap-2">
-          <div class="grid grid-cols-12 gap-2 px-1 text-xs text-n-slate-11">
+          <div
+            class="grid grid-cols-[repeat(14,minmax(0,1fr))] gap-2 px-1 text-xs text-n-slate-11"
+          >
             <span class="col-span-2">类别</span>
             <span class="col-span-2"
               >物料编码 <span class="text-n-ruby-11">*</span></span
@@ -1092,15 +1094,19 @@ onMounted(async () => {
             <span class="col-span-1"
               >用量 <span class="text-n-ruby-11">*</span></span
             >
+            <span class="col-span-1">建议采购</span>
+            <span class="col-span-1">实时库存</span>
             <span class="col-span-1">备注</span>
             <span class="col-span-1" />
           </div>
           <div
             v-for="(row, i) in form.rows"
             :key="i"
-            class="flex flex-col gap-1 pb-2 border-b border-dashed border-n-weak last:border-0"
+            class="pb-2 border-b border-dashed border-n-weak last:border-0"
           >
-            <div class="grid items-center grid-cols-12 gap-2">
+            <div
+              class="grid items-center grid-cols-[repeat(14,minmax(0,1fr))] gap-2"
+            >
               <div class="col-span-2">
                 <SelectCard
                   v-model="row.category"
@@ -1140,6 +1146,21 @@ onMounted(async () => {
                 @update:model-value="v => setRowQty(row, v)"
               />
               <Input
+                v-model="row.suggestedPurchaseQty"
+                type="number"
+                placeholder="选填"
+                class="col-span-1"
+              />
+              <span
+                class="col-span-1 px-1 text-xs truncate"
+                :class="
+                  row.onHand == null ? 'text-n-slate-10' : 'text-n-slate-12'
+                "
+                :title="row.onHand == null ? '选料后显示' : String(row.onHand)"
+              >
+                {{ row.onHand == null ? '—' : row.onHand }}
+              </span>
+              <Input
                 v-model="row.remark"
                 placeholder="备注"
                 class="col-span-1"
@@ -1151,28 +1172,6 @@ onMounted(async () => {
               >
                 ✕
               </button>
-            </div>
-            <div class="flex items-center gap-4 pl-1 text-xs text-n-slate-11">
-              <label class="flex items-center gap-2">
-                <span class="shrink-0">工程建议采购</span>
-                <Input
-                  v-model="row.suggestedPurchaseQty"
-                  type="number"
-                  placeholder="选填"
-                  class="w-24"
-                />
-              </label>
-              <span class="flex items-center gap-1">
-                实时库存：
-                <span
-                  class="font-medium"
-                  :class="
-                    row.onHand == null ? 'text-n-slate-10' : 'text-n-slate-12'
-                  "
-                >
-                  {{ row.onHand == null ? '选料后显示' : row.onHand }}
-                </span>
-              </span>
             </div>
           </div>
         </div>

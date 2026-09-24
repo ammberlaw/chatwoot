@@ -99,7 +99,7 @@ const pageInfo = computed(() => {
         {{ currentPageInformation }}
       </span>
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex shrink-0 items-center gap-2">
       <Button
         icon="i-lucide-chevrons-left"
         variant="ghost"
@@ -124,12 +124,12 @@ const pageInfo = computed(() => {
           type="text"
           inputmode="numeric"
           :aria-label="pageInfo"
-          class="w-12 px-2 text-center tabular-nums py-0.5 font-420 bg-n-input-background text-body-main text-n-slate-12 rounded-md border border-transparent outline-none focus:border-n-brand"
+          class="w-10 shrink-0 px-1 text-center tabular-nums py-0.5 font-420 bg-n-input-background text-body-main text-n-slate-12 rounded-md border border-transparent outline-none focus:border-n-brand"
           @keyup.enter="jumpToPage"
           @blur="jumpToPage"
           @focus="$event.target.select()"
         />
-        <span class="truncate text-body-main text-n-slate-11">
+        <span class="shrink-0 whitespace-nowrap text-body-main text-n-slate-11">
           {{ pageInfo }}
         </span>
       </div>
