@@ -313,6 +313,21 @@ const form = reactive({
   rows: [],
 });
 
+// 含税一键全选：一张单常常整单同一个税口径，一行行勾太费事。
+// 半选（部分行含税）时显示 indeterminate，点一下全部勾上。
+const allTaxIncluded = computed(
+  () => form.rows.length > 0 && form.rows.every(r => r.priceTaxIncluded)
+);
+const someTaxIncluded = computed(
+  () => form.rows.some(r => r.priceTaxIncluded) && !allTaxIncluded.value
+);
+const toggleAllTaxIncluded = () => {
+  const next = !allTaxIncluded.value;
+  form.rows.forEach(r => {
+    r.priceTaxIncluded = next;
+  });
+};
+
 const rowIncomplete = r => !Number(r.qty) || !r.crmProductId;
 // 供应商税率（%）：用于含税/未税提示。
 const supplierTaxRate = id =>
@@ -850,13 +865,27 @@ onMounted(async () => {
           <span class="text-heading-3 text-n-slate-12">
             采购明细 <span class="text-n-ruby-11">*</span>
           </span>
-          <Button
-            label="+ 加一行"
-            type="button"
-            variant="ghost"
-            size="sm"
-            @click="addRow"
-          />
+          <div class="flex items-center gap-3">
+            <label
+              v-if="form.rows.length"
+              class="flex items-center gap-1.5 text-xs cursor-pointer text-n-slate-11"
+            >
+              <input
+                type="checkbox"
+                :checked="allTaxIncluded"
+                :indeterminate.prop="someTaxIncluded"
+                @change="toggleAllTaxIncluded"
+              />
+              全部含税
+            </label>
+            <Button
+              label="+ 加一行"
+              type="button"
+              variant="ghost"
+              size="sm"
+              @click="addRow"
+            />
+          </div>
         </div>
         <div class="flex flex-col gap-2.5">
           <div

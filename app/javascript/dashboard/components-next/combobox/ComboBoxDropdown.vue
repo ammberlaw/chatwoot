@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const props = defineProps({
@@ -40,6 +40,27 @@ const searchValue = defineModel('searchValue', {
 
 const searchInput = ref(null);
 
+// 键盘选中：打完字直接回车，不用再拿鼠标点一下。
+// ↑/↓ 移动高亮，回车选中高亮项；选项变了（重新搜索）就回到第一条。
+const highlighted = ref(0);
+watch(
+  () => props.options,
+  () => {
+    highlighted.value = 0;
+  }
+);
+
+const move = step => {
+  const total = props.options.length;
+  if (!total) return;
+  highlighted.value = (highlighted.value + step + total) % total;
+};
+
+const confirmHighlighted = () => {
+  const option = props.options[highlighted.value];
+  if (option) emit('select', option);
+};
+
 const isSelected = option => {
   if (Array.isArray(props.selectedValues)) {
     return props.selectedValues.includes(option.value);
@@ -71,6 +92,9 @@ defineExpose({
         :placeholder="searchPlaceholder || t('COMBOBOX.SEARCH_PLACEHOLDER')"
         class="reset-base w-full py-2 pl-10 pr-2 text-sm focus:outline-none border-none rounded-t-md bg-n-solid-1 text-n-slate-12"
         @input="onInputSearch"
+        @keydown.down.prevent="move(1)"
+        @keydown.up.prevent="move(-1)"
+        @keydown.enter.prevent.stop="confirmHighlighted"
       />
     </div>
     <ul
@@ -83,17 +107,19 @@ defineExpose({
         :key="`${option.value}-${index}`"
         class="flex items-center justify-between w-full gap-2 px-3 py-2 text-sm transition-colors duration-150 cursor-pointer hover:bg-n-alpha-2"
         :class="{
-          'bg-n-alpha-2': isSelected(option),
+          'bg-n-alpha-2': isSelected(option) || index === highlighted,
         }"
         role="option"
         :aria-selected="isSelected(option)"
         @click.stop="emit('select', option)"
+        @mouseenter="highlighted = index"
       >
         <span
           :class="{
             'font-medium': isSelected(option),
           }"
           class="text-n-slate-12"
+          :title="option.label"
         >
           {{ option.label }}
         </span>

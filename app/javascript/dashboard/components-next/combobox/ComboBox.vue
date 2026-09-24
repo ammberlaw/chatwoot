@@ -124,6 +124,7 @@ watch(
         variant="outline"
         :color="hasError && !open ? 'ruby' : open ? 'blue' : 'slate'"
         :label="selectedLabel"
+        :title="selectedLabel"
         trailing-icon
         :disabled="disabled"
         no-animation
@@ -140,7 +141,10 @@ watch(
              其余调用方渲染路径与外观保持原样。span 而非 button：button 不能嵌套。 -->
         <template v-if="clearable" #default>
           <span class="flex items-center flex-1 min-w-0 gap-2">
-            <span class="flex-1 min-w-0 text-left truncate">
+            <span
+              class="flex-1 min-w-0 text-left truncate"
+              :title="selectedLabel"
+            >
               {{ selectedLabel }}
             </span>
             <span
