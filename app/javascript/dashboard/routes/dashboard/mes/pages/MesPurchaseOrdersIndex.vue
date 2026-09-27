@@ -133,29 +133,96 @@ const canSubmit = po =>
 
 // 按供应商拆单导出 PDF：后端用公司原始 .xlsx 模板 1:1 填充（含公章，抬头/税口径按各自 bill_entity）
 // → Gotenberg 转 PDF。单个供应商直接下 PDF；多个供应商打包 zip（每家一份 PDF）。
-const exporting = ref(false);
 
-const exportBySupplier = async po => {
-  if (exporting.value) return;
-  exporting.value = true;
+// —— 预览 / 导出 ——
+//
+// 预览直接显示后端生成的真 PDF（而不是另做一套 HTML 版式）：
+// 预览和最终文件是同一份，公章、字体、线条不会两套口径。
+// 采购员在预览里核对完，截图就能发供应商群——不用先导文件、再打开、再截图。
+const previewDialogRef = ref(null);
+const previewPo = ref(null);
+const previewSuppliers = ref([]); // [{ id, name, company, taxed, itemCount }]
+const previewChecked = ref([]); // 勾选导出/预览的供应商 id
+const previewUrl = ref('');
+const previewLoading = ref(false);
+// 连续勾选会连发几次请求，先发的可能后回，把旧结果盖在新结果上
+// （实测：勾 2 家却显示 3 页，且停下来也不会自己纠正）
+// 每次请求发号，回来时只认最后一号。
+let previewSeq = 0;
+
+const revokePreview = () => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
+  previewUrl.value = '';
+};
+
+// 「未指定供应商」那组后端的 key 是 nil，这里统一用 0 表示。
+const supplierKey = s => Number(s.id || 0);
+
+const fetchPreviewPdf = async () => {
+  if (!previewPo.value || !previewChecked.value.length) {
+    revokePreview();
+    return;
+  }
+  previewSeq += 1;
+  const seq = previewSeq;
+  previewLoading.value = true;
   try {
     const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/purchase_orders/${po.id}/export`,
-      { responseType: 'blob' }
+      `/api/v1/accounts/${accountId.value}/mes/purchase_orders/${previewPo.value.id}/export`,
+      {
+        responseType: 'blob',
+        params: { supplier_ids: previewChecked.value },
+        // indexes:false → supplier_ids[]=1&supplier_ids[]=2（Rails 解析成数组）。
+        // 用 null 会生成 supplier_ids=1&supplier_ids=2，Rails 只取最后一个，
+        // 结果不管勾几家都只导出一家。
+        paramsSerializer: { indexes: false },
+      }
     );
-    // 单家=application/pdf，多家=application/zip，按返回类型定扩展名。
-    const ext = data.type === 'application/pdf' ? 'pdf' : 'zip';
-    const url = URL.createObjectURL(data);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `采购单-${po.poNo}-按供应商.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (seq !== previewSeq) return; // 已有更新的请求在路上，丢弃这次结果
+    revokePreview();
+    previewUrl.value = URL.createObjectURL(data);
   } catch {
-    useAlert('导出失败，请重试');
+    if (seq === previewSeq) useAlert('预览生成失败，请重试');
   } finally {
-    exporting.value = false;
+    if (seq === previewSeq) previewLoading.value = false;
   }
+};
+
+const openPreview = async po => {
+  previewPo.value = po;
+  previewSuppliers.value = [];
+  previewChecked.value = [];
+  revokePreview();
+  previewDialogRef.value?.open();
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/purchase_orders/${po.id}/export_data`
+    );
+    previewSuppliers.value = (data?.payload?.suppliers || []).map(s => ({
+      id: s.supplier_id || 0,
+      name: s.name,
+      company: s.company,
+      taxed: s.taxed,
+      itemCount: (s.items || []).length,
+    }));
+    // 默认全选：多数时候就是整单发出去，勾选是为了「只发某一家」。
+    previewChecked.value = previewSuppliers.value.map(supplierKey);
+    await fetchPreviewPdf();
+  } catch {
+    useAlert('读取单据失败，请重试');
+  }
+};
+
+const downloadPreview = () => {
+  if (!previewUrl.value || !previewPo.value) return;
+  const a = document.createElement('a');
+  a.href = previewUrl.value;
+  const n = previewChecked.value.length;
+  const one = previewSuppliers.value.find(
+    s => supplierKey(s) === previewChecked.value[0]
+  );
+  a.download = `采购单-${previewPo.value.poNo}-${n === 1 ? one?.name : `${n}家供应商`}.pdf`;
+  a.click();
 };
 
 // 只读查看
@@ -739,11 +806,10 @@ onMounted(async () => {
                   />
                   <Button
                     v-if="canViewAmount"
-                    :label="exporting ? '导出中…' : '按供应商导出 PDF'"
+                    label="预览 / 导出"
                     variant="ghost"
                     size="sm"
-                    :disabled="exporting"
-                    @click="exportBySupplier(p)"
+                    @click="openPreview(p)"
                   />
                   <MesReturnControls
                     :record="p"
@@ -762,6 +828,80 @@ onMounted(async () => {
         </table>
       </template>
     </div>
+
+    <!-- 预览 / 导出：直接显示后端生成的真 PDF，勾谁导谁，多家合成一份 -->
+    <Dialog
+      ref="previewDialogRef"
+      :dismissible="false"
+      width="5xl"
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+      :title="previewPo ? `采购单 ${previewPo.poNo} · 预览` : '采购单预览'"
+      @close="revokePreview"
+    >
+      <div class="flex flex-col gap-3">
+        <p class="text-xs text-n-slate-11">
+          抬头按各供应商档案自动选：对公「东莞市联迪科技有限公司」含税带公章，
+          对私「深圳联合触控科技有限公司」未税。核对无误可直接截图发群，也可导出
+          PDF。
+        </p>
+
+        <div
+          v-if="previewSuppliers.length > 1"
+          class="flex flex-wrap gap-x-4 gap-y-1.5 p-2 rounded-lg bg-n-alpha-1"
+        >
+          <label
+            v-for="s in previewSuppliers"
+            :key="s.id"
+            class="flex items-center gap-1.5 text-xs cursor-pointer text-n-slate-11"
+          >
+            <input
+              v-model="previewChecked"
+              type="checkbox"
+              :value="Number(s.id || 0)"
+              @change="fetchPreviewPdf"
+            />
+            <span class="text-n-slate-12">{{ s.name }}</span>
+            <span class="text-n-slate-10">
+              {{ s.itemCount }} 项 · {{ s.taxed ? '含税' : '未税' }}
+            </span>
+          </label>
+        </div>
+
+        <div
+          class="h-[62vh] overflow-hidden rounded-lg border border-n-weak bg-n-solid-2"
+        >
+          <p
+            v-if="previewLoading"
+            class="p-6 text-sm text-center text-n-slate-11"
+          >
+            正在生成预览…
+          </p>
+          <p
+            v-else-if="!previewChecked.length"
+            class="p-6 text-sm text-center text-n-slate-11"
+          >
+            请至少勾选一家供应商。
+          </p>
+          <iframe
+            v-else-if="previewUrl"
+            :src="previewUrl"
+            class="w-full h-full"
+            title="采购单预览"
+          />
+        </div>
+
+        <div class="flex justify-end">
+          <Button
+            label="下载 PDF"
+            color="iris"
+            size="sm"
+            :disabled="!previewUrl || previewLoading"
+            @click="downloadPreview"
+          />
+        </div>
+      </div>
+    </Dialog>
 
     <Dialog
       ref="dialogRef"

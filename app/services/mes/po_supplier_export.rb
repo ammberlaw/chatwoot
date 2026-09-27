@@ -1,4 +1,3 @@
-require 'zip'
 
 # 采购单按供应商拆分导出：一张采购单里各供应商的料各成一份，打包成 zip、直接转发给对应供应商。
 # 每份只含该供应商的物料，绝不带其他供应商 / 关联生产订单 / 成本毛利。
@@ -14,8 +13,9 @@ class Mes::PoSupplierExport
   }.freeze
   TAX_RATE = 1.13 # 联迪含税 13%：未税价 × 1.13 = 含税价
 
-  def initialize(purchase_order)
+  def initialize(purchase_order, supplier_ids: nil)
     @po = purchase_order
+    @supplier_ids = Array(supplier_ids).presence
   end
 
   # 按供应商分组的结构化数据（供前端渲染 PDF：每供应商一张 PO，未税/含税抬头按 bill_entity）。
@@ -32,20 +32,20 @@ class Mes::PoSupplierExport
   # 按供应商导出 PDF：每家填公司原始 .xlsx 模板（含公章）→ Gotenberg 转 1:1 PDF。
   # 单个供应商直接返回 PDF；多个供应商打包成 zip（每家一份 PDF）。
   # 返回 { filename:, content_type:, io: }（供 controller send_data）。
+  # 导出 PDF。多家供应商时合成**一个** PDF（每家一页），不再打 zip——
+  # 原来 11 家就是 11 个文件打包，下载完还要解压、一个个开，发群前还得挑。
   def to_pdf_download
-    docs = grouped.values.map do |items|
+    sheets = grouped.values.map do |items|
       supplier = items.first.mes_supplier
       name = supplier&.name.presence || '未指定供应商'
       xlsx = Mes::PoTemplateFiller.new(supplier: supplier, items: items, purchase_order: @po).to_stream.read
-      [name, Mes::GotenbergClient.xlsx_to_pdf(xlsx, filename: "#{sanitize(name)}.xlsx")]
+      [name, xlsx]
     end
+    raise ArgumentError, '没有可导出的供应商' if sheets.empty?
 
-    if docs.size == 1
-      name, pdf = docs.first
-      { filename: "采购单-#{@po.po_no}-#{sanitize(name)}.pdf", content_type: 'application/pdf', io: StringIO.new(pdf) }
-    else
-      { filename: "采购单-#{@po.po_no}-按供应商PDF.zip", content_type: 'application/zip', io: zip_pdfs(docs) }
-    end
+    pdf = Mes::GotenbergClient.office_to_pdf_merged(sheets.map { |name, xlsx| ["#{sanitize(name)}.xlsx", xlsx] })
+    suffix = sheets.size == 1 ? sanitize(sheets.first[0]) : "#{sheets.size}家供应商"
+    { filename: "采购单-#{@po.po_no}-#{suffix}.pdf", content_type: 'application/pdf', io: StringIO.new(pdf) }
   end
 
   # 返回打包好的 zip（每供应商一个 .xlsx，填公司原始模板）IO 流。
@@ -69,25 +69,17 @@ class Mes::PoSupplierExport
   private
 
   # 把每家 PDF 打包成 zip（同名供应商加序号后缀避免文件名冲突）。
-  def zip_pdfs(docs)
-    buffer = Zip::OutputStream.write_buffer do |zip|
-      used = Hash.new(0)
-      docs.each do |name, pdf|
-        used[name] += 1
-        suffix = used[name] > 1 ? "-#{used[name]}" : ''
-        zip.put_next_entry("#{sanitize(name)}#{suffix}.pdf")
-        zip.write(pdf)
-      end
-    end
-    buffer.rewind
-    buffer
-  end
-
   # 按供应商分组（保序）；无供应商的料归到 nil 组由抬头回落 wintouch。
+  # 按供应商分组；给了 supplier_ids 就只取这几家（导出时勾选用）。
+  # 「未指定供应商」那组的 key 是 nil，前端用 0 表示，这里换算回来。
   def grouped
-    @po.purchase_items
-       .includes(:mes_material, :crm_product, :mes_supplier)
-       .group_by(&:mes_supplier_id)
+    all = @po.purchase_items
+             .includes(:mes_material, :crm_product, :mes_supplier)
+             .group_by(&:mes_supplier_id)
+    return all if @supplier_ids.blank?
+
+    wanted = @supplier_ids.map { |id| id.to_i.zero? ? nil : id.to_i }
+    all.slice(*wanted)
   end
 
   def supplier_payload(items)
@@ -95,6 +87,8 @@ class Mes::PoSupplierExport
     head = HEADERS[supplier&.bill_entity] || HEADERS['wintouch']
     rows = items.each_with_index.map { |item, i| item_payload(item, i + 1, head) }
     {
+      # 前端勾选导出用；「未指定供应商」没有 id，统一用 0。
+      supplier_id: supplier&.id || 0,
       name: supplier&.name.presence || '未指定供应商',
       contact_name: supplier&.contact_name,
       address: supplier&.address,

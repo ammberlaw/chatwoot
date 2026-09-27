@@ -66,11 +66,15 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     render json: { payload: production_order.material_requirements(category: params[:category].presence) }
   end
 
-  # 按供应商拆单导出 PDF：各供应商的料各成一份、填公司原始模板（含公章）→ Gotenberg 转 1:1 PDF。
-  # 单个供应商直接下 PDF；多个供应商打包 zip（每家一份 PDF）。抬头/税口径按各供应商 bill_entity 自动选。
+  # 按供应商拆单导出 PDF：各供应商的料各成一份、填公司原始模板（含公章）→ Gotenberg 转 1:1 PDF，
+  # 多家合成**一个** PDF（每家一页）。抬头/税口径按各供应商 bill_entity 自动选
+  #（联迪=对公含税带公章 / 联合触控=对私未税）。
+  # supplier_ids 可选：只导这几家（预览里勾选用），0 表示「未指定供应商」那组。
   def export
-    doc = Mes::PoSupplierExport.new(@purchase_order).to_pdf_download
+    doc = Mes::PoSupplierExport.new(@purchase_order, supplier_ids: params[:supplier_ids]).to_pdf_download
     send_data doc[:io].read, filename: doc[:filename], type: doc[:content_type]
+  rescue ArgumentError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   rescue Mes::GotenbergClient::ConversionError => e
     render json: { error: e.message }, status: :service_unavailable
   end
