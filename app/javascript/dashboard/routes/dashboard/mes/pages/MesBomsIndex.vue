@@ -22,6 +22,7 @@ import {
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useResizableColumns } from 'dashboard/composables/useResizableColumns';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
@@ -221,6 +222,29 @@ const { activeProductLine, formOptions: productLineOptions } =
 const showTabletHeaderFields = computed(
   () => activeProductLine.value !== 'COMMERCIAL_DISPLAY'
 );
+
+// 用料明细的列：宽度可拖（像 Excel / 金蝶那样），拖完记在本机。
+// 序号和删除那两根固定宽，不给拖。规格型号默认给最宽——不放全就核不了料。
+const REQUIRED_COLS = ['materialNo', 'materialName', 'qty'];
+const BOM_COLS = [
+  { key: 'idx', fixed: 28 },
+  { key: 'category', label: '类别', fr: 1.6 },
+  { key: 'materialNo', label: '物料编码', fr: 2 },
+  { key: 'materialName', label: '物料名称', fr: 2 },
+  { key: 'spec', label: '规格型号', fr: 3 },
+  { key: 'aux', label: '辅助属性', fr: 1.6 },
+  { key: 'unit', label: '单位', fr: 0.8 },
+  { key: 'qty', label: '用量', fr: 1 },
+  { key: 'suggest', label: '建议采购', fr: 1 },
+  { key: 'onHand', label: '实时库存', fr: 1 },
+  { key: 'remark', label: '备注', fr: 1 },
+  { key: 'del', fixed: 24 },
+];
+const {
+  template: bomColTemplate,
+  startResize: startColResize,
+  resetWidths: resetColWidths,
+} = useResizableColumns(BOM_COLS, 'mes.bom.itemCols.v1');
 
 const form = reactive({
   // 产品线随表单提交：新建 BOM 不一定选成品（选了才能从成品带出产线），
@@ -1162,6 +1186,12 @@ onMounted(async () => {
               @click="copyForKingdee"
             />
             <Button
+              label="恢复默认列宽"
+              variant="ghost"
+              size="sm"
+              @click="resetColWidths"
+            />
+            <Button
               label="+ 加一行"
               variant="ghost"
               size="sm"
@@ -1171,21 +1201,42 @@ onMounted(async () => {
         </div>
 
         <div class="flex flex-col gap-2">
+          <!-- 表头：每列右边一根可拖的竖线（像 Excel），拖完的宽度记在本机。 -->
           <div
-            class="grid grid-cols-[1.75rem_1.6fr_2fr_2fr_3fr_1.6fr_0.8fr_1fr_1fr_1fr_1fr_1.5rem] gap-2 px-1 text-xs text-n-slate-11"
+            class="grid gap-2 px-1 text-xs text-n-slate-11"
+            :style="{ gridTemplateColumns: bomColTemplate }"
           >
-            <span>#</span>
-            <span>类别</span>
-            <span>物料编码 <span class="text-n-ruby-11">*</span></span>
-            <span>物料名称 <span class="text-n-ruby-11">*</span></span>
-            <span>规格型号</span>
-            <span>辅助属性</span>
-            <span>单位</span>
-            <span>用量 <span class="text-n-ruby-11">*</span></span>
-            <span>建议采购</span>
-            <span>实时库存</span>
-            <span>备注</span>
-            <span />
+            <span
+              v-for="c in BOM_COLS"
+              :key="c.key"
+              class="relative min-w-0"
+              :title="c.label"
+            >
+              <!-- 标签单独一层：truncate 是 overflow:hidden，
+                   把手放在这层里会被裁掉，鼠标点不到。 -->
+              <span class="block truncate">
+                <template v-if="c.key === 'idx'">#</template>
+                <template v-else-if="c.label">
+                  {{ c.label }}
+                  <span
+                    v-if="REQUIRED_COLS.includes(c.key)"
+                    class="text-n-ruby-11"
+                  >
+                    *
+                  </span>
+                </template>
+              </span>
+              <span
+                v-if="c.fixed == null"
+                class="absolute z-10 flex justify-center w-3 h-6 -right-2 -top-1 cursor-col-resize group/grip"
+                title="拖动调整列宽（像 Excel 那样）"
+                @mousedown.prevent="startColResize(c.key, $event)"
+              >
+                <span
+                  class="w-px h-full bg-n-weak group-hover/grip:bg-n-brand group-hover/grip:w-0.5"
+                />
+              </span>
+            </span>
           </div>
           <div
             v-for="(row, i) in form.rows"
@@ -1193,7 +1244,8 @@ onMounted(async () => {
             class="pb-2 border-b border-dashed border-n-weak last:border-0"
           >
             <div
-              class="grid items-center grid-cols-[1.75rem_1.6fr_2fr_2fr_3fr_1.6fr_0.8fr_1fr_1fr_1fr_1fr_1.5rem] gap-2"
+              class="grid items-center gap-2"
+              :style="{ gridTemplateColumns: bomColTemplate }"
             >
               <span class="text-xs tabular-nums text-n-slate-10">
                 {{ i + 1 }}
