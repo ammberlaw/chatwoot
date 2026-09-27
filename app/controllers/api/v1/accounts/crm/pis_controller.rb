@@ -55,7 +55,13 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   end
 
   def update
-    @pi.update!(pi_params)
+    attrs = pi_params
+    # 草稿补选、更换或重新确认客户时同步业绩归属；经办人保持不变。
+    # 按保存前状态判断，让草稿转已付款时生成的销售订单也拿到正确归属。
+    if @pi.status == 'DRAFT' && attrs[:crm_customer_id].present?
+      attrs[:owner_id] = performance_owner_id(attrs[:crm_customer_id])
+    end
+    @pi.update!(attrs)
     # 只要是「已付款」就落一张销售订单（幂等：按 pi_no 只建一次，重存不会重复，
     # 也给此前漏转的 PI 一条补救路径）。失败只记日志、不阻断 PI 保存。
     @converted_order = convert_to_sales_order if @pi.status == 'PAID'
