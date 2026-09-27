@@ -558,11 +558,14 @@ onMounted(() => {
 
       <div v-else class="flex flex-col gap-2">
         <div
-          v-for="req in records"
+          v-for="(req, ri) in records"
           :key="req.id"
           class="flex flex-col gap-2 p-3 border shadow-sm rounded-xl border-white/70 bg-n-solid-1/60"
         >
           <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs tabular-nums text-n-slate-10">{{
+              ri + 1
+            }}</span>
             <span class="font-semibold text-n-slate-12">{{ req.reqNo }}</span>
             <span
               class="px-2 py-0.5 text-xs rounded-full bg-n-slate-3 text-n-slate-11"
@@ -745,6 +748,11 @@ onMounted(() => {
             :key="i"
             class="grid items-end grid-cols-1 gap-2 p-2 border rounded-lg sm:grid-cols-12 border-n-weak"
           >
+            <div class="sm:col-span-12 -mb-1">
+              <span class="text-xs font-medium tabular-nums text-n-slate-10">
+                序号 {{ i + 1 }}
+              </span>
+            </div>
             <div class="sm:col-span-2">
               <label class="text-xs text-n-slate-10">类型</label>
               <SelectCard
@@ -887,12 +895,13 @@ onMounted(() => {
           该申请单已全部转采购，无剩余可转明细。
         </div>
         <div
-          v-for="line in convertForm.lines"
+          v-for="(line, ci) in convertForm.lines"
           :key="line.requisitionItemId"
           class="grid items-end grid-cols-1 gap-2 p-2 border rounded-lg sm:grid-cols-12 border-n-weak"
         >
           <div class="sm:col-span-4">
             <div class="text-sm font-medium text-n-slate-12">
+              <span class="tabular-nums text-n-slate-10">{{ ci + 1 }}.</span>
               {{ line.label }}
             </div>
             <div class="text-xs text-n-slate-10">
@@ -967,6 +976,7 @@ onMounted(() => {
         <table class="w-full text-sm">
           <thead>
             <tr class="text-xs text-left text-n-slate-10">
+              <th class="py-1 w-8">#</th>
               <th class="py-1">物料/成品</th>
               <th class="py-1">规格</th>
               <th class="py-1 text-right">需求量</th>
@@ -978,10 +988,11 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr
-              v-for="it in viewing.requisitionItems"
+              v-for="(it, vi) in viewing.requisitionItems"
               :key="it.id"
               class="border-t border-n-weak"
             >
+              <td class="py-1 tabular-nums text-n-slate-10">{{ vi + 1 }}</td>
               <td class="py-1">{{ it.materialName || it.materialNo }}</td>
               <td class="py-1 text-n-slate-11">
                 {{ it.specification || '—' }}

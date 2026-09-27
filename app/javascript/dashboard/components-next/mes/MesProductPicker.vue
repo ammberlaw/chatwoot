@@ -32,8 +32,6 @@ const loading = ref(false);
 
 onClickOutside(triggerEl, () => { open.value = false; }, { ignore: [popoverEl] }); // prettier-ignore
 
-const hasValue = computed(() => !!props.displayText);
-
 const fetchRows = async (keyword = '') => {
   loading.value = true;
   try {
@@ -85,7 +83,7 @@ const positionPopover = () => {
 //
 // 原来是一滚就关：但聚焦搜索框本身就可能带动外层容器滚一下，于是下拉「开了就秒关」——
 // 想往搜索框里粘贴编码根本来不及。现在改成重算位置；只有触发器被滚出可视区才关
-//（那时下拉浮在半空没有意义）。弹层内部列表滚动照旧不处理。
+// （那时下拉浮在半空没有意义）。弹层内部列表滚动照旧不处理。
 const syncPopover = () => {
   if (!open.value) return;
   const r = triggerEl.value?.getBoundingClientRect();
@@ -109,24 +107,42 @@ useEventListener(
 );
 useEventListener('resize', syncPopover);
 
-const toggle = async () => {
-  if (open.value) {
-    open.value = false;
-    return;
-  }
+const close = () => {
+  open.value = false;
+};
+
+// 触发器本身就是搜索框：聚焦/点击即展开（幂等，focus 和 click 会各触发一次）。
+const openPopover = async () => {
+  if (open.value) return;
   teleportTarget.value = triggerEl.value?.closest('dialog') || 'body';
+  q.value = '';
   open.value = true;
   if (!rows.value.length) fetchRows('');
   await nextTick();
   positionPopover();
-  // preventScroll：聚焦搜索框时别让浏览器滚动页面，否则会触发上面的滚动监听把刚开的弹层关掉。
-  searchEl.value?.focus({ preventScroll: true });
+  // 全选：打字/粘贴直接替换已选的料号，不用先手动清空。
+  searchEl.value?.select?.();
+};
+
+const onType = e => {
+  q.value = e.target.value;
+  if (!open.value) openPopover();
+  onSearch();
 };
 
 const pick = p => {
   emit('update:modelValue', String(p.id));
   emit('select', p);
   open.value = false;
+};
+
+// 打完料号直接回车选中第一条——不用再挪手去点鼠标。
+const pickFirst = () => {
+  if (!open.value) {
+    openPopover();
+    return;
+  }
+  if (rows.value.length) pick(rows.value[0]);
 };
 
 // —— 就地新建产品：搜不到时不用跳去产品档案，直接在下拉里建（仅工程/PMC 有产品档案权限者可见）——
@@ -186,20 +202,28 @@ const submitCreate = async () => {
 
 <template>
   <div :class="triggerClass || 'w-full'">
-    <button
+    <!-- 触发器用真 <input> 而不是 <button>：浏览器只给可编辑元素「复制/粘贴」右键菜单，
+         也只往可编辑元素粘贴。原来是按钮，所以 Cmd/Ctrl+V 没地方落、右键菜单是空的，
+         只能用鼠标一项项点。现在合上时显示已选料号，聚焦即变搜索框。 -->
+    <div
       ref="triggerEl"
-      type="button"
-      class="flex items-center justify-between w-full h-full gap-2 pl-3 pr-2.5 py-2 text-sm text-left rounded-lg outline outline-1 outline-n-weak bg-n-solid-1 hover:outline-n-brand focus:outline-n-brand"
-      @click="toggle"
+      class="flex items-center w-full h-full gap-2 pl-3 pr-2.5 py-2 text-sm rounded-lg outline outline-1 outline-n-weak bg-n-solid-1 hover:outline-n-brand focus-within:outline-n-brand"
     >
-      <span
-        class="truncate"
-        :class="hasValue ? 'text-n-slate-12' : 'text-n-slate-9'"
-      >
-        {{ hasValue ? displayText : placeholder }}
-      </span>
+      <input
+        ref="searchEl"
+        type="text"
+        class="flex-1 min-w-0 p-0 mb-0 text-sm bg-transparent border-0 rounded-none outline-none reset-base text-n-slate-12 placeholder:text-n-slate-9"
+        :value="open ? q : displayText"
+        :placeholder="placeholder"
+        :title="displayText || placeholder"
+        @focus="openPopover"
+        @click="openPopover"
+        @input="onType"
+        @keydown.enter.prevent="pickFirst"
+        @keydown.esc.prevent="close"
+      />
       <span class="text-n-slate-10 i-lucide-chevron-down size-4 shrink-0" />
-    </button>
+    </div>
 
     <teleport :to="teleportTarget">
       <transition
@@ -217,22 +241,6 @@ const submitCreate = async () => {
           :style="popStyle"
           class="z-[9999] flex flex-col origin-top overflow-hidden border shadow-xl rounded-2xl border-white/50 bg-n-solid-1/80 backdrop-blur-2xl backdrop-saturate-150 shadow-n-iris-9/15"
         >
-          <!-- 搜索 -->
-          <div class="p-2 border-b border-n-weak">
-            <div class="relative">
-              <span
-                class="absolute -translate-y-1/2 i-lucide-search left-2.5 top-1/2 size-4 text-n-slate-10"
-              />
-              <input
-                ref="searchEl"
-                v-model="q"
-                class="w-full h-9 pl-8 pr-3 text-sm border rounded-lg reset-base mb-0 border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-n-brand"
-                placeholder="输入商品编码 / 名称 / 规格搜索"
-                @input="onSearch"
-              />
-            </div>
-          </div>
-
           <!-- 就地新建产品（仅有产品档案权限者可见）：搜不到就直接建，不用跳出去 -->
           <div v-if="canCreate" class="border-b border-n-weak">
             <button
