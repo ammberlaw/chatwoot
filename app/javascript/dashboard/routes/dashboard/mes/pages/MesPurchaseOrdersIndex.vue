@@ -44,13 +44,21 @@ const saving = computed(
 // 搜索：单号 / 供应商 / 归属人 / 生产订单 / 物料编码（后端跨字段 ILIKE）。
 // 从站内通知「待审批采购」跳来时按生产订单号定位（route.query.q）。
 const search = ref(route.query.q ? String(route.query.q) : '');
+// 「只看我下的单」：按下单人(采购单 owner_id)筛，不是列表里的「归属人」（那是生产订单的业务员）。
+// 两个采购员分主料/辅料建单，各自只想看自己那摊。
+const onlyMine = ref(false);
 const totalCount = computed(() => store.getMeta?.count || 0);
-const fetchList = () => store.get({ q: search.value.trim() || undefined });
+const fetchList = () =>
+  store.get({
+    q: search.value.trim() || undefined,
+    owner_id: onlyMine.value ? currentUserId.value : undefined,
+  });
 let searchTimer = null;
 watch(search, () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(fetchList, 300);
 });
+watch(onlyMine, fetchList);
 
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 // micros → ¥金额（两位小数），空值给「—」。采购模块内部可见价格，销售端不涉及。
@@ -268,7 +276,7 @@ const viewFields = computed(() => {
       label: '异常',
       value: p.hasException ? p.exceptionNote || '有异常' : '无',
     },
-    { label: '制单人', value: p.ownerName },
+    { label: '下单人', value: p.ownerName },
     { label: '备注', value: p.remark },
   ];
 });
@@ -627,6 +635,12 @@ onMounted(async () => {
         placeholder="搜索单号 / 供应商 / 归属人 / 生产订单 / 物料编码"
         class="w-80 h-9 px-3 mb-0 text-sm rounded-lg reset-base outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 hover:outline-n-brand focus:outline-n-brand"
       />
+      <label
+        class="flex items-center gap-1.5 text-sm cursor-pointer select-none text-n-slate-11"
+      >
+        <input v-model="onlyMine" type="checkbox" class="reset-base w-3.5" />
+        只看我下的单
+      </label>
       <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
     </div>
 
@@ -706,6 +720,7 @@ onMounted(async () => {
             <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
               <span>生产订单：{{ p.productionOrderNo || '—' }}</span>
               <span>归属人：{{ p.productionOrderOwnerName || '—' }}</span>
+              <span>下单人：{{ p.ownerName || '—' }}</span>
             </div>
             <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
               <span>回复交期：{{ day(p.expectedDate) }}</span>
@@ -725,6 +740,7 @@ onMounted(async () => {
               <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">下单人</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">收货状态</th>
               <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
                 总额
@@ -762,6 +778,9 @@ onMounted(async () => {
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ p.productionOrderOwnerName || '—' }}
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
+                {{ p.ownerName || '—' }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ STATUS_LABELS[p.status] }}

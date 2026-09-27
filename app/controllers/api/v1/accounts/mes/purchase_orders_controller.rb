@@ -4,7 +4,9 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   before_action :check_authorization
   before_action :fetch_purchase_order, only: [:show, :update, :destroy, :export, :export_data, :submit, :approve, :reject]
 
-  COLUMN_FILTERS = { status: :status, production_order_id: :production_order_id }.freeze
+  # 列筛选。owner_id = 下单人（建单的采购员），跟列表里「归属人」（生产订单的业务员）
+  # 不是一回事——采购员要的是「只看我下的单」。
+  COLUMN_FILTERS = { status: :status, production_order_id: :production_order_id, owner_id: :owner_id }.freeze
 
   def index
     scope = index_scope
