@@ -46,6 +46,34 @@ class Mes::GotenbergClient
     office_to_pdf(xlsx_bytes, filename: filename)
   end
 
+  # 多份 Office 文档 → **一个** PDF（LibreOffice 路由的 merge=true，按传入顺序拼页）。
+  # 采购单按供应商拆成多份后用它合成一份：11 家供应商原来是 11 个文件打 zip，
+  # 下载完还要解压、一个个开。docs = [[filename, bytes], ...]
+  def self.office_to_pdf_merged(docs)
+    return office_to_pdf(docs.first[1], filename: docs.first[0]) if docs.size == 1
+
+    files = docs.map do |filename, bytes|
+      ext = File.extname(filename.to_s).presence || '.xlsx'
+      base = File.basename(filename.to_s, '.*').presence || 'document'
+      f = Tempfile.new([base, ext])
+      f.binmode
+      f.write(bytes)
+      f.rewind
+      f
+    end
+    RestClient::Request.execute(
+      method: :post, url: "#{BASE_URL}/forms/libreoffice/convert",
+      payload: { files: files, merge: 'true' },
+      timeout: CONVERT_TIMEOUT * 3, open_timeout: 10
+    ).body
+  rescue RestClient::Exception => e
+    raise ConversionError, "PDF 合并失败（#{e.http_code}）：#{e.message}"
+  rescue Errno::ECONNREFUSED, SocketError => e
+    raise ConversionError, "PDF 转换服务不可用：#{e.message}"
+  ensure
+    files&.each { |f| f.close; f.unlink }
+  end
+
   # 任意 Office 文档字节流 → PDF 字节流（LibreOffice 路由，按扩展名识别格式）。
   # 除了导出单据，也用于「读不了的老格式」降级取文字：老版 .xls 没有纯 Ruby 解析器，
   # 转成 PDF 再抽文字比往镜像里塞一套 BIFF 解析依赖划算（见 Crm::PiParseService）。

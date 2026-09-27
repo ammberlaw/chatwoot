@@ -20,6 +20,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesSupplierSummary from 'dashboard/components-next/mes/MesSupplierSummary.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
 const { accountId } = useAccount();
@@ -44,13 +45,21 @@ const saving = computed(
 // 搜索：单号 / 供应商 / 归属人 / 生产订单 / 物料编码（后端跨字段 ILIKE）。
 // 从站内通知「待审批采购」跳来时按生产订单号定位（route.query.q）。
 const search = ref(route.query.q ? String(route.query.q) : '');
+// 「只看我下的单」：按下单人(采购单 owner_id)筛，不是列表里的「归属人」（那是生产订单的业务员）。
+// 两个采购员分主料/辅料建单，各自只想看自己那摊。
+const onlyMine = ref(false);
 const totalCount = computed(() => store.getMeta?.count || 0);
-const fetchList = () => store.get({ q: search.value.trim() || undefined });
+const fetchList = () =>
+  store.get({
+    q: search.value.trim() || undefined,
+    owner_id: onlyMine.value ? currentUserId.value : undefined,
+  });
 let searchTimer = null;
 watch(search, () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(fetchList, 300);
 });
+watch(onlyMine, fetchList);
 
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 // micros → ¥金额（两位小数），空值给「—」。采购模块内部可见价格，销售端不涉及。
@@ -133,29 +142,111 @@ const canSubmit = po =>
 
 // 按供应商拆单导出 PDF：后端用公司原始 .xlsx 模板 1:1 填充（含公章，抬头/税口径按各自 bill_entity）
 // → Gotenberg 转 PDF。单个供应商直接下 PDF；多个供应商打包 zip（每家一份 PDF）。
-const exporting = ref(false);
 
-const exportBySupplier = async po => {
-  if (exporting.value) return;
-  exporting.value = true;
+// —— 预览 / 导出 ——
+//
+// 预览直接显示后端生成的真 PDF（而不是另做一套 HTML 版式）：
+// 预览和最终文件是同一份，公章、字体、线条不会两套口径。
+// 采购员在预览里核对完，截图就能发供应商群——不用先导文件、再打开、再截图。
+const previewDialogRef = ref(null);
+const previewPo = ref(null);
+const previewSuppliers = ref([]); // [{ id, name, itemCount, defaultEntity }]
+const previewChecked = ref([]); // 勾选导出/预览的供应商 id
+// 这次出单各家用哪个抬头：{ 供应商id: 'wintouch'|'liontek' }。默认取供应商档案，
+// 这里改只影响这一次导出的单（比如对方临时要开公司票），不会写回档案。
+const previewEntities = ref({});
+const previewUrl = ref('');
+const previewLoading = ref(false);
+// 连续勾选会连发几次请求，先发的可能后回，把旧结果盖在新结果上
+// （实测：勾 2 家却显示 3 页，且停下来也不会自己纠正）
+// 每次请求发号，回来时只认最后一号。
+let previewSeq = 0;
+
+// 两个开票主体：对公=联迪（含税13%、带公章的采购合同），对私=联合触控（未税采购订单）。
+const ENTITY_OPTIONS = [
+  { value: 'wintouch', label: '深圳联合触控 · 未税' },
+  { value: 'liontek', label: '东莞联迪 · 含税（公章）' },
+];
+
+const revokePreview = () => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
+  previewUrl.value = '';
+};
+
+// 「未指定供应商」那组后端的 key 是 nil，这里统一用 0 表示。
+const supplierKey = s => Number(s.id || 0);
+
+const fetchPreviewPdf = async () => {
+  if (!previewPo.value || !previewChecked.value.length) {
+    revokePreview();
+    return;
+  }
+  previewSeq += 1;
+  const seq = previewSeq;
+  previewLoading.value = true;
   try {
     const { data } = await axios.get(
-      `/api/v1/accounts/${accountId.value}/mes/purchase_orders/${po.id}/export`,
-      { responseType: 'blob' }
+      `/api/v1/accounts/${accountId.value}/mes/purchase_orders/${previewPo.value.id}/export`,
+      {
+        responseType: 'blob',
+        params: {
+          supplier_ids: previewChecked.value,
+          bill_entities: previewEntities.value,
+        },
+        // indexes:false → supplier_ids[]=1&supplier_ids[]=2（Rails 解析成数组）。
+        // 用 null 会生成 supplier_ids=1&supplier_ids=2，Rails 只取最后一个，
+        // 结果不管勾几家都只导出一家。
+        paramsSerializer: { indexes: false },
+      }
     );
-    // 单家=application/pdf，多家=application/zip，按返回类型定扩展名。
-    const ext = data.type === 'application/pdf' ? 'pdf' : 'zip';
-    const url = URL.createObjectURL(data);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `采购单-${po.poNo}-按供应商.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (seq !== previewSeq) return; // 已有更新的请求在路上，丢弃这次结果
+    revokePreview();
+    previewUrl.value = URL.createObjectURL(data);
   } catch {
-    useAlert('导出失败，请重试');
+    if (seq === previewSeq) useAlert('预览生成失败，请重试');
   } finally {
-    exporting.value = false;
+    if (seq === previewSeq) previewLoading.value = false;
   }
+};
+
+const openPreview = async po => {
+  previewPo.value = po;
+  previewSuppliers.value = [];
+  previewChecked.value = [];
+  previewEntities.value = {};
+  revokePreview();
+  previewDialogRef.value?.open();
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/purchase_orders/${po.id}/export_data`
+    );
+    previewSuppliers.value = (data?.payload?.suppliers || []).map(s => ({
+      id: s.supplier_id || 0,
+      name: s.name,
+      itemCount: (s.items || []).length,
+      defaultEntity: s.default_bill_entity || 'wintouch',
+    }));
+    previewEntities.value = Object.fromEntries(
+      previewSuppliers.value.map(s => [supplierKey(s), s.defaultEntity])
+    );
+    // 默认全选：多数时候就是整单发出去，勾选是为了「只发某一家」。
+    previewChecked.value = previewSuppliers.value.map(supplierKey);
+    await fetchPreviewPdf();
+  } catch {
+    useAlert('读取单据失败，请重试');
+  }
+};
+
+const downloadPreview = () => {
+  if (!previewUrl.value || !previewPo.value) return;
+  const a = document.createElement('a');
+  a.href = previewUrl.value;
+  const n = previewChecked.value.length;
+  const one = previewSuppliers.value.find(
+    s => supplierKey(s) === previewChecked.value[0]
+  );
+  a.download = `采购单-${previewPo.value.poNo}-${n === 1 ? one?.name : `${n}家供应商`}.pdf`;
+  a.click();
 };
 
 // 只读查看
@@ -186,7 +277,7 @@ const viewFields = computed(() => {
       label: '异常',
       value: p.hasException ? p.exceptionNote || '有异常' : '无',
     },
-    { label: '制单人', value: p.ownerName },
+    { label: '下单人', value: p.ownerName },
     { label: '备注', value: p.remark },
   ];
 });
@@ -312,6 +403,21 @@ const form = reactive({
   exceptionNote: '',
   rows: [],
 });
+
+// 含税一键全选：一张单常常整单同一个税口径，一行行勾太费事。
+// 半选（部分行含税）时显示 indeterminate，点一下全部勾上。
+const allTaxIncluded = computed(
+  () => form.rows.length > 0 && form.rows.every(r => r.priceTaxIncluded)
+);
+const someTaxIncluded = computed(
+  () => form.rows.some(r => r.priceTaxIncluded) && !allTaxIncluded.value
+);
+const toggleAllTaxIncluded = () => {
+  const next = !allTaxIncluded.value;
+  form.rows.forEach(r => {
+    r.priceTaxIncluded = next;
+  });
+};
 
 const rowIncomplete = r => !Number(r.qty) || !r.crmProductId;
 // 供应商税率（%）：用于含税/未税提示。
@@ -530,6 +636,12 @@ onMounted(async () => {
         placeholder="搜索单号 / 供应商 / 归属人 / 生产订单 / 物料编码"
         class="w-80 h-9 px-3 mb-0 text-sm rounded-lg reset-base outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 hover:outline-n-brand focus:outline-n-brand"
       />
+      <label
+        class="flex items-center gap-1.5 text-sm cursor-pointer select-none text-n-slate-11"
+      >
+        <input v-model="onlyMine" type="checkbox" class="reset-base w-3.5" />
+        只看我下的单
+      </label>
       <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
     </div>
 
@@ -604,11 +716,12 @@ onMounted(async () => {
               </div>
             </div>
             <div class="mt-1 text-xs text-n-slate-11">
-              供应商：{{ (p.supplierNames || []).join('、') || '—' }}
+              <MesSupplierSummary :names="p.supplierNames || []" />
             </div>
             <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
               <span>生产订单：{{ p.productionOrderNo || '—' }}</span>
               <span>归属人：{{ p.productionOrderOwnerName || '—' }}</span>
+              <span>下单人：{{ p.ownerName || '—' }}</span>
             </div>
             <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
               <span>回复交期：{{ day(p.expectedDate) }}</span>
@@ -620,7 +733,7 @@ onMounted(async () => {
             还没有采购单。
           </div>
         </div>
-        <table class="hidden w-full text-sm md:table">
+        <table class="hidden w-full text-sm whitespace-nowrap md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th class="px-3 py-3 font-medium w-12">#</th>
@@ -628,6 +741,7 @@ onMounted(async () => {
               <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">下单人</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">收货状态</th>
               <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
                 总额
@@ -658,13 +772,16 @@ onMounted(async () => {
                 </span>
               </td>
               <td class="px-3 py-3 text-n-slate-11">
-                {{ (p.supplierNames || []).join('、') || '—' }}
+                <MesSupplierSummary :names="p.supplierNames || []" />
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ p.productionOrderNo || '—' }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ p.productionOrderOwnerName || '—' }}
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
+                {{ p.ownerName || '—' }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ STATUS_LABELS[p.status] }}
@@ -686,7 +803,9 @@ onMounted(async () => {
                 {{ day(p.deliveryDate) }}
               </td>
               <td class="px-3 py-3 text-right whitespace-nowrap">
-                <div class="flex justify-end gap-1">
+                <div
+                  class="flex flex-nowrap justify-end gap-1 [&>button]:shrink-0"
+                >
                   <Button
                     label="查看"
                     variant="ghost"
@@ -724,11 +843,10 @@ onMounted(async () => {
                   />
                   <Button
                     v-if="canViewAmount"
-                    :label="exporting ? '导出中…' : '按供应商导出 PDF'"
+                    label="预览 / 导出"
                     variant="ghost"
                     size="sm"
-                    :disabled="exporting"
-                    @click="exportBySupplier(p)"
+                    @click="openPreview(p)"
                   />
                   <MesReturnControls
                     :record="p"
@@ -747,6 +865,100 @@ onMounted(async () => {
         </table>
       </template>
     </div>
+
+    <!-- 预览 / 导出：直接显示后端生成的真 PDF，勾谁导谁，多家合成一份 -->
+    <Dialog
+      ref="previewDialogRef"
+      :dismissible="false"
+      width="5xl"
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+      :title="previewPo ? `采购单 ${previewPo.poNo} · 预览` : '采购单预览'"
+      @close="revokePreview"
+    >
+      <div class="flex flex-col gap-3">
+        <p class="text-xs text-n-slate-11">
+          抬头默认按各供应商档案选（对公「东莞市联迪科技」含税带公章，对私「深圳联合触控」未税），
+          这里改只影响这次导出的单，不会写回供应商档案。核对无误可直接截图发群，也可导出
+          PDF。
+        </p>
+
+        <div
+          v-if="previewSuppliers.length"
+          class="flex flex-col gap-1 p-2 rounded-lg bg-n-alpha-1"
+        >
+          <div
+            v-for="s in previewSuppliers"
+            :key="s.id"
+            class="flex items-center gap-2 text-xs text-n-slate-11"
+          >
+            <label class="flex items-center gap-1.5 cursor-pointer min-w-52">
+              <input
+                v-if="previewSuppliers.length > 1"
+                v-model="previewChecked"
+                type="checkbox"
+                :value="Number(s.id || 0)"
+                @change="fetchPreviewPdf"
+              />
+              <span class="text-n-slate-12">{{ s.name }}</span>
+              <span class="text-n-slate-10">{{ s.itemCount }} 项</span>
+            </label>
+            <select
+              v-model="previewEntities[Number(s.id || 0)]"
+              class="!w-auto !h-7 !mb-0 !py-0.5 !text-xs ltr:!pl-2"
+              @change="fetchPreviewPdf"
+            >
+              <option
+                v-for="o in ENTITY_OPTIONS"
+                :key="o.value"
+                :value="o.value"
+              >
+                {{ o.label }}
+              </option>
+            </select>
+            <span
+              v-if="previewEntities[Number(s.id || 0)] !== s.defaultEntity"
+              class="text-n-amber-11"
+            >
+              已改抬头（仅本次）
+            </span>
+          </div>
+        </div>
+
+        <div
+          class="h-[62vh] overflow-hidden rounded-lg border border-n-weak bg-n-solid-2"
+        >
+          <p
+            v-if="previewLoading"
+            class="p-6 text-sm text-center text-n-slate-11"
+          >
+            正在生成预览…
+          </p>
+          <p
+            v-else-if="!previewChecked.length"
+            class="p-6 text-sm text-center text-n-slate-11"
+          >
+            请至少勾选一家供应商。
+          </p>
+          <iframe
+            v-else-if="previewUrl"
+            :src="previewUrl"
+            class="w-full h-full"
+            title="采购单预览"
+          />
+        </div>
+
+        <div class="flex justify-end">
+          <Button
+            label="下载 PDF"
+            color="iris"
+            size="sm"
+            :disabled="!previewUrl || previewLoading"
+            @click="downloadPreview"
+          />
+        </div>
+      </div>
+    </Dialog>
 
     <Dialog
       ref="dialogRef"
@@ -850,13 +1062,27 @@ onMounted(async () => {
           <span class="text-heading-3 text-n-slate-12">
             采购明细 <span class="text-n-ruby-11">*</span>
           </span>
-          <Button
-            label="+ 加一行"
-            type="button"
-            variant="ghost"
-            size="sm"
-            @click="addRow"
-          />
+          <div class="flex items-center gap-3">
+            <label
+              v-if="form.rows.length"
+              class="flex items-center gap-1.5 text-xs cursor-pointer text-n-slate-11"
+            >
+              <input
+                type="checkbox"
+                :checked="allTaxIncluded"
+                :indeterminate.prop="someTaxIncluded"
+                @change="toggleAllTaxIncluded"
+              />
+              全部含税
+            </label>
+            <Button
+              label="+ 加一行"
+              type="button"
+              variant="ghost"
+              size="sm"
+              @click="addRow"
+            />
+          </div>
         </div>
         <div class="flex flex-col gap-2.5">
           <div

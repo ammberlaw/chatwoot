@@ -22,6 +22,7 @@ import {
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useResizableColumns } from 'dashboard/composables/useResizableColumns';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
@@ -194,6 +195,10 @@ const blankRow = () => ({
   qty: '',
   suggestedPurchaseQty: '', // 工程建议采购数量
   onHand: null, // 对应物料实时库存（只读展示，不入库）
+  // 辅助属性：选完物料后从该物料的档案带出可选项，单选其一（如 喷码6000）。
+  auxAttributeId: '',
+  auxAttributeName: '',
+  auxOptions: [],
   remark: '',
   category: 'MACHINE',
   // 用量是否被人手动改过。没改过的行跟着投单总数走（见 autoQty），
@@ -217,6 +222,29 @@ const { activeProductLine, formOptions: productLineOptions } =
 const showTabletHeaderFields = computed(
   () => activeProductLine.value !== 'COMMERCIAL_DISPLAY'
 );
+
+// 用料明细的列：宽度可拖（像 Excel / 金蝶那样），拖完记在本机。
+// 序号和删除那两根固定宽，不给拖。规格型号默认给最宽——不放全就核不了料。
+const REQUIRED_COLS = ['materialNo', 'materialName', 'qty'];
+const BOM_COLS = [
+  { key: 'idx', fixed: 28 },
+  { key: 'category', label: '类别', fr: 1.6 },
+  { key: 'materialNo', label: '物料编码', fr: 2 },
+  { key: 'materialName', label: '物料名称', fr: 2 },
+  { key: 'spec', label: '规格型号', fr: 3 },
+  { key: 'aux', label: '辅助属性', fr: 1.6 },
+  { key: 'unit', label: '单位', fr: 0.8 },
+  { key: 'qty', label: '用量', fr: 1 },
+  { key: 'suggest', label: '建议采购', fr: 1 },
+  { key: 'onHand', label: '实时库存', fr: 1 },
+  { key: 'remark', label: '备注', fr: 1 },
+  { key: 'del', fixed: 24 },
+];
+const {
+  template: bomColTemplate,
+  startResize: startColResize,
+  resetWidths: resetColWidths,
+} = useResizableColumns(BOM_COLS, 'mes.bom.itemCols.v1');
 
 const form = reactive({
   // 产品线随表单提交：新建 BOM 不一定选成品（选了才能从成品带出产线），
@@ -260,6 +288,12 @@ const pickMaterial = (row, p) => {
   row.onHand = p.on_hand != null ? Number(p.on_hand) : null;
   // 选完物料，用量直接按投单总数带出来，不用一行行手输。
   if (!row.qtyTouched && autoQty.value) row.qty = autoQty.value;
+  // 辅助属性跟着物料走：换了物料，上一个物料的属性必须清掉，
+  // 否则会把「A电池的喷码6000」挂到 B 电池上。
+  // 选料器直接用 axios 取数，键是下划线（同函数里 p.on_hand 亦然），不是驼峰。
+  row.auxOptions = p.aux_attributes || [];
+  row.auxAttributeId = '';
+  row.auxAttributeName = '';
 };
 
 watch(autoQty, v => {
@@ -268,6 +302,19 @@ watch(autoQty, v => {
     if (!r.qtyTouched && hasMaterial(r)) r.qty = v;
   });
 });
+
+// 下拉选项：带一个「不选」，因为辅助属性是选填的（不是每个物料都有变体）。
+const auxOptionsOf = row => [
+  { value: '', label: '不选' },
+  ...row.auxOptions.map(o => ({ value: String(o.id), label: o.name })),
+];
+
+// 选中即同时记下名字：提交只送 id，但界面和「载入已有 BOM」都要显示名字。
+const pickAuxAttribute = (row, value) => {
+  row.auxAttributeId = value || '';
+  row.auxAttributeName =
+    row.auxOptions.find(o => String(o.id) === String(value))?.name || '';
+};
 
 // 手动改过用量的行打标记，之后总数再变也不覆盖它。
 const setRowQty = (row, v) => {
@@ -534,6 +581,12 @@ const openEdit = bom => {
       suggestedPurchaseQty:
         it.suggestedPurchaseQty != null ? String(it.suggestedPurchaseQty) : '',
       onHand: it.onHand != null ? Number(it.onHand) : null,
+      auxAttributeId: it.crmProductAuxAttributeId
+        ? String(it.crmProductAuxAttributeId)
+        : '',
+      // 选项要等选中物料后才有；先把存下来的名字摆上，下拉里至少看得见当时选的是什么。
+      auxAttributeName: it.auxAttributeName || '',
+      auxOptions: [],
       remark: it.remark || '',
       category: it.category || 'MACHINE',
       qtyTouched: it.qty != null && it.qty !== '',
@@ -556,6 +609,7 @@ const submit = async targetStatus => {
       qty: Number(r.qty),
       suggestedPurchaseQty:
         r.suggestedPurchaseQty !== '' ? Number(r.suggestedPurchaseQty) : null,
+      crmProductAuxAttributeId: r.auxAttributeId || null,
       remark: r.remark.trim(),
       category: r.category || 'MACHINE',
     })),
@@ -1132,6 +1186,12 @@ onMounted(async () => {
               @click="copyForKingdee"
             />
             <Button
+              label="恢复默认列宽"
+              variant="ghost"
+              size="sm"
+              @click="resetColWidths"
+            />
+            <Button
               label="+ 加一行"
               variant="ghost"
               size="sm"
@@ -1141,20 +1201,42 @@ onMounted(async () => {
         </div>
 
         <div class="flex flex-col gap-2">
+          <!-- 表头：每列右边一根可拖的竖线（像 Excel），拖完的宽度记在本机。 -->
           <div
-            class="grid grid-cols-[1.75rem_2fr_2fr_2fr_3fr_1fr_1fr_1fr_1fr_1fr_1.5rem] gap-2 px-1 text-xs text-n-slate-11"
+            class="grid gap-2 px-1 text-xs text-n-slate-11"
+            :style="{ gridTemplateColumns: bomColTemplate }"
           >
-            <span>#</span>
-            <span>类别</span>
-            <span>物料编码 <span class="text-n-ruby-11">*</span></span>
-            <span>物料名称 <span class="text-n-ruby-11">*</span></span>
-            <span>规格型号</span>
-            <span>单位</span>
-            <span>用量 <span class="text-n-ruby-11">*</span></span>
-            <span>建议采购</span>
-            <span>实时库存</span>
-            <span>备注</span>
-            <span />
+            <span
+              v-for="c in BOM_COLS"
+              :key="c.key"
+              class="relative min-w-0"
+              :title="c.label"
+            >
+              <!-- 标签单独一层：truncate 是 overflow:hidden，
+                   把手放在这层里会被裁掉，鼠标点不到。 -->
+              <span class="block truncate">
+                <template v-if="c.key === 'idx'">#</template>
+                <template v-else-if="c.label">
+                  {{ c.label }}
+                  <span
+                    v-if="REQUIRED_COLS.includes(c.key)"
+                    class="text-n-ruby-11"
+                  >
+                    *
+                  </span>
+                </template>
+              </span>
+              <span
+                v-if="c.fixed == null"
+                class="absolute z-10 flex justify-center w-3 h-6 -right-2 -top-1 cursor-col-resize group/grip"
+                title="拖动调整列宽（像 Excel 那样）"
+                @mousedown.prevent="startColResize(c.key, $event)"
+              >
+                <span
+                  class="w-px h-full bg-n-weak group-hover/grip:bg-n-brand group-hover/grip:w-0.5"
+                />
+              </span>
+            </span>
           </div>
           <div
             v-for="(row, i) in form.rows"
@@ -1162,7 +1244,8 @@ onMounted(async () => {
             class="pb-2 border-b border-dashed border-n-weak last:border-0"
           >
             <div
-              class="grid items-center grid-cols-[1.75rem_2fr_2fr_2fr_3fr_1fr_1fr_1fr_1fr_1fr_1.5rem] gap-2"
+              class="grid items-center gap-2"
+              :style="{ gridTemplateColumns: bomColTemplate }"
             >
               <span class="text-xs tabular-nums text-n-slate-10">
                 {{ i + 1 }}
@@ -1192,6 +1275,21 @@ onMounted(async () => {
                 disabled
               />
               <Input v-model="row.specification" placeholder="规格型号" />
+              <!-- 辅助属性：只列该物料档案里启用中的，单选。没维护过就显示「—」。 -->
+              <SelectCard
+                v-if="row.auxOptions.length"
+                :model-value="row.auxAttributeId"
+                :options="auxOptionsOf(row)"
+                block
+                @update:model-value="v => pickAuxAttribute(row, v)"
+              />
+              <span
+                v-else
+                class="px-1 text-xs truncate text-n-slate-10"
+                :title="row.auxAttributeName || '该物料未维护辅助属性'"
+              >
+                {{ row.auxAttributeName || '—' }}
+              </span>
               <Input v-model="row.unit" placeholder="台" />
               <Input
                 :model-value="row.qty"

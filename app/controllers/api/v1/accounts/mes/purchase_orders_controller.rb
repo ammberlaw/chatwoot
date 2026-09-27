@@ -4,7 +4,9 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   before_action :check_authorization
   before_action :fetch_purchase_order, only: [:show, :update, :destroy, :export, :export_data, :submit, :approve, :reject]
 
-  COLUMN_FILTERS = { status: :status, production_order_id: :production_order_id }.freeze
+  # 列筛选。owner_id = 下单人（建单的采购员），跟列表里「归属人」（生产订单的业务员）
+  # 不是一回事——采购员要的是「只看我下的单」。
+  COLUMN_FILTERS = { status: :status, production_order_id: :production_order_id, owner_id: :owner_id }.freeze
 
   def index
     scope = index_scope
@@ -66,21 +68,34 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     render json: { payload: production_order.material_requirements(category: params[:category].presence) }
   end
 
-  # 按供应商拆单导出 PDF：各供应商的料各成一份、填公司原始模板（含公章）→ Gotenberg 转 1:1 PDF。
-  # 单个供应商直接下 PDF；多个供应商打包 zip（每家一份 PDF）。抬头/税口径按各供应商 bill_entity 自动选。
+  # 按供应商拆单导出 PDF：各供应商的料各成一份、填公司原始模板（含公章）→ Gotenberg 转 1:1 PDF，
+  # 多家合成**一个** PDF（每家一页）。抬头/税口径按各供应商 bill_entity 自动选
+  #（联迪=对公含税带公章 / 联合触控=对私未税）。
+  # supplier_ids 可选：只导这几家（预览里勾选用），0 表示「未指定供应商」那组。
+  # bill_entities 可选：{ supplier_id => 'wintouch'|'liontek' }，临时改某家抬头，不动供应商档案。
   def export
-    doc = Mes::PoSupplierExport.new(@purchase_order).to_pdf_download
+    exporter = Mes::PoSupplierExport.new(@purchase_order, supplier_ids: params[:supplier_ids],
+                                                          bill_entities: bill_entities_param)
+    doc = exporter.to_pdf_download
     send_data doc[:io].read, filename: doc[:filename], type: doc[:content_type]
+  rescue ArgumentError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   rescue Mes::GotenbergClient::ConversionError => e
     render json: { error: e.message }, status: :service_unavailable
   end
 
-  # 按供应商分组的结构化数据，供前端渲染各供应商的 PO 版式并导出 PDF（每供应商一份、打包 zip）。
+  # 按供应商分组的结构化数据，供前端列出供应商、勾选要导哪几家、以及看/改各家抬头。
   def export_data
-    render json: { payload: Mes::PoSupplierExport.new(@purchase_order).payload }
+    render json: { payload: Mes::PoSupplierExport.new(@purchase_order, bill_entities: bill_entities_param).payload }
   end
 
   private
+
+  # bill_entities[13]=liontek → { '13' => 'liontek' }；服务层负责校验主体合法性。
+  def bill_entities_param
+    raw = params[:bill_entities]
+    raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw
+  end
 
   # 列表筛选（列筛选 / 异常 / 搜索）收在一处，index 只管取数与分页。
   def index_scope
