@@ -1,5 +1,5 @@
 <script setup>
-import { watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 import { useMesTabs } from 'dashboard/composables/useMesTabs';
@@ -14,6 +14,26 @@ const { activeProductLine } = useMesProductLine();
 // 每进一个 MES 页就把它登记进标签条（已开过的只激活、并更新带查询参数的路径）。
 const route = useRoute();
 const { openTab } = useMesTabs();
+const pageContent = ref(null);
+const scrollPositions = new WeakMap();
+
+// keep-alive 保留实例，但 DOM 移出页面后浏览器可能重置滚动位置。
+watch([() => route.name, activeProductLine], async () => {
+  pageContent.value?.querySelectorAll('*').forEach(element => {
+    if (
+      element.scrollTop ||
+      element.scrollLeft ||
+      scrollPositions.has(element)
+    ) {
+      scrollPositions.set(element, [element.scrollTop, element.scrollLeft]);
+    }
+  });
+  await nextTick();
+  pageContent.value?.querySelectorAll('*').forEach(element => {
+    const position = scrollPositions.get(element);
+    if (position) [element.scrollTop, element.scrollLeft] = position;
+  });
+});
 watch(
   () => route.fullPath,
   () => openTab(route),
@@ -22,19 +42,21 @@ watch(
 </script>
 
 <template>
-  <!-- mes-canvas：给 MES 裸页(无自带卡类)套整页圆弧外框的挂钩层（见 _next-colors.scss）。
-       玻璃(默认)/蓝/beebot = 玻璃外框；经典灰 = 白卡外框；已自带卡的页由 :not 排除不叠加。 -->
+  <!-- 页签与正文共用 mes-canvas 的一个外框，避免分别生成圆角卡片。
+       keep-alive 始终挂载，页签显隐不影响页面输入、筛选和滚动状态。 -->
   <div class="mes-canvas flex flex-col w-full h-full">
-    <MesTabBar />
-    <div class="flex-1 min-h-0">
-      <router-view v-slot="{ Component }">
-        <keep-alive :max="12">
-          <component
-            :is="Component"
-            :key="`mes-${activeProductLine || 'all'}-${$route.name}`"
-          />
-        </keep-alive>
-      </router-view>
+    <div class="flex flex-col flex-1 min-w-0 min-h-0">
+      <MesTabBar />
+      <div ref="pageContent" class="flex-1 min-w-0 min-h-0">
+        <router-view v-slot="{ Component }">
+          <keep-alive :max="12">
+            <component
+              :is="Component"
+              :key="`mes-${activeProductLine || 'all'}-${$route.name}`"
+            />
+          </keep-alive>
+        </router-view>
+      </div>
     </div>
   </div>
 </template>
