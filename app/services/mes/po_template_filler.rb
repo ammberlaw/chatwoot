@@ -3,7 +3,8 @@
 #   · 表头字段（供应商/PO号/日期/地址/币别）改 sharedStrings；
 #   · 明细按项数克隆模板里的「明细行」，下方各行（合计/条款/公章锚点）整体下移；
 #   · 合计行的数量/金额缓存值按实算覆盖。
-# 抬头/税口径按供应商 bill_entity 选模板：liontek → 联迪含税合同；其它/nil → 深圳联合触控未税订单。
+# 抬头/税口径按 bill_entity 选模板（默认取供应商档案，导出时可手动覆盖）：
+#   liontek → 联迪含税合同；其它/nil → 深圳联合触控未税订单。
 require 'zip'
 
 class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
@@ -85,11 +86,12 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
   }.freeze
 
   # supplier: Mes::Supplier（可 nil）；items: 该供应商的 purchase_items 数组；purchase_order: Mes::PurchaseOrder。
-  def initialize(supplier:, items:, purchase_order:)
+  # bill_entity: 手动指定抬头（导出时临时改，不动供应商档案）；不传就按档案走。
+  def initialize(supplier:, items:, purchase_order:, bill_entity: nil)
     @supplier = supplier
     @items = items
     @po = purchase_order
-    @cfg = TEMPLATES[supplier&.bill_entity] || TEMPLATES['wintouch']
+    @cfg = TEMPLATES[bill_entity.presence || supplier&.bill_entity] || TEMPLATES['wintouch']
   end
 
   # 返回该供应商 .xlsx 的二进制流（IO）。

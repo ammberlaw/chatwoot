@@ -141,14 +141,23 @@ const canSubmit = po =>
 // 采购员在预览里核对完，截图就能发供应商群——不用先导文件、再打开、再截图。
 const previewDialogRef = ref(null);
 const previewPo = ref(null);
-const previewSuppliers = ref([]); // [{ id, name, company, taxed, itemCount }]
+const previewSuppliers = ref([]); // [{ id, name, itemCount, defaultEntity }]
 const previewChecked = ref([]); // 勾选导出/预览的供应商 id
+// 这次出单各家用哪个抬头：{ 供应商id: 'wintouch'|'liontek' }。默认取供应商档案，
+// 这里改只影响这一次导出的单（比如对方临时要开公司票），不会写回档案。
+const previewEntities = ref({});
 const previewUrl = ref('');
 const previewLoading = ref(false);
 // 连续勾选会连发几次请求，先发的可能后回，把旧结果盖在新结果上
 // （实测：勾 2 家却显示 3 页，且停下来也不会自己纠正）
 // 每次请求发号，回来时只认最后一号。
 let previewSeq = 0;
+
+// 两个开票主体：对公=联迪（含税13%、带公章的采购合同），对私=联合触控（未税采购订单）。
+const ENTITY_OPTIONS = [
+  { value: 'wintouch', label: '深圳联合触控 · 未税' },
+  { value: 'liontek', label: '东莞联迪 · 含税（公章）' },
+];
 
 const revokePreview = () => {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
@@ -171,7 +180,10 @@ const fetchPreviewPdf = async () => {
       `/api/v1/accounts/${accountId.value}/mes/purchase_orders/${previewPo.value.id}/export`,
       {
         responseType: 'blob',
-        params: { supplier_ids: previewChecked.value },
+        params: {
+          supplier_ids: previewChecked.value,
+          bill_entities: previewEntities.value,
+        },
         // indexes:false → supplier_ids[]=1&supplier_ids[]=2（Rails 解析成数组）。
         // 用 null 会生成 supplier_ids=1&supplier_ids=2，Rails 只取最后一个，
         // 结果不管勾几家都只导出一家。
@@ -192,6 +204,7 @@ const openPreview = async po => {
   previewPo.value = po;
   previewSuppliers.value = [];
   previewChecked.value = [];
+  previewEntities.value = {};
   revokePreview();
   previewDialogRef.value?.open();
   try {
@@ -201,10 +214,12 @@ const openPreview = async po => {
     previewSuppliers.value = (data?.payload?.suppliers || []).map(s => ({
       id: s.supplier_id || 0,
       name: s.name,
-      company: s.company,
-      taxed: s.taxed,
       itemCount: (s.items || []).length,
+      defaultEntity: s.default_bill_entity || 'wintouch',
     }));
+    previewEntities.value = Object.fromEntries(
+      previewSuppliers.value.map(s => [supplierKey(s), s.defaultEntity])
+    );
     // 默认全选：多数时候就是整单发出去，勾选是为了「只发某一家」。
     previewChecked.value = previewSuppliers.value.map(supplierKey);
     await fetchPreviewPdf();
@@ -841,31 +856,51 @@ onMounted(async () => {
     >
       <div class="flex flex-col gap-3">
         <p class="text-xs text-n-slate-11">
-          抬头按各供应商档案自动选：对公「东莞市联迪科技有限公司」含税带公章，
-          对私「深圳联合触控科技有限公司」未税。核对无误可直接截图发群，也可导出
+          抬头默认按各供应商档案选（对公「东莞市联迪科技」含税带公章，对私「深圳联合触控」未税），
+          这里改只影响这次导出的单，不会写回供应商档案。核对无误可直接截图发群，也可导出
           PDF。
         </p>
 
         <div
-          v-if="previewSuppliers.length > 1"
-          class="flex flex-wrap gap-x-4 gap-y-1.5 p-2 rounded-lg bg-n-alpha-1"
+          v-if="previewSuppliers.length"
+          class="flex flex-col gap-1 p-2 rounded-lg bg-n-alpha-1"
         >
-          <label
+          <div
             v-for="s in previewSuppliers"
             :key="s.id"
-            class="flex items-center gap-1.5 text-xs cursor-pointer text-n-slate-11"
+            class="flex items-center gap-2 text-xs text-n-slate-11"
           >
-            <input
-              v-model="previewChecked"
-              type="checkbox"
-              :value="Number(s.id || 0)"
+            <label class="flex items-center gap-1.5 cursor-pointer min-w-52">
+              <input
+                v-if="previewSuppliers.length > 1"
+                v-model="previewChecked"
+                type="checkbox"
+                :value="Number(s.id || 0)"
+                @change="fetchPreviewPdf"
+              />
+              <span class="text-n-slate-12">{{ s.name }}</span>
+              <span class="text-n-slate-10">{{ s.itemCount }} 项</span>
+            </label>
+            <select
+              v-model="previewEntities[Number(s.id || 0)]"
+              class="!w-auto !h-7 !mb-0 !py-0.5 !text-xs ltr:!pl-2"
               @change="fetchPreviewPdf"
-            />
-            <span class="text-n-slate-12">{{ s.name }}</span>
-            <span class="text-n-slate-10">
-              {{ s.itemCount }} 项 · {{ s.taxed ? '含税' : '未税' }}
+            >
+              <option
+                v-for="o in ENTITY_OPTIONS"
+                :key="o.value"
+                :value="o.value"
+              >
+                {{ o.label }}
+              </option>
+            </select>
+            <span
+              v-if="previewEntities[Number(s.id || 0)] !== s.defaultEntity"
+              class="text-n-amber-11"
+            >
+              已改抬头（仅本次）
             </span>
-          </label>
+          </div>
         </div>
 
         <div

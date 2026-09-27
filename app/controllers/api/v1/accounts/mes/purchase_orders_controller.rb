@@ -70,8 +70,11 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   # 多家合成**一个** PDF（每家一页）。抬头/税口径按各供应商 bill_entity 自动选
   #（联迪=对公含税带公章 / 联合触控=对私未税）。
   # supplier_ids 可选：只导这几家（预览里勾选用），0 表示「未指定供应商」那组。
+  # bill_entities 可选：{ supplier_id => 'wintouch'|'liontek' }，临时改某家抬头，不动供应商档案。
   def export
-    doc = Mes::PoSupplierExport.new(@purchase_order, supplier_ids: params[:supplier_ids]).to_pdf_download
+    exporter = Mes::PoSupplierExport.new(@purchase_order, supplier_ids: params[:supplier_ids],
+                                                          bill_entities: bill_entities_param)
+    doc = exporter.to_pdf_download
     send_data doc[:io].read, filename: doc[:filename], type: doc[:content_type]
   rescue ArgumentError => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -79,12 +82,18 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     render json: { error: e.message }, status: :service_unavailable
   end
 
-  # 按供应商分组的结构化数据，供前端渲染各供应商的 PO 版式并导出 PDF（每供应商一份、打包 zip）。
+  # 按供应商分组的结构化数据，供前端列出供应商、勾选要导哪几家、以及看/改各家抬头。
   def export_data
-    render json: { payload: Mes::PoSupplierExport.new(@purchase_order).payload }
+    render json: { payload: Mes::PoSupplierExport.new(@purchase_order, bill_entities: bill_entities_param).payload }
   end
 
   private
+
+  # bill_entities[13]=liontek → { '13' => 'liontek' }；服务层负责校验主体合法性。
+  def bill_entities_param
+    raw = params[:bill_entities]
+    raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw
+  end
 
   # 列表筛选（列筛选 / 异常 / 搜索）收在一处，index 只管取数与分页。
   def index_scope
