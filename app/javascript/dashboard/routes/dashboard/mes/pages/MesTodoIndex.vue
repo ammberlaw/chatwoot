@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onActivated } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
@@ -116,7 +116,7 @@ const goAction = o => {
   router.push(accountScopedRoute(a.route, {}, { q: o.order_no }));
 };
 
-onMounted(load);
+onActivated(load);
 </script>
 
 <template>
