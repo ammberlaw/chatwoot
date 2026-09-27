@@ -20,6 +20,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesSupplierSummary from 'dashboard/components-next/mes/MesSupplierSummary.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 
 const { accountId } = useAccount();
@@ -715,7 +716,7 @@ onMounted(async () => {
               </div>
             </div>
             <div class="mt-1 text-xs text-n-slate-11">
-              供应商：{{ (p.supplierNames || []).join('、') || '—' }}
+              <MesSupplierSummary :names="p.supplierNames || []" />
             </div>
             <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
               <span>生产订单：{{ p.productionOrderNo || '—' }}</span>
@@ -732,7 +733,7 @@ onMounted(async () => {
             还没有采购单。
           </div>
         </div>
-        <table class="hidden w-full text-sm md:table">
+        <table class="hidden w-full text-sm whitespace-nowrap md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th class="px-3 py-3 font-medium w-12">#</th>
@@ -771,7 +772,7 @@ onMounted(async () => {
                 </span>
               </td>
               <td class="px-3 py-3 text-n-slate-11">
-                {{ (p.supplierNames || []).join('、') || '—' }}
+                <MesSupplierSummary :names="p.supplierNames || []" />
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ p.productionOrderNo || '—' }}
@@ -802,7 +803,9 @@ onMounted(async () => {
                 {{ day(p.deliveryDate) }}
               </td>
               <td class="px-3 py-3 text-right whitespace-nowrap">
-                <div class="flex justify-end gap-1">
+                <div
+                  class="flex flex-nowrap justify-end gap-1 [&>button]:shrink-0"
+                >
                   <Button
                     label="查看"
                     variant="ghost"

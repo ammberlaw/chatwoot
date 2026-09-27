@@ -401,7 +401,7 @@ onMounted(() => {
                 {{ s.name }}
               </span>
               <span
-                class="shrink-0 px-2 py-0.5 text-xs rounded-full"
+                class="inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 text-xs rounded-full"
                 :class="
                   s.isActive
                     ? 'bg-n-teal-3 text-n-teal-12'
@@ -452,7 +452,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <table class="hidden md:table w-full text-sm">
+        <table class="hidden md:table w-full text-sm whitespace-nowrap">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th class="px-3 py-3 font-medium">编号</th>
@@ -471,7 +471,9 @@ onMounted(() => {
               <td class="px-3 py-3 font-mono text-n-slate-11">
                 {{ s.supplierNo }}
               </td>
-              <td class="px-3 py-3 font-medium text-n-slate-12">
+              <td
+                class="px-3 py-3 min-w-48 max-w-sm whitespace-normal break-words font-medium text-n-slate-12"
+              >
                 {{ s.name }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
@@ -487,7 +489,7 @@ onMounted(() => {
               </td>
               <td class="px-3 py-3">
                 <span
-                  class="px-2 py-0.5 text-xs rounded-full"
+                  class="inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 text-xs rounded-full"
                   :class="
                     s.isActive
                       ? 'bg-n-teal-3 text-n-teal-12'
@@ -498,7 +500,10 @@ onMounted(() => {
                 </span>
               </td>
               <td class="px-3 py-3">
-                <div v-if="canManage" class="flex justify-end gap-1">
+                <div
+                  v-if="canManage"
+                  class="flex flex-nowrap justify-end gap-1 [&>button]:shrink-0"
+                >
                   <Button
                     label="编辑"
                     variant="ghost"
