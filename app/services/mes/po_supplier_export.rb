@@ -11,7 +11,6 @@ class Mes::PoSupplierExport
     'wintouch' => { company: '深圳联合触控科技有限公司', title: '采购订单', taxed: false, currency: '不含税 RMB' },
     'liontek' => { company: '东莞市联迪科技有限公司', title: '采购合同', taxed: true, currency: '含税 RMB' }
   }.freeze
-  TAX_RATE = 1.13 # 联迪含税 13%：未税价 × 1.13 = 含税价
 
   # bill_entities: { supplier_id => 'wintouch'|'liontek' } —— 导出/预览时手动改抬头，
   # 只影响这一次出的单，不动供应商档案（「未指定供应商」那组 key 用 0）。
@@ -91,17 +90,16 @@ class Mes::PoSupplierExport
   end
 
   def item_payload(item, idx, head)
-    qty = item.qty.to_f
-    price = unit_price(item, head).round(2)
+    qty = item.qty.to_d
+    price = unit_price(item, head)
     { index: idx, code: code(item), name: name(item), spec: spec(item),
-      unit: item.unit, qty: qty, price: price, amount: (qty * price).round(2), remark: item.remark }
+      unit: item.unit, qty: qty.to_f, price: price.to_f, amount: (qty * price).round(2).to_f, remark: item.remark }
   end
 
-  # 单价（payload 前端预览用）：采购单存的是未税价（rate_micros）；含税抬头 × 1.13。
-  # PDF 导出走 Mes::PoTemplateFiller，取模型换算好的 untaxed/taxed micros，不用此估算。
+  # 与 PDF 共用模型税价换算；先按完整单价算行金额，再四舍五入到分。
   def unit_price(item, head)
-    net = (item.rate_micros || 0) / 1_000_000.0
-    head[:taxed] ? net * TAX_RATE : net
+    micros = head[:taxed] ? item.taxed_rate_micros : item.untaxed_rate_micros
+    micros.to_d / 1_000_000
   end
 
   # 料号/名称/规格：统一取产品档案(crm_product，物料与外购成品都走它)，旧数据回落 mes_material。

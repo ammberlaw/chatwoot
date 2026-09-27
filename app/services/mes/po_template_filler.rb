@@ -6,6 +6,7 @@
 # 抬头/税口径按 bill_entity 选模板（默认取供应商档案，导出时可手动覆盖）：
 #   liontek → 联迪含税合同；其它/nil → 深圳联合触控未税订单。
 require 'zip'
+require 'nokogiri'
 
 class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
   SHEET = 'xl/worksheets/sheet1.xml'.freeze
@@ -103,6 +104,7 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
     filled_strings = extract_strings(entries[STRINGS])
     entries[SHEET] = fill_sheet(entries[SHEET])
     entries[SHEET] = grow_row_heights(entries[SHEET], filled_strings)
+    format_money_cells(entries)
     shift_drawing(entries) if entries[DRAWING]
     repackage(entries)
   end
@@ -120,7 +122,14 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
     idx = -1
     xml.gsub(%r{<si>.*?</si>}m) do |si|
       idx += 1
-      map.key?(idx) ? "<si>#{t_node(map[idx])}</si>" : si
+      if map.key?(idx)
+        "<si>#{t_node(map[idx])}</si>"
+      elsif si.include?('交货时间、地点')
+        date = @po.delivery_date&.strftime('%Y年%-m月%-d日') || '待确认'
+        si.gsub(/\d{4}年\d{1,2}月\d{1,2}日/, date)
+      else
+        si
+      end
     end
   end
 
@@ -399,6 +408,57 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
     open = row[/<row [^>]*>/]
     cleaned = open.gsub(/\s(?:ht|customHeight)="[^"]*"/, '')
     row.sub(/<row [^>]*>/, cleaned.sub(/\s*>\z/, %( ht="#{height}" customHeight="1">)))
+  end
+
+  # 仅替换金额单元格的数字格式，保留模板字体、边框、对齐与合并。
+  # 单价保留 micros 精度，行金额和合计固定两位，避免 11.30 被显示成 11。
+  XML_NS = { 's' => 'http://schemas.openxmlformats.org/spreadsheetml/2006/main' }.freeze
+
+  def format_money_cells(entries)
+    styles = Nokogiri::XML(entries.fetch('xl/styles.xml'))
+    sheet = Nokogiri::XML(entries.fetch(SHEET))
+    price_format_id = add_price_format(styles)
+    xfs = styles.at_xpath('//s:cellXfs', XML_NS)
+    cloned = {}
+    money_cell_formats(price_format_id).each do |ref, format_id|
+      cell = sheet.at_xpath("//s:c[@r='#{ref}']", XML_NS)
+      key = [cell['s'].to_i, format_id]
+      cell['s'] = cloned[key] ||= clone_number_style(xfs, *key)
+    end
+    entries['xl/styles.xml'] = styles.to_xml
+    entries[SHEET] = sheet.to_xml
+  end
+
+  def add_price_format(styles)
+    formats = styles.at_xpath('//s:numFmts', XML_NS)
+    id = [163, *formats.element_children.map { |node| node['numFmtId'].to_i }].max + 1
+    format = Nokogiri::XML::Node.new('numFmt', styles)
+    format['numFmtId'] = id.to_s
+    format['formatCode'] = '0.00####'
+    formats.add_child(format)
+    formats['count'] = formats.element_children.length.to_s
+    id
+  end
+
+  def money_cell_formats(price_format_id)
+    cells = {}
+    @items.each_index do |i|
+      row = @cfg[:first_item_row] + i
+      cells["#{@cfg[:cell_layout][:price][:col]}#{row}"] = price_format_id
+      cells["#{@cfg[:cell_layout][:amount][:col]}#{row}"] = 2
+    end
+    cells["#{@cfg[:total_amount_ref]}#{@cfg[:total_row] + @delta}"] = 2 if @cfg[:total_row]
+    cells
+  end
+
+  def clone_number_style(xfs, original_index, format_id)
+    xf = xfs.element_children[original_index].dup
+    xf['numFmtId'] = format_id.to_s
+    xf['applyNumberFormat'] = '1'
+    index = xfs.element_children.length.to_s
+    xfs.add_child(xf)
+    xfs['count'] = xfs.element_children.length.to_s
+    index
   end
 
   def repackage(entries)
