@@ -57,7 +57,7 @@ const onClose = name => {
     >
       <button
         type="button"
-        class="py-3 text-sm whitespace-nowrap hover:text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9"
+        class="px-0 py-3 rounded-none text-sm whitespace-nowrap hover:text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9"
         :class="{ 'font-semibold': tab.name === activeName }"
         :aria-current="tab.name === activeName ? 'page' : undefined"
         @click="go(tab)"
@@ -66,11 +66,11 @@ const onClose = name => {
       </button>
       <button
         type="button"
-        class="flex items-center justify-center size-5 rounded text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9"
+        class="flex items-center justify-center size-5 shrink-0 p-0 rounded text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9"
         :aria-label="`${t('GENERAL.CLOSE')} ${titleOf(tab.name)}`"
         @click="onClose(tab.name)"
       >
-        <Icon icon="i-lucide-x" class="size-3" />
+        <Icon icon="i-lucide-x" class="size-3 shrink-0" />
       </button>
     </div>
   </div>
