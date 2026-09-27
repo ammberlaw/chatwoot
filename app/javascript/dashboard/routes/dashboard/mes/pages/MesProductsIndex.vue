@@ -854,6 +854,7 @@ onMounted(() => {
               @keydown.enter.prevent.stop="addAux"
             />
             <Button
+              type="button"
               label="添加"
               variant="outline"
               size="sm"
