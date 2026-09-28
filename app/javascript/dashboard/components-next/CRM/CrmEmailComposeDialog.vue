@@ -176,7 +176,9 @@ const cleanTextBody = src => (src || '').replace(/^\\[ \t]*\r?\n/gm, '');
 //
 // 末段不加下边距：正文后面紧跟的是「<br> + 签名」，末段再留 12px 会和那个换行叠加，
 // 签名离正文老远（这个间距业务反馈过两次，别再撑回去）。
-const PARA_STYLE = 'margin:0 0 12px;';
+// 12px 段距在收件端看着跟编辑器里差一截（编辑时段落之间是一整个空行），业务反馈「不明显」，
+// 改成 18px ≈ 一行的高度，和写信时的观感对得上。
+const PARA_STYLE = 'margin:0 0 18px;';
 const inlineParagraphSpacing = html => {
   if (!html) return html;
   const opened = html
@@ -1946,7 +1948,9 @@ defineExpose({ open, close });
               class="flex items-center gap-2 pt-2 mb-1 border-t border-n-weak"
             >
               <Icon icon="i-lucide-reply" class="size-3.5 text-n-slate-9" />
-              <span class="text-[11px] text-n-slate-9">原邮件（保留原格式）</span>
+              <span class="text-[11px] text-n-slate-9"
+                >原邮件（保留原格式）</span
+              >
               <span class="flex-1" />
               <button
                 class="text-[11px] text-n-slate-9 hover:text-n-slate-11"

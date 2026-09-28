@@ -104,6 +104,7 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
     filled_strings = extract_strings(entries[STRINGS])
     entries[SHEET] = fill_sheet(entries[SHEET])
     entries[SHEET] = grow_row_heights(entries[SHEET], filled_strings)
+    entries[SHEET] = widen_amount_column(entries[SHEET])
     format_money_cells(entries)
     shift_drawing(entries) if entries[DRAWING]
     repackage(entries)
@@ -379,6 +380,7 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
   LINE_PT = 16.0
 
   def grow_row_heights(xml, strings)
+    column_widths(xml)
     xml.gsub(%r{<row [^>]*>.*?</row>}m) do |row|
       rn = row[/<row r="(\d+)"/, 1].to_i
       next row if rn < @cfg[:first_item_row]
@@ -392,12 +394,89 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
     end
   end
 
-  # 行内各格的最大文本行数（inlineStr 直接取；共享串按索引查填充后的 strings）。
+  # 行内各格所需的最大行数。逐格解析（要知道在哪一列才能按列宽估折行）：
+  # inlineStr 直接取文本，共享串按索引查填充后的 strings。
   def max_cell_lines(row, strings)
     counts = [1]
-    row.scan(%r{<is>(.*?)</is>}m) { |m| counts << text_line_count(m[0].scan(%r{<t[^>]*>(.*?)</t>}m).flatten.join) }
-    row.scan(%r{t="s"[^>]*><v>(\d+)</v>}) { |m| counts << text_line_count(strings[m[0].to_i].to_s) }
+    row.scan(%r{<c\b[^>]*\br="([A-Z]+)\d+"[^>]*?(?:/>|>(.*?)</c>)}m) do |col, body|
+      text = if body.to_s.include?('<is>')
+               body[%r{<is>(.*?)</is>}m, 1].to_s.scan(%r{<t[^>]*>(.*?)</t>}m).flatten.join
+             elsif body.to_s =~ /<v>(\d+)</ && row[/<c\b[^>]*\br="#{col}\d+"[^>]*t="s"/]
+               strings[Regexp.last_match(1).to_i].to_s
+             end
+      counts << cell_lines(col, text) if text.present?
+    end
     counts.max
+  end
+
+  # 单元格文本要占几行：先按显式换行分段，每段再按列宽估算 Excel 的自动折行。
+  # 规格这类长文本模板里开了自动换行，只按 \n 算行高的话，折下去的部分会被裁掉。
+  def cell_lines(col, text)
+    usable = usable_width(col)
+    text.gsub('&#10;', "\n").split("\n", -1).sum do |seg|
+      usable.positive? ? [((display_width(seg) / usable.to_f).ceil), 1].max : 1
+    end
+  end
+
+  # 可用字符宽度：本列宽 + 行内合并过去的列宽（规格 E:F 这种），留 1 格余量给内边距。
+  def usable_width(col)
+    cols = [col] + Array(@cfg[:row_merges]).find { |pair| pair.first == col }.to_a.drop(1)
+    total = cols.sum { |c| @column_widths[col_index(c)].to_f }
+    total.positive? ? total - 1 : 0
+  end
+
+  # 显示宽度：中文/全角按 2 个字符位算，其余按 1（Excel 列宽就是以字符位为单位）。
+  def display_width(text)
+    CGI.unescapeHTML(text).each_char.sum { |ch| ch.bytesize > 2 ? 2 : 1 }
+  end
+
+  # <cols> 里的列宽表（列号 → 宽度）。没声明的列 Excel 用默认宽，这里按 8.43 兜底。
+  def column_widths(xml)
+    @column_widths = Hash.new(8.43)
+    xml.scan(/<col\b[^>]*\bmin="(\d+)"[^>]*\bmax="(\d+)"[^>]*\bwidth="([\d.]+)"/) do |mn, mx, w|
+      (mn.to_i..mx.to_i).each { |c| @column_widths[c] = w.to_f }
+    end
+    @column_widths
+  end
+
+  # 金额列按实际位数加宽：模板列宽是按几千块的单子定的，几十万起跳就会显示成一串 #。
+  # 加宽多少就从备注列匀多少（备注多半是空的），总宽不变，A4 不会被撑到第二页。
+  MIN_REMARK_WIDTH = 8.0
+  def widen_amount_column(xml)
+    col = @cfg.dig(:cell_layout, :amount, :col)
+    need = amount_column_need
+    return xml if col.blank? || need.blank?
+
+    widths = column_widths(xml)
+    idx = col_index(col)
+    delta = (need - widths[idx]).round(2)
+    return xml if delta <= 0
+
+    remark_idx = col_index(@cfg.dig(:cell_layout, :remark, :col).to_s)
+    spare = [widths[remark_idx] - MIN_REMARK_WIDTH, 0].max
+    borrowed = [delta, spare].min
+    xml = set_col_width(xml, idx, widths[idx] + delta)
+    borrowed.positive? ? set_col_width(xml, remark_idx, widths[remark_idx] - borrowed) : xml
+  end
+
+  # 最宽一笔金额要几个字符位（含千分位与两位小数），再留 1 位余量。
+  def amount_column_need
+    widest = @items.map { |i| fmt_num(amount(i)).to_d.round(2) }.max
+    return if widest.blank?
+
+    # 单元格里是「1,250,900.00」这个样子，按两位小数 + 千分位量长度，别按原始数值量。
+    ActiveSupport::NumberHelper.number_to_delimited(format('%.2f', widest), delimiter: ',').length + 1.0
+  end
+
+  def set_col_width(xml, idx, width)
+    pattern = %r{<col\b(?=[^>]*\bmin="#{idx}")(?=[^>]*\bmax="#{idx}")[^>]*/>}
+    return xml unless xml.match?(pattern)
+
+    xml.sub(pattern) { |tag| tag.sub(/\bwidth="[\d.]+"/, %(width="#{width.round(6)}")) }
+  end
+
+  def col_index(letters)
+    letters.each_char.reduce(0) { |acc, ch| acc * 26 + (ch.ord - 64) }
   end
 
   def text_line_count(text)

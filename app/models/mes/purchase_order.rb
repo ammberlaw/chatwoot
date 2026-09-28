@@ -2,28 +2,32 @@
 #
 # Table name: mes_purchase_orders
 #
-#  id                      :bigint           not null, primary key
-#  approval_status         :string           default("DRAFT"), not null
-#  delivery_date           :date
-#  exception_note          :text
-#  expected_date           :datetime
-#  follow_up_date          :datetime
-#  gm_acted_at             :datetime
-#  gm_comment              :text
-#  has_exception           :boolean          default(FALSE), not null
-#  po_no                   :string           not null
-#  product_line            :string
-#  remark                  :text
-#  status                  :string           default("DRAFT"), not null
-#  submitted_at            :datetime
-#  total_amount_micros     :bigint
-#  created_at              :datetime         not null
-#  updated_at              :datetime         not null
-#  account_id              :bigint           not null
-#  gm_id                   :bigint
-#  owner_id                :bigint
-#  production_order_id     :bigint
-#  purchase_requisition_id :bigint
+#  id                         :bigint           not null, primary key
+#  approval_status            :string           default("DRAFT"), not null
+#  delivery_date              :date
+#  exception_note             :text
+#  expected_date              :datetime
+#  export_count               :integer          default(0), not null
+#  extra_production_order_ids :bigint           default([]), not null, is an Array
+#  follow_up_date             :datetime
+#  gm_acted_at                :datetime
+#  gm_comment                 :text
+#  has_exception              :boolean          default(FALSE), not null
+#  internal_remark            :text
+#  last_exported_at           :datetime
+#  po_no                      :string           not null
+#  product_line               :string
+#  remark                     :text
+#  status                     :string           default("DRAFT"), not null
+#  submitted_at               :datetime
+#  total_amount_micros        :bigint
+#  created_at                 :datetime         not null
+#  updated_at                 :datetime         not null
+#  account_id                 :bigint           not null
+#  gm_id                      :bigint
+#  owner_id                   :bigint
+#  production_order_id        :bigint
+#  purchase_requisition_id    :bigint
 #
 # Indexes
 #
@@ -32,6 +36,7 @@
 #  index_mes_purchase_orders_on_account_id_and_approval_status  (account_id,approval_status)
 #  index_mes_purchase_orders_on_account_id_and_po_no            (account_id,po_no) UNIQUE
 #  index_mes_purchase_orders_on_account_id_and_status           (account_id,status)
+#  index_mes_purchase_orders_on_extra_production_order_ids      (extra_production_order_ids) USING gin
 #  index_mes_purchase_orders_on_gm_id                           (gm_id)
 #  index_mes_purchase_orders_on_owner_id                        (owner_id)
 #  index_mes_purchase_orders_on_production_order_id             (production_order_id)
@@ -101,6 +106,28 @@ class Mes::PurchaseOrder < ApplicationRecord
   end
 
   def received? = status == 'RECEIVED'
+
+  # 可删：还没进流程的草稿（未提审、未到货）。已提交/已批/已收过货的一律留痕，走「退回」而不是删。
+  def deletable?
+    status == 'DRAFT' && approval_status.in?(%w[DRAFT REJECTED]) &&
+      purchase_items.where('received_qty > 0').none?
+  end
+
+  # 预览/导出计次：一个供应商几十张单时，采购员靠这个数一眼看出哪张还没导出转发过。
+  # 原子自增，避免同一张单被连点两下只记一次。
+  def record_export!
+    self.class.where(id: id).update_all(['export_count = export_count + 1, last_exported_at = ?, updated_at = ?', Time.current, Time.current]) # rubocop:disable Rails/SkipsModelValidations
+  end
+
+  # 本单关联的全部生产订单 id（主单 + 额外关联的）。同款物料多张生产订单共用一次采购时，
+  # 采购员在单上多挂几张，查询/追溯都认这一组。
+  def all_production_order_ids
+    ([production_order_id] + extra_production_order_ids.to_a).compact.uniq
+  end
+
+  def related_production_orders
+    account.mes_production_orders.where(id: all_production_order_ids).order(:id)
+  end
 
   # ── 审批链（总经理一级）──
   def pending_approval? = approval_status == 'PENDING_GM'

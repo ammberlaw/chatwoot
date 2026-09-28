@@ -176,9 +176,16 @@ defineExpose({ open, close });
           <slot v-if="isOpen" />
           <!-- Dialog content will be injected here -->
           <slot name="footer">
+            <!-- 长表单（overflowYAuto）里按钮粘在底部：BOM/采购单几十行明细时，
+                 原来要一路滚到底才点得到保存。短对话框不滚动，sticky 不起作用、外观不变。 -->
             <div
               v-if="showCancelButton || showConfirmButton"
               class="flex items-center justify-between w-full gap-3"
+              :class="
+                overflowYAuto
+                  ? 'sticky bottom-0 z-10 -mx-6 -mb-6 px-6 py-4 bg-n-alpha-3 backdrop-blur-[100px] rounded-b-xl'
+                  : ''
+              "
             >
               <Button
                 v-if="showCancelButton"

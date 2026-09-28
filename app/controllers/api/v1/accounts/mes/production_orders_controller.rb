@@ -1,7 +1,7 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_production_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :release_purchasing, :requirement, :handoff,
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :detach_bom, :revert_to_bom_ready, :release_purchasing, :requirement, :handoff,
                        :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced]
   before_action :ensure_editable!, only: [:update, :attach, :detach]
   before_action :ensure_deletable!, only: [:destroy]
@@ -114,6 +114,22 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING）。
   def release_purchasing
     @production_order.release_to_purchasing!(actor: current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 解除 BOM 关联（挂错了重挂）：清 bom_id 并退回「待工程接单」。
+  def detach_bom
+    @production_order.detach_bom!(actor: current_user)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 采购原料退回工程/PMC BOM（下发早了 / BOM 要改）。
+  def revert_to_bom_ready
+    @production_order.revert_to_bom_ready!(actor: current_user)
     render 'api/v1/accounts/mes/production_orders/show'
   rescue StandardError => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -400,10 +416,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 编辑权：PMC/管理员不受限；归属业务可改**本人订单（含已下发）**——已下发的改动
   # 由 update 通知下游负责人。无 order 能力且非本人订单则拒。
   def ensure_editable!
-    return if Current.account_user.mes_can?(:order)
-    return if @production_order.owner_id == current_user.id
-
-    render json: { error: '仅本人订单可修改' }, status: :forbidden
+    ensure_owner_or_admin!(@production_order, '生产订单')
   end
 
   # 删除权：管理员删任意；其余仅能删**本人的草稿**（已下发进入生产流程不可删）。

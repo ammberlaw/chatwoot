@@ -24,6 +24,8 @@ end
 json.bom_no resource.bom&.bom_no
 # BOM 材料明细（该单用料，对标金蝶「材料明细」）：仅详情下发，列表不带以免 N+1。
 if local_assigns[:detail]
+  # 档案备注（工程写在产品上的工艺要求）按料号一次查出来，车间照着做，不用再跑产品档案。
+  bom_product_map = resource.bom&.product_info_by_material_no || {}
   json.bom_items do
     json.array!((resource.bom&.bom_items&.order(:id)) || []) do |bi|
       json.material_no bi.material_no
@@ -31,6 +33,9 @@ if local_assigns[:detail]
       json.specification bi.specification
       json.unit bi.unit
       json.qty bi.qty
+      json.aux_attribute_name bi.aux_attribute_name
+      json.remark bi.remark
+      json.product_remark bom_product_map[bi.material_no]&.remark
     end
   end
 end

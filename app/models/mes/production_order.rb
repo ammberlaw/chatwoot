@@ -247,6 +247,71 @@ class Mes::ProductionOrder < ApplicationRecord
     )
   end
 
+  # 解除 BOM 关联（挂错 BOM 的纠错口）：清掉 bom_id、退回「待工程接单」重新挂。
+  # 已开出下游单据的不许解——先作废那些单，否则采购/仓库会按错料继续做。
+  def detach_bom!(actor: nil)
+    raise StandardError, '该订单未挂 BOM' if bom_id.nil?
+
+    ensure_revertable!('解除 BOM')
+
+    # 挂 BOM 时发的「待下发采购」待办要一并销掉，否则工程/PMC 的待处理里留一条指向空 BOM 的僵尸。
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'purchase_release_pending')
+    update!(bom_id: nil)
+    revert_stage!('SALES_CONFIRMED', actor: actor)
+    self
+  end
+
+  # 采购原料 → 工程/PMC BOM 的退回（下发早了 / BOM 要改时用）。同样要求下游没单据。
+  def revert_to_bom_ready!(actor: nil)
+    raise StandardError, '仅「采购原料」阶段可退回' unless stage == 'PURCHASING'
+    raise StandardError, '外购订单不走 BOM 阶段，无法退回' if is_outsourced
+    raise StandardError, '该订单未挂 BOM，请改用解除关联' if bom_id.nil?
+
+    ensure_revertable!('退回')
+
+    revert_stage!('BOM_READY', actor: actor)
+    # 退回来就还得再走一遍「核对 BOM → 下发采购」，把待办重新挂给工程/PMC。
+    notify_purchase_release_pending(bom, actor)
+    self
+  end
+
+  # 解绑 BOM / 退回阶段前的闸：下游一旦动起来就不许往回改，否则采购和仓库按错料继续做。
+  # 报工无法作废（已经开工了），单独先拦；其余单据作废掉就能放行。
+  def ensure_revertable!(action)
+    raise StandardError, "该订单已有报工记录（已开工），不能#{action}" if account.mes_production_records.where(production_order_id: id).exists?
+
+    blockers = downstream_blockers
+    raise StandardError, "已开出#{blockers.join('、')}，请先作废这些单据再#{action}" if blockers.any?
+  end
+
+  # 已开出的下游单据（作废的不算）。
+  def downstream_blockers
+    names = []
+    names << '请购单' if account.mes_purchase_requisitions.where(production_order_id: id).where.not(status: 'CANCELLED').exists?
+    names << '采购单' if purchase_orders.where.not(status: 'CANCELLED').exists?
+    names << '出入库单' if account.mes_stock_entries.where(production_order_id: id).where.not(status: 'CANCELLED').exists?
+    names
+  end
+
+  # 阶段回退（纠错专用，与 enter_stage! 相对）：退回更早的阶段，并抹掉超前阶段的到达事件，
+  # 否则阶段耗时/「已 N 天」会按那次走错的记录算。目标阶段自身的到达时间保留首次到达，
+  # 好让看板照旧能看出这单实际卡了多久。
+  def revert_stage!(target, actor: nil)
+    cur = STAGES.index(stage)
+    ref = STAGES.index(target)
+    raise StandardError, '目标阶段无效' if cur.nil? || ref.nil?
+    raise StandardError, '只能退回更早的阶段' unless ref < cur
+
+    stage_events.where(stage: STAGES[(ref + 1)..]).destroy_all
+    update!(stage: target, stage_ack_at: nil, stage_ack_by_id: nil)
+    stage_events.find_or_create_by!(stage: target) do |e|
+      e.account_id = account_id
+      e.entered_at = Time.current
+      e.actor_id = actor&.id
+    end
+    self
+  end
+
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING），通知采购备料。
   def release_to_purchasing!(actor: nil)
     raise StandardError, '需先挂工程/PMC BOM' if bom_id.nil?
@@ -323,7 +388,20 @@ class Mes::ProductionOrder < ApplicationRecord
     items = items.select { |i| i.category == category } if category.present?
     product_map = crm_product_map_for(items)
     stock_map = onhand_total_map(product_map.values)
-    items.map { |item| requirement_row(item, factor, product_map, stock_map) }
+    ordered = ordered_qty_map
+    items.map { |item| requirement_row(item, factor, product_map, stock_map, ordered) }
+  end
+
+  # 本单已经开出去的采购量（按产品档案归集，作废单不算）。
+  # 采购员重进「新建采购单」时，已下满的料就不再铺出来——否则整屏都是料，看不出哪些还没下。
+  def ordered_qty_map
+    Mes::PurchaseItem
+      .joins(:purchase_order)
+      .where(mes_purchase_orders: { production_order_id: id })
+      .where.not(mes_purchase_orders: { status: 'CANCELLED' })
+      .where.not(crm_product_id: nil)
+      .group(:crm_product_id)
+      .sum(:qty)
   end
 
   # 指定产品档案的各仓实时结存合计（跨仓总库存）。供采购算料展示「对应物料实时库存」。
@@ -731,8 +809,9 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   # 单行用料需求（用量按本单产量/基准产量放大）。
-  def requirement_row(item, factor, product_map = {}, stock_map = {})
+  def requirement_row(item, factor, product_map = {}, stock_map = {}, ordered_map = {})
     pid = product_map[item.material_no]
+    ordered = pid ? (ordered_map[pid] || 0).to_d : 0.to_d
     {
       mes_material_id: item.mes_material_id,
       crm_product_id: pid,
@@ -745,7 +824,9 @@ class Mes::ProductionOrder < ApplicationRecord
       qty: (item.qty.to_d * factor),
       # 对应物料实时库存（跨仓合计）+ 工程在 BOM 上给的建议采购量，供采购参考。
       on_hand: pid ? (stock_map[pid] || 0).to_d : 0.to_d,
-      suggested_purchase_qty: item.suggested_purchase_qty
+      suggested_purchase_qty: item.suggested_purchase_qty,
+      # 本单这个料已经下出去多少（前端据此把已下满的行默认收起来）
+      ordered_qty: ordered
     }
   end
 

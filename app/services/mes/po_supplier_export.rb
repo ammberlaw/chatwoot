@@ -36,6 +36,7 @@ class Mes::PoSupplierExport
   # 下载完还要解压、一个个开，发群前还得挑。
   # 返回 { filename:, content_type:, io: }（供 controller send_data）。
   def to_pdf_download
+    ensure_all_items_have_supplier!
     sheets = grouped.values.map do |items|
       supplier = items.first.mes_supplier
       name = supplier&.name.presence || '未指定供应商'
@@ -51,6 +52,18 @@ class Mes::PoSupplierExport
   end
 
   private
+
+  # 未指定供应商的料不许导出：它们会被凑成一份「未指定供应商」的单，采购员一转发
+  # 就等于把别家的料发给了这一家。先拦住，让他回明细里把供应商补齐。
+  # 勾选导出时没勾这组的不受影响（grouped 已按 supplier_ids 过滤过）。
+  def ensure_all_items_have_supplier!
+    orphans = grouped[nil]
+    return if orphans.blank?
+
+    names = orphans.first(5).filter_map { |i| name(i).presence || code(i) }.join('、')
+    tail = orphans.size > 5 ? " 等 #{orphans.size} 项" : ''
+    raise ArgumentError, "有物料未指定供应商（#{names}#{tail}），请先在明细里逐行指定供应商再导出"
+  end
 
   # 按供应商分组（保序）；无供应商的料归到 nil 组由抬头回落 wintouch。
   # 按供应商分组；给了 supplier_ids 就只取这几家（导出时勾选用）。

@@ -2,25 +2,28 @@
 #
 # Table name: mes_bom_items
 #
-#  id                     :bigint           not null, primary key
-#  amount_micros          :bigint
-#  category               :string           default("MACHINE"), not null
-#  material_name          :string
-#  material_no            :string
-#  qty                    :decimal(14, 3)   not null
-#  rate_micros            :bigint
-#  remark                 :text
-#  specification          :string
-#  suggested_purchase_qty :decimal(14, 3)
-#  unit                   :string
-#  created_at             :datetime         not null
-#  updated_at             :datetime         not null
-#  account_id             :bigint           not null
-#  bom_id                 :bigint           not null
-#  mes_material_id        :bigint
+#  id                           :bigint           not null, primary key
+#  amount_micros                :bigint
+#  aux_attribute_name           :string
+#  category                     :string           default("MACHINE"), not null
+#  material_name                :string
+#  material_no                  :string
+#  qty                          :decimal(14, 3)   not null
+#  rate_micros                  :bigint
+#  remark                       :text
+#  specification                :string
+#  suggested_purchase_qty       :decimal(14, 3)
+#  unit                         :string
+#  created_at                   :datetime         not null
+#  updated_at                   :datetime         not null
+#  account_id                   :bigint           not null
+#  bom_id                       :bigint           not null
+#  crm_product_aux_attribute_id :bigint
+#  mes_material_id              :bigint
 #
 # Indexes
 #
+#  idx_mes_bom_items_on_aux_attr           (crm_product_aux_attribute_id)
 #  index_mes_bom_items_on_account_id       (account_id)
 #  index_mes_bom_items_on_bom_id           (bom_id)
 #  index_mes_bom_items_on_mes_material_id  (mes_material_id)
@@ -28,6 +31,7 @@
 # Foreign Keys
 #
 #  fk_rails_...  (bom_id => mes_boms.id) ON DELETE => cascade
+#  fk_rails_...  (crm_product_aux_attribute_id => crm_product_aux_attributes.id) ON DELETE => nullify
 #  fk_rails_...  (mes_material_id => mes_materials.id) ON DELETE => nullify
 #
 class Mes::BomItem < ApplicationRecord

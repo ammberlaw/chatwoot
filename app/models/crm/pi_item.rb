@@ -15,16 +15,19 @@
 #  updated_at        :datetime         not null
 #  account_id        :bigint           not null
 #  crm_pi_id         :bigint           not null
+#  crm_product_id    :bigint
 #
 # Indexes
 #
-#  index_crm_pi_items_on_account_id  (account_id)
-#  index_crm_pi_items_on_crm_pi_id   (crm_pi_id)
+#  index_crm_pi_items_on_account_id      (account_id)
+#  index_crm_pi_items_on_crm_pi_id       (crm_pi_id)
+#  index_crm_pi_items_on_crm_product_id  (crm_product_id)
 #
 # Foreign Keys
 #
 #  fk_rails_...  (account_id => accounts.id)
 #  fk_rails_...  (crm_pi_id => crm_pis.id)
+#  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => nullify
 #
 class Crm::PiItem < ApplicationRecord
   belongs_to :account

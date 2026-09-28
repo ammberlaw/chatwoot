@@ -14,6 +14,8 @@ json.opportunities @opportunities do |opportunity|
   json.expected_close_date opportunity.expected_close_date
   json.next_action opportunity.next_action
   json.current_need opportunity.current_need
+  # 已被自动回收进商机公海的，详情卡要打标：否则看板里没有、这里却照常显示，像是数据丢了。
+  json.is_in_public_pool opportunity.is_in_public_pool
 end
 
 json.orders @orders do |order|

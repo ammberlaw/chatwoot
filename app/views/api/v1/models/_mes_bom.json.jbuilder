@@ -31,9 +31,11 @@ json.remark resource.remark
 json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 onhand_map = resource.onhand_by_material_no
+product_map = resource.product_info_by_material_no
 json.bom_items do
   json.array! resource.bom_items.order(:id) do |item|
-    json.partial! 'api/v1/models/mes_bom_item', formats: [:json], resource: item, onhand_map: onhand_map
+    json.partial! 'api/v1/models/mes_bom_item', formats: [:json], resource: item,
+                  onhand_map: onhand_map, product_map: product_map
   end
 end
 json.revisions do

@@ -30,6 +30,9 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   # 挂 BOM / 下发采购：工程 + PMC（order 或 bom 能力）。
   def attach_bom? = @account_user.mes_can?(:order) || @account_user.mes_can?(:bom)
   def release_purchasing? = attach_bom?
+  # 解绑 BOM / 采购退回 BOM 阶段：都是挂错了的纠错动作，与挂 BOM 同权（工程/PMC）。
+  def detach_bom? = attach_bom?
+  def revert_to_bom_ready? = attach_bom?
   # 标记外购：与挂 BOM 同权（工程/PMC）——它是挂 BOM 的外购分支替代。
   def mark_outsourced? = attach_bom?
   def update? = @account_user.mes_can?(:order) || @account_user.can_access_crm?

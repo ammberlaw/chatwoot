@@ -393,8 +393,10 @@ const submit = async () => {
     );
     dialogRef.value?.close();
     emit('saved');
-  } catch {
-    useAlert(t('CRM.PI.FORM.SAVE_ERROR'));
+  } catch (error) {
+    // 后端 422 带着具体原因（最常见：PI 号重号），不透出来业务员只会看到一句「保存失败」。
+    const detail = error?.response?.data?.message;
+    useAlert(detail || t('CRM.PI.FORM.SAVE_ERROR'));
   } finally {
     saving.value = false;
   }

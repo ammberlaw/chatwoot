@@ -764,7 +764,8 @@ const linkBomBusy = ref(false);
 const linkBomOptions = computed(() =>
   linkBomList.value.map(b => ({
     value: String(b.id),
-    label: `${b.bom_no} · ${b.product_name || '—'} × ${b.base_qty || 1}${b.unit || ''}${b.status === 'DRAFT' ? '（草稿）' : ''}`,
+    // 带上机型和产成品代码：光看 BOM 号和产品名分不出 K705 还是 A80，挂错了要退回重挂。
+    label: `${b.bom_no} · ${[b.model, b.product_code].filter(Boolean).join(' ') || b.product_name || '—'} × ${b.base_qty || 1}${b.unit || ''}${b.status === 'DRAFT' ? '（草稿）' : ''}`,
   }))
 );
 const loadLinkBoms = async () => {
@@ -792,6 +793,22 @@ const toggleLinkBomScope = async () => {
 };
 const submitLinkBom = async () => {
   if (!linkBomId.value || !selected.value || linkBomBusy.value) return;
+  // 勾了「显示全部产品的 BOM」就能挂上别的产品的 BOM，挂错了要退回重来，
+  // 所以编码对不上时先拦一道——只提醒不禁止（同款产品编码不一致的历史单仍要能挂）。
+  const picked = linkBomList.value.find(
+    b => String(b.id) === String(linkBomId.value)
+  );
+  const orderCode = (selected.value.productCode || '').trim();
+  const bomCode = (picked?.product_code || '').trim();
+  if (
+    orderCode &&
+    bomCode &&
+    orderCode !== bomCode &&
+    !window.confirm(
+      `这张 BOM 的商品编码是 ${bomCode}，本单是 ${orderCode}，两者对不上。\n确定还是要关联吗？`
+    )
+  )
+    return;
   linkBomBusy.value = true;
   try {
     const ok = await store.attachBom({
@@ -806,6 +823,40 @@ const submitLinkBom = async () => {
     }
   } finally {
     linkBomBusy.value = false;
+  }
+};
+
+// 解除 BOM 关联：挂错了就退回「待工程接单」重挂。后端会拦已开出下游单据的订单。
+const detachBom = async () => {
+  if (!selected.value) return;
+  if (
+    !window.confirm(
+      `确定解除「${selected.value.orderNo}」与 BOM ${selected.value.bomNo} 的关联？\n订单会退回「待工程接单」，需要重新挂 BOM。`
+    )
+  )
+    return;
+  const ok = await store.detachBom(selected.value.id);
+  if (ok) {
+    useAlert('已解除 BOM 关联，订单退回待工程接单');
+    selected.value = ok;
+    fetchRecords();
+  }
+};
+
+// 采购原料退回工程/PMC BOM：下发早了或 BOM 要改时用。
+const revertToBomReady = async () => {
+  if (!selected.value) return;
+  if (
+    !window.confirm(
+      `确定把「${selected.value.orderNo}」退回「工程/PMC BOM」阶段？\n采购那边会看不到这张单，直到重新下发。`
+    )
+  )
+    return;
+  const ok = await store.revertToBomReady(selected.value.id);
+  if (ok) {
+    useAlert('已退回工程/PMC BOM 阶段');
+    selected.value = ok;
+    fetchRecords();
   }
 };
 
@@ -1299,7 +1350,10 @@ watch(currentPage, fetchRecords);
               v-for="po in records"
               :key="po.id"
               class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
-              :class="{ 'bg-n-alpha-1': selected && selected.id === po.id }"
+              :class="{
+                'bg-n-iris-3 ring-1 ring-inset ring-n-iris-8':
+                  selected && selected.id === po.id,
+              }"
               @click="selectRow(po)"
             >
               <div class="flex items-center gap-2">
@@ -1439,7 +1493,10 @@ watch(currentPage, fetchRecords);
                 v-for="po in records"
                 :key="po.id"
                 class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
-                :class="{ 'bg-n-alpha-1': selected && selected.id === po.id }"
+                :class="{
+                  'bg-n-iris-3 ring-1 ring-inset ring-n-iris-8':
+                    selected && selected.id === po.id,
+                }"
                 @click="selectRow(po)"
               >
                 <td class="px-3 py-3 font-medium text-n-slate-12">
@@ -1913,6 +1970,35 @@ watch(currentPage, fetchRecords);
               class="w-full mt-2"
               :is-loading="uiFlags.updatingItem"
               @click="releasePurchasing"
+            />
+            <!-- 纠错口：BOM 挂错了解绑重挂 / 采购下发早了退回来改 BOM。
+                 已开出请购、采购、出入库、报工单据的，后端会拦住并说明先作废哪些。 -->
+            <Button
+              v-if="
+                selected.stage === 'BOM_READY' &&
+                (mesCan('bom') || mesCan('order'))
+              "
+              label="解除 BOM 关联"
+              variant="outline"
+              color="ruby"
+              size="sm"
+              class="w-full mt-2"
+              :is-loading="uiFlags.updatingItem"
+              @click="detachBom"
+            />
+            <Button
+              v-if="
+                selected.stage === 'PURCHASING' &&
+                !selected.isOutsourced &&
+                (mesCan('bom') || mesCan('order'))
+              "
+              label="退回工程/PMC BOM"
+              variant="outline"
+              color="ruby"
+              size="sm"
+              class="w-full mt-2"
+              :is-loading="uiFlags.updatingItem"
+              @click="revertToBomReady"
             />
             <!-- BOM 变更史：工程改动已下发 BOM 的用料留痕（谁/何时/改了什么）-->
             <div
@@ -2671,11 +2757,14 @@ watch(currentPage, fetchRecords);
               <table class="w-full text-sm md:min-w-[560px]">
                 <thead>
                   <tr class="text-left text-n-slate-10 whitespace-nowrap">
+                    <th class="py-1.5 pr-3 font-medium w-10">#</th>
                     <th class="py-1.5 pr-3 font-medium">物料编码</th>
                     <th class="py-1.5 pr-3 font-medium">物料名称</th>
                     <th class="py-1.5 pr-3 font-medium">规格型号</th>
+                    <th class="py-1.5 pr-3 font-medium">辅助属性</th>
                     <th class="py-1.5 pr-3 font-medium">单位</th>
                     <th class="py-1.5 pr-3 font-medium text-right">用量</th>
+                    <th class="py-1.5 pr-3 font-medium">备注</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2684,6 +2773,9 @@ watch(currentPage, fetchRecords);
                     :key="idx"
                     class="border-t border-n-weak/60"
                   >
+                    <td class="py-1.5 pr-3 tabular-nums text-n-slate-10">
+                      {{ idx + 1 }}
+                    </td>
                     <td class="py-1.5 pr-3 whitespace-nowrap text-n-slate-11">
                       {{ bi.materialNo || '—' }}
                     </td>
@@ -2693,6 +2785,9 @@ watch(currentPage, fetchRecords);
                     <td class="py-1.5 pr-3 text-n-slate-11">
                       {{ bi.specification || '—' }}
                     </td>
+                    <td class="py-1.5 pr-3 text-n-slate-11">
+                      {{ bi.auxAttributeName || '—' }}
+                    </td>
                     <td class="py-1.5 pr-3 whitespace-nowrap text-n-slate-11">
                       {{ bi.unit || '—' }}
                     </td>
@@ -2700,6 +2795,17 @@ watch(currentPage, fetchRecords);
                       class="py-1.5 pr-3 text-right whitespace-nowrap text-n-slate-12"
                     >
                       {{ bi.qty }}
+                    </td>
+                    <!-- 本行没写备注就显产品档案上的工艺要求，车间照这个做 -->
+                    <td class="py-1.5 pr-3 text-n-slate-11">
+                      <span v-if="bi.remark">{{ bi.remark }}</span>
+                      <span
+                        v-else-if="bi.productRemark"
+                        class="text-n-slate-10"
+                      >
+                        档案：{{ bi.productRemark }}
+                      </span>
+                      <span v-else>—</span>
                     </td>
                   </tr>
                 </tbody>

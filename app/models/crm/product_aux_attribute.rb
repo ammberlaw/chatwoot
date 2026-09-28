@@ -1,4 +1,28 @@
 # 产品辅助属性（见迁移说明）：同一物料编码下的可选变体，开单时单选其一。
+# == Schema Information
+#
+# Table name: crm_product_aux_attributes
+#
+#  id             :bigint           not null, primary key
+#  code           :string           not null
+#  is_active      :boolean          default(TRUE), not null
+#  name           :string           not null
+#  position       :integer          default(0), not null
+#  created_at     :datetime         not null
+#  updated_at     :datetime         not null
+#  account_id     :bigint           not null
+#  crm_product_id :bigint           not null
+#
+# Indexes
+#
+#  idx_crm_aux_attrs_on_product   (crm_product_id)
+#  idx_crm_aux_attrs_unique_code  (account_id,code) UNIQUE
+#
+# Foreign Keys
+#
+#  fk_rails_...  (account_id => accounts.id)
+#  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => cascade
+#
 class Crm::ProductAuxAttribute < ApplicationRecord
   self.table_name = 'crm_product_aux_attributes'
 

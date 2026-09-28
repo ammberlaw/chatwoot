@@ -12,3 +12,11 @@ json.on_hand(local_assigns[:onhand_map] ? (local_assigns[:onhand_map][resource.m
 json.remark resource.remark
 json.crm_product_aux_attribute_id resource.crm_product_aux_attribute_id
 json.aux_attribute_name resource.aux_attribute_name
+# 产品档案带过来的两样（按料号↔SKU 对上）：工程写在档案上的备注、以及该物料的辅助属性选项。
+product = local_assigns[:product_map]&.dig(resource.material_no)
+json.product_remark product&.remark
+json.aux_options do
+  json.array!(product&.aux_attributes&.select(&:is_active)&.sort_by { |a| [a.position.to_i, a.id] } || []) do |attribute|
+    json.partial! 'api/v1/models/crm_product_aux_attribute', formats: [:json], resource: attribute
+  end
+end

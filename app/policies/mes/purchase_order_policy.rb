@@ -7,6 +7,8 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
   # 按供应商拆单导出（发供应商用，含采购价）：金额敏感，仅采购岗/财务/管理员可导。
   def export? = can_view_amount?
   def export_data? = can_view_amount?
+  # 导出计次：能导出就能记次。
+  def mark_exported? = can_view_amount?
 
   def create? = @account_user.mes_can?(:purchase)
   def update? = @account_user.mes_can?(:purchase)
@@ -20,7 +22,8 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
   def return_document? = @account_user.mes_can?(:purchase)
   def reactivate? = @account_user.mes_can?(:purchase)
 
-  def destroy? = @account_user.administrator?
+  # 草稿删除：采购员自己建的废稿要能清掉（控制器 deletable? 限定只有未提审、未到货的草稿）。
+  def destroy? = @account_user.administrator? || @account_user.mes_can?(:purchase)
 
   # 采购金额（含税单价/总额/导出）可见：采购岗 / 财务 / 管理员。仓管等其它岗位不可见。
   def can_view_amount?

@@ -199,6 +199,7 @@ const blankRow = () => ({
   auxAttributeId: '',
   auxAttributeName: '',
   auxOptions: [],
+  productRemark: '', // 产品档案上的备注（只读，跟本行自己的备注分开）
   remark: '',
   category: 'MACHINE',
   // 用量是否被人手动改过。没改过的行跟着投单总数走（见 autoQty），
@@ -212,6 +213,7 @@ const blankHeader = () => ({
   customerName: '',
   model: '',
   productCode: '',
+  productId: '', // 产成品在产品档案里的 id（选择器用；代码/型号都从档案回填）
   orderQty: '',
   bareColor: '',
   caseColor: '',
@@ -294,6 +296,28 @@ const pickMaterial = (row, p) => {
   row.auxOptions = p.aux_attributes || [];
   row.auxAttributeId = '';
   row.auxAttributeName = '';
+  // 档案备注（工程写在产品上的工艺要求，如「外露线长90mm」）跟着带出来，录单和车间都得看见。
+  row.productRemark = p.remark || '';
+};
+
+// 投单数量填了就同步到基准产量——同一个数不该输两遍。
+// 手动改过基准产量（或在编辑已存 BOM）就不再覆盖。
+const baseQtyTouched = ref(false);
+watch(
+  () => form.orderQty,
+  v => {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0 || baseQtyTouched.value) return;
+    form.baseQty = String(n);
+  }
+);
+
+// 选定产成品：代码取档案 SKU，型号取档案里的产品名（A80 / K705 这种），省一次手输。
+// 型号已经手填过就不覆盖，避免把人家写的「K13plus 10.1寸P30版/客户定制」抹掉。
+const pickFinishedProduct = p => {
+  form.productId = String(p.id);
+  form.productCode = p.sku || '';
+  if (!form.model.trim()) form.model = p.name || '';
 };
 
 watch(autoQty, v => {
@@ -415,6 +439,94 @@ const discardAndClose = () => {
   dialogRef.value?.close();
 };
 
+// —— 批量粘贴代码（对标金蝶）：从电子投单单复制一整列编码，一次全部匹配进明细 ——
+// 支持「编码」或「编码<tab>用量」（Excel 复制多列就是 tab 分隔）；
+// 匹配不上的照样留一行并标出来，让人手动补选，不至于整批白贴。
+const pasteDialogRef = ref(null);
+const pasteText = ref('');
+const pasteRows = ref([]);
+const pasteBusy = ref(false);
+
+const openPaste = () => {
+  pasteText.value = '';
+  pasteRows.value = [];
+  pasteDialogRef.value?.open();
+};
+
+const parsePasteLines = text =>
+  text
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean)
+    .map(line => {
+      const [code, qty] = line
+        .split(/[\t,;，]+|\s{2,}/)
+        .map(x => (x || '').trim());
+      return { code, qty: Number(qty) > 0 ? String(Number(qty)) : '' };
+    })
+    .filter(r => r.code);
+
+const previewPaste = async () => {
+  const parsed = parsePasteLines(pasteText.value);
+  if (!parsed.length) {
+    useAlert('没读到编码，一行一个');
+    return;
+  }
+  pasteBusy.value = true;
+  try {
+    const { data } = await axios.post(
+      `/api/v1/accounts/${accountId.value}/mes/products/lookup`,
+      { codes: parsed.map(r => r.code) }
+    );
+    const hits = data?.payload || [];
+    pasteRows.value = parsed.map((r, i) => ({
+      ...r,
+      product: hits[i]?.product || null,
+    }));
+  } catch {
+    useAlert('查编码失败，请重试');
+  } finally {
+    pasteBusy.value = false;
+  }
+};
+
+const pasteMatched = computed(
+  () => pasteRows.value.filter(r => r.product).length
+);
+
+const applyPaste = () => {
+  if (!pasteRows.value.length) return;
+  // 先把默认铺的空行清掉，再按粘贴顺序追加。
+  form.rows = form.rows.filter(r => !isRowEmpty(r));
+  pasteRows.value.forEach(r => {
+    const row = blankRow();
+    if (r.product) {
+      row.productId = String(r.product.id);
+      row.materialNo = r.product.sku || r.code;
+      row.materialName = r.product.name || '';
+      row.specification = r.product.specification || '';
+      row.unit = r.product.unit || '';
+      row.auxOptions = r.product.aux_attributes || [];
+      row.productRemark = r.product.remark || '';
+    } else {
+      // 没匹配上的也留一行：编码填上、名称留空，人工补选比重贴一遍省事。
+      row.materialNo = r.code;
+      row.remark = '编码未匹配到产品档案，请手动选料';
+    }
+    row.qty = r.qty || autoQty.value || '';
+    row.qtyTouched = Boolean(r.qty);
+    form.rows.push(row);
+  });
+  if (!form.rows.length) form.rows.push(blankRow());
+  const miss = pasteRows.value.length - pasteMatched.value;
+  useAlert(
+    miss
+      ? `已填入 ${pasteRows.value.length} 行，其中 ${miss} 行没匹配上`
+      : `已填入 ${pasteRows.value.length} 行`
+  );
+  pasteDialogRef.value?.close();
+};
+
 const addRow = () => form.rows.push(blankRow());
 const removeRow = i => {
   const [removed] = form.rows.splice(i, 1);
@@ -503,6 +615,7 @@ const resetAttachments = () => {
 const openCreate = async (preOrder = null) => {
   editingId.value = null;
   editingStatus.value = null;
+  baseQtyTouched.value = false; // 新建：基准产量跟着投单数量走
   changeReason.value = '';
   removedItemIds.value = [];
   attachOrderId.value = '';
@@ -549,6 +662,7 @@ const openCreate = async (preOrder = null) => {
 const openEdit = bom => {
   editingId.value = bom.id;
   editingStatus.value = bom.status;
+  baseQtyTouched.value = true; // 编辑已存 BOM：存下来的基准产量不许被投单数量冲掉
   changeReason.value = '';
   removedItemIds.value = [];
   resetAttachments();
@@ -566,6 +680,7 @@ const openEdit = bom => {
     customerName: bom.customerName || '',
     model: bom.model || '',
     productCode: bom.productCode || '',
+    productId: '',
     orderQty: bom.orderQty ?? '',
     bareColor: bom.bareColor || '',
     caseColor: bom.caseColor || '',
@@ -584,9 +699,11 @@ const openEdit = bom => {
       auxAttributeId: it.crmProductAuxAttributeId
         ? String(it.crmProductAuxAttributeId)
         : '',
-      // 选项要等选中物料后才有；先把存下来的名字摆上，下拉里至少看得见当时选的是什么。
       auxAttributeName: it.auxAttributeName || '',
-      auxOptions: [],
+      // 选项现在由后端按料号从产品档案带回（以前这里是空数组，重开编辑下拉就空了、
+      // 已选属性显示成「—」）。
+      auxOptions: it.auxOptions || [],
+      productRemark: it.productRemark || '',
       remark: it.remark || '',
       category: it.category || 'MACHINE',
       qtyTouched: it.qty != null && it.qty !== '',
@@ -1031,7 +1148,7 @@ onMounted(async () => {
     <Dialog
       ref="dialogRef"
       :dismissible="false"
-      width="5xl"
+      width="6xl"
       overflow-y-auto
       :show-confirm-button="false"
       :show-cancel-button="false"
@@ -1092,7 +1209,15 @@ onMounted(async () => {
             <label class="text-xs text-n-slate-11"
               >产成品代码 <span class="text-n-ruby-11">*</span></label
             >
-            <Input v-model="form.productCode" placeholder="如 P.01.842" />
+            <!-- 换成产品档案选择器：输 01.033 就能搜到 P.01.033，不用连 P 一起打；
+                 选中后型号（档案里的产品名，如 K705）自动填上面那格，不用再手输一遍。 -->
+            <MesProductPicker
+              :model-value="form.productId"
+              :account-id="accountId"
+              :display-text="form.productCode"
+              placeholder="输代码搜，如 01.842"
+              @select="pickFinishedProduct"
+            />
           </div>
           <div v-if="showTabletHeaderFields" class="flex flex-col gap-1">
             <label class="text-xs text-n-slate-11">裸机颜色</label>
@@ -1141,7 +1266,12 @@ onMounted(async () => {
               >基准产量 / 单位</label
             >
             <div class="flex gap-2">
-              <Input v-model="form.baseQty" type="number" class="w-20" />
+              <Input
+                v-model="form.baseQty"
+                type="number"
+                class="w-20"
+                @input="baseQtyTouched = true"
+              />
               <Input v-model="form.unit" placeholder="台" />
             </div>
           </div>
@@ -1180,6 +1310,12 @@ onMounted(async () => {
           </span>
           <span class="flex gap-2 items-center">
             <Button
+              label="批量粘贴代码"
+              variant="ghost"
+              size="sm"
+              @click="openPaste"
+            />
+            <Button
               label="复制到金蝶"
               variant="ghost"
               size="sm"
@@ -1200,10 +1336,12 @@ onMounted(async () => {
           </span>
         </div>
 
-        <div class="flex flex-col gap-2">
+        <!-- 明细区单独横向滚动：11 列挤在弹窗宽度里，拉宽「物料名称」就把「规格型号」
+             压没了。给一个最小宽度后不够宽就横着滚，各列保持看得清。 -->
+        <div class="flex flex-col gap-2 overflow-x-auto">
           <!-- 表头：每列右边一根可拖的竖线（像 Excel），拖完的宽度记在本机。 -->
           <div
-            class="grid gap-2 px-1 text-xs text-n-slate-11"
+            class="grid gap-2 px-1 text-xs min-w-[1180px] text-n-slate-11"
             :style="{ gridTemplateColumns: bomColTemplate }"
           >
             <span
@@ -1244,7 +1382,7 @@ onMounted(async () => {
             class="pb-2 border-b border-dashed border-n-weak last:border-0"
           >
             <div
-              class="grid items-center gap-2"
+              class="grid items-center gap-2 min-w-[1180px]"
               :style="{ gridTemplateColumns: bomColTemplate }"
             >
               <span class="text-xs tabular-nums text-n-slate-10">
@@ -1311,7 +1449,17 @@ onMounted(async () => {
               >
                 {{ row.onHand == null ? '—' : row.onHand }}
               </span>
-              <Input v-model="row.remark" placeholder="备注" />
+              <!-- 本行备注空着时，先把产品档案上的备注（工程写的工艺要求）显出来当占位，
+                   一旦本行自己填了就盖掉；完整内容挂 title。 -->
+              <Input
+                v-model="row.remark"
+                :placeholder="
+                  row.productRemark ? `档案：${row.productRemark}` : '备注'
+                "
+                :title="
+                  row.productRemark ? `产品档案备注：${row.productRemark}` : ''
+                "
+              />
               <button
                 type="button"
                 class="text-n-slate-10 hover:text-n-ruby-11"
@@ -1465,7 +1613,10 @@ onMounted(async () => {
       </div>
 
       <template #footer>
-        <div class="flex items-center justify-between gap-2">
+        <!-- 明细几十行时，按钮粘在底部，不用一路滚到底才点得到保存 -->
+        <div
+          class="flex items-center justify-between gap-2 sticky bottom-0 z-10 -mx-6 -mb-6 px-6 py-4 bg-n-alpha-3 backdrop-blur-[100px] rounded-b-xl"
+        >
           <Button
             label="存为模版"
             variant="outline"
@@ -1552,7 +1703,7 @@ onMounted(async () => {
     <Dialog
       ref="viewDialogRef"
       :dismissible="false"
-      width="5xl"
+      width="6xl"
       overflow-y-auto
       :show-confirm-button="false"
       cancel-button-label="关闭"
@@ -1631,10 +1782,12 @@ onMounted(async () => {
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-left text-n-slate-11 border-b border-n-weak">
+                  <th class="w-10 px-2 py-2 font-medium">#</th>
                   <th class="px-2 py-2 font-medium">类别</th>
                   <th class="px-2 py-2 font-medium">物料编码</th>
                   <th class="px-2 py-2 font-medium">物料名称</th>
                   <th class="px-2 py-2 font-medium">规格型号</th>
+                  <th class="px-2 py-2 font-medium">辅助属性</th>
                   <th class="px-2 py-2 font-medium">单位</th>
                   <th class="px-2 py-2 font-medium text-right">用量</th>
                   <th class="px-2 py-2 font-medium">备注</th>
@@ -1646,6 +1799,9 @@ onMounted(async () => {
                   :key="i"
                   class="border-b border-n-weak"
                 >
+                  <td class="px-2 py-2 tabular-nums text-n-slate-10">
+                    {{ i + 1 }}
+                  </td>
                   <td class="px-2 py-2">
                     <span
                       class="px-2 py-0.5 text-xs rounded-full"
@@ -1668,17 +1824,25 @@ onMounted(async () => {
                     {{ it.specification || '—' }}
                   </td>
                   <td class="px-2 py-2 text-n-slate-11">
+                    {{ it.auxAttributeName || '—' }}
+                  </td>
+                  <td class="px-2 py-2 text-n-slate-11">
                     {{ it.unit || '—' }}
                   </td>
                   <td class="px-2 py-2 text-right text-n-slate-12">
                     {{ it.qty }}
                   </td>
+                  <!-- 本行没写备注就显产品档案上的（工程写的工艺要求），标明来源免得混淆 -->
                   <td class="px-2 py-2 text-n-slate-11">
-                    {{ it.remark || '—' }}
+                    <span v-if="it.remark">{{ it.remark }}</span>
+                    <span v-else-if="it.productRemark" class="text-n-slate-10">
+                      档案：{{ it.productRemark }}
+                    </span>
+                    <span v-else>—</span>
                   </td>
                 </tr>
                 <tr v-if="!(viewing.bomItems || []).length">
-                  <td colspan="7" class="px-2 py-6 text-center text-n-slate-11">
+                  <td colspan="9" class="px-2 py-6 text-center text-n-slate-11">
                     无用料明细
                   </td>
                 </tr>
@@ -1906,6 +2070,72 @@ onMounted(async () => {
           >将保存当前
           {{ form.rows.length }} 行用料与各阶段天数（不含成品）。</span
         >
+      </div>
+    </Dialog>
+    <!-- 批量粘贴代码：从电子投单单复制一整列编码贴进来，一次匹配进明细 -->
+    <Dialog
+      ref="pasteDialogRef"
+      :dismissible="false"
+      width="3xl"
+      overflow-y-auto
+      title="批量粘贴代码"
+      description="从电子投单单复制一整列商品编码贴进来，一行一个；带用量的写成「编码 用量」或从 Excel 直接复制两列。"
+      :show-confirm-button="pasteRows.length > 0"
+      :confirm-button-label="`填入 ${pasteRows.length} 行`"
+      confirm-button-color="iris"
+      @confirm="applyPaste"
+    >
+      <div class="flex flex-col gap-3">
+        <TextArea
+          v-model="pasteText"
+          :rows="8"
+          placeholder="P.01.033&#10;P.03.200&#10;P.04.809	1000"
+        />
+        <div class="flex items-center gap-2">
+          <Button
+            label="匹配产品档案"
+            color="slate"
+            size="sm"
+            :is-loading="pasteBusy"
+            @click="previewPaste"
+          />
+          <span v-if="pasteRows.length" class="text-xs text-n-slate-11">
+            共 {{ pasteRows.length }} 行，匹配上 {{ pasteMatched }} 行
+          </span>
+        </div>
+        <div v-if="pasteRows.length" class="overflow-y-auto max-h-80">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-n-slate-11 border-b border-n-weak">
+                <th class="w-10 px-2 py-2 font-medium">#</th>
+                <th class="px-2 py-2 font-medium">粘贴的编码</th>
+                <th class="px-2 py-2 font-medium">匹配到</th>
+                <th class="px-2 py-2 font-medium text-right">用量</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(r, i) in pasteRows"
+                :key="i"
+                class="border-b border-n-weak"
+              >
+                <td class="px-2 py-1.5 tabular-nums text-n-slate-10">
+                  {{ i + 1 }}
+                </td>
+                <td class="px-2 py-1.5 text-n-slate-12">{{ r.code }}</td>
+                <td class="px-2 py-1.5">
+                  <span v-if="r.product" class="text-n-slate-12">
+                    {{ r.product.sku }} · {{ r.product.name }}
+                  </span>
+                  <span v-else class="text-n-ruby-11">未匹配，需手动选料</span>
+                </td>
+                <td class="px-2 py-1.5 text-right text-n-slate-11">
+                  {{ r.qty || '—' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </Dialog>
   </div>

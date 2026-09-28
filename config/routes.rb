@@ -474,6 +474,7 @@ Rails.application.routes.draw do
               collection do
                 get :categories
                 post :reorder_categories
+                post :lookup
               end
               # 辅助属性：同一物料编码下的可选变体，开单时单选其一
               resources :aux_attributes, only: [:index, :create, :update, :destroy],
@@ -504,6 +505,7 @@ Rails.application.routes.draw do
                 post :reactivate
                 get :export
                 get :export_data
+                post :mark_exported
               end
             end
             resources :purchase_requisitions do
@@ -562,6 +564,8 @@ Rails.application.routes.draw do
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :attach_bom
+                post :detach_bom
+                post :revert_to_bom_ready
                 post :release_purchasing
                 post :mark_outsourced
                 get :requirement

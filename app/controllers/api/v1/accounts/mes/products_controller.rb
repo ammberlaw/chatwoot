@@ -27,6 +27,24 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
                                    .group(:crm_product_id).sum(:qty)
   end
 
+  # 批量按编码查档案：电子投单单上的整列编码复制过来，一次全查出来，不用一个个手搜。
+  # 前缀可有可无（贴 01.033 也认 P.01.033），大小写不敏感；返回按送进来的顺序对齐。
+  def lookup
+    codes = Array(params[:codes]).map { |c| c.to_s.strip }.reject(&:blank?).first(300)
+    return render json: { payload: [] } if codes.empty?
+
+    scope = Current.account.crm_products.includes(:aux_attributes)
+    exact = scope.where('UPPER(sku) IN (?)', codes.map(&:upcase)).index_by { |p| p.sku.to_s.upcase }
+    # 没精确命中的再按「后缀」找一次：业务贴的往往是去掉 P. 前缀的短码。
+    missing = codes.reject { |c| exact.key?(c.upcase) }
+    suffix = missing.any? ? scope.where(missing.map { 'UPPER(sku) LIKE ?' }.join(' OR '), *missing.map { |c| "%#{c.upcase}" }) : []
+    @lookup_rows = codes.map do |code|
+      hit = exact[code.upcase] || suffix.find { |p| p.sku.to_s.upcase.end_with?(code.upcase) }
+      { code: code, product: hit }
+    end
+    render 'api/v1/accounts/mes/products/lookup'
+  end
+
   # 商品类别树：产品线 → 商品类别（source_category）+ 各自条数。
   # 直接按金蝶那列「商品类别」来，不另起一套要人工维护、最终必然和金蝶对不上的分类字典。
   # 不分页、不带产品明细，只回 (产品线, 类别, 条数)，左侧树一次拉完。

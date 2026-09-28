@@ -69,12 +69,19 @@ class Crm::Pi < ApplicationRecord
   before_validation :generate_pi_no, on: :create
   before_save :compute_total
 
-  validates :pi_no, presence: true, uniqueness: { scope: :account_id }
+  validates :pi_no, presence: true,
+                    uniqueness: { scope: :account_id, message: '号已存在，请换一个号（如加 -02 后缀），或直接打开原单编辑' }
   validates :pi_date, presence: true
   validates :status, inclusion: { in: STATUSES }
   validates :currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
 
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
+
+  # 校验报错要直接给业务员看（前端弹的就是 full_messages），别露 Pi no / Pi date 这种列名。
+  def self.human_attribute_name(attr, options = {})
+    # full_message 拼的是「属性名 + 空格 + 消息」，故属性名只留「PI」，由消息自己接上「号…」。
+    { 'pi_no' => 'PI', 'pi_date' => 'PI 日期', 'status' => '状态', 'currency' => '币种' }[attr.to_s] || super
+  end
 
   private
 

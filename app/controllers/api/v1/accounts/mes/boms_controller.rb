@@ -1,6 +1,8 @@
 class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_bom, only: [:show, :update, :destroy, :release]
+  # 谁制单谁改（管理员可代改）——BOM 的 owner 就是工程/PMC 制单人。
+  before_action -> { ensure_owner_or_admin!(@bom, 'BOM') }, only: [:update, :destroy]
 
   def index
     scope = scoped_by_bom_visibility(scoped_by_product_line(Current.account.mes_boms))

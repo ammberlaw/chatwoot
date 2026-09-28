@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_24_200000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_28_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -3132,11 +3132,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_24_200000) do
     t.bigint "gm_id"
     t.datetime "gm_acted_at"
     t.text "gm_comment"
+    t.text "internal_remark"
+    t.integer "export_count", default: 0, null: false
+    t.datetime "last_exported_at"
+    t.bigint "extra_production_order_ids", default: [], null: false, array: true
     t.index ["account_id", "approval_status"], name: "index_mes_purchase_orders_on_account_id_and_approval_status"
     t.index ["account_id", "po_no"], name: "index_mes_purchase_orders_on_account_id_and_po_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_purchase_orders_on_account_and_product_line"
     t.index ["account_id", "status"], name: "index_mes_purchase_orders_on_account_id_and_status"
     t.index ["account_id"], name: "index_mes_purchase_orders_on_account_id"
+    t.index ["extra_production_order_ids"], name: "index_mes_purchase_orders_on_extra_production_order_ids", using: :gin
     t.index ["gm_id"], name: "index_mes_purchase_orders_on_gm_id"
     t.index ["owner_id"], name: "index_mes_purchase_orders_on_owner_id"
     t.index ["production_order_id"], name: "index_mes_purchase_orders_on_production_order_id"

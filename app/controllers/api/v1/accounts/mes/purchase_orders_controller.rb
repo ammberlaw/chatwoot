@@ -2,7 +2,9 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   include Api::V1::Accounts::Mes::DocumentReturnable
 
   before_action :check_authorization
-  before_action :fetch_purchase_order, only: [:show, :update, :destroy, :export, :export_data, :submit, :approve, :reject]
+  before_action :fetch_purchase_order, only: [:show, :update, :destroy, :export, :export_data, :mark_exported, :submit, :approve, :reject]
+  # 谁制单谁改（管理员可代改）——采购单的 owner 就是下单人。
+  before_action -> { ensure_owner_or_admin!(@purchase_order, '采购单') }, only: [:update, :destroy]
 
   # 列筛选。owner_id = 下单人（建单的采购员），跟列表里「归属人」（生产订单的业务员）
   # 不是一回事——采购员要的是「只看我下的单」。
@@ -31,6 +33,8 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   end
 
   def destroy
+    return render json: { error: '只有未提交审批、且还没到过货的草稿采购单可以删除' }, status: :unprocessable_entity unless @purchase_order.deletable?
+
     @purchase_order.destroy!
     head :ok
   end
@@ -82,6 +86,13 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     render json: { error: e.message }, status: :unprocessable_entity
   rescue Mes::GotenbergClient::ConversionError => e
     render json: { error: e.message }, status: :service_unavailable
+  end
+
+  # 导出计次：预览里勾选一变就会重拉一次 PDF，所以不在 export 里记，
+  # 由前端在真正「下载/导出」那一下调这里，列表的次数才等于「传出去过几次」。
+  def mark_exported
+    @purchase_order.record_export!
+    render 'api/v1/accounts/mes/purchase_orders/show'
   end
 
   # 按供应商分组的结构化数据，供前端列出供应商、勾选要导哪几家、以及看/改各家抬头。
@@ -159,7 +170,8 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   def purchase_order_params
     params.require(:purchase_order).permit(
       :production_order_id, :product_line, :status, :expected_date, :follow_up_date, :delivery_date,
-      :has_exception, :exception_note, :owner_id, :remark,
+      :has_exception, :exception_note, :owner_id, :remark, :internal_remark,
+      extra_production_order_ids: [],
       purchase_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :mes_supplier_id, :arrival_date,
         :qty, :unit, :rate_micros, :price_tax_included, :received_qty, :remark, :_destroy

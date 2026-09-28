@@ -10,6 +10,13 @@ client.convert = payload => axios.post(`${client.url}/convert`, payload);
 client.attachBom = (id, payload) =>
   axios.post(`${client.url}/${id}/attach_bom`, payload);
 
+// 解除 BOM 关联（挂错了重挂）→ 退回「待工程接单」。
+client.detachBom = id => axios.post(`${client.url}/${id}/detach_bom`);
+
+// 采购原料退回工程/PMC BOM 阶段。
+client.revertToBomReady = id =>
+  axios.post(`${client.url}/${id}/revert_to_bom_ready`);
+
 // 下发到采购阶段（BOM_READY → PURCHASING）。
 client.releasePurchasing = id =>
   axios.post(`${client.url}/${id}/release_purchasing`);

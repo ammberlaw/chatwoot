@@ -106,6 +106,31 @@ export const useMesProductionOrdersStore = createStore({
       }
     },
 
+    // 解除 BOM 关联 / 采购退回 BOM 阶段：都只按 id 调一次、就地替换记录。
+    async detachBom(id) {
+      return this.postAction(MesProductionOrderAPI.detachBom, id);
+    },
+
+    async revertToBomReady(id) {
+      return this.postAction(MesProductionOrderAPI.revertToBomReady, id);
+    },
+
+    // 只带 id 的动作接口统一走这里：置 loading、替换记录、错误交给调用方弹提示。
+    async postAction(apiFn, id) {
+      this.setUIFlag({ updatingItem: true });
+      try {
+        const { data } = await apiFn(id);
+        const record = camelize(data);
+        const index = this.records.findIndex(r => r.id === record.id);
+        if (index !== -1) this.records[index] = record;
+        return record;
+      } catch (error) {
+        return throwErrorMessage(error);
+      } finally {
+        this.setUIFlag({ updatingItem: false });
+      }
+    },
+
     // 下发到采购阶段，返回更新后的生产订单并就地替换。
     async releasePurchasing(id) {
       this.setUIFlag({ updatingItem: true });

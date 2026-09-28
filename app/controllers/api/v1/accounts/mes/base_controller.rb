@@ -9,6 +9,16 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
     params[:page] || 1
   end
 
+  # 单据「谁制单谁改」：非制单人不得修改，系统管理员可代改。
+  # 同岗位之间原来是互相能改的（有 :order/:bom/:purchase 能力即可），结果业务做的单
+  # 生产能随手改、反过来也一样，出了问题查不到人。制单人为空的老单不拦（没法判定）。
+  def ensure_owner_or_admin!(record, label)
+    return if Current.account_user&.administrator?
+    return if record.owner_id.blank? || record.owner_id == current_user.id
+
+    render json: { error: "#{label}只有制单人本人能修改，需要改请找管理员" }, status: :forbidden
+  end
+
   # 当前切换的产品线（DISPLAY/TABLET），前端 axios 拦截自动注入；空=全部。
   def current_product_line
     params[:product_line].presence

@@ -3,6 +3,30 @@
 # 为什么需要：产品档案里 560 个名字重复（「863主板」42 条同名），靠名字匹配
 # 永远命中多条；PI 上又多是英文自由描述，跟档案名对不上。这两类只能人选一次，
 # 但不该让人选第二次——近 180 天 325 行明细只有 207 种文字、51% 是重复的。
+# == Schema Information
+#
+# Table name: crm_product_aliases
+#
+#  id              :bigint           not null, primary key
+#  hits            :integer          default(1), not null
+#  last_used_at    :datetime
+#  normalized_text :string           not null
+#  sample_text     :string
+#  created_at      :datetime         not null
+#  updated_at      :datetime         not null
+#  account_id      :bigint           not null
+#  crm_product_id  :bigint           not null
+#
+# Indexes
+#
+#  idx_crm_product_aliases_unique               (account_id,normalized_text) UNIQUE
+#  index_crm_product_aliases_on_crm_product_id  (crm_product_id)
+#
+# Foreign Keys
+#
+#  fk_rails_...  (account_id => accounts.id)
+#  fk_rails_...  (crm_product_id => crm_products.id) ON DELETE => cascade
+#
 class Crm::ProductAlias < ApplicationRecord
   belongs_to :account
   belongs_to :crm_product, class_name: 'Crm::Product'

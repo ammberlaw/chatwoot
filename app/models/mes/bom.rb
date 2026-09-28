@@ -103,6 +103,18 @@ class Mes::Bom < ApplicationRecord
     sku_to_pid.transform_values { |pid| onhand[pid] || 0 }
   end
 
+  # 行上要显示的产品档案信息（按料号↔SKU 对上）：档案备注 + 该物料启用中的辅助属性。
+  # 档案备注是工程写死在产品上的工艺要求（如「外露线长90mm」），录单和车间都得看见；
+  # 辅助属性选项要跟着回来，否则重开编辑时下拉是空的、已选的属性显示成「—」。
+  def product_info_by_material_no
+    codes = bom_items.filter_map(&:material_no).uniq
+    return {} if codes.empty?
+
+    Crm::Product.where(account_id: account_id, sku: codes)
+                .includes(:aux_attributes)
+                .index_by(&:sku)
+  end
+
   # 用料快照（供变更前后对比）：按料号（无料号退料名）归一。
   def items_snapshot
     bom_items.map do |i|

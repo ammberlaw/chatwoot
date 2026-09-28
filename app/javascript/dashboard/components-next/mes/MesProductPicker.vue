@@ -115,7 +115,9 @@ const close = () => {
 const openPopover = async () => {
   if (open.value) return;
   teleportTarget.value = triggerEl.value?.closest('dialog') || 'body';
-  q.value = '';
+  // 带着已选料号进搜索态，别清空：清空的话一点进来代码就"不见了"，
+  // 录单的人以为白填了、再点一下又回来——看着像在乱跳。
+  q.value = props.displayText || '';
   open.value = true;
   if (!rows.value.length) fetchRows('');
   await nextTick();
