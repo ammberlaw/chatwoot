@@ -451,6 +451,9 @@ Rails.application.routes.draw do
             get 'reports/income_statement', to: 'reports#income_statement'
             get 'reports/cash_flow', to: 'reports#cash_flow'
             get 'reports/cash_flow_items', to: 'reports#cash_flow_items'
+            get 'reports/account_balances', to: 'reports#account_balances'
+            get 'reports/trial_balance', to: 'reports#trial_balance'
+            get 'reports/tie_check', to: 'reports#tie_check'
             get 'reports/audit_export', to: 'reports#audit_export'
           end
           namespace :mes do

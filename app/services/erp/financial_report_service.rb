@@ -130,6 +130,8 @@ class Erp::FinancialReportService
 
   def line_of(row, liability_side)
     {
+      # id 给前端钻明细账用（财务要的「取数」：这一行的数从哪个科目来）。
+      id: row[:account].id,
       code: row[:account].code,
       name: row[:account].name,
       amount_micros: liability_side ? credit_normal(row) : debit_normal(row)

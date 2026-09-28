@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
 import { frontendURL } from 'dashboard/helper/URLHelper';
@@ -15,6 +15,7 @@ import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 // 账簿：科目余额表 / 明细账 / 维度明细账。数字全部按 POSTED 凭证实时算（草稿与作废不进账），
 // 金额一律本位币。维度明细账是比金蝶强的地方：按客户/供应商/订单/部门/业务员切发生额。
 const router = useRouter();
+const route = useRoute();
 const accountId = useMapGetter('getCurrentAccountId');
 const accountStore = useErpLedgerAccountsStore();
 
@@ -287,9 +288,19 @@ const exportExcel = () => {
   return exportDimensions();
 };
 
+// 带 ?account_id= 进来＝从别处（如报表页的资产负债表）钻某个科目的明细账，
+// 顺带把期间也带过来，否则钻进来看的是本月、跟来源报表的截止日对不上。
 onMounted(async () => {
   if (!accountStore.getRecords.length) await accountStore.get({});
-  loadBalances();
+  const { account_id: drillAccountId, from: qFrom, to: qTo } = route.query;
+  if (qFrom) from.value = qFrom;
+  if (qTo) to.value = qTo;
+  if (drillAccountId) {
+    entryAccountId.value = String(drillAccountId);
+    activeTab.value = 'entries';
+    return loadEntries();
+  }
+  return loadBalances();
 });
 </script>
 
