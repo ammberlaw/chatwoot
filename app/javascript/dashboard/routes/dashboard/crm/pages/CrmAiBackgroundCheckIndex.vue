@@ -46,6 +46,42 @@ const FIELDS = [
 
 // Apollo 企业库补全（按域名，不依赖官网可爬）：公司概况硬字段
 const enrichment = computed(() => result.value?.enrichment || null);
+// 企业库可能按域名匹配到同名的另一家公司，后端比对官网内容后给出的提示
+const enrichWarning = computed(() => result.value?.enrichment_warning || null);
+// 各部门人数：只留有人的部门，按人数降序，英文部门名转中文
+const DEPT_LABELS = {
+  sales: '销售',
+  marketing: '市场',
+  operations: '运营',
+  engineering: '研发',
+  information_technology: 'IT',
+  finance: '财务',
+  accounting: '财务',
+  human_resources: '人事',
+  consulting: '咨询',
+  support: '客服',
+  product_management: '产品',
+  business_development: '商务',
+  data_science: '数据',
+  legal: '法务',
+  administrative: '行政',
+  media_and_commmunication: '市场传播',
+  arts_and_design: '设计',
+  education: '培训',
+  entrepreneurship: '管理层',
+  purchasing: '采购',
+  quality_assurance: '品质',
+};
+const enrichDepartments = computed(() =>
+  Object.entries(enrichment.value?.departments || {})
+    .filter(([, v]) => Number(v) > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([k, v]) => ({
+      name: DEPT_LABELS[k] || k.replace(/_/g, ' '),
+      count: v,
+    }))
+);
 const enrichLocation = computed(() => {
   const e = enrichment.value;
   return e ? [e.city, e.country].filter(Boolean).join('，') : '';
@@ -298,7 +334,8 @@ const openCustomer = customer => {
           v-if="profile.note"
           class="p-3 mt-4 text-sm rounded-lg text-n-slate-12 bg-n-iris-9/5"
         >
-          <span class="font-medium text-n-iris-11">AI 判断：</span>{{ profile.note }}
+          <span class="font-medium text-n-iris-11">AI 判断：</span
+          >{{ profile.note }}
         </div>
       </div>
 
@@ -330,6 +367,34 @@ const openCustomer = customer => {
           <span class="i-lucide-database size-4" />
           Apollo 企业库
         </div>
+
+        <!-- 同名公司提示：企业库按域名匹配，偶尔会命中另一家同名公司，
+             下面这些硬字段就不是这家客户的了。 -->
+        <div
+          v-if="enrichWarning"
+          class="p-3 mt-3 border rounded-xl border-n-amber-6 bg-n-amber-2"
+        >
+          <div
+            class="flex items-start gap-1.5 text-xs font-medium text-n-amber-11"
+          >
+            <span class="mt-px i-lucide-triangle-alert size-3.5 shrink-0" />
+            <span>
+              企业库里这条「{{
+                enrichWarning.company_name
+              }}」可能不是同一家公司，下面的硬字段请先核对
+            </span>
+          </div>
+          <ul class="mt-1.5 ml-5 text-xs list-disc text-n-slate-11">
+            <li v-for="(r, i) in enrichWarning.reasons" :key="i">{{ r }}</li>
+          </ul>
+          <button
+            class="inline-flex items-center gap-1 px-2 py-1 mt-2 ml-5 text-xs rounded-lg text-n-iris-11 bg-n-alpha-2 hover:bg-n-alpha-3"
+            @click="searchByName(enrichWarning.company_name)"
+          >
+            <span class="i-lucide-search size-3.5" />
+            按公司名重查
+          </button>
+        </div>
         <div class="grid grid-cols-2 gap-3 mt-3 sm:grid-cols-4">
           <div v-if="enrichment.employees">
             <div class="text-xs text-n-slate-10">员工规模</div>
@@ -354,6 +419,35 @@ const openCustomer = customer => {
             <div class="mt-0.5 text-sm font-medium text-n-slate-12">
               {{ enrichLocation }}
             </div>
+          </div>
+          <div v-if="enrichment.retail_locations">
+            <div class="text-xs text-n-slate-10">门店数</div>
+            <div class="mt-0.5 text-sm font-medium text-n-slate-12">
+              {{ enrichment.retail_locations }}
+            </div>
+          </div>
+          <div v-if="enrichment.languages?.length">
+            <div class="text-xs text-n-slate-10">办公语言</div>
+            <div class="mt-0.5 text-sm font-medium text-n-slate-12">
+              {{ enrichment.languages.join('、') }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 部门人数分布：对方是贸易公司还是工厂、销售团队多大，比一个总人数有用 -->
+        <div v-if="enrichDepartments.length" class="mt-3">
+          <div class="text-xs text-n-slate-10">部门人数</div>
+          <div class="flex flex-wrap gap-1.5 mt-1.5">
+            <span
+              v-for="d in enrichDepartments"
+              :key="d.name"
+              class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-n-alpha-2 text-n-slate-11"
+            >
+              {{ d.name }}
+              <span class="font-medium text-n-slate-12 tabular-nums">{{
+                d.count
+              }}</span>
+            </span>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-4 mt-3">

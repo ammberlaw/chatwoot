@@ -86,6 +86,12 @@ class Crm::ApolloClient
       founded_year: org['founded_year'],
       employees: org['estimated_num_employees'],
       revenue: org['annual_revenue_printed'],
+      # 原始营收：0 与「没这个数」在界面上要区分开（annual_revenue_printed 两种情况都是空）
+      revenue_raw: org['organization_revenue'],
+      # 各部门人数：判断对方是贸易公司还是工厂、销售团队多大，比一个总人数有用
+      departments: Array(org['departmental_head_count']).to_h.reject { |_k, v| v.to_i.zero? },
+      languages: Array(org['languages']),
+      retail_locations: org['retail_location_count'],
       country: org['country'],
       city: org['city'],
       address: org['raw_address'],
