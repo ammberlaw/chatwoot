@@ -232,6 +232,7 @@ Rails.application.routes.draw do
                 post :bulk_create
                 get :distributed
                 get :distributed_by_me
+                get :forced_cc
               end
               member do
                 post :attach_kb

@@ -16,6 +16,12 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     decorate_list!(@emails)
   end
 
+  # 写信框预填：按当前收件人算出系统会强制补上的抄送（分发留档），发送前显示给用户，
+  # 免得抄送在后端悄悄加上、用户到发出后才发现（见 forced_cc_for）。
+  def forced_cc
+    render json: { addresses: forced_cc_for(params[:to_address]) }
+  end
+
   # 左栏文件夹计数（各文件夹总数 + 收件箱未读），一次查询喂列表页角标。
   # can_view_team：当前用户是否能看「团队邮件」（系统管理员或 CRM 团队负责人）——前端据此显示「我的/团队」切换。
   def counts
@@ -317,17 +323,39 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     "无法发送：#{list}。该客户已被同事建档，需分发或共享给你后才能联系。"
   end
 
-  # 分发强制抄送：老板把某客户的邮件分发给业务员后，业务员再与「同一客户」往来时，
-  # 必须抄送回分发人当初收/发该客户邮件的自有邮箱，让老板留档在环。
-  # 返回：给 to_string 里的客户发信时，必须强制加入 cc 的邮箱地址（可能多个分发人）。
+  # 强制抄送：客户不是业务员自己开发来的（老板分发了邮件、或把客户分配给了他）时，
+  # 业务员再与这个客户往来一律抄送回给他的人，让老板留档在环。
+  # 返回：给 to_string 里的客户发信时，必须强制加入 cc 的邮箱地址（可能多人）。
   def forced_cc_for(to_string)
     addrs = to_string.to_s.scan(EMAIL_RE).map(&:downcase).uniq
     return [] if addrs.empty?
 
+    (cc_from_distributions(addrs) + cc_from_assigner(addrs)).uniq
+  end
+
+  # 来路一：老板把这个客户的某封邮件分发给了我。
+  def cc_from_distributions(addrs)
     Current.account.crm_email_distributions
            .to_user(current_user.id).includes(:crm_email)
            .flat_map { |dist| cc_from_distribution(dist.crm_email, addrs) }
-           .uniq
+  end
+
+  # 来路二：这个客户归我，但是同事分配给我的 —— 抄送分配人名下的发信邮箱。
+  # 认领公海客户、以及自己分给自己都不算（分配人为空，见 CustomersController#reassign）。
+  def cc_from_assigner(addrs)
+    by_contact = Current.account.contacts.where('lower(email) IN (?)', addrs).pluck(:crm_customer_id).compact
+    assigner_ids = Current.account.crm_customers
+                          .where(account_owner_id: current_user.id)
+                          .where('crm_customers.id IN (:ids) OR lower(trim(contact_email)) IN (:addrs)',
+                                 ids: by_contact, addrs: addrs)
+                          .where.not(assigned_by_id: [nil, current_user.id])
+                          .distinct.pluck(:assigned_by_id)
+    return [] if assigner_ids.empty?
+
+    # 每位分配人只抄一个邮箱（默认邮箱优先）——有人名下配了五个，全抄等于给同一个人发五份。
+    Current.account.crm_mail_accounts.where(owner_id: assigner_ids)
+           .order(is_default: :desc, id: :asc)
+           .group_by(&:owner_id).values.map { |boxes| boxes.first.email_address }
   end
 
   # 单条分发记录：若被分发邮件的对方(客户)命中本次收件人，返回分发人自有邮箱(应抄送地址)。
@@ -341,8 +369,17 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
     counterparty = (inbox ? email.from_address : email.to_address).to_s.downcase.scan(EMAIL_RE)
     return [] if (addrs & counterparty).empty?
 
-    # 回抄分发人自有侧的全部邮箱(多地址时不能只取第一个,否则老板留档漏抄)。
-    (inbox ? email.to_address : email.from_address).to_s.scan(EMAIL_RE)
+    # 回抄分发人自有侧的全部邮箱(多地址时不能只取第一个,否则老板留档漏抄)，
+    # 但只认公司自有邮箱：客户的群发询盘会把同行的地址一起写在收件人栏里，
+    # 整条收件人原样回抄，等于把我们的回复抄送给同行。
+    own_side = (inbox ? email.to_address : email.from_address).to_s.scan(EMAIL_RE)
+    own_side.select { |a| own_mailbox_addresses.include?(a.downcase) }
+  end
+
+  # 本账号已配置的自有发信邮箱（小写），强制抄送只允许落在这些地址上。
+  def own_mailbox_addresses
+    @own_mailbox_addresses ||= Current.account.crm_mail_accounts.pluck(:email_address)
+                                      .compact_blank.map { |a| a.downcase.strip }
   end
 
   # 把强制抄送地址并入现有 cc 串（大小写去重、保留用户原填的抄送）。

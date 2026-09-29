@@ -32,6 +32,7 @@ class Crm::MemberDeletionService
   def nullify_residual_ownership
     @account.crm_customers.where(account_owner_id: @user.id).update_all(account_owner_id: nil) # rubocop:disable Rails/SkipsModelValidations
     @account.crm_customers.where(previous_owner_id: @user.id).update_all(previous_owner_id: nil) # rubocop:disable Rails/SkipsModelValidations
+    @account.crm_customers.where(assigned_by_id: @user.id).update_all(assigned_by_id: nil) # rubocop:disable Rails/SkipsModelValidations
   end
 
   # 个人数据(NOT NULL 无 nullify 外键)：删前清掉。日程用 destroy_all 以级联其参与人。

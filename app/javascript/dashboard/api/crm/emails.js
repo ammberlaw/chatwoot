@@ -44,6 +44,10 @@ client.bulkCreate = formData =>
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
+// 写信框预览：这次发信后端会强制补哪些抄送（分发留档），发送前显示给用户。
+client.forcedCc = toAddress =>
+  axios.get(`${client.url}/forced_cc${qs({ to_address: toAddress })}`);
+
 // 内部分发：把本邮件（正文+附件）分发给内部同事查看（站内流转，不外发）。
 client.distribute = (id, payload) =>
   axios.post(`${client.url}/${id}/distribute`, payload);

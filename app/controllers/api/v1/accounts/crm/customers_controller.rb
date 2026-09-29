@@ -206,7 +206,12 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   end
 
   def update
-    @customer.update!(customer_params)
+    attrs = customer_params
+    # 在编辑里直接换负责人，与「批量分配」是同一件事，同样记下分配人（见 #reassign）。
+    if attrs[:account_owner_id].present? && attrs[:account_owner_id].to_i != @customer.account_owner_id
+      attrs = attrs.merge(assigned_by_id: attrs[:account_owner_id].to_i == current_user.id ? nil : current_user.id)
+    end
+    @customer.update!(attrs)
     # 编辑弹窗带来的「其他联系人」：upsert（不删除既有邮件自动挂接的联系人）。
     @customer.sync_contacts(contact_entries) if params.dig(:customer, :contacts).present?
   end
@@ -223,7 +228,11 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     return render json: { error: '只能分配给自己团队的业务员' }, status: :forbidden unless reassign_target_allowed?(customers, target_id)
 
     customer_ids = customers.pluck(:id)
-    Current.account.crm_customers.where(id: customer_ids).update_all(account_owner_id: target_id, updated_at: Time.current)
+    # 记下分配人：新负责人回复该客户时要自动抄送他留档（见 EmailsController#forced_cc_for）。
+    # 分给自己不算「别人分给我」，置空。
+    assigned_by = target_id == current_user.id ? nil : current_user.id
+    Current.account.crm_customers.where(id: customer_ids)
+           .update_all(account_owner_id: target_id, assigned_by_id: assigned_by, updated_at: Time.current)
     cascade_reassign(customer_ids, target_id, cascade_options)
     render json: { reassigned: customer_ids.size }
   end
@@ -274,7 +283,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     @customer.with_lock do
       next unless @customer.is_in_public_pool?
 
-      @customer.update!(account_owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil)
+      @customer.update!(account_owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil, assigned_by_id: nil)
       claimed = true
     end
     return render json: { message: '该客户已被他人认领' }, status: :forbidden unless claimed

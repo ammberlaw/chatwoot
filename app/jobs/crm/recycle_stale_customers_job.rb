@@ -44,7 +44,8 @@ class Crm::RecycleStaleCustomersJob < ApplicationJob
     stale = stale.where.not(last_follow_up_at: nil) unless settings.recycle_never_followed?
     # 批量置入公海（记录原归属人供领回冷却校验），单条 UPDATE 无需逐条校验
     stale.update_all( # rubocop:disable Rails/SkipsModelValidations
-      'is_in_public_pool = TRUE, public_pool_at = NOW(), previous_owner_id = account_owner_id, account_owner_id = NULL'
+      'is_in_public_pool = TRUE, public_pool_at = NOW(), previous_owner_id = account_owner_id, ' \
+      'account_owner_id = NULL, assigned_by_id = NULL'
     )
   end
 end

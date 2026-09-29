@@ -20,6 +20,11 @@ class Crm::EmailPolicy < ApplicationPolicy
     true
   end
 
+  # 写信框预览强制抄送：只读自己名下的分发记录，与建单同权限。
+  def forced_cc?
+    true
+  end
+
   def mailboxes?
     true
   end

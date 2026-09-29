@@ -75,6 +75,8 @@ const L = {
   cc: '抄送',
   bcc: '密送',
   ccPlaceholder: '抄送邮箱',
+  autoCc: '自动抄送',
+  autoCcHint: '（该客户由同事分发/分配给你，发送时自动抄送对方邮箱留档）',
   bccPlaceholder: '密送邮箱（收件人看不到）',
   customer: '客户',
   customerPlaceholder: '搜索客户（可选，自动带出联系人邮箱）',
@@ -300,6 +302,10 @@ const addRecipient = (field, r) => {
 };
 const showCc = ref(false);
 const showBcc = ref(false);
+// 分发留档抄送：后端按收件人自动补的抄送地址（见 emails_controller#forced_cc_for）。
+// 这些地址是发送时后端加的、抄送栏里看不见，所以在写信框里先显出来，别让人以为谁都没抄。
+const autoCc = ref([]);
+let autoCcTimer = null;
 
 // 写信窗口形态（仿 Gmail）：small=右下停靠小窗（无遮罩，可操作背后页面、点别处不关）；
 // large=居中放大（带遮罩）；minimized=只留标题栏。
@@ -762,6 +768,27 @@ const loadKbDocs = async () => {
     }))
     .filter(d => d.files.length > 0);
 };
+
+// ---- 分发留档抄送预览：收件人一变就问后端这次会自动抄谁 ----
+watch(
+  () => form.to.map(r => r.email).join(','),
+  to => {
+    clearTimeout(autoCcTimer);
+    if (!to) {
+      autoCc.value = [];
+      return;
+    }
+    autoCcTimer = setTimeout(async () => {
+      try {
+        const { data } = await CrmEmailAPI.forcedCc(to);
+        autoCc.value = data.addresses || [];
+      } catch {
+        // 预览失败不挡写信：后端发送时仍会按规则补抄送。
+        autoCc.value = [];
+      }
+    }, 350);
+  }
+);
 
 // ---- 客户搜索 ----
 watch(customerQuery, () => {
@@ -1381,6 +1408,8 @@ const reset = () => {
   form.crmCustomerId = null;
   showCc.value = false;
   showBcc.value = false;
+  clearTimeout(autoCcTimer);
+  autoCc.value = [];
   minimized.value = false;
   resetDrag();
   quoteHtmlRaw.value = '';
@@ -1741,6 +1770,20 @@ defineExpose({ open, close });
               class="flex-1 py-1.5"
               :placeholder="L.bccPlaceholder"
             />
+          </div>
+
+          <!-- 分发留档抄送：后端发送时自动补的抄送，抄送栏里看不到，这里先告诉用户 -->
+          <div
+            v-if="autoCc.length"
+            class="flex items-start px-4 py-2 border-b border-n-weak"
+          >
+            <span class="w-14 shrink-0 text-[13px] leading-5 text-n-slate-10">
+              {{ L.autoCc }}
+            </span>
+            <span class="flex-1 text-[13px] leading-5 text-n-slate-12">
+              {{ autoCc.join('、') }}
+              <span class="text-xs text-n-slate-10">{{ L.autoCcHint }}</span>
+            </span>
           </div>
 
           <!-- 主题 -->

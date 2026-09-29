@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_29_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_29_200000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1084,6 +1084,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_29_100000) do
     t.text "ai_next_step"
     t.datetime "ai_next_step_at"
     t.string "alibaba_account"
+    t.bigint "assigned_by_id"
     t.index "account_id, lower((alibaba_account)::text)", name: "index_crm_customers_on_account_id_and_alibaba_account"
     t.index ["account_id", "customer_code"], name: "index_crm_customers_on_account_id_and_customer_code", unique: true, where: "(customer_code IS NOT NULL)"
     t.index ["account_id", "customer_status"], name: "index_crm_customers_on_account_id_and_customer_status"
