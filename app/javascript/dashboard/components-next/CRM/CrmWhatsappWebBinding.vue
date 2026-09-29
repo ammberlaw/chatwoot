@@ -201,7 +201,7 @@ onBeforeUnmount(stopPolling);
       <Button
         :label="L.add"
         icon="i-lucide-plus"
-        color="teal"
+        :color="goColor"
         size="sm"
         :is-loading="adding"
         @click="addNumber"

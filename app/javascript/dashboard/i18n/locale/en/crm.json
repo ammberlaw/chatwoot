@@ -238,16 +238,7 @@
         "SUCCESS": "商机已保存",
         "ERROR": "保存失败"
       },
-      "IMPORTANT": "重要商机",
-      "POOL": {
-        "CLAIM": "认领",
-        "CLAIM_SUCCESS": "认领成功，商机已归入你的名下",
-        "CLAIM_ERROR": "认领失败",
-        "RELEASE": "转入商机公海",
-        "RELEASE_CONFIRM": "确认将「{name}」转入商机公海？转后你将不再是负责人，全员可认领。",
-        "RELEASE_SUCCESS": "已转入商机公海",
-        "RELEASE_ERROR": "操作失败"
-      }
+      "IMPORTANT": "重要商机"
     },
     "PI": {
       "HEADER": "PI 管理",
@@ -983,7 +974,7 @@
     },
     "POOL_SETTINGS": {
       "HEADER": "公海设置",
-      "SUBTITLE": "客户/商机流转规则与各客户分组的私海上限",
+      "SUBTITLE": "客户流转规则与各客户分组的私海上限",
       "LOADING": "加载中…",
       "LOAD_ERROR": "加载失败",
       "SAVE": "保存",
@@ -995,11 +986,6 @@
       "STALE_DAYS": "默认未跟进时限（天）",
       "STALE_DAYS_HINT": "未单独设置天数的分组按此默认值回收",
       "RECYCLE_NEVER_FOLLOWED": "从未跟进的客户也回收（按建档时间计算时限）",
-      "OPP_SECTION": "商机流转规则",
-      "OPP_HINT": "与客户流转同机制：每天凌晨自动执行，超时未更新的在管商机自动流入商机公海（已成交/输单不参与）。",
-      "OPP_ENABLED": "启用商机自动流转",
-      "OPP_STALE_DAYS": "未更新时限（天）",
-      "OPP_STALE_DAYS_HINT": "商机超过该天数无任何更新（编辑、推进阶段等）即流入商机公海",
       "COL_GROUP": "客户分组",
       "COL_LIMIT": "上限（人/组）",
       "NO_LIMIT": "不限",
@@ -1078,7 +1064,6 @@
       "LOADING": "加载中…",
       "VIEW_BOARD": "商机看板",
       "VIEW_LIST": "商机列表",
-      "VIEW_POOL": "商机公海",
       "SORT_DEFAULT": "默认排序（最近更新）",
       "SORT_CREATED": "按创建时间",
       "SORT_AMOUNT": "按金额",

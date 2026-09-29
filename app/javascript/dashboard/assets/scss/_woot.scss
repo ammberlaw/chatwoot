@@ -32,6 +32,10 @@ body {
   -webkit-font-smoothing: antialiased;
   height: 100%;
   margin: 0;
+
+  // 页面本身正好一屏、从不滚动，但 macOS 会把内层列表「滚到底还在划」的动作
+  // 接力给文档做橡皮筋回弹——整个应用被顶上去，下面露出一条白底。关掉滚动链即可。
+  overscroll-behavior: none;
   padding: 0;
   width: 100%;
 }

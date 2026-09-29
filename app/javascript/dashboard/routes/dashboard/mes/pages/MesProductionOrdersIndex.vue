@@ -1393,7 +1393,8 @@ watch(currentPage, fetchRecords);
                 </span>
                 <span
                   v-if="isStalled(po)"
-                  class="shrink-0 text-xs text-n-amber-11"
+                  v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
+                  class="shrink-0 text-xs cursor-help text-n-ruby-11"
                 >
                   ⚠
                 </span>
@@ -1576,7 +1577,7 @@ watch(currentPage, fetchRecords);
                     <span
                       v-if="isStalled(po)"
                       v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
-                      class="ml-1 text-xs text-n-amber-11"
+                      class="ml-1 text-xs cursor-help text-n-ruby-11"
                     >
                       ⚠
                     </span>

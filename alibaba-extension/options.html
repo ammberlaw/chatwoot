@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>wintouchspace 建档助手 · 设置</title>
+<style>
+  body { font: 14px/1.6 -apple-system, "PingFang SC", system-ui, sans-serif; margin: 0; padding: 28px 32px; color: #1f2430; background: #f7f7f8; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 24px; color: #6b7280; font-size: 13px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 18px 0 6px; }
+  input { width: 100%; box-sizing: border-box; padding: 9px 11px; font-size: 13px; border: 1px solid #d6d8dd; border-radius: 8px; background: #fff; }
+  input:focus { outline: 2px solid #ffc53d; outline-offset: -1px; border-color: #ffc53d; }
+  .hint { font-size: 12px; color: #6b7280; margin-top: 5px; }
+  button { margin-top: 22px; padding: 9px 20px; font-size: 13px; font-weight: 600; border: 0; border-radius: 8px; background: #ffc53d; color: #1a1c20; cursor: pointer; }
+  button:disabled { opacity: .55; cursor: default; }
+  #status { margin-top: 18px; font-size: 13px; padding: 11px 13px; border-radius: 8px; display: none; }
+  #status.ok { display: block; background: #e4f3e0; color: #37702f; }
+  #status.err { display: block; background: #fde8e8; color: #a02c2c; }
+</style>
+
+<h1>wintouchspace 建档助手</h1>
+<p class="sub">填一个令牌就行，账户和本人身份会自动探出来。</p>
+
+<label for="baseUrl">CRM 地址</label>
+<input id="baseUrl" placeholder="https://wintouchspace.com" />
+<div class="hint">本地调试填 http://localhost:3001</div>
+
+<label for="token">个人访问令牌</label>
+<input id="token" type="password" placeholder="粘贴令牌" />
+<div class="hint">在 wintouchspace 里打开「个人设置 → 访问令牌」复制。令牌只存在本机浏览器里，不会进阿里页面。</div>
+
+<button id="save">保存并验证</button>
+<div id="status"></div>
+
+<script src="options.js"></script>

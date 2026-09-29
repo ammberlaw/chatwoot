@@ -70,6 +70,7 @@ const form = reactive({
   contactPhone: '',
   wechat: '',
   whatsApp: '',
+  alibabaAccount: '',
   contactPreference: '',
   customerRemark: '',
 });
@@ -81,6 +82,7 @@ const router = useRouter();
 const emailHit = ref(null);
 const phoneHit = ref(null);
 const nameHits = ref([]);
+const alibabaHit = ref(null);
 const submitting = ref(false);
 const result = ref(null);
 
@@ -149,30 +151,45 @@ const api = () => `/api/v1/accounts/${accountId.value}/crm`;
 // 实时查重：输入停顿 450ms 后查邮箱(精确)+手机/WhatsApp(后 9 位)+公司名(相似)
 let dedupeTimer = null;
 watch(
-  () => [form.email, form.name, form.contactPhone, form.whatsApp],
+  () => [
+    form.email,
+    form.name,
+    form.contactPhone,
+    form.whatsApp,
+    form.alibabaAccount,
+  ],
   () => {
     clearTimeout(dedupeTimer);
     dedupeTimer = setTimeout(async () => {
       const email = form.email.trim();
       const name = form.name.trim();
       const phone = (form.contactPhone || form.whatsApp).trim();
+      const alibaba = form.alibabaAccount.trim();
       const noEmail = email.length <= 3 || !email.includes('@');
-      if (noEmail && name.length < 2 && phone.replace(/\D/g, '').length < 8) {
+      if (
+        noEmail &&
+        name.length < 2 &&
+        alibaba.length < 3 &&
+        phone.replace(/\D/g, '').length < 8
+      ) {
         emailHit.value = null;
         phoneHit.value = null;
+        alibabaHit.value = null;
         nameHits.value = [];
         return;
       }
       try {
         const { data } = await axios.get(`${api()}/customers/check_duplicate`, {
-          params: { email, name, phone },
+          params: { email, name, phone, alibaba_account: alibaba },
         });
         emailHit.value = data.email_hit;
         phoneHit.value = data.phone_hit;
+        alibabaHit.value = data.alibaba_hit;
         nameHits.value = data.name_hits || [];
       } catch {
         emailHit.value = null;
         phoneHit.value = null;
+        alibabaHit.value = null;
         nameHits.value = [];
       }
     }, 450);
@@ -366,11 +383,17 @@ const importBackground = () => {
   useAlert(filled.length ? `已导入：${filled.join('、')}` : '没有可导入的新信息');
 };
 
-// 联系邮箱和手机/WhatsApp 至少要有一个：WhatsApp 来的客户往往没邮箱，
-// 强制邮箱等于让这类客户建不了档；没邮箱时手机号就是查重依据（见 phoneBlocking）。
+// 联系邮箱、手机/WhatsApp、阿里买家账号，至少要有一个：WhatsApp 来的客户往往没邮箱，
+// 阿里来的客户邮箱被平台藏了，强制邮箱等于让这两类客户都建不了档。
+// 没邮箱时手机号/阿里账号就是查重依据（见 phoneBlocking / alibabaHit）。
 const hasContactKey = computed(
   () =>
-    !!(form.email.trim() || form.contactPhone.trim() || form.whatsApp.trim())
+    !!(
+      form.email.trim() ||
+      form.contactPhone.trim() ||
+      form.whatsApp.trim() ||
+      form.alibabaAccount.trim()
+    )
 );
 
 const missing = computed(() => {
@@ -379,7 +402,7 @@ const missing = computed(() => {
   if (!form.customerGroup) m.push('客户分组');
   if (!form.productGroup) m.push('产品分组');
   if (!form.primaryContactName.trim()) m.push('主要联系人');
-  if (!hasContactKey.value) m.push('联系邮箱或手机号');
+  if (!hasContactKey.value) m.push('联系邮箱 / 手机号 / 阿里买家账号');
   return m;
 });
 
@@ -390,6 +413,7 @@ const canSubmit = computed(
   () =>
     missing.value.length === 0 &&
     !emailHit.value &&
+    !alibabaHit.value &&
     !phoneBlocking.value &&
     !submitting.value
 );
@@ -444,6 +468,7 @@ const submit = async () => {
     contact_phone: trimmed(form.contactPhone),
     wechat: trimmed(form.wechat),
     whats_app: trimmed(form.whatsApp),
+    alibaba_account: trimmed(form.alibabaAccount),
     contact_preference: form.contactPreference || null,
     customer_remark: trimmed(form.customerRemark),
     account_owner_id: currentUserId.value,
@@ -491,13 +516,6 @@ const submit = async () => {
     </div>
 
     <div class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5">
-      <p class="text-xs text-n-slate-11">
-        新客户建档。<strong class="text-n-slate-12">建档后客户自动归你名下（私海）</strong
-        >，客户编号自动生成。带
-        <span class="text-n-ruby-11">*</span>
-        为必填；同一邮箱只能被一个客户建档，没有邮箱的（如 WhatsApp 客户）填手机号也能建。
-      </p>
-
       <div
         v-if="draftRestored"
         class="flex items-center justify-between gap-2 p-3 text-sm border rounded-lg border-n-amber-8 text-n-amber-11"
@@ -522,6 +540,22 @@ const submit = async () => {
           · {{ emailHit.owner }}
         </span>
         <span class="text-xs text-n-slate-11">无法用相同邮箱重复建档，请换邮箱或联系负责人。</span>
+      </div>
+
+      <div
+        v-if="alibabaHit"
+        class="flex flex-col gap-1 p-3 text-sm border rounded-lg border-n-ruby-8 text-n-ruby-11"
+      >
+        <span>
+          ⛔ 该阿里买家账号已被建档：<strong>{{ alibabaHit.name }}</strong>
+          <template v-if="alibabaHit.customer_code">
+            （{{ alibabaHit.customer_code }}）
+          </template>
+          · {{ alibabaHit.owner }}
+        </span>
+        <span class="text-xs text-n-slate-11">
+          同一个阿里买家只能被一个人建档，撞上了请联系负责人。
+        </span>
       </div>
 
       <div
@@ -839,6 +873,15 @@ const submit = async () => {
             v-model="form.whatsApp"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
             placeholder="WhatsApp 号"
+          />
+        </label>
+        <label class="flex flex-col gap-1">
+          <!-- 阿里来源客户平台把邮箱藏了，买家账号是多店铺之间唯一能对得上的身份 -->
+          <span class="text-xs text-n-slate-11">阿里买家账号</span>
+          <input
+            v-model="form.alibabaAccount"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="如 cn1234567890"
           />
         </label>
         <label class="flex flex-col gap-1">

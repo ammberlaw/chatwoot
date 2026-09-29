@@ -30,29 +30,6 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
     head :ok
   end
 
-  # 认领公海商机：归入自己名下（公海商机对全员开放，不走 owner 范围）。
-  def claim
-    @opportunity = Current.account.crm_opportunities.find(params[:id])
-    # 锁内复检仍在公海：两人同时认领同一公海商机时只有先拿锁的成功，杜绝静默抢单覆盖。
-    claimed = false
-    @opportunity.with_lock do
-      next unless @opportunity.is_in_public_pool?
-
-      @opportunity.update!(owner_id: current_user.id, is_in_public_pool: false, public_pool_at: nil)
-      claimed = true
-    end
-    return render json: { message: '该商机已被他人认领' }, status: :forbidden unless claimed
-
-    render :show
-  end
-
-  # 释放到商机公海：仅可释放自己数据范围内的商机。
-  def release
-    @opportunity = scope_by_team_owner(Current.account.crm_opportunities).find(params[:id])
-    @opportunity.move_to_public_pool!
-    render :show
-  end
-
   private
 
   # 按可见范围取商机：业务员只能查看/编辑/删除自己的，主管本团队，管理员全部。
@@ -71,18 +48,15 @@ class Api::V1::Accounts::Crm::OpportunitiesController < Api::V1::Accounts::Crm::
     scope = scoped_opportunities
     return scope if params[:q].blank?
 
-    # 看板快速查找：按商机名或客户名模糊搜（覆盖常规看板与公海）。
+    # 看板快速查找：按商机名或客户名模糊搜。
     keyword = "%#{params[:q].strip}%"
     scope.left_joins(:crm_customer)
          .where('crm_opportunities.name ILIKE :q OR crm_customers.name ILIKE :q', q: keyword)
   end
 
   def scoped_opportunities
-    # 商机公海：全员可见全公司的池子，不按 owner 过滤（与客户公海同口径）。
-    return Current.account.crm_opportunities.in_public_pool if params[:filter] == 'public_pool'
-
-    # 数据范围（按 CRM 角色）：管理员全部 / 主管团队 / 业务员本人。公海商机不混入常规视图。
-    scope = scope_by_team_owner(view_scoped(Current.account.crm_opportunities.in_private_pool))
+    # 数据范围（按 CRM 角色）：管理员全部 / 主管团队 / 业务员本人。
+    scope = scope_by_team_owner(view_scoped(Current.account.crm_opportunities))
     scope = scope.where(sales_stage: params[:sales_stage]) if params[:sales_stage].present?
     scope = scope.where(crm_customer_id: params[:customer_id]) if params[:customer_id].present?
     scope = scope.where(owner_id: filter_owner_ids) if filter_owner_ids

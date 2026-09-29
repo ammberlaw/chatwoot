@@ -1773,7 +1773,9 @@ watch(
       <div
         class="flex flex-col flex-1 min-h-0 overflow-hidden rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/30"
       >
-        <div class="flex-1 min-h-0 px-3.5 py-1 overflow-auto">
+        <div
+          class="flex-1 min-h-0 px-3.5 py-1 overflow-auto md:overflow-hidden md:flex md:flex-col"
+        >
           <div
             v-if="isFetching"
             class="flex items-center justify-center p-8 text-sm text-n-slate-11"
@@ -1786,7 +1788,7 @@ watch(
           >
             {{ t('CRM.CUSTOMERS.EMPTY') }}
           </div>
-          <div v-else>
+          <div v-else class="md:flex md:flex-col md:flex-1 md:min-h-0">
             <!-- 手机卡片列表（桌面隐藏，见下方表格） -->
             <div class="flex flex-col gap-2 py-2 md:hidden">
               <div
@@ -1885,7 +1887,8 @@ watch(
               </div>
             </div>
             <!-- 桌面表格 -->
-            <div class="hidden overflow-x-auto md:block">
+            <!-- 表头固定：这一层同时承担横向与纵向滚动，sticky 才有参照物 -->
+            <div class="hidden md:block md:flex-1 md:min-h-0 overflow-auto">
               <table
                 class="w-full text-[13px] text-left border-separate border-spacing-0"
               >
@@ -1893,7 +1896,7 @@ watch(
                   <tr class="[&>th]:border-b [&>th]:border-n-weak">
                     <th
                       v-if="canSelectRows"
-                      class="sticky left-0 z-20 w-11 px-3 py-2.5 bg-white"
+                      class="sticky left-0 top-0 z-30 w-11 px-3 py-2.5 bg-white"
                     >
                       <input
                         type="checkbox"
@@ -1903,7 +1906,7 @@ watch(
                       />
                     </th>
                     <th
-                      class="sticky z-20 px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
+                      class="sticky top-0 z-30 px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
                       :class="canSelectRows ? 'left-11' : 'left-0'"
                     >
                       {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
@@ -1913,7 +1916,7 @@ watch(
                       v-for="col in orderedColumns"
                       :key="col.key"
                       draggable="true"
-                      class="px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap cursor-move select-none transition-colors"
+                      class="sticky top-0 z-20 px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap cursor-move select-none transition-colors bg-white"
                       :class="[
                         col.align === 'right' ? 'text-right' : '',
                         dragColKey === col.key ? 'opacity-40' : '',
@@ -1938,7 +1941,7 @@ watch(
                       <span v-else>{{ col.label() }}</span>
                     </th>
                     <th
-                      class="px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap"
+                      class="sticky top-0 z-20 px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap bg-white"
                     >
                       {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
                     </th>

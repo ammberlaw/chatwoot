@@ -224,13 +224,7 @@ const MES_ORDER_STATUS = {
   CANCELLED: '已取消',
 };
 const files = computed(() => customer.value.files || []);
-// 优先展示还在管的商机；都进了商机公海才退回第一条（并在卡上打标，见模板）。
-const primaryOpp = computed(
-  () =>
-    opportunities.value.find(o => !o.is_in_public_pool) ||
-    opportunities.value[0] ||
-    null
-);
+const primaryOpp = computed(() => opportunities.value[0] || null);
 const openTasks = computed(() =>
   tasks.value.filter(t => t.status !== 'DONE' && t.status !== 'CANCELLED')
 );
@@ -756,16 +750,7 @@ onMounted(() => {
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
             <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center gap-2">
-                <h3 class="text-sm font-semibold text-n-slate-12">商机信息</h3>
-                <span
-                  v-if="primaryOpp?.is_in_public_pool"
-                  class="px-2 py-0.5 text-xs rounded-md bg-n-amber-3 text-n-amber-11"
-                  title="长期未更新已自动释放到商机公海，看板里不再显示，需在商机公海认领后才回到看板"
-                >
-                  已进商机公海
-                </span>
-              </div>
+              <h3 class="text-sm font-semibold text-n-slate-12">商机信息</h3>
               <button
                 v-if="primaryOpp"
                 class="text-xs text-n-iris-11 hover:underline"

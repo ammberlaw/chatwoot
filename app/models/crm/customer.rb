@@ -9,6 +9,7 @@
 #  address                  :string
 #  ai_next_step             :text
 #  ai_next_step_at          :datetime
+#  alibaba_account          :string
 #  completeness_grade       :string
 #  contact_email            :string
 #  contact_job_title        :string
@@ -52,6 +53,7 @@
 # Indexes
 #
 #  index_crm_customers_on_account_id                        (account_id)
+#  index_crm_customers_on_account_id_and_alibaba_account    (account_id, lower((alibaba_account)::text))
 #  index_crm_customers_on_account_id_and_customer_code      (account_id,customer_code) UNIQUE WHERE (customer_code IS NOT NULL)
 #  index_crm_customers_on_account_id_and_customer_status    (account_id,customer_status)
 #  index_crm_customers_on_account_id_and_is_in_public_pool  (account_id,is_in_public_pool)

@@ -37,7 +37,6 @@ class Crm::PublicPoolSetting < ApplicationRecord
 
   validates :account_id, uniqueness: true
   validates :stale_days, numericality: { greater_than: 0 }
-  validates :opportunity_stale_days, numericality: { greater_than: 0 }
 
   GROUP_LIMIT_FIELDS = {
     'KEY_ACCOUNT_WON' => :pool_limit_key_account_won,

@@ -94,12 +94,6 @@ crm_expire_quotes_job:
   class: 'Crm::ExpireQuotesJob'
   queue: scheduled_jobs
 
-# CRM：商机超期自动进商机公海（同客户公海节奏）
-crm_recycle_stale_opportunities_job:
-  cron: '0 18 * * *'
-  class: 'Crm::RecycleStaleOpportunitiesJob'
-  queue: scheduled_jobs
-
 # CRM：工作月报，每月 1 号推上月经营数据给业务员/主管/管理员（北京时间 08:00 = UTC 00:00）
 crm_monthly_report_job:
   cron: '0 0 1 * *'

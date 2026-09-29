@@ -100,12 +100,7 @@ Rails.application.routes.draw do
                 post :reorder
               end
             end
-            resources :opportunities do
-              member do
-                post :claim
-                post :release
-              end
-            end
+            resources :opportunities
             # 展会邀约获客：展会 + 匹配潜客 + 加入名单；邀约记录的邀请函生成/阶段流转。
             resources :exhibitions do
               member do

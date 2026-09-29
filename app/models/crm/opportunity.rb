@@ -57,8 +57,6 @@ class Crm::Opportunity < ApplicationRecord
 
   scope :open_stages, -> { where.not(sales_stage: %w[WON LOST]) }
   scope :owned_by, ->(user_id) { where(owner_id: user_id) }
-  scope :in_public_pool, -> { where(is_in_public_pool: true) }
-  scope :in_private_pool, -> { where(is_in_public_pool: false) }
 
   def amount
     amount_micros.to_f / 1_000_000 if amount_micros
@@ -75,10 +73,5 @@ class Crm::Opportunity < ApplicationRecord
     # 避免外币商机因暂无历史牌价被静默排除出人民币汇总，导致看板金额偏低。
     rate = Crm::FxRate.rate_for(currency, Date.current) || Crm::FxRate.rate_on_or_after(currency, Date.current)
     rate && (amount_micros * rate).round
-  end
-
-  # 释放到商机公海：脱离原负责人，全员可见可认领（与客户公海同构）。
-  def move_to_public_pool!(at: Time.current)
-    update!(is_in_public_pool: true, public_pool_at: at, owner_id: nil)
   end
 end

@@ -101,7 +101,9 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     'contact_email' => { expr: "LOWER(NULLIF(TRIM(contact_email), ''))", min_len: 5 },
     'contact_phone' => { expr: format(PHONE_NORM_SQL, 'contact_phone'), min_len: 6 },
     'whats_app' => { expr: format(PHONE_NORM_SQL, 'whats_app'), min_len: 6 },
-    'name' => { expr: 'LOWER(TRIM(name))', min_len: 2 }
+    'name' => { expr: 'LOWER(TRIM(name))', min_len: 2 },
+    # 阿里来源客户常年没有邮箱/电话（平台藏了），买家账号是唯一能稳定拿到的身份。
+    'alibaba_account' => { expr: "LOWER(NULLIF(TRIM(alibaba_account), ''))", min_len: 3 }
   }.freeze
   DUP_GROUPS_PER_DIMENSION = 50
 
@@ -182,11 +184,11 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   # 客户建档实时查重：邮箱精确命中(阻止) + 手机/WhatsApp 命中 + 公司名相似(提醒)。
   # 手机维度是给没有邮箱的客户（WhatsApp 进来的）兜底的身份依据，复用主动查重那套归一规则。
   def check_duplicate
-    email = params[:email].to_s.strip
     name = params[:name].to_s.strip
     render json: {
-      email_hit: email.present? ? dedupe_row(Current.account.crm_customers.where('LOWER(contact_email) = ?', email.downcase).first) : nil,
+      email_hit: dedupe_row(email_duplicate(params[:email])),
       phone_hit: dedupe_row(phone_duplicate(params[:phone])),
+      alibaba_hit: dedupe_row(alibaba_duplicate(params[:alibaba_account])),
       name_hits: name.length >= 2 ? name_matches(name) : []
     }
   end
@@ -697,7 +699,7 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
       :last_follow_up_at, :next_follow_up_at, :is_in_public_pool, :public_pool_at,
       :primary_contact_name, :contact_job_title, :contact_email, :contact_phone,
       :whats_app, :wechat, :contact_preference, :customer_remark,
-      :address, :linkedin
+      :address, :linkedin, :alibaba_account
     )
   end
 
@@ -756,7 +758,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   # 单列 ILIKE 的检索范围：范围键 → 列名。
   DEDUPE_SCOPE_COLUMNS = {
-    'name' => 'name', 'code' => 'customer_code', 'email' => 'contact_email', 'contact' => 'primary_contact_name'
+    'name' => 'name', 'code' => 'customer_code', 'email' => 'contact_email',
+    'contact' => 'primary_contact_name', 'alibaba' => 'alibaba_account'
   }.freeze
 
   # 主动查重的范围检索。电话按去符号后的数字包含匹配；邮箱后缀匹配 @ 结尾段。
@@ -793,7 +796,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   def dedupe_all_scope(base, like, query)
     text_hit = base.where(
       'name ILIKE :q OR customer_code ILIKE :q OR contact_email ILIKE :q OR ' \
-      'primary_contact_name ILIKE :q OR whats_app ILIKE :q OR wechat ILIKE :q OR linkedin ILIKE :q', q: like
+      'primary_contact_name ILIKE :q OR whats_app ILIKE :q OR wechat ILIKE :q OR ' \
+      'linkedin ILIKE :q OR alibaba_account ILIKE :q', q: like
     )
     digits = query.gsub(/\D/, '')
     return text_hit if digits.length < 4
@@ -823,8 +827,25 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
     {
       id: customer.id, name: customer.name, customer_code: customer.customer_code, owner: owner_label(customer),
-      status: customer.customer_status, in_public_pool: customer.is_in_public_pool
+      status: customer.customer_status, in_public_pool: customer.is_in_public_pool,
+      alibaba_account: customer.alibaba_account, created_at: customer.created_at,
+      is_mine: customer.account_owner_id == current_user.id
     }
+  end
+
+  def email_duplicate(value)
+    email = value.to_s.strip.downcase
+    return nil if email.blank?
+
+    Current.account.crm_customers.where('LOWER(contact_email) = ?', email).first
+  end
+
+  # 阿里买家账号撞单：全库精确比对（跨负责人，撞单检测不按辖区收口，与 phone_duplicate 同口径）。
+  def alibaba_duplicate(value)
+    key = value.to_s.strip.downcase
+    return nil if key.length < 3
+
+    Current.account.crm_customers.where('LOWER(alibaba_account) = ?', key).first
   end
 
   def owner_label(customer)

@@ -37,6 +37,7 @@ json.contact_email resource.contact_email
 json.contact_phone resource.contact_phone
 json.whats_app resource.whats_app
 json.wechat resource.wechat
+json.alibaba_account resource.alibaba_account
 json.contact_preference resource.contact_preference
 json.customer_remark resource.customer_remark
 

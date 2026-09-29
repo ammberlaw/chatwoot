@@ -23,14 +23,14 @@ const { isCrmSales, isCrmManager } = useCrmRole();
 const currentUser = useMapGetter('getCurrentUser');
 const store = useCrmOpportunitiesStore();
 
-// 视图：常规看板 / 我的商机（仅看自己名下，管理员/主管专用）/ 商机公海（全员可见全公司）
+// 视图：常规看板 / 我的商机（仅看自己名下，管理员/主管专用）/ 列表
 const view = ref('board');
 // 看板类视图（常规看板 + 我的商机）：都渲染 kanban、可拖拽换阶段、可点卡编辑。
 const isBoardView = computed(
   () => view.value === 'board' || view.value === 'mine'
 );
 // 视图 → 后端 filter 参数（board/list 无 filter）。
-const VIEW_FILTER = { pool: 'public_pool', mine: 'mine' };
+const VIEW_FILTER = { mine: 'mine' };
 // 排序：默认最近更新；可按创建时间/金额，正序倒序
 const sortKey = ref('');
 const sortDir = ref('desc');
@@ -159,46 +159,9 @@ const createRecord = async payload => {
   }
 };
 
-// 点卡片直接编辑（与商机列表点行一致），保存后刷新看板。公海卡片不可编辑，走认领。
+// 点卡片直接编辑（与商机列表点行一致），保存后刷新看板。
 const openEditDialog = record => {
-  if (view.value === 'pool') return;
   createDialogRef.value?.open(record);
-};
-
-// 公海认领 / 释放到公海
-const actingId = ref(null);
-const claimRecord = async record => {
-  actingId.value = record.id;
-  try {
-    await axios.post(
-      `/api/v1/accounts/${accountId.value}/crm/opportunities/${record.id}/claim`
-    );
-    useAlert(t('CRM.OPPORTUNITIES.POOL.CLAIM_SUCCESS'));
-    refreshBoard();
-  } catch {
-    useAlert(t('CRM.OPPORTUNITIES.POOL.CLAIM_ERROR'));
-  } finally {
-    actingId.value = null;
-  }
-};
-
-const releaseRecord = async record => {
-  const ok = window.confirm(
-    t('CRM.OPPORTUNITIES.POOL.RELEASE_CONFIRM', { name: record.name })
-  );
-  if (!ok) return;
-  actingId.value = record.id;
-  try {
-    await axios.post(
-      `/api/v1/accounts/${accountId.value}/crm/opportunities/${record.id}/release`
-    );
-    useAlert(t('CRM.OPPORTUNITIES.POOL.RELEASE_SUCCESS'));
-    refreshBoard();
-  } catch {
-    useAlert(t('CRM.OPPORTUNITIES.POOL.RELEASE_ERROR'));
-  } finally {
-    actingId.value = null;
-  }
 };
 
 const updateRecord = async payload => {
@@ -264,7 +227,6 @@ const cardAmount = (micros, currency) =>
 // 拖拽换阶段
 const dragId = ref(null);
 const onDrop = async stageKey => {
-  if (view.value === 'pool') return;
   const record = records.value.find(r => r.id === dragId.value);
   dragId.value = null;
   if (!record || record.salesStage === stageKey) return;
@@ -294,7 +256,7 @@ onMounted(() => {
         <p class="mt-0.5 text-sm text-n-slate-11">{{ t('CRM.FUNNEL.HINT') }}</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
-        <!-- 视图切换：看板 / 列表 / 商机公海 -->
+        <!-- 视图切换：看板 / 我的商机 / 列表 -->
         <div class="flex items-center gap-1 p-1 rounded-lg bg-n-alpha-2">
           <Button
             :label="t('CRM.FUNNEL.VIEW_BOARD')"
@@ -318,13 +280,6 @@ onMounted(() => {
             :variant="view === 'list' ? 'solid' : 'ghost'"
             :color="view === 'list' ? 'iris' : 'slate'"
             @click="setView('list')"
-          />
-          <Button
-            :label="t('CRM.FUNNEL.VIEW_POOL')"
-            sm
-            :variant="view === 'pool' ? 'solid' : 'ghost'"
-            :color="view === 'pool' ? 'iris' : 'slate'"
-            @click="setView('pool')"
           />
         </div>
         <div v-if="view !== 'list'" class="relative">
@@ -381,7 +336,6 @@ onMounted(() => {
           @update:model-value="setOwner"
         />
         <Button
-          v-if="view !== 'pool'"
           :label="t('CRM.OPPORTUNITIES.NEW')"
           icon="i-lucide-plus"
           color="iris"
@@ -447,18 +401,6 @@ onMounted(() => {
             @dragstart="dragId = item.id"
             @click="openEditDialog(item)"
           >
-            <!-- 释放到公海（看板/我的商机，悬停显示） -->
-            <Button
-              v-if="isBoardView"
-              sm
-              ghost
-              slate
-              icon="i-lucide-waves"
-              class="!absolute top-2 right-2 opacity-0 group-hover:opacity-100"
-              :title="t('CRM.OPPORTUNITIES.POOL.RELEASE')"
-              :is-disabled="actingId === item.id"
-              @click.stop="releaseRecord(item)"
-            />
             <!-- 阶段颜色小圈 + 标题（重要商机带星标） -->
             <div class="flex items-start gap-2">
               <span
@@ -524,17 +466,6 @@ onMounted(() => {
                 {{ item.probability }}%
               </span>
             </div>
-
-            <!-- 公海视图：认领 -->
-            <Button
-              v-if="view === 'pool'"
-              :label="t('CRM.OPPORTUNITIES.POOL.CLAIM')"
-              sm
-              color="iris"
-              class="w-full mt-3"
-              :is-loading="actingId === item.id"
-              @click.stop="claimRecord(item)"
-            />
           </div>
 
           <div

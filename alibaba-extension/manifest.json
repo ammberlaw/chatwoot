@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "wintouchspace 建档助手",
+  "version": "0.1.0",
+  "description": "在阿里国际站后台就地查看买家是否已被同事建档，并一键建档到 wintouchspace CRM。",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*.alibaba.com/*",
+    "https://wintouchspace.com/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "wintouchspace 建档助手（点击打开设置）"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.alibaba.com/*"
+      ],
+      "js": [
+        "extract.js",
+        "countries.js",
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}
