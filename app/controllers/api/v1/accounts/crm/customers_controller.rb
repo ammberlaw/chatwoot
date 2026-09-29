@@ -137,8 +137,8 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
     email = params[:email].to_s.strip.downcase
     return render json: { type: 'stranger' } if email.blank?
 
-    colleague = Current.account.users.where('LOWER(users.email) = ?', email).first
-    return render json: { type: 'colleague', name: colleague.name } if colleague
+    colleague_name = colleague_name_for(email)
+    return render json: { type: 'colleague', name: colleague_name } if colleague_name
 
     customer = Current.account.crm_customers.where('LOWER(contact_email) = ?', email).first
     # 次要联系人：主邮箱没命中时，按已挂到客户的 Contact 找归属（与收信归档口径一致）。
@@ -517,6 +517,15 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
   # 否则任意业务员可越权读改他人私海客户及其商机/订单/PI/报价（IDOR）。管理员/副管不受限。
   def fetch_customer
     @customer = visible_customers.find(params[:id])
+  end
+
+  # 同事判定：登录邮箱之外，各人在系统里配的收发邮箱也算同事——公司业务邮箱
+  # （sales98@wintouchcn.com）多半不是登录邮箱，只认登录邮箱会把同事认成「陌生人」。
+  def colleague_name_for(email)
+    user = Current.account.users.where('LOWER(users.email) = ?', email).first
+    return user.crm_display_name if user
+
+    Crm::MailAccount.owner_names_by_address(Current.account, [email])[email]
   end
 
   # 按已挂客户的 Contact（次要联系人）邮箱找归属客户；无则 nil。

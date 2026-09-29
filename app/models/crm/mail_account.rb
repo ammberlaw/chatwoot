@@ -76,6 +76,19 @@ class Crm::MailAccount < ApplicationRecord
   # 可收件账户：启用 + 已开收件 + 有密码（收件复用 smtp_password 认证）。含 IMAP 与 POP3 两种协议。
   scope :imap_active, -> { active.where(imap_enabled: true).where.not(smtp_password: [nil, '']) }
 
+  # 同事邮箱 → 本人。公司业务邮箱（sales98@wintouchcn.com）跟登录邮箱（huwenyu@wintouchgroup.com）
+  # 多半不是同一个，只按 users.email 认人会把同事认成「陌生人」。这里按各人在系统里配的收发邮箱补认一层。
+  # 返回 { 小写邮箱地址 => 显示名 }，供邮箱身份识别与列表头像着色共用一套口径。
+  def self.owner_names_by_address(account, addresses)
+    list = Array(addresses).compact.map { |addr| addr.to_s.strip.downcase }.reject(&:blank?).uniq
+    return {} if list.empty?
+
+    account.crm_mail_accounts.includes(:owner)
+           .where('LOWER(email_address) IN (?)', list)
+           .filter_map { |ma| [ma.email_address.downcase, ma.owner.crm_display_name] if ma.owner }
+           .to_h
+  end
+
   def resolved_host
     provider == 'CUSTOM' ? smtp_host : PROVIDER_HOSTS[provider]
   end

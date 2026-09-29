@@ -499,6 +499,8 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
 
     colleagues = lookup.empty? ? Set.new : Current.account.users.where('LOWER(users.email) IN (?)', lookup)
                                                   .pluck(Arel.sql('LOWER(users.email)')).to_set
+    # 登录邮箱之外，同事配在系统里的收发邮箱也算同事（口径见 Crm::MailAccount.owner_names_by_address）。
+    colleagues |= Crm::MailAccount.owner_names_by_address(Current.account, lookup).keys.to_set
     customers = lookup.empty? ? {} : Current.account.crm_customers.where('LOWER(contact_email) IN (?)', lookup)
                                             .pluck(Arel.sql('LOWER(contact_email)'), :is_in_public_pool, :account_owner_id)
                                             .index_by(&:first)
@@ -515,8 +517,14 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   # 一串邮箱地址认不出是谁。按地址批量查一次联系人，没有就退回客户名，再没有就显示地址。
   def build_counterparty_names(emails)
     addresses = emails.to_h { |e| [e.id, counterparty_address(e)&.downcase] }
-    contacts = contact_names_by_address(addresses.values.compact.uniq)
-    emails.to_h { |e| [e.id, contacts[addresses[e.id]] || e.crm_customer&.name] }
+    lookup = addresses.values.compact.uniq
+    contacts = contact_names_by_address(lookup)
+    # 同事的公司邮箱优先显示本人名字，否则列表上只剩一串 sales98@… 认不出是谁。
+    colleagues = Crm::MailAccount.owner_names_by_address(Current.account, lookup)
+    emails.to_h do |e|
+      addr = addresses[e.id]
+      [e.id, colleagues[addr] || contacts[addr] || e.crm_customer&.name]
+    end
   end
 
   # 列表渲染要的那几组批量数据（对方身份/对方名/最近打开/分发去向），
