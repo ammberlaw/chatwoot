@@ -102,6 +102,31 @@ const poKitSummary = pos => {
     complete: active.length > 0 && received === active.length,
   };
 };
+// 阶段芯片配色：8 个阶段各一色（原来统一 bg-n-iris-3，一眼看不出订单走到哪一步，
+// 经典灰下更是整条 iris 被压成灰）。参照 CRM 的 PI 状态芯片做法：浅底 + 同色深字。
+//
+// 直接写色值、不用 --iris/--blue 这类 token：蓝 / beebot / 经典灰三套主题都重映射了 iris，
+// 经典灰还把 blue 压成灰——用 token 的话同一个阶段在四套配色里会显示成不同颜色甚至全灰。
+// 阶段色是流程语义、跟配色主题无关，所以与主题解耦，四套配色下完全一致。
+// 色序按流程走：灰(待接) → 紫(设计) → 琥珀/橙(采购到料) → 蓝/靛(车间) → 青/绿(完工出货)。
+const STAGE_CHIP = {
+  SALES_CONFIRMED:
+    'bg-[#eceef2] text-[#4f5665] dark:bg-[#2b2e35] dark:text-[#b6bac4]',
+  BOM_READY:
+    'bg-[#efe9fd] text-[#5f3fb8] dark:bg-[#312a4d] dark:text-[#c3b2f5]',
+  PURCHASING:
+    'bg-[#fdf0d5] text-[#8a5f00] dark:bg-[#3d3011] dark:text-[#f0c35a]',
+  MATERIAL_INBOUND:
+    'bg-[#ffe7d8] text-[#9a4a18] dark:bg-[#402618] dark:text-[#f0a878]',
+  PICKING: 'bg-[#e0eeff] text-[#12508f] dark:bg-[#16304d] dark:text-[#84b8f0]',
+  PRODUCTION:
+    'bg-[#e5e7ff] text-[#4040c4] dark:bg-[#26284d] dark:text-[#a3a5f2]',
+  FG_INBOUND:
+    'bg-[#e5f2ec] text-[#2b7255] dark:bg-[#14332a] dark:text-[#6fc2a0]',
+  SHIPPED: 'bg-[#e4f3e0] text-[#37702f] dark:bg-[#1c3318] dark:text-[#89c97e]',
+};
+const stageChip = value => STAGE_CHIP[value] || 'bg-n-slate-3 text-n-slate-11';
+
 const stageIndex = value => STAGES.findIndex(s => s.value === value);
 const stageLabel = value => STAGES[stageIndex(value)]?.label || value;
 // 外购按单短版脊柱：时间线只显示 销售订单确定 → 采购 → 成品入库 → 出库。
@@ -1361,7 +1386,8 @@ watch(currentPage, fetchRecords);
                   {{ po.orderNo }}
                 </span>
                 <span
-                  class="shrink-0 px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+                  class="shrink-0 px-2 py-0.5 text-xs rounded-full"
+                  :class="stageChip(po.stage)"
                 >
                   {{ stageLabel(po.stage) }}
                 </span>
@@ -1542,7 +1568,8 @@ watch(currentPage, fetchRecords);
                 <td class="px-3 py-3 align-top">
                   <div class="flex items-center">
                     <span
-                      class="inline-flex items-center px-2 py-0.5 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
+                      class="inline-flex items-center px-2 py-0.5 text-xs rounded-full"
+                      :class="stageChip(po.stage)"
                     >
                       {{ stageLabel(po.stage) }}
                     </span>

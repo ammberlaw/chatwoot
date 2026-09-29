@@ -15,10 +15,11 @@ class Erp::OpeningBalanceService
 
   def current
     @account.erp_vouchers.where(source_type: SOURCE_TYPE).where.not(status: Erp::Voucher::VOID)
-            .includes(lines: :ledger_account).order(:id).last
+            .includes(lines: %i[ledger_account crm_customer mes_supplier]).order(:id).last
   end
 
-  # rows: [{ ledger_account_id:, debit_micros:, credit_micros: }]
+  # rows: [{ ledger_account_id:, debit_micros:, credit_micros:, exchange_rate:,
+  #          crm_customer_id:, mes_supplier_id: }]（后两个是往来科目必填）
   def save!(rows:, as_of:)
     lines = normalize(rows)
     raise Error, '期初余额一条都没填' if lines.empty?
@@ -53,6 +54,8 @@ class Erp::OpeningBalanceService
     build_line(row, ledger, debit: debit, credit: credit)
   end
 
+  # 往来科目（应收挂客户、应付挂供应商）的期初必须按往来单位逐行录：
+  # 挂不上单位，账龄、对账单、"这个客户还欠多少"从账套第一天就查不出来。
   def build_line(row, ledger, debit:, credit:)
     {
       ledger_account_id: row[:ledger_account_id].to_i,
@@ -60,7 +63,9 @@ class Erp::OpeningBalanceService
       amount_micros: debit.positive? ? debit : credit,
       summary: '期初余额',
       currency: ledger&.currency.presence || 'CNY',
-      exchange_rate: row[:exchange_rate].presence || 1
+      exchange_rate: row[:exchange_rate].presence || 1,
+      crm_customer_id: row[:crm_customer_id].presence,
+      mes_supplier_id: row[:mes_supplier_id].presence
     }
   end
 
@@ -80,8 +85,10 @@ class Erp::OpeningBalanceService
          .sum { |row| Erp::VoucherLine.round_to_cent(row[:amount_micros] * row[:exchange_rate].to_d) }
   end
 
+  # 凭证日期＝启用日的**前一天**：期初余额是"启用日之前累计下来的数"，不是启用当天发生的业务。
+  # 落在启用日当天的话，启用当月的试算平衡「期初余额」全是 0，几百万实收资本会挤进「本期发生额」。
   def build_voucher(lines, as_of)
-    date = as_of.to_date
+    date = as_of.to_date - 1
     voucher = @account.erp_vouchers.new(
       voucher_date: date, summary: "期初建账（截至 #{date}）", status: Erp::Voucher::POSTED,
       prepared_by_id: @user&.id, posted_by_id: @user&.id, posted_at: Time.current, source_type: SOURCE_TYPE,

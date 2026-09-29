@@ -250,6 +250,7 @@ const animationClasses = computed(() => {
 <template>
   <button
     v-bind="filteredAttrs"
+    :data-button-variant="computedVariant"
     :class="{
       [STYLE_CONFIG.base]: true,
       [isLink ? linkButtonClasses : buttonClasses]: true,

@@ -536,11 +536,31 @@ body.theme-classic:not(.dark) main .bg-n-solid-1\/50 {
 
 // 「按采购单预填收货明细」按钮：玻璃/蓝/beebot 用品牌紫(iris solid)，经典灰改主题黄(amber)。
 // 紫玻璃不动（默认 iris 即紫）；仅经典灰作用域把该按钮底色/悬停覆盖成 amber。
-body.theme-classic .po-prefill-btn {
-  @apply bg-n-amber-9 text-white;
-}
 body.theme-classic .po-prefill-btn:hover:enabled {
   @apply bg-n-amber-10;
+}
+
+// 经典灰：主操作按钮（新建 / 提交 / 保存 / 确认这类）统一品牌黄。紫玻璃不动。
+// 经典灰把整条 iris 压成石墨灰，主按钮渲染成黑色；这里覆盖成 amber。
+//
+// ⚠️ 字色必须跟着改：Button 组件给 solid 配的是 text-white，而品牌黄 #FFC53D 上放白字
+// 对比度只有 1.8:1，等于看不见。黄底一律配深墨字（约 12:1）。
+// 深字写死不用 slate-12：深色模式下 slate-12 会翻成接近白色，而这块黄底不翻，用 token 反而不可读。
+//
+// 只认共享 Button 组件渲染出来的实底按钮（data-button-variant="solid"）。
+// 不能只按 .bg-n-iris-9 认：月份选择器里"选中"的那一格、下拉里的选中项也是 <button> 配同一个类，
+// 一起染黄就成了满屏黄块（Amber 反馈过）。徽标、色块、头像同理，都不该变。
+body.theme-classic button[data-button-variant='solid'].bg-n-iris-9,
+body.theme-classic button[data-button-variant='solid'].bg-n-brand,
+body.theme-classic .po-prefill-btn {
+  background-color: rgb(var(--amber-9)) !important;
+  color: #1a1c20 !important;
+}
+body.theme-classic button[data-button-variant='solid'].bg-n-iris-9:hover:enabled,
+body.theme-classic button[data-button-variant='solid'].bg-n-brand:hover:enabled,
+body.theme-classic button[data-button-variant='solid'].bg-n-iris-9:focus-visible,
+body.theme-classic button[data-button-variant='solid'].bg-n-brand:focus-visible {
+  background-color: rgb(var(--amber-10)) !important;
 }
 
 // MES 裸页圆弧「玻璃」外框：玻璃(默认)/蓝/beebot 通用，与看板/流水图已有玻璃外框统一观感。

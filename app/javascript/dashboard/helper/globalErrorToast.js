@@ -6,12 +6,17 @@ import { parseAPIErrorResponse } from 'dashboard/store/utils/api';
 // 保证任何一步出错都有反馈；页面自己写了 catch 的仍走它自己的文案，不受影响。
 const FALLBACK = '操作失败，请重试';
 
+// 权限不足后端统一回这句英文（Pundit），直接弹给用户看没人懂，换成中文。
+const NOT_AUTHORIZED = 'You are not authorized to do this action';
+
 // 取用户看得懂的那句：后端 { error: '...' } / { message: '...' } 优先，其次 Error.message。
 const messageOf = reason => {
   if (!reason) return FALLBACK;
+  if (reason.response?.status === 403) return '你没有权限做这个操作';
   if (reason.response) {
     // 注意：parseAPIErrorResponse 取不到消息时会把 error 对象原样返回，只认字符串。
     const parsed = parseAPIErrorResponse(reason);
+    if (parsed === NOT_AUTHORIZED) return '你没有权限做这个操作';
     return typeof parsed === 'string' && parsed.trim() ? parsed : FALLBACK;
   }
   // 代码 bug 类的原生异常（TypeError 等）只给通用文案——原文是英文技术细节，
@@ -47,8 +52,11 @@ const isIgnorable = reason =>
   reason?.code === 'ERR_CANCELED' ||
   reason?.name === 'CanceledError' ||
   reason?.name === 'AbortError' ||
-  // 401 由登录态处理（会跳登录页），再弹一条只会干扰。
-  reason?.response?.status === 401;
+  // 401 由登录态/权限处理，再弹一条只会干扰。
+  // 有的 401 传到这里时 .response 已经丢了（中途被重新抛出/序列化），只剩一句
+  // "Request failed with status code 401"，照原样弹出去用户完全看不懂，一并挡掉。
+  reason?.response?.status === 401 ||
+  /status code 401/i.test(String(reason?.message || reason || ''));
 
 export const installGlobalErrorToast = app => {
   window.addEventListener('unhandledrejection', event => {

@@ -71,6 +71,15 @@ const yuan = micros =>
         maximumFractionDigits: 2,
       })}`;
 
+// 单号旁那个红色感叹号原来只有一句「采购异常」，看不出哪里异常——而采购员填的说明
+// 就在单据里，直接带进悬停提示；没填说明的就把这个标记本身讲清楚。
+const exceptionTip = p => {
+  const note = (p.exceptionNote || '').trim();
+  return note
+    ? `采购异常：${note}`
+    : '采购异常：采购员标记了这张单有问题（交期、价格、缺货等），但没填说明——可在「编辑」里补上';
+};
+
 const STATUS_LABELS = {
   DRAFT: '草稿',
   SUBMITTED: '已下单',
@@ -823,8 +832,8 @@ onMounted(async () => {
               </span>
               <span
                 v-if="p.hasException"
-                class="text-xs shrink-0 text-n-ruby-11"
-                title="采购异常"
+                v-tooltip.top="exceptionTip(p)"
+                class="text-xs cursor-help shrink-0 text-n-ruby-11"
               >
                 ⚠
               </span>
@@ -931,8 +940,8 @@ onMounted(async () => {
                 {{ p.poNo }}
                 <span
                   v-if="p.hasException"
-                  class="ml-1 text-xs text-n-ruby-11"
-                  title="采购异常"
+                  v-tooltip.top="exceptionTip(p)"
+                  class="ml-1 text-xs cursor-help text-n-ruby-11"
                 >
                   ⚠
                 </span>

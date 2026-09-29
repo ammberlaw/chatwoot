@@ -129,11 +129,15 @@ class Api::V1::Accounts::Erp::FiscalPeriodsController < Api::V1::Accounts::Erp::
     params[:rates].present? ? params[:rates].permit!.to_h : {}
   end
 
+  # 往来维度必须放行：应收/应付是往来科目，分录行强制要挂客户/供应商，
+  # 不带过去的话期初里根本存不进应收应付（从金蝶导期初第一步就卡住）。
   def opening_rows
     Array(params[:rows]).map do |row|
-      permitted = row.permit(:ledger_account_id, :debit_micros, :credit_micros, :exchange_rate)
+      permitted = row.permit(:ledger_account_id, :debit_micros, :credit_micros, :exchange_rate,
+                             :crm_customer_id, :mes_supplier_id)
       { ledger_account_id: permitted[:ledger_account_id], debit_micros: permitted[:debit_micros],
-        credit_micros: permitted[:credit_micros], exchange_rate: permitted[:exchange_rate] }
+        credit_micros: permitted[:credit_micros], exchange_rate: permitted[:exchange_rate],
+        crm_customer_id: permitted[:crm_customer_id], mes_supplier_id: permitted[:mes_supplier_id] }
     end
   end
 

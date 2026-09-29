@@ -15,6 +15,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import ErpDimensionFields from 'dashboard/components-next/erp/ErpDimensionFields.vue';
 import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
 
 // 期末结账：一个月一行，显示凭证数/待过账/借贷是否平，够条件才让结账。
@@ -97,6 +98,23 @@ const leafOptions = computed(() =>
     .filter(a => !a.isGroup && a.isActive)
     .map(a => ({ value: a.id, label: `${a.code} ${a.name}` }))
 );
+// 往来科目的期初要挂到具体客户/供应商上，否则账龄和对账单从第一天就查不出来。
+// 判定口径与凭证录入页一致（应收→客户、应付→供应商）。
+const accountById = id =>
+  accountStore.getRecords.find(a => a.id === Number(id));
+const REQUIRED_DIMENSION = { RECEIVABLE: 'customer', PAYABLE: 'supplier' };
+const requiredDimensionOf = row =>
+  REQUIRED_DIMENSION[accountById(row.ledgerAccountId)?.accountType] || '';
+const dimensionsOf = row => accountById(row.ledgerAccountId)?.dimensions || [];
+// 往来科目没挂单位就别让存——后端也会拦，但在这里拦能直接指出是哪一行。
+const openingMissingParty = computed(() =>
+  openingRows.value.some(row => {
+    const dim = requiredDimensionOf(row);
+    if (!dim) return false;
+    if (!row.debit && !row.credit) return false;
+    return !(dim === 'customer' ? row.crmCustomerId : row.mesSupplierId);
+  })
+);
 // 合计按本位币算（外币行 × 汇率），与后端平衡校验同口径。
 const baseOf = (value, rate) => Math.round(toMicros(value) * Number(rate || 1));
 const openingDebit = computed(() =>
@@ -122,6 +140,8 @@ const addOpeningRow = () =>
     debit: '',
     credit: '',
     exchangeRate: 1,
+    crmCustomerId: '',
+    mesSupplierId: '',
   });
 
 const loadOpening = async () => {
@@ -133,6 +153,11 @@ const loadOpening = async () => {
     debit: row.debit_micros ? (row.debit_micros / 1_000_000).toFixed(2) : '',
     credit: row.credit_micros ? (row.credit_micros / 1_000_000).toFixed(2) : '',
     exchangeRate: Number(row.exchange_rate || 1),
+    crmCustomerId: row.crm_customer_id || '',
+    // 名字给下拉做回显用：不给的话重进页面只剩一个 id，框里是空的。
+    crmCustomerName: row.crm_customer_name || '',
+    mesSupplierId: row.mes_supplier_id || '',
+    mesSupplierName: row.mes_supplier_name || '',
   }));
   if (data.as_of) openingAsOf.value = data.as_of;
   if (!openingRows.value.length) addOpeningRow();
@@ -149,6 +174,8 @@ const saveOpening = async () => {
           debit_micros: toMicros(row.debit),
           credit_micros: toMicros(row.credit),
           exchange_rate: row.exchangeRate || 1,
+          crm_customer_id: row.crmCustomerId || null,
+          mes_supplier_id: row.mesSupplierId || null,
         })),
     });
     useAlert(`期初已保存，凭证 ${data.voucher_no}`);
@@ -536,9 +563,12 @@ onMounted(load);
           label="保存期初"
           color="iris"
           size="sm"
-          :disabled="!openingBalanced"
+          :disabled="!openingBalanced || openingMissingParty"
           @click="saveOpening"
         />
+        <span v-if="openingMissingParty" class="text-xs text-n-ruby-11">
+          {{ '有应收/应付的行还没挂客户或供应商' }}
+        </span>
         <span v-if="openingMeta.voucher_no" class="text-xs text-n-slate-10">
           当前期初凭证 {{ openingMeta.voucher_no }}
         </span>
@@ -587,6 +617,14 @@ onMounted(load);
           >
             <div class="i-lucide-trash-2 size-4" />
           </button>
+          <!-- 往来科目（应收/应付）的期初必须挂到具体客户/供应商，否则账龄、对账单取不到数 -->
+          <div class="col-span-12 pb-1 pl-1 -mt-1">
+            <ErpDimensionFields
+              v-model="openingRows[index]"
+              :dimensions="dimensionsOf(row)"
+              :required-dimension="requiredDimensionOf(row)"
+            />
+          </div>
         </div>
       </div>
       <p class="mt-4 text-xs text-n-slate-10">
