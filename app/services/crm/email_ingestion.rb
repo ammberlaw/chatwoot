@@ -41,7 +41,9 @@ module Crm::EmailIngestion
 
   def create_email(mail, message_id, from)
     # 先把内联 base64 图换成附件链接再判断长度：否则一张签名 logo 就能把正文顶到上限被截断。
-    html, inline_blobs = Crm::MailInlineImages.extract(html_body(mail))
+    # 先剥掉被客户回信引用回来的、我们自己的追踪像素/跳转链接（见 Crm::MailTracking），
+    # 否则自己人在 CRM 里读这封回信就会被记成「客户又打开了一次」。
+    html, inline_blobs = Crm::MailInlineImages.extract(Crm::MailTracking.strip_own(html_body(mail)))
     html = truncate_text(html)
     email = Crm::Email.create!(inbound_attrs(mail, message_id, from, html))
     inline_blobs.each { |blob| email.files.attach(blob) }

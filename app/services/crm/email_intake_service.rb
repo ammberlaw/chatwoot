@@ -73,7 +73,7 @@ class Crm::EmailIntakeService
       bcc_address: Array(email_data[:bcc]).join(', ').presence,
       email_date: email_data[:date].presence || message.created_at,
       body: email_data.dig(:text_content, :full).presence || message.content,
-      body_html: email_data.dig(:html_content, :full).presence,
+      body_html: Crm::MailTracking.strip_own(email_data.dig(:html_content, :full).presence),
       send_status: 'SENT',
       contact_id: contact&.id,
       crm_customer_id: contact&.crm_customer_id,

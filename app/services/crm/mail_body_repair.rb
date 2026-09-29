@@ -57,7 +57,7 @@ class Crm::MailBodyRepair
     added = inline_blobs.size
     inline_blobs.each { |blob| @email.files.attach(blob) }
     html, more = relink_inline_parts(mail, html)
-    @email.update!(body_html: truncate_text(html), body: truncate_text(text_body(mail)))
+    @email.update!(body_html: truncate_text(Crm::MailTracking.strip_own(html)), body: truncate_text(text_body(mail)))
     added + more
   end
 

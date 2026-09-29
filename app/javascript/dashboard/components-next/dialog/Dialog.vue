@@ -4,6 +4,7 @@ import { OnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Icon from 'dashboard/components-next/icon/Icon.vue';
 import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
 
 const props = defineProps({
@@ -68,6 +69,11 @@ const props = defineProps({
   },
   // false=点弹窗外部 / 按 Esc 不关闭（防误点丢失未保存内容，表单类弹窗用）。
   dismissible: {
+    type: Boolean,
+    default: true,
+  },
+  // 右上角关闭 X。弹窗一律有它：内容比屏幕高时底部按钮点不到，没有 X 就出不去了。
+  showCloseButton: {
     type: Boolean,
     default: true,
   },
@@ -159,11 +165,15 @@ defineExpose({ open, close });
       >
         <form
           ref="dialogContentRef"
-          class="flex flex-col w-full h-auto gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl rounded-xl"
+          class="relative flex flex-col w-full h-auto gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl rounded-xl"
           @submit.prevent="confirm"
           @click.stop
         >
-          <div v-if="title || description" class="flex flex-col gap-2">
+          <div
+            v-if="title || description"
+            class="flex flex-col gap-2"
+            :class="showCloseButton ? 'pr-8' : ''"
+          >
             <h3 class="text-base font-medium leading-6 text-n-slate-12">
               {{ title }}
             </h3>
@@ -178,8 +188,11 @@ defineExpose({ open, close });
           <slot name="footer">
             <!-- 长表单（overflowYAuto）里按钮粘在底部：BOM/采购单几十行明细时，
                  原来要一路滚到底才点得到保存。短对话框不滚动，sticky 不起作用、外观不变。 -->
+            <!-- 底部只有一个「关闭/取消」、没有确认动作时不再渲染这条：退出统一走右上角 X
+                 （弹窗比屏幕高时底部点不到，正是「预览采购单出不去」那个问题）。
+                 有确认动作的表单照旧保留底部「取消 + 保存」。 -->
             <div
-              v-if="showCancelButton || showConfirmButton"
+              v-if="showConfirmButton || (showCancelButton && !showCloseButton)"
               class="flex items-center justify-between w-full gap-3"
               :class="
                 overflowYAuto
@@ -209,6 +222,17 @@ defineExpose({ open, close });
               />
             </div>
           </slot>
+          <!-- 右上角关闭 X。放在最后而不是标题旁：原生 <dialog> 打开时自动聚焦第一个可聚焦元素，
+               X 若排在前面会抢走输入框的初始焦点，回车也会变成「关闭」而不是「保存」。 -->
+          <button
+            v-if="showCloseButton"
+            type="button"
+            :aria-label="t('DIALOG.BUTTONS.CANCEL')"
+            class="absolute z-20 flex items-center justify-center rounded-lg top-4 right-4 size-8 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+            @click="close"
+          >
+            <Icon icon="i-lucide-x" class="size-4" />
+          </button>
         </form>
       </OnClickOutside>
     </dialog>

@@ -251,6 +251,11 @@ const SEND_STATUSES = {
   FAILED: { label: '发送失败', class: 'bg-n-ruby-3 text-n-ruby-11' },
 };
 
+// 发送状态角标只对「我们发出去的」有意义：收到的邮件入库时 send_status 也写成 SENT，
+// 挂个绿色「已发送」会让人以为这封是自己发的，进而到收到的邮件上去找只有发出邮件才有的阅读追踪。
+const RECEIVED_FOLDERS = ['INBOX', 'SPAM'];
+const showSendBadge = email => !RECEIVED_FOLDERS.includes(email.folder);
+
 // 左栏文件夹：收件箱/未读/发件箱/草稿/群发，带角标计数。
 const FOLDERS = [
   { key: 'INBOX', label: '收件箱', icon: 'i-lucide-inbox', countKey: 'INBOX' },
@@ -1108,10 +1113,36 @@ const quotePrefill = email =>
       }
     : { body: quotedBody(email) };
 
+// 「张三 <a@b.com>」→ a@b.com，只用来比对去重，展示仍用原串。
+const bareAddress = raw => {
+  const m = String(raw || '').match(/<([^>]+)>/);
+  return (m ? m[1] : String(raw || '')).trim().toLowerCase();
+};
+
+// 全部回复的抄送：照标准邮件客户端的做法，把原邮件「其余收件人 + 原抄送」一起放进抄送，
+// 只摘掉原发件人（他已在收件人栏）和自己的邮箱（否则等于抄送自己一份）。
+// 只带原抄送是不够的——客户常把几个人一起写在收件人里、一个抄送都不写，那样点了等于没点。
+const replyAllCc = email => {
+  const mine = new Set(mailboxList.value.map(mb => bareAddress(mb.address)));
+  mine.add(bareAddress(email.fromAddress));
+  const seen = new Set();
+  return [
+    ...splitAddresses(email.toAddress),
+    ...splitAddresses(email.ccAddress),
+  ]
+    .filter(addr => {
+      const key = bareAddress(addr);
+      if (!key || mine.has(key) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(', ');
+};
+
 const reply = (email, all = false) => {
   openCompose({
     toAddress: email.fromAddress || '',
-    ccAddress: all ? email.ccAddress || '' : '',
+    ccAddress: all ? replyAllCc(email) : '',
     subject: email.subject?.startsWith('Re:')
       ? email.subject
       : `Re: ${email.subject || ''}`,
@@ -2046,7 +2077,7 @@ watch(
                       :title="l.name"
                     />
                     <span
-                      v-if="record.folder !== 'INBOX'"
+                      v-if="showSendBadge(record)"
                       class="px-1.5 py-0.5 rounded text-[11px] font-medium flex-shrink-0 whitespace-nowrap"
                       :class="SEND_STATUSES[record.sendStatus]?.class"
                     >
@@ -2206,6 +2237,7 @@ watch(
               {{ selectedEmail.subject || '(无主题)' }}
             </h2>
             <span
+              v-if="showSendBadge(selectedEmail)"
               class="px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
               :class="SEND_STATUSES[selectedEmail.sendStatus]?.class"
             >
