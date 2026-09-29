@@ -178,9 +178,12 @@ const fileMeta = filename => {
   const ext = (filename || '').split('.').pop().toLowerCase();
   return FILE_ICONS.find(m => m.ext.includes(ext)) || { icon: 'i-lucide-file' };
 };
+// 下载一律走 downloadUrl（强制 attachment，带真文件名）；url 是预览用的 inline 链接，
+// 拿它下载会被命名成对象存储的随机 key。
+const fileHref = file => file?.downloadUrl || file?.download_url || file?.url;
 const openDocFile = doc => {
-  const file = (doc.files || [])[0];
-  if (file?.url) window.open(file.url, '_blank', 'noopener');
+  const href = fileHref((doc.files || [])[0]);
+  if (href) window.open(href, '_blank', 'noopener');
 };
 
 // ── 在线预览：视频/图片/PDF/音频直接看；Excel/Word 前端解析；其余提示下载 ──
@@ -215,6 +218,11 @@ const previewKind = computed(() => {
   );
 });
 const previewUrl = computed(() => previewDoc.value?.files?.[0]?.url || '');
+// PDF 预览走同源代理链接：它的末段是真文件名，而 url 会 302 到对象存储、末段变成随机 key。
+// 浏览器设了「下载 PDF 而不是在浏览器中打开」时，后者在 iframe 里只剩一张以 key 命名的占位页。
+const previewPdfUrl = computed(
+  () => previewDoc.value?.files?.[0]?.proxyUrl || previewUrl.value
+);
 const previewTooLarge = computed(
   () => (previewDoc.value?.files?.[0]?.byteSize || 0) > PREVIEW_SIZE_LIMIT
 );
@@ -1736,7 +1744,7 @@ watch(
                 class="flex items-center justify-between px-3 py-2 mb-1.5 border rounded-lg border-n-weak"
               >
                 <a
-                  :href="file.url"
+                  :href="fileHref(file)"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="flex items-center gap-2 text-sm truncate text-n-blue-11 hover:underline"
@@ -1971,7 +1979,7 @@ watch(
             />
             <iframe
               v-else-if="previewKind === 'pdf'"
-              :src="previewUrl"
+              :src="previewPdfUrl"
               class="w-full h-[82vh] border-0"
             />
             <audio
