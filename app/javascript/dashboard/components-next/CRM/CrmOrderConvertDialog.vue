@@ -13,7 +13,8 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 
 // 销售订单一键转下游单据。业务员录一次订单，不用去 MES 再敲一遍客户/产品/数量。
-//   定制单 → 生产订单（有 :order 能力直接生效，业务员转的进审批链）
+//   定制单 → 生产订单（每行明细各转一张，都挂回同一张销售订单；
+//            有 :order 能力直接生效，业务员等 CRM 角色转的进审批链）
 //   库存单 → 现货出库单（提交即预占成品库存，走主管审核）
 // 销售订单明细是自由文本（PI 识别填的），下游要产品档案 ID 才能扣库存/带 BOM，
 // 所以这里按名称匹配一次，匹配不上的行让业务员选一次。
@@ -26,7 +27,7 @@ const submitting = ref(false);
 const products = ref([]);
 const warehouses = ref([]);
 const warehouseId = ref('');
-// [{ name, qty, unit, productId }]
+// [{ name, qty, unit, productId, convertedOrderNo }]
 const rows = reactive([]);
 
 const KIND_OPTIONS = [
@@ -53,12 +54,17 @@ const searchProducts = async q => {
   products.value = merged;
 };
 
-const unmatchedCount = computed(() => rows.filter(r => !r.productId).length);
+const unmatchedCount = computed(
+  () => rows.filter(r => !r.convertedOrderNo && !r.productId).length
+);
+// 已转过的行不参与本次提交（后端也按「销售订单+产品」跳过，这里只是不让人白填）。
+const pendingRows = computed(() => rows.filter(r => !r.convertedOrderNo));
+const convertedCount = computed(() => rows.length - pendingRows.value.length);
 const canSubmit = computed(
   () =>
     !!kind.value &&
-    rows.length > 0 &&
-    rows.every(r => r.productId && Number(r.qty) > 0) &&
+    pendingRows.value.length > 0 &&
+    pendingRows.value.every(r => r.productId && Number(r.qty) > 0) &&
     (kind.value !== 'STOCK' || !!warehouseId.value)
 );
 
@@ -87,30 +93,48 @@ const open = async record => {
       unit: li.unit || '',
       productId: li.crm_product_id || '',
       product,
+      convertedOrderNo: li.converted_order_no || '',
     });
   });
   // 已匹配到的产品先进选项，下拉不搜也能回显名字。
   products.value = rows.map(r => r.product).filter(Boolean);
   // 明细为空的订单（老单/没填明细）给一行空的，手动选产品填数量也能转。
   if (!rows.length)
-    rows.push({ name: '', qty: '', unit: '', productId: '', product: null });
+    rows.push({
+      name: '',
+      qty: '',
+      unit: '',
+      productId: '',
+      product: null,
+      convertedOrderNo: '',
+    });
   await nextTick();
 };
 
 const addRow = () =>
-  rows.push({ name: '', qty: '', unit: '', productId: '', product: null });
+  rows.push({
+    name: '',
+    qty: '',
+    unit: '',
+    productId: '',
+    product: null,
+    convertedOrderNo: '',
+  });
 const removeRow = i => rows.splice(i, 1);
 
 const submitCustom = async () => {
-  // 生产订单一单一成品：多行明细时取第一行，其余提示业务员另开单（生产脊柱按成品走）。
-  const first = rows[0];
+  // 生产脊柱按成品走：一行明细一张生产订单，全部挂回这张销售订单。
   const { data } = await MesProductionOrderAPI.convert({
     crm_sales_order_id: order.value.id,
-    crm_product_id: first.productId,
-    qty: first.qty,
-    unit: first.unit || undefined,
+    items: pendingRows.value.map(r => ({
+      crm_product_id: r.productId,
+      qty: r.qty,
+      unit: r.unit || undefined,
+    })),
   });
-  return `已生成生产订单 ${data.order_no || ''}`.trim();
+  const nos = (data.order_nos || []).join('、');
+  const skipped = data.skipped ? `（另 ${data.skipped} 行此前已转）` : '';
+  return `已生成生产订单 ${nos}${skipped}`.trim();
 };
 
 const submitStock = async () => {
@@ -205,6 +229,7 @@ defineExpose({ open });
           v-for="(row, index) in rows"
           :key="index"
           class="flex items-center gap-2"
+          :class="{ 'opacity-55': row.convertedOrderNo }"
         >
           <span class="flex-[3] text-sm truncate text-n-slate-11">
             {{ row.name || '—' }}
@@ -213,12 +238,22 @@ defineExpose({ open });
             v-model="row.productId"
             class="flex-[3]"
             :options="productOptions"
+            :disabled="!!row.convertedOrderNo"
             placeholder="搜索产品名称 / SKU"
             use-api-results
             @search="searchProducts"
           />
-          <Input v-model="row.qty" type="number" class="flex-1" />
-          <Input v-model="row.unit" class="flex-1" />
+          <Input
+            v-model="row.qty"
+            type="number"
+            class="flex-1"
+            :disabled="!!row.convertedOrderNo"
+          />
+          <Input
+            v-model="row.unit"
+            class="flex-1"
+            :disabled="!!row.convertedOrderNo"
+          />
           <button
             type="button"
             class="flex items-center justify-center w-6 shrink-0 text-n-slate-10 hover:text-n-ruby-11"
@@ -229,11 +264,16 @@ defineExpose({ open });
         </div>
       </div>
 
+      <span v-if="convertedCount > 0" class="text-xs text-n-slate-11">
+        灰掉的 {{ convertedCount }} 行此前已转过，本次只转其余
+        {{ pendingRows.length }} 行。
+      </span>
       <span
-        v-if="kind === 'CUSTOM' && rows.length > 1"
-        class="text-xs text-n-amber-11"
+        v-else-if="kind === 'CUSTOM' && pendingRows.length > 1"
+        class="text-xs text-n-slate-11"
       >
-        生产订单一单一个成品，只会用第一行；其余品项请在 MES 里另开生产订单。
+        生产订单一单一个成品，这 {{ pendingRows.length }}
+        行会各生成一张生产订单，都挂在这张销售订单下。
       </span>
 
       <div class="flex justify-end gap-2 pt-1">

@@ -660,37 +660,40 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
       <!-- 视图下划线 tab -->
       <div
         v-if="filterTabs.length > 1"
-        class="flex items-center gap-[22px] px-4 sm:px-[26px] pt-0.5 border-b border-n-weak"
+        class="px-4 sm:px-[26px] pt-0.5 border-b border-n-weak"
       >
-        <button
-          v-for="tab in filterTabs"
-          :key="tab.key"
-          type="button"
-          class="relative flex items-center gap-[7px] py-2.5 text-[13.5px] transition-colors"
-          :class="
-            activeFilter === tab.key
-              ? 'font-semibold text-n-iris-11'
-              : 'text-n-slate-10 hover:text-n-slate-12'
-          "
-          @click="setFilter(tab.key)"
-        >
-          {{ tab.label }}
-          <span
-            v-if="tab.count != null"
-            class="px-[7px] py-px text-[11px] rounded-full tabular-nums"
+        <div class="flex items-center gap-[22px]" data-tabbar="page">
+          <button
+            v-for="tab in filterTabs"
+            :key="tab.key"
+            type="button"
+            :aria-selected="activeFilter === tab.key"
+            class="relative flex items-center gap-[7px] py-2.5 text-[13.5px] transition-colors"
             :class="
               activeFilter === tab.key
-                ? 'bg-n-iris-4 text-n-iris-11'
-                : 'bg-n-slate-3 text-n-slate-11'
+                ? 'font-semibold text-n-iris-11'
+                : 'text-n-slate-10 hover:text-n-slate-12'
             "
+            @click="setFilter(tab.key)"
           >
-            {{ tab.count }}
-          </span>
-          <span
-            v-if="activeFilter === tab.key"
-            class="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-n-iris-9"
-          />
-        </button>
+            {{ tab.label }}
+            <span
+              v-if="tab.count != null"
+              class="px-[7px] py-px text-[11px] rounded-full tabular-nums"
+              :class="
+                activeFilter === tab.key
+                  ? 'bg-n-iris-4 text-n-iris-11'
+                  : 'bg-n-slate-3 text-n-slate-11'
+              "
+            >
+              {{ tab.count }}
+            </span>
+            <span
+              v-if="activeFilter === tab.key"
+              class="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-n-iris-9"
+            />
+          </button>
+        </div>
       </div>
 
       <div class="flex-1 px-3.5 py-1.5 overflow-auto">

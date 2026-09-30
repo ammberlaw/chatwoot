@@ -2,7 +2,7 @@
 class Crm::AttendanceCsvService
   require 'csv'
 
-  HEADERS = %w[姓名 应到 已打卡 迟到 早退 缺卡 请假 外勤].freeze
+  HEADERS = %w[姓名 应到 已打卡 迟到 早退 旷工 请假 外勤].freeze
 
   def initialize(rows:, range:)
     @rows = rows

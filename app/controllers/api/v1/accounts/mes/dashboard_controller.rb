@@ -31,12 +31,14 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     board_rows = Current.account.mes_board_owners.to_a
     board_map = board_rows.index_by { |o| [o.board_key, o.product_line.to_s] }.transform_values(&:manager_ids)
     names = Current.account.users.where(id: board_rows.flat_map(&:manager_ids).uniq).pluck(:id, :name).to_h
+    # 「等谁」「业务」都带岗位（「工程-朱桂权」），与单据详情同一口径。
+    staff = Mes::StaffNames.new(Current.account)
 
     @stages = Mes::ProductionOrder::STAGES - ['SHIPPED']
     grouped = orders.group_by(&:stage)
     now = Time.current
     @cards_by_stage = @stages.index_with do |stage|
-      (grouped[stage] || []).map { |po| pipeline_card(po, board_map, names, now) }
+      (grouped[stage] || []).map { |po| pipeline_card(po, board_map, names, staff, now) }
                             .sort_by { |c| -(c[:stall_days] || 0) }
     end
     render 'api/v1/accounts/mes/dashboard/pipeline'
@@ -49,15 +51,16 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     authorize(Mes::ProductionOrder, :index?)
   end
 
-  def pipeline_card(po, board_map, names, now)
+  def pipeline_card(po, board_map, names, staff, now)
     ev = po.stage_events.select { |e| e.stage == po.stage }.max_by(&:entered_at)
     stall_days = ev&.entered_at ? ((now - ev.entered_at) / 1.day).floor : nil
     key = Mes::ProductionOrder::STAGE_BOARD_KEYS[po.stage]
     ids = key ? pipeline_owner_ids(board_map, key, po.product_line.to_s) : []
-    waiting = ids.filter_map { |id| names[id] }
+    hints = Mes::ProductionOrder::BOARD_ROLE_HINTS[key]
+    waiting = ids.filter_map { |id| staff.label(id, names[id], hints) }
     { id: po.id, order_no: po.order_no, product_name: po.product_name,
       customer_name: po.crm_customer&.name, order_kind: po.order_kind,
-      owner_name: po.owner&.name, stage: po.stage, waiting_names: waiting,
+      owner_name: staff.for_user(po.owner), stage: po.stage, waiting_names: waiting,
       stall_days: stall_days, ack_state: pipeline_ack_state(po),
       alert: pipeline_alert(po, now), delivery_date: po.delivery_date }
   end

@@ -365,19 +365,22 @@ onMounted(loadLedgers);
     </div>
 
     <div class="flex items-center gap-2 px-6 pb-3">
-      <button
-        v-for="tab in TABS"
-        :key="tab.key"
-        class="h-9 px-3 text-sm transition-colors rounded-lg"
-        :class="
-          activeTab === tab.key
-            ? 'bg-n-iris-9 text-white'
-            : 'text-n-slate-11 hover:bg-n-alpha-2'
-        "
-        @click="switchTab(tab.key)"
-      >
-        {{ tab.label }}
-      </button>
+      <div class="flex items-center gap-2" data-tabbar="page">
+        <button
+          v-for="tab in TABS"
+          :key="tab.key"
+          :aria-selected="activeTab === tab.key"
+          class="h-9 px-3 text-sm transition-colors rounded-lg"
+          :class="
+            activeTab === tab.key
+              ? 'bg-n-iris-9 text-white'
+              : 'text-n-slate-11 hover:bg-n-alpha-2'
+          "
+          @click="switchTab(tab.key)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
       <SelectCard
         v-if="activeTab === 'ledger'"
         v-model="statusFilter"

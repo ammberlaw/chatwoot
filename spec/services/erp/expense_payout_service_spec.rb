@@ -48,7 +48,7 @@ RSpec.describe Erp::ExpensePayoutService do
   def sales_order
     order = account.crm_sales_orders.new(
       name: '测试订单', order_no: "SO#{SecureRandom.hex(4)}", order_date: today,
-      status: 'IN_PRODUCTION', crm_customer_id: customer.id, owner_id: user.id,
+      status: 'IN_PRODUCTION', order_kind: 'CUSTOM', crm_customer_id: customer.id, owner_id: user.id,
       order_amount_micros: 10_000 * 1_000_000, order_currency: 'CNY', exchange_rate: 1
     )
     order.files.attach(io: StringIO.new('PI'), filename: 'pi.pdf', content_type: 'application/pdf')

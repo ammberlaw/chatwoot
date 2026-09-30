@@ -15,7 +15,7 @@ RSpec.describe 'CRM 财务只读', type: :request do
   # 模型还强制至少一个附件（PI/生产订单），所以挂一个占位文件。
   def order_for(owner, order_no)
     order = account.crm_sales_orders.new(name: "单-#{order_no}", order_no: order_no,
-                                         order_date: Time.current, owner: owner)
+                                         order_date: Time.current, owner: owner, order_kind: 'CUSTOM')
     order.files.attach(io: StringIO.new('pi'), filename: "#{order_no}.pdf", content_type: 'application/pdf')
     order.save!
     order

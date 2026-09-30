@@ -8,7 +8,7 @@ json.product_name resource.crm_product&.name
 json.product_sku resource.crm_product&.sku
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
-json.production_order_owner_name resource.production_order&.owner&.name
+json.production_order_owner_name mes_staff_name(resource.production_order&.owner)
 json.inspected_qty resource.inspected_qty
 json.passed_qty resource.passed_qty
 json.failed_qty resource.failed_qty
@@ -16,7 +16,7 @@ json.result resource.result
 json.defect_reason resource.defect_reason
 json.need_rework resource.need_rework
 json.inspector_id resource.inspector_id
-json.inspector_name resource.inspector&.name
+json.inspector_name mes_staff_name(resource.inspector, Mes::StaffNames::PRODUCTION)
 json.inspected_at resource.inspected_at
 json.remark resource.remark
 json.videos resource.videos.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }

@@ -1836,7 +1836,9 @@ watch(currentPage, fetchRecords);
               >
                 {{ (o.name || '?').slice(0, 1) }}
               </span>
-              <span class="text-sm text-n-iris-12">{{ o.name }}</span>
+              <span class="text-sm text-n-iris-12">{{
+                o.label || o.name
+              }}</span>
               <span class="i-lucide-message-circle size-3.5 text-n-iris-11" />
             </button>
             <span

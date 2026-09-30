@@ -13,7 +13,7 @@ class Crm::QuoteToSalesOrder
     return existing if existing
 
     order = build_order
-    order.skip_attachment_check = true if order.respond_to?(:skip_attachment_check=)
+    order.system_generated = true if order.respond_to?(:system_generated=)
     order.save!
     order
   end

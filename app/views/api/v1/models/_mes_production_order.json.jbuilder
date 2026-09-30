@@ -41,14 +41,14 @@ if local_assigns[:detail]
 end
 # 业务二次确认 BOM（空 = 尚未确认，未确认前不得下发采购）。
 json.bom_confirmed_at resource.bom_confirmed_at
-json.bom_confirmed_by_name resource.bom_confirmed_by&.name
+json.bom_confirmed_by_name mes_staff_name(resource.bom_confirmed_by, Mes::StaffNames::ENGINEERING)
 # BOM 变更史（工程改动已下发 BOM 的用料留痕；订单时间线可回看）。
 json.bom_revisions do
   json.array! (resource.bom&.bom_revisions || []) do |rev|
     json.rev_no rev.rev_no
     json.reason rev.reason
     json.diff rev.diff
-    json.changed_by_name rev.changed_by&.name
+    json.changed_by_name mes_staff_name(rev.changed_by, Mes::StaffNames::ENGINEERING)
     json.created_at rev.created_at
   end
 end
@@ -62,22 +62,28 @@ json.stage_events do
 end
 # 接单确认（P1）：当前阶段负责人 + 接单状态，供详情面板展示与接单/拒收按钮判定。
 json.stage_owner_ids resource.current_stage_owner_ids
-json.stage_owner_names User.where(id: resource.current_stage_owner_ids).pluck(:name)
+# 姓名带岗位（「工程-朱桂权」），岗位按当前阶段所属板块挑——身兼多岗的人在不同阶段显示不同岗位。
+stage_hints = Mes::ProductionOrder::BOARD_ROLE_HINTS[Mes::ProductionOrder::STAGE_BOARD_KEYS[resource.stage]]
+json.stage_owner_names mes_staff_names_for(resource.current_stage_owner_ids, stage_hints)
 # 阶段负责人 {id,name} 配对（按 id 顺序，供详情面板点名字跳团队协同私聊；pluck 不保证同序，故单独配对）。
 stage_owner_lookup = User.where(id: resource.current_stage_owner_ids).index_by(&:id)
-json.stage_owners resource.current_stage_owner_ids.map { |uid| { id: uid, name: stage_owner_lookup[uid]&.name } }
+# name 是纯姓名（前端拿首字做头像），label 才是带岗位的显示名。
+json.stage_owners resource.current_stage_owner_ids.map { |uid|
+  { id: uid, name: stage_owner_lookup[uid]&.name,
+    label: mes_staff_label(uid, stage_owner_lookup[uid]&.name, stage_hints) }
+}
 json.awaiting_ack resource.awaiting_ack?
 json.ack_overdue resource.ack_overdue?
 json.ack_deadline resource.ack_deadline
 json.stage_ack_at resource.stage_ack_at
-json.stage_ack_by_name resource.stage_ack_by&.name
+json.stage_ack_by_name mes_staff_name(resource.stage_ack_by, stage_hints)
 # 接单/转交流水：一个阶段两人接力时，各自的动作都要看得见（订单上的 stage_ack_* 只是当前状态）。
 json.stage_ack_events do
   json.array! resource.stage_ack_events.chronological.includes(:actor, :to_user) do |ev|
     json.stage ev.stage
     json.kind ev.kind
-    json.actor_name ev.actor&.name
-    json.to_user_name ev.to_user&.name
+    json.actor_name mes_staff_name(ev.actor)
+    json.to_user_name mes_staff_name(ev.to_user)
     json.note ev.note
     json.happened_at ev.happened_at
   end
@@ -90,7 +96,7 @@ json.planned_end_date resource.planned_end_date
 json.actual_start_date resource.actual_start_date
 json.actual_end_date resource.actual_end_date
 json.owner_id resource.owner_id
-json.owner_name resource.owner&.name
+json.owner_name mes_staff_name(resource.owner)
 json.is_draft resource.is_draft
 json.pi_no resource.pi_no
 json.product_code resource.product_code
@@ -99,11 +105,11 @@ json.approval_status resource.approval_status
 json.current_approver_id resource.current_approver_id
 json.submitted_at resource.submitted_at
 json.manager_id resource.manager_id
-json.manager_name resource.manager&.name
+json.manager_name mes_staff_name(resource.manager)
 json.manager_acted_at resource.manager_acted_at
 json.manager_comment resource.manager_comment
 json.gm_id resource.gm_id
-json.gm_name resource.gm&.name
+json.gm_name mes_staff_name(resource.gm)
 json.gm_acted_at resource.gm_acted_at
 json.gm_comment resource.gm_comment
 json.spec resource.spec
@@ -118,7 +124,7 @@ if Current.account_user&.mes_staff?
     json.id po.id
     json.po_no po.po_no
     json.status po.status
-    json.owner_name po.owner&.name
+    json.owner_name mes_staff_name(po.owner, Mes::StaffNames::PURCHASING)
     json.item_count po.purchase_items.size
   end
 else
@@ -135,7 +141,7 @@ if local_assigns[:detail]
       json.stage_label fwd.stage_label
       json.recipient_names fwd.recipient_names
       json.note fwd.note
-      json.sender_name fwd.sender&.name
+      json.sender_name mes_staff_name(fwd.sender)
       json.created_at fwd.created_at
     end
   end

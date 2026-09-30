@@ -563,6 +563,99 @@ body.theme-classic button[data-button-variant='solid'].bg-n-brand:focus-visible 
   background-color: rgb(var(--amber-10)) !important;
 }
 
+// 还有一批主操作按钮是原生 <button> 写死的品牌渐变（新建客户/新建订单/新建报价/新建 PI 等 9 处），
+// 不走 Button 组件、没有 data-button-variant，上面那条按不到，经典灰下会留成深灰渐变——
+// 于是同一套系统里 CRM 的主按钮是深灰、MES/ERP 的是品牌黄，同一个人一天要认两种主按钮。
+//
+// 必须连尾色一起认（from-n-iris-9 + to-n-accent-grad）：
+// 右下角那颗 AI 悬浮球是同样的斜向渐变、同样的 iris-9 起色，但尾色是 violet-10，
+// 只按起色认会把它也染黄，跟旁边黄色的客服球堆成两颗一样的球（实测误伤过）。
+// 客户详情里的横向渐变进度条（bg-gradient-to-r）和非 button 元素本就不在范围内。
+// 阴影一并换掉：原来是 iris-9（经典灰下=深灰）的投影，压在黄底上发脏。
+body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad {
+  background-image: none !important;
+  background-color: rgb(var(--amber-9)) !important;
+  color: #1a1c20 !important;
+  box-shadow: 0 4px 10px -3px rgb(var(--amber-9) / 0.45) !important;
+}
+body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad:hover:enabled,
+body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad:focus-visible {
+  background-color: rgb(var(--amber-10)) !important;
+}
+
+// ── 页面级 Tab 统一（全主题）──────────────────────────────────────
+// 各页的「切换看哪一批数据」历史上长了五种：客户是灰槽+深块、邮件是灰槽+白块、
+// 考勤是描边按钮、销售订单是下划线、ERP 是无槽深块。同一个人一天要认好几种
+// 「当前在看哪一栏」。这里统一成「灰槽 + 深色选中块」。
+//
+// 不去 hack 那五种 class：容器上挂 data-tabbar（纯属性、本身不带任何样式），
+// 选中项用 aria-selected 标出来（顺带补了无障碍语义），这里只认这两样。
+// 以后新页面带上标记就自动统一。
+//
+// 颜色一律走 token（槽 slate-3 / 选中块 iris-9 / 文字 slate-11），
+// 所以四套主题各取各的：紫玻璃是紫块、经典灰是深灰块、蓝是蓝块、beebot 是靛块，
+// 一套规则不用为每个主题各写一份。
+//
+// page = 按内容宽度（客户/考勤/销售订单/ERP）；page-block = 撑满容器（邮件那种窄栏）。
+// 面板内 Tab（订单详情的 字段/生产追溯/操作历史）不挂标记，保持下划线式——
+// 页面级切换和面板内分区本来就该看得出区别。
+[data-tabbar^='page'] {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  gap: 2px;
+  padding: 3px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(var(--slate-3));
+}
+[data-tabbar='page-block'] {
+  width: 100%;
+}
+[data-tabbar^='page'] > button {
+  flex: none;
+  height: auto;
+  padding: 6px 13px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 400;
+  color: rgb(var(--slate-11));
+}
+[data-tabbar='page-block'] > button {
+  flex: 1;
+  justify-content: center;
+}
+[data-tabbar^='page'] > button:hover:not([aria-selected='true']) {
+  color: rgb(var(--slate-12));
+}
+[data-tabbar^='page'] > button[aria-selected='true'] {
+  background: rgb(var(--iris-9));
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(var(--iris-9) / 0.22);
+}
+// 计数徽标（销售订单的 161/0）统一成中性灰。
+// :not(.absolute) 避开销售订单那根绝对定位的下划线条；
+// :not([class*='bg-n-ruby']) 放过应收「待建账」那种警示角标——那抹红是在喊
+// 「有 154 单漏建账」，跟普通计数不是一回事，一起染灰就把提醒抹掉了。
+[data-tabbar^='page']
+  > button:not([aria-selected='true'])
+  > span:not(.absolute):not([class*='bg-n-ruby']) {
+  background: rgb(var(--slate-4));
+  color: rgb(var(--slate-11));
+}
+[data-tabbar^='page'] > button[aria-selected='true'] > span:not(.absolute) {
+  background: rgb(255 255 255 / 0.22);
+  color: #ffffff;
+}
+// 销售订单原来那根下划线指示条，灰槽方案下不需要。
+[data-tabbar^='page'] > button > span.absolute {
+  display: none;
+}
+
 // MES 裸页圆弧「玻璃」外框：玻璃(默认)/蓝/beebot 通用，与看板/流水图已有玻璃外框统一观感。
 // 经典灰下方另有更具体规则(body.theme-classic…)覆盖成白卡；已自带卡的页(bg-n-solid-1)由 :not 排除不叠加。
 .mes-canvas > *:not([class*='bg-n-solid-1']) {

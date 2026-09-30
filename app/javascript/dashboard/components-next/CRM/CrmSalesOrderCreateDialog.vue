@@ -143,12 +143,15 @@ const addLineItem = () =>
 const removeLineItem = index => form.lineItems.splice(index, 1);
 
 // 上传的订单均为已付款订单，无「待确认」环节，默认从「生产中」起。
+const isEditing = computed(() => editingId.value !== null);
 // 订单双轨：决定这单一键转下游走哪条线（定制→生产订单 / 库存→现货出库单）。
-const orderKindOptions = [
-  { value: '', label: '未分类' },
+// 金蝶过渡期它还兼当「这单在哪套系统结算」的标记，所以新建必选。
+// 「未分类」只留给存量老单回显，新建时不给这个选项。
+const orderKindOptions = computed(() => [
+  ...(isEditing.value ? [{ value: '', label: '未分类' }] : []),
   { value: 'CUSTOM', label: '定制单' },
   { value: 'STOCK', label: '库存单' },
-];
+]);
 
 const statusOptions = [
   { value: 'IN_PRODUCTION', label: '生产中' },
@@ -196,12 +199,12 @@ const opportunityOptions = computed(() => {
   ];
 });
 
-const isEditing = computed(() => editingId.value !== null);
-// 新建订单：附件必填（如 PI、生产订单），否则不可保存。
+// 新建订单：附件与订单类型必填（附件如 PI、生产订单），否则不可保存。
 const isFormInvalid = computed(
   () =>
     !form.name.trim() ||
     !form.orderDate ||
+    (!isEditing.value && !form.orderKind) ||
     (!isEditing.value &&
       pendingFiles.value.length === 0 &&
       !sourceAttachmentId.value)
@@ -566,7 +569,10 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
           <SelectCard v-model="form.status" :options="statusOptions" />
         </div>
         <div class="flex flex-col min-w-0 gap-1">
-          <label class="mb-0.5 text-heading-3 text-n-slate-12">订单类型</label>
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            订单类型
+            <span v-if="!isEditing" class="text-n-ruby-11">*</span>
+          </label>
           <SelectCard v-model="form.orderKind" :options="orderKindOptions" />
         </div>
         <div class="flex flex-col min-w-0 gap-1">

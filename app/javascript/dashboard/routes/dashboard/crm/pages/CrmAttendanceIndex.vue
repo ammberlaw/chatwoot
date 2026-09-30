@@ -44,7 +44,7 @@ const STATUS_META = {
   LATE: { label: '迟到', cls: 'bg-n-amber-3 text-n-amber-11' },
   EARLY_LEAVE: { label: '早退', cls: 'bg-n-amber-3 text-n-amber-11' },
   LATE_EARLY: { label: '迟到+早退', cls: 'bg-n-amber-3 text-n-amber-11' },
-  ABSENT: { label: '缺卡', cls: 'bg-n-ruby-3 text-n-ruby-11' },
+  ABSENT: { label: '旷工', cls: 'bg-n-ruby-3 text-n-ruby-11' },
   LEAVE: { label: '请假', cls: 'bg-n-iris-3 text-n-iris-11' },
   HALF_LEAVE: { label: '请假(半天)', cls: 'bg-n-iris-3 text-n-iris-11' },
   FIELD: { label: '外勤', cls: 'bg-n-blue-3 text-n-blue-11' },
@@ -91,7 +91,7 @@ const recordByDate = computed(() =>
 );
 const todayRec = computed(() => recordByDate.value[todayStr()] || null);
 
-// 月历：周一开头；过去的工作日无记录 = 缺卡
+// 月历：周一开头；过去的工作日无记录 = 旷工
 const calendarCells = computed(() => {
   const [y, m] = month.value.split('-').map(Number);
   const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
@@ -729,8 +729,9 @@ onMounted(fetchMine);
       class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
     >
       <h1 class="text-xl font-medium text-n-slate-12">考勤</h1>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2" data-tabbar="page">
         <button
+          :aria-selected="view === 'mine'"
           class="h-8 px-3 text-sm rounded-lg border"
           :class="
             view === 'mine'
@@ -743,6 +744,7 @@ onMounted(fetchMine);
         </button>
         <button
           v-if="canSummary"
+          :aria-selected="view === 'summary'"
           class="h-8 px-3 text-sm rounded-lg border"
           :class="
             view === 'summary'
@@ -755,6 +757,7 @@ onMounted(fetchMine);
         </button>
         <button
           v-if="isAdminLike"
+          :aria-selected="view === 'settings'"
           class="h-8 px-3 text-sm rounded-lg border"
           :class="
             view === 'settings'
@@ -901,7 +904,7 @@ onMounted(fetchMine);
           <span>出勤 {{ mineCounts.present }} 天</span>
           <span>迟到 {{ mineCounts.late }} 次</span>
           <span>早退 {{ mineCounts.early }} 次</span>
-          <span>缺卡 {{ mineCounts.absent }} 天</span>
+          <span>旷工 {{ mineCounts.absent }} 天</span>
           <span>外勤 {{ mineCounts.field }} 天</span>
           <span>请假 {{ mineCounts.leave }} 天</span>
         </div>
@@ -916,7 +919,7 @@ onMounted(fetchMine);
             {{ meta.label }}
           </span>
         </div>
-        <!-- 缺卡/迟到快捷入口：跳转 OA 提交补卡/请假 -->
+        <!-- 旷工/迟到快捷入口：跳转 OA 提交补卡/请假 -->
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-xs text-n-slate-10">卡有问题？</span>
           <button
@@ -1059,7 +1062,7 @@ onMounted(fetchMine);
               <span class="text-xl font-semibold text-n-ruby-11">
                 {{ overview.absent }}
               </span>
-              <span class="text-xs text-n-slate-10">缺卡</span>
+              <span class="text-xs text-n-slate-10">旷工</span>
             </div>
             <div
               class="flex flex-col items-center gap-1 p-3 rounded-xl bg-n-alpha-1"
@@ -1136,7 +1139,7 @@ onMounted(fetchMine);
                 早退：{{ row.early_leave }}
               </span>
               <span :class="row.absent ? 'text-n-ruby-11' : ''">
-                缺卡：{{ row.absent }}
+                旷工：{{ row.absent }}
               </span>
               <span :class="row.field ? 'text-n-blue-11' : ''">
                 外勤：{{ row.field }}
@@ -1155,7 +1158,7 @@ onMounted(fetchMine);
                 <th class="px-3 py-2 font-medium">出勤</th>
                 <th class="px-3 py-2 font-medium">迟到</th>
                 <th class="px-3 py-2 font-medium">早退</th>
-                <th class="px-3 py-2 font-medium">缺卡</th>
+                <th class="px-3 py-2 font-medium">旷工</th>
                 <th class="px-3 py-2 font-medium">外勤</th>
                 <th class="px-3 py-2 font-medium">请假</th>
                 <th v-if="isAdminLike" class="px-3 py-2 font-medium text-right">
@@ -1216,7 +1219,7 @@ onMounted(fetchMine);
           </table>
         </div>
         <p class="text-xs text-n-slate-10">
-          口径：只统计工作日且不含未来日期；缺卡=当天没有任何打卡记录；外勤=出差/客户现场打卡（计出勤、单列，不判迟到）；修正会留审计痕迹。
+          口径：只统计工作日且不含未来日期；旷工=当天没有任何打卡记录；外勤=出差/客户现场打卡（计出勤、单列，不判迟到）；修正会留审计痕迹。
         </p>
       </template>
 

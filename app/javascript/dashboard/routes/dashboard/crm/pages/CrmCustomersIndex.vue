@@ -1593,11 +1593,13 @@ watch(
           <div
             v-if="showViewTabs"
             class="flex items-center gap-0.5 p-[3px] rounded-[10px] bg-n-slate-3"
+            data-tabbar="page"
           >
             <button
               v-for="tab in viewTabs"
               :key="tab.key"
               type="button"
+              :aria-selected="currentView === tab.key"
               class="px-3 py-1.5 text-[13px] rounded-lg transition-colors"
               :class="
                 currentView === tab.key

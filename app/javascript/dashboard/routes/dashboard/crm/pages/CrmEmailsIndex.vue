@@ -1781,6 +1781,7 @@ watch(
         <div
           v-if="isAdmin || canViewTeam"
           class="flex gap-0.5 p-0.5 mt-2 rounded-lg bg-n-alpha-2"
+          data-tabbar="page-block"
         >
           <button
             v-for="opt in [
@@ -1788,6 +1789,7 @@ watch(
               { v: 'team', l: '团队邮件' },
             ]"
             :key="opt.v"
+            :aria-selected="mailScope === opt.v"
             class="flex-1 py-1 text-xs rounded-md transition-colors"
             :class="
               mailScope === opt.v

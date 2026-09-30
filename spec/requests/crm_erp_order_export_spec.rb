@@ -19,7 +19,7 @@ RSpec.describe '销售订单转 ERP 预检', type: :request do
     order = account.crm_sales_orders.new(
       { name: '测试单', order_no: "SO-E#{SecureRandom.hex(3)}", order_date: Time.current,
         owner_id: user.id, crm_customer_id: customer.id, payment_term: 'TT30',
-        line_items: items }.merge(attrs)
+        order_kind: 'CUSTOM', line_items: items }.merge(attrs)
     )
     order.files.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'pi.png',
                        content_type: 'image/png')

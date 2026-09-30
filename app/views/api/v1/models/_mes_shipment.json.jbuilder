@@ -6,7 +6,7 @@ json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.production_order_id resource.production_order_id
 json.production_order_no resource.production_order&.order_no
-json.production_order_owner_name resource.production_order&.owner&.name
+json.production_order_owner_name mes_staff_name(resource.production_order&.owner)
 json.warehouse_id resource.warehouse_id
 json.kind resource.kind
 json.status resource.status
@@ -14,11 +14,11 @@ json.notified_at resource.notified_at
 json.submitted_at resource.submitted_at
 json.approved_at resource.approved_at
 json.manager_id resource.manager_id
-json.manager_name resource.manager&.name
+json.manager_name mes_staff_name(resource.manager)
 json.reject_reason resource.reject_reason
 json.shipped_at resource.shipped_at
 json.owner_id resource.owner_id
-json.owner_name resource.owner&.name
+json.owner_name mes_staff_name(resource.owner, Mes::StaffNames::WAREHOUSE)
 json.remark resource.remark
 json.shipment_items do
   json.array! resource.shipment_items.order(:id) do |item|

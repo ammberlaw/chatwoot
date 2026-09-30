@@ -176,13 +176,6 @@ const period = ref('this_month');
 // 取数模式：preset 快捷段 / month 指定年月。
 const mode = ref('preset');
 const monthValue = ref(''); // 指定年月 'YYYY-MM'（空=用快捷段）
-const periodLabel = computed(() => {
-  if (mode.value === 'month' && monthValue.value) {
-    const [y, m] = monthValue.value.split('-');
-    return `${y}年${Number(m)}月`;
-  }
-  return PERIODS.find(p => p.key === period.value)?.label || '';
-});
 const fmt = d =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate()
@@ -275,9 +268,6 @@ onMounted(() => {
         <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
           生产看板
         </h1>
-        <p class="mt-0.5 text-sm text-n-slate-11">
-          {{ periodLabel }} · 生产全局概览
-        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <!-- 快捷段 -->

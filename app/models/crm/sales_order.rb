@@ -95,8 +95,9 @@ class Crm::SalesOrder < ApplicationRecord
   # 订单附件（PI、生产订单等）。新建订单强制至少一个附件。
   has_many_attached :files
 
-  # PI 付款自动转单等系统内转换：单据即 PI 本身，豁免「必须带附件」硬校验。
-  attr_accessor :skip_attachment_check
+  # PI 付款自动转单、报价转单等系统内转换：不是人工填的表单，
+  # 豁免那些只对人工建单才有意义的必填（附件、订单类型）。
+  attr_accessor :system_generated
 
   before_validation :generate_order_no, on: :create
   before_save :assign_team_from_owner, if: :will_save_change_to_owner_id?
@@ -111,7 +112,8 @@ class Crm::SalesOrder < ApplicationRecord
   validates :order_date, presence: true
   validates :order_currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
   validates :order_kind, inclusion: { in: ORDER_KINDS }, allow_blank: true
-  validate :require_attachment_on_create, on: :create, unless: :skip_attachment_check
+  validate :require_attachment_on_create, on: :create, unless: :system_generated
+  validate :require_order_kind_on_create, on: :create, unless: :system_generated
 
   after_destroy :rollup_customer_deals
   after_save :rollup_customer_deals
@@ -150,6 +152,13 @@ class Crm::SalesOrder < ApplicationRecord
   # 新建订单必须至少上传一个附件（如 PI、生产订单）。
   def require_attachment_on_create
     errors.add(:files, '请至少上传一个附件（如 PI、生产订单）') unless files.attached?
+  end
+
+  # 订单类型决定这单往下走哪条线（定制→MES 生产订单 / 库存→现货出库单）。
+  # 金蝶过渡期它还兼当「这单在哪套系统结算」的标记，空着下游就无从分流，故人工建单必选。
+  # 只校验 create：存量未分类的老单照常能改，不逼业务员回填历史。
+  def require_order_kind_on_create
+    errors.add(:order_kind, '请选择订单类型（定制单/库存单）') if order_kind.blank?
   end
 
   # 订单所属团队按 owner 自动反写（对应 Twenty sales-order-team-rollup 触发器）。

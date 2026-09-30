@@ -342,7 +342,7 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     end
   end
 
-  # 缺卡：已过去的工作日没有记录（按该成员所属组的工作日口径）。
+  # 旷工：已过去的工作日没有记录（按该成员所属组的工作日口径）。
   def status_counts(user_id, records, range)
     group = group_for(user_id)
     today = Time.current.in_time_zone(Crm::AttendanceRecord::TZ).to_date

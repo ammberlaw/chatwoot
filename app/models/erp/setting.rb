@@ -3,11 +3,12 @@
 #
 # Table name: erp_settings
 #
-#  id             :bigint           not null, primary key
-#  bad_debt_rates :jsonb            not null
-#  created_at     :datetime         not null
-#  updated_at     :datetime         not null
-#  account_id     :bigint           not null
+#  id                  :bigint           not null, primary key
+#  bad_debt_rates      :jsonb            not null
+#  receivables_enabled :boolean          default(FALSE), not null
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#  account_id          :bigint           not null
 #
 # Indexes
 #
@@ -26,6 +27,13 @@ class Erp::Setting < ApplicationRecord
 
   def self.for_account(account)
     find_by(account_id: account.id) || new(account: account)
+  end
+
+  # 应收台账是否已启用。过渡期账还在金蝶，这里是 false——
+  # 此时销售订单「出货即完结」，不等应收收清（见 Erp::OrderCompletionService）。
+  # 正式切过来那天把 erp_settings.receivables_enabled 置 true 即可，不用改代码。
+  def self.receivables_enabled?(account)
+    for_account(account).receivables_enabled
   end
 
   def bad_debt_rate_table

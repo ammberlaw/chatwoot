@@ -8,7 +8,7 @@ import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
 // 产品线切换后自动重拉（axios 拦截已注入 product_line；这里只需触发重载）。
-const { activeProductLine, label: productLineLabel } = useMesProductLine();
+const { activeProductLine } = useMesProductLine();
 
 const stages = ref([]);
 const loading = ref(true);
@@ -57,10 +57,6 @@ const filteredStages = computed(() => {
   });
 });
 
-const totalInProduction = computed(() =>
-  stages.value.reduce((sum, s) => sum + s.count, 0)
-);
-
 // 接单态徽标样式。
 const ACK_BADGE = {
   waiting: { text: '⏳ 待接单', cls: 'text-n-amber-11 bg-n-amber-3' },
@@ -103,10 +99,6 @@ onMounted(load);
         <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
           流水看板
         </h1>
-        <p class="mt-0.5 text-sm text-n-slate-11">
-          {{ productLineLabel }} · 在产 {{ totalInProduction }} 单 ·
-          每单落在当前阶段列，一眼看全「卡在哪、等谁、卡多久」
-        </p>
       </div>
       <div class="flex items-center gap-2 w-full sm:w-auto">
         <div class="relative flex-1 sm:flex-none">

@@ -24,9 +24,9 @@ json.status resource.status
 json.is_active resource.is_active
 json.is_default resource.is_default
 json.owner_id resource.owner_id
-json.owner_name resource.owner&.name
+json.owner_name mes_staff_name(resource.owner, Mes::StaffNames::ENGINEERING)
 json.sales_owner_id resource.sales_owner_id
-json.sales_owner_name resource.sales_owner&.name
+json.sales_owner_name mes_staff_name(resource.sales_owner)
 json.remark resource.remark
 json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
@@ -44,7 +44,7 @@ json.revisions do
     json.rev_no rev.rev_no
     json.reason rev.reason
     json.diff rev.diff
-    json.changed_by_name rev.changed_by&.name
+    json.changed_by_name mes_staff_name(rev.changed_by, Mes::StaffNames::ENGINEERING)
     json.created_at rev.created_at
   end
 end

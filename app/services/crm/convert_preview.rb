@@ -42,12 +42,23 @@ class Crm::ConvertPreview
   def row(item, index)
     name = item['name'].to_s
     linked_product = linked[item['crm_product_id'].to_i]
-    return base(item, index, name).merge(product_fields(linked_product)).merge(source: 'linked') if linked_product
+    row = if linked_product
+            base(item, index, name).merge(product_fields(linked_product)).merge(source: 'linked')
+          else
+            hit = matches[name] || {}
+            base(item, index, name)
+              .merge(product_fields(hit[:product]))
+              .merge(source: hit[:source], fee: hit[:fee], candidates: candidates(hit[:candidates]))
+          end
+    row.merge(converted_order_no: converted[row[:crm_product_id]])
+  end
 
-    hit = matches[name] || {}
-    base(item, index, name)
-      .merge(product_fields(hit[:product]))
-      .merge(source: hit[:source], fee: hit[:fee], candidates: candidates(hit[:candidates]))
+  # 已经转过生产订单的行：弹窗要当场标出来，让人只勾没转的那几行。
+  # 后端提交时也会按「销售订单+产品」跳过已转的，这里只是提前告知。
+  def converted
+    @converted ||= @account.mes_production_orders
+                           .where(crm_sales_order_id: @order.id).where.not(status: 'CANCELLED')
+                           .pluck(:crm_product_id, :order_no).to_h
   end
 
   def base(item, index, name)

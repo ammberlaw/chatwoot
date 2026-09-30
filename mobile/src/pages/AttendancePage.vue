@@ -15,7 +15,7 @@ const STATUS_LABELS = {
   LATE: '迟到',
   EARLY_LEAVE: '早退',
   LATE_EARLY: '迟到+早退',
-  ABSENT: '缺卡',
+  ABSENT: '旷工',
   LEAVE: '请假',
   HALF_LEAVE: '请假(半天)',
   FIELD: '外勤',

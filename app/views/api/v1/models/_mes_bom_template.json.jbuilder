@@ -9,7 +9,7 @@ json.production_days resource.production_days
 json.fg_inbound_days resource.fg_inbound_days
 json.product_line resource.product_line
 json.owner_id resource.owner_id
-json.owner_name resource.owner&.name
+json.owner_name mes_staff_name(resource.owner, Mes::StaffNames::ENGINEERING)
 json.remark resource.remark
 json.items_count resource.bom_template_items.size
 json.bom_template_items do

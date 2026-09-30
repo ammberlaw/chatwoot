@@ -469,30 +469,33 @@ onMounted(() => {
     </div>
 
     <div class="flex items-center gap-2 px-6 pb-3">
-      <button
-        v-for="tab in TABS"
-        :key="tab.key"
-        class="h-9 px-3 text-sm transition-colors rounded-lg"
-        :class="
-          activeTab === tab.key
-            ? 'bg-n-iris-9 text-white'
-            : 'text-n-slate-11 hover:bg-n-alpha-2'
-        "
-        @click="switchTab(tab.key)"
-      >
-        {{ tab.label }}
-        <span
-          v-if="tab.key === 'pending' && pendingCount"
-          class="ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs rounded-full"
+      <div class="flex items-center gap-2" data-tabbar="page">
+        <button
+          v-for="tab in TABS"
+          :key="tab.key"
+          :aria-selected="activeTab === tab.key"
+          class="h-9 px-3 text-sm transition-colors rounded-lg"
           :class="
             activeTab === tab.key
-              ? 'bg-white/25 text-white'
-              : 'bg-n-ruby-9 text-white'
+              ? 'bg-n-iris-9 text-white'
+              : 'text-n-slate-11 hover:bg-n-alpha-2'
           "
+          @click="switchTab(tab.key)"
         >
-          {{ pendingCount }}
-        </span>
-      </button>
+          {{ tab.label }}
+          <span
+            v-if="tab.key === 'pending' && pendingCount"
+            class="ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs rounded-full"
+            :class="
+              activeTab === tab.key
+                ? 'bg-white/25 text-white'
+                : 'bg-n-ruby-9 text-white'
+            "
+          >
+            {{ pendingCount }}
+          </span>
+        </button>
+      </div>
       <SelectCard
         v-if="activeTab === 'ledger'"
         v-model="statusFilter"

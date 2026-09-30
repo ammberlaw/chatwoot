@@ -60,25 +60,30 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     render json: { signed_id: blob.signed_id, filename: blob.filename.to_s, url: rails_blob_path(blob, only_path: true) }
   end
 
-  # 从销售订单一键转生产订单（脊柱起点）。成品/数量优先取参数，缺则从销售订单带默认。
+  # 从销售订单一键转生产订单（脊柱起点）。**每行明细各转一张**——生产脊柱按成品走，
+  # 一张生产订单只做一个成品，所以一张多型号的销售订单对应多张生产订单（都挂回同一张销售单）。
+  #
+  # 幂等按「销售订单 + 产品」判，不是整单判：
+  #   连点两下、前后端重试都不会重复建；订单后来补了一行明细，再转一次只会补那一行。
+  #   （同一张订单同一个产品拆成两行的情况生产上没有，真出现时按一张单转，数量业务自行合并。）
+  #
   # 审批口径按能力分（业务员一键转单不是绕审批的口子）：
-  #   有 :order 能力（PMC/管理员）→ 直接 APPROVED 进生产流转，原样不变；
-  #   业务员（仅 CRM 角色）→ 落草稿并提交审批，主管/总经理审完才生效。
+  #   有 :order 能力（PMC/管理员）→ 直接 APPROVED 进生产流转；
+  #   业务员等 CRM 角色 → 落草稿并提交审批，主管/总经理审完才生效。
   def convert
     sales_order = Current.account.crm_sales_orders.find(params[:crm_sales_order_id])
-    # 幂等：一张销售订单已经转过就不再转（连点两下、前后端重试都会撞）。
-    existing = Current.account.mes_production_orders
-                      .where(crm_sales_order_id: sales_order.id).where.not(status: 'CANCELLED').first
-    if existing
-      return render json: { error: "该订单已生成生产订单 #{existing.order_no}，不能重复转单" },
+    rows = convert_rows
+    return render json: { error: '请至少选择一行明细' }, status: :unprocessable_entity if rows.empty?
+
+    converted = converted_product_nos(sales_order)
+    pending = rows.reject { |row| converted.key?(row[:crm_product_id]) }
+    if pending.empty?
+      return render json: { error: "所选明细都已生成生产订单（#{converted.values.uniq.join('、')}），不能重复转单" },
                     status: :unprocessable_entity
     end
 
-    @production_order = build_converted_order(sales_order)
-    @production_order.fallback_product_line = current_product_line
-    @production_order.save!
-    @production_order.submit_for_approval!(current_user) unless Current.account_user.mes_can?(:order)
-    render 'api/v1/accounts/mes/production_orders/show'
+    orders = ActiveRecord::Base.transaction { pending.map { |row| save_converted_order(sales_order, row) } }
+    render json: { order_nos: orders.map(&:order_no), skipped: rows.size - pending.size }
   rescue StandardError => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
@@ -315,10 +320,40 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   private
 
   # 转单落库字段：成品/数量/单位优先取转单弹窗传来的（明细在那儿逐行确认过），缺则从销售订单带。
-  def build_converted_order(sales_order)
-    product = Current.account.crm_products.find_by(id: params[:crm_product_id])
+  # 转单明细：新版前端传 items 数组（每行一个成品）。
+  # 旧版单行参数（crm_product_id/qty/unit）继续认，避免老页面缓存着就转不了单。
+  def convert_rows
+    raw = params[:items].presence || [params.permit(:crm_product_id, :qty, :unit, :product_name, :delivery_date, :owner_id)]
+    Array(raw).filter_map do |item|
+      row = item.respond_to?(:permit) ? item.permit(:crm_product_id, :qty, :unit, :product_name, :delivery_date, :owner_id) : item
+      product_id = row[:crm_product_id].presence&.to_i
+      next if product_id.blank? || row[:qty].to_d <= 0
+
+      { crm_product_id: product_id, qty: row[:qty], unit: row[:unit].presence,
+        product_name: row[:product_name].presence, delivery_date: row[:delivery_date].presence,
+        owner_id: row[:owner_id].presence }
+    end
+  end
+
+  # 该销售订单下已转过的 产品id → 生产订单号（已取消的不算，取消后可以重转）。
+  def converted_product_nos(sales_order)
+    Current.account.mes_production_orders
+           .where(crm_sales_order_id: sales_order.id).where.not(status: 'CANCELLED')
+           .pluck(:crm_product_id, :order_no).to_h
+  end
+
+  def save_converted_order(sales_order, row)
+    order = build_converted_order(sales_order, row)
+    order.fallback_product_line = current_product_line
+    order.save!
+    order.submit_for_approval!(current_user) unless Current.account_user.mes_can?(:order)
+    order
+  end
+
+  def build_converted_order(sales_order, row)
+    product = Current.account.crm_products.find_by(id: row[:crm_product_id])
     Current.account.mes_production_orders.new(
-      converted_order_attrs(sales_order, product).merge(
+      converted_order_attrs(sales_order, product, row).merge(
         crm_sales_order: sales_order, crm_product: product, order_kind: 'CUSTOMER',
         # 有 :order 能力者由已确认销售订单转入，直接生效；业务员转入的落草稿等审批（见 convert）。
         approval_status: Current.account_user.mes_can?(:order) ? 'APPROVED' : 'DRAFT'
@@ -326,15 +361,15 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     )
   end
 
-  def converted_order_attrs(sales_order, product)
+  def converted_order_attrs(sales_order, product, row)
     {
       crm_customer_id: sales_order.crm_customer_id,
-      product_name: params[:product_name].presence || product&.name,
-      qty: params[:qty],
-      unit: params[:unit],
+      product_name: row[:product_name] || product&.name,
+      qty: row[:qty],
+      unit: row[:unit],
       pi_no: sales_order.pi_no,
-      delivery_date: params[:delivery_date].presence || sales_order.delivery_date,
-      owner_id: params[:owner_id] || sales_order.owner_id || current_user.id
+      delivery_date: row[:delivery_date] || sales_order.delivery_date,
+      owner_id: row[:owner_id] || sales_order.owner_id || current_user.id
     }
   end
 

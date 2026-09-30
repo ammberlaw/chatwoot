@@ -7,12 +7,12 @@ json.supplier_names resource.purchase_items.filter_map { |i| i.mes_supplier&.nam
 json.production_order_id resource.production_order_id
 json.product_line resource.product_line
 json.production_order_no resource.production_order&.order_no
-json.production_order_owner_name resource.production_order&.owner&.name
+json.production_order_owner_name mes_staff_name(resource.production_order&.owner)
 json.status resource.status
 json.approval_status resource.approval_status
 json.submitted_at resource.submitted_at
 json.gm_id resource.gm_id
-json.gm_name resource.gm&.name
+json.gm_name mes_staff_name(resource.gm)
 json.gm_acted_at resource.gm_acted_at
 json.gm_comment resource.gm_comment
 json.current_approver_id resource.current_approver_id
@@ -24,7 +24,7 @@ json.exception_note resource.exception_note
 json.total_amount_micros can_view_amount ? resource.total_amount_micros : nil
 json.can_view_amount can_view_amount
 json.owner_id resource.owner_id
-json.owner_name resource.owner&.name
+json.owner_name mes_staff_name(resource.owner, Mes::StaffNames::PURCHASING)
 json.remark resource.remark
 # 对内备注：只在系统里给采购/生产看（哪几张单在用这批料），发给供应商的模板不取它。
 json.internal_remark resource.internal_remark

@@ -6,7 +6,7 @@ json.phone resource.phone
 json.email resource.email
 json.address resource.address
 json.owner_id resource.owner_id
-json.owner_name resource.owner&.name
+json.owner_name mes_staff_name(resource.owner, Mes::StaffNames::PURCHASING)
 json.is_active resource.is_active
 json.remark resource.remark
 json.product_line resource.product_line

@@ -1,5 +1,9 @@
 # 销售订单自动完结：已出货 + 应收已收清 → COMPLETED。
 #
+# 过渡期（erp_settings.receivables_enabled = false，账还在金蝶）：
+# 应收台账里一条数据都没有，「收清」这个判据无从谈起，所以退化成「出货即完结」。
+# 不退化的话每出一单就多卡一单在 SHIPPED，业务员只能手工改状态。
+#
 # 为什么要两个触发点：这门生意两种付款节奏都有——
 #   先货后款：出货(SHIPPED) → 收款核销收清 → 完结   （由核销侧触发）
 #   先款后货：PI 付款转订单就已收清 → 出货 → 完结   （由出货侧触发）
@@ -39,10 +43,21 @@ class Erp::OrderCompletionService
 
   # 没建应收台账的订单不算"收清"——没建账等于财务还没确认这笔钱，
   # 直接判完结会把漏建账的单子悄悄标成已完结，反而盖住问题。
+  #
+  # ⚠️这条只在应收已启用时成立。过渡期账在金蝶、台账恒空，此时"没建账"
+  # 不代表财务没确认，只代表这套还没开始用，故直接判完结。
   def fully_received?(sales_order)
+    return true unless receivables_enabled?
+
     ledgers = @account.erp_receivables.where(crm_sales_order_id: sales_order.id)
     return false if ledgers.empty?
 
     ledgers.all? { |ledger| ledger.outstanding_micros <= 0 }
+  end
+
+  def receivables_enabled?
+    return @receivables_enabled unless @receivables_enabled.nil?
+
+    @receivables_enabled = Erp::Setting.receivables_enabled?(@account)
   end
 end

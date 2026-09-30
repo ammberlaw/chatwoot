@@ -18,7 +18,7 @@ class Crm::PiToSalesOrder
     return existing if existing
 
     order = build_order
-    order.skip_attachment_check = true
+    order.system_generated = true
     order.save!
     attach_pi_excel(order)
     order

@@ -22,7 +22,7 @@ RSpec.describe '销售订单明细关联产品', type: :request do
          params: {
            sales_order: {
              name: '测试单', order_no: "SO-T#{SecureRandom.hex(3)}", order_date: Time.current.iso8601,
-             line_items_json: items.to_json,
+             order_kind: 'CUSTOM', line_items_json: items.to_json,
              files: [fixture_file_upload(Rails.root.join('spec/assets/avatar.png'), 'image/png')]
            }
          }, headers: auth
@@ -46,7 +46,7 @@ RSpec.describe '销售订单明细关联产品', type: :request do
   it 'PI 付款自动生成订单不受影响（明细没产品也照样生成）' do
     order = account.crm_sales_orders.new(
       name: 'PI 自动单', order_no: "SO-A#{SecureRandom.hex(3)}", order_date: Time.current,
-      line_items: [{ 'name' => 'Android board', 'quantity' => 1 }], owner: user
+      line_items: [{ 'name' => 'Android board', 'quantity' => 1 }], owner: user, order_kind: 'CUSTOM'
     )
     order.files.attach(io: StringIO.new('pi'), filename: 'pi.pdf', content_type: 'application/pdf')
 
@@ -58,7 +58,7 @@ RSpec.describe '销售订单明细关联产品', type: :request do
   it '编辑已有订单不要求补产品' do
     order = account.crm_sales_orders.new(
       name: '旧单', order_no: "SO-O#{SecureRandom.hex(3)}", order_date: Time.current,
-      line_items: [{ 'name' => '老明细', 'quantity' => 1 }], owner: user
+      line_items: [{ 'name' => '老明细', 'quantity' => 1 }], owner: user, order_kind: 'CUSTOM'
     )
     order.files.attach(io: StringIO.new('pi'), filename: 'pi.pdf', content_type: 'application/pdf')
     order.save!

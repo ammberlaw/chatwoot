@@ -114,6 +114,17 @@ class Mes::ProductionOrder < ApplicationRecord
     'FG_INBOUND' => 'mes_fg_inbound_index'
   }.freeze
 
+  # 板块对应的岗位：把「等谁」写成「工程-朱桂权」时用。
+  # 一人身兼多岗（如 PMC+采购）时靠它挑出跟当前板块对得上的那个岗位。
+  BOARD_ROLE_HINTS = {
+    'mes_boms_index' => %w[engineer pmc],
+    'mes_purchase_orders_index' => %w[buyer],
+    'mes_stock_entries_index' => %w[warehouse],
+    'mes_material_issues_index' => %w[warehouse],
+    'mes_production_records_index' => %w[production],
+    'mes_fg_inbound_index' => %w[warehouse]
+  }.freeze
+
   # 待办（待我接单）归属映射：在板块映射之外，把无板块的「销售订单确定」
   # 归给 BOM 负责人——新生效待挂 BOM 的单进 PMC/工程待办。仅待办用，不参与接单计时。
   INBOX_BOARD_KEYS = STAGE_BOARD_KEYS.merge('SALES_CONFIRMED' => 'mes_boms_index').freeze
@@ -530,10 +541,14 @@ class Mes::ProductionOrder < ApplicationRecord
     )
   end
 
-  # 当前阶段负责人姓名（点名展示用；未配置则为空）。
+  # 当前阶段负责人姓名（点名展示用；未配置则为空）。带岗位——「工程-朱桂权」。
   def current_stage_owner_names
-    ids = current_stage_owner_ids
-    ids.blank? ? [] : account.users.where(id: ids).pluck(:name)
+    staff_names.for_ids(current_stage_owner_ids, BOARD_ROLE_HINTS[STAGE_BOARD_KEYS[stage]])
+  end
+
+  # 人名带岗位的统一口径（看板/单据详情/转发目标共用，见 Mes::StaffNames）。
+  def staff_names
+    @staff_names ||= Mes::StaffNames.new(account)
   end
 
   # ── 业务知会/转发：把订单转发给某阶段负责人（选板块）+ 附言，推站内通知并在订单上留痕 ──
@@ -552,7 +567,7 @@ class Mes::ProductionOrder < ApplicationRecord
     FORWARD_BOARD_LABELS.map do |board_key, label|
       ids = board_owner_ids(board_key)
       { board_key: board_key, label: label,
-        recipient_names: ids.blank? ? [] : account.users.where(id: ids).pluck(:name) }
+        recipient_names: staff_names.for_ids(ids, BOARD_ROLE_HINTS[board_key]) }
     end
   end
 

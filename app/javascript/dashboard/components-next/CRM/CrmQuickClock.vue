@@ -19,7 +19,7 @@ const STATUS_META = {
   LATE: { label: '迟到', cls: 'bg-n-amber-3 text-n-amber-11' },
   EARLY_LEAVE: { label: '早退', cls: 'bg-n-amber-3 text-n-amber-11' },
   LATE_EARLY: { label: '迟到+早退', cls: 'bg-n-amber-3 text-n-amber-11' },
-  ABSENT: { label: '缺卡', cls: 'bg-n-ruby-3 text-n-ruby-11' },
+  ABSENT: { label: '旷工', cls: 'bg-n-ruby-3 text-n-ruby-11' },
   LEAVE: { label: '请假', cls: 'bg-n-iris-3 text-n-iris-11' },
   HALF_LEAVE: { label: '请假(半天)', cls: 'bg-n-iris-3 text-n-iris-11' },
   FIELD: { label: '外勤', cls: 'bg-n-blue-3 text-n-blue-11' },

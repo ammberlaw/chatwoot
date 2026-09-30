@@ -8,7 +8,7 @@ json.product_name resource.production_order&.product_name
 json.product_line resource.product_line
 json.expected_date resource.expected_date
 json.owner_id resource.owner_id
-json.owner_name resource.owner&.name
+json.owner_name mes_staff_name(resource.owner, Mes::StaffNames::PURCHASING)
 json.remark resource.remark
 json.po_count resource.purchase_orders.size
 json.requisition_items do

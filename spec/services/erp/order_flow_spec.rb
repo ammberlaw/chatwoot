@@ -15,11 +15,11 @@ RSpec.describe 'CRM→MES→ERP 订单流转' do
   let(:user) { create(:user, account: account) }
   let(:customer) { create(:crm_customer, account: account) }
 
-  # 建单强制带附件（PI/生产订单），测试里塞一个占位附件满足硬校验。
-  def sales_order(status: 'IN_PRODUCTION', amount_micros: 100_000_000, currency: 'CNY', rate: 1)
+  # 建单强制带附件（PI/生产订单）和订单类型，测试里塞占位值满足硬校验。
+  def sales_order(status: 'IN_PRODUCTION', amount_micros: 100_000_000, currency: 'CNY', rate: 1, kind: 'CUSTOM')
     order = account.crm_sales_orders.new(
       name: '测试订单', order_no: "SO#{SecureRandom.hex(4)}", order_date: Time.zone.today,
-      status: status, crm_customer_id: customer.id, owner_id: user.id,
+      status: status, order_kind: kind, crm_customer_id: customer.id, owner_id: user.id,
       order_amount_micros: amount_micros, order_currency: currency, exchange_rate: rate
     )
     order.files.attach(io: StringIO.new('PI'), filename: 'pi.pdf', content_type: 'application/pdf')
@@ -186,6 +186,10 @@ RSpec.describe 'CRM→MES→ERP 订单流转' do
   end
 
   describe '③ 销售订单自动完结' do
+    # 以下用例测的都是「ERP 应收已启用」之后的行为，显式打开开关。
+    # 过渡期（开关关着）的行为单独在下一个 describe 里测。
+    before { Erp::Setting.create!(account: account, receivables_enabled: true) }
+
     def receipt_for(ledger, amount_micros)
       receipt = account.erp_receipt_records.create!(
         receipt_no: "RC#{SecureRandom.hex(4)}", crm_customer_id: customer.id, amount_micros: amount_micros,
@@ -235,6 +239,66 @@ RSpec.describe 'CRM→MES→ERP 订单流转' do
       Erp::OrderCompletionService.new(account).sync!(order)
 
       expect(order.reload.status).to eq('SHIPPED')
+    end
+  end
+
+  # 金蝶过渡期：账还在金蝶，ERP 应收一条数据都没有。此时「收清」判不出来，
+  # 出货即完结——否则每出一单就多卡一单在 SHIPPED，只能靠业务员手工改状态。
+  describe '④ 过渡期（ERP 应收未启用）出货即完结' do
+    it '已出货的订单直接判完结，不等应收台账' do
+      order = sales_order(status: 'SHIPPED')
+
+      expect(Erp::OrderCompletionService.new(account).sync!(order)).to be(true)
+      expect(order.reload.status).to eq('COMPLETED')
+    end
+
+    it '还没出货的订单照样不动（不会跳过出货直接完结）' do
+      order = sales_order(status: 'IN_PRODUCTION')
+
+      expect(Erp::OrderCompletionService.new(account).sync!(order)).to be(false)
+      expect(order.reload.status).to eq('IN_PRODUCTION')
+    end
+
+    it '开关一旦打开就立刻回到「收清才完结」的口径' do
+      order = sales_order(status: 'SHIPPED')
+      Erp::Setting.create!(account: account, receivables_enabled: true)
+
+      expect(Erp::OrderCompletionService.new(account).sync!(order)).to be(false)
+      expect(order.reload.status).to eq('SHIPPED')
+    end
+  end
+
+  # 订单类型是过渡期的分流开关（定制→MES 生产单 / 库存→金蝶），空着下游无从分流。
+  describe '⑤ 订单类型必填' do
+    def new_order(kind)
+      order = account.crm_sales_orders.new(
+        name: '测试订单', order_no: "SO#{SecureRandom.hex(4)}", order_date: Time.zone.today,
+        status: 'IN_PRODUCTION', order_kind: kind, crm_customer_id: customer.id, owner_id: user.id
+      )
+      order.files.attach(io: StringIO.new('PI'), filename: 'pi.pdf', content_type: 'application/pdf')
+      order
+    end
+
+    it '人工建单不选订单类型存不进去' do
+      order = new_order(nil)
+
+      expect(order.save).to be(false)
+      expect(order.errors[:order_kind]).to include('请选择订单类型（定制单/库存单）')
+    end
+
+    it 'PI 付款自动转单等系统内转换豁免（系统猜不出是定制还是库存，猜错更糟）' do
+      order = new_order(nil)
+      order.system_generated = true
+
+      expect(order.save).to be(true)
+    end
+
+    it '存量未分类的老单照常能改，不逼业务员回填历史' do
+      order = new_order('CUSTOM')
+      order.save!
+      order.update_columns(order_kind: nil) # rubocop:disable Rails/SkipsModelValidations
+
+      expect(order.reload.update(remark: '改个备注')).to be(true)
     end
   end
 end

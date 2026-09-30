@@ -71,6 +71,12 @@ class AccountUser < ApplicationRecord
 
   # 角色 → 可写能力域。管理员/副管理员全能力。
   # product = 产品档案/编码（仅工程与 PMC 可增删改；采购管供应商/物料走 master，不含产品）。
+  # MES 岗位中文名：看板等处要把「等谁」写成「工程-朱桂权」「采购-何双双」。
+  MES_ROLE_LABELS = {
+    'pmc' => 'PMC', 'engineer' => '工程', 'buyer' => '采购',
+    'warehouse' => '仓管', 'production' => '生产'
+  }.freeze
+
   MES_CAPABILITIES = {
     'pmc' => %w[order bom master product],
     'engineer' => %w[order bom master product],
@@ -90,6 +96,16 @@ class AccountUser < ApplicationRecord
   # 该成员的有效 MES 角色：多值 mes_roles 优先，兼容基线单值 mes_role（成员页仍单值下拉）。
   def effective_mes_roles
     (mes_roles.to_a + [mes_role]).reject(&:blank?).uniq
+  end
+
+  # 该成员的 MES 岗位中文名。hints 是「这个场合优先认哪些岗位」——
+  # 一人身兼多岗时（生产上有 PMC+采购 的），在 BOM 板块要显示 PMC、在采购板块要显示采购。
+  # 没有 MES 岗位返回 nil（调用方就只显示姓名）。
+  def mes_role_label(hints = nil)
+    roles = effective_mes_roles
+    return nil if roles.empty?
+
+    MES_ROLE_LABELS[Array(hints).find { |r| roles.include?(r) } || roles.first]
   end
 
   # MES 操作岗（有任一 MES 角色）或管理员/副管理员。供应商/采购单含采购价与供应商资料，
