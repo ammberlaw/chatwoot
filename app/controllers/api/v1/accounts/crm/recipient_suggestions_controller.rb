@@ -5,6 +5,8 @@ class Api::V1::Accounts::Crm::RecipientSuggestionsController < Api::V1::Accounts
 
   MAX = 15
 
+  MAILBOXES_PER_MEMBER = 3
+
   def index
     q = params[:q].to_s.strip
     return render(json: []) if q.length < 1
@@ -31,12 +33,26 @@ class Api::V1::Accounts::Crm::RecipientSuggestionsController < Api::V1::Accounts
   end
 
   # 同事（全公司 CRM 成员），按中/英文名或邮箱匹配。
+  # 给的是同事**实际收信的工作邮箱**（邮箱账户里配的），不是登录邮箱：
+  # 登录邮箱多数是个内部账号、根本没人在那儿收信，转发过去等于石沉大海。
+  # 一个人配了多个邮箱就都列出来（按配置顺序），没配过才退回登录邮箱。
   def member_hits(query)
     like = "%#{query}%"
-    Current.account.users
-           .where.not(email: [nil, ''])
-           .where('users.name ILIKE :q OR users.crm_name ILIKE :q OR users.email ILIKE :q', q: like)
-           .limit(MAX)
-           .map { |u| { name: u.crm_name.presence || u.name, email: u.email, type: 'member' } }
+    members = Current.account.users
+                     .where('users.name ILIKE :q OR users.crm_name ILIKE :q OR users.email ILIKE :q', q: like)
+                     .limit(MAX).to_a
+    boxes = work_mailboxes_by_owner(members.map(&:id))
+    members.flat_map do |user|
+      name = user.crm_name.presence || user.name
+      addresses = boxes[user.id].presence || [user.email].compact_blank
+      addresses.first(MAILBOXES_PER_MEMBER).map { |addr| { name: name, email: addr, type: 'member' } }
+    end
+  end
+
+  def work_mailboxes_by_owner(user_ids)
+    return {} if user_ids.empty?
+
+    Current.account.crm_mail_accounts.where(owner_id: user_ids).order(:id)
+           .group_by(&:owner_id).transform_values { |list| list.map(&:email_address) }
   end
 end

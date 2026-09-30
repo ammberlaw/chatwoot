@@ -19,6 +19,10 @@ import {
   syncConversationCallVisibility,
 } from 'dashboard/helper/voice';
 
+// 多久没等到服务器确认就去对账。取 12s：正常发送是几百毫秒，
+// 给慢网络留足余量，又不至于让人盯着转圈太久。
+const PENDING_RECONCILE_DELAY = 12000;
+
 export const hasMessageFailedWithExternalError = pendingMessage => {
   // This helper is used to check if the message has failed with an external error.
   // We have two cases
@@ -287,8 +291,15 @@ const actions = {
     dispatch('sendMessageWithData', pendingMessage);
   },
 
-  sendMessageWithData: async ({ commit }, pendingMessage) => {
+  sendMessageWithData: async ({ commit, dispatch }, pendingMessage) => {
     const { conversation_id: conversationId, id } = pendingMessage;
+    // 发消息的请求没有超时上限：切网、代理断流时这个 promise 可能永远不落地，
+    // 那条消息就一直停在「发送中」转圈——业务以为没发出去，重发一遍，客户收到两条。
+    // 到点主动跟服务器对一次账：已经进库就把状态刷成真的，没进库才判失败。
+    const reconcileTimer = setTimeout(
+      () => dispatch('reconcilePendingMessage', pendingMessage),
+      PENDING_RECONCILE_DELAY
+    );
     try {
       commit(types.ADD_MESSAGE, {
         ...pendingMessage,
@@ -317,6 +328,41 @@ const actions = {
         status: MESSAGE_STATUS.FAILED,
       });
       throw error;
+    } finally {
+      clearTimeout(reconcileTimer);
+    }
+  },
+
+  // 兜底对账：这条还卡在「发送中」就去问服务器它到底进没进库。
+  // 进了就把真消息填回去（时钟自动变成 ✓/✓✓，不用刷页面）；确实没进才判失败让人重发。
+  reconcilePendingMessage: async ({ commit, getters }, pendingMessage) => {
+    const { conversation_id: conversationId, echo_id: echoId } = pendingMessage;
+    if (!echoId) return;
+
+    const chat = getters.getConversationById(conversationId);
+    const current = (chat?.messages || []).find(m => m.id === echoId);
+    // 请求已经落地（成功或失败）就没什么可对的了
+    if (!current || current.status !== MESSAGE_STATUS.PROGRESS) return;
+
+    try {
+      const { data } = await MessageApi.getPreviousMessages({ conversationId });
+      const real = (data.payload || []).find(
+        m => m.content_attributes?.echo_id === echoId
+      );
+      if (real) {
+        commit(types.ADD_MESSAGE, { ...real, echo_id: echoId });
+        commit(types.ADD_CONVERSATION_ATTACHMENTS, {
+          ...real,
+          echo_id: echoId,
+        });
+      } else {
+        commit(types.ADD_MESSAGE, {
+          ...pendingMessage,
+          status: MESSAGE_STATUS.FAILED,
+        });
+      }
+    } catch (error) {
+      // 网络还没恢复就别乱判，保持「发送中」等下一次机会（重进会话会重新拉列表）。
     }
   },
 

@@ -290,6 +290,71 @@ describe('#actions', () => {
     });
   });
 
+  // 发消息的请求挂住（切网/代理断流）时，那条消息会一直停在「发送中」，
+  // 业务以为没发出去就重发、客户收到两条。到点跟服务器对一次账兜底。
+  describe('#reconcilePendingMessage', () => {
+    const pendingMessage = {
+      id: 'temp-uuid',
+      echo_id: 'temp-uuid',
+      conversation_id: 1,
+      status: 'progress',
+    };
+    // Vuex 传给 action 的已经是内层函数：getters.getConversationById(id)
+    const gettersWith = status => ({
+      getConversationById: () => ({
+        messages: [{ ...pendingMessage, status }],
+      }),
+    });
+
+    it('已经进库了就把真消息填回去（时钟自动变成对勾，不用刷新）', async () => {
+      const real = {
+        id: 42,
+        conversation_id: 1,
+        status: 'sent',
+        content_attributes: { echo_id: 'temp-uuid' },
+      };
+      axios.get.mockResolvedValue({ data: { payload: [real] } });
+      await actions.reconcilePendingMessage(
+        { commit, getters: gettersWith('progress') },
+        pendingMessage
+      );
+      expect(commit).toHaveBeenCalledWith(types.ADD_MESSAGE, {
+        ...real,
+        echo_id: 'temp-uuid',
+      });
+    });
+
+    it('服务器上确实没有才判失败，让人重发', async () => {
+      axios.get.mockResolvedValue({ data: { payload: [] } });
+      await actions.reconcilePendingMessage(
+        { commit, getters: gettersWith('progress') },
+        pendingMessage
+      );
+      expect(commit).toHaveBeenCalledWith(types.ADD_MESSAGE, {
+        ...pendingMessage,
+        status: 'failed',
+      });
+    });
+
+    it('请求已经落地的不再对账', async () => {
+      await actions.reconcilePendingMessage(
+        { commit, getters: gettersWith('sent') },
+        pendingMessage
+      );
+      expect(commit).not.toHaveBeenCalled();
+      expect(axios.get).not.toHaveBeenCalled();
+    });
+
+    it('网络还没恢复就保持原状，不乱判失败', async () => {
+      axios.get.mockRejectedValue(new Error('network down'));
+      await actions.reconcilePendingMessage(
+        { commit, getters: gettersWith('progress') },
+        pendingMessage
+      );
+      expect(commit).not.toHaveBeenCalled();
+    });
+  });
+
   describe('#markMessagesRead', () => {
     beforeEach(() => {
       vi.useFakeTimers();

@@ -3,6 +3,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
 
   before_action :check_authorization
   before_action :fetch_stock_entry, only: [:show, :update, :destroy, :post, :confirm_warehouse, :cancel]
+  before_action -> { ensure_owner_or_admin!(@stock_entry, '入库单') }, only: [:update, :destroy]
 
   COLUMN_FILTERS = {
     purpose: :purpose, status: :status,

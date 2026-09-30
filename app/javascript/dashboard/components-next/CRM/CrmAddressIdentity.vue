@@ -24,6 +24,14 @@ let hoverTimer = null;
 
 const email = computed(() => props.address.trim().toLowerCase());
 
+// 公司自己的邮箱一串 sales23@ / sales28@ 看不出是谁，chip 上直接显示归属人名字；
+// 地址仍挂在 title 和悬浮卡里，需要核对时能拿到。外部地址照旧显示地址。
+const label = computed(() =>
+  info.value?.type === 'colleague' && info.value.name
+    ? info.value.name
+    : props.address
+);
+
 onMounted(async () => {
   if (!email.value.includes('@')) return;
   if (IDENTITY_CACHE.has(email.value)) {
@@ -170,7 +178,7 @@ const attachToCustomer = async row => {
       class="i-lucide-circle-user-round size-3.5 shrink-0"
       :class="style.icon"
     />
-    <span class="truncate">{{ address }}</span>
+    <span class="truncate" :title="address">{{ label }}</span>
 
     <!-- 悬浮身份卡 -->
     <div
@@ -190,6 +198,12 @@ const attachToCustomer = async row => {
         >
           {{ info.name }}
         </span>
+      </div>
+      <div
+        v-if="info.type === 'colleague'"
+        class="text-xs break-all text-n-slate-10"
+      >
+        {{ address }}
       </div>
 
       <template v-if="info.customer">
@@ -285,9 +299,9 @@ const attachToCustomer = async row => {
                 <span>{{ row.owner }}</span>
               </div>
             </div>
-            <span class="text-xs shrink-0 text-n-iris-11"
-aria-hidden="true"
-              >添加</span>
+            <span class="text-xs shrink-0 text-n-iris-11" aria-hidden="true"
+              >添加</span
+            >
           </button>
         </div>
       </div>

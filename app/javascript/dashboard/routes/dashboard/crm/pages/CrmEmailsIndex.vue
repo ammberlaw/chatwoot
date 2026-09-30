@@ -398,6 +398,16 @@ const isXlsxFile = f =>
   /\.xlsx$/i.test(f.filename || '') ||
   (f.contentType || '').includes('spreadsheetml');
 const isOfficeFile = f => isDocxFile(f) || isXlsxFile(f);
+// 附件列表一长，xlsx 和 docx 共用同一个空白图标就扫不出哪个是哪个。
+// 只按扩展名分图标，不动 canPreview 的判断（csv/xls 仍然只能下载）。
+const FILE_ICONS = [
+  [/\.(xlsx?|csv)$/i, 'i-lucide-file-spreadsheet'],
+  [/\.docx?$/i, 'i-lucide-file-type'],
+  [/\.pdf$/i, 'i-lucide-file-text'],
+  [/\.(zip|rar|7z|gz)$/i, 'i-lucide-file-archive'],
+];
+const fileIcon = f =>
+  FILE_ICONS.find(([re]) => re.test(f.filename || ''))?.[1] || 'i-lucide-file';
 const canPreview = f => isImageFile(f) || isPdfFile(f) || isOfficeFile(f);
 const previewFile = ref(null);
 // 附件 URL 带 Content-Disposition: attachment 会被浏览器强制下载、iframe 空白；
@@ -934,8 +944,10 @@ const emailOpens = ref([]);
 // —— 会话线程：与当前邮件同一往来的全部邮件（后端实时按客户/对方地址+归一主题匹配）——
 const threadEmails = ref([]);
 const threadExpanded = ref(false);
+const threadFilesExpanded = ref(false);
 const fetchThread = async id => {
   threadEmails.value = [];
+  threadFilesExpanded.value = false;
   try {
     const { data } = await CrmEmailAPI.thread(id);
     threadEmails.value = camelcaseKeys(data.payload || [], { deep: true });
@@ -943,6 +955,24 @@ const fetchThread = async id => {
     threadEmails.value = [];
   }
 };
+// 会话附件汇总：把整串往来的附件拉平成一个列表。附件原本只在单封的阅读栏露出，
+// 会话折叠后列表只剩最新一封，压在串里的文件等于没有入口——这里给它一个。
+const threadFiles = computed(() =>
+  threadEmails.value.flatMap(te =>
+    (te.files || []).map(f => ({
+      ...f,
+      emailId: te.id,
+      emailDate: te.emailDate,
+      inbound: te.folder === 'INBOX',
+    }))
+  )
+);
+// 只有「别的邮件也带附件」时才出现——本封自己的附件正上方已经列了，不重复占一块。
+const hasOtherThreadFiles = computed(() =>
+  threadEmails.value.some(
+    te => te.id !== selectedEmail.value?.id && te.files?.length
+  )
+);
 
 // ---- AI 翻译 / 往来摘要（DeepSeek）状态 ----
 const aiTranslation = ref(null); // { subject, body }
@@ -985,6 +1015,12 @@ const selectEmail = async email => {
       emailOpens.value = [];
     }
   }
+};
+
+// 点附件上的日期跳到它所在的那封邮件（看上下文比只拿到文件有用）。
+const jumpToThreadEmail = id => {
+  const target = threadEmails.value.find(te => te.id === id);
+  if (target && target.id !== selectedEmail.value?.id) selectEmail(target);
 };
 
 // 星标：切换收藏，乐观更新后同步计数；在星标视图下取消则刷新列表移除。
@@ -2532,6 +2568,12 @@ watch(
                     }}
                   </div>
                 </div>
+                <Icon
+                  v-if="te.files?.length"
+                  icon="i-lucide-paperclip"
+                  class="size-3 shrink-0 text-n-slate-10"
+                  :title="`${te.files.length} 个附件`"
+                />
                 <span class="text-[11px] tabular-nums text-n-slate-10 shrink-0">
                   {{ relTime(te.emailDate) }}
                 </span>
@@ -2696,14 +2738,20 @@ watch(
 
           <!-- 附件（置于正文上方，收发邮件都无需拉到底即可看到并预览/下载） -->
           <div v-if="selectedEmail.files?.length" class="mt-5">
-            <p class="mb-2 text-xs font-medium text-n-slate-10">
+            <p
+              class="flex items-center gap-2 mb-2.5 text-sm font-medium text-n-slate-11"
+            >
+              <Icon
+                icon="i-lucide-paperclip"
+                class="size-4 shrink-0 text-n-iris-11"
+              />
               {{
                 t('CRM.EMAILS.READING.ATTACHMENTS', {
                   count: selectedEmail.files.length,
                 })
               }}
             </p>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="flex flex-col gap-2">
               <div
                 v-for="file in selectedEmail.files"
                 :key="file.id"
@@ -2720,15 +2768,13 @@ watch(
                   v-else
                   class="grid flex-shrink-0 rounded size-10 place-items-center bg-n-iris-3 text-n-iris-11"
                 >
-                  <Icon
-                    :icon="
-                      isPdfFile(file) ? 'i-lucide-file-text' : 'i-lucide-file'
-                    "
-                    class="size-5"
-                  />
+                  <Icon :icon="fileIcon(file)" class="size-5" />
                 </span>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm truncate text-n-slate-12">
+                  <p
+                    class="text-sm truncate text-n-slate-12"
+                    :title="file.filename"
+                  >
                     {{ file.filename }}
                   </p>
                   <p class="text-xs text-n-slate-10">
@@ -2747,6 +2793,112 @@ watch(
                   </button>
                   <a
                     :href="file.url"
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+                  >
+                    <Icon icon="i-lucide-download" class="size-3.5" />
+                    下载
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 本会话全部附件：整串往来的附件拉平一处，免得为了找一个文件一封封点开 -->
+          <div v-if="hasOtherThreadFiles" class="mt-4">
+            <button
+              type="button"
+              class="flex items-center w-full gap-2 text-sm transition-colors text-n-slate-11 hover:text-n-slate-12"
+              @click="threadFilesExpanded = !threadFilesExpanded"
+            >
+              <Icon
+                icon="i-lucide-paperclip"
+                class="size-4 shrink-0 text-n-iris-11"
+              />
+              <span class="font-medium">
+                本会话全部附件（{{ threadFiles.length }}）
+              </span>
+              <Icon
+                :icon="
+                  threadFilesExpanded
+                    ? 'i-lucide-chevron-up'
+                    : 'i-lucide-chevron-down'
+                "
+                class="ml-auto size-4"
+              />
+            </button>
+            <div v-if="threadFilesExpanded" class="flex flex-col gap-2 mt-2.5">
+              <div
+                v-for="f in threadFiles"
+                :key="`${f.emailId}-${f.id}`"
+                class="flex items-center gap-3 p-3 border rounded-lg"
+                :class="
+                  f.emailId === selectedEmail.id
+                    ? 'border-n-iris-6'
+                    : 'border-n-weak'
+                "
+              >
+                <img
+                  v-if="isImageFile(f)"
+                  :src="f.url"
+                  :alt="f.filename"
+                  class="flex-shrink-0 object-cover transition-opacity rounded cursor-pointer size-10 bg-n-alpha-2 hover:opacity-80"
+                  @click="openPreview(f)"
+                />
+                <span
+                  v-else
+                  class="grid flex-shrink-0 rounded size-10 place-items-center bg-n-iris-3 text-n-iris-11"
+                >
+                  <Icon :icon="fileIcon(f)" class="size-5" />
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p
+                    class="text-sm truncate text-n-slate-12"
+                    :title="f.filename"
+                  >
+                    {{ f.filename }}
+                  </p>
+                  <p
+                    class="flex items-center gap-1.5 text-xs text-n-slate-10 min-w-0"
+                  >
+                    <Icon
+                      :icon="
+                        f.inbound
+                          ? 'i-lucide-arrow-down-left'
+                          : 'i-lucide-arrow-up-right'
+                      "
+                      class="size-3 shrink-0"
+                      :class="f.inbound ? 'text-n-teal-11' : 'text-n-blue-11'"
+                    />
+                    <button
+                      type="button"
+                      class="truncate transition-colors hover:text-n-iris-11"
+                      title="跳到这封邮件"
+                      @click="jumpToThreadEmail(f.emailId)"
+                    >
+                      {{
+                        f.emailId === selectedEmail.id
+                          ? '本封'
+                          : relTime(f.emailDate)
+                      }}
+                    </button>
+                    <span class="shrink-0">· {{ fmtSize(f.byteSize) }}</span>
+                  </p>
+                </div>
+                <div class="flex items-center flex-shrink-0 gap-1">
+                  <button
+                    v-if="canPreview(f)"
+                    type="button"
+                    class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-n-iris-11 hover:bg-n-iris-3"
+                    @click="openPreview(f)"
+                  >
+                    <Icon icon="i-lucide-eye" class="size-3.5" />
+                    预览
+                  </button>
+                  <a
+                    :href="f.url"
                     download
                     target="_blank"
                     rel="noopener noreferrer"

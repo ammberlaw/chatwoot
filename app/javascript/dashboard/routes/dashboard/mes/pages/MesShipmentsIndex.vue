@@ -10,6 +10,7 @@ import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
@@ -29,6 +30,7 @@ const isAdmin = computed(() => currentRole.value === 'administrator');
 const isAdminLike = computed(
   () => isAdmin.value || crmRole.value === 'deputy_admin'
 );
+const { isMyDoc } = useMesDocOwner();
 // 主管审核：CRM 部门主管 / 副管理员 / 管理员。
 const canApprove = computed(
   () => isAdminLike.value || crmRole.value === 'manager'
@@ -70,11 +72,10 @@ const canShipRow = s =>
   canShip.value &&
   ((s.kind === 'STOCK' && s.status === 'APPROVED') ||
     (s.kind === 'PRODUCTION' && s.status === 'DRAFT'));
-// 编辑：仅生产出库草稿；开单人 / 管理层 / 有出库能力者可改。
+// 编辑：仅生产出库草稿，且只有开单人本人（系统管理员可代改）。
+// 原来有出库能力的人都能改别人的单，出了问题查不到人。
 const canEditRow = s =>
-  s.kind === 'PRODUCTION' &&
-  s.status === 'DRAFT' &&
-  (isAdminLike.value || s.ownerId === currentUserId.value || canShip.value);
+  s.kind === 'PRODUCTION' && s.status === 'DRAFT' && isMyDoc(s);
 
 // 只读查看
 const viewDialogRef = ref(null);

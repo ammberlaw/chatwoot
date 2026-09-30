@@ -977,52 +977,57 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
       v-if="selectedOrder"
       class="absolute inset-0 z-20 flex flex-col flex-shrink-0 overflow-hidden border-l border-n-weak bg-n-solid-1 md:static md:inset-auto md:z-auto md:w-[400px]"
     >
-      <div class="flex items-center gap-3 px-5 py-4 border-b border-n-weak">
-        <div class="flex-1 min-w-0">
-          <div class="font-semibold truncate text-n-slate-12">
-            {{ selectedOrder.name }}
+      <div class="px-5 py-4 border-b border-n-weak">
+        <div class="flex items-start gap-3">
+          <div class="flex-1 min-w-0">
+            <div
+              class="font-semibold truncate text-n-slate-12"
+              :title="selectedOrder.name"
+            >
+              {{ selectedOrder.name }}
+            </div>
+            <div class="text-xs text-n-slate-10">
+              {{ selectedOrder.orderNo }}
+            </div>
           </div>
-          <div class="text-xs text-n-slate-10">
-            {{ selectedOrder.orderNo }}
-          </div>
+          <button
+            class="p-1 -mt-0.5 rounded-md shrink-0 text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-1"
+            @click="closePanel"
+          >
+            <span class="i-lucide-x size-5" />
+          </button>
         </div>
-        <Button
-          v-if="!isCrmFinanceOnly"
-          label="转单"
-          icon="i-lucide-arrow-right-left"
-          size="sm"
-          color="iris"
-          variant="faded"
-          @click="openConvert(selectedOrder)"
-        />
-        <Button
-          v-if="!isCrmFinanceOnly"
-          :label="t('CRM.SALES_ORDERS.EDIT.TITLE')"
-          icon="i-lucide-pencil"
-          size="sm"
-          color="slate"
-          variant="faded"
-          @click="openEditDialog(selectedOrder)"
-        />
-        <Button
-          v-if="canDeleteSelected && !isCrmFinanceOnly"
-          label="删除"
-          icon="i-lucide-trash-2"
-          size="sm"
-          color="ruby"
-          variant="faded"
-          @click="deleteOrder"
-        />
-        <button
-          class="p-1 rounded-md text-n-slate-10 hover:text-n-slate-12 hover:bg-n-alpha-1"
-          @click="closePanel"
-        >
-          <span class="i-lucide-x size-5" />
-        </button>
+        <div v-if="!isCrmFinanceOnly" class="flex items-center gap-2 mt-3">
+          <Button
+            label="转单"
+            icon="i-lucide-arrow-right-left"
+            size="sm"
+            color="iris"
+            variant="faded"
+            @click="openConvert(selectedOrder)"
+          />
+          <Button
+            :label="t('CRM.SALES_ORDERS.EDIT.TITLE')"
+            icon="i-lucide-pencil"
+            size="sm"
+            color="slate"
+            variant="faded"
+            @click="openEditDialog(selectedOrder)"
+          />
+          <Button
+            v-if="canDeleteSelected"
+            label="删除"
+            icon="i-lucide-trash-2"
+            size="sm"
+            color="ruby"
+            variant="faded"
+            @click="deleteOrder"
+          />
+        </div>
       </div>
 
       <!-- 标签栏 -->
-      <div class="flex px-2 border-b border-n-weak">
+      <div class="flex px-2.5 border-b border-n-weak">
         <button
           v-for="tab in PANEL_TABS"
           :key="tab.key"

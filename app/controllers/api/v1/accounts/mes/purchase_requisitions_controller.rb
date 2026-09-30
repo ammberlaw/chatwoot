@@ -1,6 +1,7 @@
 class Api::V1::Accounts::Mes::PurchaseRequisitionsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_requisition, only: [:show, :update, :destroy, :submit, :cancel, :convert]
+  before_action -> { ensure_owner_or_admin!(@requisition, '采购申请单') }, only: [:update, :destroy]
 
   COLUMN_FILTERS = { status: :status, purpose: :purpose, production_order_id: :production_order_id }.freeze
 

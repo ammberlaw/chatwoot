@@ -12,7 +12,6 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
   # 15 秒超时。所以切成小段并发跑，总耗时≈最慢那一段，而不是各段相加。
   TRANSLATE_CHUNK = 4000
   TRANSLATE_MAX_CHUNKS = 10
-  TRANSLATE_SLICE_RE = /.{1,#{TRANSLATE_CHUNK}}/m
 
   # 附件单证类型（自动归档标签）：代码 => 中文标签。OTHER 兜底。前端按此显示徽标。
   DOC_TYPES = {
@@ -42,10 +41,16 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
 
   COMPOSE_SYSTEM = <<~PROMPT.freeze
     你是一家中国外贸公司的资深外贸业务员邮件助手，根据用户的中文意图代写发给客户的商务邮件。
-    要求：
+
+    最重要的一条：【写信意图】是这封信唯一的内容来源。用户说几件事，你就写几件事——
+    不要扩写成一封面面俱到的信，不要替用户表态。
+
+    - 不得添加意图里没有的具体信息：价格、折扣、数量、交期、付款方式、保修、运费承担、
+      任何承诺或条件，一律只能照搬意图里写明的。意图没说的就不写，缺信息也不要编一个填进去。
+    - 【背景参考】只是让你了解上下文、把称呼和指代写对，**不是待办清单**。
+      除非意图明确要求回应，否则不要逐条回答里面的问题——用户没打算在这封信里答的，就别替他答。
     - 默认用英文写；若意图里明确指定了其他语言，用指定语言。
-    - 语气专业、简洁、友好，符合外贸函电习惯，不堆砌客套话。
-    - 若提供了原邮件/已有内容，写成针对它的回复，回应其中的问题和要点。
+    - 语气专业、简洁、友好，符合外贸函电习惯，不堆砌客套话；篇幅与意图的信息量相称。
     - 正文用纯文本分段，不要 Markdown 标记，不要写署名落款（系统会自动附加签名）。
     - 只输出邮件本身：第一行以「SUBJECT: 」开头给出主题，空一行后输出正文，不要任何解释。
   PROMPT
@@ -54,6 +59,14 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     你是专业的外贸邮件翻译，把邮件忠实翻译成简体中文。
     要求：术语准确、保留段落结构；人名、公司名、产品型号、单证缩写（PI/CI/BL 等）保留原文。
     只输出翻译结果：第一行以「SUBJECT: 」开头给出主题译文，空一行后输出正文译文，不要任何解释。
+  PROMPT
+
+  # 长邮件要切成多段并行翻译。后续片段不能沿用上面那套提示词——那套要求「第一行给主题译文」，
+  # 于是模型会给每一段都编一个主题出来，直接混进正文，读起来就前言不搭后语。
+  TRANSLATE_PART_SYSTEM = <<~PROMPT.freeze
+    你是专业的外贸邮件翻译。下面是同一封邮件的中间片段（不是完整邮件，开头结尾可能不成句）。
+    把它忠实翻译成简体中文：术语准确、保留段落结构；人名、公司名、产品型号、单证缩写（PI/CI/BL 等）保留原文。
+    只输出这一段的正文译文——不要主题行、不要「SUBJECT:」、不要补全缺失的句子、不要任何说明。
   PROMPT
 
   SUMMARIZE_SYSTEM = <<~PROMPT.freeze
@@ -161,8 +174,8 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
 
   # 写信/回信：返回 [主题, 正文]。original 为回复场景带入的原文引用（可含用户已写内容）。
   def compose(intent:, original: nil)
-    prompt = "写信意图：#{intent}"
-    prompt += "\n\n原邮件/已有内容：\n#{truncate(original)}" if original.present?
+    prompt = "【写信意图 · 这封信要写的就是这些】\n#{intent}"
+    prompt += "\n\n【背景参考 · 仅供理解上下文，不是要回应的清单】\n#{truncate(original)}" if original.present?
     split_subject(ask(COMPOSE_SYSTEM, prompt))
   end
 
@@ -171,10 +184,15 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     chunks, dropped = split_for_translation(body)
     warm_up_settings
     parts = in_parallel(chunks.each_with_index.to_a) do |chunk, idx|
-      ask(TRANSLATE_SYSTEM, idx.zero? ? "SUBJECT: #{subject}\n\n#{chunk}" : chunk)
+      next ask(TRANSLATE_SYSTEM, "SUBJECT: #{subject}\n\n#{chunk}") if idx.zero?
+
+      # 各段是并行翻的，互相看不到上下文；把主题捎上，术语才不会一段一个译法。
+      ask(TRANSLATE_PART_SYSTEM, "（本邮件主题：#{subject}）\n\n#{chunk}")
     end
     head_subject, head_body = split_subject(parts.first.to_s)
-    text = [head_body, *parts.drop(1)].compact_blank.join("\n\n")
+    # 后续片段本不该有主题行，模型偶尔还是会带一行——兜底剥掉，别让它混进正文。
+    rest = parts.drop(1).map { |part| split_subject(part.to_s).last }
+    text = [head_body, *rest].compact_blank.join("\n\n")
     text += "\n\n…（原文过长，后面 #{dropped} 段未翻译）" if dropped.positive?
     [head_subject, text]
   end
@@ -184,7 +202,7 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     chunks = []
     buf = +''
     body.to_s.each_line do |line|
-      line.scan(TRANSLATE_SLICE_RE).each do |piece|
+      slice_long_line(line).each do |piece|
         if !buf.empty? && buf.length + piece.length > TRANSLATE_CHUNK
           chunks << buf
           buf = +''
@@ -195,6 +213,22 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     chunks << buf unless buf.empty?
     chunks = [''] if chunks.empty?
     [chunks.first(TRANSLATE_MAX_CHUNKS), [chunks.size - TRANSLATE_MAX_CHUNKS, 0].max]
+  end
+
+  # 单行超长（HTML 剥成纯文本后常整段挤成一行）时，优先在句末、其次在空白处断开。
+  # 从句子中间切开的话，切口两边的半句模型都译不对。
+  def slice_long_line(line)
+    pieces = []
+    rest = line
+    while rest.length > TRANSLATE_CHUNK
+      window = rest[0, TRANSLATE_CHUNK]
+      at = window.rindex(/[。！？；!?;]/) || window.rindex(/[.]\s/) || window.rindex(/\s/)
+      cut = at ? at + 1 : TRANSLATE_CHUNK
+      pieces << rest[0, cut]
+      rest = rest[cut..]
+    end
+    pieces << rest unless rest.empty?
+    pieces
   end
 
   # 通用翻译：把文本翻成指定语言（language 为语言名，如「简体中文」/「English」），

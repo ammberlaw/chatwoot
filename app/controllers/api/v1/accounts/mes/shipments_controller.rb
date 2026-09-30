@@ -1,6 +1,7 @@
 class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_shipment, only: [:show, :update, :destroy, :notify, :ship, :submit, :approve, :reject]
+  before_action -> { ensure_owner_or_admin!(@shipment, '出库单') }, only: [:update, :destroy]
 
   COLUMN_FILTERS = { status: :status, kind: :kind, crm_sales_order_id: :crm_sales_order_id }.freeze
 

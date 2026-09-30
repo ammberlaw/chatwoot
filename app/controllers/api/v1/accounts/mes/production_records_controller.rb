@@ -19,6 +19,9 @@ class Api::V1::Accounts::Mes::ProductionRecordsController < Api::V1::Accounts::M
 
   def destroy
     record = Current.account.mes_production_records.find(params[:id])
+    ensure_owner_or_admin!(record, '报工记录', :operator_id)
+    return if performed?
+
     po = record.production_order
     # 删报工会回退已产量；若已产量会因此低于「已成品入库量」，先拒绝，须先冲销成品入库单，
     # 否则会出现「入库量 > 产量」的负差错账。

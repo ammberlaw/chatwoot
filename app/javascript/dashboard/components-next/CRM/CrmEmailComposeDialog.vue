@@ -71,7 +71,7 @@ const L = {
   from: '发件人',
   noAccountOption: '（未配置发信邮箱）',
   to: '收件人',
-  toPlaceholder: '请选择收件人或输入邮箱（多个用英文逗号分隔）',
+  toPlaceholder: '输入姓名搜同事，或输入客户邮箱（多个用英文逗号分隔）',
   cc: '抄送',
   bcc: '密送',
   ccPlaceholder: '抄送邮箱',
@@ -212,6 +212,9 @@ const router = useRouter();
 
 const accounts = ref([]);
 const fromId = ref('');
+const fromOptions = computed(() =>
+  accounts.value.map(a => ({ value: a.id, label: a.emailAddress }))
+);
 const templates = ref([]);
 // —— 模板选择弹窗（点「模版」打开，个人/企业分 tab，仿小满 OKKI）——
 const templatePickerOpen = ref(false);
@@ -1633,17 +1636,12 @@ defineExpose({ open, close });
             class="flex items-center px-4 border-b border-n-weak min-h-[38px]"
           >
             <span class="w-14 text-[13px] text-n-slate-10">{{ L.from }}</span>
-            <select
+            <SelectCard
               v-model="fromId"
-              class="flex-1 py-2 text-sm bg-transparent border-0 reset-base text-n-slate-12 outline-none focus:outline-none focus:ring-0 ltr:!pl-0 rtl:!pr-0"
-            >
-              <option v-if="!accounts.length" value="">
-                {{ L.noAccountOption }}
-              </option>
-              <option v-for="a in accounts" :key="a.id" :value="a.id">
-                {{ a.emailAddress }}
-              </option>
-            </select>
+              :options="fromOptions"
+              :placeholder="L.noAccountOption"
+              trigger-class="max-w-full !pl-0 !bg-transparent !outline-none hover:!outline-none"
+            />
           </div>
 
           <!-- 群发单显：收件人来自客户列表勾选，各自单独发、互不可见 -->

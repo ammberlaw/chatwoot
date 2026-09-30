@@ -599,7 +599,8 @@ class Api::V1::Accounts::Crm::EmailsController < Api::V1::Accounts::Crm::BaseCon
   # 线程候选集（再由主题归一精筛）：同客户则取该客户全部往来；无客户则取与对方地址收发相关的邮件。
   # 限量 300 封兜底，避免大账户全表 Ruby 过滤。
   def thread_candidates(email)
-    scope = visible_emails.where.not(folder: 'DRAFT').includes(:owner, :crm_customer)
+    scope = visible_emails.where.not(folder: 'DRAFT')
+                          .includes(:owner, :crm_customer, files_attachments: :blob)
     if email.crm_customer_id
       scope.where(crm_customer_id: email.crm_customer_id).limit(300).to_a
     else

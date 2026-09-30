@@ -8,6 +8,7 @@ import { useMesProductionRecordsStore } from 'dashboard/stores/mes/productionRec
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -17,6 +18,9 @@ import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.v
 const { accountId } = useAccount();
 const store = useMesProductionRecordsStore();
 const { mesCan } = useMesRole();
+const { isMyDoc } = useMesDocOwner();
+// 报工的制单人是报工人本人（operatorId），别人删不了。
+const canDeleteRecord = r => mesCan('report') && isMyDoc(r, 'operatorId');
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -212,7 +216,7 @@ onMounted(() => {
                   :can-manage="mesCan('report')"
                 />
                 <Button
-                  v-if="mesCan('report')"
+                  v-if="canDeleteRecord(r)"
                   label="删除"
                   variant="ghost"
                   color="ruby"
@@ -307,7 +311,7 @@ onMounted(() => {
                     :can-manage="mesCan('report')"
                   />
                   <Button
-                    v-if="mesCan('report')"
+                    v-if="canDeleteRecord(r)"
                     label="删除"
                     variant="ghost"
                     color="ruby"
@@ -353,8 +357,8 @@ onMounted(() => {
             v-if="!eligibleOrders.length"
             class="text-xs text-n-amber-11 leading-snug"
           >
-            暂无可报工订单：报工需订单已进入「生产领料」阶段，请先在「生产
-            → 生产领料」把对应领料单点「过账」。
+            暂无可报工订单：报工需订单已进入「生产领料」阶段，请先在「生产 →
+            生产领料」把对应领料单点「过账」。
           </span>
           <span v-if="selectedOrder" class="text-xs text-n-slate-11">
             当前进度：{{ selectedOrder.produced_qty }} / {{ selectedOrder.qty }}

@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import { useMesPurchaseRequisitionsStore } from 'dashboard/stores/mes/purchaseRequisitions';
 import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
 import MesMaterialAPI from 'dashboard/api/mes/materials';
@@ -485,8 +486,10 @@ const viewHeaderFields = computed(() => {
   ];
 });
 
+const { isMyDoc } = useMesDocOwner();
+// 谁制单谁改：非制单人连编辑/删除按钮都不露（后端同样拦）。
 const canEditRow = req =>
-  canManage.value && ['DRAFT', 'OPEN'].includes(req.status);
+  canManage.value && isMyDoc(req) && ['DRAFT', 'OPEN'].includes(req.status);
 
 onMounted(() => {
   load();
@@ -639,7 +642,7 @@ onMounted(() => {
               @click="cancelRow(req)"
             />
             <Button
-              v-if="canManage && req.status === 'DRAFT'"
+              v-if="canManage && isMyDoc(req) && req.status === 'DRAFT'"
               label="删除"
               variant="ghost"
               color="ruby"

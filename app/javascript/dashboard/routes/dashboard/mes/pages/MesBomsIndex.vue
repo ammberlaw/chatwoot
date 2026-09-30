@@ -22,6 +22,7 @@ import {
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import { useResizableColumns } from 'dashboard/composables/useResizableColumns';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
@@ -46,6 +47,9 @@ const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
 const tplStore = useMesBomTemplatesStore();
 const { mesCan } = useMesRole();
+const { isMyDoc } = useMesDocOwner();
+// 谁制单谁改：非建单人不露编辑（后端 ensure_owner_or_admin! 同样拦）。
+const canEditRow = b => mesCan('bom') && isMyDoc(b);
 
 const records = computed(() => store.getRecords);
 const totalCount = computed(() => store.getMeta.count || 0);
@@ -1001,7 +1005,7 @@ onMounted(async () => {
                 @click.stop="release(b)"
               />
               <Button
-                v-if="mesCan('bom')"
+                v-if="canEditRow(b)"
                 label="编辑"
                 variant="ghost"
                 size="sm"
@@ -1117,7 +1121,7 @@ onMounted(async () => {
                     @click="openView(b)"
                   />
                   <Button
-                    v-if="mesCan('bom')"
+                    v-if="canEditRow(b)"
                     label="编辑"
                     variant="ghost"
                     size="sm"

@@ -30,7 +30,11 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
   end
 
   def destroy
-    Current.account.mes_inspections.find(params[:id]).destroy!
+    inspection = Current.account.mes_inspections.find(params[:id])
+    ensure_owner_or_admin!(inspection, '质检记录', :inspector_id)
+    return if performed?
+
+    inspection.destroy!
     head :ok
   end
 

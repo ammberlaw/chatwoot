@@ -63,6 +63,7 @@ class Message < ApplicationRecord
   }.to_json.freeze
 
   before_validation :ensure_content_type
+  before_validation :stash_echo_id
   before_validation :prevent_message_flooding
   before_save :ensure_processed_message_content
   before_save :ensure_in_reply_to
@@ -319,6 +320,16 @@ class Message < ApplicationRecord
 
   def ensure_content_type
     self.content_type ||= Message.content_types[:text]
+  end
+
+  # echo_id 只是 attr_accessor、不入库，发完这一次就查不回来了。
+  # 前端发消息的请求一旦挂住（切网/代理断流），那条消息会一直停在「发送中」，
+  # 业务以为没发出去就重发、客户收到两条。要让前端事后能跟服务器对账
+  # 「这条到底进没进库」，就得有个查得到的标识——存进 content_attributes（jsonb 已有，不加列）。
+  def stash_echo_id
+    return if echo_id.blank?
+
+    self.content_attributes = (content_attributes || {}).merge('echo_id' => echo_id)
   end
 
   def execute_after_create_commit_callbacks

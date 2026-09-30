@@ -89,6 +89,26 @@ RSpec.describe Message do
     end
   end
 
+  # echo_id 只是 attr_accessor、不入库。前端发消息的请求一旦挂住（切网/代理断流），
+  # 那条消息会一直停在「发送中」，业务以为没发出去就重发、客户收到两条。
+  # 兜底对账要能事后查到「这条到底进没进库」，靠的就是落库的这份 echo_id。
+  describe 'echo_id 落库' do
+    it '建消息时把 echo_id 存进 content_attributes' do
+      message = create(:message, echo_id: 'abc123')
+      expect(message.reload.content_attributes['echo_id']).to eq 'abc123'
+    end
+
+    it '不覆盖已有的 content_attributes' do
+      message = create(:message, echo_id: 'abc123', content_attributes: { 'external_error' => 'boom' })
+      expect(message.reload.content_attributes).to include('echo_id' => 'abc123', 'external_error' => 'boom')
+    end
+
+    it '没有 echo_id 时不往 content_attributes 里塞东西' do
+      message = create(:message)
+      expect(message.reload.content_attributes).not_to have_key('echo_id')
+    end
+  end
+
   describe 'concerns' do
     it_behaves_like 'liqudable'
   end

@@ -12,6 +12,7 @@ import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
@@ -242,9 +243,13 @@ const orderNosLabel = nos => {
     : `${list.slice(0, 2).join('、')} 等 ${list.length} 张`;
 };
 
+const { isMyDoc } = useMesDocOwner();
+// 谁制单谁改：非下单人不露编辑/删除（后端同样拦）。
+const canEditRow = po => mesCan('purchase') && isMyDoc(po);
 // 删草稿：后端 deletable? 才是准绳（这里只决定按钮露不露），删不掉会把后端的理由弹出来。
 const canDelete = po =>
   mesCan('purchase') &&
+  isMyDoc(po) &&
   po.status === 'DRAFT' &&
   ['DRAFT', 'REJECTED'].includes(po.approvalStatus);
 
@@ -871,7 +876,7 @@ onMounted(async () => {
                   @click="rejectPo(p)"
                 />
                 <Button
-                  v-if="mesCan('purchase')"
+                  v-if="canEditRow(p)"
                   label="编辑"
                   variant="ghost"
                   size="sm"
@@ -1022,7 +1027,7 @@ onMounted(async () => {
                     @click="rejectPo(p)"
                   />
                   <Button
-                    v-if="mesCan('purchase')"
+                    v-if="canEditRow(p)"
                     label="编辑"
                     variant="ghost"
                     size="sm"
