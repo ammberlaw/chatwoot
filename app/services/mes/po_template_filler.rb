@@ -223,7 +223,7 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
       qty: fmt_num(item.qty),
       price: fmt_num(unit_price(item)),
       amount: fmt_num(amount(item)),
-      remark: item.remark
+      remark: remark(item)
     }
     cells = base_row_cells(row)
     layout.each do |field, meta|
@@ -571,6 +571,14 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
 
   def total_amount
     @items.sum { |it| amount(it) }.round(2)
+  end
+
+  # 备注列 = 产品档案备注 + 辅助属性 + 这一行自己的备注。
+  # 供应商光看料号分不出要哪一种（同一个料号下有多个辅助属性），档案备注里也常写着
+  # 工程对这个料的硬要求，所以这两样要跟着单子发出去。
+  # **不含**生产任务单上的「采购注意事项」——那是写给我们自己采购看的，不对外。
+  def remark(item)
+    [item.crm_product&.remark, item.aux_attribute_name, item.remark].map { |v| v.to_s.strip }.reject(&:empty?).join(' / ')
   end
 
   # 料号/名称/规格：统一取产品档案(crm_product)，旧数据回落 mes_material。

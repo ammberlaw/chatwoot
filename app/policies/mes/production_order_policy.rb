@@ -18,6 +18,7 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def approve? = true
   def deny? = true
   def approval_inbox? = true
+  def todo_count? = true
 
   # 建单/编辑放开给 CRM 业务角色——业务员建定制单走「草稿→三级审批」流转；
   # 无 :order 能力者仅限本人草稿+按单生产（控制器 ensure_own_draft! 收紧）。

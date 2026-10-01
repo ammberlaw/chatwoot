@@ -94,7 +94,7 @@ const hasValue = f => {
       </div>
 
       <div v-else class="flex flex-col gap-1">
-        <label class="text-xs text-n-slate-11">{{ f.label }}</label>
+        <label class="text-heading-3 text-n-slate-12">{{ f.label }}</label>
 
         <!-- 多选 -->
         <div v-if="f.type === 'checks'" class="flex flex-wrap gap-3">

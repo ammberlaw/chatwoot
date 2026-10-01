@@ -56,13 +56,14 @@ class Mes::Bom < ApplicationRecord
 
   belongs_to :account
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true
-  belongs_to :owner, class_name: 'User', optional: true # 负责人：起草本 BOM 的工程/PMC 账号
+  belongs_to :owner, class_name: 'User', optional: true # 负责人：起草本生产任务单的工程/PMC 账号
   belongs_to :sales_owner, class_name: 'User', optional: true # 订单归属业务员
   has_many :bom_items, class_name: 'Mes::BomItem', dependent: :destroy, inverse_of: :bom
   has_many :bom_revisions, class_name: 'Mes::BomRevision', dependent: :destroy, inverse_of: :bom
   has_many :production_orders, class_name: 'Mes::ProductionOrder', dependent: :nullify
   accepts_nested_attributes_for :bom_items, allow_destroy: true
   has_many_attached :images # 结构图/样品图（缩略展示）
+  has_many_attached :logos  # 客户 logo（印在产品上的标，和结构图不是一回事，混在一起分不清）
   has_many_attached :files  # 附件（工艺文档/图纸等）
 
   # 按阶段预估天数（工程/PMC 分部门填），求和 = 预计生产周期（不含销售出库/物流）。

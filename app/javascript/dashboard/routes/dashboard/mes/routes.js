@@ -6,8 +6,10 @@ import MesPipelineBoardIndex from './pages/MesPipelineBoardIndex.vue';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
 import MesProductionOrderIntakeIndex from './pages/MesProductionOrderIntakeIndex.vue';
 import MesBomsIndex from './pages/MesBomsIndex.vue';
+import MesBomIntakeIndex from './pages/MesBomIntakeIndex.vue';
 import MesProductsIndex from './pages/MesProductsIndex.vue';
 import MesPurchaseOrdersIndex from './pages/MesPurchaseOrdersIndex.vue';
+import MesPurchaseOrderIntakeIndex from './pages/MesPurchaseOrderIntakeIndex.vue';
 import MesPurchaseRequisitionsIndex from './pages/MesPurchaseRequisitionsIndex.vue';
 import MesSuppliersIndex from './pages/MesSuppliersIndex.vue';
 import MesStockEntriesIndex from './pages/MesStockEntriesIndex.vue';
@@ -17,7 +19,6 @@ import MesInspectionsIndex from './pages/MesInspectionsIndex.vue';
 import MesFgInboundIndex from './pages/MesFgInboundIndex.vue';
 import MesShipmentsIndex from './pages/MesShipmentsIndex.vue';
 import MesNotificationsIndex from './pages/MesNotificationsIndex.vue';
-import MesTodoIndex from './pages/MesTodoIndex.vue';
 
 // MES 生产管理：与 CRM 同账号同登录；S0 全员可见（车间/仓管未必有 crm_role），
 // 故 requiresCrmAccess: false，仅受 CRM 功能开关约束。
@@ -42,7 +43,6 @@ const mesPage = (path, name, component) => {
 export const routes = [
   mesPage('dashboard', 'mes_dashboard_index', MesDashboardIndex),
   mesPage('pipeline', 'mes_pipeline_index', MesPipelineBoardIndex),
-  mesPage('todo', 'mes_todo_index', MesTodoIndex),
   mesPage(
     'production-orders',
     'mes_production_orders_index',
@@ -54,11 +54,19 @@ export const routes = [
     MesProductionOrderIntakeIndex
   ),
   mesPage('boms', 'mes_boms_index', MesBomsIndex),
+  // 生产任务单建档页：新建/编辑不再用弹窗（反馈 A2——弹窗太窄，一条用料明细看不全）。
+  mesPage('bom-intake', 'mes_bom_intake_index', MesBomIntakeIndex),
   mesPage('products', 'mes_products_index', MesProductsIndex),
   mesPage(
     'purchase-orders',
     'mes_purchase_orders_index',
     MesPurchaseOrdersIndex
+  ),
+  // 采购单建档页：新建/编辑不再用弹窗（一个供应商几十行料，弹窗装不下）。
+  mesPage(
+    'purchase-order-intake',
+    'mes_purchase_order_intake_index',
+    MesPurchaseOrderIntakeIndex
   ),
   mesPage(
     'purchase-requisitions',

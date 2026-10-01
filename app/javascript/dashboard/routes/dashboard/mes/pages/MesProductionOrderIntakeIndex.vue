@@ -43,6 +43,7 @@ const stewardOptions = computed(() =>
   (agents.value || []).map(a => ({ id: String(a.id), name: a.name }))
 );
 const base = reactive({
+  orderNo: '', // 留空＝自动生成 WT-日期-序号；两账并行期可填金蝶的号
   piNo: '',
   crmProductId: '',
   productName: '',
@@ -318,6 +319,7 @@ const canSubmit = computed(
 
 const reset = () => {
   Object.assign(base, {
+    orderNo: '',
     piNo: '',
     crmProductId: '',
     productName: '',
@@ -355,6 +357,7 @@ const submit = async doSubmit => {
       : spec.value;
     const ok = await store.create(
       {
+        orderNo: base.orderNo.trim() || undefined,
         piNo: base.piNo.trim() || undefined,
         crmProductId: base.crmProductId ? Number(base.crmProductId) : undefined,
         productName: base.productName.trim(),
@@ -424,7 +427,7 @@ const backToList = () =>
       <p class="text-xs text-n-slate-11">
         定制生产订单建单。先选产品线，按对应模板填规格；带
         <span class="text-n-ruby-11">*</span>
-        为必填。建单生效后进入「待工程接单」阶段，可挂 BOM、下发采购。
+        为必填。建单生效后进入「待工程接单」阶段，可挂生产任务单、下发采购。
       </p>
 
       <!-- 从历史订单导入（回填产品线/成品/数量/规格） -->
@@ -451,11 +454,7 @@ const backToList = () =>
 
       <!-- 关联信息（按单生产）：订单编号=关联销售订单，客户带出国家 -->
       <template v-if="showLink">
-        <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-        >
-          关联信息
-        </div>
+        <div class="text-heading-2 text-n-slate-12">关联信息</div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <!-- 订单编号：关联 CRM 销售订单 -->
           <label class="relative flex flex-col gap-1">
@@ -574,19 +573,16 @@ const backToList = () =>
       </template>
 
       <!-- 基本信息 -->
-      <div
-        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-      >
-        基本信息
-      </div>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label class="flex flex-col gap-1">
+      <div class="text-heading-2 text-n-slate-12">基本信息</div>
+      <!-- 按内容定宽，不再一律二等分：单号/数量/单位这种只要一点宽度 -->
+      <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+        <label class="flex flex-col gap-1 sm:w-44">
           <span class="text-xs text-n-slate-11">
             订单类型 <span class="text-n-ruby-11">*</span>
           </span>
           <SelectCard v-model="orderKind" :options="orderKindOptions" block />
         </label>
-        <label v-if="isStock" class="flex flex-col gap-1">
+        <label v-if="isStock" class="flex flex-col gap-1 sm:w-56">
           <span class="text-xs text-n-slate-11">
             责任人（业务员） <span class="text-n-ruby-11">*</span>
           </span>
@@ -600,7 +596,7 @@ const backToList = () =>
         <p v-if="isStock" class="text-xs sm:col-span-2 text-n-slate-11">
           备货订单不归属单一业务员、对全业务可见；这里的责任人只是指定一个业务员跟进。可不填客户交期。
         </p>
-        <label class="flex flex-col gap-1">
+        <label class="flex flex-col gap-1 sm:w-56">
           <span class="text-xs text-n-slate-11">
             产品线 / 模板 <span class="text-n-ruby-11">*</span>
           </span>
@@ -611,7 +607,18 @@ const backToList = () =>
             @update:model-value="setTemplate"
           />
         </label>
-        <label class="flex flex-col gap-1 sm:col-span-2">
+        <label class="flex flex-col gap-1 sm:w-56">
+          <span class="text-xs text-n-slate-11">工单号</span>
+          <input
+            v-model="base.orderNo"
+            class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            placeholder="留空自动生成，如 WT-20261001-01"
+          />
+          <span class="text-[11px] text-n-slate-10">
+            两账并行期可直接填金蝶的单号；建单后不可再改
+          </span>
+        </label>
+        <label class="flex flex-col gap-1 sm:w-48">
           <span class="text-xs text-n-slate-11">PI 编号</span>
           <input
             v-model="base.piNo"
@@ -619,7 +626,7 @@ const backToList = () =>
             placeholder="形式发票号，如 PI-2026-0788"
           />
         </label>
-        <label class="flex flex-col gap-1">
+        <label class="flex flex-col gap-1 sm:flex-1 sm:min-w-[20rem]">
           <span class="text-xs text-n-slate-11">
             成品名称&型号 <span class="text-n-ruby-11">*</span>
           </span>
@@ -629,11 +636,11 @@ const backToList = () =>
             placeholder="如：商显一体机 43寸 / Winny K11"
           />
         </label>
-        <label class="flex flex-col gap-1">
+        <label class="flex flex-col gap-1 sm:w-64">
           <span class="text-xs text-n-slate-11">
             商品编码
             <span class="text-n-slate-10">
-              （选填，可留空，由工程做 BOM 时补录）
+              （选填，可留空，由工程做生产任务单时补录）
             </span>
           </span>
           <ComboBox
@@ -649,7 +656,7 @@ const backToList = () =>
             @search="onProductSearch"
           />
         </label>
-        <label class="flex flex-col gap-1">
+        <label class="flex flex-col gap-1 sm:w-28">
           <span class="text-xs text-n-slate-11">
             数量 <span class="text-n-ruby-11">*</span>
           </span>
@@ -657,9 +664,10 @@ const backToList = () =>
             v-model="base.qty"
             type="number"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
+            @wheel="$event.target.blur()"
           />
         </label>
-        <label class="flex flex-col gap-1">
+        <label class="flex flex-col gap-1 sm:w-24">
           <span class="text-xs text-n-slate-11">单位</span>
           <input
             v-model="base.unit"
@@ -674,9 +682,7 @@ const backToList = () =>
       </div>
 
       <!-- 定制规格 -->
-      <div
-        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-      >
+      <div class="text-heading-2 text-n-slate-12">
         定制规格 · {{ (SPEC_TEMPLATES[template] || {}).label }}
       </div>
       <MesOrderSpecForm
@@ -686,12 +692,9 @@ const backToList = () =>
       />
 
       <!-- 产品图片（选择即上传） -->
-      <div
-        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-      >
+      <div class="text-heading-2 text-n-slate-12">
         产品图片
-        <span
-v-if="staging" class="ml-1 normal-case text-n-amber-11"
+        <span v-if="staging" class="ml-1 normal-case text-n-amber-11"
           >上传中…</span
         >
       </div>
@@ -728,11 +731,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
       </div>
 
       <!-- 附件 -->
-      <div
-        class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-      >
-        附件
-      </div>
+      <div class="text-heading-2 text-n-slate-12">附件</div>
       <div class="flex flex-col gap-2">
         <div
           v-for="(f, i) in pendingFiles"
@@ -780,7 +779,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
           请填写：{{ missingForDraft.join('、') }}
         </span>
         <span v-else-if="!base.crmProductId" class="text-xs text-n-slate-11">
-          商品编码可留空，由工程做 BOM 时补录
+          商品编码可留空，由工程做生产任务单时补录
         </span>
       </div>
 
@@ -789,7 +788,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
         class="flex flex-wrap items-center gap-3 p-3 text-sm border rounded-lg border-n-teal-8 text-n-teal-11"
       >
         <span>
-          ✅ {{ result.submitted ? '已提交审批' : '已存草稿' }}
+          {{ result.submitted ? '已提交审批' : '已存草稿' }}
           {{ result.orderNo }}
           <template v-if="result.submitted">（已转部门主管审批）</template>
           <template v-else>（仅你可见，可稍后提交审批）</template>
@@ -803,7 +802,7 @@ v-if="staging" class="ml-1 normal-case text-n-amber-11"
         v-else-if="result && !result.ok"
         class="p-3 text-sm border rounded-lg border-n-ruby-8 text-n-ruby-11"
       >
-        ❌ {{ result.msg }}
+        {{ result.msg }}
       </div>
     </div>
   </div>

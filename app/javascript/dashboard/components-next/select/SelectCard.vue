@@ -55,26 +55,36 @@ const isPlaceholder = computed(
   () => !props.options.some(o => o.value === modelValue.value)
 );
 
-// 按触发器位置算弹层坐标：优先向下、空间不足向上；宽度不小于触发器、左右按 align 且钳在视口内。
-const positionPopover = () => {
+// 按触发器位置算弹层坐标：优先向下、空间不足向上；左右按 align 且钳在视口内。
+//
+// 宽度不再写死成触发器宽度——窄触发器会把选项截成「MO-20261001-0…」，
+// 一串单号长得一模一样，根本分不出是哪张。改成：下限=触发器宽，上限=560/视口，
+// 中间由内容撑开；渲染后按实际宽度再钳一次 left，免得撑宽后溢出屏幕右侧。
+const positionPopover = async () => {
   const el = triggerEl.value;
   if (!el) return;
   const r = el.getBoundingClientRect();
-  const width = Math.max(r.width, 160);
+  const minWidth = Math.max(r.width, 160);
+  const maxWidth = Math.min(560, window.innerWidth - 16);
+  popStyle.value = {
+    position: 'fixed',
+    top: `${r.bottom + 6}px`,
+    left: `${r.left}px`,
+    minWidth: `${minWidth}px`,
+    maxWidth: `${maxWidth}px`,
+  };
+
+  await nextTick();
+  const popW = popoverEl.value?.offsetWidth || minWidth;
   const popH = popoverEl.value?.offsetHeight || 240;
   const below = r.bottom + 6;
   const top =
     below + popH > window.innerHeight && r.top - popH - 6 > 0
       ? r.top - popH - 6
       : below;
-  let left = props.align === 'right' ? r.right - width : r.left;
-  left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
-  popStyle.value = {
-    position: 'fixed',
-    top: `${top}px`,
-    left: `${left}px`,
-    width: `${width}px`,
-  };
+  let left = props.align === 'right' ? r.right - popW : r.left;
+  left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
+  popStyle.value = { ...popStyle.value, top: `${top}px`, left: `${left}px` };
 };
 
 const toggle = async () => {
@@ -151,7 +161,7 @@ const pick = opt => {
             "
             @click="pick(opt)"
           >
-            <span class="truncate">{{ opt.label }}</span>
+            <span class="whitespace-nowrap">{{ opt.label }}</span>
             <span
               v-if="opt.value === modelValue"
               class="i-lucide-check size-4 shrink-0"

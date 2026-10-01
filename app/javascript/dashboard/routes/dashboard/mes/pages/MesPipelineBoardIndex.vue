@@ -59,8 +59,8 @@ const filteredStages = computed(() => {
 
 // 接单态徽标样式。
 const ACK_BADGE = {
-  waiting: { text: '⏳ 待接单', cls: 'text-n-amber-11 bg-n-amber-3' },
-  overdue: { text: '🔴 超时未接单', cls: 'text-n-ruby-11 bg-n-ruby-3' },
+  waiting: { text: '待接单', cls: 'text-n-amber-11 bg-n-amber-3' },
+  overdue: { text: '超时未接单', cls: 'text-n-ruby-11 bg-n-ruby-3' },
   processing: { text: '✓ 处理中', cls: 'text-n-teal-11 bg-n-teal-3' },
 };
 const ackBadge = state => ACK_BADGE[state] || null;

@@ -16,6 +16,8 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
 
 const { accountId } = useAccount();
 const route = useRoute();
@@ -181,6 +183,7 @@ const form = reactive({
   isChecked: false,
   rows: [], // { itemType, mesMaterialId, qty, receivedQty }
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 // 物料/成品统一从产品档案(crm_products)选（mes_materials 已弃用），故都校验 crmProductId。
 const rowIncomplete = r => !Number(r.qty) || !r.crmProductId;
 
@@ -252,6 +255,7 @@ const openCreate = () => {
       },
     ],
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -302,6 +306,13 @@ onMounted(async () => {
   } catch {
     purchaseOrders.value = [];
   }
+});
+
+// 从生产订单详情「查看入库单」再次进来：本页在 keep-alive 里缓存着，
+// onMounted 不会再跑，不补这一道筛选条件就还是上一张订单的。
+useRouteQueryReentry(query => {
+  filterOrderId.value = query.production_order_id || '';
+  filterOrderNo.value = query.order_no || '';
 });
 </script>
 
@@ -487,7 +498,11 @@ onMounted(async () => {
       description="原料/外购成品到货收货：可从采购单预填明细（含外购成品，自动入成品仓），核对实收数量后保存，再「过账」刷新库存。"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -529,7 +544,7 @@ onMounted(async () => {
         </label>
 
         <div class="flex items-center justify-between">
-          <span class="text-heading-3 text-n-slate-12">
+          <span class="text-heading-2 text-n-slate-12">
             收货明细 <span class="text-n-ruby-11">*</span>
           </span>
           <Button

@@ -81,7 +81,12 @@ const load = async () => {
 
 watch(customerId, load, { immediate: true });
 // 换了联系人就把上一个的本地 id 丢掉,否则会把别人的档案显示到这个会话上。
-watch(() => props.contact?.id, () => { createdCustomerId.value = null; });
+watch(
+  () => props.contact?.id,
+  () => {
+    createdCustomerId.value = null;
+  }
+);
 
 const openCreate = () => {
   // 预填联系人名，但 WhatsApp 进来的多半是「Mr.」这种占位名，让业务员改成真公司名。
@@ -208,7 +213,7 @@ const saveNote = async () => {
       :disable-confirm-button="creating"
       @confirm="createCustomer"
     >
-      <label class="block text-xs text-n-slate-11 mb-1">客户名称</label>
+      <label class="block text-heading-3 text-n-slate-12 mb-1">客户名称</label>
       <input
         v-model="newName"
         type="text"
@@ -247,7 +252,7 @@ const saveNote = async () => {
           {{ '★'.repeat(card.star) }}
         </span>
         <span v-if="card.owner_name">负责人 {{ card.owner_name }}</span>
-        <span v-if="card.in_public_pool" class="text-n-iris-11">🌊 公海</span>
+        <span v-if="card.in_public_pool" class="text-n-iris-11">公海</span>
       </div>
 
       <div class="flex items-center gap-4 text-xs">

@@ -314,7 +314,8 @@ const ownerRank = computed(() => {
 const RANK_ROW_PX = 34;
 const RANK_MIN_PX = 288;
 const rankChartHeight = computed(
-  () => `${Math.max(RANK_MIN_PX, ownerRank.value.labels.length * RANK_ROW_PX)}px`
+  () =>
+    `${Math.max(RANK_MIN_PX, ownerRank.value.labels.length * RANK_ROW_PX)}px`
 );
 
 // ── 业务员资料完善度（越高越好，降序排） ──

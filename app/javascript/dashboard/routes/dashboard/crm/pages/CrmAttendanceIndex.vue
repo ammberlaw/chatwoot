@@ -10,6 +10,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const { accountId } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
@@ -366,6 +367,7 @@ const adjustForm = reactive({
   status: 'NORMAL',
   note: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => adjustForm);
 const adjusting = ref(false);
 const openAdjust = row => {
   adjustForm.userId = row.user_id;
@@ -373,6 +375,7 @@ const openAdjust = row => {
   adjustForm.workDate = todayStr();
   adjustForm.status = 'NORMAL';
   adjustForm.note = '';
+  markPristine();
   adjustDialog.value?.open();
 };
 const saveAdjust = async () => {
@@ -1632,6 +1635,10 @@ onMounted(fetchMine);
       ref="adjustDialog"
       :title="`修正考勤 · ${adjustForm.name}`"
       :show-confirm-button="false"
+      :dirty="isDirty"
+      dirty-save-label="保存"
+      @close="markPristine"
+      @save="saveAdjust"
     >
       <div class="flex flex-col gap-4">
         <label class="flex flex-col gap-1">

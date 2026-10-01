@@ -132,7 +132,7 @@ class Mes::ProductionOrder < ApplicationRecord
   # 阶段中文名（用于站内通知文案）。
   STAGE_LABELS = {
     'SALES_CONFIRMED' => '待工程接单',
-    'BOM_READY' => '工程/PMC BOM',
+    'BOM_READY' => '工程/PMC 生产任务单',
     'PURCHASING' => '采购原料',
     'MATERIAL_INBOUND' => '原料入库',
     'PICKING' => '生产领料',
@@ -154,7 +154,7 @@ class Mes::ProductionOrder < ApplicationRecord
   belongs_to :stage_ack_by, class_name: 'User', optional: true
   belongs_to :manager, class_name: 'User', optional: true # 部门主管（审批一级）
   belongs_to :gm, class_name: 'User', optional: true      # 总经理（审批二级）
-  belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 历史字段：原「业务二次确认 BOM」的人，流程已取消
+  belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 历史字段：原「业务二次确认生产任务单」的人，流程已取消
   belongs_to :outsource_supplier, class_name: 'Mes::Supplier', optional: true # 外购成品供应商（工程指定）
   has_many :stage_events, class_name: 'Mes::ProductionOrderStageEvent', dependent: :destroy, inverse_of: :production_order
   # 接单/转交流水（一个阶段可两人接力，各自留痕；订单上的 stage_ack_* 只表示「当前状态」）
@@ -190,7 +190,9 @@ class Mes::ProductionOrder < ApplicationRecord
   # 审批收件箱：停在我这一级待办的单。
   scope :awaiting_manager_for, ->(uid) { where(approval_status: 'SUBMITTED', manager_id: uid) }
   scope :awaiting_gm_for, ->(uid) { where(approval_status: 'MANAGER_APPROVED', gm_id: uid) }
-  def self.document_number_prefix = 'MO'
+  # 工单号：WT-下单日期-当天第几单（对齐公司纸质单写法）。
+  # 只作用于新建单；已有的 MO-/PO- 号保持原样，改历史号会让纸质单和下游单据全对不上。
+  def self.document_number_prefix = 'WT'
 
   # 备货生产订单（全业务共享库存）。
   def stock? = order_kind == 'STOCK'
@@ -234,7 +236,7 @@ class Mes::ProductionOrder < ApplicationRecord
   # （原先中间有一道「业务二次确认 BOM」的闸，已按业务要求取消。）
   def attach_bom!(bom, planned_end: nil, actor: nil)
     # 与 mark_outsourced! 对称：外购单走短脊柱（采购→成品入库→发货），不该再挂 BOM。
-    raise StandardError, '外购订单不挂 BOM；如需自产请先撤销外购标记' if is_outsourced
+    raise StandardError, '外购订单不挂生产任务单；如需自产请先撤销外购标记' if is_outsourced
 
     planned = planned_end.presence
     lead = bom.total_lead_days
@@ -254,16 +256,16 @@ class Mes::ProductionOrder < ApplicationRecord
     notify_stage_owners(
       kind: 'purchase_release_pending',
       title: "待下发采购：生产订单 #{order_no}",
-      body: "#{actor&.name || '工程'} 已挂 BOM #{bom.bom_no}，请核对后点「下发到采购」。"
+      body: "#{actor&.name || '工程'} 已挂生产任务单 #{bom.bom_no}，请核对后点「下发到采购」。"
     )
   end
 
   # 解除 BOM 关联（挂错 BOM 的纠错口）：清掉 bom_id、退回「待工程接单」重新挂。
   # 已开出下游单据的不许解——先作废那些单，否则采购/仓库会按错料继续做。
   def detach_bom!(actor: nil)
-    raise StandardError, '该订单未挂 BOM' if bom_id.nil?
+    raise StandardError, '该订单未挂生产任务单' if bom_id.nil?
 
-    ensure_revertable!('解除 BOM')
+    ensure_revertable!('解除生产任务单')
 
     # 挂 BOM 时发的「待下发采购」待办要一并销掉，否则工程/PMC 的待处理里留一条指向空 BOM 的僵尸。
     Mes::Notifier.resolve(account: account, order: self, kinds: 'purchase_release_pending')
@@ -275,8 +277,8 @@ class Mes::ProductionOrder < ApplicationRecord
   # 采购原料 → 工程/PMC BOM 的退回（下发早了 / BOM 要改时用）。同样要求下游没单据。
   def revert_to_bom_ready!(actor: nil)
     raise StandardError, '仅「采购原料」阶段可退回' unless stage == 'PURCHASING'
-    raise StandardError, '外购订单不走 BOM 阶段，无法退回' if is_outsourced
-    raise StandardError, '该订单未挂 BOM，请改用解除关联' if bom_id.nil?
+    raise StandardError, '外购订单不走生产任务单阶段，无法退回' if is_outsourced
+    raise StandardError, '该订单未挂生产任务单，请改用解除关联' if bom_id.nil?
 
     ensure_revertable!('退回')
 
@@ -325,7 +327,7 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 工程/PMC 制单后一键下发到采购阶段（BOM_READY → PURCHASING），通知采购备料。
   def release_to_purchasing!(actor: nil)
-    raise StandardError, '需先挂工程/PMC BOM' if bom_id.nil?
+    raise StandardError, '需先挂工程/PMC 生产任务单' if bom_id.nil?
     raise StandardError, '当前阶段无法下发采购' unless stage == 'BOM_READY'
 
     Mes::Notifier.resolve(account: account, order: self, kinds: 'purchase_release_pending')
@@ -357,7 +359,7 @@ class Mes::ProductionOrder < ApplicationRecord
   # 只在建单阶段（SALES_CONFIRMED）可标记。
   def mark_outsourced!(crm_product_id:, supplier_id:, product_name: nil, actor: nil)
     raise StandardError, '仅「销售订单确定」阶段可标记外购' unless stage == 'SALES_CONFIRMED'
-    raise StandardError, '该订单已挂 BOM，不能标记为外购；请先撤销 BOM 再改外购' if bom_id.present?
+    raise StandardError, '该订单已挂生产任务单，不能标记为外购；请先撤销生产任务单再改外购' if bom_id.present?
 
     updates = { is_outsourced: true, crm_product_id: crm_product_id, outsource_supplier_id: supplier_id }
     updates[:product_name] = product_name if product_name.present?
@@ -554,7 +556,7 @@ class Mes::ProductionOrder < ApplicationRecord
   # ── 业务知会/转发：把订单转发给某阶段负责人（选板块）+ 附言，推站内通知并在订单上留痕 ──
   # 转发可选的目标板块（去重后的阶段板块）+ 中文名，供前端下拉选人。
   FORWARD_BOARD_LABELS = {
-    'mes_boms_index' => '工程/PMC（BOM）',
+    'mes_boms_index' => '工程/PMC（生产任务单）',
     'mes_purchase_orders_index' => '采购',
     'mes_stock_entries_index' => '原料入库（仓库）',
     'mes_material_issues_index' => '生产领料（仓库）',
@@ -601,8 +603,8 @@ class Mes::ProductionOrder < ApplicationRecord
     recipients = (owner_ids + [owner_id]).compact.uniq - [actor&.id].compact
     Mes::Notifier.notify(
       account: account, recipients: recipients, kind: 'bom_revised',
-      title: "BOM 已变更（v#{rev_no}）：生产订单 #{order_no}",
-      body: "工程调整了 BOM #{bom&.bom_no} 用料：#{summary}。#{affected_documents_hint}",
+      title: "生产任务单已变更（v#{rev_no}）：生产订单 #{order_no}",
+      body: "工程调整了生产任务单 #{bom&.bom_no} 用料：#{summary}。#{affected_documents_hint}",
       order: self
     )
   end
@@ -756,11 +758,8 @@ class Mes::ProductionOrder < ApplicationRecord
     update!(approval_status: 'APPROVED', gm_id: actor.id,
             gm_acted_at: Time.current, gm_comment: comment)
     Mes::Notifier.resolve(account: account, order: self, kinds: 'approval_pending')
-    Mes::Notifier.notify(
-      account: account, recipients: owner_id, kind: 'approval_approved',
-      title: "审批通过：生产订单 #{order_no}",
-      body: '总经理已通过，订单已生效并进入生产流转。', order: self
-    )
+    # 不发「审批通过」知会：收件人收到也无事可做，只会把真正要处理的待办挤下去。
+    # 过没过看订单列表的状态就行。驳回仍然要发——那是要人回去改的。
     activate_stage_ack!
     self
   end
@@ -836,6 +835,10 @@ class Mes::ProductionOrder < ApplicationRecord
       specification: item.specification,
       unit: item.unit,
       category: item.category,
+      # 辅助属性：供应商按「料号 + 辅助属性」才认得出要哪一种，算料时就带给采购。
+      aux_attribute_name: item.aux_attribute_name,
+      # 工程写给采购的注意事项（指定品牌/能否替代/到货节点），只在系统里给采购看。
+      purchase_note: item.purchase_note,
       qty: (item.qty.to_d * factor),
       # 对应物料实时库存（跨仓合计）+ 工程在 BOM 上给的建议采购量，供采购参考。
       on_hand: pid ? (stock_map[pid] || 0).to_d : 0.to_d,

@@ -6,6 +6,8 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import { LocalStorage } from 'shared/helpers/localStorage';
+import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 
 const { t } = useI18n();
 const { accountId } = useAccount();
@@ -32,6 +34,17 @@ const monthModel = computed({
   },
 });
 
+// 默认选哪个队：上次看的 > 自己所属的队 > 列表第一个。
+// 后端按名称排序，「1688」这种数字队名永远排最前，只取第一个的话
+// 管理员每次打开都是它，每次都得手动再切一遍。
+const defaultTeamId = payload => {
+  const ids = payload.teams.map(x => x.id);
+  const last = LocalStorage.get(LOCAL_STORAGE_KEYS.CRM_TEAM_DASHBOARD_TEAM);
+  if (ids.includes(last)) return last;
+  if (ids.includes(payload.current_team_id)) return payload.current_team_id;
+  return ids[0];
+};
+
 const fetchData = async () => {
   loading.value = true;
   try {
@@ -41,7 +54,7 @@ const fetchData = async () => {
     );
     data.value = payload;
     if (payload.teams.length && selectedTeamId.value == null) {
-      selectedTeamId.value = payload.teams[0].id;
+      selectedTeamId.value = defaultTeamId(payload);
     }
   } finally {
     loading.value = false;
@@ -50,6 +63,11 @@ const fetchData = async () => {
 
 onMounted(fetchData);
 watch([selectedYear, selectedMonth], fetchData);
+// 记住这次看的队，下次打开直接落在同一个队。
+watch(selectedTeamId, id => {
+  if (id != null)
+    LocalStorage.set(LOCAL_STORAGE_KEYS.CRM_TEAM_DASHBOARD_TEAM, id);
+});
 
 const money = micros =>
   `¥${Math.round((micros || 0) / 1_000_000).toLocaleString()}`;

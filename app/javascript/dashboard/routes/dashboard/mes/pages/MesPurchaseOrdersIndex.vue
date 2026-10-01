@@ -1,7 +1,7 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -13,20 +13,24 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
-import Input from 'dashboard/components-next/input/Input.vue';
-import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
-import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
-import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
-import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
-import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesSupplierSummary from 'dashboard/components-next/mes/MesSupplierSummary.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
+import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
 
-const { accountId } = useAccount();
+const { accountId, accountScopedRoute } = useAccount();
 const route = useRoute();
+const router = useRouter();
 const store = useMesPurchaseOrdersStore();
+
+// 新建/编辑都跳建档页（整页录入，弹窗装不下一个供应商几十行料）。
+const goCreate = (query = {}) =>
+  router.push(accountScopedRoute('mes_purchase_order_intake_index', {}, query));
+const goEdit = po =>
+  router.push(
+    accountScopedRoute('mes_purchase_order_intake_index', {}, { id: po.id })
+  );
 const { mesCan } = useMesRole();
 const suppliersStore = useMesSuppliersStore();
 const currentUserId = useMapGetter('getCurrentUserID');
@@ -39,9 +43,6 @@ const canViewAmount = computed(
 
 const records = computed(() => store.getRecords);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
-const saving = computed(
-  () => store.getUIFlags.creatingItem || store.getUIFlags.updatingItem
-);
 
 // 搜索：单号 / 供应商 / 归属人 / 生产订单 / 物料编码（后端跨字段 ILIKE）。
 // 从站内通知「待审批采购」跳来时按生产订单号定位（route.query.q）。
@@ -88,10 +89,6 @@ const STATUS_LABELS = {
   RECEIVED: '已到货',
   CANCELLED: '已取消',
 };
-const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
 
 // 审批状态（总经理一级）：与收货状态正交。
 const APPROVAL_LABELS = {
@@ -391,383 +388,6 @@ const viewItems = computed(() =>
 );
 
 const productionOrders = ref([]);
-const productionOrderOptions = computed(() => [
-  { value: '', label: '不关联生产订单' },
-  ...productionOrders.value.map(p => ({
-    value: String(p.id),
-    label: `${p.order_no} · ${p.product_name}`,
-  })),
-]);
-const supplierOptions = computed(() =>
-  (suppliersStore.getRecords || []).map(s => ({
-    value: String(s.id),
-    label: s.name,
-  }))
-);
-// 采购行类型：物料（生产用料）/ 成品（外购贸易品，不经过生产部）。
-const ITEM_TYPE_OPTIONS = [
-  { value: 'MATERIAL', label: '物料' },
-  { value: 'PRODUCT', label: '成品(外购)' },
-];
-
-// CRM 成品选项：服务端搜索（成品可能较多），并保留已选项的标签。
-const productOptions = ref([]);
-const mergeProductOptions = list => {
-  const seen = new Set(productOptions.value.map(o => o.value));
-  list.forEach(o => {
-    if (!seen.has(o.value)) {
-      productOptions.value.push(o);
-      seen.add(o.value);
-    }
-  });
-};
-const productUnit = id =>
-  productOptions.value.find(o => o.value === String(id))?.unit || '';
-const productLabel = id =>
-  productOptions.value.find(o => o.value === String(id))?.label || '';
-// 规格型号取自所选产品档案（统一物料档案 = 产品档案）。
-const productSpec = id =>
-  productOptions.value.find(o => o.value === String(id))?.specification || '';
-// 对应物料实时库存（产品搜索/算料时带回的跨仓合计），选料即显示。
-const productOnHand = id => {
-  const o = productOptions.value.find(x => x.value === String(id));
-  return o && o.onHand != null ? o.onHand : null;
-};
-// MesProductPicker 选中：把该产品并入 productOptions，保证行内显示文本、规格、单位、实时库存都可查。
-const onProductPicked = p =>
-  mergeProductOptions([
-    {
-      value: String(p.id),
-      label: `${p.name}${p.sku ? `（${p.sku}）` : ''}${
-        p.specification ? ` · ${p.specification}` : ''
-      }`,
-      unit: p.unit || '',
-      specification: p.specification || '',
-      onHand: p.on_hand != null ? Number(p.on_hand) : null,
-    },
-  ]);
-
-const dialogRef = ref(null);
-const editingId = ref(null);
-const removedItemIds = ref([]);
-// 明细行：物料/成品统一从产品档案选（crmProductId）；供应商、含税/未税、实际到料时间都在行上。
-const blankRow = () => ({
-  itemType: 'MATERIAL',
-  crmProductId: '',
-  mesSupplierId: '',
-  arrivalDate: '',
-  qty: '1',
-  rate: '',
-  amount: '', // 行金额：跟数量/单价双向联动（有的物料是报「多少数量多少钱」）
-  orderedQty: 0, // 本单这个料已经下出去的量（算料时带出，用来只铺剩余量）
-  priceTaxIncluded: false,
-  suggestedQty: null, // 工程建议采购量（BOM 算料带出，只读参考）
-  remark: '',
-});
-// 产线：关联生产订单时从订单继承（Mes::PurchaseOrder#product_line_source），
-// 独立的成品采购单没有父级，必须在表单里选，否则建完切到任何产线都看不见。
-const { activeProductLine, formOptions: productLineOptions } =
-  useMesProductLine();
-
-const form = reactive({
-  productLine: '',
-  productionOrderId: '',
-  extraProductionOrderIds: [], // 同款物料多张生产订单共用一次采购时，额外挂上的订单
-  internalRemark: '', // 只对内看，不进发给供应商的模板
-  status: 'DRAFT',
-  expectedDate: '',
-  deliveryDate: '',
-  hasException: false,
-  exceptionNote: '',
-  rows: [],
-});
-
-// 「再关联一张」的候选：排掉主单和已挂过的，选完即追加，避免重复挂同一张。
-const extraOrderOptions = computed(() => [
-  { value: '', label: '选一张追加…' },
-  ...productionOrders.value
-    .filter(
-      p =>
-        String(p.id) !== String(form.productionOrderId) &&
-        !form.extraProductionOrderIds.includes(String(p.id))
-    )
-    .map(p => ({
-      value: String(p.id),
-      label: `${p.order_no} · ${p.product_name}`,
-    })),
-]);
-const orderLabel = id => {
-  const hit = productionOrders.value.find(p => String(p.id) === String(id));
-  return hit ? `${hit.order_no} · ${hit.product_name}` : `#${id}`;
-};
-const addExtraOrder = v => {
-  if (v) form.extraProductionOrderIds.push(String(v));
-};
-const removeExtraOrder = id => {
-  form.extraProductionOrderIds = form.extraProductionOrderIds.filter(
-    x => String(x) !== String(id)
-  );
-};
-// 一键把关联的订单号写进对内备注（她在金蝶里就是这么记「哪几张单在用这批料」）。
-const fillInternalRemark = () => {
-  const ids = [form.productionOrderId, ...form.extraProductionOrderIds].filter(
-    Boolean
-  );
-  if (!ids.length) {
-    useAlert('先关联生产订单');
-    return;
-  }
-  const lines = ids.map(orderLabel).join('\n');
-  form.internalRemark = form.internalRemark
-    ? `${form.internalRemark}\n${lines}`
-    : lines;
-};
-
-// 含税一键全选：一张单常常整单同一个税口径，一行行勾太费事。
-// 半选（部分行含税）时显示 indeterminate，点一下全部勾上。
-const allTaxIncluded = computed(
-  () => form.rows.length > 0 && form.rows.every(r => r.priceTaxIncluded)
-);
-const someTaxIncluded = computed(
-  () => form.rows.some(r => r.priceTaxIncluded) && !allTaxIncluded.value
-);
-const toggleAllTaxIncluded = () => {
-  const next = !allTaxIncluded.value;
-  form.rows.forEach(r => {
-    r.priceTaxIncluded = next;
-  });
-};
-
-const rowIncomplete = r => !Number(r.qty) || !r.crmProductId;
-// 供应商税率（%）：用于含税/未税提示。
-const supplierTaxRate = id =>
-  (suppliersStore.getRecords || []).find(s => String(s.id) === String(id))
-    ?.taxRate || 0;
-const invalid = computed(
-  () =>
-    !form.productLine || // 产线必填：漏了这单切到任何产线都看不见
-    !form.rows.length ||
-    form.rows.some(rowIncomplete)
-);
-// 采购单合计（元）= Σ 数量 × 单价，实时预览（保存后后端按 amount_micros 汇总总额）。
-const orderTotal = computed(() =>
-  form.rows.reduce((s, r) => s + Number(r.qty || 0) * Number(r.rate || 0), 0)
-);
-
-// 数量 × 单价 ⇄ 金额 双向联动：供应商常按「这批多少钱」报价，允许直接填金额反推单价。
-// 单价保留 6 位小数（存 micros），避免 3000 件 4.8 元这种被四舍五入成整数。
-const syncAmount = row => {
-  const q = Number(row.qty || 0);
-  const r = Number(row.rate || 0);
-  row.amount = q > 0 && r > 0 ? String(Number((q * r).toFixed(2))) : '';
-};
-const setRowQty = (row, v) => {
-  row.qty = v;
-  syncAmount(row);
-};
-const setRowRate = (row, v) => {
-  row.rate = v;
-  syncAmount(row);
-};
-const setRowAmount = (row, v) => {
-  row.amount = v;
-  const q = Number(row.qty || 0);
-  const amt = Number(v);
-  if (q > 0 && Number.isFinite(amt) && amt > 0) {
-    row.rate = String(Number((amt / q).toFixed(6)));
-  }
-};
-
-// 算料时是否连「已经下满的料」一起铺出来（默认不铺）。
-const includeOrdered = ref(false);
-
-const addRow = () => form.rows.push(blankRow());
-const removeRow = i => {
-  const [r] = form.rows.splice(i, 1);
-  if (r?.id) removedItemIds.value.push(r.id);
-};
-
-// 从关联的生产订单 BOM 算料，覆盖当前明细行。
-// category='' 全部 / 'MACHINE' 只主料(整机料) / 'PACKAGING' 只辅料(包装料)——两个采购员分料建单。
-const explode = async (category = '') => {
-  if (!form.productionOrderId) {
-    useAlert('请先选生产订单');
-    return;
-  }
-  try {
-    const { data } = await MesPurchaseOrderAPI.requirement(
-      form.productionOrderId,
-      category
-    );
-    const all = data?.payload || [];
-    if (!all.length) {
-      useAlert(
-        category ? '该类别（主料/辅料）无用料' : '该生产订单未挂 BOM 或无用料'
-      );
-      return;
-    }
-    // 这张生产订单已经下满量的料默认不再铺出来——否则每次重进都是整屏物料，
-    // 看不出到底哪些还没下单。勾上「含已下单物料」可以把它们调回来。
-    const reqs = includeOrdered.value
-      ? all
-      : all.filter(r => Number(r.ordered_qty || 0) < Number(r.qty || 0));
-    const hidden = all.length - reqs.length;
-    if (!reqs.length) {
-      useAlert(`这张生产订单的料都已经下过采购单了（${all.length} 项）`);
-      return;
-    }
-    form.rows.forEach(r => r.id && removedItemIds.value.push(r.id));
-    // 料号能对上产品档案 SKU 的自动带出产品；对不上的留空让采购手动选（并把料号信息放备注提示）。
-    mergeProductOptions(
-      reqs
-        .filter(r => r.crm_product_id)
-        .map(r => ({
-          value: String(r.crm_product_id),
-          label: `${r.material_name || ''}${r.material_no ? `（${r.material_no}）` : ''}${
-            r.specification ? ` · ${r.specification}` : ''
-          }`,
-          unit: r.unit || '',
-          specification: r.specification || '',
-          onHand: r.on_hand != null ? Number(r.on_hand) : null,
-        }))
-    );
-    form.rows = reqs.map(r => ({
-      ...blankRow(),
-      crmProductId: r.crm_product_id ? String(r.crm_product_id) : '',
-      mesSupplierId: r.mes_supplier_id ? String(r.mes_supplier_id) : '',
-      qty: String(r.qty),
-      suggestedQty:
-        r.suggested_purchase_qty != null
-          ? Number(r.suggested_purchase_qty)
-          : null,
-      // 部分下过的料只带剩余量，采购不用自己减。
-      orderedQty: Number(r.ordered_qty || 0),
-      // 料号对不上产品档案时把料号/名称/规格留备注，方便采购手动补选。
-      remark: r.crm_product_id
-        ? ''
-        : [r.material_no, r.material_name, r.specification]
-            .filter(Boolean)
-            .join(' '),
-    }));
-    form.rows.forEach(r => {
-      if (r.orderedQty > 0) {
-        r.qty = String(Number((Number(r.qty) - r.orderedQty).toFixed(3)));
-      }
-      syncAmount(r);
-    });
-    if (hidden > 0) useAlert(`已下满的 ${hidden} 项没有列出`);
-  } catch {
-    useAlert('算料失败');
-  }
-};
-
-const resetForm = () => {
-  editingId.value = null;
-  removedItemIds.value = [];
-  Object.assign(form, {
-    productLine: activeProductLine.value || '',
-    productionOrderId: '',
-    extraProductionOrderIds: [],
-    internalRemark: '',
-    status: 'DRAFT',
-    expectedDate: '',
-    deliveryDate: '',
-    hasException: false,
-    exceptionNote: '',
-    rows: [blankRow()],
-  });
-};
-
-const openCreate = () => {
-  resetForm();
-  dialogRef.value?.open();
-};
-// 从工程/PMC BOM 的「新建成品采购单」跳来：首行直接切成外购成品。
-const openProductCreate = () => {
-  resetForm();
-  form.rows[0].itemType = 'PRODUCT';
-  dialogRef.value?.open();
-};
-const openEdit = po => {
-  editingId.value = po.id;
-  removedItemIds.value = [];
-  Object.assign(form, {
-    productLine: po.productLine || '',
-    productionOrderId: po.productionOrderId ? String(po.productionOrderId) : '',
-    extraProductionOrderIds: (po.extraProductionOrderIds || []).map(String),
-    internalRemark: po.internalRemark || '',
-    status: po.status,
-    expectedDate: po.expectedDate ? po.expectedDate.slice(0, 10) : '',
-    deliveryDate: po.deliveryDate ? po.deliveryDate.slice(0, 10) : '',
-    hasException: !!po.hasException,
-    exceptionNote: po.exceptionNote || '',
-    rows: (po.purchaseItems || []).map(it => ({
-      id: it.id,
-      itemType: it.itemType || 'MATERIAL',
-      crmProductId: it.crmProductId ? String(it.crmProductId) : '',
-      mesSupplierId: it.mesSupplierId ? String(it.mesSupplierId) : '',
-      arrivalDate: it.arrivalDate ? it.arrivalDate.slice(0, 10) : '',
-      qty: String(it.qty),
-      rate: it.rateMicros ? String(it.rateMicros / 1e6) : '',
-      amount: it.rateMicros
-        ? String(Number(((it.rateMicros / 1e6) * Number(it.qty)).toFixed(2)))
-        : '',
-      priceTaxIncluded: !!it.priceTaxIncluded,
-      remark: it.remark || '',
-    })),
-  });
-  // 回填已选产品的标签/规格，保证下拉能显示名称
-  mergeProductOptions(
-    (po.purchaseItems || [])
-      .filter(it => it.crmProductId)
-      .map(it => ({
-        value: String(it.crmProductId),
-        label: `${it.productName || ''}${it.productSku ? `（${it.productSku}）` : ''}`,
-        unit: it.unit || '',
-        specification: it.specification || '',
-      }))
-  );
-  dialogRef.value?.open();
-};
-
-const submit = async () => {
-  if (invalid.value) return;
-  const itemsAttributes = [
-    ...form.rows.map(r => ({
-      id: r.id || undefined,
-      itemType: r.itemType,
-      mesMaterialId: null,
-      crmProductId: Number(r.crmProductId),
-      mesSupplierId: r.mesSupplierId ? Number(r.mesSupplierId) : null,
-      arrivalDate: r.arrivalDate || null,
-      unit: productUnit(r.crmProductId) || undefined,
-      qty: Number(r.qty),
-      rateMicros: r.rate ? Math.round(Number(r.rate) * 1e6) : null,
-      priceTaxIncluded: r.priceTaxIncluded,
-      remark: r.remark || '',
-    })),
-    ...removedItemIds.value.map(id => ({ id, _destroy: true })),
-  ];
-  const payload = {
-    productLine: form.productLine || null,
-    productionOrderId: form.productionOrderId || null,
-    extraProductionOrderIds: form.extraProductionOrderIds,
-    internalRemark: form.internalRemark,
-    status: form.status,
-    expectedDate: form.expectedDate || null,
-    deliveryDate: form.deliveryDate || null,
-    hasException: form.hasException,
-    exceptionNote: form.exceptionNote,
-    purchaseItemsAttributes: itemsAttributes,
-  };
-  const ok = editingId.value
-    ? await store.update({ id: editingId.value, ...payload })
-    : await store.create(payload);
-  if (ok) {
-    useAlert(editingId.value ? '采购单已更新' : `已新建 ${ok.poNo}`);
-    dialogRef.value?.close();
-  }
-};
 
 onMounted(async () => {
   fetchList();
@@ -783,7 +403,18 @@ onMounted(async () => {
   } catch {
     productionOrders.value = [];
   }
-  if (route.query.new === 'product' && mesCan('purchase')) openProductCreate();
+  // 从 BOM 页「新建成品采购单」跳来：转到建档页，参数原样带过去。
+  if (route.query.new === 'product' && mesCan('purchase')) {
+    router.replace({ query: {} });
+    goCreate({ new: 'product' });
+  }
+});
+
+// 从站内通知带着新单号再次进来：本页在 keep-alive 里缓存着，onMounted 不会再跑，
+// 不补这一道的话搜索框还是上次的值、列表也不重拉。
+useRouteQueryReentry(query => {
+  search.value = query.q ? String(query.q) : '';
+  fetchList();
 });
 </script>
 
@@ -796,7 +427,7 @@ onMounted(async () => {
         label="新建采购单"
         color="iris"
         size="sm"
-        @click="openCreate"
+        @click="goCreate()"
       />
     </div>
 
@@ -880,7 +511,7 @@ onMounted(async () => {
                   label="编辑"
                   variant="ghost"
                   size="sm"
-                  @click="openEdit(p)"
+                  @click="goEdit(p)"
                 />
                 <MesReturnControls
                   :record="p"
@@ -1031,7 +662,7 @@ onMounted(async () => {
                     label="编辑"
                     variant="ghost"
                     size="sm"
-                    @click="openEdit(p)"
+                    @click="goEdit(p)"
                   />
                   <Button
                     v-if="canViewAmount"
@@ -1071,67 +702,83 @@ onMounted(async () => {
     <Dialog
       ref="previewDialogRef"
       :dismissible="false"
-      width="5xl"
+      width="6xl"
       :show-confirm-button="false"
       cancel-button-label="关闭"
       :title="previewPo ? `采购单 ${previewPo.poNo} · 预览` : '采购单预览'"
       @close="revokePreview"
     >
-      <div class="flex flex-col gap-3">
-        <p class="text-xs text-n-slate-11">
-          抬头默认按各供应商档案选（对公「东莞市联迪科技」含税带公章，对私「深圳联合触控」未税），
-          这里改只影响这次导出的单，不会写回供应商档案。核对无误可直接截图发群，也可导出
-          PDF。
-        </p>
+      <!-- 左右布局：供应商勾选在左边窄栏，预览占右边大块。
+           原来是上下堆叠，预览只剩 62vh 又被说明文字挤，字小得看不清。 -->
+      <div class="flex flex-col gap-3 lg:flex-row lg:h-[76vh]">
+        <div class="flex flex-col gap-2 lg:w-72 shrink-0 lg:overflow-y-auto">
+          <p class="text-xs leading-relaxed text-n-slate-11">
+            抬头默认按各供应商档案选（对公「东莞市联迪科技」含税带公章，对私「深圳联合触控」未税），
+            这里改只影响这次导出的单，不会写回供应商档案。
+          </p>
 
-        <div
-          v-if="previewSuppliers.length"
-          class="flex flex-col gap-1 p-2 rounded-lg bg-n-alpha-1"
-        >
           <div
-            v-for="s in previewSuppliers"
-            :key="s.id"
-            class="flex items-center gap-2 text-xs text-n-slate-11"
+            v-if="previewSuppliers.length"
+            class="flex flex-col gap-2 p-2 rounded-lg bg-n-alpha-1"
           >
-            <label class="flex items-center gap-1.5 cursor-pointer min-w-52">
-              <input
-                v-if="previewSuppliers.length > 1"
-                v-model="previewChecked"
-                type="checkbox"
-                :value="Number(s.id || 0)"
+            <div
+              v-for="s in previewSuppliers"
+              :key="s.id"
+              class="flex flex-col gap-1 text-xs text-n-slate-11"
+            >
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  v-if="previewSuppliers.length > 1"
+                  v-model="previewChecked"
+                  type="checkbox"
+                  :value="Number(s.id || 0)"
+                  @change="fetchPreviewPdf"
+                />
+                <span class="font-medium truncate text-n-slate-12">
+                  {{ s.name }}
+                </span>
+                <span class="shrink-0 text-n-slate-10"
+                  >{{ s.itemCount }} 项</span
+                >
+              </label>
+              <!-- 未指定供应商的那组不能导（会被凑成一份发错家），直接在这儿说清楚 -->
+              <span v-if="!s.id" class="text-n-ruby-11">
+                这几项还没指定供应商，导不出——请回「编辑」里逐行选供应商
+              </span>
+              <select
+                v-model="previewEntities[Number(s.id || 0)]"
+                class="!h-7 !mb-0 !py-0.5 !text-xs ltr:!pl-2"
                 @change="fetchPreviewPdf"
-              />
-              <span class="text-n-slate-12">{{ s.name }}</span>
-              <span class="text-n-slate-10">{{ s.itemCount }} 项</span>
-            </label>
-            <!-- 未指定供应商的那组不能导（会被凑成一份发错家），直接在这儿说清楚 -->
-            <span v-if="!s.id" class="text-n-ruby-11">
-              这几项还没指定供应商，导不出——请回「编辑」里逐行选供应商
-            </span>
-            <select
-              v-model="previewEntities[Number(s.id || 0)]"
-              class="!w-auto !h-7 !mb-0 !py-0.5 !text-xs ltr:!pl-2"
-              @change="fetchPreviewPdf"
-            >
-              <option
-                v-for="o in ENTITY_OPTIONS"
-                :key="o.value"
-                :value="o.value"
               >
-                {{ o.label }}
-              </option>
-            </select>
-            <span
-              v-if="previewEntities[Number(s.id || 0)] !== s.defaultEntity"
-              class="text-n-amber-11"
-            >
-              已改抬头（仅本次）
-            </span>
+                <option
+                  v-for="o in ENTITY_OPTIONS"
+                  :key="o.value"
+                  :value="o.value"
+                >
+                  {{ o.label }}
+                </option>
+              </select>
+              <span
+                v-if="previewEntities[Number(s.id || 0)] !== s.defaultEntity"
+                class="text-n-amber-11"
+              >
+                已改抬头（仅本次）
+              </span>
+            </div>
           </div>
+
+          <Button
+            label="下载 PDF"
+            color="iris"
+            size="sm"
+            class="mt-auto"
+            :disabled="!previewUrl || previewLoading"
+            @click="downloadPreview"
+          />
         </div>
 
         <div
-          class="h-[62vh] overflow-hidden rounded-lg border border-n-weak bg-n-solid-2"
+          class="flex-1 min-w-0 h-[62vh] lg:h-full overflow-hidden border rounded-lg border-n-weak bg-n-solid-2"
         >
           <p
             v-if="previewLoading"
@@ -1151,331 +798,6 @@ onMounted(async () => {
             class="w-full h-full"
             title="采购单预览"
           />
-        </div>
-
-        <div class="flex justify-end">
-          <Button
-            label="下载 PDF"
-            color="iris"
-            size="sm"
-            :disabled="!previewUrl || previewLoading"
-            @click="downloadPreview"
-          />
-        </div>
-      </div>
-    </Dialog>
-
-    <Dialog
-      ref="dialogRef"
-      :dismissible="false"
-      width="5xl"
-      overflow-y-auto
-      confirm-button-color="iris"
-      :title="editingId ? '编辑采购单' : '新建采购单'"
-      :is-loading="saving"
-      :disable-confirm-button="invalid"
-      @confirm="submit"
-    >
-      <div class="flex flex-col gap-4">
-        <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
-          <div class="flex flex-col gap-1 sm:w-40">
-            <label class="text-heading-3 text-n-slate-12">
-              产品线<span class="text-n-ruby-11">*</span>
-            </label>
-            <SelectCard
-              size="form"
-              :model-value="form.productLine"
-              :options="productLineOptions"
-              @update:model-value="v => (form.productLine = v)"
-            />
-          </div>
-          <div class="flex flex-col flex-1 gap-1">
-            <label class="text-heading-3 text-n-slate-12">关联生产订单</label>
-            <SelectCard
-              size="form"
-              :model-value="form.productionOrderId"
-              :options="productionOrderOptions"
-              @update:model-value="v => (form.productionOrderId = v)"
-            />
-          </div>
-          <!-- 同款物料多张生产订单在用时，一张采购单挂多张订单，只传一次给供应商 -->
-          <div class="flex flex-col flex-1 gap-1">
-            <label class="text-heading-3 text-n-slate-12">
-              还有哪些订单在用（选填）
-            </label>
-            <SelectCard
-              size="form"
-              model-value=""
-              :options="extraOrderOptions"
-              @update:model-value="addExtraOrder"
-            />
-            <div
-              v-if="form.extraProductionOrderIds.length"
-              class="flex flex-wrap items-center gap-1 mt-1"
-            >
-              <span
-                v-for="id in form.extraProductionOrderIds"
-                :key="id"
-                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md bg-n-iris-3 text-n-iris-11"
-              >
-                {{ orderLabel(id) }}
-                <button
-                  type="button"
-                  class="i-lucide-x size-3 hover:opacity-70"
-                  @click="removeExtraOrder(id)"
-                />
-              </span>
-            </div>
-          </div>
-          <div class="flex flex-wrap items-center gap-1">
-            <label
-              class="flex items-center gap-1.5 text-xs cursor-pointer text-n-slate-11"
-              title="默认只铺这张生产订单还没下满的料"
-            >
-              <input v-model="includeOrdered" type="checkbox" />
-              含已下单物料
-            </label>
-            <Button
-              label="算全部料"
-              type="button"
-              color="slate"
-              size="sm"
-              @click="explode('')"
-            />
-            <Button
-              label="只算主料"
-              type="button"
-              variant="outline"
-              color="slate"
-              size="sm"
-              @click="explode('MACHINE')"
-            />
-            <Button
-              label="只算辅料"
-              type="button"
-              variant="outline"
-              color="slate"
-              size="sm"
-              @click="explode('PACKAGING')"
-            />
-          </div>
-        </div>
-        <p class="-mt-2 text-xs text-n-slate-10">
-          一张生产订单可开多张采购单（如主料、辅料各一张，不同采购员各建各的）。
-        </p>
-
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">状态</label>
-            <SelectCard
-              size="form"
-              :model-value="form.status"
-              :options="statusOptions"
-              @update:model-value="v => (form.status = v)"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">回复采购时间</label>
-            <DatePicker v-model="form.expectedDate" block />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">交货时间</label>
-            <DatePicker v-model="form.deliveryDate" block />
-            <span class="text-xs text-n-slate-10">
-              导出合同"三、交货时间"用
-            </span>
-          </div>
-        </div>
-
-        <!-- 对内备注：只在系统里看，导出给供应商的采购订单上不会出现 -->
-        <div class="flex flex-col gap-1">
-          <div class="flex items-center justify-between">
-            <label class="text-heading-3 text-n-slate-12">对内备注</label>
-            <button
-              type="button"
-              class="text-xs text-n-iris-11 hover:underline"
-              @click="fillInternalRemark"
-            >
-              填入关联订单号
-            </button>
-          </div>
-          <textarea
-            v-model="form.internalRemark"
-            rows="3"
-            class="w-full px-3 py-2 text-sm border rounded-lg resize-y border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none"
-            placeholder="例：WT20260723-01 型号 KROCO 2500&#10;WT20260723-05 型号 NAZA 2500"
-          />
-          <span class="text-xs text-n-slate-10">
-            只对内看，不会出现在发给供应商的采购订单上
-          </span>
-        </div>
-
-        <div class="flex flex-col gap-1">
-          <label class="flex items-center gap-2 text-heading-3 text-n-slate-12">
-            <input v-model="form.hasException" type="checkbox" />
-            采购异常
-          </label>
-          <Input
-            v-if="form.hasException"
-            v-model="form.exceptionNote"
-            placeholder="异常说明"
-          />
-        </div>
-
-        <div class="flex items-center justify-between">
-          <span class="text-heading-3 text-n-slate-12">
-            采购明细 <span class="text-n-ruby-11">*</span>
-          </span>
-          <div class="flex items-center gap-3">
-            <label
-              v-if="form.rows.length"
-              class="flex items-center gap-1.5 text-xs cursor-pointer text-n-slate-11"
-            >
-              <input
-                type="checkbox"
-                :checked="allTaxIncluded"
-                :indeterminate.prop="someTaxIncluded"
-                @change="toggleAllTaxIncluded"
-              />
-              全部含税
-            </label>
-            <Button
-              label="+ 加一行"
-              type="button"
-              variant="ghost"
-              size="sm"
-              @click="addRow"
-            />
-          </div>
-        </div>
-        <div class="flex flex-col gap-2.5">
-          <div
-            v-for="(row, i) in form.rows"
-            :key="i"
-            class="flex flex-col gap-2.5 p-3 border rounded-lg border-n-weak"
-          >
-            <!-- 主控件行：类型 / 物料 / 供应商 / 数量 / 单价 / 删除 -->
-            <div
-              class="grid items-center grid-cols-1 gap-2 md:grid-cols-[1.6fr_3fr_2fr_1.2fr_1.6fr_1.6fr_24px]"
-            >
-              <div>
-                <SelectCard
-                  size="form"
-                  :model-value="row.itemType"
-                  :options="ITEM_TYPE_OPTIONS"
-                  @update:model-value="v => (row.itemType = v)"
-                />
-              </div>
-              <div>
-                <MesProductPicker
-                  :account-id="accountId"
-                  :model-value="row.crmProductId"
-                  :display-text="productLabel(row.crmProductId)"
-                  placeholder="选择物料（产品档案·编码/名称/规格）"
-                  @update:model-value="v => (row.crmProductId = v)"
-                  @select="onProductPicked"
-                />
-              </div>
-              <div>
-                <ComboBox
-                  v-model="row.mesSupplierId"
-                  :options="supplierOptions"
-                  placeholder="选择供应商"
-                />
-              </div>
-              <Input
-                :model-value="row.qty"
-                type="number"
-                placeholder="数量"
-                @update:model-value="v => setRowQty(row, v)"
-              />
-              <Input
-                :model-value="row.rate"
-                type="number"
-                :placeholder="row.priceTaxIncluded ? '含税单价' : '未税单价'"
-                @update:model-value="v => setRowRate(row, v)"
-              />
-              <!-- 金额：填了就按数量反推单价（供应商常报「这批多少钱」） -->
-              <Input
-                :model-value="row.amount"
-                type="number"
-                :placeholder="row.priceTaxIncluded ? '含税金额' : '未税金额'"
-                title="填金额会按数量反推单价"
-                @update:model-value="v => setRowAmount(row, v)"
-              />
-              <button
-                type="button"
-                class="justify-self-end text-n-slate-10 hover:text-n-ruby-11"
-                @click="removeRow(i)"
-              >
-                ✕
-              </button>
-            </div>
-            <!-- 次要控件行：含税 / 实际到料 / 备注 -->
-            <div class="grid items-center grid-cols-1 gap-2 md:grid-cols-12">
-              <label
-                class="flex items-center gap-1.5 text-xs md:col-span-3 text-n-slate-11"
-              >
-                <input v-model="row.priceTaxIncluded" type="checkbox" />
-                <span class="shrink-0">单价含税</span>
-                <span
-                  v-if="row.mesSupplierId && supplierTaxRate(row.mesSupplierId)"
-                  class="text-n-slate-10"
-                >
-                  （税率{{ supplierTaxRate(row.mesSupplierId) }}%）
-                </span>
-              </label>
-              <div class="flex items-center gap-2 md:col-span-4">
-                <label class="text-xs shrink-0 text-n-slate-11">实际到料</label>
-                <div class="flex-1">
-                  <DatePicker v-model="row.arrivalDate" block />
-                </div>
-              </div>
-              <Input
-                v-model="row.remark"
-                placeholder="备注"
-                class="md:col-span-5"
-              />
-            </div>
-            <!-- 只读信息：规格 · 实时库存 · 工程建议采购 -->
-            <div
-              class="flex flex-wrap gap-x-5 gap-y-1 pt-0.5 text-xs border-t border-n-weak/60"
-            >
-              <span class="inline-flex gap-1.5">
-                <span class="text-n-slate-9">规格</span>
-                <span class="text-n-slate-11">
-                  {{ productSpec(row.crmProductId) || '—' }}
-                </span>
-              </span>
-              <span class="inline-flex gap-1.5">
-                <span class="text-n-slate-9">实时库存</span>
-                <span class="text-n-slate-11">
-                  {{
-                    productOnHand(row.crmProductId) == null
-                      ? '选料后显示'
-                      : productOnHand(row.crmProductId)
-                  }}
-                </span>
-              </span>
-              <span class="inline-flex gap-1.5">
-                <span class="text-n-slate-9">工程建议采购</span>
-                <span class="text-n-slate-11">
-                  {{ row.suggestedQty == null ? '—' : row.suggestedQty }}
-                </span>
-              </span>
-            </div>
-          </div>
-        </div>
-        <div
-          v-if="orderTotal > 0"
-          class="flex justify-end text-heading-3 text-n-slate-12"
-        >
-          合计：¥{{
-            orderTotal.toLocaleString('zh-CN', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })
-          }}
         </div>
       </div>
     </Dialog>

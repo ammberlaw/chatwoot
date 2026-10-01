@@ -15,6 +15,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
@@ -110,6 +111,7 @@ const form = reactive({
   needRework: false,
   remark: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const isIqc = computed(() => form.kind === 'IQC');
 const invalid = computed(() => !Number(form.inspectedQty));
 
@@ -161,6 +163,7 @@ const openCreate = () => {
     remark: '',
   });
   resetAttachments();
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -391,7 +394,11 @@ onMounted(() => {
       description="按数量记录合格/不良；结果留空则按不良数自动判定。"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

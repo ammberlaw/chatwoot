@@ -21,4 +21,7 @@ json.price_tax_included resource.price_tax_included
 json.supplier_tax_rate resource.supplier_tax_rate
 json.amount_micros can_view_amount ? resource.amount_micros : nil
 json.received_qty resource.received_qty
+# 辅助属性快照（算料时从生产任务单带出）+ 产品档案备注，导出给供应商的采购单要印。
+json.aux_attribute_name resource.aux_attribute_name
+json.product_remark resource.crm_product&.remark
 json.remark resource.remark

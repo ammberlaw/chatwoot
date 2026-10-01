@@ -217,6 +217,12 @@ const tailwindConfig = {
     },
     keyframes: {
       ...defaultTheme.keyframes,
+      // 看板告警条的纵向轮播：内容复制一份首尾相接，走完一整份正好无缝衔接。
+      // 要求每行等高且列表无 gap，否则 -50% 落点会差半个间距、循环处会跳一下。
+      'marquee-y': {
+        '0%': { transform: 'translateY(0)' },
+        '100%': { transform: 'translateY(-50%)' },
+      },
       wiggle: {
         '0%': { transform: 'translateX(0)' },
         '15%': { transform: 'translateX(0.375rem)' },
@@ -258,6 +264,10 @@ const tailwindConfig = {
       'loader-pulse': 'loader-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       'card-select': 'card-select 0.25s ease-in-out',
       shake: 'shake 0.3s ease-in-out 0s 2',
+      // 三档速度按条数选（类名必须是静态字符串，JIT 扫不到拼出来的动态类名）
+      'marquee-y-slow': 'marquee-y 45s linear infinite',
+      'marquee-y': 'marquee-y 30s linear infinite',
+      'marquee-y-fast': 'marquee-y 18s linear infinite',
     },
   },
   plugins: [

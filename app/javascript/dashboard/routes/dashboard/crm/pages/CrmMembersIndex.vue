@@ -10,6 +10,7 @@ import OrgMembershipAPI from 'dashboard/api/org/memberships';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const L = {
   header: '成员权限',
@@ -259,12 +260,14 @@ const accountDialog = ref(null);
 const editTarget = ref(null);
 const savingAccount = ref(false);
 const editForm = reactive({ name: '', crm_name: '', email: '', password: '' });
+const { isDirty, markPristine } = useDirtyGuard(() => editForm);
 const openAccountEdit = m => {
   editTarget.value = m;
   editForm.name = m.name || '';
   editForm.crm_name = m.crm_name || '';
   editForm.email = m.email || '';
   editForm.password = '';
+  markPristine();
   accountDialog.value?.open();
 };
 const saveAccount = async () => {
@@ -602,6 +605,8 @@ const templateForm = reactive({
   erp_role: '',
   crm_finance: false,
 });
+const { isDirty: isTemplateDirty, markPristine: markTemplatePristine } =
+  useDirtyGuard(() => templateForm);
 
 // 模板不用于创建超级管理员
 const templateRoleOptions = ROLE_OPTIONS.filter(
@@ -610,6 +615,7 @@ const templateRoleOptions = ROLE_OPTIONS.filter(
 
 const openTemplateManager = () => {
   templateMode.value = 'list';
+  markTemplatePristine();
   templateDialog.value?.open();
 };
 
@@ -623,6 +629,7 @@ const startNewTemplate = () => {
     erp_role: '',
     crm_finance: false,
   });
+  markTemplatePristine();
   templateMode.value = 'edit';
 };
 
@@ -636,6 +643,7 @@ const startEditTemplate = tpl => {
     erp_role: tpl.erp_role || '',
     crm_finance: !!tpl.crm_finance,
   });
+  markTemplatePristine();
   templateMode.value = 'edit';
 };
 
@@ -898,8 +906,9 @@ onMounted(() => {
                   class="px-2 py-0.5 rounded-full text-xs bg-n-iris-3 text-n-iris-11"
                 >
                   {{
-                    ROLE_OPTIONS.find(o => o.value === roleValue(selectedMember))
-                      ?.label
+                    ROLE_OPTIONS.find(
+                      o => o.value === roleValue(selectedMember)
+                    )?.label
                   }}
                 </span>
                 <span
@@ -982,7 +991,11 @@ onMounted(() => {
                     :disabled="savingId === selectedMember.id || isManagerOnly"
                     @change="
                       e =>
-                        onModuleToggle(selectedMember, mod.key, e.target.checked)
+                        onModuleToggle(
+                          selectedMember,
+                          mod.key,
+                          e.target.checked
+                        )
                     "
                   />
                   {{ mod.label }}
@@ -1062,7 +1075,9 @@ onMounted(() => {
               </span>
               <span class="text-sm text-n-slate-11">
                 {{ scopeLabel(selectedMember) }}
-                <span class="text-xs text-n-slate-9">（按角色 / 部门自动）</span>
+                <span class="text-xs text-n-slate-9"
+                  >（按角色 / 部门自动）</span
+                >
               </span>
             </div>
           </div>
@@ -1137,6 +1152,10 @@ onMounted(() => {
       ref="accountDialog"
       :title="`${isManagerOnly ? '重置密码' : '修改账号'}${editTarget ? ` · ${editTarget.name}` : ''}`"
       :show-confirm-button="false"
+      :dirty="isDirty"
+      dirty-save-label="保存"
+      @close="markPristine"
+      @save="saveAccount"
     >
       <div class="flex flex-col gap-4">
         <label v-if="!isManagerOnly" class="flex flex-col gap-1">
@@ -1311,11 +1330,16 @@ onMounted(() => {
             : '新增岗位模板'
       "
       :show-confirm-button="false"
+      :dirty="isTemplateDirty"
+      dirty-save-label="保存"
+      @close="markTemplatePristine"
+      @save="saveTemplate"
     >
       <!-- 列表 -->
       <div v-if="templateMode === 'list'" class="flex flex-col gap-3">
         <p class="text-xs text-n-slate-10">
-          每个模板打包好一个岗位的「系统角色 + 可进系统 + MES 岗位 + 财务」，在成员上一键套用。
+          每个模板打包好一个岗位的「系统角色 + 可进系统 + MES 岗位 +
+          财务」，在成员上一键套用。
         </p>
         <div class="flex flex-col gap-2 max-h-80 overflow-y-auto">
           <div
@@ -1403,7 +1427,9 @@ onMounted(() => {
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <span class="text-xs text-n-slate-11">MES 岗位（可多选，不选=无）</span>
+          <span class="text-xs text-n-slate-11"
+            >MES 岗位（可多选，不选=无）</span
+          >
           <div class="flex flex-wrap items-center gap-1.5">
             <button
               v-for="opt in MES_ROLE_CHIPS"
@@ -1448,7 +1474,10 @@ onMounted(() => {
           <button
             type="button"
             class="h-9 px-4 text-sm font-medium border rounded-lg border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
-            @click="templateMode = 'list'"
+            @click="
+              templateMode = 'list';
+              markTemplatePristine();
+            "
           >
             返回
           </button>

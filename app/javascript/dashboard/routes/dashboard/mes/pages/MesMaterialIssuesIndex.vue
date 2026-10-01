@@ -16,6 +16,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -123,6 +124,7 @@ const form = reactive({
   warehouseId: '',
   rows: [], // { crmProductId, qty }
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const invalid = computed(
   () =>
     !form.warehouseId ||
@@ -154,7 +156,7 @@ const pushFromBom = async () => {
     );
     const reqs = data?.payload || [];
     if (!reqs.length) {
-      useAlert('该生产订单未挂 BOM 或无用料');
+      useAlert('该生产订单未挂生产任务单或无用料');
       return;
     }
     // 已匹配产品的行并入显示标签(料名·料号)，让选择器显示已带出的产品；未匹配的留空待人工搜选。
@@ -192,6 +194,7 @@ const openCreate = () => {
     warehouseId: raw ? String(raw.id) : '',
     rows: [blankIssueRow()],
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -425,10 +428,14 @@ onMounted(async () => {
       overflow-y-auto
       confirm-button-color="iris"
       title="新建生产领料单"
-      description="选生产订单「按 BOM 推料」自动带出用料，从原料仓领出；过账即扣减库存。"
+      description="选生产订单「按生产任务单推料」自动带出用料，从原料仓领出；过账即扣减库存。"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="flex items-end gap-2">
@@ -444,7 +451,7 @@ onMounted(async () => {
             />
           </div>
           <Button
-            label="按 BOM 推料"
+            label="按生产任务单推料"
             type="button"
             color="slate"
             size="sm"
@@ -464,7 +471,7 @@ onMounted(async () => {
         </div>
 
         <div class="flex items-center justify-between">
-          <span class="text-heading-3 text-n-slate-12">
+          <span class="text-heading-2 text-n-slate-12">
             领料明细 <span class="text-n-ruby-11">*</span>
           </span>
           <Button

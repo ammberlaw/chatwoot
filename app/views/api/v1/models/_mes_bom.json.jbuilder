@@ -30,6 +30,7 @@ json.sales_owner_name mes_staff_name(resource.sales_owner)
 json.remark resource.remark
 json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
+json.logos resource.logos.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
 onhand_map = resource.onhand_by_material_no
 product_map = resource.product_info_by_material_no
 json.bom_items do

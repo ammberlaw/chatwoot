@@ -668,7 +668,8 @@ onMounted(() => {
                 v-for="w in WEEK"
                 :key="w"
                 class="text-[11px] font-medium text-center text-n-slate-10"
-                >{{ w }}</span>
+                >{{ w }}</span
+              >
             </div>
             <div class="grid grid-cols-7 gap-0.5">
               <button
@@ -695,11 +696,13 @@ onMounted(() => {
                   :class="
                     c.isToday ? 'bg-n-iris-9 text-white font-semibold' : ''
                   "
-                  >{{ c.day }}</span>
+                  >{{ c.day }}</span
+                >
                 <span
                   v-if="c.holidays.length"
                   class="absolute top-0.5 right-1 text-[10px] leading-none"
-                  >{{ c.holidays[0].emoji }}</span>
+                  >{{ c.holidays[0].emoji }}</span
+                >
                 <div class="flex gap-0.5 mt-1">
                   <span
                     v-for="(e, i) in c.events.slice(0, 4)"
@@ -728,7 +731,9 @@ onMounted(() => {
                 <h2 class="text-[15px] font-semibold text-n-slate-12">
                   {{ mmdd(selectedDate) }} {{ weekdayOf(selectedDate) }}
                 </h2>
-                <span class="text-xs text-n-slate-10">{{ dayEvents.length }} 项</span>
+                <span class="text-xs text-n-slate-10"
+                  >{{ dayEvents.length }} 项</span
+                >
               </div>
               <button
                 class="flex items-center gap-1 text-xs font-medium text-n-iris-11 hover:underline"
@@ -793,7 +798,8 @@ onMounted(() => {
                     <span
                       v-if="isOverdue(e)"
                       class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold text-n-ruby-11 bg-n-ruby-3"
-                      >逾期</span>
+                      >逾期</span
+                    >
                   </div>
                   <div
                     v-if="e.participant_names && e.participant_names.length"
@@ -830,7 +836,9 @@ onMounted(() => {
                 <h2 class="text-[15px] font-semibold text-n-slate-12">
                   {{ grp.title }}
                 </h2>
-                <span class="text-xs text-n-slate-10">{{ grp.items.length }} 项</span>
+                <span class="text-xs text-n-slate-10"
+                  >{{ grp.items.length }} 项</span
+                >
               </div>
               <div v-if="grp.items.length" class="flex flex-col gap-2">
                 <button
@@ -1050,7 +1058,9 @@ onMounted(() => {
           >
             <span class="flex items-center gap-1.5 truncate">
               <Icon icon="i-lucide-building-2" class="size-4 shrink-0" />
-              <span class="truncate">关联客户：{{ form.customerName || '查看客户' }}</span>
+              <span class="truncate"
+                >关联客户：{{ form.customerName || '查看客户' }}</span
+              >
             </span>
             <Icon icon="i-lucide-arrow-right" class="size-4 shrink-0" />
           </button>

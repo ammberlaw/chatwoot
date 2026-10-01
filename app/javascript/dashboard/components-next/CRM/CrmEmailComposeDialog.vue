@@ -119,7 +119,7 @@ const L = {
   qtSave: '保存',
   qtCancel: '取消',
   qtDelete: '删除',
-  sentOk: '✅ 成功发送',
+  sentOk: '成功发送',
   submittedBanner: '已提交发送，仍在投递中，结果稍后见邮件列表状态。',
   draftBanner: '已存入草稿箱。',
   needTo: '请填写收件人',

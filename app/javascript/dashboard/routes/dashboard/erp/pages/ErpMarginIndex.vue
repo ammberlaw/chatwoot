@@ -13,6 +13,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 成本与毛利：订单成本归集（材料/加工/运费/佣金/其他）+ 毛利报表（订单 / 业务员 / 客户维度）。
 // ⚠️ 权限墙核心区：这些数只在 ERP 内可见，销售端接口一律不输出。
@@ -156,6 +157,7 @@ const form = reactive({
   happenedAt: today(),
   remark: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const searchOrders = async q => {
   const { data } = await CrmSalesOrderAPI.get({ q, page: 1 });
   orderOptions.value = (data?.payload || []).map(o => ({
@@ -172,6 +174,7 @@ const openCost = () => {
     remark: '',
   });
   searchOrders('');
+  markPristine();
   dialogRef.value?.open();
 };
 const submitCost = async () => {
@@ -418,7 +421,11 @@ onMounted(loadMargin);
       confirm-button-color="iris"
       title="归集订单成本"
       :disable-confirm-button="!form.crmSalesOrderId || !form.amount"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitCost"
+      @close="markPristine"
+      @save="submitCost"
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">

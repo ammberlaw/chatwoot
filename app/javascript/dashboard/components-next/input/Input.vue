@@ -94,6 +94,13 @@ const handleEnter = event => {
   emit('enter', event);
 };
 
+// 数字框里滚鼠标会悄悄改数值——填几十行用料时滚页面顺手就把数量改了，还不会察觉。
+// 浏览器只在输入框聚焦时才响应滚轮，所以聚焦态滚动直接让它失焦，滚页面即可。
+const handleWheel = () => {
+  if (props.type !== 'number') return;
+  inputRef.value?.blur();
+};
+
 onMounted(() => {
   if (props.autofocus) {
     nextTick(() => {
@@ -141,6 +148,7 @@ onMounted(() => {
       @input="handleInput"
       @focus="handleFocus"
       @blur="handleBlur"
+      @wheel="handleWheel"
       @keyup.enter="handleEnter"
     />
     <p

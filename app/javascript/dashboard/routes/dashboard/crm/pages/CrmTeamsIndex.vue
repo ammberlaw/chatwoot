@@ -11,6 +11,7 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const { isAdmin } = useAdmin();
 const currentUser = useMapGetter('getCurrentUser');
@@ -75,6 +76,7 @@ const teamOfAgent = id =>
 const dialogRef = ref(null);
 const editingId = ref(null);
 const form = ref({ name: '', description: '', teamLeadId: '', memberIds: [] });
+const { isDirty, markPristine } = useDirtyGuard(() => form.value);
 const memberSearch = ref('');
 
 const filteredAgents = computed(() => {
@@ -98,6 +100,7 @@ const openAdd = () => {
   editingId.value = null;
   form.value = { name: '', description: '', teamLeadId: '', memberIds: [] };
   memberSearch.value = '';
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -110,6 +113,7 @@ const openEdit = team => {
     memberIds: [...(team.member_ids || [])],
   };
   memberSearch.value = '';
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -292,7 +296,11 @@ onMounted(() => {
       ref="dialogRef"
       :title="editingId ? L.editTeam : L.addTeam"
       confirm-button-color="iris"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="saveTeam"
+      @close="markPristine"
+      @save="saveTeam"
     >
       <div class="flex flex-col gap-4">
         <Input

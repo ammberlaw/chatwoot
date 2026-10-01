@@ -57,6 +57,9 @@ client.deny = (id, reason) =>
   axios.post(`${client.url}/${id}/deny`, { reason });
 client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
 
+// 首页 MES 入口卡的角标：只要数字，不拉整份列表。
+client.todoCount = () => axios.get(`${client.url}/todo_count`);
+
 // 产品编码（工程/PMC 编，唯一，供 ERP 共享）。
 client.setProductCode = (id, productCode) =>
   axios.post(`${client.url}/${id}/set_product_code`, {

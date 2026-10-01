@@ -10,6 +10,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
@@ -61,10 +62,12 @@ const productionOrderOptions = computed(() => [
 const dialogRef = ref(null);
 const registering = ref(false);
 const form = reactive({ productionOrderId: '', count: '' });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const invalid = computed(() => !form.productionOrderId || !Number(form.count));
 
 const openRegister = () => {
   Object.assign(form, { productionOrderId: '', count: '' });
+  markPristine();
   dialogRef.value?.open();
 };
 const submit = async () => {
@@ -152,7 +155,7 @@ onMounted(() => {
           <dd class="text-n-slate-12">
             {{ trace.production_order?.order_no || '—' }}
           </dd>
-          <dt class="text-n-slate-11">工程/PMC BOM</dt>
+          <dt class="text-n-slate-11">工程/PMC 生产任务单</dt>
           <dd class="text-n-slate-12">{{ trace.bom?.bom_no || '—' }}</dd>
           <dt class="text-n-slate-11">用料</dt>
           <dd class="text-n-slate-12">
@@ -255,7 +258,11 @@ onMounted(() => {
       description="选生产订单 + 数量，自动生成「工单号-序号」的 SN。"
       :is-loading="registering"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">

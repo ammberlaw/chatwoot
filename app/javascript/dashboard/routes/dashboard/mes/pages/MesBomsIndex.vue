@@ -3,15 +3,11 @@
 import { ref, computed, reactive, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
-import { useUnsavedGuard } from 'dashboard/composables/useUnsavedGuard';
-import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
-import { useMesBomTemplatesStore } from 'dashboard/stores/mes/bomTemplates';
 import MesBomAPI from 'dashboard/api/mes/boms';
-import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import {
@@ -20,16 +16,10 @@ import {
   printNode,
 } from 'dashboard/helper/mesExport';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
-import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
-import { useResizableColumns } from 'dashboard/composables/useResizableColumns';
-import Input from 'dashboard/components-next/input/Input.vue';
-import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
-import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
-import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
-import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
@@ -42,23 +32,55 @@ const goProductPurchase = () =>
     accountScopedRoute('mes_purchase_orders_index', {}, { new: 'product' })
   );
 const store = useMesBomsStore();
+
+// 新建/编辑都跳建档页（整页录入，弹窗装不下几十行用料明细）。
+const goCreate = (query = {}) =>
+  router.push(accountScopedRoute('mes_bom_intake_index', {}, query));
+const goEdit = bom =>
+  router.push(accountScopedRoute('mes_bom_intake_index', {}, { id: bom.id }));
 // 后端 BomsController 固定每页 15 条且不认 per_page，这里必须对齐，否则页码算错。
 const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
-const tplStore = useMesBomTemplatesStore();
 const { mesCan } = useMesRole();
 const { isMyDoc } = useMesDocOwner();
 // 谁制单谁改：非建单人不露编辑（后端 ensure_owner_or_admin! 同样拦）。
 const canEditRow = b => mesCan('bom') && isMyDoc(b);
+
+// 单号以「投单单号」为准——那是纸质单从下发到采购到生产全程认的号。
+// 没填才回落系统自动号。原来列表显示自动号、明细显示投单单号，同一张单两个号。
+const bomNoOf = b => b.docNo || b.bomNo;
+
+// 中间列可拖拽重排，顺序按人记在本机。首列「#」和末列操作按钮固定，拖它们没意义。
+const COLUMN_DEFS = [
+  {
+    key: 'no',
+    label: '生产任务单号',
+    tdClass: 'px-3 py-3 font-medium text-n-slate-12',
+  },
+  { key: 'model', label: '型号 / 成品', tdClass: 'px-3 py-3' },
+  { key: 'owner', label: '负责人', tdClass: 'px-3 py-3 text-n-slate-11' },
+  {
+    key: 'salesOwner',
+    label: '归属业务员',
+    tdClass: 'px-3 py-3 text-n-slate-11',
+  },
+  { key: 'baseQty', label: '基准产量', tdClass: 'px-3 py-3 text-n-slate-11' },
+  { key: 'items', label: '用料项', tdClass: 'px-3 py-3 text-n-slate-11' },
+  {
+    key: 'leadDays',
+    label: '预估周期(天)',
+    tdClass: 'px-3 py-3 text-n-slate-11',
+  },
+  { key: 'status', label: '状态', tdClass: 'px-3 py-3' },
+];
+const { orderedColumns, isDragging, onColDragStart, onColDrop, resetOrder } =
+  useOrderableColumns(COLUMN_DEFS, 'mes.bomCols.v1');
 
 const records = computed(() => store.getRecords);
 const totalCount = computed(() => store.getMeta.count || 0);
 // 列表取数统一走这里：翻页只改 currentPage，由 watch 触发重拉。
 const load = () => store.get({ page: currentPage.value });
 const isFetching = computed(() => store.getUIFlags.fetchingList);
-const saving = computed(
-  () => store.getUIFlags.creatingItem || store.getUIFlags.updatingItem
-);
 
 // 按阶段预估天数（不含销售出库/物流）。
 const LEAD_STAGES = [
@@ -70,32 +92,12 @@ const LEAD_STAGES = [
 ];
 
 const products = ref([]);
-// 关联成品为选填：置顶「不关联成品」哨兵项，让用户可显式清除选择
-// （ComboBox 仅支持再点选中项才清空，不够直观）。
-const productOptions = computed(() => [
-  { value: '', label: '不关联成品' },
-  ...products.value.map(p => ({ value: String(p.id), label: p.name })),
-]);
 
 // —— 用料明细：物料从产品档案「金蝶式表格下拉」选择（MesProductPicker），
 // 选中回填该行的编码/名称/规格/单位。 ——
 
-// 订单归属业务员：只列真正的业务角色（可归属 CRM 订单）——业务员/部门负责人/
-// 副管理员；排除 HR 与无 CRM 角色的普通成员。选填。
-const SALES_CRM_ROLES = ['sales', 'manager', 'deputy_admin'];
 const agents = useMapGetter('agents/getAgents');
-const salesOwnerOptions = computed(() => [
-  { value: '', label: '未指定业务员' },
-  ...(agents.value || [])
-    .filter(a => SALES_CRM_ROLES.includes(a.crm_role))
-    .map(a => ({ value: String(a.id), label: a.name })),
-]);
 
-const dialogRef = ref(null);
-const editingId = ref(null);
-const editingStatus = ref(null); // 编辑时的原状态：已下发则只显示「保存」
-const changeReason = ref(''); // 已下发 BOM 改用料时填的变更原因（可选，进变更史+通知）
-const removedItemIds = ref([]);
 const releasingId = ref(null);
 
 // 只读查看：点行直接看完整明细，无需进编辑态（车间/采购等无编辑权者也能看）。
@@ -133,34 +135,39 @@ const viewHeaderFields = computed(() => {
     { label: '客户 / 项目', value: v.customerName },
     { label: '型号', value: v.model },
     { label: '产成品代码', value: v.productCode },
+    { label: '关联成品', value: v.productName },
+    {
+      label: '基准产量',
+      value: v.baseQty == null ? '' : `${v.baseQty} ${v.unit || ''}`.trim(),
+    },
     { label: '裸机颜色', value: v.bareColor },
     { label: '皮套颜色', value: v.caseColor },
+    { label: '状态', value: v.status === 'RELEASED' ? '已下发' : '草稿' },
   ];
 });
 const blankLeadDays = () =>
   Object.fromEntries(LEAD_STAGES.map(s => [s.key, '']));
 // 用料分类：整机生产物料 vs 包装物料（整机到齐即可开产，包装未到不挡生产）。
 const CATEGORY_OPTIONS = [
-  { value: 'MACHINE', label: '整机生产物料' },
+  { value: 'MACHINE', label: '整机物料' },
   { value: 'PACKAGING', label: '包装物料' },
 ];
 const categoryLabel = c =>
-  CATEGORY_OPTIONS.find(o => o.value === c)?.label || '整机生产物料';
+  CATEGORY_OPTIONS.find(o => o.value === c)?.label || '整机物料';
 
 // 导出（Excel / 图片）
 const viewContentRef = ref(null);
 const bomExportData = () => {
   const v = viewing.value || {};
   return {
-    title: v.bomNo ? `BOM ${v.bomNo}` : 'BOM',
+    title: bomNoOf(v) ? `生产任务单 ${bomNoOf(v)}` : '生产任务单',
     fields: [
       { label: '负责人', value: v.ownerName },
       { label: '归属业务员', value: v.salesOwnerName },
-      { label: '关联成品', value: v.productName || '不关联成品' },
-      { label: '基准产量', value: `${v.baseQty ?? ''} ${v.unit ?? ''}` },
-      { label: '状态', value: v.status === 'RELEASED' ? '已下发' : '草稿' },
       ...viewHeaderFields.value,
       { label: '整单备注', value: v.remark },
+      { label: '采购注意事项', value: v.purchaseNote },
+      { label: '生产备注（内部）', value: v.productionNote },
     ],
     itemColumns: [
       { label: '类别', key: 'category' },
@@ -172,6 +179,8 @@ const bomExportData = () => {
       { label: '建议采购', key: 'suggestedPurchaseQty', align: 'right' },
       { label: '实时库存', key: 'onHand', align: 'right' },
       { label: '备注', key: 'remark' },
+      { label: '采购注意事项', key: 'purchaseNote' },
+      { label: '生产备注', key: 'productionNote' },
     ],
     items: (v.bomItems || []).map(it => ({
       ...it,
@@ -189,27 +198,6 @@ const exportBomJpg = () =>
   exportNodeToJpg(viewContentRef.value, bomExportData().title);
 const printBom = () => printNode(viewContentRef.value, bomExportData().title);
 
-// 用料明细每行照生产任务单直接填。
-const blankRow = () => ({
-  productId: '',
-  materialNo: '',
-  materialName: '',
-  specification: '',
-  unit: '',
-  qty: '',
-  suggestedPurchaseQty: '', // 工程建议采购数量
-  onHand: null, // 对应物料实时库存（只读展示，不入库）
-  // 辅助属性：选完物料后从该物料的档案带出可选项，单选其一（如 喷码6000）。
-  auxAttributeId: '',
-  auxAttributeName: '',
-  auxOptions: [],
-  productRemark: '', // 产品档案上的备注（只读，跟本行自己的备注分开）
-  remark: '',
-  category: 'MACHINE',
-  // 用量是否被人手动改过。没改过的行跟着投单总数走（见 autoQty），
-  // 改过的不再自动覆盖——工程会按单机实际用量调个别行（喇叭一台两只这种）。
-  qtyTouched: false,
-});
 // 投单信息（照 PMC 纸质 BOM 抬头）：日期/单号/客户/型号/产成品代码/数量/颜色。
 const blankHeader = () => ({
   submitDate: '',
@@ -222,35 +210,6 @@ const blankHeader = () => ({
   bareColor: '',
   caseColor: '',
 });
-const { activeProductLine, formOptions: productLineOptions } =
-  useMesProductLine();
-// 商显工控 BOM 不需要客户/项目名称、裸机颜色、皮套颜色（平板电脑保留）。
-const showTabletHeaderFields = computed(
-  () => activeProductLine.value !== 'COMMERCIAL_DISPLAY'
-);
-
-// 用料明细的列：宽度可拖（像 Excel / 金蝶那样），拖完记在本机。
-// 序号和删除那两根固定宽，不给拖。规格型号默认给最宽——不放全就核不了料。
-const REQUIRED_COLS = ['materialNo', 'materialName', 'qty'];
-const BOM_COLS = [
-  { key: 'idx', fixed: 28 },
-  { key: 'category', label: '类别', fr: 1.6 },
-  { key: 'materialNo', label: '物料编码', fr: 2 },
-  { key: 'materialName', label: '物料名称', fr: 2 },
-  { key: 'spec', label: '规格型号', fr: 3 },
-  { key: 'aux', label: '辅助属性', fr: 1.6 },
-  { key: 'unit', label: '单位', fr: 0.8 },
-  { key: 'qty', label: '用量', fr: 1 },
-  { key: 'suggest', label: '建议采购', fr: 1 },
-  { key: 'onHand', label: '实时库存', fr: 1 },
-  { key: 'remark', label: '备注', fr: 1 },
-  { key: 'del', fixed: 24 },
-];
-const {
-  template: bomColTemplate,
-  startResize: startColResize,
-  resetWidths: resetColWidths,
-} = useResizableColumns(BOM_COLS, 'mes.bom.itemCols.v1');
 
 const form = reactive({
   // 产品线随表单提交：新建 BOM 不一定选成品（选了才能从成品带出产线），
@@ -266,10 +225,6 @@ const form = reactive({
   rows: [], // { id?, materialNo, materialName, specification, unit, qty, remark }
 });
 
-const totalLeadDays = computed(() =>
-  LEAD_STAGES.reduce((sum, s) => sum + (Number(form[s.key]) || 0), 0)
-);
-
 // 投单总数：优先「数量」，没填就用「基准产量」。
 // 用料明细的用量绝大多数就等于这个数（一台机用一片屏、一个壳），
 // 以前要一行行手输几十遍；现在前面任一处填了总数，后面自动带出来。
@@ -283,27 +238,6 @@ const autoQty = computed(() => {
 const hasMaterial = r =>
   Boolean(r.materialNo?.trim() || r.materialName?.trim());
 
-const pickMaterial = (row, p) => {
-  if (!p) return;
-  row.productId = String(p.id);
-  row.materialNo = p.sku || '';
-  row.materialName = p.name || '';
-  if (p.specification) row.specification = p.specification;
-  if (p.unit) row.unit = p.unit;
-  // 选中即带出该物料的实时库存（产品搜索接口已附 on_hand，跨仓合计）。
-  row.onHand = p.on_hand != null ? Number(p.on_hand) : null;
-  // 选完物料，用量直接按投单总数带出来，不用一行行手输。
-  if (!row.qtyTouched && autoQty.value) row.qty = autoQty.value;
-  // 辅助属性跟着物料走：换了物料，上一个物料的属性必须清掉，
-  // 否则会把「A电池的喷码6000」挂到 B 电池上。
-  // 选料器直接用 axios 取数，键是下划线（同函数里 p.on_hand 亦然），不是驼峰。
-  row.auxOptions = p.aux_attributes || [];
-  row.auxAttributeId = '';
-  row.auxAttributeName = '';
-  // 档案备注（工程写在产品上的工艺要求，如「外露线长90mm」）跟着带出来，录单和车间都得看见。
-  row.productRemark = p.remark || '';
-};
-
 // 投单数量填了就同步到基准产量——同一个数不该输两遍。
 // 手动改过基准产量（或在编辑已存 BOM）就不再覆盖。
 const baseQtyTouched = ref(false);
@@ -316,14 +250,6 @@ watch(
   }
 );
 
-// 选定产成品：代码取档案 SKU，型号取档案里的产品名（A80 / K705 这种），省一次手输。
-// 型号已经手填过就不覆盖，避免把人家写的「K13plus 10.1寸P30版/客户定制」抹掉。
-const pickFinishedProduct = p => {
-  form.productId = String(p.id);
-  form.productCode = p.sku || '';
-  if (!form.model.trim()) form.model = p.name || '';
-};
-
 watch(autoQty, v => {
   if (!v) return;
   form.rows.forEach(r => {
@@ -331,467 +257,10 @@ watch(autoQty, v => {
   });
 });
 
-// 下拉选项：带一个「不选」，因为辅助属性是选填的（不是每个物料都有变体）。
-const auxOptionsOf = row => [
-  { value: '', label: '不选' },
-  ...row.auxOptions.map(o => ({ value: String(o.id), label: o.name })),
-];
-
-// 选中即同时记下名字：提交只送 id，但界面和「载入已有 BOM」都要显示名字。
-const pickAuxAttribute = (row, value) => {
-  row.auxAttributeId = value || '';
-  row.auxAttributeName =
-    row.auxOptions.find(o => String(o.id) === String(value))?.name || '';
-};
-
-// 手动改过用量的行打标记，之后总数再变也不覆盖它。
-const setRowQty = (row, v) => {
-  row.qty = v;
-  row.qtyTouched = true;
-};
-
-// 完全空行（默认铺的 10 行里没填的）：保存时忽略、不参与校验。
-const isRowEmpty = r =>
-  !r.materialNo.trim() &&
-  !r.materialName.trim() &&
-  !r.specification.trim() &&
-  !r.unit.trim() &&
-  !r.remark.trim() &&
-  !Number(r.qty);
-const isRowComplete = r =>
-  !!r.materialNo.trim() && !!r.materialName.trim() && !!Number(r.qty);
-const filledRows = computed(() => form.rows.filter(r => !isRowEmpty(r)));
-
-// 复制成金蝶「生产任务单 → 材料信息 → 快速贴粘」能直接吃的格式。
-// 金蝶那个粘贴框按列顺序读制表符分隔的文本，所以这里严格按它材料明细的列序出：
-//   物料编码 → 物料名称 → 规格型号 → 用量
-// 只出填了物料编码的行（默认空行、没选料的行不带过去）。
-const kingdeeCell = v =>
-  String(v ?? '')
-    .replace(/[\t\r\n]+/g, ' ')
-    .trim();
-
-const copyForKingdee = async () => {
-  const rows = form.rows.filter(r => r.materialNo?.trim() && !isRowEmpty(r));
-  if (!rows.length) {
-    useAlert('还没有填了物料编码的明细行，没有可复制的内容。');
-    return;
-  }
-  const tsv = rows
-    .map(r =>
-      [r.materialNo, r.materialName, r.specification, r.qty]
-        .map(kingdeeCell)
-        .join('\t')
-    )
-    .join('\n');
-  try {
-    await copyTextToClipboard(tsv);
-    useAlert(
-      `已复制 ${rows.length} 行，到金蝶「生产任务单 → 材料信息 → 快速贴粘」里粘贴即可。`
-    );
-  } catch {
-    useAlert('复制失败，请检查浏览器剪贴板权限。');
-  }
-};
-
-const invalid = computed(
-  () =>
-    !form.productLine || // 产线必填：漏了这条单子切到任何产线都看不见
-    !form.productCode.trim() ||
-    filledRows.value.length === 0 || // 至少一条实质用料
-    filledRows.value.some(r => !isRowComplete(r)) // 已填的行必须完整
-);
-
 // ── 未保存提醒 ──────────────────────────────────────────────
-// BOM 经常要填几十行料，填到一半点了「取消」就全没了。关闭前先比对快照，
-// 有改动就弹三选一（继续编辑 / 不保存关闭 / 存草稿后关闭）。
-//
-// 快照只取会被提交的字段：onHand 是选料时从服务端带回来的实时库存，
+// BOM 经常要填几十行料，填到一半点了「取消」就全没了。拦截 UI 在 Dialog 里，
+// 这里只负责判脏：onHand / qtyTouched 是选料时服务端带回来的实时库存和交互标记，
 // 不算用户改动，算进去会让刚打开的单子就被判成「已修改」。
-const snapshotOf = () =>
-  JSON.stringify({
-    ...form,
-    rows: form.rows.map(({ onHand, qtyTouched, ...keep }) => keep),
-  });
-
-// 基线必须用「当前表单」初始化：给空串的话，组件一挂载就 pristine !== 快照，
-// 什么都没动就被判成已修改，浏览器刷新拦截会一直挂着。
-const pristine = ref(snapshotOf());
-const markPristine = () => {
-  pristine.value = snapshotOf();
-};
-const isDirty = computed(() => pristine.value !== snapshotOf());
-
-// 刷新 / 关标签页也拦一道（弹窗里的「取消」由 requestClose 拦）。
-useUnsavedGuard(isDirty);
-
-const dirtyDialogRef = ref(null);
-
-// 所有关闭入口都走这里：干净就直接关，脏了先问。
-const requestClose = () => {
-  if (!isDirty.value) {
-    dialogRef.value?.close();
-    return;
-  }
-  dirtyDialogRef.value?.open();
-};
-
-// 「不保存」：丢弃改动关掉。
-const discardAndClose = () => {
-  dirtyDialogRef.value?.close();
-  markPristine(); // 防止 close 过程中的 watch 再次判脏
-  dialogRef.value?.close();
-};
-
-// —— 批量粘贴代码（对标金蝶）：从电子投单单复制一整列编码，一次全部匹配进明细 ——
-// 支持「编码」或「编码<tab>用量」（Excel 复制多列就是 tab 分隔）；
-// 匹配不上的照样留一行并标出来，让人手动补选，不至于整批白贴。
-const pasteDialogRef = ref(null);
-const pasteText = ref('');
-const pasteRows = ref([]);
-const pasteBusy = ref(false);
-
-const openPaste = () => {
-  pasteText.value = '';
-  pasteRows.value = [];
-  pasteDialogRef.value?.open();
-};
-
-const parsePasteLines = text =>
-  text
-    .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(Boolean)
-    .map(line => {
-      const [code, qty] = line
-        .split(/[\t,;，]+|\s{2,}/)
-        .map(x => (x || '').trim());
-      return { code, qty: Number(qty) > 0 ? String(Number(qty)) : '' };
-    })
-    .filter(r => r.code);
-
-const previewPaste = async () => {
-  const parsed = parsePasteLines(pasteText.value);
-  if (!parsed.length) {
-    useAlert('没读到编码，一行一个');
-    return;
-  }
-  pasteBusy.value = true;
-  try {
-    const { data } = await axios.post(
-      `/api/v1/accounts/${accountId.value}/mes/products/lookup`,
-      { codes: parsed.map(r => r.code) }
-    );
-    const hits = data?.payload || [];
-    pasteRows.value = parsed.map((r, i) => ({
-      ...r,
-      product: hits[i]?.product || null,
-    }));
-  } catch {
-    useAlert('查编码失败，请重试');
-  } finally {
-    pasteBusy.value = false;
-  }
-};
-
-const pasteMatched = computed(
-  () => pasteRows.value.filter(r => r.product).length
-);
-
-const applyPaste = () => {
-  if (!pasteRows.value.length) return;
-  // 先把默认铺的空行清掉，再按粘贴顺序追加。
-  form.rows = form.rows.filter(r => !isRowEmpty(r));
-  pasteRows.value.forEach(r => {
-    const row = blankRow();
-    if (r.product) {
-      row.productId = String(r.product.id);
-      row.materialNo = r.product.sku || r.code;
-      row.materialName = r.product.name || '';
-      row.specification = r.product.specification || '';
-      row.unit = r.product.unit || '';
-      row.auxOptions = r.product.aux_attributes || [];
-      row.productRemark = r.product.remark || '';
-    } else {
-      // 没匹配上的也留一行：编码填上、名称留空，人工补选比重贴一遍省事。
-      row.materialNo = r.code;
-      row.remark = '编码未匹配到产品档案，请手动选料';
-    }
-    row.qty = r.qty || autoQty.value || '';
-    row.qtyTouched = Boolean(r.qty);
-    form.rows.push(row);
-  });
-  if (!form.rows.length) form.rows.push(blankRow());
-  const miss = pasteRows.value.length - pasteMatched.value;
-  useAlert(
-    miss
-      ? `已填入 ${pasteRows.value.length} 行，其中 ${miss} 行没匹配上`
-      : `已填入 ${pasteRows.value.length} 行`
-  );
-  pasteDialogRef.value?.close();
-};
-
-const addRow = () => form.rows.push(blankRow());
-const removeRow = i => {
-  const [removed] = form.rows.splice(i, 1);
-  if (removed?.id) removedItemIds.value.push(removed.id);
-};
-
-// 关联生产订单（选填，仅新建）：「保存并下发」时自动挂接到该订单（进 BOM_READY）。
-// 列表取停在「销售订单确定」的待挂 BOM 订单。
-const attachOrderId = ref('');
-const attachableOrders = ref([]);
-const attachOrderOptions = computed(() => [
-  { value: '', label: '不关联（仅建 BOM，不挂到订单）' },
-  ...attachableOrders.value.map(o => ({
-    value: String(o.id),
-    label: `${o.order_no} · ${o.product_name} × ${o.qty} · ${o.owner_name || ''}`,
-  })),
-]);
-const loadAttachableOrders = async () => {
-  try {
-    const { data } = await MesProductionOrderAPI.get({
-      stage: 'SALES_CONFIRMED',
-      status: 'IN_PROGRESS',
-      per_page: 200,
-    });
-    attachableOrders.value = data.payload || [];
-  } catch {
-    attachableOrders.value = [];
-  }
-};
-
-// —— 图片 / 附件 ——
-// 新增文件选择即暂存为 blob（拿 signed_id），保存时随 payload 追加挂载（append，不覆盖）。
-// 编辑态的既有附件单独展示，删除即时调 detach 接口。
-const pendingImages = ref([]); // [{ name, signedId, previewUrl }]
-const pendingFiles = ref([]);
-const existingImages = ref([]); // 编辑态既有：[{ id, filename, url }]
-const existingFiles = ref([]);
-const staging = ref(false);
-const pendingFor = kind => (kind === 'images' ? pendingImages : pendingFiles);
-const pickAttachment = async (event, kind) => {
-  const list = Array.from(event.target.files || []);
-  event.target.value = '';
-  if (!list.length) return;
-  const isImage = kind === 'images';
-  staging.value = true;
-  try {
-    const staged = await Promise.all(
-      list.map(file => {
-        const fd = new FormData();
-        fd.append('file', file);
-        return MesBomAPI.stageBlob(fd).then(({ data }) => ({
-          name: data.filename,
-          signedId: data.signed_id,
-          previewUrl: isImage ? URL.createObjectURL(file) : '',
-        }));
-      })
-    );
-    pendingFor(kind).value.push(...staged);
-  } catch (e) {
-    useAlert(
-      `上传失败：${e?.response?.data?.error || e?.message || '未知错误'}`
-    );
-  } finally {
-    staging.value = false;
-  }
-};
-const removePending = (kind, i) => pendingFor(kind).value.splice(i, 1);
-// 编辑态删除既有附件：即时生效。
-const removeExisting = async (kind, att) => {
-  try {
-    await MesBomAPI.detachFile(editingId.value, att.id, kind);
-    const list = kind === 'images' ? existingImages : existingFiles;
-    list.value = list.value.filter(f => f.id !== att.id);
-  } catch {
-    useAlert('删除附件失败');
-  }
-};
-const resetAttachments = () => {
-  pendingImages.value = [];
-  pendingFiles.value = [];
-  existingImages.value = [];
-  existingFiles.value = [];
-};
-
-// preOrder：从生产订单页「去建 BOM」带来的预关联订单对象（自动选中「关联生产订单」）。
-const openCreate = async (preOrder = null) => {
-  editingId.value = null;
-  editingStatus.value = null;
-  baseQtyTouched.value = false; // 新建：基准产量跟着投单数量走
-  changeReason.value = '';
-  removedItemIds.value = [];
-  attachOrderId.value = '';
-  resetAttachments();
-  Object.assign(form, {
-    productLine: activeProductLine.value || '',
-    crmProductId: '',
-    salesOwnerId: '',
-    baseQty: '1',
-    unit: '台',
-    remark: '',
-    ...blankHeader(),
-    ...blankLeadDays(),
-    // 新建默认铺 10 个空行，方便批量录入用料（不够可继续「加一行」）。
-    rows: Array.from({ length: 10 }, () => blankRow()),
-  });
-  await loadAttachableOrders();
-  // 从生产订单页「去建 BOM」带来的预关联订单：若可挂列表里没有（状态/分页原因），
-  // 用带来的订单信息补一条，确保「关联生产订单」一定能预选到本单。
-  const pid = preOrder?.id ? String(preOrder.id) : '';
-  if (pid) {
-    if (
-      !attachableOrders.value.some(o => String(o.id) === pid) &&
-      preOrder.order_no
-    ) {
-      attachableOrders.value = [
-        {
-          id: preOrder.id,
-          order_no: preOrder.order_no,
-          product_name: preOrder.product_name,
-          qty: preOrder.qty,
-          owner_name: preOrder.owner_name,
-        },
-        ...attachableOrders.value,
-      ];
-    }
-    if (attachableOrders.value.some(o => String(o.id) === pid)) {
-      attachOrderId.value = pid;
-    }
-  }
-  markPristine();
-  dialogRef.value?.open();
-};
-const openEdit = bom => {
-  editingId.value = bom.id;
-  editingStatus.value = bom.status;
-  baseQtyTouched.value = true; // 编辑已存 BOM：存下来的基准产量不许被投单数量冲掉
-  changeReason.value = '';
-  removedItemIds.value = [];
-  resetAttachments();
-  existingImages.value = [...(bom.images || [])];
-  existingFiles.value = [...(bom.files || [])];
-  Object.assign(form, {
-    productLine: bom.productLine || '',
-    crmProductId: bom.crmProductId ? String(bom.crmProductId) : '',
-    salesOwnerId: bom.salesOwnerId ? String(bom.salesOwnerId) : '',
-    baseQty: String(bom.baseQty ?? '1'),
-    unit: bom.unit || '',
-    remark: bom.remark || '',
-    submitDate: bom.submitDate || '',
-    docNo: bom.docNo || '',
-    customerName: bom.customerName || '',
-    model: bom.model || '',
-    productCode: bom.productCode || '',
-    productId: '',
-    orderQty: bom.orderQty ?? '',
-    bareColor: bom.bareColor || '',
-    caseColor: bom.caseColor || '',
-    ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, bom[s.key] ?? ''])),
-    rows: (bom.bomItems || []).map(it => ({
-      id: it.id,
-      productId: '',
-      materialNo: it.materialNo || '',
-      materialName: it.materialName || '',
-      specification: it.specification || '',
-      unit: it.unit || '',
-      qty: String(it.qty ?? ''),
-      suggestedPurchaseQty:
-        it.suggestedPurchaseQty != null ? String(it.suggestedPurchaseQty) : '',
-      onHand: it.onHand != null ? Number(it.onHand) : null,
-      auxAttributeId: it.crmProductAuxAttributeId
-        ? String(it.crmProductAuxAttributeId)
-        : '',
-      auxAttributeName: it.auxAttributeName || '',
-      // 选项现在由后端按料号从产品档案带回（以前这里是空数组，重开编辑下拉就空了、
-      // 已选属性显示成「—」）。
-      auxOptions: it.auxOptions || [],
-      productRemark: it.productRemark || '',
-      remark: it.remark || '',
-      category: it.category || 'MACHINE',
-      qtyTouched: it.qty != null && it.qty !== '',
-    })),
-  });
-  markPristine();
-  dialogRef.value?.open();
-};
-
-// targetStatus：'DRAFT' 存草稿 / 'RELEASED' 下发。
-const submit = async targetStatus => {
-  if (invalid.value) return;
-  const itemsAttributes = [
-    ...filledRows.value.map(r => ({
-      id: r.id || undefined,
-      materialNo: r.materialNo.trim(),
-      materialName: r.materialName.trim(),
-      specification: r.specification.trim(),
-      unit: r.unit.trim(),
-      qty: Number(r.qty),
-      suggestedPurchaseQty:
-        r.suggestedPurchaseQty !== '' ? Number(r.suggestedPurchaseQty) : null,
-      crmProductAuxAttributeId: r.auxAttributeId || null,
-      remark: r.remark.trim(),
-      category: r.category || 'MACHINE',
-    })),
-    ...removedItemIds.value.map(id => ({ id, _destroy: true })),
-  ];
-  const payload = {
-    crmProductId: form.crmProductId || null,
-    salesOwnerId: form.salesOwnerId || null,
-    productLine: form.productLine || null,
-    baseQty: Number(form.baseQty) || 1,
-    unit: form.unit,
-    remark: form.remark.trim() || null,
-    submitDate: form.submitDate || null,
-    docNo: form.docNo.trim() || null,
-    customerName: form.customerName.trim() || null,
-    model: form.model.trim() || null,
-    productCode: form.productCode.trim() || null,
-    orderQty: Number(form.orderQty) || null,
-    bareColor: form.bareColor.trim() || null,
-    caseColor: form.caseColor.trim() || null,
-    status: targetStatus,
-    // 已下发 BOM 改用料时带上变更原因（后端据此记变更史 + 通知已参与部门）。
-    changeReason:
-      editingId.value && editingStatus.value === 'RELEASED'
-        ? changeReason.value.trim() || null
-        : undefined,
-    productionOrderId: editingId.value
-      ? undefined
-      : attachOrderId.value || null,
-    images: pendingImages.value.map(p => p.signedId),
-    files: pendingFiles.value.map(p => p.signedId),
-    ...Object.fromEntries(
-      LEAD_STAGES.map(s => [s.key, Number(form[s.key]) || null])
-    ),
-    bomItemsAttributes: itemsAttributes,
-  };
-  const ok = editingId.value
-    ? await store.update({ id: editingId.value, ...payload })
-    : await store.create(payload);
-  if (ok) {
-    const attached =
-      !editingId.value && attachOrderId.value && targetStatus === 'RELEASED';
-    const verb = targetStatus === 'RELEASED' ? '已下发' : '已存草稿';
-    let msg;
-    if (attached) msg = `已下发 ${ok.bomNo} 并挂接到订单，待业务员确认`;
-    else if (editingId.value && editingStatus.value === 'RELEASED')
-      msg = 'BOM 已保存，用料变更已通知相关采购/领料/库存';
-    else if (editingId.value) msg = `BOM ${verb}`;
-    else msg = `${verb} ${ok.bomNo}`;
-    useAlert(msg);
-    markPristine();
-    dialogRef.value?.close();
-  }
-};
-
-// 「保存」：一律存草稿——半成品不该直接下发到采购/领料那边去。
-// 已下发的单编辑时保持下发状态（那是改已生效的 BOM，不是新起草）。
-const saveAndClose = async () => {
-  dirtyDialogRef.value?.close();
-  await submit(editingStatus.value === 'RELEASED' ? 'RELEASED' : 'DRAFT');
-};
 
 // 列表里把草稿一键下发。
 const release = async bom => {
@@ -799,106 +268,11 @@ const release = async bom => {
   try {
     await MesBomAPI.release(bom.id);
     await load();
-    useAlert(`已下发 ${bom.bomNo}`);
+    useAlert(`已下发 ${bomNoOf(bom)}`);
   } catch {
     useAlert('下发失败');
   } finally {
     releasingId.value = null;
-  }
-};
-
-// —— BOM 模版：把常用成品的十几二十行用料存成模版，建 BOM 时一键套用 ——
-const templates = computed(() => tplStore.getRecords);
-const tplFetching = computed(() => tplStore.getUIFlags.fetchingList);
-const tplSaving = computed(() => tplStore.getUIFlags.creatingItem);
-const templateDialogRef = ref(null);
-const saveTplDialogRef = ref(null);
-const templateName = ref('');
-const confirmingDeleteId = ref(null);
-const tplDeletingId = ref(null);
-
-const openTemplates = () => {
-  confirmingDeleteId.value = null;
-  tplStore.get();
-  templateDialogRef.value?.open();
-};
-
-// 套用模版：预填新建 BOM 表单（模版不含成品，仍需选成品再保存）。
-const applyTemplate = t => {
-  editingId.value = null;
-  editingStatus.value = null;
-  removedItemIds.value = [];
-  Object.assign(form, {
-    crmProductId: '',
-    baseQty: String(t.baseQty ?? '1'),
-    unit: t.unit || '台',
-    remark: '',
-    ...blankHeader(),
-    ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, t[s.key] ?? ''])),
-    rows: (t.bomTemplateItems || []).map(it => ({
-      productId: '',
-      materialNo: it.materialNo || '',
-      materialName: it.materialName || '',
-      specification: it.specification || '',
-      unit: it.unit || '',
-      qty: String(it.qty ?? ''),
-      remark: it.remark || '',
-      category: it.category || 'MACHINE',
-      qtyTouched: it.qty != null && it.qty !== '',
-    })),
-  });
-  if (!form.rows.length) form.rows.push(blankRow());
-  markPristine();
-  templateDialogRef.value?.close();
-  dialogRef.value?.open();
-};
-
-const removeTemplate = async t => {
-  tplDeletingId.value = t.id;
-  try {
-    await tplStore.delete(t.id);
-    useAlert('模版已删除');
-  } catch {
-    useAlert('删除失败');
-  } finally {
-    tplDeletingId.value = null;
-    confirmingDeleteId.value = null;
-  }
-};
-
-// 从当前 BOM 表单存为模版（用料明细 + 各阶段天数，不含成品）。
-const openSaveTemplate = () => {
-  if (invalid.value) return;
-  templateName.value = form.crmProductId
-    ? productOptions.value.find(p => p.value === form.crmProductId)?.label || ''
-    : '';
-  saveTplDialogRef.value?.open();
-};
-const saveTemplate = async () => {
-  const name = templateName.value.trim();
-  if (!name) return;
-  const payload = {
-    name,
-    baseQty: Number(form.baseQty) || 1,
-    unit: form.unit,
-    ...Object.fromEntries(
-      LEAD_STAGES.map(s => [s.key, Number(form[s.key]) || null])
-    ),
-    bomTemplateItemsAttributes: form.rows
-      .filter(r => r.materialName.trim() && Number(r.qty))
-      .map(r => ({
-        materialNo: r.materialNo.trim(),
-        materialName: r.materialName.trim(),
-        specification: r.specification.trim(),
-        unit: r.unit.trim(),
-        qty: Number(r.qty),
-        remark: r.remark.trim(),
-      })),
-  };
-  const ok = await tplStore.create(payload);
-  if (ok) {
-    useAlert(`已存为模版「${ok.name}」`);
-    saveTplDialogRef.value?.close();
   }
 };
 
@@ -916,15 +290,11 @@ onMounted(async () => {
     products.value = [];
   }
   // 从生产订单页「去建 BOM」跳来：自动打开新建 BOM 并预关联该订单。
+  // 从生产订单页「去建 BOM」跳来：直接转到建档页，参数原样带过去。
   if (route.query.new_for_order) {
-    openCreate({
-      id: route.query.new_for_order,
-      order_no: route.query.nfo_no,
-      product_name: route.query.nfo_product,
-      qty: route.query.nfo_qty,
-      owner_name: route.query.nfo_owner,
-    });
+    const { ...q } = route.query;
     router.replace({ query: {} });
+    goCreate(q);
   }
 });
 </script>
@@ -935,10 +305,20 @@ onMounted(async () => {
       class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4"
     >
       <div class="flex items-baseline gap-2">
-        <h1 class="text-xl font-semibold text-n-slate-12">工程/PMC BOM</h1>
+        <h1 class="text-xl font-semibold text-n-slate-12">
+          工程/PMC 生产任务单
+        </h1>
         <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <!-- 列顺序是本机记忆，拖乱了要有路回来 -->
+        <Button
+          label="恢复默认列序"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="resetOrder"
+        />
         <Button
           v-if="mesCan('purchase')"
           label="新建成品采购单"
@@ -947,21 +327,13 @@ onMounted(async () => {
           size="sm"
           @click="goProductPurchase"
         />
-        <template v-if="mesCan('bom')">
-          <Button
-            label="BOM 模版"
-            variant="outline"
-            color="slate"
-            size="sm"
-            @click="openTemplates"
-          />
-          <Button
-            label="新建 BOM"
-            color="iris"
-            size="sm"
-            @click="openCreate()"
-          />
-        </template>
+        <Button
+          v-if="mesCan('bom')"
+          label="新建生产任务单"
+          color="iris"
+          size="sm"
+          @click="goCreate()"
+        />
       </div>
     </div>
 
@@ -982,7 +354,7 @@ onMounted(async () => {
           >
             <div class="flex items-center gap-2">
               <span class="font-medium truncate text-n-slate-12">{{
-                b.bomNo
+                bomNoOf(b)
               }}</span>
               <span
                 class="px-2 py-0.5 text-xs rounded-full shrink-0"
@@ -1010,7 +382,7 @@ onMounted(async () => {
                 variant="ghost"
                 size="sm"
                 class="shrink-0"
-                @click.stop="openEdit(b)"
+                @click.stop="goEdit(b)"
               />
             </div>
             <div class="mt-1 text-xs text-n-slate-11">
@@ -1033,7 +405,7 @@ onMounted(async () => {
             </div>
           </div>
           <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
-            还没有 BOM。
+            还没有生产任务单。
           </div>
         </div>
 
@@ -1041,14 +413,20 @@ onMounted(async () => {
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th class="px-3 py-3 font-medium w-12">#</th>
-              <th class="px-3 py-3 font-medium">BOM 号</th>
-              <th class="px-3 py-3 font-medium">型号 / 成品</th>
-              <th class="px-3 py-3 font-medium">负责人</th>
-              <th class="px-3 py-3 font-medium">归属业务员</th>
-              <th class="px-3 py-3 font-medium">基准产量</th>
-              <th class="px-3 py-3 font-medium">用料项</th>
-              <th class="px-3 py-3 font-medium">预估周期(天)</th>
-              <th class="px-3 py-3 font-medium">状态</th>
+              <!-- 拖列头即可改顺序，按人记在本机 -->
+              <th
+                v-for="col in orderedColumns"
+                :key="col.key"
+                draggable="true"
+                class="px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+                :class="isDragging(col.key) ? 'opacity-40' : ''"
+                title="拖动可调整列顺序"
+                @dragstart="onColDragStart(col.key)"
+                @dragover.prevent
+                @drop="onColDrop(col.key)"
+              >
+                {{ col.label }}
+              </th>
               <th class="px-3 py-3" />
             </tr>
           </thead>
@@ -1061,48 +439,61 @@ onMounted(async () => {
               <td class="px-3 py-3 tabular-nums text-n-slate-10">
                 {{ (currentPage - 1) * ITEMS_PER_PAGE + i + 1 }}
               </td>
-              <td class="px-3 py-3 font-medium text-n-slate-12">
-                {{ b.bomNo }}
-              </td>
-              <td class="px-3 py-3">
-                <div class="text-n-slate-12">
-                  {{ b.model || b.productName || '—' }}
-                </div>
-                <div
-                  v-if="b.productCode || b.customerName"
-                  class="text-xs text-n-slate-10"
-                >
-                  {{
-                    [b.productCode, b.customerName].filter(Boolean).join(' · ')
-                  }}
-                </div>
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ b.ownerName || '—' }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ b.salesOwnerName || '—' }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ b.baseQty }} {{ b.unit }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ (b.bomItems || []).length }} 项
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ b.totalLeadDays || '—' }}
-              </td>
-              <td class="px-3 py-3">
-                <span
-                  class="px-2 py-0.5 text-xs rounded-full"
-                  :class="
-                    b.status === 'RELEASED'
-                      ? 'bg-n-teal-3 text-n-teal-12'
-                      : 'bg-n-slate-4 text-n-slate-11'
-                  "
-                >
-                  {{ b.status === 'RELEASED' ? '已下发' : '草稿' }}
-                </span>
+              <!-- 中间列按 orderedColumns 渲染，顺序随表头拖拽实时变化 -->
+              <td
+                v-for="col in orderedColumns"
+                :key="col.key"
+                :class="col.tdClass"
+              >
+                <template v-if="col.key === 'no'">
+                  {{ bomNoOf(b) }}
+                  <!-- 填了投单单号时，把系统自动号作为副号附在下面，便于跟历史单据对照 -->
+                  <div v-if="b.docNo" class="text-[11px] text-n-slate-10">
+                    {{ b.bomNo }}
+                  </div>
+                </template>
+                <template v-else-if="col.key === 'model'">
+                  <div class="text-n-slate-12">
+                    {{ b.model || b.productName || '—' }}
+                  </div>
+                  <div
+                    v-if="b.productCode || b.customerName"
+                    class="text-xs text-n-slate-10"
+                  >
+                    {{
+                      [b.productCode, b.customerName]
+                        .filter(Boolean)
+                        .join(' · ')
+                    }}
+                  </div>
+                </template>
+                <template v-else-if="col.key === 'owner'">
+                  {{ b.ownerName || '—' }}
+                </template>
+                <template v-else-if="col.key === 'salesOwner'">
+                  {{ b.salesOwnerName || '—' }}
+                </template>
+                <template v-else-if="col.key === 'baseQty'">
+                  {{ b.baseQty }} {{ b.unit }}
+                </template>
+                <template v-else-if="col.key === 'items'">
+                  {{ (b.bomItems || []).length }} 项
+                </template>
+                <template v-else-if="col.key === 'leadDays'">
+                  {{ b.totalLeadDays || '—' }}
+                </template>
+                <template v-else-if="col.key === 'status'">
+                  <span
+                    class="px-2 py-0.5 text-xs rounded-full"
+                    :class="
+                      b.status === 'RELEASED'
+                        ? 'bg-n-teal-3 text-n-teal-12'
+                        : 'bg-n-slate-4 text-n-slate-11'
+                    "
+                  >
+                    {{ b.status === 'RELEASED' ? '已下发' : '草稿' }}
+                  </span>
+                </template>
               </td>
               <td class="px-3 py-3 text-right">
                 <div class="flex justify-end gap-1">
@@ -1125,14 +516,14 @@ onMounted(async () => {
                     label="编辑"
                     variant="ghost"
                     size="sm"
-                    @click="openEdit(b)"
+                    @click="goEdit(b)"
                   />
                 </div>
               </td>
             </tr>
             <tr v-if="!records.length">
               <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
-                还没有 BOM。
+                还没有生产任务单。
               </td>
             </tr>
           </tbody>
@@ -1149,560 +540,7 @@ onMounted(async () => {
       />
     </div>
 
-    <Dialog
-      ref="dialogRef"
-      :dismissible="false"
-      width="6xl"
-      overflow-y-auto
-      :show-confirm-button="false"
-      :show-cancel-button="false"
-      :title="editingId ? '编辑 BOM' : '新建 BOM'"
-      :is-loading="saving"
-    >
-      <div class="flex flex-col gap-4">
-        <!-- 关联生产订单（仅新建）：下发即自动挂接、通知业务员确认 -->
-        <div v-if="!editingId" class="flex flex-col gap-1">
-          <label class="text-xs text-n-slate-11">关联生产订单（选填）</label>
-          <SelectCard
-            v-model="attachOrderId"
-            :options="attachOrderOptions"
-            block
-          />
-          <p class="text-xs text-n-slate-10">
-            选择后「保存并下发」将直接挂接到该订单，并提醒工程/PMC
-            下发采购；存草稿不挂接。
-          </p>
-        </div>
-        <!-- 投单信息（照 PMC 纸质 BOM 抬头） -->
-        <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-        >
-          投单信息
-        </div>
-        <div class="grid grid-cols-3 gap-3">
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-11">投单日期</label>
-            <Input v-model="form.submitDate" type="date" />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-11">投单单号</label>
-            <Input v-model="form.docNo" placeholder="如 WT20260605-01" />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-11">数量</label>
-            <Input v-model="form.orderQty" type="number" placeholder="800" />
-          </div>
-          <div
-            v-if="showTabletHeaderFields"
-            class="flex flex-col col-span-3 gap-1"
-          >
-            <label class="text-xs text-n-slate-11">客户 / 项目名称</label>
-            <Input
-              v-model="form.customerName"
-              placeholder="如 某业务员美国客户定制"
-            />
-          </div>
-          <div class="flex flex-col col-span-2 gap-1">
-            <label class="text-xs text-n-slate-11">型号</label>
-            <Input
-              v-model="form.model"
-              placeholder="如 K13plus 10.1寸P30版/客户定制"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-11"
-              >产成品代码 <span class="text-n-ruby-11">*</span></label
-            >
-            <!-- 换成产品档案选择器：输 01.033 就能搜到 P.01.033，不用连 P 一起打；
-                 选中后型号（档案里的产品名，如 K705）自动填上面那格，不用再手输一遍。 -->
-            <MesProductPicker
-              :model-value="form.productId"
-              :account-id="accountId"
-              :display-text="form.productCode"
-              placeholder="输代码搜，如 01.842"
-              @select="pickFinishedProduct"
-            />
-          </div>
-          <div v-if="showTabletHeaderFields" class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-11">裸机颜色</label>
-            <Input v-model="form.bareColor" placeholder="如 橙色800" />
-          </div>
-          <div v-if="showTabletHeaderFields" class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-11">皮套颜色</label>
-            <Input v-model="form.caseColor" placeholder="如 粉色400、蓝色400" />
-          </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-4 pt-2 border-t border-n-weak">
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12">
-              产品线<span class="text-n-ruby-11">*</span>
-            </label>
-            <SelectCard
-              size="form"
-              :model-value="form.productLine"
-              :options="productLineOptions"
-              @update:model-value="v => (form.productLine = v)"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12"
-              >关联成品（选填，用于统计）</label
-            >
-            <ComboBox
-              v-model="form.crmProductId"
-              :options="productOptions"
-              placeholder="选择成品"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12"
-              >订单归属业务员（选填）</label
-            >
-            <ComboBox
-              v-model="form.salesOwnerId"
-              :options="salesOwnerOptions"
-              placeholder="选择业务员"
-            />
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="text-heading-3 text-n-slate-12"
-              >基准产量 / 单位</label
-            >
-            <div class="flex gap-2">
-              <Input
-                v-model="form.baseQty"
-                type="number"
-                class="w-20"
-                @input="baseQtyTouched = true"
-              />
-              <Input v-model="form.unit" placeholder="台" />
-            </div>
-          </div>
-        </div>
-
-        <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between">
-            <span class="text-heading-3 text-n-slate-12">各阶段预估天数</span>
-            <span class="text-xs text-n-slate-11">
-              预估周期合计：<span class="font-medium text-n-slate-12">{{
-                totalLeadDays
-              }}</span>
-              天
-            </span>
-          </div>
-          <div class="grid grid-cols-5 gap-2">
-            <div
-              v-for="s in LEAD_STAGES"
-              :key="s.key"
-              class="flex flex-col gap-1"
-            >
-              <label class="text-xs text-n-slate-11">{{ s.label }}</label>
-              <Input v-model="form[s.key]" type="number" placeholder="天" />
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="flex items-center justify-between pt-2 border-t border-n-weak"
-        >
-          <span class="text-heading-3 text-n-slate-12">
-            用料明细 <span class="text-n-ruby-11">*</span>
-            <span class="ml-2 text-xs font-normal text-n-slate-10">
-              整机生产物料到齐即可开产；包装物料未到不挡生产（生产领料只领整机料）
-            </span>
-          </span>
-          <span class="flex gap-2 items-center">
-            <Button
-              label="批量粘贴代码"
-              variant="ghost"
-              size="sm"
-              @click="openPaste"
-            />
-            <Button
-              label="复制到金蝶"
-              variant="ghost"
-              size="sm"
-              @click="copyForKingdee"
-            />
-            <Button
-              label="恢复默认列宽"
-              variant="ghost"
-              size="sm"
-              @click="resetColWidths"
-            />
-            <Button
-              label="+ 加一行"
-              variant="ghost"
-              size="sm"
-              @click="addRow"
-            />
-          </span>
-        </div>
-
-        <!-- 明细区单独横向滚动：11 列挤在弹窗宽度里，拉宽「物料名称」就把「规格型号」
-             压没了。给一个最小宽度后不够宽就横着滚，各列保持看得清。 -->
-        <div class="flex flex-col gap-2 overflow-x-auto">
-          <!-- 表头：每列右边一根可拖的竖线（像 Excel），拖完的宽度记在本机。 -->
-          <div
-            class="grid gap-2 px-1 text-xs min-w-[1180px] text-n-slate-11"
-            :style="{ gridTemplateColumns: bomColTemplate }"
-          >
-            <span
-              v-for="c in BOM_COLS"
-              :key="c.key"
-              class="relative min-w-0"
-              :title="c.label"
-            >
-              <!-- 标签单独一层：truncate 是 overflow:hidden，
-                   把手放在这层里会被裁掉，鼠标点不到。 -->
-              <span class="block truncate">
-                <template v-if="c.key === 'idx'">#</template>
-                <template v-else-if="c.label">
-                  {{ c.label }}
-                  <span
-                    v-if="REQUIRED_COLS.includes(c.key)"
-                    class="text-n-ruby-11"
-                  >
-                    *
-                  </span>
-                </template>
-              </span>
-              <span
-                v-if="c.fixed == null"
-                class="absolute z-10 flex justify-center w-3 h-6 -right-2 -top-1 cursor-col-resize group/grip"
-                title="拖动调整列宽（像 Excel 那样）"
-                @mousedown.prevent="startColResize(c.key, $event)"
-              >
-                <span
-                  class="w-px h-full bg-n-weak group-hover/grip:bg-n-brand group-hover/grip:w-0.5"
-                />
-              </span>
-            </span>
-          </div>
-          <div
-            v-for="(row, i) in form.rows"
-            :key="i"
-            class="pb-2 border-b border-dashed border-n-weak last:border-0"
-          >
-            <div
-              class="grid items-center gap-2 min-w-[1180px]"
-              :style="{ gridTemplateColumns: bomColTemplate }"
-            >
-              <span class="text-xs tabular-nums text-n-slate-10">
-                {{ i + 1 }}
-              </span>
-              <div>
-                <SelectCard
-                  v-model="row.category"
-                  :options="CATEGORY_OPTIONS"
-                  block
-                />
-              </div>
-              <MesProductPicker
-                :model-value="row.productId"
-                :account-id="accountId"
-                :display-text="
-                  row.materialNo
-                    ? `${row.materialNo}${row.materialName ? ` · ${row.materialName}` : ''}`
-                    : ''
-                "
-                placeholder="选物料"
-                trigger-class=""
-                @select="p => pickMaterial(row, p)"
-              />
-              <Input
-                :model-value="row.materialName"
-                placeholder="选编码自动带出"
-                disabled
-              />
-              <Input v-model="row.specification" placeholder="规格型号" />
-              <!-- 辅助属性：只列该物料档案里启用中的，单选。没维护过就显示「—」。 -->
-              <SelectCard
-                v-if="row.auxOptions.length"
-                :model-value="row.auxAttributeId"
-                :options="auxOptionsOf(row)"
-                block
-                @update:model-value="v => pickAuxAttribute(row, v)"
-              />
-              <span
-                v-else
-                class="px-1 text-xs truncate text-n-slate-10"
-                :title="row.auxAttributeName || '该物料未维护辅助属性'"
-              >
-                {{ row.auxAttributeName || '—' }}
-              </span>
-              <Input v-model="row.unit" placeholder="台" />
-              <Input
-                :model-value="row.qty"
-                type="number"
-                placeholder="用量"
-                @update:model-value="v => setRowQty(row, v)"
-              />
-              <Input
-                v-model="row.suggestedPurchaseQty"
-                type="number"
-                placeholder="选填"
-              />
-              <span
-                class="px-1 text-xs truncate"
-                :class="
-                  row.onHand == null ? 'text-n-slate-10' : 'text-n-slate-12'
-                "
-                :title="row.onHand == null ? '选料后显示' : String(row.onHand)"
-              >
-                {{ row.onHand == null ? '—' : row.onHand }}
-              </span>
-              <!-- 本行备注空着时，先把产品档案上的备注（工程写的工艺要求）显出来当占位，
-                   一旦本行自己填了就盖掉；完整内容挂 title。 -->
-              <Input
-                v-model="row.remark"
-                :placeholder="
-                  row.productRemark ? `档案：${row.productRemark}` : '备注'
-                "
-                :title="
-                  row.productRemark ? `产品档案备注：${row.productRemark}` : ''
-                "
-              />
-              <button
-                type="button"
-                class="text-n-slate-10 hover:text-n-ruby-11"
-                @click="removeRow(i)"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex flex-col gap-1 pt-2 border-t border-n-weak">
-          <label class="text-heading-3 text-n-slate-12">整单备注</label>
-          <TextArea
-            v-model="form.remark"
-            placeholder="整份 BOM 的说明，如工艺要求、替代料、注意事项等（不同于每行的备注）"
-            :max-length="500"
-            auto-height
-          />
-        </div>
-
-        <!-- 结构图 / 样品图（选择即上传） -->
-        <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">
-          <label class="text-heading-3 text-n-slate-12">
-            结构图 / 样品图
-            <span v-if="staging" class="ml-1 text-xs text-n-amber-11">
-              上传中…
-            </span>
-          </label>
-          <div class="flex flex-wrap items-center gap-2">
-            <div
-              v-for="img in existingImages"
-              :key="`ex-${img.id}`"
-              class="relative w-20 h-20 group"
-            >
-              <a :href="img.url" target="_blank" rel="noopener noreferrer">
-                <img
-                  :src="img.url"
-                  :alt="img.filename"
-                  class="object-cover w-20 h-20 border rounded-lg border-n-weak"
-                />
-              </a>
-              <button
-                type="button"
-                class="absolute items-center justify-center hidden w-5 h-5 text-xs text-white rounded-full top-1 right-1 bg-n-slate-12/70 group-hover:flex"
-                @click="removeExisting('images', img)"
-              >
-                ✕
-              </button>
-            </div>
-            <div
-              v-for="(f, i) in pendingImages"
-              :key="`pn-${i}`"
-              class="relative w-20 h-20 group"
-            >
-              <img
-                :src="f.previewUrl"
-                class="object-cover w-20 h-20 border rounded-lg border-n-weak"
-              />
-              <button
-                type="button"
-                class="absolute items-center justify-center hidden w-5 h-5 text-xs text-white rounded-full top-1 right-1 bg-n-slate-12/70 group-hover:flex"
-                @click="removePending('images', i)"
-              >
-                ✕
-              </button>
-            </div>
-            <label
-              class="flex items-center justify-center w-20 h-20 text-xs border border-dashed rounded-lg cursor-pointer border-n-weak text-n-slate-11 hover:text-n-slate-12"
-            >
-              + 图片
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                class="hidden"
-                @change="e => pickAttachment(e, 'images')"
-              />
-            </label>
-          </div>
-        </div>
-
-        <!-- 附件（工艺文档/图纸等） -->
-        <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">
-          <label class="text-heading-3 text-n-slate-12">附件</label>
-          <div class="flex flex-col gap-1">
-            <div
-              v-for="f in existingFiles"
-              :key="`exf-${f.id}`"
-              class="flex items-center justify-between text-xs"
-            >
-              <a
-                :href="f.url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="truncate text-n-iris-11 hover:underline"
-              >
-                {{ f.filename }}
-              </a>
-              <button
-                type="button"
-                class="ml-2 text-n-slate-10 hover:text-n-ruby-11"
-                @click="removeExisting('files', f)"
-              >
-                ✕
-              </button>
-            </div>
-            <div
-              v-for="(f, i) in pendingFiles"
-              :key="`pnf-${i}`"
-              class="flex items-center justify-between text-xs"
-            >
-              <span class="truncate text-n-slate-12">{{ f.name }}</span>
-              <button
-                type="button"
-                class="ml-2 text-n-slate-10 hover:text-n-ruby-11"
-                @click="removePending('files', i)"
-              >
-                ✕
-              </button>
-            </div>
-            <label
-              class="text-xs cursor-pointer text-n-iris-11 hover:underline w-max"
-            >
-              + 上传附件
-              <input
-                type="file"
-                multiple
-                class="hidden"
-                @change="e => pickAttachment(e, 'files')"
-              />
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <!-- 已下发 BOM 改用料：填变更原因，保存后自动记变更史并通知相关部门 -->
-      <div
-        v-if="editingId && editingStatus === 'RELEASED'"
-        class="flex flex-col gap-1 p-3 mt-1 border rounded-xl border-n-amber-6 bg-n-amber-2"
-      >
-        <label class="text-sm font-medium text-n-slate-12">
-          变更原因（选填）
-        </label>
-        <textarea
-          v-model="changeReason"
-          rows="2"
-          class="px-3 py-2 text-sm border rounded-lg resize-none reset-base border-white/70 bg-n-solid-1/70 text-n-slate-12"
-          placeholder="如：客户改需求换电池 / 工程调整用量…保存后系统会把改动明细通知已参与的采购、领料、库存部门"
-        />
-      </div>
-
-      <template #footer>
-        <!-- 明细几十行时，按钮粘在底部，不用一路滚到底才点得到保存 -->
-        <div
-          class="flex items-center justify-between gap-2 sticky bottom-0 z-10 -mx-6 -mb-6 px-6 py-4 bg-n-alpha-3 backdrop-blur-[100px] rounded-b-xl"
-        >
-          <Button
-            label="存为模版"
-            variant="outline"
-            color="slate"
-            :disabled="invalid"
-            @click="openSaveTemplate"
-          />
-          <div class="flex justify-end gap-2">
-            <Button
-              label="取消"
-              variant="ghost"
-              color="slate"
-              @click="requestClose"
-            />
-            <!-- 已下发的编辑：只保留「保存修改」，保持已下发状态（非重新下发/非草稿） -->
-            <Button
-              v-if="editingId && editingStatus === 'RELEASED'"
-              label="保存修改（保持下发）"
-              color="iris"
-              :is-loading="saving"
-              :disabled="invalid"
-              @click="submit('RELEASED')"
-            />
-            <template v-else>
-              <Button
-                label="存草稿"
-                variant="outline"
-                color="slate"
-                :is-loading="saving"
-                :disabled="invalid"
-                @click="submit('DRAFT')"
-              />
-              <Button
-                label="下发"
-                color="iris"
-                :is-loading="saving"
-                :disabled="invalid"
-                @click="submit('RELEASED')"
-              />
-            </template>
-          </div>
-        </div>
-      </template>
-    </Dialog>
-
     <!-- 只读查看：完整明细，无需进编辑态 -->
-    <!-- 未保存提醒：填到一半点取消不再直接丢掉 -->
-    <Dialog
-      ref="dirtyDialogRef"
-      :dismissible="false"
-      width="sm"
-      :show-confirm-button="false"
-      :show-cancel-button="false"
-      title="当前 BOM 已有修改"
-    >
-      <p class="text-sm text-n-slate-11">
-        关掉就没了。要把它存成草稿，还是丢弃这些改动？
-      </p>
-      <template #footer>
-        <div class="flex justify-end gap-2 w-full">
-          <Button
-            label="继续编辑"
-            variant="ghost"
-            color="slate"
-            @click="dirtyDialogRef?.close()"
-          />
-          <Button
-            label="不保存"
-            variant="outline"
-            color="ruby"
-            @click="discardAndClose"
-          />
-          <Button
-            :label="editingStatus === 'RELEASED' ? '保存修改' : '存草稿'"
-            color="iris"
-            :is-loading="saving"
-            :disabled="invalid"
-            @click="saveAndClose"
-          />
-        </div>
-      </template>
-    </Dialog>
 
     <Dialog
       ref="viewDialogRef"
@@ -1711,10 +549,27 @@ onMounted(async () => {
       overflow-y-auto
       :show-confirm-button="false"
       cancel-button-label="关闭"
-      :title="viewing ? `BOM ${viewing.bomNo}` : 'BOM 明细'"
+      :title="viewing ? `生产任务单 ${bomNoOf(viewing)}` : '生产任务单明细'"
     >
-      <div v-if="viewing" class="flex flex-col gap-4 text-sm">
-        <div class="flex justify-end gap-2">
+      <template #title>
+        <span class="inline-flex items-center gap-2">
+          {{ viewing ? `生产任务单 ${bomNoOf(viewing)}` : '生产任务单明细' }}
+          <span
+            v-if="viewing"
+            class="px-2 py-0.5 text-xs font-normal rounded-full"
+            :class="
+              viewing.status === 'RELEASED'
+                ? 'bg-n-teal-3 text-n-teal-12'
+                : 'bg-n-slate-4 text-n-slate-11'
+            "
+          >
+            {{ viewing.status === 'RELEASED' ? '已下发' : '草稿' }}
+          </span>
+        </span>
+      </template>
+      <!-- 导出/打印挂到标题行右侧：原来单起一行右对齐，左边空一大片。 -->
+      <template #headerActions>
+        <div v-if="viewing" class="flex gap-2 shrink-0">
           <Button
             label="导出 Excel"
             variant="outline"
@@ -1737,35 +592,38 @@ onMounted(async () => {
             @click="printBom"
           />
         </div>
+      </template>
+      <div v-if="viewing" class="flex flex-col gap-4 text-sm">
         <div
           ref="viewContentRef"
           class="flex flex-col gap-4 p-4 bg-white rounded-lg"
         >
-          <div class="flex items-center gap-2">
-            <span
-              class="px-2 py-0.5 text-xs rounded-full"
-              :class="
-                viewing.status === 'RELEASED'
-                  ? 'bg-n-teal-3 text-n-teal-12'
-                  : 'bg-n-slate-4 text-n-slate-11'
-              "
+          <!-- 客户 logo：单子一打开就该看见印什么标，所以顶在抬头上方 -->
+          <div v-if="(viewing.logos || []).length" class="flex flex-wrap gap-2">
+            <a
+              v-for="lg in viewing.logos"
+              :key="lg.id"
+              :href="lg.url"
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              {{ viewing.status === 'RELEASED' ? '已下发' : '草稿' }}
-            </span>
+              <img
+                :src="lg.url"
+                :alt="lg.filename"
+                class="object-contain object-left h-20 w-52"
+              />
+            </a>
+          </div>
+
+          <div class="flex items-center gap-2">
             <span class="text-n-slate-11">
               负责人：{{ viewing.ownerName || '—' }} · 归属业务员：{{
                 viewing.salesOwnerName || '—'
               }}
-              · 关联成品：{{ viewing.productName || '不关联成品' }} · 基准产量
-              {{ viewing.baseQty }} {{ viewing.unit }}
             </span>
           </div>
 
-          <div
-            class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-          >
-            投单信息
-          </div>
+          <div class="text-heading-2 text-n-slate-12">投单信息</div>
           <div class="grid grid-cols-3 gap-x-4 gap-y-3">
             <div
               v-for="f in viewHeaderFields"
@@ -1795,6 +653,8 @@ onMounted(async () => {
                   <th class="px-2 py-2 font-medium">单位</th>
                   <th class="px-2 py-2 font-medium text-right">用量</th>
                   <th class="px-2 py-2 font-medium">备注</th>
+                  <th class="px-2 py-2 font-medium">采购注意事项</th>
+                  <th class="px-2 py-2 font-medium">生产备注</th>
                 </tr>
               </thead>
               <tbody>
@@ -1844,9 +704,18 @@ onMounted(async () => {
                     </span>
                     <span v-else>—</span>
                   </td>
+                  <td class="px-2 py-2 text-n-slate-11">
+                    {{ it.purchaseNote || '—' }}
+                  </td>
+                  <td class="px-2 py-2 text-n-slate-11">
+                    {{ it.productionNote || '—' }}
+                  </td>
                 </tr>
                 <tr v-if="!(viewing.bomItems || []).length">
-                  <td colspan="9" class="px-2 py-6 text-center text-n-slate-11">
+                  <td
+                    colspan="11"
+                    class="px-2 py-6 text-center text-n-slate-11"
+                  >
                     无用料明细
                   </td>
                 </tr>
@@ -1877,6 +746,31 @@ onMounted(async () => {
             </div>
             <p class="whitespace-pre-wrap text-n-slate-12">
               {{ viewing.remark }}
+            </p>
+          </div>
+
+          <div v-if="viewing.purchaseNote" class="pt-2 border-t border-n-weak">
+            <div
+              class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              采购注意事项
+            </div>
+            <p class="whitespace-pre-wrap text-n-slate-12">
+              {{ viewing.purchaseNote }}
+            </p>
+          </div>
+
+          <div
+            v-if="viewing.productionNote"
+            class="pt-2 border-t border-n-weak"
+          >
+            <div
+              class="mb-1 text-xs font-semibold tracking-wide uppercase text-n-slate-10"
+            >
+              生产备注（内部）
+            </div>
+            <p class="whitespace-pre-wrap text-n-slate-12">
+              {{ viewing.productionNote }}
             </p>
           </div>
 
@@ -1968,177 +862,6 @@ onMounted(async () => {
               </li>
             </ul>
           </div>
-        </div>
-      </div>
-    </Dialog>
-
-    <!-- BOM 模版管理：套用 / 删除 -->
-    <Dialog
-      ref="templateDialogRef"
-      :dismissible="false"
-      width="2xl"
-      overflow-y-auto
-      :show-confirm-button="false"
-      show-cancel-button
-      cancel-button-label="关闭"
-      title="BOM 模版"
-    >
-      <div class="flex flex-col gap-2">
-        <p class="text-xs text-n-slate-11">
-          套用模版会把用料明细与各阶段天数带入新建
-          BOM，你只需再选成品即可保存。想新增模版？在新建/编辑 BOM
-          时点「存为模版」。
-        </p>
-        <div v-if="tplFetching" class="py-8 text-center text-n-slate-11">
-          加载中…
-        </div>
-        <div
-          v-else-if="!templates.length"
-          class="py-8 text-center text-n-slate-11"
-        >
-          还没有模版。
-        </div>
-        <div
-          v-for="t in templates"
-          v-else
-          :key="t.id"
-          class="flex items-center justify-between gap-3 px-3 py-2 border rounded-lg border-n-weak"
-        >
-          <div class="flex flex-col min-w-0">
-            <span class="font-medium truncate text-n-slate-12">{{
-              t.name
-            }}</span>
-            <span class="text-xs text-n-slate-11">
-              {{ (t.bomTemplateItems || []).length }} 项用料 · 基准
-              {{ t.baseQty }} {{ t.unit
-              }}<template v-if="t.productLine"> · {{ t.productLine }}</template>
-            </span>
-          </div>
-          <div class="flex items-center flex-shrink-0 gap-1">
-            <template v-if="confirmingDeleteId === t.id">
-              <Button
-                label="确认删除"
-                color="ruby"
-                size="sm"
-                :is-loading="tplDeletingId === t.id"
-                @click="removeTemplate(t)"
-              />
-              <Button
-                label="取消"
-                variant="ghost"
-                color="slate"
-                size="sm"
-                @click="confirmingDeleteId = null"
-              />
-            </template>
-            <template v-else>
-              <Button
-                label="套用"
-                color="iris"
-                size="sm"
-                @click="applyTemplate(t)"
-              />
-              <Button
-                label="删除"
-                variant="ghost"
-                color="slate"
-                size="sm"
-                @click="confirmingDeleteId = t.id"
-              />
-            </template>
-          </div>
-        </div>
-      </div>
-    </Dialog>
-
-    <!-- 存为模版：命名 -->
-    <Dialog
-      ref="saveTplDialogRef"
-      :dismissible="false"
-      width="sm"
-      title="存为模版"
-      confirm-button-label="保存模版"
-      confirm-button-color="iris"
-      :is-loading="tplSaving"
-      :disable-confirm-button="!templateName.trim()"
-      @confirm="saveTemplate"
-    >
-      <div class="flex flex-col gap-1">
-        <label class="text-heading-3 text-n-slate-12">模版名称</label>
-        <Input
-          v-model="templateName"
-          placeholder="如：55寸商显标准BOM"
-          @keyup.enter="saveTemplate"
-        />
-        <span class="text-xs text-n-slate-11"
-          >将保存当前
-          {{ form.rows.length }} 行用料与各阶段天数（不含成品）。</span
-        >
-      </div>
-    </Dialog>
-    <!-- 批量粘贴代码：从电子投单单复制一整列编码贴进来，一次匹配进明细 -->
-    <Dialog
-      ref="pasteDialogRef"
-      :dismissible="false"
-      width="3xl"
-      overflow-y-auto
-      title="批量粘贴代码"
-      description="从电子投单单复制一整列商品编码贴进来，一行一个；带用量的写成「编码 用量」或从 Excel 直接复制两列。"
-      :show-confirm-button="pasteRows.length > 0"
-      :confirm-button-label="`填入 ${pasteRows.length} 行`"
-      confirm-button-color="iris"
-      @confirm="applyPaste"
-    >
-      <div class="flex flex-col gap-3">
-        <TextArea
-          v-model="pasteText"
-          :rows="8"
-          placeholder="P.01.033&#10;P.03.200&#10;P.04.809	1000"
-        />
-        <div class="flex items-center gap-2">
-          <Button
-            label="匹配产品档案"
-            color="slate"
-            size="sm"
-            :is-loading="pasteBusy"
-            @click="previewPaste"
-          />
-          <span v-if="pasteRows.length" class="text-xs text-n-slate-11">
-            共 {{ pasteRows.length }} 行，匹配上 {{ pasteMatched }} 行
-          </span>
-        </div>
-        <div v-if="pasteRows.length" class="overflow-y-auto max-h-80">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-left text-n-slate-11 border-b border-n-weak">
-                <th class="w-10 px-2 py-2 font-medium">#</th>
-                <th class="px-2 py-2 font-medium">粘贴的编码</th>
-                <th class="px-2 py-2 font-medium">匹配到</th>
-                <th class="px-2 py-2 font-medium text-right">用量</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(r, i) in pasteRows"
-                :key="i"
-                class="border-b border-n-weak"
-              >
-                <td class="px-2 py-1.5 tabular-nums text-n-slate-10">
-                  {{ i + 1 }}
-                </td>
-                <td class="px-2 py-1.5 text-n-slate-12">{{ r.code }}</td>
-                <td class="px-2 py-1.5">
-                  <span v-if="r.product" class="text-n-slate-12">
-                    {{ r.product.sku }} · {{ r.product.name }}
-                  </span>
-                  <span v-else class="text-n-ruby-11">未匹配，需手动选料</span>
-                </td>
-                <td class="px-2 py-1.5 text-right text-n-slate-11">
-                  {{ r.qty || '—' }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
     </Dialog>

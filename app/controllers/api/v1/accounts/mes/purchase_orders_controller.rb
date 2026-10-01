@@ -169,12 +169,15 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   def purchase_order_params
     params.require(:purchase_order).permit(
+      # 单号允许手工填（两账并行期要对上金蝶的号）。**只在新建时放行**——
+      # 改已生效单据的号会让纸质单、下游单据和 ERP 全部对不上。留空则自动生成。
+      *(action_name == 'create' ? [:po_no] : []),
       :production_order_id, :product_line, :status, :expected_date, :follow_up_date, :delivery_date,
       :has_exception, :exception_note, :owner_id, :remark, :internal_remark,
       extra_production_order_ids: [],
       purchase_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :mes_supplier_id, :arrival_date,
-        :qty, :unit, :rate_micros, :price_tax_included, :received_qty, :remark, :_destroy
+        :qty, :unit, :rate_micros, :price_tax_included, :received_qty, :aux_attribute_name, :remark, :_destroy
       ]
     )
   end

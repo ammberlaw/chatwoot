@@ -10,6 +10,10 @@ json.suggested_purchase_qty resource.suggested_purchase_qty
 # 对应物料实时库存（料号↔产品档案 SKU 匹配汇总）；父 BOM 批量算好经 local 传入，避免逐行查库。
 json.on_hand(local_assigns[:onhand_map] ? (local_assigns[:onhand_map][resource.material_no] || 0) : nil)
 json.remark resource.remark
+# 采购注意事项给采购看（建采购单时按料带过去，但不进给供应商的导出件）；
+# 生产备注只给公司内部生产部门看，不进任何对外单据。
+json.purchase_note resource.purchase_note
+json.production_note resource.production_note
 json.crm_product_aux_attribute_id resource.crm_product_aux_attribute_id
 json.aux_attribute_name resource.aux_attribute_name
 # 产品档案带过来的两样（按料号↔SKU 对上）：工程写在档案上的备注、以及该物料的辅助属性选项。

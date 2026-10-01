@@ -15,6 +15,7 @@ import Select from 'dashboard/components-next/select/Select.vue';
 import CrmSignatureEditor from 'dashboard/components-next/CRM/CrmSignatureEditor.vue';
 import CrmSignatureGenerator from 'dashboard/components-next/CRM/CrmSignatureGenerator.vue';
 import CrmWhatsappWebBinding from 'dashboard/components-next/CRM/CrmWhatsappWebBinding.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const { t } = useI18n();
 const store = useCrmMailAccountsStore();
@@ -116,6 +117,7 @@ const form = reactive({
   imapPort: '',
   imapSsl: 'true',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 
 const resetForm = () => {
   Object.assign(form, {
@@ -136,6 +138,7 @@ const resetForm = () => {
 const openCreate = () => {
   editingId.value = null;
   resetForm();
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -158,6 +161,7 @@ const openEdit = record => {
     imapPort: record.imapPort ? String(record.imapPort) : '',
     imapSsl: record.imapSsl === false ? 'false' : 'true',
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -217,7 +221,7 @@ const testAccount = async record => {
     const { data } = await MailAccountAPI.test(record.id);
     const smtp = data.smtp || {};
     if (!smtp.ok) {
-      useAlert(`❌ ${record.name} 发信失败：${smtp.error || '认证失败'}`);
+      useAlert(`${record.name} 发信失败：${smtp.error || '认证失败'}`);
       return;
     }
     const imap = data.imap;
@@ -226,7 +230,7 @@ const testAccount = async record => {
         ? '，收信正常'
         : `，但收信失败：${imap.error}`
       : '';
-    useAlert(`✅ ${record.name} 发信正常${imapMsg}`);
+    useAlert(`${record.name} 发信正常${imapMsg}`);
   } catch {
     useAlert(L.error);
   } finally {
@@ -270,6 +274,9 @@ const sigForm = reactive({
   bodyHtml: '',
   isDefault: false,
 });
+const { isDirty: isSigDirty, markPristine: markSigPristine } = useDirtyGuard(
+  () => sigForm
+);
 
 const openSigCreate = () => {
   sigEditingId.value = null;
@@ -279,6 +286,7 @@ const openSigCreate = () => {
     bodyHtml: '',
     isDefault: !signatures.value.length,
   });
+  markSigPristine();
   sigDialogRef.value?.open();
 };
 
@@ -293,6 +301,7 @@ const openSigEdit = record => {
       (record.body ? record.body.replace(/\n/g, '<br>') : ''),
     isDefault: !!record.isDefault,
   });
+  markSigPristine();
   sigDialogRef.value?.open();
 };
 
@@ -575,7 +584,11 @@ onMounted(() => {
       overflow-y-auto
       :title="editingId ? L.edit : t('CRM.MAIL_ACCOUNTS.CREATE.TITLE')"
       confirm-button-color="iris"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="handleConfirm"
+      @close="markPristine"
+      @save="handleConfirm"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -691,7 +704,11 @@ onMounted(() => {
       overflow-y-auto
       :title="sigEditingId ? L.sigEditTitle : L.sigCreateTitle"
       confirm-button-color="iris"
+      :dirty="isSigDirty"
+      dirty-save-label="保存"
       @confirm="handleSigConfirm"
+      @close="markSigPristine"
+      @save="handleSigConfirm"
     >
       <div class="flex flex-col gap-4">
         <Input

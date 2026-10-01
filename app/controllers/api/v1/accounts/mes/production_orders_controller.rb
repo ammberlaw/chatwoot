@@ -192,21 +192,20 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   # 我的待办：当前停在「我负责的阶段」的在产订单（到岗通知的拉取面）。
   def inbox
-    # 按 (板块, 产品线) 预载负责人；每单按其产品线取，未配专属则回落「全部产线」。
-    by_key_line = Current.account.mes_board_owners.to_a
-                         .index_by { |o| [o.board_key, o.product_line.to_s] }
-    resolve = lambda do |key, line|
-      (line.present? && by_key_line[[key, line]]&.manager_ids.presence) ||
-        by_key_line[[key, '']]&.manager_ids || []
-    end
-    open_orders = Current.account.mes_production_orders.published
-                         .where(status: 'IN_PROGRESS').where.not(stage: 'SHIPPED')
-                         .includes(:stage_events).order(created_at: :desc)
-    mine = open_orders.select do |po|
-      key = Mes::ProductionOrder::INBOX_BOARD_KEYS[po.stage]
-      key && resolve.call(key, po.product_line.to_s).include?(current_user.id)
-    end
-    render json: { payload: mine.map { |po| inbox_row(po) } }
+    render json: { payload: my_inbox_orders.map { |po| inbox_row(po) } }
+  end
+
+  # 首页 MES 入口卡的角标：只要数字，不拉整份列表。
+  # 口径必须和 inbox / approval_inbox / 出库审批三处完全一致，
+  # 否则角标显示 3 条、点进去只有 2 条，业务会以为漏单。
+  def todo_count
+    base = Current.account.mes_production_orders
+    approval = base.awaiting_manager_for(current_user.id).or(base.awaiting_gm_for(current_user.id)).count
+    shipment_base = Current.account.mes_shipments.where(kind: 'STOCK', status: 'PENDING_APPROVAL')
+    shipment = (admin_like? ? shipment_base : shipment_base.where(manager_id: current_user.id)).count
+    inbox = my_inbox_orders.size
+
+    render json: { approval: approval, inbox: inbox, shipment: shipment, total: approval + inbox + shipment }
   end
 
   # ── 审批链：提交 → 部门主管通过/驳回 → 总经理通过/驳回 ──
@@ -431,6 +430,24 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     ActiveModel::Type::Boolean.new.cast(params[key])
   end
 
+  # 我负责的在产订单（= 我管的那个阶段上停着的单）。inbox 与 todo_count 共用，
+  # 口径只能有一份。板块负责人按 (板块, 产品线) 配，没配专属就回落「全部产线」。
+  def my_inbox_orders
+    by_key_line = Current.account.mes_board_owners.to_a
+                         .index_by { |o| [o.board_key, o.product_line.to_s] }
+    resolve = lambda do |key, line|
+      (line.present? && by_key_line[[key, line]]&.manager_ids.presence) ||
+        by_key_line[[key, '']]&.manager_ids || []
+    end
+    open_orders = Current.account.mes_production_orders.published
+                         .where(status: 'IN_PROGRESS').where.not(stage: 'SHIPPED')
+                         .includes(:stage_events).order(created_at: :desc)
+    open_orders.select do |po|
+      key = Mes::ProductionOrder::INBOX_BOARD_KEYS[po.stage]
+      key && resolve.call(key, po.product_line.to_s).include?(current_user.id)
+    end
+  end
+
   def inbox_row(order)
     {
       id: order.id,
@@ -464,6 +481,9 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   def production_order_params
     permitted = params.require(:production_order).permit(
+      # 单号允许手工填（两账并行期要对上金蝶的号）。**只在新建时放行**——
+      # 改已生效单据的号会让纸质单、下游单据和 ERP 全部对不上。留空则自动生成。
+      *(action_name == 'create' ? [:order_no] : []),
       :crm_sales_order_id, :crm_customer_id, :crm_product_id, :product_name, :qty, :unit, :pi_no,
       :bom_id, :order_kind, :delivery_date, :planned_start_date, :planned_end_date,
       :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line,

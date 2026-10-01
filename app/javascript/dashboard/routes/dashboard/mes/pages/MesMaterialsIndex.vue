@@ -11,6 +11,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const store = useMesMaterialsStore();
 const { mesCan } = useMesRole();
@@ -52,6 +53,7 @@ const form = reactive({
   defaultSupplierId: '',
   remark: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const invalid = computed(() => !form.name.trim() || !form.unit.trim());
 
 const openCreate = () => {
@@ -66,6 +68,7 @@ const openCreate = () => {
     remark: '',
   });
   if (!suppliersStore.getRecords?.length) suppliersStore.get({ per_page: 500 });
+  markPristine();
   dialogRef.value?.open();
 };
 const submit = async () => {
@@ -180,7 +183,11 @@ onMounted(() => {
       title="新增物料"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

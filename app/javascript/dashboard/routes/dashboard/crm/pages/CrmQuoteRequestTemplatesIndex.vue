@@ -8,6 +8,7 @@ import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 定制报价的参数模板：每条产品线配一套字段，业务员发起申请时按产品线套用。
 // 字段定义结构与 OA 审批模板一致（key/label/type/required/options），前端渲染逻辑同源。
@@ -34,6 +35,7 @@ const form = ref({
   active: true,
   fields: [],
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form.value);
 
 const load = async () => {
   loading.value = true;
@@ -56,6 +58,7 @@ const openNew = () => {
     active: true,
     fields: [],
   };
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -75,6 +78,7 @@ const openEdit = row => {
       optionsText: (f.options || []).join('，'),
     })),
   };
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -263,7 +267,11 @@ onMounted(load);
       confirm-button-label="保存"
       :confirm-button-color="goColor"
       :is-loading="saving"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="save"
+      @close="markPristine"
+      @save="save"
     >
       <div class="flex flex-col gap-3">
         <div class="grid grid-cols-2 gap-3">

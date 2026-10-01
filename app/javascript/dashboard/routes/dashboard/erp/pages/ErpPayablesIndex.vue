@@ -20,6 +20,7 @@ import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEdit
 import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
 import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 应付：台账（按采购单建账，按明细行供应商分组）/ 付款记录（核销）/ 供应商对账 三页签。
 // 与应收同构；台账「已付」只由核销维护。
@@ -184,6 +185,7 @@ const paymentForm = reactive({
   referenceNo: '',
   remark: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => paymentForm);
 const allocationLedgers = computed(() =>
   openPayables.value.map(p => ({
     id: p.id,
@@ -239,6 +241,7 @@ const openPayment = async (record = null) => {
   });
   await searchSuppliers('');
   await loadOpenPayables(paymentForm.mesSupplierId);
+  markPristine();
   paymentDialogRef.value?.open();
 };
 
@@ -643,7 +646,11 @@ onMounted(loadLedgers);
         editingPayment ? `编辑付款单 ${editingPayment.payment_no}` : '登记付款'
       "
       :disable-confirm-button="paymentInvalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitPayment"
+      @close="markPristine"
+      @save="submitPayment"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-3 gap-4">

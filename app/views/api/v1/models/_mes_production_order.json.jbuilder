@@ -35,6 +35,9 @@ if local_assigns[:detail]
       json.qty bi.qty
       json.aux_attribute_name bi.aux_attribute_name
       json.remark bi.remark
+      # 生产备注＝工程写给车间看的（只对内）；采购注意事项给采购，车间不用管。
+      json.production_note bi.production_note
+      json.purchase_note bi.purchase_note
       json.product_remark bom_product_map[bi.material_no]&.remark
     end
   end

@@ -22,6 +22,7 @@ import ErpDimensionFields from 'dashboard/components-next/erp/ErpDimensionFields
 import ErpVoucherPrintSheet from 'dashboard/components-next/erp/ErpVoucherPrintSheet.vue';
 import { printElement } from 'dashboard/helper/printHelper';
 import { downloadBlob } from 'dashboard/helper/erpDownload';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 记账凭证：手工凭证录入 + 过账 / 红冲 / 作废。
 // 硬规则在后端（借贷本位币必平才能过账；已记账不可改删只能红冲），前端只做录入体验与显隐。
@@ -152,6 +153,7 @@ const form = reactive({
   remark: '',
   lines: [blankLine(), blankLine()],
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 
 const lineBase = line => {
   const amount = Number(line.debit || line.credit || 0);
@@ -199,6 +201,7 @@ const openCreate = () => {
     remark: '',
     lines: [blankLine(), blankLine()],
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -323,6 +326,7 @@ const openEdit = async voucher => {
       cashFlowItem: l.cash_flow_item || '',
     })),
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -632,7 +636,9 @@ onMounted(() => {
                     @change="toggleSelect(v.id)"
                   />
                 </td>
-                <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
+                <td
+                  class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12"
+                >
                   {{ v.voucherNo }}
                   <span v-if="v.reversalOfNo" class="text-xs text-n-ruby-11">
                     红冲 {{ v.reversalOfNo }}
@@ -759,6 +765,11 @@ onMounted(() => {
       :title="editing ? `编辑凭证 ${editing.voucher_no}` : '新建记账凭证'"
       :show-confirm-button="false"
       :show-cancel-button="false"
+      :dirty="isDirty"
+      dirty-save-label="存草稿"
+      :disable-confirm-button="invalid"
+      @close="markPristine"
+      @save="submit(false)"
     >
       <div class="flex flex-col gap-4">
         <!-- 常用摘要联想：摘要输入框靠 list 属性接这里 -->

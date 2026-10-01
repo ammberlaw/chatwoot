@@ -380,7 +380,9 @@ const importBackground = () => {
   filled.push('概况→备注');
 
   bgImported.value = true;
-  useAlert(filled.length ? `已导入：${filled.join('、')}` : '没有可导入的新信息');
+  useAlert(
+    filled.length ? `已导入：${filled.join('、')}` : '没有可导入的新信息'
+  );
 };
 
 // 联系邮箱、手机/WhatsApp、阿里买家账号，至少要有一个：WhatsApp 来的客户往往没邮箱，
@@ -520,7 +522,7 @@ const submit = async () => {
         v-if="draftRestored"
         class="flex items-center justify-between gap-2 p-3 text-sm border rounded-lg border-n-amber-8 text-n-amber-11"
       >
-        <span>📝 已恢复上次未提交的建档内容，可继续填写。</span>
+        <span>已恢复上次未提交的建档内容，可继续填写。</span>
         <button
           type="button"
           class="flex-shrink-0 text-xs underline text-n-slate-11 hover:text-n-slate-12"
@@ -535,11 +537,15 @@ const submit = async () => {
         class="flex flex-col gap-1 p-3 text-sm border rounded-lg border-n-ruby-8 text-n-ruby-11"
       >
         <span>
-          ⛔ 该邮箱已被建档：<strong>{{ emailHit.name }}</strong>
-          <template v-if="emailHit.customer_code">（{{ emailHit.customer_code }}）</template>
+          该邮箱已被建档：<strong>{{ emailHit.name }}</strong>
+          <template v-if="emailHit.customer_code"
+            >（{{ emailHit.customer_code }}）</template
+          >
           · {{ emailHit.owner }}
         </span>
-        <span class="text-xs text-n-slate-11">无法用相同邮箱重复建档，请换邮箱或联系负责人。</span>
+        <span class="text-xs text-n-slate-11"
+          >无法用相同邮箱重复建档，请换邮箱或联系负责人。</span
+        >
       </div>
 
       <div
@@ -547,7 +553,7 @@ const submit = async () => {
         class="flex flex-col gap-1 p-3 text-sm border rounded-lg border-n-ruby-8 text-n-ruby-11"
       >
         <span>
-          ⛔ 该阿里买家账号已被建档：<strong>{{ alibabaHit.name }}</strong>
+          该阿里买家账号已被建档：<strong>{{ alibabaHit.name }}</strong>
           <template v-if="alibabaHit.customer_code">
             （{{ alibabaHit.customer_code }}）
           </template>
@@ -568,7 +574,7 @@ const submit = async () => {
         "
       >
         <span>
-          {{ phoneBlocking ? '⛔' : '⚠️' }} 该手机号/WhatsApp 已被建档：
+          该手机号/WhatsApp 已被建档：
           <strong>{{ phoneHit.name }}</strong>
           <template v-if="phoneHit.customer_code">
             （{{ phoneHit.customer_code }}）
@@ -588,7 +594,7 @@ const submit = async () => {
         v-if="!emailHit && nameHits.length"
         class="flex flex-col gap-1 p-3 text-sm border rounded-lg border-n-iris-8 text-n-iris-11"
       >
-        <span>⚠️ 发现公司名相似的已有客户（可继续建档，请确认非同一家）：</span>
+        <span>发现公司名相似的已有客户（可继续建档，请确认非同一家）：</span>
         <span v-for="m in nameHits" :key="m.id" class="text-xs text-n-slate-11">
           · {{ m.name }}
           <template v-if="m.customer_code">（{{ m.customer_code }}）</template>
@@ -724,7 +730,9 @@ const submit = async () => {
                 </div>
                 <div v-if="bgEnrich && bgEnrich.employees" class="text-xs">
                   <span class="text-n-slate-10">员工规模：</span>
-                  <span class="text-n-slate-12">约 {{ bgEnrich.employees }} 人</span>
+                  <span class="text-n-slate-12"
+                    >约 {{ bgEnrich.employees }} 人</span
+                  >
                 </div>
                 <div v-if="bgEnrich && bgEnrich.founded_year" class="text-xs">
                   <span class="text-n-slate-10">成立年份：</span>
@@ -737,11 +745,13 @@ const submit = async () => {
                 v-if="bgResult.db_match && bgResult.db_match.total"
                 class="text-xs text-n-amber-11"
               >
-                ⚠️ 库里已有 {{ bgResult.db_match.total }} 家相似公司，注意查重
+                库里已有 {{ bgResult.db_match.total }} 家相似公司，注意查重
               </div>
 
               <!-- 一键导入：把背调结果填进上面的建档表单（只填空字段，概况写进备注） -->
-              <div class="flex flex-wrap items-center gap-2 pt-1 mt-1 border-t border-n-weak">
+              <div
+                class="flex flex-wrap items-center gap-2 pt-1 mt-1 border-t border-n-weak"
+              >
                 <button
                   type="button"
                   class="inline-flex items-center gap-1.5 h-8 px-3 mt-1 text-xs font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
@@ -779,7 +789,9 @@ const submit = async () => {
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">国家地区 <span class="text-n-ruby-11">*</span></span>
+          <span class="text-xs text-n-slate-11"
+            >国家地区 <span class="text-n-ruby-11">*</span></span
+          >
           <ComboBox
             v-model="form.tradeCountry"
             :options="countryOptions"
@@ -796,7 +808,9 @@ const submit = async () => {
           />
         </div>
         <div class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">客户分组 <span class="text-n-ruby-11">*</span></span>
+          <span class="text-xs text-n-slate-11"
+            >客户分组 <span class="text-n-ruby-11">*</span></span
+          >
           <SelectCard
             v-model="form.customerGroup"
             :options="groupSelectOptions"
@@ -804,7 +818,9 @@ const submit = async () => {
           />
         </div>
         <div class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">产品分组 <span class="text-n-ruby-11">*</span></span>
+          <span class="text-xs text-n-slate-11"
+            >产品分组 <span class="text-n-ruby-11">*</span></span
+          >
           <SelectCard
             v-model="form.productGroup"
             :options="productGroupSelectOptions"
@@ -815,7 +831,9 @@ const submit = async () => {
           <span class="text-xs text-n-slate-11">客户星级</span>
           <div class="flex items-center gap-2 h-9">
             <CrmStarRating :micros="0" size="md" />
-            <span class="text-xs text-n-slate-10">系统按累计成交额自动评定</span>
+            <span class="text-xs text-n-slate-10"
+              >系统按累计成交额自动评定</span
+            >
           </div>
         </div>
       </div>
@@ -828,7 +846,9 @@ const submit = async () => {
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="flex flex-col gap-1">
-          <span class="text-xs text-n-slate-11">主要联系人 <span class="text-n-ruby-11">*</span></span>
+          <span class="text-xs text-n-slate-11"
+            >主要联系人 <span class="text-n-ruby-11">*</span></span
+          >
           <input
             v-model="form.primaryContactName"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
@@ -846,7 +866,11 @@ const submit = async () => {
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">
             联系邮箱
-            <span v-if="!form.contactPhone.trim() && !form.whatsApp.trim()" class="text-n-ruby-11">*</span>
+            <span
+              v-if="!form.contactPhone.trim() && !form.whatsApp.trim()"
+              class="text-n-ruby-11"
+              >*</span
+            >
           </span>
           <input
             v-model="form.email"
@@ -995,16 +1019,15 @@ const submit = async () => {
         v-if="result?.ok"
         class="p-3 text-sm border rounded-lg border-n-teal-8 text-n-teal-11"
       >
-        ✅ 建档成功<template v-if="result.code">
-          ，客户编号 {{ result.code }}
-</template
+        建档成功<template v-if="result.code">
+          ，客户编号 {{ result.code }} </template
         >，已归入你的私海。可继续建下一个。
       </div>
       <div
         v-else-if="result && !result.ok"
         class="p-3 text-sm border rounded-lg border-n-ruby-8 text-n-ruby-11"
       >
-        ❌ 建档失败：{{ result.msg }}
+        建档失败：{{ result.msg }}
       </div>
     </div>
   </div>

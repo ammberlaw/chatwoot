@@ -20,6 +20,7 @@ import camelcaseKeys from 'camelcase-keys';
 import ProductAuxAttributesAPI from 'dashboard/api/mes/productAuxAttributes';
 import MesProductGroupNode from 'dashboard/components-next/mes/MesProductGroupNode.vue';
 import MesProductGroupManager from 'dashboard/components-next/mes/MesProductGroupManager.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const store = useMesProductsStore();
 const { mesCan } = useMesRole();
@@ -251,6 +252,7 @@ const form = reactive({
   groupCode: '',
   isActive: true,
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const invalid = computed(() => !form.name.trim() || !form.sku.trim());
 
 // 表单分类选项：新五档；正在编辑的存量产品若还是旧分类，附带显示旧值以免下拉空白。
@@ -292,6 +294,7 @@ const openCreate = () => {
     groupCode: selectedGroup.value || '',
     isActive: true,
   });
+  markPristine();
   dialogRef.value?.open();
 };
 const openEdit = p => {
@@ -309,6 +312,7 @@ const openEdit = p => {
     isActive: p.isActive !== false,
   });
   loadAux(p.id);
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -736,7 +740,11 @@ onMounted(() => {
       :title="editingId ? '编辑产品' : '新增产品'"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -814,7 +822,7 @@ onMounted(() => {
           class="flex flex-col gap-2 pt-3 border-t border-n-weak"
         >
           <div class="flex items-baseline gap-2">
-            <span class="text-heading-3 text-n-slate-12">辅助属性</span>
+            <span class="text-heading-2 text-n-slate-12">辅助属性</span>
             <span class="text-xs text-n-slate-10">
               同一编码下的变体（如 喷码6000 /
               喷码3500）。编码自动生成，开单时在用料明细里单选一个。
@@ -874,7 +882,7 @@ onMounted(() => {
       width="sm"
       confirm-button-color="ruby"
       title="删除产品"
-      :description="`确定删除「${deleting?.name || ''}」（${deleting?.sku || ''}）？已关联的 BOM / 采购 / 出库将解除引用。`"
+      :description="`确定删除「${deleting?.name || ''}」（${deleting?.sku || ''}）？已关联的生产任务单 / 采购 / 出库将解除引用。`"
       confirm-label="删除"
       @confirm="doDelete"
     />

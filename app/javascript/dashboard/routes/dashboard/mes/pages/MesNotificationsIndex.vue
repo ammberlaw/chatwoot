@@ -1,16 +1,35 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
 import Button from 'dashboard/components-next/button/Button.vue';
+import MesTodoPanel from 'dashboard/components-next/mes/MesTodoPanel.vue';
 
 const { accountScopedRoute } = useAccount();
+const route = useRoute();
 const router = useRouter();
 const store = useMesNotificationsStore();
 
+// 同一个页面服务两个板块：MES 看生产流转通知，ERP 看财务（应收分期/应付账期/费用打款）。
+// ERP 复用的是同一张通知表，不分开的话生产端打开站内通知会被一屏「应付已逾期」淹掉。
+const notifyModule = computed(() => route.meta?.notificationModule || 'mes');
+const scopeParams = computed(() =>
+  notifyModule.value === 'erp' ? { module: 'erp' } : {}
+);
+const pageTitle = computed(() =>
+  notifyModule.value === 'erp' ? '财务通知' : '站内通知'
+);
+
 // 分类：todo 待处理（需我行动）/ progress 进展（知会）/ rejected 退回·驳回（异常）。
-const GROUPS = [
+// MES：「待我处理」是实时按单据状态算的（原「我的工作台」并进来了），办完自动消失；
+// 「进展 / 退回·驳回」才是消息记录。ERP（财务通知）没有待办面，维持原来四个分类。
+const MES_GROUPS = [
+  { key: 'todo', label: '待我处理' },
+  { key: 'progress', label: '进展' },
+  { key: 'rejected', label: '退回·驳回' },
+];
+const ERP_GROUPS = [
   { key: 'all', label: '全部' },
   { key: 'todo', label: '待处理' },
   { key: 'progress', label: '进展' },
@@ -25,8 +44,12 @@ const KIND_META = {
     group: 'progress',
   },
   approval_rejected: { label: '被驳回', dot: 'bg-n-ruby-9', group: 'rejected' },
-  bom_reconfirm: { label: '待确认BOM', dot: 'bg-n-amber-9', group: 'todo' },
-  bom_confirmed: { label: 'BOM已确认', dot: 'bg-n-teal-9', group: 'progress' },
+  bom_reconfirm: { label: '待确认任务单', dot: 'bg-n-amber-9', group: 'todo' },
+  bom_confirmed: {
+    label: '任务单已确认',
+    dot: 'bg-n-teal-9',
+    group: 'progress',
+  },
   purchase_release_pending: {
     label: '待下发采购',
     dot: 'bg-n-amber-9',
@@ -47,11 +70,11 @@ const KIND_META = {
     dot: 'bg-n-ruby-9',
     group: 'rejected',
   },
-  stage_assigned: { label: '待接单', dot: 'bg-n-iris-9', group: 'todo' },
+  stage_assigned: { label: '待接单', dot: 'bg-n-violet-9', group: 'todo' },
   stage_returned: { label: '被退回', dot: 'bg-n-ruby-9', group: 'rejected' },
   production_reported: {
     label: '待成品入库',
-    dot: 'bg-n-iris-9',
+    dot: 'bg-n-violet-9',
     group: 'todo',
   },
   shipment_approval_pending: {
@@ -70,7 +93,26 @@ const KIND_META = {
     dot: 'bg-n-amber-9',
     group: 'rejected',
   },
-  forwarded: { label: '被知会', dot: 'bg-n-iris-9', group: 'progress' },
+  forwarded: { label: '被知会', dot: 'bg-n-violet-9', group: 'progress' },
+  // ERP（财务）：只在「财务通知」页出现，MES 站内通知已按模块过滤掉。
+  erp_installment_due: {
+    label: '应收到期',
+    dot: 'bg-n-amber-9',
+    group: 'todo',
+  },
+  erp_payable_due: { label: '应付到期', dot: 'bg-n-amber-9', group: 'todo' },
+  erp_expense_paid: {
+    label: '费用已打款',
+    dot: 'bg-n-teal-9',
+    group: 'progress',
+  },
+};
+
+// 财务通知点进去落到对应的 ERP 页。
+const ERP_TARGET = {
+  erp_installment_due: 'erp_receivables_index',
+  erp_payable_due: 'erp_payables_index',
+  erp_expense_paid: 'erp_expenses_index',
 };
 const kindMeta = kind =>
   KIND_META[kind] || { label: '通知', dot: 'bg-n-slate-9', group: 'progress' };
@@ -79,14 +121,20 @@ const groupOf = kind => kindMeta(kind).group;
 // 待办类通知一旦已读＝对应动作已办结（审批通过/确认BOM/接单等由后端 resolve 置已读）。
 // 「全部」页签会连历史一起列出，此时把「待审批/待接单…」这类待办标签换成「已处理」，
 // 避免已审批的单在历史里仍显示「待审批」让人误以为没处理。
-const chipLabel = n =>
-  n.readAt && groupOf(n.kind) === 'todo' ? '已处理' : kindMeta(n.kind).label;
-const chipClass = n =>
-  n.readAt && groupOf(n.kind) === 'todo'
-    ? 'bg-n-teal-3 text-n-teal-11'
-    : 'bg-n-alpha-2 text-n-slate-11';
+// 徽标只在「待办已办结」时出现。其余情况标题里已经写着「待接单：MO…」「审批通过：…」，
+// 再并排一个同词徽标纯属重复——类型差异交给左侧圆点的颜色表达。
+const isDone = n => Boolean(n.readAt) && groupOf(n.kind) === 'todo';
 
-const activeGroup = ref('all');
+const isMes = computed(() => notifyModule.value !== 'erp');
+const GROUPS = computed(() => (isMes.value ? MES_GROUPS : ERP_GROUPS));
+const activeGroup = ref(notifyModule.value === 'erp' ? 'all' : 'todo');
+// 「待我处理」面板自己拉数据，条数回传上来做 tab 角标。
+const todoPanelRef = ref(null);
+const liveTodoCount = ref(0);
+// MES 的「待我处理」走实时面板，不走通知记录。
+const showTodoPanel = computed(
+  () => isMes.value && activeGroup.value === 'todo'
+);
 const allRecords = computed(() => store.getRecords);
 const records = computed(() => {
   if (activeGroup.value === 'all') return allRecords.value;
@@ -107,15 +155,31 @@ const groupUnread = computed(() => {
     counts.all += 1;
     counts[groupOf(n.kind)] += 1;
   });
+  // MES 的「待我处理」按实时待办数显示，不是未读消息数。
+  if (isMes.value) counts.todo = liveTodoCount.value;
   return counts;
 });
 const unreadCount = computed(() => store.getUnreadCount);
 const fetching = computed(() => store.getUIFlags.fetchingList);
 
-const fmt = ts =>
-  ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '';
+// 时间给人看，不是给日志看：今天只给时:分，昨天标「昨天」，更早给月-日。
+const fmt = ts => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  const hm = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  const today = new Date();
+  const dayDiff = Math.round(
+    (new Date(today.getFullYear(), today.getMonth(), today.getDate()) -
+      new Date(d.getFullYear(), d.getMonth(), d.getDate())) /
+      86400000
+  );
+  if (dayDiff === 0) return hm;
+  if (dayDiff === 1) return `昨天 ${hm}`;
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${hm}`;
+};
 
-const load = () => store.get();
+const load = () => store.get(scopeParams.value);
 
 // 落到「待我审批」inbox 的通知（审批/待确认BOM）——该 inbox 跨产品线取「待我处理」的单，
 // 不受全局产品线选择器过滤；其余订单通知走普通列表按单号定位。
@@ -125,7 +189,9 @@ const openNotification = async n => {
   // 待办类不因「点开查看」置已读——只有真正办结（审批/确认等动作）才由后端销掉，避免误清。
   // 进展/退回类是知会信息，点开即已读。
   if (!n.readAt && groupOf(n.kind) !== 'todo') await store.markRead(n.id);
-  if (n.kind && n.kind.startsWith('shipment_')) {
+  if (ERP_TARGET[n.kind]) {
+    router.push(accountScopedRoute(ERP_TARGET[n.kind]));
+  } else if (n.kind && n.kind.startsWith('shipment_')) {
     router.push(
       accountScopedRoute('mes_shipments_index', {}, { kind: 'STOCK' })
     );
@@ -148,7 +214,12 @@ const openNotification = async n => {
   }
 };
 
-const markAllRead = () => store.markAllRead();
+const markAllRead = () => store.markAllRead(scopeParams.value);
+// 「待我处理」是实时面板，刷新要刷它；其余页签刷通知列表。
+const refresh = () => {
+  if (showTodoPanel.value) todoPanelRef.value?.reload();
+  else load();
+};
 
 onMounted(load);
 </script>
@@ -161,10 +232,12 @@ onMounted(load);
       class="flex items-center justify-between gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
     >
       <div class="flex items-center min-w-0 gap-2">
-        <h1 class="text-xl font-semibold truncate text-n-slate-12">站内通知</h1>
+        <h1 class="text-xl font-semibold truncate text-n-slate-12">
+          {{ pageTitle }}
+        </h1>
         <span
           v-if="unreadCount > 0"
-          class="px-2 py-0.5 text-xs font-medium rounded-full bg-n-ruby-9 text-white"
+          class="px-2 py-0.5 text-xs font-medium rounded-full bg-n-amber-9 text-[#1a1c20]"
         >
           {{ unreadCount }} 未读
         </span>
@@ -176,9 +249,10 @@ onMounted(load);
           color="slate"
           size="sm"
           :is-loading="fetching"
-          @click="load"
+          @click="refresh"
         />
         <Button
+          v-if="!showTodoPanel"
           label="全部已读"
           color="slate"
           size="sm"
@@ -204,7 +278,7 @@ onMounted(load);
         {{ g.label }}
         <span
           v-if="groupUnread[g.key] > 0"
-          class="ml-1 px-1.5 py-0.5 text-2xs rounded-full bg-n-ruby-9 text-white"
+          class="ml-1 px-1.5 py-0.5 text-2xs font-semibold rounded-full bg-n-amber-9 text-[#1a1c20]"
         >
           {{ groupUnread[g.key] }}
         </span>
@@ -212,43 +286,63 @@ onMounted(load);
     </div>
 
     <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
+      <MesTodoPanel
+        v-if="showTodoPanel"
+        ref="todoPanelRef"
+        @update:count="n => (liveTodoCount = n)"
+      />
       <div
-        v-if="!fetching && records.length === 0"
+        v-else-if="!fetching && records.length === 0"
         class="flex items-center justify-center py-20 text-n-slate-11"
       >
         {{ activeGroup === 'all' ? '暂无通知' : '该分类暂无通知' }}
       </div>
 
-      <ul v-else class="flex flex-col gap-2">
+      <ul v-else class="flex flex-col gap-1.5">
         <li
           v-for="n in records"
           :key="n.id"
-          class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+          class="relative flex items-start gap-2.5 py-2 pr-3 pl-3.5 overflow-hidden transition-colors border rounded-lg cursor-pointer"
           :class="
             n.readAt
               ? 'border-n-weak bg-n-solid-1 hover:bg-n-alpha-2'
-              : 'border-n-iris-5 bg-n-iris-2 hover:bg-n-iris-3'
+              : 'border-n-strong bg-n-solid-1 hover:bg-n-alpha-2'
           "
           @click="openNotification(n)"
         >
+          <!-- 未读：左侧按类型上色的竖条。原来整行淡紫底，已读未读几乎看不出差别，
+               类型也全靠一个 8px 的小圆点，待审批和被退回长得一模一样。 -->
           <span
-            class="mt-1.5 size-2 rounded-full shrink-0"
-            :class="n.readAt ? 'bg-n-slate-6' : kindMeta(n.kind).dot"
+            v-if="!n.readAt"
+            class="absolute inset-y-0 left-0 w-1"
+            :class="kindMeta(n.kind).dot"
           />
           <div class="flex flex-col flex-1 min-w-0 gap-0.5">
-            <div class="flex items-center gap-2">
+            <div class="flex items-baseline gap-2">
               <span
-                class="px-1.5 py-0.5 text-2xs font-medium rounded"
-                :class="chipClass(n)"
+                class="text-sm truncate"
+                :class="
+                  n.readAt ? 'text-n-slate-11' : 'font-semibold text-n-slate-12'
+                "
               >
-                {{ chipLabel(n) }}
-              </span>
-              <span class="text-sm font-medium truncate text-n-slate-12">
                 {{ n.title }}
               </span>
+              <!-- 只在待办已办结时出现：标题还写着「待审批」，得标出来它已经处理过了 -->
+              <span
+                v-if="isDone(n)"
+                class="px-1.5 py-0.5 rounded text-2xs font-medium shrink-0 bg-n-teal-3 text-n-teal-11"
+              >
+                已处理
+              </span>
+              <span
+                class="ml-auto text-xs tabular-nums shrink-0 text-n-slate-10"
+              >
+                {{ fmt(n.createdAt) }}
+              </span>
             </div>
-            <p class="text-sm text-n-slate-11 line-clamp-2">{{ n.body }}</p>
-            <span class="text-xs text-n-slate-10">{{ fmt(n.createdAt) }}</span>
+            <p v-if="n.body" class="text-xs truncate text-n-slate-11">
+              {{ n.body }}
+            </p>
           </div>
         </li>
       </ul>

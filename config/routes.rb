@@ -555,6 +555,7 @@ Rails.application.routes.draw do
                 post :convert
                 get :inbox
                 get :approval_inbox
+                get :todo_count
                 post :stage_blob
               end
               member do

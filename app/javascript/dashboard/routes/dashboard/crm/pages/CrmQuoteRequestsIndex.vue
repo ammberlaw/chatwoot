@@ -21,6 +21,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 定制报价：标准价目表里没有的定制件，业务员填参数交给主管定价。
 // 与既有模块的分工——标准价目表是「查已发布的标准价」，报价单是「给客户的正式报价」，
@@ -91,6 +92,7 @@ const form = ref({
   customerId: '',
   quantity: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form.value);
 const fieldValues = ref({});
 const pendingFiles = ref([]);
 const fileInput = ref(null);
@@ -142,6 +144,7 @@ const openSubmit = () => {
   };
   fieldValues.value = {};
   pendingFiles.value = [];
+  markPristine();
   submitRef.value?.open();
 };
 
@@ -216,10 +219,13 @@ const quoteRef = ref(null);
 const quoting = ref(false);
 const activeRow = ref(null);
 const quoteForm = ref({ price: '', currency: 'USD', validUntil: '', note: '' });
+const { isDirty: isQuoteDirty, markPristine: markQuotePristine } =
+  useDirtyGuard(() => quoteForm.value);
 
 const openQuote = row => {
   activeRow.value = row;
   quoteForm.value = { price: '', currency: 'USD', validUntil: '', note: '' };
+  markQuotePristine();
   quoteRef.value?.open();
 };
 
@@ -651,7 +657,11 @@ onMounted(async () => {
       confirm-button-label="提交"
       :confirm-button-color="goColor"
       :is-loading="submitting"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitRequest"
+      @close="markPristine"
+      @save="submitRequest"
     >
       <div class="flex flex-col gap-3">
         <label class="flex flex-col gap-1">
@@ -803,7 +813,11 @@ onMounted(async () => {
       confirm-button-label="提交报价"
       :confirm-button-color="goColor"
       :is-loading="quoting"
+      :dirty="isQuoteDirty"
+      dirty-save-label="保存"
       @confirm="submitQuote"
+      @close="markQuotePristine"
+      @save="submitQuote"
     >
       <div class="flex flex-col gap-3">
         <div class="grid grid-cols-2 gap-3">

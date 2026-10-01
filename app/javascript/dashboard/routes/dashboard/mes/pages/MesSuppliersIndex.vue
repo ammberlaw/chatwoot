@@ -14,6 +14,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const store = useMesSuppliersStore();
 const { mesCan } = useMesRole();
@@ -170,6 +171,7 @@ const removedItemIds = ref([]);
 // 存量供应商可能还没录物料（历史数据），编辑时不强制补齐；新建一律必填。
 const hadItems = ref(false);
 const form = reactive(blankForm());
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 // 开票主体：决定按供应商拆单导出时套哪个采购单模板。
 const BILL_ENTITY_OPTIONS = [
   { value: 'wintouch', label: '联合触控（未税·采购订单）' },
@@ -224,6 +226,7 @@ const openCreate = () => {
   hadItems.value = false;
   Object.assign(form, blankForm());
   loadMaterials();
+  markPristine();
   dialogRef.value?.open();
 };
 const openEdit = s => {
@@ -263,6 +266,7 @@ const openEdit = s => {
   });
   if (!form.items.length && !hadItems.value) form.items.push(blankItem());
   loadMaterials();
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -547,12 +551,16 @@ onMounted(() => {
       :title="editingId ? '编辑供应商' : '新增供应商'"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-5">
         <!-- 基本信息 -->
         <div class="flex flex-col gap-4">
-          <h3 class="text-heading-3 font-semibold text-n-slate-12">基本信息</h3>
+          <h3 class="text-heading-2 font-semibold text-n-slate-12">基本信息</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">供应商编码</label>
@@ -615,7 +623,7 @@ onMounted(() => {
         <!-- 供应物料：编码与物料档案共享同一编码空间，输入已有编码自动带出档案信息 -->
         <div class="flex flex-col gap-3 pt-1 border-t border-n-weak">
           <div class="flex items-center justify-between pt-2">
-            <h3 class="text-heading-3 font-semibold text-n-slate-12">
+            <h3 class="text-heading-2 font-semibold text-n-slate-12">
               供应物料
               <span v-if="itemsRequired" class="text-n-ruby-11">*</span>
             </h3>
@@ -717,7 +725,7 @@ onMounted(() => {
 
         <!-- 财务信息 -->
         <div class="flex flex-col gap-4 pt-1 border-t border-n-weak">
-          <h3 class="text-heading-3 font-semibold text-n-slate-12 pt-2">
+          <h3 class="text-heading-2 font-semibold text-n-slate-12 pt-2">
             财务信息
           </h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

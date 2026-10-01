@@ -10,6 +10,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 备用金台账：一个部门/项目一本账（对应原 Excel 的一个 sheet），本下挂收支流水，
 // 结余 = 期初 + 存入 − 支出，列表按日期正序逐行滚动（与 Excel 口径一致）。
@@ -130,6 +131,7 @@ const blankEntry = () => ({
   remark: '',
 });
 const entryForm = ref(blankEntry());
+const { isDirty, markPristine } = useDirtyGuard(() => entryForm.value);
 const entryFiles = ref([]);
 const fileInputRef = ref(null);
 
@@ -144,6 +146,7 @@ const openCreateEntry = () => {
   editingEntryId.value = null;
   entryForm.value = blankEntry();
   entryFiles.value = [];
+  markPristine();
   entryDialogRef.value?.open();
 };
 
@@ -159,6 +162,7 @@ const openEditEntry = entry => {
     remark: entry.remark || '',
   };
   entryFiles.value = [];
+  markPristine();
   entryDialogRef.value?.open();
 };
 
@@ -236,6 +240,9 @@ const bookForm = ref({
   openingBalance: '0',
   remark: '',
 });
+const { isDirty: isBookDirty, markPristine: markBookPristine } = useDirtyGuard(
+  () => bookForm.value
+);
 
 const openCreateBook = () => {
   editingBookId.value = null;
@@ -245,6 +252,7 @@ const openCreateBook = () => {
     openingBalance: '0',
     remark: '',
   };
+  markBookPristine();
   bookDialogRef.value?.open();
 };
 
@@ -259,6 +267,7 @@ const openEditBook = () => {
     openingBalance: String(activeBook.value.opening_balance ?? '0'),
     remark: activeBook.value.remark || '',
   };
+  markBookPristine();
   bookDialogRef.value?.open();
 };
 
@@ -469,7 +478,11 @@ onMounted(async () => {
       confirm-button-color="iris"
       :title="editingEntryId ? '修改流水' : '记一笔'"
       :disable-confirm-button="entryInvalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitEntry"
+      @close="markPristine"
+      @save="submitEntry"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -580,7 +593,11 @@ onMounted(async () => {
       confirm-button-color="iris"
       :title="editingBookId ? '台账本设置' : '新建台账本'"
       :disable-confirm-button="bookInvalid"
+      :dirty="isBookDirty"
+      dirty-save-label="保存"
       @confirm="submitBook"
+      @close="markBookPristine"
+      @save="submitBook"
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">

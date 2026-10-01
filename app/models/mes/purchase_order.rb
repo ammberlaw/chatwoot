@@ -159,10 +159,7 @@ class Mes::PurchaseOrder < ApplicationRecord
       apply_on_order!(1)
     end
     Mes::Notifier.resolve(account: account, kinds: 'po_approval_pending', title_like: po_no)
-    Mes::Notifier.notify(
-      account: account, recipients: owner_id, kind: 'po_approval_approved',
-      title: "采购单已通过：#{po_no}", body: '总经理已通过，采购单生效，库存已记在途。', order: production_order
-    )
+    # 同生产订单：通过了不发知会，省得把待办挤下去。驳回仍然发。
     self
   end
 

@@ -11,6 +11,10 @@ import MesTabBar from './MesTabBar.vue';
 // MesLayout 被各 MES 顶层路由复用（父级 router-view 无 key），故壳内 keep-alive 对整板块生效。
 const { activeProductLine } = useMesProductLine();
 
+// 建档页（新建/编辑单据的整页表单）不缓存：keep-alive 的 key 里没有 query，
+// 缓存着再点另一张单进来会沿用上一单的表单内容、onMounted 也不再跑。
+const INTAKE_PAGES = ['MesBomIntakeIndex', 'MesPurchaseOrderIntakeIndex'];
+
 // 每进一个 MES 页就把它登记进标签条（已开过的只激活、并更新带查询参数的路径）。
 const route = useRoute();
 const { openTab } = useMesTabs();
@@ -49,7 +53,7 @@ watch(
       <MesTabBar />
       <div ref="pageContent" class="flex-1 min-w-0 min-h-0">
         <router-view v-slot="{ Component }">
-          <keep-alive :max="12">
+          <keep-alive :max="12" :exclude="INTAKE_PAGES">
             <component
               :is="Component"
               :key="`mes-${activeProductLine || 'all'}-${$route.name}`"

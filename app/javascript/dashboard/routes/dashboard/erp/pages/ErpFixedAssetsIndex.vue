@@ -12,6 +12,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 固定资产：直线法折旧（原值 ×(1-残值率) / 年限月数），按月一键计提，
 // 全部在用资产汇总成一张待过账折旧凭证；处置/报废单独生成结转凭证。
@@ -128,6 +129,7 @@ const form = reactive({
   usefulMonths: 60,
   remark: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const monthlyPreview = computed(() => {
   const original = toMicros(form.originalValue);
   const months = Number(form.usefulMonths || 0);
@@ -149,6 +151,7 @@ const openAsset = (record = null) => {
     usefulMonths: record?.useful_months || 60,
     remark: record?.remark || '',
   });
+  markPristine();
   dialogRef.value?.open();
 };
 const submitAsset = async () => {
@@ -183,6 +186,8 @@ const disposeForm = reactive({
   income: '',
   scrapped: false,
 });
+const { isDirty: isDisposeDirty, markPristine: markDisposePristine } =
+  useDirtyGuard(() => disposeForm);
 const openDispose = record => {
   disposing.value = record;
   Object.assign(disposeForm, {
@@ -190,6 +195,7 @@ const openDispose = record => {
     income: '',
     scrapped: false,
   });
+  markDisposePristine();
   disposeRef.value?.open();
 };
 const submitDispose = async () => {
@@ -370,7 +376,11 @@ onMounted(load);
       confirm-button-color="iris"
       :title="editing ? `编辑资产 ${editing.asset_no}` : '新增固定资产'"
       :disable-confirm-button="!form.name || !form.originalValue"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitAsset"
+      @close="markPristine"
+      @save="submitAsset"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-3 gap-4">
@@ -441,7 +451,11 @@ onMounted(load);
       confirm-button-color="ruby"
       :title="`处置资产 ${disposing?.asset_no || ''}`"
       confirm-label="确认处置"
+      :dirty="isDisposeDirty"
+      dirty-save-label="保存"
       @confirm="submitDispose"
+      @close="markDisposePristine"
+      @save="submitDispose"
     >
       <div class="flex flex-col gap-4">
         <div class="text-sm text-n-slate-11">

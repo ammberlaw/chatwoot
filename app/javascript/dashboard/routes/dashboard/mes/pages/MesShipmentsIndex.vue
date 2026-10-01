@@ -16,6 +16,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const { accountId } = useAccount();
 const store = useMesShipmentsStore();
@@ -217,6 +218,7 @@ const form = reactive({
   qty: '',
   unit: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 // 商品编码可空（建单时选填）：只要选了生产订单 + 有数量即可提交，
 // 缺编码时后端按成品名兜底建/关联商品编码再扣库存。
 const invalid = computed(() => !form.productionOrderId || !Number(form.qty));
@@ -260,6 +262,7 @@ const openCreate = () => {
     qty: '',
     unit: '',
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -278,6 +281,7 @@ const openEdit = s => {
     qty: item.qty != null ? String(item.qty) : '',
     unit: item.unit || '',
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -315,6 +319,8 @@ const stockForm = reactive({
   warehouseId: '',
   rows: [], // { crmProductId, qty }
 });
+const { isDirty: isStockDirty, markPristine: markStockPristine } =
+  useDirtyGuard(() => stockForm);
 const stockSalesOrderOptions = computed(() => [
   { value: '', label: '不关联销售订单' },
   ...salesOrders.value
@@ -346,6 +352,7 @@ const openStockCreate = () => {
   loadCustomers('');
   loadProducts('');
   loadStock();
+  markStockPristine();
   stockDialogRef.value?.open();
 };
 
@@ -692,7 +699,11 @@ onMounted(() => {
       description="选生产订单带出客户与成品，生成出库清单；出库后自动扣成品库存并回写销售订单「已出货」。"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">
@@ -736,7 +747,11 @@ onMounted(() => {
       description="从成品库存直接出货：选客户与成品（显示现货结存），提交后经部门主管审核，通过即推仓库出库。"
       :is-loading="saving"
       :disable-confirm-button="stockInvalid"
+      :dirty="isStockDirty"
+      dirty-save-label="保存"
       @confirm="submitStock"
+      @close="markStockPristine"
+      @save="submitStock"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-2 gap-4">
@@ -775,7 +790,7 @@ onMounted(() => {
         </div>
 
         <div class="flex items-center justify-between">
-          <span class="text-heading-3 text-n-slate-12">
+          <span class="text-heading-2 text-n-slate-12">
             出库清单 <span class="text-n-ruby-11">*</span>
           </span>
           <Button

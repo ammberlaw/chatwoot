@@ -14,6 +14,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const { accountId } = useAccount();
 const store = useMesProductionRecordsStore();
@@ -74,6 +75,7 @@ const form = reactive({
   qtyScrap: '',
   remark: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const selectedOrder = computed(() =>
   productionOrders.value.find(
     p => String(p.id) === String(form.productionOrderId)
@@ -123,6 +125,7 @@ const openCreate = () => {
     qtyScrap: '',
     remark: '',
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -340,7 +343,11 @@ onMounted(() => {
       description="按数量批量报工：完成数量累加生产进度；退料/清尾按需记录。"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">

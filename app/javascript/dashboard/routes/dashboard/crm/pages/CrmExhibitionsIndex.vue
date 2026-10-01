@@ -250,7 +250,8 @@ const selectedApollo = ref(new Set());
 const apolloAdding = ref(false);
 
 const openApollo = () => {
-  apolloCountry.value = COUNTRY_EN[detail.value?.country] || detail.value?.country || '';
+  apolloCountry.value =
+    COUNTRY_EN[detail.value?.country] || detail.value?.country || '';
   apolloKeywords.value = detail.value?.featuredProducts || '';
   apolloResults.value = [];
   apolloSearched.value = false;
@@ -435,7 +436,9 @@ onMounted(loadList);
     >
       <div class="flex items-center min-w-0 gap-2">
         <h1 class="text-xl font-semibold truncate text-n-slate-12">展会邀约</h1>
-        <span class="text-sm text-n-slate-10">按展会从自己的客户里筛人、AI 生成邀请函、追邀约进度</span>
+        <span class="text-sm text-n-slate-10"
+          >按展会从自己的客户里筛人、AI 生成邀请函、追邀约进度</span
+        >
       </div>
       <Button
         label="新建展会"
@@ -482,7 +485,9 @@ onMounted(loadList);
             }}
           </span>
           <div class="flex items-center gap-2 mt-0.5">
-            <span class="text-2xs text-n-slate-10">邀约 {{ ex.inviteCount }}</span>
+            <span class="text-2xs text-n-slate-10"
+              >邀约 {{ ex.inviteCount }}</span
+            >
             <span
               v-if="ex.stageCounts && ex.stageCounts.accepted"
               class="px-1.5 py-0.5 text-2xs rounded-full bg-n-teal-3 text-n-teal-11"
@@ -515,10 +520,14 @@ onMounted(loadList);
                 <div
                   class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-n-slate-11"
                 >
-                  <span v-if="dateRange(detail)">📅 {{ dateRange(detail) }}</span>
-                  <span v-if="locationText(detail)">📍 {{ locationText(detail) }}</span>
-                  <span v-if="detail.boothNo">🏷️ 展位 {{ detail.boothNo
-                    }}{{ detail.hall ? ` · ${detail.hall}` : '' }}</span>
+                  <span v-if="dateRange(detail)">{{ dateRange(detail) }}</span>
+                  <span v-if="locationText(detail)">{{
+                    locationText(detail)
+                  }}</span>
+                  <span v-if="detail.boothNo"
+                    >展位 {{ detail.boothNo
+                    }}{{ detail.hall ? ` · ${detail.hall}` : '' }}</span
+                  >
                 </div>
                 <div
                   v-if="detail.region"
@@ -530,7 +539,8 @@ onMounted(loadList);
                   v-if="detail.featuredProducts"
                   class="mt-2 text-sm text-n-slate-11"
                 >
-                  <span class="text-n-slate-10">主打产品：</span>{{ detail.featuredProducts }}
+                  <span class="text-n-slate-10">主打产品：</span
+                  >{{ detail.featuredProducts }}
                 </p>
               </div>
               <div class="flex items-center gap-2 shrink-0">
@@ -573,7 +583,9 @@ onMounted(loadList);
           <div class="flex items-center justify-between gap-2">
             <h3 class="text-base font-semibold text-n-slate-12">
               邀约名单
-              <span class="text-sm font-normal text-n-slate-10">（{{ detail.invites.length }}）</span>
+              <span class="text-sm font-normal text-n-slate-10"
+                >（{{ detail.invites.length }}）</span
+              >
             </h3>
             <div class="flex items-center gap-2">
               <Button
@@ -640,7 +652,8 @@ onMounted(loadList);
                     >
                       到访 {{ fmtDate(inv.replyVisitDate)
                       }}<span v-if="inv.replyProducts">
-                        · {{ inv.replyProducts }}</span>
+                        · {{ inv.replyProducts }}</span
+                      >
                     </div>
                   </td>
                   <td class="py-2.5 pr-3 whitespace-nowrap text-n-slate-11">
@@ -766,11 +779,15 @@ onMounted(loadList);
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
-            <label class="mb-0.5 text-heading-3 text-n-slate-12">开始日期</label>
+            <label class="mb-0.5 text-heading-3 text-n-slate-12"
+              >开始日期</label
+            >
             <DatePicker v-model="form.startsOn" block clearable />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="mb-0.5 text-heading-3 text-n-slate-12">结束日期</label>
+            <label class="mb-0.5 text-heading-3 text-n-slate-12"
+              >结束日期</label
+            >
             <DatePicker v-model="form.endsOn" block clearable />
           </div>
         </div>
@@ -883,11 +900,20 @@ onMounted(loadList);
     >
       <div class="flex flex-col gap-3">
         <p class="text-xs text-n-slate-10">
-          按国家 + 行业/产品关键词从 Apollo 企业库搜咱 CRM 里还没有的公司；选中即建档并加入本展会邀约名单。
+          按国家 + 行业/产品关键词从 Apollo 企业库搜咱 CRM
+          里还没有的公司；选中即建档并加入本展会邀约名单。
         </p>
-        <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1.4fr_auto] sm:items-center">
-          <Input v-model="apolloCountry" placeholder="国家（英文，如 Germany）" />
-          <Input v-model="apolloKeywords" placeholder="关键词（如 industrial display, tablet）" />
+        <div
+          class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1.4fr_auto] sm:items-center"
+        >
+          <Input
+            v-model="apolloCountry"
+            placeholder="国家（英文，如 Germany）"
+          />
+          <Input
+            v-model="apolloKeywords"
+            placeholder="关键词（如 industrial display, tablet）"
+          />
           <Button
             label="搜索"
             icon="i-lucide-search"
@@ -960,7 +986,8 @@ onMounted(loadList);
     >
       <div class="flex flex-col gap-3">
         <p class="text-xs text-n-slate-10">
-          按 4 步 SOP 给选中客户各生成一封邮件草稿存进「邮件中心 → 草稿」，你过目后再发；不自动外发。缺邮箱的客户自动跳过。
+          按 4 步 SOP 给选中客户各生成一封邮件草稿存进「邮件中心 →
+          草稿」，你过目后再发；不自动外发。缺邮箱的客户自动跳过。
         </p>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">选择步骤</label>

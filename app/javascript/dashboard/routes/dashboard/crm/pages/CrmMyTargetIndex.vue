@@ -123,13 +123,6 @@ const barClass = p => {
   if (p >= 30) return 'bg-n-iris-9';
   return 'bg-n-ruby-9';
 };
-const dot = p => {
-  if (p == null) return '·';
-  if (p >= 100) return '🟢';
-  if (p >= 60) return '🔵';
-  if (p >= 30) return '🟠';
-  return '🔴';
-};
 const barWidth = p => `${Math.min(100, Math.max(2, p ?? 0))}%`;
 
 const metricLine = (actual, effTarget, isMoney) => {
@@ -245,7 +238,7 @@ const cell = (r, isAmt) => {
     carryUp: carry > 0,
     eff: fv(eff),
     actual: showActual ? fv(act) : '—',
-    achieve: p == null ? '—' : `${dot(p)} ${Math.round(p)}%`,
+    achieve: p == null ? '—' : `${Math.round(p)}%`,
   };
 };
 </script>
@@ -350,7 +343,7 @@ const cell = (r, isAmt) => {
                 {{ money(remainingAmount) }}
               </strong>
             </span>
-            <span v-else>上月结余已覆盖本月目标 ✓</span>
+            <span v-else>上月结余已覆盖本月目标</span>
             <span v-if="daysLeft != null" class="ml-4">
               剩 <strong class="text-n-slate-12">{{ daysLeft }}</strong> 天
             </span>
@@ -444,7 +437,9 @@ const cell = (r, isAmt) => {
             <div
               class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-n-slate-11"
             >
-              <span>基础目标：{{ cell(r, tableMetric === 'amount').base }}</span>
+              <span
+                >基础目标：{{ cell(r, tableMetric === 'amount').base }}</span
+              >
               <span
                 :class="
                   cell(r, tableMetric === 'amount').carry === '—'
@@ -457,7 +452,9 @@ const cell = (r, isAmt) => {
                 结转：{{ cell(r, tableMetric === 'amount').carry }}
               </span>
               <span>有效目标：{{ cell(r, tableMetric === 'amount').eff }}</span>
-              <span>已完成：{{ cell(r, tableMetric === 'amount').actual }}</span>
+              <span
+                >已完成：{{ cell(r, tableMetric === 'amount').actual }}</span
+              >
             </div>
           </div>
         </div>

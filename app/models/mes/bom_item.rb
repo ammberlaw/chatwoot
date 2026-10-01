@@ -8,6 +8,8 @@
 #  category                     :string           default("MACHINE"), not null
 #  material_name                :string
 #  material_no                  :string
+#  production_note              :text
+#  purchase_note                :text
 #  qty                          :decimal(14, 3)   not null
 #  rate_micros                  :bigint
 #  remark                       :text

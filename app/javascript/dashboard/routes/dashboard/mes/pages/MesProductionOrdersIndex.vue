@@ -11,6 +11,7 @@ import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrde
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import MesBomAPI from 'dashboard/api/mes/boms';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import {
   SPEC_TEMPLATES,
@@ -31,6 +32,8 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
 
 const ITEMS_PER_PAGE = 15;
 
@@ -69,7 +72,7 @@ const store = useMesProductionOrdersStore();
 // 8 阶段（与后端 Mes::ProductionOrder::STAGES 顺序一致）。
 const STAGES = [
   { value: 'SALES_CONFIRMED', label: '待工程接单' },
-  { value: 'BOM_READY', label: '工程/PMC BOM' },
+  { value: 'BOM_READY', label: '工程/PMC 生产任务单' },
   { value: 'PURCHASING', label: '采购原料' },
   { value: 'MATERIAL_INBOUND', label: '原料入库' },
   { value: 'PICKING', label: '生产领料' },
@@ -136,6 +139,80 @@ const OUTSOURCE_STAGE_VALUES = [
   'FG_INBOUND',
   'SHIPPED',
 ];
+
+// 阶段进度点：列表里只看得到「当前在哪一环」，看不出这单走到几成了——
+// 十几行扫下来分不清哪些刚起步、哪些快出货。这里给一排点，深=走过、黄=当前、灰=未到。
+//
+// 点数按**这张单自己的脊柱**算：外购单走短流程（销售订单确定→采购→成品入库→出库，
+// 跳过 BOM/领料/报工/质检），写死 8 个点会让外购单永远显示「跳了 4 步」，看着像卡住。
+const stageFlowOf = po =>
+  po?.isOutsourced
+    ? STAGES.filter(st => OUTSOURCE_STAGE_VALUES.includes(st.value))
+    : STAGES;
+
+// 当前阶段在本单脊柱里的位置（0 基）。找不到按 -1，全部显示为未到。
+const stageIndexOf = po =>
+  stageFlowOf(po).findIndex(st => st.value === po?.stage);
+
+const stageDotClass = (po, idx) => {
+  const cur = stageIndexOf(po);
+  if (cur < 0) return 'bg-n-slate-5';
+  if (idx < cur) return 'bg-n-iris-9';
+  if (idx === cur) return 'bg-n-amber-9 ring-2 ring-n-amber-4';
+  return 'bg-n-slate-5';
+};
+const stageProgressText = po => {
+  const flow = stageFlowOf(po);
+  const cur = stageIndexOf(po);
+  return cur < 0 ? '' : `已走 ${cur + 1}/${flow.length}`;
+};
+
+// 列顺序可拖（和生产任务单列表同一套，按人记在本机）。
+const COLUMN_DEFS = [
+  {
+    key: 'no',
+    label: '工单号',
+    tdClass: 'px-3 py-3 font-medium text-n-slate-12',
+  },
+  {
+    key: 'model',
+    label: '型号',
+    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[14rem]',
+  },
+  {
+    key: 'qty',
+    label: '数量',
+    tdClass: 'px-3 py-3 text-n-slate-11 whitespace-nowrap',
+  },
+  {
+    key: 'stage',
+    label: '阶段',
+    tdClass: 'px-3 py-3 align-top min-w-[16rem]',
+  },
+  { key: 'due', label: '交期', tdClass: 'px-3 py-3 text-xs whitespace-nowrap' },
+  {
+    key: 'sku',
+    label: '商品编码',
+    tdClass: 'px-3 py-3 text-n-slate-11 tabular-nums whitespace-nowrap',
+  },
+  {
+    key: 'remark',
+    label: '备注',
+    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[12rem]',
+  },
+  {
+    key: 'salesOrder',
+    label: '来源销售单',
+    tdClass: 'px-3 py-3 text-n-slate-11 whitespace-nowrap',
+  },
+  {
+    key: 'owner',
+    label: '负责人',
+    tdClass: 'px-3 py-3 text-n-slate-11 whitespace-nowrap',
+  },
+];
+const { orderedColumns, isDragging, onColDragStart, onColDrop, resetOrder } =
+  useOrderableColumns(COLUMN_DEFS, 'mes.orderCols.v1');
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
@@ -386,11 +463,6 @@ const stallDays = po => {
 const isStalled = po => stallDays(po) >= STALL_DAYS;
 
 // 列表阶段列的「等谁」：当前阶段负责人（未配则空；建单/出货阶段无板块负责人）。
-const stageWaitingText = po =>
-  (po?.stageOwnerNames || []).length
-    ? `等：${po.stageOwnerNames.join('、')}`
-    : '';
-
 // 列表阶段列的接单态徽标（与详情面板同口径）：已接单 / 超时未接单 / 待接单。
 const ackChip = po => {
   if (!po || po.stage === 'SHIPPED') return null;
@@ -399,8 +471,8 @@ const ackChip = po => {
       text: po.stageAckByName ? `✓ ${po.stageAckByName} 已接单` : '✓ 已接单',
       cls: 'text-n-teal-11',
     };
-  if (po.ackOverdue) return { text: '🔴 超时未接单', cls: 'text-n-ruby-11' };
-  if (po.awaitingAck) return { text: '⏳ 待接单', cls: 'text-n-amber-11' };
+  if (po.ackOverdue) return { text: '超时未接单', cls: 'text-n-ruby-11' };
+  if (po.awaitingAck) return { text: '待接单', cls: 'text-n-amber-11' };
   return null;
 };
 
@@ -430,6 +502,8 @@ const convertForm = ref({
   qty: '',
   unit: '',
 });
+const { isDirty: isConvertDirty, markPristine: markConvertPristine } =
+  useDirtyGuard(() => convertForm.value);
 
 // 转单选销售订单：用 ComboBox（可搜索订单号 / PI / 客户），不含占位项。
 const salesOrderOptions = computed(() =>
@@ -471,6 +545,7 @@ const openConvert = () => {
     unit: '',
   };
   if (!salesOrders.value.length) fetchPickerData();
+  markConvertPristine();
   convertDialogRef.value?.open();
 };
 
@@ -511,6 +586,7 @@ const orderBase = reactive({
   unit: '台',
   deliveryDate: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => orderBase);
 const orderSpec = ref(blankSpec('TABLET'));
 // 商品编码选填：业务建单可不填，工程做 BOM 时再补（在编辑订单里补录）。
 const orderInvalid = computed(
@@ -599,6 +675,7 @@ const openEditSpec = (order, { viewOnly = false } = {}) => {
     ...(order.spec || {}),
     template: orderTemplate.value,
   };
+  markPristine();
   orderDialogRef.value?.open();
 };
 const submitOrder = async () => {
@@ -671,8 +748,8 @@ const removeAttachment = async (attachmentId, kind) => {
 };
 
 // 详情里要能看到工程做的用料清单：订单详情选中且已挂 BOM 时，按 bomId 拉 BOM 明细。
-const CATEGORY_LABELS = { MACHINE: '整机生产物料', PACKAGING: '包装物料' };
-const categoryLabel = c => CATEGORY_LABELS[c] || '整机生产物料';
+const CATEGORY_LABELS = { MACHINE: '整机物料', PACKAGING: '包装物料' };
+const categoryLabel = c => CATEGORY_LABELS[c] || '整机物料';
 const bomDetail = ref(null);
 const bomViewDialogRef = ref(null);
 const loadBomDetail = async id => {
@@ -784,7 +861,7 @@ const submitMarkOutsourced = async () => {
 const linkBomDialogRef = ref(null);
 const linkBomList = ref([]); // 直连 MesBomAPI，snake_case
 const linkBomId = ref('');
-const linkBomAllProducts = ref(false); // 默认只列本单产品的 BOM，可切全部
+const linkBomAllProducts = ref(false); // 默认只列本单产品的生产任务单，可切全部
 const linkBomBusy = ref(false);
 const linkBomOptions = computed(() =>
   linkBomList.value.map(b => ({
@@ -830,7 +907,7 @@ const submitLinkBom = async () => {
     bomCode &&
     orderCode !== bomCode &&
     !window.confirm(
-      `这张 BOM 的商品编码是 ${bomCode}，本单是 ${orderCode}，两者对不上。\n确定还是要关联吗？`
+      `这张生产任务单的商品编码是 ${bomCode}，本单是 ${orderCode}，两者对不上。\n确定还是要关联吗？`
     )
   )
     return;
@@ -841,7 +918,7 @@ const submitLinkBom = async () => {
       bomId: Number(linkBomId.value),
     });
     if (ok) {
-      useAlert('已关联 BOM，可下发采购');
+      useAlert('已关联生产任务单，可下发采购');
       selected.value = ok;
       linkBomDialogRef.value?.close();
       fetchRecords();
@@ -856,13 +933,13 @@ const detachBom = async () => {
   if (!selected.value) return;
   if (
     !window.confirm(
-      `确定解除「${selected.value.orderNo}」与 BOM ${selected.value.bomNo} 的关联？\n订单会退回「待工程接单」，需要重新挂 BOM。`
+      `确定解除「${selected.value.orderNo}」与生产任务单 ${selected.value.bomNo} 的关联？\n订单会退回「待工程接单」，需要重新挂生产任务单。`
     )
   )
     return;
   const ok = await store.detachBom(selected.value.id);
   if (ok) {
-    useAlert('已解除 BOM 关联，订单退回待工程接单');
+    useAlert('已解除生产任务单关联，订单退回待工程接单');
     selected.value = ok;
     fetchRecords();
   }
@@ -873,13 +950,13 @@ const revertToBomReady = async () => {
   if (!selected.value) return;
   if (
     !window.confirm(
-      `确定把「${selected.value.orderNo}」退回「工程/PMC BOM」阶段？\n采购那边会看不到这张单，直到重新下发。`
+      `确定把「${selected.value.orderNo}」退回「工程/PMC 生产任务单」阶段？\n采购那边会看不到这张单，直到重新下发。`
     )
   )
     return;
   const ok = await store.revertToBomReady(selected.value.id);
   if (ok) {
-    useAlert('已退回工程/PMC BOM 阶段');
+    useAlert('已退回工程/PMC 生产任务单阶段');
     selected.value = ok;
     fetchRecords();
   }
@@ -899,7 +976,7 @@ const releasePurchasing = async () => {
 // —— 审批链（取代发布）：草稿→部门主管→总经理 ——
 const APPROVAL_LABELS = {
   DRAFT: '草稿',
-  SUBMITTED: '待部门主管',
+  SUBMITTED: '待部门主管审批',
   MANAGER_APPROVED: '待总经理',
   APPROVED: '已通过·生效',
   REJECTED: '已驳回',
@@ -937,6 +1014,10 @@ const goStageOwnerChat = ownerId => {
   if (!ownerId) return;
   router.push(accountScopedRoute('crm_team_chat_index', {}, { peer: ownerId }));
 };
+
+// 来源销售单 → 跳 CRM 销售订单页并自动展开该单（focus 是那页现成的入参）。
+const goCrmSalesOrder = id =>
+  router.push(accountScopedRoute('crm_sales_orders_index', {}, { focus: id }));
 
 // 删除草稿订单（归属业务删本人草稿 / 管理员删任意）。
 const deleteOrder = async po => {
@@ -1158,13 +1239,49 @@ const confirmDeny = async () => {
 };
 
 // —— 接单确认（P1）——
-// 只有本阶段负责人本人能接单/拒收；管理员/副管理员不代接（职责到人）。
+// 只有本阶段负责人本人能接单/拒收；管理员/副管理员一律不显示——他们不干这活，
+// 按钮挂在那只会让人以为自己该接（即便被配成了板块负责人也不显示）。
 const canHandleStage = computed(() => {
   const po = selected.value;
   if (!po || po.stage === 'SHIPPED' || po.status !== 'IN_PROGRESS')
     return false;
+  if (isAdmin.value || isCrmDeputyAdmin.value) return false;
   return (po.stageOwnerIds || []).includes(currentUserId.value);
 });
+
+// 接单之后下一步该建什么单——系统知道，就别让人自己去侧栏找。
+// 阶段 → { 下一张单的名字, 落到哪个建档页 }；没有对应建单动作的阶段不弹。
+const NEXT_DOC = {
+  SALES_CONFIRMED: { label: '生产任务单', kind: 'bom' },
+  PURCHASING: { label: '采购单', kind: 'purchase' },
+  MATERIAL_INBOUND: { label: '入库单', route: 'mes_stock_entries_index' },
+  PICKING: { label: '领料单', route: 'mes_material_issues_index' },
+  PRODUCTION: { label: '报工单', route: 'mes_production_records_index' },
+  FG_INBOUND: { label: '成品入库单', route: 'mes_fg_inbound_index' },
+};
+const nextDoc = computed(() => NEXT_DOC[selected.value?.stage] || null);
+const nextDocDialogRef = ref(null);
+const goNextDoc = () => {
+  const d = nextDoc.value;
+  const po = selected.value;
+  if (!d || !po) return;
+  nextDocDialogRef.value?.close();
+  if (d.kind === 'bom') {
+    goCreateBomForOrder();
+    return;
+  }
+  if (d.kind === 'purchase') {
+    router.push(
+      accountScopedRoute(
+        'mes_purchase_order_intake_index',
+        {},
+        { production_order_id: po.id }
+      )
+    );
+    return;
+  }
+  router.push(accountScopedRoute(d.route, {}, { q: po.orderNo }));
+};
 
 const acknowledge = async () => {
   if (!selected.value) return;
@@ -1172,6 +1289,8 @@ const acknowledge = async () => {
   if (ok) {
     useAlert('已接单');
     selected.value = ok;
+    // 接完单顺手把下一步递到手上，不用自己去侧栏找该建哪张单。
+    if (nextDoc.value) nextDocDialogRef.value?.open();
   }
 };
 
@@ -1229,20 +1348,28 @@ const confirmReject = async () => {
 // 原「产品编码」自由文本(product_code，无人使用)已下线，不再单独维护。
 
 const rootStore = useStore();
+// 按 query 定位：切到对应视图、按单号搜索并打开详情面板。
+// 首次进入由 onMounted 调用；从站内通知带着新单号再次进来时由 useRouteQueryReentry 调用——
+// 本页在 keep-alive 里缓存着，不补这一道的话 onMounted 不会再跑，参数全不生效。
+const applyRouteQuery = async query => {
+  viewMode.value = query.view === 'approval' ? 'inbox' : 'list';
+  const q = query.q ? String(query.q) : '';
+  searchQuery.value = q;
+  currentPage.value = 1;
+  await fetchRecords();
+  selected.value = q
+    ? records.value.find(r => r.orderNo === q) || null
+    : selected.value;
+};
+
 onMounted(async () => {
   // 纯业务员没有「全部」页签，默认落到「我的订单」，避免默认档无对应高亮页签。
   if (isPlainSales.value && listScope.value === 'all') listScope.value = 'mine';
-  // 从看板「待我审批」跳转：进「待我审批」视图。
-  if (route.query.view === 'approval') viewMode.value = 'inbox';
   if (!agents.value?.length) rootStore.dispatch('agents/get');
-  await fetchRecords();
-  // 从看板交期预警/待我审批跳转过来：按订单号自动打开详情面板。
-  const q = route.query.q ? String(route.query.q) : '';
-  if (q) {
-    const match = records.value.find(r => r.orderNo === q);
-    if (match) selected.value = match;
-  }
+  await applyRouteQuery(route.query);
 });
+
+useRouteQueryReentry(applyRouteQuery);
 // 改筛选回到第 1 页再拉。
 watch([activeStage, activeStatus, activeOwner], () => {
   currentPage.value = 1;
@@ -1259,6 +1386,14 @@ watch(currentPage, fetchRecords);
     >
       <h1 class="text-xl font-semibold text-n-slate-12">生产订单</h1>
       <div class="flex flex-wrap gap-2">
+        <!-- 列顺序是本机记忆，拖乱了要有路回来 -->
+        <Button
+          label="恢复默认列序"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="resetOrder"
+        />
         <Button
           v-if="canCreateOrder"
           label="新建生产订单"
@@ -1376,7 +1511,7 @@ watch(currentPage, fetchRecords);
               :key="po.id"
               class="p-3 border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl active:bg-n-alpha-1"
               :class="{
-                'bg-n-iris-3 ring-1 ring-inset ring-n-iris-8':
+                'bg-n-alpha-2 !border-n-iris-9':
                   selected && selected.id === po.id,
               }"
               @click="selectRow(po)"
@@ -1475,13 +1610,10 @@ watch(currentPage, fetchRecords);
                 <span>负责人：{{ po.ownerName || '—' }}</span>
               </div>
               <div
-                v-if="stageWaitingText(po) || ackChip(po)"
+                v-if="ackChip(po)"
                 class="mt-1 text-[11px] leading-tight text-n-slate-10"
               >
-                <span v-if="stageWaitingText(po)" class="block truncate">
-                  {{ stageWaitingText(po) }}
-                </span>
-                <span v-if="ackChip(po)">
+                <span>
                   <span :class="ackChip(po).cls">{{ ackChip(po).text }}</span>
                   <span v-if="stallDays(po) > 0">
                     · 停留 {{ stallDays(po) }} 天</span
@@ -1503,15 +1635,20 @@ watch(currentPage, fetchRecords);
               <tr
                 class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
               >
-                <th class="px-3 py-3 font-medium">工单号</th>
-                <th class="px-3 py-3 font-medium">成品</th>
-                <th class="px-3 py-3 font-medium">数量</th>
-                <th class="px-3 py-3 font-medium">阶段</th>
-                <th class="px-3 py-3 font-medium">交期</th>
-                <th class="px-3 py-3 font-medium">商品编码</th>
-                <th class="px-3 py-3 font-medium">备注</th>
-                <th class="px-3 py-3 font-medium">来源销售单</th>
-                <th class="px-3 py-3 font-medium">负责人</th>
+                <!-- 拖列头即可改顺序，按人记在本机 -->
+                <th
+                  v-for="col in orderedColumns"
+                  :key="col.key"
+                  draggable="true"
+                  class="px-3 py-3 font-medium transition-colors cursor-move select-none"
+                  :class="isDragging(col.key) ? 'opacity-40' : ''"
+                  title="拖动可调整列顺序"
+                  @dragstart="onColDragStart(col.key)"
+                  @dragover.prevent
+                  @drop="onColDrop(col.key)"
+                >
+                  {{ col.label }}
+                </th>
                 <th class="px-3 py-3" />
               </tr>
             </thead>
@@ -1519,109 +1656,158 @@ watch(currentPage, fetchRecords);
               <tr
                 v-for="po in records"
                 :key="po.id"
-                class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
-                :class="{
-                  'bg-n-iris-3 ring-1 ring-inset ring-n-iris-8':
-                    selected && selected.id === po.id,
-                }"
+                class="border-b cursor-pointer border-n-weak [&:hover>td]:bg-n-alpha-1 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
+                :class="
+                  selected && selected.id === po.id
+                    ? '[&>td]:!bg-n-alpha-2 [&>td:first-child]:shadow-[inset_3px_0_0_0_rgb(var(--iris-9))]'
+                    : ''
+                "
                 @click="selectRow(po)"
               >
-                <td class="px-3 py-3 font-medium text-n-slate-12">
-                  {{ po.orderNo }}
-                  <span
-                    v-if="po.orderKind === 'STOCK'"
-                    class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-teal-3 text-n-teal-11"
-                    title="外贸库存备货订单：全业务共享库存"
-                  >
-                    外贸库存备货
-                  </span>
-                  <span
-                    v-if="po.isOutsourced"
-                    class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-amber-3 text-n-amber-11"
-                    title="外购成品：工程判定外购，跳过生产，采购按单买"
-                  >
-                    外购
-                  </span>
-                  <span
-                    v-if="po.approvalStatus && po.approvalStatus !== 'APPROVED'"
-                    class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap"
-                    :class="rowApprovalClass(po.approvalStatus)"
-                  >
-                    {{ APPROVAL_LABELS[po.approvalStatus] }}
-                  </span>
-                  <span
-                    v-if="po.piNo"
-                    class="block text-xs font-normal text-n-slate-10"
-                  >
-                    PI {{ po.piNo }}
-                  </span>
-                  <span
-                    v-if="po.productSku"
-                    class="block text-xs font-normal text-n-iris-11"
-                  >
-                    商品编码 {{ po.productSku }}
-                  </span>
-                </td>
-                <td class="px-3 py-3 text-n-slate-11">{{ po.productName }}</td>
-                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
-                  {{ po.producedQty }} / {{ po.qty }} {{ po.unit }}
-                </td>
-                <td class="px-3 py-3 align-top">
-                  <div class="flex items-center">
+                <!-- 中间列按 orderedColumns 渲染，顺序随表头拖拽实时变化 -->
+                <td
+                  v-for="col in orderedColumns"
+                  :key="col.key"
+                  :class="col.tdClass"
+                >
+                  <template v-if="col.key === 'no'">
+                    <span class="block whitespace-nowrap">{{
+                      po.orderNo
+                    }}</span>
                     <span
-                      class="inline-flex items-center px-2 py-0.5 text-xs rounded-full"
-                      :class="stageChip(po.stage)"
+                      v-if="po.orderKind === 'STOCK'"
+                      class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-teal-3 text-n-teal-11"
+                      title="外贸库存备货订单：全业务共享库存"
                     >
-                      {{ stageLabel(po.stage) }}
+                      外贸库存备货
                     </span>
                     <span
-                      v-if="isStalled(po)"
-                      v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
-                      class="ml-1 text-xs cursor-help text-n-ruby-11"
+                      v-if="po.isOutsourced"
+                      class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-amber-3 text-n-amber-11"
+                      title="外购成品：工程判定外购，跳过生产，采购按单买"
                     >
-                      ⚠
+                      外购
                     </span>
-                  </div>
-                  <!-- 卡在谁那·卡了多久·接单态：不点开也一眼看清 -->
-                  <div class="mt-1 text-[11px] leading-tight text-n-slate-10">
-                    <span v-if="stageWaitingText(po)" class="block truncate">
-                      {{ stageWaitingText(po) }}
+                    <span
+                      v-if="
+                        po.approvalStatus && po.approvalStatus !== 'APPROVED'
+                      "
+                      class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap"
+                      :class="rowApprovalClass(po.approvalStatus)"
+                    >
+                      {{ APPROVAL_LABELS[po.approvalStatus] }}
                     </span>
-                    <span v-if="ackChip(po)">
-                      <span :class="ackChip(po).cls">{{
-                        ackChip(po).text
-                      }}</span>
-                      <span v-if="stallDays(po) > 0">
-                        · 停留 {{ stallDays(po) }} 天</span
+                    <span
+                      v-if="po.piNo"
+                      class="block text-xs font-normal text-n-slate-10"
+                    >
+                      PI {{ po.piNo }}
+                    </span>
+                    <span
+                      v-if="po.productSku"
+                      class="block text-xs font-normal text-n-iris-11"
+                    >
+                      商品编码 {{ po.productSku }}
+                    </span>
+                  </template>
+                  <template v-if="col.key === 'model'">
+                    <span class="block truncate" :title="po.productName || ''">
+                      {{ po.productName }}
+                    </span>
+                  </template>
+                  <template v-if="col.key === 'qty'">
+                    {{ po.producedQty }} / {{ po.qty }} {{ po.unit }}
+                  </template>
+                  <template v-if="col.key === 'stage'">
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span
+                        class="inline-flex items-center px-2 py-0.5 text-xs rounded-full"
+                        :class="stageChip(po.stage)"
                       >
+                        {{ stageLabel(po.stage) }}
+                      </span>
+                      <span
+                        v-if="isStalled(po)"
+                        v-tooltip.top="`本阶段已滞留 ${stallDays(po)} 天`"
+                        class="ml-1 text-xs cursor-help text-n-ruby-11"
+                      >
+                        ⚠
+                      </span>
+                      <!-- 阶段进度：一排点＋已走几步，跟药丸同一行。
+                           外购单点数更少（短流程），不是「跳了几步」。 -->
+                      <span class="flex items-center gap-1">
+                        <template
+                          v-for="(st, si) in stageFlowOf(po)"
+                          :key="st.value"
+                        >
+                          <span
+                            v-if="si"
+                            class="w-2 h-px shrink-0"
+                            :class="
+                              si <= stageIndexOf(po)
+                                ? 'bg-n-iris-9'
+                                : 'bg-n-slate-5'
+                            "
+                          />
+                          <span
+                            v-tooltip.top="st.label"
+                            class="rounded-full cursor-help size-2 shrink-0"
+                            :class="stageDotClass(po, si)"
+                          />
+                        </template>
+                        <span
+                          class="ml-1 text-[11px] tabular-nums whitespace-nowrap shrink-0 text-n-slate-10"
+                        >
+                          {{ stageProgressText(po) }}
+                        </span>
+                      </span>
+                    </div>
+                    <!-- 卡在谁那·卡了多久·接单态：不点开也一眼看清 -->
+                    <div
+                      class="mt-0.5 text-[11px] leading-tight text-n-slate-10"
+                    >
+                      <span v-if="ackChip(po)">
+                        <span :class="ackChip(po).cls">{{
+                          ackChip(po).text
+                        }}</span>
+                        <span v-if="stallDays(po) > 0">
+                          · 停留 {{ stallDays(po) }} 天</span
+                        >
+                      </span>
+                    </div>
+                  </template>
+                  <template v-if="col.key === 'due'">
+                    <span
+                      v-if="deliveryStatus(po)"
+                      :class="DUE_CLASS[deliveryStatus(po).level]"
+                    >
+                      {{ deliveryStatus(po).label }}
                     </span>
-                  </div>
-                </td>
-                <td class="px-3 py-3 text-xs">
-                  <span
-                    v-if="deliveryStatus(po)"
-                    :class="DUE_CLASS[deliveryStatus(po).level]"
-                  >
-                    {{ deliveryStatus(po).label }}
-                  </span>
-                  <span v-else class="text-n-slate-10">—</span>
-                </td>
-                <td
-                  class="px-3 py-3 text-n-slate-11 tabular-nums whitespace-nowrap"
-                >
-                  {{ po.productSku || '—' }}
-                </td>
-                <td
-                  class="px-3 py-3 text-n-slate-11 max-w-[12rem] truncate"
-                  :title="po.remark || ''"
-                >
-                  {{ po.remark || '—' }}
-                </td>
-                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
-                  {{ po.salesOrderNo || '—' }}
-                </td>
-                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
-                  {{ po.ownerName || '—' }}
+                    <span v-else class="text-n-slate-10">—</span>
+                  </template>
+                  <template v-if="col.key === 'sku'">
+                    {{ po.productSku || '—' }}
+                  </template>
+                  <template v-if="col.key === 'remark'">
+                    <span class="block truncate" :title="po.remark || ''">
+                      {{ po.remark || '—' }}
+                    </span>
+                  </template>
+                  <template v-if="col.key === 'salesOrder'">
+                    <!-- 挂了 CRM 销售订单就能点进去看原单（走该页现成的 ?focus=<id> 定位） -->
+                    <button
+                      v-if="po.crmSalesOrderId && po.salesOrderNo"
+                      type="button"
+                      class="underline text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
+                      @click.stop="goCrmSalesOrder(po.crmSalesOrderId)"
+                    >
+                      {{ po.salesOrderNo }}
+                    </button>
+                    <span v-else>{{ po.salesOrderNo || '—' }}</span>
+                  </template>
+                  <template v-if="col.key === 'owner'">
+                    {{ po.ownerName || '—' }}
+                  </template>
                 </td>
                 <td class="px-3 py-3 text-right" @click.stop>
                   <div class="flex items-center justify-end gap-1">
@@ -1666,13 +1852,24 @@ watch(currentPage, fetchRecords);
         v-if="selected"
         class="flex flex-col p-5 overflow-auto w-full md:w-80 shrink-0 rounded-xl bg-n-alpha-black1 border border-n-weak"
       >
-        <div class="flex items-center justify-between mb-1">
-          <span class="font-semibold text-n-slate-12">{{
+        <div class="flex items-center gap-2 mb-1">
+          <span class="font-semibold truncate text-n-slate-12">{{
             selected.orderNo
           }}</span>
-          <span class="text-xs text-n-slate-11">
+          <span class="ml-auto text-xs shrink-0 text-n-slate-11">
             {{ STATUS_LABELS[selected.status] }}
           </span>
+          <!-- 关闭：面板原来只能靠再点一次列表行关掉，从站内通知跳进来的人根本没点过行，
+               等于进来就出不去。 -->
+          <Button
+            icon="i-lucide-x"
+            variant="ghost"
+            color="slate"
+            size="xs"
+            aria-label="关闭"
+            class="-mr-1 shrink-0"
+            @click="selected = null"
+          />
         </div>
         <div class="mb-1 text-sm text-n-slate-11">
           {{ selected.productName }} · {{ selected.producedQty }}/{{
@@ -1801,7 +1998,7 @@ watch(currentPage, fetchRecords);
         </div>
 
         <!-- 接单确认（P1）：当前阶段负责人 + 接单状态 + 接单/拒收。
-             建单生效后归工程/PMC 接单出 BOM；SHIPPED 为终点无需接单。 -->
+             建单生效后归工程/PMC 接单出生产任务单；SHIPPED 为终点无需接单。 -->
         <div
           v-if="
             selected.stage !== 'SHIPPED' && selected.status === 'IN_PROGRESS'
@@ -1966,22 +2163,22 @@ watch(currentPage, fetchRecords);
         <div class="pt-4 mt-4 border-t border-n-weak">
           <template v-if="selected.bomNo">
             <div class="text-xs text-n-slate-11">
-              工程/PMC BOM：{{ selected.bomNo }}
+              工程/PMC 生产任务单：{{ selected.bomNo }}
             </div>
             <!-- 挂好 BOM 后下一步就是工程/PMC「下发到采购」
-                 （原先中间有一道「业务二次确认 BOM」的闸，已取消）。 -->
+                 （原先中间有一道「业务二次确认生产任务单」的闸，已取消）。 -->
             <div
               v-if="selected.stage === 'BOM_READY'"
               class="p-3 mt-2 text-xs rounded-lg text-n-slate-11 bg-n-alpha-1"
             >
-              BOM 已挂好，等工程/PMC 核对后点「下发到采购」。
+              生产任务单已挂好，等工程/PMC 核对后点「下发到采购」。
             </div>
             <!-- 查看工程做的用料清单（弹窗看完整明细） -->
             <Button
               v-if="
                 bomDetail && bomDetail.bomItems && bomDetail.bomItems.length
               "
-              :label="`查看 BOM 明细（${bomDetail.bomItems.length} 项）`"
+              :label="`查看生产任务单明细（${bomDetail.bomItems.length} 项）`"
               variant="outline"
               color="slate"
               size="sm"
@@ -2008,7 +2205,7 @@ watch(currentPage, fetchRecords);
                 selected.stage === 'BOM_READY' &&
                 (mesCan('bom') || mesCan('order'))
               "
-              label="解除 BOM 关联"
+              label="解除生产任务单关联"
               variant="outline"
               color="ruby"
               size="sm"
@@ -2022,7 +2219,7 @@ watch(currentPage, fetchRecords);
                 !selected.isOutsourced &&
                 (mesCan('bom') || mesCan('order'))
               "
-              label="退回工程/PMC BOM"
+              label="退回工程/PMC 生产任务单"
               variant="outline"
               color="ruby"
               size="sm"
@@ -2036,7 +2233,7 @@ watch(currentPage, fetchRecords);
               class="p-2 mt-2 border rounded-lg border-n-amber-6 bg-n-amber-2"
             >
               <div class="mb-1 text-xs font-semibold text-n-amber-11">
-                BOM 变更记录（{{ selected.bomRevisions.length }} 次）
+                生产任务单变更记录（{{ selected.bomRevisions.length }} 次）
               </div>
               <ul class="flex flex-col gap-1.5">
                 <li
@@ -2059,7 +2256,7 @@ watch(currentPage, fetchRecords);
               </ul>
             </div>
           </template>
-          <!-- 工程判定：自产去「工程BOM」建BOM并关联本单（自动挂），外购走标记外购 -->
+          <!-- 工程判定：自产去建生产任务单并关联本单（自动挂），外购走标记外购 -->
           <div
             v-else-if="
               selected.stage === 'SALES_CONFIRMED' &&
@@ -2067,19 +2264,15 @@ watch(currentPage, fetchRecords);
             "
             class="flex flex-col gap-2"
           >
-            <p class="text-xs text-n-slate-10">
-              自产：去「工程 BOM」新建 BOM 并关联本订单，或直接关联一张已有
-              BOM；挂好后由工程/PMC 下发采购。
-            </p>
             <Button
-              label="去建 BOM（自产）"
+              label="去建生产任务单（自产）"
               color="iris"
               size="sm"
               class="w-full"
               @click="goCreateBomForOrder"
             />
             <Button
-              label="关联已有 BOM"
+              label="关联已有生产任务单"
               variant="faded"
               color="iris"
               size="sm"
@@ -2325,7 +2518,11 @@ watch(currentPage, fetchRecords);
       :show-confirm-button="!viewOnlyOrder"
       :cancel-button-label="viewOnlyOrder ? '关闭' : undefined"
       :disable-confirm-button="orderInvalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitOrder"
+      @close="markPristine"
+      @save="submitOrder"
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">
@@ -2360,7 +2557,9 @@ watch(currentPage, fetchRecords);
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
               商品编码
-              <span class="text-n-slate-10">（选填，工程做 BOM 时补）</span>
+              <span class="text-n-slate-10"
+                >（选填，工程做生产任务单时补）</span
+              >
             </label>
             <ComboBox
               v-model="orderBase.crmProductId"
@@ -2423,7 +2622,11 @@ watch(currentPage, fetchRecords);
       description="选择销售订单与成品，生成生产订单；来源订单将自动进入「生产中」。"
       :is-loading="converting"
       :disable-confirm-button="convertInvalid"
+      :dirty="isConvertDirty"
+      dirty-save-label="保存"
       @confirm="submitConvert"
+      @close="markConvertPristine"
+      @save="submitConvert"
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">
@@ -2474,8 +2677,8 @@ watch(currentPage, fetchRecords);
     <Dialog
       ref="bomViewDialogRef"
       :dismissible="false"
-      width="xl"
-      :title="`工程/PMC BOM 明细${bomDetail?.bomNo ? ` · ${bomDetail.bomNo}` : ''}`"
+      width="5xl"
+      :title="`工程/PMC 生产任务单明细${bomDetail?.bomNo ? ` · ${bomDetail.bomNo}` : ''}`"
       :show-confirm-button="false"
       cancel-button-label="关闭"
     >
@@ -2502,12 +2705,16 @@ watch(currentPage, fetchRecords);
             <thead class="sticky top-0 bg-n-solid-2">
               <tr class="text-left text-n-slate-11">
                 <th class="px-3 py-2 font-medium">#</th>
-                <th class="px-3 py-2 font-medium">物料名称</th>
-                <th class="px-3 py-2 font-medium">料号</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  物料名称
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">料号</th>
                 <th class="px-3 py-2 font-medium">规格</th>
-                <th class="px-3 py-2 font-medium text-right">用量</th>
-                <th class="px-3 py-2 font-medium">类别</th>
-                <th class="px-3 py-2 font-medium">备注</th>
+                <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                  用量
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">类别</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">备注</th>
               </tr>
             </thead>
             <tbody>
@@ -2517,8 +2724,8 @@ watch(currentPage, fetchRecords);
                 class="border-t border-n-weak/60 text-n-slate-12"
               >
                 <td class="px-3 py-2 text-n-slate-10">{{ idx + 1 }}</td>
-                <td class="px-3 py-2">{{ it.materialName }}</td>
-                <td class="px-3 py-2 text-n-slate-11">
+                <td class="px-3 py-2 min-w-[11rem]">{{ it.materialName }}</td>
+                <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
                   {{ it.materialNo || '—' }}
                 </td>
                 <td class="px-3 py-2 text-n-slate-11">
@@ -2527,7 +2734,7 @@ watch(currentPage, fetchRecords);
                 <td class="px-3 py-2 text-right whitespace-nowrap">
                   {{ it.qty }} {{ it.unit }}
                 </td>
-                <td class="px-3 py-2 text-n-slate-11">
+                <td class="px-3 py-2 whitespace-nowrap text-n-slate-11">
                   {{ categoryLabel(it.category) }}
                 </td>
                 <td class="px-3 py-2 text-n-slate-11">
@@ -2547,7 +2754,7 @@ watch(currentPage, fetchRecords);
       width="3xl"
       confirm-button-color="iris"
       title="标记外购成品"
-      description="外购成品不走生产：选定产品与供应商后，订单直接进入采购阶段，由采购按单下采购单。跳过 BOM/领料/报工/质检。"
+      description="外购成品不走生产：选定产品与供应商后，订单直接进入采购阶段，由采购按单下采购单。跳过生产任务单/领料/报工/质检。"
       :is-loading="uiFlags.updatingItem"
       :disable-confirm-button="outsourceInvalid"
       @confirm="submitMarkOutsourced"
@@ -2587,8 +2794,8 @@ watch(currentPage, fetchRecords);
       :dismissible="false"
       width="3xl"
       confirm-button-color="iris"
-      title="关联已有 BOM"
-      description="把一张已存在的 BOM 直接关联到本订单，挂好后由工程/PMC 下发采购，无需重新建 BOM。"
+      title="关联已有生产任务单"
+      description="把一张已存在的生产任务单直接关联到本订单，挂好后由工程/PMC 下发采购，无需重新建生产任务单。"
       :is-loading="uiFlags.updatingItem"
       :disable-confirm-button="!linkBomId"
       @confirm="submitLinkBom"
@@ -2596,34 +2803,48 @@ watch(currentPage, fetchRecords);
       <div class="flex flex-col gap-1">
         <div class="flex items-center justify-between">
           <label class="text-heading-3 text-n-slate-12">
-            选择 BOM <span class="text-n-ruby-11">*</span>
+            选择生产任务单 <span class="text-n-ruby-11">*</span>
           </label>
-          <label class="flex items-center gap-1.5 text-xs text-n-slate-11">
+          <label
+            class="flex items-center gap-1.5 text-heading-3 text-n-slate-12"
+          >
             <input
               type="checkbox"
               class="accent-n-iris-9"
               :checked="linkBomAllProducts"
               @change="toggleLinkBomScope"
             />
-            显示全部产品的 BOM
+            显示全部产品的生产任务单
           </label>
         </div>
         <ComboBox
           :model-value="linkBomId"
           :options="linkBomOptions"
-          placeholder="选择要关联的 BOM"
-          search-placeholder="搜索 BOM 号 / 产品"
+          placeholder="选择要关联的生产任务单"
+          search-placeholder="搜索生产任务单号 / 产品"
           @update:model-value="v => (linkBomId = v)"
         />
         <p v-if="!linkBomOptions.length" class="text-xs text-n-slate-10">
           {{
             linkBomAllProducts
-              ? '还没有任何 BOM，请先去「工程 BOM」新建。'
-              : '本产品还没有 BOM，可勾选上方「显示全部产品的 BOM」，或去新建。'
+              ? '还没有任何生产任务单，请先去「工程生产任务单」新建。'
+              : '本产品还没有生产任务单，可勾选上方「显示全部产品的生产任务单」，或去新建。'
           }}
         </p>
       </div>
     </Dialog>
+
+    <!-- 接单之后：把下一步要建的单直接递到手上 -->
+    <Dialog
+      ref="nextDocDialogRef"
+      :title="`已接单：${selected?.orderNo || ''}`"
+      :description="
+        nextDoc ? `下一步是给这张订单建${nextDoc.label}，现在就去？` : ''
+      "
+      :confirm-button-label="nextDoc ? `去建${nextDoc.label}` : '好'"
+      cancel-button-label="稍后"
+      @confirm="goNextDoc"
+    />
 
     <Dialog
       ref="handoffDialogRef"
@@ -2654,7 +2875,7 @@ watch(currentPage, fetchRecords);
           <label class="text-heading-3 text-n-slate-12">说明（选填）</label>
           <Input
             v-model="handoffNote"
-            placeholder="如：已按客户要求换电池，BOM 已更新，请投单"
+            placeholder="如：已按客户要求换电池，生产任务单已更新，请投单"
           />
         </div>
       </div>
@@ -2676,7 +2897,7 @@ watch(currentPage, fetchRecords);
         </label>
         <Input
           v-model="rejectReason"
-          placeholder="如：BOM 漏了主板 / 来料规格不对"
+          placeholder="如：生产任务单漏了主板 / 来料规格不对"
         />
       </div>
     </Dialog>
@@ -2795,6 +3016,7 @@ watch(currentPage, fetchRecords);
                     <th class="py-1.5 pr-3 font-medium">单位</th>
                     <th class="py-1.5 pr-3 font-medium text-right">用量</th>
                     <th class="py-1.5 pr-3 font-medium">备注</th>
+                    <th class="py-1.5 pr-3 font-medium">生产备注</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2836,6 +3058,9 @@ watch(currentPage, fetchRecords);
                         档案：{{ bi.productRemark }}
                       </span>
                       <span v-else>—</span>
+                    </td>
+                    <td class="py-1.5 pr-3 text-n-slate-11">
+                      {{ bi.productionNote || '—' }}
                     </td>
                   </tr>
                 </tbody>

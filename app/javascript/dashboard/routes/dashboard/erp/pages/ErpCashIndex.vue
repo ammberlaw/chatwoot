@@ -14,6 +14,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 资金账户与出纳日记账：账户余额 = 期初 + 流入 - 流出（流水只增不改，任何时点都能对银行对账单）。
 // 收付款单落库会自动记一笔流水；这里另外提供内部划转（成对流水 + 自动凭证）。
@@ -230,6 +231,7 @@ const form = reactive({
   openingBase: '',
   isActive: true,
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 // 外币账户的期初余额折多少人民币，只有财务知道——不填的话资金报表里这个账户
 // 的本位币列留空（绝不按 1:1 当人民币加）。CNY 账户不用填，它自己就是本位币。
 const needsOpeningBase = computed(() => form.currency !== 'CNY');
@@ -256,6 +258,7 @@ const openAccount = (record = null) => {
         : '',
     isActive: record ? record.is_active : true,
   });
+  markPristine();
   accountDialogRef.value?.open();
 };
 // CNY 账户的期初本位币就是它自己；外币账户留空＝「财务还没填」，存 null 让报表如实留空。
@@ -304,6 +307,8 @@ const transferForm = reactive({
   happenedAt: today(),
   summary: '',
 });
+const { isDirty: isTransferDirty, markPristine: markTransferPristine } =
+  useDirtyGuard(() => transferForm);
 // 外币账户互转（USD→USD）要填划转日汇率折本位币；CNY 恒为 1，不显示输入框。
 const transferCurrency = computed(
   () => accounts.value.find(a => a.id === transferForm.fromId)?.currency || ''
@@ -326,6 +331,7 @@ const openTransfer = () => {
     happenedAt: today(),
     summary: '',
   });
+  markTransferPristine();
   transferDialogRef.value?.open();
 };
 const transferInvalid = computed(
@@ -681,7 +687,11 @@ onMounted(async () => {
       confirm-button-color="iris"
       :title="editing ? `编辑账户 ${editing.name}` : '新建资金账户'"
       :disable-confirm-button="!form.name"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitAccount"
+      @close="markPristine"
+      @save="submitAccount"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-3 gap-4">
@@ -774,7 +784,11 @@ onMounted(async () => {
       confirm-button-color="iris"
       title="内部划转"
       :disable-confirm-button="transferInvalid"
+      :dirty="isTransferDirty"
+      dirty-save-label="保存"
       @confirm="submitTransfer"
+      @close="markTransferPristine"
+      @save="submitTransfer"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-2 gap-4">

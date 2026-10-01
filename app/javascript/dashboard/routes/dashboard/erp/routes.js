@@ -2,6 +2,8 @@ import { frontendURL } from '../../../helper/URLHelper';
 import { FEATURE_FLAGS } from '../../../featureFlags';
 import ErpLayout from './ErpLayout.vue';
 import ErpDashboardIndex from './pages/ErpDashboardIndex.vue';
+// 财务通知复用 MES 那个通知页（同一张通知表，按 meta.notificationModule 分流）。
+import MesNotificationsIndex from '../mes/pages/MesNotificationsIndex.vue';
 import ErpAccountsIndex from './pages/ErpAccountsIndex.vue';
 import ErpVouchersIndex from './pages/ErpVouchersIndex.vue';
 import ErpLedgersIndex from './pages/ErpLedgersIndex.vue';
@@ -24,8 +26,8 @@ const erpMeta = {
 };
 
 // 外层套 ErpLayout（白卡挂钩层），页面作为子路由渲染——与 MES 同结构。
-const erpPage = (path, name, component) => {
-  const meta = { ...erpMeta };
+const erpPage = (path, name, component, extraMeta = {}) => {
+  const meta = { ...erpMeta, ...extraMeta };
   return {
     path: frontendURL(`accounts/:accountId/erp/${path}`),
     component: ErpLayout,
@@ -45,6 +47,9 @@ export const routes = [
   erpPage('payables', 'erp_payables_index', ErpPayablesIndex),
   erpPage('cash', 'erp_cash_index', ErpCashIndex),
   erpPage('periods', 'erp_periods_index', ErpPeriodsIndex),
+  erpPage('notifications', 'erp_notifications_index', MesNotificationsIndex, {
+    notificationModule: 'erp',
+  }),
   erpPage('fixed-assets', 'erp_fixed_assets_index', ErpFixedAssetsIndex),
   erpPage('margin', 'erp_margin_index', ErpMarginIndex),
   erpPage('expenses', 'erp_expenses_index', ErpExpensesIndex),

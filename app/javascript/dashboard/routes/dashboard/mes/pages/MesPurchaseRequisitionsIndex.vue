@@ -19,6 +19,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const ITEMS_PER_PAGE = 15;
 const { accountId } = useAccount();
@@ -203,6 +204,7 @@ const form = reactive({
   remark: '',
   lines: [],
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 
 const lineIncomplete = l =>
   !Number(l.suggestedQty) ||
@@ -246,7 +248,7 @@ const explode = async (category = '') => {
     );
     const reqs = data?.payload || [];
     if (!reqs.length) {
-      useAlert(category ? '该类别无用料' : '该生产订单未挂 BOM 或无用料');
+      useAlert(category ? '该类别无用料' : '该生产订单未挂生产任务单或无用料');
       return;
     }
     // BOM 算料出的物料并入下拉数据源，编码下拉才显示得出已选项。
@@ -293,6 +295,7 @@ const resetForm = () => {
 };
 const openCreate = () => {
   resetForm();
+  markPristine();
   dialogRef.value?.open();
 };
 const openEdit = req => {
@@ -333,6 +336,7 @@ const openEdit = req => {
       codeSearch: '',
     })),
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -404,6 +408,8 @@ const convertForm = reactive({
   remark: '',
   lines: [],
 });
+const { isDirty: isConvertDirty, markPristine: markConvertPristine } =
+  useDirtyGuard(() => convertForm);
 const converting = ref(false);
 const openConvert = req => {
   convertReq.value = req;
@@ -426,6 +432,7 @@ const openConvert = req => {
         mesSupplierId: it.mesSupplierId ? String(it.mesSupplierId) : '',
       })),
   });
+  markConvertPristine();
   convertDialogRef.value?.open();
 };
 const convertInvalid = computed(
@@ -672,6 +679,11 @@ onMounted(() => {
       :title="editingId ? '编辑采购申请单' : '新建采购申请单'"
       :show-confirm-button="false"
       :show-cancel-button="false"
+      :dirty="isDirty"
+      dirty-save-label="存草稿"
+      :disable-confirm-button="invalid"
+      @close="markPristine"
+      @save="submit('DRAFT')"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -707,7 +719,7 @@ onMounted(() => {
           v-if="form.purpose === 'ORDER'"
           class="flex flex-wrap items-center gap-2"
         >
-          <span class="text-sm text-n-slate-11">按 BOM 算料：</span>
+          <span class="text-sm text-n-slate-11">按生产任务单算料：</span>
           <Button
             label="全部用料"
             variant="outline"
@@ -757,7 +769,7 @@ onMounted(() => {
               </span>
             </div>
             <div class="sm:col-span-2">
-              <label class="text-xs text-n-slate-10">类型</label>
+              <label class="text-heading-3 text-n-slate-12">类型</label>
               <SelectCard
                 :model-value="line.itemType"
                 :options="ITEM_TYPE_OPTIONS"
@@ -766,7 +778,7 @@ onMounted(() => {
               />
             </div>
             <div class="sm:col-span-3">
-              <label class="text-xs text-n-slate-10">
+              <label class="text-heading-3 text-n-slate-12">
                 {{ line.itemType === 'PRODUCT' ? '成品' : '物料' }}
               </label>
               <MesProductPicker
@@ -788,7 +800,7 @@ onMounted(() => {
               />
             </div>
             <div class="sm:col-span-2">
-              <label class="text-xs text-n-slate-10">需求量</label>
+              <label class="text-heading-3 text-n-slate-12">需求量</label>
               <Input
                 v-model="line.requiredQty"
                 type="number"
@@ -796,7 +808,7 @@ onMounted(() => {
               />
             </div>
             <div class="sm:col-span-2">
-              <label class="text-xs text-n-slate-10">建议采购量</label>
+              <label class="text-heading-3 text-n-slate-12">建议采购量</label>
               <Input
                 v-model="line.suggestedQty"
                 type="number"
@@ -804,7 +816,7 @@ onMounted(() => {
               />
             </div>
             <div class="sm:col-span-2">
-              <label class="text-xs text-n-slate-10">建议供应商</label>
+              <label class="text-heading-3 text-n-slate-12">建议供应商</label>
               <SelectCard
                 :model-value="line.mesSupplierId"
                 :options="supplierOptions"
@@ -874,19 +886,24 @@ onMounted(() => {
       description="选行、各填本批采购量（默认剩余量，可改，常大于需求量备库存）。一张申请可多次转、分批采购。"
       :show-confirm-button="false"
       :show-cancel-button="false"
+      :dirty="isConvertDirty"
+      dirty-save-label="生成采购单"
+      :disable-confirm-button="convertInvalid"
+      @close="markConvertPristine"
+      @save="doConvert"
     >
       <div class="flex flex-col gap-3">
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-10">回复交期</label>
+            <label class="text-heading-3 text-n-slate-12">回复交期</label>
             <DatePicker v-model="convertForm.expectedDate" block />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-10">交货时间</label>
+            <label class="text-heading-3 text-n-slate-12">交货时间</label>
             <DatePicker v-model="convertForm.deliveryDate" block />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-n-slate-10">采购单备注</label>
+            <label class="text-heading-3 text-n-slate-12">采购单备注</label>
             <Input v-model="convertForm.remark" class="reset-base" />
           </div>
         </div>
@@ -916,11 +933,11 @@ onMounted(() => {
             {{ line.orderedQty }} · 剩余 {{ line.remaining }}
           </div>
           <div class="sm:col-span-2">
-            <label class="text-xs text-n-slate-10">本批采购量</label>
+            <label class="text-heading-3 text-n-slate-12">本批采购量</label>
             <Input v-model="line.qty" type="number" class="reset-base" />
           </div>
           <div class="sm:col-span-3">
-            <label class="text-xs text-n-slate-10">供应商</label>
+            <label class="text-heading-3 text-n-slate-12">供应商</label>
             <SelectCard
               :model-value="line.mesSupplierId"
               :options="supplierOptions"
@@ -971,9 +988,7 @@ onMounted(() => {
             <span class="text-sm text-n-slate-12">{{ f.value }}</span>
           </div>
         </div>
-        <div
-          class="text-xs font-semibold tracking-wide uppercase text-n-slate-10"
-        >
+        <div class="text-heading-2 text-n-slate-12">
           申请明细（{{ (viewing.requisitionItems || []).length }} 项）
         </div>
         <table class="w-full text-sm">

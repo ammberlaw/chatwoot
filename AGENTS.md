@@ -40,6 +40,25 @@
   - Do not use inline styles  
   - Always use Tailwind utility classes  
 - **Colors**: Refer to `tailwind.config.js` for color definitions
+- **Typography — use the semantic classes, never raw `text-xs` / `text-sm` for labels and headings.**
+  The scale is defined in `assets/scss/_woot.scss`:
+
+  | Class | Use for | Size |
+  |---|---|---|
+  | `text-heading-1` | Page titles, panel headers | 18px / 520 |
+  | `text-heading-2` | Section headings, card titles | 16px / medium |
+  | `text-heading-3` | Card headings, subsections | 14px / medium |
+  | `text-label` | **Form field labels** | 14px / medium |
+  | `text-label-small` | Footnotes, tags, checkbox rows, upload buttons | 12px / 440 |
+
+  - New form field labels **must** use `text-label`. Existing code uses `text-heading-3`
+    for ~256 labels (visually identical — both `text-sm font-medium`); leave those alone,
+    they converge naturally as pages are touched. Do not add a 75th variant.
+  - Never use a heading class on a field label, or a label class on a heading — a page where
+    half the labels are 14px and half are 12px is the single most common complaint.
+  - Section headings: do **not** use the `text-xs font-semibold tracking-wide uppercase` eyebrow
+    pattern. `uppercase` does nothing to Chinese text and `tracking-wide` just pulls the
+    characters apart. Use `text-heading-3`.
 
 ## General Guidelines
 

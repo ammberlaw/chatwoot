@@ -10,6 +10,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 会计科目表：记账引擎的地基。编码走财政部国标（1 资产 / 2 负债 / 4 权益 / 5 成本 / 6 损益），
 // 与金蝶同码——平行跑账期科目可逐条对上。树形展示，只有明细科目（非分类）能记账。
@@ -214,6 +215,7 @@ const form = reactive({
   remark: '',
   isActive: true,
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const parentRecord = computed(() =>
   records.value.find(a => a.id === form.parentId)
 );
@@ -234,6 +236,7 @@ const openCreate = (parent = null) => {
     remark: '',
     isActive: true,
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -252,6 +255,7 @@ const openEdit = account => {
     remark: account.remark || '',
     isActive: account.isActive,
   });
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -510,7 +514,11 @@ onMounted(fetchList);
       :title="editing ? '编辑科目' : '新建科目'"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-2 gap-4">

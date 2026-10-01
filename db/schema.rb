@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_30_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_01_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2796,6 +2796,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_30_100000) do
     t.decimal "suggested_purchase_qty", precision: 14, scale: 3
     t.bigint "crm_product_aux_attribute_id"
     t.string "aux_attribute_name"
+    t.text "purchase_note"
+    t.text "production_note"
     t.index ["account_id"], name: "index_mes_bom_items_on_account_id"
     t.index ["bom_id"], name: "index_mes_bom_items_on_bom_id"
     t.index ["crm_product_aux_attribute_id"], name: "idx_mes_bom_items_on_aux_attr"
@@ -3107,6 +3109,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_30_100000) do
     t.bigint "mes_supplier_id"
     t.datetime "arrival_date"
     t.boolean "price_tax_included", default: false, null: false
+    t.string "aux_attribute_name"
     t.index ["account_id"], name: "index_mes_purchase_items_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_purchase_items_on_crm_product_id"
     t.index ["mes_material_id"], name: "index_mes_purchase_items_on_mes_material_id"

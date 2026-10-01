@@ -285,7 +285,7 @@ const importBackground = () => {
           v-if="bgResult.db_match && bgResult.db_match.total"
           class="text-xs text-n-amber-11"
         >
-          ⚠️ 库里已有 {{ bgResult.db_match.total }} 家相似公司，注意查重
+          库里已有 {{ bgResult.db_match.total }} 家相似公司，注意查重
         </div>
 
         <!-- 一键导入：把背调结果填进上面的表单（公司名/网址刷新，其余填空框，概况写进备注） -->

@@ -318,7 +318,6 @@ const getSidebarSectionSort = useMapGetter(
 
 // 流失预警角标：可见范围内超期未互动的成交客户数（实时计算，无存储）。
 const mesNotificationsStore = useMesNotificationsStore();
-const mesUnreadCount = computed(() => mesNotificationsStore.getUnreadCount);
 const mesTodoCount = ref(0);
 const fetchMesTodoCount = async () => {
   try {
@@ -335,6 +334,23 @@ const fetchMesTodoCount = async () => {
     mesTodoCount.value = 0;
   }
 };
+
+// 「我的工作台」并进站内通知后，这个角标代表「要我动手的事」：
+// 实时待办 + 未读的退回/驳回；纯知会（进展）不计，否则角标虚高、看久了就不信它了。
+const REJECTED_KINDS = [
+  'approval_rejected',
+  'po_approval_rejected',
+  'shipment_rejected',
+  'document_returned',
+  'stage_returned',
+];
+const mesActionCount = computed(
+  () =>
+    mesTodoCount.value +
+    (mesNotificationsStore.getRecords || []).filter(
+      n => !n.readAt && REJECTED_KINDS.includes(n.kind)
+    ).length
+);
 const churnRiskCount = ref(0);
 const fetchChurnRiskCount = async () => {
   try {
@@ -1209,6 +1225,7 @@ const menuItems = computed(() => {
           'erp_fixed_assets_index',
           'erp_margin_index',
           'erp_expenses_index',
+          'erp_notifications_index',
         ],
         children: [
           {
@@ -1283,6 +1300,12 @@ const menuItems = computed(() => {
             to: accountScopedRoute('erp_periods_index'),
             activeOn: ['erp_periods_index'],
           },
+          {
+            name: 'ERP Notifications',
+            label: '财务通知',
+            to: accountScopedRoute('erp_notifications_index'),
+            activeOn: ['erp_notifications_index'],
+          },
         ],
       },
       {
@@ -1292,7 +1315,6 @@ const menuItems = computed(() => {
         activeOn: [
           'mes_dashboard_index',
           'mes_pipeline_index',
-          'mes_todo_index',
           'mes_production_orders_index',
           'mes_boms_index',
           'mes_products_index',
@@ -1309,13 +1331,6 @@ const menuItems = computed(() => {
         ],
         children: [
           {
-            name: 'MES Todo',
-            label: t('SIDEBAR.MES_TODO'),
-            badgeCount: mesTodoCount.value,
-            to: accountScopedRoute('mes_todo_index'),
-            activeOn: ['mes_todo_index'],
-          },
-          {
             name: 'MES Dashboard',
             label: t('SIDEBAR.MES_DASHBOARD'),
             to: accountScopedRoute('mes_dashboard_index'),
@@ -1330,7 +1345,7 @@ const menuItems = computed(() => {
           {
             name: 'MES Notifications',
             label: t('SIDEBAR.MES_NOTIFICATIONS'),
-            badgeCount: mesUnreadCount.value,
+            badgeCount: mesActionCount.value,
             to: accountScopedRoute('mes_notifications_index'),
             activeOn: ['mes_notifications_index'],
           },
@@ -1344,7 +1359,7 @@ const menuItems = computed(() => {
             name: 'MES BOMs',
             label: t('SIDEBAR.MES_BOMS'),
             to: accountScopedRoute('mes_boms_index'),
-            activeOn: ['mes_boms_index'],
+            activeOn: ['mes_boms_index', 'mes_bom_intake_index'],
           },
           {
             name: 'MES Products',
@@ -1365,7 +1380,10 @@ const menuItems = computed(() => {
                   name: 'MES Purchase Orders',
                   label: t('SIDEBAR.MES_PURCHASE_ORDERS'),
                   to: accountScopedRoute('mes_purchase_orders_index'),
-                  activeOn: ['mes_purchase_orders_index'],
+                  activeOn: [
+                    'mes_purchase_orders_index',
+                    'mes_purchase_order_intake_index',
+                  ],
                 },
                 {
                   name: 'MES Suppliers',
@@ -2071,6 +2089,7 @@ const ROUTE_MODULE = {
   erp_payables_index: 'erp',
   erp_cash_index: 'erp',
   erp_periods_index: 'erp',
+  erp_notifications_index: 'erp',
   erp_fixed_assets_index: 'erp',
   erp_margin_index: 'erp',
   erp_expenses_index: 'erp',
@@ -2105,12 +2124,13 @@ const ROUTE_MODULE = {
   crm_doc_center_index: 'doc',
   mes_dashboard_index: 'mes',
   mes_pipeline_index: 'mes',
-  mes_todo_index: 'mes',
   mes_production_orders_index: 'mes',
   mes_production_order_intake_index: 'mes',
   mes_boms_index: 'mes',
+  mes_bom_intake_index: 'mes',
   mes_products_index: 'mes',
   mes_purchase_orders_index: 'mes',
+  mes_purchase_order_intake_index: 'mes',
   mes_purchase_requisitions_index: 'mes',
   mes_suppliers_index: 'mes',
   mes_stock_entries_index: 'mes',

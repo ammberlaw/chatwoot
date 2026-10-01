@@ -77,9 +77,21 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  // 表单有未保存改动。为 true 时，用户发起的关闭（X / 取消 / 点外部 / Esc）
+  // 不直接关，先弹三选一；程序化的 close()（保存成功后调用）不受影响。
+  dirty: {
+    type: Boolean,
+    default: false,
+  },
+  // 未保存提醒里「保存」按钮的文案。传空串则只给「继续编辑 / 不保存」两项，
+  // 适合保存动作不在本弹窗内、或必填项没齐就存不了的场景。
+  dirtySaveLabel: {
+    type: String,
+    default: '',
+  },
 });
 
-const emit = defineEmits(['confirm', 'close']);
+const emit = defineEmits(['confirm', 'close', 'save']);
 
 const { t } = useI18n();
 
@@ -112,11 +124,38 @@ const open = () => {
   dialogRef.value?.showModal();
 };
 
+// 未保存提醒的显示状态。盖在表单上层，不另开一个 <dialog>——
+// 原生 dialog 已经在顶层，再叠一个只会多一层焦点/Esc 的纠缠。
+const isConfirmingDiscard = ref(false);
+
+// 程序化关闭：保存成功后由页面调用，永远直接关，不拦。
 const close = () => {
+  isConfirmingDiscard.value = false;
   emit('close');
   dialogRef.value?.close();
   isOpen.value = false;
 };
+
+// 长表单（overflowYAuto）里滚动容器是 <dialog> 本身，提醒层按整个表单高度定位。
+// 不先滚回顶部的话，人滚到第 30 行明细点关闭，提醒框会落在屏幕外＝像点了没反应。
+const showDiscardConfirm = () => {
+  dialogRef.value?.scrollTo?.({ top: 0 });
+  isConfirmingDiscard.value = true;
+};
+
+// 用户发起的关闭（X / 取消 / 点外部 / Esc）都走这里：脏了先问。
+const requestClose = () => {
+  if (props.dirty) {
+    showDiscardConfirm();
+    return;
+  }
+  close();
+};
+
+// 「不保存」：丢弃改动直接关。基线的重置统一挂在 @close 上——
+// 那条路同时覆盖「放弃」和「保存成功后关闭」，不然存完 isDirty 还挂着，
+// 刷新页面会被浏览器再拦一道。
+const discardAndClose = () => close();
 
 // Only close if the close event originated from this dialog,
 // not from a child dialog (e.g. ProseMirror prompt) bubbling up.
@@ -128,19 +167,35 @@ const handleDialogClose = e => e.target === dialogRef.value && close();
 const handleClickOutside = () => {
   if (!props.dismissible) return;
   const dialogs = document.querySelectorAll('dialog[open]');
-  if (dialogs[dialogs.length - 1] === dialogRef.value) close();
+  if (dialogs[dialogs.length - 1] === dialogRef.value) requestClose();
 };
 
 // 原生 <dialog> 的 Esc 触发 cancel→close；dismissible=false 时拦截 Esc，同样不关。
 const handleCancel = e => {
-  if (!props.dismissible) e.preventDefault();
+  if (!props.dismissible) {
+    e.preventDefault();
+    return;
+  }
+  // 可关闭但有未保存改动：拦下 Esc，改成弹提醒。
+  if (props.dirty) {
+    e.preventDefault();
+    showDiscardConfirm();
+  }
 };
 
 const confirm = () => {
   emit('confirm');
 };
 
-defineExpose({ open, close });
+// 未保存提醒里的「保存」：先把提醒层收掉再交给页面存。
+// 存成功页面自己会 close()；存失败（必填没齐等）就退回表单，
+// 否则错误提示被压在提醒层底下，人只看见一个不动的弹窗。
+const saveFromDiscardPrompt = () => {
+  isConfirmingDiscard.value = false;
+  emit('save');
+};
+
+defineExpose({ open, close, requestClose });
 </script>
 
 <template>
@@ -174,9 +229,14 @@ defineExpose({ open, close });
             class="flex flex-col gap-2"
             :class="showCloseButton ? 'pr-8' : ''"
           >
-            <h3 class="text-base font-medium leading-6 text-n-slate-12">
-              {{ title }}
-            </h3>
+            <!-- 标题行：左边标题（可塞状态药丸），右边放操作按钮（导出/打印之类），
+                 一行放得下就不要再单起一行，否则标题下面空一大片。 -->
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="text-base font-medium leading-6 text-n-slate-12">
+                <slot name="title">{{ title }}</slot>
+              </h3>
+              <slot name="headerActions" />
+            </div>
             <slot name="description">
               <p v-if="description" class="mb-0 text-sm text-n-slate-11">
                 {{ description }}
@@ -207,7 +267,7 @@ defineExpose({ open, close });
                 :label="cancelButtonLabel || t('DIALOG.BUTTONS.CANCEL')"
                 class="w-full"
                 type="button"
-                @click="close"
+                @click="requestClose"
               />
               <Button
                 v-if="showConfirmButton"
@@ -229,10 +289,59 @@ defineExpose({ open, close });
             type="button"
             :aria-label="t('DIALOG.BUTTONS.CANCEL')"
             class="absolute z-20 flex items-center justify-center rounded-lg top-4 right-4 size-8 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
-            @click="close"
+            @click="requestClose"
           >
             <Icon icon="i-lucide-x" class="size-4" />
           </button>
+
+          <!-- 未保存提醒。盖在表单上层而不是再开一个 <dialog>：
+               原生 dialog 已在顶层，叠第二个只会多一层焦点和 Esc 的纠缠。
+               做成「遮罩 + 居中小卡」而不是整片铺满：长表单弹窗能有一两千像素高，
+               铺满会糊出一大片空白，看着像页面坏了。 -->
+          <div
+            v-if="isConfirmingDiscard"
+            class="absolute inset-0 z-30 flex items-start justify-center p-6 pt-16 rounded-xl bg-n-alpha-black1 backdrop-blur-[4px]"
+          >
+            <div
+              class="flex flex-col w-full gap-5 p-6 shadow-xl max-w-md rounded-xl bg-n-alpha-3 backdrop-blur-[100px]"
+            >
+              <div class="flex flex-col gap-2">
+                <h3 class="text-base font-medium leading-6 text-n-slate-12">
+                  {{ t('DIALOG.UNSAVED.TITLE') }}
+                </h3>
+                <p class="mb-0 text-sm text-n-slate-11">
+                  {{ t('DIALOG.UNSAVED.DESCRIPTION') }}
+                </p>
+              </div>
+              <div class="flex items-center justify-end gap-2">
+                <Button
+                  variant="faded"
+                  color="slate"
+                  :label="t('DIALOG.UNSAVED.KEEP_EDITING')"
+                  type="button"
+                  @click="isConfirmingDiscard = false"
+                />
+                <Button
+                  variant="outline"
+                  color="ruby"
+                  :label="t('DIALOG.UNSAVED.DISCARD')"
+                  type="button"
+                  @click="discardAndClose"
+                />
+                <!-- 走独立的 save 事件而不是复用 confirm：confirm 同时绑着表单 submit，
+                     复用会让长表单里随手敲个回车就变成「保存并关闭」。 -->
+                <Button
+                  v-if="dirtySaveLabel"
+                  color="blue"
+                  :label="dirtySaveLabel"
+                  type="button"
+                  :is-loading="isLoading"
+                  :disabled="disableConfirmButton || isLoading"
+                  @click="saveFromDiscardPrompt"
+                />
+              </div>
+            </div>
+          </div>
         </form>
       </OnClickOutside>
     </dialog>

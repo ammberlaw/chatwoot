@@ -8,6 +8,7 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const store = useMesWarehousesStore();
 const { mesCan } = useMesRole();
@@ -25,10 +26,12 @@ const kindLabel = v => KINDS.find(k => k.value === v)?.label || '—';
 
 const dialogRef = ref(null);
 const form = reactive({ code: '', name: '', kind: 'RAW' });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 const invalid = computed(() => !form.code.trim() || !form.name.trim());
 
 const openCreate = () => {
   Object.assign(form, { code: '', name: '', kind: 'RAW' });
+  markPristine();
   dialogRef.value?.open();
 };
 const submit = async () => {
@@ -108,7 +111,11 @@ onMounted(() => store.get());
       title="新增仓库"
       :is-loading="saving"
       :disable-confirm-button="invalid"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submit"
+      @close="markPristine"
+      @save="submit"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

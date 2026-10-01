@@ -20,6 +20,12 @@
     "BUTTONS": {
       "CANCEL": "Cancel",
       "CONFIRM": "Confirm"
+    },
+    "UNSAVED": {
+      "TITLE": "当前内容还没保存",
+      "DESCRIPTION": "关掉就没了。要丢弃这些改动，还是回去接着编辑？",
+      "KEEP_EDITING": "继续编辑",
+      "DISCARD": "不保存"
     }
   },
   "PHONE_INPUT": {

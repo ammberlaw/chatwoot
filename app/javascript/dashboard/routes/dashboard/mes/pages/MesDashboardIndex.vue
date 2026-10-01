@@ -8,6 +8,7 @@ import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import { themeColor } from 'dashboard/components-next/CRM/charts/chartColors';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import MesMarqueeList from 'dashboard/components-next/mes/MesMarqueeList.vue';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
@@ -18,7 +19,7 @@ const CARD =
 
 const STAGE_LABELS = {
   SALES_CONFIRMED: '待工程接单',
-  BOM_READY: '工程/PMC BOM',
+  BOM_READY: '工程/PMC 生产任务单',
   PURCHASING: '采购原料',
   MATERIAL_INBOUND: '原料入库',
   PICKING: '生产领料',
@@ -338,40 +339,40 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 超时未接单：置顶红色告警条（有才显示） -->
-      <div
-        v-if="data.unacked.length"
-        class="p-5 border shadow-sm rounded-2xl border-n-ruby-6 bg-n-ruby-2/60 backdrop-blur-2xl backdrop-saturate-150"
-      >
-        <div class="flex items-center gap-2 mb-3 font-medium text-n-ruby-11">
+      <!-- 超时未接单：置顶告警条（有才显示）。底色与其他卡一致，不整片染红；
+           轻重交给标题文字和右侧药丸。超过 3 条自动滚，不然七八条会把下面的图表顶出屏幕。 -->
+      <div v-if="data.unacked.length" :class="CARD" class="!p-4">
+        <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11">
           <span class="i-lucide-alarm-clock-off size-4" />
           超时未接单 · {{ data.unacked.length }}
         </div>
-        <ul class="flex flex-col gap-1.5">
-          <li
-            v-for="o in data.unacked"
-            :key="`ua-${o.id}`"
-            class="flex items-center justify-between gap-3 px-2 py-1.5 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-ruby-3/50"
-            @click="goOrder(o.order_no)"
-          >
-            <span class="truncate text-n-slate-12 group-hover:underline">
-              {{ o.order_no }} · {{ o.product_name }} ·
-              {{ stageLabel(o.stage) }}
-              <span class="text-n-slate-10">
-                · 负责人：{{
-                  o.owner_names && o.owner_names.length
-                    ? o.owner_names.join('、')
-                    : '未配置'
-                }}
-              </span>
-            </span>
-            <span
-              class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
+        <MesMarqueeList :count="data.unacked.length">
+          <ul class="flex flex-col">
+            <li
+              v-for="o in data.unacked"
+              :key="`ua-${o.id}`"
+              class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+              @click="goOrder(o.order_no)"
             >
-              已 {{ o.hours }}h 未接
-            </span>
-          </li>
-        </ul>
+              <span class="truncate text-n-slate-12 group-hover:underline">
+                {{ o.order_no }} · {{ o.product_name }} ·
+                {{ stageLabel(o.stage) }}
+                <span class="text-n-slate-10">
+                  · 负责人：{{
+                    o.owner_names && o.owner_names.length
+                      ? o.owner_names.join('、')
+                      : '未配置'
+                  }}
+                </span>
+              </span>
+              <span
+                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
+              >
+                已 {{ o.hours }}h 未接
+              </span>
+            </li>
+          </ul>
+        </MesMarqueeList>
       </div>
 
       <!-- 阶段分布 + 按时交货率 -->
@@ -540,44 +541,46 @@ onMounted(() => {
             <span class="i-lucide-calendar-check size-6" />
             <span class="text-sm">暂无逾期或临近交期</span>
           </div>
-          <ul class="flex flex-col gap-1.5">
-            <li
-              v-for="o in data.overdue"
-              :key="`ov-${o.id}`"
-              class="flex items-center justify-between gap-3 px-2 py-1.5 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
-              @click="goOrder(o.order_no)"
-            >
-              <span class="flex items-center gap-2 truncate">
-                <span class="rounded-full size-1.5 shrink-0 bg-n-ruby-9" />
-                <span class="truncate text-n-slate-12 group-hover:underline">
-                  {{ o.order_no }} · {{ o.product_name }}
-                </span>
-              </span>
-              <span
-                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
+          <MesMarqueeList :count="data.overdue.length + data.dueSoon.length">
+            <ul class="flex flex-col">
+              <li
+                v-for="o in data.overdue"
+                :key="`ov-${o.id}`"
+                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+                @click="goOrder(o.order_no)"
               >
-                逾期 {{ o.days }} 天
-              </span>
-            </li>
-            <li
-              v-for="o in data.dueSoon"
-              :key="`ds-${o.id}`"
-              class="flex items-center justify-between gap-3 px-2 py-1.5 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
-              @click="goOrder(o.order_no)"
-            >
-              <span class="flex items-center gap-2 truncate">
-                <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
-                <span class="truncate text-n-slate-12 group-hover:underline">
-                  {{ o.order_no }} · {{ o.product_name }}
+                <span class="flex items-center gap-2 truncate">
+                  <span class="rounded-full size-1.5 shrink-0 bg-n-ruby-9" />
+                  <span class="truncate text-n-slate-12 group-hover:underline">
+                    {{ o.order_no }} · {{ o.product_name }}
+                  </span>
                 </span>
-              </span>
-              <span
-                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
+                <span
+                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
+                >
+                  逾期 {{ o.days }} 天
+                </span>
+              </li>
+              <li
+                v-for="o in data.dueSoon"
+                :key="`ds-${o.id}`"
+                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+                @click="goOrder(o.order_no)"
               >
-                距交期 {{ o.days }} 天
-              </span>
-            </li>
-          </ul>
+                <span class="flex items-center gap-2 truncate">
+                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
+                  <span class="truncate text-n-slate-12 group-hover:underline">
+                    {{ o.order_no }} · {{ o.product_name }}
+                  </span>
+                </span>
+                <span
+                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
+                >
+                  距交期 {{ o.days }} 天
+                </span>
+              </li>
+            </ul>
+          </MesMarqueeList>
         </div>
 
         <div :class="CARD">
@@ -594,26 +597,28 @@ onMounted(() => {
             <span class="i-lucide-check-check size-6" />
             <span class="text-sm">无滞留单据</span>
           </div>
-          <ul class="flex flex-col gap-1.5">
-            <li
-              v-for="o in data.stalled"
-              :key="`st-${o.id}`"
-              class="flex items-center justify-between gap-3 px-2 py-1.5 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
-              @click="goOrder(o.order_no)"
-            >
-              <span class="flex items-center gap-2 truncate">
-                <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
-                <span class="truncate text-n-slate-12 group-hover:underline">
-                  {{ o.order_no }} · {{ stageLabel(o.stage) }}
-                </span>
-              </span>
-              <span
-                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
+          <MesMarqueeList :count="data.stalled.length">
+            <ul class="flex flex-col">
+              <li
+                v-for="o in data.stalled"
+                :key="`st-${o.id}`"
+                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+                @click="goOrder(o.order_no)"
               >
-                滞留 {{ o.days }} 天
-              </span>
-            </li>
-          </ul>
+                <span class="flex items-center gap-2 truncate">
+                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
+                  <span class="truncate text-n-slate-12 group-hover:underline">
+                    {{ o.order_no }} · {{ stageLabel(o.stage) }}
+                  </span>
+                </span>
+                <span
+                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
+                >
+                  滞留 {{ o.days }} 天
+                </span>
+              </li>
+            </ul>
+          </MesMarqueeList>
         </div>
       </div>
     </template>

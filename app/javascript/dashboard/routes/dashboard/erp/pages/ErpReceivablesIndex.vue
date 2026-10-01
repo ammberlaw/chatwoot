@@ -19,6 +19,7 @@ import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEdit
 import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 应收：台账（从销售订单建账 + 分期计划）与收款记录（水单 + 核销）两页签。
 // 台账的「已收」只由核销维护，页面不提供直接改的入口——改了账就不准了。
@@ -212,6 +213,7 @@ const ledgerForm = reactive({
   crmSalesOrderId: '',
   installments: [],
 });
+const { isDirty, markPristine } = useDirtyGuard(() => ledgerForm);
 const searchOrders = async q => {
   const { data } = await CrmSalesOrderAPI.get({ q, page: 1 });
   orderOptions.value = (data?.payload || []).map(o => ({
@@ -222,6 +224,7 @@ const searchOrders = async q => {
 const openBuild = () => {
   Object.assign(ledgerForm, { crmSalesOrderId: '', installments: [] });
   searchOrders('');
+  markPristine();
   ledgerDialogRef.value?.open();
 };
 const addInstallment = () =>
@@ -274,6 +277,8 @@ const receiptForm = reactive({
   referenceNo: '',
   remark: '',
 });
+const { isDirty: isReceiptDirty, markPristine: markReceiptPristine } =
+  useDirtyGuard(() => receiptForm);
 const customerOptions = computed(() =>
   ledgers.value
     .map(l => ({ value: l.crm_customer_id, label: l.customer_name }))
@@ -329,6 +334,7 @@ const openReceipt = async (record = null) => {
   });
   if (!ledgers.value.length) await loadLedgers();
   await loadOpenReceivables(receiptForm.crmCustomerId);
+  markReceiptPristine();
   receiptDialogRef.value?.open();
 };
 
@@ -761,7 +767,11 @@ onMounted(() => {
       confirm-button-color="iris"
       title="从销售订单建应收账"
       :disable-confirm-button="!ledgerForm.crmSalesOrderId"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitBuild"
+      @close="markPristine"
+      @save="submitBuild"
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">
@@ -850,7 +860,11 @@ onMounted(() => {
         editingReceipt ? `编辑收款单 ${editingReceipt.receipt_no}` : '登记收款'
       "
       :disable-confirm-button="receiptInvalid"
+      :dirty="isReceiptDirty"
+      dirty-save-label="保存"
       @confirm="submitReceipt"
+      @close="markReceiptPristine"
+      @save="submitReceipt"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-3 gap-4">

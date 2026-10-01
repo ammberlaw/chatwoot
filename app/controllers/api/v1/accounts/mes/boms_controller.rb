@@ -2,7 +2,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   before_action :check_authorization
   before_action :fetch_bom, only: [:show, :update, :destroy, :release]
   # 谁制单谁改（管理员可代改）——BOM 的 owner 就是工程/PMC 制单人。
-  before_action -> { ensure_owner_or_admin!(@bom, 'BOM') }, only: [:update, :destroy]
+  before_action -> { ensure_owner_or_admin!(@bom, '生产任务单') }, only: [:update, :destroy]
 
   def index
     scope = scoped_by_bom_visibility(scoped_by_product_line(Current.account.mes_boms))
@@ -45,7 +45,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     render json: { signed_id: blob.signed_id, filename: blob.filename.to_s, url: rails_blob_path(blob, only_path: true) }
   end
 
-  # kind = images（结构图/样品）| files（附件），默认 files。
+  # kind = images（结构图/样品）| logos（客户 logo）| files（附件），默认 files。
   def attach
     @bom.public_send(attach_collection).attach(params[:files])
     render 'api/v1/accounts/mes/boms/show'
@@ -77,7 +77,7 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     authorize(Mes::Bom)
   end
 
-  ATTACH_COLLECTIONS = { 'images' => :images, 'files' => :files }.freeze
+  ATTACH_COLLECTIONS = { 'images' => :images, 'files' => :files, 'logos' => :logos }.freeze
 
   def attach_collection
     ATTACH_COLLECTIONS[params[:kind]] || :files
@@ -87,8 +87,10 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   def attach_staged_blobs
     images = params.dig(:bom, :images)
     files = params.dig(:bom, :files)
+    logos = params.dig(:bom, :logos)
     @bom.images.attach(images) if images.present?
     @bom.files.attach(files) if files.present?
+    @bom.logos.attach(logos) if logos.present?
   end
 
   # 建单时选了「关联生产订单」：下发的 BOM 保存后直接挂到该订单（订单进 BOM_READY、
@@ -121,11 +123,16 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
 
   def bom_params
     params.require(:bom).permit(
-      :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :sales_owner_id, :remark, :product_line, :status,
+      :crm_product_id, :base_qty, :unit, :estimated_lead_days, :is_active, :is_default, :owner_id, :sales_owner_id, :product_line, :status,
+      :remark,
+      # 单号允许手工填（两账并行期要对上金蝶的号）。**只在新建时放行**——
+      # 改已生效单据的号会让纸质单、下游单据和 ERP 全部对不上。留空则自动生成。
+      *(action_name == 'create' ? [:bom_no] : []),
       :submit_date, :doc_no, :customer_name, :model, :product_code, :order_qty, :bare_color, :case_color,
       :purchasing_days, :material_inbound_days, :picking_days, :production_days, :fg_inbound_days,
-      bom_items_attributes: [:id, :mes_material_id, :material_no, :material_name, :specification, :qty, :unit, :suggested_purchase_qty, :remark, :category,
-                            :crm_product_aux_attribute_id, :_destroy]
+      images: [], files: [], logos: [],
+      bom_items_attributes: [:id, :mes_material_id, :material_no, :material_name, :specification, :qty, :unit, :suggested_purchase_qty,
+                             :remark, :purchase_note, :production_note, :category, :crm_product_aux_attribute_id, :_destroy]
     )
   end
 end

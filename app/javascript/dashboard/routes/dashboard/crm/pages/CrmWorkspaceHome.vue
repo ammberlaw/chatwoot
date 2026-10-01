@@ -14,6 +14,7 @@ import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import CrmQuickClock from 'dashboard/components-next/CRM/CrmQuickClock.vue';
 import wintouchLockup from 'dashboard/assets/images/wintouch/lockup.png';
+import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 const router = useRouter();
 const { accountScopedRoute, accountId } = useAccount();
@@ -123,6 +124,10 @@ const calCells = computed(() => {
   return cells;
 });
 
+// MES 待办数（待我审批 + 待我接单 + 待我审的出库单）。生产端反馈：有待办时
+// 首页完全没提示，要点进 MES 才看得到，经常漏单或误了时间。
+const mesTodo = ref(0);
+
 const go = to => router.push(accountScopedRoute(to));
 const soon = label => useAlert(`${label} 即将上线`);
 
@@ -167,6 +172,12 @@ onMounted(async () => {
     homeStats.value = data;
   } catch {
     /* 首页卡片真实数据取不到不阻塞 */
+  }
+  try {
+    const { data } = await MesProductionOrderAPI.todoCount();
+    mesTodo.value = data?.total || 0;
+  } catch {
+    /* 没 MES 权限或取不到就不显示角标，不阻塞落地页 */
   }
 });
 </script>
@@ -532,10 +543,10 @@ onMounted(async () => {
                 <div class="lbl">
                   <Icon icon="i-lucide-factory" /> MES 生产制造
                 </div>
-                <div class="big" style="font-size: 24px; margin-top: 16px">
-                  智能生产制造
-                </div>
-                <div class="unit">工单 · 排产 · 质检 · 入库</div>
+                <!-- 与 CRM / OA / 团队协同 同一套：大数字在上、小字说明在下。
+                     生产端反馈首页看不到待办、要点进 MES 才知道，经常漏单或误时。 -->
+                <div class="big">{{ mesTodo }}</div>
+                <div class="unit">项待你处理 · 审批 / 接单 / 出库</div>
                 <div class="cta">
                   进入 MES 生产制造 <Icon icon="i-lucide-arrow-right" />
                 </div>

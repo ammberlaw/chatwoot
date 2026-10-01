@@ -12,7 +12,6 @@ const MAX_TABS = 12;
 export const MES_TAB_LABEL_KEYS = {
   mes_dashboard_index: 'SIDEBAR.MES_DASHBOARD',
   mes_pipeline_index: 'SIDEBAR.MES_PIPELINE',
-  mes_todo_index: 'SIDEBAR.MES_TODO',
   mes_notifications_index: 'SIDEBAR.MES_NOTIFICATIONS',
   mes_production_orders_index: 'SIDEBAR.MES_PRODUCTION_ORDERS',
   mes_boms_index: 'SIDEBAR.MES_BOMS',

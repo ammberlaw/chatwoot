@@ -4,7 +4,13 @@ class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::
   before_action :check_authorization
 
   def show
-    render json: { month_label: month_label, teams: teams_payload }
+    # current_team_id 给前端做默认选中：管理员能看全部团队，按名称排序时
+    # 「1688」这种数字队名永远排最前，每次打开都是它——默认先落到自己所属的队。
+    render json: {
+      month_label: month_label,
+      teams: teams_payload,
+      current_team_id: Current.account_user.crm_team_id
+    }
   end
 
   private

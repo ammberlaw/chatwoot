@@ -31,9 +31,9 @@ export const useMesNotificationsStore = createStore({
     },
 
     // 仅拉未读数（侧栏角标 + ActionCable 实时刷新）。
-    async fetchUnreadCount() {
+    async fetchUnreadCount(params = {}) {
       try {
-        const { data } = await MesNotificationAPI.unreadCount();
+        const { data } = await MesNotificationAPI.unreadCount(params);
         this.unreadCount = Number(data.payload?.unread_count || 0);
         return this.unreadCount;
       } catch {
@@ -54,9 +54,9 @@ export const useMesNotificationsStore = createStore({
       }
     },
 
-    async markAllRead() {
+    async markAllRead(params = {}) {
       try {
-        await MesNotificationAPI.markAllRead();
+        await MesNotificationAPI.markAllRead(params);
         const now = new Date().toISOString();
         this.records = this.records.map(r => ({
           ...r,

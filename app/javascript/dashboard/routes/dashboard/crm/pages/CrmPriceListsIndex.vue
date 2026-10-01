@@ -10,6 +10,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import AttachmentPreview from 'dashboard/components-next/attachment/AttachmentPreview.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 标准价目表：主管/财务按版本维护，业务员只读最新已发布版并可导出 PDF。
 // 没有现成价的定制件走「定制报价」向上要价，两边是一对的。
@@ -439,6 +440,7 @@ const newForm = ref({
   currency: 'USD',
   columns: DEFAULT_COLUMNS.map(c => ({ ...c })),
 });
+const { isDirty, markPristine } = useDirtyGuard(() => newForm.value);
 const openCreate = () => {
   newForm.value = {
     product_line: '',
@@ -447,6 +449,7 @@ const openCreate = () => {
     currency: 'USD',
     columns: DEFAULT_COLUMNS.map(c => ({ ...c })),
   };
+  markPristine();
   createDialogRef.value?.open();
 };
 const submitCreate = async () => {
@@ -1204,7 +1207,11 @@ onMounted(load);
       title="新建报价单"
       description="一条产品线一张表，各自独立走版本"
       confirm-button-label="创建并录入"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitCreate"
+      @close="markPristine"
+      @save="submitCreate"
     >
       <div class="flex flex-col gap-3">
         <label class="flex flex-col gap-1">

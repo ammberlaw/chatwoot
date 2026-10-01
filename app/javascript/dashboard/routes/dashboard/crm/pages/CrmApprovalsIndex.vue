@@ -13,6 +13,7 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const L = {
   header: '审批中心',
@@ -154,6 +155,7 @@ const pickerRef = ref(null);
 const formRef = ref(null);
 const activeTemplate = ref(null);
 const formValues = ref({});
+const { isDirty, markPristine } = useDirtyGuard(() => formValues.value);
 const myDepartments = ref([]);
 const agents = ref([]);
 const selectedDeptId = ref('');
@@ -324,6 +326,7 @@ const pickTemplate = tpl => {
     ? String(myDepartments.value[0].department_id)
     : '';
   pickerRef.value?.close();
+  markPristine();
   formRef.value?.open();
 };
 
@@ -348,6 +351,7 @@ const openEditRequest = () => {
   selectedDeptId.value = r.department_id
     ? String(r.department_id)
     : firstDeptId();
+  markPristine();
   formRef.value?.open();
 };
 
@@ -919,7 +923,11 @@ onMounted(async () => {
       :title="activeTemplate?.name"
       :confirm-button-label="L.submit"
       confirm-button-color="iris"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitRequest"
+      @close="markPristine"
+      @save="submitRequest"
     >
       <div class="flex flex-col gap-4">
         <div v-for="f in templateFields" :key="f.key">

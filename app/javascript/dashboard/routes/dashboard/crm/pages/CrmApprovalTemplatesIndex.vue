@@ -12,6 +12,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 经典灰专属：模板卡图标底改金黄，避免被压灰像停用。切主题需刷新。
 const isClassic = ref(isClassicTheme());
@@ -119,6 +120,7 @@ const form = ref({
   flow: [],
   ccUserIds: [],
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form.value);
 
 const fetchTemplates = async () => {
   const { data } = await TemplatesAPI.get();
@@ -166,6 +168,7 @@ const resetForm = () => {
 const openCreate = () => {
   editingId.value = null;
   resetForm();
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -189,6 +192,7 @@ const openEdit = tpl => {
     flow: (tpl.flow || []).map(parseStep),
     ccUserIds: (tpl.cc_user_ids || []).map(String),
   };
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -505,7 +509,11 @@ onMounted(async () => {
       :title="editingId ? L.edit : L.create"
       :confirm-button-label="L.save"
       confirm-button-color="iris"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="save"
+      @close="markPristine"
+      @save="save"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">

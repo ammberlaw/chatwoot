@@ -18,6 +18,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import EmojiPicker from 'shared/components/emoji/EmojiPicker.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const currentUserId = useMapGetter('getCurrentUserID');
 const accountId = useMapGetter('getCurrentAccountId');
@@ -114,6 +115,7 @@ const search = ref('');
 const userDialog = ref(null);
 const groupDialog = ref(null);
 const groupForm = ref({ name: '', announcement: '', memberIds: [] });
+const { isDirty, markPristine } = useDirtyGuard(() => groupForm.value);
 const detailDialog = ref(null);
 const announcementDraft = ref('');
 const pendingRemoveId = ref(null);
@@ -733,6 +735,7 @@ const startDirect = async userId => {
 
 const openGroupDialog = () => {
   groupForm.value = { name: '', announcement: '', memberIds: [] };
+  markPristine();
   groupDialog.value?.open();
 };
 const createGroup = async () => {
@@ -1652,7 +1655,11 @@ onBeforeUnmount(() => {
       :title="L.newGroup"
       :confirm-button-label="L.create"
       confirm-button-color="iris"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="createGroup"
+      @close="markPristine"
+      @save="createGroup"
     >
       <div class="flex flex-col gap-4">
         <Input v-model="groupForm.name" :label="L.groupName" autofocus />
@@ -1702,7 +1709,7 @@ onBeforeUnmount(() => {
         <div>
           <div class="flex items-center gap-1.5 mb-2">
             <Icon icon="i-lucide-megaphone" class="size-4 text-n-iris-10" />
-            <span class="text-heading-3 text-n-slate-12">
+            <span class="text-heading-2 text-n-slate-12">
               {{ L.announcement }}
             </span>
           </div>
@@ -1739,7 +1746,7 @@ onBeforeUnmount(() => {
         <div>
           <div class="flex items-center gap-1.5 mb-2">
             <Icon icon="i-lucide-users-round" class="size-4 text-n-slate-10" />
-            <span class="text-heading-3 text-n-slate-12">
+            <span class="text-heading-2 text-n-slate-12">
               {{ `${L.memberList} ${activeParticipants.length}` }}
             </span>
           </div>

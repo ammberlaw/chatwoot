@@ -5,6 +5,7 @@
 #  id                 :bigint           not null, primary key
 #  amount_micros      :bigint
 #  arrival_date       :datetime
+#  aux_attribute_name :string
 #  item_type          :string           default("MATERIAL"), not null
 #  price_tax_included :boolean          default(FALSE), not null
 #  qty                :decimal(14, 3)   not null

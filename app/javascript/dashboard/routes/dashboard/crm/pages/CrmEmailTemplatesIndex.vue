@@ -14,6 +14,7 @@ import Select from 'dashboard/components-next/select/Select.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
 import TemplatesAPI from 'dashboard/api/crm/emailTemplates';
 import { uploadInlineDataUriImages } from 'dashboard/helper/uploadHelper';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const { t } = useI18n();
 const store = useCrmEmailTemplatesStore();
@@ -103,6 +104,7 @@ const form = reactive({
   body: '',
   description: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 
 // 附件：existingFiles=编辑时已有(可删)、newFiles=本次新上传、removedFileIds=勾掉的已有附件id。
 const existingFiles = ref([]);
@@ -144,6 +146,7 @@ const openCreate = () => {
   editingId.value = null;
   readonly.value = false;
   resetForm();
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -161,6 +164,7 @@ const openEdit = record => {
   existingFiles.value = record.files || [];
   newFiles.value = [];
   removedFileIds.value = [];
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -350,7 +354,11 @@ onMounted(() => store.get());
       :title="editingId ? L.edit : t('CRM.EMAIL_TEMPLATES.CREATE.TITLE')"
       confirm-button-color="iris"
       :show-confirm-button="!readonly"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="handleConfirm"
+      @close="markPristine"
+      @save="handleConfirm"
     >
       <div class="flex flex-col gap-4">
         <div

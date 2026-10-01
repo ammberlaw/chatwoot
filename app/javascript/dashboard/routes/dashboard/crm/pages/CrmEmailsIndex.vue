@@ -2956,7 +2956,7 @@ watch(
         <div
           class="p-2.5 mb-3 text-sm rounded-lg bg-n-alpha-1 text-n-slate-12 truncate"
         >
-          📧 {{ distributeEmail?.subject || '(无主题)' }}
+          {{ distributeEmail?.subject || '(无主题)' }}
         </div>
 
         <div v-if="distributions.length" class="mb-3">

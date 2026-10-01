@@ -14,6 +14,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 费用报销（财务端）：员工照旧在 OA 提报销，审批通过后这里付钱、入账、归集订单成本。
 // 打款 = 一笔出纳日记账 + 一张待过账凭证（借 费用科目 / 贷 货币资金）+ 挂订单的一行成本。
@@ -45,7 +46,10 @@ const expenseAccounts = ref([]);
 const cashAccounts = ref([]);
 
 const pendingTotal = computed(() =>
-  pendingRows.value.reduce((sum, row) => sum + Number(row.amount_micros || 0), 0)
+  pendingRows.value.reduce(
+    (sum, row) => sum + Number(row.amount_micros || 0),
+    0
+  )
 );
 
 const loadPending = async () => {
@@ -103,6 +107,7 @@ const form = reactive({
   paidAt: today(),
   remark: '',
 });
+const { isDirty, markPristine } = useDirtyGuard(() => form);
 
 const searchOrders = async q => {
   const { data } = await CrmSalesOrderAPI.get({ q, page: 1 });
@@ -128,6 +133,7 @@ const openPay = row => {
     remark: '',
   });
   searchOrders('');
+  markPristine();
   dialogRef.value?.open();
 };
 
@@ -271,7 +277,8 @@ onMounted(() => {
           </tr>
           <tr v-if="!pendingRows.length">
             <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
-              没有待打款的报销单。员工在「OA 审批」提交费用报销、审批通过后会出现在这里。
+              没有待打款的报销单。员工在「OA
+              审批」提交费用报销、审批通过后会出现在这里。
             </td>
           </tr>
         </tbody>
@@ -292,7 +299,11 @@ onMounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in payouts" :key="row.id" class="border-b border-n-weak">
+          <tr
+            v-for="row in payouts"
+            :key="row.id"
+            class="border-b border-n-weak"
+          >
             <td class="px-3 py-2 text-n-slate-12">{{ row.payout_no }}</td>
             <td class="px-3 py-2 text-n-slate-11">{{ row.applicant_name }}</td>
             <td class="px-3 py-2 text-right text-n-slate-12">
@@ -301,7 +312,9 @@ onMounted(() => {
             <td class="px-3 py-2 text-n-slate-11">
               {{ row.expense_account_code }} {{ row.expense_account_name }}
             </td>
-            <td class="px-3 py-2 text-n-slate-11">{{ row.cash_account_name }}</td>
+            <td class="px-3 py-2 text-n-slate-11">
+              {{ row.cash_account_name }}
+            </td>
             <td class="px-3 py-2 text-n-slate-11">
               {{ row.sales_order_no || '—' }}
             </td>
@@ -344,7 +357,11 @@ onMounted(() => {
       :description="form.requestTitle"
       :is-loading="submitting"
       :disable-confirm-button="!canSubmit"
+      :dirty="isDirty"
+      dirty-save-label="保存"
       @confirm="submitPay"
+      @close="markPristine"
+      @save="submitPay"
     >
       <div class="flex flex-col gap-4">
         <div class="grid grid-cols-3 gap-4">
@@ -391,7 +408,9 @@ onMounted(() => {
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
               挂销售订单
-              <span class="font-normal text-n-slate-11">（选填，进订单成本）</span>
+              <span class="font-normal text-n-slate-11"
+                >（选填，进订单成本）</span
+              >
             </label>
             <ComboBox
               v-model="form.crmSalesOrderId"
