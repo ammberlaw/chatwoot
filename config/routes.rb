@@ -127,6 +127,7 @@ Rails.application.routes.draw do
               end
               member do
                 get :xlsx
+                get :preview
               end
             end
             resource :pi_seller_profile, only: [:show, :update], controller: 'pi_seller_profiles'
@@ -253,6 +254,7 @@ Rails.application.routes.draw do
               end
               member do
                 get :xlsx
+                get :preview
                 post :convert_to_sales_order
               end
             end
@@ -699,6 +701,8 @@ Rails.application.routes.draw do
               get :meta
               get :search
               get :unread_counts, to: 'conversations/unread_counts#index'
+              # 侧栏「会话 / 未处理」角标用（未处理数 + 该动手的会话数）
+              get :attention_counts, to: 'conversations/attention_counts#index'
               post :filter
             end
             scope module: :conversations do

@@ -47,7 +47,7 @@ watch(
 );
 
 const currentChat = useMapGetter('getSelectedChat');
-const inboxesList = useMapGetter('inboxes/getInboxes');
+// const inboxesList = useMapGetter('inboxes/getInboxes'); // 随卡片收件箱名一起下架
 const activeInbox = useMapGetter('getSelectedInbox');
 const accountId = useMapGetter('getCurrentAccountId');
 
@@ -66,9 +66,10 @@ const inbox = computed(() => {
   return inboxId ? store.getters['inboxes/getInbox'](inboxId) : {};
 });
 
-const showInboxName = computed(
-  () => !activeInbox.value && inboxesList.value.length > 1
-);
+// 2026-10-02 卡片不再印收件箱名：一行「✉ 外贸销售邮箱 / ○ 张三 的 WhatsApp」把卡片顶高了
+// 一截，信息也重复——左侧侧栏本来就能按收件箱筛。要找特定号码从侧栏点进去即可。
+// 想恢复：把下面这行换回 `!activeInbox.value && inboxesList.value.length > 1`。
+const showInboxName = computed(() => false);
 const isInboxView = computed(() => !!activeInbox.value);
 const showAssigneeForExpandedCard = computed(
   () => props.showExpanded || props.showAssignee

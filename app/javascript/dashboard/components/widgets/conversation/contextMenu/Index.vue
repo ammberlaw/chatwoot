@@ -52,13 +52,8 @@ export default {
       default: () => [],
     },
   },
-  emits: [
-    'updateConversation',
-    'assignAgent',
-    'assignTeam',
-    'deleteConversation',
-    'close',
-  ],
+  // 'assignTeam' 随「分配一个团队」一起下架，恢复那项时这里也要加回来。
+  emits: ['updateConversation', 'assignAgent', 'deleteConversation', 'close'],
   setup() {
     const { isAdmin } = useAdmin();
     return {
@@ -124,7 +119,7 @@ export default {
       return this.status === wootConstants.STATUS_TYPE.OPEN;
     },
     ...mapGetters({
-      teams: 'teams/getTeams',
+      // teams: 'teams/getTeams', // 随「分配一个团队」一起下架
       assignableAgentsUiFlags: 'inboxAssignableAgents/getUIFlags',
       currentUser: 'getCurrentUser',
       currentAccountId: 'getCurrentAccountId',
@@ -220,30 +215,19 @@ export default {
 </script>
 
 <template>
+  <!-- 2026-10-02 右键菜单精简到只剩两项：
+       · 分配业务（管理员/副管）—— 就这一项
+       删除对话也拿掉了：它紧挨着分配，分配时容易手滑误点；真要删某条脏数据走后台。
+       收掉的：标记已成交/标记待回复（成交在会话头部按钮点，待回复没人用）、
+       暂缓（会让会话从列表消失、不好找回）、分配一个团队（没建团队，一直是灰的）、
+       在新标签页中打开 / 复制对话链接（链接发出去别人也打不开）。
+       要恢复哪一项，照着 statusMenuConfig / snoozeOption / teamMenuConfig /
+       openInNewTabOption / copyLinkOption 几个现成配置加回 MenuItem 即可。 -->
   <div
     class="p-1 rounded-md shadow-xl bg-n-alpha-3/50 backdrop-blur-[100px] outline-1 outline outline-n-weak/50"
   >
-    <template v-if="isAllowed([MENU.STATUS, MENU.SNOOZE])">
-      <template v-for="option in statusMenuConfig">
-        <MenuItem
-          v-if="show(option.key) && isAllowed([MENU.STATUS])"
-          :key="option.key"
-          :option="option"
-          variant="icon"
-          @click.stop="toggleStatus(option.key, null)"
-        />
-      </template>
-      <MenuItem
-        v-if="showSnooze && isAllowed([MENU.SNOOZE])"
-        :option="snoozeOption"
-        variant="icon"
-        @click.stop="snoozeConversation()"
-      />
-      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
-    </template>
-    <template v-if="isAdminLike && isAllowed([MENU.AGENT, MENU.TEAM])">
+    <template v-if="isAdminLike && isAllowed([MENU.AGENT])">
       <MenuItemWithSubmenu
-        v-if="isAllowed([MENU.AGENT])"
         :option="agentMenuConfig"
         :sub-menu-available="!!assignableAgents.length"
       >
@@ -258,41 +242,6 @@ export default {
           />
         </template>
       </MenuItemWithSubmenu>
-      <MenuItemWithSubmenu
-        v-if="isAllowed([MENU.TEAM])"
-        :option="teamMenuConfig"
-        :sub-menu-available="!!teams.length"
-      >
-        <MenuItem
-          v-for="team in teams"
-          :key="team.id"
-          :option="generateMenuLabelConfig(team, 'team')"
-          @click.stop="$emit('assignTeam', team)"
-        />
-      </MenuItemWithSubmenu>
-      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
-    </template>
-    <template v-if="isAllowed([MENU.OPEN_NEW_TAB, MENU.COPY_LINK])">
-      <MenuItem
-        v-if="isAllowed([MENU.OPEN_NEW_TAB])"
-        :option="openInNewTabOption"
-        variant="icon"
-        @click.stop="openInNewTab"
-      />
-      <MenuItem
-        v-if="isAllowed([MENU.COPY_LINK])"
-        :option="copyLinkOption"
-        variant="icon"
-        @click.stop="copyConversationLink"
-      />
-    </template>
-    <template v-if="isAdmin && isAllowed([MENU.DELETE])">
-      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
-      <MenuItem
-        :option="deleteOption"
-        variant="icon"
-        @click.stop="deleteConversation"
-      />
     </template>
   </div>
 </template>

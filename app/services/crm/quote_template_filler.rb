@@ -5,6 +5,7 @@
 #   · 每行产品图嵌进 PICTURE 列（B:C）。
 # 说明：模板自带 6 行明细，超过 6 行的报价当前只导前 6 行（行复制二期做）。
 require 'zip'
+require 'cgi'
 
 class Crm::QuoteTemplateFiller
   TEMPLATE = Rails.root.join('lib/quote/quote_template.xlsx')
@@ -27,6 +28,66 @@ class Crm::QuoteTemplateFiller
   PIC_CELL_W = 220 * EMU_PER_PX
   PIC_CELL_H = (43.5 * EMU_PER_PT).round
   PIC_PAD = 19_050
+
+  # 模板里固定不变的那部分（公司抬头/地址、右侧条款默认值、条款正文、页脚）直接从 xlsx 里读，
+  # 在线预览照着渲染。这样换了模板文件预览自动跟着变，不用在 Ruby 里再抄一份文案。
+  def self.static_text
+    @static_text ||= begin
+      entries = {}
+      Zip::File.open(TEMPLATE) { |zip| zip.each { |e| entries[e.name] = e.get_input_stream.read } }
+      strings = entries['xl/sharedStrings.xml'].force_encoding('UTF-8')
+                                               .scan(%r{<si>(.*?)</si>}m)
+                                               .map { |m| CGI.unescapeHTML(m[0].gsub(%r{<[^>]+>}, '')) }
+      sheet = entries[SHEET].force_encoding('UTF-8')
+      cell = lambda do |ref|
+        idx = sheet[%r{<c r="#{ref}"[^>]*t="s"[^>]*><v>(\d+)</v>}, 1]
+        idx && strings[idx.to_i]
+      end
+      {
+        company_name: cell.call('D1'),
+        company_address: cell.call('D4'),
+        seller_contact: cell.call('D2'),
+        seller_email: cell.call('D3'),
+        title: cell.call('A6'),
+        no_label: cell.call('A8'),
+        date_label: cell.call('E8'),
+        left_band: cell.call('A10'),
+        right_band: cell.call('E10'),
+        # 左栏标签 Attention/Company/Country/Email/Tel./Website
+        left_labels: (11..16).map { |r| cell.call("A#{r}") },
+        # 右栏标签与默认值：币种那格由导出时写入，其余（贸易条款/装运港/交期/付款/有效期）是模板固定值
+        right_labels: (11..16).map { |r| cell.call("E#{r}") },
+        right_defaults: (11..16).map { |r| cell.call("F#{r}") },
+        detail_band: cell.call('A18'),
+        columns: %w[A B D F G H].map { |c| cell.call("#{c}19") },
+        subtotal_label: cell.call('A26'),
+        freight_label: cell.call('A27'),
+        total_label: cell.call('A28'),
+        terms_band: cell.call('A30'),
+        terms: (31..37).map { |r| cell.call("A#{r}") }.compact,
+        footer: cell.call('A40')
+      }
+    end
+  end
+
+  # 落款署名（与导出同口径），给在线预览用。
+  def self.issuer_name_for(quote)
+    new(quote).send(:issuer_name)
+  end
+
+  # 买方联系人（与导出同口径）。
+  def self.contact_name_for(quote)
+    new(quote).send(:contact_name)
+  end
+
+  # 卖方「我的卖方信息」两行（没预录则回落模板默认），与导出同口径。
+  def self.seller_lines_for(quote)
+    sp = new(quote).send(:seller_profile)
+    return [static_text[:seller_contact], static_text[:seller_email]] unless sp
+
+    ["Contact: #{sp.contact_name}   |   Mobile: #{sp.mobile}",
+     "Email: #{sp.email}   |   #{SELLER_WEB}"]
+  end
 
   def initialize(quote)
     @quote = quote

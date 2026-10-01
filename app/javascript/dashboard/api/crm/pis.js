@@ -30,6 +30,10 @@ export default {
       params: { customer_id: customerId },
     });
   },
+  // 在线预览：返回单据 + 已解析的公司抬头/银行块（与导出同一份常量）。
+  preview(accountId, id) {
+    return axios.get(`${base(accountId)}/${id}/preview`);
+  },
   xlsx(accountId, id) {
     return axios.get(`${base(accountId)}/${id}/xlsx`, { responseType: 'blob' });
   },

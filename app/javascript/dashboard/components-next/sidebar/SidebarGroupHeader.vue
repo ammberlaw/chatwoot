@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useMapGetter } from 'dashboard/composables/store.js';
 import Icon from 'next/icon/Icon.vue';
+import SidebarUnreadBadge from './SidebarUnreadBadge.vue';
 
 const props = defineProps({
   to: { type: [Object, String], default: '' },
@@ -12,6 +13,10 @@ const props = defineProps({
   isActive: { type: Boolean, default: false },
   hasActiveChild: { type: Boolean, default: false },
   getterKeys: { type: Object, default: () => ({}) },
+  // 直接传进来的角标数（走 SidebarUnreadBadge 那个黄药丸）。
+  // 和下面 getterKeys.count 那个灰角标不同：这个可展开的分组也显示，
+  // 分组收起来时照样看得见「有事要办」。
+  badgeCount: { type: [Number, String], default: 0 },
 });
 
 const emit = defineEmits(['toggle']);
@@ -58,8 +63,9 @@ const count = computed(() =>
       >
         {{ label }}
       </span>
+      <SidebarUnreadBadge v-if="badgeCount" :count="badgeCount" />
       <span
-        v-if="dynamicCount && !expandable"
+        v-else-if="dynamicCount && !expandable"
         class="inline-grid h-5 min-w-5 place-items-center rounded-full bg-n-slate-4 px-1 text-xxs font-medium leading-3 text-n-slate-12 dark:bg-n-slate-5 flex-shrink-0"
       >
         {{ count }}

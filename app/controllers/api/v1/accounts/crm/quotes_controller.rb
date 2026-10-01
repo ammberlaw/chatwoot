@@ -1,6 +1,6 @@
 class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_quote, only: [:show, :update, :destroy, :xlsx, :convert_to_sales_order]
+  before_action :fetch_quote, only: [:show, :update, :destroy, :xlsx, :preview, :convert_to_sales_order]
 
   RESULTS_PER_PAGE = 15
   SUMMARY_STATUSES = Crm::Quote::STATUSES
@@ -36,6 +36,15 @@ class Api::V1::Accounts::Crm::QuotesController < Api::V1::Accounts::Crm::BaseCon
   end
 
   def show; end
+
+  # 在线预览：单据本体 + 模板里固定的那部分（抬头 / 右栏默认条款 / 条款正文 / 页脚），
+  # 都从 Crm::QuoteTemplateFiller 取，预览与导出的 Excel 不会各说各话。
+  def preview
+    @static = Crm::QuoteTemplateFiller.static_text
+    @seller_lines = Crm::QuoteTemplateFiller.seller_lines_for(@quote)
+    @issuer_name = Crm::QuoteTemplateFiller.issuer_name_for(@quote)
+    @buyer_contact = Crm::QuoteTemplateFiller.contact_name_for(@quote)
+  end
 
   def create
     @quote = Current.account.crm_quotes.new(quote_params)

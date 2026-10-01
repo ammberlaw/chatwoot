@@ -197,6 +197,14 @@ const STAGES = computed(() => [
   { key: 'LOST', label: '输单', color: 'bg-n-ruby-9' },
 ]);
 
+// 重要商机卡：白底 + 描边 + 左侧 4px 粗条；颜色跟随主题色，
+// 经典灰下 iris 会塌成灰、标不出重点，改用黄色（与图表 brand 色同口径）。
+const importantCardClass = computed(() =>
+  isClassic.value
+    ? 'bg-n-solid-1 border-[#f0d9a0] border-l-4 border-l-[#f0b429] hover:border-[#e8c977] hover:border-l-[#dd9f14]'
+    : 'bg-n-solid-1 border-n-iris-7 border-l-4 border-l-n-iris-9 hover:border-n-iris-9 hover:border-l-n-iris-10'
+);
+
 const CURRENCY_SYMBOL = { USD: '$', CNY: '¥', EUR: '€' };
 
 const columns = computed(() =>
@@ -206,14 +214,17 @@ const columns = computed(() =>
     const currencies = new Set(priced.map(r => r.currency || 'CNY'));
     // 单一币种：按原币种精确合计；多币种：按今日牌价统一折算人民币再合计（不能跨币种直加）。
     const mixed = currencies.size > 1;
+    // 混币列里查不到牌价的外币商机（amountCnyMicros 为 null）不能拿原数字当人民币直加——
+    // 那样合计会虚高还看不出来。一律剔除出合计，并把笔数挂到列头提示。
+    const convertible = mixed
+      ? priced.filter(r => r.amountCnyMicros != null)
+      : priced;
+    const unconverted = priced.length - convertible.length;
     const total = mixed
-      ? priced.reduce(
-          (s, r) => s + (r.amountCnyMicros ?? r.amountMicros ?? 0),
-          0
-        )
-      : priced.reduce((s, r) => s + (r.amountMicros || 0), 0);
+      ? convertible.reduce((s, r) => s + r.amountCnyMicros, 0)
+      : convertible.reduce((s, r) => s + (r.amountMicros || 0), 0);
     const currency = mixed ? 'CNY' : priced[0]?.currency || 'CNY';
-    return { ...stage, items, total, currency, mixed };
+    return { ...stage, items, total, currency, mixed, unconverted };
   })
 );
 
@@ -376,12 +387,24 @@ onMounted(() => {
             </span>
           </div>
           <div
-            v-if="col.total > 0"
+            v-if="col.total > 0 || col.unconverted"
             class="mt-2 text-lg font-bold text-n-slate-12"
             :title="col.mixed ? '本列含多种币种，已按今日牌价折算为人民币' : ''"
           >
-            {{ col.mixed ? '≈' : '' }}{{ CURRENCY_SYMBOL[col.currency] || ''
-            }}{{ totalAmount(col.total) }}
+            <template v-if="col.total > 0">
+              {{ col.mixed ? '≈' : '' }}{{ CURRENCY_SYMBOL[col.currency] || ''
+              }}{{ totalAmount(col.total) }}
+            </template>
+            <span v-else class="text-n-slate-9">—</span>
+          </div>
+          <!-- 查不到牌价、没算进合计的外币商机：明着标出来，别让人以为合计是全的。
+               单独占一行并 nowrap，列窄时不会折行把列头顶高、顶歪。 -->
+          <div
+            v-if="col.unconverted"
+            class="mt-1.5 px-1.5 py-0.5 inline-flex text-xs font-medium rounded-md whitespace-nowrap bg-n-amber-3 text-n-amber-11"
+            :title="`有 ${col.unconverted} 笔外币商机查不到牌价，未计入本列合计`"
+          >
+            {{ col.unconverted }} 笔未折算
           </div>
         </div>
 
@@ -393,9 +416,10 @@ onMounted(() => {
             class="relative p-4 transition-all border shadow-sm rounded-xl group"
             :class="[
               isBoardView ? 'cursor-pointer hover:shadow-md' : 'cursor-default',
-              item.important
-                ? 'bg-[#fdf3cf]/85 backdrop-blur-xl backdrop-saturate-150 border-[#ecd88f] hover:border-[#e0c25e] shadow-lg shadow-[#e0a72a]/20'
-                : 'bg-n-solid-1 border-n-weak hover:border-n-iris-8',
+              item.important ? importantCardClass : null,
+              !item.important
+                ? 'bg-n-solid-1 border-n-weak hover:border-n-iris-8'
+                : null,
             ]"
             :draggable="isBoardView"
             @dragstart="dragId = item.id"
@@ -444,10 +468,7 @@ onMounted(() => {
               {{ item.opportunityRemark }}
             </p>
 
-            <div
-              class="my-3 border-t"
-              :class="item.important ? 'border-n-blue-6/60' : 'border-n-weak'"
-            />
+            <div class="my-3 border-t border-n-weak" />
 
             <!-- 金额 + 概率 -->
             <div class="flex items-center justify-between gap-2 text-xs">

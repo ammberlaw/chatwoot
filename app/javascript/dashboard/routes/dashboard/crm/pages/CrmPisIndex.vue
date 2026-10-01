@@ -11,6 +11,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmPiFormDialog from 'dashboard/components-next/CRM/CrmPiFormDialog.vue';
+import CrmPiPreviewDialog from 'dashboard/components-next/CRM/CrmPiPreviewDialog.vue';
 import CrmPiSellerProfileDialog from 'dashboard/components-next/CRM/CrmPiSellerProfileDialog.vue';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
@@ -264,44 +265,19 @@ const openCreate = () => formRef.value?.open();
 // 财务只读：写操作后端会 403，按钮直接不给。
 const { isCrmFinanceOnly } = useCrmFinanceOnly();
 const openEdit = record => formRef.value?.open(record);
+
+// 查看：按导出的 PI 样式只读预览（财务只读账号也能看）；预览里点「编辑」再切到编辑弹窗。
+const previewRef = ref(null);
+const openPreview = record => previewRef.value?.open(record.id);
+const editFromPreview = doc => {
+  const record = records.value.find(r => r.id === doc?.id);
+  if (record) openEdit(record);
+};
+
 const openSellerProfile = () => sellerProfileRef.value?.open();
 const onSaved = () => {
   fetchRecords();
   fetchSummary();
-};
-
-// 导出失败时取后端返回的具体提示（xlsx 走 blob，422 的 JSON 在 Blob 里）。
-const extractError = async error => {
-  const data = error?.response?.data;
-  if (data instanceof Blob) {
-    try {
-      return JSON.parse(await data.text()).error;
-    } catch {
-      return null;
-    }
-  }
-  return data?.error || null;
-};
-
-const exportingXlsxId = ref(null);
-const exportXlsx = async record => {
-  exportingXlsxId.value = record.id;
-  try {
-    const { data } = await PisAPI.xlsx(accountId.value, record.id);
-    const url = URL.createObjectURL(data);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `PI-${record.piNo || 'export'}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    const msg = await extractError(error);
-    useAlert(msg || t('CRM.PI.EXPORT.XLSX_ERROR'));
-  } finally {
-    exportingXlsxId.value = null;
-  }
 };
 
 const removeRecord = async record => {
@@ -358,11 +334,6 @@ onMounted(() => {
         <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
           {{ t('CRM.PI.HEADER') }}
         </h1>
-        <p
-          class="mt-1 text-[12.5px] leading-relaxed text-n-slate-10 max-w-[440px]"
-        >
-          {{ t('CRM.PI.SUBTITLE') }}
-        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <button
@@ -527,19 +498,11 @@ onMounted(() => {
             <span class="flex-1" />
             <button
               type="button"
-              class="shrink-0 text-n-slate-9 hover:text-n-iris-11 disabled:opacity-50"
-              :title="t('CRM.PI.ACTION.XLSX')"
-              :disabled="exportingXlsxId === record.id"
-              @click.stop="exportXlsx(record)"
+              class="shrink-0 text-n-slate-9 hover:text-n-iris-11"
+              title="查看"
+              @click.stop="openPreview(record)"
             >
-              <span
-                class="size-4"
-                :class="
-                  exportingXlsxId === record.id
-                    ? 'i-lucide-loader-circle animate-spin'
-                    : 'i-lucide-table'
-                "
-              />
+              <span class="i-lucide-eye size-4" />
             </button>
             <button
               type="button"
@@ -715,19 +678,11 @@ onMounted(() => {
               <div class="flex items-center justify-end gap-2.5 text-n-slate-9">
                 <button
                   type="button"
-                  class="hover:text-n-iris-11 disabled:opacity-50"
-                  :title="t('CRM.PI.ACTION.XLSX')"
-                  :disabled="exportingXlsxId === record.id"
-                  @click="exportXlsx(record)"
+                  class="hover:text-n-iris-11"
+                  title="查看"
+                  @click="openPreview(record)"
                 >
-                  <span
-                    class="size-4"
-                    :class="
-                      exportingXlsxId === record.id
-                        ? 'i-lucide-loader-circle animate-spin'
-                        : 'i-lucide-table'
-                    "
-                  />
+                  <span class="i-lucide-eye size-4" />
                 </button>
                 <button
                   v-if="!isCrmFinanceOnly"
@@ -809,6 +764,7 @@ onMounted(() => {
     </div>
 
     <CrmPiFormDialog ref="formRef" @saved="onSaved" />
+    <CrmPiPreviewDialog ref="previewRef" @edit="editFromPreview" />
     <CrmPiSellerProfileDialog ref="sellerProfileRef" />
   </div>
 </template>

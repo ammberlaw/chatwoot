@@ -18,6 +18,8 @@ const props = defineProps({
   activeOn: { type: Array, default: () => [] },
   children: { type: Array, default: undefined },
   getterKeys: { type: Object, default: () => ({}) },
+  // 组头上的黄角标（如「会话」有未处理/未读时）。可展开的分组也显示，收起来时才看得见有事。
+  badgeCount: { type: [Number, String], default: 0 },
 });
 
 const {
@@ -302,6 +304,7 @@ watch(
         :name
         :label
         :to
+        :badge-count="badgeCount"
         :getter-keys="getterKeys"
         :is-active="isActive"
         :has-active-child="hasActiveChild"

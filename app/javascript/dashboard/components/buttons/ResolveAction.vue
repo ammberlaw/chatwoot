@@ -48,9 +48,10 @@ const isSnoozed = computed(
   () => currentChat.value.status === wootConstants.STATUS_TYPE.SNOOZED
 );
 
-const showAdditionalActions = computed(
-  () => !isPending.value && !isSnoozed.value
-);
+// 2026-10-02 收掉会话头部「标记已成交」旁边那个下拉（暂缓 / 标记待回复）：
+// 暂缓没人用且会让会话从列表消失不好找回；标记待回复右键菜单里还有，不必在头部再占一处。
+// 头部只留一个「标记已成交」。想恢复：改回 `!isPending.value && !isSnoozed.value`。
+const showAdditionalActions = computed(() => false);
 
 const showOpenButton = computed(() => {
   return isPending.value || isSnoozed.value;

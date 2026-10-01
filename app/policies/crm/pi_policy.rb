@@ -35,6 +35,10 @@ class Crm::PiPolicy < ApplicationPolicy
     true
   end
 
+  def preview?
+    true
+  end
+
   def destroy?
     true
   end

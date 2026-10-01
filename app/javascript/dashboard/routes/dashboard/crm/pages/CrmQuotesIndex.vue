@@ -9,6 +9,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import CrmQuoteFormDialog from 'dashboard/components-next/CRM/CrmQuoteFormDialog.vue';
+import CrmQuotePreviewDialog from 'dashboard/components-next/CRM/CrmQuotePreviewDialog.vue';
 import CrmPiSellerProfileDialog from 'dashboard/components-next/CRM/CrmPiSellerProfileDialog.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
 
@@ -204,46 +205,20 @@ const onPageChange = page => {
 const openCreate = () => formRef.value?.open();
 const openEdit = record => formRef.value?.open(record);
 
+// 查看：按导出的报价单样式只读预览；预览里点「编辑」再切到编辑弹窗。
+const previewRef = ref(null);
+const openPreview = record => previewRef.value?.open(record.id);
+const editFromPreview = quote => {
+  const record = records.value.find(r => r.id === quote?.id);
+  if (record) openEdit(record);
+};
+
 // 我的卖方信息（与 PI 共用同一份预录）：报价单导出的联系人/手机/邮箱/落款按此填。
 const sellerProfileRef = ref(null);
 const openSellerProfile = () => sellerProfileRef.value?.open();
 const onSaved = () => {
   fetchRecords();
   fetchSummary();
-};
-
-// 导出失败时取后端返回的具体提示（xlsx 走 blob，422 的 JSON 在 Blob 里）。
-const extractError = async error => {
-  const data = error?.response?.data;
-  if (data instanceof Blob) {
-    try {
-      return JSON.parse(await data.text()).error;
-    } catch {
-      return null;
-    }
-  }
-  return data?.error || null;
-};
-
-const exportingXlsxId = ref(null);
-const exportXlsx = async record => {
-  exportingXlsxId.value = record.id;
-  try {
-    const { data } = await QuotesAPI.xlsx(accountId.value, record.id);
-    const url = URL.createObjectURL(data);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Quote-${record.quoteNo || 'export'}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    const msg = await extractError(error);
-    useAlert(msg || '导出失败，请重试');
-  } finally {
-    exportingXlsxId.value = null;
-  }
 };
 
 const convertingId = ref(null);
@@ -314,11 +289,6 @@ onMounted(() => {
         <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
           报价单管理
         </h1>
-        <p
-          class="mt-1 text-[12.5px] leading-relaxed text-n-slate-10 max-w-[440px]"
-        >
-          管理客户报价单，跟踪状态并一键转为销售订单。
-        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <button
@@ -482,19 +452,11 @@ onMounted(() => {
             >
               <button
                 type="button"
-                class="hover:text-n-iris-11 disabled:opacity-50"
-                title="导出"
-                :disabled="exportingXlsxId === record.id"
-                @click="exportXlsx(record)"
+                class="hover:text-n-iris-11"
+                title="查看"
+                @click="openPreview(record)"
               >
-                <span
-                  class="size-4"
-                  :class="
-                    exportingXlsxId === record.id
-                      ? 'i-lucide-loader-circle animate-spin'
-                      : 'i-lucide-table'
-                  "
-                />
+                <span class="i-lucide-eye size-4" />
               </button>
               <button
                 type="button"
@@ -688,19 +650,11 @@ onMounted(() => {
               <div class="flex items-center justify-end gap-2.5 text-n-slate-9">
                 <button
                   type="button"
-                  class="hover:text-n-iris-11 disabled:opacity-50"
-                  title="导出"
-                  :disabled="exportingXlsxId === record.id"
-                  @click="exportXlsx(record)"
+                  class="hover:text-n-iris-11"
+                  title="查看"
+                  @click="openPreview(record)"
                 >
-                  <span
-                    class="size-4"
-                    :class="
-                      exportingXlsxId === record.id
-                        ? 'i-lucide-loader-circle animate-spin'
-                        : 'i-lucide-table'
-                    "
-                  />
+                  <span class="i-lucide-eye size-4" />
                 </button>
                 <button
                   type="button"
@@ -789,6 +743,7 @@ onMounted(() => {
     </div>
 
     <CrmQuoteFormDialog ref="formRef" @saved="onSaved" />
+    <CrmQuotePreviewDialog ref="previewRef" @edit="editFromPreview" />
     <CrmPiSellerProfileDialog ref="sellerProfileRef" />
   </div>
 </template>

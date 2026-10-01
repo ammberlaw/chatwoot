@@ -11,8 +11,14 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
-import PisAPI from 'dashboard/api/crm/pis';
+import camelcaseKeys from 'camelcase-keys';
+import OpportunitiesAPI from 'dashboard/api/crm/opportunities';
+import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
+import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
+import CrmPiPreviewDialog from 'dashboard/components-next/CRM/CrmPiPreviewDialog.vue';
+import CrmQuotePreviewDialog from 'dashboard/components-next/CRM/CrmQuotePreviewDialog.vue';
+import CrmSalesOrderViewDialog from 'dashboard/components-next/CRM/CrmSalesOrderViewDialog.vue';
 import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -257,31 +263,6 @@ const PI_STATUS = {
   VOID: { label: '已作废', cls: 'bg-n-ruby-3 text-n-ruby-11' },
 };
 
-// 导出某张 PI 的 Excel（复用 PI 模块的模板导出）。
-const downloadingPiId = ref(null);
-const downloadPi = async pi => {
-  downloadingPiId.value = pi.id;
-  try {
-    const { data: blob } = await PisAPI.xlsx(accountId.value, pi.id);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `PI-${pi.pi_no || 'export'}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    const msg = error?.response?.data;
-    useAlert(
-      msg instanceof Blob
-        ? JSON.parse(await msg.text()).error
-        : msg?.error || '导出失败'
-    );
-  } finally {
-    downloadingPiId.value = null;
-  }
-};
 const METHOD = {
   EMAIL: '邮件',
   PHONE: '电话',
@@ -394,19 +375,66 @@ const lastTouchAt = computed(
 
 const goBack = () => router.push({ name: 'crm_customers_index' });
 
-// 点击商机/订单 → 跳到对应列表并带 focus，列表加载后自动打开该条。
-const goToOpportunity = id =>
-  router.push({
-    name: 'crm_opportunities_index',
-    params: { accountId: accountId.value },
-    query: { focus: id },
+// 商机 / PI / 报价 / 销售订单：都在本页弹窗里打开，不再跳去销售流程各自的列表页，
+// 免得看个单据就把客户详情的上下文弄丢。单据数据各自按 id 现取（详情接口给的是精简版，
+// 弹窗要完整明细），再转 camelCase 喂给表单弹窗。
+const oppDialogRef = ref(null);
+const piDialogRef = ref(null);
+const quoteDialogRef = ref(null);
+const orderDialogRef = ref(null);
+const opportunitiesStore = useCrmOpportunitiesStore();
+const openingDocId = ref(null);
+
+const openDoc = async (key, id, fetcher, dialogRef) => {
+  if (openingDocId.value) return;
+  openingDocId.value = `${key}-${id}`;
+  try {
+    const { data: record } = await fetcher();
+    dialogRef.value?.open(camelcaseKeys(record, { deep: true }));
+  } catch {
+    useAlert('打开失败，请重试');
+  } finally {
+    openingDocId.value = null;
+  }
+};
+
+const openOpportunity = id =>
+  openDoc('opp', id, () => OpportunitiesAPI.show(id), oppDialogRef);
+
+// 在本客户下直接建商机：无 id ＝创建模式，客户预填好。公海客户还没归属人，不给建。
+const isPrivateCustomer = computed(() => !customer.value?.is_in_public_pool);
+const createOpportunity = () =>
+  oppDialogRef.value?.open({
+    crmCustomerId: customer.value?.id,
+    customerName: customer.value?.name,
   });
-const goToOrder = id =>
-  router.push({
-    name: 'crm_sales_orders_index',
-    params: { accountId: accountId.value },
-    query: { focus: id },
-  });
+const saveNewOpportunity = async payload => {
+  try {
+    await opportunitiesStore.create(payload);
+    oppDialogRef.value?.onSuccess();
+    useAlert('商机已创建');
+    load();
+  } catch {
+    useAlert('商机创建失败');
+  }
+};
+// PI / 报价单 / 订单在客户详情里是「查看」——只读预览，不进编辑表单。
+// 三个预览弹窗各自按 id 取数，所以这里直接把 id 给它们。
+const openPi = id => piDialogRef.value?.open(id);
+const openQuote = id => quoteDialogRef.value?.open(id);
+const openOrder = id => orderDialogRef.value?.open(id);
+
+// 商机 / 销售订单的弹窗自己不落库，由本页调各自的 store 保存，存完刷新客户详情。
+const saveOpportunity = async payload => {
+  try {
+    await opportunitiesStore.update(payload);
+    oppDialogRef.value?.onSuccess();
+    useAlert('商机已保存');
+    load();
+  } catch {
+    useAlert('商机保存失败');
+  }
+};
 // 点生产订单 → 跳 MES 生产订单页并按工单号自动打开详情。
 const goToProductionOrder = orderNo =>
   router.push({
@@ -749,15 +777,25 @@ onMounted(() => {
           <section
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center justify-between gap-3 mb-4">
               <h3 class="text-sm font-semibold text-n-slate-12">商机信息</h3>
-              <button
-                v-if="primaryOpp"
-                class="text-xs text-n-iris-11 hover:underline"
-                @click="goToOpportunity(primaryOpp.id)"
-              >
-                查看商机 →
-              </button>
+              <div class="flex items-center gap-3 shrink-0">
+                <button
+                  v-if="isPrivateCustomer"
+                  class="inline-flex items-center gap-1 text-xs text-n-iris-11 hover:underline"
+                  @click="createOpportunity"
+                >
+                  <span class="i-lucide-plus shrink-0 size-3.5" />
+                  新建商机
+                </button>
+                <button
+                  v-if="primaryOpp"
+                  class="text-xs text-n-iris-11 hover:underline"
+                  @click="openOpportunity(primaryOpp.id)"
+                >
+                  查看商机 →
+                </button>
+              </div>
             </div>
             <div v-if="!primaryOpp" class="text-sm text-n-slate-10">
               暂无商机
@@ -765,7 +803,7 @@ onMounted(() => {
             <div
               v-else
               class="grid grid-cols-2 p-2 -m-2 text-sm rounded-lg cursor-pointer gap-y-3 gap-x-4 hover:bg-n-alpha-1"
-              @click="goToOpportunity(primaryOpp.id)"
+              @click="openOpportunity(primaryOpp.id)"
             >
               <div>
                 <span class="text-n-slate-10">商机：</span
@@ -802,11 +840,15 @@ onMounted(() => {
           <section
             class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
           >
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-1.5 mb-3">
               <h3 class="text-sm font-semibold text-n-slate-12">文件附件</h3>
-              <span class="text-xs text-n-slate-9">
-                客户来信的 PI/合同/规格书等附件会自动归档到这里
-              </span>
+              <!-- 说明收进悬停提示，标题行不再被一长串灰字占掉 -->
+              <span
+                v-tooltip.top="
+                  '客户来信的 PI/合同/规格书等附件会自动归档到这里'
+                "
+                class="i-lucide-info shrink-0 size-3.5 text-n-slate-9 cursor-help"
+              />
             </div>
             <div v-if="!files.length" class="text-sm text-n-slate-10">
               暂无文件
@@ -944,7 +986,7 @@ onMounted(() => {
               v-for="o in orders"
               :key="o.id"
               class="px-2 -mx-2 py-3 border-b last:border-b-0 border-n-weak rounded-lg cursor-pointer hover:bg-n-alpha-1"
-              @click="goToOrder(o.id)"
+              @click="openOrder(o.id)"
             >
               <div class="flex items-center justify-between">
                 <span class="text-sm font-medium text-n-iris-11">{{
@@ -994,7 +1036,8 @@ onMounted(() => {
             <div
               v-for="p in pis"
               :key="p.id"
-              class="flex items-center justify-between gap-2 py-2.5 border-b last:border-b-0 border-n-weak"
+              class="flex items-center justify-between gap-2 py-2.5 -mx-2 px-2 rounded-lg cursor-pointer border-b last:border-b-0 border-n-weak hover:bg-n-alpha-1"
+              @click="openPi(p.id)"
             >
               <div class="min-w-0">
                 <div class="flex items-center gap-2">
@@ -1013,22 +1056,6 @@ onMounted(() => {
                   {{ fmtDate(p.pi_date) }}
                 </div>
               </div>
-              <button
-                type="button"
-                class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md shrink-0 text-n-iris-11 hover:bg-n-iris-3 disabled:opacity-50"
-                :disabled="downloadingPiId === p.id"
-                @click="downloadPi(p)"
-              >
-                <span
-                  class="size-3.5"
-                  :class="
-                    downloadingPiId === p.id
-                      ? 'i-lucide-loader-circle animate-spin'
-                      : 'i-lucide-download'
-                  "
-                />
-                导出 Excel
-              </button>
             </div>
           </section>
 
@@ -1043,7 +1070,8 @@ onMounted(() => {
             <div
               v-for="q in quotes"
               :key="q.id"
-              class="flex items-center justify-between py-2.5 border-b last:border-b-0 border-n-weak"
+              class="flex items-center justify-between py-2.5 -mx-2 px-2 rounded-lg cursor-pointer border-b last:border-b-0 border-n-weak hover:bg-n-alpha-1"
+              @click="openQuote(q.id)"
             >
               <div class="min-w-0">
                 <div class="text-sm font-medium truncate text-n-slate-12">
@@ -1108,6 +1136,16 @@ onMounted(() => {
       @update="onUpdate"
       @refresh="load"
     />
+
+    <!-- 单据就地打开：商机可建可改；PI / 报价单 / 订单是只读查看 -->
+    <CrmOpportunityCreateDialog
+      ref="oppDialogRef"
+      @create="saveNewOpportunity"
+      @update="saveOpportunity"
+    />
+    <CrmPiPreviewDialog ref="piDialogRef" />
+    <CrmQuotePreviewDialog ref="quoteDialogRef" />
+    <CrmSalesOrderViewDialog ref="orderDialogRef" />
 
     <!-- 共享客户：勾选成员即把本客户共享给他们（可建单，单据归本客户） -->
     <Dialog

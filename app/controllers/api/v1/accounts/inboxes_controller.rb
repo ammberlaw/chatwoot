@@ -12,6 +12,9 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     @inboxes = policy_scope(Current.account.inboxes)
                .includes(:channel, :portal, :working_hours, { avatar_attachment: :blob })
                .order_by_name
+    # 管理员能看到全公司的收件箱，侧栏要把「自己绑的号」和「业务员绑的号」分成两组，
+    # 所以一次查出当前用户是成员的收件箱 id（一条 SQL，别在序列化里逐个 exists? 查）。
+    @member_inbox_ids = InboxMember.where(user_id: current_user.id, inbox_id: @inboxes.map(&:id)).pluck(:inbox_id).to_set
   end
 
   def show; end

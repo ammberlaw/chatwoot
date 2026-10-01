@@ -60,6 +60,40 @@ class Crm::PiTemplateFiller
     COMPANY_HEADERS.map { |key, h| { key: key, name: h[:name] } }
   end
 
+  # 指定抬头的完整主体资料（公司名/地址/银行块/页脚）；空或无效回落默认主体，与导出同口径。
+  # 在线预览要跟导出的 Excel 长一样，所以两边都读这里，别在前端另抄一份常量。
+  def self.header_for(key)
+    COMPANY_HEADERS[key] || COMPANY_HEADERS[DEFAULT_HEADER_KEY]
+  end
+
+  # 账号行（账号 + 香港主体才有的 Bank/Branch Code），预览与导出共用。
+  def self.account_line_for(key)
+    h = header_for(key)
+    parts = [h[:account_no]]
+    parts << "Bank Code: #{h[:bank_code]}" if h[:bank_code].present?
+    parts << "Branch Code: #{h[:branch_code]}" if h[:branch_code].present?
+    parts.join('   ·   ')
+  end
+
+  def self.seller_web
+    SELLER_WEB
+  end
+
+  # GRAND TOTAL（micros）＝ 各项「数量 × 单价」之和 + 运费。
+  # 导出的 Excel 与在线预览共用这一处算法；不读 total_amount_micros —— 历史单据那一列不一定是全额。
+  def self.grand_total_micros(pi)
+    items = pi.pi_items.to_a.sum do |it|
+      next 0 if it.quantity.nil? || it.unit_price_micros.nil?
+
+      (it.quantity * it.unit_price_micros).round
+    end
+    items + (pi.shipping_cost_micros || 0)
+  end
+
+  def self.footer_suffix
+    FOOTER_SUFFIX
+  end
+
   # 表头字段 → sharedStrings 索引（模板里这些串各自唯一，直接替换其文本）。
   ITEM_TOP = 20 # 模板里明细块起始行（20-21 两行为一项）
   ITEM_ROWS = 2
@@ -134,11 +168,8 @@ class Crm::PiTemplateFiller
   end
 
   # 账号行：账号 + （有则）Bank Code / Branch Code，同一行并排（香港才有行号）。
-  def account_line(h)
-    parts = [h[:account_no]]
-    parts << "Bank Code: #{h[:bank_code]}" if h[:bank_code].present?
-    parts << "Branch Code: #{h[:branch_code]}" if h[:branch_code].present?
-    parts.join('   ·   ')
+  def account_line(_header)
+    self.class.account_line_for(@pi.company_header)
   end
 
   # 把每个明细上传的产品图嵌进 xlsx 的 PICTURE 列（B:C 合并格）。
@@ -376,9 +407,7 @@ class Crm::PiTemplateFiller
 
   # 总额 = 各项金额之和 + 运费（元），用于覆盖 GRAND TOTAL 的缓存值。
   def grand_total
-    total = @pi.pi_items.to_a.sum { |it| item_amount(it) || 0 }
-    total += micros_to_f(@pi.shipping_cost_micros) || 0
-    (total % 1).zero? ? total.to_i : total
+    micros_to_f(self.class.grand_total_micros(@pi)) || 0
   end
 
   # 覆盖公式单元格的缓存值 <v>（保留 <f> 公式）：给不重算公式的查看器（微信/预览/PDF）显示正确数值。

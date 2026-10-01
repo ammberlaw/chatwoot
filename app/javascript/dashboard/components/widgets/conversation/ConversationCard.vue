@@ -178,11 +178,12 @@ watch(
             'flex-1 justify-between': !showInboxName,
           }"
         >
+          <!-- 归属业务员：和邮件地址身份 chip 同一套黄色(text-n-amber-10)，一眼看出这条归谁 -->
           <span
             v-if="showAssignee && assignee.name"
-            class="text-n-slate-11 text-xs font-medium leading-3 py-0.5 px-0 inline-flex items-center truncate"
+            class="text-n-amber-10 text-xs font-medium leading-3 py-0.5 px-0 inline-flex items-center truncate"
           >
-            <fluent-icon icon="person" size="12" class="text-n-slate-11" />
+            <fluent-icon icon="person" size="12" class="text-n-amber-10" />
             {{ assignee.name }}
           </span>
           <CardPriorityIcon

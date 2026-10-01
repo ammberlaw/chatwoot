@@ -34,6 +34,7 @@ import SidebarAccountSwitcher from './SidebarAccountSwitcher.vue';
 import MesProductLineSwitcher from './MesProductLineSwitcher.vue';
 import wintouchIcon from 'dashboard/assets/images/wintouch/icon.png';
 import ComposeConversation from 'dashboard/components-next/NewConversation/ComposeConversation.vue';
+import ConversationAPI from 'dashboard/api/conversations';
 import {
   SIDEBAR_SORT_SECTIONS,
   getSidebarSortOptions,
@@ -383,10 +384,26 @@ const fetchTeamChatUnread = async () => {
     teamChatUnread.value = 0;
   }
 };
+// 会话角标：未处理数挂在「未处理」上，「该动手」的总数挂在「会话」分组上——
+// 分组收起来时也看得见有事要办（和 MES 站内通知那个黄角标一个样）。
+const unattendedCount = ref(0);
+const conversationAttentionCount = ref(0);
+const fetchConversationAttention = async () => {
+  try {
+    const { data } = await ConversationAPI.getAttentionCounts();
+    unattendedCount.value = data?.unattended || 0;
+    conversationAttentionCount.value = data?.needs_attention || 0;
+  } catch {
+    unattendedCount.value = 0;
+    conversationAttentionCount.value = 0;
+  }
+};
+
 // 实时新消息：非当前用户发的才计数；轻量兜底直接重取总数（次数很少）。
 const onChatRealtime = data => {
   if (data?.sender_id === currentUserId.value) return;
   fetchTeamChatUnread();
+  fetchConversationAttention();
 };
 
 // CRM 角标/筛选项只对有 CRM 权限的人拉。
@@ -424,6 +441,7 @@ onMounted(() => {
   store.dispatch('customViews/get', 'contact');
   mesNotificationsStore.fetchUnreadCount();
   fetchMesTodoCount();
+  fetchConversationAttention();
   fetchScheduleTodoCount();
   fetchTeamChatUnread();
   emitter.on('CHAT_MESSAGE_CREATED', onChatRealtime);
@@ -514,7 +532,7 @@ const buildInboxLeaf = inbox => ({
 });
 
 // 「频道」子节点:普通渠道平铺。业务员个人 WhatsApp 号多且杂,单独拆成与「频道」平级的
-// 可折叠分组(见下 whatsappChildren)避免刷屏——不能作为「频道」的子分组嵌套,
+// 可折叠分组(见下 whatsappMenuItems)避免刷屏——不能作为「频道」的子分组嵌套,
 // 因为侧栏 SidebarSubGroup 不支持三层嵌套(会把子分组当无路由叶子,点了没反应)。
 const channelChildren = computed(() =>
   sortedInboxes.value
@@ -522,30 +540,50 @@ const channelChildren = computed(() =>
     .map(buildInboxLeaf)
 );
 
-// 个人 WhatsApp 号:每个号一个收件箱叶子,收进独立可折叠分组。
-const whatsappChildren = computed(() =>
-  sortedInboxes.value
-    .filter(inbox => inbox.channel_type === 'Channel::WhatsappWeb')
-    .map(buildInboxLeaf)
+// 个人 WhatsApp 号:每个号一个收件箱叶子。
+// 管理员看得到全公司的号,所以按「当前用户是不是该收件箱成员」(后端给的 is_member)
+// 拆成「我的」和「业务员的」两组——老板自己的号别埋在十几个业务员的号里。
+// 业务员只看得到自己的号,拆出来另一组是空的,这时按老样子只出一组。
+const whatsappInboxes = computed(() =>
+  sortedInboxes.value.filter(
+    inbox => inbox.channel_type === 'Channel::WhatsappWeb'
+  )
+);
+const myWhatsappLeaves = computed(() =>
+  whatsappInboxes.value.filter(inbox => inbox.is_member).map(buildInboxLeaf)
+);
+const othersWhatsappLeaves = computed(() =>
+  whatsappInboxes.value.filter(inbox => !inbox.is_member).map(buildInboxLeaf)
 );
 
-// 侧栏里的 WhatsApp 条目:一个号时直接平铺(套一层折叠只为露一个号,纯属多余),
-// 多个号才收进可折叠分组避免刷屏。
-const whatsappMenuItems = computed(() => {
-  const leaves = whatsappChildren.value;
-  if (leaves.length === 0) return [];
-  if (leaves.length === 1) return [leaves[0]];
+const whatsappGroup = (name, label, leaves) => ({
+  name,
+  label: `${label} (${leaves.length})`,
+  icon: 'i-ri-whatsapp-fill',
+  activeOn: ['conversation_through_inbox'],
+  collapsible: true,
+  showTreeLine: true,
+  children: leaves,
+});
 
+// 侧栏里的 WhatsApp 条目:只有自己的号时沿用原样(一个号直接平铺,套一层折叠纯属多余);
+// 同时看得到别人的号(管理员)才分成「我的 WhatsApp」「业务员 WhatsApp」两组。
+const whatsappMenuItems = computed(() => {
+  const mine = myWhatsappLeaves.value;
+  const others = othersWhatsappLeaves.value;
+  if (!mine.length && !others.length) return [];
+
+  if (!others.length) {
+    if (mine.length === 1) return [mine[0]];
+    return [whatsappGroup('WhatsAppChannels', 'WhatsApp', mine)];
+  }
+  if (!mine.length) {
+    if (others.length === 1) return [others[0]];
+    return [whatsappGroup('WhatsAppChannels', 'WhatsApp', others)];
+  }
   return [
-    {
-      name: 'WhatsAppChannels',
-      label: `WhatsApp (${leaves.length})`,
-      icon: 'i-ri-whatsapp-fill',
-      activeOn: ['conversation_through_inbox'],
-      collapsible: true,
-      showTreeLine: true,
-      children: leaves,
-    },
+    whatsappGroup('MyWhatsAppChannels', '我的 WhatsApp', mine),
+    whatsappGroup('TeamWhatsAppChannels', '业务员 WhatsApp', others),
   ];
 });
 
@@ -617,6 +655,7 @@ const menuItems = computed(() => {
         name: 'Conversation',
         label: t('SIDEBAR.CONVERSATIONS'),
         icon: 'i-lucide-message-circle',
+        badgeCount: conversationAttentionCount.value,
         children: [
           {
             name: 'All',
@@ -626,69 +665,52 @@ const menuItems = computed(() => {
             activeOn: ['inbox_conversation'],
             to: accountScopedRoute('home'),
           },
-          // 固定只留每天必点的三项。之前 8 个平铺入口里,「提及/参与者/我的客户」都在回答
-          // 「哪些跟我有关」,「未处理/待跟进」都在回答「该动手了吗」——重叠的入口比数量
-          // 更让人犹豫,所以各留一个代表,其余收进下面的「更多视图」。
-          {
-            name: 'CRM Mine',
-            label: '我的客户',
-            icon: 'i-lucide-user-round-cog',
-            activeOn: ['conversation_through_crm_mine'],
-            to: accountScopedRoute('conversation_crm_mine'),
-          },
+          // 2026-10-02 隐藏「我的客户」与「更多视图」整组（提及/参与者/待跟进/高意向/未建档）。
+          // 生产实测 178 条会话里 177 条的联系人没挂客户档案,而这几个视图全是顺着
+          // 联系人→客户档案→归属人 这条链筛的,链断着所以常年是空的:
+          // 我的客户 1 条、待跟进 0、高意向 0、提及 0。不是没人用,是没东西可显示。
+          // 「未处理」留着——38 条确实没人回过的询盘,是这里唯一还在干活的分诊入口。
+          // 等会话和客户档案打通(比如 WhatsApp 来的号自动建档),把下面这段放回来即可。
+          // {
+          //   name: 'CRM Mine',
+          //   label: '我的客户',
+          //   icon: 'i-lucide-user-round-cog',
+          //   activeOn: ['conversation_through_crm_mine'],
+          //   to: accountScopedRoute('conversation_crm_mine'),
+          // },
           {
             name: 'Unattended',
             activeOn: ['conversation_through_unattended'],
             label: t('SIDEBAR.UNATTENDED_CONVERSATIONS'),
             icon: 'i-lucide-clock-alert',
+            badgeCount: unattendedCount.value,
             to: accountScopedRoute('conversation_unattended'),
           },
-          // 低频筛选视图。默认折叠:展开一次后 localStorage 会记住,不会每次都收起来。
-          {
-            name: 'MoreViews',
-            label: '更多视图',
-            icon: 'i-lucide-list-filter',
-            collapsible: true,
-            defaultCollapsed: true,
-            showTreeLine: true,
-            children: [
-              {
-                name: 'Mentions',
-                label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
-                icon: 'i-lucide-at-sign',
-                activeOn: ['conversation_through_mentions'],
-                to: accountScopedRoute('conversation_mentions'),
-              },
-              {
-                name: 'Participating',
-                label: t('SIDEBAR.PARTICIPATING_CONVERSATIONS'),
-                icon: 'i-lucide-user-round-check',
-                activeOn: ['conversation_through_participating'],
-                to: accountScopedRoute('conversation_participating'),
-              },
-              {
-                name: 'CRM Overdue',
-                label: '待跟进',
-                icon: 'i-lucide-alarm-clock',
-                activeOn: ['conversation_through_crm_overdue'],
-                to: accountScopedRoute('conversation_crm_overdue'),
-              },
-              {
-                name: 'CRM Hot',
-                label: '高意向',
-                icon: 'i-lucide-flame',
-                activeOn: ['conversation_through_crm_hot'],
-                to: accountScopedRoute('conversation_crm_hot'),
-              },
-              {
-                name: 'CRM Unfiled',
-                label: '未建档',
-                icon: 'i-lucide-user-round-plus',
-                activeOn: ['conversation_through_crm_unfiled'],
-                to: accountScopedRoute('conversation_crm_unfiled'),
-              },
-            ],
-          },
+          // {
+          //   name: 'MoreViews',
+          //   label: '更多视图',
+          //   icon: 'i-lucide-list-filter',
+          //   collapsible: true,
+          //   defaultCollapsed: true,
+          //   showTreeLine: true,
+          //   children: [
+          //     { name: 'Mentions', label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
+          //       icon: 'i-lucide-at-sign', activeOn: ['conversation_through_mentions'],
+          //       to: accountScopedRoute('conversation_mentions') },
+          //     { name: 'Participating', label: t('SIDEBAR.PARTICIPATING_CONVERSATIONS'),
+          //       icon: 'i-lucide-user-round-check', activeOn: ['conversation_through_participating'],
+          //       to: accountScopedRoute('conversation_participating') },
+          //     { name: 'CRM Overdue', label: '待跟进', icon: 'i-lucide-alarm-clock',
+          //       activeOn: ['conversation_through_crm_overdue'],
+          //       to: accountScopedRoute('conversation_crm_overdue') },
+          //     { name: 'CRM Hot', label: '高意向', icon: 'i-lucide-flame',
+          //       activeOn: ['conversation_through_crm_hot'],
+          //       to: accountScopedRoute('conversation_crm_hot') },
+          //     { name: 'CRM Unfiled', label: '未建档', icon: 'i-lucide-user-round-plus',
+          //       activeOn: ['conversation_through_crm_unfiled'],
+          //       to: accountScopedRoute('conversation_crm_unfiled') },
+          //   ],
+          // },
           {
             name: 'Folders',
             label: t('SIDEBAR.CUSTOM_VIEWS_FOLDER'),
@@ -1163,18 +1185,18 @@ const menuItems = computed(() => {
             activeOn: ['crm_price_lists_index'],
           },
           {
-            name: 'CRM Quotes',
-            label: t('SIDEBAR.CRM_QUOTES'),
-            to: accountScopedRoute('crm_quotes_index'),
-            activeOn: ['crm_quotes_index'],
-          },
-          {
             // 定制报价：标准价目里没有的定制件，业务员填参数交给主管定价。
-            // 位置紧挨报价单——业务拿到价之后下一步通常就是开报价单。
+            // 排在报价单之前——先把定制件的价问出来，再开报价单给客户。
             name: 'CRM Quote Requests',
             label: '定制报价',
             to: accountScopedRoute('crm_quote_requests_index'),
             activeOn: ['crm_quote_requests_index'],
+          },
+          {
+            name: 'CRM Quotes',
+            label: t('SIDEBAR.CRM_QUOTES'),
+            to: accountScopedRoute('crm_quotes_index'),
+            activeOn: ['crm_quotes_index'],
           },
           {
             name: 'CRM PIs',

@@ -40,6 +40,13 @@ class ConversationFinder
     @params = params
   end
 
+  # 只要「当前用户看得见的会话」这一层（不带状态/指派等列表筛选），给侧栏角标之类的统计用。
+  # 和列表共用同一套可见范围，角标和点进去看到的条数才对得上。
+  def visible_scope
+    set_inboxes
+    find_all_conversations.where(status: :open)
+  end
+
   def perform
     set_up
 
@@ -109,9 +116,22 @@ class ConversationFinder
   def find_conversation_by_inbox
     @conversations = current_account.conversations
 
-    return unless params[:inbox_id]
+    # 没带 inbox_id＝「所有会话」：管理员也只看自己名下收件箱的会话（自己的号 + 自己派给业务的那些，
+    # 派出去的仍留在自己箱里）。老板不需要时刻盯着全体业务员的聊天；要看某个业务员的号，
+    # 从侧栏点进去那一箱，那时带着 inbox_id，照常看全。非管理员不动——他们本来就被
+    # Conversations::Visibility 收口，再按收件箱卡一道会把「被拉进去参与」的那几条误删。
+    if params[:inbox_id].blank?
+      @conversations = @conversations.where(inbox_id: own_inbox_ids) if @is_admin && own_inbox_ids.any?
+      return
+    end
 
     @conversations = @conversations.where(inbox_id: @inbox_ids)
+  end
+
+  # 当前用户作为成员挂在哪些收件箱下。一个都没挂的管理员不设限，
+  # 否则「所有会话」会莫名其妙全空，看着像坏了。
+  def own_inbox_ids
+    @own_inbox_ids ||= current_user.inboxes.where(account_id: current_account.id).pluck(:id)
   end
 
   def find_all_conversations

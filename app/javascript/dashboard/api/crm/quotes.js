@@ -35,6 +35,10 @@ export default {
   convertToSalesOrder(accountId, id) {
     return axios.post(`${base(accountId)}/${id}/convert_to_sales_order`);
   },
+  // 在线预览：返回单据 + 模板里固定的抬头/条款文案（与导出同一份来源）。
+  preview(accountId, id) {
+    return axios.get(`${base(accountId)}/${id}/preview`);
+  },
   xlsx(accountId, id) {
     return axios.get(`${base(accountId)}/${id}/xlsx`, { responseType: 'blob' });
   },

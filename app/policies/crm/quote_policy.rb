@@ -19,6 +19,10 @@ class Crm::QuotePolicy < ApplicationPolicy
     true
   end
 
+  def preview?
+    true
+  end
+
   def convert_to_sales_order?
     true
   end
