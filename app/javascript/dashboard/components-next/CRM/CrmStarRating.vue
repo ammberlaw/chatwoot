@@ -8,10 +8,15 @@ import {
 const props = defineProps({
   // 累计成交额（micros，人民币）。星级由它自动算出。
   micros: { type: [Number, String], default: 0 },
+  // 调用方已经有算好的星级时直接传（如会话客户卡片的 /card 接口），
+  // 省得把金额传回来再算一遍；传了就以它为准。
+  star: { type: Number, default: null },
   size: { type: String, default: 'sm' }, // sm | md
 });
 
-const star = computed(() => customerStarFromMicros(props.micros));
+const star = computed(() =>
+  props.star === null ? customerStarFromMicros(props.micros) : props.star
+);
 const starSize = computed(() => (props.size === 'md' ? 'size-5' : 'size-4'));
 
 // 鼠标悬浮解释：标题 + 六档标准，当前档高亮。html 由 floating-vue 渲染，

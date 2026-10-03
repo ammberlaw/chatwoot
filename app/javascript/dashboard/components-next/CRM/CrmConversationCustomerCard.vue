@@ -16,6 +16,7 @@ import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import CrmCustomerCreateDialog from './CrmCustomerCreateDialog.vue';
+import CrmStarRating from './CrmStarRating.vue';
 
 // 会话右侧的客户卡片：业务员在聊天里就看得到这个客户的 CRM 全貌（阶段/星级/归属/
 // 在谈商机/累计成交/下次跟进），并能就地写跟进——不用切到客户页再切回来。
@@ -331,9 +332,10 @@ const saveNote = async () => {
       <div
         class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-n-slate-11"
       >
-        <span v-if="card.star" class="text-n-amber-11">
-          {{ '★'.repeat(card.star) }}
-        </span>
+        <!-- 用全站共用的星级组件，不手写 ★：原来手写的那版用的是 n-amber-11
+             （棕色文字档），和客户列表里的 n-amber-9 不是一个黄；而且没有空星底
+             和悬浮的评级说明。 -->
+        <CrmStarRating v-if="card.star" :star="card.star" />
         <span v-if="card.owner_name">负责人 {{ card.owner_name }}</span>
         <span v-if="card.in_public_pool" class="text-n-iris-11">公海</span>
       </div>
