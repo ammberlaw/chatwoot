@@ -112,24 +112,16 @@ class Whatsapp::IncomingMessageWhatsappWebService
     ).perform
     @contact_inbox = contact_inbox
     @contact = contact_inbox.contact
-    rename_placeholder_contact
+    sync_contact_name
   end
 
-  # 联系人名字只在「首次建档」时写入，之后再来的消息不会改它。
-  # 于是「自己先发话」的会话会永久卡着一串 JID 数字当名字（历史导入时特别常见，
-  # 因为自己发的消息带不了对方名字）。后面哪条消息带来了真名就补上。
-  def rename_placeholder_contact
-    name = params[:name].to_s.strip
-    return if name.blank? || name == source_id || placeholder_name?(name)
-    return unless placeholder_name?(@contact.name)
-
-    @contact.update(name: name)
-  end
-
-  # 占位名：空、等于 JID、或纯粹是 JID/号码的数字串（真名不会长这样）。
-  def placeholder_name?(value)
-    v = value.to_s.strip
-    v.blank? || v == source_id || v.match?(/\A\+?\d[\d\s@.a-z]*\z/i)
+  # 联系人名字只在「首次建档」时写入，之后再来的消息不会改它。于是「自己先发话」的会话
+  # 会永久卡着一串 JID 数字当名字（历史导入特别常见，自己发的消息带不了对方名字），
+  # 而且对方后来改了昵称、业务员在手机上加了备注，CRM 这边都看不到。
+  # 统一交给 WebContactSync 按来源可靠性决定要不要覆盖（人工在 CRM 改过的名字不动）。
+  def sync_contact_name
+    entry = { source_id: source_id, phone: params[:phone], book_name: params[:book_name], notify: params[:name] }
+    Whatsapp::WebContactSync.new(inbox: inbox, entries: [entry]).perform
   end
 
   def set_conversation

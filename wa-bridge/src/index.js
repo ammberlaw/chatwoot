@@ -103,6 +103,29 @@ app.post('/sessions/:inboxId/check-number', async (req, res) => {
   }
 });
 
+// 主动重拉通讯录（存量备注名回填用）。恢复会话时 WhatsApp 不会主动再推一次。
+app.post('/sessions/:inboxId/resync-contacts', async (req, res) => {
+  try {
+    res.json(await sessions.resyncContacts(req.params.inboxId, (req.body || {}).collections));
+  } catch (err) {
+    logger.error({ err: err.message }, 'resync-contacts failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 存量联系人头像回填：CRM 把它手上的 JID 列表交过来，桥按节流队列逐个取头像回传。
+// 日常新联系人不走这里（发消息时自动取），这个口子是为「上线时把老联系人补齐」留的。
+app.post('/sessions/:inboxId/sync-avatars', (req, res) => {
+  const { jids } = req.body || {};
+  if (!Array.isArray(jids) || !jids.length) return res.status(422).json({ error: 'jids is required' });
+  try {
+    res.json(sessions.syncAvatars(req.params.inboxId, jids));
+  } catch (err) {
+    logger.error({ err: err.message }, 'sync-avatars failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(config.port, () => {
   logger.info({ port: config.port }, 'wintouch-wa-bridge listening');
   sessions.restoreAll().catch(err => logger.error({ err: err.message }, 'restoreAll failed'));

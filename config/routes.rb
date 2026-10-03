@@ -1213,6 +1213,8 @@ Rails.application.routes.draw do
   post 'webhooks/whatsapp_web/status', to: 'webhooks/whatsapp_web#status'
   post 'webhooks/whatsapp_web/receipt', to: 'webhooks/whatsapp_web#receipt'
   post 'webhooks/whatsapp_web/history', to: 'webhooks/whatsapp_web#history'
+  post 'webhooks/whatsapp_web/contacts', to: 'webhooks/whatsapp_web#contacts'
+  post 'webhooks/whatsapp_web/avatar', to: 'webhooks/whatsapp_web#avatar'
   get 'webhooks/instagram', to: 'webhooks/instagram#verify'
   post 'webhooks/instagram', to: 'webhooks/instagram#events'
   post 'webhooks/tiktok', to: 'webhooks/tiktok#events'

@@ -7,7 +7,7 @@ class Webhooks::WhatsappWebController < ActionController::API
   # Inbound message forwarded by the Baileys bridge.
   def process_payload
     # from_me：业务员在手机上直接回的消息，落成「我方发出」（见 IncomingMessageWhatsappWebService）。
-    payload = params.to_unsafe_hash.slice(:inbox_id, :source_id, :phone, :from, :name, :text, :message_id, :timestamp, :from_me)
+    payload = params.to_unsafe_hash.slice(:inbox_id, :source_id, :phone, :from, :name, :book_name, :text, :message_id, :timestamp, :from_me)
     # 图片/视频/语音/文件走 multipart 上来。文件对象进不了 ActiveJob（序列化不了），
     # 所以在这里先落成 blob，只把 signed_id 带进后台任务。
     payload[:media_signed_id] = stage_media&.signed_id
@@ -23,6 +23,37 @@ class Webhooks::WhatsappWebController < ActionController::API
       'messages' => Array(params[:messages]).map { |m| m.permit!.to_h }
     )
     head :ok
+  end
+
+  # 桥推来的联系人资料：手机通讯录里的备注名（name）+ 对方自设的 WhatsApp 昵称（notify）。
+  # 业务员在手机上给客户改了备注，这里把它同步成 CRM 联系人名。筛选与覆盖规则在
+  # Whatsapp::WebContactSync 里（人工在 CRM 改过的名字不动）。
+  def contacts
+    Webhooks::WhatsappWebContactsJob.perform_later(
+      'inbox_id' => params[:inbox_id],
+      'contacts' => Array(params[:contacts]).map { |c| c.permit(:source_id, :id, :lid, :phone, :name, :notify).to_h }
+    )
+    head :ok
+  end
+
+  # 联系人头像。头像在 pps.whatsapp.net 上、生产机连不通那个域，所以由香港桥下载完
+  # 把字节 multipart 传过来，这边只落盘（见 Whatsapp::WebAvatarSync）。
+  def avatar
+    inbox = Inbox.find_by(id: params[:inbox_id])
+    return head :not_found unless inbox&.channel_type == 'Channel::WhatsappWeb'
+
+    file = params[:avatar]
+    return head :bad_request unless file.respond_to?(:tempfile)
+
+    result = Whatsapp::WebAvatarSync.new(
+      inbox: inbox,
+      entry: params.permit(:source_id, :id, :lid, :phone, :img_hash).to_h.with_indifferent_access,
+      file: file
+    ).perform
+    render json: { result: result }
+  rescue StandardError => e
+    Rails.logger.error("[wa_avatar] 落盘失败 inbox=#{params[:inbox_id]}: #{e.class} #{e.message}")
+    head :internal_server_error
   end
 
   # Delivery/read receipt for an outgoing message, reported by the bridge.

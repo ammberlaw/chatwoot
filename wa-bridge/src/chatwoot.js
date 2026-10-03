@@ -92,4 +92,41 @@ async function postHistory(payload) {
   }
 }
 
-module.exports = { postInbound, postInboundMedia, postStatus, postReceipt, postHistory };
+// 联系人资料：手机通讯录里的备注名（name）+ 对方自设的昵称（notify）。
+// WhatsApp 是主动推这些的（配对同步 / 手机上改了备注），桥只负责转发，不额外问网络。
+async function postContacts(payload) {
+  const res = await fetch(`${config.chatwootUrl}/webhooks/whatsapp_web/contacts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Bridge-Token': config.bridgeToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`chatwoot contacts ${res.status}: ${body.slice(0, 300)}`);
+  }
+}
+
+// 联系人头像。头像在 pps.whatsapp.net 上，生产机（深圳）连不通那个域，
+// 所以必须由桥（香港）下载完再把字节 multipart 传过去，不能只给 URL。
+async function postAvatar(payload, media) {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(payload)) {
+    if (value !== null && value !== undefined) form.append(key, String(value));
+  }
+  form.append('avatar', new Blob([media.buffer], { type: media.mimetype }), media.filename);
+
+  const res = await fetch(`${config.chatwootUrl}/webhooks/whatsapp_web/avatar`, {
+    method: 'POST',
+    headers: { 'X-Bridge-Token': config.bridgeToken },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`chatwoot avatar ${res.status}: ${body.slice(0, 300)}`);
+  }
+}
+
+module.exports = { postInbound, postInboundMedia, postStatus, postReceipt, postHistory, postContacts, postAvatar };
