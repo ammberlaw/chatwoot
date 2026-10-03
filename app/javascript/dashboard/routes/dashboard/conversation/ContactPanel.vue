@@ -107,8 +107,16 @@ const closeContactPanel = () => {
   });
 };
 
+// 2026-10-03 隐藏「对话参与者」。生产 168 条参与记录里 155 条就是该会话的负责人本人、
+// 13 条是这个 WhatsApp 号的号主，没有一条是人工主动加的关注；提及记录 0 条。
+// 也就是说它只是在重复上面已经写着的「负责人」和侧栏的「这是谁的号」。
+// 从排序列表里一并剔掉，别留一个渲染不出内容的幽灵条目把拖拽排序搅乱。
+const HIDDEN_SIDEBAR_ITEMS = ['conversation_participants'];
+
 onMounted(() => {
-  conversationSidebarItems.value = conversationSidebarItemsOrder.value;
+  conversationSidebarItems.value = conversationSidebarItemsOrder.value.filter(
+    item => !HIDDEN_SIDEBAR_ITEMS.includes(item.name)
+  );
   getContactDetails();
   store.dispatch('attributes/get', 0);
   // Load integrations to ensure linear integration state is available
@@ -154,7 +162,7 @@ onMounted(() => {
             </AccordionItem>
           </div>
           <div
-            v-else-if="element.name === 'conversation_participants'"
+            v-else-if="false && element.name === 'conversation_participants'"
             class="conversation--actions"
           >
             <AccordionItem

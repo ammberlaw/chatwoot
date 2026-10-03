@@ -21,7 +21,6 @@ import QuickTextsAPI from 'dashboard/api/crm/quickTexts';
 import EmailSignaturesAPI from 'dashboard/api/crm/emailSignatures';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import ContactsAPI from 'dashboard/api/crm/contacts';
-import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
 import CrmAiAPI from 'dashboard/api/crm/ai';
 import {
   CURATED_ZONES,
@@ -40,6 +39,7 @@ import { vOnClickOutside } from '@vueuse/components';
 
 import DOMPurify from 'dompurify';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import CrmKbFilePicker from './CrmKbFilePicker.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import CrmColorPalette from 'dashboard/components-next/CRM/CrmColorPalette.vue';
@@ -516,14 +516,12 @@ const existingFiles = ref([]);
 const attachments = ref([]);
 const fileInputRef = ref(null);
 
-// 知识库附件
-const kbDocs = ref([]);
+// 知识库附件：挑选交给 CrmKbFilePicker，这里只留「开关 + 选中结果」，
+// 选中结果要发送时翻成 attach_kb 的 file_ids。
 const kbPicked = ref([]);
 const showKb = ref(false);
-const kbSearch = ref('');
-const kbCategory = ref('');
-const kbScope = ref('');
-const kbOpenDocId = ref(null);
+
+// 知识库附件
 
 // 预览
 const showPreview = ref(false);
@@ -696,39 +694,8 @@ onBeforeUnmount(() => {
   window.clearInterval(measureTimer);
 });
 
-const kbScopeChips = [
-  { value: '', label: '全部' },
-  { value: 'COMPANY', label: L.kbCompany },
-  { value: 'PERSONAL', label: L.kbPersonal },
-];
-const kbCategories = computed(() => [
-  ...new Set(kbDocs.value.map(d => d.category).filter(Boolean)),
-]);
-
+// 知识库附件的去重键（docId:fileId），移除 chip 时用。
 const kbKey = item => `${item.docId}:${item.fileId}`;
-
-const kbFilteredDocs = computed(() => {
-  const q = kbSearch.value.trim().toLowerCase();
-  return kbDocs.value.filter(d => {
-    if (kbScope.value && d.scope !== kbScope.value) return false;
-    if (kbCategory.value && d.category !== kbCategory.value) return false;
-    if (
-      q &&
-      !(
-        `${d.name} ${d.summary || ''}`.toLowerCase().includes(q) ||
-        d.files.some(f => f.filename.toLowerCase().includes(q))
-      )
-    )
-      return false;
-    return true;
-  });
-});
-const kbOpenDoc = computed(
-  () =>
-    kbFilteredDocs.value.find(d => d.id === kbOpenDocId.value) ||
-    kbFilteredDocs.value[0] ||
-    null
-);
 
 // ---- 数据加载 ----
 const loadAccounts = async () => {
@@ -749,27 +716,6 @@ const loadTemplates = async () => {
 const loadSignatures = async () => {
   const { data } = await EmailSignaturesAPI.get();
   signatures.value = camelcaseKeys(data.payload || [], { deep: true });
-};
-
-const loadKbDocs = async () => {
-  // 邮件附件只挑销售资料库，避免把内部制度/文档挂给客户。
-  const { data } = await KnowledgeDocsAPI.get({
-    library: 'SALES',
-    per_page: 200,
-  });
-  kbDocs.value = camelcaseKeys(data.payload || [], { deep: true })
-    .map(d => ({
-      id: d.id,
-      name: d.name || '(未命名)',
-      scope: d.scope || 'PERSONAL',
-      category: d.category || '',
-      summary: d.summary || '',
-      files: (d.files || []).map(f => ({
-        fileId: f.id,
-        filename: f.filename || '(未命名文件)',
-      })),
-    }))
-    .filter(d => d.files.length > 0);
 };
 
 // ---- 分发留档抄送预览：收件人一变就问后端这次会自动抄谁 ----
@@ -1081,30 +1027,10 @@ const closeAttPreview = () => {
 // ---- 知识库选择器 ----
 const openKbPicker = () => {
   showKb.value = true;
-  kbOpenDocId.value = null;
-  kbSearch.value = '';
-  kbCategory.value = '';
-  kbScope.value = '';
-};
-const toggleKbFile = (doc, file) => {
-  const item = {
-    docId: doc.id,
-    docName: doc.name,
-    fileId: file.fileId,
-    label: file.filename,
-  };
-  const exists = kbPicked.value.some(p => kbKey(p) === kbKey(item));
-  kbPicked.value = exists
-    ? kbPicked.value.filter(p => kbKey(p) !== kbKey(item))
-    : [...kbPicked.value, item];
 };
 const removeKbPick = pick => {
   kbPicked.value = kbPicked.value.filter(p => kbKey(p) !== kbKey(pick));
 };
-const isKbPicked = (docId, fileId) =>
-  kbPicked.value.some(p => p.docId === docId && p.fileId === fileId);
-const kbPicksForDoc = docId =>
-  kbPicked.value.filter(p => p.docId === docId).length;
 
 // ---- 发送 / 存草稿 ----
 const buildFields = (forSend = false) => {
@@ -1461,12 +1387,7 @@ const close = () => {
 
 const open = async prefill => {
   reset();
-  await Promise.all([
-    loadAccounts(),
-    loadTemplates(),
-    loadKbDocs(),
-    loadSignatures(),
-  ]);
+  await Promise.all([loadAccounts(), loadTemplates(), loadSignatures()]);
   if (prefill && typeof prefill === 'object') {
     if (prefill.bulkRecipients?.length) {
       bulkRecipients.value = prefill.bulkRecipients;
@@ -2374,176 +2295,12 @@ defineExpose({ open, close });
       </div>
     </div>
 
-    <!-- 知识库选择器 -->
-    <div
-      v-if="showKb"
-      class="fixed inset-0 z-10 flex items-center justify-center bg-black/40"
-      @click.self="showKb = false"
-    >
-      <div
-        class="w-[780px] max-w-[94vw] h-[560px] max-h-[88vh] flex flex-col overflow-hidden border rounded-xl border-n-weak bg-n-solid-1"
-      >
-        <div
-          class="flex items-center justify-between px-4 py-3 border-b border-n-weak"
-        >
-          <strong class="text-n-slate-12">{{ L.kbTitle }}</strong>
-          <button class="text-sm text-n-iris-11" @click="showKb = false">
-            {{ L.kbDone
-            }}{{ kbPicked.length ? `（已选 ${kbPicked.length}）` : '' }}
-          </button>
-        </div>
-
-        <!-- 过滤 -->
-        <div class="px-4 py-2.5 border-b bg-n-alpha-1 border-n-weak">
-          <input
-            v-model="kbSearch"
-            class="w-full h-9 px-3 mb-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
-            :placeholder="L.kbSearchPlaceholder"
-          />
-          <div class="flex flex-wrap items-center gap-1.5">
-            <button
-              v-for="chip in kbScopeChips"
-              :key="chip.value"
-              class="px-2.5 py-1 text-xs border rounded-full"
-              :class="
-                kbScope === chip.value
-                  ? 'border-n-iris-9 bg-n-iris-9 text-white'
-                  : 'border-n-weak text-n-slate-11'
-              "
-              @click="kbScope = chip.value"
-            >
-              {{ chip.label }}
-            </button>
-            <span class="w-px h-4 mx-1 bg-n-weak" />
-            <button
-              class="px-2.5 py-1 text-xs border rounded-full"
-              :class="
-                kbCategory === ''
-                  ? 'border-n-iris-9 bg-n-iris-9 text-white'
-                  : 'border-n-weak text-n-slate-11'
-              "
-              @click="kbCategory = ''"
-            >
-              {{ L.kbAllCategories }}
-            </button>
-            <button
-              v-for="cat in kbCategories"
-              :key="cat"
-              class="px-2.5 py-1 text-xs border rounded-full"
-              :class="
-                kbCategory === cat
-                  ? 'border-n-iris-9 bg-n-iris-9 text-white'
-                  : 'border-n-weak text-n-slate-11'
-              "
-              @click="kbCategory = cat"
-            >
-              {{ cat }}
-            </button>
-          </div>
-        </div>
-
-        <!-- 文档列表 + 文件面板 -->
-        <div class="flex flex-1 min-h-0">
-          <div
-            class="w-[280px] shrink-0 overflow-y-auto border-r border-n-weak"
-          >
-            <div
-              v-if="!kbFilteredDocs.length"
-              class="p-3 text-xs text-n-slate-10"
-            >
-              {{ kbDocs.length ? L.kbEmptyNoMatch : L.kbEmptyNoFiles }}
-            </div>
-            <button
-              v-for="doc in kbFilteredDocs"
-              :key="doc.id"
-              class="block w-full px-3.5 py-2.5 text-left border-b border-n-weak"
-              :class="
-                kbOpenDoc?.id === doc.id ? 'bg-n-iris-2' : 'hover:bg-n-alpha-1'
-              "
-              @click="kbOpenDocId = doc.id"
-            >
-              <div
-                class="flex items-center gap-1.5 text-[13px] text-n-slate-12"
-              >
-                <Icon
-                  :icon="
-                    doc.scope === 'COMPANY'
-                      ? 'i-lucide-building-2'
-                      : 'i-lucide-user'
-                  "
-                  class="size-3.5 text-n-slate-10"
-                />
-                <span class="truncate">{{ doc.name }}</span>
-                <span
-                  v-if="kbPicksForDoc(doc.id)"
-                  class="ml-auto min-w-4 h-4 px-1 text-[11px] text-white rounded-full bg-n-iris-9 inline-flex items-center justify-center"
-                >
-                  {{ kbPicksForDoc(doc.id) }}
-                </span>
-              </div>
-              <div class="mt-0.5 text-[11px] text-n-slate-10">
-                {{ `${doc.category || '未分类'} · ${doc.files.length} 个文件` }}
-              </div>
-            </button>
-          </div>
-
-          <div class="flex-1 overflow-y-auto">
-            <div v-if="!kbOpenDoc" class="p-3 text-xs text-n-slate-10">
-              {{ L.kbPickFilePrompt }}
-            </div>
-            <template v-else>
-              <div
-                class="px-3.5 py-2.5 border-b border-n-weak text-[13px] text-n-slate-11"
-              >
-                {{ kbOpenDoc.name }}
-                <div
-                  v-if="kbOpenDoc.summary"
-                  class="mt-1 text-[11px] leading-relaxed text-n-slate-10"
-                >
-                  {{ kbOpenDoc.summary }}
-                </div>
-              </div>
-              <div class="flex flex-col gap-1.5 p-3">
-                <button
-                  v-for="file in kbOpenDoc.files"
-                  :key="file.fileId"
-                  class="flex items-center gap-2 px-3 py-2 text-[13px] border rounded-lg"
-                  :class="
-                    isKbPicked(kbOpenDoc.id, file.fileId)
-                      ? 'border-n-iris-9 text-n-iris-11 bg-n-iris-2'
-                      : 'border-n-weak text-n-slate-12 hover:bg-n-alpha-1'
-                  "
-                  @click="toggleKbFile(kbOpenDoc, file)"
-                >
-                  <Icon
-                    :icon="
-                      isKbPicked(kbOpenDoc.id, file.fileId)
-                        ? 'i-lucide-check-square'
-                        : 'i-lucide-square'
-                    "
-                    class="size-4"
-                  />
-                  <Icon icon="i-lucide-file-text" class="size-4" />
-                  {{ file.filename }}
-                </button>
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <div
-          class="flex items-center gap-2 px-4 py-2.5 border-t bg-n-alpha-1 border-n-weak"
-        >
-          <span class="flex-1 text-xs text-n-slate-10">{{ L.kbFootTip }}</span>
-          <button
-            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10"
-            @click="showKb = false"
-          >
-            {{ L.kbDone }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- 知识库选择器（与会话回复框共用同一个组件）-->
+    <CrmKbFilePicker
+      v-model:open="showKb"
+      v-model:picked="kbPicked"
+      :foot-tip="L.kbFootTip"
+    />
   </div>
 
   <!-- 选择模板弹窗（仿小满 OKKI）：点「模版」打开，个人/企业分 tab，点某条即套用 -->

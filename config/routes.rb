@@ -266,6 +266,7 @@ Rails.application.routes.draw do
               collection do
                 get :recycle_bin
                 post :purge_all
+                post :snapshot_files
               end
               member do
                 get :audits

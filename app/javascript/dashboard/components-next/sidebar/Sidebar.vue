@@ -310,9 +310,10 @@ const getTeamUnreadCount = useMapGetter(
 );
 const teams = useMapGetter('teams/getMyTeams');
 const contactCustomViews = useMapGetter('customViews/getContactCustomViews');
-const conversationCustomViews = useMapGetter(
-  'customViews/getConversationCustomViews'
-);
+// 会话文件夹分组已隐藏（见下方注释），这个 getter 暂时没人读。
+// const conversationCustomViews = useMapGetter(
+//   'customViews/getConversationCustomViews'
+// );
 const getSidebarSectionSort = useMapGetter(
   'sidebarSortPreferences/getSectionSort'
 );
@@ -437,7 +438,8 @@ onMounted(() => {
   store.dispatch('notifications/unReadCount');
   store.dispatch('teams/get');
   store.dispatch('attributes/get');
-  store.dispatch('customViews/get', 'conversation');
+  // 会话文件夹分组已隐藏，侧栏不再需要这份数据（客户那边的 contact 视图照旧拉）。
+  // store.dispatch('customViews/get', 'conversation');
   store.dispatch('customViews/get', 'contact');
   mesNotificationsStore.fetchUnreadCount();
   fetchMesTodoCount();
@@ -484,12 +486,13 @@ const buildSortConfig = section => ({
   onSortChange: sortBy => updateSortPreference(section, sortBy),
 });
 
-const sortedFolders = computed(() =>
-  sortSidebarItems(conversationCustomViews.value, {
-    sortBy: getSortForSection(SIDEBAR_SORT_SECTIONS.FOLDERS),
-    labelKey: view => view.name,
-  })
-);
+// 文件夹分组同日隐藏（见下方注释），这份排序暂时没人用；分组放回来时一起解注释。
+// const sortedFolders = computed(() =>
+//   sortSidebarItems(conversationCustomViews.value, {
+//     sortBy: getSortForSection(SIDEBAR_SORT_SECTIONS.FOLDERS),
+//     labelKey: view => view.name,
+//   })
+// );
 
 const sortedTeams = computed(() =>
   sortSidebarItems(teams.value, {
@@ -711,20 +714,23 @@ const menuItems = computed(() => {
           //       to: accountScopedRoute('conversation_crm_unfiled') },
           //   ],
           // },
-          {
-            name: 'Folders',
-            label: t('SIDEBAR.CUSTOM_VIEWS_FOLDER'),
-            icon: 'i-lucide-folder',
-            activeOn: ['conversations_through_folders'],
-            ...buildSortConfig(SIDEBAR_SORT_SECTIONS.FOLDERS),
-            collapsible: true,
-            showTreeLine: true,
-            children: sortedFolders.value.map(view => ({
-              name: `${view.name}-${view.id}`,
-              label: view.name,
-              to: accountScopedRoute('folder_conversations', { id: view.id }),
-            })),
-          },
+          // 2026-10-03 隐藏「文件夹」。它装的就是「高级过滤存下来的结果」，
+          // 而高级过滤同日已隐藏（生产保存过的筛选 0 条），这组永远是空的，
+          // 点进去只会扑空。过滤恢复时把这段一起放回来。
+          // {
+          //   name: 'Folders',
+          //   label: t('SIDEBAR.CUSTOM_VIEWS_FOLDER'),
+          //   icon: 'i-lucide-folder',
+          //   activeOn: ['conversations_through_folders'],
+          //   ...buildSortConfig(SIDEBAR_SORT_SECTIONS.FOLDERS),
+          //   collapsible: true,
+          //   showTreeLine: true,
+          //   children: sortedFolders.value.map(view => ({
+          //     name: `${view.name}-${view.id}`,
+          //     label: view.name,
+          //     to: accountScopedRoute('folder_conversations', { id: view.id }),
+          //   })),
+          // },
           {
             name: 'Teams',
             label: t('SIDEBAR.TEAMS'),

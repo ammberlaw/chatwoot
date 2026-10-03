@@ -46,19 +46,28 @@ useKeyboardEvents(keyboardEvents);
 </script>
 
 <template>
-  <woot-tabs
-    :index="activeTabIndex"
-    class="w-full px-3 -mt-1 py-0 [&_ul]:p-0 h-10"
-    @change="onTabChange"
-  >
-    <woot-tabs-item
-      v-for="(item, index) in items"
-      :key="item.key"
-      class="text-sm [&_a]:font-medium"
-      :index="index"
-      :name="item.name"
-      :count="item.count"
-      is-compact
-    />
-  </woot-tabs>
+  <!-- 用全站统一的「灰槽 + 深色选中块」页签（见 _next-colors.scss 的 data-tabbar）：
+       容器挂标记、选中项用 aria-selected，颜色走 token，四套主题各取各的。
+       page-block 是撑满容器那一档——会话列表这一栏只有 340px 宽，fit-content
+       放不下 4 个页签会溢出；撑满均分反而每个都看得全。 -->
+  <div class="px-3 pb-1 shrink-0">
+    <div data-tabbar="page-block">
+      <button
+        v-for="(item, index) in items"
+        :key="item.key"
+        type="button"
+        role="tab"
+        :aria-selected="item.key === activeTab"
+        class="flex items-center justify-center gap-1 whitespace-nowrap !px-2"
+        @click="onTabChange(index)"
+      >
+        {{ item.name }}
+        <span
+          class="inline-grid h-4 min-w-4 place-items-center rounded-full px-1 text-xxs leading-none"
+        >
+          {{ item.count }}
+        </span>
+      </button>
+    </div>
+  </div>
 </template>

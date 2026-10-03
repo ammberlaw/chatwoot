@@ -146,14 +146,14 @@
     "PRIORITY": {
       "TITLE": "优先级",
       "OPTIONS": {
-        "NONE": "啥都没有",
-        "URGENT": "紧急的",
+        "NONE": "无",
+        "URGENT": "紧急",
         "HIGH": "高",
         "MEDIUM": "中",
         "LOW": "低"
       },
       "CHANGE_PRIORITY": {
-        "SELECT_PLACEHOLDER": "啥都没有",
+        "SELECT_PLACEHOLDER": "无",
         "INPUT_PLACEHOLDER": "选择优先级",
         "NO_RESULTS": "没有检索到相关信息",
         "SUCCESSFUL": "已将对话 Id {conversationId} 的优先级更改为 {priority}",
@@ -376,7 +376,7 @@
     "SELF_ASSIGN": "分配给我",
     "TEAM_LABEL": "已分配的团队",
     "SELECT": {
-      "PLACEHOLDER": "啥都没有"
+      "PLACEHOLDER": "无"
     },
     "ACCORDION": {
       "CONTACT_DETAILS": "联系人详细信息",

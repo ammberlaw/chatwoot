@@ -18,10 +18,14 @@ export default {
   components: {
     ContactDetailsItem,
     MultiselectDropdown,
+    // 对话标记区块已隐藏（见模板注释），放回来时这个组件就又有人用了。
+    // eslint-disable-next-line vue/no-unused-components
     ConversationLabels,
     NextButton,
   },
   props: {
+    // 目前只被已隐藏的对话标记区块读；父级照常传，放回来就能用。
+    // eslint-disable-next-line vue/no-unused-properties
     conversationId: {
       type: [Number, String],
       required: true,
@@ -287,6 +291,10 @@ export default {
         @select="onClickAssignAgent"
       />
     </div>
+    <!-- 2026-10-03 隐藏「已分配的团队」。这是 Chatwoot 把会话派给一个组、
+         组里谁有空谁接的机制；公司是直接派给人（上面那个负责人），团队从没建过——
+         生产 0 个团队、0 条会话分过团队，下拉永远是空的，点开只会以为坏了。
+         以后真要分组接客，取消注释即可。
     <div v-if="isAdminLike">
       <ContactDetailsItem
         compact
@@ -307,6 +315,7 @@ export default {
         @select="onClickAssignTeam"
       />
     </div>
+    -->
     <div>
       <ContactDetailsItem compact :title="$t('CONVERSATION.PRIORITY.TITLE')" />
       <MultiselectDropdown
@@ -325,11 +334,14 @@ export default {
         @select="onClickAssignPriority"
       />
     </div>
+    <!-- 2026-10-03 隐藏「对话标记」（会话标签）。生产 185 条会话一条都没打过标签，
+         分类靠的是下面的「客户来源」和客户档案本身。要用标签时取消注释。
     <ContactDetailsItem
       compact
       :title="$t('CONVERSATION_SIDEBAR.ACCORDION.CONVERSATION_LABELS')"
     />
     <ConversationLabels :conversation-id="conversationId" />
+    -->
     <div v-if="sourceOptions.length" class="mt-3">
       <ContactDetailsItem compact :title="sourceSectionTitle" />
       <div class="flex flex-wrap gap-1.5 mt-1">

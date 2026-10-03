@@ -77,9 +77,8 @@ const onMergeContacts = async (parentContactId, hide) => {
           <h3 class="text-base font-medium leading-6 text-n-slate-12">
             {{ $t('MERGE_CONTACTS.TITLE') }}
           </h3>
-          <p class="mb-0 text-sm text-n-slate-11">
-            {{ $t('MERGE_CONTACTS.DESCRIPTION') }}
-          </p>
+          <!-- 2026-10-03 删除说明文字（用户要求）。标题「合并联系人」已经说清楚了，
+               下面的表单本身标着「主联系人／将被删除」，这段话是重复的。 -->
         </div>
         <MergeContact
           :key="primaryContact.id"

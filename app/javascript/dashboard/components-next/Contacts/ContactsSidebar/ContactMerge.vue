@@ -108,9 +108,7 @@ const onMergeContacts = async () => {
       <h4 class="text-base text-n-slate-12">
         {{ t('CONTACTS_LAYOUT.SIDEBAR.MERGE.TITLE') }}
       </h4>
-      <p class="text-sm text-n-slate-11">
-        {{ t('CONTACTS_LAYOUT.SIDEBAR.MERGE.DESCRIPTION') }}
-      </p>
+      <!-- 2026-10-03 删除说明文字（用户要求），与 ContactMergeModal 同步。 -->
     </div>
     <ContactMergeForm
       v-model:primary-contact-id="state.primaryContactId"

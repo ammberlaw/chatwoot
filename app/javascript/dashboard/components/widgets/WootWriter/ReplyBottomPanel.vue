@@ -127,6 +127,7 @@ export default {
     },
   },
   emits: [
+    'selectKnowledgeFile',
     'toggleInsertArticle',
     'selectWhatsappTemplate',
     'selectContentTemplate',
@@ -312,6 +313,15 @@ export default {
           sm
         />
       </FileUpload>
+      <NextButton
+        v-if="showAttachButton"
+        v-tooltip.top-end="'从知识库选择附件'"
+        icon="i-lucide-book-open"
+        slate
+        faded
+        sm
+        @click="$emit('selectKnowledgeFile')"
+      />
       <NextButton
         v-if="showAudioRecorderButton"
         v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"

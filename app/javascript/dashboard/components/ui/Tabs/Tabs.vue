@@ -37,7 +37,11 @@ provide('updateActiveIndex', index => {
 
 const computeScrollWidth = () => {
   if (tabsContainer.value && tabsList.value) {
-    hasScroll.value = tabsList.value.scrollWidth > tabsList.value.clientWidth;
+    // 拿容器宽度判，别拿列表自己的 clientWidth：一旦溢出，列表会被 max-w-[calc(100%-64px)]
+    // 砍掉 64px 给箭头腾位，再用这个缩水后的宽度去比，内容明明放得下也会一直判成溢出——
+    // 箭头冒出来就再也收不回去，页签被挡掉一半（会话列表加到 4 个页签时实测踩到）。
+    hasScroll.value =
+      tabsList.value.scrollWidth > tabsContainer.value.clientWidth;
   }
 };
 

@@ -38,6 +38,11 @@ class Api::V1::Accounts::Crm::KnowledgeDocsController < Api::V1::Accounts::Crm::
     head :ok
   end
 
+  # 选中的知识库文件复制一份，返回 signed_id 给前端当附件挂（见 Crm::KnowledgeDocSnapshot）。
+  def snapshot_files
+    render json: { payload: Crm::KnowledgeDocSnapshot.new(account: Current.account, file_ids: params[:file_ids]).perform }
+  end
+
   # ── 回收站（超级管理员与管理员）──
   def recycle_bin
     @docs = Current.account.crm_knowledge_docs.discarded

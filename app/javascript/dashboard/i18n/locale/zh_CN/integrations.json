@@ -929,7 +929,7 @@
           "LABEL": "Authentication Type"
         },
         "AUTH_TYPES": {
-          "NONE": "啥都没有",
+          "NONE": "无",
           "BEARER": "Bearer Token",
           "BASIC": "Basic Auth",
           "API_KEY": "API 密钥"

@@ -44,6 +44,16 @@ export const ASSIGNEE_TYPE_TAB_PERMISSIONS = {
       CONVERSATION_UNASSIGNED_PERMISSIONS,
     ],
   },
+  // 「已分配」＝我派给别人的。只给管理员：业务员不派活，这个页签对他们永远是 0，
+  // 摆出来只会占位置。口径见 ConversationFinder#filter_by_assignee_type。
+  assigned_out: {
+    count: 'assignedOutCount',
+    permissions: [
+      'administrator',
+      MANAGE_ALL_CONVERSATION_PERMISSIONS,
+      CONVERSATION_UNASSIGNED_PERMISSIONS,
+    ],
+  },
   all: {
     count: 'allCount',
     permissions: [

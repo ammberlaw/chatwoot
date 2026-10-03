@@ -5,6 +5,7 @@ import { debounce } from '@chatwoot/utils';
 const state = {
   mineCount: 0,
   unAssignedCount: 0,
+  assignedOutCount: 0,
   allCount: 0,
 };
 
@@ -55,12 +56,14 @@ export const mutations = {
     {
       mine_count: mineCount,
       unassigned_count: unAssignedCount,
+      assigned_out_count: assignedOutCount,
       all_count: allCount,
     } = {}
   ) {
     $state.mineCount = mineCount;
     $state.allCount = allCount;
     $state.unAssignedCount = unAssignedCount;
+    $state.assignedOutCount = assignedOutCount;
     $state.updatedOn = new Date();
   },
 };

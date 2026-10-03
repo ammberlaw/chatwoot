@@ -54,6 +54,9 @@ const actions = {
       const {
         data: { data },
       } = await ConversationApi.get(params);
+      // 列表搜索是边打字边发请求的，先发的那次完全可能后回来。回来时搜索词已经变了
+      // 就丢弃这份结果，否则旧结果会盖掉新结果——表现为页签计数是新的、列表还是旧的。
+      if (state.conversationFilters.q !== params.q) return;
       buildConversationList(
         { commit, dispatch },
         params,

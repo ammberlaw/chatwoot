@@ -27,6 +27,12 @@ class Crm::KnowledgeDocPolicy < ApplicationPolicy
     true
   end
 
+  # 把知识库文件复制一份发给客户：能看见文档就能发，复制范围由
+  # Crm::KnowledgeDocSnapshot 卡在本账号的知识库附件内。
+  def snapshot_files?
+    true
+  end
+
   # 删除按文档级权限控制（个人文档归属人可删自己的），
   # 由控制器 ensure_doc_manageable 强制；此处放行到控制器层判断。
   def destroy?

@@ -6,6 +6,11 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 /* global axios */
 import CustomerAPI from 'dashboard/api/crm/customers';
+import { countryFromPhone } from 'dashboard/helper/phoneCountry';
+import {
+  COUNTRY_LABELS,
+  ISO2_TO_COUNTRY,
+} from 'dashboard/routes/dashboard/crm/constants/countries';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -18,6 +23,22 @@ const props = defineProps({
 
 const { accountId } = useAccount();
 const currentUserId = useMapGetter('getCurrentUserID');
+const currentChat = useMapGetter('getSelectedChat');
+
+// 来源按会话所在渠道自动填。线上 12705 个客户里 9565 个连分组都是空的，
+// 靠业务员手选基本填不上；而「他从哪来的」这件事会话自己就知道。
+const CHANNEL_SOURCE = {
+  'Channel::WhatsappWeb': 'WHATSAPP',
+  'Channel::Email': 'EMAIL',
+};
+const SOURCE_LABELS = { WHATSAPP: 'WhatsApp 开发', EMAIL: '邮件开发' };
+const guessedSource = computed(
+  () => CHANNEL_SOURCE[currentChat.value?.meta?.channel] || null
+);
+const guessedSourceLabel = computed(
+  () => SOURCE_LABELS[guessedSource.value] || null
+);
+
 const router = useRouter();
 
 const STATUS = {
@@ -40,6 +61,24 @@ const createdCustomerId = ref(null);
 const createDialogRef = ref(null);
 const newName = ref('');
 const creating = ref(false);
+
+// 国家按号码推断后一起带进档案。客户面板本来就按号码显示国旗和国名，建档时却要
+// 业务员再手选一次，多数人就空着——线上 12705 个客户里靠导入才有国家，新建的常年是空。
+const guessedCountry = computed(() => {
+  const hit = countryFromPhone(props.contact?.phone_number);
+  const key = hit?.iso ? ISO2_TO_COUNTRY[hit.iso] : null;
+  return key ? { key, label: COUNTRY_LABELS[key] } : null;
+});
+
+// 拼成一句话而不是在模板里塞 <template>：那样每个分支前后都会留空白，
+// 渲染出来是「WhatsApp 、国家（…） 、来源（…） 会自动带过去」这种夹空格的句子。
+const autofillHint = computed(() => {
+  const parts = ['联系人', '电话', 'WhatsApp'];
+  if (guessedCountry.value) parts.push(`国家（${guessedCountry.value.label}）`);
+  if (guessedSourceLabel.value)
+    parts.push(`来源（${guessedSourceLabel.value}）`);
+  return `${parts.join('、')}会自动带过去，负责人记在你名下。`;
+});
 
 const customerId = computed(
   () => createdCustomerId.value || props.contact?.crm_customer_id || null
@@ -114,6 +153,9 @@ const createCustomer = async () => {
           whats_app: phone || null,
           // 归给自己——这个按钮的意义就是「这客户我接了」。
           account_owner_id: currentUserId.value,
+          // 国家按号码推断、来源按会话渠道推断（推不出来就不填，别瞎猜）。
+          trade_country: guessedCountry.value?.key || null,
+          source_channel: guessedSource.value,
           // 后端 link_source_contact 认这个字段，把联系人挂到新档案上。
           contact_id: props.contact?.id,
         },
@@ -121,7 +163,7 @@ const createCustomer = async () => {
     );
     createdCustomerId.value = data?.id || data?.payload?.id || null;
     createDialogRef.value?.close();
-    useAlert('已建档，客户归你');
+    useAlert('已建档');
   } catch (error) {
     useAlert(error?.response?.data?.error || '建档失败');
   } finally {
@@ -194,19 +236,14 @@ const saveNote = async () => {
         建档后才会出现在「我的客户」里,也才能记跟进、报价、下单。
       </p>
       <div class="flex pt-1">
-        <Button
-          label="建档并归我"
-          size="xs"
-          variant="outline"
-          @click="openCreate"
-        />
+        <Button label="建档" size="xs" variant="outline" @click="openCreate" />
       </div>
     </div>
 
     <Dialog
       ref="createDialogRef"
       :dismissible="false"
-      title="建档并归我"
+      title="建档"
       :description="contact?.phone_number || contact?.name || ''"
       confirm-button-label="建档"
       confirm-button-color="iris"
@@ -221,7 +258,7 @@ const saveNote = async () => {
         class="w-full px-3 py-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12"
       />
       <p class="mt-2 text-xs text-n-slate-10">
-        联系人、电话和 WhatsApp 会自动带过去,负责人记在你名下。
+        {{ autofillHint }}
       </p>
     </Dialog>
   </div>

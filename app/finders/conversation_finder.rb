@@ -50,36 +50,16 @@ class ConversationFinder
   def perform
     set_up
 
-    mine_count, unassigned_count, all_count = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
-
+    counts = conversation_counts
     filter_by_assignee_type
 
-    {
-      conversations: conversations,
-      count: {
-        mine_count: mine_count,
-        assigned_count: assigned_count,
-        unassigned_count: unassigned_count,
-        all_count: all_count
-      }
-    }
+    { conversations: conversations, count: counts }
   end
 
   def perform_meta_only
     set_up
 
-    mine_count, unassigned_count, all_count, = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
-
-    {
-      count: {
-        mine_count: mine_count,
-        assigned_count: assigned_count,
-        unassigned_count: unassigned_count,
-        all_count: all_count
-      }
-    }
+    { count: conversation_counts }
   end
 
   private
@@ -154,6 +134,11 @@ class ConversationFinder
       @conversations = @conversations.unassigned
     when 'assigned'
       @conversations = @conversations.assigned
+    # 「已分配」页签＝我派给别人的。不用现成的 assigned（有负责人就算），是因为
+    # 管理员的会话九成都挂着负责人（线上 101 条里 93 条），那样这个页签跟「所有的」
+    # 几乎一模一样；排掉分给自己的才剩下「我交出去的」这批真正要盯的。
+    when 'assigned_out'
+      @conversations = @conversations.where.not(assignee_id: [nil, current_user.id])
     end
     @conversations
   end
@@ -175,14 +160,24 @@ class ConversationFinder
     @conversations
   end
 
+  # 列表搜索。业务员要找的九成是「某个客户的那条会话」，而不是「说过某句话的会话」——
+  # 线上 185 条会话只能靠滚，连刚进来的新询盘都翻不到。所以 q 先按联系人匹配
+  # （名字/手机通讯录备注名同一个字段、电话、邮箱），消息正文作为补充一起 OR 进去。
+  #
+  # 消息那部分走子查询而不是 joins：join 会按命中的消息条数把同一条会话复制好几行，
+  # 原来那段正是如此（还把同一个 where 写了两遍），搜一个常见词列表里就全是重复项。
   def filter_by_query
-    return unless params[:q]
+    return if params[:q].blank?
 
+    term = "%#{params[:q].strip}%"
     allowed_message_types = [Message.message_types[:incoming], Message.message_types[:outgoing]]
-    @conversations = conversations.joins(:messages).where('messages.content ILIKE :search', search: "%#{params[:q]}%")
-                                  .where(messages: { message_type: allowed_message_types }).includes(:messages)
-                                  .where('messages.content ILIKE :search', search: "%#{params[:q]}%")
-                                  .where(messages: { message_type: allowed_message_types })
+    matched_by_message = Message.where(message_type: allowed_message_types)
+                                .where('messages.content ILIKE ?', term)
+                                .select(:conversation_id)
+    @conversations = @conversations.joins(:contact).where(
+      'contacts.name ILIKE :q OR contacts.phone_number ILIKE :q OR contacts.email ILIKE :q OR conversations.id IN (:ids)',
+      q: term, ids: matched_by_message
+    )
   end
 
   def filter_by_status
@@ -210,21 +205,35 @@ class ConversationFinder
     @conversations = @conversations.where(contact_inboxes: { source_id: params[:source_id] })
   end
 
+  def conversation_counts
+    mine, unassigned, assigned_out, all = set_count_for_all_conversations
+    {
+      mine_count: mine,
+      assigned_count: all - unassigned,
+      unassigned_count: unassigned,
+      # 「已分配」页签＝我派给别人的（见 filter_by_assignee_type）
+      assigned_out_count: assigned_out,
+      all_count: all
+    }
+  end
+
   def set_count_for_all_conversations
     return legacy_count_for_all_conversations if @conversations.limit_value || @conversations.offset_value || @conversations.eager_loading?
 
     counts = @conversations.unscope(:order).pick(
       Arel.sql("COUNT(*) FILTER (WHERE assignee_id = #{current_user.id})"),
       Arel.sql('COUNT(*) FILTER (WHERE assignee_id IS NULL)'),
+      Arel.sql("COUNT(*) FILTER (WHERE assignee_id IS NOT NULL AND assignee_id <> #{current_user.id})"),
       Arel.sql('COUNT(*)')
     )
-    counts || [0, 0, 0]
+    counts || [0, 0, 0, 0]
   end
 
   def legacy_count_for_all_conversations
     [
       @conversations.assigned_to(current_user).count,
       @conversations.unassigned.count,
+      @conversations.where.not(assignee_id: [nil, current_user.id]).count,
       @conversations.count
     ]
   end

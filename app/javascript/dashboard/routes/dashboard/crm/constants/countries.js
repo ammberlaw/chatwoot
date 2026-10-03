@@ -154,3 +154,20 @@ export const COUNTRY_LABELS = {
   PAPUA_NEW_GUINEA: '🇵🇬 巴布亚新几内亚',
   OTHER: '🌍 其他',
 };
+
+// ISO2（如 'AE'）→ 上面的国家 key（如 'UAE'）。
+// 直接从 COUNTRY_LABELS 的国旗 emoji 反解，不另立一份映射表——另立的那份迟早和这里对不上。
+// 国旗由两个「区域指示符」字符组成，码位减 0x1F1E6 再加 'A' 就是 ISO2 字母。
+export const ISO2_TO_COUNTRY = Object.fromEntries(
+  Object.entries(COUNTRY_LABELS)
+    .map(([key, label]) => {
+      const points = [...label].slice(0, 2).map(ch => ch.codePointAt(0));
+      if (points.length < 2) return null;
+      if (points.some(cp => cp < 0x1f1e6 || cp > 0x1f1ff)) return null;
+      const iso = points
+        .map(cp => String.fromCharCode(cp - 0x1f1e6 + 65))
+        .join('');
+      return [iso, key];
+    })
+    .filter(Boolean)
+);

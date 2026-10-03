@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, nextTick, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useToggle } from '@vueuse/core';
 import { vOnClickOutside } from '@vueuse/components';
@@ -27,6 +27,40 @@ const chatStatusFilter = useMapGetter('getChatStatusFilter');
 const chatSortFilter = useMapGetter('getChatSortFilter');
 
 const [showActionsDropdown, toggleDropdown] = useToggle();
+
+// 这个下拉原来是 absolute 定位、长在会话列表那一栏里，而那一栏是 overflow-hidden 的
+// 玻璃卡片（backdrop-filter），下拉一宽就被裁掉右半边（「按顺序排序」只剩「按顺序排」）。
+// 和高级过滤面板同一套解法：teleport 到 body、改 fixed、按触发按钮的位置算坐标。
+const triggerRef = ref(null);
+const panelStyle = ref({});
+
+const placePanel = () => {
+  const el = triggerRef.value?.$el || triggerRef.value;
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const width = 288; // w-72
+  // 贴着按钮右边缘展开，并且不许超出视口左右两侧。
+  const left = Math.min(
+    Math.max(8, r.right - width),
+    window.innerWidth - width - 8
+  );
+  panelStyle.value = { top: `${r.bottom + 4}px`, left: `${left}px` };
+};
+
+const onToggle = async () => {
+  toggleDropdown();
+  if (!showActionsDropdown.value) return;
+  await nextTick();
+  placePanel();
+};
+
+// 面板是 fixed 的，页面一滚/一改尺寸它不会自己跟着走，得重新算。
+window.addEventListener('resize', placePanel);
+window.addEventListener('scroll', placePanel, true);
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', placePanel);
+  window.removeEventListener('scroll', placePanel, true);
+});
 
 const currentStatusFilter = computed(() => {
   return chatStatusFilter.value || wootConstants.STATUS_TYPE.OPEN;
@@ -141,46 +175,49 @@ const handleSortChange = value => {
 <template>
   <div class="relative flex">
     <NextButton
+      ref="triggerRef"
       v-tooltip.right="$t('CHAT_LIST.SORT_TOOLTIP_LABEL')"
       icon="i-lucide-arrow-up-down"
       slate
       faded
       xs
-      @click="toggleDropdown()"
+      @click="onToggle"
     />
-    <div
-      v-if="showActionsDropdown"
-      v-on-click-outside="() => toggleDropdown()"
-      class="mt-1 bg-n-alpha-3 backdrop-blur-[100px] border border-n-weak w-72 rounded-xl p-4 absolute z-40 top-full"
-      :class="{
-        'ltr:left-0 rtl:right-0': !isOnExpandedLayout,
-        'ltr:right-0 rtl:left-0': isOnExpandedLayout,
-      }"
-    >
-      <div class="flex items-center justify-between last:mt-4 gap-2">
-        <span class="text-sm truncate text-n-slate-12">
-          {{ $t('CHAT_LIST.CHAT_SORT.STATUS') }}
-        </span>
-        <SelectMenu
-          :model-value="chatStatusFilter"
-          :options="chatStatusOptions"
-          :label="activeChatStatusLabel"
-          :sub-menu-position="isOnExpandedLayout ? 'left' : 'right'"
-          @update:model-value="handleStatusChange"
-        />
+    <Teleport to="body">
+      <div
+        v-if="showActionsDropdown"
+        v-on-click-outside="[
+          () => toggleDropdown(false),
+          { ignore: [triggerRef] },
+        ]"
+        class="bg-n-alpha-3 backdrop-blur-[100px] border border-n-weak w-72 rounded-xl p-4 fixed z-[60]"
+        :style="panelStyle"
+      >
+        <div class="flex items-center justify-between last:mt-4 gap-2">
+          <span class="text-sm truncate text-n-slate-12">
+            {{ $t('CHAT_LIST.CHAT_SORT.STATUS') }}
+          </span>
+          <SelectMenu
+            :model-value="chatStatusFilter"
+            :options="chatStatusOptions"
+            :label="activeChatStatusLabel"
+            :sub-menu-position="isOnExpandedLayout ? 'left' : 'right'"
+            @update:model-value="handleStatusChange"
+          />
+        </div>
+        <div class="flex items-center justify-between last:mt-4 gap-2">
+          <span class="text-sm truncate text-n-slate-12">
+            {{ $t('CHAT_LIST.CHAT_SORT.ORDER_BY') }}
+          </span>
+          <SelectMenu
+            :model-value="chatSortFilter"
+            :options="chatSortOptions"
+            :label="activeChatSortLabel"
+            :sub-menu-position="isOnExpandedLayout ? 'left' : 'right'"
+            @update:model-value="handleSortChange"
+          />
+        </div>
       </div>
-      <div class="flex items-center justify-between last:mt-4 gap-2">
-        <span class="text-sm truncate text-n-slate-12">
-          {{ $t('CHAT_LIST.CHAT_SORT.ORDER_BY') }}
-        </span>
-        <SelectMenu
-          :model-value="chatSortFilter"
-          :options="chatSortOptions"
-          :label="activeChatSortLabel"
-          :sub-menu-position="isOnExpandedLayout ? 'left' : 'right'"
-          @update:model-value="handleSortChange"
-        />
-      </div>
-    </div>
+    </Teleport>
   </div>
 </template>

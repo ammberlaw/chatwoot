@@ -550,6 +550,13 @@ body.theme-classic .po-prefill-btn:hover:enabled {
 // 只认共享 Button 组件渲染出来的实底按钮（data-button-variant="solid"）。
 // 不能只按 .bg-n-iris-9 认：月份选择器里"选中"的那一格、下拉里的选中项也是 <button> 配同一个类，
 // 一起染黄就成了满屏黄块（Amber 反馈过）。徽标、色块、头像同理，都不该变。
+// 页签选中态的下划线：跟主题色走（n-iris-9），经典灰下 iris 会塌成灰色，
+// 而这根线就是「现在在哪一页」的唯一指示，灰掉等于没有，所以经典灰显式给品牌黄。
+// 文字/徽标不动：经典灰下 iris-11 是深灰，读得清，再染黄反而花。
+body.theme-classic a[data-tab-active='true']::after {
+  background-color: rgb(var(--amber-9)) !important;
+}
+
 body.theme-classic button[data-button-variant='solid'].bg-n-iris-9,
 body.theme-classic button[data-button-variant='solid'].bg-n-brand,
 body.theme-classic .po-prefill-btn {

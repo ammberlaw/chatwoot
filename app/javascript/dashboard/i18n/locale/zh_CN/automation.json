@@ -164,7 +164,7 @@
       "OUTGOING": "Outgoing Message"
     },
     "PRIORITY_TYPES": {
-      "NONE": "啥都没有",
+      "NONE": "无",
       "LOW": "低",
       "MEDIUM": "中",
       "HIGH": "高",

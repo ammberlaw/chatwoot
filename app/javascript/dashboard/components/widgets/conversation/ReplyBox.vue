@@ -9,6 +9,8 @@ import ConversationTranslationAPI from 'dashboard/api/crm/conversationTranslatio
 
 import ReplyToMessage from './ReplyToMessage.vue';
 import AttachmentPreview from 'dashboard/components/widgets/AttachmentsPreview.vue';
+import CrmKbFilePicker from 'dashboard/components-next/CRM/CrmKbFilePicker.vue';
+import KnowledgeDocsAPI from 'dashboard/api/crm/knowledgeDocs';
 import ReplyTopPanel from 'dashboard/components/widgets/WootWriter/ReplyTopPanel.vue';
 import ReplyEmailHead from './ReplyEmailHead.vue';
 import ReplyBottomPanel from 'dashboard/components/widgets/WootWriter/ReplyBottomPanel.vue';
@@ -65,6 +67,7 @@ export default {
   components: {
     ArticleSearchPopover,
     AttachmentPreview,
+    CrmKbFilePicker,
     AudioRecorder,
     ReplyBoxBanner,
     EmojiIconPicker,
@@ -118,6 +121,8 @@ export default {
       isPreviewTranslating: false,
       showEmojiPicker: false,
       attachedFiles: [],
+      showKbPicker: false,
+      kbPicked: [],
       isRecordingAudio: false,
       recordingAudioState: '',
       recordingAudioDurationText: '',
@@ -471,6 +476,13 @@ export default {
     },
   },
   watch: {
+    // 知识库选择器点「完成」关掉时，把勾选的文件复制一份挂成本条消息的附件。
+    // 复制在后端做（见 Crm::KnowledgeDocSnapshot）：产品目录几十 MB，
+    // 让浏览器下一遍再传一遍又慢又费业务员的上行带宽。
+    showKbPicker(isOpen, wasOpen) {
+      if (isOpen || !wasOpen || !this.kbPicked.length) return;
+      this.attachKnowledgeFiles();
+    },
     currentChat(conversation, oldConversation) {
       const { can_reply: canReply } = conversation;
       if (oldConversation && oldConversation.id !== conversation.id) {
@@ -1167,6 +1179,35 @@ export default {
         isPrivate,
       });
     },
+    async attachKnowledgeFiles() {
+      const picks = this.kbPicked;
+      this.kbPicked = [];
+      try {
+        const { data } = await KnowledgeDocsAPI.snapshotFiles(
+          picks.map(p => p.fileId)
+        );
+        (data.payload || []).forEach(file => {
+          this.attachedFiles.push({
+            currentChatId: this.currentChat.id,
+            // AttachmentsPreview 认 resource 上的 filename/byte_size/content_type
+            resource: {
+              filename: file.filename,
+              byte_size: file.byte_size,
+              content_type: file.content_type,
+            },
+            isPrivate: this.isPrivate,
+            // 图片类的缩略图直接指向刚复制出来的 blob，不用再读一遍本地文件
+            thumb: file.content_type?.includes('image')
+              ? `/rails/active_storage/blobs/redirect/${file.signed_id}/${encodeURIComponent(file.filename)}`
+              : undefined,
+            blobSignedId: file.signed_id,
+            isVoiceMessage: false,
+          });
+        });
+      } catch (error) {
+        useAlert('知识库附件添加失败，请重试');
+      }
+    },
     attachFile({ blob, file }) {
       if (!this.showFileUpload && !this.isOnPrivateNote) return;
 
@@ -1263,7 +1304,9 @@ export default {
       if (this.attachedFiles && this.attachedFiles.length) {
         messagePayload.files = [];
         this.attachedFiles.forEach(attachment => {
-          if (this.globalConfig.directUploadsEnabled) {
+          // 有 blobSignedId 说明文件已经在服务端了（直传开着时的普通附件，
+          // 以及知识库复制过来的），直接带 id；否则才传文件本体。
+          if (attachment.blobSignedId) {
             messagePayload.files.push(attachment.blobSignedId);
             if (attachment.isVoiceMessage) {
               messagePayload.isVoiceMessage = true;
@@ -1575,10 +1618,17 @@ export default {
         :new-conversation-modal-active="newConversationModalActive"
         @select-whatsapp-template="openWhatsappTemplateModal"
         @select-content-template="openContentTemplateModal"
+        @select-knowledge-file="showKbPicker = true"
         @toggle-insert-article="toggleInsertArticle"
         @toggle-quoted-reply="toggleQuotedReply"
       />
     </Transition>
+
+    <CrmKbFilePicker
+      v-model:open="showKbPicker"
+      v-model:picked="kbPicked"
+      foot-tip="勾选的文件会复制一份随这条消息发出，锁定当前版本。"
+    />
 
     <WhatsappTemplates
       :inbox-id="inbox.id"

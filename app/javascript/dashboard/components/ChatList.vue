@@ -73,6 +73,11 @@ const store = useStore();
 const resolveAttributesModalRef = ref(null);
 
 const activeAssigneeTab = ref(wootConstants.ASSIGNEE_TYPE.ME);
+// 列表内搜索：按客户名字/备注名/电话/邮箱找会话（后端 ConversationFinder#filter_by_query）。
+// 线上 185 条会话只能靠滚，想找某个客户得先去全局搜索再跳回来，这里就地解决。
+const searchQuery = ref('');
+const appliedQuery = ref('');
+let searchTimer = null;
 const activeStatus = ref(wootConstants.STATUS_TYPE.OPEN);
 const activeSortBy = ref(wootConstants.SORT_BY_TYPE.LAST_ACTIVITY_AT_DESC);
 const showAdvancedFilters = ref(false);
@@ -262,6 +267,7 @@ const conversationFilters = computed(() => {
     labels: props.label ? [props.label] : undefined,
     teamId: props.teamId || undefined,
     conversationType: props.conversationType || undefined,
+    q: appliedQuery.value || undefined,
   };
 });
 
@@ -606,6 +612,20 @@ function fetchConversations() {
   store.dispatch('fetchAllConversations').then(emitConversationLoaded);
 }
 
+// 输入防抖：边打字边请求会把列表打成闪烁，350ms 停手再查。
+function onSearchInput(value) {
+  searchQuery.value = value;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    const next = value.trim();
+    if (next === appliedQuery.value) return;
+    appliedQuery.value = next;
+    store.dispatch('conversationPage/reset');
+    store.dispatch('emptyAllConversations');
+    fetchConversations();
+  }, 350);
+}
+
 function resetAndFetchData() {
   appliedFilter.value = [];
   resetBulkActions();
@@ -939,6 +959,23 @@ watch(conversationFilters, (newVal, oldVal) => {
       @reset-filters="resetAndFetchData"
       @basic-filter-change="onBasicFilterChange"
     />
+
+    <!-- 列表内搜索客户：线上 185 条会话靠滚找不到人，新进来的询盘更是翻不到。
+         搜的是联系人（名字/手机通讯录备注名同一个字段/电话/邮箱）+ 消息正文。 -->
+    <div v-if="!hasAppliedFiltersOrActiveFolders" class="px-3 pb-1 shrink-0">
+      <div class="relative flex items-center">
+        <span
+          class="absolute i-lucide-search size-3.5 text-n-slate-10 ltr:left-2.5 rtl:right-2.5"
+        />
+        <input
+          :value="searchQuery"
+          type="search"
+          :placeholder="$t('CHAT_LIST.SEARCH_PLACEHOLDER')"
+          class="w-full h-8 text-sm border rounded-lg reset-base ltr:pl-8 rtl:pr-8 ltr:pr-2 rtl:pl-2 border-n-weak bg-n-alpha-1 text-n-slate-12 placeholder:text-n-slate-10 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
+          @input="onSearchInput($event.target.value)"
+        />
+      </div>
+    </div>
 
     <TeleportWithDirection
       v-if="showAddFoldersModal"

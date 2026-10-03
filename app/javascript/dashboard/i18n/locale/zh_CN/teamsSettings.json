@@ -11,7 +11,7 @@
     "LIST": {
       "404": "此帐户尚未添加团队。",
       "EDIT_TEAM": "编辑团队",
-      "NONE": "啥都没有"
+      "NONE": "无"
     },
     "CREATE_FLOW": {
       "CREATE": {
