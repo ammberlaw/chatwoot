@@ -12,8 +12,10 @@ import {
   ISO2_TO_COUNTRY,
 } from 'dashboard/routes/dashboard/crm/constants/countries';
 
+import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import CrmCustomerCreateDialog from './CrmCustomerCreateDialog.vue';
 
 // 会话右侧的客户卡片：业务员在聊天里就看得到这个客户的 CRM 全貌（阶段/星级/归属/
 // 在谈商机/累计成交/下次跟进），并能就地写跟进——不用切到客户页再切回来。
@@ -171,6 +173,50 @@ const createCustomer = async () => {
   }
 };
 
+// ── 就地编辑客户 ──────────────────────────────────────────────
+// 复用客户页那个编辑弹窗（同一个组件），不另写一套表单：字段一多就会两边漂。
+// 卡片本身只有轻量摘要（/card），编辑要整条记录，所以打开前先拉一次 /detail。
+const customersStore = useCrmCustomersStore();
+const editDialogRef = ref(null);
+const openingEdit = ref(false);
+
+const toCamel = obj =>
+  Object.fromEntries(
+    Object.entries(obj || {}).map(([k, v]) => [
+      k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()),
+      v,
+    ])
+  );
+
+const openEdit = async () => {
+  if (!customerId.value || openingEdit.value) return;
+  openingEdit.value = true;
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/crm/customers/${customerId.value}/detail`
+    );
+    editDialogRef.value?.open({
+      ...toCamel(data?.customer || {}),
+      files: data?.files || [],
+    });
+  } catch {
+    useAlert('打开编辑失败，请重试');
+  } finally {
+    openingEdit.value = false;
+  }
+};
+
+const onCustomerUpdate = async payload => {
+  try {
+    await customersStore.update(payload);
+    editDialogRef.value?.onSuccess();
+    useAlert('已保存');
+    await load();
+  } catch {
+    useAlert('保存失败');
+  }
+};
+
 const goDetail = () =>
   router.push({
     name: 'crm_customer_detail_index',
@@ -323,6 +369,13 @@ const saveNote = async () => {
       <div class="flex items-center gap-2 pt-1">
         <Button label="写跟进" size="xs" variant="outline" @click="openNote" />
         <Button
+          label="编辑客户"
+          size="xs"
+          variant="outline"
+          :disabled="openingEdit"
+          @click="openEdit"
+        />
+        <Button
           label="客户详情"
           size="xs"
           variant="outline"
@@ -348,5 +401,9 @@ const saveNote = async () => {
         class="w-full px-3 py-2 text-sm border rounded-lg reset-base border-n-weak bg-n-solid-1 text-n-slate-12"
       />
     </Dialog>
+
+    <!-- 客户编辑就地弹出，不跳去客户页——业务员正在跟客户聊，跳走再跳回来会丢上下文。
+         用的就是客户页那个编辑弹窗本体，字段永远一致。 -->
+    <CrmCustomerCreateDialog ref="editDialogRef" @update="onCustomerUpdate" />
   </div>
 </template>

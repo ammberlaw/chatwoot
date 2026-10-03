@@ -406,7 +406,11 @@ class Api::V1::Accounts::Crm::CustomersController < Api::V1::Accounts::Crm::Base
 
   # 客户互动时间线：跟进 + 往来邮件 + 会话 + 订单合成一条时间轴。
   def timeline
-    render json: { payload: Crm::CustomerTimeline.new(account: Current.account, customer: @customer).call }
+    render json: {
+      payload: Crm::CustomerTimeline.new(
+        account: Current.account, customer: @customer, mail_owner_ids: crm_mail_visible_owner_ids
+      ).call
+    }
   end
 
   # 操作历史：该客户的审计记录（谁在何时改了哪些字段）。

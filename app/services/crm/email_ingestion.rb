@@ -65,14 +65,22 @@ module Crm::EmailIngestion
     Rails.logger.warn("[Crm::MailFetch] enqueue ai followups failed email=#{email.id}: #{e.message}")
   end
 
-  # 客户来信自动提醒：为已建档客户的来信在「日程」里放一条当天全天提醒（归客户负责人），
+  # 客户来信自动提醒：为已建档客户的来信在「日程」里放一条当天全天提醒，
   # 直接进日程/首页今日安排。每客户至多一条 kind=reply_reminder（幂等）：来新信只刷新到当天+更新主题，
   # 不重复堆；业务员回信后可在日程里标完成/删除。
+  #
+  # 提醒归「这封信实际进了谁的邮箱」（email.owner_id），不是客户负责人。
+  # 两者可能不是同一个人：客户发到公司总箱 info@，信归总箱主人，而客户挂在某业务员名下。
+  # 原来按客户负责人发，结果是：负责人收到「回复客户来信」，却因为邮件可见性根本
+  # 打不开也回不了那封信；真正能回的邮箱主人反而没有任何提醒——提醒成了死胡同。
+  # （生产实测：邮件 3774 发到陈云钢的 info@ 总箱，提醒却发给了客户负责人余姗姗。）
   def maybe_create_reply_reminder(email)
     return if email.crm_customer_id.blank?
 
     customer = Crm::Customer.find_by(id: email.crm_customer_id)
-    owner_id = customer&.account_owner_id
+    return if customer.blank?
+
+    owner_id = email.owner_id
     return if owner_id.blank?
 
     today = Time.zone.today

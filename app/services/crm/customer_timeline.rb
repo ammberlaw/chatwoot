@@ -4,9 +4,14 @@ class Crm::CustomerTimeline
   LIMIT_PER_TYPE = 40
   TOTAL_LIMIT = 80
 
-  def initialize(account:, customer:)
+  # mail_owner_ids：调用方按邮件口径算好的可见负责人范围（:all 或 user_id 数组）。
+  # 必须传——时间线原来不分归属地列出该客户名下所有邮件的主题和正文摘要，
+  # 于是邮件模块特意对某人隐藏的信，从客户详情页这条路又露了出去
+  # （生产实测 50 封邮件处于「邮件归属 ≠ 客户负责人」的状态）。
+  def initialize(account:, customer:, mail_owner_ids: [])
     @account = account
     @customer = customer
+    @mail_owner_ids = mail_owner_ids
   end
 
   def call
@@ -29,9 +34,10 @@ class Crm::CustomerTimeline
   end
 
   def emails
-    @account.crm_emails.where(crm_customer_id: @customer.id)
-            .order(email_date: :desc).limit(LIMIT_PER_TYPE)
-            .map do |e|
+    scope = @account.crm_emails.where(crm_customer_id: @customer.id)
+    scope = scope.where(owner_id: @mail_owner_ids) unless @mail_owner_ids == :all
+    scope.order(email_date: :desc).limit(LIMIT_PER_TYPE)
+         .map do |e|
       { type: 'email', at: e.email_date || e.created_at, title: e.subject.presence || '(无主题)',
         body: strip_tags(e.body).first(140),
         who: e.folder == 'INBOX' ? e.from_address : e.to_address,
