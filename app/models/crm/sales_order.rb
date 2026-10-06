@@ -5,6 +5,7 @@
 # Table name: crm_sales_orders
 #
 #  id                   :bigint           not null, primary key
+#  amount_includes_tax  :boolean
 #  cost_amount_micros   :bigint
 #  deleted_at           :datetime
 #  delivery_date        :datetime
@@ -23,6 +24,7 @@
 #  remark               :text
 #  shipping_micros      :bigint
 #  status               :string           default("PENDING_CONFIRMATION"), not null
+#  tax_rate             :integer
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
 #  account_id           :bigint           not null
@@ -75,6 +77,25 @@ class Crm::SalesOrder < ApplicationRecord
   # 看板/统计一律用它做 SUM，避免多币种直接混加。列名带表前缀以兼容 join 查询。
   # ⚠️CNY 单必须按 1 折算：历史上人民币单可能残留非 1 汇率（改币种时未清），
   # 若不判币种直接 ×汇率会把 CNY 金额虚增数倍（曾致看板成交额虚高），故按币种守卫。
+  # 销项税率：单据上填了就用单据的；没填（历史单、外部导入）按币种推定——
+  # 人民币走账套默认税率，美金等外币出口单 0。决定凭证要不要出销项税那一行。
+  # 口径见 ERP_SPEC §8.2bis（财务 2026-10-06 拍板）。
+  def effective_tax_rate(default_rate = nil)
+    return tax_rate if tax_rate.present?
+    return 0 unless order_currency.blank? || order_currency == 'CNY'
+
+    default_rate || (account && Erp::Setting.for_account(account).default_output_tax_rate) || 13
+  end
+
+  # 订单金额含不含税：单据上填了就用单据的，没填跟随账套默认。
+  # 公司两种合同都有（内销常报含税、外贸报不含税），所以不能只在账套上开一个全局开关。
+  def effective_amount_includes_tax(default_flag = nil)
+    return amount_includes_tax unless amount_includes_tax.nil?
+    return default_flag unless default_flag.nil?
+
+    account ? Erp::Setting.for_account(account).amount_includes_tax : true
+  end
+
   RMB_AMOUNT_MICROS_SQL = "ROUND(crm_sales_orders.order_amount_micros * CASE WHEN crm_sales_orders.order_currency = 'CNY' THEN 1 ELSE COALESCE(crm_sales_orders.exchange_rate, 1) END)".freeze
 
   belongs_to :account
@@ -112,6 +133,8 @@ class Crm::SalesOrder < ApplicationRecord
   validates :order_date, presence: true
   validates :order_currency, inclusion: { in: Crm::Customer::CURRENCIES }, allow_blank: true
   validates :order_kind, inclusion: { in: ORDER_KINDS }, allow_blank: true
+  validates :tax_rate, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 100 },
+                       allow_nil: true
   validate :require_attachment_on_create, on: :create, unless: :system_generated
   validate :require_order_kind_on_create, on: :create, unless: :system_generated
 

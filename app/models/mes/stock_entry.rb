@@ -162,7 +162,22 @@ class Mes::StockEntry < ApplicationRecord
       complete_production_order_if_shipped(ts)
       sync_erp_stock_cost
     end
+    # 采购入库/退货出应付凭证（借 存货科目 / 贷 应付账款，退货红字）。放事务外同出库单。
+    generate_erp_receipt_voucher
     self
+  end
+
+  # 采购入库与采购退货生成待过账的应付凭证（口径见 ERP_SPEC §8.2bis）。
+  # 其它用途（领料/成品入库/报废/销售出库）不在此列：
+  # 领料与成品入库是存货内部结转、销售出库的凭证由出库单自己出。
+  PAYABLE_VOUCHER_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN].freeze
+
+  def generate_erp_receipt_voucher
+    return unless PAYABLE_VOUCHER_PURPOSES.include?(purpose)
+
+    Erp::AutoVoucherService.new(account).for_stock_receipt(self)
+  rescue StandardError => e
+    Rails.logger.error("[Erp::AutoVoucher] 出入库单 #{entry_no} 生成凭证失败: #{e.message}")
   end
 
   # 作废（冲销）：把过账时扣/加的库存按反方向冲回、记反向流水，已过账才可作废；

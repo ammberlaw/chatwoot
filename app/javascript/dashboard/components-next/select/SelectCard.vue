@@ -108,12 +108,16 @@ const pick = opt => {
 
 <template>
   <div :class="block ? 'w-full' : 'shrink-0'">
-    <!-- 触发器：白色小卡片，样式对齐旁边的输入框 -->
+    <!-- 触发器：白色小卡片，样式对齐旁边的输入框。
+         button 恒 w-full：外层 div 的宽度由调用方的 class 决定（w-44 这种），
+         button 以前只按文字撑宽，调用方给了 44 它只占 28，右边空出一截，
+         看着像「下拉和旁边的搜索框之间有个大空隙」（产品档案页最明显）。
+         没给宽度时外层是 shrink-to-fit，w-full 解析回内容宽，行为不变。 -->
     <button
       ref="triggerEl"
       type="button"
       :disabled="disabled"
-      :class="[triggerClass, block ? 'w-full' : '']"
+      :class="[triggerClass, 'w-full']"
       class="inline-flex items-center justify-between h-9 gap-2 pl-3 text-sm text-left transition-all rounded-lg pr-2.5 outline outline-1 outline-n-weak bg-n-solid-1 hover:outline-n-brand disabled:opacity-60 disabled:cursor-not-allowed"
       @click="toggle"
     >

@@ -494,7 +494,7 @@ useRouteQueryReentry(query => {
                 <Button
                   v-if="canApprove(p)"
                   label="通过"
-                  color="teal"
+                  color="iris"
                   size="sm"
                   @click="approvePo(p)"
                 />
@@ -645,7 +645,7 @@ useRouteQueryReentry(query => {
                   <Button
                     v-if="canApprove(p)"
                     label="通过"
-                    color="teal"
+                    color="iris"
                     size="sm"
                     @click="approvePo(p)"
                   />

@@ -139,12 +139,18 @@ export const useInbox = (inboxId = null) => {
     return channelType.value === INBOX_TYPES.TIKTOK;
   });
 
+  // 收件箱不在当前用户的列表里（管理员跨收件箱看别人会话时就是这样）——
+  // 此时所有 isAXxxChannel 全是 false，调用方不能把它当成「某个渠道不支持」。
+  const isInboxUnknown = computed(() => !channelType.value);
+
   const voiceCallEnabled = computed(() => isVoiceCallEnabled(inbox.value));
 
   const voiceCallProvider = computed(() => getVoiceCallProvider(inbox.value));
 
   return {
     inbox,
+    channelType,
+    isInboxUnknown,
     isAFacebookInbox,
     isALineChannel,
     isAPIInbox,

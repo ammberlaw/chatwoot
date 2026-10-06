@@ -331,7 +331,7 @@ onMounted(async () => {
              省得人先点「新建」再找「套用模版」（她第一反应就是来列表页找模版）。 -->
         <Button
           v-if="mesCan('bom')"
-          label="套用模版"
+          label="模版"
           variant="outline"
           color="slate"
           size="sm"

@@ -51,7 +51,7 @@ class Crm::SalesOrderTraceService
   # 出货单按「销售订单」挂——现货出库(STOCK)没有生产订单也能挂上，
   # 只顺着生产订单找会把这类单整个漏掉（已完结的单里就有这种）。
   def shipments(order_ids)
-    scope = @account.mes_shipments.includes(:warehouse, :production_order)
+    scope = @account.mes_shipments.includes(:warehouse, :production_order, shipment_items: :crm_product)
     scope.where(crm_sales_order_id: @sales_order.id)
          .or(scope.where(production_order_id: order_ids))
          .order(:created_at)
@@ -90,6 +90,13 @@ class Crm::SalesOrderTraceService
       status_label: SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status,
       submitted_at: shipment.submitted_at, approved_at: shipment.approved_at,
       shipped_at: shipment.shipped_at, warehouse: shipment.warehouse&.name,
-      production_order_no: shipment.production_order&.order_no }
+      production_order_no: shipment.production_order&.order_no,
+      items: shipment.shipment_items.map { |i| shipment_item_json(i) } }
+  end
+
+  # 「这张单到底出了什么货、各多少」——只给品名/编码/数量，不带价（出库单本来就没有价）。
+  def shipment_item_json(item)
+    { product_name: item.crm_product&.name, product_sku: item.crm_product&.sku,
+      qty: item.qty.to_f, unit: item.unit, remark: item.remark }
   end
 end

@@ -68,9 +68,17 @@ const canSubmit = computed(
     (kind.value !== 'STOCK' || !!warehouseId.value)
 );
 
+// 订单金额含不含税：同一家公司两种合同都有，所以不在账套上一刀切，转单时当场勾。
+// 决定出库收入凭证怎么拆：含税 → 收入=金额÷(1+税率)、应收=金额；
+// 不含税 → 收入=金额、应收=金额+税额。税率 0 的出口单两种算法同值，不影响。
+const includesTax = ref(true);
+const taxRate = computed(() => Number(order.value?.taxRate ?? 0));
+
 const open = async record => {
   order.value = record;
   kind.value = record.orderKind || '';
+  // 单据上记过就沿用，没记过默认含税（国内合同惯例）。
+  includesTax.value = record.amountIncludesTax ?? true;
   warehouseId.value = '';
   rows.splice(0, rows.length);
   dialogRef.value?.open();
@@ -126,6 +134,7 @@ const submitCustom = async () => {
   // 生产脊柱按成品走：一行明细一张生产订单，全部挂回这张销售订单。
   const { data } = await MesProductionOrderAPI.convert({
     crm_sales_order_id: order.value.id,
+    amount_includes_tax: includesTax.value,
     items: pendingRows.value.map(r => ({
       crm_product_id: r.productId,
       qty: r.qty,
@@ -141,6 +150,7 @@ const submitStock = async () => {
   const { data } = await MesShipmentAPI.convert({
     crm_sales_order_id: order.value.id,
     warehouse_id: warehouseId.value,
+    amount_includes_tax: includesTax.value,
     items: rows.map(r => ({
       crm_product_id: r.productId,
       qty: r.qty,
@@ -197,6 +207,24 @@ defineExpose({ open });
             :options="warehouses.map(w => ({ value: w.id, label: w.name }))"
           />
         </div>
+      </div>
+
+      <!-- 订单金额含不含税：决定出库后那张收入凭证怎么拆行。税率 0 的出口单不影响。 -->
+      <div class="flex flex-col gap-1">
+        <label class="flex items-center gap-2 text-sm text-n-slate-12">
+          <input v-model="includesTax" type="checkbox" class="w-4 h-4" />
+          订单金额已含税
+        </label>
+        <p class="text-xs text-n-slate-11">
+          <template v-if="taxRate > 0">
+            税率 {{ taxRate }}%。勾上＝金额里已经含了税，收入按 金额÷(1+税率)
+            确认、应收等于金额；不勾＝金额是不含税价，税额另加，应收 = 金额 +
+            税额。
+          </template>
+          <template v-else>
+            这张单税率为 0（出口免税），两种算法结果一样，勾不勾都不影响记账。
+          </template>
+        </p>
       </div>
       <span v-if="!order.orderKind" class="-mt-2 text-xs text-n-amber-11">
         这张订单还没标订单类型，这次选的类型不会写回订单；建议回订单里补上，以后转单就自动分流。

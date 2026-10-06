@@ -374,7 +374,7 @@ const completenessRing = computed(() => {
   return {
     score,
     data: [done, 100 - done],
-    colors: ['#f5c451', themeColor('slate-4')],
+    colors: ['#ffc53d', themeColor('slate-4')],
   };
 });
 
@@ -512,8 +512,8 @@ const isClassic = computed(() => {
   void themeSignal.value;
   return isClassicTheme();
 });
-const RANK_PALETTE = ['#f5c451', '#2a2e37', '#6b6f78', '#b9bcc4'];
-const isLightBar = c => c === '#f5c451' || c === '#b9bcc4';
+const RANK_PALETTE = ['#ffc53d', '#2a2e37', '#6b6f78', '#b9bcc4'];
+const isLightBar = c => c === '#ffc53d' || c === '#b9bcc4';
 
 // 商机阶段：图标 + 阶段名 + 金额的清单。
 // 不画条子——条子要么比长短、要么配底槽说完成率，这五个阶段两样都不是。

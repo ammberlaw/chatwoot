@@ -89,6 +89,20 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   end
 
   # 账龄分析：basis=due 逾期账龄 / basis=invoice 账龄（按建账日）。
+  # 销售订单详情（财务侧）：订单明细（出了什么货、单价多少）+ 挂着的 CRM/MES 单据。
+  #
+  # 为什么不复用 crm/sales_orders 那套接口：财务多半没有 crm_role（can_access_crm? 为假），
+  # 走 CRM 门禁一律 403——财务查应收对应的那张订单是本职工作，不该为此给他开 CRM 角色。
+  # 这里由 ERP 门禁放行，服务端复用同一个追溯服务，口径与 CRM 侧一致。
+  def order_detail
+    @order = Current.account.crm_sales_orders
+                    .includes(:crm_customer, :owner, :crm_opportunity)
+                    .find(params[:crm_sales_order_id])
+    @trace = Crm::SalesOrderTraceService.new(account: Current.account, sales_order: @order).call
+    @order_receivable = Current.account.erp_receivables.find_by(crm_sales_order_id: @order.id)
+    render 'api/v1/accounts/erp/receivables/order_detail'
+  end
+
   def aging
     @aging = Erp::AgingService.new(Current.account).receivables(as_of: aging_as_of, basis: aging_basis)
     render 'api/v1/accounts/erp/shared/aging'

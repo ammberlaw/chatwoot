@@ -886,7 +886,7 @@ onMounted(load);
         <!-- 只读态的表头备注 -->
         <div
           v-else-if="detail.header_note"
-          class="px-4 py-3 mb-4 text-xs leading-6 whitespace-pre-line border rounded-xl border-n-amber-6 bg-n-amber-2 text-n-slate-12"
+          class="px-1 py-2 mb-4 text-xs leading-6 whitespace-pre-line text-n-slate-12"
         >
           {{ detail.header_note }}
         </div>

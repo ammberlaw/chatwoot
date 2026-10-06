@@ -245,7 +245,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   def sales_order_params
     params.require(:sales_order).permit(
       :name, :order_no, :pi_no, :crm_customer_id, :contact_id, :crm_opportunity_id, :owner_id,
-      :status, :order_kind, :order_date, :delivery_date, :order_currency, :exchange_rate,
+      :status, :order_kind, :order_date, :delivery_date, :order_currency, :exchange_rate, :tax_rate,
       :order_amount_micros, :shipping_micros, :cost_amount_micros, :profit_amount_micros, :profit_rate, :remark,
       :line_items_json,
       :payment_term,

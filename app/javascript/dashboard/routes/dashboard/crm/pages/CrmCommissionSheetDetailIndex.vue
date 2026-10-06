@@ -1170,7 +1170,7 @@ const openForward = () => {
       >
         <div
           ref="captureRef"
-          class="inline-block min-w-full p-4 bg-n-background rounded-2xl border border-n-weak"
+          class="inline-block min-w-full p-4 bg-n-solid-1 rounded-2xl border border-n-weak"
         >
           <div class="mb-2 text-sm font-semibold text-n-slate-12">
             {{ title }}

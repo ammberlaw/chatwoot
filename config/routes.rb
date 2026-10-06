@@ -358,6 +358,8 @@ Rails.application.routes.draw do
             resources :ledger_accounts, only: [:index, :show, :create, :update, :destroy] do
               collection do
                 post :initialize_standard
+                get :inventory_map
+                put :update_inventory_map
               end
             end
             resources :voucher_templates, only: [:index, :create, :destroy]
@@ -384,6 +386,7 @@ Rails.application.routes.draw do
                 get :open_list
                 get :aging
                 get :pending_orders
+                get :order_detail
                 post :bulk_build
               end
             end

@@ -65,6 +65,11 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   #   业务员等 CRM 角色 → 落草稿并提交审批，主管/总经理审完才生效。
   def convert
     sales_order = Current.account.crm_sales_orders.find(params[:crm_sales_order_id])
+    # 转单时勾的「订单金额已含税」写回销售订单（出库收入凭证按它拆行，见 ERP_SPEC §8.2bis）。
+    unless params[:amount_includes_tax].nil?
+      sales_order.update_columns(amount_includes_tax: ActiveModel::Type::Boolean.new.cast(params[:amount_includes_tax]),
+                                 updated_at: Time.current)
+    end
     rows = convert_rows
     return render json: { error: '请至少选择一行明细' }, status: :unprocessable_entity if rows.empty?
 

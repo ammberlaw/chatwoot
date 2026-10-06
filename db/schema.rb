@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_05_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_06_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2019,6 +2019,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_100000) do
     t.bigint "handled_by_id"
     t.string "order_kind"
     t.string "payment_term"
+    t.integer "tax_rate"
+    t.boolean "amount_includes_tax"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_kind"], name: "index_crm_sales_orders_on_account_id_and_order_kind"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
@@ -2527,6 +2529,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "receivables_enabled", default: false, null: false
+    t.integer "default_output_tax_rate", default: 13, null: false
+    t.jsonb "inventory_account_map", default: {}, null: false
+    t.boolean "amount_includes_tax", default: true, null: false
     t.index ["account_id"], name: "index_erp_settings_on_account_id", unique: true
   end
 
@@ -4174,33 +4179,3 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_100000) do
   add_foreign_key "tiktok_shops", "accounts", on_delete: :cascade
   add_foreign_key "tiktok_shops", "tiktok_departments", column: "department_id", on_delete: :nullify
   add_foreign_key "user_sessions", "users"
-  create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
-      on("accounts").
-      after(:insert).
-      for_each(:row) do
-    "execute format('create sequence IF NOT EXISTS conv_dpid_seq_%s', NEW.id);"
-  end
-
-  create_trigger("conversations_before_insert_row_tr", :generated => true, :compatibility => 1).
-      on("conversations").
-      before(:insert).
-      for_each(:row) do
-    "NEW.display_id := nextval('conv_dpid_seq_' || NEW.account_id);"
-  end
-
-  create_trigger("camp_dpid_before_insert", :generated => true, :compatibility => 1).
-      on("accounts").
-      name("camp_dpid_before_insert").
-      after(:insert).
-      for_each(:row) do
-    "execute format('create sequence IF NOT EXISTS camp_dpid_seq_%s', NEW.id);"
-  end
-
-  create_trigger("campaigns_before_insert_row_tr", :generated => true, :compatibility => 1).
-      on("campaigns").
-      before(:insert).
-      for_each(:row) do
-    "NEW.display_id := nextval('camp_dpid_seq_' || NEW.account_id);"
-  end
-
-end

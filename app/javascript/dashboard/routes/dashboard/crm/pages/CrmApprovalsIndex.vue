@@ -803,7 +803,7 @@ onMounted(async () => {
                 <Button
                   :label="L.approve"
                   icon="i-lucide-check"
-                  color="teal"
+                  color="iris"
                   @click="act('approved')"
                 />
                 <Button

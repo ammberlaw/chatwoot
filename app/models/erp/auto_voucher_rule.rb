@@ -27,13 +27,24 @@ class Erp::AutoVoucherRule < ApplicationRecord
   PAYMENT = 'PAYMENT'.freeze
   CASH_TRANSFER = 'CASH_TRANSFER'.freeze
   EXPENSE_PAYOUT = 'EXPENSE_PAYOUT'.freeze
-  EVENT_KEYS = [RECEIPT, PAYMENT, CASH_TRANSFER, EXPENSE_PAYOUT].freeze
+  # 业务单据驱动的三个事件（财务 2026-10-06 拍板：收入在销售出库时点确认）。
+  SHIPMENT_REVENUE = 'SHIPMENT_REVENUE'.freeze
+  SHIPMENT_COST = 'SHIPMENT_COST'.freeze
+  STOCK_RECEIPT = 'STOCK_RECEIPT'.freeze
+  EVENT_KEYS = [RECEIPT, PAYMENT, CASH_TRANSFER, EXPENSE_PAYOUT,
+                SHIPMENT_REVENUE, SHIPMENT_COST, STOCK_RECEIPT].freeze
 
   DEFAULTS = {
     RECEIPT => { name: '收款单 → 借 货币资金 / 贷 应收账款', keys: %w[fee_account_id receivable_account_id] },
     PAYMENT => { name: '付款单 → 借 应付账款 / 贷 货币资金', keys: %w[fee_account_id payable_account_id] },
     CASH_TRANSFER => { name: '内部划转 → 借 转入账户 / 贷 转出账户', keys: [] },
-    EXPENSE_PAYOUT => { name: '报销打款 → 借 费用科目 / 贷 货币资金', keys: [] }
+    EXPENSE_PAYOUT => { name: '报销打款 → 借 费用科目 / 贷 货币资金', keys: [] },
+    SHIPMENT_REVENUE => { name: '销售出库 → 借 应收账款 / 贷 主营业务收入 + 销项税',
+                          keys: %w[revenue_account_id tax_account_id receivable_account_id] },
+    SHIPMENT_COST => { name: '销售出库 → 借 主营业务成本 / 贷 库存商品',
+                       keys: %w[cogs_account_id inventory_account_id] },
+    STOCK_RECEIPT => { name: '采购入库/退货 → 借 存货科目 / 贷 应付账款（退货红字）',
+                       keys: %w[payable_account_id] }
   }.freeze
 
   belongs_to :account

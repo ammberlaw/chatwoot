@@ -4,6 +4,7 @@ class Erp::ReceivablePolicy < ApplicationPolicy
   def open_list? = @account_user.can_access_erp?
   def aging? = @account_user.can_access_erp?
   def pending_orders? = @account_user.can_access_erp?
+  def order_detail? = @account_user.can_access_erp?
 
   def create? = @account_user.erp_can?(:receivable)
   def bulk_build? = @account_user.erp_can?(:receivable)

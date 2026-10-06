@@ -1395,19 +1395,19 @@ watch(currentPage, fetchRecords);
           @click="resetOrder"
         />
         <Button
-          v-if="canCreateOrder"
-          label="新建生产订单"
-          color="iris"
-          size="sm"
-          @click="openNewOrder"
-        />
-        <Button
           v-if="mesCan('order')"
           label="从销售订单转入"
           variant="outline"
           color="slate"
           size="sm"
           @click="openConvert"
+        />
+        <Button
+          v-if="canCreateOrder"
+          label="新建生产订单"
+          color="iris"
+          size="sm"
+          @click="openNewOrder"
         />
       </div>
     </div>
@@ -1931,7 +1931,7 @@ watch(currentPage, fetchRecords);
             <div class="flex gap-2">
               <Button
                 label="通过"
-                color="teal"
+                color="iris"
                 size="xs"
                 :is-loading="uiFlags.updatingItem"
                 @click="approveOrder"

@@ -21,6 +21,7 @@ const {
   isAnEmailChannel,
   isAnInstagramChannel,
   isATiktokChannel,
+  isInboxUnknown,
 } = useInbox();
 
 const {
@@ -49,8 +50,17 @@ const showStatusIndicator = computed(() => {
   return false;
 });
 
+// 收件箱不在当前用户的列表里时（管理员跨收件箱看别人的会话——个人号 WhatsApp
+// 每个号只有机主一个成员），前面所有 isAXxxChannel 都是 false，三段判断全落空、
+// 兜底成「发送中」，于是已读的消息一直显示时钟。
+// 这种情况下消息自己带着真实 status，直接认它即可。
+const trustRawStatus = computed(
+  () => showStatusIndicator.value && isInboxUnknown.value
+);
+
 const isSent = computed(() => {
   if (!showStatusIndicator.value) return false;
+  if (trustRawStatus.value) return status.value === MESSAGE_STATUS.SENT;
 
   // Messages will be marked as sent for the Email channel if they have a source ID.
   if (isAnEmailChannel.value) return !!sourceId.value;
@@ -78,6 +88,7 @@ const isSent = computed(() => {
 
 const isDelivered = computed(() => {
   if (!showStatusIndicator.value) return false;
+  if (trustRawStatus.value) return status.value === MESSAGE_STATUS.DELIVERED;
 
   if (
     isAWhatsAppChannel.value ||
@@ -104,6 +115,7 @@ const isDelivered = computed(() => {
 
 const isRead = computed(() => {
   if (!showStatusIndicator.value) return false;
+  if (trustRawStatus.value) return status.value === MESSAGE_STATUS.READ;
 
   if (
     isAWhatsAppChannel.value ||

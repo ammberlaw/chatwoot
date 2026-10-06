@@ -528,7 +528,7 @@ onMounted(() => {
               <template v-if="canApproveRow(s)">
                 <Button
                   label="审核通过"
-                  color="teal"
+                  color="iris"
                   size="sm"
                   :is-loading="acting"
                   @click.stop="approve(s)"
@@ -635,7 +635,7 @@ onMounted(() => {
                   <template v-if="canApproveRow(s)">
                     <Button
                       label="审核通过"
-                      color="teal"
+                      color="iris"
                       size="sm"
                       :is-loading="acting"
                       @click="approve(s)"

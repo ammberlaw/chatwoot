@@ -28,6 +28,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     @shipment = Current.account.mes_shipments.new(converted_shipment_attrs(sales_order))
     @shipment.fallback_product_line = current_product_line
     @shipment.save!
+    record_tax_basis!(sales_order)
     # 与手工开单同路径：提交即预占成品库存并进主管审核。
     @shipment.submit_for_approval!(current_user)
     render 'api/v1/accounts/mes/shipments/show'
@@ -125,6 +126,15 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
 
   # 生产出库单若明细缺商品编码（建单时成品名选填导致），按订单成品名兜底建/关联编码，
   # 保证成品库存按 SKU 扣减、不串库。现货出库(STOCK)明细来自产品档案本就带编码，不受影响。
+  # 转单时勾的「订单金额已含税」写回销售订单——出库后的收入凭证按它拆行。
+  # 放在转单而不是建单：业务员建单时未必想得起来，转单的人是要对金额负责的那个。
+  def record_tax_basis!(sales_order)
+    return if params[:amount_includes_tax].nil?
+
+    sales_order.update_columns(amount_includes_tax: ActiveModel::Type::Boolean.new.cast(params[:amount_includes_tax]),
+                               updated_at: Time.current)
+  end
+
   def converted_shipment_for(sales_order)
     Current.account.mes_shipments.where(crm_sales_order_id: sales_order.id).where.not(status: 'CANCELLED').first
   end

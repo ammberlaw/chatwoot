@@ -42,6 +42,12 @@ const uploading = ref(false);
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+// 销项税率：人民币单 13、美金等外币出口单 0，只在「人没手动改过」时跟着币种走。
+// 用常量而不是读账套设置：业务员没有 ERP 权限、取那张表是 403。
+// 账套里的「默认销项税率」只作后端兜底——历史单/导入单 tax_rate 为空时才用。
+const DEFAULT_CN_TAX_RATE = 13;
+const taxRateTouched = ref(false);
+
 const form = reactive({
   name: '',
   piNo: '',
@@ -55,6 +61,7 @@ const form = reactive({
   shipping: '',
   orderCurrency: 'CNY',
   exchangeRate: '',
+  taxRate: String(DEFAULT_CN_TAX_RATE),
   remark: '',
   lineItems: [], // [{ name, spec, quantity, unitPrice, amount }]
 });
@@ -161,10 +168,29 @@ const statusOptions = [
   { value: 'CANCELLED', label: '已取消' },
 ];
 
-const currencyOptions = ['CNY', 'USD', 'EUR'].map(v => ({
-  value: v,
-  label: v,
-}));
+// 结算币种只保留人民币和美金：账上外币科目只开了美元一档（银行存款-美元户 /
+// 应收账款-美元 / 应付账款-美元），别的币种在账里没有落脚点。
+// 其他国家的币种由业务员先折成美金再录（财务 2026-10-06 定）。
+const BASE_CURRENCIES = ['CNY', 'USD'];
+// 历史单里还有欧元，编辑时得能显示出来，否则下拉是空白、一存就被清掉。
+const currencyOptions = computed(() =>
+  [
+    ...BASE_CURRENCIES,
+    ...(form.orderCurrency && !BASE_CURRENCIES.includes(form.orderCurrency)
+      ? [form.orderCurrency]
+      : []),
+  ].map(v => ({ value: v, label: v }))
+);
+
+const prefillTaxRate = () => {
+  if (taxRateTouched.value) return;
+  form.taxRate =
+    form.orderCurrency === 'CNY' ? String(DEFAULT_CN_TAX_RATE) : '0';
+};
+const onCurrencyChange = v => {
+  form.orderCurrency = v;
+  prefillTaxRate();
+};
 
 const customerOptions = computed(() =>
   privateCustomers.value.map(c => ({
@@ -230,6 +256,8 @@ const resetForm = () => {
   form.shipping = '';
   form.orderCurrency = 'CNY';
   form.exchangeRate = '';
+  taxRateTouched.value = false;
+  form.taxRate = String(DEFAULT_CN_TAX_RATE);
   form.remark = '';
   form.lineItems = [];
 };
@@ -317,6 +345,9 @@ const open = record => {
     form.orderCurrency = record.orderCurrency || 'CNY';
     form.exchangeRate =
       record.exchangeRate != null ? String(record.exchangeRate) : '';
+    // 存量单的税率是迁移按币种刷进去的，载入后视作「已填」，别被币种联动改掉
+    taxRateTouched.value = true;
+    form.taxRate = record.taxRate != null ? String(record.taxRate) : '';
     form.remark = record.remark || '';
   }
   loadPrivateCustomers();
@@ -368,6 +399,7 @@ const handleConfirm = () => {
       : null,
     orderCurrency: form.orderCurrency,
     exchangeRate: form.exchangeRate ? parseFloat(form.exchangeRate) : null,
+    taxRate: form.taxRate === '' ? null : parseInt(form.taxRate, 10),
     remark: form.remark.trim() || null,
     lineItemsJson: JSON.stringify(lineItemsPayload),
   };
@@ -610,13 +642,38 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.SALES_ORDERS.FORM.CURRENCY') }}
           </label>
-          <SelectCard v-model="form.orderCurrency" :options="currencyOptions" />
+          <SelectCard
+            :model-value="form.orderCurrency"
+            :options="currencyOptions"
+            @update:model-value="onCurrencyChange"
+          />
         </div>
         <Input
           v-model="form.exchangeRate"
           type="number"
           :label="t('CRM.SALES_ORDERS.FORM.EXCHANGE_RATE')"
         />
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12"
+            >销项税率（%）</label
+          >
+          <Input
+            :model-value="form.taxRate"
+            type="number"
+            min="0"
+            max="100"
+            @update:model-value="
+              v => {
+                form.taxRate = v;
+                taxRateTouched = true;
+              }
+            "
+          />
+          <span class="text-xs text-n-slate-11">
+            人民币单默认 13、外币出口单默认 0，可改；为 0
+            时出库凭证不出销项税行。
+          </span>
+        </div>
       </div>
 
       <TextArea

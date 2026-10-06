@@ -74,6 +74,9 @@
     --amber-10: 255 186 24;
     --amber-11: 171 100 0;
     --amber-12: 79 52 34;
+    // 主按钮悬停专用：amber 色阶里 9 往上是 10，而 10 更沉（255 186 24），
+    // 压上去整颗按钮发暗，看着像按钮自己变黄了。主按钮悬停一律提亮，不走 10。
+    --amber-9-hover: 255 209 97;
 
     --teal-1: 250 254 253;
     --teal-2: 243 251 249;
@@ -230,6 +233,7 @@
     --amber-8: 143 100 36;
     --amber-9: 255 197 61;
     --amber-10: 255 214 10;
+    --amber-9-hover: 255 216 110; // 主按钮悬停提亮，见浅色模式处说明
     --amber-11: 255 202 22;
     --amber-12: 255 231 179;
 
@@ -549,7 +553,7 @@ body.theme-classic:not(.dark) main .bg-n-solid-1\/50 {
 // 「按采购单预填收货明细」按钮：玻璃/蓝/beebot 用品牌紫(iris solid)，经典灰改主题黄(amber)。
 // 紫玻璃不动（默认 iris 即紫）；仅经典灰作用域把该按钮底色/悬停覆盖成 amber。
 body.theme-classic .po-prefill-btn:hover:enabled {
-  @apply bg-n-amber-10;
+  background-color: rgb(var(--amber-9-hover)) !important;
 }
 
 // 经典灰：主操作按钮（新建 / 提交 / 保存 / 确认这类）统一品牌黄。紫玻璃不动。
@@ -579,7 +583,7 @@ body.theme-classic button[data-button-variant='solid'].bg-n-iris-9:hover:enabled
 body.theme-classic button[data-button-variant='solid'].bg-n-brand:hover:enabled,
 body.theme-classic button[data-button-variant='solid'].bg-n-iris-9:focus-visible,
 body.theme-classic button[data-button-variant='solid'].bg-n-brand:focus-visible {
-  background-color: rgb(var(--amber-10)) !important;
+  background-color: rgb(var(--amber-9-hover)) !important;
 }
 
 // 还有一批主操作按钮是原生 <button> 写死的品牌渐变（新建客户/新建订单/新建报价/新建 PI 等 9 处），
@@ -599,7 +603,7 @@ body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad {
 }
 body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad:hover:enabled,
 body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad:focus-visible {
-  background-color: rgb(var(--amber-10)) !important;
+  background-color: rgb(var(--amber-9-hover)) !important;
 }
 
 // ── 页面级 Tab 统一（全主题）──────────────────────────────────────

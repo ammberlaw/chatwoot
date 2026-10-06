@@ -81,7 +81,7 @@ const KPI_META_CLASSIC = [
   {
     key: 'all',
     track: 'text-[#fbeec0]',
-    ring: 'text-[#f5c451]',
+    ring: 'text-[#ffc53d]',
     text: 'text-[#a97e0c]',
   },
   {

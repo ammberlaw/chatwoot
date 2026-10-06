@@ -12,6 +12,98 @@ import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+// 页签：科目树 / 存货科目映射。映射是科目的用法配置，挂在科目表页下，不另开侧栏项。
+const TABS = [
+  { key: 'tree', label: '科目表' },
+  { key: 'inventory', label: '存货科目映射' },
+];
+const activeTab = ref('tree');
+
+/* ─── 存货科目映射 ─────────────────────────────────────────────
+ * 产品档案的「来源类别」→ 存货科目（原材料/库存商品/委托加工物资），
+ * 决定采购入库凭证的借方科目。类别清单实时从产品档案聚合，不存字典表。
+ * 未配置的类别一律落原材料：仓库随时会加新类别，不能因此把账做错。
+ */
+const invRows = ref([]);
+const invMeta = ref({ default_code: '1403', options: [], configured_count: 0 });
+const invLoading = ref(false);
+const invSaving = ref(false);
+const invKeyword = ref('');
+const invOnlyMapped = ref(false);
+
+const invOptions = computed(() =>
+  invMeta.value.options.map(o => ({
+    value: o.code,
+    label: `${o.code} ${o.name}`,
+  }))
+);
+const invFiltered = computed(() => {
+  const q = invKeyword.value.trim().toLowerCase();
+  return invRows.value.filter(r => {
+    if (invOnlyMapped.value && r.code === invMeta.value.default_code)
+      return false;
+    return !q || r.category.toLowerCase().includes(q);
+  });
+});
+// 「落在默认科目之外」的条数——财务一眼知道配了多少、还剩多少在吃默认。
+const invMappedCount = computed(
+  () => invRows.value.filter(r => r.code !== invMeta.value.default_code).length
+);
+
+const loadInventoryMap = async () => {
+  invLoading.value = true;
+  try {
+    const { data } = await ErpLedgerAccountAPI.inventoryMap();
+    invRows.value = data.payload || [];
+    invMeta.value = data.meta || invMeta.value;
+  } catch {
+    useAlert('存货科目映射取不到');
+  } finally {
+    invLoading.value = false;
+  }
+};
+
+// 一键预置：按名字猜（带「成品/外购机/裸机」的归库存商品、带「委托加工/委外」的归委托加工物资），
+// 猜完不直接存，留给财务逐条核对再保存。
+const applySuggestions = () => {
+  let changed = 0;
+  invRows.value.forEach(r => {
+    if (r.code !== r.suggested) {
+      r.code = r.suggested;
+      changed += 1;
+    }
+  });
+  useAlert(
+    changed
+      ? `已按名称预置 ${changed} 个类别，核对后记得保存`
+      : '预置结果与当前一致，无需改动'
+  );
+};
+
+const saveInventoryMap = async () => {
+  invSaving.value = true;
+  try {
+    const map = Object.fromEntries(
+      invRows.value.map(r => [r.category, r.code])
+    );
+    const { data } = await ErpLedgerAccountAPI.updateInventoryMap(map);
+    invMeta.value = {
+      ...invMeta.value,
+      configured_count: data.payload.configured_count,
+    };
+    useAlert(`已保存，${data.payload.configured_count} 个类别配了非默认科目`);
+  } catch {
+    useAlert('保存失败');
+  } finally {
+    invSaving.value = false;
+  }
+};
+
+const switchTab = key => {
+  activeTab.value = key;
+  if (key === 'inventory' && !invRows.value.length) loadInventoryMap();
+};
+
 // 会计科目表：记账引擎的地基。编码走财政部国标（1 资产 / 2 负债 / 4 权益 / 5 成本 / 6 损益），
 // 与金蝶同码——平行跑账期科目可逐条对上。树形展示，只有明细科目（非分类）能记账。
 const store = useErpLedgerAccountsStore();
@@ -355,7 +447,20 @@ onMounted(fetchList);
       </div>
     </div>
 
-    <div class="flex items-center gap-2 px-6 pb-3">
+    <div data-tabbar class="flex items-center gap-1 px-6">
+      <button
+        v-for="tab in TABS"
+        :key="tab.key"
+        type="button"
+        :aria-selected="activeTab === tab.key"
+        class="px-3 py-1.5 text-sm rounded-lg"
+        @click="switchTab(tab.key)"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
+
+    <div v-if="activeTab === 'tree'" class="flex items-center gap-2 px-6 pb-3">
       <SelectCard
         v-model="categoryFilter"
         :options="[{ value: '', label: '全部类别' }, ...CATEGORIES]"
@@ -366,7 +471,95 @@ onMounted(fetchList);
       </label>
     </div>
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <!-- 存货科目映射：来源类别 → 存货科目，决定采购入库凭证的借方科目 -->
+    <template v-if="activeTab === 'inventory'">
+      <div class="flex flex-wrap items-center gap-2 px-6 pb-3">
+        <Input
+          v-model="invKeyword"
+          size="sm"
+          placeholder="搜来源类别"
+          custom-input-class="w-52"
+        />
+        <label class="flex items-center gap-2 text-sm text-n-slate-11">
+          <input v-model="invOnlyMapped" type="checkbox" class="w-4 h-4" />
+          只看已配的
+        </label>
+        <span class="text-sm text-n-slate-11">
+          共 {{ invRows.length }} 个类别 · 已配
+          <span class="font-medium text-n-slate-12">{{ invMappedCount }}</span>
+          个，其余按默认记原材料
+        </span>
+        <span class="flex-1" />
+        <Button
+          v-if="canWrite"
+          label="按名称预置"
+          variant="faded"
+          color="slate"
+          size="sm"
+          @click="applySuggestions"
+        />
+        <Button
+          v-if="canWrite"
+          label="保存映射"
+          color="iris"
+          size="sm"
+          :is-loading="invSaving"
+          @click="saveInventoryMap"
+        />
+      </div>
+
+      <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+        <p class="pb-3 text-xs text-n-slate-11">
+          采购入库凭证的借方科目按这张表走：借
+          <span class="text-n-slate-12">存货科目</span> ／ 贷
+          应付账款。没配过的类别一律记
+          <span class="text-n-slate-12">原材料</span
+          >，仓库新增类别不会把账做错。
+        </p>
+        <div v-if="invLoading" class="py-10 text-center text-n-slate-11">
+          加载中…
+        </div>
+        <table v-else class="w-full text-sm">
+          <thead>
+            <tr class="text-left border-b text-n-slate-11 border-n-weak">
+              <th class="px-3 py-2 font-medium">来源类别</th>
+              <th class="px-3 py-2 font-medium text-right">产品数</th>
+              <th class="px-3 py-2 font-medium">存货科目</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in invFiltered"
+              :key="row.category"
+              class="border-b border-n-weak"
+            >
+              <td class="px-3 py-2 text-n-slate-12">{{ row.category }}</td>
+              <td class="px-3 py-2 font-mono text-right text-n-slate-11">
+                {{ row.product_count }}
+              </td>
+              <td class="px-3 py-2">
+                <SelectCard
+                  v-model="row.code"
+                  :options="invOptions"
+                  :disabled="!canWrite"
+                  class="w-56"
+                />
+              </td>
+            </tr>
+            <tr v-if="!invFiltered.length">
+              <td colspan="3" class="px-3 py-10 text-center text-n-slate-11">
+                没有匹配的来源类别。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+
+    <div
+      v-if="activeTab === 'tree'"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>

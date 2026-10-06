@@ -1908,7 +1908,7 @@ watch(
                       />
                     </th>
                     <th
-                      class="sticky top-0 z-30 px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
+                      class="sticky top-0 z-30 px-3 py-2.5 w-[300px] text-[13px] font-semibold whitespace-nowrap bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
                       :class="canSelectRows ? 'left-11' : 'left-0'"
                     >
                       {{ t('CRM.CUSTOMERS.TABLE.NAME') }}
@@ -1943,7 +1943,7 @@ watch(
                       <span v-else>{{ col.label() }}</span>
                     </th>
                     <th
-                      class="sticky top-0 z-20 px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap bg-white"
+                      class="sticky top-0 z-20 w-full px-3 py-2.5 text-[13px] font-semibold text-right whitespace-nowrap bg-white"
                     >
                       {{ t('CRM.CUSTOMERS.TABLE.ACTION') }}
                     </th>
@@ -1972,7 +1972,7 @@ watch(
                       />
                     </td>
                     <td
-                      class="sticky z-10 px-3 py-2.5 min-w-[180px] bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
+                      class="sticky z-10 px-3 py-2.5 w-[300px] max-w-[300px] bg-white shadow-[6px_0_8px_-6px_rgba(80,70,229,0.15)]"
                       :class="canSelectRows ? 'left-11' : 'left-0'"
                     >
                       <div class="flex items-center gap-2.5 min-w-0 group">
@@ -2180,7 +2180,7 @@ watch(
                               class="h-full rounded-full"
                               :class="
                                 isClassic
-                                  ? 'bg-[#f5c451]'
+                                  ? 'bg-[#ffc53d]'
                                   : 'bg-gradient-to-r from-n-iris-9 to-n-accent-grad'
                               "
                               :style="{

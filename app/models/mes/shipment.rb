@@ -176,6 +176,9 @@ class Mes::Shipment < ApplicationRecord
       writeback_sales_order(ts)
       rollup_erp_stock_cost(entry)
     end
+    # 凭证放在事务外：成本归集要先落 erp_order_costs，成本凭证才取得到金额；
+    # 而且写凭证不该占着出库单的行锁。失败只记日志——ERP 不能挡住仓库出库。
+    generate_erp_vouchers
     Mes::Notifier.resolve(account: account, kinds: 'shipment_approved', title_like: shipment_no)
     self
   end
@@ -189,6 +192,16 @@ class Mes::Shipment < ApplicationRecord
     Erp::StockCostService.new(account).attribute_shipment!(self, entry)
   rescue StandardError => e
     Rails.logger.error("[Erp::StockCost] 出库单 #{shipment_no} 成本归集失败: #{e.message}")
+  end
+
+  # 销售出库出两张待过账凭证：收入（借应收/贷收入+销项税）与成本结转（借主营业务成本/贷库存商品）。
+  # 口径见 ERP_SPEC §8.2bis。两张分开是财务要的（「销售出库有两笔凭证」）。
+  def generate_erp_vouchers
+    service = Erp::AutoVoucherService.new(account)
+    service.for_shipment_revenue(self)
+    service.for_shipment_cost(self)
+  rescue StandardError => e
+    Rails.logger.error("[Erp::AutoVoucher] 出库单 #{shipment_no} 生成凭证失败: #{e.message}")
   end
 
   def product_line_source = production_order

@@ -189,7 +189,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
             <div class="flex items-center gap-2">
               <span
                 v-if="record.important"
-                class="inline-block i-ri-star-fill size-3.5 text-[#f5c451] shrink-0"
+                class="inline-block i-ri-star-fill size-3.5 text-[#ffc53d] shrink-0"
                 :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
               />
               <span class="font-medium text-n-slate-12 truncate">
@@ -298,7 +298,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
               >
                 <span
                   v-if="record.important"
-                  class="inline-block i-ri-star-fill size-3.5 text-[#f5c451] me-1 align-[-2px]"
+                  class="inline-block i-ri-star-fill size-3.5 text-[#ffc53d] me-1 align-[-2px]"
                   :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
                 />
                 {{ record.name }}

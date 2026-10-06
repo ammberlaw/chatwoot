@@ -18,7 +18,7 @@ export const isClassicTheme = () =>
 
 // 常用图表色板（惰性求值，确保在浏览器环境读取当前主题）。
 export const chartPalette = () => ({
-  brand: isClassicTheme() ? '#f5c451' : themeColor('iris-9'),
+  brand: isClassicTheme() ? '#ffc53d' : themeColor('iris-9'),
   brandSoft: isClassicTheme()
     ? 'rgba(245, 196, 81, 0.22)'
     : themeColor('iris-9', 0.15),

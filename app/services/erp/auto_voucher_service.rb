@@ -9,6 +9,9 @@ class Erp::AutoVoucherService
   class Error < StandardError; end
 
   FEE_ACCOUNT_CODE = '660302'.freeze # 财务费用-手续费
+  REVENUE_CODE = '6001'.freeze       # 主营业务收入
+  COGS_CODE = '6401'.freeze          # 主营业务成本
+  OUTPUT_TAX_CODE = '22210105'.freeze # 应交税费-应交增值税-销项税额
 
   def initialize(account)
     @account = account
@@ -64,6 +67,146 @@ class Erp::AutoVoucherService
              .merge(base_amount_micros: payable_base + fee_base, explicit_base: true)
 
     build_voucher(payment, "付款 #{payment.payment_no} · #{payment.mes_supplier&.name}", payment.paid_at, lines)
+  end
+
+  # ── 销售出库：收入 ────────────────────────────────────────────────
+  # 借 应收账款(按币种) 订单金额 / 贷 主营业务收入(不含税) + 贷 销项税额
+  #
+  # 金额取**销售订单**，不取出库单：出库单上没有价（仓管不该看价），而订单明细行
+  # 一行都没挂产品档案（生产实测 743 行全空），按行匹配单价这条路走不通。
+  # 故按整单口径——外贸基本整柜一次发，生产上出库单与订单正好 1:1。
+  #
+  # 防重复记收入：一张销售订单只认第一张出库单。后续出库单只走成本，
+  # 收入部分留给财务手工处理——宁可少记也不能把收入记两遍。
+  def for_shipment_revenue(shipment)
+    return if skip_doc?(Erp::AutoVoucherRule::SHIPMENT_REVENUE)
+
+    order = shipment.crm_sales_order
+    return unless revenue_bookable?(shipment, order)
+
+    receivable = order_party_account(order, 'RECEIVABLE')
+    revenue = account_by_code(REVENUE_CODE)
+    return if receivable.blank? || revenue.blank?
+
+    lines = revenue_lines(order, receivable, revenue)
+
+    create_voucher!(source_type: shipment.class.name, source_id: shipment.id,
+                    date: shipment.shipped_at || Time.current,
+                    summary: "销售出库 #{shipment.shipment_no} · #{order.order_no}", lines: lines)
+  end
+
+  def revenue_bookable?(shipment, order)
+    order.present? && order.order_amount_micros.to_i.positive? && first_revenue_shipment?(shipment, order)
+  end
+
+  # 收入分录：借 应收账款(全额) / 贷 收入(不含税) + 贷 销项税。
+  # 外币下贷方各行 round(原币×汇率) 之和未必等于借方 round(合计×汇率)，
+  # 用借方 base 倒挤最后一个贷方行，保证严格相等（同 for_receipt 的处理）。
+  def revenue_lines(order, receivable, revenue)
+    tax_rate = order.effective_tax_rate
+    net, tax = split_tax(order.order_amount_micros.to_i, tax_rate, order.effective_amount_includes_tax)
+    # 应收恒等于「收入 + 销项税」——客户实付的就是这个数。
+    # 含税单它等于订单金额；不含税单订单金额只是收入，税要另加，不能照搬金额当应收。
+    gross = net + tax
+    tax_account = tax.positive? ? account_by_code(OUTPUT_TAX_CODE) : nil
+
+    lines = [doc_line(account: receivable, direction: 'DEBIT', amount_micros: gross, order: order,
+                      summary: '应收货款', dimension: { crm_customer_id: order.crm_customer_id }),
+             doc_line(account: revenue, direction: 'CREDIT', amount_micros: net, order: order,
+                      summary: '确认销售收入')]
+    if tax_account.present?
+      lines << doc_line(account: tax_account, direction: 'CREDIT', amount_micros: tax, order: order,
+                        summary: "销项税额 #{tax_rate}%")
+    end
+    balance_last_credit!(lines, gross, order.exchange_rate.presence || 1)
+    lines
+  end
+
+  # ── 销售出库：成本结转 ────────────────────────────────────────────
+  # 借 主营业务成本 / 贷 库存商品。金额取 StockCostService 已按 FIFO 结转进
+  # erp_order_costs 的那笔（人民币），不再重算——重算必然和存货层对不上。
+  # 与收入凭证共用来源单据，靠 source_type 后缀区分成两张（财务要的就是两笔）。
+  COST_SOURCE_SUFFIX = '::Cost'.freeze
+
+  def for_shipment_cost(shipment)
+    return if skip_doc?(Erp::AutoVoucherRule::SHIPMENT_COST)
+
+    # 折本位币再求和：成本行带币种与汇率，裸 sum 原币会把不同币种直接相加（守卫 spec 盯着这个）。
+    amount = @account.erp_order_costs
+                     .where(source_type: shipment.class.name, source_id: shipment.id)
+                     .sum(Arel.sql(Erp::OrderCost::BASE_AMOUNT_MICROS_SQL)).to_i
+    return if amount <= 0
+
+    cogs = account_by_code(COGS_CODE)
+    inventory = account_by_code(Erp::Setting::FINISHED_GOODS_CODE)
+    return if cogs.blank? || inventory.blank?
+
+    lines = [cny_line(account: cogs, direction: 'DEBIT', amount_micros: amount, summary: '结转销售成本'),
+             cny_line(account: inventory, direction: 'CREDIT', amount_micros: amount, summary: '发出库存商品')]
+
+    create_voucher!(source_type: "#{shipment.class.name}#{COST_SOURCE_SUFFIX}", source_id: shipment.id,
+                    date: shipment.shipped_at || Time.current,
+                    summary: "结转成本 #{shipment.shipment_no}", lines: lines)
+  end
+
+  # ── 采购入库 / 退货 ──────────────────────────────────────────────
+  # 借 存货科目(按来源类别映射，逐类合并) / 贷 应付账款(按币种)。
+  # 退货走红字：金额取负，不做反向分录（财务 2026-10-06 明确「退货是红字冲销法」）。
+  def for_stock_receipt(entry)
+    return if skip_doc?(Erp::AutoVoucherRule::STOCK_RECEIPT)
+
+    rows = stock_receipt_rows(entry)
+    payable = cny_payable_account
+    return if rows.blank? || payable.blank?
+
+    lines = stock_receipt_lines(entry, rows, payable)
+    return if lines.size < 2
+
+    create_voucher!(source_type: entry.class.name, source_id: entry.id,
+                    date: entry.posted_at || entry.created_at,
+                    summary: "#{return_entry?(entry) ? '采购退货' : '采购入库'} #{entry.entry_no}",
+                    lines: lines)
+  end
+
+  def return_entry?(entry) = entry.purpose == 'MATERIAL_RETURN'
+
+  def cny_payable_account
+    scope = @account.erp_ledger_accounts.active.leaves.where(account_type: 'PAYABLE')
+    scope.find_by(currency: nil) || scope.first
+  end
+
+  # 入库：借 存货科目（按来源类别合并） / 贷 应付账款（按供应商合并，往来科目必须带维度）。
+  # 退货：借贷方向整体对调。
+  #
+  # 为什么不用负数走红字：分录行校验卡死 amount_micros >= 0、base > 0，
+  # 负数根本存不进去；而系统既有的红冲（VoucherPostingService）本来就是方向镜像，
+  # 这里跟着同一套约定，科目余额的结果与红字完全一致。
+  def stock_receipt_lines(entry, rows, payable)
+    swap = return_entry?(entry)
+    lines = stock_side_lines(rows, swap)
+    return lines if lines.blank?
+
+    lines + payable_side_lines(rows, payable, swap)
+  end
+
+  def stock_side_lines(rows, swap)
+    rows.group_by { |r| r[:code] }.filter_map do |code, group|
+      acc = account_by_code(code)
+      next if acc.blank?
+
+      cny_line(account: acc, direction: swap ? 'CREDIT' : 'DEBIT',
+               amount_micros: group.sum { |r| r[:amount] },
+               summary: swap ? '采购退货冲回存货' : '采购入库')
+    end
+  end
+
+  def payable_side_lines(rows, payable, swap)
+    rows.group_by { |r| r[:supplier_id] }.map do |supplier_id, group|
+      cny_line(account: payable, direction: swap ? 'DEBIT' : 'CREDIT',
+               amount_micros: group.sum { |r| r[:amount] },
+               summary: swap ? '冲减应付' : '应付采购款',
+               dimension: { mes_supplier_id: supplier_id })
+    end
   end
 
   # 内部划转：借 转入账户 / 贷 转出账户（跨币种的汇兑差额在 §7.2 落地后再补）。
@@ -151,6 +294,102 @@ class Erp::AutoVoucherService
 
     scope = @account.erp_ledger_accounts.active.leaves.where(account_type: spec[:type])
     scope.find_by(currency: record.currency) || scope.find_by(currency: nil)
+  end
+
+  # 单据类事件没有 cash_account_id，不能复用 skip?（它拿现金账户判空）。
+  def skip_doc?(event_key)
+    rule = rule_for(event_key)
+    rule.blank? || !rule.is_active?
+  end
+
+  def account_by_code(code)
+    @account_by_code ||= {}
+    @account_by_code[code] ||= @account.erp_ledger_accounts.find_by(code: code)
+  end
+
+  # 销售订单的往来科目按订单币种挑（人民币走 112201、美金走 112202）。
+  def order_party_account(order, type)
+    scope = @account.erp_ledger_accounts.active.leaves.where(account_type: type)
+    scope.find_by(currency: order.order_currency) || scope.find_by(currency: nil) || scope.first
+  end
+
+  # 把订单金额拆成「不含税收入 + 销项税」。含不含税按**单据**上转单时勾的那个来
+  # （同一家公司两种合同都有，账套设置只当默认值）。
+  # 税率 0（出口免税）两种算法同值，直接返回原额 + 0 税。
+  def split_tax(amount, tax_rate, includes_tax)
+    rate = tax_rate.to_i
+    return [amount, 0] if rate <= 0
+
+    if includes_tax
+      net = Erp::VoucherLine.round_to_cent(amount * 100.0 / (100 + rate))
+      [net, amount - net]
+    else
+      [amount, Erp::VoucherLine.round_to_cent(amount * rate / 100.0)]
+    end
+  end
+
+  # 一张销售订单只认第一张出库单记收入（按出库单 id 取最早的一张，不看凭证是否已作废，
+  # 否则作废重开会把收入记第二遍）。
+  def first_revenue_shipment?(shipment, order)
+    first = @account.mes_shipments.where(crm_sales_order_id: order.id)
+                    .where.not(status: 'CANCELLED').order(:id).first
+    first.nil? || first.id == shipment.id
+  end
+
+  # 订单币种下的分录行（单据没有 currency/exchange_rate 属性，这里显式给）。
+  def doc_line(spec)
+    {
+      ledger_account_id: spec[:account].id, direction: spec[:direction], amount_micros: spec[:amount_micros],
+      summary: spec[:summary], currency: spec[:order].order_currency.presence || 'CNY',
+      exchange_rate: spec[:order].exchange_rate.presence || 1
+    }.merge(spec[:dimension] || {})
+  end
+
+  # 本位币分录行（成本与入库都已折成人民币）。
+  def cny_line(spec)
+    {
+      ledger_account_id: spec[:account].id, direction: spec[:direction], amount_micros: spec[:amount_micros],
+      summary: spec[:summary], currency: 'CNY', exchange_rate: 1
+    }.merge(spec[:dimension] || {})
+  end
+
+  # 外币下逐行 round 之和会和借方差几分，用借方 base 倒挤最后一个贷方行。
+  def balance_last_credit!(lines, gross, rate)
+    debit_base = Erp::VoucherLine.round_to_cent(gross * rate.to_d)
+    credits = lines.select { |l| l[:direction] == 'CREDIT' }
+    return if credits.empty?
+
+    others = credits[0..-2].sum { |l| Erp::VoucherLine.round_to_cent(l[:amount_micros] * rate.to_d) }
+    credits.last.merge!(base_amount_micros: debit_base - others, explicit_base: true)
+  end
+
+  # 入库单按「产品的来源类别 → 存货科目」把金额分桶，同科目合并成一行。
+  #
+  # 入库明细行上没有金额（只有数量），价从**关联采购单**的同产品行取——
+  # 与 StockCostService 建批次层用的是同一个价，否则存货层和凭证会对不上。
+  # 取不到价（无采购单、或该产品不在采购单上）的行跳过：宁可不出凭证，
+  # 也不能按 0 入账把存货做没。
+  def stock_receipt_rows(entry)
+    setting = Erp::Setting.for_account(@account)
+    po_lines = entry.purchase_order&.purchase_items || []
+    entry.stock_entry_items.filter_map { |item| stock_receipt_row(setting, po_lines, item) }
+  end
+
+  def stock_receipt_row(setting, po_lines, item)
+    po_line = po_lines.find { |pi| pi.crm_product_id.present? && pi.crm_product_id == item.crm_product_id }
+    amount = purchase_amount_for(po_line, item)
+    return if amount <= 0
+
+    { code: setting.inventory_account_code_for(item.crm_product&.source_category),
+      supplier_id: po_line.mes_supplier_id, amount: amount }
+  end
+
+  # 本次入库数量 × 采购单价（采购行金额 ÷ 采购数量）。
+  def purchase_amount_for(line, item)
+    return 0 if line.nil? || line.amount_micros.blank? || line.qty.to_d <= 0
+
+    received = (item.received_qty.presence || item.qty).to_d
+    Erp::VoucherLine.round_to_cent(received * (line.amount_micros / line.qty.to_d))
   end
 
   def fee_account

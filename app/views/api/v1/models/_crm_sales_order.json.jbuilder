@@ -19,6 +19,8 @@ json.order_date resource.order_date
 json.delivery_date resource.delivery_date
 json.order_currency resource.order_currency
 json.exchange_rate resource.exchange_rate
+json.tax_rate resource.tax_rate
+json.amount_includes_tax resource.amount_includes_tax
 json.order_amount_micros resource.order_amount_micros
 json.shipping_micros resource.shipping_micros
 # 成本 / 毛利只发给管钱的角色：管理员、副管理员、财务。

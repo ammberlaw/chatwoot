@@ -201,7 +201,7 @@ const STAGES = computed(() => [
 // 经典灰下 iris 会塌成灰、标不出重点，改用黄色（与图表 brand 色同口径）。
 const importantCardClass = computed(() =>
   isClassic.value
-    ? 'bg-n-solid-1 border-[#f0d9a0] border-l-4 border-l-[#f0b429] hover:border-[#e8c977] hover:border-l-[#dd9f14]'
+    ? 'bg-n-solid-1 border-[#f0d9a0] border-l-4 border-l-[#ffc53d] hover:border-[#e8c977] hover:border-l-[#ffd161]'
     : 'bg-n-solid-1 border-n-iris-7 border-l-4 border-l-n-iris-9 hover:border-n-iris-9 hover:border-l-n-iris-10'
 );
 
@@ -436,7 +436,7 @@ onMounted(() => {
               >
                 <span
                   v-if="item.important"
-                  class="inline-block i-ri-star-fill size-3.5 text-[#f5c451] me-1 align-[-2px]"
+                  class="inline-block i-ri-star-fill size-3.5 text-[#ffc53d] me-1 align-[-2px]"
                   :title="t('CRM.OPPORTUNITIES.IMPORTANT')"
                 />
                 {{ item.name }}
