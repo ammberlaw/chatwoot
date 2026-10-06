@@ -33,15 +33,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @production_order = Current.account.mes_production_orders.new(
       production_order_params.merge(owner_id: production_order_params[:owner_id] || current_user.id)
     )
-    # 无 :order 能力的业务角色：只能给自己建「按单生产」单（备货/代建仍归 PMC/管理员）。
-    unless Current.account_user.mes_can?(:order)
-      @production_order.owner_id = current_user.id
-      @production_order.order_kind = 'CUSTOMER'
-      # 业务员建单：订单编号须从 CRM 销售订单下拉选择关联（带出 PI 号）。
-      if @production_order.crm_sales_order_id.blank?
-        return render json: { error: '请先关联 CRM 销售订单（订单编号从销售订单下拉选择）' }, status: :unprocessable_entity
-      end
-    end
+    return unless apply_sales_user_limits!(@production_order)
+
     @production_order.fallback_product_line = current_product_line
     @production_order.save!
     # submit=true：建单即提交审批（业务员点「提交审批」）；否则留草稿。
@@ -270,7 +263,12 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   def update
     # 已下发（非草稿）订单被改 → 改完通知当前阶段的下一个流程负责人（需求：改单同步下游）。
     was_published = !@production_order.is_draft
-    @production_order.update!(production_order_params)
+    @production_order.assign_attributes(production_order_params)
+    # 建单时的收口在改单时同样要走：否则业务员把自己的草稿从备货改回按单、
+    # 顺手把销售订单关联删掉，就绕过了「业务订单必须关联销售订单」。
+    return unless apply_sales_user_limits!(@production_order)
+
+    @production_order.save!
     @production_order.notify_order_revised(actor: current_user) if was_published
     render 'api/v1/accounts/mes/production_orders/show'
   end
@@ -469,6 +467,23 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 由 update 通知下游负责人。无 order 能力且非本人订单则拒。
   def ensure_editable!
     ensure_owner_or_admin!(@production_order, '生产订单')
+  end
+
+  # 无 :order 能力的业务角色（业务员/业务主管）建单、改单的收口：
+  #   · 单子只能挂自己名下，不能代建；备货单的 owner 是「责任人」，同样锁本人；
+  #   · 业务订单必须关联 CRM 销售订单（带出 PI 号）；
+  #   · 备货单放行（2026-10-06 改）——对业务员而言这张单就是「备货申请」：
+  #     照常落草稿走三级审批，PMC/主管/总经理点头才进生产，故不另做申请单据。
+  # 返回 false = 已渲染错误，调用方直接 return。
+  def apply_sales_user_limits!(order)
+    return true if Current.account_user.mes_can?(:order)
+
+    order.owner_id = current_user.id
+    order.order_kind = 'CUSTOMER' unless order.stock?
+    return true if order.stock? || order.crm_sales_order_id.present?
+
+    render json: { error: '请先关联 CRM 销售订单（订单编号从销售订单下拉选择）' }, status: :unprocessable_entity
+    false
   end
 
   # 删除权：管理员删任意；其余仅能删**本人的草稿**（已下发进入生产流程不可删）。

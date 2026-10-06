@@ -23,9 +23,14 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 const router = useRouter();
 const { accountId, accountScopedRoute } = useAccount();
 const store = useMesProductionOrdersStore();
-// 备货单仅 order 能力（PMC/管理员）可建；业务员只建「按单生产」（后端强制同口径）。
+// 备货单：PMC/管理员，以及 CRM 业务身份都可建（口径与订单页 canCreateOrder 一致）。
+// 业务员建出来是草稿 + 三级审批，等同一张「备货申请」，所以不另做申请单据。
+// 采购/车间/仓库这类纯 MES 操作岗本来就没有建单入口，不在此列。
 const { mesCan } = useMesRole();
-const canCreateStock = computed(() => mesCan('order'));
+const currentUser = useMapGetter('getCurrentUser');
+const canCreateStock = computed(
+  () => mesCan('order') || currentUser.value?.can_access_crm !== false
+);
 
 const TEMPLATES = Object.entries(SPEC_TEMPLATES); // [[value, {label,fields}], ...]
 const defaultTemplate = () => {
@@ -249,6 +254,11 @@ const orderKindOptions = computed(() => [
 const stewardCardOptions = computed(() =>
   stewardOptions.value.map(a => ({ value: String(a.id), label: a.name }))
 );
+// 业务员建的备货单责任人恒等于本人（后端对无 :order 能力者强制 owner=当前用户），
+// 所以不走名册下拉——业务员未必取得到全员名册，取不到就只能干看 placeholder。
+const selfName = computed(
+  () => currentUser.value?.available_name || currentUser.value?.name || '我'
+);
 const templateOptions = computed(() =>
   TEMPLATES.map(([val, t]) => ({ value: val, label: t.label }))
 );
@@ -304,7 +314,7 @@ const missingForDraft = computed(() => {
   if (needSalesLink.value && !link.customerId) m.push('客户');
   if (!base.productName.trim()) m.push('成品名称&型号');
   if (!Number(base.qty)) m.push('数量');
-  if (isStock.value && !stewardId.value) m.push('责任人');
+  if (isStock.value && !isSalesUser.value && !stewardId.value) m.push('责任人');
   return m;
 });
 // 商品编码全程选填（业务提交审批也可留空，工程做 BOM 时补录，与订单列表口径一致）。
@@ -366,7 +376,10 @@ const submit = async doSubmit => {
         deliveryDate: base.deliveryDate || undefined,
         productLine: template.value,
         orderKind: orderKind.value,
-        ownerId: isStock.value ? Number(stewardId.value) : undefined,
+        ownerId:
+          isStock.value && stewardId.value
+            ? Number(stewardId.value)
+            : undefined,
         crmSalesOrderId: link.salesOrderId
           ? Number(link.salesOrderId)
           : undefined,
@@ -582,7 +595,10 @@ const backToList = () =>
           </span>
           <SelectCard v-model="orderKind" :options="orderKindOptions" block />
         </label>
-        <label v-if="isStock" class="flex flex-col gap-1 sm:w-56">
+        <label
+          v-if="isStock && !isSalesUser"
+          class="flex flex-col gap-1 sm:w-56"
+        >
           <span class="text-xs text-n-slate-11">
             责任人（业务员） <span class="text-n-ruby-11">*</span>
           </span>
@@ -593,8 +609,19 @@ const backToList = () =>
             block
           />
         </label>
+        <div v-else-if="isStock" class="flex flex-col gap-1 sm:w-56">
+          <span class="text-xs text-n-slate-11">责任人（业务员）</span>
+          <div
+            class="flex items-center h-9 px-3 text-sm border rounded-lg text-n-slate-12 border-n-weak bg-n-alpha-1"
+          >
+            {{ selfName }}
+          </div>
+        </div>
         <p v-if="isStock" class="text-xs sm:col-span-2 text-n-slate-11">
           备货订单不归属单一业务员、对全业务可见；这里的责任人只是指定一个业务员跟进。可不填客户交期。
+          <template v-if="isSalesUser">
+            你提的备货单责任人固定是你自己，存草稿后提交审批，经主管、总经理通过才会进入生产。
+          </template>
         </p>
         <label class="flex flex-col gap-1 sm:w-56">
           <span class="text-xs text-n-slate-11">
