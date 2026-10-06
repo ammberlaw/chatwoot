@@ -678,7 +678,7 @@ onMounted(() => {
                 加入我的日程
               </label>
               <button
-                class="px-3.5 py-2 text-sm font-semibold text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+                class="px-3.5 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
                 :disabled="savingNext"
                 @click="saveNextFollowUp"
               >

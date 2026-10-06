@@ -168,6 +168,13 @@ export const colors = {
       12: 'rgb(var(--ruby-12) / <alpha-value>)',
     },
 
+    // 状态标签专用（流转中）。不走 blue 色阶——经典灰把 blue 压成了中性灰。
+    flow: {
+      3: 'rgb(var(--flow-3) / <alpha-value>)',
+      9: 'rgb(var(--flow-9) / <alpha-value>)',
+      11: 'rgb(var(--flow-11) / <alpha-value>)',
+    },
+
     amber: {
       1: 'rgb(var(--amber-1) / <alpha-value>)',
       2: 'rgb(var(--amber-2) / <alpha-value>)',

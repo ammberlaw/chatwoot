@@ -572,6 +572,20 @@ const actions = {
     }
   },
 
+  // 置顶：先改本地再发请求，列表立刻跳到顶部；失败（比如超过 10 条上限）回滚并提示。
+  togglePin: async ({ commit }, { conversationId, pinned }) => {
+    commit(types.SET_CONVERSATION_PINNED, { conversationId, pinned });
+    try {
+      await ConversationApi.togglePin({ conversationId, pinned });
+    } catch (error) {
+      commit(types.SET_CONVERSATION_PINNED, {
+        conversationId,
+        pinned: !pinned,
+      });
+      throw error;
+    }
+  },
+
   setCurrentChatPriority({ commit }, { priority, conversationId }) {
     commit(types.ASSIGN_PRIORITY, { priority, conversationId });
   },

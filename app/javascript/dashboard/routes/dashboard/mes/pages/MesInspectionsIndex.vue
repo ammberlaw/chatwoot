@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesInspectionsStore } from 'dashboard/stores/mes/inspections';
@@ -39,9 +40,9 @@ const kindOptions = Object.entries(KIND_LABELS).map(([value, label]) => ({
 }));
 const kindLabel = k => KIND_LABELS[k] || k;
 const RESULT = {
-  PASS: { label: '合格', cls: 'bg-n-teal-3 text-n-teal-11' },
-  FAIL: { label: '不合格', cls: 'bg-n-ruby-3 text-n-ruby-11' },
-  CONDITIONAL: { label: '让步接收', cls: 'bg-n-amber-3 text-n-amber-11' },
+  PASS: { label: '合格', cls: STATUS_TONE.done },
+  FAIL: { label: '不合格', cls: STATUS_TONE.fail },
+  CONDITIONAL: { label: '让步接收', cls: STATUS_TONE.busy },
 };
 
 // 只读查看

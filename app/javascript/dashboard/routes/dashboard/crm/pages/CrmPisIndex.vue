@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { STATUS_TONE, STATUS_VOID } from 'dashboard/helper/statusTone';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
@@ -37,37 +38,13 @@ const summary = ref(null);
 const formRef = ref(null);
 const sellerProfileRef = ref(null);
 
-const STATUSES = computed(() =>
-  isClassic.value
-    ? {
-        DRAFT: {
-          label: t('CRM.PI.STATUS.DRAFT'),
-          class: 'bg-n-slate-3 text-n-slate-11',
-        },
-        PAID: {
-          label: t('CRM.PI.STATUS.PAID'),
-          class: 'bg-[#e5f2ec] text-[#2e7a5b]',
-        },
-        VOID: {
-          label: t('CRM.PI.STATUS.VOID'),
-          class: 'bg-n-slate-3 text-n-slate-10 line-through',
-        },
-      }
-    : {
-        DRAFT: {
-          label: t('CRM.PI.STATUS.DRAFT'),
-          class: 'bg-n-slate-3 text-n-slate-11',
-        },
-        PAID: {
-          label: t('CRM.PI.STATUS.PAID'),
-          class: 'bg-n-teal-3 text-n-teal-11',
-        },
-        VOID: {
-          label: t('CRM.PI.STATUS.VOID'),
-          class: 'bg-n-ruby-3 text-n-ruby-11',
-        },
-      }
-);
+// 原来经典灰单开一支，已付款的绿写死成 #e5f2ec，不跟主题走；现在两支内容一样，合成一份。
+// 已作废保持灰 + 删除线（STATUS_VOID），不走 fail 的红。
+const STATUSES = computed(() => ({
+  DRAFT: { label: t('CRM.PI.STATUS.DRAFT'), class: STATUS_TONE.idle },
+  PAID: { label: t('CRM.PI.STATUS.PAID'), class: STATUS_TONE.done },
+  VOID: { label: t('CRM.PI.STATUS.VOID'), class: STATUS_VOID },
+}));
 
 // 状态下划线 tab（含计数，取自汇总接口，独立于状态本身）。
 // 页顶 KPI 环形卡：环形填充=该状态占比，中心显张数，右侧标签+张数+各币种金额。
@@ -490,9 +467,9 @@ onMounted(() => {
             <span
               v-if="record.orderMissing"
               v-tooltip.top="ORDER_MISSING_TIP"
-              class="inline-flex items-center gap-1 px-2 py-[3px] text-[12px] font-medium rounded-full shrink-0 cursor-help bg-n-ruby-3 text-n-ruby-11"
+              class="inline-flex items-center gap-[5px] px-2.5 py-[3px] text-[12px] font-medium rounded-full shrink-0 cursor-help bg-n-ruby-3 text-n-ruby-11"
             >
-              <span class="i-lucide-triangle-alert size-3" />
+              <span class="i-lucide-triangle-alert size-3 shrink-0" />
               缺订单
             </span>
             <span class="flex-1" />
@@ -630,21 +607,23 @@ onMounted(() => {
               {{ fmtMoney(record.totalAmountMicros, record.currency) }}
             </td>
             <td class="px-3 py-3 whitespace-nowrap">
-              <span
-                class="inline-flex items-center gap-[5px] px-2.5 py-[3px] text-[12px] font-medium rounded-full"
-                :class="STATUSES[record.status]?.class"
-              >
-                <span class="rounded-full size-1.5 bg-current opacity-90" />
-                {{ STATUSES[record.status]?.label || record.status }}
-              </span>
-              <span
-                v-if="record.orderMissing"
-                v-tooltip.top="ORDER_MISSING_TIP"
-                class="inline-flex items-center gap-1 px-2 py-[3px] ml-1.5 text-[12px] font-medium rounded-full cursor-help bg-n-ruby-3 text-n-ruby-11"
-              >
-                <span class="i-lucide-triangle-alert size-3" />
-                缺订单
-              </span>
+              <div class="flex items-center gap-1.5">
+                <span
+                  class="inline-flex items-center gap-[5px] px-2.5 py-[3px] text-[12px] font-medium rounded-full"
+                  :class="STATUSES[record.status]?.class"
+                >
+                  <span class="rounded-full size-1.5 bg-current opacity-90" />
+                  {{ STATUSES[record.status]?.label || record.status }}
+                </span>
+                <span
+                  v-if="record.orderMissing"
+                  v-tooltip.top="ORDER_MISSING_TIP"
+                  class="inline-flex items-center gap-[5px] px-2.5 py-[3px] text-[12px] font-medium rounded-full cursor-help bg-n-ruby-3 text-n-ruby-11"
+                >
+                  <span class="i-lucide-triangle-alert size-3 shrink-0" />
+                  缺订单
+                </span>
+              </div>
             </td>
             <td
               class="px-3 py-3 tabular-nums text-n-slate-10 whitespace-nowrap"

@@ -64,6 +64,12 @@ class ConversationApi extends ApiClient {
     });
   }
 
+  // 置顶/取消置顶（每人钉自己的，上限 10，超了后端返回 422）
+  togglePin({ conversationId, pinned }) {
+    const url = `${this.url}/${conversationId}/pin`;
+    return pinned ? axios.post(url, {}) : axios.delete(url);
+  }
+
   assignAgent({ conversationId, agentId }) {
     return axios.post(`${this.url}/${conversationId}/assignments`, {
       assignee_id: agentId,

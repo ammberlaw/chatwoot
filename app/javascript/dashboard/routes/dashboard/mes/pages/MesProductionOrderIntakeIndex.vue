@@ -769,7 +769,7 @@ const backToList = () =>
           {{ submitting ? '保存中…' : '存草稿' }}
         </button>
         <button
-          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit"
           @click="submit(true)"
         >

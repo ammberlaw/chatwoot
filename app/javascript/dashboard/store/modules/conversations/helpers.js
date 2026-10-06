@@ -162,6 +162,10 @@ const sortConfig = {
 };
 
 export const sortComparator = (a, b, sortKey) => {
+  // 置顶的永远在最前。后端也按这个顺序返回，但列表在前端会再排一次，
+  // 这里不跟上就会被重新打乱（排序规则是用户选的，置顶不该受它影响）。
+  if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+
   const [sortMethod, sortDirection] =
     SORT_OPTIONS[sortKey] || SORT_OPTIONS.last_activity_at_desc;
   return sortConfig[sortMethod](a, b, sortDirection);

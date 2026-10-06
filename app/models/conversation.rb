@@ -82,6 +82,8 @@ class Conversation < ApplicationRecord
     order(unread_messages_count_arel.desc).sort_on_last_activity_at('desc')
   }
   scope :unattended, -> { where(first_reply_created_at: nil).or(where.not(waiting_since: nil)) }
+  # 置顶列表要按「当前用户钉过没有」排序，见 ConversationFinder#pin_first
+  scope :pinned_by, ->(user_id) { joins(:pins).where(conversation_pins: { user_id: user_id }) }
   scope :resolvable_not_waiting, lambda { |auto_resolve_after|
     return none if auto_resolve_after.to_i.zero?
 
@@ -111,6 +113,7 @@ class Conversation < ApplicationRecord
 
   has_many :mentions, dependent: :destroy_async
   has_many :messages, dependent: :destroy_async, autosave: true
+  has_many :pins, class_name: 'ConversationPin', dependent: :delete_all
   has_one :csat_survey_response, dependent: :destroy_async
   has_many :conversation_participants, dependent: :destroy_async
   has_many :notifications, as: :primary_actor, dependent: :destroy_async

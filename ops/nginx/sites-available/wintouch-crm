@@ -1,0 +1,84 @@
+# Wintouch-CRM 反向代理：nginx 前置 80/443，rails 容器收到 127.0.0.1:3000
+# 域名站点（certbot 会在此块上加 443 + 跳转）
+server {
+    server_name wintouchspace.com www.wintouchspace.com;
+
+    client_max_body_size 500m;
+    # 慢上行链路（业务在外网/代理下发带附件的邮件）传完请求体常超过 nginx 默认 60s，
+    # 会被判 408 掐断，前端表现为「发送中」转圈后窗口消失、需反复重发。放宽到 5 分钟。
+    client_body_timeout 300s;
+    client_header_timeout 300s;
+
+    include snippets/wintouch-static-cache.conf;
+
+    # 法务静态页（Meta 应用上线要求的隐私政策地址）
+    location = /privacy {
+        root /var/www/wintouch-legal;
+        try_files /privacy.html =404;
+        add_header Cache-Control "public, max-age=300";
+    }
+
+    location / {
+        include snippets/wintouch-proxy.conf;
+    }
+
+    listen 443 ssl http2; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/wintouchspace.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/wintouchspace.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+
+}
+
+# IP 直访：2026-09-29 起一律 301 到域名。IP 那条是明文 http，登录密码/客户资料/
+# 文档中心的账号密码在网络中间可见；同事收藏夹里存的旧地址会自动跳到新地址，无需改动。
+# 回退：把下面 location / 的 return 换回 include snippets/wintouch-proxy.conf 即可。
+server {
+    listen 80 default_server;
+    server_name _;
+
+    client_max_body_size 500m;
+    # 慢上行链路（业务在外网/代理下发带附件的邮件）传完请求体常超过 nginx 默认 60s，
+    # 会被判 408 掐断，前端表现为「发送中」转圈后窗口消失、需反复重发。放宽到 5 分钟。
+    client_body_timeout 300s;
+    client_header_timeout 300s;
+
+    include snippets/wintouch-static-cache.conf;
+
+    # 法务静态页（Meta 应用上线要求的隐私政策地址）
+    location = /privacy {
+        root /var/www/wintouch-legal;
+        try_files /privacy.html =404;
+        add_header Cache-Control "public, max-age=300";
+    }
+
+    # 续证书用的 HTTP-01 挑战必须留在 80 上，不能跳转
+    location ^~ /.well-known/acme-challenge/ {
+        include snippets/wintouch-proxy.conf;
+    }
+
+    location / {
+        return 301 https://wintouchspace.com$request_uri;
+    }
+}
+
+server {
+    if ($host = www.wintouchspace.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    if ($host = wintouchspace.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    server_name wintouchspace.com www.wintouchspace.com;
+    return 404; # managed by Certbot
+
+
+
+
+}

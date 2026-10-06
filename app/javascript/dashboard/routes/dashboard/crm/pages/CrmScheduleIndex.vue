@@ -630,7 +630,7 @@ onMounted(() => {
           </button>
         </div>
         <button
-          class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-xl bg-n-iris-9 hover:bg-n-iris-10"
+          class="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
           @click="openCreate()"
         >
           <Icon icon="i-lucide-plus" class="size-4" /> 新建日程
@@ -1282,7 +1282,7 @@ onMounted(() => {
               取消
             </button>
             <button
-              class="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+              class="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
               :disabled="saving"
               @click="save"
             >

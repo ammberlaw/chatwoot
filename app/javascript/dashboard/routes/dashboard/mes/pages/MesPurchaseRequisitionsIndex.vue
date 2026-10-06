@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted, watch } from 'vue';
+import { STATUS_TONE, STATUS_VOID } from 'dashboard/helper/statusTone';
 import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -51,11 +52,11 @@ const STATUS_LABELS = {
   CANCELLED: '已作废',
 };
 const STATUS_CLASS = {
-  DRAFT: 'bg-n-slate-3 text-n-slate-11',
-  OPEN: 'bg-n-amber-3 text-n-amber-11',
-  PARTIAL_ORDERED: 'bg-n-iris-3 text-n-iris-11',
-  ORDERED: 'bg-n-teal-3 text-n-teal-11',
-  CANCELLED: 'bg-n-ruby-3 text-n-ruby-11',
+  DRAFT: STATUS_TONE.idle,
+  OPEN: STATUS_TONE.busy,
+  PARTIAL_ORDERED: STATUS_TONE.flow,
+  ORDERED: STATUS_TONE.done,
+  CANCELLED: STATUS_VOID,
 };
 const purposeOptions = Object.entries(PURPOSE_LABELS).map(([value, label]) => ({
   value,

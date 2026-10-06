@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, onMounted, watch } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import DOMPurify from 'dompurify';
@@ -15,6 +16,7 @@ import EmailLabelsAPI from 'dashboard/api/crm/emailLabels';
 import CrmAiAPI from 'dashboard/api/crm/ai';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 import { stripTextColorMarkers } from 'dashboard/helper/editorTextColor';
+import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -22,6 +24,13 @@ import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.v
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
 import CrmAddressIdentity from 'dashboard/components-next/CRM/CrmAddressIdentity.vue';
+
+// 星标原来一直用 n-iris-9。经典灰把整条 iris 压成了近黑（去掉画布上大面积的紫），
+// 星标跟着就成了黑星；星标按惯例是黄的。只在经典灰下改，紫玻璃保持原样。
+const STAR_ON = isClassicTheme() ? 'text-n-amber-9' : 'text-n-iris-9';
+const STAR_HOVER = isClassicTheme()
+  ? 'hover:text-n-amber-9'
+  : 'hover:text-n-iris-9';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -244,11 +253,11 @@ const bulkAddLabel = async labelId => {
 };
 
 const SEND_STATUSES = {
-  DRAFT: { label: '草稿', class: 'bg-n-slate-3 text-n-slate-11' },
-  SCHEDULED: { label: '定时发送', class: 'bg-n-amber-3 text-n-amber-11' },
-  PENDING: { label: '发送中', class: 'bg-n-iris-3 text-n-iris-11' },
-  SENT: { label: '已发送', class: 'bg-n-teal-3 text-n-teal-11' },
-  FAILED: { label: '发送失败', class: 'bg-n-ruby-3 text-n-ruby-11' },
+  DRAFT: { label: '草稿', class: STATUS_TONE.idle },
+  SCHEDULED: { label: '定时发送', class: STATUS_TONE.busy },
+  PENDING: { label: '发送中', class: STATUS_TONE.flow },
+  SENT: { label: '已发送', class: STATUS_TONE.done },
+  FAILED: { label: '发送失败', class: STATUS_TONE.fail },
 };
 
 // 发送状态角标只对「我们发出去的」有意义：收到的邮件入库时 send_status 也写成 SENT，
@@ -314,7 +323,7 @@ const AVATAR_STYLES = {
   other: 'bg-n-amber-4 text-n-amber-11',
   mine: 'bg-n-blue-4 text-n-blue-11',
   public: 'bg-n-teal-4 text-n-teal-11',
-  stranger: 'bg-n-slate-3 text-n-slate-11',
+  stranger: STATUS_TONE.idle,
 };
 const avatarClass = record =>
   AVATAR_STYLES[record.counterpartyType] || 'bg-n-iris-4 text-n-iris-11';
@@ -389,17 +398,20 @@ const isImageFile = f =>
 const isPdfFile = f =>
   (f.contentType || '') === 'application/pdf' ||
   /\.pdf$/i.test(f.filename || '');
-// Office 文档浏览器不能内联渲染，改为浏览器内转换：docx→HTML(mammoth)、xlsx→表格(SheetJS)。
-// 全程前端完成、文档不出服务器；老 .doc/.xls 与 .pptx 无法转换，仍走下载。
+// Office 文档浏览器不能内联渲染，改为浏览器内转换：docx→HTML(mammoth)、
+// xls/xlsx→表格(SheetJS)。全程前端完成、文档不出服务器。
+// SheetJS 连 97-2003 的 .xls(BIFF) 一起认，所以两种后缀都放行；
+// .doc 只有 mammoth 能转而它只认 docx，.pptx 没有转换器，这两类仍走下载。
 const isDocxFile = f =>
   /\.docx$/i.test(f.filename || '') ||
   (f.contentType || '').includes('wordprocessingml');
-const isXlsxFile = f =>
-  /\.xlsx$/i.test(f.filename || '') ||
-  (f.contentType || '').includes('spreadsheetml');
-const isOfficeFile = f => isDocxFile(f) || isXlsxFile(f);
-// 附件列表一长，xlsx 和 docx 共用同一个空白图标就扫不出哪个是哪个。
-// 只按扩展名分图标，不动 canPreview 的判断（csv/xls 仍然只能下载）。
+const isExcelFile = f =>
+  /\.xlsx?$/i.test(f.filename || '') ||
+  (f.contentType || '').includes('spreadsheetml') ||
+  (f.contentType || '') === 'application/vnd.ms-excel';
+const isOfficeFile = f => isDocxFile(f) || isExcelFile(f);
+// 附件列表一长，表格和文档共用同一个空白图标就扫不出哪个是哪个。
+// 只按扩展名分图标，不动 canPreview 的判断（csv 仍然只能下载）。
 const FILE_ICONS = [
   [/\.(xlsx?|csv)$/i, 'i-lucide-file-spreadsheet'],
   [/\.docx?$/i, 'i-lucide-file-type'],
@@ -853,12 +865,12 @@ const LABEL_DOT = {
   violet: 'bg-n-violet-9',
 };
 const LABEL_PILL = {
-  slate: 'bg-n-slate-3 text-n-slate-11',
+  slate: STATUS_TONE.idle,
   iris: 'bg-n-iris-3 text-n-iris-11',
   blue: 'bg-n-blue-3 text-n-blue-11',
-  teal: 'bg-n-teal-3 text-n-teal-11',
-  amber: 'bg-n-amber-3 text-n-amber-11',
-  ruby: 'bg-n-ruby-3 text-n-ruby-11',
+  teal: STATUS_TONE.done,
+  amber: STATUS_TONE.busy,
+  ruby: STATUS_TONE.fail,
   violet: 'bg-n-violet-3 text-n-violet-11',
 };
 const labelDot = c => LABEL_DOT[c] || LABEL_DOT.slate;
@@ -2208,8 +2220,8 @@ watch(
                       class="transition-colors"
                       :class="
                         record.isStarred
-                          ? 'text-n-iris-9'
-                          : 'text-n-slate-8 hover:text-n-iris-9'
+                          ? STAR_ON
+                          : `text-n-slate-8 ${STAR_HOVER}`
                       "
                       @click.stop="toggleStar(record)"
                     >
@@ -2289,8 +2301,8 @@ watch(
               class="flex items-center justify-center rounded-lg size-8 transition-colors hover:bg-n-alpha-1"
               :class="
                 selectedEmail.isStarred
-                  ? 'text-n-iris-9'
-                  : 'text-n-slate-10 hover:text-n-iris-9'
+                  ? STAR_ON
+                  : `text-n-slate-10 ${STAR_HOVER}`
               "
               :title="selectedEmail.isStarred ? '取消星标' : '加星标'"
               @click="toggleStar(selectedEmail)"
@@ -3043,7 +3055,7 @@ watch(
             取消
           </button>
           <button
-            class="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+            class="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
             :disabled="distributing"
             @click="submitDistribute"
           >

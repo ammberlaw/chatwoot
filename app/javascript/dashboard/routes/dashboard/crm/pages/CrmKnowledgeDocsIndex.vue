@@ -2002,7 +2002,7 @@ watch(
                 </p>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
                   @click="openDocFile(previewDoc)"
                 >
                   <span class="i-lucide-download size-3.5" />
@@ -2031,7 +2031,7 @@ watch(
                 </p>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
                   @click="openDocFile(previewDoc)"
                 >
                   <span class="i-lucide-download size-3.5" />
@@ -2053,7 +2053,7 @@ watch(
                 </p>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
                   @click="openDocFile(previewDoc)"
                 >
                   <span class="i-lucide-download size-3.5" />
@@ -2082,7 +2082,7 @@ watch(
                 </p>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
                   @click="openDocFile(previewDoc)"
                 >
                   <span class="i-lucide-download size-3.5" />
@@ -2100,7 +2100,7 @@ watch(
               </p>
               <button
                 type="button"
-                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-n-iris-9 hover:bg-n-iris-10"
+                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-md bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
                 @click="openDocFile(previewDoc)"
               >
                 <span class="i-lucide-download size-3.5" />

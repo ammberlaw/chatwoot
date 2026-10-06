@@ -1580,7 +1580,7 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 :disabled="!selectedIds.length"
-                class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-40 disabled:cursor-not-allowed"
+                class="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed"
                 @click="openForward()"
               >
                 <Icon icon="i-lucide-forward" class="size-4" />

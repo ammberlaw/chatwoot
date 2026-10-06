@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
@@ -38,10 +39,10 @@ const STAGES = {
     label: '需求确认（已报价）',
     class: 'bg-n-blue-3 text-n-blue-11',
   },
-  SAMPLING: { label: '样品中', class: 'bg-n-iris-3 text-n-iris-11' },
-  PENDING_PAYMENT: { label: '待付款', class: 'bg-n-amber-3 text-n-amber-11' },
-  WON: { label: '已成交', class: 'bg-n-teal-3 text-n-teal-11' },
-  LOST: { label: '输单', class: 'bg-n-ruby-3 text-n-ruby-11' },
+  SAMPLING: { label: '样品中', class: STATUS_TONE.flow },
+  PENDING_PAYMENT: { label: '待付款', class: STATUS_TONE.busy },
+  WON: { label: '已成交', class: STATUS_TONE.done },
+  LOST: { label: '输单', class: STATUS_TONE.fail },
 };
 
 const LOSS_REASONS = {

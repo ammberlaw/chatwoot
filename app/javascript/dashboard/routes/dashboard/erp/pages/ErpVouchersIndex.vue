@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue';
+import { STATUS_TONE, STATUS_VOID } from 'dashboard/helper/statusTone';
 import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useErpVouchersStore } from 'dashboard/stores/erp/vouchers';
@@ -46,9 +47,9 @@ const STATUS_OPTIONS = [
   { value: 'VOID', label: '已作废' },
 ];
 const STATUS_CLASS = {
-  DRAFT: 'bg-n-amber-3 text-n-amber-11',
-  POSTED: 'bg-n-teal-3 text-n-teal-11',
-  VOID: 'bg-n-slate-3 text-n-slate-11',
+  DRAFT: STATUS_TONE.idle,
+  POSTED: STATUS_TONE.done,
+  VOID: STATUS_VOID,
 };
 const CURRENCIES = [
   { value: 'CNY', label: '人民币 CNY' },

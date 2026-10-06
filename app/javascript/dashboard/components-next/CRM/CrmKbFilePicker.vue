@@ -289,7 +289,7 @@ watch(
       >
         <span class="flex-1 text-xs text-n-slate-10">{{ footTip }}</span>
         <button
-          class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10"
+          class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
           @click="emit('update:open', false)"
         >
           {{ L.kbDone }}

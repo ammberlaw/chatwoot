@@ -2435,7 +2435,7 @@ watch(
               加入我的日程
             </label>
             <button
-              class="w-full py-2 mt-3 text-sm font-semibold text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+              class="w-full py-2 mt-3 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
               :disabled="savingNext"
               @click="saveNextFollowUp"
             >
@@ -2456,7 +2456,7 @@ watch(
               class="w-full px-3 py-2 text-sm border rounded-lg resize-none no-margin border-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-none focus:ring-2 focus:ring-n-iris-9"
             />
             <button
-              class="w-full py-2 mt-2 text-sm font-semibold text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+              class="w-full py-2 mt-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
               :disabled="!newNote.trim()"
               @click="addNote"
             >

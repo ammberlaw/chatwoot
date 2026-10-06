@@ -121,8 +121,12 @@ const exportPdf = async () => {
       remaining -= pageH;
     }
     pdf.save(`PI-${doc.value.piNo || 'export'}.pdf`);
-  } catch {
-    useAlert('PDF 导出失败');
+  } catch (error) {
+    // 别把原因吞掉：html2canvas 碰到不认识的 CSS 颜色函数、跨域图片都会抛，
+    // 只弹一句「导出失败」等于让人去猜。
+    // eslint-disable-next-line no-console
+    console.error('[PI PDF]', error);
+    useAlert(`PDF 导出失败：${error?.message || error}`);
   } finally {
     if (holder) document.body.removeChild(holder);
     pdfing.value = false;

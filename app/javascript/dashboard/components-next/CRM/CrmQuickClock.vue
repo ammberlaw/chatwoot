@@ -165,7 +165,7 @@ onBeforeUnmount(() => timer && window.clearInterval(timer));
   <button
     v-if="compact && loaded && setting"
     type="button"
-    class="flex flex-col items-center justify-center text-white transition-colors rounded-full shrink-0 size-14 bg-n-iris-9 hover:bg-n-iris-10 active:bg-n-iris-10 shadow-md shadow-n-iris-9/25 disabled:opacity-50"
+    class="flex flex-col items-center justify-center text-white transition-colors rounded-full shrink-0 size-14 bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 shadow-md shadow-n-iris-9/25 disabled:opacity-50"
     :disabled="clocking"
     :title="lateHint || '考勤打卡'"
     @click="clock()"
@@ -213,7 +213,7 @@ onBeforeUnmount(() => timer && window.clearInterval(timer));
       </div>
       <button
         type="button"
-        class="flex flex-col items-center justify-center text-white transition-colors rounded-full shrink-0 size-16 bg-n-iris-9 hover:bg-n-iris-10 active:bg-n-iris-10 disabled:opacity-50"
+        class="flex flex-col items-center justify-center text-white transition-colors rounded-full shrink-0 size-16 bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
         :disabled="clocking"
         @click="clock()"
       >

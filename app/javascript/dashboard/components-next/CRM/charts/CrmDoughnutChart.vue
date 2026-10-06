@@ -36,7 +36,11 @@ const collection = computed(() => {
         data: props.data,
         backgroundColor: bg,
         borderWidth: 0,
-        borderRadius: props.gauge ? 8 : 4,
+        // 仪表：只有进度那段两头是圆的，轨道段在交界处必须切平。
+        // 两段都给圆角的话，后画的轨道会把进度末端的圆帽咬掉一块，看着像被截断。
+        borderRadius: props.gauge
+          ? [8, { outerStart: 0, innerStart: 0, outerEnd: 8, innerEnd: 8 }]
+          : 4,
         spacing: props.gauge ? 0 : 2,
       },
     ],

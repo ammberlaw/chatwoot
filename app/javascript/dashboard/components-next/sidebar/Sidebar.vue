@@ -400,11 +400,20 @@ const fetchConversationAttention = async () => {
   }
 };
 
-// 实时新消息：非当前用户发的才计数；轻量兜底直接重取总数（次数很少）。
+// 团队协同（内部 IM）的新消息：非当前用户发的才计数。
+// 这里原来还顺手重取了会话角标，但 CHAT_MESSAGE_CREATED 是内部 IM 的事件，
+// 跟客户会话没关系——回复客户时它根本不触发，角标要刷新页面才变。
+// 会话角标改挂 CONVERSATION_ATTENTION_MAY_CHANGE（见下）。
 const onChatRealtime = data => {
   if (data?.sender_id === currentUserId.value) return;
   fetchTeamChatUnread();
-  fetchConversationAttention();
+};
+
+// 会话一有动静就重算角标。消息是逐条推的，连着来十条没必要请求十次，收口到 1.5 秒一次。
+let attentionTimer = null;
+const refreshConversationAttention = () => {
+  clearTimeout(attentionTimer);
+  attentionTimer = setTimeout(fetchConversationAttention, 1500);
 };
 
 // CRM 角标/筛选项只对有 CRM 权限的人拉。
@@ -449,10 +458,20 @@ onMounted(() => {
   emitter.on('CHAT_MESSAGE_CREATED', onChatRealtime);
   // 协同页读完消息后广播，用于即时清角标。
   emitter.on('CHAT_UNREAD_CHANGED', fetchTeamChatUnread);
+  // 新消息（含自己发出的回复）
+  emitter.on('CONVERSATION_ATTENTION_MAY_CHANGE', refreshConversationAttention);
+  // 会话新建/状态变更/转派——actionCable 已有的广播，顺带用上
+  emitter.on('fetch_conversation_stats', refreshConversationAttention);
 });
 onBeforeUnmount(() => {
+  clearTimeout(attentionTimer);
   emitter.off('CHAT_MESSAGE_CREATED', onChatRealtime);
   emitter.off('CHAT_UNREAD_CHANGED', fetchTeamChatUnread);
+  emitter.off(
+    'CONVERSATION_ATTENTION_MAY_CHANGE',
+    refreshConversationAttention
+  );
+  emitter.off('fetch_conversation_stats', refreshConversationAttention);
 });
 
 watch([accountId, hasConversationUnreadCounts], fetchConversationUnreadCounts, {

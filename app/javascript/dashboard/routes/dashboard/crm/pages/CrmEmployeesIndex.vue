@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, reactive, computed, onMounted } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useAccount } from 'dashboard/composables/useAccount';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
@@ -15,9 +16,9 @@ const STATUS = [
 ];
 const STATUS_LABEL = Object.fromEntries(STATUS);
 const STATUS_STYLE = {
-  ACTIVE: 'bg-n-teal-3 text-n-teal-11',
-  PROBATION: 'bg-n-amber-3 text-n-amber-11',
-  RESIGNED: 'bg-n-slate-3 text-n-slate-11',
+  ACTIVE: STATUS_TONE.done,
+  PROBATION: STATUS_TONE.busy,
+  RESIGNED: STATUS_TONE.idle,
 };
 const GENDER = [
   ['MALE', '男'],
@@ -565,7 +566,7 @@ const removeEmployee = async row => {
       </h1>
       <button
         v-if="sudoActive && mode === 'list'"
-        class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10"
+        class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
         @click="openCreate"
       >
         新增员工
@@ -600,7 +601,7 @@ const removeEmployee = async row => {
           @keyup.enter="unlock"
         />
         <button
-          class="h-9 px-4 text-sm font-medium text-white rounded-lg shrink-0 whitespace-nowrap bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+          class="h-9 px-4 text-sm font-medium text-white rounded-lg shrink-0 whitespace-nowrap bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
           :disabled="!sudoPassword || sudoVerifying"
           @click="unlock"
         >
@@ -1316,7 +1317,7 @@ const removeEmployee = async row => {
 
       <div class="flex items-center gap-3 mt-1">
         <button
-          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="missing.length > 0 || saving"
           @click="save"
         >

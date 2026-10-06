@@ -134,6 +134,16 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
       dealt_customers_total: customers.where.not(first_deal_at: nil).count,
       public_pool_customers: Current.account.crm_customers.in_public_pool.count,
       avg_reply_latency_hours: emails.average(:reply_latency_hours)&.to_f&.round(1)
+    }.merge(private_pool_totals)
+  end
+
+  # 私海 = 没被退回公海的那批（scope=mine 时就是「我手上的客户」）。
+  # 资料完善度只对私海算：公海客户没人维护，算进平均分只会把分数拉低。
+  def private_pool_totals
+    scope = customers.where(is_in_public_pool: false)
+    {
+      private_customers: scope.count,
+      private_completeness: scope.average(:info_completeness_score)&.to_f&.round(1)
     }
   end
 
@@ -168,18 +178,14 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
     authorize(Crm::Customer)
   end
 
-  # 本月目标（个人=自己的；公司=全员合计）+ 本月已成交额（进度分子）
+  # 目标（个人=自己的；公司=全员合计）。原来只给「当前月」一个数，前端切到季度/年度、
+  # 或者翻到别的月份，分母都还是本月的目标——对不上。改成和 period_stats 一样给全套桶，
+  # 前端按所选周期取。进度的分子直接用 period_stats 里同一个周期的成交额。
   def current_target
-    scope = Current.account.crm_sales_targets.for_month(Time.zone.today)
+    scope = Current.account.crm_sales_targets.where(target_month: year_range)
     scope = scope.owned_by(current_user.id) if mine?
-    {
-      amount_micros: scope.sum(:target_amount_micros),
-      new_customers: scope.sum(:target_order_count),
-      month_amount_micros: this_month_amount
-    }
-  end
-
-  def this_month_amount
-    all_orders.where(order_date: Time.zone.today.beginning_of_month..).sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
+    by_month = scope.group(Arel.sql("DATE_TRUNC('month', target_month)")).sum(:target_amount_micros)
+    monthly = (1..12).map { |m| by_month[Time.zone.local(@year, m, 1)] || 0 }
+    { monthly: monthly, quarterly: monthly.each_slice(3).map(&:sum), yearly: monthly.sum }
   end
 end

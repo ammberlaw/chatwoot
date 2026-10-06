@@ -320,30 +320,60 @@ describe Whatsapp::Providers::WhatsappCloudService do
     end
 
     context 'when there is a message' do
-      it 'logs error and updates message status' do
+      it 'logs error and updates message status with the Meta error code appended' do
         service.instance_variable_set(:@message, message)
         service.send(:handle_error, error_response_object, message)
 
         expect(message.reload.status).to eq('failed')
-        expect(message.reload.external_error).to eq(error_message)
+        expect(message.reload.external_error).to eq("#{error_message} (100)")
       end
     end
 
-    context 'when error message is blank' do
+    # 账号级封锁（WABA 被停、未绑支付方式）时 Meta 只回一句没信息量的
+    # 「An unknown error has occurred.」，真因只在 health_status 里。
+    context 'when Meta returns an uninformative error' do
+      let(:error_response) do
+        {
+          'error' => {
+            'message' => 'An unknown error has occurred.',
+            'code' => 1
+          }
+        }
+      end
+
+      before do
+        allow(Whatsapp::HealthService).to receive(:blocking_summary)
+          .and_return('WABA 被封锁：The WABA status is not active.（141008）')
+      end
+
+      it 'appends the root cause looked up from health_status' do
+        service.instance_variable_set(:@message, message)
+        service.send(:handle_error, error_response_object, message)
+
+        expect(message.reload.status).to eq('failed')
+        expect(message.reload.external_error)
+          .to eq('An unknown error has occurred. · WABA 被封锁：The WABA status is not active.（141008） (1)')
+      end
+    end
+
+    # 解析不出错误文案也必须落 failed，否则消息停在「发送中」，
+    # 界面上分不清发出去没有，业务员只会反复重发同一条。
+    context 'when the response carries no error object' do
       let(:error_response_object) do
         instance_double(
           HTTParty::Response,
           body: '{}',
-          parsed_response: {}
+          parsed_response: {},
+          code: 502
         )
       end
 
-      it 'logs error but does not update message' do
+      it 'still marks the message failed with an HTTP fallback reason' do
         service.instance_variable_set(:@message, message)
         service.send(:handle_error, error_response_object, message)
 
-        expect(message.reload.status).not_to eq('failed')
-        expect(message.reload.external_error).to be_nil
+        expect(message.reload.status).to eq('failed')
+        expect(message.reload.external_error).to include('HTTP 502')
       end
     end
   end

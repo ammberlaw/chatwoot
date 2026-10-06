@@ -185,6 +185,7 @@ describe ConversationFinder do
         expect(result[:count]).to eq({
                                        mine_count: 2,
                                        assigned_count: 3,
+                                       assigned_out_count: 1,
                                        unassigned_count: 1,
                                        all_count: 4
                                      })
@@ -280,6 +281,7 @@ describe ConversationFinder do
         expect(result[:count]).to eq({
                                        mine_count: 2,
                                        assigned_count: 3,
+                                       assigned_out_count: 1,
                                        unassigned_count: 1,
                                        all_count: 4
                                      })

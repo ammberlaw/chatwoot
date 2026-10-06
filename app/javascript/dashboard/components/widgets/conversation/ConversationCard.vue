@@ -15,6 +15,8 @@ import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import { sourcePillClass } from 'dashboard/helper/crmSourcePill';
 import { countryFromPhone } from 'dashboard/helper/phoneCountry';
 import Flag from 'dashboard/components-next/flag/Flag.vue';
+import { useStore } from 'dashboard/composables/store';
+import { useAlert } from 'dashboard/composables';
 
 const props = defineProps({
   chat: { type: Object, required: true },
@@ -35,6 +37,22 @@ const emit = defineEmits([
   'selectConversation',
   'deSelectConversation',
 ]);
+
+const store = useStore();
+
+// 置顶：每人钉自己的，钉住的排在列表最前（后端 ConversationPin，前端 sortComparator 同步）。
+const isPinned = computed(() => Boolean(props.chat.pinned));
+const togglePin = async () => {
+  try {
+    await store.dispatch('togglePin', {
+      conversationId: props.chat.id,
+      pinned: !isPinned.value,
+    });
+  } catch (error) {
+    // 超过上限时后端返回 422 + 中文原因，直接给用户看
+    useAlert(error?.response?.data?.error || '操作失败，请重试');
+  }
+};
 
 const hovered = ref(false);
 
@@ -237,12 +255,31 @@ watch(
         class="absolute flex flex-col ltr:right-3 rtl:left-3"
         :class="showMetaSection ? 'top-8' : 'top-4'"
       >
-        <span class="ml-auto font-normal leading-4 text-xxs">
+        <!-- 图钉和时间同一行：另起一行会把时间整体下推，压到下面那行消息摘要上。
+             图钉放在时间右边贴着卡片右缘，各行时间长短不一（3d / 23d）也不会把图钉顶歪。 -->
+        <span
+          class="flex items-center gap-1 ml-auto font-normal leading-4 text-xxs"
+        >
           <TimeAgo
             :last-activity-timestamp="chat.timestamp"
             :created-at-timestamp="chat.created_at"
             :conversation-id="chat.id"
           />
+          <button
+            class="transition-opacity motion-reduce:transition-none"
+            :class="
+              isPinned
+                ? 'text-n-amber-10'
+                : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-n-slate-10 hover:text-n-amber-10'
+            "
+            :title="isPinned ? '取消置顶' : '置顶'"
+            @click.stop="togglePin"
+          >
+            <span
+              class="block size-3.5"
+              :class="isPinned ? 'i-ph-push-pin-fill' : 'i-lucide-pin'"
+            />
+          </button>
         </span>
         <UnreadBadge
           v-if="hasUnread"

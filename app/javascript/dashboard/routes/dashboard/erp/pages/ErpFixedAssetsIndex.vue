@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useAlert } from 'dashboard/composables';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
@@ -33,9 +34,9 @@ const STATUS_OPTIONS = [
   { value: 'SCRAPPED', label: '已报废' },
 ];
 const STATUS_CLASS = {
-  IN_USE: 'bg-n-teal-3 text-n-teal-11',
-  DISPOSED: 'bg-n-slate-3 text-n-slate-11',
-  SCRAPPED: 'bg-n-slate-3 text-n-slate-11',
+  IN_USE: STATUS_TONE.done,
+  DISPOSED: STATUS_TONE.idle,
+  SCRAPPED: STATUS_TONE.fail,
 };
 
 const money = micros => (micros ? fmtMoney(micros) : '—');

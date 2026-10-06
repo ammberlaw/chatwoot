@@ -132,9 +132,6 @@ const fmtMonth = value => {
         <h1 class="text-xl font-medium text-n-slate-12">
           {{ t('CRM.KPI_SCHEMES.HEADER') }}
         </h1>
-        <p class="mt-0.5 text-xs text-n-slate-11">
-          {{ t('CRM.KPI_SCHEMES.SUBTITLE') }}
-        </p>
       </div>
       <Button
         v-if="canManage"

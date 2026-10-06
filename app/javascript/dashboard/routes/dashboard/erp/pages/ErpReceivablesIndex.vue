@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useAlert } from 'dashboard/composables';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
@@ -73,9 +74,9 @@ const INSTALLMENT_STATUS_CLASS = {
   SETTLED: 'text-n-teal-11',
 };
 const STATUS_CLASS = {
-  UNPAID: 'bg-n-amber-3 text-n-amber-11',
-  PARTIAL: 'bg-n-iris-3 text-n-iris-11',
-  PAID: 'bg-n-teal-3 text-n-teal-11',
+  UNPAID: STATUS_TONE.busy,
+  PARTIAL: STATUS_TONE.flow,
+  PAID: STATUS_TONE.done,
 };
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
@@ -699,9 +700,7 @@ onMounted(() => {
               <span
                 class="px-2 py-0.5 text-xs rounded whitespace-nowrap"
                 :class="
-                  row.status === 'VOID'
-                    ? 'bg-n-slate-3 text-n-slate-11'
-                    : 'bg-n-teal-3 text-n-teal-11'
+                  row.status === 'VOID' ? STATUS_TONE.idle : STATUS_TONE.done
                 "
               >
                 {{ row.status_label }}

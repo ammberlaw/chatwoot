@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, reactive, computed, onMounted } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -41,14 +42,14 @@ const isManager = computed(
 const canSummary = computed(() => isAdminLike.value || isManager.value);
 
 const STATUS_META = {
-  NORMAL: { label: '正常', cls: 'bg-n-teal-3 text-n-teal-11' },
-  LATE: { label: '迟到', cls: 'bg-n-amber-3 text-n-amber-11' },
-  EARLY_LEAVE: { label: '早退', cls: 'bg-n-amber-3 text-n-amber-11' },
-  LATE_EARLY: { label: '迟到+早退', cls: 'bg-n-amber-3 text-n-amber-11' },
-  ABSENT: { label: '旷工', cls: 'bg-n-ruby-3 text-n-ruby-11' },
-  LEAVE: { label: '请假', cls: 'bg-n-iris-3 text-n-iris-11' },
-  HALF_LEAVE: { label: '请假(半天)', cls: 'bg-n-iris-3 text-n-iris-11' },
-  FIELD: { label: '外勤', cls: 'bg-n-blue-3 text-n-blue-11' },
+  NORMAL: { label: '正常', cls: STATUS_TONE.done },
+  LATE: { label: '迟到', cls: STATUS_TONE.busy },
+  EARLY_LEAVE: { label: '早退', cls: STATUS_TONE.busy },
+  LATE_EARLY: { label: '迟到+早退', cls: STATUS_TONE.busy },
+  ABSENT: { label: '旷工', cls: STATUS_TONE.fail },
+  LEAVE: { label: '请假', cls: STATUS_TONE.busy },
+  HALF_LEAVE: { label: '请假(半天)', cls: STATUS_TONE.busy },
+  FIELD: { label: '外勤', cls: STATUS_TONE.flow },
 };
 const WEEK_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -823,7 +824,7 @@ onMounted(fetchMine);
             {{ STATUS_META[todayRec.status]?.label }}
           </span>
           <button
-            class="h-10 px-6 text-sm font-medium text-white rounded-xl shrink-0 whitespace-nowrap bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+            class="h-10 px-6 text-sm font-medium text-white rounded-xl shrink-0 whitespace-nowrap bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
             :disabled="clocking"
             @click="clock()"
           >
@@ -1602,7 +1603,7 @@ onMounted(fetchMine);
             </div>
             <div class="flex items-center gap-2">
               <button
-                class="h-9 px-5 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+                class="h-9 px-5 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
                 :disabled="
                   savingSetting ||
                   !groupForm.name.trim() ||
@@ -1664,7 +1665,7 @@ onMounted(fetchMine);
         <div class="flex justify-end">
           <button
             type="button"
-            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
             :disabled="adjusting"
             @click="saveAdjust"
           >

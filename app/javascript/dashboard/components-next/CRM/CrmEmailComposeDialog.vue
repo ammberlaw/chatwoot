@@ -42,6 +42,7 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import CrmKbFilePicker from './CrmKbFilePicker.vue';
 import Editor from 'dashboard/components-next/Editor/Editor.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import CrmColorPalette from 'dashboard/components-next/CRM/CrmColorPalette.vue';
 import CrmRecipientInput from 'dashboard/components-next/CRM/CrmRecipientInput.vue';
 
@@ -936,15 +937,17 @@ const onDropFiles = event => {
 // ---- 附件预览：图片灯箱 / PDF 站内 iframe / Word·Excel 前端转 HTML（写信时确认加对了文件）----
 const isImgName = n => /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(n || '');
 const isPdfName = n => /\.pdf$/i.test(n || '');
-// Office 文档浏览器不能内联渲染，改为前端转换：docx→HTML(mammoth)、xlsx→表格(SheetJS)，文档不出浏览器。
-// 老 .doc/.xls 与 .pptx 无法转换，仍走下载。
+// Office 文档浏览器不能内联渲染，改为前端转换：docx→HTML(mammoth)、xls/xlsx→表格(SheetJS)，
+// 文档不出浏览器。SheetJS 连 97-2003 的 .xls(BIFF) 一起认，所以两种后缀都放行；
+// .doc 只有 mammoth 能转而它只认 docx，.pptx 没有转换器，这两类仍走下载。
 const isDocxName = n => /\.docx$/i.test(n || '');
-const isXlsxName = n => /\.xlsx$/i.test(n || '');
+const isExcelName = n => /\.xlsx?$/i.test(n || '');
 const isOfficeName = (n, type = '') =>
   isDocxName(n) ||
-  isXlsxName(n) ||
+  isExcelName(n) ||
   type.includes('wordprocessingml') ||
-  type.includes('spreadsheetml');
+  type.includes('spreadsheetml') ||
+  type === 'application/vnd.ms-excel';
 // 新加的本地文件（File 对象）
 const canPreviewFile = f =>
   (f.type || '').startsWith('image/') ||
@@ -1467,7 +1470,7 @@ defineExpose({ open, close });
           </span>
           <button
             v-show="!minimized"
-            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+            class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
             :disabled="sending"
             @click="send"
           >
@@ -2168,11 +2171,13 @@ defineExpose({ open, close });
             <span class="text-sm text-n-slate-11">{{
               L.scheduleTimeLabel
             }}</span>
-            <input
+            <DatePicker
               v-model="scheduleAt"
-              type="datetime-local"
+              with-time
+              block
+              :clearable="false"
               :min="minScheduleAt"
-              class="w-full h-10 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 outline-none focus:outline-none focus:ring-0"
+              placeholder="年 / 月 / 日  时:分"
             />
             <span v-if="scheduleLocalHint" class="text-xs text-n-slate-11">
               {{ scheduleLocalHint }}
@@ -2189,7 +2194,7 @@ defineExpose({ open, close });
             {{ L.cancel }}
           </button>
           <button
-            class="px-5 py-1.5 text-sm text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-60"
+            class="px-5 py-1.5 text-sm text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-60"
             :disabled="sending || !scheduleAt"
             @click="scheduleSend"
           >
@@ -2412,7 +2417,7 @@ defineExpose({ open, close });
             <Icon icon="i-lucide-folder-open" class="size-10 opacity-40" />
             <p class="text-sm">{{ L.tplEmpty }}</p>
             <button
-              class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10"
+              class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
               @click="openTemplateManage"
             >
               {{ L.tplNew }}
@@ -2600,7 +2605,7 @@ defineExpose({ open, close });
               {{ L.qtCancel }}
             </button>
             <button
-              class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+              class="px-4 py-1.5 text-sm font-medium text-white rounded-full bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
               :disabled="!quickTextForm.title.trim()"
               @click="saveQuickText"
             >

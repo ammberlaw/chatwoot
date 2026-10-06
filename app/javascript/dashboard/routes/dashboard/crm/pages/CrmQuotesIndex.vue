@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -30,10 +31,10 @@ const summary = ref(null);
 const formRef = ref(null);
 
 const STATUSES = {
-  DRAFT: { label: '草稿', class: 'bg-n-slate-3 text-n-slate-11' },
-  SENT: { label: '已发送', class: 'bg-n-blue-3 text-n-blue-11' },
-  CONFIRMED: { label: '已确认', class: 'bg-n-teal-3 text-n-teal-11' },
-  EXPIRED: { label: '已过期', class: 'bg-n-amber-3 text-n-amber-11' },
+  DRAFT: { label: '草稿', class: STATUS_TONE.idle },
+  SENT: { label: '已发送', class: STATUS_TONE.flow },
+  CONFIRMED: { label: '已确认', class: STATUS_TONE.done },
+  EXPIRED: { label: '已过期', class: STATUS_TONE.busy },
 };
 
 // 页顶 KPI 环形卡：环形填充=该状态占比，中心显数量，右侧标签+数量+各币种金额。

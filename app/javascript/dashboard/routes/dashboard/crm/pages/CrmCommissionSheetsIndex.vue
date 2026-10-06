@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
@@ -91,10 +92,10 @@ const statusFilter = ref('');
 const paidFilter = ref(''); // 财务专用：'' 全部 / 'unpaid' 待发放 / 'paid' 已发放
 const q = ref('');
 const STATUS_CLASS = {
-  DRAFT: 'bg-n-slate-3 text-n-slate-11',
-  SUBMITTED: 'bg-n-amber-3 text-n-amber-11',
-  APPROVED: 'bg-n-teal-3 text-n-teal-11',
-  RETURNED: 'bg-n-ruby-3 text-n-ruby-11',
+  DRAFT: STATUS_TONE.idle,
+  SUBMITTED: STATUS_TONE.busy,
+  APPROVED: STATUS_TONE.done,
+  RETURNED: STATUS_TONE.fail,
 };
 const STATUS_KEYS = Object.keys(STATUS_CLASS);
 // 原生 select → 紫玻璃 SelectCard 的筛选选项（含「全部」空值项）。
@@ -287,7 +288,7 @@ const unmarkPaid = async s => {
           :clearable="false"
         />
         <button
-          class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+          class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
           :disabled="isCreating"
           @click="createSheet"
         >
@@ -353,7 +354,7 @@ const unmarkPaid = async s => {
             取消
           </button>
           <button
-            class="h-8 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+            class="h-8 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
             :disabled="rateBusy"
             @click="saveRates"
           >

@@ -10,7 +10,10 @@ import Avatar from 'next/avatar/Avatar.vue';
 import SidebarProfileMenuStatus from './SidebarProfileMenuStatus.vue';
 import MySignatureDialog from 'dashboard/components-next/CRM/MySignatureDialog.vue';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
-import { applyColorPalette } from 'dashboard/helper/themeHelper';
+import {
+  applyColorPalette,
+  DEFAULT_COLOR_PALETTE,
+} from 'dashboard/helper/themeHelper';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import { useUISettings } from 'dashboard/composables/useUISettings';
@@ -96,7 +99,7 @@ const PALETTES = [
   },
 ];
 const activePalette = ref(
-  LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE) || 'purple'
+  LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE) || DEFAULT_COLOR_PALETTE
 );
 const selectPalette = key => {
   activePalette.value = key;

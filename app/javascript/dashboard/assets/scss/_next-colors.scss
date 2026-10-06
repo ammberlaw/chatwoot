@@ -55,6 +55,13 @@
     --ruby-11: 202 36 77;
     --ruby-12: 100 23 43;
 
+    // 状态标签专用的蓝（流转中）。经典灰把整条 blue 压成中性灰，是为了去掉画布渐变
+    // 那种大面积的蓝；但状态语义里「流程正在走」需要一个冷色，否则它和「草稿」的灰
+    // 撞成一个颜色。所以单开一组变量，theme-classic 不覆盖它。
+    --flow-3: 230 244 254;
+    --flow-9: 0 144 255;
+    --flow-11: 13 116 206;
+
     --amber-1: 254 253 251;
     --amber-2: 254 251 233;
     --amber-3: 255 247 194;
@@ -207,6 +214,11 @@
     --ruby-10: 236 90 114;
     --ruby-11: 255 148 157;
     --ruby-12: 254 210 225;
+
+    // 状态标签专用的蓝（流转中），见浅色模式处的说明
+    --flow-3: 13 40 71;
+    --flow-9: 0 144 255;
+    --flow-11: 112 184 255;
 
     --amber-1: 22 18 12;
     --amber-2: 29 24 15;
@@ -611,6 +623,9 @@ body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad:focus
   align-items: center;
   width: fit-content;
   gap: 2px;
+  // 槽自己留出上下呼吸：销售订单那种 tab 条紧贴着下面的分隔线（实测只剩 1px），
+  // 灰槽像是粘在线上。放这里而不是逐页改 class，新页面挂上标记就自带间距。
+  margin-block: 4px 8px;
   padding: 3px;
   border: 0;
   border-radius: 10px;

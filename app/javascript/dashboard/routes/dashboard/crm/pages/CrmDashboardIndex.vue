@@ -9,11 +9,13 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue';
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
+import CrmKpiCard from 'dashboard/components-next/CRM/CrmKpiCard.vue';
 import {
   themeColor,
   isClassicTheme,
 } from 'dashboard/components-next/CRM/charts/chartColors';
 import { useThemeSignal } from 'dashboard/components-next/CRM/charts/useThemeSignal';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
@@ -78,13 +80,15 @@ const STAGE_COLORS = {
   WON: 'iris-10',
   LOST: 'ruby-9',
 };
-// 经典灰专属：商机阶段用黄黑灰（炭黑/金黄/待付款金/灰/浅灰）。
-const CLASSIC_STAGE_COLORS = {
-  NEEDS_CONFIRMED: '#2a2e37',
-  SAMPLING: '#f5c451',
-  PENDING_PAYMENT: '#e0a72a',
-  WON: '#6b6f78',
-  LOST: '#b9bcc4',
+// 经典灰：商机阶段排成清单，图标底色套状态色规范——还没开始的灰、在走的蓝、
+// 要盯着的黄、做成了的绿、没做成的红，和商机列表里那五个状态标签同一套语义，
+// 色值直接取 STATUS_TONE，不另抄一份。
+const STAGE_META = {
+  NEEDS_CONFIRMED: { icon: 'i-lucide-clipboard-list', tone: STATUS_TONE.idle },
+  SAMPLING: { icon: 'i-lucide-package', tone: STATUS_TONE.flow },
+  PENDING_PAYMENT: { icon: 'i-lucide-credit-card', tone: STATUS_TONE.busy },
+  WON: { icon: 'i-lucide-circle-check', tone: STATUS_TONE.done },
+  LOST: { icon: 'i-lucide-circle-x', tone: STATUS_TONE.fail },
 };
 
 const SOURCE_LABELS = {
@@ -103,12 +107,6 @@ const SOURCE_COLOR_KEYS = [
   'iris-6',
   'blue-6',
 ];
-
-// KPI 浅卡图标 chip 配色（长春花冷调）。
-const ACCENTS = {
-  green: { text: 'text-n-iris-11', soft: 'bg-n-iris-3' },
-  iris: { text: 'text-n-iris-11', soft: 'bg-n-iris-3' },
-};
 
 // 长春花紫色系柔和渐变：跨卡紫→靛→蓝轻微流动，无绿。完整字面量供 Tailwind 收录。
 const CARD_GRADIENTS = [
@@ -182,6 +180,137 @@ const periodLabel = computed(() => {
   return `${y}年${selectedMonth.value}月`;
 });
 
+// 上一期（环比的分母）。年度没有去年的桶，返回 null，卡上就不显示环比。
+const prevStat = computed(() => {
+  const ps = stats.value?.period_stats;
+  if (!ps) return null;
+  if (period.value === 'year') return null;
+  if (period.value === 'quarter') {
+    const q = Math.floor((selectedMonth.value - 1) / 3);
+    return q > 0 ? ps.quarterly[q - 1] : null;
+  }
+  return selectedMonth.value > 1 ? ps.monthly[selectedMonth.value - 2] : null;
+});
+
+// 卡片标题跟着周期走。用「月度/季度/年度」而不是「本月」——月份可以翻到过去，
+// 选了 3 月还顶着「本月」两个字就是错的，具体哪一期看副标题。
+const PERIOD_NOUN = { month: '月度', quarter: '季度', year: '年度' };
+const periodNoun = computed(() => PERIOD_NOUN[period.value] || '月度');
+
+const PREV_LABEL = { month: '较上月', quarter: '较上季', year: '' };
+const FLAT_LABEL = { month: '上月也是', quarter: '上季也是', year: '' };
+
+// 环比那行要和走势图挤在一张 273px 宽的卡里，完整金额会被截断成「¥3,34…」。
+// 大数仍然写全，只有「较上月」后面跟的参照值缩写成万/亿。
+const compactMoney = micros => {
+  const yuan = Math.round((micros || 0) / 1_000_000);
+  const abs = Math.abs(yuan);
+  if (abs >= 100000000) return `¥${(yuan / 100000000).toFixed(2)}亿`;
+  if (abs >= 10000) return `¥${(yuan / 10000).toFixed(1)}万`;
+  return `¥${yuan.toLocaleString()}`;
+};
+
+// 环比：金额按百分比，个数按「差几个」——15 笔变 16 笔说「+6.7%」没人看得懂。
+const makeDelta = (key, { money: isMoney = false, fmt = v => v } = {}) => {
+  const prev = prevStat.value;
+  if (!prev) return null;
+  const now = Number(periodStat.value?.[key] || 0);
+  const was = Number(prev[key] || 0);
+  const label = PREV_LABEL[period.value] || '较上期';
+  if (now === was) {
+    const flat = FLAT_LABEL[period.value] || '上期也是';
+    return { text: '持平', dir: 'flat', vs: `${flat} ${fmt(was)}` };
+  }
+  const dir = now > was ? 'up' : 'down';
+  const sign = now > was ? '+' : '−';
+  const diff = Math.abs(now - was);
+  let text = `${sign}${diff}`;
+  if (isMoney) {
+    // 上期是 0 时算不出百分比，直接报差额
+    text =
+      was === 0
+        ? `${sign}${fmt(diff)}`
+        : `${sign}${((diff / was) * 100).toFixed(1)}%`;
+  }
+  return { text, dir, vs: `${label} ${fmt(was)}` };
+};
+
+// 走势取本年各月，截到所选月份为止——把还没发生的月份画成 0 会看着像断崖。
+const monthlySeries = key => {
+  const rows = stats.value?.period_stats?.monthly || [];
+  const end = period.value === 'year' ? rows.length : selectedMonth.value;
+  return rows.slice(0, end).map(r => Number(r?.[key] || 0));
+};
+
+// 成交客户里有多少是新客、这批客户占了客户总盘子多少——两个数都是「构成」，
+// 画走势没意义，所以第三张卡右边放分档而不是柱子。
+const customerSplit = computed(() => {
+  const s = periodStat.value;
+  const total = stats.value?.totals?.total_customers || 0;
+  const share = total ? Math.round((s.deal_customers / total) * 100) : 0;
+  return [
+    { label: '其中新客', value: s.new_customers, tone: 'mute' },
+    { label: '占客户总数', value: `${share}%`, tone: 'ink' },
+  ];
+});
+
+const GMV_KPI = computed(() => ({
+  label: 'GMV',
+  value: money(periodStat.value.amount_micros),
+  icon: 'i-lucide-banknote',
+  delta: makeDelta('amount_micros', { money: true, fmt: compactMoney }),
+  viz: { type: 'line', series: monthlySeries('amount_micros') },
+}));
+
+const ORDER_KPI = computed(() => ({
+  label: '成交订单',
+  value: periodStat.value.order_count,
+  unit: '笔',
+  icon: 'i-lucide-shopping-bag',
+  delta: makeDelta('order_count', { fmt: v => `${v} 笔` }),
+  viz: { type: 'bars', series: monthlySeries('order_count') },
+}));
+
+// 外贸销售部看板（全公司）三张卡；个人数据看板还是四张，新成交客户数单独占一张——
+// 个人视角下「我这个月开了几个新客」本身就是要盯的数，塞进分档里看不见。
+const classicKpis = computed(() => {
+  const s = periodStat.value;
+  if (scope.value !== 'mine') {
+    return [
+      GMV_KPI.value,
+      ORDER_KPI.value,
+      {
+        label: '成交客户数',
+        value: s.deal_customers,
+        unit: '家',
+        icon: 'i-lucide-users',
+        delta: makeDelta('deal_customers', { fmt: v => `${v} 家` }),
+        viz: { type: 'split', rows: customerSplit.value },
+      },
+    ];
+  }
+  return [
+    GMV_KPI.value,
+    ORDER_KPI.value,
+    {
+      label: '成交客户数',
+      value: s.deal_customers,
+      unit: '家',
+      icon: 'i-lucide-building-2',
+      delta: makeDelta('deal_customers', { fmt: v => `${v} 家` }),
+      viz: { type: 'bars', series: monthlySeries('deal_customers') },
+    },
+    {
+      label: '新成交客户数',
+      value: s.new_customers,
+      unit: '家',
+      icon: 'i-lucide-user-plus',
+      delta: makeDelta('new_customers', { fmt: v => `${v} 家` }),
+      viz: { type: 'bars', series: monthlySeries('new_customers') },
+    },
+  ];
+});
+
 const salesKpis = computed(() => {
   const s = periodStat.value;
   return [
@@ -189,7 +318,7 @@ const salesKpis = computed(() => {
       label: 'GMV',
       value: money(s.amount_micros),
       sub: periodLabel.value,
-      icon: 'i-lucide-wallet',
+      icon: 'i-lucide-banknote',
     },
     {
       label: '成交订单数',
@@ -216,10 +345,58 @@ const salesKpis = computed(() => {
 // 读 DOM 非响应式，切主题不会自动重算；下面产色的 computed 依赖它即可跟随切换。
 const themeSignal = useThemeSignal();
 
+// 经典灰下顶部换成带环比和走势的 KPI 卡；其余主题保持原来的渐变卡不动。
+// themeSignal 让它在切主题时重算（body class 不是响应式数据）。
+const isClassicKpi = computed(() => {
+  void themeSignal.value;
+  return isClassicTheme();
+});
+
+// 个人看板（scope=mine）：按业务员排的那两张榜只会剩自己一行，不渲染。
+const isMine = computed(() => scope.value === 'mine');
+
+// 成交排行腾出来的那 2/3，个人视角换成几张当下状态的小卡。
+// 这几个数都是「此刻是多少」，不跟着上方的月份筛选走。
+const mineMiniCards = computed(() => {
+  const tt = stats.value?.totals || {};
+  return [
+    { label: '私海客户数', value: tt.private_customers || 0, unit: '家' },
+  ];
+});
+
+// 资料完善度本来就是「满分 100 里拿了多少」，环形比一个光秃秃的数字直观。
+// 进度段用黄（经典灰的主色），剩余段用 slate-4 当轨道。
+const completenessRing = computed(() => {
+  void themeSignal.value;
+  const score = stats.value?.totals?.private_completeness;
+  if (score == null) return null;
+  const done = Math.max(0, Math.min(100, Math.round(score)));
+  return {
+    score,
+    data: [done, 100 - done],
+    colors: ['#f5c451', themeColor('slate-4')],
+  };
+});
+
+const kpiGridClass = computed(() =>
+  isClassicKpi.value && classicKpis.value.length === 3
+    ? 'grid-cols-1 sm:grid-cols-3'
+    : 'grid-cols-2 xl:grid-cols-4'
+);
+
 // ── 目标完成率（半圆仪表） ──
 const targetProgress = computed(() => {
-  const targetMicros = stats.value?.target?.amount_micros || 0;
-  const done = stats.value?.target?.month_amount_micros || 0;
+  const tg = stats.value?.target;
+  if (!tg) return null;
+  // 分母跟着所选周期走；分子直接取同一周期的成交额，不再固定看本月
+  const q = Math.floor((selectedMonth.value - 1) / 3);
+  const byPeriod = {
+    year: tg.yearly,
+    quarter: tg.quarterly?.[q],
+    month: tg.monthly?.[selectedMonth.value - 1],
+  };
+  const targetMicros = byPeriod[period.value] || 0;
+  const done = periodStat.value.amount_micros || 0;
   if (!targetMicros) return null;
   return {
     target: money(targetMicros),
@@ -248,13 +425,10 @@ const stageChart = computed(() => {
     .map(stage => ({ stage, micros: byStage[stage] || 0 }))
     .filter(r => r.micros);
   return {
+    stages: rows.map(r => r.stage),
     labels: rows.map(r => STAGE_LABELS[r.stage]),
     data: rows.map(r => toYuan(r.micros)),
-    colors: rows.map(r =>
-      isClassicTheme()
-        ? CLASSIC_STAGE_COLORS[r.stage]
-        : themeColor(STAGE_COLORS[r.stage])
-    ),
+    colors: rows.map(r => themeColor(STAGE_COLORS[r.stage])),
     empty: !rows.length,
   };
 });
@@ -332,53 +506,6 @@ const ownerCompleteness = computed(() => {
   };
 });
 
-// ── 累计概览 ──
-const totalCards = computed(() => {
-  const tt = stats.value?.totals;
-  if (!tt) return [];
-  return [
-    {
-      label: '客户总数',
-      value: tt.total_customers,
-      accent: 'green',
-      icon: 'i-lucide-users',
-    },
-    {
-      label: '成交客户数',
-      value: tt.won_customers,
-      accent: 'green',
-      icon: 'i-lucide-user-check',
-    },
-    {
-      label: '进行中商机',
-      value: tt.open_opportunities,
-      accent: 'iris',
-      icon: 'i-lucide-target',
-    },
-    {
-      label: '公海客户',
-      value: tt.public_pool_customers,
-      accent: 'iris',
-      icon: 'i-lucide-waves',
-    },
-    {
-      label: '订单总额（累计）',
-      value: money(tt.total_order_amount_micros),
-      accent: 'green',
-      icon: 'i-lucide-banknote',
-    },
-    {
-      label: '平均回复时长',
-      value:
-        tt.avg_reply_latency_hours != null
-          ? `${tt.avg_reply_latency_hours}h`
-          : '—',
-      accent: 'iris',
-      icon: 'i-lucide-clock',
-    },
-  ];
-});
-
 // ── 经典灰专属：图表改 HTML 排版（黄黑灰）。响应式跟随主题切换（无需刷新）。──
 // isClassic 依赖 themeSignal 重算，图表用它做 :key 重绘。
 const isClassic = computed(() => {
@@ -388,17 +515,15 @@ const isClassic = computed(() => {
 const RANK_PALETTE = ['#f5c451', '#2a2e37', '#6b6f78', '#b9bcc4'];
 const isLightBar = c => c === '#f5c451' || c === '#b9bcc4';
 
-// 商机阶段：横向标签长条
-const classicStageBars = computed(() => {
-  const { labels, data, colors } = stageChart.value;
-  const max = Math.max(...data, 1);
-  return labels.map((label, i) => ({
-    label,
-    amount: moneyOpp(data[i]),
-    pct: Math.max((data[i] / max) * 100, 10),
-    color: colors[i],
-  }));
-});
+// 商机阶段：图标 + 阶段名 + 金额的清单。
+// 不画条子——条子要么比长短、要么配底槽说完成率，这五个阶段两样都不是。
+const classicStageRows = computed(() =>
+  stageChart.value.stages.map((stage, i) => ({
+    label: stageChart.value.labels[i],
+    amount: moneyOpp(stageChart.value.data[i]),
+    ...STAGE_META[stage],
+  }))
+);
 
 // 排行/回复/完善度：奖牌序号 + 头像 + 进度条 行
 const buildRankRows = (chart, { inverse = false, fmt }) => {
@@ -411,6 +536,9 @@ const buildRankRows = (chart, { inverse = false, fmt }) => {
     if (inverse) {
       pct = max === min ? 100 : ((max - data[i]) / (max - min)) * 76 + 24;
     }
+    // 名次徽章按名次换色（金/黑/灰/浅灰），这是它该表达的东西。
+    // 进度条不跟着换——长度已经把数值说完了，颜色再表达一遍名次，
+    // 碰上并列（七个人都 100 分）就会看成「分数不一样」。
     const color = RANK_PALETTE[Math.min(i, RANK_PALETTE.length - 1)];
     return {
       name,
@@ -418,6 +546,7 @@ const buildRankRows = (chart, { inverse = false, fmt }) => {
       value: fmt(data[i]),
       pct,
       color,
+      barColor: RANK_PALETTE[0],
       dark: isLightBar(color),
     };
   });
@@ -450,10 +579,6 @@ const PERIODS = [
               : t('CRM.DASHBOARD.HEADER_COMPANY')
           }}
         </h1>
-        <p class="mt-0.5 text-sm text-n-slate-11">
-          {{ periodLabel }} ·
-          {{ scope === 'mine' ? '我的业绩' : '全公司概览' }}
-        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <div class="flex items-center h-9 gap-1 px-1 rounded-lg bg-n-alpha-1">
@@ -518,159 +643,134 @@ const PERIODS = [
     <template v-else>
       <!-- ═══ 第 1 行：KPI ═══ -->
       <!-- 手机上排 2 列（原来单列一屏只看得到 2 张卡），并收紧内边距/字号 -->
-      <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <!-- MedFlow 式暖色浅渐变卡（深字 + 真实涨跌角标） -->
-        <div
-          v-for="(kpi, i) in salesKpis"
-          :key="kpi.label"
-          class="flex flex-col justify-between p-4 sm:p-5 shadow-sm rounded-2xl bg-gradient-to-br min-h-[7rem] sm:min-h-[8.5rem]"
-          :class="CARD_GRADIENTS[i]"
-        >
+      <div class="grid gap-3 sm:gap-4" :class="kpiGridClass">
+        <!-- 经典灰：带环比和走势的卡（见 CrmKpiCard） -->
+        <template v-if="isClassicKpi">
+          <CrmKpiCard
+            v-for="kpi in classicKpis"
+            :key="`c-${kpi.label}`"
+            :label="kpi.label"
+            :value="kpi.value"
+            :unit="kpi.unit"
+            :icon="kpi.icon"
+            :delta="kpi.delta"
+            :viz="kpi.viz"
+          />
+        </template>
+        <!-- 其余主题：MedFlow 式暖色浅渐变卡（深字 + 真实涨跌角标） -->
+        <template v-else>
           <div
-            class="flex items-center justify-center rounded-lg size-8 sm:size-9 bg-n-solid-1/70 text-n-iris-11"
+            v-for="(kpi, i) in salesKpis"
+            :key="kpi.label"
+            class="flex flex-col justify-between p-4 sm:p-5 shadow-sm rounded-2xl bg-gradient-to-br min-h-[7rem] sm:min-h-[8.5rem]"
+            :class="CARD_GRADIENTS[i]"
           >
-            <span class="size-4 sm:size-5" :class="[kpi.icon]" />
-          </div>
-          <div class="min-w-0">
             <div
-              class="mt-3 sm:mt-4 text-sm font-medium truncate text-n-slate-11"
+              class="flex items-center justify-center rounded-lg size-8 sm:size-9 bg-n-solid-1/70 text-n-iris-11"
             >
-              {{ kpi.label }}
+              <span class="size-4 sm:size-5" :class="[kpi.icon]" />
             </div>
-            <div
-              class="mt-1 text-xl sm:text-2xl font-bold truncate text-n-slate-12"
-            >
-              {{ kpi.value }}
-            </div>
-            <div class="mt-1 text-xs truncate text-n-slate-10">
-              {{ kpi.sub }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ═══ 第 2 行：业务员成交排行 + 目标仪表 ═══ -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div
-          class="p-5 border shadow-sm lg:col-span-2 min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="mb-4 text-base font-medium text-n-slate-12">
-            业务员成交排行
-            <span class="ml-1 text-sm font-normal text-n-slate-10">
-              · {{ periodLabel }}
-            </span>
-          </h2>
-          <div class="h-72 min-w-0">
-            <div
-              v-if="ownerRank.empty"
-              class="flex items-center justify-center h-full text-sm text-n-slate-10"
-            >
-              暂无成交数据
-            </div>
-            <div
-              v-else-if="isClassic"
-              class="flex flex-col h-full gap-3 overflow-y-auto pr-1"
-            >
+            <div class="min-w-0">
               <div
-                v-for="(row, i) in classicRank"
-                :key="row.name"
-                class="flex items-center gap-2.5"
+                class="mt-3 sm:mt-4 text-sm font-medium truncate text-n-slate-11"
               >
-                <div
-                  class="grid text-[11px] font-bold rounded size-5 place-items-center shrink-0"
-                  :style="{
-                    backgroundColor: row.color,
-                    color: row.dark ? '#26340a' : '#fff',
-                  }"
-                >
-                  {{ i + 1 }}
-                </div>
-                <div
-                  class="grid rounded-lg size-7 place-items-center bg-n-slate-3 text-[11px] font-bold text-n-slate-11 shrink-0"
-                >
-                  {{ row.initial }}
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="text-[13px] font-medium truncate text-n-slate-12">
-                    {{ row.name }}
-                  </div>
-                  <div
-                    class="h-1.5 mt-1 overflow-hidden rounded-full bg-n-slate-3"
-                  >
-                    <div
-                      class="h-full rounded-full"
-                      :style="{
-                        width: row.pct + '%',
-                        backgroundColor: row.color,
-                      }"
-                    />
-                  </div>
-                </div>
-                <div class="text-[13px] font-bold text-n-slate-12 shrink-0">
-                  {{ row.value }}
-                </div>
+                {{ kpi.label }}
               </div>
-            </div>
-            <div v-else class="h-full overflow-y-auto pr-1">
-              <div :style="{ height: rankChartHeight }">
-                <CrmBarChart
-                  :key="themeSignal"
-                  :labels="ownerRank.labels"
-                  :data="ownerRank.data"
-                  horizontal
-                  show-values
-                  :value-format="moneyYuan"
-                />
+              <div
+                class="mt-1 text-xl sm:text-2xl font-bold truncate text-n-slate-12"
+              >
+                {{ kpi.value }}
+              </div>
+              <div class="mt-1 text-xs truncate text-n-slate-10">
+                {{ kpi.sub }}
               </div>
             </div>
           </div>
-        </div>
-
-        <div
-          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="mb-2 text-base font-medium text-n-slate-12">
-            本月目标完成率
-          </h2>
-          <template v-if="targetProgress">
-            <div class="h-48 mx-auto max-w-[16rem]">
-              <CrmDoughnutChart
-                :key="themeSignal"
-                :data="[targetProgress.pct, 100 - targetProgress.pct]"
-                gauge
-                cutout="78%"
-              >
-                <template #center>
-                  <div class="text-3xl font-bold text-n-slate-12">
-                    {{ targetProgress.pct }}%
-                  </div>
-                </template>
-              </CrmDoughnutChart>
-            </div>
-            <div class="text-center text-n-slate-11">
-              <span class="font-medium text-n-slate-12">
-                {{ targetProgress.done }}
-              </span>
-              / {{ targetProgress.target }}
-            </div>
-          </template>
-          <div
-            v-else
-            class="flex flex-col items-center justify-center gap-1 py-10 text-center"
-          >
-            <span class="i-lucide-target size-6 text-n-slate-10" />
-            <p class="text-sm text-n-slate-11">本月尚未设定目标</p>
-            <p class="text-xs text-n-slate-10">前往「我的目标」设定</p>
-          </div>
-        </div>
+        </template>
       </div>
 
-      <!-- ═══ 第 3 行：趋势面积图 + 来源环形 ═══ -->
+      <!-- 全公司：排行(3) / 趋势(2)+目标(1) / 商机(2)+来源(1) / 完善度(3)
+           个人：  三个数(1×3) / 趋势(2)+目标(1) / 商机(2)+来源(1)
+           两边都正好铺满三列，所以共用一个栅格，不另起行。 -->
+      <!-- ═══ 左栏大图 + 右栏明细 ═══ -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <!-- 左栏堆叠两张小卡：订单金额趋势 + 商机阶段分布 -->
         <div class="flex flex-col gap-4 lg:col-span-2 min-w-0">
           <div
-            class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+            v-if="!isMine"
+            class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+          >
+            <h2 class="mb-4 text-base font-medium text-n-slate-12">
+              业务员成交排行
+            </h2>
+            <div class="h-72 min-w-0">
+              <div
+                v-if="ownerRank.empty"
+                class="flex items-center justify-center h-full text-sm text-n-slate-10"
+              >
+                暂无成交数据
+              </div>
+              <div
+                v-else-if="isClassic"
+                class="flex flex-col h-full gap-3 overflow-y-auto pr-1"
+              >
+                <div
+                  v-for="(row, i) in classicRank"
+                  :key="row.name"
+                  class="flex items-center gap-2.5"
+                >
+                  <div
+                    class="grid text-[11px] font-bold rounded size-5 place-items-center shrink-0"
+                    :style="{
+                      backgroundColor: row.color,
+                      color: row.dark ? '#26340a' : '#fff',
+                    }"
+                  >
+                    {{ i + 1 }}
+                  </div>
+                  <div
+                    class="grid rounded-lg size-7 place-items-center bg-n-slate-3 text-[11px] font-bold text-n-slate-11 shrink-0"
+                  >
+                    {{ row.initial }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div
+                      class="text-[13px] font-medium truncate text-n-slate-12"
+                    >
+                      {{ row.name }}
+                    </div>
+                    <div
+                      class="h-1.5 mt-1 overflow-hidden rounded-full bg-n-slate-3"
+                    >
+                      <div
+                        class="h-full rounded-full"
+                        :style="{
+                          width: row.pct + '%',
+                          backgroundColor: row.barColor,
+                        }"
+                      />
+                    </div>
+                  </div>
+                  <div class="text-[13px] font-bold text-n-slate-12 shrink-0">
+                    {{ row.value }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="h-full overflow-y-auto pr-1">
+                <div :style="{ height: rankChartHeight }">
+                  <CrmBarChart
+                    :key="themeSignal"
+                    :labels="ownerRank.labels"
+                    :data="ownerRank.data"
+                    horizontal
+                    show-values
+                    :value-format="moneyYuan"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="mb-4 text-base font-medium text-n-slate-12">
               订单金额趋势
@@ -692,209 +792,275 @@ const PERIODS = [
               </div>
             </div>
           </div>
+          <!-- 商机阶段分布只有五行，占满主栏太空；跟完善度榜并排各半。
+               个人视角没有完善度榜，它就独占一行。 -->
+          <div
+            class="grid gap-4"
+            :class="isMine ? 'grid-cols-1' : 'lg:grid-cols-2'"
+          >
+            <div
+              class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+            >
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-medium text-n-slate-12">
+                  商机阶段分布
+                </h2>
+                <span v-if="winRate != null" class="text-xs text-n-slate-11">
+                  成交转化率
+                  <span class="font-semibold text-n-iris-11"
+                    >{{ winRate }}%</span
+                  >
+                </span>
+              </div>
+              <div class="h-72 min-w-0">
+                <div
+                  v-if="stageChart.empty"
+                  class="flex items-center justify-center h-full text-sm text-n-slate-10"
+                >
+                  暂无商机数据
+                </div>
+                <div
+                  v-else-if="isClassic"
+                  class="flex flex-col justify-center h-full gap-1"
+                >
+                  <div
+                    v-for="row in classicStageRows"
+                    :key="row.label"
+                    class="flex items-center gap-3 p-2 rounded-lg hover:bg-n-alpha-1"
+                  >
+                    <div
+                      class="flex items-center justify-center rounded-lg size-9 shrink-0"
+                      :class="row.tone"
+                    >
+                      <span class="size-5" :class="row.icon" />
+                    </div>
+                    <span class="text-sm text-n-slate-11">{{ row.label }}</span>
+                    <span class="ml-auto text-base font-bold text-n-slate-12">
+                      {{ row.amount }}
+                    </span>
+                  </div>
+                </div>
+                <CrmBarChart
+                  v-else
+                  :key="themeSignal"
+                  :labels="stageChart.labels"
+                  :data="stageChart.data"
+                  :colors="stageChart.colors"
+                  show-values
+                  :value-format="moneyOpp"
+                />
+              </div>
+            </div>
+            <div
+              v-if="!isMine"
+              class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+            >
+              <h2 class="mb-4 text-base font-medium text-n-slate-12">
+                业务员资料完善度
+              </h2>
+              <div class="h-72 min-w-0">
+                <div
+                  v-if="ownerCompleteness.empty"
+                  class="flex items-center justify-center h-full text-sm text-n-slate-10"
+                >
+                  暂无完善度数据
+                </div>
+                <div
+                  v-else-if="isClassic"
+                  class="flex flex-col h-full gap-3 overflow-y-auto pr-1"
+                >
+                  <div
+                    v-for="(row, i) in classicCompleteness"
+                    :key="row.name"
+                    class="flex items-center gap-2.5"
+                  >
+                    <div
+                      class="grid text-[11px] font-bold rounded size-5 place-items-center shrink-0"
+                      :style="{
+                        backgroundColor: row.color,
+                        color: row.dark ? '#26340a' : '#fff',
+                      }"
+                    >
+                      {{ i + 1 }}
+                    </div>
+                    <div
+                      class="grid rounded-lg size-7 place-items-center bg-n-slate-3 text-[11px] font-bold text-n-slate-11 shrink-0"
+                    >
+                      {{ row.initial }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div
+                        class="text-[13px] font-medium truncate text-n-slate-12"
+                      >
+                        {{ row.name }}
+                      </div>
+                      <div
+                        class="h-1.5 mt-1 overflow-hidden rounded-full bg-n-slate-3"
+                      >
+                        <div
+                          class="h-full rounded-full"
+                          :style="{
+                            width: row.pct + '%',
+                            backgroundColor: row.barColor,
+                          }"
+                        />
+                      </div>
+                    </div>
+                    <div class="text-[13px] font-bold text-n-slate-12 shrink-0">
+                      {{ row.value }}
+                    </div>
+                  </div>
+                </div>
+                <CrmBarChart
+                  v-else
+                  :key="themeSignal"
+                  :labels="ownerCompleteness.labels"
+                  :data="ownerCompleteness.data"
+                  horizontal
+                  show-values
+                  :value-format="scoreFmt"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右栏：按周期的明细。小卡两个一排 -->
+        <div class="flex flex-col gap-4 min-w-0">
+          <div v-if="!isMine">
+            <h2 class="text-base font-medium text-n-slate-12">
+              {{ periodNoun }}明细
+            </h2>
+            <p class="mt-1 text-xs text-n-slate-10">{{ periodLabel }}</p>
+          </div>
+          <div v-if="isMine" class="grid grid-cols-3 gap-3">
+            <div
+              v-for="c in mineMiniCards"
+              :key="c.label"
+              class="flex flex-col justify-center p-4 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+            >
+              <div class="text-sm truncate text-n-slate-11">{{ c.label }}</div>
+              <div class="mt-2 text-2xl font-bold tabular-nums text-n-slate-12">
+                {{ c.value }}
+                <span
+                  v-if="c.unit"
+                  class="ml-0.5 text-sm font-medium text-n-slate-10"
+                >
+                  {{ c.unit }}
+                </span>
+              </div>
+              <div v-if="c.hint" class="mt-1 text-xs text-n-slate-10">
+                {{ c.hint }}
+              </div>
+            </div>
+            <!-- 完善度：满分 100 的占比，环形比一个数字直观。窄栏里占两格 -->
+            <div
+              v-if="completenessRing"
+              class="col-span-2 p-4 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+            >
+              <div class="text-sm truncate text-n-slate-11">
+                私海客户资料完善度
+              </div>
+              <div class="relative h-24 mx-auto mt-2 max-w-[6rem]">
+                <CrmDoughnutChart
+                  :key="themeSignal"
+                  :data="completenessRing.data"
+                  :colors="completenessRing.colors"
+                  cutout="76%"
+                >
+                  <template #center>
+                    <div class="text-xl font-bold text-n-slate-12">
+                      {{ completenessRing.score }}
+                    </div>
+                    <div class="text-[10px] text-n-slate-10">满分 100</div>
+                  </template>
+                </CrmDoughnutChart>
+              </div>
+            </div>
+          </div>
           <div
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-base font-medium text-n-slate-12">
-                商机阶段分布
-              </h2>
-              <span v-if="winRate != null" class="text-xs text-n-slate-11">
-                成交转化率
-                <span class="font-semibold text-n-iris-11">{{ winRate }}%</span>
-              </span>
-            </div>
-            <div class="h-40 min-w-0">
-              <div
-                v-if="stageChart.empty"
-                class="flex items-center justify-center h-full text-sm text-n-slate-10"
-              >
-                暂无商机数据
-              </div>
-              <div
-                v-else-if="isClassic"
-                class="flex flex-col justify-center h-full gap-3"
-              >
-                <div
-                  v-for="row in classicStageBars"
-                  :key="row.label"
-                  class="flex items-center gap-3"
+            <h2 class="text-base font-medium text-n-slate-12">
+              {{ periodNoun }}目标完成率
+            </h2>
+            <p class="mt-1 mb-2 text-xs text-n-slate-10">{{ periodLabel }}</p>
+            <template v-if="targetProgress">
+              <div class="h-48 mx-auto max-w-[16rem]">
+                <CrmDoughnutChart
+                  :key="themeSignal"
+                  :data="[targetProgress.pct, 100 - targetProgress.pct]"
+                  gauge
+                  cutout="78%"
                 >
-                  <div
-                    class="w-20 text-[13px] font-medium text-n-slate-11 shrink-0"
-                  >
-                    {{ row.label }}
-                  </div>
-                  <div
-                    class="flex-1 h-7 overflow-hidden rounded-lg bg-n-slate-3"
-                  >
-                    <div
-                      class="h-full rounded-lg"
-                      :style="{
-                        width: row.pct + '%',
-                        backgroundColor: row.color,
-                      }"
-                    />
-                  </div>
-                  <div
-                    class="w-24 text-[13px] font-bold text-right text-n-slate-12 shrink-0"
-                  >
-                    {{ row.amount }}
-                  </div>
-                </div>
+                  <template #center>
+                    <div class="text-3xl font-bold text-n-slate-12">
+                      {{ targetProgress.pct }}%
+                    </div>
+                  </template>
+                </CrmDoughnutChart>
               </div>
-              <CrmBarChart
-                v-else
-                :key="themeSignal"
-                :labels="stageChart.labels"
-                :data="stageChart.data"
-                :colors="stageChart.colors"
-                show-values
-                :value-format="moneyOpp"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="mb-4 text-base font-medium text-n-slate-12">
-            客户来源占比
-          </h2>
-          <template v-if="!sourceDonut.empty">
-            <div class="relative h-40 mx-auto max-w-[12rem]">
-              <CrmDoughnutChart
-                :key="themeSignal"
-                :labels="sourceDonut.labels"
-                :data="sourceDonut.data"
-                :colors="sourceDonut.colors"
-              >
-                <template #center>
-                  <div class="text-xl font-bold text-n-slate-12">
-                    {{ sourceDonut.total }}
-                  </div>
-                  <div class="text-xs text-n-slate-10">客户</div>
-                </template>
-              </CrmDoughnutChart>
-            </div>
-            <div class="flex flex-col gap-1.5 mt-4">
-              <div
-                v-for="(label, i) in sourceDonut.labels"
-                :key="label"
-                class="flex items-center gap-2 text-sm"
-              >
-                <span
-                  class="inline-block rounded-full size-2.5 shrink-0"
-                  :style="{ backgroundColor: sourceDonut.colors[i] }"
-                />
-                <span class="truncate text-n-slate-11">{{ label }}</span>
-                <span class="ml-auto font-medium text-n-slate-12">
-                  {{ sourceDonut.data[i] }}
+              <div class="text-center text-n-slate-11">
+                <span class="font-medium text-n-slate-12">
+                  {{ targetProgress.done }}
                 </span>
+                / {{ targetProgress.target }}
               </div>
-            </div>
-          </template>
-          <div
-            v-else
-            class="flex items-center justify-center h-56 text-sm text-n-slate-10"
-          >
-            暂无来源数据
-          </div>
-        </div>
-      </div>
-
-      <!-- ═══ 第 4 行：累计概览 + 业务员资料完善度 ═══ -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div
-          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="mb-4 text-base font-medium text-n-slate-12">累计概览</h2>
-          <div class="flex flex-col gap-2">
+            </template>
             <div
-              v-for="card in totalCards"
-              :key="card.label"
-              class="flex items-center gap-3 p-2 rounded-lg hover:bg-n-alpha-1"
-            >
-              <div
-                class="flex items-center justify-center rounded-lg size-9 shrink-0"
-                :class="[ACCENTS[card.accent].soft, ACCENTS[card.accent].text]"
-              >
-                <span class="size-5" :class="[card.icon]" />
-              </div>
-              <span class="text-sm text-n-slate-11">{{ card.label }}</span>
-              <span class="ml-auto text-base font-bold text-n-slate-12">
-                {{ card.value }}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div
-          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="mb-4 text-base font-medium text-n-slate-12">
-            业务员资料完善度（越高越好）
-          </h2>
-          <div class="h-72 min-w-0">
-            <div
-              v-if="ownerCompleteness.empty"
-              class="flex items-center justify-center h-full text-sm text-n-slate-10"
-            >
-              暂无完善度数据
-            </div>
-            <div
-              v-else-if="isClassic"
-              class="flex flex-col h-full gap-3 overflow-y-auto pr-1"
-            >
-              <div
-                v-for="(row, i) in classicCompleteness"
-                :key="row.name"
-                class="flex items-center gap-2.5"
-              >
-                <div
-                  class="grid text-[11px] font-bold rounded size-5 place-items-center shrink-0"
-                  :style="{
-                    backgroundColor: row.color,
-                    color: row.dark ? '#26340a' : '#fff',
-                  }"
-                >
-                  {{ i + 1 }}
-                </div>
-                <div
-                  class="grid rounded-lg size-7 place-items-center bg-n-slate-3 text-[11px] font-bold text-n-slate-11 shrink-0"
-                >
-                  {{ row.initial }}
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="text-[13px] font-medium truncate text-n-slate-12">
-                    {{ row.name }}
-                  </div>
-                  <div
-                    class="h-1.5 mt-1 overflow-hidden rounded-full bg-n-slate-3"
-                  >
-                    <div
-                      class="h-full rounded-full"
-                      :style="{
-                        width: row.pct + '%',
-                        backgroundColor: row.color,
-                      }"
-                    />
-                  </div>
-                </div>
-                <div class="text-[13px] font-bold text-n-slate-12 shrink-0">
-                  {{ row.value }}
-                </div>
-              </div>
-            </div>
-            <CrmBarChart
               v-else
-              :key="themeSignal"
-              :labels="ownerCompleteness.labels"
-              :data="ownerCompleteness.data"
-              horizontal
-              show-values
-              :value-format="scoreFmt"
-            />
+              class="flex flex-col items-center justify-center gap-1 py-10 text-center"
+            >
+              <span class="i-lucide-target size-6 text-n-slate-10" />
+              <p class="text-sm text-n-slate-11">本月尚未设定目标</p>
+              <p class="text-xs text-n-slate-10">前往「我的目标」设定</p>
+            </div>
+          </div>
+          <div
+            class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+          >
+            <h2 class="mb-4 text-base font-medium text-n-slate-12">
+              客户来源占比
+            </h2>
+            <template v-if="!sourceDonut.empty">
+              <div class="relative h-40 mx-auto max-w-[12rem]">
+                <CrmDoughnutChart
+                  :key="themeSignal"
+                  :labels="sourceDonut.labels"
+                  :data="sourceDonut.data"
+                  :colors="sourceDonut.colors"
+                >
+                  <template #center>
+                    <div class="text-xl font-bold text-n-slate-12">
+                      {{ sourceDonut.total }}
+                    </div>
+                    <div class="text-xs text-n-slate-10">客户</div>
+                  </template>
+                </CrmDoughnutChart>
+              </div>
+              <div class="flex flex-col gap-1.5 mt-4">
+                <div
+                  v-for="(label, i) in sourceDonut.labels"
+                  :key="label"
+                  class="flex items-center gap-2 text-sm"
+                >
+                  <span
+                    class="inline-block rounded-full size-2.5 shrink-0"
+                    :style="{ backgroundColor: sourceDonut.colors[i] }"
+                  />
+                  <span class="truncate text-n-slate-11">{{ label }}</span>
+                  <span class="ml-auto font-medium text-n-slate-12">
+                    {{ sourceDonut.data[i] }}
+                  </span>
+                </div>
+              </div>
+            </template>
+            <div
+              v-else
+              class="flex items-center justify-center h-56 text-sm text-n-slate-10"
+            >
+              暂无来源数据
+            </div>
           </div>
         </div>
       </div>

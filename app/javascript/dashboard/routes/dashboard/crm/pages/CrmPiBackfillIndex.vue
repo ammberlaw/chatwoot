@@ -40,12 +40,6 @@ const sorted = computed(() =>
       a.customer_name.localeCompare(b.customer_name)
   )
 );
-const stats = computed(() => ({
-  total: rows.value.length,
-  parsable: rows.value.filter(r => isParsable(r.filename)).length,
-  noDeal: rows.value.filter(r => r.deal_order_count === 0).length,
-}));
-
 const load = async () => {
   loading.value = true;
   try {
@@ -238,10 +232,6 @@ onMounted(load);
       <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
         历史 PI 补录
       </h1>
-      <p class="mt-1 mb-5 text-sm text-n-slate-11">
-        早期直接传在客户「文件」页的 PI
-        没有对应销售订单，金额不计入成交额，客户星级也评不出来。这里逐条识别、补建订单。
-      </p>
 
       <!-- 批量上传：客户没建档的历史 PI 靠这里补，下面那张表只捞得到已传在客户文件页的。 -->
       <div class="p-4 mb-5 border rounded-2xl border-n-weak bg-n-solid-1/60">
@@ -267,9 +257,6 @@ onMounted(load);
           </span>
           <span v-else-if="picked.length" class="text-sm text-n-slate-11">
             已识别 {{ readyRows.length }} / {{ picked.length }} 份
-          </span>
-          <span v-else class="text-sm text-n-slate-10">
-            客户没建档也能补：识别后可一键建档，或先不关联（落进「未关联客户的订单」）
           </span>
           <span class="flex-1" />
           <Button
@@ -370,26 +357,6 @@ onMounted(load);
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div
-        class="flex flex-wrap items-center gap-4 px-4 py-3 mb-4 text-sm rounded-xl bg-n-alpha-1"
-      >
-        <span class="text-n-slate-11">
-          共
-          <b class="text-n-slate-12">{{ stats.total }}</b>
-          份 PI 附件
-        </span>
-        <span class="text-n-slate-11">
-          可识别
-          <b class="text-n-teal-11">{{ stats.parsable }}</b>
-          份
-        </span>
-        <span class="text-n-slate-11">
-          其中客户零成交
-          <b class="text-n-amber-11">{{ stats.noDeal }}</b>
-          份
-        </span>
       </div>
 
       <div v-if="loading" class="py-10 text-sm text-center text-n-slate-10">

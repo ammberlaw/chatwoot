@@ -127,6 +127,9 @@ class ActionCableConnector extends BaseActionCableConnector {
     } = data;
     DashboardAudioNotificationHelper.onNewMessage(data);
     this.app.$store.dispatch('addMessage', data);
+    // 侧栏「未处理 / 会话」角标跟着新消息走：客户发来会让它涨，业务员回复会让它落。
+    // 自己发出去的消息服务端也会推回来，所以回完客户角标能当场变，不用刷新页面。
+    emitter.emit('CONVERSATION_ATTENTION_MAY_CHANGE');
     this.app.$store.dispatch('updateConversationLastActivity', {
       lastActivityAt,
       conversationId,

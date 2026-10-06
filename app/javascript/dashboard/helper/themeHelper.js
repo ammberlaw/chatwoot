@@ -16,17 +16,15 @@ export const setColorTheme = isOSOnDarkMode => {
   }
 };
 
-// 配色主题（与深浅模式正交）：紫玻璃=默认（无 class，走 :root），其余各挂 body.theme-*。
-export const DEFAULT_COLOR_PALETTE = 'purple';
+// 配色主题（与深浅模式正交）：紫玻璃走 :root（无 class），其余各挂 body.theme-*。
+// 没选过配色的人默认给经典灰。
+export const DEFAULT_COLOR_PALETTE = 'classic';
 const PALETTE_CLASSES = {
   blue: 'theme-blue',
   beebot: 'theme-beebot',
   classic: 'theme-classic',
 };
-export const COLOR_PALETTES = [
-  DEFAULT_COLOR_PALETTE,
-  ...Object.keys(PALETTE_CLASSES),
-];
+export const COLOR_PALETTES = ['purple', ...Object.keys(PALETTE_CLASSES)];
 
 export const applyColorPalette = palette => {
   const selected =

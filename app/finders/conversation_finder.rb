@@ -114,6 +114,17 @@ class ConversationFinder
     @own_inbox_ids ||= current_user.inboxes.where(account_id: current_account.id).pluck(:id)
   end
 
+  # 置顶优先：先按「我钉过没有」排，再接原来的排序规则。
+  # order 是追加的，所以这一句必须在 sort_on_* 之前；LEFT JOIN 用唯一索引 (user_id, conversation_id)，
+  # 一条会话最多配一行，不会把结果撑出重复。
+  def pin_first(scope)
+    join = ActiveRecord::Base.sanitize_sql_array(
+      ['LEFT JOIN conversation_pins ON conversation_pins.conversation_id = conversations.id
+        AND conversation_pins.user_id = ?', current_user.id]
+    )
+    scope.joins(join).order(Arel.sql('conversation_pins.id IS NULL'))
+  end
+
   def find_all_conversations
     find_conversation_by_inbox
     # Apply permission-based filtering
@@ -249,7 +260,7 @@ class ConversationFinder
   end
 
   def conversations
-    @conversations = conversations_base_query
+    @conversations = pin_first(conversations_base_query)
 
     sort_by, sort_order = SORT_OPTIONS[params[:sort_by]] || SORT_OPTIONS['last_activity_at_desc']
     @conversations = @conversations.send(sort_by, sort_order)

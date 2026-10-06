@@ -46,12 +46,17 @@ class Whatsapp::Providers::BaseService
     return if message.blank?
 
     # https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes/#sample-response
-    error_message = error_message(response)
-    return if error_message.blank?
-
-    message.external_error = error_message
+    #
+    # 原来解析不出错误文案就直接 return，消息便一直停在「发送中」——界面上分不清
+    # 发出去没有，业务员只会反复重发同一条。请求失败就是失败，文案缺了用兜底的，
+    # 状态一定要落 failed。
+    message.external_error = error_message(response).presence || fallback_error_message(response)
     message.status = :failed
     message.save!
+  end
+
+  def fallback_error_message(response)
+    "发送失败（接口返回 HTTP #{response.code}）"
   end
 
   def create_buttons(items)

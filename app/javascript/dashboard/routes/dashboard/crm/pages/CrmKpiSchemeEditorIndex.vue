@@ -284,9 +284,6 @@ const fieldCls =
                 : t('CRM.KPI_SCHEMES.CREATE.TITLE')
             }}
           </h1>
-          <p class="mt-0.5 text-xs text-n-slate-11">
-            {{ t('CRM.KPI_SCHEMES.SUBTITLE') }}
-          </p>
         </div>
       </div>
       <div class="flex items-center gap-2 flex-wrap">

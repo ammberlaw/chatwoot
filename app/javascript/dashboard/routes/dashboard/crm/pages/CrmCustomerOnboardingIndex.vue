@@ -754,7 +754,7 @@ const submit = async () => {
               >
                 <button
                   type="button"
-                  class="inline-flex items-center gap-1.5 h-8 px-3 mt-1 text-xs font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+                  class="inline-flex items-center gap-1.5 h-8 px-3 mt-1 text-xs font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
                   :disabled="bgImported"
                   @click="importBackground"
                 >
@@ -996,7 +996,7 @@ const submit = async () => {
 
       <div class="flex flex-wrap items-center gap-3 mt-1">
         <button
-          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="h-10 px-6 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="!canSubmit"
           @click="submit"
         >

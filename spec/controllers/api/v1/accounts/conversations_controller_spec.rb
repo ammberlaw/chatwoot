@@ -304,7 +304,7 @@ RSpec.describe 'Conversations API', type: :request do
             headers: agent.create_new_auth_token,
             as: :json
 
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:forbidden)
       end
 
       it 'shows the conversation if you are an administrator' do
@@ -352,7 +352,7 @@ RSpec.describe 'Conversations API', type: :request do
               headers: agent.create_new_auth_token,
               as: :json
 
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:forbidden)
       end
 
       it 'updates the conversation if you are an administrator' do
@@ -405,7 +405,7 @@ RSpec.describe 'Conversations API', type: :request do
              headers: agent.create_new_auth_token,
              params: { source_id: contact_inbox.source_id, additional_attributes: additional_attributes },
              as: :json
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:forbidden)
       end
 
       context 'when it is an authenticated user who has access to the inbox' do
@@ -1141,7 +1141,7 @@ RSpec.describe 'Conversations API', type: :request do
             headers: agent.create_new_auth_token,
             as: :json
 
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:forbidden)
       end
 
       it 'return the attachments if you are an administrator' do
@@ -1192,7 +1192,7 @@ RSpec.describe 'Conversations API', type: :request do
                headers: agent.create_new_auth_token,
                as: :json
 
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:forbidden)
         response_body = response.parsed_body
         expect(response_body['error']).to eq('You are not authorized to do this action')
       end

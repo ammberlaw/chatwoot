@@ -14,6 +14,7 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
 import SalesOrdersAPI from 'dashboard/api/crm/salesOrders';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -98,33 +99,29 @@ const pageList = computed(() => {
 const crmBase = () => `/api/v1/accounts/${accountId.value}/crm`;
 
 const isClassic = ref(isClassicTheme());
-// 状态配色：仅经典灰用不褪色语义色(金/紫/绿/实心绿终态)；其它主题保持原始 blue/iris/teal（不同步）。
+// 状态配色：仅经典灰按状态色规范走（灰/黄/蓝/绿/实心绿终态/红）；其它主题保持原始 blue/iris/teal（不同步）。
+// 「待出货」用 n-flow-* 而不是 n-blue-*：经典灰把整条 blue 压成了中性灰，跟着走会和「待确认」的灰撞色。
 const STATUSES = computed(() => {
   const c = isClassic.value;
   return {
-    PENDING_CONFIRMATION: {
-      label: '待确认',
-      class: 'bg-n-slate-3 text-n-slate-11',
-    },
+    PENDING_CONFIRMATION: { label: '待确认', class: STATUS_TONE.idle },
     IN_PRODUCTION: {
       label: '生产中',
-      class: c ? 'bg-n-amber-3 text-n-amber-11' : 'bg-n-blue-3 text-n-blue-11',
+      class: c ? STATUS_TONE.busy : 'bg-n-blue-3 text-n-blue-11',
     },
     PENDING_SHIPMENT: {
       label: '待出货',
-      class: c
-        ? 'bg-n-violet-3 text-n-violet-11'
-        : 'bg-n-iris-3 text-n-iris-11',
+      class: c ? STATUS_TONE.flow : 'bg-n-iris-3 text-n-iris-11',
     },
     SHIPPED: {
       label: '已出货',
-      class: c ? 'bg-n-teal-3 text-n-teal-11' : 'bg-n-grass-3 text-n-grass-11',
+      class: c ? STATUS_TONE.done : 'bg-n-grass-3 text-n-grass-11',
     },
     COMPLETED: {
       label: '已完成',
-      class: c ? 'bg-n-teal-9 text-white' : 'bg-n-teal-3 text-n-teal-11',
+      class: c ? STATUS_TONE.final : 'bg-n-teal-3 text-n-teal-11',
     },
-    CANCELLED: { label: '已取消', class: 'bg-n-ruby-3 text-n-ruby-11' },
+    CANCELLED: { label: '已取消', class: STATUS_TONE.fail },
   };
 });
 

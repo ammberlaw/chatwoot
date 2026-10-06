@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -33,9 +34,9 @@ const isClassic = ref(isClassicTheme());
 const goColor = computed(() => (isClassic.value ? 'amber' : 'teal'));
 
 const STATUS = {
-  PENDING: { label: '待报价', class: 'bg-n-amber-3 text-n-amber-11' },
-  QUOTED: { label: '已报价', class: 'bg-n-teal-3 text-n-teal-11' },
-  CANCELLED: { label: '已撤销', class: 'bg-n-slate-4 text-n-slate-11' },
+  PENDING: { label: '待报价', class: STATUS_TONE.busy },
+  QUOTED: { label: '已报价', class: STATUS_TONE.done },
+  CANCELLED: { label: '已撤销', class: STATUS_TONE.idle },
 };
 const CURRENCIES = ['USD', 'CNY', 'EUR'];
 // 报价阶段问不着的规格项：这些是下生产单时才要确认的细节，现在问只会拖慢填表。

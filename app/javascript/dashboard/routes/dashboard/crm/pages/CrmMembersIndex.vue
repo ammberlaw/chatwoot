@@ -1198,7 +1198,7 @@ onMounted(() => {
         <div class="flex justify-end gap-2">
           <button
             type="button"
-            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
             :disabled="
               savingAccount ||
               (isManagerOnly
@@ -1377,7 +1377,7 @@ onMounted(() => {
         </div>
         <div class="flex justify-end">
           <button
-            class="flex items-center h-9 gap-1.5 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10"
+            class="flex items-center h-9 gap-1.5 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105"
             @click="startNewTemplate"
           >
             <span class="size-4 i-lucide-plus" />
@@ -1483,7 +1483,7 @@ onMounted(() => {
           </button>
           <button
             type="button"
-            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
+            class="h-9 px-4 text-sm font-medium text-white rounded-lg bg-gradient-to-br from-n-iris-9 to-n-accent-grad hover:brightness-105 disabled:opacity-50"
             :disabled="savingTemplate || !templateForm.name.trim()"
             @click="saveTemplate"
           >

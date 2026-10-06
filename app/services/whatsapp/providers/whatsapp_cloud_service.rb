@@ -134,9 +134,10 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     process_response(response, message)
   end
 
+  # 失败响应的翻译交给 Whatsapp::CloudErrorMessage——它要兼顾 Meta 的几种错误
+  # 结构，还要在「unknown error」时反查 health_status，单独放一个类里好测。
   def error_message(response)
-    # https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes/#sample-response
-    response.parsed_response&.dig('error', 'message')
+    Whatsapp::CloudErrorMessage.call(response, whatsapp_channel)
   end
 
   def voice_message?(type, attachment)
