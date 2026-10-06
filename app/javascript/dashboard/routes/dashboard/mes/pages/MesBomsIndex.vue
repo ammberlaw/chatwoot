@@ -327,6 +327,16 @@ onMounted(async () => {
           size="sm"
           @click="goProductPurchase"
         />
+        <!-- 模版挑单：模版弹窗本身在建档页，这里带个参数过去直接把它弹出来，
+             省得人先点「新建」再找「套用模版」（她第一反应就是来列表页找模版）。 -->
+        <Button
+          v-if="mesCan('bom')"
+          label="套用模版"
+          variant="outline"
+          color="slate"
+          size="sm"
+          @click="goCreate({ templates: 1 })"
+        />
         <Button
           v-if="mesCan('bom')"
           label="新建生产任务单"

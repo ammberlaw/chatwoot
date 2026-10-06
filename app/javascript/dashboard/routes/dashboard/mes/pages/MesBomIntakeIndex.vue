@@ -129,8 +129,11 @@ const blankHeader = () => ({
   bareColor: '',
   caseColor: '',
 });
-const { activeProductLine, formOptions: productLineOptions } =
-  useMesProductLine();
+const {
+  activeProductLine,
+  formOptions: productLineOptions,
+  productLineLabel,
+} = useMesProductLine();
 // 商显工控 BOM 不需要客户/项目名称、裸机颜色、皮套颜色（平板电脑保留）。
 const showTabletHeaderFields = computed(
   () => activeProductLine.value !== 'COMMERCIAL_DISPLAY'
@@ -311,6 +314,57 @@ const pickAuxAttribute = (row, value) => {
   row.auxAttributeId = value || '';
   row.auxAttributeName =
     row.auxOptions.find(o => String(o.id) === String(value))?.name || '';
+};
+
+// 按投单数量等比缩放：套模版或改单量时，用料是按原单数量算的（模版 3500 台的料
+// 拿来做 1000 台），几十行一行行改太蠢。按 数量/基准产量 等比折算，
+// 同时把基准产量对齐到新数量——外箱 10 个/箱、泡棉 3 片/台这些比例原样保住。
+const scaleTargetQty = computed(() => {
+  const n = Number(form.orderQty);
+  return Number.isFinite(n) && n > 0 ? n : null;
+});
+
+const scalableRows = computed(() =>
+  form.rows.filter(r => hasMaterial(r) && Number(r.qty) > 0)
+);
+
+const canScaleQty = computed(() => {
+  const base = Number(form.baseQty);
+  if (!scaleTargetQty.value || !Number.isFinite(base) || base <= 0)
+    return false;
+  return base !== scaleTargetQty.value && scalableRows.value.length > 0;
+});
+
+// 禁用时按钮是灰的，光看界面不知道为什么点不动，补个悬浮说明。
+const scaleHint = computed(() => {
+  const base = Number(form.baseQty);
+  if (!scaleTargetQty.value) return '先在投单信息里填「数量」';
+  if (!Number.isFinite(base) || base <= 0) return '先填基准产量';
+  if (base === scaleTargetQty.value) return '数量与基准产量已一致，无需缩放';
+  if (!scalableRows.value.length) return '用料明细里还没有填了用量的行';
+  return `把 ${scalableRows.value.length} 行用量按 ${base} → ${scaleTargetQty.value} 等比折算，基准产量一并改成 ${scaleTargetQty.value}`;
+});
+
+const scaleRowsToOrderQty = () => {
+  if (!canScaleQty.value) return;
+  const target = scaleTargetQty.value;
+  const base = Number(form.baseQty);
+  let fractional = 0;
+  const rows = scalableRows.value;
+  rows.forEach(r => {
+    // 先乘后除，别先算比例——0.342857… 这种比例乘回去会把整数搞成 119.99999
+    const scaled = Math.round(((Number(r.qty) * target) / base) * 1000) / 1000;
+    r.qty = String(scaled);
+    r.qtyTouched = true;
+    if (!Number.isInteger(scaled)) fractional += 1;
+  });
+  form.baseQty = String(target);
+  baseQtyTouched.value = true;
+  useAlert(
+    fractional
+      ? `已按 ${target} 折算 ${rows.length} 行用量；其中 ${fractional} 行算出小数，按箱装的（外箱/珍珠棉这类）自己核一下`
+      : `已按 ${target} 折算 ${rows.length} 行用量`
+  );
 };
 
 // 手动改过用量的行打标记，之后总数再变也不覆盖它。
@@ -779,9 +833,25 @@ const saveTplDialogRef = ref(null);
 const templateName = ref('');
 const confirmingDeleteId = ref(null);
 const tplDeletingId = ref(null);
+const tplQuery = ref('');
+
+// 模版攒到几十份后平铺列表翻不动了。模版是一次全取的，直接前端过滤，
+// 搜名字也搜备注（备注里有产成品代码、来源单号、来源文件名）。
+const filteredTemplates = computed(() => {
+  const q = tplQuery.value.trim().toLowerCase();
+  if (!q) return templates.value;
+  return templates.value.filter(t =>
+    [t.name, t.remark, productLineLabel(t.productLine)].some(v =>
+      String(v || '')
+        .toLowerCase()
+        .includes(q)
+    )
+  );
+});
 
 const openTemplates = () => {
   confirmingDeleteId.value = null;
+  tplQuery.value = '';
   tplStore.get();
   templateDialogRef.value?.open();
 };
@@ -791,6 +861,9 @@ const applyTemplate = t => {
   editingId.value = null;
   editingStatus.value = null;
   removedItemIds.value = [];
+  // 模版自带的基准产量就是它那批用料的口径（如 3500 台的料），
+  // 必须按住不让「数量」的联动把它冲成新数量——冲掉了就算不出缩放比例。
+  baseQtyTouched.value = true;
   Object.assign(form, {
     crmProductId: '',
     baseQty: String(t.baseQty ?? '1'),
@@ -798,8 +871,10 @@ const applyTemplate = t => {
     remark: '',
     ...blankHeader(),
     ...Object.fromEntries(LEAD_STAGES.map(s => [s.key, t[s.key] ?? ''])),
+    // 必须从 blankRow() 铺底：模版只存了几个字段，少铺 auxOptions / purchaseNote 这些，
+    // 套用后渲染 `row.auxOptions` 直接 undefined.length 整页白屏（套用模版点下去就崩）。
     rows: (t.bomTemplateItems || []).map(it => ({
-      productId: '',
+      ...blankRow(),
       materialNo: it.materialNo || '',
       materialName: it.materialName || '',
       specification: it.specification || '',
@@ -911,6 +986,8 @@ onMounted(async () => {
     });
   } else {
     await openCreate();
+    // 从列表页「套用模版」过来：建完空单直接把模版弹窗推到脸上。
+    if (route.query.templates) openTemplates();
   }
   booting.value = false;
 });
@@ -1266,6 +1343,14 @@ onBeforeRouteLeave((to, from, next) => {
               @click="resetColWidths"
             />
             <Button
+              label="按投单数量等比缩放"
+              variant="ghost"
+              size="sm"
+              :disabled="!canScaleQty"
+              :title="scaleHint"
+              @click="scaleRowsToOrderQty"
+            />
+            <Button
               label="+ 加一行"
               variant="ghost"
               size="sm"
@@ -1598,6 +1683,21 @@ onBeforeRouteLeave((to, from, next) => {
         <p class="text-xs text-n-slate-11">
           套用模版会把用料明细与各阶段天数带入新建生产任务单，你只需再选成品即可保存。想新增模版？在新建/编辑生产任务单时点「存为模版」。
         </p>
+        <div class="flex items-center gap-3">
+          <div class="flex-1 min-w-0">
+            <Input
+              v-model="tplQuery"
+              size="sm"
+              placeholder="搜索模版名 / 产成品代码 / 投单单号"
+            />
+          </div>
+          <span class="flex-shrink-0 text-xs text-n-slate-11">
+            <template v-if="tplQuery.trim()">
+              匹配 {{ filteredTemplates.length }} / {{ templates.length }} 份
+            </template>
+            <template v-else>共 {{ templates.length }} 份</template>
+          </span>
+        </div>
         <div v-if="tplFetching" class="py-8 text-center text-n-slate-11">
           加载中…
         </div>
@@ -1608,7 +1708,13 @@ onBeforeRouteLeave((to, from, next) => {
           还没有模版。
         </div>
         <div
-          v-for="t in tplFetching ? [] : templates"
+          v-else-if="!filteredTemplates.length"
+          class="py-8 text-center text-n-slate-11"
+        >
+          没有匹配「{{ tplQuery.trim() }}」的模版。
+        </div>
+        <div
+          v-for="t in tplFetching ? [] : filteredTemplates"
           :key="t.id"
           class="flex items-center justify-between gap-3 px-3 py-2 border rounded-lg border-n-weak"
         >
@@ -1618,8 +1724,10 @@ onBeforeRouteLeave((to, from, next) => {
             }}</span>
             <span class="text-xs text-n-slate-11">
               {{ (t.bomTemplateItems || []).length }} 项用料 · 基准
-              {{ t.baseQty }} {{ t.unit
-              }}<template v-if="t.productLine"> · {{ t.productLine }}</template>
+              {{ Number(t.baseQty) }} {{ t.unit
+              }}<template v-if="productLineLabel(t.productLine)">
+                · {{ productLineLabel(t.productLine) }}</template
+              >
             </span>
           </div>
           <div class="flex items-center flex-shrink-0 gap-1">
