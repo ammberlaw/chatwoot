@@ -7,8 +7,11 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
 import PisAPI from 'dashboard/api/crm/pis';
 import PiSellerProfileAPI from 'dashboard/api/crm/piSellerProfiles';
+import SalesOrderAPI from 'dashboard/api/crm/salesOrders';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
@@ -370,12 +373,102 @@ const buildFormData = () => {
   return fd;
 };
 
+// ── 转单后补填结算信息 ──
+// PI 是发给客户的单据，结算方式/信保单号不录在 PI 上（用户定调）；
+// 收款账户按 PI 抬头在后端自动带入，剩下两项转单那一刻就地补，不然自动转出来的单永远是空的。
+const settlementRef = ref(null);
+const convertedOrder = reactive({ id: null, no: '', missing: [] });
+const settlement = reactive({
+  paymentTerm: '',
+  receiptAccountId: '',
+  insuranceOrderNo: '',
+});
+const savingSettlement = ref(false);
+// 收款水单这类单据：选了先放内存，点保存时跟结算信息一起提交到订单附件
+const settlementFiles = ref([]);
+const settlementFileRef = ref(null);
+const pickSettlementFiles = () => settlementFileRef.value?.click();
+const onSettlementFiles = event => {
+  settlementFiles.value = [
+    ...settlementFiles.value,
+    ...Array.from(event.target.files || []),
+  ];
+  event.target.value = '';
+};
+const removeSettlementFile = i => {
+  settlementFiles.value = settlementFiles.value.filter((_, idx) => idx !== i);
+};
+const { paymentTermOptions, load: loadCrmOptions } = useCrmOptions();
+const receiptAccounts = ref([]);
+const receiptAccountOptions = computed(() => [
+  { value: '', label: '未指定' },
+  ...receiptAccounts.value.map(a => ({ value: String(a.id), label: a.name })),
+]);
+
+const openSettlement = async ({ id, no, missing }) => {
+  convertedOrder.id = id;
+  convertedOrder.no = no;
+  convertedOrder.missing = missing || [];
+  settlement.paymentTerm = '';
+  settlement.receiptAccountId = '';
+  settlement.insuranceOrderNo = '';
+  settlementFiles.value = [];
+  loadCrmOptions('payment_term');
+  try {
+    const { data } = await SalesOrderAPI.receiptAccounts();
+    receiptAccounts.value = data?.payload || [];
+  } catch {
+    receiptAccounts.value = [];
+  }
+  settlementRef.value?.open();
+};
+
+// 水单等附件挂到订单上，走订单本来的附件接口（和订单详情里看到的是同一批）。
+const uploadSettlementFiles = async () => {
+  if (!settlementFiles.value.length) return;
+
+  const fd = new FormData();
+  settlementFiles.value.forEach(f => fd.append('files[]', f));
+  await axios.post(
+    `/api/v1/accounts/${accountId.value}/crm/sales_orders/${convertedOrder.id}/attach`,
+    fd,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+};
+
+const saveSettlement = async () => {
+  if (!convertedOrder.id || savingSettlement.value) return;
+  savingSettlement.value = true;
+  const payload = { payment_term: settlement.paymentTerm || null };
+  if (settlement.insuranceOrderNo.trim()) {
+    payload.insurance_order_no = settlement.insuranceOrderNo.trim();
+  }
+  if (settlement.receiptAccountId) {
+    payload.receipt_account_id = settlement.receiptAccountId;
+  }
+  try {
+    await axios.patch(
+      `/api/v1/accounts/${accountId.value}/crm/sales_orders/${convertedOrder.id}`,
+      { sales_order: payload }
+    );
+    await uploadSettlementFiles();
+    useAlert(`订单 ${convertedOrder.no} 的结算信息已补上`);
+    settlementRef.value?.close();
+    emit('saved');
+  } catch (error) {
+    useAlert(error?.response?.data?.message || '保存失败，可到销售订单里再补');
+  } finally {
+    savingSettlement.value = false;
+  }
+};
+
 const submit = async () => {
   if (!isValid.value || saving.value) return;
   saving.value = true;
   try {
     const fd = buildFormData();
     let convertedOrderNo = null;
+    let converted = null;
     if (editingId.value) {
       const { data } = await PisAPI.update(
         accountId.value,
@@ -383,6 +476,7 @@ const submit = async () => {
         fd
       );
       convertedOrderNo = data?.converted_order_no;
+      converted = data;
     } else {
       await PisAPI.create(accountId.value, fd);
     }
@@ -393,6 +487,18 @@ const submit = async () => {
     );
     dialogRef.value?.close();
     emit('saved');
+    // 刚转出来的单缺结算方式（或抬头没对上收款账户）就地补，别让它空着流到应收台账
+    const missing = converted?.converted_order_missing || [];
+    const needs =
+      missing.includes('payment_term') ||
+      missing.includes('receipt_account_id');
+    if (converted?.converted_order_id && needs) {
+      openSettlement({
+        id: converted.converted_order_id,
+        no: convertedOrderNo,
+        missing,
+      });
+    }
   } catch (error) {
     // 后端 422 带着具体原因（最常见：PI 号重号），不透出来业务员只会看到一句「保存失败」。
     const detail = error?.response?.data?.message;
@@ -711,6 +817,102 @@ defineExpose({ open });
         auto-height
         resize
       />
+    </div>
+  </Dialog>
+  <!-- 转单后补填结算信息：PI 不录这几项（要发给客户），转成销售订单那一刻就地补 -->
+  <Dialog
+    ref="settlementRef"
+    :title="`补全结算信息 · ${convertedOrder.no}`"
+    confirm-button-label="保存"
+    cancel-button-label="稍后再补"
+    :is-loading="savingSettlement"
+    @confirm="saveSettlement"
+  >
+    <div class="flex flex-col gap-4">
+      <p class="text-sm text-n-slate-11">
+        这张 PI 已付款并转成销售订单
+        <span class="font-medium text-n-slate-12">{{ convertedOrder.no }}</span>
+        。结算方式是转 ERP 销售订单的必填项。
+      </p>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            结算方式
+          </label>
+          <SelectCard
+            v-model="settlement.paymentTerm"
+            :options="paymentTermOptions"
+          />
+        </div>
+        <div
+          v-if="convertedOrder.missing.includes('receipt_account_id')"
+          class="flex flex-col min-w-0 gap-1"
+        >
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            收款账户
+          </label>
+          <SelectCard
+            v-model="settlement.receiptAccountId"
+            :options="receiptAccountOptions"
+          />
+        </div>
+        <div v-else class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            收款账户
+          </label>
+          <div
+            class="flex items-center h-10 px-3 text-sm rounded-lg bg-n-slate-3 text-n-slate-11"
+          >
+            已按 PI 抬头带入
+          </div>
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            信保订单号
+          </label>
+          <Input v-model="settlement.insuranceOrderNo" />
+          <span class="text-xs text-n-slate-11">走阿里信保的单才填</span>
+        </div>
+        <!-- 收款水单这类单据：挂到订单附件上，和订单详情里看到的是同一批 -->
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">附件</label>
+          <Button
+            label="添加附件"
+            variant="outline"
+            color="slate"
+            size="sm"
+            icon="i-lucide-paperclip"
+            class="self-start !h-10"
+            @click="pickSettlementFiles"
+          />
+          <input
+            ref="settlementFileRef"
+            type="file"
+            multiple
+            class="hidden"
+            @change="onSettlementFiles"
+          />
+          <span v-if="!settlementFiles.length" class="text-xs text-n-slate-11">
+            收款水单、银行回单等
+          </span>
+          <div v-else class="flex flex-col gap-1 mt-1">
+            <span
+              v-for="(f, i) in settlementFiles"
+              :key="`${f.name}-${i}`"
+              class="inline-flex items-center gap-2 text-xs text-n-slate-11"
+            >
+              <span class="truncate">{{ f.name }}</span>
+              <button
+                type="button"
+                class="shrink-0 text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeSettlementFile(i)"
+              >
+                ✕
+              </button>
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   </Dialog>
 </template>

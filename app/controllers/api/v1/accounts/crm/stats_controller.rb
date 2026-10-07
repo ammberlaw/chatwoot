@@ -63,30 +63,46 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
     mine? ? scope.owned_by(current_user.id) : scope
   end
 
+  # 发出去的信（供「业务员发信排行」）：收件箱里那些不算，草稿/定时/发送失败的也不算，
+  # 只认真正发成功的那一封。取 email_date（这封信自己的时间）而不是 created_at，
+  # 补收回来的历史邮件才会落在真实发信月份。
+  def sent_emails
+    scope = Current.account.crm_emails.in_folder('SENT').where(send_status: 'SENT')
+    mine? ? scope.owned_by(current_user.id) : scope
+  end
+
   # ═══ Tab① 业绩统计：月/季/年三套桶，成交客户为 distinct 不可跨桶相加，故各自聚合 ═══
   def period_stats
     { monthly: buckets_by('month', 12), quarterly: buckets_by('quarter', 4), yearly: yearly_bucket }
   end
 
   def buckets_by(unit, count)
-    trunc = Arel.sql("DATE_TRUNC('#{unit}', order_date)")
-    amount = year_orders.group(trunc).sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
-    counts = year_orders.group(trunc).count
-    distinct = year_orders.where.not(crm_customer_id: nil).group(trunc).distinct.count(:crm_customer_id)
-    new_trunc = Arel.sql("DATE_TRUNC('#{unit}', first_deal_at)")
-    new_cust = customers.where(first_deal_at: year_range).group(new_trunc).count
-
+    series = bucket_series(unit)
     (1..count).map do |i|
       month = unit == 'month' ? i : ((i - 1) * 3) + 1
       key = Time.zone.local(@year, month, 1)
-      {
-        period: i,
-        amount_micros: amount[key] || 0,
-        order_count: counts[key] || 0,
-        deal_customers: distinct[key] || 0,
-        new_customers: new_cust[key] || 0
-      }
+      { period: i }.merge(series.transform_values { |h| h[key] || 0 })
     end
+  end
+
+  # 一个周期单位下的各项按桶聚合：键是桶的起始时间，值是该桶的数。
+  def bucket_series(unit)
+    trunc = Arel.sql("DATE_TRUNC('#{unit}', order_date)")
+    order_series(trunc).merge(
+      new_customers: by_bucket(customers.where(first_deal_at: year_range), unit, 'first_deal_at')
+    )
+  end
+
+  def order_series(trunc)
+    {
+      amount_micros: year_orders.group(trunc).sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL)),
+      order_count: year_orders.group(trunc).count,
+      deal_customers: year_orders.where.not(crm_customer_id: nil).group(trunc).distinct.count(:crm_customer_id)
+    }
+  end
+
+  def by_bucket(scope, unit, column)
+    scope.group(Arel.sql("DATE_TRUNC('#{unit}', #{column})")).count
   end
 
   def yearly_bucket
@@ -154,8 +170,15 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
       by_owner_won_customers: customers.where(customer_status: 'WON').joins(:account_owner).group('users.name').count,
       by_owner_completeness: completeness_by_owner,
       by_owner_reply_latency: emails.joins(:owner).group('users.name').average(:reply_latency_hours)
-                                    .transform_values { |v| v.to_f.round(1) }
+                                    .transform_values { |v| v.to_f.round(1) },
+      by_owner_sent_emails: owner_monthly_sent_emails
     }
+  end
+
+  # 业务员发信排行：和成交排行同一套做法，按「业务员 × 月份」预聚合，
+  # 前端按所选周期即时汇总。归属按邮件的 owner（这封信是谁发的）。
+  def owner_monthly_sent_emails
+    monthly_by_owner(sent_emails.where(email_date: year_range).joins(:owner), 'email_date')
   end
 
   # 业务员成交排行：当年按「业务员 × 月份」预聚合（下单日期口径），
@@ -164,8 +187,17 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
     trunc = Arel.sql("DATE_TRUNC('month', order_date)")
     raw = year_orders.joins(:owner).group('users.name', trunc)
                      .sum(Arel.sql(Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL))
-    raw.each_with_object(Hash.new { |h, k| h[k] = Array.new(12, 0) }) do |((name, month), amount), acc|
-      acc[name][month.month - 1] = amount.to_i
+    spread_by_month(raw)
+  end
+
+  # { 姓名 => [1..12月的数] }：按月份计数，缺的月份补 0。
+  def monthly_by_owner(scope, column)
+    spread_by_month(scope.group('users.name', Arel.sql("DATE_TRUNC('month', #{column})")).count)
+  end
+
+  def spread_by_month(raw)
+    raw.each_with_object(Hash.new { |h, k| h[k] = Array.new(12, 0) }) do |((name, month), value), acc|
+      acc[name][month.month - 1] = value.to_i
     end
   end
 

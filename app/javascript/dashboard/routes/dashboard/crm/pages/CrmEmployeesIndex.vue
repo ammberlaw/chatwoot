@@ -832,7 +832,6 @@ const removeEmployee = async row => {
           <input
             v-model="form.employeeNo"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 EMP0001（公司内唯一）"
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -882,7 +881,6 @@ const removeEmployee = async row => {
           <input
             v-model="form.nativePlace"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 广东深圳"
           />
         </label>
         <div class="flex flex-col gap-1">
@@ -985,7 +983,6 @@ const removeEmployee = async row => {
           <input
             v-model="form.jobTitle"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 外贸业务员"
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -993,7 +990,6 @@ const removeEmployee = async row => {
           <input
             v-model="form.jobCategory"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 销售 / 职能 / 生产"
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -1001,7 +997,6 @@ const removeEmployee = async row => {
           <input
             v-model="form.workLocation"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 东莞总部"
           />
         </label>
       </div>
@@ -1032,7 +1027,6 @@ const removeEmployee = async row => {
             type="number"
             min="0"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 3"
           />
         </label>
         <div class="flex flex-col gap-1">
@@ -1067,7 +1061,6 @@ const removeEmployee = async row => {
             type="number"
             min="1"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 1"
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -1092,7 +1085,6 @@ const removeEmployee = async row => {
           <input
             v-model="form.salaryNote"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 底薪 8000 + 绩效 2000 + 提成"
           />
         </label>
         <div class="flex flex-col gap-1">
@@ -1124,7 +1116,6 @@ const removeEmployee = async row => {
           <input
             v-model="form.bankName"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 招商银行深圳分行"
           />
         </label>
       </div>

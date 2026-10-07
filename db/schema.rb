@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_07_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_07_140000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2021,6 +2021,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_07_120000) do
     t.string "payment_term"
     t.integer "tax_rate"
     t.boolean "amount_includes_tax"
+    t.string "insurance_order_no"
+    t.bigint "receipt_account_id"
+    t.index ["account_id", "insurance_order_no"], name: "index_crm_sales_orders_on_account_and_insurance_no", where: "(insurance_order_no IS NOT NULL)"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_kind"], name: "index_crm_sales_orders_on_account_id_and_order_kind"
     t.index ["account_id", "order_no"], name: "index_crm_sales_orders_on_account_id_and_order_no", unique: true
@@ -2533,6 +2536,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_07_120000) do
     t.jsonb "inventory_account_map", default: {}, null: false
     t.boolean "amount_includes_tax", default: true, null: false
     t.date "fiscal_start_date"
+    t.string "company_name"
     t.index ["account_id"], name: "index_erp_settings_on_account_id", unique: true
   end
 

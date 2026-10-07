@@ -508,10 +508,7 @@ onMounted(async () => {
           <label class="text-heading-3 text-n-slate-12">
             事由 <span class="text-n-ruby-11">*</span>
           </label>
-          <Input
-            v-model="entryForm.subject"
-            placeholder="如：TK第三方人员费用日结 / 备用金领用"
-          />
+          <Input v-model="entryForm.subject" />
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div class="flex flex-col gap-1">
@@ -604,10 +601,7 @@ onMounted(async () => {
           <label class="text-heading-3 text-n-slate-12">
             名称 <span class="text-n-ruby-11">*</span>
           </label>
-          <Input
-            v-model="bookForm.name"
-            placeholder="如：深圳外贸部门 / AI社媒GEO项目"
-          />
+          <Input v-model="bookForm.name" />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">所属部门</label>

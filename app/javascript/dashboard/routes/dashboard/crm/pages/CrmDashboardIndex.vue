@@ -242,15 +242,17 @@ const monthlySeries = key => {
   return rows.slice(0, end).map(r => Number(r?.[key] || 0));
 };
 
-// 成交客户里有多少是新客、这批客户占了客户总盘子多少——两个数都是「构成」，
-// 画走势没意义，所以第三张卡右边放分档而不是柱子。
+// 成交客户里有多少是新客——「构成」类的数，画走势没意义，所以第三张卡右边放分档而不是柱子。
+// 原来第二行是「占客户总数」(成交客户 / 全部客户)，但客户盘子上万、一个月成交几家到几十家，
+// 这个比值永远四舍五入成 0%（生产 12719 个客户，成交 4 家 = 0.03%），等于一行废数。
+// 换成「新客占比」= 新客 / 成交客户：和上一行直接对得上，也是看新客开发成效时真正要的那个数。
 const customerSplit = computed(() => {
   const s = periodStat.value;
-  const total = stats.value?.totals?.total_customers || 0;
-  const share = total ? Math.round((s.deal_customers / total) * 100) : 0;
+  const deals = Number(s.deal_customers) || 0;
+  const share = deals ? Math.round((Number(s.new_customers) / deals) * 100) : 0;
   return [
     { label: '其中新客', value: s.new_customers, tone: 'mute' },
-    { label: '占客户总数', value: `${share}%`, tone: 'ink' },
+    { label: '新客占比', value: `${share}%`, tone: 'ink' },
   ];
 });
 
@@ -271,7 +273,7 @@ const ORDER_KPI = computed(() => ({
   viz: { type: 'bars', series: monthlySeries('order_count') },
 }));
 
-// 外贸销售部看板（全公司）三张卡；个人数据看板还是四张，新成交客户数单独占一张——
+// 外贸销售部看板（全公司）三张卡；个人数据看板四张，新成交客户数单独占一张——
 // 个人视角下「我这个月开了几个新客」本身就是要盯的数，塞进分档里看不见。
 const classicKpis = computed(() => {
   const s = periodStat.value;
@@ -491,6 +493,74 @@ const rankChartHeight = computed(
   () =>
     `${Math.max(RANK_MIN_PX, ownerRank.value.labels.length * RANK_ROW_PX)}px`
 );
+
+// ── 业务员发信排行（跟成交排行同一套：按所选期间汇总「业务员 × 月」的发信数）──
+// 发信量是过程指标，和成交额并排看才知道「发得多但没成交」还是「没发也没成交」。
+const ownerEmailRank = computed(() => {
+  const by = stats.value?.team?.by_owner_sent_emails || {};
+  const months = periodMonths.value;
+  const rows = Object.entries(by)
+    .map(([name, arr]) => [
+      name,
+      months.reduce((sum, i) => sum + (arr[i] || 0), 0),
+    ])
+    .filter(([, v]) => v)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 50);
+  return {
+    labels: rows.map(([k]) => k),
+    data: rows.map(([, v]) => v),
+    empty: !rows.length,
+  };
+});
+// 发信排行画成细长胶囊条（黄黑）：榜首品牌黄 + 顶上一个白色数值浮标，其余石墨色。
+// 柱高按占榜首的比例；左边给三档刻度（0 / 一半 / 最高），不然只有条子看不出量级。
+const EMAIL_BAR_TOP = '#ffc53d';
+const EMAIL_BAR_REST = '#2a2e37';
+const emailRankMax = computed(() =>
+  Math.max(
+    ...(ownerEmailRank.value.data.length ? ownerEmailRank.value.data : [0]),
+    1
+  )
+);
+// 左侧刻度：最高 / 一半 / 0，自上而下。
+const emailRankTicks = computed(() => {
+  const max = emailRankMax.value;
+  return [max, Math.round(max / 2), 0];
+});
+// 姓名缩写：有空格的取各段首字母（Leo Fang → LF），没空格的中文取前两字、英文取前两个字母。
+const rankInitials = name => {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length > 1) {
+    return parts
+      .slice(0, 2)
+      .map(w => w[0])
+      .join('')
+      .toUpperCase();
+  }
+  const one = parts[0] || '?';
+  return /[\u4e00-\u9fa5]/.test(one)
+    ? one.slice(0, 2)
+    : one.slice(0, 2).toUpperCase();
+};
+
+const emailRankBars = computed(() => {
+  const { labels, data } = ownerEmailRank.value;
+  const max = emailRankMax.value;
+  return labels.map((name, i) => ({
+    name,
+    // 条子底下只放首字母缩写（Leo Fang → LF，陈云钢 → 陈云），条子才挨得紧；
+    // 全名和封数挂在 title 上，鼠标移上去看。
+    short: rankInitials(name),
+    value: data[i],
+    // 留 6% 底座，免得只发一两封的人细成一条线看不见
+    pct: Math.max(6, Math.round((data[i] / max) * 100)),
+    top: i === 0,
+  }));
+});
 
 // ── 业务员资料完善度（越高越好，降序排） ──
 const ownerCompleteness = computed(() => {
@@ -769,6 +839,77 @@ const PERIODS = [
               </div>
             </div>
           </div>
+
+          <!-- 业务员发信排行：和成交排行同一期间口径，只认真正发成功的邮件。
+               竖条黄黑：榜首品牌黄 + 数值气泡，其余石墨色。 -->
+          <div
+            v-if="!isMine"
+            class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+          >
+            <div class="flex items-center justify-between gap-3 mb-5">
+              <h2 class="text-base font-medium text-n-slate-12">
+                业务员发信排行
+              </h2>
+              <span class="text-xs text-n-slate-10">{{ periodLabel }}</span>
+            </div>
+            <div
+              v-if="ownerEmailRank.empty"
+              class="flex items-center justify-center h-56 text-sm text-n-slate-10"
+            >
+              这段时间还没有发出去的邮件
+            </div>
+            <div v-else class="min-w-0 overflow-x-auto">
+              <div class="flex gap-3 w-max min-w-full">
+                <!-- 左侧刻度：最高 / 一半 / 0，贴着绘图区上中下三档 -->
+                <div
+                  class="flex flex-col justify-between w-8 h-44 pt-7 shrink-0 text-[10px] text-n-slate-10 tabular-nums text-right"
+                >
+                  <span v-for="tick in emailRankTicks" :key="tick">
+                    {{ tick }}
+                  </span>
+                </div>
+                <div>
+                  <div class="flex items-end h-44 gap-1 pt-7">
+                    <div
+                      v-for="bar in emailRankBars"
+                      :key="bar.name"
+                      class="relative flex justify-center w-7 h-full shrink-0"
+                      :title="`${bar.name}：${bar.value} 封`"
+                    >
+                      <!-- 榜首的白色数值浮标：贴在条子顶上，不占条子的高度 -->
+                      <span
+                        v-if="bar.top"
+                        class="absolute z-10 -translate-x-1/2 left-1/2 px-2 py-0.5 rounded-lg bg-n-solid-1 text-[10px] font-semibold text-n-slate-12 shadow-md whitespace-nowrap"
+                        :style="{ bottom: `calc(${bar.pct}% + 6px)` }"
+                      >
+                        {{ bar.value }} 封
+                      </span>
+                      <div
+                        class="self-end w-full rounded-full transition-all"
+                        :style="{
+                          height: `${bar.pct}%`,
+                          backgroundColor: bar.top
+                            ? EMAIL_BAR_TOP
+                            : EMAIL_BAR_REST,
+                        }"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex gap-1 mt-3">
+                    <div
+                      v-for="bar in emailRankBars"
+                      :key="`l-${bar.name}`"
+                      class="w-7 shrink-0 text-[10px] text-center truncate text-n-slate-10"
+                      :title="`${bar.name}：${bar.value} 封`"
+                    >
+                      {{ bar.short }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >

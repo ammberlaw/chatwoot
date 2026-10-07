@@ -593,7 +593,6 @@ onMounted(async () => {
               <input
                 v-model="form.productModel"
                 type="text"
-                placeholder="如 K717"
                 class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
               />
             </label>
@@ -689,7 +688,6 @@ onMounted(async () => {
               <input
                 v-model="form.periodNote"
                 type="text"
-                placeholder="如 2月1日-7月20日"
                 class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
               />
             </label>
@@ -721,7 +719,7 @@ onMounted(async () => {
                 <input
                   v-model="exp.name"
                   type="text"
-                  placeholder="费用名称（如 广告花费）"
+                  placeholder="费用名称"
                   class="flex-1 h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
                 />
                 <input

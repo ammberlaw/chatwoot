@@ -57,6 +57,11 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
   end
 
   # 回收箱（列表 + 恢复）：仅管理员/副管理员，避免业务员自行捞回引发矛盾。
+  # 录单的收款账户下拉（只给 id + 名字）：凡是能建单的都要选，不另设门槛。
+  def receipt_accounts?
+    true
+  end
+
   def deleted?
     @account_user.administrator? || @account_user.crm_deputy_admin?
   end

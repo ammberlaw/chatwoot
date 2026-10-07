@@ -422,7 +422,6 @@ onMounted(async () => {
             <input
               v-model="form.subject"
               type="text"
-              placeholder="如：KidzTab PH 信息流投放 / 第三方人员日结"
               class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
             />
           </label>

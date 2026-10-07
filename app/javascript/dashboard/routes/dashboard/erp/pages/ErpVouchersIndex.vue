@@ -797,7 +797,6 @@ onMounted(() => {
               v-model="form.summary"
               size="sm"
               custom-input-class="!h-9"
-              placeholder="如：确认8月货款收入"
               list="erp-summary-options"
             />
           </div>

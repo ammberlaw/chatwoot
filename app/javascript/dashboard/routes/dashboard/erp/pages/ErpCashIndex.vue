@@ -846,7 +846,6 @@ onMounted(async () => {
             v-model="transferForm.summary"
             size="sm"
             custom-input-class="!h-9"
-            placeholder="如：补备用金"
           />
         </div>
       </div>

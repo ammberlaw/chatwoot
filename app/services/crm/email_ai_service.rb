@@ -114,6 +114,7 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     - 金额只保留数字，去掉货币符号和千分位逗号；币种用三位字母代码（USD/CNY/EUR…），见 $ 默认 USD、￥/RMB 默认 CNY。
     - 日期统一成 YYYY-MM-DD；拿不准或没有就给 null。
     - 明细逐行抽取；单价/金额是对客户的售价（不是成本）。数量、单价、金额都只保留数字。
+    - shipping_cost 取运费/freight/shipping cost 那一行的金额；PI 上没有单列运费就给 null，不要从总额里倒推。
     - 没有的字段给 null，明细没有就给空数组，绝不编造。
     只返回一个 JSON 对象，不要输出任何多余文字、不要用代码块包裹。字段：
     {
@@ -123,6 +124,7 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
       "customer_name": "买方公司名",
       "currency": "三位币种代码",
       "total_amount": 数字或 null,
+      "shipping_cost": 数字或 null,
       "line_items": [
         { "name": "品名", "spec": "规格/型号", "quantity": 数字, "unit_price": 数字, "amount": 数字 }
       ]

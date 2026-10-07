@@ -11,6 +11,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 
 // 销售订单一键转下游单据。业务员录一次订单，不用去 MES 再敲一遍客户/产品/数量。
 //   定制单 → 生产订单（每行明细各转一张，都挂回同一张销售订单；
@@ -27,6 +28,9 @@ const submitting = ref(false);
 const products = ref([]);
 const warehouses = ref([]);
 const warehouseId = ref('');
+// 转单备注：写给下游（生产/仓管）看的交代。定制单每行各一张生产订单，都带同一份；
+// 出库单接在「由销售订单 X 转入」后面，出处那行保留。
+const remark = ref('');
 // [{ name, qty, unit, productId, convertedOrderNo }]
 const rows = reactive([]);
 
@@ -80,6 +84,7 @@ const open = async record => {
   // 单据上记过就沿用，没记过默认含税（国内合同惯例）。
   includesTax.value = record.amountIncludesTax ?? true;
   warehouseId.value = '';
+  remark.value = '';
   rows.splice(0, rows.length);
   dialogRef.value?.open();
 
@@ -138,6 +143,7 @@ const submitCustom = async () => {
   const { data } = await MesProductionOrderAPI.convert({
     crm_sales_order_id: order.value.id,
     amount_includes_tax: includesTax.value,
+    remark: remark.value.trim() || undefined,
     items: pendingRows.value.map(r => ({
       crm_product_id: r.productId,
       qty: r.qty,
@@ -155,6 +161,7 @@ const submitStock = async () => {
     crm_sales_order_id: order.value.id,
     warehouse_id: warehouseId.value,
     amount_includes_tax: includesTax.value,
+    remark: remark.value.trim() || undefined,
     items: rows.map(r => ({
       crm_product_id: r.productId,
       qty: r.qty,
@@ -253,7 +260,10 @@ defineExpose({ open });
         </div>
         <div class="flex items-center gap-2 px-1 text-xs text-n-slate-10">
           <span class="flex-[3]">订单上的品名</span>
-          <span class="flex-[3]">对应产品档案</span>
+          <span class="flex-[3]">
+            商品编码
+            <span class="text-n-ruby-11">*</span>
+          </span>
           <span class="flex-1">数量</span>
           <span class="flex-1">单位</span>
           <span class="w-6 shrink-0" />
@@ -308,6 +318,17 @@ defineExpose({ open });
         生产订单一单一个成品，这 {{ pendingRows.length }}
         行会各生成一张生产订单，都挂在这张销售订单下。
       </span>
+
+      <span v-if="unmatchedCount" class="text-xs text-n-ruby-11">
+        还有 {{ unmatchedCount }} 行没选商品编码，选齐才能转单{{
+          kind === 'STOCK' ? '——现货出库要按编码扣库存' : ''
+        }}。
+      </span>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-heading-3 text-n-slate-12">备注</label>
+        <TextArea v-model="remark" :rows="2" />
+      </div>
 
       <div class="flex justify-end gap-2 pt-1">
         <button

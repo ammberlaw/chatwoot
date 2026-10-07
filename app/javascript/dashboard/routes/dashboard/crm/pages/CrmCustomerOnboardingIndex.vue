@@ -614,7 +614,6 @@ const submit = async () => {
           <input
             v-model="form.name"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="例如：ABC Trading Co., Ltd.（选填）"
           />
         </label>
         <label class="flex flex-col gap-1 sm:col-span-2">
@@ -860,7 +859,6 @@ const submit = async () => {
           <input
             v-model="form.contactJobTitle"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 采购经理"
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -905,7 +903,6 @@ const submit = async () => {
           <input
             v-model="form.alibabaAccount"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 cn1234567890"
           />
         </label>
         <label class="flex flex-col gap-1">
@@ -965,7 +962,7 @@ const submit = async () => {
           <input
             v-model="ct.jobTitle"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-3"
-            placeholder="职位（如 采购）"
+            placeholder="职位"
           />
           <input
             v-model="ct.email"

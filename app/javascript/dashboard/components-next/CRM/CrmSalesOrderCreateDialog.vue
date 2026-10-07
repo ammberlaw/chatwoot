@@ -5,6 +5,8 @@ import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
+import SalesOrderAPI from 'dashboard/api/crm/salesOrders';
 
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -25,6 +27,24 @@ const dialogRef = ref(null);
 const editingId = ref(null);
 const orderNo = ref('');
 const opportunitiesStore = useCrmOpportunitiesStore();
+
+// 收款方式（结算方式）选项走客户设置那套可配置项，别再硬编一份。
+const { paymentTermOptions, load: loadCrmOptions } = useCrmOptions();
+// 收款账户：哪个银行/平台收的款。只回 id + 名字，业务员也能取。
+const receiptAccounts = ref([]);
+const receiptAccountOptions = computed(() => [
+  { value: '', label: '未指定' },
+  ...receiptAccounts.value.map(a => ({ value: String(a.id), label: a.name })),
+]);
+const loadReceiptAccounts = async () => {
+  if (receiptAccounts.value.length) return;
+  try {
+    const { data } = await SalesOrderAPI.receiptAccounts();
+    receiptAccounts.value = data?.payload || [];
+  } catch {
+    receiptAccounts.value = [];
+  }
+};
 
 // 关联私海客户：仅当前业务员名下（filter=mine）的客户，用于把订单归到该客户名下统计成交额。
 const privateCustomers = ref([]); // [{ id, name }]
@@ -51,6 +71,9 @@ const taxRateTouched = ref(false);
 const form = reactive({
   name: '',
   piNo: '',
+  insuranceOrderNo: '',
+  paymentTerm: '',
+  receiptAccountId: '',
   crmCustomerId: '',
   crmOpportunityId: '',
   status: 'IN_PRODUCTION',
@@ -81,6 +104,8 @@ const applyParsedPi = (data, file) => {
   if (data.delivery_date) form.deliveryDate = data.delivery_date;
   if (data.currency) form.orderCurrency = data.currency;
   if (data.amount != null) form.amount = String(data.amount);
+  // 运费从 PI 带入：订单金额是净销售（不含运费），两者分开，别让人再去 PI 上抄一遍。
+  if (data.shipping_cost != null) form.shipping = String(data.shipping_cost);
   form.lineItems = Array.isArray(data.line_items)
     ? data.line_items.map(li => ({
         name: li.name || '',
@@ -246,6 +271,9 @@ const resetForm = () => {
   piMatchHint.value = '';
   form.name = '';
   form.piNo = '';
+  form.insuranceOrderNo = '';
+  form.paymentTerm = '';
+  form.receiptAccountId = '';
   form.crmCustomerId = '';
   form.crmOpportunityId = '';
   form.status = 'IN_PRODUCTION';
@@ -301,6 +329,8 @@ const openWithParsedPi = ({ parsed, customer }) => {
     form.crmCustomerId = idStr;
     piMatchHint.value = '';
   }
+  loadCrmOptions('payment_term');
+  loadReceiptAccounts();
   dialogRef.value?.open();
 };
 
@@ -349,7 +379,14 @@ const open = record => {
     taxRateTouched.value = true;
     form.taxRate = record.taxRate != null ? String(record.taxRate) : '';
     form.remark = record.remark || '';
+    form.insuranceOrderNo = record.insuranceOrderNo || '';
+    form.paymentTerm = record.paymentTerm || '';
+    form.receiptAccountId = record.receiptAccountId
+      ? String(record.receiptAccountId)
+      : '';
   }
+  loadCrmOptions('payment_term');
+  loadReceiptAccounts();
   loadPrivateCustomers();
   if (!opportunitiesStore.getRecords.length) {
     // 后端读 per_page（下划线）；驼峰 perPage 不生效会回落到每页 15 条，商机选择器漏项。
@@ -385,6 +422,9 @@ const handleConfirm = () => {
   const payload = {
     name: form.name.trim(),
     piNo: form.piNo.trim() || null,
+    insuranceOrderNo: form.insuranceOrderNo.trim() || null,
+    paymentTerm: form.paymentTerm || null,
+    receiptAccountId: form.receiptAccountId || null,
     crmCustomerId: form.crmCustomerId || null,
     crmOpportunityId: form.crmOpportunityId || null,
     status: form.status,
@@ -536,7 +576,7 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
         {{ t('CRM.SALES_ORDERS.FORM.SECTION_BASIC') }}
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div class="flex flex-col min-w-0 gap-1">
+        <div class="flex flex-col col-span-2 min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
             {{ t('CRM.SALES_ORDERS.FORM.NAME') }}
             <span class="text-n-ruby-11">*</span>
@@ -548,6 +588,12 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
             {{ t('CRM.SALES_ORDERS.FORM.PI_NO') }}
           </label>
           <Input v-model="form.piNo" />
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">
+            信保订单号
+          </label>
+          <Input v-model="form.insuranceOrderNo" />
         </div>
         <div v-if="isEditing" class="flex flex-col min-w-0 gap-1">
           <label class="mb-0.5 text-heading-3 text-n-slate-12">
@@ -673,6 +719,20 @@ defineExpose({ dialogRef, onSuccess, open, openWithParsedPi });
             人民币单默认 13、外币出口单默认 0，可改；为 0
             时出库凭证不出销项税行。
           </span>
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">结算方式</label>
+          <SelectCard
+            v-model="form.paymentTerm"
+            :options="paymentTermOptions"
+          />
+        </div>
+        <div class="flex flex-col min-w-0 gap-1">
+          <label class="mb-0.5 text-heading-3 text-n-slate-12">收款账户</label>
+          <SelectCard
+            v-model="form.receiptAccountId"
+            :options="receiptAccountOptions"
+          />
         </div>
       </div>
 

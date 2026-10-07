@@ -30,6 +30,10 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @production_orders = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
     # 已完工入库量整批查一次；逐行算就是一页几百条 SQL（成品入库页一次拉 500 张订单）。
     @fg_inbound_qty_by_order = Mes::ProductionOrder.bulk_fg_inbound_qty(Current.account, @production_orders.map(&:id))
+    # 采购单的「关联生产订单」下拉要把料已下满的单拿掉，这个判断要展开 BOM，只在它要的时候算。
+    return unless boolean_param(:with_purchasing_complete)
+
+    @purchasing_complete_ids = Mes::ProductionOrder.bulk_purchasing_complete(Current.account, @production_orders.to_a)
   end
 
   def show; end
@@ -380,7 +384,9 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       unit: row[:unit],
       pi_no: sales_order.pi_no,
       delivery_date: row[:delivery_date] || sales_order.delivery_date,
-      owner_id: row[:owner_id] || sales_order.owner_id || current_user.id
+      owner_id: row[:owner_id] || sales_order.owner_id || current_user.id,
+      # 转单弹窗里写的备注：一次转多行就每张单都带一份（业务写的多半是整单的交代）。
+      remark: params[:remark].presence
     }
   end
 

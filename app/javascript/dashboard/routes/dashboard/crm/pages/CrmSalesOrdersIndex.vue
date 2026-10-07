@@ -8,6 +8,7 @@ import { useCrmFinanceOnly } from 'dashboard/composables/useCrmFinanceOnly';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmSalesOrdersStore } from 'dashboard/stores/crm/salesOrders';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
+import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import { useMapGetter } from 'dashboard/composables/store';
 import camelcaseKeys from 'camelcase-keys';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -278,6 +279,10 @@ const panelTrace = ref(null);
 const panelCosts = ref([]);
 const tabLoading = ref(false);
 
+// 结算方式（payment_term）存 code，详情要显示中文名，字典与客户设置页共用一份缓存。
+const { paymentTermLabel, load: loadCrmOptions } = useCrmOptions();
+loadCrmOptions('payment_term');
+
 const detailSections = computed(() => {
   const o = selectedOrder.value;
   if (!o) return [];
@@ -289,6 +294,7 @@ const detailSections = computed(() => {
         { label: '名称', value: o.name },
         { label: 'PI号', value: o.piNo, copyable: true },
         { label: '订单号', value: o.orderNo, copyable: true },
+        { label: '信保订单号', value: o.insuranceOrderNo, copyable: true },
         {
           label: '状态',
           tag: statusMeta
@@ -315,6 +321,9 @@ const detailSections = computed(() => {
           label: '汇率',
           value: o.exchangeRate != null ? String(o.exchangeRate) : null,
         },
+        // 结算方式存的是字典 code，这里换成中文名显示
+        { label: '结算方式', value: paymentTermLabel(o.paymentTerm) },
+        { label: '收款账户', value: o.receiptAccountName },
       ],
     },
     {
@@ -792,6 +801,11 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                     fmtDate(record.deliveryDate)
                   }}
                 </span>
+                <span v-if="record.paymentTerm">
+                  {{ t('CRM.SALES_ORDERS.TABLE.PAYMENT_TERM') }}：{{
+                    paymentTermLabel(record.paymentTerm)
+                  }}
+                </span>
                 <span
                   v-if="record.ownerName"
                   class="inline-flex items-center gap-1.5"
@@ -840,6 +854,11 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                   class="px-3 py-2.5 text-right text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
                 >
                   {{ t('CRM.SALES_ORDERS.TABLE.AMOUNT') }}
+                </th>
+                <th
+                  class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
+                >
+                  {{ t('CRM.SALES_ORDERS.TABLE.PAYMENT_TERM') }}
                 </th>
                 <th
                   class="px-3 py-2.5 text-left text-[11.5px] font-semibold text-n-slate-10 whitespace-nowrap"
@@ -905,6 +924,10 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                   class="px-3 py-3 font-semibold text-right tabular-nums text-n-slate-12 whitespace-nowrap"
                 >
                   {{ fmtMoney(record.orderAmountMicros, record.orderCurrency) }}
+                </td>
+                <!-- 结算方式：存的是字典 code，列表显示中文名；没填的留「—」，一眼看出哪些单要补 -->
+                <td class="px-3 py-3 text-n-slate-11 whitespace-nowrap">
+                  {{ paymentTermLabel(record.paymentTerm) || '—' }}
                 </td>
                 <td
                   class="px-3 py-3 tabular-nums text-n-slate-10 whitespace-nowrap"
@@ -1093,7 +1116,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                 :key="row.label"
                 class="flex items-start gap-3 text-sm"
               >
-                <span class="w-16 shrink-0 text-n-slate-10">
+                <span class="w-20 shrink-0 text-n-slate-10 whitespace-nowrap">
                   {{ row.label }}
                 </span>
                 <div class="flex flex-wrap items-center flex-1 min-w-0 gap-2">

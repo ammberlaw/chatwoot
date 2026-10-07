@@ -6,8 +6,13 @@ import OptionItemsAPI from 'dashboard/api/crm/optionItems';
 const items = {
   customer_group: ref([]),
   customer_source: ref([]),
+  payment_term: ref([]),
 };
-const loaded = { customer_group: false, customer_source: false };
+const loaded = {
+  customer_group: false,
+  customer_source: false,
+  payment_term: false,
+};
 
 // 后端返回扁平有序列表（含 parent_id）→ 一级项 + 其下二级项的缩进下拉选项。
 // 只取启用项；一级与二级均可被选中（存量客户存的是一级 code，保持兼容）。
@@ -46,8 +51,13 @@ export function useCrmOptions() {
 
   const groupOptions = computed(() => toOptions(items.customer_group.value));
   const sourceOptions = computed(() => toOptions(items.customer_source.value));
+  // 收款方式（销售订单的「结算方式」下拉）：单层，没有二级项。
+  const paymentTermOptions = computed(() =>
+    toOptions(items.payment_term.value)
+  );
   const groupLabel = code => labelFrom(items.customer_group.value, code);
   const sourceLabel = code => labelFrom(items.customer_source.value, code);
+  const paymentTermLabel = code => labelFrom(items.payment_term.value, code);
 
   return {
     load,
@@ -55,7 +65,9 @@ export function useCrmOptions() {
     refresh,
     groupOptions,
     sourceOptions,
+    paymentTermOptions,
     groupLabel,
     sourceLabel,
+    paymentTermLabel,
   };
 }

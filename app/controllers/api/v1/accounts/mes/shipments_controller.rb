@@ -185,9 +185,15 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
       crm_customer_id: sales_order.crm_customer_id,
       warehouse_id: params[:warehouse_id],
       owner_id: sales_order.owner_id || current_user.id,
-      remark: "由销售订单 #{sales_order.order_no} 转入",
+      remark: converted_remark(sales_order),
       shipment_items_attributes: convert_items
     }
+  end
+
+  # 出库单备注 = 转入出处 + 业务在转单弹窗里写的那段。
+  # 出处那行不能被覆盖掉——出库单翻回头要能看出是哪张销售订单转来的。
+  def converted_remark(sales_order)
+    ["由销售订单 #{sales_order.order_no} 转入", params[:remark].presence].compact.join("\n")
   end
 
   def convert_items

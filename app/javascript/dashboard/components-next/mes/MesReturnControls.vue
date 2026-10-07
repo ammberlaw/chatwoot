@@ -86,10 +86,7 @@ const reactivate = async () => {
         <label class="text-heading-3 text-n-slate-12">
           退回原因 <span class="text-n-ruby-11">*</span>
         </label>
-        <Input
-          v-model="reason"
-          placeholder="如：供应商没货，需换供应商，请工程确认替代料"
-        />
+        <Input v-model="reason" />
       </div>
     </Dialog>
   </span>

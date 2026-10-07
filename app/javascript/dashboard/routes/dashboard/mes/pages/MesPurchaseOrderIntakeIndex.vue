@@ -171,12 +171,17 @@ const DONE_PURCHASING_STAGES = [
   'FG_INBOUND',
   'SHIPPED',
 ];
+// 料已经全下满采购单的也不列（后端 purchasing_complete 按 BOM 需求量 vs 已下量算）。
+// 否则选中了才弹「这张订单的料都已经下过采购单了」——该让它压根不出现在候选里。
+const isSelectableOrder = p =>
+  p.status === 'IN_PROGRESS' &&
+  !DONE_PURCHASING_STAGES.includes(p.stage) &&
+  !p.purchasing_complete;
 const selectableOrders = computed(() =>
   productionOrders.value.filter(
     p =>
       // 编辑时本单已挂的那张要留着，否则下拉里显示不出当前值
-      String(p.id) === String(form.productionOrderId) ||
-      (p.status === 'IN_PROGRESS' && !DONE_PURCHASING_STAGES.includes(p.stage))
+      String(p.id) === String(form.productionOrderId) || isSelectableOrder(p)
   )
 );
 const productionOrderOptions = computed(() => [
@@ -195,7 +200,8 @@ const extraOrderOptions = computed(() => [
     .filter(
       p =>
         String(p.id) !== String(form.productionOrderId) &&
-        !form.extraProductionOrderIds.includes(String(p.id))
+        !form.extraProductionOrderIds.includes(String(p.id)) &&
+        !p.purchasing_complete
     )
     .map(p => ({
       value: String(p.id),
@@ -530,7 +536,8 @@ onMounted(async () => {
     const { data } = await axios.get(
       `/api/v1/accounts/${accountId.value}/mes/production_orders`,
       // 不传 per_page 后端只给最新 15 条,早的单子在下拉里选不到。
-      { params: { per_page: 500 } }
+      // with_purchasing_complete：让后端顺带算「料是否已下满」，下拉据此剔掉下完的单。
+      { params: { per_page: 500, with_purchasing_complete: 1 } }
     );
     productionOrders.value = data?.payload || [];
   } catch {
@@ -815,7 +822,6 @@ onBeforeRouteLeave((to, from, next) => {
             v-model="form.internalRemark"
             rows="3"
             class="w-full px-3 py-2 text-sm border rounded-lg resize-y border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none"
-            placeholder="例：WT20260723-01 型号 KROCO 2500&#10;WT20260723-05 型号 NAZA 2500"
           />
         </div>
 

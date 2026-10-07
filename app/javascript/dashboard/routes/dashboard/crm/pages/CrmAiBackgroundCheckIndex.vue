@@ -181,7 +181,7 @@ const openCustomer = customer => {
           type="text"
           name="background-query"
           autocomplete="off"
-          placeholder="邮箱 / 公司域名 / 公司名，如 buyer@acme.com、acme.com、Acme Ltd"
+          placeholder="邮箱 / 公司域名 / 公司名"
           class="reset-base w-full h-11 m-0 pl-11 pr-28 text-sm border rounded-lg outline-none bg-n-solid-1 border-n-weak text-n-slate-12 placeholder:text-n-slate-9 focus:border-n-iris-9"
           @keyup.enter="run"
         />

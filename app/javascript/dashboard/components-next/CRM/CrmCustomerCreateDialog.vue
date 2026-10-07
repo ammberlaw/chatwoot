@@ -442,7 +442,7 @@ defineExpose({ dialogRef, onSuccess, open });
           <input
             v-model="ct.jobTitle"
             class="h-9 px-3 text-sm border rounded-lg no-margin border-n-weak bg-n-solid-1 text-n-slate-12 sm:col-span-3"
-            placeholder="职位（如 采购）"
+            placeholder="职位"
           />
           <input
             v-model="ct.email"

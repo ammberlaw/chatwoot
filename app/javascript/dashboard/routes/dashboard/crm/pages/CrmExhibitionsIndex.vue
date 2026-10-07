@@ -742,11 +742,7 @@ onMounted(loadList);
       @confirm="saveExhibition"
     >
       <div class="flex flex-col gap-4">
-        <Input
-          v-model="form.name"
-          label="展会名称"
-          placeholder="如：2026 科隆国际五金展"
-        />
+        <Input v-model="form.name" label="展会名称" />
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
             <label class="mb-0.5 text-heading-3 text-n-slate-12">国家</label>
@@ -758,24 +754,12 @@ onMounted(loadList);
           </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <Input v-model="form.city" label="城市" placeholder="如：科隆" />
-          <Input
-            v-model="form.boothNo"
-            label="展位号"
-            placeholder="如：Hall 5, Stand B20"
-          />
+          <Input v-model="form.city" label="城市" />
+          <Input v-model="form.boothNo" label="展位号" />
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <Input
-            v-model="form.venue"
-            label="场馆"
-            placeholder="如：科隆国际展览中心"
-          />
-          <Input
-            v-model="form.hall"
-            label="展馆/馆号"
-            placeholder="如：Hall 5"
-          />
+          <Input v-model="form.venue" label="场馆" />
+          <Input v-model="form.hall" label="展馆/馆号" />
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
@@ -799,7 +783,6 @@ onMounted(loadList);
         <TextArea
           v-model="form.featuredProducts"
           label="本次主打产品（写进邀请函）"
-          placeholder="如：工业显示屏、平板电脑、触控一体机"
         />
       </div>
     </Dialog>
@@ -906,14 +889,8 @@ onMounted(loadList);
         <div
           class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1.4fr_auto] sm:items-center"
         >
-          <Input
-            v-model="apolloCountry"
-            placeholder="国家（英文，如 Germany）"
-          />
-          <Input
-            v-model="apolloKeywords"
-            placeholder="关键词（如 industrial display, tablet）"
-          />
+          <Input v-model="apolloCountry" placeholder="国家（英文）" />
+          <Input v-model="apolloKeywords" placeholder="关键词" />
           <Button
             label="搜索"
             icon="i-lucide-search"

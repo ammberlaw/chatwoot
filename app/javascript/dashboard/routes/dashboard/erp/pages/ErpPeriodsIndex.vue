@@ -843,12 +843,7 @@ onMounted(load);
         >
           <span class="text-sm text-n-slate-11">{{ currency }} 期末汇率</span>
           <div class="w-28">
-            <Input
-              v-model="revalRates[currency]"
-              size="sm"
-              type="number"
-              placeholder="如 7.1200"
-            />
+            <Input v-model="revalRates[currency]" size="sm" type="number" />
           </div>
         </template>
         <Button label="试算" color="slate" size="sm" @click="loadRevaluation" />

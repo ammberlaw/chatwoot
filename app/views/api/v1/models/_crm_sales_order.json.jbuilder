@@ -2,6 +2,12 @@ json.id resource.id
 json.name resource.name
 json.order_no resource.order_no
 json.pi_no resource.pi_no
+# 信保单号 / 收款方式 / 收款账户：录单时的结算信息，原先只能写在备注里、查不了也统计不了。
+# payment_term 存的是 crm_option_items 的 code，列表要显示名字（转 ERP 的校验也认这项）。
+json.insurance_order_no resource.insurance_order_no
+json.payment_term resource.payment_term
+json.receipt_account_id resource.receipt_account_id
+json.receipt_account_name @cash_account_names&.[](resource.receipt_account_id)
 # 明细原样下发，另外把编码(sku)解析出来——明细里只存了 crm_product_id，
 # 前端没法从 id 显示编码（@product_sku_by_id 由控制器批量预载）。
 json.line_items(Array(resource.line_items).map do |item|

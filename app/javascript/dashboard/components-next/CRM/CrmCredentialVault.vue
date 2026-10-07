@@ -591,7 +591,7 @@ const groupManagerApi = {
       :api="groupManagerApi"
       title="管理账号分组"
       item-label="分组"
-      add-placeholder="新分组名称，如：广告投放账号"
+      add-placeholder="新分组名称"
       empty-text="还没有分组，上面添加一个。"
       delete-hint="分组内的账号会一并删除，无法恢复。"
       footer-hint="负责人可增删改本组账号；可见留空＝仅负责人与管理员可见"
@@ -623,7 +623,7 @@ const groupManagerApi = {
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-sm font-medium text-n-slate-12">名称</span>
-          <Input v-model="form.name" placeholder="如：腾讯企业邮 管理员" />
+          <Input v-model="form.name" />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-sm font-medium text-n-slate-12">网址</span>

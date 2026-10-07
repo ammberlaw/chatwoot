@@ -1146,7 +1146,7 @@ onBeforeRouteLeave((to, from, next) => {
           </div>
           <div class="flex flex-col w-48 gap-1">
             <label class="text-heading-3 text-n-slate-12">投单单号</label>
-            <Input v-model="form.docNo" placeholder="如 WT20260605-01" />
+            <Input v-model="form.docNo" />
           </div>
           <div class="flex flex-col w-28 gap-1">
             <label class="text-heading-3 text-n-slate-12">数量</label>
@@ -1163,33 +1163,27 @@ onBeforeRouteLeave((to, from, next) => {
               :model-value="form.productId"
               :account-id="accountId"
               :display-text="form.productCode"
-              placeholder="输代码搜，如 01.842"
+              placeholder="输代码搜"
               @select="pickFinishedProduct"
             />
           </div>
           <div class="flex flex-col flex-1 min-w-[22rem] gap-1">
             <label class="text-heading-3 text-n-slate-12">型号</label>
-            <Input
-              v-model="form.model"
-              placeholder="如 K13plus 10.1寸P30版/客户定制"
-            />
+            <Input v-model="form.model" />
           </div>
           <div v-if="showTabletHeaderFields" class="flex flex-col w-80 gap-1">
             <label class="text-heading-3 text-n-slate-12"
               >客户 / 项目名称</label
             >
-            <Input
-              v-model="form.customerName"
-              placeholder="如 某业务员美国客户定制"
-            />
+            <Input v-model="form.customerName" />
           </div>
           <div v-if="showTabletHeaderFields" class="flex flex-col w-44 gap-1">
             <label class="text-heading-3 text-n-slate-12">裸机颜色</label>
-            <Input v-model="form.bareColor" placeholder="如 橙色800" />
+            <Input v-model="form.bareColor" />
           </div>
           <div v-if="showTabletHeaderFields" class="flex flex-col w-56 gap-1">
             <label class="text-heading-3 text-n-slate-12">皮套颜色</label>
-            <Input v-model="form.caseColor" placeholder="如 粉色400、蓝色400" />
+            <Input v-model="form.caseColor" />
           </div>
           <!-- 客户 Logo：要印在机器/皮套上的标，跟颜色一起看才对得上，所以放投单信息里，
                不塞到下面的结构图里（那是生产看图纸的地方）。 -->
@@ -1505,14 +1499,14 @@ onBeforeRouteLeave((to, from, next) => {
                给供应商的导出件里不会出现。 -->
               <Input
                 v-model="row.purchaseNote"
-                placeholder="如 只能用村田"
-                title="写给采购看：指定品牌、能否用替代料、到货节点等。不会出现在发给供应商的采购单上。"
+                placeholder="采购注意事项"
+                title="写给采购看，如「只能用村田」：指定品牌、能否用替代料、到货节点等。不会出现在发给供应商的采购单上。"
               />
               <!-- 生产备注：只给公司内部生产部门看，不进任何对外单据。 -->
               <Input
                 v-model="row.productionNote"
-                placeholder="如 装壳前理排线"
-                title="只给公司内部生产部门看，不进任何对外单据。"
+                placeholder="生产备注"
+                title="只给公司内部生产部门看，如「装壳前理排线」。不进任何对外单据。"
               />
               <button
                 type="button"
@@ -1529,7 +1523,7 @@ onBeforeRouteLeave((to, from, next) => {
           <label class="text-heading-3 text-n-slate-12">整单备注</label>
           <TextArea
             v-model="form.remark"
-            placeholder="整份生产任务单的说明，如工艺要求、替代料、注意事项等（不同于每行的备注）"
+            placeholder="整份生产任务单的说明（不同于每行的备注）"
             :max-length="500"
             auto-height
           />
@@ -1660,7 +1654,6 @@ onBeforeRouteLeave((to, from, next) => {
           v-model="changeReason"
           rows="2"
           class="px-3 py-2 text-sm border rounded-lg resize-none reset-base border-white/70 bg-n-solid-1/70 text-n-slate-12"
-          placeholder="如：客户改需求换电池 / 工程调整用量…保存后系统会把改动明细通知已参与的采购、领料、库存部门"
         />
       </div>
     </div>
@@ -1778,11 +1771,7 @@ onBeforeRouteLeave((to, from, next) => {
     >
       <div class="flex flex-col gap-1">
         <label class="text-heading-3 text-n-slate-12">模版名称</label>
-        <Input
-          v-model="templateName"
-          placeholder="如：55寸商显标准任务单"
-          @keyup.enter="saveTemplate"
-        />
+        <Input v-model="templateName" @keyup.enter="saveTemplate" />
         <span class="text-xs text-n-slate-11"
           >将保存当前
           {{ form.rows.length }} 行用料与各阶段天数（不含成品）。</span

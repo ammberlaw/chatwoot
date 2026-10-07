@@ -125,6 +125,6 @@ class Api::V1::Accounts::Erp::DashboardController < Api::V1::Accounts::Erp::Base
 
   def month_profit
     Erp::FinancialReportService.new(account)
-                               .income_statement(from: month_range.first, to: month_range.last)[:net_profit_micros]
+                               .income_statement(from: month_range.first, to: month_range.last, comparative: false)[:net_profit_micros]
   end
 end

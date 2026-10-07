@@ -104,7 +104,7 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
     filled_strings = extract_strings(entries[STRINGS])
     entries[SHEET] = fill_sheet(entries[SHEET])
     entries[SHEET] = grow_row_heights(entries[SHEET], filled_strings)
-    entries[SHEET] = widen_amount_column(entries[SHEET])
+    entries[SHEET] = widen_money_columns(entries[SHEET])
     format_money_cells(entries)
     shift_drawing(entries) if entries[DRAWING]
     repackage(entries)
@@ -439,17 +439,23 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
     @column_widths
   end
 
-  # 金额列按实际位数加宽：模板列宽是按几千块的单子定的，几十万起跳就会显示成一串 #。
+  # 金额/单价列按实际位数加宽：模板列宽是按几千块、整数单价的单子定的，
+  # 金额上十万、或单价带小数位（未税价 = 含税价 ÷ 1.13，小数一串），格子里就只剩一串 #。
   # 加宽多少就从备注列匀多少（备注多半是空的），总宽不变，A4 不会被撑到第二页。
   MIN_REMARK_WIDTH = 8.0
-  def widen_amount_column(xml)
-    col = @cfg.dig(:cell_layout, :amount, :col)
-    need = amount_column_need
+  def widen_money_columns(xml)
+    xml = widen_column(xml, :amount, amount_column_need)
+    widen_column(xml, :price, price_column_need)
+  end
+
+  def widen_column(xml, key, need)
+    col = @cfg.dig(:cell_layout, key, :col)
     return xml if col.blank? || need.blank?
 
     widths = column_widths(xml)
     idx = col_index(col)
-    delta = (need - widths[idx]).round(2)
+    # 单价是跟右边一列合并着显示的（J:K），撑这格的是合并后的总宽，按总宽比才知道差多少。
+    delta = (need - (usable_width(col) + 1)).round(2)
     return xml if delta <= 0
 
     remark_idx = col_index(@cfg.dig(:cell_layout, :remark, :col).to_s)
@@ -466,6 +472,19 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
 
     # 单元格里是「1,250,900.00」这个样子，按两位小数 + 千分位量长度，别按原始数值量。
     ActiveSupport::NumberHelper.number_to_delimited(format('%.2f', widest), delimiter: ',').length + 1.0
+  end
+
+  # 最长一笔单价要几个字符位：单价走 0.00#### 格式（两位起、最多六位），再留 1 位余量。
+  def price_column_need
+    longest = @items.map { |i| price_display_text(unit_price(i)) }.max_by(&:length)
+    return if longest.blank?
+
+    longest.length + 1.0
+  end
+
+  # 单价在格子里的样子（与 add_price_format 的 0.00#### 一致）：至少两位小数，多余的 0 不显示。
+  def price_display_text(value)
+    format('%.6f', value.to_d).sub(/(?<=\.\d\d)0+\z/, '')
   end
 
   def set_col_width(xml, idx, width)

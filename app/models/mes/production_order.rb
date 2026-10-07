@@ -405,6 +405,59 @@ class Mes::ProductionOrder < ApplicationRecord
     items.map { |item| requirement_row(item, factor, product_map, stock_map, ordered) }
   end
 
+  # 哪些订单的料已经都下满采购单了（返回 id 的 Set）。
+  # 口径与算料页一致：需求量 = BOM 行用量 × 订单量/基准量，已下量按产品档案归集；
+  # 但不查库存——这里只回答「还有没有料要下单」。
+  # 没挂 BOM、BOM 没行、基准量为 0 的单都不算「下完」（料还没定出来，不能从候选里拿掉）。
+  # 批量算：采购单的「关联生产订单」下拉一次拉几百张，逐张展开 BOM 就是上千条 SQL。
+  def self.bulk_purchasing_complete(account, orders)
+    candidates = orders.select { |o| o.bom_id.present? }
+    return Set.new if candidates.empty?
+
+    rows_by_bom = bom_item_rows_by_bom(candidates.map(&:bom_id))
+    product_ids = crm_product_ids_for_rows(account, rows_by_bom)
+    ordered = bulk_ordered_qty(candidates.map(&:id))
+    candidates.filter_map { |o| o.id if rows_all_ordered?(o, rows_by_bom[o.bom_id], product_ids, ordered[o.id]) }.to_set
+  end
+
+  def self.rows_all_ordered?(order, rows, product_ids, placed)
+    factor = order.bom.base_qty.to_d.zero? ? 0 : order.qty.to_d / order.bom.base_qty.to_d
+    return false if rows.blank? || factor.zero?
+
+    placed ||= {}
+    rows.all? { |(material_no, item_qty)| row_ordered?(product_ids[material_no], placed, item_qty.to_d * factor) }
+  end
+
+  def self.row_ordered?(crm_product_id, placed, required_qty)
+    crm_product_id.present? && (placed[crm_product_id] || 0).to_d >= required_qty
+  end
+
+  def self.bom_item_rows_by_bom(bom_ids)
+    Mes::BomItem.where(bom_id: bom_ids).pluck(:bom_id, :material_no, :qty)
+                .group_by(&:first)
+                .transform_values { |rows| rows.map { |r| [r[1], r[2]] } }
+  end
+
+  # BOM 行的料号 → 产品档案 id（已下采购量是按产品档案归集的，要靠这层对上）。
+  def self.crm_product_ids_for_rows(account, rows_by_bom)
+    codes = rows_by_bom.values.flatten(1).filter_map(&:first).uniq
+    return {} if codes.empty?
+
+    Crm::Product.where(account_id: account.id, sku: codes).pluck(:sku, :id).to_h
+  end
+
+  # { production_order_id => { crm_product_id => 已下采购量 } }，作废单不算。
+  def self.bulk_ordered_qty(order_ids)
+    Mes::PurchaseItem
+      .joins(:purchase_order)
+      .where(mes_purchase_orders: { production_order_id: order_ids })
+      .where.not(mes_purchase_orders: { status: 'CANCELLED' })
+      .where.not(crm_product_id: nil)
+      .group('mes_purchase_orders.production_order_id', :crm_product_id)
+      .sum(:qty)
+      .each_with_object({}) { |((po_id, pid), sum), acc| (acc[po_id] ||= {})[pid] = sum }
+  end
+
   # 本单已经开出去的采购量（按产品档案归集，作废单不算）。
   # 采购员重进「新建采购单」时，已下满的料就不再铺出来——否则整屏都是料，看不出哪些还没下。
   def ordered_qty_map

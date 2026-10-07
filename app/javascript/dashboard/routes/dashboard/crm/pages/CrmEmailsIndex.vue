@@ -318,6 +318,9 @@ const initial = name => (name || '?').trim().charAt(0).toUpperCase();
 
 // 列表头像按对方身份着色，与邮箱身份识别悬浮卡同色系：
 // 同事/同事客户→琥珀，我的客户→蓝，公海→青，陌生人→灰，未识别→靛(默认)。
+// ⚠️ 经典灰主题把整条 blue 色阶压成了中性灰（_next-colors.scss 的「去蓝」），
+// 「我的客户」在那个主题下会跟陌生人一样灰、建了档也看不出来；
+// 所以头像带 data-counterparty，由主题层把经典灰下的 mine 换成石墨色（见同文件底部规则）。
 const AVATAR_STYLES = {
   colleague: 'bg-n-amber-4 text-n-amber-11',
   other: 'bg-n-amber-4 text-n-amber-11',
@@ -2076,6 +2079,7 @@ watch(
                 <div
                   class="flex items-center justify-center flex-shrink-0 text-sm font-medium transition-transform rounded-full cursor-pointer size-9 hover:ring-2 hover:ring-n-iris-8 hover:ring-offset-1"
                   :class="avatarClass(record)"
+                  :data-counterparty="record.counterpartyType || 'unknown'"
                   title="快捷操作：写跟进 / 往来邮件"
                   @click.stop="openAvatarCard(record, $event)"
                 >

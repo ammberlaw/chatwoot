@@ -484,7 +484,9 @@ const onBackdropUp = e => {
           <div class="w-[42%] shrink-0 overflow-y-auto p-5 flex flex-col gap-3">
             <!-- 模板切换 -->
             <div>
-              <label class="block mb-1 text-heading-3 text-n-slate-12">模板</label>
+              <label class="block mb-1 text-heading-3 text-n-slate-12"
+                >模板</label
+              >
               <div class="flex flex-wrap gap-1.5">
                 <button
                   v-for="tpl in TEMPLATES"
@@ -531,7 +533,9 @@ const onBackdropUp = e => {
             </div>
 
             <div class="flex items-center gap-2">
-              <label class="text-heading-3 text-n-slate-12 shrink-0">字体</label>
+              <label class="text-heading-3 text-n-slate-12 shrink-0"
+                >字体</label
+              >
               <SelectCard
                 v-model="fontChoice"
                 :options="fontOptions"
@@ -606,11 +610,7 @@ const onBackdropUp = e => {
                 城市用于「品牌社交」模板
               </p>
               <div class="flex flex-col gap-2">
-                <Input
-                  v-model="form.tagline"
-                  label="标语（选填）"
-                  placeholder="如：design studio"
-                />
+                <Input v-model="form.tagline" label="标语（选填）" />
                 <Input
                   v-model="form.cities"
                   label="城市 / 据点（选填）"
@@ -647,11 +647,7 @@ const onBackdropUp = e => {
               <div v-html="generatedHtml" />
             </div>
 
-            <Input
-              v-model="sigName"
-              label="签名名称"
-              placeholder="如：中文签名"
-            />
+            <Input v-model="sigName" label="签名名称" />
             <label
               class="inline-flex items-center gap-2 text-sm cursor-pointer text-n-slate-12"
             >

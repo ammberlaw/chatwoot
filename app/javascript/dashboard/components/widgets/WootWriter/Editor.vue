@@ -750,6 +750,20 @@ function onKeydown(event) {
   return false;
 }
 
+// 剥掉 style 里的 color / background-color / background 声明，其余原样保留。
+// 整条 style 清空时连属性一起去掉，免得留下一地 style=""。
+const COLOR_DECL = /(?:^|;)\s*(?:color|background-color|background)\s*:[^;]*/gi;
+function stripPastedColors(html) {
+  if (!html) return html;
+  return html.replace(/\s*style\s*=\s*"([^"]*)"/gi, (whole, css) => {
+    const kept = css
+      .replace(COLOR_DECL, '')
+      .replace(/^;+|;+$/g, '')
+      .trim();
+    return kept ? ` style="${kept}"` : '';
+  });
+}
+
 function createEditorView() {
   editorView = new EditorView(editor.value, {
     state: state,
@@ -757,6 +771,13 @@ function createEditorView() {
     nodeViews: {
       image: imageResizeView,
     },
+    // 粘贴时剥掉颜色：从别处（尤其是本系统自己的界面）复制文字，浏览器会把**计算后的**
+    // 颜色写成内联样式带过来。暗色主题下正文算出来是 #edeef0 这种浅色，粘进来在编辑器里
+    // 被编辑器样式盖住看着是黑的，一发出去落到白底上就几乎看不见——客户那边同样看不见。
+    // （生产真事故：一封报价回信有 6 段是 color:#edeef0。）
+    // 只剥颜色类声明，粗体/斜体/列表/链接/对齐这些语义格式照常保留；
+    // 工具栏的「字体颜色」是粘贴之后再施加的，不受影响。
+    transformPastedHTML: stripPastedColors,
     dispatchTransaction: tx => {
       state = state.apply(tx);
       editorView.updateState(state);
@@ -1048,8 +1069,8 @@ useEmitter(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, insertContentIntoEditor);
 }
 
 .ProseMirror-woot-style:not(
-    :where(.resizable-editor-wrapper .ProseMirror-woot-style)
-  ) {
+  :where(.resizable-editor-wrapper .ProseMirror-woot-style)
+) {
   @apply min-h-[5rem] max-h-[7.5rem];
 }
 

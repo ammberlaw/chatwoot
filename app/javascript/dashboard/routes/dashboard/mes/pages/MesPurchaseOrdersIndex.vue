@@ -150,6 +150,9 @@ const canSubmit = po =>
 // 按供应商拆单导出 PDF：后端用公司原始 .xlsx 模板 1:1 填充（含公章，抬头/税口径按各自 bill_entity）
 // → Gotenberg 转 PDF。单个供应商直接下 PDF；多个供应商打包 zip（每家一份 PDF）。
 
+// 只有审批通过的采购单才能预览/导出——这份 PDF 是直接发给供应商的。
+const canExportRow = po => po.approvalStatus === 'APPROVED';
+
 // —— 预览 / 导出 ——
 //
 // 预览直接显示后端生成的真 PDF（而不是另做一套 HTML 版式）：
@@ -664,11 +667,16 @@ useRouteQueryReentry(query => {
                     size="sm"
                     @click="goEdit(p)"
                   />
+                  <!-- 没过审不给预览/导出：这是发给供应商的那份文件，审批没过就能发出去
+                       等于审批形同虚设。后端也拦（ensure_approved_before_export!），
+                       这里灰掉只是让人不用点了才知道。 -->
                   <Button
                     v-if="canViewAmount"
                     label="预览 / 导出"
                     variant="ghost"
                     size="sm"
+                    :disabled="!canExportRow(p)"
+                    :title="canExportRow(p) ? '' : '审批通过后才能预览/导出'"
                     @click="openPreview(p)"
                   />
                   <MesReturnControls
@@ -794,7 +802,7 @@ useRouteQueryReentry(query => {
           </p>
           <iframe
             v-else-if="previewUrl"
-            :src="previewUrl"
+            :src="`${previewUrl}#view=Fit&toolbar=1`"
             class="w-full h-full"
             title="采购单预览"
           />

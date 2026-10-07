@@ -115,13 +115,15 @@ class Crm::PiParseService
       delivery_date: normalize_date(data['delivery_date']),
       currency: normalize_currency(data['currency']),
       amount: sane_total(numeric(data['total_amount']), line_items),
-      customer: {
-        raw_name: raw_name.presence,
-        matched_id: matched&.id,
-        matched_name: matched&.name
-      },
+      # 运费：PI 上单列的那一行。订单金额口径是净销售（不含运费），所以两者分开带。
+      shipping_cost: numeric(data['shipping_cost']),
+      customer: customer_result(raw_name, matched),
       line_items: line_items
     }
+  end
+
+  def customer_result(raw_name, matched)
+    { raw_name: raw_name.presence, matched_id: matched&.id, matched_name: matched&.name }
   end
 
   # 防呆：AI 偶发把总额多写个 0（10×）等误识别。明细存在且 AI 总额 > 明细合计 3 倍时，

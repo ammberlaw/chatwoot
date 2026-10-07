@@ -213,7 +213,7 @@ onMounted(() => {
           <input
             v-model="draft.name"
             class="w-full h-10 pl-3 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak focus:outline-n-brand bg-n-solid-1 text-n-slate-12 md:flex-1 md:w-auto"
-            placeholder="新增店铺名称（如 KidzTab PH）"
+            placeholder="新增店铺名称"
             @keyup.enter="addShop"
           />
           <input

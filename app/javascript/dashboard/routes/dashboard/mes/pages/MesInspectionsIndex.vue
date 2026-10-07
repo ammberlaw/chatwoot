@@ -453,10 +453,7 @@ onMounted(() => {
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">不良原因</label>
-          <Input
-            v-model="form.defectReason"
-            placeholder="如：触摸失灵 / 玻璃划伤"
-          />
+          <Input v-model="form.defectReason" />
         </div>
         <label class="flex items-center gap-2 text-heading-3 text-n-slate-12">
           <input v-model="form.needRework" type="checkbox" />

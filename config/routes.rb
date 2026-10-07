@@ -146,6 +146,7 @@ Rails.application.routes.draw do
               collection do
                 post :parse_pi
                 get :deleted
+                get :receipt_accounts
               end
               member do
                 get :audits

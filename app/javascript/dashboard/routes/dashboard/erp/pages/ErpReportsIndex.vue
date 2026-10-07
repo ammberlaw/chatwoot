@@ -43,6 +43,8 @@ const monthEnd = () => {
 };
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
+// 会企01/02 的格子：没数就留白（金蝶那张表也是空的），一屏四十多个「—」没法看。
+const reportMoney = micros => (micros ? fmtMoney(micros) : '');
 
 // 余额按科目自身方向算，为负说明余额实际在相反方（如应收账款的贷方余额＝预收货款）。
 // 照账簿页那张的规矩：方向标记翻过来、金额取绝对值，别让财务看一列负数。
@@ -262,24 +264,78 @@ const exportExcel = () => {
   );
 };
 
-const section = key => balanceSheet.value?.sections?.[key];
-const totals = computed(() => balanceSheet.value?.meta?.totals || {});
-
+// 会企01 固定行式（行次与行名由后端给，和金蝶那张表逐字一致）。
+const assetLines = computed(() => balanceSheet.value?.asset_lines || []);
+const equityLines = computed(() => balanceSheet.value?.equity_lines || []);
+// 没被任何报表行收走的科目：总计对得上、逐行却少一笔时就靠它点名。
+const unmappedAccounts = computed(() => balanceSheet.value?.unmapped || []);
 // 左右两栏行数不同，短的一边补空行，打印时左右框线才齐。
-const assetLines = computed(() => [
-  ...(section('CURRENT_ASSET')?.lines || []),
-  ...(section('NON_CURRENT_ASSET')?.lines || []),
-]);
-const equityLines = computed(() => [
-  ...(section('CURRENT_LIABILITY')?.lines || []),
-  ...(section('NON_CURRENT_LIABILITY')?.lines || []),
-  ...(section('EQUITY')?.lines || []),
-]);
 const padRows = computed(() =>
   Math.max(0, assetLines.value.length - equityLines.value.length)
 );
 const padRowsLeft = computed(() =>
   Math.max(0, equityLines.value.length - assetLines.value.length)
+);
+// 会企03 的行序：流入各行 → 流入小计 → 流出各行 → 流出小计 → 本活动净额。
+const cashFlowLines = sec => {
+  const inflow = sec.rows.filter(r => r.flow === 'IN');
+  const outflow = sec.rows.filter(r => r.flow === 'OUT');
+  const subtotal = (s2, key) => ({ ...s2, key, total: true });
+  return [
+    ...inflow.map(r => ({ ...r, key: r.code })),
+    subtotal(sec.inflow_subtotal, `${sec.key}-in`),
+    ...outflow.map(r => ({ ...r, key: r.code })),
+    subtotal(sec.outflow_subtotal, `${sec.key}-out`),
+    {
+      key: `${sec.key}-net`,
+      row_no: sec.net_row_no,
+      label: `${sec.short_label}活动产生的现金流量净额`,
+      amount_micros: sec.net_micros,
+      total: true,
+    },
+  ];
+};
+
+// 表尾四行（32-35）：汇率变动 / 净增加额 / 期初 / 期末。
+const cashFlowTailLines = computed(() => {
+  const m = cashFlow.value?.meta;
+  if (!m) return [];
+  return [
+    {
+      key: 'fx',
+      row_no: m.fx_effect_row_no,
+      label: '四、汇率变动对现金及现金等价物的影响',
+      amount_micros: m.fx_effect_micros,
+    },
+    {
+      key: 'net',
+      row_no: m.net_increase_row_no,
+      label: '五、现金及现金等价物净增加额',
+      amount_micros: m.net_increase_micros,
+    },
+    {
+      key: 'open',
+      row_no: m.opening_row_no,
+      label: '加：期初现金及现金等价物余额',
+      amount_micros: m.opening_cash_micros,
+    },
+    {
+      key: 'close',
+      row_no: m.closing_row_no,
+      label: '六、期末现金及现金等价物余额',
+      amount_micros: m.closing_cash_micros,
+      strong: true,
+    },
+  ];
+});
+
+// 表头「编制单位」：账套设置里的公司全称，没设就不印这一段。
+const reportCompany = computed(
+  () =>
+    balanceSheet.value?.meta?.company_name ||
+    incomeStatement.value?.meta?.company_name ||
+    cashFlow.value?.meta?.company_name ||
+    ''
 );
 
 onMounted(loadBalanceSheet);
@@ -406,42 +462,55 @@ onMounted(loadBalanceSheet);
       </div>
 
       <div v-else ref="reportRef" class="max-w-4xl">
-        <!-- 资产负债表：左资产 / 右负债与所有者权益 -->
+        <!-- 资产负债表（会企01）：左资产 / 右负债和所有者权益，行次与行名对齐金蝶 -->
         <template v-if="activeTab === 'balance' && balanceSheet">
-          <div class="mb-1 text-lg font-semibold text-center text-n-slate-12">
+          <div class="text-lg font-semibold text-center text-n-slate-12">
             资 产 负 债 表
           </div>
-          <div class="mb-3 text-xs text-center text-n-slate-11">
-            截至 {{ balanceSheet.meta.as_of }} · 单位：元
+          <div
+            class="flex items-end justify-between gap-3 pb-1 mt-1 mb-3 text-xs border-b text-n-slate-11 border-n-weak"
+          >
+            <span>
+              {{ reportCompany ? `编制单位：${reportCompany}` : '' }}
+            </span>
+            <span class="font-medium">{{ balanceSheet.meta.as_of }}</span>
+            <span> {{ balanceSheet.meta.form_code }} · 单位：元 </span>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-left border-b text-n-slate-11 border-n-weak">
                   <th class="px-2 py-2 font-medium">资&#12288;产</th>
+                  <th class="w-12 px-2 py-2 font-medium text-center">行次</th>
                   <th class="px-2 py-2 font-medium text-right">期末余额</th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    年初余额
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 <tr
-                  v-for="line in assetLines"
-                  :key="line.code"
+                  v-for="(line, i) in assetLines"
+                  :key="`a-${line.row_no || i}`"
                   class="border-b border-n-weak"
+                  :class="line.total ? 'font-semibold' : ''"
                 >
-                  <td class="px-2 py-1.5 text-n-slate-12">
-                    <button
-                      class="text-left hover:text-n-iris-11 hover:underline"
-                      title="查看该科目明细账"
-                      @click="openLedger(line.id, monthStartOf(asOf), asOf)"
-                    >
-                      <span class="font-mono text-xs text-n-slate-11">
-                        {{ line.code }}
-                      </span>
-                      {{ line.name }}
-                    </button>
+                  <td
+                    class="px-2 py-1.5 text-n-slate-12"
+                    :class="line.heading ? 'font-medium' : ''"
+                  >
+                    {{ line.heading || line.label }}
+                  </td>
+                  <td class="px-2 py-1.5 text-xs text-center text-n-slate-11">
+                    {{ line.row_no }}
                   </td>
                   <td class="px-2 py-1.5 font-mono text-right text-n-slate-12">
-                    {{ money(line.amount_micros) }}
+                    {{ line.heading ? '' : reportMoney(line.amount_micros) }}
+                  </td>
+                  <td class="px-2 py-1.5 font-mono text-right text-n-slate-11">
+                    {{ line.heading ? '' : reportMoney(line.opening_micros) }}
                   </td>
                 </tr>
                 <tr
@@ -451,12 +520,8 @@ onMounted(loadBalanceSheet);
                 >
                   <td class="px-2 py-1.5">&nbsp;</td>
                   <td class="px-2 py-1.5" />
-                </tr>
-                <tr class="font-semibold">
-                  <td class="px-2 py-2 text-n-slate-12">资产总计</td>
-                  <td class="px-2 py-2 font-mono text-right text-n-slate-12">
-                    {{ money(totals.assets_micros) }}
-                  </td>
+                  <td class="px-2 py-1.5" />
+                  <td class="px-2 py-1.5" />
                 </tr>
               </tbody>
             </table>
@@ -465,37 +530,36 @@ onMounted(loadBalanceSheet);
               <thead>
                 <tr class="text-left border-b text-n-slate-11 border-n-weak">
                   <th class="px-2 py-2 font-medium">负债和所有者权益</th>
+                  <th class="w-12 px-2 py-2 font-medium text-center">行次</th>
                   <th class="px-2 py-2 font-medium text-right">期末余额</th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    年初余额
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 <tr
-                  v-for="line in equityLines"
-                  :key="line.code"
+                  v-for="(line, i) in equityLines"
+                  :key="`e-${line.row_no || i}`"
                   class="border-b border-n-weak"
+                  :class="line.total ? 'font-semibold' : ''"
                 >
-                  <td class="px-2 py-1.5 text-n-slate-12">
-                    <button
-                      class="text-left hover:text-n-iris-11 hover:underline"
-                      title="查看该科目明细账"
-                      @click="openLedger(line.id, monthStartOf(asOf), asOf)"
-                    >
-                      <span class="font-mono text-xs text-n-slate-11">
-                        {{ line.code }}
-                      </span>
-                      {{ line.name }}
-                    </button>
+                  <td
+                    class="px-2 py-1.5 text-n-slate-12"
+                    :class="line.heading ? 'font-medium' : ''"
+                  >
+                    {{ line.heading || line.label }}
+                  </td>
+                  <td class="px-2 py-1.5 text-xs text-center text-n-slate-11">
+                    {{ line.row_no }}
                   </td>
                   <td class="px-2 py-1.5 font-mono text-right text-n-slate-12">
-                    {{ money(line.amount_micros) }}
+                    {{ line.heading ? '' : reportMoney(line.amount_micros) }}
                   </td>
-                </tr>
-                <tr class="border-b border-n-weak">
-                  <td class="px-2 py-1.5 text-n-slate-12">
-                    本年利润（未结转）
-                  </td>
-                  <td class="px-2 py-1.5 font-mono text-right text-n-slate-12">
-                    {{ money(totals.current_profit_micros) }}
+                  <td class="px-2 py-1.5 font-mono text-right text-n-slate-11">
+                    {{ line.heading ? '' : reportMoney(line.opening_micros) }}
                   </td>
                 </tr>
                 <tr
@@ -505,144 +569,140 @@ onMounted(loadBalanceSheet);
                 >
                   <td class="px-2 py-1.5">&nbsp;</td>
                   <td class="px-2 py-1.5" />
-                </tr>
-                <tr class="font-semibold">
-                  <td class="px-2 py-2 text-n-slate-12">
-                    负债和所有者权益总计
-                  </td>
-                  <td class="px-2 py-2 font-mono text-right text-n-slate-12">
-                    {{ money(totals.liabilities_and_equity_micros) }}
-                  </td>
+                  <td class="px-2 py-1.5" />
+                  <td class="px-2 py-1.5" />
                 </tr>
               </tbody>
             </table>
           </div>
+
+          <!-- 有科目没归进任何报表行时必须说出来：总计仍然平，但逐行少了一笔，不提示没人查得到 -->
+          <div
+            v-if="unmappedAccounts.length"
+            class="p-3 mt-4 text-xs rounded-lg bg-n-amber-3 text-n-amber-11"
+          >
+            下面
+            {{ unmappedAccounts.length }}
+            个科目有余额，但没归进任何报表行（报表里看不到它们）：
+            <span v-for="u in unmappedAccounts" :key="u.id" class="ml-2">
+              {{ u.code }} {{ u.name }} {{ money(u.amount_micros) }}
+            </span>
+          </div>
         </template>
 
-        <!-- 利润表 -->
+        <!-- 利润表（会企02）：行次 1-45，行名对齐金蝶；本期 / 上年同期两列 -->
         <template v-else-if="activeTab === 'income' && incomeStatement">
-          <div class="mb-1 text-lg font-semibold text-center text-n-slate-12">
+          <div class="text-lg font-semibold text-center text-n-slate-12">
             利 润 表
           </div>
-          <div class="mb-3 text-xs text-center text-n-slate-11">
-            {{ incomeStatement.meta.from }} 至 {{ incomeStatement.meta.to }} ·
-            单位：元
+          <div
+            class="flex items-end justify-between max-w-3xl gap-3 pb-1 mx-auto mt-1 mb-3 text-xs border-b text-n-slate-11 border-n-weak"
+          >
+            <span>{{ reportCompany ? `编制单位：${reportCompany}` : '' }}</span>
+            <span class="font-medium">
+              {{ incomeStatement.meta.from }} 至 {{ incomeStatement.meta.to }}
+            </span>
+            <span>{{ incomeStatement.meta.form_code }} · 单位：元</span>
           </div>
-          <table class="w-full max-w-2xl mx-auto text-sm">
+          <table class="w-full max-w-3xl mx-auto text-sm">
             <thead>
               <tr class="text-left border-b text-n-slate-11 border-n-weak">
                 <th class="px-2 py-2 font-medium">项&#12288;目</th>
+                <th class="w-12 px-2 py-2 font-medium text-center">行次</th>
                 <th class="px-2 py-2 font-medium text-right">本期金额</th>
+                <th class="px-2 py-2 font-medium text-right">上期金额</th>
               </tr>
             </thead>
             <tbody>
               <tr
                 v-for="row in incomeStatement.payload"
-                :key="row.key"
+                :key="row.row_no"
                 class="border-b border-n-weak"
+                :class="row.total ? 'font-semibold' : ''"
               >
-                <td class="px-2 py-1.5 whitespace-pre text-n-slate-12">
+                <td
+                  class="px-2 py-1.5 text-n-slate-12"
+                  :style="{ paddingLeft: `${8 + row.indent * 16}px` }"
+                >
                   {{ row.label }}
                 </td>
+                <td class="px-2 py-1.5 text-xs text-center text-n-slate-11">
+                  {{ row.row_no }}
+                </td>
                 <td class="px-2 py-1.5 font-mono text-right text-n-slate-12">
-                  {{ money(row.amount_micros) }}
+                  {{ reportMoney(row.amount_micros) }}
                 </td>
-              </tr>
-              <tr class="font-medium border-b border-n-weak">
-                <td class="px-2 py-2 text-n-slate-12">二、营业利润</td>
-                <td class="px-2 py-2 font-mono text-right text-n-slate-12">
-                  {{ money(incomeStatement.meta.operating_profit_micros) }}
-                </td>
-              </tr>
-              <tr class="font-medium border-b border-n-weak">
-                <td class="px-2 py-2 text-n-slate-12">三、利润总额</td>
-                <td class="px-2 py-2 font-mono text-right text-n-slate-12">
-                  {{ money(incomeStatement.meta.total_profit_micros) }}
-                </td>
-              </tr>
-              <tr class="font-semibold">
-                <td class="px-2 py-2 text-n-slate-12">四、净利润</td>
-                <td class="px-2 py-2 font-mono text-right text-n-slate-12">
-                  {{ money(incomeStatement.meta.net_profit_micros) }}
+                <td class="px-2 py-1.5 font-mono text-right text-n-slate-11">
+                  {{ reportMoney(row.prior_amount_micros) }}
                 </td>
               </tr>
             </tbody>
           </table>
+          <p class="max-w-3xl mx-auto mt-3 text-xs text-n-slate-11">
+            「上期金额」取上年同期（同一区间往前推一年）。账套里没有对应科目的行照金蝶的样子留空。
+          </p>
         </template>
 
         <!-- 现金流量表（直接法）：三大活动 + 汇率变动 + 净增加额，末尾与现金余额勾稽 -->
         <template v-else-if="activeTab === 'cashflow' && cashFlow">
-          <div class="mb-1 text-lg font-semibold text-center text-n-slate-12">
+          <div class="text-lg font-semibold text-center text-n-slate-12">
             现 金 流 量 表
           </div>
-          <div class="mb-3 text-xs text-center text-n-slate-11">
-            {{ cashFlow.meta.from }} 至 {{ cashFlow.meta.to }} · 单位：元
+          <div
+            class="flex items-end justify-between max-w-3xl gap-3 pb-1 mx-auto mt-1 mb-3 text-xs border-b text-n-slate-11 border-n-weak"
+          >
+            <span>{{ reportCompany ? `编制单位：${reportCompany}` : '' }}</span>
+            <span class="font-medium">
+              {{ cashFlow.meta.from }} 至 {{ cashFlow.meta.to }}
+            </span>
+            <span>{{ cashFlow.meta.form_code }} · 单位：元</span>
           </div>
-          <table class="w-full max-w-2xl mx-auto text-sm">
+          <table class="w-full max-w-3xl mx-auto text-sm">
             <thead>
               <tr class="text-left border-b text-n-slate-11 border-n-weak">
                 <th class="px-2 py-2 font-medium">项&#12288;目</th>
+                <th class="w-12 px-2 py-2 font-medium text-center">行次</th>
                 <th class="px-2 py-2 font-medium text-right">本期金额</th>
               </tr>
             </thead>
             <tbody>
               <template v-for="sec in cashFlow.payload" :key="sec.key">
                 <tr class="border-b bg-n-alpha-1 border-n-weak">
-                  <td class="px-2 py-2 font-medium text-n-slate-12" colspan="2">
+                  <td class="px-2 py-2 font-medium text-n-slate-12" colspan="3">
                     {{ sec.label }}
                   </td>
                 </tr>
-                <tr
-                  v-for="row in sec.rows"
-                  :key="row.code"
-                  class="border-b border-n-weak"
-                >
-                  <td class="px-2 py-1.5 pl-6 text-n-slate-12">
-                    {{ row.label }}
-                  </td>
-                  <td class="px-2 py-1.5 font-mono text-right text-n-slate-12">
-                    {{ money(row.amount_micros) }}
-                  </td>
-                </tr>
-                <tr class="font-medium border-b border-n-weak">
-                  <td class="px-2 py-1.5 pl-6 text-n-slate-12">
-                    {{ sec.short_label }}活动产生的现金流量净额
-                  </td>
-                  <td class="px-2 py-1.5 font-mono text-right text-n-slate-12">
-                    {{ money(sec.net_micros) }}
-                  </td>
-                </tr>
+                <template v-for="row in cashFlowLines(sec)" :key="row.key">
+                  <tr
+                    class="border-b border-n-weak"
+                    :class="row.total ? 'font-medium' : ''"
+                  >
+                    <td class="px-2 py-1.5 pl-6 text-n-slate-12">
+                      {{ row.label }}
+                    </td>
+                    <td class="px-2 py-1.5 text-xs text-center text-n-slate-11">
+                      {{ row.row_no }}
+                    </td>
+                    <td
+                      class="px-2 py-1.5 font-mono text-right text-n-slate-12"
+                    >
+                      {{ reportMoney(row.amount_micros) }}
+                    </td>
+                  </tr>
+                </template>
               </template>
-              <tr class="border-b border-n-weak">
-                <td class="px-2 py-2 font-medium text-n-slate-12">
-                  四、汇率变动对现金及现金等价物的影响
+              <tr
+                v-for="row in cashFlowTailLines"
+                :key="row.key"
+                class="border-b border-n-weak"
+                :class="row.strong ? 'font-semibold' : 'font-medium'"
+              >
+                <td class="px-2 py-2 text-n-slate-12">{{ row.label }}</td>
+                <td class="px-2 py-2 text-xs text-center text-n-slate-11">
+                  {{ row.row_no }}
                 </td>
                 <td class="px-2 py-2 font-mono text-right text-n-slate-12">
-                  {{ money(cashFlow.meta.fx_effect_micros) }}
-                </td>
-              </tr>
-              <tr class="font-medium border-b border-n-weak">
-                <td class="px-2 py-2 text-n-slate-12">
-                  五、现金及现金等价物净增加额
-                </td>
-                <td class="px-2 py-2 font-mono text-right text-n-slate-12">
-                  {{ money(cashFlow.meta.net_increase_micros) }}
-                </td>
-              </tr>
-              <tr class="border-b border-n-weak">
-                <td class="px-2 py-1.5 pl-6 text-n-slate-11">
-                  加：期初现金及现金等价物余额
-                </td>
-                <td class="px-2 py-1.5 font-mono text-right text-n-slate-11">
-                  {{ money(cashFlow.meta.opening_cash_micros) }}
-                </td>
-              </tr>
-              <tr class="font-semibold">
-                <td class="px-2 py-2 text-n-slate-12">
-                  六、期末现金及现金等价物余额
-                </td>
-                <td class="px-2 py-2 font-mono text-right text-n-slate-12">
-                  {{ money(cashFlow.meta.closing_cash_micros) }}
+                  {{ reportMoney(row.amount_micros) }}
                 </td>
               </tr>
             </tbody>

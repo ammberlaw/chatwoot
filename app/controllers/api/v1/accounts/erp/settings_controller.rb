@@ -30,6 +30,7 @@ class Api::V1::Accounts::Erp::SettingsController < Api::V1::Accounts::Erp::BaseC
 
   def payload
     {
+      company_name: setting.company_name,
       fiscal_start_date: setting.fiscal_start_date,
       default_output_tax_rate: setting.default_output_tax_rate,
       amount_includes_tax: setting.amount_includes_tax,
@@ -48,7 +49,7 @@ class Api::V1::Accounts::Erp::SettingsController < Api::V1::Accounts::Erp::BaseC
   end
 
   def setting_params
-    params.require(:setting).permit(:fiscal_start_date, :default_output_tax_rate, :amount_includes_tax,
+    params.require(:setting).permit(:company_name, :fiscal_start_date, :default_output_tax_rate, :amount_includes_tax,
                                     :receivables_enabled)
   end
 end

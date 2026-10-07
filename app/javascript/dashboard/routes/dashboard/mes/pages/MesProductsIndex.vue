@@ -758,7 +758,7 @@ onMounted(() => {
             <label class="text-heading-3 text-n-slate-12">
               商品编码 <span class="text-n-ruby-11">*</span>
             </label>
-            <Input v-model="form.sku" placeholder="如 TAB-156" />
+            <Input v-model="form.sku" />
           </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -773,10 +773,7 @@ onMounted(() => {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">商品类别</label>
-            <Input
-              v-model="form.sourceCategory"
-              placeholder="如 背包屏 / 商显主板"
-            />
+            <Input v-model="form.sourceCategory" />
           </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -857,7 +854,7 @@ onMounted(() => {
           <div class="flex gap-2">
             <Input
               v-model="auxDraft"
-              placeholder="属性名称，如 喷码6000"
+              placeholder="属性名称"
               class="flex-1"
               @keydown.enter.prevent.stop="addAux"
             />

@@ -268,6 +268,22 @@ const onPickOrder = v => {
 const finishedWarehouseId = () =>
   (warehousesStore.getRecords || []).find(w => w.kind === 'FINISHED')?.id;
 
+// 当前仓 + 当前成品的可用现货，换仓库时跟着变——否则人要等到点「出库」才知道这仓没货。
+const availableInWarehouse = computed(() =>
+  form.crmProductId && form.warehouseId
+    ? stockFor(form.crmProductId, form.warehouseId)
+    : 0
+);
+const overAvailable = computed(
+  () => Number(form.qty) > Number(availableInWarehouse.value)
+);
+// 换仓库时把数量重置成该仓的可用量，省得人工算。
+const onPickWarehouse = value => {
+  form.warehouseId = value;
+  const avail = form.crmProductId ? stockFor(form.crmProductId, value) : 0;
+  if (avail > 0) form.qty = String(avail);
+};
+
 const openCreate = () => {
   const fin = finishedWarehouseId();
   editingId.value = null;
@@ -755,12 +771,24 @@ onMounted(() => {
             @update:model-value="onPickOrder"
           />
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-3 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
               出库成品 <span class="text-n-ruby-11">*</span>
             </label>
             <Input v-model="form.productName" disabled />
+          </div>
+          <!-- 出库仓库可选：外购成品常被收进原料仓，写死成品仓就会「有货却出不了」。 -->
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">
+              出库仓库 <span class="text-n-ruby-11">*</span>
+            </label>
+            <SelectCard
+              size="form"
+              :model-value="form.warehouseId"
+              :options="warehouseOptions"
+              @update:model-value="onPickWarehouse"
+            />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
@@ -772,6 +800,12 @@ onMounted(() => {
         <p class="text-xs text-n-slate-11">
           出库清单：{{ form.productName || '（未选）' }} × {{ form.qty || 0 }}
           {{ form.unit }}
+          <span
+            v-if="form.crmProductId && form.warehouseId"
+            :class="overAvailable ? 'text-n-ruby-11' : 'text-n-slate-10'"
+          >
+            · 该仓可用 {{ availableInWarehouse }}
+          </span>
         </p>
       </div>
     </Dialog>

@@ -105,27 +105,28 @@ defineExpose({
       <li
         v-for="(option, index) in options"
         :key="`${option.value}-${index}`"
-        class="flex items-center justify-between w-full gap-2 px-3 py-2 text-sm transition-colors duration-150 cursor-pointer hover:bg-n-alpha-2"
-        :class="{
-          'bg-n-alpha-2': isSelected(option) || index === highlighted,
-        }"
+        class="flex items-center justify-between w-full gap-2 px-3 py-2 text-sm transition-colors duration-150 cursor-pointer"
+        :class="
+          isSelected(option)
+            ? 'bg-n-iris-9 text-white font-medium'
+            : index === highlighted
+              ? 'bg-n-alpha-2'
+              : 'hover:bg-n-alpha-2'
+        "
         role="option"
         :aria-selected="isSelected(option)"
         @click.stop="emit('select', option)"
         @mouseenter="highlighted = index"
       >
         <span
-          :class="{
-            'font-medium': isSelected(option),
-          }"
-          class="text-n-slate-12"
+          :class="isSelected(option) ? 'text-white' : 'text-n-slate-12'"
           :title="option.label"
         >
           {{ option.label }}
         </span>
         <span
           v-if="isSelected(option)"
-          class="flex-shrink-0 i-lucide-check size-4 text-n-slate-11"
+          class="flex-shrink-0 i-lucide-check size-4"
         />
       </li>
       <li v-if="options.length === 0" class="px-3 py-2 text-sm text-n-slate-11">

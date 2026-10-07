@@ -1216,14 +1216,11 @@ onMounted(load);
       <div class="flex flex-col gap-3">
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">产品线</span>
-          <Input
-            v-model="newForm.product_line"
-            placeholder="如 平板电脑 / 商显工控"
-          />
+          <Input v-model="newForm.product_line" />
         </label>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">标题（导出 PDF 的抬头）</span>
-          <Input v-model="newForm.title" placeholder="如 外贸商显内部报价单" />
+          <Input v-model="newForm.title" />
         </label>
         <div class="grid grid-cols-2 gap-3">
           <label class="flex flex-col gap-1">

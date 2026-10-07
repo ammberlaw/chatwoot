@@ -2541,18 +2541,14 @@ watch(currentPage, fetchRecords);
             <Input
               v-model="orderBase.piNo"
               :disabled="viewOnlyOrder"
-              placeholder="形式发票号，如 PI-2026-0788"
+              placeholder="形式发票号"
             />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
               成品名称&型号 <span class="text-n-ruby-11">*</span>
             </label>
-            <Input
-              v-model="orderBase.productName"
-              :disabled="viewOnlyOrder"
-              placeholder="如：商显一体机 43寸"
-            />
+            <Input v-model="orderBase.productName" :disabled="viewOnlyOrder" />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
@@ -2873,10 +2869,7 @@ watch(currentPage, fetchRecords);
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">说明（选填）</label>
-          <Input
-            v-model="handoffNote"
-            placeholder="如：已按客户要求换电池，生产任务单已更新，请投单"
-          />
+          <Input v-model="handoffNote" />
         </div>
       </div>
     </Dialog>
@@ -2895,10 +2888,7 @@ watch(currentPage, fetchRecords);
         <label class="text-heading-3 text-n-slate-12">
           退回原因 <span class="text-n-ruby-11">*</span>
         </label>
-        <Input
-          v-model="rejectReason"
-          placeholder="如：生产任务单漏了主板 / 来料规格不对"
-        />
+        <Input v-model="rejectReason" />
       </div>
     </Dialog>
 
@@ -2917,10 +2907,7 @@ watch(currentPage, fetchRecords);
         <label class="text-heading-3 text-n-slate-12">
           驳回原因 <span class="text-n-ruby-11">*</span>
         </label>
-        <Input
-          v-model="denyReason"
-          placeholder="如：PI 与数量不符 / 交期不可行"
-        />
+        <Input v-model="denyReason" />
       </div>
     </Dialog>
 
@@ -3173,7 +3160,7 @@ watch(currentPage, fetchRecords);
             v-model="forwardNote"
             rows="3"
             class="px-3 py-2 text-sm border rounded-lg outline-none resize-y border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="想让对方注意的事项，如加急、特殊工艺要求等"
+            placeholder="想让对方注意的事项"
           />
         </div>
         <p class="text-xs text-n-slate-10">

@@ -1172,7 +1172,6 @@ onMounted(() => {
           <input
             v-model="editForm.crm_name"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 Ken Chen — CRM 界面与对外邮件发件人显示"
           />
         </label>
         <label v-if="!isManagerOnly" class="flex flex-col gap-1">
@@ -1393,7 +1392,6 @@ onMounted(() => {
           <input
             v-model="templateForm.name"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如 外贸业务员 / 仓库管理"
           />
         </label>
 

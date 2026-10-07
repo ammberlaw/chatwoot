@@ -112,7 +112,7 @@ class Erp::TieCheckService
 
   # 利润表按科目编码前缀取数，前缀没覆盖到的损益科目会被漏掉——把有发生额的那些点出来。
   def uncovered_pl_accounts(as_of)
-    prefixes = Erp::FinancialReportService::INCOME_ROWS.flat_map { |row| row[:prefixes] }
+    prefixes = Erp::ReportLines::INCOME_LINES.flat_map { |line| line[:prefixes].to_a }
     rows = leaf_rows(from: year_start(as_of), to: as_of, exclude_closing: true)
     missed = rows.select do |row|
       row[:account].category == 'PL' && (row[:debit_micros] + row[:credit_micros]) != 0 &&

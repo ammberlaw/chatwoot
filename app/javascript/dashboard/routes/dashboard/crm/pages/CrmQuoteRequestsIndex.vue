@@ -680,7 +680,6 @@ onMounted(async () => {
           <input
             v-model="form.title"
             type="text"
-            placeholder="例：10.1寸定制 2000 台"
             class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
         </label>
@@ -853,7 +852,6 @@ onMounted(async () => {
           <textarea
             v-model="quoteForm.note"
             rows="3"
-            placeholder="例：含丝印，不含运费；数量低于 1000 台价格另议"
             class="w-full px-3 py-2 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
         </label>
@@ -884,7 +882,6 @@ onMounted(async () => {
           <textarea
             v-model="transferForm.reason"
             rows="2"
-            placeholder="例：定制件成本要总经理核"
             class="w-full px-3 py-2 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
           />
         </label>

@@ -569,6 +569,16 @@ body.theme-classic .po-prefill-btn:hover:enabled {
 // 页签选中态的下划线：跟主题色走（n-iris-9），经典灰下 iris 会塌成灰色，
 // 而这根线就是「现在在哪一页」的唯一指示，灰掉等于没有，所以经典灰显式给品牌黄。
 // 文字/徽标不动：经典灰下 iris-11 是深灰，读得清，再染黄反而花。
+// 邮件列表头像：经典灰把整条 blue 压成中性灰（见上面「去蓝」），于是「我的客户」(mine, bg-n-blue-4)
+// 跟陌生人的灰头像长得一模一样——客户建了档，头像还是灰的，等于这个颜色编码失效。
+// 这里补回蓝色：用状态标签那组 --flow-*（本来就是为「经典灰下仍需要一个冷色」留的，
+// theme-classic 不覆盖它），而不是被压扁的 blue 色阶。紫玻璃走 Tailwind 类，不受影响。
+// 同事(琥珀)、公海(青)两条色阶经典灰没覆盖，本来就正常，不动。
+body.theme-classic [data-counterparty='mine'] {
+  background-color: rgb(var(--flow-3)) !important;
+  color: rgb(var(--flow-11)) !important;
+}
+
 body.theme-classic a[data-tab-active='true']::after {
   background-color: rgb(var(--amber-9)) !important;
 }
@@ -579,10 +589,13 @@ body.theme-classic .po-prefill-btn {
   background-color: rgb(var(--amber-9)) !important;
   color: #1a1c20 !important;
 }
-body.theme-classic button[data-button-variant='solid'].bg-n-iris-9:hover:enabled,
+body.theme-classic
+  button[data-button-variant='solid'].bg-n-iris-9:hover:enabled,
 body.theme-classic button[data-button-variant='solid'].bg-n-brand:hover:enabled,
-body.theme-classic button[data-button-variant='solid'].bg-n-iris-9:focus-visible,
-body.theme-classic button[data-button-variant='solid'].bg-n-brand:focus-visible {
+body.theme-classic
+  button[data-button-variant='solid'].bg-n-iris-9:focus-visible,
+body.theme-classic
+  button[data-button-variant='solid'].bg-n-brand:focus-visible {
   background-color: rgb(var(--amber-9-hover)) !important;
 }
 
@@ -601,8 +614,10 @@ body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad {
   color: #1a1c20 !important;
   box-shadow: 0 4px 10px -3px rgb(var(--amber-9) / 0.45) !important;
 }
-body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad:hover:enabled,
-body.theme-classic button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad:focus-visible {
+body.theme-classic
+  button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad:hover:enabled,
+body.theme-classic
+  button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad:focus-visible {
   background-color: rgb(var(--amber-9-hover)) !important;
 }
 

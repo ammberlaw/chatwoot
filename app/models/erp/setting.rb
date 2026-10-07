@@ -6,6 +6,7 @@
 #  id                      :bigint           not null, primary key
 #  amount_includes_tax     :boolean          default(TRUE), not null
 #  bad_debt_rates          :jsonb            not null
+#  company_name            :string
 #  default_output_tax_rate :integer          default(13), not null
 #  fiscal_start_date       :date
 #  inventory_account_map   :jsonb            not null

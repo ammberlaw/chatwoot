@@ -5,6 +5,7 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   before_action :fetch_purchase_order, only: [:show, :update, :destroy, :export, :export_data, :mark_exported, :submit, :approve, :reject]
   # 谁制单谁改（管理员可代改）——采购单的 owner 就是下单人。
   before_action -> { ensure_owner_or_admin!(@purchase_order, '采购单') }, only: [:update, :destroy]
+  before_action :ensure_approved_before_export!, only: [:export, :export_data, :mark_exported]
 
   # 列筛选。owner_id = 下单人（建单的采购员），跟列表里「归属人」（生产订单的业务员）
   # 不是一回事——采购员要的是「只看我下的单」。
@@ -101,6 +102,23 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   end
 
   private
+
+  # 没过审就不许预览/导出。
+  # 原先 export? 只看「能不能看金额」，不看审批状态——采购员可以在「待总经理审批」时
+  # 直接把采购单导出发给供应商，老板还以为自己在把关。审批形同虚设。
+  # 拦在控制器而不是策略里：策略管的是「这个人有没有这个权限」，这里管的是
+  # 「这张单到没到可以对外的状态」，两回事。
+  def ensure_approved_before_export!
+    return if @purchase_order.approved?
+
+    render json: { error: "采购单 #{@purchase_order.po_no} 还没通过审批（当前：#{APPROVAL_LABELS[@purchase_order.approval_status]}），" \
+                          '审批通过后才能预览/导出发给供应商' },
+           status: :unprocessable_entity
+  end
+
+  APPROVAL_LABELS = {
+    'DRAFT' => '草稿未提交', 'PENDING_GM' => '待总经理审批', 'REJECTED' => '已驳回', 'APPROVED' => '已通过'
+  }.freeze
 
   # bill_entities[13]=liontek → { '13' => 'liontek' }；服务层负责校验主体合法性。
   def bill_entities_param

@@ -10,6 +10,7 @@
 #  deleted_at           :datetime
 #  delivery_date        :datetime
 #  exchange_rate        :decimal(12, 6)
+#  insurance_order_no   :string
 #  line_items           :jsonb            not null
 #  name                 :string           not null
 #  order_amount_micros  :bigint
@@ -36,9 +37,11 @@
 #  deleted_by_id        :bigint
 #  handled_by_id        :bigint
 #  owner_id             :bigint
+#  receipt_account_id   :bigint
 #
 # Indexes
 #
+#  index_crm_sales_orders_on_account_and_insurance_no   (account_id,insurance_order_no) WHERE (insurance_order_no IS NOT NULL)
 #  index_crm_sales_orders_on_account_id                 (account_id)
 #  index_crm_sales_orders_on_account_id_and_order_date  (account_id,order_date)
 #  index_crm_sales_orders_on_account_id_and_order_kind  (account_id,order_kind)

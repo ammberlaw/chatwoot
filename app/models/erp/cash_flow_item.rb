@@ -23,7 +23,7 @@ module Erp::CashFlowItem
   INFLOW = 'IN'.freeze
   OUTFLOW = 'OUT'.freeze
 
-  # 顺序即报表行序。
+  # 顺序即报表行序，与金蝶《会企03表》逐行一致（行次见 Erp::CashFlowService 的 row_no）。
   ITEMS = [
     { code: 'OP_IN_SALES', section: OPERATING, flow: INFLOW, label: '销售商品、提供劳务收到的现金' },
     { code: 'OP_IN_TAX_REFUND', section: OPERATING, flow: INFLOW, label: '收到的税费返还' },
@@ -35,8 +35,12 @@ module Erp::CashFlowItem
     { code: 'INV_IN_RECOVER', section: INVESTING, flow: INFLOW, label: '收回投资收到的现金' },
     { code: 'INV_IN_RETURN', section: INVESTING, flow: INFLOW, label: '取得投资收益收到的现金' },
     { code: 'INV_IN_DISPOSAL', section: INVESTING, flow: INFLOW, label: '处置固定资产、无形资产和其他长期资产收回的现金净额' },
+    { code: 'INV_IN_SUBSIDIARY', section: INVESTING, flow: INFLOW, label: '处置子公司及其他营业单位收到的现金净额' },
+    { code: 'INV_IN_OTHER', section: INVESTING, flow: INFLOW, label: '收到其他与投资活动有关的现金' },
     { code: 'INV_OUT_CAPEX', section: INVESTING, flow: OUTFLOW, label: '购建固定资产、无形资产和其他长期资产支付的现金' },
     { code: 'INV_OUT_INVEST', section: INVESTING, flow: OUTFLOW, label: '投资支付的现金' },
+    { code: 'INV_OUT_SUBSIDIARY', section: INVESTING, flow: OUTFLOW, label: '取得子公司及其他营业单位支付的现金净额' },
+    { code: 'INV_OUT_OTHER', section: INVESTING, flow: OUTFLOW, label: '支付其他与投资活动有关的现金' },
     { code: 'FIN_IN_INVEST', section: FINANCING, flow: INFLOW, label: '吸收投资收到的现金' },
     { code: 'FIN_IN_LOAN', section: FINANCING, flow: INFLOW, label: '取得借款收到的现金' },
     { code: 'FIN_IN_OTHER', section: FINANCING, flow: INFLOW, label: '收到其他与筹资活动有关的现金' },

@@ -28,7 +28,12 @@ const modelValue = defineModel({
 const open = ref(false);
 const triggerEl = ref(null);
 const popoverEl = ref(null);
-const popStyle = ref({});
+// 初值就带上 position:fixed——弹层**第一帧**要是还按普通块插进去，对话框会被它撑高、
+// 居中弹窗跟着上移，而定位恰好在这一帧之后量触发器，量到的是位移后的坐标；
+// 随后弹层脱离文档流、对话框落回原位，弹层就整个偏上去盖住了触发框。
+// 先挪到屏幕外，等 positionPopover 算完再落位。
+const OFFSCREEN = { position: 'fixed', top: '-10000px', left: '0px' };
+const popStyle = ref({ ...OFFSCREEN });
 // 若在原生 <dialog>（showModal 顶层）内，弹层要 Teleport 进该 dialog 才不被顶层遮住；否则回退 body。
 const teleportTarget = ref('body');
 
@@ -60,31 +65,41 @@ const isPlaceholder = computed(
 // 宽度不再写死成触发器宽度——窄触发器会把选项截成「MO-20261001-0…」，
 // 一串单号长得一模一样，根本分不出是哪张。改成：下限=触发器宽，上限=560/视口，
 // 中间由内容撑开；渲染后按实际宽度再钳一次 left，免得撑宽后溢出屏幕右侧。
+const MAX_POPOVER_HEIGHT = 288; // = max-h-72，与 class 上的上限一致
+const GAP = 6;
+
+// 纵向**不量弹层高度**：往下开就钉 top，往上开就钉 bottom，再把 maxHeight 压到那一侧的可用高度。
+// 原来是「top = 触发器顶 − 量到的高度」，量不准（ref 还没挂上时回落到一个猜的值）就会算低，
+// 弹层直接盖住触发框——矮屏幕上必现。钉 bottom 之后高度算错也不可能压到触发器上。
 const positionPopover = async () => {
   const el = triggerEl.value;
   if (!el) return;
   const r = el.getBoundingClientRect();
   const minWidth = Math.max(r.width, 160);
   const maxWidth = Math.min(560, window.innerWidth - 16);
+  const spaceBelow = window.innerHeight - r.bottom - GAP - 8;
+  const spaceAbove = r.top - GAP - 8;
+  // 下方塞不下、且上方更宽裕才往上翻
+  const flipUp = spaceBelow < MAX_POPOVER_HEIGHT && spaceAbove > spaceBelow;
+  const vertical = flipUp
+    ? { bottom: `${window.innerHeight - r.top + GAP}px` }
+    : { top: `${r.bottom + GAP}px` };
+
   popStyle.value = {
     position: 'fixed',
-    top: `${r.bottom + 6}px`,
+    ...vertical,
     left: `${r.left}px`,
     minWidth: `${minWidth}px`,
     maxWidth: `${maxWidth}px`,
+    maxHeight: `${Math.max(120, Math.min(MAX_POPOVER_HEIGHT, flipUp ? spaceAbove : spaceBelow))}px`,
   };
 
+  // 宽度要等渲染完才知道（选项长短不一），只为把 left 钳回屏幕内。
   await nextTick();
   const popW = popoverEl.value?.offsetWidth || minWidth;
-  const popH = popoverEl.value?.offsetHeight || 240;
-  const below = r.bottom + 6;
-  const top =
-    below + popH > window.innerHeight && r.top - popH - 6 > 0
-      ? r.top - popH - 6
-      : below;
   let left = props.align === 'right' ? r.right - popW : r.left;
   left = Math.max(8, Math.min(left, window.innerWidth - popW - 8));
-  popStyle.value = { ...popStyle.value, top: `${top}px`, left: `${left}px` };
+  popStyle.value = { ...popStyle.value, left: `${left}px` };
 };
 
 const toggle = async () => {
@@ -103,6 +118,7 @@ const pick = opt => {
   if (opt.disabled) return;
   modelValue.value = opt.value;
   open.value = false;
+  popStyle.value = { ...OFFSCREEN };
 };
 </script>
 

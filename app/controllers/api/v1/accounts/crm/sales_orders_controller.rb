@@ -88,6 +88,14 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     }
   end
 
+  # 录单用的收款账户下拉（哪个银行/平台收的款）。
+  # 走销售订单这边而不是 ERP 的资金账户接口：业务员没有 ERP 权限，调那边是 403。
+  # 只给 id + 名字，不带余额、账号、开户行——录单只需要认出是哪个账户。
+  def receipt_accounts
+    accounts = Current.account.erp_cash_accounts.where(is_active: true).order(:id).pluck(:id, :name)
+    render json: { payload: accounts.map { |id, name| { id: id, name: name } } }
+  end
+
   # 从回收箱恢复（仅管理员/副管）。
   def restore
     order = Current.account.crm_sales_orders.only_deleted.find(params[:id])
@@ -158,6 +166,13 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     numbers = records.map(&:pi_no).compact_blank.uniq
     @pi_by_no = numbers.empty? ? {} : Current.account.crm_pis.where(pi_no: numbers).index_by(&:pi_no)
     preload_line_item_products(records)
+    preload_cash_accounts(records)
+  end
+
+  # 收款账户名：订单只存 id，列表要显示名字，一次查完。
+  def preload_cash_accounts(records)
+    ids = records.filter_map(&:receipt_account_id).uniq
+    @cash_account_names = ids.empty? ? {} : Current.account.erp_cash_accounts.where(id: ids).pluck(:id, :name).to_h
   end
 
   # 明细行只存了 crm_product_id，编码(sku)要去产品档案取。整页的 id 一次查完做成 map。
@@ -263,7 +278,8 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   def sales_order_params
     params.require(:sales_order).permit(
-      :name, :order_no, :pi_no, :crm_customer_id, :contact_id, :crm_opportunity_id, :owner_id,
+      :name, :order_no, :pi_no, :insurance_order_no, :receipt_account_id,
+      :crm_customer_id, :contact_id, :crm_opportunity_id, :owner_id,
       :status, :order_kind, :order_date, :delivery_date, :order_currency, :exchange_rate, :tax_rate,
       :order_amount_micros, :shipping_micros, :cost_amount_micros, :profit_amount_micros, :profit_rate, :remark,
       :line_items_json,

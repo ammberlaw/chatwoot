@@ -526,7 +526,6 @@ const cell = (r, isAmt) => {
               type="number"
               min="0"
               step="1000"
-              placeholder="如 100000"
               class="h-9 px-2 text-sm border rounded-lg w-36 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             />
           </label>
@@ -537,7 +536,6 @@ const cell = (r, isAmt) => {
               type="number"
               min="0"
               step="1"
-              placeholder="如 5"
               class="h-9 px-2 text-sm border rounded-lg w-28 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             />
           </label>

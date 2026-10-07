@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import MesShipmentAPI from 'dashboard/api/mes/shipments';
+import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
 
 // 「待我处理」：按单据状态实时算出来的待办（原「我的工作台」），办完自动消失。
 // 行的样式跟站内通知的消息行一致——同一个页面里两种列表长得不一样最难看。
@@ -42,22 +43,33 @@ const loading = ref(true);
 const approvalInbox = ref([]); // 停在我这一级的审批单
 const inbox = ref([]); // 停在我负责阶段的在产订单
 const shipmentInbox = ref([]); // 停在我这一级的现货出库单
+// 停在我这一级的采购单。原先这个面板只拉生产订单/接单/出库三类，**采购审批漏了**——
+// 总经理那边 13 张待批采购单一张都不出现，站内通知虽然发了却只躺在「进展」里，
+// 人只看到「待我处理 1 条」，以为没事。
+const purchaseInbox = ref([]);
 
 const load = async () => {
   loading.value = true;
   try {
-    const [approvalRes, inboxRes, shipmentRes] = await Promise.all([
-      MesProductionOrderAPI.approvalInbox(),
-      MesProductionOrderAPI.inbox(),
-      MesShipmentAPI.approvalInbox().catch(() => ({ data: { payload: [] } })),
-    ]);
+    const empty = { data: { payload: [] } };
+    const [approvalRes, inboxRes, shipmentRes, purchaseRes] = await Promise.all(
+      [
+        MesProductionOrderAPI.approvalInbox(),
+        MesProductionOrderAPI.inbox(),
+        MesShipmentAPI.approvalInbox().catch(() => empty),
+        // 无采购权限的人调这个会 403，吞掉即可——不该让整个待办面板空掉。
+        MesPurchaseOrderAPI.approvalInbox().catch(() => empty),
+      ]
+    );
     approvalInbox.value = approvalRes?.data?.payload || [];
     inbox.value = inboxRes?.data?.payload || [];
     shipmentInbox.value = shipmentRes?.data?.payload || [];
+    purchaseInbox.value = purchaseRes?.data?.payload || [];
   } catch {
     approvalInbox.value = [];
     inbox.value = [];
     shipmentInbox.value = [];
+    purchaseInbox.value = [];
   } finally {
     loading.value = false;
   }
@@ -86,6 +98,14 @@ const goApproval = orderNo =>
       'mes_production_orders_index',
       {},
       { q: orderNo, view: 'approval' }
+    )
+  );
+const goPurchase = poNo =>
+  router.push(
+    accountScopedRoute(
+      'mes_purchase_orders_index',
+      {},
+      { q: poNo, view: 'approval' }
     )
   );
 const goShipment = () =>
@@ -118,6 +138,17 @@ const items = computed(() => [
     tag: APPROVAL_STEP[o.approval_status] || '待你处理',
     tagClass: 'text-n-amber-11',
     open: () => goApproval(o.order_no),
+  })),
+  ...purchaseInbox.value.map(p => ({
+    key: `po-${p.id}`,
+    bar: 'bg-n-iris-9',
+    title: `待审批采购单：${p.po_no}`,
+    body: [p.supplier_names?.join('、'), p.production_order_no, p.owner_name]
+      .filter(Boolean)
+      .join(' · '),
+    tag: '待你（总经理）审',
+    tagClass: 'text-n-iris-11',
+    open: () => goPurchase(p.po_no),
   })),
   ...shipmentInbox.value.map(s => ({
     key: `sh-${s.id}`,

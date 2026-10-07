@@ -91,36 +91,55 @@ class Erp::CashFlowService
   end
 
   def build_report(from:, to:, buckets:, fx_effect:, cash_ids:)
-    sections = Erp::CashFlowItem::SECTIONS.keys.map { |key| section_of(key, buckets) }
+    # 行次按《会企03表》顺次发号：每个活动「流入各行→流入小计→流出各行→流出小计→净额」，
+    # 三个活动走完接 32 汇率变动、33 净增加额、34 期初、35 期末。项目顺序即报表行序。
+    row_no = (1..).each
+    sections = Erp::CashFlowItem::SECTIONS.keys.map { |key| section_of(key, buckets, row_no) }
     activity_net = sections.sum { |section| section[:net_micros] }
     opening, closing = cash_balances(from, to, cash_ids)
     net_increase = activity_net + fx_effect
 
+    { from: from, to: to, sections: sections, form_code: '会企03表' }
+      .merge(tail_rows(fx_effect, net_increase, opening, closing, row_no))
+      .merge(variance_micros: (closing - opening) - net_increase,
+             balanced: (closing - opening) == net_increase)
+  end
+
+  # 表尾四行（32-35）：汇率变动 / 净增加额 / 期初 / 期末，行次接着三个活动往下发。
+  def tail_rows(fx_effect, net_increase, opening, closing, row_no)
     {
-      from: from, to: to,
-      sections: sections,
-      fx_effect_micros: fx_effect,
-      net_increase_micros: net_increase,
-      opening_cash_micros: opening,
-      closing_cash_micros: closing,
-      variance_micros: (closing - opening) - net_increase,
-      balanced: (closing - opening) == net_increase
+      fx_effect_micros: fx_effect, fx_effect_row_no: row_no.next,
+      net_increase_micros: net_increase, net_increase_row_no: row_no.next,
+      opening_cash_micros: opening, opening_row_no: row_no.next,
+      closing_cash_micros: closing, closing_row_no: row_no.next
     }
   end
 
-  def section_of(key, buckets)
+  def section_of(key, buckets, row_no)
     items = Erp::CashFlowItem::ITEMS.select { |item| item[:section] == key }
-    rows = items.map do |item|
-      { code: item[:code], label: item[:label], flow: item[:flow], amount_micros: buckets[item[:code]] }
-    end
-    inflow = rows.select { |row| row[:flow] == Erp::CashFlowItem::INFLOW }.sum { |row| row[:amount_micros] }
-    outflow = rows.select { |row| row[:flow] == Erp::CashFlowItem::OUTFLOW }.sum { |row| row[:amount_micros] }
+    inflow_rows = numbered_rows(items, buckets, Erp::CashFlowItem::INFLOW, row_no)
+    inflow = { label: "#{Erp::CashFlowItem::SHORT_LABELS[key]}活动现金流入小计", row_no: row_no.next,
+               amount_micros: inflow_rows.sum { |row| row[:amount_micros] } }
+    outflow_rows = numbered_rows(items, buckets, Erp::CashFlowItem::OUTFLOW, row_no)
+    outflow = { label: "#{Erp::CashFlowItem::SHORT_LABELS[key]}活动现金流出小计", row_no: row_no.next,
+                amount_micros: outflow_rows.sum { |row| row[:amount_micros] } }
 
     {
       key: key, label: Erp::CashFlowItem::SECTIONS[key],
-      short_label: Erp::CashFlowItem::SHORT_LABELS[key], rows: rows,
-      inflow_micros: inflow, outflow_micros: outflow, net_micros: inflow - outflow
+      short_label: Erp::CashFlowItem::SHORT_LABELS[key],
+      rows: inflow_rows + outflow_rows,
+      inflow_micros: inflow[:amount_micros], outflow_micros: outflow[:amount_micros],
+      inflow_subtotal: inflow, outflow_subtotal: outflow,
+      net_micros: inflow[:amount_micros] - outflow[:amount_micros],
+      net_row_no: row_no.next
     }
+  end
+
+  def numbered_rows(items, buckets, flow, row_no)
+    items.select { |item| item[:flow] == flow }.map do |item|
+      { code: item[:code], label: item[:label], flow: item[:flow],
+        row_no: row_no.next, amount_micros: buckets[item[:code]] }
+    end
   end
 
   # 期初/期末现金（本位币）。期初＝期初前的凭证 **加上期初建账凭证**——

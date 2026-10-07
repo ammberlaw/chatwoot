@@ -594,10 +594,7 @@ onMounted(() => {
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">供应商分类</label>
-              <Input
-                v-model="form.category"
-                placeholder="如 原材料 / 外购成品"
-              />
+              <Input v-model="form.category" />
             </div>
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">联系人</label>
@@ -733,7 +730,7 @@ onMounted(() => {
               <label class="text-heading-3 text-n-slate-12">
                 增值税税率（%）
               </label>
-              <Input v-model="form.taxRate" type="number" placeholder="如 13" />
+              <Input v-model="form.taxRate" type="number" />
             </div>
             <div class="flex flex-col gap-1">
               <label class="text-heading-3 text-n-slate-12">开票名称</label>

@@ -1267,7 +1267,6 @@ onMounted(fetchMine);
                 v-model="groupForm.name"
                 :disabled="groupForm.isDefault"
                 class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12 disabled:opacity-60"
-                placeholder="如 行政组 / 业务组"
               />
             </label>
             <div class="flex flex-col gap-1.5">
@@ -1659,7 +1658,6 @@ onMounted(fetchMine);
           <input
             v-model="adjustForm.note"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如：出差外勤 / 忘打卡补正常"
           />
         </label>
         <div class="flex justify-end">

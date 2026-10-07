@@ -280,7 +280,6 @@ onMounted(load);
             <input
               v-model="form.productLine"
               type="text"
-              placeholder="例：平板"
               class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
             />
           </label>
@@ -289,7 +288,6 @@ onMounted(load);
             <input
               v-model="form.name"
               type="text"
-              placeholder="例：平板定制报价"
               class="w-full h-10 px-3 text-sm border rounded-lg reset-base border-n-weak bg-n-alpha-1 text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-iris-9"
             />
           </label>

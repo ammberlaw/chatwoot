@@ -394,7 +394,6 @@ onMounted(async () => {
             <input
               v-model="form.name"
               type="text"
-              placeholder="如：Sony A7M4 相机"
               class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
             />
           </label>
@@ -403,7 +402,6 @@ onMounted(async () => {
             <input
               v-model="form.code"
               type="text"
-              placeholder="如：TK-CAM-001"
               class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
             />
           </label>
@@ -454,7 +452,6 @@ onMounted(async () => {
             <input
               v-model="form.location"
               type="text"
-              placeholder="如：深圳办公室"
               class="w-full h-9 pl-2 !pr-8 text-sm rounded-lg reset-base mb-0 outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12"
             />
           </label>

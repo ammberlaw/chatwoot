@@ -26,6 +26,7 @@ const saving = ref(false);
 
 /* ---------------- 会计政策 ---------------- */
 const policy = reactive({
+  companyName: '',
   fiscalStartDate: '',
   defaultOutputTaxRate: 13,
   amountIncludesTax: true,
@@ -59,6 +60,7 @@ const loadPolicy = async () => {
   loading.value = true;
   try {
     const { data } = await ErpSettingAPI.get();
+    policy.companyName = data.payload.company_name || '';
     policy.fiscalStartDate = data.payload.fiscal_start_date || '';
     policy.defaultOutputTaxRate = data.payload.default_output_tax_rate;
     policy.amountIncludesTax = data.payload.amount_includes_tax;
@@ -73,6 +75,7 @@ const savePolicy = async () => {
   saving.value = true;
   try {
     const { data } = await ErpSettingAPI.save({
+      company_name: policy.companyName.trim() || null,
       fiscal_start_date: policy.fiscalStartDate || null,
       default_output_tax_rate: policy.defaultOutputTaxRate,
       amount_includes_tax: policy.amountIncludesTax,
@@ -190,6 +193,16 @@ onMounted(loadPolicy);
       class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
     >
       <div class="max-w-2xl space-y-6">
+        <div>
+          <label class="block mb-1.5 text-label text-n-slate-12">
+            编制单位
+          </label>
+          <Input v-model="policy.companyName" class="w-96" />
+          <p class="mt-1.5 text-xs text-n-slate-10">
+            财务报表（会企01/02/03）表头印的公司全称，填营业执照上的名字。
+          </p>
+        </div>
+
         <div>
           <label class="block mb-1.5 text-label text-n-slate-12">
             会计启用日

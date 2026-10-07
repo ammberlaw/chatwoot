@@ -43,6 +43,13 @@ class Crm::OptionItem < ApplicationRecord
     'customer_source' => [
       %w[ALIBABA 阿里巴巴国际站], %w[WEBSITE 官网], %w[EXHIBITION 展会],
       %w[REFERRAL 转介绍], %w[EMAIL 邮件开发], %w[OTHER 其他]
+    ],
+    # 收款方式（销售订单的「结算方式」下拉）：**照金蝶的结算方式清单**，两边口径一致，
+    # 转 ERP 销售订单时这项必填（没填会被拦「收款方式没填」）。
+    # 账号第一次用到时播下去，之后在设置页增删改。
+    'payment_term' => [
+      %w[ALIBABA Alibaba], %w[WECHAT 微信支付], %w[CASH 现金支付],
+      %w[BANK_TRANSFER 银行转账], %w[ALIPAY 支付宝支付]
     ]
   }.freeze
 

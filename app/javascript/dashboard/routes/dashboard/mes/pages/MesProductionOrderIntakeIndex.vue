@@ -639,7 +639,7 @@ const backToList = () =>
           <input
             v-model="base.orderNo"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="留空自动生成，如 WT-20261001-01"
+            placeholder="留空自动生成"
           />
           <span class="text-[11px] text-n-slate-10">
             两账并行期可直接填金蝶的单号；建单后不可再改
@@ -650,7 +650,7 @@ const backToList = () =>
           <input
             v-model="base.piNo"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="形式发票号，如 PI-2026-0788"
+            placeholder="形式发票号"
           />
         </label>
         <label class="flex flex-col gap-1 sm:flex-1 sm:min-w-[20rem]">
@@ -660,7 +660,6 @@ const backToList = () =>
           <input
             v-model="base.productName"
             class="h-9 px-3 text-sm border rounded-lg border-n-weak bg-n-solid-1 text-n-slate-12"
-            placeholder="如：商显一体机 43寸 / Winny K11"
           />
         </label>
         <label class="flex flex-col gap-1 sm:w-64">

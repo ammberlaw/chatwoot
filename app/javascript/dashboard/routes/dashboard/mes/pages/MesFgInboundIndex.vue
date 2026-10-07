@@ -462,7 +462,7 @@ onMounted(() => {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">颜色</label>
-            <Input v-model="form.color" placeholder="如 黑色 / 白色 / 定制色" />
+            <Input v-model="form.color" />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">实际入库日期</label>

@@ -99,11 +99,19 @@ class Mes::PurchaseOrder < ApplicationRecord
         'RECEIVED'
       elsif items.any? { |i| i.received_qty.to_d.positive? }
         'PARTIAL_RECEIVED'
+      elsif RECEIPT_DRIVEN_STATUSES.include?(status)
+        # 收货量被冲回 0（入库单作废）时要退回「未到货」。
+        # 原先这里写的是「保持原状」，结果作废后状态赖在 RECEIVED：单子显示已到货、
+        # received? 还会让生产订单误判原料已齐套，而实际一件没收。
+        'SUBMITTED'
       else
         status
       end
     update_column(:status, new_status) if new_status != status
   end
+
+  # 由收货量驱动的状态：这几个才按 received_qty 重算，DRAFT 之类不受影响。
+  RECEIPT_DRIVEN_STATUSES = %w[PARTIAL_RECEIVED RECEIVED].freeze
 
   def received? = status == 'RECEIVED'
 

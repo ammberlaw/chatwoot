@@ -19,6 +19,10 @@ json.fg_inbound_qty (@fg_inbound_qty_by_order&.[](resource.id) || resource.fg_in
 json.progress_ratio resource.progress_ratio
 json.bom_id resource.bom_id
 json.is_outsourced resource.is_outsourced
+# 料是否都下满采购单：采购单的「关联生产订单」下拉据此把下完的单拿掉
+# （否则选中后才弹「这张订单的料都已经下过采购单了」）。要展开 BOM 才算得出来，
+# 只在列表显式要（with_purchasing_complete=1）时批量算一次。
+json.purchasing_complete @purchasing_complete_ids.include?(resource.id) if @purchasing_complete_ids
 # 外购供应商含供应商资料，销售端不可见（生态硬约束）——仅 MES 员工下发。
 if Current.account_user&.mes_staff?
   json.outsource_supplier_id resource.outsource_supplier_id

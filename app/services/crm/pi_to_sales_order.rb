@@ -5,6 +5,16 @@
 class Crm::PiToSalesOrder
   XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'.freeze
 
+  # PI 抬头 → 资金账户名：客户是照 PI 上印的 BANK DETAILS 打款的，收哪个账户在开 PI 时就定了，
+  # 转单时按抬头带过来，不用人再选一次。账户按名字找，账套里没有这个名字就留空（不猜）。
+  # 转单后需要人补的结算信息（前端据此决定要不要弹补填框）。
+  SETTLEMENT_FIELDS = %i[payment_term receipt_account_id insurance_order_no].freeze
+
+  RECEIPT_ACCOUNT_BY_HEADER = {
+    'HK_WINTOUCH' => '香港建设银行',
+    'DG_LIONTEK' => '东莞联迪建设银行'
+  }.freeze
+
   def initialize(pi_record)
     @pi = pi_record
     @account = pi_record.account
@@ -39,9 +49,20 @@ class Crm::PiToSalesOrder
       order_currency: @pi.currency,
       order_amount_micros: net_amount_micros,
       shipping_micros: @pi.shipping_cost_micros,
+      receipt_account_id: receipt_account_id,
       line_items: line_items,
       remark: "由 PI「#{@pi.pi_no}」付款自动生成"
     )
+  end
+
+  # 收款账户：按 PI 抬头对应的那个银行账户。
+  # **结算方式和信保订单号不在这里猜**——PI 的付款条款是自由文本（"T/T 30% deposit…"
+  # 和 "BANK / Alibaba" 都可能），猜错了会一路错到应收台账，由人在转单后补填。
+  def receipt_account_id
+    name = RECEIPT_ACCOUNT_BY_HEADER[@pi.company_header]
+    return if name.blank?
+
+    @account.erp_cash_accounts.find_by(name: name)&.id
   end
 
   # 订单金额=净销售（不含运费）：优先取明细金额合计；无明细则退回 PI 总额。
