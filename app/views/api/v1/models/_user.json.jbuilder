@@ -22,7 +22,6 @@ json.crm_manager resource.active_account_user&.crm_manager? || false
 json.crm_team_lead resource.active_account_user&.crm_team_lead? || false
 # 财务身份：可查看全员「已通过」提成表并导出（与业务员身份叠加）。
 json.crm_finance resource.active_account_user&.crm_finance? || false
-json.mes_role resource.active_account_user&.mes_role
 json.mes_roles resource.active_account_user&.effective_mes_roles || []
 json.mes_capabilities resource.active_account_user&.mes_capability_list || []
 json.erp_role resource.active_account_user&.erp_role

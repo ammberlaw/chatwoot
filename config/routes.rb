@@ -355,6 +355,7 @@ Rails.application.routes.draw do
           end
           namespace :erp do
             resource :dashboard, only: [:show], controller: 'dashboard'
+            resource :settings, only: [:show, :update], controller: 'settings'
             resources :ledger_accounts, only: [:index, :show, :create, :update, :destroy] do
               collection do
                 post :initialize_standard

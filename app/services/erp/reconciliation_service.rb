@@ -26,8 +26,55 @@ class Erp::ReconciliationService
   def row_for(group, balances)
     ledger = ledger_balance(group[:account_type], balances)
     business = business_balance(group[:key])
+    diff = business - ledger
     { key: group[:key], label: group[:label], business_micros: business, ledger_micros: ledger,
-      diff_micros: business - ledger, matched: business == ledger, note: note_for(group[:key]) }
+      diff_micros: diff, matched: business == ledger, note: note_for(group[:key]),
+      breakdown: group[:key] == 'receivable' ? receivable_breakdown(diff) : [] }
+  end
+
+  # 应收差额的构成拆解。
+  #
+  # 台账和总账天生不同步：台账在**订单确认**时建，应收账款在**发货**确认收入时才借记。
+  # 所以「已建账未发货」是一笔结构性差额，不是错账；只给财务一个总差额数字，
+  # 他看不出哪部分是时点差、哪部分是真出了问题。这里把能解释的两段点名，
+  # 剩下的归「其他」——其他不为零才是要查的。
+  def receivable_breakdown(diff)
+    pending = pending_revenue_micros
+    unbooked = unbuilt_ledger_micros
+    [
+      { key: 'pending_revenue', label: '已建账·尚未发货（时点差）', amount_micros: pending,
+        note: '订单确认即建台账，发货才确认收入借记应收——发货后自动消除' },
+      { key: 'unbuilt_ledger', label: '已发货·台账未建', amount_micros: -unbooked,
+        note: '收入凭证已借记应收，但这张订单没建台账——去「待建账」补建' },
+      { key: 'other', label: '其他（需排查）', amount_micros: diff - pending + unbooked,
+        note: '不为零说明有凭证记错科目或手工动过应收账款' }
+    ]
+  end
+
+  # 已建台账、但收入凭证还没出的未收额（本位币台账）。
+  def pending_revenue_micros
+    scope = @account.erp_receivables.where(currency: 'CNY').where.not(crm_sales_order_id: nil)
+                    .where.not(crm_sales_order_id: revenue_booked_order_ids)
+    scope.sum(:total_amount_micros) - scope.sum(:received_amount_micros)
+    # 没挂订单的手工台账不算在这一段里：它没有「等发货」这回事，差了就该进「其他」。
+  end
+
+  # 收入凭证已记账、但没建台账的订单金额（本位币订单）。
+  def unbuilt_ledger_micros
+    built = @account.erp_receivables.where.not(crm_sales_order_id: nil).select(:crm_sales_order_id)
+    @account.crm_sales_orders.where(id: revenue_booked_order_ids).where.not(id: built)
+            .where(order_currency: [nil, 'CNY'])
+            .sum(&:receivable_amount_micros)
+  end
+
+  # 出过收入凭证（已记账）的销售订单。成本凭证的 source_type 带 ::Cost 后缀，天然排除。
+  def revenue_booked_order_ids
+    @revenue_booked_order_ids ||= begin
+      shipment_ids = @account.erp_vouchers
+                             .where(source_type: 'Mes::Shipment', status: Erp::Voucher::POSTED)
+                             .pluck(:source_id)
+      shipment_ids.empty? ? [] : @account.mes_shipments.where(id: shipment_ids).pluck(:crm_sales_order_id).compact.uniq
+    end
   end
 
   # 外币的本位币余额只能由凭证（按录入时汇率折算）决定，与台账/账户原币余额不可比，

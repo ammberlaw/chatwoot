@@ -104,7 +104,9 @@ class Erp::AutoVoucherService
   # 用借方 base 倒挤最后一个贷方行，保证严格相等（同 for_receipt 的处理）。
   def revenue_lines(order, receivable, revenue)
     tax_rate = order.effective_tax_rate
-    net, tax = split_tax(order.order_amount_micros.to_i, tax_rate, order.effective_amount_includes_tax)
+    # 拆税口径放在订单模型上（Crm::SalesOrder#tax_split）——应收台账建账金额要用同一个，
+    # 两边各算一套必然在不含税单上差出一个税额。
+    net, tax = order.tax_split
     # 应收恒等于「收入 + 销项税」——客户实付的就是这个数。
     # 含税单它等于订单金额；不含税单订单金额只是收入，税要另加，不能照搬金额当应收。
     gross = net + tax
@@ -316,18 +318,6 @@ class Erp::AutoVoucherService
   # 把订单金额拆成「不含税收入 + 销项税」。含不含税按**单据**上转单时勾的那个来
   # （同一家公司两种合同都有，账套设置只当默认值）。
   # 税率 0（出口免税）两种算法同值，直接返回原额 + 0 税。
-  def split_tax(amount, tax_rate, includes_tax)
-    rate = tax_rate.to_i
-    return [amount, 0] if rate <= 0
-
-    if includes_tax
-      net = Erp::VoucherLine.round_to_cent(amount * 100.0 / (100 + rate))
-      [net, amount - net]
-    else
-      [amount, Erp::VoucherLine.round_to_cent(amount * rate / 100.0)]
-    end
-  end
-
   # 一张销售订单只认第一张出库单记收入（按出库单 id 取最早的一张，不看凭证是否已作废，
   # 否则作废重开会把收入记第二遍）。
   def first_revenue_shipment?(shipment, order)

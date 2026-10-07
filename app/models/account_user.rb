@@ -10,7 +10,6 @@
 #  crm_role                 :string
 #  deactivated_at           :datetime
 #  erp_role                 :string
-#  mes_role                 :string
 #  mes_roles                :string           default([]), not null, is an Array
 #  module_access            :text             default(["crm", "erp", "mes"]), not null, is an Array
 #  role                     :integer          default("agent")
@@ -51,6 +50,9 @@ class AccountUser < ApplicationRecord
   belongs_to :inviter, class_name: 'User', optional: true
   belongs_to :crm_team, class_name: 'Crm::Team', optional: true, inverse_of: :account_users
   belongs_to :tiktok_department, class_name: 'Tiktok::Department', optional: true, inverse_of: :account_users
+
+  # 遗留单值 MES 角色列，已回填进 mes_roles 并停止读写；物理 DROP 待下个版本。
+  self.ignored_columns += %w[mes_role]
 
   enum role: { agent: 0, administrator: 1 }
   enum availability: { online: 0, offline: 1, busy: 2 }
@@ -93,9 +95,13 @@ class AccountUser < ApplicationRecord
     mes_capability_list.include?(capability.to_s)
   end
 
-  # 该成员的有效 MES 角色：多值 mes_roles 优先，兼容基线单值 mes_role（成员页仍单值下拉）。
+  # 该成员的有效 MES 角色。单一真相＝多值 mes_roles。
+  #
+  # 曾经还并上遗留单值 mes_role（成员页改多选前的老数据），于是「角色存在哪一列」要看人：
+  # 权限判断走并集所以一直是对的，但排查时按其中一列查就会得出完全错误的结论。
+  # 20261007110000 已把旧列回填进 mes_roles 并停止读写（见 ignored_columns）。
   def effective_mes_roles
-    (mes_roles.to_a + [mes_role]).reject(&:blank?).uniq
+    mes_roles.to_a.reject(&:blank?).uniq
   end
 
   # 该成员的 MES 岗位中文名。hints 是「这个场合优先认哪些岗位」——

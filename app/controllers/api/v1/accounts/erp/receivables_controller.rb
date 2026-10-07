@@ -70,6 +70,10 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   def pending_orders
     @orders = pending_order_scope.includes(:crm_customer, :owner).order(order_date: :desc).limit(200)
     @pending_count = pending_order_scope.count
+    @fiscal_start_date = erp_settings.fiscal_start_date
+    # 没设启用日时把被挡掉的历史单数量摆出来——否则清单空荡荡，财务不知道是真没有
+    # 还是被日切挡住了。
+    @before_fiscal_count = @fiscal_start_date ? unfiltered_pending_scope.where(order_date: ...@fiscal_start_date.beginning_of_day).count : 0
     render 'api/v1/accounts/erp/receivables/pending_orders'
   end
 
@@ -133,11 +137,25 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   # 且尚无应收台账的订单。
   UNCONFIRMED_STATUSES = %w[PENDING_CONFIRMATION CANCELLED].freeze
 
+  # 会计启用日之前的单不进待建账：那些是迁移进来的历史单（上线时一次性导入的
+  # 已完结订单），钱早收完了，建出来全是假应收——这个清单一度列着 484 张
+  # 2227 万的历史单，批量点下去就是一场事故。日切前的余额走期初建账一笔进总账。
+  # 启用日未设＝不切（沿用旧行为），设置页会提示去设。
   def pending_order_scope
+    scope = unfiltered_pending_scope
+    cutoff = erp_settings.fiscal_start_date
+    cutoff ? scope.where(order_date: cutoff.beginning_of_day..) : scope
+  end
+
+  def unfiltered_pending_scope
     built_ids = Current.account.erp_receivables.where.not(crm_sales_order_id: nil).select(:crm_sales_order_id)
     Current.account.crm_sales_orders
            .where.not(status: UNCONFIRMED_STATUSES)
            .where.not(id: built_ids)
+  end
+
+  def erp_settings
+    @erp_settings ||= Erp::Setting.for_account(Current.account)
   end
 
   def build_from_order

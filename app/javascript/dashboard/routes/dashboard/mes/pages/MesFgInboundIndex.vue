@@ -78,12 +78,25 @@ const eligibleOrders = computed(() =>
     p => !p.isOutsourced && FG_ELIGIBLE_STAGES.includes(p.stage)
   )
 );
+// 这张订单还差多少没入库。已入满＝0。
+const remainingOf = p =>
+  Math.max(Number(p?.qty || 0) - Number(p?.fg_inbound_qty || 0), 0);
+
+// 下拉里直接把「还差多少」写出来，入满的标出来并禁选。
+// 原来只按阶段过滤，一张早已入满的订单会一直摆在下拉里、选中还自动把数量填成全量——
+// 等于引着车间建重复单，而重复单要到几天后仓管点确认时才会报错（生产上积了 6 张）。
 const productionOrderOptions = computed(() => [
   { value: '', label: '选择生产订单…' },
-  ...eligibleOrders.value.map(p => ({
-    value: String(p.id),
-    label: `${p.order_no} · ${p.product_name}`,
-  })),
+  ...eligibleOrders.value.map(p => {
+    const left = remainingOf(p);
+    return {
+      value: String(p.id),
+      label: left
+        ? `${p.order_no} · ${p.product_name}（还差 ${left}）`
+        : `${p.order_no} · ${p.product_name}（已入满）`,
+      disabled: left <= 0,
+    };
+  }),
 ]);
 const warehouseOptions = computed(() =>
   (warehousesStore.getRecords || []).map(w => ({
@@ -109,15 +122,28 @@ const selectedOrder = computed(() =>
     p => String(p.id) === String(form.productionOrderId)
   )
 );
+const overRemaining = computed(
+  () =>
+    !!selectedOrder.value && Number(form.qty) > remainingOf(selectedOrder.value)
+);
 const invalid = computed(
-  () => !form.productionOrderId || !form.warehouseId || !Number(form.qty)
+  () =>
+    !form.productionOrderId ||
+    !form.warehouseId ||
+    !Number(form.qty) ||
+    overRemaining.value
 );
 
-// 选生产订单 → 带出已产数量作入库数量默认。
+// 选生产订单 → 数量默认填**还差的量**（不是全量）：已入过一部分的订单
+// 再按全量填就会超，而超量要到仓管过账时才报。
 const onPickOrder = v => {
   form.productionOrderId = v;
   const po = productionOrders.value.find(p => String(p.id) === String(v));
-  if (po) form.qty = String(po.produced_qty || po.qty || '');
+  if (!po) return;
+
+  const left = remainingOf(po);
+  const produced = Number(po.produced_qty || 0);
+  form.qty = String(left ? Math.min(produced || left, left) : '');
 };
 
 const openCreate = () => {
@@ -347,8 +373,8 @@ onMounted(() => {
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="lg"
       confirm-button-color="iris"
       title="新建成品入库单"
@@ -374,7 +400,11 @@ onMounted(() => {
           />
           <span v-if="selectedOrder" class="text-xs text-n-slate-11">
             {{ selectedOrder.product_name }} · 已产
-            {{ selectedOrder.produced_qty }} / {{ selectedOrder.qty }}
+            {{ selectedOrder.produced_qty }} / {{ selectedOrder.qty }} · 已入库
+            {{ selectedOrder.fg_inbound_qty }}，还差
+            <span class="text-n-slate-12">{{
+              remainingOf(selectedOrder)
+            }}</span>
           </span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -383,6 +413,9 @@ onMounted(() => {
               入库数量 <span class="text-n-ruby-11">*</span>
             </label>
             <Input v-model="form.qty" type="number" />
+            <span v-if="overRemaining" class="text-xs text-n-ruby-11">
+              超出订单剩余 {{ remainingOf(selectedOrder) }}，不能超量入库
+            </span>
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">入库仓库</label>

@@ -96,6 +96,34 @@ class Crm::SalesOrder < ApplicationRecord
     account ? Erp::Setting.for_account(account).amount_includes_tax : true
   end
 
+  # 订单金额按税率拆成 [不含税收入, 销项税]（原币微元）。
+  #
+  # 含税单：收入 = 金额 ÷ (1+税率)，税额 = 金额 − 收入，二者之和恒等于订单金额；
+  # 不含税单：收入 = 金额，税额 = 金额 × 税率，二者之和比订单金额多一个税。
+  # 税率 0（出口单）两种算法同值。
+  def tax_split
+    amount = order_amount_micros.to_i
+    rate = effective_tax_rate.to_i
+    return [amount, 0] if rate <= 0
+
+    if effective_amount_includes_tax
+      net = Erp::VoucherLine.round_to_cent(amount * 100.0 / (100 + rate))
+      [net, amount - net]
+    else
+      [amount, Erp::VoucherLine.round_to_cent(amount * rate / 100.0)]
+    end
+  end
+
+  # 客户实际要付的钱（= 收入 + 销项税，原币微元）。
+  #
+  # 应收台账的建账金额和出库收入凭证的借方必须都取这个数，否则不含税单两边
+  # 差一个税额——台账少记税，两账对平(Erp::ReconciliationService)就报一笔
+  # 谁也解释不清的差异，而人民币单正好是对平唯一看的那部分。
+  def receivable_amount_micros
+    net, tax = tax_split
+    net + tax
+  end
+
   RMB_AMOUNT_MICROS_SQL = "ROUND(crm_sales_orders.order_amount_micros * CASE WHEN crm_sales_orders.order_currency = 'CNY' THEN 1 ELSE COALESCE(crm_sales_orders.exchange_rate, 1) END)".freeze
 
   belongs_to :account

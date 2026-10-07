@@ -75,6 +75,8 @@ class Mes::StockEntry < ApplicationRecord
   validates :purpose, inclusion: { in: PURPOSES }
   validates :status, inclusion: { in: STATUSES }
   validate :enforce_flow_prerequisite, on: :create
+  # 建单当场拦重复/超量成品入库：当面说清「已入 X/Y」，而不是放它存下去、几天后在仓管那儿爆。
+  validate :enforce_fg_inbound_quota, on: :create
 
   # ── 流程硬锁 ──：下游库存单必须等生产订单走到对应阶段才能开单，前面工序没做完后端直接拒绝。
   #   原料入库→须已采购；生产领料→须原料已入库；成品入库→须已领料+进入生产(报工)。
@@ -230,11 +232,25 @@ class Mes::StockEntry < ApplicationRecord
   # 成品入库防重复/防超量：同一生产订单已过账入库累计 + 本单成品量不得超过订单数量。
   # 收齐后再开 → 「已收齐不能重复入库」；未收齐但本次超出剩余 → 「不能超量入库」。
   # 仅约束成品入库(MANUFACTURE)且挂了生产订单的单据；其余库存单不受影响。
+  def enforce_fg_inbound_quota
+    msg = fg_over_inbound_error
+    errors.add(:base, msg) if msg
+  end
+
   def ensure_no_fg_over_inbound!
-    return unless purpose == 'MANUFACTURE'
+    msg = fg_over_inbound_error
+    raise StandardError, msg if msg
+  end
+
+  # 超量原因（无问题返回 nil）。建单校验与过账闸共用——
+  # 只在过账拦是不够的：建单在车间、过账在仓库，中间隔着好几天，
+  # 车间把单建出来就以为交接完了，错误却出现在几天后仓管的屏幕上，
+  # 两头都不知道发生了什么（生产上因此积了 6 张永远过不了账的重复单）。
+  def fg_over_inbound_error
+    return nil unless purpose == 'MANUFACTURE'
 
     po = production_order
-    return if po.nil? || po.qty.to_d <= 0
+    return nil if po.nil? || po.qty.to_d <= 0
 
     already = po.fg_inbound_qty # 已过账累计（不含本张草稿）
     remaining = po.qty.to_d - already
@@ -242,9 +258,9 @@ class Mes::StockEntry < ApplicationRecord
     incoming = stock_entry_items.select { |i| i.item_type == 'PRODUCT' }.sum { |i| i.effective_qty.to_d }
 
     if remaining <= 0
-      raise StandardError, "该订单成品已入库收齐（#{fnum(already)}/#{fnum(po.qty)}），不能重复入库"
+      "该订单成品已入库收齐（#{fnum(already)}/#{fnum(po.qty)}），不能重复入库"
     elsif incoming > remaining
-      raise StandardError, "入库数量超出订单剩余（订单 #{fnum(po.qty)}，已入 #{fnum(already)}，剩 #{fnum(remaining)}，本次 #{fnum(incoming)}），不能超量入库"
+      "入库数量超出订单剩余（订单 #{fnum(po.qty)}，已入 #{fnum(already)}，剩 #{fnum(remaining)}，本次 #{fnum(incoming)}），不能超量入库"
     end
   end
 

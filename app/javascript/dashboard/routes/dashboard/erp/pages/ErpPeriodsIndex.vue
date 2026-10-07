@@ -760,44 +760,72 @@ onMounted(load);
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="row in reconcileRows"
-            :key="row.key"
-            class="border-b border-n-weak"
-          >
-            <td class="px-3 py-2 text-n-slate-12">{{ row.label }}</td>
-            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
-              {{ money(row.business_micros) }}
-            </td>
-            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
-              {{ money(row.ledger_micros) }}
-            </td>
-            <td
-              class="px-3 py-2 font-mono text-right"
-              :class="row.matched ? 'text-n-slate-11' : 'text-n-ruby-11'"
+          <template v-for="row in reconcileRows" :key="row.key">
+            <tr class="border-b border-n-weak">
+              <td class="px-3 py-2 text-n-slate-12">{{ row.label }}</td>
+              <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+                {{ money(row.business_micros) }}
+              </td>
+              <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+                {{ money(row.ledger_micros) }}
+              </td>
+              <td
+                class="px-3 py-2 font-mono text-right"
+                :class="row.matched ? 'text-n-slate-11' : 'text-n-ruby-11'"
+              >
+                {{ money(row.diff_micros) }}
+              </td>
+              <td class="px-3 py-2">
+                <span
+                  class="px-2 py-0.5 text-xs rounded whitespace-nowrap"
+                  :class="
+                    row.matched
+                      ? 'bg-n-teal-3 text-n-teal-11'
+                      : 'bg-n-ruby-3 text-n-ruby-11'
+                  "
+                >
+                  {{ row.matched ? '对平' : '有差异' }}
+                </span>
+                <span
+                  v-if="row.note"
+                  class="block mt-1 text-xs text-n-slate-10"
+                >
+                  {{ row.note }}
+                </span>
+              </td>
+            </tr>
+            <!-- 应收差额的构成：时点差（已建账未发货）不是错账，摆出来才看得出
+                 哪一段要动手。「其他」不为零才是要排查的。 -->
+            <tr
+              v-for="part in row.matched ? [] : row.breakdown || []"
+              :key="`${row.key}-${part.key}`"
+              class="border-b border-n-weak bg-n-slate-2"
             >
-              {{ money(row.diff_micros) }}
-            </td>
-            <td class="px-3 py-2">
-              <span
-                class="px-2 py-0.5 text-xs rounded whitespace-nowrap"
+              <td class="py-1.5 pl-8 pr-3 text-n-slate-11">
+                └ {{ part.label }}
+                <span class="block text-xs text-n-slate-10">{{
+                  part.note
+                }}</span>
+              </td>
+              <td colspan="2" />
+              <td
+                class="px-3 py-1.5 font-mono text-right"
                 :class="
-                  row.matched
-                    ? 'bg-n-teal-3 text-n-teal-11'
-                    : 'bg-n-ruby-3 text-n-ruby-11'
+                  part.key === 'other' && part.amount_micros !== 0
+                    ? 'text-n-ruby-11'
+                    : 'text-n-slate-11'
                 "
               >
-                {{ row.matched ? '对平' : '有差异' }}
-              </span>
-              <span v-if="row.note" class="block mt-1 text-xs text-n-slate-10">
-                {{ row.note }}
-              </span>
-            </td>
-          </tr>
+                {{ money(part.amount_micros) }}
+              </td>
+              <td />
+            </tr>
+          </template>
         </tbody>
       </table>
       <p class="mt-4 text-xs text-n-slate-10">
-        每月结账前这三行都应为「对平」。有差异通常是单据没生成凭证、或凭证记错了科目。
+        每月结账前这三行都应为「对平」。应收的差额已按构成拆开：「已建账·尚未发货」是时点差（台账在订单确认时建，
+        应收账款在发货确认收入时才借记），发货后自动消除；「其他」不为零才说明有凭证记错科目或手工动过应收账款。
       </p>
     </div>
 

@@ -463,6 +463,20 @@ class Mes::ProductionOrder < ApplicationRecord
       .sum(Arel.sql('COALESCE(received_qty, qty)'))
   end
 
+  # 批量版：列表一次渲染几百张订单，逐张调 #fg_inbound_qty 就是几百条 SQL。
+  # 返回 { production_order_id => 已入库量 }，没入过的订单不在键里。
+  def self.bulk_fg_inbound_qty(account, order_ids)
+    return {} if order_ids.blank?
+
+    Mes::StockEntryItem
+      .joins(:stock_entry)
+      .where(mes_stock_entries: { account_id: account.id, production_order_id: order_ids,
+                                  purpose: 'MANUFACTURE', status: 'POSTED' })
+      .where(item_type: 'PRODUCT')
+      .group('mes_stock_entries.production_order_id')
+      .sum(Arel.sql('COALESCE(mes_stock_entry_items.received_qty, mes_stock_entry_items.qty)'))
+  end
+
   # 入库是否收齐（已完工入库量 ≥ 订单数量）。
   def fg_inbound_complete?
     qty.to_d.positive? && fg_inbound_qty >= qty.to_d

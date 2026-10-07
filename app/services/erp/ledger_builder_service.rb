@@ -18,7 +18,9 @@ class Erp::LedgerBuilderService
       crm_customer_id: order.crm_customer_id,
       currency: order.order_currency.presence || 'CNY',
       exchange_rate: order.exchange_rate.presence || 1,
-      total_amount_micros: order.order_amount_micros.to_i,
+      # 建账金额＝收入+销项税（客户实付），不是订单金额原值：不含税单的订单金额
+      # 只是收入，税要另加。出库收入凭证的应收借方取的也是这个数，两边才对得上。
+      total_amount_micros: order.receivable_amount_micros,
       owner_id: order.owner_id,
       remark: "由销售订单 #{order.order_no} 建账"
     )

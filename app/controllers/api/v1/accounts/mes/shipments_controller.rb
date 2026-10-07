@@ -25,12 +25,19 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
       return render json: { error: "该订单已生成出库单 #{existing.shipment_no}，不能重复转单" }, status: :unprocessable_entity
     end
 
-    @shipment = Current.account.mes_shipments.new(converted_shipment_attrs(sales_order))
-    @shipment.fallback_product_line = current_product_line
-    @shipment.save!
+    # 建单与提交必须同生共死：原先没包事务，现货不足导致 submit 失败时出库单已落库，
+    # 之后这张销售订单永远报「已生成出库单 DN-xxx，不能重复转单」——转不动也看不出
+    # 该去删那张草稿。回滚掉就当这次转单没发生过。
+    ActiveRecord::Base.transaction do
+      @shipment = Current.account.mes_shipments.new(converted_shipment_attrs(sales_order))
+      @shipment.fallback_product_line = current_product_line
+      @shipment.save!
+      # 与手工开单同路径：提交即预占成品库存并进主管审核。
+      @shipment.submit_for_approval!(current_user)
+    end
     record_tax_basis!(sales_order)
-    # 与手工开单同路径：提交即预占成品库存并进主管审核。
-    @shipment.submit_for_approval!(current_user)
+    # 人工点中的产品落回明细 + 别名记忆，下次不用再从上千条产品档案里搜一遍。
+    Crm::ConvertChoiceRecorder.new(sales_order).call(convert_choice_rows)
     render 'api/v1/accounts/mes/shipments/show'
   rescue StandardError => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -161,6 +168,14 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     raise StandardError, '没有可转的明细行（每行都要选中产品档案并填数量）' if rows.empty?
 
     rows
+  end
+
+  # 产品关联回写用的 (明细行号 → 产品)。row 是明细行号（1 起），弹窗里手工加的行没有。
+  def convert_choice_rows
+    Array(params[:items]).map do |row|
+      permitted = row.permit(:crm_product_id, :row)
+      { crm_product_id: permitted[:crm_product_id], row: permitted[:row] }
+    end
   end
 
   def resolve_missing_product_ids(shipment)

@@ -13,6 +13,9 @@ json.product_sku resource.crm_product&.sku
 json.qty resource.qty
 json.unit resource.unit
 json.produced_qty resource.produced_qty
+# 已完工入库累计量：成品入库建单要用它算剩余，否则界面会把一张早已入满的订单
+# 继续摆在下拉里、还把数量自动填成全量，引着人建出永远过不了账的重复单。
+json.fg_inbound_qty (@fg_inbound_qty_by_order&.[](resource.id) || resource.fg_inbound_qty).to_f
 json.progress_ratio resource.progress_ratio
 json.bom_id resource.bom_id
 json.is_outsourced resource.is_outsourced

@@ -183,6 +183,10 @@ const pendingOrders = ref([]);
 const pendingCount = ref(0);
 const selectedOrderIds = ref([]);
 const buildingBatch = ref(false);
+// 会计启用日：日切之前的单（上线时一次性迁进来的历史单）不列在这里。
+// 没设的时候要明说，否则财务看着满屏历史单会照着批量建，建出一堆假应收。
+const fiscalStartDate = ref('');
+const beforeFiscalCount = ref(0);
 
 // silent：进页面时只为点亮角标而拉，不能抢台账表格的 loading 态（两个请求会互相踩）。
 const loadPendingOrders = async ({ silent = false } = {}) => {
@@ -191,6 +195,8 @@ const loadPendingOrders = async ({ silent = false } = {}) => {
     const { data } = await ErpReceivableAPI.pendingOrders();
     pendingOrders.value = data.payload;
     pendingCount.value = data.meta?.pending_count || 0;
+    fiscalStartDate.value = data.meta?.fiscal_start_date || '';
+    beforeFiscalCount.value = data.meta?.before_fiscal_count || 0;
     selectedOrderIds.value = [];
   } finally {
     if (!silent) loading.value = false;
@@ -631,69 +637,95 @@ onMounted(() => {
       </table>
 
       <!-- 待建账：已确认但还没建应收的销售订单 -->
-      <table v-else-if="activeTab === 'pending'" class="w-full text-sm">
-        <thead>
-          <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="w-10 px-3 py-3">
-              <input
-                type="checkbox"
-                class="align-middle reset-base"
-                :checked="allPendingSelected"
-                :disabled="!pendingOrders.length"
-                @change="toggleSelectAll"
-              />
-            </th>
-            <th class="px-3 py-3 font-medium">订单号</th>
-            <th class="px-3 py-3 font-medium">客户</th>
-            <th class="px-3 py-3 font-medium">业务员</th>
-            <th class="px-3 py-3 font-medium">下单日期</th>
-            <th class="px-3 py-3 font-medium text-right">订单金额</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="order in pendingOrders"
-            :key="order.id"
-            class="border-b border-n-weak hover:bg-n-alpha-1"
-          >
-            <td class="px-3 py-3">
-              <input
-                type="checkbox"
-                class="align-middle reset-base"
-                :checked="selectedOrderIds.includes(order.id)"
-                @change="toggleOrder(order.id)"
-              />
-            </td>
-            <td class="px-3 py-3">
-              <button
-                type="button"
-                class="underline reset-base text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
-                @click="openOrderDetail(order.id)"
-              >
-                {{ order.order_no }}
-              </button>
-            </td>
-            <td class="px-3 py-3">{{ order.customer_name || '—' }}</td>
-            <td class="px-3 py-3">{{ order.owner_name || '—' }}</td>
-            <td class="px-3 py-3">
-              {{ (order.order_date || '—').slice(0, 10) }}
-            </td>
-            <td class="px-3 py-3 text-right text-n-slate-12">
-              {{ order.currency || 'CNY' }}
-              {{ money(order.amount_micros) }}
-            </td>
-            <td class="px-3 py-3 text-n-slate-11">
-              {{ SO_STATUS_LABELS[order.status] || order.status }}
-            </td>
-          </tr>
-          <tr v-if="!pendingOrders.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
-              没有待建账的订单，已确认的销售订单都建过应收了。
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <template v-else-if="activeTab === 'pending'">
+        <div
+          v-if="!fiscalStartDate"
+          class="px-3 py-2 mb-3 text-xs border rounded-lg text-n-amber-11 border-n-amber-6 bg-n-amber-2"
+        >
+          还没设会计启用日，这里列的是**全部**已确认订单，包含上线时迁进来的历史单——
+          那些钱早收完了，批量建账会建出一堆假应收。请先到「财务管理 →
+          财务设置」设好启用日。
+        </div>
+        <div v-else class="px-3 mb-3 text-xs text-n-slate-10">
+          会计启用日 {{ fiscalStartDate }}，日切之前的
+          {{ beforeFiscalCount }} 张历史单不在此列（其余额走期初建账）。
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left border-b text-n-slate-11 border-n-weak">
+              <th class="w-10 px-3 py-3">
+                <input
+                  type="checkbox"
+                  class="align-middle reset-base"
+                  :checked="allPendingSelected"
+                  :disabled="!pendingOrders.length"
+                  @change="toggleSelectAll"
+                />
+              </th>
+              <th class="px-3 py-3 font-medium">订单号</th>
+              <th class="px-3 py-3 font-medium">客户</th>
+              <th class="px-3 py-3 font-medium">业务员</th>
+              <th class="px-3 py-3 font-medium">下单日期</th>
+              <th class="px-3 py-3 font-medium text-right">订单金额</th>
+              <th class="px-3 py-3 font-medium text-right">建账金额</th>
+              <th class="px-3 py-3 font-medium">状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="order in pendingOrders"
+              :key="order.id"
+              class="border-b border-n-weak hover:bg-n-alpha-1"
+            >
+              <td class="px-3 py-3">
+                <input
+                  type="checkbox"
+                  class="align-middle reset-base"
+                  :checked="selectedOrderIds.includes(order.id)"
+                  @change="toggleOrder(order.id)"
+                />
+              </td>
+              <td class="px-3 py-3">
+                <button
+                  type="button"
+                  class="underline reset-base text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
+                  @click="openOrderDetail(order.id)"
+                >
+                  {{ order.order_no }}
+                </button>
+              </td>
+              <td class="px-3 py-3">{{ order.customer_name || '—' }}</td>
+              <td class="px-3 py-3">{{ order.owner_name || '—' }}</td>
+              <td class="px-3 py-3">
+                {{ (order.order_date || '—').slice(0, 10) }}
+              </td>
+              <td class="px-3 py-3 text-right text-n-slate-12">
+                {{ order.currency || 'CNY' }}
+                {{ money(order.amount_micros) }}
+              </td>
+              <!-- 建账金额 = 收入 + 销项税（客户实付）。不含税单比订单金额多一个税，
+                 摆出来免得财务以为系统把金额算错了。 -->
+              <td class="px-3 py-3 text-right text-n-slate-12">
+                {{ money(order.receivable_amount_micros) }}
+                <span
+                  v-if="order.receivable_amount_micros !== order.amount_micros"
+                  class="block text-xs text-n-slate-10"
+                >
+                  含 {{ order.tax_rate }}% 销项税
+                </span>
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ SO_STATUS_LABELS[order.status] || order.status }}
+              </td>
+            </tr>
+            <tr v-if="!pendingOrders.length">
+              <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+                没有待建账的订单，已确认的销售订单都建过应收了。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
 
       <!-- 账龄分析 -->
       <ErpAgingTable

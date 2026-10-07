@@ -7,6 +7,7 @@
 #  amount_includes_tax     :boolean          default(TRUE), not null
 #  bad_debt_rates          :jsonb            not null
 #  default_output_tax_rate :integer          default(13), not null
+#  fiscal_start_date       :date
 #  inventory_account_map   :jsonb            not null
 #  receivables_enabled     :boolean          default(FALSE), not null
 #  created_at              :datetime         not null
@@ -27,6 +28,8 @@ class Erp::Setting < ApplicationRecord
   belongs_to :account
 
   validates :account_id, uniqueness: true
+  # 税率是每张收入凭证的拆分依据，错一次全账跟着错；接口直调绕过界面时这里兜住。
+  validate :output_tax_rate_in_range
 
   def self.for_account(account)
     find_by(account_id: account.id) || new(account: account)
@@ -37,6 +40,12 @@ class Erp::Setting < ApplicationRecord
   # 正式切过来那天把 erp_settings.receivables_enabled 置 true 即可，不用改代码。
   def self.receivables_enabled?(account)
     for_account(account).receivables_enabled
+  end
+
+  def output_tax_rate_in_range
+    return if default_output_tax_rate.to_i.between?(0, 100)
+
+    errors.add(:base, '销项税率必须是 0 到 100 之间的整数')
   end
 
   def bad_debt_rate_table

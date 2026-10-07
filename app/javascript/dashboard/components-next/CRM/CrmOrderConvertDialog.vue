@@ -96,6 +96,9 @@ const open = async record => {
       ? { id: li.crm_product_id, name: li.product_name, sku: li.product_sku }
       : null;
     rows.push({
+      // row = 明细行号（1 起），提交时回传：后端据此把选中的产品写回销售订单明细，
+      // 并记进别名记忆，下次同样的客户叫法自动命中，不用再搜一遍产品档案。
+      row: li.row,
       name: li.name || '',
       qty: li.quantity ?? '',
       unit: li.unit || '',
@@ -139,6 +142,7 @@ const submitCustom = async () => {
       crm_product_id: r.productId,
       qty: r.qty,
       unit: r.unit || undefined,
+      row: r.row,
     })),
   });
   const nos = (data.order_nos || []).join('、');
@@ -155,6 +159,7 @@ const submitStock = async () => {
       crm_product_id: r.productId,
       qty: r.qty,
       unit: r.unit || undefined,
+      row: r.row,
     })),
   });
   return `已生成出库单 ${data.shipment_no || ''}，等待主管审核`.trim();

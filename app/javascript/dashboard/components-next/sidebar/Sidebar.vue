@@ -1273,6 +1273,7 @@ const menuItems = computed(() => {
           'erp_margin_index',
           'erp_expenses_index',
           'erp_notifications_index',
+          'erp_settings_index',
         ],
         children: [
           {
@@ -1352,6 +1353,12 @@ const menuItems = computed(() => {
             label: '财务通知',
             to: accountScopedRoute('erp_notifications_index'),
             activeOn: ['erp_notifications_index'],
+          },
+          {
+            name: 'ERP Settings',
+            label: '财务设置',
+            to: accountScopedRoute('erp_settings_index'),
+            activeOn: ['erp_settings_index'],
           },
         ],
       },
@@ -2140,6 +2147,7 @@ const ROUTE_MODULE = {
   erp_fixed_assets_index: 'erp',
   erp_margin_index: 'erp',
   erp_expenses_index: 'erp',
+  erp_settings_index: 'erp',
   tiktok_today_index: 'tiktok',
   tiktok_dashboard_index: 'tiktok',
   tiktok_sales_records_index: 'tiktok',

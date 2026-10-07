@@ -10,8 +10,11 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   # 列表分片 _mes_production_order 逐行解引用的关联，一次预加载掉。
   LIST_EAGER_LOADS = [
-    :owner, :outsource_supplier, :bom, :bom_confirmed_by, :gm, :stage_ack_by,
-    :crm_customer, :crm_product, :crm_sales_order, :stage_events, :purchase_orders,
+    :owner, :outsource_supplier, :bom_confirmed_by, :gm, :stage_ack_by,
+    # manager（审批人名）与 bom.bom_revisions（BOM 变更记录）分片里逐行要，
+    # 漏了就是一页一百行各查一次库。
+    :manager, :crm_customer, :crm_product, :crm_sales_order, :stage_events, :purchase_orders,
+    { bom: :bom_revisions },
     { images_attachments: :blob, files_attachments: :blob }
   ].freeze
 
@@ -25,6 +28,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @production_orders_count = scope.count
     # 列表分片逐行取这些关联，不预加载就是每行一次查库（dev 的 Bullet 直接抛异常打断页面）。
     @production_orders = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
+    # 已完工入库量整批查一次；逐行算就是一页几百条 SQL（成品入库页一次拉 500 张订单）。
+    @fg_inbound_qty_by_order = Mes::ProductionOrder.bulk_fg_inbound_qty(Current.account, @production_orders.map(&:id))
   end
 
   def show; end
@@ -81,6 +86,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     end
 
     orders = ActiveRecord::Base.transaction { pending.map { |row| save_converted_order(sales_order, row) } }
+    # 人工点中的产品落回明细 + 别名记忆，下次不用再点（放事务外：记忆失败不该回滚已建的单）。
+    Crm::ConvertChoiceRecorder.new(sales_order).call(rows)
     render json: { order_nos: orders.map(&:order_no), skipped: rows.size - pending.size }
   rescue StandardError => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -325,15 +332,17 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 转单明细：新版前端传 items 数组（每行一个成品）。
   # 旧版单行参数（crm_product_id/qty/unit）继续认，避免老页面缓存着就转不了单。
   def convert_rows
-    raw = params[:items].presence || [params.permit(:crm_product_id, :qty, :unit, :product_name, :delivery_date, :owner_id)]
+    permitted = %i[crm_product_id qty unit product_name delivery_date owner_id row]
+    raw = params[:items].presence || [params.permit(*permitted)]
     Array(raw).filter_map do |item|
-      row = item.respond_to?(:permit) ? item.permit(:crm_product_id, :qty, :unit, :product_name, :delivery_date, :owner_id) : item
+      row = item.respond_to?(:permit) ? item.permit(*permitted) : item
       product_id = row[:crm_product_id].presence&.to_i
       next if product_id.blank? || row[:qty].to_d <= 0
 
+      # row = 明细行号（1 起），转单后按它把产品关联写回销售订单明细。
       { crm_product_id: product_id, qty: row[:qty], unit: row[:unit].presence,
         product_name: row[:product_name].presence, delivery_date: row[:delivery_date].presence,
-        owner_id: row[:owner_id].presence }
+        owner_id: row[:owner_id].presence, row: row[:row].presence }
     end
   end
 

@@ -14,10 +14,10 @@ RSpec.describe 'MES 岗位显示', type: :request do
   let(:nobody) { create(:user, account: account, name: '路人') }
 
   before do
-    engineer.account_users.first.update!(mes_role: 'engineer')
-    buyer.account_users.first.update!(mes_role: 'buyer')
+    engineer.account_users.first.update!(mes_roles: %w[engineer])
+    buyer.account_users.first.update!(mes_roles: %w[buyer])
     both.account_users.first.update!(mes_roles: %w[pmc buyer])
-    nobody.account_users.first.update!(mes_role: nil, mes_roles: [])
+    nobody.account_users.first.update!(mes_roles: [])
   end
 
   def auth

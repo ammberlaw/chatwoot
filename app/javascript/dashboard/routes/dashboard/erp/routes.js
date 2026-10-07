@@ -15,6 +15,7 @@ import ErpPeriodsIndex from './pages/ErpPeriodsIndex.vue';
 import ErpFixedAssetsIndex from './pages/ErpFixedAssetsIndex.vue';
 import ErpMarginIndex from './pages/ErpMarginIndex.vue';
 import ErpExpensesIndex from './pages/ErpExpensesIndex.vue';
+import ErpSettingsIndex from './pages/ErpSettingsIndex.vue';
 
 // ERP（财务管理）板块：与 CRM 同账号同登录；页面级前端只做展示，
 // 数据权限后端把关（Erp::BaseController 403，仅管理员/副管理员/财务）。
@@ -53,4 +54,5 @@ export const routes = [
   erpPage('fixed-assets', 'erp_fixed_assets_index', ErpFixedAssetsIndex),
   erpPage('margin', 'erp_margin_index', ErpMarginIndex),
   erpPage('expenses', 'erp_expenses_index', ErpExpensesIndex),
+  erpPage('settings', 'erp_settings_index', ErpSettingsIndex),
 ];
