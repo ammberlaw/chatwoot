@@ -172,6 +172,8 @@ class Mes::StockEntry < ApplicationRecord
     end
     # 采购入库/退货出应付凭证（借 存货科目 / 贷 应付账款，退货红字）。放事务外同出库单。
     generate_erp_receipt_voucher
+    # 同一时点同步应付台账（按实收数量）：凭证进总账、台账进业务账，两边都要有。
+    sync_erp_payable
     self
   end
 
@@ -186,6 +188,23 @@ class Mes::StockEntry < ApplicationRecord
     Erp::AutoVoucherService.new(account).for_stock_receipt(self)
   rescue StandardError => e
     Rails.logger.error("[Erp::AutoVoucher] 出入库单 #{entry_no} 生成凭证失败: #{e.message}")
+  end
+
+  # 收货即欠款：采购入库过账后把该采购单的应付台账按**实收数量**重算
+  # （见 Erp::LedgerBuilderService#sync_from_purchase_receipt）。
+  # 原先应付只能在 ERP 侧手工「从采购单建账」，收了货不建就没人知道欠了多少。
+  # 失败不回滚入库——货已经进仓是既成事实；原因带回给控制器提示，不静默。
+  attr_reader :erp_payable_warning
+
+  def sync_erp_payable
+    return unless purpose == 'MATERIAL_RECEIPT' && purchase_order_id.present?
+
+    builder = Erp::LedgerBuilderService.new(account)
+    builder.sync_from_purchase_receipt(purchase_order)
+    @erp_payable_warning = builder.payable_warning
+  rescue StandardError => e
+    Rails.logger.error("[Erp::Payable] 入库单 #{entry_no} 同步应付台账失败: #{e.message}")
+    @erp_payable_warning = "入库已过账，但应付台账没同步：#{e.message.delete_prefix('Validation failed: ')}"
   end
 
   # 作废（冲销）：把过账时扣/加的库存按反方向冲回、记反向流水，已过账才可作废；

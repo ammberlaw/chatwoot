@@ -44,6 +44,17 @@ class Erp::Receivable < ApplicationRecord
   belongs_to :crm_sales_order, class_name: 'Crm::SalesOrder', optional: true
   belongs_to :crm_customer, class_name: 'Crm::Customer'
   belongs_to :owner, class_name: 'User', optional: true
+
+  # 对应的收入凭证：建账时出的挂在本台账上，走 MES 出库的挂在出库单上——两条路取其一。
+  def revenue_voucher
+    own = account.erp_vouchers.find_by(source_type: self.class.name, source_id: id)
+    return own if own || crm_sales_order_id.blank?
+
+    shipment_ids = account.mes_shipments.where(crm_sales_order_id: crm_sales_order_id).pluck(:id)
+    return nil if shipment_ids.empty?
+
+    account.erp_vouchers.find_by(source_type: 'Mes::Shipment', source_id: shipment_ids)
+  end
   has_many :installments, -> { order(:seq, :id) }, class_name: 'Erp::ReceivableInstallment',
                                                    foreign_key: :receivable_id, dependent: :destroy, inverse_of: :receivable
   has_many :allocations, class_name: 'Erp::ReceiptAllocation',

@@ -84,12 +84,14 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     builder = Erp::LedgerBuilderService.new(Current.account)
     built = []
     failed = []
+    warnings = []
     orders.each do |order|
       built << builder.from_sales_order(order)
+      warnings << builder.voucher_warning if builder.voucher_warning
     rescue Erp::LedgerBuilderService::Error, ActiveRecord::RecordInvalid => e
       failed << { order_no: order.order_no, error: e.message }
     end
-    render json: { payload: { built_count: built.size, failed: failed } }
+    render json: { payload: { built_count: built.size, failed: failed, voucher_warnings: warnings } }
   end
 
   # 账龄分析：basis=due 逾期账龄 / basis=invoice 账龄（按建账日）。
@@ -104,6 +106,7 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
                     .find(params[:crm_sales_order_id])
     @trace = Crm::SalesOrderTraceService.new(account: Current.account, sales_order: @order).call
     @order_receivable = Current.account.erp_receivables.find_by(crm_sales_order_id: @order.id)
+    @line_items_with_sku = line_items_with_sku(@order)
     render 'api/v1/accounts/erp/receivables/order_detail'
   end
 
@@ -113,6 +116,14 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   end
 
   private
+
+  # 明细里只有 crm_product_id，编码要去产品档案取（一张单的几行，一次查完）。
+  def line_items_with_sku(order)
+    items = Array(order.line_items)
+    ids = items.filter_map { |item| item['crm_product_id'].presence if item.is_a?(Hash) }
+    skus = ids.empty? ? {} : Current.account.crm_products.where(id: ids).pluck(:id, :sku).to_h
+    items.map { |item| item.is_a?(Hash) ? item.merge('sku' => skus[item['crm_product_id'].presence&.to_i]) : item }
+  end
 
   def allocated_change_error
     incoming = receivable_params
@@ -160,7 +171,10 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
 
   def build_from_order
     order = Current.account.crm_sales_orders.find(params[:crm_sales_order_id])
-    Erp::LedgerBuilderService.new(Current.account).from_sales_order(order, installments: installment_specs)
+    builder = Erp::LedgerBuilderService.new(Current.account)
+    receivable = builder.from_sales_order(order, installments: installment_specs)
+    @voucher_warning = builder.voucher_warning
+    receivable
   end
 
   def installment_specs

@@ -4,6 +4,18 @@ json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.crm_sales_order_id resource.crm_sales_order_id
 json.order_no resource.crm_sales_order&.order_no
+# 台账要能独立对账：PI 号是财务认的号，型号/日期/订单状态决定这笔钱该不该催、催谁。
+# 没有这几列就只能逐条点进订单详情看，一张张对。
+json.pi_no resource.crm_sales_order&.pi_no
+json.order_status resource.crm_sales_order&.status
+json.order_date resource.crm_sales_order&.order_date
+json.delivery_date resource.crm_sales_order&.delivery_date
+# 型号：列表只摆第一项 + 共几项，全部明细放 product_names 给悬浮用。
+json.product_summary resource.crm_sales_order&.product_summary
+json.product_names resource.crm_sales_order&.product_names
+# 这笔应收在总账里有没有对应的收入凭证：建账时出的（Erp::Receivable）或出库时出的（Mes::Shipment）。
+# 台账上看不出有没有入账，就只能去凭证列表逐条翻。
+json.revenue_voucher_no resource.revenue_voucher&.voucher_no
 json.currency resource.currency
 json.exchange_rate resource.exchange_rate
 json.total_amount_micros resource.total_amount_micros

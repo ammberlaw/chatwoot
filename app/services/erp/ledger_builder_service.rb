@@ -5,8 +5,17 @@
 class Erp::LedgerBuilderService
   class Error < StandardError; end
 
+  # 建账成功、但收入凭证没出来的原因（期间已结账、科目没配…）。
+  # 凭证失败不回滚建账，但**必须让人看见**——静默失败就是「建完了却没凭证，没人知道为什么」。
+  attr_reader :voucher_warning
+
+  # 应付按实收重算时的异常（重算后低于已付等）。同样不能静默。
+  attr_reader :payable_warning
+
   def initialize(account)
     @account = account
+    @voucher_warning = nil
+    @payable_warning = nil
   end
 
   def from_sales_order(order, installments: [])
@@ -25,6 +34,10 @@ class Erp::LedgerBuilderService
       remark: "由销售订单 #{order.order_no} 建账"
     )
     build_installments(receivable, installments, order)
+    # 已出货/已完结的订单建账即出收入凭证。没走 MES 出库的历史订单（小满迁入的、
+    # 系统外发货的）等不到出库那个触发点，不在这里补就只有台账没有总账，两账对不平。
+    # 待出货的订单不出（见 AutoVoucherService#receivable_revenue_bookable?）。
+    generate_revenue_voucher(receivable)
     receivable
   end
 
@@ -49,6 +62,21 @@ class Erp::LedgerBuilderService
     end
   end
 
+  # 采购入库过账后同步应付台账：按**实收数量**重算，不是按订单数量——订 100 收 60 就只欠 60。
+  # 分批收货就分批长（每次过账重算同一条台账），重复过账、补收货都不会翻倍建账。
+  # 已付金额不会被下调：把总额改到低于已付，未付额变负、状态误判成已付清，与核销脱节。
+  def sync_from_purchase_receipt(purchase_order)
+    grouped = purchase_order.purchase_items.group_by(&:mes_supplier_id)
+    grouped.filter_map do |supplier_id, items|
+      next if supplier_id.blank?
+
+      amount = received_amount(supplier_id, items)
+      next if amount <= 0
+
+      upsert_payable(purchase_order, supplier_id, amount)
+    end
+  end
+
   # 金额优先取采购明细上的行金额；行上没有金额（MES 侧未填价）就按供应商报价单算：
   # Σ(数量 × SupplierItem 未税单价) × (1 + 供应商税率)，与 ERP_SPEC §3.1 口径一致。
   def supplier_amount(supplier_id, items)
@@ -69,6 +97,58 @@ class Erp::LedgerBuilderService
   end
 
   private
+
+  # 实收金额：行上有金额的按「实收/订购」等比折算，没金额的按供应商报价 × 实收 × (1+税率)。
+  def received_amount(supplier_id, items)
+    supplier = @account.mes_suppliers.find_by(id: supplier_id)
+    items.sum { |item| received_line_amount(supplier, item) }
+  end
+
+  def received_line_amount(supplier, item)
+    received = item.received_qty.to_d
+    return 0 if received <= 0
+
+    priced = item.amount_micros.to_i.positive? && item.qty.to_d.positive?
+    return (item.amount_micros.to_d * received / item.qty.to_d).round if priced
+    return 0 if supplier.blank?
+
+    (received * unit_price_for(supplier, item) * (1 + (supplier.tax_rate.to_d / 100)) * 1_000_000).round
+  end
+
+  def upsert_payable(purchase_order, supplier_id, amount)
+    payable = @account.erp_payables.find_by(mes_purchase_order_id: purchase_order.id, mes_supplier_id: supplier_id)
+    return create_receipt_payable(purchase_order, supplier_id, amount) if payable.nil?
+
+    if amount < payable.paid_amount_micros.to_i
+      @payable_warning = "应付 #{payable.payable_no} 按实收重算为 #{fmt(amount)}，低于已付 #{fmt(payable.paid_amount_micros)}，" \
+                         '未改动——请先核对收货数量或撤销相关付款核销'
+      return payable
+    end
+
+    payable.update!(total_amount_micros: amount)
+    payable.update!(status: payable.derived_status)
+    payable
+  end
+
+  def create_receipt_payable(purchase_order, supplier_id, amount)
+    @account.erp_payables.create!(
+      mes_purchase_order_id: purchase_order.id,
+      mes_supplier_id: supplier_id,
+      total_amount_micros: amount,
+      remark: "由采购单 #{purchase_order.po_no} 入库建账"
+    )
+  end
+
+  def fmt(micros) = format('%.2f', micros.to_i / 1_000_000.0)
+
+  # 凭证失败不该让建账整个回滚——台账是业务账、先落住。但原因要带回给调用方显示，
+  # 只写日志等于让财务对着一条没凭证的台账猜。
+  def generate_revenue_voucher(receivable)
+    Erp::AutoVoucherService.new(@account).for_receivable_revenue(receivable)
+  rescue StandardError => e
+    Rails.logger.error("[Erp::AutoVoucher] 应收 #{receivable.receivable_no} 生成收入凭证失败: #{e.message}")
+    @voucher_warning = "台账 #{receivable.receivable_no} 已建，但收入凭证没生成：#{e.message.delete_prefix('Validation failed: ')}"
+  end
 
   # 没给分期就整单一期尾款；给了就按 [{kind:, amount_micros:, due_basis:, due_days:, due_date:}] 建。
   def build_installments(receivable, specs, order)

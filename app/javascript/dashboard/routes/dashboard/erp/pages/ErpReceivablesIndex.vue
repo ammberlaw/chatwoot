@@ -224,11 +224,17 @@ const bulkBuild = async () => {
   buildingBatch.value = true;
   try {
     const { data } = await ErpReceivableAPI.bulkBuild(selectedOrderIds.value);
-    const { built_count: built = 0, failed = [] } = data.payload || {};
+    const {
+      built_count: built = 0,
+      failed = [],
+      voucher_warnings: vw = [],
+    } = data.payload || {};
     const failedNote = failed.length
       ? `，${failed.length} 张失败（${failed[0].order_no}：${failed[0].error}）`
       : '';
     useAlert(`已建账 ${built} 张${failedNote}`);
+    // 凭证没出来要单独说——建账成功的提示会把它盖过去，财务就以为账已经入了。
+    if (vw.length) useAlert(`${vw.length} 张没出收入凭证：${vw[0]}`);
     await loadPendingOrders();
   } catch (error) {
     useAlert(error?.response?.data?.error || '批量建账失败');
@@ -311,6 +317,7 @@ const submitBuild = async () => {
         })),
     });
     useAlert(`已建账 ${data.receivable_no}`);
+    if (data.voucher_warning) useAlert(data.voucher_warning);
     ledgerDialogRef.value?.close();
     loadLedgers();
     loadPendingOrders({ silent: true }); // 建完这单待建账角标要跟着掉
@@ -574,12 +581,23 @@ onMounted(() => {
       </div>
 
       <!-- 应收台账 -->
-      <table v-else-if="activeTab === 'ledger'" class="w-full text-sm">
+      <!-- 列多了给表自己一条横向滚动，别让整页横着滚。 -->
+      <table
+        v-else-if="activeTab === 'ledger'"
+        class="w-full text-sm min-w-[88rem]"
+      >
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">台账单号</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">台账单号</th>
             <th class="px-3 py-3 font-medium">客户 / 订单</th>
-            <th class="px-3 py-3 font-medium text-right">应收</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">PI 号</th>
+            <th class="px-3 py-3 font-medium">型号</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">下单 / 交期</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">订单状态</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">收入凭证</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              应收
+            </th>
             <th class="px-3 py-3 font-medium text-right">已收</th>
             <th class="px-3 py-3 font-medium text-right">未收</th>
             <th class="px-3 py-3 font-medium">分期计划</th>
@@ -595,7 +613,7 @@ onMounted(() => {
             <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
               {{ row.receivable_no }}
             </td>
-            <td class="px-3 py-2 text-n-slate-12">
+            <td class="px-3 py-2 whitespace-nowrap text-n-slate-12">
               {{ row.customer_name }}
               <button
                 v-if="row.order_no"
@@ -606,7 +624,43 @@ onMounted(() => {
                 · {{ row.order_no }}
               </button>
             </td>
-            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+            <td
+              class="px-3 py-2 font-mono text-xs whitespace-nowrap text-n-slate-11"
+            >
+              {{ row.pi_no || '—' }}
+            </td>
+            <!-- 型号只摆第一项 + 共几项；全部走 title 悬浮，免得一行货把整表撑开。 -->
+            <td
+              class="px-3 py-2 text-n-slate-11 max-w-[14rem] truncate"
+              :title="(row.product_names || []).join('\n') || ''"
+            >
+              {{ row.product_summary || '—' }}
+            </td>
+            <!-- 两个日期都没有就只出一个「—」，别渲染成「—／交 —」两行占着位置。 -->
+            <td class="px-3 py-2 text-xs whitespace-nowrap text-n-slate-11">
+              <template v-if="row.order_date || row.delivery_date">
+                {{ (row.order_date || '').slice(0, 10) || '—' }}
+                <span class="block text-n-slate-10">
+                  交 {{ (row.delivery_date || '').slice(0, 10) || '—' }}
+                </span>
+              </template>
+              <span v-else>—</span>
+            </td>
+            <td class="px-3 py-2 text-xs whitespace-nowrap text-n-slate-11">
+              {{
+                SO_STATUS_LABELS[row.order_status] || row.order_status || '—'
+              }}
+            </td>
+            <!-- 有没有入总账一眼可见；没有的标红，不用去凭证列表逐条翻。 -->
+            <td class="px-3 py-2 font-mono text-xs whitespace-nowrap">
+              <span v-if="row.revenue_voucher_no" class="text-n-slate-11">
+                {{ row.revenue_voucher_no }}
+              </span>
+              <span v-else class="text-n-ruby-11">未入账</span>
+            </td>
+            <td
+              class="px-3 py-2 font-mono text-right whitespace-nowrap text-n-slate-12"
+            >
               {{ row.currency }} {{ money(row.total_amount_micros) }}
             </td>
             <td class="px-3 py-2 font-mono text-right text-n-slate-11">
@@ -640,7 +694,7 @@ onMounted(() => {
             </td>
           </tr>
           <tr v-if="!ledgers.length">
-            <td colspan="7" class="px-3 py-10 text-center text-n-slate-11">
+            <td colspan="12" class="px-3 py-10 text-center text-n-slate-11">
               还没有应收台账。点右上角「从销售订单建账」把订单转成应收。
             </td>
           </tr>
@@ -661,7 +715,8 @@ onMounted(() => {
           会计启用日 {{ fiscalStartDate }}，日切之前的
           {{ beforeFiscalCount }} 张历史单不在此列（其余额走期初建账）。
         </div>
-        <table class="w-full text-sm">
+        <!-- 12 列了，给表自己一条横向滚动，别让整页横着滚。 -->
+        <table class="w-full text-sm min-w-[96rem]">
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
               <th class="w-10 px-3 py-3">
@@ -673,10 +728,12 @@ onMounted(() => {
                   @change="toggleSelectAll"
                 />
               </th>
-              <th class="px-3 py-3 font-medium">订单号</th>
-              <th class="px-3 py-3 font-medium">客户</th>
-              <th class="px-3 py-3 font-medium">业务员</th>
-              <th class="px-3 py-3 font-medium">下单日期</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">订单号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">PI 号</th>
+              <th class="px-3 py-3 font-medium">客户 / 国家</th>
+              <th class="px-3 py-3 font-medium">型号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">业务员</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">下单日期</th>
               <th class="px-3 py-3 font-medium text-right">订单金额</th>
               <th class="px-3 py-3 font-medium text-right">建账金额</th>
               <th class="px-3 py-3 font-medium">状态</th>
@@ -697,7 +754,7 @@ onMounted(() => {
                   @change="toggleOrder(order.id)"
                 />
               </td>
-              <td class="px-3 py-3">
+              <td class="px-3 py-3 whitespace-nowrap">
                 <button
                   type="button"
                   class="underline reset-base text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
@@ -706,18 +763,44 @@ onMounted(() => {
                   {{ order.order_no }}
                 </button>
               </td>
-              <td class="px-3 py-3">{{ order.customer_name || '—' }}</td>
-              <td class="px-3 py-3">{{ order.owner_name || '—' }}</td>
-              <td class="px-3 py-3">
+              <td
+                class="px-3 py-3 font-mono text-xs whitespace-nowrap text-n-slate-11"
+              >
+                {{ order.pi_no || '—' }}
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-12">
+                {{ order.customer_name || '—' }}
+                <span
+                  v-if="order.customer_country"
+                  class="block text-xs text-n-slate-10"
+                >
+                  {{ order.customer_country }}
+                </span>
+              </td>
+              <!-- 型号只摆第一项 + 共几项；全部走 title 悬浮，免得一行货把表撑开。 -->
+              <td
+                class="px-3 py-3 text-n-slate-11 max-w-[14rem] truncate"
+                :title="(order.product_names || []).join('\n') || ''"
+              >
+                {{ order.product_summary || '—' }}
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap">
+                {{ order.owner_name || '—' }}
+              </td>
+              <td class="px-3 py-3 whitespace-nowrap">
                 {{ (order.order_date || '—').slice(0, 10) }}
               </td>
-              <td class="px-3 py-3 text-right text-n-slate-12">
+              <td
+                class="px-3 py-3 text-right whitespace-nowrap text-n-slate-12"
+              >
                 {{ order.currency || 'CNY' }}
                 {{ money(order.amount_micros) }}
               </td>
               <!-- 建账金额 = 收入 + 销项税（客户实付）。不含税单比订单金额多一个税，
                  摆出来免得财务以为系统把金额算错了。 -->
-              <td class="px-3 py-3 text-right text-n-slate-12">
+              <td
+                class="px-3 py-3 text-right whitespace-nowrap text-n-slate-12"
+              >
                 {{ money(order.receivable_amount_micros) }}
                 <span
                   v-if="order.receivable_amount_micros !== order.amount_micros"
@@ -726,7 +809,7 @@ onMounted(() => {
                   含 {{ order.tax_rate }}% 销项税
                 </span>
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
+              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
                 {{ SO_STATUS_LABELS[order.status] || order.status }}
               </td>
               <td class="px-3 py-3 text-right">
@@ -741,7 +824,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!pendingOrders.length">
-              <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
+              <td colspan="12" class="px-3 py-10 text-center text-n-slate-11">
                 没有待建账的订单，已确认的销售订单都建过应收了。
               </td>
             </tr>
@@ -1154,6 +1237,7 @@ onMounted(() => {
                 <tr
                   class="text-left border-b text-n-slate-11 border-n-weak whitespace-nowrap"
                 >
+                  <th class="px-2 py-2 font-medium">编码</th>
                   <th class="px-2 py-2 font-medium">品名</th>
                   <th class="px-2 py-2 font-medium">规格</th>
                   <th class="px-2 py-2 font-medium text-right">数量</th>
@@ -1167,6 +1251,11 @@ onMounted(() => {
                   :key="`li-${i}`"
                   class="border-b border-n-weak align-top"
                 >
+                  <td
+                    class="px-2 py-2 font-mono text-xs whitespace-nowrap text-n-slate-11"
+                  >
+                    {{ item.sku || '—' }}
+                  </td>
                   <td class="px-2 py-2 text-n-slate-12">{{ item.name }}</td>
                   <td
                     class="px-2 py-2 text-xs text-n-slate-11 max-w-md whitespace-pre-wrap"
@@ -1184,7 +1273,7 @@ onMounted(() => {
                   </td>
                 </tr>
                 <tr v-if="!(orderDetail.line_items || []).length">
-                  <td colspan="5" class="px-2 py-6 text-center text-n-slate-11">
+                  <td colspan="6" class="px-2 py-6 text-center text-n-slate-11">
                     这张订单没有录明细行。
                   </td>
                 </tr>

@@ -122,12 +122,17 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     order = entry.production_order
     return if order.nil?
 
-    # 完工入库明细均为成品，缺编码的按订单成品名兜底建/关联。
+    # 完工入库明细均为成品，缺编码的按订单成品名**关联**已有档案——绝不自动建档。
     items = entry.stock_entry_items.select { |i| i.crm_product_id.blank? }
     return if items.empty?
 
-    pid = order.ensure_crm_product!
-    items.each { |i| i.crm_product_id = pid } if pid.present?
+    pid = order.link_crm_product_by_name!
+    if pid.blank?
+      raise StandardError, "生产订单 #{order.order_no} 没有关联产品档案（成品「#{order.product_name}」在档案里找不到同名项），" \
+                           '请先到生产订单上选好成品编码再开成品入库单'
+    end
+
+    items.each { |i| i.crm_product_id = pid }
   end
 
   def stock_entry_params

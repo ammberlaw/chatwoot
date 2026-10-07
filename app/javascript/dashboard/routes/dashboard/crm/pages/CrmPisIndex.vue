@@ -246,9 +246,12 @@ const openEdit = record => formRef.value?.open(record);
 // 查看：按导出的 PI 样式只读预览（财务只读账号也能看）；预览里点「编辑」再切到编辑弹窗。
 const previewRef = ref(null);
 const openPreview = record => previewRef.value?.open(record.id);
+// 直接用预览已经取回的单据开编辑弹窗。
+// 原先是去 records（当前这页列表）里找，翻到第二页、或筛选后那条不在本页，
+// 就 find 不到 → if 不成立 → 点「编辑」什么都不发生，也不报错。
+// preview 接口 render 的就是 _crm_pi，字段与编辑弹窗要的完全一致，不必绕列表。
 const editFromPreview = doc => {
-  const record = records.value.find(r => r.id === doc?.id);
-  if (record) openEdit(record);
+  if (doc?.id) openEdit(doc);
 };
 
 const openSellerProfile = () => sellerProfileRef.value?.open();

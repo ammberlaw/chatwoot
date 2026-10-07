@@ -42,7 +42,8 @@ const groupLabels = reactive(
 const members = ref([]);
 const fetchMembers = async () => {
   try {
-    const { data } = await CrmMemberAPI.get();
+    // 只取在职成员：离职停用的人不该再出现在选人下拉里（后端按 deactivated_at 过滤）。
+    const { data } = await CrmMemberAPI.get({ active: true });
     members.value = data.payload || [];
   } catch {
     members.value = [];

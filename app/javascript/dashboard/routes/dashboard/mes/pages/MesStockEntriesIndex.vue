@@ -292,7 +292,10 @@ const submit = async () => {
 
 const postEntry = async entry => {
   const ok = await store.post(entry.id);
-  if (ok) useAlert(`${ok.entryNo} 已过账，库存已更新`);
+  if (!ok) return;
+  useAlert(`${ok.entryNo} 已过账，库存已更新`);
+  // 应付没同步要单独说——只看到「已过账」，财务那边却少一笔欠款。
+  if (ok.erpPayableWarning) useAlert(ok.erpPayableWarning);
 };
 
 // 删单：草稿直接删；已过账走「作废」冲销（退回库存，保留单据可追溯）。

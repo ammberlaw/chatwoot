@@ -19,7 +19,10 @@ ENV RAILS_SERVE_STATIC_FILES ${RAILS_SERVE_STATIC_FILES}
 ARG RAILS_ENV=production
 ENV RAILS_ENV ${RAILS_ENV}
 
-ARG NODE_OPTIONS="--max-old-space-size=4096 --openssl-legacy-provider"
+# 4096 已经不够：dashboard 体量长上来后 Vite 打包会顶破 V8 堆
+# （"Ineffective mark-compacts near heap limit"，构建直接失败）。
+# 机器有 6G swap、内存不是瓶颈，瓶颈是 Node 自己的上限，所以只抬这个数。
+ARG NODE_OPTIONS="--max-old-space-size=6144 --openssl-legacy-provider"
 ENV NODE_OPTIONS ${NODE_OPTIONS}
 
 ENV BUNDLE_PATH="/gems"
@@ -89,7 +92,10 @@ RUN if [ "$RAILS_ENV" = "production" ]; then \
   fi
 
 # Generate .git_sha file with current commit hash
-RUN git rev-parse HEAD > /app/.git_sha
+# 生产的构建源（~/wintouch-crm）是 rsync 出来的普通目录、不是 git 仓库，
+# git rev-parse 会以 128 退出把整个构建带挂（平时吃缓存看不出来，一旦缓存失效就炸）。
+# 取不到就写 unknown——这个文件只用于显示版本号，不该成为构建的硬依赖。
+RUN git rev-parse HEAD > /app/.git_sha 2>/dev/null || echo unknown > /app/.git_sha
 
 # Remove unnecessary files
 RUN rm -rf /gems/ruby/3.4.0/cache/*.gem \

@@ -63,7 +63,8 @@ const pickerSearch = ref('');
 const load = async () => {
   try {
     const [m, s, d, ms] = await Promise.all([
-      CrmMemberAPI.get(),
+      // 只取在职成员：离职的人不该再出现在可见范围的候选里。
+      CrmMemberAPI.get({ active: true }),
       api.value.list(),
       OrgDepartmentsAPI.get(),
       OrgMembershipsAPI.get(),

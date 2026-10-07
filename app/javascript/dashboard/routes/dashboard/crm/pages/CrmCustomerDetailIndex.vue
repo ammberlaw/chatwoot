@@ -17,6 +17,7 @@ import { useCrmOpportunitiesStore } from 'dashboard/stores/crm/opportunities';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 import CrmPiPreviewDialog from 'dashboard/components-next/CRM/CrmPiPreviewDialog.vue';
+import CrmPiFormDialog from 'dashboard/components-next/CRM/CrmPiFormDialog.vue';
 import CrmQuotePreviewDialog from 'dashboard/components-next/CRM/CrmQuotePreviewDialog.vue';
 import CrmSalesOrderViewDialog from 'dashboard/components-next/CRM/CrmSalesOrderViewDialog.vue';
 import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
@@ -421,6 +422,12 @@ const saveNewOpportunity = async payload => {
 // PI / 报价单 / 订单在客户详情里是「查看」——只读预览，不进编辑表单。
 // 三个预览弹窗各自按 id 取数，所以这里直接把 id 给它们。
 const openPi = id => piDialogRef.value?.open(id);
+// 预览里点「编辑」切到编辑弹窗。原先这页压根没接 @edit，按钮点了没任何反应——
+// 从客户详情看 PI 的人（共享客户尤其如此）就改不了单。preview 返回的就是完整单据，直接用。
+const piFormRef = ref(null);
+const editPiFromPreview = doc => {
+  if (doc?.id) piFormRef.value?.open(doc);
+};
 const openQuote = id => quoteDialogRef.value?.open(id);
 const openOrder = id => orderDialogRef.value?.open(id);
 
@@ -1143,7 +1150,8 @@ onMounted(() => {
       @create="saveNewOpportunity"
       @update="saveOpportunity"
     />
-    <CrmPiPreviewDialog ref="piDialogRef" />
+    <CrmPiPreviewDialog ref="piDialogRef" @edit="editPiFromPreview" />
+    <CrmPiFormDialog ref="piFormRef" @saved="load" />
     <CrmQuotePreviewDialog ref="quoteDialogRef" />
     <CrmSalesOrderViewDialog ref="orderDialogRef" />
 

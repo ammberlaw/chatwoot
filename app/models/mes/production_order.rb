@@ -806,30 +806,27 @@ class Mes::ProductionOrder < ApplicationRecord
   # 又必须按 crm_product_id 记库存，否则无编码成品会串到同一个 NULL 桶。此处兜底：
   # 已有则直接返回；否则按成品名在产品档案里找同名成品，找不到就按成品名建一条 FINISHED 成品并回写。
   # 返回 crm_product_id（成品名为空时返回 nil）。
-  def ensure_crm_product!
+  # 按成品名把生产订单挂到已有的产品档案上；**绝不自动建档**。
+  #
+  # 原先找不到就自动建一条，SKU 直接用中文品名——出来的是个假编码。
+  # 后果是实打实的错账：同一个产品，手工建的单用假编码、采购入库用真编码（C.BB.320.007），
+  # 在结存表里是**两个桶**，领料/出库照样说库存不足；期初库存按真编码导的也对不上；
+  # 存货科目映射按 category 走，自动建的一律 FINISHED，分不进正确科目。
+  # 现在关联不上就返回 nil，由调用方拦下来让人去补档案——宁可当场报错，不要静默造假数据。
+  def link_crm_product_by_name!
     return crm_product_id if crm_product_id.present?
 
     pname = product_name.to_s.strip
     return nil if pname.blank?
 
     product = account.crm_products.where('LOWER(name) = ?', pname.downcase).order(:id).first
-    product ||= account.crm_products.create!(
-      name: pname, sku: unique_finished_sku(pname), category: 'FINISHED',
-      source_category: 'FINISHED', unit: unit.presence || '台'
-    )
+    return nil if product.nil?
+
     update_columns(crm_product_id: product.id, updated_at: Time.current)
     product.id
   end
 
   private
-
-  # 自动建成品时的 SKU：优先用成品名本身；已被占用则挂订单号后缀保证账户内唯一。
-  def unique_finished_sku(pname)
-    base = pname.gsub(/\s+/, ' ').strip
-    return base unless account.crm_products.exists?(sku: base)
-
-    "#{base}-#{order_no}"
-  end
 
   # 数量文案：去掉多余小数（50.0 → 50）。
   def fnum(value)

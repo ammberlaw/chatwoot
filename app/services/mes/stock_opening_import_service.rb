@@ -139,22 +139,45 @@ class Mes::StockOpeningImportService
     @product_map ||= @account.crm_products.where(sku: rows.map(&:sku).uniq).index_by(&:sku)
   end
 
-  def ensure_products!(rows, create_missing, new_product_line)
+  def ensure_products!(rows, create_missing, fallback_line)
     missing = rows.reject { |row| product_map(rows)[row.sku] }.uniq(&:sku)
     return 0 if missing.empty?
 
-    guard_missing_products!(missing, create_missing, new_product_line)
-    missing.each { |row| @product_map[row.sku] = create_product!(row, new_product_line) }
-    missing.size
-  end
-
-  def guard_missing_products!(missing, create_missing, new_product_line)
     unless create_missing
       raise Error, "有 #{missing.size} 个编码在产品档案里不存在（如 #{missing.first(5).map(&:sku).join('、')}），" \
                    '请勾选「自动建档」或先补齐档案'
     end
+
+    lines = resolved_product_lines(missing, fallback_line)
+    missing.each { |row| @product_map[row.sku] = create_product!(row, lines[row.sku]) }
+    missing.size
+  end
+
+  # 新建档案的产品线**逐条按同族编码推断**，不是整份用同一个。
+  # 编码前两段就是族（M.XC / P.11 / O.1…），生产实测分得干干净净：M./O. 全是商显、P. 全是平板，
+  # 而一份金蝶库存表里两条线都有——整份塞同一个产品线必然有一批落错线、在领料选料里看不见。
+  # 推断不出来（档案里没有同族）才用调用方传的兜底值。
+  def resolved_product_lines(missing, fallback_line)
+    dominant = dominant_line_by_family
+    lines = missing.to_h { |row| [row.sku, dominant[family_of(row.sku)] || fallback_line.presence] }
+    blank = lines.select { |_sku, line| line.blank? }.keys
     # 产品档案搜索是按产品线过滤的，留空的档案切到任一产线都选不到，等于凭空消失。
-    raise Error, '自动建档必须指定产品线（新建的档案产品线为空会在领料选料里看不见）' if new_product_line.blank?
+    raise Error, "这些编码推断不出产品线，请指定：#{blank.first(5).join('、')}" if blank.any?
+
+    lines
+  end
+
+  def family_of(sku) = sku.to_s.split('.').first(2).join('.')
+
+  # 一次 pluck 把全部档案的「族 → 产线」算出来。
+  # 逐个编码去 LIKE 查是 N+1——生产上 4887 条档案 × 58 个新编码，光这一步就把请求顶过了
+  # Rack 的 15s 超时（首次导入即 500，事务整份回滚）。
+  def dominant_line_by_family
+    tally = Hash.new { |hash, key| hash[key] = Hash.new(0) }
+    @account.crm_products.where.not(product_line: nil).pluck(:sku, :product_line).each do |sku, line|
+      tally[family_of(sku)][line] += 1
+    end
+    tally.transform_values { |counts| counts.max_by { |_line, n| n }&.first }
   end
 
   def create_product!(row, product_line)

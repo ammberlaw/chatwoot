@@ -2,10 +2,35 @@ json.id resource.id
 json.name resource.name
 json.order_no resource.order_no
 json.pi_no resource.pi_no
-json.line_items resource.line_items
+# 明细原样下发，另外把编码(sku)解析出来——明细里只存了 crm_product_id，
+# 前端没法从 id 显示编码（@product_sku_by_id 由控制器批量预载）。
+json.line_items(Array(resource.line_items).map do |item|
+  next item unless item.is_a?(Hash)
+
+  item.merge('sku' => @product_sku_by_id&.[](item['crm_product_id'].presence&.to_i))
+end)
 json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
 json.customer_country resource.crm_customer&.trade_country
+
+# PI 抬头信息：订单与 PI 之间没有外键，只能按 pi_no 对（控制器已批量预载成 @pi_by_no）。
+# 对不上就整块为 nil——生产上 488 张订单只有 106 张对得上，前端必须按「没有」渲染。
+pi = @pi_by_no&.[](resource.pi_no)
+json.pi_info do
+  if pi
+    json.buyer_company pi.buyer_company
+    json.buyer_address pi.buyer_address
+    json.buyer_email pi.buyer_email
+    json.buyer_tel pi.buyer_tel
+    json.buyer_eori pi.buyer_eori
+    json.port_of_shipment pi.port_of_shipment
+    json.port_of_destination pi.port_of_destination
+    json.country_of_origin pi.country_of_origin
+    json.shipping_method pi.shipping_method
+  else
+    json.nil!
+  end
+end
 json.contact_id resource.contact_id
 json.crm_opportunity_id resource.crm_opportunity_id
 json.owner_id resource.owner_id

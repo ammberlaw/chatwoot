@@ -21,7 +21,9 @@ json.payload do
   end
 
   # 订单明细存在 crm_sales_orders.line_items（jsonb）：品名/规格/数量/单价/金额。
-  json.line_items @order.line_items
+  # 编码(sku)由控制器解析后挂在 @line_items_with_sku——明细只存 crm_product_id，
+  # 财务看不出是哪个料号。
+  json.line_items @line_items_with_sku
 
   # 挂在这张销售订单上的 MES 单据（生产订单含阶段与出入库、出货单含出了什么货）。
   json.production_orders @trace[:production_orders]

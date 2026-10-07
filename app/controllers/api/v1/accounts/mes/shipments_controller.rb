@@ -217,8 +217,13 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     items = shipment.shipment_items.select { |i| i.crm_product_id.blank? }
     return if items.empty?
 
-    pid = order.ensure_crm_product!
-    return if pid.blank?
+    pid = order.link_crm_product_by_name!
+    # 关联不上就当场拦下，不再按成品名自动建档案——自动建出来的 SKU 是中文品名，
+    # 和采购入库用的真编码在结存表里是两个桶，后面怎么查都对不上。
+    if pid.blank?
+      raise StandardError, "生产订单 #{order.order_no} 没有关联产品档案（成品「#{order.product_name}」在档案里找不到同名项），" \
+                           '请先到生产订单上选好成品编码再开出库单'
+    end
 
     items.each { |i| i.crm_product_id = pid }
   end

@@ -292,6 +292,10 @@ watch(
 // 型号已经手填过就不覆盖，避免把人家写的「K13plus 10.1寸P30版/客户定制」抹掉。
 const pickFinishedProduct = p => {
   form.productId = String(p.id);
+  // crmProductId 才是真正存进 crm_product_id 的那个。原来这里只写 productId，
+  // 提交时只发了 productCode 文本、id 被丢掉——生产上 17 张任务单全是「有编码、无关联」，
+  // 下游库存/成本按 id 对不上。两个字段同时写，彻底消掉这个岔路。
+  form.crmProductId = String(p.id);
   form.productCode = p.sku || '';
   if (!form.model.trim()) form.model = p.name || '';
 };
@@ -422,7 +426,7 @@ const copyForKingdee = async () => {
 const invalid = computed(
   () =>
     !form.productLine || // 产线必填：漏了这条单子切到任何产线都看不见
-    !form.productCode.trim() ||
+    !form.crmProductId || // 产成品必须选自产品档案：只填文本等于没关联，下游按 id 对不上
     filledRows.value.length === 0 || // 至少一条实质用料
     filledRows.value.some(r => !isRowComplete(r)) // 已填的行必须完整
 );
@@ -566,8 +570,10 @@ watch(attachOrderId, id => {
   if (!form.orderQty) form.orderQty = o.qty ?? '';
   if (!form.customerName) form.customerName = o.customer_name || '';
   if (!form.productCode) form.productCode = o.product_sku || '';
-  if (!form.productId && o.crm_product_id)
+  if (!form.productId && o.crm_product_id) {
     form.productId = String(o.crm_product_id);
+    form.crmProductId = String(o.crm_product_id);
+  }
   // 归属业务员：订单的 owner 对「按单生产」就是归属业务员，但建单人也可能是工程/PMC。
   // 下拉只列业务角色，带一个不在候选里的人进去会显示成空白，所以先确认它在候选里。
   const oid = o.owner_id ? String(o.owner_id) : '';
@@ -717,7 +723,7 @@ const openEdit = bom => {
     customerName: bom.customerName || '',
     model: bom.model || '',
     productCode: bom.productCode || '',
-    productId: '',
+    productId: bom.crmProductId ? String(bom.crmProductId) : '',
     orderQty: bom.orderQty ?? '',
     bareColor: bom.bareColor || '',
     caseColor: bom.caseColor || '',
@@ -1150,6 +1156,7 @@ onBeforeRouteLeave((to, from, next) => {
             <label class="text-heading-3 text-n-slate-12"
               >产成品代码 <span class="text-n-ruby-11">*</span></label
             >
+            <!-- 只能从产品档案选/搜，或在下拉里就地新建；不接受手打文本。 -->
             <!-- 换成产品档案选择器：输 01.033 就能搜到 P.01.033，不用连 P 一起打；
              选中后型号（档案里的产品名，如 K705）自动填上面那格，不用再手输一遍。 -->
             <MesProductPicker
@@ -1255,16 +1262,6 @@ onBeforeRouteLeave((to, from, next) => {
               :model-value="form.productLine"
               :options="productLineOptions"
               @update:model-value="v => (form.productLine = v)"
-            />
-          </div>
-          <div class="flex flex-col flex-1 min-w-[16rem] gap-1">
-            <label class="text-heading-3 text-n-slate-12"
-              >关联成品（选填，用于统计）</label
-            >
-            <ComboBox
-              v-model="form.crmProductId"
-              :options="productOptions"
-              placeholder="选择成品"
             />
           </div>
           <div class="flex flex-col w-56 gap-1">

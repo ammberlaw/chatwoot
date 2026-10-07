@@ -36,7 +36,8 @@ const busy = ref(false);
 onMounted(async () => {
   try {
     const [mem, setting] = await Promise.all([
-      CrmMemberAPI.get(),
+      // 只取在职成员：离职的人不该再出现在绩效设置的候选里。
+      CrmMemberAPI.get({ active: true }),
       CrmPerfSettingsAPI.get(),
     ]);
     members.value = mem.data.payload || [];

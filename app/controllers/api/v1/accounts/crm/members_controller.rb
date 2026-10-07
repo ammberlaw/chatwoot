@@ -22,6 +22,10 @@ class Api::V1::Accounts::Crm::MembersController < Api::V1::Accounts::Crm::BaseCo
     scope = Current.account.account_users.includes(:user)
     # 部门负责人只看到下属成员；人事与管理层看全部。
     scope = scope.where(user_id: subordinate_user_ids) unless admin_like? || Current.account_user&.crm_hr?
+    # active=true 只要在职的：各处「选人」的下拉（考核下发、板块负责人、文档可见范围、
+    # 薪酬、绩效设置、公海设置）都该排掉离职的人，否则停用了照样能被选中、被下发。
+    # 成员权限页本身不传这个参数——它要显示已停用的人，还有「已停用」筛选页签。
+    scope = scope.where(deactivated_at: nil) if params[:active].to_s == 'true'
     @members = scope.order('users.name')
   end
 

@@ -124,6 +124,47 @@ class Erp::AutoVoucherService
     lines
   end
 
+  # ── 应收建账：没走 MES 出库的订单补收入凭证 ──────────────────────
+  # 收入的正常触发点是销售出库（财务 2026-10-06 定）。但小满迁进来的、以及走系统外
+  # 发货的历史订单在 MES 里**压根没有出库单**，那个触发点永远等不到——建了应收台账，
+  # 总账里却没有对应的收入与应收，两账必然对不平。
+  #
+  # 故：订单已出货/已完结时，建账即按同一套分录出收入凭证（口径与出库那张完全一致，
+  # 共用 revenue_lines）。待出货的订单不出——货没发就确认收入是提前确认。
+  REVENUE_ON_BUILD_STATUSES = %w[SHIPPED COMPLETED].freeze
+
+  def for_receivable_revenue(receivable)
+    return if skip_doc?(Erp::AutoVoucherRule::SHIPMENT_REVENUE)
+
+    order = receivable.crm_sales_order
+    return unless receivable_revenue_bookable?(order)
+
+    receivable_account = order_party_account(order, 'RECEIVABLE')
+    revenue = account_by_code(REVENUE_CODE)
+    return if receivable_account.blank? || revenue.blank?
+
+    create_voucher!(source_type: receivable.class.name, source_id: receivable.id,
+                    date: revenue_date_for(order, receivable),
+                    summary: "应收建账 #{receivable.receivable_no} · #{order.order_no}",
+                    lines: revenue_lines(order, receivable_account, revenue))
+  end
+
+  def receivable_revenue_bookable?(order)
+    return false if order.blank? || order.order_amount_micros.to_i <= 0
+    return false unless REVENUE_ON_BUILD_STATUSES.include?(order.status)
+
+    # 该订单已由出库单记过收入就不再出——同一笔收入入两次账。
+    shipment_ids = @account.mes_shipments.where(crm_sales_order_id: order.id).pluck(:id)
+    shipment_ids.empty? ||
+      @account.erp_vouchers.where(source_type: 'Mes::Shipment', source_id: shipment_ids).none?
+  end
+
+  # 收入确认日取交期（货实际发出的时点）；没填交期的历史单回落下单日，
+  # 两者都没有才用建账日——总得落在某个会计期间里。
+  def revenue_date_for(order, receivable)
+    order.delivery_date || order.order_date || receivable.created_at
+  end
+
   # ── 销售出库：成本结转 ────────────────────────────────────────────
   # 借 主营业务成本 / 贷 库存商品。金额取 StockCostService 已按 FIFO 结转进
   # erp_order_costs 的那笔（人民币），不再重算——重算必然和存货层对不上。

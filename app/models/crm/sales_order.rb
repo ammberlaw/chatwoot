@@ -101,6 +101,30 @@ class Crm::SalesOrder < ApplicationRecord
   # 含税单：收入 = 金额 ÷ (1+税率)，税额 = 金额 − 收入，二者之和恒等于订单金额；
   # 不含税单：收入 = 金额，税额 = 金额 × 税率，二者之和比订单金额多一个税。
   # 税率 0（出口单）两种算法同值。
+  # 按 PI 号找回对应的 PI 记录。订单与 PI 之间**没有外键**，只有 pi_no 这个字符串——
+  # PI 模块是后来才上的，之前的 PI 都在系统外做，号是手打的。生产上 487 张填了号、
+  # 能对上记录的只有 106 张，所以这里恒可能是 nil，调用方必须按「没有」处理。
+  def matched_pi
+    return nil if pi_no.blank?
+    return @matched_pi if defined?(@matched_pi)
+
+    @matched_pi = account.crm_pis.find_by(pi_no: pi_no)
+  end
+
+  # 明细里的品名清单（空行、重名都去掉）。应收台账、待建账清单都要「这笔钱是什么货」。
+  def product_names
+    Array(line_items).filter_map { |item| item.is_a?(Hash) ? item['name'].presence : nil }.uniq
+  end
+
+  # 列表用的一行摘要：第一项 + 共几项。全部名字走 product_names。
+  def product_summary
+    names = product_names
+    return nil if names.empty?
+    return names.first if names.size == 1
+
+    "#{names.first} 等 #{names.size} 项"
+  end
+
   def tax_split
     amount = order_amount_micros.to_i
     rate = effective_tax_rate.to_i

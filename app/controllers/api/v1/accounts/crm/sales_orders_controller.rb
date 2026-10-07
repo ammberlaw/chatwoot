@@ -23,10 +23,13 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
                     .order(order_date: :desc, id: :desc)
                     .page(permitted_params[:page] || 1)
                     .per(results_per_page)
+    preload_pis
     compute_tab_counts
   end
 
-  def show; end
+  def show
+    preload_pis([@sales_order])
+  end
 
   def create
     attrs = order_attributes
@@ -148,6 +151,23 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   private
 
+  # 订单与 PI 只靠 pi_no 字符串挂钩（没有外键），序列化时要带 PI 的抬头/地址/港口。
+  # 一次性按号查回来做成 map——逐条 find_by 就是每页一串 N+1。
+  # 对不上的订单（生产上 487 填号、只有 106 对得上）map 里没有，jbuilder 按 nil 处理。
+  def preload_pis(records = @sales_orders)
+    numbers = records.map(&:pi_no).compact_blank.uniq
+    @pi_by_no = numbers.empty? ? {} : Current.account.crm_pis.where(pi_no: numbers).index_by(&:pi_no)
+    preload_line_item_products(records)
+  end
+
+  # 明细行只存了 crm_product_id，编码(sku)要去产品档案取。整页的 id 一次查完做成 map。
+  def preload_line_item_products(records)
+    ids = records.flat_map do |order|
+      Array(order.line_items).filter_map { |item| item['crm_product_id'].presence if item.is_a?(Hash) }
+    end.uniq
+    @product_sku_by_id = ids.empty? ? {} : Current.account.crm_products.where(id: ids).pluck(:id, :sku).to_h
+  end
+
   # 记住「这段客户叫法 → 这个产品」，下次同样文字自动带出。
   # 失败不影响建单：记忆是锦上添花，不该因为它让单建不成。
   def remember_product_choices(items)
@@ -240,7 +260,6 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     scope.left_joins(:crm_customer)
          .where('crm_sales_orders.order_no ILIKE :t OR crm_sales_orders.name ILIKE :t OR crm_customers.name ILIKE :t', t: term)
   end
-
 
   def sales_order_params
     params.require(:sales_order).permit(

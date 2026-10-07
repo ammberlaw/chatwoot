@@ -49,7 +49,8 @@ const loadOwners = () => {
 const ensureMembers = () => {
   if (membersLoaded) return Promise.resolve();
   if (membersPromise) return membersPromise;
-  membersPromise = CrmMemberAPI.get()
+  // 只取在职成员：离职停用的人不该再出现在板块负责人的候选里。
+  membersPromise = CrmMemberAPI.get({ active: true })
     .then(({ data }) => {
       members.value = data?.payload || [];
       membersLoaded = true;

@@ -254,11 +254,13 @@ const fmtMoney = (micros, currency) =>
 const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
 const fmtDateTime = v => (v ? new Date(v).toLocaleString() : '');
 
-// 明细副行文案：「规格 · 数量 × 单价」，符号放进 JS 避免模板裸字符串。
+// 明细副行文案：「型号 · 编码 · 规格 · 数量 × 单价」，符号放进 JS 避免模板裸字符串。
+// 型号来自 PI 明细（PI 转订单时带下来）；编码是产品档案关联，老单子多半没有，都按缺省跳过。
 const itemMeta = li => {
   const qty = li.quantity != null ? li.quantity : '—';
   const price = li.unitPrice != null ? li.unitPrice : '—';
-  const prefix = li.spec ? `${li.spec} · ` : '';
+  const head = [li.model, li.sku, li.spec].filter(Boolean).join(' · ');
+  const prefix = head ? `${head} · ` : '';
   return `${prefix}${qty} × ${price}`;
 };
 const itemAmount = li => (li.amount != null ? String(li.amount) : '—');
@@ -317,8 +319,32 @@ const detailSections = computed(() => {
     },
     {
       title: '关联',
-      rows: [{ label: '客户', value: o.customerName }],
+      rows: [
+        { label: '客户', value: o.customerName },
+        { label: '国家', value: o.customerCountry },
+        { label: 'PI 号', value: o.piNo },
+      ],
     },
+    // PI 抬头：只有 pi_no 对得上系统里的 PI 记录才有（生产上 488 张订单里 106 张）。
+    // 对不上的订单整块不渲染，不摆一排「—」。
+    ...(o.piInfo
+      ? [
+          {
+            title: 'PI 抬头',
+            rows: [
+              { label: '抬头', value: o.piInfo.buyerCompany },
+              { label: '地址', value: o.piInfo.buyerAddress, full: true },
+              { label: '邮箱', value: o.piInfo.buyerEmail },
+              { label: '电话', value: o.piInfo.buyerTel },
+              { label: 'EORI', value: o.piInfo.buyerEori },
+              { label: '起运港', value: o.piInfo.portOfShipment },
+              { label: '目的港', value: o.piInfo.portOfDestination },
+              { label: '原产国', value: o.piInfo.countryOfOrigin },
+              { label: '运输方式', value: o.piInfo.shippingMethod },
+            ],
+          },
+        ]
+      : []),
     {
       title: '备注',
       rows: [{ label: '备注', value: o.remark, full: true }],
@@ -856,8 +882,15 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                 >
                   {{ record.name || '—' }}
                 </td>
+                <!-- 国家作客户下面的小字，不单开一列：表已经很宽，且 98% 的客户都有国家。 -->
                 <td class="px-3 py-3 text-n-slate-12 whitespace-nowrap">
                   {{ record.customerName || '—' }}
+                  <span
+                    v-if="record.customerCountry"
+                    class="block text-[11px] text-n-slate-10"
+                  >
+                    {{ record.customerCountry }}
+                  </span>
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap">
                   <span
