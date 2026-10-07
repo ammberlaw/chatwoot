@@ -13,12 +13,13 @@ module Crm::EmailIngestion
     # 邮件头可能带非 UTF-8 原始字节，入库前先清洗——message_id / from 还要先进 PG 查询
     # （去重 / 关联联系人），不清洗会在查询阶段就抛 PG::CharacterNotInRepertoire 丢整封。
     message_id = Crm::MailCharset.scrub(mail.message_id.presence || "#{@account.id}-#{fallback_uid}")
-    return false if duplicate?(message_id)
+    owner_id = ingest_owner_id(mail)
+    return false if duplicate?(message_id, owner_id)
 
     from = Crm::MailCharset.scrub(Array(mail.from).first.to_s)
     return false if notification_sender?(from)
 
-    create_email(mail, message_id, from)
+    create_email(mail, message_id, from, owner_id)
     true
   rescue StandardError => e
     Rails.logger.warn("[Crm::MailFetch] account=#{@account.id} uid=#{fallback_uid} skipped: #{e.message}")
@@ -27,8 +28,33 @@ module Crm::EmailIngestion
 
   private
 
-  def duplicate?(message_id)
-    Crm::Email.exists?(account_id: @account.account_id, message_id: message_id)
+  # 判重口径：**按人**，不是按公司。
+  #
+  # 原先是全公司一张表查 Message-ID：一封信谁先抓到就归谁（归属按 To 优先判），
+  # 其余被抄送的同事再抓到同一封会被当成重复静默丢掉——线上真发生过，客户发给 Tim、
+  # 抄送 Ken，Ken 的邮箱每轮都抓得到却永远入不了库。自己人发出的信反而没事，
+  # 因为发件记录的 message_id 是空的、撞不上，于是现象是「只有客户抄送我的信收不到」。
+  def duplicate?(message_id, owner_id = nil)
+    scope = Crm::Email.where(account_id: @account.account_id, message_id: message_id)
+    scope = scope.where(owner_id: owner_id) if owner_id
+    scope.exists?
+  end
+
+  # 这封信在本次抓取里归谁：
+  # 本邮箱地址出现在 To/Cc → 归本邮箱主人（抄送方各自存一份，这是上面那个 bug 的修法）；
+  # 都没命中（密送 / 别名 / 转发进来的）→ 沿用按 To/Cc 命中的收件邮箱归属，
+  # 避免「全收箱」把全公司邮件挂到抓取者名下。
+  def ingest_owner_id(mail)
+    return @account.owner_id if addressed_to_self?(mail)
+
+    recipient_owner_id(mail) || @account.owner_id
+  end
+
+  def addressed_to_self?(mail)
+    self_address = @account.email_address.to_s.downcase
+    return false if self_address.blank?
+
+    [*Array(mail.to), *Array(mail.cc)].any? { |addr| address_tokens(addr).include?(self_address) }
   end
 
   def notification_sender?(from)
@@ -39,13 +65,13 @@ module Crm::EmailIngestion
       domain.end_with?('.xiaomanmail.com') || domain == 'xiaomanmail.com'
   end
 
-  def create_email(mail, message_id, from)
+  def create_email(mail, message_id, from, owner_id)
     # 先把内联 base64 图换成附件链接再判断长度：否则一张签名 logo 就能把正文顶到上限被截断。
     # 先剥掉被客户回信引用回来的、我们自己的追踪像素/跳转链接（见 Crm::MailTracking），
     # 否则自己人在 CRM 里读这封回信就会被记成「客户又打开了一次」。
     html, inline_blobs = Crm::MailInlineImages.extract(Crm::MailTracking.strip_own(html_body(mail)))
     html = truncate_text(html)
-    email = Crm::Email.create!(inbound_attrs(mail, message_id, from, html))
+    email = Crm::Email.create!(inbound_attrs(mail, message_id, from, html, owner_id))
     inline_blobs.each { |blob| email.files.attach(blob) }
     rewritten = attach_files(email, mail, html)
     email.update!(body_html: truncate_text(rewritten)) if rewritten != html
@@ -97,13 +123,12 @@ module Crm::EmailIngestion
     Rails.logger.warn("[Crm::MailFetch] reply reminder failed email=#{email.id}: #{e.message}")
   end
 
-  def inbound_attrs(mail, message_id, from, html)
+  def inbound_attrs(mail, message_id, from, html, owner_id)
     contact = @account.account.contacts.find_by(email: from.downcase)
     {
       account_id: @account.account_id,
-      # 归属按「这封实际发给谁」定：To/Cc 命中某个收件邮箱 → 归该邮箱主人；匹配不到才回落抓取账户 owner。
-      # 避免老板「全收箱」把全公司邮件挂到自己名下、真正收件人因判重看不到自己的信。
-      owner_id: recipient_owner_id(mail) || @account.owner_id,
+      # 归属见 ingest_owner_id：判重与归属必须用同一个答案，否则抄送方又会被判重丢掉。
+      owner_id: owner_id,
       message_id: message_id,
       folder: 'INBOX',
       is_read: false,
@@ -126,14 +151,19 @@ module Crm::EmailIngestion
     return nil if map.empty?
 
     [*Array(mail.to), *Array(mail.cc)].each do |addr|
-      a = addr.to_s.downcase
-      # 精确匹配收件邮箱 token，避免 amber@x.com 子串命中 xamber@x.com / amber@x.com.cn 把来信错归他人。
-      tokens = a.scan(/[^\s,;<>"']+@[^\s,;<>"']+/)
-      tokens = [a] if tokens.empty?
+      tokens = address_tokens(addr)
       hit = map.find { |email, _owner| tokens.include?(email) }
       return hit.last if hit
     end
     nil
+  end
+
+  # 收件人字段里的邮箱地址 token（小写）。精确匹配而不是子串，
+  # 避免 amber@x.com 命中 xamber@x.com / amber@x.com.cn 把来信错归他人。
+  def address_tokens(addr)
+    a = addr.to_s.downcase
+    tokens = a.scan(/[^\s,;<>"']+@[^\s,;<>"']+/)
+    tokens.empty? ? [a] : tokens
   end
 
   # {收件邮箱地址(小写) => owner_id}，本次抓取运行内缓存（同一 service 实例处理多封信）。

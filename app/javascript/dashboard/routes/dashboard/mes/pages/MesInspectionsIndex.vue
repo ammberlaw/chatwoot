@@ -17,6 +17,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
@@ -91,6 +92,7 @@ const productionOrderOptions = computed(() => [
   ...productionOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
+    searchText: orderSearchText(p),
   })),
 ]);
 const materialOptions = computed(() =>
@@ -422,11 +424,13 @@ onMounted(() => {
               :options="materialOptions"
               placeholder="选择物料"
             />
-            <SelectCard
+            <ComboBox
               v-else
-              size="form"
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
+              placeholder="关联生产订单…"
+              search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
+              empty-state="没有匹配的生产订单"
               @update:model-value="v => (form.productionOrderId = v)"
             />
           </div>

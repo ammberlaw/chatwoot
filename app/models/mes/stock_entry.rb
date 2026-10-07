@@ -53,8 +53,14 @@ class Mes::StockEntry < ApplicationRecord
   include Mes::Returnable
 
   # 一表多用（ERPNext Stock Entry 模式）。SHIPMENT=成品出库（销售出库开单时内部生成）。
-  PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN MANUFACTURE SCRAP SHIPMENT].freeze
-  IN_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN MANUFACTURE].freeze
+  #
+  # OPENING=期初库存：上线前仓库里实际存在、却没走过系统采购的货。
+  # 不走 MATERIAL_RECEIPT 是因为那条路过账会出「借存货/贷应付账款」的凭证，
+  # 给谁都不是的供应商凭空挂一笔应付。期初只加结存、记流水，不出凭证、不绑生产订单、
+  # 不推阶段（故 FLOW_MIN_STAGE / STAGE_ADVANCE / PAYABLE_VOUCHER_PURPOSES 都不收录它），
+  # 成本层也不建——成品的 FIFO 期初要带单价，走 Erp::StockOpeningImportService 单独导。
+  PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_ISSUE MATERIAL_RETURN MANUFACTURE SCRAP SHIPMENT OPENING].freeze
+  IN_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN MANUFACTURE OPENING].freeze
   STATUSES = %w[DRAFT POSTED CANCELLED].freeze
 
   belongs_to :account

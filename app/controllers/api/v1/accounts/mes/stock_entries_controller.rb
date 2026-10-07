@@ -3,7 +3,8 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
 
   before_action :check_authorization
   before_action :fetch_stock_entry, only: [:show, :update, :destroy, :post, :confirm_warehouse, :cancel]
-  before_action -> { ensure_owner_or_admin!(@stock_entry, '入库单') }, only: [:update, :destroy]
+  before_action -> { ensure_owner_or_admin!(@stock_entry, '入库单') }, only: [:update]
+  before_action :ensure_can_delete!, only: [:destroy]
 
   COLUMN_FILTERS = {
     purpose: :purpose, status: :status,
@@ -87,6 +88,15 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   end
 
   private
+
+  # 删草稿不止制单人：成品入库是车间开单、仓管清点，重复单恰恰是仓管在清点时发现的，
+  # 只许制单人删就成了死锁——生产上 6 张重复成品入库草稿卡了 34 天没人删得掉。
+  # 仓管（stock 能力）可以删；destroy 本身已经把已过账单挡在外面。
+  def ensure_can_delete!
+    return if Current.account_user.mes_can?(:stock)
+
+    ensure_owner_or_admin!(@stock_entry, '入库单')
+  end
 
   def fetch_stock_entry
     @stock_entry = Current.account.mes_stock_entries.find(params[:id])

@@ -39,7 +39,10 @@ class Crm::PopFetchService
   # 无 Message-ID / 取头失败时兜底走整封（ingest_raw 内部再按 Message-ID 判重）。
   def ingest_pop_mail(mail)
     mid = safe_message_id(mail)
-    return false if mid && duplicate?(mid)
+    # 判重带上本邮箱主人：同一封信抄送多人要各存一份（见 Crm::EmailIngestion#duplicate?）。
+    # 归到别人名下的信（密送/别名/转发）这里会漏判、整封下回来由 ingest_raw 再判，
+    # 多下一封换抄送方收得到信，划算。
+    return false if mid && duplicate?(mid, @account.owner_id)
 
     ingest_raw(mail.pop, fallback_uid: mail.number)
   end

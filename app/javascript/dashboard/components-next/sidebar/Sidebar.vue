@@ -1376,6 +1376,9 @@ const menuItems = computed(() => {
           'mes_purchase_requisitions_index',
           'mes_suppliers_index',
           'mes_stock_entries_index',
+          'mes_stock_balances_index',
+          'mes_warehouses_index',
+          'mes_serial_numbers_index',
           'mes_material_issues_index',
           'mes_production_records_index',
           'mes_inspections_index',
@@ -1445,6 +1448,12 @@ const menuItems = computed(() => {
                   to: accountScopedRoute('mes_suppliers_index'),
                   activeOn: ['mes_suppliers_index'],
                 },
+                {
+                  name: 'MES Warehouses',
+                  label: t('SIDEBAR.MES_WAREHOUSES'),
+                  to: accountScopedRoute('mes_warehouses_index'),
+                  activeOn: ['mes_warehouses_index'],
+                },
               ]
             : []),
           {
@@ -1452,6 +1461,12 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_STOCK_ENTRIES'),
             to: accountScopedRoute('mes_stock_entries_index'),
             activeOn: ['mes_stock_entries_index'],
+          },
+          {
+            name: 'MES Stock Balances',
+            label: t('SIDEBAR.MES_STOCK_BALANCES'),
+            to: accountScopedRoute('mes_stock_balances_index'),
+            activeOn: ['mes_stock_balances_index'],
           },
           {
             name: 'MES Shopfloor',
@@ -1496,6 +1511,12 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_SHIPMENTS'),
             to: accountScopedRoute('mes_shipments_index'),
             activeOn: ['mes_shipments_index'],
+          },
+          {
+            name: 'MES Serial Numbers',
+            label: t('SIDEBAR.MES_SERIAL_NUMBERS'),
+            to: accountScopedRoute('mes_serial_numbers_index'),
+            activeOn: ['mes_serial_numbers_index'],
           },
         ],
       },

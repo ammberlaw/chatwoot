@@ -36,13 +36,20 @@ class Crm::CustomerTimeline
   def emails
     scope = @account.crm_emails.where(crm_customer_id: @customer.id)
     scope = scope.where(owner_id: @mail_owner_ids) unless @mail_owner_ids == :all
-    scope.order(email_date: :desc).limit(LIMIT_PER_TYPE)
-         .map do |e|
+    # 一封抄送给多位同事的信现在按人各存一份（见 Crm::EmailIngestion#duplicate?）。
+    # 时间线是「这个客户来往过什么」，同一封信只该出现一次——按 Message-ID 收敛。
+    # 多取一倍再去重，免得去重后凑不满 LIMIT_PER_TYPE 条。
+    dedup_by_message_id(scope.order(email_date: :desc).limit(LIMIT_PER_TYPE * 2))
+      .map do |e|
       { type: 'email', at: e.email_date || e.created_at, title: e.subject.presence || '(无主题)',
         body: strip_tags(e.body).first(140),
         who: e.folder == 'INBOX' ? e.from_address : e.to_address,
         tag: e.folder == 'INBOX' ? '收到' : '发出', link_id: e.id }
     end
+  end
+
+  def dedup_by_message_id(scope)
+    scope.to_a.uniq { |e| e.message_id.presence || "id-#{e.id}" }.first(LIMIT_PER_TYPE)
   end
 
   # 会话按「一次会话一条」记，不是每条消息一条——聊天几十上百条，铺开时间线就没法看了。

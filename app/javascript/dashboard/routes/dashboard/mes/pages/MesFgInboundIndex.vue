@@ -15,6 +15,8 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -75,7 +77,8 @@ const productionOrders = ref([]);
 const FG_ELIGIBLE_STAGES = ['PRODUCTION', 'FG_INBOUND'];
 const eligibleOrders = computed(() =>
   productionOrders.value.filter(
-    p => !p.isOutsourced && FG_ELIGIBLE_STAGES.includes(p.stage)
+    // 同领料：字段是 is_outsourced，写成驼峰等于没过滤（外购成品走采购收货直入成品仓）。
+    p => !p.is_outsourced && FG_ELIGIBLE_STAGES.includes(p.stage)
   )
 );
 // 这张订单还差多少没入库。已入满＝0。
@@ -95,6 +98,7 @@ const productionOrderOptions = computed(() => [
         ? `${p.order_no} · ${p.product_name}（还差 ${left}）`
         : `${p.order_no} · ${p.product_name}（已入满）`,
       disabled: left <= 0,
+      searchText: orderSearchText(p),
     };
   }),
 ]);
@@ -193,6 +197,23 @@ const submit = async () => {
 const confirmWarehouse = async entry => {
   const ok = await store.confirmWarehouse(entry.id);
   if (ok) useAlert(`${ok.entryNo} 已清点确认，成品入库`);
+};
+
+// 删单：草稿直接删；已过账走「作废」冲销（退回库存，保留单据可追溯）。
+// 仓管可删别人建的草稿——重复单往往是仓管清点时才发现的，只许制单人删就成了死锁。
+const removeEntry = async e => {
+  const posted = e.status === 'POSTED';
+  const text = posted
+    ? `确定作废成品入库单 ${e.entryNo}？已入库的数量会从结存冲回。`
+    : `确定删除成品入库单 ${e.entryNo}？删除后不可恢复。`;
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(text)) return;
+  try {
+    const ok = posted ? await store.cancel(e.id) : await store.delete(e.id);
+    if (ok) useAlert(posted ? '已作废' : '已删除');
+  } catch (error) {
+    useAlert(error.message || (posted ? '作废失败' : '删除失败'));
+  }
 };
 
 onMounted(() => {
@@ -354,6 +375,15 @@ onMounted(() => {
                     :is-loading="posting"
                     @click="confirmWarehouse(e)"
                   />
+                  <Button
+                    v-if="mesCan('stock') && e.status !== 'CANCELLED'"
+                    :label="e.status === 'POSTED' ? '作废' : '删单'"
+                    color="ruby"
+                    variant="ghost"
+                    size="sm"
+                    :is-loading="posting"
+                    @click="removeEntry(e)"
+                  />
                   <MesReturnControls
                     :record="e"
                     :store="store"
@@ -392,10 +422,12 @@ onMounted(() => {
           <label class="text-heading-3 text-n-slate-12">
             生产订单 <span class="text-n-ruby-11">*</span>
           </label>
-          <SelectCard
-            size="form"
+          <ComboBox
             :model-value="form.productionOrderId"
             :options="productionOrderOptions"
+            placeholder="选择生产订单…"
+            search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
+            empty-state="没有可入库的生产订单"
             @update:model-value="onPickOrder"
           />
           <span v-if="selectedOrder" class="text-xs text-n-slate-11">

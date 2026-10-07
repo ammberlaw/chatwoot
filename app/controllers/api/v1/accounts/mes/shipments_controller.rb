@@ -1,9 +1,14 @@
+# 出库单：转单/建单/审核/通知/出库/删单聚合在一个控制器，方法多但内聚，故豁免 ClassLength。
+# rubocop:disable Metrics/ClassLength
 class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_shipment, only: [:show, :update, :destroy, :notify, :ship, :submit, :approve, :reject]
-  before_action -> { ensure_owner_or_admin!(@shipment, '出库单') }, only: [:update, :destroy]
+  before_action -> { ensure_owner_or_admin!(@shipment, '出库单') }, only: [:update]
+  before_action :ensure_can_delete!, only: [:destroy]
 
   COLUMN_FILTERS = { status: :status, kind: :kind, crm_sales_order_id: :crm_sales_order_id }.freeze
+  # 重复开单提示里用的状态中文（只给人看，不做业务判断）。
+  DUP_STATUS_LABELS = { 'DRAFT' => '草稿', 'PENDING_APPROVAL' => '待审核', 'APPROVED' => '已审核', 'REJECTED' => '已驳回', 'SHIPPED' => '已出库' }.freeze
 
   def index
     scope = scope_by_product_line_or_stock(Current.account.mes_shipments)
@@ -45,9 +50,13 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
 
   # 现货出库单由 CRM 业务条线开单（无出库能力者一律记为 STOCK，开单即进入审核）。
   def create
-    stock = shipment_params[:kind] == 'STOCK' || !Current.account_user.mes_can?(:shipment)
+    dup_error = duplicate_order_error
+    return render json: { error: dup_error }, status: :unprocessable_entity if dup_error
+
+    attrs = shipment_params
+    stock = attrs[:kind] == 'STOCK' || !Current.account_user.mes_can?(:shipment)
     @shipment = Current.account.mes_shipments.new(
-      shipment_params.merge(owner_id: shipment_params[:owner_id] || current_user.id, kind: stock ? 'STOCK' : 'PRODUCTION')
+      attrs.merge(owner_id: attrs[:owner_id] || current_user.id, kind: stock ? 'STOCK' : 'PRODUCTION')
     )
     @shipment.fallback_product_line = current_product_line
     resolve_missing_product_ids(@shipment)
@@ -130,6 +139,29 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   end
 
   private
+
+  # 同一张生产订单重复开出库单的防线。从销售订单转单那条路早就有幂等拦截
+  # （converted_shipment_for），手工「新建生产出库」一直没有——生产上
+  # SO-20260916-06 两张草稿、SO-20260901-04 两张已出库，都是这么来的。
+  def duplicate_order_error
+    order_id = shipment_params[:production_order_id].presence
+    return nil if order_id.blank?
+
+    dup = Current.account.mes_shipments.where(production_order_id: order_id).where.not(status: 'CANCELLED').first
+    return nil if dup.nil?
+
+    "该生产订单已有出库单 #{dup.shipment_no}（#{DUP_STATUS_LABELS[dup.status] || dup.status}），" \
+      '不要重复开单；确需再开请先删掉那张草稿'
+  end
+
+  # 删草稿不止制单人：重复草稿多半是仓管在准备出库时才发现的，只许制单人或管理员删，
+  # 那张单就会一直挂着（生产上 SO-20260916-06 挂了两张草稿、谁都删不掉）。
+  # 仓管（shipment 能力）可以删——destroy 本身已经把范围限死在草稿/被驳回单。
+  def ensure_can_delete!
+    return if Current.account_user.mes_can?(:shipment)
+
+    ensure_owner_or_admin!(@shipment, '出库单')
+  end
 
   # 生产出库单若明细缺商品编码（建单时成品名选填导致），按订单成品名兜底建/关联编码，
   # 保证成品库存按 SKU 扣减、不串库。现货出库(STOCK)明细来自产品档案本就带编码，不受影响。
@@ -225,3 +257,4 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     )
   end
 end
+# rubocop:enable Metrics/ClassLength

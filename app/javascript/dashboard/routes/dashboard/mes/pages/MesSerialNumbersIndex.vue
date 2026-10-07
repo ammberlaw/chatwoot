@@ -8,9 +8,10 @@ import MesSerialNumberAPI from 'dashboard/api/mes/serialNumbers';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
-import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
@@ -57,6 +58,7 @@ const productionOrderOptions = computed(() => [
   ...productionOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
+    searchText: orderSearchText(p),
   })),
 ]);
 const dialogRef = ref(null);
@@ -269,10 +271,12 @@ onMounted(() => {
           <label class="text-heading-3 text-n-slate-12">
             生产订单 <span class="text-n-ruby-11">*</span>
           </label>
-          <SelectCard
-            size="form"
+          <ComboBox
             :model-value="form.productionOrderId"
             :options="productionOrderOptions"
+            placeholder="选择生产订单…"
+            search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
+            empty-state="没有匹配的生产订单"
             @update:model-value="v => (form.productionOrderId = v)"
           />
         </div>

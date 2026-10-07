@@ -21,6 +21,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 
 const ITEMS_PER_PAGE = 15;
 const { accountId } = useAccount();
@@ -102,6 +103,7 @@ const productionOrderOptions = computed(() =>
   productionOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
+    searchText: orderSearchText(p),
   }))
 );
 const supplierOptions = computed(() => [
@@ -701,10 +703,12 @@ onMounted(() => {
             <label class="text-sm font-medium text-n-slate-12">
               生产订单
             </label>
-            <SelectCard
+            <ComboBox
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
-              block
+              placeholder="选择生产订单…"
+              search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
+              empty-state="没有匹配的生产订单"
               @update:model-value="v => (form.productionOrderId = v)"
             />
           </div>

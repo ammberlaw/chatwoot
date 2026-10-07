@@ -171,6 +171,9 @@ const purchaseOrderOptions = computed(() => [
   ...purchaseOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.po_no}${p.supplier_name ? ` · ${p.supplier_name}` : ''}`,
+    searchText: [p.supplier_name, p.production_order_no]
+      .filter(Boolean)
+      .join(' '),
   })),
 ]);
 
@@ -290,6 +293,23 @@ const submit = async () => {
 const postEntry = async entry => {
   const ok = await store.post(entry.id);
   if (ok) useAlert(`${ok.entryNo} 已过账，库存已更新`);
+};
+
+// 删单：草稿直接删；已过账走「作废」冲销（退回库存，保留单据可追溯）。
+// 仓管可删别人建的草稿——重复单往往是仓管清点时才发现的，只许制单人删就成了死锁。
+const removeEntry = async e => {
+  const posted = e.status === 'POSTED';
+  const text = posted
+    ? `确定作废入库单 ${e.entryNo}？已入库的数量会从结存冲回。`
+    : `确定删除入库单 ${e.entryNo}？删除后不可恢复。`;
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(text)) return;
+  try {
+    const ok = posted ? await store.cancel(e.id) : await store.delete(e.id);
+    if (ok) useAlert(posted ? '已作废' : '已删除');
+  } catch (error) {
+    useAlert(error.message || (posted ? '作废失败' : '删除失败'));
+  }
 };
 
 onMounted(async () => {
@@ -470,6 +490,15 @@ useRouteQueryReentry(query => {
                     :is-loading="posting"
                     @click="postEntry(e)"
                   />
+                  <Button
+                    v-if="mesCan('stock') && e.status !== 'CANCELLED'"
+                    :label="e.status === 'POSTED' ? '作废' : '删单'"
+                    color="ruby"
+                    variant="ghost"
+                    size="sm"
+                    :is-loading="posting"
+                    @click="removeEntry(e)"
+                  />
                   <MesReturnControls
                     :record="e"
                     :store="store"
@@ -517,10 +546,12 @@ useRouteQueryReentry(query => {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">关联采购单</label>
-            <SelectCard
-              size="form"
+            <ComboBox
               :model-value="form.purchaseOrderId"
               :options="purchaseOrderOptions"
+              placeholder="不关联采购单"
+              search-placeholder="搜采购单号 / 供应商"
+              empty-state="没有匹配的采购单"
               @update:model-value="v => (form.purchaseOrderId = v)"
             />
             <Button

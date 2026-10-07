@@ -17,6 +17,8 @@ import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
+import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -80,7 +82,10 @@ const ISSUE_ELIGIBLE_STAGES = [
 ];
 const eligibleOrders = computed(() =>
   productionOrders.value.filter(
-    p => !p.isOutsourced && ISSUE_ELIGIBLE_STAGES.includes(p.stage)
+    // 字段是 is_outsourced（裸 axios 取数，不走 camelcaseKeys）。
+    // 原先写成 p.isOutsourced 恒为 undefined，「委外不领料」这条过滤从来没生效，
+    // 生产上 6 张可选订单里 4 张是委外单。
+    p => !p.is_outsourced && ISSUE_ELIGIBLE_STAGES.includes(p.stage)
   )
 );
 const productionOrderOptions = computed(() => [
@@ -88,6 +93,7 @@ const productionOrderOptions = computed(() => [
   ...eligibleOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
+    searchText: orderSearchText(p),
   })),
 ]);
 const warehouseOptions = computed(() =>
@@ -443,10 +449,12 @@ onMounted(async () => {
             <label class="text-heading-3 text-n-slate-12">
               生产订单 <span class="text-n-ruby-11">*</span>
             </label>
-            <SelectCard
-              block
+            <ComboBox
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
+              placeholder="选择生产订单…"
+              search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
+              empty-state="没有可领料的生产订单"
               @update:model-value="v => (form.productionOrderId = v)"
             />
           </div>

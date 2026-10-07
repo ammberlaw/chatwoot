@@ -16,7 +16,9 @@ class Mes::ShipmentPolicy < ApplicationPolicy
   def reject? = approver?
   def approval_inbox? = approver?
 
-  def destroy? = @account_user.administrator?
+  # 删单与开单同一道门（控制器再按「草稿/被驳回」和制单人收敛）。
+  # 原先只许管理员删，连制单人自己都删不掉自己的重复草稿，只能挂在列表里。
+  def destroy? = create?
 
   private
 

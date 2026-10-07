@@ -17,6 +17,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 
 const { accountId } = useAccount();
 const store = useMesShipmentsStore();
@@ -77,6 +78,23 @@ const canShipRow = s =>
 // 原来有出库能力的人都能改别人的单，出了问题查不到人。
 const canEditRow = s =>
   s.kind === 'PRODUCTION' && s.status === 'DRAFT' && isMyDoc(s);
+// 删单：只针对草稿/被驳回单（已审核的占着成品预占、已出库的要走冲销）。
+// 门槛比编辑松——重复草稿常常是仓管准备出库时才发现的，只许开单人删
+// 就会一直挂在列表里（生产上 SO-20260916-06 挂了两张谁都删不掉）。
+const canDeleteRow = s =>
+  ['DRAFT', 'REJECTED'].includes(s.status) && (canShip.value || isMyDoc(s));
+
+const removeShipment = async s => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(`确定删除出库单 ${s.shipmentNo}？删除后不可恢复。`))
+    return;
+  try {
+    const ok = await store.delete(s.id);
+    if (ok) useAlert('已删除');
+  } catch (error) {
+    useAlert(error.message || '删除失败');
+  }
+};
 
 // 只读查看
 const viewDialogRef = ref(null);
@@ -114,9 +132,11 @@ const productionOrders = ref([]);
 const salesOrders = ref([]);
 const productionOrderOptions = computed(() => [
   { value: '', label: '选择生产订单…' },
+  // 标签里带上销售订单号：仓管找的是「这张销售订单的货」，只给 MO 号等于让人对不上。
   ...productionOrders.value.map(p => ({
     value: String(p.id),
-    label: `${p.order_no} · ${p.product_name}`,
+    label: `${p.order_no} · ${p.product_name}${p.sales_order_no ? ` · ${p.sales_order_no}` : ''}`,
+    searchText: orderSearchText(p),
   })),
 ]);
 const warehouseOptions = computed(() =>
@@ -569,6 +589,15 @@ onMounted(() => {
                 :is-loading="acting"
                 @click.stop="ship(s)"
               />
+              <Button
+                v-if="canDeleteRow(s)"
+                label="删单"
+                color="ruby"
+                variant="ghost"
+                size="sm"
+                :is-loading="acting"
+                @click.stop="removeShipment(s)"
+              />
             </div>
           </div>
           <div v-if="!records.length" class="py-10 text-center text-n-slate-11">
@@ -676,6 +705,15 @@ onMounted(() => {
                     :is-loading="acting"
                     @click="ship(s)"
                   />
+                  <Button
+                    v-if="canDeleteRow(s)"
+                    label="删单"
+                    color="ruby"
+                    variant="ghost"
+                    size="sm"
+                    :is-loading="acting"
+                    @click="removeShipment(s)"
+                  />
                 </div>
               </td>
             </tr>
@@ -708,10 +746,12 @@ onMounted(() => {
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">
           <label class="text-heading-3 text-n-slate-12">生产订单</label>
-          <SelectCard
-            size="form"
+          <ComboBox
             :model-value="form.productionOrderId"
             :options="productionOrderOptions"
+            placeholder="选择生产订单…"
+            search-placeholder="搜 MO 号 / 销售订单 / 产品 / 客户"
+            empty-state="没有匹配的生产订单"
             @update:model-value="onPickOrder"
           />
         </div>

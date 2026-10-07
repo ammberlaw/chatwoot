@@ -274,6 +274,17 @@ const openBuild = () => {
   markPristine();
   ledgerDialogRef.value?.open();
 };
+// 单张建账：从待建账某一行直接带进弹窗。批量只能按默认口径（整单一期尾款），
+// 要分期、要先核一眼明细的，走这个入口。
+const openBuildForOrder = order => {
+  Object.assign(ledgerForm, { crmSalesOrderId: order.id, installments: [] });
+  // ComboBox 走 use-api-results，不预置这一条就只有空值显示不出单号。
+  orderOptions.value = [
+    { value: order.id, label: `${order.order_no} ${order.name || ''}`.trim() },
+  ];
+  markPristine();
+  ledgerDialogRef.value?.open();
+};
 const addInstallment = () =>
   ledgerForm.installments.push({
     kind: 'BALANCE',
@@ -669,6 +680,7 @@ onMounted(() => {
               <th class="px-3 py-3 font-medium text-right">订单金额</th>
               <th class="px-3 py-3 font-medium text-right">建账金额</th>
               <th class="px-3 py-3 font-medium">状态</th>
+              <th class="px-3 py-3 font-medium text-right">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -717,9 +729,19 @@ onMounted(() => {
               <td class="px-3 py-3 text-n-slate-11">
                 {{ SO_STATUS_LABELS[order.status] || order.status }}
               </td>
+              <td class="px-3 py-3 text-right">
+                <Button
+                  v-if="canLedger"
+                  label="建账"
+                  color="slate"
+                  variant="faded"
+                  size="xs"
+                  @click="openBuildForOrder(order)"
+                />
+              </td>
             </tr>
             <tr v-if="!pendingOrders.length">
-              <td colspan="8" class="px-3 py-10 text-center text-n-slate-11">
+              <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
                 没有待建账的订单，已确认的销售订单都建过应收了。
               </td>
             </tr>

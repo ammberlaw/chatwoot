@@ -69,7 +69,8 @@ class Crm::ImapFetchService
   # 网易对坏邮件可能返回空 RFC822（非崩溃），空内容直接跳过不入库。
   def ingest_uid(imap, uid)
     mid = safe_message_id(imap, uid)
-    return false if mid && duplicate?(mid)
+    # 判重带上本邮箱主人：同一封信抄送多人要各存一份（见 Crm::EmailIngestion#duplicate?）。
+    return false if mid && duplicate?(mid, @account.owner_id)
 
     # 整封取信仍失败才抛→外层 reopen（网易坏邮件会污染连接，须换连接续收后面的）。
     raw = imap.uid_fetch(uid, 'RFC822')&.first&.attr&.dig('RFC822')

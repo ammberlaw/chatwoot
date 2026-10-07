@@ -532,6 +532,10 @@ Rails.application.routes.draw do
               collection { post :stage_blob }
             end
             resources :stock_balances, only: [:index]
+            # 期初库存导入（上线前把仓库里的实物库存搬进来，见 Mes::StockOpeningImportService）
+            resources :stock_openings, only: [:create] do
+              post :preview, on: :collection
+            end
             resources :production_records, only: [:index, :create, :destroy] do
               member do
                 post :return_document
