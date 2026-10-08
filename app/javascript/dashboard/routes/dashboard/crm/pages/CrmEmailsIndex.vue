@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -24,6 +24,10 @@ import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.v
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
 import CrmAddressIdentity from 'dashboard/components-next/CRM/CrmAddressIdentity.vue';
+import CrmBackgroundCheck from 'dashboard/components-next/CRM/CrmBackgroundCheck.vue';
+import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
+import CrmCustomerAPI from 'dashboard/api/crm/customers';
+import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 
 // 星标原来一直用 n-iris-9。经典灰把整条 iris 压成了近黑（去掉画布上大面积的紫），
 // 星标跟着就成了黑星；星标按惯例是黄的。只在经典灰下改，紫玻璃保持原样。
@@ -622,6 +626,121 @@ const cardShowCorrespondence = () => {
   searchTerm.value = '';
   fetchRecords();
 };
+// ── 阅读邮件时一键 AI 背调：对这封邮件的「对方」查公司底细，结果可直接写回客户档案 ──
+// 已建档的只补空字段 + 追加概况备注（不覆盖业务员自己填的），没建档的用背调结果直接建。
+const customersStore = useCrmCustomersStore();
+const bgDrawer = ref(null); // { record, address, name }
+const bgPanelRef = ref(null);
+const bgSaving = ref(false);
+const bgDialogRef = ref(null);
+
+// toAddress 可能是「张三 <a@x.com>, b@y.com」：只取第一个地址，去掉显示名。
+const firstAddress = raw => {
+  const one = String(raw || '').split(',')[0] || '';
+  const m = one.match(/<([^>]+)>/);
+  return (m ? m[1] : one).trim();
+};
+
+const openBackgroundCheck = async record => {
+  closeAvatarCard();
+  if (!record) return;
+  bgDrawer.value = {
+    record,
+    address: firstAddress(counterparty(record)),
+    name: record.customerName || record.counterpartyName || '',
+  };
+  await nextTick();
+  bgPanelRef.value?.runBackgroundCheck();
+};
+const closeBackgroundCheck = () => {
+  bgDrawer.value = null;
+};
+
+// 已建档：拉当前档案，只填空字段，备注里替换掉上一次的【AI 背调】段落。
+const writeBackToCustomer = async payload => {
+  const id = bgDrawer.value?.record?.crmCustomerId;
+  bgSaving.value = true;
+  try {
+    const { data } = await CrmCustomerAPI.show(id);
+    const cur = camelcaseKeys(data, { deep: true });
+    const patch = {};
+    const filled = [];
+    const setIfBlank = (key, val, label) => {
+      const v = String(val || '').trim();
+      if (v && !String(cur[key] || '').trim()) {
+        patch[key] = v;
+        filled.push(label);
+      }
+    };
+    setIfBlank('website', payload.website, '网址');
+    setIfBlank('address', payload.address, '地址');
+    setIfBlank('linkedin', payload.linkedin, 'Linkedin');
+    setIfBlank('tradeCountry', payload.countryCode, '国家');
+    if (payload.remarkBlock) {
+      const stripped = String(cur.customerRemark || '')
+        .replace(/【AI 背调】[\s\S]*$/, '')
+        .trim();
+      patch.customerRemark = stripped
+        ? `${stripped}\n\n${payload.remarkBlock}`
+        : payload.remarkBlock;
+      filled.push('概况→备注');
+    }
+    if (!Object.keys(patch).length) {
+      useAlert('档案里这些信息都已经有了，没有可写入的新内容');
+      return;
+    }
+    await customersStore.update({ id, ...patch });
+    useAlert(`已写入客户档案：${filled.join('、')}`);
+    closeBackgroundCheck();
+  } catch (e) {
+    useAlert(e?.message || '写入客户档案失败，请重试');
+  } finally {
+    bgSaving.value = false;
+  }
+};
+
+// 没建档：把背调结果当预填值打开建档弹窗（不带 id = 新建），联系邮箱用这封邮件的对方地址。
+const openCreateWithBackground = payload => {
+  const d = bgDrawer.value;
+  bgDialogRef.value?.open({
+    name: payload.name || d?.name || '',
+    website: payload.website || '',
+    address: payload.address || '',
+    linkedin: payload.linkedin || '',
+    tradeCountry: payload.countryCode || '',
+    contactEmail: d?.address || '',
+    customerRemark: payload.remarkBlock || '',
+  });
+  closeBackgroundCheck();
+};
+
+const applyBackgroundToCustomer = payload => {
+  if (bgDrawer.value?.record?.crmCustomerId) {
+    writeBackToCustomer(payload);
+  } else {
+    openCreateWithBackground(payload);
+  }
+};
+
+// 建档成功后把这封邮件的对方地址收编为该客户的联系人，顺手把它散落的历史邮件挂上去。
+const createCustomerFromBackground = async payload => {
+  const address = firstAddress(counterparty(selectedEmail.value || {}));
+  try {
+    const record = await customersStore.create(payload);
+    if (record?.id && address) {
+      await CrmCustomerAPI.attachContact(record.id, {
+        email: address,
+        name: payload.primaryContactName || '',
+      });
+    }
+    bgDialogRef.value?.onSuccess();
+    useAlert('已建档，并把这个邮箱的往来邮件挂到该客户');
+    fetchRecords();
+  } catch (e) {
+    useAlert(e?.message || '建档失败，请重试');
+  }
+};
+
 const clearCustomerFilter = () => {
   customerFilter.value = null;
   forceAllScope.value = false;
@@ -1407,6 +1526,12 @@ const moreMenuItems = computed(() => {
       icon: 'i-lucide-scroll-text',
       menuClass: 'crm-ai-item',
       run: () => summarizeThread(e),
+    },
+    {
+      label: 'AI 背调',
+      icon: 'i-lucide-search-check',
+      menuClass: 'crm-ai-item',
+      run: () => openBackgroundCheck(e),
     },
     {
       label: '转跟进任务',
@@ -3107,9 +3232,75 @@ watch(
           <div v-else class="px-3 py-2 text-xs text-n-slate-10">
             该邮箱尚未建档为客户
           </div>
+          <button
+            class="flex items-center w-full gap-2 px-3 py-2 text-sm text-left text-n-slate-12 hover:bg-n-alpha-1"
+            @click="openBackgroundCheck(avatarCard.record)"
+          >
+            <Icon icon="i-lucide-search-check" class="size-4 text-n-iris-11" />
+            AI 背调
+          </button>
         </div>
       </template>
     </Teleport>
+
+    <!-- AI 背调右侧抽屉：对这封邮件的「对方」查公司底细，结果可直接写回客户档案 -->
+    <Teleport to="body">
+      <template v-if="bgDrawer">
+        <div
+          class="fixed inset-0 z-[70] bg-black/20"
+          @click="closeBackgroundCheck"
+        />
+        <div
+          class="fixed top-0 right-0 z-[71] flex flex-col w-full h-full max-w-lg border-l shadow-2xl bg-n-solid-1 border-n-weak"
+        >
+          <div
+            class="flex items-center justify-between px-5 py-4 border-b border-n-weak"
+          >
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-n-slate-12">AI 背调</div>
+              <div class="text-xs truncate text-n-slate-10">
+                {{ bgDrawer.name || bgDrawer.address }}
+                <template v-if="bgDrawer.name">
+                  · {{ bgDrawer.address }}
+                </template>
+              </div>
+            </div>
+            <button
+              class="flex items-center justify-center rounded size-8 text-n-slate-10 hover:bg-n-alpha-2"
+              @click="closeBackgroundCheck"
+            >
+              <Icon icon="i-lucide-x" class="size-4" />
+            </button>
+          </div>
+          <div class="flex-1 p-5 overflow-y-auto">
+            <CrmBackgroundCheck
+              ref="bgPanelRef"
+              :email="bgDrawer.address"
+              :name="bgDrawer.name"
+              :import-label="
+                bgDrawer.record.crmCustomerId
+                  ? bgSaving
+                    ? '写入中…'
+                    : '写入客户档案'
+                  : '用这些信息建档'
+              "
+              :import-hint="
+                bgDrawer.record.crmCustomerId
+                  ? '只补档案里还空着的字段，概况追加到备注，不覆盖你填过的内容'
+                  : '该邮箱还没建档：带着这些信息打开建档表单，建完自动挂上往来邮件'
+              "
+              @apply="applyBackgroundToCustomer"
+            />
+          </div>
+        </div>
+      </template>
+    </Teleport>
+
+    <!-- 背调后建档：复用客户建档弹窗，预填背调结果 + 这封邮件的对方地址 -->
+    <CrmCustomerCreateDialog
+      ref="bgDialogRef"
+      @create="createCustomerFromBackground"
+    />
 
     <!-- 写跟进右侧抽屉：不跳转，直接记一条跟进 -->
     <Teleport to="body">

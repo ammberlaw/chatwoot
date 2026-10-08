@@ -96,6 +96,9 @@ const form = ref({
 const { isDirty, markPristine } = useDirtyGuard(() => form.value);
 const fieldValues = ref({});
 const pendingFiles = ref([]);
+// 非空＝在改一张已撤销的单（而不是新建），确认时走重新提交。
+const editingId = ref(null);
+const existingFiles = ref([]);
 const fileInput = ref(null);
 
 const activeTemplate = computed(() =>
@@ -137,6 +140,8 @@ const customerOptions = computed(() => [
 ]);
 
 const openSubmit = () => {
+  editingId.value = null;
+  existingFiles.value = [];
   form.value = {
     templateId: '',
     title: '',
@@ -144,6 +149,29 @@ const openSubmit = () => {
     quantity: '',
   };
   fieldValues.value = {};
+  pendingFiles.value = [];
+  markPristine();
+  submitRef.value?.open();
+};
+
+// 回填用的模板键：内置规格 spec:xx，自建模板 tpl:id。两者都没有（早期脏数据）就留空，
+// 让业务员重选——别拼出 'tpl:null' 这种假值骗过「请先选产品线」的校验。
+const templateKeyOf = row => {
+  if (row.specTemplate) return `spec:${row.specTemplate}`;
+  return row.templateId ? `tpl:${row.templateId}` : '';
+};
+
+// 重新编辑已撤销的申请：原样回填，附件只增不减（已传的列出来，确认时一并保留）。
+const openEdit = row => {
+  editingId.value = row.id;
+  existingFiles.value = row.files || [];
+  form.value = {
+    templateId: templateKeyOf(row),
+    title: row.title || '',
+    customerId: row.crmCustomerId ? String(row.crmCustomerId) : '',
+    quantity: row.quantity ?? '',
+  };
+  fieldValues.value = { ...(row.formData || {}) };
   pendingFiles.value = [];
   markPristine();
   submitRef.value?.open();
@@ -204,9 +232,13 @@ const submitRequest = async () => {
       fd.append('crm_customer_id', form.value.customerId);
     if (form.value.quantity) fd.append('quantity', form.value.quantity);
     pendingFiles.value.forEach(f => fd.append('files[]', f));
-    await QuoteRequestsAPI.submit(fd);
+    if (editingId.value) {
+      await QuoteRequestsAPI.resubmit(editingId.value, fd);
+    } else {
+      await QuoteRequestsAPI.submit(fd);
+    }
     submitRef.value?.close();
-    useAlert('已提交，等待报价');
+    useAlert(editingId.value ? '已重新提交，等待报价' : '已提交，等待报价');
     load();
   } catch (error) {
     useAlert(error?.response?.data?.error || '提交失败，请稍后重试');
@@ -527,6 +559,18 @@ onMounted(async () => {
               color="ruby"
               @click.stop="cancelRequest(row)"
             />
+            <!-- 撤销后可改回来再交：参数填错/附件漏传不用重开一单，单号和历史都保留 -->
+            <Button
+              v-if="
+                row.status === 'CANCELLED' &&
+                (row.applicantId === currentUser?.id || isAdminLike)
+              "
+              label="重新编辑"
+              size="sm"
+              variant="outline"
+              color="slate"
+              @click.stop="openEdit(row)"
+            />
           </div>
         </div>
       </div>
@@ -653,9 +697,13 @@ onMounted(async () => {
     <Dialog
       ref="submitRef"
       overflow-y-auto
-      title="发起定制报价"
-      description="按产品线选模板，参数填得越清楚，主管报价越快。"
-      confirm-button-label="提交"
+      :title="editingId ? '重新编辑定制报价' : '发起定制报价'"
+      :description="
+        editingId
+          ? '改完提交会回到「待报价」，并重新通知报价人。'
+          : '按产品线选模板，参数填得越清楚，主管报价越快。'
+      "
+      :confirm-button-label="editingId ? '重新提交' : '提交'"
       :confirm-button-color="goColor"
       :is-loading="submitting"
       :dirty="isDirty"
@@ -783,6 +831,7 @@ onMounted(async () => {
             variant="outline"
             color="slate"
             size="sm"
+            type="button"
             @click="fileInput?.click()"
           />
           <input
@@ -792,6 +841,17 @@ onMounted(async () => {
             class="hidden"
             @change="onPickFiles"
           />
+          <!-- 重新编辑时已传的附件照旧保留，这里列出来免得又传一遍 -->
+          <a
+            v-for="f in existingFiles"
+            :key="`old-${f.id}`"
+            :href="f.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs truncate text-n-iris-11 hover:underline"
+          >
+            {{ f.filename }}（已上传）
+          </a>
           <span
             v-for="(f, i) in pendingFiles"
             :key="i"

@@ -7,6 +7,8 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
 
   DEFAULT_API_BASE = 'https://api.deepseek.com/v1'.freeze
   DEFAULT_MODEL = 'deepseek-chat'.freeze
+  # 调模型的超时：比 AI 接口 90 秒的请求时限早一点收手（见 config/initializers/rack_timeout.rb）。
+  REQUEST_TIMEOUT = 85
   # 整封翻译的切段参数：一次 6000 字的上限对动辄几万字的往来邮件根本不够（正文会被
   # 「…（内容过长已截断）」切掉后半截）；直接把上限调大又会让单次请求拖过 Rack 的
   # 15 秒超时。所以切成小段并发跑，总耗时≈最慢那一段，而不是各段相加。
@@ -406,6 +408,9 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
       config.openai_api_base = api_base
       # DeepSeek 只认 system 角色，不认 OpenAI 新的 developer 角色
       config.openai_use_system_role = true
+      # 比 AI 接口的请求时限（见 config/initializers/rack_timeout.rb）早一点放弃，
+      # 这样超时是普通异常、能被各处 rescue 成「AI 失败请重试」，而不是漏成裸 500。
+      config.request_timeout = REQUEST_TIMEOUT
     end
     chat = context.chat(model: model, provider: :openai, assume_model_exists: true)
     chat.with_instructions(system_prompt)

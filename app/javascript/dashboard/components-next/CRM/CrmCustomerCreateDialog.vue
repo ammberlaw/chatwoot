@@ -124,14 +124,16 @@ const open = record => {
   resetForm();
   editingStarMicros.value = 0;
   if (record) {
-    editingId.value = record.id;
+    // 没 id = 只是拿一组预填值开新建（邮件中心背调后建档走这条）；别让 undefined 把弹窗认成编辑态。
+    editingId.value = record.id ?? null;
     Object.keys(form).forEach(key => {
       form[key] = record[key] || '';
     });
     editingStarMicros.value =
       record.dealTotalAmountMicros ?? record.deal_total_amount_micros ?? 0;
     attachments.value = record.files || [];
-    loadContacts(record.id);
+    // 没有 id = 拿预填值开新建（如邮件中心背调后建档），不去拉联系人。
+    if (record.id) loadContacts(record.id);
   }
   dialogRef.value?.open();
 };

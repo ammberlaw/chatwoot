@@ -11,6 +11,12 @@ const props = defineProps({
   name: { type: String, default: '' },
   website: { type: String, default: '' },
   email: { type: String, default: '' },
+  // 导入按钮的文案：默认是「填进本页表单」的口径，邮件中心那边是「写回客户档案 / 建档」。
+  importLabel: { type: String, default: '一键导入客户信息' },
+  importHint: {
+    type: String,
+    default: '公司名/网址用正式值刷新，国家/地址等填入空框，概况写进备注',
+  },
 });
 
 const emit = defineEmits(['apply']);
@@ -173,6 +179,9 @@ const importBackground = () => {
   });
   bgImported.value = true;
 };
+
+// 给父组件自动触发用（邮件中心点「AI 背调」时直接开跑，不用再点一次按钮）。
+defineExpose({ runBackgroundCheck });
 </script>
 
 <template>
@@ -262,7 +271,11 @@ const importBackground = () => {
           <span class="font-medium text-n-iris-11">AI 判断：</span
           >{{ bgProfile.note }}
         </p>
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+        <!-- 按容器宽度自适应列数：宽的地方（建档页/编辑弹窗）两列，
+             窄的地方（邮件中心右侧抽屉）自动收成一列，免得长段落被挤成细条、短字段留一大片空白。 -->
+        <div
+          class="grid gap-x-4 gap-y-1 grid-cols-[repeat(auto-fit,minmax(20rem,1fr))]"
+        >
           <div
             v-for="f in bgFields"
             v-show="bgProfile[f.key]"
@@ -299,11 +312,9 @@ const importBackground = () => {
             @click="importBackground"
           >
             <span class="i-lucide-download size-3.5" />
-            {{ bgImported ? '已导入' : '一键导入客户信息' }}
+            {{ bgImported ? '已导入' : importLabel }}
           </button>
-          <span class="mt-1 text-xs text-n-slate-10">
-            公司名/网址用正式值刷新，国家/地址等填入空框，概况写进备注
-          </span>
+          <span class="mt-1 text-xs text-n-slate-10">{{ importHint }}</span>
         </div>
       </template>
     </div>

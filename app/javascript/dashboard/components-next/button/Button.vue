@@ -248,8 +248,12 @@ const animationClasses = computed(() => {
 </script>
 
 <template>
+  <!-- 默认 type="button"：HTML 里 <button> 不写 type 就是 submit，而 Dialog 的内容整个包在
+       <form @submit.prevent="confirm"> 里——弹窗里随便一个「添加附件 / 加一行」按钮都会连带把
+       表单提交掉（点附件自动交单就是这么来的）。要提交的按钮自己写 type="submit"。 -->
   <button
     v-bind="filteredAttrs"
+    :type="filteredAttrs.type || 'button'"
     :data-button-variant="computedVariant"
     :class="{
       [STYLE_CONFIG.base]: true,

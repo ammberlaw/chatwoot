@@ -8,6 +8,12 @@ json.shared_user_ids resource.shared_user_ids || []
 # 当前用户是否「特别关注」该客户（每人各标；@favorited_ids 由列表控制器预载，其他渲染处默认 false）。
 json.favorited(@favorited_ids&.include?(resource.id) || false)
 
+# 官网/地址/Linkedin：permit 里可写，这里必须一起吐出来——否则编辑弹窗回填为空，
+# 一保存就把已有值清掉（AI 背调写进去的网址首当其冲）。
+json.website resource.website
+json.address resource.address
+json.linkedin resource.linkedin
+
 json.trade_country resource.trade_country
 json.trade_region resource.trade_region
 json.trade_city resource.trade_city

@@ -344,7 +344,7 @@ Rails.application.routes.draw do
             end
             # 定制报价：业务员按产品线模板填参数,主管(或被转交的人)填价格回来。
             resources :quote_request_templates, only: [:index, :create, :update, :destroy]
-            resources :quote_requests, only: [:index, :show, :create] do
+            resources :quote_requests, only: [:index, :show, :create, :update] do
               collection { get :templates }
               member do
                 post :quote

@@ -18,6 +18,13 @@ class QuoteRequestsAPI extends ApiClient {
     });
   }
 
+  // 撤销后重新编辑再交（多部件：可能补了附件）。
+  resubmit(id, formData) {
+    return axios.put(`${this.url}/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
   quote(id, payload) {
     return axios.post(`${this.url}/${id}/quote`, payload);
   }

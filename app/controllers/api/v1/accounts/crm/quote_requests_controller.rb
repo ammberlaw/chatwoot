@@ -3,7 +3,7 @@
 # 可见范围：自己提交的 + 该我报价的。管理员/副管看全部（要能盯住有没有单子卡住没人报）。
 class Api::V1::Accounts::Crm::QuoteRequestsController < Api::V1::Accounts::Crm::BaseController
   before_action :check_authorization
-  before_action :fetch_request, only: [:show, :quote, :transfer, :cancel]
+  before_action :fetch_request, only: [:show, :update, :quote, :transfer, :cancel]
 
   RESULTS_PER_PAGE = 20
 
@@ -40,6 +40,22 @@ class Api::V1::Accounts::Crm::QuoteRequestsController < Api::V1::Accounts::Crm::
     render :show
   end
 
+  # 撤销后重新编辑再交：只有提交人（或管理员）能改，且只能改「已撤销」的单——
+  # 还挂在报价人手上的单被改了他看不见，会照着旧参数报价。改完直接回到待报价并重新通知。
+  def update
+    return render json: { error: '只有提交人或管理员能修改' }, status: :forbidden unless own_or_admin?
+    return render json: { error: '只有已撤销的申请能重新编辑；请先撤销' }, status: :unprocessable_entity unless @quote_request.status == 'CANCELLED'
+
+    @quote_request.assign_attributes(request_params)
+    apply_template_change
+    @quote_request.files.attach(params[:files]) if params[:files].present?
+    @quote_request.pricer_id ||= default_pricer_id
+    @quote_request.status = 'PENDING'
+    @quote_request.save!
+    notify_pricer(@quote_request, '有一单定制报价重新提交了')
+    render :show
+  end
+
   # 报价：只有当前报价人和管理员能填。
   def quote
     return render json: { error: '这单不该你报价' }, status: :forbidden unless can_price?
@@ -70,9 +86,7 @@ class Api::V1::Accounts::Crm::QuoteRequestsController < Api::V1::Accounts::Crm::
   end
 
   def cancel
-    unless @quote_request.applicant_id == current_user.id || admin_like?
-      return render json: { error: '只有提交人或管理员能撤销' }, status: :forbidden
-    end
+    return render json: { error: '只有提交人或管理员能撤销' }, status: :forbidden unless own_or_admin?
 
     @quote_request.update!(status: 'CANCELLED')
     render :show
@@ -132,6 +146,25 @@ class Api::V1::Accounts::Crm::QuoteRequestsController < Api::V1::Accounts::Crm::
     membership = Current.account.org_memberships.find_by(user_id: current_user.id, is_primary: true) ||
                  Current.account.org_memberships.find_by(user_id: current_user.id)
     membership&.department&.leader_id
+  end
+
+  def own_or_admin?
+    @quote_request.applicant_id == current_user.id || admin_like?
+  end
+
+  # 重新提交时可能换了产品线/模板：按新建那套口径重新落模板、规格与产品线（没传就维持原样）。
+  def apply_template_change
+    template = Current.account.crm_quote_request_templates.find_by(id: params[:template_id])
+    # 二选一，不互相污染；都没给（或给了找不到的 id）就维持原样，别把已有的模板抹掉。
+    if params[:spec_template].present?
+      @quote_request.spec_template = params[:spec_template]
+      @quote_request.template = nil
+    elsif template
+      @quote_request.template = template
+      @quote_request.spec_template = nil
+    end
+    line = template&.product_line.presence || params[:product_line].presence
+    @quote_request.product_line = line if line.present?
   end
 
   def micros(value)

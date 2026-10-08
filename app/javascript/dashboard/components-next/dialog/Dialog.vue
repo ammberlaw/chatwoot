@@ -187,6 +187,16 @@ const confirm = () => {
   emit('confirm');
 };
 
+// 表单提交：对话框内容包在 <form> 里，而原生 <button> 不写 type 就是 submit——
+// 弹窗里随手一个「添加附件 / 加一行」按钮都会连带把表单交掉（点附件自动交单就是这么来的）。
+// 只认「显式写了 type=submit」的按钮（对话框自己的确认键、页面自定的提交键），
+// 以及回车提交（submitter 为空）；没标记的按钮一律当普通按钮放过。
+const onSubmit = event => {
+  const submitter = event.submitter;
+  if (submitter && submitter.getAttribute('type') !== 'submit') return;
+  confirm();
+};
+
 // 未保存提醒里的「保存」：先把提醒层收掉再交给页面存。
 // 存成功页面自己会 close()；存失败（必填没齐等）就退回表单，
 // 否则错误提示被压在提醒层底下，人只看见一个不动的弹窗。
@@ -221,7 +231,7 @@ defineExpose({ open, close, requestClose });
         <form
           ref="dialogContentRef"
           class="relative flex flex-col w-full h-auto gap-6 p-6 overflow-visible text-start align-middle transition-all duration-300 ease-in-out transform bg-n-alpha-3 backdrop-blur-[100px] shadow-xl rounded-xl"
-          @submit.prevent="confirm"
+          @submit.prevent="onSubmit"
           @click.stop
         >
           <div

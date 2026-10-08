@@ -116,7 +116,7 @@ export default {
         <NextButton faded slate sm @click.prevent="onClose">
           {{ $t('FILTER.CUSTOM_VIEWS.ADD.CANCEL_BUTTON') }}
         </NextButton>
-        <NextButton solid blue sm :disabled="isButtonDisabled">
+        <NextButton solid blue sm type="submit" :disabled="isButtonDisabled">
           {{ $t('FILTER.CUSTOM_VIEWS.ADD.SAVE_BUTTON') }}
         </NextButton>
       </div>

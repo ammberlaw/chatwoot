@@ -876,13 +876,20 @@ const PERIODS = [
                       class="relative flex justify-center w-7 h-full shrink-0"
                       :title="`${bar.name}：${bar.value} 封`"
                     >
-                      <!-- 榜首的白色数值浮标：贴在条子顶上，不占条子的高度 -->
+                      <!-- 数值贴在条子顶上，不占条子的高度：榜首是白色浮标，其余只写数字 -->
                       <span
                         v-if="bar.top"
                         class="absolute z-10 -translate-x-1/2 left-1/2 px-2 py-0.5 rounded-lg bg-n-solid-1 text-[10px] font-semibold text-n-slate-12 shadow-md whitespace-nowrap"
                         :style="{ bottom: `calc(${bar.pct}% + 6px)` }"
                       >
                         {{ bar.value }} 封
+                      </span>
+                      <span
+                        v-else
+                        class="absolute z-10 -translate-x-1/2 left-1/2 text-[10px] font-medium text-n-slate-11 tabular-nums whitespace-nowrap"
+                        :style="{ bottom: `calc(${bar.pct}% + 4px)` }"
+                      >
+                        {{ bar.value }}
                       </span>
                       <div
                         class="self-end w-full rounded-full transition-all"
