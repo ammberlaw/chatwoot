@@ -330,6 +330,23 @@ const setRowAmount = (row, v) => {
 // 算料时是否连「已经下满的料」一起铺出来（默认不铺）。
 const includeOrdered = ref(false);
 
+// 点中的那一行高亮：几十行明细对着纸质单核的时候，没有焦点行容易串行。
+// 只是视觉焦点，不参与任何提交。
+const activeRow = ref(null);
+
+// 沿用上面最近一个填了供应商的行——不只看紧挨着的上一行，
+// 否则中间插一行空的，底下几行就没得抄了。
+const supplierAbove = i => {
+  for (let k = i - 1; k >= 0; k -= 1) {
+    if (form.rows[k]?.mesSupplierId) return form.rows[k].mesSupplierId;
+  }
+  return '';
+};
+const copySupplierFromAbove = i => {
+  const id = supplierAbove(i);
+  if (id) form.rows[i].mesSupplierId = id;
+};
+
 const addRow = () => form.rows.push(blankRow());
 const removeRow = i => {
   const [r] = form.rows.splice(i, 1);
@@ -868,12 +885,25 @@ onBeforeRouteLeave((to, from, next) => {
           <div
             v-for="(row, i) in form.rows"
             :key="i"
-            class="flex flex-col gap-2.5 p-3 border rounded-lg border-n-weak"
+            class="flex flex-col gap-2.5 p-3 border rounded-lg"
+            :class="
+              activeRow === i
+                ? 'border-n-iris-8 bg-n-iris-3'
+                : 'border-n-weak hover:border-n-slate-6'
+            "
+            @click="activeRow = i"
           >
-            <!-- 主控件行：类型 / 物料 / 供应商 / 数量 / 单价 / 删除 -->
+            <!-- 主控件行：序号 / 类型 / 物料 / 供应商 / 数量 / 单价 / 删除
+                 序号：一个供应商常要下好几行料，没有行号对不上纸质单。 -->
             <div
-              class="grid items-center grid-cols-1 gap-2 md:grid-cols-[1.6fr_3fr_2fr_1.2fr_1.6fr_1.6fr_24px]"
+              class="grid items-center grid-cols-1 gap-2 md:grid-cols-[28px_1.6fr_3fr_2fr_1.2fr_1.6fr_1.6fr_24px]"
             >
+              <span
+                class="text-xs tabular-nums text-n-slate-10 md:text-center"
+                :class="activeRow === i ? 'font-semibold text-n-iris-11' : ''"
+              >
+                {{ i + 1 }}
+              </span>
               <div>
                 <SelectCard
                   size="form"
@@ -892,12 +922,23 @@ onBeforeRouteLeave((to, from, next) => {
                   @select="onProductPicked"
                 />
               </div>
-              <div>
+              <div class="flex items-center gap-1 min-w-0">
                 <ComboBox
                   v-model="row.mesSupplierId"
                   :options="supplierOptions"
                   placeholder="选择供应商"
+                  class="flex-1 min-w-0"
                 />
+                <!-- 同上：一个供应商常要下好几行料，逐行重选太慢 -->
+                <button
+                  v-if="supplierAbove(i)"
+                  type="button"
+                  class="px-1.5 h-7 text-xs rounded shrink-0 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-iris-11"
+                  title="沿用上一行的供应商"
+                  @click.stop="copySupplierFromAbove(i)"
+                >
+                  同上
+                </button>
               </div>
               <Input
                 :model-value="row.qty"

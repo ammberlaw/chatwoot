@@ -30,6 +30,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @production_orders = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
     # 已完工入库量整批查一次；逐行算就是一页几百条 SQL（成品入库页一次拉 500 张订单）。
     @fg_inbound_qty_by_order = Mes::ProductionOrder.bulk_fg_inbound_qty(Current.account, @production_orders.map(&:id))
+    # 领料状态同理：列表要显示领没领过料，整批查一次。
+    @issued_counts_by_order = Mes::ProductionOrder.bulk_issued_counts(Current.account, @production_orders.map(&:id))
     # 采购单的「关联生产订单」下拉要把料已下满的单拿掉，这个判断要展开 BOM，只在它要的时候算。
     return unless boolean_param(:with_purchasing_complete)
 

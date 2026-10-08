@@ -17,6 +17,10 @@ json.produced_qty resource.produced_qty
 # 继续摆在下拉里、还把数量自动填成全量，引着人建出永远过不了账的重复单。
 json.fg_inbound_qty (@fg_inbound_qty_by_order&.[](resource.id) || resource.fg_inbound_qty).to_f
 json.progress_ratio resource.progress_ratio
+# 列表对标金蝶生产任务单：规格型号 + 领料单数（领没领过料）。
+# 未入库量 = 数量 − 已入库量，交前端算，不再多吐一个会算错口径的字段。
+json.specification resource.crm_product&.specification
+json.issued_entry_count (@issued_counts_by_order&.[](resource.id)).to_i
 json.bom_id resource.bom_id
 json.is_outsourced resource.is_outsourced
 # 料是否都下满采购单：采购单的「关联生产订单」下拉据此把下完的单拿掉

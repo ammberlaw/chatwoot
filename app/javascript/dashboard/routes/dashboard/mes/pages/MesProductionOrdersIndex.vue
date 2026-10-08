@@ -195,6 +195,34 @@ const COLUMN_DEFS = [
     label: '商品编码',
     tdClass: 'px-3 py-3 text-n-slate-11 tabular-nums whitespace-nowrap',
   },
+  // 对标金蝶生产任务单的那几列：规格、入库进度、领料与完工状态。
+  {
+    key: 'spec',
+    label: '规格型号',
+    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[14rem] truncate',
+  },
+  {
+    key: 'inboundQty',
+    label: '已入库',
+    tdClass:
+      'px-3 py-3 text-right tabular-nums whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'pendingQty',
+    label: '未入库',
+    tdClass:
+      'px-3 py-3 text-right tabular-nums whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'issueState',
+    label: '领料状态',
+    tdClass: 'px-3 py-3 whitespace-nowrap',
+  },
+  {
+    key: 'doneState',
+    label: '完工状态',
+    tdClass: 'px-3 py-3 whitespace-nowrap',
+  },
   {
     key: 'remark',
     label: '备注',
@@ -213,6 +241,26 @@ const COLUMN_DEFS = [
 ];
 const { orderedColumns, isDragging, onColDragStart, onColDrop, resetOrder } =
   useOrderableColumns(COLUMN_DEFS, 'mes.orderCols.v1');
+
+// 未入库量：订单数量 − 已完工入库量（后端 fg_inbound_qty 只认已过账的成品入库单）。
+const pendingQty = po => {
+  const left = Number(po.qty || 0) - Number(po.fgInboundQty || 0);
+  return left > 0 ? Number(left.toFixed(3)) : 0;
+};
+const pendingCls = po => (pendingQty(po) > 0 ? 'text-n-amber-11' : '');
+// 领料状态只认已过账的领料单：草稿不算领过（和入库口径一致）。
+const issueState = po =>
+  po.issuedEntryCount > 0
+    ? { label: `已领料 ${po.issuedEntryCount} 单`, cls: 'text-n-teal-11' }
+    : { label: '未领料', cls: 'text-n-slate-10' };
+// 完工状态按「已入库量 / 订单量」判，不看阶段——阶段是人推的，入库量是真发生的。
+const doneState = po => {
+  const done = Number(po.fgInboundQty || 0);
+  if (done <= 0) return { label: '未入库', cls: 'text-n-slate-10' };
+  return done >= Number(po.qty || 0)
+    ? { label: '已完工', cls: 'text-n-teal-11' }
+    : { label: '部分入库', cls: 'text-n-amber-11' };
+};
 
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
@@ -1788,6 +1836,30 @@ watch(currentPage, fetchRecords);
                   <template v-if="col.key === 'sku'">
                     {{ po.productSku || '—' }}
                   </template>
+                  <template v-if="col.key === 'spec'">
+                    <span
+                      class="block truncate"
+                      :title="po.specification || ''"
+                    >
+                      {{ po.specification || '—' }}
+                    </span>
+                  </template>
+                  <template v-if="col.key === 'inboundQty'">
+                    {{ po.fgInboundQty || 0 }}
+                  </template>
+                  <template v-if="col.key === 'pendingQty'">
+                    <span :class="pendingCls(po)">{{ pendingQty(po) }}</span>
+                  </template>
+                  <template v-if="col.key === 'issueState'">
+                    <span :class="issueState(po).cls">
+                      {{ issueState(po).label }}
+                    </span>
+                  </template>
+                  <template v-if="col.key === 'doneState'">
+                    <span :class="doneState(po).cls">
+                      {{ doneState(po).label }}
+                    </span>
+                  </template>
                   <template v-if="col.key === 'remark'">
                     <span class="block truncate" :title="po.remark || ''">
                       {{ po.remark || '—' }}
@@ -3041,8 +3113,9 @@ watch(currentPage, fetchRecords);
                       <span
                         v-else-if="bi.productRemark"
                         class="text-n-slate-10"
+                        :title="`产品档案备注：${bi.productRemark}`"
                       >
-                        档案：{{ bi.productRemark }}
+                        {{ bi.productRemark }}
                       </span>
                       <span v-else>—</span>
                     </td>

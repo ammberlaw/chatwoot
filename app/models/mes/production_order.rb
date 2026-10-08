@@ -530,6 +530,18 @@ class Mes::ProductionOrder < ApplicationRecord
       .sum(Arel.sql('COALESCE(mes_stock_entry_items.received_qty, mes_stock_entry_items.qty)'))
   end
 
+  # 批量领料单数：列表要显示「领料状态」，逐张订单各查一次就是一页 500 条 SQL
+  # （同 bulk_fg_inbound_qty 的理由）。只认已过账的领料单——草稿不算领过。
+  def self.bulk_issued_counts(account, order_ids)
+    return {} if order_ids.blank?
+
+    Mes::StockEntry
+      .where(account_id: account.id, production_order_id: order_ids,
+             purpose: 'MATERIAL_ISSUE', status: 'POSTED')
+      .group(:production_order_id)
+      .count
+  end
+
   # 入库是否收齐（已完工入库量 ≥ 订单数量）。
   def fg_inbound_complete?
     qty.to_d.positive? && fg_inbound_qty >= qty.to_d

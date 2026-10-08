@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import { useMesPurchaseOrdersStore } from 'dashboard/stores/mes/purchaseOrders';
 import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
 import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
@@ -349,6 +350,147 @@ const viewFields = computed(() => {
     { label: '备注', value: p.remark },
   ];
 });
+// 列表两种看法：「按单」一行一张采购单（原样），「按明细」一行一条料——
+// 对标金蝶采购订单的明细视图。用户原话：「只能看到供应商和采购单号，物料啥也看不出」。
+const viewMode = ref('order'); // order | item
+const VIEW_MODES = [
+  { key: 'order', label: '按单' },
+  { key: 'item', label: '按明细' },
+];
+
+// 按单视图的列（可拖拽改顺序，顺序按人记在本机）。操作列固定在最后，不参与拖拽。
+const ORDER_COLUMN_DEFS = [
+  { key: 'idx', label: '#', tdClass: 'px-3 py-3 tabular-nums text-n-slate-10' },
+  {
+    key: 'poNo',
+    label: '采购单号',
+    tdClass: 'px-3 py-3 font-medium text-n-slate-12',
+  },
+  { key: 'suppliers', label: '供应商', tdClass: 'px-3 py-3 text-n-slate-11' },
+  { key: 'order', label: '生产订单', tdClass: 'px-3 py-3 text-n-slate-11' },
+  { key: 'owner', label: '归属人', tdClass: 'px-3 py-3 text-n-slate-11' },
+  {
+    key: 'creator',
+    label: '下单人',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
+  { key: 'status', label: '收货状态', tdClass: 'px-3 py-3 text-n-slate-11' },
+  {
+    key: 'total',
+    label: '总额',
+    thClass: 'text-right',
+    tdClass: 'px-3 py-3 text-right whitespace-nowrap text-n-slate-12',
+  },
+  {
+    key: 'exports',
+    label: '导出',
+    thClass: 'text-center',
+    tdClass: 'px-3 py-3 text-center tabular-nums whitespace-nowrap',
+  },
+  { key: 'approval', label: '审批', tdClass: 'px-3 py-3 whitespace-nowrap' },
+  { key: 'expected', label: '回复交期', tdClass: 'px-3 py-3 text-n-slate-11' },
+  { key: 'delivery', label: '交货时间', tdClass: 'px-3 py-3 text-n-slate-11' },
+  // 对内备注：核对生产单时要看的就是这句，原来只能点进详情才看得到
+  {
+    key: 'internalRemark',
+    label: '对内备注',
+    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
+  },
+  {
+    key: 'remark',
+    label: '备注',
+    tdClass: 'px-3 py-3 text-n-slate-11 max-w-[16rem] truncate',
+  },
+];
+const {
+  orderedColumns: orderCols,
+  isDragging: isOrderColDragging,
+  onColDragStart: onOrderColDragStart,
+  onColDrop: onOrderColDrop,
+  resetOrder: resetOrderCols,
+} = useOrderableColumns(ORDER_COLUMN_DEFS, 'mes.poListCols.v1');
+
+// 明细视图的列。
+const ITEM_COLUMN_DEFS = [
+  { key: 'idx', label: '#', tdClass: 'px-3 py-2 tabular-nums text-n-slate-10' },
+  {
+    key: 'poNo',
+    label: '采购单号',
+    tdClass: 'px-3 py-2 font-medium text-n-slate-12',
+  },
+  { key: 'supplier', label: '供应商', tdClass: 'px-3 py-2 text-n-slate-11' },
+  { key: 'code', label: '物料编码', tdClass: 'px-3 py-2 text-n-slate-11' },
+  { key: 'name', label: '名称', tdClass: 'px-3 py-2 text-n-slate-12' },
+  {
+    key: 'spec',
+    label: '规格型号',
+    tdClass: 'px-3 py-2 text-n-slate-11 max-w-[18rem] truncate',
+  },
+  { key: 'aux', label: '辅助属性', tdClass: 'px-3 py-2 text-n-slate-11' },
+  {
+    key: 'qty',
+    label: '采购量',
+    thClass: 'text-right',
+    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-12',
+  },
+  {
+    key: 'received',
+    label: '已到料',
+    thClass: 'text-right',
+    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
+  },
+  { key: 'unit', label: '单位', tdClass: 'px-3 py-2 text-n-slate-11' },
+  {
+    key: 'rate',
+    label: '单价',
+    thClass: 'text-right',
+    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
+  },
+  {
+    key: 'amount',
+    label: '金额',
+    thClass: 'text-right',
+    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-12',
+  },
+  { key: 'order', label: '生产订单', tdClass: 'px-3 py-2 text-n-slate-11' },
+  { key: 'arrival', label: '实际到料', tdClass: 'px-3 py-2 text-n-slate-11' },
+  {
+    key: 'itemRemark',
+    label: '备注',
+    tdClass: 'px-3 py-2 text-n-slate-11 max-w-[16rem] truncate',
+  },
+];
+const {
+  orderedColumns: itemCols,
+  isDragging: isItemColDragging,
+  onColDragStart: onItemColDragStart,
+  onColDrop: onItemColDrop,
+  resetOrder: resetItemCols,
+} = useOrderableColumns(ITEM_COLUMN_DEFS, 'mes.poItemCols.v1');
+
+// 把当页采购单摊平成「一行一条料」。只摊当页，不额外请求——列表本来就带明细。
+const itemRows = computed(() =>
+  records.value.flatMap(po =>
+    (po.purchaseItems || []).map(it => ({
+      key: `${po.id}-${it.id}`,
+      po,
+      poNo: po.poNo,
+      supplier: it.supplierName || '—',
+      code: it.productSku || it.materialNo || '—',
+      name: it.productName || it.materialName || '—',
+      spec: it.specification || '—',
+      aux: it.auxAttributeName || '—',
+      qty: it.qty,
+      received: it.receivedQty,
+      unit: it.unit || '',
+      rate: it.rateMicros,
+      amount: it.amountMicros,
+      arrival: it.arrivalDate,
+      itemRemark: it.remark || '—',
+    }))
+  )
+);
+
 const VIEW_ITEM_COLS = [
   { label: '类型', key: 'typeLabel' },
   { label: '编码', key: 'code' },
@@ -425,13 +567,40 @@ useRouteQueryReentry(query => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">采购单</h1>
-      <Button
-        v-if="mesCan('purchase')"
-        label="新建采购单"
-        color="iris"
-        size="sm"
-        @click="goCreate()"
-      />
+      <div class="flex items-center gap-2">
+        <!-- 按单 / 按明细：核对物料时要的是明细那一屏（对标金蝶） -->
+        <div class="flex items-center h-8 gap-1 px-1 rounded-lg bg-n-alpha-1">
+          <button
+            v-for="m in VIEW_MODES"
+            :key="m.key"
+            type="button"
+            class="h-6 px-2.5 text-xs transition-colors rounded-md whitespace-nowrap"
+            :class="
+              viewMode === m.key
+                ? 'bg-n-solid-1 text-n-slate-12 font-medium shadow-sm'
+                : 'text-n-slate-11 hover:text-n-slate-12'
+            "
+            @click="viewMode = m.key"
+          >
+            {{ m.label }}
+          </button>
+        </div>
+        <button
+          type="button"
+          class="text-xs text-n-slate-10 hover:text-n-iris-11"
+          title="把表头顺序恢复成默认"
+          @click="viewMode === 'order' ? resetOrderCols() : resetItemCols()"
+        >
+          恢复默认列序
+        </button>
+        <Button
+          v-if="mesCan('purchase')"
+          label="新建采购单"
+          color="iris"
+          size="sm"
+          @click="goCreate()"
+        />
+      </div>
     </div>
 
     <MesBoardOwnerBar board-key="mes_purchase_orders_index" />
@@ -541,28 +710,29 @@ useRouteQueryReentry(query => {
             还没有采购单。
           </div>
         </div>
-        <table class="hidden w-full text-sm whitespace-nowrap md:table">
+        <!-- 按单视图：列可拖拽改顺序（顺序按人记在本机），操作列固定在最后 -->
+        <table
+          v-if="viewMode === 'order'"
+          class="hidden w-full text-sm whitespace-nowrap md:table"
+        >
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium w-12">#</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">采购单号</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">下单人</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">收货状态</th>
-              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
-                总额
-              </th>
               <th
-                class="px-3 py-3 font-medium text-center whitespace-nowrap"
-                title="导出过几次——一个供应商几十张单时，用来看哪张还没传出去"
+                v-for="col in orderCols"
+                :key="col.key"
+                draggable="true"
+                class="px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+                :class="[
+                  col.thClass,
+                  isOrderColDragging(col.key) ? 'opacity-40' : '',
+                ]"
+                title="拖动可调整列顺序"
+                @dragstart="onOrderColDragStart(col.key)"
+                @dragover.prevent
+                @drop="onOrderColDrop(col.key)"
               >
-                导出
+                {{ col.label }}
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">审批</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">回复交期</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">交货时间</th>
               <th class="px-3 py-3" />
             </tr>
           </thead>
@@ -572,61 +742,67 @@ useRouteQueryReentry(query => {
               :key="p.id"
               class="border-b border-n-weak"
             >
-              <td class="px-3 py-3 tabular-nums text-n-slate-10">
-                {{ i + 1 }}
-              </td>
-              <td class="px-3 py-3 font-medium text-n-slate-12">
-                {{ p.poNo }}
-                <span
-                  v-if="p.hasException"
-                  v-tooltip.top="exceptionTip(p)"
-                  class="ml-1 text-xs cursor-help text-n-ruby-11"
-                >
-                  ⚠
-                </span>
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                <MesSupplierSummary :names="p.supplierNames || []" />
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                <span :title="(p.relatedProductionOrderNos || []).join('、')">
-                  {{ orderNosLabel(p.relatedProductionOrderNos) }}
-                </span>
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ p.productionOrderOwnerName || '—' }}
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
-                {{ p.ownerName || '—' }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ STATUS_LABELS[p.status] }}
-              </td>
-              <td
-                class="px-3 py-3 text-right whitespace-nowrap text-n-slate-12"
-              >
-                {{ yuan(p.totalAmountMicros) }}
-              </td>
-              <td class="px-3 py-3 text-center tabular-nums whitespace-nowrap">
-                <span
-                  v-if="p.exportCount"
-                  class="px-1.5 py-0.5 text-xs rounded-md bg-n-teal-3 text-n-teal-11"
-                  :title="`最近一次 ${day(p.lastExportedAt) || '—'}`"
-                >
-                  {{ p.exportCount }}
-                </span>
-                <span v-else class="text-xs text-n-slate-10">未导出</span>
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap">
-                <span :class="APPROVAL_COLORS[p.approvalStatus]">
-                  {{ APPROVAL_LABELS[p.approvalStatus] || '—' }}
-                </span>
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ day(p.expectedDate) }}
-              </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ day(p.deliveryDate) }}
+              <td v-for="col in orderCols" :key="col.key" :class="col.tdClass">
+                <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
+                <template v-else-if="col.key === 'poNo'">
+                  {{ p.poNo }}
+                  <span
+                    v-if="p.hasException"
+                    v-tooltip.top="exceptionTip(p)"
+                    class="ml-1 text-xs cursor-help text-n-ruby-11"
+                  >
+                    ⚠
+                  </span>
+                </template>
+                <template v-else-if="col.key === 'suppliers'">
+                  <MesSupplierSummary :names="p.supplierNames || []" />
+                </template>
+                <template v-else-if="col.key === 'order'">
+                  <span :title="(p.relatedProductionOrderNos || []).join('、')">
+                    {{ orderNosLabel(p.relatedProductionOrderNos) }}
+                  </span>
+                </template>
+                <template v-else-if="col.key === 'owner'">
+                  {{ p.productionOrderOwnerName || '—' }}
+                </template>
+                <template v-else-if="col.key === 'creator'">
+                  {{ p.ownerName || '—' }}
+                </template>
+                <template v-else-if="col.key === 'status'">
+                  {{ STATUS_LABELS[p.status] }}
+                </template>
+                <template v-else-if="col.key === 'total'">
+                  {{ yuan(p.totalAmountMicros) }}
+                </template>
+                <template v-else-if="col.key === 'exports'">
+                  <span
+                    v-if="p.exportCount"
+                    class="px-1.5 py-0.5 text-xs rounded-md bg-n-teal-3 text-n-teal-11"
+                    :title="`最近一次 ${day(p.lastExportedAt) || '—'}`"
+                  >
+                    {{ p.exportCount }}
+                  </span>
+                  <span v-else class="text-xs text-n-slate-10">未导出</span>
+                </template>
+                <template v-else-if="col.key === 'approval'">
+                  <span :class="APPROVAL_COLORS[p.approvalStatus]">
+                    {{ APPROVAL_LABELS[p.approvalStatus] || '—' }}
+                  </span>
+                </template>
+                <template v-else-if="col.key === 'expected'">
+                  {{ day(p.expectedDate) }}
+                </template>
+                <template v-else-if="col.key === 'delivery'">
+                  {{ day(p.deliveryDate) }}
+                </template>
+                <template v-else-if="col.key === 'internalRemark'">
+                  <span :title="p.internalRemark || ''">
+                    {{ p.internalRemark || '—' }}
+                  </span>
+                </template>
+                <template v-else-if="col.key === 'remark'">
+                  <span :title="p.remark || ''">{{ p.remark || '—' }}</span>
+                </template>
               </td>
               <td class="px-3 py-3 text-right whitespace-nowrap">
                 <div
@@ -697,8 +873,94 @@ useRouteQueryReentry(query => {
               </td>
             </tr>
             <tr v-if="!records.length">
-              <td colspan="13" class="px-3 py-10 text-center text-n-slate-11">
+              <td
+                :colspan="orderCols.length + 1"
+                class="px-3 py-10 text-center text-n-slate-11"
+              >
                 还没有采购单。
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- 明细视图：一行一条料（对标金蝶采购订单明细）。数据来自当页采购单自带的
+             明细，不额外请求；列同样可拖拽。 -->
+        <table v-else class="hidden w-full text-sm whitespace-nowrap md:table">
+          <thead>
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+              <th
+                v-for="col in itemCols"
+                :key="col.key"
+                draggable="true"
+                class="px-3 py-2 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+                :class="[
+                  col.thClass,
+                  isItemColDragging(col.key) ? 'opacity-40' : '',
+                ]"
+                title="拖动可调整列顺序"
+                @dragstart="onItemColDragStart(col.key)"
+                @dragover.prevent
+                @drop="onItemColDrop(col.key)"
+              >
+                {{ col.label }}
+              </th>
+              <th class="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(r, i) in itemRows"
+              :key="r.key"
+              class="border-b border-n-weak [&:hover>td]:bg-n-alpha-1"
+            >
+              <td v-for="col in itemCols" :key="col.key" :class="col.tdClass">
+                <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
+                <template v-else-if="col.key === 'poNo'">{{ r.poNo }}</template>
+                <template v-else-if="col.key === 'supplier'">
+                  {{ r.supplier }}
+                </template>
+                <template v-else-if="col.key === 'code'">{{ r.code }}</template>
+                <template v-else-if="col.key === 'name'">{{ r.name }}</template>
+                <template v-else-if="col.key === 'spec'">
+                  <span :title="r.spec">{{ r.spec }}</span>
+                </template>
+                <template v-else-if="col.key === 'aux'">{{ r.aux }}</template>
+                <template v-else-if="col.key === 'qty'">{{ r.qty }}</template>
+                <template v-else-if="col.key === 'received'">
+                  {{ r.received ?? '—' }}
+                </template>
+                <template v-else-if="col.key === 'unit'">{{ r.unit }}</template>
+                <template v-else-if="col.key === 'rate'">
+                  {{ canViewAmount ? yuan(r.rate) : '—' }}
+                </template>
+                <template v-else-if="col.key === 'amount'">
+                  {{ canViewAmount ? yuan(r.amount) : '—' }}
+                </template>
+                <template v-else-if="col.key === 'order'">
+                  {{ orderNosLabel(r.po.relatedProductionOrderNos) }}
+                </template>
+                <template v-else-if="col.key === 'arrival'">
+                  {{ day(r.arrival) }}
+                </template>
+                <template v-else-if="col.key === 'itemRemark'">
+                  <span :title="r.itemRemark">{{ r.itemRemark }}</span>
+                </template>
+              </td>
+              <td class="px-3 py-2 text-right whitespace-nowrap">
+                <Button
+                  label="查看"
+                  variant="ghost"
+                  size="sm"
+                  @click="openView(r.po)"
+                />
+              </td>
+            </tr>
+            <tr v-if="!itemRows.length">
+              <td
+                :colspan="itemCols.length + 1"
+                class="px-3 py-10 text-center text-n-slate-11"
+              >
+                这一页的采购单还没有明细。
               </td>
             </tr>
           </tbody>

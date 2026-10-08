@@ -150,6 +150,11 @@ const reload = () => {
   if (currentPage.value !== 1) currentPage.value = 1;
   else load();
 };
+// 清空搜索并立刻回到全部档案（光清输入框不重新取数，列表还停在搜索结果上）。
+const clearKeyword = () => {
+  keyword.value = '';
+  reload();
+};
 const changeCategoryFilter = v => {
   categoryFilter.value = v;
   reload();
@@ -386,12 +391,26 @@ onMounted(() => {
           class="w-full sm:w-44"
           @update:model-value="changeCategoryFilter"
         />
-        <input
-          v-model="keyword"
-          placeholder="搜索编码 / 名称 / 规格 / 类别"
-          class="h-9 px-3 text-sm rounded-lg outline-none w-full sm:w-56 border border-n-weak bg-n-solid-1 text-n-slate-12"
-          @keyup.enter="reload"
-        />
+        <!-- 带清除的搜索框：搜完一个编码后，不清空就看不到全部档案；
+             原来只能一个字一个字删，这里给个 X 一键回到全部。 -->
+        <div class="relative w-full sm:w-56">
+          <input
+            v-model="keyword"
+            placeholder="搜索编码 / 名称 / 规格 / 类别"
+            class="w-full h-9 pl-3 text-sm rounded-lg outline-none border border-n-weak bg-n-solid-1 text-n-slate-12"
+            :class="keyword ? 'pr-8' : 'pr-3'"
+            @keyup.enter="reload"
+          />
+          <button
+            v-if="keyword"
+            type="button"
+            title="清空搜索，显示全部档案"
+            class="absolute flex items-center justify-center -translate-y-1/2 rounded size-5 right-2 top-1/2 text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+            @click="clearKeyword"
+          >
+            <span class="i-lucide-x size-3.5" />
+          </button>
+        </div>
         <Button
           label="搜索"
           variant="outline"

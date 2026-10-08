@@ -706,11 +706,17 @@ onMounted(async () => {
                   <td class="px-2 py-2 text-right text-n-slate-12">
                     {{ it.qty }}
                   </td>
-                  <!-- 本行没写备注就显产品档案上的（工程写的工艺要求），标明来源免得混淆 -->
+                  <!-- 本行没写备注就显产品档案上的（工程写的工艺要求）。
+                       不加「档案：」前缀——这栏是要发给供应商/车间看的，前缀是内部说法。
+                       来源仍留在 title 里，鼠标移上去看得到。 -->
                   <td class="px-2 py-2 text-n-slate-11">
                     <span v-if="it.remark">{{ it.remark }}</span>
-                    <span v-else-if="it.productRemark" class="text-n-slate-10">
-                      档案：{{ it.productRemark }}
+                    <span
+                      v-else-if="it.productRemark"
+                      class="text-n-slate-10"
+                      :title="`产品档案备注：${it.productRemark}`"
+                    >
+                      {{ it.productRemark }}
                     </span>
                     <span v-else>—</span>
                   </td>

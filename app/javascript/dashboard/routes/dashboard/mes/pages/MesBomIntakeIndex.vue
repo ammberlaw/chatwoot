@@ -527,6 +527,9 @@ const applyPaste = () => {
   pasteDialogRef.value?.close();
 };
 
+// 用料明细里点中的那一行（只做视觉焦点，不参与提交）。
+const activeRow = ref(null);
+
 const addRow = () => form.rows.push(blankRow());
 const removeRow = i => {
   const [removed] = form.rows.splice(i, 1);
@@ -1411,16 +1414,27 @@ onBeforeRouteLeave((to, from, next) => {
               </span>
             </span>
           </div>
+          <!-- 点中的那一行高亮：几十行料对着纸质单核的时候，没有焦点行容易串行。
+               只是视觉焦点，不参与任何提交。 -->
           <div
             v-for="(row, i) in form.rows"
             :key="i"
             class="pb-2 border-b border-dashed border-n-weak last:border-0"
+            :class="activeRow === i ? 'bg-n-iris-3 rounded-md' : ''"
+            @click="activeRow = i"
           >
             <div
               class="grid items-center gap-2 min-w-[1460px]"
               :style="{ gridTemplateColumns: bomColTemplate }"
             >
-              <span class="text-xs tabular-nums text-n-slate-10">
+              <span
+                class="text-xs tabular-nums"
+                :class="
+                  activeRow === i
+                    ? 'font-semibold text-n-iris-11'
+                    : 'text-n-slate-10'
+                "
+              >
                 {{ i + 1 }}
               </span>
               <div>
@@ -1488,9 +1502,7 @@ onBeforeRouteLeave((to, from, next) => {
                一旦本行自己填了就盖掉；完整内容挂 title。 -->
               <Input
                 v-model="row.remark"
-                :placeholder="
-                  row.productRemark ? `档案：${row.productRemark}` : '备注'
-                "
+                :placeholder="row.productRemark || '备注'"
                 :title="
                   row.productRemark ? `产品档案备注：${row.productRemark}` : ''
                 "

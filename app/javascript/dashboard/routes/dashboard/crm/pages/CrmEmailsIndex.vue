@@ -641,6 +641,30 @@ const firstAddress = raw => {
   return (m ? m[1] : one).trim();
 };
 
+// 背调面板正好盖住「邮件正文区」那一整块（上下左右都贴着它），而不是从屏幕右边拉一条通顶抽屉——
+// 背调看的就是这封邮件，面板该待在这封邮件的地盘上。
+// 宽高都要显式给：类名里的 w-full/h-full 是百分比，只给 left/top 的话会溢出到屏幕外。
+// 量不到正文区（窄屏下它整块是隐藏的）就回落成原来贴右边的固定宽度抽屉。
+const readerRef = ref(null);
+const DRAWER_FALLBACK_WIDTH = 512; // max-w-lg
+// 面板宽度上限：贴着正文区右边往左铺，正文区再宽也不会铺满——铺满了正文一点都看不见。
+const DRAWER_MAX_WIDTH = 520;
+const bgDrawerStyle = ref({});
+const alignDrawerToReader = () => {
+  const r = readerRef.value?.getBoundingClientRect?.();
+  if (!r || r.width <= DRAWER_FALLBACK_WIDTH) {
+    bgDrawerStyle.value = { maxWidth: `${DRAWER_FALLBACK_WIDTH}px` };
+    return;
+  }
+  const width = Math.min(r.width, DRAWER_MAX_WIDTH);
+  bgDrawerStyle.value = {
+    left: `${Math.round(r.right - width)}px`,
+    top: `${Math.round(r.top)}px`,
+    width: `${Math.round(width)}px`,
+    height: `${Math.round(r.height)}px`,
+  };
+};
+
 const openBackgroundCheck = async record => {
   closeAvatarCard();
   if (!record) return;
@@ -650,9 +674,13 @@ const openBackgroundCheck = async record => {
     name: record.customerName || record.counterpartyName || '',
   };
   await nextTick();
+  alignDrawerToReader();
+  // 开着的时候拖窗口/折叠列表，正文区会变宽变窄，跟着重算一次。
+  window.addEventListener('resize', alignDrawerToReader);
   bgPanelRef.value?.runBackgroundCheck();
 };
 const closeBackgroundCheck = () => {
+  window.removeEventListener('resize', alignDrawerToReader);
   bgDrawer.value = null;
 };
 
@@ -2386,8 +2414,10 @@ watch(
       </div>
     </section>
 
-    <!-- 右栏：阅读窗格（手机端仅在选中邮件时占满显示） -->
+    <!-- 右栏：阅读窗格（手机端仅在选中邮件时占满显示）。
+         readerRef 给 AI 背调抽屉量左边缘用——抽屉要正好盖住正文区，不切在中间。 -->
     <section
+      ref="readerRef"
       class="flex-col flex-1 min-w-0 bg-n-background"
       :class="selectedEmail ? 'flex' : 'hidden md:flex'"
     >
@@ -3251,7 +3281,8 @@ watch(
           @click="closeBackgroundCheck"
         />
         <div
-          class="fixed top-0 right-0 z-[71] flex flex-col w-full h-full max-w-lg border-l shadow-2xl bg-n-solid-1 border-n-weak"
+          class="fixed top-0 right-0 z-[71] flex flex-col w-full h-full overflow-hidden border shadow-2xl rounded-2xl bg-n-solid-1 border-n-weak"
+          :style="bgDrawerStyle"
         >
           <div
             class="flex items-center justify-between px-5 py-4 border-b border-n-weak"
