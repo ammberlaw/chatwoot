@@ -5,6 +5,12 @@ import { throwErrorMessage } from 'dashboard/store/utils/api';
 
 const camelize = data => camelcaseKeys(data || {}, { deep: true });
 
+// 🔴 `_destroy` 必须原样送到后端：snakecase-keys 默认会把前导下划线吃掉（`_destroy` → `destroy`），
+// Rails 的 accepts_nested_attributes_for 收不到删除标记，于是「明细行点了 X、保存后还在」。
+// 所有带嵌套明细的单据（采购单/BOM/凭证…）都走这里，统一在转换时排除这个键。
+const toSnake = fields =>
+  snakecaseKeys(fields, { deep: true, exclude: ['_destroy'] });
+
 const normalizeMeta = meta => ({
   ...camelcaseKeys(meta || {}),
   count: Number(meta?.count || 0),
@@ -72,7 +78,7 @@ export const buildCrmStore = ({ name, API, paramKey, extraActions }) =>
           const { __files: files, ...fields } = obj;
           let data;
           if (files && files.length) {
-            const snake = snakecaseKeys(fields, { deep: true });
+            const snake = toSnake(fields);
             const fd = new FormData();
             Object.entries(snake).forEach(([key, value]) => {
               if (value !== null && value !== undefined) {
@@ -83,7 +89,7 @@ export const buildCrmStore = ({ name, API, paramKey, extraActions }) =>
             ({ data } = await API.createWithFiles(fd));
           } else {
             ({ data } = await API.create({
-              [paramKey]: snakecaseKeys(fields, { deep: true }),
+              [paramKey]: toSnake(fields),
             }));
           }
           const record = camelize(data);
@@ -100,7 +106,7 @@ export const buildCrmStore = ({ name, API, paramKey, extraActions }) =>
         this.setUIFlag({ updatingItem: true });
         try {
           const { data } = await API.update(id, {
-            [paramKey]: snakecaseKeys(rest, { deep: true }),
+            [paramKey]: toSnake(rest),
           });
           const record = camelize(data);
           const index = this.records.findIndex(r => r.id === record.id);

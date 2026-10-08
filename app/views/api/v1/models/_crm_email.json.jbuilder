@@ -25,6 +25,10 @@ json.last_open_city last_open&.city
 json.label_ids resource.label_ids
 json.crm_customer_id resource.crm_customer_id
 json.customer_name resource.crm_customer&.name
+# 客户当地时间要用：邮件头的时区入库时已折成 UTC，国家是唯一能稳定拿到的地理信息。
+json.customer_country resource.crm_customer&.trade_country
+# 发件人时区偏移（分钟，来自 Date 头）：没建档的客户靠它算当地时间。老邮件为 nil。
+json.sender_utc_offset_minutes resource.sender_utc_offset_minutes
 json.contact_id resource.contact_id
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.crm_display_name

@@ -404,7 +404,7 @@ onMounted(() => {
           <button
             v-if="keyword"
             type="button"
-            title="清空搜索，显示全部档案"
+            title="清空搜索，显示全部档案（搜索期间左侧分类筛选不生效）"
             class="absolute flex items-center justify-center -translate-y-1/2 rounded size-5 right-2 top-1/2 text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
             @click="clearKeyword"
           >

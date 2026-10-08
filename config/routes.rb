@@ -345,7 +345,10 @@ Rails.application.routes.draw do
             # 定制报价：业务员按产品线模板填参数,主管(或被转交的人)填价格回来。
             resources :quote_request_templates, only: [:index, :create, :update, :destroy]
             resources :quote_requests, only: [:index, :show, :create, :update] do
-              collection { get :templates }
+              collection do
+                get :templates
+                get :pending_count
+              end
               member do
                 post :quote
                 post :transfer
@@ -477,7 +480,7 @@ Rails.application.routes.draw do
             resources :suppliers
             resources :warehouses, except: [:show]
             resources :materials
-            resources :products, only: [:index, :create, :update, :destroy] do
+            resources :products, only: [:index, :show, :create, :update, :destroy] do
               collection do
                 get :categories
                 post :reorder_categories

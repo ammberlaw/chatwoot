@@ -18,6 +18,11 @@ class QuoteRequestsAPI extends ApiClient {
     });
   }
 
+  // 侧栏角标：待我报价的单数。
+  pendingCount() {
+    return axios.get(`${this.url}/pending_count`);
+  }
+
   // 撤销后重新编辑再交（多部件：可能补了附件）。
   resubmit(id, formData) {
     return axios.put(`${this.url}/${id}`, formData, {

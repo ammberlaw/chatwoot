@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
 import Button from 'dashboard/components-next/button/Button.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MesTodoPanel from 'dashboard/components-next/mes/MesTodoPanel.vue';
 
 const { accountScopedRoute } = useAccount();
@@ -179,7 +180,18 @@ const fmt = ts => {
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${hm}`;
 };
 
-const load = () => store.get(scopeParams.value);
+// 后端每页 15 条。原来这里不传页码、页面也没有翻页器，生产上 458 条通知
+// 只看得到最新 15 条，老的永远翻不到。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
+const totalCount = computed(() => store.getMeta?.count || 0);
+const load = () => store.get({ ...scopeParams.value, page: currentPage.value });
+watch(currentPage, load);
+// 切分类回到第 1 页：分类是在当前这一页里筛的，停在第 3 页切过去会看着像没有数据。
+watch(activeGroup, () => {
+  if (currentPage.value === 1) load();
+  else currentPage.value = 1;
+});
 
 // 落到「待我审批」inbox 的通知（审批/待确认BOM）——该 inbox 跨产品线取「待我处理」的单，
 // 不受全局产品线选择器过滤；其余订单通知走普通列表按单号定位。
@@ -346,6 +358,15 @@ onMounted(load);
           </div>
         </li>
       </ul>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
   </div>
 </template>

@@ -92,6 +92,12 @@ class Api::V1::Accounts::Crm::QuoteRequestsController < Api::V1::Accounts::Crm::
     render :show
   end
 
+  # 侧栏角标：待我报价的单数。口径与「待我报价」页签完全一致（pricer 是我 + 还没报价），
+  # 不然角标显示 3、点进去只有 1，角标就没人信了。
+  def pending_count
+    render json: { count: Current.account.crm_quote_requests.for_pricer(current_user.id).pending.count }
+  end
+
   # 业务员填表用的模板（只列启用的）。
   def templates
     render json: {

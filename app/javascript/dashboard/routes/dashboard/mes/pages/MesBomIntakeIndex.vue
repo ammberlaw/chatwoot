@@ -27,10 +27,12 @@ import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import Button from 'dashboard/components-next/button/Button.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useResizableColumns } from 'dashboard/composables/useResizableColumns';
+import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
+import MesProductQuickPanel from 'dashboard/components-next/mes/MesProductQuickPanel.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 
@@ -158,11 +160,34 @@ const BOM_COLS = [
   { key: 'productionNote', label: '生产备注', fr: 1.6 },
   { key: 'del', fixed: 24 },
 ];
+// 列序可拖（和生产订单/任务单列表同一套），序号和删除两根钉死在首尾不参与。
+// 单元格不重排 DOM——靠 CSS Grid 的显式列位（grid-column）落到新位置，
+// 这样 13 个格子的模板结构一个字都不用动，改错的风险小得多。
+const MOVABLE_COLS = BOM_COLS.filter(c => c.fixed == null);
+const {
+  orderedColumns: orderedMovableCols,
+  isDragging: isBomColDragging,
+  onColDragStart: onBomColDragStart,
+  onColDrop: onBomColDrop,
+  resetOrder: resetBomColOrder,
+} = useOrderableColumns(MOVABLE_COLS, 'mes.bom.itemColOrder.v1');
+
+const bomCols = computed(() => [
+  BOM_COLS[0],
+  ...orderedMovableCols.value,
+  BOM_COLS[BOM_COLS.length - 1],
+]);
+// 某一列当前排第几（1 起），给单元格的 grid-column 用。
+const colPos = key => {
+  const i = bomCols.value.findIndex(c => c.key === key);
+  return i < 0 ? undefined : { gridColumn: i + 1 };
+};
+
 const {
   template: bomColTemplate,
   startResize: startColResize,
   resetWidths: resetColWidths,
-} = useResizableColumns(BOM_COLS, 'mes.bom.itemCols.v1');
+} = useResizableColumns(bomCols, 'mes.bom.itemCols.v1');
 
 // 明细区顶部的横向滚动条（对标金蝶）：几十行料时真正的滚动条在最底下，
 // 想横着看一眼得先滚到底。
@@ -279,14 +304,8 @@ const pickMaterial = (row, p) => {
 // 投单数量填了就同步到基准产量——同一个数不该输两遍。
 // 手动改过基准产量（或在编辑已存 BOM）就不再覆盖。
 const baseQtyTouched = ref(false);
-watch(
-  () => form.orderQty,
-  v => {
-    const n = Number(v);
-    if (!Number.isFinite(n) || n <= 0 || baseQtyTouched.value) return;
-    form.baseQty = String(n);
-  }
-);
+// 这单的用料是不是刚套的模版（只有这种情况才自动折算，见 applyTemplate）。
+const fromTemplate = ref(false);
 
 // 选定产成品：代码取档案 SKU，型号取档案里的产品名（A80 / K705 这种），省一次手输。
 // 型号已经手填过就不覆盖，避免把人家写的「K13plus 10.1寸P30版/客户定制」抹掉。
@@ -370,6 +389,32 @@ const scaleRowsToOrderQty = () => {
       : `已按 ${target} 折算 ${rows.length} 行用量`
   );
 };
+
+// 套模版后改「数量」：基准产量和每行用量自动跟着折算，不用再一行行手改。
+// 防抖 600ms——边敲「1000」边算会在 1 / 10 / 100 上各折算一次。
+let scaleTimer = null;
+const autoScaleOnQtyChange = () => {
+  if (!fromTemplate.value) return;
+  clearTimeout(scaleTimer);
+  scaleTimer = setTimeout(() => {
+    if (canScaleQty.value) scaleRowsToOrderQty();
+  }, 600);
+};
+
+watch(
+  () => form.orderQty,
+  v => {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) return;
+    if (!baseQtyTouched.value) {
+      form.baseQty = String(n);
+      return;
+    }
+    // 套了模版又改数量时自动按比例折算，逻辑在下面 autoScaleOnQtyChange
+    // （它依赖 canScaleQty / scaleRowsToOrderQty，定义在后面）。
+    autoScaleOnQtyChange();
+  }
+);
 
 // 手动改过用量的行打标记，之后总数再变也不覆盖它。
 const setRowQty = (row, v) => {
@@ -865,6 +910,85 @@ const openTemplates = () => {
   templateDialogRef.value?.open();
 };
 
+// 套模版后按编码回查产品档案，把物料名称/规格型号换成**系统里的**写法。
+// 模版是从电子生产单导进来的，同一颗料在 Excel 里和档案里措辞常常不一样
+// （用户：以系统为准，不要用电子单的文字）。查不到的编码原样保留，不乱改。
+const alignTemplateRowsToCatalog = async () => {
+  const codes = form.rows.map(r => r.materialNo).filter(Boolean);
+  if (!codes.length) return;
+  try {
+    const { data } = await axios.post(
+      `/api/v1/accounts/${accountId.value}/mes/products/lookup`,
+      { codes }
+    );
+    const byCode = new Map(
+      (data?.payload || [])
+        .filter(x => x.product)
+        .map(x => [String(x.code), x.product])
+    );
+    let aligned = 0;
+    form.rows.forEach(r => {
+      const hit = byCode.get(String(r.materialNo));
+      if (!hit) return;
+      const name = hit.name || '';
+      const spec = hit.specification || '';
+      if (
+        (name && name !== r.materialName) ||
+        (spec && spec !== r.specification)
+      ) {
+        aligned += 1;
+      }
+      if (name) r.materialName = name;
+      if (spec) r.specification = spec;
+      if (hit.id) r.crmProductId = String(hit.id);
+    });
+    if (aligned) {
+      useAlert(`已按产品档案校正 ${aligned} 行的物料名称/规格`);
+      markPristine();
+    }
+  } catch {
+    // 查不到就用模版原文，不打断套用流程
+  }
+};
+
+// 模版行的备注拆回两列。
+// 65 份模版是从电子生产单 Excel 导进来的，当时模版表没有「采购注意事项」这一列，
+// 于是「供应商：振高 / 正常下单」这类**写给采购的**内容被一起塞进了备注；套用后就全挤在
+// 备注列里（用户：框1 的内容应该显示在框2）。这里按导入时的写法拆回去：
+// 以「供应商：」开头的整句归采购注意事项，其余留在备注。
+const SUPPLIER_NOTE_RE = /^\s*供应商\s*[:：]/;
+const splitTemplateRemark = raw => {
+  const text = String(raw || '').trim();
+  if (!text) return { remark: '', purchaseNote: '' };
+  return SUPPLIER_NOTE_RE.test(text)
+    ? { remark: '', purchaseNote: text }
+    : { remark: text, purchaseNote: '' };
+};
+
+// 页内查改产品档案：做任务单时要核对/顺手改某颗料的档案，原来必须存草稿退出去再回来。
+const productPanelRef = ref(null);
+const openProductPanel = row => {
+  if (!row.productId && !row.materialNo) {
+    useAlert('这一行还没选物料');
+    return;
+  }
+  // 存盘的 BOM 行只有编码文本，没有产品 id，所以优先用 id、没有就按编码查。
+  productPanelRef.value?.show({ id: row.productId, code: row.materialNo });
+};
+// 档案改完即时回写到用料明细的对应行（同一颗料可能在多行里出现）。
+const onProductSaved = saved => {
+  form.rows.forEach(r => {
+    const same =
+      (r.productId && String(r.productId) === String(saved.id)) ||
+      (r.materialNo && saved.sku && r.materialNo === saved.sku);
+    if (!same) return;
+    if (saved.name) r.materialName = saved.name;
+    if (saved.specification != null) r.specification = saved.specification;
+    if (saved.unit) r.unit = saved.unit;
+    r.productRemark = saved.remark ?? r.productRemark;
+  });
+};
+
 // 套用模版：预填新建 BOM 表单（模版不含成品，仍需选成品再保存）。
 const applyTemplate = t => {
   editingId.value = null;
@@ -873,6 +997,9 @@ const applyTemplate = t => {
   // 模版自带的基准产量就是它那批用料的口径（如 3500 台的料），
   // 必须按住不让「数量」的联动把它冲成新数量——冲掉了就算不出缩放比例。
   baseQtyTouched.value = true;
+  // 这批料来自模版：填「数量」时自动按比例折算（见 watch(form.orderQty)）。
+  // 已存盘的单不走这条——那上面的用量是人调过的，不能被数量一改就冲掉。
+  fromTemplate.value = true;
   Object.assign(form, {
     crmProductId: '',
     baseQty: String(t.baseQty ?? '1'),
@@ -889,7 +1016,7 @@ const applyTemplate = t => {
       specification: it.specification || '',
       unit: it.unit || '',
       qty: String(it.qty ?? ''),
-      remark: it.remark || '',
+      ...splitTemplateRemark(it.remark),
       category: it.category || 'MACHINE',
       qtyTouched: it.qty != null && it.qty !== '',
     })),
@@ -897,6 +1024,7 @@ const applyTemplate = t => {
   if (!form.rows.length) form.rows.push(blankRow());
   markPristine();
   templateDialogRef.value?.close();
+  alignTemplateRowsToCatalog();
 };
 
 const removeTemplate = async t => {
@@ -1271,7 +1399,8 @@ onBeforeRouteLeave((to, from, next) => {
               placeholder="选择业务员"
             />
           </div>
-          <div class="flex flex-col w-48 gap-1">
+          <!-- 基准产量常是 1000、10000 这种四五位数，w-20 只装得下三位（用户：这个框要放大一点） -->
+          <div class="flex flex-col gap-1 w-60">
             <label class="text-heading-3 text-n-slate-12"
               >基准产量 / 单位</label
             >
@@ -1279,10 +1408,10 @@ onBeforeRouteLeave((to, from, next) => {
               <Input
                 v-model="form.baseQty"
                 type="number"
-                class="w-20"
+                class="flex-1 min-w-0"
                 @input="baseQtyTouched = true"
               />
-              <Input v-model="form.unit" placeholder="台" />
+              <Input v-model="form.unit" placeholder="台" class="w-16" />
             </div>
           </div>
         </div>
@@ -1337,6 +1466,12 @@ onBeforeRouteLeave((to, from, next) => {
               @click="resetColWidths"
             />
             <Button
+              label="恢复默认列序"
+              variant="ghost"
+              size="sm"
+              @click="resetBomColOrder"
+            />
+            <Button
               label="按投单数量等比缩放"
               variant="ghost"
               size="sm"
@@ -1352,6 +1487,8 @@ onBeforeRouteLeave((to, from, next) => {
             />
           </span>
         </div>
+
+        <MesProductQuickPanel ref="productPanelRef" @saved="onProductSaved" />
 
         <!-- 顶部横向滚动条：自绘，常驻可见，可拖可点，不用滚到底才能横着看。 -->
         <div
@@ -1372,21 +1509,36 @@ onBeforeRouteLeave((to, from, next) => {
 
         <!-- 明细区单独横向滚动：13 列挤在页面宽度里，拉宽「物料名称」就把「规格型号」
          压没了。给一个最小宽度后不够宽就横着滚，各列保持看得清。 -->
+        <!-- 明细区自己做滚动容器（纵向限高 + 横向滚动），表头才能真正冻住：
+             只写 overflow-x-auto 的话 CSS 会把纵向也变成滚动容器，sticky 表头粘的是它、
+             而不是页面，往下滚就跟着跑了（实测滚动后表头 top 变成 -94）。 -->
         <div
           ref="itemsScrollRef"
-          class="flex flex-col gap-2 overflow-x-auto"
+          class="flex flex-col gap-2 overflow-auto max-h-[60vh]"
           @scroll="onItemsScroll"
         >
-          <!-- 表头：每列右边一根可拖的竖线（像 Excel），拖完的宽度记在本机。 -->
+          <!-- 表头：每列右边一根可拖的竖线（像 Excel），拖完的宽度记在本机。
+               sticky 冻结在明细区顶部——几十行料往下填时还看得见这一列是什么
+               （z-10 + 不透明底色，否则下面的行会透上来压住表头）。 -->
           <div
-            class="grid gap-2 px-1 text-xs min-w-[1460px] text-n-slate-11"
+            class="sticky top-0 z-10 grid gap-2 px-1 py-1 text-xs min-w-[1460px] text-n-slate-11 bg-n-solid-1 border-b border-n-weak"
             :style="{ gridTemplateColumns: bomColTemplate }"
           >
             <span
-              v-for="c in BOM_COLS"
+              v-for="c in bomCols"
               :key="c.key"
               class="relative min-w-0"
-              :title="c.label"
+              :class="[
+                c.fixed == null ? 'cursor-move' : '',
+                isBomColDragging(c.key) ? 'opacity-40' : '',
+              ]"
+              :draggable="c.fixed == null"
+              :title="
+                c.fixed == null ? `${c.label}（可拖动调整列顺序）` : c.label
+              "
+              @dragstart="onBomColDragStart(c.key)"
+              @dragover.prevent
+              @drop="onBomColDrop(c.key)"
             >
               <!-- 标签单独一层：truncate 是 overflow:hidden，
                把手放在这层里会被裁掉，鼠标点不到。 -->
@@ -1429,6 +1581,7 @@ onBeforeRouteLeave((to, from, next) => {
             >
               <span
                 class="text-xs tabular-nums"
+                :style="colPos('idx')"
                 :class="
                   activeRow === i
                     ? 'font-semibold text-n-iris-11'
@@ -1437,34 +1590,57 @@ onBeforeRouteLeave((to, from, next) => {
               >
                 {{ i + 1 }}
               </span>
-              <div>
+              <div :style="colPos('category')">
                 <SelectCard
                   v-model="row.category"
                   :options="CATEGORY_OPTIONS"
                   block
                 />
               </div>
-              <MesProductPicker
-                :model-value="row.productId"
-                :account-id="accountId"
-                :display-text="
-                  row.materialNo
-                    ? `${row.materialNo}${row.materialName ? ` · ${row.materialName}` : ''}`
-                    : ''
-                "
-                placeholder="选物料"
-                trigger-class=""
-                @select="p => pickMaterial(row, p)"
-              />
+              <div
+                :style="colPos('materialNo')"
+                class="flex items-center gap-1 min-w-0"
+              >
+                <MesProductPicker
+                  class="flex-1 min-w-0"
+                  :model-value="row.productId"
+                  :account-id="accountId"
+                  :display-text="
+                    row.materialNo
+                      ? `${row.materialNo}${row.materialName ? ` · ${row.materialName}` : ''}`
+                      : ''
+                  "
+                  placeholder="选物料"
+                  trigger-class=""
+                  @select="p => pickMaterial(row, p)"
+                />
+                <!-- 页内查改这颗料的档案，不用离开本页 -->
+                <button
+                  v-if="row.productId || row.materialNo"
+                  type="button"
+                  class="grid rounded shrink-0 size-6 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-iris-11"
+                  title="查看 / 修改这颗料的产品档案"
+                  @click.stop="openProductPanel(row)"
+                >
+                  <span class="i-lucide-file-pen-line size-3.5" />
+                </button>
+              </div>
               <Input
+                :style="colPos('materialName')"
                 :model-value="row.materialName"
                 placeholder="选编码自动带出"
                 disabled
               />
-              <Input v-model="row.specification" placeholder="规格型号" />
+              <Input
+                v-model="row.specification"
+                :style="colPos('spec')"
+                placeholder="规格型号"
+                :title="row.specification"
+              />
               <!-- 辅助属性：只列该物料档案里启用中的，单选。没维护过就显示「—」。 -->
               <SelectCard
                 v-if="row.auxOptions.length"
+                :style="colPos('aux')"
                 :model-value="row.auxAttributeId"
                 :options="auxOptionsOf(row)"
                 block
@@ -1472,13 +1648,20 @@ onBeforeRouteLeave((to, from, next) => {
               />
               <span
                 v-else
+                :style="colPos('aux')"
                 class="px-1 text-xs truncate text-n-slate-10"
                 :title="row.auxAttributeName || '该物料未维护辅助属性'"
               >
                 {{ row.auxAttributeName || '—' }}
               </span>
-              <Input v-model="row.unit" placeholder="台" />
               <Input
+                v-model="row.unit"
+                placeholder="台"
+                :title="row.unit"
+                :style="colPos('unit')"
+              />
+              <Input
+                :style="colPos('qty')"
                 :model-value="row.qty"
                 type="number"
                 placeholder="用量"
@@ -1486,6 +1669,8 @@ onBeforeRouteLeave((to, from, next) => {
               />
               <Input
                 v-model="row.suggestedPurchaseQty"
+                :style="colPos('suggest')"
+                :title="row.suggestedPurchaseQty"
                 type="number"
                 placeholder="选填"
               />
@@ -1502,26 +1687,39 @@ onBeforeRouteLeave((to, from, next) => {
                一旦本行自己填了就盖掉；完整内容挂 title。 -->
               <Input
                 v-model="row.remark"
+                :style="colPos('remark')"
                 :placeholder="row.productRemark || '备注'"
                 :title="
-                  row.productRemark ? `产品档案备注：${row.productRemark}` : ''
+                  row.remark ||
+                  (row.productRemark
+                    ? `产品档案备注：${row.productRemark}`
+                    : '')
                 "
               />
               <!-- 采购注意事项：写给采购的，建采购单时按这一行的料带过去；
                给供应商的导出件里不会出现。 -->
               <Input
                 v-model="row.purchaseNote"
+                :style="colPos('purchaseNote')"
                 placeholder="采购注意事项"
-                title="写给采购看，如「只能用村田」：指定品牌、能否用替代料、到货节点等。不会出现在发给供应商的采购单上。"
+                :title="
+                  row.purchaseNote ||
+                  '写给采购看，如「只能用村田」：指定品牌、能否用替代料、到货节点等。不会出现在发给供应商的采购单上。'
+                "
               />
               <!-- 生产备注：只给公司内部生产部门看，不进任何对外单据。 -->
               <Input
                 v-model="row.productionNote"
+                :style="colPos('productionNote')"
                 placeholder="生产备注"
-                title="只给公司内部生产部门看，如「装壳前理排线」。不进任何对外单据。"
+                :title="
+                  row.productionNote ||
+                  '只给公司内部生产部门看，如「装壳前理排线」。不进任何对外单据。'
+                "
               />
               <button
                 type="button"
+                :style="colPos('del')"
                 class="text-n-slate-10 hover:text-n-ruby-11"
                 @click="removeRow(i)"
               >

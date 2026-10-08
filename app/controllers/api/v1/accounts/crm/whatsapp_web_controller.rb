@@ -2,8 +2,14 @@
 # 支持一人绑多个号:每个号一个独立收件箱,只有本人(+管理员)可见其会话。
 class Api::V1::Accounts::Crm::WhatsappWebController < Api::V1::Accounts::Crm::BaseController
   # 我名下所有 WhatsApp 号(不打桥,读库里缓存的连接状态)。
+  # 列表：状态以**桥接实况**为准，并把变化回写进库。
+  # 原来只读库里存的 connection_status——桥接那边掉了会话（重启后凭据没了、手机上退了登录）
+  # 它不会知道，于是界面一直显示「已连接」，人以为能收发、实际早就断了。
   def index
-    render json: my_inboxes.map { |inbox| serialize(inbox) }
+    live = bridge.sessions_status
+    inboxes = my_inboxes.to_a
+    reconcile_connection_status(inboxes, live) if live.present?
+    render json: inboxes.map { |inbox| serialize(inbox, live_state(inbox, live)) }
   end
 
   # 新增一个号:建收件箱 + 起桥会话,返回该号的 QR。
@@ -101,6 +107,25 @@ class Api::V1::Accounts::Crm::WhatsappWebController < Api::V1::Accounts::Crm::Ba
       inbox = Current.account.inboxes.create!(name: "#{current_user.name} 的 WhatsApp #{seq}", channel: channel)
       inbox.inbox_members.create!(user: current_user)
       inbox
+    end
+  end
+
+  # 桥接拿得到实况时才覆盖；拿不到（桥接不可达）就返回 nil，由 serialize 回落到库里的值——
+  # 总比把一屏号全标成掉线、让人白跑一趟扫码强。
+  def live_state(inbox, live)
+    return nil if live.blank?
+
+    key = inbox.channel.session_key.to_s
+    { 'status' => live[key] || 'disconnected' }
+  end
+
+  # 实况与库里不一致就回写：别的地方（发送前的校验、看板）读的还是这一列。
+  def reconcile_connection_status(inboxes, live)
+    inboxes.each do |inbox|
+      actual = live[inbox.channel.session_key.to_s] || 'disconnected'
+      next if inbox.channel.connection_status == actual
+
+      inbox.channel.update!(connection_status: actual)
     end
   end
 

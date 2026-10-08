@@ -64,6 +64,17 @@ const COLUMN_DEFS = [
     label: '归属业务员',
     tdClass: 'px-3 py-3 text-n-slate-11',
   },
+  // 对标纸质投单：日期和产成品代码是核单时最先对的两样，原来要点开查看才看得到
+  {
+    key: 'submitDate',
+    label: '投单日期',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'productCode',
+    label: '产成品代码',
+    tdClass: 'px-3 py-3 tabular-nums whitespace-nowrap text-n-slate-11',
+  },
   { key: 'baseQty', label: '基准产量', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'items', label: '用料项', tdClass: 'px-3 py-3 text-n-slate-11' },
   {
@@ -482,6 +493,12 @@ onMounted(async () => {
                 </template>
                 <template v-else-if="col.key === 'salesOwner'">
                   {{ b.salesOwnerName || '—' }}
+                </template>
+                <template v-else-if="col.key === 'submitDate'">
+                  {{ b.submitDate || '—' }}
+                </template>
+                <template v-else-if="col.key === 'productCode'">
+                  {{ b.productCode || '—' }}
                 </template>
                 <template v-else-if="col.key === 'baseQty'">
                   {{ b.baseQty }} {{ b.unit }}

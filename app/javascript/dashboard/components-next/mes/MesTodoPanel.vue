@@ -165,6 +165,8 @@ const items = computed(() => [
     const ack = ackStateOf(o);
     return {
       key: `in-${o.id}`,
+      // 已接单＝正在做，不算「待我处理」（分组与角标见下方 pending/working）
+      working: !o.awaiting_ack,
       bar: o.ack_overdue ? 'bg-n-ruby-9' : 'bg-n-iris-9',
       title: `${o.awaiting_ack ? '待接单' : '待处理'}：${o.order_no}`,
       body: [
@@ -189,8 +191,28 @@ const items = computed(() => [
   }),
 ]);
 
+// 「待我处理」= 真正等我动手的：审批、出库审核、**还没接单**的订单。
+// 已接单的单子只要还停在我这个阶段就会一直被算进来，接了单也不消、点几次都还在
+// （用户原话）。这类归到「进行中」单独一组，且不进角标——角标虚高，看久了就没人信。
+const pending = computed(() => items.value.filter(it => !it.working));
+const working = computed(() => items.value.filter(it => it.working));
+// 渲染顺序：待处理在前，中间插一行分组标题，进行中在后。
+const rows = computed(() => [
+  ...pending.value,
+  ...(working.value.length
+    ? [{ key: 'divider', divider: true, count: working.value.length }]
+    : []),
+  ...working.value,
+]);
+
 const total = computed(() => items.value.length);
-watch(total, n => emit('update:count', n), { immediate: true });
+watch(
+  () => pending.value.length,
+  n => emit('update:count', n),
+  {
+    immediate: true,
+  }
+);
 onMounted(load);
 // 父级（站内通知页）点「刷新」时重拉——办完的事要即时消失。
 defineExpose({ reload: load });
@@ -206,33 +228,46 @@ defineExpose({ reload: load });
   </div>
   <ul v-else class="flex flex-col gap-1.5">
     <li
-      v-for="it in items"
+      v-for="it in rows"
       :key="it.key"
-      class="relative flex items-start gap-2.5 py-2 pr-3 pl-3.5 overflow-hidden transition-colors border rounded-lg cursor-pointer border-n-strong bg-n-solid-1 hover:bg-n-alpha-2"
-      @click="it.open()"
+      :class="
+        it.divider
+          ? 'flex items-center gap-2 pt-3 pb-1'
+          : 'relative flex items-start gap-2.5 py-2 pr-3 pl-3.5 overflow-hidden transition-colors border rounded-lg cursor-pointer border-n-strong bg-n-solid-1 hover:bg-n-alpha-2'
+      "
+      @click="it.divider ? null : it.open()"
     >
-      <!-- 左侧竖条按类型上色，跟消息行同一套视觉 -->
-      <span class="absolute inset-y-0 left-0 w-1" :class="it.bar" />
-      <div class="flex flex-col flex-1 min-w-0 gap-0.5">
-        <div class="flex items-baseline gap-2">
-          <span class="text-sm font-semibold truncate text-n-slate-12">
-            {{ it.title }}
-          </span>
-          <span class="ml-auto text-xs shrink-0" :class="it.tagClass">
-            {{ it.tag }}
-          </span>
+      <!-- 分组标题：已接单、正在做的单子，不算待办 -->
+      <template v-if="it.divider">
+        <span class="text-xs font-medium text-n-slate-11">
+          进行中（已接单，等你推进）
+        </span>
+        <span class="text-xs text-n-slate-10">{{ it.count }}</span>
+      </template>
+      <template v-else>
+        <!-- 左侧竖条按类型上色，跟消息行同一套视觉 -->
+        <span class="absolute inset-y-0 left-0 w-1" :class="it.bar" />
+        <div class="flex flex-col flex-1 min-w-0 gap-0.5">
+          <div class="flex items-baseline gap-2">
+            <span class="text-sm font-semibold truncate text-n-slate-12">
+              {{ it.title }}
+            </span>
+            <span class="ml-auto text-xs shrink-0" :class="it.tagClass">
+              {{ it.tag }}
+            </span>
+          </div>
+          <p class="text-xs truncate text-n-slate-11">{{ it.body }}</p>
         </div>
-        <p class="text-xs truncate text-n-slate-11">{{ it.body }}</p>
-      </div>
-      <button
-        v-if="it.action"
-        type="button"
-        class="flex items-center self-center gap-1 px-2.5 py-1 text-xs font-medium text-white rounded-md shrink-0 bg-n-iris-9 hover:bg-n-iris-10"
-        @click.stop="it.action.run()"
-      >
-        {{ it.action.label }}
-        <span class="i-lucide-arrow-right size-3" />
-      </button>
+        <button
+          v-if="it.action"
+          type="button"
+          class="flex items-center self-center gap-1 px-2.5 py-1 text-xs font-medium text-white rounded-md shrink-0 bg-n-iris-9 hover:bg-n-iris-10"
+          @click.stop="it.action.run()"
+        >
+          {{ it.action.label }}
+          <span class="i-lucide-arrow-right size-3" />
+        </button>
+      </template>
     </li>
   </ul>
 </template>

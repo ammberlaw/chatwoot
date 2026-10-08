@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { OnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 
@@ -119,9 +119,28 @@ const positionClass = computed(() =>
   props.position === 'top' ? 'dialog-position-top' : ''
 );
 
+// 关闭 X 排在内容最前面（sticky 要钉在顶部就必须在流的开头），而原生 dialog
+// 打开时会把初始焦点给第一个可聚焦元素——落在 X 上回车就变成「关闭」而不是「保存」。
+// 所以打开后手动把焦点交还给第一个输入控件（没有输入控件的提示类对话框给主按钮）。
+const FOCUSABLE_FIELD_SELECTOR =
+  'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], button[type="submit"]';
+
+const focusFirstField = () => {
+  const root = dialogContentRef.value;
+  if (!root) return;
+  // 只认真正看得见的控件：隐藏的（如折叠区里的输入框）focus() 不会生效，
+  // 焦点就留在 X 上了，回车还是会变成「关闭」。
+  const target = [...root.querySelectorAll(FOCUSABLE_FIELD_SELECTOR)].find(
+    el => el.offsetParent !== null
+  );
+  target?.focus();
+};
+
 const open = () => {
   isOpen.value = true;
   dialogRef.value?.showModal();
+  // 内容是 <slot v-if="isOpen">，翻转后还要一帧才真正挂上，所以等渲染完再交焦点。
+  nextTick(() => requestAnimationFrame(focusFirstField));
 };
 
 // 未保存提醒的显示状态。盖在表单上层，不另开一个 <dialog>——
@@ -234,6 +253,24 @@ defineExpose({ open, close, requestClose });
           @submit.prevent="onSubmit"
           @click.stop
         >
+          <!-- 右上角关闭 X：零高度 sticky 壳。原来是 absolute 挂在内容上，长表单往下滚它
+               就跟着跑了，得先滚回顶部才点得到（用户原话）。sticky 只能「不让元素滚出顶部」、
+               不会把它提上来，所以必须排在内容最前面；h-0 + -mb-6 抵掉 flex gap，不占布局。
+               初始焦点的问题在 open() 里用 focusFirstField 解决。 -->
+          <div
+            v-if="showCloseButton"
+            class="sticky top-4 z-20 flex justify-end h-0 -mb-6 pointer-events-none"
+          >
+            <button
+              type="button"
+              :aria-label="t('DIALOG.BUTTONS.CANCEL')"
+              class="flex items-center justify-center mr-4 rounded-lg pointer-events-auto size-8 text-n-slate-11 bg-n-alpha-3 backdrop-blur hover:bg-n-alpha-2 hover:text-n-slate-12"
+              @click="requestClose"
+            >
+              <Icon icon="i-lucide-x" class="size-4" />
+            </button>
+          </div>
+
           <div
             v-if="title || description"
             class="flex flex-col gap-2"
@@ -292,17 +329,6 @@ defineExpose({ open, close, requestClose });
               />
             </div>
           </slot>
-          <!-- 右上角关闭 X。放在最后而不是标题旁：原生 <dialog> 打开时自动聚焦第一个可聚焦元素，
-               X 若排在前面会抢走输入框的初始焦点，回车也会变成「关闭」而不是「保存」。 -->
-          <button
-            v-if="showCloseButton"
-            type="button"
-            :aria-label="t('DIALOG.BUTTONS.CANCEL')"
-            class="absolute z-20 flex items-center justify-center rounded-lg top-4 right-4 size-8 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
-            @click="requestClose"
-          >
-            <Icon icon="i-lucide-x" class="size-4" />
-          </button>
 
           <!-- 未保存提醒。盖在表单上层而不是再开一个 <dialog>：
                原生 dialog 已在顶层，叠第二个只会多一层焦点和 Esc 的纠缠。

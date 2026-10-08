@@ -18,7 +18,17 @@ const props = defineProps({
   align: { type: String, default: 'left' }, // 'left' | 'right'：弹层对齐边
   triggerClass: { type: String, default: '' }, // 触发器额外类（宽度/高度）
   block: { type: Boolean, default: false }, // true=触发器占满父容器宽（表单用）；默认内容宽（筛选用）
+  // 选项一多就得滚半天找——超过 SEARCH_MIN 项自动长出搜索框。
+  // 'auto'（默认）按条数决定；传 searchable / :searchable="false" 可强制开或关。
+  searchable: { type: [Boolean, String], default: 'auto' },
+  searchPlaceholder: { type: String, default: '搜索…' },
 });
+
+// 多少项起自动给搜索框：一屏（max-h-72）大约放得下 8 项，再多就得滚。
+const SEARCH_MIN = 8;
+// 一次最多渲染多少项：客户档案这种有几千条，全渲染出来开下拉要卡一下。
+// 超出的用搜索找，列表底部写明还剩多少。
+const MAX_RENDER = 200;
 
 const modelValue = defineModel({
   type: [String, Number, Boolean],
@@ -28,6 +38,8 @@ const modelValue = defineModel({
 const open = ref(false);
 const triggerEl = ref(null);
 const popoverEl = ref(null);
+const searchEl = ref(null);
+const query = ref('');
 // 初值就带上 position:fixed——弹层**第一帧**要是还按普通块插进去，对话框会被它撑高、
 // 居中弹窗跟着上移，而定位恰好在这一帧之后量触发器，量到的是位移后的坐标；
 // 随后弹层脱离文档流、对话框落回原位，弹层就整个偏上去盖住了触发框。
@@ -51,6 +63,27 @@ useEventListener(
 useEventListener('resize', () => {
   if (open.value) open.value = false;
 });
+
+const showSearch = computed(() =>
+  props.searchable === 'auto'
+    ? props.options.length >= SEARCH_MIN
+    : Boolean(props.searchable)
+);
+
+// 过滤只看 label 和可选的 searchText（调用方可以把编号、客户名之类也塞进来一起搜）。
+const matchedOptions = computed(() => {
+  const q = query.value.trim().toLowerCase();
+  if (!q) return props.options;
+  return props.options.filter(o =>
+    `${o.label} ${o.searchText || ''}`.toLowerCase().includes(q)
+  );
+});
+const visibleOptions = computed(() =>
+  matchedOptions.value.slice(0, MAX_RENDER)
+);
+const hiddenCount = computed(() =>
+  Math.max(0, matchedOptions.value.length - visibleOptions.value.length)
+);
 
 const selectedLabel = computed(() => {
   const hit = props.options.find(o => o.value === modelValue.value);
@@ -102,6 +135,28 @@ const positionPopover = async () => {
   popStyle.value = { ...popStyle.value, left: `${left}px` };
 };
 
+const closePopover = () => {
+  open.value = false;
+  popStyle.value = { ...OFFSCREEN };
+};
+
+const pick = opt => {
+  if (opt.disabled) return;
+  modelValue.value = opt.value;
+  closePopover();
+};
+
+// Esc 在下拉开着时**只收下拉**。不拦住的话事件会一路冒到原生 <dialog>，
+// 本来只想取消一下选择，整张表单跟着被关掉（对话框里的下拉必现）。
+// 下拉没开时不拦，Esc 照旧关对话框。
+const onEscape = e => {
+  if (!open.value) return;
+  e.preventDefault();
+  e.stopPropagation();
+  closePopover();
+  triggerEl.value?.focus();
+};
+
 const toggle = async () => {
   if (props.disabled) return;
   if (open.value) {
@@ -109,16 +164,23 @@ const toggle = async () => {
     return;
   }
   teleportTarget.value = triggerEl.value?.closest('dialog') || 'body';
+  query.value = '';
   open.value = true;
   await nextTick();
   positionPopover();
+  searchEl.value?.focus();
 };
 
-const pick = opt => {
-  if (opt.disabled) return;
-  modelValue.value = opt.value;
-  open.value = false;
-  popStyle.value = { ...OFFSCREEN };
+// 搜索框里按键：Esc 关掉，回车直接选中当前第一条（搜完不用再挪鼠标）。
+const onSearchKeydown = e => {
+  if (e.key === 'Escape') {
+    onEscape(e);
+    return;
+  }
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const first = visibleOptions.value.find(o => !o.disabled);
+  if (first) pick(first);
 };
 </script>
 
@@ -133,9 +195,10 @@ const pick = opt => {
       ref="triggerEl"
       type="button"
       :disabled="disabled"
-      :class="[triggerClass, 'w-full']"
-      class="inline-flex items-center justify-between h-9 gap-2 pl-3 text-sm text-left transition-all rounded-lg pr-2.5 outline outline-1 outline-n-weak bg-n-solid-1 hover:outline-n-brand disabled:opacity-60 disabled:cursor-not-allowed"
+      :class="[triggerClass]"
+      class="inline-flex items-center justify-between h-9 gap-2 pl-3 text-sm text-left transition-all rounded-lg pr-2.5 outline outline-1 outline-n-weak bg-n-solid-1 hover:outline-n-brand disabled:opacity-60 disabled:cursor-not-allowed w-full"
       @click="toggle"
+      @keydown.esc="onEscape"
     >
       <span
         class="truncate min-w-0"
@@ -168,8 +231,22 @@ const pick = opt => {
           :style="popStyle"
           class="z-[9999] p-1.5 origin-top overflow-y-auto border shadow-xl max-h-72 rounded-2xl border-white/50 bg-n-solid-1/70 backdrop-blur-2xl backdrop-saturate-150 shadow-n-iris-9/15"
         >
+          <!-- 搜索框钉在弹层顶部：列表滚起来也还在。 -->
+          <div
+            v-if="showSearch"
+            class="sticky top-0 z-10 px-1 pt-0.5 pb-1.5 -mx-0.5 bg-n-solid-1/80 backdrop-blur-sm"
+          >
+            <input
+              ref="searchEl"
+              v-model="query"
+              type="text"
+              :placeholder="searchPlaceholder"
+              class="w-full h-8 px-2.5 text-sm rounded-lg reset-base outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 focus:outline-n-brand"
+              @keydown="onSearchKeydown"
+            />
+          </div>
           <button
-            v-for="opt in options"
+            v-for="opt in visibleOptions"
             :key="String(opt.value)"
             type="button"
             :disabled="opt.disabled"
@@ -187,6 +264,18 @@ const pick = opt => {
               class="i-lucide-check size-4 shrink-0"
             />
           </button>
+          <p
+            v-if="!matchedOptions.length"
+            class="px-3 py-4 text-sm text-center text-n-slate-10"
+          >
+            没有匹配的选项
+          </p>
+          <p
+            v-else-if="hiddenCount"
+            class="px-3 py-2 text-xs text-center text-n-slate-10"
+          >
+            还有 {{ hiddenCount }} 项，继续输入缩小范围
+          </p>
         </div>
       </transition>
     </teleport>

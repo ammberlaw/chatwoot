@@ -1,4 +1,4 @@
-import { ref, computed, onBeforeUnmount } from 'vue';
+import { ref, computed, onBeforeUnmount, toValue } from 'vue';
 
 // 单据明细表的「像 Excel 那样拖列宽」。
 // 金蝶就是表格式、列宽能拉——规格型号长的时候必须能拉宽才核得动料。
@@ -11,8 +11,10 @@ import { ref, computed, onBeforeUnmount } from 'vue';
 // 拖完的宽度按 storageKey 存 localStorage，下次进来还是这个宽度。
 const MIN_W = 40;
 
+// cols 可以是数组，也可以是 ref/computed/getter——列序可拖的表格要用后者。
 export function useResizableColumns(cols, storageKey) {
-  const resizable = cols.filter(c => c.fixed == null);
+  const colList = () => toValue(cols);
+  const resizable = colList().filter(c => c.fixed == null);
 
   const load = () => {
     try {
@@ -46,7 +48,7 @@ export function useResizableColumns(cols, storageKey) {
     return px ? `${px}px` : `minmax(${MIN_W}px, ${c.fr}fr)`;
   };
 
-  const template = computed(() => cols.map(track).join(' '));
+  const template = computed(() => colList().map(track).join(' '));
 
   let dragKey = null;
   let startX = 0;

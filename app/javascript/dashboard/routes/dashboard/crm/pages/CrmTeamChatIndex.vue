@@ -414,11 +414,19 @@ const mentionQuery = ref('');
 const mentionedList = ref([]);
 const composerRef = ref(null);
 
+// 「@全体成员」：像微信那样一次 @ 到所有人，不用一个个点（人事发通知的主要用法）。
+// 做成一个虚拟候选项固定排在最前；选中时把全部群成员记进提及列表，文本里只留
+// 「@全体成员」四个字——每个人都能在正文里看到自己被 @ 了，也不会刷出一长串人名。
+const ALL_MENTION = { user_id: 'all', name: '全体成员' };
 const mentionCandidates = computed(() => {
   const q = mentionQuery.value.toLowerCase();
-  return mentionMembers.value.filter(
+  const members = mentionMembers.value.filter(
     m => !q || (m.name || '').toLowerCase().includes(q)
   );
+  const matchAll = !q || ALL_MENTION.name.includes(q) || 'all'.startsWith(q);
+  return matchAll && mentionMembers.value.length
+    ? [ALL_MENTION, ...members]
+    : members;
 });
 
 // 输入时检测末尾的「@关键词」，弹出候选（群聊）。
@@ -435,9 +443,21 @@ const onComposerInput = () => {
 
 const pickMention = member => {
   newText.value = newText.value.replace(/@([^\s@]*)$/, `@${member.name} `);
-  if (!mentionedList.value.some(x => x.userId === member.user_id)) {
-    mentionedList.value.push({ name: member.name, userId: member.user_id });
-  }
+  // @全体成员：文本只插一个「@全体成员」，提及人却是全群——发送时按这组 id 发通知。
+  const picked =
+    member.user_id === ALL_MENTION.user_id
+      ? mentionMembers.value.map(m => ({
+          name: ALL_MENTION.name,
+          userId: m.user_id,
+        }))
+      : [{ name: member.name, userId: member.user_id }];
+  picked.forEach(x => {
+    if (
+      !mentionedList.value.some(y => y.userId === x.userId && y.name === x.name)
+    ) {
+      mentionedList.value.push(x);
+    }
+  });
   mentionOpen.value = false;
   nextTick(() => composerRef.value?.focus?.());
 };
@@ -1490,13 +1510,27 @@ onBeforeUnmount(() => {
                   class="flex items-center w-full gap-2 px-2 py-1.5 text-left text-sm rounded-lg hover:bg-n-alpha-1 text-n-slate-12"
                   @click="pickMention(m)"
                 >
+                  <!-- @全体成员：用喇叭图标，和具体某个人的头像区分开 -->
+                  <span
+                    v-if="m.user_id === 'all'"
+                    class="grid rounded-full shrink-0 size-6 place-items-center bg-n-amber-3 text-n-amber-11"
+                  >
+                    <Icon icon="i-lucide-megaphone" class="size-3.5" />
+                  </span>
                   <Avatar
+                    v-else
                     :name="m.name"
                     :src="agentMap[m.user_id]?.thumbnail || ''"
                     :size="24"
                     rounded-full
                   />
                   {{ m.name }}
+                  <span
+                    v-if="m.user_id === 'all'"
+                    class="ml-auto text-xs text-n-slate-10"
+                  >
+                    {{ mentionMembers.length }} 人
+                  </span>
                 </button>
               </div>
               <button

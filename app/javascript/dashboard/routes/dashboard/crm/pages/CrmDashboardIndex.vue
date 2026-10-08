@@ -1,7 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
@@ -21,6 +21,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { t } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const { accountId } = useAccount();
 
 const stats = ref(null);
@@ -494,6 +495,29 @@ const rankChartHeight = computed(
     `${Math.max(RANK_MIN_PX, ownerRank.value.labels.length * RANK_ROW_PX)}px`
 );
 
+// ── 客户成交排行（Top Customers）：按所选期间汇总「客户 × 月」的成交额与单数 ──
+// 和业务员排行同一套数据组织方式，切月/季/年不用重新请求。
+const topCustomers = computed(() => {
+  const rows = stats.value?.team?.top_customers || [];
+  const months = periodMonths.value;
+  const sum = (arr, idx) => idx.reduce((acc, i) => acc + (arr?.[i] || 0), 0);
+  return rows
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      amount: sum(c.amount, months),
+      orders: sum(c.orders, months),
+    }))
+    .filter(c => c.amount > 0)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5);
+});
+const goCustomer = id =>
+  router.push({
+    name: 'crm_customer_detail_index',
+    params: { accountId: accountId.value, id },
+  });
+
 // ── 业务员发信排行（跟成交排行同一套：按所选期间汇总「业务员 × 月」的发信数）──
 // 发信量是过程指标，和成交额并排看才知道「发得多但没成交」还是「没发也没成交」。
 const ownerEmailRank = computed(() => {
@@ -552,9 +576,6 @@ const emailRankBars = computed(() => {
   const max = emailRankMax.value;
   return labels.map((name, i) => ({
     name,
-    // 条子底下只放首字母缩写（Leo Fang → LF，陈云钢 → 陈云），条子才挨得紧；
-    // 全名和封数挂在 title 上，鼠标移上去看。
-    short: rankInitials(name),
     value: data[i],
     // 留 6% 底座，免得只发一两封的人细成一条线看不见
     pct: Math.max(6, Math.round((data[i] / max) * 100)),
@@ -902,14 +923,21 @@ const PERIODS = [
                       />
                     </div>
                   </div>
-                  <div class="flex gap-1 mt-3">
+                  <!-- 名字斜 45° 写在条子下：原来只放首字母缩写（LF / 陈云），
+                       紧凑是紧凑，但看不出是谁。斜排后条子宽度不变、全名照样放得下。
+                       原点取条子中线的顶端，文字往左下方铺，和自己那根条对得上。 -->
+                  <div class="flex gap-1 mt-2 h-[72px]">
                     <div
                       v-for="bar in emailRankBars"
                       :key="`l-${bar.name}`"
-                      class="w-7 shrink-0 text-[10px] text-center truncate text-n-slate-10"
-                      :title="`${bar.name}：${bar.value} 封`"
+                      class="relative w-7 shrink-0"
                     >
-                      {{ bar.short }}
+                      <span
+                        class="absolute top-0 right-1/2 origin-top-right -rotate-45 max-w-24 truncate text-[10px] leading-none text-n-slate-10 whitespace-nowrap"
+                        :title="`${bar.name}：${bar.value} 封`"
+                      >
+                        {{ bar.name }}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1164,6 +1192,53 @@ const PERIODS = [
               <p class="text-xs text-n-slate-10">前往「我的目标」设定</p>
             </div>
           </div>
+          <!-- 客户成交排行：按所选期间的成交额排前 5，点一行进客户详情。 -->
+          <div
+            class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+          >
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <h2 class="text-base font-medium text-n-slate-12">
+                客户成交排行
+              </h2>
+              <span class="text-xs text-n-slate-10">{{ periodLabel }}</span>
+            </div>
+            <div
+              v-if="!topCustomers.length"
+              class="flex items-center justify-center h-32 text-sm text-n-slate-10"
+            >
+              这段时间还没有成交
+            </div>
+            <ul v-else class="flex flex-col">
+              <li
+                v-for="c in topCustomers"
+                :key="c.id"
+                class="flex items-center gap-3 px-2 py-2.5 -mx-2 rounded-lg cursor-pointer hover:bg-n-alpha-1"
+                :title="`${c.name}｜点击查看客户详情`"
+                @click="goCustomer(c.id)"
+              >
+                <span
+                  class="flex items-center justify-center text-xs font-medium rounded-full shrink-0 size-9 bg-n-iris-3 text-n-iris-11"
+                >
+                  {{ rankInitials(c.name) }}
+                </span>
+                <span class="flex flex-col min-w-0">
+                  <span class="text-sm truncate text-n-slate-12">
+                    {{ c.name }}
+                  </span>
+                  <span class="text-xs text-n-slate-10">
+                    {{ c.orders }} 单
+                  </span>
+                </span>
+                <span class="flex-1" />
+                <span
+                  class="text-sm font-semibold tabular-nums whitespace-nowrap text-n-teal-11"
+                >
+                  {{ moneyYuan(toYuan(c.amount)) }}
+                </span>
+              </li>
+            </ul>
+          </div>
+
           <div
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >

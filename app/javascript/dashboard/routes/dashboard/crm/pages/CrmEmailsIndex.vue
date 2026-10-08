@@ -25,6 +25,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
 import CrmAddressIdentity from 'dashboard/components-next/CRM/CrmAddressIdentity.vue';
 import CrmBackgroundCheck from 'dashboard/components-next/CRM/CrmBackgroundCheck.vue';
+import CrmLocalTimeChip from 'dashboard/components-next/CRM/CrmLocalTimeChip.vue';
 import CrmCustomerCreateDialog from 'dashboard/components-next/CRM/CrmCustomerCreateDialog.vue';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
@@ -2660,6 +2661,12 @@ watch(
                     })
                   }}
                 </span>
+                <!-- 客户当地时间：回信/打电话前先看对方几点、是不是上班时间 -->
+                <CrmLocalTimeChip
+                  :country="selectedEmail.customerCountry"
+                  :offset-minutes="selectedEmail.senderUtcOffsetMinutes"
+                  :address="counterparty(selectedEmail)"
+                />
                 <span
                   v-for="l in emailLabels(selectedEmail)"
                   :key="`lbl-${l.id}`"

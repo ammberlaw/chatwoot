@@ -13,6 +13,7 @@ import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import DocSectionsAPI from 'dashboard/api/crm/docSections';
 import CrmCustomerAPI from 'dashboard/api/crm/customers';
+import CrmQuoteRequestAPI from 'dashboard/api/crm/quoteRequests';
 import ConversationSourceTagsAPI from 'dashboard/api/crm/conversationSourceTags';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
 import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
@@ -353,6 +354,18 @@ const mesActionCount = computed(
       n => !n.readAt && REJECTED_KINDS.includes(n.kind)
     ).length
 );
+// 定制报价角标：待我报价的单数。业务员把单子交上来，主管不进这个页面就不知道，
+// 单子能挂好几天——和会话那个点一个道理，要在侧栏就能看见。
+const quoteRequestTodoCount = ref(0);
+const fetchQuoteRequestTodoCount = async () => {
+  try {
+    const { data } = await CrmQuoteRequestAPI.pendingCount();
+    quoteRequestTodoCount.value = data.count || 0;
+  } catch {
+    quoteRequestTodoCount.value = 0;
+  }
+};
+
 const churnRiskCount = ref(0);
 const fetchChurnRiskCount = async () => {
   try {
@@ -437,6 +450,7 @@ watch(
     loadCrmOptions('customer_source');
     fetchSourceTagCounts();
     fetchChurnRiskCount();
+    fetchQuoteRequestTodoCount();
   },
   { immediate: true }
 );
@@ -674,14 +688,60 @@ const menuItems = computed(() => {
         },
       },
       {
+        name: 'CRM Dashboards',
+        label: t('SIDEBAR.CRM_G_DASHBOARDS'),
+        icon: 'i-lucide-layout-dashboard',
+        activeOn: [
+          'crm_dashboard_index',
+          'crm_team_dashboard_index',
+          'crm_my_target_index',
+        ],
+        children: [
+          ...(isCrmSales.value
+            ? []
+            : [
+                {
+                  name: 'CRM Company Dashboard',
+                  label: t('SIDEBAR.CRM_DASH_COMPANY'),
+                  to: accountScopedRoute('crm_dashboard_index'),
+                  activeOn: ['crm_dashboard_index'],
+                },
+              ]),
+          {
+            name: 'CRM Personal Dashboard',
+            label: t('SIDEBAR.CRM_DASH_MINE'),
+            to: accountScopedRoute(
+              'crm_dashboard_index',
+              {},
+              { scope: 'mine' }
+            ),
+          },
+          {
+            name: 'CRM Team Dashboard',
+            label: t('SIDEBAR.CRM_DASH_TEAM'),
+            to: accountScopedRoute('crm_team_dashboard_index'),
+            activeOn: ['crm_team_dashboard_index'],
+          },
+          {
+            name: 'CRM My Targets',
+            label: t('SIDEBAR.CRM_MY_TARGETS'),
+            to: accountScopedRoute('crm_my_target_index'),
+            activeOn: ['crm_my_target_index'],
+          },
+        ],
+      },
+      {
         name: 'Conversation',
-        label: t('SIDEBAR.CONVERSATIONS'),
+        // 「客户消息」：与「邮件中心」成一对（邮件走邮件中心、即时消息走这里），
+        // 也和内部的「团队沟通」区分开。核心 SIDEBAR.CONVERSATIONS 是 Chatwoot 自带键，
+        // 别处也在用，所以另起 CRM 自己的键，不动共享翻译。
+        label: t('SIDEBAR.CRM_G_MESSAGES'),
         icon: 'i-lucide-message-circle',
         badgeCount: conversationAttentionCount.value,
         children: [
           {
             name: 'All',
-            label: t('SIDEBAR.ALL_CONVERSATIONS'),
+            label: t('SIDEBAR.CRM_ALL_MESSAGES'),
             icon: 'i-lucide-inbox',
             badgeCount: allUnreadCount.value,
             activeOn: ['inbox_conversation'],
@@ -1048,49 +1108,6 @@ const menuItems = computed(() => {
       },
       // ── Wintouch-CRM 五分区（对齐 Twenty 侧栏结构）──
       {
-        name: 'CRM Dashboards',
-        label: t('SIDEBAR.CRM_G_DASHBOARDS'),
-        icon: 'i-lucide-layout-dashboard',
-        activeOn: [
-          'crm_dashboard_index',
-          'crm_team_dashboard_index',
-          'crm_my_target_index',
-        ],
-        children: [
-          ...(isCrmSales.value
-            ? []
-            : [
-                {
-                  name: 'CRM Company Dashboard',
-                  label: t('SIDEBAR.CRM_DASH_COMPANY'),
-                  to: accountScopedRoute('crm_dashboard_index'),
-                  activeOn: ['crm_dashboard_index'],
-                },
-              ]),
-          {
-            name: 'CRM Personal Dashboard',
-            label: t('SIDEBAR.CRM_DASH_MINE'),
-            to: accountScopedRoute(
-              'crm_dashboard_index',
-              {},
-              { scope: 'mine' }
-            ),
-          },
-          {
-            name: 'CRM Team Dashboard',
-            label: t('SIDEBAR.CRM_DASH_TEAM'),
-            to: accountScopedRoute('crm_team_dashboard_index'),
-            activeOn: ['crm_team_dashboard_index'],
-          },
-          {
-            name: 'CRM My Targets',
-            label: t('SIDEBAR.CRM_MY_TARGETS'),
-            to: accountScopedRoute('crm_my_target_index'),
-            activeOn: ['crm_my_target_index'],
-          },
-        ],
-      },
-      {
         name: 'CRM Mail Center',
         label: t('SIDEBAR.CRM_G_MAIL'),
         icon: 'i-lucide-mail',
@@ -1214,6 +1231,8 @@ const menuItems = computed(() => {
             // 排在报价单之前——先把定制件的价问出来，再开报价单给客户。
             name: 'CRM Quote Requests',
             label: '定制报价',
+            badgeCount: quoteRequestTodoCount.value,
+            hint: '有业务员提交的定制件等你报价时在此提醒；报完价角标自动消。',
             to: accountScopedRoute('crm_quote_requests_index'),
             activeOn: ['crm_quote_requests_index'],
           },

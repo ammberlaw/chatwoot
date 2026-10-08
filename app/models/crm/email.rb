@@ -5,40 +5,41 @@
 #
 # Table name: crm_emails
 #
-#  id                  :bigint           not null, primary key
-#  bcc_address         :text
-#  body                :text
-#  body_html           :text
-#  cc_address          :text
-#  click_count         :integer          default(0), not null
-#  email_date          :datetime
-#  first_clicked_at    :datetime
-#  first_opened_at     :datetime
-#  folder              :string           default("INBOX"), not null
-#  from_address        :string
-#  is_read             :boolean          default(FALSE), not null
-#  is_starred          :boolean          default(FALSE), not null
-#  label_ids           :bigint           default([]), not null, is an Array
-#  last_clicked_at     :datetime
-#  last_opened_at      :datetime
-#  open_count          :integer          default(0), not null
-#  reply_latency_hours :decimal(10, 2)
-#  scheduled_at        :datetime
-#  send_error          :text
-#  send_now            :boolean          default(FALSE), not null
-#  send_status         :string           default("DRAFT"), not null
-#  subject             :string
-#  to_address          :text
-#  tracking_token      :string
-#  created_at          :datetime         not null
-#  updated_at          :datetime         not null
-#  account_id          :bigint           not null
-#  chatwoot_message_id :bigint
-#  contact_id          :bigint
-#  crm_customer_id     :bigint
-#  crm_email_folder_id :bigint
-#  message_id          :string
-#  owner_id            :bigint
+#  id                        :bigint           not null, primary key
+#  bcc_address               :text
+#  body                      :text
+#  body_html                 :text
+#  cc_address                :text
+#  click_count               :integer          default(0), not null
+#  email_date                :datetime
+#  first_clicked_at          :datetime
+#  first_opened_at           :datetime
+#  folder                    :string           default("INBOX"), not null
+#  from_address              :string
+#  is_read                   :boolean          default(FALSE), not null
+#  is_starred                :boolean          default(FALSE), not null
+#  label_ids                 :bigint           default([]), not null, is an Array
+#  last_clicked_at           :datetime
+#  last_opened_at            :datetime
+#  open_count                :integer          default(0), not null
+#  reply_latency_hours       :decimal(10, 2)
+#  scheduled_at              :datetime
+#  send_error                :text
+#  send_now                  :boolean          default(FALSE), not null
+#  send_status               :string           default("DRAFT"), not null
+#  sender_utc_offset_minutes :integer
+#  subject                   :string
+#  to_address                :text
+#  tracking_token            :string
+#  created_at                :datetime         not null
+#  updated_at                :datetime         not null
+#  account_id                :bigint           not null
+#  chatwoot_message_id       :bigint
+#  contact_id                :bigint
+#  crm_customer_id           :bigint
+#  crm_email_folder_id       :bigint
+#  message_id                :string
+#  owner_id                  :bigint
 #
 # Indexes
 #

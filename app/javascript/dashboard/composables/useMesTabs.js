@@ -26,6 +26,11 @@ export const MES_TAB_LABEL_KEYS = {
   mes_fg_inbound_index: 'SIDEBAR.MES_FG_INBOUND',
   mes_shipments_index: 'SIDEBAR.MES_SHIPMENTS',
   mes_production_order_intake_index: 'SIDEBAR.MES_PRODUCTION_ORDERS',
+  // 建档页单独成一个标签：原来它不在这张表里，openTab 直接 return，
+  // 于是点「新建采购单」后标签条还停在「采购单」上、内容却换成了建档页——
+  // 列表那一屏就像没了（用户：两个页面应该同时存在）。
+  mes_purchase_order_intake_index: 'SIDEBAR.MES_PURCHASE_ORDER_INTAKE',
+  mes_bom_intake_index: 'SIDEBAR.MES_BOM_INTAKE',
 };
 
 const tabs = ref([]); // [{ name, fullPath }]

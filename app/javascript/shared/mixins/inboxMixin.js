@@ -13,6 +13,9 @@ export const INBOX_FEATURE_MAP = {
     INBOX_TYPES.WEB,
     INBOX_TYPES.TWITTER,
     INBOX_TYPES.WHATSAPP,
+    // WhatsApp 个人号（Baileys 桥接）：桥接 send/send-media 接 quoted 参数后才加进来，
+    // 发出去的是真正的 WhatsApp 引用，客户手机上能点回原消息。
+    INBOX_TYPES.WHATSAPP_WEB,
     INBOX_TYPES.TELEGRAM,
     INBOX_TYPES.TIKTOK,
     INBOX_TYPES.API,
@@ -21,6 +24,7 @@ export const INBOX_FEATURE_MAP = {
     INBOX_TYPES.WEB,
     INBOX_TYPES.TWITTER,
     INBOX_TYPES.WHATSAPP,
+    INBOX_TYPES.WHATSAPP_WEB,
     INBOX_TYPES.TELEGRAM,
     INBOX_TYPES.TIKTOK,
     INBOX_TYPES.API,

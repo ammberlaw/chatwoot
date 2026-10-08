@@ -1,3 +1,4 @@
+require 'ipaddr'
 class Rack::Attack
   ### Configure Cache ###
 
@@ -25,10 +26,16 @@ class Rack::Attack
       @remote_ip ||= (env['action_dispatch.remote_ip'] || ip).to_s
     end
 
+    # 白名单支持**网段**（CIDR），不只是精确 IP。
+    # 办公室出口 IP 是会轮换的（打卡白名单当初就是因为这个从单 IP 改成了网段），
+    # 写死某个地址过两天就失效；而限流按 IP 算，同一出口下一个人连试错会把全办公室一起挡掉。
     def allowed_ip?
-      default_allowed_ips = ['127.0.0.1', '::1']
-      env_allowed_ips = ENV.fetch('RACK_ATTACK_ALLOWED_IPS', '').split(',').map(&:strip)
-      (default_allowed_ips + env_allowed_ips).include?(remote_ip)
+      ip = remote_ip
+      return true if ['127.0.0.1', '::1'].include?(ip)
+
+      Rack::Attack::ALLOWED_IP_RANGES.any? { |range| range.include?(ip) }
+    rescue IPAddr::InvalidAddressError
+      false
     end
 
     # Rails would allow requests to paths with extensions, so lets compare against the path with extension stripped
@@ -37,6 +44,21 @@ class Rack::Attack
       path[/^[^.]+/]
     end
   end
+
+  # 白名单网段：先读环境变量 RACK_ATTACK_ALLOWED_IPS（逗号分隔，可写单 IP 或 CIDR），
+  # 没配就用公司两个办公出口网段（与打卡白名单同一组）。
+  DEFAULT_ALLOWED_RANGES = [
+    '113.110.146.0/23', # 深圳办公室
+    '113.77.232.0/23'   # 东莞办公室
+  ].freeze
+  ALLOWED_IP_RANGES = (
+    ENV.fetch('RACK_ATTACK_ALLOWED_IPS', '').split(',').map(&:strip).presence || DEFAULT_ALLOWED_RANGES
+  ).filter_map do |entry|
+    IPAddr.new(entry)
+  rescue IPAddr::Error
+    # 配错一条不该让整个白名单失效，跳过它（其余照常生效）
+    nil
+  end.freeze
 
   ### Safelist IPs from Environment Variable ###
   #

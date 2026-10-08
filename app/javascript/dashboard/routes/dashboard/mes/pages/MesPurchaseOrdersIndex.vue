@@ -6,6 +6,7 @@ import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { useMesPurchaseOrdersStore } from 'dashboard/stores/mes/purchaseOrders';
 import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
 import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
@@ -52,17 +53,28 @@ const search = ref(route.query.q ? String(route.query.q) : '');
 // 两个采购员分主料/辅料建单，各自只想看自己那摊。
 const onlyMine = ref(false);
 const totalCount = computed(() => store.getMeta?.count || 0);
+// 后端每页 15 条。原来这里既不传页码、页面也没有翻页器，
+// 结果「共 27 条」却只看得到前 15 张，第 16 张往后谁都点不到。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
 const fetchList = () =>
   store.get({
     q: search.value.trim() || undefined,
     owner_id: onlyMine.value ? currentUserId.value : undefined,
+    page: currentPage.value,
   });
+watch(currentPage, fetchList);
+// 换了筛选条件要回到第 1 页——否则在第 3 页搜一个只有 2 条结果的词会看到空列表。
+const resetToFirstPage = () => {
+  if (currentPage.value === 1) fetchList();
+  else currentPage.value = 1;
+};
 let searchTimer = null;
 watch(search, () => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(fetchList, 300);
+  searchTimer = setTimeout(resetToFirstPage, 300);
 });
-watch(onlyMine, fetchList);
+watch(onlyMine, resetToFirstPage);
 
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 // micros → ¥金额（两位小数），空值给「—」。采购模块内部可见价格，销售端不涉及。
@@ -966,6 +978,15 @@ useRouteQueryReentry(query => {
           </tbody>
         </table>
       </template>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
 
     <!-- 预览 / 导出：直接显示后端生成的真 PDF，勾谁导谁，多家合成一份 -->

@@ -1,20 +1,24 @@
 class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
-  before_action :fetch_product, only: [:update, :destroy]
+  before_action :fetch_product, only: [:show, :update, :destroy]
 
   # 产品档案（复用 CRM 产品库 Crm::Product）。MES 侧入口，供 BOM/采购/出库选成品。
   # 读全员可见；增删改仅工程与 PMC（Mes::ProductPolicy → mes_can?(:product)）。
   def index
     scope = scoped_by_product_line(Current.account.crm_products)
     scope = scope.active if params[:filter] == 'active'
-    scope = scope.where(category: params[:category]) if params[:category].present?
-    scope = scope.where(source_category: params[:source_category]) if params[:source_category].present?
-    scope = filter_by_group(scope) if params[:group_code].present?
+    # 🔴 搜索时**忽略左侧分类/分组筛选**：用户要找一个编码时，并不知道（也不该关心）
+    # 它挂在哪个类别下。原来两者是「与」的关系——选中「触摸屏」再搜 20.002 永远搜不到，
+    # 必须先点回「全部」，等于每次搜索前都要先想一下这颗料属于哪类。
     if params[:q].present?
       scope = scope.where(
         'sku ILIKE :q OR name ILIKE :q OR source_category ILIKE :q OR specification ILIKE :q',
         q: "%#{params[:q].strip}%"
       )
+    else
+      scope = scope.where(category: params[:category]) if params[:category].present?
+      scope = scope.where(source_category: params[:source_category]) if params[:source_category].present?
+      scope = filter_by_group(scope) if params[:group_code].present?
     end
     @products_count = scope.count
     # 按商品编码排，id 兜底。原来按 updated_at 排是错的：4800+ 条产品是一次导入进来的、
@@ -26,6 +30,10 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
     @onhand_map = Mes::StockBalance.where(account_id: Current.account.id, crm_product_id: @products.map(&:id))
                                    .group(:crm_product_id).sum(:qty)
   end
+
+  # 单条档案：生产任务单里的「页内查改产品档案」抽屉按 id 读这颗料
+  # （用料明细带着 product_id，不必再按编码去查一次）。
+  def show; end
 
   # 批量按编码查档案：电子投单单上的整列编码复制过来，一次全查出来，不用一个个手搜。
   # 前缀可有可无（贴 01.033 也认 P.01.033），大小写不敏感；返回按送进来的顺序对齐。

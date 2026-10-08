@@ -171,8 +171,15 @@ class Api::V1::Accounts::Crm::StatsController < Api::V1::Accounts::Crm::BaseCont
       by_owner_completeness: completeness_by_owner,
       by_owner_reply_latency: emails.joins(:owner).group('users.name').average(:reply_latency_hours)
                                     .transform_values { |v| v.to_f.round(1) },
-      by_owner_sent_emails: owner_monthly_sent_emails
+      by_owner_sent_emails: owner_monthly_sent_emails,
+      top_customers: top_customers
     }
+  end
+
+  # 客户成交排行（Top Customers）：当年按「客户 × 月」预聚合金额与单数，前端按所选期间
+  # 即时汇总，和业务员排行同一套做法，不另外请求。查询在模型里（和金额 SQL 放一起）。
+  def top_customers
+    Crm::SalesOrder.monthly_customer_ranking(year_orders)
   end
 
   # 业务员发信排行：和成交排行同一套做法，按「业务员 × 月份」预聚合，

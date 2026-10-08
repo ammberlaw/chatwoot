@@ -18,6 +18,10 @@ class Crm::QuoteRequestPolicy < ApplicationPolicy
     true
   end
 
+  def pending_count?
+    true
+  end
+
   # 重新编辑：入口放行，是不是本人、单子是不是已撤销由控制器判断。
   def update?
     true

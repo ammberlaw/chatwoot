@@ -964,12 +964,9 @@ watch(
                 : t('CRM.KNOWLEDGE_DOCS.HEADER')
             }}
           </h1>
-          <p class="mt-0.5 text-xs text-n-slate-10">
-            {{
-              isGeneral
-                ? t('CRM.KNOWLEDGE_DOCS.SUBTITLE_GENERAL')
-                : t('CRM.KNOWLEDGE_DOCS.SUBTITLE')
-            }}
+          <!-- 副标题只留给「文档中心」：销售资料页的那句说明用户不要了。 -->
+          <p v-if="isGeneral" class="mt-0.5 text-xs text-n-slate-10">
+            {{ t('CRM.KNOWLEDGE_DOCS.SUBTITLE_GENERAL') }}
           </p>
         </div>
         <div class="flex items-center gap-3 shrink-0">

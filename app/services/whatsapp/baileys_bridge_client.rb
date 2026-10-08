@@ -11,19 +11,33 @@ class Whatsapp::BaileysBridgeClient
     get("/sessions/#{inbox_id}/status")
   end
 
+  # 全部会话的实时状态：{ "<session_key>" => "open" | ... }。
+  # 「我的 WhatsApp」列表一次问全部，不用逐个号发请求（12 个号就是 12 次跨境往返）。
+  # 桥接不可达时返回 {}，调用方按「拿不到实况」处理，不把界面写成全掉线。
+  def sessions_status
+    body = get('/sessions')
+    body.is_a?(Hash) ? body['sessions'].to_h : {}
+  rescue BridgeError, StandardError
+    {}
+  end
+
   def logout(inbox_id)
     post("/sessions/#{inbox_id}/logout")
   end
 
-  def send_text(inbox_id, phone, text)
-    body = post("/sessions/#{inbox_id}/send", { phone: phone, text: text })
+  # quoted 非空时发成「引用回复」（桥接用它搭 Baileys 的 quoted 存根）；为空则是普通消息。
+  def send_text(inbox_id, phone, text, quoted: nil)
+    payload = { phone: phone, text: text }
+    payload[:quoted] = quoted if quoted.present?
+    body = post("/sessions/#{inbox_id}/send", payload)
     body['message_id']
   end
 
   # 发附件：把附件的公开链接交给桥接，由它取回字节再经 Baileys 发出去
   # （几 MB 的 PI/图纸走 base64 会把请求体撑得很难看）。
   def send_media(inbox_id, phone, media)
-    body = post("/sessions/#{inbox_id}/send-media", media.slice(:url, :filename, :mimetype, :caption).merge(phone: phone))
+    payload = media.slice(:url, :filename, :mimetype, :caption, :quoted).compact.merge(phone: phone)
+    body = post("/sessions/#{inbox_id}/send-media", payload)
     body['message_id']
   end
 

@@ -138,11 +138,23 @@ module Crm::EmailIngestion
       cc_address: Crm::MailCharset.scrub(Array(mail.cc).join(', ').presence),
       subject: Crm::MailCharset.scrub(mail.subject.presence || '(无主题)'),
       email_date: mail.date&.to_time || Time.current,
+      # 发件人时区：Date 头带着对方电脑的偏移（+0200/-0400），折成 UTC 就没了。
+      # 存成分钟，给「客户当地时间」用——没建档的客户只能靠这个。
+      sender_utc_offset_minutes: sender_offset_minutes(mail),
       body: truncate_text(text_body(mail)),
       body_html: html,
       contact_id: contact&.id,
       crm_customer_id: contact&.crm_customer_id
     }
+  end
+
+  # Date 头的时区偏移（分钟）。没有 Date 头、或解析不出时区就返回 nil（不猜 0，
+  # 0 是真实存在的时区 UTC+0，拿它当「不知道」会把西非/英国冬令时的客户算错）。
+  def sender_offset_minutes(mail)
+    offset = mail.date&.utc_offset
+    return nil if offset.nil?
+
+    (offset / 60).to_i
   end
 
   # 收件人邮箱主人：按 To（优先）、Cc 顺序，命中某个启用收件邮箱的地址即归其 owner。匹配不到返回 nil。
