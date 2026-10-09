@@ -103,10 +103,11 @@ const STATUS_LABELS = {
   CANCELLED: '已取消',
 };
 
-// 审批状态（总经理一级）：与收货状态正交。
+// 审批状态（一级）：与收货状态正交。审批人按产品线配置（平板、商显各一位），
+// 故文案一律说「审批」不说「总经理」——码值 PENDING_GM 是历史命名，不动。
 const APPROVAL_LABELS = {
   DRAFT: '草稿',
-  PENDING_GM: '待总经理审批',
+  PENDING_GM: '待审批',
   APPROVED: '已通过',
   REJECTED: '已驳回',
 };
@@ -117,17 +118,27 @@ const APPROVAL_COLORS = {
   REJECTED: 'text-n-ruby-11',
 };
 
+// 采购审批人按产品线配（本线没配回落「全部产线」，再回落绩效设置里的总经理）。
+const APPROVER_BOARD = [
+  {
+    key: 'mes_purchase_approver',
+    label: '采购审批人',
+    single: true,
+    hint: '该产品线的采购单提交后，由他审批（通过才能导出发供应商）。',
+  },
+];
+
 // 提交审批：草稿/被驳回可提交（制单人操作）。
 const submitForApproval = async po => {
   try {
     await MesPurchaseOrderAPI.submit(po.id);
-    useAlert('已提交总经理审批');
+    useAlert('已提交审批');
     fetchList();
   } catch {
     useAlert('提交失败，请重试');
   }
 };
-// 总经理通过。
+// 审批通过。
 const approvePo = async po => {
   try {
     await MesPurchaseOrderAPI.approve(po.id);
@@ -137,7 +148,7 @@ const approvePo = async po => {
     useAlert('审批失败，请重试');
   }
 };
-// 总经理驳回（填原因）。
+// 审批驳回（填原因）。
 const rejectPo = async po => {
   // eslint-disable-next-line no-alert
   const reason = window.prompt('请填写驳回原因');
@@ -150,7 +161,7 @@ const rejectPo = async po => {
     useAlert('驳回失败，请重试');
   }
 };
-// 我是本单当前审批人（总经理）吗？→ 显示通过/驳回。
+// 我是本单当前审批人吗？→ 显示通过/驳回。（审批人按产品线分，逐单看 currentApproverId）
 const canApprove = po =>
   po.approvalStatus === 'PENDING_GM' &&
   po.currentApproverId === currentUserId.value;
@@ -350,7 +361,7 @@ const viewFields = computed(() => {
       label: '审批状态',
       value: APPROVAL_LABELS[p.approvalStatus] || '—',
     },
-    { label: '审批总经理', value: p.gmName || '—' },
+    { label: '审批人', value: p.gmName || '—' },
     { label: '审批意见', value: p.gmComment || '—' },
     { label: '回复交期', value: day(p.expectedDate) },
     { label: '交货时间', value: day(p.deliveryDate) },
@@ -615,7 +626,10 @@ useRouteQueryReentry(query => {
       </div>
     </div>
 
-    <MesBoardOwnerBar board-key="mes_purchase_orders_index" />
+    <MesBoardOwnerBar
+      board-key="mes_purchase_orders_index"
+      :extra-boards="APPROVER_BOARD"
+    />
 
     <!-- 搜索：单号/供应商/归属人/生产订单/物料编码 -->
     <div class="flex items-center gap-2 px-4 pt-1 pb-2 sm:px-6">

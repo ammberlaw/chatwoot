@@ -6,6 +6,9 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   # 谁制单谁改（管理员可代改）——采购单的 owner 就是下单人。
   before_action -> { ensure_owner_or_admin!(@purchase_order, '采购单') }, only: [:update, :destroy]
   before_action :ensure_approved_before_export!, only: [:export, :export_data, :mark_exported]
+  # 审批人按产品线分（平板一位、商显一位），所以「能批」要逐单核对本单 gm_id，
+  # 不能只看「他是某条线的审批人」——否则平板的审批人能去批商显的单。
+  before_action :ensure_po_approver!, only: [:approve, :reject]
 
   # 列筛选。owner_id = 下单人（建单的采购员），跟列表里「归属人」（生产订单的业务员）
   # 不是一回事——采购员要的是「只看我下的单」。
@@ -40,25 +43,25 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     head :ok
   end
 
-  # 提交总经理审批（草稿/被驳回可提交）。
+  # 提交审批（草稿/被驳回可提交）；审批人按本单产品线解析。
   def submit
     @purchase_order.submit_for_approval!(current_user)
     render 'api/v1/accounts/mes/purchase_orders/show'
   end
 
-  # 总经理通过 → 生效，累加在途库存。
+  # 审批通过 → 生效，累加在途库存。
   def approve
     @purchase_order.gm_approve!(current_user, comment: params[:comment])
     render 'api/v1/accounts/mes/purchase_orders/show'
   end
 
-  # 总经理驳回 → 退回制单人。
+  # 审批驳回 → 退回制单人。
   def reject
     @purchase_order.reject_approval!(current_user, reason: params[:reason])
     render 'api/v1/accounts/mes/purchase_orders/show'
   end
 
-  # 待我审批的采购单（总经理待办箱）。
+  # 待我审批的采购单（审批人待办箱）。
   def approval_inbox
     scope = Current.account.mes_purchase_orders.awaiting_gm_for(current_user.id)
     @purchase_orders_count = scope.count
@@ -128,13 +131,26 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   # 列表筛选（列筛选 / 异常 / 搜索）收在一处，index 只管取数与分页。
   def index_scope
-    scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_purchase_orders))
+    scope = scoped_by_approver_or_order_owner(scoped_by_product_line(Current.account.mes_purchase_orders))
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
     scope = scope.where(has_exception: true) if params[:exception] == 'true'
     scope = apply_search(scope, params[:q]) if params[:q].present?
     scope
+  end
+
+  # 采购审批人（不兼 MES 岗的副总经理等）看他负责产线的采购单全部。
+  # 不能走 scoped_by_order_owner：那是按 CRM 团队收口的，而审批人团队里没有采购员，
+  # 收完就是 0 条——页面打得开、一张单都没有，等于批不了。
+  def scoped_by_approver_or_order_owner(scope)
+    au = Current.account_user
+    return scoped_by_order_owner(scope) if au.nil? || au.mes_staff?
+
+    lines = Mes::PurchaseOrder.approver_lines_for(Current.account, au.user_id)
+    return scoped_by_order_owner(scope) if lines.empty?
+
+    lines.any?(&:blank?) ? scope : scope.where(product_line: lines)
   end
 
   # 每页条数：默认沿用 RESULTS_PER_PAGE(15) 供列表分页；调用方（如入库单的采购单下拉）
@@ -183,6 +199,14 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   def check_authorization
     authorize(Mes::PurchaseOrder)
+  end
+
+  # 本单当前审批人本人，或管理员代批。
+  def ensure_po_approver!
+    return if Current.account_user.administrator?
+    return if @purchase_order.gm_id.present? && @purchase_order.gm_id == current_user.id
+
+    render json: { error: '这张单不在你这里审批' }, status: :unauthorized
   end
 
   def purchase_order_params

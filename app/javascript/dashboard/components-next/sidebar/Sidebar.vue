@@ -21,6 +21,7 @@ import ChatConversationAPI from 'dashboard/api/chat/conversations';
 import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import MesShipmentAPI from 'dashboard/api/mes/shipments';
+import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
 import { emitter } from 'shared/helpers/mitt';
 import { useWindowSize, useEventListener } from '@vueuse/core';
 
@@ -106,6 +107,10 @@ const isCrmManager = computed(
 const isCrmHr = computed(() => currentUser.value?.crm_role === 'hr');
 const isMesStaff = computed(
   () => isAdminLike.value || (currentUser.value?.mes_roles || []).length > 0
+);
+// 采购审批人（按产品线配在采购单页）：不兼 MES 岗也要进得去采购单，否则批不了单。
+const isMesPurchaseApprover = computed(
+  () => currentUser.value?.mes_purchase_approver === true
 );
 // 财务：全公司数据只读，需看到公司级看板等入口，不能按普通业务收窄。
 const isCrmFinance = computed(() => currentUser.value?.crm_role === 'finance');
@@ -324,15 +329,19 @@ const mesNotificationsStore = useMesNotificationsStore();
 const mesTodoCount = ref(0);
 const fetchMesTodoCount = async () => {
   try {
-    const [approvalRes, inboxRes, shipmentRes] = await Promise.all([
+    const empty = { data: { payload: [] } };
+    const [approvalRes, inboxRes, shipmentRes, poRes] = await Promise.all([
       MesProductionOrderAPI.approvalInbox(),
       MesProductionOrderAPI.inbox(),
-      MesShipmentAPI.approvalInbox().catch(() => ({ data: { payload: [] } })),
+      MesShipmentAPI.approvalInbox().catch(() => empty),
+      // 采购单待审批也要上角标，否则只审批采购单的人（副总经理）看不到有事要办。
+      MesPurchaseOrderAPI.approvalInbox().catch(() => empty),
     ]);
     mesTodoCount.value =
       (approvalRes?.data?.payload?.length || 0) +
       (inboxRes?.data?.payload?.length || 0) +
-      (shipmentRes?.data?.payload?.length || 0);
+      (shipmentRes?.data?.payload?.length || 0) +
+      (poRes?.data?.payload?.length || 0);
   } catch {
     mesTodoCount.value = 0;
   }
@@ -1452,6 +1461,11 @@ const menuItems = computed(() => {
                   to: accountScopedRoute('mes_purchase_requisitions_index'),
                   activeOn: ['mes_purchase_requisitions_index'],
                 },
+              ]
+            : []),
+          // 采购单单独放行采购审批人：他只审批，不进请购/供应商。
+          ...(isMesStaff.value || isMesPurchaseApprover.value
+            ? [
                 {
                   name: 'MES Purchase Orders',
                   label: t('SIDEBAR.MES_PURCHASE_ORDERS'),
@@ -1461,6 +1475,10 @@ const menuItems = computed(() => {
                     'mes_purchase_order_intake_index',
                   ],
                 },
+              ]
+            : []),
+          ...(isMesStaff.value
+            ? [
                 {
                   name: 'MES Suppliers',
                   label: t('SIDEBAR.MES_SUPPLIERS'),

@@ -24,6 +24,14 @@ json.crm_team_lead resource.active_account_user&.crm_team_lead? || false
 json.crm_finance resource.active_account_user&.crm_finance? || false
 json.mes_roles resource.active_account_user&.effective_mes_roles || []
 json.mes_capabilities resource.active_account_user&.mes_capability_list || []
+# 采购审批人（按产品线配置）：不兼 MES 岗的审批人也要看得到采购单入口与金额。
+json.mes_purchase_approver(
+  if (au = resource.active_account_user)
+    Mes::PurchaseOrder.approver?(au.account, au.user_id)
+  else
+    false
+  end
+)
 json.erp_role resource.active_account_user&.erp_role
 json.erp_capabilities resource.active_account_user&.erp_capability_list || []
 json.can_access_erp resource.active_account_user&.can_access_erp? || false

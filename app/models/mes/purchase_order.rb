@@ -56,14 +56,20 @@ class Mes::PurchaseOrder < ApplicationRecord
   include Mes::Returnable
 
   STATUSES = %w[DRAFT SUBMITTED PARTIAL_RECEIVED RECEIVED CANCELLED].freeze
-  # 审批（总经理一级）：与收货状态 status 正交。DRAFT→提交→PENDING_GM（待总经理）→APPROVED/REJECTED。
+  # 审批（一级）：与收货状态 status 正交。DRAFT→提交→PENDING_GM（待审批）→APPROVED/REJECTED。
+  # 状态码 PENDING_GM 与字段名 gm_* 是历史命名（原先只有总经理一人批），现在审批人按产品线配置，
+  # 可以是副总经理等任何人——改码值要动存量数据和前端，故只换面向用户的文案，不动字段名。
   APPROVAL_STATUSES = %w[DRAFT PENDING_GM APPROVED REJECTED].freeze
+
+  # 采购审批人按产品线配置，复用 Mes::BoardOwner（board_key + product_line → 人）。
+  # 产线没单独配时回落 product_line '' 的通用配置，再回落绩效设置里的总经理。
+  APPROVER_BOARD_KEY = 'mes_purchase_approver'.freeze
 
   belongs_to :account
   belongs_to :production_order, class_name: 'Mes::ProductionOrder', optional: true
   belongs_to :purchase_requisition, class_name: 'Mes::PurchaseRequisition', optional: true # 由采购申请单转入（可空）
   belongs_to :owner, class_name: 'User', optional: true
-  belongs_to :gm, class_name: 'User', optional: true # 审批总经理
+  belongs_to :gm, class_name: 'User', optional: true # 本单审批人（字段名是历史遗留，见下方 APPROVER_BOARD_KEY）
   has_many :purchase_items, class_name: 'Mes::PurchaseItem', dependent: :destroy, inverse_of: :purchase_order
   accepts_nested_attributes_for :purchase_items, allow_destroy: true
 
@@ -77,6 +83,28 @@ class Mes::PurchaseOrder < ApplicationRecord
   validates :approval_status, inclusion: { in: APPROVAL_STATUSES }
 
   scope :awaiting_gm_for, ->(uid) { where(approval_status: 'PENDING_GM', gm_id: uid) }
+
+  # 某人是哪几条产品线的采购审批人（'' = 全部产线的通用审批人）。
+  # 这是「只读 + 批自己那一单」的身份，不是 MES 操作岗：审批人要看得到采购单和金额才判断得了
+  # 该不该批，但不能建单/改单/导出发给供应商的那份 PDF。
+  def self.approver_lines_for(account, user_id)
+    return [] if user_id.blank?
+
+    account.mes_board_owners
+           .where(board_key: APPROVER_BOARD_KEY)
+           .where(['manager_ids @> ARRAY[:uid]::bigint[]', { uid: user_id }])
+           .pluck(:product_line)
+  end
+
+  def self.approver?(account, user_id) = approver_lines_for(account, user_id).any?
+
+  # 该产品线的采购审批人（单人；配多人取第一个）。本线未配 → 通用（product_line ''）→ nil。
+  def self.approver_id_for(account, product_line)
+    rows = account.mes_board_owners.where(board_key: APPROVER_BOARD_KEY).to_a
+    row = rows.find { |r| r.product_line.presence == product_line.presence } ||
+          rows.find { |r| r.product_line.blank? }
+    row&.manager_ids&.compact&.first
+  end
 
   def self.document_number_prefix = 'PU'
   def self.document_number_column = :po_no
@@ -137,18 +165,18 @@ class Mes::PurchaseOrder < ApplicationRecord
     account.mes_production_orders.where(id: all_production_order_ids).order(:id)
   end
 
-  # ── 审批链（总经理一级）──
+  # ── 审批链（一级；审批人按产品线配置）──
   def pending_approval? = approval_status == 'PENDING_GM'
   def approved? = approval_status == 'APPROVED'
   def current_approver_id = pending_approval? ? gm_id : nil
 
-  # 提交审批（草稿/被驳回可提交）：解析总经理、进「待总经理」，通知总经理。
+  # 提交审批（草稿/被驳回可提交）：按产品线解析审批人、进「待审批」，通知该审批人。
   def submit_for_approval!(_actor = nil)
     raise StandardError, '当前状态无法提交审批' unless %w[DRAFT REJECTED].include?(approval_status)
 
     self.gm_id = resolve_gm_id
-    # 未配置审批总经理时直接拒绝提交（否则单据进「待总经理」黑洞：无人可批、待办查不到、卡死）。
-    raise StandardError, '未配置审批总经理（在绩效设置里指定），无法提交采购审批' if gm_id.blank?
+    # 没解析出审批人时直接拒绝提交（否则单据进「待审批」黑洞：无人可批、待办查不到、卡死）。
+    raise StandardError, '本产品线未配置采购审批人（在采购单页顶部设置），无法提交审批' if gm_id.blank?
 
     self.submitted_at = Time.current
     self.gm_acted_at = self.gm_comment = nil
@@ -158,9 +186,9 @@ class Mes::PurchaseOrder < ApplicationRecord
     self
   end
 
-  # 总经理通过 → 生效，累加在途库存（已订购未到货）。
+  # 审批通过 → 生效，累加在途库存（已订购未到货）。
   def gm_approve!(actor, comment: nil)
-    raise StandardError, '非「待总经理」环节' unless approval_status == 'PENDING_GM'
+    raise StandardError, '非「待审批」环节' unless approval_status == 'PENDING_GM'
 
     transaction do
       update!(approval_status: 'APPROVED', gm_id: actor.id, gm_acted_at: Time.current, gm_comment: comment)
@@ -171,7 +199,7 @@ class Mes::PurchaseOrder < ApplicationRecord
     self
   end
 
-  # 总经理驳回 → 退回制单人。
+  # 审批驳回 → 退回制单人。
   def reject_approval!(actor, reason:)
     raise StandardError, '当前状态无法驳回' unless pending_approval?
 
@@ -244,12 +272,13 @@ class Mes::PurchaseOrder < ApplicationRecord
 
   def product_line_source = production_order
 
-  # 总经理 = 绩效设置里的 gm_owner_id（与生产订单审批同一人）。
+  # 本单审批人：先按产品线查配置（如平板→副总经理），回落通用配置，再回落绩效设置里的总经理。
   def resolve_gm_id
-    Crm::PerformanceSetting.for_account(account)&.gm_owner_id
+    self.class.approver_id_for(account, product_line) ||
+      Crm::PerformanceSetting.for_account(account)&.gm_owner_id
   end
 
-  # 提交后通知总经理审批（待办）。无总经理配置则不发（审批仍进 PENDING_GM，管理员可代批）。
+  # 提交后通知审批人（待办）。解析不到人则不发（审批仍进 PENDING_GM，管理员可代批）。
   def notify_gm_pending
     return if gm_id.blank?
 

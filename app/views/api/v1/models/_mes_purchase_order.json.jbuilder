@@ -1,5 +1,8 @@
-# 采购金额（含税单价/行金额/总额）属成本敏感信息：仅采购岗/财务/管理员可见，其余岗位(如仓管)不下发。
-can_view_amount = Current.account_user&.mes_can?(:purchase) || Current.account_user&.crm_finance? || false
+# 采购金额（含税单价/行金额/总额）属成本敏感信息：仅采购岗/财务/管理员/采购审批人可见，其余岗位(如仓管)不下发。
+# 采购审批人也要看金额——不然审批时只看到物料不看到钱，批什么？（口径同 Mes::PurchaseOrderPolicy）
+can_view_amount = Current.account_user&.mes_can?(:purchase) ||
+                  Current.account_user&.crm_finance? ||
+                  Mes::PurchaseOrder.approver?(Current.account, Current.user&.id) || false
 
 json.id resource.id
 json.po_no resource.po_no
