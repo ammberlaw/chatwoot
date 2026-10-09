@@ -171,6 +171,9 @@ class Mes::ProductionOrder < ApplicationRecord
   before_save :sync_draft_from_approval
   after_create :mark_sales_order_in_production
   after_create :record_initial_stage
+  # 选定商品编码后把它回填到所挂销售订单的明细上（见 Mes::SalesOrderProductBackfill）。
+  # after_commit：回填是跨单据的「顺带」动作，失败不该把生产订单的保存一起回滚。
+  after_commit :backfill_sales_order_product, on: %i[create update]
 
   validates :product_name, presence: true
   validates :order_no, presence: true, uniqueness: { scope: :account_id }
@@ -215,9 +218,27 @@ class Mes::ProductionOrder < ApplicationRecord
       e.entered_at = at
       e.actor_id = actor&.id
     end
-    notify_stage_assigned(actor) if changed
-    rollup_erp_cost if changed && new_stage == 'SHIPPED'
+    on_stage_changed(actor, new_stage) if changed
     self
+  end
+
+  def on_stage_changed(actor, new_stage)
+    notify_stage_assigned(actor)
+    return unless new_stage == 'SHIPPED'
+
+    resolve_open_todos
+    rollup_erp_cost
+  end
+
+  # 出货即把本单还没办结的待办通知一并销掉。
+  # 各环节的待办本来由对应动作 resolve（接单、确认BOM、过账…），但订单走完整条线时
+  # 难免留下没触发过那个动作的残留——生产上 MO-20260914-02 已完成，「待接单：成品入库」
+  # 还挂在人家待办里（2026-10-09 排查）。单子都出货了，这些事不可能再有人去办。
+  TODO_KINDS = %w[stage_assigned bom_reconfirm purchase_release_pending
+                  production_reported fg_count_pending approval_pending].freeze
+
+  def resolve_open_todos
+    Mes::Notifier.resolve(account: account, order: self, kinds: TODO_KINDS)
   end
 
   # 出货即把本单的实际耗用/外协采购归集成 ERP 订单成本，毛利表不再靠人工录。
@@ -335,6 +356,28 @@ class Mes::ProductionOrder < ApplicationRecord
     self
   end
 
+  # 无需采购：料现成在库里，跳过采购与原料入库，直接进「原料入库」好让领料开单。
+  #
+  # 为什么要这一步：领料页只对「原料已入库」及以后的订单开单，而库里本来就有料、
+  # 压根不用买的单会一直卡在「采购原料」（生产上 MO-20260922-02 就是这样：15 项料
+  # 库存全够，每项要 10 件、库存 183~4940）。绕路建一张不关联采购单的入库单倒是能
+  # 把阶段推上去，但那会把已经在库的料**重复入账一遍**，账就错了。
+  #
+  # 所以这里只推进阶段、**不碰任何库存**——料本来就在库里，等领料时正常扣减。
+  # 允许已下过部分采购单的单也用：有些料买、有些料用库存是常态。
+  def skip_purchasing!(actor:, reason: nil)
+    raise StandardError, '只有「采购原料」阶段的订单可以标记无需采购' unless stage == 'PURCHASING'
+
+    now = Time.current
+    transaction do
+      enter_stage!('MATERIAL_INBOUND', at: now, actor: actor)
+      note = ['无需采购（库存直接领用）', reason.presence].compact.join('：')
+      stage_events.find_by(stage: 'MATERIAL_INBOUND')&.update!(note: note, actor_id: actor&.id)
+      Mes::Notifier.resolve(account: account, order: self, kinds: 'stage_assigned')
+    end
+    self
+  end
+
   # 齐套判定：本单所有关联（未作废）采购单都到料齐（RECEIVED）才算采购完成，方可从
   # 「采购原料」推进到「原料入库」。一单多采购单（主料/辅料分采购）时防某张先到就开工。
   # 无关联采购单时不设闸（沿用旧行为：收货即推进，避免回退直接开料的订单）。
@@ -418,6 +461,45 @@ class Mes::ProductionOrder < ApplicationRecord
     product_ids = crm_product_ids_for_rows(account, rows_by_bom)
     ordered = bulk_ordered_qty(candidates.map(&:id))
     candidates.filter_map { |o| o.id if rows_all_ordered?(o, rows_by_bom[o.bom_id], product_ids, ordered[o.id]) }.to_set
+  end
+
+  # 下拉里每张单的采购概况：{ id => { po_count:, short_lines:, no_bom: } }。
+  # 「料下满了就不显示」只解决了下满的那一半；下了一部分的仍要列出来（一单允许多张采购单，
+  # 主料辅料分开买），但看不出下过没有就容易重复下单——所以把「已下几张单、还差几项料」
+  # 一并吐给下拉做标注（2026-10-09 用户反馈）。
+  def self.bulk_purchase_overview(account, orders)
+    return {} if orders.empty?
+
+    po_counts = purchase_order_counts(orders.map(&:id))
+    rows_by_bom, product_ids, ordered = bom_context_for(account, orders)
+
+    orders.index_with do |o|
+      { po_count: po_counts[o.id].to_i, no_bom: o.bom_id.blank?,
+        short_lines: short_line_count(o, rows_by_bom[o.bom_id], product_ids, ordered[o.id]) }
+    end
+  end
+
+  # 展开 BOM 需要的三份数据（没挂 BOM 的单不参与，避免白查）。
+  def self.bom_context_for(account, orders)
+    with_bom = orders.select { |o| o.bom_id.present? }
+    return [{}, {}, {}] if with_bom.empty?
+
+    rows_by_bom = bom_item_rows_by_bom(with_bom.map(&:bom_id))
+    [rows_by_bom, crm_product_ids_for_rows(account, rows_by_bom), bulk_ordered_qty(with_bom.map(&:id))]
+  end
+
+  def self.purchase_order_counts(order_ids)
+    Mes::PurchaseOrder.where(production_order_id: order_ids)
+                      .where.not(status: 'CANCELLED').group(:production_order_id).count
+  end
+
+  # 还有几项料没下满（没挂 BOM 或算不出就给 nil，前端不显示这段）。
+  def self.short_line_count(order, rows, product_ids, placed)
+    return nil if rows.blank? || order.bom.nil? || order.bom.base_qty.to_d.zero?
+
+    factor = order.qty.to_d / order.bom.base_qty.to_d
+    placed ||= {}
+    rows.count { |(material_no, item_qty)| !row_ordered?(product_ids[material_no], placed, item_qty.to_d * factor) }
   end
 
   def self.rows_all_ordered?(order, rows, product_ids, placed)
@@ -893,6 +975,16 @@ class Mes::ProductionOrder < ApplicationRecord
 
   private
 
+  # 商品编码变化（或建单时就带了）且挂着销售订单 → 回填到销售订单明细。
+  def backfill_sales_order_product
+    return if crm_product_id.blank? || crm_sales_order_id.blank?
+    return if previous_changes.key?('id').blank? && !previous_changes.key?('crm_product_id')
+
+    Mes::SalesOrderProductBackfill.new(self).call
+  rescue StandardError => e
+    Rails.logger.warn("[编码回填] 生产订单 #{order_no} 回填销售订单失败：#{e.class} #{e.message}")
+  end
+
   # 数量文案：去掉多余小数（50.0 → 50）。
   def fnum(value)
     format('%g', value.to_f)
@@ -932,9 +1024,12 @@ class Mes::ProductionOrder < ApplicationRecord
     return if stage == 'BOM_READY'
 
     label = STAGE_LABELS[stage]
+    # 标题必须带单号：这类通知量最大（生产上 151 条），原先标题只有阶段名，
+    # 于是通知列表里 46 条一模一样的「待接单：采购原料」堆在一起，不点开分不清是哪张单。
+    # 格式对齐同文件「待你接单」与采购/出库各类通知（它们 12 个都带单号）。
     notify_stage_owners(
       kind: 'stage_assigned',
-      title: "待接单：#{label}",
+      title: "待接单：#{order_no}（#{label}）",
       body: "生产订单 #{order_no}（#{product_name}）进入#{label}阶段，请及时接单。",
       exclude: actor&.id
     )

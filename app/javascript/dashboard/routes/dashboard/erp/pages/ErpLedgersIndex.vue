@@ -341,19 +341,17 @@ onMounted(async () => {
     </div>
 
     <div class="flex items-center gap-2 px-6 pb-3">
-      <button
-        v-for="tab in TABS"
-        :key="tab.key"
-        class="px-3 h-9 text-sm rounded-lg transition-colors"
-        :class="
-          activeTab === tab.key
-            ? 'bg-n-iris-9 text-white'
-            : 'text-n-slate-11 hover:bg-n-alpha-2'
-        "
-        @click="switchTab(tab.key)"
-      >
-        {{ tab.label }}
-      </button>
+      <!-- 全站统一的页面级 Tab（灰槽 + 深色选中块），样式见 _next-colors.scss -->
+      <div data-tabbar="page">
+        <button
+          v-for="tab in TABS"
+          :key="tab.key"
+          :aria-selected="activeTab === tab.key"
+          @click="switchTab(tab.key)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
 
       <template v-if="activeTab === 'balances'">
         <label class="flex items-center gap-2 ml-2 text-sm text-n-slate-11">

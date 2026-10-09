@@ -272,6 +272,21 @@ class Erp::AutoVoucherService
   end
 
   # 报销打款：借 费用科目 / 贷 货币资金。报销恒为本位币，不涉及外币倒挤。
+  # ── 备用金台账 → 凭证 ───────────────────────────────────────
+  # 公司打钱给保管人（IN）＝ 借 备用金 / 贷 资金；保管人花出去（OUT）＝ 借 费用 / 贷 备用金。
+  # 备用金科目默认科目表里没有（1221 其他应收款是父级、不能记账），要财务先建一个叶子科目
+  # 再到「自动凭证规则」里配上；没配就静默跳过——台账照常记，不挡业务。
+  def for_petty_cash(entry)
+    event = entry.direction == 'IN' ? Erp::AutoVoucherRule::PETTY_CASH_IN : Erp::AutoVoucherRule::PETTY_CASH_OUT
+    return if skip_doc?(event)
+
+    petty = petty_cash_ledger_account(event)
+    other = entry.direction == 'IN' ? petty_fund_account(event, entry) : petty_expense_account(entry)
+    return if petty.blank? || other.blank?
+
+    build_voucher(entry, petty_summary(entry), entry.entry_date, petty_lines(entry, petty, other))
+  end
+
   def for_expense_payout(payout)
     return if skip?(Erp::AutoVoucherRule::EXPENSE_PAYOUT, payout)
 
@@ -302,6 +317,67 @@ class Erp::AutoVoucherService
   end
 
   private
+
+  # IN：借 备用金 / 贷 资金；OUT：借 费用 / 贷 备用金。
+  def petty_lines(entry, petty, other)
+    micros = (entry.amount.to_d * 1_000_000).round
+    debit, credit = entry.direction == 'IN' ? [petty, other] : [other, petty]
+    [
+      line(account: debit, direction: 'DEBIT', amount_micros: micros, record: entry,
+           summary: entry.subject.to_s.presence || '备用金'),
+      line(account: credit, direction: 'CREDIT', amount_micros: micros, record: entry,
+           summary: entry.direction == 'IN' ? "拨付备用金（#{entry.channel.presence || '现金'}）" : '冲减备用金')
+    ]
+  end
+
+  def petty_summary(entry)
+    who = entry.book&.name.presence || entry.handler&.name
+    ['备用金', entry.direction == 'IN' ? '存入' : '支出', who, entry.subject].compact_blank.join(' · ')
+  end
+
+  # 备用金挂账科目：规则里配了就用配的，没配回落国标科目表的 1221 其他应收款
+  # （生产上 1221 就是可记账的叶子，不用额外建子科目；财务想细分再建、建完到规则里配）。
+  PETTY_CASH_DEFAULT_CODE = '1221'.freeze
+
+  def petty_cash_ledger_account(event)
+    id = rule_for(event)&.config&.dig('petty_cash_account_id')
+    return @account.erp_ledger_accounts.active.leaves.find_by(id: id) if id.present?
+
+    leaf_by_code(PETTY_CASH_DEFAULT_CODE)
+  end
+
+  def leaf_by_code(code)
+    acc = account_by_code(code)
+    acc&.is_group? ? nil : acc
+  end
+
+  # 存入的资金来源按渠道挑：现金走 CASH，其余（银行/支付宝/微信）走 BANK；配了就用配的。
+  def petty_fund_account(event, entry)
+    cfg = rule_for(event)&.config || {}
+    key = entry.channel == '现金' ? 'cash_account_id' : 'bank_account_id'
+    configured = cfg[key].presence
+    return @account.erp_ledger_accounts.active.leaves.find_by(id: configured) if configured
+
+    type = entry.channel == '现金' ? 'CASH' : 'BANK'
+    @account.erp_ledger_accounts.active.leaves.where(account_type: type).order(:code).first
+  end
+
+  # 支出的费用科目按费用类别挑：规则里配了用配的，没配按国标科目表的编码对应。
+  # 「交通」没有独立科目，并进差旅费；「其他」与未填类别进其他管理费用。
+  PETTY_EXPENSE_KEYS = { '差旅' => 'expense_travel_id', '招待' => 'expense_entertain_id',
+                         '办公' => 'expense_office_id', '交通' => 'expense_transport_id' }.freeze
+  PETTY_EXPENSE_CODES = { '差旅' => '660104', '招待' => '660103',
+                          '办公' => '660202', '交通' => '660104' }.freeze
+  PETTY_EXPENSE_FALLBACK_CODE = '660299'.freeze
+
+  def petty_expense_account(entry)
+    cfg = rule_for(Erp::AutoVoucherRule::PETTY_CASH_OUT)&.config || {}
+    id = cfg[PETTY_EXPENSE_KEYS[entry.category]].presence || cfg['expense_account_id'].presence
+    return @account.erp_ledger_accounts.active.leaves.find_by(id: id) if id
+
+    leaf_by_code(PETTY_EXPENSE_CODES[entry.category] || PETTY_EXPENSE_FALLBACK_CODE) ||
+      leaf_by_code(PETTY_EXPENSE_FALLBACK_CODE)
+  end
 
   # 找不到该事件的规则就补建一次默认规则再找。
   # ⚠️ 原来只在规则表**整个为空**时才建：老账号已有前几条规则，后来新增的事件（如报销打款）

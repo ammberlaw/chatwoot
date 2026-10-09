@@ -93,6 +93,12 @@ const accountOptions = computed(() =>
   leafAccounts.value.map(a => ({ value: a.id, label: `${a.code} ${a.name}` }))
 );
 const accountById = id => leafAccounts.value.find(a => a.id === id);
+// 自动凭证规则里的科目下拉：允许留空＝交给系统按科目类型/国标编码自动找。
+const ruleAccountOptions = computed(() => [
+  // 标签要短：十来个下拉并排，长文案每一个都被截成「自动（按科目类型 …」，一眼看过去全是省略号。
+  { value: '', label: '自动匹配' },
+  ...accountOptions.value,
+]);
 
 const blankLine = () => ({
   id: null,
@@ -438,6 +444,23 @@ const toggleRule = async rule => {
   await ErpAutoVoucherRuleAPI.toggle(rule.id, !rule.is_active);
   rule.is_active = !rule.is_active;
   useAlert(`${rule.name} 已${rule.is_active ? '启用' : '停用'}`);
+};
+
+// 科目映射：留空＝按科目类型/国标编码自动找（备用金默认 1221、差旅费 660104…），
+// 配了就以配的为准。改完即存，不用再点保存。
+const savingRuleId = ref(null);
+const setRuleAccount = async (rule, key, value) => {
+  const config = { ...(rule.config || {}), [key]: value || undefined };
+  savingRuleId.value = rule.id;
+  try {
+    const { data } = await ErpAutoVoucherRuleAPI.saveConfig(rule.id, config);
+    rule.config = data.config || config;
+    useAlert('科目已更新');
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '保存失败，请重试');
+  } finally {
+    savingRuleId.value = null;
+  }
 };
 
 const viewRef = ref(null);
@@ -1234,23 +1257,55 @@ onMounted(() => {
         <div
           v-for="rule in rules"
           :key="rule.id"
-          class="flex items-center justify-between px-3 py-2 border rounded-lg border-n-weak"
+          class="flex flex-col gap-2 px-3 py-2 border rounded-lg border-n-weak"
         >
-          <div class="flex flex-col">
-            <span class="text-sm text-n-slate-12">{{ rule.name }}</span>
-            <span class="font-mono text-xs text-n-slate-10">{{
-              rule.event_key
-            }}</span>
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-col min-w-0">
+              <span class="text-sm truncate text-n-slate-12">
+                {{ rule.name }}
+              </span>
+              <span class="font-mono text-xs text-n-slate-10">{{
+                rule.event_key
+              }}</span>
+            </div>
+            <label
+              class="flex items-center gap-2 text-sm shrink-0 text-n-slate-11"
+            >
+              <input
+                type="checkbox"
+                class="w-4 h-4"
+                :checked="rule.is_active"
+                @change="toggleRule(rule)"
+              />
+              启用
+            </label>
           </div>
-          <label class="flex items-center gap-2 text-sm text-n-slate-11">
-            <input
-              type="checkbox"
-              class="w-4 h-4"
-              :checked="rule.is_active"
-              @change="toggleRule(rule)"
-            />
-            启用
-          </label>
+          <!-- 科目映射：留空＝按科目类型/国标编码自动找，配了以配的为准。改完即存。 -->
+          <div
+            v-if="rule.config_slots && rule.config_slots.length"
+            class="grid grid-cols-1 gap-2 pt-2 border-t sm:grid-cols-2 border-n-weak"
+          >
+            <div
+              v-for="slot in rule.config_slots"
+              :key="slot.key"
+              class="flex items-center gap-2"
+            >
+              <span class="text-xs shrink-0 w-28 text-n-slate-11">
+                {{ slot.label }}
+              </span>
+              <!-- block：不加的话 SelectCard 按内容宽，会撑破栅格把右边一列顶掉 -->
+              <div class="flex-1 min-w-0">
+                <SelectCard
+                  block
+                  :model-value="(rule.config || {})[slot.key] || ''"
+                  :options="ruleAccountOptions"
+                  trigger-class="h-8"
+                  :disabled="savingRuleId === rule.id"
+                  @update:model-value="v => setRuleAccount(rule, slot.key, v)"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </Dialog>

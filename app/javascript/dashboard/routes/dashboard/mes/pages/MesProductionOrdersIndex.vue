@@ -3,6 +3,7 @@
 import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
+import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import camelcaseKeys from 'camelcase-keys';
@@ -239,8 +240,23 @@ const COLUMN_DEFS = [
     tdClass: 'px-3 py-3 text-n-slate-11 whitespace-nowrap',
   },
 ];
-const { orderedColumns, isDragging, onColDragStart, onColDrop, resetOrder } =
-  useOrderableColumns(COLUMN_DEFS, 'mes.orderCols.v1');
+const {
+  orderedColumns,
+  visibleColumns,
+  hiddenKeys,
+  isHidden,
+  toggleColumn,
+  showAllColumns,
+  isDragging,
+  onColDragStart,
+  onColDrop,
+  resetOrder,
+} = useOrderableColumns(COLUMN_DEFS, 'mes.orderCols.v1');
+
+// 14 列撑得比屏幕宽，只能靠底下那根细横条拖——触控板还行，鼠标很难受。
+// 与其想办法把横滑做顺手，不如让它不用横滑：把平时不看的列收起来，按人记在本机。
+const showColumnPanel = ref(false);
+const hiddenCols = computed(() => hiddenKeys.value.length);
 
 // 未入库量：订单数量 − 已完工入库量（后端 fg_inbound_qty 只认已过账的成品入库单）。
 const pendingQty = po => {
@@ -1021,6 +1037,28 @@ const releasePurchasing = async () => {
   }
 };
 
+// 无需采购（库存直接领用）：料现成在库里、不用买，跳过采购直接进「原料入库」，
+// 领料页才选得到这张单。只推阶段、不动库存——料本来就在库里，领料时正常扣。
+const skipPurchaseDialogRef = ref(null);
+const skipPurchaseReason = ref('');
+const openSkipPurchasing = () => {
+  skipPurchaseReason.value = '';
+  skipPurchaseDialogRef.value?.open();
+};
+const submitSkipPurchasing = async () => {
+  if (!selected.value) return;
+  const ok = await store.skipPurchasing(
+    selected.value.id,
+    skipPurchaseReason.value.trim()
+  );
+  if (ok) {
+    skipPurchaseDialogRef.value?.close();
+    useAlert('已标记无需采购，可以去领料了');
+    selected.value = ok;
+    fetchRecords();
+  }
+};
+
 // —— 审批链（取代发布）：草稿→部门主管→总经理 ——
 const APPROVAL_LABELS = {
   DRAFT: '草稿',
@@ -1061,6 +1099,13 @@ const goStockEntries = po => {
 const goStageOwnerChat = ownerId => {
   if (!ownerId) return;
   router.push(accountScopedRoute('crm_team_chat_index', {}, { peer: ownerId }));
+};
+
+// 单号复制：工单号/来源销售单常要贴到 PI、聊天、Excel 里，手工选中容易漏字符。
+const copyNo = async no => {
+  if (!no) return;
+  await copyTextToClipboard(String(no));
+  useAlert(`已复制 ${no}`);
 };
 
 // 来源销售单 → 跳 CRM 销售订单页并自动展开该单（focus 是那页现成的入参）。
@@ -1400,7 +1445,9 @@ const rootStore = useStore();
 // 首次进入由 onMounted 调用；从站内通知带着新单号再次进来时由 useRouteQueryReentry 调用——
 // 本页在 keep-alive 里缓存着，不补这一道的话 onMounted 不会再跑，参数全不生效。
 const applyRouteQuery = async query => {
-  viewMode.value = query.view === 'approval' ? 'inbox' : 'list';
+  // 列表视图的值是 'all'，不是 'list'——写错成 'list' 会落到一个谁都不认的状态：
+  // 四个页签一个都不高亮（进页面看不出当前在看哪一栏），得点一下才回到 'all'。
+  viewMode.value = query.view === 'approval' ? 'inbox' : 'all';
   const q = query.q ? String(query.q) : '';
   searchQuery.value = q;
   currentPage.value = 1;
@@ -1433,7 +1480,7 @@ watch(currentPage, fetchRecords);
       class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4"
     >
       <h1 class="text-xl font-semibold text-n-slate-12">生产订单</h1>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <!-- 列顺序是本机记忆，拖乱了要有路回来 -->
         <Button
           label="恢复默认列序"
@@ -1442,6 +1489,46 @@ watch(currentPage, fetchRecords);
           size="sm"
           @click="resetOrder"
         />
+        <!-- 收起用不到的列：列少了就不用横着拖滚动条 -->
+        <div class="relative">
+          <Button
+            :label="hiddenCols ? `列（收起 ${hiddenCols}）` : '列'"
+            variant="outline"
+            color="slate"
+            size="sm"
+            icon="i-lucide-columns-3"
+            @click="showColumnPanel = !showColumnPanel"
+          />
+          <!-- 透明兜底层：点面板外面收起来，省掉一个全局 click 监听 -->
+          <div
+            v-if="showColumnPanel"
+            class="fixed inset-0 z-10"
+            @click="showColumnPanel = false"
+          />
+          <div
+            v-if="showColumnPanel"
+            class="absolute right-0 z-20 flex flex-col gap-1 p-2 mt-1 border shadow-lg top-full w-52 rounded-xl border-n-weak bg-n-solid-1"
+          >
+            <label
+              v-for="col in orderedColumns"
+              :key="`vis-${col.key}`"
+              class="flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-label-small hover:bg-n-alpha-1"
+            >
+              <input
+                type="checkbox"
+                :checked="!isHidden(col.key)"
+                @change="toggleColumn(col.key)"
+              />
+              {{ col.label }}
+            </label>
+            <button
+              class="px-2 py-1 mt-1 text-left border-t text-label-small text-n-slate-11 border-n-weak hover:text-n-slate-12"
+              @click="showAllColumns"
+            >
+              全部显示
+            </button>
+          </div>
+        </div>
         <Button
           v-if="mesCan('order')"
           label="从销售订单转入"
@@ -1460,57 +1547,41 @@ watch(currentPage, fetchRecords);
       </div>
     </div>
 
-    <!-- 视图切换：我的订单 / 库存备货 / 全部 / 待我确认（前后两个仅 CRM 业务身份显示） -->
-    <div class="flex flex-wrap items-center gap-2 px-4 pb-2 sm:px-6">
-      <button
-        v-if="isCrmMember"
-        class="px-3 py-1.5 text-sm rounded-lg border"
-        :class="
-          tabActive('all', 'mine')
-            ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
-            : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
-        "
-        @click="setListScope('mine')"
-      >
-        我的订单
-      </button>
-      <!-- 库存备货：PMC（建备货单）与业务身份（卖共享库存）可见；采购/车间/仓库隐藏 -->
-      <button
-        v-if="isCrmMember || mesCan('order')"
-        class="px-3 py-1.5 text-sm rounded-lg border"
-        :class="
-          tabActive('all', 'stock')
-            ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
-            : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
-        "
-        @click="setListScope('stock')"
-      >
-        库存备货
-      </button>
-      <button
-        v-if="canSeeAllScope"
-        class="px-3 py-1.5 text-sm rounded-lg border"
-        :class="
-          tabActive('all', 'all')
-            ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
-            : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
-        "
-        @click="setListScope('all')"
-      >
-        全部
-      </button>
-      <button
-        v-if="isCrmMember"
-        class="px-3 py-1.5 text-sm rounded-lg border"
-        :class="
-          tabActive('inbox')
-            ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
-            : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
-        "
-        @click="setViewMode('inbox')"
-      >
-        待我确认
-      </button>
+    <!-- 视图切换：我的订单 / 库存备货 / 全部 / 待我确认（前后两个仅 CRM 业务身份显示）。
+         data-tabbar="page" + aria-selected 是全站页面级 Tab 的统一标记（灰槽 + 深色选中块），
+         样式在 _next-colors.scss 里，这里不要再写边框/底色，写了会跟它打架。 -->
+    <div class="px-4 pb-2 sm:px-6">
+      <div data-tabbar="page">
+        <button
+          v-if="isCrmMember"
+          :aria-selected="tabActive('all', 'mine')"
+          @click="setListScope('mine')"
+        >
+          我的订单
+        </button>
+        <!-- 库存备货：PMC（建备货单）与业务身份（卖共享库存）可见；采购/车间/仓库隐藏 -->
+        <button
+          v-if="isCrmMember || mesCan('order')"
+          :aria-selected="tabActive('all', 'stock')"
+          @click="setListScope('stock')"
+        >
+          库存备货
+        </button>
+        <button
+          v-if="canSeeAllScope"
+          :aria-selected="tabActive('all', 'all')"
+          @click="setListScope('all')"
+        >
+          全部
+        </button>
+        <button
+          v-if="isCrmMember"
+          :aria-selected="tabActive('inbox')"
+          @click="setViewMode('inbox')"
+        >
+          待我确认
+        </button>
+      </div>
     </div>
 
     <!-- 筛选 -->
@@ -1534,11 +1605,14 @@ watch(currentPage, fetchRecords);
         :options="ownerFilterOptions"
         @update:model-value="v => (activeOwner = v)"
       />
+      <!-- reset-base：不加的话全局 $form-input-selector 会给它套上 field-base 的
+           w-full + mb-4，搜索框撑满整行、被挤到筛选下面去（用户反馈「怎么搞了这么多行」）。
+           高度跟 SelectCard 对齐用 h-9。 -->
       <input
         v-model="searchQuery"
         type="text"
         placeholder="搜索 工单号 / 成品名 / 商品编码…"
-        class="h-9 px-3 text-sm rounded-lg outline-none w-full sm:w-44 border border-n-weak bg-n-solid-1 text-n-slate-12"
+        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-60 border border-n-weak bg-n-solid-1 text-n-slate-12"
         @input="onSearchInput"
       />
     </div>
@@ -1677,15 +1751,19 @@ watch(currentPage, fetchRecords);
             </div>
           </div>
 
-          <!-- 列多：给表格设最小宽度，窄屏时外层 overflow-auto 自动横向滑动，列各自保持自然宽不再挤压换行 -->
-          <table class="hidden md:table w-full md:min-w-[1240px] text-sm">
+          <!-- 列多：给表格设最小宽度，窄屏时外层 overflow-auto 自动横向滑动，列各自保持自然宽不再挤压换行。
+               收起过列就不再压这个最小宽——否则列都收完了表格还是 1240px 宽，照样要横着拖。 -->
+          <table
+            class="hidden md:table w-full text-sm"
+            :class="hiddenCols ? '' : 'md:min-w-[1240px]'"
+          >
             <thead>
               <tr
                 class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap"
               >
                 <!-- 拖列头即可改顺序，按人记在本机 -->
                 <th
-                  v-for="col in orderedColumns"
+                  v-for="col in visibleColumns"
                   :key="col.key"
                   draggable="true"
                   class="px-3 py-3 font-medium transition-colors cursor-move select-none"
@@ -1704,7 +1782,7 @@ watch(currentPage, fetchRecords);
               <tr
                 v-for="po in records"
                 :key="po.id"
-                class="border-b cursor-pointer border-n-weak [&:hover>td]:bg-n-alpha-1 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
+                class="border-b cursor-pointer group/row border-n-weak [&:hover>td]:bg-n-alpha-1 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
                 :class="
                   selected && selected.id === po.id
                     ? '[&>td]:!bg-n-alpha-2 [&>td:first-child]:shadow-[inset_3px_0_0_0_rgb(var(--iris-9))]'
@@ -1712,16 +1790,25 @@ watch(currentPage, fetchRecords);
                 "
                 @click="selectRow(po)"
               >
-                <!-- 中间列按 orderedColumns 渲染，顺序随表头拖拽实时变化 -->
+                <!-- 中间列按 visibleColumns 渲染（收起的列不出现），顺序随表头拖拽实时变化 -->
                 <td
-                  v-for="col in orderedColumns"
+                  v-for="col in visibleColumns"
                   :key="col.key"
                   :class="col.tdClass"
                 >
                   <template v-if="col.key === 'no'">
-                    <span class="block whitespace-nowrap">{{
-                      po.orderNo
-                    }}</span>
+                    <span
+                      class="inline-flex items-center gap-1 whitespace-nowrap"
+                    >
+                      <span>{{ po.orderNo }}</span>
+                      <button
+                        v-if="po.orderNo"
+                        v-tooltip.top="'复制工单号'"
+                        type="button"
+                        class="transition-opacity opacity-0 i-lucide-copy size-3.5 shrink-0 text-n-slate-10 hover:text-n-iris-11 group-hover/row:opacity-100"
+                        @click.stop="copyNo(po.orderNo)"
+                      />
+                    </span>
                     <span
                       v-if="po.orderKind === 'STOCK'"
                       class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap bg-n-teal-3 text-n-teal-11"
@@ -1867,15 +1954,26 @@ watch(currentPage, fetchRecords);
                   </template>
                   <template v-if="col.key === 'salesOrder'">
                     <!-- 挂了 CRM 销售订单就能点进去看原单（走该页现成的 ?focus=<id> 定位） -->
-                    <button
-                      v-if="po.crmSalesOrderId && po.salesOrderNo"
-                      type="button"
-                      class="underline text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
-                      @click.stop="goCrmSalesOrder(po.crmSalesOrderId)"
+                    <span
+                      class="inline-flex items-center gap-1 whitespace-nowrap"
                     >
-                      {{ po.salesOrderNo }}
-                    </button>
-                    <span v-else>{{ po.salesOrderNo || '—' }}</span>
+                      <button
+                        v-if="po.crmSalesOrderId && po.salesOrderNo"
+                        type="button"
+                        class="underline text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
+                        @click.stop="goCrmSalesOrder(po.crmSalesOrderId)"
+                      >
+                        {{ po.salesOrderNo }}
+                      </button>
+                      <span v-else>{{ po.salesOrderNo || '—' }}</span>
+                      <button
+                        v-if="po.salesOrderNo"
+                        v-tooltip.top="'复制销售单号'"
+                        type="button"
+                        class="transition-opacity opacity-0 i-lucide-copy size-3.5 shrink-0 text-n-slate-10 hover:text-n-iris-11 group-hover/row:opacity-100"
+                        @click.stop="copyNo(po.salesOrderNo)"
+                      />
+                    </span>
                   </template>
                   <template v-if="col.key === 'owner'">
                     {{ po.ownerName || '—' }}
@@ -2157,6 +2255,20 @@ watch(currentPage, fetchRecords);
               color="ruby"
               size="sm"
               @click="openReject"
+            />
+            <!-- 库里有料、不用买的单：卡在「采购原料」就领不了料（领料只对已入库的单开单）。
+                 放在通用操作区——没挂生产任务单的单同样可能不用采购，不能塞进 bomNo 块里。 -->
+            <Button
+              v-if="
+                selected.stage === 'PURCHASING' &&
+                (mesCan('purchase') || mesCan('order'))
+              "
+              label="无需采购 · 用库存料"
+              variant="outline"
+              color="slate"
+              size="sm"
+              :is-loading="uiFlags.updatingItem"
+              @click="openSkipPurchasing"
             />
           </div>
         </div>
@@ -2816,6 +2928,33 @@ watch(currentPage, fetchRecords);
     </Dialog>
 
     <!-- 标记外购弹窗（工程判定外购成品：选产品+供应商，跳过 BOM 直接进采购） -->
+    <!-- 无需采购：料现成在库里，跳过采购直接进「原料入库」好让领料开单 -->
+    <Dialog
+      ref="skipPurchaseDialogRef"
+      :dismissible="false"
+      confirm-button-color="iris"
+      confirm-button-label="确认无需采购"
+      title="无需采购 · 用库存料"
+      :description="
+        selected
+          ? `「${selected.orderNo}」的料从现有库存出，不走采购。确认后订单直接进入「原料入库」阶段，领料页就能选到它——不会产生任何库存变动，料在领料时正常扣减。`
+          : ''
+      "
+      :is-loading="uiFlags.updatingItem"
+      @confirm="submitSkipPurchasing"
+    >
+      <div class="flex flex-col gap-1">
+        <label class="text-heading-3 text-n-slate-12">原因（选填）</label>
+        <Input
+          v-model="skipPurchaseReason"
+          placeholder="如：库存充足，无需采购"
+        />
+        <p class="mt-1 text-label-small text-n-slate-10">
+          会记在订单的阶段轨迹里，以后查得到这张单为什么没有采购记录。
+        </p>
+      </div>
+    </Dialog>
+
     <Dialog
       ref="outsourceDialogRef"
       :dismissible="false"

@@ -468,7 +468,9 @@ onMounted(() => {
   warehousesStore.get();
   const base = `/api/v1/accounts/${accountId.value}`;
   axios
-    .get(`${base}/mes/production_orders`)
+    // 下拉要能选到所有在产订单：不传 per_page 后端只给最新 15 条(RESULTS_PER_PAGE)，
+    // 早一点的单子在下拉里根本找不到（同 MES 其余 8 个下拉，这里一直漏了）。封顶 500。
+    .get(`${base}/mes/production_orders`, { params: { per_page: 500 } })
     .then(({ data }) => {
       productionOrders.value = data?.payload || [];
     })

@@ -86,6 +86,8 @@ const ackStateOf = o => {
   return o.awaiting_ack ? ACK_STATE.waiting : ACK_STATE.working;
 };
 
+// 生产订单走固定的两级链（部门主管 → 总经理），这里的头衔是对的；
+// 采购单的审批人是按产线配的，不能套用这套说法。
 const APPROVAL_STEP = {
   SUBMITTED: '待你（部门主管）审',
   MANAGER_APPROVED: '待你（总经理）审',
@@ -126,6 +128,56 @@ const STAGE_ACTION = {
   FG_INBOUND: { label: '去成品入库', route: 'mes_fg_inbound_index' },
 };
 
+// 采购原料阶段的三态（后端 purchase_state）。别的阶段干完活订单就往下走、待办自然消失，
+// 只有采购下完单后要等料到齐才推进，所以要把「该下单」「等货」「货迟了」分开：
+//   TODO    还没下采购单        → 催下单，留在「待我处理」
+//   WAITING 下了单、没到交期     → 正常等货，归「进行中」、不进角标、不再提示「去下采购单」
+//   URGING  下了单、过了交期没到 → 该催供应商了，回到「待我处理」并标红
+const PURCHASE_VIEW = {
+  TODO: {
+    working: false,
+    bar: 'bg-n-iris-9',
+    prefix: '待处理',
+    tag: '待下采购单',
+    cls: 'text-n-amber-11',
+  },
+  WAITING: {
+    working: true,
+    bar: 'bg-n-slate-6',
+    prefix: '等料中',
+    tag: '等料中',
+    cls: 'text-n-slate-11',
+    hideAction: true,
+  },
+  URGING: {
+    working: false,
+    bar: 'bg-n-ruby-9',
+    prefix: '催货',
+    tag: '逾期未到料',
+    cls: 'text-n-ruby-11',
+  },
+};
+const fmtDue = d => {
+  if (!d) return null;
+  const t = new Date(d);
+  return `${t.getMonth() + 1}/${t.getDate()}`;
+};
+// 右侧小字：已下几张单、最早交期、逾期几天。
+const purchaseView = o => {
+  const base = PURCHASE_VIEW[o.purchase_state];
+  if (!base) return null;
+  const s = o.purchase_summary || {};
+  const detail = [
+    s.count ? `已下 ${s.count} 张采购单` : null,
+    s.overdue_days
+      ? `逾期 ${s.overdue_days} 天`
+      : (s.earliest_due && `最早交期 ${fmtDue(s.earliest_due)}`) || null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return { ...base, detail: detail || null };
+};
+
 // 三类待办拍平成同一种行结构，渲染时不用再分三块。
 const items = computed(() => [
   ...approvalInbox.value.map(o => ({
@@ -146,7 +198,8 @@ const items = computed(() => [
     body: [p.supplier_names?.join('、'), p.production_order_no, p.owner_name]
       .filter(Boolean)
       .join(' · '),
-    tag: '待你（总经理）审',
+    // 采购审批人按产品线配，可能是副总经理等任何人，别写死头衔（见采购单页「采购审批人」）
+    tag: '待你审批',
     tagClass: 'text-n-iris-11',
     open: () => goPurchase(p.po_no),
   })),
@@ -163,30 +216,35 @@ const items = computed(() => [
     const act = STAGE_ACTION[o.stage];
     const days = stallDays(o.entered_at);
     const ack = ackStateOf(o);
+    const pur = purchaseView(o);
     return {
       key: `in-${o.id}`,
-      // 已接单＝正在做，不算「待我处理」（分组与角标见下方 pending/working）
-      working: !o.awaiting_ack,
-      bar: o.ack_overdue ? 'bg-n-ruby-9' : 'bg-n-iris-9',
-      title: `${o.awaiting_ack ? '待接单' : '待处理'}：${o.order_no}`,
+      // 已接单＝正在做，不算「待我处理」；采购阶段另按三态定（等料中归「进行中」）。
+      working: pur ? pur.working : !o.awaiting_ack,
+      bar: pur ? pur.bar : (o.ack_overdue && 'bg-n-ruby-9') || 'bg-n-iris-9',
+      title: `${pur ? pur.prefix : (o.awaiting_ack && '待接单') || '待处理'}：${o.order_no}`,
       body: [
         o.product_name,
         stageLabel(o.stage),
+        pur ? pur.detail : null,
         days === null ? null : `停留 ${days} 天`,
         o.ack_deadline ? `接单截止 ${deadlineText(o.ack_deadline)}` : null,
       ]
         .filter(Boolean)
         .join(' · '),
-      tag: ack.tag,
-      tagClass: ack.cls,
+      tag: pur ? pur.tag : ack.tag,
+      tagClass: pur ? pur.cls : ack.cls,
       open: () => goOrder(o.order_no),
-      action: act
-        ? {
-            label: act.label,
-            run: () =>
-              router.push(accountScopedRoute(act.route, {}, { q: o.order_no })),
-          }
-        : null,
+      action:
+        act && !(pur && pur.hideAction)
+          ? {
+              label: act.label,
+              run: () =>
+                router.push(
+                  accountScopedRoute(act.route, {}, { q: o.order_no })
+                ),
+            }
+          : null,
     };
   }),
 ]);

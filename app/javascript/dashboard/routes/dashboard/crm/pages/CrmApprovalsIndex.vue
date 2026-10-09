@@ -573,29 +573,29 @@ onMounted(async () => {
     <div class="flex flex-1 min-h-0">
       <!-- 左：列表（手机：仅未选中时全宽显示） -->
       <section
-        class="flex-col flex-shrink-0 w-full border-r md:flex md:w-[380px] border-n-weak bg-n-solid-1"
+        class="flex-col flex-shrink-0 w-full border-r md:flex md:w-[420px] border-n-weak bg-n-solid-1"
         :class="selected ? 'hidden' : 'flex'"
       >
-        <div class="flex items-center gap-1 px-3 py-2 border-b border-n-weak">
-          <button
-            v-for="tab in TABS"
-            :key="tab.key"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors"
-            :class="
-              activeTab === tab.key
-                ? 'bg-n-iris-3 text-n-iris-11 font-medium'
-                : 'text-n-slate-11 hover:bg-n-alpha-1'
-            "
-            @click="setTab(tab.key)"
-          >
-            {{ tab.label }}
-            <span
-              v-if="['todo', 'cc'].includes(tab.key) && counts[tab.key]"
-              class="px-1.5 rounded-full text-[11px] bg-n-iris-9 text-white"
+        <!-- 四个 tab 要塞进左栏：带角标时原来会被压到「待我审 / 批」两行。
+             故一律不换行 + 不被压缩，栏宽放到 420px；真放不下（窄屏/更多 tab）就横向滚，不再折行。 -->
+        <div class="px-2 overflow-x-auto border-b border-n-weak">
+          <div data-tabbar="page" class="whitespace-nowrap">
+            <button
+              v-for="tab in TABS"
+              :key="tab.key"
+              class="shrink-0"
+              :aria-selected="activeTab === tab.key"
+              @click="setTab(tab.key)"
             >
-              {{ counts[tab.key] }}
-            </span>
-          </button>
+              {{ tab.label }}
+              <span
+                v-if="['todo', 'cc'].includes(tab.key) && counts[tab.key]"
+                class="px-1.5 rounded-full text-[11px] bg-n-iris-9 text-white"
+              >
+                {{ counts[tab.key] }}
+              </span>
+            </button>
+          </div>
         </div>
         <div class="flex-1 overflow-y-auto">
           <div

@@ -27,6 +27,14 @@ json.is_outsourced resource.is_outsourced
 # （否则选中后才弹「这张订单的料都已经下过采购单了」）。要展开 BOM 才算得出来，
 # 只在列表显式要（with_purchasing_complete=1）时批量算一次。
 json.purchasing_complete @purchasing_complete_ids.include?(resource.id) if @purchasing_complete_ids
+# 下拉标注用：已下几张采购单 / 还差几项料 / 有没有挂生产任务单。
+if @purchase_overview && (ov = @purchase_overview[resource])
+  json.purchase_overview do
+    json.po_count ov[:po_count]
+    json.short_lines ov[:short_lines]
+    json.no_bom ov[:no_bom]
+  end
+end
 # 外购供应商含供应商资料，销售端不可见（生态硬约束）——仅 MES 员工下发。
 if Current.account_user&.mes_staff?
   json.outsource_supplier_id resource.outsource_supplier_id

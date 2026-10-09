@@ -36,6 +36,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     return unless boolean_param(:with_purchasing_complete)
 
     @purchasing_complete_ids = Mes::ProductionOrder.bulk_purchasing_complete(Current.account, @production_orders.to_a)
+    # 没下满的那些要在下拉里标「已下 N 张 · 还差 M 项料」，否则看不出下过没有、容易重复下单。
+    @purchase_overview = Mes::ProductionOrder.bulk_purchase_overview(Current.account, @production_orders.to_a)
   end
 
   def show; end
@@ -135,6 +137,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # 无需采购：料现成在库里，跳过采购直接进「原料入库」，好让领料开单（不动库存）。
+  def skip_purchasing
+    return render json: { error: '无权操作' }, status: :forbidden unless can_skip_purchasing?
+
+    @production_order.skip_purchasing!(actor: current_user, reason: params[:reason].to_s.strip.presence)
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   # 解除 BOM 关联（挂错了重挂）：清 bom_id 并退回「待工程接单」。
   def detach_bom
     @production_order.detach_bom!(actor: current_user)
@@ -203,7 +215,9 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   # 我的待办：当前停在「我负责的阶段」的在产订单（到岗通知的拉取面）。
   def inbox
-    render json: { payload: my_inbox_orders.map { |po| inbox_row(po) } }
+    orders = my_inbox_orders
+    states = purchase_state_map(orders)
+    render json: { payload: orders.map { |po| inbox_row(po, states[po.id]) } }
   end
 
   # 首页 MES 入口卡的角标：只要数字，不拉整份列表。
@@ -213,7 +227,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     base = Current.account.mes_production_orders
     counts = {
       approval: base.awaiting_manager_for(current_user.id).or(base.awaiting_gm_for(current_user.id)).count,
-      inbox: my_inbox_orders.size,
+      inbox: actionable_inbox_count,
       shipment: pending_shipment_approvals.count,
       # 采购单审批是后加的，这个角标一直没算它——于是总经理手上压着 3 张待批采购单，
       # 首页 MES 卡片却显示 0，人不点进去根本不知道有单在等（待办面板里其实列着）。
@@ -337,6 +351,29 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   private
+
+  # 角标只数「真要我动手的」，口径与待办面板「待我处理」那一组一致：
+  #   · 还没接单的        → 算（等人接手）
+  #   · 采购阶段待下单/逾期 → 算（等人下单 / 等人催货）
+  #   · 采购阶段等料中     → 不算（货在路上，催谁都没用）
+  #   · 已接单、在别的阶段  → 不算（归「进行中」）
+  # 角标虚高比没有角标更糟：看久了就没人信它了。
+  def actionable_inbox_count
+    orders = my_inbox_orders
+    states = purchase_state_map(orders)
+    orders.count { |po| actionable_todo?(po, states[po.id]) }
+  end
+
+  def actionable_todo?(order, state)
+    return [PURCHASE_STATES[:todo], PURCHASE_STATES[:urging]].include?(state) if order.stage == 'PURCHASING'
+
+    order.awaiting_ack?
+  end
+
+  # 跳过采购＝宣布「这批料不用买」，影响后续齐套与成本归集，限 PMC/采购岗与管理员。
+  def can_skip_purchasing?
+    admin_like? || Current.account_user.mes_can?(:purchase) || Current.account_user.mes_can?(:order)
+  end
 
   # 待我审核的现货出库单（管理员看全部）。
   def pending_shipment_approvals
@@ -463,22 +500,67 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 我负责的在产订单（= 我管的那个阶段上停着的单）。inbox 与 todo_count 共用，
   # 口径只能有一份。板块负责人按 (板块, 产品线) 配，没配专属就回落「全部产线」。
   def my_inbox_orders
-    by_key_line = Current.account.mes_board_owners.to_a
-                         .index_by { |o| [o.board_key, o.product_line.to_s] }
-    resolve = lambda do |key, line|
-      (line.present? && by_key_line[[key, line]]&.manager_ids.presence) ||
-        by_key_line[[key, '']]&.manager_ids || []
-    end
     open_orders = Current.account.mes_production_orders.published
                          .where(status: 'IN_PROGRESS').where.not(stage: 'SHIPPED')
                          .includes(:stage_events).order(created_at: :desc)
-    open_orders.select do |po|
-      key = Mes::ProductionOrder::INBOX_BOARD_KEYS[po.stage]
-      key && resolve.call(key, po.product_line.to_s).include?(current_user.id)
-    end
+    open_orders.select { |po| stage_owner_of?(po) }
   end
 
-  def inbox_row(order)
+  # 我是这张单当前阶段的板块负责人吗（本产线优先，回落「全部产线」的通用负责人）。
+  def stage_owner_of?(order)
+    key = Mes::ProductionOrder::INBOX_BOARD_KEYS[order.stage]
+    return false if key.blank?
+
+    stage_owner_ids(key, order.product_line.to_s).include?(current_user.id)
+  end
+
+  def stage_owner_ids(key, line)
+    @board_owners_by_key_line ||= Current.account.mes_board_owners.to_a
+                                         .index_by { |o| [o.board_key, o.product_line.to_s] }
+    (line.present? && @board_owners_by_key_line[[key, line]]&.manager_ids.presence) ||
+      @board_owners_by_key_line[[key, '']]&.manager_ids || []
+  end
+
+  # 采购原料阶段的三态：待下单 / 等料中 / 催货。
+  #
+  # 别的阶段干完活订单就往下走了，待办自然消失；只有**采购原料**例外——下完采购单后
+  # 订单要等料到齐（齐套闸，见 §4.12）才进原料入库。原先不区分，采购把单都下完了，
+  # 待办里还一直挂着「待处理 · 去下采购单」（生产上 10 条里 9 条是这种）。
+  # 但一律藏掉也不对：单子还卡在采购阶段等货，只是没人看见了，那是更糟的积压。
+  # 所以按「要不要人动手」分三档：
+  #   TODO    没下采购单            → 催他下单，进角标
+  #   WAITING 下了单、还没到交期     → 正常等货，列出来但不催、不进角标
+  #   URGING  下了单、过了交期没到齐 → 该催供应商了，进角标（这才是真积压）
+  # 交期取采购单的「交货时间」，没填回落「回复交期」；两个都没填就当还没到期。
+  PURCHASE_STATES = { todo: 'TODO', waiting: 'WAITING', urging: 'URGING' }.freeze
+
+  def purchase_state_map(orders)
+    ids = orders.select { |po| po.stage == 'PURCHASING' }.map(&:id)
+    return {} if ids.empty?
+
+    rows = Current.account.mes_purchase_orders
+                  .where(production_order_id: ids).where.not(status: 'CANCELLED')
+                  .pluck(:production_order_id, :status, :delivery_date, :expected_date)
+    by_order = rows.group_by(&:first)
+    ids.index_with { |id| state_for(by_order[id]) }
+  end
+
+  def state_for(purchase_rows)
+    return PURCHASE_STATES[:todo] if purchase_rows.blank?
+
+    PURCHASE_STATES[purchase_rows.any? { |r| overdue_purchase?(r) } ? :urging : :waiting]
+  end
+
+  # 还没收齐（非 RECEIVED）且交期已过。
+  def overdue_purchase?(row)
+    _id, status, delivery_date, expected_date = row
+    return false if status == 'RECEIVED'
+
+    due = delivery_date || expected_date&.to_date
+    due.present? && due < Date.current
+  end
+
+  def inbox_row(order, purchase_state = nil)
     {
       id: order.id,
       order_no: order.order_no,
@@ -487,8 +569,23 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       awaiting_ack: order.awaiting_ack?,
       ack_overdue: order.ack_overdue?,
       ack_deadline: order.ack_deadline,
-      entered_at: order.stage_entered_at
+      entered_at: order.stage_entered_at,
+      # 采购原料阶段专用：TODO 待下单 / WAITING 等料中 / URGING 逾期催货
+      purchase_state: purchase_state,
+      purchase_summary: purchase_state && purchase_summary_for(order)
     }
+  end
+
+  # 「已下 N 张单 · 最早交期 10/18」/「逾期 N 天」这类右侧小字。
+  def purchase_summary_for(order)
+    rows = Current.account.mes_purchase_orders
+                  .where(production_order_id: order.id).where.not(status: 'CANCELLED')
+                  .pluck(:status, :delivery_date, :expected_date)
+    return nil if rows.empty?
+
+    dues = rows.reject { |r| r[0] == 'RECEIVED' }.filter_map { |r| r[1] || r[2]&.to_date }
+    { count: rows.size, earliest_due: dues.min,
+      overdue_days: dues.min && dues.min < Date.current ? (Date.current - dues.min).to_i : nil }
   end
 
   def check_authorization

@@ -175,6 +175,8 @@ class AccountUser < ApplicationRecord
   accepts_nested_attributes_for :account
 
   after_create_commit :notify_creation, :create_notification_setting
+  # 新同事进来自动拉进公司总群（见 Chat::CompanyGroupSync）——原先靠人记得手工拉。
+  after_create_commit :join_company_groups
   after_destroy :notify_deletion, :remove_user_from_account, :discard_personal_crm_docs
   after_save :update_presence_in_redis, if: :saved_change_to_availability?
 
@@ -318,6 +320,12 @@ class AccountUser < ApplicationRecord
   end
 
   private
+
+  def join_company_groups
+    Chat::CompanyGroupSync.on_join(account, user_id)
+  rescue StandardError => e
+    Rails.logger.warn("[公司总群] 新成员 #{user_id} 入群失败：#{e.class} #{e.message}")
+  end
 
   def notify_creation
     Rails.configuration.dispatcher.dispatch(AGENT_ADDED, Time.zone.now, account: account)

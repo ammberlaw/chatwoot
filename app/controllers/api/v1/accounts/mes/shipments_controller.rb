@@ -45,7 +45,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     Crm::ConvertChoiceRecorder.new(sales_order).call(convert_choice_rows)
     render 'api/v1/accounts/mes/shipments/show'
   rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 现货出库单由 CRM 业务条线开单（无出库能力者一律记为 STOCK，开单即进入审核）。
@@ -53,16 +53,18 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     dup_error = duplicate_order_error
     return render json: { error: dup_error }, status: :unprocessable_entity if dup_error
 
-    attrs = shipment_params
-    stock = attrs[:kind] == 'STOCK' || !Current.account_user.mes_can?(:shipment)
-    @shipment = Current.account.mes_shipments.new(
-      attrs.merge(owner_id: attrs[:owner_id] || current_user.id, kind: stock ? 'STOCK' : 'PRODUCTION')
-    )
+    @shipment = build_shipment
     @shipment.fallback_product_line = current_product_line
     resolve_missing_product_ids(@shipment)
     @shipment.save!
     @shipment.submit_for_approval!(current_user) if @shipment.stock?
     render 'api/v1/accounts/mes/shipments/show'
+  rescue Pundit::NotAuthorizedError
+    raise # 权限不足要回 403，别被下面的 422 吞掉
+  rescue StandardError => e
+    # 同成品入库：这里抛的多是业务校验（如「订单没关联产品档案」），
+    # 不 rescue 的话用户只看到黑框 Internal Server Error，看不到原因。
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   def update
@@ -70,6 +72,10 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     resolve_missing_product_ids(@shipment)
     @shipment.save!
     render 'api/v1/accounts/mes/shipments/show'
+  rescue Pundit::NotAuthorizedError
+    raise
+  rescue StandardError => e
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   def destroy
@@ -95,7 +101,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     @shipment.submit_for_approval!(current_user)
     render 'api/v1/accounts/mes/shipments/show'
   rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 主管审核通过 → 推仓库。
@@ -105,7 +111,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     @shipment.approve!(current_user)
     render 'api/v1/accounts/mes/shipments/show'
   rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 主管驳回 → 退回业务员（需填原因）。
@@ -118,7 +124,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     @shipment.reject!(current_user, reason: reason)
     render 'api/v1/accounts/mes/shipments/show'
   rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 出库：扣成品库存 + 回写销售订单已出货。
@@ -126,7 +132,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     @shipment.ship!
     render 'api/v1/accounts/mes/shipments/show'
   rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 待我审核：停在我这一级（部门主管/副管理员/管理员）的现货出库单。
@@ -139,6 +145,15 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   end
 
   private
+
+  # 没有出库能力的人（业务员开现货单）一律落 STOCK，走主管审核流。
+  def build_shipment
+    attrs = shipment_params
+    stock = attrs[:kind] == 'STOCK' || !Current.account_user.mes_can?(:shipment)
+    Current.account.mes_shipments.new(
+      attrs.merge(owner_id: attrs[:owner_id] || current_user.id, kind: stock ? 'STOCK' : 'PRODUCTION')
+    )
+  end
 
   # 同一张生产订单重复开出库单的防线。从销售订单转单那条路早就有幂等拦截
   # （converted_shipment_for），手工「新建生产出库」一直没有——生产上

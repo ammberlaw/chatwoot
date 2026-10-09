@@ -51,18 +51,28 @@ const canEditRow = b => mesCan('bom') && isMyDoc(b);
 const bomNoOf = b => b.docNo || b.bomNo;
 
 // 中间列可拖拽重排，顺序按人记在本机。首列「#」和末列操作按钮固定，拖它们没意义。
+// 所有单元格一律 whitespace-nowrap：列一多就被挤成「WT-/RUG100」「已下/发」这种断行，
+// 一屏看下来全是参差（用户反馈「显得页面很不整洁」）。宁可横向滚，不折行。
 const COLUMN_DEFS = [
   {
     key: 'no',
     label: '生产任务单号',
-    tdClass: 'px-3 py-3 font-medium text-n-slate-12',
+    tdClass: 'px-3 py-3 font-medium whitespace-nowrap text-n-slate-12',
   },
-  { key: 'model', label: '型号 / 成品', tdClass: 'px-3 py-3' },
-  { key: 'owner', label: '负责人', tdClass: 'px-3 py-3 text-n-slate-11' },
+  {
+    key: 'model',
+    label: '型号 / 成品',
+    tdClass: 'px-3 py-3 whitespace-nowrap',
+  },
+  {
+    key: 'owner',
+    label: '负责人',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
   {
     key: 'salesOwner',
     label: '归属业务员',
-    tdClass: 'px-3 py-3 text-n-slate-11',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
   },
   // 对标纸质投单：日期和产成品代码是核单时最先对的两样，原来要点开查看才看得到
   {
@@ -75,14 +85,22 @@ const COLUMN_DEFS = [
     label: '产成品代码',
     tdClass: 'px-3 py-3 tabular-nums whitespace-nowrap text-n-slate-11',
   },
-  { key: 'baseQty', label: '基准产量', tdClass: 'px-3 py-3 text-n-slate-11' },
-  { key: 'items', label: '用料项', tdClass: 'px-3 py-3 text-n-slate-11' },
+  {
+    key: 'baseQty',
+    label: '基准产量',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
+  {
+    key: 'items',
+    label: '用料项',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
   {
     key: 'leadDays',
     label: '预估周期(天)',
-    tdClass: 'px-3 py-3 text-n-slate-11',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
   },
-  { key: 'status', label: '状态', tdClass: 'px-3 py-3' },
+  { key: 'status', label: '状态', tdClass: 'px-3 py-3 whitespace-nowrap' },
 ];
 const { orderedColumns, isDragging, onColDragStart, onColDrop, resetOrder } =
   useOrderableColumns(COLUMN_DEFS, 'mes.bomCols.v1');

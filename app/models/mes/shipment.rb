@@ -70,6 +70,10 @@ class Mes::Shipment < ApplicationRecord
   validates :shipment_no, presence: true, uniqueness: { scope: :account_id }
   validates :status, inclusion: { in: STATUSES }
   validates :kind, inclusion: { in: KINDS }
+  # 空明细的出库单没有任何意义，却会占掉单号，还会让它挂的那张销售订单永远报
+  # 「已生成出库单 DN-xxx，不能重复转单」——转不动，也看不出该去删哪张。
+  # 页面一次只会提交一行，碰不到这条；挡的是直接调接口建出来的空单。
+  validate :items_present, on: :create
 
   def self.document_number_prefix = 'DN'
   def self.document_number_column = :shipment_no
@@ -184,6 +188,10 @@ class Mes::Shipment < ApplicationRecord
   end
 
   private
+
+  def items_present
+    errors.add(:base, '出库单至少要有一行明细') if shipment_items.reject(&:marked_for_destruction?).empty?
+  end
 
   # 现货出库的成本＝该出库单 FIFO 耗掉的批次层金额，挂到销售订单上（库存单轨道的成本来源）。
   # 定制单不走这里——它的成本已由 CostRollupService 按领料/外协归集，再挂一次就翻倍。

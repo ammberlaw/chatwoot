@@ -184,11 +184,22 @@ const selectableOrders = computed(() =>
       String(p.id) === String(form.productionOrderId) || isSelectableOrder(p)
   )
 );
+// 下拉右侧标注「这张单下过采购单没有」：料全下满的已经不显示了，但下了一部分的还得列出来
+// （一单允许多张采购单，主料辅料分开买），看不出下过没有就容易重复下单。
+const purchaseNote = p => {
+  const ov = p.purchase_overview;
+  if (!ov) return '';
+  if (ov.no_bom) return '未挂生产任务单';
+  if (!ov.po_count) return '还没下过采购单';
+  const short = ov.short_lines ? ` · 还差 ${ov.short_lines} 项料` : '';
+  return `已下 ${ov.po_count} 张采购单${short}`;
+};
 const productionOrderOptions = computed(() => [
   { value: '', label: '不关联生产订单' },
   ...selectableOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
+    note: purchaseNote(p),
     searchText: orderSearchText(p),
   })),
 ]);
@@ -206,6 +217,7 @@ const extraOrderOptions = computed(() => [
     .map(p => ({
       value: String(p.id),
       label: `${p.order_no} · ${p.product_name}`,
+      note: purchaseNote(p),
     })),
 ]);
 const orderLabel = id => {

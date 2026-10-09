@@ -4,7 +4,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useAlert } from 'dashboard/composables';
-import { useMapGetter, useStore } from 'dashboard/composables/store';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -24,6 +24,8 @@ import CrmStarRating from 'dashboard/components-next/CRM/CrmStarRating.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
+import CrmAgentAPI from 'dashboard/api/crm/crmAgents';
+import Input from 'dashboard/components-next/input/Input.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -462,12 +464,16 @@ const openEdit = () =>
   editDialogRef.value?.open({ ...toCamel(customer.value), files: files.value });
 
 // ── 共享客户：老板把客户共享给助理，助理即可在该客户上建 PI/报价/订单等 ──
-const rootStore = useStore();
 const { isAdmin, isCrmDeputyAdmin } = useCrmRole();
 const currentUserId = useMapGetter('getCurrentUserID');
-const agents = useMapGetter('agents/getAgents');
 const shareDialogRef = ref(null);
 const shareUserIds = ref([]);
+// 共享候选走 crm/agents：Chatwoot 原生的 agents/getAgents 是**全体用户**，
+// 既不分是不是 CRM 业务员（采购、仓管、财务全在里面），也不管有没有停用
+// （离职的万婷照样出现，用户反馈「到处都是她」）。列表页早就用的是这个接口，
+// 详情页这个弹窗一直漏了。
+const shareAgents = ref([]);
+const shareSearch = ref('');
 // 仅负责人本人 / 管理员 / 副管理员可共享（与后端 share_allowed? 同口径）。
 const canShare = computed(
   () =>
@@ -475,14 +481,23 @@ const canShare = computed(
     isCrmDeputyAdmin.value ||
     customer.value.account_owner_id === currentUserId.value
 );
-// 共享候选：除负责人本人外的全部成员。
-const shareCandidates = computed(() =>
-  (agents.value || []).filter(a => a.id !== customer.value.account_owner_id)
-);
-const openShare = () => {
-  if (!agents.value?.length) rootStore.dispatch('agents/get');
+// 共享候选：除负责人本人外的 CRM 成员，支持按姓名搜（人多了一屏翻不完）。
+const shareCandidates = computed(() => {
+  const kw = shareSearch.value.trim().toLowerCase();
+  return shareAgents.value
+    .filter(a => a.id !== customer.value.account_owner_id)
+    .filter(a => !kw || String(a.name).toLowerCase().includes(kw));
+});
+const openShare = async () => {
+  shareSearch.value = '';
   shareUserIds.value = [...(customer.value.shared_user_ids || [])];
   shareDialogRef.value?.open();
+  try {
+    const res = await CrmAgentAPI.get(accountId.value, 'all');
+    shareAgents.value = res.data.payload || [];
+  } catch {
+    shareAgents.value = [];
+  }
 };
 const toggleShareUser = id => {
   const i = shareUserIds.value.indexOf(id);
@@ -1163,6 +1178,12 @@ onMounted(() => {
       confirm-button-label="保存"
       @confirm="saveShare"
     >
+      <Input
+        v-model="shareSearch"
+        size="sm"
+        placeholder="搜索成员姓名"
+        class="mb-2"
+      />
       <div class="flex flex-col gap-1 -mx-1 overflow-y-auto max-h-80">
         <button
           v-for="a in shareCandidates"
@@ -1191,7 +1212,7 @@ onMounted(() => {
           v-if="!shareCandidates.length"
           class="px-3 py-6 text-sm text-center text-n-slate-10"
         >
-          暂无可共享的成员
+          {{ shareSearch ? '没有匹配的成员' : '暂无可共享的成员' }}
         </p>
       </div>
     </Dialog>

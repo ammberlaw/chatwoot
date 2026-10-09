@@ -6,5 +6,7 @@ json.payload do
     json.is_active rule.is_active
     json.config rule.config
     json.remark rule.remark
+    # 这条规则有哪些科目槽位可配（配置界面据此渲染下拉）。
+    json.config_slots rule.config_slots
   end
 end

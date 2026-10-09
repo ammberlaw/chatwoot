@@ -188,6 +188,16 @@ const printDoc = () => printNode(contentRef.value, props.title);
           </table>
         </div>
       </div>
+
+      <!-- 底部操作区：给调用方放「通过/驳回」这类当场能办的动作，
+           免得看完明细还要关掉弹窗回列表找按钮。没传就不占位。
+           钉在弹窗底部——明细多的单（十几项物料）不钉住就得一路滚到底才看得到按钮。 -->
+      <div
+        v-if="$slots.actions"
+        class="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 py-3 -mb-4 border-t bg-n-solid-1 border-n-weak"
+      >
+        <slot name="actions" />
+      </div>
     </div>
   </Dialog>
 </template>

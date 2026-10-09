@@ -186,8 +186,10 @@ const isMentionedMe = msg =>
   (msg.mentioned_ids || []).includes(currentUserId.value) &&
   msg.sender_id !== currentUserId.value;
 
+// 选人候选：排掉自己，也排掉已停用（离职）的账号——历史消息里他们的名字照常显示，
+// 但不该再能被拉进新群/新会话。
 const otherAgents = computed(() =>
-  agents.value.filter(a => a.id !== currentUserId.value)
+  agents.value.filter(a => a.id !== currentUserId.value && !a.deactivated)
 );
 
 // ── 选人弹窗：按组织架构分组 + 搜索（姓名/邮箱/职位）──

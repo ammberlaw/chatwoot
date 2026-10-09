@@ -1,0 +1,45 @@
+# Rails / ActiveRecord 基础校验文案的中文版。
+#
+# rails-i18n 发的是 `zh-CN`（连字符），而本项目的中文 locale 是 `zh_CN`（下划线），
+# 两者对不上 → 中文界面下任何校验失败弹出来的都是
+# 「Translation missing: zh_CN.activerecord.errors.messages.record_invalid」这种英文串。
+# 这里把 rails-i18n zh-CN 的 errors 段原样挂到 zh_CN 下。
+# 只含 Rails 自带的校验文案，不含业务文案（业务文案在 zh_CN.yml）。
+zh_CN:
+  activerecord:
+    errors:
+      messages:
+        record_invalid: 验证失败：%{errors}
+        restrict_dependent_destroy:
+          has_one: 由于%{record}需要此记录，所以无法移除记录
+          has_many: 由于%{record}需要此记录，所以无法移除记录
+  errors:
+    format: "%{attribute}%{message}"
+    messages:
+      accepted: 必须是可被接受的
+      blank: 不能为空字符
+      confirmation: 与%{attribute}不匹配
+      empty: 不能留空
+      equal_to: 必须等于%{count}
+      even: 必须为双数
+      exclusion: 是保留关键字
+      greater_than: 必须大于%{count}
+      greater_than_or_equal_to: 必须大于或等于%{count}
+      inclusion: 不包含于列表中
+      invalid: 是无效的
+      less_than: 必须小于%{count}
+      less_than_or_equal_to: 必须小于或等于%{count}
+      model_invalid: 验证失败：%{errors}
+      not_a_number: 不是数字
+      not_an_integer: 必须是整数
+      odd: 必须为单数
+      other_than: 长度非法（不可为%{count}个字符）
+      present: 必须是空白
+      required: 必须存在
+      taken: 已经被使用
+      too_long: 过长（最长为%{count}个字符）
+      too_short: 过短（最短为%{count}个字符）
+      wrong_length: 长度非法（必须为%{count}个字符）
+    template:
+      body: 如下字段出现错误：
+      header: 有%{count}个错误发生导致“%{model}”无法被保存。

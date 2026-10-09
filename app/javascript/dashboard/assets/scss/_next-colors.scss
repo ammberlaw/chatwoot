@@ -583,6 +583,16 @@ body.theme-classic a[data-tab-active='true']::after {
   background-color: rgb(var(--amber-9)) !important;
 }
 
+// 原生 checkbox 勾选后是浏览器默认的蓝，跟经典灰不搭（列显隐面板、标准价目表列面板等处）。
+// 取深色块＋白勾：和选中态的页面 Tab、侧栏当前项同一个 iris-9（经典灰下＝深灰 51 54 60）。
+// 黄留给主按钮——满屏黄勾会把「这里要点」的信号稀释掉。
+// accent-color 只换勾选块的底色，勾本身由浏览器按对比度自动取白/黑，不用自己描 SVG。
+// 只认原生外观的：共享 Checkbox 组件是 appearance-none 自绘的，accent-color 对它无效，不受影响。
+body.theme-classic input[type='checkbox']:not(.appearance-none),
+body.theme-classic input[type='radio']:not(.appearance-none) {
+  accent-color: rgb(var(--iris-9));
+}
+
 body.theme-classic button[data-button-variant='solid'].bg-n-iris-9,
 body.theme-classic button[data-button-variant='solid'].bg-n-brand,
 body.theme-classic .po-prefill-btn {

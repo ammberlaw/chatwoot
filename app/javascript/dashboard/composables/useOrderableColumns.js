@@ -17,6 +17,8 @@ import { computed, ref } from 'vue';
 export function useOrderableColumns(defs, storageKey) {
   const defaultKeys = defs.map(c => c.key);
   const orderedKeys = ref([...defaultKeys]);
+  const hiddenKeys = ref([]);
+  const hiddenStorageKey = `${storageKey}.hidden`;
 
   // 剔除已下线的列、补齐新增的列（新列排末尾）——否则加一列后老用户永远看不到它。
   const load = () => {
@@ -37,6 +39,21 @@ export function useOrderableColumns(defs, storageKey) {
   };
   load();
 
+  // 收起的列。新增的列默认显示（不在这个表里就是显示），所以只需剔除已下线的 key。
+  const loadHidden = () => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(hiddenStorageKey) || 'null'
+      );
+      hiddenKeys.value = Array.isArray(saved)
+        ? saved.filter(k => defaultKeys.includes(k))
+        : [];
+    } catch {
+      hiddenKeys.value = [];
+    }
+  };
+  loadHidden();
+
   const save = () => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(orderedKeys.value));
@@ -45,9 +62,34 @@ export function useOrderableColumns(defs, storageKey) {
     }
   };
 
+  const saveHidden = () => {
+    try {
+      localStorage.setItem(hiddenStorageKey, JSON.stringify(hiddenKeys.value));
+    } catch {
+      // 同上
+    }
+  };
+
   const orderedColumns = computed(() =>
     orderedKeys.value.map(k => defs.find(c => c.key === k)).filter(Boolean)
   );
+
+  /** 实际渲染用：按当前顺序，去掉收起的列。 */
+  const visibleColumns = computed(() =>
+    orderedColumns.value.filter(c => !hiddenKeys.value.includes(c.key))
+  );
+
+  const isHidden = key => hiddenKeys.value.includes(key);
+  const toggleColumn = key => {
+    hiddenKeys.value = isHidden(key)
+      ? hiddenKeys.value.filter(k => k !== key)
+      : [...hiddenKeys.value, key];
+    saveHidden();
+  };
+  const showAllColumns = () => {
+    hiddenKeys.value = [];
+    saveHidden();
+  };
 
   const dragColKey = ref(null);
   const isDragging = key => dragColKey.value === key;
@@ -68,11 +110,23 @@ export function useOrderableColumns(defs, storageKey) {
     save();
   };
 
-  /** 恢复默认列顺序。 */
+  /** 恢复默认列顺序，同时把收起的列都放出来。 */
   const resetOrder = () => {
     orderedKeys.value = [...defaultKeys];
     save();
+    showAllColumns();
   };
 
-  return { orderedColumns, isDragging, onColDragStart, onColDrop, resetOrder };
+  return {
+    orderedColumns,
+    visibleColumns,
+    hiddenKeys,
+    isHidden,
+    toggleColumn,
+    showAllColumns,
+    isDragging,
+    onColDragStart,
+    onColDrop,
+    resetOrder,
+  };
 }

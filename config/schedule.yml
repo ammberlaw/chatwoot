@@ -131,3 +131,9 @@ erp_daily_alert_job:
   cron: '0 1 * * *'
   class: 'Erp::DailyAlertJob'
   queue: scheduled_jobs
+
+# CRM：人事到期提醒（试用期到期前 7 天 / 劳动合同到期前 1 个月推人事），北京时间 09:15 = UTC 01:15
+crm_hr_expiry_reminder_job:
+  cron: '15 1 * * *'
+  class: 'Crm::HrExpiryReminderJob'
+  queue: scheduled_jobs

@@ -1,14 +1,21 @@
 # TikTok 出库利润表：按 店铺 × 型号 × 月份。列表按可见店铺收口；写操作按可编辑店铺把关（财务只读）。
 class Api::V1::Accounts::Tiktok::ProfitRecordsController < Api::V1::Accounts::Tiktok::BaseController
-  before_action :ensure_profit_access, only: %i[index]
+  before_action :ensure_profit_access, only: %i[index export]
   before_action :fetch_record, only: %i[update destroy]
 
   # 利润表（含成本/毛利/净利）仅部门负责人与财务/管理层可见；普通部门成员不可查看。
   def index
-    scope = profit_scope_visible(Current.account.tiktok_profit_records.includes(:shop))
-    scope = scope.where(shop_id: params[:shop_id]) if params[:shop_id].present?
-    scope = scope.where(stat_month: params[:month]) if params[:month].present?
-    @records = scope.order(stat_month: :desc, id: :desc)
+    @records = filtered_scope
+  end
+
+  # 报表导出（.xlsx）：导的是「当前筛选下的全部记录」，不是屏幕上那几列——
+  # 页面只摆结论列，报表要能对账，所以各项成本/佣金/税费/汇率都带上。
+  def export
+    rows = filtered_scope.to_a
+    stream = Tiktok::ProfitXlsxService.new(rows, label: export_label).to_stream
+    send_data stream.read,
+              filename: "TikTok出库利润表#{export_label.presence&.prepend('-')}.xlsx",
+              type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   end
 
   def create
@@ -36,6 +43,26 @@ class Api::V1::Accounts::Tiktok::ProfitRecordsController < Api::V1::Accounts::Ti
   end
 
   private
+
+  # 列表与导出共用一套筛选，否则「看到的」和「导出的」会是两份数据。
+  # 部门筛选页面原先只在前端做（列表一次拉全量），导出不能这么干——必须落到 SQL。
+  def filtered_scope
+    scope = profit_scope_visible(Current.account.tiktok_profit_records.includes(:shop))
+    scope = scope.where(shop_id: params[:shop_id]) if params[:shop_id].present?
+    scope = scope.where(stat_month: params[:month]) if params[:month].present?
+    scope = scope.where(shop_id: department_shop_ids) if params[:department_id].present?
+    scope.order(stat_month: :desc, id: :desc)
+  end
+
+  def department_shop_ids
+    Current.account.tiktok_shops.where(department_id: params[:department_id]).select(:id)
+  end
+
+  # 文件名/标题里的范围说明：月份 + 部门（有什么写什么）。
+  def export_label
+    dept = Current.account.tiktok_departments.find_by(id: params[:department_id])&.name if params[:department_id].present?
+    [params[:month].presence, dept].compact.join('-')
+  end
 
   def ensure_profit_access
     return if tiktok_scope.can_view_profit?

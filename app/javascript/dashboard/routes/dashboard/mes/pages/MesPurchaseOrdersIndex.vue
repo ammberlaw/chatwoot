@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -16,6 +16,7 @@ import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import Input from 'dashboard/components-next/input/Input.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesSupplierSummary from 'dashboard/components-next/mes/MesSupplierSummary.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
@@ -149,18 +150,6 @@ const approvePo = async po => {
   }
 };
 // 审批驳回（填原因）。
-const rejectPo = async po => {
-  // eslint-disable-next-line no-alert
-  const reason = window.prompt('请填写驳回原因');
-  if (reason === null) return;
-  try {
-    await MesPurchaseOrderAPI.reject(po.id, reason);
-    useAlert('已驳回');
-    fetchList();
-  } catch {
-    useAlert('驳回失败，请重试');
-  }
-};
 // 我是本单当前审批人吗？→ 显示通过/驳回。（审批人按产品线分，逐单看 currentApproverId）
 const canApprove = po =>
   po.approvalStatus === 'PENDING_GM' &&
@@ -344,9 +333,49 @@ const downloadPreview = async () => {
 // 只读查看
 const viewDialogRef = ref(null);
 const viewing = ref(null);
-const openView = po => {
+const rejecting = ref(false); // 弹窗内「驳回」展开原因输入
+const rejectReason = ref('');
+const acting = ref(false);
+const openView = (po, { reject = false } = {}) => {
   viewing.value = po;
+  rejecting.value = reject;
+  rejectReason.value = '';
   viewDialogRef.value?.open();
+};
+
+// 列表上点「驳回」＝打开详情弹窗并直接展开原因输入：原先弹的是浏览器原生 prompt，
+// 跟全站紫玻璃弹窗两个画风，而且看不到明细就得盲填理由。
+const rejectPo = po => openView(po, { reject: true });
+
+// 弹窗内审批：看完明细当场批，不用关掉弹窗回列表找按钮。
+const approveFromView = async () => {
+  acting.value = true;
+  try {
+    await MesPurchaseOrderAPI.approve(viewing.value.id);
+    useAlert('已通过，库存已记在途');
+    viewDialogRef.value?.close();
+    fetchList();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '审批失败，请重试');
+  } finally {
+    acting.value = false;
+  }
+};
+const confirmRejectFromView = async () => {
+  const reason = rejectReason.value.trim();
+  if (!reason) return useAlert('请填写驳回原因');
+  acting.value = true;
+  try {
+    await MesPurchaseOrderAPI.reject(viewing.value.id, reason);
+    useAlert('已驳回');
+    viewDialogRef.value?.close();
+    fetchList();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '驳回失败，请重试');
+  } finally {
+    acting.value = false;
+  }
+  return undefined;
 };
 const viewFields = computed(() => {
   const p = viewing.value || {};
@@ -373,15 +402,7 @@ const viewFields = computed(() => {
     { label: '备注', value: p.remark },
   ];
 });
-// 列表两种看法：「按单」一行一张采购单（原样），「按明细」一行一条料——
-// 对标金蝶采购订单的明细视图。用户原话：「只能看到供应商和采购单号，物料啥也看不出」。
-const viewMode = ref('order'); // order | item
-const VIEW_MODES = [
-  { key: 'order', label: '按单' },
-  { key: 'item', label: '按明细' },
-];
-
-// 按单视图的列（可拖拽改顺序，顺序按人记在本机）。操作列固定在最后，不参与拖拽。
+// 列表的列（可拖拽改顺序、可收起，按人记在本机）。操作列固定在最后，不参与拖拽与收起。
 const ORDER_COLUMN_DEFS = [
   { key: 'idx', label: '#', tdClass: 'px-3 py-3 tabular-nums text-n-slate-10' },
   {
@@ -427,93 +448,23 @@ const ORDER_COLUMN_DEFS = [
 ];
 const {
   orderedColumns: orderCols,
+  visibleColumns: visibleOrderCols,
+  hiddenKeys: hiddenOrderColKeys,
+  isHidden: isOrderColHidden,
+  toggleColumn: toggleOrderCol,
+  showAllColumns: showAllOrderCols,
   isDragging: isOrderColDragging,
   onColDragStart: onOrderColDragStart,
   onColDrop: onOrderColDrop,
   resetOrder: resetOrderCols,
 } = useOrderableColumns(ORDER_COLUMN_DEFS, 'mes.poListCols.v1');
 
-// 明细视图的列。
-const ITEM_COLUMN_DEFS = [
-  { key: 'idx', label: '#', tdClass: 'px-3 py-2 tabular-nums text-n-slate-10' },
-  {
-    key: 'poNo',
-    label: '采购单号',
-    tdClass: 'px-3 py-2 font-medium text-n-slate-12',
-  },
-  { key: 'supplier', label: '供应商', tdClass: 'px-3 py-2 text-n-slate-11' },
-  { key: 'code', label: '物料编码', tdClass: 'px-3 py-2 text-n-slate-11' },
-  { key: 'name', label: '名称', tdClass: 'px-3 py-2 text-n-slate-12' },
-  {
-    key: 'spec',
-    label: '规格型号',
-    tdClass: 'px-3 py-2 text-n-slate-11 max-w-[18rem] truncate',
-  },
-  { key: 'aux', label: '辅助属性', tdClass: 'px-3 py-2 text-n-slate-11' },
-  {
-    key: 'qty',
-    label: '采购量',
-    thClass: 'text-right',
-    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-12',
-  },
-  {
-    key: 'received',
-    label: '已到料',
-    thClass: 'text-right',
-    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
-  },
-  { key: 'unit', label: '单位', tdClass: 'px-3 py-2 text-n-slate-11' },
-  {
-    key: 'rate',
-    label: '单价',
-    thClass: 'text-right',
-    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
-  },
-  {
-    key: 'amount',
-    label: '金额',
-    thClass: 'text-right',
-    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-12',
-  },
-  { key: 'order', label: '生产订单', tdClass: 'px-3 py-2 text-n-slate-11' },
-  { key: 'arrival', label: '实际到料', tdClass: 'px-3 py-2 text-n-slate-11' },
-  {
-    key: 'itemRemark',
-    label: '备注',
-    tdClass: 'px-3 py-2 text-n-slate-11 max-w-[16rem] truncate',
-  },
-];
-const {
-  orderedColumns: itemCols,
-  isDragging: isItemColDragging,
-  onColDragStart: onItemColDragStart,
-  onColDrop: onItemColDrop,
-  resetOrder: resetItemCols,
-} = useOrderableColumns(ITEM_COLUMN_DEFS, 'mes.poItemCols.v1');
+// 列多撑得比屏幕宽，只能拖底下那根细横条，鼠标很难受。
+// 跟生产订单一样：把平时不看的列收起来，按人记在本机。
+const showColumnPanel = ref(false);
+const hiddenCols = computed(() => hiddenOrderColKeys.value.length);
 
-// 把当页采购单摊平成「一行一条料」。只摊当页，不额外请求——列表本来就带明细。
-const itemRows = computed(() =>
-  records.value.flatMap(po =>
-    (po.purchaseItems || []).map(it => ({
-      key: `${po.id}-${it.id}`,
-      po,
-      poNo: po.poNo,
-      supplier: it.supplierName || '—',
-      code: it.productSku || it.materialNo || '—',
-      name: it.productName || it.materialName || '—',
-      spec: it.specification || '—',
-      aux: it.auxAttributeName || '—',
-      qty: it.qty,
-      received: it.receivedQty,
-      unit: it.unit || '',
-      rate: it.rateMicros,
-      amount: it.amountMicros,
-      arrival: it.arrivalDate,
-      itemRemark: it.remark || '—',
-    }))
-  )
-);
-
+// 查看弹窗里的明细列（不是列表的列）。
 const VIEW_ITEM_COLS = [
   { label: '类型', key: 'typeLabel' },
   { label: '编码', key: 'code' },
@@ -557,8 +508,18 @@ const viewItems = computed(() =>
 
 const productionOrders = ref([]);
 
+// 从站内通知点「待审批采购单」进来：落地后直接把那张单的详情弹窗打开，
+// 明细和「通过/驳回」都在弹窗里——否则人跳过来还得横向滑到最右才点得到按钮。
+// 只对「待我审批」的单自动开，普通按单号定位（如查进度）不打扰。
+const autoOpenApproval = async poNo => {
+  if (!poNo) return;
+  await nextTick();
+  const hit = records.value.find(p => p.poNo === poNo);
+  if (hit && canApprove(hit)) openView(hit);
+};
+
 onMounted(async () => {
-  fetchList();
+  await fetchList();
   // 供应商下拉需全量，默认分页只出第一页会漏选。
   suppliersStore.get({ per_page: 500 });
   try {
@@ -576,13 +537,15 @@ onMounted(async () => {
     router.replace({ query: {} });
     goCreate({ new: 'product' });
   }
+  if (route.query.q) autoOpenApproval(String(route.query.q));
 });
 
 // 从站内通知带着新单号再次进来：本页在 keep-alive 里缓存着，onMounted 不会再跑，
 // 不补这一道的话搜索框还是上次的值、列表也不重拉。
-useRouteQueryReentry(query => {
+useRouteQueryReentry(async query => {
   search.value = query.q ? String(query.q) : '';
-  fetchList();
+  await fetchList();
+  autoOpenApproval(search.value);
 });
 </script>
 
@@ -591,31 +554,54 @@ useRouteQueryReentry(query => {
     <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">采购单</h1>
       <div class="flex items-center gap-2">
-        <!-- 按单 / 按明细：核对物料时要的是明细那一屏（对标金蝶） -->
-        <div class="flex items-center h-8 gap-1 px-1 rounded-lg bg-n-alpha-1">
-          <button
-            v-for="m in VIEW_MODES"
-            :key="m.key"
-            type="button"
-            class="h-6 px-2.5 text-xs transition-colors rounded-md whitespace-nowrap"
-            :class="
-              viewMode === m.key
-                ? 'bg-n-solid-1 text-n-slate-12 font-medium shadow-sm'
-                : 'text-n-slate-11 hover:text-n-slate-12'
-            "
-            @click="viewMode = m.key"
-          >
-            {{ m.label }}
-          </button>
-        </div>
         <button
           type="button"
           class="text-xs text-n-slate-10 hover:text-n-iris-11"
-          title="把表头顺序恢复成默认"
-          @click="viewMode === 'order' ? resetOrderCols() : resetItemCols()"
+          title="把表头顺序恢复成默认，并放出收起的列"
+          @click="resetOrderCols"
         >
           恢复默认列序
         </button>
+        <!-- 收起用不到的列：列少了就不用横着拖滚动条（同生产订单） -->
+        <div class="relative">
+          <Button
+            :label="hiddenCols ? `列（收起 ${hiddenCols}）` : '列'"
+            variant="outline"
+            color="slate"
+            size="sm"
+            icon="i-lucide-columns-3"
+            @click="showColumnPanel = !showColumnPanel"
+          />
+          <!-- 透明兜底层：点面板外面收起来，省掉一个全局 click 监听 -->
+          <div
+            v-if="showColumnPanel"
+            class="fixed inset-0 z-10"
+            @click="showColumnPanel = false"
+          />
+          <div
+            v-if="showColumnPanel"
+            class="absolute right-0 z-20 flex flex-col gap-1 p-2 mt-1 border shadow-lg top-full w-52 rounded-xl border-n-weak bg-n-solid-1"
+          >
+            <label
+              v-for="col in orderCols"
+              :key="`vis-${col.key}`"
+              class="flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-label-small hover:bg-n-alpha-1"
+            >
+              <input
+                type="checkbox"
+                :checked="!isOrderColHidden(col.key)"
+                @change="toggleOrderCol(col.key)"
+              />
+              {{ col.label }}
+            </label>
+            <button
+              class="px-2 py-1 mt-1 text-left border-t text-label-small text-n-slate-11 border-n-weak hover:text-n-slate-12"
+              @click="showAllOrderCols"
+            >
+              全部显示
+            </button>
+          </div>
+        </div>
         <Button
           v-if="mesCan('purchase')"
           label="新建采购单"
@@ -736,17 +722,12 @@ useRouteQueryReentry(query => {
             还没有采购单。
           </div>
         </div>
-        <!-- 按单视图：列可拖拽改顺序（顺序按人记在本机），操作列固定在最后 -->
-        <table
-          v-if="viewMode === 'order'"
-          class="hidden w-full text-sm border-separate border-spacing-0 whitespace-nowrap md:table"
-        >
+        <!-- 列可拖拽改顺序、可在「列」里收起，顺序与显隐都按人记在本机；操作列固定在最后 -->
+        <table class="hidden w-full text-sm whitespace-nowrap md:table">
           <thead>
-            <tr
-              class="text-left text-n-slate-11 [&>th]:border-b [&>th]:border-n-weak"
-            >
+            <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th
-                v-for="col in orderCols"
+                v-for="col in visibleOrderCols"
                 :key="col.key"
                 draggable="true"
                 class="px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
@@ -761,18 +742,20 @@ useRouteQueryReentry(query => {
               >
                 {{ col.label }}
               </th>
-              <th
-                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-[''] px-3 py-3"
-              />
+              <th class="px-3 py-3" />
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="(p, i) in records"
               :key="p.id"
-              class="[&>td]:border-b [&>td]:border-n-weak"
+              class="border-b border-n-weak"
             >
-              <td v-for="col in orderCols" :key="col.key" :class="col.tdClass">
+              <td
+                v-for="col in visibleOrderCols"
+                :key="col.key"
+                :class="col.tdClass"
+              >
                 <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
                 <template v-else-if="col.key === 'poNo'">
                   {{ p.poNo }}
@@ -834,11 +817,7 @@ useRouteQueryReentry(query => {
                   <span :title="p.remark || ''">{{ p.remark || '—' }}</span>
                 </template>
               </td>
-              <!-- 操作列固定在右侧：列多的时候（审批那几张尤其）「通过/驳回」会被挤出屏幕，
-                   原来要横向滑到底才点得到。 -->
-              <td
-                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-[''] px-3 py-3 text-right whitespace-nowrap"
-              >
+              <td class="px-3 py-3 text-right whitespace-nowrap">
                 <div
                   class="flex flex-nowrap justify-end gap-1 [&>button]:shrink-0"
                 >
@@ -895,115 +874,27 @@ useRouteQueryReentry(query => {
                     :can-manage="mesCan('purchase')"
                   />
                   <!-- 废稿清理：只有未提审、未到过货的草稿能删，其余走「退回」留痕。
-                       操作列已经很挤，这里只放图标。 -->
-                  <button
-                    v-if="canDelete(p)"
-                    type="button"
-                    title="删除草稿"
-                    class="i-lucide-trash-2 size-4 shrink-0 text-n-slate-10 hover:text-n-ruby-11"
-                    @click="removeOrder(p)"
-                  />
+                       操作列已经很挤，这里只放图标。
+                       外面这层固定占位：只有能删的那几行多出一个图标的话，整行按钮会被
+                       往左顶，跟上下行对不齐（用户反馈「UI 没对齐」）。 -->
+                  <span class="inline-flex justify-center size-4 shrink-0">
+                    <button
+                      v-if="canDelete(p)"
+                      type="button"
+                      title="删除草稿"
+                      class="i-lucide-trash-2 size-4 text-n-slate-10 hover:text-n-ruby-11"
+                      @click="removeOrder(p)"
+                    />
+                  </span>
                 </div>
               </td>
             </tr>
             <tr v-if="!records.length">
               <td
-                :colspan="orderCols.length + 1"
+                :colspan="visibleOrderCols.length + 1"
                 class="px-3 py-10 text-center text-n-slate-11"
               >
                 还没有采购单。
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- 明细视图：一行一条料（对标金蝶采购订单明细）。数据来自当页采购单自带的
-             明细，不额外请求；列同样可拖拽。 -->
-        <table
-          v-else
-          class="hidden w-full text-sm border-separate border-spacing-0 whitespace-nowrap md:table"
-        >
-          <thead>
-            <tr
-              class="text-left text-n-slate-11 [&>th]:border-b [&>th]:border-n-weak"
-            >
-              <th
-                v-for="col in itemCols"
-                :key="col.key"
-                draggable="true"
-                class="px-3 py-2 font-medium transition-colors cursor-move select-none whitespace-nowrap"
-                :class="[
-                  col.thClass,
-                  isItemColDragging(col.key) ? 'opacity-40' : '',
-                ]"
-                title="拖动可调整列顺序"
-                @dragstart="onItemColDragStart(col.key)"
-                @dragover.prevent
-                @drop="onItemColDrop(col.key)"
-              >
-                {{ col.label }}
-              </th>
-              <th
-                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-[''] px-3 py-2"
-              />
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(r, i) in itemRows"
-              :key="r.key"
-              class="[&>td]:border-b [&>td]:border-n-weak [&:hover>td:not(.sticky)]:bg-n-alpha-1"
-            >
-              <td v-for="col in itemCols" :key="col.key" :class="col.tdClass">
-                <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
-                <template v-else-if="col.key === 'poNo'">{{ r.poNo }}</template>
-                <template v-else-if="col.key === 'supplier'">
-                  {{ r.supplier }}
-                </template>
-                <template v-else-if="col.key === 'code'">{{ r.code }}</template>
-                <template v-else-if="col.key === 'name'">{{ r.name }}</template>
-                <template v-else-if="col.key === 'spec'">
-                  <span :title="r.spec">{{ r.spec }}</span>
-                </template>
-                <template v-else-if="col.key === 'aux'">{{ r.aux }}</template>
-                <template v-else-if="col.key === 'qty'">{{ r.qty }}</template>
-                <template v-else-if="col.key === 'received'">
-                  {{ r.received ?? '—' }}
-                </template>
-                <template v-else-if="col.key === 'unit'">{{ r.unit }}</template>
-                <template v-else-if="col.key === 'rate'">
-                  {{ canViewAmount ? yuan(r.rate) : '—' }}
-                </template>
-                <template v-else-if="col.key === 'amount'">
-                  {{ canViewAmount ? yuan(r.amount) : '—' }}
-                </template>
-                <template v-else-if="col.key === 'order'">
-                  {{ orderNosLabel(r.po.relatedProductionOrderNos) }}
-                </template>
-                <template v-else-if="col.key === 'arrival'">
-                  {{ day(r.arrival) }}
-                </template>
-                <template v-else-if="col.key === 'itemRemark'">
-                  <span :title="r.itemRemark">{{ r.itemRemark }}</span>
-                </template>
-              </td>
-              <td
-                class="sticky right-0 z-10 px-3 py-2 text-right border-l bg-n-solid-1 border-n-weak whitespace-nowrap after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-['']"
-              >
-                <Button
-                  label="查看"
-                  variant="ghost"
-                  size="sm"
-                  @click="openView(r.po)"
-                />
-              </td>
-            </tr>
-            <tr v-if="!itemRows.length">
-              <td
-                :colspan="itemCols.length + 1"
-                class="px-3 py-10 text-center text-n-slate-11"
-              >
-                这一页的采购单还没有明细。
               </td>
             </tr>
           </tbody>
@@ -1132,6 +1023,49 @@ useRouteQueryReentry(query => {
       items-title="采购明细"
       :item-columns="VIEW_ITEM_COLS"
       :items="viewItems"
-    />
+    >
+      <!-- 待我审批的单：明细下面直接给「通过 / 驳回」 -->
+      <template v-if="viewing && canApprove(viewing)" #actions>
+        <template v-if="rejecting">
+          <Input
+            v-model="rejectReason"
+            size="sm"
+            placeholder="驳回原因（必填）"
+            class="w-72"
+            @keyup.enter="confirmRejectFromView"
+          />
+          <Button
+            label="取消"
+            variant="ghost"
+            color="slate"
+            size="sm"
+            @click="rejecting = false"
+          />
+          <Button
+            label="确认驳回"
+            color="ruby"
+            size="sm"
+            :is-loading="acting"
+            @click="confirmRejectFromView"
+          />
+        </template>
+        <template v-else>
+          <Button
+            label="驳回"
+            variant="outline"
+            color="ruby"
+            size="sm"
+            @click="rejecting = true"
+          />
+          <Button
+            label="通过"
+            color="amber"
+            size="sm"
+            :is-loading="acting"
+            @click="approveFromView"
+          />
+        </template>
+      </template>
+    </MesViewDialog>
   </div>
 </template>

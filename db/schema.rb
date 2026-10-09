@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_08_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_09_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -657,6 +657,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_08_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "announcement"
+    t.boolean "auto_join_all", default: false, null: false
+    t.index ["account_id", "auto_join_all"], name: "index_chat_conversations_auto_join", where: "auto_join_all"
     t.index ["account_id"], name: "index_chat_conversations_on_account_id"
   end
 

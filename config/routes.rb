@@ -582,6 +582,7 @@ Rails.application.routes.draw do
                 post :detach_bom
                 post :revert_to_bom_ready
                 post :release_purchasing
+                post :skip_purchasing
                 post :mark_outsourced
                 get :requirement
                 get :issue_plan
@@ -918,7 +919,9 @@ Rails.application.routes.draw do
             resources :departments, only: [:index, :create, :update, :destroy]
             resources :shops, only: [:index, :create, :update, :destroy]
             resources :sales_records, only: [:index, :create, :update, :destroy]
-            resources :profit_records, only: [:index, :create, :update, :destroy]
+            resources :profit_records, only: [:index, :create, :update, :destroy] do
+              collection { get :export }
+            end
             # 支出台账（按部门收口，店铺选填）+ 固定资产登记（只登记不折旧）
             resources :expenses, only: [:index, :create, :update, :destroy]
             resources :assets, only: [:index, :create, :update, :destroy]

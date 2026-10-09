@@ -282,27 +282,25 @@ onMounted(load);
       </div>
     </div>
 
-    <!-- 分类筛选 -->
-    <div class="flex flex-wrap items-center gap-2 px-4 pt-3 sm:px-6">
-      <button
-        v-for="g in GROUPS"
-        :key="g.key"
-        class="px-3 py-1.5 text-sm rounded-lg border"
-        :class="
-          activeGroup === g.key
-            ? 'border-n-iris-8 bg-n-iris-3 text-n-iris-12'
-            : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-1'
-        "
-        @click="activeGroup = g.key"
-      >
-        {{ g.label }}
-        <span
-          v-if="groupUnread[g.key] > 0"
-          class="ml-1 px-1.5 py-0.5 text-2xs font-semibold rounded-full bg-n-amber-9 text-[#1a1c20]"
+    <!-- 分类筛选：全站统一的页面级 Tab（灰槽 + 深色选中块），样式见 _next-colors.scss，
+         这里只挂 data-tabbar 与 aria-selected，不要再写边框/底色。 -->
+    <div class="px-4 pt-3 sm:px-6">
+      <div data-tabbar="page">
+        <button
+          v-for="g in GROUPS"
+          :key="g.key"
+          :aria-selected="activeGroup === g.key"
+          @click="activeGroup = g.key"
         >
-          {{ groupUnread[g.key] }}
-        </span>
-      </button>
+          {{ g.label }}
+          <span
+            v-if="groupUnread[g.key] > 0"
+            class="ml-1 px-1.5 py-0.5 text-2xs font-semibold rounded-full bg-n-amber-9 text-[#1a1c20]"
+          >
+            {{ groupUnread[g.key] }}
+          </span>
+        </button>
+      </div>
     </div>
 
     <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">

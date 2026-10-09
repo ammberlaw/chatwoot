@@ -9,11 +9,23 @@ class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::
     render json: {
       month_label: month_label,
       teams: teams_payload,
+      sent_email_ranking: sent_email_ranking,
       current_team_id: Current.account_user.crm_team_id
     }
   end
 
   private
+
+  # 业务员发信排行（本月）：**全公司口径**，不按团队/可见范围收口——
+  # 这张榜就是要横向比全公司谁跑得勤，只给本队成员看不出高低（用户定调 2026-10-09）。
+  # 口径与 CRM 数据看板那张一致：只认发件箱里真正发成功的，按邮件自己的时间落月份。
+  def sent_email_ranking
+    rows = Current.account.crm_emails
+                  .in_folder('SENT').where(send_status: 'SENT')
+                  .where(email_date: month_range)
+                  .joins(:owner).group('users.name').count
+    rows.sort_by { |_name, count| -count }.map { |name, count| { name: name, count: count } }
+  end
 
   # 参考月：优先 year+month 参数（前端下拉筛选），非法或缺省回落当月。
   def ref_date
@@ -24,8 +36,11 @@ class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::
     end
   end
 
+  # ⚠️ 必须是**时间**区间，不能用 Date 的 all_month：order_date / email_date 都是 timestamp，
+  # 拿日期区间比就成了 `<= 当月最后一天 00:00:00`，整个最后一天的数据被悄悄切掉
+  # （9 月 30 日发的 5 封信在发信排行里就这么丢了，数字不报错、只是偏小）。
   def month_range
-    ref_date.all_month
+    ref_date.beginning_of_month.beginning_of_day..ref_date.end_of_month.end_of_day
   end
 
   def month_label
@@ -58,7 +73,7 @@ class Api::V1::Accounts::Crm::TeamDashboardController < Api::V1::Accounts::Crm::
   # 本年逐月的团队合计。顶部 KPI 卡要拿它算环比、画走势——只给当月的话，
   # 卡上那个数字没有参照系，看的人得自己翻上个月。
   def year_range
-    ref_date.all_year
+    ref_date.beginning_of_year.beginning_of_day..ref_date.end_of_year.end_of_day
   end
 
   def monthly_amount_by_owner

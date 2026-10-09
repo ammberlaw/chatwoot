@@ -6,7 +6,7 @@ import { onClickOutside, useEventListener } from '@vueuse/core';
 // 与 MonthPicker 同款外壳：弹层 Teleport 到 body + fixed 定位，滚动/缩放即关，
 // 在对话框 / overflow 滚动容器里也不会被裁切。API 与 components-next/select/Select.vue 兼容。
 const props = defineProps({
-  // [{ value, label, disabled? }]
+  // [{ value, label, disabled?, note? }]  note = 右侧灰字补充说明
   options: {
     type: Array,
     default: () => [],
@@ -259,10 +259,22 @@ const onSearchKeydown = e => {
             @click="pick(opt)"
           >
             <span class="whitespace-nowrap">{{ opt.label }}</span>
-            <span
-              v-if="opt.value === modelValue"
-              class="i-lucide-check size-4 shrink-0"
-            />
+            <span class="flex items-center gap-2 shrink-0">
+              <!-- note：选项的补充说明（如「已下 2 张采购单 · 还差 3 项料」），可选 -->
+              <span
+                v-if="opt.note"
+                class="text-xs whitespace-nowrap"
+                :class="
+                  opt.value === modelValue ? 'text-white/80' : 'text-n-slate-10'
+                "
+              >
+                {{ opt.note }}
+              </span>
+              <span
+                v-if="opt.value === modelValue"
+                class="i-lucide-check size-4"
+              />
+            </span>
           </button>
           <p
             v-if="!matchedOptions.length"

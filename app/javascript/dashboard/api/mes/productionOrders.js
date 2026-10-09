@@ -21,6 +21,10 @@ client.revertToBomReady = id =>
 client.releasePurchasing = id =>
   axios.post(`${client.url}/${id}/release_purchasing`);
 
+// 无需采购：料现成在库里，跳过采购直接进「原料入库」（不动库存，只推阶段）。
+client.skipPurchasing = (id, reason) =>
+  axios.post(`${client.url}/${id}/skip_purchasing`, { reason });
+
 // 工程标记外购：选定产品+供应商，跳过 BOM 直接进采购（短版脊柱）。
 client.markOutsourced = (id, payload) =>
   axios.post(`${client.url}/${id}/mark_outsourced`, payload);

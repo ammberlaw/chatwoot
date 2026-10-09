@@ -3,6 +3,8 @@ import { mapGetters } from 'vuex';
 import LoadingState from './components/widgets/LoadingState.vue';
 import NetworkNotification from './components/NetworkNotification.vue';
 import UpdateBanner from './components/app/UpdateBanner.vue';
+// 本系统部署了新代码时提示刷新（区别于上面那个「Chatwoot 上游有新版本」的升级提示）
+import AppUpdateNotification from './components/AppUpdateNotification.vue';
 import StatusBanner from './components/app/StatusBanner.vue';
 import PaymentPendingBanner from './components/app/PaymentPendingBanner.vue';
 import PendingEmailVerificationBanner from './components/app/PendingEmailVerificationBanner.vue';
@@ -30,6 +32,7 @@ export default {
   components: {
     LoadingState,
     NetworkNotification,
+    AppUpdateNotification,
     UpdateBanner,
     StatusBanner,
     PaymentPendingBanner,
@@ -171,6 +174,7 @@ export default {
     </router-view>
     <WootSnackbarBox />
     <NetworkNotification />
+    <AppUpdateNotification />
   </div>
   <LoadingState v-else />
 </template>

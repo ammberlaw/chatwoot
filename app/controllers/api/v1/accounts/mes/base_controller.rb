@@ -81,4 +81,14 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
                            .where.not(bom_id: nil).select(:bom_id)
     scope.where('id IN (:bids) OR owner_id IN (:ids)', bids: order_bom_ids, ids: ids)
   end
+
+  # 业务校验失败给用户看的文案。RecordInvalid 的 e.message 在中文环境是
+  # 「Translation missing: zh_CN.activerecord.errors.messages.record_invalid」，
+  # 原样弹进红字提示等于没提示——改取逐字段的校验信息。
+  def business_error(error)
+    record = error.try(:record)
+    return record.errors.full_messages.join('；') if error.is_a?(ActiveRecord::RecordInvalid) && record.present?
+
+    error.message
+  end
 end

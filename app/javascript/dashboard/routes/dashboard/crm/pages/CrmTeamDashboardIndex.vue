@@ -10,6 +10,7 @@ import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
+import CrmSentEmailRankChart from 'dashboard/components-next/CRM/CrmSentEmailRankChart.vue';
 
 const { t } = useI18n();
 const { accountId } = useAccount();
@@ -75,6 +76,9 @@ const money = micros =>
   `¥${Math.round((micros || 0) / 1_000_000).toLocaleString()}`;
 
 const teams = computed(() => data.value?.teams || []);
+// 业务员发信排行：**全公司口径**（不随上面选的团队变），跟 CRM 数据看板共用同一张图。
+// 这张榜就是要横向比全公司谁跑得勤，只给本队成员看不出高低。
+const sentEmailRanking = computed(() => data.value?.sent_email_ranking || []);
 const teamSelectOptions = computed(() =>
   teams.value.map(x => ({ value: x.id, label: x.name }))
 );
@@ -605,6 +609,13 @@ const kpiCards = computed(() => [
           </div>
         </div>
       </div>
+
+      <!-- 发信排行：全公司口径，和团队下拉无关，所以放在团队块外面单独一张 -->
+      <CrmSentEmailRankChart
+        :rows="sentEmailRanking"
+        :period-label="`${data?.month_label || ''} · 全公司`"
+        empty-text="本月还没有发出去的邮件"
+      />
     </template>
   </div>
 </template>

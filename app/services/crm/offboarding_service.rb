@@ -50,5 +50,13 @@ class Crm::OffboardingService
 
     au.update!(crm_role: nil, deactivated_at: Time.current)
     au.user.update_columns(tokens: {}) # rubocop:disable Rails/SkipsModelValidations
+    leave_company_groups
+  end
+
+  # 离职即退出公司总群（手工建的项目群不动，历史消息也照常保留）。
+  def leave_company_groups
+    Chat::CompanyGroupSync.on_leave(@account, @user_id)
+  rescue StandardError => e
+    Rails.logger.warn("[公司总群] 离职成员 #{@user_id} 退群失败：#{e.class} #{e.message}")
   end
 end

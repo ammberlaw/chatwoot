@@ -34,6 +34,13 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     resolve_manufacture_product_ids(@stock_entry)
     @stock_entry.save!
     render 'api/v1/accounts/mes/stock_entries/show'
+  rescue Pundit::NotAuthorizedError
+    raise # 权限不足要回 403，别被下面的 422 吞掉
+  rescue StandardError => e
+    # 这里抛的多是业务校验（如「订单没关联产品档案」），本该是红字提示；
+    # 原先没 rescue，车间开成品入库单时直接弹黑框 Internal Server Error，
+    # 写得很清楚的那句话用户一个字也看不到（2026-10-09 生产反馈）。
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 建单前把收货单文件暂存为 blob，拿到 signed_id，建单时通过 receipts 一并挂载。
@@ -60,7 +67,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     @stock_entry.destroy!
     head :ok
   rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 作废（冲销）：反向冲回已过账扣的库存、按需回退生产订单阶段，置「已作废」保留可追溯。
@@ -68,7 +75,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     @stock_entry.cancel!
     render 'api/v1/accounts/mes/stock_entries/show'
   rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 过账：刷结存 + 记流水 + 阶段推进。
@@ -76,7 +83,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     @stock_entry.post!
     render 'api/v1/accounts/mes/stock_entries/show'
   rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   # 成品入库：仓管清点数量确认（stock 能力），确认后直接过账入库。
@@ -84,7 +91,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     @stock_entry.confirm_warehouse!(current_user)
     render 'api/v1/accounts/mes/stock_entries/show'
   rescue StandardError => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
   private

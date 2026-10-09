@@ -5,6 +5,7 @@ import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useTiktokShopsStore } from 'dashboard/stores/tiktok/shops';
 import { useTiktokDepartmentsStore } from 'dashboard/stores/tiktok/departments';
 import { useTiktokProfitRecordsStore } from 'dashboard/stores/tiktok/profitRecords';
+import TiktokProfitRecordsAPI from 'dashboard/api/tiktok/profitRecords';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -183,6 +184,34 @@ const loadRecords = async () => {
   }
 };
 
+// 导出报表（.xlsx）：按当前月份 + 部门筛选，服务端生成，列比页面上的全
+// （各项成本/佣金/税费/汇率都带上，按店铺分组带小计与总计）。
+const exporting = ref(false);
+const exportXlsx = async () => {
+  exporting.value = true;
+  try {
+    const { data } = await TiktokProfitRecordsAPI.export({
+      month: filters.value.month,
+      department_id: filters.value.departmentId,
+    });
+    const url = window.URL.createObjectURL(new Blob([data]));
+    const a = document.createElement('a');
+    a.href = url;
+    const dept = departmentFilterOptions.value.find(
+      o => o.value === filters.value.departmentId
+    );
+    a.download = `TikTok出库利润表-${filters.value.month}${
+      filters.value.departmentId ? `-${dept?.label || ''}` : ''
+    }.xlsx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
 const openNew = () => {
   if (!shops.value.length) {
     useAlert(
@@ -312,10 +341,20 @@ onMounted(async () => {
             trigger-class="w-full sm:w-40 h-10"
           />
           <Button
+            variant="outline"
+            color="slate"
+            icon="i-lucide-download"
+            label="导出报表"
+            class="h-10 shrink-0"
+            :is-loading="exporting"
+            :disabled="exporting || !filteredRecords.length"
+            @click="exportXlsx"
+          />
+          <Button
             color="iris"
             icon="i-lucide-plus"
             label="新增"
-            class="shrink-0"
+            class="h-10 shrink-0"
             @click="openNew"
           />
         </div>

@@ -112,7 +112,14 @@ class Rack::Attack
 
   # ### Prevent Brute-Force Login Attacks ###
   # Exclude MFA verification attempts from regular login throttling
-  throttle('login/ip', limit: 5, period: 5.minutes) do |req|
+  #
+  # 上游默认 5 次 / 5 分钟。那是给公网 SaaS（每人一个家宽 IP）用的；我们是全公司从
+  # **同一个办公出口 IP** 出去，于是早上上班时 5 分钟内第 6 个人登录就被 429 挡在门外，
+  # 页面只甩一句 AxiosError 429（2026-10-09 生产：timmy 登不进去，同一 IP 172 次 429）。
+  # 放宽到 60 次 / 5 分钟：够全公司正常登录，暴力破解仍被下面按**邮箱**的
+  # 10 次 / 15 分钟挡住（那条才是真正防爆破的），外加 req/ip 3000/分钟兜底。
+  # 办公出口 IP 会轮换（见打卡白名单那次），所以不走 safelist 白名单那条路。
+  throttle('login/ip', limit: ENV.fetch('RACK_ATTACK_LOGIN_IP_LIMIT', '60').to_i, period: 5.minutes) do |req|
     if req.path_without_extensions == '/auth/sign_in' && req.post? && req.params['mfa_token'].blank?
       # Skip if this is an MFA verification request
       req.ip

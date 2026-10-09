@@ -52,11 +52,42 @@ class Crm::PettyCashEntry < ApplicationRecord
   validates :amount, numericality: { greater_than: 0 }
   validates :channel, inclusion: { in: CHANNELS }, allow_blank: true
 
+  # 生成凭证时 Erp::AutoVoucherService#line 要这两个：备用金只走人民币。
+  def currency = 'CNY'
+  def exchange_rate = 1
+
+  after_commit :generate_erp_voucher, on: %i[create update]
+  # 删流水要把凭证一并作废，否则账上留一张指向已删单据的孤儿凭证。
+  # 已过账的凭证不作废（动了就与总账不平）——返回凭证号，拦住删除让财务先冲销。
+  before_destroy :void_or_block_erp_voucher, prepend: true
+
   scope :ordered, -> { order(:entry_date, :id) }
   scope :in_month, lambda { |month|
     date = Date.parse("#{month}-01")
     where(entry_date: date..date.end_of_month)
   }
+
+  private
+
+  # 备用金流水 → ERP 待过账凭证（存入＝挂账、支出＝转费用，见 Erp::AutoVoucherService#for_petty_cash）。
+  # ERP 是下游，不能反过来挡住台账记账——异常只记日志，财务在凭证页还能手工补。
+  # 没配备用金科目时服务内部会静默跳过。
+  def generate_erp_voucher
+    Erp::AutoVoucherService.new(account).for_petty_cash(self)
+  rescue StandardError => e
+    Rails.logger.error("[Erp::AutoVoucher] 备用金流水 #{id} 生成凭证失败: #{e.class} #{e.message}")
+  end
+
+  def void_or_block_erp_voucher
+    posted_no = Erp::AutoVoucherService.new(account).void_for(self)
+    return if posted_no.blank?
+
+    errors.add(:base, "这笔流水已出凭证 #{posted_no} 并已记账，不能直接删除——请财务先在凭证里冲销")
+    throw(:abort)
+  rescue StandardError => e
+    # 作废失败不该把台账删除也一起挡住（ERP 是下游），记日志让财务去查。
+    Rails.logger.error("[Erp::AutoVoucher] 备用金流水 #{id} 作废凭证失败: #{e.class} #{e.message}")
+  end
 
   def signed_amount = direction == 'IN' ? amount.to_d : -amount.to_d
 end

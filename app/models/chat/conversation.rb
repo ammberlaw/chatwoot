@@ -5,6 +5,7 @@
 #
 #  id              :bigint           not null, primary key
 #  announcement    :text
+#  auto_join_all   :boolean          default(FALSE), not null
 #  kind            :string           default("direct"), not null
 #  last_message_at :datetime
 #  name            :string
@@ -15,6 +16,7 @@
 #
 # Indexes
 #
+#  index_chat_conversations_auto_join      (account_id,auto_join_all) WHERE auto_join_all
 #  index_chat_conversations_on_account_id  (account_id)
 #
 class Chat::Conversation < ApplicationRecord

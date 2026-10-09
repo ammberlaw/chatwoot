@@ -212,8 +212,10 @@ class Api::V1::Accounts::Crm::AiController < Api::V1::Accounts::Crm::BaseControl
     ids == :all ? relation : relation.where(owner_field => ids)
   end
 
+  # order_date 是 timestamp，Date 的 all_month 会把当月最后一天整天切掉（见团队看板同名方法）。
   def month_range(month)
-    parse_month(month).all_month
+    date = parse_month(month)
+    date.beginning_of_month.beginning_of_day..date.end_of_month.end_of_day
   end
 
   def month_label(month)

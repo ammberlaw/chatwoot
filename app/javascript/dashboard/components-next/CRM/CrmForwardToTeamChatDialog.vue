@@ -70,8 +70,9 @@ const open = async (text, opts = {}) => {
       AgentAPI.get(),
       ChatAPI.list(),
     ]);
+    // 排掉自己和已停用（离职）的账号——转发目标里不该再出现离职的人。
     agents.value = (agentsRes.data || []).filter(
-      a => a.id !== currentUserId.value
+      a => a.id !== currentUserId.value && !a.deactivated
     );
     groups.value = (convRes.data?.payload || []).filter(
       c => c.kind === 'group'
