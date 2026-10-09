@@ -95,7 +95,11 @@ RUN if [ "$RAILS_ENV" = "production" ]; then \
 # 生产的构建源（~/wintouch-crm）是 rsync 出来的普通目录、不是 git 仓库，
 # git rev-parse 会以 128 退出把整个构建带挂（平时吃缓存看不出来，一旦缓存失效就炸）。
 # 取不到就写 unknown——这个文件只用于显示版本号，不该成为构建的硬依赖。
-RUN git rev-parse HEAD > /app/.git_sha 2>/dev/null || echo unknown > /app/.git_sha
+#
+# ⚠️ 部署前在构建源里写好 .git_sha（部署脚本/人工都行），这里就不再覆盖它。
+# 原先无条件覆盖 → 生产版本号恒为 unknown → 前端「系统已更新，请刷新」提示永远不弹
+# （那个提示正是靠比对 /health 的 version 工作的）。
+RUN if [ -s /app/.git_sha ] && [ "$(cat /app/.git_sha)" != "unknown" ]; then   echo "keep existing .git_sha: $(cat /app/.git_sha)";   else git rev-parse HEAD > /app/.git_sha 2>/dev/null || echo unknown > /app/.git_sha; fi
 
 # Remove unnecessary files
 RUN rm -rf /gems/ruby/3.4.0/cache/*.gem \
