@@ -945,16 +945,12 @@ onMounted(fetchMine);
       <template v-else-if="view === 'summary'">
         <!-- 粒度切换 + 区间导航 -->
         <div class="flex flex-wrap items-center gap-3">
-          <div class="flex p-0.5 rounded-lg bg-n-alpha-1">
+          <!-- 粒度切换也走统一的槽（灰槽 + 深色选中块），别自己写底色/阴影 -->
+          <div data-tabbar="page" class="my-0">
             <button
               v-for="p in PERIODS"
               :key="p.value"
-              class="h-8 px-4 text-sm rounded-md"
-              :class="
-                period === p.value
-                  ? 'bg-n-solid-1 text-n-iris-11 font-medium shadow-sm'
-                  : 'text-n-slate-11 hover:text-n-slate-12'
-              "
+              :aria-selected="period === p.value"
               @click="setPeriod(p.value)"
             >
               {{ p.label }}统计

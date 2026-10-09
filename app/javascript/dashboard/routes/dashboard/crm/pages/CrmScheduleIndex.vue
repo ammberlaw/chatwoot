@@ -611,19 +611,15 @@ onMounted(() => {
       <h1 class="text-xl font-semibold text-n-slate-12">日程 Schedule</h1>
       <div class="flex items-center gap-3">
         <!-- 月/周 视图切换 -->
-        <div class="flex p-0.5 rounded-xl bg-n-alpha-2">
+        <!-- 月/周 也走统一的槽（灰槽 + 深色选中块），别自己写底色/阴影 -->
+        <div data-tabbar="page" class="my-0">
           <button
             v-for="m in [
               { v: 'month', t: '月' },
               { v: 'week', t: '周' },
             ]"
             :key="m.v"
-            class="px-3.5 py-1.5 text-sm font-semibold rounded-lg transition-colors"
-            :class="
-              mode === m.v
-                ? 'bg-n-solid-1 text-n-slate-12 shadow-sm'
-                : 'text-n-slate-10 hover:text-n-slate-12'
-            "
+            :aria-selected="mode === m.v"
             @click="setMode(m.v)"
           >
             {{ m.t }}

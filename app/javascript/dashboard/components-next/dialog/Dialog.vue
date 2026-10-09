@@ -271,10 +271,13 @@ defineExpose({ open, close, requestClose });
             </button>
           </div>
 
+          <!-- 右侧留白要让开 X 按钮：它宽 size-8(2rem) + mr-4(1rem) = 3rem，
+               再留半格缝 = pr-14。原来写 pr-8 少了 16px，标题右边的操作按钮
+               （导出 Excel / 导出图片 / 打印）最后一个会被 X 压住半截。 -->
           <div
             v-if="title || description"
             class="flex flex-col gap-2"
-            :class="showCloseButton ? 'pr-8' : ''"
+            :class="showCloseButton ? 'pr-14' : ''"
           >
             <!-- 标题行：左边标题（可塞状态药丸），右边放操作按钮（导出/打印之类），
                  一行放得下就不要再单起一行，否则标题下面空一大片。 -->

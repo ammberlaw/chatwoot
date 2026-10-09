@@ -182,8 +182,7 @@ onMounted(() => {
       <Button
         v-if="canStock"
         label="导入期初库存"
-        color="slate"
-        variant="faded"
+        color="iris"
         size="sm"
         icon="i-lucide-upload"
         @click="openImport"

@@ -1496,6 +1496,7 @@ watch(currentPage, fetchRecords);
             variant="outline"
             color="slate"
             size="sm"
+            class="btn-ink"
             icon="i-lucide-columns-3"
             @click="showColumnPanel = !showColumnPanel"
           />
@@ -1535,6 +1536,7 @@ watch(currentPage, fetchRecords);
           variant="outline"
           color="slate"
           size="sm"
+          class="btn-ink"
           @click="openConvert"
         />
         <Button

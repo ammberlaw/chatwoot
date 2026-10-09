@@ -354,6 +354,7 @@ onMounted(async () => {
           variant="outline"
           color="slate"
           size="sm"
+          class="btn-ink"
           @click="goProductPurchase"
         />
         <!-- 模版挑单：模版弹窗本身在建档页，这里带个参数过去直接把它弹出来，
@@ -364,6 +365,7 @@ onMounted(async () => {
           variant="outline"
           color="slate"
           size="sm"
+          class="btn-ink"
           @click="goCreate({ templates: 1 })"
         />
         <Button

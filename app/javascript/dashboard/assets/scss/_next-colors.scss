@@ -593,6 +593,30 @@ body.theme-classic input[type='radio']:not(.appearance-none) {
   accent-color: rgb(var(--iris-9));
 }
 
+// 「深墨块」次级主按钮：黄留给页面唯一的首要动作，旁边那几颗同样重要、但不该抢黄的，
+// 用和选中态页签、侧栏当前项同一个 iris-9（经典灰下＝51 54 60）的实底黑，黑/黄并排分主次。
+// 两类来源：
+//   ① 青绿实底（销售出库「新建现货出库」、AI 设置「测试连接」等 10 处）——经典灰整页是
+//      黑白灰＋一点品牌黄，这抹绿是唯一的高饱和彩色，并排站在黄按钮旁边很跳；
+//   ② 显式挂 .btn-ink 的白底描边按钮（生产任务单的「新建成品采购单」「模版」）——
+//      outline+slate 全站到处都是，不能整类染，只能在用的地方点名。
+// 只认实底的 teal：它的 outline/faded/ghost（状态药丸、次级链接）本来就是浅色，不动。
+// 两条都只在 theme-classic 下生效，紫玻璃原样不变。
+body.theme-classic button[data-button-variant='solid'].bg-n-teal-9,
+body.theme-classic button.btn-ink {
+  background-color: rgb(var(--iris-9)) !important;
+  color: #fff !important;
+  outline-color: transparent !important;
+}
+body.theme-classic
+  button[data-button-variant='solid'].bg-n-teal-9:hover:enabled,
+body.theme-classic
+  button[data-button-variant='solid'].bg-n-teal-9:focus-visible,
+body.theme-classic button.btn-ink:hover:enabled,
+body.theme-classic button.btn-ink:focus-visible {
+  background-color: rgb(var(--iris-10)) !important;
+}
+
 body.theme-classic button[data-button-variant='solid'].bg-n-iris-9,
 body.theme-classic button[data-button-variant='solid'].bg-n-brand,
 body.theme-classic .po-prefill-btn {

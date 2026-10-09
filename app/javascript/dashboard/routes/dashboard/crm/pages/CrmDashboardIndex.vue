@@ -654,17 +654,15 @@ const PERIODS = [
         </h1>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <div class="flex items-center h-9 gap-1 px-1 rounded-lg bg-n-alpha-1">
+        <!-- 月度/季度/年度：走全站页面级 Tab 的统一标记（data-tabbar + aria-selected），
+             样式在 _next-colors.scss。原来是自己写的「灰槽 + 白条」，跟别处的
+             「灰槽 + 深色块」对不上——同一个人一天要认两种「现在选中哪个」。
+             这里不要再写底色/阴影，写了会跟统一规则打架。 -->
+        <div data-tabbar="page" class="my-0">
           <button
             v-for="p in PERIODS"
             :key="p.k"
-            :aria-pressed="period === p.k"
-            class="h-7 px-3 text-sm transition-colors rounded-md shrink-0 whitespace-nowrap motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-            :class="
-              period === p.k
-                ? 'bg-n-solid-1 text-n-slate-12 font-medium shadow-sm'
-                : 'text-n-slate-11 hover:text-n-slate-12'
-            "
+            :aria-selected="period === p.k"
             @click="period = p.k"
           >
             {{ p.l }}

@@ -1200,6 +1200,7 @@ onBeforeRouteLeave((to, from, next) => {
           variant="outline"
           color="slate"
           size="sm"
+          class="btn-ink"
           @click="openTemplates"
         />
         <Button
@@ -1207,6 +1208,7 @@ onBeforeRouteLeave((to, from, next) => {
           variant="outline"
           color="slate"
           size="sm"
+          class="btn-ink"
           :disabled="invalid"
           @click="openSaveTemplate"
         />
@@ -1233,6 +1235,7 @@ onBeforeRouteLeave((to, from, next) => {
             variant="outline"
             color="slate"
             size="sm"
+            class="btn-ink"
             :is-loading="saving"
             :disabled="invalid"
             @click="submit('DRAFT')"

@@ -393,20 +393,16 @@ const cell = (r, isAmt) => {
       >
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-base font-medium text-n-slate-12">月度明细</h2>
-          <div class="flex gap-1 p-1 rounded-lg bg-n-alpha-1">
+          <!-- 走全站统一的槽（data-tabbar + aria-selected，样式在 _next-colors.scss）：
+               灰槽 + 深色选中块。别在这儿再写底色/阴影，写了会跟统一规则打架。 -->
+          <div data-tabbar="page" class="my-0">
             <button
               v-for="opt in [
                 { k: 'amount', l: '成交额' },
                 { k: 'customer', l: '新成交客户' },
               ]"
               :key="opt.k"
-              :aria-pressed="tableMetric === opt.k"
-              class="h-7 px-3 text-xs transition-colors rounded-md shrink-0 whitespace-nowrap motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
-              :class="
-                tableMetric === opt.k
-                  ? 'bg-n-solid-1 text-n-slate-12 font-medium shadow-sm'
-                  : 'text-n-slate-11 hover:text-n-slate-12'
-              "
+              :aria-selected="tableMetric === opt.k"
               @click="tableMetric = opt.k"
             >
               {{ opt.l }}
