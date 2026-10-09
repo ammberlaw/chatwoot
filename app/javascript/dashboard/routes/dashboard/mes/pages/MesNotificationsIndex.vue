@@ -37,6 +37,8 @@ const ERP_GROUPS = [
   { key: 'rejected', label: '退回·驳回' },
 ];
 // 通知类型 → 中文标签 + 圆点色 + 所属分类。
+// ⚠️ 这里的 group **必须与后端 `Mes::Notification::GROUP_BY_KIND` 一致**：tab 的过滤与角标
+// 都由后端按全部记录算，这份只负责上色取标签，对不上就会「角标说 5 条、点进去 3 条」。
 const KIND_META = {
   approval_pending: { label: '待审批', dot: 'bg-n-amber-9', group: 'todo' },
   approval_approved: {
@@ -78,6 +80,7 @@ const KIND_META = {
     dot: 'bg-n-violet-9',
     group: 'todo',
   },
+  fg_count_pending: { label: '待清点', dot: 'bg-n-violet-9', group: 'todo' },
   shipment_approval_pending: {
     label: '待审核出库',
     dot: 'bg-n-amber-9',
@@ -136,26 +139,25 @@ const liveTodoCount = ref(0);
 const showTodoPanel = computed(
   () => isMes.value && activeGroup.value === 'todo'
 );
+// 分类过滤在后端做（接口 group 参数），这里不再二次筛——原先前端只在「当前这 15 条」里筛，
+// 于是分页器写着「共 118 项 / 8 页」、列表却只有 2 条，翻页还会再冒出来几条。
 const allRecords = computed(() => store.getRecords);
-const records = computed(() => {
-  if (activeGroup.value === 'all') return allRecords.value;
-  const inGroup = allRecords.value.filter(
-    n => groupOf(n.kind) === activeGroup.value
-  );
+const records = computed(() =>
   // 待处理只显未办结（未读）：办结动作（审批/确认BOM/接单）会由后端把对应待办置已读；
   // 「点开查看」不置已读（见 openNotification），所以看一眼不会误消失。
-  return activeGroup.value === 'todo'
-    ? inGroup.filter(n => !n.readAt)
-    : inGroup;
-});
-// 各分类未读数（tab 角标）。
+  activeGroup.value === 'todo'
+    ? allRecords.value.filter(n => !n.readAt)
+    : allRecords.value
+);
+// 各分类未读数（tab 角标）：取后端按**全部记录**统计的 group_unread，不是数当前页。
 const groupUnread = computed(() => {
-  const counts = { all: 0, todo: 0, progress: 0, rejected: 0 };
-  allRecords.value.forEach(n => {
-    if (n.readAt) return;
-    counts.all += 1;
-    counts[groupOf(n.kind)] += 1;
-  });
+  const g = store.getMeta?.groupUnread || {};
+  const counts = {
+    all: Number(store.getUnreadCount || 0),
+    todo: Number(g.todo || 0),
+    progress: Number(g.progress || 0),
+    rejected: Number(g.rejected || 0),
+  };
   // MES 的「待我处理」按实时待办数显示，不是未读消息数。
   if (isMes.value) counts.todo = liveTodoCount.value;
   return counts;
@@ -185,9 +187,15 @@ const fmt = ts => {
 const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
 const totalCount = computed(() => store.getMeta?.count || 0);
-const load = () => store.get({ ...scopeParams.value, page: currentPage.value });
+const load = () =>
+  store.get({
+    ...scopeParams.value,
+    page: currentPage.value,
+    // 'all'（财务通知的「全部」）不传，后端不过滤。
+    ...(activeGroup.value === 'all' ? {} : { group: activeGroup.value }),
+  });
 watch(currentPage, load);
-// 切分类回到第 1 页：分类是在当前这一页里筛的，停在第 3 页切过去会看着像没有数据。
+// 切分类回到第 1 页：换了分类总条数和页数都变了，停在第 3 页切过去会看着像没有数据。
 watch(activeGroup, () => {
   if (currentPage.value === 1) load();
   else currentPage.value = 1;
@@ -360,7 +368,7 @@ onMounted(load);
       </ul>
 
       <PaginationFooter
-        v-if="totalCount > ITEMS_PER_PAGE"
+        v-if="!showTodoPanel && totalCount > ITEMS_PER_PAGE"
         :current-page="currentPage"
         :total-items="totalCount"
         :items-per-page="ITEMS_PER_PAGE"

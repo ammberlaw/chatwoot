@@ -739,10 +739,12 @@ useRouteQueryReentry(query => {
         <!-- 按单视图：列可拖拽改顺序（顺序按人记在本机），操作列固定在最后 -->
         <table
           v-if="viewMode === 'order'"
-          class="hidden w-full text-sm whitespace-nowrap md:table"
+          class="hidden w-full text-sm border-separate border-spacing-0 whitespace-nowrap md:table"
         >
           <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+            <tr
+              class="text-left text-n-slate-11 [&>th]:border-b [&>th]:border-n-weak"
+            >
               <th
                 v-for="col in orderCols"
                 :key="col.key"
@@ -759,14 +761,16 @@ useRouteQueryReentry(query => {
               >
                 {{ col.label }}
               </th>
-              <th class="px-3 py-3" />
+              <th
+                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-[''] px-3 py-3"
+              />
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="(p, i) in records"
               :key="p.id"
-              class="border-b border-n-weak"
+              class="[&>td]:border-b [&>td]:border-n-weak"
             >
               <td v-for="col in orderCols" :key="col.key" :class="col.tdClass">
                 <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
@@ -830,7 +834,11 @@ useRouteQueryReentry(query => {
                   <span :title="p.remark || ''">{{ p.remark || '—' }}</span>
                 </template>
               </td>
-              <td class="px-3 py-3 text-right whitespace-nowrap">
+              <!-- 操作列固定在右侧：列多的时候（审批那几张尤其）「通过/驳回」会被挤出屏幕，
+                   原来要横向滑到底才点得到。 -->
+              <td
+                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-[''] px-3 py-3 text-right whitespace-nowrap"
+              >
                 <div
                   class="flex flex-nowrap justify-end gap-1 [&>button]:shrink-0"
                 >
@@ -911,9 +919,14 @@ useRouteQueryReentry(query => {
 
         <!-- 明细视图：一行一条料（对标金蝶采购订单明细）。数据来自当页采购单自带的
              明细，不额外请求；列同样可拖拽。 -->
-        <table v-else class="hidden w-full text-sm whitespace-nowrap md:table">
+        <table
+          v-else
+          class="hidden w-full text-sm border-separate border-spacing-0 whitespace-nowrap md:table"
+        >
           <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+            <tr
+              class="text-left text-n-slate-11 [&>th]:border-b [&>th]:border-n-weak"
+            >
               <th
                 v-for="col in itemCols"
                 :key="col.key"
@@ -930,14 +943,16 @@ useRouteQueryReentry(query => {
               >
                 {{ col.label }}
               </th>
-              <th class="px-3 py-2" />
+              <th
+                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-[''] px-3 py-2"
+              />
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="(r, i) in itemRows"
               :key="r.key"
-              class="border-b border-n-weak [&:hover>td]:bg-n-alpha-1"
+              class="[&>td]:border-b [&>td]:border-n-weak [&:hover>td:not(.sticky)]:bg-n-alpha-1"
             >
               <td v-for="col in itemCols" :key="col.key" :class="col.tdClass">
                 <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
@@ -972,7 +987,9 @@ useRouteQueryReentry(query => {
                   <span :title="r.itemRemark">{{ r.itemRemark }}</span>
                 </template>
               </td>
-              <td class="px-3 py-2 text-right whitespace-nowrap">
+              <td
+                class="sticky right-0 z-10 px-3 py-2 text-right border-l bg-n-solid-1 border-n-weak whitespace-nowrap after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-['']"
+              >
                 <Button
                   label="查看"
                   variant="ghost"

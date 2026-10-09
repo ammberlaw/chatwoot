@@ -211,12 +211,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 否则角标显示 3 条、点进去只有 2 条，业务会以为漏单。
   def todo_count
     base = Current.account.mes_production_orders
-    approval = base.awaiting_manager_for(current_user.id).or(base.awaiting_gm_for(current_user.id)).count
-    shipment_base = Current.account.mes_shipments.where(kind: 'STOCK', status: 'PENDING_APPROVAL')
-    shipment = (admin_like? ? shipment_base : shipment_base.where(manager_id: current_user.id)).count
-    inbox = my_inbox_orders.size
+    counts = {
+      approval: base.awaiting_manager_for(current_user.id).or(base.awaiting_gm_for(current_user.id)).count,
+      inbox: my_inbox_orders.size,
+      shipment: pending_shipment_approvals.count,
+      # 采购单审批是后加的，这个角标一直没算它——于是总经理手上压着 3 张待批采购单，
+      # 首页 MES 卡片却显示 0，人不点进去根本不知道有单在等（待办面板里其实列着）。
+      purchase: Current.account.mes_purchase_orders.awaiting_gm_for(current_user.id).count
+    }
 
-    render json: { approval: approval, inbox: inbox, shipment: shipment, total: approval + inbox + shipment }
+    render json: counts.merge(total: counts.values.sum)
   end
 
   # ── 审批链：提交 → 部门主管通过/驳回 → 总经理通过/驳回 ──
@@ -333,6 +337,12 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   private
+
+  # 待我审核的现货出库单（管理员看全部）。
+  def pending_shipment_approvals
+    scope = Current.account.mes_shipments.where(kind: 'STOCK', status: 'PENDING_APPROVAL')
+    admin_like? ? scope : scope.where(manager_id: current_user.id)
+  end
 
   # 转单落库字段：成品/数量/单位优先取转单弹窗传来的（明细在那儿逐行确认过），缺则从销售订单带。
   # 转单明细：新版前端传 items 数组（每行一个成品）。

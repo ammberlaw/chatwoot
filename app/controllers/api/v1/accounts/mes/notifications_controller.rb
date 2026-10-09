@@ -6,7 +6,11 @@ class Api::V1::Accounts::Mes::NotificationsController < Api::V1::Accounts::Mes::
   def index
     scope = my_notifications
     scope = scope.unread if boolean_param(:unread)
+    # 分类过滤放后端：前端原先只在「当前这 15 条」里按 kind 筛，于是分页器写着「共 118 项 / 8 页」、
+    # 列表里却只有 2 条，翻到第 2 页又冒出来几条——条数、页数、内容三者对不上。
+    scope = scope.in_group(params[:group]) if params[:group].present?
     @unread_count = my_notifications.unread.count
+    @group_unread = unread_count_by_group
     @notifications = scope.recent_first.page(page_param).per(RESULTS_PER_PAGE)
   end
 
@@ -27,6 +31,13 @@ class Api::V1::Accounts::Mes::NotificationsController < Api::V1::Accounts::Mes::
   end
 
   private
+
+  # 各 tab 的未读数（一条 SQL 按 kind 统计，再归到三个分类上）。
+  def unread_count_by_group
+    my_notifications.unread.group(:kind).count.each_with_object(Hash.new(0)) do |(kind, n), acc|
+      acc[Mes::Notification::GROUP_BY_KIND.fetch(kind, 'progress')] += n
+    end
+  end
 
   # module=erp 只看财务通知，其余（默认）只看生产通知。ERP 复用同一张表，
   # 不分开的话生产端会被一屏应付逾期淹掉。

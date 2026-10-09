@@ -54,7 +54,33 @@ class Mes::Notification < ApplicationRecord
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :title, presence: true
 
+  # 通知分类（页面三个 tab）。**必须与前端 `MesNotificationsIndex.vue` 的 `KIND_META[].group` 一致**，
+  # 两边不一致会出现「tab 角标说 5 条、点进去 3 条」。这里是权威口径：过滤与计数都走后端，
+  # 前端那份只用来上色/取标签。未列出的 kind 一律归 progress（同前端 kindMeta 的兜底）。
+  GROUP_BY_KIND = {
+    'approval_pending' => 'todo', 'bom_reconfirm' => 'todo', 'purchase_release_pending' => 'todo',
+    'po_approval_pending' => 'todo', 'stage_assigned' => 'todo', 'production_reported' => 'todo',
+    'fg_count_pending' => 'todo', 'shipment_approval_pending' => 'todo', 'shipment_approved' => 'todo',
+    'erp_installment_due' => 'todo', 'erp_payable_due' => 'todo',
+    'approval_rejected' => 'rejected', 'po_approval_rejected' => 'rejected', 'stage_returned' => 'rejected',
+    'shipment_rejected' => 'rejected', 'document_returned' => 'rejected'
+  }.freeze
+  GROUPS = %w[todo progress rejected].freeze
+
+  def self.kinds_in_group(group)
+    GROUP_BY_KIND.select { |_k, g| g == group }.keys
+  end
+
   scope :unread, -> { where(read_at: nil) }
+  # progress = 「既不是待办也不是退回」的其余全部（含未登记在 GROUP_BY_KIND 里的新 kind），
+  # 故用排除法，不能正列——漏登记一个 kind 就会让它在三个 tab 里都查不到。
+  scope :in_group, lambda { |group|
+    case group.to_s
+    when 'todo', 'rejected' then where(kind: kinds_in_group(group.to_s))
+    when 'progress' then where.not(kind: kinds_in_group('todo') + kinds_in_group('rejected'))
+    else all
+    end
+  }
   scope :for_recipient, ->(uid) { where(recipient_id: uid) }
   # id 兜底：批量写入的通知 created_at 常常同一毫秒，只按时间排翻页会漏条/重条。
   scope :for_module, ->(mod) { mod.to_s == 'erp' ? where(kind: ERP_KINDS) : where.not(kind: ERP_KINDS) }
