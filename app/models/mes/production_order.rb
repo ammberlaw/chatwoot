@@ -265,11 +265,28 @@ class Mes::ProductionOrder < ApplicationRecord
     updates = { bom_id: bom.id }
     updates[:planned_end_date] = planned if planned
     update!(updates)
+    # 生产任务单做好了，成品顺带带到生产订单上，再由它继续推到销售订单明细。
+    backfill_product_from_bom(bom)
     # 工程建 BOM 常留空产品线；继承订单产品线，否则业务员按产品线筛会漏看这张 BOM。
     bom.update!(product_line: product_line) if bom.product_line.blank? && product_line.present?
     enter_stage!('BOM_READY', actor: actor) if stage == 'SALES_CONFIRMED'
     notify_purchase_release_pending(bom, actor)
     self
+  end
+
+  # 从生产任务单把成品补到本单的商品编码上。
+  #
+  # 挂 BOM 与填成品不一定同时发生（工程常是先挂单、后补产成品代码），所以这里
+  # 既被 attach_bom! 调用，也被 Mes::Bom 改动后回调（见 Bom#backfill_production_orders_product）。
+  # 已经有编码的不动——人工在「编辑订单」里选过的以人工为准。
+  # 写进去之后 after_commit 的 backfill_sales_order_product 会接着推到销售订单明细。
+  def backfill_product_from_bom(source_bom = bom)
+    return if crm_product_id.present?
+
+    product_id = product_id_from_bom(source_bom)
+    return if product_id.blank?
+
+    update!(crm_product_id: product_id)
   end
 
   # 挂好 BOM 即是工程/PMC 的待办：发 todo 类通知进其「待处理」，下发采购时自动销掉。
@@ -974,6 +991,22 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   private
+
+  # 生产任务单上的成品 → 产品档案 id。
+  # 优先认 BOM 直接关联的产品档案（工程选的，最权威，生产上 38 张 BOM 有 33 张是这样）；
+  # 没关联就拿「产成品代码」去配 sku：去空格、不分大小写，**唯一命中**才认。
+  # 命中多条说明档案里 sku 有重复，猜错会把编码写到无关产品上，宁可不写——与
+  # Mes::SalesOrderProductBackfill 同一口径。
+  def product_id_from_bom(source_bom)
+    return nil if source_bom.nil?
+    return source_bom.crm_product_id if source_bom.crm_product_id.present?
+
+    code = source_bom.product_code.to_s.strip
+    return nil if code.blank?
+
+    ids = account.crm_products.where('upper(trim(sku)) = ?', code.upcase).limit(2).pluck(:id)
+    ids.size == 1 ? ids.first : nil
+  end
 
   # 商品编码变化（或建单时就带了）且挂着销售订单 → 回填到销售订单明细。
   def backfill_sales_order_product

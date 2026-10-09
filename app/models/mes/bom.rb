@@ -76,6 +76,12 @@ class Mes::Bom < ApplicationRecord
   validates :base_qty, numericality: { greater_than: 0 }
   validates :status, inclusion: { in: STATUSES }
 
+  # 生产任务单上补了成品之后，把它带到挂着本单的生产订单上。
+  # 挂 BOM 与填成品不一定同时发生（工程常先挂单、过后才补产成品代码），
+  # 只有 attach_bom! 那一个入口的话，后补的永远传不下去——生产订单那列一直是「—」，
+  # 销售订单更拿不到（回填是从生产订单往下走的）。
+  after_commit :backfill_production_orders_product, on: %i[create update]
+
   scope :active, -> { where(is_active: true) }
   scope :released, -> { where(status: 'RELEASED') }
 
@@ -162,6 +168,18 @@ class Mes::Bom < ApplicationRecord
   end
 
   private
+
+  # 成品没变就不折腾；只补还没有编码的生产订单（人工选过的不动）。
+  # 回填失败不该把生产任务单的保存一起回滚，异常只记日志。
+  def backfill_production_orders_product
+    return unless previous_changes.key?('crm_product_id') || previous_changes.key?('product_code')
+
+    production_orders.where(crm_product_id: nil).find_each do |order|
+      order.backfill_product_from_bom(self)
+    end
+  rescue StandardError => e
+    Rails.logger.error("[Mes::Bom] #{bom_no} 回填生产订单商品编码失败: #{e.class} #{e.message}")
+  end
 
   def product_line_source = crm_product
 end
