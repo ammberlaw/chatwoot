@@ -640,10 +640,15 @@ const PERIODS = [
 
 <template>
   <div
+    data-black-dashboard
+    :data-dashboard-scope="scope"
     class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <!-- 顶栏 -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div
+      data-dashboard-header
+      class="flex flex-wrap items-center justify-between gap-3"
+    >
       <div class="min-w-0">
         <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
           {{
@@ -714,7 +719,11 @@ const PERIODS = [
     <template v-else>
       <!-- ═══ 第 1 行：KPI ═══ -->
       <!-- 手机上排 2 列（原来单列一屏只看得到 2 张卡），并收紧内边距/字号 -->
-      <div class="grid gap-3 sm:gap-4" :class="kpiGridClass">
+      <div
+        data-dashboard-kpis
+        class="grid gap-3 sm:gap-4"
+        :class="kpiGridClass"
+      >
         <!-- 经典灰：带环比和走势的卡（见 CrmKpiCard） -->
         <template v-if="isClassicKpi">
           <CrmKpiCard
@@ -764,10 +773,14 @@ const PERIODS = [
            个人：  三个数(1×3) / 趋势(2)+目标(1) / 商机(2)+来源(1)
            两边都正好铺满三列，所以共用一个栅格，不另起行。 -->
       <!-- ═══ 左栏大图 + 右栏明细 ═══ -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="flex flex-col gap-4 lg:col-span-2 min-w-0">
+      <div data-dashboard-body class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div
+          data-dashboard-column="main"
+          class="flex flex-col gap-4 lg:col-span-2 min-w-0"
+        >
           <div
             v-if="!isMine"
+            data-dashboard-card="rank"
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="mb-4 text-base font-medium text-n-slate-12">
@@ -844,12 +857,14 @@ const PERIODS = [
           <!-- 业务员发信排行：和成交排行同一期间口径，只认真正发成功的邮件。
                图表与团队看板共用同一个组件（CrmSentEmailRankChart）。 -->
           <CrmSentEmailRankChart
+            data-dashboard-card="emails"
             v-if="!isMine"
             :rows="ownerEmailRankRows"
             :period-label="periodLabel"
           />
 
           <div
+            data-dashboard-card="trend"
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="mb-4 text-base font-medium text-n-slate-12">
@@ -875,6 +890,7 @@ const PERIODS = [
           <!-- 商机阶段分布只有五行，占满主栏太空；跟完善度榜并排各半。
                个人视角没有完善度榜，它就独占一行。 -->
           <div
+            data-dashboard-card="stages"
             class="grid gap-4"
             :class="isMine ? 'grid-cols-1' : 'lg:grid-cols-2'"
           >
@@ -1006,8 +1022,11 @@ const PERIODS = [
         </div>
 
         <!-- 右栏：按周期的明细。小卡两个一排 -->
-        <div class="flex flex-col gap-4 min-w-0">
-          <div v-if="!isMine">
+        <div
+          data-dashboard-column="details"
+          class="flex flex-col gap-4 min-w-0"
+        >
+          <div v-if="!isMine" data-dashboard-details-title>
             <h2 class="text-base font-medium text-n-slate-12">
               {{ periodNoun }}明细
             </h2>
@@ -1059,6 +1078,7 @@ const PERIODS = [
             </div>
           </div>
           <div
+            data-dashboard-card="target"
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="text-base font-medium text-n-slate-12">
@@ -1098,6 +1118,7 @@ const PERIODS = [
           </div>
           <!-- 客户成交排行：按所选期间的成交额排前 5，点一行进客户详情。 -->
           <div
+            data-dashboard-card="customers"
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <div class="flex items-center justify-between gap-3 mb-4">
@@ -1144,6 +1165,7 @@ const PERIODS = [
           </div>
 
           <div
+            data-dashboard-card="sources"
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="mb-4 text-base font-medium text-n-slate-12">
