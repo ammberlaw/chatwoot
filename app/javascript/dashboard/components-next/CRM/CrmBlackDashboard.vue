@@ -441,74 +441,6 @@ const sourceShare = index =>
       </div>
     </div>
     <div
-      class="grid items-start gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:gap-10"
-    >
-      <section
-        v-if="!isMine"
-        class="w-full min-w-0 p-6 sm:p-7 bg-[#f6f7f3] rounded-3xl"
-      >
-        <h2 class="mb-5 text-heading-2 text-[#191b1b]">
-          {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
-        </h2>
-        <div v-if="!completeness.length" class="py-8 text-label text-[#85887f]">
-          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
-        </div>
-        <div class="grid sm:grid-cols-2 gap-x-8 max-h-72 overflow-y-auto pr-1">
-          <div
-            v-for="person in completeness"
-            :key="person.name"
-            class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
-          >
-            <span
-              class="grid size-7 rounded-full bg-[#f1f2ef] text-label-small place-items-center"
-              >{{ initials(person.name) }}</span
-            ><span class="text-label-small">{{ person.name }}</span
-            ><strong class="ml-auto text-label-small tabular-nums">{{
-              person.value
-            }}</strong>
-          </div>
-        </div>
-      </section>
-      <section class="min-w-0 px-2 py-5">
-        <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
-          <h2 class="text-heading-2 text-[#191b1b]">
-            {{ t('CRM.DASHBOARD.DESIGN.PIPELINE') }}
-          </h2>
-          <span
-            v-if="winRate != null"
-            class="flex items-center gap-1 text-label-small text-[#85887f]"
-            >{{ t('CRM.DASHBOARD.DESIGN.WIN_RATE') }}
-            <strong class="text-[#191b1b]">{{ winRate }}%</strong></span
-          >
-        </div>
-        <div v-if="!stages.length" class="py-8 text-label text-[#85887f]">
-          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
-        </div>
-        <div v-for="stage in stages" :key="stage.label" class="mb-4 last:mb-0">
-          <div
-            class="flex items-center justify-between gap-3 mb-2 text-label-small"
-          >
-            <span>{{ stage.label }}</span
-            ><strong class="tabular-nums">{{ stage.amount }}</strong>
-          </div>
-          <svg
-            class="w-full h-7"
-            viewBox="0 0 400 28"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <rect width="400" height="28" rx="9" fill="#f3f4f0" />
-            <rect
-              :width="stage.pct * 4"
-              height="28"
-              rx="9"
-              :fill="stage.won ? '#ffd052' : '#191b1b'"
-            />
-          </svg>
-        </div>
-      </section>
-    </div>
-    <div
       class="grid gap-6 items-start xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]"
     >
       <section v-if="!isMine" class="min-w-0 px-2 py-5">
@@ -664,6 +596,74 @@ const sourceShare = index =>
           class="grid h-56 text-label text-[#85887f] place-items-center"
         >
           {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+      </section>
+    </div>
+    <div
+      class="grid items-start gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:gap-10"
+    >
+      <section
+        v-if="!isMine"
+        class="w-full min-w-0 p-6 sm:p-7 bg-[#f6f7f3] rounded-3xl"
+      >
+        <h2 class="mb-5 text-heading-2 text-[#191b1b]">
+          {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
+        </h2>
+        <div v-if="!completeness.length" class="py-8 text-label text-[#85887f]">
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+        <div class="grid sm:grid-cols-2 gap-x-8 max-h-72 overflow-y-auto pr-1">
+          <div
+            v-for="person in completeness"
+            :key="person.name"
+            class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
+          >
+            <span
+              class="grid size-7 rounded-full bg-[#f1f2ef] text-label-small place-items-center"
+              >{{ initials(person.name) }}</span
+            ><span class="text-label-small">{{ person.name }}</span
+            ><strong class="ml-auto text-label-small tabular-nums">{{
+              person.value
+            }}</strong>
+          </div>
+        </div>
+      </section>
+      <section class="min-w-0 px-2 py-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+          <h2 class="text-heading-2 text-[#191b1b]">
+            {{ t('CRM.DASHBOARD.DESIGN.PIPELINE') }}
+          </h2>
+          <span
+            v-if="winRate != null"
+            class="flex items-center gap-1 text-label-small text-[#85887f]"
+            >{{ t('CRM.DASHBOARD.DESIGN.WIN_RATE') }}
+            <strong class="text-[#191b1b]">{{ winRate }}%</strong></span
+          >
+        </div>
+        <div v-if="!stages.length" class="py-8 text-label text-[#85887f]">
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+        <div v-for="stage in stages" :key="stage.label" class="mb-4 last:mb-0">
+          <div
+            class="flex items-center justify-between gap-3 mb-2 text-label-small"
+          >
+            <span>{{ stage.label }}</span
+            ><strong class="tabular-nums">{{ stage.amount }}</strong>
+          </div>
+          <svg
+            class="w-full h-7"
+            viewBox="0 0 400 28"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <rect width="400" height="28" rx="9" fill="#f3f4f0" />
+            <rect
+              :width="stage.pct * 4"
+              height="28"
+              rx="9"
+              :fill="stage.won ? '#ffd052' : '#191b1b'"
+            />
+          </svg>
         </div>
       </section>
     </div>
