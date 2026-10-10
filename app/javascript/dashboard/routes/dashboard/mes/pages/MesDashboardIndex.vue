@@ -15,7 +15,7 @@ const router = useRouter();
 
 // 统一玻璃卡样式（对齐 CRM 看板）。
 const CARD =
-  'p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150';
+  'p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150 [.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:!shadow-none [.theme-classic-black_&]:rounded-3xl [.theme-classic-black_&]:shrink-0';
 
 const STAGE_LABELS = {
   SALES_CONFIRMED: '待工程接单',
@@ -261,12 +261,12 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5 [.theme-classic-black_&]:gap-5 [.theme-classic-black_&]:lg:p-8 [.theme-classic-black_&]:[&_h2]:text-heading-2 [.theme-classic-black_&]:[&_h2]:font-bold [.theme-classic-black_&]:[&_h2]:text-[#202222]"
   >
     <!-- 顶栏 -->
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+        <h1 class="text-heading-1 font-bold tracking-tight text-n-slate-12">
           生产看板
         </h1>
       </div>
@@ -314,24 +314,28 @@ onMounted(() => {
 
     <template v-else>
       <!-- KPI 行 -->
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+      <div
+        class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5 [.theme-classic-black_&]:gap-0 [.theme-classic-black_&]:rounded-3xl [.theme-classic-black_&]:border [.theme-classic-black_&]:border-[#e8eaed] [.theme-classic-black_&]:overflow-hidden [.theme-classic-black_&]:shrink-0"
+      >
         <div
           v-for="(k, i) in kpis"
           :key="k.label"
-          class="flex flex-col justify-between p-4 shadow-sm rounded-2xl bg-gradient-to-br min-h-[7.5rem]"
+          class="flex flex-col justify-between p-4 shadow-sm rounded-2xl bg-gradient-to-br min-h-[7.5rem] [.theme-classic-black_&]:!bg-none [.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:!shadow-none [.theme-classic-black_&]:!rounded-none [.theme-classic-black_&]:px-6 [.theme-classic-black_&]:py-5 [.theme-classic-black_&]:!border-y-0 [.theme-classic-black_&]:!border-l-0 [.theme-classic-black_&]:!border-r [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:last:!border-r-0 [.theme-classic-black_&]:[&_*]:!text-[#202222]"
           :class="KPI_META[i].grad"
         >
           <div
-            class="flex items-center justify-center rounded-lg size-8 bg-n-solid-1/70"
+            class="flex items-center justify-center rounded-lg size-8 bg-n-solid-1/70 [.theme-classic-black_&]:hidden"
             :class="KPI_META[i].tint"
           >
             <span class="size-4" :class="KPI_META[i].icon" />
           </div>
           <div>
-            <div class="mt-2 text-xs font-medium text-n-slate-11">
+            <div class="mt-2 text-label font-medium text-n-slate-11">
               {{ k.label }}
             </div>
-            <div class="text-2xl font-bold leading-tight text-n-slate-12">
+            <div
+              class="text-2xl font-bold leading-tight text-n-slate-12 [.theme-classic-black_&]:mt-3 [.theme-classic-black_&]:text-[32px] [.theme-classic-black_&]:tabular-nums"
+            >
               {{ k.value }}
             </div>
             <div class="mt-0.5 text-[11px] text-n-slate-10">{{ k.sub }}</div>
@@ -341,12 +345,19 @@ onMounted(() => {
 
       <!-- 超时未接单：置顶告警条（有才显示）。底色与其他卡一致，不整片染红；
            轻重交给标题文字和右侧药丸。超过 3 条自动滚，不然七八条会把下面的图表顶出屏幕。 -->
-      <div v-if="data.unacked.length" :class="CARD" class="!p-4">
+      <div
+        v-if="data.unacked.length"
+        :class="CARD"
+        class="!p-4 [.theme-classic-black_&]:!border-[#f0d8da] [.theme-classic-black_&]:!bg-[#fffafb]"
+      >
         <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11">
           <span class="i-lucide-alarm-clock-off size-4" />
           超时未接单 · {{ data.unacked.length }}
         </div>
-        <MesMarqueeList :count="data.unacked.length">
+        <MesMarqueeList
+          :count="data.unacked.length"
+          class="[.theme-classic-black_&]:!mask-none [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
+        >
           <ul class="flex flex-col">
             <li
               v-for="o in data.unacked"
@@ -384,7 +395,24 @@ onMounted(() => {
             <span class="i-lucide-bar-chart-3 size-4 text-n-slate-11" />
             在产 · 阶段分布
           </h2>
-          <div class="h-64">
+          <div class="hidden [.theme-classic-black_&]:grid grid-cols-1 gap-3">
+            <div
+              v-for="(label, index) in stageChart.labels"
+              :key="label"
+              class="grid grid-cols-[minmax(120px,180px)_1fr_32px] items-center gap-4 text-label-small"
+            >
+              <span class="text-[#555b61]">{{ label }}</span>
+              <progress
+                :value="stageChart.data[index]"
+                :max="Math.max(...stageChart.data, 1)"
+                class="w-full h-3 overflow-hidden rounded-full appearance-none [&::-webkit-progress-bar]:bg-[#f1f2f3] [&::-webkit-progress-value]:bg-[#50595d] [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:bg-[#50595d]"
+              />
+              <strong class="text-right text-heading-3 tabular-nums">{{
+                stageChart.data[index]
+              }}</strong>
+            </div>
+          </div>
+          <div class="h-64 [.theme-classic-black_&]:hidden">
             <CrmBarChart
               v-if="!stageChart.empty"
               :labels="stageChart.labels"
@@ -541,7 +569,10 @@ onMounted(() => {
             <span class="i-lucide-calendar-check size-6" />
             <span class="text-sm">暂无逾期或临近交期</span>
           </div>
-          <MesMarqueeList :count="data.overdue.length + data.dueSoon.length">
+          <MesMarqueeList
+            :count="data.overdue.length + data.dueSoon.length"
+            class="[.theme-classic-black_&]:!mask-none [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
+          >
             <ul class="flex flex-col">
               <li
                 v-for="o in data.overdue"
@@ -597,7 +628,10 @@ onMounted(() => {
             <span class="i-lucide-check-check size-6" />
             <span class="text-sm">无滞留单据</span>
           </div>
-          <MesMarqueeList :count="data.stalled.length">
+          <MesMarqueeList
+            :count="data.stalled.length"
+            class="[.theme-classic-black_&]:!mask-none [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
+          >
             <ul class="flex flex-col">
               <li
                 v-for="o in data.stalled"
