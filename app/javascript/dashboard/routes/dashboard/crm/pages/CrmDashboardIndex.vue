@@ -600,6 +600,9 @@ const classicStageRows = computed(() =>
   stageChart.value.stages.map((stage, i) => ({
     label: stageChart.value.labels[i],
     amount: moneyOpp(stageChart.value.data[i]),
+    pct:
+      (stageChart.value.data[i] / Math.max(...stageChart.value.data, 1)) * 100,
+    won: stage === 'WON',
     ...STAGE_META[stage],
   }))
 );

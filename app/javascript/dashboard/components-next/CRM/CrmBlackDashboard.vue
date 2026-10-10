@@ -328,6 +328,35 @@ const sourceShare = index =>
             {{ t('CRM.DASHBOARD.DESIGN.NO_TARGET') }}
           </p>
         </section>
+        <section
+          v-if="!isMine"
+          class="order-4 w-full min-w-0 p-6 bg-[#f6f7f3] rounded-3xl"
+        >
+          <h2 class="mb-5 text-heading-2 text-[#191b1b]">
+            {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
+          </h2>
+          <div
+            v-if="!completeness.length"
+            class="py-8 text-label text-[#85887f]"
+          >
+            {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+          </div>
+          <div class="max-h-72 overflow-y-auto pr-1">
+            <div
+              v-for="person in completeness"
+              :key="person.name"
+              class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
+            >
+              <span
+                class="grid size-7 rounded-full bg-[#f1f2ef] text-label-small place-items-center"
+                >{{ initials(person.name) }}</span
+              ><span class="text-label-small">{{ person.name }}</span
+              ><strong class="ml-auto text-label-small tabular-nums">{{
+                person.value
+              }}</strong>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
     <div
@@ -377,9 +406,7 @@ const sourceShare = index =>
                     ><span
                       class="font-medium text-[#191b1b] group-hover:underline"
                       >{{ customer.name }}</span
-                    ><span
-                      class="i-lucide-arrow-up-right size-3.5 shrink-0 text-[#9a9d95]"
-                    />
+                    >
                   </button>
                 </td>
                 <td class="px-3 py-3.5 tabular-nums">{{ customer.orders }}</td>
@@ -408,20 +435,27 @@ const sourceShare = index =>
         <div v-if="!stages.length" class="py-8 text-label text-[#85887f]">
           {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
         </div>
-        <div
-          v-for="stage in stages"
-          :key="stage.label"
-          class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
-        >
-          <span
-            class="grid size-8 rounded-lg shrink-0 place-items-center"
-            :class="stage.tone"
-            ><span class="size-4" :class="stage.icon" /></span
-          ><span class="text-label-small">{{ stage.label }}</span
-          ><span
-            class="ml-auto text-label-small font-semibold whitespace-nowrap tabular-nums"
-            >{{ stage.amount }}</span
+        <div v-for="stage in stages" :key="stage.label" class="mb-4 last:mb-0">
+          <div
+            class="flex items-center justify-between gap-3 mb-2 text-label-small"
           >
+            <span>{{ stage.label }}</span
+            ><strong class="tabular-nums">{{ stage.amount }}</strong>
+          </div>
+          <svg
+            class="w-full h-7"
+            viewBox="0 0 400 28"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <rect width="400" height="28" rx="9" fill="#f3f4f0" />
+            <rect
+              :width="stage.pct * 4"
+              height="28"
+              rx="9"
+              :fill="stage.won ? '#ffd052' : '#191b1b'"
+            />
+          </svg>
         </div>
       </section>
     </div>
@@ -584,32 +618,6 @@ const sourceShare = index =>
       </section>
     </div>
     <div class="flex flex-wrap items-start gap-6">
-      <section
-        v-if="!isMine"
-        class="w-full max-w-[20rem] min-w-0 p-6 bg-[#f6f7f3] rounded-3xl"
-      >
-        <h2 class="mb-5 text-heading-2 text-[#191b1b]">
-          {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
-        </h2>
-        <div v-if="!completeness.length" class="py-8 text-label text-[#85887f]">
-          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
-        </div>
-        <div class="max-h-72 overflow-y-auto pr-1">
-          <div
-            v-for="person in completeness"
-            :key="person.name"
-            class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
-          >
-            <span
-              class="grid size-7 rounded-full bg-[#f1f2ef] text-label-small place-items-center"
-              >{{ initials(person.name) }}</span
-            ><span class="text-label-small">{{ person.name }}</span
-            ><strong class="ml-auto text-label-small tabular-nums">{{
-              person.value
-            }}</strong>
-          </div>
-        </div>
-      </section>
       <div class="w-full max-w-[38rem] min-w-0">
         <CrmSentEmailRankChart
           v-if="!isMine"
