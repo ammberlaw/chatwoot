@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n';
 import CrmAreaChart from './charts/CrmAreaChart.vue';
 import CrmBlackSalesTrend from './charts/CrmBlackSalesTrend.vue';
 import CrmDoughnutChart from './charts/CrmDoughnutChart.vue';
-import CrmSentEmailRankChart from './CrmSentEmailRankChart.vue';
 import CrmCountryRank from './CrmCountryRank.vue';
 
 const props = defineProps({
@@ -29,6 +28,15 @@ const props = defineProps({
 });
 defineEmits(['customer']);
 const { t } = useI18n();
+const emailBars = computed(() => {
+  const rows = props.emailRows.filter(row => Number(row.count) > 0);
+  const max = Math.max(...rows.map(row => Number(row.count)), 1);
+  return rows.map((row, index) => ({
+    ...row,
+    pct: (Number(row.count) / max) * 100,
+    top: index === 0,
+  }));
+});
 const bars = computed(() => {
   const series = props.gmv.viz.series;
   const max = Math.max(...series, 1);
@@ -569,12 +577,49 @@ const sourceShare = index =>
           {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
         </div>
       </section>
-      <CrmSentEmailRankChart
+      <section
         v-if="!isMine"
-        class="h-full !rounded-3xl"
-        :rows="emailRows"
-        :period-label="periodLabel"
-      />
+        class="h-full min-w-0 p-6 bg-white border border-[#e9eae6] rounded-3xl"
+      >
+        <div class="flex items-center justify-between gap-3 mb-5">
+          <h2 class="text-heading-2 text-[#191b1b]">
+            {{ t('CRM.DASHBOARD.DESIGN.EMAIL_RANK') }}
+          </h2>
+          <span class="text-label-small text-[#85887f]">{{ periodLabel }}</span>
+        </div>
+        <div
+          v-if="!emailBars.length"
+          class="flex h-60 items-center justify-center text-label-small text-[#85887f]"
+        >
+          {{ t('CRM.DASHBOARD.DESIGN.NO_SENT_EMAIL') }}
+        </div>
+        <div v-else class="max-h-80 overflow-y-auto space-y-4">
+          <div v-for="bar in emailBars" :key="bar.name">
+            <div
+              class="flex items-center justify-between gap-3 mb-2 text-label-small"
+            >
+              <span class="truncate text-[#191b1b]">{{ bar.name }}</span>
+              <strong class="shrink-0 tabular-nums text-[#191b1b]">{{
+                t('CRM.DASHBOARD.DESIGN.EMAIL_COUNT', { count: bar.count })
+              }}</strong>
+            </div>
+            <svg
+              class="w-full h-5"
+              viewBox="0 0 400 20"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <rect width="400" height="20" rx="10" fill="#f3f4f0" />
+              <rect
+                :width="bar.pct * 4"
+                height="20"
+                rx="10"
+                :fill="bar.top ? '#ffd052' : '#191b1b'"
+              />
+            </svg>
+          </div>
+        </div>
+      </section>
     </div>
     <div
       class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]"
@@ -656,31 +701,44 @@ const sourceShare = index =>
           <div v-if="!stages.length" class="py-8 text-label text-[#85887f]">
             {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
           </div>
-          <div
-            v-for="stage in stages"
-            :key="stage.label"
-            class="mb-2 last:mb-0"
-          >
+          <div v-if="stages.length" class="grid grid-cols-5 gap-3 pt-5">
             <div
-              class="flex items-center justify-between gap-3 mb-1 text-label-small"
+              v-for="stage in stages"
+              :key="stage.label"
+              class="min-w-0 text-center"
             >
-              <span>{{ stage.label }}</span
-              ><strong class="tabular-nums">{{ stage.amount }}</strong>
+              <svg
+                class="h-36 w-full overflow-visible"
+                viewBox="0 0 64 160"
+                role="img"
+                :aria-label="`${stage.label} ${stage.amount}`"
+              >
+                <rect
+                  x="12"
+                  y="18"
+                  width="40"
+                  height="142"
+                  rx="20"
+                  fill="#f3f4f0"
+                />
+                <rect
+                  x="12"
+                  :y="160 - stage.pct * 1.42"
+                  width="40"
+                  :height="stage.pct * 1.42"
+                  rx="20"
+                  :fill="stage.won ? '#ffd052' : '#191b1b'"
+                />
+              </svg>
+              <p class="mt-2 text-label-small text-[#191b1b]">
+                {{ stage.label }}
+              </p>
+              <p
+                class="mt-1 text-label-small font-semibold tabular-nums text-[#191b1b]"
+              >
+                {{ stage.amount }}
+              </p>
             </div>
-            <svg
-              class="w-full h-4"
-              viewBox="0 0 400 28"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <rect width="400" height="28" rx="9" fill="#f3f4f0" />
-              <rect
-                :width="stage.pct * 4"
-                height="28"
-                rx="9"
-                :fill="stage.won ? '#ffd052' : '#191b1b'"
-              />
-            </svg>
           </div>
         </section>
       </div>
