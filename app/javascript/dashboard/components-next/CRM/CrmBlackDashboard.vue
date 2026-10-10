@@ -332,12 +332,15 @@ const sourceShare = index =>
           class="order-4 xl:col-span-4 min-w-0 p-6 sm:p-7 rounded-3xl border border-[#e9eae6] bg-white"
         >
           <div class="flex items-center justify-between gap-3 mb-5">
-            <h2 class="text-heading-2 text-[#191b1b]">
+            <h2
+              class="text-heading-2 font-semibold tracking-tight text-[#191b1b]"
+            >
               {{ t('CRM.DASHBOARD.DESIGN.CUSTOMER_RANK') }}
             </h2>
-            <span class="text-label-small text-[#85887f] whitespace-nowrap">{{
-              periodLabel
-            }}</span>
+            <span
+              class="text-label-small text-[#85887f] whitespace-nowrap font-inter tabular-nums"
+              >{{ periodLabel }}</span
+            >
           </div>
           <div v-if="!customers.length" class="py-8 text-label text-[#85887f]">
             {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
@@ -346,36 +349,41 @@ const sourceShare = index =>
             <button
               v-for="(customer, i) in customers"
               :key="customer.id"
-              class="group flex items-center gap-3 w-full min-w-0 p-3 rounded-xl text-left transition-colors focus-visible:outline-2 focus-visible:outline-[#a77800]"
+              class="group flex items-start gap-3 w-full min-w-0 h-[60px] px-3 py-2 rounded-xl text-left transition-colors focus-visible:outline-2 focus-visible:outline-[#a77800]"
               :class="
                 i === 0
-                  ? 'bg-[#fff4cd] hover:bg-[#ffebaa]'
-                  : 'hover:bg-[#f6f7f3]'
+                  ? 'bg-[#fff7dc] hover:bg-[#fff0bb]'
+                  : 'border-b border-[#f0f1ed] rounded-none last:border-0 hover:bg-[#f6f7f3]'
               "
               @click="$emit('customer', customer.id)"
             >
               <span
-                class="shrink-0 text-label-small font-semibold tabular-nums"
+                class="shrink-0 w-5 pt-0.5 text-label-small font-inter font-medium tabular-nums"
                 :class="i === 0 ? 'text-[#9a6c00]' : 'text-[#9a9d95]'"
                 >{{ String(i + 1).padStart(2, '0') }}</span
               >
               <div class="flex-1 min-w-0">
                 <div
-                  class="text-label-small font-medium truncate text-[#191b1b] group-hover:underline"
+                  class="text-heading-3 font-interDisplay font-medium tracking-tight truncate text-[#191b1b] group-hover:text-[#9a6c00]"
                   :title="customer.name"
                 >
                   {{ customer.name }}
                 </div>
-                <div class="mt-1 text-label-small text-[#85887f]">
-                  {{ t('CRM.DASHBOARD.DESIGN.ORDERS') }} {{ customer.orders }}
+                <div class="flex items-baseline justify-between gap-3 mt-1">
+                  <span class="text-label-small text-[#96998f]"
+                    >{{ t('CRM.DASHBOARD.DESIGN.ORDERS') }}
+                    <span class="font-inter tabular-nums text-[#6f7369]">{{
+                      customer.orders
+                    }}</span></span
+                  >
+                  <strong
+                    class="font-interDisplay text-[17px] font-semibold leading-none tracking-[-0.04em] tabular-nums text-[#191b1b]"
+                    >{{
+                      moneyFormat(Math.round(customer.amount / 1000000))
+                    }}</strong
+                  >
                 </div>
               </div>
-              <strong
-                class="shrink-0 text-label-small tabular-nums text-[#191b1b]"
-                >{{
-                  moneyFormat(Math.round(customer.amount / 1000000))
-                }}</strong
-              >
             </button>
           </div>
         </section>
