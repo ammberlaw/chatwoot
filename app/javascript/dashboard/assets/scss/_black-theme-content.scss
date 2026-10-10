@@ -76,6 +76,10 @@ body:is(.theme-obsidian, .theme-inkarc).dark {
 }
 
 body:is(.theme-obsidian, .theme-inkarc) {
+  aside [data-sidebar-region='search'] {
+    display: none;
+  }
+
   main button[data-button-variant='solid'].bg-n-iris-9,
   main button[data-button-variant='solid'].bg-n-brand,
   main button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad {
@@ -172,4 +176,14 @@ body:is(.theme-obsidian, .theme-inkarc) main .crm-ai-box .i-lucide-sparkles {
 // AI 往来摘要（下拉菜单项）金化：文字 + 图标随 currentColor。
 body:is(.theme-obsidian, .theme-inkarc) main .crm-ai-item {
   color: rgb(var(--amber-11)) !important;
+}
+
+// Keep the curved rail entry when the search row is hidden.
+body.theme-inkarc aside[data-sidebar-collapsed] nav {
+  border-start-end-radius: 56px;
+  padding-block-start: 28px;
+}
+body.theme-inkarc aside[data-sidebar-collapsed='true'] nav {
+  border-start-end-radius: 24px;
+  padding-block-start: 8px;
 }
