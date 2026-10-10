@@ -60,6 +60,35 @@ const departmentFilterOptions = computed(() => [
   { value: '', label: '全部部门' },
   ...departmentOptions.value,
 ]);
+
+// 导出当前筛选的支出台账（.xlsx）。服务端生成，排版与出库利润表同一套：
+// 按部门分组、每组小计、末尾总计。列比页面全（带原币/汇率/备注/录入人）。
+const exporting = ref(false);
+const exportXlsx = async () => {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const { data } = await TiktokExpensesAPI.export({
+      month: filters.value.month,
+      department_id: filters.value.departmentId,
+    });
+    const url = window.URL.createObjectURL(new Blob([data]));
+    const a = document.createElement('a');
+    a.href = url;
+    const dept = departmentFilterOptions.value.find(
+      o => o.value === filters.value.departmentId
+    );
+    a.download = `TikTok支出台账-${filters.value.month}${
+      filters.value.departmentId ? `-${dept?.label || ''}` : ''
+    }.xlsx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
 // 按类别汇总，看钱花在哪块最多。
 const byCategory = computed(() => {
   const map = new Map();
@@ -262,6 +291,17 @@ onMounted(async () => {
           v-model="filters.departmentId"
           :options="departmentFilterOptions"
           trigger-class="w-36"
+        />
+        <Button
+          variant="outline"
+          color="slate"
+          size="sm"
+          class="btn-ink"
+          icon="i-lucide-download"
+          label="导出报表"
+          :is-loading="exporting"
+          :disabled="exporting || !rows.length"
+          @click="exportXlsx"
         />
         <Button
           v-if="canCreate"

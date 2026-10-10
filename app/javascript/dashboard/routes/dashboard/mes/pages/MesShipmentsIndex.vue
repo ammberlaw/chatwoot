@@ -1,9 +1,12 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, watch, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMapGetter } from 'dashboard/composables/store';
+import MesShipmentAPI from 'dashboard/api/mes/shipments';
 import { useMesShipmentsStore } from 'dashboard/stores/mes/shipments';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 
@@ -104,6 +107,32 @@ const openView = s => {
   viewing.value = s;
   viewDialogRef.value?.open();
 };
+
+// 从 ERP 的销售订单详情点出货单号跳来时带 ?focus=<id>：加载后自动展开那张单（只开一次）。
+// 当前页里没有这一单（翻页/筛选）时按 id 取回来打开，否则点过来只会停在整个列表上。
+const route = useRoute();
+const focusOpened = ref(false);
+const openFocusShipment = async list => {
+  const focus = route.query.focus;
+  if (focusOpened.value || !focus) return;
+
+  const rec = list.find(r => String(r.id) === String(focus));
+  if (rec) {
+    focusOpened.value = true;
+    openView(rec);
+    return;
+  }
+  if (!list.length) return; // 还没加载完，等下一轮
+
+  focusOpened.value = true;
+  try {
+    const { data } = await MesShipmentAPI.show(focus);
+    openView(camelcaseKeys(data?.payload || data || {}, { deep: true }));
+  } catch {
+    useAlert('这张出库单可能已被删除或无权查看');
+  }
+};
+watch(records, list => openFocusShipment(list), { immediate: true });
 const viewFields = computed(() => {
   const s = viewing.value || {};
   return [

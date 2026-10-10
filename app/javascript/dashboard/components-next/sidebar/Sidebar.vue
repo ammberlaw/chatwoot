@@ -112,6 +112,11 @@ const isMesStaff = computed(
 const isMesPurchaseApprover = computed(
   () => currentUser.value?.mes_purchase_approver === true
 );
+// 财务：对账要看采购单和入库单（花了多少、货什么时候到的），但不进生产/BOM/供应商那些。
+// 判的是 crm_finance 布尔列，不是 crm_role === 'finance'——生产上两位财务的 crm_role 是空的。
+const isFinanceViewer = computed(
+  () => currentUser.value?.crm_finance === true
+);
 // 财务：全公司数据只读，需看到公司级看板等入口，不能按普通业务收窄。
 const isCrmFinance = computed(() => currentUser.value?.crm_role === 'finance');
 // 普通业务（非管理员/副管理员/部门负责人/财务）：隐藏公司级看板等团队之外的数据入口。
@@ -1299,6 +1304,7 @@ const menuItems = computed(() => {
           'erp_periods_index',
           'erp_fixed_assets_index',
           'erp_margin_index',
+          'erp_bom_costs_index',
           'erp_expenses_index',
           'erp_notifications_index',
           'erp_settings_index',
@@ -1357,6 +1363,12 @@ const menuItems = computed(() => {
             label: '成本毛利',
             to: accountScopedRoute('erp_margin_index'),
             activeOn: ['erp_margin_index'],
+          },
+          {
+            name: 'ERP BOM Costs',
+            label: 'BOM 成本表',
+            to: accountScopedRoute('erp_bom_costs_index'),
+            activeOn: ['erp_bom_costs_index'],
           },
           {
             name: 'ERP Expenses',
@@ -1463,8 +1475,10 @@ const menuItems = computed(() => {
                 },
               ]
             : []),
-          // 采购单单独放行采购审批人：他只审批，不进请购/供应商。
-          ...(isMesStaff.value || isMesPurchaseApprover.value
+          // 采购单单独放行采购审批人（只审批，不进请购/供应商）与财务（只读对账）。
+          ...(isMesStaff.value ||
+          isMesPurchaseApprover.value ||
+          isFinanceViewer.value
             ? [
                 {
                   name: 'MES Purchase Orders',
@@ -2204,6 +2218,7 @@ const ROUTE_MODULE = {
   erp_notifications_index: 'erp',
   erp_fixed_assets_index: 'erp',
   erp_margin_index: 'erp',
+  erp_bom_costs_index: 'erp',
   erp_expenses_index: 'erp',
   erp_settings_index: 'erp',
   tiktok_today_index: 'tiktok',

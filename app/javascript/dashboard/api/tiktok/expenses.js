@@ -19,6 +19,14 @@ class TiktokExpensesAPI extends ApiClient {
     return axios.get(query ? `${this.url}?${query}` : this.url);
   }
 
+  // 报表导出（.xlsx）：筛选条件与列表一致，导的是全部符合条件的记录。
+  export(params = {}) {
+    const query = buildParams(params);
+    return axios.get(`${this.url}/export${query ? `?${query}` : ''}`, {
+      responseType: 'blob',
+    });
+  }
+
   // 带票据走 multipart（后端 attach 追加，不动已有附件）。
   createWithFiles(formData) {
     return axios.post(this.url, formData, {

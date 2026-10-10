@@ -1,0 +1,13 @@
+json.id resource.id
+# 商品编码/名称/规格一律从产品档案带，本表不存副本——档案改了这边自然跟着变。
+json.crm_product_id resource.crm_product_id
+json.sku resource.crm_product&.sku
+json.product_name resource.crm_product&.name
+json.specification resource.crm_product&.specification
+json.unit resource.crm_product&.unit
+json.process_fee_micros resource.process_fee_micros
+json.overhead_fee_micros resource.overhead_fee_micros
+json.unit_cost_micros resource.unit_cost_micros
+json.remark resource.remark
+json.updated_by_name resource.updated_by&.name
+json.updated_at resource.updated_at

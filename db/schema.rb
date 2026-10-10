@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_09_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_10_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2233,6 +2233,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_09_120000) do
     t.index ["account_id"], name: "index_erp_auto_voucher_rules_on_account_id"
   end
 
+  create_table "erp_bom_costs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_product_id", null: false
+    t.bigint "process_fee_micros", default: 0, null: false
+    t.bigint "overhead_fee_micros", default: 0, null: false
+    t.text "remark"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "crm_product_id"], name: "idx_erp_bom_costs_on_account_product", unique: true
+    t.index ["account_id"], name: "index_erp_bom_costs_on_account_id"
+    t.index ["crm_product_id"], name: "index_erp_bom_costs_on_crm_product_id"
+    t.index ["updated_by_id"], name: "index_erp_bom_costs_on_updated_by_id"
+  end
+
   create_table "erp_cash_accounts", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -2390,7 +2405,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_09_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["account_id", "cost_type"], name: "index_erp_order_costs_on_account_id_and_cost_type"
-    t.index ["account_id", "source_type", "source_id"], name: "index_erp_order_costs_on_source", unique: true, where: "(source_type IS NOT NULL)"
+    t.index ["account_id", "source_type", "source_id", "cost_type"], name: "index_erp_order_costs_on_source", unique: true, where: "(source_type IS NOT NULL)"
     t.index ["account_id"], name: "index_erp_order_costs_on_account_id"
     t.index ["crm_sales_order_id"], name: "index_erp_order_costs_on_crm_sales_order_id"
   end
@@ -4082,6 +4097,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_09_120000) do
   add_foreign_key "crm_signatures", "accounts", on_delete: :cascade
   add_foreign_key "crm_signatures", "users", on_delete: :cascade
   add_foreign_key "crm_teams", "users", column: "team_lead_id", on_delete: :nullify
+  add_foreign_key "erp_bom_costs", "accounts"
+  add_foreign_key "erp_bom_costs", "crm_products", on_delete: :cascade
+  add_foreign_key "erp_bom_costs", "users", column: "updated_by_id", on_delete: :nullify
   add_foreign_key "erp_cash_transactions", "erp_cash_accounts", column: "cash_account_id", on_delete: :restrict
   add_foreign_key "erp_depreciation_entries", "erp_fixed_assets", column: "fixed_asset_id", on_delete: :cascade
   add_foreign_key "erp_expense_payouts", "crm_sales_orders", on_delete: :nullify

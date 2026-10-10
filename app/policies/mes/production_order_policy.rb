@@ -31,6 +31,8 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   # 挂 BOM / 下发采购：工程 + PMC（order 或 bom 能力）。
   def attach_bom? = @account_user.mes_can?(:order) || @account_user.mes_can?(:bom)
   def release_purchasing? = attach_bom?
+  # 无需采购（料现成在库，跳过采购阶段）：细粒度（PMC/采购岗/管理员）在控制器 can_skip_purchasing? 校验。
+  def skip_purchasing? = true
   # 解绑 BOM / 采购退回 BOM 阶段：都是挂错了的纠错动作，与挂 BOM 同权（工程/PMC）。
   def detach_bom? = attach_bom?
   def revert_to_bom_ready? = attach_bom?

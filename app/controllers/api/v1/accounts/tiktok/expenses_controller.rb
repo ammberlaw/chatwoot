@@ -5,12 +5,18 @@ class Api::V1::Accounts::Tiktok::ExpensesController < Api::V1::Accounts::Tiktok:
   before_action :fetch_expense, only: %i[update destroy]
 
   def index
-    scope = visible_expenses.includes(:department, :shop, :creator, files_attachments: :blob)
-    scope = scope.where(department_id: params[:department_id]) if params[:department_id].present?
-    scope = scope.where(shop_id: params[:shop_id]) if params[:shop_id].present?
-    scope = scope.in_month(params[:month]) if params[:month].present?
-    @expenses = scope.ordered
+    @expenses = filtered_scope.includes(files_attachments: :blob).ordered
     @editable_department_ids = tiktok_scope.editable_department_ids
+  end
+
+  # 导出当前筛选（月份/部门/店铺）的支出台账。排版与出库利润表同一套：
+  # 按部门分组、每组小计、末尾总计。权限与列表同口径——visible_expenses 已经收过口。
+  def export
+    rows = filtered_scope.ordered.to_a
+    stream = Tiktok::ExpenseXlsxService.new(rows, label: export_label).to_stream
+    send_data stream.read,
+              filename: "TikTok支出台账#{export_label.presence&.prepend('-')}.xlsx",
+              type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   end
 
   def create
@@ -42,6 +48,21 @@ class Api::V1::Accounts::Tiktok::ExpensesController < Api::V1::Accounts::Tiktok:
   end
 
   private
+
+  # 列表与导出共用一套筛选，否则「看到的」和「导出的」会对不上。
+  def filtered_scope
+    scope = visible_expenses.includes(:department, :shop, :creator)
+    scope = scope.where(department_id: params[:department_id]) if params[:department_id].present?
+    scope = scope.where(shop_id: params[:shop_id]) if params[:shop_id].present?
+    scope = scope.in_month(params[:month]) if params[:month].present?
+    scope
+  end
+
+  # 导出文件名/标题里的范围说明，同利润表口径。
+  def export_label
+    dept = Current.account.tiktok_departments.find_by(id: params[:department_id])&.name if params[:department_id].present?
+    [params[:month].presence, dept].compact.join('-')
+  end
 
   # 含金额的经营数据，与利润表同门槛：普通部门成员不可见。
   def ensure_ledger_access

@@ -67,8 +67,13 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   # 待建账订单：已确认但还没建应收的销售订单。
   # 建账是财务确认动作，不做自动建账（金额/币种/分期错了没人知道），改成把漏的摆出来让财务点。
   # 漏建账 = 应收报表少一笔且毫无提示，这个清单就是那个提示。
+  # 待建账：原来是 limit(200) 写死、前端也没翻页器——超过 200 张的单在界面上根本看不到，
+  # 而页签角标用的是全量 count，于是「角标 318、列表 200」对不上，财务以为系统丢数。
+  # 改成真分页，每页与应收台账同样 50 条。
   def pending_orders
-    @orders = pending_order_scope.includes(:crm_customer, :owner).order(order_date: :desc).limit(200)
+    @orders = pending_order_scope.includes(:crm_customer, :owner)
+                                 .order(order_date: :desc)
+                                 .page(page_param).per(per_page_param)
     @pending_count = pending_order_scope.count
     @fiscal_start_date = erp_settings.fiscal_start_date
     # 没设启用日时把被挡掉的历史单数量摆出来——否则清单空荡荡，财务不知道是真没有

@@ -433,6 +433,10 @@ Rails.application.routes.draw do
                 post :rollup
               end
             end
+            # BOM 成本表：按商品编码维护加工费/制造费用标准，供成本归集取数
+            resources :bom_costs, only: [:index, :create, :update, :destroy] do
+              collection { post :import }
+            end
             resources :fixed_assets, only: [:index, :show, :create, :update, :destroy] do
               collection { post :depreciate }
               member { post :dispose }
@@ -924,7 +928,9 @@ Rails.application.routes.draw do
               collection { get :export }
             end
             # 支出台账（按部门收口，店铺选填）+ 固定资产登记（只登记不折旧）
-            resources :expenses, only: [:index, :create, :update, :destroy]
+            resources :expenses, only: [:index, :create, :update, :destroy] do
+              collection { get :export }
+            end
             resources :assets, only: [:index, :create, :update, :destroy]
           end
 

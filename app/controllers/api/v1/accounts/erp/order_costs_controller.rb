@@ -7,7 +7,11 @@ class Api::V1::Accounts::Erp::OrderCostsController < Api::V1::Accounts::Erp::Bas
     scope = Current.account.erp_order_costs.includes(:crm_sales_order, :mes_supplier, :created_by)
     scope = scope.where(crm_sales_order_id: params[:crm_sales_order_id]) if params[:crm_sales_order_id].present?
     scope = scope.where(cost_type: params[:cost_type]) if params[:cost_type].present?
-    @costs = scope.order(created_at: :desc).limit(200)
+    # 原来是 limit(200) 写死、前端也不翻页。成本行是**自动归集**出来的
+    # （一张自产生产订单就产材料/人工/制造费用三行），量只会越滚越多，
+    # 超出的部分在界面上直接消失、还看不出被截断了。
+    @costs_count = scope.count
+    @costs = scope.order(created_at: :desc).page(page_param).per(per_page_param)
   end
 
   def create

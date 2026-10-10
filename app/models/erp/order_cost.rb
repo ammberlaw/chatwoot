@@ -26,16 +26,19 @@
 #  index_erp_order_costs_on_account_id                (account_id)
 #  index_erp_order_costs_on_account_id_and_cost_type  (account_id,cost_type)
 #  index_erp_order_costs_on_crm_sales_order_id        (crm_sales_order_id)
-#  index_erp_order_costs_on_source                    (account_id,source_type,source_id) UNIQUE WHERE (source_type IS NOT NULL)
+#  index_erp_order_costs_on_source                    (account_id,source_type,source_id,cost_type) UNIQUE WHERE (source_type IS NOT NULL)
 #
 class Erp::OrderCost < ApplicationRecord
 
   # 跨币种求和必须折本位币（成本行带 currency/exchange_rate）。
   # 命名与 Receivable/Payable 等保持一致，守卫 spec 按这个前缀认。
   BASE_AMOUNT_MICROS_SQL = 'ROUND(erp_order_costs.amount_micros * COALESCE(erp_order_costs.exchange_rate, 1))'.freeze
-  COST_TYPES = %w[MATERIAL PROCESS FREIGHT COMMISSION EXPENSE OTHER].freeze
+  # LABOR / OVERHEAD 由自产单按「完工入库数量 × BOM 成本表单价」自动归集，
+  # 与按领料算的 MATERIAL 一起构成成本三项；PROCESS 留给外协（对方报价已含加工）。
+  COST_TYPES = %w[MATERIAL LABOR OVERHEAD PROCESS FREIGHT COMMISSION EXPENSE OTHER].freeze
   COST_TYPE_LABELS = {
-    'MATERIAL' => '材料成本', 'PROCESS' => '加工/外协', 'FREIGHT' => '运费',
+    'MATERIAL' => '材料成本', 'LABOR' => '生产人工', 'OVERHEAD' => '制造费用',
+    'PROCESS' => '加工/外协', 'FREIGHT' => '运费',
     'COMMISSION' => '佣金', 'EXPENSE' => '报销费用', 'OTHER' => '其他'
   }.freeze
 

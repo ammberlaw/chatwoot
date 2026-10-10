@@ -1,7 +1,7 @@
 class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
   before_action :fetch_production_order,
-                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :detach_bom, :revert_to_bom_ready, :release_purchasing, :requirement, :handoff,
+                only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :detach_bom, :revert_to_bom_ready, :release_purchasing, :skip_purchasing, :requirement, :handoff,
                        :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced]
   before_action :ensure_editable!, only: [:update, :attach, :detach]
   before_action :ensure_deletable!, only: [:destroy]

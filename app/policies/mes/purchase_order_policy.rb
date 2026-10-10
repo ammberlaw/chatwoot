@@ -37,7 +37,10 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
 
   private
 
-  def readable? = @account_user.mes_staff? || purchase_approver?
+  # 财务（crm_finance）只读：对账要核「这批料花了多少、什么时候到的」，
+  # 而导出早就放行给财务了（exportable? 含 crm_finance?）——只能导出却打不开列表，是口径不一致。
+  # 只给读：建单/改单/审批仍要 purchase 能力或本单审批人。
+  def readable? = @account_user.mes_staff? || purchase_approver? || @account_user.crm_finance?
 
   def exportable? = @account_user.mes_can?(:purchase) || @account_user.crm_finance?
 

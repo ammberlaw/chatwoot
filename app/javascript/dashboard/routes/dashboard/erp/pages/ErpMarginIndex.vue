@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
@@ -11,6 +11,8 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import ErpSalesOrderDetailDialog from 'dashboard/components-next/erp/ErpSalesOrderDetailDialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
@@ -26,6 +28,8 @@ const TABS = [
 ];
 const COST_TYPES = [
   { value: 'MATERIAL', label: '材料成本' },
+  { value: 'LABOR', label: '生产人工' },
+  { value: 'OVERHEAD', label: '制造费用' },
   { value: 'PROCESS', label: '加工/外协' },
   { value: 'FREIGHT', label: '运费' },
   { value: 'COMMISSION', label: '佣金' },
@@ -38,6 +42,11 @@ const GROUPS = [
 ];
 
 const money = micros => (micros ? fmtMoney(micros) : '—');
+
+// 点订单号开「销售订单详情」（共享件，与应收台账同一个）：
+// 毛利表只给到金额，财务要追「这单为什么毛利低」得看出了什么货、挂了哪些生产/出库单。
+const orderDialogRef = ref(null);
+const openOrderDetail = orderId => orderDialogRef.value?.open(orderId);
 const toMicros = value => Math.round(Number(value || 0) * 1_000_000);
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -48,6 +57,10 @@ const marginRows = ref([]);
 const marginSummary = ref([]);
 const marginMeta = ref({});
 const costs = ref([]);
+// 成本行是自动归集出来的（一张自产单产三行），量会越滚越多，必须分页。
+const COSTS_PER_PAGE = 50;
+const costsPage = ref(1);
+const costsCount = ref(0);
 
 const loadMargin = async () => {
   loading.value = true;
@@ -63,12 +76,17 @@ const loadMargin = async () => {
 const loadCosts = async () => {
   loading.value = true;
   try {
-    const { data } = await ErpOrderCostAPI.get();
+    const { data } = await ErpOrderCostAPI.get({
+      page: costsPage.value,
+      per_page: COSTS_PER_PAGE,
+    });
     costs.value = data.payload;
+    costsCount.value = data.meta?.count || 0;
   } finally {
     loading.value = false;
   }
 };
+watch(costsPage, loadCosts);
 // 一键把 MES 的领料/外协采购算成成本行。日常出货时已自动触发，这里是补历史/兜底。
 // 幂等，重复点不会翻倍；手工补录的行不受影响。
 const rollingUp = ref(false);
@@ -335,8 +353,15 @@ onMounted(loadMargin);
               :key="row.order_id"
               class="border-b border-n-weak"
             >
-              <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
-                {{ row.order_no }}
+              <td class="px-3 py-2 font-mono whitespace-nowrap">
+                <button
+                  type="button"
+                  class="underline text-n-iris-11 underline-offset-2 hover:opacity-80"
+                  title="看这一单的明细与挂的 MES 单据"
+                  @click="openOrderDetail(row.order_id)"
+                >
+                  {{ row.order_no }}
+                </button>
               </td>
               <td class="px-3 py-2 text-n-slate-11">
                 {{ row.customer_name }}
@@ -377,8 +402,15 @@ onMounted(loadMargin);
         </thead>
         <tbody>
           <tr v-for="row in costs" :key="row.id" class="border-b border-n-weak">
-            <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
-              {{ row.order_no }}
+            <td class="px-3 py-2 font-mono whitespace-nowrap">
+              <button
+                type="button"
+                class="underline text-n-iris-11 underline-offset-2 hover:opacity-80"
+                title="看这一单的明细与挂的 MES 单据"
+                @click="openOrderDetail(row.crm_sales_order_id)"
+              >
+                {{ row.order_no }}
+              </button>
             </td>
             <td class="px-3 py-2 text-n-slate-11">{{ row.cost_type_label }}</td>
             <td class="px-3 py-2 font-mono text-right text-n-slate-12">
@@ -411,6 +443,14 @@ onMounted(loadMargin);
           </tr>
         </tbody>
       </table>
+      <PaginationFooter
+        v-if="costsCount > COSTS_PER_PAGE"
+        :current-page="costsPage"
+        :total-items="costsCount"
+        :items-per-page="COSTS_PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="costsPage = $event"
+      />
     </div>
 
     <Dialog
@@ -465,5 +505,8 @@ onMounted(loadMargin);
         </div>
       </div>
     </Dialog>
+
+    <!-- 销售订单详情（共享件）：与应收台账同一个，里面的生产订单/出货单可点跳转 -->
+    <ErpSalesOrderDetailDialog ref="orderDialogRef" />
   </div>
 </template>

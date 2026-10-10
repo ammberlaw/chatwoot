@@ -58,7 +58,7 @@ class Crm::SalesOrderTraceService
   end
 
   def order_json(order, entries)
-    { order_no: order.order_no, product_name: order.product_name, product_code: order.product_code,
+    { id: order.id, order_no: order.order_no, product_name: order.product_name, product_code: order.product_code,
       qty: order.qty.to_f, unit: order.unit, stage: order.stage,
       stage_label: Mes::ProductionOrder::STAGE_LABELS[order.stage] || order.stage,
       status: order.status, is_outsourced: order.is_outsourced,
@@ -84,7 +84,7 @@ class Crm::SalesOrderTraceService
   end
 
   def shipment_json(shipment)
-    { shipment_no: shipment.shipment_no, kind: shipment.kind,
+    { id: shipment.id, shipment_no: shipment.shipment_no, kind: shipment.kind,
       kind_label: shipment.kind == 'STOCK' ? '现货出库' : '生产出库',
       status: shipment.status,
       status_label: SHIPMENT_STATUS_LABELS[shipment.status] || shipment.status,

@@ -15,6 +15,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import ErpSalesOrderDetailDialog from 'dashboard/components-next/erp/ErpSalesOrderDetailDialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEditor.vue';
 import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
@@ -97,6 +98,7 @@ const receiptMeta = ref({});
 const PER_PAGE = 50;
 const ledgerPage = ref(1);
 const receiptPage = ref(1);
+const pendingPage = ref(1);
 
 const loadLedgers = async () => {
   loading.value = true;
@@ -132,6 +134,7 @@ const loadReceipts = async () => {
 watch([keyword, statusFilter], () => {
   ledgerPage.value = 1;
   receiptPage.value = 1;
+  pendingPage.value = 1;
 });
 watch(ledgerPage, loadLedgers);
 watch(receiptPage, loadReceipts);
@@ -140,41 +143,7 @@ watch(receiptPage, loadReceipts);
 // 待建账/台账只有抬头（单号客户金额），财务对不上「这单到底发了什么、什么价」。
 // 走 ERP 侧接口：财务多半没有 crm_role，CRM 那套接口会 403。
 const orderDialogRef = ref(null);
-const orderDetail = ref(null);
-const orderLoading = ref(false);
-
-const PO_STATUS_LABELS = {
-  DRAFT: '草稿',
-  IN_PROGRESS: '进行中',
-  COMPLETED: '已完结',
-  CANCELLED: '已取消',
-};
-
-const openOrderDetail = async orderId => {
-  if (!orderId) return;
-  orderDetail.value = null;
-  orderLoading.value = true;
-  orderDialogRef.value?.open();
-  try {
-    const { data } = await ErpReceivableAPI.orderDetail(orderId);
-    orderDetail.value = data.payload;
-  } catch {
-    useAlert('订单详情取不到，可能已被删除');
-    orderDialogRef.value?.close();
-  } finally {
-    orderLoading.value = false;
-  }
-};
-
-// 明细里的「数量 × 单价」：运费这类行没有数量和单价、只有金额，照原样显示别补 0。
-const num = v => (v === null || v === undefined || v === '' ? '—' : v);
-const plainMoney = v =>
-  v === null || v === undefined || v === ''
-    ? '—'
-    : Number(v).toLocaleString('zh-CN', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
+const openOrderDetail = orderId => orderDialogRef.value?.open(orderId);
 
 /* ---------------- 待建账：已确认但还没建应收的订单 ---------------- */
 // 漏建账 = 应收报表少一笔且没有任何提示，这个页签就是那个提示。
@@ -189,10 +158,15 @@ const fiscalStartDate = ref('');
 const beforeFiscalCount = ref(0);
 
 // silent：进页面时只为点亮角标而拉，不能抢台账表格的 loading 态（两个请求会互相踩）。
+// 分页与台账同样 50 条/页：原先后端 limit(200)、前端不翻页，超出的单在界面上消失，
+// 而角标走的是全量 count，于是「角标 318、列表 200」对不上。
 const loadPendingOrders = async ({ silent = false } = {}) => {
   if (!silent) loading.value = true;
   try {
-    const { data } = await ErpReceivableAPI.pendingOrders();
+    const { data } = await ErpReceivableAPI.pendingOrders({
+      page: pendingPage.value,
+      per_page: PER_PAGE,
+    });
     pendingOrders.value = data.payload;
     pendingCount.value = data.meta?.pending_count || 0;
     fiscalStartDate.value = data.meta?.fiscal_start_date || '';
@@ -202,6 +176,7 @@ const loadPendingOrders = async ({ silent = false } = {}) => {
     if (!silent) loading.value = false;
   }
 };
+watch(pendingPage, () => loadPendingOrders());
 
 const allPendingSelected = computed(
   () =>
@@ -942,6 +917,14 @@ onMounted(() => {
         @update:current-page="ledgerPage = $event"
       />
       <PaginationFooter
+        v-if="activeTab === 'pending' && pendingCount > PER_PAGE"
+        :current-page="pendingPage"
+        :total-items="pendingCount"
+        :items-per-page="PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="pendingPage = $event"
+      />
+      <PaginationFooter
         v-if="activeTab === 'receipts' && (receiptMeta.count || 0) > PER_PAGE"
         :current-page="receiptPage"
         :total-items="receiptMeta.count"
@@ -1149,230 +1132,9 @@ onMounted(() => {
       </div>
     </Dialog>
 
-    <!-- 销售订单详情：出了什么货、单价多少、挂了哪些 MES 单据 -->
-    <Dialog
-      ref="orderDialogRef"
-      :dismissible="false"
-      width="4xl"
-      overflow-y-auto
-      :show-confirm-button="false"
-      show-cancel-button
-      cancel-button-label="关闭"
-      title="销售订单详情"
-    >
-      <div v-if="orderLoading" class="py-10 text-center text-n-slate-11">
-        加载中…
-      </div>
-      <div v-else-if="orderDetail" class="flex flex-col gap-5">
-        <!-- 抬头 -->
-        <div
-          class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4 text-n-slate-12"
-        >
-          <div class="flex flex-col">
-            <span class="text-xs text-n-slate-11">订单号</span>
-            <span class="font-mono">{{ orderDetail.order.order_no }}</span>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-xs text-n-slate-11">客户</span>
-            <span>{{ orderDetail.order.customer_name || '—' }}</span>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-xs text-n-slate-11">业务员</span>
-            <span>{{ orderDetail.order.owner_name || '—' }}</span>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-xs text-n-slate-11">状态</span>
-            <span>{{
-              SO_STATUS_LABELS[orderDetail.order.status] ||
-              orderDetail.order.status
-            }}</span>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-xs text-n-slate-11">下单日期</span>
-            <span>{{
-              (orderDetail.order.order_date || '—').slice(0, 10)
-            }}</span>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-xs text-n-slate-11">交期</span>
-            <span>{{
-              (orderDetail.order.delivery_date || '—').slice(0, 10)
-            }}</span>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-xs text-n-slate-11">PI 编号</span>
-            <span class="font-mono">{{ orderDetail.order.pi_no || '—' }}</span>
-          </div>
-          <div class="flex flex-col">
-            <span class="text-xs text-n-slate-11">订单金额</span>
-            <span class="font-mono">
-              {{ orderDetail.order.currency || 'CNY' }}
-              {{ money(orderDetail.order.amount_micros) }}
-            </span>
-          </div>
-          <div v-if="orderDetail.order.opportunity_name" class="flex flex-col">
-            <span class="text-xs text-n-slate-11">来源商机</span>
-            <span>{{ orderDetail.order.opportunity_name }}</span>
-          </div>
-          <div v-if="orderDetail.order.payment_term" class="flex flex-col">
-            <span class="text-xs text-n-slate-11">付款方式</span>
-            <span>{{ orderDetail.order.payment_term }}</span>
-          </div>
-          <div v-if="orderDetail.receivable" class="flex flex-col">
-            <span class="text-xs text-n-slate-11">已建应收</span>
-            <span class="font-mono">{{
-              orderDetail.receivable.receivable_no
-            }}</span>
-          </div>
-        </div>
-
-        <!-- 订单明细：出了什么货、单价多少 -->
-        <div class="flex flex-col gap-2">
-          <span class="text-heading-3 text-n-slate-12">
-            订单明细（{{ (orderDetail.line_items || []).length }} 行）
-          </span>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr
-                  class="text-left border-b text-n-slate-11 border-n-weak whitespace-nowrap"
-                >
-                  <th class="px-2 py-2 font-medium">编码</th>
-                  <th class="px-2 py-2 font-medium">品名</th>
-                  <th class="px-2 py-2 font-medium">规格</th>
-                  <th class="px-2 py-2 font-medium text-right">数量</th>
-                  <th class="px-2 py-2 font-medium text-right">单价</th>
-                  <th class="px-2 py-2 font-medium text-right">金额</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(item, i) in orderDetail.line_items || []"
-                  :key="`li-${i}`"
-                  class="border-b border-n-weak align-top"
-                >
-                  <td
-                    class="px-2 py-2 font-mono text-xs whitespace-nowrap text-n-slate-11"
-                  >
-                    {{ item.sku || '—' }}
-                  </td>
-                  <td class="px-2 py-2 text-n-slate-12">{{ item.name }}</td>
-                  <td
-                    class="px-2 py-2 text-xs text-n-slate-11 max-w-md whitespace-pre-wrap"
-                  >
-                    {{ item.spec || '—' }}
-                  </td>
-                  <td class="px-2 py-2 font-mono text-right">
-                    {{ num(item.quantity) }}
-                  </td>
-                  <td class="px-2 py-2 font-mono text-right">
-                    {{ plainMoney(item.unit_price) }}
-                  </td>
-                  <td class="px-2 py-2 font-mono text-right text-n-slate-12">
-                    {{ plainMoney(item.amount) }}
-                  </td>
-                </tr>
-                <tr v-if="!(orderDetail.line_items || []).length">
-                  <td colspan="6" class="px-2 py-6 text-center text-n-slate-11">
-                    这张订单没有录明细行。
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- 关联 MES：生产订单 -->
-        <div class="flex flex-col gap-2">
-          <span class="text-heading-3 text-n-slate-12">
-            关联生产订单（{{ (orderDetail.production_orders || []).length }}）
-          </span>
-          <div
-            v-for="po in orderDetail.production_orders || []"
-            :key="po.order_no"
-            class="flex flex-col gap-1 px-3 py-2 border rounded-lg border-n-weak"
-          >
-            <div class="flex flex-wrap items-center gap-x-3 text-sm">
-              <span class="font-mono text-n-slate-12">{{ po.order_no }}</span>
-              <span class="text-n-slate-12">{{ po.product_name }}</span>
-              <span class="text-n-slate-11">
-                {{ po.qty }} {{ po.unit || '' }}
-              </span>
-              <span class="text-xs text-n-slate-11">
-                {{ po.stage_label }} ·
-                {{ PO_STATUS_LABELS[po.status] || po.status }}
-              </span>
-            </div>
-            <div
-              v-if="(po.stock_entries || []).length"
-              class="flex flex-wrap gap-x-4 text-xs text-n-slate-11"
-            >
-              <span
-                v-for="e in po.stock_entries"
-                :key="e.entry_no"
-                class="font-mono"
-              >
-                {{ e.purpose_label }} {{ e.entry_no }}（{{ e.status_label }}）
-              </span>
-            </div>
-          </div>
-          <p
-            v-if="!(orderDetail.production_orders || []).length"
-            class="text-sm text-n-slate-11"
-          >
-            这张销售订单没有挂生产订单（外购/现货单，或还没转生产）。
-          </p>
-        </div>
-
-        <!-- 关联 MES：出货单 —— 实际出了什么货 -->
-        <div class="flex flex-col gap-2">
-          <span class="text-heading-3 text-n-slate-12">
-            出货记录（{{ (orderDetail.shipments || []).length }}）
-          </span>
-          <div
-            v-for="sp in orderDetail.shipments || []"
-            :key="sp.shipment_no"
-            class="flex flex-col gap-1 px-3 py-2 border rounded-lg border-n-weak"
-          >
-            <div class="flex flex-wrap items-center gap-x-3 text-sm">
-              <span class="font-mono text-n-slate-12">{{
-                sp.shipment_no
-              }}</span>
-              <span class="text-n-slate-11">{{ sp.kind_label }}</span>
-              <span class="text-n-slate-11">{{ sp.status_label }}</span>
-              <span v-if="sp.warehouse" class="text-xs text-n-slate-11">
-                {{ sp.warehouse }}
-              </span>
-              <span v-if="sp.shipped_at" class="text-xs text-n-slate-11">
-                出库 {{ (sp.shipped_at || '').slice(0, 10) }}
-              </span>
-            </div>
-            <div
-              v-for="(it, i) in sp.items || []"
-              :key="`si-${i}`"
-              class="flex flex-wrap gap-x-3 text-xs text-n-slate-11"
-            >
-              <span class="text-n-slate-12">{{ it.product_name || '—' }}</span>
-              <span v-if="it.product_sku" class="font-mono">{{
-                it.product_sku
-              }}</span>
-              <span class="font-mono">{{ it.qty }} {{ it.unit || '' }}</span>
-              <span v-if="it.remark">{{ it.remark }}</span>
-            </div>
-          </div>
-          <p
-            v-if="!(orderDetail.shipments || []).length"
-            class="text-sm text-n-slate-11"
-          >
-            还没有出货单。
-          </p>
-        </div>
-
-        <p v-if="orderDetail.order.remark" class="text-xs text-n-slate-11">
-          订单备注：{{ orderDetail.order.remark }}
-        </p>
-      </div>
-    </Dialog>
+    <!-- 销售订单详情（共享件）：出了什么货、单价多少、挂了哪些 MES 单据；
+         里面的生产订单号/出货单号可点，跳到 MES 对应页面定位 -->
+    <ErpSalesOrderDetailDialog ref="orderDialogRef" />
 
     <!-- 打印区：定位在外层，被克隆的是里层（printHelper 的坑，见凭证页注释） -->
     <div class="fixed top-0 -left-[10000px] w-[794px]">

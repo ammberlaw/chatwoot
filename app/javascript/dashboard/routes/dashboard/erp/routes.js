@@ -14,6 +14,7 @@ import ErpCashIndex from './pages/ErpCashIndex.vue';
 import ErpPeriodsIndex from './pages/ErpPeriodsIndex.vue';
 import ErpFixedAssetsIndex from './pages/ErpFixedAssetsIndex.vue';
 import ErpMarginIndex from './pages/ErpMarginIndex.vue';
+import ErpBomCostsIndex from './pages/ErpBomCostsIndex.vue';
 import ErpExpensesIndex from './pages/ErpExpensesIndex.vue';
 import ErpSettingsIndex from './pages/ErpSettingsIndex.vue';
 
@@ -53,6 +54,7 @@ export const routes = [
   }),
   erpPage('fixed-assets', 'erp_fixed_assets_index', ErpFixedAssetsIndex),
   erpPage('margin', 'erp_margin_index', ErpMarginIndex),
+  erpPage('bom-costs', 'erp_bom_costs_index', ErpBomCostsIndex),
   erpPage('expenses', 'erp_expenses_index', ErpExpensesIndex),
   erpPage('settings', 'erp_settings_index', ErpSettingsIndex),
 ];
