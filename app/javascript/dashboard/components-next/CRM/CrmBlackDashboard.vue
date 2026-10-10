@@ -569,114 +569,121 @@ const sourceShare = index =>
           {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
         </div>
       </section>
-      <section class="min-w-0 p-6 bg-white border border-[#e9eae6] rounded-3xl">
-        <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
-          <h2 class="text-heading-2 text-[#191b1b]">
-            {{ t('CRM.DASHBOARD.DESIGN.PIPELINE') }}
+      <CrmSentEmailRankChart
+        v-if="!isMine"
+        class="h-full !rounded-3xl"
+        :rows="emailRows"
+        :period-label="periodLabel"
+      />
+    </div>
+    <div
+      class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]"
+    >
+      <CrmCountryRank
+        :rows="countryRank"
+        :period-label="periodLabel"
+        :value-format="compactYuan"
+      />
+      <div class="flex min-w-0 flex-col gap-6">
+        <section
+          class="min-w-0 p-6 bg-white border border-[#e9eae6] rounded-3xl"
+        >
+          <h2 class="mb-4 text-heading-2 text-[#191b1b]">
+            {{ t('CRM.DASHBOARD.DESIGN.SOURCES') }}
           </h2>
-          <span
-            v-if="winRate != null"
-            class="flex items-center gap-1 text-label-small text-[#85887f]"
-            >{{ t('CRM.DASHBOARD.DESIGN.WIN_RATE') }}
-            <strong class="text-[#191b1b]">{{ winRate }}%</strong></span
-          >
-        </div>
-        <div v-if="!stages.length" class="py-8 text-label text-[#85887f]">
-          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
-        </div>
-        <div v-for="stage in stages" :key="stage.label" class="mb-4 last:mb-0">
-          <div
-            class="flex items-center justify-between gap-3 mb-2 text-label-small"
-          >
-            <span>{{ stage.label }}</span
-            ><strong class="tabular-nums">{{ stage.amount }}</strong>
-          </div>
-          <svg
-            class="w-full h-7"
-            viewBox="0 0 400 28"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <rect width="400" height="28" rx="9" fill="#f3f4f0" />
-            <rect
-              :width="stage.pct * 4"
-              height="28"
-              rx="9"
-              :fill="stage.won ? '#ffd052' : '#191b1b'"
-            />
-          </svg>
-        </div>
-      </section>
-    </div>
-    <CrmCountryRank
-      :rows="countryRank"
-      :period-label="periodLabel"
-      :value-format="compactYuan"
-    />
-    <div class="w-full max-w-[38rem]">
-      <div class="w-full min-w-0">
-        <CrmSentEmailRankChart
-          v-if="!isMine"
-          :rows="emailRows"
-          :period-label="periodLabel"
-        />
-      </div>
-    </div>
-    <div class="flex flex-wrap items-start gap-6">
-      <section
-        class="w-full max-w-[38rem] min-w-0 p-6 bg-white border border-[#e9eae6] rounded-3xl"
-      >
-        <h2 class="mb-4 text-heading-2 text-[#191b1b]">
-          {{ t('CRM.DASHBOARD.DESIGN.SOURCES') }}
-        </h2>
-        <div v-if="!sources.empty" class="flex flex-wrap items-center gap-6">
-          <div class="relative h-48 w-48 shrink-0">
-            <CrmDoughnutChart
-              :labels="sources.labels"
-              :data="sources.data"
-              :colors="sourceColors"
-              cutout="65%"
-              continuous
-            >
-              <template #center>
-                <strong
-                  class="font-interDisplay text-[32px] font-semibold tracking-[-0.06em] leading-none tabular-nums"
-                  >{{ sources.total }}</strong
-                ><span class="mt-1.5 text-label-small text-[#96998f]">{{
-                  t('CRM.DASHBOARD.DESIGN.SOURCE_TOTAL')
-                }}</span>
-              </template>
-            </CrmDoughnutChart>
-          </div>
-          <div class="flex flex-col gap-3 flex-1 min-w-[10rem] pr-4">
-            <div
-              v-for="(source, i) in sources.labels"
-              :key="source"
-              class="flex items-center gap-2 min-w-0 text-label-small"
-            >
-              <svg width="7" height="7" class="shrink-0" aria-hidden="true">
-                <circle
-                  cx="3.5"
-                  cy="3.5"
-                  r="3.5"
-                  :fill="sourceColors[i % sourceColors.length]"
-                /></svg
-              ><span class="flex-1 truncate text-[#585c52]" :title="source">{{
-                source
-              }}</span
-              ><strong class="w-8 shrink-0 tabular-nums"
-                >{{ sourceShare(i) }}%</strong
+          <div v-if="!sources.empty" class="flex flex-wrap items-center gap-6">
+            <div class="relative h-48 w-48 shrink-0">
+              <CrmDoughnutChart
+                :labels="sources.labels"
+                :data="sources.data"
+                :colors="sourceColors"
+                cutout="65%"
+                continuous
               >
+                <template #center>
+                  <strong
+                    class="font-interDisplay text-[32px] font-semibold tracking-[-0.06em] leading-none tabular-nums"
+                    >{{ sources.total }}</strong
+                  ><span class="mt-1.5 text-label-small text-[#96998f]">{{
+                    t('CRM.DASHBOARD.DESIGN.SOURCE_TOTAL')
+                  }}</span>
+                </template>
+              </CrmDoughnutChart>
+            </div>
+            <div class="flex flex-col gap-3 flex-1 min-w-[10rem] pr-4">
+              <div
+                v-for="(source, i) in sources.labels"
+                :key="source"
+                class="flex items-center gap-2 min-w-0 text-label-small"
+              >
+                <svg width="7" height="7" class="shrink-0" aria-hidden="true">
+                  <circle
+                    cx="3.5"
+                    cy="3.5"
+                    r="3.5"
+                    :fill="sourceColors[i % sourceColors.length]"
+                  /></svg
+                ><span class="flex-1 truncate text-[#585c52]" :title="source">{{
+                  source
+                }}</span
+                ><strong class="w-8 shrink-0 tabular-nums"
+                  >{{ sourceShare(i) }}%</strong
+                >
+              </div>
             </div>
           </div>
-        </div>
-        <div
-          v-else
-          class="grid h-56 text-label text-[#85887f] place-items-center"
+          <div
+            v-else
+            class="grid h-56 text-label text-[#85887f] place-items-center"
+          >
+            {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+          </div>
+        </section>
+        <section
+          class="min-w-0 px-5 py-4 bg-white border border-[#e9eae6] rounded-3xl"
         >
-          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
-        </div>
-      </section>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h2 class="text-heading-2 text-[#191b1b]">
+              {{ t('CRM.DASHBOARD.DESIGN.PIPELINE') }}
+            </h2>
+            <span
+              v-if="winRate != null"
+              class="flex items-center gap-1 text-label-small text-[#85887f]"
+              >{{ t('CRM.DASHBOARD.DESIGN.WIN_RATE') }}
+              <strong class="text-[#191b1b]">{{ winRate }}%</strong></span
+            >
+          </div>
+          <div v-if="!stages.length" class="py-8 text-label text-[#85887f]">
+            {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+          </div>
+          <div
+            v-for="stage in stages"
+            :key="stage.label"
+            class="mb-2 last:mb-0"
+          >
+            <div
+              class="flex items-center justify-between gap-3 mb-1 text-label-small"
+            >
+              <span>{{ stage.label }}</span
+              ><strong class="tabular-nums">{{ stage.amount }}</strong>
+            </div>
+            <svg
+              class="w-full h-4"
+              viewBox="0 0 400 28"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <rect width="400" height="28" rx="9" fill="#f3f4f0" />
+              <rect
+                :width="stage.pct * 4"
+                height="28"
+                rx="9"
+                :fill="stage.won ? '#ffd052' : '#191b1b'"
+              />
+            </svg>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </template>

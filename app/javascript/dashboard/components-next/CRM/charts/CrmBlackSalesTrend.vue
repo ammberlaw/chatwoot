@@ -36,8 +36,11 @@ const recorded = computed(() => {
 });
 const summary = computed(() => [
   {
-    label: props.completeness ? 'PEAK_SCORE' : 'PEAK_REVENUE',
-    value: Math.max(...recorded.value, 0),
+    label: props.completeness ? 'FULL_SCORE_COUNT' : 'PEAK_REVENUE',
+    count: props.completeness,
+    value: props.completeness
+      ? recorded.value.filter(value => value >= 100).length
+      : Math.max(...recorded.value, 0),
   },
   {
     label: props.completeness ? 'AVERAGE_SCORE' : 'AVERAGE_REVENUE',
@@ -46,8 +49,11 @@ const summary = computed(() => [
       (recorded.value.length || 1),
   },
   {
-    label: props.completeness ? 'LOW_SCORE' : 'LOW_REVENUE',
-    value: recorded.value.length ? Math.min(...recorded.value) : 0,
+    label: props.completeness ? 'INCOMPLETE_COUNT' : 'LOW_REVENUE',
+    count: props.completeness,
+    value: props.completeness
+      ? recorded.value.filter(value => value < 100).length
+      : Math.min(...(recorded.value.length ? recorded.value : [0])),
   },
 ]);
 const collection = computed(() => ({
@@ -86,9 +92,37 @@ const collection = computed(() => ({
     },
   ],
 }));
+const pointLabels = {
+  id: 'blackDashboardPointValues',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    ctx.save();
+    ctx.font = `600 10px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#191b1b';
+    const placed = [];
+    chart.getDatasetMeta(0).data.forEach((point, index) => {
+      if (index >= recorded.value.length) return;
+      const label = props.valueFormat(recorded.value[index]).replace('¥', '');
+      const width = ctx.measureText(label).width;
+      const x = Math.min(chart.width - width / 2, Math.max(width / 2, point.x));
+      const y = placed.reduce((position, box) => {
+        const overlaps =
+          Math.abs(box.x - x) < (box.width + width) / 2 + 3 &&
+          Math.abs(box.y - position) < 13;
+        return overlaps ? box.y - 14 : position;
+      }, point.y - 10);
+      placed.push({ x, y, width });
+      ctx.fillText(label, x, y);
+    });
+    ctx.restore();
+  },
+};
 const options = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
+  layout: { padding: { top: 22, right: 10 } },
   plugins: {
     legend: { display: false },
     tooltip: {
@@ -123,7 +157,7 @@ const options = computed(() => ({
 
 <template>
   <div class="h-60 min-w-0">
-    <Line :data="collection" :options="options" />
+    <Line :data="collection" :options="options" :plugins="[pointLabels]" />
   </div>
   <div class="grid grid-cols-3 divide-x divide-[#e9eae6] mt-6">
     <div
@@ -137,7 +171,11 @@ const options = computed(() => ({
       <p
         class="mt-2 text-base 2xl:text-xl whitespace-nowrap font-interDisplay font-semibold tracking-tight tabular-nums text-[#191b1b]"
       >
-        {{ valueFormat(metric.value) }}
+        {{
+          metric.count
+            ? t('CRM.DASHBOARD.DESIGN.PEOPLE_COUNT', { count: metric.value })
+            : valueFormat(metric.value)
+        }}
       </p>
     </div>
   </div>
