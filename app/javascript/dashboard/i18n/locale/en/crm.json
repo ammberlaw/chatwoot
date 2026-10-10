@@ -1067,6 +1067,7 @@
         "CUSTOMERS_UNIT": "家",
         "COMPLETENESS": "客户资料完善度",
         "TEAM_RANK": "团队成交排行",
+        "TOP_FIVE_SHARE": "前五成交占比",
         "CUSTOMER_RANK": "重点成交客户",
         "CUSTOMER": "客户",
         "ORDERS": "订单数",

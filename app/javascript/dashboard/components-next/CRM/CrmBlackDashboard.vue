@@ -75,6 +75,13 @@ const compactYuan = value =>
   value >= 10000
     ? `¥${(value / 10000).toFixed(1)}万`
     : props.moneyFormat(value);
+const customerTotal = computed(() =>
+  props.customers.reduce((total, customer) => total + customer.amount, 0)
+);
+const customerShare = customer =>
+  customerTotal.value
+    ? Math.round((customer.amount / customerTotal.value) * 100)
+    : 0;
 const sourceShare = index =>
   props.sources.total
     ? Math.round((props.sources.data[index] / props.sources.total) * 100)
@@ -329,9 +336,9 @@ const sourceShare = index =>
           </p>
         </section>
         <section
-          class="order-4 xl:col-span-4 min-w-0 p-6 sm:p-7 rounded-3xl border border-[#e9eae6] bg-white"
+          class="order-4 xl:col-span-4 min-w-0 h-[434px] flex flex-col p-6 sm:p-7 rounded-3xl border border-[#e9eae6] bg-white"
         >
-          <div class="flex items-center justify-between gap-3 mb-5">
+          <div class="flex items-center justify-between gap-3 mb-4">
             <h2
               class="text-heading-2 font-semibold tracking-tight text-[#191b1b]"
             >
@@ -342,50 +349,94 @@ const sourceShare = index =>
               >{{ periodLabel }}</span
             >
           </div>
-          <div v-if="!customers.length" class="py-8 text-label text-[#85887f]">
+          <div
+            v-if="!customers.length"
+            class="flex-1 grid place-items-center text-label text-[#85887f]"
+          >
             {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
           </div>
-          <div v-else class="flex flex-col gap-2">
+          <template v-else>
             <button
-              v-for="(customer, i) in customers"
-              :key="customer.id"
-              class="group flex items-start gap-3 w-full min-w-0 h-[60px] px-3 py-2 rounded-xl text-left transition-colors focus-visible:outline-2 focus-visible:outline-[#a77800]"
-              :class="
-                i === 0
-                  ? 'bg-[#fff7dc] hover:bg-[#fff0bb]'
-                  : 'border-b border-[#f0f1ed] rounded-none last:border-0 hover:bg-[#f6f7f3]'
-              "
-              @click="$emit('customer', customer.id)"
+              class="relative shrink-0 w-full h-[116px] overflow-hidden rounded-2xl bg-[#191b1b] px-4 py-3 text-left group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a77800]"
+              @click="$emit('customer', customers[0].id)"
             >
               <span
-                class="shrink-0 w-5 pt-0.5 text-label-small font-inter font-medium tabular-nums"
-                :class="i === 0 ? 'text-[#9a6c00]' : 'text-[#9a9d95]'"
-                >{{ String(i + 1).padStart(2, '0') }}</span
+                class="absolute right-2 -bottom-5 text-[108px] font-interDisplay font-semibold leading-none tracking-[-0.09em] text-white/[0.06] pointer-events-none"
+                aria-hidden="true"
+                >{{ String(1).padStart(2, '0') }}</span
               >
-              <div class="flex-1 min-w-0">
-                <div
-                  class="text-heading-3 font-interDisplay font-medium tracking-tight truncate text-[#191b1b] group-hover:text-[#9a6c00]"
-                  :title="customer.name"
+              <div class="relative flex items-center gap-2">
+                <span class="h-1.5 w-1.5 rounded-full bg-[#ffd052] shrink-0" />
+                <span
+                  class="truncate text-heading-3 font-interDisplay font-medium text-white"
+                  :title="customers[0].name"
+                  >{{ customers[0].name }}</span
                 >
-                  {{ customer.name }}
-                </div>
-                <div class="flex items-baseline justify-between gap-3 mt-1">
-                  <span class="text-label-small text-[#96998f]"
-                    >{{ t('CRM.DASHBOARD.DESIGN.ORDERS') }}
-                    <span class="font-inter tabular-nums text-[#6f7369]">{{
-                      customer.orders
-                    }}</span></span
-                  >
-                  <strong
-                    class="font-interDisplay text-[17px] font-semibold leading-none tracking-[-0.04em] tabular-nums text-[#191b1b]"
-                    >{{
-                      moneyFormat(Math.round(customer.amount / 1000000))
-                    }}</strong
-                  >
-                </div>
+              </div>
+              <div
+                class="relative mt-2 font-interDisplay text-[30px] leading-none font-semibold tracking-[-0.05em] tabular-nums text-[#ffd052]"
+              >
+                {{ moneyFormat(Math.round(customers[0].amount / 1000000)) }}
+              </div>
+              <div
+                class="relative mt-2 flex justify-between gap-2 text-label-small text-white/60"
+              >
+                <span
+                  >{{ t('CRM.DASHBOARD.DESIGN.ORDERS') }}
+                  {{ customers[0].orders }}</span
+                >
+                <span
+                  >{{ t('CRM.DASHBOARD.DESIGN.TOP_FIVE_SHARE') }}
+                  <strong class="font-inter font-medium text-white"
+                    >{{ customerShare(customers[0]) }}%</strong
+                  ></span
+                >
               </div>
             </button>
-          </div>
+            <div class="flex-1 flex flex-col justify-evenly mt-2 min-h-0">
+              <button
+                v-for="(customer, i) in customers.slice(1)"
+                :key="customer.id"
+                class="group flex items-center gap-3 w-full min-w-0 py-2 text-left focus-visible:outline-2 focus-visible:outline-[#a77800]"
+                @click="$emit('customer', customer.id)"
+              >
+                <span
+                  class="w-5 shrink-0 font-interDisplay text-[18px] font-light tabular-nums text-[#b7bab0]"
+                  >{{ String(i + 2).padStart(2, '0') }}</span
+                >
+                <div class="min-w-0 flex-1">
+                  <div class="flex justify-between items-baseline gap-2">
+                    <span
+                      class="truncate text-label-small font-interDisplay font-medium text-[#191b1b] group-hover:text-[#9a6c00]"
+                      :title="customer.name"
+                      >{{ customer.name }}</span
+                    >
+                    <strong
+                      class="font-interDisplay text-[15px] font-semibold tracking-[-0.04em] tabular-nums shrink-0 text-[#191b1b]"
+                      >{{
+                        moneyFormat(Math.round(customer.amount / 1000000))
+                      }}</strong
+                    >
+                  </div>
+                  <svg
+                    class="w-full h-1 mt-2"
+                    viewBox="0 0 100 4"
+                    preserveAspectRatio="none"
+                    role="img"
+                    :aria-label="`${t('CRM.DASHBOARD.DESIGN.TOP_FIVE_SHARE')} ${customerShare(customer)}%`"
+                  >
+                    <rect width="100" height="4" rx="2" fill="#f1f2ee" />
+                    <rect
+                      :width="customerShare(customer)"
+                      height="4"
+                      rx="2"
+                      fill="#d3b65e"
+                    />
+                  </svg>
+                </div>
+              </button>
+            </div>
+          </template>
         </section>
       </div>
     </div>
