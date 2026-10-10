@@ -154,15 +154,22 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
     <div
       class="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-n-weak"
     >
-      <Button
-        v-for="tab in filterTabs"
-        :key="tab.key"
-        :label="tab.label"
-        size="sm"
-        :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-        :color="activeFilter === tab.key ? 'iris' : 'slate'"
-        @click="setFilter(tab.key)"
-      />
+      <div
+        class="contents"
+        :data-tabbar="embedded ? null : 'page'"
+        :data-tabbar-theme="embedded ? null : 'classic'"
+      >
+        <Button
+          v-for="tab in filterTabs"
+          :key="tab.key"
+          :label="tab.label"
+          size="sm"
+          :aria-selected="activeFilter === tab.key"
+          :variant="activeFilter === tab.key ? 'solid' : 'faded'"
+          :color="activeFilter === tab.key ? 'iris' : 'slate'"
+          @click="setFilter(tab.key)"
+        />
+      </div>
     </div>
 
     <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">

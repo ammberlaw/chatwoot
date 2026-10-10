@@ -140,10 +140,15 @@ onMounted(load);
       </p>
 
       <!-- Tabs -->
-      <div class="flex gap-1 mb-5 border-b border-n-weak">
+      <div
+        class="flex gap-1 mb-5 border-b border-n-weak"
+        data-tabbar="page"
+        data-tabbar-theme="classic"
+      >
         <button
           v-for="tab in TABS"
           :key="tab.key"
+          :aria-selected="activeTab === tab.key"
           class="px-4 py-2 -mb-px text-sm border-b-2"
           :class="
             activeTab === tab.key

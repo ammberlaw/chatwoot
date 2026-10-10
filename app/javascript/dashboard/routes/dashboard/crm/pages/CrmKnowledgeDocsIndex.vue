@@ -985,15 +985,18 @@ watch(
       <div
         class="flex flex-wrap items-center gap-2 px-4 py-3 border-b sm:px-6 border-n-weak"
       >
-        <Button
-          v-for="tab in filterTabs"
-          :key="tab.key"
-          :label="tab.label"
-          size="sm"
-          :variant="activeFilter === tab.key ? 'solid' : 'faded'"
-          :color="activeFilter === tab.key ? 'iris' : 'slate'"
-          @click="setFilter(tab.key)"
-        />
+        <div class="contents" data-tabbar="page" data-tabbar-theme="classic">
+          <Button
+            v-for="tab in filterTabs"
+            :key="tab.key"
+            :label="tab.label"
+            size="sm"
+            :aria-selected="activeFilter === tab.key"
+            :variant="activeFilter === tab.key ? 'solid' : 'faded'"
+            :color="activeFilter === tab.key ? 'iris' : 'slate'"
+            @click="setFilter(tab.key)"
+          />
+        </div>
         <!-- Filter：文件夹排序 -->
         <SelectCard
           v-if="!isRecycle && !isVault"
