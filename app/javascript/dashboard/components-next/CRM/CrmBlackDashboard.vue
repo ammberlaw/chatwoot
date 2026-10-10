@@ -602,32 +602,13 @@ const sourceShare = index =>
     <div
       class="grid items-start gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:gap-10"
     >
-      <section
-        v-if="!isMine"
-        class="w-full min-w-0 p-6 sm:p-7 bg-[#f6f7f3] rounded-3xl"
-      >
-        <h2 class="mb-5 text-heading-2 text-[#191b1b]">
-          {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
-        </h2>
-        <div v-if="!completeness.length" class="py-8 text-label text-[#85887f]">
-          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
-        </div>
-        <div class="grid sm:grid-cols-2 gap-x-8 max-h-72 overflow-y-auto pr-1">
-          <div
-            v-for="person in completeness"
-            :key="person.name"
-            class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
-          >
-            <span
-              class="grid size-7 rounded-full bg-[#f1f2ef] text-label-small place-items-center"
-              >{{ initials(person.name) }}</span
-            ><span class="text-label-small">{{ person.name }}</span
-            ><strong class="ml-auto text-label-small tabular-nums">{{
-              person.value
-            }}</strong>
-          </div>
-        </div>
-      </section>
+      <div class="w-full min-w-0">
+        <CrmSentEmailRankChart
+          v-if="!isMine"
+          :rows="emailRows"
+          :period-label="periodLabel"
+        />
+      </div>
       <section class="min-w-0 px-2 py-5">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
           <h2 class="text-heading-2 text-[#191b1b]">
@@ -668,13 +649,32 @@ const sourceShare = index =>
       </section>
     </div>
     <div class="flex flex-wrap items-start gap-6">
-      <div class="w-full max-w-[38rem] min-w-0">
-        <CrmSentEmailRankChart
-          v-if="!isMine"
-          :rows="emailRows"
-          :period-label="periodLabel"
-        />
-      </div>
+      <section
+        v-if="!isMine"
+        class="w-full max-w-[38rem] min-w-0 p-6 sm:p-7 bg-[#f6f7f3] rounded-3xl"
+      >
+        <h2 class="mb-5 text-heading-2 text-[#191b1b]">
+          {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
+        </h2>
+        <div v-if="!completeness.length" class="py-8 text-label text-[#85887f]">
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+        <div class="grid sm:grid-cols-2 gap-x-8 max-h-72 overflow-y-auto pr-1">
+          <div
+            v-for="person in completeness"
+            :key="person.name"
+            class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
+          >
+            <span
+              class="grid size-7 rounded-full bg-[#f1f2ef] text-label-small place-items-center"
+              >{{ initials(person.name) }}</span
+            ><span class="text-label-small">{{ person.name }}</span
+            ><strong class="ml-auto text-label-small tabular-nums">{{
+              person.value
+            }}</strong>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </template>
