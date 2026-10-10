@@ -114,6 +114,10 @@ const onTimeSub = code => {
 };
 const onTimeGaugeColor = code => {
   const p = onTimePct(code);
+  if (document.body.classList.contains('theme-classic-black')) {
+    if (p == null) return '#dfe2e5';
+    return p >= 90 ? '#b3d5a3' : '#c4c5f3';
+  }
   if (p == null) return themeColor('slate-6');
   if (p >= 90) return themeColor('teal-9');
   if (p >= 70) return themeColor('amber-9');
@@ -261,10 +265,12 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5 [.theme-classic-black_&]:gap-5 [.theme-classic-black_&]:lg:p-8 [.theme-classic-black_&]:[&_h2]:text-heading-2 [.theme-classic-black_&]:[&_h2]:font-bold [.theme-classic-black_&]:[&_h2]:text-[#202222]"
+    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5 [.theme-classic-black_&]:gap-5 [.theme-classic-black_&]:xl:grid [.theme-classic-black_&]:xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(270px,0.8fr)] [.theme-classic-black_&]:xl:auto-rows-min [.theme-classic-black_&]:items-start [.theme-classic-black_&]:lg:p-8 [.theme-classic-black_&]:[&_h2]:text-heading-2 [.theme-classic-black_&]:[&_h2]:font-bold [.theme-classic-black_&]:[&_h2]:text-[#202222]"
   >
     <!-- 顶栏 -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 [.theme-classic-black_&]:col-span-full"
+    >
       <div>
         <h1 class="text-heading-1 font-bold tracking-tight text-n-slate-12">
           生产看板
@@ -314,43 +320,20 @@ onMounted(() => {
 
     <template v-else>
       <div
-        class="hidden [.theme-classic-black_&]:grid lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] gap-6 shrink-0"
+        class="hidden [.theme-classic-black_&]:grid grid-cols-1 sm:grid-cols-3 gap-4 [.theme-classic-black_&]:xl:col-span-2"
       >
-        <section class="px-2 py-3">
-          <h2 class="text-heading-2 font-bold">{{ kpis[0].label }}</h2>
-          <div
-            class="mt-4 text-[64px] leading-none font-black tracking-tight tabular-nums text-[#191b1b]"
-          >
-            {{ kpis[0].value }}
-          </div>
-          <p class="mt-3 text-label text-[#858980]">{{ kpis[0].sub }}</p>
-          <div class="grid grid-cols-3 mt-5 pt-4 border-t border-[#e6e7e1]">
-            <div
-              v-for="k in kpis.slice(1, 4)"
-              :key="k.label"
-              class="px-5 first:pl-0 border-l first:border-l-0 border-[#e6e7e1]"
-            >
-              <h3 class="text-label font-semibold text-[#292b2b]">
-                {{ k.label }}
-              </h3>
-              <strong
-                class="block mt-3 text-[28px] leading-none tabular-nums"
-                >{{ k.value }}</strong
-              >
-              <p class="mt-2 text-label-small text-[#858980]">{{ k.sub }}</p>
-            </div>
-          </div>
-        </section>
         <section
-          class="rounded-[28px] bg-[#ffd34f] p-7 flex flex-col justify-center"
+          v-for="k in [kpis[0], kpis[1], kpis[4]]"
+          :key="k.label"
+          class="p-6 rounded-2xl border border-[#e8eaed] bg-white"
         >
-          <h2 class="text-heading-2 font-bold">{{ kpis[4].label }}</h2>
+          <h2 class="text-heading-2 font-semibold">{{ k.label }}</h2>
           <div
-            class="my-6 text-[64px] font-black leading-none tracking-tight tabular-nums"
+            class="mt-7 text-[40px] leading-none font-semibold tracking-tight tabular-nums"
           >
-            {{ kpis[4].value }}
+            {{ k.value }}
           </div>
-          <p class="text-label text-[#625722]">{{ kpis[4].sub }}</p>
+          <p class="mt-4 text-label-small text-[#81868c]">{{ k.sub }}</p>
         </section>
       </div>
       <!-- KPI 行 -->
@@ -388,7 +371,7 @@ onMounted(() => {
       <div
         v-if="data.unacked.length"
         :class="CARD"
-        class="!p-4 [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:!bg-white"
+        class="!p-5 [.theme-classic-black_&]:xl:col-start-3 [.theme-classic-black_&]:xl:row-start-2 [.theme-classic-black_&]:xl:row-span-2 [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:self-stretch"
       >
         <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11">
           <span class="i-lucide-alarm-clock-off size-4" />
@@ -396,16 +379,30 @@ onMounted(() => {
         </div>
         <MesMarqueeList
           :count="data.unacked.length"
-          class="[.theme-classic-black_&]:!mask-none [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
+          class="[.theme-classic-black_&]:[mask-image:none] [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-auto [.theme-classic-black_&]:max-h-[420px] [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
         >
           <ul class="flex flex-col">
             <li
               v-for="o in data.unacked"
               :key="`ua-${o.id}`"
-              class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+              class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic-black_&]:!h-auto [.theme-classic-black_&]:!items-start [.theme-classic-black_&]:!p-4 [.theme-classic-black_&]:!mx-0 [.theme-classic-black_&]:mb-3 [.theme-classic-black_&]:!rounded-2xl [.theme-classic-black_&]:border [.theme-classic-black_&]:border-[#e8eaed] [.theme-classic-black_&]:bg-[#fafbf9] [.theme-classic-black_&]:hover:bg-[#f1f7df]"
               @click="goOrder(o.order_no)"
             >
-              <span class="truncate text-n-slate-12 group-hover:underline">
+              <span class="hidden [.theme-classic-black_&]:block min-w-0">
+                <strong class="block text-label text-[#222426]">{{
+                  o.order_no
+                }}</strong>
+                <span
+                  class="block mt-1 text-label-small text-[#858a90] truncate"
+                  >{{ o.product_name }}</span
+                >
+                <span class="inline-block mt-2 px-2 py-1 rounded-lg bg-white text-label-small text-[#555b61]">{{
+                  stageLabel(o.stage)
+                }}</span>
+              </span>
+              <span
+                class="truncate text-n-slate-12 group-hover:underline [.theme-classic-black_&]:hidden"
+              >
                 {{ o.order_no }} · {{ o.product_name }} ·
                 {{ stageLabel(o.stage) }}
                 <span class="text-n-slate-10">
@@ -427,9 +424,11 @@ onMounted(() => {
       </div>
 
       <!-- 阶段分布 + 按时交货率 -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div
+        class="grid grid-cols-1 gap-4 lg:grid-cols-3 [.theme-classic-black_&]:xl:col-span-2 [.theme-classic-black_&]:lg:grid-cols-2 [.theme-classic-black_&]:items-stretch"
+      >
         <div
-          class="lg:col-span-2 min-w-0 [.theme-classic-black_&]:!bg-[#f6f7f3] [.theme-classic-black_&]:!border-transparent [.theme-classic-black_&]:!p-7"
+          class="lg:col-span-2 min-w-0 [.theme-classic-black_&]:lg:col-span-1 [.theme-classic-black_&]:order-2 [.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:!p-7"
           :class="CARD"
         >
           <h2
@@ -442,7 +441,7 @@ onMounted(() => {
             <div
               v-for="(label, index) in stageChart.labels"
               :key="label"
-              class="grid grid-cols-[minmax(120px,180px)_1fr_32px] items-center gap-4 text-label"
+              class="grid grid-cols-[minmax(90px,110px)_1fr_24px] items-center gap-4 text-label"
             >
               <span class="text-[#555b61]">{{ label }}</span>
               <progress
@@ -485,6 +484,18 @@ onMounted(() => {
             <span class="i-lucide-truck size-4 text-n-slate-11" />
             按时交货率
           </h2>
+          <div
+            class="hidden [.theme-classic-black_&]:grid grid-cols-2 gap-3 mt-5 mb-5"
+          >
+            <div
+              v-for="k in kpis.slice(2, 4)"
+              :key="k.label"
+              class="p-3 rounded-xl bg-[#f7f8fa]"
+            >
+              <p class="text-label-small text-[#81868c]">{{ k.label }}</p>
+              <strong class="block mt-2 text-heading-1">{{ k.value }}</strong>
+            </div>
+          </div>
           <div class="grid grid-cols-2 gap-2">
             <div
               v-for="l in ONTIME_LINES"
@@ -525,7 +536,7 @@ onMounted(() => {
       </div>
 
       <!-- 各环节接单平均响应时长（可下钻到人） -->
-      <div :class="CARD">
+      <div :class="CARD" class="[.theme-classic-black_&]:xl:col-span-2">
         <h2
           class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
         >
@@ -602,7 +613,9 @@ onMounted(() => {
       </div>
 
       <!-- 交期预警 + 滞留卡点 -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div
+        class="grid grid-cols-1 gap-4 lg:grid-cols-2 [.theme-classic-black_&]:col-span-full"
+      >
         <div :class="CARD">
           <h2
             class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
@@ -619,7 +632,7 @@ onMounted(() => {
           </div>
           <MesMarqueeList
             :count="data.overdue.length + data.dueSoon.length"
-            class="[.theme-classic-black_&]:!mask-none [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
+            class="[.theme-classic-black_&]:[mask-image:none] [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
           >
             <ul class="flex flex-col">
               <li
@@ -678,7 +691,7 @@ onMounted(() => {
           </div>
           <MesMarqueeList
             :count="data.stalled.length"
-            class="[.theme-classic-black_&]:!mask-none [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
+            class="[.theme-classic-black_&]:[mask-image:none] [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
           >
             <ul class="flex flex-col">
               <li
