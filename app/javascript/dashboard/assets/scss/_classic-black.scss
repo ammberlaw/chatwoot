@@ -15,11 +15,8 @@ body.theme-classic-black aside[data-sidebar-collapsed] {
   border-color: #303033;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
 
-  [data-sidebar-region='search'] > a,
-  [data-sidebar-region='search'] > .inline-flex > button {
-    color: #c3c3c9 !important;
-    background: #252527;
-    outline-color: #414145;
+  [data-sidebar-region='search'] {
+    display: none;
   }
   [data-sidebar-region='footer'] > .pointer-events-none {
     background: linear-gradient(to top, #161616, transparent);
