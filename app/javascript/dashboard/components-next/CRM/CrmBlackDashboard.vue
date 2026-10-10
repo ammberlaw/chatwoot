@@ -1,0 +1,542 @@
+<script setup>
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import CrmAreaChart from './charts/CrmAreaChart.vue';
+import CrmBarChart from './charts/CrmBarChart.vue';
+import CrmDoughnutChart from './charts/CrmDoughnutChart.vue';
+import CrmSentEmailRankChart from './CrmSentEmailRankChart.vue';
+
+const props = defineProps({
+  isMine: { type: Boolean, default: false },
+  periodLabel: { type: String, required: true },
+  periodNoun: { type: String, required: true },
+  gmv: { type: Object, required: true },
+  summary: { type: Array, required: true },
+  target: { type: Object, default: null },
+  trend: { type: Object, required: true },
+  rank: { type: Array, required: true },
+  customers: { type: Array, required: true },
+  stages: { type: Array, required: true },
+  sources: { type: Object, required: true },
+  completeness: { type: Array, required: true },
+  privateCustomers: { type: Number, default: 0 },
+  privateCompleteness: { type: Number, default: null },
+  emailRows: { type: Array, required: true },
+  winRate: { type: Number, default: null },
+  moneyFormat: { type: Function, required: true },
+  initials: { type: Function, required: true },
+});
+defineEmits(['customer']);
+const { t } = useI18n();
+const bars = computed(() => {
+  const series = props.gmv.viz.series;
+  const max = Math.max(...series, 1);
+  return series.map((value, index) => ({
+    x: index * 24 + 2,
+    h: (value / max) * 76,
+    active: index === series.length - 1,
+  }));
+});
+const deltaColor = computed(() => {
+  if (props.gmv.delta?.dir === 'down') return 'text-[#ffa89e]';
+  if (props.gmv.delta?.dir === 'up') return 'text-[#94e5bb]';
+  return 'text-[#c4c5c3]';
+});
+const sourceColors = [
+  '#191b1b',
+  '#ffd052',
+  '#acae9f',
+  '#dadbd2',
+  '#f0dca2',
+  '#7e8473',
+];
+const rankColor = index => {
+  if (index === 0) return '#ffd052';
+  return index < 3 ? '#191b1b' : '#d7d9d0';
+};
+const rankChart = computed(() => ({
+  names: props.rank.slice(0, 8).map(row => row.name.split(' ')[0]),
+  values: props.rank.slice(0, 8).map(row => row.amount),
+  colors: props.rank.slice(0, 8).map((_, i) => rankColor(i)),
+}));
+const compactYuan = value =>
+  value >= 10000
+    ? `¥${(value / 10000).toFixed(1)}万`
+    : props.moneyFormat(value);
+const sourceShare = index =>
+  props.sources.total
+    ? Math.round((props.sources.data[index] / props.sources.total) * 100)
+    : 0;
+</script>
+
+<template>
+  <div data-black-dashboard-design class="flex flex-col gap-5 min-w-0">
+    <div class="grid gap-5 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
+      <!-- Revenue is the primary figure; the remaining KPIs share one quiet band. -->
+      <section class="overflow-hidden rounded-2xl bg-[#191b1b] text-white">
+        <div
+          class="flex items-end justify-between gap-4 px-6 pt-6 pb-5 sm:px-7"
+        >
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 text-label text-[#d2d3d0]">
+              <span class="i-lucide-arrow-up-right size-4 text-[#ffd052]" />
+              {{ t('CRM.DASHBOARD.DESIGN.REVENUE') }}
+              <span class="text-label-small text-[#a5a7a2]">{{
+                gmv.label
+              }}</span>
+            </div>
+            <div
+              class="mt-3 text-[clamp(1.8rem,3.7vw,3.4rem)] font-semibold leading-none tracking-tight tabular-nums break-all"
+            >
+              {{ gmv.value }}
+            </div>
+            <div
+              class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 text-label-small"
+            >
+              <span
+                v-if="gmv.delta"
+                class="font-semibold"
+                :class="deltaColor"
+                >{{ gmv.delta.text }}</span
+              >
+              <span class="text-[#a5a7a2]">{{
+                gmv.delta?.vs || periodLabel
+              }}</span>
+            </div>
+          </div>
+          <div
+            v-if="bars.length"
+            class="hidden w-[35%] max-w-56 sm:block shrink-0"
+          >
+            <svg
+              width="100%"
+              height="92"
+              :viewBox="`0 0 ${bars.length * 24} 92`"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <rect
+                v-for="(bar, i) in bars"
+                :key="i"
+                :x="bar.x"
+                :y="88 - bar.h"
+                width="15"
+                :height="Math.max(2, bar.h)"
+                rx="3"
+                :fill="bar.active ? '#ffd052' : '#50534b'"
+              />
+            </svg>
+            <p class="mt-1 text-right text-label-small text-[#a5a7a2]">
+              {{ t('CRM.DASHBOARD.DESIGN.MONTHLY_REVENUE') }}
+            </p>
+          </div>
+        </div>
+        <div
+          class="grid grid-cols-3 divide-x divide-white/10 border-t border-white/10 px-2 py-4 sm:px-4"
+        >
+          <div
+            v-for="metric in summary"
+            :key="metric.label"
+            class="px-3 sm:px-4"
+          >
+            <div class="text-label-small text-[#a5a7a2]">
+              {{ metric.label }}
+            </div>
+            <div class="flex items-baseline gap-1.5 mt-1.5">
+              <span class="text-2xl font-semibold tabular-nums">{{
+                metric.value
+              }}</span>
+              <span class="text-label-small text-[#a5a7a2]">{{
+                metric.sub
+              }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="flex flex-col justify-between p-6 rounded-2xl bg-[#ffd052] text-[#191b1b]"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="text-heading-2">
+            {{ periodNoun }}{{ t('CRM.DASHBOARD.DESIGN.TARGET') }}
+          </h2>
+          <span class="i-lucide-target size-5" />
+        </div>
+        <template v-if="target">
+          <div class="flex items-center justify-between gap-4 mt-3">
+            <div>
+              <div
+                class="text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums"
+              >
+                {{ target.pct }}<span class="text-2xl">%</span>
+              </div>
+              <p class="mt-2 text-label-small text-[#5c501e]">
+                {{ t('CRM.DASHBOARD.DESIGN.ACHIEVED') }}
+              </p>
+            </div>
+            <svg class="w-28 shrink-0" viewBox="0 0 120 80" aria-hidden="true">
+              <path
+                d="M12 66 A48 48 0 0 1 108 66"
+                fill="none"
+                stroke="#fff0bc"
+                stroke-width="14"
+                stroke-linecap="round"
+              />
+              <path
+                d="M12 66 A48 48 0 0 1 108 66"
+                fill="none"
+                stroke="#191b1b"
+                stroke-width="14"
+                stroke-linecap="round"
+                pathLength="100"
+                :stroke-dasharray="`${target.pct} 100`"
+              />
+            </svg>
+          </div>
+          <div
+            class="grid grid-cols-2 gap-4 pt-3 mt-3 border-t border-black/15 text-label-small"
+          >
+            <div>
+              <p class="text-[#5c501e]">
+                {{ t('CRM.DASHBOARD.DESIGN.TARGET_AMOUNT') }}
+              </p>
+              <p class="mt-1 font-semibold tabular-nums">{{ target.target }}</p>
+            </div>
+            <div>
+              <p class="text-[#5c501e]">
+                {{ t('CRM.DASHBOARD.DESIGN.REMAINING') }}
+              </p>
+              <p class="mt-1 font-semibold tabular-nums">
+                {{ target.remaining }}
+              </p>
+            </div>
+          </div>
+        </template>
+        <p v-else class="py-8 text-label text-[#5c501e]">
+          {{ t('CRM.DASHBOARD.DESIGN.NO_TARGET') }}
+        </p>
+      </section>
+    </div>
+
+    <div class="grid gap-5 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
+      <section class="min-w-0 p-6 bg-white border rounded-2xl border-[#e9eae6]">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+          <h2 class="text-heading-2 text-[#191b1b]">
+            {{
+              isMine
+                ? t('CRM.DASHBOARD.DESIGN.TREND')
+                : t('CRM.DASHBOARD.DESIGN.TEAM_RANK')
+            }}
+          </h2>
+          <span
+            class="px-3 py-1 rounded-full bg-[#fff5cf] text-label-small text-[#725e25]"
+            >{{ periodLabel }}</span
+          >
+        </div>
+        <div v-if="isMine" class="h-56 min-w-0">
+          <CrmAreaChart
+            v-if="!trend.empty"
+            :labels="trend.labels"
+            :data="trend.data"
+            :active-index="trend.activeIndex"
+            :value-format="moneyFormat"
+          />
+          <div
+            v-else
+            class="grid h-full text-label text-[#85887f] place-items-center"
+          >
+            {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+          </div>
+        </div>
+        <template v-else-if="rank.length">
+          <div class="hidden sm:block h-56 min-w-0">
+            <CrmBarChart
+              :labels="rankChart.names"
+              :data="rankChart.values"
+              :colors="rankChart.colors"
+              show-values
+              :value-format="compactYuan"
+            />
+          </div>
+          <ol class="flex flex-col sm:hidden">
+            <li
+              v-for="(person, i) in rank.slice(0, 8)"
+              :key="person.name"
+              class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0 text-label-small"
+            >
+              <span
+                class="grid size-6 rounded-md font-semibold shrink-0 place-items-center"
+                :class="
+                  i === 0
+                    ? 'bg-[#ffd052] text-[#191b1b]'
+                    : 'bg-[#f1f2ef] text-[#85887f]'
+                "
+                >{{ i + 1 }}</span
+              >
+              <span class="truncate min-w-0">{{ person.name }}</span
+              ><strong class="ml-auto tabular-nums whitespace-nowrap">{{
+                person.value
+              }}</strong>
+            </li>
+          </ol>
+          <details class="mt-4 border-t border-[#eceee6] pt-3">
+            <summary
+              class="cursor-pointer text-label-small text-[#85887f] focus-visible:outline-2 focus-visible:outline-[#a77800]"
+            >
+              {{ t('CRM.DASHBOARD.DESIGN.ALL_RANK') }} · {{ rank.length }}
+            </summary>
+            <div
+              class="grid gap-x-6 mt-2 sm:grid-cols-2 max-h-64 overflow-y-auto"
+            >
+              <div
+                v-for="(person, i) in rank"
+                :key="person.name"
+                class="flex items-center gap-2 py-2 text-label-small"
+              >
+                <span class="w-4 text-[#85887f]">{{ i + 1 }}</span
+                ><span>{{ person.name }}</span
+                ><strong class="ml-auto tabular-nums">{{
+                  person.value
+                }}</strong>
+              </div>
+            </div>
+          </details>
+        </template>
+        <div
+          v-else
+          class="grid h-56 text-label text-[#85887f] place-items-center"
+        >
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+      </section>
+      <section class="min-w-0 p-6 bg-white border rounded-2xl border-[#e9eae6]">
+        <h2 class="mb-4 text-heading-2 text-[#191b1b]">
+          {{ t('CRM.DASHBOARD.DESIGN.SOURCES') }}
+        </h2>
+        <template v-if="!sources.empty">
+          <div class="relative h-40 max-w-40 mx-auto">
+            <CrmDoughnutChart
+              :labels="sources.labels"
+              :data="sources.data"
+              :colors="sourceColors"
+              cutout="70%"
+            >
+              <template #center>
+                <strong class="text-3xl tabular-nums">{{
+                  sources.total
+                }}</strong
+                ><span class="text-label-small text-[#85887f]">{{
+                  t('CRM.DASHBOARD.DESIGN.CUSTOMERS_UNIT')
+                }}</span>
+              </template>
+            </CrmDoughnutChart>
+          </div>
+          <div class="grid grid-cols-2 gap-x-4 gap-y-3 mt-5 pr-5">
+            <div
+              v-for="(source, i) in sources.labels"
+              :key="source"
+              class="flex items-center gap-2 min-w-0 text-label-small"
+            >
+              <svg width="7" height="7" class="shrink-0" aria-hidden="true">
+                <circle
+                  cx="3.5"
+                  cy="3.5"
+                  r="3.5"
+                  :fill="sourceColors[i % sourceColors.length]"
+                /></svg
+              ><span class="truncate text-[#85887f]" :title="source">{{
+                source
+              }}</span
+              ><strong class="ml-auto tabular-nums"
+                >{{ sourceShare(i) }}%</strong
+              >
+            </div>
+          </div>
+        </template>
+        <div
+          v-else
+          class="grid h-56 text-label text-[#85887f] place-items-center"
+        >
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+      </section>
+    </div>
+
+    <div class="grid gap-5 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
+      <section
+        class="min-w-0 bg-white border rounded-2xl border-[#e9eae6] overflow-hidden"
+      >
+        <div class="flex items-center justify-between gap-3 px-6 py-5">
+          <h2 class="text-heading-2 text-[#191b1b]">
+            {{ t('CRM.DASHBOARD.DESIGN.CUSTOMER_RANK') }}
+          </h2>
+          <span class="text-label-small text-[#85887f]">{{ periodLabel }}</span>
+        </div>
+        <div v-if="!customers.length" class="p-8 text-label text-[#85887f]">
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full text-left text-label-small">
+            <thead class="bg-[#f7f8f5] text-[#85887f]">
+              <tr>
+                <th class="px-6 py-3 font-medium">
+                  {{ t('CRM.DASHBOARD.DESIGN.CUSTOMER') }}
+                </th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">
+                  {{ t('CRM.DASHBOARD.DESIGN.ORDERS') }}
+                </th>
+                <th class="px-6 py-3 font-medium text-right whitespace-nowrap">
+                  {{ t('CRM.DASHBOARD.DESIGN.REVENUE') }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(customer, i) in customers"
+                :key="customer.id"
+                class="border-t border-[#f0f1ed] hover:bg-[#fffcf1]"
+              >
+                <td class="px-6 py-3.5">
+                  <button
+                    class="flex items-center gap-3 text-left group focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a77800]"
+                    @click="$emit('customer', customer.id)"
+                  >
+                    <span class="text-[#9a9d95] tabular-nums">{{
+                      String(i + 1).padStart(2, '0')
+                    }}</span
+                    ><span
+                      class="font-medium text-[#191b1b] group-hover:underline"
+                      >{{ customer.name }}</span
+                    ><span
+                      class="i-lucide-arrow-up-right size-3.5 shrink-0 text-[#9a9d95]"
+                    />
+                  </button>
+                </td>
+                <td class="px-3 py-3.5 tabular-nums">{{ customer.orders }}</td>
+                <td
+                  class="px-6 py-3.5 text-right font-semibold tabular-nums whitespace-nowrap"
+                >
+                  {{ moneyFormat(Math.round(customer.amount / 1000000)) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section class="min-w-0 p-6 bg-white border rounded-2xl border-[#e9eae6]">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+          <h2 class="text-heading-2 text-[#191b1b]">
+            {{ t('CRM.DASHBOARD.DESIGN.PIPELINE') }}
+          </h2>
+          <span
+            v-if="winRate != null"
+            class="flex items-center gap-1 text-label-small text-[#85887f]"
+            >{{ t('CRM.DASHBOARD.DESIGN.WIN_RATE') }}
+            <strong class="text-[#191b1b]">{{ winRate }}%</strong></span
+          >
+        </div>
+        <div v-if="!stages.length" class="py-8 text-label text-[#85887f]">
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+        <div
+          v-for="stage in stages"
+          :key="stage.label"
+          class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
+        >
+          <span
+            class="grid size-8 rounded-lg shrink-0 place-items-center"
+            :class="stage.tone"
+            ><span class="size-4" :class="stage.icon" /></span
+          ><span class="text-label-small">{{ stage.label }}</span
+          ><span
+            class="ml-auto text-label-small font-semibold whitespace-nowrap tabular-nums"
+            >{{ stage.amount }}</span
+          >
+        </div>
+      </section>
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-2">
+      <section
+        v-if="!isMine"
+        class="min-w-0 p-6 bg-white border rounded-2xl border-[#e9eae6]"
+      >
+        <div class="flex items-center justify-between gap-3 mb-5">
+          <h2 class="text-heading-2 text-[#191b1b]">
+            {{ t('CRM.DASHBOARD.DESIGN.TREND') }}
+          </h2>
+          <span class="text-label-small text-[#85887f]">{{
+            t('CRM.DASHBOARD.DESIGN.ANNUAL_TREND')
+          }}</span>
+        </div>
+        <div class="h-56 min-w-0">
+          <CrmAreaChart
+            v-if="!trend.empty"
+            :labels="trend.labels"
+            :data="trend.data"
+            :active-index="trend.activeIndex"
+            :value-format="moneyFormat"
+          />
+          <div
+            v-else
+            class="grid h-full text-label text-[#85887f] place-items-center"
+          >
+            {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+          </div>
+        </div>
+      </section>
+      <section v-else class="p-6 bg-white border rounded-2xl border-[#e9eae6]">
+        <h2 class="text-heading-2">
+          {{ t('CRM.DASHBOARD.DESIGN.PRIVATE_CUSTOMERS') }}
+        </h2>
+        <div class="flex items-baseline gap-2 mt-5">
+          <strong class="text-4xl tabular-nums">{{ privateCustomers }}</strong
+          ><span class="text-label text-[#85887f]">{{
+            t('CRM.DASHBOARD.DESIGN.CUSTOMERS_UNIT')
+          }}</span>
+        </div>
+        <div
+          v-if="privateCompleteness != null"
+          class="flex items-center justify-between pt-4 mt-5 border-t border-[#e9eae6] text-label"
+        >
+          <span>{{ t('CRM.DASHBOARD.DESIGN.COMPLETENESS') }}</span
+          ><strong>{{
+            t('CRM.DASHBOARD.DESIGN.SCORE', { score: privateCompleteness })
+          }}</strong>
+        </div>
+      </section>
+      <section
+        v-if="!isMine"
+        class="min-w-0 p-6 bg-white border rounded-2xl border-[#e9eae6]"
+      >
+        <h2 class="mb-5 text-heading-2 text-[#191b1b]">
+          {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
+        </h2>
+        <div v-if="!completeness.length" class="py-8 text-label text-[#85887f]">
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+        <div class="max-h-72 overflow-y-auto pr-1">
+          <div
+            v-for="person in completeness"
+            :key="person.name"
+            class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
+          >
+            <span
+              class="grid size-7 rounded-full bg-[#f1f2ef] text-label-small place-items-center"
+              >{{ initials(person.name) }}</span
+            ><span class="text-label-small">{{ person.name }}</span
+            ><strong class="ml-auto text-label-small tabular-nums">{{
+              person.value
+            }}</strong>
+          </div>
+        </div>
+      </section>
+    </div>
+    <CrmSentEmailRankChart
+      v-if="!isMine"
+      :rows="emailRows"
+      :period-label="periodLabel"
+    />
+  </div>
+</template>

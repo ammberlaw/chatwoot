@@ -10,6 +10,7 @@ import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue'
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import CrmKpiCard from 'dashboard/components-next/CRM/CrmKpiCard.vue';
+import CrmBlackDashboard from 'dashboard/components-next/CRM/CrmBlackDashboard.vue';
 import {
   themeColor,
   usesClassicContentColors,
@@ -355,6 +356,10 @@ const isClassicKpi = computed(() => {
   void themeSignal.value;
   return usesClassicContentColors();
 });
+const isClassicBlack = computed(() => {
+  void themeSignal.value;
+  return document.body.classList.contains('theme-classic-black');
+});
 
 // 个人看板（scope=mine）：按业务员排的那两张榜只会剩自己一行，不渲染。
 const isMine = computed(() => scope.value === 'mine');
@@ -406,6 +411,7 @@ const targetProgress = computed(() => {
     target: money(targetMicros),
     done: money(done),
     pct: Math.min(100, Math.round((done / targetMicros) * 100)),
+    remaining: money(Math.max(0, targetMicros - done)),
   };
 });
 
@@ -617,6 +623,7 @@ const buildRankRows = (chart, { inverse = false, fmt }) => {
       name,
       initial: (name || '?').slice(0, 1),
       value: fmt(data[i]),
+      amount: data[i],
       pct,
       color,
       barColor: RANK_PALETTE[0],
@@ -716,6 +723,28 @@ const PERIODS = [
       </button>
     </div>
 
+    <CrmBlackDashboard
+      v-else-if="isClassicBlack"
+      :is-mine="isMine"
+      :period-label="periodLabel"
+      :period-noun="periodNoun"
+      :gmv="GMV_KPI"
+      :summary="salesKpis.slice(1)"
+      :target="targetProgress"
+      :trend="trendChart"
+      :rank="classicRank"
+      :customers="topCustomers"
+      :stages="classicStageRows"
+      :sources="sourceDonut"
+      :completeness="classicCompleteness"
+      :private-customers="stats?.totals?.private_customers || 0"
+      :private-completeness="completenessRing?.score"
+      :email-rows="ownerEmailRankRows"
+      :win-rate="winRate"
+      :money-format="moneyYuan"
+      :initials="rankInitials"
+      @customer="goCustomer"
+    />
     <template v-else>
       <!-- ═══ 第 1 行：KPI ═══ -->
       <!-- 手机上排 2 列（原来单列一屏只看得到 2 张卡），并收紧内边距/字号 -->

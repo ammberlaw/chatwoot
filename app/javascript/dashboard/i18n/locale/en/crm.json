@@ -1049,7 +1049,32 @@
     "DASHBOARD": {
       "HEADER_COMPANY": "外贸销售部数据看板",
       "HEADER_MINE": "个人数据看板",
-      "LOADING": "加载中…"
+      "LOADING": "加载中…",
+      "DESIGN": {
+        "REVENUE": "成交额",
+        "ALL_RANK": "查看完整排行",
+        "SCORE": "{score} / 100",
+        "MONTHLY_REVENUE": "年内月度成交额",
+        "TARGET": "业绩目标",
+        "ACHIEVED": "目标完成率",
+        "TARGET_AMOUNT": "目标金额",
+        "REMAINING": "距目标还差",
+        "NO_TARGET": "当前期间尚未设定目标",
+        "TREND": "销售走势",
+        "ANNUAL_TREND": "全年 · 订单金额",
+        "NO_DATA": "暂无数据",
+        "PRIVATE_CUSTOMERS": "私海客户",
+        "CUSTOMERS_UNIT": "家",
+        "COMPLETENESS": "客户资料完善度",
+        "TEAM_RANK": "团队成交排行",
+        "CUSTOMER_RANK": "重点成交客户",
+        "CUSTOMER": "客户",
+        "ORDERS": "订单数",
+        "PIPELINE": "商机阶段",
+        "WIN_RATE": "成交转化率",
+        "SOURCES": "客户来源",
+        "TEAM_COMPLETENESS": "团队资料完善度"
+      }
     },
     "TEAM_DASHBOARD": {
       "HEADER": "团队看板",
