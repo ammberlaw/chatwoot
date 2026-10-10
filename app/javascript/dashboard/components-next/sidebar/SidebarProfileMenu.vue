@@ -312,7 +312,7 @@ const allowedMenuItems = computed(() => {
               class="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-label-small transition-colors"
               :class="
                 palette.key === activePalette
-                  ? 'col-span-2 border-[#e8bf4e] bg-[#fff3c4]/90 font-semibold text-[#191b1b]'
+                  ? 'border-[#e8bf4e] bg-[#fff3c4]/90 font-semibold text-[#191b1b]'
                   : 'border-white/80 bg-white/50 text-[#3d4045] hover:bg-white/90'
               "
               @click="selectPalette(palette.key)"
