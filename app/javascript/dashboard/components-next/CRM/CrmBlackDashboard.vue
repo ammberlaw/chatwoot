@@ -83,9 +83,9 @@ const sourceShare = index =>
 
 <template>
   <div data-black-dashboard-design class="flex flex-col gap-8 min-w-0">
-    <div class="grid gap-7 xl:grid-cols-12 xl:gap-10 items-start">
-      <div class="contents xl:flex xl:flex-col xl:gap-6 min-w-0 xl:col-span-8">
-        <section class="order-1 min-w-0 text-[#191b1b]">
+    <div class="grid gap-7 xl:grid-cols-12 xl:gap-10 items-stretch">
+      <div class="contents">
+        <section class="order-1 min-w-0 text-[#191b1b] xl:col-span-8">
           <div
             class="flex items-end justify-between gap-4 px-1 pt-3 pb-7 sm:px-2"
           >
@@ -165,7 +165,9 @@ const sourceShare = index =>
             </div>
           </div>
         </section>
-        <section class="order-3 min-w-0 p-6 sm:p-7 bg-[#f6f7f3] rounded-3xl">
+        <section
+          class="order-3 xl:col-span-8 min-w-0 p-6 sm:p-7 bg-[#f6f7f3] rounded-3xl"
+        >
           <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
             <h2 class="text-heading-2 text-[#191b1b]">
               {{
@@ -256,11 +258,9 @@ const sourceShare = index =>
           </div>
         </section>
       </div>
-      <div
-        class="contents xl:flex xl:flex-col xl:gap-8 min-w-0 xl:col-span-4 xl:pt-10"
-      >
+      <div class="contents">
         <section
-          class="order-2 flex flex-col justify-between p-6 sm:p-7 rounded-[1.75rem] bg-[#ffd052] text-[#191b1b]"
+          class="order-2 xl:col-span-4 xl:self-stretch flex flex-col justify-between p-6 sm:p-7 rounded-[1.75rem] bg-[#ffd052] text-[#191b1b]"
         >
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-heading-2">
@@ -329,32 +329,54 @@ const sourceShare = index =>
           </p>
         </section>
         <section
-          v-if="!isMine"
-          class="order-4 w-full min-w-0 p-6 bg-[#f6f7f3] rounded-3xl"
+          class="order-4 xl:col-span-4 min-w-0 p-6 sm:p-7 rounded-3xl border border-[#e9eae6] bg-white"
         >
-          <h2 class="mb-5 text-heading-2 text-[#191b1b]">
-            {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
-          </h2>
-          <div
-            v-if="!completeness.length"
-            class="py-8 text-label text-[#85887f]"
-          >
+          <div class="flex items-center justify-between gap-3 mb-5">
+            <h2 class="text-heading-2 text-[#191b1b]">
+              {{ t('CRM.DASHBOARD.DESIGN.CUSTOMER_RANK') }}
+            </h2>
+            <span class="text-label-small text-[#85887f] whitespace-nowrap">{{
+              periodLabel
+            }}</span>
+          </div>
+          <div v-if="!customers.length" class="py-8 text-label text-[#85887f]">
             {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
           </div>
-          <div class="max-h-72 overflow-y-auto pr-1">
-            <div
-              v-for="person in completeness"
-              :key="person.name"
-              class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
+          <div v-else class="flex flex-col gap-2">
+            <button
+              v-for="(customer, i) in customers"
+              :key="customer.id"
+              class="group flex items-center gap-3 w-full min-w-0 p-3 rounded-xl text-left transition-colors focus-visible:outline-2 focus-visible:outline-[#a77800]"
+              :class="
+                i === 0
+                  ? 'bg-[#fff4cd] hover:bg-[#ffebaa]'
+                  : 'hover:bg-[#f6f7f3]'
+              "
+              @click="$emit('customer', customer.id)"
             >
               <span
-                class="grid size-7 rounded-full bg-[#f1f2ef] text-label-small place-items-center"
-                >{{ initials(person.name) }}</span
-              ><span class="text-label-small">{{ person.name }}</span
-              ><strong class="ml-auto text-label-small tabular-nums">{{
-                person.value
-              }}</strong>
-            </div>
+                class="shrink-0 text-label-small font-semibold tabular-nums"
+                :class="i === 0 ? 'text-[#9a6c00]' : 'text-[#9a9d95]'"
+                >{{ String(i + 1).padStart(2, '0') }}</span
+              >
+              <div class="flex-1 min-w-0">
+                <div
+                  class="text-label-small font-medium truncate text-[#191b1b] group-hover:underline"
+                  :title="customer.name"
+                >
+                  {{ customer.name }}
+                </div>
+                <div class="mt-1 text-label-small text-[#85887f]">
+                  {{ t('CRM.DASHBOARD.DESIGN.ORDERS') }} {{ customer.orders }}
+                </div>
+              </div>
+              <strong
+                class="shrink-0 text-label-small tabular-nums text-[#191b1b]"
+                >{{
+                  moneyFormat(Math.round(customer.amount / 1000000))
+                }}</strong
+              >
+            </button>
           </div>
         </section>
       </div>
@@ -363,61 +385,29 @@ const sourceShare = index =>
       class="grid items-start gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:gap-10"
     >
       <section
-        class="min-w-0 bg-white border rounded-2xl border-[#e9eae6] overflow-hidden"
+        v-if="!isMine"
+        class="w-full min-w-0 p-6 sm:p-7 bg-[#f6f7f3] rounded-3xl"
       >
-        <div class="flex items-center justify-between gap-3 px-6 py-5">
-          <h2 class="text-heading-2 text-[#191b1b]">
-            {{ t('CRM.DASHBOARD.DESIGN.CUSTOMER_RANK') }}
-          </h2>
-          <span class="text-label-small text-[#85887f]">{{ periodLabel }}</span>
-        </div>
-        <div v-if="!customers.length" class="p-8 text-label text-[#85887f]">
+        <h2 class="mb-5 text-heading-2 text-[#191b1b]">
+          {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
+        </h2>
+        <div v-if="!completeness.length" class="py-8 text-label text-[#85887f]">
           {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
         </div>
-        <div v-else class="overflow-x-auto">
-          <table class="w-full text-left text-label-small">
-            <thead class="bg-[#f7f8f5] text-[#85887f]">
-              <tr>
-                <th class="px-6 py-3 font-medium">
-                  {{ t('CRM.DASHBOARD.DESIGN.CUSTOMER') }}
-                </th>
-                <th class="px-3 py-3 font-medium whitespace-nowrap">
-                  {{ t('CRM.DASHBOARD.DESIGN.ORDERS') }}
-                </th>
-                <th class="px-6 py-3 font-medium text-right whitespace-nowrap">
-                  {{ t('CRM.DASHBOARD.DESIGN.REVENUE') }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(customer, i) in customers"
-                :key="customer.id"
-                class="border-t border-[#f0f1ed] hover:bg-[#fffcf1]"
-              >
-                <td class="px-6 py-3.5">
-                  <button
-                    class="flex items-center gap-3 text-left group focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a77800]"
-                    @click="$emit('customer', customer.id)"
-                  >
-                    <span class="text-[#9a9d95] tabular-nums">{{
-                      String(i + 1).padStart(2, '0')
-                    }}</span
-                    ><span
-                      class="font-medium text-[#191b1b] group-hover:underline"
-                      >{{ customer.name }}</span
-                    >
-                  </button>
-                </td>
-                <td class="px-3 py-3.5 tabular-nums">{{ customer.orders }}</td>
-                <td
-                  class="px-6 py-3.5 text-right font-semibold tabular-nums whitespace-nowrap"
-                >
-                  {{ moneyFormat(Math.round(customer.amount / 1000000)) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="grid sm:grid-cols-2 gap-x-8 max-h-72 overflow-y-auto pr-1">
+          <div
+            v-for="person in completeness"
+            :key="person.name"
+            class="flex items-center gap-3 py-3 border-b border-[#f0f1ed] last:border-0"
+          >
+            <span
+              class="grid size-7 rounded-full bg-[#f1f2ef] text-label-small place-items-center"
+              >{{ initials(person.name) }}</span
+            ><span class="text-label-small">{{ person.name }}</span
+            ><strong class="ml-auto text-label-small tabular-nums">{{
+              person.value
+            }}</strong>
+          </div>
         </div>
       </section>
       <section class="min-w-0 px-2 py-5">
