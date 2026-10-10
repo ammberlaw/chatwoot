@@ -157,7 +157,7 @@ onMounted(loadPolicy);
 </script>
 
 <template>
-  <div class="flex flex-col w-full h-full">
+  <div data-black-page="erp-settings" class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between gap-3 px-6 py-4">
       <div class="flex items-center gap-2">
         <div class="i-lucide-settings-2 size-5 text-n-iris-9" />

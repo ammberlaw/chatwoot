@@ -84,6 +84,16 @@ body.theme-classic-black button[data-button-variant='solid'].bg-n-amber-9 {
 }
 
 // Passive hooks keep the original themes' custom filters unchanged.
+body.theme-classic-black input[name='dedupe-keyword'] {
+  height: 100% !important;
+  min-height: 0;
+  margin-bottom: 0 !important;
+}
+
+body.theme-classic-black [data-black-page='erp-settings'] .w-96 {
+  max-width: 100%;
+}
+
 @include page-tabbar("body.theme-classic-black [data-black-tabbar='page']");
 body.theme-classic-black [data-black-tabbar='page'].px-4 {
   margin-inline: 1rem;
