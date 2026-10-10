@@ -722,6 +722,12 @@ const menuItems = computed(() => {
                 },
               ]),
           {
+            name: 'CRM Team Dashboard',
+            label: t('SIDEBAR.CRM_DASH_TEAM'),
+            to: accountScopedRoute('crm_team_dashboard_index'),
+            activeOn: ['crm_team_dashboard_index'],
+          },
+          {
             name: 'CRM Personal Dashboard',
             label: t('SIDEBAR.CRM_DASH_MINE'),
             to: accountScopedRoute(
@@ -729,12 +735,6 @@ const menuItems = computed(() => {
               {},
               { scope: 'mine' }
             ),
-          },
-          {
-            name: 'CRM Team Dashboard',
-            label: t('SIDEBAR.CRM_DASH_TEAM'),
-            to: accountScopedRoute('crm_team_dashboard_index'),
-            activeOn: ['crm_team_dashboard_index'],
           },
           {
             name: 'CRM My Targets',

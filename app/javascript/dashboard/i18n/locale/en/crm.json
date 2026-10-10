@@ -1101,7 +1101,7 @@
       }
     },
     "TEAM_DASHBOARD": {
-      "HEADER": "团队看板",
+      "HEADER": "团队数据看板",
       "ROW_TARGET": "目标 {target}",
       "ROW_DELTA": "较上月",
       "ALL_COMPANY": "全公司",
