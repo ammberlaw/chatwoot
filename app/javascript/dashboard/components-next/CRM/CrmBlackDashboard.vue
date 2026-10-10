@@ -99,8 +99,6 @@ const sourceShare = index =>
           >
             <div class="min-w-0">
               <div class="flex items-center gap-2 text-label text-[#585c52]">
-                <span class="i-lucide-arrow-up-right size-4 text-[#ffd052]" />
-                {{ t('CRM.DASHBOARD.DESIGN.REVENUE') }}
                 <span class="text-label-small text-[#85887f]">{{
                   gmv.label
                 }}</span>
@@ -184,10 +182,6 @@ const sourceShare = index =>
                   : t('CRM.DASHBOARD.DESIGN.SALES_RANK')
               }}
             </h2>
-            <span
-              class="px-3 py-1 rounded-full bg-[#fff5cf] text-label-small text-[#725e25]"
-              >{{ periodLabel }}</span
-            >
           </div>
           <div v-if="isMine" class="h-56 min-w-0">
             <CrmAreaChart
@@ -241,9 +235,9 @@ const sourceShare = index =>
                   />
                   <g v-if="bar.active">
                     <rect
-                      :x="Math.min(536, Math.max(0, bar.x - 30))"
+                      :x="bar.x - 16"
                       y="10"
-                      width="112"
+                      width="84"
                       height="32"
                       rx="16"
                       fill="#ffd052"
@@ -253,7 +247,7 @@ const sourceShare = index =>
                       fill="#ffd052"
                     />
                     <text
-                      :x="Math.min(536, Math.max(0, bar.x - 30)) + 56"
+                      :x="bar.x + 26"
                       y="31"
                       text-anchor="middle"
                       fill="#191b1b"
@@ -263,6 +257,17 @@ const sourceShare = index =>
                       {{ compactYuan(bar.value) }}
                     </text>
                   </g>
+                  <text
+                    v-if="!bar.active"
+                    :x="bar.x + 26"
+                    y="31"
+                    text-anchor="middle"
+                    fill="#191b1b"
+                    font-size="12"
+                    font-weight="600"
+                  >
+                    {{ compactYuan(bar.value) }}
+                  </text>
                   <text
                     :x="bar.x + 26"
                     y="275"
@@ -335,7 +340,6 @@ const sourceShare = index =>
             <h2 class="text-heading-2">
               {{ periodNoun }}{{ t('CRM.DASHBOARD.DESIGN.TARGET') }}
             </h2>
-            <span class="i-lucide-target size-5" />
           </div>
           <template v-if="target">
             <div class="flex items-center justify-between gap-4 mt-5">
@@ -406,10 +410,6 @@ const sourceShare = index =>
             >
               {{ t('CRM.DASHBOARD.DESIGN.CUSTOMER_RANK') }}
             </h2>
-            <span
-              class="text-label-small text-[#85887f] whitespace-nowrap font-inter tabular-nums"
-              >{{ periodLabel }}</span
-            >
           </div>
           <div
             v-if="!customers.length"
@@ -585,7 +585,6 @@ const sourceShare = index =>
           <h2 class="text-heading-2 text-[#191b1b]">
             {{ t('CRM.DASHBOARD.DESIGN.EMAIL_RANK') }}
           </h2>
-          <span class="text-label-small text-[#85887f]">{{ periodLabel }}</span>
         </div>
         <div
           v-if="!emailBars.length"
@@ -624,11 +623,7 @@ const sourceShare = index =>
     <div
       class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]"
     >
-      <CrmCountryRank
-        :rows="countryRank"
-        :period-label="periodLabel"
-        :value-format="compactYuan"
-      />
+      <CrmCountryRank :rows="countryRank" :value-format="compactYuan" />
       <div class="flex min-w-0 flex-col gap-6">
         <section
           class="min-w-0 p-6 bg-white border border-[#e9eae6] rounded-3xl"

@@ -6,7 +6,6 @@ import countries from './charts/worldCountryPaths.json';
 
 const props = defineProps({
   rows: { type: Array, required: true },
-  periodLabel: { type: String, required: true },
   valueFormat: { type: Function, required: true },
 });
 const { t } = useI18n();
@@ -62,7 +61,6 @@ const mapColor = country => {
           {{ t('CRM.DASHBOARD.DESIGN.COUNTRY_RANK_NOTE') }}
         </p>
       </div>
-      <span class="text-label-small text-[#85887f]">{{ periodLabel }}</span>
     </div>
     <div
       v-if="rows.length"
