@@ -135,6 +135,7 @@ export default {
 
 <template>
   <div
+    data-dashboard-shell
     class="relative flex flex-grow overflow-hidden text-n-slate-12 bg-gradient-to-br from-n-iris-4 via-n-blue-4 to-n-blue-6"
   >
     <!-- 冷蓝长春花氛围光斑，为磨砂玻璃面板提供可模糊的底 -->

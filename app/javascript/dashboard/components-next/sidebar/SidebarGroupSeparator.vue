@@ -46,7 +46,11 @@ const TREE_ELBOW =
 </script>
 
 <template>
-  <div class="relative min-w-0" :class="{ 'ms-5': collapsible }">
+  <div
+    data-sidebar-section-header
+    class="relative min-w-0"
+    :class="{ 'ms-5': collapsible }"
+  >
     <component
       :is="collapsible ? 'button' : 'div'"
       :type="collapsible ? 'button' : undefined"

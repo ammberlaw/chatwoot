@@ -2297,6 +2297,7 @@ const filteredMenuItems = computed(() =>
         ],
       },
     ]"
+    :data-sidebar-collapsed="isEffectivelyCollapsed"
     class="bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] border border-white/60 md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 md:my-3 md:ltr:ml-3 md:rtl:mr-3 md:h-[calc(100%_-_1.5rem)] md:rounded-3xl md:shadow-[0_10px_40px_-8px_rgb(80_80_160/0.18),inset_0_1px_0_rgb(255_255_255/0.7)]"
     :class="[
       {
@@ -2309,10 +2310,12 @@ const filteredMenuItems = computed(() =>
     :style="isMobile ? undefined : { width: `${sidebarWidth}px` }"
   >
     <section
+      data-sidebar-region="header"
       class="grid"
       :class="isEffectivelyCollapsed ? 'mt-3 mb-6 gap-4' : 'mt-1 mb-4 gap-2'"
     >
       <div
+        data-sidebar-region="brand"
         class="flex gap-2 items-center min-w-0"
         :class="{
           'justify-center px-1': isEffectivelyCollapsed,
@@ -2338,6 +2341,7 @@ const filteredMenuItems = computed(() =>
         </template>
       </div>
       <div
+        data-sidebar-region="search"
         class="flex gap-2"
         :class="isEffectivelyCollapsed ? 'flex-col items-center' : 'px-2'"
       >
@@ -2401,6 +2405,7 @@ const filteredMenuItems = computed(() =>
       </ul>
     </nav>
     <section
+      data-sidebar-region="footer"
       class="flex relative flex-col flex-shrink-0 gap-1 justify-between items-center"
     >
       <div

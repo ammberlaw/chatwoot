@@ -11,7 +11,7 @@ const selectLine = value => setActiveProductLine(value);
 </script>
 
 <template>
-  <div class="px-2 mb-1">
+  <div data-sidebar-module-select class="px-2 mb-1">
     <span class="block px-1 mb-1 text-xs font-medium text-n-slate-10">
       产品线
     </span>

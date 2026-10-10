@@ -97,6 +97,11 @@ const PALETTES = [
     label: '经典灰',
     swatch: 'bg-gradient-to-br from-[#f4f4f5] to-[#373a40]',
   },
+  {
+    key: 'obsidian',
+    label: '曜石黑',
+    swatch: 'bg-[#161616] ring-1 ring-inset ring-white/20',
+  },
 ];
 const activePalette = ref(
   LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE) || DEFAULT_COLOR_PALETTE
@@ -214,6 +219,7 @@ const allowedMenuItems = computed(() => {
   >
     <template #trigger="{ toggle, isOpen }">
       <button
+        data-sidebar-profile-trigger
         class="flex gap-2 items-center p-1 text-left rounded-lg cursor-pointer hover:bg-n-alpha-1"
         :class="[
           { 'bg-n-alpha-1': isOpen },

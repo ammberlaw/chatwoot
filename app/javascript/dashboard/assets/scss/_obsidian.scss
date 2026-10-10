@@ -1,0 +1,357 @@
+// An independent palette: no classic/glass selectors or shared component overrides.
+body.theme-obsidian {
+  $neutral: (
+    1: 250 250 250,
+    2: 246 246 246,
+    3: 240 240 240,
+    4: 233 233 233,
+    5: 224 224 224,
+    6: 213 213 213,
+    7: 197 197 197,
+    8: 165 165 165,
+    9: 32 32 32,
+    10: 22 22 22,
+    11: 64 64 64,
+    12: 22 22 22,
+  );
+  @each $step, $color in $neutral {
+    --iris-#{$step}: #{$color};
+    --blue-#{$step}: #{$color};
+  }
+  --solid-iris: 236 236 236;
+  --solid-purple: 236 236 236;
+  --solid-blue: 236 236 236;
+  --solid-blue-2: 250 250 250;
+  --text-purple: 26 26 26;
+  --text-blue: 26 26 26;
+  --accent-grad: 64 64 64;
+  --background-color: 242 242 240;
+  --surface-1: 255 255 255;
+  --surface-2: 255 255 255;
+  --solid-1: 255 255 255;
+  --solid-2: 255 255 255;
+  --solid-3: 255 255 255;
+  --card-color: 255 255 255;
+  --border-weak: 234 234 232;
+  --alpha-3: 255, 255, 255, 1;
+  --obsidian-canvas: 255 255 255;
+  --obsidian-rail: 22 22 22;
+  --obsidian-rail-text: 222 222 220;
+  --obsidian-rail-muted: 171 171 169;
+  --obsidian-selection-text: 22 22 22;
+
+  &.dark {
+    $neutral-dark: (
+      1: 20 20 20,
+      2: 25 25 25,
+      3: 33 33 33,
+      4: 40 40 40,
+      5: 48 48 48,
+      6: 58 58 58,
+      7: 72 72 72,
+      8: 92 92 92,
+      9: 116 116 116,
+      10: 132 132 132,
+      11: 188 188 188,
+      12: 236 236 236,
+    );
+    @each $step, $color in $neutral-dark {
+      --iris-#{$step}: #{$color};
+      --blue-#{$step}: #{$color};
+    }
+    --solid-iris: 44 44 44;
+    --solid-purple: 44 44 44;
+    --solid-blue: 44 44 44;
+    --solid-blue-2: 26 26 26;
+    --text-purple: 228 228 228;
+    --text-blue: 228 228 228;
+    --accent-grad: 120 120 120;
+    --background-color: 16 16 16;
+    --surface-1: 28 28 28;
+    --surface-2: 28 28 28;
+    --solid-1: 28 28 28;
+    --solid-2: 28 28 28;
+    --solid-3: 28 28 28;
+    --card-color: 28 28 28;
+    --border-weak: 48 48 48;
+    --alpha-3: 28, 28, 28, 1;
+    --obsidian-canvas: 28 28 28;
+    --obsidian-rail: 12 12 12;
+    --obsidian-selection-text: 245 245 245;
+  }
+
+  #app,
+  [data-dashboard-shell] {
+    background: rgb(var(--background-color));
+  }
+  [data-dashboard-shell] > .pointer-events-none {
+    display: none;
+  }
+
+  aside[data-sidebar-collapsed] {
+    color: rgb(var(--obsidian-rail-text));
+    background: rgb(var(--obsidian-rail));
+    border: 0;
+    backdrop-filter: none;
+    box-shadow: none;
+
+    [data-sidebar-region='header'] {
+      margin-block: 20px 24px;
+      gap: 16px;
+    }
+    [data-sidebar-region='brand'] {
+      padding-inline: 16px;
+    }
+    [data-sidebar-region='brand'] img {
+      box-shadow: none;
+      filter: grayscale(1);
+    }
+    #sidebar-account-switcher span {
+      color: rgb(var(--obsidian-rail-text));
+    }
+    [data-sidebar-region='search'] {
+      padding-inline: 16px;
+    }
+    [data-sidebar-region='search'] > a,
+    [data-sidebar-region='search'] > .inline-flex > button {
+      color: rgb(var(--obsidian-rail-muted)) !important;
+      background: rgb(255 255 255 / 0.04);
+      outline-color: rgb(255 255 255 / 0.12);
+    }
+    [data-sidebar-region='search'] > a span {
+      color: rgb(var(--obsidian-rail-muted));
+    }
+    [data-sidebar-region='footer'] {
+      padding-inline: 12px;
+    }
+    [data-sidebar-region='footer'] > .pointer-events-none {
+      background: linear-gradient(
+        to top,
+        rgb(var(--obsidian-rail)),
+        transparent
+      );
+    }
+    [data-sidebar-region='footer'] > .border-t {
+      border-color: rgb(255 255 255 / 0.1);
+      padding-block: 12px;
+    }
+    [data-sidebar-profile-trigger] {
+      color: rgb(var(--obsidian-rail-text));
+      &:hover {
+        background: rgb(255 255 255 / 0.06);
+      }
+      .text-n-slate-12 {
+        color: rgb(var(--obsidian-rail-text));
+      }
+      .text-n-slate-11 {
+        color: rgb(var(--obsidian-rail-muted));
+      }
+    }
+    nav {
+      padding-inline: 12px 0;
+      overscroll-behavior: contain;
+    }
+    nav [data-sidebar-group-header] {
+      color: rgb(var(--obsidian-rail-text));
+      margin-inline-end: 12px;
+      background: none;
+      box-shadow: none;
+      &:hover {
+        background: rgb(255 255 255 / 0.06);
+      }
+    }
+    nav [data-sidebar-section-header] > .text-n-slate-10,
+    nav [data-sidebar-section-header] > div > button {
+      color: rgb(var(--obsidian-rail-muted));
+    }
+    [data-sidebar-module-select] {
+      > span,
+      button:not(.bg-n-solid-3) {
+        color: rgb(var(--obsidian-rail-muted));
+      }
+      > .outline {
+        outline-color: rgb(255 255 255 / 0.12);
+      }
+    }
+    nav [data-sidebar-leaf] {
+      margin-inline: 0;
+      padding-inline: 0;
+      &::before,
+      &::after {
+        display: none;
+      }
+      > a {
+        color: rgb(var(--obsidian-rail-muted));
+        padding-inline: 32px 16px;
+        background: none;
+        box-shadow: none;
+        &:hover {
+          color: rgb(var(--obsidian-rail-text));
+          background: rgb(255 255 255 / 0.06);
+        }
+      }
+    }
+    nav [data-sidebar-leaf] > [data-sidebar-active='true'],
+    nav [data-sidebar-group-header][data-sidebar-active='true'] {
+      position: relative;
+      color: rgb(var(--obsidian-selection-text));
+      background: rgb(var(--obsidian-canvas));
+      border-radius: 20px 0 0 20px;
+      margin-inline-end: 0;
+      box-shadow: none;
+      &:hover {
+        color: rgb(var(--obsidian-selection-text));
+        background: rgb(var(--obsidian-canvas));
+      }
+      &::before,
+      &::after {
+        content: '';
+        position: absolute;
+        inset-inline-end: 0;
+        width: 20px;
+        height: 20px;
+        background: transparent;
+        pointer-events: none;
+      }
+      &::before {
+        inset-block-end: 100%;
+        background: radial-gradient(
+          circle at top left,
+          transparent 19.5px,
+          rgb(var(--obsidian-canvas)) 20px
+        );
+      }
+      &::after {
+        inset-block-start: 100%;
+        background: radial-gradient(
+          circle at bottom left,
+          transparent 19.5px,
+          rgb(var(--obsidian-canvas)) 20px
+        );
+      }
+    }
+    nav a:focus-visible,
+    nav [role='button']:focus-visible {
+      outline: 2px solid rgb(var(--amber-9));
+      outline-offset: -3px;
+    }
+    &[data-sidebar-collapsed='true'] {
+      [data-sidebar-region='brand'],
+      [data-sidebar-region='search'] {
+        padding-inline: 4px;
+      }
+      [data-sidebar-region='footer'] {
+        padding-inline: 0;
+      }
+      nav {
+        padding-inline: 4px;
+      }
+      nav > ul > li > div > a,
+      nav > ul > li > div > button {
+        color: rgb(var(--obsidian-rail-muted));
+        &.bg-n-iris-9 {
+          color: rgb(var(--obsidian-selection-text));
+          background: rgb(var(--obsidian-canvas));
+          box-shadow: none;
+        }
+      }
+    }
+  }
+
+  // Match complete gradient pairs; the violet-ended AI launcher stays distinct.
+  main button[data-button-variant='solid'].bg-n-iris-9,
+  main button[data-button-variant='solid'].bg-n-brand,
+  main button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad {
+    background: rgb(var(--amber-9));
+    color: #1a1a1a;
+    box-shadow: none;
+    &:hover:enabled {
+      background: rgb(var(--amber-9-hover));
+    }
+  }
+
+  main [data-tabbar-theme='classic'] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px;
+    width: fit-content;
+    max-width: 100%;
+    border-radius: 12px;
+    background: rgb(var(--slate-3));
+    > button,
+    > button[data-button-variant] {
+      background: transparent;
+      color: rgb(var(--slate-11));
+      box-shadow: none;
+      border-radius: 8px;
+      &[aria-selected='true'] {
+        background: rgb(var(--iris-9));
+        color: white;
+      }
+    }
+  }
+
+  @media (min-width: 768px) {
+    aside[data-sidebar-collapsed] {
+      border-radius: 24px 0 0 24px;
+    }
+    [data-dashboard-shell] > main {
+      margin-block: 12px;
+      margin-inline-end: 12px;
+      height: calc(100% - 24px);
+      padding: 20px;
+      background: rgb(var(--obsidian-canvas));
+      border-radius: 0 24px 24px 0;
+      min-width: 0;
+    }
+  }
+  @media (max-width: 767px) {
+    aside[data-sidebar-collapsed] {
+      border-radius: 0 20px 20px 0;
+      &::before {
+        background: radial-gradient(
+          circle at top right,
+          transparent 19.5px,
+          rgb(var(--obsidian-canvas)) 20px
+        );
+      }
+      &::after {
+        background: radial-gradient(
+          circle at bottom right,
+          transparent 19.5px,
+          rgb(var(--obsidian-canvas)) 20px
+        );
+      }
+      nav [data-sidebar-leaf] > [data-sidebar-active='true'],
+      nav [data-sidebar-group-header][data-sidebar-active='true'] {
+        margin-inline-end: 12px;
+        border-radius: 20px;
+        &::before,
+        &::after {
+          display: none;
+        }
+      }
+    }
+  }
+  &[dir='rtl'],
+  &:dir(rtl) {
+    aside[data-sidebar-collapsed]
+      nav
+      [data-sidebar-leaf]
+      > [data-sidebar-active='true'],
+    aside[data-sidebar-collapsed]
+      nav
+      [data-sidebar-group-header][data-sidebar-active='true'] {
+      border-radius: 0 20px 20px 0;
+    }
+    @media (min-width: 768px) {
+      aside[data-sidebar-collapsed] {
+        border-radius: 0 24px 24px 0;
+      }
+      [data-dashboard-shell] > main {
+        border-radius: 24px 0 0 24px;
+      }
+    }
+  }
+}
