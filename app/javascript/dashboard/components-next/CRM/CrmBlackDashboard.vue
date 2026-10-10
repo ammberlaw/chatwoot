@@ -624,14 +624,15 @@ const sourceShare = index =>
               :labels="sources.labels"
               :data="sources.data"
               :colors="sourceColors"
-              cutout="48%"
+              cutout="65%"
+              continuous
             >
               <template #center>
-                <strong class="text-2xl tabular-nums">{{
-                  sources.total
-                }}</strong
-                ><span class="text-label-small text-[#85887f]">{{
-                  t('CRM.DASHBOARD.DESIGN.CUSTOMERS_UNIT')
+                <strong
+                  class="font-interDisplay text-[32px] font-semibold tracking-[-0.06em] leading-none tabular-nums"
+                  >{{ sources.total }}</strong
+                ><span class="mt-1.5 text-label-small text-[#96998f]">{{
+                  t('CRM.DASHBOARD.DESIGN.SOURCE_TOTAL')
                 }}</span>
               </template>
             </CrmDoughnutChart>
