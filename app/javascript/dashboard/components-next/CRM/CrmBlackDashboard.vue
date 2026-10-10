@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import CrmAreaChart from './charts/CrmAreaChart.vue';
 import CrmBarChart from './charts/CrmBarChart.vue';
@@ -35,6 +35,18 @@ const bars = computed(() => {
     x: index * 24 + 2,
     h: (value / max) * 76,
     active: index === series.length - 1,
+  }));
+});
+const selectedMonth = ref(null);
+const trendBars = computed(() => {
+  const max = Math.max(...props.trend.data, 1);
+  const active = selectedMonth.value ?? props.trend.activeIndex;
+  return props.trend.data.map((value, index) => ({
+    value,
+    label: props.trend.labels[index],
+    height: Math.max(6, (value / max) * 184),
+    active: index === active,
+    x: index * 54 + 5,
   }));
 });
 const deltaColor = computed(() => {
@@ -316,58 +328,6 @@ const sourceShare = index =>
             {{ t('CRM.DASHBOARD.DESIGN.NO_TARGET') }}
           </p>
         </section>
-        <section class="order-4 min-w-0 px-2 py-2">
-          <h2 class="mb-4 text-heading-2 text-[#191b1b]">
-            {{ t('CRM.DASHBOARD.DESIGN.SOURCES') }}
-          </h2>
-          <div v-if="!sources.empty" class="flex items-center gap-6">
-            <div class="relative h-28 w-28 shrink-0">
-              <CrmDoughnutChart
-                :labels="sources.labels"
-                :data="sources.data"
-                :colors="sourceColors"
-                cutout="70%"
-              >
-                <template #center>
-                  <strong class="text-2xl tabular-nums">{{
-                    sources.total
-                  }}</strong
-                  ><span class="text-label-small text-[#85887f]">{{
-                    t('CRM.DASHBOARD.DESIGN.CUSTOMERS_UNIT')
-                  }}</span>
-                </template>
-              </CrmDoughnutChart>
-            </div>
-            <div class="flex flex-col gap-3 flex-1 min-w-0 pr-4">
-              <div
-                v-for="(source, i) in sources.labels"
-                :key="source"
-                class="flex items-center gap-2 min-w-0 text-label-small"
-              >
-                <svg width="7" height="7" class="shrink-0" aria-hidden="true">
-                  <circle
-                    cx="3.5"
-                    cy="3.5"
-                    r="3.5"
-                    :fill="sourceColors[i % sourceColors.length]"
-                  /></svg
-                ><span
-                  class="order-2 flex-1 truncate text-[#85887f]"
-                  :title="source"
-                  >{{ source }}</span
-                ><strong class="order-1 w-8 shrink-0 tabular-nums"
-                  >{{ sourceShare(i) }}%</strong
-                >
-              </div>
-            </div>
-          </div>
-          <div
-            v-else
-            class="grid h-56 text-label text-[#85887f] place-items-center"
-          >
-            {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
-          </div>
-        </section>
       </div>
     </div>
     <div
@@ -465,7 +425,9 @@ const sourceShare = index =>
         </div>
       </section>
     </div>
-    <div class="grid gap-8 items-start lg:grid-cols-2">
+    <div
+      class="grid gap-6 items-start xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]"
+    >
       <section v-if="!isMine" class="min-w-0 px-2 py-5">
         <div class="flex items-center justify-between gap-3 mb-5">
           <h2 class="text-heading-2 text-[#191b1b]">
@@ -475,20 +437,78 @@ const sourceShare = index =>
             t('CRM.DASHBOARD.DESIGN.ANNUAL_TREND')
           }}</span>
         </div>
-        <div class="h-56 min-w-0">
-          <CrmAreaChart
-            v-if="!trend.empty"
-            :labels="trend.labels"
-            :data="trend.data"
-            :active-index="trend.activeIndex"
-            :value-format="moneyFormat"
-          />
-          <div
-            v-else
-            class="grid h-full text-label text-[#85887f] place-items-center"
+        <div v-if="!trend.empty" class="min-w-0 overflow-x-auto pt-2">
+          <svg
+            viewBox="0 0 648 290"
+            class="w-full min-w-[480px]"
+            role="img"
+            :aria-label="t('CRM.DASHBOARD.DESIGN.TREND')"
           >
-            {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
-          </div>
+            <g
+              v-for="(bar, index) in trendBars"
+              :key="index"
+              class="cursor-pointer"
+              role="button"
+              tabindex="0"
+              :aria-label="`${bar.label}: ${moneyFormat(bar.value)}`"
+              @click="selectedMonth = index"
+              @keydown.enter="selectedMonth = index"
+              @keydown.space.prevent="selectedMonth = index"
+            >
+              <rect
+                :x="bar.x"
+                y="64"
+                width="42"
+                height="184"
+                rx="21"
+                fill="#f3f4f0"
+              />
+              <rect
+                :x="bar.x"
+                :y="248 - bar.height"
+                width="42"
+                :height="bar.height"
+                rx="21"
+                :fill="bar.active ? '#ffd052' : '#191b1b'"
+              />
+              <g v-if="bar.active">
+                <rect
+                  :x="Math.min(536, Math.max(0, bar.x - 35))"
+                  y="10"
+                  width="112"
+                  height="32"
+                  rx="16"
+                  fill="#ffd052"
+                />
+                <path :d="`M ${bar.x + 14} 40 l 7 8 l 7 -8`" fill="#ffd052" />
+                <text
+                  :x="Math.min(536, Math.max(0, bar.x - 35)) + 56"
+                  y="31"
+                  text-anchor="middle"
+                  fill="#191b1b"
+                  font-size="12"
+                  font-weight="600"
+                >
+                  {{ compactYuan(bar.value) }}
+                </text>
+              </g>
+              <text
+                :x="bar.x + 21"
+                y="275"
+                text-anchor="middle"
+                fill="#85887f"
+                font-size="11"
+              >
+                {{ bar.label }}
+              </text>
+            </g>
+          </svg>
+        </div>
+        <div
+          v-else
+          class="grid h-56 text-label text-[#85887f] place-items-center"
+        >
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
         </div>
       </section>
       <section v-else class="p-6 bg-white border rounded-2xl border-[#e9eae6]">
@@ -511,7 +531,63 @@ const sourceShare = index =>
           }}</strong>
         </div>
       </section>
-      <section v-if="!isMine" class="min-w-0 p-6 bg-[#f6f7f3] rounded-3xl">
+      <section class="min-w-0 p-6 bg-white border border-[#e9eae6] rounded-3xl">
+        <h2 class="mb-4 text-heading-2 text-[#191b1b]">
+          {{ t('CRM.DASHBOARD.DESIGN.SOURCES') }}
+        </h2>
+        <div v-if="!sources.empty" class="flex flex-wrap items-center gap-6">
+          <div class="relative h-48 w-48 shrink-0">
+            <CrmDoughnutChart
+              :labels="sources.labels"
+              :data="sources.data"
+              :colors="sourceColors"
+              cutout="48%"
+            >
+              <template #center>
+                <strong class="text-2xl tabular-nums">{{
+                  sources.total
+                }}</strong
+                ><span class="text-label-small text-[#85887f]">{{
+                  t('CRM.DASHBOARD.DESIGN.CUSTOMERS_UNIT')
+                }}</span>
+              </template>
+            </CrmDoughnutChart>
+          </div>
+          <div class="flex flex-col gap-3 flex-1 min-w-[10rem] pr-4">
+            <div
+              v-for="(source, i) in sources.labels"
+              :key="source"
+              class="flex items-center gap-2 min-w-0 text-label-small"
+            >
+              <svg width="7" height="7" class="shrink-0" aria-hidden="true">
+                <circle
+                  cx="3.5"
+                  cy="3.5"
+                  r="3.5"
+                  :fill="sourceColors[i % sourceColors.length]"
+                /></svg
+              ><span class="flex-1 truncate text-[#585c52]" :title="source">{{
+                source
+              }}</span
+              ><strong class="w-8 shrink-0 tabular-nums"
+                >{{ sourceShare(i) }}%</strong
+              >
+            </div>
+          </div>
+        </div>
+        <div
+          v-else
+          class="grid h-56 text-label text-[#85887f] place-items-center"
+        >
+          {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+        </div>
+      </section>
+    </div>
+    <div class="flex flex-wrap items-start gap-6">
+      <section
+        v-if="!isMine"
+        class="w-full max-w-[20rem] min-w-0 p-6 bg-[#f6f7f3] rounded-3xl"
+      >
         <h2 class="mb-5 text-heading-2 text-[#191b1b]">
           {{ t('CRM.DASHBOARD.DESIGN.TEAM_COMPLETENESS') }}
         </h2>
@@ -534,11 +610,13 @@ const sourceShare = index =>
           </div>
         </div>
       </section>
+      <div class="w-full max-w-[38rem] min-w-0">
+        <CrmSentEmailRankChart
+          v-if="!isMine"
+          :rows="emailRows"
+          :period-label="periodLabel"
+        />
+      </div>
     </div>
-    <CrmSentEmailRankChart
-      v-if="!isMine"
-      :rows="emailRows"
-      :period-label="periodLabel"
-    />
   </div>
 </template>
