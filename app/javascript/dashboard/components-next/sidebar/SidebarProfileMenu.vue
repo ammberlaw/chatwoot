@@ -116,9 +116,12 @@ const selectPalette = key => {
 };
 
 const blackPalettes = [
-  ...PALETTES.filter(palette => palette.key !== 'classicBlack'),
-  PALETTES.find(palette => palette.key === 'classicBlack'),
-];
+  'purple',
+  'blue',
+  'classicBlack',
+  'obsidian',
+  'classic',
+].map(key => PALETTES.find(palette => palette.key === key));
 const blackStatus = computed(() => {
   const availability = currentUserAvailability.value;
   const key =
@@ -312,7 +315,7 @@ const allowedMenuItems = computed(() => {
               class="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-label-small transition-colors"
               :class="
                 palette.key === activePalette
-                  ? 'border-[#e8bf4e] bg-[#fff3c4]/90 font-semibold text-[#191b1b]'
+                  ? 'border-[#292b2b] bg-[#292b2b] font-semibold text-white'
                   : 'border-white/80 bg-white/50 text-[#3d4045] hover:bg-white/90'
               "
               @click="selectPalette(palette.key)"
@@ -324,7 +327,7 @@ const allowedMenuItems = computed(() => {
               <span>{{ palette.label }}</span>
               <span
                 v-if="palette.key === activePalette"
-                class="i-lucide-check ml-auto size-4 text-[#806317]"
+                class="i-lucide-check ml-auto size-4 text-[#ffc53d]"
               />
             </button>
           </div>
