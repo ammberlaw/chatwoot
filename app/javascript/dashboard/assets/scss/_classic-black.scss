@@ -42,3 +42,12 @@ body.theme-classic-black aside[data-sidebar-collapsed] {
     background: #46464b;
   }
 }
+
+// Button labels are text, not the counter badges styled by the tabbar mixin.
+body.theme-classic-black
+  [data-tabbar^='page']
+  > button[data-button-variant]
+  > span.truncate {
+  background: none !important;
+  color: inherit !important;
+}
