@@ -313,9 +313,49 @@ onMounted(() => {
     </div>
 
     <template v-else>
+      <div
+        class="hidden [.theme-classic-black_&]:grid lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)] gap-6 shrink-0"
+      >
+        <section class="px-2 py-3">
+          <h2 class="text-heading-2 font-bold">{{ kpis[0].label }}</h2>
+          <div
+            class="mt-4 text-[64px] leading-none font-black tracking-tight tabular-nums text-[#191b1b]"
+          >
+            {{ kpis[0].value }}
+          </div>
+          <p class="mt-3 text-label text-[#858980]">{{ kpis[0].sub }}</p>
+          <div class="grid grid-cols-3 mt-5 pt-4 border-t border-[#e6e7e1]">
+            <div
+              v-for="k in kpis.slice(1, 4)"
+              :key="k.label"
+              class="px-5 first:pl-0 border-l first:border-l-0 border-[#e6e7e1]"
+            >
+              <h3 class="text-label font-semibold text-[#292b2b]">
+                {{ k.label }}
+              </h3>
+              <strong
+                class="block mt-3 text-[28px] leading-none tabular-nums"
+                >{{ k.value }}</strong
+              >
+              <p class="mt-2 text-label-small text-[#858980]">{{ k.sub }}</p>
+            </div>
+          </div>
+        </section>
+        <section
+          class="rounded-[28px] bg-[#ffd34f] p-7 flex flex-col justify-center"
+        >
+          <h2 class="text-heading-2 font-bold">{{ kpis[4].label }}</h2>
+          <div
+            class="my-6 text-[64px] font-black leading-none tracking-tight tabular-nums"
+          >
+            {{ kpis[4].value }}
+          </div>
+          <p class="text-label text-[#625722]">{{ kpis[4].sub }}</p>
+        </section>
+      </div>
       <!-- KPI 行 -->
       <div
-        class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5 [.theme-classic-black_&]:gap-0 [.theme-classic-black_&]:rounded-3xl [.theme-classic-black_&]:border [.theme-classic-black_&]:border-[#e8eaed] [.theme-classic-black_&]:overflow-hidden [.theme-classic-black_&]:shrink-0"
+        class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5 [.theme-classic-black_&]:!hidden [.theme-classic-black_&]:gap-0 [.theme-classic-black_&]:rounded-3xl [.theme-classic-black_&]:border [.theme-classic-black_&]:border-[#e8eaed] [.theme-classic-black_&]:overflow-hidden [.theme-classic-black_&]:shrink-0"
       >
         <div
           v-for="(k, i) in kpis"
@@ -348,7 +388,7 @@ onMounted(() => {
       <div
         v-if="data.unacked.length"
         :class="CARD"
-        class="!p-4 [.theme-classic-black_&]:!border-[#f0d8da] [.theme-classic-black_&]:!bg-[#fffafb]"
+        class="!p-4 [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:!bg-white"
       >
         <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11">
           <span class="i-lucide-alarm-clock-off size-4" />
@@ -388,7 +428,10 @@ onMounted(() => {
 
       <!-- 阶段分布 + 按时交货率 -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="lg:col-span-2 min-w-0" :class="CARD">
+        <div
+          class="lg:col-span-2 min-w-0 [.theme-classic-black_&]:!bg-[#f6f7f3] [.theme-classic-black_&]:!border-transparent [.theme-classic-black_&]:!p-7"
+          :class="CARD"
+        >
           <h2
             class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
           >
@@ -399,13 +442,18 @@ onMounted(() => {
             <div
               v-for="(label, index) in stageChart.labels"
               :key="label"
-              class="grid grid-cols-[minmax(120px,180px)_1fr_32px] items-center gap-4 text-label-small"
+              class="grid grid-cols-[minmax(120px,180px)_1fr_32px] items-center gap-4 text-label"
             >
               <span class="text-[#555b61]">{{ label }}</span>
               <progress
+                :class="
+                  stageChart.data[index] === Math.max(...stageChart.data)
+                    ? '[&::-webkit-progress-value]:!bg-[#ffd34f] [&::-moz-progress-bar]:!bg-[#ffd34f]'
+                    : ''
+                "
                 :value="stageChart.data[index]"
                 :max="Math.max(...stageChart.data, 1)"
-                class="w-full h-3 overflow-hidden rounded-full appearance-none [&::-webkit-progress-bar]:bg-[#f1f2f3] [&::-webkit-progress-value]:bg-[#50595d] [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:bg-[#50595d]"
+                class="w-full h-5 overflow-hidden rounded-full appearance-none [&::-webkit-progress-bar]:bg-[#f1f2f3] [&::-webkit-progress-value]:bg-[#202222] [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:bg-[#202222]"
               />
               <strong class="text-right text-heading-3 tabular-nums">{{
                 stageChart.data[index]
