@@ -19,6 +19,7 @@ import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.v
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -316,9 +317,10 @@ onMounted(async () => {
               <span class="font-medium truncate text-n-slate-12">
                 {{ e.entryNo }}
               </span>
-              <span class="shrink-0 text-xs text-n-slate-11">
-                {{ STATUS_LABELS[e.status] }}
-              </span>
+              <MesStatusPill
+                class="shrink-0"
+                :label="STATUS_LABELS[e.status]"
+              />
               <span class="flex-1" />
               <div class="flex items-center gap-1 shrink-0">
                 <Button
@@ -380,8 +382,8 @@ onMounted(async () => {
               <td class="px-3 py-3 text-n-slate-11">
                 {{ e.productionOrderOwnerName || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ STATUS_LABELS[e.status] }}
+              <td class="px-3 py-3">
+                <MesStatusPill :label="STATUS_LABELS[e.status]" />
               </td>
               <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
               <td class="px-3 py-3 text-right">

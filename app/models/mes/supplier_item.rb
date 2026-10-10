@@ -64,17 +64,28 @@ class Mes::SupplierItem < ApplicationRecord
   end
 
   # 物料编码与物料档案共享同一编码空间：已有编码直接挂档案；新编码自动建档（默认供应商=本供应商）。
+  #
+  # ⚠️ 这是 before_save 里建**另一条**记录。它 create! 抛出的 RecordInvalid 会在嵌套保存
+  # （accepts_nested_attributes_for 的 autosave）里被转成「父记录无效」，而父记录自己
+  # 一条错误都没有——结果就是 422 的 message 是空串，前端只能弹一个裸 AxiosError，
+  # 谁都不知道为什么存不上（生产 2026-10-10 真实事故）。所以这里自己把原因翻出来。
   def link_or_create_material
     material = account.mes_materials.find_by(material_no: material_code)
-    material ||= account.mes_materials.create!(
-      material_no: material_code,
-      name: name,
-      specification: specification,
-      unit: unit,
-      category: category,
-      product_line: supplier.product_line,
-      default_supplier_id: supplier_id
-    )
+    if material.nil?
+      material = account.mes_materials.new(
+        material_no: material_code,
+        name: name,
+        specification: specification,
+        unit: unit,
+        category: category,
+        product_line: supplier.product_line,
+        default_supplier_id: supplier_id
+      )
+      unless material.save
+        errors.add(:base, "物料「#{material_code}」自动建档失败：#{material.errors.full_messages.join('；')}")
+        raise ActiveRecord::RecordInvalid, self
+      end
+    end
     self.mes_material = material
   end
 end

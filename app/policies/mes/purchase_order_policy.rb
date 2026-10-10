@@ -14,6 +14,8 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
 
   def create? = @account_user.mes_can?(:purchase)
   def update? = @account_user.mes_can?(:purchase)
+  # 明细行内部附图：能改单就能传图。
+  def stage_blob? = @account_user.mes_can?(:purchase)
 
   # 提交审批：采购员本人。审批/驳回：本单审批人或管理员（代批）——本单是否归他批由控制器按
   # gm_id 逐单核对（authorize 这里拿不到记录，只能拦掉「完全没有审批身份的人」）。

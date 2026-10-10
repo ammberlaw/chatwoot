@@ -12,6 +12,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
@@ -236,8 +237,8 @@ onMounted(() => {
               <td class="px-3 py-3 text-n-slate-11">
                 {{ s.production_order_no || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ STATUS_LABELS[s.status] }}
+              <td class="px-3 py-3">
+                <MesStatusPill :label="STATUS_LABELS[s.status]" />
               </td>
               <td class="px-3 py-3 text-n-slate-11">{{ day(s.created_at) }}</td>
             </tr>
@@ -252,8 +253,8 @@ onMounted(() => {
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
+      :dismissible="false"
       width="lg"
       confirm-button-color="iris"
       title="按工单登记序列号"

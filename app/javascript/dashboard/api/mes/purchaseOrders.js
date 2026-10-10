@@ -22,4 +22,10 @@ client.reject = (id, reason = '') =>
   axios.post(`${client.url}/${id}/reject`, { reason });
 client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
 
+// 明细行内部附图：先把图传上来拿 signed_id，随明细一起提交（后端 images= 整组替换）。
+client.stageBlob = formData =>
+  axios.post(`${client.url}/stage_blob`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
 export default client;

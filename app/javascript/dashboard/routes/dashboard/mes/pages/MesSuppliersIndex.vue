@@ -7,6 +7,7 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import {
   MES_PRODUCT_LINES,
   productLineLabel,
+  getActiveProductLine,
 } from 'dashboard/composables/useMesProductLine';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -27,11 +28,12 @@ const saving = computed(
 // 供应商档案由采购 / PMC（及管理员）维护，其他角色只读。
 const canManage = computed(() => mesCan('master'));
 
-// 事业部 = MES 产品线（含具体线或不指定，不做「全部」筛选项）。
-const productLineOptions = [
-  { value: '', label: '未指定' },
-  ...MES_PRODUCT_LINES.filter(o => o.value),
-];
+// 事业部 = MES 产品线。
+// 新建时不放「未指定」——选了必然存不上（供应物料里的新编码要顺带在物料档案建一条，
+// 档案的产线就是从这儿带的，空了整单回滚）。编辑态才保留这一项，否则历史上产线为空的
+// 老供应商一打开编辑框就被强行改成某条线。
+const PRODUCT_LINE_CHOICES = MES_PRODUCT_LINES.filter(o => o.value);
+const UNSPECIFIED_OPTION = { value: '', label: '未指定' };
 
 // SKU 编码分类（按仓别），与物料档案共享同一套值
 const SKU_CATEGORIES = [
@@ -171,6 +173,13 @@ const removedItemIds = ref([]);
 // 存量供应商可能还没录物料（历史数据），编辑时不强制补齐；新建一律必填。
 const hadItems = ref(false);
 const form = reactive(blankForm());
+
+// 编辑历史上产线为空的老供应商时才放出「未指定」，否则一打开编辑框就被强行改成某条线。
+const productLineOptions = computed(() =>
+  editingId.value && !form.productLine
+    ? [UNSPECIFIED_OPTION, ...PRODUCT_LINE_CHOICES]
+    : PRODUCT_LINE_CHOICES
+);
 const { isDirty, markPristine } = useDirtyGuard(() => form);
 // 开票主体：决定按供应商拆单导出时套哪个采购单模板。
 const BILL_ENTITY_OPTIONS = [
@@ -225,6 +234,9 @@ const openCreate = () => {
   removedItemIds.value = [];
   hadItems.value = false;
   Object.assign(form, blankForm());
+  // 事业部预置成当前切换的产线：建档必须落在某条产线上（供应物料里的新编码要顺带
+  // 在物料档案建一条，档案的产线就是从这儿带过去的）。留「未指定」会直接存不上。
+  form.productLine = getActiveProductLine() || '';
   loadMaterials();
   markPristine();
   dialogRef.value?.open();
@@ -582,7 +594,9 @@ onMounted(() => {
               <Input v-model="form.department" />
             </div>
             <div class="flex flex-col gap-1">
-              <label class="text-heading-3 text-n-slate-12">事业部</label>
+              <label class="text-heading-3 text-n-slate-12">
+                事业部 <span class="text-n-ruby-11">*</span>
+              </label>
               <SelectCard
                 size="form"
                 :model-value="form.productLine"

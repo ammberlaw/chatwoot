@@ -11,7 +11,10 @@ class Api::V1::Accounts::Mes::SuppliersController < Api::V1::Accounts::Mes::Base
   def show; end
 
   def create
-    @supplier = Current.account.mes_suppliers.create!(supplier_params)
+    @supplier = Current.account.mes_suppliers.new(supplier_params)
+    # 表单没选事业部时，用「当前切换的产线」兜底（在「全部」视图下仍为空，由校验拦下并给文案）
+    @supplier.fallback_product_line = current_product_line
+    @supplier.save!
     render 'api/v1/accounts/mes/suppliers/show'
   end
 

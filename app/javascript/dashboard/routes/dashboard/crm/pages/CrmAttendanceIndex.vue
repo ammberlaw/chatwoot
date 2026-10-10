@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, reactive, computed, onMounted } from 'vue';
+import * as XLSX from 'xlsx';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRouter } from 'vue-router';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -303,28 +304,114 @@ const setPeriod = p => {
   period.value = p;
   fetchSummary();
 };
-// 导出当前区间考勤 CSV（带鉴权，走 axios blob 触发下载）。
+// 导出当前区间考勤为 Excel：**两个 sheet**——「汇总」按人计数、「每日明细」一人一天一行
+// （上下班时间、时长、状态、来源、备注、修正人）。
+// 原先是后端吐一张 CSV，只有汇总那一页，HR 核工资时要的每天打卡时间全没有；
+// 而 CSV 只有一张表，塞不下两种列宽不同的内容。SheetJS 是现成依赖（MES/ERP 导出都在用）。
 const exporting = ref(false);
-const exportCsv = async () => {
+
+// 「每日明细」照钉钉的月度汇总排版：左边固定统计列，右边整月横向铺开，
+// 一人一行、一天一格，格子里写**文字**（正常 / 上班迟到14分钟 / 旷工 / 请假…）。
+// 为什么不是一人一天一行：HR 核一个月工资要横着扫「谁常迟到」，纵向表得先做透视。
+// 周末和还没到的日子留空（钉钉也是空着），不写「旷工」。
+const FIXED_HEADERS = [
+  '姓名',
+  '考勤组',
+  '部门',
+  '出勤天数',
+  '迟到次数',
+  '迟到时长(分钟)',
+  '早退次数',
+  '早退时长(分钟)',
+  '上班缺卡',
+  '下班缺卡',
+  '外勤天数',
+];
+
+const exportXlsx = async () => {
   if (exporting.value) return;
   exporting.value = true;
   try {
-    const { data } = await axios.get(`${api()}/export`, {
+    const { data } = await axios.get(`${api()}/export_data`, {
       params: {
         period: period.value,
         date: summaryDate.value,
         group_id: summaryGroupId.value || undefined,
       },
-      responseType: 'blob',
     });
-    const url = URL.createObjectURL(new Blob([data], { type: 'text/csv' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `考勤_${summaryDate.value}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch {
-    useAlert('导出失败，请重试');
+    const span = `${data.range.from} ~ ${data.range.to}`;
+    const wb = XLSX.utils.book_new();
+
+    // ── sheet 1：汇总（按人计数，口径同页面上的汇总表）
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.aoa_to_sheet([
+        [`考勤汇总 ${span}`],
+        ['姓名', '应到', '已打卡', '迟到', '早退', '旷工', '请假', '外勤'],
+        ...data.summary.map(r => [
+          r.name,
+          r.expected,
+          r.present,
+          r.late,
+          r.early_leave,
+          r.absent,
+          r.leave,
+          r.field,
+        ]),
+      ]),
+      '汇总'
+    );
+
+    // ── sheet 2：每日明细（钉钉式矩阵）
+    const aoa = [
+      [`月度汇总 统计日期：${data.range.from} 至 ${data.range.to}`],
+      [
+        `报表生成时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`,
+      ],
+      // 两层表头：固定列纵向合并占两行，「考勤结果」横跨整月
+      [...FIXED_HEADERS, '考勤结果'],
+      [...FIXED_HEADERS.map(() => ''), ...data.dates.map(d => d.label)],
+      ...data.matrix.map(r => [
+        r.name,
+        r.group_name || '',
+        r.department || '',
+        r.present,
+        r.late_count,
+        r.late_minutes,
+        r.early_count,
+        r.early_minutes,
+        r.miss_in,
+        r.miss_out,
+        r.field_days,
+        ...r.cells,
+      ]),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const lastCol = FIXED_HEADERS.length + data.dates.length - 1;
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
+      // 固定列：第3、4行纵向合并
+      ...FIXED_HEADERS.map((_, i) => ({
+        s: { r: 2, c: i },
+        e: { r: 3, c: i },
+      })),
+      // 「考勤结果」横跨所有日期列
+      { s: { r: 2, c: FIXED_HEADERS.length }, e: { r: 2, c: lastCol } },
+    ];
+    // 列宽：姓名/考勤组/部门给宽一点，日期列窄一点（格子里是「上班迟到14分钟」这种短句）
+    ws['!cols'] = [
+      { wch: 10 },
+      { wch: 22 },
+      { wch: 12 },
+      ...Array(FIXED_HEADERS.length - 3).fill({ wch: 12 }),
+      ...data.dates.map(() => ({ wch: 14 })),
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, '每日明细');
+
+    XLSX.writeFile(wb, `考勤_${data.range.from}_${data.range.to}.xlsx`);
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '导出失败，请重试');
   } finally {
     exporting.value = false;
   }
@@ -986,8 +1073,8 @@ onMounted(fetchMine);
             class="inline-flex items-center h-8 gap-1.5 px-3 text-sm rounded-lg border border-n-weak text-n-slate-11 hover:bg-n-alpha-2 disabled:opacity-50"
             :class="summaryGroupOptions.length > 1 ? '' : 'ml-auto'"
             :disabled="exporting || !summaryRows.length"
-            title="导出当前区间考勤为 CSV（Excel 可打开）"
-            @click="exportCsv"
+            title="导出当前区间考勤 Excel：汇总 + 每日明细（打卡时间/状态/备注）两个页签"
+            @click="exportXlsx"
           >
             <span class="i-lucide-download size-4" />
             导出

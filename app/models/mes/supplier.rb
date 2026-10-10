@@ -37,6 +37,15 @@
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Mes::Supplier < ApplicationRecord
+  include Mes::LineScoped
+  # 供应商的「事业部」就是产线，建档时必填。
+  # 不是洁癖：供应物料里只要有一个没见过的编码，保存时会顺带给它在**物料档案**建一条
+  # （见 Mes::SupplierItem#link_or_create_material），而物料档案是主数据、产线必填。
+  # 事业部留空 → 档案建不出来 → 整张供应商单回滚，而且报错信息会丢在嵌套保存里
+  # （生产 2026-10-10 实际发生：前端只弹一个裸 AxiosError 422，三次都存不上）。
+  # 生产现有 327 个供应商、2787 条物料档案产线全都有值，「未指定」从来没存成功过。
+  require_product_line!
+
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true
   has_many :materials, class_name: 'Mes::Material', foreign_key: :default_supplier_id, dependent: :nullify, inverse_of: :default_supplier

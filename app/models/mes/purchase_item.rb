@@ -45,6 +45,12 @@ class Mes::PurchaseItem < ApplicationRecord
   belongs_to :mes_material, class_name: 'Mes::Material', optional: true
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true
   belongs_to :mes_supplier, class_name: 'Mes::Supplier', optional: true
+  # 行内附图（只对内）：这颗料的样品照 / 来料照 / 跟供应商确认的截图。
+  # ⚠️ 不进发给供应商的采购订单——导出那份是 PoTemplateFiller 按公司 Excel 模板填的
+  # 固定表格、供应商预览组件 MesPoSupplierDoc 也只渲染固定几列，两边都不读这里。
+  # 赋值语义是**整组替换**（Rails 7.1 的 has_many_attached=，见 CreateMany/DeleteMany）：
+  # 前端每次提交这一行当前应有的完整 signed_id 列表，删掉的自然就没了。
+  has_many_attached :images
 
   before_validation :inherit_account, :compute_amount
   after_destroy :sync_total

@@ -6,6 +6,16 @@
 # 这里把 rails-i18n zh-CN 的 errors 段原样挂到 zh_CN 下。
 # 只含 Rails 自带的校验文案，不含业务文案（业务文案在 zh_CN.yml）。
 zh_CN:
+  # 校验文案里的字段名。Rails 找不到 activerecord.attributes.<模型>.<字段> 时会回落到
+  # 顶层 attributes.<字段>，所以这里放几个全站通用的，省得每个模型各写一份。
+  # 不写的话 MES 的报错会长成「Product line不能为空」——字段名是英文、文案是中文。
+  attributes:
+    product_line: 产品线
+    material_code: 物料编码
+    material_no: 物料编码
+    supplier_no: 供应商编码
+    unit_price: 单价
+    specification: 规格型号
   activerecord:
     errors:
       messages:

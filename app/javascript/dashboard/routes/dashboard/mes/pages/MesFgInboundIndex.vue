@@ -17,6 +17,7 @@ import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.v
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
+import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
@@ -238,8 +239,12 @@ onMounted(() => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">成品入库</h1>
+      <!-- 车间(report)开单、仓管(stock)清点是常态，但仓管自己也常要补开这张单
+           （他是成品入库这一阶段的负责人）。后端 StockEntryPolicy#create? 本来就是
+           stock || report，这里原先只认 report，比后端还严——仓管看得到「清点确认入库」
+           却看不到「新建」。与后端对齐。 -->
       <Button
-        v-if="mesCan('report')"
+        v-if="mesCan('report') || mesCan('stock')"
         label="新建成品入库单"
         color="iris"
         size="sm"
@@ -265,9 +270,10 @@ onMounted(() => {
               <span class="font-medium text-n-slate-12 truncate">
                 {{ e.entryNo }}
               </span>
-              <span class="shrink-0 text-xs text-n-slate-11">
-                {{ STATUS_LABELS[e.status] }}
-              </span>
+              <MesStatusPill
+                class="shrink-0"
+                :label="STATUS_LABELS[e.status]"
+              />
               <span class="flex-1" />
               <Button
                 v-if="e.status === 'DRAFT' && mesCan('stock')"
@@ -355,8 +361,8 @@ onMounted(() => {
                 </span>
                 <span v-else class="text-n-slate-10">—</span>
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ STATUS_LABELS[e.status] }}
+              <td class="px-3 py-3">
+                <MesStatusPill :label="STATUS_LABELS[e.status]" />
               </td>
               <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
               <td class="px-3 py-3 text-right">

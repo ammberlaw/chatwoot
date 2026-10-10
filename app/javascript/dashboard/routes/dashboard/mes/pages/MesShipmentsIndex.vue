@@ -18,6 +18,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
+import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
 const { accountId } = useAccount();
 const store = useMesShipmentsStore();
@@ -536,9 +537,10 @@ onMounted(() => {
                 {{ KIND_LABELS[s.kind] || s.kind }}
               </span>
               <span class="flex-1" />
-              <span class="text-xs shrink-0 text-n-slate-11">
-                {{ STATUS_LABELS[s.status] }}
-              </span>
+              <MesStatusPill
+                class="shrink-0"
+                :label="STATUS_LABELS[s.status]"
+              />
             </div>
             <div
               class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-n-slate-11"
@@ -661,8 +663,8 @@ onMounted(() => {
               <td class="px-3 py-3 text-n-slate-11">
                 {{ s.productionOrderOwnerName || s.ownerName || '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ STATUS_LABELS[s.status] }}
+              <td class="px-3 py-3">
+                <MesStatusPill :label="STATUS_LABELS[s.status]" />
               </td>
               <td class="px-3 py-3 text-right">
                 <div class="flex justify-end gap-1">

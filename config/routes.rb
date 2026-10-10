@@ -336,7 +336,7 @@ Rails.application.routes.draw do
               collection do
                 post :clock
                 get :summary
-                get :export
+                get :export_data
                 get :user_summary
                 post :adjust
                 get :my_network
@@ -506,6 +506,7 @@ Rails.application.routes.draw do
               collection do
                 get :requirement
                 get :approval_inbox
+                post :stage_blob
               end
               member do
                 post :submit

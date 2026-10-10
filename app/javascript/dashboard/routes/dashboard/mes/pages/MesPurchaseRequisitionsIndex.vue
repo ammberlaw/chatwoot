@@ -1,7 +1,6 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted, watch } from 'vue';
-import { STATUS_TONE, STATUS_VOID } from 'dashboard/helper/statusTone';
 import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -22,6 +21,7 @@ import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
+import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
 const ITEMS_PER_PAGE = 15;
 const { accountId } = useAccount();
@@ -51,13 +51,6 @@ const STATUS_LABELS = {
   PARTIAL_ORDERED: '部分已转',
   ORDERED: '已转采购',
   CANCELLED: '已作废',
-};
-const STATUS_CLASS = {
-  DRAFT: STATUS_TONE.idle,
-  OPEN: STATUS_TONE.busy,
-  PARTIAL_ORDERED: STATUS_TONE.flow,
-  ORDERED: STATUS_TONE.done,
-  CANCELLED: STATUS_VOID,
 };
 const purposeOptions = Object.entries(PURPOSE_LABELS).map(([value, label]) => ({
   value,
@@ -585,12 +578,7 @@ onMounted(() => {
             >
               {{ PURPOSE_LABELS[req.purpose] || req.purpose }}
             </span>
-            <span
-              class="px-2 py-0.5 text-xs rounded-full"
-              :class="STATUS_CLASS[req.status]"
-            >
-              {{ STATUS_LABELS[req.status] || req.status }}
-            </span>
+            <MesStatusPill :label="STATUS_LABELS[req.status] || req.status" />
             <span
               v-if="req.poCount"
               class="px-2 py-0.5 text-xs rounded-full bg-n-teal-3 text-n-teal-11"

@@ -5,6 +5,8 @@ import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
+import MesStockEntryAPI from 'dashboard/api/mes/stockEntries';
+import MesImageLightbox from 'dashboard/components-next/mes/MesImageLightbox.vue';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -18,6 +20,7 @@ import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
+import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
 const { accountId } = useAccount();
 const route = useRoute();
@@ -96,7 +99,9 @@ const VIEW_ITEM_COLS = [
   { label: '应收', key: 'qty', align: 'right' },
   { label: '实收', key: 'receivedQty', align: 'right' },
   { label: '单位', key: 'unit' },
-  { label: '备注', key: 'remark' },
+  { label: '备注', key: 'remark', wrap: true },
+  // 附图跟着自己那一行走（同采购单），点开在页内放大；不进 Excel 导出。
+  { label: '附图（仅内部）', key: 'images', type: 'images' },
 ];
 const viewItems = computed(() =>
   (viewing.value?.stockEntryItems || []).map(it => ({
@@ -106,6 +111,7 @@ const viewItems = computed(() =>
     receivedQty: it.receivedQty ?? it.qty,
     unit: it.unit,
     remark: it.remark,
+    images: it.images || [],
   }))
 );
 
@@ -255,12 +261,48 @@ const openCreate = () => {
         qty: '1',
         receivedQty: '',
         remark: '',
+        images: [], // 行内附图（只对内）：收货时拍的实物照/破损照
       },
     ],
   });
   markPristine();
   dialogRef.value?.open();
 };
+
+// —— 明细行内部附图 ——
+// 收货时对着这颗料拍的实物照/破损照，只给公司内部看。选了就先上传拿 signed_id，
+// 随明细一起提交（后端 images= 整组替换）。
+const stagingRow = ref(null);
+// 点缩略图在页内放大，不另开浏览器标签页
+const lightboxRef = ref(null);
+const pickRowImages = async (event, row, index) => {
+  const list = Array.from(event.target.files || []);
+  event.target.value = '';
+  if (!list.length) return;
+
+  stagingRow.value = index;
+  try {
+    const staged = await Promise.all(
+      list.map(file => {
+        const fd = new FormData();
+        fd.append('file', file);
+        return MesStockEntryAPI.stageBlob(fd).then(({ data }) => ({
+          name: data.filename,
+          signedId: data.signed_id,
+          url: URL.createObjectURL(file),
+        }));
+      })
+    );
+    row.images = [...(row.images || []), ...staged];
+  } catch (e) {
+    useAlert(
+      `上传失败：${e?.response?.data?.error || e?.message || '未知错误'}`
+    );
+  } finally {
+    stagingRow.value = null;
+  }
+};
+const removeRowImage = (row, i) => row.images.splice(i, 1);
 
 const submit = async () => {
   if (invalid.value) return;
@@ -281,6 +323,8 @@ const submit = async () => {
       receivedQty: Number(r.receivedQty) || Number(r.qty),
       warehouseId: Number(form.warehouseId),
       remark: r.remark || '',
+      // 整组替换：给这一行当前应有的完整列表（同采购明细）
+      images: (r.images || []).map(img => img.signedId),
     })),
   };
   const ok = await store.create(payload);
@@ -400,11 +444,10 @@ useRouteQueryReentry(query => {
               <span class="font-medium truncate text-n-slate-12">
                 {{ e.entryNo }}
               </span>
-              <span
-                class="text-xs shrink-0 text-n-slate-11 px-1.5 py-0.5 rounded-md bg-n-alpha-2"
-              >
-                {{ STATUS_LABELS[e.status] }}
-              </span>
+              <MesStatusPill
+                class="shrink-0"
+                :label="STATUS_LABELS[e.status]"
+              />
               <span class="flex-1" />
               <Button
                 v-if="e.status === 'DRAFT' && mesCan('stock')"
@@ -473,8 +516,8 @@ useRouteQueryReentry(query => {
               <td class="px-3 py-3 text-n-slate-11">
                 {{ e.isChecked ? '已核对' : '—' }}
               </td>
-              <td class="px-3 py-3 text-n-slate-11">
-                {{ STATUS_LABELS[e.status] }}
+              <td class="px-3 py-3">
+                <MesStatusPill :label="STATUS_LABELS[e.status]" />
               </td>
               <td class="px-3 py-3 text-n-slate-11">{{ day(e.postedAt) }}</td>
               <td class="px-3 py-3 text-right">
@@ -521,9 +564,9 @@ useRouteQueryReentry(query => {
     </div>
 
     <Dialog
-      :dismissible="false"
       ref="dialogRef"
-      width="3xl"
+      :dismissible="false"
+      width="6xl"
       overflow-y-auto
       confirm-button-color="iris"
       title="新建原料入库单"
@@ -593,8 +636,9 @@ useRouteQueryReentry(query => {
           <span class="col-span-2">类型</span>
           <span class="col-span-3">物料/成品</span>
           <span class="col-span-1">应收</span>
-          <span class="col-span-2">实收(核对)</span>
-          <span class="col-span-3">备注（收货单据号）</span>
+          <span class="col-span-1">实收</span>
+          <span class="col-span-2">备注（收货单据号）</span>
+          <span class="col-span-2 text-right">附图（仅内部）</span>
         </div>
         <div class="flex flex-col gap-2">
           <div
@@ -625,14 +669,61 @@ useRouteQueryReentry(query => {
             <Input
               v-model="row.receivedQty"
               type="number"
-              placeholder="默认=应收"
-              class="col-span-2"
+              placeholder="同应收"
+              class="col-span-1"
             />
             <Input
               v-model="row.remark"
               placeholder="收货单据号/备注"
-              class="col-span-3"
+              class="col-span-2"
             />
+            <!-- 行内附图（只对内）：缩略图 + 加图按钮一起靠右，不另起一排。
+                 收货时拍的实物照/破损照，对着这颗料存。 -->
+            <div
+              class="flex flex-wrap items-center justify-end col-span-2 gap-1"
+            >
+              <div
+                v-for="(img, k) in row.images"
+                :key="img.signedId"
+                class="relative size-9 shrink-0 group"
+              >
+                <button
+                  type="button"
+                  :title="img.name"
+                  @click="lightboxRef?.open(row.images, k)"
+                >
+                  <img
+                    :src="img.url"
+                    :alt="img.name"
+                    class="object-contain border rounded size-9 border-n-weak bg-n-alpha-1 hover:opacity-80"
+                  />
+                </button>
+                <button
+                  type="button"
+                  class="absolute items-center justify-center hidden text-white rounded-full size-4 -top-1 -right-1 bg-n-slate-12/80 group-hover:flex"
+                  title="移除这张图"
+                  @click="removeRowImage(row, k)"
+                >
+                  <span class="i-lucide-x size-2.5" />
+                </button>
+              </div>
+              <span v-if="stagingRow === i" class="text-xs text-n-amber-11">
+                传中…
+              </span>
+              <label
+                class="inline-flex items-center justify-center border border-dashed rounded cursor-pointer size-9 shrink-0 border-n-weak text-n-slate-10 hover:text-n-slate-12 hover:border-n-slate-8"
+                title="加附图（只公司内部看）"
+              >
+                <span class="i-lucide-image-plus size-4" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  class="hidden"
+                  @change="e => pickRowImages(e, row, i)"
+                />
+              </label>
+            </div>
             <button
               type="button"
               class="col-span-1 text-n-slate-10 hover:text-n-ruby-11"
@@ -647,11 +738,15 @@ useRouteQueryReentry(query => {
 
     <MesViewDialog
       ref="viewDialogRef"
+      width="5xl"
       :title="viewing ? `入库单 ${viewing.entryNo}` : '入库单明细'"
       :fields="viewFields"
       items-title="收货明细"
       :item-columns="VIEW_ITEM_COLS"
       :items="viewItems"
     />
+
+    <!-- 看图层：就地渲染，跟弹窗一起在顶层，点缩略图放大看 -->
+    <MesImageLightbox ref="lightboxRef" />
   </div>
 </template>

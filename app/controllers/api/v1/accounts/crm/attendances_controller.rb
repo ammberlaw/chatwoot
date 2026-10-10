@@ -72,18 +72,29 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     { rows: rows, overview: overview }
   end
 
-  # 月度考勤导出（CSV，供 HR 对接工资）：与汇总同权限、同数据范围。
-  def export
+  # 导出用数据（JSON）：汇总 + **每日明细**。前端用 SheetJS 写成两个 sheet 的 xlsx。
+  #
+  # 为什么不在后端直接生成文件：Ruby 侧没有 xlsx 写库，而 CSV 只有一张表，
+  # 塞不下「汇总 + 每天打卡时间」两种不同列宽的内容（HR 原话：导出只有汇总那一页，
+  # 每天的打卡时间啥的都没有）。前端 SheetJS 是现成依赖（MES/ERP 导出都在用）。
+  # 权限与数据范围跟 summary/export 完全一致。
+  def export_data
     return render_forbidden unless admin_like? || Current.account_user.crm_manager?
 
     range = summary_range
     users = summary_users
     records = Current.account.crm_attendance_records
+                     .includes(:adjusted_by)
                      .where(user_id: users.map(&:id), work_date: range)
+                     .order(:user_id, :work_date)
                      .group_by(&:user_id)
-    rows = users.map { |u| summary_row(u, status_counts(u.id, records[u.id] || [], range)) }
-    csv = Crm::AttendanceCsvService.new(rows: rows, range: range).generate
-    send_data csv, type: 'text/csv; charset=utf-8', filename: "考勤_#{range.first}_#{range.last}.csv"
+    render json: {
+      range: { from: range.first, to: range.last },
+      # 日期列头：工作日给日号、周末给「六/日」（照钉钉的月度汇总排版）
+      dates: range.map { |d| { date: d, day: d.day, weekday: d.cwday, label: date_header(d) } },
+      summary: users.map { |u| summary_row(u, status_counts(u.id, records[u.id] || [], range)) },
+      matrix: users.map { |u| matrix_row(u, records[u.id] || [], range) }
+    }
   end
 
   # 单人某月考勤统计（只读参考，供绩效/工资页展示）：本人可看自己，管理员/负责人可看他人。
@@ -363,6 +374,108 @@ class Api::V1::Accounts::Crm::AttendancesController < Api::V1::Accounts::Crm::Ba
     { user_id: user.id, name: user.name, expected: c.values.sum, present: present,
       late: c['LATE'] + c['LATE_EARLY'], early_leave: c['EARLY_LEAVE'] + c['LATE_EARLY'],
       absent: c['ABSENT'], leave: c['LEAVE'] + (half * 0.5), field: c['FIELD'] }
+  end
+
+  # 日期列头：周末只写「六 / 日」，工作日写日号——一个月 31 列，写全日期会挤成一团。
+  WEEK_CHARS = %w[一 二 三 四 五 六 日].freeze
+
+  def date_header(date)
+    date.cwday >= 6 ? WEEK_CHARS[date.cwday - 1] : date.day.to_s
+  end
+
+  # 一人一行：左边统计列 + 整月每天一个格子（格子里是文字，不是打卡时间）。
+  def matrix_row(user, records, range)
+    group = group_for(user.id)
+    today = Time.current.in_time_zone(Crm::AttendanceRecord::TZ).to_date
+    by_date = records.index_by(&:work_date)
+    stat = { late_count: 0, late_minutes: 0, early_count: 0, early_minutes: 0,
+             miss_in: 0, miss_out: 0, field_days: 0, present: 0, expected: 0 }
+
+    cells = range.map do |date|
+      # 非工作日 / 还没到的日子都留空，不写「旷工」——钉钉也是空着
+      next '' unless group.work_day?(date) && date <= today
+
+      stat[:expected] += 1
+      tally_cell(by_date[date], group, stat)
+    end
+
+    { user_id: user.id, name: user.name, group_name: group&.name,
+      department: department_name(user), **stat, cells: cells }
+  end
+
+  # 单个格子的文字 + 顺带累加左侧统计。没有记录＝旷工。
+  def tally_cell(rec, group, stat)
+    return '旷工' if rec.nil? || rec.status == 'ABSENT'
+
+    stat[:field_days] += 1 if rec.field
+    stat[:miss_in] += 1 if rec.clock_in_at.nil? && %w[NORMAL LATE EARLY_LEAVE LATE_EARLY FIELD].include?(rec.status)
+    stat[:miss_out] += 1 if rec.clock_out_at.nil? && %w[NORMAL LATE EARLY_LEAVE LATE_EARLY FIELD].include?(rec.status)
+    if %w[LEAVE HALF_LEAVE].include?(rec.status)
+      # 半天假算半天出勤，与汇总页的 present 口径一致
+      stat[:present] += 0.5 if rec.status == 'HALF_LEAVE'
+      return leave_cell_text(rec)
+    end
+
+    stat[:present] += 1
+    parts = []
+    late = late_minutes(rec, group)
+    early = early_minutes(rec, group)
+    if late.positive?
+      stat[:late_count] += 1
+      stat[:late_minutes] += late
+      parts << "上班迟到#{late}分钟"
+    end
+    if early.positive?
+      stat[:early_count] += 1
+      stat[:early_minutes] += early
+      parts << "下班早退#{early}分钟"
+    end
+    parts << '上班缺卡' if rec.clock_in_at.nil?
+    parts << '下班缺卡' if rec.clock_out_at.nil?
+    parts << '外勤' if rec.field
+    parts.empty? ? '正常' : parts.join('，')
+  end
+
+  # 请假格子：有备注就直接写备注（审批联动带过来的本来就是「事假 10-06 09:00到18:00 8小时」
+  # 这种完整说明，再加「请假」前缀反而啰嗦）；没备注才退回「请假 / 请假(半天)」。
+  def leave_cell_text(rec)
+    rec.note.presence || (rec.status == 'HALF_LEAVE' ? '请假(半天)' : '请假')
+  end
+
+  # 迟到/早退分钟数：拿打卡时间和考勤组的上下班点比，扣掉宽限。
+  # 组里存的是 "09:00" 这种字符串，按当天日期拼成时刻再比。
+  def late_minutes(rec, group)
+    return 0 if rec.clock_in_at.nil? || group.nil?
+
+    due = time_on(rec.work_date, group.clock_in_time)
+    return 0 if due.nil?
+
+    diff = ((rec.clock_in_at - due) / 60).floor - group.grace_minutes.to_i
+    [diff, 0].max
+  end
+
+  def early_minutes(rec, group)
+    return 0 if rec.clock_out_at.nil? || group.nil?
+
+    due = time_on(rec.work_date, group.clock_out_time)
+    return 0 if due.nil?
+
+    [((due - rec.clock_out_at) / 60).floor, 0].max
+  end
+
+  def time_on(date, hhmm)
+    return nil if hhmm.blank?
+
+    Time.use_zone(Crm::AttendanceRecord::TZ) { Time.zone.parse("#{date} #{hhmm}") }
+  rescue ArgumentError
+    nil
+  end
+
+  def department_name(user)
+    @department_names ||= Current.account.crm_employees.where.not(user_id: nil)
+                                 .includes(:department).index_by(&:user_id)
+                                 .transform_values { |e| e.department&.name }
+    @department_names[user.id]
   end
 
   def record_json(rec)

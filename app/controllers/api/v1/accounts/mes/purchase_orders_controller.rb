@@ -22,6 +22,17 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   def show; end
 
+  # 明细行附图：先把图传上来拿 signed_id，随 purchase_items_attributes 一起提交（见 permit）。
+  def stage_blob
+    file = params[:file]
+    return render json: { error: '未收到文件' }, status: :unprocessable_entity if file.blank?
+
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: file.open, filename: file.original_filename, content_type: file.content_type
+    )
+    render json: { signed_id: blob.signed_id, filename: blob.filename.to_s, url: rails_blob_path(blob, only_path: true) }
+  end
+
   def create
     @purchase_order = Current.account.mes_purchase_orders.new(
       purchase_order_params.merge(owner_id: purchase_order_params[:owner_id] || current_user.id)
@@ -219,7 +230,9 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
       extra_production_order_ids: [],
       purchase_items_attributes: [
         :id, :item_type, :mes_material_id, :crm_product_id, :mes_supplier_id, :arrival_date,
-        :qty, :unit, :rate_micros, :price_tax_included, :received_qty, :aux_attribute_name, :remark, :_destroy
+        :qty, :unit, :rate_micros, :price_tax_included, :received_qty, :aux_attribute_name, :remark, :_destroy,
+        # 行内附图：传 signed_id 数组，整组替换（前端每次给这一行完整的列表）
+        { images: [] }
       ]
     )
   end

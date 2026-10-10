@@ -23,6 +23,8 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
+import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
+import MesImageLightbox from 'dashboard/components-next/mes/MesImageLightbox.vue';
 
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
@@ -65,10 +67,6 @@ const STATUS_LABELS = {
   RECEIVED: '已到货',
   CANCELLED: '已取消',
 };
-const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
 
 // 按供应商拆单导出 PDF：后端用公司原始 .xlsx 模板 1:1 填充（含公章，抬头/税口径按各自 bill_entity）
 // → Gotenberg 转 PDF。单个供应商直接下 PDF；多个供应商打包 zip（每家一份 PDF）。
@@ -139,6 +137,9 @@ const blankRow = () => ({
   suggestedQty: null, // 工程建议采购量（生产任务单算料带出，只读参考）
   auxAttributeName: '', // 辅助属性（算料时从任务单那行带出；导出给供应商的单子要印）
   remark: '',
+  // 行内附图（只对内）：[{ signedId, url, name, id? }]。id 有值＝服务端已存的，
+  // 没有＝本次刚传、还没保存。提交时整组回传 signedId，后端按这份列表替换。
+  images: [],
 });
 // 产线：关联生产订单时从订单继承（Mes::PurchaseOrder#product_line_source），
 // 独立的成品采购单没有父级，必须在表单里选，否则建完切到任何产线都看不见。
@@ -496,6 +497,12 @@ const openEdit = po => {
       priceTaxIncluded: !!it.priceTaxIncluded,
       auxAttributeName: it.auxAttributeName || '',
       remark: it.remark || '',
+      images: (it.images || []).map(img => ({
+        id: img.id,
+        name: img.filename,
+        url: img.url,
+        signedId: img.signed_id,
+      })),
     })),
   });
   // 回填已选产品的标签/规格，保证下拉能显示名称
@@ -510,6 +517,66 @@ const openEdit = po => {
       }))
   );
   markPristine();
+};
+
+// —— 明细行内部附图 ——
+// 只给公司内部看：这颗料的样品照 / 来料照 / 跟供应商确认的截图。
+// 导出给供应商的采购订单和供应商预览页都只认固定那几列，不读这里，漏不出去。
+// 选了就先上传拿 signed_id（这时单可能还不存在），随明细一起提交。
+const stagingRow = ref(null); // 正在上传的行下标，给那一行显示「上传中…」
+// 点缩略图在页内放大，不另开浏览器标签页
+const lightboxRef = ref(null);
+const pickRowImages = async (event, row, index) => {
+  const list = Array.from(event.target.files || []);
+  event.target.value = '';
+  if (!list.length) return;
+
+  stagingRow.value = index;
+  try {
+    const staged = await Promise.all(
+      list.map(file => {
+        const fd = new FormData();
+        fd.append('file', file);
+        return MesPurchaseOrderAPI.stageBlob(fd).then(({ data }) => ({
+          name: data.filename,
+          signedId: data.signed_id,
+          url: URL.createObjectURL(file),
+        }));
+      })
+    );
+    row.images = [...(row.images || []), ...staged];
+  } catch (e) {
+    useAlert(
+      `上传失败：${e?.response?.data?.error || e?.message || '未知错误'}`
+    );
+  } finally {
+    stagingRow.value = null;
+  }
+};
+// 删除只改本地列表，保存时整组替换生效（没点保存就离开＝没删掉，和改数量一个语义）。
+const removeRowImage = (row, i) => row.images.splice(i, 1);
+
+// 作废本单。走普通 update 把 status 置 CANCELLED——后端 before_save 会把它从
+// 生产订单的齐套判定里摘掉（purchase_complete? 只数未作废的单）。不可逆，所以先问一句。
+const cancelling = ref(false);
+const cancelOrder = async () => {
+  if (!editingId.value) return;
+  const msg = `作废采购单 ${form.poNo || ''}？作废后不参与齐套判定，且无法撤回。`;
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(msg)) return;
+
+  cancelling.value = true;
+  try {
+    const ok = await store.update({ id: editingId.value, status: 'CANCELLED' });
+    if (ok) {
+      useAlert('采购单已作废');
+      markPristine();
+      leaving = true;
+      backToList();
+    }
+  } finally {
+    cancelling.value = false;
+  }
 };
 
 const submit = async () => {
@@ -528,6 +595,8 @@ const submit = async () => {
       priceTaxIncluded: r.priceTaxIncluded,
       auxAttributeName: r.auxAttributeName || null,
       remark: r.remark || '',
+      // 整组替换：每次给这一行当前应有的完整列表，删掉的不在列表里就没了
+      images: (r.images || []).map(img => img.signedId),
     })),
     ...removedItemIds.value.map(id => ({ id, _destroy: true })),
   ];
@@ -665,6 +734,17 @@ onBeforeRouteLeave((to, from, next) => {
           size="sm"
           @click="requestLeave"
         />
+        <!-- 作废：原先唯一的入口是状态下拉里的「已取消」，下拉改只读后要给它一条明路。
+             作废后后端会把这张单从生产订单的齐套判定里摘出去（已作废的不参与）。 -->
+        <Button
+          v-if="editingId && form.status !== 'CANCELLED'"
+          label="作废本单"
+          variant="outline"
+          color="ruby"
+          size="sm"
+          :is-loading="cancelling"
+          @click="cancelOrder"
+        />
         <Button
           label="保存"
           color="iris"
@@ -790,15 +870,17 @@ onBeforeRouteLeave((to, from, next) => {
 
         <!-- 第二行沿用同一套栅格，列边跟上一行对齐 -->
         <div class="grid items-start gap-x-4 gap-y-3 sm:grid-cols-12">
+          <!-- 收货状态是**算出来的**，不是选出来的：原料入库单一过账，后端按
+               「已到料量 vs 订购量」自动改成 部分到货 / 已到货（见
+               Mes::PurchaseOrder#recompute_receipt_status!）。以前这里放了个下拉，
+               采购员以为自己得选对才能往下走（实际留在草稿完全不影响审批、导出、
+               收货和齐套），反而把人搞糊涂了。改成只读显示；要作废走右上角按钮。 -->
           <div class="flex flex-col gap-1 sm:col-span-2">
-            <label class="text-heading-3 text-n-slate-12">状态</label>
-            <SelectCard
-              block
-              size="form"
-              :model-value="form.status"
-              :options="statusOptions"
-              @update:model-value="v => (form.status = v)"
-            />
+            <label class="text-heading-3 text-n-slate-12">收货状态</label>
+            <div class="flex items-center h-9">
+              <MesStatusPill :label="STATUS_LABELS[form.status]" />
+            </div>
+            <span class="text-xs text-n-slate-10">收货后自动更新</span>
           </div>
           <div class="flex flex-col gap-1 sm:col-span-2">
             <label class="text-heading-3 text-n-slate-12">回复采购时间</label>
@@ -980,7 +1062,9 @@ onBeforeRouteLeave((to, from, next) => {
                 ✕
               </button>
             </div>
-            <!-- 次要控件行：含税 / 实际到料 / 备注 -->
+            <!-- 次要控件行：含税 / 实际到料 / 备注 / 行内附图。
+                 附图占右端 3 格，缩略图直接摆在这儿（不另起一排）；其余三项各收到 3 格
+                 给它让位。以前图标躲在行尾 24px 里、缩略图另起一排在左下，一行拆成两处看。 -->
             <div class="grid items-center grid-cols-1 gap-2 md:grid-cols-12">
               <label
                 class="flex items-center gap-1.5 text-xs md:col-span-3 text-n-slate-11"
@@ -994,7 +1078,7 @@ onBeforeRouteLeave((to, from, next) => {
                   （税率{{ supplierTaxRate(row.mesSupplierId) }}%）
                 </span>
               </label>
-              <div class="flex items-center gap-2 md:col-span-4">
+              <div class="flex items-center gap-2 md:col-span-3">
                 <label class="text-heading-3 shrink-0 text-n-slate-12"
                   >实际到料</label
                 >
@@ -1005,8 +1089,55 @@ onBeforeRouteLeave((to, from, next) => {
               <Input
                 v-model="row.remark"
                 placeholder="备注"
-                class="md:col-span-5"
+                class="md:col-span-3"
               />
+              <!-- 行内附图（只对内）：缩略图 + 加图按钮，一起靠右。
+                   不会出现在发给供应商的采购订单/预览页上（那两处只渲染固定几列）。 -->
+              <div
+                class="flex flex-wrap items-center justify-end gap-1.5 md:col-span-3"
+              >
+                <div
+                  v-for="(img, k) in row.images"
+                  :key="img.signedId"
+                  class="relative size-9 shrink-0 group"
+                >
+                  <button
+                    type="button"
+                    :title="img.name"
+                    @click="lightboxRef?.open(row.images, k)"
+                  >
+                    <img
+                      :src="img.url"
+                      :alt="img.name"
+                      class="object-contain border rounded size-9 border-n-weak bg-n-alpha-1 hover:opacity-80"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    class="absolute items-center justify-center hidden text-white rounded-full size-4 -top-1 -right-1 bg-n-slate-12/80 group-hover:flex"
+                    title="移除这张图（保存后生效）"
+                    @click="removeRowImage(row, k)"
+                  >
+                    <span class="i-lucide-x size-2.5" />
+                  </button>
+                </div>
+                <span v-if="stagingRow === i" class="text-xs text-n-amber-11">
+                  上传中…
+                </span>
+                <label
+                  class="inline-flex items-center justify-center border border-dashed rounded cursor-pointer size-9 shrink-0 border-n-weak text-n-slate-10 hover:text-n-slate-12 hover:border-n-slate-8"
+                  title="加附图（只公司内部看，不会出现在发给供应商的采购订单上）"
+                >
+                  <span class="i-lucide-image-plus size-4" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    class="hidden"
+                    @change="e => pickRowImages(e, row, i)"
+                  />
+                </label>
+              </div>
             </div>
             <!-- 只读信息：规格 · 实时库存 · 工程建议采购 -->
             <div
@@ -1087,5 +1218,8 @@ onBeforeRouteLeave((to, from, next) => {
         </div>
       </template>
     </Dialog>
+
+    <!-- 看图层：就地渲染，跟弹窗一起在顶层，点缩略图放大看 -->
+    <MesImageLightbox ref="lightboxRef" />
   </div>
 </template>

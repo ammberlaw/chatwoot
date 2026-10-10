@@ -36,6 +36,8 @@ class Mes::StockEntryItem < ApplicationRecord
   belongs_to :stock_entry, class_name: 'Mes::StockEntry', inverse_of: :stock_entry_items
   belongs_to :mes_material, class_name: 'Mes::Material', optional: true
   belongs_to :crm_product, class_name: 'Crm::Product', optional: true
+  # 行内附图（只对内）：收货时拍的实物照/破损照，对着这颗料存。赋值整组替换，同采购明细。
+  has_many_attached :images
 
   before_validation :inherit_account
 

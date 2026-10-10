@@ -1760,7 +1760,7 @@ onBeforeRouteLeave((to, from, next) => {
                 <img
                   :src="img.url"
                   :alt="img.filename"
-                  class="object-cover w-20 h-20 border rounded-lg border-n-weak"
+                  class="object-contain w-20 h-20 border rounded-lg border-n-weak bg-n-alpha-1"
                 />
               </a>
               <button
@@ -1778,7 +1778,7 @@ onBeforeRouteLeave((to, from, next) => {
             >
               <img
                 :src="f.previewUrl"
-                class="object-cover w-20 h-20 border rounded-lg border-n-weak"
+                class="object-contain w-20 h-20 border rounded-lg border-n-weak bg-n-alpha-1"
               />
               <button
                 type="button"
