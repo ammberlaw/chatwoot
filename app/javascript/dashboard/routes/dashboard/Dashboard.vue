@@ -158,7 +158,7 @@ export default {
     />
 
     <main
-      class="relative flex flex-1 h-full w-full min-h-0 p-3 overflow-hidden bg-transparent [.theme-obsidian-flat_&]:!p-0 [.theme-obsidian-flat_&]:!bg-white [.theme-obsidian-flat_&]:[&>div]:!rounded-none [.theme-obsidian-flat_&]:[&>div]:!border-0 [.theme-obsidian-flat_&]:[&>div]:!shadow-none [.theme-obsidian-flat_&]:[&_.w-full.h-full.rounded-3xl]:!rounded-none [.theme-obsidian-flat_&]:[&_.w-full.h-full.rounded-3xl]:!border-0 [.theme-obsidian-flat_&]:[&_.w-full.h-full.rounded-3xl]:!shadow-none"
+      class="relative flex flex-1 h-full w-full min-h-0 p-3 overflow-hidden bg-transparent [.theme-obsidian-flat_&]:!p-0 [.theme-obsidian-flat_&]:!bg-white [.theme-obsidian-flat_&]:[&>div]:!rounded-none [.theme-obsidian-flat_&]:[&>div]:!border-0 [.theme-obsidian-flat_&]:[&>div]:!shadow-none [.theme-obsidian-flat_&]:[&_.w-full.h-full.rounded-3xl]:!rounded-none [.theme-obsidian-flat_&]:[&_.w-full.h-full.rounded-3xl]:!border-0 [.theme-obsidian-flat_&]:[&_.w-full.h-full.rounded-3xl]:!shadow-none [.theme-obsidian-flat_&]:[&_.mes-canvas>div]:!border-0 [.theme-obsidian-flat_&]:[&_.mes-canvas>div]:!rounded-none [.theme-obsidian-flat_&]:[&_.mes-canvas>div]:!shadow-none [.theme-obsidian-flat_&]:[&_.erp-canvas>div]:!border-0 [.theme-obsidian-flat_&]:[&_.erp-canvas>div]:!rounded-none [.theme-obsidian-flat_&]:[&_.erp-canvas>div]:!shadow-none"
     >
       <UpgradePage
         v-show="showUpgradePage"
