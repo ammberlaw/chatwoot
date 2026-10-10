@@ -294,15 +294,16 @@ body.theme-obsidian {
 
   @media (min-width: 768px) {
     aside[data-sidebar-collapsed] {
-      border-radius: 24px 0 0 24px;
+      margin: 0;
+      height: 100%;
+      border-radius: 0;
     }
     [data-dashboard-shell] > main {
-      margin-block: 12px;
-      margin-inline-end: 12px;
-      height: calc(100% - 24px);
+      margin: 0;
+      height: 100%;
       padding: 20px;
       background: rgb(var(--obsidian-canvas));
-      border-radius: 0 24px 24px 0;
+      border-radius: 0;
       min-width: 0;
     }
   }
@@ -344,14 +345,6 @@ body.theme-obsidian {
       nav
       [data-sidebar-group-header][data-sidebar-active='true'] {
       border-radius: 0 20px 20px 0;
-    }
-    @media (min-width: 768px) {
-      aside[data-sidebar-collapsed] {
-        border-radius: 0 24px 24px 0;
-      }
-      [data-dashboard-shell] > main {
-        border-radius: 24px 0 0 24px;
-      }
     }
   }
 }
