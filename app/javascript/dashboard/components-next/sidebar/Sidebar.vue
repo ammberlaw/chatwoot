@@ -2337,7 +2337,7 @@ const filteredMenuItems = computed(() =>
           <img
             :src="wintouchIcon"
             alt="Wintouch"
-            class="flex-shrink-0 size-8 rounded-lg shadow-sm shadow-n-iris-9/20 [.theme-classic-black:not(.theme-obsidian-flat)_&]:hidden"
+            class="flex-shrink-0 size-8 rounded-lg shadow-sm shadow-n-iris-9/20 [.theme-classic-black_&]:hidden"
           />
           <SidebarAccountSwitcher
             class="flex-grow -mx-1 min-w-0 self-center"
