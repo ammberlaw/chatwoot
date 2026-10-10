@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import CrmAreaChart from './charts/CrmAreaChart.vue';
 import CrmBlackSalesTrend from './charts/CrmBlackSalesTrend.vue';
 import CrmDoughnutChart from './charts/CrmDoughnutChart.vue';
 import CrmCountryRank from './CrmCountryRank.vue';
@@ -133,9 +132,53 @@ const sourceShare = index =>
               </div>
             </div>
           </div>
+          <div
+            v-if="isMine"
+            class="mt-4 grid grid-cols-2 gap-4 rounded-2xl bg-[#f5f6f2] p-4"
+          >
+            <div>
+              <h3 class="text-heading-3 font-semibold text-[#191b1b]">
+                {{ t('CRM.DASHBOARD.DESIGN.PRIVATE_CUSTOMERS') }}
+              </h3>
+              <div class="mt-2 flex items-baseline gap-1.5">
+                <strong class="text-2xl tabular-nums">{{
+                  privateCustomers
+                }}</strong>
+                <span class="text-label-small text-[#85887f]">{{
+                  t('CRM.DASHBOARD.DESIGN.CUSTOMERS_UNIT')
+                }}</span>
+              </div>
+            </div>
+            <div
+              v-if="privateCompleteness != null"
+              class="border-l border-[#e2e4dc] pl-4"
+            >
+              <h3 class="text-heading-3 font-semibold text-[#191b1b]">
+                {{ t('CRM.DASHBOARD.DESIGN.COMPLETENESS') }}
+              </h3>
+              <strong class="mt-2 block text-2xl tabular-nums">{{
+                t('CRM.DASHBOARD.DESIGN.SCORE', { score: privateCompleteness })
+              }}</strong>
+              <svg
+                class="mt-2 h-1.5 w-full"
+                viewBox="0 0 100 6"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <rect width="100" height="6" rx="3" fill="#e2e4dc" />
+                <rect
+                  :width="Math.max(0, Math.min(100, privateCompleteness))"
+                  height="6"
+                  rx="3"
+                  fill="#191b1b"
+                />
+              </svg>
+            </div>
+          </div>
         </section>
         <section
           class="order-3 xl:col-span-8 min-w-0 p-6 sm:p-7 bg-white rounded-3xl"
+          :class="isMine && 'border border-[#e9eae6]'"
         >
           <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
             <h2 class="text-heading-2 text-[#191b1b]">
@@ -146,17 +189,16 @@ const sourceShare = index =>
               }}
             </h2>
           </div>
-          <div v-if="isMine" class="h-56 min-w-0">
-            <CrmAreaChart
+          <div v-if="isMine" class="min-w-0">
+            <CrmBlackSalesTrend
               v-if="!trend.empty"
               :labels="trend.labels"
               :data="trend.data"
-              :active-index="trend.activeIndex"
-              :value-format="moneyFormat"
+              :value-format="compactYuan"
             />
             <div
               v-else
-              class="grid h-full text-label text-[#85887f] place-items-center"
+              class="grid h-56 text-label text-[#85887f] place-items-center"
             >
               {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
             </div>
@@ -298,6 +340,7 @@ const sourceShare = index =>
       <div class="contents">
         <section
           class="order-2 xl:col-span-4 xl:self-stretch flex flex-col justify-between p-6 sm:p-7 rounded-[1.75rem] bg-[#ffd052] text-[#191b1b]"
+          :class="isMine && !target && '!justify-start'"
         >
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-heading-2">
@@ -360,12 +403,21 @@ const sourceShare = index =>
               </div>
             </div>
           </template>
-          <p v-else class="py-8 text-label text-[#5c501e]">
-            {{ t('CRM.DASHBOARD.DESIGN.NO_TARGET') }}
-          </p>
+          <div v-else :class="isMine && 'my-auto'">
+            <div
+              v-if="isMine"
+              class="mt-5 text-[56px] font-semibold leading-none"
+            >
+              —
+            </div>
+            <p class="py-6 text-label text-[#5c501e]">
+              {{ t('CRM.DASHBOARD.DESIGN.NO_TARGET') }}
+            </p>
+          </div>
         </section>
         <section
-          class="order-4 xl:col-span-4 min-w-0 h-[434px] flex flex-col p-6 sm:p-7 rounded-3xl border border-[#e9eae6] bg-white"
+          class="order-4 xl:col-span-4 min-w-0 flex flex-col p-6 sm:p-7 rounded-3xl border border-[#e9eae6] bg-white"
+          :class="isMine && !customers.length ? 'min-h-[328px]' : 'h-[434px]'"
         >
           <div class="flex items-center justify-between gap-3 mb-4">
             <h2
@@ -465,10 +517,7 @@ const sourceShare = index =>
         </section>
       </div>
     </div>
-    <div
-      class="grid gap-6 items-stretch"
-      :class="isMine ? 'xl:grid-cols-2' : 'xl:grid-cols-3'"
-    >
+    <div v-if="!isMine" class="grid gap-6 items-stretch xl:grid-cols-3">
       <section
         v-if="!isMine"
         class="min-w-0 p-6 bg-white border border-[#e9eae6] rounded-3xl"
@@ -492,26 +541,6 @@ const sourceShare = index =>
           class="grid h-56 text-label text-[#85887f] place-items-center"
         >
           {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
-        </div>
-      </section>
-      <section v-else class="p-6 bg-white border rounded-2xl border-[#e9eae6]">
-        <h2 class="text-heading-2">
-          {{ t('CRM.DASHBOARD.DESIGN.PRIVATE_CUSTOMERS') }}
-        </h2>
-        <div class="flex items-baseline gap-2 mt-5">
-          <strong class="text-4xl tabular-nums">{{ privateCustomers }}</strong
-          ><span class="text-label text-[#85887f]">{{
-            t('CRM.DASHBOARD.DESIGN.CUSTOMERS_UNIT')
-          }}</span>
-        </div>
-        <div
-          v-if="privateCompleteness != null"
-          class="flex items-center justify-between pt-4 mt-5 border-t border-[#e9eae6] text-label"
-        >
-          <span>{{ t('CRM.DASHBOARD.DESIGN.COMPLETENESS') }}</span
-          ><strong>{{
-            t('CRM.DASHBOARD.DESIGN.SCORE', { score: privateCompleteness })
-          }}</strong>
         </div>
       </section>
       <section

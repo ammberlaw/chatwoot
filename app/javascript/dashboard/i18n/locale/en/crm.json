@@ -1052,6 +1052,7 @@
       "LOADING": "加载中…",
       "DESIGN": {
         "REVENUE": "成交额",
+        "UNSET": "—",
         "ALL_RANK": "查看完整排行",
         "SCORE": "{score} / 100",
         "MONTHLY_REVENUE": "年内月度成交额",
@@ -1101,6 +1102,10 @@
     },
     "TEAM_DASHBOARD": {
       "HEADER": "团队看板",
+      "ROW_TARGET": "目标 {target}",
+      "ROW_DELTA": "较上月",
+      "ALL_COMPANY": "全公司",
+      "MONTH": "{month}月",
       "LOADING": "加载中…",
       "EMPTY": "还没有团队。管理员可在「组织架构 → CRM 团队」创建团队并分配组员。"
     },
