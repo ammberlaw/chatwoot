@@ -12,7 +12,7 @@ import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutCh
 import CrmKpiCard from 'dashboard/components-next/CRM/CrmKpiCard.vue';
 import {
   themeColor,
-  isClassicTheme,
+  usesClassicContentColors,
 } from 'dashboard/components-next/CRM/charts/chartColors';
 import { useThemeSignal } from 'dashboard/components-next/CRM/charts/useThemeSignal';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
@@ -353,7 +353,7 @@ const themeSignal = useThemeSignal();
 // themeSignal 让它在切主题时重算（body class 不是响应式数据）。
 const isClassicKpi = computed(() => {
   void themeSignal.value;
-  return isClassicTheme();
+  return usesClassicContentColors();
 });
 
 // 个人看板（scope=mine）：按业务员排的那两张榜只会剩自己一行，不渲染。
@@ -583,7 +583,7 @@ const ownerCompleteness = computed(() => {
 // isClassic 依赖 themeSignal 重算，图表用它做 :key 重绘。
 const isClassic = computed(() => {
   void themeSignal.value;
-  return isClassicTheme();
+  return usesClassicContentColors();
 });
 const RANK_PALETTE = ['#ffc53d', '#2a2e37', '#6b6f78', '#b9bcc4'];
 const isLightBar = c => c === '#ffc53d' || c === '#b9bcc4';

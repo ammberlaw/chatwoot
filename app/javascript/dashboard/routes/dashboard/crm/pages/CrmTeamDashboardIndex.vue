@@ -4,7 +4,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
 import CrmKpiCard from 'dashboard/components-next/CRM/CrmKpiCard.vue';
-import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+import { usesClassicContentColors } from 'dashboard/components-next/CRM/charts/chartColors';
 import { useThemeSignal } from 'dashboard/components-next/CRM/charts/useThemeSignal';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -115,7 +115,7 @@ const CARD_GRADIENTS = [
 const themeSignal = useThemeSignal();
 const isClassicKpi = computed(() => {
   void themeSignal.value;
-  return isClassicTheme();
+  return usesClassicContentColors();
 });
 
 // 后端给的本年逐月团队合计，用来算环比、画走势

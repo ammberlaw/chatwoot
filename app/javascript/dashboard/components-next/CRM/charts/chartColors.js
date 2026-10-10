@@ -16,10 +16,17 @@ export const isClassicTheme = () =>
   typeof document !== 'undefined' &&
   document.body.classList.contains('theme-classic');
 
+// Black navigation palettes share classic content colors; glass keeps its own colors.
+export const usesClassicContentColors = () =>
+  isClassicTheme() ||
+  (typeof document !== 'undefined' &&
+    (document.body.classList.contains('theme-obsidian') ||
+      document.body.classList.contains('theme-inkarc')));
+
 // 常用图表色板（惰性求值，确保在浏览器环境读取当前主题）。
 export const chartPalette = () => ({
-  brand: isClassicTheme() ? '#ffc53d' : themeColor('iris-9'),
-  brandSoft: isClassicTheme()
+  brand: usesClassicContentColors() ? '#ffc53d' : themeColor('iris-9'),
+  brandSoft: usesClassicContentColors()
     ? 'rgba(245, 196, 81, 0.22)'
     : themeColor('iris-9', 0.15),
   teal: themeColor('teal-9'),
