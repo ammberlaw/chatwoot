@@ -21,21 +21,26 @@ export const setColorTheme = isOSOnDarkMode => {
 export const DEFAULT_COLOR_PALETTE = 'classic';
 const PALETTE_CLASSES = {
   blue: 'theme-blue',
-  beebot: 'theme-beebot',
   classic: 'theme-classic',
   classicBlack: 'theme-classic-black',
   obsidian: 'theme-obsidian',
-  inkarc: 'theme-inkarc',
 };
 export const COLOR_PALETTES = ['purple', ...Object.keys(PALETTE_CLASSES)];
 
 export const applyColorPalette = palette => {
-  const selected =
+  const requested =
     palette ||
     LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE) ||
     DEFAULT_COLOR_PALETTE;
+  const selected = COLOR_PALETTES.includes(requested)
+    ? requested
+    : DEFAULT_COLOR_PALETTE;
   const { classList } = document.body;
-  classList.remove(...Object.values(PALETTE_CLASSES));
+  classList.remove(
+    ...Object.values(PALETTE_CLASSES),
+    'theme-beebot',
+    'theme-inkarc'
+  );
   if (PALETTE_CLASSES[selected]) classList.add(PALETTE_CLASSES[selected]);
   // This independent variant inherits classic content and adds only a rail override.
   if (selected === 'classicBlack') classList.add('theme-classic');

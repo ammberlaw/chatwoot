@@ -13,6 +13,7 @@ import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import {
   applyColorPalette,
   DEFAULT_COLOR_PALETTE,
+  COLOR_PALETTES,
 } from 'dashboard/helper/themeHelper';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
@@ -88,11 +89,6 @@ const PALETTES = [
     swatch: 'bg-gradient-to-br from-[#2563eb] to-[#60a5fa]',
   },
   {
-    key: 'beebot',
-    label: '云白微光',
-    swatch: 'bg-gradient-to-br from-[#f4f5f8] via-[#dfe0ff] to-[#7c7ef0]',
-  },
-  {
     key: 'classic',
     label: '经典灰',
     swatch: 'bg-gradient-to-br from-[#f4f4f5] to-[#373a40]',
@@ -107,14 +103,10 @@ const PALETTES = [
     label: '曜石黑',
     swatch: 'bg-[#161616] ring-1 ring-inset ring-white/20',
   },
-  {
-    key: 'inkarc',
-    label: '墨黑圆弧',
-    swatch: 'bg-gradient-to-br from-[#eff0f2] via-[#eff0f2] to-[#17181a]',
-  },
 ];
+const savedPalette = LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE);
 const activePalette = ref(
-  LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE) || DEFAULT_COLOR_PALETTE
+  COLOR_PALETTES.includes(savedPalette) ? savedPalette : DEFAULT_COLOR_PALETTE
 );
 const selectPalette = key => {
   activePalette.value = key;
@@ -255,7 +247,14 @@ const allowedMenuItems = computed(() => {
         </div>
       </button>
     </template>
-    <DropdownBody class="bottom-12 z-50 mb-2 w-80 ltr:left-0 rtl:right-0">
+    <DropdownBody
+      class="bottom-12 z-50 mb-2 w-80 ltr:left-0 rtl:right-0"
+      :class="
+        activePalette === 'classicBlack'
+          ? '[--slate-10:110_113_121] [--slate-11:79_82_89] [--slate-12:25_27_27] [--alpha-1:0,0,0,0.04] [--alpha-2:0,0,0,0.06] [&>ul]:!bg-white [&>ul]:!border-[#e2e4dc] [&>ul]:!backdrop-blur-none'
+          : ''
+      "
+    >
       <SidebarProfileMenuStatus />
       <DropdownSeparator />
       <div class="px-2 py-2">
