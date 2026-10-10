@@ -699,7 +699,12 @@ const menuItems = computed(() => {
       {
         name: 'CRM Dashboards',
         label: t('SIDEBAR.CRM_G_DASHBOARDS'),
-        icon: 'i-lucide-layout-dashboard',
+        icon: h('span', { 'data-sidebar-icon': 'crm-dashboards' }, [
+          h('span', { class: 'i-lucide-layout-dashboard block size-full' }),
+          h('span', {
+            class: 'i-lucide-chart-no-axes-combined hidden size-full',
+          }),
+        ]),
         activeOn: [
           'crm_dashboard_index',
           'crm_team_dashboard_index',

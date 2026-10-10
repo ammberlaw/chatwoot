@@ -79,6 +79,15 @@ body.theme-classic-black
 }
 
 // Explicit amber actions need dark labels on the classic yellow background.
+body.theme-classic-black [data-sidebar-icon='crm-dashboards'] {
+  > .i-lucide-layout-dashboard {
+    display: none;
+  }
+  > .i-lucide-chart-no-axes-combined {
+    display: block;
+  }
+}
+
 body.theme-classic-black button[data-button-variant='solid'].bg-n-amber-9 {
   color: #1c2026;
 }
