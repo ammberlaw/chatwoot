@@ -673,7 +673,15 @@ const PERIODS = [
              样式在 _next-colors.scss。原来是自己写的「灰槽 + 白条」，跟别处的
              「灰槽 + 深色块」对不上——同一个人一天要认两种「现在选中哪个」。
              这里不要再写底色/阴影，写了会跟统一规则打架。 -->
-        <div data-tabbar="page" class="my-0">
+        <div
+          data-tabbar="page"
+          class="my-0"
+          :class="
+            isClassicBlack
+              ? '!my-0 !h-9 [&>button]:!h-full [&>button]:!py-0'
+              : ''
+          "
+        >
           <button
             v-for="p in PERIODS"
             :key="p.k"
