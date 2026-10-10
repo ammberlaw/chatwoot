@@ -24,6 +24,7 @@ const PALETTE_CLASSES = {
   beebot: 'theme-beebot',
   classic: 'theme-classic',
   obsidian: 'theme-obsidian',
+  inkarc: 'theme-inkarc',
 };
 export const COLOR_PALETTES = ['purple', ...Object.keys(PALETTE_CLASSES)];
 

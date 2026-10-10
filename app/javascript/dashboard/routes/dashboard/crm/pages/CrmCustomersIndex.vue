@@ -1512,7 +1512,10 @@ watch(
 </script>
 
 <template>
-  <div class="flex w-full h-full overflow-hidden font-sans">
+  <div
+    data-theme-page="customers"
+    class="flex w-full h-full overflow-hidden font-sans"
+  >
     <div
       class="flex flex-col flex-1 min-w-0 overflow-hidden gap-3.5 px-4 py-3 sm:px-5 sm:py-4"
     >
@@ -1585,6 +1588,7 @@ watch(
 
       <!-- 筛选区（第 2 框） -->
       <div
+        data-theme-toolbar
         class="flex flex-col gap-2 md:gap-2.5 flex-shrink-0 px-4 py-2.5 md:py-3.5 rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/30"
       >
         <!-- 第 1 行：视图切换 + 搜索 + 只看关注 + 批量操作 -->
@@ -1773,6 +1777,7 @@ watch(
 
       <!-- 表格区（第 3 框）：内含滚动表格 + 分页页脚 -->
       <div
+        data-theme-table-panel
         class="flex flex-col flex-1 min-h-0 overflow-hidden rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/30"
       >
         <div
@@ -1892,6 +1897,7 @@ watch(
             <!-- 表头固定：这一层同时承担横向与纵向滚动，sticky 才有参照物 -->
             <div class="hidden md:block md:flex-1 md:min-h-0 overflow-auto">
               <table
+                data-theme-table
                 class="w-full text-[13px] text-left border-separate border-spacing-0"
               >
                 <thead class="text-n-slate-10">

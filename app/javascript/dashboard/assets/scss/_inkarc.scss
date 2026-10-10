@@ -1,0 +1,363 @@
+// Independent rounded workspace. The existing palettes keep their own styles.
+body.theme-inkarc {
+  $neutral: (
+    1: 251 251 252,
+    2: 245 245 247,
+    3: 237 238 241,
+    4: 228 229 233,
+    5: 217 219 224,
+    6: 205 207 212,
+    7: 186 188 194,
+    8: 144 147 154,
+    9: 23 24 26,
+    10: 40 41 45,
+    11: 77 80 87,
+    12: 23 24 26,
+  );
+  @each $step, $color in $neutral {
+    --iris-#{$step}: #{$color};
+    --blue-#{$step}: #{$color};
+  }
+  --solid-iris: 235 236 239;
+  --solid-purple: 235 236 239;
+  --solid-blue: 235 236 239;
+  --solid-blue-2: 245 245 247;
+  --text-purple: 23 24 26;
+  --text-blue: 23 24 26;
+  --accent-grad: 51 52 56;
+  --background-color: 231 232 237;
+  --surface-1: 255 255 255;
+  --surface-2: 249 249 250;
+  --solid-1: 255 255 255;
+  --solid-2: 249 249 250;
+  --solid-3: 255 255 255;
+  --card-color: 255 255 255;
+  --border-weak: 223 225 230;
+  --alpha-3: 255, 255, 255, 1;
+  --inkarc-canvas: 243 244 247;
+  --inkarc-rail: 23 24 26;
+  --inkarc-rail-text: 235 236 239;
+  --inkarc-rail-muted: 181 183 190;
+  --inkarc-selected: 64 65 70;
+  --inkarc-row: 255 255 255;
+  --inkarc-row-hover: 234 236 240;
+
+  &.dark {
+    $neutral-dark: (
+      1: 20 21 23,
+      2: 25 26 28,
+      3: 34 35 38,
+      4: 43 44 48,
+      5: 52 53 58,
+      6: 62 64 70,
+      7: 77 79 86,
+      8: 99 101 109,
+      9: 224 225 230,
+      10: 242 243 245,
+      11: 183 186 195,
+      12: 239 240 243,
+    );
+    @each $step, $color in $neutral-dark {
+      --iris-#{$step}: #{$color};
+      --blue-#{$step}: #{$color};
+    }
+    --solid-iris: 44 45 49;
+    --solid-purple: 44 45 49;
+    --solid-blue: 44 45 49;
+    --solid-blue-2: 27 28 30;
+    --text-purple: 239 240 243;
+    --text-blue: 239 240 243;
+    --accent-grad: 184 186 192;
+    --background-color: 14 15 17;
+    --surface-1: 35 36 39;
+    --surface-2: 30 31 34;
+    --solid-1: 35 36 39;
+    --solid-2: 30 31 34;
+    --solid-3: 35 36 39;
+    --card-color: 35 36 39;
+    --border-weak: 55 57 63;
+    --alpha-3: 35, 36, 39, 1;
+    --inkarc-canvas: 27 28 31;
+    --inkarc-rail: 12 13 15;
+    --inkarc-row: 35 36 39;
+    --inkarc-row-hover: 44 46 50;
+  }
+
+  #app {
+    background: rgb(var(--background-color));
+  }
+  [data-dashboard-shell] {
+    background: rgb(var(--inkarc-canvas));
+    > .pointer-events-none {
+      display: none;
+    }
+    > main {
+      min-width: 0;
+      background: transparent;
+    }
+  }
+
+  aside[data-sidebar-collapsed] {
+    background: rgb(var(--inkarc-canvas));
+    border: 0;
+    border-radius: 0;
+    backdrop-filter: none;
+    box-shadow: none;
+
+    [data-sidebar-region='header'] {
+      margin: 0;
+      gap: 0;
+    }
+    [data-sidebar-region='brand'] {
+      min-height: 80px;
+      padding: 20px 18px;
+      img {
+        filter: grayscale(1);
+        box-shadow: none;
+      }
+    }
+    [data-sidebar-region='search'] {
+      padding: 28px 16px 16px;
+      background: rgb(var(--inkarc-rail));
+      border-start-end-radius: 56px;
+      > a,
+      > .inline-flex > button {
+        color: rgb(var(--inkarc-rail-text)) !important;
+        background: rgb(255 255 255 / 0.08);
+        outline-color: rgb(255 255 255 / 0.14);
+      }
+      > a span {
+        color: rgb(var(--inkarc-rail-muted));
+      }
+    }
+    nav {
+      padding: 8px 12px 24px;
+      background: rgb(var(--inkarc-rail));
+      overscroll-behavior: contain;
+      [data-sidebar-group-header] {
+        color: rgb(var(--inkarc-rail-text));
+        background: none;
+        box-shadow: none;
+        border-radius: 12px;
+        &:hover {
+          background: rgb(255 255 255 / 0.08);
+        }
+      }
+      [data-sidebar-section-header] > .text-n-slate-10,
+      [data-sidebar-section-header] > div > button {
+        color: rgb(var(--inkarc-rail-muted));
+      }
+      [data-sidebar-leaf] {
+        margin-inline: 0;
+        padding-inline: 0;
+        &::before,
+        &::after {
+          display: none;
+        }
+        > a {
+          color: rgb(var(--inkarc-rail-muted));
+          padding: 9px 16px 9px 32px;
+          background: none;
+          border-radius: 12px;
+          box-shadow: none;
+          &:hover {
+            color: rgb(var(--inkarc-rail-text));
+            background: rgb(255 255 255 / 0.08);
+          }
+        }
+      }
+      [data-sidebar-leaf] > [data-sidebar-active='true'],
+      [data-sidebar-group-header][data-sidebar-active='true'] {
+        color: rgb(var(--inkarc-rail-text));
+        background: rgb(var(--inkarc-selected));
+        box-shadow: none;
+      }
+      a:focus-visible,
+      [role='button']:focus-visible {
+        outline: 2px solid rgb(var(--amber-9));
+        outline-offset: -3px;
+      }
+    }
+    [data-sidebar-module-select] {
+      padding-block: 10px;
+      margin-bottom: 0;
+      background: rgb(var(--inkarc-rail));
+      > span,
+      button:not(.bg-n-solid-3) {
+        color: rgb(var(--inkarc-rail-muted));
+      }
+    }
+    [data-sidebar-region='footer'] {
+      padding-inline: 12px;
+      background: rgb(var(--inkarc-rail));
+      > .pointer-events-none {
+        background: linear-gradient(
+          to top,
+          rgb(var(--inkarc-rail)),
+          transparent
+        );
+      }
+      > .border-t {
+        border-color: rgb(255 255 255 / 0.12);
+        padding-block: 12px;
+      }
+    }
+    [data-sidebar-profile-trigger] {
+      color: rgb(var(--inkarc-rail-text));
+      &:hover {
+        background: rgb(255 255 255 / 0.08);
+      }
+      .text-n-slate-12 {
+        color: rgb(var(--inkarc-rail-text));
+      }
+      .text-n-slate-11 {
+        color: rgb(var(--inkarc-rail-muted));
+      }
+    }
+    &[data-sidebar-collapsed='true'] {
+      [data-sidebar-region='brand'] {
+        padding-inline: 4px;
+      }
+      [data-sidebar-region='search'] {
+        padding-inline: 4px;
+        border-start-end-radius: 24px;
+      }
+      nav {
+        padding-inline: 4px;
+      }
+      nav > ul > li > div > a,
+      nav > ul > li > div > button {
+        color: rgb(var(--inkarc-rail-muted));
+        &.bg-n-iris-9 {
+          color: rgb(var(--inkarc-rail-text));
+          background: rgb(var(--inkarc-selected));
+          box-shadow: none;
+        }
+      }
+      [data-sidebar-region='footer'] {
+        padding-inline: 0;
+      }
+    }
+  }
+
+  // Only complete primary gradient pairs; the AI launcher's violet tail stays intact.
+  main button[data-button-variant='solid'].bg-n-iris-9,
+  main button[data-button-variant='solid'].bg-n-brand,
+  main button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad {
+    color: white;
+    background: rgb(var(--inkarc-rail));
+    box-shadow: none;
+    border-radius: 20px;
+    &:hover:enabled {
+      background: rgb(53 54 59);
+    }
+  }
+  main [data-tabbar='page'],
+  main [data-tabbar-theme='classic'] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 100%;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    > button,
+    > button[data-button-variant] {
+      padding-inline: 16px;
+      color: rgb(var(--slate-11));
+      background: rgb(var(--inkarc-row));
+      border: 0;
+      border-radius: 20px;
+      box-shadow: none;
+      &[aria-selected='true'] {
+        color: white;
+        background: rgb(var(--inkarc-rail));
+      }
+    }
+  }
+
+  main [data-theme-page='customers'] {
+    > .flex:first-child {
+      padding: 0;
+      gap: 20px;
+    }
+    [data-theme-toolbar],
+    [data-theme-table-panel] {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+    [data-theme-toolbar] {
+      padding-inline: 0;
+      padding-block: 0;
+    }
+    [data-theme-table-panel] > div:first-child {
+      padding: 0;
+    }
+    [data-theme-table-panel] > .border-t {
+      border: 0;
+    }
+    [data-theme-table] {
+      border-spacing: 0 8px;
+      th {
+        color: white;
+        background: rgb(var(--inkarc-rail));
+        border: 0;
+        height: 44px;
+        box-shadow: none;
+        button {
+          color: inherit;
+        }
+      }
+      td {
+        border: 0;
+        height: 48px;
+        background: rgb(var(--inkarc-row));
+        box-shadow: none;
+      }
+      th:first-child,
+      td:first-child {
+        border-start-start-radius: 10px;
+        border-end-start-radius: 10px;
+      }
+      th:last-child,
+      td:last-child {
+        border-start-end-radius: 10px;
+        border-end-end-radius: 10px;
+      }
+      tbody tr:hover td {
+        background: rgb(var(--inkarc-row-hover));
+      }
+      input[type='checkbox'] {
+        accent-color: rgb(var(--amber-9));
+      }
+    }
+  }
+
+  @media (min-width: 768px) {
+    [data-dashboard-shell] {
+      margin: 24px;
+      border-radius: 32px;
+      box-shadow: 0 20px 50px -20px rgb(25 26 32 / 0.28);
+      > main {
+        padding: 28px;
+      }
+    }
+    aside[data-sidebar-collapsed] {
+      margin: 0;
+      height: 100%;
+    }
+  }
+  @media (max-width: 767px) {
+    aside[data-sidebar-collapsed] {
+      border-start-end-radius: 28px;
+      border-end-end-radius: 28px;
+      [data-sidebar-region='brand'] {
+        min-height: 72px;
+      }
+    }
+    main [data-theme-page='customers'] > .flex:first-child {
+      gap: 14px;
+    }
+  }
+}

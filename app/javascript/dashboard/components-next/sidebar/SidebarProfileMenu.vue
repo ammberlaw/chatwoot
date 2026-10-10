@@ -102,6 +102,11 @@ const PALETTES = [
     label: '曜石黑',
     swatch: 'bg-[#161616] ring-1 ring-inset ring-white/20',
   },
+  {
+    key: 'inkarc',
+    label: '墨黑圆弧',
+    swatch: 'bg-gradient-to-br from-[#eff0f2] via-[#eff0f2] to-[#17181a]',
+  },
 ];
 const activePalette = ref(
   LocalStorage.get(LOCAL_STORAGE_KEYS.COLOR_PALETTE) || DEFAULT_COLOR_PALETTE
