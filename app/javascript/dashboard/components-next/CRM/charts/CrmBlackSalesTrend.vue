@@ -129,13 +129,13 @@ const options = computed(() => ({
     <div
       v-for="metric in summary"
       :key="metric.label"
-      class="px-4 first:pl-0 last:pr-0"
+      class="px-2 first:pl-0 last:pr-0"
     >
       <p class="text-label-small text-[#85887f]">
         {{ t(`CRM.DASHBOARD.DESIGN.${metric.label}`) }}
       </p>
       <p
-        class="mt-2 text-xl font-interDisplay font-semibold tracking-tight tabular-nums text-[#191b1b]"
+        class="mt-2 text-base 2xl:text-xl whitespace-nowrap font-interDisplay font-semibold tracking-tight tabular-nums text-[#191b1b]"
       >
         {{ valueFormat(metric.value) }}
       </p>

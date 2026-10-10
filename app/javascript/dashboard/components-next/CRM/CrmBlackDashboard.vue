@@ -492,7 +492,10 @@ const sourceShare = index =>
         </section>
       </div>
     </div>
-    <div class="grid gap-6 items-stretch xl:grid-cols-2">
+    <div
+      class="grid gap-6 items-stretch"
+      :class="isMine ? 'xl:grid-cols-2' : 'xl:grid-cols-3'"
+    >
       <section
         v-if="!isMine"
         class="min-w-0 p-6 bg-white border border-[#e9eae6] rounded-3xl"
@@ -564,18 +567,7 @@ const sourceShare = index =>
           {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
         </div>
       </section>
-    </div>
-    <div
-      class="grid items-start gap-8 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:gap-10"
-    >
-      <div class="w-full min-w-0">
-        <CrmSentEmailRankChart
-          v-if="!isMine"
-          :rows="emailRows"
-          :period-label="periodLabel"
-        />
-      </div>
-      <section class="min-w-0 px-2 py-5">
+      <section class="min-w-0 p-6 bg-white border border-[#e9eae6] rounded-3xl">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
           <h2 class="text-heading-2 text-[#191b1b]">
             {{ t('CRM.DASHBOARD.DESIGN.PIPELINE') }}
@@ -613,6 +605,15 @@ const sourceShare = index =>
           </svg>
         </div>
       </section>
+    </div>
+    <div class="w-full max-w-[38rem]">
+      <div class="w-full min-w-0">
+        <CrmSentEmailRankChart
+          v-if="!isMine"
+          :rows="emailRows"
+          :period-label="periodLabel"
+        />
+      </div>
     </div>
     <div class="flex flex-wrap items-start gap-6">
       <section
