@@ -95,7 +95,7 @@ const PALETTES = [
   },
   {
     key: 'classicBlack',
-    label: '经典灰·黑侧栏',
+    label: '雅黑',
     swatch: 'bg-gradient-to-r from-[#161616] to-[#f4f4f5]',
   },
   {
