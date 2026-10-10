@@ -1,8 +1,11 @@
 class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseController
   before_action :check_authorization
-  before_action :fetch_bom, only: [:show, :update, :destroy, :release]
+  # attach / detach 也要取单：漏了它俩 @bom 是 nil，两个接口一直 500——
+  # 生产任务单上「删掉这张图」从来没成功过（2026-10-10 查附件丢失时发现）。
+  before_action :fetch_bom, only: [:show, :update, :destroy, :release, :attach, :detach]
   # 谁制单谁改（管理员可代改）——BOM 的 owner 就是工程/PMC 制单人。
-  before_action -> { ensure_owner_or_admin!(@bom, '生产任务单') }, only: [:update, :destroy]
+  # 挂附件/删附件同样是改单，一并收口。
+  before_action -> { ensure_owner_or_admin!(@bom, '生产任务单') }, only: [:update, :destroy, :attach, :detach]
 
   def index
     scope = scoped_by_bom_visibility(scoped_by_product_line(Current.account.mes_boms))
@@ -84,6 +87,11 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   end
 
   # 建单/编辑时把已暂存的 blob signed_id 追加挂载（append 语义，不覆盖已有附件）。
+  #
+  # ⚠️ 这三个集合**绝不能**进 bom_params：has_many_attached 的赋值是整组替换
+  # （Rails 把没列进来的旧附件直接 purge 掉）。前端每次只发新暂存的那几个、
+  # 没加新图时发空数组——进了 update! 就等于把这张单历史上所有的图清空。
+  # 2026-10-10 采购反馈「以前生产单插的图现在都没了」就是这么丢的。
   def attach_staged_blobs
     images = params.dig(:bom, :images)
     files = params.dig(:bom, :files)
@@ -130,7 +138,6 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
       *(action_name == 'create' ? [:bom_no] : []),
       :submit_date, :doc_no, :customer_name, :model, :product_code, :order_qty, :bare_color, :case_color,
       :purchasing_days, :material_inbound_days, :picking_days, :production_days, :fg_inbound_days,
-      images: [], files: [], logos: [],
       bom_items_attributes: [:id, :mes_material_id, :material_no, :material_name, :specification, :qty, :unit, :suggested_purchase_qty,
                              :remark, :purchase_note, :production_note, :category, :crm_product_aux_attribute_id, :_destroy]
     )
