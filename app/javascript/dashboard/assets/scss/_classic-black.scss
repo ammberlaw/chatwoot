@@ -3,8 +3,8 @@ body.theme-classic-black aside[data-sidebar-collapsed] {
   --slate-3: 47 47 50;
   --slate-4: 58 58 62;
   --slate-10: 171 171 179;
-  --slate-11: 195 195 201;
-  --slate-12: 244 244 246;
+  --slate-11: 240 240 243;
+  --slate-12: 255 255 255;
   --alpha-2: 255, 255, 255, 0.07;
   --solid-2: 28 28 30;
   --solid-3: 40 40 43;
@@ -15,6 +15,9 @@ body.theme-classic-black aside[data-sidebar-collapsed] {
   border-color: #303033;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
 
+  [data-sidebar-profile-trigger] .text-n-slate-11 {
+    color: #bdbdc5;
+  }
   [data-sidebar-region='search'] {
     display: none;
   }
