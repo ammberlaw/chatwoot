@@ -671,64 +671,144 @@ body.theme-classic
 // page = 按内容宽度（客户/考勤/销售订单/ERP）；page-block = 撑满容器（邮件那种窄栏）。
 // 面板内 Tab（订单详情的 字段/生产追溯/操作历史）不挂标记，保持下划线式——
 // 页面级切换和面板内分区本来就该看得出区别。
-[data-tabbar^='page'] {
-  display: flex;
-  align-items: center;
-  width: fit-content;
-  gap: 2px;
-  // 槽自己留出上下呼吸：销售订单那种 tab 条紧贴着下面的分隔线（实测只剩 1px），
-  // 灰槽像是粘在线上。放这里而不是逐页改 class，新页面挂上标记就自带间距。
-  margin-block: 4px 8px;
-  padding: 3px;
-  border: 0;
-  border-radius: 10px;
-  background: rgb(var(--slate-3));
+@mixin page-tabbar($tabbar, $blockTabbar: null) {
+  #{$tabbar} {
+    display: flex;
+    align-items: center;
+    width: fit-content;
+    gap: 2px;
+    // 槽自己留出上下呼吸：销售订单那种 tab 条紧贴着下面的分隔线（实测只剩 1px），
+    // 灰槽像是粘在线上。放这里而不是逐页改 class，新页面挂上标记就自带间距。
+    margin-block: 4px 8px;
+    padding: 3px;
+    border: 0;
+    border-radius: 10px;
+    background: rgb(var(--slate-3));
+  }
+  @if $blockTabbar {
+    #{$blockTabbar} {
+      width: 100%;
+    }
+  }
+  #{$tabbar} > button {
+    flex: none;
+    height: auto;
+    padding: 6px 13px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    box-shadow: none;
+    font-size: 13px;
+    font-weight: 400;
+    color: rgb(var(--slate-11));
+  }
+  @if $blockTabbar {
+    #{$blockTabbar} > button {
+      flex: 1;
+      justify-content: center;
+    }
+  }
+  #{$tabbar} > button:hover:not([aria-selected='true']) {
+    color: rgb(var(--slate-12));
+  }
+  #{$tabbar} > button[aria-selected='true'] {
+    background: rgb(var(--iris-9));
+    color: #ffffff;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgb(var(--iris-9) / 0.22);
+  }
+  // 计数徽标（销售订单的 161/0）统一成中性灰。
+  // :not(.absolute) 避开销售订单那根绝对定位的下划线条；
+  // :not([class*='bg-n-ruby']) 放过应收「待建账」那种警示角标——那抹红是在喊
+  // 「有 154 单漏建账」，跟普通计数不是一回事，一起染灰就把提醒抹掉了。
+  #{$tabbar}
+    > button:not([aria-selected='true'])
+    > span:not(.absolute):not([class*='bg-n-ruby']) {
+    background: rgb(var(--slate-4));
+    color: rgb(var(--slate-11));
+  }
+  #{$tabbar} > button[aria-selected='true'] > span:not(.absolute) {
+    background: rgb(255 255 255 / 0.22);
+    color: #ffffff;
+  }
+  // 销售订单原来那根下划线指示条，灰槽方案下不需要。
+  #{$tabbar} > button > span.absolute {
+    display: none;
+  }
 }
-[data-tabbar='page-block'] {
-  width: 100%;
+
+// theme=classic 是新增覆盖的显式边界；:where 不增加原选择器的权重。
+@include page-tabbar(
+  "[data-tabbar^='page']:not(:where([data-tabbar-theme='classic']))",
+  "[data-tabbar='page-block']:not(:where([data-tabbar-theme='classic']))"
+);
+
+// 科目表和商机视图只在经典灰接入统一样式，保留其它主题的原始布局。
+// 新页面仍使用 data-tabbar="page" + aria-selected。
+@include page-tabbar(
+  "body.theme-classic [data-tabbar='page'][data-tabbar-theme='classic']"
+);
+body.theme-classic [data-tabbar='page'][data-tabbar-theme='classic'].px-6 {
+  margin-inline: 1.5rem;
 }
-[data-tabbar^='page'] > button {
-  flex: none;
-  height: auto;
-  padding: 6px 13px;
-  border: 0;
-  border-radius: 8px;
+
+// Button 组件的 solid 品牌黄是主操作规则；作为视图 Tab 时沿用深灰选中块。
+body.theme-classic [data-tabbar-theme='classic'] > button[data-button-variant] {
+  background-color: transparent !important;
+  color: rgb(var(--slate-11)) !important;
+  box-shadow: none !important;
+}
+body.theme-classic
+  [data-tabbar-theme='classic']
+  > button[data-button-variant][aria-selected='true'] {
+  background-color: rgb(var(--iris-9)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 2px rgb(var(--iris-9) / 0.22) !important;
+}
+// Button 的文字 span 是标签，不是数量徽标。
+body.theme-classic
+  [data-tabbar-theme='classic']
+  > button[data-button-variant]
+  > span {
   background: none;
-  box-shadow: none;
-  font-size: 13px;
-  font-weight: 400;
-  color: rgb(var(--slate-11));
+  color: inherit;
 }
-[data-tabbar='page-block'] > button {
-  flex: 1;
-  justify-content: center;
+
+// 经典灰：页签在窄桌面容器中换行，不让长标签或数量把整页撑宽。
+body.theme-classic [data-tabbar^='page'] {
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
 }
-[data-tabbar^='page'] > button:hover:not([aria-selected='true']) {
-  color: rgb(var(--slate-12));
+body.theme-classic [data-tabbar^='page'] > button {
+  white-space: nowrap;
 }
-[data-tabbar^='page'] > button[aria-selected='true'] {
-  background: rgb(var(--iris-9));
-  color: #ffffff;
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgb(var(--iris-9) / 0.22);
+body.theme-classic [data-tabbar] > button:focus-visible {
+  outline: 2px solid rgb(var(--iris-9));
+  outline-offset: 2px;
 }
-// 计数徽标（销售订单的 161/0）统一成中性灰。
-// :not(.absolute) 避开销售订单那根绝对定位的下划线条；
-// :not([class*='bg-n-ruby']) 放过应收「待建账」那种警示角标——那抹红是在喊
-// 「有 154 单漏建账」，跟普通计数不是一回事，一起染灰就把提醒抹掉了。
-[data-tabbar^='page']
-  > button:not([aria-selected='true'])
-  > span:not(.absolute):not([class*='bg-n-ruby']) {
-  background: rgb(var(--slate-4));
-  color: rgb(var(--slate-11));
+// 待建账等警示数量在选中后仍然保留红色，不被普通计数的白色覆写。
+body.theme-classic
+  [data-tabbar^='page']
+  > button[aria-selected='true']
+  > span[class*='bg-n-ruby'] {
+  background: rgb(var(--ruby-3));
+  color: rgb(var(--ruby-11));
 }
-[data-tabbar^='page'] > button[aria-selected='true'] > span:not(.absolute) {
-  background: rgb(255 255 255 / 0.22);
-  color: #ffffff;
+
+// 历史原生工具栏输入框声明 h-9，却被全局 input[type] 的 h-10 + mb-4 覆盖。
+// 仅校正经典灰中这些显式指定了紧凑高度的旧控件；新控件请用 reset-base + h-9。
+body.theme-classic
+  main
+  input[type].h-9:not(.reset-base):not(.no-margin):not([type='checkbox']):not(
+    [type='radio']
+  ):not([type='file']) {
+  height: 2.25rem !important;
+  margin-bottom: 0 !important;
 }
-// 销售订单原来那根下划线指示条，灰槽方案下不需要。
-[data-tabbar^='page'] > button > span.absolute {
-  display: none;
+
+body.theme-classic [data-classic-toolbar='serial-search'] {
+  align-items: center;
 }
 
 // MES 裸页圆弧「玻璃」外框：玻璃(默认)/蓝/beebot 通用，与看板/流水图已有玻璃外框统一观感。

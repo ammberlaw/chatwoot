@@ -121,7 +121,7 @@ onMounted(() => {
 
     <!-- 追溯查询 -->
     <div class="px-4 pb-4 sm:px-6">
-      <div class="flex gap-2">
+      <div class="flex gap-2" data-classic-toolbar="serial-search">
         <input
           v-model="query"
           type="text"
