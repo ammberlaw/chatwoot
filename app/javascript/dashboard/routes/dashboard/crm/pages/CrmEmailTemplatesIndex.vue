@@ -244,7 +244,10 @@ onMounted(() => store.get());
     </div>
 
     <!-- 归属范围：企业模版 / 个人模版 -->
-    <div class="flex flex-wrap gap-1.5 px-4 pt-4 sm:px-6">
+    <div
+      data-black-tabbar="page"
+      class="flex flex-wrap gap-1.5 px-4 pt-4 sm:px-6"
+    >
       <button
         v-for="opt in [
           { value: '', label: L.allScope },
@@ -252,6 +255,7 @@ onMounted(() => store.get());
           { value: 'PERSONAL', label: SCOPE_META.PERSONAL.label },
         ]"
         :key="opt.value"
+        :aria-selected="activeScope === opt.value"
         class="px-3.5 py-1 text-sm font-medium rounded-lg transition-colors"
         :class="
           activeScope === opt.value

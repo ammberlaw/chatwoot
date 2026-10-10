@@ -431,11 +431,12 @@ onMounted(async () => {
       </div>
       <p class="mt-1 mb-5 text-sm text-n-slate-11">标准价目表里没有的定制件</p>
 
-      <div class="flex items-center gap-1 mb-4">
+      <div data-black-tabbar="page" class="flex items-center gap-1 mb-4">
         <button
           v-for="t in tabs"
           :key="t.key"
           type="button"
+          :aria-selected="tab === t.key"
           class="px-3 py-1.5 text-sm rounded-lg"
           :class="
             tab === t.key
