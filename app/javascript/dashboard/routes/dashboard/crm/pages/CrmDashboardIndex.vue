@@ -519,6 +519,22 @@ const topCustomers = computed(() => {
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 5);
 });
+const countryRank = computed(() => {
+  const groups = new Map();
+  (stats.value?.team?.top_customers || []).forEach(customer => {
+    const amount = periodMonths.value.reduce(
+      (total, month) => total + (customer.amount?.[month] || 0),
+      0
+    );
+    if (amount <= 0) return;
+    const country = customer.country || '';
+    const row = groups.get(country) || { country, amount: 0, customers: 0 };
+    row.amount += toYuan(amount);
+    row.customers += 1;
+    groups.set(country, row);
+  });
+  return [...groups.values()].sort((a, b) => b.amount - a.amount);
+});
 const goCustomer = id =>
   router.push({
     name: 'crm_customer_detail_index',
@@ -745,6 +761,7 @@ const PERIODS = [
       :trend="trendChart"
       :rank="classicRank"
       :customers="topCustomers"
+      :country-rank="countryRank"
       :stages="classicStageRows"
       :sources="sourceDonut"
       :completeness="classicCompleteness"

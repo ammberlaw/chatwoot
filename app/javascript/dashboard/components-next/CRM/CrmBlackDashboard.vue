@@ -5,6 +5,7 @@ import CrmAreaChart from './charts/CrmAreaChart.vue';
 import CrmBlackSalesTrend from './charts/CrmBlackSalesTrend.vue';
 import CrmDoughnutChart from './charts/CrmDoughnutChart.vue';
 import CrmSentEmailRankChart from './CrmSentEmailRankChart.vue';
+import CrmCountryRank from './CrmCountryRank.vue';
 
 const props = defineProps({
   isMine: { type: Boolean, default: false },
@@ -16,6 +17,7 @@ const props = defineProps({
   trend: { type: Object, required: true },
   rank: { type: Array, required: true },
   customers: { type: Array, required: true },
+  countryRank: { type: Array, required: true },
   stages: { type: Array, required: true },
   sources: { type: Object, required: true },
   completeness: { type: Array, required: true },
@@ -606,6 +608,11 @@ const sourceShare = index =>
         </div>
       </section>
     </div>
+    <CrmCountryRank
+      :rows="countryRank"
+      :period-label="periodLabel"
+      :value-format="compactYuan"
+    />
     <div class="w-full max-w-[38rem]">
       <div class="w-full min-w-0">
         <CrmSentEmailRankChart
