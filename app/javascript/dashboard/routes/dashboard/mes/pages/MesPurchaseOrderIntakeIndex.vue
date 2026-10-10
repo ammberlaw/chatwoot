@@ -3,7 +3,7 @@
 // 上一单的内容，再点别的单进来是旧数据。名字要显式声明，keep-alive 的 exclude 按名字匹配。
 defineOptions({ name: 'MesPurchaseOrderIntakeIndex' });
 /* global axios */
-import { ref, computed, reactive, onMounted, watch } from 'vue';
+import { ref, computed, reactive, onMounted, onActivated, watch } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -17,6 +17,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
+import { useMesTabs } from 'dashboard/composables/useMesTabs';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -27,6 +28,8 @@ import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 import MesImageLightbox from 'dashboard/components-next/mes/MesImageLightbox.vue';
 
 const { accountId, accountScopedRoute } = useAccount();
+// 标签条：守卫要靠它区分「切标签」和「关标签」。
+const { tabs } = useMesTabs();
 const router = useRouter();
 
 // 回列表。leaving 是离开拦截的放行开关：保存成功、或用户选了「不保存」之后置 true。
@@ -627,7 +630,8 @@ const submit = async () => {
 
 // 页面模式的进入点：带 ?id= 是编辑，带 ?new=product 是从 BOM 页「新建成品采购单」跳来。
 const booting = ref(true);
-onMounted(async () => {
+const boot = async () => {
+  booting.value = true;
   // 供应商下拉需全量，默认分页只出第一页会漏选。
   suppliersStore.get({ per_page: 500 });
   try {
@@ -669,6 +673,16 @@ onMounted(async () => {
     }
   }
   booting.value = false;
+};
+onMounted(boot);
+
+// 本页在 MesLayout 的 keep-alive 里按 query 缓存：切去产品档案/供应商档案查完料
+// 再切回来，填了一半的单子原样还在，不重跑 boot。但如果上次是「保存 / 作废 /
+// 不保存」这类明确离开（leaving=true），缓存里那份已经没用了，重新进来要给张新单。
+onActivated(() => {
+  if (!leaving) return;
+  leaving = false;
+  boot();
 });
 
 // ── 离开页面前的未保存拦截 ──────────────────────────────────
@@ -704,7 +718,13 @@ const saveThenLeave = async () => {
 };
 
 onBeforeRouteLeave((to, from, next) => {
-  if (leaving || !isDirty.value || booting.value) {
+  // 切去另一个 MES 标签时本页不销毁（keep-alive 留着），内容不会丢，不该拦。
+  // 关标签（✕）要拦：MesTabBar 是先 closeTab 再跳转，所以此刻自己已不在标签条里。
+  const switchingTab =
+    String(to.name || '').startsWith('mes_') &&
+    tabs.value.some(t => t.name === from.name);
+
+  if (leaving || switchingTab || !isDirty.value || booting.value) {
     next();
     return;
   }

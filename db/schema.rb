@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_10_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_10_200000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2977,6 +2977,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_10_100000) do
     t.index ["purchase_order_id"], name: "index_mes_inspections_on_purchase_order_id"
   end
 
+  create_table "mes_material_prices", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "crm_product_id", null: false
+    t.bigint "unit_price_micros", default: 0, null: false
+    t.text "remark"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "crm_product_id"], name: "idx_mes_material_prices_on_account_product", unique: true
+    t.index ["account_id"], name: "index_mes_material_prices_on_account_id"
+    t.index ["crm_product_id"], name: "index_mes_material_prices_on_crm_product_id"
+    t.index ["updated_by_id"], name: "index_mes_material_prices_on_updated_by_id"
+  end
+
   create_table "mes_materials", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "material_no", null: false
@@ -4137,6 +4151,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_10_100000) do
   add_foreign_key "mes_inspections", "mes_production_orders", column: "production_order_id", on_delete: :nullify
   add_foreign_key "mes_inspections", "mes_purchase_orders", column: "purchase_order_id", on_delete: :nullify
   add_foreign_key "mes_inspections", "users", column: "inspector_id", on_delete: :nullify
+  add_foreign_key "mes_material_prices", "accounts"
+  add_foreign_key "mes_material_prices", "crm_products", on_delete: :cascade
+  add_foreign_key "mes_material_prices", "users", column: "updated_by_id", on_delete: :nullify
   add_foreign_key "mes_materials", "mes_suppliers", column: "default_supplier_id", on_delete: :nullify
   add_foreign_key "mes_notifications", "mes_production_orders", column: "production_order_id", on_delete: :cascade
   add_foreign_key "mes_notifications", "users", column: "recipient_id", on_delete: :cascade

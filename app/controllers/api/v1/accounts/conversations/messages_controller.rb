@@ -36,6 +36,17 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     render_could_not_create_error(e.message)
   end
 
+  # 表情回应。emoji 为空即撤销自己那个（WhatsApp 的语义：每人最多一个）。
+  # 先发到渠道、成功了才落库，避免 CRM 显示「我回应了」而客户手机上没有。
+  def reaction
+    @message = Messages::SendReactionService.new(
+      message: message, user: Current.user, emoji: params[:emoji].to_s
+    ).perform
+  rescue Messages::SendReactionService::UnsupportedChannel,
+         Whatsapp::BaileysBridgeClient::BridgeError => e
+    render_could_not_create_error(e.message)
+  end
+
   def translate
     return head :ok if already_translated_content_available?
 

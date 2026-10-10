@@ -160,6 +160,7 @@ class Account < ApplicationRecord
   has_many :mes_suppliers, class_name: 'Mes::Supplier', dependent: :destroy_async
   has_many :mes_warehouses, class_name: 'Mes::Warehouse', dependent: :destroy_async
   has_many :mes_materials, class_name: 'Mes::Material', dependent: :destroy_async
+  has_many :mes_material_prices, dependent: :destroy_async, class_name: 'Mes::MaterialPrice'
   has_many :mes_boms, class_name: 'Mes::Bom', dependent: :destroy_async
   has_many :mes_bom_items, class_name: 'Mes::BomItem', dependent: :destroy_async
   has_many :mes_purchase_orders, class_name: 'Mes::PurchaseOrder', dependent: :destroy_async

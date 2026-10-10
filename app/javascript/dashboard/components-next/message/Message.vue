@@ -2,7 +2,9 @@
 import { onMounted, computed, ref, toRefs } from 'vue';
 import { useTimeoutFn } from '@vueuse/core';
 import { provideMessageContext } from './provider.js';
-import { useTrack } from 'dashboard/composables';
+import { useTrack, useAlert } from 'dashboard/composables';
+import MessageAPI from 'dashboard/api/inbox/message';
+import { parseAPIErrorResponse } from 'dashboard/store/utils/api';
 import { useMapGetter } from 'dashboard/composables/store';
 import { emitter } from 'shared/helpers/mitt';
 import { useI18n } from 'vue-i18n';
@@ -43,6 +45,7 @@ import FormBubble from './bubbles/Form.vue';
 import VoiceCallBubble from './bubbles/VoiceCall.vue';
 
 import MessageError from './MessageError.vue';
+import MessageReactions from './MessageReactions.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
 import { useBranding } from 'shared/composables/useBranding';
 
@@ -145,6 +148,23 @@ const showBackgroundHighlight = ref(false);
 const showContextMenu = ref(false);
 const { t } = useI18n();
 const route = useRoute();
+// 表情回应挂在被回应消息的 content_attributes 上，后端一改就随 message.updated 推过来。
+// 能发表情回应的渠道。其它渠道只显示收到的回应，不给发送入口。
+const REACTABLE_CHANNELS = ['Channel::Whatsapp', 'Channel::WhatsappWeb'];
+
+const reactions = computed(() => props.contentAttributes?.reactions || []);
+
+// 点一下切自己的回应：已点过传空字符串＝撤销（和 WhatsApp 一致）。
+// 后端是「先发到渠道、成功了才落库」，所以这里不做乐观更新——
+// 发失败时界面上不该出现一个客户其实没看到的回应。
+const toggleReaction = async emoji => {
+  try {
+    await MessageAPI.react(props.conversationId, props.id, emoji);
+  } catch (error) {
+    useAlert(parseAPIErrorResponse(error) || '回应发送失败');
+  }
+};
+
 const inboxGetter = useMapGetter('inboxes/getInbox');
 const inbox = computed(() => inboxGetter.value(props.inboxId) || {});
 const isOnChatwootCloud = useMapGetter('globalConfig/isOnChatwootCloud');
@@ -400,6 +420,14 @@ const contextMenuEnabledOptions = computed(() => {
       isOnChatwootCloud.value &&
       isCaptainMessage.value &&
       !isMessageDeleted.value,
+    // 表情回应目前只有 WhatsApp 两条线支持（后端 SendReactionService 按渠道分发）。
+    // 回应要挂在对方客户端上那条消息，所以没有 source_id 的（草稿、发送失败）不给。
+    react:
+      REACTABLE_CHANNELS.includes(inbox.value.channel_type) &&
+      !props.private &&
+      !!props.sourceId &&
+      !isFailedOrProcessing &&
+      !isMessageDeleted.value,
   };
 });
 
@@ -576,6 +604,16 @@ provideMessageContext({
       >
         <Component :is="componentToRender" />
       </div>
+      <!-- 回应放 meta 行（气泡下面那一行），不要塞进气泡列：塞进去会把整列撑高，
+           右侧那颗底部对齐的头像跟着往下掉，和气泡对不齐。 -->
+      <MessageReactions
+        v-if="!contentAttributes.externalError"
+        class="[grid-area:meta]"
+        :reactions="reactions"
+        :current-user-id="currentUserId"
+        :orientation="orientation"
+        @toggle="toggleReaction"
+      />
       <MessageError
         v-if="contentAttributes.externalError"
         class="[grid-area:meta]"
@@ -595,6 +633,7 @@ provideMessageContext({
         @open="openContextMenu"
         @close="closeContextMenu"
         @reply-to="handleReplyTo"
+        @react="toggleReaction"
       />
     </div>
   </div>

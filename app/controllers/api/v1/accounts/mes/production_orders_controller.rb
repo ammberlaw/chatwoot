@@ -296,6 +296,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     render json: { error: e.record.errors[:product_code].first || e.message }, status: :unprocessable_entity
   end
 
+  # 成本导出：按月份或日期区间，一次导全月的任务单成本（汇总 + 用料明细两个页签）。
+  # 财务原来一单一单导、再手工查价算成本；这里一次给全。
+  def cost_export
+    orders = cost_export_scope
+    label = [params[:month].presence, "#{orders.size} 张单"].compact.join(' · ')
+    stream = Mes::BomCostXlsxService.new(account: Current.account, orders: orders, label: label).to_stream
+    send_data stream.read, filename: cost_export_filename,
+                           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  end
+
   def update
     # 已下发（非草稿）订单被改 → 改完通知当前阶段的下一个流程负责人（需求：改单同步下游）。
     was_published = !@production_order.is_draft
@@ -351,6 +361,27 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   private
+
+  # 导出范围：默认当月，可传 month=YYYY-MM 或 from/to。只取挂了生产任务单的。
+  # 走和列表同一套可见性收口，不另开口子。
+  def cost_export_scope
+    scope = scoped_by_product_line(Current.account.mes_production_orders)
+    scope = scope.where.not(bom_id: nil).includes(bom: :bom_items)
+    apply_export_period(scope).order(created_at: :desc).limit(500)
+  end
+
+  def apply_export_period(scope)
+    return scope.where(created_at: Date.strptime(params[:month], '%Y-%m').all_month) if params[:month].present?
+
+    scope = scope.where(created_at: params[:from].to_date.beginning_of_day..) if params[:from].present?
+    scope = scope.where(created_at: ..params[:to].to_date.end_of_day) if params[:to].present?
+    scope
+  end
+
+  def cost_export_filename
+    scope = params[:month].presence || Time.zone.today.strftime('%Y-%m')
+    "生产任务单成本_#{scope}.xlsx"
+  end
 
   # 角标只数「真要我动手的」，口径与待办面板「待我处理」那一组一致：
   #   · 还没接单的        → 算（等人接手）

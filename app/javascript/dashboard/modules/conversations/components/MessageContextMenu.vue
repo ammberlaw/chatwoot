@@ -47,7 +47,7 @@ export default {
       default: false,
     },
   },
-  emits: ['open', 'close', 'replyTo'],
+  emits: ['open', 'close', 'replyTo', 'react'],
   setup() {
     const { getPlainText } = useMessageFormatter();
 
@@ -59,6 +59,8 @@ export default {
     return {
       isCannedResponseModalOpen: false,
       showDeleteModal: false,
+      // WhatsApp 自己快捷条上的那六个
+      quickReactions: ['👍', '❤️', '😂', '😮', '😢', '🙏'],
     };
   },
   computed: {
@@ -136,6 +138,10 @@ export default {
       }
       this.handleClose();
     },
+    handleReact(emoji) {
+      this.$emit('react', emoji);
+      this.$emit('close');
+    },
     handleReplyTo() {
       this.$emit('replyTo', this.message);
       this.handleClose();
@@ -208,6 +214,23 @@ export default {
       @close="handleClose"
     >
       <div class="menu-container">
+        <!-- 常用表情回应。WhatsApp 自己的快捷条就是这六个，覆盖绝大多数真实用法；
+             客户发来的其它表情照常显示，只是我们不从这里发。 -->
+        <div
+          v-if="enabledOptions['react']"
+          class="flex items-center gap-1 px-2 py-1"
+        >
+          <button
+            v-for="emoji in quickReactions"
+            :key="emoji"
+            type="button"
+            class="text-base leading-none rounded size-7 hover:bg-n-alpha-2"
+            @click.stop="handleReact(emoji)"
+          >
+            {{ emoji }}
+          </button>
+        </div>
+        <hr v-if="enabledOptions['react']" />
         <MenuItem
           v-if="enabledOptions['replyTo']"
           :option="{

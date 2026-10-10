@@ -12,7 +12,12 @@ class Whatsapp::IncomingMessageBaseService
 
     if processed_params.try(:[], :statuses).present?
       process_statuses
-    elsif messages_data.present?
+    elsif messages_data.blank?
+      nil
+    elsif message_type == 'reaction'
+      # 表情回应不是新消息，是挂到被回应的那条上，不走建消息那条路。
+      Whatsapp::IncomingReactionService.new(inbox: inbox, data: messages_data.first).perform
+    else
       process_messages
     end
   end
@@ -25,8 +30,8 @@ class Whatsapp::IncomingMessageBaseService
   private
 
   def process_messages
-    # We don't support reactions & ephemeral message now, we need to skip processing the message
-    # if the webhook event is a reaction or an ephermal message or an unsupported message.
+    # We don't support ephemeral messages now, we need to skip processing the message
+    # if the webhook event is an ephemeral message or an unsupported message.
     return if unprocessable_message_type?(message_type)
 
     # Multiple webhook events can be received for the same message due to

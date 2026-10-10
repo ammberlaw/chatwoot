@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 import { useMesTabs } from 'dashboard/composables/useMesTabs';
@@ -11,15 +11,32 @@ import MesTabBar from './MesTabBar.vue';
 // MesLayout 被各 MES 顶层路由复用（父级 router-view 无 key），故壳内 keep-alive 对整板块生效。
 const { activeProductLine } = useMesProductLine();
 
-// 建档页（新建/编辑单据的整页表单）不缓存：keep-alive 的 key 里没有 query，
-// 缓存着再点另一张单进来会沿用上一单的表单内容、onMounted 也不再跑。
-const INTAKE_PAGES = ['MesBomIntakeIndex', 'MesPurchaseOrderIntakeIndex'];
+// 建档页（新建/编辑单据的整页表单）的 key 要带上 query：不带的话，编辑完单 A 再点
+// 单 B 会沿用 A 的表单内容、onMounted 也不再跑。带上之后每张单各有各的缓存实例，
+// 采购填到一半切去产品档案/供应商档案查料、再切回来，单子还在原样——否则建档页被
+// 销毁，每次切标签都要弹一次「当前内容还没保存」。
+const INTAKE_ROUTES = [
+  'mes_bom_intake_index',
+  'mes_purchase_order_intake_index',
+];
 
 // 每进一个 MES 页就把它登记进标签条（已开过的只激活、并更新带查询参数的路径）。
 const route = useRoute();
 const { openTab } = useMesTabs();
 const pageContent = ref(null);
 const scrollPositions = new WeakMap();
+
+const pageKey = computed(() => {
+  const base = `mes-${activeProductLine.value || 'all'}-${route.name}`;
+  if (!INTAKE_ROUTES.includes(route.name)) return base;
+
+  // 排序后拼，保证同一张单不会因为参数顺序不同被当成两个实例。
+  const query = Object.keys(route.query)
+    .sort()
+    .map(k => `${k}=${route.query[k]}`)
+    .join('&');
+  return query ? `${base}?${query}` : base;
+});
 
 // keep-alive 保留实例，但 DOM 移出页面后浏览器可能重置滚动位置。
 watch([() => route.name, activeProductLine], async () => {
@@ -53,11 +70,8 @@ watch(
       <MesTabBar />
       <div ref="pageContent" class="flex-1 min-w-0 min-h-0">
         <router-view v-slot="{ Component }">
-          <keep-alive :max="12" :exclude="INTAKE_PAGES">
-            <component
-              :is="Component"
-              :key="`mes-${activeProductLine || 'all'}-${$route.name}`"
-            />
+          <keep-alive :max="12">
+            <component :is="Component" :key="pageKey" />
           </keep-alive>
         </router-view>
       </div>

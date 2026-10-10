@@ -8,6 +8,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MesBomAPI from 'dashboard/api/mes/boms';
+import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import {
@@ -132,6 +133,53 @@ const releasingId = ref(null);
 // 只读查看：点行直接看完整明细，无需进编辑态（车间/采购等无编辑权者也能看）。
 const viewDialogRef = ref(null);
 const viewing = ref(null);
+
+// ── 成本（仅财务/管理员/采购）──────────────────────────────
+// 口径在后端 AccountUser#can_view_material_cost?；没权限时序列化里
+// 单价/金额这些键根本不下发，这里再拦一道，表头也不出。
+const currentUserForCost = useMapGetter('getCurrentUser');
+const showCost = computed(
+  () => currentUserForCost.value?.can_view_material_cost === true
+);
+const cost = computed(() => viewing.value?.cost || {});
+
+// 成本导出：默认当月。文件名由后端给（Content-Disposition 里是中文，
+// 这里按同样规则本地拼一份，省得去解析响应头）。
+const exportingCost = ref(false);
+const exportCost = async () => {
+  if (exportingCost.value) return;
+  exportingCost.value = true;
+  const month = new Date().toISOString().slice(0, 7);
+  try {
+    const { data } = await MesProductionOrderAPI.costExport({ month });
+    const url = URL.createObjectURL(data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `生产任务单成本_${month}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '导出失败');
+  } finally {
+    exportingCost.value = false;
+  }
+};
+const money = micros =>
+  micros === null || micros === undefined
+    ? '—'
+    : `¥${(micros / 1_000_000).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// 单台成本 = 材料 ÷ 基准产量 + 加工费 + 制造费用（后两者本就是「每台多少」）。
+const unitCostText = computed(() => {
+  const c = cost.value;
+  const qty = Number(viewing.value?.baseQty || 0);
+  if (!c.totalMicros && !c.materialMicros) return '—';
+  const perUnitMaterial = qty > 0 ? c.materialMicros / qty : 0;
+  return money(
+    Math.round(
+      perUnitMaterial + (c.processMicros || 0) + (c.overheadMicros || 0)
+    )
+  );
+});
 const openView = bom => {
   viewing.value = bom;
   viewDialogRef.value?.open();
@@ -367,6 +415,19 @@ onMounted(async () => {
           size="sm"
           class="btn-ink"
           @click="goCreate({ templates: 1 })"
+        />
+        <!-- 财务月度核算底稿：一次导全月，汇总页 + 用料明细页。
+             只给能看成本的人（财务/管理员/采购）。 -->
+        <Button
+          v-if="showCost"
+          label="成本导出"
+          variant="outline"
+          color="slate"
+          size="sm"
+          class="btn-ink"
+          icon="i-lucide-file-spreadsheet"
+          :is-loading="exportingCost"
+          @click="exportCost"
         />
         <Button
           v-if="mesCan('bom')"
@@ -699,6 +760,12 @@ onMounted(async () => {
                   <th class="px-2 py-2 font-medium">辅助属性</th>
                   <th class="px-2 py-2 font-medium">单位</th>
                   <th class="px-2 py-2 font-medium text-right">用量</th>
+                  <!-- 单价/金额/价源只给财务/管理员/采购；没权限时后端不下发这几个键 -->
+                  <template v-if="showCost">
+                    <th class="px-2 py-2 font-medium text-right">单价</th>
+                    <th class="px-2 py-2 font-medium text-right">金额</th>
+                    <th class="px-2 py-2 font-medium">价源</th>
+                  </template>
                   <th class="px-2 py-2 font-medium">备注</th>
                   <th class="px-2 py-2 font-medium">采购注意事项</th>
                   <th class="px-2 py-2 font-medium">生产备注</th>
@@ -743,6 +810,27 @@ onMounted(async () => {
                   <td class="px-2 py-2 text-right text-n-slate-12">
                     {{ it.qty }}
                   </td>
+                  <template v-if="showCost">
+                    <td
+                      class="px-2 py-2 text-right tabular-nums text-n-slate-12"
+                    >
+                      {{ money(it.unitPriceMicros) }}
+                    </td>
+                    <td
+                      class="px-2 py-2 text-right tabular-nums text-n-slate-12"
+                    >
+                      {{ money(it.amountMicros) }}
+                    </td>
+                    <td class="px-2 py-2">
+                      <span
+                        v-if="it.priceSourceLabel"
+                        class="px-2 py-0.5 text-xs rounded-full bg-n-slate-3 text-n-slate-11"
+                      >
+                        {{ it.priceSourceLabel }}
+                      </span>
+                      <span v-else class="text-xs text-n-ruby-11">无单价</span>
+                    </td>
+                  </template>
                   <!-- 本行没写备注就显产品档案上的（工程写的工艺要求）。
                        不加「档案：」前缀——这栏是要发给供应商/车间看的，前缀是内部说法。
                        来源仍留在 title 里，鼠标移上去看得到。 -->
@@ -766,7 +854,7 @@ onMounted(async () => {
                 </tr>
                 <tr v-if="!(viewing.bomItems || []).length">
                   <td
-                    colspan="11"
+                    :colspan="showCost ? 14 : 11"
                     class="px-2 py-6 text-center text-n-slate-11"
                   >
                     无用料明细
@@ -774,6 +862,39 @@ onMounted(async () => {
                 </tr>
               </tbody>
             </table>
+
+            <!-- 成本小结。缺价行数必须露出来：覆盖不到 100% 时，一个不标缺口的
+                 合计会被当成完整成本用（财务按它算产品单价）。 -->
+            <div
+              v-if="showCost"
+              class="flex flex-wrap items-center gap-x-6 gap-y-1 px-2 py-3 mt-2 text-sm border rounded-lg border-n-weak bg-n-alpha-1"
+            >
+              <span class="text-n-slate-11">
+                材料合计
+                <b class="ml-1 text-n-slate-12">{{
+                  money(cost.materialMicros)
+                }}</b>
+              </span>
+              <span class="text-n-slate-11">
+                生产人工
+                <b class="ml-1 text-n-slate-12">{{
+                  money(cost.processMicros)
+                }}</b>
+              </span>
+              <span class="text-n-slate-11">
+                制造费用
+                <b class="ml-1 text-n-slate-12">{{
+                  money(cost.overheadMicros)
+                }}</b>
+              </span>
+              <span class="text-n-slate-11">
+                单台成本
+                <b class="ml-1 text-n-slate-12">{{ unitCostText }}</b>
+              </span>
+              <span v-if="cost.unpricedLines" class="text-n-ruby-11">
+                {{ cost.unpricedLines }} 行无单价，合计为不完全值
+              </span>
+            </div>
           </div>
 
           <div class="pt-2 border-t border-n-weak">

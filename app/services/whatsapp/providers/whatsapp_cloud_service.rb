@@ -114,6 +114,20 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     process_response(response, message)
   end
 
+  # 表情回应。emoji 传空字符串 = 撤销（Meta 文档里的撤销方式就是发空 emoji）。
+  def send_reaction(phone_number, target_id:, emoji:)
+    HTTParty.post(
+      "#{phone_id_path}/messages",
+      headers: api_headers,
+      body: {
+        messaging_product: 'whatsapp',
+        to: phone_number,
+        type: 'reaction',
+        reaction: { message_id: target_id, emoji: emoji.to_s }
+      }.to_json
+    )
+  end
+
   def send_attachment_message(phone_number, message)
     attachment = message.attachments.first
     normalize_opus_content_type(attachment)

@@ -16,6 +16,7 @@ export const MES_TAB_LABEL_KEYS = {
   mes_production_orders_index: 'SIDEBAR.MES_PRODUCTION_ORDERS',
   mes_boms_index: 'SIDEBAR.MES_BOMS',
   mes_products_index: 'SIDEBAR.MES_PRODUCTS',
+  mes_material_prices_index: 'SIDEBAR.MES_MATERIAL_PRICES',
   mes_purchase_requisitions_index: 'SIDEBAR.MES_PURCHASE_REQUISITIONS',
   mes_purchase_orders_index: 'SIDEBAR.MES_PURCHASE_ORDERS',
   mes_suppliers_index: 'SIDEBAR.MES_SUPPLIERS',

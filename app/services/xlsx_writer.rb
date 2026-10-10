@@ -11,20 +11,24 @@ class XlsxWriter
   STYLE_INDEX = { default: 0, title: 1, header: 2, text: 3, money: 4, rate: 5,
                   subtotal_text: 6, subtotal_money: 7, center: 8 }.freeze
 
-  # col_widths: [字符宽...]；rows: [[[值, :s|:n, 样式键], ...], ...]；
-  # merges: ["A1:X1", ...]；sheet_name: 工作表标签名。
-  def initialize(col_widths:, rows:, merges: [], sheet_name: 'Sheet1')
-    @col_widths = col_widths
-    @rows = rows
-    @merges = merges
-    @sheet_name = sheet_name
+  # 单页签（原有用法，不要改）：
+  #   col_widths: [字符宽...]；rows: [[[值, :s|:n, 样式键], ...], ...]；
+  #   merges: ["A1:X1", ...]；sheet_name: 工作表标签名。
+  # 多页签：
+  #   sheets: [{ name:, col_widths:, rows:, merges: }, ...]
+  #   财务要的「汇总页 + 明细页」一个文件给全，就走这个。
+  def initialize(col_widths: nil, rows: nil, merges: [], sheet_name: 'Sheet1', sheets: nil)
+    @sheets = sheets.presence || [{ name: sheet_name, col_widths: col_widths, rows: rows, merges: merges }]
   end
 
   def to_stream
+    parts = { '[Content_Types].xml' => content_types, '_rels/.rels' => root_rels,
+              'xl/workbook.xml' => workbook, 'xl/_rels/workbook.xml.rels' => workbook_rels,
+              'xl/styles.xml' => styles }
+    @sheets.each_with_index { |sheet, i| parts["xl/worksheets/sheet#{i + 1}.xml"] = sheet_xml(sheet) }
+
     buffer = Zip::OutputStream.write_buffer do |zip|
-      { '[Content_Types].xml' => content_types, '_rels/.rels' => root_rels,
-        'xl/workbook.xml' => workbook, 'xl/_rels/workbook.xml.rels' => workbook_rels,
-        'xl/styles.xml' => styles, 'xl/worksheets/sheet1.xml' => sheet_xml }.each do |path, xml|
+      parts.each do |path, xml|
         zip.put_next_entry(path)
         zip.write(xml)
       end
@@ -47,12 +51,13 @@ class XlsxWriter
 
   private
 
-  def sheet_xml
-    cols = @col_widths.each_with_index.map do |w, i|
+  def sheet_xml(sheet)
+    cols = Array(sheet[:col_widths]).each_with_index.map do |w, i|
       %(<col min="#{i + 1}" max="#{i + 1}" width="#{w}" customWidth="1"/>)
     end.join
-    body = @rows.each_with_index.map { |cells, r| row_xml(cells, r + 1) }.join
-    merge = @merges.any? ? merge_xml : ''
+    body = Array(sheet[:rows]).each_with_index.map { |cells, r| row_xml(cells, r + 1) }.join
+    merges = Array(sheet[:merges])
+    merge = merges.any? ? merge_xml(merges) : ''
     <<~XML
       <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -63,8 +68,8 @@ class XlsxWriter
     XML
   end
 
-  def merge_xml
-    %(<mergeCells count="#{@merges.size}">#{@merges.map { |m| %(<mergeCell ref="#{m}"/>) }.join}</mergeCells>)
+  def merge_xml(merges)
+    %(<mergeCells count="#{merges.size}">#{merges.map { |m| %(<mergeCell ref="#{m}"/>) }.join}</mergeCells>)
   end
 
   def row_xml(cells, rownum)
@@ -96,7 +101,7 @@ class XlsxWriter
       <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
       <Default Extension="xml" ContentType="application/xml"/>
       <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-      <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+      #{sheet_overrides}
       <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
       </Types>
     XML
@@ -115,7 +120,7 @@ class XlsxWriter
     <<~XML
       <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-      <sheets><sheet name="#{xml_escape(@sheet_name)}" sheetId="1" r:id="rId1"/></sheets>
+      <sheets>#{sheet_entries}</sheets>
       </workbook>
     XML
   end
@@ -124,9 +129,29 @@ class XlsxWriter
     <<~XML
       <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-      <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+      #{sheet_rels}
       </Relationships>
     XML
+  end
+
+  def sheet_overrides
+    @sheets.each_index.map do |i|
+      ct = 'application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml'
+      %(<Override PartName="/xl/worksheets/sheet#{i + 1}.xml" ContentType="#{ct}"/>)
+    end.join("\n")
+  end
+
+  def sheet_entries
+    @sheets.each_with_index.map do |sheet, i|
+      %(<sheet name="#{xml_escape(sheet[:name])}" sheetId="#{i + 1}" r:id="rId#{i + 1}"/>)
+    end.join
+  end
+
+  def sheet_rels
+    @sheets.each_index.map do |i|
+      type = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet'
+      %(<Relationship Id="rId#{i + 1}" Type="#{type}" Target="worksheets/sheet#{i + 1}.xml"/>)
+    end.join("\n")
   end
 
   def styles

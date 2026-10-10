@@ -114,8 +114,12 @@ const isMesPurchaseApprover = computed(
 );
 // 财务：对账要看采购单和入库单（花了多少、货什么时候到的），但不进生产/BOM/供应商那些。
 // 判的是 crm_finance 布尔列，不是 crm_role === 'finance'——生产上两位财务的 crm_role 是空的。
-const isFinanceViewer = computed(
-  () => currentUser.value?.crm_finance === true
+const isFinanceViewer = computed(() => currentUser.value?.crm_finance === true);
+// 能不能看物料成本（物料单价表、任务单上的单价、成本导出）。
+// 口径在后端 AccountUser#can_view_material_cost?，这里只读它算好的标志，
+// 别在前端重拼「财务 or 管理员 or 采购」——两边迟早对不上。
+const canViewMaterialCost = computed(
+  () => currentUser.value?.can_view_material_cost === true
 );
 // 财务：全公司数据只读，需看到公司级看板等入口，不能按普通业务收窄。
 const isCrmFinance = computed(() => currentUser.value?.crm_role === 'finance');
@@ -1412,6 +1416,7 @@ const menuItems = computed(() => {
           'mes_production_orders_index',
           'mes_boms_index',
           'mes_products_index',
+          'mes_material_prices_index',
           'mes_purchase_orders_index',
           'mes_purchase_requisitions_index',
           'mes_suppliers_index',
@@ -1464,6 +1469,17 @@ const menuItems = computed(() => {
             to: accountScopedRoute('mes_products_index'),
             activeOn: ['mes_products_index'],
           },
+          // 物料单价表含成本，只给财务/管理员/采购（口径同后端 can_view_material_cost?）
+          ...(canViewMaterialCost.value
+            ? [
+                {
+                  name: 'MES Material Prices',
+                  label: t('SIDEBAR.MES_MATERIAL_PRICES'),
+                  to: accountScopedRoute('mes_material_prices_index'),
+                  activeOn: ['mes_material_prices_index'],
+                },
+              ]
+            : []),
           // 采购单/供应商含采购价与供应商资料，销售端不可见（生态硬约束）。
           ...(isMesStaff.value
             ? [
@@ -2257,6 +2273,7 @@ const ROUTE_MODULE = {
   mes_boms_index: 'mes',
   mes_bom_intake_index: 'mes',
   mes_products_index: 'mes',
+  mes_material_prices_index: 'mes',
   mes_purchase_orders_index: 'mes',
   mes_purchase_order_intake_index: 'mes',
   mes_purchase_requisitions_index: 'mes',

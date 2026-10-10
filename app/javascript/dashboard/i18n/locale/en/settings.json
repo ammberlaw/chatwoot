@@ -462,6 +462,7 @@
     "MES_G_SHOPFLOOR": "生产车间",
     "MES_NOTIFICATIONS": "站内通知",
     "MES_PRODUCTS": "产品档案",
+    "MES_MATERIAL_PRICES": "物料单价表",
     "MES_DASHBOARD": "生产看板",
     "MES_PIPELINE": "流水看板",
     "MES_PRODUCTION_ORDERS": "销售订单",

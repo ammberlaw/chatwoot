@@ -505,6 +505,14 @@ Rails.application.routes.draw do
                 delete 'attach/:attachment_id', action: :detach
               end
             end
+            # 物料标准单价（财务/采购维护，给成本核算兜底）
+            resources :material_prices, only: [:index, :create, :update, :destroy] do
+              collection do
+                post :import
+                # 缺价清单：任务单用到但三级价源都没有价的物料，给采购当补录工作单
+                get :missing
+              end
+            end
             resources :bom_templates, except: [:new, :edit]
             resources :purchase_orders do
               collection do
@@ -577,6 +585,8 @@ Rails.application.routes.draw do
                 get :approval_inbox
                 get :todo_count
                 post :stage_blob
+                # 成本导出（财务月度核算底稿：汇总页 + 用料明细页）
+                get :cost_export
               end
               member do
                 get :audits
@@ -729,6 +739,8 @@ Rails.application.routes.draw do
                 member do
                   post :translate
                   post :retry
+                  # 表情回应：emoji 为空即撤销（WhatsApp 语义）
+                  post :reaction
                 end
               end
               resources :assignments, only: [:create]
@@ -1237,6 +1249,7 @@ Rails.application.routes.draw do
   post 'webhooks/whatsapp_web', to: 'webhooks/whatsapp_web#process_payload'
   post 'webhooks/whatsapp_web/status', to: 'webhooks/whatsapp_web#status'
   post 'webhooks/whatsapp_web/receipt', to: 'webhooks/whatsapp_web#receipt'
+  post 'webhooks/whatsapp_web/reaction', to: 'webhooks/whatsapp_web#reaction'
   post 'webhooks/whatsapp_web/history', to: 'webhooks/whatsapp_web#history'
   post 'webhooks/whatsapp_web/contacts', to: 'webhooks/whatsapp_web#contacts'
   post 'webhooks/whatsapp_web/avatar', to: 'webhooks/whatsapp_web#avatar'

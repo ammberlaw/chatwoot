@@ -106,6 +106,14 @@ class MessageApi extends ApiClient {
     return axios.get(`${this.url}/${conversationId}/messages`, { params });
   }
 
+  // 表情回应。emoji 传空字符串 = 撤销自己那个（WhatsApp 的语义：每人最多一个）。
+  react(conversationId, messageId, emoji) {
+    return axios.post(
+      `${this.url}/${conversationId}/messages/${messageId}/reaction`,
+      { emoji }
+    );
+  }
+
   translateMessage(conversationId, messageId, targetLanguage) {
     return axios.post(
       `${this.url}/${conversationId}/messages/${messageId}/translate`,

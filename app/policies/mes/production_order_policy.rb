@@ -1,5 +1,7 @@
 class Mes::ProductionOrderPolicy < ApplicationPolicy
   def index? = true
+  # 成本导出含单价，口径与生产任务单上的单价列一致：只给财务/管理员/采购。
+  def cost_export? = @account_user.can_view_material_cost?
   def show? = true
   def requirement? = true
   def issue_plan? = true

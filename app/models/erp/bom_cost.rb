@@ -41,7 +41,11 @@ class Erp::BomCost < ApplicationRecord
   belongs_to :crm_product, class_name: 'Crm::Product'
   belongs_to :updated_by, class_name: 'User', optional: true
 
+  # 文案写死中文、不走语言文件：API 请求下 locale 实测解析不到 zh_CN，查出来是英文；
+  # 全站业务校验文案（如 Mes::LineScoped 的产品线必填）都是这么写的，保持一致。
+  # rubocop:disable Rails/I18nLocaleTexts
   validates :crm_product_id, uniqueness: { scope: :account_id, message: '这个商品编码已经有一条了，直接改那条' }
+  # rubocop:enable Rails/I18nLocaleTexts
   validates :process_fee_micros, :overhead_fee_micros,
             numericality: { greater_than_or_equal_to: 0 }
 

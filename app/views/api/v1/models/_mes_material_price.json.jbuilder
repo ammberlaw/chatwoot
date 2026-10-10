@@ -1,0 +1,10 @@
+json.id resource.id
+json.crm_product_id resource.crm_product_id
+json.sku resource.crm_product&.sku
+json.name resource.crm_product&.name
+json.specification resource.crm_product&.specification
+json.unit resource.crm_product&.unit
+json.unit_price_micros resource.unit_price_micros
+json.remark resource.remark
+json.updated_by_name resource.updated_by&.name
+json.updated_at resource.updated_at

@@ -24,6 +24,10 @@ json.crm_team_lead resource.active_account_user&.crm_team_lead? || false
 json.crm_finance resource.active_account_user&.crm_finance? || false
 json.mes_roles resource.active_account_user&.effective_mes_roles || []
 json.mes_capabilities resource.active_account_user&.mes_capability_list || []
+# 能不能看物料成本（生产任务单上的单价/金额、物料单价表、成本导出）。
+# 口径只在 AccountUser#can_view_material_cost? 一处定义，前端读这个标志，
+# 别在前端再拼一遍「财务 or 管理员 or 采购」——两边迟早对不上。
+json.can_view_material_cost resource.active_account_user&.can_view_material_cost? || false
 # 采购审批人（按产品线配置）：不兼 MES 岗的审批人也要看得到采购单入口与金额。
 json.mes_purchase_approver(
   if (au = resource.active_account_user)

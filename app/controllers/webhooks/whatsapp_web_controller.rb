@@ -7,7 +7,8 @@ class Webhooks::WhatsappWebController < ActionController::API
   # Inbound message forwarded by the Baileys bridge.
   def process_payload
     # from_me：业务员在手机上直接回的消息，落成「我方发出」（见 IncomingMessageWhatsappWebService）。
-    payload = params.to_unsafe_hash.slice(:inbox_id, :source_id, :phone, :from, :name, :book_name, :text, :message_id, :timestamp, :from_me)
+    payload = params.to_unsafe_hash.slice(:inbox_id, :source_id, :phone, :from, :name, :book_name, :text, :message_id, :timestamp,
+                                          :from_me, :quoted_id)
     # 图片/视频/语音/文件走 multipart 上来。文件对象进不了 ActiveJob（序列化不了），
     # 所以在这里先落成 blob，只把 signed_id 带进后台任务。
     payload[:media_signed_id] = stage_media&.signed_id
@@ -54,6 +55,14 @@ class Webhooks::WhatsappWebController < ActionController::API
   rescue StandardError => e
     Rails.logger.error("[wa_avatar] 落盘失败 inbox=#{params[:inbox_id]}: #{e.class} #{e.message}")
     head :internal_server_error
+  end
+
+  # 表情回应。不是一条新消息，而是挂到被回应的那条上，所以单走一个端点
+  # （走 process_payload 会被当成空消息丢掉）。emoji 为空表示客户撤销了回应。
+  def reaction
+    payload = params.to_unsafe_hash.slice(:inbox_id, :target_id, :emoji, :from_me, :source_id, :timestamp)
+    Webhooks::WhatsappWebReactionJob.perform_later(payload)
+    head :ok
   end
 
   # Delivery/read receipt for an outgoing message, reported by the bridge.

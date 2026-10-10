@@ -9,6 +9,15 @@ json.unit resource.unit
 json.suggested_purchase_qty resource.suggested_purchase_qty
 # 对应物料实时库存（料号↔产品档案 SKU 匹配汇总）；父 BOM 批量算好经 local 传入，避免逐行查库。
 json.on_hand(local_assigns[:onhand_map] ? (local_assigns[:onhand_map][resource.material_no] || 0) : nil)
+# 成本（仅财务/管理员/采购）：单价由 Mes::MaterialPriceResolver 按
+# 本单采购价 > 标准价 > 最近采购价 三级取，父 BOM 批量算好经 local 传入。
+# 取不到价的行这三个键都是 nil——前端据此标「无单价」，不要渲染成 0。
+price = local_assigns[:price_map]&.dig(resource.id)
+json.unit_price_micros price&.dig(:price_micros)
+json.price_source price&.dig(:source)
+json.price_source_label price&.dig(:source_label)
+json.amount_micros(price ? (resource.qty.to_d * price[:price_micros]).round : nil)
+
 json.remark resource.remark
 # 采购注意事项给采购看（建采购单时按料带过去，但不进给供应商的导出件）；
 # 生产备注只给公司内部生产部门看，不进任何对外单据。

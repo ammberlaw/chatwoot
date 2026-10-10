@@ -10,6 +10,7 @@ import {
   watch,
   nextTick,
   onMounted,
+  onActivated,
   onBeforeUnmount,
 } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
@@ -35,8 +36,11 @@ import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue
 import MesProductQuickPanel from 'dashboard/components-next/mes/MesProductQuickPanel.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
+import { useMesTabs } from 'dashboard/composables/useMesTabs';
 
 const { accountId, accountScopedRoute } = useAccount();
+// 标签条：守卫要靠它区分「切标签」和「关标签」。
+const { tabs } = useMesTabs();
 const router = useRouter();
 const route = useRoute();
 const rootStore = useStore();
@@ -1090,7 +1094,8 @@ const saveTemplate = async () => {
 // 都不带就是普通新建。编辑态要先把这张单取回来——列表页的数据不一定还在 store 里
 // （直接贴链接/刷新页面进来时就是空的）。
 const booting = ref(true);
-onMounted(async () => {
+const boot = async () => {
+  booting.value = true;
   if (!agents.value?.length) rootStore.dispatch('agents/get');
   try {
     const { data } = await axios.get(
@@ -1127,6 +1132,16 @@ onMounted(async () => {
     if (route.query.templates) openTemplates();
   }
   booting.value = false;
+};
+onMounted(boot);
+
+// 本页在 MesLayout 的 keep-alive 里按 query 缓存：切去产品档案/供应商档案查完料
+// 再切回来，填了一半的单子原样还在，不重跑 boot。但如果上次是「保存 / 不保存」
+// 这类明确离开（leaving=true），缓存里那份已经没用了，重新进来要给张新单。
+onActivated(() => {
+  if (!leaving) return;
+  leaving = false;
+  boot();
 });
 
 // ── 离开页面前的未保存拦截 ──────────────────────────────────
@@ -1164,7 +1179,13 @@ const saveThenLeave = async () => {
 };
 
 onBeforeRouteLeave((to, from, next) => {
-  if (leaving || !isDirty.value || booting.value) {
+  // 切去另一个 MES 标签时本页不销毁（keep-alive 留着），内容不会丢，不该拦。
+  // 关标签（✕）要拦：MesTabBar 是先 closeTab 再跳转，所以此刻自己已不在标签条里。
+  const switchingTab =
+    String(to.name || '').startsWith('mes_') &&
+    tabs.value.some(t => t.name === from.name);
+
+  if (leaving || switchingTab || !isDirty.value || booting.value) {
     next();
     return;
   }

@@ -8,6 +8,7 @@ import MesProductionOrderIntakeIndex from './pages/MesProductionOrderIntakeIndex
 import MesBomsIndex from './pages/MesBomsIndex.vue';
 import MesBomIntakeIndex from './pages/MesBomIntakeIndex.vue';
 import MesProductsIndex from './pages/MesProductsIndex.vue';
+import MesMaterialPricesIndex from './pages/MesMaterialPricesIndex.vue';
 import MesPurchaseOrdersIndex from './pages/MesPurchaseOrdersIndex.vue';
 import MesPurchaseOrderIntakeIndex from './pages/MesPurchaseOrderIntakeIndex.vue';
 import MesPurchaseRequisitionsIndex from './pages/MesPurchaseRequisitionsIndex.vue';
@@ -60,6 +61,12 @@ export const routes = [
   // 生产任务单建档页：新建/编辑不再用弹窗（反馈 A2——弹窗太窄，一条用料明细看不全）。
   mesPage('bom-intake', 'mes_bom_intake_index', MesBomIntakeIndex),
   mesPage('products', 'mes_products_index', MesProductsIndex),
+  // 物料单价表（财务/采购维护的标准价，给成本核算兜底）
+  mesPage(
+    'material-prices',
+    'mes_material_prices_index',
+    MesMaterialPricesIndex
+  ),
   mesPage(
     'purchase-orders',
     'mes_purchase_orders_index',

@@ -28,15 +28,41 @@ json.owner_name mes_staff_name(resource.owner, Mes::StaffNames::ENGINEERING)
 json.sales_owner_id resource.sales_owner_id
 json.sales_owner_name mes_staff_name(resource.sales_owner)
 json.remark resource.remark
-json.images resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
-json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
-json.logos resource.logos.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } }
+json.images(resource.images.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } })
+json.files(resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } })
+json.logos(resource.logos.map { |f| { id: f.id, filename: f.filename.to_s, url: rails_blob_path(f, only_path: true) } })
 onhand_map = resource.onhand_by_material_no
 product_map = resource.product_info_by_material_no
+# 成本只给财务/管理员/采购。拿不到权限就整个 price_map 为空，
+# 每行的单价/金额键全是 nil，前端那两列自然不渲染。
+bom_items = resource.bom_items.order(:id).to_a
+price_map = if Current.account_user&.can_view_material_cost?
+              Mes::MaterialPriceResolver.new(account: resource.account, items: bom_items,
+                                             production_order: resource.production_orders.first).perform
+            else
+              {}
+            end
 json.bom_items do
-  json.array! resource.bom_items.order(:id) do |item|
-    json.partial! 'api/v1/models/mes_bom_item', formats: [:json], resource: item,
-                  onhand_map: onhand_map, product_map: product_map
+  json.array! bom_items do |item|
+    json.partial! 'api/v1/models/mes_bom_item', formats: [:json],
+                                                resource: item, onhand_map: onhand_map,
+                                                product_map: product_map, price_map: price_map
+  end
+end
+# 成本小结：合计、单台成本、还有多少行没价。
+# 「缺价行数」比合计本身更重要——不标出来，财务会把半截数当全的用。
+json.cost do
+  if price_map.any?
+    material = bom_items.sum { |i| price_map[i.id] ? (i.qty.to_d * price_map[i.id][:price_micros]).round : 0 }
+    std = resource.account.erp_bom_costs.find_by(crm_product_id: resource.crm_product_id)
+    json.material_micros material
+    json.process_micros std&.process_fee_micros.to_i
+    json.overhead_micros std&.overhead_fee_micros.to_i
+    json.total_micros material + std&.unit_cost_micros.to_i
+    json.priced_lines price_map.size
+    json.unpriced_lines bom_items.size - price_map.size
+  else
+    json.visible false
   end
 end
 json.revisions do

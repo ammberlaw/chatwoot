@@ -84,4 +84,9 @@ client.attachFiles = (id, formData, kind = 'files') =>
 client.detachFile = (id, attachmentId, kind = 'files') =>
   axios.delete(`${client.url}/${id}/attach/${attachmentId}?kind=${kind}`);
 
+// 成本导出（财务月度核算底稿：汇总页 + 用料明细页）。month = 'YYYY-MM'，不传取全部。
+// 只有财务/管理员/采购能调，后端 policy 卡。
+client.costExport = (params = {}) =>
+  axios.get(`${client.url}/cost_export`, { params, responseType: 'blob' });
+
 export default client;

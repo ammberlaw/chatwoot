@@ -120,6 +120,9 @@ class AccountUser < ApplicationRecord
     administrator? || crm_deputy_admin? || effective_mes_roles.any?
   end
 
+  # 能不能看物料成本（任务单单价、物料单价表、成本导出）：财务/管理员/副管/采购。销售端绝不可见。
+  def can_view_material_cost? = crm_finance? || crm_deputy_admin? || effective_mes_roles.include?('buyer')
+
   # 前端用：该成员可写的 MES 能力域列表（管理员/副管理员全给；多角色取并集）。
   def mes_capability_list
     return MES_CAPABILITIES.values.flatten.uniq if administrator? || crm_deputy_admin?

@@ -223,8 +223,11 @@ export default {
        在新标签页中打开 / 复制对话链接（链接发出去别人也打不开）。
        要恢复哪一项，照着 statusMenuConfig / snoozeOption / teamMenuConfig /
        openInNewTabOption / copyLinkOption 几个现成配置加回 MenuItem 即可。 -->
+  <!-- 玻璃卡：与 SelectCard / 建档页同一套配方（bg-n-solid-1/70 + blur + saturate
+       + border-white/50），别用更早的 bg-n-alpha-3 那版，两者放一起能看出色差。
+       /70 不在经典灰的 /40 /45 /50 覆盖名单里，两个主题下都保持玻璃。 -->
   <div
-    class="p-1 rounded-md shadow-xl bg-n-alpha-3/50 backdrop-blur-[100px] outline-1 outline outline-n-weak/50"
+    class="p-1.5 border shadow-xl rounded-2xl border-white/50 bg-n-solid-1/70 backdrop-blur-2xl backdrop-saturate-150 shadow-n-iris-9/15"
   >
     <template v-if="isAdminLike && isAllowed([MENU.AGENT])">
       <MenuItemWithSubmenu

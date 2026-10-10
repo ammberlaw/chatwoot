@@ -12,7 +12,10 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     scope = scope.where(crm_product_id: params[:crm_product_id]) if params[:crm_product_id].present?
     scope = scope.where('bom_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
     @boms_count = scope.count
-    @boms = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    # 预加载序列化要用的：用料行、成品、以及挂在本 BOM 上的生产订单
+    # （成本那段要拿它的「本单采购价」，不预加载就是每行一次查询）。
+    @boms = scope.includes(:bom_items, :crm_product, :production_orders)
+                 .order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
 
   def show; end

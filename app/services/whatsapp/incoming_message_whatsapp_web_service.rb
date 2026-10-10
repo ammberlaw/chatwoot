@@ -32,8 +32,18 @@ class Whatsapp::IncomingMessageWhatsappWebService
       message_type: from_me? ? :outgoing : :incoming,
       sender: from_me? ? agent : @contact,
       source_id: message_id,
-      created_at: sent_at
+      created_at: sent_at,
+      content_attributes: reply_attributes
     )
+  end
+
+  # 客户引用我们某条消息回复时，桥带来被引用那条的 WhatsApp id。写进
+  # in_reply_to_external_id，Message#ensure_in_reply_to 会据此找到本地那条、
+  # 补上 in_reply_to，气泡上方就显示出被引用的原文（和邮件、Telegram 同一套渲染）。
+  # 被引用的消息不在 CRM 里（配对前的老消息）也不要紧：补不上就只是不显示引用。
+  def reply_attributes
+    quoted = params[:quoted_id].presence
+    quoted ? { in_reply_to_external_id: quoted } : {}
   end
 
   # 控制器已把上传的文件落成 blob，这里只按 signed_id 取回来挂到消息上。
