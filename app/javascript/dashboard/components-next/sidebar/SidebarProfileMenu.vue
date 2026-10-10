@@ -98,6 +98,11 @@ const PALETTES = [
     swatch: 'bg-gradient-to-br from-[#f4f4f5] to-[#373a40]',
   },
   {
+    key: 'classicBlack',
+    label: '经典灰·黑侧栏',
+    swatch: 'bg-gradient-to-r from-[#161616] to-[#f4f4f5]',
+  },
+  {
     key: 'obsidian',
     label: '曜石黑',
     swatch: 'bg-[#161616] ring-1 ring-inset ring-white/20',

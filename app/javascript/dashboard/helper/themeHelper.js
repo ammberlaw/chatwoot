@@ -23,6 +23,7 @@ const PALETTE_CLASSES = {
   blue: 'theme-blue',
   beebot: 'theme-beebot',
   classic: 'theme-classic',
+  classicBlack: 'theme-classic-black',
   obsidian: 'theme-obsidian',
   inkarc: 'theme-inkarc',
 };
@@ -36,5 +37,7 @@ export const applyColorPalette = palette => {
   const { classList } = document.body;
   classList.remove(...Object.values(PALETTE_CLASSES));
   if (PALETTE_CLASSES[selected]) classList.add(PALETTE_CLASSES[selected]);
+  // This independent variant inherits classic content and adds only a rail override.
+  if (selected === 'classicBlack') classList.add('theme-classic');
   return selected;
 };
