@@ -34,11 +34,25 @@ RSpec.describe 'CRM→MES→ERP 订单流转' do
     )
   end
 
+  # 物料 + 一张已提交采购单给它定价：材料成本按**最近一次采购单价**计，
+  # 物料档 cost_price_micros 生产上一条都没维护、取出来恒等于 0
+  # （见 Erp::CostRollupService#last_purchase_price），所以造数必须造采购单价。
+  # 采购单不挂 production_order_id——挂了会被当成该单的外协加工费重复计一遍。
   def material(cost_micros)
-    account.mes_materials.create!(
+    mat = account.mes_materials.create!(
       material_no: "M#{SecureRandom.hex(4)}", name: '原料', unit: 'PCS', cost_price_micros: cost_micros,
       product_line: 'TABLET'
     )
+    priced_po(mat, cost_micros)
+    mat
+  end
+
+  def priced_po(mat, rate_micros)
+    po = account.mes_purchase_orders.create!(po_no: "PR#{SecureRandom.hex(4)}", status: 'SUBMITTED',
+                                             owner_id: user.id, product_line: 'TABLET')
+    po.purchase_items.create!(account_id: account.id, qty: 1, rate_micros: rate_micros,
+                              mes_material_id: mat.id)
+    po
   end
 
   # 直接落 POSTED：过账动作会去刷结存/推进阶段，这里只关心成本归集读到的数。
@@ -95,7 +109,7 @@ RSpec.describe 'CRM→MES→ERP 订单流转' do
     it '外协单按采购单算加工成本，且不会因为收货入库被重复计一遍材料' do
       order = sales_order
       prod = production_order(order, outsourced: true)
-      supplier = account.mes_suppliers.create!(name: '外协厂')
+      supplier = account.mes_suppliers.create!(name: '外协厂', product_line: 'TABLET')
       po = account.mes_purchase_orders.create!(po_no: "PU#{SecureRandom.hex(4)}", status: 'SUBMITTED',
                                                production_order_id: prod.id, owner_id: user.id,
                                                product_line: 'TABLET')
@@ -299,6 +313,143 @@ RSpec.describe 'CRM→MES→ERP 订单流转' do
       order.update_columns(order_kind: nil) # rubocop:disable Rails/SkipsModelValidations
 
       expect(order.reload.update(remark: '改个备注')).to be(true)
+    end
+  end
+
+  # 销售出库的成本结转凭证。原来这段**零测试覆盖**，于是一个硬断点在生产上躺了很久：
+  # 成本只认挂在出库单名下的归集行，而定制单的成本是挂在生产订单上的，
+  # 定制单因此永远结转不出成本——收入记了、成本没记，利润表毛利虚高。
+  describe '⑥ 销售出库 → 成本结转凭证' do
+    before do
+      Erp::ChartOfAccountsService.ensure_standard!(account)
+      Erp::AutoVoucherRule.ensure_defaults!(account)
+    end
+
+    def cost_voucher(shipment)
+      account.erp_vouchers.find_by(source_type: 'Mes::Shipment::Cost', source_id: shipment.id)
+    end
+
+    def shipment_for(order, prod, kind: 'PRODUCTION')
+      account.mes_shipments.create!(
+        shipment_no: "DN#{SecureRandom.hex(4)}", kind: kind, status: 'DRAFT',
+        crm_sales_order_id: order.id, production_order_id: prod&.id, owner_id: user.id,
+        product_line: 'TABLET',
+        shipment_items_attributes: [{ account_id: account.id, qty: 10 }]
+      )
+    end
+
+    it '定制单出库要结转成本（成本挂在生产订单上，不在出库单上）' do
+      order = sales_order
+      prod = production_order(order)
+      issue_entry(prod, material(3_000_000), 10) # 30 元
+      Erp::CostRollupService.new(account).for_sales_order(order)
+      ship = shipment_for(order, prod)
+
+      Erp::AutoVoucherService.new(account).for_shipment_cost(ship)
+
+      voucher = cost_voucher(ship)
+      expect(voucher).to be_present
+      expect(voucher.lines.sum { |l| l.direction == 'DEBIT' ? l.base_amount_micros : 0 }).to eq(30_000_000)
+      expect(voucher.lines.find { |l| l.direction == 'DEBIT' }.ledger_account.code).to eq('6401')
+      expect(voucher.lines.find { |l| l.direction == 'CREDIT' }.ledger_account.code).to eq('1405')
+    end
+
+    it '成本口径与毛利表一致：手工补录的运费也结转进总账' do
+      order = sales_order
+      prod = production_order(order)
+      issue_entry(prod, material(3_000_000), 10)
+      Erp::CostRollupService.new(account).for_sales_order(order)
+      account.erp_order_costs.create!(crm_sales_order_id: order.id, cost_type: 'FREIGHT',
+                                      amount_micros: 8_000_000, currency: 'CNY', exchange_rate: 1)
+      ship = shipment_for(order, prod)
+
+      Erp::AutoVoucherService.new(account).for_shipment_cost(ship)
+
+      expect(cost_voucher(ship).lines.sum { |l| l.direction == 'DEBIT' ? l.base_amount_micros : 0 })
+        .to eq(38_000_000)
+      # 毛利表的成本也必须是这个数——两边不同口径，利润表和毛利表就对不上。
+      expect(Erp::MarginService.new(account).by_order.find { |r| r[:order_id] == order.id }[:cost_micros])
+        .to eq(38_000_000)
+    end
+
+    it '分批发货整笔成本只结转一次，第二张出库单不再重复结转' do
+      order = sales_order
+      prod = production_order(order)
+      issue_entry(prod, material(3_000_000), 10)
+      Erp::CostRollupService.new(account).for_sales_order(order)
+      first = shipment_for(order, prod)
+      second = shipment_for(order, prod)
+
+      service = Erp::AutoVoucherService.new(account)
+      service.for_shipment_cost(first)
+      service.for_shipment_cost(second)
+
+      expect(cost_voucher(first)).to be_present
+      expect(cost_voucher(second)).to be_nil
+    end
+
+    it '重复调用不会出第二张凭证（幂等）' do
+      order = sales_order
+      prod = production_order(order)
+      issue_entry(prod, material(3_000_000), 10)
+      Erp::CostRollupService.new(account).for_sales_order(order)
+      ship = shipment_for(order, prod)
+
+      service = Erp::AutoVoucherService.new(account)
+      3.times { service.for_shipment_cost(ship) }
+
+      expect(account.erp_vouchers.where(source_type: 'Mes::Shipment::Cost', source_id: ship.id).count).to eq(1)
+    end
+
+    it '一分钱成本都没归集到就不出凭证（宁可没有也不出一张金额为 0 的）' do
+      order = sales_order
+      prod = production_order(order)
+      ship = shipment_for(order, prod)
+
+      Erp::AutoVoucherService.new(account).for_shipment_cost(ship)
+
+      expect(cost_voucher(ship)).to be_nil
+    end
+
+    it '现货单照旧按出库单自己的 FIFO 成本结转（没挂销售订单的也认）' do
+      order = sales_order
+      ship = shipment_for(order, nil, kind: 'STOCK')
+      account.erp_order_costs.create!(crm_sales_order_id: order.id, source_type: 'Mes::Shipment',
+                                      source_id: ship.id, cost_type: 'MATERIAL',
+                                      amount_micros: 12_000_000, currency: 'CNY', exchange_rate: 1)
+
+      Erp::AutoVoucherService.new(account).for_shipment_cost(ship)
+
+      expect(cost_voucher(ship).lines.sum { |l| l.direction == 'DEBIT' ? l.base_amount_micros : 0 })
+        .to eq(12_000_000)
+    end
+
+    # 生产实测：订单软删后 default_scope 把它过滤掉，shipment.crm_sales_order 读成 nil。
+    # 原来这里直接 order.id 取防重用的订单号，补数任务上就炸了 undefined method 'id' for nil。
+    it '订单已软删就不结转成本（收入凭证也不会出，只记成本会让总账单边）' do
+      order = sales_order
+      prod = production_order(order)
+      issue_entry(prod, material(3_000_000), 10)
+      Erp::CostRollupService.new(account).for_sales_order(order)
+      ship = shipment_for(order, prod)
+      order.soft_delete!(user)
+
+      service = Erp::AutoVoucherService.new(account)
+      expect { service.for_shipment_cost(ship.reload) }.not_to raise_error
+      expect(cost_voucher(ship)).to be_nil
+    end
+
+    it '关掉 SHIPMENT_COST 开关就不出凭证' do
+      order = sales_order
+      prod = production_order(order)
+      issue_entry(prod, material(3_000_000), 10)
+      Erp::CostRollupService.new(account).for_sales_order(order)
+      account.erp_auto_voucher_rules.find_by(event_key: 'SHIPMENT_COST').update!(is_active: false)
+      ship = shipment_for(order, prod)
+
+      Erp::AutoVoucherService.new(account).for_shipment_cost(ship)
+
+      expect(cost_voucher(ship)).to be_nil
     end
   end
 end

@@ -96,7 +96,7 @@ class Erp::AutoVoucherService
   end
 
   def revenue_bookable?(shipment, order)
-    order.present? && order.order_amount_micros.to_i.positive? && first_revenue_shipment?(shipment, order)
+    order.present? && order.order_amount_micros.to_i.positive? && first_shipment_of_order?(shipment)
   end
 
   # 收入分录：借 应收账款(全额) / 贷 收入(不含税) + 贷 销项税。
@@ -174,10 +174,7 @@ class Erp::AutoVoucherService
   def for_shipment_cost(shipment)
     return if skip_doc?(Erp::AutoVoucherRule::SHIPMENT_COST)
 
-    # 折本位币再求和：成本行带币种与汇率，裸 sum 原币会把不同币种直接相加（守卫 spec 盯着这个）。
-    amount = @account.erp_order_costs
-                     .where(source_type: shipment.class.name, source_id: shipment.id)
-                     .sum(Arel.sql(Erp::OrderCost::BASE_AMOUNT_MICROS_SQL)).to_i
+    amount = shipment_cost_micros(shipment)
     return if amount <= 0
 
     cogs = account_by_code(COGS_CODE)
@@ -190,6 +187,44 @@ class Erp::AutoVoucherService
     create_voucher!(source_type: "#{shipment.class.name}#{COST_SOURCE_SUFFIX}", source_id: shipment.id,
                     date: shipment.shipped_at || Time.current,
                     summary: "结转成本 #{shipment.shipment_no}", lines: lines)
+  end
+
+  # 成本金额＝该销售订单归集到的**全部**成本行（本位币合计），与毛利表同一口径
+  # （Erp::MarginService 也是按 crm_sales_order_id 取全部行，含手工补录的运费/佣金）。
+  # 两边不同口径，利润表的成本和毛利表的成本必然对不上。
+  #
+  # 原先只认 source_type='Mes::Shipment' 的行——那是现货轨道的成本来源。定制单的成本
+  # 由 CostRollupService 按领料/外协归集，挂在**生产订单**名下，出库单身上一条都没有，
+  # 于是定制单出库永远结转不出成本凭证（生产上已出库的 12 张全是定制单：收入记了、
+  # 成本没记，毛利虚高）。按订单取，把两条轨道收口到同一个口径上。
+  #
+  # 分批发货整笔成本挂第一张出库单，不按数量分摊——收入侧就是整单口径
+  # （见 first_shipment_of_order?），成本跟着同一口径两边才对得上。
+  def shipment_cost_micros(shipment)
+    return orphan_shipment_cost_micros(shipment) if shipment.crm_sales_order_id.blank?
+    # 订单已软删（default_scope 过滤掉，关联读不到）：收入凭证也不会出
+    # （revenue_bookable? 里 order 为 nil 就返回 false），成本跟着不出——
+    # 否则总账上只有成本没有收入，比两边都没有更糟。
+    return 0 if shipment.crm_sales_order.blank?
+    return 0 unless first_shipment_of_order?(shipment)
+
+    order_cost_sum(@account.erp_order_costs.where(crm_sales_order_id: shipment.crm_sales_order_id))
+  end
+
+  # 没挂销售订单的出库单（历史数据 / 系统外发货）：按订单取数无从下手，
+  # 退回只认挂在它自己和它那张生产订单名下的归集行。
+  def orphan_shipment_cost_micros(shipment)
+    scope = @account.erp_order_costs.where(source_type: shipment.class.name, source_id: shipment.id)
+    if shipment.production_order_id.present?
+      scope = scope.or(@account.erp_order_costs.where(source_type: 'Mes::ProductionOrder',
+                                                      source_id: shipment.production_order_id))
+    end
+    order_cost_sum(scope)
+  end
+
+  # 折本位币再求和：成本行带币种与汇率，裸 sum 原币会把不同币种直接相加（守卫 spec 盯着这个）。
+  def order_cost_sum(scope)
+    scope.sum(Arel.sql(Erp::OrderCost::BASE_AMOUNT_MICROS_SQL)).to_i
   end
 
   # ── 采购入库 / 退货 ──────────────────────────────────────────────
@@ -435,10 +470,10 @@ class Erp::AutoVoucherService
   # 把订单金额拆成「不含税收入 + 销项税」。含不含税按**单据**上转单时勾的那个来
   # （同一家公司两种合同都有，账套设置只当默认值）。
   # 税率 0（出口免税）两种算法同值，直接返回原额 + 0 税。
-  # 一张销售订单只认第一张出库单记收入（按出库单 id 取最早的一张，不看凭证是否已作废，
-  # 否则作废重开会把收入记第二遍）。
-  def first_revenue_shipment?(shipment, order)
-    first = @account.mes_shipments.where(crm_sales_order_id: order.id)
+  # 一张销售订单只认第一张出库单（按出库单 id 取最早的一张，不看凭证是否已作废，
+  # 否则作废重开会把收入记第二遍）。收入与成本共用这个判断，保证两边同口径。
+  def first_shipment_of_order?(shipment)
+    first = @account.mes_shipments.where(crm_sales_order_id: shipment.crm_sales_order_id)
                     .where.not(status: 'CANCELLED').order(:id).first
     first.nil? || first.id == shipment.id
   end

@@ -2,7 +2,7 @@ require 'rails_helper'
 require 'zip'
 RSpec.describe Mes::PoSupplierExport do
   let(:account) { create(:account) }
-  let(:supplier) { account.mes_suppliers.create!(name: '验收供应商', tax_rate: tax, bill_entity: entity) }
+  let(:supplier) { account.mes_suppliers.create!(name: '验收供应商', tax_rate: tax, bill_entity: entity, product_line: 'TABLET') }
   let(:po) { account.mes_purchase_orders.create!(product_line: 'DISPLAY') }
   let(:item) { po.purchase_items.create!(mes_supplier: supplier, qty: quantity, rate_micros: rate, price_tax_included: included) }
 

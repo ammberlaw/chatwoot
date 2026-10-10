@@ -4,7 +4,7 @@ require 'zip'
 RSpec.describe Mes::PoTemplateFiller do
   let(:account) { create(:account) }
   let(:po) { account.mes_purchase_orders.create!(product_line: 'DISPLAY', delivery_date: '2026-10-15') }
-  let(:supplier) { account.mes_suppliers.create!(name: '验收供应商', bill_entity: entity, tax_rate: 13) }
+  let(:supplier) { account.mes_suppliers.create!(name: '验收供应商', bill_entity: entity, tax_rate: 13, product_line: 'TABLET') }
   let(:item) { po.purchase_items.create!(mes_supplier: supplier, qty: 3, rate_micros: 10_000_000) }
   let(:entries) do
     result = {}

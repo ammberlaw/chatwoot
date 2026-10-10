@@ -79,7 +79,8 @@ RSpec.describe Erp::AlertScannerService do
 
   describe '应付账期' do
     it '到期与临期的应付都报，未到期的不报' do
-      supplier = Mes::Supplier.create!(account: account, name: '供应商A', supplier_no: "S#{SecureRandom.hex(3)}")
+      supplier = Mes::Supplier.create!(account: account, name: '供应商A', product_line: 'TABLET',
+                                       supplier_no: "S#{SecureRandom.hex(3)}")
       %w[2026-09-10 2026-09-22 2026-10-30].each_with_index do |due, index|
         account.erp_payables.create!(
           payable_no: "AP-#{SecureRandom.hex(4)}-#{index}", mes_supplier: supplier,
