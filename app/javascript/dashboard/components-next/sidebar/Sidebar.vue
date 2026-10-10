@@ -2303,7 +2303,7 @@ const filteredMenuItems = computed(() =>
       },
     ]"
     :data-sidebar-collapsed="isEffectivelyCollapsed"
-    class="bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] border border-white/60 md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 md:my-3 md:ltr:ml-3 md:rtl:mr-3 md:h-[calc(100%_-_1.5rem)] md:rounded-3xl md:shadow-[0_10px_40px_-8px_rgb(80_80_160/0.18),inset_0_1px_0_rgb(255_255_255/0.7)]"
+    class="bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] border border-white/60 md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 md:my-3 md:ltr:ml-3 md:rtl:mr-3 md:h-[calc(100%_-_1.5rem)] md:rounded-3xl md:shadow-[0_10px_40px_-8px_rgb(80_80_160/0.18),inset_0_1px_0_rgb(255_255_255/0.7)] [.theme-obsidian-flat_&]:!m-0 [.theme-obsidian-flat_&]:!h-dvh [.theme-obsidian-flat_&]:!max-h-none [.theme-obsidian-flat_&]:!rounded-none [.theme-obsidian-flat_&]:!border-0 [.theme-obsidian-flat_&]:!shadow-none"
     :class="[
       {
         'shadow-lg md:shadow-none': isMobileSidebarOpen,
@@ -2337,7 +2337,7 @@ const filteredMenuItems = computed(() =>
           <img
             :src="wintouchIcon"
             alt="Wintouch"
-            class="flex-shrink-0 size-8 rounded-lg shadow-sm shadow-n-iris-9/20 [.theme-classic-black_&]:hidden"
+            class="flex-shrink-0 size-8 rounded-lg shadow-sm shadow-n-iris-9/20 [.theme-classic-black:not(.theme-obsidian-flat)_&]:hidden"
           />
           <SidebarAccountSwitcher
             class="flex-grow -mx-1 min-w-0 self-center"
@@ -2347,7 +2347,7 @@ const filteredMenuItems = computed(() =>
       </div>
       <div
         data-sidebar-region="search"
-        class="flex gap-2"
+        class="flex gap-2 [.theme-obsidian-flat_&]:hidden"
         :class="isEffectivelyCollapsed ? 'flex-col items-center' : 'px-2'"
       >
         <RouterLink

@@ -23,7 +23,7 @@ const PALETTE_CLASSES = {
   blue: 'theme-blue',
   classic: 'theme-classic',
   classicBlack: 'theme-classic-black',
-  obsidian: 'theme-obsidian',
+  obsidian: 'theme-obsidian-flat',
 };
 export const COLOR_PALETTES = ['purple', ...Object.keys(PALETTE_CLASSES)];
 
@@ -38,11 +38,14 @@ export const applyColorPalette = palette => {
   const { classList } = document.body;
   classList.remove(
     ...Object.values(PALETTE_CLASSES),
+    'theme-obsidian',
     'theme-beebot',
     'theme-inkarc'
   );
   if (PALETTE_CLASSES[selected]) classList.add(PALETTE_CLASSES[selected]);
   // This independent variant inherits classic content and adds only a rail override.
-  if (selected === 'classicBlack') classList.add('theme-classic');
+  if (selected === 'classicBlack' || selected === 'obsidian') {
+    classList.add('theme-classic', 'theme-classic-black');
+  }
   return selected;
 };

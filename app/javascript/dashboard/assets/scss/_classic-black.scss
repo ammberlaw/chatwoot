@@ -7,7 +7,8 @@ body.theme-classic-black [data-dashboard-shell] > main {
   min-width: 0;
 }
 
-body.theme-classic-black aside[data-sidebar-collapsed] {
+body.theme-classic-black:not(.theme-obsidian-flat)
+  aside[data-sidebar-collapsed] {
   --slate-3: 47 47 50;
   --slate-4: 58 58 62;
   --slate-10: 171 171 179;
@@ -63,7 +64,8 @@ body.theme-classic-black aside[data-sidebar-collapsed] {
 }
 
 @media (min-width: 768px) {
-  body.theme-classic-black aside[data-sidebar-collapsed] {
+  body.theme-classic-black:not(.theme-obsidian-flat)
+    aside[data-sidebar-collapsed] {
     height: calc(100dvh - 1.5rem);
     max-height: calc(100dvh - 1.5rem);
   }
@@ -79,7 +81,7 @@ body.theme-classic-black
 }
 
 // Explicit amber actions need dark labels on the classic yellow background.
-body.theme-classic-black [data-sidebar-icon='crm-dashboards'] {
+body.theme-classic-black:not(.theme-obsidian-flat) [data-sidebar-icon='crm-dashboards'] {
   > .i-lucide-layout-dashboard {
     display: none;
   }

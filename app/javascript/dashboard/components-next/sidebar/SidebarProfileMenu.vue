@@ -261,13 +261,13 @@ const allowedMenuItems = computed(() => {
     <DropdownBody
       class="bottom-12 z-50 mb-2 w-80 ltr:left-0 rtl:right-0"
       :class="
-        activePalette === 'classicBlack'
+        ['classicBlack', 'obsidian'].includes(activePalette)
           ? '[--slate-10:110_113_121] [--slate-11:79_82_89] [--slate-12:25_27_27] [--alpha-1:0,0,0,0.04] [--alpha-2:0,0,0,0.06] !w-[360px] max-w-[calc(100vw-2rem)] [&>ul]:!bg-white/80 [&>ul]:!border-white/80 [&>ul]:!backdrop-blur-2xl [&>ul]:!rounded-3xl [&>ul]:!p-0 [&>ul]:!gap-0 [&>ul]:!shadow-xl'
           : ''
       "
     >
       <div
-        v-if="activePalette === 'classicBlack'"
+        v-if="['classicBlack', 'obsidian'].includes(activePalette)"
         class="max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-3xl"
       >
         <div

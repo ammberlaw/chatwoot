@@ -1,94 +1,12 @@
-// An independent palette: no classic/glass selectors or shared component overrides.
-body.theme-obsidian {
-  $neutral: (
-    1: 250 250 250,
-    2: 246 246 246,
-    3: 240 240 240,
-    4: 233 233 233,
-    5: 224 224 224,
-    6: 213 213 213,
-    7: 197 197 197,
-    8: 165 165 165,
-    9: 32 32 32,
-    10: 22 22 22,
-    11: 64 64 64,
-    12: 22 22 22,
-  );
-  @each $step, $color in $neutral {
-    --iris-#{$step}: #{$color};
-    --blue-#{$step}: #{$color};
-  }
-  --solid-iris: 236 236 236;
-  --solid-purple: 236 236 236;
-  --solid-blue: 236 236 236;
-  --solid-blue-2: 250 250 250;
-  --text-purple: 26 26 26;
-  --text-blue: 26 26 26;
-  --accent-grad: 64 64 64;
-  --background-color: 242 242 240;
-  --surface-1: 255 255 255;
-  --surface-2: 255 255 255;
-  --solid-1: 255 255 255;
-  --solid-2: 255 255 255;
-  --solid-3: 255 255 255;
-  --card-color: 255 255 255;
-  --border-weak: 234 234 232;
-  --alpha-3: 255, 255, 255, 1;
-  --obsidian-canvas: 255 255 255;
-  --obsidian-rail: 22 22 22;
-  --obsidian-rail-text: 222 222 220;
-  --obsidian-rail-muted: 171 171 169;
-  --obsidian-selection-text: 22 22 22;
-
-  &.dark {
-    $neutral-dark: (
-      1: 20 20 20,
-      2: 25 25 25,
-      3: 33 33 33,
-      4: 40 40 40,
-      5: 48 48 48,
-      6: 58 58 58,
-      7: 72 72 72,
-      8: 92 92 92,
-      9: 116 116 116,
-      10: 132 132 132,
-      11: 188 188 188,
-      12: 236 236 236,
-    );
-    @each $step, $color in $neutral-dark {
-      --iris-#{$step}: #{$color};
-      --blue-#{$step}: #{$color};
-    }
-    --solid-iris: 44 44 44;
-    --solid-purple: 44 44 44;
-    --solid-blue: 44 44 44;
-    --solid-blue-2: 26 26 26;
-    --text-purple: 228 228 228;
-    --text-blue: 228 228 228;
-    --accent-grad: 120 120 120;
-    --background-color: 16 16 16;
-    --surface-1: 28 28 28;
-    --surface-2: 28 28 28;
-    --solid-1: 28 28 28;
-    --solid-2: 28 28 28;
-    --solid-3: 28 28 28;
-    --card-color: 28 28 28;
-    --border-weak: 48 48 48;
-    --alpha-3: 28, 28, 28, 1;
-    --obsidian-canvas: 28 28 28;
-    --obsidian-rail: 12 12 12;
-    --obsidian-selection-text: 245 245 245;
-  }
-
-  #app,
-  [data-dashboard-shell] {
-    background: rgb(var(--background-color));
-  }
-  [data-dashboard-shell] > .pointer-events-none {
-    display: none;
-  }
-
+// Obsidian retains its original curved sidebar while sharing black content UI.
+body.theme-obsidian-flat {
   aside[data-sidebar-collapsed] {
+    --obsidian-canvas: 255 255 255;
+    --obsidian-rail: 22 22 22;
+    --obsidian-rail-text: 222 222 220;
+    --obsidian-rail-muted: 171 171 169;
+    --obsidian-selection-text: 22 22 22;
+
     color: rgb(var(--obsidian-rail-text));
     background: rgb(var(--obsidian-rail));
     border: 0;
@@ -258,53 +176,11 @@ body.theme-obsidian {
     }
   }
 
-  // Match complete gradient pairs; the violet-ended AI launcher stays distinct.
-  main button[data-button-variant='solid'].bg-n-iris-9,
-  main button[data-button-variant='solid'].bg-n-brand,
-  main button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad {
-    background: rgb(var(--amber-9));
-    color: #1a1a1a;
-    box-shadow: none;
-    &:hover:enabled {
-      background: rgb(var(--amber-9-hover));
-    }
-  }
-
-  main [data-tabbar-theme='classic'] {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 4px;
-    width: fit-content;
-    max-width: 100%;
-    border-radius: 12px;
-    background: rgb(var(--slate-3));
-    > button,
-    > button[data-button-variant] {
-      background: transparent;
-      color: rgb(var(--slate-11));
-      box-shadow: none;
-      border-radius: 8px;
-      &[aria-selected='true'] {
-        background: rgb(var(--iris-9));
-        color: white;
-      }
-    }
-  }
-
   @media (min-width: 768px) {
     aside[data-sidebar-collapsed] {
       margin: 0;
       height: 100%;
       border-radius: 0;
-    }
-    [data-dashboard-shell] > main {
-      margin: 0;
-      height: 100%;
-      padding: 20px;
-      background: rgb(var(--obsidian-canvas));
-      border-radius: 0;
-      min-width: 0;
     }
   }
   @media (max-width: 767px) {
