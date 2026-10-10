@@ -163,9 +163,16 @@ class Erp::CostRollupService
                      .sum(:amount_micros).to_i
   end
 
-  # 自产：已过账的领料减退料，按物料成本价计价。
-  # 物料没维护成本价（cost_price_micros 为空）就当 0 计——宁可少算也不编数，
-  # 差额财务在成本页看得见、可手工补一条。
+  # 自产：已过账的领料减退料，按**最近一次采购单价**计价。
+  #
+  # 不走物料档/商品档的成本价：这两张档的 cost_price_micros 生产上一条都没维护
+  # （物料档 2789 条全空），取出来恒等于 0。采购单上的单价是真实付过钱的数。
+  #
+  # 领料明细挂 mes_material_id 还是 crm_product_id 都认：生产端把屏、主板这些料
+  # 建在商品档里（sku 以 M./O. 开头），只认 mes_material_id 会漏掉绝大多数行。
+  #
+  # 某颗料从没采购过（或采购单没填价）就按 0 计——宁可少算也不编数，差额财务在
+  # 成本页看得见、可手工补一条。
   ISSUE_PURPOSE = 'MATERIAL_ISSUE'.freeze
   RETURN_PURPOSE = 'MATERIAL_RETURN'.freeze
 
@@ -181,19 +188,28 @@ class Erp::CostRollupService
            .where(account_id: @account.id)
            .where(mes_stock_entries: { production_order_id: production_order.id,
                                        purpose: purpose, status: 'POSTED' })
-           .pluck(:mes_material_id, :qty, :received_qty)
+           .pluck(:mes_material_id, :crm_product_id, :qty, :received_qty)
     return 0 if rows.empty?
 
-    prices = material_prices(rows.filter_map(&:first).uniq)
-    rows.sum do |material_id, qty, received_qty|
+    rows.sum do |material_id, product_id, qty, received_qty|
       effective = (received_qty.presence || qty).to_d
-      effective * prices[material_id].to_i
+      effective * last_purchase_price(material_id, product_id)
     end
   end
 
-  def material_prices(material_ids)
-    return {} if material_ids.empty?
+  # 最近一次采购单价。草稿与已取消的单不算，与外协口径一致（COUNTED_PO_STATUSES）。
+  # 整轮归集里按料缓存：一张领料单几十行，不缓存会把同一颗料查几十遍。
+  def last_purchase_price(material_id, product_id)
+    return 0 if material_id.blank? && product_id.blank?
 
-    @account.mes_materials.where(id: material_ids).pluck(:id, :cost_price_micros).to_h
+    @last_purchase_prices ||= {}
+    @last_purchase_prices[[material_id, product_id]] ||= begin
+      scope = Mes::PurchaseItem.joins(:purchase_order)
+                               .where(account_id: @account.id)
+                               .where(mes_purchase_orders: { status: COUNTED_PO_STATUSES })
+                               .where('mes_purchase_items.rate_micros > 0')
+      scope = material_id.present? ? scope.where(mes_material_id: material_id) : scope.where(crm_product_id: product_id)
+      scope.order('mes_purchase_orders.created_at DESC').pick(:rate_micros).to_i
+    end
   end
 end
