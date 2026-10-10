@@ -37,15 +37,6 @@ const emailBars = computed(() => {
     top: index === 0,
   }));
 });
-const bars = computed(() => {
-  const series = props.gmv.viz.series;
-  const max = Math.max(...series, 1);
-  return series.map((value, index) => ({
-    x: index * 24 + 2,
-    h: (value / max) * 76,
-    active: index === series.length - 1,
-  }));
-});
 const deltaColor = computed(() => {
   if (props.gmv.delta?.dir === 'down') return 'text-[#be4638]';
   if (props.gmv.delta?.dir === 'up') return 'text-[#278161]';
@@ -98,11 +89,9 @@ const sourceShare = index =>
             class="flex items-end justify-between gap-4 px-1 pt-3 pb-7 sm:px-2"
           >
             <div class="min-w-0">
-              <div class="flex items-center gap-2 text-label text-[#585c52]">
-                <span class="text-label-small text-[#85887f]">{{
-                  gmv.label
-                }}</span>
-              </div>
+              <h2 class="text-heading-2 font-semibold text-[#191b1b]">
+                {{ gmv.label }}
+              </h2>
               <div
                 class="mt-3 text-[clamp(1.8rem,4.8vw,4.1rem)] font-semibold leading-none tracking-tight tabular-nums break-all"
               >
@@ -122,32 +111,6 @@ const sourceShare = index =>
                 }}</span>
               </div>
             </div>
-            <div
-              v-if="bars.length"
-              class="hidden w-[35%] max-w-56 sm:block shrink-0"
-            >
-              <svg
-                width="100%"
-                height="92"
-                :viewBox="`0 0 ${bars.length * 24} 92`"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <rect
-                  v-for="(bar, i) in bars"
-                  :key="i"
-                  :x="bar.x"
-                  :y="88 - bar.h"
-                  width="15"
-                  :height="Math.max(2, bar.h)"
-                  rx="3"
-                  :fill="bar.active ? '#ffd052' : '#d7d9d0'"
-                />
-              </svg>
-              <p class="mt-1 text-right text-label-small text-[#85887f]">
-                {{ t('CRM.DASHBOARD.DESIGN.MONTHLY_REVENUE') }}
-              </p>
-            </div>
           </div>
           <div
             class="grid grid-cols-3 divide-x divide-[#e2e4dc] border-t border-[#e2e4dc] px-0 py-4"
@@ -157,9 +120,9 @@ const sourceShare = index =>
               :key="metric.label"
               class="px-3 first:pl-2 sm:px-5"
             >
-              <div class="text-label-small text-[#85887f]">
+              <h3 class="text-heading-3 font-semibold text-[#191b1b]">
                 {{ metric.label }}
-              </div>
+              </h3>
               <div class="flex items-baseline gap-1.5 mt-1.5">
                 <span class="text-2xl font-semibold tabular-nums">{{
                   metric.value
