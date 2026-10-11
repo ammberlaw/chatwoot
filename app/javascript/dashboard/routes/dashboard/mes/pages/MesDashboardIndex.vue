@@ -695,7 +695,7 @@ onMounted(() => {
           </div>
           <MesMarqueeList
             :count="data.stalled.length"
-            class="[.theme-classic_&]:[mask-image:none] [.theme-classic_&]:!overflow-auto [.theme-classic_&]:!h-52 [.theme-classic_&]:[&>div]:!animate-none [.theme-classic_&]:[&>div>div:nth-child(2)]:hidden"
+            class="[.theme-classic_&]:!overflow-hidden [.theme-classic_&]:!h-52 [.theme-classic_&]:[&>div]:hover:[animation-play-state:paused]"
           >
             <ul class="flex flex-col [.theme-classic_&]:gap-0">
               <li
