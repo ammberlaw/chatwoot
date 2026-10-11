@@ -316,6 +316,7 @@ const cell = (r, isAmt) => {
         </section>
       </div>
 
+      <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(280px,1fr)]">
       <!-- 12 个月明细表 -->
       <div
         class="p-4 sm:p-5 border rounded-3xl border-[#e8eaed] bg-white"
@@ -445,8 +446,8 @@ const cell = (r, isAmt) => {
         <h2 class="text-heading-2 font-semibold text-n-slate-12">
           设定 / 修改 {{ year }}年{{ selMonth + 1 }}月 基础目标
         </h2>
-        <div class="flex flex-wrap items-center gap-3 mt-4">
-          <label class="flex items-center gap-2">
+        <div class="flex flex-col items-stretch gap-4 mt-4">
+          <label class="flex flex-col items-start gap-2">
             <span class="text-label text-n-slate-11">成交额 ¥</span>
             <input
               v-model="amountInput"
@@ -456,7 +457,7 @@ const cell = (r, isAmt) => {
               class="h-9 px-2 text-sm border rounded-lg w-36 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             />
           </label>
-          <label class="flex items-center gap-2">
+          <label class="flex flex-col items-start gap-2">
             <span class="text-label text-n-slate-11">新客户数</span>
             <input
               v-model="countInput"
@@ -478,6 +479,7 @@ const cell = (r, isAmt) => {
           这里设的是「基础目标」；结转由系统按未完成额自动逐月累加,无需手填。成交额、新客户数至少填一项,留空按
           0 记。新客户 = 本月首次成交的客户（按客户去重）。
         </div>
+      </div>
       </div>
     </template>
   </div>
