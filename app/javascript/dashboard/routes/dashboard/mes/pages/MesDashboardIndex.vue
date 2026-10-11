@@ -389,7 +389,7 @@ onMounted(() => {
           </div>
           <MesMarqueeList
             :count="data.overdue.length + data.dueSoon.length"
-            class="[.theme-classic-black_&]:[mask-image:none] [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-auto [.theme-classic-black_&]:max-h-[420px] [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
+            class="[.theme-classic-black_&]:!overflow-hidden [.theme-classic-black_&]:!h-[420px] [.theme-classic-black_&]:[&>div]:hover:[animation-play-state:paused]"
           >
             <ul class="flex flex-col [.theme-classic-black_&]:gap-0">
               <li
