@@ -468,7 +468,7 @@ const cell = (r, isAmt) => {
             />
           </label>
           <button
-            class="h-9 px-4 text-sm font-medium transition-colors rounded-lg bg-n-iris-9 text-n-slate-12 motion-reduce:transition-none hover:bg-n-iris-10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+            class="h-10 px-4 text-label font-semibold transition-colors rounded-xl !bg-[#ffd34f] !text-[#29251b] motion-reduce:transition-none hover:!bg-[#f5c53d] disabled:!bg-[#fff0b5] disabled:!text-[#786533] disabled:opacity-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ad36]"
             :disabled="!canSave"
             @click="saveTarget"
           >
