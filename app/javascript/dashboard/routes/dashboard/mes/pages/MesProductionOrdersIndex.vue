@@ -7,6 +7,7 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import camelcaseKeys from 'camelcase-keys';
+import MesOrderStockEntriesDialog from 'dashboard/components-next/mes/MesOrderStockEntriesDialog.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
@@ -1086,14 +1087,9 @@ const canDeleteRow = po =>
   isAdmin.value ||
   isCrmDeputyAdmin.value ||
   (canCreateOrder.value && po.ownerId === currentUserId.value && po.isDraft);
-// 跳转到原料入库页并按本订单筛选（相应负责人查看到料情况）。
-const goStockEntries = po => {
-  if (!po) return;
-  router.push({
-    name: 'mes_stock_entries_index',
-    query: { production_order_id: po.id, order_no: po.orderNo },
-  });
-};
+// 当前页查看该订单的原料入库单，保留列表及详情状态。
+const stockEntriesDialog = ref(null);
+const goStockEntries = po => stockEntriesDialog.value.open(po);
 
 // 点阶段负责人名字 → 跳团队协同并直接打开与该负责人的私聊。
 const goStageOwnerChat = ownerId => {
@@ -3124,6 +3120,8 @@ watch(currentPage, fetchRecords);
         <Input v-model="denyReason" />
       </div>
     </Dialog>
+
+    <MesOrderStockEntriesDialog ref="stockEntriesDialog" />
 
     <!-- 订单明细：建单时填的规格表（只读）+ 导出 -->
     <Dialog
