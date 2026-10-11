@@ -43,21 +43,21 @@ const onClose = name => {
   <div
     v-if="tabs.length > 1"
     ref="tabBar"
-    class="flex shrink-0 items-center gap-4 px-4 sm:px-6 overflow-x-auto border-b border-n-weak"
+    class="flex shrink-0 items-center gap-4 px-4 sm:px-6 overflow-x-auto border-b border-n-weak [.theme-classic-black_&]:gap-2 [.theme-classic-black_&]:py-3 [.theme-classic-black_&]:bg-[#f5f5f4] [.theme-classic-black_&]:border-b-0"
   >
     <div
       v-for="tab in tabs"
       :key="tab.name"
-      class="group flex shrink-0 items-center gap-2 border-b-2 transition-colors"
+      class="group flex shrink-0 items-center gap-2 border-b-2 transition-colors [.theme-classic-black_&]:gap-1 [.theme-classic-black_&]:pl-5 [.theme-classic-black_&]:pr-3 [.theme-classic-black_&]:rounded-2xl [.theme-classic-black_&]:border-b-0"
       :class="
         tab.name === activeName
-          ? 'border-n-iris-9 text-n-slate-12'
-          : 'border-transparent text-n-slate-11'
+          ? 'border-n-iris-9 text-n-slate-12 [.theme-classic-black_&]:bg-[#1c1d1e] [.theme-classic-black_&]:text-white'
+          : 'border-transparent text-n-slate-11 [.theme-classic-black_&]:bg-white [.theme-classic-black_&]:text-[#575a60] [.theme-classic-black_&]:hover:bg-[#ebebea]'
       "
     >
       <button
         type="button"
-        class="px-0 py-3 rounded-none text-sm whitespace-nowrap hover:text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9"
+        class="px-0 py-3 rounded-none text-label whitespace-nowrap hover:text-n-slate-12 [.theme-classic-black_&]:hover:text-inherit focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9"
         :class="{ 'font-semibold': tab.name === activeName }"
         :aria-current="tab.name === activeName ? 'page' : undefined"
         @click="go(tab)"
@@ -66,7 +66,7 @@ const onClose = name => {
       </button>
       <button
         type="button"
-        class="flex items-center justify-center size-5 shrink-0 p-0 rounded text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9"
+        class="flex items-center justify-center size-5 shrink-0 p-0 rounded text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-iris-9 [.theme-classic-black_&]:size-6 [.theme-classic-black_&]:rounded-full [.theme-classic-black_&]:text-current [.theme-classic-black_&]:opacity-50 [.theme-classic-black_&]:hover:opacity-100 [.theme-classic-black_&]:hover:text-inherit"
         :aria-label="`${t('GENERAL.CLOSE')} ${titleOf(tab.name)}`"
         @click="onClose(tab.name)"
       >
