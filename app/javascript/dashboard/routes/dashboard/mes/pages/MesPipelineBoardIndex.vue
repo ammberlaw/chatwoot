@@ -94,9 +94,9 @@ onMounted(load);
     class="flex flex-col w-full h-full gap-4 px-4 py-3 sm:p-6 overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <!-- 顶栏 -->
-    <div class="flex flex-wrap items-center justify-between gap-3 shrink-0">
+    <div class="flex flex-wrap items-center justify-between gap-3 shrink-0 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           流水看板
         </h1>
       </div>

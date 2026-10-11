@@ -101,7 +101,7 @@ onMounted(loadOwners);
 
 <template>
   <div
-    class="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 py-2 border-b border-n-weak bg-n-alpha-1/40"
+    class="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 py-2 border-b border-n-weak bg-n-alpha-1/40 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
   >
     <template v-for="(board, i) in boards" :key="board.key">
       <span

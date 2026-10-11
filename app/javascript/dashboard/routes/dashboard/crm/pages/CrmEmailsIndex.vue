@@ -1921,8 +1921,8 @@ watch(
       :class="selectedEmail ? 'hidden md:flex' : 'flex'"
     >
       <div class="flex-shrink-0 px-4 pt-4 pb-3 border-b border-n-weak">
-        <div class="flex items-center justify-between gap-2 flex-wrap">
-          <h1 class="text-lg font-medium text-n-slate-12">
+        <div class="flex items-center justify-between gap-2 flex-wrap [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
+          <h1 class="text-lg font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
             {{ activeFolderLabel }}
           </h1>
           <div class="flex items-center flex-wrap gap-2">

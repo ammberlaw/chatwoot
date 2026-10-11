@@ -284,10 +284,10 @@ onMounted(() => {
   >
     <!-- 头部：标题 + 副标题 + 新建 -->
     <div
-      class="flex flex-col items-start justify-between flex-shrink-0 gap-2 px-4 pt-4 pb-1.5 sm:flex-row sm:items-start sm:gap-0 sm:px-[26px] sm:pt-[18px]"
+      class="flex flex-col items-start justify-between flex-shrink-0 gap-2 px-4 pt-4 pb-1.5 sm:flex-row sm:items-start sm:gap-0 sm:px-[26px] sm:pt-[18px] [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
     >
       <div class="min-w-0">
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
+        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           报价单管理
         </h1>
       </div>

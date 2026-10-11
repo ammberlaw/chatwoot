@@ -421,10 +421,10 @@ const backToList = () =>
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4"
+      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <h1
-        class="text-lg font-medium min-w-0 truncate text-n-slate-12 sm:text-xl"
+        class="text-lg font-medium min-w-0 truncate text-n-slate-12 sm:text-xl [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
       >
         新建生产订单
       </h1>
@@ -436,7 +436,7 @@ const backToList = () =>
       </button>
     </div>
 
-    <div class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5">
+    <div class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
       <p class="text-xs text-n-slate-11">
         定制生产订单建单。先选产品线，按对应模板填规格；带
         <span class="text-n-ruby-11">*</span>

@@ -249,10 +249,10 @@ onMounted(load);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+      class="flex items-center justify-between gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-center min-w-0 gap-2">
-        <h1 class="text-xl font-semibold truncate text-n-slate-12">
+        <h1 class="text-xl font-semibold truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           {{ pageTitle }}
         </h1>
         <span
@@ -284,7 +284,7 @@ onMounted(load);
 
     <!-- 分类筛选：全站统一的页面级 Tab（灰槽 + 深色选中块），样式见 _next-colors.scss，
          这里只挂 data-tabbar 与 aria-selected，不要再写边框/底色。 -->
-    <div class="px-4 pt-3 sm:px-6">
+    <div class="px-4 pt-3 sm:px-6 [.theme-classic_&]:sm:!px-8">
       <div data-tabbar="page">
         <button
           v-for="g in GROUPS"
@@ -303,7 +303,7 @@ onMounted(load);
       </div>
     </div>
 
-    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
       <MesTodoPanel
         v-if="showTodoPanel"
         ref="todoPanelRef"

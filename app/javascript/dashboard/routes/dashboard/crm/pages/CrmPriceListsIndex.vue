@@ -538,12 +538,12 @@ onMounted(load);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="w-full px-4 py-4 mx-auto max-w-7xl sm:px-8 sm:py-6 [.theme-classic_&]:max-w-none [.theme-classic_&]:lg:px-10"
+      class="w-full px-4 py-4 mx-auto max-w-7xl sm:px-8 sm:py-6 [.theme-classic_&]:max-w-none [.theme-classic_&]:lg:!px-8"
     >
       <div
-        class="flex items-center justify-between mb-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-5 [.theme-classic_&]:mb-6"
+        class="flex items-center justify-between mb-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:mb-6 [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
       >
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
+        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           标准价目表
         </h1>
         <div

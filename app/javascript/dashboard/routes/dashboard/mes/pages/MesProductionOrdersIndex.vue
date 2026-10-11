@@ -1475,16 +1475,16 @@ watch(currentPage, fetchRecords);
   <div class="flex flex-col w-full h-full">
     <!-- 头部 -->
     <div
-      class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4"
+      class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-semibold text-n-slate-12">生产订单</h1>
+      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">生产订单</h1>
 
     </div>
 
     <!-- 视图切换：我的订单 / 库存备货 / 全部 / 待我确认（前后两个仅 CRM 业务身份显示）。
          data-tabbar="page" + aria-selected 是全站页面级 Tab 的统一标记（灰槽 + 深色选中块），
          样式在 _next-colors.scss 里，这里不要再写边框/底色，写了会跟它打架。 -->
-    <div class="flex flex-wrap items-center justify-between gap-3 px-4 pb-2 sm:px-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-4 pb-2 sm:px-6 [.theme-classic_&]:sm:!px-8">
       <div data-tabbar="page" class="shrink-0">
         <button
           v-if="isCrmMember"
@@ -1588,7 +1588,7 @@ watch(currentPage, fetchRecords);
     <!-- 筛选 -->
     <div
       v-show="viewMode === 'all'"
-      class="flex flex-wrap items-center gap-3 px-4 pb-3 sm:px-6"
+      class="flex flex-wrap items-center gap-3 px-4 pb-3 sm:px-6 [.theme-classic_&]:sm:!px-8"
     >
       <SelectCard
         :model-value="activeStage"
@@ -1626,7 +1626,7 @@ watch(currentPage, fetchRecords);
     />
 
     <div
-      class="flex flex-col md:flex-row flex-1 min-h-0 gap-4 px-4 pb-4 sm:px-6 sm:pb-6"
+      class="flex flex-col md:flex-row flex-1 min-h-0 gap-4 px-4 pb-4 sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
     >
       <!-- 列表 -->
       <div class="flex-1 min-w-0 overflow-auto">

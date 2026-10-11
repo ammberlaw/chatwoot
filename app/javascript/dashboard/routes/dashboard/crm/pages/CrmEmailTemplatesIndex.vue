@@ -226,10 +226,10 @@ onMounted(() => store.get());
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4"
+      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12">
+        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           {{ t('CRM.EMAIL_TEMPLATES.HEADER') }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
@@ -246,7 +246,7 @@ onMounted(() => store.get());
     <!-- 归属范围：企业模版 / 个人模版 -->
     <div
       data-black-tabbar="page"
-      class="flex flex-wrap gap-1.5 px-4 pt-4 sm:px-6"
+      class="flex flex-wrap gap-1.5 px-4 pt-4 sm:px-6 [.theme-classic_&]:sm:!px-8"
     >
       <button
         v-for="opt in [
@@ -269,7 +269,7 @@ onMounted(() => store.get());
     </div>
 
     <!-- 分类筛选 -->
-    <div class="flex flex-wrap gap-1.5 px-4 pt-3 sm:px-6">
+    <div class="flex flex-wrap gap-1.5 px-4 pt-3 sm:px-6 [.theme-classic_&]:sm:!px-8">
       <button
         class="px-3 py-1 text-xs border rounded-full transition-colors"
         :class="
@@ -296,7 +296,7 @@ onMounted(() => store.get());
       </button>
     </div>
 
-    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="p-8 text-sm text-center text-n-slate-11">
         {{ t('CRM.EMAILS.LOADING') }}
       </div>

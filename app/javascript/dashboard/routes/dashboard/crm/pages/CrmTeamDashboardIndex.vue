@@ -409,9 +409,9 @@ const blackTeamSummary = computed(() => [
       '!gap-6 !bg-white !border-[#e9eae6] !shadow-none !backdrop-blur-none !p-6'
     "
   >
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           {{ t('CRM.TEAM_DASHBOARD.HEADER') }}
         </h1>
       </div>

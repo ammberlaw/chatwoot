@@ -285,14 +285,14 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5 [.theme-classic_&]:gap-5 [.theme-classic_&]:xl:grid [.theme-classic_&]:xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(270px,0.8fr)] [.theme-classic_&]:xl:auto-rows-min [.theme-classic_&]:items-start [.theme-classic_&]:lg:p-8 [.theme-classic_&]:[&_h2]:text-heading-2 [.theme-classic_&]:[&_h2]:font-bold [.theme-classic_&]:[&_h2]:text-[#202222]"
+    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5 [.theme-classic_&]:gap-5 [.theme-classic_&]:xl:grid [.theme-classic_&]:xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(270px,0.8fr)] [.theme-classic_&]:xl:auto-rows-min [.theme-classic_&]:items-start [.theme-classic_&]:lg:p-8 [.theme-classic_&]:[&_h2]:text-heading-2 [.theme-classic_&]:[&_h2]:font-bold [.theme-classic_&]:[&_h2]:text-[#202222] [.theme-classic_&]:sm:!p-8"
   >
     <!-- 顶栏 -->
     <div
-      class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:col-span-full"
+      class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:col-span-full [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
     >
       <div>
-        <h1 class="text-heading-1 font-bold tracking-tight text-n-slate-12">
+        <h1 class="text-heading-1 font-bold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           生产看板
         </h1>
       </div>

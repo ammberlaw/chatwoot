@@ -606,9 +606,9 @@ onMounted(() => {
   >
     <!-- 头 -->
     <div
-      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4"
+      class="flex flex-wrap items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-semibold text-n-slate-12">日程 Schedule</h1>
+      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">日程 Schedule</h1>
       <div class="flex items-center gap-3">
         <!-- 月/周 视图切换 -->
         <!-- 月/周 也走统一的槽（灰槽 + 深色选中块），别自己写底色/阴影 -->

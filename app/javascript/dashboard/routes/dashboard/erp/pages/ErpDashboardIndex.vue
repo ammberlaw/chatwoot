@@ -147,7 +147,7 @@ onMounted(async () => {
   <div class="flex flex-col w-full h-full gap-4 p-6 overflow-auto">
     <div class="flex items-center gap-2">
       <div class="i-lucide-landmark size-5 text-n-iris-9" />
-      <h1 class="text-lg font-semibold text-n-slate-12">财务看板</h1>
+      <h1 class="text-lg font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">财务看板</h1>
       <span class="text-sm text-n-slate-11">单位：元 · 本位币口径</span>
     </div>
 

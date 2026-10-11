@@ -256,11 +256,11 @@ onMounted(() => {
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
+      class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
         <h1
-          class="text-xl md:text-2xl font-semibold tracking-tight text-n-slate-12"
+          class="text-xl md:text-2xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
         >
           {{ t('CRM.FUNNEL.HEADER') }}
         </h1>
@@ -371,7 +371,7 @@ onMounted(() => {
 
     <div
       v-else
-      class="flex flex-1 gap-4 p-4 sm:p-6 overflow-x-auto md:overflow-hidden"
+      class="flex flex-1 gap-4 p-4 sm:p-6 overflow-x-auto md:overflow-hidden [.theme-classic_&]:sm:!p-8"
     >
       <div
         v-for="col in columns"

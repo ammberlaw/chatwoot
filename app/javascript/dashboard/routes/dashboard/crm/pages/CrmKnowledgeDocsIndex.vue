@@ -954,10 +954,10 @@ watch(
   >
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div
-        class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+        class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
       >
         <div class="min-w-0">
-          <h1 class="text-xl font-medium truncate text-n-slate-12">
+          <h1 class="text-xl font-medium truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
             {{
               isGeneral
                 ? t('CRM.KNOWLEDGE_DOCS.HEADER_GENERAL')
@@ -983,7 +983,7 @@ watch(
       </div>
 
       <div
-        class="flex flex-wrap items-center gap-2 px-4 py-3 border-b sm:px-6 border-n-weak"
+        class="flex flex-wrap items-center gap-2 px-4 py-3 border-b sm:px-6 border-n-weak [.theme-classic_&]:sm:!px-8"
       >
         <div class="contents" data-tabbar="page" data-tabbar-theme="classic">
           <Button
@@ -1027,7 +1027,7 @@ watch(
       <!-- 文档回收站（仅管理员）：可恢复 / 彻底删除 / 清空 -->
       <div
         v-else-if="isRecycle"
-        class="flex-1 px-4 py-3 overflow-y-auto sm:px-6 sm:py-4"
+        class="flex-1 px-4 py-3 overflow-y-auto sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8"
       >
         <div class="flex items-center justify-between mb-3">
           <p class="text-xs text-n-slate-10">

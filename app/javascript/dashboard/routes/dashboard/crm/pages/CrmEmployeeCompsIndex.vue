@@ -116,10 +116,10 @@ const fmtMoney = micros => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12">
+        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           {{ t('CRM.EMPLOYEE_COMPS.HEADER') }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-11">
@@ -149,7 +149,7 @@ const fmtMoney = micros => {
     <!-- 敏感区解锁门：二次密码验证，15 分钟免验 -->
     <div
       v-if="!sudoActive"
-      class="flex flex-col items-center justify-center gap-3 px-6 py-24"
+      class="flex flex-col items-center justify-center gap-3 px-6 py-24 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <span class="i-lucide-shield-check size-9 text-n-iris-9" />
       <p class="text-sm font-medium text-n-slate-12">员工薪资为高敏感信息</p>
@@ -177,7 +177,7 @@ const fmtMoney = micros => {
       </span>
     </div>
 
-    <div v-else class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
+    <div v-else class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
       <div
         v-if="isFetching"
         class="flex items-center justify-center p-8 text-base text-n-slate-11"

@@ -1203,11 +1203,11 @@ onBeforeRouteLeave((to, from, next) => {
   >
     <!-- 操作条冻结在顶部：明细几十行时不用滚到底才点得到保存（反馈 A45） -->
     <div
-      class="sticky top-0 z-20 flex flex-wrap items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b bg-n-solid-1/80 backdrop-blur-xl border-n-weak sm:px-6 sm:py-4"
+      class="sticky top-0 z-20 flex flex-wrap items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b bg-n-solid-1/80 backdrop-blur-xl border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-center min-w-0 gap-3">
         <h1
-          class="text-lg font-medium min-w-0 truncate text-n-slate-12 sm:text-xl"
+          class="text-lg font-medium min-w-0 truncate text-n-slate-12 sm:text-xl [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
         >
           {{ editingId ? '编辑生产任务单' : '新建生产任务单' }}
         </h1>
@@ -1275,7 +1275,7 @@ onBeforeRouteLeave((to, from, next) => {
       </div>
     </div>
 
-    <div class="flex flex-col w-full gap-4 px-4 py-4 sm:px-6 sm:py-5">
+    <div class="flex flex-col w-full gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
       <div class="flex flex-col gap-4">
         <!-- 关联生产订单（仅新建）：下发即自动挂接、通知业务员确认 -->
         <div v-if="!editingId" class="flex flex-col gap-1">

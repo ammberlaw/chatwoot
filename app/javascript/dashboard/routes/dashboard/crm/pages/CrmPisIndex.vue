@@ -308,10 +308,10 @@ onMounted(() => {
   >
     <!-- 头部：标题 + 副标题 + 卖方信息/新建 -->
     <div
-      class="flex flex-col gap-3 sm:flex-row items-start justify-between flex-shrink-0 px-4 sm:px-[26px] pt-4 sm:pt-[18px] pb-1.5"
+      class="flex flex-col gap-3 sm:flex-row items-start justify-between flex-shrink-0 px-4 sm:px-[26px] pt-4 sm:pt-[18px] pb-1.5 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
     >
       <div class="min-w-0">
-        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
+        <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           {{ t('CRM.PI.HEADER') }}
         </h1>
       </div>

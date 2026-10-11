@@ -713,10 +713,10 @@ onMounted(() => {
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-start justify-between gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+      class="flex items-start justify-between gap-3 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
+        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10">
           {{ isManagerOnly ? L.managerSubtitle : L.subtitle }}
         </p>
@@ -1130,7 +1130,7 @@ onMounted(() => {
         <span>权限说明</span>
         <span class="text-n-slate-9">{{ showHint ? '▾' : '▸' }}</span>
       </button>
-      <div v-if="showHint" class="px-4 sm:px-6 pb-4">
+      <div v-if="showHint" class="px-4 sm:px-6 pb-4 [.theme-classic_&]:sm:!px-8">
         <div class="flex flex-col gap-1.5 max-w-2xl">
           <div
             v-for="item in ROLE_LEGEND"

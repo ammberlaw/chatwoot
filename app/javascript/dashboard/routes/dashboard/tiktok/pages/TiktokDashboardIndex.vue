@@ -153,8 +153,8 @@ onMounted(async () => {
       class="flex flex-col w-full max-w-6xl gap-4 px-4 py-4 mx-auto sm:px-8 sm:py-6"
     >
       <!-- 头部 -->
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h1 class="text-xl font-semibold text-n-slate-12">TikTok 数据看板</h1>
+      <div class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3">
+        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">TikTok 数据看板</h1>
         <div class="flex items-center gap-2">
           <MonthPicker
             v-model="filters.month"

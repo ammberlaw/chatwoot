@@ -951,8 +951,8 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- 标题 + 新建 -->
-        <div class="flex items-center justify-between px-5 pb-2">
-          <h1 class="text-xl font-semibold tracking-tight text-n-slate-12">
+        <div class="flex items-center justify-between px-5 pb-2 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
+          <h1 class="text-xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
             {{ L.messages }}
           </h1>
           <div class="flex gap-0.5">

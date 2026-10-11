@@ -144,15 +144,15 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
   >
     <div
       v-if="!embedded"
-      class="flex items-center justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-medium text-n-slate-12">
+      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
         {{ t('CRM.OPPORTUNITIES.HEADER') }}
       </h1>
     </div>
 
     <div
-      class="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-n-weak"
+      class="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-n-weak [.theme-classic_&]:sm:!px-8"
     >
       <div
         class="contents"
@@ -172,7 +172,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
       </div>
     </div>
 
-    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
       <div
         v-if="isFetching"
         class="flex items-center justify-center p-8 text-base text-n-slate-11"

@@ -484,10 +484,10 @@ onMounted(load);
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between gap-3 px-6 py-4">
+    <div class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div class="flex items-center gap-2">
         <div class="i-lucide-calendar-check size-5 text-n-iris-9" />
-        <h1 class="text-xl font-semibold text-n-slate-12">期末结账</h1>
+        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">期末结账</h1>
         <span class="text-sm text-n-slate-11">
           结账＝结转损益到本年利润 + 冻结该期间凭证
         </span>
@@ -504,7 +504,7 @@ onMounted(load);
       <Button label="刷新" color="slate" size="sm" @click="load" />
     </div>
 
-    <div class="flex items-center gap-2 px-6 pb-3">
+    <div class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <!-- 全站统一的页面级 Tab（灰槽 + 深色选中块），样式见 _next-colors.scss -->
       <div data-tabbar="page">
         <button
@@ -521,7 +521,7 @@ onMounted(load);
     <!-- 期初建账 -->
     <div
       v-if="activeTab === 'opening'"
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-3 mb-3">
         <span class="text-sm text-n-slate-11">启用日期</span>
@@ -633,7 +633,7 @@ onMounted(load);
     <!-- 成品存货（FIFO 批次层） -->
     <div
       v-else-if="activeTab === 'stock'"
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-3 mb-4">
         <span class="text-sm text-n-slate-11">
@@ -745,7 +745,7 @@ onMounted(load);
     <!-- 两账对平 -->
     <div
       v-else-if="activeTab === 'reconcile'"
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <table class="w-full max-w-3xl text-sm">
         <thead>
@@ -830,7 +830,7 @@ onMounted(load);
     <!-- 期末调汇 -->
     <div
       v-else-if="activeTab === 'revalue'"
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <span class="text-sm text-n-slate-11">会计期间</span>
@@ -927,7 +927,7 @@ onMounted(load);
     <!-- 坏账计提（账龄分析法） -->
     <div
       v-else-if="activeTab === 'baddebt'"
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <span class="text-sm text-n-slate-11">会计期间</span>
@@ -1034,7 +1034,7 @@ onMounted(load);
     <!-- 年度结转 -->
     <div
       v-else-if="activeTab === 'yearend'"
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-2 mb-4">
         <span class="text-sm text-n-slate-11">会计年度</span>
@@ -1128,7 +1128,7 @@ onMounted(load);
     </div>
 
     <!-- 期末结账 -->
-    <div v-else class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div v-else class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>

@@ -237,8 +237,8 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
-      <h1 class="text-xl font-semibold text-n-slate-12">成品入库</h1>
+    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
+      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">成品入库</h1>
       <!-- 车间(report)开单、仓管(stock)清点是常态，但仓管自己也常要补开这张单
            （他是成品入库这一阶段的负责人）。后端 StockEntryPolicy#create? 本来就是
            stock || report，这里原先只认 report，比后端还严——仓管看得到「清点确认入库」
@@ -254,7 +254,7 @@ onMounted(() => {
 
     <MesBoardOwnerBar board-key="mes_fg_inbound_index" />
 
-    <div class="flex-1 min-h-0 px-4 pb-4 sm:px-6 sm:pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-4 pb-4 sm:px-6 sm:pb-6 overflow-auto [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
