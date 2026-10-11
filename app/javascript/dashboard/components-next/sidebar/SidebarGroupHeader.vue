@@ -31,6 +31,8 @@ const count = computed(() =>
 <template>
   <component
     :is="to ? 'router-link' : 'div'"
+    data-sidebar-group-header
+    :data-sidebar-active="isActive && !hasActiveChild"
     class="flex items-center gap-3 px-3 h-11 rounded-xl min-w-0 transition-colors"
     role="button"
     draggable="false"

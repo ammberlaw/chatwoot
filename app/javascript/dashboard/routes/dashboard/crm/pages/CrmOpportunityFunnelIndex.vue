@@ -268,10 +268,15 @@ onMounted(() => {
       </div>
       <div class="flex items-center gap-2 flex-wrap">
         <!-- 视图切换：看板 / 我的商机 / 列表 -->
-        <div class="flex items-center gap-1 p-1 rounded-lg bg-n-alpha-2">
+        <div
+          data-tabbar="page"
+          data-tabbar-theme="classic"
+          class="flex items-center gap-1 p-1 rounded-lg bg-n-alpha-2"
+        >
           <Button
             :label="t('CRM.FUNNEL.VIEW_BOARD')"
             sm
+            :aria-selected="view === 'board'"
             :variant="view === 'board' ? 'solid' : 'ghost'"
             :color="view === 'board' ? 'iris' : 'slate'"
             @click="setView('board')"
@@ -281,6 +286,7 @@ onMounted(() => {
             v-if="!isCrmSales"
             label="我的商机"
             sm
+            :aria-selected="view === 'mine'"
             :variant="view === 'mine' ? 'solid' : 'ghost'"
             :color="view === 'mine' ? 'iris' : 'slate'"
             @click="setView('mine')"
@@ -288,6 +294,7 @@ onMounted(() => {
           <Button
             :label="t('CRM.FUNNEL.VIEW_LIST')"
             sm
+            :aria-selected="view === 'list'"
             :variant="view === 'list' ? 'solid' : 'ghost'"
             :color="view === 'list' ? 'iris' : 'slate'"
             @click="setView('list')"

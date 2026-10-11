@@ -10,9 +10,10 @@ import CrmAreaChart from 'dashboard/components-next/CRM/charts/CrmAreaChart.vue'
 import CrmBarChart from 'dashboard/components-next/CRM/charts/CrmBarChart.vue';
 import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import CrmKpiCard from 'dashboard/components-next/CRM/CrmKpiCard.vue';
+import CrmBlackDashboard from 'dashboard/components-next/CRM/CrmBlackDashboard.vue';
 import {
   themeColor,
-  isClassicTheme,
+  usesClassicContentColors,
 } from 'dashboard/components-next/CRM/charts/chartColors';
 import { useThemeSignal } from 'dashboard/components-next/CRM/charts/useThemeSignal';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
@@ -353,7 +354,11 @@ const themeSignal = useThemeSignal();
 // themeSignal 让它在切主题时重算（body class 不是响应式数据）。
 const isClassicKpi = computed(() => {
   void themeSignal.value;
-  return isClassicTheme();
+  return usesClassicContentColors();
+});
+const isClassicBlack = computed(() => {
+  void themeSignal.value;
+  return document.body.classList.contains('theme-classic');
 });
 
 // 个人看板（scope=mine）：按业务员排的那两张榜只会剩自己一行，不渲染。
@@ -406,6 +411,7 @@ const targetProgress = computed(() => {
     target: money(targetMicros),
     done: money(done),
     pct: Math.min(100, Math.round((done / targetMicros) * 100)),
+    remaining: money(Math.max(0, targetMicros - done)),
   };
 });
 
@@ -513,6 +519,22 @@ const topCustomers = computed(() => {
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 5);
 });
+const countryRank = computed(() => {
+  const groups = new Map();
+  (stats.value?.team?.top_customers || []).forEach(customer => {
+    const amount = periodMonths.value.reduce(
+      (total, month) => total + (customer.amount?.[month] || 0),
+      0
+    );
+    if (amount <= 0) return;
+    const country = customer.country || '';
+    const row = groups.get(country) || { country, amount: 0, customers: 0 };
+    row.amount += toYuan(amount);
+    row.customers += 1;
+    groups.set(country, row);
+  });
+  return [...groups.values()].sort((a, b) => b.amount - a.amount);
+});
 const goCustomer = id =>
   router.push({
     name: 'crm_customer_detail_index',
@@ -583,7 +605,7 @@ const ownerCompleteness = computed(() => {
 // isClassic 依赖 themeSignal 重算，图表用它做 :key 重绘。
 const isClassic = computed(() => {
   void themeSignal.value;
-  return isClassicTheme();
+  return usesClassicContentColors();
 });
 const RANK_PALETTE = ['#ffc53d', '#2a2e37', '#6b6f78', '#b9bcc4'];
 const isLightBar = c => c === '#ffc53d' || c === '#b9bcc4';
@@ -594,6 +616,9 @@ const classicStageRows = computed(() =>
   stageChart.value.stages.map((stage, i) => ({
     label: stageChart.value.labels[i],
     amount: moneyOpp(stageChart.value.data[i]),
+    pct:
+      (stageChart.value.data[i] / Math.max(...stageChart.value.data, 1)) * 100,
+    won: stage === 'WON',
     ...STAGE_META[stage],
   }))
 );
@@ -617,6 +642,7 @@ const buildRankRows = (chart, { inverse = false, fmt }) => {
       name,
       initial: (name || '?').slice(0, 1),
       value: fmt(data[i]),
+      amount: data[i],
       pct,
       color,
       barColor: RANK_PALETTE[0],
@@ -640,10 +666,15 @@ const PERIODS = [
 
 <template>
   <div
+    data-black-dashboard
+    :data-dashboard-scope="scope"
     class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <!-- 顶栏 -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div
+      data-dashboard-header
+      class="flex flex-wrap items-center justify-between gap-3"
+    >
       <div class="min-w-0">
         <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
           {{
@@ -658,7 +689,15 @@ const PERIODS = [
              样式在 _next-colors.scss。原来是自己写的「灰槽 + 白条」，跟别处的
              「灰槽 + 深色块」对不上——同一个人一天要认两种「现在选中哪个」。
              这里不要再写底色/阴影，写了会跟统一规则打架。 -->
-        <div data-tabbar="page" class="my-0">
+        <div
+          data-tabbar="page"
+          class="my-0"
+          :class="
+            isClassicBlack
+              ? '!my-0 !h-9 [&>button]:!h-full [&>button]:!py-0'
+              : ''
+          "
+        >
           <button
             v-for="p in PERIODS"
             :key="p.k"
@@ -711,10 +750,37 @@ const PERIODS = [
       </button>
     </div>
 
+    <CrmBlackDashboard
+      v-else-if="isClassicBlack"
+      :is-mine="isMine"
+      :period-label="periodLabel"
+      :period-noun="periodNoun"
+      :gmv="GMV_KPI"
+      :summary="salesKpis.slice(1)"
+      :target="targetProgress"
+      :trend="trendChart"
+      :rank="classicRank"
+      :customers="topCustomers"
+      :country-rank="countryRank"
+      :stages="classicStageRows"
+      :sources="sourceDonut"
+      :completeness="classicCompleteness"
+      :private-customers="stats?.totals?.private_customers || 0"
+      :private-completeness="completenessRing?.score"
+      :email-rows="ownerEmailRankRows"
+      :win-rate="winRate"
+      :money-format="moneyYuan"
+      :initials="rankInitials"
+      @customer="goCustomer"
+    />
     <template v-else>
       <!-- ═══ 第 1 行：KPI ═══ -->
       <!-- 手机上排 2 列（原来单列一屏只看得到 2 张卡），并收紧内边距/字号 -->
-      <div class="grid gap-3 sm:gap-4" :class="kpiGridClass">
+      <div
+        data-dashboard-kpis
+        class="grid gap-3 sm:gap-4"
+        :class="kpiGridClass"
+      >
         <!-- 经典灰：带环比和走势的卡（见 CrmKpiCard） -->
         <template v-if="isClassicKpi">
           <CrmKpiCard
@@ -764,10 +830,14 @@ const PERIODS = [
            个人：  三个数(1×3) / 趋势(2)+目标(1) / 商机(2)+来源(1)
            两边都正好铺满三列，所以共用一个栅格，不另起行。 -->
       <!-- ═══ 左栏大图 + 右栏明细 ═══ -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="flex flex-col gap-4 lg:col-span-2 min-w-0">
+      <div data-dashboard-body class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div
+          data-dashboard-column="main"
+          class="flex flex-col gap-4 lg:col-span-2 min-w-0"
+        >
           <div
             v-if="!isMine"
+            data-dashboard-card="rank"
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="mb-4 text-base font-medium text-n-slate-12">
@@ -844,12 +914,14 @@ const PERIODS = [
           <!-- 业务员发信排行：和成交排行同一期间口径，只认真正发成功的邮件。
                图表与团队看板共用同一个组件（CrmSentEmailRankChart）。 -->
           <CrmSentEmailRankChart
+            data-dashboard-card="emails"
             v-if="!isMine"
             :rows="ownerEmailRankRows"
             :period-label="periodLabel"
           />
 
           <div
+            data-dashboard-card="trend"
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="mb-4 text-base font-medium text-n-slate-12">
@@ -875,6 +947,7 @@ const PERIODS = [
           <!-- 商机阶段分布只有五行，占满主栏太空；跟完善度榜并排各半。
                个人视角没有完善度榜，它就独占一行。 -->
           <div
+            data-dashboard-card="stages"
             class="grid gap-4"
             :class="isMine ? 'grid-cols-1' : 'lg:grid-cols-2'"
           >
@@ -1006,8 +1079,11 @@ const PERIODS = [
         </div>
 
         <!-- 右栏：按周期的明细。小卡两个一排 -->
-        <div class="flex flex-col gap-4 min-w-0">
-          <div v-if="!isMine">
+        <div
+          data-dashboard-column="details"
+          class="flex flex-col gap-4 min-w-0"
+        >
+          <div v-if="!isMine" data-dashboard-details-title>
             <h2 class="text-base font-medium text-n-slate-12">
               {{ periodNoun }}明细
             </h2>
@@ -1059,6 +1135,7 @@ const PERIODS = [
             </div>
           </div>
           <div
+            data-dashboard-card="target"
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="text-base font-medium text-n-slate-12">
@@ -1098,6 +1175,7 @@ const PERIODS = [
           </div>
           <!-- 客户成交排行：按所选期间的成交额排前 5，点一行进客户详情。 -->
           <div
+            data-dashboard-card="customers"
             class="p-5 border shadow-sm min-w-0 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <div class="flex items-center justify-between gap-3 mb-4">
@@ -1144,6 +1222,7 @@ const PERIODS = [
           </div>
 
           <div
+            data-dashboard-card="sources"
             class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
           >
             <h2 class="mb-4 text-base font-medium text-n-slate-12">

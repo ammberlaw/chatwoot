@@ -3,7 +3,6 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
-import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutChart.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
 const { accountId } = useAccount();
@@ -159,13 +158,6 @@ const remainingAmount = computed(() =>
   sel.value ? Math.max(0, sel.value.effAmount - sel.value.actualAmount) : 0
 );
 
-// 聚焦月成交额达成率（供半圆仪表）
-const selAmountPct = computed(() => {
-  if (!sel.value) return null;
-  const p = pct(sel.value.actualAmount, sel.value.effAmount);
-  return p == null ? null : Math.round(p);
-});
-
 // 选中月变化时用其基础目标预填编辑框
 watch(
   sel,
@@ -245,7 +237,7 @@ const cell = (r, isAmt) => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-6 p-4 sm:p-8 overflow-auto bg-white rounded-3xl"
   >
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -274,125 +266,63 @@ const cell = (r, isAmt) => {
     <div v-if="loading" class="p-8 text-center text-n-slate-11">加载中…</div>
 
     <template v-else-if="sel">
-      <!-- 聚焦月：信息+进度 与 达成仪表 -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div
-          class="flex flex-col p-5 border shadow-sm lg:col-span-2 rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="text-base font-medium text-n-slate-12">
-            {{ year }}年{{ selMonth + 1 }}月 · 有效目标
-            {{ money(sel.effAmount) }}
-          </h2>
-          <div class="mt-1 text-xs text-n-slate-11">
-            基础目标 {{ money(sel.baseAmount) }}
-            <template v-if="sel.carryAmount !== 0">
-              ·
-              <span
-                :class="
-                  sel.carryAmount > 0 ? 'text-n-iris-11' : 'text-n-teal-11'
-                "
-              >
-                {{ sel.carryAmount > 0 ? '上月缺口' : '上月结余' }}
-                {{ signedMoney(sel.carryAmount) }}
-              </span>
-            </template>
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.4fr]">
+        <section class="relative overflow-hidden rounded-3xl bg-[#fff4cc] p-5 sm:p-6 text-[#252630]">
+          <div class="absolute -right-12 -top-16 size-56 rounded-full border-[32px] border-white/40 pointer-events-none" />
+          <div class="relative">
+            <div class="flex items-center gap-2 text-label text-[#86703a]">
+              <span class="i-lucide-target size-5" />
+              {{ year }}年{{ selMonth + 1 }}月目标
+            </div>
+            <p class="mt-4 text-label text-[#86703a]">有效成交额目标</p>
+            <p class="mt-2 text-3xl sm:text-4xl font-semibold tabular-nums tracking-tight">{{ money(sel.effAmount) }}</p>
+            <div class="mt-4 grid grid-cols-2 gap-4 border-t border-[#eadba8] pt-3">
+              <div><p class="text-label-small text-[#8a7749]">基础目标</p><p class="mt-1 text-heading-2 font-semibold">{{ money(sel.baseAmount) }}</p></div>
+              <div><p class="text-label-small text-[#8a7749]">上月结转</p><p class="mt-1 text-heading-2 font-semibold">{{ signedMoney(sel.carryAmount) }}</p></div>
+            </div>
+            <div class="mt-4 inline-flex items-center gap-2 rounded-full bg-white/65 px-3 py-2 text-label-small text-[#7d6936]">
+              <span class="i-lucide-calendar-days size-4" />
+              {{ sel.isFuture ? '该月尚未开始' : daysLeft != null ? `本月剩余 ${daysLeft} 天` : '历史月份' }}
+            </div>
           </div>
-          <div class="flex flex-col gap-4 mt-4">
-            <div
-              v-for="line in [
-                {
-                  label: '成交额',
-                  m: metricLine(sel.actualAmount, sel.effAmount, true),
-                },
-                {
-                  label: '新客户',
-                  m: metricLine(sel.actualCount, sel.effCount, false),
-                },
-              ]"
-              :key="line.label"
-              class="flex items-center gap-3 text-sm"
-            >
-              <span class="w-12 text-xs shrink-0 text-n-slate-11">
-                {{ line.label }}
-              </span>
-              <div
-                class="flex-1 h-2.5 overflow-hidden rounded-full bg-n-alpha-2"
-              >
-                <div
-                  class="h-full rounded-full"
-                  :class="line.m.barClass"
-                  :style="{ width: line.m.barWidth }"
-                />
+        </section>
+        <section class="rounded-3xl border border-[#e8eaed] bg-white p-5 sm:p-6">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-heading-2 font-semibold text-[#24272b]">目标进度</h2>
+            <span class="text-label-small text-[#92969c]">{{ selMonth + 1 }}月</span>
+          </div>
+          <div class="mt-4 space-y-4">
+            <div v-for="metric in [
+              { label: '成交额', actual: sel.actualAmount, target: sel.effAmount, money: true, color: 'bg-[#b6d9aa]' },
+              { label: '新成交客户', actual: sel.actualCount, target: sel.effCount, money: false, color: 'bg-[#edce76]' },
+            ]" :key="metric.label">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-label text-[#737880]">{{ metric.label }}</span>
+                <span class="text-label-small font-medium text-[#686d75]">{{ sel.isFuture ? '未开始' : metric.target <= 0 && metric.actual === 0 ? '暂无有效目标' : `${Math.round(pct(metric.actual, metric.target) || 0)}%` }}</span>
               </div>
-              <span
-                class="w-32 sm:w-52 text-xs text-right shrink-0 text-n-slate-12"
-              >
-                {{ line.m.text }}
-              </span>
+              <div class="mt-2 flex items-baseline gap-2 tabular-nums">
+                <strong class="text-3xl font-semibold text-[#24272b]">{{ metric.money ? money(metric.actual) : metric.actual }}</strong>
+                <span class="text-label text-[#92969c]">/ {{ metric.money ? money(metric.target) : `${metric.target} 位` }}</span>
+              </div>
+              <div class="mt-2 h-2 overflow-hidden rounded-full bg-[#f0f1f3]">
+                <div class="h-full rounded-full transition-all duration-500" :class="metric.color" :style="{ width: metric.target <= 0 && metric.actual === 0 ? '0%' : metricLine(metric.actual, metric.target, metric.money).barWidth }" />
+              </div>
             </div>
           </div>
-          <div
-            class="pt-3 mt-auto text-xs border-t border-dashed border-n-weak text-n-slate-11"
-          >
-            <span v-if="sel.isFuture">
-              该月未开始 · 仅显示基础目标，结转到该月时才结算
-            </span>
-            <span v-else-if="sel.effAmount > 0">
-              距本月有效目标还差
-              <strong class="text-n-slate-12">
-                {{ money(remainingAmount) }}
-              </strong>
-            </span>
-            <span v-else>上月结余已覆盖本月目标</span>
-            <span v-if="daysLeft != null" class="ml-4">
-              剩 <strong class="text-n-slate-12">{{ daysLeft }}</strong> 天
-            </span>
+          <div class="mt-4 flex items-center gap-2 border-t border-[#eeeff1] pt-4 text-label-small text-[#858a91]">
+            <span class="i-lucide-info size-4 shrink-0" />
+            {{ sel.isFuture ? '结转将在进入该月份时结算' : sel.effAmount > 0 ? `距离目标还差 ${money(remainingAmount)}` : sel.baseAmount === 0 && sel.carryAmount === 0 ? '可在下方设置本月基础目标' : '上月结余已覆盖本月目标' }}
           </div>
-        </div>
-
-        <div
-          class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
-        >
-          <h2 class="mb-2 text-base font-medium text-n-slate-12">成交额达成</h2>
-          <template v-if="selAmountPct != null && !sel.isFuture">
-            <div class="h-40 mx-auto max-w-[14rem]">
-              <CrmDoughnutChart
-                :data="[
-                  Math.min(100, selAmountPct),
-                  Math.max(0, 100 - selAmountPct),
-                ]"
-                gauge
-                cutout="78%"
-              >
-                <template #center>
-                  <div class="text-3xl font-bold text-n-slate-12">
-                    {{ selAmountPct }}%
-                  </div>
-                </template>
-              </CrmDoughnutChart>
-            </div>
-            <div class="text-center text-n-slate-11">
-              <span class="font-medium text-n-slate-12">
-                {{ money(sel.actualAmount) }}
-              </span>
-              / {{ money(sel.effAmount) }}
-            </div>
-          </template>
-          <div
-            v-else
-            class="flex items-center justify-center py-10 text-sm text-center text-n-slate-10"
-          >
-            {{ sel.isFuture ? '该月未开始' : '本月暂无目标' }}
-          </div>
-        </div>
+        </section>
       </div>
 
+      <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(280px,1fr)]">
       <!-- 12 个月明细表 -->
       <div
-        class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+        class="p-4 sm:p-5 border rounded-3xl border-[#e8eaed] bg-white"
       >
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-base font-medium text-n-slate-12">月度明细</h2>
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-heading-2 font-semibold text-n-slate-12">月度明细</h2>
           <!-- 走全站统一的槽（data-tabbar + aria-selected，样式在 _next-colors.scss）：
                灰槽 + 深色选中块。别在这儿再写底色/阴影，写了会跟统一规则打架。 -->
           <div data-tabbar="page" class="my-0">
@@ -410,7 +340,7 @@ const cell = (r, isAmt) => {
           </div>
         </div>
         <!-- 手机卡片 -->
-        <div class="flex flex-col gap-2 md:hidden">
+        <div class="flex max-h-80 overflow-y-auto flex-col gap-2 md:hidden">
           <div
             v-for="r in rows"
             :key="r.month"
@@ -455,15 +385,16 @@ const cell = (r, isAmt) => {
           </div>
         </div>
 
-        <table class="hidden w-full text-xs md:table">
-          <thead class="text-n-slate-10">
+        <div class="hidden max-h-80 overflow-y-auto md:block">
+        <table class="w-full text-label-small tabular-nums">
+          <thead class="sticky top-0 z-10 bg-white text-n-slate-10">
             <tr class="border-b border-n-weak">
-              <th class="px-2 py-2 font-medium text-left">月份</th>
-              <th class="px-2 py-2 font-medium text-right">基础目标</th>
-              <th class="px-2 py-2 font-medium text-right">结转</th>
-              <th class="px-2 py-2 font-medium text-right">有效目标</th>
-              <th class="px-2 py-2 font-medium text-right">已完成</th>
-              <th class="px-2 py-2 font-medium text-right">达成</th>
+              <th class="px-3 py-2 font-medium text-left">月份</th>
+              <th class="px-3 py-2 font-medium text-right">基础目标</th>
+              <th class="px-3 py-2 font-medium text-right">结转</th>
+              <th class="px-3 py-2 font-medium text-right">有效目标</th>
+              <th class="px-3 py-2 font-medium text-right">已完成</th>
+              <th class="px-3 py-2 font-medium text-right">达成</th>
             </tr>
           </thead>
           <tbody>
@@ -472,17 +403,17 @@ const cell = (r, isAmt) => {
               :key="r.month"
               class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
               :class="{
-                'bg-n-iris-3': r.month === selMonth,
+                'bg-[#fff6da]': r.month === selMonth,
                 'text-n-slate-10': r.isFuture,
               }"
               @click="selectMonth(r.month)"
             >
-              <td class="px-2 py-2 text-n-slate-12">{{ r.month + 1 }}月</td>
-              <td class="px-2 py-2 text-right text-n-slate-11">
+              <td class="px-3 py-2 text-n-slate-12">{{ r.month + 1 }}月</td>
+              <td class="px-3 py-2 text-right text-n-slate-11">
                 {{ cell(r, tableMetric === 'amount').base }}
               </td>
               <td
-                class="px-2 py-2 text-right"
+                class="px-3 py-2 text-right"
                 :class="
                   cell(r, tableMetric === 'amount').carry === '—'
                     ? 'text-n-slate-10'
@@ -493,30 +424,31 @@ const cell = (r, isAmt) => {
               >
                 {{ cell(r, tableMetric === 'amount').carry }}
               </td>
-              <td class="px-2 py-2 text-right text-n-slate-11">
+              <td class="px-3 py-2 text-right text-n-slate-11">
                 {{ cell(r, tableMetric === 'amount').eff }}
               </td>
-              <td class="px-2 py-2 text-right text-n-slate-11">
+              <td class="px-3 py-2 text-right text-n-slate-11">
                 {{ cell(r, tableMetric === 'amount').actual }}
               </td>
-              <td class="px-2 py-2 text-right text-n-slate-11">
+              <td class="px-3 py-2 text-right text-n-slate-11">
                 {{ cell(r, tableMetric === 'amount').achieve }}
               </td>
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <!-- 就地编辑基础目标 -->
       <div
-        class="p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150"
+        class="p-5 sm:p-7 border rounded-3xl border-[#e8eaed] bg-white"
       >
-        <h2 class="text-base font-medium text-n-slate-12">
+        <h2 class="text-heading-2 font-semibold text-n-slate-12">
           设定 / 修改 {{ year }}年{{ selMonth + 1 }}月 基础目标
         </h2>
-        <div class="flex flex-wrap items-center gap-3 mt-4">
-          <label class="flex items-center gap-2">
-            <span class="text-xs text-n-slate-11">成交额 ¥</span>
+        <div class="flex flex-col items-stretch gap-4 mt-4">
+          <label class="flex flex-col items-start gap-2">
+            <span class="text-label text-n-slate-11">成交额 ¥</span>
             <input
               v-model="amountInput"
               type="number"
@@ -525,8 +457,8 @@ const cell = (r, isAmt) => {
               class="h-9 px-2 text-sm border rounded-lg w-36 border-n-weak bg-n-solid-1 text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
             />
           </label>
-          <label class="flex items-center gap-2">
-            <span class="text-xs text-n-slate-11">新客户数</span>
+          <label class="flex flex-col items-start gap-2">
+            <span class="text-label text-n-slate-11">新客户数</span>
             <input
               v-model="countInput"
               type="number"
@@ -536,7 +468,7 @@ const cell = (r, isAmt) => {
             />
           </label>
           <button
-            class="h-9 px-4 text-sm font-medium transition-colors rounded-lg bg-n-iris-9 text-n-slate-12 motion-reduce:transition-none hover:bg-n-iris-10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-iris-9"
+            class="h-10 px-4 text-label font-semibold transition-colors rounded-xl !bg-[#ffd34f] !text-[#29251b] motion-reduce:transition-none hover:!bg-[#f5c53d] disabled:!bg-[#fff0b5] disabled:!text-[#786533] disabled:opacity-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7ad36]"
             :disabled="!canSave"
             @click="saveTarget"
           >
@@ -547,6 +479,7 @@ const cell = (r, isAmt) => {
           这里设的是「基础目标」；结转由系统按未完成额自动逐月累加,无需手填。成交额、新客户数至少填一项,留空按
           0 记。新客户 = 本月首次成交的客户（按客户去重）。
         </div>
+      </div>
       </div>
     </template>
   </div>

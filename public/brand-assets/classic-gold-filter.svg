@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <filter id="classic-gold" color-interpolation-filters="sRGB">
+    <feColorMatrix type="saturate" values="0" />
+    <feComponentTransfer>
+      <feFuncR type="table" tableValues="1 1 1" />
+      <feFuncG type="table" tableValues="0.773 0.773 1" />
+      <feFuncB type="table" tableValues="0.239 0.239 1" />
+    </feComponentTransfer>
+  </filter>
+</svg>

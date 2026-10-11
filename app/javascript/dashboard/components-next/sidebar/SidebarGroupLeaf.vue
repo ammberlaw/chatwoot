@@ -46,6 +46,7 @@ const TREE_CONNECTOR =
     :permissions="resolvePermissions(to)"
     :feature-flag="resolveFeatureFlag(to)"
     as="li"
+    data-sidebar-leaf
     class="py-0.5 ps-2 ms-3 relative text-n-slate-11 min-w-0"
     :class="{
       [TREE_CONNECTOR]: !hideTreeLine,
@@ -57,6 +58,7 @@ const TREE_CONNECTOR =
       :is="to ? 'router-link' : 'div'"
       :to="to"
       v-tooltip.right="hintTooltip"
+      :data-sidebar-active="active"
       :title="hint ? undefined : label"
       class="flex h-9 items-center gap-3 px-3 py-1.5 rounded-xl ltr:hover:bg-gradient-to-r rtl:hover:bg-gradient-to-l from-transparent via-n-slate-3/70 to-n-slate-3/70 group min-w-0"
       :class="{

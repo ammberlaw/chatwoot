@@ -15,7 +15,7 @@ const router = useRouter();
 
 // 统一玻璃卡样式（对齐 CRM 看板）。
 const CARD =
-  'p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150';
+  'p-5 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/45 backdrop-blur-2xl backdrop-saturate-150 [.theme-classic_&]:!bg-white [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!shadow-none [.theme-classic_&]:rounded-3xl [.theme-classic_&]:shrink-0';
 
 const STAGE_LABELS = {
   SALES_CONFIRMED: '待工程接单',
@@ -114,6 +114,10 @@ const onTimeSub = code => {
 };
 const onTimeGaugeColor = code => {
   const p = onTimePct(code);
+  if (document.body.classList.contains('theme-classic')) {
+    if (p == null) return '#dfe2e5';
+    return p >= 90 ? '#b3d5a3' : '#c4c5f3';
+  }
   if (p == null) return themeColor('slate-6');
   if (p >= 90) return themeColor('teal-9');
   if (p >= 70) return themeColor('amber-9');
@@ -261,12 +265,14 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    class="flex flex-col w-full h-full gap-4 p-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5 [.theme-classic_&]:gap-5 [.theme-classic_&]:xl:grid [.theme-classic_&]:xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(270px,0.8fr)] [.theme-classic_&]:xl:auto-rows-min [.theme-classic_&]:items-start [.theme-classic_&]:lg:p-8 [.theme-classic_&]:[&_h2]:text-heading-2 [.theme-classic_&]:[&_h2]:font-bold [.theme-classic_&]:[&_h2]:text-[#202222]"
   >
     <!-- 顶栏 -->
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 [.theme-classic_&]:col-span-full"
+    >
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+        <h1 class="text-heading-1 font-bold tracking-tight text-n-slate-12">
           生产看板
         </h1>
       </div>
@@ -313,25 +319,53 @@ onMounted(() => {
     </div>
 
     <template v-else>
+      <div
+        class="hidden [.theme-classic_&]:grid grid-cols-1 sm:grid-cols-3 gap-4 [.theme-classic_&]:xl:col-span-2"
+      >
+        <section
+          v-for="(k, index) in [kpis[0], kpis[1], kpis[4]]"
+          :key="k.label"
+          class="relative overflow-hidden p-6 rounded-3xl border border-white shadow-sm"
+          :class="['bg-[#eeedf9]', 'bg-[#edf4e8]', 'bg-[#edf2fa]'][index]"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-heading-2 font-semibold">{{ k.label }}</h2>
+            <span class="flex items-center justify-center size-10 rounded-2xl bg-white/75 text-[#65657f]">
+              <span class="size-5" :class="KPI_META[[0, 1, 4][index]].icon" />
+            </span>
+          </div>
+          <span aria-hidden="true" class="absolute -right-8 -bottom-12 size-40 rounded-full border-[22px] border-white/40" />
+          <div
+            class="relative mt-5 text-[44px] leading-none font-semibold tracking-tight tabular-nums"
+          >
+            {{ k.value }}
+          </div>
+          <p class="relative mt-5 text-label-small text-[#666b73]">{{ k.sub }}</p>
+        </section>
+      </div>
       <!-- KPI 行 -->
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+      <div
+        class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5 [.theme-classic_&]:!hidden [.theme-classic_&]:gap-0 [.theme-classic_&]:rounded-3xl [.theme-classic_&]:border [.theme-classic_&]:border-[#e8eaed] [.theme-classic_&]:overflow-hidden [.theme-classic_&]:shrink-0"
+      >
         <div
           v-for="(k, i) in kpis"
           :key="k.label"
-          class="flex flex-col justify-between p-4 shadow-sm rounded-2xl bg-gradient-to-br min-h-[7.5rem]"
+          class="flex flex-col justify-between p-4 shadow-sm rounded-2xl bg-gradient-to-br min-h-[7.5rem] [.theme-classic_&]:!bg-none [.theme-classic_&]:!bg-white [.theme-classic_&]:!shadow-none [.theme-classic_&]:!rounded-none [.theme-classic_&]:px-6 [.theme-classic_&]:py-5 [.theme-classic_&]:!border-y-0 [.theme-classic_&]:!border-l-0 [.theme-classic_&]:!border-r [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:last:!border-r-0 [.theme-classic_&]:[&_*]:!text-[#202222]"
           :class="KPI_META[i].grad"
         >
           <div
-            class="flex items-center justify-center rounded-lg size-8 bg-n-solid-1/70"
+            class="flex items-center justify-center rounded-lg size-8 bg-n-solid-1/70 [.theme-classic_&]:hidden"
             :class="KPI_META[i].tint"
           >
             <span class="size-4" :class="KPI_META[i].icon" />
           </div>
           <div>
-            <div class="mt-2 text-xs font-medium text-n-slate-11">
+            <div class="mt-2 text-label font-medium text-n-slate-11">
               {{ k.label }}
             </div>
-            <div class="text-2xl font-bold leading-tight text-n-slate-12">
+            <div
+              class="text-2xl font-bold leading-tight text-n-slate-12 [.theme-classic_&]:mt-3 [.theme-classic_&]:text-[32px] [.theme-classic_&]:tabular-nums"
+            >
               {{ k.value }}
             </div>
             <div class="mt-0.5 text-[11px] text-n-slate-10">{{ k.sub }}</div>
@@ -339,52 +373,97 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 超时未接单：置顶告警条（有才显示）。底色与其他卡一致，不整片染红；
-           轻重交给标题文字和右侧药丸。超过 3 条自动滚，不然七八条会把下面的图表顶出屏幕。 -->
-      <div v-if="data.unacked.length" :class="CARD" class="!p-4">
-        <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11">
-          <span class="i-lucide-alarm-clock-off size-4" />
-          超时未接单 · {{ data.unacked.length }}
-        </div>
-        <MesMarqueeList :count="data.unacked.length">
-          <ul class="flex flex-col">
-            <li
-              v-for="o in data.unacked"
-              :key="`ua-${o.id}`"
-              class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
-              @click="goOrder(o.order_no)"
-            >
-              <span class="truncate text-n-slate-12 group-hover:underline">
-                {{ o.order_no }} · {{ o.product_name }} ·
-                {{ stageLabel(o.stage) }}
-                <span class="text-n-slate-10">
-                  · 负责人：{{
-                    o.owner_names && o.owner_names.length
-                      ? o.owner_names.join('、')
-                      : '未配置'
-                  }}
-                </span>
-              </span>
-              <span
-                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
+        <div :class="CARD" class="[.theme-classic_&]:!bg-white [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!p-6 [.theme-classic_&]:xl:col-start-3 [.theme-classic_&]:xl:row-start-2 [.theme-classic_&]:xl:row-span-2 [.theme-classic_&]:self-stretch">
+          <h2
+            class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
+          >
+            <span class="i-lucide-calendar-clock size-4 text-n-slate-11" />
+            交期预警
+          </h2>
+          <div
+            v-if="!data.overdue.length && !data.dueSoon.length"
+            class="flex flex-col items-center gap-1 py-6 text-n-slate-10"
+          >
+            <span class="i-lucide-calendar-check size-6" />
+            <span class="text-sm">暂无逾期或临近交期</span>
+          </div>
+          <MesMarqueeList
+            :count="data.overdue.length + data.dueSoon.length"
+            class="[.theme-classic_&]:!overflow-hidden [.theme-classic_&]:!h-[420px] [.theme-classic_&]:[&>div]:hover:[animation-play-state:paused]"
+          >
+            <ul class="flex flex-col [.theme-classic_&]:gap-0">
+              <li
+                v-for="o in data.overdue"
+                :key="`ov-${o.id}`"
+                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic_&]:h-auto [.theme-classic_&]:min-h-16 [.theme-classic_&]:mx-0 [.theme-classic_&]:px-4 [.theme-classic_&]:py-3 [.theme-classic_&]:rounded-none [.theme-classic_&]:border-b [.theme-classic_&]:border-[#eeeff1] [.theme-classic_&]:hover:bg-[#f8f8f8]"
+                @click="goOrder(o.order_no)"
               >
-                已 {{ o.hours }}h 未接
-              </span>
-            </li>
-          </ul>
-        </MesMarqueeList>
-      </div>
+                <span class="flex items-center gap-2 truncate">
+                  <span class="rounded-full size-1.5 shrink-0 bg-n-ruby-9 [.theme-classic_&]:!bg-[#c5918a]" />
+                  <span class="truncate text-n-slate-12 group-hover:underline">
+                    <span class="[.theme-classic_&]:block [.theme-classic_&]:font-semibold">{{ o.order_no }}</span><span class="[.theme-classic_&]:block [.theme-classic_&]:mt-1 [.theme-classic_&]:text-label-small [.theme-classic_&]:text-[#868b92]">{{ o.product_name }}</span>
+                  </span>
+                </span>
+                <span
+                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11 [.theme-classic_&]:!bg-transparent [.theme-classic_&]:!text-[#9a5b56] [.theme-classic_&]:font-semibold"
+                >
+                  逾期 {{ o.days }} 天
+                </span>
+              </li>
+              <li
+                v-for="o in data.dueSoon"
+                :key="`ds-${o.id}`"
+                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic_&]:h-auto [.theme-classic_&]:min-h-16 [.theme-classic_&]:mx-0 [.theme-classic_&]:px-4 [.theme-classic_&]:py-3 [.theme-classic_&]:rounded-none [.theme-classic_&]:border-b [.theme-classic_&]:border-[#eeeff1] [.theme-classic_&]:hover:bg-[#f8f8f8]"
+                @click="goOrder(o.order_no)"
+              >
+                <span class="flex items-center gap-2 truncate">
+                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9 [.theme-classic_&]:!bg-[#b5a4d0]" />
+                  <span class="truncate text-n-slate-12 group-hover:underline">
+                    <span class="[.theme-classic_&]:block [.theme-classic_&]:font-semibold">{{ o.order_no }}</span><span class="[.theme-classic_&]:block [.theme-classic_&]:mt-1 [.theme-classic_&]:text-label-small [.theme-classic_&]:text-[#868b92]">{{ o.product_name }}</span>
+                  </span>
+                </span>
+                <span
+                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11 [.theme-classic_&]:!bg-transparent [.theme-classic_&]:!text-[#62676d] [.theme-classic_&]:font-semibold"
+                >
+                  距交期 {{ o.days }} 天
+                </span>
+              </li>
+            </ul>
+          </MesMarqueeList>
+        </div>
 
       <!-- 阶段分布 + 按时交货率 -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="lg:col-span-2 min-w-0" :class="CARD">
+      <div
+        class="grid grid-cols-1 gap-4 lg:grid-cols-3 [.theme-classic_&]:xl:col-span-2 [.theme-classic_&]:lg:grid-cols-2 [.theme-classic_&]:items-stretch"
+      >
+        <div
+          class="lg:col-span-2 min-w-0 [.theme-classic_&]:lg:col-span-1 [.theme-classic_&]:order-2 [.theme-classic_&]:!bg-white [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!p-7"
+          :class="CARD"
+        >
           <h2
             class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
           >
             <span class="i-lucide-bar-chart-3 size-4 text-n-slate-11" />
             在产 · 阶段分布
           </h2>
-          <div class="h-64">
+          <div class="hidden [.theme-classic_&]:grid grid-cols-1 gap-3">
+            <div
+              v-for="(label, index) in stageChart.labels"
+              :key="label"
+              class="grid grid-cols-[minmax(90px,110px)_1fr_24px] items-center gap-4 text-label"
+            >
+              <span class="text-[#555b61]">{{ label }}</span>
+              <progress
+                :value="stageChart.data[index]"
+                :max="Math.max(...stageChart.data, 1)"
+                class="w-full h-5 overflow-hidden rounded-full appearance-none [&::-webkit-progress-bar]:bg-[#f1f2f3] [&::-webkit-progress-value]:bg-[#b6d9aa] [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:bg-[#b6d9aa]"
+              />
+              <strong class="text-right text-heading-3 tabular-nums">{{
+                stageChart.data[index]
+              }}</strong>
+            </div>
+          </div>
+          <div class="h-64 [.theme-classic_&]:hidden">
             <CrmBarChart
               v-if="!stageChart.empty"
               :labels="stageChart.labels"
@@ -409,6 +488,18 @@ onMounted(() => {
             <span class="i-lucide-truck size-4 text-n-slate-11" />
             按时交货率
           </h2>
+          <div
+            class="hidden [.theme-classic_&]:grid grid-cols-2 gap-3 mt-5 mb-5"
+          >
+            <div
+              v-for="k in kpis.slice(2, 4)"
+              :key="k.label"
+              class="p-3 rounded-xl bg-[#f7f8fa]"
+            >
+              <p class="text-label-small text-[#81868c]">{{ k.label }}</p>
+              <strong class="block mt-2 text-heading-1">{{ k.value }}</strong>
+            </div>
+          </div>
           <div class="grid grid-cols-2 gap-2">
             <div
               v-for="l in ONTIME_LINES"
@@ -448,8 +539,65 @@ onMounted(() => {
         </div>
       </div>
 
+      <!-- 超时未接单：置顶告警条（有才显示）。底色与其他卡一致，不整片染红；
+           轻重交给标题文字和右侧药丸。超过 3 条自动滚，不然七八条会把下面的图表顶出屏幕。 -->
+      <div
+        v-if="data.unacked.length"
+        :class="CARD"
+        class="!p-5 [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!bg-white [.theme-classic_&]:self-stretch [.theme-classic_&]:xl:col-start-3 [.theme-classic_&]:xl:row-start-4 [.theme-classic_&]:xl:row-span-2"
+      >
+        <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11 [.theme-classic_&]:mb-4 [.theme-classic_&]:text-[#565471] [.theme-classic_&]:font-semibold">
+          <span class="i-lucide-alarm-clock-off size-4" />
+          超时未接单 · {{ data.unacked.length }}
+        </div>
+        <MesMarqueeList
+          :count="data.unacked.length"
+          class="[.theme-classic_&]:!overflow-hidden [.theme-classic_&]:!h-[420px] [.theme-classic_&]:[&>div]:hover:[animation-play-state:paused]"
+        >
+          <ul class="flex flex-col">
+            <li
+              v-for="o in data.unacked"
+              :key="`ua-${o.id}`"
+              class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic_&]:!h-auto [.theme-classic_&]:!items-start [.theme-classic_&]:!p-4 [.theme-classic_&]:!mx-0 [.theme-classic_&]:mb-3 [.theme-classic_&]:!rounded-2xl [.theme-classic_&]:border [.theme-classic_&]:border-transparent [.theme-classic_&]:bg-[#f4f3fa] [.theme-classic_&]:first:bg-[#eeedf8] [.theme-classic_&]:hover:bg-[#e9e7f5] [.theme-classic_&]:transition-colors"
+              @click="goOrder(o.order_no)"
+            >
+              <span class="hidden [.theme-classic_&]:block min-w-0">
+                <strong class="block text-label text-[#222426]">{{
+                  o.order_no
+                }}</strong>
+                <span
+                  class="block mt-1 text-label-small text-[#858a90] truncate"
+                  >{{ o.product_name }}</span
+                >
+                <span class="inline-block mt-3 px-2.5 py-1 rounded-full bg-white/80 text-label-small font-medium text-[#65617d]">{{
+                  stageLabel(o.stage)
+                }}</span>
+              </span>
+              <span
+                class="truncate text-n-slate-12 group-hover:underline [.theme-classic_&]:hidden"
+              >
+                {{ o.order_no }} · {{ o.product_name }} ·
+                {{ stageLabel(o.stage) }}
+                <span class="text-n-slate-10">
+                  · 负责人：{{
+                    o.owner_names && o.owner_names.length
+                      ? o.owner_names.join('、')
+                      : '未配置'
+                  }}
+                </span>
+              </span>
+              <span
+                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11 [.theme-classic_&]:bg-white/80 [.theme-classic_&]:text-[#8e6370] [.theme-classic_&]:px-2.5 [.theme-classic_&]:py-1"
+              >
+                已 {{ o.hours }}h 未接
+              </span>
+            </li>
+          </ul>
+        </MesMarqueeList>
+      </div>
+
       <!-- 各环节接单平均响应时长（可下钻到人） -->
-      <div :class="CARD">
+      <div :class="CARD" class="[.theme-classic_&]:xl:col-span-2 [.theme-classic_&]:!bg-white [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!p-6">
         <h2
           class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
         >
@@ -463,7 +611,7 @@ onMounted(() => {
           <template v-for="r in ackRows" :key="r.stage">
             <button
               type="button"
-              class="flex items-center gap-3 px-2 py-2 -mx-2 text-sm rounded-lg hover:bg-n-alpha-1"
+              class="flex items-center gap-3 px-2 py-2 -mx-2 text-label rounded-lg hover:bg-n-alpha-1 [.theme-classic_&]:mx-0 [.theme-classic_&]:px-4 [.theme-classic_&]:py-3 [.theme-classic_&]:rounded-xl [.theme-classic_&]:bg-[#f7f8f6]"
               @click="toggleAck(r.stage)"
             >
               <span
@@ -478,16 +626,16 @@ onMounted(() => {
                 {{ r.label }}
               </span>
               <div
-                class="flex-1 h-2 overflow-hidden rounded-full bg-n-slate-3 min-w-16"
+                class="flex-1 h-2 overflow-hidden rounded-full bg-n-slate-3 min-w-16 [.theme-classic_&]:bg-[#e4eadf]"
               >
                 <div
-                  class="h-full rounded-full"
+                  class="h-full rounded-full [.theme-classic_&]:!bg-[#b6d9aa]"
                   :class="ackBar(r.avgSeconds)"
                   :style="{ width: `${ackPct(r.avgSeconds)}%` }"
                 />
               </div>
               <span
-                class="px-2 py-0.5 w-16 text-xs font-semibold text-center rounded-full shrink-0"
+                class="px-2 py-0.5 w-16 text-label-small font-semibold text-center rounded-full shrink-0 [.theme-classic_&]:!bg-transparent [.theme-classic_&]:!text-[#24272a] [.theme-classic_&]:text-heading-1"
                 :class="ackPillTone(r.avgSeconds)"
               >
                 {{ fmtDuration(r.avgSeconds) }}
@@ -518,7 +666,7 @@ onMounted(() => {
             </div>
           </template>
         </div>
-        <p class="mt-2 text-xs text-n-slate-10">
+        <p class="mt-2 text-label-small text-n-slate-10 [.theme-classic_&]:mt-4 [.theme-classic_&]:leading-relaxed">
           接单响应 = 进入本环节到接单，只算工作时间（工作日
           8:00–17:30、跳周末与节假日）；按所选时段内发生的接单统计，未接单不计入（进度条以
           4 工作小时接单时限为满格）。
@@ -526,64 +674,12 @@ onMounted(() => {
       </div>
 
       <!-- 交期预警 + 滞留卡点 -->
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div :class="CARD">
-          <h2
-            class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
-          >
-            <span class="i-lucide-calendar-clock size-4 text-n-slate-11" />
-            交期预警
-          </h2>
-          <div
-            v-if="!data.overdue.length && !data.dueSoon.length"
-            class="flex flex-col items-center gap-1 py-6 text-n-slate-10"
-          >
-            <span class="i-lucide-calendar-check size-6" />
-            <span class="text-sm">暂无逾期或临近交期</span>
-          </div>
-          <MesMarqueeList :count="data.overdue.length + data.dueSoon.length">
-            <ul class="flex flex-col">
-              <li
-                v-for="o in data.overdue"
-                :key="`ov-${o.id}`"
-                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
-                @click="goOrder(o.order_no)"
-              >
-                <span class="flex items-center gap-2 truncate">
-                  <span class="rounded-full size-1.5 shrink-0 bg-n-ruby-9" />
-                  <span class="truncate text-n-slate-12 group-hover:underline">
-                    {{ o.order_no }} · {{ o.product_name }}
-                  </span>
-                </span>
-                <span
-                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
-                >
-                  逾期 {{ o.days }} 天
-                </span>
-              </li>
-              <li
-                v-for="o in data.dueSoon"
-                :key="`ds-${o.id}`"
-                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
-                @click="goOrder(o.order_no)"
-              >
-                <span class="flex items-center gap-2 truncate">
-                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
-                  <span class="truncate text-n-slate-12 group-hover:underline">
-                    {{ o.order_no }} · {{ o.product_name }}
-                  </span>
-                </span>
-                <span
-                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
-                >
-                  距交期 {{ o.days }} 天
-                </span>
-              </li>
-            </ul>
-          </MesMarqueeList>
-        </div>
+      <div
+        class="grid grid-cols-1 gap-4 lg:grid-cols-2 [.theme-classic_&]:xl:col-span-2 [.theme-classic_&]:lg:grid-cols-1"
+      >
 
-        <div :class="CARD">
+
+        <div :class="CARD" class="[.theme-classic_&]:!bg-white [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!p-6">
           <h2
             class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
           >
@@ -597,22 +693,25 @@ onMounted(() => {
             <span class="i-lucide-check-check size-6" />
             <span class="text-sm">无滞留单据</span>
           </div>
-          <MesMarqueeList :count="data.stalled.length">
-            <ul class="flex flex-col">
+          <MesMarqueeList
+            :count="data.stalled.length"
+            class="[.theme-classic_&]:!overflow-hidden [.theme-classic_&]:!h-52 [.theme-classic_&]:[&>div]:hover:[animation-play-state:paused]"
+          >
+            <ul class="flex flex-col [.theme-classic_&]:gap-0">
               <li
                 v-for="o in data.stalled"
                 :key="`st-${o.id}`"
-                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic_&]:h-auto [.theme-classic_&]:min-h-16 [.theme-classic_&]:mx-0 [.theme-classic_&]:px-4 [.theme-classic_&]:py-3 [.theme-classic_&]:rounded-none [.theme-classic_&]:border-b [.theme-classic_&]:border-[#eeeff1] [.theme-classic_&]:hover:bg-[#f8f8f8]"
                 @click="goOrder(o.order_no)"
               >
                 <span class="flex items-center gap-2 truncate">
-                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
+                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9 [.theme-classic_&]:!bg-[#b5a4d0]" />
                   <span class="truncate text-n-slate-12 group-hover:underline">
-                    {{ o.order_no }} · {{ stageLabel(o.stage) }}
+                    <span class="[.theme-classic_&]:block [.theme-classic_&]:font-semibold">{{ o.order_no }}</span><span class="[.theme-classic_&]:block [.theme-classic_&]:mt-1 [.theme-classic_&]:text-label-small [.theme-classic_&]:text-[#868b92]">{{ stageLabel(o.stage) }}</span>
                   </span>
                 </span>
                 <span
-                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
+                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11 [.theme-classic_&]:!bg-transparent [.theme-classic_&]:!text-[#62676d] [.theme-classic_&]:font-semibold"
                 >
                   滞留 {{ o.days }} 天
                 </span>

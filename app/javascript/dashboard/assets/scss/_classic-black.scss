@@ -1,0 +1,133 @@
+// Independent classic variant: inherit content colors without changing geometry.
+// Keep focus scrolling inside the sidebar/page scrollers, not the outer shell.
+body.theme-classic [data-dashboard-shell],
+body.theme-classic [data-dashboard-shell] > main {
+  overflow: clip;
+  min-height: 0;
+  min-width: 0;
+}
+
+body.theme-classic-black:not(.theme-obsidian-flat)
+  aside[data-sidebar-collapsed] {
+  --slate-3: 47 47 50;
+  --slate-4: 58 58 62;
+  --slate-10: 171 171 179;
+  --slate-11: 240 240 243;
+  --slate-12: 255 255 255;
+  --alpha-2: 255, 255, 255, 0.07;
+  --solid-2: 28 28 30;
+  --solid-3: 40 40 43;
+  color: #f4f4f6;
+  background: #161616;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: #303033;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.04);
+
+  > nav {
+    min-height: 0;
+  }
+
+  [data-sidebar-region='brand'] #sidebar-account-switcher span {
+    color: #ffc53d;
+  }
+  [data-sidebar-region='brand'] img {
+    filter: url('/brand-assets/classic-gold-filter.svg#classic-gold');
+    box-shadow: none;
+  }
+  [data-sidebar-profile-trigger] .text-n-slate-11 {
+    color: #bdbdc5;
+  }
+  [data-sidebar-region='search'] {
+    display: none;
+  }
+  [data-sidebar-region='footer'] > .pointer-events-none {
+    background: linear-gradient(to top, #161616, transparent);
+  }
+  [data-sidebar-region='footer'] > .border-t {
+    border-color: #363639;
+  }
+  [data-sidebar-active='true'] {
+    color: #262626;
+    background: #ffffff;
+    font-weight: 600;
+    box-shadow: none;
+  }
+  [data-sidebar-group-header]:hover,
+  [data-sidebar-profile-trigger]:hover,
+  [data-sidebar-leaf] > a:hover {
+    background-image: none;
+    background-color: #303033;
+  }
+  [data-sidebar-leaf] > a[data-sidebar-active='true']:hover {
+    background: #f3f3f3;
+  }
+}
+
+@media (min-width: 768px) {
+  body.theme-classic-black:not(.theme-obsidian-flat)
+    aside[data-sidebar-collapsed] {
+    height: calc(100dvh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+  }
+}
+
+// Button labels are text, not the counter badges styled by the tabbar mixin.
+body.theme-classic
+  [data-tabbar^='page']
+  > button[data-button-variant]
+  > span.truncate {
+  background: none !important;
+  color: inherit !important;
+}
+
+// Explicit amber actions need dark labels on the classic yellow background.
+body.theme-classic-black:not(.theme-obsidian-flat) [data-sidebar-icon='crm-dashboards'] {
+  > .i-lucide-layout-dashboard {
+    display: none;
+  }
+  > .i-lucide-chart-no-axes-combined {
+    display: block;
+  }
+}
+
+body.theme-classic button[data-button-variant='solid'].bg-n-amber-9 {
+  color: #1c2026;
+}
+
+// Passive hooks keep the original themes' custom filters unchanged.
+body.theme-classic input[name='dedupe-keyword'] {
+  height: 100% !important;
+  min-height: 0;
+  margin-bottom: 0 !important;
+}
+
+body.theme-classic [data-black-page='erp-settings'] .w-96 {
+  max-width: 100%;
+}
+
+@include page-tabbar("body.theme-classic [data-black-tabbar='page']");
+body.theme-classic [data-black-tabbar='page'].px-4 {
+  margin-inline: 1rem;
+  margin-top: 1rem;
+}
+@media (min-width: 640px) {
+  body.theme-classic [data-black-tabbar='page'].sm\:px-6 {
+    margin-inline: 1.5rem;
+  }
+}
+
+// CRM overview: quiet metric cards, a central performance pair and a detail rail.
+body.theme-classic [data-black-dashboard] {
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: #f6f7f3;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+@media (max-width: 639px) {
+  body.theme-classic [data-black-dashboard] {
+    padding: 1rem;
+  }
+}

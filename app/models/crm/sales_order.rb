@@ -216,15 +216,15 @@ class Crm::SalesOrder < ApplicationRecord
 
   # 客户成交排行：按「客户 × 月」聚合金额与单数，返回
   # [{ id:, name:, amount: [1..12月], orders: [1..12月] }]。没挂客户的订单不进榜。
-  RANK_COLS = "crm_customers.id, crm_customers.name, DATE_TRUNC('month', order_date), " \
+  RANK_COLS = "crm_customers.id, crm_customers.name, crm_customers.trade_country, DATE_TRUNC('month', order_date), " \
               "SUM(#{RMB_AMOUNT_MICROS_SQL}), COUNT(*)".freeze
 
   def self.monthly_customer_ranking(scope)
     month = Arel.sql("DATE_TRUNC('month', order_date)")
     scope.where.not(crm_customer_id: nil).joins(:crm_customer)
-         .group('crm_customers.id', 'crm_customers.name', month).pluck(Arel.sql(RANK_COLS))
-         .each_with_object({}) do |(id, name, at, amount, count), acc|
-      row = acc[id] ||= { id: id, name: name, amount: Array.new(12, 0), orders: Array.new(12, 0) }
+         .group('crm_customers.id', 'crm_customers.name', 'crm_customers.trade_country', month).pluck(Arel.sql(RANK_COLS))
+         .each_with_object({}) do |(id, name, country, at, amount, count), acc|
+      row = acc[id] ||= { id: id, name: name, country: country, amount: Array.new(12, 0), orders: Array.new(12, 0) }
       row[:amount][at.month - 1] = amount.to_i
       row[:orders][at.month - 1] = count.to_i
     end.values

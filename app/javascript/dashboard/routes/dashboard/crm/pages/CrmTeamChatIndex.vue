@@ -1217,8 +1217,8 @@ onBeforeUnmount(() => {
                   class="px-4 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap shadow-sm rounded-[20px]"
                   :class="[
                     msg.sender_id === currentUserId
-                      ? 'bg-n-solid-1 text-n-slate-12 ring-1 ring-inset ring-n-weak rounded-br-md'
-                      : 'bg-n-slate-12 text-n-slate-1 rounded-bl-md',
+                      ? 'bg-[#f6e3a0] text-[#29271f] rounded-br-md'
+                      : 'bg-white text-[#292b2d] ring-1 ring-inset ring-black/5 rounded-bl-md',
                     isMentionedMe(msg) ? 'ring-2 ring-n-iris-8' : '',
                   ]"
                 >

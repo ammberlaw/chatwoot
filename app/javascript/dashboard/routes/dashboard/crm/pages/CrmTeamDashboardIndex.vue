@@ -3,8 +3,9 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
+import CrmBlackSalesTrend from 'dashboard/components-next/CRM/charts/CrmBlackSalesTrend.vue';
 import CrmKpiCard from 'dashboard/components-next/CRM/CrmKpiCard.vue';
-import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
+import { usesClassicContentColors } from 'dashboard/components-next/CRM/charts/chartColors';
 import { useThemeSignal } from 'dashboard/components-next/CRM/charts/useThemeSignal';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -115,7 +116,23 @@ const CARD_GRADIENTS = [
 const themeSignal = useThemeSignal();
 const isClassicKpi = computed(() => {
   void themeSignal.value;
-  return isClassicTheme();
+  return usesClassicContentColors();
+});
+
+const isClassicBlack = computed(
+  () =>
+    themeSignal.value >= 0 &&
+    document.body.classList.contains('theme-classic')
+);
+const blackTeamPct = computed(() =>
+  totals.value.targetAmount > 0
+    ? (totals.value.actualAmount / totals.value.targetAmount) * 100
+    : null
+);
+const blackEmailBars = computed(() => {
+  const rows = sentEmailRanking.value.filter(row => Number(row.count) > 0);
+  const max = Math.max(...rows.map(row => Number(row.count)), 1);
+  return rows.map(row => ({ ...row, pct: (Number(row.count) / max) * 100 }));
 });
 
 // 后端给的本年逐月团队合计，用来算环比、画走势
@@ -377,11 +394,20 @@ const kpiCards = computed(() => [
     icon: 'i-lucide-users',
   },
 ]);
+const blackTeamSummary = computed(() => [
+  kpiCards.value[1],
+  { ...classicKpis.value[2], sub: classicKpis.value[2].unit },
+  kpiCards.value[2],
+]);
 </script>
 
 <template>
   <div
     class="flex flex-col w-full h-full gap-4 px-4 py-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
+    :class="
+      isClassicBlack &&
+      '!gap-6 !bg-white !border-[#e9eae6] !shadow-none !backdrop-blur-none !p-6'
+    "
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -416,6 +442,238 @@ const kpiCards = computed(() => [
     >
       {{ t('CRM.TEAM_DASHBOARD.EMPTY') }}
     </div>
+
+    <template v-else-if="team && isClassicBlack">
+      <div
+        class="grid items-stretch gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+      >
+        <section class="min-w-0 rounded-3xl bg-[#f5f6f2] p-6 sm:p-7">
+          <h2 class="text-heading-2 font-semibold text-[#191b1b]">
+            {{ kpiCards[0].label }}
+          </h2>
+          <div
+            class="mt-4 font-interDisplay text-[clamp(2rem,4vw,3.5rem)] font-semibold leading-none tracking-tight tabular-nums text-[#191b1b]"
+          >
+            {{ kpiCards[0].value }}
+          </div>
+          <div
+            class="mt-4 flex flex-wrap gap-x-3 gap-y-1 text-label-small text-[#85887f]"
+          >
+            <strong
+              v-if="classicKpis[0].delta"
+              :class="
+                classicKpis[0].delta.dir === 'up'
+                  ? 'text-[#278161]'
+                  : classicKpis[0].delta.dir === 'down'
+                    ? 'text-[#be4638]'
+                    : ''
+              "
+              >{{ classicKpis[0].delta.text }}</strong
+            >
+            <span>{{ kpiCards[0].sub }}</span>
+          </div>
+          <div
+            class="mt-6 grid grid-cols-3 divide-x divide-[#e2e4dc] border-t border-[#e2e4dc] pt-5"
+          >
+            <div
+              v-for="(kpi, index) in blackTeamSummary"
+              :key="kpi.label"
+              :class="index && 'pl-5'"
+            >
+              <h3 class="text-heading-3 font-semibold text-[#191b1b]">
+                {{ kpi.label }}
+              </h3>
+              <strong class="mt-2 block text-2xl tabular-nums text-[#191b1b]">{{
+                kpi.value
+              }}</strong>
+              <p class="mt-1 text-label-small text-[#85887f]">{{ kpi.sub }}</p>
+            </div>
+          </div>
+        </section>
+        <section
+          class="flex flex-col justify-between rounded-3xl bg-[#ffd052] p-6 sm:p-7 text-[#191b1b]"
+        >
+          <h2 class="text-heading-2 font-semibold">
+            {{ t('CRM.DASHBOARD.DESIGN.ACHIEVED') }}
+          </h2>
+          <div
+            class="mt-5 text-[56px] font-semibold leading-none tracking-tight tabular-nums"
+          >
+            {{
+              blackTeamPct == null
+                ? t('CRM.DASHBOARD.DESIGN.UNSET')
+                : Math.round(blackTeamPct) + '%'
+            }}
+          </div>
+          <svg
+            class="mt-4 h-2 w-full"
+            viewBox="0 0 100 8"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <rect width="100" height="8" rx="4" fill="#fff0b8" />
+            <rect
+              :width="Math.max(0, Math.min(100, blackTeamPct || 0))"
+              height="8"
+              rx="4"
+              fill="#191b1b"
+            />
+          </svg>
+          <div class="mt-5 border-t border-black/15 pt-4">
+            <p class="text-label-small">
+              {{ t('CRM.DASHBOARD.DESIGN.TARGET_AMOUNT') }}
+            </p>
+            <strong class="mt-2 block text-heading-1 tabular-nums">{{
+              money(totals.targetAmount)
+            }}</strong>
+          </div>
+        </section>
+      </div>
+      <div class="grid items-start gap-6 xl:grid-cols-2">
+        <section
+          v-for="table in memberTables"
+          :key="table.key"
+          class="min-w-0 rounded-3xl border border-[#e9eae6] bg-white p-6"
+        >
+          <h2 class="text-heading-2 font-semibold text-[#191b1b]">
+            {{ table.title }}
+          </h2>
+          <p v-if="!table.rows.length" class="py-10 text-label text-[#85887f]">
+            {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+          </p>
+          <ol v-else class="mt-5 list-none divide-y divide-[#eceee6]">
+            <li
+              v-for="(row, index) in table.rows"
+              :key="row.id"
+              class="py-4 first:pt-0 last:pb-0"
+            >
+              <div class="flex items-center gap-3">
+                <span
+                  class="grid size-8 shrink-0 place-items-center rounded-xl text-label-small font-semibold"
+                  :class="
+                    index === 0
+                      ? 'bg-[#ffd052] text-[#191b1b]'
+                      : 'bg-[#f3f4f0] text-[#85887f]'
+                  "
+                  >{{ String(index + 1).padStart(2, '0') }}</span
+                >
+                <span
+                  class="min-w-0 flex-1 truncate text-heading-3 font-semibold text-[#191b1b]"
+                  :title="row.name"
+                  >{{ row.name }}</span
+                >
+                <strong
+                  class="shrink-0 text-heading-2 tabular-nums text-[#191b1b]"
+                  >{{ row.actual }}</strong
+                >
+              </div>
+              <div class="mt-3 flex items-center gap-3">
+                <svg
+                  class="h-2 min-w-0 flex-1"
+                  viewBox="0 0 100 8"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <rect width="100" height="8" rx="4" fill="#f3f4f0" />
+                  <rect
+                    :width="Math.max(0, Math.min(100, row.pct || 0))"
+                    height="8"
+                    rx="4"
+                    :fill="index === 0 ? '#ffd052' : '#191b1b'"
+                  />
+                </svg>
+                <strong
+                  class="w-12 text-right text-label-small tabular-nums text-[#191b1b]"
+                  >{{ row.pctText }}</strong
+                >
+              </div>
+              <div
+                class="mt-2 flex flex-wrap justify-between gap-2 text-label-small text-[#85887f]"
+              >
+                <span>{{
+                  t('CRM.TEAM_DASHBOARD.ROW_TARGET', { target: row.target })
+                }}</span>
+                <span
+                  >{{ t('CRM.TEAM_DASHBOARD.ROW_DELTA') }}
+                  <strong :class="deltaTone(row.deltaPt)">{{
+                    deltaText(row.deltaPt)
+                  }}</strong></span
+                >
+              </div>
+            </li>
+          </ol>
+        </section>
+      </div>
+      <div class="grid items-stretch gap-6 xl:grid-cols-2">
+        <section
+          class="min-w-0 rounded-3xl border border-[#e9eae6] bg-white p-6"
+        >
+          <h2 class="mb-5 text-heading-2 font-semibold text-[#191b1b]">
+            {{ t('CRM.DASHBOARD.DESIGN.TREND') }}
+          </h2>
+          <CrmBlackSalesTrend
+            v-if="monthly.length"
+            :labels="
+              monthly
+                .slice(0, selectedMonth)
+                .map((row, index) =>
+                  t('CRM.TEAM_DASHBOARD.MONTH', { month: index + 1 })
+                )
+            "
+            :data="series('amount_micros').map(value => value / 1000000)"
+            :value-format="value => compactMoney(value * 1000000)"
+          />
+          <p v-else class="py-10 text-label text-[#85887f]">
+            {{ t('CRM.DASHBOARD.DESIGN.NO_DATA') }}
+          </p>
+        </section>
+        <section
+          class="min-w-0 rounded-3xl border border-[#e9eae6] bg-white p-6"
+        >
+          <h2 class="text-heading-2 font-semibold text-[#191b1b]">
+            {{ t('CRM.DASHBOARD.DESIGN.EMAIL_RANK') }}
+          </h2>
+          <p class="mt-1 text-label-small text-[#85887f]">
+            {{ t('CRM.TEAM_DASHBOARD.ALL_COMPANY') }}
+          </p>
+          <p
+            v-if="!blackEmailBars.length"
+            class="py-10 text-label text-[#85887f]"
+          >
+            {{ t('CRM.DASHBOARD.DESIGN.NO_SENT_EMAIL') }}
+          </p>
+          <ol v-else class="mt-5 list-none space-y-4">
+            <li
+              v-for="(row, index) in blackEmailBars"
+              :key="row.id || row.name"
+            >
+              <div
+                class="mb-2 flex justify-between gap-3 text-label-small text-[#191b1b]"
+              >
+                <span class="truncate">{{ row.name }}</span
+                ><strong class="shrink-0 tabular-nums">{{
+                  t('CRM.DASHBOARD.DESIGN.EMAIL_COUNT', { count: row.count })
+                }}</strong>
+              </div>
+              <svg
+                class="h-5 w-full"
+                viewBox="0 0 100 20"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <rect width="100" height="20" rx="10" fill="#f3f4f0" />
+                <rect
+                  :width="row.pct"
+                  height="20"
+                  rx="10"
+                  :fill="index === 0 ? '#ffd052' : '#191b1b'"
+                />
+              </svg>
+            </li>
+          </ol>
+        </section>
+      </div>
+    </template>
 
     <template v-else-if="team">
       <!-- KPI -->

@@ -1,0 +1,226 @@
+// Obsidian retains its original curved sidebar while sharing black content UI.
+body.theme-obsidian-flat {
+  aside[data-sidebar-collapsed] {
+    --obsidian-canvas: 255 255 255;
+    --obsidian-rail: 22 22 22;
+    --obsidian-rail-text: 222 222 220;
+    --obsidian-rail-muted: 171 171 169;
+    --obsidian-selection-text: 22 22 22;
+
+    color: rgb(var(--obsidian-rail-text));
+    background: rgb(var(--obsidian-rail));
+    border: 0;
+    backdrop-filter: none;
+    box-shadow: none;
+
+    [data-sidebar-region='header'] {
+      margin-block: 20px 24px;
+      gap: 16px;
+    }
+    [data-sidebar-region='brand'] {
+      padding-inline: 16px;
+    }
+    [data-sidebar-region='brand'] img {
+      box-shadow: none;
+      filter: grayscale(1);
+    }
+    #sidebar-account-switcher span {
+      color: rgb(var(--obsidian-rail-text));
+    }
+    [data-sidebar-region='search'] {
+      padding-inline: 16px;
+    }
+    [data-sidebar-region='search'] > a,
+    [data-sidebar-region='search'] > .inline-flex > button {
+      color: rgb(var(--obsidian-rail-muted)) !important;
+      background: rgb(255 255 255 / 0.04);
+      outline-color: rgb(255 255 255 / 0.12);
+    }
+    [data-sidebar-region='search'] > a span {
+      color: rgb(var(--obsidian-rail-muted));
+    }
+    [data-sidebar-region='footer'] {
+      padding-inline: 12px;
+    }
+    [data-sidebar-region='footer'] > .pointer-events-none {
+      background: linear-gradient(
+        to top,
+        rgb(var(--obsidian-rail)),
+        transparent
+      );
+    }
+    [data-sidebar-region='footer'] > .border-t {
+      border-color: rgb(255 255 255 / 0.1);
+      padding-block: 12px;
+    }
+    [data-sidebar-profile-trigger] {
+      color: rgb(var(--obsidian-rail-text));
+      &:hover {
+        background: rgb(255 255 255 / 0.06);
+      }
+      .text-n-slate-12 {
+        color: rgb(var(--obsidian-rail-text));
+      }
+      .text-n-slate-11 {
+        color: rgb(var(--obsidian-rail-muted));
+      }
+    }
+    nav {
+      padding-inline: 12px 0;
+      overscroll-behavior: contain;
+    }
+    nav [data-sidebar-group-header] {
+      color: rgb(var(--obsidian-rail-text));
+      margin-inline-end: 12px;
+      background: none;
+      box-shadow: none;
+      &:hover {
+        background: rgb(255 255 255 / 0.06);
+      }
+    }
+    nav [data-sidebar-section-header] > .text-n-slate-10,
+    nav [data-sidebar-section-header] > div > button {
+      color: rgb(var(--obsidian-rail-muted));
+    }
+    [data-sidebar-module-select] {
+      > span,
+      button:not(.bg-n-solid-3) {
+        color: rgb(var(--obsidian-rail-muted));
+      }
+      > .outline {
+        outline-color: rgb(255 255 255 / 0.12);
+      }
+    }
+    nav [data-sidebar-leaf] {
+      margin-inline: 0;
+      padding-inline: 0;
+      &::before,
+      &::after {
+        display: none;
+      }
+      > a {
+        color: rgb(var(--obsidian-rail-muted));
+        padding-inline: 32px 16px;
+        background: none;
+        box-shadow: none;
+        &:hover {
+          color: rgb(var(--obsidian-rail-text));
+          background: rgb(255 255 255 / 0.06);
+        }
+      }
+    }
+    nav [data-sidebar-leaf] > [data-sidebar-active='true'],
+    nav [data-sidebar-group-header][data-sidebar-active='true'] {
+      position: relative;
+      color: rgb(var(--obsidian-selection-text));
+      background: rgb(var(--obsidian-canvas));
+      border-radius: 20px 0 0 20px;
+      margin-inline-end: 0;
+      box-shadow: none;
+      &:hover {
+        color: rgb(var(--obsidian-selection-text));
+        background: rgb(var(--obsidian-canvas));
+      }
+      &::before,
+      &::after {
+        content: '';
+        position: absolute;
+        inset-inline-end: 0;
+        width: 20px;
+        height: 20px;
+        background: transparent;
+        pointer-events: none;
+      }
+      &::before {
+        inset-block-end: 100%;
+        background: radial-gradient(
+          circle at top left,
+          transparent 19.5px,
+          rgb(var(--obsidian-canvas)) 20px
+        );
+      }
+      &::after {
+        inset-block-start: 100%;
+        background: radial-gradient(
+          circle at bottom left,
+          transparent 19.5px,
+          rgb(var(--obsidian-canvas)) 20px
+        );
+      }
+    }
+    nav a:focus-visible,
+    nav [role='button']:focus-visible {
+      outline: 2px solid rgb(var(--amber-9));
+      outline-offset: -3px;
+    }
+    &[data-sidebar-collapsed='true'] {
+      [data-sidebar-region='brand'],
+      [data-sidebar-region='search'] {
+        padding-inline: 4px;
+      }
+      [data-sidebar-region='footer'] {
+        padding-inline: 0;
+      }
+      nav {
+        padding-inline: 4px;
+      }
+      nav > ul > li > div > a,
+      nav > ul > li > div > button {
+        color: rgb(var(--obsidian-rail-muted));
+        &.bg-n-iris-9 {
+          color: rgb(var(--obsidian-selection-text));
+          background: rgb(var(--obsidian-canvas));
+          box-shadow: none;
+        }
+      }
+    }
+  }
+
+  @media (min-width: 768px) {
+    aside[data-sidebar-collapsed] {
+      margin: 0;
+      height: 100%;
+      border-radius: 0;
+    }
+  }
+  @media (max-width: 767px) {
+    aside[data-sidebar-collapsed] {
+      border-radius: 0 20px 20px 0;
+      &::before {
+        background: radial-gradient(
+          circle at top right,
+          transparent 19.5px,
+          rgb(var(--obsidian-canvas)) 20px
+        );
+      }
+      &::after {
+        background: radial-gradient(
+          circle at bottom right,
+          transparent 19.5px,
+          rgb(var(--obsidian-canvas)) 20px
+        );
+      }
+      nav [data-sidebar-leaf] > [data-sidebar-active='true'],
+      nav [data-sidebar-group-header][data-sidebar-active='true'] {
+        margin-inline-end: 12px;
+        border-radius: 20px;
+        &::before,
+        &::after {
+          display: none;
+        }
+      }
+    }
+  }
+  &[dir='rtl'],
+  &:dir(rtl) {
+    aside[data-sidebar-collapsed]
+      nav
+      [data-sidebar-leaf]
+      > [data-sidebar-active='true'],
+    aside[data-sidebar-collapsed]
+      nav
+      [data-sidebar-group-header][data-sidebar-active='true'] {
+      border-radius: 0 20px 20px 0;
+    }
+  }
+}

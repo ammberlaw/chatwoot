@@ -12,6 +12,7 @@ const props = defineProps({
   // gauge: 底部半圆仪表（首段为进度、末段为轨道）；否则普通环形。
   gauge: { type: Boolean, default: false },
   cutout: { type: String, default: '72%' },
+  continuous: { type: Boolean, default: false },
   valueFormat: { type: Function, default: v => v },
 });
 
@@ -23,6 +24,7 @@ ChartJS.register(Tooltip, ArcElement);
 const collection = computed(() => {
   void themeSignal.value;
   const c = chartPalette();
+  const segmentRadius = props.continuous ? 0 : 4;
   const fallback = [c.brand, c.amber, c.iris, c.blue, c.ruby];
   const bg = props.gauge
     ? [props.colors[0] || c.brand, c.track]
@@ -40,8 +42,8 @@ const collection = computed(() => {
         // 两段都给圆角的话，后画的轨道会把进度末端的圆帽咬掉一块，看着像被截断。
         borderRadius: props.gauge
           ? [8, { outerStart: 0, innerStart: 0, outerEnd: 8, innerEnd: 8 }]
-          : 4,
-        spacing: props.gauge ? 0 : 2,
+          : segmentRadius,
+        spacing: props.gauge || props.continuous ? 0 : 2,
       },
     ],
   };

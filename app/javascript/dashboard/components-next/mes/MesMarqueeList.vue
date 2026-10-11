@@ -1,5 +1,6 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { useResizeObserver } from '@vueuse/core';
 
 /**
  * 看板告警列表的纵向轮播窗口。
@@ -17,12 +18,11 @@ const props = defineProps({
 
 const scrolls = computed(() => props.count > props.rows);
 
-// 条数越多走得越慢，否则刷得人看不清。
-// 类名必须是静态字符串——Tailwind 的 JIT 扫不到拼接出来的类名。
-const speed = computed(() => {
-  if (props.count > 12) return 'animate-marquee-y-slow';
-  if (props.count > 6) return 'animate-marquee-y';
-  return 'animate-marquee-y-fast';
+// All alert cards move at the same gentle 10 px/s, regardless of list length.
+const track = ref(null);
+const duration = ref(60);
+useResizeObserver(track, entries => {
+  duration.value = entries[0].contentRect.height / 2 / 10;
 });
 
 // 窗口高度同样要静态类名。
@@ -46,9 +46,11 @@ const windowHeight = computed(() => HEIGHTS[props.rows] || HEIGHTS[3]);
     "
   >
     <div
+      ref="track"
+      :style="{ animationDuration: `${duration}s` }"
       :class="
         scrolls
-          ? `${speed} hover:[animation-play-state:paused] motion-reduce:animate-none`
+          ? `animate-marquee-y-slow hover:[animation-play-state:paused] motion-reduce:animate-none`
           : ''
       "
     >

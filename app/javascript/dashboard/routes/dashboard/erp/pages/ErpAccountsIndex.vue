@@ -447,7 +447,11 @@ onMounted(fetchList);
       </div>
     </div>
 
-    <div data-tabbar class="flex items-center gap-1 px-6">
+    <div
+      data-tabbar="page"
+      data-tabbar-theme="classic"
+      class="flex items-center gap-1 px-6"
+    >
       <button
         v-for="tab in TABS"
         :key="tab.key"

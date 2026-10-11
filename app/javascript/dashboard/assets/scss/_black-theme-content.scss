@@ -1,0 +1,189 @@
+// Reuse classic content colors without changing either existing palette or black rails.
+body:is(.theme-obsidian, .theme-inkarc) {
+  --iris-1: 250 250 251;
+  --iris-2: 246 246 247;
+  --iris-3: 240 240 242;
+  --iris-4: 233 233 236;
+  --iris-5: 224 225 228;
+  --iris-6: 213 214 218;
+  --iris-7: 197 198 203;
+  --iris-8: 165 167 173;
+  --iris-9: 51 54 60;
+  --iris-10: 40 43 48;
+  --iris-11: 60 63 70;
+  --iris-12: 22 24 28;
+  --solid-iris: 236 237 239;
+  --solid-purple: 236 237 239;
+  --text-purple: 26 28 32;
+  --accent-grad: 90 94 102;
+  --blue-1: 250 250 251;
+  --blue-2: 246 246 247;
+  --blue-3: 240 240 242;
+  --blue-4: 233 233 236;
+  --blue-5: 224 225 228;
+  --blue-6: 213 214 218;
+  --blue-7: 197 198 203;
+  --blue-8: 165 167 173;
+  --blue-9: 90 94 102;
+  --blue-10: 78 82 90;
+  --blue-11: 60 63 70;
+  --blue-12: 22 24 28;
+  --solid-blue: 236 237 239;
+  --solid-blue-2: 250 250 251;
+  --text-blue: 26 28 32;
+  --background-color: 245 245 246;
+  --surface-1: 255 255 255;
+  --surface-2: 255 255 255;
+  --solid-1: 255 255 255;
+  --solid-2: 255 255 255;
+  --solid-3: 255 255 255;
+  --card-color: 255 255 255;
+  --border-weak: 236 236 238;
+}
+
+body:is(.theme-obsidian, .theme-inkarc).dark {
+  --iris-1: 20 21 23;
+  --iris-2: 25 26 28;
+  --iris-3: 33 34 37;
+  --iris-4: 40 41 45;
+  --iris-5: 48 49 54;
+  --iris-6: 58 60 66;
+  --iris-7: 72 74 82;
+  --iris-8: 92 95 104;
+  --iris-9: 90 94 104;
+  --iris-10: 80 84 94;
+  --iris-11: 176 180 188;
+  --iris-12: 228 230 234;
+  --solid-iris: 44 46 52;
+  --solid-purple: 44 46 52;
+  --text-purple: 228 230 234;
+  --accent-grad: 120 124 132;
+  --blue-1: 20 21 23;
+  --blue-2: 25 26 28;
+  --blue-3: 33 34 37;
+  --blue-4: 40 41 45;
+  --blue-5: 48 49 54;
+  --blue-6: 58 60 66;
+  --blue-7: 72 74 82;
+  --blue-8: 92 95 104;
+  --blue-9: 90 94 104;
+  --blue-10: 80 84 94;
+  --blue-11: 176 180 188;
+  --blue-12: 228 230 234;
+  --solid-blue: 44 46 52;
+  --solid-blue-2: 26 27 30;
+  --text-blue: 228 230 234;
+}
+
+body:is(.theme-obsidian, .theme-inkarc) {
+  aside [data-sidebar-region='search'] {
+    display: none;
+  }
+
+  main button[data-button-variant='solid'].bg-n-iris-9,
+  main button[data-button-variant='solid'].bg-n-brand,
+  main button.bg-gradient-to-br.from-n-iris-9.to-n-accent-grad {
+    background: rgb(var(--amber-9));
+    color: #1a1a1a;
+    box-shadow: none;
+    &:hover:enabled,
+    &:focus-visible {
+      background: rgb(var(--amber-9-hover));
+    }
+  }
+}
+
+body:is(.theme-obsidian, .theme-inkarc):not(.dark) main {
+  .bg-n-solid-1\/40,
+  .bg-n-solid-1\/45,
+  .bg-n-solid-1\/50 {
+    background-color: #ffffff;
+  }
+  .bg-n-alpha-black1\/50 {
+    background-color: #f4f5f7;
+    border-color: #e3e5ea;
+  }
+}
+
+$black-content-kpi: 'body:is(.theme-obsidian, .theme-inkarc):not(.dark) main .bg-gradient-to-br.rounded-2xl';
+
+// 卡1 GMV：核心强调——深石墨实心（非玻璃，干净利落）。
+#{$black-content-kpi}:nth-child(1) {
+  background-image: none;
+  background-color: #1e222b;
+  border: 1px solid #1e222b;
+  box-shadow: 0 12px 26px rgba(20, 24, 32, 0.24);
+}
+#{$black-content-kpi}:nth-child(1) .text-n-slate-12 {
+  color: #ffffff;
+}
+#{$black-content-kpi}:nth-child(1) .text-n-slate-11 {
+  color: #b9bdc6;
+}
+#{$black-content-kpi}:nth-child(1) .text-n-slate-10 {
+  color: #9095a0;
+}
+#{$black-content-kpi}:nth-child(1) .text-n-iris-11 {
+  color: #ffcf52; // 金图标点缀
+}
+#{$black-content-kpi}:nth-child(1) .bg-n-solid-1\/70 {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+// 卡2/3/4：纯白极简——白底 + 浅灰边 + 轻投影（深数字/灰标签走默认）。
+#{$black-content-kpi}:nth-child(2),
+#{$black-content-kpi}:nth-child(3),
+#{$black-content-kpi}:nth-child(4) {
+  background-image: none;
+  background-color: #ffffff;
+  border: 1px solid #ecedf1;
+  box-shadow: 0 4px 14px rgba(30, 35, 50, 0.05);
+}
+// 白卡图标块浅灰 + 各留一点点色，避免死板。
+#{$black-content-kpi}:nth-child(2) .bg-n-solid-1\/70,
+#{$black-content-kpi}:nth-child(3) .bg-n-solid-1\/70,
+#{$black-content-kpi}:nth-child(4) .bg-n-solid-1\/70 {
+  background-color: #f3f4f6;
+}
+#{$black-content-kpi}:nth-child(2) .text-n-iris-11 {
+  color: #b07d0a; // 成交订单数：暖金
+}
+#{$black-content-kpi}:nth-child(3) .text-n-iris-11 {
+  color: #2e7d6b; // 成交客户数：松绿
+}
+#{$black-content-kpi}:nth-child(4) .text-n-iris-11 {
+  color: #5c6270; // 新成交客户数：中性灰
+}
+
+body:is(.theme-obsidian, .theme-inkarc) main .crm-ai:not(.crm-ai-solid) {
+  background-color: rgb(var(--amber-3)) !important;
+  border-color: rgb(var(--amber-7)) !important;
+  color: rgb(var(--amber-11)) !important;
+}
+body:is(.theme-obsidian, .theme-inkarc) main .crm-ai-solid {
+  background-color: rgb(var(--amber-9)) !important;
+  border-color: rgb(var(--amber-9)) !important;
+  color: #ffffff !important;
+}
+// PI 识别：虚线框 + 提示小图标也金化，跟按钮成套。
+body:is(.theme-obsidian, .theme-inkarc) main .crm-ai-box {
+  border-color: rgb(var(--amber-7)) !important;
+  background-color: rgb(var(--amber-2)) !important;
+}
+body:is(.theme-obsidian, .theme-inkarc) main .crm-ai-box .i-lucide-sparkles {
+  color: rgb(var(--amber-9)) !important;
+}
+// AI 往来摘要（下拉菜单项）金化：文字 + 图标随 currentColor。
+body:is(.theme-obsidian, .theme-inkarc) main .crm-ai-item {
+  color: rgb(var(--amber-11)) !important;
+}
+
+// Keep the curved rail entry when the search row is hidden.
+body.theme-inkarc aside[data-sidebar-collapsed] nav {
+  border-start-end-radius: 56px;
+  padding-block-start: 28px;
+}
+body.theme-inkarc aside[data-sidebar-collapsed='true'] nav {
+  border-start-end-radius: 24px;
+  padding-block-start: 8px;
+}

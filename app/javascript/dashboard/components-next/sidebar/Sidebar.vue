@@ -708,7 +708,12 @@ const menuItems = computed(() => {
       {
         name: 'CRM Dashboards',
         label: t('SIDEBAR.CRM_G_DASHBOARDS'),
-        icon: 'i-lucide-layout-dashboard',
+        icon: h('span', { 'data-sidebar-icon': 'crm-dashboards' }, [
+          h('span', { class: 'i-lucide-layout-dashboard block size-full' }),
+          h('span', {
+            class: 'i-lucide-chart-no-axes-combined hidden size-full',
+          }),
+        ]),
         activeOn: [
           'crm_dashboard_index',
           'crm_team_dashboard_index',
@@ -726,6 +731,12 @@ const menuItems = computed(() => {
                 },
               ]),
           {
+            name: 'CRM Team Dashboard',
+            label: t('SIDEBAR.CRM_DASH_TEAM'),
+            to: accountScopedRoute('crm_team_dashboard_index'),
+            activeOn: ['crm_team_dashboard_index'],
+          },
+          {
             name: 'CRM Personal Dashboard',
             label: t('SIDEBAR.CRM_DASH_MINE'),
             to: accountScopedRoute(
@@ -733,12 +744,6 @@ const menuItems = computed(() => {
               {},
               { scope: 'mine' }
             ),
-          },
-          {
-            name: 'CRM Team Dashboard',
-            label: t('SIDEBAR.CRM_DASH_TEAM'),
-            to: accountScopedRoute('crm_team_dashboard_index'),
-            activeOn: ['crm_team_dashboard_index'],
           },
           {
             name: 'CRM My Targets',
@@ -2329,7 +2334,8 @@ const filteredMenuItems = computed(() =>
         ],
       },
     ]"
-    class="bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] border border-white/60 md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 md:my-3 md:ltr:ml-3 md:rtl:mr-3 md:h-[calc(100%_-_1.5rem)] md:rounded-3xl md:shadow-[0_10px_40px_-8px_rgb(80_80_160/0.18),inset_0_1px_0_rgb(255_255_255/0.7)]"
+    :data-sidebar-collapsed="isEffectivelyCollapsed"
+    class="bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] border border-white/60 md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 md:my-3 md:ltr:ml-3 md:rtl:mr-3 md:h-[calc(100%_-_1.5rem)] md:rounded-3xl md:shadow-[0_10px_40px_-8px_rgb(80_80_160/0.18),inset_0_1px_0_rgb(255_255_255/0.7)] [.theme-obsidian-flat_&]:!m-0 [.theme-obsidian-flat_&]:!h-dvh [.theme-obsidian-flat_&]:!max-h-none [.theme-obsidian-flat_&]:!rounded-none [.theme-obsidian-flat_&]:!border-0 [.theme-obsidian-flat_&]:!shadow-none"
     :class="[
       {
         'shadow-lg md:shadow-none': isMobileSidebarOpen,
@@ -2341,10 +2347,12 @@ const filteredMenuItems = computed(() =>
     :style="isMobile ? undefined : { width: `${sidebarWidth}px` }"
   >
     <section
+      data-sidebar-region="header"
       class="grid"
       :class="isEffectivelyCollapsed ? 'mt-3 mb-6 gap-4' : 'mt-1 mb-4 gap-2'"
     >
       <div
+        data-sidebar-region="brand"
         class="flex gap-2 items-center min-w-0"
         :class="{
           'justify-center px-1': isEffectivelyCollapsed,
@@ -2361,7 +2369,7 @@ const filteredMenuItems = computed(() =>
           <img
             :src="wintouchIcon"
             alt="Wintouch"
-            class="flex-shrink-0 size-8 rounded-lg shadow-sm shadow-n-iris-9/20"
+            class="flex-shrink-0 size-8 rounded-lg shadow-sm shadow-n-iris-9/20 [.theme-classic_&]:hidden"
           />
           <SidebarAccountSwitcher
             class="flex-grow -mx-1 min-w-0 self-center"
@@ -2370,7 +2378,8 @@ const filteredMenuItems = computed(() =>
         </template>
       </div>
       <div
-        class="flex gap-2"
+        data-sidebar-region="search"
+        class="flex gap-2 [.theme-obsidian-flat_&]:hidden"
         :class="isEffectivelyCollapsed ? 'flex-col items-center' : 'px-2'"
       >
         <RouterLink
@@ -2433,6 +2442,7 @@ const filteredMenuItems = computed(() =>
       </ul>
     </nav>
     <section
+      data-sidebar-region="footer"
       class="flex relative flex-col flex-shrink-0 gap-1 justify-between items-center"
     >
       <div
