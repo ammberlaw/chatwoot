@@ -12,7 +12,11 @@ import vueActionCable from './helper/actionCable';
 import { useRouter } from 'vue-router';
 import { useStore } from 'dashboard/composables/store';
 import WootSnackbarBox from './components/SnackbarContainer.vue';
-import { setColorTheme, applyColorPalette } from './helper/themeHelper';
+import {
+  setColorTheme,
+  applyColorPalette,
+  forceDefaultPaletteOnce,
+} from './helper/themeHelper';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import { isOnOnboardingView } from 'v3/helpers/RouteHelper';
@@ -101,6 +105,8 @@ export default {
   },
   mounted() {
     this.initializeColorTheme();
+    // 全员统一到雅黑：只在每个浏览器上生效一次，之后用户仍可自行改配色。
+    forceDefaultPaletteOnce();
     applyColorPalette();
     this.listenToThemeChanges();
     // If user locale is set, use it; otherwise use account locale

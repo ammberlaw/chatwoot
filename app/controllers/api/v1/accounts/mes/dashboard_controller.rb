@@ -6,8 +6,7 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
     # 业务员只统计/预警自己的订单（管理员/主管按范围，操作岗看全部）。
     owner_ids = mes_visible_owner_ids
     active = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders.published.where.not(status: 'CANCELLED')))
-    @in_production = active.where.not(stage: 'SHIPPED').count
-    @stage_distribution = active.group(:stage).count
+    assign_production_overview(active)
 
     assign_alerts(
       Mes::AlertScannerService.new(Current.account, product_line: current_product_line, owner_ids: owner_ids).call
@@ -129,6 +128,36 @@ class Api::V1::Accounts::Mes::DashboardController < Api::V1::Accounts::Mes::Base
            .where.not(acked_at: nil).where(acked_at: range)
            .where(production_order_id: orders.select(:id))
            .to_a
+  end
+
+  def assign_production_overview(active)
+    in_production = active.where.not(stage: 'SHIPPED')
+    @in_production = in_production.count
+    @stage_distribution = active.group(:stage).count
+    @stage_dwell = stage_dwell(in_production)
+  end
+
+  # 各阶段「现在卡了多久」。阶段分布只给头数——25 张单在采购本身不吓人，
+  # 「25 张平均卡了 12.7 天、最久 45 天」才是要盯的那个数，而这个时间维度原来看板上没有。
+  #
+  # 起点用 ProductionOrder#stage_entered_at（与停滞预警、流水看板卡片同一个口径，
+  # 三处数字必须对得上）。退回重进会把该阶段事件的 entered_at 刷成当次时间，
+  # 所以天数天然是「本次进入至今」，不会把上一轮的时长累上去。
+  # 没有阶段事件的老单跳过：算不出来就不算，不拿创建时间凑数（会把老单伪装成卡了半年）。
+  def stage_dwell(scope)
+    collect_stage_days(scope).transform_values do |days|
+      { count: days.size, avg_days: (days.sum / days.size).round(1), max_days: days.max.round(1) }
+    end
+  end
+
+  def collect_stage_days(scope)
+    now = Time.current
+    days_by_stage = Hash.new { |hash, key| hash[key] = [] }
+    scope.includes(:stage_events).find_each do |order|
+      entered = order.stage_entered_at
+      days_by_stage[order.stage] << ((now - entered) / 1.day) if entered.present?
+    end
+    days_by_stage
   end
 
   def assign_alerts(alerts)

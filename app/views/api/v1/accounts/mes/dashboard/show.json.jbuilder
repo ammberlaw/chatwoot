@@ -1,5 +1,6 @@
 json.in_production @in_production
 json.stage_distribution @stage_distribution
+json.stage_dwell @stage_dwell
 json.month @month
 
 json.overdue @overdue
