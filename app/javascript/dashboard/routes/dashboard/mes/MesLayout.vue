@@ -46,11 +46,12 @@ watch(
 </script>
 
 <template>
-  <!-- keep-alive 始终挂载，页签显隐不影响页面输入、筛选和滚动状态。 -->
+  <!-- 页签与正文共用 mes-canvas 的一个外框，避免分别生成圆角卡片。
+       keep-alive 始终挂载，页签显隐不影响页面输入、筛选和滚动状态。 -->
   <div class="mes-canvas flex flex-col w-full h-full">
-    <div class="flex flex-col flex-1 min-w-0 min-h-0 [.theme-classic-black_&]:!bg-transparent [.theme-classic-black_&]:!border-0 [.theme-classic-black_&]:!shadow-none [.theme-classic-black_&]:!rounded-none [.theme-classic-black_&]:!backdrop-blur-none [.theme-classic-black_&]:gap-3">
+    <div class="flex flex-col flex-1 min-w-0 min-h-0">
       <MesTabBar />
-      <div ref="pageContent" class="flex-1 min-w-0 min-h-0 [.theme-classic-black_&]:bg-white [.theme-classic-black_&]:rounded-2xl [.theme-classic-black_&]:overflow-hidden [.theme-classic-black_&]:border [.theme-classic-black_&]:border-[#ecedf1]">
+      <div ref="pageContent" class="flex-1 min-w-0 min-h-0">
         <router-view v-slot="{ Component }">
           <keep-alive :max="12" :exclude="INTAKE_PAGES">
             <component
