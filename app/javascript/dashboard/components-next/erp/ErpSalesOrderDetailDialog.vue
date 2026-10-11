@@ -7,6 +7,7 @@ import { fmtMoney } from 'dashboard/helper/erpMoney';
 import ErpReceivableAPI from 'dashboard/api/erp/receivables';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 销售订单详情（财务视角）：出了什么货、什么价、挂了哪些 MES 单据。
 //
 // 抽成共享件给应收台账和成本毛利两处用——这屏 200 多行，复制一份过去迟早两边长歪。
@@ -144,6 +145,15 @@ const goShipment = sp => {
             {{ money(orderDetail.order.amount_micros) }}
           </span>
         </div>
+        <!-- 运费是向客户另收的钱，订单金额里不含它——不单列出来，财务就对不上
+           建账金额，也看不出这单到底该收客户多少。 -->
+        <div v-if="orderDetail.order.shipping_micros" class="flex flex-col">
+          <span class="text-xs text-n-slate-11">运费</span>
+          <span class="font-mono">
+            {{ orderDetail.order.currency || 'CNY' }}
+            {{ money(orderDetail.order.shipping_micros) }}
+          </span>
+        </div>
         <div v-if="orderDetail.order.opportunity_name" class="flex flex-col">
           <span class="text-xs text-n-slate-11">来源商机</span>
           <span>{{ orderDetail.order.opportunity_name }}</span>
@@ -165,18 +175,25 @@ const goShipment = sp => {
         <span class="text-heading-3 text-n-slate-12">
           订单明细（{{ (orderDetail.line_items || []).length }} 行）
         </span>
+        <HScrollButtons />
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr
                 class="text-left border-b text-n-slate-11 border-n-weak whitespace-nowrap"
               >
-                <th class="px-2 py-2 font-medium">编码</th>
-                <th class="px-2 py-2 font-medium">品名</th>
-                <th class="px-2 py-2 font-medium">规格</th>
-                <th class="px-2 py-2 font-medium text-right">数量</th>
-                <th class="px-2 py-2 font-medium text-right">单价</th>
-                <th class="px-2 py-2 font-medium text-right">金额</th>
+                <th class="px-2 py-2 font-medium whitespace-nowrap">编码</th>
+                <th class="px-2 py-2 font-medium whitespace-nowrap">品名</th>
+                <th class="px-2 py-2 font-medium whitespace-nowrap">规格</th>
+                <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                  数量
+                </th>
+                <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                  单价
+                </th>
+                <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                  金额
+                </th>
               </tr>
             </thead>
             <tbody>

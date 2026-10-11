@@ -38,6 +38,7 @@ import PaginationFooter from 'dashboard/components-next/pagination/PaginationFoo
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const ITEMS_PER_PAGE = 15;
 
 const { accountId, accountScopedRoute } = useAccount();
@@ -1629,6 +1630,7 @@ watch(currentPage, fetchRecords);
       class="flex flex-col md:flex-row flex-1 min-h-0 gap-4 px-4 pb-4 sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
     >
       <!-- 列表 -->
+      <HScrollButtons />
       <div class="flex-1 min-w-0 overflow-auto">
         <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
           加载中…
@@ -2888,6 +2890,7 @@ watch(currentPage, fetchRecords);
             </span>
           </span>
         </div>
+        <HScrollButtons />
         <div class="overflow-auto border rounded-lg border-n-weak max-h-[60vh]">
           <table class="w-full text-sm">
             <thead class="sticky top-0 bg-n-solid-2">
@@ -2897,7 +2900,7 @@ watch(currentPage, fetchRecords);
                   物料名称
                 </th>
                 <th class="px-3 py-2 font-medium whitespace-nowrap">料号</th>
-                <th class="px-3 py-2 font-medium">规格</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">规格</th>
                 <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
                   用量
                 </th>
@@ -3212,19 +3215,40 @@ watch(currentPage, fetchRecords);
             >
               材料明细（{{ viewingOrder.bomItems.length }} 项）
             </div>
+            <HScrollButtons />
             <div class="overflow-x-auto">
               <table class="w-full text-sm md:min-w-[560px]">
                 <thead>
                   <tr class="text-left text-n-slate-10 whitespace-nowrap">
-                    <th class="py-1.5 pr-3 font-medium w-10">#</th>
-                    <th class="py-1.5 pr-3 font-medium">物料编码</th>
-                    <th class="py-1.5 pr-3 font-medium">物料名称</th>
-                    <th class="py-1.5 pr-3 font-medium">规格型号</th>
-                    <th class="py-1.5 pr-3 font-medium">辅助属性</th>
-                    <th class="py-1.5 pr-3 font-medium">单位</th>
-                    <th class="py-1.5 pr-3 font-medium text-right">用量</th>
-                    <th class="py-1.5 pr-3 font-medium">备注</th>
-                    <th class="py-1.5 pr-3 font-medium">生产备注</th>
+                    <th class="py-1.5 pr-3 font-medium w-10 whitespace-nowrap">
+                      #
+                    </th>
+                    <th class="py-1.5 pr-3 font-medium whitespace-nowrap">
+                      物料编码
+                    </th>
+                    <th class="py-1.5 pr-3 font-medium whitespace-nowrap">
+                      物料名称
+                    </th>
+                    <th class="py-1.5 pr-3 font-medium whitespace-nowrap">
+                      规格型号
+                    </th>
+                    <th class="py-1.5 pr-3 font-medium whitespace-nowrap">
+                      辅助属性
+                    </th>
+                    <th class="py-1.5 pr-3 font-medium whitespace-nowrap">
+                      单位
+                    </th>
+                    <th
+                      class="py-1.5 pr-3 font-medium text-right whitespace-nowrap"
+                    >
+                      用量
+                    </th>
+                    <th class="py-1.5 pr-3 font-medium whitespace-nowrap">
+                      备注
+                    </th>
+                    <th class="py-1.5 pr-3 font-medium whitespace-nowrap">
+                      生产备注
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

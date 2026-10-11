@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import TiktokTodayAPI from 'dashboard/api/tiktok/today';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // TikTok 今日速览：一屏看当天各店售出数据（老板每天扫一眼），不用选月份。
 const loading = ref(false);
 const data = ref(null);
@@ -106,6 +107,7 @@ onMounted(load);
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -248,18 +250,43 @@ onMounted(load);
             </div>
           </div>
 
+          <HScrollButtons />
           <div class="hidden overflow-x-auto md:block">
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-xs text-left text-n-slate-11">
-                  <th class="py-2 pr-3 font-medium">店铺</th>
-                  <th class="py-2 px-3 font-medium">团队</th>
-                  <th class="py-2 px-3 font-medium text-right">售出台数</th>
-                  <th class="py-2 px-3 font-medium text-right">订单</th>
-                  <th class="py-2 px-3 font-medium text-right">销售额 (RMB)</th>
-                  <th class="py-2 px-3 font-medium text-right">签收</th>
-                  <th class="py-2 px-3 font-medium text-right">达人</th>
-                  <th class="py-2 pl-3 font-medium text-right">取消率</th>
+                  <th class="py-2 pr-3 font-medium whitespace-nowrap">店铺</th>
+                  <th class="py-2 px-3 font-medium whitespace-nowrap">团队</th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    售出台数
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    订单
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    销售额 (RMB)
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    签收
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    达人
+                  </th>
+                  <th
+                    class="py-2 pl-3 font-medium text-right whitespace-nowrap"
+                  >
+                    取消率
+                  </th>
                 </tr>
               </thead>
               <tbody>

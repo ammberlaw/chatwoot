@@ -23,6 +23,7 @@ import ErpAgingTable from 'dashboard/components-next/erp/ErpAgingTable.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 应付：台账（按采购单建账，按明细行供应商分组）/ 付款记录（核销）/ 供应商对账 三页签。
 // 与应收同构；台账「已付」只由核销维护。
 const { erpCan } = useErpRole();
@@ -393,6 +394,7 @@ onMounted(loadLedgers);
       />
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -402,13 +404,21 @@ onMounted(loadLedgers);
       <table v-else-if="activeTab === 'ledger'" class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">台账单号</th>
-            <th class="px-3 py-3 font-medium">供应商 / 采购单</th>
-            <th class="px-3 py-3 font-medium text-right">应付</th>
-            <th class="px-3 py-3 font-medium text-right">已付</th>
-            <th class="px-3 py-3 font-medium text-right">未付</th>
-            <th class="px-3 py-3 font-medium">到期日</th>
-            <th class="px-3 py-3 font-medium">状态</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">台账单号</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              供应商 / 采购单
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              应付
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              已付
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              未付
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">到期日</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
           </tr>
         </thead>
         <tbody>
@@ -459,14 +469,18 @@ onMounted(loadLedgers);
       <table v-else-if="activeTab === 'payments'" class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">付款单号</th>
-            <th class="px-3 py-3 font-medium">供应商</th>
-            <th class="px-3 py-3 font-medium">付款日</th>
-            <th class="px-3 py-3 font-medium text-right">付款金额</th>
-            <th class="px-3 py-3 font-medium">方式 / 凭据</th>
-            <th class="px-3 py-3 font-medium">核销</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3 font-medium text-right">操作</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">付款单号</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">付款日</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              付款金额
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">方式 / 凭据</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">核销</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -561,10 +575,16 @@ onMounted(loadLedgers);
       <table v-else class="w-full max-w-3xl text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">供应商</th>
-            <th class="px-3 py-3 font-medium text-right">应付合计</th>
-            <th class="px-3 py-3 font-medium text-right">已付</th>
-            <th class="px-3 py-3 font-medium text-right">未付</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              应付合计
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              已付
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              未付
+            </th>
           </tr>
         </thead>
         <tbody>

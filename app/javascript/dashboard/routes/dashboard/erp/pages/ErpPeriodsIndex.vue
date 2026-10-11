@@ -18,6 +18,7 @@ import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import ErpDimensionFields from 'dashboard/components-next/erp/ErpDimensionFields.vue';
 import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 期末结账：一个月一行，显示凭证数/待过账/借贷是否平，够条件才让结账。
 // 结账会生成损益结转凭证并冻结该期间；反结账限管理员且留痕。
 const { erpCan } = useErpRole();
@@ -631,8 +632,9 @@ onMounted(load);
     </div>
 
     <!-- 成品存货（FIFO 批次层） -->
+    <HScrollButtons v-if="activeTab === 'stock'" />
     <div
-      v-else-if="activeTab === 'stock'"
+      v-if="activeTab === 'stock'"
       class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-3 mb-4">
@@ -691,14 +693,22 @@ onMounted(load);
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">入库日期</th>
-            <th class="px-3 py-3 font-medium">成品</th>
-            <th class="px-3 py-3 font-medium">仓库</th>
-            <th class="px-3 py-3 font-medium text-right">入库数</th>
-            <th class="px-3 py-3 font-medium text-right">剩余</th>
-            <th class="px-3 py-3 font-medium text-right">单位成本</th>
-            <th class="px-3 py-3 font-medium text-right">结存金额</th>
-            <th class="px-3 py-3 font-medium">来源</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">入库日期</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">成品</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">仓库</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              入库数
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              剩余
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              单位成本
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              结存金额
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">来源</th>
           </tr>
         </thead>
         <tbody>
@@ -743,18 +753,25 @@ onMounted(load);
     </div>
 
     <!-- 两账对平 -->
+    <HScrollButtons v-if="activeTab === 'reconcile'" />
     <div
-      v-else-if="activeTab === 'reconcile'"
+      v-if="activeTab === 'reconcile'"
       class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <table class="w-full max-w-3xl text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">对账项</th>
-            <th class="px-3 py-3 font-medium text-right">业务台账</th>
-            <th class="px-3 py-3 font-medium text-right">会计总账</th>
-            <th class="px-3 py-3 font-medium text-right">差额</th>
-            <th class="px-3 py-3 font-medium">结果</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">对账项</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              业务台账
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              会计总账
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              差额
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">结果</th>
           </tr>
         </thead>
         <tbody>
@@ -828,8 +845,9 @@ onMounted(load);
     </div>
 
     <!-- 期末调汇 -->
+    <HScrollButtons v-if="activeTab === 'revalue'" />
     <div
-      v-else-if="activeTab === 'revalue'"
+      v-if="activeTab === 'revalue'"
       class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-2 mb-4">
@@ -868,12 +886,20 @@ onMounted(load);
       <table v-if="revalRows.length" class="w-full max-w-5xl text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">科目</th>
-            <th class="px-3 py-3 font-medium">核算单位</th>
-            <th class="px-3 py-3 font-medium text-right">原币余额</th>
-            <th class="px-3 py-3 font-medium text-right">账面本位币</th>
-            <th class="px-3 py-3 font-medium text-right">期末应有</th>
-            <th class="px-3 py-3 font-medium text-right">调汇差额</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">科目</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">核算单位</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              原币余额
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              账面本位币
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              期末应有
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              调汇差额
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -925,8 +951,9 @@ onMounted(load);
     </div>
 
     <!-- 坏账计提（账龄分析法） -->
+    <HScrollButtons v-if="activeTab === 'baddebt'" />
     <div
-      v-else-if="activeTab === 'baddebt'"
+      v-if="activeTab === 'baddebt'"
       class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-2 mb-4">
@@ -964,8 +991,10 @@ onMounted(load);
       <table v-if="badDebtRows.length" class="w-full max-w-5xl text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">客户</th>
-            <th class="px-3 py-3 font-medium text-right">未结应收</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">客户</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              未结应收
+            </th>
             <th
               v-for="bucket in badDebtMeta.buckets"
               :key="bucket.key"
@@ -973,7 +1002,9 @@ onMounted(load);
             >
               {{ bucket.label }}
             </th>
-            <th class="px-3 py-3 font-medium text-right">应计提</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              应计提
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -1032,8 +1063,9 @@ onMounted(load);
     </div>
 
     <!-- 年度结转 -->
+    <HScrollButtons v-if="activeTab === 'yearend'" />
     <div
-      v-else-if="activeTab === 'yearend'"
+      v-if="activeTab === 'yearend'"
       class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-2 mb-4">
@@ -1128,22 +1160,36 @@ onMounted(load);
     </div>
 
     <!-- 期末结账 -->
-    <div v-else class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
+    <HScrollButtons v-if="activeTab === 'close'" />
+    <div
+      v-if="activeTab === 'close'"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
       <table v-else class="w-full max-w-5xl text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">会计期间</th>
-            <th class="px-3 py-3 font-medium text-right">凭证数</th>
-            <th class="px-3 py-3 font-medium text-right">待过账</th>
-            <th class="px-3 py-3 font-medium text-right">借方合计</th>
-            <th class="px-3 py-3 font-medium text-right">贷方合计</th>
-            <th class="px-3 py-3 font-medium">试算</th>
-            <th class="px-3 py-3 font-medium">期末事项</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3 font-medium text-right">操作</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">会计期间</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              凭证数
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              待过账
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              借方合计
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              贷方合计
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">试算</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">期末事项</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>

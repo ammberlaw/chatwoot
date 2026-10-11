@@ -27,6 +27,7 @@ import CrmOrderConvertDialog from 'dashboard/components-next/CRM/CrmOrderConvert
 import { fmtYuan } from 'dashboard/helper/crmMoney';
 import OrderCostsAPI from 'dashboard/api/erp/orderCosts';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 与后端 SalesOrdersController::RESULTS_PER_PAGE 保持一致。
 const ITEMS_PER_PAGE = 15;
 
@@ -728,6 +729,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
         </div>
       </div>
 
+      <HScrollButtons />
       <div class="flex-1 px-3.5 py-1.5 overflow-auto">
         <div
           v-if="isFetching"
@@ -1579,6 +1581,7 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
       :show-confirm-button="false"
       width="2xl"
     >
+      <HScrollButtons />
       <div class="max-h-[60vh] overflow-auto -mx-1">
         <div
           v-if="binLoading"
@@ -1595,11 +1598,21 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
         <table v-else class="w-full">
           <thead>
             <tr class="text-[11.5px] text-n-slate-10">
-              <th class="px-2 py-2 font-medium text-left">订单</th>
-              <th class="px-2 py-2 font-medium text-left">客户</th>
-              <th class="px-2 py-2 font-medium text-right">金额</th>
-              <th class="px-2 py-2 font-medium text-left">负责人</th>
-              <th class="px-2 py-2 font-medium text-left">删除</th>
+              <th class="px-2 py-2 font-medium text-left whitespace-nowrap">
+                订单
+              </th>
+              <th class="px-2 py-2 font-medium text-left whitespace-nowrap">
+                客户
+              </th>
+              <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                金额
+              </th>
+              <th class="px-2 py-2 font-medium text-left whitespace-nowrap">
+                负责人
+              </th>
+              <th class="px-2 py-2 font-medium text-left whitespace-nowrap">
+                删除
+              </th>
               <th class="px-2 py-2" />
             </tr>
           </thead>

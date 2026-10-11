@@ -8,6 +8,7 @@ import CrmOptionItemsAPI from 'dashboard/api/crm/optionItems';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 // 与后端 PublicPoolSetting 列一一对应：pool_limit_* 私海上限，recycle_days_* 分组回收天数。
 // key 是列名后缀，其大写即客户设置里对应分组的 code；显示名优先取「客户设置→分组设置」的当前名字，
@@ -121,6 +122,7 @@ const fieldCls =
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >

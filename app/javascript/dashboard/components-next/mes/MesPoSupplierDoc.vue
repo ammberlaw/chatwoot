@@ -153,7 +153,7 @@ const fmt = n => {
         <tr class="bg-[#f2f2f4]">
           <th :class="th" class="w-[34px]">序号</th>
           <th :class="th" class="w-[86px]">我司料号</th>
-          <th :class="th">产品名称</th>
+          <th class="whitespace-nowrap" :class="th">产品名称</th>
           <th :class="th" class="w-[120px]">规格</th>
           <th :class="th" class="w-[38px]">单位</th>
           <th :class="th" class="w-[52px]">数量</th>

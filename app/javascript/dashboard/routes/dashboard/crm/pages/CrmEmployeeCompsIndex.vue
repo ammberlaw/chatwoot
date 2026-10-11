@@ -9,6 +9,7 @@ import { useCrmEmployeeCompsStore } from 'dashboard/stores/crm/employeeComps';
 import Button from 'dashboard/components-next/button/Button.vue';
 import CrmEmployeeCompCreateDialog from 'dashboard/components-next/CRM/CrmEmployeeCompCreateDialog.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 const store = useCrmEmployeeCompsStore();
 
@@ -112,6 +113,7 @@ const fmtMoney = micros => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >

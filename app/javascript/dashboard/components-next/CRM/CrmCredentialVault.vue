@@ -474,12 +474,17 @@ const groupManagerApi = {
       <table class="hidden w-full text-sm md:table">
         <thead>
           <tr class="text-xs text-left text-n-slate-10">
-            <th class="pb-2 pr-4 font-medium">名称</th>
-            <th v-if="!isPersonal" class="pb-2 pr-4 font-medium">分组</th>
-            <th class="pb-2 pr-4 font-medium">账号</th>
-            <th class="pb-2 pr-4 font-medium">密码</th>
-            <th class="pb-2 pr-4 font-medium">备注</th>
-            <th class="pb-2 pr-4 font-medium">更新</th>
+            <th class="pb-2 pr-4 font-medium whitespace-nowrap">名称</th>
+            <th
+              v-if="!isPersonal"
+              class="pb-2 pr-4 font-medium whitespace-nowrap"
+            >
+              分组
+            </th>
+            <th class="pb-2 pr-4 font-medium whitespace-nowrap">账号</th>
+            <th class="pb-2 pr-4 font-medium whitespace-nowrap">密码</th>
+            <th class="pb-2 pr-4 font-medium whitespace-nowrap">备注</th>
+            <th class="pb-2 pr-4 font-medium whitespace-nowrap">更新</th>
             <th class="pb-2 w-16" />
           </tr>
         </thead>
@@ -665,9 +670,9 @@ const groupManagerApi = {
         <thead>
           <tr class="text-xs text-left text-n-slate-10">
             <th class="pb-2 pr-4 font-medium">时间</th>
-            <th class="pb-2 pr-4 font-medium">成员</th>
-            <th class="pb-2 pr-4 font-medium">账号</th>
-            <th class="pb-2 font-medium">动作</th>
+            <th class="pb-2 pr-4 font-medium whitespace-nowrap">成员</th>
+            <th class="pb-2 pr-4 font-medium whitespace-nowrap">账号</th>
+            <th class="pb-2 font-medium whitespace-nowrap">动作</th>
           </tr>
         </thead>
         <tbody>

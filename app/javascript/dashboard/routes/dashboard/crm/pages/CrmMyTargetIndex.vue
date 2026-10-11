@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 
 const now = new Date();
@@ -236,6 +237,7 @@ const cell = (r, isAmt) => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full gap-6 p-4 sm:p-8 overflow-auto bg-white rounded-3xl"
   >
@@ -389,12 +391,12 @@ const cell = (r, isAmt) => {
         <table class="w-full text-label-small tabular-nums">
           <thead class="sticky top-0 z-10 bg-white text-n-slate-10">
             <tr class="border-b border-n-weak">
-              <th class="px-3 py-2 font-medium text-left">月份</th>
-              <th class="px-3 py-2 font-medium text-right">基础目标</th>
-              <th class="px-3 py-2 font-medium text-right">结转</th>
-              <th class="px-3 py-2 font-medium text-right">有效目标</th>
-              <th class="px-3 py-2 font-medium text-right">已完成</th>
-              <th class="px-3 py-2 font-medium text-right">达成</th>
+              <th class="px-3 py-2 font-medium text-left whitespace-nowrap">月份</th>
+              <th class="px-3 py-2 font-medium text-right whitespace-nowrap">基础目标</th>
+              <th class="px-3 py-2 font-medium text-right whitespace-nowrap">结转</th>
+              <th class="px-3 py-2 font-medium text-right whitespace-nowrap">有效目标</th>
+              <th class="px-3 py-2 font-medium text-right whitespace-nowrap">已完成</th>
+              <th class="px-3 py-2 font-medium text-right whitespace-nowrap">达成</th>
             </tr>
           </thead>
           <tbody>

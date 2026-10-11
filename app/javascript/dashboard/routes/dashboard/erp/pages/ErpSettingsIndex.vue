@@ -10,6 +10,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 财务设置：账套级会计政策 + 存货科目映射。
 // 这几项原先只能改数据库——财务改个税率要排开发，等于「自己能改」没做到。
 const { erpCan } = useErpRole();
@@ -335,14 +336,19 @@ onMounted(loadPolicy);
         />
       </div>
 
+      <HScrollButtons />
       <div class="flex-1 min-h-0 overflow-auto">
         <table class="w-full max-w-3xl text-sm">
           <thead class="sticky top-0 bg-n-background">
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
-              <th class="px-3 py-3 font-medium">来源类别</th>
-              <th class="px-3 py-3 font-medium text-right">产品数</th>
-              <th class="px-3 py-3 font-medium">入库记入科目</th>
-              <th class="px-3 py-3 font-medium">建议</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">来源类别</th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                产品数
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                入库记入科目
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">建议</th>
             </tr>
           </thead>
           <tbody>

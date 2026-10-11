@@ -99,11 +99,6 @@ class Crm::SalesOrder < ApplicationRecord
     account ? Erp::Setting.for_account(account).amount_includes_tax : true
   end
 
-  # 订单金额按税率拆成 [不含税收入, 销项税]（原币微元）。
-  #
-  # 含税单：收入 = 金额 ÷ (1+税率)，税额 = 金额 − 收入，二者之和恒等于订单金额；
-  # 不含税单：收入 = 金额，税额 = 金额 × 税率，二者之和比订单金额多一个税。
-  # 税率 0（出口单）两种算法同值。
   # 按 PI 号找回对应的 PI 记录。订单与 PI 之间**没有外键**，只有 pi_no 这个字符串——
   # PI 模块是后来才上的，之前的 PI 都在系统外做，号是手打的。生产上 487 张填了号、
   # 能对上记录的只有 106 张，所以这里恒可能是 nil，调用方必须按「没有」处理。
@@ -128,8 +123,27 @@ class Crm::SalesOrder < ApplicationRecord
     "#{names.first} 等 #{names.size} 项"
   end
 
+  # 客户实付口径的销售额（原币微元）＝ 订单金额 + 运费。
+  #
+  # 订单金额是**净销售、不含运费**（运费在订单上单独一栏，见 CrmSalesOrderCreateDialog），
+  # 但客户打款是一笔钱、货款和运费一起到。ERP 这边只认订单金额的话，应收台账就少一笔
+  # 运费：收款核销永远差着尾数，而成本侧偏偏能归集「运费」（付货代的钱）——
+  # 只记成本不记收入，毛利凭空被做低。
+  #
+  # CRM 的业绩/目标口径不走这里（那边用 RMB_AMOUNT_MICROS_SQL 只算订单金额），
+  # 运费不算业绩，这个区别是故意的。
+  def gross_sales_micros
+    order_amount_micros.to_i + shipping_micros.to_i
+  end
+
+  # 销售额（含运费）按税率拆成 [不含税收入, 销项税]（原币微元）。
+  #
+  # 含税单：收入 = 金额 ÷ (1+税率)，税额 = 金额 − 收入，二者之和恒等于销售额；
+  # 不含税单：收入 = 金额，税额 = 金额 × 税率，二者之和比销售额多一个税。
+  # 税率 0（出口单，生产上 419/501 张）两种算法同值。
+  # 运费与货款同税口径，不另按运输服务税率拆——提成表的运费差额也是这么算的。
   def tax_split
-    amount = order_amount_micros.to_i
+    amount = gross_sales_micros
     rate = effective_tax_rate.to_i
     return [amount, 0] if rate <= 0
 
@@ -141,7 +155,7 @@ class Crm::SalesOrder < ApplicationRecord
     end
   end
 
-  # 客户实际要付的钱（= 收入 + 销项税，原币微元）。
+  # 客户实际要付的钱（= 货款 + 运费 + 销项税，原币微元）。
   #
   # 应收台账的建账金额和出库收入凭证的借方必须都取这个数，否则不含税单两边
   # 差一个税额——台账少记税，两账对平(Erp::ReconciliationService)就报一笔

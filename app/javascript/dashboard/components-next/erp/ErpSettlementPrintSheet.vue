@@ -130,10 +130,18 @@ const capital = computed(() => rmbCapital(props.record.amount_micros));
     >
       <thead>
         <tr>
-          <th style="border: 1px solid #333; padding: 5px; width: 40%">
+          <th
+            class="whitespace-nowrap"
+            style="border: 1px solid #333; padding: 5px; width: 40%"
+          >
             台账单号
           </th>
-          <th style="border: 1px solid #333; padding: 5px">核销金额</th>
+          <th
+            class="whitespace-nowrap"
+            style="border: 1px solid #333; padding: 5px"
+          >
+            核销金额
+          </th>
         </tr>
       </thead>
       <tbody>

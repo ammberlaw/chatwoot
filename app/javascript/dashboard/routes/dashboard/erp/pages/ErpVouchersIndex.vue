@@ -25,6 +25,7 @@ import { printElement } from 'dashboard/helper/printHelper';
 import { downloadBlob } from 'dashboard/helper/erpDownload';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 记账凭证：手工凭证录入 + 过账 / 红冲 / 作废。
 // 硬规则在后端（借贷本位币必平才能过账；已记账不可改删只能红冲），前端只做录入体验与显隐。
 const store = useErpVouchersStore();
@@ -660,6 +661,7 @@ onMounted(() => {
       />
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -668,11 +670,12 @@ onMounted(() => {
         <!-- 除摘要外各列都是 nowrap，窗口一窄就只能挤摘要（挤成几行窄条）。
              给表格设最小宽度并单独包一层横向滚动：宽度不够就往右拉，摘要不再被压。
              滚动只包表格、不包分页条，否则往右拉时分页也跟着跑出去。 -->
+        <HScrollButtons />
         <div class="overflow-x-auto">
           <table class="w-full min-w-[1200px] text-sm">
             <thead>
               <tr class="text-left text-n-slate-11 border-b border-n-weak">
-                <th class="px-3 py-3 font-medium w-9">
+                <th class="px-3 py-3 font-medium w-9 whitespace-nowrap">
                   <input
                     type="checkbox"
                     class="w-4 h-4"
@@ -680,14 +683,24 @@ onMounted(() => {
                     @change="toggleSelectAll"
                   />
                 </th>
-                <th class="px-3 py-3 font-medium">凭证字号</th>
-                <th class="px-3 py-3 font-medium">日期</th>
-                <th class="px-3 py-3 font-medium">摘要</th>
-                <th class="px-3 py-3 font-medium text-right">借方合计</th>
-                <th class="px-3 py-3 font-medium text-right">贷方合计</th>
-                <th class="px-3 py-3 font-medium">状态</th>
-                <th class="px-3 py-3 font-medium">制单 / 记账</th>
-                <th class="px-3 py-3 font-medium text-right">操作</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">
+                  凭证字号
+                </th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">日期</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">摘要</th>
+                <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                  借方合计
+                </th>
+                <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                  贷方合计
+                </th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">
+                  制单 / 记账
+                </th>
+                <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                  操作
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -1076,11 +1089,15 @@ onMounted(() => {
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-2 py-2 font-medium">摘要</th>
-              <th class="px-2 py-2 font-medium">会计科目</th>
-              <th class="px-2 py-2 font-medium">核算维度</th>
-              <th class="px-2 py-2 font-medium text-right">借方</th>
-              <th class="px-2 py-2 font-medium text-right">贷方</th>
+              <th class="px-2 py-2 font-medium whitespace-nowrap">摘要</th>
+              <th class="px-2 py-2 font-medium whitespace-nowrap">会计科目</th>
+              <th class="px-2 py-2 font-medium whitespace-nowrap">核算维度</th>
+              <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                借方
+              </th>
+              <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                贷方
+              </th>
             </tr>
           </thead>
           <tbody>

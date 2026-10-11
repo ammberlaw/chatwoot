@@ -13,6 +13,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const store = useMesStockBalancesStore();
 const warehousesStore = useMesWarehousesStore();
@@ -217,6 +218,7 @@ onMounted(() => {
       </span>
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -228,7 +230,7 @@ onMounted(() => {
               <!-- 窄列一律 nowrap：规格那列一长，表头会被挤成「类 / 型」竖排。 -->
               <th class="px-3 py-3 font-medium whitespace-nowrap">编码</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">名称</th>
-              <th class="px-3 py-3 font-medium">规格</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">规格</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">仓库</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">类型</th>
               <th class="px-3 py-3 font-medium text-right whitespace-nowrap">

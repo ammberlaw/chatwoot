@@ -323,22 +323,34 @@ const val = (obj, key) => (obj?.[key] ? String(obj[key]) : '—');
           </colgroup>
           <thead>
             <tr class="text-[12px] font-bold text-[#13293D]">
-              <th class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3]">
+              <th
+                class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3] whitespace-nowrap"
+              >
                 MODEL
               </th>
-              <th class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3]">
+              <th
+                class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3] whitespace-nowrap"
+              >
                 PICTURE
               </th>
-              <th class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3]">
+              <th
+                class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3] whitespace-nowrap"
+              >
                 DESCRIPTION
               </th>
-              <th class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3]">
+              <th
+                class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3] whitespace-nowrap"
+              >
                 QTY
               </th>
-              <th class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3]">
+              <th
+                class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3] whitespace-nowrap"
+              >
                 UNIT PRICE
               </th>
-              <th class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3]">
+              <th
+                class="px-2 py-1 border border-[#CDD6DF] bg-[#E8EEF3] whitespace-nowrap"
+              >
                 AMOUNT
               </th>
             </tr>

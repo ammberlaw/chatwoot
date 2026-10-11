@@ -16,6 +16,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 费用报销（财务端）：员工照旧在 OA 提报销，审批通过后这里付钱、入账、归集订单成本。
 // 打款 = 一笔出纳日记账 + 一张待过账凭证（借 费用科目 / 贷 货币资金）+ 挂订单的一行成本。
 const { erpCan } = useErpRole();
@@ -221,6 +222,7 @@ onMounted(() => {
       </div>
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -229,14 +231,20 @@ onMounted(() => {
       <table v-else-if="activeTab === 'pending'" class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">报销人</th>
-            <th class="px-3 py-3 font-medium">部门</th>
-            <th class="px-3 py-3 font-medium">费用类型</th>
-            <th class="px-3 py-3 font-medium text-right">申请金额</th>
-            <th class="px-3 py-3 font-medium">费用说明</th>
-            <th class="px-3 py-3 font-medium text-right">发票</th>
-            <th class="px-3 py-3 font-medium">审批通过</th>
-            <th class="px-3 py-3 font-medium text-right">操作</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">报销人</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">部门</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">费用类型</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              申请金额
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">费用说明</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              发票
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">审批通过</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -285,15 +293,19 @@ onMounted(() => {
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">单号</th>
-            <th class="px-3 py-3 font-medium">报销人</th>
-            <th class="px-3 py-3 font-medium text-right">金额</th>
-            <th class="px-3 py-3 font-medium">费用科目</th>
-            <th class="px-3 py-3 font-medium">付款账户</th>
-            <th class="px-3 py-3 font-medium">挂订单</th>
-            <th class="px-3 py-3 font-medium">打款日期</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3 font-medium text-right">操作</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">单号</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">报销人</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              金额
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">费用科目</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">付款账户</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">挂订单</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">打款日期</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>

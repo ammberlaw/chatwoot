@@ -19,6 +19,7 @@ import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
 const store = useMesInspectionsStore();
@@ -229,6 +230,7 @@ onMounted(() => {
 
     <MesBoardOwnerBar board-key="mes_inspections_index" />
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -309,14 +311,16 @@ onMounted(() => {
         <table class="hidden w-full text-sm md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium">类型</th>
-              <th class="px-3 py-3 font-medium">对象</th>
-              <th class="px-3 py-3 font-medium">归属人</th>
-              <th class="px-3 py-3 font-medium">检验/合格/不良</th>
-              <th class="px-3 py-3 font-medium">结果</th>
-              <th class="px-3 py-3 font-medium">不良原因</th>
-              <th class="px-3 py-3 font-medium">检验员</th>
-              <th class="px-3 py-3 font-medium">日期</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">类型</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">对象</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                检验/合格/不良
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">结果</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">不良原因</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">检验员</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">日期</th>
               <th class="px-3 py-3" />
             </tr>
           </thead>

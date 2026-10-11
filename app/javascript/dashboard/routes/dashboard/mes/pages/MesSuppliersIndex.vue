@@ -17,6 +17,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const store = useMesSuppliersStore();
 const { mesCan } = useMesRole();
 
@@ -396,6 +397,7 @@ onMounted(() => {
       </div>
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-4 pb-4 sm:px-6 sm:pb-6 overflow-auto [.theme-classic_&]:sm:!px-8">
       <p v-if="!canManage" class="mb-3 text-xs text-n-slate-11">
         供应商档案由采购 / PMC 维护，你当前为只读。
@@ -471,15 +473,17 @@ onMounted(() => {
         <table class="hidden md:table w-full text-sm whitespace-nowrap">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium">编号</th>
-              <th class="px-3 py-3 font-medium">名称</th>
-              <th class="px-3 py-3 font-medium">事业部</th>
-              <th class="px-3 py-3 font-medium">分类</th>
-              <th class="px-3 py-3 font-medium">联系人</th>
-              <th class="px-3 py-3 font-medium">电话</th>
-              <th class="px-3 py-3 font-medium">供应物料</th>
-              <th class="px-3 py-3 font-medium">状态</th>
-              <th class="px-3 py-3 font-medium text-right">操作</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">编号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">名称</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">事业部</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">分类</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">联系人</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">电话</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">供应物料</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -650,6 +654,7 @@ onMounted(() => {
           <p class="text-xs text-n-slate-11">
             物料编码与物料档案共享且唯一：下拉可搜索选择已有编码（自动带出分类/名称/规格/单位）；输入档案没有的新编码可直接选用，保存后自动建物料档案。含税单价按上方税率自动计算。
           </p>
+          <HScrollButtons />
           <div class="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
             <div class="min-w-[720px] md:min-w-0 flex flex-col gap-2">
               <div

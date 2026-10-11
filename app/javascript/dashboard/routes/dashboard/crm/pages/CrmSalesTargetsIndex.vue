@@ -8,6 +8,7 @@ import { useCrmSalesTargetsStore } from 'dashboard/stores/crm/salesTargets';
 import Button from 'dashboard/components-next/button/Button.vue';
 import CrmSalesTargetCreateDialog from 'dashboard/components-next/CRM/CrmSalesTargetCreateDialog.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 const route = useRoute();
 const store = useCrmSalesTargetsStore();
@@ -66,6 +67,7 @@ const fmtMoney = micros =>
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >

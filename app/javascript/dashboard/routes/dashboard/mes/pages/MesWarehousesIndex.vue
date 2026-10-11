@@ -10,6 +10,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const store = useMesWarehousesStore();
 const { mesCan } = useMesRole();
 const records = computed(() => store.getRecords);
@@ -59,6 +60,7 @@ onMounted(() => store.get());
       />
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -85,9 +87,9 @@ onMounted(() => store.get());
         <table class="hidden md:table w-full text-sm">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium">编码</th>
-              <th class="px-3 py-3 font-medium">名称</th>
-              <th class="px-3 py-3 font-medium">类型</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">编码</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">名称</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">类型</th>
             </tr>
           </thead>
           <tbody>

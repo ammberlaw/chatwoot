@@ -23,6 +23,7 @@ import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.v
 import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
 import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId, accountScopedRoute } = useAccount();
 const route = useRoute();
 const router = useRouter();
@@ -767,6 +768,7 @@ useRouteQueryReentry(async query => {
       <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…

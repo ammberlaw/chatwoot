@@ -8,6 +8,7 @@ import CrmDoughnutChart from 'dashboard/components-next/CRM/charts/CrmDoughnutCh
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // TikTok 数据看板：按月 + 店铺汇总。KPI 卡 + 每日趋势（RMB）+ 分店铺明细。
 // 金额一律用录入时的 RMB 快照汇总，口径稳定。
 // KPI 卡撞色调色板（参考图风格）：青柠黄绿 / 暖金黄 / 淡紫 / 珊瑚红。
@@ -146,6 +147,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -352,19 +354,52 @@ onMounted(async () => {
             </div>
           </div>
 
+          <HScrollButtons />
           <div class="hidden overflow-x-auto md:block">
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-xs text-left text-n-slate-11">
-                  <th class="py-2 pr-3 font-medium">团队</th>
-                  <th class="py-2 px-3 font-medium text-right">店铺数</th>
-                  <th class="py-2 px-3 font-medium text-right">销售额 (RMB)</th>
-                  <th class="py-2 px-3 font-medium text-right">订单</th>
-                  <th class="py-2 px-3 font-medium text-right">台数</th>
-                  <th class="py-2 px-3 font-medium text-right">实发</th>
-                  <th class="py-2 px-3 font-medium text-right">达人</th>
-                  <th class="py-2 px-3 font-medium text-right">取消率</th>
-                  <th class="py-2 pl-3 font-medium text-right">有效率</th>
+                  <th class="py-2 pr-3 font-medium whitespace-nowrap">团队</th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    店铺数
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    销售额 (RMB)
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    订单
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    台数
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    实发
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    达人
+                  </th>
+                  <th
+                    class="py-2 px-3 font-medium text-right whitespace-nowrap"
+                  >
+                    取消率
+                  </th>
+                  <th
+                    class="py-2 pl-3 font-medium text-right whitespace-nowrap"
+                  >
+                    有效率
+                  </th>
                 </tr>
               </thead>
               <tbody>

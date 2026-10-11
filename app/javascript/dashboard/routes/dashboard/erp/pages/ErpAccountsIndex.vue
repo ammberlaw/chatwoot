@@ -12,6 +12,7 @@ import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 页签：科目树 / 存货科目映射。映射是科目的用法配置，挂在科目表页下，不另开侧栏项。
 const TABS = [
   { key: 'tree', label: '科目表' },
@@ -512,6 +513,7 @@ onMounted(fetchList);
         />
       </div>
 
+      <HScrollButtons />
       <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
         <p class="pb-3 text-xs text-n-slate-11">
           采购入库凭证的借方科目按这张表走：借
@@ -526,9 +528,11 @@ onMounted(fetchList);
         <table v-else class="w-full text-sm">
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
-              <th class="px-3 py-2 font-medium">来源类别</th>
-              <th class="px-3 py-2 font-medium text-right">产品数</th>
-              <th class="px-3 py-2 font-medium">存货科目</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">来源类别</th>
+              <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                产品数
+              </th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">存货科目</th>
             </tr>
           </thead>
           <tbody>
@@ -560,6 +564,7 @@ onMounted(fetchList);
       </div>
     </template>
 
+    <HScrollButtons v-if="activeTab === 'tree'" />
     <div
       v-if="activeTab === 'tree'"
       class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
@@ -589,12 +594,14 @@ onMounted(fetchList);
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium w-[34%]">科目</th>
-            <th class="px-3 py-3 font-medium">类别</th>
-            <th class="px-3 py-3 font-medium">方向</th>
-            <th class="px-3 py-3 font-medium">科目属性</th>
-            <th class="px-3 py-3 font-medium">币种</th>
-            <th class="px-3 py-3 font-medium">核算维度</th>
-            <th class="px-3 py-3 font-medium text-right">操作</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">类别</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">方向</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">科目属性</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">币种</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">核算维度</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>

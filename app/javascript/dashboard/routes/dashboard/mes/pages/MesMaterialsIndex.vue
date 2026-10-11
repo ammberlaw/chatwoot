@@ -13,6 +13,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const store = useMesMaterialsStore();
 const { mesCan } = useMesRole();
 // 建单表单里不给「全部产线」这个空值选项——选了它建出来的物料切到任何产线都看不见。
@@ -99,6 +100,7 @@ onMounted(() => {
       />
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -136,13 +138,13 @@ onMounted(() => {
         <table class="hidden w-full text-sm md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium">编号</th>
-              <th class="px-3 py-3 font-medium">名称</th>
-              <th class="px-3 py-3 font-medium">类别</th>
-              <th class="px-3 py-3 font-medium">品类</th>
-              <th class="px-3 py-3 font-medium">单位</th>
-              <th class="px-3 py-3 font-medium">规格</th>
-              <th class="px-3 py-3 font-medium">安全库存</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">编号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">名称</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">类别</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">品类</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">单位</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">规格</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">安全库存</th>
             </tr>
           </thead>
           <tbody>

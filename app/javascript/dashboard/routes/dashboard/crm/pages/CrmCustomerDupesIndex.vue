@@ -7,6 +7,7 @@ import CrmCustomerAPI from 'dashboard/api/crm/customers';
 import Button from 'dashboard/components-next/button/Button.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const router = useRouter();
 
 // 维度顺序即页签顺序；label 同时用于组卡片标题前缀
@@ -135,6 +136,7 @@ const openCustomer = customer => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto border shadow-lg bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border-white/50 shadow-n-iris-9/5"
   >
@@ -256,13 +258,25 @@ const openCustomer = customer => {
               <tr
                 class="text-left border-b border-n-weak bg-n-alpha-1 text-n-slate-11"
               >
-                <th class="px-4 py-2 font-medium">客户编号</th>
-                <th class="px-4 py-2 font-medium">客户阶段</th>
-                <th class="px-4 py-2 font-medium">公司名称</th>
-                <th class="px-4 py-2 font-medium">联系人名</th>
-                <th class="px-4 py-2 font-medium">客户邮箱</th>
-                <th class="px-4 py-2 font-medium">客户电话</th>
-                <th class="px-4 py-2 font-medium">归属</th>
+                <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  客户编号
+                </th>
+                <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  客户阶段
+                </th>
+                <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  公司名称
+                </th>
+                <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  联系人名
+                </th>
+                <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  客户邮箱
+                </th>
+                <th class="px-4 py-2 font-medium whitespace-nowrap">
+                  客户电话
+                </th>
+                <th class="px-4 py-2 font-medium whitespace-nowrap">归属</th>
               </tr>
             </thead>
             <tbody>
@@ -435,11 +449,19 @@ const openCustomer = customer => {
           <table class="hidden md:table w-full text-sm">
             <thead>
               <tr class="text-left border-b border-n-weak text-n-slate-10">
-                <th class="px-4 font-medium py-1.5 w-14">保留</th>
-                <th class="px-4 font-medium py-1.5">公司名称</th>
-                <th class="px-4 font-medium py-1.5">客户编号</th>
-                <th class="px-4 font-medium py-1.5">归属</th>
-                <th class="px-4 font-medium py-1.5">客户阶段</th>
+                <th class="px-4 font-medium py-1.5 w-14 whitespace-nowrap">
+                  保留
+                </th>
+                <th class="px-4 font-medium py-1.5 whitespace-nowrap">
+                  公司名称
+                </th>
+                <th class="px-4 font-medium py-1.5 whitespace-nowrap">
+                  客户编号
+                </th>
+                <th class="px-4 font-medium py-1.5 whitespace-nowrap">归属</th>
+                <th class="px-4 font-medium py-1.5 whitespace-nowrap">
+                  客户阶段
+                </th>
                 <th class="px-4 py-1.5" />
               </tr>
             </thead>

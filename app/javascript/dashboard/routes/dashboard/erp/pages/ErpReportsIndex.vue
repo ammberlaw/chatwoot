@@ -12,6 +12,7 @@ import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import Button from 'dashboard/components-next/button/Button.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 财务报表：资产负债表（时点）/ 利润表 / 现金流量表 / 科目余额表 / 试算平衡表（期间）/ 勾稽检查。
 // 全部实时按已记账凭证算。资产负债表按传统左右分栏排（左资产、右负债与所有者权益），打印直接出这个版式。
 //
@@ -454,6 +455,7 @@ onMounted(loadBalanceSheet);
       </div>
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -478,9 +480,19 @@ onMounted(loadBalanceSheet);
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-left border-b text-n-slate-11 border-n-weak">
-                  <th class="px-2 py-2 font-medium">资&#12288;产</th>
-                  <th class="w-12 px-2 py-2 font-medium text-center">行次</th>
-                  <th class="px-2 py-2 font-medium text-right">期末余额</th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    资&#12288;产
+                  </th>
+                  <th
+                    class="w-12 px-2 py-2 font-medium text-center whitespace-nowrap"
+                  >
+                    行次
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    期末余额
+                  </th>
                   <th
                     class="px-2 py-2 font-medium text-right whitespace-nowrap"
                   >
@@ -527,9 +539,19 @@ onMounted(loadBalanceSheet);
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-left border-b text-n-slate-11 border-n-weak">
-                  <th class="px-2 py-2 font-medium">负债和所有者权益</th>
-                  <th class="w-12 px-2 py-2 font-medium text-center">行次</th>
-                  <th class="px-2 py-2 font-medium text-right">期末余额</th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    负债和所有者权益
+                  </th>
+                  <th
+                    class="w-12 px-2 py-2 font-medium text-center whitespace-nowrap"
+                  >
+                    行次
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    期末余额
+                  </th>
                   <th
                     class="px-2 py-2 font-medium text-right whitespace-nowrap"
                   >
@@ -605,10 +627,20 @@ onMounted(loadBalanceSheet);
           <table class="w-full max-w-3xl mx-auto text-sm">
             <thead>
               <tr class="text-left border-b text-n-slate-11 border-n-weak">
-                <th class="px-2 py-2 font-medium">项&#12288;目</th>
-                <th class="w-12 px-2 py-2 font-medium text-center">行次</th>
-                <th class="px-2 py-2 font-medium text-right">本期金额</th>
-                <th class="px-2 py-2 font-medium text-right">上期金额</th>
+                <th class="px-2 py-2 font-medium whitespace-nowrap">
+                  项&#12288;目
+                </th>
+                <th
+                  class="w-12 px-2 py-2 font-medium text-center whitespace-nowrap"
+                >
+                  行次
+                </th>
+                <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                  本期金额
+                </th>
+                <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                  上期金额
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -658,9 +690,17 @@ onMounted(loadBalanceSheet);
           <table class="w-full max-w-3xl mx-auto text-sm">
             <thead>
               <tr class="text-left border-b text-n-slate-11 border-n-weak">
-                <th class="px-2 py-2 font-medium">项&#12288;目</th>
-                <th class="w-12 px-2 py-2 font-medium text-center">行次</th>
-                <th class="px-2 py-2 font-medium text-right">本期金额</th>
+                <th class="px-2 py-2 font-medium whitespace-nowrap">
+                  项&#12288;目
+                </th>
+                <th
+                  class="w-12 px-2 py-2 font-medium text-center whitespace-nowrap"
+                >
+                  行次
+                </th>
+                <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                  本期金额
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -723,17 +763,44 @@ onMounted(loadBalanceSheet);
             本年累计自 {{ accountBalances.meta.ytd_from }} 起 · 仅末级科目 ·
             单位：元
           </div>
+          <HScrollButtons />
           <div class="overflow-x-auto">
             <table class="w-full text-sm min-w-[880px]">
               <thead>
                 <tr class="text-left border-b text-n-slate-11 border-n-weak">
-                  <th class="px-2 py-2 font-medium">科&#12288;目</th>
-                  <th class="px-2 py-2 font-medium text-right">期初余额</th>
-                  <th class="px-2 py-2 font-medium text-right">本期借方</th>
-                  <th class="px-2 py-2 font-medium text-right">本期贷方</th>
-                  <th class="px-2 py-2 font-medium text-right">本年借方</th>
-                  <th class="px-2 py-2 font-medium text-right">本年贷方</th>
-                  <th class="px-2 py-2 font-medium text-right">期末余额</th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    科&#12288;目
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    期初余额
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    本期借方
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    本期贷方
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    本年借方
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    本年贷方
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    期末余额
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -810,24 +877,67 @@ onMounted(loadBalanceSheet);
             {{ trialBalance.meta.from }} 至 {{ trialBalance.meta.to }} ·
             仅末级科目 · 单位：元
           </div>
+          <HScrollButtons />
           <div class="overflow-x-auto">
             <table class="w-full text-sm min-w-[860px]">
               <thead>
                 <tr class="text-center border-b text-n-slate-11 border-n-weak">
-                  <th class="px-2 py-2 font-medium text-left" rowspan="2">
+                  <th
+                    class="px-2 py-2 font-medium text-left whitespace-nowrap"
+                    rowspan="2"
+                  >
                     科&#12288;目
                   </th>
-                  <th class="px-2 py-2 font-medium" colspan="2">期初余额</th>
-                  <th class="px-2 py-2 font-medium" colspan="2">本期发生额</th>
-                  <th class="px-2 py-2 font-medium" colspan="2">期末余额</th>
+                  <th
+                    class="px-2 py-2 font-medium whitespace-nowrap"
+                    colspan="2"
+                  >
+                    期初余额
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium whitespace-nowrap"
+                    colspan="2"
+                  >
+                    本期发生额
+                  </th>
+                  <th
+                    class="px-2 py-2 font-medium whitespace-nowrap"
+                    colspan="2"
+                  >
+                    期末余额
+                  </th>
                 </tr>
                 <tr class="border-b text-n-slate-11 border-n-weak">
-                  <th class="px-2 py-1.5 font-normal text-right">借方</th>
-                  <th class="px-2 py-1.5 font-normal text-right">贷方</th>
-                  <th class="px-2 py-1.5 font-normal text-right">借方</th>
-                  <th class="px-2 py-1.5 font-normal text-right">贷方</th>
-                  <th class="px-2 py-1.5 font-normal text-right">借方</th>
-                  <th class="px-2 py-1.5 font-normal text-right">贷方</th>
+                  <th
+                    class="px-2 py-1.5 font-normal text-right whitespace-nowrap"
+                  >
+                    借方
+                  </th>
+                  <th
+                    class="px-2 py-1.5 font-normal text-right whitespace-nowrap"
+                  >
+                    贷方
+                  </th>
+                  <th
+                    class="px-2 py-1.5 font-normal text-right whitespace-nowrap"
+                  >
+                    借方
+                  </th>
+                  <th
+                    class="px-2 py-1.5 font-normal text-right whitespace-nowrap"
+                  >
+                    贷方
+                  </th>
+                  <th
+                    class="px-2 py-1.5 font-normal text-right whitespace-nowrap"
+                  >
+                    借方
+                  </th>
+                  <th
+                    class="px-2 py-1.5 font-normal text-right whitespace-nowrap"
+                  >
+                    贷方
+                  </th>
                 </tr>
               </thead>
               <tbody>

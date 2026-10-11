@@ -14,6 +14,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 物料单价表：财务/采购维护的标准价，给生产任务单的成本核算兜底。
 //
 // 为什么需要它：算任务单的单台成本要给每颗料配价，但采购单只覆盖已经下过单的料。
@@ -329,17 +330,28 @@ onMounted(() => {
           {{ missingHint }}
         </div>
 
+        <HScrollButtons />
         <div class="flex-1 px-4 overflow-auto sm:px-6">
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left text-n-slate-11 border-b border-n-weak">
-                <th class="px-3 py-2 font-medium">物料编码</th>
-                <th class="px-3 py-2 font-medium">物料名称</th>
-                <th class="px-3 py-2 font-medium">规格型号</th>
-                <th class="px-3 py-2 font-medium">单位</th>
-                <th class="px-3 py-2 font-medium text-right">单价</th>
-                <th class="px-3 py-2 font-medium">备注</th>
-                <th class="px-3 py-2 font-medium">最近修改</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  物料编码
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  物料名称
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  规格型号
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">单位</th>
+                <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                  单价
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">备注</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  最近修改
+                </th>
                 <th class="px-3 py-2" />
               </tr>
             </thead>
@@ -408,15 +420,22 @@ onMounted(() => {
             先补上面几条，成本覆盖率涨得最快。
           </p>
         </div>
+        <HScrollButtons />
         <div class="flex-1 px-4 overflow-auto sm:px-6">
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left text-n-slate-11 border-b border-n-weak">
                 <th class="px-3 py-2 font-medium">物料编码</th>
-                <th class="px-3 py-2 font-medium">物料名称</th>
-                <th class="px-3 py-2 font-medium">规格型号</th>
-                <th class="px-3 py-2 font-medium">单位</th>
-                <th class="px-3 py-2 font-medium text-right">被几张单用到</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  物料名称
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  规格型号
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">单位</th>
+                <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                  被几张单用到
+                </th>
                 <th class="px-3 py-2" />
               </tr>
             </thead>

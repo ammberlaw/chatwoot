@@ -13,6 +13,7 @@ import { LocalStorage } from 'shared/helpers/localStorage';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import CrmSentEmailRankChart from 'dashboard/components-next/CRM/CrmSentEmailRankChart.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 const { accountId } = useAccount();
 
@@ -402,6 +403,7 @@ const blackTeamSummary = computed(() => [
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full gap-4 px-4 py-4 sm:p-6 overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
     :class="
@@ -776,6 +778,7 @@ const blackTeamSummary = computed(() => [
           <div class="p-5 pb-4">
             <h2 class="text-heading-2 text-n-slate-12">{{ table.title }}</h2>
           </div>
+          <HScrollButtons />
           <div class="overflow-x-auto">
             <table class="w-full min-w-[32rem]">
               <thead>

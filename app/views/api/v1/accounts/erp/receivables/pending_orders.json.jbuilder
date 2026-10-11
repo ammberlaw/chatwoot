@@ -15,7 +15,10 @@ json.payload do
     json.currency order.order_currency
     json.exchange_rate order.exchange_rate
     json.amount_micros order.order_amount_micros
-    # 建账金额＝收入+销项税，不含税单比订单金额多一个税；清单上直接摆出来，
+    # 运费是向客户另收的钱，订单金额里不含它（CRM 订单上单独一栏）。建账金额含运费，
+    # 不摆出来财务就对不上「订单 1000、怎么建出 1080」。
+    json.shipping_micros order.shipping_micros
+    # 建账金额＝货款+运费+销项税，不含税单还比这个多一个税；清单上直接摆出来，
     # 免得财务看着订单金额、建出来数字不一样以为系统算错。
     json.receivable_amount_micros order.receivable_amount_micros
     json.tax_rate order.effective_tax_rate

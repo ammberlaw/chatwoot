@@ -14,6 +14,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const currentUser = useMapGetter('getCurrentUser');
 const router = useRouter();
@@ -813,6 +814,7 @@ onMounted(fetchMine);
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -1235,20 +1237,24 @@ onMounted(fetchMine);
             </div>
           </div>
         </div>
+        <HScrollButtons />
         <div
           class="hidden overflow-x-auto border rounded-xl md:block border-n-weak"
         >
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left border-b text-n-slate-11 border-n-weak">
-                <th class="px-3 py-2 font-medium">成员</th>
-                <th class="px-3 py-2 font-medium">出勤</th>
-                <th class="px-3 py-2 font-medium">迟到</th>
-                <th class="px-3 py-2 font-medium">早退</th>
-                <th class="px-3 py-2 font-medium">旷工</th>
-                <th class="px-3 py-2 font-medium">外勤</th>
-                <th class="px-3 py-2 font-medium">请假</th>
-                <th v-if="isAdminLike" class="px-3 py-2 font-medium text-right">
+                <th class="px-3 py-2 font-medium whitespace-nowrap">成员</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">出勤</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">迟到</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">早退</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">旷工</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">外勤</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">请假</th>
+                <th
+                  v-if="isAdminLike"
+                  class="px-3 py-2 font-medium text-right whitespace-nowrap"
+                >
                   操作
                 </th>
               </tr>

@@ -12,6 +12,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 账簿：科目余额表 / 明细账 / 维度明细账。数字全部按 POSTED 凭证实时算（草稿与作废不进账），
 // 金额一律本位币。维度明细账是比金蝶强的地方：按客户/供应商/订单/部门/业务员切发生额。
 const router = useRouter();
@@ -404,6 +405,7 @@ onMounted(async () => {
       </template>
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -413,12 +415,20 @@ onMounted(async () => {
       <table v-else-if="activeTab === 'balances'" class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-3 font-medium">科目</th>
-            <th class="px-3 py-3 font-medium">方向</th>
-            <th class="px-3 py-3 font-medium text-right">期初余额</th>
-            <th class="px-3 py-3 font-medium text-right">本期借方</th>
-            <th class="px-3 py-3 font-medium text-right">本期贷方</th>
-            <th class="px-3 py-3 font-medium text-right">期末余额</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">科目</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">方向</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              期初余额
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              本期借方
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              本期贷方
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              期末余额
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -493,13 +503,21 @@ onMounted(async () => {
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium">日期</th>
-              <th class="px-3 py-3 font-medium">凭证字号</th>
-              <th class="px-3 py-3 font-medium">摘要</th>
-              <th class="px-3 py-3 font-medium">科目 / 维度</th>
-              <th class="px-3 py-3 font-medium text-right">借方</th>
-              <th class="px-3 py-3 font-medium text-right">贷方</th>
-              <th class="px-3 py-3 font-medium text-right">余额</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">日期</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">凭证字号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">摘要</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                科目 / 维度
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                借方
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                贷方
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                余额
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -564,9 +582,15 @@ onMounted(async () => {
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
             <th class="px-3 py-3 font-medium">{{ dimensionLabel }}</th>
-            <th class="px-3 py-3 font-medium text-right">借方发生</th>
-            <th class="px-3 py-3 font-medium text-right">贷方发生</th>
-            <th class="px-3 py-3 font-medium text-right">净额（借-贷）</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              借方发生
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              贷方发生
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              净额（借-贷）
+            </th>
           </tr>
         </thead>
         <tbody>

@@ -16,6 +16,7 @@ import MySignatureDialog from 'dashboard/components-next/CRM/MySignatureDialog.v
 import CrmForwardToTeamChatDialog from 'dashboard/components-next/CRM/CrmForwardToTeamChatDialog.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
@@ -361,6 +362,7 @@ const inCls =
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -714,6 +716,7 @@ const inCls =
         >
           {{ t('CRM.KPI_SHEETS.DETAIL') }}
         </div>
+        <HScrollButtons />
         <div class="overflow-x-auto">
           <table class="w-full text-sm border-collapse min-w-[960px]">
             <thead class="text-n-slate-11">

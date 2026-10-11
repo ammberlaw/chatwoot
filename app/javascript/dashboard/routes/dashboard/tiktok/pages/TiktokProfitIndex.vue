@@ -10,6 +10,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // TikTok 出库利润表：按 店铺 × 型号 × 月份。负责人填，系统自动算毛利/净利润。
 // 成本/佣金/税费/其它均 CNY 直填；已入账金额按币种换算 RMB。
 const CURRENCIES = ['PHP', 'USD', 'EUR', 'CNY'];
@@ -316,6 +317,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -480,21 +482,36 @@ onMounted(async () => {
           </div>
         </div>
 
+        <HScrollButtons />
         <div
           class="hidden md:block overflow-x-auto border rounded-xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl"
         >
           <table class="w-full text-sm whitespace-nowrap">
             <thead>
               <tr class="text-xs text-left text-n-slate-11 bg-n-alpha-1">
-                <th class="px-4 py-3 font-medium">店铺</th>
-                <th class="px-4 py-3 font-medium">型号</th>
-                <th class="px-4 py-3 font-medium text-right">数量</th>
-                <th class="px-4 py-3 font-medium text-right">入账RMB</th>
-                <th class="px-4 py-3 font-medium text-right">售出总成本</th>
-                <th class="px-4 py-3 font-medium text-right">总毛利</th>
-                <th class="px-4 py-3 font-medium text-right">净利润</th>
-                <th class="px-4 py-3 font-medium text-right">毛利率</th>
-                <th class="px-4 py-3 font-medium text-right">操作</th>
+                <th class="px-4 py-3 font-medium whitespace-nowrap">店铺</th>
+                <th class="px-4 py-3 font-medium whitespace-nowrap">型号</th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  数量
+                </th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  入账RMB
+                </th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  售出总成本
+                </th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  总毛利
+                </th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  净利润
+                </th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  毛利率
+                </th>
+                <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                  操作
+                </th>
               </tr>
             </thead>
             <tbody>

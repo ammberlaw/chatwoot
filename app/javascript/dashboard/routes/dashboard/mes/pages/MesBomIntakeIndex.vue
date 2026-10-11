@@ -39,6 +39,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useMesProductLine } from 'dashboard/composables/useMesProductLine';
 import { useMesTabs } from 'dashboard/composables/useMesTabs';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId, accountScopedRoute } = useAccount();
 // 标签条：守卫要靠它区分「切标签」和「关标签」。
 const { tabs } = useMesTabs();
@@ -1198,6 +1199,7 @@ onBeforeRouteLeave((to, from, next) => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -1538,6 +1540,7 @@ onBeforeRouteLeave((to, from, next) => {
         <!-- 明细区自己做滚动容器（纵向限高 + 横向滚动），表头才能真正冻住：
              只写 overflow-x-auto 的话 CSS 会把纵向也变成滚动容器，sticky 表头粘的是它、
              而不是页面，往下滚就跟着跑了（实测滚动后表头 top 变成 -94）。 -->
+        <HScrollButtons />
         <div
           ref="itemsScrollRef"
           class="flex flex-col gap-2 overflow-auto max-h-[60vh]"
@@ -2054,10 +2057,14 @@ onBeforeRouteLeave((to, from, next) => {
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left text-n-slate-11 border-b border-n-weak">
-                <th class="w-10 px-2 py-2 font-medium">#</th>
-                <th class="px-2 py-2 font-medium">粘贴的编码</th>
-                <th class="px-2 py-2 font-medium">匹配到</th>
-                <th class="px-2 py-2 font-medium text-right">用量</th>
+                <th class="w-10 px-2 py-2 font-medium whitespace-nowrap">#</th>
+                <th class="px-2 py-2 font-medium whitespace-nowrap">
+                  粘贴的编码
+                </th>
+                <th class="px-2 py-2 font-medium whitespace-nowrap">匹配到</th>
+                <th class="px-2 py-2 font-medium text-right whitespace-nowrap">
+                  用量
+                </th>
               </tr>
             </thead>
             <tbody>

@@ -9,6 +9,7 @@ import CrmSalesOrderCreateDialog from 'dashboard/components-next/CRM/CrmSalesOrd
 import Button from 'dashboard/components-next/button/Button.vue';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 历史 PI 补录：早期业务把 PI 直接传在客户「文件」页、没建销售订单，
 // 那些金额不进成交口径（客户星级/成交额/成交订单数全都缺）。这里把它们盘出来逐条补建。
 // 识别 PDF / xls / xlsx / csv。早年的 PI 大多是老版 .xls，后端走 Gotenberg
@@ -225,6 +226,7 @@ onMounted(load);
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -270,17 +272,22 @@ onMounted(load);
           />
         </div>
 
+        <HScrollButtons v-if="picked.length" />
         <div v-if="picked.length" class="mt-3 overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="text-left text-n-slate-11">
-                <th class="px-3 py-2 font-medium">文件</th>
-                <th class="px-3 py-2 font-medium">PI 号</th>
-                <th class="px-3 py-2 font-medium">买方</th>
-                <th class="px-3 py-2 font-medium">客户归档</th>
-                <th class="px-3 py-2 font-medium text-right">金额</th>
-                <th class="px-3 py-2 font-medium">日期</th>
-                <th class="px-3 py-2 font-medium">状态</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">文件</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">PI 号</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">买方</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  客户归档
+                </th>
+                <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                  金额
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">日期</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">状态</th>
                 <th class="px-3 py-2" />
               </tr>
             </thead>
@@ -363,15 +370,28 @@ onMounted(load);
         加载中…
       </div>
 
-      <div v-else class="overflow-x-auto border rounded-xl border-n-weak">
+      <HScrollButtons v-if="!loading" />
+
+      <div
+        v-if="!loading"
+        class="overflow-x-auto border rounded-xl border-n-weak"
+      >
         <table class="w-full text-sm">
           <thead class="bg-n-alpha-1 text-n-slate-11">
             <tr>
               <th class="px-4 py-3 font-medium text-left">客户</th>
-              <th class="px-4 py-3 font-medium text-left">PI 文件</th>
-              <th class="px-4 py-3 font-medium text-right">大小</th>
-              <th class="px-4 py-3 font-medium text-left">该客户成交单</th>
-              <th class="px-4 py-3 font-medium text-right">操作</th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                PI 文件
+              </th>
+              <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                大小
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                该客户成交单
+              </th>
+              <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>

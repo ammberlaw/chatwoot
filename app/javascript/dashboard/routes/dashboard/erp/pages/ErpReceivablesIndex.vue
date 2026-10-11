@@ -23,6 +23,7 @@ import PaginationFooter from 'dashboard/components-next/pagination/PaginationFoo
 import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 应收：台账（从销售订单建账 + 分期计划）与收款记录（水单 + 核销）两页签。
 // 台账的「已收」只由核销维护，页面不提供直接改的入口——改了账就不准了。
 const { erpCan } = useErpRole();
@@ -550,6 +551,7 @@ onMounted(() => {
       />
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -564,19 +566,23 @@ onMounted(() => {
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
             <th class="px-3 py-3 font-medium whitespace-nowrap">台账单号</th>
-            <th class="px-3 py-3 font-medium">客户 / 订单</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">客户 / 订单</th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">PI 号</th>
-            <th class="px-3 py-3 font-medium">型号</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">型号</th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">下单 / 交期</th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">订单状态</th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">收入凭证</th>
             <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
               应收
             </th>
-            <th class="px-3 py-3 font-medium text-right">已收</th>
-            <th class="px-3 py-3 font-medium text-right">未收</th>
-            <th class="px-3 py-3 font-medium">分期计划</th>
-            <th class="px-3 py-3 font-medium">状态</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              已收
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              未收
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">分期计划</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
           </tr>
         </thead>
         <tbody>
@@ -638,13 +644,19 @@ onMounted(() => {
             >
               {{ row.currency }} {{ money(row.total_amount_micros) }}
             </td>
-            <td class="px-3 py-2 font-mono text-right text-n-slate-11">
+            <td
+              class="px-3 py-2 font-mono text-right whitespace-nowrap text-n-slate-11"
+            >
               {{ money(row.received_amount_micros) }}
             </td>
-            <td class="px-3 py-2 font-mono text-right text-n-slate-12">
+            <td
+              class="px-3 py-2 font-mono text-right whitespace-nowrap text-n-slate-12"
+            >
               {{ money(row.outstanding_micros) }}
             </td>
-            <td class="px-3 py-2 text-xs">
+            <!-- 分期一行一期，整期不折行：折了之后「尾款 1,350.00 · 指定日期 · 未到期」
+                 会被拆成四行，一眼看不出这是一期还是四期。 -->
+            <td class="px-3 py-2 text-xs whitespace-nowrap">
               <div
                 v-for="installment in row.installments"
                 :key="installment.id"
@@ -694,7 +706,7 @@ onMounted(() => {
         <table class="w-full text-sm min-w-[96rem]">
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
-              <th class="w-10 px-3 py-3">
+              <th class="w-10 px-3 py-3 whitespace-nowrap">
                 <input
                   type="checkbox"
                   class="align-middle reset-base"
@@ -705,14 +717,22 @@ onMounted(() => {
               </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">订单号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">PI 号</th>
-              <th class="px-3 py-3 font-medium">客户 / 国家</th>
-              <th class="px-3 py-3 font-medium">型号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                客户 / 国家
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">型号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">业务员</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">下单日期</th>
-              <th class="px-3 py-3 font-medium text-right">订单金额</th>
-              <th class="px-3 py-3 font-medium text-right">建账金额</th>
-              <th class="px-3 py-3 font-medium">状态</th>
-              <th class="px-3 py-3 font-medium text-right">操作</th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                订单金额
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                建账金额
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -765,20 +785,28 @@ onMounted(() => {
               <td class="px-3 py-3 whitespace-nowrap">
                 {{ (order.order_date || '—').slice(0, 10) }}
               </td>
+              <!-- 订单金额是净销售、不含运费（运费在订单上单独一栏）。运费挂在同一格里，
+                 否则财务看着订单金额对不上建账金额。 -->
               <td
                 class="px-3 py-3 text-right whitespace-nowrap text-n-slate-12"
               >
                 {{ order.currency || 'CNY' }}
                 {{ money(order.amount_micros) }}
+                <span
+                  v-if="order.shipping_micros"
+                  class="block text-xs text-n-slate-10"
+                >
+                  + 运费 {{ money(order.shipping_micros) }}
+                </span>
               </td>
-              <!-- 建账金额 = 收入 + 销项税（客户实付）。不含税单比订单金额多一个税，
+              <!-- 建账金额 = 货款 + 运费 + 销项税（客户实付）。不含税单还要再补一个税，
                  摆出来免得财务以为系统把金额算错了。 -->
               <td
                 class="px-3 py-3 text-right whitespace-nowrap text-n-slate-12"
               >
                 {{ money(order.receivable_amount_micros) }}
                 <span
-                  v-if="order.receivable_amount_micros !== order.amount_micros"
+                  v-if="!order.amount_includes_tax && order.tax_rate"
                   class="block text-xs text-n-slate-10"
                 >
                   含 {{ order.tax_rate }}% 销项税
@@ -820,14 +848,18 @@ onMounted(() => {
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">收款单号</th>
-            <th class="px-3 py-3 font-medium">客户</th>
-            <th class="px-3 py-3 font-medium">到账日</th>
-            <th class="px-3 py-3 font-medium text-right">到账金额</th>
-            <th class="px-3 py-3 font-medium">方式 / 水单</th>
-            <th class="px-3 py-3 font-medium">核销</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3 font-medium text-right">操作</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">收款单号</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">客户</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">到账日</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              到账金额
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">方式 / 水单</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">核销</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>

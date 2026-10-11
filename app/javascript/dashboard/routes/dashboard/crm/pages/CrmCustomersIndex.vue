@@ -28,6 +28,7 @@ import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors
 import CustomerAPI from 'dashboard/api/crm/customers';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 经典灰专属：资料完善度进度条改金黄；其它主题保持原样。切主题需刷新。
 const isClassic = ref(isClassicTheme());
 
@@ -1780,6 +1781,7 @@ watch(
         data-theme-table-panel
         class="flex flex-col flex-1 min-h-0 overflow-hidden rounded-2xl border border-n-weak bg-white shadow-sm shadow-n-slate-4/30"
       >
+        <HScrollButtons />
         <div
           class="flex-1 min-h-0 px-3.5 py-1 overflow-auto md:overflow-hidden md:flex md:flex-col"
         >
@@ -1895,6 +1897,7 @@ watch(
             </div>
             <!-- 桌面表格 -->
             <!-- 表头固定：这一层同时承担横向与纵向滚动，sticky 才有参照物 -->
+            <HScrollButtons />
             <div class="hidden md:block md:flex-1 md:min-h-0 overflow-auto">
               <table
                 data-theme-table
@@ -1904,7 +1907,7 @@ watch(
                   <tr class="[&>th]:border-b [&>th]:border-n-weak">
                     <th
                       v-if="canSelectRows"
-                      class="sticky left-0 top-0 z-30 w-11 px-3 py-2.5 bg-white"
+                      class="sticky left-0 top-0 z-30 w-11 px-3 py-2.5 bg-white whitespace-nowrap"
                     >
                       <input
                         type="checkbox"

@@ -12,6 +12,7 @@ import AttachmentPreview from 'dashboard/components-next/attachment/AttachmentPr
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 标准价目表：主管/财务按版本维护，业务员只读最新已发布版并可导出 PDF。
 // 没有现成价的定制件走「定制报价」向上要价，两边是一对的。
 // 一次改价 = 发一版新的（原来那张 Excel 十个 sheet 就是十版），业务员永远只看到一张有效表。
@@ -534,6 +535,7 @@ onMounted(load);
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -903,6 +905,7 @@ onMounted(load);
         </div>
 
         <!-- 价格表 -->
+        <HScrollButtons />
         <div
           class="overflow-x-auto border rounded-xl border-n-weak [.theme-classic_&]:rounded-2xl [.theme-classic_&]:border-[#e8eaed]"
         >

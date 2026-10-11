@@ -17,6 +17,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 成本与毛利：订单成本归集（材料/加工/运费/佣金/其他）+ 毛利报表（订单 / 业务员 / 客户维度）。
 // ⚠️ 权限墙核心区：这些数只在 ERP 内可见，销售端接口一律不输出。
 const { erpCan } = useErpRole();
@@ -143,7 +144,7 @@ const exportExcel = async () => {
           {
             label: '口径',
             value:
-              '收入优先取应收台账金额，没建台账的退回销售订单金额；成本＝归集行合计',
+              '收入优先取应收台账金额，没建台账的退回销售订单金额＋运费；成本＝归集行合计',
           },
         ],
         columns: [
@@ -302,6 +303,7 @@ onMounted(loadMargin);
       />
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -326,11 +328,21 @@ onMounted(loadMargin);
               <th class="px-3 py-3 font-medium">
                 {{ groupBy === 'customer' ? '客户' : '业务员' }}
               </th>
-              <th class="px-3 py-3 font-medium text-right">订单数</th>
-              <th class="px-3 py-3 font-medium text-right">收入</th>
-              <th class="px-3 py-3 font-medium text-right">成本</th>
-              <th class="px-3 py-3 font-medium text-right">毛利</th>
-              <th class="px-3 py-3 font-medium text-right">毛利率</th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                订单数
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                收入
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                成本
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                毛利
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                毛利率
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -362,12 +374,22 @@ onMounted(loadMargin);
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
-              <th class="px-3 py-3 font-medium">订单</th>
-              <th class="px-3 py-3 font-medium">客户 / 业务员</th>
-              <th class="px-3 py-3 font-medium text-right">收入</th>
-              <th class="px-3 py-3 font-medium text-right">归集成本</th>
-              <th class="px-3 py-3 font-medium text-right">毛利</th>
-              <th class="px-3 py-3 font-medium text-right">毛利率</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">订单</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                客户 / 业务员
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                收入
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                归集成本
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                毛利
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                毛利率
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -406,21 +428,26 @@ onMounted(loadMargin);
           </tbody>
         </table>
         <p class="mt-3 text-xs text-n-slate-10">
-          收入优先取应收台账金额（财务确认过的），没建台账的退回销售订单金额；成本＝归集行合计。
-          没归集成本的订单毛利率显示 100%，只说明成本还没录。
+          收入优先取应收台账金额（财务确认过的），没建台账的退回销售订单金额＋向客户收的运费；
+          成本＝归集行合计（含付货代的运费）。 没归集成本的订单毛利率显示
+          100%，只说明成本还没录。
         </p>
       </template>
 
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">订单</th>
-            <th class="px-3 py-3 font-medium">成本类型</th>
-            <th class="px-3 py-3 font-medium text-right">金额</th>
-            <th class="px-3 py-3 font-medium">发生日</th>
-            <th class="px-3 py-3 font-medium">备注</th>
-            <th class="px-3 py-3 font-medium">录入</th>
-            <th class="px-3 py-3 font-medium text-right">操作</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">订单</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">成本类型</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              金额
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">发生日</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">备注</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">录入</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>

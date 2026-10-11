@@ -6,6 +6,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const api = () => `/api/v1/accounts/${accountId.value}/crm/employees`;
 
@@ -555,6 +556,7 @@ const removeEmployee = async row => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -714,22 +716,25 @@ const removeEmployee = async row => {
         </template>
       </div>
 
+      <HScrollButtons />
       <div
         class="hidden overflow-x-auto border md:block rounded-xl border-n-weak"
       >
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
-              <th class="px-3 py-2 font-medium">工号</th>
-              <th class="px-3 py-2 font-medium">姓名</th>
-              <th class="px-3 py-2 font-medium">性别</th>
-              <th class="px-3 py-2 font-medium">部门</th>
-              <th class="px-3 py-2 font-medium">岗位</th>
-              <th class="px-3 py-2 font-medium">状态</th>
-              <th class="px-3 py-2 font-medium">入职日期</th>
-              <th class="px-3 py-2 font-medium">工龄</th>
-              <th class="px-3 py-2 font-medium">手机号</th>
-              <th class="px-3 py-2 font-medium text-right">操作</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">工号</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">姓名</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">性别</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">部门</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">岗位</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">状态</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">入职日期</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">工龄</th>
+              <th class="px-3 py-2 font-medium whitespace-nowrap">手机号</th>
+              <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>

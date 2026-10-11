@@ -11,6 +11,7 @@ import CrmKpiSchemeAPI from 'dashboard/api/crm/kpiSchemes';
 import Button from 'dashboard/components-next/button/Button.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 const router = useRouter();
 const store = useCrmKpiSchemesStore();
@@ -122,6 +123,7 @@ const fmtMonth = value => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >

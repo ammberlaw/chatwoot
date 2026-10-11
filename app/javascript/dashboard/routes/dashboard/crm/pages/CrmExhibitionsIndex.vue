@@ -14,6 +14,7 @@ import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const store = useCrmExhibitionsStore();
 
 const countryOptions = [
@@ -622,16 +623,25 @@ onMounted(loadList);
           >
             名单还是空的，点「匹配潜客」从你的客户里挑人加入。
           </div>
-          <div v-else class="overflow-x-auto">
+          <HScrollButtons v-if="detail.invites.length" />
+          <div v-if="detail.invites.length" class="overflow-x-auto">
             <table class="w-full md:min-w-[860px] text-sm">
               <thead>
                 <tr class="text-left text-n-slate-10 whitespace-nowrap">
-                  <th class="py-2 pr-3 font-medium">客户</th>
-                  <th class="py-2 pr-3 font-medium">国家/地区</th>
-                  <th class="py-2 pr-3 font-medium">匹配</th>
-                  <th class="py-2 pr-3 font-medium">阶段</th>
-                  <th class="py-2 pr-3 font-medium">联系人</th>
-                  <th class="py-2 pr-3 font-medium text-right">操作</th>
+                  <th class="py-2 pr-3 font-medium whitespace-nowrap">客户</th>
+                  <th class="py-2 pr-3 font-medium whitespace-nowrap">
+                    国家/地区
+                  </th>
+                  <th class="py-2 pr-3 font-medium whitespace-nowrap">匹配</th>
+                  <th class="py-2 pr-3 font-medium whitespace-nowrap">阶段</th>
+                  <th class="py-2 pr-3 font-medium whitespace-nowrap">
+                    联系人
+                  </th>
+                  <th
+                    class="py-2 pr-3 font-medium text-right whitespace-nowrap"
+                  >
+                    操作
+                  </th>
                 </tr>
               </thead>
               <tbody>

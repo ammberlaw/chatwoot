@@ -13,6 +13,7 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import CrmForwardToTeamChatDialog from 'dashboard/components-next/CRM/CrmForwardToTeamChatDialog.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
@@ -659,6 +660,7 @@ const openForward = () => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -895,6 +897,7 @@ const openForward = () => {
       </div>
 
       <!-- 编辑态：可编辑网格 -->
+      <HScrollButtons v-if="editable" />
       <div v-if="editable" class="overflow-x-auto">
         <table class="w-max text-xs border-collapse whitespace-nowrap">
           <colgroup>
@@ -926,7 +929,9 @@ const openForward = () => {
           </colgroup>
           <thead class="text-n-slate-11">
             <tr class="border-b border-n-weak">
-              <th class="px-1 py-2 font-medium text-left">#</th>
+              <th class="px-1 py-2 font-medium text-left whitespace-nowrap">
+                #
+              </th>
               <th class="px-1 py-2 font-medium text-left">
                 {{ t('CRM.COMMISSION.COLS.CATEGORY') }}
               </th>
@@ -1189,6 +1194,7 @@ const openForward = () => {
 
       <!-- 只读分组视图（按品类分组 + 小计 + 总计）：始终渲染供转发/导出截图；
            编辑态时移到屏幕外只作快照源（不能 display:none，否则 toPng 截不到）。-->
+      <HScrollButtons />
       <div
         class="overflow-x-auto"
         :class="
@@ -1453,7 +1459,7 @@ const openForward = () => {
               class="sticky top-0 text-n-slate-11 bg-n-solid-1 border-b border-n-weak"
             >
               <tr>
-                <th class="w-8 px-3 py-2">
+                <th class="w-8 px-3 py-2 whitespace-nowrap">
                   <input
                     type="checkbox"
                     class="accent-n-iris-9"

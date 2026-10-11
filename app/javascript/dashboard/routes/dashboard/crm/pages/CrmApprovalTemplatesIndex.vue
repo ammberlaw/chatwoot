@@ -14,6 +14,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import { isClassicTheme } from 'dashboard/components-next/CRM/charts/chartColors';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 经典灰专属：模板卡图标底改金黄，避免被压灰像停用。切主题需刷新。
 const isClassic = ref(isClassicTheme());
 
@@ -423,6 +424,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >

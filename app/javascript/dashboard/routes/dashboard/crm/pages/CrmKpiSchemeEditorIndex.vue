@@ -13,6 +13,7 @@ import CrmKpiDistributeDialog from 'dashboard/components-next/CRM/CrmKpiDistribu
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
@@ -261,6 +262,7 @@ const fieldCls =
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -394,6 +396,7 @@ const fieldCls =
         <datalist id="kpi-dims">
           <option v-for="d in dimOptions" :key="d" :value="d" />
         </datalist>
+        <HScrollButtons />
         <div class="overflow-x-auto">
           <table class="w-full text-sm border-collapse min-w-[880px]">
             <thead class="text-n-slate-11">
@@ -530,6 +533,7 @@ const fieldCls =
               @click="removeTable(ti)"
             />
           </div>
+          <HScrollButtons />
           <div class="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
             <table class="w-full text-sm border-collapse min-w-[480px]">
               <thead>
@@ -638,6 +642,7 @@ const fieldCls =
             @click="addTier"
           />
         </div>
+        <HScrollButtons />
         <div class="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           <table class="w-full text-sm border-collapse min-w-[640px]">
             <thead class="text-n-slate-11">

@@ -10,6 +10,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import AttachmentPreview from 'dashboard/components-next/attachment/AttachmentPreview.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // TK 固定资产登记：只记「有什么、谁在用、在哪、多少钱」，不算折旧（折旧归 ERP）。
 const CATEGORIES = [
   '拍摄设备',
@@ -231,6 +232,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -282,20 +284,45 @@ onMounted(async () => {
         加载中…
       </div>
 
-      <div v-else class="overflow-x-auto border rounded-xl border-n-weak">
+      <HScrollButtons v-if="!loading" />
+
+      <div
+        v-if="!loading"
+        class="overflow-x-auto border rounded-xl border-n-weak"
+      >
         <table class="w-full text-sm">
           <thead class="bg-n-alpha-1 text-n-slate-11">
             <tr>
-              <th class="px-4 py-3 font-medium text-left">资产</th>
-              <th class="px-4 py-3 font-medium text-left">编号</th>
-              <th class="px-4 py-3 font-medium text-left">类别</th>
-              <th class="px-4 py-3 font-medium text-left">部门</th>
-              <th class="px-4 py-3 font-medium text-left">使用人</th>
-              <th class="px-4 py-3 font-medium text-left">存放位置</th>
-              <th class="px-4 py-3 font-medium text-left">购入日期</th>
-              <th class="px-4 py-3 font-medium text-right">原值</th>
-              <th class="px-4 py-3 font-medium text-left">状态</th>
-              <th class="px-4 py-3 font-medium text-right">操作</th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                资产
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                编号
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                类别
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                部门
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                使用人
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                存放位置
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                购入日期
+              </th>
+              <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                原值
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                状态
+              </th>
+              <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>

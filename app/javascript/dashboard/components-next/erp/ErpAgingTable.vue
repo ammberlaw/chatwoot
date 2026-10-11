@@ -6,6 +6,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { printElement } from 'dashboard/helper/printHelper';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 账龄分析表（应收按客户、应付按供应商共用一张）。
 // 两种口径：逾期账龄（从到期日算，催款用）/ 账龄（从建账日算，坏账计提用）。
 // 点客户行展开该客户的单据明细；金额一律本位币，明细里带原币便于核对。
@@ -99,12 +100,15 @@ defineExpose({ load });
       <div class="-mt-2 text-xs text-center text-n-slate-11">
         截至 {{ meta.as_of }} · 单位：元（本位币）
       </div>
+      <HScrollButtons />
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
               <th class="px-3 py-2 font-medium">{{ partyLabel }}</th>
-              <th class="px-3 py-2 font-medium text-right">未结合计</th>
+              <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+                未结合计
+              </th>
               <th
                 v-for="bucket in buckets"
                 :key="bucket.key"
@@ -160,16 +164,34 @@ defineExpose({ load });
                   <table class="text-xs w-fit">
                     <thead>
                       <tr class="text-left text-n-slate-11">
-                        <th class="py-1 pr-6 font-normal w-36">单号</th>
-                        <th class="py-1 pr-6 font-normal w-20">款项</th>
+                        <th
+                          class="py-1 pr-6 font-normal w-36 whitespace-nowrap"
+                        >
+                          单号
+                        </th>
+                        <th
+                          class="py-1 pr-6 font-normal w-20 whitespace-nowrap"
+                        >
+                          款项
+                        </th>
                         <th class="py-1 pr-6 font-normal w-28">
                           {{ meta.basis === 'invoice' ? '建账日' : '到期日' }}
                         </th>
-                        <th class="py-1 pr-6 font-normal w-20">账龄</th>
-                        <th class="py-1 pr-6 font-normal text-right w-36">
+                        <th
+                          class="py-1 pr-6 font-normal w-20 whitespace-nowrap"
+                        >
+                          账龄
+                        </th>
+                        <th
+                          class="py-1 pr-6 font-normal text-right w-36 whitespace-nowrap"
+                        >
                           未结（原币）
                         </th>
-                        <th class="py-1 font-normal text-right w-32">本位币</th>
+                        <th
+                          class="py-1 font-normal text-right w-32 whitespace-nowrap"
+                        >
+                          本位币
+                        </th>
                       </tr>
                     </thead>
                     <tbody>

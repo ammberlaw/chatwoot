@@ -987,14 +987,14 @@ onMounted(() => {
         <table class="w-full text-sm">
           <thead>
             <tr class="text-xs text-left text-n-slate-10">
-              <th class="py-1 w-8">#</th>
-              <th class="py-1">物料/成品</th>
-              <th class="py-1">规格</th>
-              <th class="py-1 text-right">需求量</th>
-              <th class="py-1 text-right">建议采购量</th>
-              <th class="py-1 text-right">已转</th>
-              <th class="py-1">单位</th>
-              <th class="py-1">建议供应商</th>
+              <th class="py-1 w-8 whitespace-nowrap">#</th>
+              <th class="py-1 whitespace-nowrap">物料/成品</th>
+              <th class="py-1 whitespace-nowrap">规格</th>
+              <th class="py-1 text-right whitespace-nowrap">需求量</th>
+              <th class="py-1 text-right whitespace-nowrap">建议采购量</th>
+              <th class="py-1 text-right whitespace-nowrap">已转</th>
+              <th class="py-1 whitespace-nowrap">单位</th>
+              <th class="py-1 whitespace-nowrap">建议供应商</th>
             </tr>
           </thead>
           <tbody>

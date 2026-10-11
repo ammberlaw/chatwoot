@@ -21,6 +21,7 @@ import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText'
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
 const { mesCan } = useMesRole();
@@ -301,6 +302,7 @@ onMounted(async () => {
 
     <MesBoardOwnerBar board-key="mes_material_issues_index" />
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -363,11 +365,11 @@ onMounted(async () => {
         <table class="hidden w-full text-sm md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium">单号</th>
-              <th class="px-3 py-3 font-medium">生产订单</th>
-              <th class="px-3 py-3 font-medium">归属人</th>
-              <th class="px-3 py-3 font-medium">状态</th>
-              <th class="px-3 py-3 font-medium">过账时间</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">单号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">过账时间</th>
               <th class="px-3 py-3" />
             </tr>
           </thead>

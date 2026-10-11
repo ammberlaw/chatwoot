@@ -13,6 +13,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import CrmOpportunityCreateDialog from 'dashboard/components-next/CRM/CrmOpportunityCreateDialog.vue';
 import { fmtYuan } from 'dashboard/helper/crmMoney';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 嵌入「商机看板」作为列表视图时：隐藏自身标题头、去掉卡片外框、不受外层路由 query 影响。
 const props = defineProps({
   embedded: { type: Boolean, default: false },
@@ -134,6 +135,7 @@ const fmtDate = value => (value ? new Date(value).toLocaleDateString() : '—');
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto"
     :class="

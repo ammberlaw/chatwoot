@@ -1,6 +1,6 @@
 # 毛利：订单收入 - 归集成本，实时算不落库（ERP_SPEC §4.2）。
 #
-# 收入口径：优先取应收台账金额（财务确认过的），没建台账就退回销售订单金额。
+# 收入口径：优先取应收台账金额（财务确认过的），没建台账就退回销售订单金额＋运费。
 # 成本口径：erp_order_costs 归集行的本位币合计。
 # 只在 ERP 内可见——销售端接口一律不得输出这些数（§13-2）。
 class Erp::MarginService
@@ -90,11 +90,15 @@ class Erp::MarginService
   end
 
   # 收入折本位币：台账/订单都可能是外币，一律按其汇率折算。
+  #
+  # 没建台账时取 gross_sales_micros（订单金额 + 运费），不是订单金额原值：
+  # 成本侧归集得了「运费」（付货代的钱），收入侧漏掉向客户收的运费，
+  # 毛利就凭空少一笔。建过台账的走台账金额，那个数本身已含运费。
   def revenue_of(order, receivable)
     if receivable
       (receivable.total_amount_micros * receivable.exchange_rate).round
     else
-      (order.order_amount_micros.to_i * (order.exchange_rate.presence || 1)).round
+      (order.gross_sales_micros * (order.exchange_rate.presence || 1)).round
     end
   end
 

@@ -16,6 +16,7 @@ import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 资金账户与出纳日记账：账户余额 = 期初 + 流入 - 流出（流水只增不改，任何时点都能对银行对账单）。
 // 收付款单落库会自动记一笔流水；这里另外提供内部划转（成对流水 + 自动凭证）。
 const { erpCan } = useErpRole();
@@ -413,6 +414,7 @@ onMounted(async () => {
       </div>
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div class="grid grid-cols-2 gap-3 mb-5 md:grid-cols-4">
         <button
@@ -493,13 +495,17 @@ onMounted(async () => {
       <table v-else-if="activeTab === 'ledger'" class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">日期</th>
-            <th class="px-3 py-3 font-medium">账户</th>
-            <th class="px-3 py-3 font-medium">摘要</th>
-            <th class="px-3 py-3 font-medium">往来单位</th>
-            <th class="px-3 py-3 font-medium text-right">收入</th>
-            <th class="px-3 py-3 font-medium text-right">支出</th>
-            <th class="px-3 py-3 font-medium">经办</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">日期</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">账户</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">摘要</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">往来单位</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              收入
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              支出
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">经办</th>
           </tr>
         </thead>
         <tbody>
@@ -570,14 +576,22 @@ onMounted(async () => {
         <table class="w-full text-sm">
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
-              <th class="px-3 py-3 font-medium">账户</th>
-              <th class="px-3 py-3 font-medium">币种</th>
-              <th class="px-3 py-3 font-medium text-right">期初</th>
-              <th class="px-3 py-3 font-medium text-right">本期收</th>
-              <th class="px-3 py-3 font-medium text-right">本期支</th>
-              <th class="px-3 py-3 font-medium text-right">期末</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">账户</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">币种</th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                期初
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                本期收
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                本期支
+              </th>
+              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                期末
+              </th>
               <th
-                class="px-3 py-3 font-medium text-right border-l border-n-weak"
+                class="px-3 py-3 font-medium text-right border-l border-n-weak whitespace-nowrap"
               >
                 期末折 CNY
               </th>

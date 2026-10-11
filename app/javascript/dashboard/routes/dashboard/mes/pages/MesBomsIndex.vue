@@ -23,6 +23,7 @@ import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId, accountScopedRoute } = useAccount();
 const router = useRouter();
 const route = useRoute();
@@ -449,6 +450,7 @@ onMounted(async () => {
       class="mx-4 sm:mx-6"
     />
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -522,7 +524,7 @@ onMounted(async () => {
         <table class="hidden w-full text-sm md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium w-12">#</th>
+              <th class="px-3 py-3 font-medium w-12 whitespace-nowrap">#</th>
               <!-- 拖列头即可改顺序，按人记在本机 -->
               <th
                 v-for="col in orderedColumns"
@@ -761,22 +763,48 @@ onMounted(async () => {
               <thead>
                 <tr class="text-left text-n-slate-11 border-b border-n-weak">
                   <th class="w-10 px-2 py-2 font-medium">#</th>
-                  <th class="px-2 py-2 font-medium">类别</th>
-                  <th class="px-2 py-2 font-medium">物料编码</th>
-                  <th class="px-2 py-2 font-medium">物料名称</th>
-                  <th class="px-2 py-2 font-medium">规格型号</th>
-                  <th class="px-2 py-2 font-medium">辅助属性</th>
-                  <th class="px-2 py-2 font-medium">单位</th>
-                  <th class="px-2 py-2 font-medium text-right">用量</th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">类别</th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    物料编码
+                  </th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    物料名称
+                  </th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    规格型号
+                  </th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    辅助属性
+                  </th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">单位</th>
+                  <th
+                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                  >
+                    用量
+                  </th>
                   <!-- 单价/金额/价源只给财务/管理员/采购；没权限时后端不下发这几个键 -->
                   <template v-if="showCost">
-                    <th class="px-2 py-2 font-medium text-right">单价</th>
-                    <th class="px-2 py-2 font-medium text-right">金额</th>
-                    <th class="px-2 py-2 font-medium">价源</th>
+                    <th
+                      class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                    >
+                      单价
+                    </th>
+                    <th
+                      class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                    >
+                      金额
+                    </th>
+                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      价源
+                    </th>
                   </template>
-                  <th class="px-2 py-2 font-medium">备注</th>
-                  <th class="px-2 py-2 font-medium">采购注意事项</th>
-                  <th class="px-2 py-2 font-medium">生产备注</th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">备注</th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    采购注意事项
+                  </th>
+                  <th class="px-2 py-2 font-medium whitespace-nowrap">
+                    生产备注
+                  </th>
                 </tr>
               </thead>
               <tbody>

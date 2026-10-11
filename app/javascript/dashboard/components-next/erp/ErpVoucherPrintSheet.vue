@@ -81,14 +81,28 @@ const dimensionText = line =>
     >
       <thead>
         <tr>
-          <th style="border: 1px solid #333; padding: 5px; width: 26%">
+          <th
+            class="whitespace-nowrap"
+            style="border: 1px solid #333; padding: 5px; width: 26%"
+          >
             摘 要
           </th>
-          <th style="border: 1px solid #333; padding: 5px">会 计 科 目</th>
-          <th style="border: 1px solid #333; padding: 5px; width: 18%">
+          <th
+            class="whitespace-nowrap"
+            style="border: 1px solid #333; padding: 5px"
+          >
+            会 计 科 目
+          </th>
+          <th
+            class="whitespace-nowrap"
+            style="border: 1px solid #333; padding: 5px; width: 18%"
+          >
             借方金额
           </th>
-          <th style="border: 1px solid #333; padding: 5px; width: 18%">
+          <th
+            class="whitespace-nowrap"
+            style="border: 1px solid #333; padding: 5px; width: 18%"
+          >
             贷方金额
           </th>
         </tr>

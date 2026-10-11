@@ -12,6 +12,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 备用金台账：一个部门/项目一本账（对应原 Excel 的一个 sheet），本下挂收支流水，
 // 结余 = 期初 + 存入 − 支出，列表按日期正序逐行滚动（与 Excel 口径一致）。
 const CHANNELS = ['现金', '支付宝', '微信', '银行', '其他'];
@@ -308,6 +309,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -376,18 +378,35 @@ onMounted(async () => {
       </div>
 
       <!-- 流水表 -->
+      <HScrollButtons />
       <div class="overflow-x-auto border rounded-xl border-n-weak">
         <table class="w-full text-sm">
           <thead class="bg-n-alpha-1 text-n-slate-11">
             <tr>
-              <th class="px-3 py-2.5 font-medium text-left">日期</th>
-              <th class="px-3 py-2.5 font-medium text-left">事由</th>
-              <th class="px-3 py-2.5 font-medium text-right">存入</th>
-              <th class="px-3 py-2.5 font-medium text-right">支出</th>
-              <th class="px-3 py-2.5 font-medium text-right">结余</th>
-              <th class="px-3 py-2.5 font-medium text-left">渠道</th>
-              <th class="px-3 py-2.5 font-medium text-left">情况说明</th>
-              <th class="px-3 py-2.5 font-medium text-right">操作</th>
+              <th class="px-3 py-2.5 font-medium text-left whitespace-nowrap">
+                日期
+              </th>
+              <th class="px-3 py-2.5 font-medium text-left whitespace-nowrap">
+                事由
+              </th>
+              <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">
+                存入
+              </th>
+              <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">
+                支出
+              </th>
+              <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">
+                结余
+              </th>
+              <th class="px-3 py-2.5 font-medium text-left whitespace-nowrap">
+                渠道
+              </th>
+              <th class="px-3 py-2.5 font-medium text-left whitespace-nowrap">
+                情况说明
+              </th>
+              <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>

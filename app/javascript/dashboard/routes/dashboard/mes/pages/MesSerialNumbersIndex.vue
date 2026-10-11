@@ -14,6 +14,7 @@ import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText'
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
 
@@ -182,6 +183,7 @@ onMounted(() => {
     </div>
 
     <!-- SN 列表 -->
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -221,11 +223,11 @@ onMounted(() => {
         <table class="hidden w-full text-sm md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium">序列号</th>
-              <th class="px-3 py-3 font-medium">成品</th>
-              <th class="px-3 py-3 font-medium">生产订单</th>
-              <th class="px-3 py-3 font-medium">状态</th>
-              <th class="px-3 py-3 font-medium">登记时间</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">序列号</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">成品</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">登记时间</th>
             </tr>
           </thead>
           <tbody>

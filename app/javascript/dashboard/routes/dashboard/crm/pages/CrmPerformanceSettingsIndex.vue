@@ -8,6 +8,7 @@ import CrmPerfSettingsAPI from 'dashboard/api/crm/performanceSettings';
 import Button from 'dashboard/components-next/button/Button.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { t } = useI18n();
 const members = ref([]);
 // 原生 select → 紫玻璃 SelectCard 选项。
@@ -79,6 +80,7 @@ const save = async () => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -159,6 +161,7 @@ const save = async () => {
             {{ t('CRM.PERF_SETTINGS.VISIBILITY_HINT') }}
           </div>
         </div>
+        <HScrollButtons />
         <div class="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
           <table class="text-sm border-collapse">
             <thead class="text-n-slate-11">

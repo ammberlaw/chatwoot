@@ -5,6 +5,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesStockEntryAPI from 'dashboard/api/mes/stockEntries';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const dialog = ref(null);
 const order = ref(null);
 const entries = ref([]);
@@ -66,10 +67,11 @@ defineExpose({ open });
           <span>制单人：{{ entry.ownerName || '—' }}</span>
           <span>过账时间：{{ entry.postedAt ? new Date(entry.postedAt).toLocaleString() : '—' }}</span>
         </div>
+        <HScrollButtons />
         <div class="overflow-x-auto">
           <table class="w-full text-label-small text-left">
             <thead class="bg-n-alpha-1 text-n-slate-11"><tr>
-              <th class="p-3">物料 / 编码</th><th class="p-3 text-right">应收</th><th class="p-3 text-right">实收</th><th class="p-3">单位</th><th class="p-3">备注</th>
+              <th class="p-3 whitespace-nowrap">物料 / 编码</th><th class="p-3 text-right whitespace-nowrap">应收</th><th class="p-3 text-right whitespace-nowrap">实收</th><th class="p-3 whitespace-nowrap">单位</th><th class="p-3 whitespace-nowrap">备注</th>
             </tr></thead>
             <tbody><tr v-for="item in entry.stockEntryItems" :key="item.id" class="border-b border-n-weak">
               <td class="p-3"><strong class="block text-n-slate-12">{{ item.materialName || item.productName }}</strong><span class="text-n-slate-10">{{ item.materialNo }}</span></td>

@@ -16,6 +16,7 @@ import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import { downloadBlob } from 'dashboard/helper/erpDownload';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 固定资产：直线法折旧（原值 ×(1-残值率) / 年限月数），按月一键计提，
 // 全部在用资产汇总成一张待过账折旧凭证；处置/报废单独生成结转凭证。
 const { erpCan } = useErpRole();
@@ -325,6 +326,7 @@ onMounted(load);
       </template>
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
@@ -332,15 +334,25 @@ onMounted(load);
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium">资产编号</th>
-            <th class="px-3 py-3 font-medium">名称 / 类别</th>
-            <th class="px-3 py-3 font-medium">购入日</th>
-            <th class="px-3 py-3 font-medium text-right">原值</th>
-            <th class="px-3 py-3 font-medium text-right">月折旧</th>
-            <th class="px-3 py-3 font-medium text-right">累计折旧</th>
-            <th class="px-3 py-3 font-medium text-right">净值</th>
-            <th class="px-3 py-3 font-medium">状态</th>
-            <th class="px-3 py-3 font-medium text-right">操作</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">资产编号</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">名称 / 类别</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">购入日</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              原值
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              月折旧
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              累计折旧
+            </th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              净值
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>

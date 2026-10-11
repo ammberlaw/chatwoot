@@ -13,6 +13,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // BOM 成本表：按商品编码维护「加工费（生产人工）」和「制造费用」两个标准单价。
 //
 // 这张表直接喂给成本归集：成品入库过账后，Erp::CostRollupService 按
@@ -268,18 +269,25 @@ onMounted(load);
       {{ missingHint }}
     </div>
 
+    <HScrollButtons />
     <div class="flex-1 px-4 overflow-auto sm:px-6">
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-n-slate-11 border-b border-n-weak">
-            <th class="px-3 py-2 font-medium">商品编码</th>
-            <th class="px-3 py-2 font-medium">产品名称</th>
-            <th class="px-3 py-2 font-medium">规格型号</th>
-            <th class="px-3 py-2 font-medium text-right">加工费</th>
-            <th class="px-3 py-2 font-medium text-right">制造费用</th>
-            <th class="px-3 py-2 font-medium text-right">合计单价</th>
-            <th class="px-3 py-2 font-medium">备注</th>
-            <th class="px-3 py-2 font-medium">最近修改</th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">商品编码</th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">产品名称</th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">规格型号</th>
+            <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+              加工费
+            </th>
+            <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+              制造费用
+            </th>
+            <th class="px-3 py-2 font-medium text-right whitespace-nowrap">
+              合计单价
+            </th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">备注</th>
+            <th class="px-3 py-2 font-medium whitespace-nowrap">最近修改</th>
             <th class="px-3 py-2" />
           </tr>
         </thead>

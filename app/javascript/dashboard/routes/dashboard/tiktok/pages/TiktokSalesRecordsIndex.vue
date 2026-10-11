@@ -8,6 +8,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // TikTok 每日录入：一店一天一行。取消率/有效率由台数派生（后端算，前端只做录入预览）；
 // 销售额换算 RMB 于录入时按实时汇率存快照。
 const CURRENCIES = ['PHP', 'USD', 'EUR', 'CNY'];
@@ -237,6 +238,7 @@ const barWidth = rate => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >

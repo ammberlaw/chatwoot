@@ -11,6 +11,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import AttachmentPreview from 'dashboard/components-next/attachment/AttachmentPreview.vue';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // TK 支出台账：店铺运营与部门日常开销，按部门收口（店铺选填）。
 // 与 CRM 备用金台账互不重叠——TK 的支出在这里记，外币按落账时汇率折 RMB。
 const CATEGORIES = [
@@ -275,6 +276,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
@@ -334,18 +336,39 @@ onMounted(async () => {
         加载中…
       </div>
 
-      <div v-else class="overflow-x-auto border rounded-xl border-n-weak">
+      <HScrollButtons v-if="!loading" />
+
+      <div
+        v-if="!loading"
+        class="overflow-x-auto border rounded-xl border-n-weak"
+      >
         <table class="w-full text-sm">
           <thead class="bg-n-alpha-1 text-n-slate-11">
             <tr>
-              <th class="px-4 py-3 font-medium text-left">日期</th>
-              <th class="px-4 py-3 font-medium text-left">部门 / 店铺</th>
-              <th class="px-4 py-3 font-medium text-left">类别</th>
-              <th class="px-4 py-3 font-medium text-left">事由</th>
-              <th class="px-4 py-3 font-medium text-right">金额</th>
-              <th class="px-4 py-3 font-medium text-right">折RMB</th>
-              <th class="px-4 py-3 font-medium text-left">备注</th>
-              <th class="px-4 py-3 font-medium text-right">操作</th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                日期
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                部门 / 店铺
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                类别
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                事由
+              </th>
+              <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                金额
+              </th>
+              <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                折RMB
+              </th>
+              <th class="px-4 py-3 font-medium text-left whitespace-nowrap">
+                备注
+              </th>
+              <th class="px-4 py-3 font-medium text-right whitespace-nowrap">
+                操作
+              </th>
             </tr>
           </thead>
           <tbody>

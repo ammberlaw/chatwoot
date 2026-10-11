@@ -95,8 +95,10 @@ class Erp::AutoVoucherService
                     summary: "销售出库 #{shipment.shipment_no} · #{order.order_no}", lines: lines)
   end
 
+  # 金额判定走 gross_sales_micros（货款 + 运费）：生产上有 4 张订单金额为 0、
+  # 只有运费（代收代付的那种），按订单金额判就被当成空单跳过、一分钱都不入账。
   def revenue_bookable?(shipment, order)
-    order.present? && order.order_amount_micros.to_i.positive? && first_shipment_of_order?(shipment)
+    order.present? && order.gross_sales_micros.positive? && first_shipment_of_order?(shipment)
   end
 
   # 收入分录：借 应收账款(全额) / 贷 收入(不含税) + 贷 销项税。
@@ -107,8 +109,8 @@ class Erp::AutoVoucherService
     # 拆税口径放在订单模型上（Crm::SalesOrder#tax_split）——应收台账建账金额要用同一个，
     # 两边各算一套必然在不含税单上差出一个税额。
     net, tax = order.tax_split
-    # 应收恒等于「收入 + 销项税」——客户实付的就是这个数。
-    # 含税单它等于订单金额；不含税单订单金额只是收入，税要另加，不能照搬金额当应收。
+    # 应收恒等于「收入 + 销项税」——客户实付的就是这个数（货款 + 运费 + 税）。
+    # 含税单它等于订单金额+运费；不含税单那个数只是收入，税要另加，不能照搬金额当应收。
     gross = net + tax
     tax_account = tax.positive? ? account_by_code(OUTPUT_TAX_CODE) : nil
 
@@ -150,7 +152,7 @@ class Erp::AutoVoucherService
   end
 
   def receivable_revenue_bookable?(order)
-    return false if order.blank? || order.order_amount_micros.to_i <= 0
+    return false if order.blank? || order.gross_sales_micros <= 0
     return false unless REVENUE_ON_BUILD_STATUSES.include?(order.status)
 
     # 该订单已由出库单记过收入就不再出——同一笔收入入两次账。

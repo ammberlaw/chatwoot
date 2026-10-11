@@ -22,6 +22,7 @@ import MesProductGroupNode from 'dashboard/components-next/mes/MesProductGroupNo
 import MesProductGroupManager from 'dashboard/components-next/mes/MesProductGroupManager.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const store = useMesProductsStore();
 const { mesCan } = useMesRole();
 
@@ -554,6 +555,7 @@ onMounted(() => {
         </p>
       </aside>
 
+      <HScrollButtons />
       <div class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
         <p v-if="!canManage" class="mb-3 text-xs text-n-slate-11">
           产品编码由工程 / PMC 维护，你当前为只读。
@@ -637,18 +639,28 @@ onMounted(() => {
               <tr
                 class="text-left text-n-slate-11 border-b border-n-weak whitespace-nowrap bg-n-solid-1 [&>th]:bg-n-solid-1"
               >
-                <th class="px-3 py-3 font-medium w-12">#</th>
-                <th class="px-3 py-3 font-medium">商品编码</th>
-                <th class="px-3 py-3 font-medium">商品名称</th>
-                <th class="px-3 py-3 font-medium">分组</th>
-                <th class="px-3 py-3 font-medium">规格</th>
-                <th class="px-3 py-3 font-medium">备注</th>
-                <th class="px-3 py-3 font-medium">产品线</th>
-                <th class="px-3 py-3 font-medium">商品类别</th>
-                <th class="px-3 py-3 font-medium">仓别分类</th>
-                <th class="px-3 py-3 font-medium">单位</th>
-                <th class="px-3 py-3 font-medium">状态</th>
-                <th class="px-3 py-3 font-medium text-right">操作</th>
+                <th class="px-3 py-3 font-medium w-12 whitespace-nowrap">#</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">
+                  商品编码
+                </th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">
+                  商品名称
+                </th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">分组</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">规格</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">备注</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">产品线</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">
+                  商品类别
+                </th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">
+                  仓别分类
+                </th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">单位</th>
+                <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+                <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
+                  操作
+                </th>
               </tr>
             </thead>
             <tbody>

@@ -20,6 +20,7 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 
+import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const router = useRouter();
 const { accountId, accountScopedRoute } = useAccount();
 const store = useMesProductionOrdersStore();
@@ -417,6 +418,7 @@ const backToList = () =>
 </script>
 
 <template>
+  <HScrollButtons />
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >

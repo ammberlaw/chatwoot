@@ -282,9 +282,13 @@ defineExpose({ open });
               class="sticky top-0 text-xs text-left bg-n-alpha-2 text-n-slate-10"
             >
               <tr>
-                <th class="px-3 py-2 font-medium">源列（表头）</th>
-                <th class="px-3 py-2 font-medium">示例值</th>
-                <th class="px-3 py-2 font-medium">导入到 CRM 字段</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  源列（表头）
+                </th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">示例值</th>
+                <th class="px-3 py-2 font-medium whitespace-nowrap">
+                  导入到 CRM 字段
+                </th>
               </tr>
             </thead>
             <tbody>
