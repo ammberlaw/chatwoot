@@ -122,13 +122,6 @@ const blackPalettes = [
   'obsidian',
   'classic',
 ].map(key => PALETTES.find(palette => palette.key === key));
-const blackStatus = computed(() => {
-  const availability = currentUserAvailability.value;
-  const key =
-    { online: 'ONLINE', busy: 'BUSY', offline: 'OFFLINE' }[availability] ||
-    'OFFLINE';
-  return t(`PROFILE_SETTINGS.FORM.AVAILABILITY.STATUS.${key}`);
-});
 const accountId = useMapGetter('getCurrentAccountId');
 const globalConfig = useMapGetter('globalConfig/get');
 const isFeatureEnabledonAccount = useMapGetter(
@@ -290,18 +283,6 @@ const allowedMenuItems = computed(() => {
               {{ currentUser.email }}
             </p>
           </div>
-          <span
-            class="flex items-center gap-1.5 rounded-full bg-white/10 px-2 py-1 text-label-small text-white"
-          >
-            <span
-              class="size-1.5 rounded-full"
-              :class="
-                currentUserAvailability === 'online'
-                  ? 'bg-emerald-400'
-                  : 'bg-neutral-400'
-              "
-            />{{ blackStatus }}
-          </span>
         </div>
         <div class="p-4 border-b border-black/5">
           <h3 class="mb-3 text-heading-3 font-semibold text-[#191b1b]">
