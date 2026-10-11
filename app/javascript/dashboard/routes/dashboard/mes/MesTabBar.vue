@@ -43,7 +43,7 @@ const onClose = name => {
   <div
     v-if="tabs.length > 1"
     ref="tabBar"
-    class="flex shrink-0 items-center gap-4 px-4 sm:px-6 overflow-x-auto border-b border-n-weak [.theme-classic-black_&]:gap-2 [.theme-classic-black_&]:py-3 [.theme-classic-black_&]:bg-[#f5f5f4] [.theme-classic-black_&]:border-b-0"
+    class="flex shrink-0 items-center gap-4 px-4 sm:px-6 overflow-x-auto border-b border-n-weak [.theme-classic-black_&]:gap-2 [.theme-classic-black_&]:py-3 [.theme-classic-black_&]:bg-[#f5f5f4] [.theme-classic-black_&]:rounded-2xl [.theme-classic-black_&]:border-b-0"
   >
     <div
       v-for="tab in tabs"
