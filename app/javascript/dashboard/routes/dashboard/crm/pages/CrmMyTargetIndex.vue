@@ -267,31 +267,31 @@ const cell = (r, isAmt) => {
 
     <template v-else-if="sel">
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.4fr]">
-        <section class="relative overflow-hidden rounded-3xl bg-[#fff4cc] p-6 sm:p-8 text-[#252630]">
+        <section class="relative overflow-hidden rounded-3xl bg-[#fff4cc] p-5 sm:p-6 text-[#252630]">
           <div class="absolute -right-12 -top-16 size-56 rounded-full border-[32px] border-white/40 pointer-events-none" />
           <div class="relative">
             <div class="flex items-center gap-2 text-label text-[#86703a]">
               <span class="i-lucide-target size-5" />
               {{ year }}年{{ selMonth + 1 }}月目标
             </div>
-            <p class="mt-6 text-label text-[#86703a]">有效成交额目标</p>
-            <p class="mt-2 text-4xl sm:text-5xl font-semibold tabular-nums tracking-tight">{{ money(sel.effAmount) }}</p>
-            <div class="mt-6 grid grid-cols-2 gap-4 border-t border-[#eadba8] pt-5">
+            <p class="mt-4 text-label text-[#86703a]">有效成交额目标</p>
+            <p class="mt-2 text-3xl sm:text-4xl font-semibold tabular-nums tracking-tight">{{ money(sel.effAmount) }}</p>
+            <div class="mt-4 grid grid-cols-2 gap-4 border-t border-[#eadba8] pt-3">
               <div><p class="text-label-small text-[#8a7749]">基础目标</p><p class="mt-1 text-heading-2 font-semibold">{{ money(sel.baseAmount) }}</p></div>
               <div><p class="text-label-small text-[#8a7749]">上月结转</p><p class="mt-1 text-heading-2 font-semibold">{{ signedMoney(sel.carryAmount) }}</p></div>
             </div>
-            <div class="mt-6 inline-flex items-center gap-2 rounded-full bg-white/65 px-3 py-2 text-label-small text-[#7d6936]">
+            <div class="mt-4 inline-flex items-center gap-2 rounded-full bg-white/65 px-3 py-2 text-label-small text-[#7d6936]">
               <span class="i-lucide-calendar-days size-4" />
               {{ sel.isFuture ? '该月尚未开始' : daysLeft != null ? `本月剩余 ${daysLeft} 天` : '历史月份' }}
             </div>
           </div>
         </section>
-        <section class="rounded-3xl border border-[#e8eaed] bg-white p-6 sm:p-8">
+        <section class="rounded-3xl border border-[#e8eaed] bg-white p-5 sm:p-6">
           <div class="flex items-center justify-between gap-3">
             <h2 class="text-heading-2 font-semibold text-[#24272b]">目标进度</h2>
             <span class="text-label-small text-[#92969c]">{{ selMonth + 1 }}月</span>
           </div>
-          <div class="mt-6 space-y-7">
+          <div class="mt-4 space-y-4">
             <div v-for="metric in [
               { label: '成交额', actual: sel.actualAmount, target: sel.effAmount, money: true, color: 'bg-[#b6d9aa]' },
               { label: '新成交客户', actual: sel.actualCount, target: sel.effCount, money: false, color: 'bg-[#edce76]' },
@@ -304,12 +304,12 @@ const cell = (r, isAmt) => {
                 <strong class="text-3xl font-semibold text-[#24272b]">{{ metric.money ? money(metric.actual) : metric.actual }}</strong>
                 <span class="text-label text-[#92969c]">/ {{ metric.money ? money(metric.target) : `${metric.target} 位` }}</span>
               </div>
-              <div class="mt-3 h-2 overflow-hidden rounded-full bg-[#f0f1f3]">
+              <div class="mt-2 h-2 overflow-hidden rounded-full bg-[#f0f1f3]">
                 <div class="h-full rounded-full transition-all duration-500" :class="metric.color" :style="{ width: metric.target <= 0 && metric.actual === 0 ? '0%' : metricLine(metric.actual, metric.target, metric.money).barWidth }" />
               </div>
             </div>
           </div>
-          <div class="mt-6 flex items-center gap-2 border-t border-[#eeeff1] pt-4 text-label-small text-[#858a91]">
+          <div class="mt-4 flex items-center gap-2 border-t border-[#eeeff1] pt-4 text-label-small text-[#858a91]">
             <span class="i-lucide-info size-4 shrink-0" />
             {{ sel.isFuture ? '结转将在进入该月份时结算' : sel.effAmount > 0 ? `距离目标还差 ${money(remainingAmount)}` : sel.baseAmount === 0 && sel.carryAmount === 0 ? '可在下方设置本月基础目标' : '上月结余已覆盖本月目标' }}
           </div>
