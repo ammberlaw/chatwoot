@@ -61,9 +61,9 @@ const emitNewAccount = () => {
         :title="currentAccount.name"
         @click="toggle"
       >
-        <Logo class="size-7 [.theme-classic-black_&]:hidden" />
+        <Logo class="size-7 [.theme-classic_&]:hidden" />
         <span
-          class="hidden font-bold text-heading-2 [.theme-classic-black_&]:block"
+          class="hidden font-bold text-heading-2 [.theme-classic_&]:block"
         >
           {{ currentAccount.name.charAt(0) }}
         </span>
@@ -75,7 +75,7 @@ const emitNewAccount = () => {
         :data-account-id="accountId"
         aria-haspopup="listbox"
         aria-controls="account-options"
-        class="flex items-center gap-2 justify-between w-full rounded-lg px-2 [.theme-classic-black_&]:justify-center [.theme-classic-black_&]:py-2"
+        class="flex items-center gap-2 justify-between w-full rounded-lg px-2 [.theme-classic_&]:justify-center [.theme-classic_&]:py-2"
         :class="[
           isOpen && 'bg-n-alpha-1',
           showAccountSwitcher
@@ -85,7 +85,7 @@ const emitNewAccount = () => {
         @click="() => showAccountSwitcher && toggle()"
       >
         <span
-          class="text-sm font-medium leading-5 text-n-slate-12 truncate [.theme-classic-black_&]:!font-['Arial_Rounded_MT_Bold',ui-rounded,sans-serif] [.theme-classic-black_&]:!font-black [.theme-classic-black_&]:!text-[#ffc53d] [.theme-classic-black_&]:[-webkit-text-stroke:0.6px_currentColor] [.theme-classic-black_&]:!text-heading-1 [.theme-classic-black_&]:!leading-7"
+          class="text-sm font-medium leading-5 text-n-slate-12 truncate [.theme-classic_&]:!font-['Arial_Rounded_MT_Bold',ui-rounded,sans-serif] [.theme-classic_&]:!font-black [.theme-classic:not(.theme-classic-black)_&]:!text-[#202222] [.theme-classic-black_&]:!text-[#ffc53d] [.theme-classic_&]:[-webkit-text-stroke:0.6px_currentColor] [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!leading-7"
           aria-live="polite"
         >
           {{ currentAccount.name }}

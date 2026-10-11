@@ -358,7 +358,7 @@ const isClassicKpi = computed(() => {
 });
 const isClassicBlack = computed(() => {
   void themeSignal.value;
-  return document.body.classList.contains('theme-classic-black');
+  return document.body.classList.contains('theme-classic');
 });
 
 // 个人看板（scope=mine）：按业务员排的那两张榜只会剩自己一行，不渲染。

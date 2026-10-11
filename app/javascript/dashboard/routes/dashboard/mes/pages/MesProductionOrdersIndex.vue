@@ -2019,10 +2019,10 @@ watch(currentPage, fetchRecords);
       <!-- 详情：8 阶段进度条（流程视图；订单明细看「查看」弹窗） -->
       <div
         v-if="selected"
-        class="flex flex-col p-5 overflow-auto w-full md:w-80 shrink-0 rounded-xl bg-n-alpha-black1 border border-n-weak [.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:rounded-3xl [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:md:w-96 [.theme-classic-black_&]:p-6"
+        class="flex flex-col p-5 overflow-auto w-full md:w-80 shrink-0 rounded-xl bg-n-alpha-black1 border border-n-weak [.theme-classic_&]:!bg-white [.theme-classic_&]:rounded-3xl [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:md:w-96 [.theme-classic_&]:p-6"
       >
-        <div class="flex items-center gap-2 mb-1 [.theme-classic-black_&]:mb-3">
-          <span class="font-semibold truncate text-n-slate-12 [.theme-classic-black_&]:text-heading-1">{{
+        <div class="flex items-center gap-2 mb-1 [.theme-classic_&]:mb-3">
+          <span class="font-semibold truncate text-n-slate-12 [.theme-classic_&]:text-heading-1">{{
             selected.orderNo
           }}</span>
           <span class="ml-auto text-xs shrink-0 text-n-slate-11">
@@ -2059,7 +2059,7 @@ watch(currentPage, fetchRecords);
 
         <!-- 审批链（取代发布）：草稿→部门主管→总经理，全部通过才生效 -->
         <div
-          class="p-4 mb-4 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl [.theme-classic-black_&]:!bg-[#f8f9fa] [.theme-classic-black_&]:!border-[#eeeff1] [.theme-classic-black_&]:!shadow-none [.theme-classic-black_&]:p-5"
+          class="p-4 mb-4 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl [.theme-classic_&]:!bg-[#f8f9fa] [.theme-classic_&]:!border-[#eeeff1] [.theme-classic_&]:!shadow-none [.theme-classic_&]:p-5"
         >
           <div class="flex items-center justify-between gap-2 mb-3">
             <span class="text-sm font-semibold text-n-slate-12">审批</span>
@@ -2120,11 +2120,11 @@ watch(currentPage, fetchRecords);
             <div
               v-for="(step, i) in approvalSteps"
               :key="step.key"
-              class="flex gap-3 [.theme-classic-black_&]:gap-4"
+              class="flex gap-3 [.theme-classic_&]:gap-4"
             >
               <div class="flex flex-col items-center shrink-0">
                 <span
-                  class="grid rounded-full place-items-center size-6 shrink-0 [.theme-classic-black_&]:size-7 [.theme-classic-black_&]:!bg-[#e5eddf] [.theme-classic-black_&]:!text-[#617754]"
+                  class="grid rounded-full place-items-center size-6 shrink-0 [.theme-classic_&]:size-7 [.theme-classic_&]:!bg-[#e5eddf] [.theme-classic_&]:!text-[#617754]"
                   :class="stepDot(step.state).cls"
                 >
                   <span
@@ -2135,10 +2135,10 @@ watch(currentPage, fetchRecords);
                 </span>
                 <span
                   v-if="i < approvalSteps.length - 1"
-                  class="flex-1 w-px min-h-4 bg-n-iris-5 [.theme-classic-black_&]:!bg-[#dce2d7]"
+                  class="flex-1 w-px min-h-4 bg-n-iris-5 [.theme-classic_&]:!bg-[#dce2d7]"
                 />
               </div>
-              <div class="flex-1 min-w-0 pb-3 [.theme-classic-black_&]:pb-5">
+              <div class="flex-1 min-w-0 pb-3 [.theme-classic_&]:pb-5">
                 <div class="flex gap-2 justify-between items-start">
                   <span
                     class="text-sm font-medium"
@@ -2172,7 +2172,7 @@ watch(currentPage, fetchRecords);
           v-if="
             selected.stage !== 'SHIPPED' && selected.status === 'IN_PROGRESS'
           "
-          class="p-4 mb-4 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl [.theme-classic-black_&]:!bg-[#f8f9fa] [.theme-classic-black_&]:!border-[#eeeff1] [.theme-classic-black_&]:!shadow-none [.theme-classic-black_&]:p-5"
+          class="p-4 mb-4 border shadow-sm rounded-2xl border-white/60 bg-n-solid-1/75 backdrop-blur-xl [.theme-classic_&]:!bg-[#f8f9fa] [.theme-classic_&]:!border-[#eeeff1] [.theme-classic_&]:!shadow-none [.theme-classic_&]:p-5"
         >
           <div class="flex items-center justify-between gap-2 mb-3">
             <span class="text-sm font-semibold text-n-slate-12">

@@ -1,7 +1,7 @@
 // Independent classic variant: inherit content colors without changing geometry.
 // Keep focus scrolling inside the sidebar/page scrollers, not the outer shell.
-body.theme-classic-black [data-dashboard-shell],
-body.theme-classic-black [data-dashboard-shell] > main {
+body.theme-classic [data-dashboard-shell],
+body.theme-classic [data-dashboard-shell] > main {
   overflow: clip;
   min-height: 0;
   min-width: 0;
@@ -48,8 +48,9 @@ body.theme-classic-black:not(.theme-obsidian-flat)
     border-color: #363639;
   }
   [data-sidebar-active='true'] {
-    color: #ffffff;
-    background: #3c3c41;
+    color: #262626;
+    background: #ffffff;
+    font-weight: 600;
     box-shadow: none;
   }
   [data-sidebar-group-header]:hover,
@@ -59,7 +60,7 @@ body.theme-classic-black:not(.theme-obsidian-flat)
     background-color: #303033;
   }
   [data-sidebar-leaf] > a[data-sidebar-active='true']:hover {
-    background: #46464b;
+    background: #f3f3f3;
   }
 }
 
@@ -72,7 +73,7 @@ body.theme-classic-black:not(.theme-obsidian-flat)
 }
 
 // Button labels are text, not the counter badges styled by the tabbar mixin.
-body.theme-classic-black
+body.theme-classic
   [data-tabbar^='page']
   > button[data-button-variant]
   > span.truncate {
@@ -90,34 +91,34 @@ body.theme-classic-black:not(.theme-obsidian-flat) [data-sidebar-icon='crm-dashb
   }
 }
 
-body.theme-classic-black button[data-button-variant='solid'].bg-n-amber-9 {
+body.theme-classic button[data-button-variant='solid'].bg-n-amber-9 {
   color: #1c2026;
 }
 
 // Passive hooks keep the original themes' custom filters unchanged.
-body.theme-classic-black input[name='dedupe-keyword'] {
+body.theme-classic input[name='dedupe-keyword'] {
   height: 100% !important;
   min-height: 0;
   margin-bottom: 0 !important;
 }
 
-body.theme-classic-black [data-black-page='erp-settings'] .w-96 {
+body.theme-classic [data-black-page='erp-settings'] .w-96 {
   max-width: 100%;
 }
 
-@include page-tabbar("body.theme-classic-black [data-black-tabbar='page']");
-body.theme-classic-black [data-black-tabbar='page'].px-4 {
+@include page-tabbar("body.theme-classic [data-black-tabbar='page']");
+body.theme-classic [data-black-tabbar='page'].px-4 {
   margin-inline: 1rem;
   margin-top: 1rem;
 }
 @media (min-width: 640px) {
-  body.theme-classic-black [data-black-tabbar='page'].sm\:px-6 {
+  body.theme-classic [data-black-tabbar='page'].sm\:px-6 {
     margin-inline: 1.5rem;
   }
 }
 
 // CRM overview: quiet metric cards, a central performance pair and a detail rail.
-body.theme-classic-black [data-black-dashboard] {
+body.theme-classic [data-black-dashboard] {
   gap: 1.25rem;
   padding: 1.5rem;
   background: #f6f7f3;
@@ -126,7 +127,7 @@ body.theme-classic-black [data-black-dashboard] {
 }
 
 @media (max-width: 639px) {
-  body.theme-classic-black [data-black-dashboard] {
+  body.theme-classic [data-black-dashboard] {
     padding: 1rem;
   }
 }

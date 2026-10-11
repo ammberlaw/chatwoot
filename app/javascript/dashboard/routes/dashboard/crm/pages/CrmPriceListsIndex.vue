@@ -538,16 +538,16 @@ onMounted(load);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="w-full px-4 py-4 mx-auto max-w-7xl sm:px-8 sm:py-6 [.theme-classic-black_&]:max-w-none [.theme-classic-black_&]:lg:px-10"
+      class="w-full px-4 py-4 mx-auto max-w-7xl sm:px-8 sm:py-6 [.theme-classic_&]:max-w-none [.theme-classic_&]:lg:px-10"
     >
       <div
-        class="flex items-center justify-between mb-4 [.theme-classic-black_&]:flex-wrap [.theme-classic-black_&]:gap-5 [.theme-classic-black_&]:mb-6"
+        class="flex items-center justify-between mb-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-5 [.theme-classic_&]:mb-6"
       >
         <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
           标准价目表
         </h1>
         <div
-          class="flex items-center gap-2 [.theme-classic-black_&]:flex-wrap [.theme-classic-black_&]:[&>button]:!rounded-xl [.theme-classic-black_&]:[&>button]:!border-[#e3e4df] [.theme-classic-black_&]:[&>button]:!outline-[#e3e4df] [.theme-classic-black_&]:[&>button]:!text-[#292b2b] [.theme-classic-black_&]:[&>button]:!bg-[#f7f8fa] [.theme-classic-black_&]:[&>button:last-child]:!bg-[#ffd34f] [.theme-classic-black_&]:[&>button:last-child]:!outline-transparent"
+          class="flex items-center gap-2 [.theme-classic_&]:flex-wrap [.theme-classic_&]:[&>button]:!rounded-xl [.theme-classic_&]:[&>button]:!border-[#e3e4df] [.theme-classic_&]:[&>button]:!outline-[#e3e4df] [.theme-classic_&]:[&>button]:!text-[#292b2b] [.theme-classic_&]:[&>button]:!bg-[#f7f8fa] [.theme-classic_&]:[&>button:last-child]:!bg-[#ffd34f] [.theme-classic_&]:[&>button:last-child]:!outline-transparent"
         >
           <template v-if="!editing">
             <Button
@@ -583,7 +583,7 @@ onMounted(load);
             <template v-if="canManage && detail">
               <Button
                 label="改价（新版本）"
-                class="[.theme-classic-black_&]:!bg-[#ffd34f] [.theme-classic-black_&]:!border-[#ffd34f] [.theme-classic-black_&]:!outline-transparent [.theme-classic-black_&]:!font-bold"
+                class="[.theme-classic_&]:!bg-[#ffd34f] [.theme-classic_&]:!border-[#ffd34f] [.theme-classic_&]:!outline-transparent [.theme-classic_&]:!font-bold"
                 variant="outline"
                 size="sm"
                 @click="createVersion"
@@ -654,13 +654,13 @@ onMounted(load);
       <template v-else>
         <!-- 版本条 -->
         <div
-          class="flex flex-wrap items-center gap-3 px-4 py-3 mb-4 text-sm rounded-xl bg-n-alpha-1 [.theme-classic-black_&]:rounded-2xl [.theme-classic-black_&]:bg-[#f7f8fa] [.theme-classic-black_&]:p-5 [.theme-classic-black_&]:gap-x-3 [.theme-classic-black_&]:gap-y-3 [.theme-classic-black_&]:[&>span:first-child]:font-semibold"
+          class="flex flex-wrap items-center gap-3 px-4 py-3 mb-4 text-sm rounded-xl bg-n-alpha-1 [.theme-classic_&]:rounded-2xl [.theme-classic_&]:bg-[#f7f8fa] [.theme-classic_&]:p-5 [.theme-classic_&]:gap-x-3 [.theme-classic_&]:gap-y-3 [.theme-classic_&]:[&>span:first-child]:font-semibold"
         >
           <span class="text-n-slate-11">产品线</span>
           <SelectCard
             :model-value="activeLine"
             :options="lineOptions"
-            trigger-class="w-40 h-9 [.theme-classic-black_&]:!rounded-xl [.theme-classic-black_&]:!border-0 [.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:!font-semibold"
+            trigger-class="w-40 h-9 [.theme-classic_&]:!rounded-xl [.theme-classic_&]:!border-0 [.theme-classic_&]:!bg-white [.theme-classic_&]:!font-semibold"
             :disabled="editing"
             @update:model-value="onSwitchLine"
           />
@@ -668,7 +668,7 @@ onMounted(load);
           <SelectCard
             :model-value="String(activeId)"
             :options="versionOptions"
-            trigger-class="w-56 h-9 [.theme-classic-black_&]:!rounded-xl [.theme-classic-black_&]:!border-0 [.theme-classic-black_&]:!bg-white"
+            trigger-class="w-56 h-9 [.theme-classic_&]:!rounded-xl [.theme-classic_&]:!border-0 [.theme-classic_&]:!bg-white"
             :disabled="editing"
             @update:model-value="onSwitchVersion"
           />
@@ -691,7 +691,7 @@ onMounted(load);
           </span>
           <span
             v-if="detail.published_by_name"
-            class="text-xs text-n-slate-10 [.theme-classic-black_&]:hidden [.theme-classic-black_&]:2xl:block"
+            class="text-xs text-n-slate-10 [.theme-classic_&]:hidden [.theme-classic_&]:2xl:block"
           >
             由 {{ detail.published_by_name }} 发布
           </span>
@@ -699,13 +699,13 @@ onMounted(load);
             v-if="!editing"
             v-model="searchQuery"
             placeholder="跨产品线搜型号"
-            class="ml-auto w-52 [.theme-classic-black_&]:w-40"
+            class="ml-auto w-52 [.theme-classic_&]:w-40"
             @input="onSearchInput"
           />
           <div v-if="!editing" class="relative">
             <Button
               :label="hiddenCols.size ? `列（收起 ${hiddenCols.size}）` : '列'"
-              class="[.theme-classic-black_&]:!outline-[#dedfd9] [.theme-classic-black_&]:!text-[#292b2b] [.theme-classic-black_&]:!rounded-xl"
+              class="[.theme-classic_&]:!outline-[#dedfd9] [.theme-classic_&]:!text-[#292b2b] [.theme-classic_&]:!rounded-xl"
               variant="outline"
               size="sm"
               icon="i-lucide-columns-3"
@@ -790,7 +790,7 @@ onMounted(load);
             <button
               v-for="(row, i) in searchResults"
               :key="`sr-${i}`"
-              class="flex items-center w-full gap-3 px-4 py-2 text-left border-t border-n-weak hover:bg-n-alpha-1 [.theme-classic-black_&]:border-[#edf0f2] [.theme-classic-black_&]:hover:bg-[#f7f8fa] [.theme-classic-black_&]:[&>td]:!py-5 [.theme-classic-black_&]:[&>td:first-child]:!font-bold [.theme-classic-black_&]:[&>td:first-child]:!text-[#202222]"
+              class="flex items-center w-full gap-3 px-4 py-2 text-left border-t border-n-weak hover:bg-n-alpha-1 [.theme-classic_&]:border-[#edf0f2] [.theme-classic_&]:hover:bg-[#f7f8fa] [.theme-classic_&]:[&>td]:!py-5 [.theme-classic_&]:[&>td:first-child]:!font-bold [.theme-classic_&]:[&>td:first-child]:!text-[#202222]"
               @click="gotoResult(row)"
             >
               <img
@@ -904,13 +904,13 @@ onMounted(load);
 
         <!-- 价格表 -->
         <div
-          class="overflow-x-auto border rounded-xl border-n-weak [.theme-classic-black_&]:rounded-2xl [.theme-classic-black_&]:border-[#e8eaed]"
+          class="overflow-x-auto border rounded-xl border-n-weak [.theme-classic_&]:rounded-2xl [.theme-classic_&]:border-[#e8eaed]"
         >
           <table
-            class="w-full text-sm [.theme-classic-black_&]:text-label [.theme-classic-black_&]:tabular-nums"
+            class="w-full text-sm [.theme-classic_&]:text-label [.theme-classic_&]:tabular-nums"
           >
             <thead
-              class="bg-n-alpha-1 text-n-slate-11 [.theme-classic-black_&]:bg-white [.theme-classic-black_&]:text-[#292b2b] [.theme-classic-black_&]:[&_th]:py-4 [.theme-classic-black_&]:[&_th]:font-semibold [.theme-classic-black_&]:border-b [.theme-classic-black_&]:border-[#e8eaed]"
+              class="bg-n-alpha-1 text-n-slate-11 [.theme-classic_&]:bg-white [.theme-classic_&]:text-[#292b2b] [.theme-classic_&]:[&_th]:py-4 [.theme-classic_&]:[&_th]:font-semibold [.theme-classic_&]:border-b [.theme-classic_&]:border-[#e8eaed]"
             >
               <tr>
                 <th
@@ -958,7 +958,7 @@ onMounted(load);
                     class="px-4 py-3"
                     :class="
                       c.type === 'price'
-                        ? 'text-right whitespace-nowrap text-n-slate-12 [.theme-classic-black_&]:font-semibold [.theme-classic-black_&]:text-heading-2'
+                        ? 'text-right whitespace-nowrap text-n-slate-12 [.theme-classic_&]:font-semibold [.theme-classic_&]:text-heading-2'
                         : 'text-n-slate-11'
                     "
                   >
@@ -1045,7 +1045,7 @@ onMounted(load);
 
         <div
           v-if="!editing && detail.rules_note"
-          class="mt-4 text-xs leading-6 whitespace-pre-line text-n-slate-11 [.theme-classic-black_&]:rounded-xl [.theme-classic-black_&]:bg-[#f7f8fa] [.theme-classic-black_&]:px-4 [.theme-classic-black_&]:py-3 [.theme-classic-black_&]:text-label-small"
+          class="mt-4 text-xs leading-6 whitespace-pre-line text-n-slate-11 [.theme-classic_&]:rounded-xl [.theme-classic_&]:bg-[#f7f8fa] [.theme-classic_&]:px-4 [.theme-classic_&]:py-3 [.theme-classic_&]:text-label-small"
         >
           {{ detail.rules_note }}
         </div>

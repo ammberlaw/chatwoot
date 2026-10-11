@@ -11,10 +11,7 @@ const selectLine = value => setActiveProductLine(value);
 </script>
 
 <template>
-  <div data-sidebar-module-select class="px-2 mb-1 [.theme-classic-black_&]:mx-3 [.theme-classic-black_&]:px-3 [.theme-classic-black_&]:py-3 [.theme-classic-black_&]:mb-4 [.theme-classic-black_&]:rounded-2xl [.theme-classic-black_&]:bg-[#242426] [.theme-classic-black_&]:border [.theme-classic-black_&]:border-[#414144]">
-    <span class="block px-1 mb-1 text-label-small font-medium text-n-slate-10 [.theme-classic-black_&]:mb-2 [.theme-classic-black_&]:!text-[#f1f1f2] [.theme-classic-black_&]:font-semibold">
-      产品线
-    </span>
+  <div data-sidebar-module-select role="group" aria-label="产品线筛选" class="px-2 mb-1 [.theme-classic-black_&]:mx-3 [.theme-classic-black_&]:px-0 [.theme-classic-black_&]:mb-4">
     <div
       class="flex gap-0.5 p-0.5 rounded-lg outline outline-1 outline-n-weak bg-n-alpha-black1 [.theme-classic-black_&]:gap-1 [.theme-classic-black_&]:p-1 [.theme-classic-black_&]:rounded-2xl [.theme-classic-black_&]:!outline-none [.theme-classic-black_&]:!bg-[#171719]"
     >
@@ -22,12 +19,13 @@ const selectLine = value => setActiveProductLine(value);
         v-for="opt in options"
         :key="opt.value"
         type="button"
-        class="flex-1 px-1 py-1 text-label-small font-medium rounded-md transition-colors duration-100 truncate [.theme-classic-black_&]:h-9 [.theme-classic-black_&]:rounded-xl [.theme-classic-black_&]:focus-visible:outline [.theme-classic-black_&]:focus-visible:outline-2 [.theme-classic-black_&]:focus-visible:outline-[#e9ce80]"
-        :class="
+        class="min-w-0 px-1 py-1 text-label-small font-medium rounded-md transition-colors duration-100 whitespace-nowrap [.theme-classic-black_&]:h-9 [.theme-classic-black_&]:rounded-xl [.theme-classic-black_&]:focus-visible:outline [.theme-classic-black_&]:focus-visible:outline-2 [.theme-classic-black_&]:focus-visible:outline-[#e9ce80]"
+        :class="[
+          opt.short === '商显工控' ? 'flex-[1.5]' : 'flex-1',
           activeProductLine === opt.value
             ? 'bg-n-solid-3 text-n-slate-12 shadow-sm [.theme-classic-black_&]:!bg-[#ffd34f] [.theme-classic-black_&]:!text-[#27251f] [.theme-classic-black_&]:font-semibold [.theme-classic-black_&]:shadow-none'
             : 'text-n-slate-10 hover:text-n-slate-12 [.theme-classic-black_&]:!text-[#b3b3b8] [.theme-classic-black_&]:hover:!bg-[#333336] [.theme-classic-black_&]:hover:!text-white'
-        "
+        ]"
         :title="opt.label"
         :aria-pressed="activeProductLine === opt.value"
         @click="selectLine(opt.value)"

@@ -122,7 +122,7 @@ const isClassicKpi = computed(() => {
 const isClassicBlack = computed(
   () =>
     themeSignal.value >= 0 &&
-    document.body.classList.contains('theme-classic-black')
+    document.body.classList.contains('theme-classic')
 );
 const blackTeamPct = computed(() =>
   totals.value.targetAmount > 0
