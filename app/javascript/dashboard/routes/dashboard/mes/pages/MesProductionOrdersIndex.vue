@@ -9,6 +9,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import camelcaseKeys from 'camelcase-keys';
 import MesOrderStockEntriesDialog from 'dashboard/components-next/mes/MesOrderStockEntriesDialog.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
+import MesHiddenLineHint from 'dashboard/components-next/mes/MesHiddenLineHint.vue';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import MesBomAPI from 'dashboard/api/mes/boms';
@@ -284,6 +285,7 @@ const uiFlags = computed(() => store.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
 const converting = computed(() => uiFlags.value.creatingItem);
 const totalCount = computed(() => store.getMeta.count || 0);
+const hiddenNoLine = computed(() => store.getMeta.hiddenNoLine || 0);
 
 const activeStage = ref('');
 const activeStatus = ref('');
@@ -1615,6 +1617,13 @@ watch(currentPage, fetchRecords);
         @input="onSearchInput"
       />
     </div>
+
+    <MesHiddenLineHint
+      v-if="hiddenNoLine"
+      :count="hiddenNoLine"
+      unit="张"
+      class="mx-4 sm:mx-6"
+    />
 
     <div
       class="flex flex-col md:flex-row flex-1 min-h-0 gap-4 px-4 pb-4 sm:px-6 sm:pb-6"

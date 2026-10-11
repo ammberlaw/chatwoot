@@ -9,6 +9,9 @@ class Api::V1::Accounts::Erp::DashboardController < Api::V1::Accounts::Erp::Base
       kpis: kpis,
       overdue_installments: overdue_installments,
       pending_vouchers: pending_vouchers,
+      # 开账体检：没建会计期间 / 没录期初 / 订单没建台账 / 凭证没过账时，报表是空的
+      # 而系统一切「正常」。缺哪件摆在看板上，别等月底才发现。
+      readiness: Erp::OpeningReadiness.new(account).call,
       capabilities: Current.account_user&.erp_capability_list || []
     }
   end

@@ -48,6 +48,23 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # 批量过账：把选中的待过账凭证逐张过账。
+  #
+  # 自动凭证天天在产（出库出收入+成本两张、收付款各一张…），一张一张点三十几张还行，
+  # 几百张就没人干了——这正是「凭证天天生成、报表永远是空的」最后那道人力卡口。
+  # 逐张 rescue：一张不平不该拖垮整批，失败原因原样带回去，财务照着清单改。
+  # 单次封顶 100 张（= 列表每页上限，够「全选本页一键过」），不会撞 15 秒请求时限。
+  BULK_POST_LIMIT = 100
+
+  def bulk_post
+    # 空数组经表单编码会变成 ['']（to_i 后是 0），不滤掉就会被当成「选了一张」。
+    ids = Array(params[:voucher_ids]).map(&:to_i).select(&:positive?).uniq
+    return render json: { error: '请先选择要过账的凭证' }, status: :unprocessable_entity if ids.empty?
+    return render json: { error: "一次最多过账 #{BULK_POST_LIMIT} 张，请分批操作" }, status: :unprocessable_entity if ids.size > BULK_POST_LIMIT
+
+    render json: { payload: post_each(ids) }
+  end
+
   # 红冲：生成方向相反的凭证，两张互相引用。
   def reverse
     @voucher = Erp::VoucherPostingService.new(@voucher, current_user).reverse!
@@ -107,6 +124,28 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
 
   # 折旧/处置凭证是草稿时被删/作废，资产侧的计提记录与累计折旧（或处置状态）要一起退回，
   # 否则「资产提了折旧、总账没入账」，而且该期间重新计提会返回 0 张——这个月折旧就丢了。
+  # 选中的里面可能混着已过账/已作废的（列表停留在旧数据时很常见），
+  # 这些既不算成功也不算失败，单独报个 skipped，免得「选了 30 张、过了 25 张」没人知道另外 5 张去哪了。
+  def post_each(ids)
+    posted = 0
+    failed = []
+    Current.account.erp_vouchers.where(id: ids, status: Erp::Voucher::DRAFT).order(:voucher_no).each do |voucher|
+      Erp::VoucherPostingService.new(voucher, current_user).post!
+      posted += 1
+    rescue Erp::VoucherPostingService::Error, ActiveRecord::RecordInvalid => e
+      failed << { voucher_no: voucher.voucher_no, error: posting_error(e) }
+    end
+    { posted: posted, failed: failed, skipped: ids.size - posted - failed.size }
+  end
+
+  # RecordInvalid 在中文环境下 message 是「Translation missing: …record_invalid」，
+  # 原样返回等于没提示——取逐字段的校验信息（期间已结账就是从这儿冒出来的）。
+  def posting_error(error)
+    return error.record.errors.full_messages.join('；') if error.is_a?(ActiveRecord::RecordInvalid) && error.record.present?
+
+    error.message
+  end
+
   def rollback_depreciation_side_effects
     return unless @voucher.source_type == 'Erp::Depreciation'
 

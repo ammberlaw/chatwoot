@@ -1,6 +1,8 @@
 # MES 所有控制器的基类。S0：任何本账号成员均可访问（生产/仓管/采购未必有 crm_role）；
 # 角色收敛留到 S8。数据均以 Current.account 多租户隔离。
 class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
+  include PaginationParamNormalizer
+
   RESULTS_PER_PAGE = 15
 
   private
@@ -29,6 +31,21 @@ class Api::V1::Accounts::Mes::BaseController < Api::V1::Accounts::BaseController
   # 按当前产品线收敛列表（供应商/仓库为共享物理资源，不参与分流，故不调用）。
   def scoped_by_product_line(scope)
     current_product_line ? scope.where(product_line: current_product_line) : scope
+  end
+
+  # 被当前产线筛掉的「未设产线」记录数（产线为空时恒为 0——那会儿什么都没筛掉）。
+  #
+  # 为什么要报这个数：产线分流是 where(product_line: X)，product_line 为空的单据
+  # 在任何一条具体产线下都看不见，界面上和「数据丢了」一模一样（BOM、BOM 模版都这么丢过）。
+  # 列表 meta 带上这个数，前端摆一条「当前产线下有 N 条未设产线的记录没显示」，
+  # 把静默隐藏变成看得见的提示。
+  #
+  # 传进来的 scope 必须是**调用 scoped_by_product_line 之前**的那个（其余筛选条件照常带），
+  # 否则数出来恒等于 0。
+  def hidden_without_product_line(scope)
+    return 0 if current_product_line.blank?
+
+    scope.where(product_line: nil).count
   end
 
   # 出库单专用：现货出库(STOCK)是跨产品线的共享库存，不按产品线分流——否则仓管切了产品线

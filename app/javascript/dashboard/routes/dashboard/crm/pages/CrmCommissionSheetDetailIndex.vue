@@ -608,6 +608,20 @@ const unmatchedCategories = computed(() => {
   return [...bad];
 });
 
+// 算不出提成的行：填了收款额、销售额RMB 却是空的。
+// fillRmb 遇到空汇率直接 return，销售额RMB 就一直是空，提成基数跟着是空 —— 提成栏显示
+// 空白，和「这行提成本来就是 0」长得一样，于是整行提成被静默漏掉（美金单最常中招）。
+const rowsMissingBase = computed(() =>
+  items.value
+    .map((r, i) => ({ row: r, seq: i + 1 }))
+    .filter(
+      ({ row }) =>
+        (Number(row.receivedAmount) || 0) > 0 &&
+        (row.salesRmb == null || row.salesRmb === '')
+    )
+    .map(({ row, seq }) => row.orderNo || `第 ${seq} 行`)
+);
+
 // ── 转发到团队沟通：把本提成表的摘要 + 回跳链接（可选表图）发到某个团队沟通会话 ──
 const forwardRef = ref(null);
 // 现场把只读分组表截成 PNG File 当附件（复用导出图片的 captureRef/toPng）。
@@ -863,6 +877,19 @@ const openForward = () => {
         <span>{{
           t('CRM.COMMISSION.DETAIL.CATEGORY_MISMATCH', {
             list: unmatchedCategories.join('、'),
+          })
+        }}</span>
+      </div>
+
+      <div
+        v-if="rowsMissingBase.length"
+        class="flex items-start gap-2 px-3 py-2 mb-2 text-xs rounded-xl bg-n-amber-3/60 text-n-amber-11 border border-n-amber-6"
+      >
+        <Icon icon="i-lucide-triangle-alert" class="size-3.5 mt-px shrink-0" />
+        <span>{{
+          t('CRM.COMMISSION.DETAIL.MISSING_BASE', {
+            count: rowsMissingBase.length,
+            list: rowsMissingBase.join('、'),
           })
         }}</span>
       </div>

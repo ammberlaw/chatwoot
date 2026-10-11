@@ -373,6 +373,7 @@ Rails.application.routes.draw do
                 get :summaries
                 get :import_template
                 post :import
+                post :bulk_post
               end
               member do
                 post :post_voucher
@@ -438,7 +439,11 @@ Rails.application.routes.draw do
               collection { post :import }
             end
             resources :fixed_assets, only: [:index, :show, :create, :update, :destroy] do
-              collection { post :depreciate }
+              collection do
+                post :depreciate
+                post :import
+                get :import_template
+              end
               member { post :dispose }
             end
             resources :fiscal_periods, only: [:index] do

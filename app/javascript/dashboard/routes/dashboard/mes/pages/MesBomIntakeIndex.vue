@@ -21,6 +21,7 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import { useMesBomTemplatesStore } from 'dashboard/stores/mes/bomTemplates';
+import MesHiddenLineHint from 'dashboard/components-next/mes/MesHiddenLineHint.vue';
 import MesBomAPI from 'dashboard/api/mes/boms';
 import camelcaseKeys from 'camelcase-keys';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
@@ -884,6 +885,7 @@ const submit = async targetStatus => {
 
 // —— BOM 模版：把常用成品的十几二十行用料存成模版，建 BOM 时一键套用 ——
 const templates = computed(() => tplStore.getRecords);
+const tplHiddenNoLine = computed(() => tplStore.getMeta.hiddenNoLine || 0);
 const tplFetching = computed(() => tplStore.getUIFlags.fetchingList);
 const tplSaving = computed(() => tplStore.getUIFlags.creatingItem);
 const templateDialogRef = ref(null);
@@ -1922,6 +1924,11 @@ onBeforeRouteLeave((to, from, next) => {
             <template v-else>共 {{ templates.length }} 份</template>
           </span>
         </div>
+        <MesHiddenLineHint
+          v-if="tplHiddenNoLine"
+          :count="tplHiddenNoLine"
+          unit="份"
+        />
         <div v-if="tplFetching" class="py-8 text-center text-n-slate-11">
           加载中…
         </div>

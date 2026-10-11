@@ -56,6 +56,9 @@ const groupBy = ref('owner');
 const marginRows = ref([]);
 const marginSummary = ref([]);
 const marginMeta = ref({});
+// 按 0 计价的料（最近一次采购单价查不到）。成本少算不报错、毛利只会悄悄偏高，
+// 这张清单就是「少算在哪」的唯一出口。
+const unpriced = ref({ count: 0, rows: [] });
 const costs = ref([]);
 // 成本行是自动归集出来的（一张自产单产三行），量会越滚越多，必须分页。
 const COSTS_PER_PAGE = 50;
@@ -69,10 +72,21 @@ const loadMargin = async () => {
     marginRows.value = data.payload;
     marginSummary.value = data.summary;
     marginMeta.value = data.meta;
+    unpriced.value = data.unpriced || { count: 0, rows: [] };
   } finally {
     loading.value = false;
   }
 };
+// 清单可能很长，提示条里只点名前 5 个，其余折成「等 N 种」。
+const unpricedTop = computed(() => {
+  const rows = unpriced.value.rows || [];
+  const named = rows
+    .slice(0, 5)
+    .map(r => `${r.code || '未编码'}（领 ${r.qty}，${r.order_count} 单）`)
+    .join('、');
+  return rows.length > 5 ? `${named} 等 ${rows.length} 种` : named;
+});
+
 const loadCosts = async () => {
   loading.value = true;
   try {
@@ -294,6 +308,15 @@ onMounted(loadMargin);
       </div>
 
       <template v-else-if="activeTab === 'margin'">
+        <div
+          v-if="unpriced.count"
+          class="p-3 mb-4 text-sm border rounded-lg border-n-amber-8 bg-n-amber-3 text-n-amber-11"
+        >
+          有 {{ unpriced.count }} 种领用物料查不到采购单价，这部分材料按 0
+          计入成本，毛利会偏高。补上采购价后点「从 MES
+          归集」重算即可。按牵涉订单数排前几位：{{ unpricedTop }}
+        </div>
+
         <table
           v-if="marginSummary.length"
           class="w-full max-w-3xl mb-6 text-sm"

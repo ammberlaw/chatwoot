@@ -3,9 +3,11 @@ class Api::V1::Accounts::Mes::BomTemplatesController < Api::V1::Accounts::Mes::B
   before_action :fetch_template, only: [:show, :update, :destroy]
 
   def index
-    scope = scoped_by_product_line(Current.account.mes_bom_templates)
+    scope = Current.account.mes_bom_templates
     scope = scope.where('name ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
-    @templates = scope.order(updated_at: :desc)
+    # 产线筛选放在最后：要先数出「本次筛选条件下、产线为空因而被产线分流隐藏」的条数。
+    @hidden_no_line = hidden_without_product_line(scope)
+    @templates = scoped_by_product_line(scope).order(updated_at: :desc)
   end
 
   def show; end

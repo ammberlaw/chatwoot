@@ -84,6 +84,7 @@
         "TOTAL": "总计",
         "UNCATEGORIZED": "未分类",
         "CATEGORY_MISMATCH": "以下品类在提成点配置里查无对应，提成点将按 0 计算（提成算不出）：{list}。请核对品类名或在「提成点配置」补齐。",
+        "MISSING_BASE": "以下 {count} 行填了收款额、销售额RMB 却是空的，提成算不出来（多半是汇率没填，折算就跳过了）：{list}。",
         "CONFIRM_SUBMIT": "提交后将交主管审批，期间不可编辑。确定提交？",
         "SAVED": "已保存",
         "SAVE_ERROR": "保存失败",

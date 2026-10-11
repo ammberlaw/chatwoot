@@ -57,7 +57,12 @@ const KPIS = [
   },
 ];
 
-const data = ref({ kpis: {}, overdue_installments: [], pending_vouchers: [] });
+const data = ref({
+  kpis: {},
+  overdue_installments: [],
+  pending_vouchers: [],
+  readiness: {},
+});
 const loading = ref(true);
 
 const money = micros => fmtMoney(micros || 0);
@@ -65,6 +70,67 @@ const go = path =>
   router.push(frontendURL(`accounts/${accountId.value}/${path}`));
 
 const draftCount = computed(() => data.value.kpis?.draft_voucher_count || 0);
+
+// 开账体检：功能齐了不等于账开了。没建会计期间 / 没录期初 / 订单没建应收台账 /
+// 凭证一张没过账，这四件缺哪一件，科目余额和报表就是空的，而系统看起来一切正常。
+// 全部做完这张卡自动消失，不常驻占地方。
+const readiness = computed(() => data.value.readiness || {});
+const readinessItems = computed(() => {
+  const r = readiness.value;
+  return [
+    {
+      key: 'fiscal_start',
+      label: '会计启用日',
+      done: !!r.fiscal_start_date,
+      detail: r.fiscal_start_date
+        ? `已设为 ${r.fiscal_start_date}`
+        : '未设置：启用日之前的历史单会全部涌进待建账清单',
+      route: 'erp/settings',
+    },
+    {
+      key: 'periods',
+      label: '会计期间',
+      done: (r.fiscal_period_count || 0) > 0,
+      detail:
+        (r.fiscal_period_count || 0) > 0
+          ? `已建 ${r.fiscal_period_count} 个期间`
+          : '一个都没建：期间控制与期末结账无从谈起',
+      route: 'erp/periods',
+    },
+    {
+      key: 'opening',
+      label: '期初余额',
+      done: !!r.opening_balance_ready,
+      detail: r.opening_balance_ready
+        ? '已录入'
+        : '未录入：总账只有启用日之后发生的账，资产负债表对不上',
+      route: 'erp/periods',
+    },
+    {
+      key: 'receivables',
+      label: '应收台账',
+      done: (r.pending_receivable_count || 0) === 0,
+      detail:
+        (r.pending_receivable_count || 0) === 0
+          ? '已确认的订单都建了台账'
+          : `${r.pending_receivable_count} 张已确认订单还没建台账，这些钱不在应收报表里`,
+      route: 'erp/receivables',
+    },
+    {
+      key: 'posting',
+      label: '凭证过账',
+      done: (r.posted_voucher_count || 0) > 0,
+      detail:
+        (r.posted_voucher_count || 0) > 0
+          ? `已过账 ${r.posted_voucher_count} 张`
+          : `${r.draft_voucher_count || 0} 张全是待过账：凭证不过账，报表就是空的`,
+      route: 'erp/vouchers',
+    },
+  ];
+});
+const readinessTodo = computed(() =>
+  readinessItems.value.filter(item => !item.done)
+);
 const foreignCash = computed(() => data.value.kpis?.cash_foreign || []);
 
 onMounted(async () => {
@@ -118,6 +184,37 @@ onMounted(async () => {
               {{ row.currency }} {{ money(row.amount_micros) }}
             </span>
           </div>
+        </button>
+      </div>
+
+      <!-- 开账体检：四件人工动作缺哪件就摆出来，全做完这张卡消失 -->
+      <div
+        v-if="readinessTodo.length"
+        class="flex flex-col gap-2 p-4 border rounded-xl border-n-amber-8 bg-n-amber-3"
+      >
+        <div class="flex items-center gap-2">
+          <div class="i-lucide-clipboard-check size-4 text-n-amber-11" />
+          <span class="font-medium text-n-amber-11">
+            开账待办 · 还差 {{ readinessTodo.length }} 件
+          </span>
+          <span class="text-xs text-n-amber-11">
+            这几件没做完，凭证天天在生成，报表一直是空的
+          </span>
+        </div>
+        <button
+          v-for="item in readinessTodo"
+          :key="item.key"
+          class="flex items-center justify-between gap-3 py-1.5 text-sm text-left border-b border-n-amber-6 last:border-0"
+          @click="go(item.route)"
+        >
+          <span class="flex items-center gap-2 min-w-0">
+            <div
+              class="i-lucide-circle-dashed size-3.5 shrink-0 text-n-amber-11"
+            />
+            <span class="font-medium text-n-slate-12">{{ item.label }}</span>
+            <span class="truncate text-n-slate-11">{{ item.detail }}</span>
+          </span>
+          <span class="text-xs shrink-0 text-n-iris-11">去处理</span>
         </button>
       </div>
 

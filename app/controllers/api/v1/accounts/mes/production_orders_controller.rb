@@ -19,12 +19,15 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   ].freeze
 
   def index
-    scope = scoped_by_owner(scoped_by_product_line(Current.account.mes_production_orders.visible_to(current_user)))
+    scope = scoped_by_owner(Current.account.mes_production_orders.visible_to(current_user))
     scope = apply_list_scope(scope)
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
     scope = apply_search(scope)
+    # 产线筛选放在最后：要先数出「本次筛选条件下、产线为空因而被产线分流隐藏」的条数。
+    @hidden_no_line = hidden_without_product_line(scope)
+    scope = scoped_by_product_line(scope)
     @production_orders_count = scope.count
     # 列表分片逐行取这些关联，不预加载就是每行一次查库（dev 的 Bullet 直接抛异常打断页面）。
     @production_orders = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)

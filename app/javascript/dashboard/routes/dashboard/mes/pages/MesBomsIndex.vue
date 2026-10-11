@@ -17,6 +17,7 @@ import {
   printNode,
 } from 'dashboard/helper/mesExport';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
+import MesHiddenLineHint from 'dashboard/components-next/mes/MesHiddenLineHint.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
@@ -108,6 +109,7 @@ const { orderedColumns, isDragging, onColDragStart, onColDrop, resetOrder } =
 
 const records = computed(() => store.getRecords);
 const totalCount = computed(() => store.getMeta.count || 0);
+const hiddenNoLine = computed(() => store.getMeta.hiddenNoLine || 0);
 // 列表取数统一走这里：翻页只改 currentPage，由 watch 触发重拉。
 const load = () => store.get({ page: currentPage.value });
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -440,6 +442,12 @@ onMounted(async () => {
     </div>
 
     <MesBoardOwnerBar board-key="mes_boms_index" />
+
+    <MesHiddenLineHint
+      v-if="hiddenNoLine"
+      :count="hiddenNoLine"
+      class="mx-4 sm:mx-6"
+    />
 
     <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">

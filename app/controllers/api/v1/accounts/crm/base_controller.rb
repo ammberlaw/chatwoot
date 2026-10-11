@@ -2,6 +2,8 @@
 # 门禁：系统管理员或被赋予 CRM 角色（主管/业务员）者可入；其他部门成员一律 403。
 # 数据范围：见 Crm::AccessScope —— 管理员全部 / 主管团队 / 业务员本人。
 class Api::V1::Accounts::Crm::BaseController < Api::V1::Accounts::BaseController
+  include PaginationParamNormalizer
+
   before_action :ensure_crm_access
 
   private

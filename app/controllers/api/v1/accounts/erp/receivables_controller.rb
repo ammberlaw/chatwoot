@@ -149,25 +149,23 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     scope.joins(:crm_customer).where('erp_receivables.receivable_no ILIKE :t OR crm_customers.name ILIKE :t', t: term)
   end
 
-  # 待建账口径：已确认（PENDING_CONFIRMATION 还没确认、CANCELLED 已取消，都不该进应收）
-  # 且尚无应收台账的订单。
-  UNCONFIRMED_STATUSES = %w[PENDING_CONFIRMATION CANCELLED].freeze
-
+  # 待建账口径（已确认、尚无应收台账、会计启用日之后）收在 Erp::OpeningReadiness 里：
+  # 财务看板的「待建账」数用的是同一个 scope，两处各写一份早晚对不上。
+  #
   # 会计启用日之前的单不进待建账：那些是迁移进来的历史单（上线时一次性导入的
   # 已完结订单），钱早收完了，建出来全是假应收——这个清单一度列着 484 张
   # 2227 万的历史单，批量点下去就是一场事故。日切前的余额走期初建账一笔进总账。
   # 启用日未设＝不切（沿用旧行为），设置页会提示去设。
+  def readiness
+    @readiness ||= Erp::OpeningReadiness.new(Current.account)
+  end
+
   def pending_order_scope
-    scope = unfiltered_pending_scope
-    cutoff = erp_settings.fiscal_start_date
-    cutoff ? scope.where(order_date: cutoff.beginning_of_day..) : scope
+    readiness.pending_order_scope
   end
 
   def unfiltered_pending_scope
-    built_ids = Current.account.erp_receivables.where.not(crm_sales_order_id: nil).select(:crm_sales_order_id)
-    Current.account.crm_sales_orders
-           .where.not(status: UNCONFIRMED_STATUSES)
-           .where.not(id: built_ids)
+    readiness.unfiltered_pending_scope
   end
 
   def erp_settings

@@ -1,5 +1,6 @@
 json.meta do
   json.count @boms_count
+  json.hidden_no_line @hidden_no_line
   json.current_page params[:page] || 1
 end
 

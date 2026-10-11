@@ -9,3 +9,8 @@ json.meta do
 end
 json.payload @rows
 json.summary @summary
+# 按最近一次采购单价计价时查不到价、因而按 0 计入成本的料。
+json.unpriced do
+  json.count @unpriced[:count]
+  json.rows @unpriced[:rows]
+end

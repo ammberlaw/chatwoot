@@ -5,6 +5,8 @@
 class Api::V1::Accounts::Erp::BaseController < Api::V1::Accounts::BaseController
   RESULTS_PER_PAGE = 15
 
+  include PaginationParamNormalizer
+
   before_action :ensure_erp_access
 
   private

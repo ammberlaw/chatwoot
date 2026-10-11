@@ -13,6 +13,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
+import { downloadBlob } from 'dashboard/helper/erpDownload';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 // 固定资产：直线法折旧（原值 ×(1-残值率) / 年限月数），按月一键计提，
@@ -119,6 +120,37 @@ const depreciate = async () => {
 };
 
 /* ---------------- 档案 ---------------- */
+// ── Excel 批量导入（期初建账）──
+// 开账最耗人的一段是把现有几十上百台设备一条条录进来，而期初资产空着，折旧与净值全是错的。
+// 逐行独立导入：错误行连行号报回来，对的照常建，不是「一行错全废」。
+const importDialogRef = ref(null);
+const importFileRef = ref(null);
+const importing = ref(false);
+const importResult = ref(null);
+const openImport = () => {
+  importResult.value = null;
+  importDialogRef.value?.open();
+};
+const downloadImportTemplate = async () => {
+  const { data } = await ErpFixedAssetAPI.importTemplate();
+  downloadBlob(data, '固定资产导入模板.xlsx');
+};
+const onImportPicked = async event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  importing.value = true;
+  try {
+    const { data } = await ErpFixedAssetAPI.import(file);
+    importResult.value = data.payload;
+    load();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '导入失败');
+  } finally {
+    importing.value = false;
+  }
+};
+
 const dialogRef = ref(null);
 const editing = ref(null);
 const form = reactive({
@@ -247,6 +279,15 @@ onMounted(load);
           size="sm"
           :disabled="!assets.length"
           @click="exportExcel"
+        />
+        <Button
+          v-if="canWrite"
+          label="批量导入"
+          icon="i-lucide-upload"
+          color="slate"
+          variant="faded"
+          size="sm"
+          @click="openImport"
         />
         <Button
           v-if="canWrite"
@@ -493,6 +534,77 @@ onMounted(load);
           />
           按报废处理（无处置收入）
         </label>
+      </div>
+    </Dialog>
+
+    <!-- 期初建账：Excel 批量导入 -->
+    <Dialog
+      ref="importDialogRef"
+      width="2xl"
+      title="批量导入固定资产"
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+    >
+      <div class="flex flex-col gap-3">
+        <p class="text-sm text-n-slate-11">
+          表头：资产编码 / 资产名称 / 类别 / 购入日期 / 原值 / 残值率 / 折旧月数
+          / 已提折旧 / 使用部门 / 保管人 / 备注。资产编码留空会自动编号。
+          <span class="text-n-slate-12"> 历史资产的「已提折旧」一定要填 </span>
+          ——不填系统会从零重新提一遍，折旧费用和净值都是错的。 部门 /
+          保管人按名字对，对不上的那一行会退回来，不会悄悄留空。
+        </p>
+        <div class="flex items-center gap-2">
+          <Button
+            label="下载 Excel 模板"
+            icon="i-lucide-download"
+            color="slate"
+            variant="faded"
+            size="sm"
+            @click="downloadImportTemplate"
+          />
+          <Button
+            label="选择 Excel 文件"
+            icon="i-lucide-upload"
+            color="iris"
+            size="sm"
+            :is-loading="importing"
+            @click="importFileRef?.click()"
+          />
+          <input
+            ref="importFileRef"
+            type="file"
+            accept=".xlsx,.xls"
+            class="hidden"
+            @change="onImportPicked"
+          />
+        </div>
+
+        <div v-if="importResult" class="flex flex-col gap-2 text-sm">
+          <div class="text-n-slate-12">
+            共 {{ importResult.rows }} 行，建档
+            <span class="text-n-teal-11">{{ importResult.created }}</span>
+            台，失败
+            <span
+              :class="
+                importResult.failed.length
+                  ? 'text-n-ruby-11'
+                  : 'text-n-slate-11'
+              "
+            >
+              {{ importResult.failed.length }}
+            </span>
+            行
+          </div>
+          <div
+            v-for="fail in importResult.failed"
+            :key="fail.row"
+            class="px-3 py-2 text-xs border rounded-lg border-n-ruby-6 bg-n-ruby-2 text-n-ruby-11"
+          >
+            第 {{ fail.row }} 行{{ fail.name ? `（${fail.name}）` : '' }}：{{
+              fail.errors.join('；')
+            }}
+          </div>
+        </div>
       </div>
     </Dialog>
   </div>

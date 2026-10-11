@@ -521,6 +521,42 @@ const reverseVoucher = v =>
   runAction(v, 'reverse', `已生成 ${v.voucherNo} 的红冲凭证`);
 const voidVoucher = v => runAction(v, 'void', `凭证 ${v.voucherNo} 已作废`);
 
+// ── 批量过账 ──
+// 自动凭证天天在产，一张一张点是「凭证天天生成、报表永远空」的最后一道人力卡口。
+// 选中的里面只有待过账的能过，已过账/已作废的不算进按钮计数，免得点下去发现「过了 25 张」对不上。
+const selectedDraftIds = computed(() =>
+  records.value
+    .filter(v => v.status === 'DRAFT' && selectedIds.value.includes(v.id))
+    .map(v => v.id)
+);
+const bulkPostRef = ref(null);
+const bulkPosting = ref(false);
+const askBulkPost = () => bulkPostRef.value?.open();
+const doBulkPost = async () => {
+  bulkPosting.value = true;
+  try {
+    const { data } = await ErpVoucherAPI.bulkPost(selectedDraftIds.value);
+    const { posted, failed = [], skipped = 0 } = data.payload || {};
+    // 失败的要点名到凭证号——财务得照着去改，只报个「3 张失败」等于没报。
+    const parts = [`已过账 ${posted} 张`];
+    if (skipped) parts.push(`${skipped} 张已不是待过账状态，跳过`);
+    if (failed.length) {
+      parts.push(
+        `${failed.length} 张没过：${failed
+          .map(f => `${f.voucher_no}（${f.error}）`)
+          .join('；')}`
+      );
+    }
+    useAlert(parts.join('，'));
+    selectedIds.value = [];
+    fetchList();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '批量过账失败');
+  } finally {
+    bulkPosting.value = false;
+  }
+};
+
 const confirmRef = ref(null);
 const deleting = ref(null);
 const askDelete = voucher => {
@@ -573,6 +609,15 @@ onMounted(() => {
           size="sm"
           :is-loading="printing"
           @click="printSelected"
+        />
+        <Button
+          v-if="canWrite && selectedDraftIds.length"
+          :label="`批量过账 ${selectedDraftIds.length} 张`"
+          color="iris"
+          variant="faded"
+          size="sm"
+          :is-loading="bulkPosting"
+          @click="askBulkPost"
         />
         <Button
           v-if="canWrite"
@@ -1334,6 +1379,17 @@ onMounted(() => {
       :description="`确定删除待过账凭证「${deleting?.voucherNo || ''}」？已记账的凭证不能删除，只能红冲。`"
       confirm-label="删除"
       @confirm="doDelete"
+    />
+
+    <Dialog
+      ref="bulkPostRef"
+      type="alert"
+      width="sm"
+      confirm-button-color="blue"
+      title="批量过账"
+      :description="`确定把选中的 ${selectedDraftIds.length} 张待过账凭证全部记账？记账后不能再改，错账只能红冲。借贷不平的会被跳过并逐张报出来。`"
+      confirm-label="全部过账"
+      @confirm="doBulkPost"
     />
   </div>
 </template>

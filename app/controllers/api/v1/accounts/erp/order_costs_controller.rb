@@ -53,6 +53,8 @@ class Api::V1::Accounts::Erp::OrderCostsController < Api::V1::Accounts::Erp::Bas
     @totals = report[:totals]
     @truncated = report[:truncated]
     @total_count = report[:total_count]
+    # 按 0 计价的料：成本少算了但不报错，毛利只是悄悄偏高。摆出来才查得到。
+    @unpriced = Erp::UnpricedIssueFinder.new(Current.account).perform(from: params[:from], to: params[:to])
     render 'api/v1/accounts/erp/order_costs/margin'
   end
 

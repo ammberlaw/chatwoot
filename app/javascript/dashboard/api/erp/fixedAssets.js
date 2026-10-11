@@ -7,4 +7,13 @@ const API = buildErpClient('fixed_assets');
 API.depreciate = period => axios.post(`${API.url}/depreciate`, { period });
 API.dispose = (id, payload) => axios.post(`${API.url}/${id}/dispose`, payload);
 
+// Excel 批量导入（期初建账用，连「已提折旧」一起搬）+ 模板下载。
+API.import = file => {
+  const form = new FormData();
+  form.append('file', file);
+  return axios.post(`${API.url}/import`, form);
+};
+API.importTemplate = () =>
+  axios.get(`${API.url}/import_template`, { responseType: 'blob' });
+
 export default API;

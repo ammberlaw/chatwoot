@@ -33,6 +33,24 @@ class Api::V1::Accounts::Erp::FixedAssetsController < Api::V1::Accounts::Erp::Ba
     head :ok
   end
 
+  # Excel 批量导入：账套启用时把现有资产连「已提折旧」一次性搬进来。
+  # 一条一条录几十上百台设备是开账最耗人的一段，期初资产空着折旧和净值就全是错的。
+  # 逐行独立：错误行连行号报回去，对的照常建。
+  def import
+    return render json: { error: '请选择要导入的 Excel 文件' }, status: :unprocessable_entity if params[:file].blank?
+
+    result = Erp::FixedAssetImportService.new(account: Current.account, path: params[:file].tempfile.path).import!
+    render json: { payload: result }
+  rescue Erp::FixedAssetImportService::Error => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  def import_template
+    send_data Erp::FixedAssetImportService.template_stream.read,
+              filename: '固定资产导入模板.xlsx',
+              type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  end
+
   # 一键计提本期折旧（汇总成一张待过账凭证）。
   def depreciate
     result = Erp::DepreciationService.new(Current.account, current_user).run!(params[:period])

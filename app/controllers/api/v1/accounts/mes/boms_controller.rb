@@ -8,9 +8,12 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   before_action -> { ensure_owner_or_admin!(@bom, '生产任务单') }, only: [:update, :destroy, :attach, :detach]
 
   def index
-    scope = scoped_by_bom_visibility(scoped_by_product_line(Current.account.mes_boms))
+    scope = scoped_by_bom_visibility(Current.account.mes_boms)
     scope = scope.where(crm_product_id: params[:crm_product_id]) if params[:crm_product_id].present?
     scope = scope.where('bom_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
+    # 产线筛选放在最后：要先数出「本次筛选条件下、产线为空因而被产线分流隐藏」的条数。
+    @hidden_no_line = hidden_without_product_line(scope)
+    scope = scoped_by_product_line(scope)
     @boms_count = scope.count
     # 预加载序列化要用的：用料行、成品、以及挂在本 BOM 上的生产订单
     # （成本那段要拿它的「本单采购价」，不预加载就是每行一次查询）。
