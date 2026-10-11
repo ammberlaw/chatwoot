@@ -267,20 +267,20 @@ const cell = (r, isAmt) => {
 
     <template v-else-if="sel">
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.4fr]">
-        <section class="relative overflow-hidden rounded-3xl bg-[#eeedf8] p-6 sm:p-8 text-[#252630]">
+        <section class="relative overflow-hidden rounded-3xl bg-[#fff4cc] p-6 sm:p-8 text-[#252630]">
           <div class="absolute -right-12 -top-16 size-56 rounded-full border-[32px] border-white/40 pointer-events-none" />
           <div class="relative">
-            <div class="flex items-center gap-2 text-label text-[#68657e]">
+            <div class="flex items-center gap-2 text-label text-[#86703a]">
               <span class="i-lucide-target size-5" />
               {{ year }}年{{ selMonth + 1 }}月目标
             </div>
-            <p class="mt-6 text-label text-[#68657e]">有效成交额目标</p>
+            <p class="mt-6 text-label text-[#86703a]">有效成交额目标</p>
             <p class="mt-2 text-4xl sm:text-5xl font-semibold tabular-nums tracking-tight">{{ money(sel.effAmount) }}</p>
-            <div class="mt-6 grid grid-cols-2 gap-4 border-t border-[#dcd9ed] pt-5">
-              <div><p class="text-label-small text-[#77738a]">基础目标</p><p class="mt-1 text-heading-2 font-semibold">{{ money(sel.baseAmount) }}</p></div>
-              <div><p class="text-label-small text-[#77738a]">上月结转</p><p class="mt-1 text-heading-2 font-semibold">{{ signedMoney(sel.carryAmount) }}</p></div>
+            <div class="mt-6 grid grid-cols-2 gap-4 border-t border-[#eadba8] pt-5">
+              <div><p class="text-label-small text-[#8a7749]">基础目标</p><p class="mt-1 text-heading-2 font-semibold">{{ money(sel.baseAmount) }}</p></div>
+              <div><p class="text-label-small text-[#8a7749]">上月结转</p><p class="mt-1 text-heading-2 font-semibold">{{ signedMoney(sel.carryAmount) }}</p></div>
             </div>
-            <div class="mt-6 inline-flex items-center gap-2 rounded-full bg-white/65 px-3 py-2 text-label-small text-[#656179]">
+            <div class="mt-6 inline-flex items-center gap-2 rounded-full bg-white/65 px-3 py-2 text-label-small text-[#7d6936]">
               <span class="i-lucide-calendar-days size-4" />
               {{ sel.isFuture ? '该月尚未开始' : daysLeft != null ? `本月剩余 ${daysLeft} 天` : '历史月份' }}
             </div>
@@ -294,7 +294,7 @@ const cell = (r, isAmt) => {
           <div class="mt-6 space-y-7">
             <div v-for="metric in [
               { label: '成交额', actual: sel.actualAmount, target: sel.effAmount, money: true, color: 'bg-[#b6d9aa]' },
-              { label: '新成交客户', actual: sel.actualCount, target: sel.effCount, money: false, color: 'bg-[#c3bfe8]' },
+              { label: '新成交客户', actual: sel.actualCount, target: sel.effCount, money: false, color: 'bg-[#edce76]' },
             ]" :key="metric.label">
               <div class="flex items-center justify-between gap-3">
                 <span class="text-label text-[#737880]">{{ metric.label }}</span>
@@ -402,7 +402,7 @@ const cell = (r, isAmt) => {
               :key="r.month"
               class="border-b cursor-pointer border-n-weak hover:bg-n-alpha-1"
               :class="{
-                'bg-[#f0eef9]': r.month === selMonth,
+                'bg-[#fff6da]': r.month === selMonth,
                 'text-n-slate-10': r.isFuture,
               }"
               @click="selectMonth(r.month)"
