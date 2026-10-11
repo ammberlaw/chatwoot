@@ -43,7 +43,6 @@ const { t } = useI18n();
 
 const store = useStore();
 const currentUser = useMapGetter('getCurrentUser');
-const currentUserAvailability = useMapGetter('getCurrentUserAvailability');
 
 // 自助更换头像：走原生 updateProfile，提交后 currentUser.avatar_url 响应式刷新。
 const avatarInputRef = ref(null);
@@ -241,7 +240,6 @@ const allowedMenuItems = computed(() => {
           :size="32"
           :name="currentUser.available_name"
           :src="currentUser.avatar_url"
-          :status="currentUserAvailability"
           class="flex-shrink-0"
         />
         <div v-if="!isCollapsed" class="min-w-0">

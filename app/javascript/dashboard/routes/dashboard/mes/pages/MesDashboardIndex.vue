@@ -539,6 +539,63 @@ onMounted(() => {
         </div>
       </div>
 
+      <!-- 超时未接单：置顶告警条（有才显示）。底色与其他卡一致，不整片染红；
+           轻重交给标题文字和右侧药丸。超过 3 条自动滚，不然七八条会把下面的图表顶出屏幕。 -->
+      <div
+        v-if="data.unacked.length"
+        :class="CARD"
+        class="!p-5 [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!bg-white [.theme-classic_&]:self-stretch [.theme-classic_&]:xl:col-start-3 [.theme-classic_&]:xl:row-start-4 [.theme-classic_&]:xl:row-span-2"
+      >
+        <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11 [.theme-classic_&]:mb-4 [.theme-classic_&]:text-[#565471] [.theme-classic_&]:font-semibold">
+          <span class="i-lucide-alarm-clock-off size-4" />
+          超时未接单 · {{ data.unacked.length }}
+        </div>
+        <MesMarqueeList
+          :count="data.unacked.length"
+          class="[.theme-classic_&]:!overflow-hidden [.theme-classic_&]:!h-[420px] [.theme-classic_&]:[&>div]:hover:[animation-play-state:paused]"
+        >
+          <ul class="flex flex-col">
+            <li
+              v-for="o in data.unacked"
+              :key="`ua-${o.id}`"
+              class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic_&]:!h-auto [.theme-classic_&]:!items-start [.theme-classic_&]:!p-4 [.theme-classic_&]:!mx-0 [.theme-classic_&]:mb-3 [.theme-classic_&]:!rounded-2xl [.theme-classic_&]:border [.theme-classic_&]:border-transparent [.theme-classic_&]:bg-[#f4f3fa] [.theme-classic_&]:first:bg-[#eeedf8] [.theme-classic_&]:hover:bg-[#e9e7f5] [.theme-classic_&]:transition-colors"
+              @click="goOrder(o.order_no)"
+            >
+              <span class="hidden [.theme-classic_&]:block min-w-0">
+                <strong class="block text-label text-[#222426]">{{
+                  o.order_no
+                }}</strong>
+                <span
+                  class="block mt-1 text-label-small text-[#858a90] truncate"
+                  >{{ o.product_name }}</span
+                >
+                <span class="inline-block mt-3 px-2.5 py-1 rounded-full bg-white/80 text-label-small font-medium text-[#65617d]">{{
+                  stageLabel(o.stage)
+                }}</span>
+              </span>
+              <span
+                class="truncate text-n-slate-12 group-hover:underline [.theme-classic_&]:hidden"
+              >
+                {{ o.order_no }} · {{ o.product_name }} ·
+                {{ stageLabel(o.stage) }}
+                <span class="text-n-slate-10">
+                  · 负责人：{{
+                    o.owner_names && o.owner_names.length
+                      ? o.owner_names.join('、')
+                      : '未配置'
+                  }}
+                </span>
+              </span>
+              <span
+                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11 [.theme-classic_&]:bg-white/80 [.theme-classic_&]:text-[#8e6370] [.theme-classic_&]:px-2.5 [.theme-classic_&]:py-1"
+              >
+                已 {{ o.hours }}h 未接
+              </span>
+            </li>
+          </ul>
+        </MesMarqueeList>
+      </div>
+
       <!-- 各环节接单平均响应时长（可下钻到人） -->
       <div :class="CARD" class="[.theme-classic_&]:xl:col-span-2 [.theme-classic_&]:!bg-white [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!p-6">
         <h2
@@ -618,64 +675,9 @@ onMounted(() => {
 
       <!-- 交期预警 + 滞留卡点 -->
       <div
-        class="grid grid-cols-1 gap-4 lg:grid-cols-2 [.theme-classic_&]:col-span-full"
+        class="grid grid-cols-1 gap-4 lg:grid-cols-2 [.theme-classic_&]:xl:col-span-2 [.theme-classic_&]:lg:grid-cols-1"
       >
-      <!-- 超时未接单：置顶告警条（有才显示）。底色与其他卡一致，不整片染红；
-           轻重交给标题文字和右侧药丸。超过 3 条自动滚，不然七八条会把下面的图表顶出屏幕。 -->
-      <div
-        v-if="data.unacked.length"
-        :class="CARD"
-        class="!p-5 [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!bg-white [.theme-classic_&]:self-stretch"
-      >
-        <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11 [.theme-classic_&]:mb-4 [.theme-classic_&]:text-[#565471] [.theme-classic_&]:font-semibold">
-          <span class="i-lucide-alarm-clock-off size-4" />
-          超时未接单 · {{ data.unacked.length }}
-        </div>
-        <MesMarqueeList
-          :count="data.unacked.length"
-          class="[.theme-classic_&]:[mask-image:none] [.theme-classic_&]:!overflow-auto [.theme-classic_&]:!h-52 [.theme-classic_&]:[&>div]:!animate-none [.theme-classic_&]:[&>div>div:nth-child(2)]:hidden"
-        >
-          <ul class="flex flex-col">
-            <li
-              v-for="o in data.unacked"
-              :key="`ua-${o.id}`"
-              class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic_&]:!h-auto [.theme-classic_&]:!items-start [.theme-classic_&]:!p-4 [.theme-classic_&]:!mx-0 [.theme-classic_&]:mb-3 [.theme-classic_&]:!rounded-2xl [.theme-classic_&]:border [.theme-classic_&]:border-transparent [.theme-classic_&]:bg-[#f4f3fa] [.theme-classic_&]:first:bg-[#eeedf8] [.theme-classic_&]:hover:bg-[#e9e7f5] [.theme-classic_&]:transition-colors"
-              @click="goOrder(o.order_no)"
-            >
-              <span class="hidden [.theme-classic_&]:block min-w-0">
-                <strong class="block text-label text-[#222426]">{{
-                  o.order_no
-                }}</strong>
-                <span
-                  class="block mt-1 text-label-small text-[#858a90] truncate"
-                  >{{ o.product_name }}</span
-                >
-                <span class="inline-block mt-3 px-2.5 py-1 rounded-full bg-white/80 text-label-small font-medium text-[#65617d]">{{
-                  stageLabel(o.stage)
-                }}</span>
-              </span>
-              <span
-                class="truncate text-n-slate-12 group-hover:underline [.theme-classic_&]:hidden"
-              >
-                {{ o.order_no }} · {{ o.product_name }} ·
-                {{ stageLabel(o.stage) }}
-                <span class="text-n-slate-10">
-                  · 负责人：{{
-                    o.owner_names && o.owner_names.length
-                      ? o.owner_names.join('、')
-                      : '未配置'
-                  }}
-                </span>
-              </span>
-              <span
-                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11 [.theme-classic_&]:bg-white/80 [.theme-classic_&]:text-[#8e6370] [.theme-classic_&]:px-2.5 [.theme-classic_&]:py-1"
-              >
-                已 {{ o.hours }}h 未接
-              </span>
-            </li>
-          </ul>
-        </MesMarqueeList>
-      </div>
+
 
         <div :class="CARD" class="[.theme-classic_&]:!bg-white [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:!p-6">
           <h2
