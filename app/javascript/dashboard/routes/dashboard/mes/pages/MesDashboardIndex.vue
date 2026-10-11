@@ -452,14 +452,9 @@ onMounted(() => {
             >
               <span class="text-[#555b61]">{{ label }}</span>
               <progress
-                :class="
-                  stageChart.data[index] === Math.max(...stageChart.data)
-                    ? '[&::-webkit-progress-value]:!bg-[#ffd34f] [&::-moz-progress-bar]:!bg-[#ffd34f]'
-                    : ''
-                "
                 :value="stageChart.data[index]"
                 :max="Math.max(...stageChart.data, 1)"
-                class="w-full h-5 overflow-hidden rounded-full appearance-none [&::-webkit-progress-bar]:bg-[#f1f2f3] [&::-webkit-progress-value]:bg-[#202222] [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:bg-[#202222]"
+                class="w-full h-5 overflow-hidden rounded-full appearance-none [&::-webkit-progress-bar]:bg-[#f1f2f3] [&::-webkit-progress-value]:bg-[#b6d9aa] [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:bg-[#b6d9aa]"
               />
               <strong class="text-right text-heading-3 tabular-nums">{{
                 stageChart.data[index]
