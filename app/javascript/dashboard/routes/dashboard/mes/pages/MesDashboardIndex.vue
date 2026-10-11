@@ -538,7 +538,7 @@ onMounted(() => {
       </div>
 
       <!-- 各环节接单平均响应时长（可下钻到人） -->
-      <div :class="CARD" class="[.theme-classic-black_&]:xl:col-span-2">
+      <div :class="CARD" class="[.theme-classic-black_&]:xl:col-span-2 [.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:!p-6">
         <h2
           class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
         >
@@ -552,7 +552,7 @@ onMounted(() => {
           <template v-for="r in ackRows" :key="r.stage">
             <button
               type="button"
-              class="flex items-center gap-3 px-2 py-2 -mx-2 text-sm rounded-lg hover:bg-n-alpha-1"
+              class="flex items-center gap-3 px-2 py-2 -mx-2 text-label rounded-lg hover:bg-n-alpha-1 [.theme-classic-black_&]:mx-0 [.theme-classic-black_&]:px-4 [.theme-classic-black_&]:py-3 [.theme-classic-black_&]:rounded-xl [.theme-classic-black_&]:bg-[#f7f8f6]"
               @click="toggleAck(r.stage)"
             >
               <span
@@ -567,16 +567,16 @@ onMounted(() => {
                 {{ r.label }}
               </span>
               <div
-                class="flex-1 h-2 overflow-hidden rounded-full bg-n-slate-3 min-w-16"
+                class="flex-1 h-2 overflow-hidden rounded-full bg-n-slate-3 min-w-16 [.theme-classic-black_&]:bg-[#e4eadf]"
               >
                 <div
-                  class="h-full rounded-full"
+                  class="h-full rounded-full [.theme-classic-black_&]:!bg-[#b6d9aa]"
                   :class="ackBar(r.avgSeconds)"
                   :style="{ width: `${ackPct(r.avgSeconds)}%` }"
                 />
               </div>
               <span
-                class="px-2 py-0.5 w-16 text-xs font-semibold text-center rounded-full shrink-0"
+                class="px-2 py-0.5 w-16 text-label-small font-semibold text-center rounded-full shrink-0 [.theme-classic-black_&]:!bg-transparent [.theme-classic-black_&]:!text-[#24272a] [.theme-classic-black_&]:text-heading-1"
                 :class="ackPillTone(r.avgSeconds)"
               >
                 {{ fmtDuration(r.avgSeconds) }}
@@ -607,7 +607,7 @@ onMounted(() => {
             </div>
           </template>
         </div>
-        <p class="mt-2 text-xs text-n-slate-10">
+        <p class="mt-2 text-label-small text-n-slate-10 [.theme-classic-black_&]:mt-4 [.theme-classic-black_&]:leading-relaxed">
           接单响应 = 进入本环节到接单，只算工作时间（工作日
           8:00–17:30、跳周末与节假日）；按所选时段内发生的接单统计，未接单不计入（进度条以
           4 工作小时接单时限为满格）。
@@ -618,7 +618,7 @@ onMounted(() => {
       <div
         class="grid grid-cols-1 gap-4 lg:grid-cols-2 [.theme-classic-black_&]:col-span-full"
       >
-        <div :class="CARD">
+        <div :class="CARD" class="[.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:!p-6">
           <h2
             class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
           >
@@ -634,23 +634,23 @@ onMounted(() => {
           </div>
           <MesMarqueeList
             :count="data.overdue.length + data.dueSoon.length"
-            class="[.theme-classic-black_&]:[mask-image:none] [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
+            class="[.theme-classic-black_&]:[mask-image:none] [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-52 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
           >
-            <ul class="flex flex-col">
+            <ul class="flex flex-col [.theme-classic-black_&]:gap-0">
               <li
                 v-for="o in data.overdue"
                 :key="`ov-${o.id}`"
-                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic-black_&]:h-auto [.theme-classic-black_&]:min-h-16 [.theme-classic-black_&]:mx-0 [.theme-classic-black_&]:px-4 [.theme-classic-black_&]:py-3 [.theme-classic-black_&]:rounded-none [.theme-classic-black_&]:border-b [.theme-classic-black_&]:border-[#eeeff1] [.theme-classic-black_&]:hover:bg-[#f8f8f8]"
                 @click="goOrder(o.order_no)"
               >
                 <span class="flex items-center gap-2 truncate">
-                  <span class="rounded-full size-1.5 shrink-0 bg-n-ruby-9" />
+                  <span class="rounded-full size-1.5 shrink-0 bg-n-ruby-9 [.theme-classic-black_&]:!bg-[#c5918a]" />
                   <span class="truncate text-n-slate-12 group-hover:underline">
-                    {{ o.order_no }} · {{ o.product_name }}
+                    <span class="[.theme-classic-black_&]:block [.theme-classic-black_&]:font-semibold">{{ o.order_no }}</span><span class="[.theme-classic-black_&]:block [.theme-classic-black_&]:mt-1 [.theme-classic-black_&]:text-label-small [.theme-classic-black_&]:text-[#868b92]">{{ o.product_name }}</span>
                   </span>
                 </span>
                 <span
-                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
+                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11 [.theme-classic-black_&]:!bg-transparent [.theme-classic-black_&]:!text-[#9a5b56] [.theme-classic-black_&]:font-semibold"
                 >
                   逾期 {{ o.days }} 天
                 </span>
@@ -658,17 +658,17 @@ onMounted(() => {
               <li
                 v-for="o in data.dueSoon"
                 :key="`ds-${o.id}`"
-                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic-black_&]:h-auto [.theme-classic-black_&]:min-h-16 [.theme-classic-black_&]:mx-0 [.theme-classic-black_&]:px-4 [.theme-classic-black_&]:py-3 [.theme-classic-black_&]:rounded-none [.theme-classic-black_&]:border-b [.theme-classic-black_&]:border-[#eeeff1] [.theme-classic-black_&]:hover:bg-[#f8f8f8]"
                 @click="goOrder(o.order_no)"
               >
                 <span class="flex items-center gap-2 truncate">
-                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
+                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9 [.theme-classic-black_&]:!bg-[#b5a4d0]" />
                   <span class="truncate text-n-slate-12 group-hover:underline">
-                    {{ o.order_no }} · {{ o.product_name }}
+                    <span class="[.theme-classic-black_&]:block [.theme-classic-black_&]:font-semibold">{{ o.order_no }}</span><span class="[.theme-classic-black_&]:block [.theme-classic-black_&]:mt-1 [.theme-classic-black_&]:text-label-small [.theme-classic-black_&]:text-[#868b92]">{{ o.product_name }}</span>
                   </span>
                 </span>
                 <span
-                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
+                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11 [.theme-classic-black_&]:!bg-transparent [.theme-classic-black_&]:!text-[#62676d] [.theme-classic-black_&]:font-semibold"
                 >
                   距交期 {{ o.days }} 天
                 </span>
@@ -677,7 +677,7 @@ onMounted(() => {
           </MesMarqueeList>
         </div>
 
-        <div :class="CARD">
+        <div :class="CARD" class="[.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:!p-6">
           <h2
             class="flex items-center gap-2 mb-3 text-base font-medium text-n-slate-12"
           >
@@ -693,23 +693,23 @@ onMounted(() => {
           </div>
           <MesMarqueeList
             :count="data.stalled.length"
-            class="[.theme-classic-black_&]:[mask-image:none] [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-28 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
+            class="[.theme-classic-black_&]:[mask-image:none] [.theme-classic-black_&]:!overflow-auto [.theme-classic-black_&]:!h-52 [.theme-classic-black_&]:[&>div]:!animate-none [.theme-classic-black_&]:[&>div>div:nth-child(2)]:hidden"
           >
-            <ul class="flex flex-col">
+            <ul class="flex flex-col [.theme-classic-black_&]:gap-0">
               <li
                 v-for="o in data.stalled"
                 :key="`st-${o.id}`"
-                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1"
+                class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic-black_&]:h-auto [.theme-classic-black_&]:min-h-16 [.theme-classic-black_&]:mx-0 [.theme-classic-black_&]:px-4 [.theme-classic-black_&]:py-3 [.theme-classic-black_&]:rounded-none [.theme-classic-black_&]:border-b [.theme-classic-black_&]:border-[#eeeff1] [.theme-classic-black_&]:hover:bg-[#f8f8f8]"
                 @click="goOrder(o.order_no)"
               >
                 <span class="flex items-center gap-2 truncate">
-                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9" />
+                  <span class="rounded-full size-1.5 shrink-0 bg-n-amber-9 [.theme-classic-black_&]:!bg-[#b5a4d0]" />
                   <span class="truncate text-n-slate-12 group-hover:underline">
-                    {{ o.order_no }} · {{ stageLabel(o.stage) }}
+                    <span class="[.theme-classic-black_&]:block [.theme-classic-black_&]:font-semibold">{{ o.order_no }}</span><span class="[.theme-classic-black_&]:block [.theme-classic-black_&]:mt-1 [.theme-classic-black_&]:text-label-small [.theme-classic-black_&]:text-[#868b92]">{{ stageLabel(o.stage) }}</span>
                   </span>
                 </span>
                 <span
-                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11"
+                  class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-amber-3 text-n-amber-11 [.theme-classic-black_&]:!bg-transparent [.theme-classic-black_&]:!text-[#62676d] [.theme-classic-black_&]:font-semibold"
                 >
                   滞留 {{ o.days }} 天
                 </span>
