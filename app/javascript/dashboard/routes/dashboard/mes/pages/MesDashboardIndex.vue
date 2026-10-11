@@ -323,17 +323,24 @@ onMounted(() => {
         class="hidden [.theme-classic-black_&]:grid grid-cols-1 sm:grid-cols-3 gap-4 [.theme-classic-black_&]:xl:col-span-2"
       >
         <section
-          v-for="k in [kpis[0], kpis[1], kpis[4]]"
+          v-for="(k, index) in [kpis[0], kpis[1], kpis[4]]"
           :key="k.label"
-          class="p-6 rounded-2xl border border-[#e8eaed] bg-white"
+          class="relative overflow-hidden p-6 rounded-3xl border border-white shadow-sm"
+          :class="['bg-[#eeedf9]', 'bg-[#edf4e8]', 'bg-[#edf2fa]'][index]"
         >
-          <h2 class="text-heading-2 font-semibold">{{ k.label }}</h2>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="text-heading-2 font-semibold">{{ k.label }}</h2>
+            <span class="flex items-center justify-center size-10 rounded-2xl bg-white/75 text-[#65657f]">
+              <span class="size-5" :class="KPI_META[[0, 1, 4][index]].icon" />
+            </span>
+          </div>
+          <span aria-hidden="true" class="absolute -right-8 -bottom-12 size-40 rounded-full border-[22px] border-white/40" />
           <div
-            class="mt-7 text-[40px] leading-none font-semibold tracking-tight tabular-nums"
+            class="relative mt-5 text-[44px] leading-none font-semibold tracking-tight tabular-nums"
           >
             {{ k.value }}
           </div>
-          <p class="mt-4 text-label-small text-[#81868c]">{{ k.sub }}</p>
+          <p class="relative mt-5 text-label-small text-[#666b73]">{{ k.sub }}</p>
         </section>
       </div>
       <!-- KPI 行 -->
@@ -373,7 +380,7 @@ onMounted(() => {
         :class="CARD"
         class="!p-5 [.theme-classic-black_&]:xl:col-start-3 [.theme-classic-black_&]:xl:row-start-2 [.theme-classic-black_&]:xl:row-span-2 [.theme-classic-black_&]:!border-[#e8eaed] [.theme-classic-black_&]:!bg-white [.theme-classic-black_&]:self-stretch"
       >
-        <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11">
+        <div class="flex items-center gap-2 mb-2 font-medium text-n-ruby-11 [.theme-classic-black_&]:mb-4 [.theme-classic-black_&]:text-[#565471] [.theme-classic-black_&]:font-semibold">
           <span class="i-lucide-alarm-clock-off size-4" />
           超时未接单 · {{ data.unacked.length }}
         </div>
@@ -385,7 +392,7 @@ onMounted(() => {
             <li
               v-for="o in data.unacked"
               :key="`ua-${o.id}`"
-              class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic-black_&]:!h-auto [.theme-classic-black_&]:!items-start [.theme-classic-black_&]:!p-4 [.theme-classic-black_&]:!mx-0 [.theme-classic-black_&]:mb-3 [.theme-classic-black_&]:!rounded-2xl [.theme-classic-black_&]:border [.theme-classic-black_&]:border-[#e8eaed] [.theme-classic-black_&]:bg-[#fafbf9] [.theme-classic-black_&]:hover:bg-[#f1f7df]"
+              class="flex items-center justify-between h-7 gap-3 px-2 -mx-2 text-sm rounded-lg cursor-pointer group hover:bg-n-alpha-1 [.theme-classic-black_&]:!h-auto [.theme-classic-black_&]:!items-start [.theme-classic-black_&]:!p-4 [.theme-classic-black_&]:!mx-0 [.theme-classic-black_&]:mb-3 [.theme-classic-black_&]:!rounded-2xl [.theme-classic-black_&]:border [.theme-classic-black_&]:border-transparent [.theme-classic-black_&]:bg-[#f4f3fa] [.theme-classic-black_&]:first:bg-[#eeedf8] [.theme-classic-black_&]:hover:bg-[#e9e7f5] [.theme-classic-black_&]:transition-colors"
               @click="goOrder(o.order_no)"
             >
               <span class="hidden [.theme-classic-black_&]:block min-w-0">
@@ -396,7 +403,7 @@ onMounted(() => {
                   class="block mt-1 text-label-small text-[#858a90] truncate"
                   >{{ o.product_name }}</span
                 >
-                <span class="inline-block mt-2 px-2 py-1 rounded-lg bg-white text-label-small text-[#555b61]">{{
+                <span class="inline-block mt-3 px-2.5 py-1 rounded-full bg-white/80 text-label-small font-medium text-[#65617d]">{{
                   stageLabel(o.stage)
                 }}</span>
               </span>
@@ -414,7 +421,7 @@ onMounted(() => {
                 </span>
               </span>
               <span
-                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11"
+                class="px-2 py-0.5 text-xs font-medium rounded-full shrink-0 bg-n-ruby-3 text-n-ruby-11 [.theme-classic-black_&]:bg-white/80 [.theme-classic-black_&]:text-[#8e6370] [.theme-classic-black_&]:px-2.5 [.theme-classic-black_&]:py-1"
               >
                 已 {{ o.hours }}h 未接
               </span>
