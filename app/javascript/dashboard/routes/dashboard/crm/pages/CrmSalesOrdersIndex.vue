@@ -623,10 +623,10 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
       <!-- 标题 + 新建订单 -->
       <div
-        class="flex items-center justify-between gap-2 px-4 sm:px-[26px] pt-[18px] pb-3.5 border-b border-n-weak"
+        class="flex items-center justify-between gap-2 px-4 sm:px-[26px] pt-[18px] pb-3.5 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
       >
         <h1
-          class="min-w-0 truncate text-[22px] font-bold tracking-[-0.01em] text-n-slate-12"
+          class="min-w-0 truncate text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
         >
           {{ t('CRM.SALES_ORDERS.HEADER') }}
         </h1>

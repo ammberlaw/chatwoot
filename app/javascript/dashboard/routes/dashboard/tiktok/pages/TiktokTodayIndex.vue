@@ -114,7 +114,7 @@ onMounted(load);
     >
       <!-- 头部 -->
       <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 class="text-xl font-semibold text-n-slate-12">今日速览</h1>
+        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">今日速览</h1>
         <span class="text-sm text-n-slate-11">
           {{ dateLabel }} ·
           <b class="text-n-slate-12">{{ data?.recorded_shops || 0 }}</b>

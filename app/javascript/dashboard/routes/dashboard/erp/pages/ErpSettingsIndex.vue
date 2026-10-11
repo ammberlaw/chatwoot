@@ -158,10 +158,10 @@ onMounted(loadPolicy);
 
 <template>
   <div data-black-page="erp-settings" class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between gap-3 px-6 py-4">
+    <div class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div class="flex items-center gap-2">
         <div class="i-lucide-settings-2 size-5 text-n-iris-9" />
-        <h1 class="text-xl font-semibold text-n-slate-12">财务设置</h1>
+        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">财务设置</h1>
       </div>
       <Button
         label="刷新"
@@ -171,7 +171,7 @@ onMounted(loadPolicy);
       />
     </div>
 
-    <div class="flex items-center gap-2 px-6 pb-3">
+    <div class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <!-- 全站统一的页面级 Tab（灰槽 + 深色选中块），样式见 _next-colors.scss -->
       <div data-tabbar="page">
         <button
@@ -188,7 +188,7 @@ onMounted(loadPolicy);
     <!-- 会计政策 -->
     <div
       v-if="activeTab === 'policy'"
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div class="max-w-2xl space-y-6">
         <div>
@@ -296,7 +296,7 @@ onMounted(loadPolicy);
     </div>
 
     <!-- 存货科目映射 -->
-    <div v-else class="flex flex-col flex-1 min-h-0 px-6 pb-6">
+    <div v-else class="flex flex-col flex-1 min-h-0 px-6 pb-6 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <Input
           v-model="invQuery"

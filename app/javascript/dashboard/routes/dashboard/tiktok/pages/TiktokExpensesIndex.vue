@@ -252,7 +252,7 @@ onMounted(async () => {
     <div class="w-full px-4 py-4 mx-auto sm:px-8 sm:py-6 max-w-7xl">
       <div class="flex flex-wrap items-center gap-3 mb-6">
         <div class="flex-1 min-w-0">
-          <h1 class="text-xl font-semibold text-n-slate-12">支出台账</h1>
+          <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">支出台账</h1>
           <p class="mt-1 text-sm text-n-slate-11">
             店铺运营与部门日常开销，外币按记账当时汇率折算 RMB。
           </p>
@@ -386,7 +386,7 @@ onMounted(async () => {
       @click.self="showForm = false"
     >
       <div
-        class="w-full max-w-[95vw] sm:max-w-xl p-4 sm:p-6 overflow-y-auto max-h-[90vh] rounded-2xl bg-n-solid-1 shadow-xl"
+        class="w-full max-w-[95vw] sm:max-w-xl p-4 sm:p-6 overflow-y-auto max-h-[90vh] rounded-2xl bg-n-solid-1 shadow-xl [.theme-classic_&]:sm:!p-8"
       >
         <h2 class="mb-4 text-lg font-semibold text-n-slate-12">
           {{ isEdit ? '编辑支出' : '新增支出' }}

@@ -82,8 +82,8 @@ onMounted(load);
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4">
-      <h1 class="text-xl font-medium text-n-slate-12">业务分配设置</h1>
+    <div class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
+      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">业务分配设置</h1>
       <p class="mt-0.5 text-xs text-n-slate-11">
         选中的成员才会出现在会话右键「分配业务」下拉里，可被分配处理该收件箱的对话。
       </p>
@@ -96,7 +96,7 @@ onMounted(load);
       加载中…
     </div>
 
-    <div v-else class="flex flex-col gap-4 p-4 sm:p-6">
+    <div v-else class="flex flex-col gap-4 p-4 sm:p-6 [.theme-classic_&]:sm:!p-8">
       <div
         v-for="ib in inboxes"
         :key="ib.id"

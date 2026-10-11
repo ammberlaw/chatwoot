@@ -321,9 +321,9 @@ onMounted(async () => {
   >
     <div class="w-full px-4 py-4 mx-auto sm:px-8 sm:py-6 max-w-7xl">
       <!-- 头部 + 工具栏 -->
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-6 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3">
         <div>
-          <h1 class="text-xl font-semibold text-n-slate-12">出库利润表</h1>
+          <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">出库利润表</h1>
           <p class="mt-0.5 text-sm text-n-slate-11">
             本月经营摘要，明细可点行内「查看」看全部 17 项。
           </p>
@@ -605,7 +605,7 @@ onMounted(async () => {
       @click.self="showForm = false"
     >
       <div
-        class="w-full max-w-[95vw] sm:max-w-2xl p-4 sm:p-6 overflow-y-auto max-h-[90vh] rounded-2xl bg-n-solid-1 shadow-xl"
+        class="w-full max-w-[95vw] sm:max-w-2xl p-4 sm:p-6 overflow-y-auto max-h-[90vh] rounded-2xl bg-n-solid-1 shadow-xl [.theme-classic_&]:sm:!p-8"
       >
         <h2 class="mb-4 text-lg font-semibold text-n-slate-12">
           {{

@@ -359,9 +359,9 @@ onMounted(() => {
 <template>
   <div class="flex flex-col w-full h-full">
     <div
-      class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4"
+      class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-semibold text-n-slate-12">供应商</h1>
+      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">供应商</h1>
       <div class="flex flex-wrap items-center gap-2">
         <SelectCard
           :model-value="itemCategory"
@@ -396,7 +396,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="flex-1 min-h-0 px-4 pb-4 sm:px-6 sm:pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-4 pb-4 sm:px-6 sm:pb-6 overflow-auto [.theme-classic_&]:sm:!px-8">
       <p v-if="!canManage" class="mb-3 text-xs text-n-slate-11">
         供应商档案由采购 / PMC 维护，你当前为只读。
       </p>

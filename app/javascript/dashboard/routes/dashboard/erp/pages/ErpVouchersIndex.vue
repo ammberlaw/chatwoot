@@ -550,10 +550,10 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between gap-3 px-6 py-4">
+    <div class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div class="flex items-center gap-2">
         <div class="i-lucide-book-text size-5 text-n-iris-9" />
-        <h1 class="text-xl font-semibold text-n-slate-12">记账凭证</h1>
+        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">记账凭证</h1>
         <span class="text-sm text-n-slate-11">共 {{ totalCount }} 张</span>
       </div>
       <div class="flex items-center gap-2">
@@ -601,7 +601,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="flex items-center gap-2 px-6 pb-3">
+    <div class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <MonthPicker
         v-model="period"
         placeholder="全部期间"
@@ -615,7 +615,7 @@ onMounted(() => {
       />
     </div>
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>

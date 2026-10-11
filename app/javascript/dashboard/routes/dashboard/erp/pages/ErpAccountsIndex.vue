@@ -403,10 +403,10 @@ onMounted(fetchList);
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between gap-3 px-6 py-4">
+    <div class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div class="flex items-center gap-2">
         <div class="i-lucide-list-tree size-5 text-n-iris-9" />
-        <h1 class="text-xl font-semibold text-n-slate-12">会计科目表</h1>
+        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">会计科目表</h1>
         <span class="text-sm text-n-slate-11">
           共 {{ records.length }} 个科目
         </span>
@@ -450,7 +450,7 @@ onMounted(fetchList);
     <div
       data-tabbar="page"
       data-tabbar-theme="classic"
-      class="flex items-center gap-1 px-6"
+      class="flex items-center gap-1 px-6 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <button
         v-for="tab in TABS"
@@ -464,7 +464,7 @@ onMounted(fetchList);
       </button>
     </div>
 
-    <div v-if="activeTab === 'tree'" class="flex items-center gap-2 px-6 pb-3">
+    <div v-if="activeTab === 'tree'" class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <SelectCard
         v-model="categoryFilter"
         :options="[{ value: '', label: '全部类别' }, ...CATEGORIES]"
@@ -477,7 +477,7 @@ onMounted(fetchList);
 
     <!-- 存货科目映射：来源类别 → 存货科目，决定采购入库凭证的借方科目 -->
     <template v-if="activeTab === 'inventory'">
-      <div class="flex flex-wrap items-center gap-2 px-6 pb-3">
+      <div class="flex flex-wrap items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
         <Input
           v-model="invKeyword"
           size="sm"
@@ -512,7 +512,7 @@ onMounted(fetchList);
         />
       </div>
 
-      <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+      <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
         <p class="pb-3 text-xs text-n-slate-11">
           采购入库凭证的借方科目按这张表走：借
           <span class="text-n-slate-12">存货科目</span> ／ 贷
@@ -562,7 +562,7 @@ onMounted(fetchList);
 
     <div
       v-if="activeTab === 'tree'"
-      class="flex-1 min-h-0 px-6 pb-6 overflow-auto"
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…

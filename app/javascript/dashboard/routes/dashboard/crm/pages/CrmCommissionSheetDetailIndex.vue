@@ -649,7 +649,7 @@ const openForward = () => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex flex-col md:flex-row md:items-center md:justify-between flex-shrink-0 gap-3 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
+      class="flex flex-col md:flex-row md:items-center md:justify-between flex-shrink-0 gap-3 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-center gap-3 min-w-0">
         <button
@@ -658,7 +658,7 @@ const openForward = () => {
         >
           {{ t('CRM.COMMISSION.DETAIL.BACK') }}
         </button>
-        <h1 class="text-lg font-medium truncate min-w-0 text-n-slate-12">
+        <h1 class="text-lg font-medium truncate min-w-0 text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           {{ title }}
         </h1>
         <span
@@ -788,7 +788,7 @@ const openForward = () => {
     <div v-if="isLoading" class="flex-1 p-8 text-center text-n-slate-11">
       {{ t('CRM.COMMISSION.LOADING') }}
     </div>
-    <div v-else-if="sheet" class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
+    <div v-else-if="sheet" class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
       <!-- 退回原因提示 -->
       <div
         v-if="status === 'RETURNED' && sheet.returnReason"

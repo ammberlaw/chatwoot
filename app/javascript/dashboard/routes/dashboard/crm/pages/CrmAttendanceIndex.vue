@@ -817,9 +817,9 @@ onMounted(fetchMine);
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
+      class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-medium text-n-slate-12">考勤</h1>
+      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">考勤</h1>
       <div class="flex flex-wrap items-center gap-2" data-tabbar="page">
         <button
           :aria-selected="view === 'mine'"
@@ -862,7 +862,7 @@ onMounted(fetchMine);
       </div>
     </div>
 
-    <div class="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
+    <div class="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
       <!-- 打卡卡片（始终显示） -->
       <div
         v-if="view !== 'settings'"

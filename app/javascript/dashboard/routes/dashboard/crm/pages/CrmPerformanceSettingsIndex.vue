@@ -83,10 +83,10 @@ const save = async () => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+      class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12">
+        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           {{ t('CRM.PERF_SETTINGS.HEADER') }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-11">
@@ -109,7 +109,7 @@ const save = async () => {
     </div>
     <div
       v-else
-      class="flex flex-col w-full max-w-xl gap-5 px-4 py-4 sm:px-6 sm:py-6"
+      class="flex flex-col w-full max-w-xl gap-5 px-4 py-4 sm:px-6 sm:py-6 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-col gap-1.5">
         <span class="text-sm text-n-slate-12">{{

@@ -432,10 +432,10 @@ onMounted(loadList);
   >
     <!-- 头部 -->
     <div
-      class="flex items-center justify-between gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak shrink-0"
+      class="flex items-center justify-between gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak shrink-0 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-center min-w-0 gap-2">
-        <h1 class="text-xl font-semibold truncate text-n-slate-12">展会邀约</h1>
+        <h1 class="text-xl font-semibold truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">展会邀约</h1>
         <span class="text-sm text-n-slate-10"
           >按展会从自己的客户里筛人、AI 生成邀请函、追邀约进度</span
         >

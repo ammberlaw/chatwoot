@@ -515,8 +515,8 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
-      <h1 class="text-xl font-semibold text-n-slate-12">采购申请单</h1>
+    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
+      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">采购申请单</h1>
       <Button
         v-if="canManage"
         label="新建申请单"
@@ -527,7 +527,7 @@ onMounted(() => {
       />
     </div>
 
-    <div class="flex-1 px-4 pt-1 pb-6 overflow-y-auto sm:px-6">
+    <div class="flex-1 px-4 pt-1 pb-6 overflow-y-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
       <!-- 筛选栏：三控件统一 h-9/text-sm 对齐，紧凑内联 -->
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <SelectCard

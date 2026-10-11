@@ -317,10 +317,10 @@ onMounted(async () => {
     class="flex flex-col w-full h-full overflow-hidden bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between gap-3 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak"
+      class="flex items-center justify-between gap-3 flex-shrink-0 px-4 py-3 sm:px-6 sm:py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="min-w-0">
-        <h1 class="text-xl font-medium text-n-slate-12">{{ L.header }}</h1>
+        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">{{ L.header }}</h1>
         <p class="mt-0.5 text-xs text-n-slate-10">{{ L.hint }}</p>
       </div>
       <Button
@@ -334,7 +334,7 @@ onMounted(async () => {
 
     <div
       v-if="!canManage"
-      class="px-4 sm:px-6 py-2 text-xs bg-n-iris-3 text-n-iris-11"
+      class="px-4 sm:px-6 py-2 text-xs bg-n-iris-3 text-n-iris-11 [.theme-classic_&]:sm:!px-8"
     >
       {{ L.readonly }}
     </div>

@@ -114,10 +114,10 @@ const statusClass = s =>
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 px-6 py-4 border-b border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <div>
-        <h1 class="text-xl font-medium text-n-slate-12">
+        <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           {{ t('CRM.KPI_SHEETS.LIST_HEADER') }}
         </h1>
         <p class="mt-0.5 text-xs text-n-slate-11">
@@ -131,7 +131,7 @@ const statusClass = s =>
         </p>
       </div>
     </div>
-    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4">
+    <div class="flex-1 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
       <!-- 月份 / 状态筛选 -->
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <input

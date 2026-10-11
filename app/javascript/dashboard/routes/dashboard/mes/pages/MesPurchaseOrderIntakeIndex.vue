@@ -719,10 +719,10 @@ onBeforeRouteLeave((to, from, next) => {
   >
     <!-- 操作条冻结在顶部：一个供应商几十行料时不用滚到底才点得到保存（反馈 A45） -->
     <div
-      class="sticky top-0 z-20 flex flex-wrap items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b bg-n-solid-1/80 backdrop-blur-xl border-n-weak sm:px-6 sm:py-4"
+      class="sticky top-0 z-20 flex flex-wrap items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b bg-n-solid-1/80 backdrop-blur-xl border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <h1
-        class="text-lg font-medium min-w-0 truncate text-n-slate-12 sm:text-xl"
+        class="text-lg font-medium min-w-0 truncate text-n-slate-12 sm:text-xl [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
       >
         {{ editingId ? '编辑采购单' : '新建采购单' }}
       </h1>
@@ -756,7 +756,7 @@ onBeforeRouteLeave((to, from, next) => {
       </div>
     </div>
 
-    <div class="flex flex-col w-full gap-4 px-4 py-4 sm:px-6 sm:py-5">
+    <div class="flex flex-col w-full gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
       <div class="flex flex-col gap-4">
         <!-- 栅格排版：列宽由栅格统一分，控件一律撑满本列（SelectCard 默认按内容宽，
              不加 block 就会「列很宽、控件很窄」，一行看下来全是豁口）。 -->

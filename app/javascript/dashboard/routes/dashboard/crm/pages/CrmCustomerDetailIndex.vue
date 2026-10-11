@@ -543,9 +543,9 @@ onMounted(() => {
       加载中…
     </div>
 
-    <div v-else class="w-full max-w-6xl px-4 py-4 mx-auto sm:px-6 sm:py-5">
+    <div v-else class="w-full max-w-6xl px-4 py-4 mx-auto sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
       <!-- Header -->
-      <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-5 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
         <div class="flex items-center gap-3 min-w-0">
           <button
             class="p-1.5 rounded-lg text-n-slate-11 hover:bg-n-alpha-1 shrink-0"
@@ -554,7 +554,7 @@ onMounted(() => {
             <span class="i-lucide-arrow-left size-5" />
           </button>
           <h1
-            class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 min-w-0 truncate"
+            class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 min-w-0 truncate [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
           >
             客户详情
           </h1>

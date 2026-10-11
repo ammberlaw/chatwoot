@@ -513,11 +513,11 @@ const submit = async () => {
   <div
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
-    <div class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4">
-      <h1 class="text-xl font-medium text-n-slate-12">客户建档</h1>
+    <div class="flex-shrink-0 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 [.theme-classic_&]:sm:!px-8">
+      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">客户建档</h1>
     </div>
 
-    <div class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5">
+    <div class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8">
       <div
         v-if="draftRestored"
         class="flex items-center justify-between gap-2 p-3 text-sm border rounded-lg border-n-amber-8 text-n-amber-11"

@@ -239,9 +239,9 @@ const cell = (r, isAmt) => {
   <div
     class="flex flex-col w-full h-full gap-6 p-4 sm:p-8 overflow-auto bg-white rounded-3xl"
   >
-    <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="flex flex-wrap items-start justify-between gap-3 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
+        <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           我的目标
         </h1>
         <p v-if="!loading" class="mt-0.5 text-sm text-n-slate-11">

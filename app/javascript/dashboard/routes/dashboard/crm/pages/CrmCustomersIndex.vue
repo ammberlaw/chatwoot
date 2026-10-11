@@ -1517,13 +1517,13 @@ watch(
     class="flex w-full h-full overflow-hidden font-sans"
   >
     <div
-      class="flex flex-col flex-1 min-w-0 overflow-hidden gap-3.5 px-4 py-3 sm:px-5 sm:py-4"
+      class="flex flex-col flex-1 min-w-0 overflow-hidden gap-3.5 px-4 py-3 sm:px-5 sm:py-4 [.theme-classic_&]:sm:!px-8"
     >
       <div
-        class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0"
+        class="flex flex-wrap items-center justify-between gap-2 flex-shrink-0 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center"
       >
         <div class="min-w-0">
-          <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12">
+          <h1 class="text-[22px] font-bold tracking-[-0.01em] text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
             {{
               activeFilter === 'churn_risk'
                 ? '流失预警'

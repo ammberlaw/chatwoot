@@ -559,9 +559,9 @@ const removeEmployee = async row => {
     class="flex flex-col w-full h-full overflow-auto bg-n-solid-1/40 backdrop-blur-2xl backdrop-saturate-150 rounded-3xl border border-white/50 shadow-lg shadow-n-iris-9/5"
   >
     <div
-      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak"
+      class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-medium text-n-slate-12">
+      <h1 class="text-xl font-medium text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
         {{ mode === 'list' ? '员工档案' : editingId ? '编辑员工' : '新增员工' }}
       </h1>
       <button
@@ -583,7 +583,7 @@ const removeEmployee = async row => {
     <!-- ── 敏感区解锁门：二次密码验证，15 分钟免验 ── -->
     <div
       v-if="!sudoActive"
-      class="flex flex-col items-center justify-center gap-3 px-6 py-24"
+      class="flex flex-col items-center justify-center gap-3 px-6 py-24 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
     >
       <span class="i-lucide-shield-check size-9 text-n-iris-9" />
       <p class="text-sm font-medium text-n-slate-12">
@@ -616,7 +616,7 @@ const removeEmployee = async row => {
     <!-- ── 列表视图 ── -->
     <div
       v-else-if="mode === 'list'"
-      class="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5"
+      class="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex flex-wrap items-center gap-2">
         <button
@@ -810,7 +810,7 @@ const removeEmployee = async row => {
     <!-- ── 建档 / 编辑表单 ── -->
     <div
       v-else
-      class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5"
+      class="flex flex-col w-full max-w-3xl gap-4 px-4 py-4 sm:px-6 sm:py-5 [.theme-classic_&]:sm:!px-8"
     >
       <p class="text-xs text-n-slate-11">
         员工主数据建档。带

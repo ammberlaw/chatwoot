@@ -266,7 +266,7 @@ const fieldCls =
   >
     <!-- 顶栏 -->
     <div
-      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 flex-wrap"
+      class="flex items-center justify-between flex-shrink-0 gap-3 px-4 py-3 border-b border-n-weak sm:px-6 sm:py-4 flex-wrap [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-center gap-3 min-w-0">
         <Button
@@ -277,7 +277,7 @@ const fieldCls =
           @click="goBack"
         />
         <div class="min-w-0">
-          <h1 class="text-xl font-medium text-n-slate-12 truncate">
+          <h1 class="text-xl font-medium text-n-slate-12 truncate [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
             {{
               isEdit
                 ? t('CRM.KPI_SCHEMES.EDIT.TITLE')
@@ -315,7 +315,7 @@ const fieldCls =
       {{ t('CRM.KPI_SCHEMES.LOADING') }}
     </div>
 
-    <div v-else class="flex flex-col w-full gap-8 px-4 py-4 sm:px-6 sm:py-6">
+    <div v-else class="flex flex-col w-full gap-8 px-4 py-4 sm:px-6 sm:py-6 [.theme-classic_&]:sm:!px-8">
       <!-- 方案基本信息 -->
       <section class="flex flex-col gap-3">
         <div

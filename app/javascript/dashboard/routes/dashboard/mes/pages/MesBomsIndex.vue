@@ -331,10 +331,10 @@ onMounted(async () => {
 <template>
   <div class="flex flex-col w-full h-full">
     <div
-      class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4"
+      class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-baseline gap-2">
-        <h1 class="text-xl font-semibold text-n-slate-12">
+        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
           工程/PMC 生产任务单
         </h1>
         <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
@@ -380,7 +380,7 @@ onMounted(async () => {
 
     <MesBoardOwnerBar board-key="mes_boms_index" />
 
-    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6">
+    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>

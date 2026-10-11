@@ -343,10 +343,10 @@ onMounted(loadBalanceSheet);
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between gap-3 px-6 py-4">
+    <div class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div class="flex items-center gap-2">
         <div class="i-lucide-file-spreadsheet size-5 text-n-iris-9" />
-        <h1 class="text-xl font-semibold text-n-slate-12">财务报表</h1>
+        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">财务报表</h1>
         <span
           v-if="activeTab === 'balance' && balanceSheet"
           class="px-2 py-0.5 text-xs rounded"
@@ -440,7 +440,7 @@ onMounted(loadBalanceSheet);
       </div>
     </div>
 
-    <div class="flex items-center gap-2 px-6 pb-3">
+    <div class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <!-- 全站统一的页面级 Tab（灰槽 + 深色选中块），样式见 _next-colors.scss -->
       <div data-tabbar="page">
         <button
@@ -454,7 +454,7 @@ onMounted(loadBalanceSheet);
       </div>
     </div>
 
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto">
+    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
