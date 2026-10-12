@@ -9,7 +9,9 @@ import { SESSION_STORAGE_KEYS } from 'dashboard/constants/sessionStorage';
 import SessionStorage from 'shared/helpers/sessionStorage';
 import AnalyticsHelper from 'dashboard/helper/AnalyticsHelper';
 import { SESSION_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
-import wintouchLockup from 'dashboard/assets/images/wintouch/lockup.png';
+import loginGeometricWordmark from 'dashboard/assets/images/wintouch/login-wordmark-white-clean.png';
+import loginCloudLogo from 'dashboard/assets/images/wintouch/login-header-logo.png';
+import loginCardWordmark from 'dashboard/assets/images/wintouch/login-card-wordmark-rounded.png';
 
 // components
 import SimpleDivider from '../../components/Divider/SimpleDivider.vue';
@@ -51,7 +53,9 @@ export default {
   },
   setup() {
     return {
-      wintouchLockup,
+      loginCardWordmark,
+      loginCloudLogo,
+      loginGeometricWordmark,
       v$: useVuelidate(),
     };
   },
@@ -289,73 +293,48 @@ export default {
 
 <template>
   <main
-    class="flex flex-col w-full min-h-screen overflow-x-hidden bg-gradient-to-br from-[#e9e9fb] via-[#eeecfc] to-[#f2ecfb]"
+    class="relative isolate flex flex-col w-full min-h-screen overflow-x-hidden bg-[#111111]"
   >
     <header class="flex items-center px-6 pt-7 sm:px-12">
-      <img :src="wintouchLockup" alt="Wintouch" class="w-auto h-8" />
+      <img
+        :src="loginCardWordmark"
+        alt="Wintouch"
+        class="h-auto w-[150px] brightness-0 invert"
+      />
     </header>
-
     <div
-      class="grid items-center flex-1 w-full max-w-[1440px] gap-6 px-6 mx-auto sm:px-12 lg:grid-cols-[1.35fr_1fr]"
+      class="grid items-center flex-1 w-full max-w-[1280px] gap-10 px-6 mx-auto sm:px-12 lg:grid-cols-[1.35fr_1fr]"
     >
       <!-- Hero (branded artwork, copy intentionally not translated) -->
       <!-- eslint-disable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
-      <section
-        class="relative hidden py-10 pl-[72px] lg:block"
-        aria-hidden="true"
-      >
-        <div
-          class="absolute left-[640px] top-[52px] h-[90px] w-20 rounded-tr-[60px] border-t-[3px] border-r-[3px] border-dashed border-[#4a4a7a] opacity-75"
+      <section class="hidden min-w-0 py-8 pl-6 lg:block xl:pl-12">
+        <img
+          :src="loginGeometricWordmark"
+          alt="Wintouchspace"
+          class="-mt-20 -mb-4 -ml-12 h-auto w-[calc(100%+96px)] max-w-none object-contain object-left xl:-ml-20 xl:w-[calc(100%+160px)]"
         />
-        <div
-          class="absolute left-[100px] top-[186px] h-[62px] w-20 rounded-bl-[60px] border-b-[3px] border-l-[3px] border-dashed border-[#4a4a7a] opacity-75 after:absolute after:-bottom-[11px] after:-right-3.5 after:text-[13px] after:text-[#6a5ae0] after:content-['▶']"
-        />
-
-        <div class="flex items-center my-1 gap-3.5">
-          <span
-            class="text-[58px] font-extrabold leading-[1.02] tracking-[-0.03em] text-[#232345]"
+        <div class="flex max-w-[590px] flex-col gap-2">
+          <p
+            class="whitespace-nowrap text-[48px] font-extrabold leading-[1.08] tracking-[-0.045em] text-white xl:text-[56px]"
           >
-            bring
-          </span>
-          <div
-            class="grid size-[52px] shrink-0 place-content-center rounded-full bg-[#6a5ae0]"
-          >
-            <Icon icon="i-lucide-arrow-right" class="size-6 text-white" />
-          </div>
-          <div
-            class="flex h-[52px] w-[140px] shrink-0 items-center justify-end rounded-full bg-gradient-to-r from-[#5b5bd6] to-[#8b5cf6] pr-2 shadow-[0_14px_30px_-12px_rgba(91,91,214,0.45)]"
-          >
+            bring a team
+          </p>
+          <div class="ml-20 flex items-center gap-5">
+            <p
+              class="text-[48px] font-extrabold leading-[1.08] tracking-[-0.045em] text-[#ffcc33] xl:text-[56px]"
+            >
+              together
+            </p>
             <div
-              class="size-[42px] rounded-full bg-[#f2f2f6] shadow-[0_4px_10px_rgba(0,0,0,0.15)]"
-            />
+              class="relative top-1 flex h-[30px] w-[60px] shrink-0 items-center justify-end rounded-full bg-[#ffcc33] p-[3px]"
+              aria-hidden="true"
+            >
+              <div
+                class="size-6 rounded-full bg-white shadow-[0_3px_8px_rgba(0,0,0,0.15)]"
+              />
+            </div>
           </div>
         </div>
-        <div class="flex items-center my-1 gap-3.5">
-          <div
-            class="relative size-[58px] shrink-0 rounded-full bg-[#ffb224] after:absolute after:-right-[5px] after:top-[23px] after:size-2.5 after:rounded-full after:border-[3px] after:border-white after:bg-[#6a5ae0] after:content-['']"
-          />
-          <span
-            class="text-[58px] font-extrabold leading-[1.02] tracking-[-0.03em] text-[#232345]"
-          >
-            a team
-          </span>
-        </div>
-        <div class="flex items-center my-1 gap-3.5">
-          <div
-            class="relative h-[68px] w-[104px] shrink-0 before:absolute before:left-0 before:top-0 before:size-[68px] before:rounded-full before:bg-gradient-to-br before:from-[#7c5cf0] before:to-[#a06af0] before:content-[''] after:absolute after:right-0 after:top-0 after:size-[68px] after:rounded-full after:bg-[#c3bcf7] after:content-['']"
-          />
-          <span
-            class="text-[58px] font-extrabold leading-[1.02] tracking-[-0.03em] text-[#232345]"
-          >
-            together
-          </span>
-        </div>
-
-        <p class="mt-[26px] text-sm leading-[1.8] text-[#565673]">
-          客户 · 商机 · 订单 · 邮件 · 绩效 —— 一个工作台，连接整个团队，
-          <br />
-          让协作贯穿外贸全流程。
-        </p>
       </section>
       <!-- eslint-enable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
 
@@ -381,21 +360,27 @@ export default {
         <!-- Regular Login Section -->
         <section
           v-else
-          class="flex flex-col rounded-[28px] border border-white/70 bg-white/55 px-10 py-11 shadow-[0_24px_60px_-16px_rgba(80,80,160,0.25)] backdrop-blur-2xl backdrop-saturate-[1.4] [&_label]:sr-only [&_input]:!h-[50px] [&_input]:!rounded-2xl [&_input]:!bg-white [&_input]:!px-5 [&_input]:!text-[15px] [&_input]:!text-[#1c1c2e] [&_input]:!shadow-[0_2px_8px_rgba(80,80,160,0.08)] [&_input]:!outline-transparent [&_input:focus]:!outline-2 [&_input:focus]:!outline-[#6a5ae0] [&_input.error]:!outline-n-ruby-8 [&_input::placeholder]:!text-[#6f6f8c]"
+          class="flex flex-col rounded-[28px] border border-white/70 bg-white px-6 py-9 sm:px-10 sm:py-11 shadow-[0_24px_60px_-16px_rgba(0,0,0,0.12)] backdrop-blur-2xl backdrop-saturate-[1.4] [&_label]:sr-only [&_input]:!h-[50px] [&_input]:!rounded-2xl [&_input]:!bg-white [&_input]:!px-5 [&_input]:!text-[15px] [&_input]:![font-family:ui-rounded,'Avenir_Next','Arial_Rounded_MT_Bold','Trebuchet_MS',sans-serif] [&_input]:!font-medium [&_input]:!text-[#171717] [&_input]:!shadow-[0_2px_8px_rgba(0,0,0,0.04)] [&_input]:!outline-transparent [&_input:focus]:!outline-2 [&_input:focus]:!outline-[#e2b528] [&_input.error]:!outline-n-ruby-8 [&_input::placeholder]:!text-[#777777]"
           :class="{ 'animate-wiggle': loginApi.hasErrored }"
         >
-          <img
-            :src="wintouchLockup"
-            alt="Wintouch"
-            class="h-[38px] w-auto max-w-full self-center mb-7"
-          />
+          <div
+            class="relative mb-7 h-[86px] w-[90px] self-center overflow-hidden"
+            role="img"
+            :aria-label="globalConfig.installationName"
+          >
+            <img
+              :src="loginCloudLogo"
+              alt=""
+              class="absolute -left-[10px] -top-[26px] h-auto w-[360px] max-w-none"
+            />
+          </div>
           <div v-if="!email">
             <div class="flex flex-col gap-4">
               <GoogleOAuthButton v-if="showGoogleOAuth" />
               <div v-if="showSamlLogin" class="text-center">
                 <router-link
                   to="/app/login/sso"
-                  class="inline-flex items-center justify-center w-full px-4 py-3 bg-white rounded-2xl shadow-[0_2px_8px_rgba(80,80,160,0.08)] hover:bg-n-alpha-2"
+                  class="inline-flex items-center justify-center w-full px-4 py-3 bg-white rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:bg-n-alpha-2"
                 >
                   <Icon
                     icon="i-lucide-lock-keyhole"
@@ -443,7 +428,7 @@ export default {
               <router-link
                 v-if="!globalConfig.disableUserProfileUpdate"
                 to="auth/reset/password"
-                class="-mt-2 self-end text-[13px] text-[#6a5ae0] hover:underline"
+                class="-mt-2 self-end text-[13px] text-[#171717] hover:underline"
                 tabindex="4"
               >
                 {{ $t('LOGIN.FORGOT_PASSWORD') }}
@@ -452,7 +437,7 @@ export default {
                 lg
                 type="submit"
                 data-testid="submit_button"
-                class="w-full !h-[50px] !rounded-2xl !text-[17px] !font-semibold !bg-gradient-to-r !from-[#6a5ae0] !to-[#8b5cf6] !shadow-[0_14px_30px_-10px_rgba(106,90,224,0.5)] transition-transform hover:!-translate-y-px motion-reduce:hover:!translate-y-0"
+                class="w-full !h-[50px] !rounded-2xl !text-[17px] !font-semibold !bg-[#ffcc33] !text-[#171717] !shadow-none hover:!bg-[#f2bd27] transition-transform hover:!-translate-y-px motion-reduce:hover:!translate-y-0"
                 :tabindex="3"
                 :label="$t('LOGIN.SUBMIT')"
                 :disabled="loginApi.showLoading"
@@ -472,7 +457,7 @@ export default {
           {{ $t('COMMON.OR') }}
           <router-link
             to="auth/signup"
-            class="lowercase text-link text-[#6a5ae0]"
+            class="lowercase text-link text-[#171717]"
           >
             {{ $t('LOGIN.CREATE_NEW_ACCOUNT') }}
           </router-link>
@@ -482,13 +467,18 @@ export default {
 
     <!-- eslint-disable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
     <footer
-      class="py-[22px] text-center text-[13px] tracking-[0.02em] text-[#6d6d88]"
+      class="py-[22px] text-center text-[13px] tracking-[0.02em] text-white/60"
     >
       Designed &amp; Developed by
-      <b class="font-semibold text-[#6a5ae0]">Amber Law</b>
-      <span class="block mt-1 text-[12px] text-[#9a9ab0]">
-        粤ICP备2026106012号-1
-      </span>
+      <b class="font-semibold text-white">Amber Law</b>
+      <div
+        class="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 px-6 text-label-small text-[#999999]"
+      >
+        <span>
+          © {{ new Date().getFullYear() }} 东莞市联迪科技有限公司 保留所有权利
+        </span>
+        <span>粤ICP备2026106012号-1</span>
+      </div>
     </footer>
     <!-- eslint-enable vue/no-bare-strings-in-template, @intlify/vue-i18n/no-raw-text -->
   </main>
