@@ -163,7 +163,18 @@ class Erp::CostRollupService
                      .sum(:amount_micros).to_i
   end
 
-  # 自产：已过账的领料减退料，按**最近一次采购单价**计价。
+  # 自产：已过账的领料减退料。
+  #
+  # 优先用**实际 FIFO 消耗**（Erp::StockCostService 在领料过账时逐层扣下来的真金额）——
+  # 这才是「这批料当初进货花了多少」。退回去的按当初领出去的均价冲减。
+  #
+  # 只有查不到消耗记录时才落回**最近一次采购单价**：上 FIFO 核算之前领的料没有层，
+  # 原料期初批次也还没导。这条兜底不能去掉，否则历史订单的材料成本会整批变 0。
+  #
+  # ⚠️ 两条路算出来的数会不一样（这正是上 FIFO 的原因）：备货期涨跌价时，
+  # 最近采购价会把先备的那批货按新价出账。切过去之后历史数会动，是预期内的。
+  #
+  # 下面是兜底那条路的说明：按**最近一次采购单价**计价。
   #
   # 不走物料档/商品档的成本价：这两张档的 cost_price_micros 生产上一条都没维护
   # （物料档 2789 条全空），取出来恒等于 0。采购单上的单价是真实付过钱的数。
@@ -177,9 +188,7 @@ class Erp::CostRollupService
   RETURN_PURPOSE = 'MATERIAL_RETURN'.freeze
 
   def material_amount(production_order)
-    issued = valued_qty(production_order, ISSUE_PURPOSE)
-    returned = valued_qty(production_order, RETURN_PURPOSE)
-    (issued - returned).round
+    Erp::MaterialIssueCost.new(@account).net_amount(production_order)
   end
 
   def valued_qty(production_order, purpose)

@@ -29,9 +29,41 @@ json.received_by_name resource.received_by&.name
 json.owner_id resource.owner_id
 json.owner_name resource.owner&.name
 json.remark resource.remark
+# 入库单要能独立成单：供应商、规格型号、单价、金额原本都只在采购单上，
+# 仓管核料、财务对账都得另开一张采购单比着看。这里按来源采购单补齐。
+#
+# 单价/金额沿用采购口径的权限闸（仅采购岗/财务/管理员/采购审批人）——
+# 入库单给仓管看得最多，不能顺手把成本漏出去。
+po = resource.purchase_order
+# 来源采购单的行先取出来：供应商名、单价都从这里对
+purchase_items = po ? po.purchase_items.to_a : []
+can_view_amount = Current.account_user&.mes_can?(:purchase) ||
+                  Current.account_user&.crm_finance? ||
+                  Mes::PurchaseOrder.approver?(Current.account, Current.user&.id) || false
+if Current.account_user&.mes_staff?
+  json.supplier_names purchase_items.filter_map { |i| i.mes_supplier&.name }.uniq
+  # 对内备注：核对入库时要看的就是这句（反馈点名要显示出来）。
+  json.internal_remark po&.internal_remark
+end
+# 行 → 采购行的对应：同一张采购单里按物料/成品对上，对不上就留空（手工建的入库单没有来源行）。
+item_meta = lambda do |item|
+  hit = purchase_items.find do |pi|
+    (item.mes_material_id.present? && pi.mes_material_id == item.mes_material_id) ||
+      (item.crm_product_id.present? && pi.crm_product_id == item.crm_product_id)
+  end
+  {
+    supplier_name: hit&.mes_supplier&.name,
+    specification: item.mes_material&.specification.presence || item.crm_product&.specification,
+    unit_price_micros: can_view_amount ? hit&.rate_micros : nil,
+    # 金额按**本次入库量**算，不是采购量——入库单上的钱是这一车货的钱。
+    amount_micros: (can_view_amount && hit&.rate_micros ? (item.effective_qty.to_d * hit.rate_micros).round : nil)
+  }
+end
+json.can_view_amount can_view_amount
 json.stock_entry_items do
   json.array! resource.stock_entry_items.order(:id) do |item|
-    json.partial! 'api/v1/models/mes_stock_entry_item', formats: [:json], resource: item
+    json.partial! 'api/v1/models/mes_stock_entry_item', formats: [:json], resource: item,
+                                                        meta: item_meta.call(item)
   end
 end
 json.partial! 'api/v1/models/mes_return_state', formats: [:json], resource: resource

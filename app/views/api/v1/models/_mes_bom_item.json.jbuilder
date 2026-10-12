@@ -16,6 +16,9 @@ price = local_assigns[:price_map]&.dig(resource.id)
 json.unit_price_micros price&.dig(:price_micros)
 json.price_source price&.dig(:source)
 json.price_source_label price&.dig(:source_label)
+# 价源是「多单价不一」时，把每张生产订单各买了多少钱带出来——
+# 不然财务只看到一个数，不知道这颗料在本任务单里其实有两三个价。
+json.price_breakdown price&.dig(:breakdown)
 json.amount_micros(price ? (resource.qty.to_d * price[:price_micros]).round : nil)
 
 json.remark resource.remark

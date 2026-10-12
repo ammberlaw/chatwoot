@@ -281,23 +281,6 @@ const exportStock = async () => {
   );
 };
 
-const exportExcel = async () => {
-  exporting.value = true;
-  try {
-    if (activeTab.value === 'reconcile') exportReconcile();
-    else await exportStock();
-  } catch (error) {
-    useAlert(error?.response?.data?.error || '导出失败');
-  } finally {
-    exporting.value = false;
-  }
-};
-
-const canExport = computed(() => {
-  if (activeTab.value === 'reconcile') return reconcileRows.value.length > 0;
-  return activeTab.value === 'stock' && stockLayers.value.length > 0;
-});
-
 /* 期末调汇：外币科目按期末汇率重算本位币，差额进汇兑损益 */
 const revalPeriod = ref(new Date().toISOString().slice(0, 7));
 const revalRates = ref({});
@@ -387,6 +370,127 @@ const doProvision = async () => {
     useAlert(error?.response?.data?.error || '计提失败');
   }
 };
+
+// 其余几个页签也导：期末结账看各期间的凭证/试算/状态，期末调汇和坏账计提
+// 是要留档给审计的计算过程，年度结转/期初建账没有行表（是操作面板），不出按钮。
+const stamp = () => new Date().toLocaleString('sv').slice(0, 16);
+
+const exportClose = () =>
+  exportRowsToExcel(
+    {
+      title: '会计期间结账情况',
+      meta: [
+        { label: '导出时间', value: stamp() },
+        { label: '期间数', value: rows.value.length },
+      ],
+      columns: [
+        { label: '会计期间', key: 'period' },
+        { label: '凭证数', key: 'voucher_count', num: true },
+        { label: '待过账', key: 'draft_count', num: true },
+        { label: '借方合计', key: 'debit_micros', money: true },
+        { label: '贷方合计', key: 'credit_micros', money: true },
+        { label: '试算', key: 'balanced_label' },
+        { label: '期末事项', key: 'checklist_label' },
+        { label: '状态', key: 'status_label' },
+      ],
+      rows: rows.value.map(row => ({
+        ...row,
+        balanced_label: row.balanced ? '平' : '不平',
+        // 勾选项摊成一串「✓已做 / 待未做」，Excel 里装不下徽章。
+        checklist_label: (row.checklist || [])
+          .map(item => `${item.done ? '✓' : '待'}${item.label}`)
+          .join(' / '),
+        status_label: row.status === 'CLOSED' ? '已结账' : '未结账',
+      })),
+    },
+    `会计期间结账情况_${stamp().slice(0, 10)}`
+  );
+
+const exportReval = () =>
+  exportRowsToExcel(
+    {
+      title: '期末调汇',
+      meta: [
+        { label: '导出时间', value: stamp() },
+        { label: '期间', value: revalPeriod.value },
+        { label: '单位', value: '元（本位币）' },
+        { label: '行数', value: revalRows.value.length },
+      ],
+      columns: [
+        { label: '科目编码', key: 'code' },
+        { label: '科目名称', key: 'name' },
+        { label: '核算单位', key: 'party_name' },
+        { label: '币种', key: 'currency' },
+        { label: '原币余额', key: 'original_micros', money: true },
+        { label: '账面本位币', key: 'booked_micros', money: true },
+        { label: '期末应有', key: 'should_be_micros', money: true },
+        { label: '调汇差额', key: 'diff_micros', money: true },
+      ],
+      rows: revalRows.value,
+    },
+    `期末调汇_${revalPeriod.value}`
+  );
+
+const exportBadDebt = () =>
+  exportRowsToExcel(
+    {
+      title: '坏账计提',
+      meta: [
+        { label: '导出时间', value: stamp() },
+        { label: '单位', value: '元（本位币）' },
+        { label: '客户数', value: badDebtRows.value.length },
+      ],
+      columns: [
+        { label: '客户', key: 'party_name' },
+        { label: '未结应收', key: 'total_micros', money: true },
+        // 账龄桶是动态列（口径不同桶不同），照 meta.buckets 现搭。
+        ...(badDebtMeta.value?.buckets || []).map(bucket => ({
+          label: bucket.label,
+          key: bucket.key,
+          money: true,
+        })),
+        { label: '应计提', key: 'provision_micros', money: true },
+      ],
+      // cells 是按桶 key 的对象，摊平到行上才喂得进列定义。
+      rows: badDebtRows.value.map(row => ({
+        party_name: row.party_name,
+        total_micros: row.total_micros,
+        ...row.cells,
+        provision_micros: row.provision_micros,
+      })),
+    },
+    `坏账计提_${stamp().slice(0, 10)}`
+  );
+
+const EXPORTERS = {
+  close: exportClose,
+  reconcile: exportReconcile,
+  stock: exportStock,
+  revalue: exportReval,
+  baddebt: exportBadDebt,
+};
+
+const exportExcel = async () => {
+  exporting.value = true;
+  try {
+    await EXPORTERS[activeTab.value]?.();
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '导出失败');
+  } finally {
+    exporting.value = false;
+  }
+};
+
+// 期初建账是录入面板、年度结转是一次性操作，都没有行表可导，不出按钮。
+const canExport = computed(() => {
+  const tab = activeTab.value;
+  if (tab === 'close') return rows.value.length > 0;
+  if (tab === 'reconcile') return reconcileRows.value.length > 0;
+  if (tab === 'stock') return stockLayers.value.length > 0;
+  if (tab === 'revalue') return revalRows.value.length > 0;
+  if (tab === 'baddebt') return badDebtRows.value.length > 0;
+  return false;
+});
 
 /* 年度结转：本年利润 → 利润分配。年结是一次性重大动作，单独一步，不挂在 12 月结账里 */
 const yearEndYear = ref(String(new Date().getFullYear()));

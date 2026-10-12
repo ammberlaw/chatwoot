@@ -37,8 +37,10 @@ product_map = resource.product_info_by_material_no
 # 每行的单价/金额键全是 nil，前端那两列自然不渲染。
 bom_items = resource.bom_items.order(:id).to_a
 price_map = if Current.account_user&.can_view_material_cost?
+              # 传**全部**挂上来的生产订单，不是第一张：同一张任务单常分批下几张生产订单，
+              # 各自采购价可能不同；只认第一张就按第一批的价算，后面几批的价全丢了。
               Mes::MaterialPriceResolver.new(account: resource.account, items: bom_items,
-                                             production_order: resource.production_orders.first).perform
+                                             production_orders: resource.production_orders.to_a).perform
             else
               {}
             end

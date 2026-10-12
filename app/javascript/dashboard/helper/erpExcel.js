@@ -10,6 +10,30 @@ import * as XLSX from 'xlsx';
 
 const YUAN = 1_000_000;
 
+// 分页接口的全量拉取。上面第 2 条规矩的落地件：台账类列表屏幕上一页只有 50 条，
+// 直接拿 rows 去导就是导了一页。ERP 后端把 per_page 夹在 100 以内（见 Erp::BaseController），
+// 所以只能一页页要，按 meta.count 收口。
+//
+// fetchPage 收一个参数对象、返回 axios 响应（{ data: { payload, meta } }）。
+export async function fetchAllRows(fetchPage, params = {}, options = {}) {
+  const perPage = options.perPage || 100;
+  // 兜底上限：接口要是把 count 报错了，别让前端无限翻页把浏览器卡死。
+  const maxRows = options.maxRows || 20000;
+  const rows = [];
+  let page = 1;
+  let total = Infinity;
+  while (rows.length < total && rows.length < maxRows) {
+    // eslint-disable-next-line no-await-in-loop
+    const { data } = await fetchPage({ ...params, page, per_page: perPage });
+    const chunk = data?.payload || [];
+    rows.push(...chunk);
+    total = Number(data?.meta?.count ?? rows.length);
+    if (chunk.length < perPage) break;
+    page += 1;
+  }
+  return rows;
+}
+
 const safeName = name =>
   String(name || 'export')
     .replace(/[\\/:*?"<>|]/g, '_')
@@ -21,9 +45,19 @@ export const microsToYuan = micros =>
     ? ''
     : Number((Number(micros) / YUAN).toFixed(2));
 
+// 后端的 decimal 字段（数量、汇率、税率…）序列化成**字符串**：'50.0'、'7.15'。
+// 直接写进 Excel 就是一列文本，财务求和/透视全是 #VALUE!。标 num 的列统一转数值；
+// 空值仍留空（「没有」和「零」在账上不是一回事），转不动的原样放回。
+const toNumberCell = value => {
+  if (value === null || value === undefined || value === '') return '';
+  const n = Number(value);
+  return Number.isNaN(n) ? value : n;
+};
+
 const cellOf = (row, column) => {
   const raw = row[column.key];
   if (column.money) return microsToYuan(raw);
+  if (column.num) return toNumberCell(raw);
   return raw === null || raw === undefined ? '' : raw;
 };
 

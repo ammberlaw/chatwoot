@@ -7,6 +7,8 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
+import { useListDensity } from 'dashboard/composables/useListDensity';
 import MesBomAPI from 'dashboard/api/mes/boms';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
@@ -45,6 +47,8 @@ const goEdit = bom =>
 const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
 const { mesCan } = useMesRole();
+// 行高：宽松/紧凑一键切，记在本机（反馈：间距太长想自己拉短）
+const { compact, toggleDensity } = useListDensity();
 const { isMyDoc } = useMesDocOwner();
 // 谁制单谁改：非建单人不露编辑（后端 ensure_owner_or_admin! 同样拦）。
 const canEditRow = b => mesCan('bom') && isMyDoc(b);
@@ -108,12 +112,104 @@ const COLUMN_DEFS = [
 const { orderedColumns, isDragging, onColDragStart, onColDrop, resetOrder } =
   useOrderableColumns(COLUMN_DEFS, 'mes.bomCols.v1');
 
+// 列表里就地看用料明细：PMC 核对一张单的料，原先得点「查看」开弹窗、关掉再开下一张。
+// 不直接把明细摊成多行——一张任务单二十几项料，五张单的列表就变成上百行，没法看了。
+const expandedIds = ref(new Set());
+const toggleItems = bom => {
+  const next = new Set(expandedIds.value);
+  if (next.has(bom.id)) next.delete(bom.id);
+  else next.add(bom.id);
+  expandedIds.value = next;
+};
+// 展开行要横跨整张表：序号列 + 中间可拖拽的那些列 + 末尾操作列。
+const totalColSpan = computed(() => orderedColumns.value.length + 2);
+
 const records = computed(() => store.getRecords);
 const totalCount = computed(() => store.getMeta.count || 0);
 const hiddenNoLine = computed(() => store.getMeta.hiddenNoLine || 0);
+// 表头列筛选（对标金蝶：每个竖行自己能过滤）。条件发给后端，不在前端过滤本页——
+// 列表分页，本页过滤只会在第 1 页里挑，后面的命中全看不见。
+const colFilters = reactive({
+  no: '',
+  model: '',
+  product_code: '',
+  owner_id: '',
+  sales_owner_id: '',
+  status: '',
+  submitDate: { from: '', to: '' },
+});
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: '全部状态' },
+  { value: 'RELEASED', label: '已下发' },
+  { value: 'DRAFT', label: '草稿' },
+];
+// 负责人/归属业务员的候选从当前这页的数据里取：不额外拉一份全员名单，
+// 列表里没出现过的人选了也是空结果。
+const peopleOptions = (idKey, nameKey) => [
+  { value: '', label: '全部' },
+  ...Array.from(
+    new Map(
+      records.value
+        .filter(row => row[idKey])
+        .map(row => [String(row[idKey]), row[nameKey] || '—'])
+    )
+  ).map(([value, label]) => ({ value, label })),
+];
+const ownerOptions = computed(() => peopleOptions('ownerId', 'ownerName'));
+const salesOwnerOptions = computed(() =>
+  peopleOptions('salesOwnerId', 'salesOwnerName')
+);
+// 列 key → 筛选控件配置。没配的列不出漏斗（用料项、预估周期这种筛了也没意义）。
+const FILTERABLE = {
+  no: { type: 'text', key: 'no', placeholder: '单号 / 投单单号' },
+  model: { type: 'text', key: 'model', placeholder: '型号 / 成品名' },
+  productCode: { type: 'text', key: 'product_code', placeholder: '产成品代码' },
+  owner: { type: 'select', key: 'owner_id', options: ownerOptions },
+  salesOwner: {
+    type: 'select',
+    key: 'sales_owner_id',
+    options: salesOwnerOptions,
+  },
+  status: { type: 'select', key: 'status', options: STATUS_FILTER_OPTIONS },
+  submitDate: { type: 'date', key: 'submitDate' },
+};
+const filterOf = col => FILTERABLE[col.key];
+const filterOptions = col => {
+  const opts = filterOf(col)?.options;
+  return Array.isArray(opts) ? opts : opts?.value || [];
+};
+const activeFilterCount = computed(
+  () =>
+    Object.entries(colFilters).filter(([k, v]) =>
+      k === 'submitDate' ? v.from || v.to : v
+    ).length
+);
 // 列表取数统一走这里：翻页只改 currentPage，由 watch 触发重拉。
-const load = () => store.get({ page: currentPage.value });
+const load = () =>
+  store.get({
+    page: currentPage.value,
+    no: colFilters.no || undefined,
+    model: colFilters.model || undefined,
+    product_code: colFilters.product_code || undefined,
+    owner_id: colFilters.owner_id || undefined,
+    sales_owner_id: colFilters.sales_owner_id || undefined,
+    status: colFilters.status || undefined,
+    submit_from: colFilters.submitDate.from || undefined,
+    submit_to: colFilters.submitDate.to || undefined,
+  });
 const isFetching = computed(() => store.getUIFlags.fetchingList);
+
+const onFilterChange = () => {
+  // 筛完回第 1 页：在第 3 页筛一个只有 2 条结果的条件会看到空列表。
+  if (currentPage.value !== 1) currentPage.value = 1;
+  else load();
+};
+const clearFilters = () => {
+  Object.keys(colFilters).forEach(k => {
+    colFilters[k] = k === 'submitDate' ? { from: '', to: '' } : '';
+  });
+  onFilterChange();
+};
 
 // 按阶段预估天数（不含销售出库/物流）。
 const LEAD_STAGES = [
@@ -232,6 +328,19 @@ const CATEGORY_OPTIONS = [
   { value: 'MACHINE', label: '整机物料' },
   { value: 'PACKAGING', label: '包装物料' },
 ];
+// 「多单价不一」的悬停说明：逐张生产订单列出这颗料当时买的价。
+const priceBreakdownTip = item => {
+  const rows = item.priceBreakdown || [];
+  if (!rows.length) return '';
+  // store 会把后端的 order_no / price_micros 驼峰化；直接走接口取数的地方还是下划线，两种都认。
+  return `本任务单下各生产订单的采购价：\n${rows
+    .map(
+      r =>
+        `${r.orderNo || r.order_no || '—'}  ${money(r.priceMicros ?? r.price_micros)}`
+    )
+    .join('\n')}\n单价栏取的是最近一张`;
+};
+
 const categoryLabel = c =>
   CATEGORY_OPTIONS.find(o => o.value === c)?.label || '整机物料';
 
@@ -385,13 +494,30 @@ onMounted(async () => {
       class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <div class="flex items-baseline gap-2">
-        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+        <h1
+          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
           工程/PMC 生产任务单
         </h1>
         <span class="text-sm text-n-slate-11">共 {{ totalCount }} 条</span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <!-- 列顺序是本机记忆，拖乱了要有路回来 -->
+        <Button
+          v-if="activeFilterCount"
+          :label="`清空筛选 (${activeFilterCount})`"
+          variant="ghost"
+          color="ruby"
+          size="sm"
+          @click="clearFilters"
+        />
+        <Button
+          :label="compact ? '宽松行高' : '紧凑行高'"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="toggleDensity"
+        />
         <Button
           label="恢复默认列序"
           variant="ghost"
@@ -451,7 +577,9 @@ onMounted(async () => {
     />
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
@@ -537,111 +665,215 @@ onMounted(async () => {
                 @dragover.prevent
                 @drop="onColDrop(col.key)"
               >
-                {{ col.label }}
+                <span class="inline-flex items-center gap-1">
+                  {{ col.label }}
+                  <MesColumnFilter
+                    v-if="filterOf(col)"
+                    v-model="colFilters[filterOf(col).key]"
+                    :type="filterOf(col).type"
+                    :options="filterOptions(col)"
+                    :placeholder="filterOf(col).placeholder || '输入关键字'"
+                    @change="onFilterChange"
+                  />
+                </span>
               </th>
               <th class="px-3 py-3" />
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="(b, i) in records"
-              :key="b.id"
-              class="border-b border-n-weak"
-            >
-              <td class="px-3 py-3 tabular-nums text-n-slate-10">
-                {{ (currentPage - 1) * ITEMS_PER_PAGE + i + 1 }}
-              </td>
-              <!-- 中间列按 orderedColumns 渲染，顺序随表头拖拽实时变化 -->
-              <td
-                v-for="col in orderedColumns"
-                :key="col.key"
-                :class="col.tdClass"
-              >
-                <template v-if="col.key === 'no'">
-                  {{ bomNoOf(b) }}
-                  <!-- 填了投单单号时，把系统自动号作为副号附在下面，便于跟历史单据对照 -->
-                  <div v-if="b.docNo" class="text-[11px] text-n-slate-10">
-                    {{ b.bomNo }}
+            <!-- 一条任务单渲染两行：主行 + 展开的用料明细行，所以 v-for 挂在 template 上 -->
+            <template v-for="(b, i) in records" :key="b.id">
+              <tr class="border-b border-n-weak">
+                <td class="px-3 py-3 tabular-nums text-n-slate-10">
+                  {{ (currentPage - 1) * ITEMS_PER_PAGE + i + 1 }}
+                </td>
+                <!-- 中间列按 orderedColumns 渲染，顺序随表头拖拽实时变化 -->
+                <td
+                  v-for="col in orderedColumns"
+                  :key="col.key"
+                  :class="col.tdClass"
+                >
+                  <template v-if="col.key === 'no'">
+                    {{ bomNoOf(b) }}
+                    <!-- 填了投单单号时，把系统自动号作为副号附在下面，便于跟历史单据对照 -->
+                    <div v-if="b.docNo" class="text-[11px] text-n-slate-10">
+                      {{ b.bomNo }}
+                    </div>
+                  </template>
+                  <template v-else-if="col.key === 'model'">
+                    <div class="text-n-slate-12">
+                      {{ b.model || b.productName || '—' }}
+                    </div>
+                    <div
+                      v-if="b.productCode || b.customerName"
+                      class="text-xs text-n-slate-10"
+                    >
+                      {{
+                        [b.productCode, b.customerName]
+                          .filter(Boolean)
+                          .join(' · ')
+                      }}
+                    </div>
+                  </template>
+                  <template v-else-if="col.key === 'owner'">
+                    {{ b.ownerName || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'salesOwner'">
+                    {{ b.salesOwnerName || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'submitDate'">
+                    {{ b.submitDate || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'productCode'">
+                    {{ b.productCode || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'baseQty'">
+                    {{ b.baseQty }} {{ b.unit }}
+                  </template>
+                  <template v-else-if="col.key === 'items'">
+                    <!-- 点一下就地展开该单的用料明细，不用开弹窗 -->
+                    <button
+                      v-if="(b.bomItems || []).length"
+                      type="button"
+                      class="inline-flex items-center gap-1 reset-base text-n-iris-11 hover:text-n-iris-12"
+                      :aria-expanded="expandedIds.has(b.id)"
+                      @click="toggleItems(b)"
+                    >
+                      <span
+                        class="size-4"
+                        :class="
+                          expandedIds.has(b.id)
+                            ? 'i-lucide-chevron-down'
+                            : 'i-lucide-chevron-right'
+                        "
+                      />
+                      {{ b.bomItems.length }} 项
+                    </button>
+                    <span v-else>—</span>
+                  </template>
+                  <template v-else-if="col.key === 'leadDays'">
+                    {{ b.totalLeadDays || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'status'">
+                    <span
+                      class="px-2 py-0.5 text-xs rounded-full"
+                      :class="
+                        b.status === 'RELEASED'
+                          ? 'bg-n-teal-3 text-n-teal-12'
+                          : 'bg-n-slate-4 text-n-slate-11'
+                      "
+                    >
+                      {{ b.status === 'RELEASED' ? '已下发' : '草稿' }}
+                    </span>
+                  </template>
+                </td>
+                <td class="px-3 py-3 text-right">
+                  <div class="flex justify-end gap-1">
+                    <Button
+                      v-if="mesCan('bom') && b.status !== 'RELEASED'"
+                      label="下发"
+                      color="iris"
+                      size="sm"
+                      :is-loading="releasingId === b.id"
+                      @click="release(b)"
+                    />
+                    <Button
+                      label="查看"
+                      variant="ghost"
+                      size="sm"
+                      @click="openView(b)"
+                    />
+                    <Button
+                      v-if="canEditRow(b)"
+                      label="编辑"
+                      variant="ghost"
+                      size="sm"
+                      @click="goEdit(b)"
+                    />
                   </div>
-                </template>
-                <template v-else-if="col.key === 'model'">
-                  <div class="text-n-slate-12">
-                    {{ b.model || b.productName || '—' }}
-                  </div>
-                  <div
-                    v-if="b.productCode || b.customerName"
-                    class="text-xs text-n-slate-10"
-                  >
-                    {{
-                      [b.productCode, b.customerName]
-                        .filter(Boolean)
-                        .join(' · ')
-                    }}
-                  </div>
-                </template>
-                <template v-else-if="col.key === 'owner'">
-                  {{ b.ownerName || '—' }}
-                </template>
-                <template v-else-if="col.key === 'salesOwner'">
-                  {{ b.salesOwnerName || '—' }}
-                </template>
-                <template v-else-if="col.key === 'submitDate'">
-                  {{ b.submitDate || '—' }}
-                </template>
-                <template v-else-if="col.key === 'productCode'">
-                  {{ b.productCode || '—' }}
-                </template>
-                <template v-else-if="col.key === 'baseQty'">
-                  {{ b.baseQty }} {{ b.unit }}
-                </template>
-                <template v-else-if="col.key === 'items'">
-                  {{ (b.bomItems || []).length }} 项
-                </template>
-                <template v-else-if="col.key === 'leadDays'">
-                  {{ b.totalLeadDays || '—' }}
-                </template>
-                <template v-else-if="col.key === 'status'">
-                  <span
-                    class="px-2 py-0.5 text-xs rounded-full"
-                    :class="
-                      b.status === 'RELEASED'
-                        ? 'bg-n-teal-3 text-n-teal-12'
-                        : 'bg-n-slate-4 text-n-slate-11'
-                    "
-                  >
-                    {{ b.status === 'RELEASED' ? '已下发' : '草稿' }}
-                  </span>
-                </template>
-              </td>
-              <td class="px-3 py-3 text-right">
-                <div class="flex justify-end gap-1">
-                  <Button
-                    v-if="mesCan('bom') && b.status !== 'RELEASED'"
-                    label="下发"
-                    color="iris"
-                    size="sm"
-                    :is-loading="releasingId === b.id"
-                    @click="release(b)"
-                  />
-                  <Button
-                    label="查看"
-                    variant="ghost"
-                    size="sm"
-                    @click="openView(b)"
-                  />
-                  <Button
-                    v-if="canEditRow(b)"
-                    label="编辑"
-                    variant="ghost"
-                    size="sm"
-                    @click="goEdit(b)"
-                  />
-                </div>
-              </td>
-            </tr>
+                </td>
+              </tr>
+              <!-- 展开的用料明细：只出类别/物料编码/物料名称/规格型号/用量这几样，
+                 够 PMC 核料；单价、采购注意事项这些仍在「查看」里，列表不塞。 -->
+              <tr v-if="expandedIds.has(b.id)">
+                <td :colspan="totalColSpan" class="px-3 py-3 bg-n-alpha-1">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="text-left text-n-slate-11">
+                        <th class="w-10 px-2 py-1 font-medium">#</th>
+                        <th class="px-2 py-1 font-medium whitespace-nowrap">
+                          类别
+                        </th>
+                        <th class="px-2 py-1 font-medium whitespace-nowrap">
+                          物料编码
+                        </th>
+                        <th
+                          class="px-2 py-1 font-medium whitespace-nowrap w-1/3"
+                        >
+                          物料名称
+                        </th>
+                        <th
+                          class="px-2 py-1 font-medium whitespace-nowrap w-1/3"
+                        >
+                          规格型号
+                        </th>
+                        <th
+                          class="px-2 py-1 font-medium text-right whitespace-nowrap"
+                        >
+                          用量
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="(it, idx) in b.bomItems"
+                        :key="it.id || idx"
+                        class="border-t border-n-weak"
+                      >
+                        <td class="px-2 py-1 tabular-nums text-n-slate-10">
+                          {{ idx + 1 }}
+                        </td>
+                        <td class="px-2 py-1 whitespace-nowrap">
+                          <span
+                            class="px-2 py-0.5 rounded-full"
+                            :class="
+                              it.category === 'PACKAGING'
+                                ? 'bg-n-amber-3 text-n-amber-12'
+                                : 'bg-n-iris-3 text-n-iris-12'
+                            "
+                          >
+                            {{ categoryLabel(it.category) }}
+                          </span>
+                        </td>
+                        <td class="px-2 py-1 whitespace-nowrap text-n-slate-12">
+                          {{ it.materialNo || '—' }}
+                        </td>
+                        <td class="px-2 py-1 text-n-slate-12">
+                          {{ it.materialName || '—' }}
+                        </td>
+                        <td class="px-2 py-1 text-n-slate-11">
+                          {{ it.specification || '—' }}
+                        </td>
+                        <td
+                          class="px-2 py-1 text-right whitespace-nowrap text-n-slate-11"
+                        >
+                          {{ it.qty }} {{ it.unit || '' }}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            </template>
             <tr v-if="!records.length">
-              <td colspan="9" class="px-3 py-10 text-center text-n-slate-11">
-                还没有生产任务单。
+              <td
+                :colspan="totalColSpan"
+                class="px-3 py-10 text-center text-n-slate-11"
+              >
+                <template v-if="activeFilterCount">
+                  没有符合筛选条件的生产任务单。点右上角「清空筛选」回到全部。
+                </template>
+                <template v-else>还没有生产任务单。</template>
               </td>
             </tr>
           </tbody>
@@ -858,9 +1090,18 @@ onMounted(async () => {
                       {{ money(it.amountMicros) }}
                     </td>
                     <td class="px-2 py-2">
+                      <!-- 「多单价不一」＝这颗料在本任务单的几张生产订单里买价不同（备货期涨跌价）。
+                           这时单价那一栏取的是最近一张，没有唯一正确值，所以标出来并把每张单
+                           各是多少挂在悬停提示里——只给一个数会让人当成确定的成本。 -->
                       <span
                         v-if="it.priceSourceLabel"
-                        class="px-2 py-0.5 text-xs rounded-full bg-n-slate-3 text-n-slate-11"
+                        class="px-2 py-0.5 text-xs rounded-full"
+                        :class="
+                          it.priceBreakdown?.length
+                            ? 'bg-n-amber-3 text-n-amber-11 cursor-help'
+                            : 'bg-n-slate-3 text-n-slate-11'
+                        "
+                        :title="priceBreakdownTip(it)"
                       >
                         {{ it.priceSourceLabel }}
                       </span>

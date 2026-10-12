@@ -114,6 +114,43 @@ class Crm::SalesOrder < ApplicationRecord
     Array(line_items).filter_map { |item| item.is_a?(Hash) ? item['name'].presence : nil }.uniq
   end
 
+  # 明细行的规范形态（jsonb 里键名不全、类型也不统一，统一在这里收口）。
+  # 应收/应付台账要在列表上直接摆出数量单价——以前只有一个「型号」摘要，
+  # 财务得逐条点进订单详情才看得到买了什么、什么价。
+  def line_item_rows
+    Array(line_items).filter_map do |item|
+      next unless item.is_a?(Hash)
+
+      { sku: item['sku'], name: item['name'], spec: item['spec'],
+        quantity: item['quantity'], unit_price: item['unit_price'], amount: item['amount'] }
+    end
+  end
+
+  # 首次出库日期：应收的账期多半从货走那天起算，台账上「已出货」却不写日期等于没说。
+  def first_shipped_on
+    account.mes_shipments.where(crm_sales_order_id: id).where.not(shipped_at: nil).minimum(:shipped_at)&.to_date
+  end
+
+  # 首次出库那张单的日期/单号/仓库——应收台账按金蝶口径要「单据日期·单据编号·仓库」三列。
+  # 列表页走控制器批量取数，这里只给单条详情用。
+  def first_shipment_meta
+    shipment = account.mes_shipments.where(crm_sales_order_id: id)
+                      .where.not(shipped_at: nil).order(shipped_at: :asc).includes(:warehouse).first
+    return {} if shipment.nil?
+
+    { shipped_on: shipment.shipped_at&.to_date, shipment_no: shipment.shipment_no,
+      warehouse_name: shipment.warehouse&.name }
+  end
+
+  # 明细行的单位/事业部挂在商品档上，订单明细只存了 sku。单条详情用，列表走控制器批量版。
+  def product_meta_by_sku
+    skus = line_item_rows.pluck(:sku).compact_blank.uniq
+    return {} if skus.empty?
+
+    account.crm_products.where(sku: skus).pluck(:sku, :unit, :product_line)
+           .to_h { |sku, unit, line| [sku, { unit: unit, product_line: line }] }
+  end
+
   # 列表用的一行摘要：第一项 + 共几项。全部名字走 product_names。
   def product_summary
     names = product_names

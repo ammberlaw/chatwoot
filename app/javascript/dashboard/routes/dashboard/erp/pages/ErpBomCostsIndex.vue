@@ -4,6 +4,7 @@ import { useAlert } from 'dashboard/composables';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
 import ErpBomCostAPI from 'dashboard/api/erp/bomCosts';
+import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 import MesProductAPI from 'dashboard/api/mes/products';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -60,6 +61,47 @@ const search = () => {
 const goPage = p => {
   currentPage.value = p;
   load();
+};
+
+// ── 导出 ───────────────────────────────────────────
+// ⚠️ 全量：列表一页 25 条，导出重新向后端分页要完，不是导屏幕这一页。
+const exporting = ref(false);
+const exportList = async () => {
+  exporting.value = true;
+  try {
+    const all = await fetchAllRows(params => ErpBomCostAPI.get(params), {
+      q: keyword.value.trim() || undefined,
+    });
+    exportRowsToExcel(
+      {
+        title: 'BOM 成本表',
+        meta: [
+          {
+            label: '导出时间',
+            value: new Date().toLocaleString('sv').slice(0, 16),
+          },
+          { label: '关键字', value: keyword.value.trim() || '（无）' },
+          { label: '产品数', value: all.length },
+        ],
+        columns: [
+          { label: '商品编码', key: 'sku' },
+          { label: '产品名称', key: 'product_name' },
+          { label: '规格型号', key: 'specification' },
+          { label: '加工费', key: 'process_fee_micros', money: true },
+          { label: '制造费用', key: 'overhead_fee_micros', money: true },
+          { label: '合计单价', key: 'unit_cost_micros', money: true },
+          { label: '备注', key: 'remark' },
+          { label: '最近修改', key: 'updated_by_name' },
+        ],
+        rows: all,
+      },
+      `BOM成本表_${new Date().toLocaleDateString('sv')}`
+    );
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
 };
 
 // ── 新建 / 编辑 ───────────────────────────────────────────
@@ -206,6 +248,15 @@ onMounted(load);
     <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
       <h1 class="text-xl font-semibold text-n-slate-12">BOM 成本表</h1>
       <div class="flex items-center gap-2">
+        <!-- 导出是只读动作，不挂写权限 -->
+        <Button
+          label="导出 Excel"
+          variant="faded"
+          color="slate"
+          size="sm"
+          :is-loading="exporting"
+          @click="exportList"
+        />
         <Button
           v-if="canWrite"
           label="导入 Excel"

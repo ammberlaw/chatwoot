@@ -54,6 +54,18 @@ export function useResizableColumns(cols, storageKey) {
   let startX = 0;
   let startW = 0;
 
+  // 把表头那一行里每个可拉的列的当前宽度量下来钉成像素（只在还没钉过时做）。
+  // headerRow 是表头格的父节点，子节点顺序与 colList() 一一对应。
+  const freezeCurrentWidths = headerRow => {
+    if (!headerRow) return;
+    const cells = Array.from(headerRow.children);
+    colList().forEach((c, i) => {
+      if (c.fixed != null || widths.value[c.key]) return;
+      const w = cells[i]?.getBoundingClientRect().width;
+      if (w > 0) widths.value[c.key] = Math.round(w);
+    });
+  };
+
   const onMove = e => {
     if (!dragKey) return;
     widths.value[dragKey] = Math.max(MIN_W, startW + (e.clientX - startX));
@@ -73,6 +85,12 @@ export function useResizableColumns(cols, storageKey) {
   // 这样从 fr 切到固定像素时不会跳一下。
   const startResize = (key, e) => {
     const cell = e.currentTarget?.parentElement;
+    // 第一次拖之前，把当前渲染出来的每一列宽度原样冻成像素。
+    //
+    // 为什么：其余列还留在 fr 的话，它们会把这一列多出来的宽度「吃回去」——
+    // 用户拉宽规格型号，旁边几列就一起缩水（反馈原话：「拉了一条，另外的就变小了」）。
+    // 全部定死之后，拉一列＝整张表变宽，外面那层横向滚动条接着就是了，谁也不挤谁。
+    freezeCurrentWidths(cell?.parentElement);
     dragKey = key;
     startX = e.clientX;
     startW = widths.value[key] || cell?.getBoundingClientRect().width || MIN_W;

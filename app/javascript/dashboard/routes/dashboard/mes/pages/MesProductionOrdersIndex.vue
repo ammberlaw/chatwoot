@@ -35,6 +35,10 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import { emitter } from 'shared/helpers/mitt';
+import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
+import MesImageLightbox from 'dashboard/components-next/mes/MesImageLightbox.vue';
+import { useListDensity } from 'dashboard/composables/useListDensity';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
 
@@ -45,6 +49,10 @@ const { accountId, accountScopedRoute } = useAccount();
 const route = useRoute();
 const router = useRouter();
 const { mesCan } = useMesRole();
+// 行高：宽松/紧凑一键切，记在本机（反馈：间距太长想自己拉短）
+const { compact, toggleDensity } = useListDensity();
+// 订单里业务附的产品图：点缩略图在页内放大
+const orderLightboxRef = ref(null);
 const { isAdmin, isCrmDeputyAdmin, isCrmTeamLead, isCrmSales, currentUser } =
   useCrmRole();
 const currentUserId = useMapGetter('getCurrentUserID');
@@ -324,7 +332,40 @@ const timelineStageIndex = value =>
 const viewMode = ref('all');
 // 列表分档：mine 我的订单 / stock 库存备货 / all 全部（可见范围内）。
 const listScope = ref('all');
+// 表头列筛选（对标金蝶的漏斗）。阶段/状态/业务员工具栏上已有，不在这里重复——
+// 两处筛同一件事会打架；这里只补工具栏盖不到的那些列。
+// 条件发给后端：列表分页，前端只过滤本页的话第 2 页往后的命中就看不见了。
+const colFilters = reactive({
+  col_no: '',
+  col_model: '',
+  col_sku: '',
+  col_spec: '',
+  col_sales_order: '',
+  col_remark: '',
+  due: { from: '', to: '' },
+});
+const FILTERABLE = {
+  no: { type: 'text', key: 'col_no', placeholder: '工单号' },
+  model: { type: 'text', key: 'col_model', placeholder: '型号 / 成品名' },
+  sku: { type: 'text', key: 'col_sku', placeholder: '商品编码' },
+  spec: { type: 'text', key: 'col_spec', placeholder: '规格型号' },
+  salesOrder: { type: 'text', key: 'col_sales_order', placeholder: '销售单号' },
+  remark: { type: 'text', key: 'col_remark', placeholder: '备注关键字' },
+  due: { type: 'date', key: 'due' },
+};
+const filterOf = col => FILTERABLE[col.key];
+const activeFilterCount = computed(
+  () =>
+    Object.entries(colFilters).filter(([k, v]) =>
+      k === 'due' ? v.from || v.to : v
+    ).length
+);
+
+// 列表一重拉就顺带让侧栏重算 MES 待办角标：接单/下发采购/审批这些动作办完都会重拉列表，
+// 挂在这一处就覆盖了全部路径，不用在十几个动作里各加一行（漏一个角标就又不掉了）。
+// 侧栏那边去抖 300ms，接口也只回几个数字。
 const fetchRecords = () => {
+  emitter.emit('MES_TODO_MAY_CHANGE');
   if (viewMode.value === 'inbox') return store.fetchApprovalInbox();
   return store.get({
     page: currentPage.value,
@@ -333,6 +374,14 @@ const fetchRecords = () => {
     status: activeStatus.value || undefined,
     owner_id: activeOwner.value || undefined,
     q: searchQuery.value.trim() || undefined,
+    col_no: colFilters.col_no || undefined,
+    col_model: colFilters.col_model || undefined,
+    col_sku: colFilters.col_sku || undefined,
+    col_spec: colFilters.col_spec || undefined,
+    col_sales_order: colFilters.col_sales_order || undefined,
+    col_remark: colFilters.col_remark || undefined,
+    due_from: colFilters.due.from || undefined,
+    due_to: colFilters.due.to || undefined,
   });
 };
 const setViewMode = m => {
@@ -355,6 +404,18 @@ const tabActive = (mode, scope) =>
   mode === 'inbox'
     ? viewMode.value === 'inbox'
     : viewMode.value === 'all' && listScope.value === scope;
+
+// 筛完回第 1 页：在第 3 页筛一个只有 2 条结果的条件会看到空列表。
+const onColFilterChange = () => {
+  currentPage.value = 1;
+  fetchRecords();
+};
+const clearColFilters = () => {
+  Object.keys(colFilters).forEach(k => {
+    colFilters[k] = k === 'due' ? { from: '', to: '' } : '';
+  });
+  onColFilterChange();
+};
 
 let searchTimer = null;
 const onSearchInput = () => {
@@ -470,6 +531,9 @@ const detailExportData = () => {
       ? `订单明细 ${viewingOrder.value.orderNo}`
       : '订单明细',
     fields: [...viewBaseFields.value, ...specRows],
+    // 附图进不了二维表，但要把文件名和直链列出来——否则导出的 Excel 里
+    // 业务附的产品图连痕迹都没有，拿到表的人以为根本没附过（反馈点名）。
+    images: viewingOrder.value?.images || [],
   };
 };
 const exportDetailExcel = () => {
@@ -1478,14 +1542,19 @@ watch(currentPage, fetchRecords);
     <div
       class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">生产订单</h1>
-
+      <h1
+        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        销售订单
+      </h1>
     </div>
 
     <!-- 视图切换：我的订单 / 库存备货 / 全部 / 待我确认（前后两个仅 CRM 业务身份显示）。
          data-tabbar="page" + aria-selected 是全站页面级 Tab 的统一标记（灰槽 + 深色选中块），
          样式在 _next-colors.scss 里，这里不要再写边框/底色，写了会跟它打架。 -->
-    <div class="flex flex-wrap items-center justify-between gap-3 px-4 pb-2 sm:px-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 px-4 pb-2 sm:px-6 [.theme-classic_&]:sm:!px-8"
+    >
       <div data-tabbar="page" class="shrink-0">
         <button
           v-if="isCrmMember"
@@ -1518,6 +1587,21 @@ watch(currentPage, fetchRecords);
         </button>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <Button
+          v-if="activeFilterCount"
+          :label="`清空筛选 (${activeFilterCount})`"
+          variant="ghost"
+          color="ruby"
+          size="sm"
+          @click="clearColFilters"
+        />
+        <Button
+          :label="compact ? '宽松行高' : '紧凑行高'"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="toggleDensity"
+        />
         <!-- 列顺序是本机记忆，拖乱了要有路回来 -->
         <Button
           label="恢复默认列序"
@@ -1783,7 +1867,16 @@ watch(currentPage, fetchRecords);
                   @dragover.prevent
                   @drop="onColDrop(col.key)"
                 >
-                  {{ col.label }}
+                  <span class="inline-flex items-center gap-1">
+                    {{ col.label }}
+                    <MesColumnFilter
+                      v-if="filterOf(col)"
+                      v-model="colFilters[filterOf(col).key]"
+                      :type="filterOf(col).type"
+                      :placeholder="filterOf(col).placeholder || '输入关键字'"
+                      @change="onColFilterChange"
+                    />
+                  </span>
                 </th>
                 <th class="px-3 py-3" />
               </tr>
@@ -1795,7 +1888,7 @@ watch(currentPage, fetchRecords);
                 class="border-b cursor-pointer group/row border-n-weak [&:hover>td]:bg-n-alpha-1 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg"
                 :class="
                   selected && selected.id === po.id
-                    ? '[&>td]:!bg-n-alpha-2 [&>td:first-child]:shadow-[inset_3px_0_0_0_rgb(var(--iris-9))]'
+                    ? '[&>td]:!bg-n-iris-2 [&>td]:!text-n-slate-12 [&>td:first-child]:shadow-[inset_4px_0_0_0_rgb(var(--iris-9))]'
                     : ''
                 "
                 @click="selectRow(po)"
@@ -2033,9 +2126,9 @@ watch(currentPage, fetchRecords);
         class="flex flex-col p-5 overflow-auto w-full md:w-80 shrink-0 rounded-xl bg-n-alpha-black1 border border-n-weak [.theme-classic_&]:!bg-white [.theme-classic_&]:rounded-3xl [.theme-classic_&]:!border-[#e8eaed] [.theme-classic_&]:md:w-96 [.theme-classic_&]:p-6"
       >
         <div class="flex items-center gap-2 mb-1 [.theme-classic_&]:mb-3">
-          <span class="font-semibold truncate text-n-slate-12 [.theme-classic_&]:text-heading-1">{{
-            selected.orderNo
-          }}</span>
+          <span
+            class="font-semibold truncate text-n-slate-12 [.theme-classic_&]:text-heading-1"
+            >{{ selected.orderNo }}</span>
           <span class="ml-auto text-xs shrink-0 text-n-slate-11">
             {{ STATUS_LABELS[selected.status] }}
           </span>
@@ -3310,13 +3403,23 @@ watch(currentPage, fetchRecords);
             >
               产品图片
             </div>
+            <!-- 点缩略图在页内放大：原来是裸 <img>，点了没反应，
+                 业务附的图只能看个 80px 的指甲盖（反馈点名）。 -->
             <div class="flex flex-wrap gap-2">
-              <img
-                v-for="img in viewingOrder.images"
+              <button
+                v-for="(img, ii) in viewingOrder.images"
                 :key="img.id"
-                :src="img.url"
-                class="object-cover w-20 h-20 border rounded border-n-weak"
-              />
+                type="button"
+                class="reset-base"
+                :title="img.filename || '点击放大'"
+                @click="orderLightboxRef?.open(viewingOrder.images, ii)"
+              >
+                <img
+                  :src="img.url"
+                  :alt="img.filename"
+                  class="object-cover w-20 h-20 border rounded border-n-weak hover:opacity-90"
+                />
+              </button>
             </div>
           </div>
 
@@ -3414,5 +3517,7 @@ watch(currentPage, fetchRecords);
         </p>
       </div>
     </Dialog>
+    <!-- 看图层：和弹窗同在顶层，点订单里的产品图放大 -->
+    <MesImageLightbox ref="orderLightboxRef" />
   </div>
 </template>

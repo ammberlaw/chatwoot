@@ -404,6 +404,7 @@ Rails.application.routes.draw do
                 get :open_list
                 get :supplier_statement
                 get :aging
+                get :monthly
               end
             end
             resources :payment_records, only: [:index, :show, :create, :update, :destroy] do

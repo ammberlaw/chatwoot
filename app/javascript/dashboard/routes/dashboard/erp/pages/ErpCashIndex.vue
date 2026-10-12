@@ -52,6 +52,10 @@ const transactions = ref([]);
 const transactionsMeta = ref({});
 const loading = ref(false);
 const filterAccountId = ref('');
+// 发生日期区间（后端按 happened_at 筛）。日记账是拿去跟银行对账单核的表，
+// 对的就是某一段时间，没有日期筛就只能整本拉下来自己找。
+const fromDate = ref('');
+const toDate = ref('');
 
 const totalByCurrency = computed(() => {
   const map = {};
@@ -70,6 +74,8 @@ const loadTransactions = async () => {
   try {
     const { data } = await ErpCashAccountAPI.transactions({
       cash_account_id: filterAccountId.value || undefined,
+      from: fromDate.value || undefined,
+      to: toDate.value || undefined,
     });
     transactions.value = data.payload;
     transactionsMeta.value = data.meta || {};
@@ -125,6 +131,8 @@ const exporting = ref(false);
 const exportLedger = async () => {
   const { data } = await ErpCashAccountAPI.transactions({
     cash_account_id: filterAccountId.value || undefined,
+    from: fromDate.value || undefined,
+    to: toDate.value || undefined,
     limit: 5000,
   });
   const rows = data.payload;
@@ -138,6 +146,10 @@ const exportLedger = async () => {
           value:
             accounts.value.find(a => a.id === filterAccountId.value)?.name ||
             '全部账户',
+        },
+        {
+          label: '发生日期',
+          value: `${fromDate.value || '不限'} ~ ${toDate.value || '不限'}`,
         },
         { label: '流水笔数', value: rows.length },
       ],
@@ -470,6 +482,19 @@ onMounted(async () => {
             v-model="filterAccountId"
             :options="[{ value: '', label: '全部账户' }, ...accountOptions]"
             @update:model-value="loadTransactions"
+          />
+          <DatePicker
+            v-model="fromDate"
+            placeholder="发生日期起"
+            trigger-class="w-36"
+            @change="loadTransactions"
+          />
+          <span class="text-sm text-n-slate-10">至</span>
+          <DatePicker
+            v-model="toDate"
+            placeholder="发生日期止"
+            trigger-class="w-36"
+            @change="loadTransactions"
           />
           <span class="text-xs text-n-slate-10">
             流水只增不改；单据作废会补一条反向冲销

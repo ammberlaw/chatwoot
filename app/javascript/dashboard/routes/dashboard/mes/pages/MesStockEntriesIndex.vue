@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
+import { fmtMoney } from 'dashboard/helper/erpMoney';
 import MesStockEntryAPI from 'dashboard/api/mes/stockEntries';
 import MesImageLightbox from 'dashboard/components-next/mes/MesImageLightbox.vue';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
@@ -18,6 +19,9 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesStockEntryPrintSheet from 'dashboard/components-next/mes/MesStockEntryPrintSheet.vue';
+import { useListDensity } from 'dashboard/composables/useListDensity';
+import { printElement } from 'dashboard/helper/printHelper';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
@@ -28,6 +32,8 @@ const { accountId } = useAccount();
 const route = useRoute();
 const store = useMesStockEntriesStore();
 const { mesCan } = useMesRole();
+// 行高：宽松/紧凑一键切，记在本机（反馈：间距太长想自己拉短）
+const { compact, toggleDensity } = useListDensity();
 
 // 从生产订单「查看入库单」跳转带来的按订单筛选（只看该订单的原料入库单）。
 const filterOrderId = ref(route.query.production_order_id || '');
@@ -65,6 +71,8 @@ const saving = computed(() => store.getUIFlags.creatingItem);
 const posting = computed(() => store.getUIFlags.updatingItem);
 
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
+// 单价/金额是微元；没有值（无权或对不上采购行）留「—」，不要写成 0。
+const money = micros => (micros ? fmtMoney(micros) : '—');
 
 // S3 主用原料入库；其余 purpose 留给后续切片。
 const PURPOSE_LABELS = {
@@ -93,6 +101,8 @@ const viewFields = computed(() => {
     { label: '单号', value: e.entryNo },
     { label: '类型', value: purposeLabel(e.purpose) },
     { label: '采购单', value: e.purchaseOrderNo },
+    // 供应商与对内备注原本只在采购单上，核料时要另开一张单比着看（反馈点名要补）。
+    { label: '供应商', value: (e.supplierNames || []).join('、') },
     { label: '生产订单', value: e.productionOrderNo },
     { label: '归属人', value: e.productionOrderOwnerName },
     { label: '入库仓', value: whName(e.toWarehouseId) },
@@ -105,25 +115,69 @@ const viewFields = computed(() => {
     { label: '收货人', value: e.receivedByName },
     { label: '制单人', value: e.ownerName },
     { label: '备注', value: e.remark },
+    { label: '对内备注', value: e.internalRemark },
   ];
 });
-const VIEW_ITEM_COLS = [
+// 单价/金额只给看得见成本的岗位（采购/财务/管理员/采购审批人）——
+// 入库单仓管看得最多，不能顺手把成本漏出去。后端不下发时这两列直接不出。
+// 打印用的票面数据（1:1 对标旧系统那张采购入库单）。
+// 源单单号＝来源采购单号；仓库按行的入库仓，没有就落到单据的入库仓。
+const printSheetRef = ref(null);
+const printRows = computed(() =>
+  (viewing.value?.stockEntryItems || []).map(it => ({
+    sourceNo: viewing.value?.purchaseOrderNo,
+    materialNo: it.materialNo,
+    name: it.materialName || it.productName,
+    spec: it.specification,
+    warehouse: whName(it.warehouseId || viewing.value?.toWarehouseId),
+    unit: it.unit,
+    qty: it.qty,
+    receivedQty: it.receivedQty ?? it.qty,
+    remark: it.remark,
+  }))
+);
+const printSupplier = computed(() =>
+  (viewing.value?.supplierNames || []).join('、')
+);
+// 套打在 9.5×5.5 英寸三联复写纸上（针式打印机），所以纸张写死、也不加 Wintouch 字标——
+// 加了会把版心顶下去，套打直接压到预印格线上。
+const TRIPLICATE_PAGE = '@page{size:9.5in 5.5in landscape;margin:8mm}';
+const printEntry = () =>
+  printElement(
+    printSheetRef.value?.$el || printSheetRef.value,
+    `采购入库单 ${viewing.value?.entryNo || ''}`,
+    { page: TRIPLICATE_PAGE, brandHeader: false }
+  );
+
+const VIEW_ITEM_COLS = computed(() => [
   { label: '物料/产品', key: 'name' },
   { label: '编码', key: 'materialNo' },
+  { label: '规格型号', key: 'specification', wrap: true },
+  { label: '供应商', key: 'supplierName', wrap: true },
   { label: '应收', key: 'qty', align: 'right' },
   { label: '实收', key: 'receivedQty', align: 'right' },
   { label: '单位', key: 'unit' },
+  ...(viewing.value?.canViewAmount
+    ? [
+        { label: '单价', key: 'unitPrice', align: 'right' },
+        { label: '金额', key: 'amount', align: 'right' },
+      ]
+    : []),
   { label: '备注', key: 'remark', wrap: true },
   // 附图跟着自己那一行走（同采购单），点开在页内放大；不进 Excel 导出。
   { label: '附图（仅内部）', key: 'images', type: 'images' },
-];
+]);
 const viewItems = computed(() =>
   (viewing.value?.stockEntryItems || []).map(it => ({
     name: it.materialName || it.productName,
     materialNo: it.materialNo,
+    specification: it.specification,
+    supplierName: it.supplierName,
     qty: it.qty,
     receivedQty: it.receivedQty ?? it.qty,
     unit: it.unit,
+    unitPrice: money(it.unitPriceMicros),
+    amount: money(it.amountMicros),
     remark: it.remark,
     images: it.images || [],
   }))
@@ -401,13 +455,22 @@ useRouteQueryReentry(query => {
   <div class="flex flex-col w-full h-full">
     <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
       <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">原料入库</h1>
-      <Button
-        v-if="mesCan('stock')"
-        label="新建入库单"
-        color="iris"
-        size="sm"
-        @click="openCreate"
-      />
+      <div class="flex items-center gap-2">
+        <Button
+          :label="compact ? '宽松行高' : '紧凑行高'"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="toggleDensity"
+        />
+        <Button
+          v-if="mesCan('stock')"
+          label="新建入库单"
+          color="iris"
+          size="sm"
+          @click="openCreate"
+        />
+      </div>
     </div>
 
     <MesBoardOwnerBar board-key="mes_stock_entries_index" />
@@ -762,13 +825,38 @@ useRouteQueryReentry(query => {
 
     <MesViewDialog
       ref="viewDialogRef"
-      width="5xl"
+      width="7xl"
+      hide-print
       :title="viewing ? `入库单 ${viewing.entryNo}` : '入库单明细'"
       :fields="viewFields"
       items-title="收货明细"
       :item-columns="VIEW_ITEM_COLS"
       :items="viewItems"
-    />
+    >
+      <template #headerActions>
+        <Button
+          label="打印入库单"
+          variant="outline"
+          color="slate"
+          size="sm"
+          @click="printEntry"
+        />
+      </template>
+    </MesViewDialog>
+
+    <!-- 入库单票面：只在打印时用，平时不占版面（printElement 克隆它去打印）。 -->
+    <div
+      v-if="viewing"
+      aria-hidden="true"
+      class="fixed -left-[9999px] top-0 w-[1000px]"
+    >
+      <MesStockEntryPrintSheet
+        ref="printSheetRef"
+        :entry="viewing"
+        :items="printRows"
+        :supplier="printSupplier"
+      />
+    </div>
 
     <!-- 看图层：就地渲染，跟弹窗一起在顶层，点缩略图放大看 -->
     <MesImageLightbox ref="lightboxRef" />

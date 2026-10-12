@@ -7,6 +7,7 @@ json.meta do
 end
 json.payload do
   json.array! @receivables do |receivable|
-    json.partial! 'api/v1/models/erp_receivable', formats: [:json], resource: receivable, with_installments: true
+    json.partial! 'api/v1/models/erp_receivable', formats: [:json], resource: receivable, with_installments: true,
+                 shipment_meta: @shipment_meta, product_meta: @product_meta, department_names: @department_names
   end
 end

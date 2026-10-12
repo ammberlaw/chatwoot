@@ -1703,8 +1703,11 @@ onBeforeRouteLeave((to, from, next) => {
                 type="number"
                 placeholder="选填"
               />
+              <!-- 实时库存：这格原来漏了 grid-column，于是拖动列序后它自动流到下一个空位，
+                   把后面所有格子整体顶歪——就是反馈里「拖了以后列表是乱码」的那个现象。 -->
               <span
                 class="px-1 text-xs truncate"
+                :style="colPos('onHand')"
                 :class="
                   row.onHand == null ? 'text-n-slate-10' : 'text-n-slate-12'
                 "

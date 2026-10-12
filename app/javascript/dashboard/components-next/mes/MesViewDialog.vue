@@ -27,6 +27,9 @@ const props = defineProps({
   attachments: { type: Array, default: () => [] },
   // 弹窗宽度档（列多的详情如采购单可传更大，如 '5xl'）。
   width: { type: String, default: '2xl' },
+  // 藏掉通用「打印」。入库单/领料单/出库单各自有照原版做的票面（打印入库单…），
+  // 通用打印只是把弹窗内容照搬出来，两个按钮并排会让人印错那张。
+  hidePrint: { type: Boolean, default: false },
 });
 
 const dialogRef = ref(null);
@@ -102,6 +105,8 @@ const printDoc = () => printNode(contentRef.value, props.title);
          既和右上角 ✕ 对不齐，最右那颗还会被 ✕ 压住半截。 -->
     <template #headerActions>
       <div class="flex gap-2 shrink-0">
+        <!-- 调用方可以再挂自己的按钮（如入库单的「打印入库单」票面） -->
+        <slot name="headerActions" />
         <Button
           label="导出 Excel"
           variant="outline"
@@ -117,6 +122,7 @@ const printDoc = () => printNode(contentRef.value, props.title);
           @click="exportJpg"
         />
         <Button
+          v-if="!hidePrint"
           label="打印"
           variant="outline"
           color="slate"
@@ -200,6 +206,8 @@ const printDoc = () => printNode(contentRef.value, props.title);
               <table class="text-sm w-max min-w-full">
                 <thead>
                   <tr class="text-left text-n-slate-11 border-b border-n-weak">
+                    <!-- 序号：几十行料时口头对单要说「第几行」，没有序号只能数（反馈点名要加） -->
+                    <th class="w-10 px-2 py-2 font-medium">#</th>
                     <th
                       v-for="c in itemColumns"
                       :key="c.key"
@@ -219,6 +227,11 @@ const printDoc = () => printNode(contentRef.value, props.title);
                     :key="i"
                     class="border-b border-n-weak"
                   >
+                    <td
+                      class="px-2 py-2 align-top tabular-nums text-n-slate-10"
+                    >
+                      {{ i + 1 }}
+                    </td>
                     <td
                       v-for="c in itemColumns"
                       :key="c.key"
@@ -260,7 +273,7 @@ const printDoc = () => printNode(contentRef.value, props.title);
                   </tr>
                   <tr v-if="!items.length">
                     <td
-                      :colspan="itemColumns.length"
+                      :colspan="itemColumns.length + 1"
                       class="px-2 py-6 text-center text-n-slate-11"
                     >
                       无明细

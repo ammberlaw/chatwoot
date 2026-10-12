@@ -12,15 +12,17 @@
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
 #  account_id         :bigint           not null
-#  crm_product_id     :bigint           not null
+#  crm_product_id     :bigint
+#  mes_material_id    :bigint
 #  mes_stock_entry_id :bigint           not null
 #  stock_layer_id     :bigint           not null
 #
 # Indexes
 #
-#  idx_erp_stock_consumptions_entry                (account_id,mes_stock_entry_id)
-#  index_erp_stock_consumptions_on_account_id      (account_id)
-#  index_erp_stock_consumptions_on_stock_layer_id  (stock_layer_id)
+#  idx_erp_stock_consumptions_entry                 (account_id,mes_stock_entry_id)
+#  index_erp_stock_consumptions_on_account_id       (account_id)
+#  index_erp_stock_consumptions_on_mes_material_id  (mes_material_id)
+#  index_erp_stock_consumptions_on_stock_layer_id   (stock_layer_id)
 #
 # Foreign Keys
 #
@@ -31,7 +33,9 @@ class Erp::StockConsumption < ApplicationRecord
   belongs_to :account
   belongs_to :stock_layer, class_name: 'Erp::StockLayer', inverse_of: :consumptions
   belongs_to :stock_entry, class_name: 'Mes::StockEntry', foreign_key: :mes_stock_entry_id, inverse_of: false
-  belongs_to :crm_product, class_name: 'Crm::Product'
+  # 成品消耗挂商品档，原料消耗多数挂物料档——两种都认（同 Erp::StockLayer）。
+  belongs_to :crm_product, class_name: 'Crm::Product', optional: true
+  belongs_to :mes_material, class_name: 'Mes::Material', optional: true
 
   validates :qty, numericality: { greater_than: 0 }
 end

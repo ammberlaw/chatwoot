@@ -16,6 +16,8 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesMaterialIssuePrintSheet from 'dashboard/components-next/mes/MesMaterialIssuePrintSheet.vue';
+import { printElement } from 'dashboard/helper/printHelper';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
@@ -49,6 +51,7 @@ const viewFields = computed(() => {
   return [
     { label: '单号', value: e.entryNo },
     { label: '生产订单', value: e.productionOrderNo },
+    { label: '型号', value: e.productName },
     { label: '归属人', value: e.productionOrderOwnerName },
     { label: '领料仓', value: whName(e.fromWarehouseId) },
     { label: '状态', value: STATUS_LABELS[e.status] || e.status },
@@ -57,6 +60,26 @@ const viewFields = computed(() => {
     { label: '备注', value: e.remark },
   ];
 });
+// 领料单票面（1:1 对标旧系统那张）：A4 纵向激光打印，不是三联纸，也不加 Wintouch 字标。
+const printSheetRef = ref(null);
+const printRows = computed(() =>
+  (viewing.value?.stockEntryItems || []).map(it => ({
+    materialNo: it.materialNo,
+    name: it.materialName || it.productName,
+    spec: it.specification,
+    qty: it.receivedQty ?? it.qty,
+    unit: it.unit,
+    warehouse: whName(it.warehouseId || viewing.value?.fromWarehouseId),
+    remark: it.remark,
+  }))
+);
+const printIssue = () =>
+  printElement(
+    printSheetRef.value?.$el || printSheetRef.value,
+    `生产领料单 ${viewing.value?.entryNo || ''}`,
+    { page: '@page{size:A4;margin:12mm}', brandHeader: false }
+  );
+
 const VIEW_ITEM_COLS = [
   { label: '物料编码', key: 'materialNo' },
   { label: '物料名称', key: 'name' },
@@ -360,6 +383,9 @@ onMounted(async () => {
             <div class="mt-1 text-xs text-n-slate-11">
               生产订单：{{ e.productionOrderNo || '—' }}
             </div>
+            <div class="mt-1 text-xs text-n-slate-11">
+              型号：{{ e.productName || '—' }}
+            </div>
             <div class="flex gap-3 mt-1 text-xs text-n-slate-11">
               <span>归属人：{{ e.productionOrderOwnerName || '—' }}</span>
               <span>过账时间：{{ day(e.postedAt) }}</span>
@@ -374,6 +400,7 @@ onMounted(async () => {
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th class="px-3 py-3 font-medium whitespace-nowrap">单号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">型号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">过账时间</th>
@@ -387,6 +414,9 @@ onMounted(async () => {
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ e.productionOrderNo || '—' }}
+              </td>
+              <td class="px-3 py-3 text-n-slate-11">
+                {{ e.productName || '—' }}
               </td>
               <td class="px-3 py-3 text-n-slate-11">
                 {{ e.productionOrderOwnerName || '—' }}
@@ -578,10 +608,34 @@ onMounted(async () => {
     <MesViewDialog
       ref="viewDialogRef"
       :title="viewing ? `领料单 ${viewing.entryNo}` : '领料单明细'"
+      hide-print
       :fields="viewFields"
       items-title="领料明细"
       :item-columns="VIEW_ITEM_COLS"
       :items="viewItems"
-    />
+    >
+      <template #headerActions>
+        <Button
+          label="打印领料单"
+          variant="outline"
+          color="slate"
+          size="sm"
+          @click="printIssue"
+        />
+      </template>
+    </MesViewDialog>
+
+    <!-- 领料单票面：只在打印时用，平时不占版面（printElement 克隆它去打印）。 -->
+    <div
+      v-if="viewing"
+      aria-hidden="true"
+      class="fixed -left-[9999px] top-0 w-[760px]"
+    >
+      <MesMaterialIssuePrintSheet
+        ref="printSheetRef"
+        :entry="viewing"
+        :items="printRows"
+      />
+    </div>
   </div>
 </template>

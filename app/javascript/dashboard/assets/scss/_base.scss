@@ -277,3 +277,21 @@ table {
     @apply h-auto max-w-full;
   }
 }
+
+/* 列表行高「紧凑模式」。反馈：单据列表「间距太长，有些没必要那么长的可以自己拉短」。
+ * 做成一个全局开关而不是每张表各自拖拽：几十张表逐一做拖拽既没人用、也记不住，
+ * 而真实诉求是「一屏多看几行」。开关记在本机（useListDensity）。
+ * 只压竖向内边距和行高，不动列宽/字号——压字号会把规格型号那种长文本挤成两行，反而更占。 */
+body.list-compact {
+  table th,
+  table td {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+
+  /* 单元格里堆了两行（单号 + 副号、型号 + 编码）的那种，行距也跟着收 */
+  table td > div,
+  table td > span {
+    line-height: 1.25;
+  }
+}

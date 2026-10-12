@@ -10,6 +10,7 @@ import { useMesPurchaseRequisitionsStore } from 'dashboard/stores/mes/purchaseRe
 import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
 import MesMaterialAPI from 'dashboard/api/mes/materials';
 import MesPurchaseRequisitionAPI from 'dashboard/api/mes/purchaseRequisitions';
+import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -511,23 +512,116 @@ onMounted(() => {
       productionOrders.value = [];
     });
 });
+// 导出：一张申请单几项料就几行（申请单级字段每行重复写）——Excel 里没有卡片，
+// 不铺平就没法按物料筛选/透视，而采购正是拿这张表去凑量下单的。
+// ⚠️ 全量：列表一页 15 张，导出重新向后端分页要完。
+const exporting = ref(false);
+const exportList = async () => {
+  exporting.value = true;
+  try {
+    const reqs = await fetchAllRows(
+      params => MesPurchaseRequisitionAPI.get(params),
+      {
+        status: filterStatus.value || undefined,
+        purpose: filterPurpose.value || undefined,
+        q: search.value.trim() || undefined,
+      }
+    );
+    // 接口直拉的是未驼峰化的原始 payload，字段用下划线。
+    const rows = reqs.flatMap(req =>
+      (req.requisition_items || []).map(item => ({
+        req_no: req.req_no,
+        status_label: STATUS_LABELS[req.status] || req.status,
+        purpose: req.purpose,
+        production_order_no: req.production_order_no,
+        product_name: req.product_name,
+        owner_name: req.owner_name,
+        expected_date: req.expected_date,
+        material_no: item.material_no,
+        material_name: item.material_name,
+        specification: item.specification,
+        unit: item.unit,
+        required_qty: item.required_qty,
+        suggested_qty: item.suggested_qty,
+        ordered_qty: item.ordered_qty,
+        supplier_name: item.supplier_name,
+      }))
+    );
+    exportRowsToExcel(
+      {
+        title: '采购申请单',
+        meta: [
+          {
+            label: '导出时间',
+            value: new Date().toLocaleString('sv').slice(0, 16),
+          },
+          { label: '关键字', value: search.value.trim() || '（无）' },
+          { label: '申请单数', value: reqs.length },
+          { label: '明细行数', value: rows.length },
+        ],
+        columns: [
+          { label: '申请单号', key: 'req_no' },
+          { label: '状态', key: 'status_label' },
+          { label: '用途', key: 'purpose' },
+          { label: '关联生产订单', key: 'production_order_no' },
+          { label: '成品', key: 'product_name' },
+          { label: '申请人', key: 'owner_name' },
+          { label: '期望到货', key: 'expected_date' },
+          { label: '物料编码', key: 'material_no' },
+          { label: '物料/成品', key: 'material_name' },
+          { label: '规格', key: 'specification' },
+          { label: '单位', key: 'unit' },
+          { label: '需求量', key: 'required_qty', num: true },
+          { label: '建议采购量', key: 'suggested_qty', num: true },
+          { label: '已转', key: 'ordered_qty', num: true },
+          { label: '建议供应商', key: 'supplier_name' },
+        ],
+        rows,
+      },
+      `采购申请单_${new Date().toLocaleDateString('sv')}`
+    );
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
 </script>
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">采购申请单</h1>
-      <Button
-        v-if="canManage"
-        label="新建申请单"
-        icon="i-lucide-plus"
-        color="iris"
-        size="sm"
-        @click="openCreate"
-      />
+    <div
+      class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+    >
+      <h1
+        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        采购申请单
+      </h1>
+      <div class="flex items-center gap-2">
+        <!-- 导出是只读动作，不挂管理权限 -->
+        <Button
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="exporting"
+          @click="exportList"
+        />
+        <Button
+          v-if="canManage"
+          label="新建申请单"
+          icon="i-lucide-plus"
+          color="iris"
+          size="sm"
+          @click="openCreate"
+        />
+      </div>
     </div>
 
-    <div class="flex-1 px-4 pt-1 pb-6 overflow-y-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 px-4 pt-1 pb-6 overflow-y-auto sm:px-6 [.theme-classic_&]:sm:!px-8"
+    >
       <!-- 筛选栏：三控件统一 h-9/text-sm 对齐，紧凑内联 -->
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <SelectCard

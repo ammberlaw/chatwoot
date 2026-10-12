@@ -6,6 +6,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockBalancesStore } from 'dashboard/stores/mes/stockBalances';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 import { useMesRole } from 'dashboard/composables/useMesRole';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -60,6 +61,53 @@ const ITEM_TYPE_OPTIONS = [
   { value: 'MATERIAL', label: '原料' },
   { value: 'PRODUCT', label: '成品' },
 ];
+
+/* ---------------- 导出 ---------------- */
+// 结存接口不分页（一次返回全量），records 就是全量——导的是**全部**结存，
+// 不是前端切出来的那 50 行。导出跟着当前筛选走（仓库/类型/缺料/关键字）。
+const exportList = () => {
+  const typeLabel = value =>
+    ITEM_TYPE_OPTIONS.find(o => o.value === value)?.label || value || '';
+  exportRowsToExcel(
+    {
+      title: '库存结存',
+      meta: [
+        {
+          label: '导出时间',
+          value: new Date().toLocaleString('sv').slice(0, 16),
+        },
+        { label: '关键字', value: q.value || '（无）' },
+        {
+          label: '仓库',
+          value:
+            warehouseOptions.value.find(
+              o => o.value === String(warehouseId.value)
+            )?.label || '全部仓库',
+        },
+        { label: '类型', value: typeLabel(itemType.value) || '全部类型' },
+        { label: '范围', value: shortOnly.value ? '只看缺料' : '全部' },
+        { label: '行数', value: records.value.length },
+      ],
+      columns: [
+        { label: '编码', key: 'sku' },
+        { label: '名称', key: 'itemName' },
+        { label: '规格', key: 'specification' },
+        { label: '仓库', key: 'warehouseName' },
+        { label: '类型', key: 'itemTypeLabel' },
+        { label: '结存', key: 'qty', num: true },
+        { label: '预占', key: 'reservedQty', num: true },
+        { label: '可用', key: 'availableQty', num: true },
+        { label: '单位', key: 'unit' },
+      ],
+      rows: records.value.map(row => ({
+        ...row,
+        itemName: row.productName || row.materialName,
+        itemTypeLabel: typeLabel(row.itemType),
+      })),
+    },
+    `库存结存_${new Date().toLocaleDateString('sv')}`
+  );
+};
 
 let searchTimer = null;
 watch(q, () => {
@@ -180,14 +228,24 @@ onMounted(() => {
       class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
       <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">库存结存</h1>
-      <Button
-        v-if="canStock"
-        label="导入期初库存"
-        color="iris"
-        size="sm"
-        icon="i-lucide-upload"
-        @click="openImport"
-      />
+      <div class="flex items-center gap-2">
+        <!-- 导出是只读动作，不挂库存写权限 -->
+        <Button
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          @click="exportList"
+        />
+        <Button
+          v-if="canStock"
+          label="导入期初库存"
+          color="iris"
+          size="sm"
+          icon="i-lucide-upload"
+          @click="openImport"
+        />
+      </div>
     </div>
 
     <div class="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6 [.theme-classic_&]:sm:!px-8">

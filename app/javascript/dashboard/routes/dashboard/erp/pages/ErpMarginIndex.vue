@@ -60,6 +60,10 @@ const marginMeta = ref({});
 // 按 0 计价的料（最近一次采购单价查不到）。成本少算不报错、毛利只会悄悄偏高，
 // 这张清单就是「少算在哪」的唯一出口。
 const unpriced = ref({ count: 0, rows: [] });
+// 下单日期区间（后端 Erp::MarginService 按订单日期收口）。毛利一向是看某一段时间的，
+// 不筛就是把开账以来所有订单堆在一起算，看不出这个月做得怎么样。
+const fromDate = ref('');
+const toDate = ref('');
 const costs = ref([]);
 // 成本行是自动归集出来的（一张自产单产三行），量会越滚越多，必须分页。
 const COSTS_PER_PAGE = 50;
@@ -69,7 +73,11 @@ const costsCount = ref(0);
 const loadMargin = async () => {
   loading.value = true;
   try {
-    const { data } = await ErpOrderCostAPI.margin({ group_by: groupBy.value });
+    const { data } = await ErpOrderCostAPI.margin({
+      group_by: groupBy.value,
+      from: fromDate.value || undefined,
+      to: toDate.value || undefined,
+    });
     marginRows.value = data.payload;
     marginSummary.value = data.summary;
     marginMeta.value = data.meta;
@@ -129,6 +137,8 @@ const exportExcel = async () => {
   try {
     const { data } = await ErpOrderCostAPI.margin({
       group_by: groupBy.value,
+      from: fromDate.value || undefined,
+      to: toDate.value || undefined,
       limit: 5000,
     });
     const meta = data.meta || {};
@@ -137,6 +147,10 @@ const exportExcel = async () => {
         title: '毛利报表（订单维度）',
         meta: [
           { label: '导出时间', value: new Date().toLocaleString() },
+          {
+            label: '下单日期',
+            value: `${fromDate.value || '不限'} ~ ${toDate.value || '不限'}`,
+          },
           { label: '订单数', value: meta.total_count ?? data.payload.length },
           { label: '收入合计', value: (meta.revenue_micros || 0) / 1_000_000 },
           { label: '成本合计', value: (meta.cost_micros || 0) / 1_000_000 },
@@ -295,12 +309,26 @@ onMounted(loadMargin);
           {{ tab.label }}
         </button>
       </div>
-      <SelectCard
-        v-if="activeTab === 'margin'"
-        v-model="groupBy"
-        :options="GROUPS"
-        @update:model-value="loadMargin"
-      />
+      <template v-if="activeTab === 'margin'">
+        <SelectCard
+          v-model="groupBy"
+          :options="GROUPS"
+          @update:model-value="loadMargin"
+        />
+        <DatePicker
+          v-model="fromDate"
+          placeholder="下单日期起"
+          trigger-class="w-36"
+          @change="loadMargin"
+        />
+        <span class="text-sm text-n-slate-10">至</span>
+        <DatePicker
+          v-model="toDate"
+          placeholder="下单日期止"
+          trigger-class="w-36"
+          @change="loadMargin"
+        />
+      </template>
     </div>
 
     <HScrollButtons />

@@ -42,7 +42,9 @@ class Mes::BomCostXlsxService
 
   def cost_for(order)
     items = order.bom.bom_items.order(:id).to_a
-    prices = Mes::MaterialPriceResolver.new(account: @account, items: items, production_order: order).perform
+    # 这张导出是**一张生产订单一行**算的，所以只喂它自己——取的就是这张订单的采购价，
+    # 不会被同任务单下别的订单的价串掉。
+    prices = Mes::MaterialPriceResolver.new(account: @account, items: items, production_orders: [order]).perform
     std = bom_costs[order.bom.crm_product_id]
 
     { order: order, items: items, prices: prices,

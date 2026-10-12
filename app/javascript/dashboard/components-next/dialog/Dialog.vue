@@ -101,6 +101,8 @@ const isOpen = ref(false);
 
 const maxWidthClass = computed(() => {
   const classesMap = {
+    // 7xl 给列多的单据详情（入库单带规格/供应商/单价/金额，5xl 挤不下）
+    '7xl': 'max-w-7xl',
     '6xl': 'max-w-6xl',
     '5xl': 'max-w-5xl',
     '4xl': 'max-w-4xl',

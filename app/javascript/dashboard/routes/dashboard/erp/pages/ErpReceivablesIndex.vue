@@ -24,6 +24,10 @@ import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlement
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
+import { productLineLabel } from 'dashboard/composables/useMesProductLine';
+import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
+import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
+import ColumnPicker from 'dashboard/components-next/ColumnPicker.vue';
 // 应收：台账（从销售订单建账 + 分期计划）与收款记录（水单 + 核销）两页签。
 // 台账的「已收」只由核销维护，页面不提供直接改的入口——改了账就不准了。
 const { erpCan } = useErpRole();
@@ -89,8 +93,139 @@ const activeTab = ref('ledger');
 const loading = ref(false);
 const keyword = ref('');
 const statusFilter = ref('');
+// 单据日期区间（＝列表上「单据日期」那一列：首次出库日，没出货的回落到建账日）。
+// 单边留空＝只卡一头。
+const fromDate = ref('');
+const toDate = ref('');
+const hasLedgerFilter = computed(() =>
+  Boolean(
+    keyword.value.trim() || statusFilter.value || fromDate.value || toDate.value
+  )
+);
 
 const ledgers = ref([]);
+
+// 金额列按财务旧系统的两位小数走；数量/单价保留四位（单价常有 0.6250 这种）。
+const num = value =>
+  value === null || value === undefined || value === ''
+    ? '—'
+    : Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 4 });
+const amt = value =>
+  value === null ||
+  value === undefined ||
+  value === '' ||
+  Number.isNaN(Number(value))
+    ? '—'
+    : Number(value).toLocaleString('zh-CN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+// 税率列：0 也是有效税率（外贸出口免税），不能被 || 吞成「—」。
+const taxRateLabel = row =>
+  row.tax_rate === null || row.tax_rate === undefined
+    ? '—'
+    : `${row.tax_rate}%`;
+
+// 汇率后端是 decimal，序列化成字符串（"7.15"）。
+const toNumber = value =>
+  value === null || value === undefined || value === '' ? '' : Number(value);
+
+// 一行明细的税额换算。订单上只存一个价和一个「含不含税」标记，财务那张表要同时摆出
+// 含税单价 / 实际不含税金额 / 价税合计 / 价税合计本位币，四个数都是从这一个价推的。
+//   · 报含税价（内销常见）：填的价就是含税价，不含税金额 = 金额 ÷ (1+税率)；
+//   · 报不含税价（外贸常见）：填的价是净价，价税合计 = 金额 × (1+税率)。
+// 本位币 = 价税合计 × 汇率（外币单据折人民币，财务看的是这一列合计）。
+const lineTax = (row, item) => {
+  const has = value => value !== null && value !== undefined && value !== '';
+  const factor = 1 + Number(row.tax_rate || 0) / 100;
+  // 后端已把「订单没填就跟随账套默认」解析完，这里只认解析后的结果。
+  const inclusive = row.amount_includes_tax !== false;
+  const toGross = inclusive ? 1 : factor;
+  const toNet = inclusive ? 1 / factor : 1;
+  const price = has(item.unit_price) ? Number(item.unit_price) : null;
+  const amount = has(item.amount) ? Number(item.amount) : null;
+  const grossAmount = amount === null ? null : amount * toGross;
+  return {
+    grossPrice: price === null ? null : price * toGross,
+    netAmount: amount === null ? null : amount * toNet,
+    grossAmount,
+    baseAmount:
+      grossAmount === null
+        ? null
+        : grossAmount * Number(row.exchange_rate || 1),
+  };
+};
+
+// 一笔台账摊成几行货：台账级单元格用 rowspan 跨完整笔，明细列一行一项。
+// 在这里摊平而不是模板里套一层 <template v-for>，省得整块表格缩进全挪。
+const ledgerRows = computed(() =>
+  ledgers.value.flatMap(row => {
+    // 没有明细的老单也要占一行，否则整笔台账不显示。
+    const items = row.line_items?.length ? row.line_items : [{}];
+    return items.map((item, li) => ({
+      row,
+      item,
+      li,
+      span: items.length,
+      tax: lineTax(row, item),
+    }));
+  })
+);
+// 台账表的列。rowspan=true 的是「台账级」字段（一笔应收跨完整几行货），
+// 其余是「明细级」（一行货一行）。列序可拖、可收起，按人记在本机——
+// 财务各人核的东西不一样，35 列全摆着谁都嫌长。
+const LEDGER_COLUMN_DEFS = [
+  { key: 'no', label: '台账单号', rowspan: true },
+  { key: 'docDate', label: '单据日期', rowspan: true },
+  { key: 'docNo', label: '单据编号', rowspan: true },
+  { key: 'insuranceNo', label: '信保订单号', rowspan: true },
+  { key: 'orderNo', label: '订单单号', rowspan: true },
+  { key: 'piNo', label: 'PI 号', rowspan: true },
+  { key: 'customerCode', label: '客户编码', rowspan: true },
+  { key: 'customer', label: '客户', rowspan: true },
+  { key: 'owner', label: '业务员', rowspan: true },
+  { key: 'department', label: '部门', rowspan: true },
+  { key: 'warehouse', label: '仓库', rowspan: true },
+  { key: 'sku', label: '商品编码' },
+  { key: 'name', label: '商品名称' },
+  { key: 'spec', label: '规格型号' },
+  { key: 'currency', label: '币别', rowspan: true },
+  { key: 'rate', label: '汇率', rowspan: true, right: true },
+  { key: 'freight', label: '客户承担运费', rowspan: true, right: true },
+  { key: 'unit', label: '单位' },
+  { key: 'qty', label: '数量', right: true },
+  { key: 'price', label: '单价', right: true },
+  { key: 'taxRate', label: '增值税', rowspan: true, right: true },
+  { key: 'grossPrice', label: '含税单价', right: true },
+  { key: 'netAmount', label: '实际不含税金额', right: true },
+  { key: 'grossAmount', label: '价税合计', right: true },
+  { key: 'baseAmount', label: '价税合计本位币', right: true },
+  { key: 'productLine', label: '事业部' },
+  { key: 'unitCost', label: '单位成本', right: true },
+  { key: 'orderDate', label: '下单 / 交期', rowspan: true },
+  { key: 'orderStatus', label: '订单状态', rowspan: true },
+  { key: 'voucher', label: '收入凭证', rowspan: true },
+  { key: 'total', label: '应收', rowspan: true, right: true },
+  { key: 'received', label: '已收', rowspan: true, right: true },
+  { key: 'outstanding', label: '未收', rowspan: true, right: true },
+  { key: 'installments', label: '分期计划', rowspan: true },
+  { key: 'status', label: '状态', rowspan: true },
+];
+const {
+  orderedColumns: ledgerCols,
+  visibleColumns: ledgerVisibleCols,
+  isHidden: isLedgerColHidden,
+  toggleColumn: toggleLedgerCol,
+  showAllColumns: showAllLedgerCols,
+  isDragging: isLedgerColDragging,
+  onColDragStart: onLedgerColDragStart,
+  onColDrop: onLedgerColDrop,
+  resetOrder: resetLedgerColOrder,
+} = useOrderableColumns(LEDGER_COLUMN_DEFS, 'erp.arLedgerCols.v1');
+const hiddenLedgerCols = computed(
+  () => LEDGER_COLUMN_DEFS.length - ledgerVisibleCols.value.length
+);
 const ledgerMeta = ref({});
 const receipts = ref([]);
 const receiptMeta = ref({});
@@ -107,6 +242,8 @@ const loadLedgers = async () => {
     const { data } = await ErpReceivableAPI.get({
       q: keyword.value.trim(),
       status: statusFilter.value,
+      from: fromDate.value,
+      to: toDate.value,
       page: ledgerPage.value,
       per_page: PER_PAGE,
     });
@@ -132,7 +269,7 @@ const loadReceipts = async () => {
   }
 };
 
-watch([keyword, statusFilter], () => {
+watch([keyword, statusFilter, fromDate, toDate], () => {
   ledgerPage.value = 1;
   receiptPage.value = 1;
   pendingPage.value = 1;
@@ -447,6 +584,131 @@ const printReceipt = async record => {
 };
 
 // 台账先出，待建账数量同时拉一次——角标要在进页面就亮，不能等点进去才发现漏账。
+/* ---------------- 导出 Excel ---------------- */
+// 导当前筛选下的应收台账，列与屏幕上这张表一一对应。
+// ⚠️ 全量：列表一页 50 条，这里重新向后端分页要完（ERP 后端 per_page 夹在 100）。
+const exporting = ref(false);
+const stamp = () => new Date().toLocaleString('sv').slice(0, 16);
+
+// 导明细行：一笔应收几行货就几行。Excel 里没有 rowspan，台账级字段每行重复写，
+// 否则筛选/透视用不了——财务拿这张表就是去做透视的。
+const ledgerExportRows = rows =>
+  rows.flatMap(row => {
+    const items = row.line_items?.length ? row.line_items : [{}];
+    return items.map(item => {
+      const tax = lineTax(row, item);
+      return {
+        receivable_no: row.receivable_no,
+        shipped_on: row.shipped_on,
+        shipment_no: row.shipment_no,
+        insurance_order_no: row.insurance_order_no,
+        order_no: row.order_no,
+        pi_no: row.pi_no,
+        customer_code: row.customer_code,
+        customer_name: row.customer_name,
+        owner_name: row.owner_name,
+        owner_department: row.owner_department,
+        warehouse_name: row.warehouse_name,
+        sku: item.sku,
+        name: item.name,
+        spec: item.spec,
+        currency: row.currency,
+        exchange_rate: toNumber(row.exchange_rate),
+        shipping_micros: row.shipping_micros,
+        unit: item.unit,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        tax_rate: row.tax_rate,
+        gross_price: tax.grossPrice,
+        net_amount: tax.netAmount,
+        gross_amount: tax.grossAmount,
+        base_amount: tax.baseAmount,
+        product_line: productLineLabel(item.product_line),
+        order_date: (row.order_date || '').slice(0, 10),
+        delivery_date: (row.delivery_date || '').slice(0, 10),
+        order_status: SO_STATUS_LABELS[row.order_status] || row.order_status,
+        revenue_voucher_no: row.revenue_voucher_no,
+        total_amount_micros: row.total_amount_micros,
+        received_amount_micros: row.received_amount_micros,
+        outstanding_micros: row.outstanding_micros,
+        status_label: row.status_label,
+      };
+    });
+  });
+
+const LEDGER_COLUMNS = [
+  { label: '台账单号', key: 'receivable_no' },
+  { label: '单据日期', key: 'shipped_on' },
+  { label: '单据编号', key: 'shipment_no' },
+  { label: '信保订单号', key: 'insurance_order_no' },
+  { label: '订单单号', key: 'order_no' },
+  { label: 'PI 号', key: 'pi_no' },
+  { label: '客户编码', key: 'customer_code' },
+  { label: '客户', key: 'customer_name' },
+  { label: '业务员', key: 'owner_name' },
+  { label: '部门', key: 'owner_department' },
+  { label: '仓库', key: 'warehouse_name' },
+  { label: '商品编码', key: 'sku' },
+  { label: '商品名称', key: 'name' },
+  { label: '规格型号', key: 'spec' },
+  { label: '币别', key: 'currency' },
+  { label: '汇率', key: 'exchange_rate', num: true },
+  { label: '客户承担运费', key: 'shipping_micros', money: true },
+  { label: '单位', key: 'unit' },
+  { label: '数量', key: 'quantity', num: true },
+  { label: '单价', key: 'unit_price', num: true },
+  { label: '增值税(%)', key: 'tax_rate', num: true },
+  { label: '含税单价', key: 'gross_price', num: true },
+  { label: '实际不含税金额', key: 'net_amount' },
+  { label: '价税合计', key: 'gross_amount' },
+  { label: '价税合计本位币', key: 'base_amount' },
+  { label: '事业部', key: 'product_line' },
+  { label: '单位成本', key: 'unit_cost' },
+  { label: '下单日期', key: 'order_date' },
+  { label: '交期', key: 'delivery_date' },
+  { label: '订单状态', key: 'order_status' },
+  { label: '收入凭证', key: 'revenue_voucher_no' },
+  { label: '应收', key: 'total_amount_micros', money: true },
+  { label: '已收', key: 'received_amount_micros', money: true },
+  { label: '未收', key: 'outstanding_micros', money: true },
+  { label: '状态', key: 'status_label' },
+];
+
+const exportLedger = async () => {
+  exporting.value = true;
+  try {
+    const raw = await fetchAllRows(params => ErpReceivableAPI.get(params), {
+      q: keyword.value.trim(),
+      status: statusFilter.value,
+      from: fromDate.value,
+      to: toDate.value,
+    });
+    const rows = ledgerExportRows(raw);
+    exportRowsToExcel(
+      {
+        title: '应收账款台账',
+        meta: [
+          { label: '导出时间', value: stamp() },
+          { label: '关键字', value: keyword.value.trim() || '（无）' },
+          {
+            label: '单据日期',
+            value: `${fromDate.value || '不限'} ~ ${toDate.value || '不限'}`,
+          },
+          { label: '台账笔数', value: raw.length },
+          { label: '明细行数', value: rows.length },
+        ],
+        columns: LEDGER_COLUMNS,
+        rows,
+      },
+      `应收账款台账_${stamp().slice(0, 10)}`
+    );
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
 onMounted(() => {
   loadLedgers();
   loadPendingOrders({ silent: true });
@@ -455,10 +717,16 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+    >
       <div class="flex items-center gap-2">
         <div class="i-lucide-hand-coins size-5 text-n-iris-9" />
-        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">应收管理</h1>
+        <h1
+          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
+          应收管理
+        </h1>
         <span v-if="activeTab === 'ledger'" class="text-sm text-n-slate-11">
           应收 {{ money(ledgerMeta.total_micros) }} · 已收
           {{ money(ledgerMeta.received_micros) }} · 未收
@@ -481,6 +749,33 @@ onMounted(() => {
           placeholder="搜单号 / 客户"
           custom-input-class="w-44"
           @keyup.enter="reload"
+        />
+        <!-- 列序是本机记忆，拖乱了要有路回来 -->
+        <Button
+          v-if="activeTab === 'ledger'"
+          label="恢复默认列序"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="resetLedgerColOrder"
+        />
+        <ColumnPicker
+          v-if="activeTab === 'ledger'"
+          :columns="ledgerCols"
+          :is-hidden="isLedgerColHidden"
+          :hidden-count="hiddenLedgerCols"
+          @toggle="toggleLedgerCol"
+          @show-all="showAllLedgerCols"
+        />
+        <!-- 导出是只读动作，不挂写权限 -->
+        <Button
+          v-if="activeTab === 'ledger'"
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="exporting"
+          @click="exportLedger"
         />
         <Button
           v-if="isDocTab"
@@ -515,13 +810,18 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
-      <div class="flex items-center gap-2" data-tabbar="page">
+    <div
+      class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+    >
+      <div
+        class="flex items-center gap-2 [.theme-classic_&]:!my-0 [.theme-classic_&]:shrink-0"
+        data-tabbar="page"
+      >
         <button
           v-for="tab in TABS"
           :key="tab.key"
           :aria-selected="activeTab === tab.key"
-          class="h-9 px-3 text-sm transition-colors rounded-lg"
+          class="h-9 px-3 text-sm transition-colors rounded-lg [.theme-classic_&]:!h-8 [.theme-classic_&]:!py-0"
           :class="
             activeTab === tab.key
               ? 'bg-n-iris-9 text-white'
@@ -543,146 +843,241 @@ onMounted(() => {
           </span>
         </button>
       </div>
-      <SelectCard
-        v-if="activeTab === 'ledger'"
-        v-model="statusFilter"
-        :options="STATUS_OPTIONS"
-        @update:model-value="loadLedgers"
-      />
+      <template v-if="activeTab === 'ledger'">
+        <SelectCard
+          v-model="statusFilter"
+          :options="STATUS_OPTIONS"
+          trigger-class="[.theme-classic_&]:!h-[38px]"
+          @update:model-value="loadLedgers"
+        />
+        <DatePicker
+          v-model="fromDate"
+          placeholder="单据日期起"
+          trigger-class="w-36"
+          @change="loadLedgers"
+        />
+        <span class="text-sm text-n-slate-10">至</span>
+        <DatePicker
+          v-model="toDate"
+          placeholder="单据日期止"
+          trigger-class="w-36"
+          @change="loadLedgers"
+        />
+      </template>
     </div>
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="loading" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
 
       <!-- 应收台账 -->
-      <!-- 列多了给表自己一条横向滚动，别让整页横着滚。 -->
+      <!-- 表头对标财务旧系统（金蝶）的「销售出库明细」，右侧接台账自己的收款列。
+           列序可拖、用不到的列可收起（同 MES 的几张表），按人记在本机——
+           35 列全摆着谁都嫌长，各人核的东西还不一样。 -->
       <table
         v-else-if="activeTab === 'ledger'"
-        class="w-full text-sm min-w-[88rem]"
+        class="w-full text-sm min-w-max"
       >
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium whitespace-nowrap">台账单号</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">客户 / 订单</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">PI 号</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">型号</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">下单 / 交期</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">订单状态</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">收入凭证</th>
-            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
-              应收
+            <th
+              v-for="col in ledgerVisibleCols"
+              :key="col.key"
+              draggable="true"
+              class="px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+              :class="[
+                col.right ? 'text-right' : '',
+                isLedgerColDragging(col.key) ? 'opacity-40' : '',
+              ]"
+              title="拖动可调整列顺序"
+              @dragstart="onLedgerColDragStart(col.key)"
+              @dragover.prevent
+              @drop="onLedgerColDrop(col.key)"
+            >
+              {{ col.label }}
             </th>
-            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
-              已收
-            </th>
-            <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
-              未收
-            </th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">分期计划</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="row in ledgers"
-            :key="row.id"
+            v-for="{ row, item, li, span, tax } in ledgerRows"
+            :key="`${row.id}-${li}`"
             class="border-b border-n-weak hover:bg-n-alpha-1"
           >
-            <td class="px-3 py-2 font-mono whitespace-nowrap text-n-slate-12">
-              {{ row.receivable_no }}
-            </td>
-            <td class="px-3 py-2 whitespace-nowrap text-n-slate-12">
-              {{ row.customer_name }}
-              <button
-                v-if="row.order_no"
-                type="button"
-                class="text-xs underline reset-base text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
-                @click="openOrderDetail(row.crm_sales_order_id)"
+            <!-- 台账级的列（col.rowspan）只在第一行出一次、跨完整笔；明细级一行货一行。
+                 v-if 不能和 v-for 同元素，所以外面套一层 template。 -->
+            <template v-for="col in ledgerVisibleCols" :key="col.key">
+              <td
+                v-if="!col.rowspan || li === 0"
+                :rowspan="col.rowspan ? span : null"
+                class="px-3 py-2 whitespace-nowrap text-n-slate-11"
+                :class="[
+                  col.right ? 'font-mono text-right' : '',
+                  col.rowspan ? 'align-top' : '',
+                ]"
               >
-                · {{ row.order_no }}
-              </button>
-            </td>
-            <td
-              class="px-3 py-2 font-mono text-xs whitespace-nowrap text-n-slate-11"
-            >
-              {{ row.pi_no || '—' }}
-            </td>
-            <!-- 型号只摆第一项 + 共几项；全部走 title 悬浮，免得一行货把整表撑开。 -->
-            <td
-              class="px-3 py-2 text-n-slate-11 max-w-[14rem] truncate"
-              :title="(row.product_names || []).join('\n') || ''"
-            >
-              {{ row.product_summary || '—' }}
-            </td>
-            <!-- 两个日期都没有就只出一个「—」，别渲染成「—／交 —」两行占着位置。 -->
-            <td class="px-3 py-2 text-xs whitespace-nowrap text-n-slate-11">
-              <template v-if="row.order_date || row.delivery_date">
-                {{ (row.order_date || '').slice(0, 10) || '—' }}
-                <span class="block text-n-slate-10">
-                  交 {{ (row.delivery_date || '').slice(0, 10) || '—' }}
-                </span>
-              </template>
-              <span v-else>—</span>
-            </td>
-            <td class="px-3 py-2 text-xs whitespace-nowrap text-n-slate-11">
-              {{
-                SO_STATUS_LABELS[row.order_status] || row.order_status || '—'
-              }}
-            </td>
-            <!-- 有没有入总账一眼可见；没有的标红，不用去凭证列表逐条翻。 -->
-            <td class="px-3 py-2 font-mono text-xs whitespace-nowrap">
-              <span v-if="row.revenue_voucher_no" class="text-n-slate-11">
-                {{ row.revenue_voucher_no }}
-              </span>
-              <span v-else class="text-n-ruby-11">未入账</span>
-            </td>
-            <td
-              class="px-3 py-2 font-mono text-right whitespace-nowrap text-n-slate-12"
-            >
-              {{ row.currency }} {{ money(row.total_amount_micros) }}
-            </td>
-            <td
-              class="px-3 py-2 font-mono text-right whitespace-nowrap text-n-slate-11"
-            >
-              {{ money(row.received_amount_micros) }}
-            </td>
-            <td
-              class="px-3 py-2 font-mono text-right whitespace-nowrap text-n-slate-12"
-            >
-              {{ money(row.outstanding_micros) }}
-            </td>
-            <!-- 分期一行一期，整期不折行：折了之后「尾款 1,350.00 · 指定日期 · 未到期」
-                 会被拆成四行，一眼看不出这是一期还是四期。 -->
-            <td class="px-3 py-2 text-xs whitespace-nowrap">
-              <div
-                v-for="installment in row.installments"
-                :key="installment.id"
-                :class="INSTALLMENT_STATUS_CLASS[installment.status]"
-              >
-                {{ installment.kind_label }}
-                {{ money(installment.amount_micros) }} ·
-                {{ installment.due_date || installment.due_basis_label }} ·
-                {{ installment.status_label }}
-              </div>
-              <span v-if="!row.installments?.length" class="text-n-slate-10">
-                —
-              </span>
-            </td>
-            <td class="px-3 py-2">
-              <span
-                class="px-2 py-0.5 text-xs rounded whitespace-nowrap"
-                :class="STATUS_CLASS[row.status]"
-              >
-                {{ row.status_label }}
-              </span>
-            </td>
+                <template v-if="col.key === 'no'">
+                  {{ row.receivable_no }}
+                </template>
+                <template v-else-if="col.key === 'docDate'">
+                  {{ row.shipped_on || '—' }}
+                </template>
+                <template v-else-if="col.key === 'docNo'">
+                  {{ row.shipment_no || '—' }}
+                </template>
+                <template v-else-if="col.key === 'insuranceNo'">
+                  {{ row.insurance_order_no || '—' }}
+                </template>
+                <template v-else-if="col.key === 'orderNo'">
+                  <button
+                    v-if="row.order_no"
+                    type="button"
+                    class="text-sm underline reset-base text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
+                    @click="openOrderDetail(row.crm_sales_order_id)"
+                  >
+                    {{ row.order_no }}
+                  </button>
+                  <span v-else class="text-n-slate-11">—</span>
+                </template>
+                <template v-else-if="col.key === 'piNo'">
+                  {{ row.pi_no || '—' }}
+                </template>
+                <template v-else-if="col.key === 'customerCode'">
+                  {{ row.customer_code || '—' }}
+                </template>
+                <template v-else-if="col.key === 'customer'">
+                  {{ row.customer_name || '—' }}
+                </template>
+                <template v-else-if="col.key === 'owner'">
+                  {{ row.owner_name || '—' }}
+                </template>
+                <template v-else-if="col.key === 'department'">
+                  {{ row.owner_department || '—' }}
+                </template>
+                <template v-else-if="col.key === 'warehouse'">
+                  {{ row.warehouse_name || '—' }}
+                </template>
+                <template v-else-if="col.key === 'sku'">
+                  {{ item.sku || '—' }}
+                </template>
+                <template v-else-if="col.key === 'name'">
+                  {{ item.name || '—' }}
+                </template>
+                <template v-else-if="col.key === 'spec'">
+                  {{ item.spec || '—' }}
+                </template>
+                <template v-else-if="col.key === 'currency'">
+                  {{ row.currency || '—' }}
+                </template>
+                <template v-else-if="col.key === 'rate'">
+                  {{ num(row.exchange_rate) }}
+                </template>
+                <template v-else-if="col.key === 'freight'">
+                  {{ money(row.shipping_micros) }}
+                </template>
+                <template v-else-if="col.key === 'unit'">
+                  {{ item.unit || '—' }}
+                </template>
+                <template v-else-if="col.key === 'qty'">
+                  {{ num(item.quantity) }}
+                </template>
+                <template v-else-if="col.key === 'price'">
+                  {{ num(item.unit_price) }}
+                </template>
+                <template v-else-if="col.key === 'taxRate'">
+                  {{ taxRateLabel(row) }}
+                </template>
+                <template v-else-if="col.key === 'grossPrice'">
+                  {{ num(tax.grossPrice) }}
+                </template>
+                <template v-else-if="col.key === 'netAmount'">
+                  {{ amt(tax.netAmount) }}
+                </template>
+                <template v-else-if="col.key === 'grossAmount'">
+                  {{ amt(tax.grossAmount) }}
+                </template>
+                <template v-else-if="col.key === 'baseAmount'">
+                  {{ amt(tax.baseAmount) }}
+                </template>
+                <template v-else-if="col.key === 'productLine'">
+                  {{ productLineLabel(item.product_line) || '—' }}
+                </template>
+                <template v-else-if="col.key === 'unitCost'"> — </template>
+                <template v-else-if="col.key === 'orderDate'">
+                  <template v-if="row.order_date || row.delivery_date">
+                    {{ (row.order_date || '').slice(0, 10) || '—' }}
+                    <span class="block text-n-slate-10">
+                      交 {{ (row.delivery_date || '').slice(0, 10) || '—' }}
+                    </span>
+                  </template>
+                  <span v-else>—</span>
+                </template>
+                <template v-else-if="col.key === 'orderStatus'">
+                  {{
+                    SO_STATUS_LABELS[row.order_status] ||
+                    row.order_status ||
+                    '—'
+                  }}
+                </template>
+                <template v-else-if="col.key === 'voucher'">
+                  <span v-if="row.revenue_voucher_no" class="text-n-slate-11">
+                    {{ row.revenue_voucher_no }}
+                  </span>
+                  <span v-else class="text-n-ruby-11">未入账</span>
+                </template>
+                <template v-else-if="col.key === 'total'">
+                  {{ money(row.total_amount_micros) }}
+                </template>
+                <template v-else-if="col.key === 'received'">
+                  {{ money(row.received_amount_micros) }}
+                </template>
+                <template v-else-if="col.key === 'outstanding'">
+                  {{ money(row.outstanding_micros) }}
+                </template>
+                <template v-else-if="col.key === 'installments'">
+                  <div
+                    v-for="installment in row.installments"
+                    :key="installment.id"
+                    :class="INSTALLMENT_STATUS_CLASS[installment.status]"
+                  >
+                    {{ installment.kind_label }}
+                    {{ money(installment.amount_micros) }} ·
+                    {{ installment.due_date || installment.due_basis_label }} ·
+                    {{ installment.status_label }}
+                  </div>
+                  <span
+                    v-if="!row.installments?.length"
+                    class="text-n-slate-10"
+                  >
+                    —
+                  </span>
+                </template>
+                <template v-else-if="col.key === 'status'">
+                  <span
+                    class="px-2 py-0.5 text-xs rounded whitespace-nowrap"
+                    :class="STATUS_CLASS[row.status]"
+                  >
+                    {{ row.status_label }}
+                  </span>
+                </template>
+              </td>
+            </template>
           </tr>
           <tr v-if="!ledgers.length">
-            <td colspan="12" class="px-3 py-10 text-center text-n-slate-11">
-              还没有应收台账。点右上角「从销售订单建账」把订单转成应收。
+            <td
+              :colspan="ledgerVisibleCols.length"
+              class="px-3 py-10 text-center text-n-slate-11"
+            >
+              <template v-if="hasLedgerFilter">
+                没有符合筛选条件的应收台账。换个日期区间或状态再看看。
+              </template>
+              <template v-else>
+                还没有应收台账。点右上角「从销售订单建账」把订单转成应收。
+              </template>
             </td>
           </tr>
         </tbody>

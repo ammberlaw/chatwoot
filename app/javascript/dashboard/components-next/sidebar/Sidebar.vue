@@ -20,8 +20,6 @@ import ScheduleAPI from 'dashboard/api/crm/scheduleEvents';
 import ChatConversationAPI from 'dashboard/api/chat/conversations';
 import { useMesNotificationsStore } from 'dashboard/stores/mes/notifications';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
-import MesShipmentAPI from 'dashboard/api/mes/shipments';
-import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
 import { emitter } from 'shared/helpers/mitt';
 import { useWindowSize, useEventListener } from '@vueuse/core';
 
@@ -336,21 +334,17 @@ const getSidebarSectionSort = useMapGetter(
 // 流失预警角标：可见范围内超期未互动的成交客户数（实时计算，无存储）。
 const mesNotificationsStore = useMesNotificationsStore();
 const mesTodoCount = ref(0);
+// 角标口径走后端的 todo_count，不再自己把四个 inbox 的**长度**加起来。
+//
+// 原来那种加法把 inbox 的全部条数都算成「待我处理」，可 inbox 里还包含
+// 已下完采购、正在等料的单（面板上它们归「进行中」）——于是订单明明已经流转到
+// 下发采购，角标还一直挂着「待我处理」，点多少次都不掉（反馈点名）。
+// todo_count 里 actionable_inbox_count 按三态只算「待下单 / 逾期催货」，
+// 口径和待办面板一致，顺带也把出库与采购审批算进去，少发三个请求。
 const fetchMesTodoCount = async () => {
   try {
-    const empty = { data: { payload: [] } };
-    const [approvalRes, inboxRes, shipmentRes, poRes] = await Promise.all([
-      MesProductionOrderAPI.approvalInbox(),
-      MesProductionOrderAPI.inbox(),
-      MesShipmentAPI.approvalInbox().catch(() => empty),
-      // 采购单待审批也要上角标，否则只审批采购单的人（副总经理）看不到有事要办。
-      MesPurchaseOrderAPI.approvalInbox().catch(() => empty),
-    ]);
-    mesTodoCount.value =
-      (approvalRes?.data?.payload?.length || 0) +
-      (inboxRes?.data?.payload?.length || 0) +
-      (shipmentRes?.data?.payload?.length || 0) +
-      (poRes?.data?.payload?.length || 0);
+    const { data } = await MesProductionOrderAPI.todoCount();
+    mesTodoCount.value = data?.total || 0;
   } catch {
     mesTodoCount.value = 0;
   }
@@ -2308,6 +2302,25 @@ watch(
 // 管理员在文档中心增删板块后即时刷新侧栏子项。
 onMounted(() => emitter.on('crmDocSectionsUpdated', fetchDocSections));
 onBeforeUnmount(() => emitter.off('crmDocSectionsUpdated', fetchDocSections));
+
+// MES「待我处理」角标原来只在侧栏挂载时算一次，而侧栏不随路由重建：
+// 单子办完（下发采购 / 接单 / 审批）角标还挂着，点多少次都不掉——反馈点名的就是这个。
+// 两条路补上：① 路由一变重算（接口只回几个数字，很便宜，去抖 300ms）；
+//            ② 页内办完事当场广播，不用等切页。
+let mesTodoTimer = null;
+const refreshMesTodo = () => {
+  clearTimeout(mesTodoTimer);
+  mesTodoTimer = setTimeout(() => {
+    fetchMesTodoCount();
+    mesNotificationsStore.fetchUnreadCount();
+  }, 300);
+};
+watch(() => route.name, refreshMesTodo);
+onMounted(() => emitter.on('MES_TODO_MAY_CHANGE', refreshMesTodo));
+onBeforeUnmount(() => {
+  clearTimeout(mesTodoTimer);
+  emitter.off('MES_TODO_MAY_CHANGE', refreshMesTodo);
+});
 
 // 原生 Chatwoot「设置」入口暂时全局隐藏（各系统均不显示）；需要恢复时把
 // HIDDEN_ITEMS 清空即可，设置页仍可通过直链 /settings 访问。

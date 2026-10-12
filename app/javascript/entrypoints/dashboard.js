@@ -30,6 +30,7 @@ import VueDOMPurifyHTML from 'vue-dompurify-html';
 import { domPurifyConfig } from 'shared/helpers/HTMLSanitizer.js';
 
 import { vResizeObserver } from '@vueuse/components';
+import { installCellTooltip } from '../dashboard/helper/cellTooltip';
 import { directive as onClickaway } from 'vue3-click-away';
 
 import 'floating-vue/dist/style.css';
@@ -120,6 +121,8 @@ app.component('woot-wizard', WootWizard);
 app.component('fluent-icon', FluentIcon);
 
 app.directive('resize', vResizeObserver);
+// 表格格子悬停浮出完整内容（事件委托，一处生效全站，见 helper/cellTooltip）
+installCellTooltip();
 app.directive('on-clickaway', onClickaway);
 
 // 兜底错误提示：页面没 catch 的失败统一弹提示，杜绝「点了没反应」。

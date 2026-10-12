@@ -13,6 +13,10 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     }
     @receivables = scope.includes(:crm_customer, :crm_sales_order, :owner, :installments)
                         .order(created_at: :desc).page(page_param).per(per_page_param)
+    row_meta = Erp::ReceivableRowMetaService.new(account: Current.account, receivables: @receivables)
+    @shipment_meta = row_meta.shipments
+    @product_meta = row_meta.products
+    @department_names = row_meta.departments
   end
 
   def show; end
@@ -71,10 +75,16 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   # 而页签角标用的是全量 count，于是「角标 318、列表 200」对不上，财务以为系统丢数。
   # 改成真分页，每页与应收台账同样 50 条。
   def pending_orders
-    @orders = pending_order_scope.includes(:crm_customer, :owner)
-                                 .order(order_date: :desc)
-                                 .page(page_param).per(per_page_param)
+    scope = filtered_pending_scope
+    @orders = scope.includes(:crm_customer, :owner)
+                   .order(order_date: :desc)
+                   .page(page_param).per(per_page_param)
+    # pending_count 是页签角标，走全量——角标代表「还欠多少张没建」，不该随筛选变。
+    # 翻页器用 filtered_count，否则筛完只剩 3 条、翻页器还按 498 条画。
     @pending_count = pending_order_scope.count
+    @filtered_count = scope.count
+    # 业务员下拉只列「确实有待建账单」的人：全员名单里绝大多数选了是空结果。
+    @pending_owners = User.where(id: pending_order_scope.distinct.select(:owner_id)).order(:name)
     @fiscal_start_date = erp_settings.fiscal_start_date
     # 没设启用日时把被挡掉的历史单数量摆出来——否则清单空荡荡，财务不知道是真没有
     # 还是被日切挡住了。
@@ -138,11 +148,35 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     nil
   end
 
+  # 单据日期：与台账上「单据日期」那一列同一个口径——首次出库日（账期从货走那天起算），
+  # 没出货的老单回落到建账日期。两处口径必须一样，否则按日期一筛，
+  # 列表上明明写着 10-08 的单却筛不出来。
+  DOC_DATE_SQL = <<~SQL.squish
+    COALESCE(
+      (SELECT MIN(s.shipped_at)::date FROM mes_shipments s
+        WHERE s.crm_sales_order_id = erp_receivables.crm_sales_order_id
+          AND s.shipped_at IS NOT NULL),
+      erp_receivables.created_at::date
+    )
+  SQL
+
+  # 单据日期区间，单边留空＝只卡一头。
+  def doc_date_scope(scope)
+    scope = scope.where("#{DOC_DATE_SQL} >= ?", params[:from]) if params[:from].present?
+    scope = scope.where("#{DOC_DATE_SQL} <= ?", params[:to]) if params[:to].present?
+    scope
+  end
+
+  LEDGER_FILTERS = { status: :status, crm_customer_id: :crm_customer_id }.freeze
+
   def filtered_scope
     scope = Current.account.erp_receivables
-    scope = scope.where(status: params[:status]) if params[:status].present?
-    scope = scope.where(crm_customer_id: params[:crm_customer_id]) if params[:crm_customer_id].present?
+    LEDGER_FILTERS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
     scope = scope.open if params[:open] == 'true'
+    keyword_scope(doc_date_scope(scope))
+  end
+
+  def keyword_scope(scope)
     return scope if params[:q].blank?
 
     term = "%#{params[:q].strip}%"
@@ -166,6 +200,20 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
 
   def unfiltered_pending_scope
     readiness.unfiltered_pending_scope
+  end
+
+  # 待建账的查找条件：关键字（订单号 / PI 号 / 客户名）、业务员、订单状态。
+  # 498 张单摆在一页上，财务要找某一张只能靠浏览器查找——这几个条件就是为此补的。
+  def filtered_pending_scope
+    scope = pending_order_scope
+    scope = scope.where(owner_id: params[:owner_id]) if params[:owner_id].present?
+    scope = scope.where(status: params[:status]) if params[:status].present?
+    return scope if params[:q].blank?
+
+    term = "%#{params[:q].to_s.strip}%"
+    scope.left_joins(:crm_customer)
+         .where('crm_sales_orders.order_no ILIKE :t OR crm_sales_orders.pi_no ILIKE :t ' \
+                'OR crm_sales_orders.name ILIKE :t OR crm_customers.name ILIKE :t', t: term)
   end
 
   def erp_settings

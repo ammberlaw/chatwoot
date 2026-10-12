@@ -3,13 +3,17 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
+import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { useMesPurchaseOrdersStore } from 'dashboard/stores/mes/purchaseOrders';
 import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
+import { emitter } from 'shared/helpers/mitt';
 import MesPurchaseOrderAPI from 'dashboard/api/mes/purchaseOrders';
+import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
+import { useListDensity } from 'dashboard/composables/useListDensity';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
@@ -37,6 +41,8 @@ const goEdit = po =>
     accountScopedRoute('mes_purchase_order_intake_index', {}, { id: po.id })
   );
 const { mesCan } = useMesRole();
+// 行高：宽松/紧凑一键切，记在本机（反馈：间距太长想自己拉短）
+const { compact, toggleDensity } = useListDensity();
 const suppliersStore = useMesSuppliersStore();
 const currentUserId = useMapGetter('getCurrentUserID');
 const currentUser = useMapGetter('getCurrentUser');
@@ -60,12 +66,15 @@ const totalCount = computed(() => store.getMeta?.count || 0);
 // 结果「共 27 条」却只看得到前 15 张，第 16 张往后谁都点不到。
 const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
-const fetchList = () =>
-  store.get({
+// 同生产订单页：列表重拉＝刚办完事，顺带让侧栏重算 MES 待办角标。
+const fetchList = () => {
+  emitter.emit('MES_TODO_MAY_CHANGE');
+  return store.get({
     q: search.value.trim() || undefined,
     owner_id: onlyMine.value ? currentUserId.value : undefined,
     page: currentPage.value,
   });
+};
 watch(currentPage, fetchList);
 // 换了筛选条件要回到第 1 页——否则在第 3 页搜一个只有 2 条结果的词会看到空列表。
 const resetToFirstPage = () => {
@@ -487,6 +496,11 @@ const ITEM_COLUMN_DEFS = [
   },
   { key: 'aux', label: '辅助属性', tdClass: 'px-3 py-2 text-n-slate-11' },
   {
+    key: 'productRemark',
+    label: '档案备注',
+    tdClass: 'px-3 py-2 text-n-slate-11 max-w-[16rem] truncate',
+  },
+  {
     key: 'qty',
     label: '采购量',
     thClass: 'text-right',
@@ -505,6 +519,13 @@ const ITEM_COLUMN_DEFS = [
     thClass: 'text-right',
     tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
   },
+  // 税率：对账时「单价×数量对不上价税合计」十有八九是税点不同，列表上看不到就只能一张张点开。
+  {
+    key: 'taxRate',
+    label: '税率',
+    thClass: 'text-right',
+    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
+  },
   {
     key: 'amount',
     label: '金额',
@@ -516,6 +537,13 @@ const ITEM_COLUMN_DEFS = [
   {
     key: 'itemRemark',
     label: '备注',
+    tdClass: 'px-3 py-2 text-n-slate-11 max-w-[16rem] truncate',
+  },
+  // 对内备注：核对生产单时看的就是这句。按单视图早有这列，按明细视图原来没有，
+  // 切过去就得再切回来看一眼，反馈点名要补。
+  {
+    key: 'internalRemark',
+    label: '对内备注',
     tdClass: 'px-3 py-2 text-n-slate-11 max-w-[16rem] truncate',
   },
 ];
@@ -544,13 +572,16 @@ const itemRows = computed(() =>
       name: it.productName || it.materialName || '—',
       spec: it.specification || '—',
       aux: it.auxAttributeName || '—',
+      productRemark: it.productRemark || '—',
       qty: it.qty,
       received: it.receivedQty,
       unit: it.unit || '',
       rate: it.rateMicros,
+      taxRate: it.supplierTaxRate,
       amount: it.amountMicros,
       arrival: it.arrivalDate,
       itemRemark: it.remark || '—',
+      internalRemark: po.internalRemark || '—',
     }))
   )
 );
@@ -578,6 +609,114 @@ const hiddenCols = computed(
       .length
 );
 
+// 导出 Excel：跟着当前视图走——「按单」导单据级，「按明细」一行料一行。
+// 金额列只给看得见金额的岗位（采购/财务/管理员）；其余岗位后端压根不下发金额，
+// 列留着就是一整列空，不如不出。
+// ⚠️ 全量：列表一页 15 张，导出重新向后端分页要完，不是导屏幕这一页。
+// 注意这里走接口直拉，字段是未驼峰化的原始 payload（下划线）。
+const exporting = ref(false);
+const exportList = async () => {
+  exporting.value = true;
+  try {
+    const pos = await fetchAllRows(params => MesPurchaseOrderAPI.get(params), {
+      q: search.value.trim() || undefined,
+      owner_id: onlyMine.value ? currentUserId.value : undefined,
+    });
+    const moneyCols = canViewAmount.value;
+    const config = isItemView.value
+      ? {
+          title: '采购单明细',
+          columns: [
+            { label: '采购单号', key: 'po_no' },
+            { label: '供应商', key: 'supplier_name' },
+            { label: '物料编码', key: 'code' },
+            { label: '名称', key: 'name' },
+            { label: '规格型号', key: 'specification' },
+            { label: '辅助属性', key: 'aux_attribute_name' },
+            { label: '档案备注', key: 'product_remark' },
+            { label: '采购量', key: 'qty', num: true },
+            { label: '已到料', key: 'received_qty', num: true },
+            { label: '单位', key: 'unit' },
+            ...(moneyCols
+              ? [
+                  { label: '单价', key: 'rate_micros', money: true },
+                  { label: '税率(%)', key: 'supplier_tax_rate', num: true },
+                  { label: '金额', key: 'amount_micros', money: true },
+                ]
+              : []),
+            { label: '生产订单', key: 'production_order_no' },
+            { label: '实际到料', key: 'arrival_date' },
+            { label: '备注', key: 'remark' },
+            { label: '对内备注', key: 'internal_remark' },
+          ],
+          rows: pos.flatMap(po =>
+            (po.purchase_items || []).map(item => ({
+              po_no: po.po_no,
+              production_order_no: po.production_order_no,
+              supplier_name: item.supplier_name,
+              code: item.product_sku || item.material_no,
+              name: item.product_name || item.material_name,
+              specification: item.specification,
+              aux_attribute_name: item.aux_attribute_name,
+              product_remark: item.product_remark,
+              qty: item.qty,
+              received_qty: item.received_qty,
+              unit: item.unit,
+              rate_micros: item.rate_micros,
+              supplier_tax_rate: item.supplier_tax_rate,
+              amount_micros: item.amount_micros,
+              arrival_date: item.arrival_date,
+              remark: item.remark,
+              internal_remark: po.internal_remark,
+            }))
+          ),
+        }
+      : {
+          title: '采购单',
+          columns: [
+            { label: '采购单号', key: 'po_no' },
+            { label: '供应商', key: 'suppliers' },
+            { label: '生产订单', key: 'production_order_no' },
+            { label: '归属人', key: 'production_order_owner_name' },
+            { label: '下单人', key: 'owner_name' },
+            { label: '收货状态', key: 'status' },
+            ...(moneyCols
+              ? [{ label: '总额', key: 'total_amount_micros', money: true }]
+              : []),
+            { label: '审批', key: 'approval_status' },
+            { label: '回复交期', key: 'expected_date' },
+            { label: '交货时间', key: 'delivery_date' },
+            { label: '对内备注', key: 'internal_remark' },
+            { label: '备注', key: 'remark' },
+          ],
+          rows: pos.map(po => ({
+            ...po,
+            suppliers: (po.supplier_names || []).join('、'),
+          })),
+        };
+    exportRowsToExcel(
+      {
+        ...config,
+        meta: [
+          {
+            label: '导出时间',
+            value: new Date().toLocaleString('sv').slice(0, 16),
+          },
+          { label: '关键字', value: search.value.trim() || '（无）' },
+          { label: '范围', value: onlyMine.value ? '只看我下的单' : '全部' },
+          { label: '采购单数', value: pos.length },
+          { label: '行数', value: config.rows.length },
+        ],
+      },
+      `${config.title}_${new Date().toLocaleDateString('sv')}`
+    );
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
 // 查看弹窗里的明细列（不是列表的列）。
 
 const VIEW_ITEM_COLS = [
@@ -585,6 +724,10 @@ const VIEW_ITEM_COLS = [
   { label: '编码', key: 'code' },
   { label: '名称', key: 'name' },
   { label: '规格型号', key: 'spec', wrap: true },
+  // 辅助属性 + 产品档案上工程写的备注：金蝶会自动带到生产单和采购单，
+  // 这两样都是要发给供应商看的，原来查看页上没有（反馈提了两次）。
+  { label: '辅助属性', key: 'auxAttributeName' },
+  { label: '档案备注', key: 'productRemark', wrap: true },
   { label: '供应商', key: 'supplierName', wrap: true },
   { label: '采购量', key: 'qty', align: 'right' },
   { label: '已到料', key: 'receivedQty', align: 'right' },
@@ -611,6 +754,8 @@ const viewItems = computed(() =>
       code: it.productSku || it.materialNo || '—',
       name: it.productName || it.materialName || '—',
       spec: it.specification || '—',
+      auxAttributeName: it.auxAttributeName || '—',
+      productRemark: it.productRemark || '—',
       supplierName: it.supplierName || '—',
       qty: it.qty,
       receivedQty: it.receivedQty,
@@ -631,6 +776,13 @@ const productionOrders = ref([]);
 // 从站内通知点「待审批采购单」进来：落地后直接把那张单的详情弹窗打开，
 // 明细和「通过/驳回」都在弹窗里——否则人跳过来还得横向滑到最右才点得到按钮。
 // 只对「待我审批」的单自动开，普通按单号定位（如查进度）不打扰。
+// 采购单号常要贴进聊天/邮件里问供应商，手抄容易错一位。
+const copyNo = async no => {
+  if (!no) return;
+  await copyTextToClipboard(String(no));
+  useAlert(`已复制 ${no}`);
+};
+
 const autoOpenApproval = async poNo => {
   if (!poNo) return;
   await nextTick();
@@ -736,6 +888,22 @@ useRouteQueryReentry(async query => {
             </button>
           </div>
         </div>
+        <Button
+          :label="compact ? '宽松行高' : '紧凑行高'"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="toggleDensity"
+        />
+        <!-- 导出是只读动作，不挂采购写权限；金额列按 canViewAmount 决定出不出 -->
+        <Button
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="exporting"
+          @click="exportList"
+        />
         <Button
           v-if="mesCan('purchase')"
           label="新建采购单"
@@ -888,7 +1056,7 @@ useRouteQueryReentry(async query => {
             <tr
               v-for="(p, i) in records"
               :key="p.id"
-              class="border-b border-n-weak"
+              class="border-b group/row border-n-weak"
             >
               <td
                 v-for="col in visibleOrderCols"
@@ -897,7 +1065,18 @@ useRouteQueryReentry(async query => {
               >
                 <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
                 <template v-else-if="col.key === 'poNo'">
-                  {{ p.poNo }}
+                  <span
+                    class="inline-flex items-center gap-1 whitespace-nowrap"
+                  >
+                    <span>{{ p.poNo }}</span>
+                    <button
+                      v-if="p.poNo"
+                      v-tooltip.top="'复制采购单号'"
+                      type="button"
+                      class="transition-opacity opacity-0 i-lucide-copy size-3.5 shrink-0 text-n-slate-10 hover:text-n-iris-11 group-hover/row:opacity-100"
+                      @click.stop="copyNo(p.poNo)"
+                    />
+                  </span>
                   <span
                     v-if="p.hasException"
                     v-tooltip.top="exceptionTip(p)"
@@ -1100,6 +1279,12 @@ useRouteQueryReentry(async query => {
                 <template v-else-if="col.key === 'rate'">
                   {{ canViewAmount ? yuan(r.rate) : '—' }}
                 </template>
+                <template v-else-if="col.key === 'productRemark'">
+                  <span :title="r.productRemark">{{ r.productRemark }}</span>
+                </template>
+                <template v-else-if="col.key === 'taxRate'">
+                  {{ r.taxRate == null ? '—' : `${r.taxRate}%` }}
+                </template>
                 <template v-else-if="col.key === 'amount'">
                   {{ canViewAmount ? yuan(r.amount) : '—' }}
                 </template>
@@ -1111,6 +1296,9 @@ useRouteQueryReentry(async query => {
                 </template>
                 <template v-else-if="col.key === 'itemRemark'">
                   <span :title="r.itemRemark">{{ r.itemRemark }}</span>
+                </template>
+                <template v-else-if="col.key === 'internalRemark'">
+                  <span :title="r.internalRemark">{{ r.internalRemark }}</span>
                 </template>
               </td>
               <td

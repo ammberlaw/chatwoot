@@ -8,7 +8,8 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     @payables_count = scope.count
     @summary = { total_micros: scope.sum(Arel.sql(Erp::Payable::BASE_TOTAL_MICROS_SQL)),
                  paid_micros: scope.sum(Arel.sql(Erp::Payable::BASE_PAID_MICROS_SQL)) }
-    @payables = scope.includes(:mes_supplier, :mes_purchase_order)
+    @payables = scope.includes(:mes_supplier,
+                               mes_purchase_order: { purchase_items: [:mes_material, :crm_product] })
                      .order(created_at: :desc).page(page_param).per(per_page_param)
   end
 
@@ -84,15 +85,38 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     render 'api/v1/accounts/erp/shared/aging'
   end
 
+  # 按月未付：截止某月末，还欠哪些供应商各多少，对公/对私分行，欠的是哪几个月的货。
+  def monthly
+    @monthly = Erp::PayableMonthlyService.new(
+      account: Current.account, as_of: params[:as_of],
+      months: params[:months].presence || Erp::PayableMonthlyService::DEFAULT_MONTHS,
+      supplier_id: params[:mes_supplier_id]
+    ).call
+    render 'api/v1/accounts/erp/payables/monthly'
+  end
+
   private
 
-  FILTER_COLUMNS = { status: :status, mes_supplier_id: :mes_supplier_id, currency: :currency }.freeze
+  FILTER_COLUMNS = { status: :status, mes_supplier_id: :mes_supplier_id, currency: :currency,
+                     settle_type: :settle_type }.freeze
+
+  # 发生日期：incurred_on 是「货到那天」，没填的老单回落到建账日期。
+  # 与按月未付表（Erp::PayableMonthlyService）用同一个表达式，两处数才对得上。
+  INCURRED_ON_SQL = 'COALESCE(erp_payables.incurred_on, erp_payables.created_at::date)'.freeze
 
   def filtered_scope
     scope = Current.account.erp_payables
     FILTER_COLUMNS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
     scope = scope.open if params[:open] == 'true'
+    scope = date_scope(scope)
     keyword_scope(scope)
+  end
+
+  # 按发生日期筛，起止都可单边留空（只填起＝该日之后全部）。
+  def date_scope(scope)
+    scope = scope.where("#{INCURRED_ON_SQL} >= ?", params[:from]) if params[:from].present?
+    scope = scope.where("#{INCURRED_ON_SQL} <= ?", params[:to]) if params[:to].present?
+    scope
   end
 
   def keyword_scope(scope)

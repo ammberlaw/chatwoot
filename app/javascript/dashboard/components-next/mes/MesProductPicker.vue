@@ -30,8 +30,6 @@ const q = ref('');
 const rows = ref([]);
 const loading = ref(false);
 
-onClickOutside(triggerEl, () => { open.value = false; }, { ignore: [popoverEl] }); // prettier-ignore
-
 const fetchRows = async (keyword = '') => {
   loading.value = true;
   try {
@@ -107,10 +105,6 @@ useEventListener(
 );
 useEventListener('resize', syncPopover);
 
-const close = () => {
-  open.value = false;
-};
-
 // 触发器本身就是搜索框：聚焦/点击即展开（幂等，focus 和 click 会各触发一次）。
 const openPopover = async () => {
   if (open.value) return;
@@ -137,6 +131,31 @@ const pick = p => {
   emit('select', p);
   open.value = false;
 };
+
+// 关掉搜索态时：打完/粘贴完料号却没点选也没回车就去点下一行，原来这一下什么都没选中，
+// 输进去的码直接消失（用户：「明明已经输进去了，再点一下代码就跳成空的」）。
+// 现在关之前先按输入的内容做一次精确匹配（料号，或「料号 · 名称」整串），对得上就直接选中。
+// 只认精确匹配——模糊匹配会在人还没打完时替他选错料，比丢掉更难发现。
+const norm = v =>
+  String(v || '')
+    .trim()
+    .toLowerCase();
+const resolveTypedOnClose = () => {
+  const typed = norm(q.value);
+  if (!typed || typed === norm(props.displayText)) return;
+
+  const hit = rows.value.find(
+    p => norm(p.sku) === typed || `${norm(p.sku)} · ${norm(p.name)}` === typed
+  );
+  if (hit) pick(hit);
+};
+const closePopover = () => {
+  if (!open.value) return;
+  resolveTypedOnClose();
+  open.value = false;
+};
+
+onClickOutside(triggerEl, closePopover, { ignore: [popoverEl] });
 
 // 打完料号直接回车选中第一条——不用再挪手去点鼠标。
 const pickFirst = () => {
@@ -222,7 +241,7 @@ const submitCreate = async () => {
         @click="openPopover"
         @input="onType"
         @keydown.enter.prevent="pickFirst"
-        @keydown.esc.prevent="close"
+        @keydown.esc.prevent="closePopover"
       />
       <span class="text-n-slate-10 i-lucide-chevron-down size-4 shrink-0" />
     </div>

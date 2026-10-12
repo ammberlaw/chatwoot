@@ -7,10 +7,23 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   # 挂附件/删附件同样是改单，一并收口。
   before_action -> { ensure_owner_or_admin!(@bom, '生产任务单') }, only: [:update, :destroy, :attach, :detach]
 
+  # 表头上每列各自的筛选（对标金蝶的漏斗）。列 → 查询条件的映射放在后端，
+  # 因为列表是分页的：前端只过滤本页，第 2 页往后的命中就全看不见了。
+  COLUMN_FILTERS = {
+    no: ->(scope, v) { scope.where('mes_boms.bom_no ILIKE :t OR mes_boms.doc_no ILIKE :t', t: "%#{v}%") },
+    model: lambda { |scope, v|
+      scope.left_joins(:crm_product)
+           .where('mes_boms.model ILIKE :t OR crm_products.name ILIKE :t', t: "%#{v}%")
+    },
+    product_code: ->(scope, v) { scope.where('mes_boms.product_code ILIKE ?', "%#{v}%") },
+    customer_name: ->(scope, v) { scope.where('mes_boms.customer_name ILIKE ?', "%#{v}%") },
+    owner_id: ->(scope, v) { scope.where(owner_id: v) },
+    sales_owner_id: ->(scope, v) { scope.where(sales_owner_id: v) },
+    status: ->(scope, v) { scope.where(status: v) }
+  }.freeze
+
   def index
-    scope = scoped_by_bom_visibility(Current.account.mes_boms)
-    scope = scope.where(crm_product_id: params[:crm_product_id]) if params[:crm_product_id].present?
-    scope = scope.where('bom_no ILIKE :t', t: "%#{params[:q].strip}%") if params[:q].present?
+    scope = apply_column_filters(scoped_by_bom_visibility(Current.account.mes_boms))
     # 产线筛选放在最后：要先数出「本次筛选条件下、产线为空因而被产线分流隐藏」的条数。
     @hidden_no_line = hidden_without_product_line(scope)
     scope = scoped_by_product_line(scope)
@@ -133,6 +146,27 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     order = Current.account.mes_production_orders.find(order_id)
     @bom.update!(sales_owner_id: order.owner_id) if @bom.sales_owner_id.blank?
     order.attach_bom!(@bom, actor: current_user)
+  end
+
+  def apply_column_filters(scope)
+    scope = scope.where(crm_product_id: params[:crm_product_id]) if params[:crm_product_id].present?
+    scope = scope.where('bom_no ILIKE :t', t: "%#{params[:q].to_s.strip}%") if params[:q].present?
+    scope = date_filtered(scope)
+    COLUMN_FILTERS.each do |param, apply|
+      value = params[param]
+      scope = apply.call(scope, value.to_s.strip) if value.present?
+    end
+    scope
+  end
+
+  # 投单日期区间：单边留空＝只卡一头。没填投单日期的老单回落到建单日期，
+  # 否则按日期一筛，历史单整批消失。
+  DATE_SQL = 'COALESCE(mes_boms.submit_date, mes_boms.created_at::date)'.freeze
+
+  def date_filtered(scope)
+    scope = scope.where("#{DATE_SQL} >= ?", params[:submit_from]) if params[:submit_from].present?
+    scope = scope.where("#{DATE_SQL} <= ?", params[:submit_to]) if params[:submit_to].present?
+    scope
   end
 
   def bom_params

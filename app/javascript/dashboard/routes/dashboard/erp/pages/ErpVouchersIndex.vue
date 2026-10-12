@@ -7,6 +7,7 @@ import { useErpVouchersStore } from 'dashboard/stores/erp/vouchers';
 import { useErpLedgerAccountsStore } from 'dashboard/stores/erp/ledgerAccounts';
 import { useErpRole } from 'dashboard/composables/useErpRole';
 import ErpVoucherAPI from 'dashboard/api/erp/vouchers';
+import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 import ErpAutoVoucherRuleAPI from 'dashboard/api/erp/autoVoucherRules';
 import ErpReportAPI from 'dashboard/api/erp/reports';
 import ErpVoucherTemplateAPI from 'dashboard/api/erp/voucherTemplates';
@@ -574,6 +575,57 @@ const doDelete = async () => {
 
 const route = useRoute();
 
+/* ---------------- 导出 Excel ---------------- */
+// 导当前筛选下的凭证清单（凭证级）。分录级的明细在「账簿」页导——
+// 列表接口不下发分录，这里逐张去取就是几百次请求。
+// ⚠️ 全量：列表一页 15 张，导出重新向后端分页要完。
+const exporting = ref(false);
+const exportList = async () => {
+  exporting.value = true;
+  try {
+    const rows = await fetchAllRows(params => ErpVoucherAPI.get(params), {
+      period: period.value,
+      status: statusFilter.value,
+      q: keyword.value.trim(),
+    });
+    exportRowsToExcel(
+      {
+        title: '记账凭证清单',
+        meta: [
+          {
+            label: '导出时间',
+            value: new Date().toLocaleString('sv').slice(0, 16),
+          },
+          { label: '期间', value: period.value || '全部期间' },
+          { label: '状态', value: statusFilter.value || '全部状态' },
+          { label: '关键字', value: keyword.value.trim() || '（无）' },
+          { label: '凭证张数', value: rows.length },
+        ],
+        columns: [
+          { label: '凭证字号', key: 'voucher_no' },
+          { label: '日期', key: 'voucher_date' },
+          { label: '会计期间', key: 'period' },
+          { label: '摘要', key: 'summary' },
+          { label: '借方合计', key: 'total_debit_micros', money: true },
+          { label: '贷方合计', key: 'total_credit_micros', money: true },
+          { label: '状态', key: 'status_label' },
+          { label: '制单', key: 'prepared_by_name' },
+          { label: '记账', key: 'posted_by_name' },
+          { label: '附件(张)', key: 'document_count', num: true },
+          { label: '红冲自', key: 'reversal_of_no' },
+          { label: '已被红冲', key: 'reversed_by_no' },
+        ],
+        rows,
+      },
+      `记账凭证清单_${new Date().toLocaleDateString('sv')}`
+    );
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
 onMounted(() => {
   // 从账簿明细账点凭证号跳过来时带 ?q=字号，直接过滤到那张凭证。
   if (route.query.q) keyword.value = String(route.query.q);
@@ -602,6 +654,15 @@ onMounted(() => {
           @keyup.enter="resetAndFetch"
         />
         <Button label="查询" color="slate" size="sm" @click="resetAndFetch" />
+        <!-- 导出是只读动作，不挂写权限 -->
+        <Button
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="exporting"
+          @click="exportList"
+        />
         <Button
           v-if="selectedIds.length"
           :label="`打印选中 ${selectedIds.length} 张`"

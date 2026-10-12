@@ -229,42 +229,6 @@ const TRIAL_COLUMNS = [
   { label: '期末借方', key: 'closing_debit_micros', money: true },
   { label: '期末贷方', key: 'closing_credit_micros', money: true },
 ];
-const EXPORTABLE = { accountBalances: '科目余额表', trial: '试算平衡表' };
-const canExportExcel = computed(() => Boolean(EXPORTABLE[activeTab.value]));
-
-const exportExcel = () => {
-  const isTrial = activeTab.value === 'trial';
-  const report = isTrial ? trialBalance.value : accountBalances.value;
-  if (!report) return;
-  const title = EXPORTABLE[activeTab.value];
-  const rows = isTrial
-    ? report.payload
-    : report.payload.map(row => ({
-        ...row,
-        opening_dir: row.opening_micros
-          ? balanceDir(row.opening_micros, row.direction)
-          : '',
-        opening_abs: Math.abs(row.opening_micros),
-        closing_dir: row.closing_micros
-          ? balanceDir(row.closing_micros, row.direction)
-          : '',
-        closing_abs: Math.abs(row.closing_micros),
-      }));
-  exportRowsToExcel(
-    {
-      title,
-      meta: [
-        { label: '期间', value: `${from.value} 至 ${to.value}` },
-        { label: '口径', value: '仅已过账凭证、仅末级科目，金额为本位币' },
-        { label: '导出时间', value: new Date().toLocaleString() },
-      ],
-      columns: isTrial ? TRIAL_COLUMNS : BALANCE_COLUMNS,
-      rows,
-    },
-    `${title}_${from.value}_至_${to.value}`
-  );
-};
-
 // 会企01 固定行式（行次与行名由后端给，和金蝶那张表逐字一致）。
 const assetLines = computed(() => balanceSheet.value?.asset_lines || []);
 const equityLines = computed(() => balanceSheet.value?.equity_lines || []);
@@ -329,6 +293,170 @@ const cashFlowTailLines = computed(() => {
     },
   ];
 });
+
+// 三张版式报表（会企01/02/03）本来只给「打印」。财务要拿去跟旧表对账、做测算，
+// 所以也导 Excel：版式照搬（行名/行次/金额三列或四列），金额是数值不是带千分位的字符串。
+// 资产负债表左右两栏并排导，跟纸面一致。
+const STATEMENT_TITLES = {
+  balance: '资产负债表',
+  income: '利润表',
+  cashflow: '现金流量表',
+  tie: '勾稽检查',
+};
+const EXPORTABLE = {
+  accountBalances: '科目余额表',
+  trial: '试算平衡表',
+  ...STATEMENT_TITLES,
+};
+const canExportExcel = computed(() => {
+  const tab = activeTab.value;
+  if (tab === 'balance') return Boolean(balanceSheet.value);
+  if (tab === 'income') return Boolean(incomeStatement.value);
+  if (tab === 'cashflow') return Boolean(cashFlow.value);
+  if (tab === 'tie') return Boolean(tieCheck.value);
+  return Boolean(EXPORTABLE[tab]);
+});
+
+const statementMeta = () => [
+  { label: '期间', value: `${from.value} 至 ${to.value}` },
+  { label: '单位', value: '元（本位币）' },
+  { label: '口径', value: '仅已过账凭证' },
+  { label: '导出时间', value: new Date().toLocaleString('sv').slice(0, 16) },
+];
+
+// 资产负债表：左右两栏行数不同，短的一边补空行，跟纸面一样左右对齐。
+const balanceSheetRows = () => {
+  const left = assetLines.value;
+  const right = equityLines.value;
+  const len = Math.max(left.length, right.length);
+  return Array.from({ length: len }, (unused, i) => {
+    const a = left[i] || {};
+    const b = right[i] || {};
+    return {
+      asset_label: a.heading || a.label || '',
+      asset_row_no: a.row_no,
+      asset_closing: a.heading ? null : a.amount_micros,
+      asset_opening: a.heading ? null : a.opening_micros,
+      equity_label: b.heading || b.label || '',
+      equity_row_no: b.row_no,
+      equity_closing: b.heading ? null : b.amount_micros,
+      equity_opening: b.heading ? null : b.opening_micros,
+    };
+  });
+};
+
+// 现金流量表：按屏幕上的行序铺平（三大活动各自的流入/流出/小计/净额 + 表尾四行）。
+const cashFlowExportRows = () => {
+  const rows = [];
+  (cashFlow.value?.payload || []).forEach(sec => {
+    rows.push({ label: sec.label, row_no: '', amount_micros: null });
+    cashFlowLines(sec).forEach(row =>
+      rows.push({
+        label: row.label,
+        row_no: row.row_no,
+        amount_micros: row.amount_micros,
+      })
+    );
+  });
+  cashFlowTailLines.value.forEach(row =>
+    rows.push({
+      label: row.label,
+      row_no: row.row_no,
+      amount_micros: row.amount_micros,
+    })
+  );
+  return rows;
+};
+
+const STATEMENT_CONFIG = {
+  balance: () => ({
+    columns: [
+      { label: '资产', key: 'asset_label' },
+      { label: '行次', key: 'asset_row_no' },
+      { label: '期末余额', key: 'asset_closing', money: true },
+      { label: '年初余额', key: 'asset_opening', money: true },
+      { label: '负债和所有者权益', key: 'equity_label' },
+      { label: '行次', key: 'equity_row_no' },
+      { label: '期末余额', key: 'equity_closing', money: true },
+      { label: '年初余额', key: 'equity_opening', money: true },
+    ],
+    rows: balanceSheetRows(),
+  }),
+  income: () => ({
+    columns: [
+      { label: '项目', key: 'label' },
+      { label: '行次', key: 'row_no' },
+      { label: '本期金额', key: 'amount_micros', money: true },
+      { label: '上期金额', key: 'prior_amount_micros', money: true },
+    ],
+    rows: incomeStatement.value?.payload || [],
+  }),
+  cashflow: () => ({
+    columns: [
+      { label: '项目', key: 'label' },
+      { label: '行次', key: 'row_no' },
+      { label: '本期金额', key: 'amount_micros', money: true },
+    ],
+    rows: cashFlowExportRows(),
+  }),
+  tie: () => ({
+    columns: [
+      { label: '检查项', key: 'label' },
+      { label: '结果', key: 'result' },
+      { label: '差额', key: 'diff_micros', money: true },
+      { label: '提示', key: 'hint' },
+    ],
+    rows: (tieCheck.value?.payload || []).map(check => ({
+      label: check.label,
+      result: check.passed ? '通过' : '未通过',
+      diff_micros: check.detail?.diff_micros,
+      hint: check.hint,
+    })),
+  }),
+};
+
+const exportExcel = () => {
+  const tab = activeTab.value;
+  const build = STATEMENT_CONFIG[tab];
+  if (build) {
+    const title = EXPORTABLE[tab];
+    exportRowsToExcel(
+      { title, meta: statementMeta(), ...build() },
+      `${title}_${from.value}_至_${to.value}`
+    );
+    return;
+  }
+  const isTrial = tab === 'trial';
+  const report = isTrial ? trialBalance.value : accountBalances.value;
+  if (!report) return;
+  const title = EXPORTABLE[tab];
+  const rows = isTrial
+    ? report.payload
+    : report.payload.map(row => ({
+        ...row,
+        opening_dir: row.opening_micros
+          ? balanceDir(row.opening_micros, row.direction)
+          : '',
+        opening_abs: Math.abs(row.opening_micros),
+        closing_dir: row.closing_micros
+          ? balanceDir(row.closing_micros, row.direction)
+          : '',
+        closing_abs: Math.abs(row.closing_micros),
+      }));
+  exportRowsToExcel(
+    {
+      title,
+      meta: [
+        { label: '期间', value: `${from.value} 至 ${to.value}` },
+        { label: '口径', value: '仅已过账凭证、仅末级科目，金额为本位币' },
+        { label: '导出时间', value: new Date().toLocaleString() },
+      ],
+      columns: isTrial ? TRIAL_COLUMNS : BALANCE_COLUMNS,
+      rows,
+    },
+    `${title}_${from.value}_至_${to.value}`
+  );
+};
 
 // 表头「编制单位」：账套设置里的公司全称，没设就不印这一段。
 const reportCompany = computed(

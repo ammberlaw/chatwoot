@@ -8,9 +8,46 @@ const safeName = n =>
 
 const cell = v => (v === null || v === undefined ? '' : v);
 
+// 导出前把图片内联成 data URI。
+//
+// 为什么非做不可：附件实际存在对象存储上，ActiveStorage 的链接会 302 到那个域名。
+// html-to-image 自己去抓图时跨域被挡，它**不报错、直接把这张图丢掉**——
+// 导出来的就是一张「有版式没有图」的单据，业务附的产品图全不见了（反馈点名两次）。
+// 这里走我们自己的同源请求带 cookie 抓一遍，抓不到的保持原样（最多还是那张丢图）。
+const inlineImages = async node => {
+  const imgs = Array.from(node.querySelectorAll('img[src]')).filter(
+    img => !img.src.startsWith('data:')
+  );
+  const restore = [];
+  await Promise.all(
+    imgs.map(async img => {
+      try {
+        const res = await fetch(img.src, { credentials: 'include' });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        restore.push([img, img.src]);
+        img.src = dataUrl;
+      } catch {
+        // 抓不到就算了：这张图导不出来，但不能因此让整张单据导出失败
+      }
+    })
+  );
+  return () =>
+    restore.forEach(([img, src]) => {
+      img.src = src;
+    });
+};
+
 // DOM 节点 → JPG 下载（用于打印/存档单据）。
 export async function exportNodeToJpg(node, filename) {
   if (!node) return;
+  const undo = await inlineImages(node);
   const dataUrl = await toJpeg(node, {
     quality: 0.95,
     backgroundColor: '#ffffff',
@@ -18,6 +55,7 @@ export async function exportNodeToJpg(node, filename) {
     // 跳过标了 .export-skip 的节点（如导出按钮本身）。
     filter: n => !(n.classList && n.classList.contains('export-skip')),
   });
+  undo();
   const a = document.createElement('a');
   a.href = dataUrl;
   a.download = `${safeName(filename)}.jpg`;
@@ -26,12 +64,25 @@ export async function exportNodeToJpg(node, filename) {
 
 // 结构化 { title, fields:[{label,value}], itemColumns:[{label,key}], items:[] } → Excel 下载。
 export function exportDataToExcel(
-  { title, fields = [], itemColumns = [], items = [] },
+  { title, fields = [], itemColumns = [], items = [], images = [] },
   filename
 ) {
   const aoa = [];
   if (title) aoa.push([title]);
   fields.forEach(f => aoa.push([f.label, cell(f.value)]));
+  // 附图：一张二维表塞不进图片本身，但至少要让人知道「附过几张、在哪」——
+  // 原来导出的 Excel 里业务附的图连痕迹都没有，看的人以为根本没附（反馈点名）。
+  // 要看图走「导出图片」或单据页面；这里给文件名和直链。
+  if (images.length) {
+    aoa.push([]);
+    aoa.push([`附图（${images.length}）`, '链接']);
+    images.forEach(img =>
+      aoa.push([
+        cell(img.filename),
+        cell(img.url ? new URL(img.url, window.location.origin).href : ''),
+      ])
+    );
+  }
   if (itemColumns.length) {
     aoa.push([]);
     aoa.push(itemColumns.map(c => c.label));

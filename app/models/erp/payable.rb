@@ -8,9 +8,11 @@
 #  currency              :string           default("CNY"), not null
 #  due_date              :date
 #  exchange_rate         :decimal(12, 6)   default(1.0), not null
+#  incurred_on           :date
 #  paid_amount_micros    :bigint           default(0), not null
 #  payable_no            :string           not null
 #  remark                :text
+#  settle_type           :string           default("PUBLIC"), not null
 #  status                :string           default("UNPAID"), not null
 #  total_amount_micros   :bigint           default(0), not null
 #  created_at            :datetime         not null
@@ -35,6 +37,15 @@ class Erp::Payable < ApplicationRecord
   STATUSES = [UNPAID, PARTIAL, PAID].freeze
   STATUS_LABELS = { UNPAID => '未付款', PARTIAL => '部分付款', PAID => '已付清' }.freeze
 
+  # 结算方式：钱打到公司账户（有票、含税）还是个人账户（无票、未税）。
+  # 财务的应付台账按这个分两行统计——同一家供应商两种结算都有，所以标记落在单据上。
+  PUBLIC = 'PUBLIC'.freeze
+  PRIVATE = 'PRIVATE'.freeze
+  SETTLE_TYPES = [PUBLIC, PRIVATE].freeze
+  # 财务口径就叫含税/未税：对公＝钱打公司账户、有票、含税；对私＝打个人账户、无票、未税。
+  # 界面一律显示含税/未税（采购单那边的「对公/对私」说的是开票主体 bill_entity，是另一回事）。
+  SETTLE_TYPE_LABELS = { PUBLIC => '含税', PRIVATE => '未税' }.freeze
+
   # 折本位币的规范口径（与 Crm::SalesOrder::RMB_AMOUNT_MICROS_SQL 同约定）。
   # 本表金额存的是**原币**，跨币种求和必须过这个 SQL；直接 sum 原币列＝把美元当人民币 1:1 加。
   BASE_TOTAL_MICROS_SQL = 'ROUND(erp_payables.total_amount_micros * COALESCE(erp_payables.exchange_rate, 1))'.freeze
@@ -49,6 +60,7 @@ class Erp::Payable < ApplicationRecord
   validates :payable_no, presence: true, uniqueness: { scope: :account_id }
   validates :total_amount_micros, numericality: { greater_than: 0 }
   validates :status, inclusion: { in: STATUSES }
+  validates :settle_type, inclusion: { in: SETTLE_TYPES }
 
   before_validation :assign_payable_no, on: :create
 
@@ -56,6 +68,13 @@ class Erp::Payable < ApplicationRecord
 
   def outstanding_micros
     total_amount_micros - paid_amount_micros
+  end
+
+  # 这笔应付对应的采购明细：一张采购单按供应商拆成多笔应付，各自只认自己那几行。
+  def supplier_items
+    return [] if mes_purchase_order.blank?
+
+    mes_purchase_order.purchase_items.select { |item| item.mes_supplier_id == mes_supplier_id }
   end
 
   def derived_status

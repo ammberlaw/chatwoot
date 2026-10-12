@@ -385,7 +385,7 @@ const explode = async (category = '') => {
     if (!all.length) {
       useAlert(
         category
-          ? '该类别（主料/辅料）无用料'
+          ? '该类别（整机物料/包装物料）无用料'
           : '该生产订单未挂生产任务单或无用料'
       );
       return;
@@ -851,7 +851,7 @@ onBeforeRouteLeave((to, from, next) => {
               @click="explode('')"
             />
             <Button
-              label="只算主料"
+              label="只算整机物料"
               type="button"
               variant="outline"
               color="slate"
@@ -859,7 +859,7 @@ onBeforeRouteLeave((to, from, next) => {
               @click="explode('MACHINE')"
             />
             <Button
-              label="只算辅料"
+              label="只算包装物料"
               type="button"
               variant="outline"
               color="slate"

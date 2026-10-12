@@ -8,7 +8,9 @@ import {
   productLineLabel,
 } from 'dashboard/composables/useMesProductLine';
 
+import MesProductAPI from 'dashboard/api/mes/products';
 import ProductGroupsAPI from 'dashboard/api/mes/productGroups';
+import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 import ProductCategoriesAPI from 'dashboard/api/mes/productCategories';
 import Draggable from 'vuedraggable';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -369,6 +371,56 @@ const doDelete = async () => {
   deleting.value = null;
 };
 
+// 导出：带当前筛选（关键字/分类/来源/分组）一起导——筛完再导、导出来是全量，等于白筛。
+// ⚠️ 全量：列表一页 15 条，导出重新向后端分页要完，不是导屏幕这一页。
+const exporting = ref(false);
+const exportList = async () => {
+  exporting.value = true;
+  try {
+    const rows = await fetchAllRows(params => MesProductAPI.get(params), {
+      q: keyword.value.trim() || undefined,
+      category: categoryFilter.value || undefined,
+      source_category: selectedSourceCategory.value || undefined,
+      group_code: selectedGroup.value || undefined,
+    });
+    exportRowsToExcel(
+      {
+        title: '产品档案',
+        meta: [
+          {
+            label: '导出时间',
+            value: new Date().toLocaleString('sv').slice(0, 16),
+          },
+          { label: '关键字', value: keyword.value.trim() || '（无）' },
+          { label: '分类', value: categoryFilter.value || '全部分类' },
+          { label: '产品数', value: rows.length },
+        ],
+        columns: [
+          { label: '商品编码', key: 'sku' },
+          { label: '产品名称', key: 'name' },
+          { label: '规格型号', key: 'specification' },
+          { label: '单位', key: 'unit' },
+          { label: '分类', key: 'category' },
+          { label: '来源分类', key: 'source_category' },
+          { label: '分组编码', key: 'group_code' },
+          { label: '产品线', key: 'product_line' },
+          { label: '状态', key: 'active_label' },
+          { label: '备注', key: 'remark' },
+        ],
+        rows: rows.map(row => ({
+          ...row,
+          active_label: row.is_active === false ? '已禁用' : '启用中',
+        })),
+      },
+      `产品档案_${new Date().toLocaleDateString('sv')}`
+    );
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
 onMounted(() => {
   load();
   loadGroups();
@@ -418,6 +470,15 @@ onMounted(() => {
           color="slate"
           size="sm"
           @click="reload"
+        />
+        <!-- 导出是只读动作，不挂管理权限 -->
+        <Button
+          label="导出 Excel"
+          variant="faded"
+          color="slate"
+          size="sm"
+          :is-loading="exporting"
+          @click="exportList"
         />
         <Button
           v-if="canManage"

@@ -6,6 +6,7 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
 import MesMaterialPriceAPI from 'dashboard/api/mes/materialPrices';
 import MesProductAPI from 'dashboard/api/mes/products';
+import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -231,6 +232,45 @@ const missingHint = computed(() => {
   return `有 ${r.missing_count} 条物料编码在商品档里找不到，这些行没有导入：${r.missing_skus.join('、')}${more}`;
 });
 
+// 导出：⚠️ 全量——列表一页 25 条，导出重新向后端分页要完，不是导屏幕这一页。
+const exporting = ref(false);
+const exportList = async () => {
+  exporting.value = true;
+  try {
+    const all = await fetchAllRows(params => MesMaterialPriceAPI.get(params), {
+      q: keyword.value.trim() || undefined,
+    });
+    exportRowsToExcel(
+      {
+        title: '物料单价表',
+        meta: [
+          {
+            label: '导出时间',
+            value: new Date().toLocaleString('sv').slice(0, 16),
+          },
+          { label: '关键字', value: keyword.value.trim() || '（无）' },
+          { label: '物料数', value: all.length },
+        ],
+        columns: [
+          { label: '物料编码', key: 'sku' },
+          { label: '物料名称', key: 'name' },
+          { label: '规格型号', key: 'specification' },
+          { label: '单位', key: 'unit' },
+          { label: '单价', key: 'unit_price_micros', money: true },
+          { label: '备注', key: 'remark' },
+          { label: '最近修改', key: 'updated_by_name' },
+        ],
+        rows: all,
+      },
+      `物料单价表_${new Date().toLocaleDateString('sv')}`
+    );
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
 onMounted(() => {
   if (canRead.value) load();
 });
@@ -249,6 +289,15 @@ onMounted(() => {
       <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
         <h1 class="text-xl font-semibold text-n-slate-12">物料单价表</h1>
         <div class="flex items-center gap-2">
+          <!-- 导出是只读动作，不挂写权限 -->
+          <Button
+            label="导出 Excel"
+            variant="faded"
+            color="slate"
+            size="sm"
+            :is-loading="exporting"
+            @click="exportList"
+          />
           <Button
             v-if="canWrite"
             label="导入 Excel"
@@ -285,21 +334,23 @@ onMounted(() => {
         </p>
       </div>
 
-      <div class="flex gap-1 px-4 pb-3 sm:px-6" data-tabbar="page">
-        <button
-          type="button"
-          :aria-selected="tab === 'list'"
-          @click="switchTab('list')"
-        >
-          单价表
-        </button>
-        <button
-          type="button"
-          :aria-selected="tab === 'missing'"
-          @click="switchTab('missing')"
-        >
-          缺价清单
-        </button>
+      <div class="px-4 pb-3 sm:px-6">
+        <div class="flex gap-1" data-tabbar="page">
+          <button
+            type="button"
+            :aria-selected="tab === 'list'"
+            @click="switchTab('list')"
+          >
+            单价表
+          </button>
+          <button
+            type="button"
+            :aria-selected="tab === 'missing'"
+            @click="switchTab('missing')"
+          >
+            缺价清单
+          </button>
+        </div>
       </div>
 
       <!-- 单价表 -->

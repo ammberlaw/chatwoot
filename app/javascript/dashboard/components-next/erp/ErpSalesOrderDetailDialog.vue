@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -64,25 +64,48 @@ const open = async orderId => {
 const close = () => dialogRef.value?.close();
 defineExpose({ open, close });
 
-// 点单号跳到 MES 对应页面。跳之前先关弹窗，否则回退回来会看到一个盖着的空壳。
-// 生产订单页认 ?q=<单号>（列表按它收窄）；出库页认 ?focus=<id>（直接展开那张单）。
-const goProductionOrder = po => {
-  if (!po?.order_no) return;
-  close();
-  router.push({
-    name: 'mes_production_orders_index',
-    params: { accountId: accountId.value },
-    query: { q: po.order_no },
-  });
+// 点单号就地弹窗看，不再跳去 MES。
+//
+// 财务在应收/成本毛利上核一张订单时，关联的生产订单和出货单只是「顺手确认一眼」，
+// 跳去 MES 等于丢掉当前这张单的上下文、看完还得找回来；而且财务多半没有 MES 身份，
+// 跳过去不少页是空的。详情所需的字段（阶段流转、出入库单、出了什么货）order_detail
+// 接口本来就一并返回了，直接拿来渲染，不另发请求。
+// 要看完整单据的仍留一个「去 MES 看完整单据」的出口。
+const drill = ref(null); // { kind: 'po' | 'shipment', data }
+const drillRef = ref(null);
+const openDrill = (kind, data) => {
+  drill.value = { kind, data };
+  nextTick(() => drillRef.value?.open());
 };
-const goShipment = sp => {
-  if (!sp?.id) return;
+const closeDrill = () => drillRef.value?.close();
+
+const drillTitle = computed(() => {
+  const d = drill.value;
+  if (!d) return '';
+  return d.kind === 'po'
+    ? `生产订单 ${d.data.order_no || ''}`
+    : `出货单 ${d.data.shipment_no || ''}`;
+});
+
+// 出口：需要改单/看全量的还是得去 MES。跳之前把两层弹窗都关掉，
+// 否则回退回来会看到盖着的空壳。
+const goMes = () => {
+  const { kind, data } = drill.value || {};
+  closeDrill();
   close();
-  router.push({
-    name: 'mes_shipments_index',
-    params: { accountId: accountId.value },
-    query: { focus: String(sp.id) },
-  });
+  if (kind === 'po') {
+    router.push({
+      name: 'mes_production_orders_index',
+      params: { accountId: accountId.value },
+      query: { q: data.order_no },
+    });
+  } else {
+    router.push({
+      name: 'mes_shipments_index',
+      params: { accountId: accountId.value },
+      query: { focus: String(data.id) },
+    });
+  }
 };
 </script>
 
@@ -247,8 +270,8 @@ const goShipment = sp => {
             <button
               type="button"
               class="font-mono underline text-n-iris-11 underline-offset-2 hover:opacity-80"
-              title="去生产订单页看这一单"
-              @click="goProductionOrder(po)"
+              title="点开看这张生产订单"
+              @click="openDrill('po', po)"
             >
               {{ po.order_no }}
             </button>
@@ -296,8 +319,8 @@ const goShipment = sp => {
             <button
               type="button"
               class="font-mono underline text-n-iris-11 underline-offset-2 hover:opacity-80"
-              title="去销售出库页打开这张单"
-              @click="goShipment(sp)"
+              title="点开看这张出货单"
+              @click="openDrill('shipment', sp)"
             >
               {{ sp.shipment_no }}
             </button>
@@ -335,5 +358,193 @@ const goShipment = sp => {
         订单备注：{{ orderDetail.order.remark }}
       </p>
     </div>
+
+    <!-- 钻取层：生产订单 / 出货单就地看。原生 <dialog> 可以叠，后开的在顶层。 -->
+    <Dialog
+      ref="drillRef"
+      width="3xl"
+      overflow-y-auto
+      :show-confirm-button="false"
+      cancel-button-label="关闭"
+      :title="drillTitle"
+    >
+      <div v-if="drill" class="flex flex-col gap-4 text-sm">
+        <!-- 生产订单 -->
+        <template v-if="drill.kind === 'po'">
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">成品</span>
+              <span class="text-n-slate-12">
+                {{ drill.data.product_name || '—' }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">产成品代码</span>
+              <span class="font-mono text-n-slate-12">
+                {{ drill.data.product_code || '—' }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">数量</span>
+              <span class="text-n-slate-12">
+                {{ drill.data.qty }} {{ drill.data.unit || '' }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">当前阶段 / 状态</span>
+              <span class="text-n-slate-12">
+                {{ drill.data.stage_label }} ·
+                {{ PO_STATUS_LABELS[drill.data.status] || drill.data.status }}
+              </span>
+            </div>
+          </div>
+
+          <!-- 阶段流转：财务核的就是「走到哪一步了、什么时候走的」 -->
+          <div class="flex flex-col gap-2">
+            <span class="text-heading-3 text-n-slate-12">阶段流转</span>
+            <div
+              v-for="st in drill.data.stages || []"
+              :key="st.stage"
+              class="flex flex-wrap items-center gap-x-3 text-xs"
+            >
+              <span class="w-20 text-n-slate-12">{{ st.label }}</span>
+              <span class="text-n-slate-11">
+                进入 {{ (st.entered_at || '').slice(0, 10) || '—' }}
+              </span>
+              <span v-if="st.acked_at" class="text-n-slate-11">
+                接单 {{ (st.acked_at || '').slice(0, 10) }}
+              </span>
+            </div>
+            <p
+              v-if="!(drill.data.stages || []).length"
+              class="text-xs text-n-slate-11"
+            >
+              还没有阶段记录。
+            </p>
+          </div>
+
+          <!-- 出入库单：领料/入库都在这里，不用再去 MES 翻 -->
+          <div class="flex flex-col gap-2">
+            <span class="text-heading-3 text-n-slate-12">
+              出入库单（{{ (drill.data.stock_entries || []).length }}）
+            </span>
+            <div
+              v-for="e in drill.data.stock_entries || []"
+              :key="e.entry_no"
+              class="flex flex-wrap items-center gap-x-3 text-xs"
+            >
+              <span class="font-mono text-n-slate-12">{{ e.entry_no }}</span>
+              <span class="text-n-slate-11">{{ e.purpose_label }}</span>
+              <span class="text-n-slate-11">{{ e.status_label }}</span>
+              <span v-if="e.from_warehouse" class="text-n-slate-11">
+                出 {{ e.from_warehouse }}
+              </span>
+              <span v-if="e.to_warehouse" class="text-n-slate-11">
+                入 {{ e.to_warehouse }}
+              </span>
+              <span v-if="e.posted_at" class="text-n-slate-11">
+                过账 {{ (e.posted_at || '').slice(0, 10) }}
+              </span>
+            </div>
+            <p
+              v-if="!(drill.data.stock_entries || []).length"
+              class="text-xs text-n-slate-11"
+            >
+              这张生产订单还没有出入库单。
+            </p>
+          </div>
+        </template>
+
+        <!-- 出货单 -->
+        <template v-else>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">类型</span>
+              <span class="text-n-slate-12">{{ drill.data.kind_label }}</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">状态</span>
+              <span class="text-n-slate-12">{{ drill.data.status_label }}</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">发货仓</span>
+              <span class="text-n-slate-12">
+                {{ drill.data.warehouse || '—' }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">关联生产订单</span>
+              <span class="font-mono text-n-slate-12">
+                {{ drill.data.production_order_no || '—' }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">提交 / 审核 / 出库</span>
+              <span class="text-xs text-n-slate-11">
+                {{ (drill.data.submitted_at || '').slice(0, 10) || '—' }} /
+                {{ (drill.data.approved_at || '').slice(0, 10) || '—' }} /
+                {{ (drill.data.shipped_at || '').slice(0, 10) || '—' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <span class="text-heading-3 text-n-slate-12">
+              出了什么货（{{ (drill.data.items || []).length }}）
+            </span>
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-left border-b text-n-slate-11 border-n-weak">
+                  <th class="px-2 py-1 font-medium whitespace-nowrap">编码</th>
+                  <th class="px-2 py-1 font-medium">品名</th>
+                  <th
+                    class="px-2 py-1 font-medium text-right whitespace-nowrap"
+                  >
+                    数量
+                  </th>
+                  <th class="px-2 py-1 font-medium whitespace-nowrap">单位</th>
+                  <th class="px-2 py-1 font-medium">备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(it, i) in drill.data.items || []"
+                  :key="`d-${i}`"
+                  class="border-b border-n-weak"
+                >
+                  <td class="px-2 py-1 font-mono text-n-slate-11">
+                    {{ it.product_sku || '—' }}
+                  </td>
+                  <td class="px-2 py-1 text-n-slate-12">
+                    {{ it.product_name || '—' }}
+                  </td>
+                  <td class="px-2 py-1 font-mono text-right text-n-slate-12">
+                    {{ it.qty }}
+                  </td>
+                  <td class="px-2 py-1 text-n-slate-11">{{ it.unit || '' }}</td>
+                  <td class="px-2 py-1 text-n-slate-11">
+                    {{ it.remark || '' }}
+                  </td>
+                </tr>
+                <tr v-if="!(drill.data.items || []).length">
+                  <td colspan="5" class="px-2 py-4 text-center text-n-slate-11">
+                    这张出货单没有明细。
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+
+        <!-- 要改单/看全量的出口仍留着 -->
+        <button
+          type="button"
+          class="text-xs underline reset-base text-n-iris-11 underline-offset-2 w-fit hover:opacity-80"
+          @click="goMes"
+        >
+          去 MES 看完整单据 →
+        </button>
+      </div>
+    </Dialog>
   </Dialog>
 </template>

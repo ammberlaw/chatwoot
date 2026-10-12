@@ -1,15 +1,24 @@
-# 成品存货 FIFO 核算：入库建批次层、出库按先进先出逐层扣、作废原样还回。
+# 存货 FIFO 核算：入库建批次层、出库按先进先出逐层扣、作废原样还回。
 #
 # 口径与金蝶一致（财务确认金蝶用先进先出），E9 平行跑账才对得上。
-# 只管**成品**：原材料耗用已由 CostRollupService 按领料归到定制订单，再核算一遍就是重复计算。
+#
+# **成品**：现货出库按 FIFO 结转，成本挂到销售订单（attribute_shipment!）。
+# **原料**（2026-10-12 补）：采购收货按那一批的实际采购价建层，领料按先进先出逐层扣。
+#   原来原料一律按「最近一次采购单价」计价——备货期价格一变，先备的那批货就按新价出账，
+#   库存备得越早、波动越大，成本偏得越多。现在每批货自带它进货时的价。
+#   领料消耗记录由 CostRollupService 直接拿去归集订单成本（见那边的 material_amount）。
 #
 # 挂载点是 Mes::StockEntry 过账/作废（库存唯一进出口），MES 侧只调用不持有金额（ERP_SPEC §13-1）。
 class Erp::StockCostService
   class Error < StandardError; end
 
   PRODUCT = 'PRODUCT'.freeze
+  MATERIAL = 'MATERIAL'.freeze
   IN_PURPOSES = %w[MATERIAL_RECEIPT MANUFACTURE].freeze
   OUT_PURPOSES = %w[SHIPMENT SCRAP].freeze
+  # 原料侧：领料是出（扣层），退料是回（按当初领出去的价重新建层）。
+  MATERIAL_ISSUE = 'MATERIAL_ISSUE'.freeze
+  MATERIAL_RETURN = 'MATERIAL_RETURN'.freeze
 
   def initialize(account)
     @account = account
@@ -17,25 +26,20 @@ class Erp::StockCostService
 
   # 过账后调用：入库建层 / 出库耗层。返回本单成品成本合计（micros，出库为正数）。
   def sync_entry!(entry)
-    items = entry.stock_entry_items.select { |item| item.item_type == PRODUCT && item.crm_product_id.present? }
-    return 0 if items.empty?
-
-    if IN_PURPOSES.include?(entry.purpose)
-      items.each { |item| build_layer!(entry, item) }
-      0
-    elsif OUT_PURPOSES.include?(entry.purpose)
-      items.sum { |item| consume!(entry, item) }
-    else
-      0
+    case entry.purpose
+    when MATERIAL_ISSUE then material_items(entry).sum { |item| consume!(entry, item) }
+    when MATERIAL_RETURN then return_materials!(entry)
+    else sync_stock_entry!(entry)
     end
   end
 
   # 作废：入库单撤层（已被出库消耗过的层不能撤——货都发出去了，撤层会让后续成本算错）；
   # 出库单按消耗记录原样还回各层。
   def reverse_entry!(entry)
-    if IN_PURPOSES.include?(entry.purpose)
+    # 领料作废＝把扣掉的层原样还回；退料作废＝撤掉回库建的那些层。
+    if IN_PURPOSES.include?(entry.purpose) || entry.purpose == MATERIAL_RETURN
       revert_layers!(entry)
-    elsif OUT_PURPOSES.include?(entry.purpose)
+    elsif OUT_PURPOSES.include?(entry.purpose) || entry.purpose == MATERIAL_ISSUE
       restore_consumptions!(entry)
     end
   end
@@ -84,6 +88,53 @@ class Erp::StockCostService
     end
   end
 
+  # 成品原路径（成品收货/完工入库建层，出货/报废扣层）。
+  def sync_stock_entry!(entry)
+    items = product_items(entry)
+    return 0 if items.empty?
+    return build_layers!(entry, items) if IN_PURPOSES.include?(entry.purpose)
+    return items.sum { |item| consume!(entry, item) } if OUT_PURPOSES.include?(entry.purpose)
+
+    0
+  end
+
+  def product_items(entry)
+    entry.stock_entry_items.select { |item| item.item_type == PRODUCT && item.crm_product_id.present? }
+  end
+
+  def build_layers!(entry, items)
+    items.each { |item| build_layer!(entry, item) }
+    0
+  end
+
+  # 原料行：挂物料档或商品档都算（屏、主板这些建在商品档里，只认物料档会漏掉大多数行）。
+  def material_items(entry)
+    entry.stock_entry_items.select do |item|
+      item.item_type != PRODUCT && (item.mes_material_id.present? || item.crm_product_id.present?)
+    end
+  end
+
+  # 退料回库：按**当初从这张生产订单领出去的均价**重新建层。
+  # 不按最近采购价——退回来的就是当初领走的那批货，用新价会凭空制造成本差。
+  # 取不到当初的领料记录（上核算之前领的）就落到最近采购价，取不到就 0。
+  def return_materials!(entry)
+    material_items(entry).each do |item|
+      qty = item.effective_qty
+      next if qty <= 0
+
+      @account.erp_stock_layers.create!(
+        crm_product_id: item.crm_product_id, mes_material_id: item.mes_material_id,
+        warehouse_id: item.warehouse_id || entry.to_warehouse_id,
+        qty_in: qty, qty_remaining: qty,
+        unit_cost_micros: Erp::MaterialReturnCost.new(@account).for(entry, item),
+        received_at: entry.posted_at || Time.current,
+        source_type: 'Mes::StockEntry', source_id: entry.id,
+        remark: "生产退料 #{entry.entry_no}"
+      )
+    end
+    0
+  end
+
   # ── 入库：建一层 ──────────────────────────────────────────────
   def build_layer!(entry, item)
     qty = item.effective_qty
@@ -91,58 +142,14 @@ class Erp::StockCostService
 
     @account.erp_stock_layers.create!(
       crm_product_id: item.crm_product_id,
+      mes_material_id: item.mes_material_id,
       warehouse_id: item.warehouse_id || entry.to_warehouse_id,
       qty_in: qty, qty_remaining: qty,
-      unit_cost_micros: unit_cost_for(entry, item, qty),
+      unit_cost_micros: Erp::StockLayerCost.new(@account).for(entry, item, qty),
       received_at: entry.posted_at || Time.current,
       source_type: 'Mes::StockEntry', source_id: entry.id,
       remark: layer_remark(entry)
     )
-  end
-
-  # 单位成本来源二选一，与 CostRollupService 的「自产按领料、外协按采购」同一套口径：
-  #   外购成品收货 → 采购行金额 ÷ 数量
-  #   自产完工入库 → 该生产订单归集成本 ÷ 完工数量
-  # 取不到价的按 0 建层——宁可少算也不编数，成本页/存货页看得见，财务可手工补。
-  def unit_cost_for(entry, item, qty)
-    micros = case entry.purpose
-             when 'MATERIAL_RECEIPT' then purchase_unit_cost(entry, item)
-             when 'MANUFACTURE' then manufacture_unit_cost(entry, qty)
-             else 0
-             end
-    [micros.to_i, 0].max
-  end
-
-  def purchase_unit_cost(entry, item)
-    line = purchase_line_for(entry, item)
-    return 0 if line.nil?
-
-    (line.amount_micros / line.qty.to_d).round
-  end
-
-  def purchase_line_for(entry, item)
-    lines = entry.purchase_order&.purchase_items || []
-    line = lines.find { |pi| pi.item_type == PRODUCT && pi.crm_product_id == item.crm_product_id }
-    return nil if line.nil?
-
-    priced_line(line)
-  end
-
-  def priced_line(line)
-    return nil if line.amount_micros.blank?
-    return nil if line.qty.to_d <= 0
-
-    line
-  end
-
-  def manufacture_unit_cost(entry, qty)
-    order = entry.production_order
-    return 0 if order.blank? || qty <= 0
-
-    total = Erp::CostRollupService.new(@account).production_cost_micros(order)
-    return 0 if total.to_i <= 0
-
-    (total / qty).round
   end
 
   def layer_remark(entry)
@@ -156,7 +163,8 @@ class Erp::StockCostService
 
     total = 0
     layers = @account.erp_stock_layers
-                     .for_item(item.crm_product_id, item.warehouse_id || entry.from_warehouse_id)
+                     .for_item(item.crm_product_id, item.warehouse_id || entry.from_warehouse_id,
+                               item.mes_material_id)
                      .open_layers.lock # 行锁：并发出库不能同时吃掉同一层
     layers.each do |layer|
       break if qty_left <= 0
@@ -175,7 +183,8 @@ class Erp::StockCostService
     layer.update!(qty_remaining: layer.qty_remaining - qty)
     @account.erp_stock_consumptions.create!(
       stock_layer_id: layer.id, mes_stock_entry_id: entry.id,
-      crm_product_id: item.crm_product_id, qty: qty, base_amount_micros: amount
+      crm_product_id: item.crm_product_id, mes_material_id: item.mes_material_id,
+      qty: qty, base_amount_micros: amount
     )
     amount
   end

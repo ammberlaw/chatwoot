@@ -8,6 +8,27 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   COLUMN_FILTERS = { stage: :stage, status: :status, crm_sales_order_id: :crm_sales_order_id, owner_id: :owner_id }.freeze
 
+  # 表头上每列各自的筛选（对标金蝶的漏斗）。放后端是因为列表分页：
+  # 前端只过滤本页，第 2 页往后的命中就全看不见了。
+  COLUMN_LIKE_FILTERS = {
+    col_no: ->(scope, v) { scope.where('mes_production_orders.order_no ILIKE ?', "%#{v}%") },
+    col_model: lambda { |scope, v|
+      scope.left_joins(:crm_product)
+           .where('mes_production_orders.product_name ILIKE :t OR crm_products.name ILIKE :t', t: "%#{v}%")
+    },
+    col_sku: ->(scope, v) { scope.left_joins(:crm_product).where('crm_products.sku ILIKE ?', "%#{v}%") },
+    col_spec: ->(scope, v) { scope.left_joins(:crm_product).where('crm_products.specification ILIKE ?', "%#{v}%") },
+    # 走子查询不走 join：crm_sales_orders 上也有 owner_id，join 进来后
+    # 外层 scoped_by_owner 的 where(owner_id:) 就成了歧义列，整个列表 500。
+    col_sales_order: lambda { |scope, v|
+      scope.where(crm_sales_order_id: Crm::SalesOrder.where('crm_sales_orders.order_no ILIKE ?', "%#{v}%").select(:id))
+    },
+    col_remark: ->(scope, v) { scope.where('mes_production_orders.remark ILIKE ?', "%#{v}%") }
+  }.freeze
+
+  # 交期区间：单边留空＝只卡一头。
+  DUE_SQL = 'mes_production_orders.delivery_date'.freeze
+
   # 列表分片 _mes_production_order 逐行解引用的关联，一次预加载掉。
   LIST_EAGER_LOADS = [
     :owner, :outsource_supplier, :bom_confirmed_by, :gm, :stage_ack_by,
@@ -24,6 +45,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
+    scope = apply_column_filters(scope)
     scope = apply_search(scope)
     # 产线筛选放在最后：要先数出「本次筛选条件下、产线为空因而被产线分流隐藏」的条数。
     @hidden_no_line = hidden_without_product_line(scope)
@@ -493,6 +515,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
 
   # 关键词搜索：工单号 / 成品名 / 产品料号。
   # 搜工单号 / 成品名 / 商品编码（= 关联产品档案 sku）。
+  def apply_column_filters(scope)
+    COLUMN_LIKE_FILTERS.each do |param, apply|
+      value = params[param]
+      scope = apply.call(scope, value.to_s.strip) if value.present?
+    end
+    scope = scope.where("#{DUE_SQL} >= ?", params[:due_from]) if params[:due_from].present?
+    scope = scope.where("#{DUE_SQL} <= ?", params[:due_to]) if params[:due_to].present?
+    scope
+  end
+
   def apply_search(scope)
     return scope if params[:q].blank?
 

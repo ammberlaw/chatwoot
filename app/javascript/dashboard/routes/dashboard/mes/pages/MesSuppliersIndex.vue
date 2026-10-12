@@ -3,6 +3,7 @@ import { ref, computed, reactive, onMounted } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useMesSuppliersStore } from 'dashboard/stores/mes/suppliers';
 import MesMaterialAPI from 'dashboard/api/mes/materials';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import {
   MES_PRODUCT_LINES,
@@ -65,6 +66,41 @@ const load = () =>
     product_line: productLineFilter.value || undefined,
     per_page: 500,
   });
+// 导出：本页一次按 per_page 500 拉（后端上限也是 500），屏幕上的就是全量，
+// 不用再向后端要一次。
+const exportList = () => {
+  exportRowsToExcel(
+    {
+      title: '供应商档案',
+      meta: [
+        {
+          label: '导出时间',
+          value: new Date().toLocaleString('sv').slice(0, 16),
+        },
+        { label: '关键字', value: keyword.value.trim() || '（无）' },
+        { label: '供应商数', value: records.value.length },
+      ],
+      columns: [
+        { label: '编号', key: 'supplierNo' },
+        { label: '名称', key: 'name' },
+        { label: '事业部', key: 'productLineText' },
+        { label: '分类', key: 'category' },
+        { label: '联系人', key: 'contactName' },
+        { label: '电话', key: 'phone' },
+        { label: '供应物料(项)', key: 'itemCount', num: true },
+        { label: '状态', key: 'activeLabel' },
+      ],
+      rows: records.value.map(row => ({
+        ...row,
+        productLineText: productLineLabel(row.productLine),
+        itemCount: (row.supplierItems || []).length,
+        activeLabel: row.isActive ? '启用' : '已停用',
+      })),
+    },
+    `供应商档案_${new Date().toLocaleDateString('sv')}`
+  );
+};
+
 const changeCategoryFilter = v => {
   itemCategory.value = v;
   load();
@@ -386,6 +422,14 @@ onMounted(() => {
           color="slate"
           size="sm"
           @click="load"
+        />
+        <!-- 导出是只读动作，不挂管理权限 -->
+        <Button
+          label="导出 Excel"
+          variant="faded"
+          color="slate"
+          size="sm"
+          @click="exportList"
         />
         <Button
           v-if="canManage"

@@ -20,6 +20,8 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
+import MesShipmentPrintSheet from 'dashboard/components-next/mes/MesShipmentPrintSheet.vue';
+import { printElement } from 'dashboard/helper/printHelper';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 import { orderSearchText } from 'dashboard/routes/dashboard/mes/orderSearchText';
 import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
@@ -154,6 +156,29 @@ const viewFields = computed(() => {
     { label: '备注', value: s.remark },
   ];
 });
+// 销售出库单票面（1:1 对标旧系统那张）：套打在 9.5×5.5 英寸三联复写纸上（针式打印机），
+// 纸张写死、不加 Wintouch 字标——加了会把版心顶下去，套打压到预印格线上。
+const printSheetRef = ref(null);
+const printRows = computed(() =>
+  (viewing.value?.shipmentItems || []).map(it => ({
+    sku: it.productSku,
+    name: it.productName,
+    spec: it.specification,
+    warehouse: viewing.value?.warehouseName,
+    unit: it.unit,
+    qty: it.qty,
+    unitPrice: it.unitPrice,
+    amount: it.amount,
+    remark: it.remark,
+  }))
+);
+const printShipment = () =>
+  printElement(
+    printSheetRef.value?.$el || printSheetRef.value,
+    `销售出库单 ${viewing.value?.shipmentNo || ''}`,
+    { page: '@page{size:9.5in 5.5in landscape;margin:8mm}', brandHeader: false }
+  );
+
 const VIEW_ITEM_COLS = [
   { label: '成品', key: 'productName' },
   { label: '数量', key: 'qty', align: 'right' },
@@ -999,10 +1024,34 @@ onMounted(() => {
     <MesViewDialog
       ref="viewDialogRef"
       :title="viewing ? `出库单 ${viewing.shipmentNo}` : '出库单明细'"
+      hide-print
       :fields="viewFields"
       items-title="出库成品"
       :item-columns="VIEW_ITEM_COLS"
       :items="viewing?.shipmentItems || []"
-    />
+    >
+      <template #headerActions>
+        <Button
+          label="打印出库单"
+          variant="outline"
+          color="slate"
+          size="sm"
+          @click="printShipment"
+        />
+      </template>
+    </MesViewDialog>
+
+    <!-- 出库单票面：只在打印时用，平时不占版面（printElement 克隆它去打印）。 -->
+    <div
+      v-if="viewing"
+      aria-hidden="true"
+      class="fixed -left-[9999px] top-0 w-[920px]"
+    >
+      <MesShipmentPrintSheet
+        ref="printSheetRef"
+        :shipment="viewing"
+        :items="printRows"
+      />
+    </div>
   </div>
 </template>

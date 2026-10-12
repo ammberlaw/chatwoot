@@ -7,6 +7,7 @@ import ErpExpensePayoutAPI from 'dashboard/api/erp/expensePayouts';
 import ErpLedgerAccountAPI from 'dashboard/api/erp/ledgerAccounts';
 import ErpCashAccountAPI from 'dashboard/api/erp/cashAccounts';
 import CrmSalesOrderAPI from 'dashboard/api/crm/salesOrders';
+import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -43,6 +44,10 @@ const loading = ref(false);
 const pendingRows = ref([]);
 const payouts = ref([]);
 const paidSummary = ref({});
+// 打款日期区间（后端按 paid_at 筛）。只对「打款记录」页签有意义——
+// 待打款那些还没打款，没有日期可筛。
+const fromDate = ref('');
+const toDate = ref('');
 const expenseAccounts = ref([]);
 const cashAccounts = ref([]);
 
@@ -65,7 +70,11 @@ const loadPending = async () => {
 const loadPayouts = async () => {
   loading.value = true;
   try {
-    const { data } = await ErpExpensePayoutAPI.get({ per_page: 100 });
+    const { data } = await ErpExpensePayoutAPI.get({
+      per_page: 100,
+      from: fromDate.value || undefined,
+      to: toDate.value || undefined,
+    });
     payouts.value = data.payload;
     paidSummary.value = data.meta || {};
   } finally {
@@ -186,6 +195,91 @@ const voidPayout = async row => {
   }
 };
 
+/* ---------------- 导出 Excel ---------------- */
+// 按当前页签导：待打款导待付清单，打款记录导已付流水。
+const exporting = ref(false);
+const stamp = () => new Date().toLocaleString('sv').slice(0, 16);
+
+const exportPending = () => {
+  // 待打款走的是 pending 接口（不分页，一次给全），屏幕上的就是全量。
+  exportRowsToExcel(
+    {
+      title: '待打款报销单',
+      meta: [
+        { label: '导出时间', value: stamp() },
+        { label: '单数', value: pendingRows.value.length },
+      ],
+      columns: [
+        { label: '报销人', key: 'applicant_name' },
+        { label: '部门', key: 'department_name' },
+        { label: '费用类型', key: 'category' },
+        { label: '申请金额', key: 'amount_micros', money: true },
+        { label: '费用说明', key: 'note' },
+        { label: '发票', key: 'invoices' },
+        { label: '审批通过', key: 'approved_on' },
+      ],
+      rows: pendingRows.value.map(row => ({
+        ...row,
+        note: row.form_data?.note,
+        invoices: row.form_data?.invoices,
+        approved_on: (row.approved_at || '').slice(0, 10),
+      })),
+    },
+    `待打款报销单_${stamp().slice(0, 10)}`
+  );
+};
+
+const exportPayouts = async () => {
+  // ⚠️ 打款记录页面只给 100 条，导出重新向后端分页要完。
+  const rows = await fetchAllRows(params => ErpExpensePayoutAPI.get(params), {
+    from: fromDate.value || undefined,
+    to: toDate.value || undefined,
+  });
+  exportRowsToExcel(
+    {
+      title: '报销打款记录',
+      meta: [
+        { label: '导出时间', value: stamp() },
+        {
+          label: '打款日期',
+          value: `${fromDate.value || '不限'} ~ ${toDate.value || '不限'}`,
+        },
+        { label: '打款笔数', value: rows.length },
+      ],
+      columns: [
+        { label: '单号', key: 'payout_no' },
+        { label: '报销人', key: 'applicant_name' },
+        { label: '金额', key: 'amount_micros', money: true },
+        { label: '费用科目', key: 'expense_account' },
+        { label: '付款账户', key: 'cash_account_name' },
+        { label: '挂订单', key: 'sales_order_no' },
+        { label: '打款日期', key: 'paid_on' },
+        { label: '状态', key: 'status_label' },
+      ],
+      rows: rows.map(row => ({
+        ...row,
+        expense_account: [row.expense_account_code, row.expense_account_name]
+          .filter(Boolean)
+          .join(' '),
+        paid_on: (row.paid_at || '').slice(0, 10),
+      })),
+    },
+    `报销打款记录_${stamp().slice(0, 10)}`
+  );
+};
+
+const exportCurrent = async () => {
+  exporting.value = true;
+  try {
+    if (activeTab.value === 'pending') exportPending();
+    else await exportPayouts();
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
 onMounted(() => {
   loadPending();
   loadOptions();
@@ -206,9 +300,20 @@ onMounted(() => {
           已打款合计 {{ money(paidSummary.amount_micros) }}
         </span>
       </div>
+      <div class="flex items-center gap-2">
+        <!-- 导出是只读动作，不挂打款权限 -->
+        <Button
+          label="导出 Excel"
+          color="slate"
+          variant="faded"
+          size="sm"
+          :is-loading="exporting"
+          @click="exportCurrent"
+        />
+      </div>
     </div>
 
-    <div class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
+    <div class="flex flex-wrap items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
       <!-- 全站统一的页面级 Tab（灰槽 + 深色选中块），样式见 _next-colors.scss -->
       <div data-tabbar="page">
         <button
@@ -220,6 +325,22 @@ onMounted(() => {
           {{ tab.label }}
         </button>
       </div>
+      <!-- 打款日期区间：只对「打款记录」有意义，待打款那些还没打款、没日期可筛 -->
+      <template v-if="activeTab === 'paid'">
+        <DatePicker
+          v-model="fromDate"
+          placeholder="打款日期起"
+          trigger-class="w-36"
+          @change="loadPayouts"
+        />
+        <span class="text-sm text-n-slate-10">至</span>
+        <DatePicker
+          v-model="toDate"
+          placeholder="打款日期止"
+          trigger-class="w-36"
+          @change="loadPayouts"
+        />
+      </template>
     </div>
 
     <HScrollButtons />

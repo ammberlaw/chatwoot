@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_10_200000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_12_200000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2424,6 +2424,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_10_200000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "settle_type", default: "PUBLIC", null: false
+    t.date "incurred_on"
     t.index ["account_id", "mes_purchase_order_id", "mes_supplier_id"], name: "uniq_erp_payable_po_supplier", unique: true, where: "(mes_purchase_order_id IS NOT NULL)"
     t.index ["account_id", "payable_no"], name: "index_erp_payables_on_account_id_and_payable_no", unique: true
     t.index ["account_id", "status"], name: "index_erp_payables_on_account_id_and_status"
@@ -2562,19 +2564,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_10_200000) do
     t.bigint "account_id", null: false
     t.bigint "stock_layer_id", null: false
     t.bigint "mes_stock_entry_id", null: false
-    t.bigint "crm_product_id", null: false
+    t.bigint "crm_product_id"
     t.decimal "qty", precision: 16, scale: 3, null: false
     t.bigint "base_amount_micros", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "mes_material_id"
     t.index ["account_id", "mes_stock_entry_id"], name: "idx_erp_stock_consumptions_entry"
     t.index ["account_id"], name: "index_erp_stock_consumptions_on_account_id"
+    t.index ["mes_material_id"], name: "index_erp_stock_consumptions_on_mes_material_id"
     t.index ["stock_layer_id"], name: "index_erp_stock_consumptions_on_stock_layer_id"
   end
 
   create_table "erp_stock_layers", force: :cascade do |t|
     t.bigint "account_id", null: false
-    t.bigint "crm_product_id", null: false
+    t.bigint "crm_product_id"
     t.bigint "warehouse_id", null: false
     t.decimal "qty_in", precision: 16, scale: 3, null: false
     t.decimal "qty_remaining", precision: 16, scale: 3, null: false
@@ -2585,9 +2589,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_10_200000) do
     t.text "remark"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "mes_material_id"
     t.index ["account_id", "crm_product_id", "warehouse_id", "received_at"], name: "idx_erp_stock_layers_fifo"
+    t.index ["account_id", "mes_material_id", "warehouse_id"], name: "index_erp_stock_layers_on_material_and_wh"
     t.index ["account_id"], name: "index_erp_stock_layers_on_account_id"
     t.index ["source_type", "source_id"], name: "index_erp_stock_layers_on_source_type_and_source_id"
+    t.check_constraint "crm_product_id IS NOT NULL OR mes_material_id IS NOT NULL", name: "erp_stock_layers_item_present"
   end
 
   create_table "erp_voucher_lines", force: :cascade do |t|
@@ -3196,6 +3203,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_10_200000) do
     t.integer "export_count", default: 0, null: false
     t.datetime "last_exported_at"
     t.bigint "extra_production_order_ids", default: [], null: false, array: true
+    t.string "settle_type"
     t.index ["account_id", "approval_status"], name: "index_mes_purchase_orders_on_account_id_and_approval_status"
     t.index ["account_id", "po_no"], name: "index_mes_purchase_orders_on_account_id_and_po_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_purchase_orders_on_account_and_product_line"
@@ -3458,6 +3466,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_10_200000) do
     t.string "bank_address"
     t.string "department"
     t.string "bill_entity", default: "wintouch", null: false
+    t.string "default_settle_type", default: "PUBLIC", null: false
     t.index ["account_id", "supplier_no"], name: "index_mes_suppliers_on_account_id_and_supplier_no", unique: true
     t.index ["account_id"], name: "index_mes_suppliers_on_account_id"
     t.index ["owner_id"], name: "index_mes_suppliers_on_owner_id"

@@ -89,7 +89,13 @@ function inlineComputedStyles(src, dst) {
   });
 }
 
-export function printElement(el, title = '') {
+// options:
+//   page        '@page{...}' 整条规则。单据票面按公司实际用的纸走——
+//               采购入库单/销售出库单印在 9.5×5.5 英寸三联复写纸上（针式打印机），
+//               生产领料单是 A4 激光打印；不给就按内容宽度自动选 A4 竖/横。
+//   brandHeader 是否在最上面加 Wintouch 字标。对账用的制式票面不要（金蝶原版就没有，
+//               加了会把三联复写纸的版心顶下去，套打直接错位）。
+export function printElement(el, title = '', options = {}) {
   if (!el) return;
 
   const clone = el.cloneNode(true);
@@ -115,17 +121,19 @@ export function printElement(el, title = '') {
   portal.setAttribute('data-crm-print-portal', '');
 
   // 顶部品牌头：左上角 Wintouch 橙色字标（与 PI 单据同一 logo），尺寸用内联样式保证生效。
-  const header = document.createElement('div');
-  header.setAttribute(
-    'style',
-    'display:flex;align-items:center;margin-bottom:16px;'
-  );
-  const logo = document.createElement('img');
-  logo.src = '/brand-assets/pi-logo.png';
-  logo.alt = 'Wintouch';
-  logo.setAttribute('style', 'height:40px;width:auto;');
-  header.appendChild(logo);
-  portal.appendChild(header);
+  if (options.brandHeader !== false) {
+    const header = document.createElement('div');
+    header.setAttribute(
+      'style',
+      'display:flex;align-items:center;margin-bottom:16px;'
+    );
+    const logo = document.createElement('img');
+    logo.src = '/brand-assets/pi-logo.png';
+    logo.alt = 'Wintouch';
+    logo.setAttribute('style', 'height:40px;width:auto;');
+    header.appendChild(logo);
+    portal.appendChild(header);
+  }
 
   portal.appendChild(clone);
   document.body.appendChild(portal);
@@ -136,8 +144,10 @@ export function printElement(el, title = '') {
   const PORTRAIT_PX = 718; // A4 竖版去掉 10mm 边距后的可印宽（96dpi）
   const LANDSCAPE_PX = 1047; // A4 横版同上
   const contentWidth = portal.scrollWidth;
-  let pageRule = '@page{size:A4;margin:10mm}';
-  if (contentWidth > PORTRAIT_PX) {
+  let pageRule = options.page || '@page{size:A4;margin:10mm}';
+  // 指定了纸张的票面不参与自动转横版/缩放：那是按实际纸张画好的版心，
+  // 再去缩放就印不准（三联复写纸是套打，位置错一点就压到预印的格线上）。
+  if (!options.page && contentWidth > PORTRAIT_PX) {
     pageRule = '@page{size:A4 landscape;margin:10mm}';
     if (contentWidth > LANDSCAPE_PX) {
       portal.style.zoom = String(LANDSCAPE_PX / contentWidth);

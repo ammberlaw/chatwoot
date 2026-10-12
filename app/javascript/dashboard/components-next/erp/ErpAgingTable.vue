@@ -5,6 +5,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { printElement } from 'dashboard/helper/printHelper';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 账龄分析表（应收按客户、应付按供应商共用一张）。
@@ -60,6 +61,45 @@ const sheetRef = ref(null);
 const print = () =>
   printElement(sheetRef.value, `${props.title} ${meta.value?.as_of || ''}`);
 
+// 导出：接口一次给全量（没有分页），屏幕上的 rows 就是全量，不用再要一次。
+// 账龄桶是动态列（口径不同桶不同），列定义照 meta.buckets 现搭。
+// 只导汇总行，不展开单据明细——明细在台账页导，这里导出来一张行数翻十倍的表反而没法用。
+const exportExcel = () => {
+  const basisLabel =
+    BASIS_OPTIONS.find(o => o.value === basis.value)?.label || '';
+  exportRowsToExcel(
+    {
+      title: props.title,
+      meta: [
+        {
+          label: '导出时间',
+          value: new Date().toLocaleString('sv').slice(0, 16),
+        },
+        { label: '截至', value: meta.value?.as_of || asOf.value },
+        { label: '口径', value: basisLabel },
+        { label: '单位', value: '元（本位币）' },
+        { label: `${props.partyLabel}数`, value: rows.value.length },
+      ],
+      columns: [
+        { label: props.partyLabel, key: 'party_name' },
+        { label: '未结合计', key: 'total_micros', money: true },
+        ...buckets.value.map(bucket => ({
+          label: bucket.label,
+          key: bucket.key,
+          money: true,
+        })),
+      ],
+      // cells 是个按桶 key 的对象，摊平到行上才喂得进列定义。
+      rows: rows.value.map(row => ({
+        party_name: row.party_name,
+        total_micros: row.total_micros,
+        ...row.cells,
+      })),
+    },
+    `${props.title}_${meta.value?.as_of || asOf.value}`
+  );
+};
+
 defineExpose({ load });
 </script>
 
@@ -82,6 +122,15 @@ defineExpose({ load });
         variant="faded"
         size="sm"
         @click="print"
+      />
+      <Button
+        v-if="meta"
+        label="导出 Excel"
+        icon="i-lucide-download"
+        color="slate"
+        variant="faded"
+        size="sm"
+        @click="exportExcel"
       />
       <span v-if="meta" class="text-sm text-n-slate-11">
         未结合计
