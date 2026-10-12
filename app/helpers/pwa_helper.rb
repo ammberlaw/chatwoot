@@ -9,6 +9,13 @@ module PwaHelper
     [834, 1112, 2], [834, 1194, 2], [1024, 1366, 2]
   ].freeze
 
+  # 图标 URL 上的版本号。favicon/apple-icon 这些静态文件带一年的 max-age，
+  # 换了图标浏览器照旧拿缓存（Chrome 的 favicon 缓存尤其顽固），得换 URL 才会重取。
+  # 按 favicon 内容算，换图自动变——不用记得手工改版本号。
+  def brand_icon_version
+    @brand_icon_version ||= Digest::MD5.file(Rails.public_path.join('favicon-32x32.png')).hexdigest[0, 8]
+  end
+
   def ios_splash_links
     IOS_SPLASH_DEVICES.map do |width, height, ratio|
       media = "(device-width: #{width}px) and (device-height: #{height}px) " \

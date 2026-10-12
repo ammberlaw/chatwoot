@@ -196,6 +196,7 @@ const blankForm = () => ({
   invoiceTitle: '',
   taxNo: '',
   billEntity: 'wintouch',
+  defaultSettleType: 'PRIVATE',
   bankName: '',
   bankAccount: '',
   bankAddress: '',
@@ -222,6 +223,12 @@ const { isDirty, markPristine } = useDirtyGuard(() => form);
 const BILL_ENTITY_OPTIONS = [
   { value: 'wintouch', label: '联合触控（未税·采购订单）' },
   { value: 'liontek', label: '联迪（含税·采购合同）' },
+];
+
+// 这家平时开不开票。下采购单建应付时带出来，应付台账按它分含税/未税两摊钱。
+const SETTLE_TYPE_OPTIONS = [
+  { value: 'PRIVATE', label: '未税（不开票）' },
+  { value: 'PUBLIC', label: '含税（开票）' },
 ];
 
 // 含税单价 = 未税单价 × (1 + 税率%)，随表单税率实时算。
@@ -296,6 +303,7 @@ const openEdit = s => {
     invoiceTitle: s.invoiceTitle || '',
     taxNo: s.taxNo || '',
     billEntity: s.billEntity || 'wintouch',
+    defaultSettleType: s.defaultSettleType || 'PRIVATE',
     bankName: s.bankName || '',
     bankAccount: s.bankAccount || '',
     bankAddress: s.bankAddress || '',
@@ -347,6 +355,7 @@ const submit = async () => {
     address: trimmed(form.address) || null,
     taxRate: form.taxRate === '' ? null : form.taxRate,
     billEntity: form.billEntity,
+    defaultSettleType: form.defaultSettleType,
     invoiceTitle: trimmed(form.invoiceTitle) || null,
     taxNo: trimmed(form.taxNo) || null,
     bankName: trimmed(form.bankName) || null,
@@ -814,6 +823,19 @@ onMounted(() => {
                 :model-value="form.billEntity"
                 :options="BILL_ENTITY_OPTIONS"
                 @update:model-value="v => (form.billEntity = v)"
+              />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1">
+              <label class="text-heading-3 text-n-slate-12">
+                默认结算方式（应付台账按它分含税·未税）
+              </label>
+              <SelectCard
+                size="form"
+                :model-value="form.defaultSettleType"
+                :options="SETTLE_TYPE_OPTIONS"
+                @update:model-value="v => (form.defaultSettleType = v)"
               />
             </div>
           </div>

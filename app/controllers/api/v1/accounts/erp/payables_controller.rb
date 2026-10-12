@@ -144,7 +144,9 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
 
   def payable_params
     params.require(:payable).permit(
-      :mes_supplier_id, :mes_purchase_order_id, :currency, :exchange_rate, :total_amount_micros, :due_date, :remark
+      :mes_supplier_id, :mes_purchase_order_id, :currency, :exchange_rate, :total_amount_micros, :due_date, :remark,
+      # 结算方式默认按供应商档案带出，个别单实际开没开票不一样，财务在台账上直接改。
+      :settle_type
     )
   end
 end

@@ -31,6 +31,8 @@ RSpec.describe 'ERP 金额口径守卫' do
   #   （mes_purchase_orders 上根本没有 currency 列），不是这里管的那四张多币种表
   # - 资金报表：sum_of 收的是**单个** cash_account 的流水，一个账户只有一种币（同 cash_account.rb）
   # - 报销打款：erp_expense_payouts 压根没有 currency 列，报销恒为本位币（模型里硬编 CNY）
+  # - 按月未付：核销额与台账同币种（同「核销」那条），先在**原币**上扣已付再乘汇率；
+  #   顺序反了会拿今天的汇率去折昨天付的款
   allowed = [
     'app/services/erp/allocation_service.rb',
     'app/services/erp/cost_rollup_service.rb',
@@ -41,7 +43,8 @@ RSpec.describe 'ERP 金额口径守卫' do
     'app/controllers/api/v1/accounts/erp/expense_payouts_controller.rb',
     'app/models/erp/receipt_record.rb',
     'app/models/erp/payment_record.rb',
-    'app/models/erp/cash_account.rb'
+    'app/models/erp/cash_account.rb',
+    'app/services/erp/payable_monthly_service.rb'
   ].freeze
 
   erp_sources = lambda do |root|

@@ -18,6 +18,7 @@
 #  po_no                      :string           not null
 #  product_line               :string
 #  remark                     :text
+#  settle_type                :string
 #  status                     :string           default("DRAFT"), not null
 #  submitted_at               :datetime
 #  total_amount_micros        :bigint
@@ -50,6 +51,9 @@
 #  fk_rails_...  (purchase_requisition_id => mes_purchase_requisitions.id) ON DELETE => nullify
 #
 class Mes::PurchaseOrder < ApplicationRecord
+  # 这一单打公户还是私户；留空＝按各供应商档案上的默认值走。
+  validates :settle_type, inclusion: { in: Erp::Payable::SETTLE_TYPES }, allow_blank: true
+
   include Mes::DocumentNumber
   include Mes::LineScoped
   require_product_line!

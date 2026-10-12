@@ -105,6 +105,22 @@ const ledgerRows = computed(() =>
     return items.map((item, li) => ({ row, item, li, span: items.length }));
   })
 );
+// 含税/未税默认按供应商档案带出来。个别单实际开没开票不一样（临时补票、说好开票又没开），
+// 财务点一下这个角标就地改，不用回头去改供应商档案——档案是默认值，不是这一单的事实。
+const toggleSettleType = async row => {
+  const next = row.settle_type === 'PRIVATE' ? 'PUBLIC' : 'PRIVATE';
+  const before = { type: row.settle_type, label: row.settle_type_label };
+  row.settle_type = next;
+  row.settle_type_label = next === 'PRIVATE' ? '未税' : '含税';
+  try {
+    await ErpPayableAPI.update(row.id, { payable: { settle_type: next } });
+  } catch (error) {
+    row.settle_type = before.type;
+    row.settle_type_label = before.label;
+    useAlert(error?.response?.data?.error || '结算方式保存失败');
+  }
+};
+
 // 数量是原样的数（不是微元），只做千分位。
 const qty = value =>
   value === null || value === undefined || value === ''
@@ -767,16 +783,21 @@ onMounted(loadLedgers);
                   </span>
                 </template>
                 <template v-else-if="col.key === 'settle'">
-                  <span
+                  <component
+                    :is="canLedger ? 'button' : 'span'"
+                    :type="canLedger ? 'button' : null"
+                    :title="canLedger ? '点击切换含税／未税' : null"
                     class="px-2 py-0.5 text-xs rounded-full"
-                    :class="
+                    :class="[
                       row.settle_type === 'PRIVATE'
                         ? 'bg-n-amber-3 text-n-amber-11'
-                        : 'bg-n-iris-3 text-n-iris-11'
-                    "
+                        : 'bg-n-iris-3 text-n-iris-11',
+                      canLedger ? 'hover:opacity-80' : '',
+                    ]"
+                    @click="canLedger && toggleSettleType(row)"
                   >
                     {{ row.settle_type_label || '含税' }}
-                  </span>
+                  </component>
                 </template>
                 <template v-else-if="col.key === 'incurredOn'">
                   {{ row.incurred_on || '—' }}

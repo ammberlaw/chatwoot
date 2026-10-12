@@ -60,7 +60,8 @@ class Api::V1::Accounts::Mes::SuppliersController < Api::V1::Accounts::Mes::Base
   def supplier_params
     params.require(:supplier).permit(
       :supplier_no, :name, :contact_name, :phone, :email, :address, :owner_id, :is_active, :remark,
-      :product_line, :department, :category, :tax_rate, :invoice_title, :tax_no, :bill_entity, :bank_name, :bank_account, :bank_address,
+      :product_line, :department, :category, :tax_rate, :invoice_title, :tax_no, :bill_entity, :default_settle_type,
+      :bank_name, :bank_account, :bank_address,
       supplier_items_attributes: [:id, :material_code, :category, :name, :color, :specification, :unit, :unit_price, :_destroy]
     )
   end

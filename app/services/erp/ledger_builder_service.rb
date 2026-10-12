@@ -57,6 +57,7 @@ class Erp::LedgerBuilderService
         mes_purchase_order_id: purchase_order.id,
         mes_supplier_id: supplier_id,
         total_amount_micros: amount,
+        settle_type: settle_type_for(purchase_order, supplier_id),
         remark: "由采购单 #{purchase_order.po_no} 建账"
       )
     end
@@ -126,6 +127,8 @@ class Erp::LedgerBuilderService
     end
 
     payable.update!(total_amount_micros: amount)
+    # 先建账后入库的单，建账那会儿还没有货到日，这里补上。已经有值的不动。
+    payable.update!(incurred_on: inbound_date_for(purchase_order)) if payable.incurred_on.blank?
     payable.update!(status: payable.derived_status)
     payable
   end
@@ -135,8 +138,25 @@ class Erp::LedgerBuilderService
       mes_purchase_order_id: purchase_order.id,
       mes_supplier_id: supplier_id,
       total_amount_micros: amount,
+      settle_type: settle_type_for(purchase_order, supplier_id),
+      incurred_on: inbound_date_for(purchase_order),
       remark: "由采购单 #{purchase_order.po_no} 入库建账"
     )
+  end
+
+  # 发生日期＝货到那天，取这张采购单最后一次入库的实际入库日。
+  # 分批到货就跟着往后走，财务按它分月；单据还没入库过就留空。
+  def inbound_date_for(purchase_order)
+    @account.mes_stock_entries
+            .where(purchase_order_id: purchase_order.id)
+            .maximum(:actual_inbound_date)&.to_date
+  end
+
+  # 含税 / 未税：这一单指定了就按单走，没指定就取该供应商档案上的默认值。
+  def settle_type_for(purchase_order, supplier_id)
+    purchase_order.settle_type.presence ||
+      @account.mes_suppliers.find_by(id: supplier_id)&.default_settle_type ||
+      Erp::Payable::PUBLIC
   end
 
   def fmt(micros) = format('%.2f', micros.to_i / 1_000_000.0)

@@ -19,6 +19,7 @@ if mes_staff
   json.invoice_title resource.invoice_title
   json.tax_no resource.tax_no
   json.bill_entity resource.bill_entity
+  json.default_settle_type resource.default_settle_type
   json.bank_name resource.bank_name
   json.bank_account resource.bank_account
   json.bank_address resource.bank_address

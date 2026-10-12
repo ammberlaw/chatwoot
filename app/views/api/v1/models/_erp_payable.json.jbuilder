@@ -14,7 +14,9 @@ json.status_label Erp::Payable::STATUS_LABELS[resource.status]
 json.due_date resource.due_date
 json.settle_type resource.settle_type
 json.settle_type_label Erp::Payable::SETTLE_TYPE_LABELS[resource.settle_type]
-json.incurred_on resource.incurred_on
+# 发生日期＝货到那天。没入库过的单回落到建账日——与台账筛选、按月未付用的是同一个口径
+# （控制器 INCURRED_ON_SQL），不然按日期筛出来的行，这一列却是空的。
+json.incurred_on(resource.incurred_on || resource.created_at.to_date)
 json.remark resource.remark
 
 # 采购明细直接摊在台账上（物料编码/品名/规格/数量/单价/金额）——财务要核「这笔钱买了什么、什么价」，

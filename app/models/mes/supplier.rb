@@ -2,29 +2,30 @@
 #
 # Table name: mes_suppliers
 #
-#  id            :bigint           not null, primary key
-#  address       :text
-#  bank_account  :string
-#  bank_address  :string
-#  bank_name     :string
-#  bill_entity   :string           default("wintouch"), not null
-#  category      :string
-#  contact_name  :string
-#  department    :string
-#  email         :string
-#  invoice_title :string
-#  is_active     :boolean          default(TRUE), not null
-#  name          :string           not null
-#  phone         :string
-#  product_line  :string
-#  remark        :text
-#  supplier_no   :string           not null
-#  tax_no        :string
-#  tax_rate      :decimal(5, 2)
-#  created_at    :datetime         not null
-#  updated_at    :datetime         not null
-#  account_id    :bigint           not null
-#  owner_id      :bigint
+#  id                  :bigint           not null, primary key
+#  address             :text
+#  bank_account        :string
+#  bank_address        :string
+#  bank_name           :string
+#  bill_entity         :string           default("wintouch"), not null
+#  category            :string
+#  contact_name        :string
+#  default_settle_type :string           default("PUBLIC"), not null
+#  department          :string
+#  email               :string
+#  invoice_title       :string
+#  is_active           :boolean          default(TRUE), not null
+#  name                :string           not null
+#  phone               :string
+#  product_line        :string
+#  remark              :text
+#  supplier_no         :string           not null
+#  tax_no              :string
+#  tax_rate            :decimal(5, 2)
+#  created_at          :datetime         not null
+#  updated_at          :datetime         not null
+#  account_id          :bigint           not null
+#  owner_id            :bigint
 #
 # Indexes
 #
@@ -37,6 +38,9 @@
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Mes::Supplier < ApplicationRecord
+  # 这家供应商平时走对公还是对私（下采购单时带出来的默认值，个别单可改）。
+  validates :default_settle_type, inclusion: { in: Erp::Payable::SETTLE_TYPES }
+
   include Mes::LineScoped
   # 供应商的「事业部」就是产线，建档时必填。
   # 不是洁癖：供应物料里只要有一个没见过的编码，保存时会顺带给它在**物料档案**建一条
