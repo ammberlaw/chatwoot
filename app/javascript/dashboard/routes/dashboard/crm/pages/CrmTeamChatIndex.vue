@@ -56,6 +56,10 @@ const L = {
   members: n => `${n} 人`,
   error: '操作失败',
   announcement: '群公告',
+  groupAvatar: '群头像',
+  changeAvatar: '更换',
+  avatarHint: '建议方形图片，JPG / PNG，2MB 以内',
+  avatarTooBig: '图片超过 2MB，换张小一点的',
   announcementPlaceholder: '填写群公告（必填）',
   noAnnouncement: '暂无群公告',
   ownerOnlyHint: '仅群主可编辑群公告',
@@ -143,13 +147,22 @@ const agentMap = computed(() => {
   });
   return m;
 });
+// 单聊头像优先用后端给的 peer_avatar_url——坐席表里查不到的账号（「系统通知」）走这条。
 const convSrc = conv =>
-  conv.kind === 'group' ? '' : agentMap.value[conv.peer_id]?.thumbnail || '';
-const convStatus = conv =>
   conv.kind === 'group'
+    ? conv.avatar_url || ''
+    : conv.peer_avatar_url ||
+      agentMap.value[conv.peer_id]?.thumbnail ||
+      '';
+// 「系统通知」是机器人不是人，没有在线这回事——它不在坐席列表里，查出来恒为
+// 「离线」，摆在那儿只会让人以为通知发不出去。群聊同理不显示。
+const convStatus = conv =>
+  conv.kind === 'group' || conv.system_notice
     ? null
     : agentMap.value[conv.peer_id]?.availability_status || null;
-const senderSrc = msg => agentMap.value[msg.sender_id]?.thumbnail || '';
+// 同 convSrc：先用后端给的头像，坐席表只是兜底。
+const senderSrc = msg =>
+  msg.sender_avatar_url || agentMap.value[msg.sender_id]?.thumbnail || '';
 
 // 消息里的 http(s) 链接转成可点击 <a>（如提成表/绩效表转发过来的回跳链接）。
 // 先转义 HTML 再替换，防 XSS；只处理 URL，不做 markdown，保留 whitespace-pre-wrap 的换行。
@@ -261,6 +274,10 @@ const activePeerOnline = computed(
   () =>
     activeConv.value?.kind === 'direct' &&
     agentMap.value[activeConv.value.peer_id]?.availability_status === 'online'
+);
+// 会话头部那行状态：系统通知不显示（同 convStatus）。
+const showPeerPresence = computed(
+  () => activeConv.value?.kind !== 'group' && !activeConv.value?.system_notice
 );
 // 列表尾随状态：我发的末条消息给出对勾。
 const mineLastMessage = conv =>
@@ -797,6 +814,31 @@ const openGroupDetail = () => {
   pendingLeave.value = false;
   detailDialog.value?.open();
 };
+// 换群头像：选完文件直接上传，不用再点保存——这里只有一张图，没有「改了一半」的状态。
+const avatarInput = ref(null);
+const uploadingAvatar = ref(false);
+const pickAvatar = () => avatarInput.value?.click();
+const onAvatarPicked = async event => {
+  const file = event.target.files?.[0];
+  event.target.value = ''; // 清空，否则选同一张图不会再触发 change
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    useAlert(L.avatarTooBig);
+    return;
+  }
+  uploadingAvatar.value = true;
+  try {
+    const { data } = await ChatAPI.updateAvatar(activeConv.value.id, file);
+    activeConv.value.avatar_url = data.avatar_url;
+    useAlert(L.saved);
+    fetchConversations();
+  } catch {
+    useAlert(L.error);
+  } finally {
+    uploadingAvatar.value = false;
+  }
+};
+
 const saveAnnouncement = async () => {
   const text = announcementDraft.value.trim();
   if (!text || text === activeConv.value?.announcement) return;
@@ -1106,7 +1148,7 @@ onBeforeUnmount(() => {
                     {{ L.members(activeConv.participant_count) }}
                   </button>
                 </template>
-                <template v-else>
+                <template v-else-if="showPeerPresence">
                   <span
                     class="rounded-full size-1.5"
                     :class="activePeerOnline ? 'bg-n-teal-9' : 'bg-n-slate-8'"
@@ -1741,6 +1783,42 @@ onBeforeUnmount(() => {
       :show-confirm-button="false"
     >
       <div class="flex flex-col gap-5">
+        <!-- 群头像 -->
+        <div class="flex items-center gap-3">
+          <Avatar
+            :name="activeConv?.name || ''"
+            :src="activeConv?.avatar_url || ''"
+            :size="48"
+            rounded-full
+          />
+          <div class="min-w-0">
+            <div class="text-heading-3 text-n-slate-12">
+              {{ L.groupAvatar }}
+            </div>
+            <p class="mt-0.5 text-label-small text-n-slate-10">
+              {{ isGroupOwner ? L.avatarHint : L.ownerOnlyHint }}
+            </p>
+          </div>
+          <template v-if="isGroupOwner">
+            <input
+              ref="avatarInput"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="onAvatarPicked"
+            />
+            <Button
+              :label="L.changeAvatar"
+              color="slate"
+              variant="faded"
+              size="sm"
+              class="ml-auto"
+              :is-loading="uploadingAvatar"
+              @click="pickAvatar"
+            />
+          </template>
+        </div>
+
         <!-- 群公告 -->
         <div>
           <div class="flex items-center gap-1.5 mb-2">

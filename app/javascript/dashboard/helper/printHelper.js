@@ -130,13 +130,30 @@ export function printElement(el, title = '') {
   portal.appendChild(clone);
   document.body.appendChild(portal);
 
+  // 宽表（提成表 20+ 列）按 A4 竖版排会直接掉到纸外——浏览器打印不会自动缩放。
+  // 量一下真实内容宽度：放得下就竖版；放不下先转横版；横版还放不下按比例缩。
+  // 用 zoom 不用 transform：transform 不参与分页计算，会把后面几页切错。
+  const PORTRAIT_PX = 718; // A4 竖版去掉 10mm 边距后的可印宽（96dpi）
+  const LANDSCAPE_PX = 1047; // A4 横版同上
+  const contentWidth = portal.scrollWidth;
+  let pageRule = '@page{size:A4;margin:10mm}';
+  if (contentWidth > PORTRAIT_PX) {
+    pageRule = '@page{size:A4 landscape;margin:10mm}';
+    if (contentWidth > LANDSCAPE_PX) {
+      portal.style.zoom = String(LANDSCAPE_PX / contentWidth);
+    }
+  }
+
   // 屏幕上藏起克隆；打印时藏掉 body 其余直接子节点、只留克隆，并保留背景/渐变配色。
   const style = document.createElement('style');
   style.setAttribute('data-crm-print-style', '');
   style.textContent =
+    pageRule +
     '@media screen{[data-crm-print-portal]{display:none!important}}' +
     '@media print{body>*:not([data-crm-print-portal]){display:none!important}' +
     '[data-crm-print-portal]{display:block!important;padding:16px}' +
+    // 克隆里任何一层带 overflow（滚动容器、圆角裁切）都会把右边的列切掉，打印一律放开。
+    '[data-crm-print-portal] *{overflow:visible!important}' +
     '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}';
   document.head.appendChild(style);
 

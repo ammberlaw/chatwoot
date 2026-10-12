@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
@@ -8,6 +8,7 @@ import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -71,7 +72,13 @@ const viewItems = computed(() =>
   }))
 );
 
-const fetchList = () => store.get({ purpose: 'MATERIAL_ISSUE' });
+// 后端每页 15 条，不传 page 就只看得到最新 15 张（生产上 20 张领料单，5 张看不见）。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
+const totalCount = computed(() => store.getMeta?.count || 0);
+const fetchList = () =>
+  store.get({ purpose: 'MATERIAL_ISSUE', page: currentPage.value });
+watch(currentPage, fetchList);
 
 const productionOrders = ref([]);
 // 流程锁：生产领料只对「自制且原料已入库（进入原料入库/领料/生产及以后）」的订单开单。
@@ -429,6 +436,15 @@ onMounted(async () => {
           </tbody>
         </table>
       </template>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
 
     <Dialog

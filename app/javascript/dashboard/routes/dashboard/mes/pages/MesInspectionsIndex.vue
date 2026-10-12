@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -10,6 +10,7 @@ import MesInspectionAPI from 'dashboard/api/mes/inspections';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
@@ -195,12 +196,19 @@ const submit = async () => {
   if (ok) {
     useAlert('检验记录已录入');
     dialogRef.value?.close();
-    store.get();
+    fetchList();
   }
 };
 
+// 后端每页 15 条，不传 page 就只看得到最新 15 条（生产上 27 条，12 条看不见）。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
+const totalCount = computed(() => store.getMeta?.count || 0);
+const fetchList = () => store.get({ page: currentPage.value });
+watch(currentPage, fetchList);
+
 onMounted(() => {
-  store.get();
+  fetchList();
   materialsStore.get();
   axios
     .get(`/api/v1/accounts/${accountId.value}/mes/production_orders`, {
@@ -390,6 +398,15 @@ onMounted(() => {
           </tbody>
         </table>
       </template>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
 
     <Dialog

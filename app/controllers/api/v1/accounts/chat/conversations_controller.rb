@@ -4,10 +4,16 @@ class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::Base
   before_action :ensure_group_owner, only: [:update, :remove_participant, :transfer_owner]
 
   def index
-    @conversations = Current.account.chat_conversations
-                            .for_user(current_user.id)
-                            .includes(participants: :user)
-                            .recent
+    conversations = Current.account.chat_conversations
+                           .for_user(current_user.id)
+                           .includes(participants: :user)
+                           .recent
+                           .to_a
+    # 「系统通知」永远排第一：审批待办、提成表提交、月度提醒都走这条单聊，
+    # 按最后消息时间排的话，聊几句天就把它挤到列表下面去了，等于没通知。
+    # partition 保留两组各自的 recent 顺序（sort_by 不保证稳定）。
+    pinned, rest = conversations.partition { |conversation| system_conversation?(conversation) }
+    @conversations = pinned + rest
   end
 
   def show; end
@@ -36,7 +42,10 @@ class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::Base
   # 群主编辑群名/群公告；新公告像微信一样推送一条消息到群里。
   def update
     announcement_changed = params[:announcement].present? && params[:announcement] != @conversation.announcement
-    @conversation.update!(params.permit(:name, :announcement))
+    # avatar 是 has_one_attached：传了就整张换掉，没传就不动（permit 里挑出来再判断，
+    # 否则 update! 会把没传头像的那次改名当成「把头像清空」）。
+    @conversation.update!(params.permit(:name, :announcement).compact_blank)
+    @conversation.avatar.attach(params[:avatar]) if params[:avatar].present?
     post_announcement_message if announcement_changed
     render :show
   end
@@ -81,6 +90,16 @@ class Api::V1::Accounts::Chat::ConversationsController < Api::V1::Accounts::Base
   end
 
   private
+
+  # 这条单聊的对方是不是账号级「系统通知」发送人。
+  def system_conversation?(conversation)
+    conversation.kind != 'group' &&
+      conversation.peer_participant(current_user.id)&.user_id == system_user_id
+  end
+
+  def system_user_id
+    @system_user_id ||= Crm::SystemUser.for(Current.account).id
+  end
 
   def create_service
     @create_service ||= Chat::CreateConversationService.new(account: Current.account, creator: current_user)

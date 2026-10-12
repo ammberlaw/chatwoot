@@ -2,6 +2,8 @@ json.id resource.id
 json.content resource.content
 json.sender_id resource.sender_id
 json.sender_name resource.sender&.name
+# 发送人头像由后端给：「系统通知」不是坐席，前端的坐席表里查不到它的头像。
+json.sender_avatar_url resource.sender&.avatar_url.presence
 json.read_by resource.read_by_count
 json.mentioned_ids resource.mentioned_ids
 if resource.reply_to_id.present? && resource.reply_to

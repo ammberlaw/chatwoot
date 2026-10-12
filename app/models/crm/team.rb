@@ -26,6 +26,15 @@ class Crm::Team < ApplicationRecord
   belongs_to :team_lead, class_name: 'User', optional: true
   has_many :account_users, foreign_key: :crm_team_id, dependent: :nullify, inverse_of: :crm_team
   has_many :members, through: :account_users, source: :user
+  # 在职成员：离职的人停用后 crm_team_id 还挂着（保留历史归属，便于恢复），
+  # 但花名册、下拉、@提及都不该再出现他——停用只拦登录是不够的。
+  has_many :active_account_users,
+           -> { active_members },
+           class_name: 'AccountUser',
+           foreign_key: :crm_team_id,
+           inverse_of: :crm_team,
+           dependent: nil
+  has_many :active_members, through: :active_account_users, source: :user
   has_many :sales_orders, class_name: 'Crm::SalesOrder', foreign_key: :crm_team_id, dependent: :nullify, inverse_of: :crm_team
 
   validates :name, presence: true, uniqueness: { scope: :account_id }

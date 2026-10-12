@@ -1,12 +1,13 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import MesSerialNumberAPI from 'dashboard/api/mes/serialNumbers';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
@@ -23,15 +24,21 @@ const records = ref([]);
 const loading = ref(false);
 const day = d => (d ? new Date(d).toLocaleDateString() : '—');
 
+// 后端每页 15 条。这页直接调 API（没走 store），所以页码和总数自己存。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
+const totalCount = ref(0);
 const fetchList = async () => {
   loading.value = true;
   try {
-    const { data } = await MesSerialNumberAPI.get();
+    const { data } = await MesSerialNumberAPI.get({ page: currentPage.value });
     records.value = data?.payload || [];
+    totalCount.value = Number(data?.meta?.count || 0);
   } finally {
     loading.value = false;
   }
 };
+watch(currentPage, fetchList);
 
 // —— 追溯查询 ——
 const query = ref('');
@@ -252,6 +259,15 @@ onMounted(() => {
           </tbody>
         </table>
       </template>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
 
     <Dialog

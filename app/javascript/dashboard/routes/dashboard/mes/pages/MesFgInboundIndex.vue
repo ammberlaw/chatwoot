@@ -1,12 +1,13 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -71,7 +72,13 @@ const viewItems = computed(() =>
   }))
 );
 
-const fetchList = () => store.get({ purpose: 'MANUFACTURE' });
+// 后端每页 15 条，不传 page 就只看得到最新 15 张（成品入库单现在 12 张还没撞上，但代码一样，迟早会）。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
+const totalCount = computed(() => store.getMeta?.count || 0);
+const fetchList = () =>
+  store.get({ purpose: 'MANUFACTURE', page: currentPage.value });
+watch(currentPage, fetchList);
 
 const productionOrders = ref([]);
 // 流程锁：成品入库只对「自制且已进入生产/成品入库阶段」的订单开单。
@@ -408,6 +415,15 @@ onMounted(() => {
           </tbody>
         </table>
       </template>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
 
     <Dialog

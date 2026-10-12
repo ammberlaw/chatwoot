@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -10,6 +10,7 @@ import MesImageLightbox from 'dashboard/components-next/mes/MesImageLightbox.vue
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -32,17 +33,29 @@ const { mesCan } = useMesRole();
 const filterOrderId = ref(route.query.production_order_id || '');
 const filterOrderNo = ref(route.query.order_no || '');
 // 库存单一表多用：本板块=原料入库，只取 MATERIAL_RECEIPT（生产领料/成品入库各有独立板块）。
+// 后端每页 15 条。不传 page 就永远只有最新 15 张，第 16 张往后谁都点不到
+// （生产上 44 张入库单，29 张看不见）。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
+const totalCount = computed(() => store.getMeta?.count || 0);
 const fetchList = () =>
   store.get({
     purpose: 'MATERIAL_RECEIPT',
+    page: currentPage.value,
     ...(filterOrderId.value
       ? { production_order_id: filterOrderId.value }
       : {}),
   });
+watch(currentPage, fetchList);
+// 换筛选要回第 1 页：在第 3 页筛一个只有 2 条结果的条件会看到空列表。
+const resetToFirstPage = () => {
+  if (currentPage.value === 1) fetchList();
+  else currentPage.value = 1;
+};
 const clearOrderFilter = () => {
   filterOrderId.value = '';
   filterOrderNo.value = '';
-  fetchList();
+  resetToFirstPage();
 };
 const warehousesStore = useMesWarehousesStore();
 
@@ -563,6 +576,15 @@ useRouteQueryReentry(query => {
           </tbody>
         </table>
       </template>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
 
     <Dialog

@@ -26,6 +26,8 @@ class Chat::Conversation < ApplicationRecord
   has_many :participants, class_name: 'Chat::Participant', inverse_of: :conversation, dependent: :destroy
   has_many :messages, class_name: 'Chat::Message', inverse_of: :conversation, dependent: :destroy
   has_many :users, through: :participants
+  # 群头像（只群聊用；单聊头像取对方的）。换头像是整张替换，不像消息附件要追加。
+  has_one_attached :avatar
 
   validates :kind, inclusion: { in: KINDS }
 
@@ -36,6 +38,13 @@ class Chat::Conversation < ApplicationRecord
 
   def direct?
     kind == 'direct'
+  end
+
+  # 群头像地址；没传过就是 nil，前端照旧回落到首字母圆底。
+  def avatar_url
+    return nil unless avatar.attached?
+
+    Rails.application.routes.url_helpers.rails_blob_url(avatar, only_path: true)
   end
 
   # 单聊显示为对方名字；群聊显示群名。

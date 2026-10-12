@@ -11,6 +11,7 @@ import { useMesShipmentsStore } from 'dashboard/stores/mes/shipments';
 import { useMesWarehousesStore } from 'dashboard/stores/mes/warehouses';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import MesBoardOwnerBar from 'dashboard/components-next/mes/MesBoardOwnerBar.vue';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
@@ -494,8 +495,15 @@ const submitReject = async () => {
   }
 };
 
+// 后端每页 15 条，不传 page 就只看得到最新 15 张。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
+const totalCount = computed(() => store.getMeta?.count || 0);
+const fetchList = () => store.get({ page: currentPage.value });
+watch(currentPage, fetchList);
+
 onMounted(() => {
-  store.get();
+  fetchList();
   warehousesStore.get();
   const base = `/api/v1/accounts/${accountId.value}`;
   axios
@@ -776,6 +784,15 @@ onMounted(() => {
           </tbody>
         </table>
       </template>
+
+      <PaginationFooter
+        v-if="totalCount > ITEMS_PER_PAGE"
+        :current-page="currentPage"
+        :total-items="totalCount"
+        :items-per-page="ITEMS_PER_PAGE"
+        class="!bg-transparent before:!hidden"
+        @update:current-page="currentPage = $event"
+      />
     </div>
 
     <!-- 生产出库（仓库从生产订单开单，原样）-->

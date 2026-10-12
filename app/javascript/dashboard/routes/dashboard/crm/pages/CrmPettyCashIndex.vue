@@ -11,6 +11,7 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
+import { exportRowsToExcel } from 'dashboard/helper/erpExcel';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 // 备用金台账：一个部门/项目一本账（对应原 Excel 的一个 sheet），本下挂收支流水，
@@ -76,6 +77,71 @@ const totals = computed(() => ({
     .filter(e => e.direction === 'OUT')
     .reduce((s, e) => s + Number(e.amount), 0),
 }));
+
+// 导出 Excel：列与屏幕上这张表一一对应，外加一行期初——财务要的是能直接归档、
+// 能继续在 Excel 里求和的表，所以金额一律写数值（不是带千分位的字符串）。
+// 本页不分页（一次拉整月），屏幕上的 rows 就是全量，不用再向后端要一次。
+const exportExcel = () => {
+  if (!activeBookId.value) return;
+  const bookName = activeBook.value?.name || '备用金台账';
+  const monthLabel = month.value || '全部';
+  const num = v => Number(Number(v || 0).toFixed(2));
+  const openingRow = {
+    entry_date: '',
+    subject: '期初余额',
+    category: '',
+    in_amount: '',
+    out_amount: '',
+    balance: num(opening.value),
+    channel: '',
+    remark: '',
+  };
+  const bodyRows = rows.value.map(row => ({
+    entry_date: row.entry_date,
+    subject: row.subject,
+    category: row.category || '',
+    in_amount: row.direction === 'IN' ? num(row.amount) : '',
+    out_amount: row.direction === 'OUT' ? num(row.amount) : '',
+    balance: num(row.balance),
+    channel: row.channel || '',
+    remark: row.remark || '',
+  }));
+  exportRowsToExcel(
+    {
+      title: `备用金台账 · ${bookName}`,
+      meta: [
+        { label: '台账本', value: bookName },
+        { label: '月份', value: monthLabel },
+        { label: '期初余额', value: num(opening.value) },
+        { label: '本期存入', value: num(totals.value.in) },
+        { label: '本期支出', value: num(totals.value.out) },
+        // 取最后一行的滚动结余，不是 activeBook.balance——那是整本账的当前余额，
+        // 导历史月份会对不上这张表最后一行。
+        {
+          label: '期末结余',
+          value: num(
+            rows.value.length
+              ? rows.value[rows.value.length - 1].balance
+              : opening.value
+          ),
+        },
+        { label: '导出时间', value: new Date().toLocaleString() },
+      ],
+      columns: [
+        { label: '日期', key: 'entry_date' },
+        { label: '事由', key: 'subject' },
+        { label: '分类', key: 'category' },
+        { label: '存入', key: 'in_amount' },
+        { label: '支出', key: 'out_amount' },
+        { label: '结余', key: 'balance' },
+        { label: '渠道', key: 'channel' },
+        { label: '情况说明', key: 'remark' },
+      ],
+      rows: [openingRow, ...bodyRows],
+    },
+    `备用金台账-${bookName}-${monthLabel}`
+  );
+};
 
 const fetchBooks = async () => {
   try {
@@ -325,6 +391,13 @@ onMounted(async () => {
             variant="outline"
             size="sm"
             @click="openCreateBook"
+          />
+          <Button
+            label="导出 Excel"
+            variant="outline"
+            size="sm"
+            :disabled="!activeBookId || !rows.length"
+            @click="exportExcel"
           />
           <Button
             v-if="canRecord"

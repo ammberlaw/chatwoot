@@ -22,6 +22,15 @@ class ChatConversationAPI extends ApiClient {
     return axios.patch(`${this.url}/${id}`, payload);
   }
 
+  // 换群头像单独走 multipart；和改群名/群公告是同一个接口，分开只是因为要传文件。
+  updateAvatar(id, file) {
+    const fd = new FormData();
+    fd.append('avatar', file);
+    return axios.patch(`${this.url}/${id}`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
   removeParticipant(id, userId) {
     return axios.post(`${this.url}/${id}/remove_participant`, {
       user_id: userId,

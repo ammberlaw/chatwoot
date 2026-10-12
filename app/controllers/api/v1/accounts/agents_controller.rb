@@ -83,8 +83,14 @@ class Api::V1::Accounts::AgentsController < Api::V1::Accounts::BaseController
     params.require(:agent).permit(:email, :name, :role, :availability, :auto_offline)
   end
 
+  # 排掉已停用（离职）的人。这个列表喂的是各处「选人」：指派、审批人、@提及、
+  # 协作者。停用只拦住登录是不够的——人走了还能被选中、被指派活儿。
+  # 需要看已停用成员的地方走「wintouchspace 成员管理」（那边有「已停用」页签，可恢复）。
   def agents
-    @agents ||= Current.account.users.order_by_full_name.includes(:account_users, { avatar_attachment: [:blob] })
+    @agents ||= Current.account.users
+                       .where(id: Current.account.account_users.active_members.select(:user_id))
+                       .order_by_full_name
+                       .includes(:account_users, { avatar_attachment: [:blob] })
   end
 
   def validate_limit_for_bulk_create

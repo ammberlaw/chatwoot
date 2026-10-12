@@ -1,6 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import { STATUS_TONE } from 'dashboard/helper/statusTone';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -490,16 +491,29 @@ const safeBodyHtml = computed(() =>
     : ''
 );
 
+// 列表一次取 200 封（按日期分组要一次多取，分组封数才准），但只有第 1 页——
+// 第 201 封往前的邮件谁都翻不到。页码提出来，底部给翻页器。
+const MAILS_PER_PAGE = 200;
+const mailPage = ref(1);
+const mailTotal = computed(() => store.getMeta?.count || 0);
+
 const baseParams = () => {
   if (activeCustomFolderId.value) {
-    return { page: 1, email_folder_id: activeCustomFolderId.value };
+    return {
+      page: mailPage.value,
+      email_folder_id: activeCustomFolderId.value,
+    };
   }
   if (activeFolder.value === 'tracking') {
-    return { page: 1, filter: 'tracking', opened: trackingOpened.value };
+    return {
+      page: mailPage.value,
+      filter: 'tracking',
+      opened: trackingOpened.value,
+    };
   }
   return FILTER_FOLDERS.includes(activeFolder.value)
-    ? { page: 1, filter: activeFolder.value }
-    : { page: 1, folder: activeFolder.value };
+    ? { page: mailPage.value, filter: activeFolder.value }
+    : { page: mailPage.value, folder: activeFolder.value };
 };
 
 // 当前 owner_id + mailbox 过滤参数（我的/团队 + 选中邮箱）。
@@ -545,24 +559,27 @@ const fetchRecords = () => {
   selectedIds.value = [];
   // 分发给我的：跨负责人取数，走专用端点（不带 folder/owner 收口）。
   if (activeFolder.value === 'DISTRIBUTED') {
-    store.getDistributed({ page: 1, per_page: 200 });
+    store.getDistributed({ page: mailPage.value, per_page: MAILS_PER_PAGE });
     return;
   }
   // 我分发的（主管/管理员）：走专用端点，列我下发过的邮件。
   if (activeFolder.value === 'DISTRIBUTED_BY_ME') {
-    store.getDistributedByMe({ page: 1, per_page: 200 });
+    store.getDistributedByMe({
+      page: mailPage.value,
+      per_page: MAILS_PER_PAGE,
+    });
     return;
   }
   // 「往来邮件」视图：只按客户过滤、跨系统文件夹（收+发都进），不带 folder。
   // 否则按当前文件夹/范围取（列表按日期分组需一次多取，上限 200，分组封数才准）。
   const params = customerFilter.value
     ? {
-        page: 1,
+        page: mailPage.value,
         customer_id: customerFilter.value.id,
         ...(forceAllScope.value ? {} : scopeParams()),
-        per_page: 200,
+        per_page: MAILS_PER_PAGE,
       }
-    : { ...baseParams(), ...scopeParams(), per_page: 200 };
+    : { ...baseParams(), ...scopeParams(), per_page: MAILS_PER_PAGE };
   if (searchTerm.value.trim()) params.q = searchTerm.value.trim();
   if (activeLabelId.value) params.label_id = activeLabelId.value;
   store.get(params);
@@ -1623,10 +1640,17 @@ const onMoreAction = payload => {
   payload.run?.();
 };
 
+watch(mailPage, fetchRecords);
+// 换文件夹/搜索/客户过滤都要回第 1 页——在第 3 页换个文件夹会看到空列表。
+const resetMailPage = () => {
+  if (mailPage.value === 1) fetchRecords();
+  else mailPage.value = 1;
+};
+
 let searchTimer = null;
 watch(searchTerm, () => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(fetchRecords, 300);
+  searchTimer = setTimeout(resetMailPage, 300);
 });
 
 // 深链打开某封往来邮件：进入该客户「往来邮件」视图（不按 owner 收口），列表就绪后自动选中并打开目标邮件。
@@ -1683,7 +1707,7 @@ watch(
     selectedEmail.value = null;
     customerFilter.value = null; // 切换文件夹退出「往来邮件」客户过滤
     forceAllScope.value = false;
-    fetchRecords();
+    resetMailPage();
     if (route.query.compose) openCompose();
   }
 );
@@ -2413,6 +2437,16 @@ watch(
           </template>
         </template>
       </div>
+
+      <!-- 超过一屏 200 封才出现：早先只取第 1 页，第 201 封往前的邮件谁都翻不到。 -->
+      <PaginationFooter
+        v-if="mailTotal > MAILS_PER_PAGE"
+        :current-page="mailPage"
+        :total-items="mailTotal"
+        :items-per-page="MAILS_PER_PAGE"
+        class="flex-shrink-0 !bg-transparent before:!hidden"
+        @update:current-page="mailPage = $event"
+      />
     </section>
 
     <!-- 右栏：阅读窗格（手机端仅在选中邮件时占满显示）。
