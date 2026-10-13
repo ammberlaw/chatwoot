@@ -103,7 +103,7 @@ onBeforeUnmount(close);
       :aria-label="active ? '已筛选，点击修改' : '筛选这一列'"
       @click.stop="toggle"
     >
-      <span class="i-lucide-filter size-3.5" />
+      <span class="i-lucide-chevron-down size-4" />
     </button>
 
     <teleport :to="teleportTarget">

@@ -140,7 +140,7 @@ const pickQuick = fn => {
       :title="active ? '已筛选，点击修改' : '筛选本列'"
       @click.stop="toggle"
     >
-      <span class="i-lucide-filter size-4 shrink-0" />
+      <span class="i-lucide-chevron-down size-4 shrink-0" />
     </button>
 
     <Teleport to="body">
@@ -157,7 +157,7 @@ const pickQuick = fn => {
         :style="{
           top: `${pos.top}px`,
           left: `${pos.left}px`,
-          width: isDate ? '260px' : '220px',
+          width: isDate ? '260px' : type === 'select' ? '220px' : '300px',
         }"
         @click.stop
       >
@@ -201,17 +201,38 @@ const pickQuick = fn => {
           </div>
         </template>
 
+        <!-- 文本列：输入框和两个按钮并排一行——只填一个词的浮层分成三行太高了 -->
         <template v-else>
-          <input
-            v-model="draft"
-            type="text"
-            :placeholder="placeholder"
-            class="w-full h-8 px-2 text-sm border rounded outline-none reset-base border-n-weak bg-n-solid-1 text-n-slate-12"
-            @keyup.enter="apply"
-          />
+          <div class="flex items-center gap-2">
+            <input
+              v-model="draft"
+              type="text"
+              :placeholder="placeholder"
+              class="flex-1 min-w-0 h-8 px-2 text-sm border rounded outline-none reset-base border-n-weak bg-n-solid-1 text-n-slate-12"
+              @keyup.enter="apply"
+            />
+            <button
+              type="button"
+              class="px-2 py-1 text-xs rounded shrink-0 reset-base text-n-slate-11 hover:bg-n-alpha-2"
+              @click="reset"
+            >
+              重置
+            </button>
+            <button
+              type="button"
+              class="px-2 py-1 text-xs text-white rounded shrink-0 reset-base bg-n-iris-9"
+              @click="apply"
+            >
+              确定
+            </button>
+          </div>
         </template>
 
-        <div class="flex justify-end gap-2 pt-2 mt-2 border-t border-n-weak">
+        <!-- 枚举/日期列的底栏：它们本身是竖着一列选项，按钮只能另起一行 -->
+        <div
+          v-if="type === 'select' || isDate"
+          class="flex justify-end gap-2 pt-2 mt-2 border-t border-n-weak"
+        >
           <button
             type="button"
             class="px-2 py-1 text-xs rounded reset-base text-n-slate-11 hover:bg-n-alpha-2"
@@ -220,7 +241,7 @@ const pickQuick = fn => {
             重置
           </button>
           <button
-            v-if="type !== 'select'"
+            v-if="isDate"
             type="button"
             class="px-2 py-1 text-xs text-white rounded reset-base bg-n-iris-9"
             @click="apply"

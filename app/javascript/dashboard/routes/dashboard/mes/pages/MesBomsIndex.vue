@@ -8,12 +8,13 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import ColResizeHandle from 'dashboard/components-next/table/ColResizeHandle.vue';
-import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 import { useListDensity } from 'dashboard/composables/useListDensity';
 import MesBomAPI from 'dashboard/api/mes/boms';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import {
   exportNodeToJpg,
   exportDataToExcel,
@@ -137,8 +138,8 @@ const totalColSpan = computed(() => orderedColumns.value.length + 2);
 const records = computed(() => store.getRecords);
 const totalCount = computed(() => store.getMeta.count || 0);
 const hiddenNoLine = computed(() => store.getMeta.hiddenNoLine || 0);
-// 表头列筛选（对标金蝶：每个竖行自己能过滤）。条件发给后端，不在前端过滤本页——
-// 列表分页，本页过滤只会在第 1 页里挑，后面的命中全看不见。
+// 顶部筛选条。条件发给后端，不在前端过滤本页——列表分页，本页过滤只会在第 1 页里挑，
+// 后面的命中全看不见。（原来做成表头漏斗，二十几个列头上挂一排小图标太碎，改回顶部一条。）
 const colFilters = reactive({
   no: '',
   model: '',
@@ -169,25 +170,6 @@ const ownerOptions = computed(() => peopleOptions('ownerId', 'ownerName'));
 const salesOwnerOptions = computed(() =>
   peopleOptions('salesOwnerId', 'salesOwnerName')
 );
-// 列 key → 筛选控件配置。没配的列不出漏斗（用料项、预估周期这种筛了也没意义）。
-const FILTERABLE = {
-  no: { type: 'text', key: 'no', placeholder: '单号 / 投单单号' },
-  model: { type: 'text', key: 'model', placeholder: '型号 / 成品名' },
-  productCode: { type: 'text', key: 'product_code', placeholder: '产成品代码' },
-  owner: { type: 'select', key: 'owner_id', options: ownerOptions },
-  salesOwner: {
-    type: 'select',
-    key: 'sales_owner_id',
-    options: salesOwnerOptions,
-  },
-  status: { type: 'select', key: 'status', options: STATUS_FILTER_OPTIONS },
-  submitDate: { type: 'date', key: 'submitDate' },
-};
-const filterOf = col => FILTERABLE[col.key];
-const filterOptions = col => {
-  const opts = filterOf(col)?.options;
-  return Array.isArray(opts) ? opts : opts?.value || [];
-};
 const activeFilterCount = computed(
   () =>
     Object.entries(colFilters).filter(([k, v]) =>
@@ -578,6 +560,66 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- 筛选条（与销售订单那页同一套样式）。条件发给后端，不在前端过滤本页。 -->
+    <div
+      class="flex flex-wrap items-center gap-3 px-4 pb-3 sm:px-6 [.theme-classic_&]:sm:!px-8"
+    >
+      <!-- reset-base：不加的话全局 $form-input-selector 会给它套上 field-base 的
+           w-full + mb-4，搜索框撑满整行、被挤到筛选下面去。高度跟 SelectCard 对齐用 h-9。 -->
+      <input
+        v-model="colFilters.no"
+        type="text"
+        placeholder="搜索 单号 / 投单单号…"
+        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-48 border border-n-weak bg-n-solid-1 text-n-slate-12"
+        @keyup.enter="onFilterChange"
+      />
+      <input
+        v-model="colFilters.model"
+        type="text"
+        placeholder="型号 / 成品名…"
+        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-44 border border-n-weak bg-n-solid-1 text-n-slate-12"
+        @keyup.enter="onFilterChange"
+      />
+      <input
+        v-model="colFilters.product_code"
+        type="text"
+        placeholder="产成品代码…"
+        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-36 border border-n-weak bg-n-solid-1 text-n-slate-12"
+        @keyup.enter="onFilterChange"
+      />
+      <SelectCard
+        v-model="colFilters.owner_id"
+        :options="ownerOptions"
+        placeholder="全部负责人"
+        @update:model-value="onFilterChange"
+      />
+      <SelectCard
+        v-model="colFilters.sales_owner_id"
+        :options="salesOwnerOptions"
+        placeholder="全部业务员"
+        @update:model-value="onFilterChange"
+      />
+      <SelectCard
+        v-model="colFilters.status"
+        :options="STATUS_FILTER_OPTIONS"
+        @update:model-value="onFilterChange"
+      />
+      <DatePicker
+        v-model="colFilters.submitDate.from"
+        placeholder="提交日期起"
+        trigger-class="w-36"
+        @change="onFilterChange"
+      />
+      <span class="text-sm text-n-slate-10">至</span>
+      <DatePicker
+        v-model="colFilters.submitDate.to"
+        placeholder="提交日期止"
+        trigger-class="w-36"
+        @change="onFilterChange"
+      />
+      <Button label="查询" color="slate" size="sm" @click="onFilterChange" />
+    </div>
+
     <MesBoardOwnerBar board-key="mes_boms_index" />
 
     <MesHiddenLineHint
@@ -682,17 +724,7 @@ onMounted(async () => {
                   @resize-start="(e, th) => startResize(col.key, e, th)"
                   @auto-fit="autoFitColumn"
                 />
-                <span class="inline-flex items-center gap-1">
-                  {{ col.label }}
-                  <MesColumnFilter
-                    v-if="filterOf(col)"
-                    v-model="colFilters[filterOf(col).key]"
-                    :type="filterOf(col).type"
-                    :options="filterOptions(col)"
-                    :placeholder="filterOf(col).placeholder || '输入关键字'"
-                    @change="onFilterChange"
-                  />
-                </span>
+                {{ col.label }}
               </th>
               <th class="px-3 py-3" />
             </tr>
