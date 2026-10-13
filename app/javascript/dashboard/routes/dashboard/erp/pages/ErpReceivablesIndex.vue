@@ -439,6 +439,22 @@ const submitBuild = async () => {
   }
 };
 
+// 补出收入凭证：建账时该出没出的（规则上线前建的老账、或当时订单还没发货）。
+// 出不了的原因由后端判定后原样带回，不在前端重判一遍。
+const buildingVoucherId = ref(null);
+const buildRevenueVoucher = async row => {
+  buildingVoucherId.value = row.id;
+  try {
+    const { data } = await ErpReceivableAPI.buildRevenueVoucher(row.id);
+    row.revenue_voucher_no = data.revenue_voucher_no;
+    useAlert(`已生成收入凭证 ${data.revenue_voucher_no}`);
+  } catch (error) {
+    useAlert(error?.response?.data?.error || '补出凭证失败');
+  } finally {
+    buildingVoucherId.value = null;
+  }
+};
+
 /* ---------------- 收款单 ---------------- */
 const receiptDialogRef = ref(null);
 const editingReceipt = ref(null);
@@ -1027,7 +1043,17 @@ onMounted(() => {
                   <span v-if="row.revenue_voucher_no" class="text-n-slate-11">
                     {{ row.revenue_voucher_no }}
                   </span>
-                  <span v-else class="text-n-ruby-11">未入账</span>
+                  <span v-else class="flex items-center gap-2">
+                    <span class="text-n-ruby-11">未入账</span>
+                    <Button
+                      v-if="canLedger"
+                      variant="link"
+                      size="sm"
+                      label="补出凭证"
+                      :is-loading="buildingVoucherId === row.id"
+                      @click="buildRevenueVoucher(row)"
+                    />
+                  </span>
                 </template>
                 <template v-else-if="col.key === 'total'">
                   {{ money(row.total_amount_micros) }}

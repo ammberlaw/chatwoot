@@ -10,6 +10,7 @@ class Erp::ReceivablePolicy < ApplicationPolicy
   def bulk_build? = @account_user.erp_can?(:receivable)
   def update? = @account_user.erp_can?(:receivable)
   def destroy? = @account_user.erp_can?(:receivable)
+  def build_revenue_voucher? = @account_user.erp_can?(:receivable)
 end
 
 Erp::ReceivablePolicy.prepend_mod_with('Erp::ReceivablePolicy')

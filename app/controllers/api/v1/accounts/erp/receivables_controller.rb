@@ -2,7 +2,7 @@
 # 已收金额只由核销维护，本控制器的 strong params 不放行。
 class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::BaseController
   before_action :check_authorization
-  before_action :fetch_receivable, only: [:show, :update, :destroy]
+  before_action :fetch_receivable, only: [:show, :update, :destroy, :build_revenue_voucher]
 
   def index
     scope = filtered_scope
@@ -107,6 +107,24 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
       failed << { order_no: order.order_no, error: e.message }
     end
     render json: { payload: { built_count: built.size, failed: failed, voucher_warnings: warnings } }
+  end
+
+  # 补出收入凭证：建账时该出没出的（规则上线前建的老账、或当时订单还没发货），
+  # 财务在台账上点一下补。分录与建账时那张完全一致，并且挂回这条台账上——
+  # 手工录的凭证挂不上来源，台账的「收入凭证」列会一直空着。
+  def build_revenue_voucher
+    service = Erp::AutoVoucherService.new(Current.account)
+    if (blocker = service.revenue_voucher_blocker(@receivable))
+      return render json: { error: "出不了收入凭证：#{blocker}" }, status: :unprocessable_entity
+    end
+
+    service.for_receivable_revenue(@receivable)
+    render 'api/v1/accounts/erp/receivables/show'
+  rescue ActiveRecord::RecordInvalid => e
+    # 典型是收入确认日落在已结账期间——凭证模型那层拒掉，原话比什么都清楚。
+    # 取 full_messages 而非 e.message：后者带一层「验证失败：」前缀，跟这里的前缀叠起来啰嗦。
+    render json: { error: "出不了收入凭证：#{e.record.errors.full_messages.to_sentence}" },
+           status: :unprocessable_entity
   end
 
   # 账龄分析：basis=due 逾期账龄 / basis=invoice 账龄（按建账日）。

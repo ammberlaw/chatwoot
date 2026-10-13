@@ -18,4 +18,8 @@ API.orderDetail = crmSalesOrderId =>
     params: { crm_sales_order_id: crmSalesOrderId },
   });
 
+// 补出收入凭证：建账时该出没出的，财务在台账上点一下补。
+API.buildRevenueVoucher = id =>
+  axios.post(`${API.url}/${id}/build_revenue_voucher`);
+
 export default API;

@@ -19,6 +19,8 @@ Metrics/ClassLength:
     - 'app/models/message.rb'
     - 'app/models/conversation.rb'
     - 'app/models/account.rb'
+    # 应收台账：七个 REST + 待建账/账龄/订单详情/补凭证，动作本身都不长、只是数量多。
+    - 'app/controllers/api/v1/accounts/erp/receivables_controller.rb'
 
 Metrics/MethodLength:
   Max: 19

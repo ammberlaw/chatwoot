@@ -395,6 +395,7 @@ Rails.application.routes.draw do
                 get :order_detail
                 post :bulk_build
               end
+              member { post :build_revenue_voucher }
             end
             resources :receipt_records, only: [:index, :show, :create, :update, :destroy] do
               member { post :void }

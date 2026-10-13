@@ -136,29 +136,35 @@ class Erp::AutoVoucherService
   REVENUE_ON_BUILD_STATUSES = %w[SHIPPED COMPLETED].freeze
 
   def for_receivable_revenue(receivable)
-    return if skip_doc?(Erp::AutoVoucherRule::SHIPMENT_REVENUE)
+    return if revenue_voucher_blocker(receivable).present?
 
     order = receivable.crm_sales_order
-    return unless receivable_revenue_bookable?(order)
-
-    receivable_account = order_party_account(order, 'RECEIVABLE')
-    revenue = account_by_code(REVENUE_CODE)
-    return if receivable_account.blank? || revenue.blank?
-
     create_voucher!(source_type: receivable.class.name, source_id: receivable.id,
                     date: revenue_date_for(order, receivable),
                     summary: "应收建账 #{receivable.receivable_no} · #{order.order_no}",
-                    lines: revenue_lines(order, receivable_account, revenue))
+                    lines: revenue_lines(order, order_party_account(order, 'RECEIVABLE'), account_by_code(REVENUE_CODE)))
   end
 
-  def receivable_revenue_bookable?(order)
-    return false if order.blank? || order.gross_sales_micros <= 0
-    return false unless REVENUE_ON_BUILD_STATUSES.include?(order.status)
+  # 出不了收入凭证的原因，能出就返回 nil。台账上的「补出凭证」要把原因原样说给财务听，
+  # 不然点一下没动静只能靠猜。建账时的自动生成走同一套判断，两边口径不会分叉。
+  def revenue_voucher_blocker(receivable)
+    return '自动凭证规则「销售出库 → 收入」已停用' if skip_doc?(Erp::AutoVoucherRule::SHIPMENT_REVENUE)
 
-    # 该订单已由出库单记过收入就不再出——同一笔收入入两次账。
-    shipment_ids = @account.mes_shipments.where(crm_sales_order_id: order.id).pluck(:id)
-    shipment_ids.empty? ||
-      @account.erp_vouchers.where(source_type: 'Mes::Shipment', source_id: shipment_ids).none?
+    # 出库单上那张也算在内（见 Erp::Receivable#revenue_voucher）——同一笔收入不能入两次账。
+    existing = receivable.revenue_voucher
+    return "已经有收入凭证 #{existing.voucher_no}" if existing
+    return '这条台账没挂销售订单' if receivable.crm_sales_order.blank?
+
+    order_revenue_blocker(receivable.crm_sales_order)
+  end
+
+  def order_revenue_blocker(order)
+    return '订单金额为 0' if order.gross_sales_micros <= 0
+    return "订单还是「#{Crm::SalesOrder::STATUS_LABELS[order.status] || order.status}」，发货后才确认收入" \
+      unless REVENUE_ON_BUILD_STATUSES.include?(order.status)
+    return '账套里找不到应收账款科目' if order_party_account(order, 'RECEIVABLE').blank?
+
+    "账套里找不到主营业务收入科目（#{REVENUE_CODE}）" if account_by_code(REVENUE_CODE).blank?
   end
 
   # 收入确认日取交期（货实际发出的时点）；没填交期的历史单回落下单日，

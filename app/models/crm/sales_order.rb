@@ -68,6 +68,10 @@
 #
 class Crm::SalesOrder < ApplicationRecord
   STATUSES = %w[PENDING_CONFIRMATION IN_PRODUCTION PENDING_SHIPMENT SHIPPED COMPLETED CANCELLED].freeze
+  # 给后端消息用（前端各页自己有一份同口径的映射）。
+  STATUS_LABELS = { 'PENDING_CONFIRMATION' => '待确认', 'IN_PRODUCTION' => '生产中',
+                    'PENDING_SHIPMENT' => '待出货', 'SHIPPED' => '已出货',
+                    'COMPLETED' => '已完结', 'CANCELLED' => '已取消' }.freeze
 
   # 订单双轨（决定一键转单往哪条线走）：
   #   CUSTOM 定制 → 生产订单（走生产脊柱，成本按领料/外协归集）
