@@ -104,12 +104,27 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
   # 与按月未付表（Erp::PayableMonthlyService）用同一个表达式，两处数才对得上。
   INCURRED_ON_SQL = 'COALESCE(erp_payables.incurred_on, erp_payables.created_at::date)'.freeze
 
-  # 表头漏斗能筛哪几列（列名 → SQL）。物料编码/品名/规格/数量/单价是采购明细行，
-  # 一条台账挂多行，不按列筛。采购单号没有独立列（和供应商并在一格），走搜索框。
+  # 本条台账对应的采购明细（同一供应商那几行）拼成一串，按「任一行命中」筛。
+  # 一条应付挂多行料，财务搜某颗料是为了找「哪几张应付里有它」。
+  SUPPLIER_ITEM_SQL = lambda { |field|
+    <<~SQL.squish
+      (SELECT string_agg(#{field}, ' ') FROM mes_purchase_items pi
+        LEFT JOIN mes_materials m ON m.id = pi.mes_material_id
+        LEFT JOIN crm_products p ON p.id = pi.crm_product_id
+        WHERE pi.purchase_order_id = erp_payables.mes_purchase_order_id
+          AND pi.mes_supplier_id IS NOT DISTINCT FROM erp_payables.mes_supplier_id)
+    SQL
+  }
+
+  # 表头漏斗能筛哪几列（列名 → SQL）。
   # ⚠️ 前端 LEDGER_COLUMN_DEFS 里标了 filter 的列必须和这张表对齐，否则漏斗点了没反应。
   LEDGER_COLUMN_SQL = {
     'no' => 'erp_payables.payable_no',
-    'supplier' => 'mes_suppliers.name',
+    # 供应商那一格同时显示供应商名和采购单号，两样都能搜到才对得上眼睛看到的。
+    'supplier' => "CONCAT_WS(' ', mes_suppliers.name, mes_purchase_orders.po_no)",
+    'code' => SUPPLIER_ITEM_SQL.call('COALESCE(p.sku, m.material_no)'),
+    'name' => SUPPLIER_ITEM_SQL.call('COALESCE(p.name, m.name)'),
+    'spec' => SUPPLIER_ITEM_SQL.call('COALESCE(m.specification, p.specification)'),
     'settle' => 'erp_payables.settle_type',
     'status' => 'erp_payables.status'
   }.freeze

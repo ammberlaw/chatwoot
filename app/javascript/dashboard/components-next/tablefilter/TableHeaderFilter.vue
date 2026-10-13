@@ -26,10 +26,10 @@ const TEXT_OPS = [
   { value: 'blank', label: '为空' },
   { value: 'present', label: '不为空' },
 ];
-const ENUM_OPS = TEXT_OPS.filter(o =>
-  ['eq', 'ne', 'blank', 'present'].includes(o.value)
-);
-const ops = computed(() => (props.kind === 'enum' ? ENUM_OPS : TEXT_OPS));
+// 取值固定的列（结算、状态这些）不给条件：一共就两三个值，「等于/不等于/为空/不为空」
+// 四选一再选值是绕远路——直接把值列出来，点一个就筛（用户 2026-10-13 反馈）。
+const isEnum = computed(() => props.kind === 'enum');
+const ops = TEXT_OPS;
 // 「为空 / 不为空」不需要填值
 const NEEDS_VALUE = op => op && !['blank', 'present'].includes(op);
 
@@ -45,7 +45,7 @@ const draftValue = ref('');
 const position = () => {
   const r = triggerEl.value?.getBoundingClientRect();
   if (!r) return;
-  const w = 240;
+  const w = 224;
   const h = popEl.value?.offsetHeight || 300;
   const below = r.bottom + 6;
   const top =
@@ -61,8 +61,11 @@ const close = () => {
 };
 
 const toggle = async () => {
-  if (open.value) return close();
-  draftOp.value = props.modelValue?.op || ops.value[0].value;
+  if (open.value) {
+    close();
+    return;
+  }
+  draftOp.value = props.modelValue?.op || ops[0].value;
   draftValue.value = props.modelValue?.value ?? '';
   teleportTarget.value = triggerEl.value?.closest('dialog') || 'body';
   open.value = true;
@@ -90,6 +93,14 @@ const reset = () => {
   close();
 };
 
+// 枚举列：点哪个值就按「等于」筛哪个；点「全部」＝清掉这一列的筛选。
+const pickEnum = value => {
+  const payload = value === '' ? {} : { op: 'eq', value };
+  emit('update:modelValue', payload);
+  emit('change', payload);
+  close();
+};
+
 onBeforeUnmount(close);
 </script>
 
@@ -111,45 +122,68 @@ onBeforeUnmount(close);
       <div
         v-if="open"
         ref="popEl"
-        class="z-20 w-60 p-2 rounded-lg border shadow-lg border-n-weak bg-n-solid-1"
+        class="z-[9999] w-56 p-1.5 origin-top overflow-y-auto border shadow-xl max-h-72 rounded-2xl border-white/50 bg-n-solid-1/70 backdrop-blur-2xl backdrop-saturate-150 shadow-n-iris-9/15"
         :style="popStyle"
         @click.stop
       >
-        <ul>
-          <li v-for="op in ops" :key="op.value">
+        <!-- 取值固定的列：直接列值，点一下就筛 -->
+        <ul v-if="isEnum">
+          <li>
             <button
               type="button"
-              class="flex items-center justify-between w-full px-2 py-1.5 text-sm text-left rounded hover:bg-n-alpha-1 text-n-slate-12"
-              @click="draftOp = op.value"
+              class="flex items-center justify-between w-full gap-2 px-3 text-sm text-left transition-colors rounded-lg h-9"
+              :class="
+                active
+                  ? 'text-n-slate-11 hover:bg-n-iris-3'
+                  : 'bg-n-iris-9 text-white font-medium shadow-sm shadow-n-iris-9/30'
+              "
+              @click="pickEnum('')"
             >
-              <span>{{ op.label }}</span>
-              <span
-                v-if="draftOp === op.value"
-                class="i-lucide-check size-4 text-n-iris-11"
-              />
+              <span class="whitespace-nowrap">全部</span>
+            </button>
+          </li>
+          <li v-for="o in options" :key="String(o.value)">
+            <button
+              type="button"
+              class="flex items-center justify-between w-full gap-2 px-3 text-sm text-left transition-colors rounded-lg h-9"
+              :class="
+                active && String(modelValue.value) === String(o.value)
+                  ? 'bg-n-iris-9 text-white font-medium shadow-sm shadow-n-iris-9/30'
+                  : 'text-n-slate-12 hover:bg-n-iris-3'
+              "
+              @click="pickEnum(String(o.value))"
+            >
+              <span class="whitespace-nowrap">{{ o.label }}</span>
             </button>
           </li>
         </ul>
 
-        <select
-          v-if="NEEDS_VALUE(draftOp) && kind === 'enum'"
-          v-model="draftValue"
-          class="reset-base w-full h-9 px-2 mt-2 text-sm border rounded border-n-weak bg-n-alpha-1 text-n-slate-12"
-        >
-          <option value="">请选择</option>
-          <option v-for="o in options" :key="o.value" :value="o.value">
-            {{ o.label }}
-          </option>
-        </select>
+        <ul v-else>
+          <li v-for="op in ops" :key="op.value">
+            <button
+              type="button"
+              class="flex items-center justify-between w-full gap-2 px-3 text-sm text-left transition-colors rounded-lg h-9"
+              :class="
+                draftOp === op.value
+                  ? 'bg-n-iris-9 text-white font-medium shadow-sm shadow-n-iris-9/30'
+                  : 'text-n-slate-12 hover:bg-n-iris-3'
+              "
+              @click="draftOp = op.value"
+            >
+              <span class="whitespace-nowrap">{{ op.label }}</span>
+            </button>
+          </li>
+        </ul>
+
         <input
-          v-else-if="NEEDS_VALUE(draftOp)"
+          v-if="!isEnum && NEEDS_VALUE(draftOp)"
           v-model="draftValue"
           type="text"
           class="reset-base w-full h-9 px-2 mt-2 text-sm border rounded border-n-weak bg-n-alpha-1 text-n-slate-12"
           @keyup.enter="apply"
         />
 
-        <div class="flex items-center gap-2 mt-2">
+        <div v-if="!isEnum" class="flex items-center gap-2 mt-2">
           <button
             type="button"
             class="flex-1 h-8 text-sm rounded border border-n-weak text-n-slate-11 hover:bg-n-alpha-1"

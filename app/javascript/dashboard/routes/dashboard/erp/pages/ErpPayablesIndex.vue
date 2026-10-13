@@ -132,8 +132,9 @@ const qty = value =>
 // 其余是「明细级」（一行料一行）。列序可拖、用不到的列可收起，按人记在本机——
 // 同应收台账与 MES 那几张表一套交互。
 const LEDGER_COLUMN_DEFS = [
-  // filter: 'text' | 'enum' —— 列头出漏斗（对标金蝶）。标了哪几列必须和控制器的
-  // LEDGER_COLUMN_SQL 对齐。物料编码/品名/规格/数量/单价是明细行，一条台账挂多行，不按列筛。
+  // filter: 'text'（关键字 + 八种条件）| 'enum'（取值固定，直接选值）。
+  // 标了哪几列必须和控制器的 LEDGER_COLUMN_SQL 对齐。明细行按「任一行命中」筛。
+  // 金额/数量这类数字列不出漏斗——按文本比大小没意义。
   { key: 'no', label: '台账单号', rowspan: true, filter: 'text' },
   { key: 'supplier', label: '供应商 / 采购单', rowspan: true, filter: 'text' },
   {
@@ -146,9 +147,9 @@ const LEDGER_COLUMN_DEFS = [
   // 发生日期＝货到那天。已经能按它筛了，但表上一直没有这一列，
   // 筛完对不上「我筛的到底是哪个日期」。
   { key: 'incurredOn', label: '发生日期', rowspan: true },
-  { key: 'code', label: '物料编码' },
-  { key: 'name', label: '品名' },
-  { key: 'spec', label: '规格' },
+  { key: 'code', label: '物料编码', filter: 'text' },
+  { key: 'name', label: '品名', filter: 'text' },
+  { key: 'spec', label: '规格', filter: 'text' },
   { key: 'qty', label: '数量', right: true },
   { key: 'price', label: '单价', right: true },
   { key: 'amount', label: '金额', right: true },

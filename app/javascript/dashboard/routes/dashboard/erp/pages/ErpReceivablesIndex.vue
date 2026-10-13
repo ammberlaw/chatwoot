@@ -178,23 +178,23 @@ const ledgerRows = computed(() =>
 // 其余是「明细级」（一行货一行）。列序可拖、可收起，按人记在本机——
 // 财务各人核的东西不一样，35 列全摆着谁都嫌长。
 const LEDGER_COLUMN_DEFS = [
-  { key: 'no', label: '台账单号', rowspan: true },
-  // filter: 'text' | 'enum' —— 列头出漏斗（对标金蝶）。标了哪几列必须和控制器的
-  // LEDGER_COLUMN_SQL 对齐：那张表外的列筛不动。商品编码/品名/规格/数量/单价摊在
-  // 订单 line_items 这个 JSON 里，单据日期/编号/仓库来自出库单子查询，都没法按列筛。
+  { key: 'no', label: '台账单号', rowspan: true, filter: 'text' },
+  // filter: 'text'（关键字 + 八种条件）| 'enum'（取值固定，直接选值）。
+  // 标了哪几列必须和控制器的 LEDGER_COLUMN_SQL 对齐：那张表外的列筛不动。
+  // 金额/数量这类数字列不出漏斗——按文本比大小没意义，要按区间筛走顶部那两个日期/状态。
   { key: 'docDate', label: '单据日期', rowspan: true },
-  { key: 'docNo', label: '单据编号', rowspan: true },
+  { key: 'docNo', label: '单据编号', rowspan: true, filter: 'text' },
   { key: 'insuranceNo', label: '信保订单号', rowspan: true, filter: 'text' },
   { key: 'orderNo', label: '订单单号', rowspan: true, filter: 'text' },
   { key: 'piNo', label: 'PI 号', rowspan: true, filter: 'text' },
   { key: 'customerCode', label: '客户编码', rowspan: true, filter: 'text' },
   { key: 'customer', label: '客户', rowspan: true, filter: 'text' },
   { key: 'owner', label: '业务员', rowspan: true, filter: 'text' },
-  { key: 'department', label: '部门', rowspan: true },
-  { key: 'warehouse', label: '仓库', rowspan: true },
-  { key: 'sku', label: '商品编码' },
-  { key: 'name', label: '商品名称' },
-  { key: 'spec', label: '规格型号' },
+  { key: 'department', label: '部门', rowspan: true, filter: 'text' },
+  { key: 'warehouse', label: '仓库', rowspan: true, filter: 'text' },
+  { key: 'sku', label: '商品编码', filter: 'text' },
+  { key: 'name', label: '商品名称', filter: 'text' },
+  { key: 'spec', label: '规格型号', filter: 'text' },
   { key: 'currency', label: '币别', rowspan: true, filter: 'text' },
   { key: 'rate', label: '汇率', rowspan: true, right: true },
   { key: 'freight', label: '客户承担运费', rowspan: true, right: true },

@@ -187,17 +187,48 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
 
   LEDGER_FILTERS = { status: :status, crm_customer_id: :crm_customer_id }.freeze
 
-  # 表头漏斗能筛哪几列（列名 → SQL）。只列能落到真实字段上的：
-  # 商品编码/品名/规格/数量/单价那些摊在订单 line_items 这个 JSON 里，没法按列筛；
-  # 单据日期/编号/仓库来自出库单（子查询拼的），也不在这儿。
+  # 首次出库那张单（单据日期/编号/仓库三列都取它）——与 DOC_DATE_SQL 同一口径。
+  FIRST_SHIPMENT_SQL = lambda { |field|
+    <<~SQL.squish
+      (SELECT #{field} FROM mes_shipments s
+        LEFT JOIN mes_warehouses w ON w.id = s.warehouse_id
+        WHERE s.crm_sales_order_id = erp_receivables.crm_sales_order_id
+          AND s.shipped_at IS NOT NULL
+        ORDER BY s.shipped_at ASC LIMIT 1)
+    SQL
+  }
+
+  # 订单明细是 jsonb 数组，按「任一行命中」筛——商品编码/品名/规格都在里面。
+  # 整单只要有一行对上就留下：财务搜某颗料是为了找「哪几单用了它」。
+  LINE_ITEM_SQL = lambda { |key|
+    <<~SQL.squish
+      (SELECT string_agg(e->>'#{key}', ' ') FROM jsonb_array_elements(crm_sales_orders.line_items) e)
+    SQL
+  }
+
+  # 表头漏斗能筛哪几列（列名 → SQL）。
   # ⚠️ 前端 LEDGER_COLUMN_DEFS 里标了 filter 的列必须和这张表对齐，否则漏斗点了没反应。
   LEDGER_COLUMN_SQL = {
+    'no' => 'erp_receivables.receivable_no',
+    'docNo' => FIRST_SHIPMENT_SQL.call('s.shipment_no'),
+    'warehouse' => FIRST_SHIPMENT_SQL.call('w.name'),
     'orderNo' => 'crm_sales_orders.order_no',
     'piNo' => 'crm_sales_orders.pi_no',
     'insuranceNo' => 'crm_sales_orders.insurance_order_no',
     'customerCode' => 'crm_customers.customer_code',
     'customer' => 'crm_customers.name',
     'owner' => "COALESCE(NULLIF(users.crm_name, ''), users.name)",
+    # 部门：成员可能挂多个部门，取主部门那条（与台账列显示同一口径）。
+    'department' => <<~SQL.squish,
+      (SELECT d.name FROM org_memberships m
+        JOIN org_departments d ON d.id = m.department_id
+        WHERE m.user_id = erp_receivables.owner_id
+          AND m.account_id = erp_receivables.account_id
+        ORDER BY m.is_primary DESC NULLS LAST LIMIT 1)
+    SQL
+    'sku' => LINE_ITEM_SQL.call('sku'),
+    'name' => LINE_ITEM_SQL.call('name'),
+    'spec' => LINE_ITEM_SQL.call('spec'),
     'currency' => 'erp_receivables.currency',
     'status' => 'erp_receivables.status',
     'orderStatus' => 'crm_sales_orders.status'
