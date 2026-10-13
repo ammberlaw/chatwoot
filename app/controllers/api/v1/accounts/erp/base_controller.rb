@@ -40,4 +40,49 @@ class Api::V1::Accounts::Erp::BaseController < Api::V1::Accounts::BaseController
   def aging_basis
     params[:basis] == Erp::AgingService::INVOICE ? Erp::AgingService::INVOICE : Erp::AgingService::DUE
   end
+
+  # 表头漏斗筛选（对标金蝶）：前端传 cf[<列>][op] / cf[<列>][value]。
+  #
+  # 在服务端筛，不在前端筛当前这一页——列表是分页的，只筛 50 行等于骗人：
+  # 筛完说「没有」，翻到第二页它又在那儿。
+  #
+  # 只认调用方 map 里列出来的列（列名 → SQL 表达式）。map 之外的列一律忽略，
+  # 所以前端哪几列画漏斗，必须和各控制器的 map 对齐（对不上＝漏斗点了没反应）。
+  COLUMN_FILTER_OPS = {
+    'contains' => ->(sql, v) { ["#{sql} ILIKE ?", "%#{v}%"] },
+    'not_contains' => ->(sql, v) { ["COALESCE(#{sql}, '') NOT ILIKE ?", "%#{v}%"] },
+    'eq' => ->(sql, v) { ["#{sql} = ?", v] },
+    'ne' => ->(sql, v) { ["COALESCE(#{sql}, '') <> ?", v] },
+    'starts' => ->(sql, v) { ["#{sql} ILIKE ?", "#{v}%"] },
+    'ends' => ->(sql, v) { ["#{sql} ILIKE ?", "%#{v}"] },
+    'blank' => ->(sql, _v) { ["COALESCE(#{sql}, '') = ''", nil] },
+    'present' => ->(sql, _v) { ["COALESCE(#{sql}, '') <> ''", nil] }
+  }.freeze
+  # 值里的 % 和 _ 是用户打的字，不是通配符——不转义的话搜「50%」会把整表捞出来。
+  LIKE_OPS = %w[contains not_contains starts ends].freeze
+
+  def apply_column_filters(scope, column_sql)
+    # cf 必须是嵌套 hash；传成别的（序列化出错、手工拼 URL）就当没筛，别把列表打成 500。
+    filters = params[:cf].respond_to?(:to_unsafe_h) ? params[:cf].to_unsafe_h : {}
+    filters.each do |key, spec|
+      next unless spec.is_a?(Hash)
+
+      clause = column_filter_clause(column_sql[key.to_s], spec['op'].to_s, spec['value'].to_s)
+      next if clause.nil?
+
+      condition, bind = clause
+      scope = bind.nil? ? scope.where(Arel.sql(condition)) : scope.where(condition, bind)
+    end
+    scope
+  end
+
+  def column_filter_clause(sql, operator, value)
+    handler = COLUMN_FILTER_OPS[operator]
+    return nil if sql.blank? || handler.nil?
+
+    like = LIKE_OPS.include?(operator)
+    return nil if like && value.blank?
+
+    handler.call(sql, like ? ActiveRecord::Base.sanitize_sql_like(value) : value)
+  end
 end

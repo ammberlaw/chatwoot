@@ -104,12 +104,24 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
   # 与按月未付表（Erp::PayableMonthlyService）用同一个表达式，两处数才对得上。
   INCURRED_ON_SQL = 'COALESCE(erp_payables.incurred_on, erp_payables.created_at::date)'.freeze
 
+  # 表头漏斗能筛哪几列（列名 → SQL）。物料编码/品名/规格/数量/单价是采购明细行，
+  # 一条台账挂多行，不按列筛。采购单号没有独立列（和供应商并在一格），走搜索框。
+  # ⚠️ 前端 LEDGER_COLUMN_DEFS 里标了 filter 的列必须和这张表对齐，否则漏斗点了没反应。
+  LEDGER_COLUMN_SQL = {
+    'no' => 'erp_payables.payable_no',
+    'supplier' => 'mes_suppliers.name',
+    'settle' => 'erp_payables.settle_type',
+    'status' => 'erp_payables.status'
+  }.freeze
+
   def filtered_scope
     scope = Current.account.erp_payables
     FILTER_COLUMNS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
     scope = scope.open if params[:open] == 'true'
-    scope = date_scope(scope)
-    keyword_scope(scope)
+    scope = keyword_scope(date_scope(scope))
+    return scope if params[:cf].blank?
+
+    apply_column_filters(scope.left_joins(:mes_supplier, :mes_purchase_order), LEDGER_COLUMN_SQL)
   end
 
   # 按发生日期筛，起止都可单边留空（只填起＝该日之后全部）。
@@ -123,7 +135,10 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     return scope if params[:q].blank?
 
     term = "%#{params[:q].strip}%"
-    scope.joins(:mes_supplier).where('erp_payables.payable_no ILIKE :t OR mes_suppliers.name ILIKE :t', t: term)
+    # 采购单号也能搜：供应商交货、仓库入库、财务对账都认那个号，查应付时手上拿的就是它。
+    scope.joins(:mes_supplier).left_joins(:mes_purchase_order)
+         .where('erp_payables.payable_no ILIKE :t OR mes_suppliers.name ILIKE :t ' \
+                'OR mes_purchase_orders.po_no ILIKE :t', t: term)
   end
 
   def fetch_payable

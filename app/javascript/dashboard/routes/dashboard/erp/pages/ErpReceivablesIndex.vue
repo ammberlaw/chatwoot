@@ -28,6 +28,7 @@ import { productLineLabel } from 'dashboard/composables/useMesProductLine';
 import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import ColumnPicker from 'dashboard/components-next/ColumnPicker.vue';
+import TableHeaderFilter from 'dashboard/components-next/tablefilter/TableHeaderFilter.vue';
 // 应收：台账（从销售订单建账 + 分期计划）与收款记录（水单 + 核销）两页签。
 // 台账的「已收」只由核销维护，页面不提供直接改的入口——改了账就不准了。
 const { erpCan } = useErpRole();
@@ -177,20 +178,23 @@ const ledgerRows = computed(() =>
 // 财务各人核的东西不一样，35 列全摆着谁都嫌长。
 const LEDGER_COLUMN_DEFS = [
   { key: 'no', label: '台账单号', rowspan: true },
+  // filter: 'text' | 'enum' —— 列头出漏斗（对标金蝶）。标了哪几列必须和控制器的
+  // LEDGER_COLUMN_SQL 对齐：那张表外的列筛不动。商品编码/品名/规格/数量/单价摊在
+  // 订单 line_items 这个 JSON 里，单据日期/编号/仓库来自出库单子查询，都没法按列筛。
   { key: 'docDate', label: '单据日期', rowspan: true },
   { key: 'docNo', label: '单据编号', rowspan: true },
-  { key: 'insuranceNo', label: '信保订单号', rowspan: true },
-  { key: 'orderNo', label: '订单单号', rowspan: true },
-  { key: 'piNo', label: 'PI 号', rowspan: true },
-  { key: 'customerCode', label: '客户编码', rowspan: true },
-  { key: 'customer', label: '客户', rowspan: true },
-  { key: 'owner', label: '业务员', rowspan: true },
+  { key: 'insuranceNo', label: '信保订单号', rowspan: true, filter: 'text' },
+  { key: 'orderNo', label: '订单单号', rowspan: true, filter: 'text' },
+  { key: 'piNo', label: 'PI 号', rowspan: true, filter: 'text' },
+  { key: 'customerCode', label: '客户编码', rowspan: true, filter: 'text' },
+  { key: 'customer', label: '客户', rowspan: true, filter: 'text' },
+  { key: 'owner', label: '业务员', rowspan: true, filter: 'text' },
   { key: 'department', label: '部门', rowspan: true },
   { key: 'warehouse', label: '仓库', rowspan: true },
   { key: 'sku', label: '商品编码' },
   { key: 'name', label: '商品名称' },
   { key: 'spec', label: '规格型号' },
-  { key: 'currency', label: '币别', rowspan: true },
+  { key: 'currency', label: '币别', rowspan: true, filter: 'text' },
   { key: 'rate', label: '汇率', rowspan: true, right: true },
   { key: 'freight', label: '客户承担运费', rowspan: true, right: true },
   { key: 'unit', label: '单位' },
@@ -204,13 +208,25 @@ const LEDGER_COLUMN_DEFS = [
   { key: 'productLine', label: '事业部' },
   { key: 'unitCost', label: '单位成本', right: true },
   { key: 'orderDate', label: '下单 / 交期', rowspan: true },
-  { key: 'orderStatus', label: '订单状态', rowspan: true },
+  {
+    key: 'orderStatus',
+    label: '订单状态',
+    rowspan: true,
+    filter: 'enum',
+    filterOptions: 'orderStatus',
+  },
   { key: 'voucher', label: '收入凭证', rowspan: true },
   { key: 'total', label: '应收', rowspan: true, right: true },
   { key: 'received', label: '已收', rowspan: true, right: true },
   { key: 'outstanding', label: '未收', rowspan: true, right: true },
   { key: 'installments', label: '分期计划', rowspan: true },
-  { key: 'status', label: '状态', rowspan: true },
+  {
+    key: 'status',
+    label: '状态',
+    rowspan: true,
+    filter: 'enum',
+    filterOptions: 'status',
+  },
 ];
 const {
   orderedColumns: ledgerCols,
@@ -226,6 +242,21 @@ const {
 const hiddenLedgerCols = computed(
   () => LEDGER_COLUMN_DEFS.length - ledgerVisibleCols.value.length
 );
+// 表头漏斗筛选（对标金蝶）：{ 列名: { op, value } }。服务端按列筛，不是只筛当前这一页——
+// 列表是分页的，筛 50 行说「没有」，翻到第二页它又在。
+const colFilters = ref({});
+// axios 默认序列化器把嵌套对象拍成 "[object Object]"，所以自己展开成
+// cf[列][op] / cf[列][value]——Rails 按方括号解回嵌套 params。
+const colFilterParams = () => {
+  const out = {};
+  Object.entries(colFilters.value).forEach(([key, f]) => {
+    if (!f?.op) return;
+    out[`cf[${key}][op]`] = f.op;
+    out[`cf[${key}][value]`] = f.value ?? '';
+  });
+  return out;
+};
+
 const ledgerMeta = ref({});
 const receipts = ref([]);
 const receiptMeta = ref({});
@@ -246,6 +277,7 @@ const loadLedgers = async () => {
       to: toDate.value,
       page: ledgerPage.value,
       per_page: PER_PAGE,
+      ...colFilterParams(),
     });
     ledgers.value = data.payload;
     ledgerMeta.value = data.meta;
@@ -275,6 +307,26 @@ watch([keyword, statusFilter, fromDate, toDate], () => {
   pendingPage.value = 1;
 });
 watch(ledgerPage, loadLedgers);
+
+const FILTER_OPTION_SETS = {
+  status: STATUS_OPTIONS.filter(o => o.value),
+  orderStatus: Object.entries(SO_STATUS_LABELS).map(([value, label]) => ({
+    value,
+    label,
+  })),
+};
+const onColFilterChange = () => {
+  ledgerPage.value = 1;
+  loadLedgers();
+};
+const activeColFilterCount = computed(
+  () => Object.values(colFilters.value).filter(f => f?.op).length
+);
+const clearColFilters = () => {
+  colFilters.value = {};
+  onColFilterChange();
+};
+
 watch(receiptPage, loadReceipts);
 
 /* ---------------- 销售订单详情：出了什么货、单价、挂了哪些 MES 单据 ---------------- */
@@ -298,21 +350,39 @@ const beforeFiscalCount = ref(0);
 // silent：进页面时只为点亮角标而拉，不能抢台账表格的 loading 态（两个请求会互相踩）。
 // 分页与台账同样 50 条/页：原先后端 limit(200)、前端不翻页，超出的单在界面上消失，
 // 而角标走的是全量 count，于是「角标 318、列表 200」对不上。
+// 待建账的筛选：关键字（订单号 / PI 号 / 客户名）、业务员、订单状态。
+// 498 张单摆在一页上，财务要找某一张只能靠浏览器查找。
+const pendingOwner = ref('');
+const pendingStatus = ref('');
+const pendingOwners = ref([]);
+// 筛完的条数（翻页器按它画）；角标仍走全量——角标是「还欠多少张没建」，不该随筛选变。
+const pendingFilteredCount = ref(0);
+
 const loadPendingOrders = async ({ silent = false } = {}) => {
   if (!silent) loading.value = true;
   try {
     const { data } = await ErpReceivableAPI.pendingOrders({
+      q: keyword.value.trim(),
+      owner_id: pendingOwner.value,
+      status: pendingStatus.value,
       page: pendingPage.value,
       per_page: PER_PAGE,
     });
     pendingOrders.value = data.payload;
     pendingCount.value = data.meta?.pending_count || 0;
+    pendingFilteredCount.value =
+      data.meta?.filtered_count ?? data.payload.length;
+    pendingOwners.value = data.meta?.owners || [];
     fiscalStartDate.value = data.meta?.fiscal_start_date || '';
     beforeFiscalCount.value = data.meta?.before_fiscal_count || 0;
     selectedOrderIds.value = [];
   } finally {
     if (!silent) loading.value = false;
   }
+};
+const onPendingFilterChange = () => {
+  pendingPage.value = 1;
+  loadPendingOrders();
 };
 watch(pendingPage, () => loadPendingOrders());
 
@@ -358,8 +428,10 @@ const bulkBuild = async () => {
 
 const agingRef = ref(null);
 // 账龄分析有自己的查询条（口径 + 截至日），待建账是订单清单，两者都隐掉顶部关键字搜索。
+// 这几个页签都是「一行一张单」的清单，共用顶部的搜索框和「查询」。
+// 账龄是汇总报表，没有单号可搜，不在其中。
 const isDocTab = computed(() =>
-  ['ledger', 'receipts'].includes(activeTab.value)
+  ['ledger', 'pending', 'receipts'].includes(activeTab.value)
 );
 const reload = () => {
   if (activeTab.value === 'ledger') return loadLedgers();
@@ -690,14 +762,108 @@ const LEDGER_COLUMNS = [
   { label: '状态', key: 'status_label' },
 ];
 
+// 收款记录（对齐应付侧的付款记录——那边早就有导出，这边一直没有）。
+const exportReceipts = async () => {
+  exporting.value = true;
+  try {
+    const rows = await fetchAllRows(params => ErpReceiptAPI.get(params), {
+      q: keyword.value.trim(),
+    });
+    exportRowsToExcel(
+      {
+        title: '收款记录',
+        meta: [
+          { label: '导出时间', value: stamp() },
+          { label: '关键字', value: keyword.value.trim() || '（无）' },
+          { label: '收款笔数', value: rows.length },
+        ],
+        columns: [
+          { label: '收款单号', key: 'receipt_no' },
+          { label: '客户', key: 'customer_name' },
+          { label: '收款日', key: 'received_at' },
+          { label: '币种', key: 'currency' },
+          { label: '收款金额', key: 'amount_micros', money: true },
+          { label: '银行手续费', key: 'bank_charge_micros', money: true },
+          { label: '未核销', key: 'unallocated_micros', money: true },
+          { label: '收款方式', key: 'method_label' },
+          { label: '水单号', key: 'reference_no' },
+          { label: '状态', key: 'status_label' },
+          { label: '登记人', key: 'recorded_by_name' },
+        ],
+        rows: rows.map(row => ({
+          ...row,
+          received_at: (row.received_at || '').slice(0, 10),
+        })),
+      },
+      `收款记录_${stamp().slice(0, 10)}`
+    );
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
+// 待建账：财务要拿这份去核「哪些单该建、金额对不对」，一页 50 条看不完。
+const exportPending = async () => {
+  exporting.value = true;
+  try {
+    const raw = await fetchAllRows(
+      params => ErpReceivableAPI.pendingOrders(params),
+      {
+        q: keyword.value.trim(),
+        owner_id: pendingOwner.value,
+        status: pendingStatus.value,
+      }
+    );
+    exportRowsToExcel(
+      {
+        title: '待建账销售订单',
+        meta: [
+          { label: '导出时间', value: stamp() },
+          { label: '关键字', value: keyword.value.trim() || '（无）' },
+          { label: '订单数', value: raw.length },
+        ],
+        columns: [
+          { label: '订单号', key: 'order_no' },
+          { label: 'PI 号', key: 'pi_no' },
+          { label: '客户', key: 'customer_name' },
+          { label: '国家', key: 'customer_country' },
+          { label: '型号', key: 'product_summary' },
+          { label: '业务员', key: 'owner_name' },
+          { label: '下单日期', key: 'order_date' },
+          { label: '币种', key: 'currency' },
+          { label: '订单金额', key: 'amount', num: true },
+          { label: '建账金额', key: 'receivable_amount', num: true },
+          { label: '状态', key: 'status_label' },
+        ],
+        rows: raw.map(o => ({
+          ...o,
+          order_date: String(o.order_date || '').slice(0, 10),
+          amount: (o.amount_micros || 0) / 1e6,
+          receivable_amount: (o.receivable_amount_micros || 0) / 1e6,
+          status_label: SO_STATUS_LABELS[o.status] || o.status,
+        })),
+      },
+      `待建账销售订单_${stamp().slice(0, 10)}`
+    );
+  } catch (error) {
+    useAlert('导出失败，请重试');
+  } finally {
+    exporting.value = false;
+  }
+};
+
 const exportLedger = async () => {
   exporting.value = true;
   try {
+    // 导出跟着屏幕上看到的走：漏斗筛掉的行不该又出现在 Excel 里。
     const raw = await fetchAllRows(params => ErpReceivableAPI.get(params), {
       q: keyword.value.trim(),
       status: statusFilter.value,
       from: fromDate.value,
       to: toDate.value,
+      ...colFilterParams(),
     });
     const rows = ledgerExportRows(raw);
     exportRowsToExcel(
@@ -723,6 +889,13 @@ const exportLedger = async () => {
   } finally {
     exporting.value = false;
   }
+};
+
+// 账龄分析那张表的导出在 ErpAgingTable 组件里自带，不进这张表。
+const EXPORTERS = {
+  ledger: () => exportLedger(),
+  pending: () => exportPending(),
+  receipts: () => exportReceipts(),
 };
 
 onMounted(() => {
@@ -762,7 +935,11 @@ onMounted(() => {
           v-if="isDocTab"
           v-model="keyword"
           size="sm"
-          placeholder="搜单号 / 客户"
+          :placeholder="
+            activeTab === 'pending'
+              ? '搜订单号 / PI 号 / 客户'
+              : '搜单号 / 客户'
+          "
           custom-input-class="w-44"
           @keyup.enter="reload"
         />
@@ -785,13 +962,22 @@ onMounted(() => {
         />
         <!-- 导出是只读动作，不挂写权限 -->
         <Button
-          v-if="activeTab === 'ledger'"
+          v-if="EXPORTERS[activeTab]"
           label="导出 Excel"
           color="slate"
           variant="faded"
           size="sm"
           :is-loading="exporting"
-          @click="exportLedger"
+          @click="EXPORTERS[activeTab]()"
+        />
+        <!-- 漏斗筛了几列就显示几，点一下全清——逐列点回「重置」太费事 -->
+        <Button
+          v-if="activeColFilterCount"
+          :label="`清除筛选 (${activeColFilterCount})`"
+          variant="ghost"
+          color="ruby"
+          size="sm"
+          @click="clearColFilters"
         />
         <Button
           v-if="isDocTab"
@@ -880,6 +1066,35 @@ onMounted(() => {
           @change="loadLedgers"
         />
       </template>
+      <template v-else-if="activeTab === 'pending'">
+        <SelectCard
+          v-model="pendingOwner"
+          :options="[
+            { value: '', label: '全部业务员' },
+            ...pendingOwners.map(o => ({ value: String(o.id), label: o.name })),
+          ]"
+          trigger-class="[.theme-classic_&]:!h-[38px]"
+          @update:model-value="onPendingFilterChange"
+        />
+        <SelectCard
+          v-model="pendingStatus"
+          :options="[
+            { value: '', label: '全部订单状态' },
+            ...Object.entries(SO_STATUS_LABELS).map(([value, label]) => ({
+              value,
+              label,
+            })),
+          ]"
+          trigger-class="[.theme-classic_&]:!h-[38px]"
+          @update:model-value="onPendingFilterChange"
+        />
+        <span
+          v-if="pendingFilteredCount !== pendingCount"
+          class="text-sm text-n-slate-11"
+        >
+          筛出 {{ pendingFilteredCount }} / {{ pendingCount }} 张
+        </span>
+      </template>
     </div>
 
     <HScrollButtons />
@@ -914,7 +1129,19 @@ onMounted(() => {
               @dragover.prevent
               @drop="onLedgerColDrop(col.key)"
             >
-              {{ col.label }}
+              <span
+                class="inline-flex items-center gap-1"
+                :class="col.right ? 'flex-row-reverse' : ''"
+              >
+                {{ col.label }}
+                <TableHeaderFilter
+                  v-if="col.filter"
+                  v-model="colFilters[col.key]"
+                  :kind="col.filter"
+                  :options="FILTER_OPTION_SETS[col.filterOptions] || []"
+                  @change="onColFilterChange"
+                />
+              </span>
             </th>
           </tr>
         </thead>
@@ -1370,9 +1597,9 @@ onMounted(() => {
         @update:current-page="ledgerPage = $event"
       />
       <PaginationFooter
-        v-if="activeTab === 'pending' && pendingCount > PER_PAGE"
+        v-if="activeTab === 'pending' && pendingFilteredCount > PER_PAGE"
         :current-page="pendingPage"
-        :total-items="pendingCount"
+        :total-items="pendingFilteredCount"
         :items-per-page="PER_PAGE"
         class="!bg-transparent before:!hidden"
         @update:current-page="pendingPage = $event"

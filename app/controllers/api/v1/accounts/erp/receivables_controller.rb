@@ -187,11 +187,33 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
 
   LEDGER_FILTERS = { status: :status, crm_customer_id: :crm_customer_id }.freeze
 
+  # 表头漏斗能筛哪几列（列名 → SQL）。只列能落到真实字段上的：
+  # 商品编码/品名/规格/数量/单价那些摊在订单 line_items 这个 JSON 里，没法按列筛；
+  # 单据日期/编号/仓库来自出库单（子查询拼的），也不在这儿。
+  # ⚠️ 前端 LEDGER_COLUMN_DEFS 里标了 filter 的列必须和这张表对齐，否则漏斗点了没反应。
+  LEDGER_COLUMN_SQL = {
+    'orderNo' => 'crm_sales_orders.order_no',
+    'piNo' => 'crm_sales_orders.pi_no',
+    'insuranceNo' => 'crm_sales_orders.insurance_order_no',
+    'customerCode' => 'crm_customers.customer_code',
+    'customer' => 'crm_customers.name',
+    'owner' => "COALESCE(NULLIF(users.crm_name, ''), users.name)",
+    'currency' => 'erp_receivables.currency',
+    'status' => 'erp_receivables.status',
+    'orderStatus' => 'crm_sales_orders.status'
+  }.freeze
+
   def filtered_scope
     scope = Current.account.erp_receivables
     LEDGER_FILTERS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
     scope = scope.open if params[:open] == 'true'
-    keyword_scope(doc_date_scope(scope))
+    scope = keyword_scope(doc_date_scope(scope))
+    return scope if params[:cf].blank?
+
+    # 漏斗筛的列散在三张关联表上，有筛才 join——不筛时别白白拖三张表。
+    apply_column_filters(
+      scope.left_joins(:crm_customer, :owner).left_joins(:crm_sales_order), LEDGER_COLUMN_SQL
+    )
   end
 
   def keyword_scope(scope)

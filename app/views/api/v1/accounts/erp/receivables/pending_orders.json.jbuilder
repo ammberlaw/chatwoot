@@ -1,7 +1,14 @@
 json.meta do
   json.pending_count @pending_count
+  json.filtered_count @filtered_count
+  # 导出要全量翻页，erpExcel 的 fetchAllRows 认的是 meta.count（各列表接口统一口径）。
+  json.count @filtered_count
   json.fiscal_start_date @fiscal_start_date
   json.before_fiscal_count @before_fiscal_count
+  json.owners @pending_owners do |user|
+    json.id user.id
+    json.name user.crm_name.presence || user.name
+  end
 end
 
 json.payload do

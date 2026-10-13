@@ -28,6 +28,7 @@ import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import ColumnPicker from 'dashboard/components-next/ColumnPicker.vue';
+import TableHeaderFilter from 'dashboard/components-next/tablefilter/TableHeaderFilter.vue';
 // 应付：台账（按采购单建账，按明细行供应商分组）/ 付款记录（核销）/ 供应商对账 三页签。
 // 与应收同构；台账「已付」只由核销维护。
 const { erpCan } = useErpRole();
@@ -130,9 +131,17 @@ const qty = value =>
 // 其余是「明细级」（一行料一行）。列序可拖、用不到的列可收起，按人记在本机——
 // 同应收台账与 MES 那几张表一套交互。
 const LEDGER_COLUMN_DEFS = [
-  { key: 'no', label: '台账单号', rowspan: true },
-  { key: 'supplier', label: '供应商 / 采购单', rowspan: true },
-  { key: 'settle', label: '结算', rowspan: true },
+  // filter: 'text' | 'enum' —— 列头出漏斗（对标金蝶）。标了哪几列必须和控制器的
+  // LEDGER_COLUMN_SQL 对齐。物料编码/品名/规格/数量/单价是明细行，一条台账挂多行，不按列筛。
+  { key: 'no', label: '台账单号', rowspan: true, filter: 'text' },
+  { key: 'supplier', label: '供应商 / 采购单', rowspan: true, filter: 'text' },
+  {
+    key: 'settle',
+    label: '结算',
+    rowspan: true,
+    filter: 'enum',
+    filterOptions: 'settle',
+  },
   // 发生日期＝货到那天。已经能按它筛了，但表上一直没有这一列，
   // 筛完对不上「我筛的到底是哪个日期」。
   { key: 'incurredOn', label: '发生日期', rowspan: true },
@@ -146,7 +155,13 @@ const LEDGER_COLUMN_DEFS = [
   { key: 'paid', label: '已付', rowspan: true, right: true },
   { key: 'outstanding', label: '未付', rowspan: true, right: true },
   { key: 'dueDate', label: '到期日', rowspan: true },
-  { key: 'status', label: '状态', rowspan: true },
+  {
+    key: 'status',
+    label: '状态',
+    rowspan: true,
+    filter: 'enum',
+    filterOptions: 'status',
+  },
 ];
 const {
   orderedColumns: ledgerCols,
@@ -170,6 +185,20 @@ const statementRows = ref([]);
 // 分页：meta.count 是全量数，超过一页给翻页入口——静默截断=「数据消失」。
 const PER_PAGE = 50;
 const ledgerPage = ref(1);
+// 表头漏斗筛选（对标金蝶）：{ 列名: { op, value } }。服务端按列筛，不是只筛当前这一页——
+// 列表是分页的，筛 50 行说「没有」，翻到第二页它又在。
+const colFilters = ref({});
+// axios 默认序列化器把嵌套对象拍成 "[object Object]"，所以自己展开成
+// cf[列][op] / cf[列][value]——Rails 按方括号解回嵌套 params。
+const colFilterParams = () => {
+  const out = {};
+  Object.entries(colFilters.value).forEach(([key, f]) => {
+    if (!f?.op) return;
+    out[`cf[${key}][op]`] = f.op;
+    out[`cf[${key}][value]`] = f.value ?? '';
+  });
+  return out;
+};
 const paymentPage = ref(1);
 
 const loadLedgers = async () => {
@@ -183,6 +212,7 @@ const loadLedgers = async () => {
       to: toDate.value,
       page: ledgerPage.value,
       per_page: PER_PAGE,
+      ...colFilterParams(),
     });
     ledgers.value = data.payload;
     ledgerMeta.value = data.meta;
@@ -211,6 +241,22 @@ watch([keyword, statusFilter, settleFilter, fromDate, toDate], () => {
   paymentPage.value = 1;
 });
 watch(ledgerPage, loadLedgers);
+
+const FILTER_OPTION_SETS = {
+  status: STATUS_OPTIONS.filter(o => o.value),
+  settle: SETTLE_OPTIONS.filter(o => o.value),
+};
+const onColFilterChange = () => {
+  ledgerPage.value = 1;
+  loadLedgers();
+};
+const activeColFilterCount = computed(
+  () => Object.values(colFilters.value).filter(f => f?.op).length
+);
+const clearColFilters = () => {
+  colFilters.value = {};
+  onColFilterChange();
+};
 watch(paymentPage, loadPayments);
 
 const loadStatement = async () => {
@@ -450,12 +496,14 @@ const ledgerExportRows = rows =>
   });
 
 const exportLedger = async () => {
+  // 导出跟着屏幕上看到的走：漏斗筛掉的行不该又出现在 Excel 里。
   const raw = await fetchAllRows(params => ErpPayableAPI.get(params), {
     q: keyword.value.trim(),
     status: statusFilter.value,
     settle_type: settleFilter.value,
     from: fromDate.value,
     to: toDate.value,
+    ...colFilterParams(),
   });
   const rows = ledgerExportRows(raw);
   exportRowsToExcel(
@@ -618,9 +666,18 @@ onMounted(loadLedgers);
           v-if="isDocTab"
           v-model="keyword"
           size="sm"
-          placeholder="搜单号 / 供应商"
+          placeholder="搜单号 / 供应商 / 采购单号"
           custom-input-class="w-44"
           @keyup.enter="reload"
+        />
+        <!-- 漏斗筛了几列就显示几，点一下全清——逐列点回「重置」太费事 -->
+        <Button
+          v-if="activeColFilterCount"
+          :label="`清除筛选 (${activeColFilterCount})`"
+          variant="ghost"
+          color="ruby"
+          size="sm"
+          @click="clearColFilters"
         />
         <Button
           v-if="isDocTab"
@@ -751,7 +808,19 @@ onMounted(loadLedgers);
               @dragover.prevent
               @drop="onLedgerColDrop(col.key)"
             >
-              {{ col.label }}
+              <span
+                class="inline-flex items-center gap-1"
+                :class="col.right ? 'flex-row-reverse' : ''"
+              >
+                {{ col.label }}
+                <TableHeaderFilter
+                  v-if="col.filter"
+                  v-model="colFilters[col.key]"
+                  :kind="col.filter"
+                  :options="FILTER_OPTION_SETS[col.filterOptions] || []"
+                  @change="onColFilterChange"
+                />
+              </span>
             </th>
           </tr>
         </thead>
