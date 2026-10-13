@@ -144,12 +144,13 @@ class Erp::LedgerBuilderService
     )
   end
 
-  # 发生日期＝货到那天，取这张采购单最后一次入库的实际入库日。
-  # 分批到货就跟着往后走，财务按它分月；单据还没入库过就留空。
+  # 发生日期＝货到那天，取这张采购单最后一次入库。分批到货就跟着往后走，财务按它分月。
+  # 原料采购入库单上没有「实际入库日」这一栏（只有成品入库才录），所以回落到过账时间——
+  # 仓管点过账就是确认货到那一刻，不用谁多录一个日期。单据还没过账过就留空。
   def inbound_date_for(purchase_order)
-    @account.mes_stock_entries
+    @account.mes_stock_entries.posted
             .where(purchase_order_id: purchase_order.id)
-            .maximum(:actual_inbound_date)&.to_date
+            .maximum(Arel.sql('COALESCE(actual_inbound_date, posted_at)'))&.to_date
   end
 
   # 含税 / 未税：这一单指定了就按单走，没指定就取该供应商档案上的默认值。
