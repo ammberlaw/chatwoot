@@ -50,7 +50,7 @@ const viewFields = computed(() => {
   const e = viewing.value || {};
   return [
     { label: '单号', value: e.entryNo },
-    { label: '生产订单', value: e.productionOrderNo },
+    { label: '销售订单', value: e.productionOrderNo },
     { label: '型号', value: e.productName },
     { label: '归属人', value: e.productionOrderOwnerName },
     { label: '领料仓', value: whName(e.fromWarehouseId) },
@@ -121,7 +121,7 @@ const eligibleOrders = computed(() =>
   )
 );
 const productionOrderOptions = computed(() => [
-  { value: '', label: '选择生产订单…' },
+  { value: '', label: '选择销售订单…' },
   ...eligibleOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
@@ -184,7 +184,7 @@ const removeRow = i => form.rows.splice(i, 1);
 // 按选中生产订单的 BOM 推料 + 带出每行「物料编码 / 实时库存 / 已领 / 待领」。
 const pushFromBom = async () => {
   if (!form.productionOrderId) {
-    useAlert('请先选生产订单');
+    useAlert('请先选销售订单');
     return;
   }
   try {
@@ -194,7 +194,7 @@ const pushFromBom = async () => {
     );
     const reqs = data?.payload || [];
     if (!reqs.length) {
-      useAlert('该生产订单未挂生产任务单或无用料');
+      useAlert('该销售订单未挂生产任务单或无用料');
       return;
     }
     // 已匹配产品的行并入显示标签(料名·料号)，让选择器显示已带出的产品；未匹配的留空待人工搜选。
@@ -399,7 +399,7 @@ onMounted(async () => {
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th class="px-3 py-3 font-medium whitespace-nowrap">单号</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">销售订单</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">型号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
@@ -502,7 +502,7 @@ onMounted(async () => {
             <ComboBox
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
-              placeholder="选择生产订单…"
+              placeholder="选择销售订单…"
               search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
               empty-state="没有可领料的生产订单"
               @update:model-value="v => (form.productionOrderId = v)"

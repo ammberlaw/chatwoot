@@ -199,7 +199,7 @@ const purchaseNote = p => {
   return `已下 ${ov.po_count} 张采购单${short}`;
 };
 const productionOrderOptions = computed(() => [
-  { value: '', label: '不关联生产订单' },
+  { value: '', label: '不关联销售订单' },
   ...selectableOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
@@ -279,7 +279,7 @@ const fillInternalRemark = () => {
     Boolean
   );
   if (!ids.length) {
-    useAlert('先关联生产订单');
+    useAlert('先关联销售订单');
     return;
   }
   const lines = ids.map(orderLabel).join('\n');
@@ -373,7 +373,7 @@ const removeRow = i => {
 // category='' 全部 / 'MACHINE' 只主料(整机料) / 'PACKAGING' 只辅料(包装料)——两个采购员分料建单。
 const explode = async (category = '') => {
   if (!form.productionOrderId) {
-    useAlert('请先选生产订单');
+    useAlert('请先选销售订单');
     return;
   }
   try {
@@ -386,7 +386,7 @@ const explode = async (category = '') => {
       useAlert(
         category
           ? '该类别（整机物料/包装物料）无用料'
-          : '该生产订单未挂生产任务单或无用料'
+          : '该销售订单未挂生产任务单或无用料'
       );
       return;
     }
@@ -807,7 +807,7 @@ onBeforeRouteLeave((to, from, next) => {
             <ComboBox
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
-              placeholder="不关联生产订单"
+              placeholder="不关联销售订单"
               search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
               empty-state="没有匹配的生产订单"
               @update:model-value="v => (form.productionOrderId = v)"

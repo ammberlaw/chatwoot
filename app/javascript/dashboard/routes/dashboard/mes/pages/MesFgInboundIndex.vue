@@ -46,7 +46,7 @@ const viewFields = computed(() => {
   const e = viewing.value || {};
   return [
     { label: '单号', value: e.entryNo },
-    { label: '生产订单', value: e.productionOrderNo },
+    { label: '销售订单', value: e.productionOrderNo },
     { label: '归属人', value: e.productionOrderOwnerName },
     { label: '成品仓', value: whName(e.toWarehouseId) },
     { label: '颜色', value: e.color },
@@ -98,7 +98,7 @@ const remainingOf = p =>
 // 原来只按阶段过滤，一张早已入满的订单会一直摆在下拉里、选中还自动把数量填成全量——
 // 等于引着车间建重复单，而重复单要到几天后仓管点确认时才会报错（生产上积了 6 张）。
 const productionOrderOptions = computed(() => [
-  { value: '', label: '选择生产订单…' },
+  { value: '', label: '选择销售订单…' },
   ...eligibleOrders.value.map(p => {
     const left = remainingOf(p);
     return {
@@ -334,7 +334,7 @@ onMounted(() => {
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th class="px-3 py-3 font-medium whitespace-nowrap">单号</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">销售订单</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">颜色</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">仓库清点</th>
@@ -449,7 +449,7 @@ onMounted(() => {
           <ComboBox
             :model-value="form.productionOrderId"
             :options="productionOrderOptions"
-            placeholder="选择生产订单…"
+            placeholder="选择销售订单…"
             search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
             empty-state="没有可入库的生产订单"
             @update:model-value="onPickOrder"

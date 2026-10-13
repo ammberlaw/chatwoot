@@ -230,7 +230,7 @@ const onProductPicked = (line, p) => {
 // BOM 算料：按关联生产订单展开需求，覆盖当前明细行（need 与 suggest 初值相同）。
 const explode = async (category = '') => {
   if (!form.productionOrderId) {
-    useAlert('请先选生产订单');
+    useAlert('请先选销售订单');
     return;
   }
   try {
@@ -245,7 +245,7 @@ const explode = async (category = '') => {
     );
     const reqs = data?.payload || [];
     if (!reqs.length) {
-      useAlert(category ? '该类别无用料' : '该生产订单未挂生产任务单或无用料');
+      useAlert(category ? '该类别无用料' : '该销售订单未挂生产任务单或无用料');
       return;
     }
     // BOM 算料出的物料并入下拉数据源，编码下拉才显示得出已选项。
@@ -482,7 +482,7 @@ const viewHeaderFields = computed(() => {
     { label: '申请单号', value: v.reqNo },
     { label: '用途', value: PURPOSE_LABELS[v.purpose] || v.purpose },
     { label: '状态', value: STATUS_LABELS[v.status] || v.status },
-    { label: '生产订单', value: v.productionOrderNo || '—' },
+    { label: '销售订单', value: v.productionOrderNo || '—' },
     { label: '产品', value: v.productName || '—' },
     { label: '制单人', value: v.ownerName || '—' },
     { label: '期望到料', value: v.expectedDate || '—' },
@@ -563,7 +563,7 @@ const exportList = async () => {
           { label: '申请单号', key: 'req_no' },
           { label: '状态', key: 'status_label' },
           { label: '用途', key: 'purpose' },
-          { label: '关联生产订单', key: 'production_order_no' },
+          { label: '关联销售订单', key: 'production_order_no' },
           { label: '成品', key: 'product_name' },
           { label: '申请人', key: 'owner_name' },
           { label: '期望到货', key: 'expected_date' },
@@ -788,7 +788,7 @@ const exportList = async () => {
             <ComboBox
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
-              placeholder="选择生产订单…"
+              placeholder="选择销售订单…"
               search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
               empty-state="没有匹配的生产订单"
               @update:model-value="v => (form.productionOrderId = v)"

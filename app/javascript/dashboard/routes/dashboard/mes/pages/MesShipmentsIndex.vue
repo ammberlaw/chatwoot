@@ -144,7 +144,7 @@ const viewFields = computed(() => {
     { label: '类型', value: KIND_LABELS[s.kind] || s.kind },
     { label: '销售订单', value: s.salesOrderNo },
     { label: '客户', value: s.customerName },
-    { label: '生产订单', value: s.productionOrderNo },
+    { label: '销售订单', value: s.productionOrderNo },
     { label: '归属人', value: s.productionOrderOwnerName || s.ownerName },
     { label: '状态', value: STATUS_LABELS[s.status] || s.status },
     { label: '审核人', value: s.managerName },
@@ -188,7 +188,7 @@ const VIEW_ITEM_COLS = [
 const productionOrders = ref([]);
 const salesOrders = ref([]);
 const productionOrderOptions = computed(() => [
-  { value: '', label: '选择生产订单…' },
+  { value: '', label: '选择销售订单…' },
   // 标签里带上销售订单号：仓管找的是「这张销售订单的货」，只给 MO 号等于让人对不上。
   ...productionOrders.value.map(p => ({
     value: String(p.id),
@@ -838,11 +838,11 @@ onMounted(() => {
     >
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1">
-          <label class="text-heading-3 text-n-slate-12">生产订单</label>
+          <label class="text-heading-3 text-n-slate-12">销售订单</label>
           <ComboBox
             :model-value="form.productionOrderId"
             :options="productionOrderOptions"
-            placeholder="选择生产订单…"
+            placeholder="选择销售订单…"
             search-placeholder="搜 MO 号 / 销售订单 / 产品 / 客户"
             empty-state="没有匹配的生产订单"
             @update:model-value="onPickOrder"

@@ -40,7 +40,7 @@ const openView = r => {
 const viewFields = computed(() => {
   const r = viewing.value || {};
   return [
-    { label: '生产订单', value: r.productionOrderNo },
+    { label: '销售订单', value: r.productionOrderNo },
     { label: '归属人', value: r.productionOrderOwnerName },
     { label: '工序', value: r.operationName },
     { label: '完成数', value: r.qtyCompleted },
@@ -62,7 +62,7 @@ const eligibleOrders = computed(() =>
   )
 );
 const productionOrderOptions = computed(() => [
-  { value: '', label: '选择生产订单…' },
+  { value: '', label: '选择销售订单…' },
   ...eligibleOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
@@ -261,7 +261,7 @@ onMounted(() => {
         <table class="hidden w-full text-sm md:table">
           <thead>
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
-              <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">销售订单</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">归属人</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">工序</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">完成</th>
@@ -361,7 +361,7 @@ onMounted(() => {
           <ComboBox
             :model-value="form.productionOrderId"
             :options="productionOrderOptions"
-            placeholder="选择生产订单…"
+            placeholder="选择销售订单…"
             search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
             empty-state="没有可报工的生产订单"
             @update:model-value="v => (form.productionOrderId = v)"

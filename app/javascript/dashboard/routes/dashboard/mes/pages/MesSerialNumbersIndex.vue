@@ -63,7 +63,7 @@ const doTrace = async () => {
 // —— 登记 SN ——
 const productionOrders = ref([]);
 const productionOrderOptions = computed(() => [
-  { value: '', label: '选择生产订单…' },
+  { value: '', label: '选择销售订单…' },
   ...productionOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
@@ -162,7 +162,7 @@ onMounted(() => {
         <dl class="grid grid-cols-2 gap-y-2 text-sm">
           <dt class="text-n-slate-11">成品</dt>
           <dd class="text-n-slate-12">{{ trace.product_name || '—' }}</dd>
-          <dt class="text-n-slate-11">生产订单</dt>
+          <dt class="text-n-slate-11">销售订单</dt>
           <dd class="text-n-slate-12">
             {{ trace.production_order?.order_no || '—' }}
           </dd>
@@ -232,7 +232,7 @@ onMounted(() => {
             <tr class="text-left text-n-slate-11 border-b border-n-weak">
               <th class="px-3 py-3 font-medium whitespace-nowrap">序列号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">成品</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">生产订单</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">销售订单</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">登记时间</th>
             </tr>
@@ -293,7 +293,7 @@ onMounted(() => {
           <ComboBox
             :model-value="form.productionOrderId"
             :options="productionOrderOptions"
-            placeholder="选择生产订单…"
+            placeholder="选择销售订单…"
             search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
             empty-state="没有匹配的生产订单"
             @update:model-value="v => (form.productionOrderId = v)"

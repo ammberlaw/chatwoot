@@ -103,7 +103,7 @@ const viewFields = computed(() => {
     { label: '采购单', value: e.purchaseOrderNo },
     // 供应商与对内备注原本只在采购单上，核料时要另开一张单比着看（反馈点名要补）。
     { label: '供应商', value: (e.supplierNames || []).join('、') },
-    { label: '生产订单', value: e.productionOrderNo },
+    { label: '销售订单', value: e.productionOrderNo },
     { label: '归属人', value: e.productionOrderOwnerName },
     { label: '入库仓', value: whName(e.toWarehouseId) },
     { label: '状态', value: STATUS_LABELS[e.status] || e.status },

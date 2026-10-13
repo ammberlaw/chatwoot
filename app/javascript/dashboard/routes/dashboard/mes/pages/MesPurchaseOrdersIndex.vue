@@ -417,7 +417,7 @@ const viewFields = computed(() => {
   return [
     { label: '采购单号', value: p.poNo },
     { label: '供应商', value: (p.supplierNames || []).join('、') || '—' },
-    { label: '生产订单', value: p.productionOrderNo },
+    { label: '销售订单', value: p.productionOrderNo },
     { label: '归属人', value: p.productionOrderOwnerName },
     { label: '收货状态', value: STATUS_LABELS[p.status] || p.status },
     { label: '采购总额', value: yuan(p.totalAmountMicros) },
@@ -456,7 +456,7 @@ const ORDER_COLUMN_DEFS = [
     tdClass: 'px-3 py-3 font-medium text-n-slate-12',
   },
   { key: 'suppliers', label: '供应商', tdClass: 'px-3 py-3 text-n-slate-11' },
-  { key: 'order', label: '生产订单', tdClass: 'px-3 py-3 text-n-slate-11' },
+  { key: 'order', label: '销售订单', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'owner', label: '归属人', tdClass: 'px-3 py-3 text-n-slate-11' },
   {
     key: 'creator',
@@ -577,7 +577,7 @@ const ITEM_COLUMN_DEFS = [
     thClass: 'text-right',
     tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-12',
   },
-  { key: 'order', label: '生产订单', tdClass: 'px-3 py-2 text-n-slate-11' },
+  { key: 'order', label: '销售订单', tdClass: 'px-3 py-2 text-n-slate-11' },
   { key: 'arrival', label: '实际到料', tdClass: 'px-3 py-2 text-n-slate-11' },
   {
     key: 'itemRemark',
@@ -710,7 +710,7 @@ const exportList = async () => {
                   },
                 ]
               : []),
-            { label: '生产订单', key: 'production_order_no' },
+            { label: '销售订单', key: 'production_order_no' },
             { label: '实际到料', key: 'arrival_date' },
             { label: '备注', key: 'remark' },
             { label: '对内备注', key: 'internal_remark' },
@@ -742,7 +742,7 @@ const exportList = async () => {
           columns: [
             { label: '采购单号', key: 'po_no' },
             { label: '供应商', key: 'suppliers' },
-            { label: '生产订单', key: 'production_order_no' },
+            { label: '销售订单', key: 'production_order_no' },
             { label: '归属人', key: 'production_order_owner_name' },
             { label: '下单人', key: 'owner_name' },
             { label: '收货状态', key: 'status' },
@@ -992,7 +992,7 @@ useRouteQueryReentry(async query => {
       <input
         v-model="search"
         type="text"
-        placeholder="搜索单号 / 供应商 / 归属人 / 生产订单 / 物料编码"
+        placeholder="搜索单号 / 供应商 / 归属人 / 销售订单 / 物料编码"
         class="w-80 h-9 px-3 mb-0 text-sm rounded-lg reset-base outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 hover:outline-n-brand focus:outline-n-brand"
       />
       <SelectCard
@@ -1093,7 +1093,7 @@ useRouteQueryReentry(async query => {
               />
             </div>
             <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
-              <span>生产订单：{{ p.productionOrderNo || '—' }}</span>
+              <span>销售订单：{{ p.productionOrderNo || '—' }}</span>
               <span>归属人：{{ p.productionOrderOwnerName || '—' }}</span>
               <span>下单人：{{ p.ownerName || '—' }}</span>
             </div>

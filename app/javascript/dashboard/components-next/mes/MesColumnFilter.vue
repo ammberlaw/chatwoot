@@ -20,6 +20,7 @@ const emit = defineEmits(['update:modelValue', 'change']);
 
 const open = ref(false);
 const panel = ref(null);
+const inputEl = ref(null);
 const trigger = ref(null);
 const pos = ref({ top: 0, left: 0 });
 
@@ -56,6 +57,7 @@ const toggle = async () => {
   open.value = true;
   await nextTick();
   place();
+  inputEl.value?.focus();
   window.addEventListener('scroll', place, true);
   window.addEventListener('resize', place);
 };
@@ -75,6 +77,9 @@ const commit = value => {
 const apply = () =>
   commit(isDate.value ? { ...draftRange.value } : draft.value.trim());
 const reset = () => commit(isDate.value ? { from: '', to: '' } : '');
+
+// 点开别处关闭：文本列把当前输入落实（没有「确定」按钮了），枚举/日期列直接关。
+const dismiss = () => (props.type === 'text' ? apply() : close());
 
 // 日期快捷段：和金蝶那张筛选面板一一对应。
 const ymd = d => d.toLocaleDateString('sv');
@@ -147,13 +152,13 @@ const pickQuick = fn => {
       <div
         v-if="open"
         class="fixed inset-0 z-[9998]"
-        @click="close"
-        @contextmenu.prevent="close"
+        @click="dismiss"
+        @contextmenu.prevent="dismiss"
       />
       <div
         v-if="open"
         ref="panel"
-        class="fixed z-[9999] p-3 border rounded-lg shadow-lg bg-n-solid-1 border-n-weak"
+        class="fixed z-[9999] p-1.5 origin-top overflow-y-auto border shadow-xl max-h-72 rounded-2xl border-white/50 bg-n-solid-1/70 backdrop-blur-2xl backdrop-saturate-150 shadow-n-iris-9/15"
         :style="{
           top: `${pos.top}px`,
           left: `${pos.left}px`,
@@ -167,11 +172,11 @@ const pickQuick = fn => {
               v-for="opt in options"
               :key="String(opt.value)"
               type="button"
-              class="px-2 py-1.5 text-sm text-left rounded reset-base hover:bg-n-alpha-2"
+              class="flex items-center w-full gap-2 px-3 text-sm text-left transition-colors rounded-lg reset-base h-9"
               :class="
                 String(opt.value) === String(modelValue)
-                  ? 'text-n-iris-11'
-                  : 'text-n-slate-12'
+                  ? 'bg-n-iris-9 text-white font-medium shadow-sm shadow-n-iris-9/30'
+                  : 'text-n-slate-12 hover:bg-n-iris-3'
               "
               @click="commit(String(opt.value))"
             >
@@ -186,7 +191,7 @@ const pickQuick = fn => {
               v-for="[label, fn] in QUICK"
               :key="label"
               type="button"
-              class="px-2 py-1.5 text-sm text-left rounded reset-base text-n-slate-12 hover:bg-n-alpha-2"
+              class="flex items-center w-full px-3 text-sm text-left transition-colors rounded-lg reset-base h-9 text-n-slate-12 hover:bg-n-iris-3"
               @click="pickQuick(fn)"
             >
               {{ label }}
@@ -201,49 +206,36 @@ const pickQuick = fn => {
           </div>
         </template>
 
-        <!-- 文本列：输入框和两个按钮并排一行——只填一个词的浮层分成三行太高了 -->
+        <!-- 文本列：就一个搜索框。回车或点开别处即生效，清空再回车＝取消这一列的筛选。 -->
         <template v-else>
-          <div class="flex items-center gap-2">
+          <div class="p-1">
             <input
+              ref="inputEl"
               v-model="draft"
               type="text"
               :placeholder="placeholder"
-              class="flex-1 min-w-0 h-8 px-2 text-sm border rounded outline-none reset-base border-n-weak bg-n-solid-1 text-n-slate-12"
+              class="w-full h-8 px-2 text-sm border rounded-lg outline-none reset-base border-n-weak bg-n-solid-1 text-n-slate-12"
               @keyup.enter="apply"
             />
-            <button
-              type="button"
-              class="px-2 py-1 text-xs rounded shrink-0 reset-base text-n-slate-11 hover:bg-n-alpha-2"
-              @click="reset"
-            >
-              重置
-            </button>
-            <button
-              type="button"
-              class="px-2 py-1 text-xs text-white rounded shrink-0 reset-base bg-n-iris-9"
-              @click="apply"
-            >
-              确定
-            </button>
           </div>
         </template>
 
-        <!-- 枚举/日期列的底栏：它们本身是竖着一列选项，按钮只能另起一行 -->
+        <!-- 日期列：区间要两头都填完才知道筛什么，留一个「确定」。
+             枚举列点一下就生效，不需要底栏。 -->
         <div
-          v-if="type === 'select' || isDate"
+          v-if="isDate"
           class="flex justify-end gap-2 pt-2 mt-2 border-t border-n-weak"
         >
           <button
             type="button"
-            class="px-2 py-1 text-xs rounded reset-base text-n-slate-11 hover:bg-n-alpha-2"
+            class="px-2 py-1 text-xs rounded-lg reset-base text-n-slate-11 hover:bg-n-iris-3"
             @click="reset"
           >
             重置
           </button>
           <button
-            v-if="isDate"
             type="button"
-            class="px-2 py-1 text-xs text-white rounded reset-base bg-n-iris-9"
+            class="px-2.5 py-1 text-xs text-white rounded-lg reset-base bg-n-iris-9"
             @click="apply"
           >
             确定

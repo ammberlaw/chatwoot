@@ -90,7 +90,7 @@ const viewAttachments = computed(() => {
 
 const productionOrders = ref([]);
 const productionOrderOptions = computed(() => [
-  { value: '', label: '关联生产订单…' },
+  { value: '', label: '关联销售订单…' },
   ...productionOrders.value.map(p => ({
     value: String(p.id),
     label: `${p.order_no} · ${p.product_name}`,
@@ -437,7 +437,7 @@ onMounted(() => {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-heading-3 text-n-slate-12">
-              {{ isIqc ? '来料物料' : '关联生产订单' }}
+              {{ isIqc ? '来料物料' : '关联销售订单' }}
             </label>
             <ComboBox
               v-if="isIqc"
@@ -449,7 +449,7 @@ onMounted(() => {
               v-else
               :model-value="form.productionOrderId"
               :options="productionOrderOptions"
-              placeholder="关联生产订单…"
+              placeholder="关联销售订单…"
               search-placeholder="搜 MO 号 / 产品 / 销售订单 / 客户"
               empty-state="没有匹配的生产订单"
               @update:model-value="v => (form.productionOrderId = v)"
