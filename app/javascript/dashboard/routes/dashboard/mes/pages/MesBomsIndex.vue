@@ -242,16 +242,22 @@ const cost = computed(() => viewing.value?.cost || {});
 // 成本导出：默认当月。文件名由后端给（Content-Disposition 里是中文，
 // 这里按同样规则本地拼一份，省得去解析响应头）。
 const exportingCost = ref(false);
-const exportCost = async () => {
+// 不传 bomId＝当月全量；传了＝只导这一张任务单（后端同一个 service，两份格式一样）。
+const exportCost = async (bomId = null) => {
   if (exportingCost.value) return;
   exportingCost.value = true;
   const month = new Date().toISOString().slice(0, 7);
+  const name = bomId
+    ? `生产任务单成本_${bomNoOf(viewing.value) || bomId}.xlsx`
+    : `生产任务单成本_${month}.xlsx`;
   try {
-    const { data } = await MesProductionOrderAPI.costExport({ month });
+    const { data } = await MesProductionOrderAPI.costExport(
+      bomId ? { bom_id: bomId } : { month }
+    );
     const url = URL.createObjectURL(data);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `生产任务单成本_${month}.xlsx`;
+    a.download = name;
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
@@ -975,6 +981,17 @@ onMounted(async () => {
       <!-- 导出/打印挂到标题行右侧：原来单起一行右对齐，左边空一大片。 -->
       <template #headerActions>
         <div v-if="viewing" class="flex gap-2 shrink-0">
+          <!-- 单张成本表：任务单和采购单一下出去，财务当天就要这一单的料本对账，
+               不用等月底导全月再从几百张里翻。只给看得见成本的人（财务/采购/副管）。 -->
+          <Button
+            v-if="showCost"
+            label="下载成本表"
+            variant="outline"
+            color="iris"
+            size="sm"
+            :is-loading="exportingCost"
+            @click="exportCost(viewing.id)"
+          />
           <Button
             label="导出 Excel"
             variant="outline"

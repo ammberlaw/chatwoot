@@ -326,7 +326,11 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 财务原来一单一单导、再手工查价算成本；这里一次给全。
   def cost_export
     orders = cost_export_scope
-    label = [params[:month].presence, "#{orders.size} 张单"].compact.join(' · ')
+    label = if params[:bom_id].present?
+              orders.map(&:order_no).join('、')
+            else
+              [params[:month].presence, "#{orders.size} 张单"].compact.join(' · ')
+            end
     stream = Mes::BomCostXlsxService.new(account: Current.account, orders: orders, label: label).to_stream
     send_data stream.read, filename: cost_export_filename,
                            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -410,6 +414,12 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   def cost_export_scope
     scope = scoped_by_product_line(Current.account.mes_production_orders)
     scope = scope.where.not(bom_id: nil).includes(bom: :bom_items)
+    # 单张导出：任务单和采购单一下出去，财务当天就要这一单的料本对账，
+    # 不能等到月底导全月再从几百张里翻。格式与月度那份完全一致（同一个 service）。
+    # 按 bom_id 过滤而不是订单 id：一张生产任务单常分批下几张生产订单，各批采购价
+    # 可能不同，得把挂在这张任务单上的全部订单一起算，只取一张会漏掉后面几批的价。
+    return scope.where(bom_id: params[:bom_id]) if params[:bom_id].present?
+
     apply_export_period(scope).order(created_at: :desc).limit(500)
   end
 
@@ -422,6 +432,11 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   def cost_export_filename
+    if params[:bom_id].present?
+      bom = Current.account.mes_boms.where(id: params[:bom_id]).pick(:doc_no, :bom_no)
+      return "生产任务单成本_#{bom&.compact&.find(&:present?) || params[:bom_id]}.xlsx"
+    end
+
     scope = params[:month].presence || Time.zone.today.strftime('%Y-%m')
     "生产任务单成本_#{scope}.xlsx"
   end
