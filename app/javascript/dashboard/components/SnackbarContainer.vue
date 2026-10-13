@@ -16,13 +16,25 @@ const { t } = useI18n();
 const snackMessages = ref([]);
 const snackbarContainer = ref(null);
 
+// 原生 <dialog>.showModal() 和 popover 同在顶层，但实测对话框会压住 toast
+// （elementFromPoint 在 toast 正中取到的是对话框头部）——弹窗里报的错就永远看不见，
+// 用户得把弹窗全关掉才读得到，然后刚填的东西白填。有模态对话框开着就把 toast
+// 挂进最上面那个对话框里；容器是 position:fixed，挪进去照样按视口居中。
+const toastHost = () => {
+  const modals = document.querySelectorAll('dialog:modal');
+  return modals[modals.length - 1] || document.body;
+};
+
 const showPopover = () => {
   try {
     const el = snackbarContainer.value;
-    if (el?.matches(':popover-open')) {
+    if (!el) return;
+    const host = toastHost();
+    if (el.parentNode !== host) host.appendChild(el);
+    if (el.matches(':popover-open')) {
       el.hidePopover();
     }
-    el?.showPopover();
+    el.showPopover();
   } catch (e) {
     // ignore
   }
