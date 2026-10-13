@@ -61,19 +61,29 @@ class Api::V1::Accounts::Erp::BaseController < Api::V1::Accounts::BaseController
   # 值里的 % 和 _ 是用户打的字，不是通配符——不转义的话搜「50%」会把整表捞出来。
   LIKE_OPS = %w[contains not_contains starts ends].freeze
 
-  def apply_column_filters(scope, column_sql)
+  # 聚合出来的列（一条台账挂多行明细，SQL 用 string_agg 把几行拼成一串）：
+  # 「等于」在拼串上永远不成立——两行都是 TABLET 会拼成「TABLET TABLET」。
+  # 这类列的「等于」要按「任一行等于」理解，落到 SQL 上就是包含。
+  # 取值是互不为子串的代码（TABLET / COMMERCIAL_DISPLAY），不会误命中。
+  def apply_column_filters(scope, column_sql, multi_value: [])
     # cf 必须是嵌套 hash；传成别的（序列化出错、手工拼 URL）就当没筛，别把列表打成 500。
     filters = params[:cf].respond_to?(:to_unsafe_h) ? params[:cf].to_unsafe_h : {}
     filters.each do |key, spec|
       next unless spec.is_a?(Hash)
 
-      clause = column_filter_clause(column_sql[key.to_s], spec['op'].to_s, spec['value'].to_s)
+      clause = column_filter_clause(column_sql[key.to_s],
+                                    effective_op(spec['op'].to_s, key, multi_value),
+                                    spec['value'].to_s)
       next if clause.nil?
 
       condition, bind = clause
       scope = bind.nil? ? scope.where(Arel.sql(condition)) : scope.where(condition, bind)
     end
     scope
+  end
+
+  def effective_op(operator, key, multi_value)
+    operator == 'eq' && multi_value.include?(key.to_s) ? 'contains' : operator
   end
 
   def column_filter_clause(sql, operator, value)

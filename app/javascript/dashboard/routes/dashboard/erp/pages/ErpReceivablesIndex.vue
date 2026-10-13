@@ -25,7 +25,10 @@ import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlement
 import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
-import { productLineLabel } from 'dashboard/composables/useMesProductLine';
+import {
+  productLineLabel,
+  MES_PRODUCT_LINE_CHOICES,
+} from 'dashboard/composables/useMesProductLine';
 import { exportRowsToExcel, fetchAllRows } from 'dashboard/helper/erpExcel';
 import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import ColumnPicker from 'dashboard/components-next/ColumnPicker.vue';
@@ -206,7 +209,12 @@ const LEDGER_COLUMN_DEFS = [
   { key: 'netAmount', label: '实际不含税金额', right: true },
   { key: 'grossAmount', label: '价税合计', right: true },
   { key: 'baseAmount', label: '价税合计本位币', right: true },
-  { key: 'productLine', label: '事业部' },
+  {
+    key: 'productLine',
+    label: '事业部',
+    filter: 'enum',
+    filterOptions: 'productLine',
+  },
   { key: 'unitCost', label: '单位成本', right: true },
   { key: 'orderDate', label: '下单 / 交期', rowspan: true },
   {
@@ -322,6 +330,7 @@ watch([keyword, statusFilter, fromDate, toDate], () => {
 watch(ledgerPage, loadLedgers);
 
 const FILTER_OPTION_SETS = {
+  productLine: MES_PRODUCT_LINE_CHOICES,
   status: STATUS_OPTIONS.filter(o => o.value),
   orderStatus: Object.entries(SO_STATUS_LABELS).map(([value, label]) => ({
     value,

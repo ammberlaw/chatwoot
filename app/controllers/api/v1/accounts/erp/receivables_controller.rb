@@ -226,6 +226,14 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
           AND m.account_id = erp_receivables.account_id
         ORDER BY m.is_primary DESC NULLS LAST LIMIT 1)
     SQL
+    # 事业部：订单明细的 sku 对到商品档上的产线。一单可能跨产线，按「任一行命中」筛。
+    # 存的是代码（TABLET/COMMERCIAL_DISPLAY），所以前端做成枚举直选，不让人去背代码。
+    'productLine' => <<~SQL.squish,
+      (SELECT string_agg(p.product_line, ' ')
+         FROM jsonb_array_elements(crm_sales_orders.line_items) e
+         JOIN crm_products p ON p.sku = e->>'sku'
+          AND p.account_id = erp_receivables.account_id)
+    SQL
     'sku' => LINE_ITEM_SQL.call('sku'),
     'name' => LINE_ITEM_SQL.call('name'),
     'spec' => LINE_ITEM_SQL.call('spec'),
@@ -233,6 +241,9 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     'status' => 'erp_receivables.status',
     'orderStatus' => 'crm_sales_orders.status'
   }.freeze
+
+  # 一条台账挂多行明细、SQL 拼成一串的列（见 BaseController#apply_column_filters）。
+  MULTI_VALUE_COLUMNS = %w[productLine sku name spec].freeze
 
   def filtered_scope
     scope = Current.account.erp_receivables
@@ -243,7 +254,8 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
 
     # 漏斗筛的列散在三张关联表上，有筛才 join——不筛时别白白拖三张表。
     apply_column_filters(
-      scope.left_joins(:crm_customer, :owner).left_joins(:crm_sales_order), LEDGER_COLUMN_SQL
+      scope.left_joins(:crm_customer, :owner).left_joins(:crm_sales_order),
+      LEDGER_COLUMN_SQL, multi_value: MULTI_VALUE_COLUMNS
     )
   end
 
