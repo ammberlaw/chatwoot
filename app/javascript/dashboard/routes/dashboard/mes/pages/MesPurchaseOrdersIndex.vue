@@ -23,6 +23,8 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesSupplierSummary from 'dashboard/components-next/mes/MesSupplierSummary.vue';
+import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
+import MesMultiNoCell from 'dashboard/components-next/mes/MesMultiNoCell.vue';
 import ColResizeHandle from 'dashboard/components-next/table/ColResizeHandle.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
@@ -68,15 +70,23 @@ const totalCount = computed(() => store.getMeta?.count || 0);
 const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
 // 同生产订单页：列表重拉＝刚办完事，顺带让侧栏重算 MES 待办角标。
+// 下单状态 / 审批状态：两个字段互相独立（已下单≠已审批），所以分两个下拉。
+// 选项表依赖下面的 STATUS_LABELS / APPROVAL_LABELS，放在它们之后（见文件下方）。
+const statusFilter = ref('');
+const approvalFilter = ref('');
+
 const fetchList = () => {
   emitter.emit('MES_TODO_MAY_CHANGE');
   return store.get({
     q: search.value.trim() || undefined,
     owner_id: onlyMine.value ? currentUserId.value : undefined,
+    status: statusFilter.value || undefined,
+    approval_status: approvalFilter.value || undefined,
     page: currentPage.value,
   });
 };
 watch(currentPage, fetchList);
+
 // 换了筛选条件要回到第 1 页——否则在第 3 页搜一个只有 2 条结果的词会看到空列表。
 const resetToFirstPage = () => {
   if (currentPage.value === 1) fetchList();
@@ -124,6 +134,19 @@ const APPROVAL_LABELS = {
   APPROVED: '已通过',
   REJECTED: '已驳回',
 };
+
+// 64 张单摆一页，找「还没下单的」或「卡在审批的」只能靠眼睛扫，给两个下拉。
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: '全部下单状态' },
+  ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+];
+const APPROVAL_FILTER_OPTIONS = [
+  { value: '', label: '全部审批状态' },
+  ...Object.entries(APPROVAL_LABELS).map(([value, label]) => ({
+    value,
+    label,
+  })),
+];
 const APPROVAL_COLORS = {
   DRAFT: 'text-n-slate-11',
   PENDING_GM: 'text-n-amber-11',
@@ -972,6 +995,16 @@ useRouteQueryReentry(async query => {
         placeholder="搜索单号 / 供应商 / 归属人 / 生产订单 / 物料编码"
         class="w-80 h-9 px-3 mb-0 text-sm rounded-lg reset-base outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 hover:outline-n-brand focus:outline-n-brand"
       />
+      <SelectCard
+        v-model="statusFilter"
+        :options="STATUS_FILTER_OPTIONS"
+        @update:model-value="resetToFirstPage"
+      />
+      <SelectCard
+        v-model="approvalFilter"
+        :options="APPROVAL_FILTER_OPTIONS"
+        @update:model-value="resetToFirstPage"
+      />
       <label
         class="flex items-center gap-1.5 text-sm cursor-pointer select-none text-n-slate-11"
       >
@@ -1127,7 +1160,7 @@ useRouteQueryReentry(async query => {
                   <span
                     class="inline-flex items-center gap-1 whitespace-nowrap"
                   >
-                    <span>{{ p.poNo }}</span>
+                    <MesMultiNoCell :value="p.poNo" />
                     <button
                       v-if="p.poNo"
                       v-tooltip.top="'复制采购单号'"
@@ -1337,7 +1370,9 @@ useRouteQueryReentry(async query => {
                 :style="itemColStyle(col.key)"
               >
                 <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
-                <template v-else-if="col.key === 'poNo'">{{ r.poNo }}</template>
+                <template v-else-if="col.key === 'poNo'">
+                  <MesMultiNoCell :value="r.poNo" />
+                </template>
                 <template v-else-if="col.key === 'supplier'">
                   {{ r.supplier }}
                 </template>

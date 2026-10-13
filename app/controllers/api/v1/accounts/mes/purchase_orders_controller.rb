@@ -12,7 +12,10 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
 
   # 列筛选。owner_id = 下单人（建单的采购员），跟列表里「归属人」（生产订单的业务员）
   # 不是一回事——采购员要的是「只看我下的单」。
-  COLUMN_FILTERS = { status: :status, production_order_id: :production_order_id, owner_id: :owner_id }.freeze
+  # approval_status 与 status 互相独立（已下单 ≠ 已审批），两个都要能单独筛：
+  # 64 张单摆一页，找「还没下单的」或「卡在审批的」只能靠眼睛扫。
+  COLUMN_FILTERS = { status: :status, approval_status: :approval_status,
+                     production_order_id: :production_order_id, owner_id: :owner_id }.freeze
 
   def index
     scope = index_scope
