@@ -258,6 +258,9 @@ const hiddenLedgerCols = computed(
 // 表头漏斗筛选（对标金蝶）：{ 列名: { op, value } }。服务端按列筛，不是只筛当前这一页——
 // 列表是分页的，筛 50 行说「没有」，翻到第二页它又在。
 const colFilters = ref({});
+// 待建账 / 收款记录各自的表头筛选（和台账那套分开存：三个页签列不一样）。
+const pendingColFilters = ref({});
+const receiptColFilters = ref({});
 // 各页签日期筛的是不同的日期，占位文案要说清楚，不然筛不出来还以为坏了。
 const DATE_LABEL = {
   ledger: '单据日期',
@@ -266,9 +269,9 @@ const DATE_LABEL = {
 };
 // axios 默认序列化器把嵌套对象拍成 "[object Object]"，所以自己展开成
 // cf[列][op] / cf[列][value]——Rails 按方括号解回嵌套 params。
-const colFilterParams = () => {
+const colFilterParams = (source = colFilters.value) => {
   const out = {};
-  Object.entries(colFilters.value).forEach(([key, f]) => {
+  Object.entries(source).forEach(([key, f]) => {
     if (!f?.op) return;
     out[`cf[${key}][op]`] = f.op;
     out[`cf[${key}][value]`] = f.value ?? '';
@@ -314,6 +317,7 @@ const loadReceipts = async () => {
       to: toDate.value,
       page: receiptPage.value,
       per_page: PER_PAGE,
+      ...colFilterParams(receiptColFilters.value),
     });
     receipts.value = data.payload;
     receiptMeta.value = data.meta;
@@ -329,8 +333,19 @@ watch([keyword, statusFilter, fromDate, toDate], () => {
 });
 watch(ledgerPage, loadLedgers);
 
+const RECEIPT_METHOD_OPTIONS = METHODS;
+const RECEIPT_STATUS_OPTIONS = [
+  { value: 'NORMAL', label: '正常' },
+  { value: 'VOID', label: '已作废' },
+];
 const FILTER_OPTION_SETS = {
   productLine: MES_PRODUCT_LINE_CHOICES,
+  soStatus: Object.entries(SO_STATUS_LABELS).map(([value, label]) => ({
+    value,
+    label,
+  })),
+  receiptMethod: RECEIPT_METHOD_OPTIONS,
+  receiptStatus: RECEIPT_STATUS_OPTIONS,
   status: STATUS_OPTIONS.filter(o => o.value),
   orderStatus: Object.entries(SO_STATUS_LABELS).map(([value, label]) => ({
     value,
@@ -391,6 +406,7 @@ const loadPendingOrders = async ({ silent = false } = {}) => {
       to: toDate.value,
       page: pendingPage.value,
       per_page: PER_PAGE,
+      ...colFilterParams(pendingColFilters.value),
     });
     pendingOrders.value = data.payload;
     pendingCount.value = data.meta?.pending_count || 0;
@@ -409,6 +425,15 @@ const onPendingFilterChange = () => {
   loadPendingOrders();
 };
 watch(pendingPage, () => loadPendingOrders());
+
+const onPendingColFilter = () => {
+  pendingPage.value = 1;
+  loadPendingOrders();
+};
+const onReceiptColFilter = () => {
+  receiptPage.value = 1;
+  loadReceipts();
+};
 
 const allPendingSelected = computed(
   () =>
@@ -1406,13 +1431,56 @@ onMounted(() => {
                   @change="toggleSelectAll"
                 />
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">订单号</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">PI 号</th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">
-                客户 / 国家
+                <span class="inline-flex items-center gap-1">
+                  订单号
+                  <TableHeaderFilter
+                    v-model="pendingColFilters['orderNo']"
+                    kind="text"
+                    @change="onPendingColFilter"
+                  />
+                </span>
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">型号</th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">业务员</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                <span class="inline-flex items-center gap-1">
+                  PI 号
+                  <TableHeaderFilter
+                    v-model="pendingColFilters['piNo']"
+                    kind="text"
+                    @change="onPendingColFilter"
+                  />
+                </span>
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                <span class="inline-flex items-center gap-1">
+                  客户 / 国家
+                  <TableHeaderFilter
+                    v-model="pendingColFilters['customer']"
+                    kind="text"
+                    @change="onPendingColFilter"
+                  />
+                </span>
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                <span class="inline-flex items-center gap-1">
+                  型号
+                  <TableHeaderFilter
+                    v-model="pendingColFilters['model']"
+                    kind="text"
+                    @change="onPendingColFilter"
+                  />
+                </span>
+              </th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                <span class="inline-flex items-center gap-1">
+                  业务员
+                  <TableHeaderFilter
+                    v-model="pendingColFilters['owner']"
+                    kind="text"
+                    @change="onPendingColFilter"
+                  />
+                </span>
+              </th>
               <th class="px-3 py-3 font-medium whitespace-nowrap">下单日期</th>
               <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
                 订单金额
@@ -1420,7 +1488,17 @@ onMounted(() => {
               <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
                 建账金额
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+              <th class="px-3 py-3 font-medium whitespace-nowrap">
+                <span class="inline-flex items-center gap-1">
+                  状态
+                  <TableHeaderFilter
+                    v-model="pendingColFilters['status']"
+                    kind="enum"
+                    :options="FILTER_OPTION_SETS.soStatus"
+                    @change="onPendingColFilter"
+                  />
+                </span>
+              </th>
               <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
                 操作
               </th>
@@ -1539,15 +1617,52 @@ onMounted(() => {
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium whitespace-nowrap">收款单号</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">客户</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                收款单号
+                <TableHeaderFilter
+                  v-model="receiptColFilters['no']"
+                  kind="text"
+                  @change="onReceiptColFilter"
+                />
+              </span>
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                客户
+                <TableHeaderFilter
+                  v-model="receiptColFilters['customer']"
+                  kind="text"
+                  @change="onReceiptColFilter"
+                />
+              </span>
+            </th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">到账日</th>
             <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
               到账金额
             </th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">方式 / 水单</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                方式 / 水单
+                <TableHeaderFilter
+                  v-model="receiptColFilters['reference']"
+                  kind="text"
+                  @change="onReceiptColFilter"
+                />
+              </span>
+            </th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">核销</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                状态
+                <TableHeaderFilter
+                  v-model="receiptColFilters['status']"
+                  kind="enum"
+                  :options="FILTER_OPTION_SETS.receiptStatus"
+                  @change="onReceiptColFilter"
+                />
+              </span>
+            </th>
             <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
               操作
             </th>

@@ -4,6 +4,7 @@ import { fmtMoney } from 'dashboard/helper/erpMoney';
 import { exportRowsToExcel, microsToYuan } from 'dashboard/helper/erpExcel';
 import { printElement } from 'dashboard/helper/printHelper';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
+import TableHeaderFilter from 'dashboard/components-next/tablefilter/TableHeaderFilter.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
@@ -44,6 +45,18 @@ const asOf = ref(new Date().toLocaleDateString('sv').slice(0, 7));
 const span = ref('12');
 const loading = ref(false);
 const rows = ref([]);
+// 供应商表头筛选：这张表接口一次给全量（没有分页），屏幕上的就是全部，前端筛就对。
+const supplierFilter = ref({});
+const visibleRows = computed(() => {
+  const f = supplierFilter.value;
+  if (!f?.op) return rows.value;
+  const kw = String(f.value || '').toLowerCase();
+  return rows.value.filter(r =>
+    String(r.supplier_name || '')
+      .toLowerCase()
+      .includes(kw)
+  );
+});
 const meta = ref(null);
 const sheetRef = ref(null);
 
@@ -162,7 +175,10 @@ defineExpose({ load });
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
               <th class="px-3 py-2 font-medium whitespace-nowrap">
-                {{ L.supplier }}
+                <span class="inline-flex items-center gap-1">
+                  {{ L.supplier }}
+                  <TableHeaderFilter v-model="supplierFilter" />
+                </span>
               </th>
               <th class="px-3 py-2 font-medium whitespace-nowrap">
                 {{ L.settle }}
@@ -187,7 +203,7 @@ defineExpose({ load });
           </thead>
           <tbody>
             <tr
-              v-for="row in rows"
+              v-for="row in visibleRows"
               :key="`${row.supplier_id}-${row.settle_type}`"
               class="border-b border-n-weak hover:bg-n-alpha-1"
             >

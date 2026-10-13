@@ -186,7 +186,19 @@ const hiddenLedgerCols = computed(
 const ledgerMeta = ref({});
 const payments = ref([]);
 const paymentMeta = ref({});
+// 供应商对账：接口一次给全量（没有分页），屏幕上的就是全部，前端筛就对。
+const statementSupplierFilter = ref({});
 const statementRows = ref([]);
+const filteredStatementRows = computed(() => {
+  const f = statementSupplierFilter.value;
+  if (!f?.op) return statementRows.value;
+  const kw = String(f.value || '').toLowerCase();
+  return statementRows.value.filter(r =>
+    String(r.name || '')
+      .toLowerCase()
+      .includes(kw)
+  );
+});
 
 // 分页：meta.count 是全量数，超过一页给翻页入口——静默截断=「数据消失」。
 const PER_PAGE = 50;
@@ -194,13 +206,15 @@ const ledgerPage = ref(1);
 // 表头漏斗筛选（对标金蝶）：{ 列名: { op, value } }。服务端按列筛，不是只筛当前这一页——
 // 列表是分页的，筛 50 行说「没有」，翻到第二页它又在。
 const colFilters = ref({});
+// 付款记录 / 供应商对账 / 按月未付 各自的表头筛选（列不一样，分开存）。
+const paymentColFilters = ref({});
 // 两个页签筛的不是同一个日期，占位文案要说清楚，不然筛不出来还以为坏了。
 const DATE_LABEL = { ledger: '发生日期', payments: '付款日' };
 // axios 默认序列化器把嵌套对象拍成 "[object Object]"，所以自己展开成
 // cf[列][op] / cf[列][value]——Rails 按方括号解回嵌套 params。
-const colFilterParams = () => {
+const colFilterParams = (source = colFilters.value) => {
   const out = {};
-  Object.entries(colFilters.value).forEach(([key, f]) => {
+  Object.entries(source).forEach(([key, f]) => {
     if (!f?.op) return;
     out[`cf[${key}][op]`] = f.op;
     out[`cf[${key}][value]`] = f.value ?? '';
@@ -238,6 +252,7 @@ const loadPayments = async () => {
       to: toDate.value,
       page: paymentPage.value,
       per_page: PER_PAGE,
+      ...colFilterParams(paymentColFilters.value),
     });
     payments.value = data.payload;
     paymentMeta.value = data.meta;
@@ -253,6 +268,10 @@ watch([keyword, statusFilter, settleFilter, fromDate, toDate], () => {
 watch(ledgerPage, loadLedgers);
 
 const FILTER_OPTION_SETS = {
+  paymentStatus: [
+    { value: 'NORMAL', label: '正常' },
+    { value: 'VOID', label: '已作废' },
+  ],
   status: STATUS_OPTIONS.filter(o => o.value),
   settle: SETTLE_OPTIONS.filter(o => o.value),
 };
@@ -268,6 +287,11 @@ const clearColFilters = () => {
   onColFilterChange();
 };
 watch(paymentPage, loadPayments);
+
+const onPaymentColFilter = () => {
+  paymentPage.value = 1;
+  loadPayments();
+};
 
 const loadStatement = async () => {
   loading.value = true;
@@ -960,15 +984,52 @@ onMounted(loadLedgers);
       <table v-else-if="activeTab === 'payments'" class="w-full text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium whitespace-nowrap">付款单号</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                付款单号
+                <TableHeaderFilter
+                  v-model="paymentColFilters['no']"
+                  kind="text"
+                  @change="onPaymentColFilter"
+                />
+              </span>
+            </th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                供应商
+                <TableHeaderFilter
+                  v-model="paymentColFilters['supplier']"
+                  kind="text"
+                  @change="onPaymentColFilter"
+                />
+              </span>
+            </th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">付款日</th>
             <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
               付款金额
             </th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">方式 / 凭据</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                方式 / 凭据
+                <TableHeaderFilter
+                  v-model="paymentColFilters['reference']"
+                  kind="text"
+                  @change="onPaymentColFilter"
+                />
+              </span>
+            </th>
             <th class="px-3 py-3 font-medium whitespace-nowrap">核销</th>
-            <th class="px-3 py-3 font-medium whitespace-nowrap">状态</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                状态
+                <TableHeaderFilter
+                  v-model="paymentColFilters['status']"
+                  kind="enum"
+                  :options="FILTER_OPTION_SETS.paymentStatus"
+                  @change="onPaymentColFilter"
+                />
+              </span>
+            </th>
             <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
               操作
             </th>
@@ -1073,7 +1134,12 @@ onMounted(loadLedgers);
       <table v-else class="w-full max-w-3xl text-sm">
         <thead>
           <tr class="text-left border-b text-n-slate-11 border-n-weak">
-            <th class="px-3 py-3 font-medium whitespace-nowrap">供应商</th>
+            <th class="px-3 py-3 font-medium whitespace-nowrap">
+              <span class="inline-flex items-center gap-1">
+                供应商
+                <TableHeaderFilter v-model="statementSupplierFilter" />
+              </span>
+            </th>
             <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
               应付合计
             </th>
@@ -1087,7 +1153,7 @@ onMounted(loadLedgers);
         </thead>
         <tbody>
           <tr
-            v-for="row in statementRows"
+            v-for="row in filteredStatementRows"
             :key="row.id"
             class="border-b border-n-weak"
           >
@@ -1102,7 +1168,7 @@ onMounted(loadLedgers);
               {{ money(row.outstanding_micros) }}
             </td>
           </tr>
-          <tr v-if="!statementRows.length">
+          <tr v-if="!filteredStatementRows.length">
             <td colspan="4" class="px-3 py-10 text-center text-n-slate-11">
               还没有应付数据。
             </td>

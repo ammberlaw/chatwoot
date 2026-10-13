@@ -89,11 +89,24 @@ class Api::V1::Accounts::Erp::PaymentRecordsController < Api::V1::Accounts::Erp:
     end
   end
 
+  # 表头漏斗能筛哪几列（列名 → SQL）。与列表上看到的那几列一一对应。
+  COLUMN_SQL = {
+    'no' => 'erp_payment_records.payment_no',
+    'supplier' => 'mes_suppliers.name',
+    'method' => 'erp_payment_records.method',
+    'reference' => 'erp_payment_records.reference_no',
+    'status' => 'erp_payment_records.status'
+  }.freeze
+
   def filtered_scope
     scope = Current.account.erp_payment_records
     scope = scope.where(mes_supplier_id: params[:mes_supplier_id]) if params[:mes_supplier_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
-    filtered_by_date_and_keyword(scope)
+    scope = filtered_by_date_and_keyword(scope)
+    return scope if params[:cf].blank?
+
+    # 供应商名在关联表上，有筛才 join。
+    apply_column_filters(scope.left_joins(:mes_supplier), COLUMN_SQL)
   end
 
   def filtered_by_date_and_keyword(scope)

@@ -141,7 +141,10 @@ const printSupplier = computed(() =>
 );
 // 套打在 9.5×5.5 英寸三联复写纸上（针式打印机），所以纸张写死、也不加 Wintouch 字标——
 // 加了会把版心顶下去，套打直接压到预印格线上。
-const TRIPLICATE_PAGE = '@page{size:9.5in 5.5in landscape;margin:8mm}';
+// 纸张只给尺寸、不写方向：横/纵由打印对话框里自己选（她那边每次打印手动选）。
+// 另外 `size: 9.5in 5.5in landscape` 本来就不是合法写法——CSS 要么给两个长度、
+// 要么给纸名+方向关键字，混着写浏览器会忽略方向，对话框里照样显示「纵向」。
+const TRIPLICATE_PAGE = '@page{size:9.5in 5.5in;margin:8mm}';
 const printEntry = () =>
   printElement(
     printSheetRef.value?.$el || printSheetRef.value,

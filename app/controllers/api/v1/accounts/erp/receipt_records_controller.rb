@@ -92,11 +92,24 @@ class Api::V1::Accounts::Erp::ReceiptRecordsController < Api::V1::Accounts::Erp:
     end
   end
 
+  # 表头漏斗能筛哪几列（列名 → SQL）。与列表上看到的那几列一一对应。
+  COLUMN_SQL = {
+    'no' => 'erp_receipt_records.receipt_no',
+    'customer' => 'crm_customers.name',
+    'method' => 'erp_receipt_records.method',
+    'reference' => 'erp_receipt_records.reference_no',
+    'status' => 'erp_receipt_records.status'
+  }.freeze
+
   def filtered_scope
     scope = Current.account.erp_receipt_records
     scope = scope.where(crm_customer_id: params[:crm_customer_id]) if params[:crm_customer_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
-    filtered_by_date_and_keyword(scope)
+    scope = filtered_by_date_and_keyword(scope)
+    return scope if params[:cf].blank?
+
+    # 客户名在关联表上，有筛才 join。
+    apply_column_filters(scope.left_joins(:crm_customer), COLUMN_SQL)
   end
 
   def filtered_by_date_and_keyword(scope)

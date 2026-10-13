@@ -894,9 +894,11 @@ useRouteQueryReentry(async query => {
     <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
       <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">采购单</h1>
       <div class="flex items-center gap-2">
+        <!-- h-8 和同排的按钮等高：不给高度它就只有一行文字那么高（24px），
+             和旁边 32px 的控件一比就是没对齐。 -->
         <button
           type="button"
-          class="text-xs text-n-slate-10 hover:text-n-iris-11"
+          class="inline-flex items-center h-8 px-1 text-xs text-n-slate-10 hover:text-n-iris-11"
           title="把当前视图的表头顺序恢复成默认，并放出收起的列"
           @click="activeResetCols"
         >
@@ -905,7 +907,10 @@ useRouteQueryReentry(async query => {
         <!-- 按单 / 按明细：核对物料时要的是明细那一屏（对标金蝶）。
              走全站页面级 Tab 的统一标记（data-tabbar + aria-selected，样式在
              _next-colors.scss），别再自己写灰槽白条。 -->
-        <div data-tabbar="page" class="my-0">
+        <!-- 这条 tab 和按钮并排在工具栏里，得压到同样 32px 高：全局 [data-tabbar] 规则
+             给了 margin-block 和更大的内边距（别处它自己占一行，38px 正好），
+             属性选择器特指度比 my-0 高，所以这里要带 ! 才盖得住。 -->
+        <div data-tabbar="page" class="!my-0 [&>button]:!h-[26px]">
           <button
             v-for="m in VIEW_MODES"
             :key="m.key"

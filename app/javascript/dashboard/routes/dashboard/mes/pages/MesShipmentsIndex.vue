@@ -176,7 +176,8 @@ const printShipment = () =>
   printElement(
     printSheetRef.value?.$el || printSheetRef.value,
     `销售出库单 ${viewing.value?.shipmentNo || ''}`,
-    { page: '@page{size:9.5in 5.5in landscape;margin:8mm}', brandHeader: false }
+    // 方向由打印对话框自己选（同采购入库单）；混写 landscape 浏览器也不认。
+    { page: '@page{size:9.5in 5.5in;margin:8mm}', brandHeader: false }
   );
 
 const VIEW_ITEM_COLS = [

@@ -287,11 +287,24 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
 
   # 待建账的查找条件：关键字（订单号 / PI 号 / 客户名）、业务员、订单状态。
   # 498 张单摆在一页上，财务要找某一张只能靠浏览器查找——这几个条件就是为此补的。
+  # 待建账的表头漏斗（列名 → SQL）。这页还没建账，取数直接从销售订单上来。
+  PENDING_COLUMN_SQL = {
+    'orderNo' => 'crm_sales_orders.order_no',
+    'piNo' => 'crm_sales_orders.pi_no',
+    'customer' => "CONCAT_WS(' ', crm_customers.name, crm_customers.trade_country)",
+    'model' => 'crm_sales_orders.name',
+    'owner' => "COALESCE(NULLIF(users.crm_name, ''), users.name)",
+    'status' => 'crm_sales_orders.status'
+  }.freeze
+
   def filtered_pending_scope
     scope = pending_order_scope
     scope = scope.where(owner_id: params[:owner_id]) if params[:owner_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
-    pending_keyword_scope(pending_date_scope(scope))
+    scope = pending_keyword_scope(pending_date_scope(scope))
+    return scope if params[:cf].blank?
+
+    apply_column_filters(scope.left_joins(:crm_customer, :owner), PENDING_COLUMN_SQL)
   end
 
   # 按下单日期筛（台账那边筛的是单据日期，这边还没建账、只有下单日期这个口径）。
