@@ -7,6 +7,7 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesBomsStore } from 'dashboard/stores/mes/boms';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
+import ColResizeHandle from 'dashboard/components-next/table/ColResizeHandle.vue';
 import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 import { useListDensity } from 'dashboard/composables/useListDensity';
 import MesBomAPI from 'dashboard/api/mes/boms';
@@ -109,8 +110,17 @@ const COLUMN_DEFS = [
   },
   { key: 'status', label: '状态', tdClass: 'px-3 py-3 whitespace-nowrap' },
 ];
-const { orderedColumns, isDragging, onColDragStart, onColDrop, resetOrder } =
-  useOrderableColumns(COLUMN_DEFS, 'mes.bomCols.v1');
+const {
+  orderedColumns,
+  isDragging,
+  onColDragStart,
+  onColDrop,
+  resetOrder,
+  colStyle,
+  isResizing,
+  startResize,
+  autoFitColumn,
+} = useOrderableColumns(COLUMN_DEFS, 'mes.bomCols.v1');
 
 // 列表里就地看用料明细：PMC 核对一张单的料，原先得点「查看」开弹窗、关掉再开下一张。
 // 不直接把明细摊成多行——一张任务单二十几项料，五张单的列表就变成上百行，没法看了。
@@ -658,13 +668,20 @@ onMounted(async () => {
                 v-for="col in orderedColumns"
                 :key="col.key"
                 draggable="true"
-                class="px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+                class="relative px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
                 :class="isDragging(col.key) ? 'opacity-40' : ''"
+                :style="colStyle(col.key)"
                 title="拖动可调整列顺序"
                 @dragstart="onColDragStart(col.key)"
                 @dragover.prevent
                 @drop="onColDrop(col.key)"
               >
+                <ColResizeHandle
+                  :column-key="col.key"
+                  :active="isResizing(col.key)"
+                  @resize-start="(e, th) => startResize(col.key, e, th)"
+                  @auto-fit="autoFitColumn"
+                />
                 <span class="inline-flex items-center gap-1">
                   {{ col.label }}
                   <MesColumnFilter
@@ -691,7 +708,8 @@ onMounted(async () => {
                 <td
                   v-for="col in orderedColumns"
                   :key="col.key"
-                  :class="col.tdClass"
+                  :class="[col.tdClass, colStyle(col.key).width && 'truncate']"
+                  :style="colStyle(col.key)"
                 >
                   <template v-if="col.key === 'no'">
                     {{ bomNoOf(b) }}

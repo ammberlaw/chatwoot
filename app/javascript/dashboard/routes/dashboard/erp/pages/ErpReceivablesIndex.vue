@@ -11,6 +11,7 @@ import ErpReceiptAPI from 'dashboard/api/erp/receiptRecords';
 import CrmSalesOrderAPI from 'dashboard/api/crm/salesOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import ColResizeHandle from 'dashboard/components-next/table/ColResizeHandle.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
@@ -238,6 +239,10 @@ const {
   onColDragStart: onLedgerColDragStart,
   onColDrop: onLedgerColDrop,
   resetOrder: resetLedgerColOrder,
+  colStyle: ledgerColStyle,
+  isResizing: isLedgerColResizing,
+  startResize: startLedgerColResize,
+  autoFitColumn: autoFitLedgerCol,
 } = useOrderableColumns(LEDGER_COLUMN_DEFS, 'erp.arLedgerCols.v1');
 const hiddenLedgerCols = computed(
   () => LEDGER_COLUMN_DEFS.length - ledgerVisibleCols.value.length
@@ -1119,11 +1124,12 @@ onMounted(() => {
               v-for="col in ledgerVisibleCols"
               :key="col.key"
               draggable="true"
-              class="px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+              class="relative px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
               :class="[
                 col.right ? 'text-right' : '',
                 isLedgerColDragging(col.key) ? 'opacity-40' : '',
               ]"
+              :style="ledgerColStyle(col.key)"
               title="拖动可调整列顺序"
               @dragstart="onLedgerColDragStart(col.key)"
               @dragover.prevent
@@ -1142,6 +1148,12 @@ onMounted(() => {
                   @change="onColFilterChange"
                 />
               </span>
+              <ColResizeHandle
+                :column-key="col.key"
+                :active="isLedgerColResizing(col.key)"
+                @resize-start="(e, th) => startLedgerColResize(col.key, e, th)"
+                @auto-fit="autoFitLedgerCol"
+              />
             </th>
           </tr>
         </thead>
@@ -1161,7 +1173,9 @@ onMounted(() => {
                 :class="[
                   col.right ? 'font-mono text-right' : '',
                   col.rowspan ? 'align-top' : '',
+                  ledgerColStyle(col.key).width && 'truncate',
                 ]"
+                :style="ledgerColStyle(col.key)"
               >
                 <template v-if="col.key === 'no'">
                   {{ row.receivable_no }}

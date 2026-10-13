@@ -91,6 +91,80 @@ export function useOrderableColumns(defs, storageKey) {
     saveHidden();
   };
 
+  // ── 列宽：拖列头右边那条缝改宽窄，同样按人按表记在本机 ──────────────
+  // 为什么要有：规格型号、备注这些列内容长短差很远，固定宽度不是挤成一条就是空一大片，
+  // 各人核的东西不一样，宽度只能自己调（反馈点名）。
+  const widthStorageKey = `${storageKey}.widths`;
+  const widths = ref({});
+  const MIN_COL_WIDTH = 48;
+
+  const loadWidths = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(widthStorageKey) || 'null');
+      widths.value =
+        saved && typeof saved === 'object'
+          ? Object.fromEntries(
+              Object.entries(saved).filter(
+                ([k, v]) =>
+                  defaultKeys.includes(k) && Number(v) >= MIN_COL_WIDTH
+              )
+            )
+          : {};
+    } catch {
+      widths.value = {};
+    }
+  };
+  loadWidths();
+
+  const saveWidths = () => {
+    try {
+      localStorage.setItem(widthStorageKey, JSON.stringify(widths.value));
+    } catch {
+      // 同上
+    }
+  };
+
+  /** 列头/单元格的宽度样式；没调过的列返回空对象，宽度仍由内容撑开。 */
+  const colStyle = key => {
+    const w = widths.value[key];
+    // 三个都写死才拦得住 table 的自动布局——只给 width 时浏览器照样会按内容撑开。
+    return w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` } : {};
+  };
+
+  const resizingKey = ref(null);
+  const isResizing = key => resizingKey.value === key;
+
+  /** 在列头右缘的把手上按下时调用，传入那个 th 元素。 */
+  const startResize = (key, event, thEl) => {
+    const startX = event.clientX;
+    const startWidth = thEl?.getBoundingClientRect().width || MIN_COL_WIDTH;
+    resizingKey.value = key;
+    const onMove = e => {
+      widths.value = {
+        ...widths.value,
+        [key]: Math.max(
+          MIN_COL_WIDTH,
+          Math.round(startWidth + e.clientX - startX)
+        ),
+      };
+    };
+    const onUp = () => {
+      resizingKey.value = null;
+      saveWidths();
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  /** 双击把手：这一列恢复按内容自适应。 */
+  const autoFitColumn = key => {
+    const { [key]: _drop, ...rest } = widths.value;
+    widths.value = rest;
+    saveWidths();
+  };
+
   const dragColKey = ref(null);
   const isDragging = key => dragColKey.value === key;
   const onColDragStart = key => {
@@ -115,6 +189,9 @@ export function useOrderableColumns(defs, storageKey) {
     orderedKeys.value = [...defaultKeys];
     save();
     showAllColumns();
+    // 列宽也一起清掉：「恢复默认列序」是一键回到出厂状态，留着调过的宽度等于没恢复。
+    widths.value = {};
+    saveWidths();
   };
 
   return {
@@ -128,5 +205,9 @@ export function useOrderableColumns(defs, storageKey) {
     onColDragStart,
     onColDrop,
     resetOrder,
+    colStyle,
+    isResizing,
+    startResize,
+    autoFitColumn,
   };
 }

@@ -23,6 +23,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import MesViewDialog from 'dashboard/components-next/mes/MesViewDialog.vue';
 import MesSupplierSummary from 'dashboard/components-next/mes/MesSupplierSummary.vue';
+import ColResizeHandle from 'dashboard/components-next/table/ColResizeHandle.vue';
 import MesReturnControls from 'dashboard/components-next/mes/MesReturnControls.vue';
 import { useRouteQueryReentry } from 'dashboard/composables/useRouteQueryReentry';
 import MesStatusPill from 'dashboard/components-next/mes/MesStatusPill.vue';
@@ -478,6 +479,10 @@ const {
   onColDragStart: onOrderColDragStart,
   onColDrop: onOrderColDrop,
   resetOrder: resetOrderCols,
+  colStyle: orderColStyle,
+  isResizing: isOrderColResizing,
+  startResize: startOrderColResize,
+  autoFitColumn: autoFitOrderCol,
 } = useOrderableColumns(ORDER_COLUMN_DEFS, 'mes.poListCols.v1');
 
 // 明细视图的列。两套列各记各的（本机键不同），互不干扰。
@@ -516,9 +521,17 @@ const ITEM_COLUMN_DEFS = [
     tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
   },
   { key: 'unit', label: '单位', tdClass: 'px-3 py-2 text-n-slate-11' },
+  // 单价/金额按行的录入口径存（price_tax_included 按行不同），只摆一个数看不出是
+  // 含税还是未税，跟供应商对账就对不上——两种各摆一列，列名写死口径。
   {
-    key: 'rate',
-    label: '单价',
+    key: 'untaxedRate',
+    label: '未税单价',
+    thClass: 'text-right',
+    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
+  },
+  {
+    key: 'taxedRate',
+    label: '含税单价',
     thClass: 'text-right',
     tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
   },
@@ -530,8 +543,14 @@ const ITEM_COLUMN_DEFS = [
     tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-11',
   },
   {
-    key: 'amount',
-    label: '金额',
+    key: 'untaxedAmount',
+    label: '未税合计',
+    thClass: 'text-right',
+    tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-12',
+  },
+  {
+    key: 'taxedAmount',
+    label: '含税合计',
     thClass: 'text-right',
     tdClass: 'px-3 py-2 text-right tabular-nums text-n-slate-12',
   },
@@ -561,6 +580,10 @@ const {
   onColDragStart: onItemColDragStart,
   onColDrop: onItemColDrop,
   resetOrder: resetItemCols,
+  colStyle: itemColStyle,
+  isResizing: isItemColResizing,
+  startResize: startItemColResize,
+  autoFitColumn: autoFitItemCol,
 } = useOrderableColumns(ITEM_COLUMN_DEFS, 'mes.poItemCols.v1');
 
 // 把当页采购单摊平成「一行一条料」。只摊当页、不额外请求——列表本来就带明细。
@@ -580,9 +603,11 @@ const itemRows = computed(() =>
       qty: it.qty,
       received: it.receivedQty,
       unit: it.unit || '',
-      rate: it.rateMicros,
       taxRate: it.supplierTaxRate,
-      amount: it.amountMicros,
+      untaxedRate: it.untaxedRateMicros,
+      taxedRate: it.taxedRateMicros,
+      untaxedAmount: it.untaxedAmountMicros,
+      taxedAmount: it.taxedAmountMicros,
       arrival: it.arrivalDate,
       itemRemark: it.remark || '—',
       internalRemark: po.internalRemark || '—',
@@ -643,9 +668,23 @@ const exportList = async () => {
             { label: '单位', key: 'unit' },
             ...(moneyCols
               ? [
-                  { label: '单价', key: 'rate_micros', money: true },
+                  {
+                    label: '未税单价',
+                    key: 'untaxed_rate_micros',
+                    money: true,
+                  },
+                  { label: '含税单价', key: 'taxed_rate_micros', money: true },
                   { label: '税率(%)', key: 'supplier_tax_rate', num: true },
-                  { label: '金额', key: 'amount_micros', money: true },
+                  {
+                    label: '未税合计',
+                    key: 'untaxed_amount_micros',
+                    money: true,
+                  },
+                  {
+                    label: '含税合计',
+                    key: 'taxed_amount_micros',
+                    money: true,
+                  },
                 ]
               : []),
             { label: '生产订单', key: 'production_order_no' },
@@ -736,9 +775,11 @@ const VIEW_ITEM_COLS = [
   { label: '采购量', key: 'qty', align: 'right' },
   { label: '已到料', key: 'receivedQty', align: 'right' },
   { label: '单位', key: 'unit' },
-  { label: '单价', key: 'rate', align: 'right' },
+  { label: '未税单价', key: 'untaxedRate', align: 'right' },
+  { label: '含税单价', key: 'taxedRate', align: 'right' },
   { label: '税率', key: 'taxRate', align: 'right' },
-  { label: '金额', key: 'amount', align: 'right' },
+  { label: '未税合计', key: 'untaxedAmount', align: 'right' },
+  { label: '含税合计', key: 'taxedAmount', align: 'right' },
   { label: '实际到料时间', key: 'arrival' },
   { label: '备注', key: 'remark', wrap: true },
   // 附图摆在明细行自己那一行的最右边（原来另起一块按行分组列在表下面，
@@ -764,11 +805,11 @@ const viewItems = computed(() =>
       qty: it.qty,
       receivedQty: it.receivedQty,
       unit: it.unit,
-      rate: it.rateMicros
-        ? `${yuan(it.rateMicros)}${it.priceTaxIncluded ? '(含税)' : ''}`
-        : '—',
       taxRate: it.supplierTaxRate ? `${it.supplierTaxRate}%` : '—',
-      amount: yuan(it.amountMicros),
+      untaxedRate: yuan(it.untaxedRateMicros),
+      taxedRate: yuan(it.taxedRateMicros),
+      untaxedAmount: yuan(it.untaxedAmountMicros),
+      taxedAmount: yuan(it.taxedAmountMicros),
       arrival: day(it.arrivalDate),
       remark: it.remark,
       images: it.images || [],
@@ -1044,17 +1085,24 @@ useRouteQueryReentry(async query => {
                 v-for="col in visibleOrderCols"
                 :key="col.key"
                 draggable="true"
-                class="px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+                class="relative px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
                 :class="[
                   col.thClass,
                   isOrderColDragging(col.key) ? 'opacity-40' : '',
                 ]"
+                :style="orderColStyle(col.key)"
                 title="拖动可调整列顺序"
                 @dragstart="onOrderColDragStart(col.key)"
                 @dragover.prevent
                 @drop="onOrderColDrop(col.key)"
               >
                 {{ col.label }}
+                <ColResizeHandle
+                  :column-key="col.key"
+                  :active="isOrderColResizing(col.key)"
+                  @resize-start="(e, th) => startOrderColResize(col.key, e, th)"
+                  @auto-fit="autoFitOrderCol"
+                />
               </th>
               <th class="px-3 py-3" />
             </tr>
@@ -1068,7 +1116,11 @@ useRouteQueryReentry(async query => {
               <td
                 v-for="col in visibleOrderCols"
                 :key="col.key"
-                :class="col.tdClass"
+                :class="[
+                  col.tdClass,
+                  orderColStyle(col.key).width && 'truncate',
+                ]"
+                :style="orderColStyle(col.key)"
               >
                 <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
                 <template v-else-if="col.key === 'poNo'">
@@ -1245,17 +1297,24 @@ useRouteQueryReentry(async query => {
                 v-for="col in visibleItemCols"
                 :key="col.key"
                 draggable="true"
-                class="px-3 py-2 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+                class="relative px-3 py-2 font-medium transition-colors cursor-move select-none whitespace-nowrap"
                 :class="[
                   col.thClass,
                   isItemColDragging(col.key) ? 'opacity-40' : '',
                 ]"
+                :style="itemColStyle(col.key)"
                 title="拖动可调整列顺序"
                 @dragstart="onItemColDragStart(col.key)"
                 @dragover.prevent
                 @drop="onItemColDrop(col.key)"
               >
                 {{ col.label }}
+                <ColResizeHandle
+                  :column-key="col.key"
+                  :active="isItemColResizing(col.key)"
+                  @resize-start="(e, th) => startItemColResize(col.key, e, th)"
+                  @auto-fit="autoFitItemCol"
+                />
               </th>
               <th
                 class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-[''] px-3 py-2"
@@ -1271,7 +1330,11 @@ useRouteQueryReentry(async query => {
               <td
                 v-for="col in visibleItemCols"
                 :key="col.key"
-                :class="col.tdClass"
+                :class="[
+                  col.tdClass,
+                  itemColStyle(col.key).width && 'truncate',
+                ]"
+                :style="itemColStyle(col.key)"
               >
                 <template v-if="col.key === 'idx'">{{ i + 1 }}</template>
                 <template v-else-if="col.key === 'poNo'">{{ r.poNo }}</template>
@@ -1289,8 +1352,11 @@ useRouteQueryReentry(async query => {
                   {{ r.received ?? '—' }}
                 </template>
                 <template v-else-if="col.key === 'unit'">{{ r.unit }}</template>
-                <template v-else-if="col.key === 'rate'">
-                  {{ canViewAmount ? yuan(r.rate) : '—' }}
+                <template v-else-if="col.key === 'untaxedRate'">
+                  {{ canViewAmount ? yuan(r.untaxedRate) : '—' }}
+                </template>
+                <template v-else-if="col.key === 'taxedRate'">
+                  {{ canViewAmount ? yuan(r.taxedRate) : '—' }}
                 </template>
                 <template v-else-if="col.key === 'productRemark'">
                   <span :title="r.productRemark">{{ r.productRemark }}</span>
@@ -1298,8 +1364,11 @@ useRouteQueryReentry(async query => {
                 <template v-else-if="col.key === 'taxRate'">
                   {{ r.taxRate == null ? '—' : `${r.taxRate}%` }}
                 </template>
-                <template v-else-if="col.key === 'amount'">
-                  {{ canViewAmount ? yuan(r.amount) : '—' }}
+                <template v-else-if="col.key === 'untaxedAmount'">
+                  {{ canViewAmount ? yuan(r.untaxedAmount) : '—' }}
+                </template>
+                <template v-else-if="col.key === 'taxedAmount'">
+                  {{ canViewAmount ? yuan(r.taxedAmount) : '—' }}
                 </template>
                 <template v-else-if="col.key === 'order'">
                   {{ orderNosLabel(r.po.relatedProductionOrderNos) }}

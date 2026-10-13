@@ -12,6 +12,7 @@
 #  rate_micros        :bigint
 #  received_qty       :decimal(14, 3)   default(0.0), not null
 #  remark             :text
+#  supplier_seq       :integer
 #  unit               :string
 #  created_at         :datetime         not null
 #  updated_at         :datetime         not null
@@ -27,6 +28,7 @@
 #  index_mes_purchase_items_on_crm_product_id     (crm_product_id)
 #  index_mes_purchase_items_on_mes_material_id    (mes_material_id)
 #  index_mes_purchase_items_on_mes_supplier_id    (mes_supplier_id)
+#  index_mes_purchase_items_on_po_supplier_seq    (purchase_order_id,mes_supplier_id,supplier_seq)
 #  index_mes_purchase_items_on_purchase_order_id  (purchase_order_id)
 #
 # Foreign Keys
@@ -78,6 +80,13 @@ class Mes::PurchaseItem < ApplicationRecord
 
     (r * (1 + supplier_tax_rate / 100)).round
   end
+
+  # 未税 / 含税合计（micros）：单价各按各的口径乘数量。
+  # amount_micros 存的是「按录入口径」的金额（含税录入就是含税额），列表上单看一个数
+  # 分不清是哪种，对账时就对不上——所以两个都摆出来。
+  def untaxed_amount_micros = (qty.to_d * untaxed_rate_micros).round
+
+  def taxed_amount_micros = (qty.to_d * taxed_rate_micros).round
 
   private
 

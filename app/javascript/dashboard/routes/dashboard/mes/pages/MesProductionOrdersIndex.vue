@@ -8,6 +8,7 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
 import camelcaseKeys from 'camelcase-keys';
 import MesOrderStockEntriesDialog from 'dashboard/components-next/mes/MesOrderStockEntriesDialog.vue';
+import ColResizeHandle from 'dashboard/components-next/table/ColResizeHandle.vue';
 import MesProductPicker from 'dashboard/components-next/mes/MesProductPicker.vue';
 import MesHiddenLineHint from 'dashboard/components-next/mes/MesHiddenLineHint.vue';
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
@@ -262,6 +263,10 @@ const {
   onColDragStart,
   onColDrop,
   resetOrder,
+  colStyle,
+  isResizing,
+  startResize,
+  autoFitColumn,
 } = useOrderableColumns(COLUMN_DEFS, 'mes.orderCols.v1');
 
 // 14 列撑得比屏幕宽，只能靠底下那根细横条拖——触控板还行，鼠标很难受。
@@ -1860,13 +1865,20 @@ watch(currentPage, fetchRecords);
                   v-for="col in visibleColumns"
                   :key="col.key"
                   draggable="true"
-                  class="px-3 py-3 font-medium transition-colors cursor-move select-none"
+                  class="relative px-3 py-3 font-medium transition-colors cursor-move select-none"
                   :class="isDragging(col.key) ? 'opacity-40' : ''"
+                  :style="colStyle(col.key)"
                   title="拖动可调整列顺序"
                   @dragstart="onColDragStart(col.key)"
                   @dragover.prevent
                   @drop="onColDrop(col.key)"
                 >
+                  <ColResizeHandle
+                    :column-key="col.key"
+                    :active="isResizing(col.key)"
+                    @resize-start="(e, th) => startResize(col.key, e, th)"
+                    @auto-fit="autoFitColumn"
+                  />
                   <span class="inline-flex items-center gap-1">
                     {{ col.label }}
                     <MesColumnFilter
@@ -1897,7 +1909,8 @@ watch(currentPage, fetchRecords);
                 <td
                   v-for="col in visibleColumns"
                   :key="col.key"
-                  :class="col.tdClass"
+                  :class="[col.tdClass, colStyle(col.key).width && 'truncate']"
+                  :style="colStyle(col.key)"
                 >
                   <template v-if="col.key === 'no'">
                     <span
