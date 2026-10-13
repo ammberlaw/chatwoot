@@ -1046,154 +1046,167 @@ onMounted(async () => {
             >
               用料明细（{{ (viewing.bomItems || []).length }} 项）
             </div>
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-left text-n-slate-11 border-b border-n-weak">
-                  <th class="w-10 px-2 py-2 font-medium">#</th>
-                  <th class="px-2 py-2 font-medium whitespace-nowrap">类别</th>
-                  <th class="px-2 py-2 font-medium whitespace-nowrap">
-                    物料编码
-                  </th>
-                  <th class="px-2 py-2 font-medium whitespace-nowrap">
-                    物料名称
-                  </th>
-                  <th class="px-2 py-2 font-medium whitespace-nowrap">
-                    规格型号
-                  </th>
-                  <th class="px-2 py-2 font-medium whitespace-nowrap">
-                    辅助属性
-                  </th>
-                  <th class="px-2 py-2 font-medium whitespace-nowrap">单位</th>
-                  <th
-                    class="px-2 py-2 font-medium text-right whitespace-nowrap"
-                  >
-                    用量
-                  </th>
-                  <!-- 单价/金额/价源只给财务/管理员/采购；没权限时后端不下发这几个键 -->
-                  <template v-if="showCost">
-                    <th
-                      class="px-2 py-2 font-medium text-right whitespace-nowrap"
-                    >
-                      单价
-                    </th>
-                    <th
-                      class="px-2 py-2 font-medium text-right whitespace-nowrap"
-                    >
-                      金额
+            <!-- 十三列在弹窗里放不下：原来 w-full 硬压，物料名称、规格型号被折成两三行，
+                 一屏看不了几条。改成按内容宽度 + 横向滚动，用左右箭头翻屏（同整页表格那套）。 -->
+            <HScrollButtons />
+            <div class="relative overflow-x-auto">
+              <table class="w-full text-sm min-w-max">
+                <thead>
+                  <tr class="text-left text-n-slate-11 border-b border-n-weak">
+                    <th class="w-10 px-2 py-2 font-medium">#</th>
+                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      类别
                     </th>
                     <th class="px-2 py-2 font-medium whitespace-nowrap">
-                      价源
+                      物料编码
                     </th>
-                  </template>
-                  <th class="px-2 py-2 font-medium whitespace-nowrap">备注</th>
-                  <th class="px-2 py-2 font-medium whitespace-nowrap">
-                    采购注意事项
-                  </th>
-                  <th class="px-2 py-2 font-medium whitespace-nowrap">
-                    生产备注
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(it, i) in viewing.bomItems"
-                  :key="i"
-                  class="border-b border-n-weak"
-                >
-                  <td class="px-2 py-2 tabular-nums text-n-slate-10">
-                    {{ i + 1 }}
-                  </td>
-                  <td class="px-2 py-2">
-                    <span
-                      class="px-2 py-0.5 text-xs rounded-full"
-                      :class="
-                        it.category === 'PACKAGING'
-                          ? 'bg-n-amber-3 text-n-amber-12'
-                          : 'bg-n-iris-3 text-n-iris-12'
-                      "
+                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      物料名称
+                    </th>
+                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      规格型号
+                    </th>
+                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      辅助属性
+                    </th>
+                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      单位
+                    </th>
+                    <th
+                      class="px-2 py-2 font-medium text-right whitespace-nowrap"
                     >
-                      {{ categoryLabel(it.category) }}
-                    </span>
-                  </td>
-                  <td class="px-2 py-2 text-n-slate-12">
-                    {{ it.materialNo || '—' }}
-                  </td>
-                  <td class="px-2 py-2 text-n-slate-12">
-                    {{ it.materialName }}
-                  </td>
-                  <td class="px-2 py-2 text-n-slate-11">
-                    {{ it.specification || '—' }}
-                  </td>
-                  <td class="px-2 py-2 text-n-slate-11">
-                    {{ it.auxAttributeName || '—' }}
-                  </td>
-                  <td class="px-2 py-2 text-n-slate-11">
-                    {{ it.unit || '—' }}
-                  </td>
-                  <td class="px-2 py-2 text-right text-n-slate-12">
-                    {{ it.qty }}
-                  </td>
-                  <template v-if="showCost">
-                    <td
-                      class="px-2 py-2 text-right tabular-nums text-n-slate-12"
-                    >
-                      {{ money(it.unitPriceMicros) }}
-                    </td>
-                    <td
-                      class="px-2 py-2 text-right tabular-nums text-n-slate-12"
-                    >
-                      {{ money(it.amountMicros) }}
+                      用量
+                    </th>
+                    <!-- 单价/金额/价源只给财务/管理员/采购；没权限时后端不下发这几个键 -->
+                    <template v-if="showCost">
+                      <th
+                        class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                      >
+                        单价
+                      </th>
+                      <th
+                        class="px-2 py-2 font-medium text-right whitespace-nowrap"
+                      >
+                        金额
+                      </th>
+                      <th class="px-2 py-2 font-medium whitespace-nowrap">
+                        价源
+                      </th>
+                    </template>
+                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      备注
+                    </th>
+                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      采购注意事项
+                    </th>
+                    <th class="px-2 py-2 font-medium whitespace-nowrap">
+                      生产备注
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(it, i) in viewing.bomItems"
+                    :key="i"
+                    class="border-b border-n-weak"
+                  >
+                    <td class="px-2 py-2 tabular-nums text-n-slate-10">
+                      {{ i + 1 }}
                     </td>
                     <td class="px-2 py-2">
-                      <!-- 「多单价不一」＝这颗料在本任务单的几张生产订单里买价不同（备货期涨跌价）。
-                           这时单价那一栏取的是最近一张，没有唯一正确值，所以标出来并把每张单
-                           各是多少挂在悬停提示里——只给一个数会让人当成确定的成本。 -->
                       <span
-                        v-if="it.priceSourceLabel"
                         class="px-2 py-0.5 text-xs rounded-full"
                         :class="
-                          it.priceBreakdown?.length
-                            ? 'bg-n-amber-3 text-n-amber-11 cursor-help'
-                            : 'bg-n-slate-3 text-n-slate-11'
+                          it.category === 'PACKAGING'
+                            ? 'bg-n-amber-3 text-n-amber-12'
+                            : 'bg-n-iris-3 text-n-iris-12'
                         "
-                        :title="priceBreakdownTip(it)"
                       >
-                        {{ it.priceSourceLabel }}
+                        {{ categoryLabel(it.category) }}
                       </span>
-                      <span v-else class="text-xs text-n-ruby-11">无单价</span>
                     </td>
-                  </template>
-                  <!-- 本行没写备注就显产品档案上的（工程写的工艺要求）。
+                    <td class="px-2 py-2 text-n-slate-12">
+                      {{ it.materialNo || '—' }}
+                    </td>
+                    <td class="px-2 py-2 text-n-slate-12">
+                      {{ it.materialName }}
+                    </td>
+                    <td class="px-2 py-2 text-n-slate-11">
+                      {{ it.specification || '—' }}
+                    </td>
+                    <td class="px-2 py-2 text-n-slate-11">
+                      {{ it.auxAttributeName || '—' }}
+                    </td>
+                    <td class="px-2 py-2 text-n-slate-11">
+                      {{ it.unit || '—' }}
+                    </td>
+                    <td class="px-2 py-2 text-right text-n-slate-12">
+                      {{ it.qty }}
+                    </td>
+                    <template v-if="showCost">
+                      <td
+                        class="px-2 py-2 text-right tabular-nums text-n-slate-12"
+                      >
+                        {{ money(it.unitPriceMicros) }}
+                      </td>
+                      <td
+                        class="px-2 py-2 text-right tabular-nums text-n-slate-12"
+                      >
+                        {{ money(it.amountMicros) }}
+                      </td>
+                      <td class="px-2 py-2">
+                        <!-- 「多单价不一」＝这颗料在本任务单的几张生产订单里买价不同（备货期涨跌价）。
+                           这时单价那一栏取的是最近一张，没有唯一正确值，所以标出来并把每张单
+                           各是多少挂在悬停提示里——只给一个数会让人当成确定的成本。 -->
+                        <span
+                          v-if="it.priceSourceLabel"
+                          class="px-2 py-0.5 text-xs rounded-full"
+                          :class="
+                            it.priceBreakdown?.length
+                              ? 'bg-n-amber-3 text-n-amber-11 cursor-help'
+                              : 'bg-n-slate-3 text-n-slate-11'
+                          "
+                          :title="priceBreakdownTip(it)"
+                        >
+                          {{ it.priceSourceLabel }}
+                        </span>
+                        <span v-else class="text-xs text-n-ruby-11">
+                          无单价
+                        </span>
+                      </td>
+                    </template>
+                    <!-- 本行没写备注就显产品档案上的（工程写的工艺要求）。
                        不加「档案：」前缀——这栏是要发给供应商/车间看的，前缀是内部说法。
                        来源仍留在 title 里，鼠标移上去看得到。 -->
-                  <td class="px-2 py-2 text-n-slate-11">
-                    <span v-if="it.remark">{{ it.remark }}</span>
-                    <span
-                      v-else-if="it.productRemark"
-                      class="text-n-slate-10"
-                      :title="`产品档案备注：${it.productRemark}`"
+                    <td class="px-2 py-2 text-n-slate-11">
+                      <span v-if="it.remark">{{ it.remark }}</span>
+                      <span
+                        v-else-if="it.productRemark"
+                        class="text-n-slate-10"
+                        :title="`产品档案备注：${it.productRemark}`"
+                      >
+                        {{ it.productRemark }}
+                      </span>
+                      <span v-else>—</span>
+                    </td>
+                    <td class="px-2 py-2 text-n-slate-11">
+                      {{ it.purchaseNote || '—' }}
+                    </td>
+                    <td class="px-2 py-2 text-n-slate-11">
+                      {{ it.productionNote || '—' }}
+                    </td>
+                  </tr>
+                  <tr v-if="!(viewing.bomItems || []).length">
+                    <td
+                      :colspan="showCost ? 14 : 11"
+                      class="px-2 py-6 text-center text-n-slate-11"
                     >
-                      {{ it.productRemark }}
-                    </span>
-                    <span v-else>—</span>
-                  </td>
-                  <td class="px-2 py-2 text-n-slate-11">
-                    {{ it.purchaseNote || '—' }}
-                  </td>
-                  <td class="px-2 py-2 text-n-slate-11">
-                    {{ it.productionNote || '—' }}
-                  </td>
-                </tr>
-                <tr v-if="!(viewing.bomItems || []).length">
-                  <td
-                    :colspan="showCost ? 14 : 11"
-                    class="px-2 py-6 text-center text-n-slate-11"
-                  >
-                    无用料明细
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                      无用料明细
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
             <!-- 成本小结。缺价行数必须露出来：覆盖不到 100% 时，一个不标缺口的
                  合计会被当成完整成本用（财务按它算产品单价）。 -->

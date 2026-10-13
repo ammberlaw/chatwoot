@@ -7,8 +7,12 @@ json.specification resource.mes_material&.specification || resource.crm_product&
 json.crm_product_id resource.crm_product_id
 json.product_name resource.crm_product&.name
 json.product_sku resource.crm_product&.sku
-# 供应商属采购口径，销售端不可见（生态硬约束）——仅 MES 员工。
-if Current.account_user&.mes_staff?
+# 供应商属采购口径，**销售端**不可见（生态硬约束）。但财务要按供应商对账、采购审批人
+# 要知道这单发给谁，都得看得到——原来只认 mes_staff?，把财务一起挡在外面了，
+# 「按明细」视图里供应商整列是「—」。口径与金额那条一致（见 _mes_purchase_order）。
+if Current.account_user&.mes_staff? ||
+   Current.account_user&.crm_finance? ||
+   Mes::PurchaseOrder.approver?(Current.account, Current.user&.id)
   json.mes_supplier_id resource.mes_supplier_id
   json.supplier_name resource.mes_supplier&.name
 end

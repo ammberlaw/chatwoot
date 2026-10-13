@@ -250,6 +250,12 @@ const hiddenLedgerCols = computed(
 // 表头漏斗筛选（对标金蝶）：{ 列名: { op, value } }。服务端按列筛，不是只筛当前这一页——
 // 列表是分页的，筛 50 行说「没有」，翻到第二页它又在。
 const colFilters = ref({});
+// 各页签日期筛的是不同的日期，占位文案要说清楚，不然筛不出来还以为坏了。
+const DATE_LABEL = {
+  ledger: '单据日期',
+  pending: '下单日期',
+  receipts: '收款日',
+};
 // axios 默认序列化器把嵌套对象拍成 "[object Object]"，所以自己展开成
 // cf[列][op] / cf[列][value]——Rails 按方括号解回嵌套 params。
 const colFilterParams = () => {
@@ -296,6 +302,8 @@ const loadReceipts = async () => {
   try {
     const { data } = await ErpReceiptAPI.get({
       q: keyword.value.trim(),
+      from: fromDate.value,
+      to: toDate.value,
       page: receiptPage.value,
       per_page: PER_PAGE,
     });
@@ -370,6 +378,8 @@ const loadPendingOrders = async ({ silent = false } = {}) => {
       q: keyword.value.trim(),
       owner_id: pendingOwner.value,
       status: pendingStatus.value,
+      from: fromDate.value,
+      to: toDate.value,
       page: pendingPage.value,
       per_page: PER_PAGE,
     });
@@ -445,6 +455,9 @@ const reload = () => {
   return agingRef.value?.load();
 };
 const switchTab = key => {
+  // 三个页签筛的不是同一个日期（单据日期/下单日期/收款日），带过去必然筛空。
+  fromDate.value = '';
+  toDate.value = '';
   activeTab.value = key;
   nextTick(reload);
 };
@@ -773,6 +786,8 @@ const exportReceipts = async () => {
   try {
     const rows = await fetchAllRows(params => ErpReceiptAPI.get(params), {
       q: keyword.value.trim(),
+      from: fromDate.value,
+      to: toDate.value,
     });
     exportRowsToExcel(
       {
@@ -819,6 +834,8 @@ const exportPending = async () => {
         q: keyword.value.trim(),
         owner_id: pendingOwner.value,
         status: pendingStatus.value,
+        from: fromDate.value,
+        to: toDate.value,
       }
     );
     exportRowsToExcel(
@@ -1050,27 +1067,13 @@ onMounted(() => {
           </span>
         </button>
       </div>
-      <template v-if="activeTab === 'ledger'">
-        <SelectCard
-          v-model="statusFilter"
-          :options="STATUS_OPTIONS"
-          trigger-class="[.theme-classic_&]:!h-[38px]"
-          @update:model-value="loadLedgers"
-        />
-        <DatePicker
-          v-model="fromDate"
-          placeholder="单据日期起"
-          trigger-class="w-36"
-          @change="loadLedgers"
-        />
-        <span class="text-sm text-n-slate-10">至</span>
-        <DatePicker
-          v-model="toDate"
-          placeholder="单据日期止"
-          trigger-class="w-36"
-          @change="loadLedgers"
-        />
-      </template>
+      <SelectCard
+        v-if="activeTab === 'ledger'"
+        v-model="statusFilter"
+        :options="STATUS_OPTIONS"
+        trigger-class="[.theme-classic_&]:!h-[38px]"
+        @update:model-value="loadLedgers"
+      />
       <template v-else-if="activeTab === 'pending'">
         <SelectCard
           v-model="pendingOwner"
@@ -1093,13 +1096,30 @@ onMounted(() => {
           trigger-class="[.theme-classic_&]:!h-[38px]"
           @update:model-value="onPendingFilterChange"
         />
-        <span
-          v-if="pendingFilteredCount !== pendingCount"
-          class="text-sm text-n-slate-11"
-        >
-          筛出 {{ pendingFilteredCount }} / {{ pendingCount }} 张
-        </span>
       </template>
+      <!-- 日期区间：三个「一行一张单」的页签都要（台账＝单据日期、待建账＝下单日期、
+           收款记录＝收款日）。账龄是汇总报表，它自己有截止日，不在这儿。 -->
+      <template v-if="isDocTab">
+        <DatePicker
+          v-model="fromDate"
+          :placeholder="`${DATE_LABEL[activeTab]}起`"
+          trigger-class="w-36"
+          @change="reload"
+        />
+        <span class="text-sm text-n-slate-10">至</span>
+        <DatePicker
+          v-model="toDate"
+          :placeholder="`${DATE_LABEL[activeTab]}止`"
+          trigger-class="w-36"
+          @change="reload"
+        />
+      </template>
+      <span
+        v-if="activeTab === 'pending' && pendingFilteredCount !== pendingCount"
+        class="text-sm text-n-slate-11"
+      >
+        筛出 {{ pendingFilteredCount }} / {{ pendingCount }} 张
+      </span>
     </div>
 
     <HScrollButtons />

@@ -248,6 +248,17 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     scope = pending_order_scope
     scope = scope.where(owner_id: params[:owner_id]) if params[:owner_id].present?
     scope = scope.where(status: params[:status]) if params[:status].present?
+    pending_keyword_scope(pending_date_scope(scope))
+  end
+
+  # 按下单日期筛（台账那边筛的是单据日期，这边还没建账、只有下单日期这个口径）。
+  def pending_date_scope(scope)
+    scope = scope.where(order_date: params[:from].to_date.beginning_of_day..) if params[:from].present?
+    scope = scope.where(order_date: ..params[:to].to_date.end_of_day) if params[:to].present?
+    scope
+  end
+
+  def pending_keyword_scope(scope)
     return scope if params[:q].blank?
 
     term = "%#{params[:q].to_s.strip}%"

@@ -193,6 +193,8 @@ const ledgerPage = ref(1);
 // 表头漏斗筛选（对标金蝶）：{ 列名: { op, value } }。服务端按列筛，不是只筛当前这一页——
 // 列表是分页的，筛 50 行说「没有」，翻到第二页它又在。
 const colFilters = ref({});
+// 两个页签筛的不是同一个日期，占位文案要说清楚，不然筛不出来还以为坏了。
+const DATE_LABEL = { ledger: '发生日期', payments: '付款日' };
 // axios 默认序列化器把嵌套对象拍成 "[object Object]"，所以自己展开成
 // cf[列][op] / cf[列][value]——Rails 按方括号解回嵌套 params。
 const colFilterParams = () => {
@@ -231,6 +233,8 @@ const loadPayments = async () => {
   try {
     const { data } = await ErpPaymentAPI.get({
       q: keyword.value.trim(),
+      from: fromDate.value,
+      to: toDate.value,
       page: paymentPage.value,
       per_page: PER_PAGE,
     });
@@ -288,6 +292,9 @@ const reload = () => {
   return agingRef.value?.load();
 };
 const switchTab = key => {
+  // 两个页签筛的不是同一个日期（发生日期/付款日），带过去必然筛空。
+  fromDate.value = '';
+  toDate.value = '';
   activeTab.value = key;
   nextTick(reload);
 };
@@ -565,6 +572,8 @@ const exportLedger = async () => {
 const exportPayments = async () => {
   const rows = await fetchAllRows(params => ErpPaymentAPI.get(params), {
     q: keyword.value.trim(),
+    from: fromDate.value,
+    to: toDate.value,
   });
   exportRowsToExcel(
     {
@@ -767,18 +776,22 @@ onMounted(loadLedgers);
           :options="SETTLE_OPTIONS"
           @update:model-value="loadLedgers"
         />
+      </template>
+      <!-- 日期区间：两个「一行一张单」的页签都要（台账＝发生日期、付款记录＝付款日）。
+           对账/按月未付/账龄是汇总报表，各有自己的截止口径，不在这儿。 -->
+      <template v-if="isDocTab">
         <DatePicker
           v-model="fromDate"
-          placeholder="发生日期起"
+          :placeholder="`${DATE_LABEL[activeTab]}起`"
           trigger-class="w-36"
-          @change="loadLedgers"
+          @change="reload"
         />
         <span class="text-sm text-n-slate-10">至</span>
         <DatePicker
           v-model="toDate"
-          placeholder="发生日期止"
+          :placeholder="`${DATE_LABEL[activeTab]}止`"
           trigger-class="w-36"
-          @change="loadLedgers"
+          @change="reload"
         />
       </template>
     </div>
