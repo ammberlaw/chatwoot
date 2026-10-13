@@ -125,7 +125,7 @@ const viewFields = computed(() => {
 const printSheetRef = ref(null);
 const printRows = computed(() =>
   (viewing.value?.stockEntryItems || []).map(it => ({
-    sourceNo: viewing.value?.purchaseOrderNo,
+    sourceNo: it.sourcePoNo || viewing.value?.purchaseOrderNo,
     materialNo: it.materialNo,
     name: it.materialName || it.productName,
     spec: it.specification,

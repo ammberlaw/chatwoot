@@ -138,7 +138,9 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
   def header_string_map
     map = {
       @cfg[:supplier_si] => "#{@cfg[:supplier_prefix]}#{supplier_name}\n#{@cfg[:contact_prefix]}#{@supplier&.contact_name}",
-      @cfg[:po_no_si] => "#{@cfg[:po_no_prefix]}#{@po.po_no}",
+      # 发给供应商的是**他这一家**的单号（PU-20260928-04-01），不是整张单的 po_no——
+      # 他交货写这个号、仓库按这个号入库、财务按这个号对账（见 Mes::PoSupplierNumber）。
+      @cfg[:po_no_si] => "#{@cfg[:po_no_prefix]}#{Mes::PoSupplierNumber.for(@po, @supplier&.id)}",
       @cfg[:date_si] => "#{@cfg[:date_prefix]}#{po_date}",
       @cfg[:address_si] => address_value
     }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_13_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_13_160000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -3170,10 +3170,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_140000) do
     t.datetime "arrival_date"
     t.boolean "price_tax_included", default: false, null: false
     t.string "aux_attribute_name"
+    t.integer "supplier_seq"
     t.index ["account_id"], name: "index_mes_purchase_items_on_account_id"
     t.index ["crm_product_id"], name: "index_mes_purchase_items_on_crm_product_id"
     t.index ["mes_material_id"], name: "index_mes_purchase_items_on_mes_material_id"
     t.index ["mes_supplier_id"], name: "index_mes_purchase_items_on_mes_supplier_id"
+    t.index ["purchase_order_id", "mes_supplier_id", "supplier_seq"], name: "index_mes_purchase_items_on_po_supplier_seq"
     t.index ["purchase_order_id"], name: "index_mes_purchase_items_on_purchase_order_id"
   end
 

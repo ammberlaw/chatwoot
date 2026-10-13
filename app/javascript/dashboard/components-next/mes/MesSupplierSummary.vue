@@ -1,6 +1,9 @@
 <script setup>
 defineProps({
   names: { type: Array, default: () => [] },
+  // [{ id, no, name }]——一张单里每家供应商的专属采购订单号。给了就连号一起显示：
+  // 供应商交货、仓库入库、财务对账认的都是他那张单的号，列表上看不到号就对不上。
+  suppliers: { type: Array, default: () => [] },
 });
 </script>
 
@@ -12,9 +15,23 @@ defineProps({
       {{ names.length }} 家供应商
     </summary>
     <ul
-      class="mt-2 p-3 space-y-2 w-72 max-w-full max-h-60 overflow-y-auto whitespace-normal break-words rounded-lg border border-n-weak bg-n-solid-1 text-n-slate-12"
+      class="mt-2 p-3 space-y-2 w-80 max-w-full max-h-60 overflow-y-auto whitespace-normal break-words rounded-lg border border-n-weak bg-n-solid-1 text-n-slate-12"
     >
-      <li v-for="(name, index) in names" :key="index">{{ name }}</li>
+      <li
+        v-for="(row, index) in suppliers.length
+          ? suppliers
+          : names.map(n => ({ name: n }))"
+        :key="index"
+        class="flex items-baseline gap-2"
+      >
+        <span
+          v-if="row.no"
+          class="shrink-0 font-mono text-label-small text-n-slate-11"
+        >
+          {{ row.no }}
+        </span>
+        <span>{{ row.name }}</span>
+      </li>
     </ul>
   </details>
   <span

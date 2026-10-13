@@ -3,7 +3,9 @@ json.payable_no resource.payable_no
 json.mes_supplier_id resource.mes_supplier_id
 json.supplier_name resource.mes_supplier&.name
 json.mes_purchase_order_id resource.mes_purchase_order_id
-json.po_no resource.mes_purchase_order&.po_no
+# 这家供应商的那张单号（PU-20260928-04-01）——财务对账认的就是供应商手上那张单的号。
+json.po_no(resource.mes_purchase_order &&
+           Mes::PoSupplierNumber.for(resource.mes_purchase_order, resource.mes_supplier_id))
 json.currency resource.currency
 json.exchange_rate resource.exchange_rate
 json.total_amount_micros resource.total_amount_micros

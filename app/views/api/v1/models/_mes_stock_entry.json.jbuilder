@@ -53,6 +53,9 @@ item_meta = lambda do |item|
   end
   {
     supplier_name: hit&.mes_supplier&.name,
+    # 源单号是**这家供应商**的那张单（PU-20260928-04-01）：仓库按供应商交来的那张单核对，
+    # 一张采购单含多家供应商时，整单 po_no 对不上他手里的单（见 Mes::PoSupplierNumber）。
+    source_po_no: hit ? Mes::PoSupplierNumber.for(po, hit.mes_supplier_id) : nil,
     specification: item.mes_material&.specification.presence || item.crm_product&.specification,
     unit_price_micros: can_view_amount ? hit&.rate_micros : nil,
     # 金额按**本次入库量**算，不是采购量——入库单上的钱是这一车货的钱。

@@ -81,6 +81,8 @@ class Mes::PurchaseOrder < ApplicationRecord
   # 作废/删除已审批采购单时，把未收货部分的在途库存冲回，避免在途永久虚增。
   before_update :release_on_order_on_cancel
   before_destroy :release_on_order_if_open
+  # 新供应商上单就定号，之后再怎么改单都不动它（见 Mes::PoSupplierNumber）。
+  after_save { Mes::PoSupplierNumber.assign!(self) }
 
   validates :po_no, presence: true, uniqueness: { scope: :account_id }
   validates :status, inclusion: { in: STATUSES }
@@ -264,6 +266,8 @@ class Mes::PurchaseOrder < ApplicationRecord
 
   private
 
+  # 给本单里还没有号的供应商定序号。已经有号的一概不动——那个号可能已经随单发给供应商了。
+  # 「未指定供应商」（supplier_id 为 nil）也占一个号：导出时它自成一份单。
   # 状态改为 CANCELLED（且原为已审批）→ 回冲未收货在途。
   def release_on_order_on_cancel
     release_on_order! if approved? && status_changed? && status == 'CANCELLED'

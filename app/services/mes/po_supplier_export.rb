@@ -86,20 +86,18 @@ class Mes::PoSupplierExport
     {
       # 前端勾选导出用；「未指定供应商」没有 id，统一用 0。
       supplier_id: supplier&.id || 0,
+      # 发给这家的单号（PU-20260928-04-01）——他交货、仓库入库、财务对账都认它。
+      po_no: Mes::PoSupplierNumber.for(@po, supplier&.id),
       name: supplier&.name.presence || '未指定供应商',
       contact_name: supplier&.contact_name,
       address: supplier&.address,
       bill_entity: entity,
       # 档案上的原始抬头：前端要能看出「这次是手动改过的」。
       default_bill_entity: default_entity(supplier),
-      company: head[:company],
-      title: head[:title],
-      taxed: head[:taxed],
-      currency: head[:currency],
       items: rows,
       total_qty: rows.sum { |r| r[:qty] },
       total_amount: rows.sum { |r| r[:amount] }.round(2)
-    }
+    }.merge(head)
   end
 
   def item_payload(item, idx, head)

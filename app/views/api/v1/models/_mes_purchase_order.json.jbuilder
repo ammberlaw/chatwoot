@@ -7,6 +7,15 @@ can_view_amount = Current.account_user&.mes_can?(:purchase) ||
 json.id resource.id
 json.po_no resource.po_no
 json.supplier_names resource.purchase_items.filter_map { |i| i.mes_supplier&.name }.uniq
+# 每家供应商在本单的专属单号（PU-20260928-04-01）：列表展开时要能一眼看出
+# 发给哪家的是哪个号——供应商交货、仓库入库、财务对账都认它（Mes::PoSupplierNumber）。
+json.suppliers do
+  json.array!(resource.purchase_items.group_by(&:mes_supplier_id).map do |supplier_id, items|
+    { id: supplier_id,
+      no: Mes::PoSupplierNumber.for(resource, supplier_id),
+      name: items.first.mes_supplier&.name || '未指定供应商' }
+  end.sort_by { |s| s[:no] })
+end
 json.production_order_id resource.production_order_id
 json.product_line resource.product_line
 json.production_order_no resource.production_order&.order_no

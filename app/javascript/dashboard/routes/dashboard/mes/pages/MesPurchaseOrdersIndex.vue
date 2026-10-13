@@ -1009,7 +1009,10 @@ useRouteQueryReentry(async query => {
               </div>
             </div>
             <div class="mt-1 text-xs text-n-slate-11">
-              <MesSupplierSummary :names="p.supplierNames || []" />
+              <MesSupplierSummary
+                :names="p.supplierNames || []"
+                :suppliers="p.suppliers || []"
+              />
             </div>
             <div class="flex flex-wrap mt-1 gap-3 text-xs text-n-slate-11">
               <span>生产订单：{{ p.productionOrderNo || '—' }}</span>
@@ -1086,7 +1089,10 @@ useRouteQueryReentry(async query => {
                   </span>
                 </template>
                 <template v-else-if="col.key === 'suppliers'">
-                  <MesSupplierSummary :names="p.supplierNames || []" />
+                  <MesSupplierSummary
+                    :names="p.supplierNames || []"
+                    :suppliers="p.suppliers || []"
+                  />
                 </template>
                 <template v-else-if="col.key === 'order'">
                   <span :title="(p.relatedProductionOrderNos || []).join('、')">

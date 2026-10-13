@@ -16,6 +16,7 @@ json.warehouse_id resource.warehouse_id
 meta = local_assigns[:meta] || {}
 json.specification meta[:specification]
 json.supplier_name meta[:supplier_name]
+json.source_po_no meta[:source_po_no]
 json.unit_price_micros meta[:unit_price_micros]
 json.amount_micros meta[:amount_micros]
 json.remark resource.remark
