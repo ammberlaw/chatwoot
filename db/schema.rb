@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_13_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_13_180000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -3112,6 +3112,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_160000) do
     t.boolean "is_outsourced", default: false, null: false
     t.bigint "outsource_supplier_id"
     t.bigint "crm_customer_id"
+    t.datetime "sales_return_at"
+    t.bigint "sales_return_by_id"
+    t.text "sales_return_reason"
+    t.datetime "sales_return_resolved_at"
+    t.bigint "sales_return_resolved_by_id"
     t.index ["account_id", "approval_status"], name: "index_mes_production_orders_on_account_id_and_approval_status"
     t.index ["account_id", "is_draft"], name: "index_mes_production_orders_on_account_id_and_is_draft"
     t.index ["account_id", "is_outsourced"], name: "index_mes_production_orders_on_account_id_and_is_outsourced"
@@ -3119,6 +3124,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_160000) do
     t.index ["account_id", "order_no"], name: "index_mes_production_orders_on_account_id_and_order_no", unique: true
     t.index ["account_id", "product_code"], name: "index_mes_production_orders_on_account_and_product_code"
     t.index ["account_id", "product_line"], name: "index_mes_production_orders_on_account_and_product_line"
+    t.index ["account_id", "sales_return_at"], name: "index_mes_production_orders_awaiting_sales_confirm", where: "((sales_return_at IS NOT NULL) AND (sales_return_resolved_at IS NULL))"
     t.index ["account_id", "stage"], name: "index_mes_production_orders_on_account_id_and_stage"
     t.index ["account_id"], name: "index_mes_production_orders_on_account_id"
     t.index ["bom_confirmed_by_id"], name: "index_mes_production_orders_on_bom_confirmed_by_id"

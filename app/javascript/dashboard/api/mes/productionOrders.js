@@ -50,6 +50,13 @@ client.reject = (id, reason) =>
 client.forward = (id, payload) =>
   axios.post(`${client.url}/${id}/forward`, payload);
 
+// 退回给业务：工程/PMC 发现业务没把物料细节确认清楚，把单退回去等业务补。
+client.returnToSales = (id, reason) =>
+  axios.post(`${client.url}/${id}/return_to_sales`, { reason });
+// 业务补完细节点「已确认」，解除退回。
+client.resolveSalesReturn = id =>
+  axios.post(`${client.url}/${id}/resolve_sales_return`);
+
 // 我的待办：停在我负责阶段的在产订单。
 client.inbox = () => axios.get(`${client.url}/inbox`);
 

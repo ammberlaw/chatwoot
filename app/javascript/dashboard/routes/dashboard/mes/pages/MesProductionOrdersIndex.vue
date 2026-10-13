@@ -481,6 +481,54 @@ const openDetail = row => {
 };
 
 // —— 业务转发/知会：把订单知会给某阶段负责人 + 附言，推站内通知并留痕 ——
+// ── 退回给业务 ────────────────────────────────────────────────────
+// 工程/PMC 做生产任务单时发现业务没把物料细节确认清楚，做不下去，退回去等业务补。
+// 能不能退由后端按阶段 + 是不是本阶段负责人判（canReturnToSales），前端只照着显示。
+const returnDialogRef = ref(null);
+const returnReason = ref('');
+const returnBusy = ref(false);
+const openReturnToSales = () => {
+  returnReason.value = '';
+  returnDialogRef.value?.open();
+};
+const submitReturnToSales = async () => {
+  if (!returnReason.value.trim()) {
+    useAlert('请填写退回原因');
+    return;
+  }
+  returnBusy.value = true;
+  try {
+    const { data } = await MesProductionOrderAPI.returnToSales(
+      viewingOrder.value.id,
+      returnReason.value.trim()
+    );
+    viewingOrder.value = camelcaseKeys(data, { deep: true });
+    returnDialogRef.value?.close();
+    useAlert('已退回给业务，等对方确认');
+    fetchRecords();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '退回失败');
+  } finally {
+    returnBusy.value = false;
+  }
+};
+const resolveBusy = ref(false);
+const resolveSalesReturn = async () => {
+  resolveBusy.value = true;
+  try {
+    const { data } = await MesProductionOrderAPI.resolveSalesReturn(
+      viewingOrder.value.id
+    );
+    viewingOrder.value = camelcaseKeys(data, { deep: true });
+    useAlert('已确认，工程/PMC 可以接着做了');
+    fetchRecords();
+  } catch (e) {
+    useAlert(e?.response?.data?.error || '确认失败');
+  } finally {
+    resolveBusy.value = false;
+  }
+};
+
 const forwardDialogRef = ref(null);
 const forwardBoardKey = ref('');
 const forwardNote = ref('');
@@ -3252,7 +3300,47 @@ watch(currentPage, fetchRecords);
       :title="viewingOrder ? `订单明细 ${viewingOrder.orderNo}` : '订单明细'"
     >
       <div v-if="viewingOrder" class="flex flex-col gap-4 text-sm">
+        <!-- 退回待确认：原因摆在最上面，业务一开单就看见是哪个细节卡住了 -->
+        <div
+          v-if="viewingOrder.awaitingSalesConfirm"
+          class="flex flex-col gap-2 p-3 border rounded-lg border-n-amber-6 bg-n-amber-2"
+        >
+          <div class="flex items-center gap-2">
+            <span class="i-lucide-corner-up-left size-4 text-n-amber-11" />
+            <span class="font-medium text-n-slate-12">
+              已退回给业务，等确认
+            </span>
+            <span class="text-label-small text-n-slate-11">
+              {{ viewingOrder.salesReturnByName }} ·
+              {{
+                viewingOrder.salesReturnAt
+                  ? new Date(viewingOrder.salesReturnAt).toLocaleString()
+                  : ''
+              }}
+            </span>
+            <Button
+              label="已确认"
+              color="amber"
+              size="sm"
+              class="ml-auto"
+              :is-loading="resolveBusy"
+              @click="resolveSalesReturn"
+            />
+          </div>
+          <p class="whitespace-pre-wrap text-n-slate-12">
+            {{ viewingOrder.salesReturnReason }}
+          </p>
+        </div>
         <div class="flex justify-end gap-2">
+          <Button
+            v-if="viewingOrder.canReturnToSales"
+            label="退回给业务"
+            icon="i-lucide-corner-up-left"
+            variant="outline"
+            color="ruby"
+            size="sm"
+            @click="openReturnToSales"
+          />
           <Button
             label="转发/知会"
             icon="i-lucide-send"
@@ -3493,6 +3581,32 @@ watch(currentPage, fetchRecords);
             </li>
           </ul>
         </div>
+      </div>
+    </Dialog>
+
+    <!-- 退回给业务：必须填原因——业务只知道被退了、不知道哪个细节没说清，还得回头问一遍 -->
+    <Dialog
+      ref="returnDialogRef"
+      title="退回给业务"
+      confirm-button-label="退回"
+      confirm-button-color="ruby"
+      :is-loading="returnBusy"
+      :disable-confirm-button="!returnReason.trim()"
+      @confirm="submitReturnToSales"
+    >
+      <div class="flex flex-col gap-1.5">
+        <label class="text-heading-3 text-n-slate-12">
+          哪些细节没确认清楚？
+        </label>
+        <textarea
+          v-model="returnReason"
+          rows="4"
+          class="px-3 py-2 text-sm border rounded-lg outline-none resize-y border-n-weak bg-n-solid-1 text-n-slate-12"
+          placeholder="例：外壳颜色和丝印内容客户还没确认，料下不了"
+        />
+        <span class="text-label-small text-n-slate-11">
+          单子停在原地不动，业务确认完点「已确认」你就能接着做。
+        </span>
       </div>
     </Dialog>
 

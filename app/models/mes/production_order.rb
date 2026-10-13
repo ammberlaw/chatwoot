@@ -2,51 +2,57 @@
 #
 # Table name: mes_production_orders
 #
-#  id                    :bigint           not null, primary key
-#  actual_end_date       :datetime
-#  actual_start_date     :datetime
-#  approval_status       :string           default("DRAFT"), not null
-#  bom_confirmed_at      :datetime
-#  delivery_date         :datetime
-#  gm_acted_at           :datetime
-#  gm_comment            :text
-#  is_draft              :boolean          default(FALSE), not null
-#  is_outsourced         :boolean          default(FALSE), not null
-#  manager_acted_at      :datetime
-#  manager_comment       :text
-#  order_kind            :string           default("CUSTOMER"), not null
-#  order_no              :string           not null
-#  pi_no                 :string
-#  planned_end_date      :datetime
-#  planned_start_date    :datetime
-#  produced_qty          :decimal(14, 3)   default(0.0), not null
-#  product_code          :string
-#  product_line          :string
-#  product_name          :string           not null
-#  qty                   :decimal(14, 3)   not null
-#  remark                :text
-#  spec                  :jsonb            not null
-#  stage                 :string           default("SALES_CONFIRMED"), not null
-#  stage_ack_at          :datetime
-#  status                :string           default("IN_PROGRESS"), not null
-#  submitted_at          :datetime
-#  unit                  :string
-#  created_at            :datetime         not null
-#  updated_at            :datetime         not null
-#  account_id            :bigint           not null
-#  bom_confirmed_by_id   :bigint
-#  bom_id                :bigint
-#  crm_customer_id       :bigint
-#  crm_product_id        :bigint
-#  crm_sales_order_id    :bigint
-#  gm_id                 :bigint
-#  manager_id            :bigint
-#  outsource_supplier_id :bigint
-#  owner_id              :bigint
-#  stage_ack_by_id       :bigint
+#  id                          :bigint           not null, primary key
+#  actual_end_date             :datetime
+#  actual_start_date           :datetime
+#  approval_status             :string           default("DRAFT"), not null
+#  bom_confirmed_at            :datetime
+#  delivery_date               :datetime
+#  gm_acted_at                 :datetime
+#  gm_comment                  :text
+#  is_draft                    :boolean          default(FALSE), not null
+#  is_outsourced               :boolean          default(FALSE), not null
+#  manager_acted_at            :datetime
+#  manager_comment             :text
+#  order_kind                  :string           default("CUSTOMER"), not null
+#  order_no                    :string           not null
+#  pi_no                       :string
+#  planned_end_date            :datetime
+#  planned_start_date          :datetime
+#  produced_qty                :decimal(14, 3)   default(0.0), not null
+#  product_code                :string
+#  product_line                :string
+#  product_name                :string           not null
+#  qty                         :decimal(14, 3)   not null
+#  remark                      :text
+#  sales_return_at             :datetime
+#  sales_return_reason         :text
+#  sales_return_resolved_at    :datetime
+#  spec                        :jsonb            not null
+#  stage                       :string           default("SALES_CONFIRMED"), not null
+#  stage_ack_at                :datetime
+#  status                      :string           default("IN_PROGRESS"), not null
+#  submitted_at                :datetime
+#  unit                        :string
+#  created_at                  :datetime         not null
+#  updated_at                  :datetime         not null
+#  account_id                  :bigint           not null
+#  bom_confirmed_by_id         :bigint
+#  bom_id                      :bigint
+#  crm_customer_id             :bigint
+#  crm_product_id              :bigint
+#  crm_sales_order_id          :bigint
+#  gm_id                       :bigint
+#  manager_id                  :bigint
+#  outsource_supplier_id       :bigint
+#  owner_id                    :bigint
+#  sales_return_by_id          :bigint
+#  sales_return_resolved_by_id :bigint
+#  stage_ack_by_id             :bigint
 #
 # Indexes
 #
+#  index_mes_production_orders_awaiting_sales_confirm             (account_id,sales_return_at) WHERE ((sales_return_at IS NOT NULL) AND (sales_return_resolved_at IS NULL))
 #  index_mes_production_orders_on_account_and_product_code        (account_id,product_code)
 #  index_mes_production_orders_on_account_and_product_line        (account_id,product_line)
 #  index_mes_production_orders_on_account_id                      (account_id)
@@ -152,6 +158,8 @@ class Mes::ProductionOrder < ApplicationRecord
   belongs_to :bom, class_name: 'Mes::Bom', optional: true
   belongs_to :owner, class_name: 'User', optional: true
   belongs_to :stage_ack_by, class_name: 'User', optional: true
+  belongs_to :sales_return_by, class_name: 'User', optional: true
+  belongs_to :sales_return_resolved_by, class_name: 'User', optional: true
   belongs_to :manager, class_name: 'User', optional: true # 部门主管（审批一级）
   belongs_to :gm, class_name: 'User', optional: true      # 总经理（审批二级）
   belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 历史字段：原「业务二次确认生产任务单」的人，流程已取消
@@ -729,6 +737,67 @@ class Mes::ProductionOrder < ApplicationRecord
   # 人名带岗位的统一口径（看板/单据详情/转发目标共用，见 Mes::StaffNames）。
   def staff_names
     @staff_names ||= Mes::StaffNames.new(account)
+  end
+
+  # ── 退回给业务 ────────────────────────────────────────────────────
+  # 工程/PMC 做生产任务单时发现业务没把物料细节确认清楚，做不下去——退回去让业务
+  # 重新确认，而不是硬着头皮往下走、或者私下找人问。
+  #
+  # 只在工程/PMC 手上这两个阶段能退（见 RETURNABLE_STAGES）：再往后料已经下给供应商，
+  # 这时候退回就要作废采购单、冲在途库存，不是一个「退回」能收场的事。
+  # 只有当前阶段负责人能退——不是谁路过都能把别人的单打回去。
+  RETURNABLE_STAGES = %w[SALES_CONFIRMED BOM_READY].freeze
+
+  def awaiting_sales_confirm? = sales_return_at.present? && sales_return_resolved_at.nil?
+
+  def returnable_to_sales? = RETURNABLE_STAGES.include?(stage) && !awaiting_sales_confirm?
+
+  def can_return_to_sales?(user)
+    returnable_to_sales? && user.present? && current_stage_owner_ids.include?(user.id)
+  end
+
+  # 退回：记下谁退的、为什么，推站内通知给业务员（订单归属人）。
+  # 阶段不动——单子还停在原地等业务补细节，退回只是把「卡在谁身上」说清楚。
+  def return_to_sales!(actor:, reason:)
+    text = reason.to_s.strip
+    raise ArgumentError, '请填写退回原因' if text.blank?
+    raise ArgumentError, "「#{STAGE_LABELS[stage]}」阶段不能退回给业务" unless RETURNABLE_STAGES.include?(stage)
+    raise ArgumentError, '这张单已经退回过了，正在等业务确认' if awaiting_sales_confirm?
+    raise ArgumentError, '只有本阶段负责人可以退回' unless current_stage_owner_ids.include?(actor&.id)
+
+    update!(sales_return_at: Time.current, sales_return_by_id: actor.id, sales_return_reason: text,
+            sales_return_resolved_at: nil, sales_return_resolved_by_id: nil)
+    notify_sales_return(actor, text)
+    self
+  end
+
+  # 业务确认完细节后点「已确认」：解除退回状态，回头通知退单的人可以接着做了。
+  def resolve_sales_return!(actor:)
+    raise ArgumentError, '这张单没有待确认的退回' unless awaiting_sales_confirm?
+
+    returner_id = sales_return_by_id
+    update!(sales_return_resolved_at: Time.current, sales_return_resolved_by_id: actor&.id)
+    return self if returner_id.blank?
+
+    Mes::Notifier.notify(
+      account: account, recipients: [returner_id], kind: 'sales_return_resolved',
+      title: "业务已确认：#{order_no}",
+      body: "#{actor&.name || '业务'}已确认 #{order_no}（#{product_name}）的细节，可以接着做了。",
+      order: self
+    )
+    self
+  end
+
+  def notify_sales_return(actor, reason)
+    recipients = [owner_id, crm_sales_order&.owner_id].compact.uniq
+    return if recipients.blank?
+
+    Mes::Notifier.notify(
+      account: account, recipients: recipients, kind: 'sales_return_pending',
+      title: "退回待确认：#{order_no}",
+      body: "#{actor&.name || 'MES'}把 #{order_no}（#{product_name}）退回给你，请确认后在订单上点「已确认」。原因：#{reason}",
+      order: self
+    )
   end
 
   # ── 业务知会/转发：把订单转发给某阶段负责人（选板块）+ 附言，推站内通知并在订单上留痕 ──

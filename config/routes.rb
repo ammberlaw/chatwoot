@@ -598,6 +598,8 @@ Rails.application.routes.draw do
               member do
                 get :audits
                 post :forward
+                post :return_to_sales
+                post :resolve_sales_return
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :attach_bom

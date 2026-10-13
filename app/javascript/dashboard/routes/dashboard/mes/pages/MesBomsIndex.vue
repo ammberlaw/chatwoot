@@ -156,8 +156,11 @@ const STATUS_FILTER_OPTIONS = [
 ];
 // 负责人/归属业务员的候选从当前这页的数据里取：不额外拉一份全员名单，
 // 列表里没出现过的人选了也是空结果。
-const peopleOptions = (idKey, nameKey) => [
-  { value: '', label: '全部' },
+// 「全部」那项要写明是哪一个——两个下拉并排都显示「全部」，分不清哪个是哪个。
+// 这页的单本来就没人挂负责人时，下拉里只剩「全部」一项，点开什么都没有：
+// 这种情况整个下拉不显示（见模板里的 v-if），别摆一个点了没反应的控件。
+const peopleOptions = (idKey, nameKey, allLabel) => [
+  { value: '', label: allLabel },
   ...Array.from(
     new Map(
       records.value
@@ -166,9 +169,11 @@ const peopleOptions = (idKey, nameKey) => [
     )
   ).map(([value, label]) => ({ value, label })),
 ];
-const ownerOptions = computed(() => peopleOptions('ownerId', 'ownerName'));
+const ownerOptions = computed(() =>
+  peopleOptions('ownerId', 'ownerName', '全部负责人')
+);
 const salesOwnerOptions = computed(() =>
-  peopleOptions('salesOwnerId', 'salesOwnerName')
+  peopleOptions('salesOwnerId', 'salesOwnerName', '全部业务员')
 );
 const activeFilterCount = computed(
   () =>
@@ -570,14 +575,14 @@ onMounted(async () => {
         v-model="colFilters.no"
         type="text"
         placeholder="搜索 单号 / 投单单号…"
-        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-48 border border-n-weak bg-n-solid-1 text-n-slate-12"
+        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-44 border border-n-weak bg-n-solid-1 text-n-slate-12"
         @keyup.enter="onFilterChange"
       />
       <input
         v-model="colFilters.model"
         type="text"
         placeholder="型号 / 成品名…"
-        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-44 border border-n-weak bg-n-solid-1 text-n-slate-12"
+        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-40 border border-n-weak bg-n-solid-1 text-n-slate-12"
         @keyup.enter="onFilterChange"
       />
       <input
@@ -588,15 +593,15 @@ onMounted(async () => {
         @keyup.enter="onFilterChange"
       />
       <SelectCard
+        v-if="ownerOptions.length > 1"
         v-model="colFilters.owner_id"
         :options="ownerOptions"
-        placeholder="全部负责人"
         @update:model-value="onFilterChange"
       />
       <SelectCard
+        v-if="salesOwnerOptions.length > 1"
         v-model="colFilters.sales_owner_id"
         :options="salesOwnerOptions"
-        placeholder="全部业务员"
         @update:model-value="onFilterChange"
       />
       <SelectCard
@@ -607,14 +612,14 @@ onMounted(async () => {
       <DatePicker
         v-model="colFilters.submitDate.from"
         placeholder="提交日期起"
-        trigger-class="w-36"
+        trigger-class="w-32"
         @change="onFilterChange"
       />
       <span class="text-sm text-n-slate-10">至</span>
       <DatePicker
         v-model="colFilters.submitDate.to"
         placeholder="提交日期止"
-        trigger-class="w-36"
+        trigger-class="w-32"
         @change="onFilterChange"
       />
       <Button label="查询" color="slate" size="sm" @click="onFilterChange" />

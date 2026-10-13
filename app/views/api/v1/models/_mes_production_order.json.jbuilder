@@ -97,6 +97,14 @@ json.stage_owners resource.current_stage_owner_ids.map { |uid|
 json.awaiting_ack resource.awaiting_ack?
 json.ack_overdue resource.ack_overdue?
 json.ack_deadline resource.ack_deadline
+# 退回给业务：工程/PMC 做任务单时发现业务没确认清楚，把单退回去等业务补细节。
+# can_return 由模型按阶段 + 是不是本阶段负责人判（前端据此决定显不显示按钮）。
+json.awaiting_sales_confirm resource.awaiting_sales_confirm?
+json.can_return_to_sales resource.can_return_to_sales?(Current.user)
+json.sales_return_at resource.sales_return_at
+json.sales_return_reason resource.sales_return_reason
+json.sales_return_by_name mes_staff_name(resource.sales_return_by)
+json.sales_return_resolved_at resource.sales_return_resolved_at
 json.stage_ack_at resource.stage_ack_at
 json.stage_ack_by_name mes_staff_name(resource.stage_ack_by, stage_hints)
 # 接单/转交流水：一个阶段两人接力时，各自的动作都要看得见（订单上的 stage_ack_* 只是当前状态）。

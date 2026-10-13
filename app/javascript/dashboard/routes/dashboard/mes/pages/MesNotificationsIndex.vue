@@ -98,6 +98,17 @@ const KIND_META = {
     group: 'rejected',
   },
   forwarded: { label: '被知会', dot: 'bg-n-violet-9', group: 'progress' },
+  // 退回给业务（工程/PMC 说细节没确认清楚）。分组必须与后端 GROUP_BY_KIND 一致。
+  sales_return_pending: {
+    label: '退回待确认',
+    dot: 'bg-n-amber-9',
+    group: 'todo',
+  },
+  sales_return_resolved: {
+    label: '业务已确认',
+    dot: 'bg-n-teal-9',
+    group: 'progress',
+  },
   // ERP（财务）：只在「财务通知」页出现，MES 站内通知已按模块过滤掉。
   erp_installment_due: {
     label: '应收到期',

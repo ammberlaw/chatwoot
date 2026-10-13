@@ -39,6 +39,7 @@ class Mes::Notification < ApplicationRecord
     shipment_approval_pending shipment_approved shipment_rejected
     document_returned
     forwarded
+    sales_return_pending sales_return_resolved
     erp_installment_due erp_payable_due erp_expense_paid
   ].freeze
 
@@ -63,7 +64,9 @@ class Mes::Notification < ApplicationRecord
     'fg_count_pending' => 'todo', 'shipment_approval_pending' => 'todo', 'shipment_approved' => 'todo',
     'erp_installment_due' => 'todo', 'erp_payable_due' => 'todo',
     'approval_rejected' => 'rejected', 'po_approval_rejected' => 'rejected', 'stage_returned' => 'rejected',
-    'shipment_rejected' => 'rejected', 'document_returned' => 'rejected'
+    'shipment_rejected' => 'rejected', 'document_returned' => 'rejected',
+    # 退回给业务：业务那边是「有东西等你处理」进待办；退单人收到的确认回执是进度。
+    'sales_return_pending' => 'todo'
   }.freeze
   GROUPS = %w[todo progress rejected].freeze
 

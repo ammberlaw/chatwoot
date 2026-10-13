@@ -9,6 +9,10 @@ class Mes::ProductionOrderPolicy < ApplicationPolicy
   def audits? = true
   # 业务知会/转发给阶段负责人：任何可见订单的人都能发（只是内部知会，不改订单状态）。
   def forward? = true
+  # 能不能退、能不能确认，由模型按阶段和负责人细判（见 Mes::ProductionOrder#can_return_to_sales?）；
+  # 这里只管「进得了 MES」这一层门禁。
+  def return_to_sales? = true
+  def resolve_sales_return? = true
   # 接单/拒收的细粒度权限（本阶段负责人 or 管理员）在控制器 can_handle_stage? 内校验。
   def acknowledge? = true
   # 转交给同阶段另一位负责人：与接单同权（控制器再校验「必须是本阶段负责人」）。

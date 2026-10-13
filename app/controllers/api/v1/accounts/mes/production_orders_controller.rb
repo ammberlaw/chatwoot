@@ -2,7 +2,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   before_action :check_authorization
   before_action :fetch_production_order,
                 only: [:show, :update, :destroy, :attach, :detach, :audits, :forward, :attach_bom, :detach_bom, :revert_to_bom_ready, :release_purchasing, :skip_purchasing, :requirement, :handoff,
-                       :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced]
+                       :issue_plan, :acknowledge, :reject, :submit_approval, :approve, :deny, :set_product_code, :mark_outsourced,
+                       :return_to_sales, :resolve_sales_return]
   before_action :ensure_editable!, only: [:update, :attach, :detach]
   before_action :ensure_deletable!, only: [:destroy]
 
@@ -367,6 +368,23 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @production_order.forward_to_board!(
       sender: current_user, board_key: params[:board_key], note: params[:note]
     )
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue ArgumentError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 退回给业务：工程/PMC 发现业务没把物料细节确认清楚，做不下去，把单退回去让业务补。
+  # 能不能退（阶段、是不是本阶段负责人、有没有重复退）全在模型里判，这里只转述原因。
+  def return_to_sales
+    @production_order.return_to_sales!(actor: current_user, reason: params[:reason])
+    render 'api/v1/accounts/mes/production_orders/show'
+  rescue ArgumentError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 业务补完细节点「已确认」：解除退回，通知退单的人可以接着做。
+  def resolve_sales_return
+    @production_order.resolve_sales_return!(actor: current_user)
     render 'api/v1/accounts/mes/production_orders/show'
   rescue ArgumentError => e
     render json: { error: e.message }, status: :unprocessable_entity
