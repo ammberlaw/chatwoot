@@ -5,7 +5,7 @@
 # 合计数会让人误以为它是全的。
 #
 # 三级优先级：
-#   ORDER    本单采购价   —— 这张任务单名下生产订单自己的采购单（草稿/作废不算）。真金白银，最准。
+#   ORDER    本单采购价   —— 这张任务单名下生产订单自己的采购单（**审批通过**、未作废）。真金白银，最准。
 #   MIXED    多单价不一   —— 同一颗料在本任务单的几张生产订单里买价不同（备货期涨跌价很常见）。
 #                            这时没有唯一正确的单价，取最近一张并**标出来**，附每张单各是多少。
 #   STANDARD 标准价       —— 物料单价表（财务/采购维护）。没为这单下过采购单时用。
@@ -27,8 +27,17 @@ class Mes::MaterialPriceResolver
     RECENT => '最近采购'
   }.freeze
 
-  # 与外协归集同一口径：草稿和已取消的采购单不作数。
-  COUNTED_PO_STATUSES = %w[SUBMITTED PARTIAL_RECEIVED RECEIVED].freeze
+  # 计价只认**审批通过**的采购单（用户 2026-10-13 定：「要审批完才可以」）。
+  #
+  # 原来认的是 status（收货进度：SUBMITTED/PARTIAL_RECEIVED/RECEIVED），那是另一回事——
+  # 两个字段互相独立，实测生产上同时存在「已下单但审批没过」（按新规则不该计价）和
+  # 「审批过了但还没下单」19 张（按新规则该计价，原来一分钱算不出来）。
+  #
+  # 只改这里（生产任务单上给财务看的料本），**不动** Erp::CostRollupService 那套——
+  # 那是已过账的实际成本、直接进毛利，口径一改等于重述历史账。
+  APPROVED_PO = 'APPROVED'.freeze
+  # 作废单不作数：审批过但后来整单作废的，价不能再拿来算。
+  VOID_PO_STATUS = 'CANCELLED'.freeze
 
   # items: 实现 material_no / mes_material_id 的对象集合（Mes::BomItem）
   # production_orders: 这张任务单名下的生产订单（可多张）。有就启用「本单采购价」这一级。
@@ -146,7 +155,8 @@ class Mes::MaterialPriceResolver
   def purchase_scope
     Mes::PurchaseItem.joins(:purchase_order)
                      .where(account_id: @account.id)
-                     .where(mes_purchase_orders: { status: COUNTED_PO_STATUSES })
+                     .where(mes_purchase_orders: { approval_status: APPROVED_PO })
+                     .where.not(mes_purchase_orders: { status: VOID_PO_STATUS })
                      .where('mes_purchase_items.rate_micros > 0')
   end
 
