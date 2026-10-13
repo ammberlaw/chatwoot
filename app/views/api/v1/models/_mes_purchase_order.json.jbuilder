@@ -31,6 +31,9 @@ json.current_approver_id resource.current_approver_id
 json.expected_date resource.expected_date
 json.follow_up_date resource.follow_up_date
 json.delivery_date resource.delivery_date
+# 单据日期＝下单那天（对标金蝶的「单据日期」）。交货时间/回复交期是另两件事，
+# 列表上一直没有「这单什么时候下的」，对账时排不出先后。
+json.doc_date resource.created_at&.to_date
 json.has_exception resource.has_exception
 json.exception_note resource.exception_note
 json.total_amount_micros can_view_amount ? resource.total_amount_micros : nil

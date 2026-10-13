@@ -424,6 +424,8 @@ const VIEW_MODES = [
 // 按单视图的列（可拖拽改顺序、可收起，按人记在本机）。操作列固定在最后，不参与拖拽与收起。
 const ORDER_COLUMN_DEFS = [
   { key: 'idx', label: '#', tdClass: 'px-3 py-3 tabular-nums text-n-slate-10' },
+  // 单据日期＝下单那天（对标金蝶）。原来只有交货时间/回复交期，排不出单子的先后。
+  { key: 'docDate', label: '单据日期', tdClass: 'px-3 py-3 text-n-slate-11' },
   {
     key: 'poNo',
     label: '采购单号',
@@ -481,6 +483,7 @@ const {
 // 明细视图的列。两套列各记各的（本机键不同），互不干扰。
 const ITEM_COLUMN_DEFS = [
   { key: 'idx', label: '#', tdClass: 'px-3 py-2 tabular-nums text-n-slate-10' },
+  { key: 'docDate', label: '单据日期', tdClass: 'px-3 py-2 text-n-slate-11' },
   {
     key: 'poNo',
     label: '采购单号',
@@ -567,6 +570,7 @@ const itemRows = computed(() =>
       key: `${po.id}-${it.id}`,
       po,
       poNo: po.poNo,
+      docDate: po.docDate,
       supplier: it.supplierName || '—',
       code: it.productSku || it.materialNo || '—',
       name: it.productName || it.materialName || '—',
@@ -1126,6 +1130,9 @@ useRouteQueryReentry(async query => {
                     {{ APPROVAL_LABELS[p.approvalStatus] || '—' }}
                   </span>
                 </template>
+                <template v-else-if="col.key === 'docDate'">
+                  {{ day(p.docDate) }}
+                </template>
                 <template v-else-if="col.key === 'expected'">
                   {{ day(p.expectedDate) }}
                 </template>
@@ -1296,6 +1303,9 @@ useRouteQueryReentry(async query => {
                 </template>
                 <template v-else-if="col.key === 'order'">
                   {{ orderNosLabel(r.po.relatedProductionOrderNos) }}
+                </template>
+                <template v-else-if="col.key === 'docDate'">
+                  {{ day(r.docDate) }}
                 </template>
                 <template v-else-if="col.key === 'arrival'">
                   {{ day(r.arrival) }}

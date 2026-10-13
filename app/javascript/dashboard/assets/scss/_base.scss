@@ -278,6 +278,17 @@ table {
   }
 }
 
+// 富文本编辑器里的有序列表：编号画在 padding 里（list-style-position: outside），
+// 编辑器自带只给 16px，14px 字号下「10.」要 21px 左右，溢出那截被编辑器的
+// overflow 裁掉——屏幕上就剩「0.」，第 10 条往后全错。用 em 而不是固定像素：
+// 写邮件那个编辑器能选字号，字号一大固定值照样不够。
+// 选择器写成 .ProseMirror.ProseMirror 是为了压过编辑器自带的
+// `.ProseMirror ul, .ProseMirror ol { padding-left: var(--space-normal) }`——
+// 两边特指度一样时按加载顺序，它在后面，单写 .ProseMirror ol 盖不住。
+.ProseMirror.ProseMirror ol {
+  @apply pl-[2.4em];
+}
+
 /* 列表行高「紧凑模式」。反馈：单据列表「间距太长，有些没必要那么长的可以自己拉短」。
  * 做成一个全局开关而不是每张表各自拖拽：几十张表逐一做拖拽既没人用、也记不住，
  * 而真实诉求是「一屏多看几行」。开关记在本机（useListDensity）。
