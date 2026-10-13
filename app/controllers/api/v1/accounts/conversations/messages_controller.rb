@@ -47,6 +47,23 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     render_could_not_create_error(e.message)
   end
 
+  # 撤回：和在手机上点「为所有人删除」一样，客户客户端里那条也会消失。
+  # 只有发这条的人、两天内、真发出去了的才让撤——条件在服务里，不满足就把原因原话告诉前端。
+  def revoke
+    @message = Messages::SendRevokeService.new(message: message, user: Current.user).perform
+  rescue Messages::SentMessageMutation::Error, Whatsapp::BaileysBridgeClient::BridgeError => e
+    render_could_not_create_error(e.message)
+  end
+
+  # 编辑已发出的消息。WhatsApp 限 15 分钟内、且只能是纯文字那条。
+  def edit_text
+    @message = Messages::SendEditService.new(
+      message: message, user: Current.user, content: params[:content].to_s
+    ).perform
+  rescue Messages::SentMessageMutation::Error, Whatsapp::BaileysBridgeClient::BridgeError => e
+    render_could_not_create_error(e.message)
+  end
+
   def translate
     return head :ok if already_translated_content_available?
 

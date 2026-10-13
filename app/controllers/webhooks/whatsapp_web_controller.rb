@@ -65,6 +65,32 @@ class Webhooks::WhatsappWebController < ActionController::API
     head :ok
   end
 
+  # 某条消息被撤回了。两种来源：客户在他手机上撤回了自己发的，或者业务员在自己手机上
+  # 撤回了我们发的（从 CRM 撤的那条已经在 SendRevokeService 里落过库，这里按 revoked 判重）。
+  # 原文一并清掉——和手机上一样，撤回了就谁都看不到。
+  def revoke
+    message = find_web_message
+    return head :not_found unless message
+
+    Messages::RevokeService.new(
+      message: message,
+      by: params[:from_me].to_s == 'true' ? Messages::RevokeService::AGENT : Messages::RevokeService::CONTACT
+    ).perform
+    head :ok
+  end
+
+  # 某条消息被编辑了（客户改了他那条，或业务员在手机上改了我们那条）。
+  # 正文换成新内容、挂上「已编辑」，和手机上看到的保持一致。
+  def edit
+    message = find_web_message
+    return head :not_found unless message
+    # 撤回过的不再跟着改：WhatsApp 不会对已撤回的消息发编辑，真来了也该当脏数据丢掉。
+    return head :ok if message.content_attributes['revoked'] || params[:text].blank?
+
+    Messages::EditService.new(message: message, content: params[:text]).perform
+    head :ok
+  end
+
   # Delivery/read receipt for an outgoing message, reported by the bridge.
   # Advances status forward only (sent → delivered → read); never downgrades.
   def receipt
@@ -92,6 +118,15 @@ class Webhooks::WhatsappWebController < ActionController::API
   end
 
   private
+
+  # 撤回/编辑都是按「那条消息在 WhatsApp 上的 id」找本地那条。找不到说明这条从没进过 CRM
+  # （配对前的老消息、群聊、被过滤掉的媒体），没什么可做的。
+  def find_web_message
+    inbox = Inbox.find_by(id: params[:inbox_id])
+    return nil unless inbox&.channel_type == 'Channel::WhatsappWeb'
+
+    inbox.messages.find_by(source_id: params[:message_id])
+  end
 
   # 把上传的媒体存成 ActiveStorage blob。超限或空文件直接丢弃媒体（消息本身照落，
   # 至少留下「客户此刻发过东西」这条记录），不让整条 webhook 失败。

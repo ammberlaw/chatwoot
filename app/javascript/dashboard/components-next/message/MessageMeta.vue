@@ -37,6 +37,10 @@ const readableTime = computed(() =>
   messageTimestamp(createdAt.value, 'LLL d, h:mm a')
 );
 
+const showEditedMarker = computed(
+  () => !!contentAttributes.value?.editedAt && !contentAttributes.value?.revoked
+);
+
 const showStatusIndicator = computed(() => {
   if (isPrivate.value) return false;
   // Don't show status for failed messages, we already show error message
@@ -148,6 +152,9 @@ const statusToShow = computed(() => {
     <div class="inline">
       <time class="inline">{{ readableTime }}</time>
     </div>
+    <!-- 「已编辑」挂在时间旁边，和 WhatsApp 一样的位置。被撤回的那条不显示——
+         它连正文都没了，再标「已编辑」只会让人以为还能看到改了什么。 -->
+    <span v-if="showEditedMarker">{{ $t('CONVERSATION.EDITED') }}</span>
     <Icon v-if="isPrivate" icon="i-lucide-lock-keyhole" class="size-3" />
     <MessageStatus v-if="showStatusIndicator" :status="statusToShow" />
   </div>

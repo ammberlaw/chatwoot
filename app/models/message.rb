@@ -106,12 +106,16 @@ class Message < ApplicationRecord
   # [:email] : Used by conversation_continuity incoming email messages
   # [:in_reply_to] : Used to reply to a particular tweet in threads
   # [:deleted] : Used to denote whether the message was deleted by the agent
+  # [:revoked, :revoked_by, :revoked_at] : WhatsApp 的「为所有人删除」——对方客户端里那条也没了，
+  #   跟 :deleted 的区别是它不只在本系统生效（见 Messages::RevokeService）
+  # [:edited_at] : 这条发出后被改过（WhatsApp 的编辑），气泡上显示「已编辑」
   # [:external_created_at] : Can specify if the message was created at a different timestamp externally
   # [:external_error : Can specify if the message creation failed due to an error at external API
   # [:data] : Used for structured content types such as voice_call
   store :content_attributes, accessors: [:submitted_email, :items, :submitted_values, :email, :in_reply_to, :deleted,
                                          :external_created_at, :story_sender, :story_id, :external_error,
-                                         :translations, :in_reply_to_external_id, :is_unsupported, :data], coder: JSON
+                                         :translations, :in_reply_to_external_id, :is_unsupported, :data,
+                                         :revoked, :revoked_by, :revoked_at, :edited_at], coder: JSON
 
   store :external_source_ids, accessors: [:slack], coder: JSON, prefix: :external_source_id
 

@@ -21,6 +21,11 @@ const isEmpty = computed(() => {
   return !content.value && !attachments.value?.length;
 });
 
+// 撤回掉的（对方那边也没了）和在本系统删掉的，正文都已经换成一句说明。
+// 按正常气泡渲染的话，「此消息已撤回」看着像客户真发了这句话，所以照 WhatsApp
+// 的样子压成灰斜体加一个禁止符号。
+const isGone = computed(() => !!contentAttributes.value?.deleted);
+
 // 译文与原文完全一致时（例如本就是中文的消息）不重复显示。
 const showTranslation = computed(
   () =>
@@ -35,7 +40,14 @@ const showTranslation = computed(
       <span v-if="isEmpty" class="text-n-slate-11">
         {{ $t('CONVERSATION.NO_CONTENT') }}
       </span>
-      <FormattedContent v-if="content" :content="content" />
+      <span
+        v-if="isGone"
+        class="flex items-center gap-1.5 italic text-n-slate-11"
+      >
+        <span class="i-lucide-circle-slash size-3.5 shrink-0" />
+        {{ content }}
+      </span>
+      <FormattedContent v-else-if="content" :content="content" />
       <div
         v-if="showTranslation"
         class="pt-2 mt-0.5 text-sm italic border-t whitespace-pre-wrap text-n-slate-11 border-n-alpha-2"

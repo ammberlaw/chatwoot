@@ -20,6 +20,14 @@ app.use((req, res, next) => {
 
 app.get('/health', (req, res) => res.json({ ok: true, sessions: sessions.sessions.size }));
 
+// 批量会话状态：Chatwoot 的「我的 WhatsApp」列表一次问全部，不用逐个号发请求。
+// 列表原来读的是库里存的状态，桥接这边掉线了它不知道，于是界面一直显示「已连接」。
+app.get('/sessions', (req, res) => {
+  const out = {};
+  for (const id of sessions.sessions.keys()) out[String(id)] = sessions.publicState(id).status;
+  res.json({ sessions: out });
+});
+
 // Start/resume a session and return its current state (status + qr data url if pending scan).
 app.post('/sessions/:inboxId/connect', async (req, res) => {
   try {
@@ -47,10 +55,12 @@ app.post('/sessions/:inboxId/logout', async (req, res) => {
 
 // Send an outgoing text. Called by Chatwoot's SendOnWhatsappWebService.
 app.post('/sessions/:inboxId/send', async (req, res) => {
-  const { phone, text } = req.body || {};
+  // quoted：引用回复用。Chatwoot 传被引用消息的 WhatsApp id、是不是我方发的、以及摘要正文；
+  // 不传就按原来的普通消息发。
+  const { phone, text, quoted } = req.body || {};
   if (!phone || !text) return res.status(422).json({ error: 'phone and text are required' });
   try {
-    const messageId = await sessions.sendText(req.params.inboxId, String(phone), String(text));
+    const messageId = await sessions.sendText(req.params.inboxId, String(phone), String(text), quoted);
     res.json({ message_id: messageId });
   } catch (err) {
     logger.error({ err: err.message }, 'send failed');
@@ -59,12 +69,26 @@ app.post('/sessions/:inboxId/send', async (req, res) => {
 });
 
 // Send an outgoing attachment. Called by Chatwoot's SendOnWhatsappWebService.
+app.post('/sessions/:inboxId/reaction', async (req, res) => {
+  // 表情回应：emoji 为空字符串即撤销。target_id 是被回应那条的 WhatsApp 消息 id。
+  const { phone, target_id: targetId, from_me: fromMe, emoji } = req.body || {};
+  if (!phone || !targetId) return res.status(400).json({ error: 'phone and target_id required' });
+  try {
+    const messageId = await sessions.sendReaction(req.params.inboxId, String(phone), {
+      targetId: String(targetId), fromMe: Boolean(fromMe), emoji: String(emoji || ''),
+    });
+    return res.json({ message_id: messageId });
+  } catch (err) {
+    return res.status(502).json({ error: err.message });
+  }
+});
+
 app.post('/sessions/:inboxId/send-media', async (req, res) => {
-  const { phone, url, filename, mimetype, caption } = req.body || {};
+  const { phone, url, filename, mimetype, caption, quoted } = req.body || {};
   if (!phone || !url) return res.status(422).json({ error: 'phone and url are required' });
   try {
     const messageId = await sessions.sendMedia(req.params.inboxId, String(phone), {
-      url: String(url), filename, mimetype, caption,
+      url: String(url), filename, mimetype, caption, quoted,
     });
     res.json({ message_id: messageId });
   } catch (err) {
@@ -87,6 +111,35 @@ app.post('/sessions/:inboxId/fetch-history', async (req, res) => {
     res.json({ request_id: requestId });
   } catch (err) {
     logger.error({ err: err.message }, 'fetch-history failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 撤回一条我方发出的消息（WhatsApp 的「为所有人删除」）。
+// 时间窗和「只能撤自己发的」都在 Chatwoot 侧校验过了，这里只负责发出去。
+app.post('/sessions/:inboxId/revoke', async (req, res) => {
+  const { phone, target_id: targetId } = req.body || {};
+  if (!phone || !targetId) return res.status(422).json({ error: 'phone and target_id are required' });
+  try {
+    const messageId = await sessions.revokeMessage(req.params.inboxId, String(phone), { targetId });
+    res.json({ message_id: messageId });
+  } catch (err) {
+    logger.error({ err: err.message }, 'revoke failed');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 编辑一条我方发出的消息（WhatsApp 限 15 分钟内，同样在 Chatwoot 侧卡过）。
+app.post('/sessions/:inboxId/edit', async (req, res) => {
+  const { phone, target_id: targetId, text } = req.body || {};
+  if (!phone || !targetId || !text) {
+    return res.status(422).json({ error: 'phone, target_id and text are required' });
+  }
+  try {
+    const messageId = await sessions.editMessage(req.params.inboxId, String(phone), { targetId, text });
+    res.json({ message_id: messageId });
+  } catch (err) {
+    logger.error({ err: err.message }, 'edit failed');
     res.status(500).json({ error: err.message });
   }
 });

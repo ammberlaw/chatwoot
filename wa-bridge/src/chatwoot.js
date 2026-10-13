@@ -75,6 +75,57 @@ async function postReceipt(payload) {
 }
 
 
+// 表情回应（客户给某条消息点了 ❤️ 之类）。回应不是一条新消息，Chatwoot 侧会把它
+// 挂到被回应的那条上，所以单走一个端点——走 postInbound 会被当成空消息丢掉。
+// emoji 为空字符串表示对方撤销了回应。
+async function postReaction(payload) {
+  const res = await fetch(`${config.chatwootUrl}/webhooks/whatsapp_web/reaction`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Bridge-Token': config.bridgeToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`chatwoot reaction ${res.status}: ${body.slice(0, 300)}`);
+  }
+}
+
+// 某条消息被撤回了（手机上的「为所有人删除」）。from_me 区分是客户撤的还是业务员撤的。
+// Chatwoot 侧按 message_id 找到本地那条，清掉原文、标成已撤回。
+async function postRevoke(payload) {
+  const res = await fetch(`${config.chatwootUrl}/webhooks/whatsapp_web/revoke`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Bridge-Token': config.bridgeToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`chatwoot revoke ${res.status}: ${body.slice(0, 300)}`);
+  }
+}
+
+// 某条消息被编辑了。text 是编辑后的新正文，Chatwoot 侧换掉原文并挂上「已编辑」。
+async function postEdit(payload) {
+  const res = await fetch(`${config.chatwootUrl}/webhooks/whatsapp_web/edit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Bridge-Token': config.bridgeToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`chatwoot edit ${res.status}: ${body.slice(0, 300)}`);
+  }
+}
+
 // 配对时 WhatsApp 推来的历史消息，按批转给 Chatwoot。筛选（只留已建档客户的会话）
 // 和落库都在 Chatwoot 侧做——桥不知道谁是客户。
 async function postHistory(payload) {
@@ -129,4 +180,4 @@ async function postAvatar(payload, media) {
   }
 }
 
-module.exports = { postInbound, postInboundMedia, postStatus, postReceipt, postHistory, postContacts, postAvatar };
+module.exports = { postInbound, postInboundMedia, postStatus, postReceipt, postReaction, postRevoke, postEdit, postHistory, postContacts, postAvatar };

@@ -152,6 +152,14 @@ const route = useRoute();
 // 能发表情回应的渠道。其它渠道只显示收到的回应，不给发送入口。
 const REACTABLE_CHANNELS = ['Channel::Whatsapp', 'Channel::WhatsappWeb'];
 
+// 撤回和编辑只有个人号那条线能做：官方号（Meta Cloud API）根本没给这两个接口。
+const REVOCABLE_CHANNELS = ['Channel::WhatsappWeb'];
+
+// WhatsApp 自己的时间窗，和后端 Messages::SendRevokeService / SendEditService 对齐。
+// 超窗发过去对方客户端会静默忽略，所以界面上就别给了。
+const REVOKE_WINDOW_SECONDS = 48 * 60 * 60;
+const EDIT_WINDOW_SECONDS = 15 * 60;
+
 const reactions = computed(() => props.contentAttributes?.reactions || []);
 
 // 点一下切自己的回应：已点过传空字符串＝撤销（和 WhatsApp 一致）。
@@ -164,6 +172,24 @@ const toggleReaction = async emoji => {
     useAlert(parseAPIErrorResponse(error) || '回应发送失败');
   }
 };
+
+// 菜单打开那一刻的时间：时间窗要按「现在」算，不能用首次渲染那一刻——
+// 会话开着不动半小时，编辑那一项还亮着就会点出一个必然失败的请求。
+const menuOpenedAt = ref(0);
+
+const secondsSinceSent = computed(
+  () => menuOpenedAt.value - Number(props.createdAt || 0)
+);
+
+// 只有发这条的人能撤回/编辑自己那条（后端也是这么判的，管理员不能代劳）。
+const isMyOwnOutgoing = computed(() => {
+  const senderType = props.sender?.type ?? props.senderType;
+  return (
+    props.messageType === MESSAGE_TYPES.OUTGOING &&
+    senderType?.toLowerCase() === SENDER_TYPES.USER.toLowerCase() &&
+    Number(props.sender?.id) === Number(props.currentUserId)
+  );
+});
 
 const inboxGetter = useMapGetter('inboxes/getInbox');
 const inbox = computed(() => inboxGetter.value(props.inboxId) || {});
@@ -420,6 +446,26 @@ const contextMenuEnabledOptions = computed(() => {
       isOnChatwootCloud.value &&
       isCaptainMessage.value &&
       !isMessageDeleted.value,
+    // 撤回：和手机上点「为所有人删除」一样。只给个人号、自己发的、两天内、真发出去了的。
+    revoke:
+      REVOCABLE_CHANNELS.includes(inbox.value.channel_type) &&
+      !props.private &&
+      !!props.sourceId &&
+      isMyOwnOutgoing.value &&
+      !isFailedOrProcessing &&
+      !isMessageDeleted.value &&
+      secondsSinceSent.value <= REVOKE_WINDOW_SECONDS,
+    // 编辑：同上，但 WhatsApp 只给 15 分钟，而且只能改纯文字那条（附件改不了）。
+    edit:
+      REVOCABLE_CHANNELS.includes(inbox.value.channel_type) &&
+      !props.private &&
+      !!props.sourceId &&
+      isMyOwnOutgoing.value &&
+      hasText &&
+      !hasAttachments &&
+      !isFailedOrProcessing &&
+      !isMessageDeleted.value &&
+      secondsSinceSent.value <= EDIT_WINDOW_SECONDS,
     // 表情回应目前只有 WhatsApp 两条线支持（后端 SendReactionService 按渠道分发）。
     // 回应要挂在对方客户端上那条消息，所以没有 source_id 的（草稿、发送失败）不给。
     react:
@@ -467,6 +513,7 @@ function openContextMenu(e) {
     x: e.pageX || e.clientX,
     y: e.pageY || e.clientY,
   };
+  menuOpenedAt.value = Math.floor(Date.now() / 1000);
   showContextMenu.value = true;
 }
 

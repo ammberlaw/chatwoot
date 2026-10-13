@@ -114,6 +114,22 @@ class MessageApi extends ApiClient {
     );
   }
 
+  // 撤回（WhatsApp 的「为所有人删除」）：客户客户端里那条也会消失。
+  // 能不能撤由后端判（只有发这条的人、两天内），不行会带着原因返回 422。
+  revoke(conversationId, messageId) {
+    return axios.post(
+      `${this.url}/${conversationId}/messages/${messageId}/revoke`
+    );
+  }
+
+  // 编辑已发出的消息（WhatsApp 限 15 分钟内、纯文字）。
+  editText(conversationId, messageId, content) {
+    return axios.post(
+      `${this.url}/${conversationId}/messages/${messageId}/edit_text`,
+      { content }
+    );
+  }
+
   translateMessage(conversationId, messageId, targetLanguage) {
     return axios.post(
       `${this.url}/${conversationId}/messages/${messageId}/translate`,

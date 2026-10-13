@@ -65,6 +65,9 @@
     "UNSUPPORTED_MESSAGE_WHATSAPP": "This message is unsupported. You can view this message on the WhatsApp app.",
     "SUCCESS_DELETE_MESSAGE": "已成功删除消息",
     "FAIL_DELETE_MESSSAGE": "无法删除消息，请重试！",
+    "SUCCESS_REVOKE_MESSAGE": "已撤回，客户那边也看不到了",
+    "SUCCESS_EDIT_MESSAGE": "已改好，客户那边同步变了",
+    "EDITED": "已编辑",
     "NO_RESPONSE": "无响应",
     "RESPONSE": "回复",
     "RATING_TITLE": "评分",
@@ -293,15 +296,30 @@
     "CONTEXT_MENU": {
       "COPY": "复制",
       "REPLY_TO": "对这条消息进行回复",
-      "DELETE": "删除",
+      "EDIT": "编辑",
+      "REVOKE": "撤回（对方也看不到）",
+      "DELETE": "仅在本系统删除",
       "CREATE_A_CANNED_RESPONSE": "添加到预定义回复",
       "TRANSLATE": "翻译",
       "COPY_PERMALINK": "复制消息链接",
       "LINK_COPIED": "消息链接已复制到剪贴板",
       "DELETE_CONFIRMATION": {
-        "TITLE": "您确定要删除这条消息吗？",
-        "MESSAGE": "此操作无法撤销。",
+        "TITLE": "确定只在本系统删除这条消息吗？",
+        "MESSAGE": "只是本系统里不再显示，对方已经收到的那条不受影响。此操作无法撤销。",
         "DELETE": "删除",
+        "CANCEL": "取消"
+      },
+      "REVOKE_CONFIRMATION": {
+        "TITLE": "确定撤回这条消息吗？",
+        "MESSAGE": "和在手机上点「为所有人删除」一样：客户那边这条会消失，内容也不再保留。",
+        "CONFIRM": "撤回",
+        "CANCEL": "取消"
+      },
+      "EDIT_DIALOG": {
+        "TITLE": "编辑消息",
+        "PLACEHOLDER": "改成要发的内容",
+        "HINT": "客户那边会变成新内容，底下挂一个「已编辑」。WhatsApp 只允许发出 15 分钟内编辑。",
+        "SAVE": "保存",
         "CANCEL": "取消"
       }
     },

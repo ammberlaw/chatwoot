@@ -7,6 +7,7 @@ import AddCannedModal from 'dashboard/routes/dashboard/settings/canned/AddCanned
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { parseAPIErrorResponse } from 'dashboard/store/utils/api';
+import MessageAPI from 'dashboard/api/inbox/message';
 import { conversationUrl, frontendURL } from '../../../helper/URLHelper';
 import {
   ACCOUNT_EVENTS,
@@ -16,6 +17,7 @@ import MenuItem from '../../../components/widgets/conversation/contextMenu/menuI
 import { useTrack } from 'dashboard/composables';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import ReportCaptainMessageDialog from './ReportCaptainMessageDialog.vue';
+import EditMessageDialog from './EditMessageDialog.vue';
 
 export default {
   components: {
@@ -24,6 +26,7 @@ export default {
     ContextMenu,
     NextButton,
     ReportCaptainMessageDialog,
+    EditMessageDialog,
   },
   props: {
     message: {
@@ -59,6 +62,7 @@ export default {
     return {
       isCannedResponseModalOpen: false,
       showDeleteModal: false,
+      showRevokeModal: false,
       // WhatsApp 自己快捷条上的那六个
       quickReactions: ['👍', '❤️', '😂', '😮', '😢', '🙏'],
     };
@@ -146,6 +150,27 @@ export default {
       this.$emit('replyTo', this.message);
       this.handleClose();
     },
+    // 撤回：和在手机上点「为所有人删除」一样，客户那边那条也会消失。
+    // 能不能撤由后端把关（只有发这条的人、两天内），不行会带原因返回。
+    openRevokeModal() {
+      this.handleClose();
+      this.showRevokeModal = true;
+    },
+    closeRevokeModal() {
+      this.showRevokeModal = false;
+    },
+    async confirmRevoke() {
+      try {
+        await MessageAPI.revoke(this.conversationId, this.messageId);
+        useAlert(this.$t('CONVERSATION.SUCCESS_REVOKE_MESSAGE'));
+      } catch (error) {
+        useAlert(parseAPIErrorResponse(error));
+      }
+    },
+    openEditDialog() {
+      this.handleClose();
+      this.$refs.editDialog?.open(this.plainTextContent);
+    },
     openDeleteModal() {
       this.handleClose();
       this.showDeleteModal = true;
@@ -197,6 +222,21 @@ export default {
       :message="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.MESSAGE')"
       :confirm-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.DELETE')"
       :reject-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.CANCEL')"
+    />
+    <!-- 撤回确认。和「仅在本系统删除」分成两个框：两件事的后果完全不同，
+         共用一个框只会让人以为点哪个都一样。 -->
+    <woot-delete-modal
+      v-if="showRevokeModal && enabledOptions['revoke']"
+      v-model:show="showRevokeModal"
+      class="context-menu--delete-modal"
+      :on-close="closeRevokeModal"
+      :on-confirm="confirmRevoke"
+      :title="$t('CONVERSATION.CONTEXT_MENU.REVOKE_CONFIRMATION.TITLE')"
+      :message="$t('CONVERSATION.CONTEXT_MENU.REVOKE_CONFIRMATION.MESSAGE')"
+      :confirm-text="
+        $t('CONVERSATION.CONTEXT_MENU.REVOKE_CONFIRMATION.CONFIRM')
+      "
+      :reject-text="$t('CONVERSATION.CONTEXT_MENU.REVOKE_CONFIRMATION.CANCEL')"
     />
     <NextButton
       v-if="!hideButton"
@@ -287,6 +327,25 @@ export default {
           variant="icon"
           @click.stop="openReportDialog"
         />
+        <hr v-if="enabledOptions['edit'] || enabledOptions['revoke']" />
+        <MenuItem
+          v-if="enabledOptions['edit']"
+          :option="{
+            icon: 'edit',
+            label: $t('CONVERSATION.CONTEXT_MENU.EDIT'),
+          }"
+          variant="icon"
+          @click.stop="openEditDialog"
+        />
+        <MenuItem
+          v-if="enabledOptions['revoke']"
+          :option="{
+            icon: 'arrow-rotate-counter-clockwise',
+            label: $t('CONVERSATION.CONTEXT_MENU.REVOKE'),
+          }"
+          variant="icon"
+          @click.stop="openRevokeModal"
+        />
         <hr v-if="enabledOptions['delete']" />
         <MenuItem
           v-if="enabledOptions['delete']"
@@ -302,6 +361,12 @@ export default {
     <ReportCaptainMessageDialog
       v-if="enabledOptions['report']"
       ref="reportDialog"
+      :message-id="messageId"
+    />
+    <EditMessageDialog
+      v-if="enabledOptions['edit']"
+      ref="editDialog"
+      :conversation-id="conversationId"
       :message-id="messageId"
     />
   </div>

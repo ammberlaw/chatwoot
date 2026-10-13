@@ -7,6 +7,7 @@ const {
   fetchLatestBaileysVersion,
   DisconnectReason,
   downloadMediaMessage,
+  WAMessageStubType,
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const QRCode = require('qrcode');
@@ -133,6 +134,27 @@ async function downloadMedia(sock, msg, media) {
   return buffer;
 }
 
+// 客户引用我们某条消息回复时，被引用那条的 WhatsApp id 在 contextInfo.stanzaId 上。
+// 带给 Chatwoot，会话里就能把被引用的原文显示在气泡上方。
+function extractQuotedId(message) {
+  if (!message) return null;
+  const inner = message.documentWithCaptionMessage?.message || message;
+  for (const node of Object.values(inner)) {
+    const id = node && typeof node === 'object' ? node.contextInfo?.stanzaId : null;
+    if (id) return String(id);
+  }
+  return null;
+}
+
+// 表情回应。Baileys 把它当成一条普通消息推上来，内容是 reactionMessage：
+//   { key: 被回应那条的 key, text: '❤️' }，text 为空串表示撤销。
+// 它没有正文也没有媒体，不拦住的话会被当成空消息直接丢掉。
+function extractReaction(message) {
+  const r = message?.reactionMessage;
+  if (!r || !r.key?.id) return null;
+  return { targetId: String(r.key.id), emoji: String(r.text || '') };
+}
+
 async function handleIncoming(inboxId, msg, sock) {
   // 个人聊天的文字消息，双向都收。之前这里 `if (fromMe) return` 把业务员用手机回的话
   // 全丢了，CRM 里的对话只剩客户单边说 —— 实测线上一个号 221 条来件只对 2 条去件。
@@ -143,6 +165,24 @@ async function handleIncoming(inboxId, msg, sock) {
   if (remoteJid.endsWith(GROUP_SUFFIX) || remoteJid.endsWith('@newsletter')) return; // groups/channels handled later
   // Accept both classic (…@s.whatsapp.net) and WhatsApp's newer LID addressing (…@lid).
   if (!remoteJid.endsWith(INDIVIDUAL_SUFFIX) && !remoteJid.endsWith(LID_SUFFIX)) return;
+
+  // 回应要在「空消息就丢弃」那道判断之前分流出去：它没正文没媒体。
+  const reaction = extractReaction(msg.message);
+  if (reaction) {
+    try {
+      await chatwoot.postReaction({
+        inbox_id: Number(inboxId),
+        target_id: reaction.targetId,
+        emoji: reaction.emoji,
+        from_me: fromMe,
+        source_id: msg.key.id,
+        timestamp: Number(msg.messageTimestamp) || null,
+      });
+    } catch (err) {
+      logger.error({ inboxId, err: err.message }, 'forward reaction failed');
+    }
+    return;
+  }
 
   const text = extractText(msg.message);
   const media = extractMedia(msg.message);
@@ -176,6 +216,7 @@ async function handleIncoming(inboxId, msg, sock) {
     message_id: msg.key.id,
     timestamp: Number(msg.messageTimestamp) || null,
     from_me: fromMe,
+    quoted_id: extractQuotedId(msg.message),
   };
 
   try {
@@ -525,14 +566,46 @@ async function connect(inboxId) {
     }
   });
 
-  // Delivery/read receipts for our own outgoing messages. Baileys reports the WhatsApp
-  // message status enum: 3 = delivered, 4 = read, 5 = played (treat as read).
+  // 一条已存在的消息有了新状态：撤回、编辑，或者送达/已读回执。
+  // Baileys 把手机端的撤回和编辑（protocolMessage）都归一成了 messages.update，
+  // 所以这三件事在同一个事件里分流——注意撤回/编辑必须排在回执的 fromMe 过滤之前，
+  // 客户撤回自己那条时 fromMe 是 false，放在后面会被直接丢掉。
   sock.ev.on('messages.update', async updates => {
     for (const u of updates) {
-      if (u.key?.fromMe !== true) continue;
+      if (!u.key?.id) continue;
+
+      // 撤回（手机上的「为所有人删除」）。key.id 已经是被撤回那条的 id，
+      // key.fromMe 说的是谁撤的：true = 业务员在自己手机上撤了我们发的那条。
+      if (u.update?.messageStubType === WAMessageStubType.REVOKE) {
+        try {
+          await chatwoot.postRevoke({
+            inbox_id: Number(inboxId),
+            message_id: u.key.id,
+            from_me: u.key.fromMe === true,
+          });
+        } catch (err) {
+          logger.warn({ inboxId, err: err.message }, 'failed to forward revoke');
+        }
+        continue;
+      }
+
+      // 编辑：新正文藏在 update.message.editedMessage.message 里，形状和普通消息一样。
+      const editedText = extractText(u.update?.message?.editedMessage?.message);
+      if (editedText) {
+        try {
+          await chatwoot.postEdit({ inbox_id: Number(inboxId), message_id: u.key.id, text: editedText });
+        } catch (err) {
+          logger.warn({ inboxId, err: err.message }, 'failed to forward edit');
+        }
+        continue;
+      }
+
+      // Delivery/read receipts for our own outgoing messages. Baileys reports the WhatsApp
+      // message status enum: 3 = delivered, 4 = read, 5 = played (treat as read).
+      if (u.key.fromMe !== true) continue;
       const status = u.update?.status;
       const mapped = status === 3 ? 'delivered' : status >= 4 ? 'read' : null;
-      if (!mapped || !u.key?.id) continue;
+      if (!mapped) continue;
       try {
         await chatwoot.postReceipt({ inbox_id: Number(inboxId), message_id: u.key.id, status: mapped });
       } catch (err) {
@@ -544,7 +617,74 @@ async function connect(inboxId) {
   return publicState(inboxId);
 }
 
-async function sendText(inboxId, to, text) {
+// 引用回复：Baileys 只需要一个「存根」就能把消息发成引用——原消息的 key 加一段正文。
+// 桥接不存历史消息，所以按 Chatwoot 传来的 id/fromMe/正文现搭一个。
+// 没传 quoted_id 就返回 undefined，sendMessage 会当成普通消息发（行为不变）。
+function buildQuoted(jid, quoted) {
+  if (!quoted || !quoted.id) return undefined;
+  return {
+    key: {
+      remoteJid: jid,
+      id: String(quoted.id),
+      fromMe: Boolean(quoted.from_me),
+      ...(quoted.from_me ? {} : { participant: jid }),
+    },
+    message: { conversation: String(quoted.text || '') },
+  };
+}
+
+// 发表情回应。emoji 传空字符串 = 撤销（WhatsApp 两端都用空串表达撤销）。
+// key 必须和被回应那条完全对上：fromMe 错了对方客户端不认这条回应，
+// 界面上什么都不会出现、也不会报错。
+async function sendReaction(inboxId, to, { targetId, fromMe, emoji }) {
+  const session = sessions.get(inboxId);
+  if (!session || session.status !== 'open') {
+    throw new Error(`session for inbox ${inboxId} is not connected`);
+  }
+  // 与 sendText 同一套：source_id 可能已是完整 JID，也可能是裸号码（历史数据）。
+  const jid = String(to).includes('@') ? String(to) : `${to}${INDIVIDUAL_SUFFIX}`;
+  const key = { remoteJid: jid, id: String(targetId), fromMe: Boolean(fromMe) };
+  if (!fromMe) key.participant = jid;
+  const sent = await session.sock.sendMessage(jid, { react: { text: String(emoji || ''), key } });
+  return sent?.key?.id || null;
+}
+
+// source_id 可能是完整 JID（…@lid / …@s.whatsapp.net），也可能是裸号码（历史数据）。
+function toJid(to) {
+  return String(to).includes('@') ? String(to) : `${to}${INDIVIDUAL_SUFFIX}`;
+}
+
+// 撤回自己发出的那条（WhatsApp 的「为所有人删除」）。
+// 只撤我方消息，所以 key 的 fromMe 恒为 true；撤别人的消息 WhatsApp 不给，发了也不生效。
+// 超过 WhatsApp 的时间窗（约两天）这里不会报错，对方客户端会静默忽略——
+// 所以窗口是在 Chatwoot 侧先卡掉的（Messages::SendRevokeService）。
+async function revokeMessage(inboxId, to, { targetId }) {
+  const session = sessions.get(inboxId);
+  if (!session || session.status !== 'open') {
+    throw new Error(`session for inbox ${inboxId} is not connected`);
+  }
+  const jid = toJid(to);
+  const sent = await session.sock.sendMessage(jid, {
+    delete: { remoteJid: jid, id: String(targetId), fromMe: true },
+  });
+  return sent?.key?.id || null;
+}
+
+// 编辑自己发出的那条。WhatsApp 限 15 分钟内（同样是静默忽略，窗口在 Chatwoot 侧卡）。
+async function editMessage(inboxId, to, { targetId, text }) {
+  const session = sessions.get(inboxId);
+  if (!session || session.status !== 'open') {
+    throw new Error(`session for inbox ${inboxId} is not connected`);
+  }
+  const jid = toJid(to);
+  const sent = await session.sock.sendMessage(jid, {
+    text: String(text),
+    edit: { remoteJid: jid, id: String(targetId), fromMe: true },
+  });
+  return sent?.key?.id || null;
+}
+
+async function sendText(inboxId, to, text, quoted) {
   const session = sessions.get(inboxId);
   if (!session || session.status !== 'open') {
     throw new Error(`session for inbox ${inboxId} is not connected`);
@@ -552,7 +692,7 @@ async function sendText(inboxId, to, text) {
   // `to` is the conversation's source_id: either a full JID (…@lid / …@s.whatsapp.net)
   // or a bare phone number (legacy). Send to the JID as-is; append the classic suffix otherwise.
   const jid = String(to).includes('@') ? String(to) : `${to}${INDIVIDUAL_SUFFIX}`;
-  const sent = await session.sock.sendMessage(jid, { text });
+  const sent = await session.sock.sendMessage(jid, { text }, { quoted: buildQuoted(jid, quoted) });
   return sent?.key?.id || null;
 }
 
@@ -562,7 +702,7 @@ async function sendText(inboxId, to, text) {
 // else goes as `document` so the customer sees the real filename.
 const MEDIA_MAX_BYTES = 64 * 1024 * 1024;
 
-async function sendMedia(inboxId, to, { url, filename, mimetype, caption }) {
+async function sendMedia(inboxId, to, { url, filename, mimetype, caption, quoted }) {
   const session = sessions.get(inboxId);
   if (!session || session.status !== 'open') {
     throw new Error(`session for inbox ${inboxId} is not connected`);
@@ -577,7 +717,7 @@ async function sendMedia(inboxId, to, { url, filename, mimetype, caption }) {
   const payload = type.startsWith('image/')
     ? { image: buffer, mimetype: type, caption: caption || undefined }
     : { document: buffer, mimetype: type, fileName: filename || 'file', caption: caption || undefined };
-  const sent = await session.sock.sendMessage(jid, payload);
+  const sent = await session.sock.sendMessage(jid, payload, { quoted: buildQuoted(jid, quoted) });
   return sent?.key?.id || null;
 }
 
@@ -710,4 +850,4 @@ async function restoreAll() {
   }
 }
 
-module.exports = { connect, sendText, sendMedia, fetchHistory, checkNumber, logout, restoreAll, publicState, syncAvatars, resyncContacts, sessions };
+module.exports = { connect, sendText, sendMedia, fetchHistory, checkNumber, logout, restoreAll, publicState, syncAvatars, resyncContacts, sessions, sendReaction, revokeMessage, editMessage };

@@ -750,6 +750,9 @@ Rails.application.routes.draw do
                   post :retry
                   # 表情回应：emoji 为空即撤销（WhatsApp 语义）
                   post :reaction
+                  # 撤回 / 编辑已发出的消息（对方客户端里一起变，见 Messages::SentMessageMutation）
+                  post :revoke
+                  post :edit_text
                 end
               end
               resources :assignments, only: [:create]
@@ -1259,6 +1262,8 @@ Rails.application.routes.draw do
   post 'webhooks/whatsapp_web/status', to: 'webhooks/whatsapp_web#status'
   post 'webhooks/whatsapp_web/receipt', to: 'webhooks/whatsapp_web#receipt'
   post 'webhooks/whatsapp_web/reaction', to: 'webhooks/whatsapp_web#reaction'
+  post 'webhooks/whatsapp_web/revoke', to: 'webhooks/whatsapp_web#revoke'
+  post 'webhooks/whatsapp_web/edit', to: 'webhooks/whatsapp_web#edit'
   post 'webhooks/whatsapp_web/history', to: 'webhooks/whatsapp_web#history'
   post 'webhooks/whatsapp_web/contacts', to: 'webhooks/whatsapp_web#contacts'
   post 'webhooks/whatsapp_web/avatar', to: 'webhooks/whatsapp_web#avatar'

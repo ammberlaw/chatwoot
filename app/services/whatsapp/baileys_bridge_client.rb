@@ -49,6 +49,18 @@ class Whatsapp::BaileysBridgeClient
          { phone: phone, target_id: target_id, from_me: from_me, emoji: emoji.to_s })
   end
 
+  # 撤回（WhatsApp 的「为所有人删除」）。target_id 是那条消息在 WhatsApp 上的 id；
+  # 只撤自己发的，所以桥那侧的 key 恒按 fromMe 拼。
+  def revoke_message(inbox_id, phone, target_id:)
+    post("/sessions/#{inbox_id}/revoke", { phone: phone, target_id: target_id })
+  end
+
+  # 编辑已发出的消息。只对纯文字消息有意义，超过 WhatsApp 的 15 分钟窗口对方客户端会忽略
+  # （窗口在 Messages::SendEditService 里先卡掉，这里不重复判）。
+  def edit_message(inbox_id, phone, target_id:, text:)
+    post("/sessions/#{inbox_id}/edit", { phone: phone, target_id: target_id, text: text })
+  end
+
   # 号码是否注册了 WhatsApp。发起新会话前先问一句，免得对着没注册的号发消息。
   # 返回的 jid 才是发送用的地址（个别号码回来的 JID 与输入号码不同）。
   def check_number(inbox_id, phone)
