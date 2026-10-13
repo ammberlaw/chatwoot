@@ -571,33 +571,38 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 筛选条（与销售订单那页同一套样式）。条件发给后端，不在前端过滤本页。 -->
+    <!-- 筛选条分两行：上面三个关键字框、下面下拉+日期+查询。挤成一行会在 1600px
+         以下乱折，看起来像「怎么搞了这么多行」。 -->
     <div
-      class="flex flex-wrap items-center gap-3 px-4 pb-3 sm:px-6 [.theme-classic_&]:sm:!px-8"
+      class="flex flex-wrap items-center gap-3 px-4 pb-2 sm:px-6 [.theme-classic_&]:sm:!px-8"
     >
       <!-- reset-base：不加的话全局 $form-input-selector 会给它套上 field-base 的
-           w-full + mb-4，搜索框撑满整行、被挤到筛选下面去。高度跟 SelectCard 对齐用 h-9。 -->
+           w-full + mb-4，搜索框撑满整行。高度跟 SelectCard 对齐用 h-9。 -->
       <input
         v-model="colFilters.no"
         type="text"
         placeholder="搜索 单号 / 投单单号…"
-        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-44 border border-n-weak bg-n-solid-1 text-n-slate-12"
+        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-52 border border-n-weak bg-n-solid-1 text-n-slate-12"
         @keyup.enter="onFilterChange"
       />
       <input
         v-model="colFilters.model"
         type="text"
         placeholder="型号 / 成品名…"
-        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-40 border border-n-weak bg-n-solid-1 text-n-slate-12"
+        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-48 border border-n-weak bg-n-solid-1 text-n-slate-12"
         @keyup.enter="onFilterChange"
       />
       <input
         v-model="colFilters.product_code"
         type="text"
         placeholder="产成品代码…"
-        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-36 border border-n-weak bg-n-solid-1 text-n-slate-12"
+        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-40 border border-n-weak bg-n-solid-1 text-n-slate-12"
         @keyup.enter="onFilterChange"
       />
+    </div>
+    <div
+      class="flex flex-wrap items-center gap-3 px-4 pb-3 sm:px-6 [.theme-classic_&]:sm:!px-8"
+    >
       <SelectCard
         v-if="ownerOptions.length > 1"
         v-model="colFilters.owner_id"

@@ -1443,13 +1443,19 @@ const menuItems = computed(() => {
             to: accountScopedRoute('mes_pipeline_index'),
             activeOn: ['mes_pipeline_index'],
           },
-          {
-            name: 'MES Notifications',
-            label: t('SIDEBAR.MES_NOTIFICATIONS'),
-            badgeCount: mesActionCount.value,
-            to: accountScopedRoute('mes_notifications_index'),
-            activeOn: ['mes_notifications_index'],
-          },
+          // MES 站内通知是生产流转待办（接单/审批/报工），只给 MES 岗和采购审批人。
+          // 财务有自己的「财务通知」，这一条对她是噪音（用户 2026-10-13 定）。
+          ...(isMesStaff.value || isMesPurchaseApprover.value
+            ? [
+                {
+                  name: 'MES Notifications',
+                  label: t('SIDEBAR.MES_NOTIFICATIONS'),
+                  badgeCount: mesActionCount.value,
+                  to: accountScopedRoute('mes_notifications_index'),
+                  activeOn: ['mes_notifications_index'],
+                },
+              ]
+            : []),
           {
             name: 'MES Production Orders',
             label: t('SIDEBAR.MES_PRODUCTION_ORDERS'),
@@ -1506,7 +1512,9 @@ const menuItems = computed(() => {
                 },
               ]
             : []),
-          ...(isMesStaff.value
+          // 供应商/仓库也放行财务（用户 2026-10-13 定）：按供应商对账、看库存都是本职。
+          // 采购申请单与 MES 站内通知不放——请购流程财务不参与，生产待办对她是噪音。
+          ...(isMesStaff.value || isFinanceViewer.value
             ? [
                 {
                   name: 'MES Suppliers',
