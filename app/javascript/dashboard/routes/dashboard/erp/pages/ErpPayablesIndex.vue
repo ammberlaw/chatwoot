@@ -17,6 +17,7 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import ErpPayableDetailDialog from 'dashboard/components-next/erp/ErpPayableDetailDialog.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ErpAllocationEditor from 'dashboard/components-next/erp/ErpAllocationEditor.vue';
 import ErpSettlementPrintSheet from 'dashboard/components-next/erp/ErpSettlementPrintSheet.vue';
@@ -325,6 +326,10 @@ const switchTab = key => {
 };
 
 /* ---------------- 从采购单建账 ---------------- */
+// 点台账单号就地看明细：这笔钱是哪张采购单、哪几行料、货到没到、付了几次。
+const detailDialogRef = ref(null);
+const openPayableDetail = id => detailDialogRef.value?.open(id);
+
 const buildDialogRef = ref(null);
 const purchaseOrderOptions = ref([]);
 const selectedPurchaseOrderId = ref('');
@@ -895,7 +900,14 @@ onMounted(loadLedgers);
                 :style="ledgerColStyle(col.key)"
               >
                 <template v-if="col.key === 'no'">
-                  {{ row.payable_no }}
+                  <button
+                    type="button"
+                    class="font-mono underline reset-base text-n-iris-11 underline-offset-2 hover:opacity-80"
+                    title="点开看这笔应付的采购明细、入库和付款"
+                    @click="openPayableDetail(row.id)"
+                  >
+                    {{ row.payable_no }}
+                  </button>
                 </template>
                 <template v-else-if="col.key === 'supplier'">
                   {{ row.supplier_name }}
@@ -1194,6 +1206,8 @@ onMounted(loadLedgers);
     </div>
 
     <!-- 建账弹窗 -->
+    <ErpPayableDetailDialog ref="detailDialogRef" />
+
     <Dialog
       ref="buildDialogRef"
       width="2xl"

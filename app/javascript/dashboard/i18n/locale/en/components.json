@@ -6,6 +6,7 @@
   "COMBOBOX": {
     "PLACEHOLDER": "Select an option...",
     "CLEAR": "Clear selection",
+    "CLEAR_SEARCH": "Clear search",
     "EMPTY_SEARCH_RESULTS": "No items found for the search term `{searchTerm}`",
     "EMPTY_STATE": "No results found.",
     "SEARCH_PLACEHOLDER": "Search...",

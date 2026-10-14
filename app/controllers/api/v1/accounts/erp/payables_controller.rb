@@ -1,7 +1,7 @@
 # 应付台账：按采购单建账（按明细行供应商分组，每供应商一条）或手工建。
 class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseController
   before_action :check_authorization
-  before_action :fetch_payable, only: [:show, :update, :destroy]
+  before_action :fetch_payable, only: [:show, :update, :destroy, :detail]
 
   def index
     scope = filtered_scope
@@ -14,6 +14,17 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
   end
 
   def show; end
+
+  # 台账明细弹窗：点台账单号就地看这笔应付到底是哪张采购单、哪几行料、收没收到货、付了几次。
+  # 和应收台账的订单详情同一个用法——财务核账时不想跳去 MES（多半也没有 MES 身份）。
+  def detail
+    po = @payable.mes_purchase_order
+    # 一张采购单可能含多家供应商，这笔应付只认本供应商那几行（口径与台账列表同一个）。
+    @detail_items = @payable.supplier_items
+    @detail_entries = po ? Current.account.mes_stock_entries.where(purchase_order_id: po.id).order(:id) : []
+    @detail_allocations = @payable.allocations.includes(:payment_record).order(:id)
+    render 'api/v1/accounts/erp/payables/detail'
+  end
 
   def create
     if params[:mes_purchase_order_id].present?

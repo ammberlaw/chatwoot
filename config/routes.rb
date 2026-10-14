@@ -413,6 +413,7 @@ Rails.application.routes.draw do
                 get :aging
                 get :monthly
               end
+              member { get :detail }
             end
             resources :payment_records, only: [:index, :show, :create, :update, :destroy] do
               member { post :void }

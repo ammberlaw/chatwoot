@@ -73,6 +73,14 @@ const onInputSearch = event => {
   emit('search', event.target.value);
 };
 
+// 自己画清空按钮，不用 type="search" 自带的那颗——浏览器原生的那颗点下去
+// 只擦掉框里的字，不走 input 事件，列表还停在「未找到结果」（用户点名：这个按键是无效的）。
+const clearSearch = () => {
+  searchValue.value = '';
+  emit('search', '');
+  searchInput.value?.focus();
+};
+
 defineExpose({
   focus: () => searchInput.value?.focus(),
 });
@@ -88,14 +96,24 @@ defineExpose({
       <input
         ref="searchInput"
         :value="searchValue"
-        type="search"
+        type="text"
         :placeholder="searchPlaceholder || t('COMBOBOX.SEARCH_PLACEHOLDER')"
-        class="reset-base w-full py-2 pl-10 pr-2 text-sm focus:outline-none border-none rounded-t-md bg-n-solid-1 text-n-slate-12"
+        class="reset-base w-full py-2 pl-10 pr-9 text-sm focus:outline-none border-none rounded-t-md bg-n-solid-1 text-n-slate-12"
         @input="onInputSearch"
         @keydown.down.prevent="move(1)"
         @keydown.up.prevent="move(-1)"
+        @keydown.esc.prevent.stop="clearSearch"
         @keydown.enter.prevent.stop="confirmHighlighted"
       />
+      <button
+        v-if="searchValue"
+        type="button"
+        class="absolute grid rounded top-1.5 right-2 size-6 place-items-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+        :title="t('COMBOBOX.CLEAR_SEARCH')"
+        @click.stop="clearSearch"
+      >
+        <span class="i-lucide-x size-3.5 shrink-0" />
+      </button>
     </div>
     <ul
       class="py-1 mb-0 overflow-auto max-h-60"

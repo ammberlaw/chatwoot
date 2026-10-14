@@ -5,6 +5,7 @@
   },
   "COMBOBOX": {
     "PLACEHOLDER": "请选择一个选项……",
+    "CLEAR_SEARCH": "清空搜索",
     "EMPTY_SEARCH_RESULTS": "未找到与搜索词 `{searchTerm}` 匹配的项",
     "EMPTY_STATE": "未找到结果。",
     "SEARCH_PLACEHOLDER": "搜索……",

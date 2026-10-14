@@ -1168,13 +1168,24 @@ const removeEmployee = async row => {
         员工状态选择「离职」后，此处填写离职日期、离职类型、离职原因并上传离职资料。
       </p>
       <template v-if="form.status === 'RESIGNED'">
+        <!-- 没关联账号就什么也不会发生，必须说出来：原来这块整个 v-if 掉，
+             看着像「存了就会停用」，实际一个账号都没停（用户点名）。 -->
+        <p
+          v-if="!form.userId"
+          class="p-3 text-xs border rounded-lg border-n-amber-8 bg-n-amber-3/30 text-n-slate-12"
+        >
+          这份档案还没有关联系统账号，保存后<b>不会</b>自动停用任何账号。要让账号跟着离职一起停用，请先在上面「系统账号」里关联，或到「wintouchspace
+          成员管理」里手动停用。
+        </p>
         <div
           v-if="form.userId"
           class="flex flex-col gap-2 p-3 text-sm border rounded-lg border-n-amber-8 bg-n-amber-3/30"
         >
           <span class="text-xs font-medium text-n-slate-12">
-            离职交接（保存后执行）：名下客户与商机按下方选择处理，个人文档进回收站，该账号将不再能进入
-            CRM。
+            离职交接（保存后执行）：名下客户与商机按下方选择处理，个人文档进回收站，<b
+              >关联的系统账号自动停用（不能再登录，可在「wintouchspace
+              成员管理」里恢复）</b
+            >。
           </span>
           <div class="flex flex-wrap items-center gap-4">
             <label
