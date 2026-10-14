@@ -7,6 +7,14 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
   # 挂附件/删附件同样是改单，一并收口。
   before_action -> { ensure_owner_or_admin!(@bom, '生产任务单') }, only: [:update, :destroy, :attach, :detach]
 
+  # 按明细筛三列（物料编码/名称/规格）用：任一行命中即留下这张任务单。
+  ITEM_MATCH_SQL = lambda { |cond|
+    <<~SQL.squish
+      EXISTS (SELECT 1 FROM mes_bom_items bi
+               WHERE bi.bom_id = mes_boms.id AND (#{cond}))
+    SQL
+  }
+
   # 表头上每列各自的筛选（对标金蝶的漏斗）。列 → 查询条件的映射放在后端，
   # 因为列表是分页的：前端只过滤本页，第 2 页往后的命中就全看不见了。
   COLUMN_FILTERS = {
@@ -19,7 +27,12 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     customer_name: ->(scope, v) { scope.where('mes_boms.customer_name ILIKE ?', "%#{v}%") },
     owner_id: ->(scope, v) { scope.where(owner_id: v) },
     sales_owner_id: ->(scope, v) { scope.where(sales_owner_id: v) },
-    status: ->(scope, v) { scope.where(status: v) }
+    status: ->(scope, v) { scope.where(status: v) },
+    # 按明细视图的三列：一张任务单只要有一行料对上就留下——
+    # 「哪几张单用了这颗料」正是采购/PMC 查这三列的目的。
+    item_code: ->(scope, v) { scope.where(ITEM_MATCH_SQL.call('bi.material_no ILIKE :t'), t: "%#{v}%") },
+    item_name: ->(scope, v) { scope.where(ITEM_MATCH_SQL.call('bi.material_name ILIKE :t'), t: "%#{v}%") },
+    item_spec: ->(scope, v) { scope.where(ITEM_MATCH_SQL.call('bi.specification ILIKE :t'), t: "%#{v}%") }
   }.freeze
 
   def index
