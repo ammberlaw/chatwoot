@@ -38,7 +38,8 @@ class Erp::AutoVoucherService
                     record: receipt, summary: '银行手续费')
     end
     lines << line(account: receivable, direction: 'CREDIT', amount_micros: gross, record: receipt,
-                  summary: '冲减应收', dimension: { crm_customer_id: receipt.crm_customer_id })
+                  summary: '冲减应收',
+                  dimension: { crm_customer_id: receipt.crm_customer_id, member_id: receipt_member_id(receipt) })
              .merge(base_amount_micros: cash_base + fee_base, explicit_base: true)
 
     build_voucher(receipt, "收款 #{receipt.receipt_no} · #{receipt.crm_customer&.name}", receipt.received_at, lines)
@@ -114,10 +115,13 @@ class Erp::AutoVoucherService
     gross = net + tax
     tax_account = tax.positive? ? account_by_code(OUTPUT_TAX_CODE) : nil
 
+    # 核算维度除了客户，还挂上业务员（她点名要的）：应收挂客户是往来对账的必填项不能动，
+    # 业务员是并列的第二个维度，总账里就能按人看「这个业务员名下还有多少应收」。
     lines = [doc_line(account: receivable, direction: 'DEBIT', amount_micros: gross, order: order,
-                      summary: '应收货款', dimension: { crm_customer_id: order.crm_customer_id }),
+                      summary: '应收货款',
+                      dimension: { crm_customer_id: order.crm_customer_id, member_id: order.owner_id }),
              doc_line(account: revenue, direction: 'CREDIT', amount_micros: net, order: order,
-                      summary: '确认销售收入')]
+                      summary: '确认销售收入', dimension: { member_id: order.owner_id })]
     if tax_account.present?
       lines << doc_line(account: tax_account, direction: 'CREDIT', amount_micros: tax, order: order,
                         summary: "销项税额 #{tax_rate}%")
@@ -487,6 +491,15 @@ class Erp::AutoVoucherService
   end
 
   # 订单币种下的分录行（单据没有 currency/exchange_rate 属性，这里显式给）。
+  # 这笔收款冲的是谁名下的应收。应收那头挂了业务员，这头不挂的话「按业务员看应收余额」
+  # 只增不减，永远冲不平。一笔收款跨了几个业务员时留空——宁可那笔不进维度，
+  # 也不能随便算到某一个人头上。
+  def receipt_member_id(receipt)
+    owners = receipt.allocations.includes(receivable: :crm_sales_order)
+                    .filter_map { |a| a.receivable&.crm_sales_order&.owner_id }.uniq
+    owners.size == 1 ? owners.first : nil
+  end
+
   def doc_line(spec)
     {
       ledger_account_id: spec[:account].id, direction: spec[:direction], amount_micros: spec[:amount_micros],

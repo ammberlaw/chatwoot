@@ -579,6 +579,47 @@ const buildRevenueVoucher = async row => {
   }
 };
 
+// 本页还没出收入凭证的台账。「收入凭证」那一列排在三十几列开外，
+// 要横着拖过大半张表才看得到那个「补出凭证」——财务反馈「这个单我怎么点生成凭证」。
+// 所以把入口提到工具栏：有几张没入账就显示几张，一次补完。
+const unvouchered = computed(() =>
+  (ledgers.value || []).filter(r => !r.revenue_voucher_no)
+);
+const buildingAll = ref(false);
+const buildAllVouchers = async () => {
+  const targets = unvouchered.value.slice();
+  if (!targets.length) return;
+  buildingAll.value = true;
+  let done = 0;
+  const failures = [];
+  try {
+    // 逐张补：出不了的各有各的原因（没挂订单、规则停用、未发货），
+    // 一张失败不该把其余的也挡住，最后把原因一并报出来。
+    for (let i = 0; i < targets.length; i += 1) {
+      const row = targets[i];
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const { data } = await ErpReceivableAPI.buildRevenueVoucher(row.id);
+        row.revenue_voucher_no = data.revenue_voucher_no;
+        done += 1;
+      } catch (error) {
+        failures.push(
+          `${row.receivable_no}：${error?.response?.data?.error || '补出失败'}`
+        );
+      }
+    }
+  } finally {
+    buildingAll.value = false;
+  }
+  useAlert(
+    failures.length
+      ? `补出 ${done} 张，${failures.length} 张没出：${failures[0]}${
+          failures.length > 1 ? ` 等 ${failures.length} 条` : ''
+        }`
+      : `已补出 ${done} 张收入凭证`
+  );
+};
+
 /* ---------------- 收款单 ---------------- */
 const receiptDialogRef = ref(null);
 const editingReceipt = ref(null);
@@ -1015,6 +1056,16 @@ onMounted(() => {
           :hidden-count="hiddenLedgerCols"
           @toggle="toggleLedgerCol"
           @show-all="showAllLedgerCols"
+        />
+        <!-- 没出凭证的一键补齐：那一列在三十几列开外，财务找不到 -->
+        <Button
+          v-if="activeTab === 'ledger' && canLedger && unvouchered.length"
+          :label="`补出凭证 (${unvouchered.length})`"
+          color="iris"
+          variant="faded"
+          size="sm"
+          :is-loading="buildingAll"
+          @click="buildAllVouchers"
         />
         <!-- 导出是只读动作，不挂写权限 -->
         <Button
