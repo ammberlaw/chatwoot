@@ -41,6 +41,12 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
       total_row: 10,         # 合计行：E=合计、I=总数量、L=总金额
       total_qty_ref: 'I',
       total_amount_ref: 'L',
+      # 「备注：」那一行（模板第 12 行，A 列）。采购反馈：单据备注要印在发给供应商那张单上，
+      # 原来只有行内备注进得去，整单的交代（付款方式、包装要求那些）供应商看不到。
+      # ⚠️ 只填 remark（单据备注），对内备注（internal_remark）绝不能进这张表——它是给内部看的。
+      remark_row: 12,
+      remark_col: 'A',
+      remark_prefix: '备注：',
       # 明细单行各列（值列 + 样式），克隆行时套用；文本列用 inlineStr。
       cell_layout: {
         seq: { col: 'A', s: '14', type: :num },
@@ -76,6 +82,7 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
       total_row: 9,          # 合计行：B=合计：、H=总数量、J=总金额
       total_qty_ref: 'H',
       total_amount_ref: 'J',
+      remark_row: nil,       # 联迪模板没有「备注：」行，条款直接接在合计下面
       cell_layout: {
         seq: { col: 'A', s: nil, type: :num },
         code: { col: 'B', s: '?', type: :str },
@@ -198,8 +205,7 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
     head = rows_between(data, row_nums.min, top - 1)
     tail = shifted_tail(data, row_nums.max)
 
-    new_data = "<sheetData>#{head}#{item_region(top)}#{tail}</sheetData>"
-    new_data = fill_total(new_data, @delta) if @cfg[:total_row]
+    new_data = fill_tail_cells("<sheetData>#{head}#{item_region(top)}#{tail}</sheetData>")
 
     xml = xml.sub(%r{<sheetData>.*?</sheetData>}m, new_data)
     rebuild_merges(xml, n, @delta)
@@ -279,6 +285,29 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
     row = @cfg[:total_row] + delta
     data = set_cell_num(data, "#{@cfg[:total_qty_ref]}#{row}", total_qty)
     set_cell_num(data, "#{@cfg[:total_amount_ref]}#{row}", total_amount)
+  end
+
+  # 尾部几格按实算覆盖：合计、单据备注。模板没有对应行的就跳过。
+  def fill_tail_cells(data)
+    data = fill_total(data, @delta) if @cfg[:total_row]
+    data = fill_remark(data, @delta) if @cfg[:remark_row]
+    data
+  end
+
+  # 「备注：」行：把单据备注接在固定前缀后面。空备注就不动，保留模板原样的「备注：」。
+  # 对内备注不进这里——那是给内部看的，这张表要发给供应商。
+  def fill_remark(data, delta)
+    text = @po.remark.to_s.strip
+    return data if text.blank?
+
+    ref = "#{@cfg[:remark_col]}#{@cfg[:remark_row] + delta}"
+    set_cell_str(data, ref, "#{@cfg[:remark_prefix]}#{text}")
+  end
+
+  def set_cell_str(data, ref, value)
+    data.sub(%r{(<c r="#{ref}"[^>]*?)(?:/>|>.*?</c>)}m) do
+      "#{Regexp.last_match(1).sub(/\st="[^"]*"/, '')} t=\"inlineStr\"><is>#{t_node(value)}</is></c>"
+    end
   end
 
   def set_cell_num(data, ref, value)
