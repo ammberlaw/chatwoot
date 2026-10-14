@@ -124,6 +124,13 @@ json.stage_ack_events do
 end
 json.status resource.status
 json.order_kind resource.order_kind
+# 接单方式（新款/老款返单/样机）决定工程和 PMC 这两段谁要接单。
+json.intake_kind resource.intake_kind
+json.intake_label Mes::ProductionOrder::INTAKE_LABELS[resource.intake_kind]
+# 当前这段归谁接（开头两段才分岗，其余阶段为 null）。
+json.ack_role resource.ack_role
+json.ack_role_label resource.ack_role_label
+json.ack_skipped resource.ack_skipped?
 json.delivery_date resource.delivery_date
 json.planned_start_date resource.planned_start_date
 json.planned_end_date resource.planned_end_date

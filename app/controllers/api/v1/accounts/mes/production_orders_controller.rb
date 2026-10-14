@@ -209,6 +209,9 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   # 接单：本阶段负责人（或管理员）确认接手。计时不受影响，仅定性。
   def acknowledge
     return render json: { error: '只有本阶段负责人可接单' }, status: :forbidden unless can_handle_stage?(@production_order)
+    unless admin_like? || ack_role_match?(@production_order)
+      return render json: { error: "这一段归#{@production_order.ack_role_label}接单" }, status: :forbidden
+    end
 
     @production_order.acknowledge!(current_user)
     render 'api/v1/accounts/mes/production_orders/show'
@@ -618,11 +621,27 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   # 我是这张单当前阶段的板块负责人吗（本产线优先，回落「全部产线」的通用负责人）。
+  # 开头两段还要再过一道岗位：工程那段不进 PMC 的待办，PMC 那段也不进工程的。
   def stage_owner_of?(order)
     key = Mes::ProductionOrder::INBOX_BOARD_KEYS[order.stage]
     return false if key.blank?
+    return false if order.ack_skipped?
+    return false unless ack_role_match?(order)
 
     stage_owner_ids(key, order.product_line.to_s).include?(current_user.id)
+  end
+
+  # 这一段该不该归我这个岗位。
+  # BOM 板块负责人里有人没配 MES 岗位（老数据），对他们保持原样全给——
+  # 按岗位硬筛会让这些人的待办凭空消失，那比多显示几条糟得多。
+  def ack_role_match?(order)
+    role = order.ack_role
+    return true if role.blank?
+
+    mine = Current.account_user.effective_mes_roles
+    return true unless mine.intersect?(Mes::ProductionOrder::STAGE_ACK_ROLES.values)
+
+    mine.include?(role)
   end
 
   def stage_owner_ids(key, line)
@@ -740,7 +759,7 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       # 改已生效单据的号会让纸质单、下游单据和 ERP 全部对不上。留空则自动生成。
       *(action_name == 'create' ? [:order_no] : []),
       :crm_sales_order_id, :crm_customer_id, :crm_product_id, :product_name, :qty, :unit, :pi_no,
-      :bom_id, :order_kind, :delivery_date, :planned_start_date, :planned_end_date,
+      :bom_id, :order_kind, :intake_kind, :delivery_date, :planned_start_date, :planned_end_date,
       :actual_start_date, :actual_end_date, :owner_id, :remark, :product_line,
       images: [], files: [] # 建单时挂载已暂存的 blob signed_id
     )

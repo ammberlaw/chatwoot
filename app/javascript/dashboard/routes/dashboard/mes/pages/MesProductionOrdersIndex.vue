@@ -650,6 +650,12 @@ const isStalled = po => stallDays(po) >= STALL_DAYS;
 // 卡点悬浮说明：卡了几天、等谁。
 // 卡点说的是「这颗料为什么还没下采购单」，和阶段滞留是两回事——
 // 滞留说的是单子在这一环停了多久，卡点说的是停在谁手里。
+const INTAKE_TIPS = {
+  REPEAT: '老款返单：工程那一段跳过，只等 PMC 接单',
+  SAMPLE: '样机：只等工程接单，PMC 那一段跳过',
+};
+const intakeTip = kind => INTAKE_TIPS[kind] || '';
+
 const blockerTip = b =>
   [
     `${b.count} 项料${b.label}`,
@@ -782,7 +788,15 @@ const orderBase = reactive({
   qty: '',
   unit: '台',
   deliveryDate: '',
+  intakeKind: 'NEW',
 });
+// 接单方式：开头两段（工程出裸机 BOM → PMC 做生产任务单）谁要接单。
+// 返单不经工程、样机不经 PMC——跳过的那一段不进对方待办，也不算他超时。
+const INTAKE_OPTIONS = [
+  { value: 'NEW', label: '新款（工程先接，PMC 后接）' },
+  { value: 'REPEAT', label: '老款返单（只 PMC 接）' },
+  { value: 'SAMPLE', label: '样机（只工程接）' },
+];
 const { isDirty, markPristine } = useDirtyGuard(() => orderBase);
 const orderSpec = ref(blankSpec('TABLET'));
 // 商品编码选填：业务建单可不填，工程做 BOM 时再补（在编辑订单里补录）。
@@ -861,6 +875,7 @@ const openEditSpec = (order, { viewOnly = false } = {}) => {
     deliveryDate: order.deliveryDate
       ? String(order.deliveryDate).slice(0, 10)
       : '',
+    intakeKind: order.intakeKind || 'NEW',
   });
   // 已关联产品名先兜底显示（下拉未加载时也有标签）；点开搜索改选后转 sku·名称。
   selectedOrderProductLabel.value = order.crmProductId
@@ -888,6 +903,7 @@ const submitOrder = async () => {
     qty: Number(orderBase.qty),
     unit: orderBase.unit,
     deliveryDate: orderBase.deliveryDate || undefined,
+    intakeKind: orderBase.intakeKind,
     productLine: orderTemplate.value,
     spec: orderSpec.value,
   };
@@ -1856,6 +1872,12 @@ watch(currentPage, fetchRecords);
                   外购
                 </span>
                 <span
+                  v-if="po.intakeKind && po.intakeKind !== 'NEW'"
+                  class="px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 bg-n-slate-3 text-n-slate-11"
+                >
+                  {{ po.intakeLabel }}
+                </span>
+                <span
                   v-if="po.approvalStatus && po.approvalStatus !== 'APPROVED'"
                   class="px-1.5 py-0.5 rounded-full"
                   :class="rowApprovalClass(po.approvalStatus)"
@@ -1998,6 +2020,14 @@ watch(currentPage, fetchRecords);
                       title="外购成品：工程判定外购，跳过生产，采购按单买"
                     >
                       外购
+                    </span>
+                    <!-- 返单／样机：开头两段少走一位，相关的人一眼看出这单不用等谁 -->
+                    <span
+                      v-if="po.intakeKind && po.intakeKind !== 'NEW'"
+                      v-tooltip.top="intakeTip(po.intakeKind)"
+                      class="inline-block ml-1 px-1.5 py-0.5 text-xs rounded-full cursor-help whitespace-nowrap bg-n-slate-3 text-n-slate-11"
+                    >
+                      {{ po.intakeLabel }}
                     </span>
                     <span
                       v-if="
@@ -2966,6 +2996,15 @@ watch(currentPage, fetchRecords);
             <div :class="viewOnlyOrder ? 'pointer-events-none opacity-60' : ''">
               <DatePicker v-model="orderBase.deliveryDate" block />
             </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-heading-3 text-n-slate-12">接单方式</label>
+            <SelectCard
+              v-model="orderBase.intakeKind"
+              :options="INTAKE_OPTIONS"
+              :disabled="viewOnlyOrder"
+              block
+            />
           </div>
         </div>
 

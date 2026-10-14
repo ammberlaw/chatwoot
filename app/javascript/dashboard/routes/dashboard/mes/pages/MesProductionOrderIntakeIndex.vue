@@ -246,6 +246,15 @@ onMounted(() => {
 });
 
 // SelectCard 选项（[{value,label}]）
+// 接单方式：开头两段（工程出裸机 BOM → PMC 做生产任务单）谁要接单。
+// 返单不经工程、样机不经 PMC——跳过的那一段不进对方待办，也不算他超时。
+const intakeKind = ref('NEW');
+const INTAKE_OPTIONS = [
+  { value: 'NEW', label: '新款（工程先接，PMC 后接）' },
+  { value: 'REPEAT', label: '老款返单（只 PMC 接）' },
+  { value: 'SAMPLE', label: '样机（只工程接）' },
+];
+
 const orderKindOptions = computed(() => [
   { value: 'CUSTOMER', label: '业务订单（按单生产）' },
   ...(canCreateStock.value
@@ -377,6 +386,7 @@ const submit = async doSubmit => {
         deliveryDate: base.deliveryDate || undefined,
         productLine: template.value,
         orderKind: orderKind.value,
+        intakeKind: intakeKind.value,
         ownerId:
           isStock.value && stewardId.value
             ? Number(stewardId.value)
@@ -706,6 +716,10 @@ const backToList = () =>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-n-slate-11">期望交期</span>
           <DatePicker v-model="base.deliveryDate" block />
+        </label>
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-n-slate-11">接单方式</span>
+          <SelectCard v-model="intakeKind" :options="INTAKE_OPTIONS" block />
         </label>
       </div>
 

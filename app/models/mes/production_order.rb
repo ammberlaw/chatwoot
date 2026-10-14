@@ -10,6 +10,7 @@
 #  delivery_date               :datetime
 #  gm_acted_at                 :datetime
 #  gm_comment                  :text
+#  intake_kind                 :string           default("NEW"), not null
 #  is_draft                    :boolean          default(FALSE), not null
 #  is_outsourced               :boolean          default(FALSE), not null
 #  manager_acted_at            :datetime
@@ -97,6 +98,20 @@ class Mes::ProductionOrder < ApplicationRecord
 
   # 生命周期（与 stage 正交）。
   STATUSES = %w[IN_PROGRESS COMPLETED STOPPED CANCELLED].freeze
+
+  # 接单方式：开头两段（工程出裸机 BOM → PMC 做生产任务单）谁要接单。
+  # 用户原话：「我和魏工的流程能不能分开存在？①新款第一次下单，他第一接单、我第二接单，
+  # 要等他给我裸机 BOM 我才能做生产单；②老款返单不需要他接单；③样机只能他接单，
+  # 我不需要接单，不显示我要接单的操作，也不会显示在我的工作台」。
+  INTAKE_KINDS = %w[NEW REPEAT SAMPLE].freeze
+  INTAKE_LABELS = { 'NEW' => '新款', 'REPEAT' => '老款返单', 'SAMPLE' => '样机' }.freeze
+
+  # 开头两段各归各的岗位（其余阶段仍按板块负责人走，不分岗）。
+  STAGE_ACK_ROLES = { 'SALES_CONFIRMED' => 'engineer', 'BOM_READY' => 'pmc' }.freeze
+
+  # 这种接单方式下，哪个岗位整段跳过：返单不经工程，样机不经 PMC。
+  # 跳过＝不要他接单、不进他待办、不算他超时，单子照常往下走。
+  SKIPPED_ACK_ROLES = { 'REPEAT' => 'engineer', 'SAMPLE' => 'pmc' }.freeze
 
   # 订单性质：CUSTOMER 按单生产（归属业务员收敛，只归属自己可见）；
   # STOCK 外贸备货生产（建公司共享库存，全业务可见；owner 复用为「责任人」不做收敛）。
@@ -191,6 +206,7 @@ class Mes::ProductionOrder < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :approval_status, inclusion: { in: APPROVAL_STATUSES }
   validates :order_kind, inclusion: { in: ORDER_KINDS }
+  validates :intake_kind, inclusion: { in: INTAKE_KINDS }
 
   scope :active, -> { where.not(status: 'CANCELLED') }
   scope :stock, -> { where(order_kind: 'STOCK') }
@@ -702,8 +718,16 @@ class Mes::ProductionOrder < ApplicationRecord
   # 本阶段需要接单吗？终点（SHIPPED，无 board_key）、草稿/审批中、非进行中订单不需要。
   # 建单阶段仅在审批「生效」后才计接单（审批期间是草稿，计时从生效起算，见 activate_stage_ack!）。
   def ack_required?
-    status == 'IN_PROGRESS' && !is_draft && STAGE_BOARD_KEYS.key?(stage)
+    status == 'IN_PROGRESS' && !is_draft && STAGE_BOARD_KEYS.key?(stage) && !ack_skipped?
   end
+
+  # 本阶段该哪个岗位接单（只有开头两段分工程/PMC，其余阶段 nil＝按板块负责人走老口径）。
+  def ack_role = STAGE_ACK_ROLES[stage]
+
+  def ack_role_label = ack_role && AccountUser::MES_ROLE_LABELS[ack_role]
+
+  # 这张单这一阶段整段跳过接单：返单不经工程，样机不经 PMC。
+  def ack_skipped? = ack_role.present? && SKIPPED_ACK_ROLES[intake_kind] == ack_role
 
   def awaiting_ack?
     ack_required? && stage_ack_at.nil?
