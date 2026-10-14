@@ -118,6 +118,8 @@ const auxOptions = pid =>
     value: a.name,
     label: a.name,
   }));
+// 这一行有没有辅助属性可选：有的话第二行从 4 格变 5 格，12 列要重新分（别把「图」挤下去）。
+const hasAux = row => auxOptions(row.crmProductId).length > 0;
 
 // 打开旧单时档案上的选项还没取，先把存过的那个值当成唯一选项放进去——
 // 否则这一行的辅助属性在界面上整个消失，保存一次就被清掉。重新选料时会换成完整列表。
@@ -1217,7 +1219,8 @@ onBeforeRouteLeave((to, from, next) => {
                  给它让位。以前图标躲在行尾 24px 里、缩略图另起一排在左下，一行拆成两处看。 -->
             <div class="grid items-center grid-cols-1 gap-2 md:grid-cols-12">
               <label
-                class="flex items-center gap-1.5 text-xs md:col-span-3 text-n-slate-11"
+                class="flex items-center gap-1.5 text-xs text-n-slate-11"
+                :class="hasAux(row) ? 'md:col-span-2' : 'md:col-span-3'"
               >
                 <input v-model="row.priceTaxIncluded" type="checkbox" />
                 <span class="shrink-0">单价含税</span>
@@ -1239,7 +1242,7 @@ onBeforeRouteLeave((to, from, next) => {
               <!-- 辅助属性：同一颗编码下的变体（颜色/长度等），要印在发给供应商的单子上。
                    只有这颗料在产品档案里维护过才出下拉，没维护就不占位。 -->
               <div
-                v-if="auxOptions(row.crmProductId).length"
+                v-if="hasAux(row)"
                 class="flex items-center gap-2 md:col-span-3"
               >
                 <label class="text-heading-3 shrink-0 text-n-slate-12">
@@ -1256,12 +1259,13 @@ onBeforeRouteLeave((to, from, next) => {
               <Input
                 v-model="row.remark"
                 placeholder="备注"
-                class="md:col-span-3"
+                :class="hasAux(row) ? 'md:col-span-2' : 'md:col-span-3'"
               />
               <!-- 行内附图（只对内）：缩略图 + 加图按钮，一起靠右。
                    不会出现在发给供应商的采购订单/预览页上（那两处只渲染固定几列）。 -->
               <div
-                class="flex flex-wrap items-center justify-end gap-1.5 md:col-span-3"
+                class="flex flex-wrap items-center justify-end gap-1.5"
+                :class="hasAux(row) ? 'md:col-span-2' : 'md:col-span-3'"
               >
                 <div
                   v-for="(img, k) in row.images"
