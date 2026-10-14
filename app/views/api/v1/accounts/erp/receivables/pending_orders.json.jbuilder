@@ -40,5 +40,16 @@ json.payload do
     json.product_names order.product_names
     json.owner_id order.owner_id
     json.owner_name order.owner&.crm_name.presence || order.owner&.name
+    # 以下与应收台账同一套列（用户原话：待建账的表头内容要和应收台账一样）。
+    # 建账前就该看清「这是什么货、什么价、谁的部门、哪张出库单」，不用逐条点开订单。
+    json.insurance_order_no order.insurance_order_no
+    json.customer_code order.crm_customer&.customer_code
+    json.owner_department @department_names[order.owner_id]
+    shipment = @shipment_meta[order.id] || {}
+    json.shipped_on shipment[:shipped_on]
+    json.shipment_no shipment[:shipment_no]
+    json.warehouse_name shipment[:warehouse_name]
+    json.order_status order.status
+    json.line_items(order.line_item_rows.map { |item| item.merge(@product_meta[item[:sku]] || {}) })
   end
 end

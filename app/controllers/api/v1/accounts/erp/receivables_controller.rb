@@ -79,17 +79,26 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
     @orders = scope.includes(:crm_customer, :owner)
                    .order(order_date: :desc)
                    .page(page_param).per(per_page_param)
+    # 待建账的列与应收台账对齐（用户点名），多出来的那几列同样批量取。
+    row_meta = Erp::ReceivableRowMetaService.new(account: Current.account, orders: @orders)
+    @shipment_meta = row_meta.shipments
+    @product_meta = row_meta.products
+    @department_names = row_meta.departments
     # pending_count 是页签角标，走全量——角标代表「还欠多少张没建」，不该随筛选变。
     # 翻页器用 filtered_count，否则筛完只剩 3 条、翻页器还按 498 条画。
     @pending_count = pending_order_scope.count
     @filtered_count = scope.count
     # 业务员下拉只列「确实有待建账单」的人：全员名单里绝大多数选了是空结果。
     @pending_owners = User.where(id: pending_order_scope.distinct.select(:owner_id)).order(:name)
-    @fiscal_start_date = erp_settings.fiscal_start_date
-    # 没设启用日时把被挡掉的历史单数量摆出来——否则清单空荡荡，财务不知道是真没有
-    # 还是被日切挡住了。
-    @before_fiscal_count = @fiscal_start_date ? unfiltered_pending_scope.where(order_date: ...@fiscal_start_date.beginning_of_day).count : 0
+    assign_pending_counts
     render 'api/v1/accounts/erp/receivables/pending_orders'
+  end
+
+  # 没设启用日时把被挡掉的历史单数量摆出来——否则清单空荡荡，财务不知道是真没有
+  # 还是被日切挡住了。
+  def assign_pending_counts
+    @fiscal_start_date = erp_settings.fiscal_start_date
+    @before_fiscal_count = @fiscal_start_date ? unfiltered_pending_scope.where(order_date: ...@fiscal_start_date.beginning_of_day).count : 0
   end
 
   # 批量建账：只按订单默认口径建（整单一期尾款），要分期的走单张建账。
@@ -288,12 +297,46 @@ class Api::V1::Accounts::Erp::ReceivablesController < Api::V1::Accounts::Erp::Ba
   # 待建账的查找条件：关键字（订单号 / PI 号 / 客户名）、业务员、订单状态。
   # 498 张单摆在一页上，财务要找某一张只能靠浏览器查找——这几个条件就是为此补的。
   # 待建账的表头漏斗（列名 → SQL）。这页还没建账，取数直接从销售订单上来。
+  # 待建账页的首次出库单：与台账那条同一口径，只是这边还没有台账、要从订单自己这张表出发。
+  PENDING_SHIPMENT_SQL = lambda { |field|
+    <<~SQL.squish
+      (SELECT #{field} FROM mes_shipments s
+        LEFT JOIN mes_warehouses w ON w.id = s.warehouse_id
+        WHERE s.crm_sales_order_id = crm_sales_orders.id
+          AND s.shipped_at IS NOT NULL
+        ORDER BY s.shipped_at ASC LIMIT 1)
+    SQL
+  }
+
+  # 待建账的表头漏斗。列与应收台账对齐（用户点名），能筛的列也一并对齐。
+  # ⚠️ 前端 PENDING_COLUMN_DEFS 里标了 filter 的列必须和这张表对齐，否则漏斗点了没反应。
   PENDING_COLUMN_SQL = {
     'orderNo' => 'crm_sales_orders.order_no',
     'piNo' => 'crm_sales_orders.pi_no',
+    'insuranceNo' => 'crm_sales_orders.insurance_order_no',
+    'customerCode' => 'crm_customers.customer_code',
     'customer' => "CONCAT_WS(' ', crm_customers.name, crm_customers.trade_country)",
     'model' => 'crm_sales_orders.name',
     'owner' => "COALESCE(NULLIF(users.crm_name, ''), users.name)",
+    'department' => <<~SQL.squish,
+      (SELECT d.name FROM org_memberships m
+        JOIN org_departments d ON d.id = m.department_id
+        WHERE m.user_id = crm_sales_orders.owner_id
+          AND m.account_id = crm_sales_orders.account_id
+        ORDER BY m.is_primary DESC NULLS LAST LIMIT 1)
+    SQL
+    'docNo' => PENDING_SHIPMENT_SQL.call('s.shipment_no'),
+    'warehouse' => PENDING_SHIPMENT_SQL.call('w.name'),
+    'sku' => LINE_ITEM_SQL.call('sku'),
+    'name' => LINE_ITEM_SQL.call('name'),
+    'spec' => LINE_ITEM_SQL.call('spec'),
+    'productLine' => <<~SQL.squish,
+      (SELECT string_agg(p.product_line, ' ')
+         FROM jsonb_array_elements(crm_sales_orders.line_items) e
+         JOIN crm_products p ON p.sku = e->>'sku'
+          AND p.account_id = crm_sales_orders.account_id)
+    SQL
+    'currency' => 'crm_sales_orders.order_currency',
     'status' => 'crm_sales_orders.status'
   }.freeze
 

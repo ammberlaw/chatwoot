@@ -255,6 +255,70 @@ const {
 const hiddenLedgerCols = computed(
   () => LEDGER_COLUMN_DEFS.length - ledgerVisibleCols.value.length
 );
+
+// 待建账的列：与应收台账同一套（用户点名），去掉建完账才有的那几列（台账单号/应收/已收/
+// 未收/分期/收入凭证/状态），换成订单金额、建账金额、订单状态和建账按钮。
+const PENDING_COLUMN_DEFS = [
+  { key: 'orderNo', label: '订单单号', rowspan: true, filter: 'text' },
+  { key: 'piNo', label: 'PI 号', rowspan: true, filter: 'text' },
+  { key: 'insuranceNo', label: '信保订单号', rowspan: true, filter: 'text' },
+  { key: 'customerCode', label: '客户编码', rowspan: true, filter: 'text' },
+  { key: 'customer', label: '客户 / 国家', rowspan: true, filter: 'text' },
+  { key: 'owner', label: '业务员', rowspan: true, filter: 'text' },
+  { key: 'department', label: '部门', rowspan: true, filter: 'text' },
+  { key: 'docDate', label: '单据日期', rowspan: true },
+  { key: 'docNo', label: '单据编号', rowspan: true, filter: 'text' },
+  { key: 'warehouse', label: '仓库', rowspan: true, filter: 'text' },
+  { key: 'sku', label: '商品编码', filter: 'text' },
+  { key: 'name', label: '商品名称', filter: 'text' },
+  { key: 'spec', label: '规格型号', filter: 'text' },
+  { key: 'currency', label: '币别', rowspan: true, filter: 'text' },
+  { key: 'rate', label: '汇率', rowspan: true, right: true },
+  { key: 'freight', label: '客户承担运费', rowspan: true, right: true },
+  { key: 'unit', label: '单位' },
+  { key: 'qty', label: '数量', right: true },
+  { key: 'price', label: '单价', right: true },
+  { key: 'taxRate', label: '增值税', rowspan: true, right: true },
+  { key: 'grossPrice', label: '含税单价', right: true },
+  { key: 'netAmount', label: '实际不含税金额', right: true },
+  { key: 'grossAmount', label: '价税合计', right: true },
+  { key: 'baseAmount', label: '价税合计本位币', right: true },
+  {
+    key: 'productLine',
+    label: '事业部',
+    filter: 'enum',
+    filterOptions: 'productLine',
+  },
+  { key: 'orderDate', label: '下单 / 交期', rowspan: true },
+  { key: 'orderAmount', label: '订单金额', rowspan: true, right: true },
+  { key: 'buildAmount', label: '建账金额', rowspan: true, right: true },
+  {
+    key: 'status',
+    label: '订单状态',
+    rowspan: true,
+    filter: 'enum',
+    filterOptions: 'soStatus',
+  },
+  { key: 'actions', label: '操作', rowspan: true, right: true },
+];
+const {
+  orderedColumns: pendingCols,
+  visibleColumns: pendingVisibleCols,
+  isHidden: isPendingColHidden,
+  toggleColumn: togglePendingCol,
+  showAllColumns: showAllPendingCols,
+  isDragging: isPendingColDragging,
+  onColDragStart: onPendingColDragStart,
+  onColDrop: onPendingColDrop,
+  resetOrder: resetPendingColOrder,
+  colStyle: pendingColStyle,
+  isResizing: isPendingColResizing,
+  startResize: startPendingColResize,
+  autoFitColumn: autoFitPendingCol,
+} = useOrderableColumns(PENDING_COLUMN_DEFS, 'erp.arPendingCols.v1');
+const hiddenPendingCols = computed(
+  () => PENDING_COLUMN_DEFS.length - pendingVisibleCols.value.length
+);
 // 表头漏斗筛选（对标金蝶）：{ 列名: { op, value } }。服务端按列筛，不是只筛当前这一页——
 // 列表是分页的，筛 50 行说「没有」，翻到第二页它又在。
 const colFilters = ref({});
@@ -376,6 +440,20 @@ const openOrderDetail = orderId => orderDialogRef.value?.open(orderId);
 // 漏建账 = 应收报表少一笔且没有任何提示，这个页签就是那个提示。
 // 不做自动建账：金额/币种/分期是财务确认动作，系统替财务建错了没人发现。
 const pendingOrders = ref([]);
+// 一张订单摊成几行货（与台账同一个摊法）：订单级单元格跨完整单，明细列一行一项。
+const pendingRows = computed(() =>
+  pendingOrders.value.flatMap(order => {
+    // 没录明细的单也要占一行，否则整张订单不显示。
+    const items = order.line_items?.length ? order.line_items : [{}];
+    return items.map((item, li) => ({
+      row: order,
+      item,
+      li,
+      span: items.length,
+      tax: lineTax(order, item),
+    }));
+  })
+);
 const pendingCount = ref(0);
 const selectedOrderIds = ref([]);
 const buildingBatch = ref(false);
@@ -1040,7 +1118,7 @@ onMounted(() => {
           custom-input-class="w-44"
           @keyup.enter="reload"
         />
-        <!-- 列序是本机记忆，拖乱了要有路回来 -->
+        <!-- 列序是本机记忆，拖乱了要有路回来。台账和待建账各记各的（列不一样）。 -->
         <Button
           v-if="activeTab === 'ledger'"
           label="恢复默认列序"
@@ -1056,6 +1134,22 @@ onMounted(() => {
           :hidden-count="hiddenLedgerCols"
           @toggle="toggleLedgerCol"
           @show-all="showAllLedgerCols"
+        />
+        <Button
+          v-if="activeTab === 'pending'"
+          label="恢复默认列序"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          @click="resetPendingColOrder"
+        />
+        <ColumnPicker
+          v-if="activeTab === 'pending'"
+          :columns="pendingCols"
+          :is-hidden="isPendingColHidden"
+          :hidden-count="hiddenPendingCols"
+          @toggle="togglePendingCol"
+          @show-all="showAllPendingCols"
         />
         <!-- 没出凭证的一键补齐：那一列在三十几列开外，财务找不到 -->
         <Button
@@ -1469,8 +1563,9 @@ onMounted(() => {
           会计启用日 {{ fiscalStartDate }}，日切之前的
           {{ beforeFiscalCount }} 张历史单不在此列（其余额走期初建账）。
         </div>
-        <!-- 12 列了，给表自己一条横向滚动，别让整页横着滚。 -->
-        <table class="w-full text-sm min-w-[96rem]">
+        <!-- 表头与应收台账同一套列（用户原话：待建账的表头内容要和应收台账一样）：
+             一行一项货、台账级字段跨行，列序可拖、用不到的可收起。 -->
+        <table class="w-full text-sm min-w-max">
           <thead>
             <tr class="text-left border-b text-n-slate-11 border-n-weak">
               <th class="w-10 px-3 py-3 whitespace-nowrap">
@@ -1482,172 +1577,207 @@ onMounted(() => {
                   @change="toggleSelectAll"
                 />
               </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">
-                <span class="inline-flex items-center gap-1">
-                  订单号
+              <th
+                v-for="col in pendingVisibleCols"
+                :key="col.key"
+                draggable="true"
+                class="relative px-3 py-3 font-medium transition-colors cursor-move select-none whitespace-nowrap"
+                :class="[
+                  col.right ? 'text-right' : '',
+                  isPendingColDragging(col.key) ? 'opacity-40' : '',
+                ]"
+                :style="pendingColStyle(col.key)"
+                title="拖动可调整列顺序"
+                @dragstart="onPendingColDragStart(col.key)"
+                @dragover.prevent
+                @drop="onPendingColDrop(col.key)"
+              >
+                <span
+                  class="inline-flex items-center gap-1"
+                  :class="col.right ? 'flex-row-reverse' : ''"
+                >
+                  {{ col.label }}
                   <TableHeaderFilter
-                    v-model="pendingColFilters['orderNo']"
-                    kind="text"
+                    v-if="col.filter"
+                    v-model="pendingColFilters[col.key]"
+                    :kind="col.filter"
+                    :options="FILTER_OPTION_SETS[col.filterOptions] || []"
                     @change="onPendingColFilter"
                   />
                 </span>
-              </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">
-                <span class="inline-flex items-center gap-1">
-                  PI 号
-                  <TableHeaderFilter
-                    v-model="pendingColFilters['piNo']"
-                    kind="text"
-                    @change="onPendingColFilter"
-                  />
-                </span>
-              </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">
-                <span class="inline-flex items-center gap-1">
-                  客户 / 国家
-                  <TableHeaderFilter
-                    v-model="pendingColFilters['customer']"
-                    kind="text"
-                    @change="onPendingColFilter"
-                  />
-                </span>
-              </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">
-                <span class="inline-flex items-center gap-1">
-                  型号
-                  <TableHeaderFilter
-                    v-model="pendingColFilters['model']"
-                    kind="text"
-                    @change="onPendingColFilter"
-                  />
-                </span>
-              </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">
-                <span class="inline-flex items-center gap-1">
-                  业务员
-                  <TableHeaderFilter
-                    v-model="pendingColFilters['owner']"
-                    kind="text"
-                    @change="onPendingColFilter"
-                  />
-                </span>
-              </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">下单日期</th>
-              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
-                订单金额
-              </th>
-              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
-                建账金额
-              </th>
-              <th class="px-3 py-3 font-medium whitespace-nowrap">
-                <span class="inline-flex items-center gap-1">
-                  状态
-                  <TableHeaderFilter
-                    v-model="pendingColFilters['status']"
-                    kind="enum"
-                    :options="FILTER_OPTION_SETS.soStatus"
-                    @change="onPendingColFilter"
-                  />
-                </span>
-              </th>
-              <th class="px-3 py-3 font-medium text-right whitespace-nowrap">
-                操作
+                <ColResizeHandle
+                  :column-key="col.key"
+                  :active="isPendingColResizing(col.key)"
+                  @resize-start="
+                    (e, th) => startPendingColResize(col.key, e, th)
+                  "
+                  @auto-fit="autoFitPendingCol"
+                />
               </th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="order in pendingOrders"
-              :key="order.id"
+              v-for="{ row, item, li, span, tax } in pendingRows"
+              :key="`${row.id}-${li}`"
               class="border-b border-n-weak hover:bg-n-alpha-1"
             >
-              <td class="px-3 py-3">
+              <td v-if="li === 0" :rowspan="span" class="px-3 py-2 align-top">
                 <input
                   type="checkbox"
                   class="align-middle reset-base"
-                  :checked="selectedOrderIds.includes(order.id)"
-                  @change="toggleOrder(order.id)"
+                  :checked="selectedOrderIds.includes(row.id)"
+                  @change="toggleOrder(row.id)"
                 />
               </td>
-              <td class="px-3 py-3 whitespace-nowrap">
-                <button
-                  type="button"
-                  class="underline reset-base text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
-                  @click="openOrderDetail(order.id)"
+              <template v-for="col in pendingVisibleCols" :key="col.key">
+                <td
+                  v-if="!col.rowspan || li === 0"
+                  :rowspan="col.rowspan ? span : null"
+                  class="px-3 py-2 whitespace-nowrap text-n-slate-11"
+                  :class="[
+                    col.right ? 'font-mono text-right' : '',
+                    col.rowspan ? 'align-top' : '',
+                    pendingColStyle(col.key).width && 'truncate',
+                  ]"
+                  :style="pendingColStyle(col.key)"
                 >
-                  {{ order.order_no }}
-                </button>
-              </td>
-              <td
-                class="px-3 py-3 font-mono text-xs whitespace-nowrap text-n-slate-11"
-              >
-                {{ order.pi_no || '—' }}
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap text-n-slate-12">
-                {{ order.customer_name || '—' }}
-                <span
-                  v-if="order.customer_country"
-                  class="block text-xs text-n-slate-10"
-                >
-                  {{ order.customer_country }}
-                </span>
-              </td>
-              <!-- 型号只摆第一项 + 共几项；全部走 title 悬浮，免得一行货把表撑开。 -->
-              <td
-                class="px-3 py-3 text-n-slate-11 max-w-[14rem] truncate"
-                :title="(order.product_names || []).join('\n') || ''"
-              >
-                {{ order.product_summary || '—' }}
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap">
-                {{ order.owner_name || '—' }}
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap">
-                {{ (order.order_date || '—').slice(0, 10) }}
-              </td>
-              <!-- 订单金额是净销售、不含运费（运费在订单上单独一栏）。运费挂在同一格里，
-                 否则财务看着订单金额对不上建账金额。 -->
-              <td
-                class="px-3 py-3 text-right whitespace-nowrap text-n-slate-12"
-              >
-                {{ order.currency || 'CNY' }}
-                {{ money(order.amount_micros) }}
-                <span
-                  v-if="order.shipping_micros"
-                  class="block text-xs text-n-slate-10"
-                >
-                  + 运费 {{ money(order.shipping_micros) }}
-                </span>
-              </td>
-              <!-- 建账金额 = 货款 + 运费 + 销项税（客户实付）。不含税单还要再补一个税，
-                 摆出来免得财务以为系统把金额算错了。 -->
-              <td
-                class="px-3 py-3 text-right whitespace-nowrap text-n-slate-12"
-              >
-                {{ money(order.receivable_amount_micros) }}
-                <span
-                  v-if="!order.amount_includes_tax && order.tax_rate"
-                  class="block text-xs text-n-slate-10"
-                >
-                  含 {{ order.tax_rate }}% 销项税
-                </span>
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap text-n-slate-11">
-                {{ SO_STATUS_LABELS[order.status] || order.status }}
-              </td>
-              <td class="px-3 py-3 text-right">
-                <Button
-                  v-if="canLedger"
-                  label="建账"
-                  color="slate"
-                  variant="faded"
-                  size="xs"
-                  @click="openBuildForOrder(order)"
-                />
-              </td>
+                  <template v-if="col.key === 'orderNo'">
+                    <button
+                      type="button"
+                      class="underline reset-base text-n-iris-11 underline-offset-2 hover:text-n-iris-12"
+                      @click="openOrderDetail(row.id)"
+                    >
+                      {{ row.order_no }}
+                    </button>
+                  </template>
+                  <template v-else-if="col.key === 'piNo'">
+                    {{ row.pi_no || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'insuranceNo'">
+                    {{ row.insurance_order_no || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'customerCode'">
+                    {{ row.customer_code || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'customer'">
+                    {{ row.customer_name || '—' }}
+                    <span
+                      v-if="row.customer_country"
+                      class="block text-xs text-n-slate-10"
+                    >
+                      {{ row.customer_country }}
+                    </span>
+                  </template>
+                  <template v-else-if="col.key === 'owner'">
+                    {{ row.owner_name || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'department'">
+                    {{ row.owner_department || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'docDate'">
+                    {{ row.shipped_on || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'docNo'">
+                    {{ row.shipment_no || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'warehouse'">
+                    {{ row.warehouse_name || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'sku'">
+                    {{ item.sku || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'name'">
+                    {{ item.name || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'spec'">
+                    {{ item.spec || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'currency'">
+                    {{ row.currency || 'CNY' }}
+                  </template>
+                  <template v-else-if="col.key === 'rate'">
+                    {{ num(toNumber(row.exchange_rate)) }}
+                  </template>
+                  <template v-else-if="col.key === 'freight'">
+                    {{ money(row.shipping_micros) }}
+                  </template>
+                  <template v-else-if="col.key === 'unit'">
+                    {{ item.unit || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'qty'">
+                    {{ num(item.quantity) }}
+                  </template>
+                  <template v-else-if="col.key === 'price'">
+                    {{ num(item.unit_price) }}
+                  </template>
+                  <template v-else-if="col.key === 'taxRate'">
+                    {{ taxRateLabel(row) }}
+                  </template>
+                  <template v-else-if="col.key === 'grossPrice'">
+                    {{ num(tax.grossPrice) }}
+                  </template>
+                  <template v-else-if="col.key === 'netAmount'">
+                    {{ amt(tax.netAmount) }}
+                  </template>
+                  <template v-else-if="col.key === 'grossAmount'">
+                    {{ amt(tax.grossAmount) }}
+                  </template>
+                  <template v-else-if="col.key === 'baseAmount'">
+                    {{ amt(tax.baseAmount) }}
+                  </template>
+                  <template v-else-if="col.key === 'productLine'">
+                    {{ productLineLabel(item.product_line) || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'orderDate'">
+                    {{ (row.order_date || '—').slice(0, 10) }}
+                    <span class="text-n-slate-10">
+                      / {{ (row.delivery_date || '—').slice(0, 10) }}
+                    </span>
+                  </template>
+                  <!-- 订单金额是净销售、不含运费（运费在订单上单独一栏），
+                       不把运费挂在同一格里，财务就对不上建账金额。 -->
+                  <template v-else-if="col.key === 'orderAmount'">
+                    {{ row.currency || 'CNY' }} {{ money(row.amount_micros) }}
+                    <span
+                      v-if="row.shipping_micros"
+                      class="block text-xs text-n-slate-10"
+                    >
+                      + 运费 {{ money(row.shipping_micros) }}
+                    </span>
+                  </template>
+                  <!-- 建账金额 = 货款 + 运费 + 销项税（客户实付）。不含税单还要再补一个税，
+                       摆出来免得财务以为系统把金额算错了。 -->
+                  <template v-else-if="col.key === 'buildAmount'">
+                    {{ money(row.receivable_amount_micros) }}
+                    <span
+                      v-if="!row.amount_includes_tax && row.tax_rate"
+                      class="block text-xs text-n-slate-10"
+                    >
+                      含 {{ row.tax_rate }}% 销项税
+                    </span>
+                  </template>
+                  <template v-else-if="col.key === 'status'">
+                    {{ SO_STATUS_LABELS[row.status] || row.status }}
+                  </template>
+                  <template v-else-if="col.key === 'actions'">
+                    <Button
+                      v-if="canLedger"
+                      label="建账"
+                      color="slate"
+                      variant="faded"
+                      size="xs"
+                      @click="openBuildForOrder(row)"
+                    />
+                  </template>
+                </td>
+              </template>
             </tr>
             <tr v-if="!pendingOrders.length">
-              <td colspan="12" class="px-3 py-10 text-center text-n-slate-11">
+              <td
+                :colspan="pendingVisibleCols.length + 1"
+                class="px-3 py-10 text-center text-n-slate-11"
+              >
                 没有待建账的订单，已确认的销售订单都建过应收了。
               </td>
             </tr>
