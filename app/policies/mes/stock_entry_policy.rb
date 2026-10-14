@@ -13,6 +13,11 @@ class Mes::StockEntryPolicy < ApplicationPolicy
   # 仓库清点确认（确认即过账）：仓管（stock）能力。
   def confirm_warehouse? = @account_user.mes_can?(:stock)
 
+  # 财务审核（通过/驳回）：审核人不是 MES 操作岗，这里只放行到「有这个页面」这一层，
+  # 真正判谁能审在控制器 ensure_approver!（按「入库审核人」配置，没配回落财务/管理员）。
+  def approve? = true
+  def reject? = true
+
   def return_document? = @account_user.mes_can?(:stock)
   def reactivate? = @account_user.mes_can?(:stock)
 

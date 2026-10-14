@@ -4,12 +4,15 @@
 #
 #  id                        :bigint           not null, primary key
 #  actual_inbound_date       :datetime
+#  approval_status           :string           default("APPROVED"), not null
+#  approved_at               :datetime
 #  color                     :string
 #  entry_no                  :string           not null
 #  is_checked                :boolean          default(FALSE), not null
 #  posted_at                 :datetime
 #  product_line              :string
 #  purpose                   :string           not null
+#  reject_reason             :text
 #  remark                    :text
 #  status                    :string           default("DRAFT"), not null
 #  warehouse_confirmed_at    :datetime
@@ -17,6 +20,7 @@
 #  created_at                :datetime         not null
 #  updated_at                :datetime         not null
 #  account_id                :bigint           not null
+#  approved_by_id            :bigint
 #  checked_by_id             :bigint
 #  from_warehouse_id         :bigint
 #  owner_id                  :bigint
@@ -29,6 +33,7 @@
 #
 # Indexes
 #
+#  index_mes_stock_entries_on_account_and_approval       (account_id,approval_status)
 #  index_mes_stock_entries_on_account_and_product_line   (account_id,product_line)
 #  index_mes_stock_entries_on_account_id                 (account_id)
 #  index_mes_stock_entries_on_account_id_and_entry_no    (account_id,entry_no) UNIQUE
@@ -63,11 +68,19 @@ class Mes::StockEntry < ApplicationRecord
   IN_PURPOSES = %w[MATERIAL_RECEIPT MATERIAL_RETURN MANUFACTURE OPENING].freeze
   STATUSES = %w[DRAFT POSTED CANCELLED].freeze
 
+  # 原料入库的财务审核：审核通过才能过账（过账会刷库存、起应付，所以闸设在过账前）。
+  # 只管原料入库——成品入库是车间开单、仓管清点确认后直接过账，那条线不加闸。
+  APPROVAL_STATUSES = %w[PENDING APPROVED REJECTED].freeze
+  APPROVAL_REQUIRED_PURPOSES = %w[MATERIAL_RECEIPT].freeze
+  # 审核人按产品线配置，复用 Mes::BoardOwner（同采购审批人那套，见 Mes::PurchaseOrder）。
+  APPROVER_BOARD_KEY = 'mes_stock_approver'.freeze
+
   belongs_to :account
   belongs_to :production_order, class_name: 'Mes::ProductionOrder', optional: true
   belongs_to :purchase_order, class_name: 'Mes::PurchaseOrder', optional: true
   belongs_to :owner, class_name: 'User', optional: true
   belongs_to :checked_by, class_name: 'User', optional: true
+  belongs_to :approved_by, class_name: 'User', optional: true
   belongs_to :received_by, class_name: 'User', optional: true
   belongs_to :workshop_confirmed_by, class_name: 'User', optional: true
   belongs_to :warehouse_confirmed_by, class_name: 'User', optional: true
@@ -100,6 +113,8 @@ class Mes::StockEntry < ApplicationRecord
   OUTSOURCE_FORBIDDEN_PURPOSES = %w[MATERIAL_ISSUE MANUFACTURE].freeze
 
   before_create :stamp_workshop_confirm
+  before_create :stamp_pending_approval
+  before_update :reopen_approval_on_edit
   after_create :notify_warehouse_count_pending
 
   scope :posted, -> { where(status: 'POSTED') }
@@ -133,6 +148,54 @@ class Mes::StockEntry < ApplicationRecord
   def dual_confirmed? = workshop_confirmed_at.present? && warehouse_confirmed_at.present?
 
   # 仓库清点确认：盖仓库章后直接过账（确认即入库生效）。
+  # 这张单要不要走审核。成品入库/领料/报废那些不走。
+  def needs_approval? = APPROVAL_REQUIRED_PURPOSES.include?(purpose)
+
+  def approved? = !needs_approval? || approval_status == 'APPROVED'
+
+  # 过账前的审核闸。拦住就把原因原话抛给前端，别让仓管对着一个灰按钮猜。
+  def approval_blocker
+    return nil if approved?
+    return '这张入库单被驳回了，改完会自动回到待审核，等财务重新审核' if approval_status == 'REJECTED'
+
+    '这张入库单还没经财务审核，审核通过才能过账'
+  end
+
+  def approve!(actor)
+    with_lock do
+      raise StandardError, '这张单不需要审核' unless needs_approval?
+      raise StandardError, '已经审核通过了' if approval_status == 'APPROVED'
+
+      update!(approval_status: 'APPROVED', approved_by: actor, approved_at: Time.current, reject_reason: nil)
+    end
+    self
+  end
+
+  def reject!(actor, reason)
+    raise StandardError, '驳回要填原因' if reason.to_s.strip.blank?
+
+    with_lock do
+      raise StandardError, '这张单不需要审核' unless needs_approval?
+      raise StandardError, '已过账的单不能驳回，请用「作废」冲销' if status == 'POSTED'
+
+      update!(approval_status: 'REJECTED', approved_by: actor, approved_at: Time.current,
+              reject_reason: reason.to_s.strip)
+    end
+    self
+  end
+
+  # 谁能审：配了审核人就只认配置的那些人；没配就回落到财务（用户原话「入库单由财务审核」），
+  # 管理员/副管理员一直都能兜底。这样不配也能用，配了就收紧。
+  def self.approver?(account, account_user)
+    return false if account_user.blank?
+
+    configured = account.mes_board_owners.where(board_key: APPROVER_BOARD_KEY)
+                        .pluck(:manager_ids).flatten.compact.uniq
+    return configured.include?(account_user.user_id) if configured.any?
+
+    account_user.administrator? || account_user.crm_deputy_admin? || account_user.crm_finance?
+  end
+
   def confirm_warehouse!(actor)
     raise StandardError, '仅成品入库单需要仓库清点确认' unless dual_confirm_required?
     raise StandardError, '单据已过账或已作废，无法确认' unless status == 'DRAFT'
@@ -149,6 +212,7 @@ class Mes::StockEntry < ApplicationRecord
     # with_lock 加行锁并开事务：持锁后重新校验状态，杜绝并发/双击重复过账（结存、收货量翻倍）。
     with_lock do
       raise StandardError, '单据已过账或已作废' unless status == 'DRAFT'
+      raise StandardError, approval_blocker if approval_blocker
       raise StandardError, '成品入库需车间负责人与仓管共同确认后方可过账' if dual_confirm_required? && !dual_confirmed?
       # 关联采购单必须审批通过才能收货，杜绝未审批/被驳回的采购单被越权收货推进流程。
       if purpose == 'MATERIAL_RECEIPT' && purchase_order.present? && !purchase_order.approved?
@@ -296,6 +360,22 @@ class Mes::StockEntry < ApplicationRecord
   def product_line_source = production_order || purchase_order
 
   # 车间开单即视为车间确认（开单人盖章）。
+  # 被驳回的单改完自动回到「待审核」，不用仓管再找一个「重新提交」按钮
+  # （驳回原因留着，财务能看出上一轮是为什么退的）。
+  # 审核动作自己改 approval_status，不能被这里又翻回去。
+  def reopen_approval_on_edit
+    return unless approval_status == 'REJECTED' && !approval_status_changed?
+    return if (changes.keys - %w[updated_at]).empty?
+
+    self.approval_status = 'PENDING'
+  end
+
+  # 建单即「待审核」。原料入库没有草稿/提交两步——单子开出来就是等财务看的那张，
+  # 再多一次「提交」点击只会多一步没人记得做的操作。
+  def stamp_pending_approval
+    self.approval_status = needs_approval? ? 'PENDING' : 'APPROVED'
+  end
+
   def stamp_workshop_confirm
     return unless dual_confirm_required?
 

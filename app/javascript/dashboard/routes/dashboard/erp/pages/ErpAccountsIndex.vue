@@ -839,7 +839,7 @@ onMounted(fetchList);
       confirm-button-color="ruby"
       title="删除科目"
       :description="`确定删除「${deleting?.code || ''} ${deleting?.name || ''}」？已记过账的科目不建议删除，可改为停用。`"
-      confirm-label="删除"
+      confirm-button-label="删除"
       @confirm="doDelete"
     />
   </div>

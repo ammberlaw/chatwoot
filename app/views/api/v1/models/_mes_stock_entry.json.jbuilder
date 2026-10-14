@@ -21,6 +21,15 @@ json.workshop_confirmed_at resource.workshop_confirmed_at
 json.workshop_confirmed_by_name resource.workshop_confirmed_by&.name
 json.warehouse_confirmed_at resource.warehouse_confirmed_at
 json.warehouse_confirmed_by_name resource.warehouse_confirmed_by&.name
+# 财务审核（只原料入库走，见 Mes::StockEntry::APPROVAL_REQUIRED_PURPOSES）。
+# can_approve 下发给前端决定出不出「通过/驳回」按钮——后端 ensure_approver! 仍会再判一次。
+json.needs_approval resource.needs_approval?
+json.approval_status resource.approval_status
+json.approved_at resource.approved_at
+json.approved_by_name resource.approved_by&.name
+json.reject_reason resource.reject_reason
+json.can_approve resource.needs_approval? &&
+  Mes::StockEntry.approver?(Current.account, Current.account_user)
 json.is_checked resource.is_checked
 json.checked_by_id resource.checked_by_id
 json.checked_by_name resource.checked_by&.name

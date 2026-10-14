@@ -550,6 +550,9 @@ Rails.application.routes.draw do
                 post :post
                 post :confirm_warehouse
                 post :cancel
+                # 财务审核：通过才能过账（见 Mes::StockEntry#approval_blocker）
+                post :approve
+                post :reject
                 post :return_document
                 post :reactivate
               end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_13_180000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_14_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -3382,6 +3382,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_13_180000) do
     t.datetime "warehouse_confirmed_at"
     t.bigint "workshop_confirmed_by_id"
     t.bigint "warehouse_confirmed_by_id"
+    t.string "approval_status", default: "APPROVED", null: false
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.text "reject_reason"
+    t.index ["account_id", "approval_status"], name: "index_mes_stock_entries_on_account_and_approval"
     t.index ["account_id", "entry_no"], name: "index_mes_stock_entries_on_account_id_and_entry_no", unique: true
     t.index ["account_id", "product_line"], name: "index_mes_stock_entries_on_account_and_product_line"
     t.index ["account_id", "purpose"], name: "index_mes_stock_entries_on_account_id_and_purpose"

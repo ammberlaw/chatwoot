@@ -2,7 +2,7 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   include Api::V1::Accounts::Mes::DocumentReturnable
 
   before_action :check_authorization
-  before_action :fetch_stock_entry, only: [:show, :update, :destroy, :post, :confirm_warehouse, :cancel]
+  before_action :fetch_stock_entry, only: [:show, :update, :destroy, :post, :confirm_warehouse, :cancel, :approve, :reject]
   before_action -> { ensure_owner_or_admin!(@stock_entry, '入库单') }, only: [:update]
   before_action :ensure_can_delete!, only: [:destroy]
 
@@ -124,6 +124,25 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     render json: { error: business_error(e) }, status: :unprocessable_entity
   end
 
+  # 财务审核：通过。审核人由「入库审核人」配置决定，没配就回落到财务/管理员
+  # （见 Mes::StockEntry.approver?）。
+  def approve
+    ensure_approver!
+    @stock_entry.approve!(current_user)
+    render 'api/v1/accounts/mes/stock_entries/show'
+  rescue StandardError => e
+    render json: { error: business_error(e) }, status: :unprocessable_entity
+  end
+
+  # 财务审核：驳回。必须写原因——仓管要照着原因改单。
+  def reject
+    ensure_approver!
+    @stock_entry.reject!(current_user, params[:reason])
+    render 'api/v1/accounts/mes/stock_entries/show'
+  rescue StandardError => e
+    render json: { error: business_error(e) }, status: :unprocessable_entity
+  end
+
   # 成品入库：仓管清点数量确认（stock 能力），确认后直接过账入库。
   def confirm_warehouse
     @stock_entry.confirm_warehouse!(current_user)
@@ -154,6 +173,10 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     return if Current.account_user.mes_can?(:stock)
 
     ensure_owner_or_admin!(@stock_entry, '入库单')
+  end
+
+  def ensure_approver!
+    raise Pundit::NotAuthorizedError unless Mes::StockEntry.approver?(Current.account, Current.account_user)
   end
 
   def fetch_stock_entry

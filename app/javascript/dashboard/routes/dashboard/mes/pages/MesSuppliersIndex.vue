@@ -874,7 +874,7 @@ onMounted(() => {
       confirm-button-color="ruby"
       title="删除供应商"
       :description="`确定删除「${deleting?.name || ''}」（${deleting?.supplierNo || ''}）？已关联的物料将解除默认供应商引用。`"
-      confirm-label="删除"
+      confirm-button-label="删除"
       @confirm="doDelete"
     />
   </div>

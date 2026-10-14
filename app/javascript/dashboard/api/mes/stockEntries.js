@@ -14,6 +14,11 @@ client.cancel = id => axios.post(`${client.url}/${id}/cancel`);
 client.confirmWarehouse = id =>
   axios.post(`${client.url}/${id}/confirm_warehouse`);
 
+// 财务审核：通过 / 驳回（驳回必须填原因）。审核通过才能过账。
+client.approve = id => axios.post(`${client.url}/${id}/approve`);
+client.reject = (id, reason) =>
+  axios.post(`${client.url}/${id}/reject`, { reason });
+
 // 收货单文件暂存为 blob，返回 signed_id（原料入库必传）。
 client.stageBlob = formData =>
   axios.post(`${client.url}/stage_blob`, formData, {

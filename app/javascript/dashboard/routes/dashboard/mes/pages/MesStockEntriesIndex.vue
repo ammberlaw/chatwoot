@@ -133,6 +133,21 @@ const PURPOSE_LABELS = {
 const IN_PURPOSES = ['MATERIAL_RECEIPT', 'MATERIAL_RETURN', 'MANUFACTURE'];
 const purposeLabel = p => PURPOSE_LABELS[p] || p;
 const STATUS_LABELS = { DRAFT: '草稿', POSTED: '已过账', CANCELLED: '已取消' };
+// 财务审核：审核通过才能过账（过账要刷库存、起应付，闸设在过账前）。
+const APPROVAL_LABELS = {
+  PENDING: '待审核',
+  APPROVED: '已通过',
+  REJECTED: '已驳回',
+};
+// 审核人自己配（同采购审批人那套，存 Mes::BoardOwner）。不配就回落到财务/管理员。
+const APPROVER_BOARD = [
+  {
+    key: 'mes_stock_approver',
+    label: '入库审核人',
+    single: true,
+    hint: '原料入库单由他审核，审核通过才能过账。不设则由财务和管理员审核。',
+  },
+];
 
 // 只读查看
 const whName = id =>
@@ -169,6 +184,7 @@ const ORDER_COLUMN_DEFS = [
   { key: 'qty', label: '入库量', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'owner', label: '归属人', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'checked', label: '核对', tdClass: 'px-3 py-3 text-n-slate-11' },
+  { key: 'approval', label: '审核', tdClass: 'px-3 py-3 text-n-slate-11' },
   { key: 'status', label: '状态', tdClass: 'px-3 py-3' },
   { key: 'posted', label: '过账时间', tdClass: 'px-3 py-3 text-n-slate-11' },
   {
@@ -324,6 +340,14 @@ const viewFields = computed(() => {
     { label: '入库仓', value: whName(e.toWarehouseId) },
     { label: '状态', value: STATUS_LABELS[e.status] || e.status },
     { label: '过账时间', value: day(e.postedAt) },
+    {
+      label: '审核',
+      value: e.needsApproval
+        ? `${APPROVAL_LABELS[e.approvalStatus] || e.approvalStatus}${
+            e.approvedByName ? ` · ${e.approvedByName}` : ''
+          }${e.rejectReason ? `（${e.rejectReason}）` : ''}`
+        : '无需审核',
+    },
     {
       label: '核对',
       value: e.isChecked ? `已核对 · ${e.checkedByName || ''}` : '未核对',
@@ -629,6 +653,29 @@ const submit = async () => {
   }
 };
 
+// 财务审核。通过即可过账；驳回必须写原因——仓管要照着原因改单。
+const approveEntry = async entry => {
+  const ok = await store.approve(entry.id);
+  if (ok) useAlert(`${entry.entryNo} 已审核通过，可以过账了`);
+};
+// 驳回走正经弹窗（同退回上一环节那套），不用浏览器原生 prompt。
+const rejectDialogRef = ref(null);
+const rejecting = ref(null);
+const rejectReason = ref('');
+const openReject = entry => {
+  rejecting.value = entry;
+  rejectReason.value = '';
+  rejectDialogRef.value?.open();
+};
+const submitReject = async () => {
+  if (!rejecting.value || !rejectReason.value.trim()) return;
+  const ok = await store.reject(rejecting.value.id, rejectReason.value.trim());
+  if (ok) {
+    useAlert(`${rejecting.value.entryNo} 已驳回`);
+    rejectDialogRef.value?.close();
+  }
+};
+
 const postEntry = async entry => {
   const ok = await store.post(entry.id);
   if (!ok) return;
@@ -768,7 +815,10 @@ useRouteQueryReentry(query => {
       </div>
     </div>
 
-    <MesBoardOwnerBar board-key="mes_stock_entries_index" />
+    <MesBoardOwnerBar
+      board-key="mes_stock_entries_index"
+      :extra-boards="APPROVER_BOARD"
+    />
 
     <!-- 外购成品收货说明：外购成品到货也在本板块收货入库（选对应采购单会自动入「成品仓」）。 -->
     <div class="px-4 mb-1 sm:px-6 [.theme-classic_&]:sm:!px-8">
@@ -929,6 +979,16 @@ useRouteQueryReentry(query => {
                 <template v-else-if="col.key === 'checked'">
                   {{ e.isChecked ? '已核对' : '—' }}
                 </template>
+                <template v-else-if="col.key === 'approval'">
+                  <span v-if="!e.needsApproval">—</span>
+                  <MesStatusPill
+                    v-else
+                    v-tooltip="
+                      e.approvalStatus === 'REJECTED' ? e.rejectReason : ''
+                    "
+                    :label="APPROVAL_LABELS[e.approvalStatus]"
+                  />
+                </template>
                 <template v-else-if="col.key === 'status'">
                   <MesStatusPill :label="STATUS_LABELS[e.status]" />
                 </template>
@@ -948,10 +1008,36 @@ useRouteQueryReentry(query => {
                     @click="openView(e)"
                   />
                   <Button
+                    v-if="e.canApprove && e.approvalStatus !== 'APPROVED'"
+                    label="审核通过"
+                    color="iris"
+                    variant="faded"
+                    size="sm"
+                    :is-loading="posting"
+                    @click="approveEntry(e)"
+                  />
+                  <Button
+                    v-if="e.canApprove && e.approvalStatus === 'PENDING'"
+                    label="驳回"
+                    color="ruby"
+                    variant="ghost"
+                    size="sm"
+                    :is-loading="posting"
+                    @click="openReject(e)"
+                  />
+                  <Button
                     v-if="e.status === 'DRAFT' && mesCan('stock')"
+                    v-tooltip="
+                      e.needsApproval && e.approvalStatus !== 'APPROVED'
+                        ? '财务审核通过后才能过账'
+                        : ''
+                    "
                     label="过账"
                     color="iris"
                     size="sm"
+                    :disabled="
+                      e.needsApproval && e.approvalStatus !== 'APPROVED'
+                    "
                     :is-loading="posting"
                     @click="postEntry(e)"
                   />
@@ -1261,6 +1347,25 @@ useRouteQueryReentry(query => {
             </div>
           </div>
         </div>
+      </div>
+    </Dialog>
+
+    <Dialog
+      ref="rejectDialogRef"
+      :dismissible="false"
+      confirm-button-color="ruby"
+      title="驳回这张入库单"
+      description="驳回后仓管照着原因改单，改完自动回到「待审核」等你重新审。"
+      confirm-button-label="驳回"
+      :is-loading="posting"
+      :disable-confirm-button="!rejectReason.trim()"
+      @confirm="submitReject"
+    >
+      <div class="flex flex-col gap-1">
+        <label class="text-heading-3 text-n-slate-12">
+          驳回原因 <span class="text-n-ruby-11">*</span>
+        </label>
+        <Input v-model="rejectReason" />
       </div>
     </Dialog>
 

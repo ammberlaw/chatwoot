@@ -77,7 +77,7 @@ const reactivate = async () => {
       confirm-button-color="amber"
       title="退回上一环节"
       description="退回后会通知上一环节负责人处理，并记录原因；不改动任何下游数据。"
-      confirm-label="退回"
+      confirm-button-label="退回"
       :is-loading="busy"
       :disable-confirm-button="!reason.trim()"
       @confirm="submitReturn"
