@@ -113,12 +113,13 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     render 'api/v1/accounts/mes/purchase_orders/show'
   end
 
-  # 同料同供应商上次下单多少钱。建单时选完料和供应商就问一次，自动把单价填上。
-  # 只认审批通过的采购单——没过审的价还可能被老板打回来改，拿它当参考会把错价一路传下去。
+  # 这颗料上次下单多少钱、给了哪家。只认审批通过的采购单——没过审的价还可能被老板
+  # 打回来改，拿它当参考会把错价一路传下去。
+  # 没传供应商＝新建时刚输完料号，连供应商一起带出来；传了就只认这家的价。
   def last_price
     hit = Mes::LastPurchasePrice.for(
       account: Current.account,
-      supplier_id: params[:mes_supplier_id],
+      supplier_id: params[:mes_supplier_id].presence,
       crm_product_id: params[:crm_product_id].presence,
       mes_material_id: params[:mes_material_id].presence
     )

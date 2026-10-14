@@ -371,10 +371,31 @@ const supplierAbove = i => {
 // 同料同供应商上次下单多少钱：选完料和供应商就问一次。
 // 采购原话「不然谁都记不住那么多物料单价」。只认审批通过的单（后端口径，见 Mes::LastPurchasePrice）。
 // 单价已经填了就不覆盖——她手上可能拿着新报价，自动改掉就成事故了，只在下面提示上次多少。
+// 把上次那张单的供应商和单价填进这一行。
+// 已经填了的不覆盖——她手上可能拿着新报价、或者这次就是要换一家做，
+// 自动改掉就成事故了；只在下面提示上次是谁、多少钱。
+const applyLastPrice = (row, hit) => {
+  const yuan = Number(hit.rate_micros) / 1e6;
+  row.lastPriceText = `上次 ¥${yuan.toFixed(2)}${
+    hit.price_tax_included ? '（含税）' : ''
+  }${hit.supplier_name ? ` · ${hit.supplier_name}` : ''}${
+    hit.po_no ? ` · ${hit.po_no}` : ''
+  }`;
+  // 供应商下拉建单时一次拉满（per_page 500，现有 331 家），带回来的 id 必在选项里。
+  if (!row.mesSupplierId && hit.mes_supplier_id) {
+    row.mesSupplierId = String(hit.mes_supplier_id);
+  }
+  if (!row.rate) {
+    row.rate = String(yuan);
+    row.priceTaxIncluded = !!hit.price_tax_included;
+    syncAmount(row);
+  }
+};
+
 const fetchLastPrice = async row => {
   const material = row.mesMaterialId || '';
   const product = row.crmProductId || '';
-  if (!row.mesSupplierId || (!material && !product)) {
+  if (!material && !product) {
     row.lastPriceText = '';
     return;
   }
@@ -383,7 +404,8 @@ const fetchLastPrice = async row => {
       `/api/v1/accounts/${accountId.value}/mes/purchase_orders/last_price`,
       {
         params: {
-          mes_supplier_id: row.mesSupplierId,
+          // 没选供应商就不传：后端会按最近一张已审核的单，把供应商一起带回来。
+          mes_supplier_id: row.mesSupplierId || undefined,
           crm_product_id: product || undefined,
           mes_material_id: material || undefined,
         },
@@ -394,15 +416,7 @@ const fetchLastPrice = async row => {
       row.lastPriceText = '';
       return;
     }
-    const yuan = Number(hit.rate_micros) / 1e6;
-    row.lastPriceText = `上次 ¥${yuan.toFixed(2)}${
-      hit.price_tax_included ? '（含税）' : ''
-    }${hit.po_no ? ` · ${hit.po_no}` : ''}`;
-    if (!row.rate) {
-      row.rate = String(yuan);
-      row.priceTaxIncluded = !!hit.price_tax_included;
-      syncAmount(row);
-    }
+    applyLastPrice(row, hit);
   } catch {
     row.lastPriceText = '';
   }
