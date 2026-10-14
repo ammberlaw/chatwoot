@@ -13,7 +13,6 @@ import MesBomAPI from 'dashboard/api/mes/boms';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 
 import Button from 'dashboard/components-next/button/Button.vue';
-import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import {
   exportNodeToJpg,
@@ -26,6 +25,7 @@ import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import { useMesDocOwner } from 'dashboard/composables/useMesDocOwner';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId, accountScopedRoute } = useAccount();
@@ -84,6 +84,11 @@ const COLUMN_DEFS = [
     tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
   },
   // 对标纸质投单：日期和产成品代码是核单时最先对的两样，原来要点开查看才看得到
+  {
+    key: 'customerName',
+    label: '客户 / 项目',
+    tdClass: 'px-3 py-3 whitespace-nowrap text-n-slate-11',
+  },
   {
     key: 'submitDate',
     label: '投单日期',
@@ -144,11 +149,27 @@ const colFilters = reactive({
   no: '',
   model: '',
   product_code: '',
+  customer_name: '',
   owner_id: '',
   sales_owner_id: '',
   status: '',
   submitDate: { from: '', to: '' },
 });
+// 列 key → 这一列筛什么（对标金蝶表头上的漏斗）。条件发后端算：列表是分页的，
+// 前端只过滤本页的话，第 2 页往后的命中全看不见。
+const FILTERABLE = {
+  no: { type: 'text', key: 'no', placeholder: '单号 / 投单单号' },
+  model: { type: 'text', key: 'model', placeholder: '型号 / 成品名' },
+  productCode: { type: 'text', key: 'product_code', placeholder: '产成品代码' },
+  customerName: {
+    type: 'text',
+    key: 'customer_name',
+    placeholder: '客户 / 项目',
+  },
+  submitDate: { type: 'date', key: 'submitDate' },
+};
+const filterOf = col => FILTERABLE[col.key];
+
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: '全部状态' },
   { value: 'RELEASED', label: '已下发' },
@@ -188,6 +209,7 @@ const load = () =>
     no: colFilters.no || undefined,
     model: colFilters.model || undefined,
     product_code: colFilters.product_code || undefined,
+    customer_name: colFilters.customer_name || undefined,
     owner_id: colFilters.owner_id || undefined,
     sales_owner_id: colFilters.sales_owner_id || undefined,
     status: colFilters.status || undefined,
@@ -571,10 +593,10 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 筛选条分两行：上面三个关键字框、下面下拉+日期+查询。挤成一行会在 1600px
-         以下乱折，看起来像「怎么搞了这么多行」。 -->
+    <!-- 单号/型号/产成品代码/投单日期都挪进表头漏斗了（对标金蝶），这里只留
+         「一个关键字框 + 两个归属下拉 + 状态」，筛选条从两行收成一行。 -->
     <div
-      class="flex flex-wrap items-center gap-3 px-4 pb-2 sm:px-6 [.theme-classic_&]:sm:!px-8"
+      class="flex flex-wrap items-center gap-3 px-4 pb-3 sm:px-6 [.theme-classic_&]:sm:!px-8"
     >
       <!-- reset-base：不加的话全局 $form-input-selector 会给它套上 field-base 的
            w-full + mb-4，搜索框撑满整行。高度跟 SelectCard 对齐用 h-9。 -->
@@ -585,24 +607,6 @@ onMounted(async () => {
         class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-52 border border-n-weak bg-n-solid-1 text-n-slate-12"
         @keyup.enter="onFilterChange"
       />
-      <input
-        v-model="colFilters.model"
-        type="text"
-        placeholder="型号 / 成品名…"
-        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-48 border border-n-weak bg-n-solid-1 text-n-slate-12"
-        @keyup.enter="onFilterChange"
-      />
-      <input
-        v-model="colFilters.product_code"
-        type="text"
-        placeholder="产成品代码…"
-        class="reset-base h-9 px-3 text-sm rounded-lg outline-none w-40 border border-n-weak bg-n-solid-1 text-n-slate-12"
-        @keyup.enter="onFilterChange"
-      />
-    </div>
-    <div
-      class="flex flex-wrap items-center gap-3 px-4 pb-3 sm:px-6 [.theme-classic_&]:sm:!px-8"
-    >
       <SelectCard
         v-if="ownerOptions.length > 1"
         v-model="colFilters.owner_id"
@@ -619,19 +623,6 @@ onMounted(async () => {
         v-model="colFilters.status"
         :options="STATUS_FILTER_OPTIONS"
         @update:model-value="onFilterChange"
-      />
-      <DatePicker
-        v-model="colFilters.submitDate.from"
-        placeholder="提交日期起"
-        trigger-class="w-32"
-        @change="onFilterChange"
-      />
-      <span class="text-sm text-n-slate-10">至</span>
-      <DatePicker
-        v-model="colFilters.submitDate.to"
-        placeholder="提交日期止"
-        trigger-class="w-32"
-        @change="onFilterChange"
       />
       <Button label="查询" color="slate" size="sm" @click="onFilterChange" />
     </div>
@@ -719,7 +710,9 @@ onMounted(async () => {
 
         <table class="hidden w-full text-sm md:table">
           <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+            <tr
+              class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
+            >
               <th class="px-3 py-3 font-medium w-12 whitespace-nowrap">#</th>
               <!-- 拖列头即可改顺序，按人记在本机 -->
               <th
@@ -740,7 +733,16 @@ onMounted(async () => {
                   @resize-start="(e, th) => startResize(col.key, e, th)"
                   @auto-fit="autoFitColumn"
                 />
-                {{ col.label }}
+                <span class="inline-flex items-center gap-1">
+                  {{ col.label }}
+                  <MesColumnFilter
+                    v-if="filterOf(col)"
+                    v-model="colFilters[filterOf(col).key]"
+                    :type="filterOf(col).type"
+                    :placeholder="filterOf(col).placeholder || '输入关键字'"
+                    @change="onFilterChange"
+                  />
+                </span>
               </th>
               <th class="px-3 py-3" />
             </tr>
@@ -786,6 +788,9 @@ onMounted(async () => {
                   </template>
                   <template v-else-if="col.key === 'salesOwner'">
                     {{ b.salesOwnerName || '—' }}
+                  </template>
+                  <template v-else-if="col.key === 'customerName'">
+                    {{ b.customerName || '—' }}
                   </template>
                   <template v-else-if="col.key === 'submitDate'">
                     {{ b.submitDate || '—' }}

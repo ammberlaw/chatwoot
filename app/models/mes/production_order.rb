@@ -247,6 +247,10 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   def on_stage_changed(actor, new_stage)
+    # 单子已经走到下一环节，上一环节那条「待你接单」就该销掉——否则订单都下发采购了，
+    # 上游的站内通知还一直写着「待我处理」，点几次都不消（用户点名）。
+    # 先销再发：下一环节负责人的那条是这之后新建的，不会被一起销掉。
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'stage_assigned')
     notify_stage_assigned(actor)
     return unless new_stage == 'SHIPPED'
 
@@ -968,6 +972,9 @@ class Mes::ProductionOrder < ApplicationRecord
       stage_ack_events.create!(account: account, stage: stage, kind: Mes::StageAckEvent::HANDOFF,
                                actor: actor, to_user: to_user, note: text.presence, happened_at: now)
     end
+    # 转出去了，原来挂在自己（和同阶段其他人）名下的「待接单」要消掉——
+    # 否则转给对方之后，自己这边站内通知一直显示待我处理（用户点名）。
+    Mes::Notifier.resolve(account: account, order: self, kinds: 'stage_assigned')
     Mes::Notifier.notify(
       account: account, recipients: [to_user.id], kind: 'stage_assigned',
       title: "待你接单：#{order_no}（#{STAGE_LABELS[stage]}）",

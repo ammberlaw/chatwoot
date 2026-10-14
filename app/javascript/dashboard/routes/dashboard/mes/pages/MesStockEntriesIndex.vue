@@ -964,7 +964,7 @@ useRouteQueryReentry(query => {
           class="hidden w-full text-sm whitespace-nowrap md:table"
         >
           <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+            <tr class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak">
               <th
                 v-for="col in visibleOrderCols"
                 :key="col.key"
@@ -1125,7 +1125,7 @@ useRouteQueryReentry(query => {
         <!-- 按明细：一行一条料（对标金蝶采购入库单列表）。点「查看」仍回到整张单。 -->
         <table v-else class="hidden w-full text-sm whitespace-nowrap md:table">
           <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+            <tr class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak">
               <th
                 v-for="col in visibleItemCols"
                 :key="col.key"

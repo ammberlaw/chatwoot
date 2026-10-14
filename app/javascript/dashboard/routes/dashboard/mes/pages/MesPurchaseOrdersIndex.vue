@@ -1118,7 +1118,9 @@ useRouteQueryReentry(async query => {
           class="hidden w-full text-sm whitespace-nowrap md:table"
         >
           <thead>
-            <tr class="text-left text-n-slate-11 border-b border-n-weak">
+            <tr
+              class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
+            >
               <th
                 v-for="col in visibleOrderCols"
                 :key="col.key"
@@ -1329,7 +1331,7 @@ useRouteQueryReentry(async query => {
         >
           <thead>
             <tr
-              class="text-left text-n-slate-11 [&>th]:border-b [&>th]:border-n-weak"
+              class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
             >
               <th
                 v-for="col in visibleItemCols"
