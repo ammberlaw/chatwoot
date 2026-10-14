@@ -174,12 +174,18 @@ const saving = ref(false);
 const createError = ref('');
 const draft = reactive({ sku: '', name: '', specification: '', unit: '' });
 
+// 刚才搜的是编码还是名称：编码只有字母数字和 . - _ /（P.01.033、WT-IPM104），
+// 名称多半带中文或空格。搜什么就往哪一格放——原来一律塞进「商品名称」，
+// 用户搜的是编码，建单时就填错了格（反馈原话：输入的商品编码自动跳出的文本框对应不上）。
+const looksLikeCode = text => /^[A-Za-z0-9._\-/]+$/.test(text);
+
 const startCreate = async () => {
   createError.value = '';
-  // 把搜索词带进名称，省得重打
+  const term = q.value.trim();
+  const asCode = term && looksLikeCode(term);
   Object.assign(draft, {
-    sku: '',
-    name: q.value.trim(),
+    sku: asCode ? term : '',
+    name: asCode ? '' : term,
     specification: '',
     unit: '',
   });

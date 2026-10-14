@@ -51,22 +51,29 @@ can_view_amount = Current.account_user&.mes_can?(:purchase) ||
                   Mes::PurchaseOrder.approver?(Current.account, Current.user&.id) || false
 # 供应商对销售端不可见——与抬头那串 supplier_names 同一道口子，行上也得关。
 can_view_supplier = Current.account_user&.mes_staff? || false
-if can_view_supplier
-  json.supplier_names purchase_items.filter_map { |i| i.mes_supplier&.name }.uniq
-  # 对内备注：核对入库时要看的就是这句（反馈点名要显示出来）。
-  json.internal_remark po&.internal_remark
-end
 # 行 → 采购行的对应：同一张采购单里按物料/成品对上，对不上就留空（手工建的入库单没有来源行）。
-item_meta = lambda do |item|
-  hit = purchase_items.find do |pi|
+entry_items = resource.stock_entry_items.order(:id).to_a
+match_po_item = lambda do |item|
+  purchase_items.find do |pi|
     (item.mes_material_id.present? && pi.mes_material_id == item.mes_material_id) ||
       (item.crm_product_id.present? && pi.crm_product_id == item.crm_product_id)
   end
+end
+if can_view_supplier
+  # 抬头这串供应商只列**本单收到的这几行料**的供应商，不是整张采购单上的全部。
+  # 原来按整单列：一张采购单十几家供应商、这张入库单只收了两颗料，抬头却列出十几家，
+  # 跟下面的收货明细对不上，没法对账（用户点名）。
+  json.supplier_names entry_items.filter_map { |item| match_po_item.call(item)&.mes_supplier&.name }.uniq
+  # 对内备注：核对入库时要看的就是这句（反馈点名要显示出来）。
+  json.internal_remark po&.internal_remark
+end
+item_meta = lambda do |item|
+  hit = match_po_item.call(item)
   {
     supplier_name: can_view_supplier ? hit&.mes_supplier&.name : nil,
     # 源单号是**这家供应商**的那张单（PU-20260928-04-01）：仓库按供应商交来的那张单核对，
     # 一张采购单含多家供应商时，整单 po_no 对不上他手里的单（见 Mes::PoSupplierNumber）。
-    source_po_no: (hit && can_view_supplier) ? Mes::PoSupplierNumber.for(po, hit.mes_supplier_id) : nil,
+    source_po_no: hit && can_view_supplier ? Mes::PoSupplierNumber.for(po, hit.mes_supplier_id) : nil,
     specification: item.mes_material&.specification.presence || item.crm_product&.specification,
     unit_price_micros: can_view_amount ? hit&.rate_micros : nil,
     # 金额按**本次入库量**算，不是采购量——入库单上的钱是这一车货的钱。
@@ -75,7 +82,7 @@ item_meta = lambda do |item|
 end
 json.can_view_amount can_view_amount
 json.stock_entry_items do
-  json.array! resource.stock_entry_items.order(:id) do |item|
+  json.array! entry_items do |item|
     json.partial! 'api/v1/models/mes_stock_entry_item', formats: [:json], resource: item,
                                                         meta: item_meta.call(item)
   end

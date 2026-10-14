@@ -512,7 +512,11 @@ Rails.application.routes.draw do
               collection { post :reorder }
             end
             resources :boms do
-              collection { post :stage_blob }
+              collection do
+                post :stage_blob
+                # 这颗料被别的在产订单排掉了多少（实时库存旁边那个感叹号）
+                get :material_commitments
+              end
               member do
                 post :release
                 post :attach

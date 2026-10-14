@@ -56,6 +56,14 @@ class Api::V1::Accounts::Mes::BomsController < Api::V1::Accounts::Mes::BaseContr
     render 'api/v1/accounts/mes/boms/show'
   end
 
+  # 这颗料被**别的在产订单**排掉了多少。实时库存写着 100 不代表这 100 能用，
+  # 工程照着库存决定不采购、到领料那天就缺货（用户点名要在实时库存旁边提示）。
+  # bom_id 传当前这张任务单，把它自己排除掉——「其他订单占用」不该把自己算进去。
+  def material_commitments
+    map = Mes::MaterialCommitment.by_material_no(Current.account, exclude_bom_id: params[:bom_id])
+    render json: { payload: map.transform_values(&:to_s) }
+  end
+
   # 建单前把文件暂存为 blob，拿到 signed_id，建单/编辑时通过 images/files 一并挂载。
   def stage_blob
     file = params[:file]

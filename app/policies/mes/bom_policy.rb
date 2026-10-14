@@ -1,6 +1,8 @@
 class Mes::BomPolicy < ApplicationPolicy
   def index? = true
   def show? = true
+  # 占用量是只读参考，与看单同权。
+  def material_commitments? = true
 
   def create? = @account_user.mes_can?(:bom)
   def update? = @account_user.mes_can?(:bom)

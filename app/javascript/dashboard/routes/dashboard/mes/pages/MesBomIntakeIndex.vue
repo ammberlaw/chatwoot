@@ -200,10 +200,37 @@ const bomCols = computed(() => [
   BOM_COLS[BOM_COLS.length - 1],
 ]);
 // 某一列当前排第几（1 起），给单元格的 grid-column 用。
+//
+// 必须连 grid-row 一起钉死：格子在 DOM 里的顺序是固定的，列序一拖，
+// 这些 grid-column 就不再是递增的，而 CSS Grid 默认的 sparse 排布永远不往回走——
+// 列号比上一个小的那一格直接被挤到第二行去（反馈里「拖了以后列表是乱码」就是这个）。
 const colPos = key => {
   const i = bomCols.value.findIndex(c => c.key === key);
-  return i < 0 ? undefined : { gridColumn: i + 1 };
+  return i < 0 ? undefined : { gridColumn: i + 1, gridRow: 1 };
 };
+
+// 别的在产订单已经排掉了多少这颗料。实时库存写着 100 不代表 100 都能用——
+// 工程照着库存决定不采购，到领料那天就缺货（用户点名要在实时库存旁边提示）。
+const committedByNo = ref({});
+const loadCommitments = async () => {
+  try {
+    const { data } = await MesBomAPI.materialCommitments(editingId.value);
+    committedByNo.value = data?.payload || {};
+  } catch {
+    // 取不到就不提示，别挡住录单。
+    committedByNo.value = {};
+  }
+};
+const committedOf = row => {
+  const v = Number(committedByNo.value[row.materialNo] || 0);
+  return v > 0 ? v : 0;
+};
+// 可用 = 实时库存 − 别的单已排。为负就是已经排超了。
+const availableOf = row =>
+  row.onHand == null ? null : Number(row.onHand) - committedOf(row);
+const commitmentTip = row =>
+  `别的在产订单已排用 ${committedOf(row)}，实时库存 ${row.onHand ?? 0}，` +
+  `可用 ${availableOf(row)}。这颗料不要只看实时库存就决定不采购。`;
 
 const {
   template: bomColTemplate,
@@ -1155,6 +1182,7 @@ const boot = async () => {
     if (route.query.templates) openTemplates();
   }
   booting.value = false;
+  loadCommitments();
 };
 onMounted(boot);
 
@@ -1726,14 +1754,25 @@ onBeforeRouteLeave((to, from, next) => {
               <!-- 实时库存：这格原来漏了 grid-column，于是拖动列序后它自动流到下一个空位，
                    把后面所有格子整体顶歪——就是反馈里「拖了以后列表是乱码」的那个现象。 -->
               <span
-                class="px-1 text-xs truncate"
+                class="flex items-center gap-1 px-1 text-xs min-w-0"
                 :style="colPos('onHand')"
                 :class="
                   row.onHand == null ? 'text-n-slate-10' : 'text-n-slate-12'
                 "
                 :title="row.onHand == null ? '选料后显示' : String(row.onHand)"
               >
-                {{ row.onHand == null ? '—' : row.onHand }}
+                <span class="truncate">
+                  {{ row.onHand == null ? '—' : row.onHand }}
+                </span>
+                <!-- 被别的单排掉了：库存数旁边挂个感叹号，悬停说清楚还剩多少能用。 -->
+                <span
+                  v-if="row.onHand != null && committedOf(row) > 0"
+                  v-tooltip.top="commitmentTip(row)"
+                  class="shrink-0 size-3.5 cursor-help i-lucide-circle-alert"
+                  :class="
+                    availableOf(row) < 0 ? 'text-n-ruby-11' : 'text-n-amber-11'
+                  "
+                />
               </span>
               <!-- 本行备注空着时，先把产品档案上的备注（工程写的工艺要求）显出来当占位，
                一旦本行自己填了就盖掉；完整内容挂 title。 -->

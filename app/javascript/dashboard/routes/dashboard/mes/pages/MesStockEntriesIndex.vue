@@ -521,13 +521,59 @@ const addRow = () =>
   });
 const removeRow = i => form.rows.splice(i, 1);
 
-// 选采购单 → 按其明细预填收货行，实收默认等于采购数量。
+// 选中的那张采购单：对内备注和供应商都从它身上取，核料时不用另开一张单比着看。
+const selectedPO = computed(() =>
+  purchaseOrders.value.find(p => String(p.id) === String(form.purchaseOrderId))
+);
+
+// 这张采购单上还没收完的行。已经入库完的不该再跳出来——
+// 分批到货时一点预填就把收过的料又铺一遍，仓管得自己一行行删（用户点名）。
+const outstandingItems = po =>
+  (po?.purchase_items || []).filter(
+    it => Number(it.qty || 0) - Number(it.received_qty || 0) > 0
+  );
+
+// 一张采购单常含好几家供应商，货是一家一家送到的。按供应商分别预填＝一家一张入库单，
+// 入库单的收货明细和供应商才对得上，财务才能对账（用户点名）。
+const prefillSupplierId = ref('');
+const prefillSupplierOptions = computed(() => {
+  const groups = new Map();
+  outstandingItems(selectedPO.value).forEach(it => {
+    const key = it.mes_supplier_id ? String(it.mes_supplier_id) : '';
+    if (!groups.has(key)) {
+      groups.set(key, { name: it.supplier_name || '未指定供应商', n: 0 });
+    }
+    groups.get(key).n += 1;
+  });
+  const rows = [...groups.entries()].map(([value, g]) => ({
+    value,
+    label: `${g.name}（${g.n} 行待收）`,
+  }));
+  // 只有一家就不用再选；多家时默认不选，逼着先挑一家，免得又铺成一张大杂烩单。
+  return rows.length > 1
+    ? [
+        { value: '', label: '全部供应商（不建议，一张单混多家没法对账）' },
+        ...rows,
+      ]
+    : rows;
+});
+
+// 选采购单 → 按其明细预填收货行，实收默认等于未收数量。
 const prefillFromPO = async () => {
   if (!form.purchaseOrderId) return;
   const po = purchaseOrders.value.find(
     p => String(p.id) === String(form.purchaseOrderId)
   );
-  const items = po?.purchase_items || [];
+  let items = outstandingItems(po);
+  if (prefillSupplierId.value) {
+    items = items.filter(
+      it => String(it.mes_supplier_id || '') === prefillSupplierId.value
+    );
+  }
+  if (!items.length) {
+    useAlert('这张采购单上没有还没收完的料了');
+    return;
+  }
   if (items.length) {
     form.productionOrderId = po.production_order_id
       ? String(po.production_order_id)
@@ -536,7 +582,8 @@ const prefillFromPO = async () => {
       itemType: it.item_type || 'MATERIAL',
       crmProductId: it.crm_product_id ? String(it.crm_product_id) : '',
       qty: String(it.qty),
-      receivedQty: String(it.received_qty ? it.qty - it.received_qty : it.qty),
+      // 实收默认＝还没收的那部分（分批到货时不会把收过的再算一遍）。
+      receivedQty: String(Number(it.qty || 0) - Number(it.received_qty || 0)),
       remark: '',
       // 只读，不提交：一张采购单可能好几家供应商，收货时得知道这一行的货是谁送来的
       // （反馈原话：「这里入库需要看到供应商名称」）。
@@ -559,11 +606,6 @@ const prefillFromPO = async () => {
     }
   }
 };
-
-// 选中的那张采购单：对内备注和供应商都从它身上取，核料时不用另开一张单比着看。
-const selectedPO = computed(() =>
-  purchaseOrders.value.find(p => String(p.id) === String(form.purchaseOrderId))
-);
 
 const openCreate = () => {
   const raw = (warehousesStore.getRecords || []).find(w => w.kind === 'RAW');
@@ -727,8 +769,14 @@ useRouteQueryReentry(query => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">原料入库</h1>
+    <div
+      class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+    >
+      <h1
+        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        原料入库
+      </h1>
       <div class="flex items-center gap-2">
         <button
           v-if="activeFilterCount"
@@ -837,7 +885,10 @@ useRouteQueryReentry(query => {
     </div>
 
     <!-- 从生产订单跳来的按订单筛选提示 -->
-    <div v-if="filterOrderId" class="flex items-center gap-2 px-4 mb-1 sm:px-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      v-if="filterOrderId"
+      class="flex items-center gap-2 px-4 mb-1 sm:px-6 [.theme-classic_&]:sm:!px-8"
+    >
       <span
         class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full bg-n-iris-3 text-n-iris-11"
       >
@@ -851,7 +902,9 @@ useRouteQueryReentry(query => {
     </div>
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
@@ -1208,16 +1261,28 @@ useRouteQueryReentry(query => {
                 采购单对内备注：{{ selectedPO.internal_remark }}
               </span>
             </div>
-            <Button
+            <!-- 一家供应商一张入库单：先挑是哪家送来的货，再预填那几行。 -->
+            <div
               v-if="form.purchaseOrderId"
-              label="按此采购单预填收货明细"
-              type="button"
-              color="iris"
-              size="sm"
-              icon="i-lucide-list-plus"
-              class="self-start mt-1 po-prefill-btn"
-              @click="prefillFromPO"
-            />
+              class="flex flex-wrap items-center gap-2 mt-1"
+            >
+              <SelectCard
+                v-if="prefillSupplierOptions.length > 1"
+                v-model="prefillSupplierId"
+                :options="prefillSupplierOptions"
+                placeholder="这批货是哪家送来的"
+                trigger-class="w-72"
+              />
+              <Button
+                label="按此采购单预填收货明细"
+                type="button"
+                color="iris"
+                size="sm"
+                icon="i-lucide-list-plus"
+                class="po-prefill-btn"
+                @click="prefillFromPO"
+              />
+            </div>
           </div>
         </div>
 

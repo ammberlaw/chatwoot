@@ -111,7 +111,29 @@ const productOnHand = id => {
   return o && o.onHand != null ? o.onHand : null;
 };
 // MesProductPicker 选中：把该产品并入 productOptions，保证行内显示文本、规格、单位、实时库存都可查。
-const onProductPicked = p =>
+// 这颗料在产品档案里启用中的辅助属性（选完料，行上的下拉直接有选项，不用再跑一趟接口）。
+const productAux = ref({});
+const auxOptions = pid =>
+  (productAux.value[String(pid)] || []).map(a => ({
+    value: a.name,
+    label: a.name,
+  }));
+
+// 打开旧单时档案上的选项还没取，先把存过的那个值当成唯一选项放进去——
+// 否则这一行的辅助属性在界面上整个消失，保存一次就被清掉。重新选料时会换成完整列表。
+const seedAuxFromRows = rows => {
+  const seeded = { ...productAux.value };
+  rows.forEach(r => {
+    const pid = String(r.crmProductId || '');
+    if (!pid || !r.auxAttributeName || seeded[pid]) return;
+    seeded[pid] = [{ name: r.auxAttributeName }];
+  });
+  productAux.value = seeded;
+};
+
+// 选料时把档案上的辅助属性一并带出来（用户原话：编码自带的辅助属性要带出）。
+// 只有一个选项就直接填上；有多个让人挑——同一颗编码不同变体，填错了供应商就做错货。
+const onProductPicked = (p, row) => {
   mergeProductOptions([
     {
       value: String(p.id),
@@ -123,6 +145,10 @@ const onProductPicked = p =>
       onHand: p.on_hand != null ? Number(p.on_hand) : null,
     },
   ]);
+  const list = p.aux_attributes || [];
+  productAux.value = { ...productAux.value, [String(p.id)]: list };
+  if (row) row.auxAttributeName = list.length === 1 ? list[0].name : '';
+};
 
 const editingId = ref(null);
 const removedItemIds = ref([]);
@@ -500,6 +526,7 @@ const explode = async (category = '') => {
             .filter(Boolean)
             .join(' '),
     }));
+    seedAuxFromRows(form.rows);
     form.rows.forEach(r => {
       if (r.orderedQty > 0) {
         r.qty = String(Number((Number(r.qty) - r.orderedQty).toFixed(3)));
@@ -580,6 +607,7 @@ const openEdit = po => {
       })),
     })),
   });
+  seedAuxFromRows(form.rows);
   // 回填已选产品的标签/规格，保证下拉能显示名称
   mergeProductOptions(
     (po.purchaseItems || [])
@@ -1119,7 +1147,7 @@ onBeforeRouteLeave((to, from, next) => {
                       fetchLastPrice(row);
                     }
                   "
-                  @select="onProductPicked"
+                  @select="p => onProductPicked(p, row)"
                 />
               </div>
               <div class="flex items-center gap-1 min-w-0">
@@ -1207,6 +1235,23 @@ onBeforeRouteLeave((to, from, next) => {
                 <div class="flex-1">
                   <DatePicker v-model="row.arrivalDate" block />
                 </div>
+              </div>
+              <!-- 辅助属性：同一颗编码下的变体（颜色/长度等），要印在发给供应商的单子上。
+                   只有这颗料在产品档案里维护过才出下拉，没维护就不占位。 -->
+              <div
+                v-if="auxOptions(row.crmProductId).length"
+                class="flex items-center gap-2 md:col-span-3"
+              >
+                <label class="text-heading-3 shrink-0 text-n-slate-12">
+                  辅助属性
+                </label>
+                <SelectCard
+                  v-model="row.auxAttributeName"
+                  size="form"
+                  :options="auxOptions(row.crmProductId)"
+                  placeholder="选辅助属性"
+                  block
+                />
               </div>
               <Input
                 v-model="row.remark"
