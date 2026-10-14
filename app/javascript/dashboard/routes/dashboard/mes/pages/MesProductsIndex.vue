@@ -28,7 +28,18 @@ import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const store = useMesProductsStore();
 const { mesCan } = useMesRole();
 
-const ITEMS_PER_PAGE = 15;
+// 每页条数自己选，记在本机。生产上近 5000 个料号，15 条一页要翻 333 页——
+// 采购编新料号时得翻到同字母流水号的末尾才知道编到几号（用户原话「金蝶是 1000 条/页」）。
+const PER_PAGE_KEY = 'mes.products.perPage';
+const PER_PAGE_OPTIONS = [20, 50, 100, 200, 500, 1000].map(n => ({
+  value: String(n),
+  label: `${n} 条/页`,
+}));
+const readPerPage = () => {
+  const saved = Number(localStorage.getItem(PER_PAGE_KEY));
+  return PER_PAGE_OPTIONS.some(o => Number(o.value) === saved) ? saved : 50;
+};
+const itemsPerPage = ref(readPerPage());
 const records = computed(() => store.getRecords);
 const totalCount = computed(() => store.getMeta.count || 0);
 const isFetching = computed(() => store.getUIFlags.fetchingList);
@@ -141,7 +152,7 @@ const toggleLine = line => {
 const load = () =>
   store.get({
     page: currentPage.value,
-    per_page: ITEMS_PER_PAGE,
+    per_page: itemsPerPage.value,
     q: keyword.value.trim() || undefined,
     category: categoryFilter.value || undefined,
     source_category: selectedSourceCategory.value || undefined,
@@ -149,6 +160,13 @@ const load = () =>
   });
 // 翻页触发重拉；搜索/筛选先回到第 1 页（页码变则由 watch 拉，未变则直接拉）。
 watch(currentPage, load);
+const changePerPage = v => {
+  itemsPerPage.value = Number(v);
+  localStorage.setItem(PER_PAGE_KEY, String(v));
+  // 换了每页条数页码就对不上了，回第一页重取
+  if (currentPage.value !== 1) currentPage.value = 1;
+  else load();
+};
 const reload = () => {
   if (currentPage.value !== 1) currentPage.value = 1;
   else load();
@@ -444,6 +462,12 @@ onMounted(() => {
           class="w-full sm:w-44"
           @update:model-value="changeCategoryFilter"
         />
+        <SelectCard
+          :model-value="String(itemsPerPage)"
+          :options="PER_PAGE_OPTIONS"
+          class="w-full sm:w-28"
+          @update:model-value="changePerPage"
+        />
         <!-- 带清除的搜索框：搜完一个编码后，不清空就看不到全部档案；
              原来只能一个字一个字删，这里给个 X 一键回到全部。 -->
         <div class="relative w-full sm:w-56">
@@ -737,7 +761,7 @@ onMounted(() => {
                 @click="selectedId = selectedId === p.id ? null : p.id"
               >
                 <td class="px-3 py-3 tabular-nums text-n-slate-10">
-                  {{ (currentPage - 1) * ITEMS_PER_PAGE + i + 1 }}
+                  {{ (currentPage - 1) * itemsPerPage + i + 1 }}
                 </td>
                 <td class="px-3 py-3 font-mono text-n-slate-11">{{ p.sku }}</td>
                 <td
@@ -814,10 +838,10 @@ onMounted(() => {
         </template>
 
         <PaginationFooter
-          v-if="totalCount > ITEMS_PER_PAGE"
+          v-if="totalCount > itemsPerPage"
           :current-page="currentPage"
           :total-items="totalCount"
-          :items-per-page="ITEMS_PER_PAGE"
+          :items-per-page="itemsPerPage"
           class="mt-3 !bg-transparent before:!hidden"
           @update:current-page="currentPage = $event"
         />

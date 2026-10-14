@@ -124,12 +124,14 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
     scope.where(group_code: codes)
   end
 
-  # 默认 15/页（产品档案列表）；商品编码选择器等可传 per_page 取更多，封顶 100。
+  # 默认 15/页；商品编码选择器等可传 per_page 取更多。
+  # 封顶放到 1000：产品档案生产上近 5000 条，15 条一页要翻 333 页，
+  # 采购编新料号时得翻到同字母的流水号末尾才知道编到几号（用户原话「金蝶是 1000 条/页」）。
   def per_page_param
     n = params[:per_page].to_i
     return RESULTS_PER_PAGE if n <= 0
 
-    [n, 100].min
+    [n, 1000].min
   end
 
   def fetch_product

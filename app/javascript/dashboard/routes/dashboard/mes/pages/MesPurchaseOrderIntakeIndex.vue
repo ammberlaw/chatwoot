@@ -130,6 +130,10 @@ const removedItemIds = ref([]);
 const blankRow = () => ({
   itemType: 'MATERIAL',
   crmProductId: '',
+  // 老单的行可能挂的是**物料档案**（mes_material_id）而不是产品档案：BOM 算料铺出来的料
+  // 对不上产品档案时就是这样存的。编辑时必须原样带回去，否则这一行的料会被清掉。
+  mesMaterialId: '',
+  materialLabel: '', // 物料档案行的显示名（只读，产品档案里找不到它）
   mesSupplierId: '',
   arrivalDate: '',
   qty: '1',
@@ -303,7 +307,11 @@ const toggleAllTaxIncluded = () => {
   });
 };
 
-const rowIncomplete = r => !Number(r.qty) || !r.crmProductId;
+// 一行算填好了：有数量，且选了料——产品档案或物料档案任一即可。
+// 原来只认产品档案，于是挂物料档案的老单一打开整张表单就恒为无效、保存按钮永远是灰的，
+// 删行点保存毫无反应（用户反馈「点了X，再进去还在，怎么都删不掉」的真正原因）。
+const rowIncomplete = r =>
+  !Number(r.qty) || (!r.crmProductId && !r.mesMaterialId);
 // 供应商税率（%）：用于含税/未税提示。
 const supplierTaxRate = id =>
   (suppliersStore.getRecords || []).find(s => String(s.id) === String(id))
@@ -490,6 +498,12 @@ const openEdit = po => {
       id: it.id,
       itemType: it.itemType || 'MATERIAL',
       crmProductId: it.crmProductId ? String(it.crmProductId) : '',
+      mesMaterialId: it.mesMaterialId ? String(it.mesMaterialId) : '',
+      materialLabel: it.crmProductId
+        ? ''
+        : [it.materialName, it.materialNo && `（${it.materialNo}）`]
+            .filter(Boolean)
+            .join(''),
       mesSupplierId: it.mesSupplierId ? String(it.mesSupplierId) : '',
       arrivalDate: it.arrivalDate ? it.arrivalDate.slice(0, 10) : '',
       qty: String(it.qty),
@@ -588,8 +602,10 @@ const submit = async () => {
     ...form.rows.map(r => ({
       id: r.id || undefined,
       itemType: r.itemType,
-      mesMaterialId: null,
-      crmProductId: Number(r.crmProductId),
+      // 两种料各送各的 id。原来写死 mesMaterialId: null + Number('')=0，
+      // 挂物料档案的行一存就被清成「产品 0 号」。
+      mesMaterialId: r.mesMaterialId ? Number(r.mesMaterialId) : null,
+      crmProductId: r.crmProductId ? Number(r.crmProductId) : null,
       mesSupplierId: r.mesSupplierId ? Number(r.mesSupplierId) : null,
       arrivalDate: r.arrivalDate || null,
       unit: productUnit(r.crmProductId) || undefined,
@@ -1030,9 +1046,20 @@ onBeforeRouteLeave((to, from, next) => {
                 <MesProductPicker
                   :account-id="accountId"
                   :model-value="row.crmProductId"
-                  :display-text="productLabel(row.crmProductId)"
+                  :display-text="
+                    productLabel(row.crmProductId) || row.materialLabel
+                  "
                   placeholder="选择物料（产品档案·编码/名称/规格）"
-                  @update:model-value="v => (row.crmProductId = v)"
+                  @update:model-value="
+                    v => {
+                      row.crmProductId = v;
+                      // 改选产品档案即顶掉原来的物料档案，一行只认一个料
+                      if (v) {
+                        row.mesMaterialId = '';
+                        row.materialLabel = '';
+                      }
+                    }
+                  "
                   @select="onProductPicked"
                 />
               </div>
