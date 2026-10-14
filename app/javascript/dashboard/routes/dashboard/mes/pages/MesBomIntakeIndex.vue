@@ -118,6 +118,8 @@ const blankRow = () => ({
   auxOptions: [],
   productRemark: '', // 产品档案上的备注（只读，跟本行自己的备注分开）
   remark: '',
+  blockerKind: '', // 卡在哪（空=没卡住）
+  blockerNote: '', // 卡点说明
   purchaseNote: '', // 给采购看：指定品牌/能否替代/到货节点（建采购单时按料带过去，不进给供应商的导出件）
   productionNote: '', // 只给公司内部生产部门看，不进任何对外单据
   category: 'MACHINE',
@@ -164,11 +166,25 @@ const BOM_COLS = [
   { key: 'remark', label: '备注', fr: 1 },
   { key: 'purchaseNote', label: '采购注意事项', fr: 1.6 },
   { key: 'productionNote', label: '生产备注', fr: 1.6 },
+  // 卡点：这颗料为什么还没下采购单（等客户确认/等业务文件/等工程确认/打样中）。
+  // 原来系统只认「下了单 / 没下单」，没下单的一律看着像采购在拖，
+  // 实际上一大半责任人不在采购（用户 10.13 原话）。
+  { key: 'blocker', label: '卡点', fr: 1.4 },
   { key: 'del', fixed: 24 },
 ];
 // 列序可拖（和生产订单/任务单列表同一套），序号和删除两根钉死在首尾不参与。
 // 单元格不重排 DOM——靠 CSS Grid 的显式列位（grid-column）落到新位置，
 // 这样 13 个格子的模板结构一个字都不用动，改错的风险小得多。
+// 卡点按「等谁」分类，不按「什么问题」——看的人第一反应是去找人。
+const BLOCKER_OPTIONS = [
+  { value: '', label: '未卡住' },
+  { value: 'WAITING_CUSTOMER', label: '等客户确认' },
+  { value: 'WAITING_FILE', label: '等业务文件' },
+  { value: 'WAITING_ENGINEERING', label: '等工程确认' },
+  { value: 'SAMPLING', label: '打样中' },
+  { value: 'OTHER', label: '其它' },
+];
+
 const MOVABLE_COLS = BOM_COLS.filter(c => c.fixed == null);
 const {
   orderedColumns: orderedMovableCols,
@@ -803,6 +819,8 @@ const openEdit = bom => {
       productRemark: it.productRemark || '',
       remark: it.remark || '',
       purchaseNote: it.purchaseNote || '',
+      blockerKind: it.blockerKind || '',
+      blockerNote: it.blockerNote || '',
       productionNote: it.productionNote || '',
       category: it.category || 'MACHINE',
       qtyTouched: it.qty != null && it.qty !== '',
@@ -827,6 +845,8 @@ const submit = async targetStatus => {
       crmProductAuxAttributeId: r.auxAttributeId || null,
       remark: r.remark.trim(),
       purchaseNote: r.purchaseNote.trim() || null,
+      blockerKind: r.blockerKind || null,
+      blockerNote: r.blockerNote?.trim() || null,
       productionNote: r.productionNote.trim() || null,
       category: r.category || 'MACHINE',
     })),
@@ -1749,6 +1769,29 @@ onBeforeRouteLeave((to, from, next) => {
                   '只给公司内部生产部门看，如「装壳前理排线」。不进任何对外单据。'
                 "
               />
+              <!-- 卡点：选了就在订单上汇总显示「N 项等业务文件 · 已卡 X 天」，
+                   让别人一眼看出这张单卡在谁手里，不是采购在拖。 -->
+              <div
+                :style="colPos('blocker')"
+                class="flex items-center gap-1 min-w-0"
+              >
+                <SelectCard
+                  size="form"
+                  :model-value="row.blockerKind"
+                  :options="BLOCKER_OPTIONS"
+                  class="flex-1 min-w-0"
+                  @update:model-value="v => (row.blockerKind = v)"
+                />
+                <Input
+                  v-if="row.blockerKind"
+                  v-model="row.blockerNote"
+                  placeholder="说明"
+                  class="flex-1 min-w-0"
+                  :title="
+                    row.blockerNote || '卡点说明，如「印刷文件业务还没发」'
+                  "
+                />
+              </div>
               <button
                 type="button"
                 :style="colPos('del')"

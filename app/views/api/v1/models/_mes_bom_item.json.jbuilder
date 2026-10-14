@@ -26,6 +26,15 @@ json.remark resource.remark
 # 生产备注只给公司内部生产部门看，不进任何对外单据。
 json.purchase_note resource.purchase_note
 json.production_note resource.production_note
+# 卡点：这颗料为什么还没下采购单（等客户确认/等业务文件/等工程确认/打样中）。
+# 没卡住时 blocker_kind 为空，前端不显示任何东西。
+json.blocker_kind resource.blocker_kind
+json.blocker_label resource.blocker_label
+json.blocker_note resource.blocker_note
+json.blocker_owner_id resource.blocker_owner_id
+json.blocker_owner_name resource.blocker_owner&.name
+json.blocked_days resource.blocked_days
+json.blocked resource.blocked?
 json.crm_product_aux_attribute_id resource.crm_product_aux_attribute_id
 json.aux_attribute_name resource.aux_attribute_name
 # 产品档案带过来的两样（按料号↔SKU 对上）：工程写在档案上的备注、以及该物料的辅助属性选项。

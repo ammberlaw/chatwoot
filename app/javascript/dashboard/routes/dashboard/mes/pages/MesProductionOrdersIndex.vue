@@ -647,6 +647,18 @@ const stallDays = po => {
 };
 const isStalled = po => stallDays(po) >= STALL_DAYS;
 
+// 卡点悬浮说明：卡了几天、等谁。
+// 卡点说的是「这颗料为什么还没下采购单」，和阶段滞留是两回事——
+// 滞留说的是单子在这一环停了多久，卡点说的是停在谁手里。
+const blockerTip = b =>
+  [
+    `${b.count} 项料${b.label}`,
+    b.oldest_days != null ? `最久已卡 ${b.oldest_days} 天` : null,
+    b.owner_names?.length ? `等：${b.owner_names.join('、')}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
 // 列表阶段列的「等谁」：当前阶段负责人（未配则空；建单/出货阶段无板块负责人）。
 // 列表阶段列的接单态徽标（与详情面板同口径）：已接单 / 超时未接单 / 待接单。
 const ackChip = po => {
@@ -2031,6 +2043,17 @@ watch(currentPage, fetchRecords);
                         class="ml-1 text-xs cursor-help text-n-ruby-11"
                       >
                         ⚠
+                      </span>
+                      <!-- 卡点：料卡在等客户确认/等文件/打样这类事上，责任人不在采购。
+                           摆在阶段旁边，相关的人一眼看出这张单卡在谁手里。 -->
+                      <span
+                        v-for="bk in po.blockerSummary || []"
+                        :key="bk.kind"
+                        v-tooltip.top="blockerTip(bk)"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full cursor-help border border-n-amber-7 bg-n-amber-2 text-n-amber-12"
+                      >
+                        <span class="w-3 h-3 shrink-0 i-lucide-flag" />
+                        {{ bk.label }} {{ bk.count }}
                       </span>
                       <!-- 阶段进度：一排点＋已走几步，跟药丸同一行。
                            外购单点数更少（短流程），不是「跳了几步」。 -->

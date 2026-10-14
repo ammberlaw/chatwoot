@@ -59,6 +59,9 @@ class Mes::Bom < ApplicationRecord
   belongs_to :owner, class_name: 'User', optional: true # 负责人：起草本生产任务单的工程/PMC 账号
   belongs_to :sales_owner, class_name: 'User', optional: true # 订单归属业务员
   has_many :bom_items, class_name: 'Mes::BomItem', dependent: :destroy, inverse_of: :bom
+  # 只取还没解除的卡点行：订单列表每行都要汇总卡点，整表 bom_items 预加载太重，
+  # 而卡点行平时是零条。
+  has_many :blocked_bom_items, -> { blocked }, class_name: 'Mes::BomItem', inverse_of: :bom, dependent: nil
   has_many :bom_revisions, class_name: 'Mes::BomRevision', dependent: :destroy, inverse_of: :bom
   has_many :production_orders, class_name: 'Mes::ProductionOrder', dependent: :nullify
   accepts_nested_attributes_for :bom_items, allow_destroy: true

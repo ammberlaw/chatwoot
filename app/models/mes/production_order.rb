@@ -413,6 +413,28 @@ class Mes::ProductionOrder < ApplicationRecord
     pos.all? { |po| po.status == 'RECEIVED' }
   end
 
+  # 这张单的料卡在哪（汇总 BOM 行上的卡点）。
+  # 用户原话：「这也不能是我这边没做生产单，也不能是采购不下单的原因……
+  # 其余相关的人怎么看到这个单问题点是卡在哪里呢？」
+  # 返回 [{ kind:, label:, count:, oldest_days:, owner_names: }]，没卡点返回 []。
+  def blocker_summary
+    grouped = blocked_items.group_by(&:blocker_kind)
+    rows = grouped.map { |kind, items| blocker_group(kind, items) }
+    rows.sort_by { |r| -r[:count] }
+  end
+
+  def blocked_items = bom&.blocked_bom_items || []
+
+  def blocked_item_count = blocked_items.size
+
+  def blocker_group(kind, items)
+    { kind: kind,
+      label: Mes::BomItem::BLOCKER_LABELS[kind],
+      count: items.size,
+      oldest_days: items.filter_map(&:blocked_days).max,
+      owner_names: items.filter_map { |i| i.blocker_owner&.name }.uniq }
+  end
+
   def outsourced? = is_outsourced
 
   # 流程闸用：订单是否已走到（或越过）某阶段。用于「下游单必须等上游做完才能开」的硬锁，

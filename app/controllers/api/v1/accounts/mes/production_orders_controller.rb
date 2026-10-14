@@ -36,7 +36,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     # manager（审批人名）与 bom.bom_revisions（BOM 变更记录）分片里逐行要，
     # 漏了就是一页一百行各查一次库。
     :manager, :crm_customer, :crm_product, :crm_sales_order, :stage_events, :purchase_orders,
-    { bom: :bom_revisions },
+    # blocked_bom_items：阶段格旁边的卡点标签逐行要（已带 blocker_owner，提示里要写「等谁」）。
+    { bom: [:bom_revisions, { blocked_bom_items: :blocker_owner }] },
     { images_attachments: :blob, files_attachments: :blob }
   ].freeze
 

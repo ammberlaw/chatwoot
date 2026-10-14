@@ -41,6 +41,10 @@ if Current.account_user&.mes_staff?
   json.outsource_supplier_name resource.outsource_supplier&.name
 end
 json.bom_no resource.bom&.bom_no
+# 这张单的料卡在哪（按「等谁」归类汇总）。列表和详情都据此显示「3 项等业务文件 · 已卡 5 天」，
+# 让相关的人一眼看出卡点不在采购身上（用户原话：「其余相关的人怎么看到这个单问题点卡在哪里」）。
+json.blocker_summary resource.blocker_summary
+json.blocked_item_count resource.blocked_item_count
 # BOM 材料明细（该单用料，对标金蝶「材料明细」）：仅详情下发，列表不带以免 N+1。
 if local_assigns[:detail]
   # 档案备注（工程写在产品上的工艺要求）按料号一次查出来，车间照着做，不用再跑产品档案。
