@@ -58,9 +58,18 @@ const props = defineProps({
     type: String,
     default: 'lg',
     validator: value =>
-      ['6xl', '5xl', '4xl', '3xl', '2xl', 'xl', 'lg', 'md', 'sm'].includes(
-        value
-      ),
+      [
+        '7xl',
+        '6xl',
+        '5xl',
+        '4xl',
+        '3xl',
+        '2xl',
+        'xl',
+        'lg',
+        'md',
+        'sm',
+      ].includes(value),
   },
   position: {
     type: String,

@@ -11,11 +11,49 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     production_order_id: :production_order_id, purchase_order_id: :purchase_order_id
   }.freeze
 
+  # 表头上每列各自的筛选（对标金蝶的漏斗）。放后端是因为列表分页：
+  # 前端只过滤本页，第 2 页往后的命中就全看不见了。
+  #
+  # 一律走 EXISTS / 子查询，不 join 明细表：入库单一单多行，join 进来单据行会翻倍、
+  # 分页数跟着错；而且 mes_stock_entries 和 mes_purchase_orders 上都有 owner_id，
+  # join 后外层按 owner 过滤就成了歧义列（生产任务单那边踩过，整页 500）。
+  ITEM_MATCH_SQL = lambda { |cond|
+    <<~SQL.squish
+      EXISTS (SELECT 1 FROM mes_stock_entry_items sei
+                LEFT JOIN mes_materials m ON m.id = sei.mes_material_id
+                LEFT JOIN crm_products p ON p.id = sei.crm_product_id
+               WHERE sei.stock_entry_id = mes_stock_entries.id AND (#{cond}))
+    SQL
+  }
+
+  COLUMN_LIKE_FILTERS = {
+    col_no: ->(scope, v) { scope.where('mes_stock_entries.entry_no ILIKE ?', "%#{v}%") },
+    col_po: lambda { |scope, v|
+      scope.where(purchase_order_id: Mes::PurchaseOrder.where('mes_purchase_orders.po_no ILIKE ?', "%#{v}%").select(:id))
+    },
+    # 供应商挂在来源采购单的明细行上（一张采购单可能有好几家），入库单自己身上没有这个字段。
+    col_supplier: lambda { |scope, v|
+      scope.where(purchase_order_id: Mes::PurchaseItem.joins(:mes_supplier)
+                                                      .where('mes_suppliers.name ILIKE ?', "%#{v}%")
+                                                      .select(:purchase_order_id))
+    },
+    col_code: ->(scope, v) { scope.where(ITEM_MATCH_SQL.call('p.sku ILIKE :t OR m.material_no ILIKE :t'), t: "%#{v}%") },
+    col_name: ->(scope, v) { scope.where(ITEM_MATCH_SQL.call('p.name ILIKE :t OR m.name ILIKE :t'), t: "%#{v}%") },
+    col_spec: lambda { |scope, v|
+      scope.where(ITEM_MATCH_SQL.call('m.specification ILIKE :t OR p.specification ILIKE :t'), t: "%#{v}%")
+    },
+    col_owner: lambda { |scope, v|
+      scope.where(production_order_id: Mes::ProductionOrder.joins(:owner)
+                                                           .where('users.name ILIKE ?', "%#{v}%").select(:id))
+    }
+  }.freeze
+
   def index
     scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_stock_entries))
     COLUMN_FILTERS.each do |param, column|
       scope = scope.where(column => params[param]) if params[param].present?
     end
+    scope = apply_column_filters(scope)
     @stock_entries_count = scope.count
     @stock_entries = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
@@ -95,6 +133,19 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
   end
 
   private
+
+  # 过账时间区间：单边留空＝只卡一头。
+  POSTED_SQL = 'mes_stock_entries.posted_at'.freeze
+
+  def apply_column_filters(scope)
+    COLUMN_LIKE_FILTERS.each do |param, apply|
+      value = params[param]
+      scope = apply.call(scope, value.to_s.strip) if value.present?
+    end
+    scope = scope.where("#{POSTED_SQL} >= ?", params[:posted_from]) if params[:posted_from].present?
+    scope = scope.where("#{POSTED_SQL} <= ?", "#{params[:posted_to]} 23:59:59") if params[:posted_to].present?
+    scope
+  end
 
   # 删草稿不止制单人：成品入库是车间开单、仓管清点，重复单恰恰是仓管在清点时发现的，
   # 只许制单人删就成了死锁——生产上 6 张重复成品入库草稿卡了 34 天没人删得掉。
