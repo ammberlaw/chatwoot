@@ -171,6 +171,12 @@ const reload = () => {
   if (currentPage.value !== 1) currentPage.value = 1;
   else load();
 };
+// 整页重取：列表 + 左侧分类目录 + 产品分组。
+// 新编一个料号存完，左边目录的条数不跟着变，看着像没存上（反馈原话
+// 「我新编了代码，保存以后，目录里面没有及时显示出来」）——那两棵树得一起重拉。
+const refreshAll = async () => {
+  await Promise.all([load(), loadCategoryTree(), loadGroups()]);
+};
 // 清空搜索并立刻回到全部档案（光清输入框不重新取数，列表还停在搜索结果上）。
 const clearKeyword = () => {
   keyword.value = '';
@@ -363,6 +369,8 @@ const submit = async () => {
     if (ok) {
       useAlert(editingId.value ? '产品已更新' : `已新增产品 ${ok.sku}`);
       dialogRef.value?.close();
+      // 存完把列表和左侧目录一起刷新，不然新编的料号要手动刷页面才看得到
+      refreshAll();
     }
   } catch (error) {
     useAlert(error?.message || '保存失败，请检查填写内容');
@@ -488,6 +496,14 @@ onMounted(() => {
             <span class="i-lucide-x size-3.5" />
           </button>
         </div>
+        <Button
+          label="刷新"
+          variant="outline"
+          color="slate"
+          icon="i-lucide-rotate-cw"
+          :is-loading="isFetching"
+          @click="refreshAll"
+        />
         <Button
           label="搜索"
           variant="outline"

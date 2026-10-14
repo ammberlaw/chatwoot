@@ -113,6 +113,18 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
     render 'api/v1/accounts/mes/purchase_orders/show'
   end
 
+  # 同料同供应商上次下单多少钱。建单时选完料和供应商就问一次，自动把单价填上。
+  # 只认审批通过的采购单——没过审的价还可能被老板打回来改，拿它当参考会把错价一路传下去。
+  def last_price
+    hit = Mes::LastPurchasePrice.for(
+      account: Current.account,
+      supplier_id: params[:mes_supplier_id],
+      crm_product_id: params[:crm_product_id].presence,
+      mes_material_id: params[:mes_material_id].presence
+    )
+    render json: { payload: hit }
+  end
+
   # 按供应商分组的结构化数据，供前端列出供应商、勾选要导哪几家、以及看/改各家抬头。
   def export_data
     render json: { payload: Mes::PoSupplierExport.new(@purchase_order, bill_entities: bill_entities_param).payload }

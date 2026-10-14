@@ -5,6 +5,9 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
   def index? = readable?
   def show? = readable?
   def requirement? = @account_user.mes_staff?
+
+  # 上次采购价：只有看得见金额的岗位能问（同 export? 的成本口径）。
+  def last_price? = @account_user.mes_can?(:purchase) || @account_user.crm_finance? || @account_user.administrator?
   # 按供应商拆单导出（发供应商用，含采购价）：这份文件要发出去，仍只给采购岗/财务/管理员，
   # 审批人不在内（他只需要在系统里看，不需要对外发单）。
   def export? = exportable?

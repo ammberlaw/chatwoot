@@ -525,6 +525,8 @@ Rails.application.routes.draw do
               collection do
                 get :requirement
                 get :approval_inbox
+                # 同料同供应商上次下单多少钱（只认审批通过的单，见 Mes::LastPurchasePrice）
+                get :last_price
                 post :stage_blob
               end
               member do

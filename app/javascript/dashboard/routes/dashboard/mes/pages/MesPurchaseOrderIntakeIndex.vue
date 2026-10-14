@@ -134,6 +134,7 @@ const blankRow = () => ({
   // 对不上产品档案时就是这样存的。编辑时必须原样带回去，否则这一行的料会被清掉。
   mesMaterialId: '',
   materialLabel: '', // 物料档案行的显示名（只读，产品档案里找不到它）
+  lastPriceText: '', // 「上次 ¥21.00 · PU2609005」，只提示不参与提交
   mesSupplierId: '',
   arrivalDate: '',
   qty: '1',
@@ -366,9 +367,52 @@ const supplierAbove = i => {
   }
   return '';
 };
+
+// 同料同供应商上次下单多少钱：选完料和供应商就问一次。
+// 采购原话「不然谁都记不住那么多物料单价」。只认审批通过的单（后端口径，见 Mes::LastPurchasePrice）。
+// 单价已经填了就不覆盖——她手上可能拿着新报价，自动改掉就成事故了，只在下面提示上次多少。
+const fetchLastPrice = async row => {
+  const material = row.mesMaterialId || '';
+  const product = row.crmProductId || '';
+  if (!row.mesSupplierId || (!material && !product)) {
+    row.lastPriceText = '';
+    return;
+  }
+  try {
+    const { data } = await axios.get(
+      `/api/v1/accounts/${accountId.value}/mes/purchase_orders/last_price`,
+      {
+        params: {
+          mes_supplier_id: row.mesSupplierId,
+          crm_product_id: product || undefined,
+          mes_material_id: material || undefined,
+        },
+      }
+    );
+    const hit = data?.payload;
+    if (!hit) {
+      row.lastPriceText = '';
+      return;
+    }
+    const yuan = Number(hit.rate_micros) / 1e6;
+    row.lastPriceText = `上次 ¥${yuan.toFixed(2)}${
+      hit.price_tax_included ? '（含税）' : ''
+    }${hit.po_no ? ` · ${hit.po_no}` : ''}`;
+    if (!row.rate) {
+      row.rate = String(yuan);
+      row.priceTaxIncluded = !!hit.price_tax_included;
+      syncAmount(row);
+    }
+  } catch {
+    row.lastPriceText = '';
+  }
+};
+
 const copySupplierFromAbove = i => {
   const id = supplierAbove(i);
-  if (id) form.rows[i].mesSupplierId = id;
+  if (!id) return;
+  form.rows[i].mesSupplierId = id;
+  fetchLastPrice(form.rows[i]);
 };
 
 const addRow = () => form.rows.push(blankRow());
@@ -1058,6 +1102,7 @@ onBeforeRouteLeave((to, from, next) => {
                         row.mesMaterialId = '';
                         row.materialLabel = '';
                       }
+                      fetchLastPrice(row);
                     }
                   "
                   @select="onProductPicked"
@@ -1065,10 +1110,16 @@ onBeforeRouteLeave((to, from, next) => {
               </div>
               <div class="flex items-center gap-1 min-w-0">
                 <ComboBox
-                  v-model="row.mesSupplierId"
+                  :model-value="row.mesSupplierId"
                   :options="supplierOptions"
                   placeholder="选择供应商"
                   class="flex-1 min-w-0"
+                  @update:model-value="
+                    v => {
+                      row.mesSupplierId = v;
+                      fetchLastPrice(row);
+                    }
+                  "
                 />
                 <!-- 同上：一个供应商常要下好几行料，逐行重选太慢 -->
                 <button
@@ -1087,12 +1138,22 @@ onBeforeRouteLeave((to, from, next) => {
                 placeholder="数量"
                 @update:model-value="v => setRowQty(row, v)"
               />
-              <Input
-                :model-value="row.rate"
-                type="number"
-                :placeholder="row.priceTaxIncluded ? '含税单价' : '未税单价'"
-                @update:model-value="v => setRowRate(row, v)"
-              />
+              <div class="flex flex-col gap-0.5 min-w-0">
+                <Input
+                  :model-value="row.rate"
+                  type="number"
+                  :placeholder="row.priceTaxIncluded ? '含税单价' : '未税单价'"
+                  @update:model-value="v => setRowRate(row, v)"
+                />
+                <!-- 上次这家供应商这颗料多少钱。单价空着就直接填进去，已填只提示不覆盖。 -->
+                <span
+                  v-if="row.lastPriceText"
+                  class="text-[11px] leading-tight truncate text-n-slate-10"
+                  :title="row.lastPriceText"
+                >
+                  {{ row.lastPriceText }}
+                </span>
+              </div>
               <!-- 金额：填了就按数量反推单价（供应商常报「这批多少钱」） -->
               <Input
                 :model-value="row.amount"
