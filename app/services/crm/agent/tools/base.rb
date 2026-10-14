@@ -25,11 +25,21 @@ class Crm::Agent::Tools::Base < RubyLLM::Tool
     t.length > max ? "#{t[0, max]}…（已截断）" : t
   end
 
-  def money(micros, currency = 'CNY')
-    return '—' if micros.blank? || micros.to_i.zero?
+  # 金额带千分位：外贸这边的数动辄七八位，「CNY 40949800.95」人得用手指着数。
+  # zero: 控制 0 怎么显示——「未收 0」是有意义的真数，「金额 —」才是没填。
+  def money(micros, currency = 'CNY', zero: '—')
+    return zero if micros.blank?
+    return zero if micros.to_i.zero? && zero != '0.00'
 
-    format('%<cur>s %<amt>.2f', cur: currency, amt: micros.to_i / 1e6)
+    amt = micros.to_i / 1e6
+    "#{currency} #{ActiveSupport::NumberHelper.number_to_delimited(format('%.2f', amt))}"
   end
 
   def day(value) = value&.to_date&.to_s || '—'
+
+  # 数量去掉没意义的小数尾巴：「500.000 个」读起来像个报错。
+  def fnum(value)
+    d = value.to_d
+    d == d.to_i ? d.to_i.to_s : d.to_s('F')
+  end
 end

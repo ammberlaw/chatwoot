@@ -42,4 +42,22 @@ class Crm::Agent::Scope
     ids = @access.team_visible_owner_ids
     ids == :all ? @account.crm_pis : @account.crm_pis.where(owner_id: ids)
   end
+
+  def opportunities
+    ids = @access.team_visible_owner_ids
+    ids == :all ? @account.crm_opportunities : @account.crm_opportunities.where(owner_id: ids)
+  end
+
+  # 跟进任务的负责人列是 assignee_id（与跟进任务列表控制器同口径）。
+  def follow_up_tasks
+    ids = @access.team_visible_owner_ids
+    ids == :all ? @account.crm_follow_up_tasks : @account.crm_follow_up_tasks.where(assignee_id: ids)
+  end
+
+  # 应收自己那个 owner_id 可能是空的（财务手工建的单），所以跟着**客户**的可见范围走，
+  # 不按 owner_id——否则业务员问「谁还欠钱」会漏掉一批本该他管的客户。
+  def receivables
+    ids = @access.team_visible_owner_ids
+    ids == :all ? @account.erp_receivables : @account.erp_receivables.where(crm_customer_id: customers.select(:id))
+  end
 end

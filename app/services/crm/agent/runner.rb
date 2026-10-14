@@ -9,7 +9,9 @@ class Crm::Agent::Runner
   class NotAllowed < StandardError; end
 
   # 一轮最多让它调几次工具。防的是模型钻进死循环（反复查同一个客户）把钱和时间烧光。
-  MAX_TOOL_CALLS = 12
+  # 16 是按最长的真实链路给的：找客户 → 看档案 → 翻邮件 → 查历史价 → 查库存 → 建草稿，
+  # 中间还会补查几次产品，12 次曾不够用（撞上限就白跑一轮）。
+  MAX_TOOL_CALLS = 16
 
   pattr_initialize [:conversation!]
 
@@ -49,10 +51,17 @@ class Crm::Agent::Runner
     chat
   end
 
+  TOOL_CLASSES = [
+    Crm::Agent::Tools::FindCustomer, Crm::Agent::Tools::CustomerProfile,
+    Crm::Agent::Tools::CustomerEmails, Crm::Agent::Tools::SearchProducts,
+    Crm::Agent::Tools::QuoteHistory, Crm::Agent::Tools::StockLookup,
+    Crm::Agent::Tools::OrderProgress, Crm::Agent::Tools::MyNumbers,
+    Crm::Agent::Tools::MyWorklist, Crm::Agent::Tools::CompanyLookup,
+    Crm::Agent::Tools::DraftEmail, Crm::Agent::Tools::DraftPi
+  ].freeze
+
   def tools(scope)
-    [Crm::Agent::Tools::FindCustomer, Crm::Agent::Tools::CustomerProfile,
-     Crm::Agent::Tools::CustomerEmails, Crm::Agent::Tools::SearchProducts,
-     Crm::Agent::Tools::DraftEmail, Crm::Agent::Tools::DraftPi].map { |klass| klass.new(scope) }
+    TOOL_CLASSES.map { |klass| klass.new(scope) }
   end
 
   # 把之前的问答喂回去，不然每句话都是失忆的，用户得每次重报客户名。
@@ -79,6 +88,9 @@ class Crm::Agent::Runner
   TOOL_LABELS = {
     'find_customer' => '查客户', 'customer_profile' => '看客户档案与订单',
     'customer_emails' => '调往来邮件', 'search_products' => '查产品档案',
+    'quote_history' => '翻历史报价', 'stock_lookup' => '查实时库存',
+    'order_progress' => '查订单生产进度', 'my_numbers' => '算工作台数字',
+    'my_worklist' => '列待办清单', 'company_lookup' => '做客户背调',
     'draft_email' => '写邮件草稿', 'draft_pi' => '建 PI 草稿'
   }.freeze
 
@@ -112,6 +124,18 @@ class Crm::Agent::Runner
          要是用户给的数和档案差很多，先把事做了，再在最后用一句话提一下差异就行。
       4. 用户说中文就用中文回答；要写给客户的邮件正文，按客户所在国家用对应语言写。
       5. 回答简短直接，别客套。要列清单就列清单。
+
+      几个该主动做的动作：
+      · 报价或建 PI 前，先用 quote_history 看这个客户/这个型号以前报过什么价。
+        和这次差得多就在回答末尾提一句，别让业务员自己撞上客户翻旧账。
+      · 承诺交期前，先用 stock_lookup 看现货和可用量（现货数不等于可用数，
+        别的在产订单可能早排掉了）。
+      · 问「做到哪一步了」「什么时候能出货」用 order_progress。
+      · 问数字（我这个月多少、还有几个要跟）用 my_numbers，问「是哪几个」用 my_worklist。
+      · 陌生询盘先用 company_lookup 背调一下，顺便看系统里有没有人已经在跟。
+
+      查到的所有数据都已经按提问人自己的权限范围过滤过了，你看到的就是他能看到的，
+      不用再替他判断「这个该不该给他看」。
 
       #{customer_hint}
     PROMPT

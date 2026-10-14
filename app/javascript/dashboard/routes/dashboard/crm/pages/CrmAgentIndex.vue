@@ -46,8 +46,8 @@ onMounted(loadList);
       <div class="flex items-baseline gap-2">
         <h1 class="text-xl font-semibold text-n-slate-12">AI 助手</h1>
         <span class="text-xs text-n-slate-11">
-          查客户 · 翻往来邮件做总结 · 起草邮件和
-          PI（都只出草稿，不会自动发出去）
+          客户与往来邮件 · 历史报价 · 实时库存 · 订单进度 · 我的数与待办 ·
+          询盘背调 · 起草邮件和 PI（都只出草稿，不会自动发出去）
         </span>
       </div>
       <Button label="新对话" color="iris" size="sm" @click="newChat" />

@@ -27,6 +27,7 @@ const messages = computed(() => conversation.value?.messages || []);
 const input = ref('');
 const starting = ref(false);
 const scroller = ref(null);
+const inputRef = ref(null);
 let timer = null;
 
 const running = computed(() => conversation.value?.status === 'RUNNING');
@@ -106,15 +107,54 @@ onBeforeUnmount(stopPolling);
 
 defineExpose({ reset });
 
-// 快捷问法：新用户不知道能问什么，给几条踩得准的
-const SHORTCUTS = [
-  '把这个客户最近的往来邮件总结一下，谈到哪一步了',
-  '这个客户值不值得跟？看看成交记录和最近互动',
-  '根据最近邮件，起草一封跟进邮件',
+// 快捷问法：新用户不知道能问什么，给几条踩得准的。
+//
+// 分两套是必须的：客户详情面板里有客户上下文，「这个客户」问得通；
+// 独立页和悬浮球没有上下文，同一句话会让它反问「哪个客户」——点一下就卡住。
+// needsInput 的那条只填进输入框不发送，等用户把邮箱粘上来。
+const CUSTOMER_SHORTCUTS = [
+  {
+    text: '把这个客户最近的往来邮件总结一下，谈到哪一步了',
+    icon: 'i-lucide-mails',
+  },
+  { text: '这个客户以前报过什么价、成交过什么价？', icon: 'i-lucide-tag' },
+  { text: '根据最近邮件，起草一封跟进邮件', icon: 'i-lucide-file-pen-line' },
 ];
-const useShortcut = text => {
-  input.value = text;
-  send();
+const GENERAL_SHORTCUTS = [
+  {
+    text: '我这个月做了多少？还有哪几个客户该跟进',
+    icon: 'i-lucide-chart-no-axes-combined',
+  },
+  { text: '列一下还没收完款的，按未收金额从大到小', icon: 'i-lucide-wallet' },
+  {
+    text: '帮我背调一下这个询盘邮箱：',
+    icon: 'i-lucide-search-check',
+    needsInput: true,
+  },
+];
+const shortcuts = computed(() =>
+  props.crmCustomerId ? CUSTOMER_SHORTCUTS : GENERAL_SHORTCUTS
+);
+
+// 能力说明同样分两套。客户详情里这块只有半屏宽，标题又已经写过一遍
+// 「直接问这个客户的事」，再铺三行全量能力纯属把快捷问法挤下去。
+const INTRO_FULL =
+  '我能查客户和往来邮件、翻历史报价、看实时库存和订单生产进度、算你这个月的数、列该跟进的客户和未收款，也能对陌生询盘做背调，还能把邮件和 PI 写成草稿。';
+const INTRO_CUSTOMER =
+  '往来总结、历史报价、订单进度、库存，问就行；也能直接起草邮件和 PI。';
+const intro = computed(() =>
+  props.crmCustomerId ? INTRO_CUSTOMER : INTRO_FULL
+);
+
+const useShortcut = async item => {
+  input.value = item.text;
+  if (!item.needsInput) {
+    send();
+    return;
+  }
+  // 要补内容的那条：光填进框里不给焦点，用户会以为按钮坏了。
+  await nextTick();
+  inputRef.value?.focus();
 };
 </script>
 
@@ -128,21 +168,24 @@ const useShortcut = text => {
         v-if="!messages.length"
         class="flex flex-col gap-2 px-3 py-6 text-sm text-n-slate-11"
       >
-        <p>
-          我能查客户、翻往来邮件做总结、查产品和报价，还能把邮件和 PI 写成草稿。
-        </p>
+        <p>{{ intro }}</p>
         <p class="text-xs">
           草稿都不会自动发出去——写好放在草稿箱/PI 列表里，你核对后自己点发送。
         </p>
         <div class="flex flex-col gap-1 mt-2">
           <button
-            v-for="s in SHORTCUTS"
-            :key="s"
+            v-for="item in shortcuts"
+            :key="item.text"
             type="button"
             class="px-3 py-2 text-xs text-left border rounded-lg reset-base border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
-            @click="useShortcut(s)"
+            @click="useShortcut(item)"
           >
-            {{ s }}
+            <span
+              aria-hidden="true"
+              class="size-4 shrink-0"
+              :class="item.icon"
+            />
+            {{ item.text }}
           </button>
         </div>
       </div>
@@ -186,6 +229,7 @@ const useShortcut = text => {
 
     <div class="flex items-end gap-2 px-1 pt-2 border-t border-n-weak">
       <textarea
+        ref="inputRef"
         v-model="input"
         rows="2"
         placeholder="问点什么…（回车发送，Shift+回车换行）"

@@ -2,6 +2,25 @@
 #
 # agent 取数一律用 user 的权限（见 Crm::Agent::Tools::Base#scope_for）——
 # 业务员让它查客户/翻邮件，看到的和他自己点进去看到的必须一样，不能借 AI 越权。
+# == Schema Information
+#
+# Table name: crm_agent_conversations
+#
+#  id              :bigint           not null, primary key
+#  last_error      :text
+#  status          :string           default("IDLE"), not null
+#  title           :string
+#  created_at      :datetime         not null
+#  updated_at      :datetime         not null
+#  account_id      :bigint           not null
+#  crm_customer_id :bigint
+#  user_id         :bigint           not null
+#
+# Indexes
+#
+#  index_crm_agent_conversations_on_account_id_and_user_id  (account_id,user_id)
+#  index_crm_agent_conversations_on_crm_customer_id         (crm_customer_id)
+#
 class Crm::AgentConversation < ApplicationRecord
   self.table_name = 'crm_agent_conversations'
 

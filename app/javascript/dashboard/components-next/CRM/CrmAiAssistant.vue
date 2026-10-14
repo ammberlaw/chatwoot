@@ -10,6 +10,7 @@
 // （查客户 → 翻往来邮件 → 看订单 → 起草），而且取数跟着人的权限走。
 // 壳（悬浮球、拖拽、位置记忆）原样保留，用户看到的入口没变。
 import { ref, computed, onBeforeUnmount } from 'vue';
+import { useRoute } from 'vue-router';
 import { useMapGetter } from 'dashboard/composables/store';
 import CrmAgentPanel from 'dashboard/components-next/CRM/CrmAgentPanel.vue';
 
@@ -17,8 +18,14 @@ const open = ref(false);
 const panelRef = ref(null);
 
 // 名单之外的人不显示悬浮球（后端 Crm::AgentController 会再判一次）。
+// 「AI 助手」独立页本身就是这个对话，再浮一颗球上去点开的是**另一个**会话，
+// 用户会以为自己刚问的那句丢了——那一页上收起来。
+const route = useRoute();
 const currentUser = useMapGetter('getCurrentUser');
-const canUse = computed(() => currentUser.value?.crm_agent === true);
+const canUse = computed(
+  () =>
+    currentUser.value?.crm_agent === true && route.name !== 'crm_agent_index'
+);
 
 const toggle = () => {
   open.value = !open.value;
