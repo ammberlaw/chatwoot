@@ -656,6 +656,17 @@ const INTAKE_TIPS = {
 };
 const intakeTip = kind => INTAKE_TIPS[kind] || '';
 
+// 材料明细里那一行的卡点提示：卡了几天、等谁、补充说明。
+const itemBlockerTip = bi =>
+  [
+    bi.blockerLabel,
+    bi.blockedDays != null ? `已卡 ${bi.blockedDays} 天` : '',
+    bi.blockerOwnerName ? `等：${bi.blockerOwnerName}` : '',
+    bi.blockerNote || '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
 const blockerTip = b =>
   [
     `${b.count} 项料${b.label}`,
@@ -3505,6 +3516,10 @@ watch(currentPage, fetchRecords);
                     <th class="py-1.5 pr-3 font-medium whitespace-nowrap">
                       生产备注
                     </th>
+                    <!-- 卡点：这颗料为什么还没下采购单（等客户确认/等文件/打样…） -->
+                    <th class="py-1.5 pr-3 font-medium whitespace-nowrap">
+                      卡点
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3550,6 +3565,17 @@ watch(currentPage, fetchRecords);
                     </td>
                     <td class="py-1.5 pr-3 text-n-slate-11">
                       {{ bi.productionNote || '—' }}
+                    </td>
+                    <td class="py-1.5 pr-3 whitespace-nowrap">
+                      <span
+                        v-if="bi.blockerLabel"
+                        v-tooltip.top="itemBlockerTip(bi)"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full cursor-help border border-n-amber-7 bg-n-amber-2 text-n-amber-12"
+                      >
+                        <span class="w-3 h-3 shrink-0 i-lucide-flag" />
+                        {{ bi.blockerLabel }}
+                      </span>
+                      <span v-else class="text-n-slate-10">—</span>
                     </td>
                   </tr>
                 </tbody>
