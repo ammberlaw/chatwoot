@@ -9,3 +9,6 @@ json.api_base @setting.api_base
 apollo = @setting.apollo_api_key.to_s
 json.apollo_configured apollo.present?
 json.apollo_key_hint apollo.present? ? apollo[-4..] : nil
+
+# 谁能用 CRM 的 AI 助手。管理员/副管恒可用，不在这张名单里也行。
+json.agent_user_ids @setting.agent_user_ids.to_a

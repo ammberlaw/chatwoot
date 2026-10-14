@@ -42,6 +42,7 @@ class Api::V1::Accounts::Crm::AiSettingsController < Api::V1::Accounts::Crm::Bas
   end
 
   def setting_params
-    params.require(:setting).permit(:api_key, :model, :api_base, :apollo_api_key)
+    # agent_user_ids 是数组：谁能用 CRM 的 AI 助手（管理员恒可用，见 Crm::AiSetting.agent_allowed?）
+    params.require(:setting).permit(:api_key, :model, :api_base, :apollo_api_key, agent_user_ids: [])
   end
 end

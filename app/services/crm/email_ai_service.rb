@@ -282,31 +282,6 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
     ask(SUGGEST_SYSTEM, truncate(transcript, 8000))
   end
 
-  ASSISTANT_ROUTER_SYSTEM = <<~PROMPT.freeze
-    你是外贸 CRM 智能助手的路由器。把用户的一句话请求归类并抽取参数。只返回一个 JSON 对象，不要多余文字、不要代码块：
-    {
-      "intent": "query" | "background_check" | "compose" | "chat",
-      "metric": "new_customers" | "pending_followups" | "open_opportunities" | "orders_amount" | "my_tasks" | null,
-      "days": 数字或null,
-      "month": "YYYY-MM"或null,
-      "target": 字符串或null,
-      "compose_intent": 字符串或null,
-      "answer": 字符串或null
-    }
-    规则：
-    - 想查数量/金额/统计 → intent=query，选最贴切的 metric：新增客户=new_customers（"近N天"填 days）；
-      待跟进客户=pending_followups；进行中/在谈商机=open_opportunities；成交订单额=orders_amount（指定月份填 month）；我的待办=my_tasks。
-    - 想了解某公司/客户背景、背调、查这家公司靠不靠谱 → intent=background_check，target 填邮箱/公司域名/公司名。
-    - 想写邮件/回信/拟稿 → intent=compose，compose_intent 填中文写信意图。
-    - 其它一般问题或外贸知识 → intent=chat，answer 用简体中文直接回答（2~4 句）。
-    不确定时优先 chat。不要编造。
-  PROMPT
-
-  # 智能助手意图路由：把用户一句话解析成 { intent, metric, days, month, target, compose_intent, answer }。
-  def route_assistant(message:)
-    parse_json(ask(ASSISTANT_ROUTER_SYSTEM, truncate(message, 2000)))
-  end
-
   # 公司背调：site_text 为官网抓取的文本（由 Crm::CompanyLookupService 提供），返回字段化 Hash。
   def company_profile(domain:, site_text:)
     raw = ask(COMPANY_SYSTEM, "公司域名：#{domain}\n\n官网内容：\n#{truncate(site_text)}")

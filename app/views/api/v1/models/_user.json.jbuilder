@@ -22,6 +22,10 @@ json.crm_manager resource.active_account_user&.crm_manager? || false
 json.crm_team_lead resource.active_account_user&.crm_team_lead? || false
 # 财务身份：可查看全员「已通过」提成表并导出（与业务员身份叠加）。
 json.crm_finance resource.active_account_user&.crm_finance? || false
+# 能不能用 CRM 的 AI 助手（名单在「AI 设置」里配，管理员恒可用）。
+# 侧栏入口据此显隐；后端 Crm::AgentController 会再判一次，这里只管别给看不到的人摆个入口。
+json.crm_agent resource.active_account_user.present? &&
+  Crm::AiSetting.agent_allowed?(resource.active_account_user.account, resource.active_account_user)
 json.mes_roles resource.active_account_user&.effective_mes_roles || []
 json.mes_capabilities resource.active_account_user&.mes_capability_list || []
 # 能不能看物料成本（生产任务单上的单价/金额、物料单价表、成本导出）。

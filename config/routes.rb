@@ -207,7 +207,6 @@ Rails.application.routes.draw do
             patch 'conversation_translation/:conversation_id/settings', to: 'conversation_translation#settings'
             post 'conversation_translation/:conversation_id/translate', to: 'conversation_translation#translate'
             post 'ai/suggest', to: 'ai#suggest'
-            post 'ai/ask', to: 'ai#ask'
             # 客服分配设置：管理收件箱协作者（会话「分配客服代表」可选的人）。
             get 'inbox_collaborators', to: 'inbox_collaborators#index'
             patch 'inbox_collaborators', to: 'inbox_collaborators#update'
@@ -283,6 +282,13 @@ Rails.application.routes.draw do
             resource :public_pool_settings, only: [:show, :update]
             resource :ai_settings, only: [:show, :update], controller: 'ai_settings'
             post 'ai_settings/test', to: 'ai_settings#test'
+            # CRM AI 助手（带工具的 agent）。路径带 /crm/ai 前缀是为了命中
+            # rack_timeout 的 AI 放宽名单（见 config/initializers/rack_timeout.rb）。
+            scope path: 'ai' do
+              resources :agent, only: [:index, :show, :create, :destroy], controller: 'agent' do
+                member { post :create_message }
+              end
+            end
             resources :doc_sections, only: [:index, :create, :update, :destroy]
             resources :credentials, only: [:index, :create, :update, :destroy] do
               member { post :reveal }

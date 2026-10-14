@@ -3,6 +3,8 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import CrmAiSettingsAPI from 'dashboard/api/crm/aiSettings';
+import CrmAgentsAPI from 'dashboard/api/crm/crmAgents';
+import { useAccount } from 'dashboard/composables/useAccount';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -36,7 +38,27 @@ const form = reactive({
   model: 'deepseek-chat',
   apiBase: 'https://api.deepseek.com/v1',
   apolloKey: '',
+  // 谁能用 CRM 的 AI 助手（管理员/副管恒可用，不必列进来）
+  agentUserIds: [],
 });
+const { accountId } = useAccount();
+// 可选成员：AI 助手的使用名单从这里挑
+const members = ref([]);
+const loadMembers = async () => {
+  try {
+    const { data } = await CrmAgentsAPI.get(accountId.value);
+    members.value = data?.payload || data || [];
+  } catch {
+    members.value = [];
+  }
+};
+const toggleAgentUser = id => {
+  const key = String(id);
+  form.agentUserIds = form.agentUserIds.includes(key)
+    ? form.agentUserIds.filter(x => x !== key)
+    : [...form.agentUserIds, key];
+};
+
 const configured = ref(false);
 const keyHint = ref(null);
 const apolloConfigured = ref(false);
@@ -72,6 +94,8 @@ onMounted(async () => {
     apolloKeyHint.value = data.apollo_key_hint;
     form.model = data.model || 'deepseek-chat';
     form.apiBase = data.api_base || 'https://api.deepseek.com/v1';
+    form.agentUserIds = (data.agent_user_ids || []).map(String);
+    await loadMembers();
   } catch {
     useAlert(t('CRM.AI_SETTINGS.LOAD_ERROR'));
   } finally {
@@ -95,6 +119,7 @@ const save = async () => {
         model: form.model.trim() || 'deepseek-chat',
         api_base: form.apiBase.trim(),
         apollo_api_key: form.apolloKey.trim(),
+        agent_user_ids: form.agentUserIds.map(Number),
       },
     });
     configured.value = data.configured;
@@ -265,6 +290,36 @@ const fieldCls =
           {{ t('CRM.AI_SETTINGS.APOLLO_HINT') }}
         </span>
       </label>
+
+      <!-- AI 助手使用名单：勾谁谁能用（管理员/副管恒可用，不必勾） -->
+      <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">
+        <span class="text-label text-n-slate-12">AI 助手开放给谁</span>
+        <span class="text-xs text-n-slate-10">
+          勾中的人能用 CRM 右下角的 AI 助手。管理员和副管理员一直可用，不用勾。
+          它只能查到这个人本来就有权限看的客户和邮件。
+        </span>
+        <div
+          class="flex flex-wrap gap-1.5 p-2 border rounded-lg border-n-weak max-h-40 overflow-y-auto"
+        >
+          <button
+            v-for="m in members"
+            :key="m.id"
+            type="button"
+            class="px-2.5 py-1 text-xs rounded-full reset-base"
+            :class="
+              form.agentUserIds.includes(String(m.id))
+                ? 'bg-n-iris-9 text-white'
+                : 'bg-n-alpha-1 text-n-slate-11 hover:bg-n-alpha-2'
+            "
+            @click="toggleAgentUser(m.id)"
+          >
+            {{ m.name }}
+          </button>
+          <span v-if="!members.length" class="text-xs text-n-slate-10">
+            没有可选成员。
+          </span>
+        </div>
+      </div>
 
       <!-- 测试连接 -->
       <div class="flex flex-col gap-2 pt-2 border-t border-n-weak">

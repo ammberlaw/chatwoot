@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_14_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_14_140000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -872,6 +872,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_14_120000) do
     t.index ["account_id", "resource_type", "resource_id", "created_at"], name: "idx_crm_access_logs_on_resource"
   end
 
+  create_table "crm_agent_conversations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "crm_customer_id"
+    t.string "title"
+    t.string "status", default: "IDLE", null: false
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id"], name: "index_crm_agent_conversations_on_account_id_and_user_id"
+    t.index ["crm_customer_id"], name: "index_crm_agent_conversations_on_crm_customer_id"
+  end
+
+  create_table "crm_agent_messages", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_id", null: false
+    t.string "role", null: false
+    t.text "content"
+    t.jsonb "meta", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id"], name: "index_crm_agent_messages_on_conversation_id"
+  end
+
   create_table "crm_ai_settings", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.text "api_key"
@@ -880,6 +904,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_14_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "apollo_api_key"
+    t.bigint "agent_user_ids", default: [], null: false, array: true
     t.index ["account_id"], name: "index_crm_ai_settings_on_account_id", unique: true
   end
 

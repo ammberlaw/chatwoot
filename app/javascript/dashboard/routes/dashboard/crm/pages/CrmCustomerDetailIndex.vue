@@ -8,6 +8,7 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
 import { useCrmCustomersStore } from 'dashboard/stores/crm/customers';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import CrmAgentPanel from 'dashboard/components-next/CRM/CrmAgentPanel.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { COUNTRY_LABELS } from 'dashboard/routes/dashboard/crm/constants/countries';
 import { useCrmOptions } from 'dashboard/composables/useCrmOptions';
@@ -143,6 +144,10 @@ const openTimelineItem = e => {
 };
 
 // ---- AI 销售建议：按需分析与该客户的往来 + 商机，给一条下一步建议（不落库）----
+// AI 助手只对放开名单的人出现（同右下角悬浮球，后端还会再判一次）
+const agentUser = useMapGetter('getCurrentUser');
+const canUseAgent = computed(() => agentUser.value?.crm_agent === true);
+
 const suggestion = ref('');
 const suggestLoading = ref(false);
 const loadSuggestion = async () => {
@@ -951,6 +956,28 @@ onMounted(() => {
               点击「AI
               分析往来」，根据与该客户的邮件往来和商机情况，生成一条可执行的下一步跟进建议。
             </p>
+          </section>
+
+          <!-- AI 助手：对着当前这个客户问，不用再报客户名（上下文自动带上）。
+               和右下角那个悬浮球是同一个 agent，只是预设了客户。 -->
+          <section
+            v-if="canUseAgent"
+            class="p-5 border border-white/70 rounded-2xl bg-n-solid-1/60 shadow-sm"
+          >
+            <h3
+              class="flex items-center gap-2 mb-2 text-sm font-semibold text-n-slate-12"
+            >
+              <span class="i-ph-sparkle-fill size-4 text-n-iris-11" />
+              AI 助手
+              <span class="text-xs font-normal text-n-slate-10">
+                直接问这个客户的事：总结往来、起草邮件、做 PI 草稿
+              </span>
+            </h3>
+            <CrmAgentPanel
+              :key="customer?.id"
+              :crm-customer-id="customer?.id"
+              :full-height="false"
+            />
           </section>
         </div>
 

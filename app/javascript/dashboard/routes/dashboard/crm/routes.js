@@ -20,6 +20,7 @@ import CrmSalesTargetsIndex from './pages/CrmSalesTargetsIndex.vue';
 import CrmMailAccountsIndex from './pages/CrmMailAccountsIndex.vue';
 import CrmEmailTemplatesIndex from './pages/CrmEmailTemplatesIndex.vue';
 import CrmAiSettingsIndex from './pages/CrmAiSettingsIndex.vue';
+import CrmAgentIndex from './pages/CrmAgentIndex.vue';
 import CrmInboxCollaboratorsIndex from './pages/CrmInboxCollaboratorsIndex.vue';
 import CrmOrgStructureIndex from './pages/CrmOrgStructureIndex.vue';
 import CrmOrgChartIndex from './pages/CrmOrgChartIndex.vue';
@@ -152,6 +153,8 @@ const crmPages = [
     CrmEmailTemplatesIndex
   ),
   crmPage('ai-settings', 'crm_ai_settings_index', CrmAiSettingsIndex),
+  // CRM AI 助手（带工具的 agent，见 Crm::Agent::Runner）
+  crmPage('agent', 'crm_agent_index', CrmAgentIndex),
   crmPage(
     'inbox-collaborators',
     'crm_inbox_collaborators_index',

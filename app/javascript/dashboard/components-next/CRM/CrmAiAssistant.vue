@@ -1,38 +1,27 @@
 <script setup>
-/* global axios */
-// CRM 全局对话式 AI 助手（对标小满「专业 Agent 调度中枢」）：一句话直达——
-// 问数（新增客户/待跟进/在谈商机/订单额/我的待办）、写邮件、客户背调、外贸知识问答。
-// 常驻在 CRM 布局层，悬浮右下角；对话为临时会话（不落库，精简）。
-import { ref, computed, nextTick, onBeforeUnmount } from 'vue';
-import { useAccount } from 'dashboard/composables/useAccount';
-import { useCrmComposeStore } from 'dashboard/stores/crm/compose';
-
-const { accountId } = useAccount();
-const composeStore = useCrmComposeStore();
+// CRM 全局 AI 助手：常驻 CRM 各页右下角的悬浮球，点开就是对话。
+//
+// 2026-10-14 换成了**带工具的 agent**（Crm::Agent::Runner）：
+// 原来这里是个「意图路由器」——AI 只判断你想干哪件事，然后跑写死的分支，
+// 能查的只有 5 个固定指标（新增客户/待跟进/在谈商机/订单额/待办），
+// 超出这几类就只能凭模型知识瞎聊、根本不碰你的库，也不会连着查几步。
+//
+// 现在换成真 agent：它自己决定调哪些工具、一轮里能连着查好几次
+// （查客户 → 翻往来邮件 → 看订单 → 起草），而且取数跟着人的权限走。
+// 壳（悬浮球、拖拽、位置记忆）原样保留，用户看到的入口没变。
+import { ref, computed, onBeforeUnmount } from 'vue';
+import { useMapGetter } from 'dashboard/composables/store';
+import CrmAgentPanel from 'dashboard/components-next/CRM/CrmAgentPanel.vue';
 
 const open = ref(false);
-const input = ref('');
-const loading = ref(false);
-const messages = ref([]); // { role: 'user'|'assistant', text, kind?, data? }
-const scrollRef = ref(null);
+const panelRef = ref(null);
 
-const QUICK = [
-  '近30天新增了多少客户',
-  '有哪些客户该跟进了',
-  '现在在谈的商机金额',
-  '本月成交订单额',
-];
-
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (scrollRef.value)
-      scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
-  });
-};
+// 名单之外的人不显示悬浮球（后端 Crm::AgentController 会再判一次）。
+const currentUser = useMapGetter('getCurrentUser');
+const canUse = computed(() => currentUser.value?.crm_agent === true);
 
 const toggle = () => {
   open.value = !open.value;
-  if (open.value) scrollToBottom();
 };
 
 // —— 悬浮图标可拖动 + 记忆位置（按距右下角的偏移存 localStorage）——
@@ -117,46 +106,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointerup', onPointerUp);
 });
-
-const send = async text => {
-  const q = (text ?? input.value).trim();
-  if (!q || loading.value) return;
-  input.value = '';
-  messages.value.push({ role: 'user', text: q });
-  loading.value = true;
-  scrollToBottom();
-  try {
-    const { data } = await axios.post(
-      `/api/v1/accounts/${accountId.value}/crm/ai/ask`,
-      { message: q }
-    );
-    messages.value.push({
-      role: 'assistant',
-      text: data.reply || '',
-      kind: data.kind,
-      data: data.data,
-    });
-  } catch (e) {
-    messages.value.push({
-      role: 'assistant',
-      text: e.response?.data?.message || 'AI 出错了，请稍后再试。',
-    });
-  } finally {
-    loading.value = false;
-    scrollToBottom();
-  }
-};
-
-// compose 结果 →「用此稿写信」：把草稿带入常驻写信窗。
-const useDraft = data => {
-  composeStore.open({ subject: data?.subject, body: data?.body });
-};
 </script>
 
 <template>
   <!-- 悬浮触发按钮（可拖动，位置记忆） -->
   <button
-    v-if="!open"
+    v-if="canUse && !open"
     type="button"
     :style="launcherStyle"
     class="fixed z-50 flex items-center justify-center text-white rounded-full shadow-lg cursor-move touch-none select-none size-14 bg-gradient-to-br from-n-iris-9 to-n-violet-10 shadow-n-iris-9/30 hover:scale-105 transition-transform"
@@ -169,11 +124,10 @@ const useDraft = data => {
 
   <!-- 对话面板 -->
   <div
-    v-else
+    v-else-if="canUse"
     :style="panelStyle"
     class="fixed z-50 flex flex-col overflow-hidden border shadow-2xl w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-6rem)] rounded-2xl border-white/60 bg-n-solid-1/95 backdrop-blur-xl"
   >
-    <!-- 头部 -->
     <div
       class="flex items-center gap-2 px-4 py-3 border-b border-n-weak bg-gradient-to-r from-n-iris-3 to-n-violet-3"
     >
@@ -181,7 +135,15 @@ const useDraft = data => {
       <span class="text-sm font-semibold text-n-slate-12">AI 助手</span>
       <button
         type="button"
-        class="ml-auto text-n-slate-10 hover:text-n-slate-12"
+        class="ml-auto mr-1 text-n-slate-10 hover:text-n-slate-12"
+        title="新对话"
+        @click="panelRef?.reset()"
+      >
+        <span class="i-lucide-rotate-ccw size-3.5" />
+      </button>
+      <button
+        type="button"
+        class="text-n-slate-10 hover:text-n-slate-12"
         title="关闭"
         @click="toggle"
       >
@@ -189,90 +151,8 @@ const useDraft = data => {
       </button>
     </div>
 
-    <!-- 消息区 -->
-    <div ref="scrollRef" class="flex-1 px-4 py-3 space-y-3 overflow-y-auto">
-      <!-- 空态：引导 + 快捷问题 -->
-      <div v-if="!messages.length" class="flex flex-col gap-3">
-        <p class="text-sm text-n-slate-11">
-          你好，我可以帮你查数据、写邮件、做客户背调。试试问我：
-        </p>
-        <div class="flex flex-col gap-1.5">
-          <button
-            v-for="q in QUICK"
-            :key="q"
-            type="button"
-            class="px-3 py-2 text-xs text-left transition-colors border rounded-lg border-n-weak text-n-slate-11 hover:bg-n-alpha-1 hover:text-n-slate-12"
-            @click="send(q)"
-          >
-            {{ q }}
-          </button>
-        </div>
-      </div>
-
-      <!-- 对话气泡 -->
-      <div
-        v-for="(m, i) in messages"
-        :key="i"
-        class="flex"
-        :class="m.role === 'user' ? 'justify-end' : 'justify-start'"
-      >
-        <div
-          class="max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words"
-          :class="
-            m.role === 'user'
-              ? 'bg-n-iris-9 text-white rounded-br-sm'
-              : 'bg-n-alpha-2 text-n-slate-12 rounded-bl-sm'
-          "
-        >
-          {{ m.text }}
-          <!-- 写邮件草稿：主题预览 +「用此稿写信」 -->
-          <div
-            v-if="m.kind === 'compose' && m.data"
-            class="mt-2 p-2 rounded-lg bg-n-solid-1/70 border border-n-weak text-n-slate-11"
-          >
-            <div v-if="m.data.subject" class="mb-1 font-medium text-n-slate-12">
-              {{ m.data.subject }}
-            </div>
-            <div class="line-clamp-3 text-xs opacity-80">{{ m.data.body }}</div>
-            <button
-              type="button"
-              class="inline-flex items-center gap-1 mt-2 px-2.5 py-1 text-xs font-semibold rounded-md text-n-iris-11 bg-n-iris-3 hover:bg-n-iris-4"
-              @click="useDraft(m.data)"
-            >
-              <span class="i-lucide-pen-line size-3.5" />用此稿写信
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 加载态 -->
-      <div v-if="loading" class="flex justify-start">
-        <div
-          class="px-3 py-2 text-sm rounded-2xl rounded-bl-sm bg-n-alpha-2 text-n-slate-10 animate-pulse"
-        >
-          正在思考…
-        </div>
-      </div>
-    </div>
-
-    <!-- 输入区 -->
-    <div class="flex items-end gap-2 px-3 py-3 border-t border-n-weak">
-      <textarea
-        v-model="input"
-        rows="1"
-        placeholder="问我任何 CRM 相关的事…"
-        class="flex-1 px-3 py-2 text-sm border rounded-lg resize-none border-n-weak bg-n-solid-1 text-n-slate-12 focus:outline-none focus:border-n-iris-8 max-h-24"
-        @keydown.enter.exact.prevent="send()"
-      />
-      <button
-        type="button"
-        class="flex items-center justify-center text-white rounded-lg shrink-0 size-9 bg-n-iris-9 hover:bg-n-iris-10 disabled:opacity-50"
-        :disabled="loading || !input.trim()"
-        title="发送"
-        @click="send()"
-      >
-        <span class="i-lucide-send size-4" />
-      </button>
+    <div class="flex-1 min-h-0 px-3 py-2">
+      <CrmAgentPanel ref="panelRef" />
     </div>
   </div>
 </template>

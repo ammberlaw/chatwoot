@@ -113,6 +113,8 @@ const isMesPurchaseApprover = computed(
 // 财务：对账要看采购单和入库单（花了多少、货什么时候到的），但不进生产/BOM/供应商那些。
 // 判的是 crm_finance 布尔列，不是 crm_role === 'finance'——生产上两位财务的 crm_role 是空的。
 const isFinanceViewer = computed(() => currentUser.value?.crm_finance === true);
+// AI 助手是否对这个人开放（名单在「AI 设置」里配，见 Crm::AiSetting.agent_allowed?）
+const canUseCrmAgent = computed(() => currentUser.value?.crm_agent === true);
 // 能不能看物料成本（物料单价表、任务单上的单价、成本导出）。
 // 口径在后端 AccountUser#can_view_material_cost?，这里只读它算好的标志，
 // 别在前端重拼「财务 or 管理员 or 采购」——两边迟早对不上。
@@ -689,6 +691,19 @@ const menuItems = computed(() => {
         to: accountScopedRoute('crm_workspace_index'),
         activeOn: ['crm_workspace_index'],
       },
+      // AI 助手：天天用的工具，放主功能区第二位，不埋进设置里。
+      // 只对放开了名单的人显示（后端 Crm::AiSetting.agent_allowed? 再判一次）。
+      ...(canUseCrmAgent.value
+        ? [
+            {
+              name: 'CRM Agent',
+              label: 'AI 助手',
+              icon: 'i-lucide-sparkles',
+              to: accountScopedRoute('crm_agent_index'),
+              activeOn: ['crm_agent_index'],
+            },
+          ]
+        : []),
       {
         name: 'Inbox',
         label: t('SIDEBAR.INBOX'),
