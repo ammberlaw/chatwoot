@@ -1093,6 +1093,14 @@ class Mes::ProductionOrder < ApplicationRecord
   end
 
   # 单行用料需求（用量按本单产量/基准产量放大）。
+  # 每台用量 = BOM 行用量 / 基准量。摆到界面上是为了让「基准量和明细口径打错」一眼看得出来：
+  # 曾有一张单基准量填 3、明细按整单 300 填，折算倍数变成 100，领料推出 30000
+  # （一台 10.4 寸机器要 100 片屏，明显不对，但当时界面只给最终数字，没人看得出哪里错）。
+  def per_unit_qty(item)
+    base = bom&.base_qty.to_d
+    base.zero? ? nil : (item.qty.to_d / base)
+  end
+
   def requirement_row(item, factor, product_map = {}, stock_map = {}, ordered_map = {})
     pid = product_map[item.material_no]
     ordered = pid ? (ordered_map[pid] || 0).to_d : 0.to_d
@@ -1110,6 +1118,7 @@ class Mes::ProductionOrder < ApplicationRecord
       # 工程写给采购的注意事项（指定品牌/能否替代/到货节点），只在系统里给采购看。
       purchase_note: item.purchase_note,
       qty: (item.qty.to_d * factor),
+      per_unit_qty: per_unit_qty(item),
       # 对应物料实时库存（跨仓合计）+ 工程在 BOM 上给的建议采购量，供采购参考。
       on_hand: pid ? (stock_map[pid] || 0).to_d : 0.to_d,
       suggested_purchase_qty: item.suggested_purchase_qty,

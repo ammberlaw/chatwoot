@@ -144,7 +144,10 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       category: params[:category].presence || 'MACHINE'
     )
     rows.each { |r| r.delete(:mes_supplier_id) } unless Current.account_user&.mes_staff?
-    render json: { payload: rows }
+    # 折算口径一并给前端摆出来：基准量和明细用量填拧了（基准量 3、明细按整单 300 填）时，
+    # 倍数会变成 100，推出来的量看着像真的。把「按 N 台折算到 M 台（×K）」写在界面上，
+    # 填错一眼就看得见。
+    render json: { payload: rows, meta: issue_plan_meta }
   end
 
   # 挂工程 BOM（阶段 2）：绑 BOM + 期望交期 → 进 BOM_READY。预估完工仍按 BOM 天数自动算。
@@ -408,6 +411,14 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   end
 
   private
+
+  # 推料的折算口径：订单量 / BOM 基准量 = 倍数。
+  def issue_plan_meta
+    bom = @production_order.bom
+    base = bom&.base_qty.to_d
+    { order_qty: @production_order.qty, bom_no: bom&.bom_no, bom_base_qty: bom&.base_qty,
+      factor: base.zero? ? nil : (@production_order.qty.to_d / base) }
+  end
 
   # 导出范围：默认当月，可传 month=YYYY-MM 或 from/to。只取挂了生产任务单的。
   # 走和列表同一套可见性收口，不另开口子。

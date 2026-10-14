@@ -34,8 +34,13 @@ class Mes::PoTemplateFiller # rubocop:disable Metrics/ClassLength
       address_tail_si: 7, # 地址串尾部保留的固定说明（换行后整段）
       currency_prefix: '币别：',
       first_item_row: 9,   # 明细样例首行
-      sample_item_rows: 2, # 模板样例明细占 2 行（9、10），克隆/覆盖时按 1 项 1 行处理
-      total_row: nil,      # wintouch 模板无独立合计行，明细尾行即为最后一项
+      # 模板第 10 行其实是**合计行**（E10=合计、I10=总数量、L10=总金额），不是第二行样例明细。
+      # 原来按 2 行样例算，tail 从第 11 行起，合计行正好落在被明细覆盖的区间里被吃掉——
+      # 一个供应商下好几颗料时整张单没有合计（采购反馈点名的问题）。
+      sample_item_rows: 1,
+      total_row: 10,         # 合计行：E=合计、I=总数量、L=总金额
+      total_qty_ref: 'I',
+      total_amount_ref: 'L',
       # 明细单行各列（值列 + 样式），克隆行时套用；文本列用 inlineStr。
       cell_layout: {
         seq: { col: 'A', s: '14', type: :num },

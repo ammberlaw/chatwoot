@@ -182,6 +182,26 @@ const addRow = () => form.rows.push(blankIssueRow());
 const removeRow = i => form.rows.splice(i, 1);
 
 // 按选中生产订单的 BOM 推料 + 带出每行「物料编码 / 实时库存 / 已领 / 待领」。
+// BOM 折算口径：订单量 / 基准量 = 倍数。
+// 基准量和明细用量口径填拧了（基准量 3、明细按整单 300 填），倍数会变成 100，
+// 推出来的数看着像真的——2026-10-14 就推出过一台机器要 100 片屏、整单 30000。
+// 所以把倍数和每台用量直接摆在界面上，填错一眼看得见。
+const planMeta = ref(null);
+const SCALE_WARNING =
+  '　倍数不是 1，先回 BOM 核对「基准产量」和每行用量是不是同一个口径，否则领料量会整体放大。';
+const scaleNote = computed(() => {
+  const m = planMeta.value;
+  if (!m || !m.factor) return '';
+  const factor = Number(m.factor);
+  const tidy = Number.isInteger(factor) ? factor : factor.toFixed(3);
+  return `${m.bom_no || 'BOM'} 基准 ${m.bom_base_qty} → 本单 ${m.order_qty}，用量按 ×${tidy} 折算`;
+});
+// 倍数不是 1 就提醒核对：正常情况下 BOM 基准量就按本单数量做，倍数应当是 1。
+const scaleSuspicious = computed(() => {
+  const f = Number(planMeta.value?.factor);
+  return Number.isFinite(f) && f !== 1;
+});
+
 const pushFromBom = async () => {
   if (!form.productionOrderId) {
     useAlert('请先选销售订单');
@@ -193,6 +213,7 @@ const pushFromBom = async () => {
       form.warehouseId || undefined
     );
     const reqs = data?.payload || [];
+    planMeta.value = data?.meta || null;
     if (!reqs.length) {
       useAlert('该销售订单未挂生产任务单或无用料');
       return;
@@ -214,6 +235,7 @@ const pushFromBom = async () => {
       onHand: Number(r.on_hand || 0),
       issuedQty: Number(r.issued_qty || 0),
       pendingQty: Number(r.pending_qty || 0),
+      perUnitQty: r.per_unit_qty == null ? null : Number(r.per_unit_qty),
       qty: String(r.pending_qty ?? r.qty),
     }));
     const unmatched = reqs.filter(r => !r.crm_product_id).length;
@@ -528,6 +550,29 @@ onMounted(async () => {
           />
         </div>
 
+        <!-- 折算口径：正常 BOM 基准量就按本单数量做，倍数应当是 1。
+             不是 1 就说明基准量和明细用量的口径对不上，推出来的量会整体放大/缩小。 -->
+        <div
+          v-if="scaleNote"
+          class="flex items-start gap-1.5 px-3 py-2 text-xs rounded-lg"
+          :class="
+            scaleSuspicious
+              ? 'text-n-ruby-12 bg-n-ruby-3'
+              : 'text-n-slate-11 bg-n-alpha-1'
+          "
+        >
+          <span
+            class="mt-0.5 shrink-0 size-3.5"
+            :class="
+              scaleSuspicious ? 'i-lucide-triangle-alert' : 'i-lucide-info'
+            "
+          />
+          <span class="leading-relaxed">
+            {{ scaleNote }}
+            <span v-if="scaleSuspicious">{{ SCALE_WARNING }}</span>
+          </span>
+        </div>
+
         <div class="flex items-center justify-between">
           <span class="text-heading-2 text-n-slate-12">
             领料明细 <span class="text-n-ruby-11">*</span>
@@ -591,6 +636,10 @@ onMounted(async () => {
               </span>
               <span>已领：{{ row.issuedQty ?? '—' }}</span>
               <span>待领：{{ row.pendingQty ?? '—' }}</span>
+              <!-- 每台用量：口径填拧了（一台机器 100 片屏）在这一眼就看得出来 -->
+              <span v-if="row.perUnitQty != null">
+                每台：{{ row.perUnitQty }}
+              </span>
               <span
                 v-if="
                   row.onHand !== null && Number(row.qty) > Number(row.onHand)
