@@ -28,6 +28,11 @@ import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const store = useMesStockEntriesStore();
 const { mesCan } = useMesRole();
+// 建领料单生产岗也能做：生产提领料、仓管过账发料——后端
+// Mes::StockEntryPolicy#create? 就是 `stock || report`，前端这里原来只判 stock，
+// 于是生产岗（能力只有 report/quality）在这页看不到任何按钮，后端却是放行的。
+// ⚠️ 这页其余按钮（过账/退单/作废删单）是仓储动作，后端只给 stock，别跟着一起放开。
+const canCreateIssue = computed(() => mesCan('stock') || mesCan('report'));
 const warehousesStore = useMesWarehousesStore();
 
 const records = computed(() => store.getRecords);
@@ -344,7 +349,7 @@ onMounted(async () => {
     <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
       <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">生产领料</h1>
       <Button
-        v-if="mesCan('stock')"
+        v-if="canCreateIssue"
         label="新建领料单"
         color="iris"
         size="sm"
