@@ -161,12 +161,16 @@ json.files resource.files.map { |f| { id: f.id, filename: f.filename.to_s, url: 
 # 关联采购单概要（一单多采购单：主料/辅料各一张，不同采购员）——供订单详情展示。
 # 含采购员/采购信息，销售端不可见（生态硬约束）——仅 MES 员工下发，其余给空数组。
 if Current.account_user&.mes_staff?
-  json.purchase_orders resource.purchase_orders.includes(:owner, :purchase_items).order(:created_at) do |po|
+  pos = resource.purchase_orders.includes(:owner, purchase_items: %i[mes_material crm_product]).order(:created_at).to_a
+  # 缺料清单只在详情里给：列表逐行展开每张采购单的明细，几百行的页面会被拖垮。
+  shortages = local_assigns[:detail] ? Mes::KitShortage.by_purchase_order(pos) : {}
+  json.purchase_orders pos do |po|
     json.id po.id
     json.po_no po.po_no
     json.status po.status
     json.owner_name mes_staff_name(po.owner, Mes::StaffNames::PURCHASING)
     json.item_count po.purchase_items.size
+    json.shortages shortages[po.id] || []
   end
 else
   json.purchase_orders []

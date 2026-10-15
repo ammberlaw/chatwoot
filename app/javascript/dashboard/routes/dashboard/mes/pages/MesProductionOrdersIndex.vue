@@ -118,6 +118,18 @@ const poKitSummary = pos => {
     complete: active.length > 0 && received === active.length,
   };
 };
+// 还差哪些料才能齐套开工（后端 Mes::KitShortage 按采购单算好，仅详情下发）。
+// 徽标只说「待齐套 3/4」，差哪几样得一张张点开采购单明细数——这里摊开给车间和采购看。
+const poShortages = pos =>
+  (pos || [])
+    .filter(p => (p.shortages || []).length)
+    .map(p => ({ poNo: p.poNo, status: p.status, rows: p.shortages }));
+const shortageCount = pos =>
+  poShortages(pos).reduce((n, g) => n + g.rows.length, 0);
+const showShortage = ref(false);
+// 后端下发的是 decimal 字符串，直接摆上去会显示成「3000.0」。
+const fmtQty = v => Number(Number(v || 0).toFixed(3));
+
 // 阶段芯片配色：8 个阶段各一色（原来统一 bg-n-iris-3，一眼看不出订单走到哪一步，
 // 经典灰下更是整条 iris 被压成灰）。参照 CRM 的 PI 状态芯片做法：浅底 + 同色深字。
 //
@@ -433,7 +445,22 @@ const onSearchInput = () => {
 
 // —— 详情面板 ——
 const selectRow = row => {
-  selected.value = selected.value?.id === row.id ? null : row;
+  if (selected.value?.id === row.id) {
+    selected.value = null;
+    return;
+  }
+  selected.value = row;
+  // 换单时收起上一单展开着的缺料清单，否则看着像是新单的缺料。
+  showShortage.value = false;
+  // 列表行不带缺料明细（逐行展开每张采购单的明细会 N+1），展开面板时补拉一次详情。
+  // 转换方式必须和 store 一致（深转 camelCase），否则面板里一半字段读不到。
+  MesProductionOrderAPI.show(row.id)
+    .then(({ data }) => {
+      if (selected.value?.id === row.id) {
+        selected.value = camelcaseKeys(data, { deep: true });
+      }
+    })
+    .catch(() => {});
 };
 
 // 「查看」：看建单时填的**订单明细（定制规格表）**，只读弹窗（区别于右侧流程面板）。
@@ -2728,12 +2755,21 @@ watch(currentPage, fetchRecords);
             <span class="text-xs font-medium text-n-slate-11">
               关联采购单（{{ selected.purchaseOrders.length }}）
             </span>
-            <span
-              class="px-1.5 py-0.5 text-xs rounded-full shrink-0"
+            <!-- 没齐套时徽标可点开，列出还差哪几样料（已齐套就没东西可展开，保持纯标签）。 -->
+            <component
+              :is="shortageCount(selected.purchaseOrders) ? 'button' : 'span'"
+              :type="
+                shortageCount(selected.purchaseOrders) ? 'button' : undefined
+              "
+              class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full shrink-0 reset-base"
               :class="
                 poKitSummary(selected.purchaseOrders).complete
                   ? 'bg-n-teal-3 text-n-teal-11'
                   : 'bg-n-amber-3 text-n-amber-11'
+              "
+              @click="
+                shortageCount(selected.purchaseOrders) &&
+                (showShortage = !showShortage)
               "
             >
               {{
@@ -2741,7 +2777,53 @@ watch(currentPage, fetchRecords);
                   ? '已齐套'
                   : `待齐套 ${poKitSummary(selected.purchaseOrders).received}/${poKitSummary(selected.purchaseOrders).total}`
               }}
-            </span>
+              <template v-if="shortageCount(selected.purchaseOrders)">
+                · 缺 {{ shortageCount(selected.purchaseOrders) }} 项
+                <span
+                  class="shrink-0 size-3"
+                  :class="
+                    showShortage
+                      ? 'i-lucide-chevron-up'
+                      : 'i-lucide-chevron-down'
+                  "
+                />
+              </template>
+            </component>
+          </div>
+
+          <!-- 缺料清单：到齐了这张单才能领料生产，所以差什么要一眼看到，不用去翻采购单明细。 -->
+          <div
+            v-if="showShortage && shortageCount(selected.purchaseOrders)"
+            class="p-2 mb-2 rounded-lg bg-n-amber-2"
+          >
+            <div
+              v-for="g in poShortages(selected.purchaseOrders)"
+              :key="g.poNo"
+              class="mb-1.5 last:mb-0"
+            >
+              <div class="mb-1 text-xs font-medium text-n-amber-12">
+                {{ g.poNo }}
+                <span class="font-normal text-n-slate-11">
+                  · {{ poStatusLabel(g.status) }} · 缺 {{ g.rows.length }} 项
+                </span>
+              </div>
+              <div
+                v-for="r in g.rows"
+                :key="`${g.poNo}-${r.code}-${r.name}`"
+                class="flex items-baseline gap-2 text-xs text-n-slate-11"
+              >
+                <span class="shrink-0 text-n-slate-12">{{
+                  r.code || '—'
+                }}</span>
+                <span class="flex-1 min-w-0 truncate">{{ r.name || '—' }}</span>
+                <span class="shrink-0">
+                  订 {{ fmtQty(r.qty) }} / 到 {{ fmtQty(r.received) }} ·
+                  <b class="text-n-amber-12">
+                    差 {{ fmtQty(r.short) }}{{ r.unit || '' }}
+                  </b>
+                </span>
+              </div>
+            </div>
           </div>
           <ul class="flex flex-col gap-1.5">
             <li
@@ -2750,9 +2832,9 @@ watch(currentPage, fetchRecords);
               class="flex items-center justify-between text-xs"
             >
               <span class="text-n-slate-12">
-                {{ po.po_no }}
+                {{ po.poNo }}
                 <span class="text-n-slate-10">
-                  · {{ po.owner_name || '—' }} · {{ po.item_count }} 项
+                  · {{ po.ownerName || '—' }} · {{ po.itemCount }} 项
                 </span>
               </span>
               <span
