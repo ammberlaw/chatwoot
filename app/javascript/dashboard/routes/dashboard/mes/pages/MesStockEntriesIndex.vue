@@ -79,7 +79,11 @@ const activeFilterCount = computed(
       k === 'posted' ? v.from || v.to : v
     ).length
 );
+// 一个框搜多处：入库单号 / 采购单号 / 对内备注 / 供应商 / 物料编码 / 品名 / 归属人。
+// 走后端（见 StockEntriesController::SEARCH_SQL）——列表每页 15 条，前端过滤只筛得到本页。
+const search = ref('');
 const activeColFilterParams = () => ({
+  q: search.value.trim() || undefined,
   col_no: colFilters.col_no || undefined,
   col_po: colFilters.col_po || undefined,
   col_supplier: colFilters.col_supplier || undefined,
@@ -106,6 +110,13 @@ const resetToFirstPage = () => {
   if (currentPage.value === 1) fetchList();
   else currentPage.value = 1;
 };
+// 300ms 防抖：边打字边请求会把后端打满，也会让结果跳来跳去。
+let searchTimer = null;
+watch(search, () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(resetToFirstPage, 300);
+});
+
 const clearOrderFilter = () => {
   filterOrderId.value = '';
   filterOrderNo.value = '';
@@ -882,6 +893,30 @@ useRouteQueryReentry(query => {
           → 过账后即成成品库存，可直接销售出库，无需再开成品入库单。
         </span>
       </div>
+    </div>
+
+    <!-- 搜索：单号 / 采购单 / 对内备注 / 供应商 / 物料编码 / 品名 / 归属人（走后端，不只筛本页）。
+         原生 input 要带 reset-base 和显式 h-9，否则被全局 SCSS 强制成 field-base h-10、比旁边控件高一截。 -->
+    <div
+      class="flex items-center gap-2 px-4 pt-1 pb-2 sm:px-6 [.theme-classic_&]:sm:!px-8"
+    >
+      <input
+        v-model="search"
+        type="text"
+        placeholder="搜索单号 / 采购单 / 对内备注 / 供应商 / 物料编码"
+        class="w-96 h-9 px-3 mb-0 text-sm rounded-lg reset-base outline outline-1 outline-n-weak bg-n-solid-1 text-n-slate-12 placeholder:text-n-slate-9 hover:outline-n-brand focus:outline-n-brand"
+      />
+      <button
+        v-if="search"
+        type="button"
+        class="inline-flex items-center h-9 px-2 text-xs shrink-0 text-n-slate-11 hover:text-n-slate-12"
+        @click="search = ''"
+      >
+        清空
+      </button>
+      <span v-if="search" class="text-xs text-n-slate-11">
+        命中 {{ totalCount }} 张
+      </span>
     </div>
 
     <!-- 从生产订单跳来的按订单筛选提示 -->

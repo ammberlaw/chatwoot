@@ -26,6 +26,20 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     SQL
   }
 
+  # 一个框搜多处：单号 / 采购单号 / 对内备注 / 供应商 / 物料编码 / 品名 / 归属人。
+  # 表头漏斗是「知道要筛哪一列」时用的，这个框是「只记得一个号或一个厂名」时用的，两者可叠加。
+  # ⚠️ 同样全走子查询不 join 明细，理由见 ITEM_MATCH_SQL 上面那段（分页数会翻倍 + owner_id 歧义）。
+  SEARCH_SQL = <<~SQL.squish
+    mes_stock_entries.entry_no ILIKE :q
+    OR mes_stock_entries.purchase_order_id IN (SELECT po.id FROM mes_purchase_orders po
+         WHERE po.po_no ILIKE :q OR po.internal_remark ILIKE :q)
+    OR mes_stock_entries.purchase_order_id IN (SELECT pit.purchase_order_id FROM mes_purchase_items pit
+         JOIN mes_suppliers sup ON sup.id = pit.mes_supplier_id WHERE sup.name ILIKE :q)
+    OR mes_stock_entries.production_order_id IN (SELECT mpo.id FROM mes_production_orders mpo
+         JOIN users usr ON usr.id = mpo.owner_id WHERE usr.name ILIKE :q)
+    OR #{ITEM_MATCH_SQL.call('p.sku ILIKE :q OR m.material_no ILIKE :q OR p.name ILIKE :q OR m.name ILIKE :q')}
+  SQL
+
   COLUMN_LIKE_FILTERS = {
     col_no: ->(scope, v) { scope.where('mes_stock_entries.entry_no ILIKE ?', "%#{v}%") },
     col_po: lambda { |scope, v|
@@ -45,7 +59,11 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     col_owner: lambda { |scope, v|
       scope.where(production_order_id: Mes::ProductionOrder.joins(:owner)
                                                            .where('users.name ILIKE ?', "%#{v}%").select(:id))
-    }
+    },
+    q: ->(scope, v) { scope.where(SEARCH_SQL, q: "%#{v}%") },
+    # 过账时间区间：单边留空＝只卡一头；到日那天整天都算在内，所以补到 23:59:59。
+    posted_from: ->(scope, v) { scope.where('mes_stock_entries.posted_at >= ?', v) },
+    posted_to: ->(scope, v) { scope.where('mes_stock_entries.posted_at <= ?', "#{v} 23:59:59") }
   }.freeze
 
   def index
@@ -153,16 +171,11 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
 
   private
 
-  # 过账时间区间：单边留空＝只卡一头。
-  POSTED_SQL = 'mes_stock_entries.posted_at'.freeze
-
   def apply_column_filters(scope)
     COLUMN_LIKE_FILTERS.each do |param, apply|
       value = params[param]
       scope = apply.call(scope, value.to_s.strip) if value.present?
     end
-    scope = scope.where("#{POSTED_SQL} >= ?", params[:posted_from]) if params[:posted_from].present?
-    scope = scope.where("#{POSTED_SQL} <= ?", "#{params[:posted_to]} 23:59:59") if params[:posted_to].present?
     scope
   end
 
