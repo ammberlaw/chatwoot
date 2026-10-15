@@ -45,6 +45,14 @@ json.owner_avatar_url resource.owner&.avatar_url
 json.handled_by_id resource.handled_by_id
 json.handled_by_name resource.handled_by&.crm_display_name
 json.status resource.status
+# 审核（与 status 正交）：审过了才能转生产订单/进财务待建账。
+json.approval_status resource.approval_status
+json.approval_label resource.approval_label
+json.approved_by_name resource.approved_by&.name
+json.approved_at resource.approved_at
+json.reject_reason resource.reject_reason
+# 当前这个人能不能审这张单——前端据此决定显不显示「通过/驳回」。
+json.can_approve Crm::SalesOrderApprover.can?(Current.account_user, resource)
 json.order_kind resource.order_kind
 json.order_date resource.order_date
 json.delivery_date resource.delivery_date

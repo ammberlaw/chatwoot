@@ -6,6 +6,8 @@
 #
 #  id                   :bigint           not null, primary key
 #  amount_includes_tax  :boolean
+#  approval_status      :string           default("APPROVED"), not null
+#  approved_at          :datetime
 #  cost_amount_micros   :bigint
 #  deleted_at           :datetime
 #  delivery_date        :datetime
@@ -22,6 +24,7 @@
 #  pi_no                :string
 #  profit_amount_micros :bigint
 #  profit_rate          :decimal(6, 2)
+#  reject_reason        :text
 #  remark               :text
 #  shipping_micros      :bigint
 #  status               :string           default("PENDING_CONFIRMATION"), not null
@@ -29,6 +32,7 @@
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
 #  account_id           :bigint           not null
+#  approved_by_id       :bigint
 #  contact_id           :bigint
 #  crm_customer_id      :bigint
 #  crm_opportunity_id   :bigint
@@ -41,20 +45,21 @@
 #
 # Indexes
 #
-#  index_crm_sales_orders_on_account_and_insurance_no   (account_id,insurance_order_no) WHERE (insurance_order_no IS NOT NULL)
-#  index_crm_sales_orders_on_account_id                 (account_id)
-#  index_crm_sales_orders_on_account_id_and_order_date  (account_id,order_date)
-#  index_crm_sales_orders_on_account_id_and_order_kind  (account_id,order_kind)
-#  index_crm_sales_orders_on_account_id_and_order_no    (account_id,order_no) UNIQUE
-#  index_crm_sales_orders_on_account_id_and_status      (account_id,status)
-#  index_crm_sales_orders_on_contact_id                 (contact_id)
-#  index_crm_sales_orders_on_crm_customer_id            (crm_customer_id)
-#  index_crm_sales_orders_on_crm_opportunity_id         (crm_opportunity_id)
-#  index_crm_sales_orders_on_crm_quote_id               (crm_quote_id)
-#  index_crm_sales_orders_on_crm_team_id                (crm_team_id)
-#  index_crm_sales_orders_on_deleted_at                 (deleted_at)
-#  index_crm_sales_orders_on_handled_by_id              (handled_by_id)
-#  index_crm_sales_orders_on_owner_id                   (owner_id)
+#  index_crm_sales_orders_on_account_and_insurance_no        (account_id,insurance_order_no) WHERE (insurance_order_no IS NOT NULL)
+#  index_crm_sales_orders_on_account_id                      (account_id)
+#  index_crm_sales_orders_on_account_id_and_approval_status  (account_id,approval_status)
+#  index_crm_sales_orders_on_account_id_and_order_date       (account_id,order_date)
+#  index_crm_sales_orders_on_account_id_and_order_kind       (account_id,order_kind)
+#  index_crm_sales_orders_on_account_id_and_order_no         (account_id,order_no) UNIQUE
+#  index_crm_sales_orders_on_account_id_and_status           (account_id,status)
+#  index_crm_sales_orders_on_contact_id                      (contact_id)
+#  index_crm_sales_orders_on_crm_customer_id                 (crm_customer_id)
+#  index_crm_sales_orders_on_crm_opportunity_id              (crm_opportunity_id)
+#  index_crm_sales_orders_on_crm_quote_id                    (crm_quote_id)
+#  index_crm_sales_orders_on_crm_team_id                     (crm_team_id)
+#  index_crm_sales_orders_on_deleted_at                      (deleted_at)
+#  index_crm_sales_orders_on_handled_by_id                   (handled_by_id)
+#  index_crm_sales_orders_on_owner_id                        (owner_id)
 #
 # Foreign Keys
 #
@@ -67,6 +72,9 @@
 #  fk_rails_...  (owner_id => users.id) ON DELETE => nullify
 #
 class Crm::SalesOrder < ApplicationRecord
+  # 审核：通过了才能转生产订单、才进财务「待建账」（与 status 正交，见 concern 注释）。
+  include Crm::SalesOrderApproval
+
   STATUSES = %w[PENDING_CONFIRMATION IN_PRODUCTION PENDING_SHIPMENT SHIPPED COMPLETED CANCELLED].freeze
   # 给后端消息用（前端各页自己有一份同口径的映射）。
   STATUS_LABELS = { 'PENDING_CONFIRMATION' => '待确认', 'IN_PRODUCTION' => '生产中',

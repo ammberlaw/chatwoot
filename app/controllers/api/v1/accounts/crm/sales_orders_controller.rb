@@ -9,7 +9,7 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
   before_action :check_authorization
   before_action :fetch_sales_order,
                 only: [:show, :update, :destroy, :attach, :detach, :audits, :convert_preview, :receivable_progress,
-                       :production_trace, :erp_export]
+                       :production_trace, :erp_export, :approve, :reject]
 
   RESULTS_PER_PAGE = 15
 
@@ -41,7 +41,10 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     @sales_order = Current.account.crm_sales_orders.new(
       attrs.merge(
         owner_id: attrs[:owner_id].presence || performance_owner_id(attrs[:crm_customer_id]),
-        handled_by_id: current_user.id
+        handled_by_id: current_user.id,
+        # 新单一律待审核（审过才能转生产订单/进财务待建账）。建单人自己就是审核人时
+        # 不必自己批自己——那只是多一次点击，流程上没人把关。
+        approval_status: can_approve_sales_order? ? 'APPROVED' : 'PENDING'
       )
     )
     # 先挂附件再存：附件必填的校验在 create 时跑，挂在保存之后会被判「没有附件」。
@@ -52,6 +55,26 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   def update
     @sales_order.update!(order_attributes)
+  end
+
+  # 审核通过：这张单才能转生产订单、才进财务「待建账」。
+  def approve
+    return unless ensure_sales_order_approver!
+
+    @sales_order.approve!(current_user)
+    render 'api/v1/accounts/crm/sales_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # 驳回：必须写原因（业务员要知道改什么）。改完单子自动回待审核。
+  def reject
+    return unless ensure_sales_order_approver!
+
+    @sales_order.reject!(current_user, params[:reason])
+    render 'api/v1/accounts/crm/sales_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # 读取 PI 自动识别：上传 PDF/Excel，返回字段化结果供前端校对（不落库）。
@@ -202,6 +225,18 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
 
   def check_authorization
     authorize(Crm::SalesOrder)
+  end
+
+  # 谁能审销售订单：口径收在 Crm::SalesOrderApprover（jbuilder 也要问同一个问题）。
+  def can_approve_sales_order?(order = nil)
+    Crm::SalesOrderApprover.can?(Current.account_user, order)
+  end
+
+  def ensure_sales_order_approver!
+    return true if can_approve_sales_order?(@sales_order)
+
+    render json: { error: '只有该业务员所在团队的负责人或管理员可以审核这张订单' }, status: :forbidden
+    false
   end
 
   # 能否删除某订单：负责人本人 或 管理员/副管理员。

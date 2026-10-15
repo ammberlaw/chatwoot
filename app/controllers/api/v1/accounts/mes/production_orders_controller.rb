@@ -105,6 +105,13 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
   #   业务员等 CRM 角色 → 落草稿并提交审批，主管/总经理审完才生效。
   def convert
     sales_order = Current.account.crm_sales_orders.find(params[:crm_sales_order_id])
+    # 审核闸：销售订单审过了才能往下游推（用户原话「转 mes 或 erp 时需要被审核才可以推送」）。
+    # 存量单迁移时统一置 APPROVED，闸只对新单生效。
+    unless sales_order.pushable?
+      return render json: { error: "销售订单 #{sales_order.order_no} #{sales_order.approval_label}，审核通过后才能转生产订单" },
+                    status: :unprocessable_entity
+    end
+
     # 转单时勾的「订单金额已含税」写回销售订单（出库收入凭证按它拆行，见 ERP_SPEC §8.2bis）。
     unless params[:amount_includes_tax].nil?
       sales_order.update_columns(amount_includes_tax: ActiveModel::Type::Boolean.new.cast(params[:amount_includes_tax]),

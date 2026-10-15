@@ -69,6 +69,17 @@ class Crm::SalesOrderPolicy < ApplicationPolicy
   def restore?
     deleted?
   end
+
+  # 审核 / 驳回：policy 这层与看订单同权，真正的「谁能审」在控制器
+  # can_approve_sales_order?（本团队负责人 or 管理员）把关。
+  # ⚠️ Pundit 按 action 名找 policy 方法，这两个方法名必须在，少一个就是 500。
+  def approve?
+    true
+  end
+
+  def reject?
+    true
+  end
 end
 
 Crm::SalesOrderPolicy.prepend_mod_with('Crm::SalesOrderPolicy')

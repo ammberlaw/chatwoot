@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_14_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_16_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -2051,6 +2051,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_14_170000) do
     t.boolean "amount_includes_tax"
     t.string "insurance_order_no"
     t.bigint "receipt_account_id"
+    t.string "approval_status", default: "APPROVED", null: false
+    t.bigint "approved_by_id"
+    t.datetime "approved_at"
+    t.text "reject_reason"
+    t.index ["account_id", "approval_status"], name: "index_crm_sales_orders_on_account_id_and_approval_status"
     t.index ["account_id", "insurance_order_no"], name: "index_crm_sales_orders_on_account_and_insurance_no", where: "(insurance_order_no IS NOT NULL)"
     t.index ["account_id", "order_date"], name: "index_crm_sales_orders_on_account_id_and_order_date"
     t.index ["account_id", "order_kind"], name: "index_crm_sales_orders_on_account_id_and_order_kind"

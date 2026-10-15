@@ -39,7 +39,9 @@ const store = useCrmSalesOrdersStore();
 const createDialogRef = ref(null);
 const convertDialogRef = ref(null);
 // 一键转单：明细/客户都从订单带过去，业务员不用去 MES 再敲一遍。
+// 审核没过的单转不了（后端 convert 也拦，这里只是别让人白点一次）。
 const openConvert = order => convertDialogRef.value?.open(order);
+
 const { isCrmSales, isCrmTeamLead } = useCrmRole();
 // 财务只读：写操作后端会 403，按钮直接不给，免得点了才报错。
 const { isCrmFinanceOnly } = useCrmFinanceOnly();
@@ -274,6 +276,45 @@ const PANEL_TABS = [
   { key: 'timeline', label: '操作历史', icon: 'i-lucide-history' },
 ];
 const selectedOrder = ref(null);
+
+// —— 审核：过了才能转生产订单 / 进财务待建账 ——
+const APPROVAL_CHIP = {
+  PENDING: 'bg-n-amber-3 text-n-amber-11',
+  APPROVED: 'bg-n-teal-3 text-n-teal-11',
+  REJECTED: 'bg-n-ruby-3 text-n-ruby-11',
+};
+const approving = ref(false);
+const runApproval = async (order, fn, okText) => {
+  if (approving.value) return;
+  approving.value = true;
+  try {
+    const { data } = await fn();
+    // 直接用接口回的整条记录刷新面板：fetchRecords 拉回来的那一页不一定包含这张单
+    // （带筛选或翻了页就找不到），面板会停在旧状态上，看着像点了没生效。
+    if (selectedOrder.value?.id === order.id) {
+      selectedOrder.value = camelcaseKeys(data, { deep: true });
+    }
+    useAlert(okText);
+    await fetchRecords();
+  } catch (err) {
+    useAlert(err?.response?.data?.error || '操作失败，请重试');
+  } finally {
+    approving.value = false;
+  }
+};
+const approveOrder = order =>
+  runApproval(order, () => SalesOrdersAPI.approve(order.id), '已通过审核');
+const rejectOrder = order => {
+  // 驳回必须说明原因，业务员才知道改什么（后端也校验，空的会被打回来）。
+  const reason = window.prompt('驳回原因（业务员会看到）：');
+  if (reason === null) return;
+  runApproval(
+    order,
+    () => SalesOrdersAPI.reject(order.id, reason),
+    '已驳回，业务员改完会自动回到待审核'
+  );
+};
+
 const activeTab = ref('fields');
 const panelAudits = ref([]);
 const panelTrace = ref(null);
@@ -1052,6 +1093,57 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
             <span class="i-lucide-x size-5" />
           </button>
         </div>
+        <!-- 审核：过了才能转生产订单 / 进财务待建账 -->
+        <div class="flex flex-wrap items-center gap-2 mt-3">
+          <span
+            class="px-2 py-0.5 text-xs rounded-full shrink-0"
+            :class="APPROVAL_CHIP[selectedOrder.approvalStatus] || ''"
+          >
+            {{ selectedOrder.approvalLabel }}
+          </span>
+          <span
+            v-if="selectedOrder.approvedByName"
+            class="text-xs text-n-slate-11"
+          >
+            {{ selectedOrder.approvedByName }}
+          </span>
+          <template
+            v-if="
+              selectedOrder.canApprove &&
+              selectedOrder.approvalStatus === 'PENDING'
+            "
+          >
+            <Button
+              label="通过"
+              icon="i-lucide-check"
+              size="xs"
+              color="teal"
+              variant="faded"
+              :is-loading="approving"
+              @click="approveOrder(selectedOrder)"
+            />
+            <Button
+              label="驳回"
+              icon="i-lucide-undo-2"
+              size="xs"
+              color="ruby"
+              variant="ghost"
+              :is-loading="approving"
+              @click="rejectOrder(selectedOrder)"
+            />
+          </template>
+        </div>
+        <!-- 驳回原因：业务员得知道改什么 -->
+        <div
+          v-if="
+            selectedOrder.approvalStatus === 'REJECTED' &&
+            selectedOrder.rejectReason
+          "
+          class="px-2 py-1.5 mt-2 text-xs rounded-lg text-n-ruby-12 bg-n-ruby-2"
+        >
+          驳回原因：{{ selectedOrder.rejectReason }}（改完会自动回到待审核）
+        </div>
+
         <div v-if="!isCrmFinanceOnly" class="flex items-center gap-2 mt-3">
           <Button
             label="转单"
@@ -1059,6 +1151,12 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
             size="sm"
             color="iris"
             variant="faded"
+            :disabled="selectedOrder.approvalStatus !== 'APPROVED'"
+            :title="
+              selectedOrder.approvalStatus === 'APPROVED'
+                ? ''
+                : `订单${selectedOrder.approvalLabel}，审核通过后才能转生产订单`
+            "
             @click="openConvert(selectedOrder)"
           />
           <Button
@@ -1146,7 +1244,8 @@ watch([records, isFetching], () => openFocusOrder(records.value), {
                   >
                     <span class="i-lucide-copy size-3.5" />
                   </button>
-                  <span v-if="!row.tag && !row.value" class="text-n-slate-10"
+                  <span
+v-if="!row.tag && !row.value" class="text-n-slate-10"
                     >—</span
                   >
                 </div>

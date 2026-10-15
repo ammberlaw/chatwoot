@@ -20,4 +20,8 @@ api.receiptAccounts = () => axios.get(`${api.url}/receipt_accounts`);
 // 转单预览：订单明细逐行匹配产品档案（匹配在后端做，明细是自由文本、产品档案上千条）。
 api.convertPreview = id => axios.get(`${api.url}/${id}/convert_preview`);
 
+// 审核：过了才能转生产订单 / 进财务待建账。驳回必须带原因。
+api.approve = id => axios.post(`${api.url}/${id}/approve`);
+api.reject = (id, reason) => axios.post(`${api.url}/${id}/reject`, { reason });
+
 export default api;

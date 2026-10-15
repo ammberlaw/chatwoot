@@ -157,6 +157,9 @@ Rails.application.routes.draw do
                 post :attach
                 delete 'attach/:attachment_id', action: :detach
                 post :restore
+                # 审核：过了才能转生产订单 / 进财务待建账。
+                post :approve
+                post :reject
               end
             end
             resources :commission_sheets do

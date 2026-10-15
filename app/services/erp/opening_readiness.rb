@@ -34,7 +34,10 @@ class Erp::OpeningReadiness
   # 不做启用日切的全量待建账（设置页要用它报「被日切挡掉多少张历史单」）。
   def unfiltered_pending_scope
     built_ids = @account.erp_receivables.where.not(crm_sales_order_id: nil).select(:crm_sales_order_id)
-    @account.crm_sales_orders.where.not(status: UNCONFIRMED_STATUSES).where.not(id: built_ids)
+    # 审核闸：没审过的订单不进财务待建账（用户原话「转 mes 或 erp 时需要被审核才可以推送」）。
+    # 存量单迁移时统一置 APPROVED，闸只对新单生效。
+    @account.crm_sales_orders.approved
+            .where.not(status: UNCONFIRMED_STATUSES).where.not(id: built_ids)
   end
 
   def fiscal_start_date
