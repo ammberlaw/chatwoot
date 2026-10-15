@@ -16,6 +16,7 @@ import ErpFixedAssetsIndex from './pages/ErpFixedAssetsIndex.vue';
 import ErpMarginIndex from './pages/ErpMarginIndex.vue';
 import ErpBomCostsIndex from './pages/ErpBomCostsIndex.vue';
 import ErpExpensesIndex from './pages/ErpExpensesIndex.vue';
+import ErpShipmentApprovalsIndex from './pages/ErpShipmentApprovalsIndex.vue';
 import ErpSettingsIndex from './pages/ErpSettingsIndex.vue';
 
 // ERP（财务管理）板块：与 CRM 同账号同登录；页面级前端只做展示，
@@ -46,6 +47,13 @@ export const routes = [
   erpPage('ledgers', 'erp_ledgers_index', ErpLedgersIndex),
   erpPage('reports', 'erp_reports_index', ErpReportsIndex),
   erpPage('receivables', 'erp_receivables_index', ErpReceivablesIndex),
+  // 出库审核（财务放货前核对收款）：单据在 MES，入口开在 ERP——财务没有 MES 角色，
+  // 本来就在这个板块干活，不该为批一张单去 MES 翻列表。
+  erpPage(
+    'shipment-approvals',
+    'erp_shipment_approvals_index',
+    ErpShipmentApprovalsIndex
+  ),
   erpPage('payables', 'erp_payables_index', ErpPayablesIndex),
   erpPage('cash', 'erp_cash_index', ErpCashIndex),
   erpPage('periods', 'erp_periods_index', ErpPeriodsIndex),

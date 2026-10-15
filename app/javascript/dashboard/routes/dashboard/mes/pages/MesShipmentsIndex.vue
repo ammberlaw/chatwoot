@@ -41,9 +41,13 @@ const isAdminLike = computed(
   () => isAdmin.value || crmRole.value === 'deputy_admin'
 );
 const { isMyDoc } = useMesDocOwner();
-// 主管审核：CRM 部门主管 / 副管理员 / 管理员。
+// 财务审核「款收齐没有」：财务 / 副管理员 / 管理员（用户给的金蝶流程）。
+// 口径与后端 Mes::Shipment.approver? 对齐——那边还支持配「出库审核人」，
+// 配了之后非配置人点下去会 403；前端只做显隐，不复制那套配置判断。
+// ⚠️ 财务是独立的 crm_finance 布尔（与业务员身份叠加），不是 crm_role 的取值——
+// 写成 crmRole === 'finance' 恒为 false，财务永远看不到审核按钮。
 const canApprove = computed(
-  () => isAdminLike.value || crmRole.value === 'manager'
+  () => isAdminLike.value || currentUser.value?.crm_finance === true
 );
 // 仓库出库能力。
 const canShip = computed(() => mesCan('shipment'));
@@ -68,20 +72,17 @@ const STATUS_LABELS = {
 };
 const KIND_LABELS = { PRODUCTION: '生产出库', STOCK: '现货出库' };
 
-// 单据可执行的动作判定（按类型/状态/角色）。
-const canApproveRow = s =>
-  s.kind === 'STOCK' &&
-  s.status === 'PENDING_APPROVAL' &&
-  canApprove.value &&
-  (isAdminLike.value || s.managerId === currentUserId.value);
+// 单据可执行的动作判定（按状态/角色）。
+// 两种出库都走财务审核——过账都会打 ERP（成本归集+凭证+订单完结），
+// 原先只有现货走审核、生产出库建完直接出（见 Mes::Shipment#submit_for_approval!）。
+//
+// 审核人不再是提交时解析出的那一个主管，而是「财务这组人谁看到谁批」，
+// 所以这里不再比 managerId——真正的把关在后端 Mes::Shipment.approver?。
+const canApproveRow = s => s.status === 'PENDING_APPROVAL' && canApprove.value;
 const canResubmitRow = s =>
-  s.kind === 'STOCK' &&
   s.status === 'REJECTED' &&
   (s.ownerId === currentUserId.value || isAdminLike.value);
-const canShipRow = s =>
-  canShip.value &&
-  ((s.kind === 'STOCK' && s.status === 'APPROVED') ||
-    (s.kind === 'PRODUCTION' && s.status === 'DRAFT'));
+const canShipRow = s => canShip.value && s.status === 'APPROVED';
 // 编辑：仅生产出库草稿，且只有开单人本人（系统管理员可代改）。
 // 原来有出库能力的人都能改别人的单，出了问题查不到人。
 const canEditRow = s =>
@@ -486,10 +487,46 @@ const ship = async s => {
     useAlert(e.message || '出库失败');
   }
 };
-const approve = async s => {
+// 财务审核：先把这张单的收款情况摆出来（应收/已收/还差），别让财务自己去翻应收台账。
+// 款没收齐也能放行（老客户赊账、老板特批是真实存在的），但要写理由，留痕。
+// 金额是 micros（百万分之一），带千分位摆出来——外贸的数动辄六七位。
+const fmtAmount = micros =>
+  (Number(micros || 0) / 1e6).toLocaleString('zh-CN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+const approveDialogRef = ref(null);
+const approving = ref(null);
+const approveNote = ref('');
+const approveState = ref(null);
+const approveLoading = ref(false);
+const openApprove = async s => {
+  approving.value = s;
+  approveNote.value = '';
+  approveState.value = null;
+  approveLoading.value = true;
+  approveDialogRef.value?.open();
   try {
-    const ok = await store.approve(s.id);
+    // 列表行不带收款情况（逐行算回款进度是 N+1），点开时单独拉一次详情。
+    approveState.value = await store.show(s.id);
+  } catch {
+    approveState.value = null;
+  } finally {
+    approveLoading.value = false;
+  }
+};
+const approveUnpaid = computed(
+  () => approveState.value && approveState.value.fully_paid === false
+);
+const submitApprove = async () => {
+  if (approveUnpaid.value && !approveNote.value.trim()) return;
+  try {
+    const ok = await store.approve(
+      approving.value.id,
+      approveNote.value.trim() || undefined
+    );
     useAlert(`${ok.shipmentNo} 已审核通过，已推仓库`);
+    approveDialogRef.value?.close();
   } catch (e) {
     useAlert(e.message || '审核失败');
   }
@@ -551,8 +588,14 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">销售出库</h1>
+    <div
+      class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+    >
+      <h1
+        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        销售出库
+      </h1>
       <div class="flex flex-wrap justify-end gap-2">
         <Button
           v-if="canOpenStock"
@@ -574,7 +617,9 @@ onMounted(() => {
     <MesBoardOwnerBar board-key="mes_shipments_index" />
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-4 pb-6 overflow-auto sm:px-6 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
@@ -636,7 +681,7 @@ onMounted(() => {
                   color="iris"
                   size="sm"
                   :is-loading="acting"
-                  @click.stop="approve(s)"
+                  @click.stop="openApprove(s)"
                 />
                 <Button
                   label="驳回"
@@ -1019,6 +1064,77 @@ onMounted(() => {
           v-model="rejectReason"
           placeholder="请填写驳回原因，退回业务员修改"
         />
+      </div>
+    </Dialog>
+
+    <!-- 财务审核：先看这张单的款收齐没有，再决定放不放行 -->
+    <Dialog
+      ref="approveDialogRef"
+      :dismissible="false"
+      width="md"
+      title="财务审核 · 核对收款"
+      confirm-button-label="审核通过"
+      :disable-confirm-button="approveUnpaid && !approveNote.trim()"
+      @confirm="submitApprove"
+    >
+      <div class="flex flex-col gap-3">
+        <div
+          v-if="approveLoading"
+          class="py-4 text-sm text-center text-n-slate-10"
+        >
+          正在取收款情况…
+        </div>
+        <template v-else-if="approveState && approveState.receivable_state">
+          <div
+            class="flex flex-col gap-1 p-3 text-sm rounded-lg"
+            :class="approveUnpaid ? 'bg-n-amber-2' : 'bg-n-teal-2'"
+          >
+            <div class="flex justify-between">
+              <span class="text-n-slate-11">应收</span>
+              <span class="font-medium tabular-nums text-n-slate-12">
+                {{ approveState.receivable_state.currency }}
+                {{ fmtAmount(approveState.receivable_state.total_micros) }}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-n-slate-11">已收</span>
+              <span class="font-medium tabular-nums text-n-slate-12">
+                {{ approveState.receivable_state.currency }}
+                {{ fmtAmount(approveState.receivable_state.received_micros) }}
+              </span>
+            </div>
+            <div class="flex justify-between pt-1 border-t border-n-weak">
+              <span
+                :class="approveUnpaid ? 'text-n-amber-11' : 'text-n-teal-11'"
+              >
+                {{ approveUnpaid ? '还差' : '已收齐' }}
+              </span>
+              <span
+                class="font-semibold tabular-nums"
+                :class="approveUnpaid ? 'text-n-amber-11' : 'text-n-teal-11'"
+              >
+                {{ approveState.receivable_state.currency }}
+                {{
+                  fmtAmount(approveState.receivable_state.outstanding_micros)
+                }}
+              </span>
+            </div>
+          </div>
+        </template>
+        <div v-else class="p-3 text-sm rounded-lg text-n-slate-11 bg-n-alpha-1">
+          这张单没挂销售订单，或财务还没给它建账——系统查不到收款情况，请自行核对后再放行。
+        </div>
+
+        <!-- 款没收齐仍可放行（赊账/特批），但必须写明理由 -->
+        <div v-if="approveUnpaid" class="flex flex-col gap-2">
+          <label class="text-heading-3 text-n-slate-12">
+            款没收齐，放行理由 <span class="text-n-ruby-11">*</span>
+          </label>
+          <Input
+            v-model="approveNote"
+            placeholder="例：老客户赊账，已报老板同意；或 尾款已汇在途"
+          />
+        </div>
       </div>
     </Dialog>
 

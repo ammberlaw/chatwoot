@@ -72,6 +72,11 @@ const FILTERABLE = {
   owner: { type: 'text', key: 'col_owner', placeholder: '归属人' },
   posted: { type: 'date', key: 'posted' },
 };
+// 外购成品收货说明：挂在标题旁那颗 ⓘ 上（纯文本，tooltip 不吃 HTML）。
+const OUTSOURCE_HINT =
+  '外购成品到货也在这里收货：新建入库单 → 选对应采购单（含「成品(外购)」行）→ ' +
+  '系统自动把入库仓切为成品仓 → 过账后即成成品库存，可直接销售出库，无需再开成品入库单。';
+
 const filterOf = col => FILTERABLE[col.key];
 const activeFilterCount = computed(
   () =>
@@ -783,11 +788,19 @@ useRouteQueryReentry(query => {
     <div
       class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1
-        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
-      >
-        原料入库
-      </h1>
+      <div class="flex items-center gap-1.5">
+        <h1
+          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
+          原料入库
+        </h1>
+        <!-- 外购成品收货说明原来是页头下一整条横幅，占掉一行、天天看见但只在第一次有用，
+             收进标题旁这颗 ⓘ 里（用户原话「这个感叹号可以放在原料入库四个字鼠标悬停跳出」）。 -->
+        <span
+          v-tooltip="OUTSOURCE_HINT"
+          class="shrink-0 cursor-help i-lucide-info size-4 text-n-slate-10 hover:text-n-slate-11"
+        />
+      </div>
       <div class="flex items-center gap-2">
         <button
           v-if="activeFilterCount"
@@ -878,22 +891,6 @@ useRouteQueryReentry(query => {
       board-key="mes_stock_entries_index"
       :extra-boards="APPROVER_BOARD"
     />
-
-    <!-- 外购成品收货说明：外购成品到货也在本板块收货入库（选对应采购单会自动入「成品仓」）。 -->
-    <div class="px-4 mb-1 sm:px-6 [.theme-classic_&]:sm:!px-8">
-      <div
-        class="flex items-start gap-2 px-3 py-2 text-xs rounded-lg text-n-iris-12 bg-n-iris-3/70"
-      >
-        <span class="mt-0.5 shrink-0 i-lucide-info size-3.5 text-n-iris-11" />
-        <span class="leading-relaxed">
-          <b>外购成品</b>到货也在这里收货：新建入库单 →
-          选对应<b>采购单</b>（含「成品(外购)」行）→ 系统自动把入库仓切为<b
-            >成品仓</b
-          >
-          → 过账后即成成品库存，可直接销售出库，无需再开成品入库单。
-        </span>
-      </div>
-    </div>
 
     <!-- 搜索：单号 / 采购单 / 对内备注 / 供应商 / 物料编码 / 品名 / 归属人（走后端，不只筛本页）。
          原生 input 要带 reset-base 和显式 h-9，否则被全局 SCSS 强制成 field-base h-10、比旁边控件高一截。 -->
@@ -999,7 +996,9 @@ useRouteQueryReentry(query => {
           class="hidden w-full text-sm whitespace-nowrap md:table"
         >
           <thead>
-            <tr class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak">
+            <tr
+              class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
+            >
               <th
                 v-for="col in visibleOrderCols"
                 :key="col.key"
@@ -1160,7 +1159,9 @@ useRouteQueryReentry(query => {
         <!-- 按明细：一行一条料（对标金蝶采购入库单列表）。点「查看」仍回到整张单。 -->
         <table v-else class="hidden w-full text-sm whitespace-nowrap md:table">
           <thead>
-            <tr class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak">
+            <tr
+              class="text-left text-n-slate-11 [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-n-solid-1 [&>th]:border-b [&>th]:border-n-weak"
+            >
               <th
                 v-for="col in visibleItemCols"
                 :key="col.key"

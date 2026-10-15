@@ -279,7 +279,9 @@ class Api::V1::Accounts::Crm::SalesOrdersController < Api::V1::Accounts::Crm::Ba
     @mine_count = scope_docs_mine(base).count
   end
 
-  ORDER_COLUMN_FILTERS = { status: :status, customer_id: :crm_customer_id, owner_id: :owner_id }.freeze
+  # approval_status：主管用来一眼捞出「哪些等着我批」，业务员用来找自己被驳回的单。
+  ORDER_COLUMN_FILTERS = { status: :status, customer_id: :crm_customer_id, owner_id: :owner_id,
+                           approval_status: :approval_status }.freeze
 
   def apply_order_filters(scope)
     ORDER_COLUMN_FILTERS.each do |param, column|

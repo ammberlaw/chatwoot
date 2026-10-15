@@ -23,9 +23,12 @@ class Crm::SalesOrderTraceService
 
   def call
     orders = production_orders
-    entries = stock_entries_by_order(orders.map(&:id))
+    ids = orders.map(&:id)
+    entries = stock_entries_by_order(ids)
+    @records = records_by_order(ids)
+    @inspections = inspections_by_order(ids)
     { production_orders: orders.map { |po| order_json(po, entries[po.id] || []) },
-      shipments: shipments(orders.map(&:id)).map { |s| shipment_json(s) } }
+      shipments: shipments(ids).map { |s| shipment_json(s) } }
   end
 
   private
@@ -33,7 +36,18 @@ class Crm::SalesOrderTraceService
   def production_orders
     @account.mes_production_orders
             .where(crm_sales_order_id: @sales_order.id)
-            .includes(:stage_events).order(:created_at)
+            .includes(:stage_events, bom: :bom_items).order(:created_at)
+  end
+
+  # 报工 / 质检整批查一次，逐单查就是一页几十条 SQL。
+  def records_by_order(order_ids)
+    @account.mes_production_records.where(production_order_id: order_ids)
+            .includes(:operator).order(:recorded_at, :id).group_by(&:production_order_id)
+  end
+
+  def inspections_by_order(order_ids)
+    @account.mes_inspections.where(production_order_id: order_ids)
+            .order(:inspected_at, :id).group_by(&:production_order_id)
   end
 
   def stock_entries_by_order(order_ids)
@@ -62,7 +76,38 @@ class Crm::SalesOrderTraceService
       qty: order.qty.to_f, unit: order.unit, stage: order.stage,
       stage_label: Mes::ProductionOrder::STAGE_LABELS[order.stage] || order.stage,
       status: order.status, is_outsourced: order.is_outsourced,
-      stages: stage_events_json(order), stock_entries: entries.map { |e| entry_json(e) } }
+      stages: stage_events_json(order), stock_entries: entries.map { |e| entry_json(e) },
+      bom: bom_json(order), records: (@records[order.id] || []).map { |r| record_json(r) },
+      inspections: (@inspections[order.id] || []).map { |i| inspection_json(i) } }
+  end
+
+  # BOM 用量：财务/业务在订单上核「这单要用哪些料、各多少」，不必再去 MES 翻生产任务单。
+  # ⚠️ 只给料号/品名/用量——单价、供应商不进这里（销售端不可见，生态硬约束）。
+  def bom_json(order)
+    bom = order.bom
+    return nil if bom.blank?
+
+    { bom_no: bom.bom_no, base_qty: bom.base_qty.to_f,
+      items: bom.bom_items.map do |item|
+        # ⚠️ 只给料号/品名/规格/用量。BomItem 上还有 rate_micros / amount_micros
+        # （采购单价与金额），一个都不能下发——这个接口是销售和财务在看，
+        # 销售端不可见成本是硬规定。
+        { material_no: item.material_no, name: item.material_name, spec: item.specification,
+          qty: item.qty.to_f, unit: item.unit, category: item.category }
+      end }
+  end
+
+  def record_json(record)
+    { operation_name: record.operation_name, qty_completed: record.qty_completed.to_f,
+      qty_scrap: record.qty_scrap.to_f, qty_returned: record.qty_returned.to_f,
+      recorded_at: record.recorded_at, operator_name: record.operator&.name, remark: record.remark }
+  end
+
+  def inspection_json(inspection)
+    { kind: inspection.kind, result: inspection.result,
+      inspected_qty: inspection.inspected_qty.to_f, passed_qty: inspection.passed_qty.to_f,
+      failed_qty: inspection.failed_qty.to_f, need_rework: inspection.need_rework,
+      defect_reason: inspection.defect_reason, inspected_at: inspection.inspected_at }
   end
 
   # 按「进入时间」排，不按 id——补录/回退会让 id 序和真实时间序对不上。

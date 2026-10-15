@@ -1317,6 +1317,7 @@ const menuItems = computed(() => {
           'erp_ledgers_index',
           'erp_reports_index',
           'erp_receivables_index',
+          'erp_shipment_approvals_index',
           'erp_payables_index',
           'erp_cash_index',
           'erp_periods_index',
@@ -1363,6 +1364,12 @@ const menuItems = computed(() => {
             label: '应收台账',
             to: accountScopedRoute('erp_receivables_index'),
             activeOn: ['erp_receivables_index'],
+          },
+          {
+            name: 'ERP Shipment Approvals',
+            label: '出库审核',
+            to: accountScopedRoute('erp_shipment_approvals_index'),
+            activeOn: ['erp_shipment_approvals_index'],
           },
           {
             name: 'ERP Payables',
@@ -2250,6 +2257,7 @@ const ROUTE_MODULE = {
   erp_ledgers_index: 'erp',
   erp_reports_index: 'erp',
   erp_receivables_index: 'erp',
+  erp_shipment_approvals_index: 'erp',
   erp_payables_index: 'erp',
   erp_cash_index: 'erp',
   erp_periods_index: 'erp',

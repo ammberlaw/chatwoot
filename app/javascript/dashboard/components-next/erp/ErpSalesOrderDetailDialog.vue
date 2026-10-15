@@ -1,8 +1,6 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
-import { useAccount } from 'dashboard/composables/useAccount';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
 import ErpReceivableAPI from 'dashboard/api/erp/receivables';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -12,8 +10,6 @@ import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 //
 // 抽成共享件给应收台账和成本毛利两处用——这屏 200 多行，复制一份过去迟早两边长歪。
 // 走 ERP 侧接口而不是 CRM 的：财务多半没有 crm_role，CRM 那套会 403。
-const { accountId } = useAccount();
-const router = useRouter();
 
 const dialogRef = ref(null);
 const orderDetail = ref(null);
@@ -70,14 +66,14 @@ defineExpose({ open, close });
 // 跳去 MES 等于丢掉当前这张单的上下文、看完还得找回来；而且财务多半没有 MES 身份，
 // 跳过去不少页是空的。详情所需的字段（阶段流转、出入库单、出了什么货）order_detail
 // 接口本来就一并返回了，直接拿来渲染，不另发请求。
-// 要看完整单据的仍留一个「去 MES 看完整单据」的出口。
+// 弹窗里就是完整明细：阶段流转、出入库单、BOM 用量、报工、质检都在，不再留「去 MES」的
+// 出口——留着反而像在说「这里看不全」，而财务多半也进不去 MES。
 const drill = ref(null); // { kind: 'po' | 'shipment', data }
 const drillRef = ref(null);
 const openDrill = (kind, data) => {
   drill.value = { kind, data };
   nextTick(() => drillRef.value?.open());
 };
-const closeDrill = () => drillRef.value?.close();
 
 const drillTitle = computed(() => {
   const d = drill.value;
@@ -86,27 +82,6 @@ const drillTitle = computed(() => {
     ? `生产订单 ${d.data.order_no || ''}`
     : `出货单 ${d.data.shipment_no || ''}`;
 });
-
-// 出口：需要改单/看全量的还是得去 MES。跳之前把两层弹窗都关掉，
-// 否则回退回来会看到盖着的空壳。
-const goMes = () => {
-  const { kind, data } = drill.value || {};
-  closeDrill();
-  close();
-  if (kind === 'po') {
-    router.push({
-      name: 'mes_production_orders_index',
-      params: { accountId: accountId.value },
-      query: { q: data.order_no },
-    });
-  } else {
-    router.push({
-      name: 'mes_shipments_index',
-      params: { accountId: accountId.value },
-      query: { focus: String(data.id) },
-    });
-  }
-};
 </script>
 
 <template>
@@ -453,6 +428,107 @@ const goMes = () => {
               这张生产订单还没有出入库单。
             </p>
           </div>
+
+          <!-- BOM 用量：这单要用哪些料、各多少。只给料号/品名/规格/用量——
+               单价和金额不下发（销售端不可见成本，见 SalesOrderTraceService#bom_json）。 -->
+          <div v-if="drill.data.bom" class="flex flex-col gap-2">
+            <span class="text-heading-3 text-n-slate-12">
+              生产任务单 {{ drill.data.bom.bom_no }}（{{
+                (drill.data.bom.items || []).length
+              }}
+              行 · 基准 {{ drill.data.bom.base_qty }}）
+            </span>
+            <div
+              v-for="(it, i) in drill.data.bom.items || []"
+              :key="`${it.material_no}-${i}`"
+              class="flex flex-wrap items-baseline gap-x-3 text-xs"
+            >
+              <span class="font-mono w-28 shrink-0 text-n-slate-12">
+                {{ it.material_no || '—' }}
+              </span>
+              <span class="flex-1 min-w-0 truncate text-n-slate-12">
+                {{ it.name || '—' }}
+              </span>
+              <span v-if="it.spec" class="text-n-slate-10 truncate max-w-[40%]">
+                {{ it.spec }}
+              </span>
+              <span class="tabular-nums shrink-0 text-n-slate-11">
+                {{ it.qty }} {{ it.unit || '' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- 报工：做了多少、谁做的、废了多少 -->
+          <div class="flex flex-col gap-2">
+            <span class="text-heading-3 text-n-slate-12">
+              生产报工（{{ (drill.data.records || []).length }}）
+            </span>
+            <div
+              v-for="(r, i) in drill.data.records || []"
+              :key="`rec-${i}`"
+              class="flex flex-wrap items-center gap-x-3 text-xs"
+            >
+              <span class="w-20 shrink-0 text-n-slate-12">
+                {{ r.operation_name || '—' }}
+              </span>
+              <span class="text-n-slate-11"> 完工 {{ r.qty_completed }} </span>
+              <span v-if="r.qty_scrap" class="text-n-ruby-11">
+                报废 {{ r.qty_scrap }}
+              </span>
+              <span v-if="r.operator_name" class="text-n-slate-11">
+                {{ r.operator_name }}
+              </span>
+              <span class="text-n-slate-10">
+                {{ (r.recorded_at || '').slice(0, 10) }}
+              </span>
+            </div>
+            <p
+              v-if="!(drill.data.records || []).length"
+              class="text-xs text-n-slate-11"
+            >
+              还没有报工记录。
+            </p>
+          </div>
+
+          <!-- 质检：合格多少、要不要返工 -->
+          <div class="flex flex-col gap-2">
+            <span class="text-heading-3 text-n-slate-12">
+              质量检验（{{ (drill.data.inspections || []).length }}）
+            </span>
+            <div
+              v-for="(q, i) in drill.data.inspections || []"
+              :key="`insp-${i}`"
+              class="flex flex-wrap items-center gap-x-3 text-xs"
+            >
+              <span class="w-14 shrink-0 text-n-slate-12">{{ q.kind }}</span>
+              <span
+                :class="
+                  q.result === 'PASS' ? 'text-n-teal-11' : 'text-n-ruby-11'
+                "
+              >
+                {{ q.result === 'PASS' ? '合格' : q.result }}
+              </span>
+              <span class="text-n-slate-11">
+                检 {{ q.inspected_qty }} / 合格 {{ q.passed_qty }}
+              </span>
+              <span v-if="q.failed_qty" class="text-n-ruby-11">
+                不良 {{ q.failed_qty }}
+              </span>
+              <span v-if="q.need_rework" class="text-n-amber-11">需返工</span>
+              <span v-if="q.defect_reason" class="truncate text-n-slate-10">
+                {{ q.defect_reason }}
+              </span>
+              <span class="text-n-slate-10">
+                {{ (q.inspected_at || '').slice(0, 10) }}
+              </span>
+            </div>
+            <p
+              v-if="!(drill.data.inspections || []).length"
+              class="text-xs text-n-slate-11"
+            >
+              还没有质检记录。
+            </p>
+          </div>
         </template>
 
         <!-- 出货单 -->
@@ -535,15 +611,6 @@ const goMes = () => {
             </table>
           </div>
         </template>
-
-        <!-- 要改单/看全量的出口仍留着 -->
-        <button
-          type="button"
-          class="text-xs underline reset-base text-n-iris-11 underline-offset-2 w-fit hover:opacity-80"
-          @click="goMes"
-        >
-          去 MES 看完整单据 →
-        </button>
       </div>
     </Dialog>
   </Dialog>

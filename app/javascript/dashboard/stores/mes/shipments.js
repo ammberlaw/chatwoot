@@ -99,8 +99,12 @@ export const useMesShipmentsStore = createStore({
     submitApproval(id) {
       return this.runAction(() => MesShipmentAPI.submit(id));
     },
-    approve(id) {
-      return this.runAction(() => MesShipmentAPI.approve(id));
+    approve(id, note) {
+      return this.runAction(() => MesShipmentAPI.approve(id, note));
+    },
+    // 审核前拉一次详情：列表不带收款情况（逐行算回款进度是 N+1），财务要看「还差多少」。
+    show(id) {
+      return MesShipmentAPI.show(id).then(({ data }) => data);
     },
     reject(id, reason) {
       return this.runAction(() => MesShipmentAPI.reject(id, reason));

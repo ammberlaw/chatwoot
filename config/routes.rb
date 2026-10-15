@@ -594,6 +594,8 @@ Rails.application.routes.draw do
             resources :shipments do
               collection do
                 get :approval_inbox
+                # 财务的「出库审核」角标（ERP 侧栏用，财务不进 MES 也知道有几张等着批）。
+                get :pending_count
                 post :convert
               end
               member do

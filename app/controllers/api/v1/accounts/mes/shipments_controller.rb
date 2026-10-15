@@ -16,6 +16,19 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     scope = scope_visible(scope)
     @shipments_count = scope.count
     @shipments = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    # with_receivable=1：财务的「出库审核」清单要在列表上直接看到「款收齐没有」，
+    # 否则得逐张点开。只在这个场景开，普通列表不算——逐行跑回款进度是 N+1。
+    @with_receivable = params[:with_receivable].present?
+  end
+
+  # 待我审核的出库单数量（ERP 侧栏角标用）。财务不进 MES 也该知道有几张等着批。
+  def pending_count
+    count = if Mes::Shipment.approver?(Current.account, Current.account_user)
+              scope_visible(Current.account.mes_shipments).where(status: 'PENDING_APPROVAL').count
+            else
+              0
+            end
+    render json: { count: count }
   end
 
   def show; end
@@ -26,9 +39,7 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   # 幂等：同一销售订单已有未取消的出库单就拦下，不重复生成（业务员连点两下很常见）。
   def convert
     sales_order = Current.account.crm_sales_orders.find(params[:crm_sales_order_id])
-    if (existing = converted_shipment_for(sales_order))
-      return render json: { error: "该订单已生成出库单 #{existing.shipment_no}，不能重复转单" }, status: :unprocessable_entity
-    end
+    return unless convertible?(sales_order)
 
     # 建单与提交必须同生共死：原先没包事务，现货不足导致 submit 失败时出库单已落库，
     # 之后这张销售订单永远报「已生成出库单 DN-xxx，不能重复转单」——转不动也看不出
@@ -57,7 +68,8 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
     @shipment.fallback_product_line = current_product_line
     resolve_missing_product_ids(@shipment)
     @shipment.save!
-    @shipment.submit_for_approval!(current_user) if @shipment.stock?
+    # 两种出库都提交财务审核（过账都会打 ERP）。原先只有现货走，生产出库建完就能直接出。
+    @shipment.submit_for_approval!(current_user)
     render 'api/v1/accounts/mes/shipments/show'
   rescue Pundit::NotAuthorizedError
     raise # 权限不足要回 403，别被下面的 422 吞掉
@@ -108,7 +120,8 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   def approve
     return render json: { error: '无权审核该出库单' }, status: :forbidden unless can_approve_shipment?(@shipment)
 
-    @shipment.approve!(current_user)
+    # 款没收齐时财务仍可放行，但要带理由（模型里校验），留痕。
+    @shipment.approve!(current_user, note: params[:note])
     render 'api/v1/accounts/mes/shipments/show'
   rescue StandardError => e
     render json: { error: business_error(e) }, status: :unprocessable_entity
@@ -189,6 +202,23 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
                                updated_at: Time.current)
   end
 
+  # 转单前的两道闸：销售订单审过没有、这张单是不是已经转过了。
+  # 审核闸同转生产订单那条路；库存单这条更要卡——转单即预占库存、批完货就走了，
+  # 中间没有开料采购那些缓冲环节。
+  def convertible?(sales_order)
+    unless sales_order.pushable?
+      render json: { error: "销售订单 #{sales_order.order_no} #{sales_order.approval_label}，审核通过后才能转出库单" },
+             status: :unprocessable_entity
+      return false
+    end
+
+    existing = converted_shipment_for(sales_order)
+    return true if existing.nil?
+
+    render json: { error: "该订单已生成出库单 #{existing.shipment_no}，不能重复转单" }, status: :unprocessable_entity
+    false
+  end
+
   def converted_shipment_for(sales_order)
     Current.account.mes_shipments.where(crm_sales_order_id: sales_order.id).where.not(status: 'CANCELLED').first
   end
@@ -262,8 +292,9 @@ class Api::V1::Accounts::Mes::ShipmentsController < Api::V1::Accounts::Mes::Base
   end
 
   # 能否审核该现货出库单：管理员/副管理员，或本单指定审核人（业务员所属部门主管）本人。
-  def can_approve_shipment?(shipment)
-    admin_like? || shipment.manager_id == current_user.id
+  # 审核人是「财务这组人」，不再是提交时解析出的某一个主管——所以不比 manager_id。
+  def can_approve_shipment?(_shipment)
+    Mes::Shipment.approver?(Current.account, Current.account_user)
   end
 
   # 出库单可见范围：现货出库看开单人(owner)可见范围；生产出库看其生产订单归属可见范围。

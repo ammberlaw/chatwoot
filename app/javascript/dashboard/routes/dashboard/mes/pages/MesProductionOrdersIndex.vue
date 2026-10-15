@@ -327,11 +327,25 @@ const statusFilterOptions = [
   { value: '', label: '全部状态' },
   ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
 ];
-// 业务员（订单归属人）筛选：取账号成员。
+// 业务员（订单归属人）筛选：只列**有 CRM 角色**的人。
+// 账号成员里大半是生产/仓管/采购/财务/HR，他们不可能是订单归属人，混在这个下拉里
+// 只是让人翻半天找不到要的那个（用户原话「这个下拉能不能只显示 crm 角色」）。
+// 顺带剔掉已离职的——否则停用的账号照样出现在候选里。
 const agents = useMapGetter('agents/getAgents');
+// 兜底：真实当过订单归属人的人，哪怕没有 crm_role 也要留在下拉里——
+// 生产上「陈云钢」没有 crm_role、名下却有 2 张订单，按角色一刀切他的单就筛不出来了。
+const realOwnerIds = computed(() => store.getMeta.ownerIds || []);
+// 只认销售条线——这个下拉叫「业务员」，人事/财务不是业务员，不该混进来。
+const SALES_LINE_ROLES = ['sales', 'manager', 'deputy_admin'];
 const ownerFilterOptions = computed(() => [
   { value: '', label: '全部业务员' },
-  ...(agents.value || []).map(a => ({ value: String(a.id), label: a.name })),
+  ...(agents.value || [])
+    .filter(
+      a =>
+        (SALES_LINE_ROLES.includes(a.crm_role) && !a.deactivated) ||
+        realOwnerIds.value.includes(a.id)
+    )
+    .map(a => ({ value: String(a.id), label: a.name })),
 ]);
 
 // —— 详情面板选中项（提前声明：视图切换要清空它）——

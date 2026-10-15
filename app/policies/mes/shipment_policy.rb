@@ -12,6 +12,8 @@ class Mes::ShipmentPolicy < ApplicationPolicy
 
   # 现货出库审核：CRM 部门主管 / 副管理员 / 管理员（具体到人由控制器按 manager_id 收敛）。
   def submit? = create?
+  # ⚠️ Pundit 按 action 名找 policy 方法，少一个就是 500。
+  def pending_count? = true
   def approve? = approver?
   def reject? = approver?
   def approval_inbox? = approver?
@@ -22,8 +24,10 @@ class Mes::ShipmentPolicy < ApplicationPolicy
 
   private
 
+  # 出库审核＝**财务**审「款收齐没有」（用户给的金蝶流程）。配了「出库审核人」认配的人，
+  # 没配回落财务 + 管理员/副管——口径收在 Mes::Shipment.approver?，控制器也问同一个。
   def approver?
-    @account_user.administrator? || @account_user.crm_deputy_admin? || @account_user.crm_manager?
+    Mes::Shipment.approver?(@account_user.account, @account_user)
   end
 end
 

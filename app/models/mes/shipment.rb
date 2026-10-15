@@ -3,6 +3,7 @@
 # Table name: mes_shipments
 #
 #  id                  :bigint           not null, primary key
+#  approve_note        :text
 #  approved_at         :datetime
 #  kind                :string           default("PRODUCTION"), not null
 #  notified_at         :datetime
@@ -93,10 +94,27 @@ class Mes::Shipment < ApplicationRecord
 
   def stock? = kind == 'STOCK'
 
-  # 现货出库提交审核：解析业务员所属 CRM 部门主管并落库通知。无主管则直接进「待出库」推仓库。
+  # 出库审核人＝**财务**（审「款收齐没有」）。配了「出库审核人」就只认配的人，
+  # 没配回落到财务 + 管理员/副管——同原料入库那套（Mes::StockEntry.approver?）。
+  APPROVER_BOARD_KEY = 'mes_shipment_approver'.freeze
+
+  def self.approver?(account, account_user)
+    return false if account_user.blank?
+
+    configured = account.mes_board_owners.where(board_key: APPROVER_BOARD_KEY)
+                        .pluck(:manager_ids).flatten.compact.uniq
+    return configured.include?(account_user.user_id) if configured.any?
+
+    account_user.administrator? || account_user.crm_deputy_admin? || account_user.crm_finance?
+  end
+
+  # 提交审核：等财务看「这张单的款收齐没有」。
+  #
+  # 用户给的金蝶流程：业务下销售订单 → 主管审核 → 推到仓库 → **财务审核是否收齐全款** → 出库。
+  # 主管那道已经在销售订单上（Crm::SalesOrderApproval），所以这里不再过主管，直接到财务。
+  # 两种出库都走：生产出库照样过账打 ERP（成本归集+凭证+订单完结），凭什么不审。
   # 重提（REJECTED）沿用同一路径重走审核。
   def submit_for_approval!(_actor = nil)
-    raise StandardError, '仅现货出库单需要审核' unless stock?
     raise StandardError, '当前状态无法提交审核' unless %w[DRAFT REJECTED].include?(status)
 
     # with_lock 锁本单 + 锁成品结存行：让「读他人预占→校验可用→落自己预占」串行化，
@@ -104,28 +122,51 @@ class Mes::Shipment < ApplicationRecord
     with_lock do
       raise StandardError, '当前状态无法提交审核' unless %w[DRAFT REJECTED].include?(status)
 
-      lock_stock_balances!
-      ensure_available_for_reservation!
+      # 预占是**现货出库专有**的（reserving scope 只认 STOCK）：生产出库的货是刚报完工
+      # 入库的成品，不进预占池；对它按预占口径算可用量会算成负数，单子根本提交不了。
+      # 出库那一刻的库存充足性由 ship! 里的 ensure_stock_sufficient! 把关，两种都跑。
+      if stock?
+        lock_stock_balances!
+        ensure_available_for_reservation!
+      end
       self.submitted_at = Time.current
       self.reject_reason = nil
-      # 审批人=部门主管；无主管则回退到总经理；两者都无（本人即最高权限）才免审直发。
-      self.manager_id = resolve_manager_id
-      self.manager_id ||= fallback_gm_approver_id
-      if manager_id.present?
-        update!(status: 'PENDING_APPROVAL')
-      else
-        approve_without_manager!
-      end
+      # manager_id 是历史字段名，现在存的是**审核的财务**（改名要动存量数据和前端，
+      # 同采购单 gm_id 那样只换面向用户的文案）。审核人在审的时候才定——财务是一组人，
+      # 谁先看到谁批，不像部门主管那样提交时就能解析出唯一一个。
+      self.manager_id = nil
+      update!(status: 'PENDING_APPROVAL')
     end
     notify_approval_pending if status == 'PENDING_APPROVAL'
     self
   end
 
-  # 主管审核通过 → 待出库，并推仓库（通知出库板块负责人备货执行）。
-  def approve!(actor)
-    raise StandardError, '非「待审核」环节' unless status == 'PENDING_APPROVAL'
+  # 这张单的款收齐没有（财务审核的依据）。没挂销售订单或还没建账时返回 nil，
+  # 前端据此显示「未建账，无法核对收款」而不是显示成「已收 0」吓人一跳。
+  def receivable_state
+    return nil if crm_sales_order.blank?
 
-    update!(status: 'APPROVED', manager_id: actor.id, approved_at: Time.current)
+    Erp::OrderReceivableProgress.new(crm_sales_order).call
+  end
+
+  # 款是否已收齐。查不到收款信息时返回 nil（＝不知道），不要假装收齐了。
+  def fully_paid?
+    state = receivable_state
+    return nil if state.blank?
+
+    state[:outstanding_micros].to_i <= 0
+  end
+
+  # 财务审核通过 → 待出库，并推仓库（通知出库板块负责人备货执行）。
+  #
+  # 款没收齐也能放行（老客户赊账、老板特批是真实存在的），但必须写理由——
+  # 硬卡住的话财务会绕过系统口头放行，留痕反而没了。
+  def approve!(actor, note: nil)
+    raise StandardError, '非「待审核」环节' unless status == 'PENDING_APPROVAL'
+    raise StandardError, '这张单的款还没收齐，放行请写明理由' if fully_paid? == false && note.to_s.strip.blank?
+
+    update!(status: 'APPROVED', manager_id: actor.id, approved_at: Time.current,
+            approve_note: note.to_s.strip.presence)
     Mes::Notifier.resolve(account: account, kinds: 'shipment_approval_pending', title_like: shipment_no)
     notify_warehouse_ready
     self
@@ -162,8 +203,9 @@ class Mes::Shipment < ApplicationRecord
     # with_lock 加行锁+事务：持锁后复检状态防重复出库；再锁成品结存行后校验充足性→扣减，
     # 让「查库存→扣库存」在同一临界区，杜绝并发超卖/负库存。
     with_lock do
-      raise StandardError, '现货出库单需主管审核通过后才能出库' if stock? && status != 'APPROVED'
-      raise StandardError, '单据已出库或已作废' unless stock? || status == 'DRAFT'
+      # 两种出库都要财务审过才能出：过账会打 ERP（成本归集 + 收入凭证 + 回写订单完结），
+      # 生产出库照样打，凭什么不审（用户给的金蝶流程：…推到仓库 → 财务审核是否收齐全款 → 出库）。
+      raise StandardError, '出库单需财务审核通过后才能出库' unless status == 'APPROVED'
 
       lock_stock_balances!
       ensure_stock_sufficient!

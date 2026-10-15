@@ -15,6 +15,14 @@ json.submitted_at resource.submitted_at
 json.approved_at resource.approved_at
 json.manager_id resource.manager_id
 json.manager_name mes_staff_name(resource.manager)
+json.approve_note resource.approve_note
+# 收款情况：财务审「款收齐没有」的依据，直接摆在审核弹窗上，不用去翻应收台账。
+# 只在详情下发——列表逐行算回款进度是 N+1（每行要查应收 + 跑分期冲抵）。
+if local_assigns[:detail]
+  state = resource.receivable_state
+  json.receivable_state state
+  json.fully_paid state && state[:outstanding_micros].to_i <= 0
+end
 json.reject_reason resource.reject_reason
 json.shipped_at resource.shipped_at
 json.owner_id resource.owner_id

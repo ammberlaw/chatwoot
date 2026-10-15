@@ -5,6 +5,7 @@ end
 
 json.payload do
   json.array! @shipments do |shipment|
-    json.partial! 'api/v1/models/mes_shipment', formats: [:json], resource: shipment
+    json.partial! 'api/v1/models/mes_shipment', formats: [:json], resource: shipment,
+                  detail: @with_receivable
   end
 end

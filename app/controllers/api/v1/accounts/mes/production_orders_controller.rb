@@ -53,6 +53,11 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @hidden_no_line = hidden_without_product_line(scope)
     scope = scoped_by_product_line(scope)
     @production_orders_count = scope.count
+    # 「业务员」下拉的候选：实际当过订单归属人的那些人。
+    # 前端按 crm_role 过滤掉非销售条线（生产/仓管/采购混在里面没法翻），但光按角色会漏——
+    # 生产上「陈云钢」没有 crm_role、名下却有 2 张订单，一刀切他的单就筛不出来了。
+    # 这里报出真实存在的归属人，前端拿它兜底。
+    @owner_ids = scope.distinct.pluck(:owner_id).compact
     # 列表分片逐行取这些关联，不预加载就是每行一次查库（dev 的 Bullet 直接抛异常打断页面）。
     @production_orders = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(per_page_param)
     # 已完工入库量整批查一次；逐行算就是一页几百条 SQL（成品入库页一次拉 500 张订单）。

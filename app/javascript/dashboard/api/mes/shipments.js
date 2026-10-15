@@ -9,7 +9,9 @@ client.ship = id => axios.post(`${client.url}/${id}/ship`);
 
 // 现货出库审核链：重新提交 / 主管通过 / 主管驳回 / 待我审核收件箱。
 client.submit = id => axios.post(`${client.url}/${id}/submit`);
-client.approve = id => axios.post(`${client.url}/${id}/approve`);
+// 审核通过：款没收齐时财务可放行，但要带 note（理由）——后端校验并留痕。
+client.approve = (id, note) =>
+  axios.post(`${client.url}/${id}/approve`, { note });
 client.reject = (id, reason) =>
   axios.post(`${client.url}/${id}/reject`, { reason });
 client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
