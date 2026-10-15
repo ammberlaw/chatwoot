@@ -378,6 +378,22 @@ class Crm::EmailAiService # rubocop:disable Metrics/ClassLength
   end
 
   def ask(system_prompt, user_prompt)
+    with_deadline { chat_once(system_prompt, user_prompt) }
+  end
+
+  # Faraday 的 timeout 是**每次 read** 的超时，不是整轮的。模型侧挂住的时候这道闸刀
+  # 根本不落：2026-10-15 DeepSeek 故障实测，首字节 0.07 秒就回了 200，之后只发
+  # keep-alive 心跳、一个 token 都不吐——心跳把 read 超时一次次重置，请求就这么挂着，
+  # 最后被 rack-timeout 以 Exception 掐断，控制器的 rescue 接不住，用户看到裸 500。
+  # 所以在外面再套一道**总时长**闸刀，并伪装成 Faraday::TimeoutError，
+  # 让各处已有的 `rescue Faraday::Error` 原样接住、显示「AI 暂时不可用」。
+  def with_deadline(&)
+    Timeout.timeout(REQUEST_TIMEOUT, &)
+  rescue Timeout::Error
+    raise Faraday::TimeoutError, "AI 服务 #{REQUEST_TIMEOUT} 秒没有响应"
+  end
+
+  def chat_once(system_prompt, user_prompt)
     context = RubyLLM.context do |config|
       config.openai_api_key = api_key
       config.openai_api_base = api_base

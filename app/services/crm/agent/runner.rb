@@ -15,12 +15,16 @@ class Crm::Agent::Runner
 
   pattr_initialize [:conversation!]
 
+  # 一轮整体的时限。agent 要连调好几次工具，比单次问答慢得多，但不能没有上限：
+  # 模型侧挂住时（2026-10-15 DeepSeek 故障，连接活着、只发心跳不吐 token），
+  # 没有这道闸刀，sidekiq 的 worker 会被一直占着，后面排队的任务全都跑不动。
+  RUN_DEADLINE = 180
+
   def perform(question)
-    scope = Crm::Agent::Scope.new(account: conversation.account, account_user: account_user)
-    chat = build_chat(scope)
-    answer = chat.ask(question).content.to_s.strip
-    record_assistant(answer.presence || '（没有返回内容，请换个说法再问一次）')
-  rescue RubyLLM::Error, Crm::EmailAiService::NotConfigured => e
+    Timeout.timeout(RUN_DEADLINE) { run(question) }
+  rescue Timeout::Error
+    fail_with("AI 服务 #{RUN_DEADLINE} 秒没有响应，可能是模型侧暂时不可用，稍后再试。")
+  rescue RubyLLM::Error, Faraday::Error, Crm::EmailAiService::NotConfigured => e
     fail_with("AI 调用失败：#{e.message}")
   rescue StandardError => e
     Rails.logger.error("[crm_agent] 会话 #{conversation.id} 失败：#{e.class} #{e.message}")
@@ -28,6 +32,12 @@ class Crm::Agent::Runner
   end
 
   private
+
+  def run(question)
+    scope = Crm::Agent::Scope.new(account: conversation.account, account_user: account_user)
+    answer = build_chat(scope).ask(question).content.to_s.strip
+    record_assistant(answer.presence || '（没有返回内容，请换个说法再问一次）')
+  end
 
   def account_user
     @account_user ||= conversation.account.account_users.find_by(user_id: conversation.user_id)
