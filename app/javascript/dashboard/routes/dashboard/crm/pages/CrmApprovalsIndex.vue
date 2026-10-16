@@ -160,6 +160,42 @@ const myDepartments = ref([]);
 const agents = ref([]);
 const selectedDeptId = ref('');
 const attachments = ref([]);
+
+// —— 附件在线预览 ——
+// 报销单的附件九成是发票/小票截图，原来只能点开新标签页下载下来看，
+// 批一张单要下载七八张图、看完还得回来找回这张单。图片和 PDF 就地弹窗看。
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
+const PDF_EXT = /\.pdf$/i;
+const previewKind = file => {
+  const n = file?.filename || '';
+  if (IMAGE_EXT.test(n)) return 'image';
+  if (PDF_EXT.test(n)) return 'pdf';
+  return null;
+};
+const previewRef = ref(null);
+const previewFile = ref(null);
+// v-for 不能和 v-if 混用，可预览/只下载各给一个列表。
+const previewList = computed(() =>
+  (selected.value?.files || []).filter(f => previewKind(f))
+);
+const downloadOnlyFiles = computed(() =>
+  (selected.value?.files || []).filter(f => !previewKind(f))
+);
+const previewIndex = computed(() =>
+  previewList.value.findIndex(f => f.id === previewFile.value?.id)
+);
+const openPreview = file => {
+  if (!previewKind(file)) return;
+  previewFile.value = file;
+  previewRef.value?.open();
+};
+// 一张报销单常有七八张发票，弹窗里左右翻比关掉再点下一张快得多。
+const stepPreview = delta => {
+  const list = previewList.value;
+  if (list.length < 2) return;
+  const next = (previewIndex.value + delta + list.length) % list.length;
+  previewFile.value = list[next];
+};
 const fileInputRef = ref(null);
 // 编辑态：editingId 非空表示改单(而非新发起)；existingFiles 为该单既有附件、removeFileIds 为勾删的附件 id。
 const editingId = ref(null);
@@ -559,7 +595,9 @@ onMounted(async () => {
     <div
       class="flex items-center justify-between flex-shrink-0 gap-2 px-4 py-3 border-b sm:px-6 sm:py-4 border-n-weak [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
     >
-      <h1 class="text-xl font-medium truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">
+      <h1
+        class="text-xl font-medium truncate text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
         {{ L.header }}
       </h1>
       <Button
@@ -717,9 +755,33 @@ onMounted(async () => {
                 {{ L.attachments }}
               </p>
               <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <a
-                  v-for="file in selected.files"
+                <!-- 图片/PDF 就地弹窗看；其余类型仍是下载链接。 -->
+                <button
+                  v-for="file in previewList"
                   :key="file.id"
+                  type="button"
+                  class="flex items-center w-full gap-2 p-2 text-sm text-left border rounded-lg reset-base border-n-weak hover:bg-n-alpha-1"
+                  @click="openPreview(file)"
+                >
+                  <Icon
+                    :icon="
+                      previewKind(file) === 'pdf'
+                        ? 'i-lucide-file-text'
+                        : 'i-lucide-image'
+                    "
+                    class="size-4 shrink-0 text-n-iris-11"
+                  />
+                  <span class="flex-1 min-w-0 truncate text-n-slate-12">
+                    {{ file.filename }}
+                  </span>
+                  <Icon
+                    icon="i-lucide-eye"
+                    class="size-3.5 shrink-0 text-n-slate-10"
+                  />
+                </button>
+                <a
+                  v-for="file in downloadOnlyFiles"
+                  :key="`dl-${file.id}`"
                   :href="file.url"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -1071,6 +1133,64 @@ onMounted(async () => {
               </span>
             </template>
           </div>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- 附件在线预览：发票截图就地看完，不用下载一堆文件再回来找这张单 -->
+    <Dialog
+      ref="previewRef"
+      :title="previewFile?.filename || '附件预览'"
+      width="4xl"
+      :show-cancel-button="false"
+      :show-confirm-button="false"
+    >
+      <div v-if="previewFile" class="flex flex-col gap-3">
+        <div
+          class="flex items-center justify-center overflow-auto rounded-lg bg-n-alpha-1 min-h-[50vh] max-h-[70vh]"
+        >
+          <img
+            v-if="previewKind(previewFile) === 'image'"
+            :src="previewFile.url"
+            :alt="previewFile.filename"
+            class="object-contain max-w-full max-h-[70vh]"
+          />
+          <!-- PDF 交给浏览器自带阅读器；它不认的会自己提示下载 -->
+          <iframe
+            v-else
+            :src="previewFile.url"
+            :title="previewFile.filename"
+            class="w-full h-[70vh] border-0"
+          />
+        </div>
+
+        <div class="flex items-center gap-2">
+          <template v-if="previewList.length > 1">
+            <Button
+              icon="i-lucide-chevron-left"
+              variant="ghost"
+              size="sm"
+              @click="stepPreview(-1)"
+            />
+            <span class="text-xs tabular-nums text-n-slate-11">
+              {{ previewIndex + 1 }} / {{ previewList.length }}
+            </span>
+            <Button
+              icon="i-lucide-chevron-right"
+              variant="ghost"
+              size="sm"
+              @click="stepPreview(1)"
+            />
+          </template>
+          <span class="flex-1" />
+          <a
+            :href="previewFile.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs underline text-n-slate-11 underline-offset-2 hover:text-n-slate-12"
+          >
+            下载原件
+          </a>
         </div>
       </div>
     </Dialog>
