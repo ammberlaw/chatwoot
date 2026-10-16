@@ -21,8 +21,19 @@ class Api::V1::Accounts::Erp::PayablesController < Api::V1::Accounts::Erp::BaseC
     po = @payable.mes_purchase_order
     # 一张采购单可能含多家供应商，这笔应付只认本供应商那几行（口径与台账列表同一个）。
     @detail_items = @payable.supplier_items
-    @detail_entries = po ? Current.account.mes_stock_entries.where(purchase_order_id: po.id).order(:id) : []
-    @detail_allocations = @payable.allocations.includes(:payment_record).order(:id)
+    # 入库单带上明细行与仓库：财务点开要看「这张单到底收了什么、多少」，
+    # 否则只有单号和过账日期，还得自己去 MES 翻。
+    @detail_entries = if po
+                        Current.account.mes_stock_entries.where(purchase_order_id: po.id)
+                               .includes(stock_entry_items: %i[mes_material crm_product]).order(:id)
+                      else
+                        []
+                      end
+    # Mes::StockEntry 上没有 warehouse 关联，只有裸的 from/to_warehouse_id 列
+    # （同 Crm::SalesOrderTraceService 那边的注释）。一次读成 id→名字，别逐条查。
+    @warehouse_names = Current.account.mes_warehouses.pluck(:id, :name).to_h
+    @detail_allocations = @payable.allocations
+                                  .includes(payment_record: :cash_account).order(:id)
     render 'api/v1/accounts/erp/payables/detail'
   end
 

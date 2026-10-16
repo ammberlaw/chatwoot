@@ -90,12 +90,30 @@ class Erp::StockCostService
 
   # 成品原路径（成品收货/完工入库建层，出货/报废扣层）。
   def sync_stock_entry!(entry)
+    # 入库建层要把**原料行一起建**：原料 FIFO 的整条链是「采购收货建层 → 领料逐层扣」，
+    # 入库只建成品层的话原料一层都没有，领料时无层可扣，成本只能回落到「最近一次采购单价」
+    # ——那正是 2026-10-12 这次改造要消灭的口径（备货期价格一变，先备的货按新价出账）。
+    # 生产上实测：74 行原料入库建出 0 个批次层，改造做了一半。
+    #
+    # 出库（SHIPMENT/SCRAP）仍只认成品行：卖出去/报废的是成品，原料的消耗走领料那条路。
+    return build_layers!(entry, layer_items(entry)) if IN_PURPOSES.include?(entry.purpose)
+
     items = product_items(entry)
     return 0 if items.empty?
-    return build_layers!(entry, items) if IN_PURPOSES.include?(entry.purpose)
     return items.sum { |item| consume!(entry, item) } if OUT_PURPOSES.include?(entry.purpose)
 
     0
+  end
+
+  # 入库建层的行：成品按商品档认，原料挂物料档或商品档都算（屏、主板这些建在商品档里）。
+  def layer_items(entry)
+    entry.stock_entry_items.select do |item|
+      if item.item_type == PRODUCT
+        item.crm_product_id.present?
+      else
+        item.mes_material_id.present? || item.crm_product_id.present?
+      end
+    end
   end
 
   def product_items(entry)

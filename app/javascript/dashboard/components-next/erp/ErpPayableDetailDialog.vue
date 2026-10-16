@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { fmtMoney } from 'dashboard/helper/erpMoney';
 import ErpPayableAPI from 'dashboard/api/erp/payables';
@@ -48,6 +48,22 @@ const open = async payableId => {
   }
 };
 const close = () => dialogRef.value?.close();
+// 入库单/付款记录点开就地看明细，不用去 MES 或资金账户里翻。
+// 明细字段 detail 接口本来就一并返回了（见 payables#detail），直接拿来渲染，不另发请求。
+const drill = ref(null); // { kind: 'entry' | 'payment', data }
+const drillRef = ref(null);
+const openDrill = (kind, data) => {
+  drill.value = { kind, data };
+  nextTick(() => drillRef.value?.open());
+};
+const drillTitle = computed(() => {
+  const d = drill.value;
+  if (!d) return '';
+  return d.kind === 'entry'
+    ? `入库单 ${d.data.entry_no || ''}`
+    : `付款记录 ${d.data.payment_no || ''}`;
+});
+
 defineExpose({ open, close });
 </script>
 
@@ -224,12 +240,16 @@ defineExpose({ open, close });
         <span class="text-heading-3 text-n-slate-12">
           入库单（{{ (detail.stock_entries || []).length }}）
         </span>
-        <div
+        <button
           v-for="e in detail.stock_entries || []"
           :key="e.entry_no"
-          class="flex flex-wrap items-center gap-x-3 text-xs"
+          type="button"
+          class="flex flex-wrap items-center w-full gap-x-3 px-1 py-0.5 -mx-1 text-xs text-left rounded reset-base hover:bg-n-alpha-1"
+          @click="openDrill('entry', e)"
         >
-          <span class="font-mono text-n-slate-12">{{ e.entry_no }}</span>
+          <span class="font-mono underline text-n-slate-12 underline-offset-2">
+            {{ e.entry_no }}
+          </span>
           <span class="text-n-slate-11">{{ e.status_label }}</span>
           <span v-if="e.posted_at" class="text-n-slate-11">
             过账 {{ day(e.posted_at) }}
@@ -237,7 +257,8 @@ defineExpose({ open, close });
           <span v-if="e.actual_inbound_date" class="text-n-slate-11">
             到料 {{ day(e.actual_inbound_date) }}
           </span>
-        </div>
+          <span class="text-n-slate-10">{{ (e.items || []).length }} 项</span>
+        </button>
         <p
           v-if="!(detail.stock_entries || []).length"
           class="text-sm text-n-slate-11"
@@ -251,19 +272,25 @@ defineExpose({ open, close });
         <span class="text-heading-3 text-n-slate-12">
           付款记录（{{ (detail.payments || []).length }}）
         </span>
-        <div
+        <button
           v-for="(pm, i) in detail.payments || []"
           :key="`pm-${i}`"
-          class="flex flex-wrap items-center gap-x-3 text-xs"
+          type="button"
+          class="flex flex-wrap items-center w-full gap-x-3 px-1 py-0.5 -mx-1 text-xs text-left rounded reset-base hover:bg-n-alpha-1"
+          @click="openDrill('payment', pm)"
         >
-          <span class="font-mono text-n-slate-12">{{ pm.payment_no }}</span>
+          <span class="font-mono underline text-n-slate-12 underline-offset-2">
+            {{ pm.payment_no }}
+          </span>
           <span class="text-n-slate-11">{{ day(pm.paid_at) }}</span>
           <span class="text-n-slate-11">{{ pm.method_label || '' }}</span>
           <span class="font-mono text-n-slate-12">
             {{ money(pm.amount_micros) }}
           </span>
-          <span v-if="pm.remark" class="text-n-slate-11">{{ pm.remark }}</span>
-        </div>
+          <span v-if="pm.remark" class="truncate text-n-slate-11">
+            {{ pm.remark }}
+          </span>
+        </button>
         <p
           v-if="!(detail.payments || []).length"
           class="text-sm text-n-slate-11"
@@ -282,5 +309,129 @@ defineExpose({ open, close });
         采购对内备注：{{ detail.purchase_order.internal_remark }}
       </p>
     </div>
+
+    <!-- 二级弹窗：入库单收了什么 / 这笔钱从哪个户出的 -->
+    <Dialog
+      ref="drillRef"
+      :title="drillTitle"
+      width="xl"
+      :show-cancel-button="false"
+      :show-confirm-button="false"
+    >
+      <div v-if="drill" class="flex flex-col gap-4 text-sm">
+        <template v-if="drill.kind === 'entry'">
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">状态</span>
+              <span class="text-n-slate-12">{{ drill.data.status_label }}</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">过账</span>
+              <span class="text-n-slate-12">
+                {{ day(drill.data.posted_at) || '—' }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">到料</span>
+              <span class="text-n-slate-12">
+                {{ day(drill.data.actual_inbound_date) || '—' }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">仓库</span>
+              <span class="text-n-slate-12">
+                {{ drill.data.warehouse_name || '—' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <span class="text-heading-3 text-n-slate-12">
+              收货明细（{{ (drill.data.items || []).length }}）
+            </span>
+            <div
+              v-for="(it, i) in drill.data.items || []"
+              :key="`it-${i}`"
+              class="flex flex-wrap items-baseline gap-x-3 text-xs"
+            >
+              <span class="font-mono w-28 shrink-0 text-n-slate-12">
+                {{ it.code || '—' }}
+              </span>
+              <span class="flex-1 min-w-0 truncate text-n-slate-12">
+                {{ it.name || '—' }}
+              </span>
+              <span v-if="it.spec" class="truncate max-w-[40%] text-n-slate-10">
+                {{ it.spec }}
+              </span>
+              <span class="tabular-nums shrink-0 text-n-slate-11">
+                {{ it.qty }} {{ it.unit || '' }}
+              </span>
+            </div>
+            <p
+              v-if="!(drill.data.items || []).length"
+              class="text-xs text-n-slate-11"
+            >
+              这张入库单没有明细行。
+            </p>
+          </div>
+
+          <p v-if="drill.data.remark" class="text-xs text-n-slate-11">
+            备注：{{ drill.data.remark }}
+          </p>
+        </template>
+
+        <template v-else>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">付款日期</span>
+              <span class="text-n-slate-12">
+                {{ day(drill.data.paid_at) || '—' }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">方式</span>
+              <span class="text-n-slate-12">
+                {{ drill.data.method_label || '—' }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">付款账户</span>
+              <span class="text-n-slate-12">
+                {{ drill.data.cash_account_name || '—' }}
+              </span>
+            </div>
+            <!-- 本次核销只是这笔付款的一部分：整笔付了多少要单列，否则对不上银行流水 -->
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">本次核销</span>
+              <span class="font-mono text-n-slate-12">
+                {{ money(drill.data.amount_micros) }}
+              </span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-n-slate-10">整笔付款</span>
+              <span class="font-mono text-n-slate-12">
+                {{ drill.data.currency || '' }}
+                {{ money(drill.data.total_amount_micros) }}
+              </span>
+            </div>
+            <div v-if="drill.data.bank_charge_micros" class="flex flex-col">
+              <span class="text-xs text-n-slate-10">手续费</span>
+              <span class="font-mono text-n-slate-12">
+                {{ money(drill.data.bank_charge_micros) }}
+              </span>
+            </div>
+            <div v-if="drill.data.reference_no" class="flex flex-col">
+              <span class="text-xs text-n-slate-10">银行流水号</span>
+              <span class="font-mono text-n-slate-12">
+                {{ drill.data.reference_no }}
+              </span>
+            </div>
+          </div>
+          <p v-if="drill.data.remark" class="text-xs text-n-slate-11">
+            备注：{{ drill.data.remark }}
+          </p>
+        </template>
+      </div>
+    </Dialog>
   </Dialog>
 </template>
