@@ -301,6 +301,27 @@ const PENDING_COLUMN_DEFS = [
   },
   { key: 'actions', label: '操作', rowspan: true, right: true },
 ];
+
+// 31 列横着要翻两屏半，翻到中间往往一屏只剩一列「—」（用户反馈：
+// 「这个这样子整个空白占一整页肯定是不行的」）。默认只摆财务日常对账看的那些，
+// 下面这些是金蝶导出里带过来、平时不看的，收进「列」面板，要看随时打开。
+// 存储键同时升到 v2：上线后所有人按新默认走一次，之后各自调的照旧记在本机。
+const PENDING_DEFAULT_HIDDEN = [
+  'insuranceNo',
+  'customerCode',
+  'department',
+  'docNo',
+  'warehouse',
+  'currency',
+  'rate',
+  'freight',
+  'unit',
+  'taxRate',
+  'grossPrice',
+  'netAmount',
+  'baseAmount',
+  'productLine',
+];
 const {
   orderedColumns: pendingCols,
   visibleColumns: pendingVisibleCols,
@@ -315,13 +336,16 @@ const {
   isResizing: isPendingColResizing,
   startResize: startPendingColResize,
   autoFitColumn: autoFitPendingCol,
-} = useOrderableColumns(PENDING_COLUMN_DEFS, 'erp.arPendingCols.v1');
+} = useOrderableColumns(PENDING_COLUMN_DEFS, 'erp.arPendingCols.v2', {
+  defaultHidden: PENDING_DEFAULT_HIDDEN,
+});
 const hiddenPendingCols = computed(
   () => PENDING_COLUMN_DEFS.length - pendingVisibleCols.value.length
 );
 // 表头漏斗筛选（对标金蝶）：{ 列名: { op, value } }。服务端按列筛，不是只筛当前这一页——
 // 列表是分页的，筛 50 行说「没有」，翻到第二页它又在。
 const colFilters = ref({});
+
 // 待建账 / 收款记录各自的表头筛选（和台账那套分开存：三个页签列不一样）。
 const pendingColFilters = ref({});
 const receiptColFilters = ref({});
@@ -1421,10 +1445,20 @@ onMounted(() => {
                   {{ item.sku || '—' }}
                 </template>
                 <template v-else-if="col.key === 'name'">
-                  {{ item.name || '—' }}
+                  <span
+                    class="block max-w-[14rem] truncate"
+                    :title="item.name || ''"
+                  >
+                    {{ item.name || '—' }}
+                  </span>
                 </template>
                 <template v-else-if="col.key === 'spec'">
-                  {{ item.spec || '—' }}
+                  <span
+                    class="block max-w-[14rem] truncate"
+                    :title="item.spec || ''"
+                  >
+                    {{ item.spec || '—' }}
+                  </span>
                 </template>
                 <template v-else-if="col.key === 'currency'">
                   {{ row.currency || '—' }}
@@ -1688,10 +1722,20 @@ onMounted(() => {
                     {{ item.sku || '—' }}
                   </template>
                   <template v-else-if="col.key === 'name'">
-                    {{ item.name || '—' }}
+                    <span
+                      class="block max-w-[14rem] truncate"
+                      :title="item.name || ''"
+                    >
+                      {{ item.name || '—' }}
+                    </span>
                   </template>
                   <template v-else-if="col.key === 'spec'">
-                    {{ item.spec || '—' }}
+                    <span
+                      class="block max-w-[14rem] truncate"
+                      :title="item.spec || ''"
+                    >
+                      {{ item.spec || '—' }}
+                    </span>
                   </template>
                   <template v-else-if="col.key === 'currency'">
                     {{ row.currency || 'CNY' }}

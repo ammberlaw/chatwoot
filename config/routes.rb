@@ -379,6 +379,8 @@ Rails.application.routes.draw do
             resources :voucher_templates, only: [:index, :create, :destroy]
             resources :vouchers, only: [:index, :show, :create, :update, :destroy] do
               collection do
+                # 新建凭证时先暂存单据影像（还没有 id，只能走 collection）
+                post :stage_blob
                 get :summaries
                 get :import_template
                 post :import
@@ -535,6 +537,17 @@ Rails.application.routes.draw do
               end
             end
             resources :bom_templates, except: [:new, :edit]
+            # 生产订单的物料反馈面板：采购更新供应商那边的情况（延误/改期/到货），业务只读。
+            resources :production_orders, only: [] do
+              resources :order_feedbacks, only: [:index, :create, :destroy]
+            end
+            # 退料返修：退给供应商修、修好登记回来（只记台账，不动库存）。
+            resources :supplier_returns do
+              member do
+                post :send_out
+                post :receive_back
+              end
+            end
             resources :purchase_orders do
               collection do
                 get :requirement
@@ -547,6 +560,8 @@ Rails.application.routes.draw do
                 post :submit
                 post :approve
                 post :reject
+                post :close
+                post :reopen
                 post :return_document
                 post :reactivate
                 get :export

@@ -123,7 +123,7 @@ const STATUS_LABELS = {
   SUBMITTED: '已下单',
   PARTIAL_RECEIVED: '部分到货',
   RECEIVED: '已到货',
-  CANCELLED: '已取消',
+  CANCELLED: '已关闭',
 };
 
 // 审批状态（一级）：与收货状态正交。审批人按产品线配置（平板、商显各一位），
@@ -294,16 +294,39 @@ const orderNosLabel = nos => {
 const { isMyDoc } = useMesDocOwner();
 // 谁制单谁改：非下单人不露编辑/删除（后端同样拦）。
 const canEditRow = po => mesCan('purchase') && isMyDoc(po);
-// 删草稿：后端 deletable? 才是准绳（这里只决定按钮露不露），删不掉会把后端的理由弹出来。
-const canDelete = po =>
-  mesCan('purchase') &&
-  isMyDoc(po) &&
-  po.status === 'DRAFT' &&
-  ['DRAFT', 'REJECTED'].includes(po.approvalStatus);
+// 删单：口径只留后端一处（未提审的草稿，或已关闭且没到过货的单），这里照着 deletable 露按钮。
+const canDelete = po => mesCan('purchase') && isMyDoc(po) && po.deletable;
+// 关闭 / 启用：一对可逆动作，收过货的单不给关（后端也拦）。
+const canClose = po => mesCan('purchase') && isMyDoc(po) && !po.closed;
+const canReopen = po => mesCan('purchase') && isMyDoc(po) && po.closed;
+
+const closeOrder = async po => {
+  // eslint-disable-next-line no-alert
+  if (
+    !window.confirm(
+      `关闭采购单「${po.poNo}」？关闭后不参与齐套判定，需要时可以再启用。`
+    )
+  )
+    return;
+  try {
+    await store.closeOrder(po.id);
+    useAlert(`${po.poNo} 已关闭`);
+  } catch (error) {
+    useAlert(error?.message || '关闭失败');
+  }
+};
+
+const reopenOrder = async po => {
+  try {
+    await store.reopenOrder(po.id);
+    useAlert(`${po.poNo} 已启用`);
+  } catch (error) {
+    useAlert(error?.message || '启用失败');
+  }
+};
 
 const removeOrder = async po => {
-  if (!window.confirm(`确定删除草稿采购单「${po.poNo}」？删了不可恢复。`))
-    return;
+  if (!window.confirm(`确定删除采购单「${po.poNo}」？删了不可恢复。`)) return;
   try {
     await store.delete(po.id);
     useAlert(`已删除 ${po.poNo}`);
@@ -891,8 +914,14 @@ useRouteQueryReentry(async query => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">采购单</h1>
+    <div
+      class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+    >
+      <h1
+        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        采购单
+      </h1>
       <div class="flex items-center gap-2">
         <!-- h-8 和同排的按钮等高：不给高度它就只有一行文字那么高（24px），
              和旁边 32px 的控件一比就是没对齐。 -->
@@ -993,7 +1022,9 @@ useRouteQueryReentry(async query => {
     />
 
     <!-- 搜索：单号/供应商/归属人/生产订单/物料编码 -->
-    <div class="flex items-center gap-2 px-4 pt-1 pb-2 sm:px-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex items-center gap-2 px-4 pt-1 pb-2 sm:px-6 [.theme-classic_&]:sm:!px-8"
+    >
       <input
         v-model="search"
         type="text"
@@ -1020,7 +1051,9 @@ useRouteQueryReentry(async query => {
     </div>
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
@@ -1144,7 +1177,9 @@ useRouteQueryReentry(async query => {
                   @auto-fit="autoFitOrderCol"
                 />
               </th>
-              <th class="px-3 py-3" />
+              <th
+                class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+              />
             </tr>
           </thead>
           <tbody>
@@ -1240,7 +1275,9 @@ useRouteQueryReentry(async query => {
                   <span :title="p.remark || ''">{{ p.remark || '—' }}</span>
                 </template>
               </td>
-              <td class="px-3 py-3 text-right whitespace-nowrap">
+              <td
+                class="px-3 py-3 text-right whitespace-nowrap sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+              >
                 <div
                   class="flex flex-nowrap justify-end gap-1 [&>button]:shrink-0"
                 >
@@ -1296,15 +1333,30 @@ useRouteQueryReentry(async query => {
                     :store="store"
                     :can-manage="mesCan('purchase')"
                   />
-                  <!-- 废稿清理：只有未提审、未到过货的草稿能删，其余走「退回」留痕。
-                       操作列已经很挤，这里只放图标。
-                       外面这层固定占位：只有能删的那几行多出一个图标的话，整行按钮会被
-                       往左顶，跟上下行对不齐（用户反馈「UI 没对齐」）。 -->
+                  <!-- 关闭 / 启用 / 删除。操作列已经很挤，三个都只放图标。
+                       外面这层固定占位：只有部分行多出图标的话，整行按钮会被往左顶，
+                       跟上下行对不齐（用户反馈「UI 没对齐」）。 -->
+                  <span class="inline-flex justify-center size-4 shrink-0">
+                    <button
+                      v-if="canClose(p)"
+                      type="button"
+                      title="关闭本单（之后可再启用）"
+                      class="i-lucide-circle-slash size-4 text-n-slate-10 hover:text-n-amber-11"
+                      @click="closeOrder(p)"
+                    />
+                    <button
+                      v-else-if="canReopen(p)"
+                      type="button"
+                      title="重新启用"
+                      class="i-lucide-rotate-ccw size-4 text-n-slate-10 hover:text-n-teal-11"
+                      @click="reopenOrder(p)"
+                    />
+                  </span>
                   <span class="inline-flex justify-center size-4 shrink-0">
                     <button
                       v-if="canDelete(p)"
                       type="button"
-                      title="删除草稿"
+                      title="删除本单"
                       class="i-lucide-trash-2 size-4 text-n-slate-10 hover:text-n-ruby-11"
                       @click="removeOrder(p)"
                     />
@@ -1357,7 +1409,7 @@ useRouteQueryReentry(async query => {
                 />
               </th>
               <th
-                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-[''] px-3 py-2"
+                class="sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-[''] px-3 py-2"
               />
             </tr>
           </thead>
@@ -1429,7 +1481,7 @@ useRouteQueryReentry(async query => {
                 </template>
               </td>
               <td
-                class="sticky right-0 z-10 px-3 py-2 text-right border-l bg-n-solid-1 border-n-weak whitespace-nowrap after:absolute after:inset-y-0 after:left-full after:w-6 after:bg-n-solid-1 after:content-['']"
+                class="sticky right-0 z-10 px-3 py-2 text-right border-l bg-n-solid-1 border-n-weak whitespace-nowrap after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
               >
                 <Button
                   label="查看"

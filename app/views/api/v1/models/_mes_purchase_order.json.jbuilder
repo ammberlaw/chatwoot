@@ -22,6 +22,9 @@ json.production_order_no resource.production_order&.order_no
 json.production_order_owner_name mes_staff_name(resource.production_order&.owner)
 json.status resource.status
 json.approval_status resource.approval_status
+# 关闭/启用/删除三个按钮的显隐：别让前端自己推状态组合，口径只留模型一处。
+json.closed resource.closed?
+json.deletable resource.deletable?
 json.submitted_at resource.submitted_at
 json.gm_id resource.gm_id
 json.gm_name mes_staff_name(resource.gm)

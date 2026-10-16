@@ -68,7 +68,7 @@ const STATUS_LABELS = {
   SUBMITTED: '已下单',
   PARTIAL_RECEIVED: '部分到货',
   RECEIVED: '已到货',
-  CANCELLED: '已取消',
+  CANCELLED: '已关闭',
 };
 
 // 按供应商拆单导出 PDF：后端用公司原始 .xlsx 模板 1:1 填充（含公章，抬头/税口径按各自 bill_entity）
@@ -169,6 +169,7 @@ const blankRow = () => ({
   rate: '',
   amount: '', // 行金额：跟数量/单价双向联动（有的物料是报「多少数量多少钱」）
   orderedQty: 0, // 本单这个料已经下出去的量（算料时带出，用来只铺剩余量）
+  requiredQty: null, // 算料出来的原需求量（＝余量 + 已下量），只读提示用
   priceTaxIncluded: false,
   suggestedQty: null, // 工程建议采购量（生产任务单算料带出，只读参考）
   auxAttributeName: '', // 辅助属性（算料时从任务单那行带出；导出给供应商的单子要印）
@@ -531,6 +532,9 @@ const explode = async (category = '') => {
     seedAuxFromRows(form.rows);
     form.rows.forEach(r => {
       if (r.orderedQty > 0) {
+        // 原需求量留一份：行上只显示余量的话，采购会以为「这颗料一共就要这么多」，
+        // 看不出前面已经下过（用户反馈「同款物料还是显示要下单」就是这么来的）。
+        r.requiredQty = Number(r.qty);
         r.qty = String(Number((Number(r.qty) - r.orderedQty).toFixed(3)));
       }
       syncAmount(r);
@@ -661,24 +665,39 @@ const pickRowImages = async (event, row, index) => {
 // 删除只改本地列表，保存时整组替换生效（没点保存就离开＝没删掉，和改数量一个语义）。
 const removeRowImage = (row, i) => row.images.splice(i, 1);
 
-// 作废本单。走普通 update 把 status 置 CANCELLED——后端 before_save 会把它从
-// 生产订单的齐套判定里摘掉（purchase_complete? 只数未作废的单）。不可逆，所以先问一句。
+// 关闭 / 启用本单。关闭＝这单先不采购了：后端回冲未收货在途、把它从生产订单的齐套判定里
+// 摘掉（purchase_complete? 只数未关闭的单），待审批的还会从审批队列撤下来。
+// 今天不下、明天要下的单点「启用」就能接着用——原来的「作废」是单向的，只能重开一张。
 const cancelling = ref(false);
-const cancelOrder = async () => {
+const closeOrder = async () => {
   if (!editingId.value) return;
-  const msg = `作废采购单 ${form.poNo || ''}？作废后不参与齐套判定，且无法撤回。`;
+  const msg = `关闭采购单 ${form.poNo || ''}？关闭后不参与齐套判定，需要时可以再启用。`;
   // eslint-disable-next-line no-alert
   if (!window.confirm(msg)) return;
 
   cancelling.value = true;
   try {
-    const ok = await store.update({ id: editingId.value, status: 'CANCELLED' });
-    if (ok) {
-      useAlert('采购单已作废');
-      markPristine();
-      leaving = true;
-      backToList();
-    }
+    await store.closeOrder(editingId.value);
+    useAlert('采购单已关闭');
+    markPristine();
+    leaving = true;
+    backToList();
+  } catch (error) {
+    useAlert(error?.message || '关闭失败');
+  } finally {
+    cancelling.value = false;
+  }
+};
+
+const reopenOrder = async () => {
+  if (!editingId.value) return;
+  cancelling.value = true;
+  try {
+    const ok = await store.reopenOrder(editingId.value);
+    form.status = ok?.status || 'DRAFT';
+    useAlert('采购单已启用，可以接着下单了');
+  } catch (error) {
+    useAlert(error?.message || '启用失败');
   } finally {
     cancelling.value = false;
   }
@@ -858,16 +877,24 @@ onBeforeRouteLeave((to, from, next) => {
           size="sm"
           @click="requestLeave"
         />
-        <!-- 作废：原先唯一的入口是状态下拉里的「已取消」，下拉改只读后要给它一条明路。
-             作废后后端会把这张单从生产订单的齐套判定里摘出去（已作废的不参与）。 -->
+        <!-- 关闭 / 启用：一对可逆动作。关掉的单不参与齐套判定，需要时再启用接着用。 -->
         <Button
           v-if="editingId && form.status !== 'CANCELLED'"
-          label="作废本单"
+          label="关闭本单"
           variant="outline"
           color="ruby"
           size="sm"
           :is-loading="cancelling"
-          @click="cancelOrder"
+          @click="closeOrder"
+        />
+        <Button
+          v-if="editingId && form.status === 'CANCELLED'"
+          label="重新启用"
+          variant="outline"
+          color="teal"
+          size="sm"
+          :is-loading="cancelling"
+          @click="reopenOrder"
         />
         <Button
           label="保存"
@@ -1334,6 +1361,14 @@ onBeforeRouteLeave((to, from, next) => {
                 <span class="text-n-slate-9">工程建议采购</span>
                 <span class="text-n-slate-11">
                   {{ row.suggestedQty == null ? '—' : row.suggestedQty }}
+                </span>
+              </span>
+              <!-- 这颗料本单之前已经下过多少：数量栏填的是**剩余**要下的量，
+                   不摆这一条，采购看不出前面下过，会以为系统漏算了。 -->
+              <span v-if="row.orderedQty > 0" class="inline-flex gap-1.5">
+                <span class="text-n-slate-9">本单已下</span>
+                <span class="text-n-amber-11">
+                  {{ row.orderedQty }} / 需求 {{ row.requiredQty }}
                 </span>
               </span>
             </div>

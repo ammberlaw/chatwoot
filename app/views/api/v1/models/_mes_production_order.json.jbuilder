@@ -21,6 +21,15 @@ json.progress_ratio resource.progress_ratio
 # 未入库量 = 数量 − 已入库量，交前端算，不再多吐一个会算错口径的字段。
 json.specification resource.crm_product&.specification
 json.issued_entry_count (@issued_counts_by_order&.[](resource.id)).to_i
+# 组装齐 / 包装齐：整机料、包装料分两组看到料到齐没有（Mes::KitReadiness）。
+# ready 为 nil ＝ 没挂 BOM 或该类别没有料，前端不显示徽标——不能当成「齐了」。
+if @kit_readiness
+  state = @kit_readiness[resource.id] || {}
+  json.kit_readiness do
+    json.machine state[:machine] || { ready: nil, short: nil }
+    json.packaging state[:packaging] || { ready: nil, short: nil }
+  end
+end
 json.bom_id resource.bom_id
 json.is_outsourced resource.is_outsourced
 # 料是否都下满采购单：采购单的「关联生产订单」下拉据此把下完的单拿掉
@@ -172,8 +181,13 @@ if Current.account_user&.mes_staff?
     json.item_count po.purchase_items.size
     json.shortages shortages[po.id] || []
   end
+  # 物料到货明细：一张工单的料会摊成十几张入库单，逐张点开才数得清到了多少
+  # （用户原话：「这1个工单原材料入库查找起来比较麻烦，都是一个一个的找」）。
+  # 整机料 + 包装料一次列全，和缺料清单、齐套徽标同口径。只在详情给：要展开 BOM。
+  json.material_arrivals(local_assigns[:detail] ? Mes::MaterialArrival.for(resource) : [])
 else
   json.purchase_orders []
+  json.material_arrivals []
 end
 # 业务转发/知会：可转发的阶段板块（含当前负责人姓名）+ 已知会留痕。仅详情(show)输出，
 # 避免列表逐行跑 board_owner 查询（N+1）。

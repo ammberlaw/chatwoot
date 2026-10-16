@@ -2,9 +2,10 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   include Api::V1::Accounts::Mes::DocumentReturnable
 
   before_action :check_authorization
-  before_action :fetch_purchase_order, only: [:show, :update, :destroy, :export, :export_data, :mark_exported, :submit, :approve, :reject]
+  before_action :fetch_purchase_order,
+                only: [:show, :update, :destroy, :export, :export_data, :mark_exported, :submit, :approve, :reject, :close, :reopen]
   # 谁制单谁改（管理员可代改）——采购单的 owner 就是下单人。
-  before_action -> { ensure_owner_or_admin!(@purchase_order, '采购单') }, only: [:update, :destroy]
+  before_action -> { ensure_owner_or_admin!(@purchase_order, '采购单') }, only: [:update, :destroy, :close, :reopen]
   before_action :ensure_approved_before_export!, only: [:export, :export_data, :mark_exported]
   # 审批人按产品线分（平板一位、商显一位），所以「能批」要逐单核对本单 gm_id，
   # 不能只看「他是某条线的审批人」——否则平板的审批人能去批商显的单。
@@ -51,29 +52,21 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   end
 
   def destroy
-    return render json: { error: '只有未提交审批、且还没到过货的草稿采购单可以删除' }, status: :unprocessable_entity unless @purchase_order.deletable?
+    return render json: { error: '只有未提交审批的草稿、或已关闭且没到过货的单可以删除' }, status: :unprocessable_entity unless @purchase_order.deletable?
 
     @purchase_order.destroy!
     head :ok
   end
 
+  # 关闭：这单先不采购了（回冲在途、从审批队列撤下来）。启用：关闭过的单接着用。
+  def close = render_after { @purchase_order.close! }
+  def reopen = render_after { @purchase_order.reopen! }
+
   # 提交审批（草稿/被驳回可提交）；审批人按本单产品线解析。
-  def submit
-    @purchase_order.submit_for_approval!(current_user)
-    render 'api/v1/accounts/mes/purchase_orders/show'
-  end
-
-  # 审批通过 → 生效，累加在途库存。
-  def approve
-    @purchase_order.gm_approve!(current_user, comment: params[:comment])
-    render 'api/v1/accounts/mes/purchase_orders/show'
-  end
-
-  # 审批驳回 → 退回制单人。
-  def reject
-    @purchase_order.reject_approval!(current_user, reason: params[:reason])
-    render 'api/v1/accounts/mes/purchase_orders/show'
-  end
+  def submit = render_after { @purchase_order.submit_for_approval!(current_user) }
+  # 审批通过 → 生效，累加在途库存。驳回 → 退回制单人。
+  def approve = render_after { @purchase_order.gm_approve!(current_user, comment: params[:comment]) }
+  def reject = render_after { @purchase_order.reject_approval!(current_user, reason: params[:reason]) }
 
   # 待我审批的采购单（审批人待办箱）。
   def approval_inbox
@@ -138,6 +131,14 @@ class Api::V1::Accounts::Mes::PurchaseOrdersController < Api::V1::Accounts::Mes:
   # 直接把采购单导出发给供应商，老板还以为自己在把关。审批形同虚设。
   # 拦在控制器而不是策略里：策略管的是「这个人有没有这个权限」，这里管的是
   # 「这张单到没到可以对外的状态」，两回事。
+  # 关不关得掉由模型说了算，失败要把原话吐给采购（「已经收过货」之类），别兜成通用报错。
+  def render_after
+    yield
+    render 'api/v1/accounts/mes/purchase_orders/show'
+  rescue StandardError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   def ensure_approved_before_export!
     return if @purchase_order.approved?
 

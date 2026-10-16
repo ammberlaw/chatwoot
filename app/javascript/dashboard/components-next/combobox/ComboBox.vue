@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { OnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 
@@ -63,6 +63,50 @@ const selectedLabel = computed(() => {
   return selected?.label ?? (props.displayLabel || selectPlaceholder.value);
 });
 
+// 下拉面板 Teleport 出去 + fixed 定位。原来是挂在触发器里的 absolute，
+// 只要祖先上有 overflow（表格的横向滚动容器、卡片的 overflow-auto）就会被裁掉半截
+// ——记账凭证分录表改成可横滚的表格后，科目下拉就只剩一行（用户反馈「筛选只显示一半」）。
+// 同 SelectCard：在原生 <dialog> 里就 Teleport 进那个 dialog（顶层），否则回 body。
+const POPOVER_MAX_H = 288; // 与面板上的 max-h-72 一致
+const GAP = 4;
+const OFFSCREEN = { position: 'fixed', top: '-10000px', left: '0px' };
+const popStyle = ref({ ...OFFSCREEN });
+const teleportTarget = ref('body');
+// 打开时挂、关闭时摘：fixed 面板不会跟着容器滚，一滚就关掉最省事（同 SelectCard）。
+// 存成变量而不是具名函数，免得它和 closeDropdown 互相引用。
+let viewportHandler = null;
+
+const closeDropdown = () => {
+  open.value = false;
+  popStyle.value = { ...OFFSCREEN };
+  if (!viewportHandler) return;
+
+  window.removeEventListener('scroll', viewportHandler, true);
+  window.removeEventListener('resize', viewportHandler);
+  viewportHandler = null;
+};
+
+const positionDropdown = () => {
+  const el = comboboxRef.value;
+  if (!el) return;
+
+  const r = el.getBoundingClientRect();
+  const below = window.innerHeight - r.bottom - GAP - 8;
+  const above = r.top - GAP - 8;
+  // 下面塞不下、且上面更宽裕才往上翻；钉住一侧再压 maxHeight，
+  // 不去量面板高度（量不准会直接盖住触发框，矮屏必现）。
+  const flipUp = below < POPOVER_MAX_H && above > below;
+  popStyle.value = {
+    position: 'fixed',
+    ...(flipUp
+      ? { bottom: `${window.innerHeight - r.top + GAP}px` }
+      : { top: `${r.bottom + GAP}px` }),
+    left: `${Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8))}px`,
+    width: `${r.width}px`,
+    maxHeight: `${Math.max(140, Math.min(POPOVER_MAX_H, flipUp ? above : below))}px`,
+  };
+};
+
 const selectOption = option => {
   if (selectedValue.value === option.value) {
     selectedValue.value = '';
@@ -71,7 +115,7 @@ const selectOption = option => {
     selectedValue.value = option.value;
     emit('update:modelValue', option.value);
   }
-  open.value = false;
+  closeDropdown();
   search.value = '';
 };
 
@@ -87,19 +131,30 @@ const showClear = computed(
 const clearSelection = () => {
   selectedValue.value = '';
   emit('update:modelValue', '');
-  open.value = false;
+  closeDropdown();
   search.value = '';
 };
 
 const toggleDropdown = () => {
   if (props.disabled) return;
-  open.value = !open.value;
   if (open.value) {
-    search.value = '';
-    emit('open');
-    nextTick(() => dropdownRef.value?.focus());
+    closeDropdown();
+    return;
   }
+  teleportTarget.value = comboboxRef.value?.closest('dialog') || 'body';
+  open.value = true;
+  search.value = '';
+  emit('open');
+  nextTick(() => {
+    positionDropdown();
+    dropdownRef.value?.focus();
+    viewportHandler = () => closeDropdown();
+    window.addEventListener('scroll', viewportHandler, true);
+    window.addEventListener('resize', viewportHandler);
+  });
 };
+
+onBeforeUnmount(closeDropdown);
 
 watch(
   () => props.modelValue,
@@ -119,7 +174,10 @@ watch(
     }"
     @click.prevent
   >
-    <OnClickOutside @trigger="open = false">
+    <OnClickOutside
+      :options="{ ignore: ['.combobox-dropdown'] }"
+      @trigger="closeDropdown"
+    >
       <Button
         variant="outline"
         :color="hasError && !open ? 'ruby' : open ? 'blue' : 'slate'"
@@ -160,17 +218,20 @@ watch(
         </template>
       </Button>
 
-      <ComboBoxDropdown
-        ref="dropdownRef"
-        v-model:search-value="search"
-        :open="open"
-        :options="filteredOptions"
-        :search-placeholder="searchPlaceholder"
-        :empty-state="emptyState"
-        :selected-values="selectedValue"
-        @search="emit('search', $event)"
-        @select="selectOption"
-      />
+      <teleport :to="teleportTarget">
+        <ComboBoxDropdown
+          ref="dropdownRef"
+          v-model:search-value="search"
+          :open="open"
+          :options="filteredOptions"
+          :search-placeholder="searchPlaceholder"
+          :empty-state="emptyState"
+          :selected-values="selectedValue"
+          :style="popStyle"
+          @search="emit('search', $event)"
+          @select="selectOption"
+        />
+      </teleport>
 
       <p
         v-if="message"

@@ -4,6 +4,7 @@ import MesLayout from './MesLayout.vue';
 import MesDashboardIndex from './pages/MesDashboardIndex.vue';
 import MesPipelineBoardIndex from './pages/MesPipelineBoardIndex.vue';
 import MesProductionOrdersIndex from './pages/MesProductionOrdersIndex.vue';
+import MesSupplierReturnsIndex from './pages/MesSupplierReturnsIndex.vue';
 import MesProductionOrderIntakeIndex from './pages/MesProductionOrderIntakeIndex.vue';
 import MesBomsIndex from './pages/MesBomsIndex.vue';
 import MesBomIntakeIndex from './pages/MesBomIntakeIndex.vue';
@@ -46,6 +47,11 @@ const mesPage = (path, name, component) => {
 
 export const routes = [
   mesPage('dashboard', 'mes_dashboard_index', MesDashboardIndex),
+  mesPage(
+    'supplier-returns',
+    'mes_supplier_returns_index',
+    MesSupplierReturnsIndex
+  ),
   mesPage('pipeline', 'mes_pipeline_index', MesPipelineBoardIndex),
   mesPage(
     'production-orders',

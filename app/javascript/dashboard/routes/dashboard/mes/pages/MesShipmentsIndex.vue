@@ -797,7 +797,7 @@ onMounted(() => {
                       color="iris"
                       size="sm"
                       :is-loading="acting"
-                      @click="approve(s)"
+                      @click="openApprove(s)"
                     />
                     <Button
                       label="驳回"

@@ -892,7 +892,9 @@ onMounted(async () => {
                   />
                 </span>
               </th>
-              <th class="px-3 py-3" />
+              <th
+                class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+              />
             </tr>
           </thead>
           <tbody>
@@ -986,7 +988,9 @@ onMounted(async () => {
                     </span>
                   </template>
                 </td>
-                <td class="px-3 py-3 text-right">
+                <td
+                  class="px-3 py-3 text-right sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                >
                   <div class="flex justify-end gap-1">
                     <Button
                       v-if="mesCan('bom') && b.status !== 'RELEASED'"
@@ -1138,7 +1142,9 @@ onMounted(async () => {
                   />
                 </span>
               </th>
-              <th class="px-3 py-2" />
+              <th
+                class="px-3 py-2 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+              />
             </tr>
           </thead>
           <tbody>
@@ -1237,7 +1243,9 @@ onMounted(async () => {
                   </span>
                 </template>
               </td>
-              <td class="px-3 py-2 text-right whitespace-nowrap">
+              <td
+                class="px-3 py-2 text-right whitespace-nowrap sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+              >
                 <button
                   type="button"
                   class="text-xs underline reset-base text-n-iris-11 underline-offset-2 hover:opacity-80"

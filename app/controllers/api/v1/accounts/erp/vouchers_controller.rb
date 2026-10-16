@@ -19,7 +19,19 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
     @voucher.prepared_by_id = current_user.id
     @voucher.save!
     @voucher.refresh_totals!
+    attach_staged_documents
     render 'api/v1/accounts/erp/vouchers/show'
+  end
+
+  # 建单前先把发票/水单传上来换 signed_id，保存时一并挂到凭证上。
+  def stage_blob
+    file = params[:file]
+    return render json: { error: '未收到文件' }, status: :unprocessable_entity if file.blank?
+
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: file.open, filename: file.original_filename, content_type: file.content_type
+    )
+    render json: { signed_id: blob.signed_id, filename: blob.filename.to_s, url: rails_blob_path(blob, only_path: true) }
   end
 
   def update
@@ -27,6 +39,7 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
 
     @voucher.update!(voucher_params)
     @voucher.refresh_totals!
+    attach_staged_documents
     render 'api/v1/accounts/erp/vouchers/show'
   end
 
@@ -176,6 +189,12 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
                       .find(params[:id])
   end
 
+  # 追加挂载，不动已传的（整组替换会把历史附件 purge 掉）。删某一张走 detach_document。
+  def attach_staged_documents
+    ids = params.dig(:voucher, :documents)
+    @voucher.documents.attach(ids) if ids.present?
+  end
+
   def check_authorization
     authorize(Erp::Voucher)
   end
@@ -183,6 +202,7 @@ class Api::V1::Accounts::Erp::VouchersController < Api::V1::Accounts::Erp::BaseC
   def voucher_params
     params.require(:voucher).permit(
       :voucher_date, :summary, :remark, :attachment_count,
+      { documents: [] },
       lines_attributes: [
         :id, :ledger_account_id, :direction, :summary, :amount_micros, :currency, :exchange_rate, :position,
         :crm_customer_id, :mes_supplier_id, :crm_sales_order_id, :department_id, :member_id,

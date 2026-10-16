@@ -104,8 +104,18 @@ const viewItems = computed(() =>
 const ITEMS_PER_PAGE = 15;
 const currentPage = ref(1);
 const totalCount = computed(() => store.getMeta?.count || 0);
+// 一个框搜多处（后端 Mes 入库单那套 SEARCH_SQL）：领料单号 / 工单号 / 成品名 / 物料编码 / 品名。
+const searchQuery = ref('');
 const fetchList = () =>
-  store.get({ purpose: 'MATERIAL_ISSUE', page: currentPage.value });
+  store.get({
+    purpose: 'MATERIAL_ISSUE',
+    page: currentPage.value,
+    q: searchQuery.value.trim() || undefined,
+  });
+const onSearch = () => {
+  currentPage.value = 1;
+  fetchList();
+};
 watch(currentPage, fetchList);
 
 const productionOrders = ref([]);
@@ -346,8 +356,22 @@ onMounted(async () => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">生产领料</h1>
+    <div
+      class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+    >
+      <h1
+        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        生产领料
+      </h1>
+      <div class="w-64 ms-auto me-2">
+        <Input
+          v-model="searchQuery"
+          size="sm"
+          placeholder="搜领料单号 / 工单号 / 物料编码"
+          @keyup.enter="onSearch"
+        />
+      </div>
       <Button
         v-if="canCreateIssue"
         label="新建领料单"
@@ -360,7 +384,9 @@ onMounted(async () => {
     <MesBoardOwnerBar board-key="mes_material_issues_index" />
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
@@ -599,6 +625,7 @@ onMounted(async () => {
             <div class="grid items-center grid-cols-12 gap-2">
               <div class="col-span-8">
                 <MesProductPicker
+                  materials-only
                   :account-id="accountId"
                   :model-value="row.crmProductId"
                   :display-text="productLabel(row.crmProductId)"

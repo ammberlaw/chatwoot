@@ -7,7 +7,7 @@ class Api::V1::Accounts::Crm::PisController < Api::V1::Accounts::Crm::BaseContro
   before_action :fetch_pi, only: [:show, :update, :destroy, :xlsx, :preview]
 
   RESULTS_PER_PAGE = 15
-  SUMMARY_STATUSES = %w[DRAFT PAID VOID].freeze
+  SUMMARY_STATUSES = %w[DRAFT UNPAID PAID VOID].freeze
 
   def index
     scope = filtered_pis

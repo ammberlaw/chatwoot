@@ -1,25 +1,15 @@
 class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseController
+  # 成品/裸机（跟着金蝶那列「商品类别」走，不另起一套分类字典）。
+  # 选料场景要把它们排除：领料领的是物料，不是整机。
+  FINISHED_CATEGORIES = %w[成品 裸机].freeze
+
   before_action :check_authorization
   before_action :fetch_product, only: [:show, :update, :destroy]
 
   # 产品档案（复用 CRM 产品库 Crm::Product）。MES 侧入口，供 BOM/采购/出库选成品。
   # 读全员可见；增删改仅工程与 PMC（Mes::ProductPolicy → mes_can?(:product)）。
   def index
-    scope = scoped_by_product_line(Current.account.crm_products)
-    scope = scope.active if params[:filter] == 'active'
-    # 🔴 搜索时**忽略左侧分类/分组筛选**：用户要找一个编码时，并不知道（也不该关心）
-    # 它挂在哪个类别下。原来两者是「与」的关系——选中「触摸屏」再搜 20.002 永远搜不到，
-    # 必须先点回「全部」，等于每次搜索前都要先想一下这颗料属于哪类。
-    if params[:q].present?
-      scope = scope.where(
-        'sku ILIKE :q OR name ILIKE :q OR source_category ILIKE :q OR specification ILIKE :q',
-        q: "%#{params[:q].strip}%"
-      )
-    else
-      scope = scope.where(category: params[:category]) if params[:category].present?
-      scope = scope.where(source_category: params[:source_category]) if params[:source_category].present?
-      scope = filter_by_group(scope) if params[:group_code].present?
-    end
+    scope = apply_product_filters(scoped_by_product_line(Current.account.crm_products))
     @products_count = scope.count
     # 按商品编码排，id 兜底。原来按 updated_at 排是错的：4800+ 条产品是一次导入进来的、
     # 共用同一个 updated_at，全序不唯一 → 同一条在每页都冒出来、另一批在任何一页都翻不到
@@ -99,6 +89,38 @@ class Api::V1::Accounts::Mes::ProductsController < Api::V1::Accounts::Mes::BaseC
   end
 
   private
+
+  # 列表筛选：启用态 → 搜索/分类（二选一） → 只看物料。
+  def apply_product_filters(scope)
+    scope = scope.active if params[:filter] == 'active'
+    scope = search_or_category(scope)
+    # materials_only=1：领料/BOM/采购这些「选料」场景只认物料。
+    # 产品档案按编码排序，成品是 P.01 段、裸机是 P.02 段，永远排在最前面——
+    # 领料单一点开下拉，第一屏全是成品型号，物料要翻好几页（用户原话：
+    # 「这个领料明细模块显示成品状态，看不到物料具体明细」）。
+    return scope if params[:materials_only].blank?
+
+    # 这里不能写 where.not：SQL 的 NOT IN 碰上 NULL 返回 NULL 而不是 true，
+    # 没填商品类别的料会被一并过滤掉（dev 库整库 source_category 为空，一搜就「无匹配物料」）。
+    scope.where('crm_products.source_category IS NULL OR crm_products.source_category NOT IN (?)',
+                FINISHED_CATEGORIES)
+  end
+
+  # 🔴 搜索时**忽略左侧分类/分组筛选**：用户要找一个编码时，并不知道（也不该关心）
+  # 它挂在哪个类别下。原来两者是「与」的关系——选中「触摸屏」再搜 20.002 永远搜不到，
+  # 必须先点回「全部」，等于每次搜索前都要先想一下这颗料属于哪类。
+  def search_or_category(scope)
+    if params[:q].present?
+      return scope.where(
+        'sku ILIKE :q OR name ILIKE :q OR source_category ILIKE :q OR specification ILIKE :q',
+        q: "%#{params[:q].strip}%"
+      )
+    end
+
+    scope = scope.where(category: params[:category]) if params[:category].present?
+    scope = scope.where(source_category: params[:source_category]) if params[:source_category].present?
+    params[:group_code].present? ? filter_by_group(scope) : scope
+  end
 
   # 类别顺序存在 option_item 里（category 固定这个值），code 带产品线前缀，
   # 这样平板的「主板」和商显的「主板」各自记各自的顺序，互不覆盖。

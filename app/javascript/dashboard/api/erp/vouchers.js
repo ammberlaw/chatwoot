@@ -12,6 +12,15 @@ API.bulkPost = voucherIds =>
 API.void = id => axios.post(`${API.url}/${id}/void`);
 
 // 原始单据影像（发票 / 水单扫描件）。已过账凭证也允许补传。
+// 新建凭证时还没有 id，先把单据影像暂存成 blob 拿 signed_id，保存时一并挂上。
+API.stageBlob = file => {
+  const form = new FormData();
+  form.append('file', file);
+  return axios.post(`${API.url}/stage_blob`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};
+
 API.attach = (id, files) => {
   const form = new FormData();
   files.forEach(file => form.append('files[]', file));

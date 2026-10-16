@@ -1,7 +1,7 @@
 <script setup>
 /* global axios */
 import { ref, computed, reactive, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useMesStockEntriesStore } from 'dashboard/stores/mes/stockEntries';
@@ -31,7 +31,7 @@ import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 import ColResizeHandle from 'dashboard/components-next/table/ColResizeHandle.vue';
 import MesColumnFilter from 'dashboard/components-next/mes/MesColumnFilter.vue';
 import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
-const { accountId } = useAccount();
+const { accountId, accountScopedRoute } = useAccount();
 const route = useRoute();
 const store = useMesStockEntriesStore();
 const { mesCan } = useMesRole();
@@ -343,6 +343,15 @@ const openView = e => {
   viewing.value = e;
   viewDialogRef.value?.open();
 };
+// 「这张工单到货明细」：一张工单的料摊成十几张入库单，光看单张看不出整单齐不齐，
+// 跳到销售订单详情里那块全量明细去（用户 10.16 反馈的查找麻烦，根子在这）。
+const router = useRouter();
+const goOrderArrivals = () => {
+  const no = viewing.value?.productionOrderNo;
+  if (!no) return;
+  router.push(accountScopedRoute('mes_production_orders_index', {}, { q: no }));
+};
+
 const viewFields = computed(() => {
   const e = viewing.value || {};
   return [
@@ -1031,7 +1040,9 @@ useRouteQueryReentry(query => {
                   />
                 </span>
               </th>
-              <th class="px-3 py-3" />
+              <th
+                class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+              />
             </tr>
           </thead>
           <tbody>
@@ -1086,7 +1097,9 @@ useRouteQueryReentry(query => {
                   {{ e.internalRemark || '—' }}
                 </template>
               </td>
-              <td class="px-3 py-3 text-right">
+              <td
+                class="px-3 py-3 text-right sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+              >
                 <div class="flex justify-end gap-1">
                   <Button
                     label="查看"
@@ -1194,7 +1207,9 @@ useRouteQueryReentry(query => {
                   />
                 </span>
               </th>
-              <th class="px-3 py-2" />
+              <th
+                class="px-3 py-2 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+              />
             </tr>
           </thead>
           <tbody>
@@ -1217,7 +1232,9 @@ useRouteQueryReentry(query => {
                 </template>
                 <template v-else>{{ row[col.key] }}</template>
               </td>
-              <td class="px-3 py-2 text-right">
+              <td
+                class="px-3 py-2 text-right sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+              >
                 <Button
                   label="查看"
                   variant="ghost"
@@ -1481,6 +1498,14 @@ useRouteQueryReentry(query => {
       :items="viewItems"
     >
       <template #headerActions>
+        <Button
+          v-if="viewing?.productionOrderNo"
+          label="这张工单到货明细"
+          variant="outline"
+          color="slate"
+          size="sm"
+          @click="goOrderArrivals"
+        />
         <Button
           label="打印入库单"
           variant="outline"

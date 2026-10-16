@@ -22,6 +22,11 @@ client.reject = (id, reason = '') =>
   axios.post(`${client.url}/${id}/reject`, { reason });
 client.approvalInbox = () => axios.get(`${client.url}/approval_inbox`);
 
+// 关闭 / 启用：关闭＝这单先不采购了（回冲在途、撤下待审批），启用＝接着用。
+// 原来的「作废」是单向的，下错一次就只能重开一张。
+client.close = id => axios.post(`${client.url}/${id}/close`);
+client.reopen = id => axios.post(`${client.url}/${id}/reopen`);
+
 // 明细行内部附图：先把图传上来拿 signed_id，随明细一起提交（后端 images= 整组替换）。
 client.stageBlob = formData =>
   axios.post(`${client.url}/stage_blob`, formData, {

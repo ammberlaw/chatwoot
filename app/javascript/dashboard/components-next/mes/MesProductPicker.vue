@@ -13,6 +13,9 @@ const props = defineProps({
   displayText: { type: String, default: '' }, // 触发器显示文本（已选料号/名称）
   placeholder: { type: String, default: '选物料（可搜编码/名称/规格）' },
   triggerClass: { type: String, default: '' },
+  // 只列物料（排除成品/裸机）。领料、BOM 用料这些场景要开——产品档案按编码排序，
+  // 成品在 P.01 段永远排最前，不排除的话下拉第一屏全是整机型号。
+  materialsOnly: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
 
@@ -35,7 +38,14 @@ const fetchRows = async (keyword = '') => {
   try {
     const { data } = await axios.get(
       `/api/v1/accounts/${props.accountId}/mes/products`,
-      { params: { q: keyword || undefined, per_page: 50, filter: 'active' } }
+      {
+        params: {
+          q: keyword || undefined,
+          per_page: 50,
+          filter: 'active',
+          materials_only: props.materialsOnly ? 1 : undefined,
+        },
+      }
     );
     rows.value = data?.payload || data || [];
   } catch {

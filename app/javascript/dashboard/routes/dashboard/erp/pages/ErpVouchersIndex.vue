@@ -21,6 +21,7 @@ import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import MonthPicker from 'dashboard/components-next/monthpicker/MonthPicker.vue';
 import PaginationFooter from 'dashboard/components-next/pagination/PaginationFooter.vue';
 import ErpDimensionFields from 'dashboard/components-next/erp/ErpDimensionFields.vue';
+import ErpAmountCells from 'dashboard/components-next/erp/ErpAmountCells.vue';
 import ErpVoucherPrintSheet from 'dashboard/components-next/erp/ErpVoucherPrintSheet.vue';
 import { printElement } from 'dashboard/helper/printHelper';
 import { downloadBlob } from 'dashboard/helper/erpDownload';
@@ -53,6 +54,24 @@ const STATUS_CLASS = {
   POSTED: STATUS_TONE.done,
   VOID: STATUS_VOID,
 };
+// 金额格的位名表头，跟 ErpAmountCells 的格子一一对齐。
+const AMOUNT_UNITS = [
+  '兆',
+  '千',
+  '百',
+  '十',
+  '亿',
+  '千',
+  '百',
+  '十',
+  '万',
+  '千',
+  '百',
+  '十',
+  '元',
+  '角',
+  '分',
+];
 const CURRENCIES = [
   { value: 'CNY', label: '人民币 CNY' },
   { value: 'USD', label: '美元 USD' },
@@ -192,6 +211,12 @@ const onDebitInput = line => {
 const onCreditInput = line => {
   if (line.credit) line.debit = '';
 };
+// 这行有没有东西要在表格下面展开：外币、辅助核算维度、现金流量项目。
+const lineNeedsExtra = line =>
+  line.currency !== 'CNY' ||
+  isCashLine(line) ||
+  (accountById(line.ledgerAccountId)?.dimensions || []).length > 0;
+
 // 选到外币科目时自动跟随科目币种（后端会校验币种须一致）。
 const onAccountChange = line => {
   const account = accountById(line.ledgerAccountId);
@@ -200,7 +225,64 @@ const onAccountChange = line => {
   if (line.currency === 'CNY') line.exchangeRate = 1;
 };
 
+// ── 原始单据影像 ──
+// 「附单据(张)」原来只是个数字（照纸质凭证的习惯填张数），发票/水单实际传不上来。
+// 新建时没有凭证 id，先把文件暂存成 blob 拿 signed_id，保存时一并挂上（同 PI、质检那套）；
+// 编辑已存在的凭证则直接走 attach / detach。
+const docInputRef = ref(null);
+const stagedDocs = ref([]); // 新建/本次新选的：{ name, signedId }
+const savedDocs = ref([]); // 已挂在凭证上的：{ id, filename, url }
+const uploadingDoc = ref(false);
+
+const triggerDocPick = () => docInputRef.value?.click();
+
+const onDocPick = async e => {
+  const files = [...(e.target.files || [])];
+  e.target.value = '';
+  if (!files.length) return;
+  uploadingDoc.value = true;
+  try {
+    // 逐个顺序传：一批里有一个失败，已成功的那些不该跟着丢。
+    await files.reduce(
+      (chain, file) =>
+        chain.then(async () => {
+          const { data } = await ErpVoucherAPI.stageBlob(file);
+          stagedDocs.value.push({
+            name: data.filename,
+            signedId: data.signed_id,
+          });
+        }),
+      Promise.resolve()
+    );
+    // 张数跟着附件走，省得两处对不上（人工还能再改）。
+    form.attachmentCount = savedDocs.value.length + stagedDocs.value.length;
+  } catch (error) {
+    useAlert(error?.message || '上传失败');
+  } finally {
+    uploadingDoc.value = false;
+  }
+};
+
+const removeStagedDoc = i => {
+  stagedDocs.value.splice(i, 1);
+  form.attachmentCount = savedDocs.value.length + stagedDocs.value.length;
+};
+
+const removeSavedDoc = async doc => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm(`删除附件「${doc.filename}」？`)) return;
+  try {
+    await ErpVoucherAPI.detach(editing.value.id, doc.id);
+    savedDocs.value = savedDocs.value.filter(d => d.id !== doc.id);
+    form.attachmentCount = savedDocs.value.length + stagedDocs.value.length;
+  } catch (error) {
+    useAlert(error?.message || '删除失败');
+  }
+};
+
 const openCreate = () => {
+  stagedDocs.value = [];
+  savedDocs.value = [];
   editing.value = null;
   selectedTemplateId.value = '';
   Object.assign(form, {
@@ -311,6 +393,8 @@ const onImportPicked = async event => {
 const openEdit = async voucher => {
   const { data } = await ErpVoucherAPI.show(voucher.id);
   editing.value = data;
+  stagedDocs.value = [];
+  savedDocs.value = data.documents || [];
   Object.assign(form, {
     voucherDate: data.voucher_date,
     summary: data.summary || '',
@@ -349,6 +433,7 @@ const buildPayload = () => ({
   voucherDate: form.voucherDate,
   summary: form.summary,
   attachmentCount: Number(form.attachmentCount || 0),
+  documents: stagedDocs.value.map(d => d.signedId),
   remark: form.remark,
   linesAttributes: form.lines
     .filter(l => l.ledgerAccountId && (l.debit || l.credit))
@@ -639,10 +724,16 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex items-center justify-between gap-3 px-6 py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+    >
       <div class="flex items-center gap-2">
         <div class="i-lucide-book-text size-5 text-n-iris-9" />
-        <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">记账凭证</h1>
+        <h1
+          class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+        >
+          记账凭证
+        </h1>
         <span class="text-sm text-n-slate-11">共 {{ totalCount }} 张</span>
       </div>
       <div class="flex items-center gap-2">
@@ -708,7 +799,9 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex items-center gap-2 px-6 pb-3 [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+    >
       <MonthPicker
         v-model="period"
         placeholder="全部期间"
@@ -723,7 +816,9 @@ onMounted(() => {
     </div>
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-6 pb-6 overflow-auto [.theme-classic_&]:!px-4 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>
@@ -953,108 +1048,264 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-2">
-          <div
-            v-for="(line, index) in form.lines"
-            :key="index"
-            class="flex flex-col gap-2 p-2 border rounded-lg border-n-weak"
+        <!-- 原始单据影像：张数那栏只是个数字（照纸质凭证的习惯填），发票/水单传这里。
+             新建时文件先暂存，保存凭证时一并挂上；编辑时点「×」直接从凭证上摘掉。 -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-heading-3 text-n-slate-12">原始单据</span>
+          <Button
+            label="上传发票 / 水单"
+            icon="i-lucide-paperclip"
+            color="slate"
+            variant="faded"
+            size="xs"
+            :is-loading="uploadingDoc"
+            @click="triggerDocPick"
+          />
+          <input
+            ref="docInputRef"
+            type="file"
+            multiple
+            class="hidden"
+            accept="image/*,.pdf"
+            @change="onDocPick"
+          />
+          <a
+            v-for="doc in savedDocs"
+            :key="`saved-${doc.id}`"
+            :href="doc.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-n-alpha-1 text-n-slate-11 hover:text-n-slate-12"
           >
-            <div class="grid items-center grid-cols-12 gap-2">
-              <div class="col-span-3">
-                <Input
-                  v-model="line.summary"
-                  size="sm"
-                  placeholder="摘要"
-                  list="erp-summary-options"
-                />
-              </div>
-              <div class="col-span-4">
-                <ComboBox
-                  v-model="line.ledgerAccountId"
-                  :options="accountOptions"
-                  placeholder="选会计科目"
-                  @update:model-value="onAccountChange(line)"
-                />
-              </div>
-              <div class="col-span-2">
-                <Input
-                  v-model="line.debit"
-                  size="sm"
-                  type="number"
-                  placeholder="借方金额"
-                  @input="onDebitInput(line)"
-                />
-              </div>
-              <div class="col-span-2">
-                <Input
-                  v-model="line.credit"
-                  size="sm"
-                  type="number"
-                  placeholder="贷方金额"
-                  @input="onCreditInput(line)"
-                />
-              </div>
-              <button
-                class="flex items-center justify-center col-span-1 size-8 text-n-slate-11 hover:text-n-ruby-11"
-                :disabled="form.lines.length <= 2"
-                @click="removeLine(index)"
-              >
-                <div class="i-lucide-trash-2 size-4" />
-              </button>
-            </div>
-
-            <div
-              v-if="line.currency !== 'CNY'"
-              class="flex items-center gap-2 text-xs text-n-slate-11"
-            >
-              <span>币种</span>
-              <div class="w-36">
-                <SelectCard
-                  v-model="line.currency"
-                  :options="CURRENCIES"
-                  block
-                />
-              </div>
-              <span>汇率</span>
-              <div class="w-24">
-                <Input v-model="line.exchangeRate" size="sm" type="number" />
-              </div>
-              <span>
-                折本位币
-                {{
-                  money(
-                    toMicros(
-                      Number(line.debit || line.credit || 0) *
-                        Number(line.exchangeRate || 1)
-                    )
-                  )
-                }}
-              </span>
-            </div>
-
-            <ErpDimensionFields
-              v-model="form.lines[index]"
-              :dimensions="accountById(line.ledgerAccountId)?.dimensions || []"
-              :required-dimension="
-                { RECEIVABLE: 'customer', PAYABLE: 'supplier' }[
-                  accountById(line.ledgerAccountId)?.accountType
-                ] || ''
-              "
+            <span class="max-w-[12rem] truncate">{{ doc.filename }}</span>
+            <button
+              type="button"
+              class="shrink-0 i-lucide-x size-3 hover:text-n-ruby-11"
+              @click.prevent.stop="removeSavedDoc(doc)"
             />
+          </a>
+          <span
+            v-for="(doc, i) in stagedDocs"
+            :key="`staged-${i}`"
+            class="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-n-amber-2 text-n-amber-11"
+          >
+            <span class="max-w-[12rem] truncate">{{ doc.name }}</span>
+            <button
+              type="button"
+              class="shrink-0 i-lucide-x size-3 hover:text-n-ruby-11"
+              @click="removeStagedDoc(i)"
+            />
+          </span>
+          <span
+            v-if="!savedDocs.length && !stagedDocs.length"
+            class="text-xs text-n-slate-10"
+          >
+            还没传单据
+          </span>
+        </div>
 
-            <!-- 货币资金分录才出现：留空由现金流量表按对方科目自动判定 -->
-            <div v-if="isCashLine(line)" class="flex items-center gap-1.5">
-              <span class="text-xs whitespace-nowrap text-n-slate-11">
-                现金流量项目
-              </span>
-              <div class="w-72">
-                <ComboBox
-                  v-model="line.cashFlowItem"
-                  :options="cashFlowItemOptions"
-                  placeholder="自动判定"
-                />
-              </div>
-            </div>
+        <!-- 记账凭证表格：序号 | 摘要 | 科目 | 借方 | 贷方，金额按位分格（同金蝶/用友）。
+             辅助核算（客户/供应商/订单）、外币汇率、现金流量项目不占主表的列——
+             哪行需要就在那行下面展开一小条，主表保持财务看惯的样子。 -->
+        <div class="flex flex-col gap-2">
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[920px] border-collapse">
+              <thead>
+                <tr class="text-xs text-n-slate-11">
+                  <th
+                    rowspan="2"
+                    class="w-10 p-1 font-medium border border-n-weak bg-n-alpha-1"
+                  >
+                    序号
+                  </th>
+                  <th
+                    rowspan="2"
+                    class="p-1 font-medium border w-52 border-n-weak bg-n-alpha-1"
+                  >
+                    摘要
+                  </th>
+                  <th
+                    rowspan="2"
+                    class="p-1 font-medium border w-60 border-n-weak bg-n-alpha-1"
+                  >
+                    科目
+                  </th>
+                  <th class="p-1 font-medium border border-n-weak bg-n-alpha-1">
+                    借方
+                  </th>
+                  <th class="p-1 font-medium border border-n-weak bg-n-alpha-1">
+                    贷方
+                  </th>
+                  <th
+                    rowspan="2"
+                    class="w-8 p-1 border border-n-weak bg-n-alpha-1"
+                  />
+                </tr>
+                <tr class="text-[10px] text-n-slate-10">
+                  <th class="p-0 font-normal border border-n-weak bg-n-alpha-1">
+                    <div class="flex">
+                      <span
+                        v-for="(u, i) in AMOUNT_UNITS"
+                        :key="`d${i}`"
+                        class="flex-1 min-w-0 py-0.5 border-r border-n-weak last:border-r-0"
+                      >
+                        {{ u }}
+                      </span>
+                    </div>
+                  </th>
+                  <th class="p-0 font-normal border border-n-weak bg-n-alpha-1">
+                    <div class="flex">
+                      <span
+                        v-for="(u, i) in AMOUNT_UNITS"
+                        :key="`c${i}`"
+                        class="flex-1 min-w-0 py-0.5 border-r border-n-weak last:border-r-0"
+                      >
+                        {{ u }}
+                      </span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <template v-for="(line, index) in form.lines" :key="index">
+                  <tr>
+                    <td
+                      class="p-1 text-xs text-center border text-n-slate-11 border-n-weak"
+                    >
+                      {{ index + 1 }}
+                    </td>
+                    <td class="p-1 border border-n-weak">
+                      <Input
+                        v-model="line.summary"
+                        size="sm"
+                        placeholder="摘要"
+                        list="erp-summary-options"
+                      />
+                    </td>
+                    <td class="p-1 border border-n-weak">
+                      <ComboBox
+                        v-model="line.ledgerAccountId"
+                        :options="accountOptions"
+                        placeholder="选会计科目"
+                        @update:model-value="onAccountChange(line)"
+                      />
+                    </td>
+                    <td class="p-0 border border-n-weak">
+                      <ErpAmountCells
+                        v-model="line.debit"
+                        @input="onDebitInput(line)"
+                      />
+                    </td>
+                    <td class="p-0 border border-n-weak">
+                      <ErpAmountCells
+                        v-model="line.credit"
+                        @input="onCreditInput(line)"
+                      />
+                    </td>
+                    <td class="p-0 text-center border border-n-weak">
+                      <button
+                        class="flex items-center justify-center mx-auto size-7 text-n-slate-11 hover:text-n-ruby-11 disabled:opacity-40"
+                        :disabled="form.lines.length <= 2"
+                        @click="removeLine(index)"
+                      >
+                        <div class="i-lucide-trash-2 size-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+
+                  <!-- 该行的辅助核算 / 外币 / 现金流量：只在需要时出现，不占主表的列 -->
+                  <tr v-if="lineNeedsExtra(line)">
+                    <td class="border border-n-weak bg-n-alpha-1/40" />
+                    <td
+                      colspan="5"
+                      class="p-2 border border-n-weak bg-n-alpha-1/40"
+                    >
+                      <div class="flex flex-col gap-2">
+                        <div
+                          v-if="line.currency !== 'CNY'"
+                          class="flex items-center gap-2 text-xs text-n-slate-11"
+                        >
+                          <span>币种</span>
+                          <div class="w-32">
+                            <SelectCard
+                              v-model="line.currency"
+                              :options="CURRENCIES"
+                              block
+                            />
+                          </div>
+                          <span>汇率</span>
+                          <div class="w-24">
+                            <Input
+                              v-model="line.exchangeRate"
+                              size="sm"
+                              type="number"
+                            />
+                          </div>
+                          <span>
+                            折本位币
+                            {{
+                              money(
+                                toMicros(
+                                  Number(line.debit || line.credit || 0) *
+                                    Number(line.exchangeRate || 1)
+                                )
+                              )
+                            }}
+                          </span>
+                        </div>
+
+                        <ErpDimensionFields
+                          v-model="form.lines[index]"
+                          :dimensions="
+                            accountById(line.ledgerAccountId)?.dimensions || []
+                          "
+                          :required-dimension="
+                            { RECEIVABLE: 'customer', PAYABLE: 'supplier' }[
+                              accountById(line.ledgerAccountId)?.accountType
+                            ] || ''
+                          "
+                        />
+
+                        <div
+                          v-if="isCashLine(line)"
+                          class="flex items-center gap-1.5"
+                        >
+                          <span
+                            class="text-xs whitespace-nowrap text-n-slate-11"
+                          >
+                            现金流量项目
+                          </span>
+                          <div class="w-72">
+                            <ComboBox
+                              v-model="line.cashFlowItem"
+                              :options="cashFlowItemOptions"
+                              placeholder="自动判定"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+              <tfoot>
+                <tr class="text-xs">
+                  <td
+                    colspan="3"
+                    class="p-1 font-medium text-right border border-n-weak bg-n-alpha-1"
+                  >
+                    合计
+                  </td>
+                  <td class="p-0 font-medium border border-n-weak bg-n-alpha-1">
+                    <ErpAmountCells :model-value="totalDebit" disabled />
+                  </td>
+                  <td class="p-0 font-medium border border-n-weak bg-n-alpha-1">
+                    <ErpAmountCells :model-value="totalCredit" disabled />
+                  </td>
+                  <td class="border border-n-weak bg-n-alpha-1" />
+                </tr>
+              </tfoot>
+            </table>
           </div>
 
           <div class="flex items-center justify-between">
@@ -1067,18 +1318,6 @@ onMounted(() => {
               @click="addLine"
             />
             <div class="flex items-center gap-4 text-sm">
-              <span class="text-n-slate-11">
-                借方合计
-                <span class="font-mono text-n-slate-12">{{
-                  money(toMicros(totalDebit))
-                }}</span>
-              </span>
-              <span class="text-n-slate-11">
-                贷方合计
-                <span class="font-mono text-n-slate-12">{{
-                  money(toMicros(totalCredit))
-                }}</span>
-              </span>
               <span v-if="!balanced" class="font-medium text-n-ruby-11">
                 差额 {{ money(toMicros(difference)) }}
               </span>

@@ -1442,6 +1442,7 @@ const menuItems = computed(() => {
           'mes_purchase_requisitions_index',
           'mes_suppliers_index',
           'mes_stock_entries_index',
+          'mes_supplier_returns_index',
           'mes_stock_balances_index',
           'mes_warehouses_index',
           'mes_serial_numbers_index',
@@ -1563,6 +1564,13 @@ const menuItems = computed(() => {
             label: t('SIDEBAR.MES_STOCK_BALANCES'),
             to: accountScopedRoute('mes_stock_balances_index'),
             activeOn: ['mes_stock_balances_index'],
+          },
+          // 退料返修：退给供应商修的料，紧挨着入库/库存放（都是料的进出）。
+          {
+            name: 'MES Supplier Returns',
+            label: t('SIDEBAR.MES_SUPPLIER_RETURNS'),
+            to: accountScopedRoute('mes_supplier_returns_index'),
+            activeOn: ['mes_supplier_returns_index'],
           },
           {
             name: 'MES Shopfloor',
@@ -2309,6 +2317,7 @@ const ROUTE_MODULE = {
   mes_purchase_requisitions_index: 'mes',
   mes_suppliers_index: 'mes',
   mes_stock_entries_index: 'mes',
+  mes_supplier_returns_index: 'mes',
   mes_material_issues_index: 'mes',
   mes_production_records_index: 'mes',
   mes_inspections_index: 'mes',

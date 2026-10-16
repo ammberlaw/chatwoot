@@ -29,6 +29,9 @@ class Mes::PurchaseOrderPolicy < ApplicationPolicy
 
   def return_document? = @account_user.mes_can?(:purchase)
   def reactivate? = @account_user.mes_can?(:purchase)
+  # 关闭 / 启用：能改单就能关、能再开（控制器另按建单人本人或管理员收口）。
+  def close? = @account_user.mes_can?(:purchase)
+  def reopen? = @account_user.mes_can?(:purchase)
 
   # 草稿删除：采购员自己建的废稿要能清掉（控制器 deletable? 限定只有未提审、未到货的草稿）。
   def destroy? = @account_user.administrator? || @account_user.mes_can?(:purchase)

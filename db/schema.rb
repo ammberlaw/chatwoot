@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_16_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_17_160000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -3076,6 +3076,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_16_140000) do
     t.index ["production_order_id"], name: "index_mes_notifications_on_production_order_id"
   end
 
+  create_table "mes_order_feedbacks", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "production_order_id", null: false
+    t.bigint "user_id"
+    t.string "kind", default: "DELAY", null: false
+    t.string "material_name"
+    t.date "promised_date"
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_mes_order_feedbacks_on_account_id"
+    t.index ["production_order_id", "created_at"], name: "index_mes_order_feedbacks_on_order_and_time"
+  end
+
   create_table "mes_order_forwards", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "production_order_id", null: false
@@ -3492,6 +3506,39 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_16_140000) do
     t.index ["mes_material_id"], name: "index_mes_supplier_items_on_mes_material_id"
     t.index ["supplier_id", "material_code"], name: "index_mes_supplier_items_on_supplier_id_and_material_code", unique: true
     t.index ["supplier_id"], name: "index_mes_supplier_items_on_supplier_id"
+  end
+
+  create_table "mes_supplier_return_items", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "supplier_return_id", null: false
+    t.bigint "crm_product_id"
+    t.decimal "qty", precision: 14, scale: 3, default: "0.0", null: false
+    t.decimal "returned_qty", precision: 14, scale: 3, default: "0.0", null: false
+    t.string "unit"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["crm_product_id"], name: "index_mes_supplier_return_items_on_crm_product_id"
+    t.index ["supplier_return_id"], name: "index_mes_supplier_return_items_on_supplier_return_id"
+  end
+
+  create_table "mes_supplier_returns", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "return_no", null: false
+    t.bigint "mes_supplier_id", null: false
+    t.bigint "production_order_id"
+    t.string "product_line"
+    t.string "status", default: "DRAFT", null: false
+    t.date "sent_on"
+    t.date "returned_on"
+    t.bigint "owner_id"
+    t.text "reason"
+    t.text "remark"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "return_no"], name: "index_mes_supplier_returns_on_account_id_and_return_no", unique: true
+    t.index ["account_id", "status"], name: "index_mes_supplier_returns_on_account_id_and_status"
+    t.index ["production_order_id"], name: "index_mes_supplier_returns_on_production_order_id"
   end
 
   create_table "mes_suppliers", force: :cascade do |t|

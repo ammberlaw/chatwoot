@@ -42,6 +42,8 @@ const sellerProfileRef = ref(null);
 // 已作废保持灰 + 删除线（STATUS_VOID），不走 fail 的红。
 const STATUSES = computed(() => ({
   DRAFT: { label: t('CRM.PI.STATUS.DRAFT'), class: STATUS_TONE.idle },
+  // 未付款＝已发客户、待收款，和「还没做完的草稿」不是一回事。
+  UNPAID: { label: t('CRM.PI.STATUS.UNPAID'), class: STATUS_TONE.busy },
   PAID: { label: t('CRM.PI.STATUS.PAID'), class: STATUS_TONE.done },
   VOID: { label: t('CRM.PI.STATUS.VOID'), class: STATUS_VOID },
 }));
@@ -64,6 +66,12 @@ const KPI_META_DEFAULT = [
     text: 'text-n-slate-11',
   },
   {
+    key: 'UNPAID',
+    track: 'text-n-amber-3',
+    ring: 'text-n-amber-9',
+    text: 'text-n-amber-11',
+  },
+  {
     key: 'PAID',
     track: 'text-[#d1fae5]',
     ring: 'text-[#10b981]',
@@ -76,7 +84,7 @@ const KPI_META_DEFAULT = [
     text: 'text-n-ruby-11',
   },
 ];
-// 经典灰：全部=黄 / 草稿=灰 / 已付款=鼠尾草绿 / 作废=黑
+// 经典灰：全部=黄 / 草稿=灰 / 未付款=琥珀 / 已付款=鼠尾草绿 / 作废=黑
 const KPI_META_CLASSIC = [
   {
     key: 'all',
@@ -89,6 +97,12 @@ const KPI_META_CLASSIC = [
     track: 'text-n-slate-4',
     ring: 'text-n-slate-8',
     text: 'text-n-slate-11',
+  },
+  {
+    key: 'UNPAID',
+    track: 'text-[#fbeec0]',
+    ring: 'text-[#ffc53d]',
+    text: 'text-[#a97e0c]',
   },
   {
     key: 'PAID',
@@ -106,6 +120,7 @@ const KPI_META_CLASSIC = [
 const KPI_LABELS = {
   all: t('CRM.PI.KPI.ALL'),
   DRAFT: t('CRM.PI.STATUS.DRAFT'),
+  UNPAID: t('CRM.PI.STATUS.UNPAID'),
   PAID: t('CRM.PI.STATUS.PAID'),
   VOID: t('CRM.PI.STATUS.VOID'),
 };

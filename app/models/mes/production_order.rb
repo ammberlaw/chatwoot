@@ -180,6 +180,8 @@ class Mes::ProductionOrder < ApplicationRecord
   belongs_to :bom_confirmed_by, class_name: 'User', optional: true # 历史字段：原「业务二次确认生产任务单」的人，流程已取消
   belongs_to :outsource_supplier, class_name: 'Mes::Supplier', optional: true # 外购成品供应商（工程指定）
   has_many :stage_events, class_name: 'Mes::ProductionOrderStageEvent', dependent: :destroy, inverse_of: :production_order
+  # 物料反馈面板：采购把供应商那边的情况（延误/改期/到货）更新给业务看。
+  has_many :order_feedbacks, class_name: 'Mes::OrderFeedback', dependent: :destroy, inverse_of: :production_order
   # 接单/转交流水（一个阶段可两人接力，各自留痕；订单上的 stage_ack_* 只表示「当前状态」）
   has_many :stage_ack_events, class_name: 'Mes::StageAckEvent', dependent: :destroy, inverse_of: :production_order
   has_many :order_forwards, -> { order(created_at: :desc) }, class_name: 'Mes::OrderForward', dependent: :destroy, inverse_of: :production_order

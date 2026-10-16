@@ -24,6 +24,22 @@ import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const { mesCan } = useMesRole();
 const store = useMesInspectionsStore();
+
+// 后端每页 15 条，不传 page 就只看得到最新 15 条（生产上 27 条，12 条看不见）。
+const ITEMS_PER_PAGE = 15;
+const currentPage = ref(1);
+const totalCount = computed(() => store.getMeta?.count || 0);
+// 列表搜索：工单号 / 成品名 / 不良原因。
+const searchQuery = ref('');
+const fetchList = () =>
+  store.get({
+    page: currentPage.value,
+    q: searchQuery.value.trim() || undefined,
+  });
+const onSearch = () => {
+  currentPage.value = 1;
+  fetchList();
+};
 const materialsStore = useMesMaterialsStore();
 
 const records = computed(() => store.getRecords);
@@ -200,11 +216,6 @@ const submit = async () => {
   }
 };
 
-// 后端每页 15 条，不传 page 就只看得到最新 15 条（生产上 27 条，12 条看不见）。
-const ITEMS_PER_PAGE = 15;
-const currentPage = ref(1);
-const totalCount = computed(() => store.getMeta?.count || 0);
-const fetchList = () => store.get({ page: currentPage.value });
 watch(currentPage, fetchList);
 
 onMounted(() => {
@@ -225,8 +236,22 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">质量检验</h1>
+    <div
+      class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+    >
+      <h1
+        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        质量检验
+      </h1>
+      <div class="w-64 ms-auto me-2">
+        <Input
+          v-model="searchQuery"
+          size="sm"
+          placeholder="搜工单号 / 成品 / 不良原因"
+          @keyup.enter="onSearch"
+        />
+      </div>
       <Button
         v-if="mesCan('quality')"
         label="新增检验"
@@ -239,7 +264,9 @@ onMounted(() => {
     <MesBoardOwnerBar board-key="mes_inspections_index" />
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>

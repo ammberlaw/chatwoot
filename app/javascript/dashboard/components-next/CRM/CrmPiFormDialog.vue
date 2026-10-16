@@ -1,6 +1,6 @@
 <script setup>
 /* global axios */
-import { computed, reactive, ref } from 'vue';
+import { computed, nextTick, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -17,6 +17,8 @@ import SelectCard from 'dashboard/components-next/select/SelectCard.vue';
 import DatePicker from 'dashboard/components-next/datepicker/DatePicker.vue';
 import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import TextArea from 'dashboard/components-next/textarea/TextArea.vue';
+
+import { useDirtyGuard } from 'dashboard/composables/useDirtyGuard';
 
 const emit = defineEmits(['saved']);
 
@@ -61,9 +63,18 @@ const blankForm = () => ({
 });
 
 const form = reactive(blankForm());
+// 做到一半点了别处就整张 PI 没了（用户原话：「再回页面的时候，就变空白了」）。
+// 接上全站那套未保存守卫：点 X / 取消 / 点外部 / Esc 都会先问一句，而不是直接丢掉。
+// pictureUrl 是上传后服务端回的地址，不算用户改动。
+const { isDirty, markPristine } = useDirtyGuard(() => form, {
+  ignore: ['pictureUrl'],
+});
 
 const statusOptions = [
   { value: 'DRAFT', label: t('CRM.PI.STATUS.DRAFT') },
+  // 未付款：PI 已经发给客户、钱还没到。业务员自己不掌握收款（金额走财务对账），
+  // 没这一档就只能一直挂「草稿」，看不出「待收款」和「还没做完」的区别。
+  { value: 'UNPAID', label: t('CRM.PI.STATUS.UNPAID') },
   { value: 'PAID', label: t('CRM.PI.STATUS.PAID') },
   { value: 'VOID', label: t('CRM.PI.STATUS.VOID') },
 ];
@@ -324,6 +335,8 @@ const open = record => {
     loadSellerDefaults();
   }
   dialogRef.value?.open();
+  // 回填完再取基线，否则刚打开就被判成「已修改」。
+  nextTick(markPristine);
 };
 
 const isValid = computed(() => !!form.piDate);
@@ -485,6 +498,7 @@ const submit = async () => {
         ? t('CRM.PI.FORM.SAVED_CONVERTED', { no: convertedOrderNo })
         : t('CRM.PI.FORM.SAVED')
     );
+    markPristine();
     dialogRef.value?.close();
     emit('saved');
     // 刚转出来的单缺结算方式（或抬头没对上收款账户）就地补，别让它空着流到应收台账
@@ -517,6 +531,8 @@ defineExpose({ open });
     width="4xl"
     overflow-y-auto
     confirm-button-color="iris"
+    :dirty="isDirty"
+    @close="markPristine"
     :title="
       editingId ? t('CRM.PI.FORM.EDIT_TITLE') : t('CRM.PI.FORM.NEW_TITLE')
     "
@@ -696,6 +712,12 @@ defineExpose({ open });
           :key="i"
           class="flex items-start gap-2 p-2 border rounded-lg border-n-weak"
         >
+          <!-- 序号：一张 PI 常有六七个型号，没有序号对不上客户回邮里说的「第 3 项」。 -->
+          <span
+            class="w-5 pt-1 text-xs text-right shrink-0 tabular-nums text-n-slate-10"
+          >
+            {{ i + 1 }}
+          </span>
           <div class="flex flex-col items-center gap-1 shrink-0">
             <button
               type="button"

@@ -181,6 +181,8 @@ class Account < ApplicationRecord
   has_many :mes_shipments, class_name: 'Mes::Shipment', dependent: :destroy_async
   has_many :mes_shipment_items, class_name: 'Mes::ShipmentItem', dependent: :destroy_async
   has_many :mes_production_orders, class_name: 'Mes::ProductionOrder', dependent: :destroy_async
+  has_many :mes_order_feedbacks, class_name: 'Mes::OrderFeedback', dependent: :destroy_async
+  has_many :mes_supplier_returns, class_name: 'Mes::SupplierReturn', dependent: :destroy_async
   has_many :mes_board_owners, class_name: 'Mes::BoardOwner', dependent: :destroy_async
   has_many :mes_bom_templates, class_name: 'Mes::BomTemplate', dependent: :destroy_async
   has_many :mes_notifications, class_name: 'Mes::Notification', dependent: :destroy_async

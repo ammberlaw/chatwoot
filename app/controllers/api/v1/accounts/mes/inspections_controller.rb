@@ -3,9 +3,7 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
 
   def index
     scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_inspections))
-    scope = scope.where(kind: params[:kind]) if params[:kind].present?
-    scope = scope.where(result: params[:result]) if params[:result].present?
-    scope = scope.where(production_order_id: params[:production_order_id]) if params[:production_order_id].present?
+    scope = apply_search(apply_filters(scope), params[:q])
     @inspections_count = scope.count
     @inspections = scope.order(inspected_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
@@ -39,6 +37,25 @@ class Api::V1::Accounts::Mes::InspectionsController < Api::V1::Accounts::Mes::Ba
   end
 
   private
+
+  def apply_filters(scope)
+    %i[kind result production_order_id].each do |key|
+      scope = scope.where(key => params[key]) if params[key].present?
+    end
+    scope
+  end
+
+  # 质检翻记录找的是「哪张单、哪个产品、什么不良」。
+  def apply_search(scope, raw)
+    q = raw.to_s.strip
+    return scope if q.blank?
+
+    like = "%#{q}%"
+    orders = Current.account.mes_production_orders
+                    .where('order_no ILIKE :q OR product_name ILIKE :q', q: like).select(:id)
+    scope.where(production_order_id: orders)
+         .or(scope.where('mes_inspections.defect_reason ILIKE :q', q: like))
+  end
 
   def check_authorization
     authorize(Mes::Inspection)

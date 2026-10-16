@@ -58,6 +58,7 @@ class Mes::PurchaseOrder < ApplicationRecord
   include Mes::LineScoped
   require_product_line!
   include Mes::Returnable
+  include Mes::PurchaseOrderClosing
 
   STATUSES = %w[DRAFT SUBMITTED PARTIAL_RECEIVED RECEIVED CANCELLED].freeze
   # 审批（一级）：与收货状态 status 正交。DRAFT→提交→PENDING_GM（待审批）→APPROVED/REJECTED。
@@ -148,12 +149,6 @@ class Mes::PurchaseOrder < ApplicationRecord
   RECEIPT_DRIVEN_STATUSES = %w[PARTIAL_RECEIVED RECEIVED].freeze
 
   def received? = status == 'RECEIVED'
-
-  # 可删：还没进流程的草稿（未提审、未到货）。已提交/已批/已收过货的一律留痕，走「退回」而不是删。
-  def deletable?
-    status == 'DRAFT' && approval_status.in?(%w[DRAFT REJECTED]) &&
-      purchase_items.where('received_qty > 0').none?
-  end
 
   # 预览/导出计次：一个供应商几十张单时，采购员靠这个数一眼看出哪张还没导出转发过。
   # 原子自增，避免同一张单被连点两下只记一次。

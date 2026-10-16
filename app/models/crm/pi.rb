@@ -1,6 +1,10 @@
 # 形式发票（Proforma Invoice）。业务在系统里建 PI、按模板改、导出 PDF 发客户。
 # 买方/装运信息存快照（选客户带入、可改），改 PI 不影响客户档案。
-# 状态：草稿(DRAFT) → 已付款(PAID) → 已作废(VOID)。付款后转生成销售订单（二期）。
+# 状态：草稿(DRAFT) → 未付款(UNPAID) → 已付款(PAID) → 已作废(VOID)。付款后转生成销售订单（二期）。
+#
+# UNPAID 是单独一档：PI 已经发出去、但钱还没到。原来只有「草稿/已付款」两档，
+# 业务员自己不掌握收款（迪拜这类单价金额都在财务对账），单子就只能一直挂「草稿」，
+# 看不出「已发客户待收款」和「还没做完」的区别。
 # == Schema Information
 #
 # Table name: crm_pis
@@ -52,7 +56,7 @@
 #  fk_rails_...  (handled_by_id => users.id) ON DELETE => nullify
 #
 class Crm::Pi < ApplicationRecord
-  STATUSES = %w[DRAFT PAID VOID].freeze
+  STATUSES = %w[DRAFT UNPAID PAID VOID].freeze
 
   belongs_to :account
   belongs_to :owner, class_name: 'User', optional: true

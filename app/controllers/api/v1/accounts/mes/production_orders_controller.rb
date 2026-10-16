@@ -64,6 +64,8 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
     @fg_inbound_qty_by_order = Mes::ProductionOrder.bulk_fg_inbound_qty(Current.account, @production_orders.map(&:id))
     # 领料状态同理：列表要显示领没领过料，整批查一次。
     @issued_counts_by_order = Mes::ProductionOrder.bulk_issued_counts(Current.account, @production_orders.map(&:id))
+    # 组装齐 / 包装齐：业务在列表上一眼看出能不能开工、能不能装箱（原来要点进缺料清单数）。
+    @kit_readiness = Mes::KitReadiness.bulk(Current.account, @production_orders.to_a)
     # 采购单的「关联生产订单」下拉要把料已下满的单拿掉，这个判断要展开 BOM，只在它要的时候算。
     return unless boolean_param(:with_purchasing_complete)
 
@@ -79,6 +81,15 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
       production_order_params.merge(owner_id: production_order_params[:owner_id] || current_user.id)
     )
     return unless apply_sales_user_limits!(@production_order)
+
+    # 同一张销售订单的同一个成品，手工建单也不许重复——生产上出现过同一张 PI 隔三分钟
+    # 建出两张一模一样的工单（单号手填，一张 -01 一张 -001），下游采购照着两张单各下一次料。
+    # 一键转单（convert）早就按「销售订单 + 产品」做了幂等，这里补上手工入口的同一道闸。
+    dup = duplicate_order_for(@production_order)
+    if dup
+      return render json: { error: "销售订单 #{dup.crm_sales_order&.order_no} 的这个成品已经建过生产订单 #{dup.order_no}，不要重复建单" },
+                    status: :unprocessable_entity
+    end
 
     @production_order.fallback_product_line = current_product_line
     @production_order.save!
@@ -513,6 +524,16 @@ class Api::V1::Accounts::Mes::ProductionOrdersController < Api::V1::Accounts::Me
         product_name: row[:product_name].presence, delivery_date: row[:delivery_date].presence,
         owner_id: row[:owner_id].presence, row: row[:row].presence }
     end
+  end
+
+  # 同销售订单 + 同成品已有的在办生产订单（已取消的不算，取消后可以重建）。
+  # 库存备货单（不挂销售订单）和没选成品的单不判重——它们本来就允许开多张。
+  def duplicate_order_for(order)
+    return nil if order.crm_sales_order_id.blank? || order.crm_product_id.blank?
+
+    Current.account.mes_production_orders
+           .where(crm_sales_order_id: order.crm_sales_order_id, crm_product_id: order.crm_product_id)
+           .where.not(status: 'CANCELLED').first
   end
 
   # 该销售订单下已转过的 产品id → 生产订单号（已取消的不算，取消后可以重转）。

@@ -14,6 +14,7 @@ import MesHiddenLineHint from 'dashboard/components-next/mes/MesHiddenLineHint.v
 import { useMesProductionOrdersStore } from 'dashboard/stores/mes/productionOrders';
 import MesProductionOrderAPI from 'dashboard/api/mes/productionOrders';
 import MesBomAPI from 'dashboard/api/mes/boms';
+import MesOrderFeedbackAPI from 'dashboard/api/mes/orderFeedbacks';
 import { useMesRole } from 'dashboard/composables/useMesRole';
 import { useOrderableColumns } from 'dashboard/composables/useOrderableColumns';
 import { useCrmRole } from 'dashboard/composables/useCrmRole';
@@ -248,6 +249,12 @@ const COLUMN_DEFS = [
     label: '完工状态',
     tdClass: 'px-3 py-3 whitespace-nowrap',
   },
+  // 齐套：整机料到齐＝能开工组装，包装料到齐＝能装箱。业务原来要点进缺料清单一张张数。
+  {
+    key: 'kitState',
+    label: '齐套',
+    tdClass: 'px-3 py-3 whitespace-nowrap',
+  },
   {
     key: 'remark',
     label: '备注',
@@ -306,6 +313,23 @@ const doneState = po => {
     : { label: '部分入库', cls: 'text-n-amber-11' };
 };
 
+// 齐套徽标：后端按 BOM 类别分两组判到料（Mes::KitReadiness）。
+// ready 为 null ＝ 没挂 BOM 或这类没有料，那一枚徽标就不显示——不能当成「齐了」。
+const kitBadge = (po, key, label) => {
+  const state = po.kitReadiness?.[key];
+  if (!state || state.ready === null || state.ready === undefined) return null;
+  return state.ready
+    ? { label: `${label}齐`, cls: 'bg-n-teal-3 text-n-teal-11' }
+    : {
+        label: `${label}差${state.short}`,
+        cls: 'bg-n-amber-3 text-n-amber-11',
+      };
+};
+const kitBadges = po =>
+  [kitBadge(po, 'machine', '组装'), kitBadge(po, 'packaging', '包装')].filter(
+    Boolean
+  );
+
 const records = computed(() => store.getRecords);
 const uiFlags = computed(() => store.getUIFlags);
 const isFetching = computed(() => uiFlags.value.fetchingList);
@@ -350,6 +374,124 @@ const ownerFilterOptions = computed(() => [
 
 // —— 详情面板选中项（提前声明：视图切换要清空它）——
 const selected = ref(null);
+
+// ── 物料到货明细 ──
+// 用户原话：「这1个工单原材料入库查找起来比较麻烦，都是一个一个的找……1个工单应该包含
+// 这个单所有的物料明细，无论是组装还是包装物料都方便查找」。一张工单的料会摊成十几张入库单，
+// 这里把整机料 + 包装料一次列全，和缺料清单、齐套徽标同一套口径（后端 Mes::MaterialArrival）。
+const showArrivals = ref(false);
+const arrivalShortOnly = ref(true);
+const arrivalRows = computed(() => {
+  const rows = selected.value?.materialArrivals || [];
+  return arrivalShortOnly.value
+    ? rows.filter(r => Number(r.outstanding || 0) > 0)
+    : rows;
+});
+const arrivalGroups = computed(() => {
+  const groups = new Map();
+  arrivalRows.value.forEach(r => {
+    const key = r.categoryLabel || '其它';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  return [...groups.entries()].map(([label, rows]) => ({ label, rows }));
+});
+const arrivalShortCount = computed(
+  () =>
+    (selected.value?.materialArrivals || []).filter(
+      r => Number(r.outstanding || 0) > 0
+    ).length
+);
+
+// ── 物料反馈面板 ──
+// 用户原话：「加一个反馈面板，比如这款机器什么物料延误了交期，采购在这里更新给业务看。」
+// 和 BOM 行上的卡点分工：卡点＝这颗料为什么还没下单；这里＝单下出去之后供应商那边的情况。
+const FEEDBACK_KINDS = [
+  { value: 'DELAY', label: '交期延误' },
+  { value: 'RESCHEDULE', label: '改期' },
+  { value: 'SHORTAGE', label: '供应商缺货' },
+  { value: 'ARRIVED', label: '已到货' },
+  { value: 'OTHER', label: '其它' },
+];
+const FEEDBACK_TONE = {
+  DELAY: 'bg-n-amber-3 text-n-amber-11',
+  SHORTAGE: 'bg-n-ruby-3 text-n-ruby-11',
+  ARRIVED: 'bg-n-teal-3 text-n-teal-11',
+};
+const feedbacks = ref([]);
+const feedbackLoading = ref(false);
+const feedbackSaving = ref(false);
+const showFeedbackForm = ref(false);
+const feedbackForm = reactive({
+  kind: 'DELAY',
+  materialName: '',
+  promisedDate: '',
+  body: '',
+});
+const canWriteFeedback = computed(() => mesCan('purchase'));
+
+const resetFeedbackForm = () => {
+  Object.assign(feedbackForm, {
+    kind: 'DELAY',
+    materialName: '',
+    promisedDate: '',
+    body: '',
+  });
+};
+
+const loadFeedbacks = async orderId => {
+  feedbacks.value = [];
+  if (!orderId) return;
+  feedbackLoading.value = true;
+  try {
+    const { data } = await MesOrderFeedbackAPI.get(accountId.value, orderId);
+    feedbacks.value = camelcaseKeys(data?.payload || [], { deep: true });
+  } catch {
+    feedbacks.value = [];
+  } finally {
+    feedbackLoading.value = false;
+  }
+};
+
+const submitFeedback = async () => {
+  if (!feedbackForm.body.trim() || !selected.value) return;
+  feedbackSaving.value = true;
+  try {
+    const { data } = await MesOrderFeedbackAPI.create(
+      accountId.value,
+      selected.value.id,
+      {
+        kind: feedbackForm.kind,
+        body: feedbackForm.body.trim(),
+        material_name: feedbackForm.materialName.trim() || null,
+        promised_date: feedbackForm.promisedDate || null,
+      }
+    );
+    feedbacks.value = [camelcaseKeys(data, { deep: true }), ...feedbacks.value];
+    resetFeedbackForm();
+    showFeedbackForm.value = false;
+    useAlert('已更新，业务在订单上就能看到');
+  } catch (error) {
+    useAlert(error?.message || '提交失败');
+  } finally {
+    feedbackSaving.value = false;
+  }
+};
+
+const removeFeedback = async item => {
+  // eslint-disable-next-line no-alert
+  if (!window.confirm('删掉这条反馈？')) return;
+  try {
+    await MesOrderFeedbackAPI.delete(
+      accountId.value,
+      selected.value.id,
+      item.id
+    );
+    feedbacks.value = feedbacks.value.filter(f => f.id !== item.id);
+  } catch (error) {
+    useAlert(error?.message || '删除失败');
+  }
+};
 // 外购单时间线用短版脊柱（依赖 selected，故定义在其后）。
 const timelineStages = computed(() =>
   selected.value?.isOutsourced
@@ -466,6 +608,12 @@ const selectRow = row => {
   selected.value = row;
   // 换单时收起上一单展开着的缺料清单，否则看着像是新单的缺料。
   showShortage.value = false;
+  showArrivals.value = false;
+  arrivalShortOnly.value = true;
+  // 物料反馈同理：换单就重新拉，别把上一单的延误留在面板上。
+  showFeedbackForm.value = false;
+  resetFeedbackForm();
+  loadFeedbacks(row.id);
   // 列表行不带缺料明细（逐行展开每张采购单的明细会 N+1），展开面板时补拉一次详情。
   // 转换方式必须和 store 一致（深转 camelCase），否则面板里一半字段读不到。
   MesProductionOrderAPI.show(row.id)
@@ -2024,7 +2172,9 @@ watch(currentPage, fetchRecords);
                     />
                   </span>
                 </th>
-                <th class="px-3 py-3" />
+                <th
+                  class="px-3 py-3 sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                />
               </tr>
             </thead>
             <tbody>
@@ -2216,6 +2366,22 @@ watch(currentPage, fetchRecords);
                       {{ doneState(po).label }}
                     </span>
                   </template>
+                  <template v-if="col.key === 'kitState'">
+                    <span
+                      v-for="b in kitBadges(po)"
+                      :key="b.label"
+                      class="inline-block px-1.5 py-0.5 mr-1 text-xs rounded"
+                      :class="b.cls"
+                    >
+                      {{ b.label }}
+                    </span>
+                    <span
+                      v-if="!kitBadges(po).length"
+                      class="text-xs text-n-slate-10"
+                    >
+                      —
+                    </span>
+                  </template>
                   <template v-if="col.key === 'remark'">
                     <span class="block truncate" :title="po.remark || ''">
                       {{ po.remark || '—' }}
@@ -2248,7 +2414,10 @@ watch(currentPage, fetchRecords);
                     {{ po.ownerName || '—' }}
                   </template>
                 </td>
-                <td class="px-3 py-3 text-right" @click.stop>
+                <td
+                  class="px-3 py-3 text-right sticky right-0 z-10 bg-n-solid-1 border-l border-n-weak after:absolute after:inset-y-0 after:left-full after:w-8 after:bg-n-solid-1 after:content-['']"
+                  @click.stop
+                >
                   <div class="flex items-center justify-end gap-1">
                     <Button
                       v-if="canEditRow(po)"
@@ -2865,6 +3034,191 @@ watch(currentPage, fetchRecords);
               </span>
             </li>
           </ul>
+        </div>
+
+        <!-- 物料到货明细：这张工单所有的料（整机 + 包装）一屏列全，每行走到哪了一目了然，
+             不用再按工单翻十几张入库单一张张点（用户 10.16 反馈）。
+             独立于「关联采购单」：还没下单的料更要列出来，那才是最该催的。 -->
+        <div v-if="isMesStaff" class="pt-3 mt-3 border-t border-n-weak">
+          <button
+            type="button"
+            class="flex items-center w-full gap-1.5 text-xs reset-base text-n-slate-11 hover:text-n-slate-12"
+            @click="showArrivals = !showArrivals"
+          >
+            <span class="font-medium">物料到货明细</span>
+            <span v-if="arrivalShortCount" class="text-n-amber-11">
+              · {{ arrivalShortCount }} 项没到齐
+            </span>
+            <span
+              class="ms-auto shrink-0 size-3"
+              :class="
+                showArrivals ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'
+              "
+            />
+          </button>
+
+          <template v-if="showArrivals">
+            <label
+              class="flex items-center gap-1.5 mt-1.5 text-xs text-n-slate-11"
+            >
+              <input v-model="arrivalShortOnly" type="checkbox" />
+              只看没到齐的
+            </label>
+            <div v-for="g in arrivalGroups" :key="g.label" class="mt-1.5">
+              <div class="mb-1 text-xs font-medium text-n-slate-11">
+                {{ g.label }}（{{ g.rows.length }}）
+              </div>
+              <div
+                v-for="r in g.rows"
+                :key="`${g.label}-${r.materialNo}-${r.name}`"
+                class="flex flex-col gap-0.5 py-1 border-b last:border-b-0 border-n-weak/50"
+              >
+                <div class="flex items-baseline gap-2 text-xs">
+                  <span class="shrink-0 text-n-slate-12">
+                    {{ r.materialNo || '—' }}
+                  </span>
+                  <span class="flex-1 min-w-0 truncate text-n-slate-11">
+                    {{ r.name || '—' }}
+                  </span>
+                </div>
+                <div class="flex items-baseline gap-2 text-xs text-n-slate-10">
+                  <span>需求 {{ fmtQty(r.required) }}</span>
+                  <span>下单 {{ fmtQty(r.ordered) }}</span>
+                  <span>到货 {{ fmtQty(r.received) }}</span>
+                  <span
+                    :class="
+                      Number(r.outstanding) > 0
+                        ? 'text-n-amber-11 font-medium'
+                        : 'text-n-teal-11'
+                    "
+                  >
+                    {{
+                      Number(r.outstanding) > 0
+                        ? `还差 ${fmtQty(r.outstanding)}`
+                        : '已到齐'
+                    }}
+                  </span>
+                  <span class="ms-auto shrink-0">
+                    {{
+                      r.poNos && r.poNos.length ? r.poNos.join('/') : '未下单'
+                    }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div
+              v-if="!arrivalGroups.length"
+              class="mt-1.5 text-xs text-n-slate-10"
+            >
+              {{
+                arrivalShortOnly
+                  ? '所有料都到齐了。'
+                  : '这张单还没挂生产任务单。'
+              }}
+            </div>
+          </template>
+        </div>
+
+        <!-- 物料反馈：采购把供应商那边的情况写在这，业务不用再追着问「那颗料什么时候到」。
+             独立于「关联采购单」：还没下单就延误（供应商缺货/等涨价）也要说得出来。 -->
+        <div v-if="isMesStaff" class="pt-3 mt-3 border-t border-n-weak">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="text-xs font-medium text-n-slate-12">物料反馈</span>
+            <span v-if="feedbacks.length" class="text-xs text-n-slate-10">
+              {{ feedbacks.length }} 条
+            </span>
+            <button
+              v-if="canWriteFeedback"
+              type="button"
+              class="ml-auto text-xs text-n-iris-11 hover:underline"
+              @click="showFeedbackForm = !showFeedbackForm"
+            >
+              {{ showFeedbackForm ? '收起' : '写一条' }}
+            </button>
+          </div>
+
+          <div
+            v-if="showFeedbackForm"
+            class="flex flex-col gap-2 p-2 mb-2 rounded-lg bg-n-alpha-1"
+          >
+            <div class="flex items-center gap-2">
+              <div class="w-28 shrink-0">
+                <SelectCard
+                  v-model="feedbackForm.kind"
+                  :options="FEEDBACK_KINDS"
+                  block
+                />
+              </div>
+              <Input
+                v-model="feedbackForm.materialName"
+                size="sm"
+                placeholder="哪颗料（选填）"
+              />
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs shrink-0 text-n-slate-11">预计到货</span>
+              <Input
+                v-model="feedbackForm.promisedDate"
+                size="sm"
+                type="date"
+              />
+            </div>
+            <Input
+              v-model="feedbackForm.body"
+              size="sm"
+              placeholder="例：科普鑫来料紧张，承诺 10 天后到，已催"
+            />
+            <Button
+              label="更新给业务"
+              color="iris"
+              size="xs"
+              class="self-end"
+              :is-loading="feedbackSaving"
+              :disabled="!feedbackForm.body.trim()"
+              @click="submitFeedback"
+            />
+          </div>
+
+          <div v-if="feedbackLoading" class="text-xs text-n-slate-10">
+            正在取…
+          </div>
+          <div v-else-if="!feedbacks.length" class="text-xs text-n-slate-10">
+            还没有反馈。
+          </div>
+          <div
+            v-for="f in feedbacks"
+            :key="f.id"
+            class="flex flex-col gap-0.5 py-1.5 border-b last:border-b-0 border-n-weak/60"
+          >
+            <div class="flex items-center gap-1.5">
+              <span
+                class="px-1.5 py-0.5 text-xs rounded shrink-0"
+                :class="FEEDBACK_TONE[f.kind] || 'bg-n-slate-4 text-n-slate-11'"
+              >
+                {{ f.kindLabel }}
+              </span>
+              <span
+                v-if="f.materialName"
+                class="flex-1 min-w-0 text-xs truncate text-n-slate-12"
+              >
+                {{ f.materialName }}
+              </span>
+              <button
+                v-if="canWriteFeedback"
+                type="button"
+                title="删掉这条"
+                class="ml-auto shrink-0 i-lucide-x size-3 text-n-slate-10 hover:text-n-ruby-11"
+                @click="removeFeedback(f)"
+              />
+            </div>
+            <span class="text-xs text-n-slate-11">{{ f.body }}</span>
+            <span class="text-xs text-n-slate-10">
+              {{ f.userName || '—' }}
+              <template v-if="f.promisedDate">
+                · 预计到货 {{ f.promisedDate }}
+              </template>
+            </span>
+          </div>
         </div>
 
         <!-- 定制规格（生产订单单据内容） -->

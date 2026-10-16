@@ -26,7 +26,10 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     SQL
   }
 
-  # 一个框搜多处：单号 / 采购单号 / 对内备注 / 供应商 / 物料编码 / 品名 / 归属人。
+  # 一个框搜多处：单号 / 采购单号 / 对内备注 / 供应商 / 物料编码 / 品名 / 工单号 / 成品名 / 归属人。
+  # 工单号是后补的：一张工单的料摊成十几张单，车间和财务最常用的就是拿工单号来找
+  # （原先只按归属人姓名搜生产订单，搜工单号一条都出不来）。内连 users 还会把
+  # 没指定归属人的单整个漏掉，一并改成 LEFT JOIN。
   # 表头漏斗是「知道要筛哪一列」时用的，这个框是「只记得一个号或一个厂名」时用的，两者可叠加。
   # ⚠️ 同样全走子查询不 join 明细，理由见 ITEM_MATCH_SQL 上面那段（分页数会翻倍 + owner_id 歧义）。
   SEARCH_SQL = <<~SQL.squish
@@ -36,7 +39,8 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     OR mes_stock_entries.purchase_order_id IN (SELECT pit.purchase_order_id FROM mes_purchase_items pit
          JOIN mes_suppliers sup ON sup.id = pit.mes_supplier_id WHERE sup.name ILIKE :q)
     OR mes_stock_entries.production_order_id IN (SELECT mpo.id FROM mes_production_orders mpo
-         JOIN users usr ON usr.id = mpo.owner_id WHERE usr.name ILIKE :q)
+         LEFT JOIN users usr ON usr.id = mpo.owner_id
+         WHERE mpo.order_no ILIKE :q OR mpo.product_name ILIKE :q OR usr.name ILIKE :q)
     OR #{ITEM_MATCH_SQL.call('p.sku ILIKE :q OR m.material_no ILIKE :q OR p.name ILIKE :q OR m.name ILIKE :q')}
   SQL
 
@@ -65,15 +69,16 @@ class Api::V1::Accounts::Mes::StockEntriesController < Api::V1::Accounts::Mes::B
     posted_from: ->(scope, v) { scope.where('mes_stock_entries.posted_at >= ?', v) },
     posted_to: ->(scope, v) { scope.where('mes_stock_entries.posted_at <= ?', "#{v} 23:59:59") }
   }.freeze
+  # 工单号对采购入库单要从采购单那边回落取（见 _mes_stock_entry.json.jbuilder），
+  # 不预加载就是每行两次查库。
+  LIST_EAGER_LOADS = [{ production_order: %i[owner crm_product] }, { purchase_order: { production_order: %i[owner crm_product] } }].freeze
 
   def index
     scope = scoped_by_order_owner(scoped_by_product_line(Current.account.mes_stock_entries))
-    COLUMN_FILTERS.each do |param, column|
-      scope = scope.where(column => params[param]) if params[param].present?
-    end
+    COLUMN_FILTERS.each { |param, column| scope = scope.where(column => params[param]) if params[param].present? }
     scope = apply_column_filters(scope)
     @stock_entries_count = scope.count
-    @stock_entries = scope.order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
+    @stock_entries = scope.includes(LIST_EAGER_LOADS).order(created_at: :desc, id: :desc).page(page_param).per(RESULTS_PER_PAGE)
   end
 
   def show; end

@@ -87,9 +87,14 @@ defineExpose({
 </script>
 
 <template>
+  <!-- 定位交给父组件（Teleport 出去 + fixed），这里只管长相。
+       combobox-dropdown：给 ComboBox 自己的「点外部关闭」排除用。
+       data-glass-popover：Dialog 的点外部判断按它忽略（@vueuse 走 capture 阶段，
+       光在这里 @click.stop 拦不住），否则点一下选项会把整个对话框关掉。 -->
   <div
     v-show="open"
-    class="absolute z-50 w-full mt-1 transition-opacity duration-200 border rounded-md shadow-lg bg-n-solid-1 border-n-strong"
+    data-glass-popover
+    class="combobox-dropdown z-50 overflow-hidden transition-opacity duration-200 border rounded-md shadow-lg bg-n-solid-1 border-n-strong"
   >
     <div class="relative border-b border-n-strong">
       <span class="absolute i-lucide-search top-2.5 size-4 left-3" />

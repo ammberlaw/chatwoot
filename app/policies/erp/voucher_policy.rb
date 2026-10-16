@@ -7,6 +7,8 @@ class Erp::VoucherPolicy < ApplicationPolicy
   def create? = @account_user.erp_can?(:voucher)
   def update? = @account_user.erp_can?(:voucher)
   def destroy? = @account_user.erp_can?(:voucher)
+  # 新建时先把单据影像暂存成 blob（拿 signed_id），保存时一并挂上；attach?/detach? 另有定义。
+  def stage_blob? = @account_user.erp_can?(:voucher)
   def post_voucher? = @account_user.erp_can?(:voucher)
   def bulk_post? = @account_user.erp_can?(:voucher)
   def reverse? = @account_user.erp_can?(:voucher)

@@ -19,11 +19,14 @@ const { variant, orientation, inReplyTo, shouldGroupWithNext } =
   useMessageContext();
 const { t } = useI18n();
 
+// 我方发出用奶黄、客户发来用白 —— 跟 CRM 团队聊天（CrmTeamChatIndex）同一组色号，
+// 两个聊天界面看起来是一套东西。私人便笺仍是它一直以来的琥珀 + 锁图标。
 const varaintBaseMap = {
-  [MESSAGE_VARIANTS.AGENT]: 'bg-n-solid-blue text-n-slate-12',
+  [MESSAGE_VARIANTS.AGENT]: 'bg-[#f6e3a0] text-[#29271f]',
   [MESSAGE_VARIANTS.PRIVATE]:
     'bg-n-solid-amber text-n-amber-12 [&_.prosemirror-mention-node]:font-semibold',
-  [MESSAGE_VARIANTS.USER]: 'bg-n-slate-4 text-n-slate-12',
+  [MESSAGE_VARIANTS.USER]:
+    'bg-white text-[#292b2d] ring-1 ring-inset ring-black/5',
   [MESSAGE_VARIANTS.ACTIVITY]: 'bg-n-alpha-1 text-n-slate-11 text-sm',
   [MESSAGE_VARIANTS.BOT]: 'bg-n-solid-iris text-n-slate-12',
   [MESSAGE_VARIANTS.TEMPLATE]: 'bg-n-solid-iris text-n-slate-12',

@@ -1,0 +1,9 @@
+json.id resource.id
+json.kind resource.kind
+json.kind_label resource.kind_label
+json.material_name resource.material_name
+json.promised_date resource.promised_date
+json.body resource.body
+json.user_id resource.user_id
+json.user_name mes_staff_name(resource.user)
+json.created_at resource.created_at

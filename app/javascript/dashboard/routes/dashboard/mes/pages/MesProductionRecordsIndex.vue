@@ -20,6 +20,11 @@ import ComboBox from 'dashboard/components-next/combobox/ComboBox.vue';
 import HScrollButtons from 'dashboard/components-next/HScrollButtons.vue';
 const { accountId } = useAccount();
 const store = useMesProductionRecordsStore();
+
+// 列表搜索：工单号 / 成品名 / 工序 / 备注。车间翻记录基本就靠这几样。
+const searchQuery = ref('');
+const fetchList = () => store.get({ q: searchQuery.value.trim() || undefined });
+const onSearch = () => fetchList();
 const { mesCan } = useMesRole();
 const { isMyDoc } = useMesDocOwner();
 // 报工的制单人是报工人本人（operatorId），别人删不了。
@@ -145,7 +150,7 @@ const submit = async () => {
     });
     useAlert('报工已录入');
     dialogRef.value?.close();
-    store.get();
+    fetchList();
     fetchOrders();
   } catch (e) {
     useAlert(e?.message || '报工失败，请重试');
@@ -171,15 +176,29 @@ const confirmDelete = async () => {
 };
 
 onMounted(() => {
-  store.get();
+  fetchList();
   fetchOrders();
 });
 </script>
 
 <template>
   <div class="flex flex-col w-full h-full">
-    <div class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8">
-      <h1 class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8">生产报工</h1>
+    <div
+      class="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 [.theme-classic_&]:flex-wrap [.theme-classic_&]:gap-3 [.theme-classic_&]:items-center [.theme-classic_&]:sm:!px-8"
+    >
+      <h1
+        class="text-xl font-semibold text-n-slate-12 [.theme-classic_&]:!text-heading-1 [.theme-classic_&]:!font-semibold [.theme-classic_&]:!leading-8"
+      >
+        生产报工
+      </h1>
+      <div class="w-64 ms-auto me-2">
+        <Input
+          v-model="searchQuery"
+          size="sm"
+          placeholder="搜工单号 / 成品 / 工序"
+          @keyup.enter="onSearch"
+        />
+      </div>
       <Button
         v-if="mesCan('report')"
         label="报工"
@@ -192,7 +211,9 @@ onMounted(() => {
     <MesBoardOwnerBar board-key="mes_production_records_index" />
 
     <HScrollButtons />
-    <div class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8">
+    <div
+      class="flex-1 min-h-0 px-4 pb-4 overflow-auto sm:px-6 sm:pb-6 [.theme-classic_&]:sm:!px-8"
+    >
       <div v-if="isFetching" class="py-10 text-center text-n-slate-11">
         加载中…
       </div>

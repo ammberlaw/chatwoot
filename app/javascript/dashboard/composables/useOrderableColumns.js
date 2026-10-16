@@ -13,8 +13,15 @@ import { computed, ref } from 'vue';
  *
  * @param {Array<{key:string}>} defs 列定义（key 必须稳定，改了等于新列）
  * @param {string} storageKey 本机存储键；多人共用一台机器时自行带上用户 id
+ * @param {string[]} options.defaultHidden 这台机器第一次打开时默认收起的列。
+ *        给列特别多的表用（应收待建账 31 列、横着要翻两屏半）：默认只摆常看的那些，
+ *        其余在「列」面板里随时打开。只影响「从没调过列」的人，调过的按本机记录来。
  */
-export function useOrderableColumns(defs, storageKey) {
+export function useOrderableColumns(
+  defs,
+  storageKey,
+  { defaultHidden = [] } = {}
+) {
   const defaultKeys = defs.map(c => c.key);
   const orderedKeys = ref([...defaultKeys]);
   const hiddenKeys = ref([]);
@@ -42,9 +49,13 @@ export function useOrderableColumns(defs, storageKey) {
   // 收起的列。新增的列默认显示（不在这个表里就是显示），所以只需剔除已下线的 key。
   const loadHidden = () => {
     try {
-      const saved = JSON.parse(
-        localStorage.getItem(hiddenStorageKey) || 'null'
-      );
+      const raw = localStorage.getItem(hiddenStorageKey);
+      // 从没调过列（本机没存过）→ 用默认收起名单；调过的一律按本机记录来，不去覆盖人家。
+      if (raw === null) {
+        hiddenKeys.value = defaultHidden.filter(k => defaultKeys.includes(k));
+        return;
+      }
+      const saved = JSON.parse(raw || 'null');
       hiddenKeys.value = Array.isArray(saved)
         ? saved.filter(k => defaultKeys.includes(k))
         : [];
