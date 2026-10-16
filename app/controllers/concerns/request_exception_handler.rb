@@ -52,12 +52,29 @@ module RequestExceptionHandler
     render json: { error: message }, status: :internal_server_error
   end
 
+  # ⚠️ 校验文案必须在**账号 locale 下**生成，否则中文界面上弹出来的是
+  # 「Order no has already been taken」这种英文串。
+  #
+  # 根因是 around 回调的嵌套顺序（ApplicationController 注册在前、所以在外层）：
+  #   switch_locale(en) → handle_with_exception → switch_locale_using_account_locale(zh_CN) → action
+  # 异常从 action 往外传时先穿过账号 locale 那层（locale 已恢复成 en），
+  # 才被 handle_with_exception 接住——生成 full_messages 那一刻就是英文了。
+  # 调回调顺序要动上游结构，这里在取文案时显式切回去，影响面最小。
   def render_record_invalid(exception)
     log_handled_error(exception)
-    render json: {
-      message: exception.record.errors.full_messages.join(', '),
-      attributes: exception.record.errors.attribute_names
-    }, status: :unprocessable_entity
+    messages = I18n.with_locale(account_error_locale) do
+      exception.record.errors.full_messages.join(', ')
+    end
+    render json: { message: messages, attributes: exception.record.errors.attribute_names },
+           status: :unprocessable_entity
+  end
+
+  # 取当前账号的 locale；取不到就维持现状（不猜）。
+  def account_error_locale
+    locale = @current_account&.locale.presence || Current.account&.locale.presence
+    return I18n.locale if locale.blank?
+
+    I18n.available_locales.map(&:to_s).include?(locale) ? locale : I18n.locale
   end
 
   def render_error_response(exception)

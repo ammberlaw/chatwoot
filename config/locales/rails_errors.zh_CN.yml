@@ -16,6 +16,30 @@ zh_CN:
     supplier_no: 供应商编码
     unit_price: 单价
     specification: 规格型号
+    # 单据号：各板块的编号字段都在这儿，否则报错长成「Order no已经被使用」——半中半英。
+    order_no: 单号
+    po_no: 采购单号
+    entry_no: 出入库单号
+    shipment_no: 出库单号
+    pi_no: PI 号
+    bom_no: 生产任务单号
+    receivable_no: 应收单号
+    payable_no: 应付单号
+    voucher_no: 凭证号
+    customer_code: 客户编码
+    sku: 商品编码
+    # 通用字段
+    name: 名称
+    product_name: 品名
+    qty: 数量
+    unit: 单位
+    stage: 阶段
+    status: 状态
+    purpose: 用途
+    kind: 类型
+    order_date: 下单日期
+    contact_email: 联系邮箱
+    remark: 备注
   activerecord:
     errors:
       messages:
@@ -27,7 +51,7 @@ zh_CN:
     format: "%{attribute}%{message}"
     messages:
       accepted: 必须是可被接受的
-      blank: 不能为空字符
+      blank: 不能为空
       confirmation: 与%{attribute}不匹配
       empty: 不能留空
       equal_to: 必须等于%{count}
@@ -40,13 +64,13 @@ zh_CN:
       less_than: 必须小于%{count}
       less_than_or_equal_to: 必须小于或等于%{count}
       model_invalid: 验证失败：%{errors}
-      not_a_number: 不是数字
+      not_a_number: 必须填数字
       not_an_integer: 必须是整数
       odd: 必须为单数
       other_than: 长度非法（不可为%{count}个字符）
-      present: 必须是空白
+      present: 必须留空
       required: 必须存在
-      taken: 已经被使用
+      taken: 已存在，不能重复
       too_long: 过长（最长为%{count}个字符）
       too_short: 过短（最短为%{count}个字符）
       wrong_length: 长度非法（必须为%{count}个字符）
